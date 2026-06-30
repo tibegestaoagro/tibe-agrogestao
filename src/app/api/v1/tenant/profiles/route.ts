@@ -3,6 +3,7 @@ import { apiOk, apiError, ApiErrors } from "@/lib/api";
 import { getSessionUser, getTenantDb } from "@/lib/tenant-context";
 import { scoped } from "@/lib/prisma";
 import { requireRole } from "@/lib/permissions";
+import { provisionDefaultVaccines } from "@/lib/vaccines";
 
 /**
  * POST /api/v1/tenant/profiles  (spec Módulo 0, task 0.5)
@@ -62,6 +63,11 @@ export async function POST(request: Request) {
     }
   } else {
     profile = await db.tenantProfile.create({ data: scoped({ profile_type }) });
+  }
+
+  // Ao ativar o perfil Fazenda, provisiona o catálogo de vacinas padrão (1.4).
+  if (profile_type === "fazenda" && profile!.active) {
+    await provisionDefaultVaccines(db);
   }
 
   return apiOk(

@@ -1,6 +1,7 @@
 import "dotenv/config";
 import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/prisma";
+import { prisma, prismaForTenant } from "@/lib/prisma";
+import { provisionDefaultVaccines } from "@/lib/vaccines";
 
 /**
  * Seed inicial (spec task 0.4): tenant Da Mata Sementes + usuário owner.
@@ -42,9 +43,13 @@ async function main() {
     },
   });
 
+  // Vacinas padrão para o tenant Da Mata (idempotente).
+  await provisionDefaultVaccines(prismaForTenant(tenant.id));
+
   console.log("✅ Seed concluído.");
   console.log(`   Tenant: ${tenant.name} (${tenant.id})`);
   console.log(`   Owner:  ${owner.email} / senha: ${OWNER_PASSWORD}`);
+  console.log("   Vacinas padrão provisionadas (aftosa, brucelose, raiva, clostridiose)");
   console.log("   (sem TenantProfile → primeiro login cai no onboarding)");
 }
 
