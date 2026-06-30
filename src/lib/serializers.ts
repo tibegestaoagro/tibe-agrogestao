@@ -102,6 +102,45 @@ export function serializeCycle(c: any) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function serializeServiceClient(c: any) {
+  return {
+    id: c.id,
+    name: c.name,
+    document: c.document ?? null,
+    phone: c.phone ?? null,
+    email: c.email ?? null,
+    notes: c.notes ?? null,
+    created_at: c.created_at.toISOString(),
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function serializeService(s: any) {
+  return {
+    id: s.id,
+    name: s.name,
+    pricing_type: s.pricing_type,
+    unit_price: decToNum(s.unit_price),
+    created_at: s.created_at.toISOString(),
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function serializeServiceOrder(o: any) {
+  return {
+    id: o.id,
+    service_client_id: o.service_client_id,
+    service_id: o.service_id,
+    description: o.description ?? null,
+    quantity: decToNum(o.quantity),
+    total_value: decToNum(o.total_value),
+    performed_at: isoOrNull(o.performed_at),
+    status: o.status,
+    created_at: o.created_at.toISOString(),
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function serializeInput(i: any) {
   return {
     id: i.id,

@@ -14,7 +14,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "auth:check": "tsx scripts/auth-check.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
-    "test:m1": "tsx scripts/m1-isolation.test.ts"
+    "test:m1": "tsx scripts/m1-isolation.test.ts",
+    "test:m2": "tsx scripts/m2-isolation.test.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
