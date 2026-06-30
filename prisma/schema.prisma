@@ -1,0 +1,530 @@
+// Tibé (AgroGestão) — schema multi-tenant
+// Modelo de dados: PRD seção 4. Isolamento por tenant_id: PRD seção 10.4.
+//
+// Convenções:
+// - Modelos em PascalCase, campos em snake_case (espelham os contratos de API do PRD).
+// - Todo modelo de negócio carrega `tenant_id` e é coberto pelo middleware de isolamento
+//   (lib/prisma.ts), EXCETO os modelos-filho que herdam o tenant via relação com o pai
+//   (AnimalWeightLog, AnimalVaccination, AnimalMovement, CropCycle, PlotInput) e o
+//   PlatformUser, que vive fora do isolamento por desenho (PRD seção 4 e 10.4).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────
+
+enum TenantPlan {
+  campo
+  fazenda
+  grupo
+}
+
+enum TenantStatus {
+  trial
+  active
+  suspended
+  canceled
+}
+
+enum PlatformRole {
+  MASTER_ADMIN
+  EQUIPE
+}
+
+enum ProfileType {
+  fazenda
+  prestador
+}
+
+// Roles de tenant em MAIÚSCULAS conforme spec 0.6 e contrato POST /api/auth/login.
+enum UserRole {
+  OWNER
+  ADMIN
+  OPERADOR
+  VISUALIZADOR
+}
+
+enum AnimalStatus {
+  active
+  sold
+  deceased
+}
+
+enum MovementType {
+  purchase
+  sale
+  transfer
+  death
+}
+
+enum CropCycleStatus {
+  planted
+  growing
+  harvested
+}
+
+enum InputType {
+  fertilizer
+  pesticide
+  seed
+}
+
+enum PricingType {
+  hour
+  day
+  fixed
+}
+
+enum ServiceOrderStatus {
+  scheduled
+  completed
+  invoiced
+}
+
+enum EntryType {
+  income
+  expense
+}
+
+enum RelatedModule {
+  rebanho
+  lavoura
+  servico
+  geral
+}
+
+enum FinancialEntryStatus {
+  pending
+  paid
+  overdue
+}
+
+enum MessageDirection {
+  in
+  out
+}
+
+enum AlertType {
+  vaccine_due
+  harvest_near
+  bill_due
+  low_balance
+}
+
+enum AlertStatus {
+  pending
+  sent
+  dismissed
+}
+
+enum SubscriptionStatus {
+  active
+  overdue
+  canceled
+}
+
+// ─────────────────────────────────────────────────────────────
+// Núcleo multi-tenant
+// ─────────────────────────────────────────────────────────────
+
+model Tenant {
+  id             String       @id @default(cuid())
+  name           String
+  document       String       @unique // CNPJ ou CPF
+  phone          String?
+  email          String?
+  plan           TenantPlan
+  status         TenantStatus @default(trial)
+  trial_ends_at  DateTime?
+
+  // Origem do lead (UTM) — PRD seção 4 / v1.1
+  lead_source_utm_source   String?
+  lead_source_utm_medium   String?
+  lead_source_utm_campaign String?
+
+  created_at     DateTime     @default(now())
+  updated_at     DateTime     @updatedAt
+
+  profiles       TenantProfile[]
+  users          User[]
+  properties     Property[]
+  animals        Animal[]
+  vaccines       Vaccine[]
+  plots          Plot[]
+  service_clients ServiceClient[]
+  services       Service[]
+  service_orders ServiceOrder[]
+  financial_entries FinancialEntry[]
+  whatsapp_contacts WhatsAppContact[]
+  conversation_logs AgentConversationLog[]
+  alerts         Alert[]
+  subscription   Subscription?
+}
+
+// Equipe da Pleno Digital. NÃO carrega tenant_id — fora do isolamento (PRD 4 / 10.4).
+model PlatformUser {
+  id            String       @id @default(cuid())
+  name          String
+  email         String       @unique
+  password_hash String
+  role          PlatformRole @default(EQUIPE)
+  created_at    DateTime     @default(now())
+  active        Boolean      @default(true)
+}
+
+model TenantProfile {
+  id           String      @id @default(cuid())
+  tenant_id    String
+  profile_type ProfileType
+  active       Boolean     @default(true)
+  created_at   DateTime    @default(now())
+
+  tenant       Tenant      @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@unique([tenant_id, profile_type])
+  @@index([tenant_id])
+}
+
+model User {
+  id            String   @id @default(cuid())
+  tenant_id     String
+  name          String
+  // Email globalmente único: o contrato POST /api/auth/login recebe apenas
+  // email+senha (sem seletor de tenant), então o email resolve um único usuário.
+  email         String   @unique
+  password_hash String
+  role          UserRole @default(OPERADOR)
+  phone         String?
+  created_at    DateTime @default(now())
+  active        Boolean  @default(true)
+
+  tenant            Tenant            @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  whatsapp_contacts WhatsAppContact[]
+
+  @@index([tenant_id])
+}
+
+model Property {
+  id            String   @id @default(cuid())
+  tenant_id     String
+  name          String
+  address       String?
+  area_hectares Decimal? @db.Decimal(12, 2)
+  created_at    DateTime @default(now())
+
+  tenant         Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  animals        Animal[]
+  plots          Plot[]
+  movements_from AnimalMovement[] @relation("MovementFromProperty")
+  movements_to   AnimalMovement[] @relation("MovementToProperty")
+
+  @@index([tenant_id])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Módulo Rebanho
+// ─────────────────────────────────────────────────────────────
+
+model Animal {
+  id             String       @id @default(cuid())
+  tenant_id      String
+  property_id    String
+  ear_tag        String
+  breed          String?
+  sex            String?
+  birth_date     DateTime?
+  status         AnimalStatus @default(active)
+  current_weight Decimal?     @db.Decimal(10, 3)
+  created_at     DateTime     @default(now())
+  updated_at     DateTime     @updatedAt
+
+  tenant       Tenant             @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  property     Property           @relation(fields: [property_id], references: [id], onDelete: Restrict)
+  weight_logs  AnimalWeightLog[]
+  vaccinations AnimalVaccination[]
+  movements    AnimalMovement[]
+
+  @@index([tenant_id])
+  @@index([property_id])
+}
+
+// Modelo-filho: herda tenant via Animal. Fora do middleware (sem tenant_id).
+model AnimalWeightLog {
+  id          String   @id @default(cuid())
+  animal_id   String
+  weight      Decimal  @db.Decimal(10, 3)
+  measured_at DateTime
+  created_at  DateTime @default(now())
+
+  animal      Animal   @relation(fields: [animal_id], references: [id], onDelete: Cascade)
+
+  @@index([animal_id])
+}
+
+model Vaccine {
+  id                    String  @id @default(cuid())
+  tenant_id             String
+  name                  String
+  default_interval_days Int?
+
+  tenant        Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  vaccinations  AnimalVaccination[]
+
+  @@index([tenant_id])
+}
+
+// Modelo-filho: herda tenant via Animal. Fora do middleware (sem tenant_id).
+model AnimalVaccination {
+  id          String   @id @default(cuid())
+  animal_id   String
+  vaccine_id  String
+  applied_at  DateTime
+  next_due_at DateTime?
+  created_at  DateTime @default(now())
+
+  animal      Animal   @relation(fields: [animal_id], references: [id], onDelete: Cascade)
+  vaccine     Vaccine  @relation(fields: [vaccine_id], references: [id], onDelete: Restrict)
+
+  @@index([animal_id])
+  @@index([vaccine_id])
+}
+
+// Modelo-filho: herda tenant via Animal. Fora do middleware (sem tenant_id).
+model AnimalMovement {
+  id               String       @id @default(cuid())
+  animal_id        String
+  movement_type    MovementType
+  from_property_id String?
+  to_property_id   String?
+  value            Decimal?     @db.Decimal(14, 2)
+  notes            String?
+  occurred_at      DateTime
+  created_at       DateTime     @default(now())
+
+  animal        Animal    @relation(fields: [animal_id], references: [id], onDelete: Cascade)
+  from_property Property? @relation("MovementFromProperty", fields: [from_property_id], references: [id], onDelete: SetNull)
+  to_property   Property? @relation("MovementToProperty", fields: [to_property_id], references: [id], onDelete: SetNull)
+
+  @@index([animal_id])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Módulo Lavoura
+// ─────────────────────────────────────────────────────────────
+
+model Plot {
+  id            String   @id @default(cuid())
+  tenant_id     String
+  property_id   String
+  name          String
+  area_hectares Decimal? @db.Decimal(12, 2)
+  current_crop  String?
+  created_at    DateTime @default(now())
+
+  tenant   Tenant      @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  property Property    @relation(fields: [property_id], references: [id], onDelete: Restrict)
+  cycles   CropCycle[]
+
+  @@index([tenant_id])
+  @@index([property_id])
+}
+
+// Modelo-filho: herda tenant via Plot. Fora do middleware (sem tenant_id).
+model CropCycle {
+  id                 String          @id @default(cuid())
+  plot_id            String
+  crop_name          String
+  planted_at         DateTime?
+  expected_harvest_at DateTime?
+  harvested_at       DateTime?
+  yield_amount       Decimal?        @db.Decimal(14, 3)
+  yield_unit         String?
+  status             CropCycleStatus @default(planted)
+  created_at         DateTime        @default(now())
+
+  plot   Plot        @relation(fields: [plot_id], references: [id], onDelete: Cascade)
+  inputs PlotInput[]
+
+  @@index([plot_id])
+}
+
+// Modelo-filho: herda tenant via CropCycle. Fora do middleware (sem tenant_id).
+model PlotInput {
+  id         String    @id @default(cuid())
+  cycle_id   String
+  input_type InputType
+  name       String
+  quantity   Decimal?  @db.Decimal(14, 3)
+  unit       String?
+  cost       Decimal?  @db.Decimal(14, 2)
+  applied_at DateTime?
+  created_at DateTime  @default(now())
+
+  cycle      CropCycle @relation(fields: [cycle_id], references: [id], onDelete: Cascade)
+
+  @@index([cycle_id])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Módulo Prestador de Serviço
+// ─────────────────────────────────────────────────────────────
+
+model ServiceClient {
+  id         String   @id @default(cuid())
+  tenant_id  String
+  name       String
+  document   String?
+  phone      String?
+  email      String?
+  notes      String?
+  created_at DateTime @default(now())
+
+  tenant         Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  service_orders ServiceOrder[]
+
+  @@index([tenant_id])
+}
+
+model Service {
+  id          String      @id @default(cuid())
+  tenant_id   String
+  name        String
+  pricing_type PricingType
+  unit_price  Decimal     @db.Decimal(14, 2)
+  created_at  DateTime    @default(now())
+
+  tenant         Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  service_orders ServiceOrder[]
+
+  @@index([tenant_id])
+}
+
+model ServiceOrder {
+  id                String             @id @default(cuid())
+  tenant_id         String
+  service_client_id String
+  service_id        String
+  description       String?
+  quantity          Decimal?           @db.Decimal(14, 3)
+  total_value       Decimal?           @db.Decimal(14, 2)
+  performed_at      DateTime?
+  status            ServiceOrderStatus @default(scheduled)
+  created_at        DateTime           @default(now())
+
+  tenant         Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  service_client ServiceClient @relation(fields: [service_client_id], references: [id], onDelete: Restrict)
+  service        Service       @relation(fields: [service_id], references: [id], onDelete: Restrict)
+
+  @@index([tenant_id])
+  @@index([service_client_id])
+  @@index([service_id])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Módulo Financeiro (compartilhado entre perfis)
+// ─────────────────────────────────────────────────────────────
+
+model FinancialEntry {
+  id             String               @id @default(cuid())
+  tenant_id      String
+  entry_type     EntryType
+  category       String?
+  amount         Decimal              @db.Decimal(14, 2)
+  related_module RelatedModule        @default(geral)
+  related_id     String?
+  due_date       DateTime?
+  paid_at        DateTime?
+  status         FinancialEntryStatus @default(pending)
+  notes          String?
+  created_at     DateTime             @default(now())
+
+  tenant         Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Agente WhatsApp
+// ─────────────────────────────────────────────────────────────
+
+model WhatsAppContact {
+  id                  String   @id @default(cuid())
+  tenant_id           String
+  phone               String
+  user_id             String?
+  last_interaction_at DateTime?
+  created_at          DateTime @default(now())
+
+  tenant Tenant                 @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  user   User?                  @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  logs   AgentConversationLog[]
+
+  @@unique([tenant_id, phone])
+  @@index([tenant_id])
+}
+
+model AgentConversationLog {
+  id                  String           @id @default(cuid())
+  tenant_id           String
+  whatsapp_contact_id String
+  direction           MessageDirection
+  message_type        String?
+  content             String?
+  intent_detected     String?
+  action_taken        String?
+  created_at          DateTime         @default(now())
+
+  tenant          Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  whatsapp_contact WhatsAppContact @relation(fields: [whatsapp_contact_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id])
+  @@index([whatsapp_contact_id])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Alertas
+// ─────────────────────────────────────────────────────────────
+
+model Alert {
+  id             String        @id @default(cuid())
+  tenant_id      String
+  alert_type     AlertType
+  related_module RelatedModule?
+  related_id     String?
+  message        String
+  status         AlertStatus   @default(pending)
+  scheduled_for  DateTime?
+  sent_at        DateTime?
+  created_at     DateTime      @default(now())
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Cobrança (Asaas)
+// ─────────────────────────────────────────────────────────────
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  tenant_id            String             @unique
+  asaas_customer_id    String?
+  asaas_subscription_id String?
+  plan                 TenantPlan
+  status               SubscriptionStatus @default(active)
+  next_due_date        DateTime?
+  created_at           DateTime           @default(now())
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id])
+}

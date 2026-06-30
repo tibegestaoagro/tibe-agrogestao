@@ -1,0 +1,117 @@
+import "dotenv/config";
+import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
+
+/**
+ * Teste automatizado de isolamento multi-tenant (spec tasks 0.3 / critério de
+ * aceitação do Módulo 0). Prova que o client escopado de um tenant NUNCA enxerga,
+ * edita ou deleta registros de outro tenant.
+ *
+ * Roda: `npm run test:isolation` (precisa de DATABASE_URL apontando para um Postgres).
+ */
+
+let failures = 0;
+function assert(cond: boolean, msg: string) {
+  if (cond) {
+    console.log(`  ✅ ${msg}`);
+  } else {
+    console.error(`  ❌ ${msg}`);
+    failures++;
+  }
+}
+
+async function main() {
+  console.log("🔒 Teste de isolamento multi-tenant\n");
+
+  // 1. Cria dois tenants (via client base, sem escopo).
+  const tenantA = await prisma.tenant.create({
+    data: { name: "Tenant A (teste)", document: "00000000000001", plan: "fazenda" },
+  });
+  const tenantB = await prisma.tenant.create({
+    data: { name: "Tenant B (teste)", document: "00000000000002", plan: "campo" },
+  });
+
+  const dbA = prismaForTenant(tenantA.id);
+  const dbB = prismaForTenant(tenantB.id);
+
+  try {
+    // 2. Cada tenant cria uma Property pelo seu client escopado.
+    //    O tenant_id é injetado automaticamente (não passamos manualmente).
+    const propA = await dbA.property.create({ data: scoped({ name: "Fazenda A" }) });
+    const propB = await dbB.property.create({ data: scoped({ name: "Fazenda B" }) });
+
+    assert(
+      (propA as { tenant_id: string }).tenant_id === tenantA.id,
+      "create injeta tenant_id automaticamente (A)",
+    );
+    assert(
+      (propB as { tenant_id: string }).tenant_id === tenantB.id,
+      "create injeta tenant_id automaticamente (B)",
+    );
+
+    // 3. findMany como A: só vê a própria property.
+    const listA = await dbA.property.findMany();
+    assert(
+      listA.length === 1 && listA[0].id === propA.id,
+      "findMany do tenant A retorna apenas registros de A",
+    );
+    assert(
+      !listA.some((p) => p.id === propB.id),
+      "findMany do tenant A NÃO contém registro de B",
+    );
+
+    // 4. findUnique do registro de B usando o client de A → null.
+    const crossUnique = await dbA.property.findUnique({ where: { id: propB.id } });
+    assert(crossUnique === null, "findUnique de A pelo id de B retorna null");
+
+    // 5. findFirst filtrando o id de B pelo client de A → null.
+    const crossFirst = await dbA.property.findFirst({ where: { id: propB.id } });
+    assert(crossFirst === null, "findFirst de A pelo id de B retorna null");
+
+    // 6. update do registro de B pelo client de A → afeta 0 linhas.
+    const upd = await dbA.property.updateMany({
+      where: { id: propB.id },
+      data: { name: "HACKEADO" },
+    });
+    assert(upd.count === 0, "updateMany de A sobre registro de B afeta 0 linhas");
+
+    // 7. delete do registro de B pelo client de A → afeta 0 linhas.
+    const del = await dbA.property.deleteMany({ where: { id: propB.id } });
+    assert(del.count === 0, "deleteMany de A sobre registro de B afeta 0 linhas");
+
+    // 8. Confirma que o registro de B continua intacto (visto pelo client de B).
+    const stillThere = await dbB.property.findUnique({ where: { id: propB.id } });
+    assert(
+      stillThere !== null && stillThere.name === "Fazenda B",
+      "registro de B permanece intacto após tentativas de A",
+    );
+
+    // 9. count escopado: A enxerga 1, B enxerga 1 (não 2).
+    const countA = await dbA.property.count();
+    const countB = await dbB.property.count();
+    assert(countA === 1 && countB === 1, "count é escopado por tenant (A=1, B=1)");
+  } finally {
+    // Limpeza: remove os tenants de teste (cascade apaga as properties).
+    await prisma.tenant.deleteMany({
+      where: { id: { in: [tenantA.id, tenantB.id] } },
+    });
+  }
+
+  console.log("");
+  if (failures === 0) {
+    console.log("✅ Isolamento multi-tenant validado: 0 falhas.");
+  } else {
+    console.error(`❌ Isolamento FALHOU: ${failures} verificação(ões) com erro.`);
+  }
+}
+
+main()
+  .then(async () => {
+    await prisma.$disconnect();
+    process.exit(failures === 0 ? 0 : 1);
+  })
+  .catch(async (err) => {
+    console.error("❌ Erro inesperado no teste de isolamento:");
+    console.error(err);
+    await prisma.$disconnect();
+    process.exit(1);
+  });
