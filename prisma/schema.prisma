@@ -184,6 +184,8 @@ model PlatformUser {
   role          PlatformRole @default(EQUIPE)
   created_at    DateTime     @default(now())
   active        Boolean      @default(true)
+
+  status_changes SubscriptionStatusLog[]
 }
 
 model TenantProfile {
@@ -543,7 +545,31 @@ model Subscription {
   next_due_date         DateTime?
   created_at            DateTime           @default(now())
 
-  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  tenant       Tenant                   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  status_logs  SubscriptionStatusLog[]
 
   @@index([tenant_id])
+}
+
+// Histórico de toda transição de status de uma assinatura (Módulo 6, task 6.5/
+// 6.7/6.9). Não existia até o M6 — sem isso, "cancelamentos no período" e
+// "tempo médio de conversão trial→pago" são impossíveis de calcular, e a 6.9
+// já exigia um log de auditoria para mudança manual de status. Um único
+// mecanismo cobre as duas necessidades: toda vez que Subscription.status muda
+// (webhook do Asaas OU ação manual de um master_admin), grava-se uma linha
+// aqui. changed_by_platform_user_id nulo = mudança automática (webhook).
+model SubscriptionStatusLog {
+  id                           String              @id @default(cuid())
+  subscription_id              String
+  from_status                  SubscriptionStatus?
+  to_status                    SubscriptionStatus
+  changed_by_platform_user_id  String?
+  reason                       String?
+  created_at                   DateTime            @default(now())
+
+  subscription Subscription  @relation(fields: [subscription_id], references: [id], onDelete: Cascade)
+  changed_by   PlatformUser? @relation(fields: [changed_by_platform_user_id], references: [id], onDelete: SetNull)
+
+  @@index([subscription_id])
+  @@index([to_status])
 }

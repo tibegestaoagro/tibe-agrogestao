@@ -62,12 +62,13 @@ export default function ArquiteturaPage() {
           (não escopado) de forma deliberada:
         </p>
         <ul className="mt-2 list-disc space-y-1 pl-5">
-          <li><code className="rounded bg-gray-100 px-1">PlatformUser</code> — equipe da Pleno Digital, vive inteiramente fora do conceito de tenant.</li>
+          <li><code className="rounded bg-gray-100 px-1">PlatformUser</code> e <code className="rounded bg-gray-100 px-1">SubscriptionStatusLog</code> — painel interno da Pleno Digital (Módulo 6), vivem inteiramente fora do conceito de tenant.</li>
           <li>Login (NextAuth) — busca o <code className="rounded bg-gray-100 px-1">User</code> por email antes de saber o tenant.</li>
           <li><code className="rounded bg-gray-100 px-1">POST /api/v1/signup</code> — cria o tenant; não existe tenant antes disso.</li>
           <li><code className="rounded bg-gray-100 px-1">POST /api/internal/whatsapp/resolve-contact</code> — identifica o tenant a partir do telefone.</li>
           <li><code className="rounded bg-gray-100 px-1">POST /api/webhooks/asaas</code> — o Asaas não tem sessão de tenant; a assinatura é localizada por <code className="rounded bg-gray-100 px-1">asaas_subscription_id</code>.</li>
           <li>Job diário de alertas (<code className="rounded bg-gray-100 px-1">generateAllAlerts</code>) — por natureza, itera por todos os tenants ativos.</li>
+          <li>Rotas <code className="rounded bg-gray-100 px-1">/api/platform/tenants*</code> (Módulo 6) — o painel interno lê explicitamente por <code className="rounded bg-gray-100 px-1">tenant_id</code> qualquer tenant, por desenho (é o ponto do módulo).</li>
           <li><code className="rounded bg-gray-100 px-1">prisma/seed.ts</code> — popula dados iniciais de mais de um tenant.</li>
         </ul>
       </section>
@@ -89,6 +90,34 @@ export default function ArquiteturaPage() {
           primeira linha: ele resolve a sessão, checa a permissão do módulo, checa se o perfil de tenant exigido
           (fazenda ou prestador) está ativo, checa o status de cobrança (ver abaixo), e devolve o client Prisma já
           escopado. Qualquer falha retorna o erro pronto no contrato padrão.
+        </p>
+      </section>
+
+      <section>
+        <h2 className="text-lg font-semibold text-gray-900">Painel da plataforma (Módulo 6)</h2>
+        <p className="mt-2">
+          O painel interno da Pleno Digital (<code className="rounded bg-gray-100 px-1">/plataforma</code>) usa
+          uma <strong>segunda instância NextAuth</strong>, genuinamente separada da de tenant — cookie próprio
+          (<code className="rounded bg-gray-100 px-1">tibe-platform-session</code>) e secret próprio
+          (<code className="rounded bg-gray-100 px-1">PLATFORM_AUTH_SECRET</code>), nunca a mesma sessão com um
+          campo de “tipo”. Isso significa que uma sessão de tenant nunca é aceita em{" "}
+          <code className="rounded bg-gray-100 px-1">/plataforma/*</code> e vice-versa — a separação é estrutural
+          (cookies diferentes), não uma checagem de código que poderia ser esquecida num endpoint novo.
+        </p>
+        <p className="mt-2">
+          <code className="rounded bg-gray-100 px-1">PlatformUser</code> tem dois papéis:{" "}
+          <code className="rounded bg-gray-100 px-1">EQUIPE</code> (lê a lista e o detalhe de tenants) e{" "}
+          <code className="rounded bg-gray-100 px-1">MASTER_ADMIN</code> (tudo que a equipe vê, mais os KPIs
+          financeiros — MRR, churn, LTV, funil — e as duas ações administrativas: forçar mudança manual de status
+          de uma assinatura e gerenciar a própria equipe da plataforma).
+        </p>
+        <p className="mt-2">
+          Toda transição de status de uma <code className="rounded bg-gray-100 px-1">Subscription</code> —
+          automática (webhook do Asaas) ou manual (ação de um{" "}
+          <code className="rounded bg-gray-100 px-1">MASTER_ADMIN</code>) — é registrada em{" "}
+          <code className="rounded bg-gray-100 px-1">SubscriptionStatusLog</code>. É esse histórico que permite
+          calcular churn (quem estava ativo no início do período, quem cancelou dentro dele) e o tempo médio de
+          conversão trial→pago no funil, além de servir como log de auditoria das mudanças manuais.
         </p>
       </section>
 

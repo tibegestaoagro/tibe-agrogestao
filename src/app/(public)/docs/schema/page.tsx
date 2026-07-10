@@ -22,10 +22,10 @@ const GROUPS: Group[] = [
       },
       {
         name: "PlatformUser",
-        desc: "Equipe da Pleno Digital. NÃO carrega tenant_id — vive inteiramente fora do isolamento multi-tenant, por desenho (Módulo 6, ainda não implementado).",
+        desc: "Equipe da Pleno Digital (painel interno, Módulo 6). NÃO carrega tenant_id — vive inteiramente fora do isolamento multi-tenant, por desenho. Autenticado por uma instância NextAuth própria (cookie e secret diferentes dos de tenant).",
         fields: [
           ["id, name, email (único), password_hash", "credenciais"],
-          ["role", "MASTER_ADMIN | EQUIPE"],
+          ["role", "MASTER_ADMIN | EQUIPE — equipe não vê KPIs financeiros nem executa ações administrativas"],
           ["active", "desativação sem exclusão"],
         ],
       },
@@ -213,6 +213,15 @@ const GROUPS: Group[] = [
           ["next_due_date", "atualizado pelo webhook a cada pagamento confirmado"],
         ],
       },
+      {
+        name: "SubscriptionStatusLog",
+        desc: "Histórico de toda transição de status de uma assinatura (Módulo 6) — automática (webhook do Asaas) ou manual (master_admin forçando via /plataforma). Sem tenant_id (só consumida pelo painel interno).",
+        fields: [
+          ["subscription_id, from_status, to_status", "a transição em si (from_status nulo na primeira linha)"],
+          ["changed_by_platform_user_id", "nulo = automática (webhook); preenchido = forçada manualmente"],
+          ["reason", "motivo, só preenchido em mudanças manuais"],
+        ],
+      },
     ],
   },
 ];
@@ -225,8 +234,9 @@ export default function SchemaPage() {
         PostgreSQL via Prisma. Modelos em PascalCase, campos em snake_case (para espelhar
         os contratos de API). Todo modelo de negócio carrega <code className="rounded bg-gray-100 px-1">tenant_id</code> e
         passa pelo middleware de isolamento — exceto os modelos-filho que herdam o tenant via relação com o pai
-        (ex: <code className="rounded bg-gray-100 px-1">AnimalWeightLog</code> por <code className="rounded bg-gray-100 px-1">animal_id</code>) e{" "}
-        <code className="rounded bg-gray-100 px-1">PlatformUser</code>.
+        (ex: <code className="rounded bg-gray-100 px-1">AnimalWeightLog</code> por <code className="rounded bg-gray-100 px-1">animal_id</code>) e as
+        duas tabelas do painel interno (<code className="rounded bg-gray-100 px-1">PlatformUser</code>,{" "}
+        <code className="rounded bg-gray-100 px-1">SubscriptionStatusLog</code>).
       </p>
 
       <div className="mt-10 space-y-10">

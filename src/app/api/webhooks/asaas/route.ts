@@ -2,6 +2,8 @@ import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { getSubscription, AsaasNotConfiguredError } from "@/lib/asaas";
+import { logSubscriptionStatusChange } from "@/lib/platform/subscription-log";
+import type { SubscriptionStatus } from "@/generated/prisma/enums";
 
 /**
  * POST /api/webhooks/asaas (spec 5.6)
@@ -62,6 +64,13 @@ export async function POST(request: Request) {
     return apiOk({ received: true, processed: false, reason: "subscription não encontrada" });
   }
 
+  const EVENT_TO_STATUS: Record<string, SubscriptionStatus> = {
+    PAYMENT_CONFIRMED: "active",
+    PAYMENT_OVERDUE: "overdue",
+    PAYMENT_DELETED: "canceled",
+  };
+  const newStatus = EVENT_TO_STATUS[event];
+
   if (event === "PAYMENT_CONFIRMED") {
     let nextDueDate: Date | null = null;
     try {
@@ -93,6 +102,16 @@ export async function POST(request: Request) {
     await prisma.subscription.update({
       where: { id: subscription.id },
       data: { status: "canceled" },
+    });
+  }
+
+  // Log de transição (Módulo 6, 6.5/6.7) — só se o status de fato mudou, para
+  // não inflar churn/funil com reenvios duplicados do Asaas para o mesmo evento.
+  if (newStatus && newStatus !== subscription.status) {
+    await logSubscriptionStatusChange({
+      subscriptionId: subscription.id,
+      fromStatus: subscription.status,
+      toStatus: newStatus,
     });
   }
 

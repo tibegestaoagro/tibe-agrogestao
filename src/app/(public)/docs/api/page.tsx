@@ -595,6 +595,112 @@ const GROUPS: Group[] = [
       },
     ],
   },
+  {
+    title: "Painel da Plataforma (Módulo 6)",
+    note: "Namespace /api/platform/*, fora de /api/v1 — autenticado por uma sessão de PlatformUser (cookie tibe-platform-session), nunca por sessão de tenant. \"equipe\" lê tenants; só master_admin vê KPIs financeiros e executa ações administrativas.",
+    endpoints: [
+      {
+        method: "GET",
+        path: "/api/platform/tenants",
+        auth: "Sessão de PlatformUser (equipe ou master_admin)",
+        description: "Lista todos os tenants do sistema, com status calculado (trial se não há Subscription, senão o status da Subscription), plano, perfis ativos. Filtros: status, plan, q (nome/documento), page, limit.",
+        response: `200
+{ "data": [{ "id": "cl...", "name": "Fazenda Boa Vista", "plan": "fazenda", "status": "active", "active_profiles": ["fazenda"], "created_at": "...", "subscription_status": "active", "next_due_date": "..." }], "meta": { "total": 1, "page": 1, "limit": 20 } }`,
+      },
+      {
+        method: "GET",
+        path: "/api/platform/tenants/:id",
+        auth: "Sessão de PlatformUser",
+        description: "Detalhe completo: dados cadastrais, origem (UTM), histórico de transições de assinatura (SubscriptionStatusLog) e resumo de uso (animais/talhões/ordens conforme perfis ativos). Lookup cross-tenant explícito — a exceção que dá nome ao módulo.",
+        response: `200
+{ "data": { "id": "cl...", "name": "...", "status": "active", "subscription": { "status": "active", "history": [{ "from_status": "overdue", "to_status": "active", "changed_by_platform_user_id": null, "created_at": "..." }] }, "usage": { "animals": 40, "plots": 3, "service_orders": 0 } } }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/platform/tenants/:id/status",
+        auth: "Sessão de PlatformUser · só master_admin",
+        description: "Força manualmente o status da assinatura (ex: reativar um tenant suspenso por erro). Exige uma Subscription existente (404 se o tenant nunca assinou). Grava em SubscriptionStatusLog com o PlatformUser responsável e o motivo — é o próprio log de auditoria.",
+        request: `{ "status": "active", "reason": "reativado manualmente, erro no processamento do Asaas" }`,
+        response: `200
+{ "data": { "id": "cl...", "status": "active" } }`,
+      },
+      {
+        method: "GET",
+        path: "/api/platform/kpis/mrr",
+        auth: "Sessão de PlatformUser · só master_admin",
+        description: "MRR atual (soma de PLAN_PRICES das assinaturas active) e breakdown por plano.",
+        response: `200
+{ "data": { "total_mrr": 691, "by_plan": { "campo": 97, "fazenda": 197, "grupo": 397 }, "active_subscriptions_count": 3 } }`,
+      },
+      {
+        method: "GET",
+        path: "/api/platform/kpis/mrr-trend",
+        auth: "Sessão de PlatformUser · só master_admin",
+        description: "Evolução de MRR nos últimos N meses (?months=6, padrão), reconstruída a partir de SubscriptionStatusLog — não é aproximação, é o status real de cada assinatura em cada checkpoint mensal.",
+        response: `200
+{ "data": [{ "period": "2026-02", "mrr": 394 }, { "period": "2026-03", "mrr": 591 }] }`,
+      },
+      {
+        method: "GET",
+        path: "/api/platform/kpis/churn",
+        auth: "Sessão de PlatformUser · só master_admin",
+        description: "Churn de clientes e de MRR no período (?period=30d|90d|12m). customer_churn = cancelados no período / ativos no início do período; mrr_churn = MRR perdido / MRR no início do período.",
+        response: `200
+{ "data": { "period": "30d", "customer_churn_pct": 5.5, "mrr_churn_pct": 4.2, "canceled_count": 1 } }`,
+      },
+      {
+        method: "GET",
+        path: "/api/platform/kpis/ltv",
+        auth: "Sessão de PlatformUser · só master_admin",
+        description: "LTV simplificado: ticket médio mensal / churn mensal (30d). Devolve ltv: null (não Infinity) quando não há churn observado ainda — divisão por zero evitada.",
+        response: `200
+{ "data": { "ltv": 1763.6, "avg_ticket_mensal": 230.3, "churn_mensal_pct": 13.06 } }`,
+      },
+      {
+        method: "GET",
+        path: "/api/platform/kpis/funnel",
+        auth: "Sessão de PlatformUser · só master_admin",
+        description: "Funil de conversão trial → pago no período (?period=30d|90d|12m), com breakdown por lead_source_utm_source (null agrupa em \"sem origem\"/acesso direto) e tempo médio de conversão em dias.",
+        response: `200
+{ "data": { "period": "30d", "trials_created": 12, "converted_to_paid": 4, "conversion_rate_pct": 33.33, "avg_days_to_convert": 3.5, "by_source": [{ "utm_source": "instagram", "trials_created": 5, "converted": 2, "conversion_rate_pct": 40 }, { "utm_source": null, "trials_created": 7, "converted": 2, "conversion_rate_pct": 28.57 }] } }`,
+      },
+      {
+        method: "GET",
+        path: "/api/platform/team",
+        auth: "Sessão de PlatformUser · só master_admin",
+        description: "Lista a equipe da plataforma (PlatformUser).",
+        response: `200
+{ "data": [{ "id": "cl...", "name": "...", "email": "...", "role": "EQUIPE", "active": true }], "meta": { "total": 1 } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/platform/team",
+        auth: "Sessão de PlatformUser · só master_admin",
+        description: "Convida novo membro — senha temporária exibida uma única vez na resposta (sem infra de email no projeto, mesmo padrão do convite de usuário de tenant).",
+        request: `{ "name": "Novo Membro", "email": "membro@pleno.dev.br", "role": "EQUIPE" }`,
+        response: `201
+{ "data": { "id": "cl...", "temp_password": "Xy9k2Qmz" } }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/platform/team/:id/role",
+        auth: "Sessão de PlatformUser · só master_admin",
+        description: "Altera o papel de um membro. Não é possível alterar o próprio papel.",
+        request: `{ "role": "MASTER_ADMIN" }`,
+        response: `200
+{ "data": { "id": "cl...", "role": "MASTER_ADMIN" } }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/platform/team/:id/active",
+        auth: "Sessão de PlatformUser · só master_admin",
+        description: "Ativa ou desativa um membro. Não é possível desativar a própria conta.",
+        request: `{ "active": false }`,
+        response: `200
+{ "data": { "id": "cl...", "active": false } }`,
+      },
+    ],
+  },
 ];
 
 export default function ApiDocsPage() {
@@ -605,9 +711,12 @@ export default function ApiDocsPage() {
         Todos os endpoints usam o mesmo contrato de resposta:{" "}
         <code className="rounded bg-gray-100 px-1 text-xs">{"{ data, meta }"}</code> em sucesso,{" "}
         <code className="rounded bg-gray-100 px-1 text-xs">{'{ error: { code, message } }'}</code> em erro. Rotas
-        sob <code className="rounded bg-gray-100 px-1 text-xs">/api/v1/*</code> exigem sessão (cookie do
+        sob <code className="rounded bg-gray-100 px-1 text-xs">/api/v1/*</code> exigem sessão de tenant (cookie do
         NextAuth) salvo indicação em contrário; a permissão por módulo segue a matriz descrita em{" "}
-        <a href="/docs/arquitetura" className="text-tibe-primary hover:underline">Arquitetura</a>.
+        <a href="/docs/arquitetura" className="text-tibe-primary hover:underline">Arquitetura</a>. Rotas sob{" "}
+        <code className="rounded bg-gray-100 px-1 text-xs">/api/platform/*</code> exigem uma sessão de{" "}
+        <code className="rounded bg-gray-100 px-1 text-xs">PlatformUser</code> — uma instância NextAuth
+        completamente separada (cookie próprio), nunca a mesma sessão de tenant.
       </p>
 
       <nav className="mt-6 flex flex-wrap gap-2">

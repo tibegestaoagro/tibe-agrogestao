@@ -7,9 +7,11 @@ import type { AppUserRole } from "@/types/next-auth";
  * lib/auth.ts, que roda em Node runtime.
  */
 
-// Rotas públicas (não exigem sessão).
+// Rotas públicas (não exigem sessão de TENANT). "/plataforma" tem sua própria
+// proteção (sessão de PlatformUser), aplicada manualmente em middleware.ts —
+// aqui só precisa ficar de fora da checagem de sessão de tenant.
 const PUBLIC_PATHS = ["/", "/login", "/criar-conta", "/faq", "/sitemap.xml", "/robots.txt"];
-const PUBLIC_PREFIXES = ["/planos", "/politicas", "/docs"];
+const PUBLIC_PREFIXES = ["/planos", "/politicas", "/docs", "/plataforma"];
 
 export const authConfig = {
   session: { strategy: "jwt" },

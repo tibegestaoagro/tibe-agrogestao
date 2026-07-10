@@ -26,6 +26,11 @@ const schema = z.object({
   owner_name: z.string().trim().min(1, "Nome do responsável é obrigatório"),
   owner_email: z.string().trim().email("Email inválido"),
   password: z.string().min(8, "A senha deve ter ao menos 8 caracteres"),
+  // Origem do lead (Módulo 6, funil por UTM) — capturado no site público via
+  // cookie first-touch (src/lib/utm.ts), opcional (a maioria dos acessos é direta).
+  utm_source: z.string().trim().min(1).nullish(),
+  utm_medium: z.string().trim().min(1).nullish(),
+  utm_campaign: z.string().trim().min(1).nullish(),
 });
 
 export async function POST(request: Request) {
@@ -34,7 +39,8 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
   }
-  const { company_name, phone, plan, owner_name, owner_email, password } = parsed.data;
+  const { company_name, phone, plan, owner_name, owner_email, password, utm_source, utm_medium, utm_campaign } =
+    parsed.data;
   const document = parsed.data.document.replace(/\D/g, "");
   if (document.length < 11) {
     return apiError("VALIDATION_ERROR", "CNPJ ou CPF inválido", 422);
@@ -61,6 +67,9 @@ export async function POST(request: Request) {
       plan,
       status: "trial",
       trial_ends_at,
+      lead_source_utm_source: utm_source ?? null,
+      lead_source_utm_medium: utm_medium ?? null,
+      lead_source_utm_campaign: utm_campaign ?? null,
     },
   });
 

@@ -18,7 +18,8 @@
     "test:m2": "tsx scripts/m2-isolation.test.ts",
     "test:m3": "tsx scripts/m3-whatsapp.test.ts",
     "test:m4": "tsx scripts/m4-financeiro-alertas.test.ts",
-    "test:m5": "tsx scripts/m5-billing-usuarios.test.ts"
+    "test:m5": "tsx scripts/m5-billing-usuarios.test.ts",
+    "test:m6": "tsx scripts/m6-plataforma.test.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

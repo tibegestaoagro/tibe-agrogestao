@@ -3,6 +3,7 @@ import * as asaas from "@/lib/asaas";
 import type { AsaasBillingType } from "@/lib/asaas";
 import type { TenantPlan } from "@/generated/prisma/enums";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
+import { logSubscriptionStatusChange } from "@/lib/platform/subscription-log";
 
 /**
  * Criação de assinatura real no Asaas (spec 5.5). PIX e boleto são exibidos
@@ -60,6 +61,14 @@ export async function subscribeAction(
     ? await db.subscription.update({ where: { id: existing.id }, data: subscriptionData })
     : await db.subscription.create({ data: scoped(subscriptionData) });
 
+  if (!existing || existing.status !== "overdue") {
+    await logSubscriptionStatusChange({
+      subscriptionId: record.id,
+      fromStatus: existing?.status ?? null,
+      toStatus: "overdue",
+    });
+  }
+
   // Primeira cobrança gerada pela assinatura — usada para exibir PIX/boleto/link.
   const payments = await asaas.listSubscriptionPayments(subscription.id);
   const firstPayment = payments[0];
@@ -95,5 +104,12 @@ export async function cancelSubscriptionAction(
     where: { id: existing.id },
     data: { status: "canceled" },
   });
+  if (existing.status !== "canceled") {
+    await logSubscriptionStatusChange({
+      subscriptionId: updated.id,
+      fromStatus: existing.status,
+      toStatus: "canceled",
+    });
+  }
   return ok({ id: updated.id });
 }

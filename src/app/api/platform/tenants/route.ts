@@ -1,0 +1,64 @@
+import { prisma } from "@/lib/prisma";
+import { guardPlatform } from "@/lib/platform-guard";
+import { apiOk } from "@/lib/api";
+import { isoOrNull } from "@/lib/serialize";
+
+/**
+ * GET /api/platform/tenants (spec 6.3). "equipe" e "master_admin" têm o
+ * mesmo acesso de leitura aqui — só a mudança manual de status (6.9) e a
+ * gestão de equipe (6.10) são exclusivas de master_admin.
+ *
+ * status combina Tenant.status (trial) com Subscription.status (active|
+ * overdue|canceled) num único enum, porque é assim que a spec define o
+ * filtro — sem assinatura conta como "trial" independente de Tenant.status.
+ */
+export async function GET(request: Request) {
+  const g = await guardPlatform();
+  if ("error" in g) return g.error;
+
+  const sp = new URL(request.url).searchParams;
+  const statusFilter = sp.get("status");
+  const planFilter = sp.get("plan");
+  const q = sp.get("q")?.trim();
+  const page = Math.max(1, Number(sp.get("page")) || 1);
+  const limit = Math.min(100, Math.max(1, Number(sp.get("limit")) || 20));
+
+  const tenants = await prisma.tenant.findMany({
+    where: {
+      ...(planFilter ? { plan: planFilter as "campo" | "fazenda" | "grupo" } : {}),
+      ...(q
+        ? {
+            OR: [
+              { name: { contains: q, mode: "insensitive" } },
+              { document: { contains: q, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: { created_at: "desc" },
+    include: {
+      profiles: { where: { active: true } },
+      subscription: { select: { status: true, next_due_date: true } },
+    },
+  });
+
+  const mapped = tenants.map((t) => ({
+    id: t.id,
+    name: t.name,
+    document: t.document,
+    plan: t.plan,
+    status: t.subscription?.status ?? "trial",
+    subscription_status: t.subscription?.status ?? null,
+    active_profiles: t.profiles.map((p) => p.profile_type),
+    created_at: t.created_at.toISOString(),
+    next_due_date: isoOrNull(t.subscription?.next_due_date ?? null),
+  }));
+
+  const filtered = statusFilter ? mapped.filter((t) => t.status === statusFilter) : mapped;
+
+  const total = filtered.length;
+  const start = (page - 1) * limit;
+  const data = filtered.slice(start, start + limit);
+
+  return apiOk(data, { total, page, limit });
+}

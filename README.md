@@ -18,7 +18,7 @@ Pleno Digital; cliente/financiador do MVP: Da Mata Sementes LTDA.
 | 3 | Agente WhatsApp | ✅ código pronto — N8N/Meta/Salvy ainda não provisionados |
 | 4 | Financeiro e Alertas | ✅ em produção |
 | 5 | Painel Web, Cobrança (Asaas) e Site | ✅ em produção |
-| 6 | Painel da Plataforma (interno Pleno) | ⏳ não iniciado |
+| 6 | Painel da Plataforma (interno Pleno) | ✅ completo — auth separada em `/plataforma`, MRR/churn/LTV/funil, gestão de tenants e equipe |
 
 ## Stack
 
@@ -32,7 +32,9 @@ Cloud API (Meta) · Asaas (cobrança recorrente).
 ```
 src/app/(public)/     páginas sem autenticação — home, planos, faq, políticas, docs, login, criar-conta
 src/app/(dashboard)/  painel autenticado, uma pasta por módulo (rebanho, lavoura, prestador, financeiro, alertas, configuracoes)
+src/app/plataforma/   painel interno da Pleno Digital (Módulo 6) — auth separada da de tenant
 src/app/api/v1/       API de negócio (sessão obrigatória via guard())
+src/app/api/platform/ API do painel da plataforma (sessão de PlatformUser via guardPlatform())
 src/app/api/internal/ rotas chamadas pelo N8N e pela Vercel Cron (secret no header, não sessão)
 src/app/api/webhooks/ rotas chamadas por serviços externos (Asaas — token no header)
 src/lib/actions/      lógica de negócio pura (funções que recebem o client Prisma escopado)
@@ -107,6 +109,8 @@ onboarding (escolha entre perfil Fazenda, Prestador de Serviço, ou ambos).
 | `npm run test:m2`        | Prestador de Serviço                                            |
 | `npm run test:m3`        | Agente WhatsApp (permissão por role, confirmação, isolamento)   |
 | `npm run test:m4`        | Financeiro e Alertas                                             |
+| `npm run test:m5`        | Billing (Asaas), webhook, usuários, trial                       |
+| `npm run test:m6`        | Painel da plataforma: MRR/churn/LTV/funil, força de status       |
 
 Todos os testes chamam os route handlers diretamente (via `tsx`), sem precisar de
 um servidor rodando — mas precisam de `DATABASE_URL` apontando para um banco real.
@@ -133,11 +137,13 @@ inclusive os que à primeira vista parecem "filhos" (`AnimalWeightLog`,
 carregam `tenant_id` e passam pela mesma extension — decisão deliberada de
 defense-in-depth, não um descuido.
 
-A única exceção estrutural é `PlatformUser` (Módulo 6, ainda não implementado),
-que vive inteiramente fora do conceito de tenant por desenho. Um punhado de rotas
-legitimamente usa o client Prisma base (sem escopo) por precisarem operar antes de
-conhecer o tenant, ou fora de uma sessão — ver a seção "Isolamento multi-tenant" em
-`/docs/arquitetura` no app para a lista completa e a justificativa de cada uma.
+A exceção estrutural é `PlatformUser` e `SubscriptionStatusLog` (Módulo 6, painel
+interno da Pleno Digital), que vivem inteiramente fora do conceito de tenant por
+desenho — autenticados por uma instância NextAuth própria, com cookie e secret
+diferentes dos de tenant. Um punhado de rotas legitimamente usa o client Prisma
+base (sem escopo) por precisarem operar antes de conhecer o tenant, ou fora de
+uma sessão — ver a seção "Isolamento multi-tenant" em `/docs/arquitetura` no
+app para a lista completa e a justificativa de cada uma.
 
 ## Deploy
 

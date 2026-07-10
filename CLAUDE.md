@@ -48,7 +48,7 @@ fase do contrato. O usuário (Dilton) segue este protocolo com qualquer agente:
 | 3 | Agente WhatsApp | ✅ código do Tibé pronto — **N8N/Meta/Salvy ainda não provisionados** (guia: [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md)) |
 | 4 | Financeiro e Alertas | ✅ completo — Redis/BullMQ real; PDF via link assinado (sem R2); envio WhatsApp aguarda N8N (mesmo gap do M3) |
 | 5 | Painel Web, Cobrança (Asaas) e Site | ✅ completo — Asaas real (código pronto, sem chave de sandbox testada ainda); dashboard consolidado, usuários, cobrança/bloqueio por inadimplência, site público (`/`, `/planos`, `/faq`, `/politicas/*`), documentação técnica em `/docs`, README/CONTRIBUTING |
-| 6 | Painel da Plataforma (`PlatformUser`, interno Pleno) | ⏳ não iniciado |
+| 6 | Painel da Plataforma (`PlatformUser`, interno Pleno) | ✅ completo — auth separada (`/plataforma`), MRR/churn/LTV/funil, gestão de tenants e equipe |
 
 Specs: `docs/specs/module-00-setup.md` … `module-06-painel-plataforma.md`.
 
@@ -57,12 +57,13 @@ Specs: `docs/specs/module-00-setup.md` … `module-06-painel-plataforma.md`.
 ## Stack
 
 Next.js 14 (App Router) · TypeScript · Tailwind · Prisma 7 · PostgreSQL 17
-(Neon) · NextAuth v5 beta (Credentials) · Zod · Recharts · UI kit shadcn-style
-feito à mão (ver seção UI) · Redis Cloud + BullMQ (M4) · Asaas (M5, cobrança
-recorrente). N8N e Cloudflare R2 continuam no PRD mas fora do código: N8N é
-infra externa (orquestra o agente WhatsApp, não roda dentro do Tibé) ainda não
-provisionada; R2 nunca chegou a ser necessário (PDFs são gerados sob demanda,
-sem storage — ver Módulo 4). Módulo 6 (`PlatformUser`) ainda não iniciado.
+(Neon) · NextAuth v5 beta (**duas instâncias** — tenant e plataforma, M6) ·
+Zod · Recharts · UI kit shadcn-style feito à mão (ver seção UI) · Redis Cloud
++ BullMQ (M4) · Asaas (M5, cobrança recorrente). N8N e Cloudflare R2
+continuam no PRD mas fora do código: N8N é infra externa (orquestra o agente
+WhatsApp, não roda dentro do Tibé) ainda não provisionada; R2 nunca chegou a
+ser necessário (PDFs são gerados sob demanda, sem storage — ver Módulo 4).
+Todos os 7 módulos do PRD (0-6) têm código completo agora.
 
 ## Deploy e infra
 
@@ -181,8 +182,14 @@ o tenant da sessão e chama `prismaForTenant`.
   `asaas_subscription_id` porque o Asaas não manda sessão de tenant nenhuma.
   Qualquer uso novo do client base fora desses casos é suspeito — pare e
   pergunte.
-- `PlatformUser` (Módulo 6, ainda não implementado) será a **outra** exceção
-  intencional — nunca deve ser alcançável a partir de uma sessão de tenant.
+- `PlatformUser` e `SubscriptionStatusLog` (Módulo 6) são a **outra** exceção
+  estrutural: nenhum dos dois está em `TENANT_SCOPED_MODELS` (não fazem
+  sentido escopados por tenant — `PlatformUser` não pertence a tenant algum,
+  `SubscriptionStatusLog` só é lido por rotas de plataforma via
+  `tenant_id` explícito quando precisa filtrar por tenant). `PlatformUser`
+  nunca deve ser alcançável a partir de uma sessão de tenant — e o inverso
+  também: ver seção "Painel da Plataforma" abaixo para como isso é garantido
+  (duas instâncias NextAuth com cookies diferentes, não uma checagem de role).
 
 Todo módulo que adiciona endpoints ganha um teste de isolamento automatizado
 (`scripts/*.test.ts`, rodados via `tsx`, chamando os route handlers
@@ -197,6 +204,7 @@ npm run test:m2          # M2 — Prestador + total_value persistido
 npm run test:m3          # M3 — WhatsApp: permissão por role/perfil, confirmação, isolamento
 npm run test:m4          # M4 — Financeiro/Alertas + idempotência + cron
 npm run test:m5          # M5 — billing-access, webhook Asaas, usuários, trial_ending
+npm run test:m6          # M6 — MRR/churn/LTV/funil, isolamento PlatformUser, força de status
 ```
 
 ---
@@ -488,6 +496,93 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
   não tinham `tenant_id`, o que foi revertido ainda no Módulo 1). Mantenha os
   dois em sincronia com mudanças de arquitetura, junto com este arquivo.
 
+## Painel da Plataforma (Módulo 6)
+
+Único módulo sem fase contratual com a Agromax — ferramenta interna da Pleno
+Digital para acompanhar a saúde do negócio Tibé como um todo (todos os
+tenants na mesma tela, por desenho). `PlatformUser` (roles `MASTER_ADMIN` |
+`EQUIPE`) já existia no schema desde o Módulo 0 como placeholder; este módulo
+construiu tudo em volta dele.
+
+- **`/plataforma` é uma pasta REAL, não um route group `(platform)`.** A
+  spec descreve `app/(platform)/kpis/page.tsx` etc., mas route groups não
+  aparecem na URL — `(platform)/login/page.tsx` viraria `/login`, colidindo
+  direto com o login de tenant. `app/plataforma/` é um segmento de URL de
+  verdade; `(painel)` como sub-route-group dentro dele separa o layout do
+  login (`app/plataforma/login/`, sem nav) do layout autenticado
+  (`app/plataforma/(painel)/`, com sidebar) sem afetar a URL.
+- **Duas instâncias NextAuth genuinamente separadas** — não uma sessão
+  compartilhada com um campo de "tipo". `src/lib/platform-auth.config.ts` +
+  `platform-auth.ts` espelham `auth.config.ts`/`auth.ts`, mas com cookie
+  próprio (`tibe-platform-session`) e secret próprio (`PLATFORM_AUTH_SECRET`,
+  nunca reusar `NEXTAUTH_SECRET`) montados em `/api/platform-auth/[...nextauth]`.
+  Isso faz a separação tenant↔plataforma ser estrutural (cookies diferentes,
+  cada instância só enxerga o próprio) em vez de depender de uma checagem de
+  código que alguém pode esquecer de replicar num endpoint novo.
+- **⚠️ `next-auth` (não o `@auth/core` cru) assume `basePath: "/api/auth"`
+  por padrão** quando `NEXTAUTH_URL`/`AUTH_URL` não tem path — uma instância
+  secundária montada em qualquer outro caminho (`/api/platform-auth/*` aqui)
+  **precisa** declarar `basePath` explicitamente na config, senão todo
+  request quebra com `UnknownAction: Cannot parse action`. Isso custou uma
+  depuração real neste módulo (`grep basePath` em
+  `node_modules/next-auth/lib/env.js` se precisar reconfirmar o mecanismo).
+- **Middleware**: `/plataforma` está em `PUBLIC_PREFIXES` de `auth.config.ts`
+  (isento da checagem de sessão de TENANT) — a proteção de verdade é manual,
+  dentro do próprio `middleware.ts`, usando `getToken({ req, secret:
+  PLATFORM_AUTH_SECRET, cookieName: "tibe-platform-session" })` (de
+  `next-auth/jwt`, não a instância `auth()` da plataforma — `getToken` é a
+  primitiva de baixo nível que não depende de estar dentro do HOF
+  `auth(callback)`, ao contrário de chamar `auth()` "cru" de uma segunda
+  instância dentro do middleware da primeira, que não é um padrão
+  documentado/confiável). Testado ponta a ponta (login, acesso, logout, e as
+  duas direções de isolamento cross-sessão) via curl com o dance de CSRF do
+  NextAuth — ver histórico da sessão se precisar repetir.
+- **`guardPlatform(opts?: { requireMasterAdmin? })`** (`src/lib/platform-guard.ts`)
+  espelha `guard()`. `equipe` lê tenants (6.3); só `master_admin` vê KPIs
+  financeiros (6.4-6.7) e executa as duas ações administrativas (forçar
+  status 6.9, gerenciar equipe 6.10) — recorte de permissão decidido com o
+  usuário, não estava 100% explícito na spec (PRD §5.3 delegava a decisão
+  para este módulo).
+- **`SubscriptionStatusLog`** (novo modelo): toda transição de
+  `Subscription.status` grava uma linha aqui —
+  `logSubscriptionStatusChange()` em `src/lib/platform/subscription-log.ts`,
+  chamada tanto pelo webhook do Asaas quanto por `subscribeAction`/
+  `cancelSubscriptionAction` (M5, automático, `changed_by_platform_user_id`
+  nulo) quanto por `forceSubscriptionStatusAction` (M6, manual, com o
+  `PlatformUser` responsável e `reason`). Existe porque **não tinha como
+  calcular churn/funil corretamente sem isso** — `Subscription` não guardava
+  nenhum timestamp de transição (só `created_at`), então "cancelamentos no
+  período" e "tempo médio de conversão trial→pago" eram impossíveis de
+  responder. Um único mecanismo resolve isso E serve de log de auditoria
+  para a 6.9 — decisão tomada com o usuário em vez de assumida.
+- **`lib/platform/kpis.ts`**: `calculateMRR` soma `PLAN_PRICES` (preço atual)
+  das assinaturas `active` — não há histórico de preço por assinatura, então
+  "valor do plano vigente" só pode significar o preço de hoje, inclusive
+  retroativo no gráfico de evolução (limitação aceita). `getStatusAsOf(date)`
+  reconstrói o status de cada assinatura numa data (o log mais recente com
+  `created_at <= date`) — é a peça que sustenta `calculateChurn` (ativos no
+  início do período), `calculateMrrTrend` (MRR real mês a mês, não a
+  aproximação mais simples que a spec sugeria) e `calculateFunnel` (tempo até
+  a primeira ativação). `calculateLTV` devolve `null` (não `Infinity`) quando
+  não há churn observado ainda — divisão por zero evitada explicitamente.
+- **Captura de UTM** (`src/lib/utm.ts`, `UtmCapture` renderizado dentro de
+  `PublicNav`): first-touch via cookie (`tibe_utm`, 30 dias) — só grava se o
+  cookie ainda não existir, porque sem isso a origem real de um lead que
+  navega `/` → `/planos` → `/criar-conta` seria perdida (a última página
+  raramente carrega os mesmos query params da primeira). `/criar-conta` lê o
+  cookie no submit e manda para `POST /api/v1/signup`, que persiste em
+  `Tenant.lead_source_utm_*` (campos já existiam desde o M0, nunca eram
+  preenchidos antes deste módulo).
+- Testes (`npm run test:m6`) rodam contra `lib/platform/kpis.ts` e as actions
+  diretamente (mesmo motivo dos M1/M2/M5: rotas atrás de `guardPlatform()`
+  não dá para invocar direto sem uma sessão de verdade). Como as funções de
+  KPI escaneiam **todos** os tenants do banco por desenho, os testes usam
+  baseline antes/depois (não contagem absoluta) para não quebrar num banco
+  de dev com dados de outros testes/seed.
+- **Seed do `master_admin`**: ainda não adicionado a `prisma/seed.ts` —
+  precisa de nome/email/senha reais do responsável (Dilton), não inventados.
+  Pendente até essa informação chegar.
+
 ---
 
 ## Memória de longo prazo (Claude Code, específico desta ferramenta)
@@ -517,6 +612,7 @@ npm run test:m2           # M2
 npm run test:m3           # M3
 npm run test:m4           # M4
 npm run test:m5           # M5
+npm run test:m6           # M6
 ```
 
 Credenciais do seed (dev): `owner@damata.com.br` / `tibe123`.

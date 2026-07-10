@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { readUtmCookie } from "@/lib/utm";
 
 type Plan = "campo" | "fazenda" | "grupo";
 const PLAN_LABEL: Record<Plan, string> = {
@@ -52,6 +53,8 @@ export default function SignupForm() {
 
     setLoading(true);
 
+    const utm = readUtmCookie();
+
     const res = await fetch("/api/v1/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -63,6 +66,9 @@ export default function SignupForm() {
         owner_name: ownerName,
         owner_email: email,
         password,
+        utm_source: utm?.utm_source ?? null,
+        utm_medium: utm?.utm_medium ?? null,
+        utm_campaign: utm?.utm_campaign ?? null,
       }),
     });
     const body = await res.json().catch(() => null);
