@@ -15,6 +15,11 @@ const OWNER_EMAIL = "owner@damata.com.br";
 const OWNER_PASSWORD = "tibe123"; // apenas dev — trocar em produção
 const TENANT_DOCUMENT = "11222333000181"; // CNPJ placeholder da Da Mata Sementes
 
+// PlatformUser master_admin (Módulo 6) — credenciais reais fornecidas pelo
+// responsável (Dilton), não um placeholder de dev. Email é temporário.
+const MASTER_ADMIN_EMAIL = "tibe.gestaoagro@gmail.com";
+const MASTER_ADMIN_PASSWORD = "#tibeAgrogestao@2026";
+
 async function main() {
   const tenant = await prisma.tenant.upsert({
     where: { document: TENANT_DOCUMENT },
@@ -46,11 +51,25 @@ async function main() {
   // Vacinas padrão para o tenant Da Mata (idempotente).
   await provisionDefaultVaccines(prismaForTenant(tenant.id));
 
+  // PlatformUser master_admin (Módulo 6) — painel interno em /plataforma.
+  const masterAdminPasswordHash = await bcrypt.hash(MASTER_ADMIN_PASSWORD, 10);
+  const masterAdmin = await prisma.platformUser.upsert({
+    where: { email: MASTER_ADMIN_EMAIL },
+    update: { password_hash: masterAdminPasswordHash, role: "MASTER_ADMIN", active: true },
+    create: {
+      name: "Superadmin",
+      email: MASTER_ADMIN_EMAIL,
+      password_hash: masterAdminPasswordHash,
+      role: "MASTER_ADMIN",
+    },
+  });
+
   console.log("✅ Seed concluído.");
   console.log(`   Tenant: ${tenant.name} (${tenant.id})`);
   console.log(`   Owner:  ${owner.email} / senha: ${OWNER_PASSWORD}`);
   console.log("   Vacinas padrão provisionadas (aftosa, brucelose, raiva, clostridiose)");
   console.log("   (sem TenantProfile → primeiro login cai no onboarding)");
+  console.log(`   PlatformUser master_admin: ${masterAdmin.email} (login em /plataforma/login)`);
 }
 
 main()
