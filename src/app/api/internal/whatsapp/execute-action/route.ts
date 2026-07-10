@@ -71,6 +71,7 @@ export async function POST(request: Request) {
   const explicitNo = parsed.data.confirmed === false || confirmationSignal === "no";
 
   const result = await routeIntent(db, {
+    tenant_id,
     role: user.role,
     activeProfiles,
     intent,

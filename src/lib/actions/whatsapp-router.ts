@@ -21,6 +21,8 @@ import {
 } from "@/lib/actions/service-orders";
 import { getClientSummaryAction } from "@/lib/actions/service-clients";
 import { getBalanceAction } from "@/lib/actions/financial-summary";
+import { resolvePeriod } from "@/lib/actions/financial-reports";
+import { buildReportLink } from "@/lib/reports/report-link";
 import { INTENT_ACCESS, CONFIRMATION_THRESHOLD, type Intent } from "@/lib/whatsapp-intents";
 import type { ActionResult } from "@/lib/actions/types";
 
@@ -93,6 +95,7 @@ const REPORT_TYPE_MODULE: Record<string, ModuleKey> = {
 export async function routeIntent(
   db: TenantPrismaClient,
   ctx: {
+    tenant_id: string;
     role: AppUserRole;
     activeProfiles: ProfileType[];
     intent: Intent;
@@ -103,7 +106,7 @@ export async function routeIntent(
     explicitNo: boolean;
   },
 ): Promise<RouterResult> {
-  const { role, activeProfiles, intent, parameters, confirmed, explicitNo } = ctx;
+  const { tenant_id, role, activeProfiles, intent, parameters, confirmed, explicitNo } = ctx;
 
   // Permissão por módulo/role e por perfil ativo (spec: "visualizador não
   // consegue cadastrar nada via WhatsApp"). gerar_relatorio/ambigua checam à parte.
@@ -463,14 +466,27 @@ export async function routeIntent(
       if (profileNeeded && !activeProfiles.includes(profileNeeded)) {
         return ask(`O perfil necessário para o relatório de ${tipo} não está ativo neste tenant.`);
       }
-      // Depende do Módulo 4 (geração de PDF) — ainda não implementado.
+
+      // Só o relatório financeiro (DRE + lançamentos) tem PDF pronto (spec 4.7).
+      // Relatórios de rebanho/lavoura/prestador ainda não têm gerador dedicado.
+      if (tipo !== "financeiro") {
+        return {
+          reply_text: `O relatório de ${tipo} em PDF ainda não está disponível — por enquanto só o relatório financeiro é gerado. Em breve!`,
+          requires_confirmation: false,
+          auxiliary_data: null,
+          report_url: null,
+          action_taken: "gerar_relatorio:tipo_nao_suportado",
+        };
+      }
+
+      const { start, end } = resolvePeriod(str(parameters.period), null);
+      const report_url = buildReportLink(tenant_id, start, end);
       return {
-        reply_text:
-          "A geração de relatórios em PDF estará disponível em breve! Essa funcionalidade chega em uma próxima etapa do Tibé.",
+        reply_text: `Aqui está o relatório financeiro de ${start.toLocaleDateString("pt-BR")} a ${end.toLocaleDateString("pt-BR")}: ${report_url}`,
         requires_confirmation: false,
         auxiliary_data: null,
-        report_url: null,
-        action_taken: "gerar_relatorio:em_breve",
+        report_url,
+        action_taken: "gerar_relatorio:financeiro",
       };
     }
 

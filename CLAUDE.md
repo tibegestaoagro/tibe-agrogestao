@@ -46,7 +46,7 @@ fase do contrato. O usuário (Dilton) segue este protocolo com qualquer agente:
 | 1 | Rebanho e Lavoura | ✅ em produção |
 | 2 | Prestador de Serviço | ✅ em produção |
 | 3 | Agente WhatsApp | ✅ código do Tibé pronto — **N8N/Meta/Salvy ainda não provisionados** (guia: [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md)) |
-| 4 | Financeiro e Alertas | ⏳ não iniciado |
+| 4 | Financeiro e Alertas | ✅ completo — Redis/BullMQ real; PDF via link assinado (sem R2); envio WhatsApp aguarda N8N (mesmo gap do M3) |
 | 5 | Painel Web, Cobrança (Asaas) e Site | ⏳ não iniciado |
 | 6 | Painel da Plataforma (`PlatformUser`, interno Pleno) | ⏳ não iniciado |
 
@@ -110,6 +110,33 @@ Aplique sempre primeiro no Docker local, rode os testes, e só depois
 replique no Neon (com a URL **Direct**, sem `-pooler`, para migrar — a
 **Pooled**, com `-pooler`, é a usada em runtime/`DATABASE_URL` da Vercel).
 
+### Redis (BullMQ) já está provisionado (Redis Cloud)
+
+Diferente do Postgres, o `REDIS_URL` no `.env` local aponta para a **mesma**
+instância Redis Cloud usada em produção — não há um Redis local separado.
+Isso é aceitável porque o uso é só fila/lock de job (dado efêmero, sem risco
+de negócio). BullMQ empacota sua própria cópia de `ioredis` internamente —
+**nunca** passe a instância de `getRedisConnection()` (`src/lib/redis.ts`)
+direto para `new Queue()`/`new Worker()`, dá erro de tipo (duas classes
+`Redis` estruturalmente iguais, nominalmente diferentes). Use
+`getRedisConnectionOptions()` (host/porta/senha crus) para qualquer construtor
+do BullMQ.
+
+### ⚠️ Testar sessão autenticada localmente via `next start` não funciona
+
+Páginas protegidas (`/dashboard`, `/financeiro`, etc.) redirecionam para
+`/login` mesmo com um cookie de sessão válido quando testadas via `next
+start` local + cookie jar (ex: PowerShell `WebRequestSession`) — o Edge
+Middleware não reconhece a sessão nesse setup específico, mesmo com
+`AUTH_TRUST_HOST=true`. **Rotas `/api/v1/*` (Node runtime) funcionam
+normalmente** com a mesma sessão — só o Middleware (Edge) tem esse problema
+localmente. Confirmado que não é regressão de nenhum módulo (páginas antigas
+como `/dashboard` têm o mesmo comportamento). A produção (Vercel) nunca
+apresentou esse problema em testes reais de navegador. Não vale a pena
+investigar mais fundo — para validar fluxo de página autenticada, use o
+navegador real (local `next dev` ou a URL da Vercel), não `next start` +
+cookie jar.
+
 ---
 
 ## Isolamento multi-tenant (a regra mais importante do projeto)
@@ -142,11 +169,14 @@ o tenant da sessão e chama `prismaForTenant`.
   `TENANT_SCOPED_MODELS`. Isso foi uma decisão deliberada de defense-in-depth
   (desvio do PRD, aprovado pelo usuário) — não remova.
 - O client **base** (`prisma`, sem escopo) só deve ser usado em: login
-  (`auth.ts`, lookup de email global), `prisma/seed.ts`, scripts internos, e o
-  **único** lookup cross-tenant legítimo do sistema —
-  `POST /api/internal/whatsapp/resolve-contact` (precisa achar a qual tenant um
-  telefone pertence, antes de saber o tenant). Qualquer uso novo do client base
-  fora desses casos é suspeito — pare e pergunte.
+  (`auth.ts`, lookup de email global), `prisma/seed.ts`, scripts internos, o
+  lookup cross-tenant de `POST /api/internal/whatsapp/resolve-contact`
+  (precisa achar a qual tenant um telefone pertence, antes de saber o tenant),
+  e o job diário de alertas (`generateAllAlerts`/`deliverAllPendingAlerts` em
+  `src/lib/actions/alerts.ts` e `alert-delivery.ts`) — que precisa **listar
+  todos os tenants ativos** antes de escopar por tenant a cada iteração.
+  Qualquer uso novo do client base fora desses casos é suspeito — pare e
+  pergunte.
 - `PlatformUser` (Módulo 6, ainda não implementado) será a **outra** exceção
   intencional — nunca deve ser alcançável a partir de uma sessão de tenant.
 
@@ -311,11 +341,49 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
   ordens de serviço de alto valor — ver `src/lib/actions/whatsapp-router.ts` e
   `src/lib/actions/confirmation.ts` (interpretação de "sim"/"não" em texto
   livre, usada só dentro dos dois fluxos de confirmação, nunca globalmente).
-- `gerar_relatorio` responde "em breve" — depende da geração de PDF do
-  Módulo 4, ainda não implementado.
+- `gerar_relatorio` (tipo `financeiro`) devolve um `report_url` de verdade
+  (link assinado, ver Módulo 4 abaixo); tipos `rebanho|lavoura|prestador`
+  ainda respondem "não disponível" — não há gerador de PDF para eles.
 - Guia completo para montar o workflow no N8N (nó a nó, quando a infra externa
   — Salvy, Meta Business Manager, N8N em produção — estiver pronta):
-  [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md).
+  [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md). Inclui a
+  seção de envio de alertas (Módulo 4) via `N8N_ALERT_WEBHOOK_URL`.
+
+## Financeiro e Alertas (Módulo 4)
+
+- **Lançamentos manuais** (`POST /api/v1/financial-entries`) sempre nascem
+  `related_module: geral`. `PATCH` (edição completa) só é permitido nesses —
+  editar um lançamento gerado por outro módulo (venda de animal, insumo,
+  ordem faturada) é bloqueado (`NOT_EDITABLE`) para não descolar do dado de
+  origem; "marcar como pago" funciona em qualquer lançamento, de qualquer
+  origem. Lógica em `src/lib/actions/financial-entries.ts`.
+- **Regime contábil**: DRE (`getDre`) é por **competência** — todos os
+  lançamentos do período por `due_date`, pago ou não. Fluxo de caixa
+  (`getCashFlow`) é por **caixa** — só `status: paid`, agrupado por
+  `paid_at`. Os dois em `src/lib/actions/financial-reports.ts`.
+- **PDF sem R2**: `src/lib/reports/generate-financial-pdf.ts` (pdf-lib, gera
+  na hora, nunca armazena) atrás de um link assinado por HMAC com expiração
+  (`src/lib/reports/report-token.ts`, reusa `INTERNAL_API_SECRET` como
+  chave) — funciona sem sessão (necessário para quem clica vindo do
+  WhatsApp). `GET /api/v1/financial/report/link` (sessão, gera o link) →
+  `GET /api/v1/financial/report?token=` (público, serve o PDF). Trocar pelo
+  R2 real no futuro não deve exigir mudar quem consome o link.
+- **Alertas** (`src/lib/actions/alerts.ts`): idempotência por
+  `(alert_type, related_module, related_id)` — inclusive `low_balance`, que
+  usa a **semana ISO** como `related_id` sintético (resolve "no máximo 1 por
+  semana" com o mesmo mecanismo dos outros tipos, sem regra especial).
+- **BullMQ real** (Redis Cloud já provisionado), mas **sem worker
+  persistente** — decisão do módulo, não há onde hospedar um processo 24/7
+  hoje. `GET /api/internal/jobs/generate-alerts` (disparado 1x/dia pela
+  Vercel Cron, `vercel.json`, autenticado por `CRON_SECRET` que a Vercel
+  injeta sozinha) roda a geração **síncrona** dentro da própria requisição.
+  A `Queue` do BullMQ registra um histórico auditável (uso real, mas só de
+  bookkeeping); a idempotência "não rodar 2x no mesmo dia" é um lock simples
+  no Redis (`SET NX`), não o estado interno do job — mais robusto sem um
+  Worker para gerenciá-lo. Ver `getRedisConnectionOptions()` acima.
+- **Envio por WhatsApp** (`src/lib/actions/alert-delivery.ts`): mesmo padrão
+  do Módulo 3 — Tibé chama `N8N_ALERT_WEBHOOK_URL` (outbound); se não
+  configurada, alertas ficam `pending` sem quebrar nada.
 
 ---
 
@@ -344,6 +412,7 @@ npm run test:isolation    # M0
 npm run test:m1           # M1
 npm run test:m2           # M2
 npm run test:m3           # M3
+npm run test:m4           # M4
 ```
 
 Credenciais do seed (dev): `owner@damata.com.br` / `tibe123`.

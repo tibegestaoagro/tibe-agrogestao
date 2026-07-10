@@ -18,3 +18,23 @@ export function requireInternalSecret(
   }
   return { ok: true };
 }
+
+/**
+ * Autenticação das rotas de Cron (`/api/internal/jobs/*`). A Vercel injeta
+ * automaticamente `Authorization: Bearer <CRON_SECRET>` nas chamadas que ela
+ * mesma faz para as rotas listadas em `vercel.json` — basta definir a env var
+ * `CRON_SECRET` no projeto (local e na Vercel) com o mesmo valor.
+ */
+export function requireCronSecret(
+  request: Request,
+): { error: ReturnType<typeof apiError> } | { ok: true } {
+  const auth = request.headers.get("authorization");
+  const expected = process.env.CRON_SECRET;
+  if (!expected) {
+    return { error: apiError("SERVER_MISCONFIGURED", "CRON_SECRET não configurado", 500) };
+  }
+  if (auth !== `Bearer ${expected}`) {
+    return { error: apiError(...ApiErrors.UNAUTHORIZED) };
+  }
+  return { ok: true };
+}

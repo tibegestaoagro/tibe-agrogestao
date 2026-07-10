@@ -1,0 +1,159 @@
+import { scoped, prisma, prismaForTenant, type TenantPrismaClient } from "@/lib/prisma";
+import { decToNum } from "@/lib/serialize";
+import { listUpcomingVaccinations } from "@/lib/actions/animals";
+import { getBalanceAction } from "@/lib/actions/financial-summary";
+
+/**
+ * Geração de alertas (spec 4.9/4.10). Idempotência por
+ * (alert_type, related_module, related_id): se já existe um Alert para o
+ * mesmo evento, não cria outro — é o que garante "não duplicar em execuções
+ * consecutivas". Para `low_balance`, que não tem uma entidade natural para
+ * amarrar, usamos a semana ISO corrente como `related_id` sintético: assim o
+ * mesmo mecanismo de idempotência também garante "no máximo um por semana",
+ * sem precisar de uma regra especial.
+ */
+
+const VACCINE_DAYS = 15;
+const HARVEST_DAYS = 7;
+const BILL_DAYS = 3;
+
+function isoWeekKey(d: Date): string {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = (date.getUTCDay() + 6) % 7; // segunda = 0
+  date.setUTCDate(date.getUTCDate() - dayNum + 3);
+  const firstThursday = new Date(Date.UTC(date.getUTCFullYear(), 0, 4));
+  const week =
+    1 +
+    Math.round(
+      ((date.getTime() - firstThursday.getTime()) / 86_400_000 -
+        3 +
+        ((firstThursday.getUTCDay() + 6) % 7)) /
+        7,
+    );
+  return `${date.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+}
+
+type AlertType = "vaccine_due" | "harvest_near" | "bill_due" | "low_balance";
+type RelatedModule = "rebanho" | "lavoura" | "servico" | "geral";
+
+/** Cria o Alert se ainda não existir um igual (mesmo tipo+módulo+entidade). Retorna se criou. */
+async function ensureAlert(
+  db: TenantPrismaClient,
+  params: {
+    alert_type: AlertType;
+    related_module: RelatedModule;
+    related_id: string;
+    message: string;
+  },
+): Promise<boolean> {
+  const existing = await db.alert.findFirst({
+    where: {
+      alert_type: params.alert_type,
+      related_module: params.related_module,
+      related_id: params.related_id,
+    },
+  });
+  if (existing) return false;
+
+  await db.alert.create({
+    data: scoped({
+      alert_type: params.alert_type,
+      related_module: params.related_module,
+      related_id: params.related_id,
+      message: params.message,
+      status: "pending" as const,
+      scheduled_for: new Date(),
+    }),
+  });
+  return true;
+}
+
+/** Gera os alertas do dia para UM tenant (as 4 verificações da spec 4.10). */
+export async function generateAlertsForTenant(tenantId: string): Promise<{ created: number }> {
+  const db = prismaForTenant(tenantId);
+  const now = new Date();
+  let created = 0;
+
+  // 1. Vacinas vencendo em até 15 dias.
+  const vaccinations = await listUpcomingVaccinations(db, VACCINE_DAYS);
+  for (const v of vaccinations) {
+    const didCreate = await ensureAlert(db, {
+      alert_type: "vaccine_due",
+      related_module: "rebanho",
+      related_id: v.id,
+      message: `🐄 Atenção: a vacina ${v.vaccine_name ?? "?"} do animal ${v.ear_tag ?? v.animal_id} vence em ${v.days_remaining} dia(s).`,
+    });
+    if (didCreate) created++;
+  }
+
+  // 2. Ciclos de lavoura com colheita prevista em até 7 dias.
+  const harvestLimit = new Date(now.getTime() + HARVEST_DAYS * 86_400_000);
+  const cycles = await db.cropCycle.findMany({
+    where: {
+      status: { in: ["planted", "growing"] },
+      expected_harvest_at: { gte: now, lte: harvestLimit },
+    },
+    include: { plot: { select: { name: true } } },
+  });
+  for (const c of cycles) {
+    const days = Math.ceil((c.expected_harvest_at!.getTime() - now.getTime()) / 86_400_000);
+    const didCreate = await ensureAlert(db, {
+      alert_type: "harvest_near",
+      related_module: "lavoura",
+      related_id: c.id,
+      message: `🌾 Colheita de ${c.crop_name} (talhão ${c.plot?.name ?? "?"}) prevista para daqui a ${days} dia(s).`,
+    });
+    if (didCreate) created++;
+  }
+
+  // 3. Contas a pagar/receber vencendo em até 3 dias.
+  const billLimit = new Date(now.getTime() + BILL_DAYS * 86_400_000);
+  const bills = await db.financialEntry.findMany({
+    where: { status: "pending", due_date: { gte: now, lte: billLimit } },
+  });
+  for (const b of bills) {
+    const days = Math.ceil((b.due_date!.getTime() - now.getTime()) / 86_400_000);
+    const kind = b.entry_type === "income" ? "receber" : "pagar";
+    const amount = decToNum(b.amount) ?? 0;
+    const didCreate = await ensureAlert(db, {
+      alert_type: "bill_due",
+      related_module: b.related_module ?? "geral",
+      related_id: b.id,
+      message: `💰 Conta a ${kind}: ${b.category ?? "lançamento"} de R$ ${amount.toFixed(2)} vence em ${days} dia(s).`,
+    });
+    if (didCreate) created++;
+  }
+
+  // 4. Saldo do mês corrente negativo — no máximo 1 alerta por semana (via related_id = semana ISO).
+  const balance = await getBalanceAction(db, null);
+  if (balance.ok && balance.data.balance < 0) {
+    const didCreate = await ensureAlert(db, {
+      alert_type: "low_balance",
+      related_module: "geral",
+      related_id: isoWeekKey(now),
+      message: `⚠️ Saldo do mês está negativo: R$ ${balance.data.balance.toFixed(2)}.`,
+    });
+    if (didCreate) created++;
+  }
+
+  return { created };
+}
+
+/**
+ * Gera alertas para TODOS os tenants ativos (trial|active). Único ponto do
+ * sistema, fora do agente WhatsApp, que legitimamente usa o client Prisma
+ * base para listar tenants antes de escopar por tenant — ver CLAUDE.md.
+ */
+export async function generateAllAlerts(): Promise<{ tenants: number; alertsCreated: number }> {
+  const tenants = await prisma.tenant.findMany({
+    where: { status: { in: ["trial", "active"] } },
+    select: { id: true },
+  });
+
+  let alertsCreated = 0;
+  for (const t of tenants) {
+    const { created } = await generateAlertsForTenant(t.id);
+    alertsCreated += created;
+  }
+  return { tenants: tenants.length, alertsCreated };
+}

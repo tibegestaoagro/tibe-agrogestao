@@ -38,7 +38,7 @@ dados, contratos de API e regras de produto.
 | 1 | Rebanho e Lavoura | ✅ em produção |
 | 2 | Prestador de Serviço | ✅ em produção |
 | 3 | Agente WhatsApp | ✅ código do Tibé pronto — infra externa (N8N/Meta/Salvy) ainda não provisionada; guia em [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md) |
-| 4 | Financeiro e Alertas | ⏳ não iniciado |
+| 4 | Financeiro e Alertas | ✅ completo — Redis/BullMQ real; PDF via link assinado (sem R2); envio WhatsApp aguarda N8N |
 | 5 | Painel Web, Cobrança (Asaas) e Site | ⏳ não iniciado |
 | 6 | Painel da Plataforma (`PlatformUser`, uso interno) | ⏳ não iniciado |
 
@@ -91,6 +91,25 @@ Aplique primeiro no banco local, rode os testes, só então replique no Neon
 (use a connection string **Direct**, sem `-pooler`, para migrar — a **Pooled**
 é a usada em runtime).
 
+### Redis (BullMQ) já provisionado (Redis Cloud) — sem instância local separada
+
+O `.env` local aponta para a mesma instância Redis Cloud de produção (uso é só
+fila/lock de job, dado efêmero, sem risco de negócio). BullMQ empacota sua
+própria cópia de `ioredis` — não passe a instância de `getRedisConnection()`
+(`src/lib/redis.ts`) direto para `new Queue()`/`new Worker()` (erro de tipo,
+duas classes `Redis` nominalmente diferentes); use
+`getRedisConnectionOptions()` para construtores do BullMQ.
+
+### Sessão autenticada via `next start` local não é confiável para testar páginas
+
+Páginas protegidas redirecionam para `/login` mesmo com cookie de sessão
+válido quando testadas via `next start` + cookie jar externo — o Edge
+Middleware não reconhece a sessão nesse setup específico (rotas `/api/v1/*`,
+Node runtime, funcionam normalmente com a mesma sessão). Não é regressão de
+nenhum módulo (páginas antigas têm o mesmo comportamento); produção nunca
+apresentou o problema em uso real de navegador. Para validar página
+autenticada, use `next dev` com navegador real ou a URL de produção.
+
 ---
 
 ## Isolamento multi-tenant
@@ -121,10 +140,12 @@ original seriam "filhos" sem essa coluna (`AnimalWeightLog`,
 deliberada de defense-in-depth.
 
 O client Prisma **base** (sem escopo) só é apropriado em: autenticação (lookup
-de email global), seed, scripts internos, e o único lookup cross-tenant
-legítimo do sistema (`POST /api/internal/whatsapp/resolve-contact`, que
-precisa achar a qual tenant um telefone pertence). Qualquer outro uso do
-client base é suspeito.
+de email global), seed, scripts internos, o lookup cross-tenant de
+`POST /api/internal/whatsapp/resolve-contact` (achar a qual tenant um
+telefone pertence), e o job diário de alertas (`generateAllAlerts`/
+`deliverAllPendingAlerts` em `src/lib/actions/alerts.ts` e
+`alert-delivery.ts`), que precisa listar todos os tenants ativos antes de
+escopar por tenant. Qualquer outro uso do client base é suspeito.
 
 Testes de isolamento (rodar contra o banco local, `tsx`, chamando os route
 handlers diretamente):
@@ -135,6 +156,7 @@ npm run test:isolation   # base (Módulo 0)
 npm run test:m1          # Rebanho/Lavoura
 npm run test:m2          # Prestador
 npm run test:m3          # Agente WhatsApp
+npm run test:m4          # Financeiro e Alertas
 ```
 
 ---
@@ -230,8 +252,35 @@ credenciais do N8N, não no ambiente do Tibé).
   (`src/lib/whatsapp-intents.ts`) para as actions de negócio, com checagem de
   permissão por role/perfil e confirmação obrigatória acima de R$ 5.000 para
   ações financeiras relevantes (`src/lib/actions/whatsapp-router.ts`).
-- Guia de integração completo (nó a nó do workflow N8N):
-  [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md).
+- `gerar_relatorio` (tipo `financeiro`) devolve um `report_url` de verdade
+  (ver Módulo 4); outros tipos ainda respondem "não disponível".
+- Guia de integração completo (nó a nó do workflow N8N, incluindo envio de
+  alertas do Módulo 4): [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md).
+
+## Financeiro e Alertas (Módulo 4)
+
+- Lançamentos manuais (`src/lib/actions/financial-entries.ts`) sempre nascem
+  `related_module: geral`; só esses podem ser editados via `PATCH` (editar um
+  lançamento de outro módulo é bloqueado — descolaria do dado de origem).
+  "Marcar como pago" funciona em qualquer lançamento.
+- Regime contábil: DRE = **competência** (todos os lançamentos do período por
+  `due_date`); fluxo de caixa = **caixa** (só `status: paid`, por `paid_at`).
+  `src/lib/actions/financial-reports.ts`.
+- PDF (`src/lib/reports/generate-financial-pdf.ts`, pdf-lib) gerado sob
+  demanda atrás de um link assinado por HMAC com expiração
+  (`src/lib/reports/report-token.ts`) — sem Cloudflare R2 (não provisionado);
+  funciona sem sessão (necessário para link vindo do WhatsApp).
+- Alertas (`src/lib/actions/alerts.ts`): idempotência por
+  `(alert_type, related_module, related_id)`; `low_balance` usa a semana ISO
+  como `related_id` sintético para o limite de 1/semana.
+- BullMQ real (Redis Cloud provisionado), **sem worker persistente** (sem
+  onde hospedar um processo 24/7). `GET /api/internal/jobs/generate-alerts`
+  (Vercel Cron, `vercel.json`, autenticado por `CRON_SECRET`) roda a geração
+  síncrona na própria requisição; idempotência diária via lock simples no
+  Redis (`SET NX`), não pelo estado do job do BullMQ.
+- Envio por WhatsApp (`src/lib/actions/alert-delivery.ts`): mesmo padrão do
+  Módulo 3 — outbound para `N8N_ALERT_WEBHOOK_URL`; sem configurar, fica
+  `pending` sem quebrar.
 
 ---
 
@@ -248,6 +297,7 @@ npm run test:isolation    # Módulo 0
 npm run test:m1           # Módulo 1
 npm run test:m2           # Módulo 2
 npm run test:m3           # Módulo 3
+npm run test:m4           # Módulo 4
 ```
 
 Credenciais do seed (dev): `owner@damata.com.br` / `tibe123`.

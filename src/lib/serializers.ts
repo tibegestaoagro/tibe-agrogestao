@@ -141,6 +141,23 @@ export function serializeServiceOrder(o: any) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function serializeFinancialEntry(e: any) {
+  return {
+    id: e.id,
+    entry_type: e.entry_type,
+    category: e.category ?? null,
+    amount: decToNum(e.amount),
+    related_module: e.related_module,
+    related_id: e.related_id ?? null,
+    due_date: isoOrNull(e.due_date),
+    paid_at: isoOrNull(e.paid_at),
+    status: e.status,
+    notes: e.notes ?? null,
+    created_at: e.created_at.toISOString(),
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function serializeInput(i: any) {
   return {
     id: i.id,

@@ -262,6 +262,31 @@ export async function addMovementAction(
   return ok({ movement_type: input.movement_type, value: input.value ?? null });
 }
 
+/** Vacinações com next_due_at nos próximos N dias (spec 1.4, reusado pelo Módulo 4). */
+export async function listUpcomingVaccinations(db: TenantPrismaClient, days: number) {
+  const now = new Date();
+  const limit = new Date(now.getTime() + days * 86_400_000);
+
+  const rows = await db.animalVaccination.findMany({
+    where: { next_due_at: { gte: now, lte: limit } },
+    orderBy: { next_due_at: "asc" },
+    include: {
+      animal: { select: { ear_tag: true } },
+      vaccine: { select: { name: true } },
+    },
+  });
+
+  return rows.map((r) => ({
+    id: r.id,
+    animal_id: r.animal_id,
+    ear_tag: r.animal?.ear_tag ?? null,
+    vaccine_name: r.vaccine?.name ?? null,
+    last_applied_at: r.applied_at,
+    next_due_at: r.next_due_at!,
+    days_remaining: Math.ceil((r.next_due_at!.getTime() - now.getTime()) / 86_400_000),
+  }));
+}
+
 // ── Consulta (leitura, usado pelo agente WhatsApp) ──────────────────
 
 export async function getAnimalSummaryAction(

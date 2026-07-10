@@ -1,11 +1,98 @@
-import { requireModuleAccess } from "@/lib/permissions";
+import { getSessionUser, getTenantDb } from "@/lib/tenant-context";
+import { redirect } from "next/navigation";
+import { canWrite } from "@/lib/permissions";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import AlertFilters from "@/components/alertas/alert-filters";
+import AlertDismissButton from "@/components/alertas/alert-dismiss-button";
 
-export default async function AlertasPage() {
-  await requireModuleAccess("alertas", "read");
+const TYPE_LABEL: Record<string, string> = {
+  vaccine_due: "🐄 Vacina a vencer",
+  harvest_near: "🌾 Colheita próxima",
+  bill_due: "💰 Conta a vencer",
+  low_balance: "⚠️ Saldo negativo",
+};
+const STATUS: Record<string, { label: string; variant: "amber" | "green" | "gray" }> = {
+  pending: { label: "Pendente", variant: "amber" },
+  sent: { label: "Enviado", variant: "green" },
+  dismissed: { label: "Resolvido", variant: "gray" },
+};
+
+export default async function AlertasPage({
+  searchParams,
+}: {
+  searchParams: { type?: string; status?: string };
+}) {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
+  const writable = canWrite(user.role, "alertas");
+  const db = await getTenantDb();
+
+  const alerts = await db.alert.findMany({
+    where: {
+      ...(searchParams.type
+        ? { alert_type: searchParams.type as "vaccine_due" | "harvest_near" | "bill_due" | "low_balance" }
+        : {}),
+      ...(searchParams.status
+        ? { status: searchParams.status as "pending" | "sent" | "dismissed" }
+        : {}),
+    },
+    orderBy: { created_at: "desc" },
+  });
+
   return (
-    <div>
+    <div className="space-y-5">
       <h1 className="text-xl font-semibold text-gray-900">Alertas</h1>
-      <p className="mt-2 text-sm text-gray-500">Módulo 4 — em construção.</p>
+      <AlertFilters />
+
+      <div className="rounded-lg border border-gray-200 bg-white">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Tipo</TableHead>
+              <TableHead>Mensagem</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Criado em</TableHead>
+              <TableHead></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {alerts.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={5} className="py-6 text-center text-gray-500">
+                  Nenhum alerta.
+                </TableCell>
+              </TableRow>
+            )}
+            {alerts.map((a) => {
+              const st = STATUS[a.status];
+              return (
+                <TableRow key={a.id}>
+                  <TableCell className="whitespace-nowrap font-medium">
+                    {TYPE_LABEL[a.alert_type] ?? a.alert_type}
+                  </TableCell>
+                  <TableCell>{a.message}</TableCell>
+                  <TableCell><Badge variant={st.variant}>{st.label}</Badge></TableCell>
+                  <TableCell>{a.created_at.toLocaleDateString("pt-BR")}</TableCell>
+                  <TableCell className="text-right">
+                    {writable && a.status !== "dismissed" && (
+                      <AlertDismissButton alertId={a.id} />
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }
