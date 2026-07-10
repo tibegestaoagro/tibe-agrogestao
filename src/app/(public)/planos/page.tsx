@@ -1,17 +1,25 @@
 import Link from "next/link";
+import type { Metadata } from "next";
+import PublicNav from "@/components/public/public-nav";
+import PublicFooter from "@/components/public/public-footer";
+import { PLAN_PRICES } from "@/lib/asaas";
+
+export const metadata: Metadata = {
+  title: "Planos",
+  description:
+    "Planos Tibé: Campo, Fazenda e Grupo. Escolha o plano ideal para sua operação e comece com 14 dias grátis.",
+};
 
 /**
- * Página de planos: preços e limites são ilustrativos por enquanto (cobrança
- * real via Asaas entra no Módulo 5). O botão "Contratar" já cria uma conta de
- * verdade (Tenant + Owner, status=trial) via /criar-conta — construído para
- * destravar testes do painel antes do restante do produto estar pronto.
+ * Preços e nomes seguem PLAN_PRICES (spec 5.5, "conforme proposta comercial")
+ * — mesma fonte usada para criar a assinatura real no Asaas, para nunca
+ * divergir do que o cliente efetivamente paga.
  */
-
 const PLANS = [
   {
     key: "campo",
     name: "Campo",
-    price: "R$ 149",
+    price: PLAN_PRICES.campo,
     tagline: "Para o produtor iniciando o controle digital",
     features: ["1 propriedade", "Rebanho ou lavoura", "Financeiro básico"],
     highlight: false,
@@ -19,7 +27,7 @@ const PLANS = [
   {
     key: "fazenda",
     name: "Fazenda",
-    price: "R$ 299",
+    price: PLAN_PRICES.fazenda,
     tagline: "Gestão completa de rebanho e lavoura",
     features: [
       "Propriedades ilimitadas",
@@ -32,7 +40,7 @@ const PLANS = [
   {
     key: "grupo",
     name: "Grupo",
-    price: "R$ 549",
+    price: PLAN_PRICES.grupo,
     tagline: "Fazenda + prestação de serviço + agente no WhatsApp",
     features: [
       "Tudo do plano Fazenda",
@@ -46,11 +54,12 @@ const PLANS = [
 
 export default function PlanosPage() {
   return (
-    <main className="min-h-screen bg-tibe-light px-4 py-16">
-      <div className="mx-auto max-w-5xl text-center">
+    <main className="min-h-screen bg-tibe-light">
+      <PublicNav />
+      <div className="mx-auto max-w-5xl px-4 py-16 text-center">
         <h1 className="text-3xl font-bold text-tibe-dark">Planos</h1>
         <p className="mt-2 text-gray-600">
-          Escolha o plano ideal para sua operação. Valores ilustrativos.
+          Escolha o plano ideal para sua operação. 14 dias grátis, sem cartão.
         </p>
 
         <div className="mt-10 grid gap-6 sm:grid-cols-3">
@@ -69,7 +78,7 @@ export default function PlanosPage() {
               <h2 className="text-xl font-semibold text-gray-900">{plan.name}</h2>
               <p className="mt-1 text-sm text-gray-500">{plan.tagline}</p>
               <p className="mt-4 text-3xl font-bold text-tibe-dark">
-                {plan.price}
+                R$ {plan.price}
                 <span className="text-sm font-normal text-gray-500">/mês</span>
               </p>
               <ul className="mt-4 flex-1 space-y-2 text-sm text-gray-700">
@@ -100,6 +109,7 @@ export default function PlanosPage() {
           </Link>
         </p>
       </div>
+      <PublicFooter />
     </main>
   );
 }

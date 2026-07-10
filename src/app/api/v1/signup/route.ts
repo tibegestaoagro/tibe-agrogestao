@@ -2,6 +2,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { apiOk, apiError } from "@/lib/api";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
+import { TRIAL_DAYS } from "@/lib/billing-access";
 
 /**
  * POST /api/v1/signup — cadastro público de novo tenant (self-service).
@@ -50,6 +51,7 @@ export async function POST(request: Request) {
     return apiError("DUPLICATE_EMAIL", "Já existe uma conta com esse email", 409);
   }
 
+  const trial_ends_at = new Date(Date.now() + TRIAL_DAYS * 86_400_000);
   const tenant = await prisma.tenant.create({
     data: {
       name: company_name,
@@ -58,6 +60,7 @@ export async function POST(request: Request) {
       email: owner_email,
       plan,
       status: "trial",
+      trial_ends_at,
     },
   });
 

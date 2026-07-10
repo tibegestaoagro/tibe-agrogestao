@@ -122,6 +122,7 @@ enum AlertType {
   harvest_near
   bill_due
   low_balance
+  trial_ending // spec 5.8 — não previsto no PRD original, extensão aditiva
 }
 
 enum AlertStatus {

@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import type { Metadata } from "next";
 import SignupForm from "./signup-form";
+
+export const metadata: Metadata = {
+  title: "Criar conta",
+  description: "Crie sua conta no Tibé e comece a usar agora — teste grátis, sem cartão.",
+};
 
 export default function CriarContaPage() {
   return (

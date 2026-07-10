@@ -16,6 +16,7 @@ import { getBalanceAction } from "@/lib/actions/financial-summary";
 const VACCINE_DAYS = 15;
 const HARVEST_DAYS = 7;
 const BILL_DAYS = 3;
+const TRIAL_ENDING_DAYS = 2; // spec 5.8
 
 function isoWeekKey(d: Date): string {
   const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -33,7 +34,7 @@ function isoWeekKey(d: Date): string {
   return `${date.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
 }
 
-type AlertType = "vaccine_due" | "harvest_near" | "bill_due" | "low_balance";
+type AlertType = "vaccine_due" | "harvest_near" | "bill_due" | "low_balance" | "trial_ending";
 type RelatedModule = "rebanho" | "lavoura" | "servico" | "geral";
 
 /** Cria o Alert se ainda não existir um igual (mesmo tipo+módulo+entidade). Retorna se criou. */
@@ -134,6 +135,27 @@ export async function generateAlertsForTenant(tenantId: string): Promise<{ creat
       message: `⚠️ Saldo do mês está negativo: R$ ${balance.data.balance.toFixed(2)}.`,
     });
     if (didCreate) created++;
+  }
+
+  // 5. Trial vencendo em até 2 dias, sem assinatura ainda (spec 5.8).
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: { status: true, trial_ends_at: true },
+  });
+  if (tenant?.status === "trial" && tenant.trial_ends_at) {
+    const daysLeft = Math.ceil((tenant.trial_ends_at.getTime() - now.getTime()) / 86_400_000);
+    if (daysLeft >= 0 && daysLeft <= TRIAL_ENDING_DAYS) {
+      const hasSubscription = (await db.subscription.findFirst({})) !== null;
+      if (!hasSubscription) {
+        const didCreate = await ensureAlert(db, {
+          alert_type: "trial_ending",
+          related_module: "geral",
+          related_id: tenantId, // um trial só termina uma vez — idempotente por natureza
+          message: `⏳ Seu período de teste do Tibé termina em ${daysLeft} dia(s). Assine um plano em Configurações → Assinatura para não perder o acesso.`,
+        });
+        if (didCreate) created++;
+      }
+    }
   }
 
   return { created };

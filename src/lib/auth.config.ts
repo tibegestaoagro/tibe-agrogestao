@@ -8,8 +8,8 @@ import type { AppUserRole } from "@/types/next-auth";
  */
 
 // Rotas públicas (não exigem sessão).
-const PUBLIC_PATHS = ["/", "/login", "/criar-conta"];
-const PUBLIC_PREFIXES = ["/planos", "/politicas"];
+const PUBLIC_PATHS = ["/", "/login", "/criar-conta", "/faq", "/sitemap.xml", "/robots.txt"];
+const PUBLIC_PREFIXES = ["/planos", "/politicas", "/docs"];
 
 export const authConfig = {
   session: { strategy: "jwt" },
