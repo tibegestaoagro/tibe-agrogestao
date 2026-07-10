@@ -1,0 +1,326 @@
+# Tibé (AgroGestão) — contexto para Claude Code
+
+SaaS multi-tenant de gestão agropecuária (rebanho, lavoura, prestação de serviço,
+financeiro) com agente de IA no WhatsApp como canal primário. Cliente/financiador
+do MVP: Da Mata Sementes LTDA. Desenvolvido pela Pleno Digital.
+
+**Leia primeiro:** [docs/tibe-prd.md](docs/tibe-prd.md) (PRD completo, v1.1) e a
+spec do módulo em que for trabalhar em `docs/specs/module-XX-*.md`. Este arquivo
+é um resumo operacional — o PRD é a fonte de verdade para modelo de dados,
+contratos e regras de produto.
+
+Veja também [AGENTS.md](AGENTS.md) (mesma base técnica, redigida de forma
+agnóstica de ferramenta, para o caso de sessões abertas com outro agente).
+
+---
+
+## Como este projeto é conduzido (não pule isso)
+
+Este projeto é dividido em módulos, entregues **um de cada vez**, seguindo a
+fase do contrato. O usuário (Dilton) segue este protocolo com qualquer agente:
+
+1. **Antes de codificar um módulo**, leia a spec inteira e devolva um resumo
+   curto confirmando o objetivo + **toda ambiguidade ou inconsistência
+   encontrada**. Nunca assuma em silêncio — pergunte. Use `AskUserQuestion`
+   para decisões de produto/arquitetura que a spec não resolve.
+2. **Implemente task por task**, na ordem da spec.
+3. **Siga os contratos de API literalmente** (nomes de campo, tipos, formato de
+   sucesso/erro). Extensões aditivas ao contrato (campos novos que não quebram
+   o que já existe) são aceitáveis se documentadas — mas produto/arquitetura
+   novos exigem pergunta antes.
+4. **Todo modelo com `tenant_id`** passa pelo client Prisma escopado
+   (`getTenantDb()` / `prismaForTenant()`), nunca filtro manual — ver seção de
+   isolamento abaixo.
+5. **Ao final de cada módulo**, rode os critérios de aceitação da spec (com
+   testes automatizados sempre que possível) e reporte o que passou/faltou
+   *antes* do usuário validar manualmente.
+6. **Não avance para o próximo módulo sem aprovação explícita do usuário.**
+7. **Nunca rode `git push` sem ser pedido.** Commits normalmente são pedidos
+   explicitamente também.
+
+## Status dos módulos
+
+| # | Módulo | Status |
+|---|--------|--------|
+| 0 | Setup, schema multi-tenant, auth, isolamento | ✅ em produção |
+| 1 | Rebanho e Lavoura | ✅ em produção |
+| 2 | Prestador de Serviço | ✅ em produção |
+| 3 | Agente WhatsApp | ✅ código do Tibé pronto — **N8N/Meta/Salvy ainda não provisionados** (guia: [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md)) |
+| 4 | Financeiro e Alertas | ⏳ não iniciado |
+| 5 | Painel Web, Cobrança (Asaas) e Site | ⏳ não iniciado |
+| 6 | Painel da Plataforma (`PlatformUser`, interno Pleno) | ⏳ não iniciado |
+
+Specs: `docs/specs/module-00-setup.md` … `module-06-painel-plataforma.md`.
+
+---
+
+## Stack
+
+Next.js 14 (App Router) · TypeScript · Tailwind · Prisma 7 · PostgreSQL 17
+(Neon) · NextAuth v5 beta (Credentials) · Zod · Recharts · UI kit shadcn-style
+feito à mão (ver seção UI). BullMQ/Redis, N8N, Cloudflare R2 e Asaas fazem
+parte do PRD mas **ainda não foram integrados** no código (entram nos módulos
+4-6).
+
+## Deploy e infra
+
+- **App:** https://tibe-agrogestao.vercel.app (Vercel, deploy automático em
+  push na `main`).
+- **Repo:** `https://github.com/tibegestaoagro/tibe-agrogestao.git` — conta
+  dona é `tibegestaoagro`; `dilton-pleno` é colaborador com Write.
+- **Banco de produção:** Neon (`tibe-agrogestao` / `neondb`). O `.env` local
+  do projeto **aponta para o Neon por padrão** — veja o aviso de dev abaixo.
+- **Banco de dev local:** Postgres 17 via Docker, container `tibe-pg`, porta
+  `55432` (`docker start tibe-pg` se não estiver rodando).
+
+  ```
+  postgresql://tibe:tibe@localhost:55432/tibe_dev?schema=public
+  ```
+
+### ⚠️ Armadilha: `.env` aponta para produção (Neon)
+
+O arquivo `.env` (gitignored) foi deixado apontando para o **Neon de
+produção**, não para o Docker local. Antes de rodar migração, seed ou teste
+**localmente**, use a URL do Docker **inline**, sem editar o `.env`:
+
+```powershell
+$env:DATABASE_URL="postgresql://tibe:tibe@localhost:55432/tibe_dev?schema=public"; npm run test:m1
+```
+
+Só use o `.env` (Neon) quando a intenção for **de fato** migrar/seedar
+produção — e confirme com o usuário antes, é uma ação de alto impacto.
+
+### Migrações no Prisma 7 (não use `prisma migrate dev` direto)
+
+`prisma migrate dev` é interativo (pede confirmação em prompts) e **falha** em
+ambiente não-interativo (agente de código) assim que precisa perguntar algo.
+O fluxo usado neste projeto:
+
+```powershell
+# 1. Gera o SQL da diferença entre o banco atual e o schema
+npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script
+
+# 2. Salva esse SQL manualmente em prisma/migrations/<timestamp>_nome/migration.sql
+
+# 3. Aplica (não-interativo, idempotente)
+npm run db:deploy   # = prisma migrate deploy
+```
+
+Aplique sempre primeiro no Docker local, rode os testes, e só depois
+replique no Neon (com a URL **Direct**, sem `-pooler`, para migrar — a
+**Pooled**, com `-pooler`, é a usada em runtime/`DATABASE_URL` da Vercel).
+
+---
+
+## Isolamento multi-tenant (a regra mais importante do projeto)
+
+`tenant_id` **nunca** vem do client — é sempre resolvido da sessão NextAuth no
+servidor. Toda query de negócio usa o client Prisma **escopado**:
+
+```ts
+import { getTenantDb } from "@/lib/tenant-context";
+import { scoped } from "@/lib/prisma";
+
+const db = await getTenantDb();                 // dentro de rota/Server Component autenticado
+await db.animal.findMany();                      // tenant_id injetado automaticamente
+await db.animal.create({ data: scoped({ ear_tag: "001", property_id }) });
+```
+
+Implementação: `src/lib/prisma.ts` — uma **Prisma Client Extension**
+(`buildTenantClient`) injeta `tenant_id` em toda operação dos modelos listados
+em `TENANT_SCOPED_MODELS`. `prismaForTenant(tenantId)` devolve o client
+escopado (cacheado por tenant); `getTenantDb()` (em `tenant-context.ts`) resolve
+o tenant da sessão e chama `prismaForTenant`.
+
+- `scoped(data)` é um helper de tipos: satisfaz o `tenant_id` exigido pelo
+  Prisma Client no `create` **sem** você passar o valor manualmente — a
+  extension injeta o valor real em runtime. **Nunca** passe `tenant_id` de
+  verdade num `scoped(...)` — isso violaria o próprio propósito do helper.
+- **Todos** os modelos de negócio (inclusive os que antes eram "filhos" sem
+  `tenant_id` no PRD original — `AnimalWeightLog`, `AnimalVaccination`,
+  `AnimalMovement`, `CropCycle`, `PlotInput`) **têm** `tenant_id` e estão em
+  `TENANT_SCOPED_MODELS`. Isso foi uma decisão deliberada de defense-in-depth
+  (desvio do PRD, aprovado pelo usuário) — não remova.
+- O client **base** (`prisma`, sem escopo) só deve ser usado em: login
+  (`auth.ts`, lookup de email global), `prisma/seed.ts`, scripts internos, e o
+  **único** lookup cross-tenant legítimo do sistema —
+  `POST /api/internal/whatsapp/resolve-contact` (precisa achar a qual tenant um
+  telefone pertence, antes de saber o tenant). Qualquer uso novo do client base
+  fora desses casos é suspeito — pare e pergunte.
+- `PlatformUser` (Módulo 6, ainda não implementado) será a **outra** exceção
+  intencional — nunca deve ser alcançável a partir de uma sessão de tenant.
+
+Todo módulo que adiciona endpoints ganha um teste de isolamento automatizado
+(`scripts/*.test.ts`, rodados via `tsx`, chamando os route handlers
+diretamente com um `Request` construído). Rode sempre antes de reportar um
+módulo como concluído:
+
+```powershell
+$env:DATABASE_URL="postgresql://tibe:tibe@localhost:55432/tibe_dev?schema=public"
+npm run test:isolation   # M0 — isolamento genérico
+npm run test:m1          # M1 — Rebanho/Lavoura + isolamento dos "filhos"
+npm run test:m2          # M2 — Prestador + total_value persistido
+npm run test:m3          # M3 — WhatsApp: permissão por role/perfil, confirmação, isolamento
+```
+
+---
+
+## Padrões de API
+
+- Sucesso: `{ data, meta }`. Erro: `{ error: { code, message } }`. Helpers em
+  `src/lib/api.ts` (`apiOk`, `apiError`, `ApiErrors`).
+- Rotas de negócio (`/api/v1/*`) autenticam por **sessão** — use o guard
+  padrão:
+
+  ```ts
+  import { guard, readJson } from "@/lib/api-guard";
+
+  const g = await guard("rebanho", "write", { profile: "fazenda" });
+  if ("error" in g) return g.error;
+  // g.db (client escopado) e g.user disponíveis
+  ```
+
+  `guard(module, "read"|"write", { profile? })` checa sessão + permissão por
+  role (matriz do PRD §5.2, em `src/lib/permissions.ts`) + perfil de tenant
+  ativo (fazenda/prestador), tudo de uma vez.
+
+- Rotas internas (`/api/internal/*`, chamadas pelo N8N) autenticam por
+  **secret no header** (`x-internal-secret` contra `INTERNAL_API_SECRET`), não
+  por sessão — `src/lib/internal-guard.ts` (`requireInternalSecret`). Dentro
+  delas, a *role* do usuário é sempre **relida do banco** a partir de
+  `user_id`+`tenant_id`; nunca confie em role vinda do caller.
+- Rotas de webhook (`/api/webhooks/*`) seguem a mesma ideia (secret no
+  header), mas **nenhuma existe ainda** — o webhook do WhatsApp vai para o
+  N8N, não para o Tibé (ver seção do agente abaixo).
+
+## Lógica de negócio: `src/lib/actions/*`
+
+Toda regra de negócio (criar animal, registrar pesagem, calcular GMD, gerar
+`FinancialEntry` de uma venda, etc.) vive em `src/lib/actions/*.ts`, **não**
+dentro do route handler. As rotas HTTP (`/api/v1/...`) são wrappers finos:
+validam com Zod, chamam a action, serializam a resposta. O agente WhatsApp
+(`/api/internal/whatsapp/execute-action`) chama as **mesmas** actions
+diretamente. Isso foi um refactor deliberado no Módulo 3 (a pedido do usuário,
+"deixar liso para trazer modificações depois") — ao adicionar/editar uma
+regra de negócio, mude na action, não duplique lógica na rota.
+
+Padrão de retorno (`src/lib/actions/types.ts`):
+
+```ts
+type ActionResult<T> = { ok: true; data: T } | { ok: false; code: string; message: string; status: number };
+```
+
+Arquivos principais: `animals.ts`, `service-orders.ts`, `service-clients.ts`,
+`properties.ts`, `financial-summary.ts`. Lançamentos financeiros automáticos
+sempre passam por `createLinkedEntry()` (`src/lib/financial.ts`) — nunca crie
+`FinancialEntry` manualmente fora dela nas actions existentes.
+
+## Serialização
+
+Prisma devolve `Decimal` e `Date`; os contratos de API usam `number` e string
+ISO8601. Use sempre `decToNum()` / `isoOrNull()` (`src/lib/serialize.ts`) e os
+serializers prontos em `src/lib/serializers.ts` — não formate objetos Prisma à
+mão numa resposta de API.
+
+---
+
+## Autenticação
+
+NextAuth v5 (beta), Credentials + bcrypt. Split em dois arquivos por causa do
+Edge runtime do middleware:
+
+- `src/lib/auth.config.ts` — config **edge-safe** (sem Prisma/bcrypt), usada
+  pelo `middleware.ts` para proteger rotas. É aqui que fica a lista de rotas
+  públicas.
+- `src/lib/auth.ts` — instância completa (Node runtime), com o provider de
+  credenciais de fato.
+
+`User.email` é **globalmente único** (o login recebe só email+senha, sem
+seletor de tenant/subdomínio) — um email pertence a exatamente um tenant.
+`middleware.ts` libera `/api/*` da checagem de sessão (cada handler faz sua
+própria auth) para que rotas de API sem sessão devolvam `401` JSON em vez de
+redirecionar para `/login`.
+
+## Roles e permissões
+
+Enum `UserRole`: `OWNER | ADMIN | OPERADOR | VISUALIZADOR` (maiúsculas,
+conforme contrato de login). Hierarquia e matriz de acesso por módulo em
+`src/lib/permissions.ts` (espelha PRD §5.2). `canAccess`/`canWrite` recebem a
+role diretamente (reusáveis fora de contexto de sessão HTTP — é assim que o
+agente WhatsApp valida permissão, sem precisar de cookie).
+
+## UI
+
+Não existe um design system de terceiros instalado via CLI — **o `npx
+shadcn@latest init` trava neste ambiente** (fica esperando prompt
+interativo). Os componentes em `src/components/ui/` (`button`, `input`,
+`label`, `table`, `sheet`, `select`, `badge`) foram escritos à mão no estilo
+shadcn (Radix primitives + `class-variance-authority` + `tailwind-merge`,
+`cn()` em `src/lib/utils.ts`), com `components.json` já configurado — se um
+dia rodar o CLI interativamente, ele deve reconhecer a estrutura existente.
+Gráficos: Recharts v3. Cores da marca em `tailwind.config.ts`
+(`tibe.primary/dark/light`), fonte Inter via `next/font/google`.
+
+Páginas server (list/detail) buscam dados direto via `getTenantDb()`; ações de
+escrita são componentes client dentro de `<Sheet>` (painel lateral), chamando
+`apiPost`/`apiPatch` de `src/lib/client-api.ts` e dando `router.refresh()` no
+sucesso.
+
+---
+
+## O agente WhatsApp (Módulo 3)
+
+Arquitetura (PRD §7): **Meta → N8N → Tibé → N8N → Meta**. O Tibé nunca fala
+direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
+
+- **Não existe** `/api/webhooks/whatsapp` no Tibé — seria código morto.
+- A classificação de intenção por LLM acontece **dentro do N8N** (a chave de
+  API do provedor de LLM fica nas credenciais do N8N, não no `.env` do Tibé).
+- `POST /api/internal/whatsapp/resolve-contact` — identifica tenant/usuário
+  pelo telefone (único lookup cross-tenant legítimo do sistema). Devolve,
+  além do contrato da spec, `meta.first_contact`, `meta.suggested_reply` e
+  `meta.recent_history` (extensões aditivas — a spec não definia de onde o
+  N8N obteria essas informações).
+- `POST /api/internal/whatsapp/execute-action` — roteia as 9 intenções do MVP
+  (`src/lib/whatsapp-intents.ts` tem a lista + regra de permissão/perfil por
+  intenção) para as mesmas `actions` usadas pela web. Confirmação obrigatória
+  acima de R$ 5.000 (`CONFIRMATION_THRESHOLD`) para venda/compra de animal e
+  ordens de serviço de alto valor — ver `src/lib/actions/whatsapp-router.ts` e
+  `src/lib/actions/confirmation.ts` (interpretação de "sim"/"não" em texto
+  livre, usada só dentro dos dois fluxos de confirmação, nunca globalmente).
+- `gerar_relatorio` responde "em breve" — depende da geração de PDF do
+  Módulo 4, ainda não implementado.
+- Guia completo para montar o workflow no N8N (nó a nó, quando a infra externa
+  — Salvy, Meta Business Manager, N8N em produção — estiver pronta):
+  [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md).
+
+---
+
+## Memória de longo prazo (Claude Code, específico desta ferramenta)
+
+Além deste arquivo (versionado, visível a qualquer sessão/ferramenta/humano),
+existe um sistema de memória **local à máquina**, fora do repositório, em
+`C:\Users\dilto\.claude\projects\d--Projetos-Web-agrogestao-tibe\memory\`
+(`MEMORY.md` é o índice). Ele guarda decisões e contexto de sessões passadas
+do Claude Code especificamente — **não é visível** para outras ferramentas,
+outros agentes, nem para quem só olha o repositório. Trate este `CLAUDE.md`
+como a fonte que deve funcionar sozinha; a memória é um complemento, não uma
+dependência.
+
+## Comandos úteis
+
+```powershell
+npm run dev              # servidor de desenvolvimento
+npm run build             # build de produção (roda lint + tsc também)
+npm run db:migrate        # cria/aplica migração em dev (interativo — evite em automação)
+npm run db:deploy         # aplica migrações pendentes (não-interativo)
+npm run db:seed           # seed (tenant Da Mata + owner + vacinas padrão)
+npm run db:check          # valida conexão com o banco
+npm run auth:check        # valida credencial do seed (bcrypt)
+npm run test:isolation    # M0
+npm run test:m1           # M1
+npm run test:m2           # M2
+npm run test:m3           # M3
+```
+
+Credenciais do seed (dev): `owner@damata.com.br` / `tibe123`.

@@ -1,9 +1,8 @@
 import { z } from "zod";
 import { apiOk, apiError, ApiErrors } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
-import { scoped } from "@/lib/prisma";
 import { serializeMovement } from "@/lib/serializers";
-import { createLinkedEntry } from "@/lib/financial";
+import { addMovementAction } from "@/lib/actions/animals";
 
 /**
  * GET  /api/v1/animals/:id/movements    histórico de movimentações
@@ -50,9 +49,6 @@ export async function POST(
   const g = await guard("rebanho", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
-  const animal = await g.db.animal.findFirst({ where: { id: params.id } });
-  if (!animal) return apiError(...ApiErrors.NOT_FOUND);
-
   const body = await readJson(request);
   if ("error" in body) return body.error;
 
@@ -60,68 +56,24 @@ export async function POST(
   if (!parsed.success) {
     return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
   }
-  const { movement_type, value, notes, occurred_at, to_property_id } = parsed.data;
-  let from_property_id = parsed.data.from_property_id;
+  const { movement_type, value, notes, occurred_at, to_property_id, from_property_id } =
+    parsed.data;
 
-  const occurred = occurred_at ? new Date(occurred_at) : new Date();
+  const result = await addMovementAction(g.db, {
+    animal_id: params.id,
+    movement_type,
+    from_property_id,
+    to_property_id,
+    value,
+    notes,
+    occurred_at: occurred_at ? new Date(occurred_at) : null,
+  });
+  if (!result.ok) return apiError(result.code, result.message, result.status);
 
-  // Transferência: destino obrigatório e válido; origem = propriedade atual.
-  if (movement_type === "transfer") {
-    if (!to_property_id) {
-      return apiError(
-        "VALIDATION_ERROR",
-        "Transferência exige a propriedade de destino (to_property_id)",
-        422,
-      );
-    }
-    const dest = await g.db.property.findFirst({ where: { id: to_property_id } });
-    if (!dest) return apiError("INVALID_PROPERTY", "Propriedade de destino inválida", 422);
-    from_property_id = from_property_id ?? animal.property_id;
-  }
-
-  const movement = await g.db.animalMovement.create({
-    data: scoped({
-      animal_id: params.id,
-      movement_type,
-      from_property_id: from_property_id ?? null,
-      to_property_id: to_property_id ?? null,
-      value: value ?? null,
-      notes: notes ?? null,
-      occurred_at: occurred,
-    }),
+  const movement = await g.db.animalMovement.findFirst({
+    where: { animal_id: params.id },
+    orderBy: { created_at: "desc" },
   });
 
-  // Efeitos colaterais no animal.
-  const animalUpdate: Record<string, unknown> = {};
-  if (movement_type === "sale") animalUpdate.status = "sold";
-  if (movement_type === "death") animalUpdate.status = "deceased";
-  if (movement_type === "transfer") animalUpdate.property_id = to_property_id;
-  if (Object.keys(animalUpdate).length > 0) {
-    await g.db.animal.update({ where: { id: params.id }, data: animalUpdate });
-  }
-
-  // Lançamento financeiro automático: só venda (receita) e compra (despesa).
-  if (value != null && value > 0) {
-    if (movement_type === "sale") {
-      await createLinkedEntry(g.db, {
-        entry_type: "income",
-        category: "Venda de animal",
-        amount: value,
-        related_module: "rebanho",
-        related_id: params.id,
-        occurred_at: occurred,
-      });
-    } else if (movement_type === "purchase") {
-      await createLinkedEntry(g.db, {
-        entry_type: "expense",
-        category: "Compra de animal",
-        amount: value,
-        related_module: "rebanho",
-        related_id: params.id,
-        occurred_at: occurred,
-      });
-    }
-  }
-
-  return apiOk(serializeMovement(movement), {}, { status: 201 });
+  return apiOk(serializeMovement(movement!), {}, { status: 201 });
 }

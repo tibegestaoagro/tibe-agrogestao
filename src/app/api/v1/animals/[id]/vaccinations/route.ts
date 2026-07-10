@@ -1,9 +1,8 @@
 import { z } from "zod";
 import { apiOk, apiError, ApiErrors } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
-import { scoped } from "@/lib/prisma";
 import { serializeVaccination } from "@/lib/serializers";
-import { createLinkedEntry } from "@/lib/financial";
+import { addVaccinationAction } from "@/lib/actions/animals";
 
 /**
  * GET  /api/v1/animals/:id/vaccinations   histórico de vacinação do animal
@@ -46,9 +45,6 @@ export async function POST(
   const g = await guard("rebanho", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
-  const animal = await g.db.animal.findFirst({ where: { id: params.id } });
-  if (!animal) return apiError(...ApiErrors.NOT_FOUND);
-
   const body = await readJson(request);
   if ("error" in body) return body.error;
 
@@ -58,40 +54,20 @@ export async function POST(
   }
   const { vaccine_id, applied_at, interval_days, cost } = parsed.data;
 
-  const vaccine = await g.db.vaccine.findFirst({ where: { id: vaccine_id } });
-  if (!vaccine) return apiError("INVALID_VACCINE", "Vacina inválida", 422);
+  const result = await addVaccinationAction(g.db, {
+    animal_id: params.id,
+    vaccine_id,
+    applied_at: applied_at ? new Date(applied_at) : null,
+    interval_days,
+    cost,
+  });
+  if (!result.ok) return apiError(result.code, result.message, result.status);
 
-  const appliedDate = applied_at ? new Date(applied_at) : new Date();
-
-  // next_due_at = applied_at + (intervalo customizado ou padrão da vacina).
-  const interval = interval_days ?? vaccine.default_interval_days ?? null;
-  const nextDue =
-    interval != null
-      ? new Date(appliedDate.getTime() + interval * 86_400_000)
-      : null;
-
-  const vaccination = await g.db.animalVaccination.create({
-    data: scoped({
-      animal_id: params.id,
-      vaccine_id,
-      applied_at: appliedDate,
-      next_due_at: nextDue,
-      cost: cost ?? null,
-    }),
+  const vaccination = await g.db.animalVaccination.findFirst({
+    where: { animal_id: params.id },
+    orderBy: { created_at: "desc" },
     include: { vaccine: { select: { name: true } } },
   });
 
-  // Custo registrado → gera lançamento financeiro (despesa) vinculado ao animal.
-  if (cost != null && cost > 0) {
-    await createLinkedEntry(g.db, {
-      entry_type: "expense",
-      category: `Vacinação - ${vaccine.name}`,
-      amount: cost,
-      related_module: "rebanho",
-      related_id: params.id,
-      occurred_at: appliedDate,
-    });
-  }
-
-  return apiOk(serializeVaccination(vaccination), {}, { status: 201 });
+  return apiOk(serializeVaccination(vaccination!), {}, { status: 201 });
 }

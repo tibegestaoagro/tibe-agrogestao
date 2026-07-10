@@ -1,9 +1,8 @@
 import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
-import { scoped } from "@/lib/prisma";
 import { serializeServiceOrder } from "@/lib/serializers";
-import { decToNum } from "@/lib/serialize";
+import { createServiceOrderAction } from "@/lib/actions/service-orders";
 
 /**
  * GET  /api/v1/service-orders?status=&service_client_id=   lista ordens (filtros)
@@ -20,10 +19,6 @@ const createSchema = z.object({
   description: z.string().trim().nullish(),
   performed_at: z.string().datetime(),
 });
-
-function startOfDay(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-}
 
 export async function GET(request: Request) {
   const g = await guard("prestador", "read", { profile: "prestador" });
@@ -67,38 +62,18 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
   }
-  const { service_client_id, service_id, description, performed_at } = parsed.data;
+  const { service_client_id, service_id, quantity, description, performed_at } =
+    parsed.data;
 
-  const client = await g.db.serviceClient.findFirst({
-    where: { id: service_client_id },
+  const result = await createServiceOrderAction(g.db, {
+    service_client_id,
+    service_id,
+    quantity,
+    description,
+    performed_at: new Date(performed_at),
   });
-  if (!client) return apiError("INVALID_CLIENT", "Cliente inválido", 422);
+  if (!result.ok) return apiError(result.code, result.message, result.status);
 
-  const service = await g.db.service.findFirst({ where: { id: service_id } });
-  if (!service) return apiError("INVALID_SERVICE", "Serviço inválido", 422);
-
-  // Preço fixo: quantidade sempre 1.
-  const quantity = service.pricing_type === "fixed" ? 1 : parsed.data.quantity;
-  const unitPrice = decToNum(service.unit_price) ?? 0;
-  const total_value = Number((quantity * unitPrice).toFixed(2));
-
-  const performed = new Date(performed_at);
-  const initialStatus =
-    startOfDay(performed) > startOfDay(new Date())
-      ? ("scheduled" as const)
-      : ("completed" as const);
-
-  const order = await g.db.serviceOrder.create({
-    data: scoped({
-      service_client_id,
-      service_id,
-      description: description ?? null,
-      quantity,
-      total_value,
-      performed_at: performed,
-      status: initialStatus,
-    }),
-  });
-
-  return apiOk(serializeServiceOrder(order), {}, { status: 201 });
+  const order = await g.db.serviceOrder.findFirst({ where: { id: result.data.id } });
+  return apiOk(serializeServiceOrder(order!), {}, { status: 201 });
 }

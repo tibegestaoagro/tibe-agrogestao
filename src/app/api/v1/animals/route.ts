@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
-import { scoped } from "@/lib/prisma";
 import { serializeAnimal } from "@/lib/serializers";
 import { isoOrNull } from "@/lib/serialize";
+import { createAnimalAction } from "@/lib/actions/animals";
 
 /**
  * GET  /api/v1/animals    lista animais (filtros: property_id, status, breed, q=brinco)
@@ -72,64 +72,16 @@ export async function POST(request: Request) {
   const { ear_tag, breed, sex, property_id, birth_date, initial_weight } =
     parsed.data;
 
-  // Propriedade deve existir, pertencer ao tenant e não estar arquivada.
-  const property = await g.db.property.findFirst({ where: { id: property_id } });
-  if (!property) {
-    return apiError("INVALID_PROPERTY", "Propriedade inválida", 422);
-  }
-  if (property.archived_at) {
-    return apiError(
-      "PROPERTY_ARCHIVED",
-      "Não é possível cadastrar animal em propriedade arquivada",
-      422,
-    );
-  }
+  const result = await createAnimalAction(g.db, {
+    ear_tag,
+    breed,
+    sex,
+    property_id,
+    birth_date: birth_date ? new Date(birth_date) : null,
+    initial_weight,
+  });
+  if (!result.ok) return apiError(result.code, result.message, result.status);
 
-  // Unicidade de brinco por tenant (1.2) — checagem amigável + proteção do índice.
-  const dup = await g.db.animal.findFirst({ where: { ear_tag } });
-  if (dup) {
-    return apiError(
-      "DUPLICATE_EAR_TAG",
-      `Já existe um animal com o brinco '${ear_tag}' neste tenant`,
-      409,
-    );
-  }
-
-  const birth = birth_date ? new Date(birth_date) : null;
-
-  let animal;
-  try {
-    animal = await g.db.animal.create({
-      data: scoped({
-        ear_tag,
-        breed,
-        sex,
-        property_id,
-        birth_date: birth,
-        current_weight: initial_weight ?? null,
-      }),
-    });
-  } catch (e) {
-    if ((e as { code?: string }).code === "P2002") {
-      return apiError(
-        "DUPLICATE_EAR_TAG",
-        `Já existe um animal com o brinco '${ear_tag}' neste tenant`,
-        409,
-      );
-    }
-    throw e;
-  }
-
-  // Peso inicial → cria a primeira pesagem (decisão M1: histórico consistente).
-  if (initial_weight != null) {
-    await g.db.animalWeightLog.create({
-      data: scoped({
-        animal_id: animal.id,
-        weight: initial_weight,
-        measured_at: birth ?? new Date(),
-      }),
-    });
-  }
-
-  return apiOk(serializeAnimal(animal), {}, { status: 201 });
+  const animal = await g.db.animal.findFirst({ where: { id: result.data.id } });
+  return apiOk(serializeAnimal(animal!), {}, { status: 201 });
 }
