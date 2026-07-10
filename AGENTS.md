@@ -204,6 +204,19 @@ configurado. Gráficos: Recharts v3. Cores da marca em `tailwind.config.ts`.
 
 ---
 
+## Signup público (`/planos` + `/criar-conta`) — fora do escopo original do PRD
+
+O PRD §12 marca onboarding self-service completo como fora do MVP (v1.1), mas
+existe um fluxo de signup público real (não é mockup): `/planos` (preços
+ilustrativos, sem cobrança real) → `/criar-conta` (formulário completo) →
+`POST /api/v1/signup` (única rota `/api/v1` que roda sem sessão) cria
+`Tenant` (status trial, plan = card escolhido) + `User` (OWNER) de verdade,
+com login automático em seguida. Sem rate limiting (sem fila/Redis
+conectados) — aceitável para testes controlados, revisar antes de expor
+publicamente. Construído para permitir testes do painel antes dos módulos
+4-6 existirem; provavelmente será revisto quando o Módulo 5 (Asaas) definir
+o fluxo de contratação real.
+
 ## O agente WhatsApp (Módulo 3)
 
 Arquitetura: **Meta → N8N → Tibé → N8N → Meta**. O Tibé nunca fala direto com

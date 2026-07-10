@@ -8,7 +8,7 @@ import type { AppUserRole } from "@/types/next-auth";
  */
 
 // Rotas públicas (não exigem sessão).
-const PUBLIC_PATHS = ["/", "/login"];
+const PUBLIC_PATHS = ["/", "/login", "/criar-conta"];
 const PUBLIC_PREFIXES = ["/planos", "/politicas"];
 
 export const authConfig = {

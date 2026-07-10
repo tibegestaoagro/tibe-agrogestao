@@ -268,6 +268,29 @@ sucesso.
 
 ---
 
+## Signup público (`/planos` + `/criar-conta`) — fora do escopo original do PRD
+
+O PRD §12 marca "onboarding self-service completo" como **fora do MVP** (v1.1).
+Ainda assim, existe hoje um fluxo de signup público real, construído a pedido
+explícito do usuário para destravar testes do painel antes dos módulos
+4-5-6:
+
+- `/planos` — cards de preço **ilustrativos** (sem Asaas), cada um linkando
+  para `/criar-conta?plan=campo|fazenda|grupo`.
+- `/criar-conta` — formulário completo (empresa, CNPJ/CPF, telefone,
+  responsável, email, senha) → `POST /api/v1/signup` (única rota `/api/v1`
+  que roda **sem sessão**, por natureza — ainda não existe usuário). Cria
+  `Tenant` (status **trial**, `plan` = o card clicado) + `User` (role
+  `OWNER`) de verdade, com checagem de documento/email duplicado. O client
+  faz login automático (`signIn` do NextAuth) logo em seguida e manda para
+  `/dashboard`, que redireciona ao onboarding existente (sem `TenantProfile`
+  ainda).
+- **Sem rate limiting** (não há fila/Redis conectado) — gap conhecido,
+  aceitável para uso controlado de testes, mas revisar antes de divulgar
+  publicamente.
+- Se o Módulo 5 (Asaas) redesenhar o fluxo de contratação de verdade, este
+  fluxo provavelmente precisa ser revisto/substituído — não é a versão final.
+
 ## O agente WhatsApp (Módulo 3)
 
 Arquitetura (PRD §7): **Meta → N8N → Tibé → N8N → Meta**. O Tibé nunca fala

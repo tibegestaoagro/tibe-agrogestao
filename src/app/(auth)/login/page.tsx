@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { signIn } from "next-auth/react";
 
 export default function LoginPage() {
@@ -80,6 +81,13 @@ export default function LoginPage() {
       >
         {loading ? "Entrando..." : "Entrar"}
       </button>
+
+      <p className="text-center text-sm text-gray-500">
+        Não tem conta?{" "}
+        <Link href="/planos" className="text-tibe-primary hover:underline">
+          Ver planos
+        </Link>
+      </p>
     </form>
   );
 }
