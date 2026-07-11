@@ -40,9 +40,14 @@ export default async function PainelLayout({
             Tenants
           </Link>
           {masterAdmin && (
-            <Link href="/plataforma/configuracoes/equipe" className="block rounded-md px-3 py-2 text-sm font-medium text-gray-300 transition hover:bg-gray-800 hover:text-white">
-              Equipe
-            </Link>
+            <>
+              <Link href="/plataforma/configuracoes/equipe" className="block rounded-md px-3 py-2 text-sm font-medium text-gray-300 transition hover:bg-gray-800 hover:text-white">
+                Equipe
+              </Link>
+              <Link href="/plataforma/configuracoes/whatsapp" className="block rounded-md px-3 py-2 text-sm font-medium text-gray-300 transition hover:bg-gray-800 hover:text-white">
+                WhatsApp
+              </Link>
+            </>
           )}
         </nav>
       </aside>
