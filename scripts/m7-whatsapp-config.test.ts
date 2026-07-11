@@ -7,6 +7,7 @@ import {
   maskCredentials,
 } from "@/lib/actions/platform-whatsapp-config";
 import { sendWhatsAppMessage } from "@/lib/whatsapp-send";
+import { POST as sendMessageRoute } from "@/app/api/internal/whatsapp/send-message/route";
 
 /**
  * Testes do provider WhatsApp configurável (spec 2026-07-11): criptografia,
@@ -94,6 +95,42 @@ async function main() {
   await activateProviderAction("evolution");
   const unreachable = await sendWhatsAppMessage("+5511999990000", "olá");
   assert(!unreachable.ok && unreachable.code === "PROVIDER_ERROR", "provider inalcançável vira PROVIDER_ERROR, sem exceção");
+
+  // ── rota interna send-message ────────────────────────────────
+  process.env.INTERNAL_API_SECRET = process.env.INTERNAL_API_SECRET || "test-secret";
+
+  const noAuth = await sendMessageRoute(
+    new Request("http://test/api/internal/whatsapp/send-message", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to: "+5511999990000", text: "oi" }),
+    }),
+  );
+  assert(noAuth.status === 401, "send-message sem x-internal-secret devolve 401");
+
+  const badBody = await sendMessageRoute(
+    new Request("http://test/api/internal/whatsapp/send-message", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-internal-secret": process.env.INTERNAL_API_SECRET!,
+      },
+      body: JSON.stringify({ to: "+5511999990000" }),
+    }),
+  );
+  assert(badBody.status === 422, "send-message sem text devolve 422");
+
+  const provErr = await sendMessageRoute(
+    new Request("http://test/api/internal/whatsapp/send-message", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-internal-secret": process.env.INTERNAL_API_SECRET!,
+      },
+      body: JSON.stringify({ to: "+5511999990000", text: "oi" }),
+    }),
+  );
+  assert(provErr.status === 502, "falha do provider vira 502 PROVIDER_ERROR na rota");
 
   await prisma.whatsAppProviderConfig.deleteMany({});
 
