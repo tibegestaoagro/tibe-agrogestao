@@ -1,5 +1,11 @@
 import "dotenv/config";
 import { encryptConfig, decryptConfig } from "@/lib/crypto-config";
+import { prisma } from "@/lib/prisma";
+import {
+  upsertProviderConfigAction,
+  activateProviderAction,
+  maskCredentials,
+} from "@/lib/actions/platform-whatsapp-config";
 
 /**
  * Testes do provider WhatsApp configurável (spec 2026-07-11): criptografia,
@@ -36,6 +42,43 @@ async function main() {
     tamperFailed = true;
   }
   assert(tamperFailed, "payload adulterado é rejeitado (GCM auth tag)");
+
+  // ── actions de config ────────────────────────────────────────
+  await prisma.whatsAppProviderConfig.deleteMany({});
+
+  const up1 = await upsertProviderConfigAction({
+    provider: "evolution",
+    credentials: { base_url: "https://evo.example.com", api_key: "evo-key-9876", instance: "tibe" },
+  });
+  assert(up1.ok, "upsert de config Evolution funciona");
+
+  const row = await prisma.whatsAppProviderConfig.findUnique({ where: { provider: "evolution" } });
+  assert(!!row && !row.credentials_encrypted.includes("evo-key-9876"), "credencial no banco não está em claro");
+  assert(!!row && row.active === false, "config recém-criada nasce inativa");
+
+  const actMissing = await activateProviderAction("meta_cloud_api");
+  assert(!actMissing.ok && actMissing.status === 404, "ativar provider sem config é rejeitado (404)");
+
+  const act1 = await activateProviderAction("evolution");
+  assert(act1.ok, "ativar Evolution funciona");
+
+  await upsertProviderConfigAction({
+    provider: "meta_cloud_api",
+    credentials: { access_token: "meta-token-4321", phone_number_id: "5511999" },
+  });
+  await activateProviderAction("meta_cloud_api");
+
+  const all = await prisma.whatsAppProviderConfig.findMany({ orderBy: { provider: "asc" } });
+  const evo = all.find((c) => c.provider === "evolution");
+  const meta = all.find((c) => c.provider === "meta_cloud_api");
+  assert(!!evo && evo.active === false, "ativar Meta desativa Evolution (invariante de 1 ativo)");
+  assert(!!meta && meta.active === true, "Meta fica ativa");
+
+  const masked = maskCredentials({ api_key: "evo-key-9876", pin: "12" });
+  assert(masked.api_key === "•••• 9876", "maskCredentials preserva só os últimos 4");
+  assert(masked.pin === "••••", "valor curto é totalmente mascarado");
+
+  await prisma.whatsAppProviderConfig.deleteMany({});
 
   console.log(failures === 0 ? "\n✅ M7: 0 falhas." : `\n❌ M7: ${failures} falha(s).`);
   process.exit(failures === 0 ? 0 : 1);
