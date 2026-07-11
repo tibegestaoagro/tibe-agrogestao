@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { platformAuthConfig } from "@/lib/platform-auth.config";
+import { checkLoginRateLimit, resetLoginRateLimit } from "@/lib/rate-limit";
 
 /**
  * Instância completa do NextAuth v5 para PlatformUser (Node runtime, Módulo
@@ -29,11 +30,15 @@ export const {
           typeof credentials?.password === "string" ? credentials.password : "";
         if (!email || !password) return null;
 
+        if (!(await checkLoginRateLimit("platform", email))) return null;
+
         const platformUser = await prisma.platformUser.findUnique({ where: { email } });
         if (!platformUser || !platformUser.active) return null;
 
         const ok = await bcrypt.compare(password, platformUser.password_hash);
         if (!ok) return null;
+
+        await resetLoginRateLimit("platform", email);
 
         return {
           id: platformUser.id,

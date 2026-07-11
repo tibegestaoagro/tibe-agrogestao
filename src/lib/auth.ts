@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { authConfig } from "@/lib/auth.config";
+import { checkLoginRateLimit, resetLoginRateLimit } from "@/lib/rate-limit";
 
 /**
  * Instância completa do NextAuth v5 (Node runtime).
@@ -28,12 +29,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           typeof credentials?.password === "string" ? credentials.password : "";
         if (!email || !password) return null;
 
+        if (!(await checkLoginRateLimit("tenant", email))) return null;
+
         // Email é globalmente único → resolve um único usuário/tenant.
         const user = await prisma.user.findUnique({ where: { email } });
         if (!user || !user.active) return null;
 
         const ok = await bcrypt.compare(password, user.password_hash);
         if (!ok) return null;
+
+        await resetLoginRateLimit("tenant", email);
 
         return {
           id: user.id,

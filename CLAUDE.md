@@ -179,7 +179,12 @@ o tenant da sessão e chama `prismaForTenant`.
   `src/lib/actions/alerts.ts` e `alert-delivery.ts`) — que precisa **listar
   todos os tenants ativos** antes de escopar por tenant a cada iteração —, e
   `POST /api/webhooks/asaas` (M5), que localiza a `Subscription` pelo
-  `asaas_subscription_id` porque o Asaas não manda sessão de tenant nenhuma.
+  `asaas_subscription_id` porque o Asaas não manda sessão de tenant nenhuma,
+  `getBillingAccess()` (`src/lib/billing-access.ts`) — sempre chamada com um
+  `tenantId` já resolvido da sessão pelo caller (nunca de input do client),
+  e `inviteUserAction` (`src/lib/actions/users.ts`) — checagem de duplicidade
+  de `User.email`, que é **globalmente único** (não dá pra checar isso com o
+  client escopado; só devolve 409 genérico, não vaza dado de outro tenant).
   Qualquer uso novo do client base fora desses casos é suspeito — pare e
   pergunte.
 - `PlatformUser` e `SubscriptionStatusLog` (Módulo 6) são a **outra** exceção

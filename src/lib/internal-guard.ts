@@ -1,4 +1,12 @@
+import crypto from "node:crypto";
 import { apiError, ApiErrors } from "@/lib/api";
+
+function timingSafeEqualStr(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
 
 /**
  * Autenticação de rotas internas (`/api/internal/*`) via secret no header,
@@ -13,7 +21,7 @@ export function requireInternalSecret(
   if (!expected) {
     return { error: apiError("SERVER_MISCONFIGURED", "INTERNAL_API_SECRET não configurado", 500) };
   }
-  if (!provided || provided !== expected) {
+  if (!provided || !timingSafeEqualStr(provided, expected)) {
     return { error: apiError(...ApiErrors.UNAUTHORIZED) };
   }
   return { ok: true };
@@ -33,7 +41,7 @@ export function requireCronSecret(
   if (!expected) {
     return { error: apiError("SERVER_MISCONFIGURED", "CRON_SECRET não configurado", 500) };
   }
-  if (auth !== `Bearer ${expected}`) {
+  if (!auth || !timingSafeEqualStr(auth, `Bearer ${expected}`)) {
     return { error: apiError(...ApiErrors.UNAUTHORIZED) };
   }
   return { ok: true };

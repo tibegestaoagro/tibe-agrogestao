@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
@@ -36,7 +37,11 @@ export async function POST(request: Request) {
   if (!expected) {
     return apiError("SERVER_MISCONFIGURED", "ASAAS_WEBHOOK_TOKEN não configurado", 500);
   }
-  if (!provided || provided !== expected) {
+  const expectedBuf = Buffer.from(expected);
+  const providedBuf = Buffer.from(provided ?? "");
+  const tokenValid =
+    providedBuf.length === expectedBuf.length && crypto.timingSafeEqual(providedBuf, expectedBuf);
+  if (!tokenValid) {
     return apiError("UNAUTHORIZED", "Token inválido", 401);
   }
 

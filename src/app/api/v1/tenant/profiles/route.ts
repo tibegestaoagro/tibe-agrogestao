@@ -1,8 +1,7 @@
 import { z } from "zod";
-import { apiOk, apiError, ApiErrors } from "@/lib/api";
-import { getSessionUser, getTenantDb } from "@/lib/tenant-context";
+import { apiOk, apiError } from "@/lib/api";
+import { guard, readJson } from "@/lib/api-guard";
 import { scoped } from "@/lib/prisma";
-import { requireRole } from "@/lib/permissions";
 import { provisionDefaultVaccines } from "@/lib/vaccines";
 
 /**
@@ -14,6 +13,11 @@ import { provisionDefaultVaccines } from "@/lib/vaccines";
  * Cria (ou reativa) um TenantProfile para o tenant da sessão. Idempotente: se o
  * profile já existe, retorna-o (reativando se estava inativo). tenant_id é sempre
  * resolvido da sessão e injetado pelo client escopado — nunca vem do client.
+ *
+ * Usa guard("usuarios", "write") — mesma permissão (OWNER/ADMIN) que
+ * requireRole(["OWNER","ADMIN"]) tinha antes, mas agora passando também pelo
+ * bloqueio de inadimplência (spec 5.7/5.8), que o guard central aplica e essa
+ * rota estava pulando por não usá-lo.
  */
 
 const bodySchema = z.object({
@@ -21,24 +25,13 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const user = await getSessionUser();
-  if (!user) return apiError(...ApiErrors.UNAUTHORIZED);
+  const g = await guard("usuarios", "write");
+  if ("error" in g) return g.error;
 
-  // Onboarding / configuração de conta: restrito a OWNER e ADMIN.
-  try {
-    await requireRole(["OWNER", "ADMIN"]);
-  } catch {
-    return apiError(...ApiErrors.FORBIDDEN);
-  }
+  const body = await readJson(request);
+  if ("error" in body) return body.error;
 
-  let json: unknown;
-  try {
-    json = await request.json();
-  } catch {
-    return apiError("INVALID_JSON", "Corpo da requisição inválido", 400);
-  }
-
-  const parsed = bodySchema.safeParse(json);
+  const parsed = bodySchema.safeParse(body.json);
   if (!parsed.success) {
     return apiError(
       "VALIDATION_ERROR",
@@ -48,7 +41,7 @@ export async function POST(request: Request) {
   }
 
   const { profile_type } = parsed.data;
-  const db = await getTenantDb();
+  const db = g.db;
 
   // tenant_id injetado automaticamente pelo middleware de isolamento.
   const existing = await db.tenantProfile.findFirst({ where: { profile_type } });

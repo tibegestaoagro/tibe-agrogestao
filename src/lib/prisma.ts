@@ -18,10 +18,11 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 /**
  * Conjunto de modelos que carregam a coluna `tenant_id` e, portanto, são cobertos
- * pelo middleware de isolamento. Modelos-filho que herdam o tenant via relação com
- * o pai (AnimalWeightLog, AnimalVaccination, AnimalMovement, CropCycle, PlotInput)
- * NÃO entram aqui — sua segurança depende de sempre serem consultados através do
- * pai tenant-scoped. PlatformUser também fica de fora, por desenho (PRD 10.4).
+ * pelo middleware de isolamento. Modelos que no PRD original eram "filhos" sem
+ * tenant_id próprio (AnimalWeightLog, AnimalVaccination, AnimalMovement, CropCycle,
+ * PlotInput) TAMBÉM entram aqui — decisão deliberada de defense-in-depth (desvio
+ * do PRD, aprovado pelo usuário; ver CLAUDE.md). Não remova. PlatformUser fica de
+ * fora, por desenho (PRD 10.4) — não pertence a tenant algum.
  */
 export const TENANT_SCOPED_MODELS = new Set<string>([
   "TenantProfile",
