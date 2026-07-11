@@ -113,6 +113,11 @@ Aplique sempre primeiro no Docker local, rode os testes, e só depois
 replique no Neon (com a URL **Direct**, sem `-pooler`, para migrar — a
 **Pooled**, com `-pooler`, é a usada em runtime/`DATABASE_URL` da Vercel).
 
+⚠️ O índice parcial `WhatsAppProviderConfig_one_active` (`WHERE "active"`,
+M7) não é representável no `schema.prisma` — todo `migrate diff` futuro vai
+sugerir um `DROP INDEX` dele como "drift". **Não aplique esse drop**; remova
+a linha do SQL gerado antes de salvar a migração.
+
 ### Redis (BullMQ) já está provisionado (Redis Cloud)
 
 Diferente do Postgres, o `REDIS_URL` no `.env` local aponta para a **mesma**

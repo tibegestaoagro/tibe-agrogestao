@@ -93,6 +93,11 @@ Aplique primeiro no banco local, rode os testes, só então replique no Neon
 (use a connection string **Direct**, sem `-pooler`, para migrar — a **Pooled**
 é a usada em runtime).
 
+⚠️ O índice parcial `WhatsAppProviderConfig_one_active` (`WHERE "active"`,
+M7) não é representável no `schema.prisma` — todo `migrate diff` futuro vai
+sugerir um `DROP INDEX` dele como "drift". Não aplique esse drop; remova a
+linha do SQL gerado antes de salvar a migração.
+
 ### Redis (BullMQ) já provisionado (Redis Cloud) — sem instância local separada
 
 O `.env` local aponta para a mesma instância Redis Cloud de produção (uso é só
