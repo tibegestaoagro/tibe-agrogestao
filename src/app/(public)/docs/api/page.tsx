@@ -580,6 +580,16 @@ const GROUPS: Group[] = [
         response: `200
 { "data": { "reply_text": "Peso de 382 kg registrado para o animal 1234. GMD: 0.65 kg/dia.", "requires_confirmation": false, "auxiliary_data": {}, "report_url": null } }`,
       },
+      {
+        method: "POST",
+        path: "/api/internal/whatsapp/send-message",
+        auth: "Header x-internal-secret",
+        description:
+          "Envia uma mensagem WhatsApp pelo provider ativo (Evolution ou Meta Cloud API, configurado no painel da plataforma). O N8N usa esta rota em vez de falar com o provider diretamente.",
+        request: `{ "to": "+5511999990000", "text": "Peso registrado com sucesso." }`,
+        response: `200
+{ "data": { "provider": "evolution", "message_id": "BAE5..." }, "meta": {} }`,
+      },
     ],
   },
   {
@@ -698,6 +708,31 @@ const GROUPS: Group[] = [
         request: `{ "active": false }`,
         response: `200
 { "data": { "id": "cl...", "active": false } }`,
+      },
+      {
+        method: "GET",
+        path: "/api/platform/whatsapp-config",
+        auth: "Sessão de PlatformUser · só master_admin",
+        description: "Lista as configs de provider (credenciais sempre mascaradas — últimos 4 caracteres).",
+        response: `200
+{ "data": [ { "provider": "evolution", "active": true, "credentials_masked": { "api_key": "•••• 9876" }, "updated_at": "2026-07-11T12:00:00.000Z" } ], "meta": {} }`,
+      },
+      {
+        method: "PUT",
+        path: "/api/platform/whatsapp-config",
+        auth: "Sessão de PlatformUser · só master_admin",
+        description: "Cria/atualiza as credenciais de um provider (criptografadas em repouso). Não altera qual está ativo.",
+        request: `{ "provider": "evolution", "credentials": { "base_url": "https://evo.up.railway.app", "api_key": "...", "instance": "tibe" } }`,
+        response: `200
+{ "data": { "provider": "evolution" }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/platform/whatsapp-config/{provider}/activate",
+        auth: "Sessão de PlatformUser · só master_admin",
+        description: "Ativa o provider (e desativa o outro, transacional). 404 se ainda não configurado.",
+        response: `200
+{ "data": { "provider": "meta_cloud_api" }, "meta": {} }`,
       },
     ],
   },

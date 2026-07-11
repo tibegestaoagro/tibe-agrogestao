@@ -184,7 +184,10 @@ o tenant da sessão e chama `prismaForTenant`.
   `tenantId` já resolvido da sessão pelo caller (nunca de input do client),
   e `inviteUserAction` (`src/lib/actions/users.ts`) — checagem de duplicidade
   de `User.email`, que é **globalmente único** (não dá pra checar isso com o
-  client escopado; só devolve 409 genérico, não vaza dado de outro tenant).
+  client escopado; só devolve 409 genérico, não vaza dado de outro tenant),
+  `WhatsAppProviderConfig` (spec 2026-07-11) — config GLOBAL de plataforma
+  (rotas master_admin + `sendWhatsAppMessage`), mesma categoria estrutural de
+  `PlatformUser`, fora de `TENANT_SCOPED_MODELS`,
   Qualquer uso novo do client base fora desses casos é suspeito — pare e
   pergunte.
 - `PlatformUser` e `SubscriptionStatusLog` (Módulo 6) são a **outra** exceção
@@ -374,6 +377,14 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
   — Salvy, Meta Business Manager, N8N em produção — estiver pronta):
   [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md). Inclui a
   seção de envio de alertas (Módulo 4) via `N8N_ALERT_WEBHOOK_URL`.
+- **Envio de mensagem agora é do Tibé** (spec 2026-07-11, desvio deliberado da
+  regra "N8N é o único intermediário", aprovado pelo usuário): o N8N chama
+  `POST /api/internal/whatsapp/send-message` e o Tibé entrega pelo provider
+  ATIVO em `WhatsAppProviderConfig` (Evolution API não-oficial OU Meta Cloud
+  API — configurável em `/plataforma/configuracoes/whatsapp`, só master_admin,
+  credenciais AES-256-GCM com `CONFIG_ENCRYPTION_KEY`). O RECEBIMENTO continua
+  no N8N (payloads de entrada diferem por provider; segue não existindo
+  `/api/webhooks/whatsapp`). Despacho em `src/lib/whatsapp-send.ts`.
 
 ## Financeiro e Alertas (Módulo 4)
 

@@ -1,12 +1,13 @@
 const METHOD_COLOR: Record<string, string> = {
   GET: "bg-blue-100 text-blue-700",
   POST: "bg-tibe-light text-tibe-dark",
+  PUT: "bg-purple-100 text-purple-700",
   PATCH: "bg-amber-100 text-amber-700",
   DELETE: "bg-red-100 text-red-700",
 };
 
 export type Endpoint = {
-  method: "GET" | "POST" | "PATCH" | "DELETE";
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   path: string;
   auth: string;
   description: string;

@@ -23,15 +23,15 @@ Meta Business Cloud API → Webhook N8N
         ↓
 [N8N] Node 3: HTTP Request → POST /api/internal/whatsapp/resolve-contact (Tibé)
         ↓
-   identified=false? ──→ [N8N] Envia meta.suggested_reply via Meta Cloud API → FIM
+   identified=false? ──→ [N8N] Envia meta.suggested_reply via Tibé (send-message) → FIM
         ↓ identified=true
-   first_contact=true? ──→ [N8N] Envia meta.suggested_reply (saudação) via Meta Cloud API → FIM
+   first_contact=true? ──→ [N8N] Envia meta.suggested_reply (saudação) via Tibé (send-message) → FIM
         ↓ (conversa normal)
 [N8N] Node 4: Chamada ao LLM (mensagem + contexto + histórico) → classifica intenção
         ↓
 [N8N] Node 5: HTTP Request → POST /api/internal/whatsapp/execute-action (Tibé)
         ↓
-[N8N] Node 6: Envia reply_text via Meta Cloud API
+[N8N] Node 6: HTTP Request → POST /api/internal/whatsapp/send-message (Tibé)
         ↓
 [N8N] Error Trigger: em qualquer falha das etapas 3-6, envia mensagem de fallback
 ```
@@ -47,11 +47,16 @@ manda a resposta de volta.
 | Nome | Uso |
 |---|---|
 | `TIBE_BASE_URL` | URL da aplicação (ex: `https://tibe-agrogestao.vercel.app`) |
-| `TIBE_INTERNAL_SECRET` | Mesmo valor de `INTERNAL_API_SECRET` do Tibé — vai no header `x-internal-secret` |
-| `META_WHATSAPP_TOKEN` | Token da Meta Cloud API, para enviar mensagens |
-| `META_WHATSAPP_PHONE_ID` | ID do número de telefone na Meta |
-| `META_WHATSAPP_VERIFY_TOKEN` | Usado na verificação do webhook (challenge) |
+| `TIBE_INTERNAL_SECRET` | Mesmo valor de `INTERNAL_API_SECRET` do Tibé — vai no header `x-internal-secret` (resolve-contact, execute-action e agora também send-message) |
+| `META_WHATSAPP_VERIFY_TOKEN` | Usado na verificação do webhook (challenge) — segue existindo porque o RECEBIMENTO continua no N8N mesmo com o envio migrado para o Tibé |
 | Credencial do LLM escolhido | Ex: Anthropic ou OpenAI — **ainda não decidido**; o node de LLM é o único ponto do workflow que precisa dessa chave. Nenhum código do Tibé depende dela. |
+
+> `META_WHATSAPP_TOKEN` e `META_WHATSAPP_PHONE_ID` **saíram** desta tabela
+> (spec 2026-07-11): o envio de mensagens não é mais responsabilidade do N8N,
+> então essas credenciais agora vivem só no painel do Tibé
+> (`/plataforma/configuracoes/whatsapp`), criptografadas em
+> `WhatsAppProviderConfig`. `META_WHATSAPP_VERIFY_TOKEN` continua aqui porque
+> a verificação do webhook de ENTRADA é feita pelo N8N, não pelo Tibé.
 
 ---
 
@@ -90,12 +95,12 @@ Resposta relevante:
 }
 ```
 
-**Branch 1** — `data.identified === false`: envie `meta.suggested_reply` via Meta
-Cloud API (Node de envio, seção 5) e encerre o workflow.
+**Branch 1** — `data.identified === false`: envie `meta.suggested_reply` via
+Tibé (Node 6 — send-message, abaixo) e encerre o workflow.
 
 **Branch 2** — `meta.first_contact === true`: envie `meta.suggested_reply`
-(saudação já pronta) e encerre — ou, se preferir, prossiga para já processar a
-primeira mensagem também (opcional).
+(saudação já pronta) via Tibé (Node 6 — send-message) e encerre — ou, se
+preferir, prossiga para já processar a primeira mensagem também (opcional).
 
 **Branch 3** — conversa normal: siga para o Node 4.
 
@@ -141,18 +146,21 @@ Resposta:
 { "data": { "reply_text": "...", "requires_confirmation": false, "auxiliary_data": {}, "report_url": null } }
 ```
 
-### Node 6 — Enviar resposta (Meta Cloud API)
+### Node 6 — HTTP Request: send-message (Tibé)
+
+O N8N NÃO chama mais a Meta Cloud API (nem a Evolution) diretamente para
+enviar. Envie qualquer resposta via Tibé:
 
 ```
-POST https://graph.facebook.com/v20.0/{{META_WHATSAPP_PHONE_ID}}/messages
-Headers: Authorization: Bearer {{META_WHATSAPP_TOKEN}}
-Body:
-{
-  "messaging_product": "whatsapp",
-  "to": "{{ $json.phone }}",
-  "text": { "body": "{{ execute-action.data.reply_text }}" }
-}
+POST {{TIBE_BASE_URL}}/api/internal/whatsapp/send-message
+Headers: x-internal-secret: {{TIBE_INTERNAL_SECRET}}
+Body: { "to": "{{ $json.phone }}", "text": "{{ $json.reply_text }}" }
 ```
+
+O Tibé decide o provider (Evolution ou Meta) pela config do painel
+(`/plataforma/configuracoes/whatsapp`) — trocar de provider não exige
+alterar este workflow. Erros: 503 = nenhum provider ativo; 502 = o provider
+recusou/falhou (mensagem detalhada em `error.message`).
 
 ### Node de erro (Error Trigger / try-catch)
 

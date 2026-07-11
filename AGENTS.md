@@ -149,7 +149,10 @@ telefone pertence), o job diário de alertas (`generateAllAlerts`/
 `alert-delivery.ts`), que precisa listar todos os tenants ativos antes de
 escopar por tenant, e `POST /api/webhooks/asaas` (M5), que localiza a
 `Subscription` pelo `asaas_subscription_id` (o Asaas não manda sessão de
-tenant). Qualquer outro uso do client base é suspeito.
+tenant), e `WhatsAppProviderConfig` (spec 2026-07-11) — config GLOBAL de
+plataforma (rotas master_admin + `sendWhatsAppMessage`), mesma categoria
+estrutural de `PlatformUser`, fora de `TENANT_SCOPED_MODELS`. Qualquer outro
+uso do client base é suspeito.
 
 `PlatformUser` e `SubscriptionStatusLog` (M6) também ficam fora de
 `TENANT_SCOPED_MODELS` — não fazem sentido escopados por tenant. A separação
@@ -274,6 +277,14 @@ credenciais do N8N, não no ambiente do Tibé).
   (ver Módulo 4); outros tipos ainda respondem "não disponível".
 - Guia de integração completo (nó a nó do workflow N8N, incluindo envio de
   alertas do Módulo 4): [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md).
+- **Envio de mensagem agora é do Tibé** (spec 2026-07-11, desvio deliberado da
+  regra "N8N é o único intermediário", aprovado pelo usuário): o N8N chama
+  `POST /api/internal/whatsapp/send-message` e o Tibé entrega pelo provider
+  ATIVO em `WhatsAppProviderConfig` (Evolution API não-oficial OU Meta Cloud
+  API — configurável em `/plataforma/configuracoes/whatsapp`, só master_admin,
+  credenciais AES-256-GCM com `CONFIG_ENCRYPTION_KEY`). O RECEBIMENTO continua
+  no N8N (payloads de entrada diferem por provider; segue não existindo
+  `/api/webhooks/whatsapp`). Despacho em `src/lib/whatsapp-send.ts`.
 
 ## Financeiro e Alertas (Módulo 4)
 
