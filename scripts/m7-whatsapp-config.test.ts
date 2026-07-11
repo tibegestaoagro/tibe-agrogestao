@@ -6,6 +6,7 @@ import {
   activateProviderAction,
   maskCredentials,
 } from "@/lib/actions/platform-whatsapp-config";
+import { sendWhatsAppMessage } from "@/lib/whatsapp-send";
 
 /**
  * Testes do provider WhatsApp configurável (spec 2026-07-11): criptografia,
@@ -77,6 +78,22 @@ async function main() {
   const masked = maskCredentials({ api_key: "evo-key-9876", pin: "12" });
   assert(masked.api_key === "•••• 9876", "maskCredentials preserva só os últimos 4");
   assert(masked.pin === "••••", "valor curto é totalmente mascarado");
+
+  // ── whatsapp-send ────────────────────────────────────────────
+  await prisma.whatsAppProviderConfig.deleteMany({});
+
+  const noProvider = await sendWhatsAppMessage("+5511999990000", "olá");
+  assert(!noProvider.ok && noProvider.code === "NO_PROVIDER_ACTIVE", "envio sem provider ativo devolve NO_PROVIDER_ACTIVE");
+
+  // Evolution apontando para porta fechada: precisa devolver PROVIDER_ERROR
+  // sem lançar exceção (o fetch falha na conexão).
+  await upsertProviderConfigAction({
+    provider: "evolution",
+    credentials: { base_url: "http://127.0.0.1:9", api_key: "x", instance: "t" },
+  });
+  await activateProviderAction("evolution");
+  const unreachable = await sendWhatsAppMessage("+5511999990000", "olá");
+  assert(!unreachable.ok && unreachable.code === "PROVIDER_ERROR", "provider inalcançável vira PROVIDER_ERROR, sem exceção");
 
   await prisma.whatsAppProviderConfig.deleteMany({});
 
