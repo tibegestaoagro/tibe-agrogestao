@@ -573,3 +573,26 @@ model SubscriptionStatusLog {
   @@index([subscription_id])
   @@index([to_status])
 }
+
+// ─────────────────────────────────────────────────────────────
+// Config de provider WhatsApp (spec 2026-07-11) — GLOBAL da plataforma,
+// fora de TENANT_SCOPED_MODELS (mesma categoria de PlatformUser). Os dois
+// providers podem existir configurados em paralelo; no máximo 1 active
+// (garantido por transação na ativação + partial unique index na migração).
+// credentials_encrypted = JSON criptografado com AES-256-GCM
+// (src/lib/crypto-config.ts, chave em CONFIG_ENCRYPTION_KEY).
+// ─────────────────────────────────────────────────────────────
+
+enum WhatsAppProvider {
+  evolution
+  meta_cloud_api
+}
+
+model WhatsAppProviderConfig {
+  id                    String           @id @default(cuid())
+  provider              WhatsAppProvider @unique
+  active                Boolean          @default(false)
+  credentials_encrypted String
+  updated_at            DateTime         @updatedAt
+  created_at            DateTime         @default(now())
+}
