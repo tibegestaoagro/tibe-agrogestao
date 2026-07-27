@@ -1,7 +1,9 @@
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { guardPlatform } from "@/lib/platform-guard";
-import { apiOk } from "@/lib/api";
+import { apiOk, apiError } from "@/lib/api";
 import { isoOrNull } from "@/lib/serialize";
+import { createTenantManuallyAction } from "@/lib/actions/platform-tenants";
 
 /**
  * GET /api/platform/tenants (spec 6.3). "equipe" e "master_admin" têm o
@@ -61,4 +63,29 @@ export async function GET(request: Request) {
   const data = filtered.slice(start, start + limit);
 
   return apiOk(data, { total, page, limit });
+}
+
+const createSchema = z.object({
+  company_name: z.string().trim().min(1),
+  document: z.string().trim().min(11),
+  phone: z.string().trim().min(8),
+  plan: z.enum(["campo", "fazenda", "grupo"]),
+  owner_name: z.string().trim().min(1),
+  owner_email: z.string().trim().email(),
+});
+
+/** POST /api/platform/tenants (spec 2026-07-24) — só master_admin. */
+export async function POST(request: Request) {
+  const g = await guardPlatform({ requireMasterAdmin: true });
+  if ("error" in g) return g.error;
+
+  const json = await request.json().catch(() => null);
+  const parsed = createSchema.safeParse(json);
+  if (!parsed.success) {
+    return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
+  }
+
+  const result = await createTenantManuallyAction(parsed.data);
+  if (!result.ok) return apiError(result.code, result.message, result.status);
+  return apiOk(result.data, {}, { status: 201 });
 }

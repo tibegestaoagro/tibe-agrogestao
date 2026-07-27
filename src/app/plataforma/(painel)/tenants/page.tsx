@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import TenantFilters from "@/components/platform/tenant-filters";
 import StatusBadge from "@/components/platform/status-badge";
+import CreateTenantForm from "@/components/platform/create-tenant-form";
 
 const PLAN_LABEL: Record<string, string> = { campo: "Campo", fazenda: "Fazenda", grupo: "Grupo" };
 
@@ -46,7 +47,10 @@ export default async function PlatformTenantsPage({
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-white">Tenants</h1>
-        <TenantFilters />
+        <div className="flex flex-wrap items-center gap-3">
+          <TenantFilters />
+          <CreateTenantForm />
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-gray-800 bg-gray-900">
