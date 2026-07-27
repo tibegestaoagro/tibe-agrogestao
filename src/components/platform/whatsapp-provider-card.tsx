@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiPost, apiPut } from "@/lib/client-api";
+import { apiGet, apiPost, apiPut } from "@/lib/client-api";
 
 type Provider = "evolution" | "meta_cloud_api";
 
@@ -29,17 +29,21 @@ export default function WhatsAppProviderCard({
   configured,
   active,
   credentialsMasked,
+  connectionState,
 }: {
   provider: Provider;
   configured: boolean;
   active: boolean;
   credentialsMasked: Record<string, string> | null;
+  connectionState: "open" | "connecting" | "close" | "not_found" | null;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [qrcode, setQrcode] = useState<string | null>(null);
+  const [polling, setPolling] = useState(false);
 
   async function save() {
     const missing = FIELDS[provider].some((f) => !values[f.key]?.trim());
@@ -68,6 +72,44 @@ export default function WhatsAppProviderCard({
     setLoading(false);
     if (!res.ok) return setError(res.message);
     router.refresh();
+  }
+
+  async function connect() {
+    setLoading(true);
+    setError(null);
+    const res = await apiPost<{ state: string; qrcode_base64: string | null }>(
+      "/api/platform/whatsapp-config/evolution/connect",
+      {},
+    );
+    setLoading(false);
+    if (!res.ok) return setError(res.message);
+    if (res.data.qrcode_base64) {
+      setQrcode(res.data.qrcode_base64);
+      startPolling();
+    } else if (res.data.state === "open") {
+      router.refresh();
+    }
+  }
+
+  function startPolling() {
+    setPolling(true);
+    let elapsed = 0;
+    const interval = setInterval(async () => {
+      elapsed += 3000;
+      const res = await apiGet<{ state: string }>("/api/platform/whatsapp-config/evolution/status");
+      if (res.ok && res.data.state === "open") {
+        clearInterval(interval);
+        setPolling(false);
+        setQrcode(null);
+        router.refresh();
+        return;
+      }
+      if (elapsed >= 120000) {
+        clearInterval(interval);
+        setPolling(false);
+        setError("QR expirado. Tente conectar novamente.");
+      }
+    }, 3000);
   }
 
   return (
@@ -105,8 +147,27 @@ export default function WhatsAppProviderCard({
               Ativar
             </button>
           )}
+          {provider === "evolution" && configured && connectionState !== "open" && (
+            <button
+              type="button"
+              onClick={connect}
+              disabled={loading}
+              className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:opacity-60"
+            >
+              Conectar
+            </button>
+          )}
         </div>
       </div>
+
+      {qrcode && (
+        <div className="mt-4 flex flex-col items-center gap-2 rounded-md border border-gray-700 bg-gray-950 p-4">
+          <img src={qrcode} alt="QR code para conectar o WhatsApp" className="h-56 w-56" />
+          <p className="text-xs text-gray-400">
+            {polling ? "Escaneie no WhatsApp — aguardando conexão..." : "QR expirado."}
+          </p>
+        </div>
+      )}
 
       {!editing && credentialsMasked && (
         <dl className="mt-4 space-y-1">

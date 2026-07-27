@@ -3,6 +3,8 @@ import { getPlatformSessionUser, isMasterAdmin } from "@/lib/platform-context";
 import { prisma } from "@/lib/prisma";
 import { decryptConfig } from "@/lib/crypto-config";
 import { maskCredentials } from "@/lib/actions/platform-whatsapp-config";
+import type { EvolutionCredentials } from "@/lib/actions/platform-whatsapp-config";
+import { getInstanceStatus } from "@/lib/evolution-client";
 import WhatsAppProviderCard from "@/components/platform/whatsapp-provider-card";
 
 /**
@@ -19,6 +21,26 @@ export default async function WhatsAppConfigPage() {
 
   const providers = ["evolution", "meta_cloud_api"] as const;
 
+  const cards = await Promise.all(
+    providers.map(async (p) => {
+      const config = byProvider.get(p);
+      let connectionState: "open" | "connecting" | "close" | "not_found" | null = null;
+      if (p === "evolution" && config) {
+        const creds = decryptConfig<EvolutionCredentials>(config.credentials_encrypted);
+        connectionState = (await getInstanceStatus(creds)).state;
+      }
+      return {
+        provider: p,
+        configured: !!config,
+        active: config?.active ?? false,
+        credentialsMasked: config
+          ? maskCredentials(decryptConfig<Record<string, string>>(config.credentials_encrypted))
+          : null,
+        connectionState,
+      };
+    }),
+  );
+
   return (
     <div className="max-w-3xl space-y-5">
       <div>
@@ -29,22 +51,9 @@ export default async function WhatsAppConfigPage() {
         </p>
       </div>
 
-      {providers.map((p) => {
-        const config = byProvider.get(p);
-        return (
-          <WhatsAppProviderCard
-            key={p}
-            provider={p}
-            configured={!!config}
-            active={config?.active ?? false}
-            credentialsMasked={
-              config
-                ? maskCredentials(decryptConfig<Record<string, string>>(config.credentials_encrypted))
-                : null
-            }
-          />
-        );
-      })}
+      {cards.map((c) => (
+        <WhatsAppProviderCard key={c.provider} {...c} />
+      ))}
     </div>
   );
 }
