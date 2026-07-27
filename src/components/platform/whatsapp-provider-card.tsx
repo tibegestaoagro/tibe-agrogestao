@@ -95,6 +95,8 @@ export default function WhatsAppProviderCard({
       startPolling();
     } else if (res.data.state === "open") {
       router.refresh();
+    } else {
+      setError("Não foi possível obter o QR code. Verifique a URL base, a API key e o nome da instância.");
     }
   }
 
@@ -117,6 +119,7 @@ export default function WhatsAppProviderCard({
         if (intervalRef.current) clearInterval(intervalRef.current);
         intervalRef.current = null;
         setPolling(false);
+        setQrcode(null);
         setError("QR expirado. Tente conectar novamente.");
       }
     }, 3000);
@@ -164,7 +167,7 @@ export default function WhatsAppProviderCard({
               disabled={loading || polling}
               className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:opacity-60"
             >
-              Conectar
+              {polling ? "Conectando..." : loading ? "Gerando QR..." : "Conectar"}
             </button>
           )}
         </div>

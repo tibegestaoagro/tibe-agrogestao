@@ -24,6 +24,15 @@ import { getBillingAccess } from "@/lib/billing-access";
  * `skipBillingCheck: true` é só para as próprias rotas de billing
  * (`/api/v1/billing/*`) — precisam continuar acessíveis mesmo com a conta
  * bloqueada, para o tenant conseguir regularizar.
+ *
+ * `must_change_password` (spec 2026-07-24, criação manual de tenant pelo
+ * painel) bloqueia TODA ação aqui, sem exceção — diferente do billing, não
+ * existe rota que precise ficar acessível nesse estado, porque
+ * `POST /api/v1/auth/change-password` nunca passa por `guard()` (usa só
+ * `getSessionUser()`, de propósito, pra funcionar mesmo com a conta em
+ * read_only/blocked). Sem essa checagem aqui, o gate de página
+ * (`/trocar-senha`) era só de UI — uma chamada direta à API com a sessão da
+ * senha temporária ainda funcionava.
  */
 export async function guard(
   module: ModuleKey,
@@ -35,6 +44,22 @@ export async function guard(
 > {
   const user = await getSessionUser();
   if (!user) return { error: apiError(...ApiErrors.UNAUTHORIZED) };
+
+  const db = await getTenantDb();
+
+  const dbUser = await db.user.findFirst({
+    where: { id: user.id },
+    select: { must_change_password: true },
+  });
+  if (dbUser?.must_change_password) {
+    return {
+      error: apiError(
+        "MUST_CHANGE_PASSWORD",
+        "Troque sua senha temporária antes de continuar (acesse /trocar-senha).",
+        403,
+      ),
+    };
+  }
 
   const ok =
     action === "write" ? canWrite(user.role, module) : canAccess(user.role, module);
@@ -76,7 +101,6 @@ export async function guard(
     }
   }
 
-  const db = await getTenantDb();
   return { user, db };
 }
 
