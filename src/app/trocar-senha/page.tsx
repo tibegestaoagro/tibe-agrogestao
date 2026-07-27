@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSessionUser } from "@/lib/tenant-context";
-import { prisma } from "@/lib/prisma";
+import { getSessionUser, getTenantDb } from "@/lib/tenant-context";
 import ChangePasswordForm from "./change-password-form";
 
 /**
@@ -13,7 +12,8 @@ export default async function TrocarSenhaPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
+  const db = await getTenantDb();
+  const dbUser = await db.user.findUnique({ where: { id: user.id } });
   if (!dbUser?.must_change_password) redirect("/dashboard");
 
   return (
