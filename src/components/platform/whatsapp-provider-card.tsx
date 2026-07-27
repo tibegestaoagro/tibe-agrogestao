@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiGet, apiPost, apiPut } from "@/lib/client-api";
 
@@ -44,6 +44,13 @@ export default function WhatsAppProviderCard({
   const [error, setError] = useState<string | null>(null);
   const [qrcode, setQrcode] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
 
   async function save() {
     const missing = FIELDS[provider].some((f) => !values[f.key]?.trim());
@@ -92,20 +99,23 @@ export default function WhatsAppProviderCard({
   }
 
   function startPolling() {
+    if (intervalRef.current) clearInterval(intervalRef.current);
     setPolling(true);
     let elapsed = 0;
-    const interval = setInterval(async () => {
+    intervalRef.current = setInterval(async () => {
       elapsed += 3000;
       const res = await apiGet<{ state: string }>("/api/platform/whatsapp-config/evolution/status");
       if (res.ok && res.data.state === "open") {
-        clearInterval(interval);
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        intervalRef.current = null;
         setPolling(false);
         setQrcode(null);
         router.refresh();
         return;
       }
       if (elapsed >= 120000) {
-        clearInterval(interval);
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        intervalRef.current = null;
         setPolling(false);
         setError("QR expirado. Tente conectar novamente.");
       }
@@ -151,7 +161,7 @@ export default function WhatsAppProviderCard({
             <button
               type="button"
               onClick={connect}
-              disabled={loading}
+              disabled={loading || polling}
               className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:opacity-60"
             >
               Conectar
