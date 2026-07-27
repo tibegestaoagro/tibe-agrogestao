@@ -355,6 +355,17 @@ explícito do usuário para destravar testes do painel antes dos módulos
   isso exigiria N8N em produção; decisão do usuário foi manter `/criar-conta`
   como está e reusá-lo como CTA da home pública).
 
+**Segunda exceção deliberada (spec 2026-07-24):** `master_admin` também pode
+criar um `Tenant` manualmente pelo painel da plataforma (`POST /api/platform/tenants`,
+botão "Criar tenant" em `/plataforma/tenants`) — usado para dar acesso de teste
+a equipes de cliente sem passar pelo formulário público. Reusa a mesma lógica
+de `/api/v1/signup` (trial, checagem de duplicidade), mas gera senha temporária
+em vez de receber uma, e marca `User.must_change_password: true` — o usuário é
+obrigado a trocar a senha em `/trocar-senha` (gate em `(dashboard)/layout.tsx`
+e `onboarding/page.tsx`, usa `getTenantDb()` client escopado, não o client base)
+antes de acessar qualquer outra coisa. O convite de usuário do Módulo 5
+(`inviteUserAction`) não tem esse gate — continua como estava.
+
 ## O agente WhatsApp (Módulo 3)
 
 Arquitetura (PRD §7): **Meta → N8N → Tibé → N8N → Meta**. O Tibé nunca fala

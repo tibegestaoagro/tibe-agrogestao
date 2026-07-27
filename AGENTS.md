@@ -265,6 +265,15 @@ controlados, revisar antes de expor publicamente. O Módulo 5 manteve este
 fluxo como está (decisão do usuário) em vez de trocar pelo trial passwordless
 via WhatsApp que a spec 5.11 previa — exigiria N8N em produção.
 
+Há também uma segunda forma de criar `Tenant`, exclusiva de `master_admin` (spec
+2026-07-24): o painel da plataforma (`POST /api/platform/tenants`, botão "Criar
+tenant" em `/plataforma/tenants`) para dar acesso de teste sem o fluxo público.
+Reusa a lógica de `/api/v1/signup` (trial, checagem de duplicidade), mas gera
+senha temporária e marca `User.must_change_password: true` — o usuário é
+forçado a trocar a senha em `/trocar-senha` (gates em `(dashboard)/layout.tsx`
+e `onboarding/page.tsx`, usando `getTenantDb()` client escopado) antes de
+acessar o sistema. O convite de usuário do Módulo 5 não tem esse gate.
+
 ## O agente WhatsApp (Módulo 3)
 
 Arquitetura: **Meta → N8N → Tibé → N8N → Meta**. O Tibé nunca fala direto com
