@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import { getSessionUser, getActiveProfiles } from "@/lib/tenant-context";
+import { getSessionUser, getActiveProfiles, getTenantDb } from "@/lib/tenant-context";
 import { prisma } from "@/lib/prisma";
 import { getBillingAccess, isBillingExemptPath } from "@/lib/billing-access";
 import Sidebar from "@/components/layout/sidebar";
@@ -28,6 +28,13 @@ export default async function DashboardLayout({
 }) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+
+  const db = await getTenantDb();
+  const dbUser = await db.user.findUnique({
+    where: { id: user.id },
+    select: { must_change_password: true },
+  });
+  if (dbUser?.must_change_password) redirect("/trocar-senha");
 
   const profiles = await getActiveProfiles();
   if (profiles.length === 0) redirect("/onboarding");
