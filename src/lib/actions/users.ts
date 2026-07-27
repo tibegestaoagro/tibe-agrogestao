@@ -1,7 +1,7 @@
-import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { scoped, prisma, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
+import { generateTempPassword } from "@/lib/passwords";
 import type { AppUserRole } from "@/types/next-auth";
 
 /**
@@ -9,11 +9,6 @@ import type { AppUserRole } from "@/types/next-auth";
  * (não há serviço de email neste projeto — ver CLAUDE.md) exibida uma única
  * vez para o convidante repassar manualmente.
  */
-
-function generateTempPassword(): string {
-  // 10 caracteres alfanuméricos, fáceis de digitar/ditar por telefone.
-  return crypto.randomBytes(8).toString("base64url").slice(0, 10);
-}
 
 export async function inviteUserAction(
   db: TenantPrismaClient,

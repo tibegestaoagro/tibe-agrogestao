@@ -213,6 +213,7 @@ model User {
   phone         String?
   created_at    DateTime @default(now())
   active        Boolean  @default(true)
+  must_change_password Boolean @default(false)
 
   tenant            Tenant            @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   whatsapp_contacts WhatsAppContact[]
