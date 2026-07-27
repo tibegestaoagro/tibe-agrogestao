@@ -20,7 +20,8 @@
     "test:m4": "tsx scripts/m4-financeiro-alertas.test.ts",
     "test:m5": "tsx scripts/m5-billing-usuarios.test.ts",
     "test:m6": "tsx scripts/m6-plataforma.test.ts",
-    "test:m7": "tsx scripts/m7-whatsapp-config.test.ts"
+    "test:m7": "tsx scripts/m7-whatsapp-config.test.ts",
+    "test:m9": "tsx scripts/m9-evolution-qr.test.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
