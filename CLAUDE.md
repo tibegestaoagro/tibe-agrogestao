@@ -193,6 +193,10 @@ o tenant da sessão e chama `prismaForTenant`.
   `WhatsAppProviderConfig` (spec 2026-07-11) — config GLOBAL de plataforma
   (rotas master_admin + `sendWhatsAppMessage`), mesma categoria estrutural de
   `PlatformUser`, fora de `TENANT_SCOPED_MODELS`,
+  e `createTenantManuallyAction` (`src/lib/actions/platform-tenants.ts`,
+  spec 2026-07-24) — usa `prisma.tenant.findUnique/create` e
+  `prisma.user.findUnique` para checar duplicidade de documento/email antes
+  do tenant existir, mesma necessidade estrutural do `/api/v1/signup`.
   Qualquer uso novo do client base fora desses casos é suspeito — pare e
   pergunte.
 - `PlatformUser` e `SubscriptionStatusLog` (Módulo 6) são a **outra** exceção
@@ -350,8 +354,9 @@ explícito do usuário para destravar testes do painel antes dos módulos
 - **Sem rate limiting** (não há fila/Redis conectado a esta rota) — gap
   conhecido, aceitável para uso controlado de testes, mas revisar antes de
   divulgar publicamente.
-- Este fluxo continua sendo a **única** forma de criar tenant (o Módulo 5 não
-  o substituiu — a spec 5.11 previa um trial passwordless via WhatsApp, mas
+- Este fluxo continua sendo a forma **pública** de criar tenant (ver também a
+  criação manual pelo painel da plataforma, descrita abaixo) — o Módulo 5 não
+  o substituiu (a spec 5.11 previa um trial passwordless via WhatsApp, mas
   isso exigiria N8N em produção; decisão do usuário foi manter `/criar-conta`
   como está e reusá-lo como CTA da home pública).
 
