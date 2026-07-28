@@ -419,7 +419,7 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
   (mesma action de `POST /api/v1/financial-entries`). Nó a nó no N8N:
   [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md) §5.
   **`webhookBase64: true` não é confiável pra áudio/imagem na Evolution em
-  produção** (descoberto testando com áudio real — o campo simplesmente não
+  produção** (descoberto testando com áudio real: o campo simplesmente não
   vem no webhook, mesmo configurado): `POST
   /api/internal/whatsapp/fetch-media` (`src/lib/whatsapp-media.ts`) busca a
   mídia sob demanda via `/chat/getBase64FromMediaMessage` da Evolution, pelo
@@ -432,7 +432,7 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
   (tabela `HELP_TEXT` em `whatsapp-router.ts`, nunca gerado pela LLM) de
   como usar um recurso. `resumo` (`scope?`) é um funil de até 2 perguntas
   que termina em dado real (reusa as mesmas queries do `/dashboard`, sem
-  action nova) — nível 1: `rebanho`/`lavoura`/`prestador`/`financeiro`;
+  action nova); nível 1: `rebanho`/`lavoura`/`prestador`/`financeiro`;
   nível 2, só sob `prestador`: `clientes`/`agendamentos`/
   `contas_a_receber`. Nenhum estado de conversa novo: o funil reconstrói
   onde parou a partir do `recent_history` a cada mensagem, mesmo mecanismo
@@ -691,6 +691,20 @@ do Claude Code especificamente: **não é visível** para outras ferramentas,
 outros agentes, nem para quem só olha o repositório. Trate este `CLAUDE.md`
 como a fonte que deve funcionar sozinha; a memória é um complemento, não uma
 dependência.
+
+## Agent skills
+
+### Issue tracker
+
+Issues ficam nas GitHub Issues do repo (`tibegestaoagro/tibe-agrogestao`), via `gh` CLI. Ver `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Labels padrão (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). Ver `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` + `docs/adr/` na raiz (ainda não existem, criados sob demanda pelas skills). Ver `docs/agents/domain.md`.
 
 ## Comandos úteis
 

@@ -185,9 +185,9 @@ uma mensagem de fallback amigável (sem detalhes técnicos), por exemplo:
 | `consultar_animal` | `ear_tag` |
 | `consultar_cliente` | `client_name` |
 | `gerar_relatorio` | `tipo` (financeiro\|rebanho\|lavoura\|prestador), `period`. **Retorna "em breve"** enquanto a geração de PDF real depende do Módulo 4, ainda não implementado |
-| `registrar_lancamento_financeiro` | `amount`, `category` (opcional, cai em "Outros" se fora da lista fixa), `vendor` (opcional), `description` (opcional). Disparada tanto por texto ("gastei 50 reais com ração") quanto pelo ramo de recibo por foto/PDF (seção 5). **Sempre** exige confirmação, mesmo com valor baixo — não usa o limiar de R$ 5.000. |
-| `ajuda` | `topic` (opcional — nome de uma das intenções acima; omitido para pergunta geral tipo "o que você faz?"). Usada quando o usuário pergunta COMO usar um recurso, não tenta executá-lo. Resposta é texto fixo (nunca gerado pela LLM), tabela `HELP_TEXT` em `whatsapp-router.ts`. |
-| `resumo` | `scope` (opcional — `rebanho`/`lavoura`/`prestador`/`financeiro` nível 1, ou `clientes`/`agendamentos`/`contas_a_receber` nível 2 só sob `prestador`). Usada quando o usuário quer saber o que já está cadastrado (ex: "me mostra o que eu tenho"). Sem `scope` claro, o assistente pergunta a categoria em vez de despejar tudo — funil de até 2 perguntas, reconstruído do `recent_history` a cada turno (spec 2026-07-28). Se o histórico mostra que já perguntou e a resposta não resolveu, o LLM deve classificar como `ambigua` em vez de perguntar de novo. |
+| `registrar_lancamento_financeiro` | `amount`, `category` (opcional, cai em "Outros" se fora da lista fixa), `vendor` (opcional), `description` (opcional). Disparada tanto por texto ("gastei 50 reais com ração") quanto pelo ramo de recibo por foto/PDF (seção 5). **Sempre** exige confirmação, mesmo com valor baixo: não usa o limiar de R$ 5.000. |
+| `ajuda` | `topic` (opcional: nome de uma das intenções acima; omitido para pergunta geral tipo "o que você faz?"). Usada quando o usuário pergunta COMO usar um recurso, não tenta executá-lo. Resposta é texto fixo (nunca gerado pela LLM), tabela `HELP_TEXT` em `whatsapp-router.ts`. |
+| `resumo` | `scope` (opcional: `rebanho`/`lavoura`/`prestador`/`financeiro` nível 1, ou `clientes`/`agendamentos`/`contas_a_receber` nível 2 só sob `prestador`). Usada quando o usuário quer saber o que já está cadastrado (ex: "me mostra o que eu tenho"). Sem `scope` claro, o assistente pergunta a categoria em vez de despejar tudo: funil de até 2 perguntas, reconstruído do `recent_history` a cada turno (spec 2026-07-28). Se o histórico mostra que já perguntou e a resposta não resolveu, o LLM deve classificar como `ambigua` em vez de perguntar de novo. |
 | `ambigua` | usar quando não for possível classificar com confiança. Com `ajuda`/`resumo` cobrindo "como faço"/"o que eu tenho", sobra pra isso o que realmente foge do escopo. |
 
 O Tibé já trata, de forma **totalmente automática** (o LLM não precisa se
@@ -204,27 +204,27 @@ preocupar com isso):
 
 ---
 
-## 5. Suporte a mídia (áudio e recibo por foto/PDF) — spec 2026-07-28
+## 5. Suporte a mídia (áudio e recibo por foto/PDF): spec 2026-07-28
 
 O workflow real em produção ("Tibe - Atendimento WhatsApp (Evolution)") usa
 nomes de node em português, diferentes do pseudocódigo genérico da seção 1
 (esta seção documenta os nomes reais). Toda a extração por IA (transcrição,
-visão) acontece no N8N — o Tibé nunca recebe mídia bruta, só intenção +
+visão) acontece no N8N: o Tibé nunca recebe mídia bruta, só intenção +
 parâmetros já estruturados (mesmo princípio da seção 1).
 
 O `Normalizar e Filtrar` (Code) detecta o tipo da mensagem
 (`message.conversation`/`extendedTextMessage` = texto,
 `message.audioMessage` = áudio, `message.imageMessage`/`documentMessage`
 com `mimetype: application/pdf` = mídia) e extrai `phone` + `message_id`
-(`data.key.id`). **Não tenta ler base64 inline do payload do webhook** —
+(`data.key.id`). **Não tenta ler base64 inline do payload do webhook**:
 descoberto em teste real (2026-07-28) que `webhookBase64: true` não é
 confiável pra áudio/imagem na Evolution API em produção (o campo
-simplesmente não vem, mesmo configurado — comportamento documentado em
+simplesmente não vem, mesmo configurado: comportamento documentado em
 vários issues do projeto Evolution). Em vez disso, um node HTTP novo,
 `Buscar Mídia (Áudio)`/`Buscar Mídia (Recibo)`, chama
 `POST /api/internal/whatsapp/fetch-media` (Tibé, credencial "Tibe Internal
 Secret") logo depois de `É Áudio?`/`É Mídia (Imagem/PDF)?`, passando o
-`message_id` — o Tibé busca e decripta a mídia sob demanda via
+`message_id`: o Tibé busca e decripta a mídia sob demanda via
 `/chat/getBase64FromMediaMessage` da própria Evolution
 (`src/lib/whatsapp-media.ts`) e devolve `{data: {base64, mimetype}}`.
 Mensagens sem texto e sem mídia suportada são descartadas (`return []`).
@@ -240,7 +240,7 @@ transcrito segue pro mesmo caminho de uma mensagem digitada.
 **Ramo de recibo:** `É Mídia (Imagem/PDF)?` (IF) → `Buscar Mídia (Recibo)` →
 `Extrair Recibo` (HTTP Request, Chat Completions da OpenAI com
 `gpt-4o-mini` e `image_url` em data URI a partir de `$json.data.base64`/
-`$json.data.mimetype` — sem multipart, o base64 vai direto no JSON) →
+`$json.data.mimetype`: sem multipart, o base64 vai direto no JSON) →
 `Parse Extração Recibo` (Code, valida `amount`/normaliza `category` pra uma
 das 7 categorias fixas de `src/lib/category-suggestions.ts`) → `Recibo
 Legível?` (IF): se `amount` não veio, `Enviar - Recibo Ilegível` (pede foto
@@ -253,22 +253,22 @@ se encontram em `Preparar Mensagem` (Code), que normaliza pra
 reaproveitado sem mudanças). Depois de `Primeiro Contato?`, o node
 `Tem Intenção de Mídia?` (IF) decide: se veio de recibo, pula
 `Classificar Intenção (OpenAI)` inteiramente e vai direto por
-`Montar Ação de Mídia` (Code) pro `Execute Action` já existente — o LLM de
+`Montar Ação de Mídia` (Code) pro `Execute Action` já existente: o LLM de
 classificação de texto nunca é chamado nesse caminho, porque a visão já
 extraiu a intenção estruturada. O prompt de `Classificar Intenção (OpenAI)`
 também foi atualizado pra listar `registrar_lancamento_financeiro`, pro caso
 de o usuário confirmar ("sim") um lançamento pendente digitando em vez de
-mandar novo áudio/foto — o LLM reconstrói a intenção a partir do histórico
+mandar novo áudio/foto: o LLM reconstrói a intenção a partir do histórico
 recente, igual já fazia para venda de animal/ordem de serviço.
 
 Testado ponta a ponta via webhook sintético (payload Evolution simulado por
 `curl`, inspecionando a execução real via `GET /api/v1/executions/:id` da
 API do N8N) nos três ramos, incluindo com um **áudio real** mandado pelo
 usuário no WhatsApp de verdade (reprocessado via `message_id` real depois
-do fix do `fetch-media` — Whisper transcreveu perfeitamente uma fala de 12
+do fix do `fetch-media`: Whisper transcreveu perfeitamente uma fala de 12
 segundos). O ramo de recibo foi validado ponta a ponta (extraiu
 valor/categoria/fornecedor de um recibo de teste e criou o `FinancialEntry`
-de verdade após "sim") **antes** da mudança pra `fetch-media` — como esse
+de verdade após "sim") **antes** da mudança pra `fetch-media`: como esse
 node é idêntico em estrutura pro áudio e pro recibo (mesmo endpoint, só
 muda o `message_id`), e já foi provado funcionando com mídia real no ramo
 de áudio, a composição deveria funcionar igual pro recibo, mas **ainda não
@@ -276,7 +276,7 @@ foi reconfirmada com uma foto real** depois dessa mudança específica (não
 dá mais pra testar com payload sintético, já que `fetch-media` precisa de
 um `message_id` que exista de verdade na Evolution). PDF usa o mesmo ramo
 de imagem (mandado direto como base64 pro modelo de visão, sem renderização
-de página separada) — ainda não testado com um PDF real.
+de página separada): ainda não testado com um PDF real.
 
 ---
 
@@ -295,4 +295,4 @@ de página separada) — ainda não testado com um PDF real.
 - [ ] "como eu cadastro um animal?" → recebe o texto de ajuda certo (tabela `HELP_TEXT`), sem tentar cadastrar nada
 - [ ] "me mostra o que eu tenho" (tenant com os 2 perfis) → pergunta a categoria (Rebanho/Lavoura/Prestador/Financeiro); responder "prestador" pergunta o nível 2 (Clientes/Agendamentos/Contas a receber); responder "clientes" mostra o dado real
 - [ ] Responder algo solto no meio do funil de `resumo` (ex: "não sei") → assistente para de perguntar e explica o que pode fazer (`ambigua`), em vez de insistir
-- [ ] **Classificação por LLM não é 100% determinística**: em teste real, "me mostra o que eu tenho" caiu em `ambigua` na primeira tentativa e em `resumo` corretamente na segunda, mesma frase — não é um bug de código (confirmado via `recent_history` limpo), é variação normal do modelo. Se acontecer ocasionalmente em produção, o novo texto de `ambigua` já convida a tentar de novo ("pergunte 'o que você faz?'"), então o impacto é baixo.
+- [ ] **Classificação por LLM não é 100% determinística**: em teste real, "me mostra o que eu tenho" caiu em `ambigua` na primeira tentativa e em `resumo` corretamente na segunda, mesma frase: não é um bug de código (confirmado via `recent_history` limpo), é variação normal do modelo. Se acontecer ocasionalmente em produção, o novo texto de `ambigua` já convida a tentar de novo ("pergunte 'o que você faz?'"), então o impacto é baixo.
