@@ -299,6 +299,13 @@ credenciais do N8N, não no ambiente do Tibé).
   produção (campo às vezes não vem no webhook) — `POST
   /api/internal/whatsapp/fetch-media` (`src/lib/whatsapp-media.ts`) busca a
   mídia sob demanda pelo `message_id` via `/chat/getBase64FromMediaMessage`.
+- **`ajuda` e `resumo`** (spec 2026-07-28): `ajuda` (`topic?`) devolve texto
+  fixo de como usar um recurso (tabela `HELP_TEXT`, nunca gerado pela LLM).
+  `resumo` (`scope?`) é um funil de até 2 perguntas terminando em dado real
+  (reusa as queries do `/dashboard`) — nível 1 rebanho/lavoura/prestador/
+  financeiro, nível 2 (só sob prestador) clientes/agendamentos/contas a
+  receber. Sem estado novo: reconstrói onde parou via `recent_history`,
+  mesmo mecanismo da confirmação sim/não. `ambigua` ficou menos robótico.
 - Guia de integração completo (nó a nó do workflow N8N, incluindo envio de
   alertas do Módulo 4): [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md).
 - **Envio de mensagem agora é do Tibé** (spec 2026-07-11, desvio deliberado da

@@ -426,6 +426,20 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
   `message_id`, chamado pelo N8N antes de transcrever/extrair. Só suporta
   Evolution por enquanto (Meta Cloud API teria outro mecanismo de download,
   não implementado).
+- **`ajuda` e `resumo`** (spec 2026-07-28): duas intenções pra deixar o
+  agente utilizável por quem tem resistência a tecnologia, sem virar um
+  chatbot de conversa aberta. `ajuda` (`topic?`) devolve texto **fixo**
+  (tabela `HELP_TEXT` em `whatsapp-router.ts`, nunca gerado pela LLM) de
+  como usar um recurso. `resumo` (`scope?`) é um funil de até 2 perguntas
+  que termina em dado real (reusa as mesmas queries do `/dashboard`, sem
+  action nova) — nível 1: `rebanho`/`lavoura`/`prestador`/`financeiro`;
+  nível 2, só sob `prestador`: `clientes`/`agendamentos`/
+  `contas_a_receber`. Nenhum estado de conversa novo: o funil reconstrói
+  onde parou a partir do `recent_history` a cada mensagem, mesmo mecanismo
+  já usado pra confirmação sim/não. Se o histórico mostra que já
+  perguntou e a resposta não resolveu, o prompt do LLM instrui classificar
+  como `ambigua` em vez de perguntar de novo (evita loop). `ambigua`
+  também ficou com texto menos robótico.
 - `gerar_relatorio` (tipo `financeiro`) devolve um `report_url` de verdade
   (link assinado, ver Módulo 4 abaixo); tipos `rebanho|lavoura|prestador`
   ainda respondem "não disponível": não há gerador de PDF para eles.

@@ -186,7 +186,9 @@ uma mensagem de fallback amigável (sem detalhes técnicos), por exemplo:
 | `consultar_cliente` | `client_name` |
 | `gerar_relatorio` | `tipo` (financeiro\|rebanho\|lavoura\|prestador), `period`. **Retorna "em breve"** enquanto a geração de PDF real depende do Módulo 4, ainda não implementado |
 | `registrar_lancamento_financeiro` | `amount`, `category` (opcional, cai em "Outros" se fora da lista fixa), `vendor` (opcional), `description` (opcional). Disparada tanto por texto ("gastei 50 reais com ração") quanto pelo ramo de recibo por foto/PDF (seção 5). **Sempre** exige confirmação, mesmo com valor baixo — não usa o limiar de R$ 5.000. |
-| `ambigua` | usar quando não for possível classificar com confiança |
+| `ajuda` | `topic` (opcional — nome de uma das intenções acima; omitido para pergunta geral tipo "o que você faz?"). Usada quando o usuário pergunta COMO usar um recurso, não tenta executá-lo. Resposta é texto fixo (nunca gerado pela LLM), tabela `HELP_TEXT` em `whatsapp-router.ts`. |
+| `resumo` | `scope` (opcional — `rebanho`/`lavoura`/`prestador`/`financeiro` nível 1, ou `clientes`/`agendamentos`/`contas_a_receber` nível 2 só sob `prestador`). Usada quando o usuário quer saber o que já está cadastrado (ex: "me mostra o que eu tenho"). Sem `scope` claro, o assistente pergunta a categoria em vez de despejar tudo — funil de até 2 perguntas, reconstruído do `recent_history` a cada turno (spec 2026-07-28). Se o histórico mostra que já perguntou e a resposta não resolveu, o LLM deve classificar como `ambigua` em vez de perguntar de novo. |
+| `ambigua` | usar quando não for possível classificar com confiança. Com `ajuda`/`resumo` cobrindo "como faço"/"o que eu tenho", sobra pra isso o que realmente foge do escopo. |
 
 O Tibé já trata, de forma **totalmente automática** (o LLM não precisa se
 preocupar com isso):
@@ -290,3 +292,7 @@ de página separada) — ainda não testado com um PDF real.
 - [ ] Mandar um áudio real perguntando algo simples → resposta correta, igual texto
 - [ ] Mandar uma foto real de nota/recibo → pede confirmação com valor/categoria certos; "sim" cria o lançamento
 - [ ] Mandar uma foto ilegível/embaçada → pede foto mais nítida, sem criar lançamento nenhum
+- [ ] "como eu cadastro um animal?" → recebe o texto de ajuda certo (tabela `HELP_TEXT`), sem tentar cadastrar nada
+- [ ] "me mostra o que eu tenho" (tenant com os 2 perfis) → pergunta a categoria (Rebanho/Lavoura/Prestador/Financeiro); responder "prestador" pergunta o nível 2 (Clientes/Agendamentos/Contas a receber); responder "clientes" mostra o dado real
+- [ ] Responder algo solto no meio do funil de `resumo` (ex: "não sei") → assistente para de perguntar e explica o que pode fazer (`ambigua`), em vez de insistir
+- [ ] **Classificação por LLM não é 100% determinística**: em teste real, "me mostra o que eu tenho" caiu em `ambigua` na primeira tentativa e em `resumo` corretamente na segunda, mesma frase — não é um bug de código (confirmado via `recent_history` limpo), é variação normal do modelo. Se acontecer ocasionalmente em produção, o novo texto de `ambigua` já convida a tentar de novo ("pergunte 'o que você faz?'"), então o impacto é baixo.
