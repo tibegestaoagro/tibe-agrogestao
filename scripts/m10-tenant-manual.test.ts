@@ -28,7 +28,6 @@ async function main() {
     company_name: "M10 Tenant Manual",
     document: doc,
     phone: "22999990000",
-    plan: "fazenda",
     owner_name: "Owner M10",
     owner_email: email,
   });
@@ -43,6 +42,7 @@ async function main() {
   const tenant = await prisma.tenant.findUnique({ where: { id: result.data.tenant_id } });
   assert(!!tenant && tenant.status === "trial", "tenant nasce em status trial");
   assert(!!tenant?.trial_ends_at, "trial_ends_at preenchido");
+  assert(tenant?.plan_confirmed === false, "tenant nasce com plan_confirmed=false");
 
   const user = await prisma.user.findUnique({ where: { email } });
   assert(!!user && user.role === "OWNER", "user nasce OWNER");
@@ -52,7 +52,6 @@ async function main() {
     company_name: "M10 Duplicado",
     document: doc,
     phone: "22999990001",
-    plan: "campo",
     owner_name: "Outro",
     owner_email: `outro-${Date.now()}@teste.local`,
   });

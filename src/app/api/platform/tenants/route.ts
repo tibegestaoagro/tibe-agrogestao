@@ -69,7 +69,6 @@ const createSchema = z.object({
   company_name: z.string().trim().min(1),
   document: z.string().trim().min(11),
   phone: z.string().trim().min(8),
-  plan: z.enum(["campo", "fazenda", "grupo"]),
   owner_name: z.string().trim().min(1),
   owner_email: z.string().trim().email(),
 });

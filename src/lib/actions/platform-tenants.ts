@@ -55,11 +55,13 @@ export async function forceSubscriptionStatusAction(params: {
  * mesma lógica de POST /api/v1/signup (checagem de duplicidade, TRIAL_DAYS),
  * mas gera a senha em vez de recebê-la, e marca must_change_password.
  */
+/** Plano interno até o cliente confirmar o próprio no primeiro login (ver plan_confirmed). */
+const DEFAULT_UNCONFIRMED_PLAN: TenantPlan = "fazenda";
+
 export async function createTenantManuallyAction(params: {
   company_name: string;
   document: string;
   phone: string;
-  plan: TenantPlan;
   owner_name: string;
   owner_email: string;
 }): Promise<ActionResult<{ tenant_id: string; email: string; temp_password: string }>> {
@@ -82,7 +84,8 @@ export async function createTenantManuallyAction(params: {
       document,
       phone: params.phone,
       email: params.owner_email,
-      plan: params.plan,
+      plan: DEFAULT_UNCONFIRMED_PLAN,
+      plan_confirmed: false,
       status: "trial",
       trial_ends_at,
     },
