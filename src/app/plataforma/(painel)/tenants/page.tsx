@@ -10,10 +10,12 @@ const PLAN_LABEL: Record<string, string> = { campo: "Campo", fazenda: "Fazenda",
 export default async function PlatformTenantsPage({
   searchParams,
 }: {
-  searchParams: { status?: string; plan?: string; q?: string };
+  searchParams: { status?: string; plan?: string; q?: string; archived?: string };
 }) {
+  const showArchived = searchParams.archived === "1";
   const tenants = await prisma.tenant.findMany({
     where: {
+      ...(showArchived ? {} : { archived_at: null }),
       ...(searchParams.plan ? { plan: searchParams.plan as "campo" | "fazenda" | "grupo" } : {}),
       ...(searchParams.q
         ? {
@@ -39,6 +41,7 @@ export default async function PlatformTenantsPage({
     status: t.subscription?.status ?? "trial",
     active_profiles: t.profiles.map((p) => p.profile_type),
     created_at: t.created_at,
+    archived: !!t.archived_at,
   }));
 
   const filtered = searchParams.status ? mapped.filter((t) => t.status === searchParams.status) : mapped;
@@ -66,7 +69,7 @@ export default async function PlatformTenantsPage({
           </thead>
           <tbody className="divide-y divide-gray-800">
             {filtered.map((t) => (
-              <tr key={t.id} className="hover:bg-gray-800/50">
+              <tr key={t.id} className={`hover:bg-gray-800/50 ${t.archived ? "opacity-50" : ""}`}>
                 <td className="px-4 py-3">
                   <Link href={`/plataforma/tenants/${t.id}`} className="font-medium text-white hover:underline">
                     {t.name}
@@ -75,7 +78,14 @@ export default async function PlatformTenantsPage({
                 </td>
                 <td className="px-4 py-3 text-gray-300">{PLAN_LABEL[t.plan] ?? t.plan}</td>
                 <td className="px-4 py-3">
-                  <StatusBadge status={t.status} />
+                  <div className="flex flex-wrap gap-1.5">
+                    <StatusBadge status={t.status} />
+                    {t.archived && (
+                      <span className="rounded-full bg-gray-600/20 px-2.5 py-0.5 text-xs font-medium text-gray-400">
+                        Arquivado
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-3 text-gray-300">{t.active_profiles.join(", ") || "—"}</td>
                 <td className="px-4 py-3 text-gray-400">{t.created_at.toLocaleDateString("pt-BR")}</td>

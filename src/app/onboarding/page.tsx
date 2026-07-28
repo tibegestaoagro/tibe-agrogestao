@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getActiveProfiles, getSessionUser, getTenantDb } from "@/lib/tenant-context";
+import { prisma } from "@/lib/prisma";
 import OnboardingForm from "./onboarding-form";
 
 /**
@@ -16,6 +17,12 @@ export default async function OnboardingPage() {
     select: { must_change_password: true },
   });
   if (dbUser?.must_change_password) redirect("/trocar-senha");
+
+  const tenantPlan = await prisma.tenant.findUnique({
+    where: { id: user.tenant_id },
+    select: { plan_confirmed: true },
+  });
+  if (tenantPlan?.plan_confirmed === false) redirect("/escolher-plano");
 
   const profiles = await getActiveProfiles();
   if (profiles.length > 0) redirect("/dashboard");

@@ -1,7 +1,9 @@
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { guardPlatform } from "@/lib/platform-guard";
 import { apiOk, apiError, ApiErrors } from "@/lib/api";
 import { isoOrNull } from "@/lib/serialize";
+import { updateTenantAction } from "@/lib/actions/platform-tenants";
 
 /**
  * GET /api/platform/tenants/:id (spec 6.3) — detalhe completo: cadastro,
@@ -44,6 +46,8 @@ export async function GET(
     phone: tenant.phone,
     email: tenant.email,
     plan: tenant.plan,
+    plan_confirmed: tenant.plan_confirmed,
+    archived_at: isoOrNull(tenant.archived_at),
     status: tenant.subscription?.status ?? "trial",
     trial_ends_at: isoOrNull(tenant.trial_ends_at),
     active_profiles: activeProfiles,
@@ -69,4 +73,31 @@ export async function GET(
       : null,
     usage: { animals: animalsCount, plots: plotsCount, service_orders: ordersCount },
   });
+}
+
+const patchSchema = z.object({
+  name: z.string().trim().min(1).optional(),
+  document: z.string().trim().min(11).optional(),
+  phone: z.string().trim().nullish(),
+  email: z.string().trim().email().nullish(),
+  plan: z.enum(["campo", "fazenda", "grupo"]).optional(),
+});
+
+/** PATCH /api/platform/tenants/:id (spec 2026-07-27) — edita dados cadastrais e plano, só master_admin. */
+export async function PATCH(
+  request: Request,
+  { params }: { params: { id: string } },
+) {
+  const g = await guardPlatform({ requireMasterAdmin: true });
+  if ("error" in g) return g.error;
+
+  const json = await request.json().catch(() => null);
+  const parsed = patchSchema.safeParse(json);
+  if (!parsed.success) {
+    return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
+  }
+
+  const result = await updateTenantAction(params.id, parsed.data);
+  if (!result.ok) return apiError(result.code, result.message, result.status);
+  return apiOk(result.data);
 }

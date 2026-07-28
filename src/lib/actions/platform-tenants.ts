@@ -114,3 +114,67 @@ export async function createTenantManuallyAction(params: {
 
   return ok({ tenant_id: tenant.id, email: params.owner_email, temp_password });
 }
+
+/**
+ * Edição de dados cadastrais + plano de um tenant qualquer, pelo painel da
+ * plataforma (spec 2026-07-27) — só master_admin. Mesmos campos que o
+ * próprio tenant já pode editar sozinho em PATCH /api/v1/tenant, mais
+ * `plan` (o tenant só muda o próprio plano via assinatura/Asaas; aqui é
+ * override direto do master_admin, sem passar pelo Asaas).
+ */
+export async function updateTenantAction(
+  tenantId: string,
+  params: {
+    name?: string;
+    document?: string;
+    phone?: string | null;
+    email?: string | null;
+    plan?: TenantPlan;
+  },
+): Promise<ActionResult<{ id: string }>> {
+  const existing = await prisma.tenant.findUnique({ where: { id: tenantId } });
+  if (!existing) return fail("NOT_FOUND", "Tenant não encontrado", 404);
+
+  let document = params.document;
+  if (document !== undefined) {
+    document = document.replace(/\D/g, "");
+    if (document.length < 11) return fail("VALIDATION_ERROR", "CNPJ ou CPF inválido", 422);
+    const dup = await prisma.tenant.findFirst({ where: { document, id: { not: tenantId } } });
+    if (dup) return fail("DUPLICATE_DOCUMENT", "Já existe uma conta com esse CNPJ/CPF", 409);
+  }
+
+  const tenant = await prisma.tenant.update({
+    where: { id: tenantId },
+    data: {
+      ...(params.name !== undefined ? { name: params.name } : {}),
+      ...(document !== undefined ? { document } : {}),
+      ...(params.phone !== undefined ? { phone: params.phone } : {}),
+      ...(params.email !== undefined ? { email: params.email } : {}),
+      ...(params.plan !== undefined ? { plan: params.plan } : {}),
+    },
+  });
+
+  return ok({ id: tenant.id });
+}
+
+/**
+ * Arquiva/desarquiva um tenant pelo painel (spec 2026-07-27) — só
+ * master_admin. Nunca deleta (mesmo padrão de Property.archived_at, M1).
+ * Idempotente nos dois sentidos.
+ */
+export async function setTenantArchivedAction(
+  tenantId: string,
+  archived: boolean,
+): Promise<ActionResult<{ id: string; archived_at: Date | null }>> {
+  const existing = await prisma.tenant.findUnique({ where: { id: tenantId } });
+  if (!existing) return fail("NOT_FOUND", "Tenant não encontrado", 404);
+
+  const tenant = archived === !!existing.archived_at
+    ? existing
+    : await prisma.tenant.update({
+        where: { id: tenantId },
+        data: { archived_at: archived ? new Date() : null },
+      });
+
+  return ok({ id: tenant.id, archived_at: tenant.archived_at });
+}

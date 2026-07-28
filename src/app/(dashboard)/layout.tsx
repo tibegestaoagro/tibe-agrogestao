@@ -36,6 +36,12 @@ export default async function DashboardLayout({
   });
   if (dbUser?.must_change_password) redirect("/trocar-senha");
 
+  const tenantPlan = await prisma.tenant.findUnique({
+    where: { id: user.tenant_id },
+    select: { plan_confirmed: true },
+  });
+  if (tenantPlan?.plan_confirmed === false) redirect("/escolher-plano");
+
   const profiles = await getActiveProfiles();
   if (profiles.length === 0) redirect("/onboarding");
 

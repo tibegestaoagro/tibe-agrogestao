@@ -3,6 +3,8 @@ import { getPlatformSessionUser, isMasterAdmin } from "@/lib/platform-context";
 import { prisma } from "@/lib/prisma";
 import StatusBadge from "@/components/platform/status-badge";
 import ForceStatusForm from "@/components/platform/force-status-form";
+import EditTenantForm from "@/components/platform/edit-tenant-form";
+import ArchiveTenantButton from "@/components/platform/archive-tenant-button";
 
 const PLAN_LABEL: Record<string, string> = { campo: "Campo", fazenda: "Fazenda", grupo: "Grupo" };
 const PROFILE_LABEL: Record<string, string> = { fazenda: "Fazenda", prestador: "Prestador de Serviço" };
@@ -37,11 +39,35 @@ export default async function PlatformTenantDetailPage({ params }: { params: { i
           <h1 className="text-2xl font-bold text-white">{tenant.name}</h1>
           <p className="text-sm text-gray-500">{tenant.document}</p>
         </div>
-        <StatusBadge status={status} />
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge status={status} />
+          {tenant.archived_at && (
+            <span className="rounded-full bg-gray-600/20 px-2.5 py-0.5 text-xs font-medium text-gray-400">
+              Arquivado
+            </span>
+          )}
+          {isMasterAdmin(platformUser.role) && (
+            <ArchiveTenantButton tenantId={tenant.id} archived={!!tenant.archived_at} />
+          )}
+        </div>
       </div>
 
       <section className="rounded-lg border border-gray-800 bg-gray-900 p-5">
-        <h2 className="text-sm font-semibold text-gray-300">Dados cadastrais</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-gray-300">Dados cadastrais</h2>
+          {isMasterAdmin(platformUser.role) && (
+            <EditTenantForm
+              tenantId={tenant.id}
+              initial={{
+                name: tenant.name,
+                document: tenant.document,
+                phone: tenant.phone,
+                email: tenant.email,
+                plan: tenant.plan,
+              }}
+            />
+          )}
+        </div>
         <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
           <div>
             <dt className="text-xs text-gray-500">Plano</dt>

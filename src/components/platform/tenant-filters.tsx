@@ -49,6 +49,15 @@ export default function TenantFilters() {
           </option>
         ))}
       </select>
+      <label className="flex items-center gap-1.5 text-sm text-gray-400">
+        <input
+          type="checkbox"
+          checked={sp.get("archived") === "1"}
+          onChange={(e) => updateParam("archived", e.target.checked ? "1" : "")}
+          className="rounded border-gray-700 bg-gray-900"
+        />
+        Mostrar arquivados
+      </label>
     </div>
   );
 }

@@ -5,7 +5,7 @@ import {
   type SessionUser,
   type ProfileType,
 } from "@/lib/tenant-context";
-import type { TenantPrismaClient } from "@/lib/prisma";
+import { prisma, type TenantPrismaClient } from "@/lib/prisma";
 import { apiError, ApiErrors } from "@/lib/api";
 import { canAccess, canWrite, type ModuleKey } from "@/lib/permissions";
 import { getBillingAccess } from "@/lib/billing-access";
@@ -56,6 +56,23 @@ export async function guard(
       error: apiError(
         "MUST_CHANGE_PASSWORD",
         "Troque sua senha temporária antes de continuar (acesse /trocar-senha).",
+        403,
+      ),
+    };
+  }
+
+  // Mesmo raciocínio do must_change_password: tenant criado manualmente pelo
+  // painel nasce com plan_confirmed=false, e POST /api/v1/tenant/plan (que
+  // resolve isso) também não passa por guard(), pelo mesmo motivo.
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: user.tenant_id },
+    select: { plan_confirmed: true },
+  });
+  if (tenant?.plan_confirmed === false) {
+    return {
+      error: apiError(
+        "PLAN_NOT_CONFIRMED",
+        "Escolha seu plano antes de continuar (acesse /escolher-plano).",
         403,
       ),
     };
