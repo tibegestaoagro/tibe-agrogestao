@@ -12,6 +12,7 @@ export const INTENTS = [
   "consultar_animal",
   "consultar_cliente",
   "gerar_relatorio",
+  "registrar_lancamento_financeiro",
   "ambigua",
 ] as const;
 
@@ -35,6 +36,7 @@ export const INTENT_ACCESS: Record<
   consultar_animal: { module: "rebanho", action: "read", profile: "fazenda" },
   consultar_cliente: { module: "prestador", action: "read", profile: "prestador" },
   gerar_relatorio: { module: null, action: "read" }, // módulo varia por parameters.tipo
+  registrar_lancamento_financeiro: { module: "financeiro", action: "write" },
   ambigua: { module: null, action: "read" },
 };
 

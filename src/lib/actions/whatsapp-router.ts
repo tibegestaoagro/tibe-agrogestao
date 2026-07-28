@@ -23,6 +23,8 @@ import { getClientSummaryAction } from "@/lib/actions/service-clients";
 import { getBalanceAction } from "@/lib/actions/financial-summary";
 import { resolvePeriod } from "@/lib/actions/financial-reports";
 import { buildReportLink } from "@/lib/reports/report-link";
+import { createManualEntryAction } from "@/lib/actions/financial-entries";
+import { FINANCIAL_CATEGORIES } from "@/lib/category-suggestions";
 import { INTENT_ACCESS, CONFIRMATION_THRESHOLD, type Intent } from "@/lib/whatsapp-intents";
 import type { ActionResult } from "@/lib/actions/types";
 
@@ -380,6 +382,57 @@ export async function routeIntent(
         auxiliary_data: null,
         report_url: null,
         action_taken: `cadastrar_servico_ordem:${result.data.id}`,
+      };
+    }
+
+    case "registrar_lancamento_financeiro": {
+      const amount = num(parameters.amount);
+      const categoryRaw = str(parameters.category);
+      const vendor = str(parameters.vendor);
+      const description = str(parameters.description);
+
+      if (amount == null) {
+        return ask("Não consegui identificar o valor do lançamento. Pode informar quanto foi?");
+      }
+
+      const category = (FINANCIAL_CATEGORIES as readonly string[]).includes(categoryRaw ?? "")
+        ? (categoryRaw as string)
+        : "Outros";
+
+      if (explicitNo) {
+        return {
+          reply_text: "Lançamento cancelado.",
+          requires_confirmation: false,
+          auxiliary_data: null,
+          report_url: null,
+          action_taken: "registrar_lancamento_financeiro:cancelado",
+        };
+      }
+
+      if (!confirmed) {
+        return {
+          reply_text: `Entendi: R$ ${amount.toFixed(2)}, categoria ${category}${vendor ? `, ${vendor}` : ""}. Confirma o lançamento?`,
+          requires_confirmation: true,
+          auxiliary_data: { amount, category, vendor, description },
+          report_url: null,
+          action_taken: "registrar_lancamento_financeiro:aguardando_confirmacao",
+        };
+      }
+
+      const result = await createManualEntryAction(db, {
+        entry_type: "expense",
+        category,
+        amount,
+        due_date: new Date(),
+        notes: vendor ?? description ?? null,
+      });
+      if (!result.ok) return failReply(intent, result);
+      return {
+        reply_text: `Lançamento registrado: R$ ${amount.toFixed(2)}, ${category}${vendor ? `, ${vendor}` : ""}.`,
+        requires_confirmation: false,
+        auxiliary_data: null,
+        report_url: null,
+        action_taken: `registrar_lancamento_financeiro:${result.data.id}`,
       };
     }
 
