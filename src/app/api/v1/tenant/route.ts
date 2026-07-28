@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { prisma } from "@/lib/prisma";
+import { toBrazilPhoneDigits } from "@/lib/phone";
 
 /**
  * PATCH /api/v1/tenant (spec 5.3) — edita dados cadastrais do tenant
@@ -38,12 +39,14 @@ export async function PATCH(request: Request) {
     data.document = documentDigits;
   }
 
+  const phone = data.phone ? toBrazilPhoneDigits(data.phone) : data.phone;
+
   const tenant = await prisma.tenant.update({
     where: { id: g.user.tenant_id },
     data: {
       ...(data.name !== undefined ? { name: data.name } : {}),
       ...(data.document !== undefined ? { document: data.document } : {}),
-      ...(data.phone !== undefined ? { phone: data.phone } : {}),
+      ...(data.phone !== undefined ? { phone } : {}),
       ...(data.email !== undefined ? { email: data.email } : {}),
     },
   });

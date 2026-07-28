@@ -3,6 +3,7 @@ import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { logSubscriptionStatusChange } from "@/lib/platform/subscription-log";
 import { generateTempPassword } from "@/lib/passwords";
+import { toBrazilPhoneDigits } from "@/lib/phone";
 import { TRIAL_DAYS } from "@/lib/billing-access";
 import type { SubscriptionStatus, TenantPlan } from "@/generated/prisma/enums";
 
@@ -77,12 +78,13 @@ export async function createTenantManuallyAction(params: {
   if (dupDoc) return fail("DUPLICATE_DOCUMENT", "Já existe uma conta com esse CNPJ/CPF", 409);
   if (dupEmail) return fail("DUPLICATE_EMAIL", "Já existe uma conta com esse email", 409);
 
+  const phone = toBrazilPhoneDigits(params.phone);
   const trial_ends_at = new Date(Date.now() + TRIAL_DAYS * 86_400_000);
   const tenant = await prisma.tenant.create({
     data: {
       name: params.company_name,
       document,
-      phone: params.phone,
+      phone,
       email: params.owner_email,
       plan: DEFAULT_UNCONFIRMED_PLAN,
       plan_confirmed: false,
@@ -100,7 +102,7 @@ export async function createTenantManuallyAction(params: {
         email: params.owner_email,
         password_hash,
         role: "OWNER",
-        phone: params.phone,
+        phone,
         must_change_password: true,
       }),
     });
@@ -143,12 +145,14 @@ export async function updateTenantAction(
     if (dup) return fail("DUPLICATE_DOCUMENT", "Já existe uma conta com esse CNPJ/CPF", 409);
   }
 
+  const phone = params.phone ? toBrazilPhoneDigits(params.phone) : params.phone;
+
   const tenant = await prisma.tenant.update({
     where: { id: tenantId },
     data: {
       ...(params.name !== undefined ? { name: params.name } : {}),
       ...(document !== undefined ? { document } : {}),
-      ...(params.phone !== undefined ? { phone: params.phone } : {}),
+      ...(params.phone !== undefined ? { phone } : {}),
       ...(params.email !== undefined ? { email: params.email } : {}),
       ...(params.plan !== undefined ? { plan: params.plan } : {}),
     },

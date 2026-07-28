@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import TenantFilters from "@/components/platform/tenant-filters";
 import StatusBadge from "@/components/platform/status-badge";
 import CreateTenantForm from "@/components/platform/create-tenant-form";
+import { formatDocument } from "@/lib/document";
 
 const PLAN_LABEL: Record<string, string> = { campo: "Campo", fazenda: "Fazenda", grupo: "Grupo" };
 
@@ -36,7 +37,7 @@ export default async function PlatformTenantsPage({
   const mapped = tenants.map((t) => ({
     id: t.id,
     name: t.name,
-    document: t.document,
+    document: formatDocument(t.document),
     plan: t.plan,
     status: t.subscription?.status ?? "trial",
     active_profiles: t.profiles.map((p) => p.profile_type),
@@ -74,7 +75,9 @@ export default async function PlatformTenantsPage({
                   <Link href={`/plataforma/tenants/${t.id}`} className="font-medium text-white hover:underline">
                     {t.name}
                   </Link>
-                  <p className="text-xs text-gray-500">{t.document}</p>
+                  <p className="text-xs text-gray-500">
+                    {t.document.label}: {t.document.formatted}
+                  </p>
                 </td>
                 <td className="px-4 py-3 text-gray-300">{PLAN_LABEL[t.plan] ?? t.plan}</td>
                 <td className="px-4 py-3">

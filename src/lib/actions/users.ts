@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { scoped, prisma, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { generateTempPassword } from "@/lib/passwords";
+import { toBrazilPhoneDigits } from "@/lib/phone";
 import type { AppUserRole } from "@/types/next-auth";
 
 /**
@@ -26,7 +27,7 @@ export async function inviteUserAction(
     data: scoped({
       name: input.name,
       email: input.email,
-      phone: input.phone ?? null,
+      phone: input.phone ? toBrazilPhoneDigits(input.phone) : null,
       role: input.role,
       password_hash,
     }),

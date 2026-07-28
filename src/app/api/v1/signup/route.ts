@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { apiOk, apiError } from "@/lib/api";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { TRIAL_DAYS } from "@/lib/billing-access";
+import { toBrazilPhoneDigits } from "@/lib/phone";
 
 /**
  * POST /api/v1/signup — cadastro público de novo tenant (self-service).
@@ -39,8 +40,9 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
   }
-  const { company_name, phone, plan, owner_name, owner_email, password, utm_source, utm_medium, utm_campaign } =
+  const { company_name, plan, owner_name, owner_email, password, utm_source, utm_medium, utm_campaign } =
     parsed.data;
+  const phone = toBrazilPhoneDigits(parsed.data.phone);
   const document = parsed.data.document.replace(/\D/g, "");
   if (document.length < 11) {
     return apiError("VALIDATION_ERROR", "CNPJ ou CPF inválido", 422);

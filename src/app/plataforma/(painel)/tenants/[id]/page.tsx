@@ -5,6 +5,8 @@ import StatusBadge from "@/components/platform/status-badge";
 import ForceStatusForm from "@/components/platform/force-status-form";
 import EditTenantForm from "@/components/platform/edit-tenant-form";
 import ArchiveTenantButton from "@/components/platform/archive-tenant-button";
+import { formatDocument } from "@/lib/document";
+import { formatBrazilPhone } from "@/lib/phone";
 
 const PLAN_LABEL: Record<string, string> = { campo: "Campo", fazenda: "Fazenda", grupo: "Grupo" };
 const PROFILE_LABEL: Record<string, string> = { fazenda: "Fazenda", prestador: "Prestador de Serviço" };
@@ -31,13 +33,16 @@ export default async function PlatformTenantDetailPage({ params }: { params: { i
   ]);
 
   const status = tenant.subscription?.status ?? "trial";
+  const document = formatDocument(tenant.document);
 
   return (
     <div className="max-w-3xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white">{tenant.name}</h1>
-          <p className="text-sm text-gray-500">{tenant.document}</p>
+          <p className="text-sm text-gray-500">
+            {document.label}: {document.formatted}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <StatusBadge status={status} />
@@ -75,7 +80,7 @@ export default async function PlatformTenantDetailPage({ params }: { params: { i
           </div>
           <div>
             <dt className="text-xs text-gray-500">Telefone</dt>
-            <dd className="text-white">{tenant.phone ?? "—"}</dd>
+            <dd className="text-white">{tenant.phone ? formatBrazilPhone(tenant.phone) : "—"}</dd>
           </div>
           <div>
             <dt className="text-xs text-gray-500">Email</dt>
