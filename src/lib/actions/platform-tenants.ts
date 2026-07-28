@@ -116,7 +116,12 @@ export async function createTenantManuallyAction(params: {
     throw e;
   }
 
-  await dispatchWelcomeMessage(phone, params.owner_name);
+  await dispatchWelcomeMessage({
+    phone,
+    ownerName: params.owner_name,
+    email: params.owner_email,
+    tempPassword: temp_password,
+  });
 
   return ok({ tenant_id: tenant.id, email: params.owner_email, temp_password });
 }
@@ -166,9 +171,12 @@ export async function updateTenantAction(
 }
 
 /**
- * Reenvia a mensagem de boas-vindas (a mesma que dispara na criação manual)
- * para o dono de um tenant já existente — útil pra testar entrega real ou
- * reenviar quando o primeiro disparo falhou (ex: provider ficou fora do ar).
+ * Reenvia a mensagem de boas-vindas para o dono de um tenant já existente —
+ * útil pra testar entrega real ou reenviar quando o primeiro disparo falhou
+ * (ex: provider ficou fora do ar). A senha original em claro não existe mais
+ * (só o hash é guardado), então isso GERA uma nova senha temporária e marca
+ * must_change_password de novo — a mensagem reenviada sempre tem uma senha
+ * que realmente funciona, em vez de repetir uma que pode já ter sido trocada.
  * Só master_admin (mesma exceção estrutural de createTenantManuallyAction:
  * lookup cross-tenant do Owner pelo painel da plataforma).
  */
@@ -178,7 +186,19 @@ export async function resendWelcomeMessageAction(tenantId: string): Promise<Acti
   if (!tenant.phone) return fail("VALIDATION_ERROR", "Tenant não tem telefone cadastrado", 422);
 
   const owner = await prisma.user.findFirst({ where: { tenant_id: tenantId, role: "OWNER" } });
-  const result = await sendWhatsAppMessage(tenant.phone, buildWelcomeMessage(owner?.name ?? tenant.name));
+  if (!owner) return fail("NOT_FOUND", "Este tenant ainda não tem um usuário Owner", 404);
+
+  const temp_password = generateTempPassword();
+  const password_hash = await bcrypt.hash(temp_password, 10);
+  await prismaForTenant(tenantId).user.update({
+    where: { id: owner.id },
+    data: { password_hash, must_change_password: true },
+  });
+
+  const result = await sendWhatsAppMessage(
+    tenant.phone,
+    buildWelcomeMessage({ ownerName: owner.name, email: owner.email, tempPassword: temp_password }),
+  );
   if (!result.ok) return fail(result.code, result.message, result.status);
 
   return ok({ sent: true });

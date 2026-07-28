@@ -9,6 +9,7 @@ export default function ResendWelcomeButton({ tenantId }: { tenantId: string }) 
   const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
 
   async function send() {
+    if (!window.confirm("Isso gera uma nova senha temporária e envia por WhatsApp — a senha atual do usuário para de funcionar. Continuar?")) return;
     setLoading(true);
     setFeedback(null);
     const res = await apiPost<{ sent: boolean }>(`/api/platform/tenants/${tenantId}/welcome-message`, {});
