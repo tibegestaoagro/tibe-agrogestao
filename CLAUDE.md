@@ -400,20 +400,30 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
   além do contrato da spec, `meta.first_contact`, `meta.suggested_reply` e
   `meta.recent_history` (extensões aditivas: a spec não definia de onde o
   N8N obteria essas informações).
-- `POST /api/internal/whatsapp/execute-action`: roteia as 9 intenções do MVP
+- `POST /api/internal/whatsapp/execute-action`: roteia as intenções do MVP
   (`src/lib/whatsapp-intents.ts` tem a lista + regra de permissão/perfil por
   intenção) para as mesmas `actions` usadas pela web. Confirmação obrigatória
   acima de R$ 5.000 (`CONFIRMATION_THRESHOLD`) para venda/compra de animal e
   ordens de serviço de alto valor: ver `src/lib/actions/whatsapp-router.ts` e
   `src/lib/actions/confirmation.ts` (interpretação de "sim"/"não" em texto
   livre, usada só dentro dos dois fluxos de confirmação, nunca globalmente).
+- **Áudio e recibo por foto/PDF** (spec 2026-07-28): o agente entende áudio
+  (transcrito via Whisper **dentro do N8N**, tratado como texto normal a
+  partir daí: o Tibé nunca sabe se veio de voz ou digitação) e foto/PDF de
+  nota fiscal/recibo (extração por visão, também no N8N, vira a intenção
+  `registrar_lancamento_financeiro`). Essa intenção **sempre** pede
+  confirmação, independente do valor (não usa `CONFIRMATION_THRESHOLD`: a
+  leitura de imagem erra mais que digitação manual). Categoria fora da lista
+  fixa de `src/lib/category-suggestions.ts` cai em `"Outros"`. Handler em
+  `src/lib/actions/whatsapp-router.ts`, chama `createManualEntryAction`
+  (mesma action de `POST /api/v1/financial-entries`). Nó a nó no N8N:
+  [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md) §5.
 - `gerar_relatorio` (tipo `financeiro`) devolve um `report_url` de verdade
   (link assinado, ver Módulo 4 abaixo); tipos `rebanho|lavoura|prestador`
   ainda respondem "não disponível": não há gerador de PDF para eles.
-- Guia completo para montar o workflow no N8N (nó a nó, quando a infra externa
- : Salvy, Meta Business Manager, N8N em produção: estiver pronta):
-  [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md). Inclui a
-  seção de envio de alertas (Módulo 4) via `N8N_ALERT_WEBHOOK_URL`.
+- Guia completo para montar o workflow no N8N (nó a nó, incluindo o suporte a
+  áudio e recibo por foto/PDF): [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md).
+  Inclui a seção de envio de alertas (Módulo 4) via `N8N_ALERT_WEBHOOK_URL`.
 - **Envio de mensagem agora é do Tibé** (spec 2026-07-11, desvio deliberado da
   regra "N8N é o único intermediário", aprovado pelo usuário): o N8N chama
   `POST /api/internal/whatsapp/send-message` e o Tibé entrega pelo provider

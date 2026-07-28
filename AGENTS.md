@@ -283,12 +283,18 @@ credenciais do N8N, não no ambiente do Tibé).
 
 - `POST /api/internal/whatsapp/resolve-contact`: identifica tenant/usuário
   pelo telefone.
-- `POST /api/internal/whatsapp/execute-action`: roteia 9 intenções
+- `POST /api/internal/whatsapp/execute-action`: roteia as intenções
   (`src/lib/whatsapp-intents.ts`) para as actions de negócio, com checagem de
   permissão por role/perfil e confirmação obrigatória acima de R$ 5.000 para
   ações financeiras relevantes (`src/lib/actions/whatsapp-router.ts`).
 - `gerar_relatorio` (tipo `financeiro`) devolve um `report_url` de verdade
   (ver Módulo 4); outros tipos ainda respondem "não disponível".
+- **Áudio e recibo por foto/PDF** (spec 2026-07-28): transcrição (Whisper) e
+  extração por visão acontecem dentro do N8N, nunca no Tibé. Áudio vira texto
+  normal antes de chegar no Tibé. Recibo vira a intenção
+  `registrar_lancamento_financeiro` (sempre pede confirmação, categoria fora
+  da lista fixa de `category-suggestions.ts` cai em "Outros"), que chama
+  `createManualEntryAction` (mesma action do lançamento manual da web).
 - Guia de integração completo (nó a nó do workflow N8N, incluindo envio de
   alertas do Módulo 4): [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md).
 - **Envio de mensagem agora é do Tibé** (spec 2026-07-11, desvio deliberado da
