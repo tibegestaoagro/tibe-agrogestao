@@ -12,6 +12,7 @@ import {
   findVaccineByName,
   addMovementAction,
   getAnimalSummaryAction,
+  listUpcomingVaccinations,
 } from "@/lib/actions/animals";
 import { findActivePropertyByName, listActiveProperties } from "@/lib/actions/properties";
 import {
@@ -93,6 +94,64 @@ const REPORT_TYPE_MODULE: Record<string, ModuleKey> = {
   lavoura: "lavoura",
   prestador: "prestador",
 };
+
+const HELP_TEXT: Record<string, { text: string; profile?: ProfileType; label: string }> = {
+  cadastrar_animal: {
+    label: "cadastro de animais",
+    profile: "fazenda",
+    text: "Pra cadastrar um animal, me manda o brinco, a raça e o sexo (macho ou fêmea). Se tiver mais de uma propriedade, diz também em qual delas. Exemplo: 'cadastra o boi 1234, nelore, macho'.",
+  },
+  registrar_peso: {
+    label: "pesagens",
+    profile: "fazenda",
+    text: "Pra registrar o peso, me manda o brinco do animal e o peso em kg. Exemplo: 'pesei o boi 1234, deu 280 quilos'.",
+  },
+  registrar_vacina: {
+    label: "vacinas",
+    profile: "fazenda",
+    text: "Pra registrar uma vacina, me manda o brinco do animal e o nome da vacina (o custo é opcional). Exemplo: 'vacinei o boi 1234 contra aftosa'.",
+  },
+  registrar_movimento: {
+    label: "compra/venda/transferência de animais",
+    profile: "fazenda",
+    text: "Pra compra, venda, transferência ou morte de um animal, me manda o brinco e o tipo. Se for venda ou compra, pode dizer o valor também. Se for transferência, me diz pra qual propriedade. Exemplo: 'vendi o boi 1234 por 8000 reais'.",
+  },
+  cadastrar_servico_ordem: {
+    label: "ordens de serviço",
+    profile: "prestador",
+    text: "Pra registrar uma ordem de serviço, me manda o nome do cliente e o serviço prestado. Exemplo: 'fiz uma diária de trator pro cliente João'.",
+  },
+  consultar_saldo: {
+    label: "consulta de saldo",
+    text: "É só perguntar! Pode pedir o saldo do mês atual ou de um mês específico. Exemplo: 'qual meu saldo de junho'.",
+  },
+  consultar_animal: {
+    label: "consulta de animal",
+    profile: "fazenda",
+    text: "Me manda o brinco do animal que você quer consultar. Exemplo: 'como está o boi 1234'.",
+  },
+  consultar_cliente: {
+    label: "consulta de cliente",
+    profile: "prestador",
+    text: "Me manda o nome do cliente que você quer consultar. Exemplo: 'quanto o João me deve'.",
+  },
+  gerar_relatorio: {
+    label: "relatório financeiro",
+    text: "Posso te mandar o relatório financeiro em PDF, é só pedir. (Relatórios de rebanho, lavoura e prestador ainda não estão disponíveis por aqui.)",
+  },
+  registrar_lancamento_financeiro: {
+    label: "lançar despesas (inclusive por foto de recibo)",
+    text: "Pra lançar uma despesa, me conta o valor e do que se trata: ou, mais fácil, me manda uma foto ou PDF da nota que eu leio pra você.",
+  },
+};
+
+const RESUMO_TOP_LEVEL: { scope: string; label: string; profile?: ProfileType }[] = [
+  { scope: "rebanho", label: "Rebanho", profile: "fazenda" },
+  { scope: "lavoura", label: "Lavoura", profile: "fazenda" },
+  { scope: "prestador", label: "Prestador", profile: "prestador" },
+  { scope: "financeiro", label: "Financeiro" },
+];
+const RESUMO_SECOND_LEVEL = ["Clientes", "Agendamentos", "Contas a receber"];
 
 export async function routeIntent(
   db: TenantPrismaClient,
@@ -543,11 +602,163 @@ export async function routeIntent(
       };
     }
 
+    case "ajuda": {
+      const topic = str(parameters.topic);
+      const entry = topic ? HELP_TEXT[topic] : undefined;
+      if (entry) {
+        if (entry.profile && !activeProfiles.includes(entry.profile)) {
+          const label = entry.profile === "fazenda" ? "Fazenda" : "Prestador de Serviço";
+          return {
+            reply_text: `Esse recurso requer o perfil "${label}" ativo, que não está habilitado para sua empresa.`,
+            requires_confirmation: false,
+            auxiliary_data: null,
+            report_url: null,
+            action_taken: "ajuda:perfil_inativo",
+          };
+        }
+        return {
+          reply_text: entry.text,
+          requires_confirmation: false,
+          auxiliary_data: null,
+          report_url: null,
+          action_taken: `ajuda:${topic}`,
+        };
+      }
+
+      const available = Object.values(HELP_TEXT).filter(
+        (e) => !e.profile || activeProfiles.includes(e.profile),
+      );
+      const menu = available.map((e) => e.label).join(", ");
+      return {
+        reply_text: `Posso te ajudar com: ${menu}. Sobre qual desses você quer saber mais? Ou me conta direto o que você quer fazer que eu tento entender.`,
+        requires_confirmation: false,
+        auxiliary_data: null,
+        report_url: null,
+        action_taken: "ajuda:geral",
+      };
+    }
+
+    case "resumo": {
+      const scope = str(parameters.scope);
+      const availableTopLevel = RESUMO_TOP_LEVEL.filter((o) => !o.profile || activeProfiles.includes(o.profile));
+
+      if (scope === "rebanho" && availableTopLevel.some((o) => o.scope === "rebanho")) {
+        const [count, upcoming] = await Promise.all([
+          db.animal.count({ where: { status: "active" } }),
+          listUpcomingVaccinations(db, 15),
+        ]);
+        const next = upcoming[0];
+        const vaccineText = next
+          ? `Próxima vacina: brinco ${next.ear_tag ?? "?"} em ${next.days_remaining} dia(s).`
+          : "Nenhuma vacina prevista.";
+        return {
+          reply_text: `🐄 Rebanho: ${count} animal(is) ativo(s). ${vaccineText}`,
+          requires_confirmation: false,
+          auxiliary_data: null,
+          report_url: null,
+          action_taken: "resumo:rebanho",
+        };
+      }
+
+      if (scope === "lavoura" && availableTopLevel.some((o) => o.scope === "lavoura")) {
+        const count = await db.plot.count({
+          where: { cycles: { some: { status: { in: ["planted", "growing"] } } } },
+        });
+        return {
+          reply_text: `🌱 Lavoura: ${count} talhão(ões) com ciclo ativo.`,
+          requires_confirmation: false,
+          auxiliary_data: null,
+          report_url: null,
+          action_taken: "resumo:lavoura",
+        };
+      }
+
+      if (scope === "financeiro") {
+        const [balance, alerts] = await Promise.all([
+          getBalanceAction(db, null),
+          db.alert.count({ where: { status: "pending" } }),
+        ]);
+        const balanceText = balance.ok ? `R$ ${balance.data.balance.toFixed(2)}` : "indisponível";
+        return {
+          reply_text: `💰 Financeiro: saldo do mês ${balanceText}. ${alerts} alerta(s) pendente(s).`,
+          requires_confirmation: false,
+          auxiliary_data: null,
+          report_url: null,
+          action_taken: "resumo:financeiro",
+        };
+      }
+
+      if (scope === "prestador" && availableTopLevel.some((o) => o.scope === "prestador")) {
+        return {
+          reply_text: `Quer saber sobre ${RESUMO_SECOND_LEVEL.join(", ")}?`,
+          requires_confirmation: false,
+          auxiliary_data: null,
+          report_url: null,
+          action_taken: "resumo:prestador:aguardando_escopo",
+        };
+      }
+
+      if (scope === "clientes" || scope === "agendamentos" || scope === "contas_a_receber") {
+        if (!activeProfiles.includes("prestador")) {
+          return {
+            reply_text: `Esse recurso requer o perfil "Prestador de Serviço" ativo, que não está habilitado para sua empresa.`,
+            requires_confirmation: false,
+            auxiliary_data: null,
+            report_url: null,
+            action_taken: "resumo:perfil_inativo",
+          };
+        }
+        if (scope === "clientes") {
+          const count = await db.serviceClient.count();
+          return {
+            reply_text: `🧾 Você tem ${count} cliente(s) cadastrado(s).`,
+            requires_confirmation: false,
+            auxiliary_data: null,
+            report_url: null,
+            action_taken: "resumo:clientes",
+          };
+        }
+        if (scope === "agendamentos") {
+          const count = await db.serviceOrder.count({ where: { status: "scheduled" } });
+          return {
+            reply_text: `📅 Você tem ${count} ordem(ns) de serviço agendada(s) (ainda não realizadas).`,
+            requires_confirmation: false,
+            auxiliary_data: null,
+            report_url: null,
+            action_taken: "resumo:agendamentos",
+          };
+        }
+        const [count, agg] = await Promise.all([
+          db.serviceOrder.count({ where: { status: "completed" } }),
+          db.serviceOrder.aggregate({ where: { status: "completed" }, _sum: { total_value: true } }),
+        ]);
+        const total = decToNum(agg._sum.total_value) ?? 0;
+        return {
+          reply_text: `💵 Você tem ${count} ordem(ns) concluída(s) aguardando fatura, totalizando R$ ${total.toFixed(2)}.`,
+          requires_confirmation: false,
+          auxiliary_data: null,
+          report_url: null,
+          action_taken: "resumo:contas_a_receber",
+        };
+      }
+
+      // scope null/não reconhecido/indisponível: pergunta nível 1. O N8N
+      // decide (via recent_history) quando desistir de perguntar e manda
+      // "ambigua" em vez de "resumo" de novo.
+      return {
+        reply_text: `Sobre o que você quer saber: ${availableTopLevel.map((o) => o.label).join(", ")}?`,
+        requires_confirmation: false,
+        auxiliary_data: null,
+        report_url: null,
+        action_taken: "resumo:aguardando_escopo",
+      };
+    }
+
     case "ambigua":
     default:
       return {
         reply_text:
-          "Desculpe, não entendi sua mensagem. Posso ajudar com cadastro de animais, pesagens, vacinas, movimentações, ordens de serviço e consultas. Pode reformular?",
+          "Não entendi. Posso cadastrar novas informações ou te contar o que já está cadastrado: me diga o que você precisa, ou pergunte 'o que você faz?' que eu te mostro as opções.",
         requires_confirmation: false,
         auxiliary_data: null,
         report_url: null,
