@@ -418,6 +418,14 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
   `src/lib/actions/whatsapp-router.ts`, chama `createManualEntryAction`
   (mesma action de `POST /api/v1/financial-entries`). Nó a nó no N8N:
   [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md) §5.
+  **`webhookBase64: true` não é confiável pra áudio/imagem na Evolution em
+  produção** (descoberto testando com áudio real — o campo simplesmente não
+  vem no webhook, mesmo configurado): `POST
+  /api/internal/whatsapp/fetch-media` (`src/lib/whatsapp-media.ts`) busca a
+  mídia sob demanda via `/chat/getBase64FromMediaMessage` da Evolution, pelo
+  `message_id`, chamado pelo N8N antes de transcrever/extrair. Só suporta
+  Evolution por enquanto (Meta Cloud API teria outro mecanismo de download,
+  não implementado).
 - `gerar_relatorio` (tipo `financeiro`) devolve um `report_url` de verdade
   (link assinado, ver Módulo 4 abaixo); tipos `rebanho|lavoura|prestador`
   ainda respondem "não disponível": não há gerador de PDF para eles.

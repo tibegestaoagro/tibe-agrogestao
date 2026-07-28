@@ -295,6 +295,10 @@ credenciais do N8N, não no ambiente do Tibé).
   `registrar_lancamento_financeiro` (sempre pede confirmação, categoria fora
   da lista fixa de `category-suggestions.ts` cai em "Outros"), que chama
   `createManualEntryAction` (mesma action do lançamento manual da web).
+  `webhookBase64: true` da Evolution não é confiável pra áudio/imagem em
+  produção (campo às vezes não vem no webhook) — `POST
+  /api/internal/whatsapp/fetch-media` (`src/lib/whatsapp-media.ts`) busca a
+  mídia sob demanda pelo `message_id` via `/chat/getBase64FromMediaMessage`.
 - Guia de integração completo (nó a nó do workflow N8N, incluindo envio de
   alertas do Módulo 4): [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md).
 - **Envio de mensagem agora é do Tibé** (spec 2026-07-11, desvio deliberado da

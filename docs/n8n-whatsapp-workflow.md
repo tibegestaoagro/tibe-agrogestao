@@ -213,29 +213,37 @@ parâmetros já estruturados (mesmo princípio da seção 1).
 O `Normalizar e Filtrar` (Code) detecta o tipo da mensagem
 (`message.conversation`/`extendedTextMessage` = texto,
 `message.audioMessage` = áudio, `message.imageMessage`/`documentMessage`
-com `mimetype: application/pdf` = mídia) e extrai `phone` + o base64 da
-mídia quando aplicável (já chega em base64 no payload por causa do
-`webhookBase64: true` configurado na instância Evolution — ver
-`src/lib/evolution-client.ts#setInstanceWebhook`). Mensagens sem texto e
-sem mídia suportada são descartadas (`return []`), igual já era antes desta
-mudança.
+com `mimetype: application/pdf` = mídia) e extrai `phone` + `message_id`
+(`data.key.id`). **Não tenta ler base64 inline do payload do webhook** —
+descoberto em teste real (2026-07-28) que `webhookBase64: true` não é
+confiável pra áudio/imagem na Evolution API em produção (o campo
+simplesmente não vem, mesmo configurado — comportamento documentado em
+vários issues do projeto Evolution). Em vez disso, um node HTTP novo,
+`Buscar Mídia (Áudio)`/`Buscar Mídia (Recibo)`, chama
+`POST /api/internal/whatsapp/fetch-media` (Tibé, credencial "Tibe Internal
+Secret") logo depois de `É Áudio?`/`É Mídia (Imagem/PDF)?`, passando o
+`message_id` — o Tibé busca e decripta a mídia sob demanda via
+`/chat/getBase64FromMediaMessage` da própria Evolution
+(`src/lib/whatsapp-media.ts`) e devolve `{data: {base64, mimetype}}`.
+Mensagens sem texto e sem mídia suportada são descartadas (`return []`).
 
-**Ramo de áudio:** `É Áudio?` (IF) → `Preparar Áudio` (Code, monta o
-`$binary.file` a partir do base64) → `Transcrever Áudio` (HTTP Request,
-multipart/form-data pro Whisper da OpenAI, `model: whisper-1`, credencial
-"OpenAI API Key") → `Interpretar Transcrição` (Code) → `Transcrição OK?`
-(IF): se vazio, `Enviar - Áudio Não Entendido` (pede pra tentar de novo ou
-digitar) e encerra; se ok, o texto transcrito segue pro mesmo caminho de uma
-mensagem digitada.
+**Ramo de áudio:** `É Áudio?` (IF) → `Buscar Mídia (Áudio)` → `Preparar
+Áudio` (Code, monta o `$binary.file` a partir de `$json.data.base64`) →
+`Transcrever Áudio` (HTTP Request, multipart/form-data pro Whisper da
+OpenAI, `model: whisper-1`, credencial "OpenAI API Key") → `Interpretar
+Transcrição` (Code) → `Transcrição OK?` (IF): se vazio, `Enviar - Áudio Não
+Entendido` (pede pra tentar de novo ou digitar) e encerra; se ok, o texto
+transcrito segue pro mesmo caminho de uma mensagem digitada.
 
-**Ramo de recibo:** `É Mídia (Imagem/PDF)?` (IF) → `Extrair Recibo` (HTTP
-Request, Chat Completions da OpenAI com `gpt-4o-mini` e `image_url` em data
-URI — sem multipart, o base64 vai direto no JSON) → `Parse Extração Recibo`
-(Code, valida `amount`/normaliza `category` pra uma das 7 categorias fixas
-de `src/lib/category-suggestions.ts`) → `Recibo Legível?` (IF): se
-`amount` não veio, `Enviar - Recibo Ilegível` (pede foto mais nítida ou
-lançamento manual) e encerra; se ok, monta um `media_intent` com a intenção
-`registrar_lancamento_financeiro` pronta.
+**Ramo de recibo:** `É Mídia (Imagem/PDF)?` (IF) → `Buscar Mídia (Recibo)` →
+`Extrair Recibo` (HTTP Request, Chat Completions da OpenAI com
+`gpt-4o-mini` e `image_url` em data URI a partir de `$json.data.base64`/
+`$json.data.mimetype` — sem multipart, o base64 vai direto no JSON) →
+`Parse Extração Recibo` (Code, valida `amount`/normaliza `category` pra uma
+das 7 categorias fixas de `src/lib/category-suggestions.ts`) → `Recibo
+Legível?` (IF): se `amount` não veio, `Enviar - Recibo Ilegível` (pede foto
+mais nítida ou lançamento manual) e encerra; se ok, monta um `media_intent`
+com a intenção `registrar_lancamento_financeiro` pronta.
 
 **Convergência:** os três caminhos (texto, áudio transcrito, recibo legível)
 se encontram em `Preparar Mensagem` (Code), que normaliza pra
@@ -253,12 +261,20 @@ recente, igual já fazia para venda de animal/ordem de serviço.
 
 Testado ponta a ponta via webhook sintético (payload Evolution simulado por
 `curl`, inspecionando a execução real via `GET /api/v1/executions/:id` da
-API do N8N) nos três ramos — texto (regressão), áudio (Whisper transcreveu
-corretamente) e recibo (extraiu valor/categoria/fornecedor de um recibo de
-teste e criou o `FinancialEntry` de verdade após "sim"). PDF usa o mesmo
-ramo de imagem (mandado direto como base64 pro modelo de visão, sem
-renderização de página separada) — funcionou no teste, mas vale reconfirmar
-com um PDF real de nota fiscal assim que possível.
+API do N8N) nos três ramos, incluindo com um **áudio real** mandado pelo
+usuário no WhatsApp de verdade (reprocessado via `message_id` real depois
+do fix do `fetch-media` — Whisper transcreveu perfeitamente uma fala de 12
+segundos). O ramo de recibo foi validado ponta a ponta (extraiu
+valor/categoria/fornecedor de um recibo de teste e criou o `FinancialEntry`
+de verdade após "sim") **antes** da mudança pra `fetch-media` — como esse
+node é idêntico em estrutura pro áudio e pro recibo (mesmo endpoint, só
+muda o `message_id`), e já foi provado funcionando com mídia real no ramo
+de áudio, a composição deveria funcionar igual pro recibo, mas **ainda não
+foi reconfirmada com uma foto real** depois dessa mudança específica (não
+dá mais pra testar com payload sintético, já que `fetch-media` precisa de
+um `message_id` que exista de verdade na Evolution). PDF usa o mesmo ramo
+de imagem (mandado direto como base64 pro modelo de visão, sem renderização
+de página separada) — ainda não testado com um PDF real.
 
 ---
 
