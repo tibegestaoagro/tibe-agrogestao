@@ -6,7 +6,7 @@ import { buildReportLink } from "@/lib/reports/report-link";
 /**
  * GET /api/v1/financial/report/link?start=&end=
  * Sessão obrigatória. Devolve um link assinado (válido por 1h) para
- * `/api/v1/financial/report`, que gera o PDF sob demanda — usado pelo botão
+ * `/api/v1/financial/report`, que gera o PDF sob demanda: usado pelo botão
  * "Exportar relatório" da web.
  */
 export async function GET(request: Request) {

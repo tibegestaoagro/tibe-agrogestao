@@ -5,7 +5,7 @@ import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import type { PlatformSessionRole } from "@/types/next-auth";
 
 /**
- * Gestão da equipe da plataforma (Módulo 6, task 6.10) — só master_admin.
+ * Gestão da equipe da plataforma (Módulo 6, task 6.10): só master_admin.
  * Mesmo padrão de src/lib/actions/users.ts (convite com senha temporária
  * exibida uma única vez; sem infra de email no projeto).
  */

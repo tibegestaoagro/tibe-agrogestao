@@ -6,7 +6,7 @@ import { setTenantArchivedAction } from "@/lib/actions/platform-tenants";
 const schema = z.object({ archived: z.boolean() });
 
 /**
- * POST /api/platform/tenants/:id/archive (spec 2026-07-27) — só master_admin.
+ * POST /api/platform/tenants/:id/archive (spec 2026-07-27): só master_admin.
  * `{ archived: true }` arquiva, `{ archived: false }` desarquiva. Idempotente.
  */
 export async function POST(

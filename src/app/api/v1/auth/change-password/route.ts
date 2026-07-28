@@ -4,7 +4,7 @@ import { getSessionUser, getTenantDb } from "@/lib/tenant-context";
 import { changeOwnPasswordAction } from "@/lib/actions/auth-self";
 
 /**
- * POST /api/v1/auth/change-password (spec 2026-07-24) — só sessão, sem
+ * POST /api/v1/auth/change-password (spec 2026-07-24): só sessão, sem
  * guard() de módulo/billing (usuário precisa trocar a senha mesmo com a
  * conta em read_only/blocked).
  */

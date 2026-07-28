@@ -26,7 +26,7 @@ const WEBHOOK_TOKEN = process.env.ASAAS_WEBHOOK_TOKEN ?? "dev-asaas-webhook-toke
 const DAY = 86_400_000;
 
 async function main() {
-  console.log("🔒 Módulo 5 — Billing, webhook Asaas e usuários\n");
+  console.log("🔒 Módulo 5: Billing, webhook Asaas e usuários\n");
 
   const tenantA = await prisma.tenant.create({
     data: { name: "M5 Tenant A", document: "M5A000000001", plan: "fazenda", status: "trial" },

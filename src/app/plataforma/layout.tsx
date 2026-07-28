@@ -7,10 +7,10 @@ export const metadata: Metadata = {
 };
 
 /**
- * Layout raiz de /plataforma/* (Módulo 6) — só provisiona o SessionProvider
+ * Layout raiz de /plataforma/* (Módulo 6): só provisiona o SessionProvider
  * da instância de PlatformUser. A proteção de rota real está no middleware
  * (getToken sobre o cookie tibe-platform-session) e, em defesa adicional, no
- * layout de (painel)/layout.tsx. Este layout não tem nav — /plataforma/login
+ * layout de (painel)/layout.tsx. Este layout não tem nav: /plataforma/login
  * também passa por aqui, sem chrome de painel autenticado.
  */
 export default function PlataformaRootLayout({

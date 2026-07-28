@@ -4,7 +4,7 @@ import { getCashFlow, resolvePeriod } from "@/lib/actions/financial-reports";
 
 /**
  * GET /api/v1/financial/cash-flow?start=&end=&group_by=day|month&related_module=
- * (spec 4.4) — regime de caixa, agrupado por dia ou mês.
+ * (spec 4.4): regime de caixa, agrupado por dia ou mês.
  */
 export async function GET(request: Request) {
   const g = await guard("financeiro", "read");

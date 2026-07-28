@@ -8,7 +8,7 @@ import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from "@/co
 type Plan = "campo" | "fazenda" | "grupo";
 const PLAN_LABEL: Record<Plan, string> = { campo: "Campo", fazenda: "Fazenda", grupo: "Grupo" };
 
-/** Edição de dados cadastrais + plano de um tenant (spec 2026-07-27) — só master_admin. */
+/** Edição de dados cadastrais + plano de um tenant (spec 2026-07-27): só master_admin. */
 export default function EditTenantForm({
   tenantId,
   initial,
@@ -105,7 +105,7 @@ export default function EditTenantForm({
               ))}
             </select>
             <p className="mt-1 text-xs text-gray-500">
-              Troca direta, sem passar pelo Asaas — o cliente não é cobrado automaticamente pela diferença.
+              Troca direta, sem passar pelo Asaas: o cliente não é cobrado automaticamente pela diferença.
             </p>
           </div>
           {error && <p className="text-sm text-red-400">{error}</p>}

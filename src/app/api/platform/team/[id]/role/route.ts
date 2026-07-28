@@ -5,7 +5,7 @@ import { updateTeamMemberRoleAction } from "@/lib/actions/platform-team";
 
 const schema = z.object({ role: z.enum(["MASTER_ADMIN", "EQUIPE"]) });
 
-/** PATCH /api/platform/team/:id/role (spec 6.10) — só master_admin, não pode alterar a própria role. */
+/** PATCH /api/platform/team/:id/role (spec 6.10): só master_admin, não pode alterar a própria role. */
 export async function PATCH(
   request: Request,
   { params }: { params: { id: string } },

@@ -5,7 +5,7 @@ import SignupForm from "./signup-form";
 
 export const metadata: Metadata = {
   title: "Criar conta",
-  description: "Crie sua conta no Tibé e comece a usar agora — teste grátis, sem cartão.",
+  description: "Crie sua conta no Tibé e comece a usar agora: teste grátis, sem cartão.",
 };
 
 export default function CriarContaPage() {

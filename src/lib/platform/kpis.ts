@@ -4,13 +4,13 @@ import type { TenantPlan, SubscriptionStatus } from "@/generated/prisma/enums";
 
 /**
  * KPIs do painel da plataforma (Módulo 6, tasks 6.4-6.7). Tudo calculado sob
- * demanda a partir de Subscription + SubscriptionStatusLog — sem snapshot
+ * demanda a partir de Subscription + SubscriptionStatusLog: sem snapshot
  * histórico persistido nesta versão (spec 6.5).
  *
- * MRR sempre usa PLAN_PRICES (preço ATUAL do plano) — não há histórico de
+ * MRR sempre usa PLAN_PRICES (preço ATUAL do plano): não há histórico de
  * preço por assinatura no schema, então "valor do plano vigente" (spec 6.4)
  * só pode significar o preço de hoje, aplicado também a meses passados no
- * gráfico de evolução. Documentado — se o preço mudar no futuro, MRR de
+ * gráfico de evolução. Documentado: se o preço mudar no futuro, MRR de
  * meses antigos recalcula com o preço novo (limitação aceita para o MVP).
  */
 
@@ -29,7 +29,7 @@ function periodStartDate(period: Period, from: Date = new Date()): Date {
 }
 
 /**
- * Reconstrói o status de cada Subscription "as of" uma data — o status mais
+ * Reconstrói o status de cada Subscription "as of" uma data: o status mais
  * recente registrado em SubscriptionStatusLog com created_at <= asOf. Uma
  * Subscription sem nenhum log até essa data ainda não existia nesse momento.
  */
@@ -153,7 +153,7 @@ export async function calculateLTV(): Promise<LtvResult> {
   const avgTicket = mrr.total_mrr / mrr.active_subscriptions_count;
   const churn = await calculateChurn("30d");
   if (churn.customer_churn_pct <= 0) {
-    // Sem churn observado ainda: LTV não é calculável (divisão por zero) — não é "infinito" de verdade.
+    // Sem churn observado ainda: LTV não é calculável (divisão por zero): não é "infinito" de verdade.
     return { ltv: null, avg_ticket_mensal: round2(avgTicket), churn_mensal_pct: 0 };
   }
   const ltv = avgTicket / (churn.customer_churn_pct / 100);

@@ -1,7 +1,7 @@
 import type { EvolutionCredentials } from "@/lib/actions/platform-whatsapp-config";
 
 /**
- * Wrapper fino sobre a Evolution API (spec 2026-07-24) — usado só pelo fluxo
+ * Wrapper fino sobre a Evolution API (spec 2026-07-24): usado só pelo fluxo
  * de conexão via QR direto no painel. Nunca lança: erro de rede/HTTP vira
  * um estado degradado (state "close"/"not_found", qrcode null), porque quem
  * chama sempre precisa devolver uma resposta HTTP normal ao client.
@@ -76,11 +76,11 @@ export async function connectInstance(
 }
 
 /**
- * Aponta o webhook da instância pro workflow N8N (spec 2026-07-28) — é o
+ * Aponta o webhook da instância pro workflow N8N (spec 2026-07-28): é o
  * passo que faltava pra criar/conectar uma instância 100% pelo painel, sem
  * precisar mexer na Evolution direto. Idempotente (reenviar o mesmo payload
  * não tem efeito colateral); chamada depois de create/connect, quando a
- * instância já existe de verdade. Nunca lança — falha vira `ok: false`, quem
+ * instância já existe de verdade. Nunca lança: falha vira `ok: false`, quem
  * chama decide se isso deve travar o fluxo ou só avisar.
  */
 export async function setInstanceWebhook(

@@ -19,7 +19,7 @@ function assert(cond: boolean, msg: string) {
 }
 
 async function main() {
-  console.log("🔒 M10 — Criação manual de tenant\n");
+  console.log("🔒 M10: Criação manual de tenant\n");
 
   const doc = `M10${Date.now()}`.slice(0, 14);
   const email = `m10-${Date.now()}@teste.local`;

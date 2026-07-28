@@ -11,7 +11,7 @@ export default function PayButton({ entryId }: { entryId: string }) {
 
   async function markPaid() {
     setLoading(true);
-    // Corpo explícito {} — a rota exige JSON válido mesmo sem campos obrigatórios.
+    // Corpo explícito {}: a rota exige JSON válido mesmo sem campos obrigatórios.
     const res = await apiPatch(`/api/v1/financial-entries/${entryId}/pay`, {});
     setLoading(false);
     if (res.ok) router.refresh();

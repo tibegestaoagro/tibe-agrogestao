@@ -6,7 +6,7 @@ import { createManualEntryAction } from "@/lib/actions/financial-entries";
 
 /**
  * GET  /api/v1/financial-entries   lista com filtros (period, entry_type, category, related_module, status)
- * POST /api/v1/financial-entries   lançamento manual (contrato spec 4.2) — sempre related_module: geral
+ * POST /api/v1/financial-entries   lançamento manual (contrato spec 4.2): sempre related_module: geral
  */
 
 const createSchema = z.object({

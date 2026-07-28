@@ -5,7 +5,7 @@ import { isoOrNull } from "@/lib/serialize";
 
 /**
  * GET /api/v1/vaccinations/upcoming   (contrato spec 1.4)
- * Vacinações vencendo nos próximos 15 dias (usado pelo Módulo 4 — Alertas).
+ * Vacinações vencendo nos próximos 15 dias (usado pelo Módulo 4: Alertas).
  */
 export async function GET() {
   const g = await guard("rebanho", "read", { profile: "fazenda" });

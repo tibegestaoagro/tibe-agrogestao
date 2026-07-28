@@ -5,7 +5,7 @@ import { decryptConfig } from "@/lib/crypto-config";
 import type { EvolutionCredentials } from "@/lib/actions/platform-whatsapp-config";
 import { getInstanceStatus } from "@/lib/evolution-client";
 
-/** GET /api/platform/whatsapp-config/evolution/status — usado pelo polling do card. */
+/** GET /api/platform/whatsapp-config/evolution/status: usado pelo polling do card. */
 export async function GET() {
   const g = await guardPlatform({ requireMasterAdmin: true });
   if ("error" in g) return g.error;

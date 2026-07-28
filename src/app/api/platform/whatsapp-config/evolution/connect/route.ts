@@ -12,9 +12,9 @@ import {
 
 /**
  * POST /api/platform/whatsapp-config/evolution/connect (spec 2026-07-24,
- * webhook automático 2026-07-28) — só master_admin. Cria a instância na
+ * webhook automático 2026-07-28): só master_admin. Cria a instância na
  * Evolution se ainda não existir (ou pede um QR novo se existir mas não
- * estiver conectada) e aponta o webhook pro N8N — nunca precisa mexer na
+ * estiver conectada) e aponta o webhook pro N8N: nunca precisa mexer na
  * Evolution direto, tudo pelo painel.
  */
 export async function POST() {
@@ -31,7 +31,7 @@ export async function POST() {
   const result =
     current.state === "not_found" ? await createInstance(creds) : await connectInstance(creds);
 
-  // A instância já existe nesse ponto (create ou connect rodaram) — aponta o
+  // A instância já existe nesse ponto (create ou connect rodaram): aponta o
   // webhook pro N8N. Não trava o fluxo se falhar (QR ainda vale a pena
   // mostrar); o client mostra um aviso se webhook_configured vier false.
   const webhook = await setInstanceWebhook(creds);

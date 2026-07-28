@@ -4,7 +4,7 @@ import { guard } from "@/lib/api-guard";
 /**
  * PATCH /api/v1/alerts/:id/dismiss (spec 4.12)
  * Marca um alerta como resolvido manualmente. Operador só tem leitura em
- * Alertas (PRD 5.2) — dismiss exige escrita (Owner/Admin).
+ * Alertas (PRD 5.2): dismiss exige escrita (Owner/Admin).
  */
 export async function PATCH(
   _request: Request,

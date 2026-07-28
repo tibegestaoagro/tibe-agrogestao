@@ -9,7 +9,7 @@ const schema = z.object({
 });
 
 /**
- * PATCH /api/platform/tenants/:id/status (spec 6.9) — só master_admin.
+ * PATCH /api/platform/tenants/:id/status (spec 6.9): só master_admin.
  * Grava em SubscriptionStatusLog com o PlatformUser responsável (log de
  * auditoria exigido pela spec).
  */

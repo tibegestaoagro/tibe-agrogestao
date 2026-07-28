@@ -5,7 +5,7 @@ import { setTeamMemberActiveAction } from "@/lib/actions/platform-team";
 
 const schema = z.object({ active: z.boolean() });
 
-/** PATCH /api/platform/team/:id/active (spec 6.10) — só master_admin, não pode desativar a si mesmo. */
+/** PATCH /api/platform/team/:id/active (spec 6.10): só master_admin, não pode desativar a si mesmo. */
 export async function PATCH(
   request: Request,
   { params }: { params: { id: string } },

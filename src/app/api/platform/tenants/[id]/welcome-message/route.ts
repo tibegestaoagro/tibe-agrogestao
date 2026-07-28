@@ -3,7 +3,7 @@ import { guardPlatform } from "@/lib/platform-guard";
 import { resendWelcomeMessageAction } from "@/lib/actions/platform-tenants";
 
 /**
- * POST /api/platform/tenants/:id/welcome-message — só master_admin.
+ * POST /api/platform/tenants/:id/welcome-message: só master_admin.
  * Reenvia a mensagem de boas-vindas do Tibé pelo WhatsApp (provider ativo).
  */
 export async function POST(_request: Request, { params }: { params: { id: string } }) {

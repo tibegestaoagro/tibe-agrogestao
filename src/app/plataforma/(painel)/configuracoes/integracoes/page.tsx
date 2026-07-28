@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getPlatformSessionUser, isMasterAdmin } from "@/lib/platform-context";
 
-/** Lista de integrações externas (spec 2026-07-24) — só master_admin. */
+/** Lista de integrações externas (spec 2026-07-24): só master_admin. */
 export default async function PlatformIntegracoesPage() {
   const platformUser = await getPlatformSessionUser();
   if (!platformUser) redirect("/plataforma/login");

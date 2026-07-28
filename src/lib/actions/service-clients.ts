@@ -3,7 +3,7 @@ import { decToNum, isoOrNull } from "@/lib/serialize";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 
 /**
- * Resumo financeiro do cliente (spec 2.5) — extraído para ser reusado pela rota
+ * Resumo financeiro do cliente (spec 2.5): extraído para ser reusado pela rota
  * HTTP e pelo agente WhatsApp ("quanto o cliente X me deve").
  */
 export async function getClientSummaryAction(

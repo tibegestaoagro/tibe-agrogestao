@@ -3,7 +3,7 @@
 Este projeto é conduzido em módulos (0 a 6), cada um implementado a partir de uma
 spec em [`docs/specs/`](docs/specs/), com o [PRD](docs/tibe-prd.md) como fonte de
 verdade para modelo de dados e contratos de API. Antes de mudar algo, vale ler a
-spec do módulo relacionado — a arquitetura tem decisões deliberadas que nem sempre
+spec do módulo relacionado: a arquitetura tem decisões deliberadas que nem sempre
 são óbvias só olhando o código (ver `/docs/arquitetura` no app).
 
 ## Convenções de código
@@ -20,14 +20,14 @@ são óbvias só olhando o código (ver `/docs/arquitetura` no app).
   client escopado e devolvem `ActionResult<T>` (`{ ok: true, data } | { ok: false,
   code, message, status }`). Rotas HTTP são wrappers finos: validam com Zod, chamam
   a action, serializam a resposta. Não duplique regra de negócio dentro de uma
-  rota — se o agente WhatsApp e o painel web precisam da mesma ação, os dois devem
+  rota: se o agente WhatsApp e o painel web precisam da mesma ação, os dois devem
   chamar a mesma função em `lib/actions`.
 - **Contrato de resposta:** sucesso é sempre `{ data, meta }`, erro é sempre
   `{ error: { code, message } }`, via `apiOk`/`apiError` (`src/lib/api.ts`). Não
   invente um formato novo para um endpoint específico.
 - **Serialização:** Prisma devolve `Decimal`/`Date`; a API devolve `number`/string
   ISO 8601. Use `decToNum()`/`isoOrNull()` (`src/lib/serialize.ts`) ou os
-  serializers prontos (`src/lib/serializers.ts`) — não formate objetos Prisma à
+  serializers prontos (`src/lib/serializers.ts`): não formate objetos Prisma à
   mão numa resposta.
 - **Validação de entrada** com Zod em toda rota que recebe corpo de requisição.
 - **Não adicione abstração, configuração ou tratamento de erro para casos que não
@@ -70,11 +70,11 @@ de uma lista do que mudou linha a linha.
 
 1. Branch a partir de `main`.
 2. Abrir o PR gera automaticamente um preview deployment na Vercel com uma branch
-   de banco Neon isolada — teste ali antes de pedir revisão.
+   de banco Neon isolada: teste ali antes de pedir revisão.
 3. Rode os testes relevantes e `npx tsc --noEmit` antes de abrir o PR.
 4. Mudanças de produto ou arquitetura que a spec do módulo não resolve devem ser
-   alinhadas com o responsável pelo produto antes da implementação — não assuma
+   alinhadas com o responsável pelo produto antes da implementação: não assuma
    em silêncio. Extensões aditivas ao contrato (campo novo que não quebra nada
    existente) são aceitáveis se documentadas no PR.
-5. Merge em `main` dispara deploy automático de produção — não há um ambiente de
+5. Merge em `main` dispara deploy automático de produção: não há um ambiente de
    staging intermediário além dos previews de PR.

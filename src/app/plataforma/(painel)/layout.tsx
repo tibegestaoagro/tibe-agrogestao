@@ -11,7 +11,7 @@ const ROLE_LABEL: Record<string, string> = {
 /**
  * Layout do painel autenticado (Módulo 6, task 6.8/6.9/6.10). O middleware já
  * bloqueia /plataforma/* sem sessão de PlatformUser (getToken sobre o cookie
- * próprio) — este guard aqui é defesa em profundidade, igual ao padrão já
+ * próprio): este guard aqui é defesa em profundidade, igual ao padrão já
  * usado no DashboardLayout de tenant.
  */
 export default async function PainelLayout({

@@ -133,7 +133,7 @@ User
 
 Property
   id, tenant_id, name, address, area_hectares, created_at
-  // "fazenda" ou "propriedade" — um tenant pode ter múltiplas
+  // "fazenda" ou "propriedade": um tenant pode ter múltiplas
 
 // ── Módulo Rebanho ──
 Animal
@@ -239,12 +239,12 @@ O agente WhatsApp herda a role do `User` vinculado ao `WhatsAppContact` que envi
 
 `PlatformUser` representa a equipe da Pleno Digital, não pertence a tenant algum e **não** usa a matriz da seção 5.2. Possui dois papéis:
 
-- **master_admin** — acesso total ao painel da plataforma (`(platform)/`): lista de tenants, KPIs e configurações internas.
-- **equipe** — acesso restrito ao painel da plataforma; o recorte exato de permissões (leitura vs. ações administrativas) é definido na spec do Módulo 6.
+- **master_admin**: acesso total ao painel da plataforma (`(platform)/`): lista de tenants, KPIs e configurações internas.
+- **equipe**: acesso restrito ao painel da plataforma; o recorte exato de permissões (leitura vs. ações administrativas) é definido na spec do Módulo 6.
 
 Duas regras invariáveis governam essa separação:
 
-1. Nenhum `User` de tenant — mesmo sendo Owner — acessa rota ou dado de plataforma.
+1. Nenhum `User` de tenant: mesmo sendo Owner: acessa rota ou dado de plataforma.
 2. Nenhum `PlatformUser`, em qualquer papel, opera dados de negócio de um tenant pelas rotas de tenant; seu acesso se dá exclusivamente pelas rotas próprias do painel da plataforma.
 
 ---
@@ -416,7 +416,7 @@ Rotas de webhook (`/api/webhooks/*`) autenticam via secret no header, não via s
 
 Todo client Prisma usado em rotas autenticadas passa por um middleware central que injeta automaticamente `where: { tenant_id }` em toda query de leitura e escrita. Nenhuma query de negócio deve construir o filtro de tenant manualmente, o middleware é a única fonte de verdade para esse isolamento.
 
-**Exceção única e intencional:** o modelo `PlatformUser` e as rotas do painel da plataforma (`app/(platform)/`) não passam por esse middleware. Eles operam com um client Prisma sem injeção de `tenant_id`, encapsulado em módulo próprio e acessível apenas a partir de uma sessão de `PlatformUser` autenticada. Não pode existir caminho de código que parta de uma sessão de tenant e alcance esse client — a exceção é unidirecional e vive inteiramente no lado da plataforma, conforme seção 4.
+**Exceção única e intencional:** o modelo `PlatformUser` e as rotas do painel da plataforma (`app/(platform)/`) não passam por esse middleware. Eles operam com um client Prisma sem injeção de `tenant_id`, encapsulado em módulo próprio e acessível apenas a partir de uma sessão de `PlatformUser` autenticada. Não pode existir caminho de código que parta de uma sessão de tenant e alcance esse client: a exceção é unidirecional e vive inteiramente no lado da plataforma, conforme seção 4.
 
 ---
 
@@ -433,25 +433,25 @@ Cada módulo só é considerado concluído quando:
 
 ## 12. O que não está no escopo desta versão
 
-- Onboarding self-service completo de novos tenants (cadastro automático sem intervenção manual) — o MVP cobre o tenant Da Mata Sementes provisionado manualmente; o fluxo de signup público é v1.1
-- App mobile nativo (React Native) — planejado para v1.1
-- Modo offline do agente — planejado para v1.1
-- Módulo de maquinário e manutenção preventiva — planejado para v1.2
-- Emissão de nota fiscal rural — planejado para v1.3
-- IA preditiva (recomendação de defensivos, previsão de safra) — planejado para v2.0
+- Onboarding self-service completo de novos tenants (cadastro automático sem intervenção manual): o MVP cobre o tenant Da Mata Sementes provisionado manualmente; o fluxo de signup público é v1.1
+- App mobile nativo (React Native): planejado para v1.1
+- Modo offline do agente: planejado para v1.1
+- Módulo de maquinário e manutenção preventiva: planejado para v1.2
+- Emissão de nota fiscal rural: planejado para v1.3
+- IA preditiva (recomendação de defensivos, previsão de safra): planejado para v2.0
 - Provisionamento automático de número WhatsApp por tenant (fluxo Salvy + Meta é manual no MVP)
 
 ---
 
 ## 13. Histórico de versões
 
-### v1.1 — Junho 2026
+### v1.1: Junho 2026
 - Adicionado o **Módulo 6: Painel da Plataforma (Admin Interno)**, desenvolvimento interno da Pleno Digital, sem fase contratual com a Agromax.
-- Introduzido o modelo `PlatformUser` (papéis `master_admin|equipe`), fora do isolamento multi-tenant — única exceção intencional ao isolamento por `tenant_id`.
+- Introduzido o modelo `PlatformUser` (papéis `master_admin|equipe`), fora do isolamento multi-tenant: única exceção intencional ao isolamento por `tenant_id`.
 - Adicionado o subdomínio `dashboard.tibe.com.br` (mesmo deploy Next.js, rota `app/(platform)/`, middleware de auth próprio).
 - Adicionada a pasta `app/(platform)/` à estrutura de pastas (seção 10.1).
 - Adicionados campos de origem de lead ao `Tenant`: `lead_source_utm_source`, `lead_source_utm_medium`, `lead_source_utm_campaign`.
 - Nova seção **5.3** (papéis da plataforma) e exceção documentada na seção **10.4**; critério de aceitação **11.3** atualizado com a exceção.
 
-### v1.0 — Junho 2026
+### v1.0: Junho 2026
 - Versão inicial do PRD: produto, infraestrutura, stack, modelo de dados multi-tenant, roles, integrações e módulos 0–5.

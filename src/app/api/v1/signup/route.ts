@@ -6,17 +6,17 @@ import { TRIAL_DAYS } from "@/lib/billing-access";
 import { toBrazilPhoneDigits } from "@/lib/phone";
 
 /**
- * POST /api/v1/signup — cadastro público de novo tenant (self-service).
+ * POST /api/v1/signup: cadastro público de novo tenant (self-service).
  *
  * ⚠️ Fora do escopo original do MVP (PRD §12 marca signup público como v1.1);
  * construído a pedido explícito do Dilton para destravar testes do painel
  * antes do Módulo 4/5, sem esperar a integração real de cobrança (Asaas).
  * Cria Tenant (status=trial) + User (role=OWNER) de verdade. Sem rate limiting
- * (não há infra de fila/Redis conectada ainda) — nota conhecida, não bloqueante
+ * (não há infra de fila/Redis conectada ainda): nota conhecida, não bloqueante
  * para uso controlado de testes.
  *
  * Única rota de negócio que roda sem sessão por natureza (ainda não existe
- * usuário) — mesmo assim segue o contrato { data, meta } / { error } do PRD.
+ * usuário): mesmo assim segue o contrato { data, meta } / { error } do PRD.
  */
 
 const schema = z.object({
@@ -27,7 +27,7 @@ const schema = z.object({
   owner_name: z.string().trim().min(1, "Nome do responsável é obrigatório"),
   owner_email: z.string().trim().email("Email inválido"),
   password: z.string().min(8, "A senha deve ter ao menos 8 caracteres"),
-  // Origem do lead (Módulo 6, funil por UTM) — capturado no site público via
+  // Origem do lead (Módulo 6, funil por UTM): capturado no site público via
   // cookie first-touch (src/lib/utm.ts), opcional (a maioria dos acessos é direta).
   utm_source: z.string().trim().min(1).nullish(),
   utm_medium: z.string().trim().min(1).nullish(),

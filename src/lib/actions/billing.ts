@@ -7,10 +7,10 @@ import { logSubscriptionStatusChange } from "@/lib/platform/subscription-log";
 
 /**
  * Criação de assinatura real no Asaas (spec 5.5). PIX e boleto são exibidos
- * dentro do próprio painel (decisão do módulo — evita redirecionar o
+ * dentro do próprio painel (decisão do módulo: evita redirecionar o
  * produtor para fora do site); cartão de crédito devolve a URL da fatura
  * hospedada pelo Asaas, a única exceção deliberada (evita exigir
- * certificação PCI-DSS SAQ-D do Tibé — ver CLAUDE.md).
+ * certificação PCI-DSS SAQ-D do Tibé: ver CLAUDE.md).
  */
 
 export type SubscribeResult =
@@ -51,7 +51,7 @@ export async function subscribeAction(
     asaas_subscription_id: subscription.id,
     plan: params.plan,
     // "overdue" é o estado técnico até o primeiro pagamento ser confirmado
-    // pelo webhook — o cálculo de acesso (billing-access.ts) dá carência
+    // pelo webhook: o cálculo de acesso (billing-access.ts) dá carência
     // automática porque next_due_date ainda está no futuro.
     status: "overdue" as const,
     next_due_date: new Date(subscription.nextDueDate),
@@ -69,7 +69,7 @@ export async function subscribeAction(
     });
   }
 
-  // Primeira cobrança gerada pela assinatura — usada para exibir PIX/boleto/link.
+  // Primeira cobrança gerada pela assinatura: usada para exibir PIX/boleto/link.
   const payments = await asaas.listSubscriptionPayments(subscription.id);
   const firstPayment = payments[0];
   if (!firstPayment) {
@@ -88,7 +88,7 @@ export async function subscribeAction(
     const boleto = await asaas.getBoletoDetails(firstPayment.id);
     return ok({ method: "boleto", subscriptionId: record.id, ...boleto });
   }
-  // CREDIT_CARD — única forma que sai do painel (fatura hospedada pelo Asaas).
+  // CREDIT_CARD: única forma que sai do painel (fatura hospedada pelo Asaas).
   return ok({ method: "redirect", subscriptionId: record.id, redirectUrl: firstPayment.invoiceUrl });
 }
 

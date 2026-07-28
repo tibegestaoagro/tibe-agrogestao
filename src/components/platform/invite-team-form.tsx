@@ -8,7 +8,7 @@ import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from "@/co
 type Role = "MASTER_ADMIN" | "EQUIPE";
 const ROLE_LABEL: Record<Role, string> = { MASTER_ADMIN: "Master Admin", EQUIPE: "Equipe" };
 
-/** Convite de novo membro da equipe (spec 6.10) — só master_admin. */
+/** Convite de novo membro da equipe (spec 6.10): só master_admin. */
 export default function InviteTeamForm() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -62,7 +62,7 @@ export default function InviteTeamForm() {
         {tempPassword ? (
           <div className="space-y-3">
             <p className="rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-300">
-              Membro criado. Repasse estas credenciais manualmente — a senha só aparece aqui uma vez.
+              Membro criado. Repasse estas credenciais manualmente: a senha só aparece aqui uma vez.
             </p>
             <p className="text-sm text-gray-300">
               Email: <span className="font-mono">{email}</span>

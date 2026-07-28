@@ -1,4 +1,4 @@
-# WhatsApp Provider Config (Evolution/Meta) — Implementation Plan
+# WhatsApp Provider Config (Evolution/Meta): Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -14,13 +14,13 @@
 
 - **Idioma:** comentários de código e mensagens de erro em português (convenção do projeto).
 - **Testes rodam contra Docker local**, nunca Neon: prefixe todo comando de teste com `DATABASE_URL="postgresql://tibe:tibe@localhost:55432/tibe_dev?schema=public"`. Se o container não estiver de pé: `docker start tibe-pg`.
-- **Migração**: fluxo Prisma 7 do projeto — gerar SQL com `migrate diff`, salvar manualmente em `prisma/migrations/<timestamp>_nome/migration.sql`, aplicar com `npm run db:deploy`. NUNCA `prisma migrate dev`.
-- **Model novo NÃO entra** em `TENANT_SCOPED_MODELS` (`src/lib/prisma.ts`) — é config de plataforma.
-- **Client Prisma base** (`prisma`) é permitido nos arquivos novos deste plano (config de plataforma, mesma categoria de `PlatformUser`) — registrar a exceção no CLAUDE.md (Task 7).
-- **Contrato de API**: sucesso `{ data, meta }`, erro `{ error: { code, message } }` — helpers `apiOk`/`apiError` de `src/lib/api.ts`.
+- **Migração**: fluxo Prisma 7 do projeto: gerar SQL com `migrate diff`, salvar manualmente em `prisma/migrations/<timestamp>_nome/migration.sql`, aplicar com `npm run db:deploy`. NUNCA `prisma migrate dev`.
+- **Model novo NÃO entra** em `TENANT_SCOPED_MODELS` (`src/lib/prisma.ts`): é config de plataforma.
+- **Client Prisma base** (`prisma`) é permitido nos arquivos novos deste plano (config de plataforma, mesma categoria de `PlatformUser`): registrar a exceção no CLAUDE.md (Task 7).
+- **Contrato de API**: sucesso `{ data, meta }`, erro `{ error: { code, message } }`: helpers `apiOk`/`apiError` de `src/lib/api.ts`.
 - **Actions** retornam `ActionResult<T>` (`src/lib/actions/types.ts`: `ok()`/`fail()`), nunca lançam para fluxo esperado.
 - **Commits**: mensagem em português, footer `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>` (heredoc).
-- **`npx tsc --noEmit` não pega erro de lint JSX** — a Task 8 roda `npm run build` obrigatoriamente.
+- **`npx tsc --noEmit` não pega erro de lint JSX**: a Task 8 roda `npm run build` obrigatoriamente.
 
 ---
 
@@ -40,7 +40,7 @@ No final de `prisma/schema.prisma`, após o model `SubscriptionStatusLog`:
 
 ```prisma
 // ─────────────────────────────────────────────────────────────
-// Config de provider WhatsApp (spec 2026-07-11) — GLOBAL da plataforma,
+// Config de provider WhatsApp (spec 2026-07-11): GLOBAL da plataforma,
 // fora de TENANT_SCOPED_MODELS (mesma categoria de PlatformUser). Os dois
 // providers podem existir configurados em paralelo; no máximo 1 active
 // (garantido por transação na ativação + partial unique index na migração).
@@ -77,7 +77,7 @@ Esperado: SQL com `CREATE TYPE "WhatsAppProvider"` e `CREATE TABLE "WhatsAppProv
 Criar `prisma/migrations/20260711120000_whatsapp_provider_config/migration.sql`:
 
 ```sql
--- Config de provider WhatsApp (Evolution/Meta) — global da plataforma.
+-- Config de provider WhatsApp (Evolution/Meta): global da plataforma.
 CREATE TYPE "WhatsAppProvider" AS ENUM ('evolution', 'meta_cloud_api');
 
 CREATE TABLE "WhatsAppProviderConfig" (
@@ -148,7 +148,7 @@ EOF
 
 **Interfaces:**
 - Consumes: env `CONFIG_ENCRYPTION_KEY` (Task 1).
-- Produces: `encryptConfig(obj: unknown): string`, `decryptConfig<T = unknown>(encrypted: string): T` — formato `iv.ciphertext.authTag` em base64url. Ambas lançam `Error` se a env var faltar/for inválida ou o payload estiver corrompido (config é pré-requisito de servidor, não fluxo de usuário — exceção é o comportamento certo aqui; quem converte para `ActionResult` é a camada de cima).
+- Produces: `encryptConfig(obj: unknown): string`, `decryptConfig<T = unknown>(encrypted: string): T`: formato `iv.ciphertext.authTag` em base64url. Ambas lançam `Error` se a env var faltar/for inválida ou o payload estiver corrompido (config é pré-requisito de servidor, não fluxo de usuário: exceção é o comportamento certo aqui; quem converte para `ActionResult` é a camada de cima).
 
 - [ ] **Step 1: Escrever o teste que falha**
 
@@ -174,7 +174,7 @@ function assert(cond: boolean, msg: string) {
 }
 
 async function main() {
-  console.log("🔒 M7 — Provider WhatsApp configurável\n");
+  console.log("🔒 M7: Provider WhatsApp configurável\n");
 
   // ── crypto-config ────────────────────────────────────────────
   const original = { base_url: "https://evo.example.com", api_key: "chave-secreta-123", instance: "tibe" };
@@ -216,7 +216,7 @@ Em `package.json`, depois de `test:m6`:
 $env:DATABASE_URL="postgresql://tibe:tibe@localhost:55432/tibe_dev?schema=public"; npm run test:m7
 ```
 
-Esperado: FALHA — `Cannot find module '@/lib/crypto-config'`.
+Esperado: FALHA: `Cannot find module '@/lib/crypto-config'`.
 
 - [ ] **Step 3: Implementar**
 
@@ -229,9 +229,9 @@ import crypto from "node:crypto";
  * Criptografia em repouso das credenciais de provider WhatsApp
  * (WhatsAppProviderConfig.credentials_encrypted). AES-256-GCM com chave em
  * CONFIG_ENCRYPTION_KEY (32 bytes, base64). Formato armazenado:
- * `iv.ciphertext.authTag` (base64url — mesmo estilo do report-token.ts).
+ * `iv.ciphertext.authTag` (base64url: mesmo estilo do report-token.ts).
  *
- * Lança Error quando a chave falta/é inválida ou o payload está corrompido —
+ * Lança Error quando a chave falta/é inválida ou o payload está corrompido:
  * isso é misconfiguração de servidor, não fluxo de usuário; a camada de cima
  * (action/rota) converte para o erro HTTP adequado.
  */
@@ -240,12 +240,12 @@ function getKey(): Buffer {
   const b64 = process.env.CONFIG_ENCRYPTION_KEY;
   if (!b64) {
     throw new Error(
-      "CONFIG_ENCRYPTION_KEY não configurada — necessária para criptografar credenciais de provider (veja .env.example).",
+      "CONFIG_ENCRYPTION_KEY não configurada: necessária para criptografar credenciais de provider (veja .env.example).",
     );
   }
   const key = Buffer.from(b64, "base64");
   if (key.length !== 32) {
-    throw new Error("CONFIG_ENCRYPTION_KEY inválida — precisa ter exatamente 32 bytes em base64.");
+    throw new Error("CONFIG_ENCRYPTION_KEY inválida: precisa ter exatamente 32 bytes em base64.");
   }
   return key;
 }
@@ -304,8 +304,8 @@ EOF
   - `type EvolutionCredentials = { base_url: string; api_key: string; instance: string }`
   - `type MetaCredentials = { access_token: string; phone_number_id: string }`
   - `upsertProviderConfigAction(params: { provider: WhatsAppProvider; credentials: EvolutionCredentials | MetaCredentials }): Promise<ActionResult<{ provider: WhatsAppProvider }>>`
-  - `activateProviderAction(provider: WhatsAppProvider): Promise<ActionResult<{ provider: WhatsAppProvider }>>` — `fail("NOT_FOUND", …, 404)` se não configurado
-  - `maskCredentials(credentials: Record<string, string>): Record<string, string>` — cada valor vira `"•••• " + últimos 4 chars` (valor com ≤4 chars vira só `"••••"`)
+  - `activateProviderAction(provider: WhatsAppProvider): Promise<ActionResult<{ provider: WhatsAppProvider }>>`: `fail("NOT_FOUND", …, 404)` se não configurado
+  - `maskCredentials(credentials: Record<string, string>): Record<string, string>`: cada valor vira `"•••• " + últimos 4 chars` (valor com ≤4 chars vira só `"••••"`)
 
 - [ ] **Step 1: Adicionar asserts que falham**
 
@@ -371,7 +371,7 @@ E antes do `console.log` final:
 $env:DATABASE_URL="postgresql://tibe:tibe@localhost:55432/tibe_dev?schema=public"; npm run test:m7
 ```
 
-Esperado: FALHA — `Cannot find module '@/lib/actions/platform-whatsapp-config'`.
+Esperado: FALHA: `Cannot find module '@/lib/actions/platform-whatsapp-config'`.
 
 - [ ] **Step 3: Implementar**
 
@@ -384,10 +384,10 @@ import { encryptConfig } from "@/lib/crypto-config";
 import type { WhatsAppProvider } from "@/generated/prisma/enums";
 
 /**
- * Config de provider WhatsApp (spec 2026-07-11) — ações do painel da
+ * Config de provider WhatsApp (spec 2026-07-11): ações do painel da
  * plataforma, só master_admin (recorte aplicado nas rotas via guardPlatform).
  * Usa o client base: config GLOBAL de plataforma, não pertence a tenant
- * (mesma categoria de PlatformUser — exceção documentada no CLAUDE.md).
+ * (mesma categoria de PlatformUser: exceção documentada no CLAUDE.md).
  */
 
 export type EvolutionCredentials = { base_url: string; api_key: string; instance: string };
@@ -460,7 +460,7 @@ EOF
 
 **Interfaces:**
 - Consumes: `decryptConfig` (Task 2), tipos de credencial (Task 3), `prisma.whatsAppProviderConfig`.
-- Produces: `sendWhatsAppMessage(to: string, text: string): Promise<ActionResult<{ provider: string; message_id: string | null }>>` — `fail("NO_PROVIDER_ACTIVE", …, 503)` sem ativo; `fail("PROVIDER_ERROR", …, 502)` em falha HTTP/rede do provider (nunca lança).
+- Produces: `sendWhatsAppMessage(to: string, text: string): Promise<ActionResult<{ provider: string; message_id: string | null }>>`: `fail("NO_PROVIDER_ACTIVE", …, 503)` sem ativo; `fail("PROVIDER_ERROR", …, 502)` em falha HTTP/rede do provider (nunca lança).
 
 - [ ] **Step 1: Adicionar asserts que falham**
 
@@ -496,7 +496,7 @@ No fim de `main()` (antes da limpeza final), o banco está com os dois configs d
 $env:DATABASE_URL="postgresql://tibe:tibe@localhost:55432/tibe_dev?schema=public"; npm run test:m7
 ```
 
-Esperado: FALHA — `Cannot find module '@/lib/whatsapp-send'`.
+Esperado: FALHA: `Cannot find module '@/lib/whatsapp-send'`.
 
 - [ ] **Step 3: Implementar**
 
@@ -511,7 +511,7 @@ import type { EvolutionCredentials, MetaCredentials } from "@/lib/actions/platfo
 /**
  * Envio de mensagem WhatsApp pelo provider ATIVO (spec 2026-07-11).
  * Desvio deliberado da regra "N8N é o único intermediário" (CLAUDE.md): o
- * envio agora é do Tibé — o N8N chama POST /api/internal/whatsapp/send-message
+ * envio agora é do Tibé: o N8N chama POST /api/internal/whatsapp/send-message
  * e este módulo decide se entrega via Evolution ou Meta, pela config do
  * painel da plataforma. O RECEBIMENTO continua no N8N (payloads de entrada
  * diferem por provider; não existe /api/webhooks/whatsapp no Tibé).
@@ -524,7 +524,7 @@ export async function sendWhatsAppMessage(
   if (!config) {
     return fail(
       "NO_PROVIDER_ACTIVE",
-      "Nenhum provider de WhatsApp ativo — configure em /plataforma/configuracoes/whatsapp",
+      "Nenhum provider de WhatsApp ativo: configure em /plataforma/configuracoes/whatsapp",
       503,
     );
   }
@@ -580,7 +580,7 @@ Esperado: todos ✅, `M7: 0 falhas.`
 ```bash
 git add src/lib/whatsapp-send.ts scripts/m7-whatsapp-config.test.ts
 git commit -m "$(cat <<'EOF'
-M7: sendWhatsAppMessage — despacho pelo provider ativo (Evolution/Meta)
+M7: sendWhatsAppMessage: despacho pelo provider ativo (Evolution/Meta)
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
 EOF
@@ -595,7 +595,7 @@ EOF
 - Create: `src/app/api/platform/whatsapp-config/route.ts`
 - Create: `src/app/api/platform/whatsapp-config/[provider]/activate/route.ts`
 - Create: `src/app/api/internal/whatsapp/send-message/route.ts`
-- Modify: `scripts/m7-whatsapp-config.test.ts` (teste da rota interna — header-gated é invocável direto, convenção M3/M4; rotas de plataforma ficam atrás de sessão e são cobertas pelas actions já testadas + `tsc`)
+- Modify: `scripts/m7-whatsapp-config.test.ts` (teste da rota interna: header-gated é invocável direto, convenção M3/M4; rotas de plataforma ficam atrás de sessão e são cobertas pelas actions já testadas + `tsc`)
 
 **Interfaces:**
 - Consumes: `guardPlatform` (`@/lib/platform-guard`), `requireInternalSecret` (`@/lib/internal-guard`), actions das Tasks 3-4, `apiOk`/`apiError` (`@/lib/api`), `decryptConfig`/`maskCredentials`.
@@ -617,7 +617,7 @@ import {
 } from "@/lib/actions/platform-whatsapp-config";
 
 /**
- * GET/PUT /api/platform/whatsapp-config (spec 2026-07-11) — só master_admin.
+ * GET/PUT /api/platform/whatsapp-config (spec 2026-07-11): só master_admin.
  * GET devolve credenciais SEMPRE mascaradas (últimos 4 chars); o valor
  * íntegro nunca sai do servidor.
  */
@@ -681,7 +681,7 @@ import { apiOk, apiError } from "@/lib/api";
 import { guardPlatform } from "@/lib/platform-guard";
 import { activateProviderAction } from "@/lib/actions/platform-whatsapp-config";
 
-/** POST /api/platform/whatsapp-config/:provider/activate — só master_admin. */
+/** POST /api/platform/whatsapp-config/:provider/activate: só master_admin. */
 
 const providerSchema = z.enum(["evolution", "meta_cloud_api"]);
 
@@ -714,7 +714,7 @@ import { requireInternalSecret } from "@/lib/internal-guard";
 import { sendWhatsAppMessage } from "@/lib/whatsapp-send";
 
 /**
- * POST /api/internal/whatsapp/send-message (spec 2026-07-11) — chamado pelo
+ * POST /api/internal/whatsapp/send-message (spec 2026-07-11): chamado pelo
  * N8N no lugar de falar direto com Meta/Evolution. O Tibé decide o provider
  * pela config do painel (troca 1-clique, sem mexer no N8N).
  */
@@ -811,7 +811,7 @@ EOF
 
 ---
 
-### Task 6: UI — página `/plataforma/configuracoes/whatsapp`
+### Task 6: UI: página `/plataforma/configuracoes/whatsapp`
 
 **Files:**
 - Create: `src/app/plataforma/(painel)/configuracoes/whatsapp/page.tsx`
@@ -819,12 +819,12 @@ EOF
 - Modify: `src/app/plataforma/(painel)/layout.tsx` (link na sidebar)
 
 **Interfaces:**
-- Consumes: `getPlatformSessionUser`/`isMasterAdmin` (`@/lib/platform-context`), `prisma`, `decryptConfig`, `maskCredentials`, `apiPut`/`apiPost` de `@/lib/client-api` (conferir se `apiPut` existe em `src/lib/client-api.ts`; se não existir, adicionar lá seguindo o padrão exato de `apiPost` — mesmo shape de retorno).
+- Consumes: `getPlatformSessionUser`/`isMasterAdmin` (`@/lib/platform-context`), `prisma`, `decryptConfig`, `maskCredentials`, `apiPut`/`apiPost` de `@/lib/client-api` (conferir se `apiPut` existe em `src/lib/client-api.ts`; se não existir, adicionar lá seguindo o padrão exato de `apiPost`: mesmo shape de retorno).
 - Produces: página server + card client. Sem contrato para tasks seguintes.
 
 - [ ] **Step 1: Componente client do card**
 
-Criar `src/components/platform/whatsapp-provider-card.tsx` (padrão visual/estado de `invite-team-form.tsx` — inline expand, sem Sheet):
+Criar `src/components/platform/whatsapp-provider-card.tsx` (padrão visual/estado de `invite-team-form.tsx`: inline expand, sem Sheet):
 
 ```tsx
 "use client";
@@ -852,7 +852,7 @@ const FIELDS: Record<Provider, { key: string; label: string; type?: string }[]> 
   ],
 };
 
-/** Card de config de um provider WhatsApp (spec 2026-07-11) — só master_admin. */
+/** Card de config de um provider WhatsApp (spec 2026-07-11): só master_admin. */
 export default function WhatsAppProviderCard({
   provider,
   configured,
@@ -995,7 +995,7 @@ import { maskCredentials } from "@/lib/actions/platform-whatsapp-config";
 import WhatsAppProviderCard from "@/components/platform/whatsapp-provider-card";
 
 /**
- * Config de provider WhatsApp (spec 2026-07-11) — só master_admin.
+ * Config de provider WhatsApp (spec 2026-07-11): só master_admin.
  * Decripta + mascara no servidor; o client nunca recebe credencial íntegra.
  */
 export default async function WhatsAppConfigPage() {
@@ -1062,7 +1062,7 @@ Em `src/app/plataforma/(painel)/layout.tsx`, dentro do bloco `{masterAdmin && (.
 $env:DATABASE_URL="postgresql://tibe:tibe@localhost:55432/tibe_dev?schema=public"; npm run dev
 ```
 
-No browser (real — regra do projeto: página autenticada não funciona via `next start`+cookie jar): login em `http://localhost:3000/plataforma/login`, abrir Configurações → WhatsApp, salvar credenciais Evolution de teste, ver máscara, ativar, conferir badge "Ativo". Parar o server depois.
+No browser (real: regra do projeto: página autenticada não funciona via `next start`+cookie jar): login em `http://localhost:3000/plataforma/login`, abrir Configurações → WhatsApp, salvar credenciais Evolution de teste, ver máscara, ativar, conferir badge "Ativo". Parar o server depois.
 
 - [ ] **Step 6: Typecheck e commit**
 
@@ -1099,7 +1099,7 @@ Na seção "O agente WhatsApp (Módulo 3)", adicionar bullet:
   regra "N8N é o único intermediário", aprovado pelo usuário): o N8N chama
   `POST /api/internal/whatsapp/send-message` e o Tibé entrega pelo provider
   ATIVO em `WhatsAppProviderConfig` (Evolution API não-oficial OU Meta Cloud
-  API — configurável em `/plataforma/configuracoes/whatsapp`, só master_admin,
+  API: configurável em `/plataforma/configuracoes/whatsapp`, só master_admin,
   credenciais AES-256-GCM com `CONFIG_ENCRYPTION_KEY`). O RECEBIMENTO continua
   no N8N (payloads de entrada diferem por provider; segue não existindo
   `/api/webhooks/whatsapp`). Despacho em `src/lib/whatsapp-send.ts`.
@@ -1108,7 +1108,7 @@ Na seção "O agente WhatsApp (Módulo 3)", adicionar bullet:
 Na lista de exceções do client base (seção de isolamento), adicionar antes de "Qualquer uso novo":
 
 ```markdown
-  `WhatsAppProviderConfig` (spec 2026-07-11) — config GLOBAL de plataforma
+  `WhatsAppProviderConfig` (spec 2026-07-11): config GLOBAL de plataforma
   (rotas master_admin + `sendWhatsAppMessage`), mesma categoria estrutural de
   `PlatformUser`, fora de `TENANT_SCOPED_MODELS`,
 ```
@@ -1122,7 +1122,7 @@ Replicar as duas mudanças acima com a mesma redação (arquivos são espelhos).
 Substituir a instrução do Node 6 (e dos envios de `suggested_reply` nos branches) de "envia via Meta Cloud API" para:
 
 ```markdown
-### Node 6 — HTTP Request: send-message (Tibé)
+### Node 6: HTTP Request: send-message (Tibé)
 
 O N8N NÃO chama mais a Meta Cloud API (nem a Evolution) diretamente para
 enviar. Envie qualquer resposta via Tibé:
@@ -1134,7 +1134,7 @@ Body: { "to": "{{ $json.phone }}", "text": "{{ $json.reply_text }}" }
 ```
 
 O Tibé decide o provider (Evolution ou Meta) pela config do painel
-(`/plataforma/configuracoes/whatsapp`) — trocar de provider não exige
+(`/plataforma/configuracoes/whatsapp`): trocar de provider não exige
 alterar este workflow. Erros: 503 = nenhum provider ativo; 502 = o provider
 recusou/falhou (mensagem detalhada em `error.message`).
 ```
@@ -1158,14 +1158,14 @@ Em `src/app/(public)/docs/api/page.tsx`: no grupo "Rotas internas", adicionar ap
       },
 ```
 
-Criar grupo novo "Painel da plataforma — WhatsApp" (ou adicionar ao grupo de rotas de plataforma existente, se houver) com os dois endpoints master_admin:
+Criar grupo novo "Painel da plataforma: WhatsApp" (ou adicionar ao grupo de rotas de plataforma existente, se houver) com os dois endpoints master_admin:
 
 ```ts
       {
         method: "GET",
         path: "/api/platform/whatsapp-config",
         auth: "Sessão de plataforma · master_admin",
-        description: "Lista as configs de provider (credenciais sempre mascaradas — últimos 4 caracteres).",
+        description: "Lista as configs de provider (credenciais sempre mascaradas: últimos 4 caracteres).",
         response: `200
 { "data": [ { "provider": "evolution", "active": true, "credentials_masked": { "api_key": "•••• 9876" }, "updated_at": "2026-07-11T12:00:00.000Z" } ], "meta": {} }`,
       },
@@ -1188,14 +1188,14 @@ Criar grupo novo "Painel da plataforma — WhatsApp" (ou adicionar ao grupo de r
       },
 ```
 
-(Conferir a estrutura real de grupos do arquivo antes de inserir — se não existir grupo de rotas `/api/platform`, criar um com `note` explicando a sessão de plataforma separada.)
+(Conferir a estrutura real de grupos do arquivo antes de inserir: se não existir grupo de rotas `/api/platform`, criar um com `note` explicando a sessão de plataforma separada.)
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add CLAUDE.md AGENTS.md docs/n8n-whatsapp-workflow.md "src/app/(public)/docs/api/page.tsx"
 git commit -m "$(cat <<'EOF'
-M7: documentação — provider configurável, send-message, /docs/api
+M7: documentação: provider configurável, send-message, /docs/api
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
 EOF
@@ -1216,7 +1216,7 @@ $env:DATABASE_URL="postgresql://tibe:tibe@localhost:55432/tibe_dev?schema=public
 npm run test:isolation; npm run test:m1; npm run test:m2; npm run test:m3; npm run test:m4; npm run test:m5; npm run test:m6; npm run test:m7
 ```
 
-Esperado: `0 falhas` em todas. (Se `test:m4` falhar em "1ª chamada do dia executa": lock diário no Redis compartilhado — reexecutar; o próprio teste limpa a chave.)
+Esperado: `0 falhas` em todas. (Se `test:m4` falhar em "1ª chamada do dia executa": lock diário no Redis compartilhado: reexecutar; o próprio teste limpa a chave.)
 
 - [ ] **Step 2: Build de produção (lint incluso)**
 
@@ -1240,11 +1240,11 @@ EOF
 
 ---
 
-## Pós-implementação (deploy — exige confirmação do usuário)
+## Pós-implementação (deploy: exige confirmação do usuário)
 
 Fora das tasks (ações de produção, cada uma confirmada com o usuário antes):
 
 1. `CONFIG_ENCRYPTION_KEY` nova na Vercel (gerar valor de produção próprio, ≠ dev).
-2. Migração no Neon: `npm run db:deploy` com a URL Direct (o `.env` já aponta pra ela) — **confirmar com o usuário antes**.
-3. `git push` (deploy automático) — **só quando o usuário pedir**.
-4. Roteiro de infra externa (Railway: Evolution + N8N) segue em paralelo — não bloqueia este código; sem provider configurado, `send-message` devolve 503 `NO_PROVIDER_ACTIVE` por design.
+2. Migração no Neon: `npm run db:deploy` com a URL Direct (o `.env` já aponta pra ela): **confirmar com o usuário antes**.
+3. `git push` (deploy automático): **só quando o usuário pedir**.
+4. Roteiro de infra externa (Railway: Evolution + N8N) segue em paralelo: não bloqueia este código; sem provider configurado, `send-message` devolve 503 `NO_PROVIDER_ACTIVE` por design.

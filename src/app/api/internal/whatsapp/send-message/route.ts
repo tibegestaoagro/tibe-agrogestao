@@ -4,7 +4,7 @@ import { requireInternalSecret } from "@/lib/internal-guard";
 import { sendWhatsAppMessage } from "@/lib/whatsapp-send";
 
 /**
- * POST /api/internal/whatsapp/send-message (spec 2026-07-11) — chamado pelo
+ * POST /api/internal/whatsapp/send-message (spec 2026-07-11): chamado pelo
  * N8N no lugar de falar direto com Meta/Evolution. O Tibé decide o provider
  * pela config do painel (troca 1-clique, sem mexer no N8N).
  */

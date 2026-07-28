@@ -9,7 +9,7 @@ import { AsaasNotConfiguredError, AsaasApiError } from "@/lib/asaas";
  * POST /api/v1/billing/subscribe (spec 5.5)
  * Cria (ou troca de plano) a assinatura real no Asaas. Só Owner.
  * skipBillingCheck: precisa funcionar mesmo com a conta em atraso/bloqueada
- * — é assim que o tenant regulariza.
+ *: é assim que o tenant regulariza.
  */
 
 const schema = z.object({

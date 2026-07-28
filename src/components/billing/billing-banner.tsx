@@ -15,7 +15,7 @@ export default function BillingBanner({ access }: { access: BillingAccess }) {
       <p className="font-medium">
         {isBlocked
           ? "Acesso bloqueado por pendência de pagamento. Regularize para voltar a usar o Tibé."
-          : "Pagamento em atraso — o painel está em modo somente leitura até a regularização."}
+          : "Pagamento em atraso: o painel está em modo somente leitura até a regularização."}
       </p>
       <Link
         href="/configuracoes/assinatura"

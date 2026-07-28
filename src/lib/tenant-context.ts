@@ -4,7 +4,7 @@ import type { AppUserRole } from "@/types/next-auth";
 
 /**
  * Resolução do tenant_id e do client Prisma escopado a partir da sessão NextAuth.
- * O tenant_id NUNCA vem do client — sempre da sessão autenticada no servidor
+ * O tenant_id NUNCA vem do client: sempre da sessão autenticada no servidor
  * (PRD seção 10.3).
  */
 

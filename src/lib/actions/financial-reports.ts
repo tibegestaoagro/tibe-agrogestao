@@ -3,9 +3,9 @@ import { decToNum } from "@/lib/serialize";
 
 /**
  * Relatórios financeiros (spec 4.4/4.5/4.6). Convenção de regime adotada:
- * - Fluxo de caixa (cashFlow): regime de CAIXA — só lançamentos `status: paid`,
+ * - Fluxo de caixa (cashFlow): regime de CAIXA: só lançamentos `status: paid`,
  *   agrupados por `paid_at` (dinheiro que de fato movimentou).
- * - DRE (dre): regime de COMPETÊNCIA — todos os lançamentos do período
+ * - DRE (dre): regime de COMPETÊNCIA: todos os lançamentos do período
  *   (pending + paid), agrupados por `due_date` (resultado do período,
  *   independente de já ter sido pago).
  * - upcoming: `due_date` nos próximos N dias, `status: pending`.

@@ -6,7 +6,7 @@ import { decToNum } from "@/lib/serialize";
 /**
  * Gera o PDF do relatório financeiro (spec 4.7): resumo do período, DRE por
  * módulo, lista de lançamentos. Chamada tanto pela interface web quanto pelo
- * agente WhatsApp (intenção `gerar_relatorio`) — única fonte de verdade do
+ * agente WhatsApp (intenção `gerar_relatorio`): única fonte de verdade do
  * conteúdo do relatório.
  */
 
@@ -68,7 +68,7 @@ export async function generateFinancialPdf(
 
   const tibeGreen: [number, number, number] = [0.18, 0.49, 0.2];
 
-  writeLine("Relatório Financeiro — Tibé", { size: 18, font: bold, color: tibeGreen });
+  writeLine("Relatório Financeiro: Tibé", { size: 18, font: bold, color: tibeGreen });
   writeLine(params.tenantName, { size: 12, font: bold });
   writeLine(
     `Período: ${params.start.toLocaleDateString("pt-BR")} a ${params.end.toLocaleDateString("pt-BR")}`,

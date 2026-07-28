@@ -1,6 +1,6 @@
 /**
  * Cliente Asaas (spec 5.4). Baseado na documentação pública oficial
- * (docs.asaas.com), consultada durante o desenvolvimento — sem chave de
+ * (docs.asaas.com), consultada durante o desenvolvimento: sem chave de
  * sandbox própria neste ambiente, então nenhuma chamada real foi testada
  * ainda. Validar de ponta a ponta assim que `ASAAS_API_KEY` existir.
  *
@@ -112,7 +112,7 @@ export async function createSubscription(
       value: PLAN_PRICES[params.plan],
       nextDueDate: tomorrowIsoDate(),
       cycle: "MONTHLY",
-      description: `Tibé — Plano ${params.plan}`,
+      description: `Tibé: Plano ${params.plan}`,
       externalReference: params.tenantId,
     }),
   });

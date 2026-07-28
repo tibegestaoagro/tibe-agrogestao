@@ -11,7 +11,7 @@ const OPTIONS = [
   { value: "canceled", label: "Cancelado" },
 ];
 
-/** Forçar mudança manual de status da assinatura (spec 6.9) — só master_admin. */
+/** Forçar mudança manual de status da assinatura (spec 6.9): só master_admin. */
 export default function ForceStatusForm({ tenantId }: { tenantId: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);

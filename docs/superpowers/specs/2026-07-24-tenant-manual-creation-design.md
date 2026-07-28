@@ -9,14 +9,14 @@ Hoje a **única** forma de criar um `Tenant` é o signup público (`/criar-conta
 deliberada. Este spec introduz uma **segunda fonte, deliberada**: o
 `master_admin` cria tenants de teste manualmente pelo painel da plataforma,
 para dar acesso a equipes de cliente validarem o produto antes/durante o
-processo comercial — sem passar pelo formulário público. **CLAUDE.md e
+processo comercial: sem passar pelo formulário público. **CLAUDE.md e
 AGENTS.md precisam ser atualizados** para documentar essa segunda exceção
 (tarefa da implementação, não só nota).
 
 Decisões fechadas na conversa: tenant nasce em **trial (14 dias)**, plano tem
-um valor padrão editável no formulário (não trava nada — cliente muda depois
+um valor padrão editável no formulário (não trava nada: cliente muda depois
 via `/configuracoes/assinatura`, fluxo que já existe). Senha temporária com
-**troca obrigatória no primeiro login** — mecanismo novo, só se aplica a esse
+**troca obrigatória no primeiro login**: mecanismo novo, só se aplica a esse
 fluxo (convite de usuário do M5 continua como está, sem troca forçada).
 
 ## Design
@@ -37,11 +37,11 @@ Migração: `ALTER TABLE "User" ADD COLUMN "must_change_password" BOOLEAN NOT NU
 
 Reusa a lógica de `POST /api/v1/signup` (mesma checagem de documento/email
 duplicado, mesmo `TRIAL_DAYS`), mas:
-- `plan` vem do form com default `"fazenda"` (meio-termo dos 3 planos) —
+- `plan` vem do form com default `"fazenda"` (meio-termo dos 3 planos):
   campo obrigatório no schema Zod da rota, mas o formulário já vem
   preenchido com esse valor, editável.
-- `password` não vem do form — é **gerada** (`generateTempPassword()`,
-  reusar a mesma função de `src/lib/actions/users.ts` — mover para um lugar
+- `password` não vem do form: é **gerada** (`generateTempPassword()`,
+  reusar a mesma função de `src/lib/actions/users.ts`: mover para um lugar
   compartilhado tipo `src/lib/passwords.ts` se ainda não for exportável, para
   não duplicar).
 - `User` nasce com `must_change_password: true`.
@@ -63,11 +63,11 @@ export async function createTenantManuallyAction(params: {
 phone, plan (enum), owner_name, owner_email`. Chama a action acima. Resposta
 201 com `temp_password` (mostrada 1x, mesmo padrão do convite de equipe).
 
-### UI — `/plataforma/tenants` (adicionar)
+### UI: `/plataforma/tenants` (adicionar)
 
 Botão **"Criar tenant"** no topo da lista (mesmo lugar/estilo do botão
 "Convidar membro" em Equipe). Componente client
-`src/components/platform/create-tenant-form.tsx` — mesmo padrão de
+`src/components/platform/create-tenant-form.tsx`: mesmo padrão de
 `invite-team-form.tsx` (inline expand, mostra `temp_password` uma vez após
 criar, com aviso "repasse manualmente, só aparece aqui"). Campos: nome da
 empresa, CNPJ/CPF, telefone, plano (select campo/fazenda/grupo, default
@@ -86,12 +86,12 @@ export async function changeOwnPasswordAction(
 Valida `newPassword.length >= 8` (mesma regra do signup), hash com bcrypt,
 `update({ where: { id: userId }, data: { password_hash, must_change_password: false } })`.
 
-**Endpoint** `POST /api/v1/auth/change-password` — só sessão (`getSessionUser`),
-**não** usa `guard()` (não é ação de módulo, não precisa checar billing —
+**Endpoint** `POST /api/v1/auth/change-password`: só sessão (`getSessionUser`),
+**não** usa `guard()` (não é ação de módulo, não precisa checar billing:
 usuário precisa conseguir trocar a senha mesmo se a conta estiver
 `read_only`/`blocked`). Zod `{ new_password: string.min(8) }`.
 
-**Página** `src/app/trocar-senha/page.tsx` — mesmo padrão de
+**Página** `src/app/trocar-senha/page.tsx`: mesmo padrão de
 `src/app/onboarding/page.tsx` (fora do route group `(dashboard)`, sessão
 própria): se não há sessão → `/login`; se `must_change_password` for
 `false` → `/dashboard`. Form client simples (campo senha + confirmação,
@@ -99,20 +99,20 @@ própria): se não há sessão → `/login`; se `must_change_password` for
 `router.refresh()`).
 
 **Gates de entrada** (onde checar `must_change_password`, precisa de dado
-fresco do banco — `SessionUser`/JWT não carrega esse campo, então cada gate
+fresco do banco: `SessionUser`/JWT não carrega esse campo, então cada gate
 faz uma query pontual, mesmo padrão de `tenant.findUnique` já existente no
 dashboard layout):
-- `src/app/(dashboard)/layout.tsx` — logo após `if (!user) redirect("/login")`,
+- `src/app/(dashboard)/layout.tsx`: logo após `if (!user) redirect("/login")`,
   antes da checagem de `profiles.length`: se `must_change_password`,
   `redirect("/trocar-senha")`.
-- `src/app/onboarding/page.tsx` — mesma checagem, no mesmo ponto (session
+- `src/app/onboarding/page.tsx`: mesma checagem, no mesmo ponto (session
   existe mas ainda não decidiu profiles/dashboard).
 
 ## Fora do escopo
 
-- Convite de usuário (M5) não muda — continua sem troca forçada.
-- Não adiciona um fluxo de "esqueci minha senha" — fora do escopo deste
+- Convite de usuário (M5) não muda: continua sem troca forçada.
+- Não adiciona um fluxo de "esqueci minha senha": fora do escopo deste
   spec.
-- `plan` do tenant criado manualmente não vira cobrança automática — o
+- `plan` do tenant criado manualmente não vira cobrança automática: o
   tenant só entra na régua de cobrança quando alguém (o próprio cliente,
   via `/configuracoes/assinatura`) assinar de verdade.

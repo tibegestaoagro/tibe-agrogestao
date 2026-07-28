@@ -7,7 +7,7 @@ import { generateFinancialPdf } from "@/lib/reports/generate-financial-pdf";
  * GET /api/v1/financial/report?token=...
  *
  * Rota PÚBLICA por natureza (quem clica no link vindo do WhatsApp não tem
- * sessão no navegador) — a autorização vem inteiramente do token assinado
+ * sessão no navegador): a autorização vem inteiramente do token assinado
  * (HMAC, expira em 1h), não de cookie/sessão. Gera o PDF sob demanda e
  * transmite direto na resposta, sem armazenar em lugar nenhum.
  */

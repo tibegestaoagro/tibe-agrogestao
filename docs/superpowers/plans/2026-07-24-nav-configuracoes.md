@@ -1,4 +1,4 @@
-# Navegação Configurações > Integrações > WhatsApp — Implementation Plan
+# Navegação Configurações > Integrações > WhatsApp: Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -13,9 +13,9 @@
 ## Global Constraints
 
 - Comentários em português.
-- Dark theme: `bg-gray-950`/`bg-gray-900`, `border-gray-800`, accent `emerald-600` — mesma paleta das páginas existentes do painel.
-- `guardPlatform`/`getPlatformSessionUser` já existem — não recriar.
-- `/plataforma/configuracoes/whatsapp` e `/plataforma/configuracoes/equipe` **não mudam de path nem de conteúdo** — só a navegação até eles muda.
+- Dark theme: `bg-gray-950`/`bg-gray-900`, `border-gray-800`, accent `emerald-600`: mesma paleta das páginas existentes do painel.
+- `guardPlatform`/`getPlatformSessionUser` já existem: não recriar.
+- `/plataforma/configuracoes/whatsapp` e `/plataforma/configuracoes/equipe` **não mudam de path nem de conteúdo**: só a navegação até eles muda.
 - Commits: português, footer `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>` (heredoc).
 - `npx tsc --noEmit` e `npm run build` devem passar limpo ao final.
 
@@ -40,7 +40,7 @@ import { redirect } from "next/navigation";
 import { getPlatformSessionUser, isMasterAdmin } from "@/lib/platform-context";
 
 /**
- * Hub de configurações da plataforma (spec 2026-07-24) — só master_admin.
+ * Hub de configurações da plataforma (spec 2026-07-24): só master_admin.
  * Agrupa Equipe e Integrações (antes itens soltos na sidebar).
  */
 export default async function PlatformConfiguracoesPage() {
@@ -116,7 +116,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getPlatformSessionUser, isMasterAdmin } from "@/lib/platform-context";
 
-/** Lista de integrações externas (spec 2026-07-24) — só master_admin. */
+/** Lista de integrações externas (spec 2026-07-24): só master_admin. */
 export default async function PlatformIntegracoesPage() {
   const platformUser = await getPlatformSessionUser();
   if (!platformUser) redirect("/plataforma/login");
@@ -188,7 +188,7 @@ No bloco `{masterAdmin && (...)}` que hoje contém os links "Equipe" e
           )}
 ```
 
-Remover os dois `<Link>` antigos (Equipe e WhatsApp) inteiramente — só esse
+Remover os dois `<Link>` antigos (Equipe e WhatsApp) inteiramente: só esse
 um link novo fica no lugar deles.
 
 - [ ] **Step 3: Typecheck**
@@ -231,7 +231,7 @@ curl -s -o /dev/null -w "whatsapp: %{http_code}\n" http://localhost:3000/platafo
 curl -s -o /dev/null -w "equipe: %{http_code}\n" http://localhost:3000/plataforma/configuracoes/equipe
 ```
 
-Esperado: todas `307` (redirect pra `/plataforma/login`, sem sessão — é o
+Esperado: todas `307` (redirect pra `/plataforma/login`, sem sessão: é o
 comportamento correto, mesma coisa que as páginas antigas já faziam).
 
 - [ ] **Step 3: Build de produção**

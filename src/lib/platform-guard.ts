@@ -3,13 +3,13 @@ import { apiError, ApiErrors } from "@/lib/api";
 
 /**
  * Guarda padrão para rotas /api/platform/* (Módulo 6). Espelha guard()
- * (api-guard.ts), mas para sessão de PlatformUser — sem tenant_id, sem
+ * (api-guard.ts), mas para sessão de PlatformUser: sem tenant_id, sem
  * checagem de módulo/perfil/billing (não se aplicam aqui).
  *
  * `requireMasterAdmin: true` restringe a rota a master_admin. Usado em três
  * categorias (decisão de produto, não literal da spec): as ações
  * administrativas (forçar status 6.9, gerenciar equipe 6.10) e os KPIs
- * financeiros (6.4-6.7, mrr-trend) — "equipe" vê tenants (6.3) mas não
+ * financeiros (6.4-6.7, mrr-trend): "equipe" vê tenants (6.3) mas não
  * MRR/churn/LTV/funil.
  */
 export async function guardPlatform(

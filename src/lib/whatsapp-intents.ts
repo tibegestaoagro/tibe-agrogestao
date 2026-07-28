@@ -21,7 +21,7 @@ export function isIntent(value: unknown): value is Intent {
   return typeof value === "string" && (INTENTS as readonly string[]).includes(value);
 }
 
-/** Regra de acesso (módulo/ação/perfil) por intenção — checada antes de executar. */
+/** Regra de acesso (módulo/ação/perfil) por intenção: checada antes de executar. */
 export const INTENT_ACCESS: Record<
   Intent,
   { module: ModuleKey | null; action: "read" | "write"; profile?: ProfileType }

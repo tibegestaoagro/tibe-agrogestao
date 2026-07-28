@@ -3,7 +3,7 @@ import { getRedisConnection } from "@/lib/redis";
 /**
  * Rate limit simples (fixed window, INCR+EXPIRE no Redis) contra força bruta
  * de senha nos dois logins (tenant e plataforma). Chave por email normalizado
- * — não por IP, para não exigir plumbing do Request através do callback
+ *: não por IP, para não exigir plumbing do Request através do callback
  * `authorize()` do NextAuth.
  */
 

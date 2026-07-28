@@ -26,7 +26,7 @@ const DAY = 86_400_000;
 const daysAgo = (n: number) => new Date(Date.now() - n * DAY);
 
 async function main() {
-  console.log("🔒 Módulo 6 — Painel da Plataforma\n");
+  console.log("🔒 Módulo 6: Painel da Plataforma\n");
 
   // ── Isolamento estrutural ──────────────────────────────────────
   assert(!TENANT_SCOPED_MODELS.has("PlatformUser"), "PlatformUser NÃO está em TENANT_SCOPED_MODELS");
@@ -38,7 +38,7 @@ async function main() {
   // Baseline ANTES de criar os tenants de teste: o funil escaneia TODOS os
   // tenants do banco (é o próprio ponto do módulo), então num banco de dev
   // compartilhado (seed, tenants de outros testes) a contagem absoluta não é
-  // confiável — as asserções de funil comparam o DELTA baseline→depois.
+  // confiável: as asserções de funil comparam o DELTA baseline→depois.
   const funnelBaseline = await calculateFunnel("30d");
   const bucketOf = (f: Awaited<ReturnType<typeof calculateFunnel>>, source: string | null) =>
     f.by_source.find((s) => s.utm_source === source) ?? { trials_created: 0, converted: 0 };
@@ -91,7 +91,7 @@ async function main() {
 
     // ── MRR ────────────────────────────────────────────────────────
     const mrr = await calculateMRR();
-    assert(mrr.total_mrr === 97, `MRR atual = 97 (só tenant A ativo, campo) — obtido: ${mrr.total_mrr}`);
+    assert(mrr.total_mrr === 97, `MRR atual = 97 (só tenant A ativo, campo): obtido: ${mrr.total_mrr}`);
     assert(mrr.by_plan.campo === 97 && mrr.by_plan.fazenda === 0, "MRR por plano correto (fazenda de B não conta, cancelada)");
     assert(mrr.active_subscriptions_count === 1, "1 assinatura ativa");
 
@@ -99,32 +99,32 @@ async function main() {
     const churn = await calculateChurn("30d");
     assert(
       churn.canceled_count === 1,
-      `1 cancelamento nos últimos 30 dias (tenant B, há 5 dias) — obtido: ${churn.canceled_count}`,
+      `1 cancelamento nos últimos 30 dias (tenant B, há 5 dias): obtido: ${churn.canceled_count}`,
     );
     // Ativos no início do período (30d atrás): só B (A só existiu a partir de 10 dias atrás).
     assert(
       churn.customer_churn_pct === 100,
-      `customer_churn = 1 cancelado / 1 ativo no início = 100% — obtido: ${churn.customer_churn_pct}`,
+      `customer_churn = 1 cancelado / 1 ativo no início = 100%: obtido: ${churn.customer_churn_pct}`,
     );
     assert(
       churn.mrr_churn_pct === 100,
-      `mrr_churn = 100% (todo MRR do início do período, só B/fazenda, foi perdido) — obtido: ${churn.mrr_churn_pct}`,
+      `mrr_churn = 100% (todo MRR do início do período, só B/fazenda, foi perdido): obtido: ${churn.mrr_churn_pct}`,
     );
 
     // ── LTV ────────────────────────────────────────────────────────
     const ltv = await calculateLTV();
-    assert(ltv.avg_ticket_mensal === 97, `ticket médio mensal = 97 — obtido: ${ltv.avg_ticket_mensal}`);
-    assert(ltv.ltv === 97, `LTV = ticket(97) / churn(100%) = 97 — obtido: ${ltv.ltv}`);
+    assert(ltv.avg_ticket_mensal === 97, `ticket médio mensal = 97: obtido: ${ltv.avg_ticket_mensal}`);
+    assert(ltv.ltv === 97, `LTV = ticket(97) / churn(100%) = 97: obtido: ${ltv.ltv}`);
 
-    // ── Funil 30d (deltas relativos ao baseline — ver comentário acima) ──
+    // ── Funil 30d (deltas relativos ao baseline: ver comentário acima) ──
     const funnel = await calculateFunnel("30d");
     const trialsDelta = funnel.trials_created - funnelBaseline.trials_created;
     const convertedDelta = funnel.converted_to_paid - funnelBaseline.converted_to_paid;
     assert(
       trialsDelta === 2,
-      `+2 trials criados nos últimos 30 dias (A e C; B está fora da janela) — delta obtido: ${trialsDelta}`,
+      `+2 trials criados nos últimos 30 dias (A e C; B está fora da janela): delta obtido: ${trialsDelta}`,
     );
-    assert(convertedDelta === 1, `+1 conversão no período (A) — delta obtido: ${convertedDelta}`);
+    assert(convertedDelta === 1, `+1 conversão no período (A): delta obtido: ${convertedDelta}`);
     // Média não é aditiva: recompõe a média esperada a partir do baseline +
     // a nova conversão de A (2 dias), em vez de comparar direto com "2".
     const expectedAvg =

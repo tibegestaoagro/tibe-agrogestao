@@ -1,5 +1,5 @@
 /**
- * Captura de UTM (Módulo 6, task 6.7 — funil por origem). First-touch: o
+ * Captura de UTM (Módulo 6, task 6.7: funil por origem). First-touch: o
  * cookie só é gravado se ainda não existir, para não sobrescrever a origem
  * real do lead com uma navegação interna sem UTM (e.g. clicar de /planos
  * para /criar-conta).

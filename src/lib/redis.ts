@@ -23,7 +23,7 @@ export function getRedisConnection(): IORedis {
  * O BullMQ empacota sua própria cópia de `ioredis` internamente; passar a
  * instância de `getRedisConnection()` direto para `new Queue()` causa conflito
  * de tipos (duas classes `Redis` estruturalmente iguais mas nominalmente
- * diferentes). Usado só pelo BullMQ — mantém conexões separadas, o que é
+ * diferentes). Usado só pelo BullMQ: mantém conexões separadas, o que é
  * aceitável para o volume de uso (job diário).
  */
 export function getRedisConnectionOptions() {

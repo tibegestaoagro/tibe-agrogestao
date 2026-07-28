@@ -3,7 +3,7 @@ import { guard } from "@/lib/api-guard";
 import { serializeProperty } from "@/lib/serializers";
 
 /**
- * POST /api/v1/properties/:id/archive   arquiva a propriedade (não deleta — 1.1).
+ * POST /api/v1/properties/:id/archive   arquiva a propriedade (não deleta: 1.1).
  * Idempotente: re-arquivar mantém o archived_at original.
  */
 export async function POST(

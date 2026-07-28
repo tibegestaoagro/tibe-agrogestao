@@ -18,7 +18,7 @@ function assert(cond: boolean, msg: string) {
 }
 
 async function main() {
-  console.log("🔒 Módulo 1 — isolamento, ear_tag e GMD\n");
+  console.log("🔒 Módulo 1: isolamento, ear_tag e GMD\n");
 
   const a = await prisma.tenant.create({
     data: { name: "M1 Tenant A", document: "M1A000000001", plan: "fazenda" },
@@ -46,7 +46,7 @@ async function main() {
       "findUnique de B pelo id do animal de A retorna null",
     );
 
-    // Isolamento do FILHO (AnimalWeightLog) — novidade do M1.
+    // Isolamento do FILHO (AnimalWeightLog): novidade do M1.
     const bSeesLogs = await dbB.animalWeightLog.findMany();
     assert(bSeesLogs.length === 0, "tenant B não vê pesagens (filho) de A");
     assert(

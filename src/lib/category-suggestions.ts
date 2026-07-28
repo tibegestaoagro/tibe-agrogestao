@@ -1,7 +1,7 @@
 /**
  * Categorias comuns do agro (spec 4.3) + sugestão por palavra-chave a partir
  * das observações do lançamento. Roda no client, como pré-preenchimento
- * editável — nunca bloqueia o usuário de escolher outra categoria.
+ * editável: nunca bloqueia o usuário de escolher outra categoria.
  */
 
 export const FINANCIAL_CATEGORIES = [

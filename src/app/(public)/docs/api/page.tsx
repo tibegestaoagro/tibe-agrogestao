@@ -62,7 +62,7 @@ const GROUPS: Group[] = [
         method: "POST",
         path: "/api/v1/users",
         auth: "Sessão · usuarios:write",
-        description: "Convida um novo usuário: cria o User com senha temporária (exibida uma única vez na resposta — não há envio de email neste ambiente). Só Owner pode convidar outro Owner.",
+        description: "Convida um novo usuário: cria o User com senha temporária (exibida uma única vez na resposta: não há envio de email neste ambiente). Só Owner pode convidar outro Owner.",
         request: `{ "name": "João Souza", "email": "joao@fazendaboavista.com.br", "phone": "22988887777", "role": "OPERADOR" }`,
         response: `201
 { "data": { "id": "cl...", "temp_password": "Xy9k2Qmz" }, "meta": {} }`,
@@ -80,7 +80,7 @@ const GROUPS: Group[] = [
         method: "PATCH",
         path: "/api/v1/users/:id/active",
         auth: "Sessão · usuarios:write",
-        description: "Ativa ou desativa um usuário (nunca deleta — preserva histórico de ações). Não é possível desativar a própria conta.",
+        description: "Ativa ou desativa um usuário (nunca deleta: preserva histórico de ações). Não é possível desativar a própria conta.",
         request: `{ "active": false }`,
         response: `200
 { "data": { "id": "cl...", "active": false }, "meta": {} }`,
@@ -88,7 +88,7 @@ const GROUPS: Group[] = [
     ],
   },
   {
-    title: "Rebanho — Propriedades",
+    title: "Rebanho: Propriedades",
     endpoints: [
       {
         method: "GET",
@@ -135,7 +135,7 @@ const GROUPS: Group[] = [
     ],
   },
   {
-    title: "Rebanho — Animais",
+    title: "Rebanho: Animais",
     endpoints: [
       {
         method: "GET",
@@ -258,7 +258,7 @@ const GROUPS: Group[] = [
     ],
   },
   {
-    title: "Lavoura — Talhões e ciclos",
+    title: "Lavoura: Talhões e ciclos",
     endpoints: [
       {
         method: "GET",
@@ -435,7 +435,7 @@ const GROUPS: Group[] = [
         method: "POST",
         path: "/api/v1/financial-entries",
         auth: "Sessão · financeiro:write",
-        description: "Lançamento manual (related_module sempre \"geral\" — lançamentos de outros módulos são criados automaticamente pelas próprias ações daquele módulo).",
+        description: "Lançamento manual (related_module sempre \"geral\": lançamentos de outros módulos são criados automaticamente pelas próprias ações daquele módulo).",
         request: `{ "entry_type": "expense", "category": "Combustível", "amount": 350, "due_date": "2026-07-15T00:00:00.000Z", "notes": null }`,
         response: `201
 { "data": { "id": "cl...", "entry_type": "expense", "amount": 350, "status": "pending" } }`,
@@ -493,9 +493,9 @@ const GROUPS: Group[] = [
       {
         method: "GET",
         path: "/api/v1/financial/report",
-        auth: "Público — autorização pelo token assinado, não por sessão (o link pode ser aberto fora do navegador logado, ex: WhatsApp)",
-        description: "Gera o PDF sob demanda a partir do token e transmite direto na resposta (Content-Type: application/pdf). Não há armazenamento — o arquivo não fica salvo em nenhum lugar.",
-        response: `200 — corpo binário (application/pdf), Content-Disposition: attachment
+        auth: "Público: autorização pelo token assinado, não por sessão (o link pode ser aberto fora do navegador logado, ex: WhatsApp)",
+        description: "Gera o PDF sob demanda a partir do token e transmite direto na resposta (Content-Type: application/pdf). Não há armazenamento: o arquivo não fica salvo em nenhum lugar.",
+        response: `200: corpo binário (application/pdf), Content-Disposition: attachment
 401 se o token for inválido ou tiver expirado`,
       },
     ],
@@ -528,14 +528,14 @@ const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/billing/subscription",
         auth: "Sessão · assinatura:read (acessível mesmo com a conta bloqueada)",
-        description: "Plano e status atuais — de Subscription se existir, senão inferido do Tenant (trial).",
+        description: "Plano e status atuais: de Subscription se existir, senão inferido do Tenant (trial).",
         response: `200
 { "data": { "plan": "fazenda", "status": "active", "next_due_date": "2026-08-10T00:00:00.000Z", "trial_ends_at": null } }`,
       },
       {
         method: "POST",
         path: "/api/v1/billing/subscribe",
-        auth: "Sessão · assinatura:write, só OWNER (acessível mesmo com a conta bloqueada — é como o tenant regulariza)",
+        auth: "Sessão · assinatura:write, só OWNER (acessível mesmo com a conta bloqueada: é como o tenant regulariza)",
         description: "Cria ou troca a assinatura no Asaas. PIX e boleto retornam os dados para pagamento direto no painel; cartão de crédito retorna uma URL de redirecionamento para o checkout hospedado do Asaas (dados de cartão nunca tocam o backend do Tibé).",
         request: `{ "plan": "fazenda", "billing_type": "PIX" }`,
         response: `201 (PIX)
@@ -557,7 +557,7 @@ const GROUPS: Group[] = [
   },
   {
     title: "Agente WhatsApp (rotas internas)",
-    note: "Chamadas pelo N8N, não pelo navegador — autenticadas por header x-internal-secret (INTERNAL_API_SECRET), não por sessão de usuário.",
+    note: "Chamadas pelo N8N, não pelo navegador: autenticadas por header x-internal-secret (INTERNAL_API_SECRET), não por sessão de usuário.",
     endpoints: [
       {
         method: "POST",
@@ -598,7 +598,7 @@ const GROUPS: Group[] = [
       {
         method: "GET",
         path: "/api/internal/jobs/generate-alerts",
-        auth: "Header Authorization: Bearer (CRON_SECRET, injetado automaticamente pela Vercel Cron — ver vercel.json)",
+        auth: "Header Authorization: Bearer (CRON_SECRET, injetado automaticamente pela Vercel Cron: ver vercel.json)",
         description: "Roda 1x/dia (09:00 UTC = 06:00 América/São Paulo). Gera alertas de vacina, colheita, conta a vencer, saldo negativo e trial acabando; dispara envio via WhatsApp. Idempotente por dia (lock no Redis) e por evento (não duplica Alert).",
         response: `200
 { "data": { "vaccine_due": 2, "harvest_near": 0, "bill_due": 1, "low_balance": 0, "trial_ending": 1, "sent": 3 }, "meta": { "date": "2026-07-10" } }`,
@@ -607,7 +607,7 @@ const GROUPS: Group[] = [
   },
   {
     title: "Painel da Plataforma (Módulo 6)",
-    note: "Namespace /api/platform/*, fora de /api/v1 — autenticado por uma sessão de PlatformUser (cookie tibe-platform-session), nunca por sessão de tenant. \"equipe\" lê tenants; só master_admin vê KPIs financeiros e executa ações administrativas.",
+    note: "Namespace /api/platform/*, fora de /api/v1: autenticado por uma sessão de PlatformUser (cookie tibe-platform-session), nunca por sessão de tenant. \"equipe\" lê tenants; só master_admin vê KPIs financeiros e executa ações administrativas.",
     endpoints: [
       {
         method: "GET",
@@ -621,7 +621,7 @@ const GROUPS: Group[] = [
         method: "GET",
         path: "/api/platform/tenants/:id",
         auth: "Sessão de PlatformUser",
-        description: "Detalhe completo: dados cadastrais, origem (UTM), histórico de transições de assinatura (SubscriptionStatusLog) e resumo de uso (animais/talhões/ordens conforme perfis ativos). Lookup cross-tenant explícito — a exceção que dá nome ao módulo.",
+        description: "Detalhe completo: dados cadastrais, origem (UTM), histórico de transições de assinatura (SubscriptionStatusLog) e resumo de uso (animais/talhões/ordens conforme perfis ativos). Lookup cross-tenant explícito: a exceção que dá nome ao módulo.",
         response: `200
 { "data": { "id": "cl...", "name": "...", "status": "active", "subscription": { "status": "active", "history": [{ "from_status": "overdue", "to_status": "active", "changed_by_platform_user_id": null, "created_at": "..." }] }, "usage": { "animals": 40, "plots": 3, "service_orders": 0 } } }`,
       },
@@ -629,7 +629,7 @@ const GROUPS: Group[] = [
         method: "PATCH",
         path: "/api/platform/tenants/:id/status",
         auth: "Sessão de PlatformUser · só master_admin",
-        description: "Força manualmente o status da assinatura (ex: reativar um tenant suspenso por erro). Exige uma Subscription existente (404 se o tenant nunca assinou). Grava em SubscriptionStatusLog com o PlatformUser responsável e o motivo — é o próprio log de auditoria.",
+        description: "Força manualmente o status da assinatura (ex: reativar um tenant suspenso por erro). Exige uma Subscription existente (404 se o tenant nunca assinou). Grava em SubscriptionStatusLog com o PlatformUser responsável e o motivo: é o próprio log de auditoria.",
         request: `{ "status": "active", "reason": "reativado manualmente, erro no processamento do Asaas" }`,
         response: `200
 { "data": { "id": "cl...", "status": "active" } }`,
@@ -646,7 +646,7 @@ const GROUPS: Group[] = [
         method: "GET",
         path: "/api/platform/kpis/mrr-trend",
         auth: "Sessão de PlatformUser · só master_admin",
-        description: "Evolução de MRR nos últimos N meses (?months=6, padrão), reconstruída a partir de SubscriptionStatusLog — não é aproximação, é o status real de cada assinatura em cada checkpoint mensal.",
+        description: "Evolução de MRR nos últimos N meses (?months=6, padrão), reconstruída a partir de SubscriptionStatusLog: não é aproximação, é o status real de cada assinatura em cada checkpoint mensal.",
         response: `200
 { "data": [{ "period": "2026-02", "mrr": 394 }, { "period": "2026-03", "mrr": 591 }] }`,
       },
@@ -662,7 +662,7 @@ const GROUPS: Group[] = [
         method: "GET",
         path: "/api/platform/kpis/ltv",
         auth: "Sessão de PlatformUser · só master_admin",
-        description: "LTV simplificado: ticket médio mensal / churn mensal (30d). Devolve ltv: null (não Infinity) quando não há churn observado ainda — divisão por zero evitada.",
+        description: "LTV simplificado: ticket médio mensal / churn mensal (30d). Devolve ltv: null (não Infinity) quando não há churn observado ainda: divisão por zero evitada.",
         response: `200
 { "data": { "ltv": 1763.6, "avg_ticket_mensal": 230.3, "churn_mensal_pct": 13.06 } }`,
       },
@@ -686,7 +686,7 @@ const GROUPS: Group[] = [
         method: "POST",
         path: "/api/platform/team",
         auth: "Sessão de PlatformUser · só master_admin",
-        description: "Convida novo membro — senha temporária exibida uma única vez na resposta (sem infra de email no projeto, mesmo padrão do convite de usuário de tenant).",
+        description: "Convida novo membro: senha temporária exibida uma única vez na resposta (sem infra de email no projeto, mesmo padrão do convite de usuário de tenant).",
         request: `{ "name": "Novo Membro", "email": "membro@pleno.dev.br", "role": "EQUIPE" }`,
         response: `201
 { "data": { "id": "cl...", "temp_password": "Xy9k2Qmz" } }`,
@@ -713,7 +713,7 @@ const GROUPS: Group[] = [
         method: "GET",
         path: "/api/platform/whatsapp-config",
         auth: "Sessão de PlatformUser · só master_admin",
-        description: "Lista as configs de provider (credenciais sempre mascaradas — últimos 4 caracteres).",
+        description: "Lista as configs de provider (credenciais sempre mascaradas: últimos 4 caracteres).",
         response: `200
 { "data": [ { "provider": "evolution", "active": true, "credentials_masked": { "api_key": "•••• 9876" }, "updated_at": "2026-07-11T12:00:00.000Z" } ], "meta": {} }`,
       },
@@ -750,7 +750,7 @@ export default function ApiDocsPage() {
         NextAuth) salvo indicação em contrário; a permissão por módulo segue a matriz descrita em{" "}
         <a href="/docs/arquitetura" className="text-tibe-primary hover:underline">Arquitetura</a>. Rotas sob{" "}
         <code className="rounded bg-gray-100 px-1 text-xs">/api/platform/*</code> exigem uma sessão de{" "}
-        <code className="rounded bg-gray-100 px-1 text-xs">PlatformUser</code> — uma instância NextAuth
+        <code className="rounded bg-gray-100 px-1 text-xs">PlatformUser</code>: uma instância NextAuth
         completamente separada (cookie próprio), nunca a mesma sessão de tenant.
       </p>
 

@@ -6,10 +6,10 @@ import { isoOrNull } from "@/lib/serialize";
 import { updateTenantAction } from "@/lib/actions/platform-tenants";
 
 /**
- * GET /api/platform/tenants/:id (spec 6.3) — detalhe completo: cadastro,
+ * GET /api/platform/tenants/:id (spec 6.3): detalhe completo: cadastro,
  * histórico de assinatura (via SubscriptionStatusLog) e resumo de uso
  * conforme os perfis ativos. Lookup cross-tenant legítimo (client base,
- * tenant_id explícito) — a exceção que dá nome a este módulo inteiro.
+ * tenant_id explícito): a exceção que dá nome a este módulo inteiro.
  */
 export async function GET(
   _request: Request,
@@ -83,7 +83,7 @@ const patchSchema = z.object({
   plan: z.enum(["campo", "fazenda", "grupo"]).optional(),
 });
 
-/** PATCH /api/platform/tenants/:id (spec 2026-07-27) — edita dados cadastrais e plano, só master_admin. */
+/** PATCH /api/platform/tenants/:id (spec 2026-07-27): edita dados cadastrais e plano, só master_admin. */
 export async function PATCH(
   request: Request,
   { params }: { params: { id: string } },

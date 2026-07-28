@@ -8,7 +8,7 @@ type EntryStatus = "pending" | "paid" | "overdue";
  * Cria um FinancialEntry vinculado a um evento de negócio (venda/compra de animal,
  * custo de vacina, insumo de lavoura, ordem de serviço faturada...).
  *
- * Default: `paid` (o evento já ocorreu — venda/compra/insumo), com paid_at/due_date
+ * Default: `paid` (o evento já ocorreu: venda/compra/insumo), com paid_at/due_date
  * na data do evento. Para recebíveis (ex: ordem faturada), passe `status: "pending"`
  * e opcionalmente `due_date`; nesse caso paid_at fica null.
  */

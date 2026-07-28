@@ -4,12 +4,12 @@ import { getSessionUser } from "@/lib/tenant-context";
 import { prisma } from "@/lib/prisma";
 
 /**
- * POST /api/v1/tenant/plan (spec 2026-07-27) — confirma o plano de um tenant
+ * POST /api/v1/tenant/plan (spec 2026-07-27): confirma o plano de um tenant
  * criado manualmente pelo painel (que nasce com plan_confirmed=false).
  *
  * Só sessão (`getSessionUser`), **sem** `guard()` de propósito: guard() agora
  * bloqueia toda ação enquanto `plan_confirmed` for false (defesa em
- * profundidade, mesmo raciocínio do must_change_password) — se esta rota
+ * profundidade, mesmo raciocínio do must_change_password): se esta rota
  * passasse por guard(), ninguém conseguiria nunca confirmar o plano.
  */
 const schema = z.object({ plan: z.enum(["campo", "fazenda", "grupo"]) });

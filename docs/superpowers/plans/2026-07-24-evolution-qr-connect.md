@@ -1,4 +1,4 @@
-# Conectar Evolution via QR direto no painel — Implementation Plan
+# Conectar Evolution via QR direto no painel: Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -15,7 +15,7 @@
 - Comentários e mensagens de erro em português.
 - `WhatsAppProviderConfig` client base é permitido (config de plataforma, exceção já documentada).
 - Testes contra Docker local: `DATABASE_URL="postgresql://tibe:tibe@localhost:55432/tibe_dev?schema=public"`.
-- Instância Evolution real de produção já existe (`Atendimento`, `evolution-api-production-7c41.up.railway.app`) — pode ser usada para teste live de verificação, mas **NÃO force reconexão/desconexão de um número já pareado em uso real** — os testes de `connect`/`create` contra ela devem ser só leitura de status (`connectionState`), nunca disparar um novo QR nela.
+- Instância Evolution real de produção já existe (`Atendimento`, `evolution-api-production-7c41.up.railway.app`): pode ser usada para teste live de verificação, mas **NÃO force reconexão/desconexão de um número já pareado em uso real**: os testes de `connect`/`create` contra ela devem ser só leitura de status (`connectionState`), nunca disparar um novo QR nela.
 - Commits: português, footer `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>` (heredoc).
 - `npx tsc --noEmit` e `npm run build` limpos ao final.
 
@@ -35,7 +35,7 @@
   - `getInstanceStatus(creds: EvolutionCredentials): Promise<{ state: EvolutionInstanceState }>`
   - `createInstance(creds: EvolutionCredentials): Promise<{ state: string; qrcode_base64: string | null }>`
   - `connectInstance(creds: EvolutionCredentials): Promise<{ state: string; qrcode_base64: string | null }>`
-  - Nenhuma das três lança para erro de rede/HTTP — sempre devolve um objeto (erro vira `state: "close"`, log no console, sem exceção). Isso porque quem chama (rotas da Task 2) precisa de resposta sempre, não `try/catch` genérico.
+  - Nenhuma das três lança para erro de rede/HTTP: sempre devolve um objeto (erro vira `state: "close"`, log no console, sem exceção). Isso porque quem chama (rotas da Task 2) precisa de resposta sempre, não `try/catch` genérico.
 
 - [ ] **Step 1: Escrever o teste que falha**
 
@@ -46,7 +46,7 @@ import "dotenv/config";
 import { getInstanceStatus, createInstance, connectInstance } from "@/lib/evolution-client";
 
 /**
- * Testes do cliente Evolution (spec 2026-07-24) — contra credenciais
+ * Testes do cliente Evolution (spec 2026-07-24): contra credenciais
  * inválidas/inalcançáveis (não bate na Evolution real de produção pra não
  * arriscar desconectar um número em uso).
  * Roda: `npm run test:m9`
@@ -62,7 +62,7 @@ function assert(cond: boolean, msg: string) {
 }
 
 async function main() {
-  console.log("🔒 M9 — Evolution client (QR)\n");
+  console.log("🔒 M9: Evolution client (QR)\n");
 
   const badCreds = { base_url: "http://127.0.0.1:9", api_key: "x", instance: "inexistente" };
 
@@ -85,7 +85,7 @@ main().catch((e) => {
 });
 ```
 
-Em `package.json`, após `test:m8` (ou `test:m7` se `m8` não existir ainda neste ponto — confira a lista atual e adicione ao final):
+Em `package.json`, após `test:m8` (ou `test:m7` se `m8` não existir ainda neste ponto: confira a lista atual e adicione ao final):
 
 ```json
     "test:m9": "tsx scripts/m9-evolution-qr.test.ts"
@@ -97,7 +97,7 @@ Em `package.json`, após `test:m8` (ou `test:m7` se `m8` não existir ainda nest
 $env:DATABASE_URL="postgresql://tibe:tibe@localhost:55432/tibe_dev?schema=public"; npm run test:m9
 ```
 
-Esperado: FALHA — `Cannot find module '@/lib/evolution-client'`.
+Esperado: FALHA: `Cannot find module '@/lib/evolution-client'`.
 
 - [ ] **Step 3: Implementar**
 
@@ -107,7 +107,7 @@ Criar `src/lib/evolution-client.ts`:
 import type { EvolutionCredentials } from "@/lib/actions/platform-whatsapp-config";
 
 /**
- * Wrapper fino sobre a Evolution API (spec 2026-07-24) — usado só pelo fluxo
+ * Wrapper fino sobre a Evolution API (spec 2026-07-24): usado só pelo fluxo
  * de conexão via QR direto no painel. Nunca lança: erro de rede/HTTP vira
  * um estado degradado (state "close"/"not_found", qrcode null), porque quem
  * chama sempre precisa devolver uma resposta HTTP normal ao client.
@@ -227,7 +227,7 @@ import type { EvolutionCredentials } from "@/lib/actions/platform-whatsapp-confi
 import { getInstanceStatus, createInstance, connectInstance } from "@/lib/evolution-client";
 
 /**
- * POST /api/platform/whatsapp-config/evolution/connect (spec 2026-07-24) —
+ * POST /api/platform/whatsapp-config/evolution/connect (spec 2026-07-24):
  * só master_admin. Cria a instância na Evolution se ainda não existir, ou
  * pede um QR novo se existir mas não estiver conectada.
  */
@@ -261,7 +261,7 @@ import { decryptConfig } from "@/lib/crypto-config";
 import type { EvolutionCredentials } from "@/lib/actions/platform-whatsapp-config";
 import { getInstanceStatus } from "@/lib/evolution-client";
 
-/** GET /api/platform/whatsapp-config/evolution/status — usado pelo polling do card. */
+/** GET /api/platform/whatsapp-config/evolution/status: usado pelo polling do card. */
 export async function GET() {
   const g = await guardPlatform({ requireMasterAdmin: true });
   if ("error" in g) return g.error;
@@ -295,19 +295,19 @@ EOF
 
 ---
 
-### Task 3: UI do card — QR + polling
+### Task 3: UI do card: QR + polling
 
 **Files:**
 - Modify: `src/components/platform/whatsapp-provider-card.tsx`
 - Modify: `src/app/plataforma/(painel)/configuracoes/whatsapp/page.tsx`
 
 **Interfaces:**
-- Consumes: `getInstanceStatus` (Task 1, chamado só na página server, não no client), `apiPost`/`apiGet` de `@/lib/client-api` (**confira se `apiGet` existe** — se não, adicione espelhando `apiPost`, só GET sem body).
+- Consumes: `getInstanceStatus` (Task 1, chamado só na página server, não no client), `apiPost`/`apiGet` de `@/lib/client-api` (**confira se `apiGet` existe**: se não, adicione espelhando `apiPost`, só GET sem body).
 - Produces: nenhuma nova interface consumida por outras tasks.
 
 - [ ] **Step 1: Página server passa `connectionState` pro card Evolution**
 
-Editar `src/app/plataforma/(painel)/configuracoes/whatsapp/page.tsx` — importar
+Editar `src/app/plataforma/(painel)/configuracoes/whatsapp/page.tsx`: importar
 `getInstanceStatus` e `decryptConfig`/`EvolutionCredentials`, e dentro do
 `.map`, quando `p === "evolution" && config`, calcular o estado:
 
@@ -316,7 +316,7 @@ import { getInstanceStatus } from "@/lib/evolution-client";
 import type { EvolutionCredentials } from "@/lib/actions/platform-whatsapp-config";
 ```
 
-Dentro do map (trocar o `return` existente por uma função async — a página
+Dentro do map (trocar o `return` existente por uma função async: a página
 já é `async`, então dá pra fazer `await Promise.all` antes do JSX em vez de
 `.map` async; reescrever o corpo da função assim):
 
@@ -413,7 +413,7 @@ Editar `src/components/platform/whatsapp-provider-card.tsx`:
             <div className="mt-4 flex flex-col items-center gap-2 rounded-md border border-gray-700 bg-gray-950 p-4">
               <img src={qrcode} alt="QR code para conectar o WhatsApp" className="h-56 w-56" />
               <p className="text-xs text-gray-400">
-                {polling ? "Escaneie no WhatsApp — aguardando conexão..." : "QR expirado."}
+                {polling ? "Escaneie no WhatsApp: aguardando conexão..." : "QR expirado."}
               </p>
             </div>
           )}
@@ -454,7 +454,7 @@ npm run build
 
 - [ ] **Step 2: Confirmar a rota `status` funciona contra a Evolution real (só leitura)**
 
-Isso valida o parsing de resposta real da Evolution sem arriscar nada — só
+Isso valida o parsing de resposta real da Evolution sem arriscar nada: só
 lê o estado da instância já conectada `Atendimento`, não chama `connect`
 nem `create` nela.
 
@@ -466,7 +466,7 @@ getInstanceStatus({ base_url: 'https://evolution-api-production-7c41.up.railway.
 ```
 
 Se a API key não estiver disponível no ambiente do agente, pule este passo
-e registre como "não verificado — precisa da API key da Evolution" no
+e registre como "não verificado: precisa da API key da Evolution" no
 relatório da task; não é bloqueante (Task 1 já cobre o client com testes
 próprios).
 

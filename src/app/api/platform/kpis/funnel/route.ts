@@ -4,7 +4,7 @@ import { calculateFunnel, type Period } from "@/lib/platform/kpis";
 
 const VALID_PERIODS: Period[] = ["30d", "90d", "12m"];
 
-/** GET /api/platform/kpis/funnel?period=30d (spec 6.7) — só master_admin. */
+/** GET /api/platform/kpis/funnel?period=30d (spec 6.7): só master_admin. */
 export async function GET(request: Request) {
   const g = await guardPlatform({ requireMasterAdmin: true });
   if ("error" in g) return g.error;

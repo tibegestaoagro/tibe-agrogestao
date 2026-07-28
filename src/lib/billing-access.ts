@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 
 /**
- * Controle de acesso por inadimplência (spec 5.7/5.8), 3 estágios — mesma
+ * Controle de acesso por inadimplência (spec 5.7/5.8), 3 estágios: mesma
  * regra para assinatura em atraso e para trial vencido sem assinatura:
  *
  *   dias em atraso < 5   → acesso total
@@ -53,7 +53,7 @@ export async function getBillingAccess(tenantId: string): Promise<BillingAccess>
     return tierFromDaysOverdue(daysSince(tenant.trial_ends_at));
   }
 
-  // Sem assinatura e sem trial rastreado (ex: tenant seedado manualmente) — não bloqueia.
+  // Sem assinatura e sem trial rastreado (ex: tenant seedado manualmente): não bloqueia.
   return "full";
 }
 

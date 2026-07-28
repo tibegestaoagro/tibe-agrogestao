@@ -12,7 +12,7 @@ Criar o módulo financeiro compartilhado entre os perfis fazenda e prestador de 
 
 ---
 
-## Tasks — Financeiro
+## Tasks: Financeiro
 
 ### 4.1 Modelo de dados
 
@@ -65,7 +65,7 @@ Criar o módulo financeiro compartilhado entre os perfis fazenda e prestador de 
 
 ---
 
-## Tasks — Alertas
+## Tasks: Alertas
 
 ### 4.9 Modelo de dados
 

@@ -4,9 +4,9 @@ import crypto from "node:crypto";
  * Criptografia em repouso das credenciais de provider WhatsApp
  * (WhatsAppProviderConfig.credentials_encrypted). AES-256-GCM com chave em
  * CONFIG_ENCRYPTION_KEY (32 bytes, base64). Formato armazenado:
- * `iv.ciphertext.authTag` (base64url — mesmo estilo do report-token.ts).
+ * `iv.ciphertext.authTag` (base64url: mesmo estilo do report-token.ts).
  *
- * Lança Error quando a chave falta/é inválida ou o payload está corrompido —
+ * Lança Error quando a chave falta/é inválida ou o payload está corrompido:
  * isso é misconfiguração de servidor, não fluxo de usuário; a camada de cima
  * (action/rota) converte para o erro HTTP adequado.
  */
@@ -15,12 +15,12 @@ function getKey(): Buffer {
   const b64 = process.env.CONFIG_ENCRYPTION_KEY;
   if (!b64) {
     throw new Error(
-      "CONFIG_ENCRYPTION_KEY não configurada — necessária para criptografar credenciais de provider (veja .env.example).",
+      "CONFIG_ENCRYPTION_KEY não configurada: necessária para criptografar credenciais de provider (veja .env.example).",
     );
   }
   const key = Buffer.from(b64, "base64");
   if (key.length !== 32) {
-    throw new Error("CONFIG_ENCRYPTION_KEY inválida — precisa ter exatamente 32 bytes em base64.");
+    throw new Error("CONFIG_ENCRYPTION_KEY inválida: precisa ter exatamente 32 bytes em base64.");
   }
   return key;
 }

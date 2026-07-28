@@ -3,7 +3,7 @@ import { apiOk, apiError } from "@/lib/api";
 import { guardPlatform } from "@/lib/platform-guard";
 import { activateProviderAction } from "@/lib/actions/platform-whatsapp-config";
 
-/** POST /api/platform/whatsapp-config/:provider/activate — só master_admin. */
+/** POST /api/platform/whatsapp-config/:provider/activate: só master_admin. */
 
 const providerSchema = z.enum(["evolution", "meta_cloud_api"]);
 

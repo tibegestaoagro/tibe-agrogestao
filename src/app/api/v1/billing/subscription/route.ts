@@ -5,7 +5,7 @@ import { isoOrNull } from "@/lib/serialize";
 
 /**
  * GET /api/v1/billing/subscription (contrato spec 5.9)
- * Acessível mesmo com a conta bloqueada (skipBillingCheck) — é a própria
+ * Acessível mesmo com a conta bloqueada (skipBillingCheck): é a própria
  * página de regularização que depende disso.
  */
 export async function GET() {

@@ -7,7 +7,7 @@ import { formatDocument } from "@/lib/document";
 
 const PLAN_LABEL: Record<string, string> = { campo: "Campo", fazenda: "Fazenda", grupo: "Grupo" };
 
-/** Lista de tenants (spec 6.3/6.9) — acessível a equipe e master_admin. */
+/** Lista de tenants (spec 6.3/6.9): acessível a equipe e master_admin. */
 export default async function PlatformTenantsPage({
   searchParams,
 }: {

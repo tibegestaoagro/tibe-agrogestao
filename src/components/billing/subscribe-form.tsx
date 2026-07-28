@@ -65,7 +65,7 @@ export default function SubscribeForm({ currentPlan }: { currentPlan: Plan | nul
             <SelectContent>
               {(Object.keys(PLAN_LABEL) as Plan[]).map((p) => (
                 <SelectItem key={p} value={p}>
-                  {PLAN_LABEL[p]} — {PLAN_PRICE[p]}/mês
+                  {PLAN_LABEL[p]}: {PLAN_PRICE[p]}/mês
                 </SelectItem>
               ))}
             </SelectContent>
@@ -86,7 +86,7 @@ export default function SubscribeForm({ currentPlan }: { currentPlan: Plan | nul
 
       {billingType === "CREDIT_CARD" && (
         <p className="mt-2 text-xs text-gray-500">
-          Cartão de crédito é processado numa página segura do próprio Asaas — você será
+          Cartão de crédito é processado numa página segura do próprio Asaas: você será
           redirecionado só nesta etapa.
         </p>
       )}

@@ -1,7 +1,7 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 
 /**
- * Catálogo básico de vacinas (spec 1.4). Intervalos padrão em dias — ajustáveis
+ * Catálogo básico de vacinas (spec 1.4). Intervalos padrão em dias: ajustáveis
  * por tenant depois. São tenant-scoped, então provisionadas por tenant.
  */
 export const DEFAULT_VACCINES: { name: string; default_interval_days: number }[] = [
@@ -12,7 +12,7 @@ export const DEFAULT_VACCINES: { name: string; default_interval_days: number }[]
 ];
 
 /**
- * Cria as vacinas padrão para o tenant (idempotente — não duplica). Chamado ao
+ * Cria as vacinas padrão para o tenant (idempotente: não duplica). Chamado ao
  * ativar o perfil Fazenda e no seed do tenant Da Mata.
  */
 export async function provisionDefaultVaccines(

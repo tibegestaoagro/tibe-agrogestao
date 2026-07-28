@@ -7,12 +7,12 @@ import { createTenantManuallyAction } from "@/lib/actions/platform-tenants";
 
 /**
  * GET /api/platform/tenants (spec 6.3). "equipe" e "master_admin" têm o
- * mesmo acesso de leitura aqui — só a mudança manual de status (6.9) e a
+ * mesmo acesso de leitura aqui: só a mudança manual de status (6.9) e a
  * gestão de equipe (6.10) são exclusivas de master_admin.
  *
  * status combina Tenant.status (trial) com Subscription.status (active|
  * overdue|canceled) num único enum, porque é assim que a spec define o
- * filtro — sem assinatura conta como "trial" independente de Tenant.status.
+ * filtro: sem assinatura conta como "trial" independente de Tenant.status.
  */
 export async function GET(request: Request) {
   const g = await guardPlatform();
@@ -73,7 +73,7 @@ const createSchema = z.object({
   owner_email: z.string().trim().email(),
 });
 
-/** POST /api/platform/tenants (spec 2026-07-24) — só master_admin. */
+/** POST /api/platform/tenants (spec 2026-07-24): só master_admin. */
 export async function POST(request: Request) {
   const g = await guardPlatform({ requireMasterAdmin: true });
   if ("error" in g) return g.error;

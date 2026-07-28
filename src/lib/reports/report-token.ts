@@ -2,11 +2,11 @@ import crypto from "node:crypto";
 
 /**
  * Link de download assinado (HMAC) com expiração, usado no lugar de um upload
- * real para o Cloudflare R2 (credenciais ainda não provisionadas — spec 4.7).
+ * real para o Cloudflare R2 (credenciais ainda não provisionadas: spec 4.7).
  * O PDF é gerado sob demanda a cada acesso ao link, nunca armazenado. Funciona
  * tanto para quem está logado no painel quanto para quem clica vindo do
  * WhatsApp (sem sessão). Quando o R2 real entrar, troca-se apenas a "origem"
- * do arquivo — este módulo pode ser substituído sem mudar quem o consome.
+ * do arquivo: este módulo pode ser substituído sem mudar quem o consome.
  *
  * Reusa INTERNAL_API_SECRET como chave HMAC (evita adicionar mais uma env var
  * só para isto).
@@ -18,7 +18,7 @@ function getSecret(): string {
   const s = process.env.INTERNAL_API_SECRET;
   if (!s) {
     throw new Error(
-      "INTERNAL_API_SECRET não configurado — necessário para assinar links de relatório.",
+      "INTERNAL_API_SECRET não configurado: necessário para assinar links de relatório.",
     );
   }
   return s;

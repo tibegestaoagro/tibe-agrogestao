@@ -1,4 +1,4 @@
-# Criação manual de tenant + troca obrigatória de senha — Implementation Plan
+# Criação manual de tenant + troca obrigatória de senha: Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -15,7 +15,7 @@
 - Comentários e mensagens de erro em português.
 - Testes contra Docker local: `DATABASE_URL="postgresql://tibe:tibe@localhost:55432/tibe_dev?schema=public"`.
 - Migração: `migrate diff` → salvar SQL manual em `prisma/migrations/<timestamp>_nome/migration.sql` → `npm run db:deploy`. Nunca `prisma migrate dev`.
-- Convite de usuário existente (M5, `inviteUserAction`) **não muda** — continua sem troca forçada.
+- Convite de usuário existente (M5, `inviteUserAction`) **não muda**: continua sem troca forçada.
 - Commits: português, footer `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>` (heredoc).
 - `npx tsc --noEmit` e `npm run build` limpos ao final.
 
@@ -48,7 +48,7 @@ npx prisma generate
 $env:DATABASE_URL="postgresql://tibe:tibe@localhost:55432/tibe_dev?schema=public"; npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script
 ```
 
-⚠️ Esse comando também vai sugerir um `DROP INDEX "WhatsAppProviderConfig_one_active"` — é drift conhecido e documentado no CLAUDE.md (índice parcial não representável no schema). **NÃO inclua esse DROP** na migração salva no Step 3 — só a parte referente a `must_change_password`.
+⚠️ Esse comando também vai sugerir um `DROP INDEX "WhatsAppProviderConfig_one_active"`: é drift conhecido e documentado no CLAUDE.md (índice parcial não representável no schema). **NÃO inclua esse DROP** na migração salva no Step 3: só a parte referente a `must_change_password`.
 
 - [ ] **Step 3: Salvar a migração**
 
@@ -56,7 +56,7 @@ Criar `prisma/migrations/20260724150000_user_must_change_password/migration.sql`
 
 ```sql
 -- Troca obrigatória de senha no primeiro login (tenants criados manualmente
--- pelo painel da plataforma — spec 2026-07-24).
+-- pelo painel da plataforma: spec 2026-07-24).
 ALTER TABLE "User" ADD COLUMN "must_change_password" BOOLEAN NOT NULL DEFAULT false;
 ```
 
@@ -86,7 +86,7 @@ Em `src/lib/actions/users.ts`:
 2. Remover o import `import crypto from "node:crypto";` se não for mais usado em nenhum outro lugar do arquivo (confira antes de remover).
 3. Adicionar `import { generateTempPassword } from "@/lib/passwords";` no topo.
 
-O resto do arquivo (`inviteUserAction` etc.) não muda — só troca de onde vem a função.
+O resto do arquivo (`inviteUserAction` etc.) não muda: só troca de onde vem a função.
 
 - [ ] **Step 6: Typecheck + regressão M5 (usa inviteUserAction)**
 
@@ -149,7 +149,7 @@ function assert(cond: boolean, msg: string) {
 }
 
 async function main() {
-  console.log("🔒 M10 — Criação manual de tenant\n");
+  console.log("🔒 M10: Criação manual de tenant\n");
 
   const doc = `M10${Date.now()}`.slice(0, 14);
   const email = `m10-${Date.now()}@teste.local`;
@@ -209,11 +209,11 @@ Em `package.json`, adicionar ao final da lista de scripts de teste: `"test:m10":
 $env:DATABASE_URL="postgresql://tibe:tibe@localhost:55432/tibe_dev?schema=public"; npm run test:m10
 ```
 
-Esperado: FALHA — `createTenantManuallyAction` não existe ainda.
+Esperado: FALHA: `createTenantManuallyAction` não existe ainda.
 
 - [ ] **Step 3: Implementar a action**
 
-Em `src/lib/actions/platform-tenants.ts`, adicionar (mantendo o que já existe no arquivo — `forceSubscriptionStatusAction` — intocado):
+Em `src/lib/actions/platform-tenants.ts`, adicionar (mantendo o que já existe no arquivo: `forceSubscriptionStatusAction`: intocado):
 
 ```ts
 import bcrypt from "bcryptjs";
@@ -223,7 +223,7 @@ import { TRIAL_DAYS } from "@/lib/billing-access";
 import type { TenantPlan } from "@/generated/prisma/enums";
 
 /**
- * Criação manual de tenant pelo painel da plataforma (spec 2026-07-24) —
+ * Criação manual de tenant pelo painel da plataforma (spec 2026-07-24):
  * SEGUNDA exceção deliberada à regra "signup público é a única forma de
  * criar tenant" (a primeira é o próprio /criar-conta). Usada para dar acesso
  * de teste a equipes de cliente sem passar pelo formulário público. Reusa a
@@ -289,7 +289,7 @@ export async function createTenantManuallyAction(params: {
 ```
 
 Nota: `prisma` (client base) já deve estar importado no topo do arquivo
-(usado por `forceSubscriptionStatusAction`) — confira antes de duplicar o
+(usado por `forceSubscriptionStatusAction`): confira antes de duplicar o
 import.
 
 - [ ] **Step 4: Rodar e ver passar**
@@ -303,7 +303,7 @@ Esperado: todos ✅, `M10: 0 falhas.`
 - [ ] **Step 5: Rota POST**
 
 Em `src/app/api/platform/tenants/route.ts`, adicionar (o `GET` existente
-fica intocado) — no topo do arquivo, adicionar aos imports:
+fica intocado): no topo do arquivo, adicionar aos imports:
 
 ```ts
 import { z } from "zod";
@@ -323,7 +323,7 @@ const createSchema = z.object({
   owner_email: z.string().trim().email(),
 });
 
-/** POST /api/platform/tenants (spec 2026-07-24) — só master_admin. */
+/** POST /api/platform/tenants (spec 2026-07-24): só master_admin. */
 export async function POST(request: Request) {
   const g = await guardPlatform({ requireMasterAdmin: true });
   if ("error" in g) return g.error;
@@ -340,9 +340,9 @@ export async function POST(request: Request) {
 }
 ```
 
-`apiOk` já está importado no topo do arquivo (usado pelo `GET`) — não duplicar.
+`apiOk` já está importado no topo do arquivo (usado pelo `GET`): não duplicar.
 
-- [ ] **Step 6: UI — form + botão**
+- [ ] **Step 6: UI: form + botão**
 
 Criar `src/components/platform/create-tenant-form.tsx` (mesmo padrão de
 `invite-team-form.tsx`):
@@ -357,7 +357,7 @@ import { apiPost } from "@/lib/client-api";
 type Plan = "campo" | "fazenda" | "grupo";
 const PLAN_LABEL: Record<Plan, string> = { campo: "Campo", fazenda: "Fazenda", grupo: "Grupo" };
 
-/** Criação manual de tenant pelo painel (spec 2026-07-24) — só master_admin. */
+/** Criação manual de tenant pelo painel (spec 2026-07-24): só master_admin. */
 export default function CreateTenantForm() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -420,7 +420,7 @@ export default function CreateTenantForm() {
       {tempPassword ? (
         <div className="space-y-3">
           <p className="rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-300">
-            Tenant criado. Repasse estas credenciais manualmente — a senha só aparece aqui uma vez.
+            Tenant criado. Repasse estas credenciais manualmente: a senha só aparece aqui uma vez.
             No primeiro login, o usuário será obrigado a trocar a senha.
           </p>
           <p className="text-sm text-gray-300">
@@ -596,7 +596,7 @@ Antes da limpeza final (antes de `if (tenant) await prisma.tenant.delete...`), a
 $env:DATABASE_URL="postgresql://tibe:tibe@localhost:55432/tibe_dev?schema=public"; npm run test:m10
 ```
 
-Esperado: FALHA — `Cannot find module '@/lib/actions/auth-self'`.
+Esperado: FALHA: `Cannot find module '@/lib/actions/auth-self'`.
 
 - [ ] **Step 3: Implementar a action**
 
@@ -608,7 +608,7 @@ import type { TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 
 /**
- * Troca de senha pelo próprio usuário (spec 2026-07-24) — usada no fluxo de
+ * Troca de senha pelo próprio usuário (spec 2026-07-24): usada no fluxo de
  * troca obrigatória no primeiro login (tenants criados manualmente pelo
  * painel). Zera must_change_password ao trocar.
  */
@@ -640,7 +640,7 @@ import { getSessionUser, getTenantDb } from "@/lib/tenant-context";
 import { changeOwnPasswordAction } from "@/lib/actions/auth-self";
 
 /**
- * POST /api/v1/auth/change-password (spec 2026-07-24) — só sessão, sem
+ * POST /api/v1/auth/change-password (spec 2026-07-24): só sessão, sem
  * guard() de módulo/billing (usuário precisa trocar a senha mesmo com a
  * conta em read_only/blocked).
  */
@@ -742,7 +742,7 @@ import { prisma } from "@/lib/prisma";
 import ChangePasswordForm from "./change-password-form";
 
 /**
- * Troca obrigatória de senha (spec 2026-07-24) — só para usuários com
+ * Troca obrigatória de senha (spec 2026-07-24): só para usuários com
  * must_change_password=true (tenants criados manualmente pelo painel).
  * Mesmo padrão de src/app/onboarding/page.tsx: fora do route group
  * (dashboard), sessão própria, fora do fluxo normal se não se aplicar.
@@ -818,7 +818,7 @@ adicionar:
 ```
 
 `prisma` já está importado no arquivo (usado mais abaixo pro nome do
-tenant) — não duplicar o import.
+tenant): não duplicar o import.
 
 - [ ] **Step 2: Gate no onboarding**
 
@@ -856,20 +856,20 @@ EOF
 
 - [ ] **Step 1: Atualizar CLAUDE.md**
 
-Na seção "Signup público (`/planos` + `/criar-conta`) — fora do escopo
+Na seção "Signup público (`/planos` + `/criar-conta`): fora do escopo
 original do PRD", adicionar um parágrafo ao final:
 
 ```markdown
 **Segunda exceção deliberada (spec 2026-07-24):** `master_admin` também pode
 criar um `Tenant` manualmente pelo painel da plataforma
-(`POST /api/platform/tenants`, botão "Criar tenant" em `/plataforma/tenants`)
-— usado para dar acesso de teste a equipes de cliente sem passar pelo
+(`POST /api/platform/tenants`, botão "Criar tenant" em `/plataforma/tenants`),
+usado para dar acesso de teste a equipes de cliente sem passar pelo
 formulário público. Reusa a mesma lógica de `/api/v1/signup` (trial,
 checagem de duplicidade), mas gera senha temporária em vez de receber uma, e
-marca `User.must_change_password: true` — o usuário é obrigado a trocar a
+marca `User.must_change_password: true`: o usuário é obrigado a trocar a
 senha em `/trocar-senha` (gate em `(dashboard)/layout.tsx` e
 `onboarding/page.tsx`) antes de acessar qualquer outra coisa. O convite de
-usuário do Módulo 5 (`inviteUserAction`) não tem esse gate — continua como
+usuário do Módulo 5 (`inviteUserAction`) não tem esse gate: continua como
 estava.
 ```
 

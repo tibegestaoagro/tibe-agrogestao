@@ -18,7 +18,7 @@ const ROLE_LABEL: Record<string, string> = {
  * Layout protegido do dashboard (spec task 0.7). Garante:
  * - sessão válida (senão → login);
  * - pelo menos um TenantProfile ativo (senão → onboarding);
- * - acesso liberado por status de cobrança (spec 5.7/5.8) — bloqueado
+ * - acesso liberado por status de cobrança (spec 5.7/5.8): bloqueado
  *   redireciona para a página de assinatura, exceto na própria página.
  */
 export default async function DashboardLayout({

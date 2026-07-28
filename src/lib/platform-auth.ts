@@ -8,7 +8,7 @@ import { checkLoginRateLimit, resetLoginRateLimit } from "@/lib/rate-limit";
 /**
  * Instância completa do NextAuth v5 para PlatformUser (Node runtime, Módulo
  * 6). Espelha lib/auth.ts, mas resolvendo contra PlatformUser em vez de User
- * — nunca deve tocar tenant_id em lugar nenhum deste arquivo.
+ *: nunca deve tocar tenant_id em lugar nenhum deste arquivo.
  */
 export const {
   handlers: platformHandlers,

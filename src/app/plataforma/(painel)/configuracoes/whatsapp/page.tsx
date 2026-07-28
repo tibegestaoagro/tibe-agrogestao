@@ -8,7 +8,7 @@ import { getInstanceStatus } from "@/lib/evolution-client";
 import WhatsAppProviderCard from "@/components/platform/whatsapp-provider-card";
 
 /**
- * Config de provider WhatsApp (spec 2026-07-11) — só master_admin.
+ * Config de provider WhatsApp (spec 2026-07-11): só master_admin.
  * Decripta + mascara no servidor; o client nunca recebe credencial íntegra.
  */
 export default async function WhatsAppConfigPage() {

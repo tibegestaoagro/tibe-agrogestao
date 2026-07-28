@@ -6,11 +6,11 @@ export type AppUserRole = "OWNER" | "ADMIN" | "OPERADOR" | "VISUALIZADOR";
 /** Papel de equipe da plataforma (espelha o enum PlatformRole do Prisma, Módulo 6). */
 export type PlatformSessionRole = "MASTER_ADMIN" | "EQUIPE";
 
-// Mesmo pacote "next-auth" é usado pelas DUAS instâncias (tenant e plataforma —
+// Mesmo pacote "next-auth" é usado pelas DUAS instâncias (tenant e plataforma:
 // ver lib/auth.ts / lib/platform-auth.ts), então a augmentação de tipo é
 // necessariamente global às duas. Os campos de tenant (`tenant_id`, `role`) e os
 // de plataforma (`platform_user_id`, `platform_role`) são mutuamente exclusivos
-// em runtime — uma sessão de tenant nunca seta os de plataforma e vice-versa. A
+// em runtime: uma sessão de tenant nunca seta os de plataforma e vice-versa. A
 // separação real (o que impede uma sessão vazar para o outro lado) é o cookie:
 // cada instância usa um nome de cookie diferente (ver platform-auth.config.ts),
 // então cada `auth()` só enxerga a sessão do seu próprio tipo.

@@ -10,17 +10,17 @@ import { normalizePhone } from "@/lib/phone";
  * Único endpoint que legitimamente faz lookup CROSS-TENANT: ainda não sabemos a
  * qual tenant o telefone pertence. Usa o client base (sem escopo) só para essa
  * busca inicial; toda query subsequente, já com tenant_id conhecido, usa o client
- * escopado (prismaForTenant) — mesma convenção do resto do app.
+ * escopado (prismaForTenant): mesma convenção do resto do app.
  *
  * Extensões aditivas ao contrato da spec (documentadas, não fazem parte de "data"):
  * - meta.first_contact: true quando o vínculo WhatsAppContact acabou de ser criado
  *   (usado para a saudação personalizada da task 3.8).
  * - meta.recent_history: últimas 5 interações de AgentConversationLog, já que a
  *   spec (task 3.3) exige esse histórico para o LLM mas não define de onde o N8N
- *   o obtém — resolve-contact é chamado primeiro no fluxo, então é o lugar natural.
+ *   o obtém: resolve-contact é chamado primeiro no fluxo, então é o lugar natural.
  * - meta.suggested_reply: mensagem pronta para os dois casos "de fronteira" da
  *   task 3.8 (contato não identificado / primeira mensagem de usuário recém
- *   vinculado) — permite ao N8N responder direto, sem passar pelo LLM.
+ *   vinculado): permite ao N8N responder direto, sem passar pelo LLM.
  */
 
 const PROFILE_LABEL: Record<string, string> = {
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
   const suggestedReply = firstContact
     ? `Olá, ${user.name}! 👋 Bem-vindo(a) ao Tibé. Sua empresa tem os módulos: ${
         activeProfiles.map((p) => PROFILE_LABEL[p] ?? p).join(", ")
-      } e Financeiro. Você pode me pedir para cadastrar animais, registrar pesagens e vacinas, criar ordens de serviço, ou consultar informações — é só me mandar uma mensagem.`
+      } e Financeiro. Você pode me pedir para cadastrar animais, registrar pesagens e vacinas, criar ordens de serviço, ou consultar informações: é só me mandar uma mensagem.`
     : null;
 
   return apiOk(

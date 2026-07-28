@@ -13,9 +13,9 @@ function fmtBRL(n: number): string {
 }
 
 /**
- * Home do painel da plataforma (spec 6.8) — só master_admin (equipe não vê
+ * Home do painel da plataforma (spec 6.8): só master_admin (equipe não vê
  * KPIs financeiros, decisão do módulo). Chama as funções de lib/platform/kpis
- * diretamente (Server Component), sem round-trip pela própria API HTTP —
+ * diretamente (Server Component), sem round-trip pela própria API HTTP:
  * mesmo padrão das páginas server do painel de tenant.
  */
 export default async function PlatformKpisPage({
@@ -64,9 +64,9 @@ export default async function PlatformKpisPage({
 
       <div className="grid gap-4 sm:grid-cols-3">
         {[
-          { label: "MRR — Campo", value: fmtBRL(mrr.by_plan.campo) },
-          { label: "MRR — Fazenda", value: fmtBRL(mrr.by_plan.fazenda) },
-          { label: "MRR — Grupo", value: fmtBRL(mrr.by_plan.grupo) },
+          { label: "MRR: Campo", value: fmtBRL(mrr.by_plan.campo) },
+          { label: "MRR: Fazenda", value: fmtBRL(mrr.by_plan.fazenda) },
+          { label: "MRR: Grupo", value: fmtBRL(mrr.by_plan.grupo) },
         ].map((c) => (
           <div key={c.label} className="rounded-lg border border-gray-800 bg-gray-900 p-4">
             <p className="text-xs uppercase tracking-wide text-gray-500">{c.label}</p>
@@ -123,7 +123,7 @@ export default async function PlatformKpisPage({
         </div>
         {ltv.ltv == null && (
           <p className="mt-3 text-xs text-gray-500">
-            LTV não calculável ainda — sem churn observado nos últimos 30 dias (divisão por zero evitada).
+            LTV não calculável ainda: sem churn observado nos últimos 30 dias (divisão por zero evitada).
           </p>
         )}
       </div>

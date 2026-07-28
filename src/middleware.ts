@@ -7,14 +7,14 @@ import { authConfig } from "@/lib/auth.config";
  * Middleware de proteção de rotas (Edge runtime). Usa apenas a config edge-safe
  * (sem Prisma/bcrypt). A regra de acesso está em authConfig.callbacks.authorized,
  * que roda ANTES da função abaixo (bloqueia/redireciona sem sessão antes dela
- * ser chamada). "/plataforma" está em PUBLIC_PREFIXES (authConfig) — não passa
+ * ser chamada). "/plataforma" está em PUBLIC_PREFIXES (authConfig): não passa
  * pela checagem de sessão de TENANT; a proteção dela (sessão de PlatformUser,
  * Módulo 6) é feita manualmente abaixo, via `getToken` lendo o cookie próprio
- * (`tibe-platform-session`) com o secret próprio (`PLATFORM_AUTH_SECRET`) — não
+ * (`tibe-platform-session`) com o secret próprio (`PLATFORM_AUTH_SECRET`): não
  * a instância NextAuth de tenant. Isso mantém as duas sessões genuinamente
  * desacopladas: nenhuma delas consegue autenticar o lado do outro.
  *
- * Também propaga o pathname atual via header `x-pathname` — o layout do
+ * Também propaga o pathname atual via header `x-pathname`: o layout do
  * dashboard (Node runtime, com Prisma) usa isso para decidir se bloqueia por
  * inadimplência (spec 5.7/5.8) sem duplicar a consulta ao banco aqui no Edge.
  */

@@ -26,11 +26,11 @@ const FAQS = [
   },
   {
     q: "Quais formas de pagamento são aceitas?",
-    a: "PIX e boleto são gerados e pagos direto no painel do Tibé. Para cartão de crédito, você é redirecionado a um checkout seguro do Asaas — assim seus dados de cartão nunca passam pelos nossos servidores.",
+    a: "PIX e boleto são gerados e pagos direto no painel do Tibé. Para cartão de crédito, você é redirecionado a um checkout seguro do Asaas: assim seus dados de cartão nunca passam pelos nossos servidores.",
   },
   {
     q: "O que acontece se eu atrasar um pagamento?",
-    a: "Até 5 dias de atraso o acesso continua completo. Entre 5 e 15 dias o painel fica em modo leitura (você consulta, mas não cadastra ou edita). Após 15 dias o acesso é bloqueado até a regularização — a página de assinatura continua disponível para pagar a qualquer momento.",
+    a: "Até 5 dias de atraso o acesso continua completo. Entre 5 e 15 dias o painel fica em modo leitura (você consulta, mas não cadastra ou edita). Após 15 dias o acesso é bloqueado até a regularização: a página de assinatura continua disponível para pagar a qualquer momento.",
   },
   {
     q: "Meus dados ficam isolados dos de outros clientes?",

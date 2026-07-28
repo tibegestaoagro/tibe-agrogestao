@@ -6,7 +6,7 @@ import { ok, fail, type ActionResult } from "@/lib/actions/types";
 
 /**
  * Lógica de negócio do Rebanho, extraída das rotas HTTP (M1) para ser reusada
- * também pelo agente WhatsApp (M3 execute-action). Única fonte de verdade —
+ * também pelo agente WhatsApp (M3 execute-action). Única fonte de verdade:
  * nenhuma rota deve duplicar esta lógica (spec 3.5).
  */
 

@@ -5,7 +5,7 @@ import { setUserActiveAction } from "@/lib/actions/users";
 
 const schema = z.object({ active: z.boolean() });
 
-/** PATCH /api/v1/users/:id/active — ativa/desativa (spec 5.2, não deleta). */
+/** PATCH /api/v1/users/:id/active: ativa/desativa (spec 5.2, não deleta). */
 export async function PATCH(
   request: Request,
   { params }: { params: { id: string } },

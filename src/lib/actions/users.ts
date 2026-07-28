@@ -7,7 +7,7 @@ import type { AppUserRole } from "@/types/next-auth";
 
 /**
  * Gestão de usuários do tenant (spec 5.2). Convite gera senha temporária
- * (não há serviço de email neste projeto — ver CLAUDE.md) exibida uma única
+ * (não há serviço de email neste projeto: ver CLAUDE.md) exibida uma única
  * vez para o convidante repassar manualmente.
  */
 

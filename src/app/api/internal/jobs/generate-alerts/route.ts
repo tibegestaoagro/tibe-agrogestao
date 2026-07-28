@@ -13,14 +13,14 @@ const QUEUE_NAME = "tibe-alerts";
  * Disparado 1x/dia pela Vercel Cron (`vercel.json`), autenticado pelo
  * `CRON_SECRET` que a própria Vercel injeta automaticamente nas chamadas de
  * cron. Não há worker BullMQ persistente (decisão do módulo: sem processo
- * separado para hospedar) — o processamento roda direto aqui, dentro da
+ * separado para hospedar): o processamento roda direto aqui, dentro da
  * requisição.
  *
  * A `Queue` do BullMQ é usada para registrar um histórico auditável de
  * execuções no Redis (uso real do BullMQ, como pede a spec). A idempotência
  * "não rodar duas vezes no mesmo dia" (ex: retry da própria Vercel) é
  * garantida por um lock simples no Redis (`SET NX`), não pelo estado interno
- * do job do BullMQ — mais simples e robusto sem um worker para gerenciá-lo.
+ * do job do BullMQ: mais simples e robusto sem um worker para gerenciá-lo.
  */
 export async function GET(request: Request) {
   const auth = requireCronSecret(request);

@@ -9,7 +9,7 @@ import {
 } from "@/lib/actions/platform-whatsapp-config";
 
 /**
- * GET/PUT /api/platform/whatsapp-config (spec 2026-07-11) — só master_admin.
+ * GET/PUT /api/platform/whatsapp-config (spec 2026-07-11): só master_admin.
  * GET devolve credenciais SEMPRE mascaradas (últimos 4 chars); o valor
  * íntegro nunca sai do servidor.
  */

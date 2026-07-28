@@ -402,7 +402,7 @@ export async function routeIntent(
       const result = await getAnimalSummaryAction(db, ear_tag);
       if (!result.ok) return failReply(intent, result);
       const a = result.data;
-      let text = `Brinco ${a.ear_tag} (${a.breed ?? "raça não informada"}, ${SEX_LABEL[a.sex] ?? a.sex}) — status: ${STATUS_LABEL[a.status] ?? a.status}.`;
+      let text = `Brinco ${a.ear_tag} (${a.breed ?? "raça não informada"}, ${SEX_LABEL[a.sex] ?? a.sex}): status: ${STATUS_LABEL[a.status] ?? a.status}.`;
       if (a.property_name) text += ` Propriedade: ${a.property_name}.`;
       if (a.current_weight != null) text += ` Peso atual: ${a.current_weight}kg.`;
       if (a.gmd != null) text += ` GMD: ${a.gmd}kg/dia.`;
@@ -471,7 +471,7 @@ export async function routeIntent(
       // Relatórios de rebanho/lavoura/prestador ainda não têm gerador dedicado.
       if (tipo !== "financeiro") {
         return {
-          reply_text: `O relatório de ${tipo} em PDF ainda não está disponível — por enquanto só o relatório financeiro é gerado. Em breve!`,
+          reply_text: `O relatório de ${tipo} em PDF ainda não está disponível: por enquanto só o relatório financeiro é gerado. Em breve!`,
           requires_confirmation: false,
           auxiliary_data: null,
           report_url: null,

@@ -12,9 +12,9 @@ import { provisionDefaultVaccines } from "@/lib/vaccines";
  *
  * Cria (ou reativa) um TenantProfile para o tenant da sessão. Idempotente: se o
  * profile já existe, retorna-o (reativando se estava inativo). tenant_id é sempre
- * resolvido da sessão e injetado pelo client escopado — nunca vem do client.
+ * resolvido da sessão e injetado pelo client escopado: nunca vem do client.
  *
- * Usa guard("usuarios", "write") — mesma permissão (OWNER/ADMIN) que
+ * Usa guard("usuarios", "write"): mesma permissão (OWNER/ADMIN) que
  * requireRole(["OWNER","ADMIN"]) tinha antes, mas agora passando também pelo
  * bloqueio de inadimplência (spec 5.7/5.8), que o guard central aplica e essa
  * rota estava pulando por não usá-lo.

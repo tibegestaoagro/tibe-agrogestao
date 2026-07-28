@@ -2,7 +2,7 @@
 
 Este documento descreve, passo a passo, o workflow a ser montado no N8N (Railway)
 para integrar o WhatsApp Business Cloud API (Meta) com o Tibé. Não requer alterar
-código do Tibé — os endpoints já estão prontos e documentados abaixo.
+código do Tibé: os endpoints já estão prontos e documentados abaixo.
 
 > Pré-requisitos externos (fora do escopo deste guia): número Salvy ativo, conta
 > Meta Business Manager verificada por CNPJ, número vinculado à API Oficial do
@@ -47,9 +47,9 @@ manda a resposta de volta.
 | Nome | Uso |
 |---|---|
 | `TIBE_BASE_URL` | URL da aplicação (ex: `https://tibe-agrogestao.vercel.app`) |
-| `TIBE_INTERNAL_SECRET` | Mesmo valor de `INTERNAL_API_SECRET` do Tibé — vai no header `x-internal-secret` (resolve-contact, execute-action e agora também send-message) |
-| `META_WHATSAPP_VERIFY_TOKEN` | Usado na verificação do webhook (challenge) — segue existindo porque o RECEBIMENTO continua no N8N mesmo com o envio migrado para o Tibé |
-| Credencial do LLM escolhido | Ex: Anthropic ou OpenAI — **ainda não decidido**; o node de LLM é o único ponto do workflow que precisa dessa chave. Nenhum código do Tibé depende dela. |
+| `TIBE_INTERNAL_SECRET` | Mesmo valor de `INTERNAL_API_SECRET` do Tibé: vai no header `x-internal-secret` (resolve-contact, execute-action e agora também send-message) |
+| `META_WHATSAPP_VERIFY_TOKEN` | Usado na verificação do webhook (challenge): segue existindo porque o RECEBIMENTO continua no N8N mesmo com o envio migrado para o Tibé |
+| Credencial do LLM escolhido | Ex: Anthropic ou OpenAI: **ainda não decidido**; o node de LLM é o único ponto do workflow que precisa dessa chave. Nenhum código do Tibé depende dela. |
 
 > `META_WHATSAPP_TOKEN` e `META_WHATSAPP_PHONE_ID` **saíram** desta tabela
 > (spec 2026-07-11): o envio de mensagens não é mais responsabilidade do N8N,
@@ -62,7 +62,7 @@ manda a resposta de volta.
 
 ## 3. Node a node
 
-### Node 1 — Webhook (Trigger)
+### Node 1: Webhook (Trigger)
 
 - Configure dois métodos no mesmo path do N8N:
   - `GET`: responde ao desafio de verificação da Meta. A Meta chama com
@@ -73,13 +73,13 @@ manda a resposta de volta.
 - No **Meta App Dashboard**, registre esse endpoint do N8N (não o do Tibé) como
   Webhook URL do produto WhatsApp.
 
-### Node 2 — Normalizar payload (Function/Set)
+### Node 2: Normalizar payload (Function/Set)
 
 Extraia do payload da Meta (formato `entry[0].changes[0].value.messages[0]`):
 - `phone` = `messages[0].from`
 - `message_text` = `messages[0].text.body`
 
-### Node 3 — HTTP Request: resolve-contact
+### Node 3: HTTP Request: resolve-contact
 
 ```
 POST {{TIBE_BASE_URL}}/api/internal/whatsapp/resolve-contact
@@ -95,16 +95,16 @@ Resposta relevante:
 }
 ```
 
-**Branch 1** — `data.identified === false`: envie `meta.suggested_reply` via
-Tibé (Node 6 — send-message, abaixo) e encerre o workflow.
+**Branch 1**: `data.identified === false`: envie `meta.suggested_reply` via
+Tibé (Node 6: send-message, abaixo) e encerre o workflow.
 
-**Branch 2** — `meta.first_contact === true`: envie `meta.suggested_reply`
-(saudação já pronta) via Tibé (Node 6 — send-message) e encerre — ou, se
+**Branch 2**: `meta.first_contact === true`: envie `meta.suggested_reply`
+(saudação já pronta) via Tibé (Node 6: send-message) e encerre: ou, se
 preferir, prossiga para já processar a primeira mensagem também (opcional).
 
-**Branch 3** — conversa normal: siga para o Node 4.
+**Branch 3**: conversa normal: siga para o Node 4.
 
-### Node 4 — Chamada ao LLM
+### Node 4: Chamada ao LLM
 
 Envie ao LLM escolhido:
 - A mensagem do usuário (`message_text`)
@@ -125,7 +125,7 @@ Peça ao LLM para responder em **JSON estrito**:
 > `message_text` como uma rede de segurança adicional, mas o ideal é que o LLM
 > já resolva isso via contexto.
 
-### Node 5 — HTTP Request: execute-action
+### Node 5: HTTP Request: execute-action
 
 ```
 POST {{TIBE_BASE_URL}}/api/internal/whatsapp/execute-action
@@ -146,7 +146,7 @@ Resposta:
 { "data": { "reply_text": "...", "requires_confirmation": false, "auxiliary_data": {}, "report_url": null } }
 ```
 
-### Node 6 — HTTP Request: send-message (Tibé)
+### Node 6: HTTP Request: send-message (Tibé)
 
 O N8N NÃO chama mais a Meta Cloud API (nem a Evolution) diretamente para
 enviar. Envie qualquer resposta via Tibé:
@@ -158,7 +158,7 @@ Body: { "to": "{{ $json.phone }}", "text": "{{ $json.reply_text }}" }
 ```
 
 O Tibé decide o provider (Evolution ou Meta) pela config do painel
-(`/plataforma/configuracoes/whatsapp`) — trocar de provider não exige
+(`/plataforma/configuracoes/whatsapp`): trocar de provider não exige
 alterar este workflow. Erros: 503 = nenhum provider ativo; 502 = o provider
 recusou/falhou (mensagem detalhada em `error.message`).
 
@@ -184,7 +184,7 @@ uma mensagem de fallback amigável (sem detalhes técnicos), por exemplo:
 | `consultar_saldo` | `period` (opcional, formato "YYYY-MM", default mês atual) |
 | `consultar_animal` | `ear_tag` |
 | `consultar_cliente` | `client_name` |
-| `gerar_relatorio` | `tipo` (financeiro\|rebanho\|lavoura\|prestador), `period` — **retorna "em breve"**: a geração de PDF real depende do Módulo 4, ainda não implementado |
+| `gerar_relatorio` | `tipo` (financeiro\|rebanho\|lavoura\|prestador), `period`. **Retorna "em breve"** enquanto a geração de PDF real depende do Módulo 4, ainda não implementado |
 | `ambigua` | usar quando não for possível classificar com confiança |
 
 O Tibé já trata, de forma **totalmente automática** (o LLM não precisa se
@@ -193,10 +193,10 @@ preocupar com isso):
 - Validação de perfil ativo do tenant (fazenda/prestador).
 - Confirmação obrigatória para venda de animal ou ordem de serviço acima de
   **R$ 5.000** (o Tibé já retorna `requires_confirmation: true` e o texto de
-  confirmação pronto — o LLM só precisa reenviar a mesma intenção com
+  confirmação pronto: o LLM só precisa reenviar a mesma intenção com
   `confirmed: true` quando o usuário concordar).
 - Pedidos de esclarecimento quando faltam dados obrigatórios (ex: mais de uma
-  propriedade e nenhuma especificada) — o Tibé já devolve a pergunta pronta em
+  propriedade e nenhuma especificada): o Tibé já devolve a pergunta pronta em
   `reply_text`, incluindo as opções em `auxiliary_data` quando aplicável.
 
 ---

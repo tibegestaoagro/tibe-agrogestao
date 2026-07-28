@@ -11,8 +11,8 @@ const INTENTS: [string, string, string][] = [
   ["consultar_saldo", "period (opcional, default mês atual)", "financeiro:read"],
   ["consultar_animal", "ear_tag", "rebanho:read · perfil fazenda"],
   ["consultar_cliente", "client_name", "prestador:read · perfil prestador"],
-  ["gerar_relatorio", "tipo (financeiro|rebanho|lavoura|prestador), period", "varia pelo tipo — só financeiro tem PDF pronto"],
-  ["ambigua", "—", "sem checagem — pede esclarecimento"],
+  ["gerar_relatorio", "tipo (financeiro|rebanho|lavoura|prestador), period", "varia pelo tipo: só financeiro tem PDF pronto"],
+  ["ambigua", "—", "sem checagem: pede esclarecimento"],
 ];
 
 export default function WhatsappDocsPage() {
@@ -22,7 +22,7 @@ export default function WhatsappDocsPage() {
         <h1 className="text-3xl font-bold text-tibe-dark">Agente WhatsApp</h1>
         <p className="mt-3 text-gray-600">
           O agente permite cadastrar e consultar dados do Tibé por mensagem de texto livre no WhatsApp. O Tibé
-          nunca fala diretamente com a Meta Cloud API — o N8N é o único intermediário nos dois sentidos.
+          nunca fala diretamente com a Meta Cloud API: o N8N é o único intermediário nos dois sentidos.
         </p>
         <div className="mt-4 rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
           <strong>Status de infraestrutura:</strong> o código deste módulo está completo e testado, mas a infra
@@ -62,7 +62,7 @@ export default function WhatsappDocsPage() {
           busca primeiro um <code className="rounded bg-gray-100 px-1">WhatsAppContact</code> já vinculado; se não
           existir, busca um <code className="rounded bg-gray-100 px-1">User</code> ativo com aquele telefone
           cadastrado em algum tenant e cria o vínculo na hora (esse é o <em>first_contact</em>). Se nenhum User
-          tiver aquele telefone, devolve <code className="rounded bg-gray-100 px-1">identified: false</code> — o
+          tiver aquele telefone, devolve <code className="rounded bg-gray-100 px-1">identified: false</code>: o
           número simplesmente não pertence a ninguém no sistema, e nenhuma ação de escrita pode ser executada.
         </p>
       </section>
@@ -89,7 +89,7 @@ export default function WhatsappDocsPage() {
         </table>
         <p className="mt-3">
           Cada intenção roteia para a mesma função de <code className="rounded bg-gray-100 px-1">lib/actions/*</code> usada
-          pelas rotas web equivalentes — não existe lógica de negócio duplicada para o canal WhatsApp. Se um
+          pelas rotas web equivalentes: não existe lógica de negócio duplicada para o canal WhatsApp. Se um
           parâmetro obrigatório está faltando (ex: cadastrar animal sem sexo) ou é ambíguo (ex: tenant com mais de
           uma propriedade e nenhuma especificada), o agente responde pedindo o dado faltante em vez de
           adivinhar ou falhar silenciosamente.
@@ -110,7 +110,7 @@ export default function WhatsappDocsPage() {
         <p className="mt-2">
           Como camada de segurança independente do LLM, o Tibé também interpreta “sim”/“não” a partir do texto
           bruto da mensagem (campo <code className="rounded bg-gray-100 px-1">message_text</code>), reconhecendo
-          variações como “confirmo”, “isso mesmo”, “pode”, “cancela”, “errado” — mesmo que o N8N não tenha
+          variações como “confirmo”, “isso mesmo”, “pode”, “cancela”, “errado”: mesmo que o N8N não tenha
           resolvido a confirmação sozinho.
         </p>
       </section>
@@ -121,7 +121,7 @@ export default function WhatsappDocsPage() {
           Toda mensagem recebida e toda resposta enviada são gravadas em{" "}
           <code className="rounded bg-gray-100 px-1">AgentConversationLog</code>. As últimas 5 interações de cada
           contato voltam em <code className="rounded bg-gray-100 px-1">meta.recent_history</code> na resposta de{" "}
-          <code className="rounded bg-gray-100 px-1">resolve-contact</code> — é esse histórico que o N8N deve
+          <code className="rounded bg-gray-100 px-1">resolve-contact</code>: é esse histórico que o N8N deve
           enviar ao LLM para manter continuidade de conversa (ex: entender “e o segundo?” depois de uma lista).
         </p>
       </section>
@@ -134,7 +134,7 @@ export default function WhatsappDocsPage() {
           real (mesma função usada pelo botão “Exportar” do painel web). Os tipos{" "}
           <code className="rounded bg-gray-100 px-1">rebanho</code>,{" "}
           <code className="rounded bg-gray-100 px-1">lavoura</code> e{" "}
-          <code className="rounded bg-gray-100 px-1">prestador</code> ainda respondem “não disponível” — não há
+          <code className="rounded bg-gray-100 px-1">prestador</code> ainda respondem “não disponível”: não há
           gerador de PDF dedicado para eles ainda.
         </p>
       </section>

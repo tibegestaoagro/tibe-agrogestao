@@ -24,7 +24,7 @@ const FIELDS: Record<Provider, { key: string; label: string; type?: string }[]> 
   ],
 };
 
-/** Card de config de um provider WhatsApp (spec 2026-07-11) — só master_admin. */
+/** Card de config de um provider WhatsApp (spec 2026-07-11): só master_admin. */
 export default function WhatsAppProviderCard({
   provider,
   configured,
@@ -93,7 +93,7 @@ export default function WhatsAppProviderCard({
     if (!res.ok) return setError(res.message);
     if (!res.data.webhook_configured) {
       setError(
-        "Instância criada, mas não consegui configurar o webhook do N8N — confira a URL do webhook nas credenciais.",
+        "Instância criada, mas não consegui configurar o webhook do N8N: confira a URL do webhook nas credenciais.",
       );
     }
     if (res.data.qrcode_base64) {
@@ -183,7 +183,7 @@ export default function WhatsAppProviderCard({
         <div className="mt-4 flex flex-col items-center gap-2 rounded-md border border-gray-700 bg-gray-950 p-4">
           <img src={qrcode} alt="QR code para conectar o WhatsApp" className="h-56 w-56" />
           <p className="text-xs text-gray-400">
-            {polling ? "Escaneie no WhatsApp — aguardando conexão..." : "QR expirado."}
+            {polling ? "Escaneie no WhatsApp: aguardando conexão..." : "QR expirado."}
           </p>
         </div>
       )}

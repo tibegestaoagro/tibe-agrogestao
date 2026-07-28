@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import ChoosePlanForm from "./choose-plan-form";
 
 /**
- * Escolha de plano (spec 2026-07-27) — só para tenants criados manualmente
+ * Escolha de plano (spec 2026-07-27): só para tenants criados manualmente
  * pelo painel da plataforma (plan_confirmed=false). Mesmo padrão de
  * src/app/trocar-senha/page.tsx e src/app/onboarding/page.tsx: fora do route
  * group (dashboard), sessão própria. Fica entre a troca de senha e o

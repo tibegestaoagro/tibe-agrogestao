@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiPost } from "@/lib/client-api";
 
-/** Arquiva/desarquiva um tenant (spec 2026-07-27) — só master_admin. Nunca deleta. */
+/** Arquiva/desarquiva um tenant (spec 2026-07-27): só master_admin. Nunca deleta. */
 export default function ArchiveTenantButton({
   tenantId,
   archived,

@@ -4,17 +4,17 @@ import { encryptConfig } from "@/lib/crypto-config";
 import type { WhatsAppProvider } from "@/generated/prisma/enums";
 
 /**
- * Config de provider WhatsApp (spec 2026-07-11) — ações do painel da
+ * Config de provider WhatsApp (spec 2026-07-11): ações do painel da
  * plataforma, só master_admin (recorte aplicado nas rotas via guardPlatform).
  * Usa o client base: config GLOBAL de plataforma, não pertence a tenant
- * (mesma categoria de PlatformUser — exceção documentada no CLAUDE.md).
+ * (mesma categoria de PlatformUser: exceção documentada no CLAUDE.md).
  */
 
 export type EvolutionCredentials = {
   base_url: string;
   api_key: string;
   instance: string;
-  /** URL do webhook do workflow N8N (spec 2026-07-28) — configurada na
+  /** URL do webhook do workflow N8N (spec 2026-07-28): configurada na
    * instância Evolution automaticamente ao criar/conectar, sem precisar
    * mexer na Evolution direto. */
   n8n_webhook_url: string;

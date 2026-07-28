@@ -4,7 +4,7 @@ export function normalizePhone(phone: string): string {
 }
 
 /**
- * Garante o DDI do Brasil (55) em telefones sem código de país — o produto
+ * Garante o DDI do Brasil (55) em telefones sem código de país: o produto
  * hoje prioriza o Brasil, e o bot do WhatsApp (resolve-contact) casa contato
  * por dígitos exatos, então um número salvo sem "55" nunca bate com o que a
  * Meta/Evolution manda. Números que já têm DDI (12/13 dígitos começando com

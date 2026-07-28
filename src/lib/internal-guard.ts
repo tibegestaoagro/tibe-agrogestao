@@ -30,7 +30,7 @@ export function requireInternalSecret(
 /**
  * Autenticação das rotas de Cron (`/api/internal/jobs/*`). A Vercel injeta
  * automaticamente `Authorization: Bearer <CRON_SECRET>` nas chamadas que ela
- * mesma faz para as rotas listadas em `vercel.json` — basta definir a env var
+ * mesma faz para as rotas listadas em `vercel.json`: basta definir a env var
  * `CRON_SECRET` no projeto (local e na Vercel) com o mesmo valor.
  */
 export function requireCronSecret(

@@ -13,7 +13,7 @@ Criar os módulos de gestão de rebanho bovino e de lavoura, permitindo cadastro
 
 ---
 
-## Tasks — Rebanho
+## Tasks: Rebanho
 
 ### 1.1 Modelo de dados de propriedade
 
@@ -65,7 +65,7 @@ Criar os módulos de gestão de rebanho bovino e de lavoura, permitindo cadastro
 
 ---
 
-## Tasks — Lavoura
+## Tasks: Lavoura
 
 ### 1.8 Cadastro de talhões
 

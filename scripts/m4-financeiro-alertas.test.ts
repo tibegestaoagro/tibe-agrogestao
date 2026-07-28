@@ -34,7 +34,7 @@ const SECRET = process.env.INTERNAL_API_SECRET ?? "dev-internal-secret";
 const CRON_SECRET = process.env.CRON_SECRET ?? "dev-cron-secret";
 
 async function main() {
-  console.log("🔒 Módulo 4 — Financeiro e Alertas\n");
+  console.log("🔒 Módulo 4: Financeiro e Alertas\n");
 
   const tenantA = await prisma.tenant.create({
     data: { name: "M4 Tenant A", document: "M4A000000001", plan: "grupo" },
@@ -62,7 +62,7 @@ async function main() {
     const editOk = await updateManualEntryAction(dbA, manualId, { amount: 350 });
     assert(editOk.ok, "lançamento manual (geral) pode ser editado");
 
-    // Lançamento AUTOMÁTICO (simulando o que M1/M2 criam) — edição deve ser bloqueada.
+    // Lançamento AUTOMÁTICO (simulando o que M1/M2 criam): edição deve ser bloqueada.
     // status "pending" de propósito: testa que DRE (competência) inclui mesmo
     // não pago, enquanto fluxo de caixa (regime de caixa) não inclui.
     const autoEntry = await createLinkedEntry(dbA, {

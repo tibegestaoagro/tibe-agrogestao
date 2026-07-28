@@ -11,7 +11,7 @@ const GROUPS: Group[] = [
     tables: [
       {
         name: "Tenant",
-        desc: "Uma empresa cliente. Raiz de todo o isolamento — toda tabela abaixo carrega tenant_id apontando para cá (direta ou indiretamente).",
+        desc: "Uma empresa cliente. Raiz de todo o isolamento: toda tabela abaixo carrega tenant_id apontando para cá (direta ou indiretamente).",
         fields: [
           ["id, name, document (CNPJ/CPF, único), phone, email", "dados cadastrais"],
           ["plan", "campo | fazenda | grupo"],
@@ -22,16 +22,16 @@ const GROUPS: Group[] = [
       },
       {
         name: "PlatformUser",
-        desc: "Equipe da Pleno Digital (painel interno, Módulo 6). NÃO carrega tenant_id — vive inteiramente fora do isolamento multi-tenant, por desenho. Autenticado por uma instância NextAuth própria (cookie e secret diferentes dos de tenant).",
+        desc: "Equipe da Pleno Digital (painel interno, Módulo 6). NÃO carrega tenant_id: vive inteiramente fora do isolamento multi-tenant, por desenho. Autenticado por uma instância NextAuth própria (cookie e secret diferentes dos de tenant).",
         fields: [
           ["id, name, email (único), password_hash", "credenciais"],
-          ["role", "MASTER_ADMIN | EQUIPE — equipe não vê KPIs financeiros nem executa ações administrativas"],
+          ["role", "MASTER_ADMIN | EQUIPE: equipe não vê KPIs financeiros nem executa ações administrativas"],
           ["active", "desativação sem exclusão"],
         ],
       },
       {
         name: "TenantProfile",
-        desc: "Quais 'perfis' de negócio um tenant tem ativos. Um tenant pode ter fazenda e prestador simultaneamente — não são exclusivos.",
+        desc: "Quais 'perfis' de negócio um tenant tem ativos. Um tenant pode ter fazenda e prestador simultaneamente: não são exclusivos.",
         fields: [
           ["tenant_id, profile_type", "fazenda | prestador"],
           ["active", "perfil pode ser desativado sem perder histórico"],
@@ -39,7 +39,7 @@ const GROUPS: Group[] = [
       },
       {
         name: "User",
-        desc: "Uma pessoa com acesso ao painel de um tenant. Email é globalmente único no sistema (não só por tenant) — o login recebe apenas email+senha, sem seletor de empresa.",
+        desc: "Uma pessoa com acesso ao painel de um tenant. Email é globalmente único no sistema (não só por tenant): o login recebe apenas email+senha, sem seletor de empresa.",
         fields: [
           ["tenant_id, name, email (único), password_hash", "credenciais"],
           ["role", "OWNER | ADMIN | OPERADOR | VISUALIZADOR"],
@@ -52,7 +52,7 @@ const GROUPS: Group[] = [
         desc: "Uma propriedade rural ('fazenda') do tenant. Um tenant pode ter várias.",
         fields: [
           ["tenant_id, name, address, area_hectares", "dados cadastrais"],
-          ["archived_at", "arquivamento — nunca deletada, para preservar histórico de animais/talhões vinculados"],
+          ["archived_at", "arquivamento: nunca deletada, para preservar histórico de animais/talhões vinculados"],
         ],
       },
     ],
@@ -84,7 +84,7 @@ const GROUPS: Group[] = [
         desc: "Uma aplicação de vacina em um animal. next_due_at é calculado automaticamente (applied_at + intervalo).",
         fields: [
           ["tenant_id, animal_id, vaccine_id, applied_at, next_due_at", "aplicação e próximo vencimento"],
-          ["cost", "opcional — se preenchido, gera uma FinancialEntry de despesa"],
+          ["cost", "opcional: se preenchido, gera uma FinancialEntry de despesa"],
         ],
       },
       {
@@ -93,7 +93,7 @@ const GROUPS: Group[] = [
         fields: [
           ["tenant_id, animal_id, movement_type", "purchase | sale | transfer | death"],
           ["from_property_id, to_property_id", "usados em transferência"],
-          ["value", "opcional — venda gera receita, compra gera despesa em FinancialEntry"],
+          ["value", "opcional: venda gera receita, compra gera despesa em FinancialEntry"],
         ],
       },
     ],
@@ -120,7 +120,7 @@ const GROUPS: Group[] = [
         desc: "Um insumo aplicado durante um ciclo (fertilizante, defensivo, semente).",
         fields: [
           ["tenant_id, cycle_id, input_type", "fertilizer | pesticide | seed"],
-          ["name, quantity, unit, cost, applied_at", "detalhes da aplicação — cost gera FinancialEntry"],
+          ["name, quantity, unit, cost, applied_at", "detalhes da aplicação: cost gera FinancialEntry"],
         ],
       },
     ],
@@ -130,7 +130,7 @@ const GROUPS: Group[] = [
     tables: [
       {
         name: "ServiceClient",
-        desc: "Um cliente do prestador de serviço (não confundir com o tenant — este é o cliente DO tenant).",
+        desc: "Um cliente do prestador de serviço (não confundir com o tenant: este é o cliente DO tenant).",
         fields: [["tenant_id, name, document, phone, email, notes", "dados cadastrais"]],
       },
       {
@@ -157,11 +157,11 @@ const GROUPS: Group[] = [
     tables: [
       {
         name: "FinancialEntry",
-        desc: "Um lançamento financeiro — manual ou gerado automaticamente por outro módulo (venda de animal, insumo com custo, ordem faturada).",
+        desc: "Um lançamento financeiro: manual ou gerado automaticamente por outro módulo (venda de animal, insumo com custo, ordem faturada).",
         fields: [
           ["tenant_id, entry_type", "income | expense"],
           ["category, amount, due_date, paid_at, notes", "detalhes do lançamento"],
-          ["related_module, related_id", "rebanho | lavoura | servico | geral — origem do lançamento"],
+          ["related_module, related_id", "rebanho | lavoura | servico | geral: origem do lançamento"],
           ["status", "pending | paid | overdue"],
         ],
       },
@@ -190,7 +190,7 @@ const GROUPS: Group[] = [
     tables: [
       {
         name: "Alert",
-        desc: "Um alerta automático gerado pelo job diário. Idempotente por (related_module + related_id + alert_type) — não duplica para o mesmo evento.",
+        desc: "Um alerta automático gerado pelo job diário. Idempotente por (related_module + related_id + alert_type): não duplica para o mesmo evento.",
         fields: [
           ["tenant_id, alert_type", "vaccine_due | harvest_near | bill_due | low_balance | trial_ending"],
           ["related_module, related_id, message", "origem e texto pronto para envio"],
@@ -215,7 +215,7 @@ const GROUPS: Group[] = [
       },
       {
         name: "SubscriptionStatusLog",
-        desc: "Histórico de toda transição de status de uma assinatura (Módulo 6) — automática (webhook do Asaas) ou manual (master_admin forçando via /plataforma). Sem tenant_id (só consumida pelo painel interno).",
+        desc: "Histórico de toda transição de status de uma assinatura (Módulo 6): automática (webhook do Asaas) ou manual (master_admin forçando via /plataforma). Sem tenant_id (só consumida pelo painel interno).",
         fields: [
           ["subscription_id, from_status, to_status", "a transição em si (from_status nulo na primeira linha)"],
           ["changed_by_platform_user_id", "nulo = automática (webhook); preenchido = forçada manualmente"],
@@ -233,7 +233,7 @@ export default function SchemaPage() {
       <p className="mt-3 text-gray-600">
         PostgreSQL via Prisma. Modelos em PascalCase, campos em snake_case (para espelhar
         os contratos de API). Todo modelo de negócio carrega <code className="rounded bg-gray-100 px-1">tenant_id</code> e
-        passa pelo middleware de isolamento — exceto os modelos-filho que herdam o tenant via relação com o pai
+        passa pelo middleware de isolamento: exceto os modelos-filho que herdam o tenant via relação com o pai
         (ex: <code className="rounded bg-gray-100 px-1">AnimalWeightLog</code> por <code className="rounded bg-gray-100 px-1">animal_id</code>) e as
         duas tabelas do painel interno (<code className="rounded bg-gray-100 px-1">PlatformUser</code>,{" "}
         <code className="rounded bg-gray-100 px-1">SubscriptionStatusLog</code>).

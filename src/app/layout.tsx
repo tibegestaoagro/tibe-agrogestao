@@ -9,7 +9,7 @@ const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
 export const metadata: Metadata = {
   metadataBase: new URL(baseUrl),
   title: {
-    default: "Tibé — Gestão agropecuária completa, direto do WhatsApp",
+    default: "Tibé: Gestão agropecuária completa, direto do WhatsApp",
     template: "%s | Tibé",
   },
   description:

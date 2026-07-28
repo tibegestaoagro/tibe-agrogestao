@@ -19,7 +19,7 @@ function assert(cond: boolean, msg: string) {
 }
 
 async function main() {
-  console.log("🔒 Módulo 2 — isolamento, total_value e faturamento\n");
+  console.log("🔒 Módulo 2: isolamento, total_value e faturamento\n");
 
   const a = await prisma.tenant.create({
     data: { name: "M2 A", document: "M2A000000001", plan: "campo" },

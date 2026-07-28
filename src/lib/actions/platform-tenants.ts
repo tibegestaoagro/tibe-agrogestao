@@ -12,7 +12,7 @@ import type { SubscriptionStatus, TenantPlan } from "@/generated/prisma/enums";
 /**
  * Ação manual de master_admin (Módulo 6, task 6.9): força a mudança de
  * status de uma assinatura (ex: reativar um tenant suspenso por erro).
- * Grava em SubscriptionStatusLog com o PlatformUser responsável e o motivo —
+ * Grava em SubscriptionStatusLog com o PlatformUser responsável e o motivo:
  * é o próprio log de auditoria exigido pela spec.
  */
 export async function forceSubscriptionStatusAction(params: {
@@ -51,7 +51,7 @@ export async function forceSubscriptionStatusAction(params: {
 }
 
 /**
- * Criação manual de tenant pelo painel da plataforma (spec 2026-07-24) —
+ * Criação manual de tenant pelo painel da plataforma (spec 2026-07-24):
  * SEGUNDA exceção deliberada à regra "signup público é a única forma de
  * criar tenant" (a primeira é o próprio /criar-conta). Usada para dar acesso
  * de teste a equipes de cliente sem passar pelo formulário público. Reusa a
@@ -128,7 +128,7 @@ export async function createTenantManuallyAction(params: {
 
 /**
  * Edição de dados cadastrais + plano de um tenant qualquer, pelo painel da
- * plataforma (spec 2026-07-27) — só master_admin. Mesmos campos que o
+ * plataforma (spec 2026-07-27): só master_admin. Mesmos campos que o
  * próprio tenant já pode editar sozinho em PATCH /api/v1/tenant, mais
  * `plan` (o tenant só muda o próprio plano via assinatura/Asaas; aqui é
  * override direto do master_admin, sem passar pelo Asaas).
@@ -171,11 +171,11 @@ export async function updateTenantAction(
 }
 
 /**
- * Reenvia a mensagem de boas-vindas para o dono de um tenant já existente —
+ * Reenvia a mensagem de boas-vindas para o dono de um tenant já existente:
  * útil pra testar entrega real ou reenviar quando o primeiro disparo falhou
  * (ex: provider ficou fora do ar). A senha original em claro não existe mais
  * (só o hash é guardado), então isso GERA uma nova senha temporária e marca
- * must_change_password de novo — a mensagem reenviada sempre tem uma senha
+ * must_change_password de novo: a mensagem reenviada sempre tem uma senha
  * que realmente funciona, em vez de repetir uma que pode já ter sido trocada.
  * Só master_admin (mesma exceção estrutural de createTenantManuallyAction:
  * lookup cross-tenant do Owner pelo painel da plataforma).
@@ -205,7 +205,7 @@ export async function resendWelcomeMessageAction(tenantId: string): Promise<Acti
 }
 
 /**
- * Arquiva/desarquiva um tenant pelo painel (spec 2026-07-27) — só
+ * Arquiva/desarquiva um tenant pelo painel (spec 2026-07-27): só
  * master_admin. Nunca deleta (mesmo padrão de Property.archived_at, M1).
  * Idempotente nos dois sentidos.
  */

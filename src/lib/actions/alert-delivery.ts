@@ -2,11 +2,11 @@ import { prisma, prismaForTenant, type TenantPrismaClient } from "@/lib/prisma";
 
 /**
  * Envio de alertas pendentes via N8N → WhatsApp (spec 4.11). Mesma arquitetura
- * do Módulo 3 (Tibé nunca fala direto com a Meta Cloud API) — aqui é o Tibé
+ * do Módulo 3 (Tibé nunca fala direto com a Meta Cloud API): aqui é o Tibé
  * quem inicia a chamada (outbound) para um webhook do N8N, que repassa a
  * mensagem via Meta. Se `N8N_ALERT_WEBHOOK_URL` não estiver configurada, os
  * alertas ficam com `status: pending` (nada quebra; fica pronto para quando o
- * workflow N8N desse envio existir — ver docs/n8n-whatsapp-workflow.md).
+ * workflow N8N desse envio existir: ver docs/n8n-whatsapp-workflow.md).
  */
 
 async function findAlertRecipient(db: TenantPrismaClient) {

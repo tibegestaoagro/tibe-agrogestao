@@ -6,7 +6,7 @@ import type { EvolutionCredentials, MetaCredentials } from "@/lib/actions/platfo
 /**
  * Envio de mensagem WhatsApp pelo provider ATIVO (spec 2026-07-11).
  * Desvio deliberado da regra "N8N é o único intermediário" (CLAUDE.md): o
- * envio agora é do Tibé — o N8N chama POST /api/internal/whatsapp/send-message
+ * envio agora é do Tibé: o N8N chama POST /api/internal/whatsapp/send-message
  * e este módulo decide se entrega via Evolution ou Meta, pela config do
  * painel da plataforma. O RECEBIMENTO continua no N8N (payloads de entrada
  * diferem por provider; não existe /api/webhooks/whatsapp no Tibé).
@@ -19,7 +19,7 @@ export async function sendWhatsAppMessage(
   if (!config) {
     return fail(
       "NO_PROVIDER_ACTIVE",
-      "Nenhum provider de WhatsApp ativo — configure em /plataforma/configuracoes/whatsapp",
+      "Nenhum provider de WhatsApp ativo: configure em /plataforma/configuracoes/whatsapp",
       503,
     );
   }

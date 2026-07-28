@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { guardPlatform } from "@/lib/platform-guard";
 import { inviteTeamMemberAction } from "@/lib/actions/platform-team";
 
-/** GET /api/platform/team · POST /api/platform/team (spec 6.10) — só master_admin. */
+/** GET /api/platform/team · POST /api/platform/team (spec 6.10): só master_admin. */
 
 const createSchema = z.object({
   name: z.string().trim().min(1, "Nome é obrigatório"),

@@ -10,11 +10,11 @@ import type { SubscriptionStatus } from "@/generated/prisma/enums";
  * POST /api/webhooks/asaas (spec 5.6)
  *
  * Autenticação por token no header `asaas-access-token` (configurado no
- * painel do Asaas ao cadastrar o webhook — PRD §10.3, mesmo padrão de
+ * painel do Asaas ao cadastrar o webhook: PRD §10.3, mesmo padrão de
  * `/api/webhooks/*`, não é sessão).
  *
  * Lookup cross-tenant legítimo (webhook não tem sessão de tenant): busca a
- * Subscription pelo `asaas_subscription_id` via client base — mesma
+ * Subscription pelo `asaas_subscription_id` via client base: mesma
  * categoria de exceção documentada em CLAUDE.md (resolve-contact do M3,
  * job de alertas do M4).
  */
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     where: { asaas_subscription_id: asaasSubscriptionId },
   });
   if (!subscription) {
-    // Assinatura não rastreada no Tibé (ex: ambiente de teste do Asaas) — ok, não é erro nosso.
+    // Assinatura não rastreada no Tibé (ex: ambiente de teste do Asaas): ok, não é erro nosso.
     return apiOk({ received: true, processed: false, reason: "subscription não encontrada" });
   }
 
@@ -83,7 +83,7 @@ export async function POST(request: Request) {
       nextDueDate = new Date(remote.nextDueDate);
     } catch (e) {
       if (!(e instanceof AsaasNotConfiguredError)) {
-        // Não derruba o webhook por uma falha de rede pontual — segue sem atualizar a data exata.
+        // Não derruba o webhook por uma falha de rede pontual: segue sem atualizar a data exata.
         console.error("Falha ao buscar next_due_date no Asaas:", e);
       }
     }
@@ -110,7 +110,7 @@ export async function POST(request: Request) {
     });
   }
 
-  // Log de transição (Módulo 6, 6.5/6.7) — só se o status de fato mudou, para
+  // Log de transição (Módulo 6, 6.5/6.7): só se o status de fato mudou, para
   // não inflar churn/funil com reenvios duplicados do Asaas para o mesmo evento.
   if (newStatus && newStatus !== subscription.status) {
     await logSubscriptionStatusChange({

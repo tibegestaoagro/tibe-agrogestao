@@ -4,7 +4,7 @@ import { guard, readJson } from "@/lib/api-guard";
 import { serializeFinancialEntry } from "@/lib/serializers";
 import { updateManualEntryAction } from "@/lib/actions/financial-entries";
 
-/** PATCH /api/v1/financial-entries/:id — edita lançamento manual (spec 4.2). */
+/** PATCH /api/v1/financial-entries/:id: edita lançamento manual (spec 4.2). */
 
 const updateSchema = z.object({
   category: z.string().trim().min(1).optional(),

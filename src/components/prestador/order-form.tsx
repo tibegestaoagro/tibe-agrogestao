@@ -97,7 +97,7 @@ export default function OrderForm({
               <SelectContent>
                 {services.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
-                    {s.name} — {UNIT[s.pricing_type]}
+                    {s.name}: {UNIT[s.pricing_type]}
                   </SelectItem>
                 ))}
               </SelectContent>

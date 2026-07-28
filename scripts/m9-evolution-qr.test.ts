@@ -2,7 +2,7 @@ import "dotenv/config";
 import { getInstanceStatus, createInstance, connectInstance, setInstanceWebhook } from "@/lib/evolution-client";
 
 /**
- * Testes do cliente Evolution (spec 2026-07-24) — contra credenciais
+ * Testes do cliente Evolution (spec 2026-07-24): contra credenciais
  * inválidas/inalcançáveis (não bate na Evolution real de produção pra não
  * arriscar desconectar um número em uso).
  * Roda: `npm run test:m9`
@@ -18,7 +18,7 @@ function assert(cond: boolean, msg: string) {
 }
 
 async function main() {
-  console.log("🔒 M9 — Evolution client (QR)\n");
+  console.log("🔒 M9: Evolution client (QR)\n");
 
   const badCreds = {
     base_url: "http://127.0.0.1:9",

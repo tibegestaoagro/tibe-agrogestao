@@ -2,7 +2,7 @@ import { apiOk } from "@/lib/api";
 import { guard } from "@/lib/api-guard";
 import { isoOrNull } from "@/lib/serialize";
 
-/** GET /api/v1/alerts?type=&status= — lista de alertas (spec 4.12). */
+/** GET /api/v1/alerts?type=&status=: lista de alertas (spec 4.12). */
 export async function GET(request: Request) {
   const g = await guard("alertas", "read");
   if ("error" in g) return g.error;

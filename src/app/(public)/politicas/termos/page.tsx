@@ -67,7 +67,7 @@ export default function TermosPage() {
             <p className="mt-2">Em caso de pagamento em atraso, o acesso segue estes estágios:</p>
             <ul className="mt-2 list-disc space-y-1 pl-5">
               <li><strong>Até 5 dias de atraso:</strong> acesso completo, sem restrição.</li>
-              <li><strong>De 5 a 15 dias:</strong> modo leitura — consulta liberada, cadastro e edição bloqueados.</li>
+              <li><strong>De 5 a 15 dias:</strong> modo leitura: consulta liberada, cadastro e edição bloqueados.</li>
               <li><strong>Acima de 15 dias:</strong> acesso bloqueado, exceto à página de assinatura para regularização do pagamento.</li>
             </ul>
             <p className="mt-2">O acesso completo é restabelecido automaticamente após a confirmação do pagamento.</p>

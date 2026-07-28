@@ -48,7 +48,7 @@ export async function POST(request: Request) {
 
   const db = prismaForTenant(tenant_id);
 
-  // user_id é sempre revalidado no banco — nunca confiamos na role vinda do caller.
+  // user_id é sempre revalidado no banco: nunca confiamos na role vinda do caller.
   const user = await db.user.findFirst({ where: { id: user_id, active: true } });
   if (!user) {
     return apiError("INVALID_USER", "Usuário não encontrado ou inativo neste tenant", 404);

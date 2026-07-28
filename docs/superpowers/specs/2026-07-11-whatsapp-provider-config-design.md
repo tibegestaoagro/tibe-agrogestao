@@ -24,14 +24,14 @@ decide internamente (pela config do painel) se entrega via Evolution ou Meta.
 
 O **recebimento** (webhook de mensagem chegando) **não muda**: continua
 batendo no N8N (não existe `/api/webhooks/whatsapp` no Tibé, e continua não
-existindo). Meta e Evolution têm payloads de entrada diferentes — o Node 1/2
+existindo). Meta e Evolution têm payloads de entrada diferentes: o Node 1/2
 do N8N precisa de um branch por provider de qualquer forma. Ou seja: a troca
 1-clique vale para a metade de **saída** do fluxo; a entrada exige o workflow
 N8N ter os dois formatos mapeados (feito uma única vez).
 
 ## Modelo de dados
 
-Novo model Prisma `WhatsAppProviderConfig` — **fora** de
+Novo model Prisma `WhatsAppProviderConfig`: **fora** de
 `TENANT_SCOPED_MODELS` (config global da plataforma, não pertence a tenant;
 mesma categoria estrutural de `PlatformUser`/`SubscriptionStatusLog`).
 
@@ -52,10 +52,10 @@ model WhatsAppProviderConfig {
 ```
 
 - **Um registro por provider** (`@unique`), os dois podem existir em paralelo
-  — configurar a Meta depois não apaga a Evolution.
+ : configurar a Meta depois não apaga a Evolution.
 - **No máximo 1 `active: true`** por vez. Invariante garantida por transação
   na ativação (`updateMany({ active: false })` + `update({ active: true })`
-  no mesmo `$transaction`) — não por constraint de banco (Postgres não tem
+  no mesmo `$transaction`): não por constraint de banco (Postgres não tem
   "unique where true" sem partial index; um partial unique index
   `WHERE active` na migração é bem-vindo como defesa extra, mas a transação é
   a fonte de verdade).
@@ -67,9 +67,9 @@ model WhatsAppProviderConfig {
 ### Criptografia (novo `src/lib/crypto-config.ts`)
 
 - AES-256-GCM via `node:crypto`, chave de env var nova **`CONFIG_ENCRYPTION_KEY`**
-  (32 bytes, base64) — adicionar ao `.env.example`, `.env` local e Vercel.
+  (32 bytes, base64): adicionar ao `.env.example`, `.env` local e Vercel.
 - Formato armazenado: `iv.ciphertext.authTag` (base64url, separados por ponto
-  — mesmo estilo do `report-token.ts`).
+ : mesmo estilo do `report-token.ts`).
 - `encryptConfig(obj): string` / `decryptConfig(str): obj`. Sem a env var →
   erro claro (`SERVER_MISCONFIGURED`), igual padrão dos outros secrets.
 
@@ -77,7 +77,7 @@ model WhatsAppProviderConfig {
 
 Função única `sendWhatsAppMessage(to: string, text: string)`:
 
-1. Lê o `WhatsAppProviderConfig` com `active: true` (client base — exceção
+1. Lê o `WhatsAppProviderConfig` com `active: true` (client base: exceção
    documentada, config de plataforma).
 2. Nenhum ativo → `ActionResult` de erro `NO_PROVIDER_ACTIVE` (não lança).
 3. Descriptografa credenciais e despacha:
@@ -86,55 +86,55 @@ Função única `sendWhatsAppMessage(to: string, text: string)`:
    - **Meta:** `POST https://graph.facebook.com/v21.0/{phone_number_id}/messages`
      com `Authorization: Bearer {access_token}`, body padrão
      `{ messaging_product: "whatsapp", to, type: "text", text: { body: text } }`.
-4. Retorna `ActionResult<{ provider, message_id? }>` — falha da API externa
+4. Retorna `ActionResult<{ provider, message_id? }>`: falha da API externa
    vira `ok: false` com o corpo de erro resumido, nunca exceção não tratada.
 
 ## Endpoints
 
-### `GET/PUT /api/platform/whatsapp-config` — guardPlatform({ requireMasterAdmin: true })
+### `GET/PUT /api/platform/whatsapp-config`: guardPlatform({ requireMasterAdmin: true })
 
-- **GET**: lista as duas configs (existentes). Credenciais **mascaradas** —
+- **GET**: lista as duas configs (existentes). Credenciais **mascaradas**:
   devolve só os últimos 4 caracteres de cada campo sensível
   (`"api_key": "•••• abcd"`) + `active`, `updated_at`. Nunca devolve o valor
   íntegro.
 - **PUT**: body `{ provider, credentials }` (Zod por provider). Upsert do
   registro com credenciais criptografadas. Não mexe em `active`.
 
-### `POST /api/platform/whatsapp-config/[provider]/activate` — master_admin
+### `POST /api/platform/whatsapp-config/[provider]/activate`: master_admin
 
 Transação: desativa todos, ativa o `provider` da URL. 404 se o provider ainda
 não tem config salva. Resposta: estado novo das duas configs (mascarado).
 
-Desativar tudo (nenhum ativo): `POST .../deactivate` **não existe** — YAGNI.
+Desativar tudo (nenhum ativo): `POST .../deactivate` **não existe**: YAGNI.
 Estado inicial (nenhum registro) já significa "nenhum ativo"; depois de ativar
 um, sempre haverá um ativo. Se surgir necessidade real, adiciona-se depois.
 
-### `POST /api/internal/whatsapp/send-message` — requireInternalSecret
+### `POST /api/internal/whatsapp/send-message`: requireInternalSecret
 
 Chamado pelo N8N (substitui o node de envio direto Meta/Evolution no
 workflow). Body: `{ "to": "+55...", "text": "..." }` (Zod). Chama
 `sendWhatsAppMessage`. Erros: `NO_PROVIDER_ACTIVE` → 503;
 falha do provider → 502 com `{ error: { code: "PROVIDER_ERROR", message } }`.
 
-`alert-delivery.ts` (M4) **não muda** neste escopo — continua via
+`alert-delivery.ts` (M4) **não muda** neste escopo: continua via
 `N8N_ALERT_WEBHOOK_URL`. Unificar depois é possível, mas fora do escopo
 (YAGNI; o fluxo de alertas ainda nem está ativo sem N8N).
 
-## UI — `/plataforma/configuracoes/whatsapp`
+## UI: `/plataforma/configuracoes/whatsapp`
 
 Nova página no route group `(painel)`, seguindo o padrão visual dark do M6:
 
 - Card por provider (Evolution / Meta Cloud API): estado (ativo/configurado/
   não configurado), campos mascarados, botão "Editar" (Sheet client-side,
   mesmo padrão dos formulários do M6), botão "Ativar" (com confirmação).
-- Visível/acessível só para `master_admin` — página redireciona `equipe` para
+- Visível/acessível só para `master_admin`: página redireciona `equipe` para
   `/plataforma/tenants` (mesmo padrão da página de KPIs).
 - Item novo na sidebar do `(painel)`, seção configurações.
 
 ## Permissões
 
 Tudo `master_admin` (rotas com `requireMasterAdmin: true`, página com
-redirect) — precedente do M6 (força-status, equipe). `equipe` não vê nem lê.
+redirect): precedente do M6 (força-status, equipe). `equipe` não vê nem lê.
 
 ## Testes (`scripts/m7-whatsapp-config.test.ts`, `npm run test:m7`)
 
@@ -156,7 +156,7 @@ sessão não são invocáveis):
 
 ## Documentação a atualizar
 
-- **CLAUDE.md / AGENTS.md**: seção do agente WhatsApp — registrar o desvio
+- **CLAUDE.md / AGENTS.md**: seção do agente WhatsApp: registrar o desvio
   deliberado ("envio agora é do Tibé via provider configurável; N8N deixa de
   chamar Meta/Evolution direto no envio"), o novo model fora de
   `TENANT_SCOPED_MODELS`, a env var `CONFIG_ENCRYPTION_KEY`.
@@ -169,8 +169,8 @@ sessão não são invocáveis):
 ## Fora do escopo (explícito)
 
 - Deploy da Evolution API / N8N no Railway (infra externa, roteiro separado
-  já discutido — passos 1-2 do plano da conversa).
+  já discutido: passos 1-2 do plano da conversa).
 - Webhook de entrada no Tibé (continua no N8N).
 - Migrar `alert-delivery.ts` para `sendWhatsAppMessage`.
-- Config por tenant (é global de plataforma — 1 número WhatsApp para o
+- Config por tenant (é global de plataforma: 1 número WhatsApp para o
   produto inteiro, modelo atual do PRD).

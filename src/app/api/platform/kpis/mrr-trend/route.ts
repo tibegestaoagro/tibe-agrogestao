@@ -3,7 +3,7 @@ import { guardPlatform } from "@/lib/platform-guard";
 import { calculateMrrTrend } from "@/lib/platform/kpis";
 
 /**
- * GET /api/platform/kpis/mrr-trend?months=6 (spec 6.8 — gráfico de evolução
+ * GET /api/platform/kpis/mrr-trend?months=6 (spec 6.8: gráfico de evolução
  * de MRR). Extensão aditiva: a spec pede o gráfico mas não define um
  * endpoint de série temporal próprio nos "Contratos de API".
  */

@@ -2,13 +2,13 @@ import type { NextAuthConfig } from "next-auth";
 import type { AppUserRole } from "@/types/next-auth";
 
 /**
- * Config edge-safe do NextAuth (sem Prisma/bcrypt) — usada pelo middleware de
+ * Config edge-safe do NextAuth (sem Prisma/bcrypt): usada pelo middleware de
  * proteção de rotas (Edge runtime). A lógica de credenciais (DB + bcrypt) vive em
  * lib/auth.ts, que roda em Node runtime.
  */
 
 // Rotas públicas (não exigem sessão de TENANT). "/plataforma" tem sua própria
-// proteção (sessão de PlatformUser), aplicada manualmente em middleware.ts —
+// proteção (sessão de PlatformUser), aplicada manualmente em middleware.ts:
 // aqui só precisa ficar de fora da checagem de sessão de tenant.
 const PUBLIC_PATHS = ["/", "/login", "/criar-conta", "/faq", "/sitemap.xml", "/robots.txt"];
 const PUBLIC_PREFIXES = ["/planos", "/politicas", "/docs", "/plataforma"];
@@ -22,7 +22,7 @@ export const authConfig = {
     authorized({ auth, request }) {
       const { pathname } = request.nextUrl;
       // Rotas de API fazem a própria autenticação no handler (sessão em /api/v1,
-      // secret em /api/webhooks, NextAuth em /api/auth). Não redirecionar aqui —
+      // secret em /api/webhooks, NextAuth em /api/auth). Não redirecionar aqui:
       // assim retornam o contrato de erro correto (401 JSON) em vez de 307.
       if (pathname.startsWith("/api")) return true;
       const isPublic =

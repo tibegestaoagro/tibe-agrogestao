@@ -22,16 +22,16 @@ import { getBillingAccess } from "@/lib/billing-access";
  *   const { db, user } = g;
  *
  * `skipBillingCheck: true` é só para as próprias rotas de billing
- * (`/api/v1/billing/*`) — precisam continuar acessíveis mesmo com a conta
+ * (`/api/v1/billing/*`): precisam continuar acessíveis mesmo com a conta
  * bloqueada, para o tenant conseguir regularizar.
  *
  * `must_change_password` (spec 2026-07-24, criação manual de tenant pelo
- * painel) bloqueia TODA ação aqui, sem exceção — diferente do billing, não
+ * painel) bloqueia TODA ação aqui, sem exceção: diferente do billing, não
  * existe rota que precise ficar acessível nesse estado, porque
  * `POST /api/v1/auth/change-password` nunca passa por `guard()` (usa só
  * `getSessionUser()`, de propósito, pra funcionar mesmo com a conta em
  * read_only/blocked). Sem essa checagem aqui, o gate de página
- * (`/trocar-senha`) era só de UI — uma chamada direta à API com a sessão da
+ * (`/trocar-senha`) era só de UI: uma chamada direta à API com a sessão da
  * senha temporária ainda funcionava.
  */
 export async function guard(

@@ -24,7 +24,7 @@ const PAYMENT_STATUS_LABEL: Record<string, string> = {
 /**
  * Configurações → Assinatura / Billing (spec 5.9). Acesso exclusivo do Owner.
  * Única página do dashboard que continua acessível mesmo com a conta
- * bloqueada — é por aqui que o tenant regulariza.
+ * bloqueada: é por aqui que o tenant regulariza.
  */
 export default async function AssinaturaPage() {
   const user = await getSessionUser();
@@ -93,7 +93,7 @@ export default async function AssinaturaPage() {
           <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
             {access === "blocked"
               ? "Acesso bloqueado por pendência de pagamento. Regularize abaixo."
-              : "Pagamento em atraso — regularize para recuperar acesso total de escrita."}
+              : "Pagamento em atraso: regularize para recuperar acesso total de escrita."}
           </p>
         )}
       </div>

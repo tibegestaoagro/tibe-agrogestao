@@ -25,7 +25,7 @@ function assert(cond: boolean, msg: string) {
 }
 
 async function main() {
-  console.log("🔒 M7 — Provider WhatsApp configurável\n");
+  console.log("🔒 M7: Provider WhatsApp configurável\n");
 
   // ── crypto-config ────────────────────────────────────────────
   const original = { base_url: "https://evo.example.com", api_key: "chave-secreta-123", instance: "tibe" };

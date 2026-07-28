@@ -1,4 +1,4 @@
-# Deploy — Tibé (Módulo 0, task 0.8)
+# Deploy: Tibé (Módulo 0, task 0.8)
 
 Passo a passo para colocar o Tibé no ar com **GitHub + Vercel + Neon**. As partes
 que exigem login nas plataformas ficam por sua conta (Dilton); o código já está
@@ -30,7 +30,7 @@ git push -u origin main
 1. No painel da Neon, no projeto `tibe-agrogestao` / banco `neondb`, copie a
    **connection string** (pooled).
 2. Habilite **Branching** (preview por PR) e instale a integração **Neon ↔ Vercel**
-   na conta — ela gera uma branch de banco isolada por Pull Request.
+   na conta: ela gera uma branch de banco isolada por Pull Request.
 3. Aplique as migrações no banco de produção:
    ```bash
    DATABASE_URL="<connection string da Neon>" npm run db:deploy
@@ -38,7 +38,7 @@ git push -u origin main
    ```
 
 > O runtime usa o driver adapter `@prisma/adapter-pg`, que funciona com Neon via
-> TCP/pooler — nenhuma configuração extra além de `DATABASE_URL`.
+> TCP/pooler: nenhuma configuração extra além de `DATABASE_URL`.
 
 ---
 
@@ -48,9 +48,9 @@ git push -u origin main
    detectado: Next.js. Não precisa mudar build/output.
 2. Em **Settings → Environment Variables**, configure as variáveis (use os nomes
    de [`.env.example`](../.env.example)). Mínimo para subir:
-   - `DATABASE_URL` — connection string da Neon
-   - `NEXTAUTH_SECRET` — gere com `openssl rand -base64 32`
-   - `NEXTAUTH_URL` — URL pública (ex: `https://<projeto>.vercel.app`)
+   - `DATABASE_URL`: connection string da Neon
+   - `NEXTAUTH_SECRET`: gere com `openssl rand -base64 32`
+   - `NEXTAUTH_URL`: URL pública (ex: `https://<projeto>.vercel.app`)
    - As demais (`META_*`, `ASAAS_*`, `REDIS_URL`, `CLOUDFLARE_R2_*`,
      `N8N_WEBHOOK_SECRET`, `INTERNAL_API_SECRET`) entram nos módulos seguintes.
 3. O script `postinstall` roda `prisma generate` automaticamente no build da Vercel.
@@ -60,7 +60,7 @@ git push -u origin main
 ### Migrações no deploy
 
 `prisma generate` roda no build. As **migrações** (`migrate deploy`) devem rodar
-contra o banco — rode manualmente (passo 2.3) ou adicione ao build command da
+contra o banco: rode manualmente (passo 2.3) ou adicione ao build command da
 Vercel: `prisma migrate deploy && next build`.
 
 ---

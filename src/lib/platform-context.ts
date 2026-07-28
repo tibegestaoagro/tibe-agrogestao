@@ -2,7 +2,7 @@ import { platformAuth } from "@/lib/platform-auth";
 import type { PlatformSessionRole } from "@/types/next-auth";
 
 /**
- * Resolução da sessão de PlatformUser (Módulo 6) — nunca carrega tenant_id,
+ * Resolução da sessão de PlatformUser (Módulo 6): nunca carrega tenant_id,
  * nunca passa pelo client Prisma escopado. Espelha tenant-context.ts, mas
  * para o lado da plataforma.
  */

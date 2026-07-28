@@ -48,7 +48,7 @@ async function callExecute(input: {
 }
 
 async function main() {
-  console.log("🔒 Módulo 3 — Agente WhatsApp\n");
+  console.log("🔒 Módulo 3: Agente WhatsApp\n");
 
   const tenantA = await prisma.tenant.create({
     data: { name: "M3 Tenant A", document: "M3A000000001", plan: "grupo" },

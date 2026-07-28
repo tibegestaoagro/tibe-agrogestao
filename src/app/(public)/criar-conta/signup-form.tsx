@@ -79,7 +79,7 @@ export default function SignupForm() {
       return;
     }
 
-    // Conta criada — login automático com as mesmas credenciais.
+    // Conta criada: login automático com as mesmas credenciais.
     const signInRes = await signIn("credentials", { email, password, redirect: false });
     setLoading(false);
 

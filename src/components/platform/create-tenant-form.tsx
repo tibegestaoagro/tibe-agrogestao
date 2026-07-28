@@ -7,9 +7,9 @@ import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from "@/co
 
 /**
  * Criação manual de tenant pelo painel (spec 2026-07-24, revisado
- * 2026-07-27) — só master_admin. Sem campo de plano: o cliente escolhe o
+ * 2026-07-27): só master_admin. Sem campo de plano: o cliente escolhe o
  * plano ele mesmo no primeiro login, depois de trocar a senha temporária
- * (ver /escolher-plano) — Tenant nasce com plan_confirmed=false.
+ * (ver /escolher-plano): Tenant nasce com plan_confirmed=false.
  */
 export default function CreateTenantForm() {
   const router = useRouter();
@@ -79,7 +79,7 @@ export default function CreateTenantForm() {
         {tempPassword ? (
           <div className="space-y-3">
             <p className="rounded-md bg-emerald-500/10 p-3 text-sm text-emerald-300">
-              Tenant criado. Repasse estas credenciais manualmente — a senha só aparece aqui uma vez.
+              Tenant criado. Repasse estas credenciais manualmente: a senha só aparece aqui uma vez.
               No primeiro login, o usuário será obrigado a trocar a senha e, em seguida, escolher o plano.
             </p>
             <p className="text-sm text-gray-300">

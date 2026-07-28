@@ -7,7 +7,7 @@ import { signIn } from "next-auth/react";
 /**
  * Login exclusivo de PlatformUser (Módulo 6, task 6.2). Mesma UI do login de
  * tenant, mas o signIn() aqui é resolvido pelo PlatformSessionProvider
- * (basePath /api/platform-auth) — nunca toca a sessão de tenant.
+ * (basePath /api/platform-auth): nunca toca a sessão de tenant.
  */
 export default function PlatformLoginPage() {
   const router = useRouter();
@@ -39,7 +39,7 @@ export default function PlatformLoginPage() {
       <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow-sm">
         <div className="mb-6 text-center">
           <h1 className="text-2xl font-bold text-gray-900">Tibé Plataforma</h1>
-          <p className="mt-1 text-sm text-gray-500">Acesso restrito — equipe Pleno Digital</p>
+          <p className="mt-1 text-sm text-gray-500">Acesso restrito: equipe Pleno Digital</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

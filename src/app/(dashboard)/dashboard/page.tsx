@@ -28,7 +28,7 @@ const brl = (n: number) =>
 
 /**
  * Dashboard consolidado (spec 5.1). URL mantida em /dashboard (não
- * app/(dashboard)/page.tsx literal — colidiria com a home pública em "/").
+ * app/(dashboard)/page.tsx literal: colidiria com a home pública em "/").
  */
 export default async function DashboardHome() {
   const user = await getSessionUser();

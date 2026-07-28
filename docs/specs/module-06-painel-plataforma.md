@@ -3,7 +3,7 @@
 **Depende de:** Módulos 0 e 5 concluídos
 **Acesso:** exclusivo `PlatformUser` (equipe Pleno Digital), nunca acessível por `User` de tenant
 **Agente responsável:** agente de analytics e billing
-**Fase do contrato:** fora das 4 fases contratadas com a Agromax — desenvolvimento interno da Pleno Digital, sem cobrança ao cliente
+**Fase do contrato:** fora das 4 fases contratadas com a Agromax: desenvolvimento interno da Pleno Digital, sem cobrança ao cliente
 
 ---
 

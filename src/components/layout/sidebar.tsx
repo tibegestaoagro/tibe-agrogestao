@@ -7,14 +7,14 @@ export type NavLink = { href: string; label: string; show: boolean };
 
 /**
  * Navegação lateral. Recebe os links JÁ filtrados (perfil ativo + permissão
- * de role) calculados no server component (layout.tsx) — importar
+ * de role) calculados no server component (layout.tsx): importar
  * `@/lib/permissions` aqui quebraria o bundle do client, porque esse módulo
  * arrasta `getSessionUser` (`tenant-context.ts` → `auth.ts` → `rate-limit.ts`
  * → `ioredis`, que usa módulos Node como `dns` inexistentes no browser).
  *
  * Em telas pequenas vira um drawer (off-canvas): escondido por padrão,
  * controlado por `mobileOpen`/`onClose` (estado vive no DashboardShell, que
- * também tem o botão de abrir no header) — o painel é usado majoritariamente
+ * também tem o botão de abrir no header): o painel é usado majoritariamente
  * pelo celular (fluxo nasce no WhatsApp), então isso não é opcional.
  */
 export default function Sidebar({

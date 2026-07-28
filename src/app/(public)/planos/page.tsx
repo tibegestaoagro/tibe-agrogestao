@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 /**
  * Preços e nomes seguem PLAN_PRICES (spec 5.5, "conforme proposta comercial")
- * — mesma fonte usada para criar a assinatura real no Asaas, para nunca
+ *: mesma fonte usada para criar a assinatura real no Asaas, para nunca
  * divergir do que o cliente efetivamente paga.
  */
 const PLANS = [

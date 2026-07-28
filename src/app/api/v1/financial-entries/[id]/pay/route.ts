@@ -4,7 +4,7 @@ import { guard, readJson } from "@/lib/api-guard";
 import { serializeFinancialEntry } from "@/lib/serializers";
 import { markEntryPaidAction } from "@/lib/actions/financial-entries";
 
-/** PATCH /api/v1/financial-entries/:id/pay — marca como pago (spec 4.2). */
+/** PATCH /api/v1/financial-entries/:id/pay: marca como pago (spec 4.2). */
 
 const schema = z.object({ paid_at: z.string().datetime().nullish() });
 

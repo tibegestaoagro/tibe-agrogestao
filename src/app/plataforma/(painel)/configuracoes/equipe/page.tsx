@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import InviteTeamForm from "@/components/platform/invite-team-form";
 import TeamRowActions from "@/components/platform/team-row-actions";
 
-/** Gestão de equipe da plataforma (spec 6.10) — só master_admin. */
+/** Gestão de equipe da plataforma (spec 6.10): só master_admin. */
 export default async function PlatformTeamPage() {
   const platformUser = await getPlatformSessionUser();
   if (!platformUser) redirect("/plataforma/login");

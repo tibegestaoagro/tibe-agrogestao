@@ -12,7 +12,7 @@ import { formatBrazilPhone } from "@/lib/phone";
 const PLAN_LABEL: Record<string, string> = { campo: "Campo", fazenda: "Fazenda", grupo: "Grupo" };
 const PROFILE_LABEL: Record<string, string> = { fazenda: "Fazenda", prestador: "Prestador de Serviço" };
 
-/** Detalhe do tenant (spec 6.3/6.9) — histórico de assinatura e resumo de uso. */
+/** Detalhe do tenant (spec 6.3/6.9): histórico de assinatura e resumo de uso. */
 export default async function PlatformTenantDetailPage({ params }: { params: { id: string } }) {
   const platformUser = await getPlatformSessionUser();
   if (!platformUser) redirect("/plataforma/login");
@@ -150,7 +150,7 @@ export default async function PlatformTenantDetailPage({ params }: { params: { i
                   <span className="text-xs text-gray-500">
                     {log.changed_by_platform_user_id ? "manual" : "automático (webhook)"}
                   </span>
-                  {log.reason && <span className="text-xs text-gray-400">— {log.reason}</span>}
+                  {log.reason && <span className="text-xs text-gray-400">({log.reason})</span>}
                 </div>
               ))}
             </div>

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getPlatformSessionUser, isMasterAdmin } from "@/lib/platform-context";
 
 /**
- * Hub de configurações da plataforma (spec 2026-07-24) — só master_admin.
+ * Hub de configurações da plataforma (spec 2026-07-24): só master_admin.
  * Agrupa Equipe e Integrações (antes itens soltos na sidebar).
  */
 export default async function PlatformConfiguracoesPage() {

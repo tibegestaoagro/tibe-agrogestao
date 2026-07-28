@@ -70,7 +70,7 @@ export default function InviteForm({ canInviteOwner }: { canInviteOwner: boolean
         {tempPassword ? (
           <div className="space-y-3">
             <p className="rounded-md bg-tibe-light p-3 text-sm text-tibe-dark">
-              Usuário criado. Repasse estas credenciais manualmente — a senha
+              Usuário criado. Repasse estas credenciais manualmente: a senha
               só aparece aqui uma vez.
             </p>
             <div>

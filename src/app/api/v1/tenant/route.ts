@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { toBrazilPhoneDigits } from "@/lib/phone";
 
 /**
- * PATCH /api/v1/tenant (spec 5.3) — edita dados cadastrais do tenant
+ * PATCH /api/v1/tenant (spec 5.3): edita dados cadastrais do tenant
  * (nome, documento, telefone, email). Restrito a Owner/Admin (módulo
  * "usuarios" cobre config. de conta em geral, reusa a mesma permissão).
  */

@@ -6,7 +6,7 @@ import { getBalanceAction } from "@/lib/actions/financial-summary";
 /**
  * Geração de alertas (spec 4.9/4.10). Idempotência por
  * (alert_type, related_module, related_id): se já existe um Alert para o
- * mesmo evento, não cria outro — é o que garante "não duplicar em execuções
+ * mesmo evento, não cria outro: é o que garante "não duplicar em execuções
  * consecutivas". Para `low_balance`, que não tem uma entidade natural para
  * amarrar, usamos a semana ISO corrente como `related_id` sintético: assim o
  * mesmo mecanismo de idempotência também garante "no máximo um por semana",
@@ -125,7 +125,7 @@ export async function generateAlertsForTenant(tenantId: string): Promise<{ creat
     if (didCreate) created++;
   }
 
-  // 4. Saldo do mês corrente negativo — no máximo 1 alerta por semana (via related_id = semana ISO).
+  // 4. Saldo do mês corrente negativo: no máximo 1 alerta por semana (via related_id = semana ISO).
   const balance = await getBalanceAction(db, null);
   if (balance.ok && balance.data.balance < 0) {
     const didCreate = await ensureAlert(db, {
@@ -150,7 +150,7 @@ export async function generateAlertsForTenant(tenantId: string): Promise<{ creat
         const didCreate = await ensureAlert(db, {
           alert_type: "trial_ending",
           related_module: "geral",
-          related_id: tenantId, // um trial só termina uma vez — idempotente por natureza
+          related_id: tenantId, // um trial só termina uma vez: idempotente por natureza
           message: `⏳ Seu período de teste do Tibé termina em ${daysLeft} dia(s). Assine um plano em Configurações → Assinatura para não perder o acesso.`,
         });
         if (didCreate) created++;
@@ -164,7 +164,7 @@ export async function generateAlertsForTenant(tenantId: string): Promise<{ creat
 /**
  * Gera alertas para TODOS os tenants ativos (trial|active). Único ponto do
  * sistema, fora do agente WhatsApp, que legitimamente usa o client Prisma
- * base para listar tenants antes de escopar por tenant — ver CLAUDE.md.
+ * base para listar tenants antes de escopar por tenant: ver CLAUDE.md.
  */
 export async function generateAllAlerts(): Promise<{ tenants: number; alertsCreated: number }> {
   const tenants = await prisma.tenant.findMany({

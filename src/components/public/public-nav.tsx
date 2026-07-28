@@ -5,7 +5,7 @@ import UtmCapture from "@/components/public/utm-capture";
 export default function PublicNav() {
   return (
     <header className="border-b border-gray-100">
-      {/* Captura UTM de qualquer entrada pelo site (Módulo 6) — sem UI própria. */}
+      {/* Captura UTM de qualquer entrada pelo site (Módulo 6): sem UI própria. */}
       <Suspense fallback={null}>
         <UtmCapture />
       </Suspense>

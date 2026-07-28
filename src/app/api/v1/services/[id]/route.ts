@@ -5,7 +5,7 @@ import { serializeService } from "@/lib/serializers";
 
 /**
  * PATCH /api/v1/services/:id   edita serviço (nome, tipo, valor).
- * Não afeta total_value de ordens já registradas — esse valor é gravado na criação.
+ * Não afeta total_value de ordens já registradas: esse valor é gravado na criação.
  */
 
 const updateSchema = z.object({

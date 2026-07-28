@@ -12,7 +12,7 @@ Finalizar o painel web com dashboard consolidado, implementar a cobrança recorr
 
 ---
 
-## Tasks — Painel Web
+## Tasks: Painel Web
 
 ### 5.1 Dashboard consolidado
 
@@ -40,7 +40,7 @@ Finalizar o painel web com dashboard consolidado, implementar a cobrança recorr
 
 ---
 
-## Tasks — Cobrança (Asaas)
+## Tasks: Cobrança (Asaas)
 
 ### 5.4 Cliente Asaas
 
@@ -85,7 +85,7 @@ Finalizar o painel web com dashboard consolidado, implementar a cobrança recorr
 
 ---
 
-## Tasks — Página Comercial (Site)
+## Tasks: Página Comercial (Site)
 
 ### 5.10 Estrutura do site público
 
@@ -109,7 +109,7 @@ Finalizar o painel web com dashboard consolidado, implementar a cobrança recorr
 
 ---
 
-## Tasks — Documentação Técnica
+## Tasks: Documentação Técnica
 
 ### 5.13 Documentação para desenvolvedores
 

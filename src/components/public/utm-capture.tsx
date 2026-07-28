@@ -6,7 +6,7 @@ import { writeUtmCookieIfAbsent } from "@/lib/utm";
 
 /**
  * Captura UTM da URL em qualquer página pública (renderizado dentro de
- * PublicNav, presente em todas elas) e grava em cookie first-touch — não
+ * PublicNav, presente em todas elas) e grava em cookie first-touch: não
  * renderiza nada visível.
  */
 export default function UtmCapture() {

@@ -1,4 +1,4 @@
-# Tibé (AgroGestão) — contexto para Claude Code
+# Tibé (AgroGestão): contexto para Claude Code
 
 SaaS multi-tenant de gestão agropecuária (rebanho, lavoura, prestação de serviço,
 financeiro) com agente de IA no WhatsApp como canal primário. Cliente/financiador
@@ -6,7 +6,7 @@ do MVP: Da Mata Sementes LTDA. Desenvolvido pela Pleno Digital.
 
 **Leia primeiro:** [docs/tibe-prd.md](docs/tibe-prd.md) (PRD completo, v1.1) e a
 spec do módulo em que for trabalhar em `docs/specs/module-XX-*.md`. Este arquivo
-é um resumo operacional — o PRD é a fonte de verdade para modelo de dados,
+é um resumo operacional: o PRD é a fonte de verdade para modelo de dados,
 contratos e regras de produto.
 
 Veja também [AGENTS.md](AGENTS.md) (mesma base técnica, redigida de forma
@@ -21,15 +21,15 @@ fase do contrato. O usuário (Dilton) segue este protocolo com qualquer agente:
 
 1. **Antes de codificar um módulo**, leia a spec inteira e devolva um resumo
    curto confirmando o objetivo + **toda ambiguidade ou inconsistência
-   encontrada**. Nunca assuma em silêncio — pergunte. Use `AskUserQuestion`
+   encontrada**. Nunca assuma em silêncio: pergunte. Use `AskUserQuestion`
    para decisões de produto/arquitetura que a spec não resolve.
 2. **Implemente task por task**, na ordem da spec.
 3. **Siga os contratos de API literalmente** (nomes de campo, tipos, formato de
    sucesso/erro). Extensões aditivas ao contrato (campos novos que não quebram
-   o que já existe) são aceitáveis se documentadas — mas produto/arquitetura
+   o que já existe) são aceitáveis se documentadas: mas produto/arquitetura
    novos exigem pergunta antes.
 4. **Todo modelo com `tenant_id`** passa pelo client Prisma escopado
-   (`getTenantDb()` / `prismaForTenant()`), nunca filtro manual — ver seção de
+   (`getTenantDb()` / `prismaForTenant()`), nunca filtro manual: ver seção de
    isolamento abaixo.
 5. **Ao final de cada módulo**, rode os critérios de aceitação da spec (com
    testes automatizados sempre que possível) e reporte o que passou/faltou
@@ -45,10 +45,10 @@ fase do contrato. O usuário (Dilton) segue este protocolo com qualquer agente:
 | 0 | Setup, schema multi-tenant, auth, isolamento | ✅ em produção |
 | 1 | Rebanho e Lavoura | ✅ em produção |
 | 2 | Prestador de Serviço | ✅ em produção |
-| 3 | Agente WhatsApp | ✅ código do Tibé pronto — **N8N/Meta/Salvy ainda não provisionados** (guia: [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md)) |
-| 4 | Financeiro e Alertas | ✅ completo — Redis/BullMQ real; PDF via link assinado (sem R2); envio WhatsApp aguarda N8N (mesmo gap do M3) |
-| 5 | Painel Web, Cobrança (Asaas) e Site | ✅ completo — Asaas real (código pronto, sem chave de sandbox testada ainda); dashboard consolidado, usuários, cobrança/bloqueio por inadimplência, site público (`/`, `/planos`, `/faq`, `/politicas/*`), documentação técnica em `/docs`, README/CONTRIBUTING |
-| 6 | Painel da Plataforma (`PlatformUser`, interno Pleno) | ✅ completo — auth separada (`/plataforma`), MRR/churn/LTV/funil, gestão de tenants e equipe |
+| 3 | Agente WhatsApp | ✅ código do Tibé pronto: **N8N/Meta/Salvy ainda não provisionados** (guia: [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md)) |
+| 4 | Financeiro e Alertas | ✅ completo: Redis/BullMQ real; PDF via link assinado (sem R2); envio WhatsApp aguarda N8N (mesmo gap do M3) |
+| 5 | Painel Web, Cobrança (Asaas) e Site | ✅ completo: Asaas real (código pronto, sem chave de sandbox testada ainda); dashboard consolidado, usuários, cobrança/bloqueio por inadimplência, site público (`/`, `/planos`, `/faq`, `/politicas/*`), documentação técnica em `/docs`, README/CONTRIBUTING |
+| 6 | Painel da Plataforma (`PlatformUser`, interno Pleno) | ✅ completo: auth separada (`/plataforma`), MRR/churn/LTV/funil, gestão de tenants e equipe |
 
 Specs: `docs/specs/module-00-setup.md` … `module-06-painel-plataforma.md`.
 
@@ -57,22 +57,22 @@ Specs: `docs/specs/module-00-setup.md` … `module-06-painel-plataforma.md`.
 ## Stack
 
 Next.js 14 (App Router) · TypeScript · Tailwind · Prisma 7 · PostgreSQL 17
-(Neon) · NextAuth v5 beta (**duas instâncias** — tenant e plataforma, M6) ·
+(Neon) · NextAuth v5 beta (**duas instâncias**: tenant e plataforma, M6) ·
 Zod · Recharts · UI kit shadcn-style feito à mão (ver seção UI) · Redis Cloud
 + BullMQ (M4) · Asaas (M5, cobrança recorrente). N8N e Cloudflare R2
 continuam no PRD mas fora do código: N8N é infra externa (orquestra o agente
 WhatsApp, não roda dentro do Tibé) ainda não provisionada; R2 nunca chegou a
-ser necessário (PDFs são gerados sob demanda, sem storage — ver Módulo 4).
+ser necessário (PDFs são gerados sob demanda, sem storage: ver Módulo 4).
 Todos os 7 módulos do PRD (0-6) têm código completo agora.
 
 ## Deploy e infra
 
 - **App:** https://tibe-agrogestao.vercel.app (Vercel, deploy automático em
   push na `main`).
-- **Repo:** `https://github.com/tibegestaoagro/tibe-agrogestao.git` — conta
+- **Repo:** `https://github.com/tibegestaoagro/tibe-agrogestao.git`: conta
   dona é `tibegestaoagro`; `dilton-pleno` é colaborador com Write.
 - **Banco de produção:** Neon (`tibe-agrogestao` / `neondb`). O `.env` local
-  do projeto **aponta para o Neon por padrão** — veja o aviso de dev abaixo.
+  do projeto **aponta para o Neon por padrão**: veja o aviso de dev abaixo.
 - **Banco de dev local:** Postgres 17 via Docker, container `tibe-pg`, porta
   `55432` (`docker start tibe-pg` se não estiver rodando).
 
@@ -91,7 +91,7 @@ $env:DATABASE_URL="postgresql://tibe:tibe@localhost:55432/tibe_dev?schema=public
 ```
 
 Só use o `.env` (Neon) quando a intenção for **de fato** migrar/seedar
-produção — e confirme com o usuário antes, é uma ação de alto impacto.
+produção: e confirme com o usuário antes, é uma ação de alto impacto.
 
 ### Migrações no Prisma 7 (não use `prisma migrate dev` direto)
 
@@ -110,20 +110,20 @@ npm run db:deploy   # = prisma migrate deploy
 ```
 
 Aplique sempre primeiro no Docker local, rode os testes, e só depois
-replique no Neon (com a URL **Direct**, sem `-pooler`, para migrar — a
+replique no Neon (com a URL **Direct**, sem `-pooler`, para migrar: a
 **Pooled**, com `-pooler`, é a usada em runtime/`DATABASE_URL` da Vercel).
 
 ⚠️ O índice parcial `WhatsAppProviderConfig_one_active` (`WHERE "active"`,
-M7) não é representável no `schema.prisma` — todo `migrate diff` futuro vai
+M7) não é representável no `schema.prisma`: todo `migrate diff` futuro vai
 sugerir um `DROP INDEX` dele como "drift". **Não aplique esse drop**; remova
 a linha do SQL gerado antes de salvar a migração.
 
 ### Redis (BullMQ) já está provisionado (Redis Cloud)
 
 Diferente do Postgres, o `REDIS_URL` no `.env` local aponta para a **mesma**
-instância Redis Cloud usada em produção — não há um Redis local separado.
+instância Redis Cloud usada em produção: não há um Redis local separado.
 Isso é aceitável porque o uso é só fila/lock de job (dado efêmero, sem risco
-de negócio). BullMQ empacota sua própria cópia de `ioredis` internamente —
+de negócio). BullMQ empacota sua própria cópia de `ioredis` internamente:
 **nunca** passe a instância de `getRedisConnection()` (`src/lib/redis.ts`)
 direto para `new Queue()`/`new Worker()`, dá erro de tipo (duas classes
 `Redis` estruturalmente iguais, nominalmente diferentes). Use
@@ -134,14 +134,14 @@ do BullMQ.
 
 Páginas protegidas (`/dashboard`, `/financeiro`, etc.) redirecionam para
 `/login` mesmo com um cookie de sessão válido quando testadas via `next
-start` local + cookie jar (ex: PowerShell `WebRequestSession`) — o Edge
+start` local + cookie jar (ex: PowerShell `WebRequestSession`): o Edge
 Middleware não reconhece a sessão nesse setup específico, mesmo com
 `AUTH_TRUST_HOST=true`. **Rotas `/api/v1/*` (Node runtime) funcionam
-normalmente** com a mesma sessão — só o Middleware (Edge) tem esse problema
+normalmente** com a mesma sessão: só o Middleware (Edge) tem esse problema
 localmente. Confirmado que não é regressão de nenhum módulo (páginas antigas
 como `/dashboard` têm o mesmo comportamento). A produção (Vercel) nunca
 apresentou esse problema em testes reais de navegador. Não vale a pena
-investigar mais fundo — para validar fluxo de página autenticada, use o
+investigar mais fundo: para validar fluxo de página autenticada, use o
 navegador real (local `next dev` ou a URL da Vercel), não `next start` +
 cookie jar.
 
@@ -149,7 +149,7 @@ cookie jar.
 
 ## Isolamento multi-tenant (a regra mais importante do projeto)
 
-`tenant_id` **nunca** vem do client — é sempre resolvido da sessão NextAuth no
+`tenant_id` **nunca** vem do client: é sempre resolvido da sessão NextAuth no
 servidor. Toda query de negócio usa o client Prisma **escopado**:
 
 ```ts
@@ -161,50 +161,50 @@ await db.animal.findMany();                      // tenant_id injetado automatic
 await db.animal.create({ data: scoped({ ear_tag: "001", property_id }) });
 ```
 
-Implementação: `src/lib/prisma.ts` — uma **Prisma Client Extension**
+Implementação: `src/lib/prisma.ts`: uma **Prisma Client Extension**
 (`buildTenantClient`) injeta `tenant_id` em toda operação dos modelos listados
 em `TENANT_SCOPED_MODELS`. `prismaForTenant(tenantId)` devolve o client
 escopado (cacheado por tenant); `getTenantDb()` (em `tenant-context.ts`) resolve
 o tenant da sessão e chama `prismaForTenant`.
 
 - `scoped(data)` é um helper de tipos: satisfaz o `tenant_id` exigido pelo
-  Prisma Client no `create` **sem** você passar o valor manualmente — a
+  Prisma Client no `create` **sem** você passar o valor manualmente: a
   extension injeta o valor real em runtime. **Nunca** passe `tenant_id` de
-  verdade num `scoped(...)` — isso violaria o próprio propósito do helper.
+  verdade num `scoped(...)`: isso violaria o próprio propósito do helper.
 - **Todos** os modelos de negócio (inclusive os que antes eram "filhos" sem
-  `tenant_id` no PRD original — `AnimalWeightLog`, `AnimalVaccination`,
+  `tenant_id` no PRD original: `AnimalWeightLog`, `AnimalVaccination`,
   `AnimalMovement`, `CropCycle`, `PlotInput`) **têm** `tenant_id` e estão em
   `TENANT_SCOPED_MODELS`. Isso foi uma decisão deliberada de defense-in-depth
-  (desvio do PRD, aprovado pelo usuário) — não remova.
+  (desvio do PRD, aprovado pelo usuário): não remova.
 - O client **base** (`prisma`, sem escopo) só deve ser usado em: login
   (`auth.ts`, lookup de email global), `prisma/seed.ts`, scripts internos, o
   lookup cross-tenant de `POST /api/internal/whatsapp/resolve-contact`
   (precisa achar a qual tenant um telefone pertence, antes de saber o tenant),
   o job diário de alertas (`generateAllAlerts`/`deliverAllPendingAlerts` em
-  `src/lib/actions/alerts.ts` e `alert-delivery.ts`) — que precisa **listar
-  todos os tenants ativos** antes de escopar por tenant a cada iteração —, e
+  `src/lib/actions/alerts.ts` e `alert-delivery.ts`): que precisa **listar
+  todos os tenants ativos** antes de escopar por tenant a cada iteração, e
   `POST /api/webhooks/asaas` (M5), que localiza a `Subscription` pelo
   `asaas_subscription_id` porque o Asaas não manda sessão de tenant nenhuma,
-  `getBillingAccess()` (`src/lib/billing-access.ts`) — sempre chamada com um
+  `getBillingAccess()` (`src/lib/billing-access.ts`): sempre chamada com um
   `tenantId` já resolvido da sessão pelo caller (nunca de input do client),
-  e `inviteUserAction` (`src/lib/actions/users.ts`) — checagem de duplicidade
+  e `inviteUserAction` (`src/lib/actions/users.ts`): checagem de duplicidade
   de `User.email`, que é **globalmente único** (não dá pra checar isso com o
   client escopado; só devolve 409 genérico, não vaza dado de outro tenant),
-  `WhatsAppProviderConfig` (spec 2026-07-11) — config GLOBAL de plataforma
+  `WhatsAppProviderConfig` (spec 2026-07-11): config GLOBAL de plataforma
   (rotas master_admin + `sendWhatsAppMessage`), mesma categoria estrutural de
   `PlatformUser`, fora de `TENANT_SCOPED_MODELS`,
   e `createTenantManuallyAction` (`src/lib/actions/platform-tenants.ts`,
-  spec 2026-07-24) — usa `prisma.tenant.findUnique/create` e
+  spec 2026-07-24): usa `prisma.tenant.findUnique/create` e
   `prisma.user.findUnique` para checar duplicidade de documento/email antes
   do tenant existir, mesma necessidade estrutural do `/api/v1/signup`.
-  Qualquer uso novo do client base fora desses casos é suspeito — pare e
+  Qualquer uso novo do client base fora desses casos é suspeito: pare e
   pergunte.
 - `PlatformUser` e `SubscriptionStatusLog` (Módulo 6) são a **outra** exceção
   estrutural: nenhum dos dois está em `TENANT_SCOPED_MODELS` (não fazem
-  sentido escopados por tenant — `PlatformUser` não pertence a tenant algum,
+  sentido escopados por tenant: `PlatformUser` não pertence a tenant algum,
   `SubscriptionStatusLog` só é lido por rotas de plataforma via
   `tenant_id` explícito quando precisa filtrar por tenant). `PlatformUser`
-  nunca deve ser alcançável a partir de uma sessão de tenant — e o inverso
+  nunca deve ser alcançável a partir de uma sessão de tenant: e o inverso
   também: ver seção "Painel da Plataforma" abaixo para como isso é garantido
   (duas instâncias NextAuth com cookies diferentes, não uma checagem de role).
 
@@ -215,13 +215,13 @@ módulo como concluído:
 
 ```powershell
 $env:DATABASE_URL="postgresql://tibe:tibe@localhost:55432/tibe_dev?schema=public"
-npm run test:isolation   # M0 — isolamento genérico
-npm run test:m1          # M1 — Rebanho/Lavoura + isolamento dos "filhos"
-npm run test:m2          # M2 — Prestador + total_value persistido
-npm run test:m3          # M3 — WhatsApp: permissão por role/perfil, confirmação, isolamento
-npm run test:m4          # M4 — Financeiro/Alertas + idempotência + cron
-npm run test:m5          # M5 — billing-access, webhook Asaas, usuários, trial_ending
-npm run test:m6          # M6 — MRR/churn/LTV/funil, isolamento PlatformUser, força de status
+npm run test:isolation   # M0: isolamento genérico
+npm run test:m1          # M1: Rebanho/Lavoura + isolamento dos "filhos"
+npm run test:m2          # M2: Prestador + total_value persistido
+npm run test:m3          # M3: WhatsApp: permissão por role/perfil, confirmação, isolamento
+npm run test:m4          # M4: Financeiro/Alertas + idempotência + cron
+npm run test:m5          # M5: billing-access, webhook Asaas, usuários, trial_ending
+npm run test:m6          # M6: MRR/churn/LTV/funil, isolamento PlatformUser, força de status
 ```
 
 ---
@@ -230,7 +230,7 @@ npm run test:m6          # M6 — MRR/churn/LTV/funil, isolamento PlatformUser, 
 
 - Sucesso: `{ data, meta }`. Erro: `{ error: { code, message } }`. Helpers em
   `src/lib/api.ts` (`apiOk`, `apiError`, `ApiErrors`).
-- Rotas de negócio (`/api/v1/*`) autenticam por **sessão** — use o guard
+- Rotas de negócio (`/api/v1/*`) autenticam por **sessão**: use o guard
   padrão:
 
   ```ts
@@ -247,11 +247,11 @@ npm run test:m6          # M6 — MRR/churn/LTV/funil, isolamento PlatformUser, 
 
 - Rotas internas (`/api/internal/*`, chamadas pelo N8N) autenticam por
   **secret no header** (`x-internal-secret` contra `INTERNAL_API_SECRET`), não
-  por sessão — `src/lib/internal-guard.ts` (`requireInternalSecret`). Dentro
+  por sessão: `src/lib/internal-guard.ts` (`requireInternalSecret`). Dentro
   delas, a *role* do usuário é sempre **relida do banco** a partir de
   `user_id`+`tenant_id`; nunca confie em role vinda do caller.
 - Rotas de webhook (`/api/webhooks/*`) seguem a mesma ideia (token no header,
-  não sessão). Só existe `POST /api/webhooks/asaas` (M5) — o webhook do
+  não sessão). Só existe `POST /api/webhooks/asaas` (M5): o webhook do
   WhatsApp vai para o N8N, não para o Tibé (ver seção do agente abaixo), então
   `/api/webhooks/whatsapp` continua não existindo (seria código morto).
 
@@ -263,7 +263,7 @@ dentro do route handler. As rotas HTTP (`/api/v1/...`) são wrappers finos:
 validam com Zod, chamam a action, serializam a resposta. O agente WhatsApp
 (`/api/internal/whatsapp/execute-action`) chama as **mesmas** actions
 diretamente. Isso foi um refactor deliberado no Módulo 3 (a pedido do usuário,
-"deixar liso para trazer modificações depois") — ao adicionar/editar uma
+"deixar liso para trazer modificações depois"): ao adicionar/editar uma
 regra de negócio, mude na action, não duplique lógica na rota.
 
 Padrão de retorno (`src/lib/actions/types.ts`):
@@ -275,14 +275,14 @@ type ActionResult<T> = { ok: true; data: T } | { ok: false; code: string; messag
 Arquivos principais: `animals.ts`, `service-orders.ts`, `service-clients.ts`,
 `properties.ts`, `financial-summary.ts`, `billing.ts` (M5, assinatura Asaas),
 `users.ts` (M5, convite/role/ativação). Lançamentos financeiros automáticos
-sempre passam por `createLinkedEntry()` (`src/lib/financial.ts`) — nunca crie
+sempre passam por `createLinkedEntry()` (`src/lib/financial.ts`): nunca crie
 `FinancialEntry` manualmente fora dela nas actions existentes.
 
 ## Serialização
 
 Prisma devolve `Decimal` e `Date`; os contratos de API usam `number` e string
 ISO8601. Use sempre `decToNum()` / `isoOrNull()` (`src/lib/serialize.ts`) e os
-serializers prontos em `src/lib/serializers.ts` — não formate objetos Prisma à
+serializers prontos em `src/lib/serializers.ts`: não formate objetos Prisma à
 mão numa resposta de API.
 
 ---
@@ -292,14 +292,14 @@ mão numa resposta de API.
 NextAuth v5 (beta), Credentials + bcrypt. Split em dois arquivos por causa do
 Edge runtime do middleware:
 
-- `src/lib/auth.config.ts` — config **edge-safe** (sem Prisma/bcrypt), usada
+- `src/lib/auth.config.ts`: config **edge-safe** (sem Prisma/bcrypt), usada
   pelo `middleware.ts` para proteger rotas. É aqui que fica a lista de rotas
   públicas.
-- `src/lib/auth.ts` — instância completa (Node runtime), com o provider de
+- `src/lib/auth.ts`: instância completa (Node runtime), com o provider de
   credenciais de fato.
 
 `User.email` é **globalmente único** (o login recebe só email+senha, sem
-seletor de tenant/subdomínio) — um email pertence a exatamente um tenant.
+seletor de tenant/subdomínio): um email pertence a exatamente um tenant.
 `middleware.ts` libera `/api/*` da checagem de sessão (cada handler faz sua
 própria auth) para que rotas de API sem sessão devolvam `401` JSON em vez de
 redirecionar para `/login`.
@@ -309,17 +309,17 @@ redirecionar para `/login`.
 Enum `UserRole`: `OWNER | ADMIN | OPERADOR | VISUALIZADOR` (maiúsculas,
 conforme contrato de login). Hierarquia e matriz de acesso por módulo em
 `src/lib/permissions.ts` (espelha PRD §5.2). `canAccess`/`canWrite` recebem a
-role diretamente (reusáveis fora de contexto de sessão HTTP — é assim que o
+role diretamente (reusáveis fora de contexto de sessão HTTP: é assim que o
 agente WhatsApp valida permissão, sem precisar de cookie).
 
 ## UI
 
-Não existe um design system de terceiros instalado via CLI — **o `npx
+Não existe um design system de terceiros instalado via CLI: **o `npx
 shadcn@latest init` trava neste ambiente** (fica esperando prompt
 interativo). Os componentes em `src/components/ui/` (`button`, `input`,
 `label`, `table`, `sheet`, `select`, `badge`) foram escritos à mão no estilo
 shadcn (Radix primitives + `class-variance-authority` + `tailwind-merge`,
-`cn()` em `src/lib/utils.ts`), com `components.json` já configurado — se um
+`cn()` em `src/lib/utils.ts`), com `components.json` já configurado: se um
 dia rodar o CLI interativamente, ele deve reconhecer a estrutura existente.
 Gráficos: Recharts v3. Cores da marca em `tailwind.config.ts`
 (`tibe.primary/dark/light`), fonte Inter via `next/font/google`.
@@ -329,11 +329,11 @@ escrita são componentes client dentro de `<Sheet>` (painel lateral), chamando
 `apiPost`/`apiPatch` de `src/lib/client-api.ts` e dando `router.refresh()` no
 sucesso.
 
-**Painel do tenant é responsivo (mobile-first, deliberado — spec 2026-07-28):**
+**Painel do tenant é responsivo (mobile-first, deliberado: spec 2026-07-28):**
 o fluxo nasce no WhatsApp, então o cliente acessa o painel majoritariamente
 pelo celular, não desktop. `(dashboard)/layout.tsx` (server) calcula
 `navLinks` já filtrados por perfil ativo + `canAccess(role, ...)` e passa pra
-`DashboardShell` (`src/components/layout/dashboard-shell.tsx`, client) —
+`DashboardShell` (`src/components/layout/dashboard-shell.tsx`, client):
 **nunca** importe `@/lib/permissions` dentro de um client component do
 dashboard: esse módulo importa `getSessionUser` de `tenant-context.ts`, que
 arrasta `auth.ts` → `rate-limit.ts` → `ioredis` (módulos Node como `dns`
@@ -342,83 +342,83 @@ de abrir/fechar do menu (hambúrguer no header, `md:hidden`) e repassa pra
 `Sidebar` (`src/components/layout/sidebar.tsx`, client, drawer off-canvas
 abaixo do breakpoint `md`, estático acima). `Table`/`Sheet`
 (`src/components/ui/*`) já são responsivos por padrão (scroll horizontal e
-largura total, respectivamente) — não precisam de tratamento especial nas
+largura total, respectivamente): não precisam de tratamento especial nas
 páginas de conteúdo.
 
 ---
 
-## Signup público (`/planos` + `/criar-conta`) — fora do escopo original do PRD
+## Signup público (`/planos` + `/criar-conta`): fora do escopo original do PRD
 
 O PRD §12 marca "onboarding self-service completo" como **fora do MVP** (v1.1).
 Ainda assim, existe hoje um fluxo de signup público real, construído a pedido
 explícito do usuário para destravar testes do painel antes dos módulos
 4-5-6:
 
-- `/planos` — preços **reais** (`PLAN_PRICES` em `src/lib/asaas.ts`: campo
-  R$97, fazenda R$197, grupo R$397 — a mesma constante usada para criar a
+- `/planos`: preços **reais** (`PLAN_PRICES` em `src/lib/asaas.ts`: campo
+  R$97, fazenda R$197, grupo R$397: a mesma constante usada para criar a
   assinatura no Asaas, nunca duplique o número), cada plano linkando para
   `/criar-conta?plan=campo|fazenda|grupo`.
-- `/criar-conta` — formulário completo (empresa, CNPJ/CPF, telefone,
+- `/criar-conta`: formulário completo (empresa, CNPJ/CPF, telefone,
   responsável, email, senha) → `POST /api/v1/signup` (única rota `/api/v1`
-  que roda **sem sessão**, por natureza — ainda não existe usuário). Cria
+  que roda **sem sessão**, por natureza: ainda não existe usuário). Cria
   `Tenant` (status **trial**, `plan` = o card clicado, `trial_ends_at` = agora
-  + `TRIAL_DAYS` — `src/lib/billing-access.ts`, 14 dias) + `User` (role
+  + `TRIAL_DAYS`: `src/lib/billing-access.ts`, 14 dias) + `User` (role
   `OWNER`) de verdade, com checagem de documento/email duplicado. O client
   faz login automático (`signIn` do NextAuth) logo em seguida e manda para
   `/dashboard`, que redireciona ao onboarding existente (sem `TenantProfile`
   ainda).
-- **Sem rate limiting** (não há fila/Redis conectado a esta rota) — gap
+- **Sem rate limiting** (não há fila/Redis conectado a esta rota): gap
   conhecido, aceitável para uso controlado de testes, mas revisar antes de
   divulgar publicamente.
 - Este fluxo continua sendo a forma **pública** de criar tenant (ver também a
-  criação manual pelo painel da plataforma, descrita abaixo) — o Módulo 5 não
+  criação manual pelo painel da plataforma, descrita abaixo): o Módulo 5 não
   o substituiu (a spec 5.11 previa um trial passwordless via WhatsApp, mas
   isso exigiria N8N em produção; decisão do usuário foi manter `/criar-conta`
   como está e reusá-lo como CTA da home pública).
 
 **Segunda exceção deliberada (spec 2026-07-24):** `master_admin` também pode
 criar um `Tenant` manualmente pelo painel da plataforma (`POST /api/platform/tenants`,
-botão "Criar tenant" em `/plataforma/tenants`) — usado para dar acesso de teste
+botão "Criar tenant" em `/plataforma/tenants`): usado para dar acesso de teste
 a equipes de cliente sem passar pelo formulário público. Reusa a mesma lógica
 de `/api/v1/signup` (trial, checagem de duplicidade), mas gera senha temporária
-em vez de receber uma, e marca `User.must_change_password: true` — o usuário é
+em vez de receber uma, e marca `User.must_change_password: true`: o usuário é
 obrigado a trocar a senha em `/trocar-senha` (gate em `(dashboard)/layout.tsx`
 e `onboarding/page.tsx`, usa `getTenantDb()` client escopado, não o client base)
 antes de acessar qualquer outra coisa. O convite de usuário do Módulo 5
-(`inviteUserAction`) não tem esse gate — continua como estava.
+(`inviteUserAction`) não tem esse gate: continua como estava.
 
 ## O agente WhatsApp (Módulo 3)
 
 Arquitetura (PRD §7): **Meta → N8N → Tibé → N8N → Meta**. O Tibé nunca fala
 direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
 
-- **Não existe** `/api/webhooks/whatsapp` no Tibé — seria código morto.
+- **Não existe** `/api/webhooks/whatsapp` no Tibé: seria código morto.
 - A classificação de intenção por LLM acontece **dentro do N8N** (a chave de
   API do provedor de LLM fica nas credenciais do N8N, não no `.env` do Tibé).
-- `POST /api/internal/whatsapp/resolve-contact` — identifica tenant/usuário
+- `POST /api/internal/whatsapp/resolve-contact`: identifica tenant/usuário
   pelo telefone (único lookup cross-tenant legítimo do sistema). Devolve,
   além do contrato da spec, `meta.first_contact`, `meta.suggested_reply` e
-  `meta.recent_history` (extensões aditivas — a spec não definia de onde o
+  `meta.recent_history` (extensões aditivas: a spec não definia de onde o
   N8N obteria essas informações).
-- `POST /api/internal/whatsapp/execute-action` — roteia as 9 intenções do MVP
+- `POST /api/internal/whatsapp/execute-action`: roteia as 9 intenções do MVP
   (`src/lib/whatsapp-intents.ts` tem a lista + regra de permissão/perfil por
   intenção) para as mesmas `actions` usadas pela web. Confirmação obrigatória
   acima de R$ 5.000 (`CONFIRMATION_THRESHOLD`) para venda/compra de animal e
-  ordens de serviço de alto valor — ver `src/lib/actions/whatsapp-router.ts` e
+  ordens de serviço de alto valor: ver `src/lib/actions/whatsapp-router.ts` e
   `src/lib/actions/confirmation.ts` (interpretação de "sim"/"não" em texto
   livre, usada só dentro dos dois fluxos de confirmação, nunca globalmente).
 - `gerar_relatorio` (tipo `financeiro`) devolve um `report_url` de verdade
   (link assinado, ver Módulo 4 abaixo); tipos `rebanho|lavoura|prestador`
-  ainda respondem "não disponível" — não há gerador de PDF para eles.
+  ainda respondem "não disponível": não há gerador de PDF para eles.
 - Guia completo para montar o workflow no N8N (nó a nó, quando a infra externa
-  — Salvy, Meta Business Manager, N8N em produção — estiver pronta):
+ : Salvy, Meta Business Manager, N8N em produção: estiver pronta):
   [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md). Inclui a
   seção de envio de alertas (Módulo 4) via `N8N_ALERT_WEBHOOK_URL`.
 - **Envio de mensagem agora é do Tibé** (spec 2026-07-11, desvio deliberado da
   regra "N8N é o único intermediário", aprovado pelo usuário): o N8N chama
   `POST /api/internal/whatsapp/send-message` e o Tibé entrega pelo provider
   ATIVO em `WhatsAppProviderConfig` (Evolution API não-oficial OU Meta Cloud
-  API — configurável em `/plataforma/configuracoes/whatsapp`, só master_admin,
+  API: configurável em `/plataforma/configuracoes/whatsapp`, só master_admin,
   credenciais AES-256-GCM com `CONFIG_ENCRYPTION_KEY`). O RECEBIMENTO continua
   no N8N (payloads de entrada diferem por provider; segue não existindo
   `/api/webhooks/whatsapp`). Despacho em `src/lib/whatsapp-send.ts`.
@@ -426,44 +426,44 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
 ## Financeiro e Alertas (Módulo 4)
 
 - **Lançamentos manuais** (`POST /api/v1/financial-entries`) sempre nascem
-  `related_module: geral`. `PATCH` (edição completa) só é permitido nesses —
+  `related_module: geral`. `PATCH` (edição completa) só é permitido nesses:
   editar um lançamento gerado por outro módulo (venda de animal, insumo,
   ordem faturada) é bloqueado (`NOT_EDITABLE`) para não descolar do dado de
   origem; "marcar como pago" funciona em qualquer lançamento, de qualquer
   origem. Lógica em `src/lib/actions/financial-entries.ts`.
-- **Regime contábil**: DRE (`getDre`) é por **competência** — todos os
+- **Regime contábil**: DRE (`getDre`) é por **competência**: todos os
   lançamentos do período por `due_date`, pago ou não. Fluxo de caixa
-  (`getCashFlow`) é por **caixa** — só `status: paid`, agrupado por
+  (`getCashFlow`) é por **caixa**: só `status: paid`, agrupado por
   `paid_at`. Os dois em `src/lib/actions/financial-reports.ts`.
 - **PDF sem R2**: `src/lib/reports/generate-financial-pdf.ts` (pdf-lib, gera
   na hora, nunca armazena) atrás de um link assinado por HMAC com expiração
   (`src/lib/reports/report-token.ts`, reusa `INTERNAL_API_SECRET` como
-  chave) — funciona sem sessão (necessário para quem clica vindo do
+  chave): funciona sem sessão (necessário para quem clica vindo do
   WhatsApp). `GET /api/v1/financial/report/link` (sessão, gera o link) →
   `GET /api/v1/financial/report?token=` (público, serve o PDF). Trocar pelo
   R2 real no futuro não deve exigir mudar quem consome o link.
 - **Alertas** (`src/lib/actions/alerts.ts`): idempotência por
-  `(alert_type, related_module, related_id)` — inclusive `low_balance`, que
+  `(alert_type, related_module, related_id)`: inclusive `low_balance`, que
   usa a **semana ISO** como `related_id` sintético (resolve "no máximo 1 por
   semana" com o mesmo mecanismo dos outros tipos, sem regra especial).
 - **BullMQ real** (Redis Cloud já provisionado), mas **sem worker
-  persistente** — decisão do módulo, não há onde hospedar um processo 24/7
+  persistente**: decisão do módulo, não há onde hospedar um processo 24/7
   hoje. `GET /api/internal/jobs/generate-alerts` (disparado 1x/dia pela
   Vercel Cron, `vercel.json`, autenticado por `CRON_SECRET` que a Vercel
   injeta sozinha) roda a geração **síncrona** dentro da própria requisição.
   A `Queue` do BullMQ registra um histórico auditável (uso real, mas só de
   bookkeeping); a idempotência "não rodar 2x no mesmo dia" é um lock simples
-  no Redis (`SET NX`), não o estado interno do job — mais robusto sem um
+  no Redis (`SET NX`), não o estado interno do job: mais robusto sem um
   Worker para gerenciá-lo. Ver `getRedisConnectionOptions()` acima.
 - **Envio por WhatsApp** (`src/lib/actions/alert-delivery.ts`): mesmo padrão
-  do Módulo 3 — Tibé chama `N8N_ALERT_WEBHOOK_URL` (outbound); se não
+  do Módulo 3: Tibé chama `N8N_ALERT_WEBHOOK_URL` (outbound); se não
   configurada, alertas ficam `pending` sem quebrar nada.
 
 ## Cobrança e billing (Módulo 5)
 
 - **Cliente Asaas** (`src/lib/asaas.ts`): `access_token` no header (sem
   prefixo Bearer), sandbox vs produção por `ASAAS_ENV`. `AsaasNotConfiguredError`
-  quando `ASAAS_API_KEY` não está setada — nunca chegou a ser testado contra o
+  quando `ASAAS_API_KEY` não está setada: nunca chegou a ser testado contra o
   Asaas de verdade neste ambiente (sem chave de sandbox própria), então
   qualquer bug de integração real só aparece quando a chave existir.
 - **PIX e boleto ficam dentro do painel; cartão de crédito redireciona ao
@@ -475,7 +475,7 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
   o servidor do Tibé. `subscribeAction` (`src/lib/actions/billing.ts`) devolve
   um de três formatos (`SubscribeResult`): `pix` (QR + copia-cola), `boleto`
   (linha digitável), ou `redirect` (URL da fatura Asaas, só para cartão).
-- **`Subscription.status` nasce `"overdue"`, mesmo numa assinatura nova** —
+- **`Subscription.status` nasce `"overdue"`, mesmo numa assinatura nova**:
   não é bug. `next_due_date` fica no futuro (gerado pelo Asaas), e
   `billing-access.ts` dá carência automática enquanto isso, então o tenant não
   é bloqueado no intervalo entre criar a assinatura e o primeiro webhook de
@@ -488,12 +488,12 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
   não rastreadas são reconhecidos com `200 { processed: false }`, nunca erro
   (o Asaas não deve reenviar por causa de eventos fora do nosso escopo).
 - **Acesso por nível de cobrança** (`src/lib/billing-access.ts`,
-  `getBillingAccess(tenantId)`): três níveis — `full` / `read_only` /
-  `blocked` — pela mesma régua de dias, tanto para assinatura em atraso
+  `getBillingAccess(tenantId)`): três níveis: `full` / `read_only` /
+  `blocked`: pela mesma régua de dias, tanto para assinatura em atraso
   (`next_due_date`) quanto para trial vencido sem assinatura
   (`trial_ends_at`, `TRIAL_DAYS = 14`): **< 5 dias → full; 5–15 → read_only;
   ≥ 15 → blocked**. `guard()` aplica em toda rota de API (bloqueia escrita em
-  `read_only`, tudo em `blocked`, exceto `opts.skipBillingCheck: true` — usado
+  `read_only`, tudo em `blocked`, exceto `opts.skipBillingCheck: true`: usado
   só pelas próprias rotas `/api/v1/billing/*`, que precisam continuar
   acessíveis para o tenant conseguir regularizar). O layout do dashboard
   aplica a mesma regra a nível de página, redirecionando para
@@ -515,43 +515,43 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
 
 - **`app/(public)/`**: `/` (home com hero/módulos/como funciona), `/planos`
   (preços reais, ver seção de Signup acima), `/faq`, `/politicas/privacidade`
-  e `/politicas/termos` (LGPD — `/politicas` sozinho é um redirect para
+  e `/politicas/termos` (LGPD: `/politicas` sozinho é um redirect para
   `/politicas/privacidade`, não uma página própria). Nav/footer compartilhados
-  em `src/components/public/` (`PublicNav`, `PublicFooter`) — qualquer página
+  em `src/components/public/` (`PublicNav`, `PublicFooter`): qualquer página
   pública nova deve reusar os dois, não duplicar o markup.
 - **SEO**: `metadataBase` + title template (`"%s | Tibé"`) no `RootLayout`;
   cada página pública define seu próprio `title`/`description` (a home não
   sobrescreve `title`, herda o `default` do root). `app/sitemap.ts` e
-  `app/robots.ts` geram `/sitemap.xml` e `/robots.txt` automaticamente — como
+  `app/robots.ts` geram `/sitemap.xml` e `/robots.txt` automaticamente: como
   são rotas especiais do Next, **precisam** estar em `PUBLIC_PATHS`
   (`src/lib/auth.config.ts`), senão o middleware redireciona o crawler para
   `/login`.
-- **Documentação técnica em `/docs`** (dentro do próprio Tibé — decisão do
-  usuário, sem Mintlify/Notion): `src/app/(public)/docs/` — layout com sidebar
+- **Documentação técnica em `/docs`** (dentro do próprio Tibé: decisão do
+  usuário, sem Mintlify/Notion): `src/app/(public)/docs/`: layout com sidebar
   fixa (`docs/layout.tsx`) e uma página por seção (`arquitetura`, `schema`,
   `api`, `whatsapp`, `setup`, `deploy`, `glossario`). A página `/docs/api` é
   **gerada a partir de um array de dados** (`Endpoint[]`, componente
   `EndpointCard` em `src/components/public/`) cobrindo todos os endpoints
-  `/api/v1` e `/api/internal` reais — ao adicionar/mudar um endpoint,
+  `/api/v1` e `/api/internal` reais: ao adicionar/mudar um endpoint,
   atualize essa lista também, senão a documentação e o código divergem. `/docs`
-  precisa estar em `PUBLIC_PREFIXES` (`auth.config.ts`) — mesma armadilha do
+  precisa estar em `PUBLIC_PREFIXES` (`auth.config.ts`): mesma armadilha do
   sitemap/robots.
 - **Gestão de usuários** (`src/lib/actions/users.ts`): convite gera senha
-  temporária (`generateTempPassword`) mostrada **uma única vez** na resposta —
+  temporária (`generateTempPassword`) mostrada **uma única vez** na resposta:
   não há envio de email neste projeto (nenhum módulo tem infra de email).
   Regras de "não pode editar/desativar a si mesmo" e "só Owner promove a
   Owner" ficam nas rotas (`api/v1/users/[id]/role`, `.../active`), não nas
-  actions — a action em si é mais simples (`updateUserRoleAction`,
+  actions: a action em si é mais simples (`updateUserRoleAction`,
   `setUserActiveAction`) e só bloqueia desativar um `OWNER`.
 - **`README.md`/`CONTRIBUTING.md`** na raiz do repo agora refletem o estado
   real do projeto (antes só existia um `README.md` desatualizado do Módulo 0,
-  com uma afirmação **errada** sobre isolamento — dizia que os modelos-filho
+  com uma afirmação **errada** sobre isolamento: dizia que os modelos-filho
   não tinham `tenant_id`, o que foi revertido ainda no Módulo 1). Mantenha os
   dois em sincronia com mudanças de arquitetura, junto com este arquivo.
 
 ## Painel da Plataforma (Módulo 6)
 
-Único módulo sem fase contratual com a Agromax — ferramenta interna da Pleno
+Único módulo sem fase contratual com a Agromax: ferramenta interna da Pleno
 Digital para acompanhar a saúde do negócio Tibé como um todo (todos os
 tenants na mesma tela, por desenho). `PlatformUser` (roles `MASTER_ADMIN` |
 `EQUIPE`) já existia no schema desde o Módulo 0 como placeholder; este módulo
@@ -559,12 +559,12 @@ construiu tudo em volta dele.
 
 - **`/plataforma` é uma pasta REAL, não um route group `(platform)`.** A
   spec descreve `app/(platform)/kpis/page.tsx` etc., mas route groups não
-  aparecem na URL — `(platform)/login/page.tsx` viraria `/login`, colidindo
+  aparecem na URL: `(platform)/login/page.tsx` viraria `/login`, colidindo
   direto com o login de tenant. `app/plataforma/` é um segmento de URL de
   verdade; `(painel)` como sub-route-group dentro dele separa o layout do
   login (`app/plataforma/login/`, sem nav) do layout autenticado
   (`app/plataforma/(painel)/`, com sidebar) sem afetar a URL.
-- **Duas instâncias NextAuth genuinamente separadas** — não uma sessão
+- **Duas instâncias NextAuth genuinamente separadas**: não uma sessão
   compartilhada com um campo de "tipo". `src/lib/platform-auth.config.ts` +
   `platform-auth.ts` espelham `auth.config.ts`/`auth.ts`, mas com cookie
   próprio (`tibe-platform-session`) e secret próprio (`PLATFORM_AUTH_SECRET`,
@@ -573,53 +573,53 @@ construiu tudo em volta dele.
   cada instância só enxerga o próprio) em vez de depender de uma checagem de
   código que alguém pode esquecer de replicar num endpoint novo.
 - **⚠️ `next-auth` (não o `@auth/core` cru) assume `basePath: "/api/auth"`
-  por padrão** quando `NEXTAUTH_URL`/`AUTH_URL` não tem path — uma instância
+  por padrão** quando `NEXTAUTH_URL`/`AUTH_URL` não tem path: uma instância
   secundária montada em qualquer outro caminho (`/api/platform-auth/*` aqui)
   **precisa** declarar `basePath` explicitamente na config, senão todo
   request quebra com `UnknownAction: Cannot parse action`. Isso custou uma
   depuração real neste módulo (`grep basePath` em
   `node_modules/next-auth/lib/env.js` se precisar reconfirmar o mecanismo).
 - **Middleware**: `/plataforma` está em `PUBLIC_PREFIXES` de `auth.config.ts`
-  (isento da checagem de sessão de TENANT) — a proteção de verdade é manual,
+  (isento da checagem de sessão de TENANT): a proteção de verdade é manual,
   dentro do próprio `middleware.ts`, usando `getToken({ req, secret:
   PLATFORM_AUTH_SECRET, cookieName: "tibe-platform-session" })` (de
-  `next-auth/jwt`, não a instância `auth()` da plataforma — `getToken` é a
+  `next-auth/jwt`, não a instância `auth()` da plataforma: `getToken` é a
   primitiva de baixo nível que não depende de estar dentro do HOF
   `auth(callback)`, ao contrário de chamar `auth()` "cru" de uma segunda
   instância dentro do middleware da primeira, que não é um padrão
   documentado/confiável). Testado ponta a ponta (login, acesso, logout, e as
   duas direções de isolamento cross-sessão) via curl com o dance de CSRF do
-  NextAuth — ver histórico da sessão se precisar repetir.
+  NextAuth: ver histórico da sessão se precisar repetir.
 - **`guardPlatform(opts?: { requireMasterAdmin? })`** (`src/lib/platform-guard.ts`)
   espelha `guard()`. `equipe` lê tenants (6.3); só `master_admin` vê KPIs
   financeiros (6.4-6.7) e executa as duas ações administrativas (forçar
-  status 6.9, gerenciar equipe 6.10) — recorte de permissão decidido com o
+  status 6.9, gerenciar equipe 6.10): recorte de permissão decidido com o
   usuário, não estava 100% explícito na spec (PRD §5.3 delegava a decisão
   para este módulo).
 - **`SubscriptionStatusLog`** (novo modelo): toda transição de
-  `Subscription.status` grava uma linha aqui —
+  `Subscription.status` grava uma linha aqui:
   `logSubscriptionStatusChange()` em `src/lib/platform/subscription-log.ts`,
   chamada tanto pelo webhook do Asaas quanto por `subscribeAction`/
   `cancelSubscriptionAction` (M5, automático, `changed_by_platform_user_id`
   nulo) quanto por `forceSubscriptionStatusAction` (M6, manual, com o
   `PlatformUser` responsável e `reason`). Existe porque **não tinha como
-  calcular churn/funil corretamente sem isso** — `Subscription` não guardava
+  calcular churn/funil corretamente sem isso**: `Subscription` não guardava
   nenhum timestamp de transição (só `created_at`), então "cancelamentos no
   período" e "tempo médio de conversão trial→pago" eram impossíveis de
   responder. Um único mecanismo resolve isso E serve de log de auditoria
-  para a 6.9 — decisão tomada com o usuário em vez de assumida.
+  para a 6.9: decisão tomada com o usuário em vez de assumida.
 - **`lib/platform/kpis.ts`**: `calculateMRR` soma `PLAN_PRICES` (preço atual)
-  das assinaturas `active` — não há histórico de preço por assinatura, então
+  das assinaturas `active`: não há histórico de preço por assinatura, então
   "valor do plano vigente" só pode significar o preço de hoje, inclusive
   retroativo no gráfico de evolução (limitação aceita). `getStatusAsOf(date)`
   reconstrói o status de cada assinatura numa data (o log mais recente com
-  `created_at <= date`) — é a peça que sustenta `calculateChurn` (ativos no
+  `created_at <= date`): é a peça que sustenta `calculateChurn` (ativos no
   início do período), `calculateMrrTrend` (MRR real mês a mês, não a
   aproximação mais simples que a spec sugeria) e `calculateFunnel` (tempo até
   a primeira ativação). `calculateLTV` devolve `null` (não `Infinity`) quando
-  não há churn observado ainda — divisão por zero evitada explicitamente.
+  não há churn observado ainda: divisão por zero evitada explicitamente.
 - **Captura de UTM** (`src/lib/utm.ts`, `UtmCapture` renderizado dentro de
-  `PublicNav`): first-touch via cookie (`tibe_utm`, 30 dias) — só grava se o
+  `PublicNav`): first-touch via cookie (`tibe_utm`, 30 dias): só grava se o
   cookie ainda não existir, porque sem isso a origem real de um lead que
   navega `/` → `/planos` → `/criar-conta` seria perdida (a última página
   raramente carrega os mesmos query params da primeira). `/criar-conta` lê o
@@ -632,17 +632,17 @@ construiu tudo em volta dele.
   KPI escaneiam **todos** os tenants do banco por desenho, os testes usam
   baseline antes/depois (não contagem absoluta) para não quebrar num banco
   de dev com dados de outros testes/seed.
-- **Seed do `master_admin`**: ainda não adicionado a `prisma/seed.ts` —
+- **Seed do `master_admin`**: ainda não adicionado a `prisma/seed.ts`:
   precisa de nome/email/senha reais do responsável (Dilton), não inventados.
   Pendente até essa informação chegar.
 - **Mensagem de boas-vindas por WhatsApp** (spec 2026-07-28,
   `src/lib/whatsapp-welcome.ts`): `createTenantManuallyAction` dispara,
   melhor esforço (nunca bloqueia a criação), uma mensagem com o link de login
-  (`NEXTAUTH_URL` + `/login` — mesma env var de `report-link.ts`, atualiza
+  (`NEXTAUTH_URL` + `/login`: mesma env var de `report-link.ts`, atualiza
   sozinha quando o domínio próprio for cadastrado), email e senha temporária.
   Botão **"Reenviar boas-vindas"** no detalhe do tenant (`POST
   /api/platform/tenants/:id/welcome-message`, só master_admin) existe porque
-  a senha original em claro não é recuperável (só o hash é salvo) — reenviar
+  a senha original em claro não é recuperável (só o hash é salvo): reenviar
   **gera uma nova senha temporária** e marca `must_change_password` de novo,
   então a mensagem reenviada sempre tem uma credencial que funciona de
   verdade, nunca repete uma senha que o usuário já trocou.
@@ -655,7 +655,7 @@ Além deste arquivo (versionado, visível a qualquer sessão/ferramenta/humano),
 existe um sistema de memória **local à máquina**, fora do repositório, em
 `C:\Users\dilto\.claude\projects\d--Projetos-Web-agrogestao-tibe\memory\`
 (`MEMORY.md` é o índice). Ele guarda decisões e contexto de sessões passadas
-do Claude Code especificamente — **não é visível** para outras ferramentas,
+do Claude Code especificamente: **não é visível** para outras ferramentas,
 outros agentes, nem para quem só olha o repositório. Trate este `CLAUDE.md`
 como a fonte que deve funcionar sozinha; a memória é um complemento, não uma
 dependência.
@@ -665,7 +665,7 @@ dependência.
 ```powershell
 npm run dev              # servidor de desenvolvimento
 npm run build             # build de produção (roda lint + tsc também)
-npm run db:migrate        # cria/aplica migração em dev (interativo — evite em automação)
+npm run db:migrate        # cria/aplica migração em dev (interativo: evite em automação)
 npm run db:deploy         # aplica migrações pendentes (não-interativo)
 npm run db:seed           # seed (tenant Da Mata + owner + vacinas padrão)
 npm run db:check          # valida conexão com o banco

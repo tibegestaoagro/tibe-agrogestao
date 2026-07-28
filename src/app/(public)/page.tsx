@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 const MODULES = [
   {
     title: "Rebanho",
-    desc: "Cadastro de animais, controle de peso, vacinação e movimentação — tudo com histórico completo.",
+    desc: "Cadastro de animais, controle de peso, vacinação e movimentação: tudo com histórico completo.",
   },
   {
     title: "Lavoura",
@@ -38,7 +38,7 @@ const MODULES = [
 
 const STEPS = [
   { n: "1", title: "Crie sua conta", desc: "Escolha um plano e cadastre sua empresa em menos de 2 minutos." },
-  { n: "2", title: "Configure seu perfil", desc: "Fazenda, prestador de serviço, ou os dois — você decide." },
+  { n: "2", title: "Configure seu perfil", desc: "Fazenda, prestador de serviço, ou os dois: você decide." },
   { n: "3", title: "Use pelo painel ou pelo WhatsApp", desc: "Cadastre e consulte do jeito que for mais rápido para você." },
 ];
 
@@ -51,7 +51,7 @@ export default function HomePage() {
       <section className="bg-tibe-light">
         <div className="mx-auto max-w-3xl px-6 py-20 text-center">
           <h1 className="text-4xl font-bold text-tibe-dark sm:text-5xl">
-            Sua fazenda, sua lavoura e seus clientes — organizados em um só lugar
+            Sua fazenda, sua lavoura e seus clientes: organizados em um só lugar
           </h1>
           <p className="mt-4 text-lg text-gray-700">
             Rebanho, lavoura, prestação de serviço e financeiro. Cadastre e consulte

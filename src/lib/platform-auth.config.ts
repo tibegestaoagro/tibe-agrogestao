@@ -2,16 +2,16 @@ import type { NextAuthConfig } from "next-auth";
 import type { PlatformSessionRole } from "@/types/next-auth";
 
 /**
- * Config edge-safe do NextAuth para PlatformUser (Módulo 6, task 6.2) — sem
+ * Config edge-safe do NextAuth para PlatformUser (Módulo 6, task 6.2): sem
  * Prisma/bcrypt, usada pelo middleware (Edge runtime). Instância
  * COMPLETAMENTE separada da de tenant (lib/auth.config.ts): cookie próprio
- * (`tibe-platform-session`) e secret próprio (`PLATFORM_AUTH_SECRET`) — uma
+ * (`tibe-platform-session`) e secret próprio (`PLATFORM_AUTH_SECRET`): uma
  * sessão de tenant nunca é lida por aqui, e vice-versa, mesmo que os dois
  * cookies existam no mesmo navegador ao mesmo tempo.
  */
 export const platformAuthConfig = {
   // next-auth (não o @auth/core cru) assume basePath "/api/auth" por padrão
-  // quando NEXTAUTH_URL/AUTH_URL não tem path — precisa ser explícito aqui,
+  // quando NEXTAUTH_URL/AUTH_URL não tem path: precisa ser explícito aqui,
   // senão o parser de action (@auth/core) não reconhece /api/platform-auth/*
   // e derruba toda requisição com UnknownAction.
   basePath: "/api/platform-auth",

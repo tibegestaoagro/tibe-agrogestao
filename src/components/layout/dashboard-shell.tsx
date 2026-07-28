@@ -10,7 +10,7 @@ import type { BillingAccess } from "@/lib/billing-access";
 
 /**
  * Casca do dashboard (sidebar + header + conteúdo). Extraído de
- * (dashboard)/layout.tsx pra virar client component — precisa de estado pra
+ * (dashboard)/layout.tsx pra virar client component: precisa de estado pra
  * abrir/fechar o menu no celular, já que o painel é usado majoritariamente
  * pelo WhatsApp/celular, não desktop.
  */

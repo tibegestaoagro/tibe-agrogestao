@@ -1,7 +1,7 @@
 import { sendWhatsAppMessage } from "@/lib/whatsapp-send";
 
 /**
- * URL de login usada na mensagem de boas-vindas — mesma variável que
+ * URL de login usada na mensagem de boas-vindas: mesma variável que
  * report-link.ts usa pra montar link assinado (NEXTAUTH_URL). Quando o
  * domínio próprio for cadastrado, basta atualizar essa env var na Vercel;
  * nenhum código muda.
@@ -18,12 +18,12 @@ export function buildWelcomeMessage(params: { ownerName: string; email: string; 
     `Acesse o painel para trocar sua senha e escolher seu plano:\n${loginUrl()}\n\n` +
     `Email: ${params.email}\n` +
     `Senha temporária: ${params.tempPassword}\n\n` +
-    `Depois disso, é só me chamar por aqui — eu ajudo a cadastrar animais, lavoura, ordens de serviço e muito mais.`
+    `Depois disso, é só me chamar por aqui: eu ajudo a cadastrar animais, lavoura, ordens de serviço e muito mais.`
   );
 }
 
 /**
- * Dispara a mensagem de boas-vindas pelo provider ATIVO — melhor esforço,
+ * Dispara a mensagem de boas-vindas pelo provider ATIVO: melhor esforço,
  * nunca bloqueia o fluxo de criação (mesmo padrão do M4/alert-delivery: sem
  * provider configurado ou envio falho, a criação do tenant segue normal).
  * sendWhatsAppMessage já não lança (degrada pra ActionResult de erro).

@@ -3,7 +3,7 @@ import { getSessionUser, getTenantDb } from "@/lib/tenant-context";
 import ChangePasswordForm from "./change-password-form";
 
 /**
- * Troca obrigatória de senha (spec 2026-07-24) — só para usuários com
+ * Troca obrigatória de senha (spec 2026-07-24): só para usuários com
  * must_change_password=true (tenants criados manualmente pelo painel).
  * Mesmo padrão de src/app/onboarding/page.tsx: fora do route group
  * (dashboard), sessão própria, fora do fluxo normal se não se aplicar.

@@ -22,7 +22,7 @@ const W: AccessLevel = "write";
 const R: AccessLevel = "read";
 const N: AccessLevel = "none";
 
-// PRD 5.2 — linhas = módulos, colunas = roles.
+// PRD 5.2: linhas = módulos, colunas = roles.
 const ACCESS_MATRIX: Record<ModuleKey, Record<AppUserRole, AccessLevel>> = {
   rebanho: { OWNER: W, ADMIN: W, OPERADOR: W, VISUALIZADOR: R },
   lavoura: { OWNER: W, ADMIN: W, OPERADOR: W, VISUALIZADOR: R },
@@ -63,7 +63,7 @@ export function hasMinRole(role: AppUserRole, minRole: AppUserRole): boolean {
 
 /**
  * Guard para Server Actions / Server Components: exige uma das roles informadas.
- * Lança erro se a sessão não atende — capture e trate conforme o contexto.
+ * Lança erro se a sessão não atende: capture e trate conforme o contexto.
  */
 export async function requireRole(
   allowed: AppUserRole | AppUserRole[],
