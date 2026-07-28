@@ -50,7 +50,12 @@ async function main() {
 
   const up1 = await upsertProviderConfigAction({
     provider: "evolution",
-    credentials: { base_url: "https://evo.example.com", api_key: "evo-key-9876", instance: "tibe" },
+    credentials: {
+      base_url: "https://evo.example.com",
+      api_key: "evo-key-9876",
+      instance: "tibe",
+      n8n_webhook_url: "https://n8n.example.com/webhook/tibe",
+    },
   });
   assert(up1.ok, "upsert de config Evolution funciona");
 
@@ -90,7 +95,12 @@ async function main() {
   // sem lançar exceção (o fetch falha na conexão).
   await upsertProviderConfigAction({
     provider: "evolution",
-    credentials: { base_url: "http://127.0.0.1:9", api_key: "x", instance: "t" },
+    credentials: {
+      base_url: "http://127.0.0.1:9",
+      api_key: "x",
+      instance: "t",
+      n8n_webhook_url: "https://n8n.example.com/webhook/t",
+    },
   });
   await activateProviderAction("evolution");
   const unreachable = await sendWhatsAppMessage("+5511999990000", "olá");

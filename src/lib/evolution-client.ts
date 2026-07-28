@@ -74,3 +74,34 @@ export async function connectInstance(
     return { state: "close", qrcode_base64: null };
   }
 }
+
+/**
+ * Aponta o webhook da instância pro workflow N8N (spec 2026-07-28) — é o
+ * passo que faltava pra criar/conectar uma instância 100% pelo painel, sem
+ * precisar mexer na Evolution direto. Idempotente (reenviar o mesmo payload
+ * não tem efeito colateral); chamada depois de create/connect, quando a
+ * instância já existe de verdade. Nunca lança — falha vira `ok: false`, quem
+ * chama decide se isso deve travar o fluxo ou só avisar.
+ */
+export async function setInstanceWebhook(
+  creds: EvolutionCredentials,
+): Promise<{ ok: boolean }> {
+  try {
+    const res = await fetch(`${baseUrl(creds)}/webhook/set/${creds.instance}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: creds.api_key },
+      body: JSON.stringify({
+        webhook: {
+          enabled: true,
+          url: creds.n8n_webhook_url,
+          webhookByEvents: false,
+          webhookBase64: true,
+          events: ["MESSAGES_UPSERT"],
+        },
+      }),
+    });
+    return { ok: res.ok };
+  } catch {
+    return { ok: false };
+  }
+}

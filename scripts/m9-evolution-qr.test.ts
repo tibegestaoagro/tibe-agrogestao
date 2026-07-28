@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { getInstanceStatus, createInstance, connectInstance } from "@/lib/evolution-client";
+import { getInstanceStatus, createInstance, connectInstance, setInstanceWebhook } from "@/lib/evolution-client";
 
 /**
  * Testes do cliente Evolution (spec 2026-07-24) — contra credenciais
@@ -20,7 +20,12 @@ function assert(cond: boolean, msg: string) {
 async function main() {
   console.log("🔒 M9 — Evolution client (QR)\n");
 
-  const badCreds = { base_url: "http://127.0.0.1:9", api_key: "x", instance: "inexistente" };
+  const badCreds = {
+    base_url: "http://127.0.0.1:9",
+    api_key: "x",
+    instance: "inexistente",
+    n8n_webhook_url: "https://n8n.example.com/webhook/inexistente",
+  };
 
   const status = await getInstanceStatus(badCreds);
   assert(status.state === "close" || status.state === "not_found", "getInstanceStatus com host inalcançável não lança, devolve state degradado");
@@ -30,6 +35,9 @@ async function main() {
 
   const connected = await connectInstance(badCreds);
   assert(connected.qrcode_base64 === null, "connectInstance com host inalcançável não lança, qrcode null");
+
+  const webhook = await setInstanceWebhook(badCreds);
+  assert(webhook.ok === false, "setInstanceWebhook com host inalcançável não lança, devolve ok:false");
 
   console.log(failures === 0 ? "\n✅ M9: 0 falhas." : `\n❌ M9: ${failures} falha(s).`);
   process.exit(failures === 0 ? 0 : 1);

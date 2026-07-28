@@ -10,7 +10,15 @@ import type { WhatsAppProvider } from "@/generated/prisma/enums";
  * (mesma categoria de PlatformUser — exceção documentada no CLAUDE.md).
  */
 
-export type EvolutionCredentials = { base_url: string; api_key: string; instance: string };
+export type EvolutionCredentials = {
+  base_url: string;
+  api_key: string;
+  instance: string;
+  /** URL do webhook do workflow N8N (spec 2026-07-28) — configurada na
+   * instância Evolution automaticamente ao criar/conectar, sem precisar
+   * mexer na Evolution direto. */
+  n8n_webhook_url: string;
+};
 export type MetaCredentials = { access_token: string; phone_number_id: string };
 
 export async function upsertProviderConfigAction(params: {

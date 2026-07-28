@@ -21,6 +21,7 @@ const putSchema = z.discriminatedUnion("provider", [
       base_url: z.string().trim().url(),
       api_key: z.string().trim().min(1),
       instance: z.string().trim().min(1),
+      n8n_webhook_url: z.string().trim().url(),
     }),
   }),
   z.object({

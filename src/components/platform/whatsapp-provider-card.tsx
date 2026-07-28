@@ -15,7 +15,8 @@ const FIELDS: Record<Provider, { key: string; label: string; type?: string }[]> 
   evolution: [
     { key: "base_url", label: "URL base (ex: https://evo.up.railway.app)" },
     { key: "api_key", label: "API key", type: "password" },
-    { key: "instance", label: "Nome da instância" },
+    { key: "instance", label: "Nome da instância (será criada se não existir)" },
+    { key: "n8n_webhook_url", label: "URL do webhook do N8N (ex: https://n8n.../webhook/atendimento)" },
   ],
   meta_cloud_api: [
     { key: "access_token", label: "Access token", type: "password" },
@@ -84,18 +85,23 @@ export default function WhatsAppProviderCard({
   async function connect() {
     setLoading(true);
     setError(null);
-    const res = await apiPost<{ state: string; qrcode_base64: string | null }>(
+    const res = await apiPost<{ state: string; qrcode_base64: string | null; webhook_configured: boolean }>(
       "/api/platform/whatsapp-config/evolution/connect",
       {},
     );
     setLoading(false);
     if (!res.ok) return setError(res.message);
+    if (!res.data.webhook_configured) {
+      setError(
+        "Instância criada, mas não consegui configurar o webhook do N8N — confira a URL do webhook nas credenciais.",
+      );
+    }
     if (res.data.qrcode_base64) {
       setQrcode(res.data.qrcode_base64);
       startPolling();
     } else if (res.data.state === "open") {
       router.refresh();
-    } else {
+    } else if (res.data.webhook_configured) {
       setError("Não foi possível obter o QR code. Verifique a URL base, a API key e o nome da instância.");
     }
   }
