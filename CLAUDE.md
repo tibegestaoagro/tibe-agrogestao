@@ -329,6 +329,22 @@ escrita são componentes client dentro de `<Sheet>` (painel lateral), chamando
 `apiPost`/`apiPatch` de `src/lib/client-api.ts` e dando `router.refresh()` no
 sucesso.
 
+**Painel do tenant é responsivo (mobile-first, deliberado — spec 2026-07-28):**
+o fluxo nasce no WhatsApp, então o cliente acessa o painel majoritariamente
+pelo celular, não desktop. `(dashboard)/layout.tsx` (server) calcula
+`navLinks` já filtrados por perfil ativo + `canAccess(role, ...)` e passa pra
+`DashboardShell` (`src/components/layout/dashboard-shell.tsx`, client) —
+**nunca** importe `@/lib/permissions` dentro de um client component do
+dashboard: esse módulo importa `getSessionUser` de `tenant-context.ts`, que
+arrasta `auth.ts` → `rate-limit.ts` → `ioredis` (módulos Node como `dns`
+inexistentes no browser) e quebra o build. `DashboardShell` guarda o estado
+de abrir/fechar do menu (hambúrguer no header, `md:hidden`) e repassa pra
+`Sidebar` (`src/components/layout/sidebar.tsx`, client, drawer off-canvas
+abaixo do breakpoint `md`, estático acima). `Table`/`Sheet`
+(`src/components/ui/*`) já são responsivos por padrão (scroll horizontal e
+largura total, respectivamente) — não precisam de tratamento especial nas
+páginas de conteúdo.
+
 ---
 
 ## Signup público (`/planos` + `/criar-conta`) — fora do escopo original do PRD
@@ -619,6 +635,17 @@ construiu tudo em volta dele.
 - **Seed do `master_admin`**: ainda não adicionado a `prisma/seed.ts` —
   precisa de nome/email/senha reais do responsável (Dilton), não inventados.
   Pendente até essa informação chegar.
+- **Mensagem de boas-vindas por WhatsApp** (spec 2026-07-28,
+  `src/lib/whatsapp-welcome.ts`): `createTenantManuallyAction` dispara,
+  melhor esforço (nunca bloqueia a criação), uma mensagem com o link de login
+  (`NEXTAUTH_URL` + `/login` — mesma env var de `report-link.ts`, atualiza
+  sozinha quando o domínio próprio for cadastrado), email e senha temporária.
+  Botão **"Reenviar boas-vindas"** no detalhe do tenant (`POST
+  /api/platform/tenants/:id/welcome-message`, só master_admin) existe porque
+  a senha original em claro não é recuperável (só o hash é salvo) — reenviar
+  **gera uma nova senha temporária** e marca `must_change_password` de novo,
+  então a mensagem reenviada sempre tem uma credencial que funciona de
+  verdade, nunca repete uma senha que o usuário já trocou.
 
 ---
 

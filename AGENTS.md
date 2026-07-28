@@ -431,6 +431,19 @@ construiu o painel em volta dele.
   não contagem absoluta, para não quebrar com dados de seed/outros testes.
 - Seed do `master_admin` ainda não existe em `prisma/seed.ts` — precisa de
   nome/email/senha reais do responsável, não inventados.
+- Mensagem de boas-vindas por WhatsApp (`src/lib/whatsapp-welcome.ts`):
+  `createTenantManuallyAction` dispara, melhor esforço, uma mensagem com link
+  de login (`NEXTAUTH_URL`), email e senha temporária. Botão "Reenviar
+  boas-vindas" no detalhe do tenant gera uma NOVA senha temporária a cada uso
+  (a original em claro não é recuperável, só o hash) e marca
+  `must_change_password` de novo.
+- Painel do tenant é mobile-first (fluxo nasce no WhatsApp): sidebar vira
+  drawer off-canvas abaixo do breakpoint `md`
+  (`src/components/layout/dashboard-shell.tsx` + `sidebar.tsx`, ambos client).
+  `(dashboard)/layout.tsx` calcula os links de navegação já filtrados por
+  permissão no server e passa prontos — nunca importe `@/lib/permissions`
+  dentro de um client component do dashboard, isso arrasta
+  `ioredis`/`dns` (Node-only) pro bundle do browser e quebra o build.
 
 ---
 
