@@ -44,8 +44,8 @@ export default async function PlatformKpisPage({
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-white">KPIs</h1>
-        <PeriodSelector basePath="/plataforma/kpis" current={period} />
+        <h1 className="text-2xl font-bold text-white">Visão geral</h1>
+        <PeriodSelector basePath="/plataforma/visao-geral" current={period} />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

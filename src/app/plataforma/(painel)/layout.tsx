@@ -32,8 +32,8 @@ export default async function PainelLayout({
         </div>
         <nav className="flex-1 space-y-1 px-3">
           {masterAdmin && (
-            <Link href="/plataforma/kpis" className="block rounded-md px-3 py-2 text-sm font-medium text-gray-300 transition hover:bg-gray-800 hover:text-white">
-              KPIs
+            <Link href="/plataforma/visao-geral" className="block rounded-md px-3 py-2 text-sm font-medium text-gray-300 transition hover:bg-gray-800 hover:text-white">
+              Visão geral
             </Link>
           )}
           <Link href="/plataforma/tenants" className="block rounded-md px-3 py-2 text-sm font-medium text-gray-300 transition hover:bg-gray-800 hover:text-white">

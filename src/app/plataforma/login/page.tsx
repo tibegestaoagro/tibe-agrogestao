@@ -30,7 +30,7 @@ export default function PlatformLoginPage() {
       return;
     }
 
-    router.push("/plataforma/kpis");
+    router.push("/plataforma/visao-geral");
     router.refresh();
   }
 

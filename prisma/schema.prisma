@@ -148,8 +148,16 @@ model Tenant {
   phone         String?
   email         String?
   plan          TenantPlan
+  // Tenants criados manualmente pelo painel (spec 2026-07-27) nascem sem
+  // plano escolhido pelo cliente — plan carrega um default interno até o
+  // cliente confirmar no primeiro login. Tenants do signup público (que já
+  // escolhem o plano em /planos antes de criar a conta) nascem com true.
+  plan_confirmed Boolean     @default(true)
   status        TenantStatus @default(trial)
   trial_ends_at DateTime?
+  // Arquivamento pelo painel da plataforma (spec 2026-07-27) — nunca deleta,
+  // mesmo padrão de Property.archived_at (M1). Idempotente.
+  archived_at   DateTime?
 
   // Origem do lead (UTM) — PRD seção 4 / v1.1
   lead_source_utm_source   String?
