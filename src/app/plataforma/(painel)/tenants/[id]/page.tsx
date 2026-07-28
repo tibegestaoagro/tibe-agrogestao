@@ -5,6 +5,7 @@ import StatusBadge from "@/components/platform/status-badge";
 import ForceStatusForm from "@/components/platform/force-status-form";
 import EditTenantForm from "@/components/platform/edit-tenant-form";
 import ArchiveTenantButton from "@/components/platform/archive-tenant-button";
+import ResendWelcomeButton from "@/components/platform/resend-welcome-button";
 import { formatDocument } from "@/lib/document";
 import { formatBrazilPhone } from "@/lib/phone";
 
@@ -61,16 +62,19 @@ export default async function PlatformTenantDetailPage({ params }: { params: { i
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-300">Dados cadastrais</h2>
           {isMasterAdmin(platformUser.role) && (
-            <EditTenantForm
-              tenantId={tenant.id}
-              initial={{
-                name: tenant.name,
-                document: tenant.document,
-                phone: tenant.phone,
-                email: tenant.email,
-                plan: tenant.plan,
-              }}
-            />
+            <div className="flex items-center gap-2">
+              <ResendWelcomeButton tenantId={tenant.id} />
+              <EditTenantForm
+                tenantId={tenant.id}
+                initial={{
+                  name: tenant.name,
+                  document: tenant.document,
+                  phone: tenant.phone,
+                  email: tenant.email,
+                  plan: tenant.plan,
+                }}
+              />
+            </div>
           )}
         </div>
         <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">

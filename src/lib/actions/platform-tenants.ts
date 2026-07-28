@@ -4,6 +4,8 @@ import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { logSubscriptionStatusChange } from "@/lib/platform/subscription-log";
 import { generateTempPassword } from "@/lib/passwords";
 import { toBrazilPhoneDigits } from "@/lib/phone";
+import { dispatchWelcomeMessage, buildWelcomeMessage } from "@/lib/whatsapp-welcome";
+import { sendWhatsAppMessage } from "@/lib/whatsapp-send";
 import { TRIAL_DAYS } from "@/lib/billing-access";
 import type { SubscriptionStatus, TenantPlan } from "@/generated/prisma/enums";
 
@@ -114,6 +116,8 @@ export async function createTenantManuallyAction(params: {
     throw e;
   }
 
+  await dispatchWelcomeMessage(phone, params.owner_name);
+
   return ok({ tenant_id: tenant.id, email: params.owner_email, temp_password });
 }
 
@@ -159,6 +163,25 @@ export async function updateTenantAction(
   });
 
   return ok({ id: tenant.id });
+}
+
+/**
+ * Reenvia a mensagem de boas-vindas (a mesma que dispara na criação manual)
+ * para o dono de um tenant já existente — útil pra testar entrega real ou
+ * reenviar quando o primeiro disparo falhou (ex: provider ficou fora do ar).
+ * Só master_admin (mesma exceção estrutural de createTenantManuallyAction:
+ * lookup cross-tenant do Owner pelo painel da plataforma).
+ */
+export async function resendWelcomeMessageAction(tenantId: string): Promise<ActionResult<{ sent: boolean }>> {
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+  if (!tenant) return fail("NOT_FOUND", "Tenant não encontrado", 404);
+  if (!tenant.phone) return fail("VALIDATION_ERROR", "Tenant não tem telefone cadastrado", 422);
+
+  const owner = await prisma.user.findFirst({ where: { tenant_id: tenantId, role: "OWNER" } });
+  const result = await sendWhatsAppMessage(tenant.phone, buildWelcomeMessage(owner?.name ?? tenant.name));
+  if (!result.ok) return fail(result.code, result.message, result.status);
+
+  return ok({ sent: true });
 }
 
 /**
