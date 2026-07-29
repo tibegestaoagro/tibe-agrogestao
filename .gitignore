@@ -40,3 +40,6 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# graphify (knowledge-graph skill output, regenerado a cada /graphify)
+/graphify-out/
