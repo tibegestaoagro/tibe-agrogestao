@@ -22,50 +22,46 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 ## Estado atual
 
 - Atualizado em: 2026-07-29
-- Última rodada: Módulo 17, Agenda com custo
+- Última rodada: protocolo de handoff compartilhado entre agentes
 - Estado: concluído, integrado na `main` e implantado em produção
-- Spec: `docs/specs/module-17-agenda-com-custo.md`
-- Commit: `b3c72ccfcb2f4ab10a9a5688e144eaf4fd982da5`
-- Branch de implementação: `codex/module-17-agenda-com-custo`
+- Commit principal: `e3b2f592d2e0273b6b88952a5973db80d864e2d1`
+- Branch de implementação: `codex/shared-handoff-protocol`
 - Produção: <https://tibe-agrogestao.vercel.app/>
 - Banco: nenhuma mudança de schema ou migração
-- Workspace: protocolo de handoff compartilhado criado em `AGENTS.md`,
-  `CLAUDE.md` e neste arquivo, na branch
-  `codex/shared-handoff-protocol`, aguardando aprovação para merge/deploy
 
 ### Entregue
 
-- Agenda do WhatsApp com agendamentos, vacinações e colheitas reais.
-- Previsão de vacinação persistida como despesa pendente em `FinancialEntry`.
-- Conciliação da previsão com o custo real sem duplicar despesa.
-- Reagendamento com descarte seguro do alerta pendente antigo e rearme pelo
-  cron.
-- Proteção de concorrência com transações serializáveis e teste determinístico.
+- `AGENTS.md` e `CLAUDE.md` agora apontam para este handoff como memória
+  operacional compartilhada.
+- O estado da rodada deve ser registrado aqui antes da resposta final.
+- Toda tarefa concluída recebe commit automático na branch de trabalho.
+- O push da branch de trabalho é permitido para preservar e compartilhar o
+  commit.
+- Merge na `main`, push direto para a `main` e deploy exigem aprovação
+  explícita do usuário.
+- O status antigo do Módulo 17 foi corrigido para "em produção".
 
 ### Validações
 
-- `npm run test:m17`
-- `npm run test:m3`
-- `npm run test:m4`
-- `npm run test:m11`
-- `npm run test:m12`
-- `npm run build`
-- Auditoria final de spec: 10/10, sem achados pendentes.
-- Auditoria final de padrões: 9,7/10, sem achados pendentes.
-- Deploy oficial `tibe-agrogestao`: concluído com sucesso.
-- URL pública validada em navegador.
+- `git diff --check`
+- Zero ocorrências de Unicode U+2014 nos três arquivos alterados.
+- Fast-forward da branch para a `main`.
+- Deploy do commit principal no projeto oficial `tibe-agrogestao`: concluído
+  com sucesso.
+- URL pública validada com `agent-browser`.
 
 ### Pendências e próximo passo
 
 - Há uma integração Vercel antiga ou duplicada chamada `agrogestao-tibe` que
   falha e deixa o status combinado do GitHub vermelho. O projeto oficial
   `tibe-agrogestao` está saudável. Não remover a integração sem autorização.
-- Não iniciar o próximo módulo sem demanda e aprovação explícitas do usuário.
+- A rodada não possui pendências funcionais. Aguardar a próxima demanda do
+  usuário.
 
 ## Histórico recente
 
-- 2026-07-29: criado o protocolo de memória compartilhada entre Codex e Claude
-  Code, incluindo commit automático por tarefa e aprovação obrigatória apenas
+- 2026-07-29: protocolo de memória compartilhada integrado na `main` e
+  implantado, incluindo commit automático por tarefa e aprovação obrigatória
   para merge/deploy.
 - 2026-07-29: Módulo 17 concluído, integrado na `main` e implantado em
   produção no commit `b3c72cc`.
