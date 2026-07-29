@@ -131,6 +131,21 @@ enum AlertStatus {
   dismissed
 }
 
+// Arquitetura 2026-07-29: canal de email (Gmail SMTP em dev, Resend depois
+// que o domínio próprio existir), somando ao WhatsApp já existente. Todo
+// envio grava uma linha aqui, sucesso ou falha: rastro auditável exigido
+// pelo usuário (avisos de fatura/trial precisam de comprovação, não podem
+// depender só do WhatsApp).
+enum EmailLogType {
+  welcome
+  alert
+}
+
+enum EmailLogStatus {
+  sent
+  failed
+}
+
 enum SubscriptionStatus {
   active
   overdue
@@ -180,6 +195,7 @@ model Tenant {
   whatsapp_contacts WhatsAppContact[]
   conversation_logs AgentConversationLog[]
   alerts            Alert[]
+  email_logs        EmailLog[]
   subscription      Subscription?
 }
 
@@ -534,6 +550,22 @@ model Alert {
   scheduled_for  DateTime?
   sent_at        DateTime?
   created_at     DateTime       @default(now())
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id])
+}
+
+model EmailLog {
+  id         String         @id @default(cuid())
+  tenant_id  String
+  to_email   String
+  type       EmailLogType
+  related_id String? // Alert.id quando type=alert; null para welcome
+  status     EmailLogStatus
+  error      String?
+  sent_at    DateTime?
+  created_at DateTime       @default(now())
 
   tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
 

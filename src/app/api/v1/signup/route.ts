@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { createTenantWithOwner } from "@/lib/actions/tenants";
+import { sendEmail } from "@/lib/email-send";
+import { buildWelcomeEmailHtml } from "@/lib/email-templates";
 
 /**
  * POST /api/v1/signup: cadastro público de novo tenant (self-service).
@@ -53,6 +55,17 @@ export async function POST(request: Request) {
     utm: { source: utm_source, medium: utm_medium, campaign: utm_campaign },
   });
   if (!result.ok) return apiError(result.code, result.message, result.status);
+
+  // Boas-vindas por email (arquitetura 2026-07-29): signup nunca teve
+  // equivalente por WhatsApp, e não ganha um agora — só o email, que nunca
+  // lança (melhor esforço, sempre grava EmailLog).
+  await sendEmail({
+    to: owner_email,
+    subject: "Bem-vindo ao Tibé",
+    html: buildWelcomeEmailHtml({ ownerName: owner_name, email: owner_email }),
+    tenant_id: result.data.tenant_id,
+    type: "welcome",
+  });
 
   return apiOk(result.data, {}, { status: 201 });
 }

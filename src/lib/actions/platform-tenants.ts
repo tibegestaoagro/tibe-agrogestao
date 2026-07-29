@@ -6,6 +6,8 @@ import { generateTempPassword } from "@/lib/passwords";
 import { toBrazilPhoneDigits } from "@/lib/phone";
 import { dispatchWelcomeMessage, buildWelcomeMessage } from "@/lib/whatsapp-welcome";
 import { sendWhatsAppMessage } from "@/lib/whatsapp-send";
+import { sendEmail } from "@/lib/email-send";
+import { buildWelcomeEmailHtml } from "@/lib/email-templates";
 import { createTenantWithOwner } from "@/lib/actions/tenants";
 import type { SubscriptionStatus, TenantPlan } from "@/generated/prisma/enums";
 
@@ -58,7 +60,10 @@ export async function forceSubscriptionStatusAction(params: {
  * mesmo seam de POST /api/v1/signup (createTenantWithOwner, arquitetura
  * 2026-07-29), mas gera a senha em vez de recebê-la, marca
  * must_change_password e dispara a mensagem de boas-vindas (exclusiva deste
- * fluxo, fora do seam).
+ * fluxo, fora do seam) pelos 2 canais (WhatsApp + email, arquitetura
+ * 2026-07-29): cada um melhor esforço e independente do outro (email nunca
+ * lança, sempre grava EmailLog; WhatsApp mantém o próprio best-effort já
+ * existente).
  */
 /** Plano interno até o cliente confirmar o próprio no primeiro login (ver plan_confirmed). */
 const DEFAULT_UNCONFIRMED_PLAN: TenantPlan = "fazenda";
@@ -89,6 +94,14 @@ export async function createTenantManuallyAction(params: {
     ownerName: params.owner_name,
     email: params.owner_email,
     tempPassword: temp_password,
+  });
+
+  await sendEmail({
+    to: params.owner_email,
+    subject: "Bem-vindo ao Tibé",
+    html: buildWelcomeEmailHtml({ ownerName: params.owner_name, email: params.owner_email, tempPassword: temp_password }),
+    tenant_id: result.data.tenant_id,
+    type: "welcome",
   });
 
   return ok({ tenant_id: result.data.tenant_id, email: result.data.email, temp_password });
@@ -146,7 +159,10 @@ export async function updateTenantAction(
  * must_change_password de novo: a mensagem reenviada sempre tem uma senha
  * que realmente funciona, em vez de repetir uma que pode já ter sido trocada.
  * Só master_admin (mesma exceção estrutural de createTenantManuallyAction:
- * lookup cross-tenant do Owner pelo painel da plataforma).
+ * lookup cross-tenant do Owner pelo painel da plataforma). Dispara pelos 2
+ * canais (arquitetura 2026-07-29): email é sempre tentado (nunca lança,
+ * sempre grava EmailLog) e não afeta o resultado desta action, que continua
+ * refletindo só o WhatsApp (contrato existente, coberto por test:m7/m10).
  */
 export async function resendWelcomeMessageAction(tenantId: string): Promise<ActionResult<{ sent: boolean }>> {
   const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
@@ -161,6 +177,14 @@ export async function resendWelcomeMessageAction(tenantId: string): Promise<Acti
   await prismaForTenant(tenantId).user.update({
     where: { id: owner.id },
     data: { password_hash, must_change_password: true },
+  });
+
+  await sendEmail({
+    to: owner.email,
+    subject: "Nova senha de acesso ao Tibé",
+    html: buildWelcomeEmailHtml({ ownerName: owner.name, email: owner.email, tempPassword: temp_password }),
+    tenant_id: tenantId,
+    type: "welcome",
   });
 
   const result = await sendWhatsAppMessage(

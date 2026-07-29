@@ -59,11 +59,13 @@ Specs: `docs/specs/module-00-setup.md` … `module-06-painel-plataforma.md`.
 Next.js 14 (App Router) · TypeScript · Tailwind · Prisma 7 · PostgreSQL 17
 (Neon) · NextAuth v5 beta (**duas instâncias**: tenant e plataforma, M6) ·
 Zod · Recharts · UI kit shadcn-style feito à mão (ver seção UI) · Redis Cloud
-+ BullMQ (M4) · Asaas (M5, cobrança recorrente). N8N e Cloudflare R2
-continuam no PRD mas fora do código: N8N é infra externa (orquestra o agente
-WhatsApp, não roda dentro do Tibé) ainda não provisionada; R2 nunca chegou a
-ser necessário (PDFs são gerados sob demanda, sem storage: ver Módulo 4).
-Todos os 7 módulos do PRD (0-6) têm código completo agora.
++ BullMQ (M4) · Asaas (M5, cobrança recorrente) · nodemailer (Gmail SMTP) +
+Resend (canal de email, fora do PRD original: ver seção Email). N8N e
+Cloudflare R2 continuam no PRD mas fora do código: N8N é infra externa
+(orquestra o agente WhatsApp, não roda dentro do Tibé) ainda não
+provisionada; R2 nunca chegou a ser necessário (PDFs são gerados sob
+demanda, sem storage: ver Módulo 4). Todos os 7 módulos do PRD (0-6) têm
+código completo agora.
 
 ## Deploy e infra
 
@@ -229,6 +231,7 @@ npm run test:m11         # M11: registrar_lancamento_financeiro (recibo por míd
 npm run test:m12         # M12: ajuda e resumo (agente WhatsApp)
 npm run test:m13         # M13: seam de gate de sessão (session-gate.ts)
 npm run test:m14         # M14: platform-tenants.ts (update/archive/reenvio de boas-vindas)
+npm run test:m15         # M15: canal de email (falha graciosa, EmailLog, quem recebe)
 ```
 
 ---
@@ -494,9 +497,52 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
   bookkeeping); a idempotência "não rodar 2x no mesmo dia" é um lock simples
   no Redis (`SET NX`), não o estado interno do job: mais robusto sem um
   Worker para gerenciá-lo. Ver `getRedisConnectionOptions()` acima.
-- **Envio por WhatsApp** (`src/lib/actions/alert-delivery.ts`): mesmo padrão
-  do Módulo 3: Tibé chama `N8N_ALERT_WEBHOOK_URL` (outbound); se não
-  configurada, alertas ficam `pending` sem quebrar nada.
+- **Envio por WhatsApp + email** (`src/lib/actions/alert-delivery.ts`,
+  arquitetura 2026-07-29): WhatsApp mesmo padrão do Módulo 3 (Tibé chama
+  `N8N_ALERT_WEBHOOK_URL`, outbound); email é tentado em paralelo, sempre
+  (ver seção Email abaixo). Um alerta vira `sent` assim que **qualquer um**
+  dos 2 canais entregar: sem isso, um alerta que só falha no WhatsApp (ex:
+  `N8N_ALERT_WEBHOOK_URL` não configurada, gap conhecido) ficaria `pending`
+  pra sempre e reenviaria o mesmo email todo dia no cron.
+
+## Email (arquitetura 2026-07-29)
+
+Canal adicional ao WhatsApp, não substituto: boas-vindas e alertas passam a
+sair também por email, pensado para não depender só do WhatsApp em avisos
+que precisam de comprovação de envio (fatura em atraso, fim de trial) — uma
+exigência explícita do usuário por motivo de defensabilidade.
+
+- **`EMAIL_PROVIDER=gmail_smtp|resend`** (`.env`, default `gmail_smtp`):
+  Gmail SMTP em desenvolvimento/início de produção (`GMAIL_SMTP_USER` +
+  `GMAIL_SMTP_APP_PASSWORD`, uma "Senha de app" do Google, não a senha da
+  conta); Resend guardado pronto (`RESEND_API_KEY` + `RESEND_FROM_EMAIL`)
+  pra quando o domínio próprio (`tibe.com.br`, ainda não registrado) tiver
+  um remetente verificado. Troca é só a env var + redeploy, sem UI: decisão
+  do usuário, essa troca só acontece uma vez.
+- **`src/lib/email-send.ts`**: `sendEmail()` nunca lança (sempre devolve
+  `{ok}`) e **sempre grava uma linha em `EmailLog`**, sucesso ou falha — é o
+  rastro auditável que o usuário pediu, não dá pra confiar só no retorno da
+  função. `src/lib/email-templates.ts`: HTML simples escrito à mão (sem
+  react-email nem outra lib de template), cores da marca
+  (`tailwind.config.ts`).
+- **Pontos de disparo**: `createTenantManuallyAction` e
+  `resendWelcomeMessageAction` (`platform-tenants.ts`) disparam email junto
+  com o WhatsApp que já existe; `POST /api/v1/signup` ganhou email de
+  boas-vindas que não tinha equivalente nenhum antes (nunca teve WhatsApp);
+  `deliverPendingAlertsForTenant`/`deliverAllPendingAlerts`
+  (`alert-delivery.ts`) disparam email para os 5 tipos de `AlertType`, sem
+  filtro. **Exceção deliberada**: `resendWelcomeMessageAction` continua
+  exigindo `Tenant.phone` (falha inteira sem telefone, nem tenta o email) —
+  não foi relaxado nesta rodada porque o propósito da action é reenviar
+  *pelo WhatsApp*; se precisar que o email funcione independente de
+  telefone aqui também, é uma decisão de produto nova, não assumida.
+- **Sem tabela de log pra boas-vindas além do `EmailLog`**: `Alert.status`/
+  `sent_at` já cobre alertas; boas-vindas nunca teve persistência de
+  tentativa nem por WhatsApp, continua assim (só o `EmailLog` novo).
+- **Sem teste de entrega real**: `test:m15` cobre a falha graciosa (sem
+  credencial configurada) e a lógica de quem recebe o quê; validação de
+  entrega de verdade é manual, depois que a credencial do Gmail/Resend
+  estiver preenchida no `.env`.
 
 ## Cobrança e billing (Módulo 5)
 
@@ -737,6 +783,7 @@ npm run test:m11          # M11
 npm run test:m12          # M12
 npm run test:m13          # M13
 npm run test:m14          # M14
+npm run test:m15          # M15
 ```
 
 Credenciais do seed (dev): `owner@damata.com.br` / `tibe123`.
