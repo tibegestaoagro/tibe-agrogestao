@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import { getSessionUser, getActiveProfiles, getTenantDb } from "@/lib/tenant-context";
+import { getSessionUser } from "@/lib/tenant-context";
 import { prisma } from "@/lib/prisma";
+import { requireSessionGateForPage } from "@/lib/session-gate";
 import { getBillingAccess, isBillingExemptPath } from "@/lib/billing-access";
 import { canAccess } from "@/lib/permissions";
 import DashboardShell from "@/components/layout/dashboard-shell";
@@ -29,21 +30,7 @@ export default async function DashboardLayout({
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const db = await getTenantDb();
-  const dbUser = await db.user.findUnique({
-    where: { id: user.id },
-    select: { must_change_password: true },
-  });
-  if (dbUser?.must_change_password) redirect("/trocar-senha");
-
-  const tenantPlan = await prisma.tenant.findUnique({
-    where: { id: user.tenant_id },
-    select: { plan_confirmed: true },
-  });
-  if (tenantPlan?.plan_confirmed === false) redirect("/escolher-plano");
-
-  const profiles = await getActiveProfiles();
-  if (profiles.length === 0) redirect("/onboarding");
+  const { active_profiles: profiles } = await requireSessionGateForPage(user);
 
   const pathname = headers().get("x-pathname") ?? "";
   const billingAccess = await getBillingAccess(user.tenant_id);

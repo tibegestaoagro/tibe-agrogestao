@@ -5,10 +5,11 @@ import {
   type SessionUser,
   type ProfileType,
 } from "@/lib/tenant-context";
-import { prisma, type TenantPrismaClient } from "@/lib/prisma";
+import { type TenantPrismaClient } from "@/lib/prisma";
 import { apiError, ApiErrors } from "@/lib/api";
 import { canAccess, canWrite, type ModuleKey } from "@/lib/permissions";
 import { getBillingAccess } from "@/lib/billing-access";
+import { requireSessionGateApi } from "@/lib/session-gate";
 
 /**
  * Guarda padrão para rotas de API de negócio: valida sessão, permissão por módulo
@@ -25,14 +26,18 @@ import { getBillingAccess } from "@/lib/billing-access";
  * (`/api/v1/billing/*`): precisam continuar acessíveis mesmo com a conta
  * bloqueada, para o tenant conseguir regularizar.
  *
- * `must_change_password` (spec 2026-07-24, criação manual de tenant pelo
- * painel) bloqueia TODA ação aqui, sem exceção: diferente do billing, não
- * existe rota que precise ficar acessível nesse estado, porque
- * `POST /api/v1/auth/change-password` nunca passa por `guard()` (usa só
- * `getSessionUser()`, de propósito, pra funcionar mesmo com a conta em
- * read_only/blocked). Sem essa checagem aqui, o gate de página
- * (`/trocar-senha`) era só de UI: uma chamada direta à API com a sessão da
- * senha temporária ainda funcionava.
+ * `must_change_password`/`plan_confirmed` (spec 2026-07-24/2026-07-27,
+ * criação manual de tenant pelo painel) bloqueiam TODA ação aqui, sem
+ * exceção, via `requireSessionGateApi()` (`session-gate.ts`, seam
+ * compartilhado com o layout do dashboard e as páginas standalone
+ * `trocar-senha`/`escolher-plano`/`onboarding`): diferente do billing, não
+ * existe rota que precise ficar acessível nesses estados, porque
+ * `POST /api/v1/auth/change-password` e `POST /api/v1/tenant/plan` (que os
+ * resolvem) nunca passam por `guard()` (usam só `getSessionUser()`, de
+ * propósito, pra funcionar mesmo com a conta em read_only/blocked). Sem
+ * essa checagem aqui, o gate de página era só de UI: uma chamada direta à
+ * API com a sessão da senha temporária/plano não confirmado ainda
+ * funcionava.
  */
 export async function guard(
   module: ModuleKey,
@@ -45,38 +50,10 @@ export async function guard(
   const user = await getSessionUser();
   if (!user) return { error: apiError(...ApiErrors.UNAUTHORIZED) };
 
+  const gate = await requireSessionGateApi(user);
+  if (gate) return gate;
+
   const db = await getTenantDb();
-
-  const dbUser = await db.user.findFirst({
-    where: { id: user.id },
-    select: { must_change_password: true },
-  });
-  if (dbUser?.must_change_password) {
-    return {
-      error: apiError(
-        "MUST_CHANGE_PASSWORD",
-        "Troque sua senha temporária antes de continuar (acesse /trocar-senha).",
-        403,
-      ),
-    };
-  }
-
-  // Mesmo raciocínio do must_change_password: tenant criado manualmente pelo
-  // painel nasce com plan_confirmed=false, e POST /api/v1/tenant/plan (que
-  // resolve isso) também não passa por guard(), pelo mesmo motivo.
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: user.tenant_id },
-    select: { plan_confirmed: true },
-  });
-  if (tenant?.plan_confirmed === false) {
-    return {
-      error: apiError(
-        "PLAN_NOT_CONFIRMED",
-        "Escolha seu plano antes de continuar (acesse /escolher-plano).",
-        403,
-      ),
-    };
-  }
 
   const ok =
     action === "write" ? canWrite(user.role, module) : canAccess(user.role, module);

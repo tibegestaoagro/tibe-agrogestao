@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { getSessionUser, getTenantDb } from "@/lib/tenant-context";
+import { getSessionUser } from "@/lib/tenant-context";
+import { redirectIfGatePassed } from "@/lib/session-gate";
 import ChangePasswordForm from "./change-password-form";
 
 /**
@@ -12,9 +13,7 @@ export default async function TrocarSenhaPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const db = await getTenantDb();
-  const dbUser = await db.user.findUnique({ where: { id: user.id } });
-  if (!dbUser?.must_change_password) redirect("/dashboard");
+  await redirectIfGatePassed(user, "must_change_password");
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-tibe-light px-4">

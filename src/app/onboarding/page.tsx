@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import { getActiveProfiles, getSessionUser, getTenantDb } from "@/lib/tenant-context";
-import { prisma } from "@/lib/prisma";
+import { getActiveProfiles, getSessionUser } from "@/lib/tenant-context";
+import { redirectIfGatePassed } from "@/lib/session-gate";
 import OnboardingForm from "./onboarding-form";
 
 /**
@@ -11,18 +11,7 @@ export default async function OnboardingPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const db = await getTenantDb();
-  const dbUser = await db.user.findUnique({
-    where: { id: user.id },
-    select: { must_change_password: true },
-  });
-  if (dbUser?.must_change_password) redirect("/trocar-senha");
-
-  const tenantPlan = await prisma.tenant.findUnique({
-    where: { id: user.tenant_id },
-    select: { plan_confirmed: true },
-  });
-  if (tenantPlan?.plan_confirmed === false) redirect("/escolher-plano");
+  await redirectIfGatePassed(user, "profile");
 
   const profiles = await getActiveProfiles();
   if (profiles.length > 0) redirect("/dashboard");

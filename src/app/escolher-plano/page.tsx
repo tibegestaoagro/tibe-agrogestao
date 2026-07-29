@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import { getSessionUser, getTenantDb } from "@/lib/tenant-context";
-import { prisma } from "@/lib/prisma";
+import { getSessionUser } from "@/lib/tenant-context";
+import { redirectIfGatePassed } from "@/lib/session-gate";
 import ChoosePlanForm from "./choose-plan-form";
 
 /**
@@ -14,18 +14,7 @@ export default async function EscolherPlanoPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const db = await getTenantDb();
-  const dbUser = await db.user.findFirst({
-    where: { id: user.id },
-    select: { must_change_password: true },
-  });
-  if (dbUser?.must_change_password) redirect("/trocar-senha");
-
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: user.tenant_id },
-    select: { plan_confirmed: true },
-  });
-  if (tenant?.plan_confirmed !== false) redirect("/dashboard");
+  await redirectIfGatePassed(user, "plan_confirmed");
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-tibe-light px-4 py-10">
