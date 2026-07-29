@@ -25,7 +25,8 @@
     "test:m10": "tsx scripts/m10-tenant-manual.test.ts",
     "test:m11": "tsx scripts/m11-financial-media-intent.test.ts",
     "test:m12": "tsx scripts/m12-ajuda-resumo.test.ts",
-    "test:m13": "tsx scripts/m13-session-gate.test.ts"
+    "test:m13": "tsx scripts/m13-session-gate.test.ts",
+    "test:m14": "tsx scripts/m14-platform-tenants-actions.test.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

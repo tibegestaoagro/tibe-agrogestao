@@ -222,6 +222,13 @@ npm run test:m3          # M3: WhatsApp: permissão por role/perfil, confirmaç�
 npm run test:m4          # M4: Financeiro/Alertas + idempotência + cron
 npm run test:m5          # M5: billing-access, webhook Asaas, usuários, trial_ending
 npm run test:m6          # M6: MRR/churn/LTV/funil, isolamento PlatformUser, força de status
+npm run test:m7          # M7: provider WhatsApp configurável (crypto, config, envio)
+npm run test:m9          # M9: Evolution client (QR)
+npm run test:m10         # M10: criação manual de tenant + troca de senha
+npm run test:m11         # M11: registrar_lancamento_financeiro (recibo por mídia)
+npm run test:m12         # M12: ajuda e resumo (agente WhatsApp)
+npm run test:m13         # M13: seam de gate de sessão (session-gate.ts)
+npm run test:m14         # M14: platform-tenants.ts (update/archive/reenvio de boas-vindas)
 ```
 
 ---
@@ -723,6 +730,13 @@ npm run test:m3           # M3
 npm run test:m4           # M4
 npm run test:m5           # M5
 npm run test:m6           # M6
+npm run test:m7           # M7
+npm run test:m9           # M9
+npm run test:m10          # M10
+npm run test:m11          # M11
+npm run test:m12          # M12
+npm run test:m13          # M13
+npm run test:m14          # M14
 ```
 
 Credenciais do seed (dev): `owner@damata.com.br` / `tibe123`.
