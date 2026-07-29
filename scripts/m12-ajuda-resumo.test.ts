@@ -65,12 +65,13 @@ async function main() {
       { data: scoped({ ear_tag: "M12-1", breed: "Nelore", sex: "male", property_id: propA.id }) },
     );
     const vaccine = await dbA.vaccine.create({ data: scoped({ name: "Aftosa M12" }) });
+    const vaccineDueAt = new Date(Date.now() + 5 * 86_400_000);
     await dbA.animalVaccination.create({
       data: scoped({
         animal_id: animal.id,
         vaccine_id: vaccine.id,
         applied_at: new Date(),
-        next_due_at: new Date(Date.now() + 5 * 86_400_000),
+        next_due_at: vaccineDueAt,
       }),
     });
 
@@ -78,6 +79,7 @@ async function main() {
     const service = await dbA.service.create(
       { data: scoped({ name: "Diária M12", pricing_type: "fixed", unit_price: 100 }) },
     );
+    const scheduledAt = new Date("2026-08-15T00:00:00.000Z");
     await dbA.serviceOrder.create({
       data: scoped({
         service_client_id: client.id,
@@ -85,6 +87,7 @@ async function main() {
         quantity: 1,
         total_value: 100,
         status: "scheduled",
+        performed_at: scheduledAt,
       }),
     });
     await dbA.serviceOrder.create({
@@ -95,6 +98,16 @@ async function main() {
         total_value: 250.5,
         status: "completed",
         performed_at: new Date(),
+      }),
+    });
+    const receivableDueAt = new Date();
+    await dbA.financialEntry.create({
+      data: scoped({
+        entry_type: "income",
+        category: "Serviço faturado M12",
+        amount: 180.75,
+        due_date: receivableDueAt,
+        status: "pending",
       }),
     });
 
@@ -166,7 +179,14 @@ async function main() {
       parameters: { scope: "rebanho" },
     });
     assert(/1 animal/i.test(resumoRebanho.body.data.reply_text), "resumo rebanho mostra 1 animal ativo");
-    assert(/5 dia/.test(resumoRebanho.body.data.reply_text), "resumo rebanho mostra a próxima vacina em 5 dias");
+    assert(
+      resumoRebanho.body.data.reply_text.includes(
+        `Aftosa M12 (brinco M12-1) dia ${new Intl.DateTimeFormat("pt-BR", {
+          timeZone: "UTC",
+        }).format(vaccineDueAt)}, sem previsão de gasto`,
+      ),
+      "resumo rebanho lista a vacina prevista em 30 dias com data e estado da previsão",
+    );
 
     // ── resumo: prestador (nível 2, pergunta) ──────────────────────────
     const resumoPrestador = await callExecute({
@@ -178,7 +198,7 @@ async function main() {
     assert(
       /Clientes/.test(resumoPrestador.body.data.reply_text) &&
         /Agendamentos/.test(resumoPrestador.body.data.reply_text) &&
-        /Contas a receber/.test(resumoPrestador.body.data.reply_text),
+        /Ordens a faturar/.test(resumoPrestador.body.data.reply_text),
       "resumo prestador pergunta o nível 2",
     );
 
@@ -191,7 +211,20 @@ async function main() {
     });
     assert(/1 cliente/i.test(resumoClientes.body.data.reply_text), "resumo clientes mostra 1 cliente cadastrado");
 
-    // ── resumo: contas_a_receber (soma total_value das completed) ──────
+    // ── resumo: ordens_a_faturar (soma total_value das completed) ──────
+    const resumoOrdens = await callExecute({
+      tenant_id: tenantA.id,
+      user_id: ownerA.id,
+      intent: "resumo",
+      parameters: { scope: "ordens_a_faturar" },
+    });
+    assert(
+      /1 ordem/i.test(resumoOrdens.body.data.reply_text) &&
+        /250[,.]50/.test(resumoOrdens.body.data.reply_text),
+      "resumo ordens_a_faturar soma corretamente (1 ordem completed, R$ 250,50)",
+    );
+
+    // ── resumo: contas_a_receber (FinancialEntry pendente) ─────────────
     const resumoContas = await callExecute({
       tenant_id: tenantA.id,
       user_id: ownerA.id,
@@ -199,8 +232,14 @@ async function main() {
       parameters: { scope: "contas_a_receber" },
     });
     assert(
-      /1 ordem/i.test(resumoContas.body.data.reply_text) && /250[,.]50/.test(resumoContas.body.data.reply_text),
-      "resumo contas_a_receber soma corretamente (1 ordem completed, R$ 250,50)",
+      resumoContas.body.data.reply_text.includes("Serviço faturado M12: R$ 180.75") &&
+        resumoContas.body.data.reply_text.includes(
+          `vence ${new Intl.DateTimeFormat("pt-BR", {
+            timeZone: "UTC",
+          }).format(receivableDueAt)}`,
+        ) &&
+        resumoContas.body.data.reply_text.includes("Total a receber no período: R$ 180.75"),
+      "resumo contas_a_receber lista receita pendente com data e valor",
     );
 
     // ── resumo: agendamentos (só a scheduled) ──────────────────────────
@@ -210,7 +249,14 @@ async function main() {
       intent: "resumo",
       parameters: { scope: "agendamentos" },
     });
-    assert(/1 ordem/i.test(resumoAgendamentos.body.data.reply_text), "resumo agendamentos mostra 1 ordem scheduled");
+    assert(
+      resumoAgendamentos.body.data.reply_text.includes(
+        `Diária M12 para Cliente M12 dia ${new Intl.DateTimeFormat("pt-BR", {
+          timeZone: "UTC",
+        }).format(scheduledAt)}, R$ 100.00`,
+      ),
+      "resumo agendamentos lista a ordem scheduled com data e valor",
+    );
 
     // ── resumo: escopo de prestador sem o perfil ativo (tenant B) ──────
     const resumoClientesSemPerfil = await callExecute({

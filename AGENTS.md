@@ -16,28 +16,22 @@ memória local à ferramenta).
 
 ---
 
-## 🔴 Próximo trabalho: comece por aqui (handoff de 2026-07-29)
+## Módulo 17: completo localmente, aguardando aprovação (2026-07-29)
 
 Este projeto é conduzido por mais de um agente de código (Claude Code e Codex),
 alternadamente, conforme o limite de uso de cada assinatura. Quem assume o
 trabalho continua do ponto abaixo, sem refazer levantamento.
 
-**Tarefa pendente: Módulo 17, "Agenda com custo".**
-Spec completa e com todas as decisões já fechadas com o usuário:
+O Módulo 17, "Agenda com custo", foi implementado localmente conforme a spec:
 [docs/specs/module-17-agenda-com-custo.md](docs/specs/module-17-agenda-com-custo.md).
 
-- Estado: **especificado, zero código escrito.** A entrevista de requisitos já
-  aconteceu (9 decisões registradas na seção 3 da spec). **Não reabra o que já
-  está decidido lá**: implemente.
-- A spec exige **zero mudança de schema Prisma** e reusa mecanismos que já
-  estão em produção (alerta `bill_due`, `FinancialEntry` pendente,
-  `createManualEntryAction`). Se você concluir que precisa de schema novo,
-  releia a seção 2 da spec antes: provavelmente é um caminho já descartado.
-- Comece pela Task 1 (seção 5) e siga na ordem. As Tasks 6 e 9.5
-  (conciliação previsão × custo real, e o teste que garante que a despesa não
-  é contada duas vezes) são o coração do módulo.
-- Ao terminar, siga a regra 5 da seção seguinte (rodar aceitação e reportar
-  antes do usuário validar) e mantenha `CLAUDE.md` e este arquivo em sincronia.
+- Estado: **código completo no worktree local, aguardando aprovação explícita
+  do usuário**. Não houve mudança de schema Prisma.
+- A agenda do WhatsApp agora lista itens reais; previsões de vacinação usam
+  `FinancialEntry` pendente e são conciliadas com o custo real sem duplicar a
+  despesa.
+- A regressão do módulo está em `npm run test:m17`. Não avance para outra
+  rodada, commit, push ou deploy sem autorização.
 
 **Regra de escrita permanente do usuário, válida para qualquer agente:** nunca
 use o caractere travessão (`—`) em código, comentário, texto de interface,
@@ -90,7 +84,7 @@ criação de tenant). Ver as seções "Email" e "Recuperação de senha" abaixo.
 | 5 | Painel Web, Cobrança (Asaas) e Site | ✅ completo: Asaas real (código pronto, sem chave de sandbox testada ainda); dashboard consolidado, usuários, cobrança/bloqueio por inadimplência, site público (`/`, `/planos`, `/faq`, `/politicas/*`), documentação técnica em `/docs`, README/CONTRIBUTING |
 | 6 | Painel da Plataforma (`PlatformUser`, interno Pleno) | ✅ completo: auth separada (`/plataforma`), MRR/churn/LTV/funil, gestão de tenants e equipe |
 | 7 | Provider WhatsApp configurável (fora do PRD original) | ✅ completo: Evolution API/Meta Cloud API configurável pelo painel, credenciais criptografadas |
-| 17 | Agenda com custo (agente WhatsApp) | 🔴 **especificado, não implementado**: ver [spec](docs/specs/module-17-agenda-com-custo.md) e o handoff no topo deste arquivo |
+| 17 | Agenda com custo (agente WhatsApp) | ✅ **completo localmente, aguardando aprovação**: agenda real, previsão financeira e conciliação sem duplicidade; sem mudança de schema |
 
 Specs: `docs/specs/module-00-setup.md` … `module-06-painel-plataforma.md`. M7
 em diante não tem spec formal (trabalho pós-PRD, decidido diretamente com
@@ -256,6 +250,7 @@ npm run test:m13         # Seam de gate de sessão (session-gate.ts)
 npm run test:m14         # platform-tenants.ts (update/archive/reenvio de boas-vindas)
 npm run test:m15         # Canal de email (falha graciosa, EmailLog, quem recebe)
 npm run test:m16         # Recuperação de senha (código, rate limit, senha forte)
+npm run test:m17         # Agenda com custo, conciliação e alertas
 ```
 
 ---
@@ -397,7 +392,7 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
   pelo telefone (único lookup cross-tenant legítimo do sistema, junto com os
   demais listados na seção de isolamento). Devolve, além do contrato da
   spec, `meta.first_contact`, `meta.suggested_reply` e `meta.recent_history`.
-- `POST /api/internal/whatsapp/execute-action`: roteia as 13 intenções
+- `POST /api/internal/whatsapp/execute-action`: roteia as 14 intenções
   (`src/lib/whatsapp-intents.ts` tem a lista + regra de permissão/perfil por
   intenção) para as mesmas `actions` usadas pela web, via o dispatcher em
   `whatsapp-router.ts` (ver seção "Lógica de negócio" acima). Confirmação
@@ -419,8 +414,20 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
   (nunca gerado pela LLM) de como usar um recurso. `resumo` (`scope?`) é um
   funil de até 2 perguntas terminando em dado real: nível 1
   rebanho/lavoura/prestador/financeiro, nível 2 (só sob prestador)
-  clientes/agendamentos/contas a receber. Sem estado novo: reconstrói onde
-  parou via `recent_history`, mesmo mecanismo da confirmação sim/não.
+  clientes/agendamentos/ordens a faturar. `contas_a_pagar` e
+  `contas_a_receber` consultam `FinancialEntry` pendente em qualquer perfil.
+  Sem estado novo: reconstrói onde parou via `recent_history`, mesmo mecanismo
+  da confirmação sim/não.
+- **Agenda com custo (M17)**: o `resumo` lista agendamentos, vacinas e
+  colheitas reais com suas datas e, quando o modelo fornece valor, o custo. A
+  intenção `registrar_previsao_vacina` persiste uma despesa pendente em
+  `FinancialEntry`, com `related_module: geral` e `related_id` sintético
+  `"{animal_id}:{vaccine_id}"`, então o alerta `bill_due` mantém a promessa de
+  lembrete. Repetir a previsão atualiza a mesma linha. Ao registrar a aplicação
+  com custo real, a previsão é conciliada e quitada em vez de gerar uma segunda
+  despesa. Se a data for reagendada, o alerta pendente antigo é descartado e o
+  cron rearma `bill_due` quando a nova data entra na janela, preservando alertas
+  já enviados ou dispensados para auditoria.
 - `gerar_relatorio` (tipo `financeiro`) devolve um `report_url` de verdade
   (link assinado, ver Financeiro abaixo); outros tipos ainda respondem "não
   disponível".
@@ -685,6 +692,7 @@ npm run test:m13          # Gate de sessão
 npm run test:m14          # platform-tenants.ts (update/archive/reenvio)
 npm run test:m15          # Canal de email
 npm run test:m16          # Recuperação de senha
+npm run test:m17          # Agenda com custo
 ```
 
 Credenciais do seed (dev): `owner@damata.com.br` / `tibe123`.

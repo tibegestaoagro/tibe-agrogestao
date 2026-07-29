@@ -28,7 +28,8 @@
     "test:m13": "tsx scripts/m13-session-gate.test.ts",
     "test:m14": "tsx scripts/m14-platform-tenants-actions.test.ts",
     "test:m15": "tsx scripts/m15-email.test.ts",
-    "test:m16": "tsx scripts/m16-password-reset.test.ts"
+    "test:m16": "tsx scripts/m16-password-reset.test.ts",
+    "test:m17": "tsx scripts/m17-agenda-custo.test.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

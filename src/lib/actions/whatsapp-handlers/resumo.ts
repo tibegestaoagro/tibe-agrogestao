@@ -1,5 +1,6 @@
 import type { ProfileType } from "@/lib/tenant-context";
 import { listUpcomingVaccinations } from "@/lib/actions/animals";
+import { listPendingEntries } from "@/lib/actions/financial-reports";
 import { getBalanceAction } from "@/lib/actions/financial-summary";
 import { decToNum } from "@/lib/serialize";
 import { str, type Handler } from "./shared";
@@ -10,7 +11,18 @@ const RESUMO_TOP_LEVEL: { scope: string; label: string; profile?: ProfileType }[
   { scope: "prestador", label: "Prestador", profile: "prestador" },
   { scope: "financeiro", label: "Financeiro" },
 ];
-const RESUMO_SECOND_LEVEL = ["Clientes", "Agendamentos", "Contas a receber"];
+const RESUMO_SECOND_LEVEL = ["Clientes", "Agendamentos", "Ordens a faturar"];
+const civilDateFormatter = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: "UTC",
+});
+
+function formatCivilDate(date: Date): string {
+  return civilDateFormatter.format(date);
+}
+
+function formatAmount(value: number): string {
+  return value.toFixed(2);
+}
 
 export const resumo: Handler = async ({ db, parameters, activeProfiles }) => {
   const scope = str(parameters.scope);
@@ -19,14 +31,54 @@ export const resumo: Handler = async ({ db, parameters, activeProfiles }) => {
   if (scope === "rebanho" && availableTopLevel.some((o) => o.scope === "rebanho")) {
     const [count, upcoming] = await Promise.all([
       db.animal.count({ where: { status: "active" } }),
-      listUpcomingVaccinations(db, 15),
+      listUpcomingVaccinations(db, 30),
     ]);
-    const next = upcoming[0];
-    const vaccineText = next
-      ? `Próxima vacina: brinco ${next.ear_tag ?? "?"} em ${next.days_remaining} dia(s).`
-      : "Nenhuma vacina prevista.";
+    const relatedIds = Array.from(
+      new Set(
+        upcoming.map((vaccination) =>
+          `${vaccination.animal_id}:${vaccination.vaccine_id}`),
+      ),
+    );
+    const previsions = relatedIds.length
+      ? await db.financialEntry.findMany({
+          where: {
+            related_id: { in: relatedIds },
+            entry_type: "expense",
+            status: "pending",
+          },
+          select: { related_id: true, amount: true },
+        })
+      : [];
+    const previsionByRelatedId = new Map(
+      previsions.map((prevision) => [
+        prevision.related_id,
+        decToNum(prevision.amount) ?? 0,
+      ]),
+    );
+    const firstWithoutPrevision = upcoming.find(
+      (vaccination) =>
+        !previsionByRelatedId.has(
+          `${vaccination.animal_id}:${vaccination.vaccine_id}`,
+        ),
+    );
+    const vaccineLines = upcoming.map((vaccination) => {
+      const vaccineName = vaccination.vaccine_name ?? "Vacina";
+      const earTag = vaccination.ear_tag ?? "?";
+      const date = formatCivilDate(vaccination.next_due_at);
+      const relatedId = `${vaccination.animal_id}:${vaccination.vaccine_id}`;
+      const prevision = previsionByRelatedId.get(relatedId);
+      return prevision !== undefined
+        ? `${vaccineName} (brinco ${earTag}) dia ${date}, previsão R$ ${formatAmount(prevision)}`
+        : `${vaccineName} (brinco ${earTag}) dia ${date}, sem previsão de gasto`;
+    });
+    const vaccineText = vaccineLines.length
+      ? vaccineLines.join("\n")
+      : "Nenhuma vacina prevista nos próximos 30 dias.";
+    const offerText = firstWithoutPrevision
+      ? `\nQuer registrar um valor previsto para ${firstWithoutPrevision.vaccine_name ?? "Vacina"} (brinco ${firstWithoutPrevision.ear_tag ?? "?"})? Me diga o valor.`
+      : "";
     return {
-      reply_text: `🐄 Rebanho: ${count} animal(is) ativo(s). ${vaccineText}`,
+      reply_text: `🐄 Rebanho: ${count} animal(is) ativo(s).\n${vaccineText}${offerText}`,
       requires_confirmation: false,
       auxiliary_data: null,
       report_url: null,
@@ -35,11 +87,37 @@ export const resumo: Handler = async ({ db, parameters, activeProfiles }) => {
   }
 
   if (scope === "lavoura" && availableTopLevel.some((o) => o.scope === "lavoura")) {
-    const count = await db.plot.count({
-      where: { cycles: { some: { status: { in: ["planted", "growing"] } } } },
-    });
+    const now = new Date();
+    const cycleWhere = {
+      status: {
+        in: ["planted", "growing"] as ("planted" | "growing")[],
+      },
+      expected_harvest_at: { gt: now },
+    };
+    const [count, cycles, cycleCount] = await Promise.all([
+      db.plot.count({
+        where: { cycles: { some: { status: { in: ["planted", "growing"] } } } },
+      }),
+      db.cropCycle.findMany({
+        where: cycleWhere,
+        orderBy: { expected_harvest_at: "asc" },
+        take: 6,
+        include: { plot: { select: { name: true } } },
+      }),
+      db.cropCycle.count({ where: cycleWhere }),
+    ]);
+    const lines = cycles.slice(0, 5).map(
+      (cycle) =>
+        `${cycle.crop_name} (talhão ${cycle.plot.name}): colheita prevista ${formatCivilDate(cycle.expected_harvest_at!)}`,
+    );
+    if (cycleCount > 5) {
+      lines.push(`e mais ${cycleCount - 5} colheita(s)`);
+    }
+    const harvestText = lines.length
+      ? lines.join("\n")
+      : "Nenhuma colheita prevista.";
     return {
-      reply_text: `🌱 Lavoura: ${count} talhão(ões) com ciclo ativo.`,
+      reply_text: `🌱 Lavoura: ${count} talhão(ões) com ciclo ativo.\n${harvestText}`,
       requires_confirmation: false,
       auxiliary_data: null,
       report_url: null,
@@ -72,7 +150,7 @@ export const resumo: Handler = async ({ db, parameters, activeProfiles }) => {
     };
   }
 
-  if (scope === "clientes" || scope === "agendamentos" || scope === "contas_a_receber") {
+  if (scope === "clientes" || scope === "agendamentos" || scope === "ordens_a_faturar") {
     if (!activeProfiles.includes("prestador")) {
       return {
         reply_text: `Esse recurso requer o perfil "Prestador de Serviço" ativo, que não está habilitado para sua empresa.`,
@@ -93,9 +171,39 @@ export const resumo: Handler = async ({ db, parameters, activeProfiles }) => {
       };
     }
     if (scope === "agendamentos") {
-      const count = await db.serviceOrder.count({ where: { status: "scheduled" } });
+      const [orders, count] = await Promise.all([
+        db.serviceOrder.findMany({
+          where: { status: "scheduled" },
+          orderBy: { performed_at: "asc" },
+          take: 6,
+          include: {
+            service: { select: { name: true } },
+            service_client: { select: { name: true } },
+          },
+        }),
+        db.serviceOrder.count({ where: { status: "scheduled" } }),
+      ]);
+      if (count === 0) {
+        return {
+          reply_text: "Nenhum agendamento pendente no momento.",
+          requires_confirmation: false,
+          auxiliary_data: null,
+          report_url: null,
+          action_taken: "resumo:agendamentos",
+        };
+      }
+      const lines = orders.slice(0, 5).map((order) => {
+        const date = order.performed_at
+          ? formatCivilDate(order.performed_at)
+          : "sem data";
+        const amount = decToNum(order.total_value) ?? 0;
+        return `${order.service.name} para ${order.service_client.name} dia ${date}, R$ ${formatAmount(amount)}`;
+      });
+      if (count > 5) {
+        lines.push(`e mais ${count - 5} agendamento(s)`);
+      }
       return {
-        reply_text: `📅 Você tem ${count} ordem(ns) de serviço agendada(s) (ainda não realizadas).`,
+        reply_text: lines.join("\n"),
         requires_confirmation: false,
         auxiliary_data: null,
         report_url: null,
@@ -112,7 +220,47 @@ export const resumo: Handler = async ({ db, parameters, activeProfiles }) => {
       requires_confirmation: false,
       auxiliary_data: null,
       report_url: null,
-      action_taken: "resumo:contas_a_receber",
+      action_taken: "resumo:ordens_a_faturar",
+    };
+  }
+
+  if (scope === "contas_a_pagar" || scope === "contas_a_receber") {
+    const isPayable = scope === "contas_a_pagar";
+    const entries = await listPendingEntries(db, {
+      entry_type: isPayable ? "expense" : "income",
+    });
+    const direction = isPayable ? "pagar" : "receber";
+    if (entries.length === 0) {
+      return {
+        reply_text: `Nenhuma conta a ${direction} no período.`,
+        requires_confirmation: false,
+        auxiliary_data: null,
+        report_url: null,
+        action_taken: `resumo:${scope}`,
+      };
+    }
+
+    const lines = entries.slice(0, 5).map((entry) => {
+      const category = entry.category ?? "Sem categoria";
+      const amount = formatAmount(entry.amount ?? 0);
+      const dueDate = formatCivilDate(entry.due_date);
+      if (entry.days_overdue !== null) {
+        return `⚠️ VENCIDA há ${entry.days_overdue} dias: ${category}, R$ ${amount} (venceu ${dueDate})`;
+      }
+      return `${category}: R$ ${amount}, vence ${dueDate}`;
+    });
+    if (entries.length > 5) {
+      lines.push(`e mais ${entries.length - 5} conta(s)`);
+    }
+    const total = entries.reduce((sum, entry) => sum + (entry.amount ?? 0), 0);
+    lines.push(`Total a ${direction} no período: R$ ${formatAmount(total)}`);
+
+    return {
+      reply_text: lines.join("\n"),
+      requires_confirmation: false,
+      auxiliary_data: null,
+      report_url: null,
+      action_taken: `resumo:${scope}`,
     };
   }
 

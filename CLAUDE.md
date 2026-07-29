@@ -49,7 +49,7 @@ fase do contrato. O usuário (Dilton) segue este protocolo com qualquer agente:
 | 4 | Financeiro e Alertas | ✅ completo: Redis/BullMQ real; PDF via link assinado (sem R2); envio WhatsApp aguarda N8N (mesmo gap do M3) |
 | 5 | Painel Web, Cobrança (Asaas) e Site | ✅ completo: Asaas real (código pronto, sem chave de sandbox testada ainda); dashboard consolidado, usuários, cobrança/bloqueio por inadimplência, site público (`/`, `/planos`, `/faq`, `/politicas/*`), documentação técnica em `/docs`, README/CONTRIBUTING |
 | 6 | Painel da Plataforma (`PlatformUser`, interno Pleno) | ✅ completo: auth separada (`/plataforma`), MRR/churn/LTV/funil, gestão de tenants e equipe |
-| 17 | Agenda com custo (agente WhatsApp) | 🔴 **especificado, não implementado** (2026-07-29): decisões todas fechadas em [docs/specs/module-17-agenda-com-custo.md](docs/specs/module-17-agenda-com-custo.md). Handoff para o Codex no topo do [AGENTS.md](AGENTS.md). Zero mudança de schema: previsão de gasto é `FinancialEntry` pendente, reusando o alerta `bill_due` que já existe |
+| 17 | Agenda com custo (agente WhatsApp) | ✅ **completo localmente, aguardando aprovação**: agenda real, previsão financeira e conciliação sem duplicidade; sem mudança de schema |
 
 Specs: `docs/specs/module-00-setup.md` … `module-06-painel-plataforma.md`.
 
@@ -239,6 +239,7 @@ npm run test:m13         # M13: seam de gate de sessão (session-gate.ts)
 npm run test:m14         # M14: platform-tenants.ts (update/archive/reenvio de boas-vindas)
 npm run test:m15         # M15: canal de email (falha graciosa, EmailLog, quem recebe)
 npm run test:m16         # M16: recuperação de senha (código, rate limit, senha forte)
+npm run test:m17         # M17: agenda com custo, conciliação e alertas
 ```
 
 ---
@@ -451,12 +452,23 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
   que termina em dado real (reusa as mesmas queries do `/dashboard`, sem
   action nova); nível 1: `rebanho`/`lavoura`/`prestador`/`financeiro`;
   nível 2, só sob `prestador`: `clientes`/`agendamentos`/
-  `contas_a_receber`. Nenhum estado de conversa novo: o funil reconstrói
-  onde parou a partir do `recent_history` a cada mensagem, mesmo mecanismo
-  já usado pra confirmação sim/não. Se o histórico mostra que já
-  perguntou e a resposta não resolveu, o prompt do LLM instrui classificar
-  como `ambigua` em vez de perguntar de novo (evita loop). `ambigua`
-  também ficou com texto menos robótico.
+  `ordens_a_faturar`. `contas_a_pagar` e `contas_a_receber` consultam
+  `FinancialEntry` pendente em qualquer perfil. Nenhum estado de conversa
+  novo: o funil reconstrói onde parou a partir do `recent_history` a cada
+  mensagem, mesmo mecanismo já usado pra confirmação sim/não. Se o histórico
+  mostra que já perguntou e a resposta não resolveu, o prompt do LLM instrui
+  classificar como `ambigua` em vez de perguntar de novo (evita loop).
+  `ambigua` também ficou com texto menos robótico.
+- **Agenda com custo (M17)**: o `resumo` lista agendamentos, vacinas e
+  colheitas reais com suas datas e, quando o modelo fornece valor, o custo. A
+  intenção `registrar_previsao_vacina` persiste uma despesa pendente em
+  `FinancialEntry`, com `related_module: geral` e `related_id` sintético
+  `"{animal_id}:{vaccine_id}"`, então o alerta `bill_due` mantém a promessa de
+  lembrete. Repetir a previsão atualiza a mesma linha. Ao registrar a aplicação
+  com custo real, a previsão é conciliada e quitada em vez de gerar uma segunda
+  despesa. Se a data for reagendada, o alerta pendente antigo é descartado e o
+  cron rearma `bill_due` quando a nova data entra na janela, preservando alertas
+  já enviados ou dispensados para auditoria.
 - `gerar_relatorio` (tipo `financeiro`) devolve um `report_url` de verdade
   (link assinado, ver Módulo 4 abaixo); tipos `rebanho|lavoura|prestador`
   ainda respondem "não disponível": não há gerador de PDF para eles.
@@ -836,6 +848,7 @@ npm run test:m13          # M13
 npm run test:m14          # M14
 npm run test:m15          # M15
 npm run test:m16          # M16
+npm run test:m17          # M17
 ```
 
 Credenciais do seed (dev): `owner@damata.com.br` / `tibe123`.

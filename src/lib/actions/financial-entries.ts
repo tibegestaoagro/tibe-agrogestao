@@ -1,21 +1,24 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
+import type { FinancialEntryCreateClient } from "@/lib/financial";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 
 /**
  * Lançamentos financeiros manuais (spec 4.2). Sempre `related_module: geral`,
- * `related_id: null`: lançamentos vinculados a outros módulos (venda de
- * animal, insumo, ordem faturada) são criados por `createLinkedEntry`
- * (`src/lib/financial.ts`), nunca por aqui.
+ * com `related_id` opcional para correlação sintética de previsões. Lançamentos
+ * vinculados diretamente a outros módulos (venda de animal, insumo, ordem
+ * faturada) são criados por `createLinkedEntry` (`src/lib/financial.ts`),
+ * nunca por aqui.
  */
 
 export async function createManualEntryAction(
-  db: TenantPrismaClient,
+  db: FinancialEntryCreateClient,
   input: {
     entry_type: "income" | "expense";
     category: string;
     amount: number;
     due_date: Date;
     notes?: string | null;
+    related_id?: string | null;
   },
 ): Promise<ActionResult<{ id: string }>> {
   const entry = await db.financialEntry.create({
@@ -24,6 +27,7 @@ export async function createManualEntryAction(
       category: input.category,
       amount: input.amount,
       related_module: "geral" as const,
+      related_id: input.related_id ?? null,
       due_date: input.due_date,
       notes: input.notes ?? null,
       status: "pending" as const,

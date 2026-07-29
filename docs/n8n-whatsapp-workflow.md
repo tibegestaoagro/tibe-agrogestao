@@ -179,6 +179,7 @@ uma mensagem de fallback amigável (sem detalhes técnicos), por exemplo:
 | `cadastrar_animal` | `ear_tag`, `breed`, `sex` (male\|female), `property_name` (opcional) |
 | `registrar_peso` | `ear_tag`, `weight` (kg) |
 | `registrar_vacina` | `ear_tag`, `vaccine_name`, `cost` (opcional) |
+| `registrar_previsao_vacina` | `ear_tag`, `vaccine_name`, `cost`, `due_date` (opcional, formato `YYYY-MM-DD`; sem data, o Tibé usa o próximo vencimento calculado). Use quando o usuário informar um valor previsto para uma vacina futura, inclusive ao responder à oferta feita pelo `resumo:rebanho`. Nessa resposta curta, reconstrua `ear_tag` e `vaccine_name` pelo `recent_history`. |
 | `registrar_movimento` | `ear_tag`, `movement_type` (purchase\|sale\|transfer\|death), `value` (opcional), `to_property_name` (obrigatório se transfer) |
 | `cadastrar_servico_ordem` | `client_name`, `service_name`, `quantity` |
 | `consultar_saldo` | `period` (opcional, formato "YYYY-MM", default mês atual) |
@@ -187,8 +188,16 @@ uma mensagem de fallback amigável (sem detalhes técnicos), por exemplo:
 | `gerar_relatorio` | `tipo` (financeiro\|rebanho\|lavoura\|prestador), `period`. **Retorna "em breve"** enquanto a geração de PDF real depende do Módulo 4, ainda não implementado |
 | `registrar_lancamento_financeiro` | `amount`, `category` (opcional, cai em "Outros" se fora da lista fixa), `vendor` (opcional), `description` (opcional). Disparada tanto por texto ("gastei 50 reais com ração") quanto pelo ramo de recibo por foto/PDF (seção 5). **Sempre** exige confirmação, mesmo com valor baixo: não usa o limiar de R$ 5.000. |
 | `ajuda` | `topic` (opcional: nome de uma das intenções acima; omitido para pergunta geral tipo "o que você faz?"). Usada quando o usuário pergunta COMO usar um recurso, não tenta executá-lo. Resposta é texto fixo (nunca gerado pela LLM), tabela `HELP_TEXT` em `whatsapp-router.ts`. |
-| `resumo` | `scope` (opcional: `rebanho`/`lavoura`/`prestador`/`financeiro` nível 1, ou `clientes`/`agendamentos`/`contas_a_receber` nível 2 só sob `prestador`). Usada quando o usuário quer saber o que já está cadastrado (ex: "me mostra o que eu tenho"). Sem `scope` claro, o assistente pergunta a categoria em vez de despejar tudo: funil de até 2 perguntas, reconstruído do `recent_history` a cada turno (spec 2026-07-28). Se o histórico mostra que já perguntou e a resposta não resolveu, o LLM deve classificar como `ambigua` em vez de perguntar de novo. |
+| `resumo` | `scope` opcional. Nível 1: `rebanho`/`lavoura`/`prestador`/`financeiro`. Sob `prestador`: `clientes`/`agendamentos`/`ordens_a_faturar`. Escopos financeiros disponíveis em qualquer perfil: `contas_a_pagar` e `contas_a_receber`. `contas_a_pagar` lista despesas pendentes; `contas_a_receber` lista receitas pendentes de `FinancialEntry`; `ordens_a_faturar` lista ordens concluídas ainda não faturadas. Use quando o usuário quer consultar agenda, contas ou o que já está cadastrado. Sem `scope` claro, o assistente pergunta a categoria em vez de despejar tudo: funil de até 2 perguntas, reconstruído do `recent_history` a cada turno. Se o histórico mostra que já perguntou e a resposta não resolveu, o LLM deve classificar como `ambigua` em vez de perguntar de novo. |
 | `ambigua` | usar quando não for possível classificar com confiança. Com `ajuda`/`resumo` cobrindo "como faço"/"o que eu tenho", sobra pra isso o que realmente foge do escopo. |
+
+Na classificação operacional, diferencie os pedidos pelo dado solicitado:
+`registrar_vacina` registra uma aplicação realizada;
+`registrar_previsao_vacina` registra o custo futuro de uma vacina;
+`resumo:contas_a_receber` consulta receitas financeiras pendentes; e
+`resumo:ordens_a_faturar` consulta trabalho concluído que ainda precisa virar
+fatura. Frases como "minhas contas a pagar deste mês" devem resultar em
+`{"intent":"resumo","parameters":{"scope":"contas_a_pagar"}}`.
 
 O Tibé já trata, de forma **totalmente automática** (o LLM não precisa se
 preocupar com isso):

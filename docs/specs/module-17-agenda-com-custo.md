@@ -1,15 +1,15 @@
 # Módulo 17: Agenda com custo (agente WhatsApp)
 
-**Status:** especificado, decisões fechadas com o usuário em 2026-07-29. **Nenhuma
-linha de código escrita ainda.** Este documento é a fonte de verdade para
-implementar: todas as ambiguidades já foram resolvidas em entrevista com o
-usuário (Dilton), então **não é necessário perguntar de novo** o que está
-decidido aqui.
+**Status:** implementado localmente, aguardando aprovação e validação do
+usuário. As decisões foram fechadas com o usuário em 2026-07-29. Este
+documento permanece como fonte de verdade: todas as ambiguidades foram
+resolvidas em entrevista com o usuário (Dilton), então **não é necessário
+perguntar de novo** o que está decidido aqui.
 
-> **Handoff:** esta spec foi escrita pelo Claude Code no fim de uma sessão, para
-> que outro agente (Codex) implemente sem perder contexto. Leia
-> [AGENTS.md](../../AGENTS.md) primeiro (base técnica do projeto), depois esta
-> spec inteira, e só então comece pela Task 1.
+> **Handoff:** a implementação local está concluída e verificada. Leia
+> [AGENTS.md](../../AGENTS.md) primeiro (base técnica do projeto) e esta spec
+> inteira antes de revisar ou validar o módulo. Commit, push, migração e deploy
+> continuam aguardando autorização separada.
 
 ---
 

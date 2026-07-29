@@ -1,8 +1,47 @@
+import type { Prisma } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 
 type RelatedModule = "rebanho" | "lavoura" | "servico" | "geral";
 type EntryType = "income" | "expense";
 type EntryStatus = "pending" | "paid" | "overdue";
+
+export type TenantTransactionClient = Prisma.TransactionClient;
+export type FinancialEntryCreateClient = {
+  financialEntry: {
+    create(args: Prisma.FinancialEntryCreateArgs): Promise<{ id: string }>;
+  };
+};
+
+function isSerializableConflict(error: unknown): boolean {
+  const candidate = error as {
+    code?: string;
+    cause?: { originalCode?: string; kind?: string };
+  };
+  return (
+    candidate.code === "P2034" ||
+    candidate.cause?.originalCode === "40001" ||
+    candidate.cause?.kind === "TransactionWriteConflict"
+  );
+}
+
+export async function runSerializableTenantTransaction<T>(
+  db: TenantPrismaClient,
+  operation: (tx: TenantTransactionClient) => Promise<T>,
+  maxAttempts = 3,
+): Promise<T> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await db.$transaction(
+        async (tx) => operation(tx as TenantTransactionClient),
+        { isolationLevel: "Serializable" },
+      );
+    } catch (error) {
+      const retryable = isSerializableConflict(error);
+      if (!retryable || attempt === maxAttempts) throw error;
+    }
+  }
+  throw new Error("Transação serializável excedeu o limite de tentativas");
+}
 
 /**
  * Cria um FinancialEntry vinculado a um evento de negócio (venda/compra de animal,
@@ -13,7 +52,7 @@ type EntryStatus = "pending" | "paid" | "overdue";
  * e opcionalmente `due_date`; nesse caso paid_at fica null.
  */
 export async function createLinkedEntry(
-  db: TenantPrismaClient,
+  db: FinancialEntryCreateClient,
   params: {
     entry_type: EntryType;
     category: string;

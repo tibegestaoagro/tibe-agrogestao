@@ -8,6 +8,7 @@ import {
   cadastrarAnimal,
   registrarPeso,
   registrarVacina,
+  registrarPrevisaoVacina,
   registrarMovimento,
   consultarAnimal,
 } from "@/lib/actions/whatsapp-handlers/rebanho";
@@ -37,6 +38,7 @@ const HANDLERS: Record<Exclude<Intent, "ambigua">, Handler> = {
   cadastrar_animal: cadastrarAnimal,
   registrar_peso: registrarPeso,
   registrar_vacina: registrarVacina,
+  registrar_previsao_vacina: registrarPrevisaoVacina,
   registrar_movimento: registrarMovimento,
   cadastrar_servico_ordem: cadastrarServicoOrdem,
   consultar_saldo: consultarSaldo,

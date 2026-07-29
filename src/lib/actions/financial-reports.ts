@@ -12,6 +12,43 @@ import { decToNum } from "@/lib/serialize";
  */
 
 const RELATED_MODULES = ["rebanho", "lavoura", "servico", "geral"] as const;
+const CALENDAR_DAY_MS = 86_400_000;
+const pendingEntriesDateFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Sao_Paulo",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+export function resolvePendingEntriesCalendar(now: Date): {
+  today: Date;
+  monthEnd: Date;
+} {
+  const parts = pendingEntriesDateFormatter.formatToParts(now);
+  const year = Number(parts.find((part) => part.type === "year")?.value);
+  const month = Number(parts.find((part) => part.type === "month")?.value);
+  const day = Number(parts.find((part) => part.type === "day")?.value);
+
+  return {
+    today: new Date(Date.UTC(year, month - 1, day)),
+    monthEnd: new Date(Date.UTC(year, month, 0, 23, 59, 59, 999)),
+  };
+}
+
+function utcCalendarDay(date: Date): number {
+  return Math.floor(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) /
+      CALENDAR_DAY_MS,
+  );
+}
+
+export function calculatePendingDaysOverdue(
+  dueDate: Date,
+  today: Date,
+): number | null {
+  const days = utcCalendarDay(today) - utcCalendarDay(dueDate);
+  return days > 0 ? days : null;
+}
 
 function defaultMonthRange(): { start: Date; end: Date } {
   const now = new Date();
@@ -128,4 +165,41 @@ export async function getUpcoming(db: TenantPrismaClient, days: number) {
     due_date: e.due_date!.toISOString(),
     related_module: e.related_module,
   }));
+}
+
+export async function listPendingEntries(
+  db: TenantPrismaClient,
+  params: { entry_type: "income" | "expense"; end?: Date },
+) {
+  const calendar = resolvePendingEntriesCalendar(new Date());
+  const end = params.end ?? calendar.monthEnd;
+  const entries = await db.financialEntry.findMany({
+    where: {
+      status: "pending",
+      entry_type: params.entry_type,
+      due_date: { lte: end },
+    },
+    select: {
+      id: true,
+      category: true,
+      amount: true,
+      due_date: true,
+      related_module: true,
+      related_id: true,
+    },
+    orderBy: { due_date: "asc" },
+  });
+
+  return entries.map((entry) => {
+    const dueDate = entry.due_date!;
+    return {
+      id: entry.id,
+      category: entry.category,
+      amount: decToNum(entry.amount),
+      due_date: dueDate,
+      related_module: entry.related_module,
+      related_id: entry.related_id,
+      days_overdue: calculatePendingDaysOverdue(dueDate, calendar.today),
+    };
+  });
 }

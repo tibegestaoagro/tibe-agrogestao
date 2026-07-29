@@ -134,7 +134,7 @@ export default async function FinanceiroPage({
                 const st = STATUS[e.status];
                 return (
                   <TableRow key={e.id}>
-                    <TableCell>{e.due_date ? e.due_date.toLocaleDateString("pt-BR") : "—"}</TableCell>
+                    <TableCell>{e.due_date ? e.due_date.toLocaleDateString("pt-BR") : "sem data"}</TableCell>
                     <TableCell>{ENTRY_LABEL[e.entry_type]}</TableCell>
                     <TableCell>{e.category ?? "—"}</TableCell>
                     <TableCell>{MODULE_LABEL[e.related_module ?? "geral"]}</TableCell>

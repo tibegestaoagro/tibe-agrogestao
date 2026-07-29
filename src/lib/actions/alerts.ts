@@ -1,7 +1,9 @@
+import type { Prisma } from "@/generated/prisma/client";
 import { scoped, prisma, prismaForTenant, type TenantPrismaClient } from "@/lib/prisma";
 import { decToNum } from "@/lib/serialize";
 import { listUpcomingVaccinations } from "@/lib/actions/animals";
 import { getBalanceAction } from "@/lib/actions/financial-summary";
+import { runSerializableTenantTransaction } from "@/lib/financial";
 
 /**
  * Geração de alertas (spec 4.9/4.10). Idempotência por
@@ -36,10 +38,30 @@ function isoWeekKey(d: Date): string {
 
 type AlertType = "vaccine_due" | "harvest_near" | "bill_due" | "low_balance" | "trial_ending";
 type RelatedModule = "rebanho" | "lavoura" | "servico" | "geral";
+type AlertEnsureClient = {
+  alert: {
+    findFirst(args: Prisma.AlertFindFirstArgs): Promise<{ id: string } | null>;
+    create(args: Prisma.AlertCreateArgs): Promise<{ id: string }>;
+  };
+};
+
+export function buildBillDueMessage(params: {
+  entry_type: "income" | "expense";
+  category: string | null;
+  amount: number;
+  due_date: Date;
+  now: Date;
+}): string {
+  const days = Math.ceil(
+    (params.due_date.getTime() - params.now.getTime()) / 86_400_000,
+  );
+  const kind = params.entry_type === "income" ? "receber" : "pagar";
+  return `💰 Conta a ${kind}: ${params.category ?? "lançamento"} de R$ ${params.amount.toFixed(2)} vence em ${days} dia(s).`;
+}
 
 /** Cria o Alert se ainda não existir um igual (mesmo tipo+módulo+entidade). Retorna se criou. */
 async function ensureAlert(
-  db: TenantPrismaClient,
+  db: AlertEnsureClient,
   params: {
     alert_type: AlertType;
     related_module: RelatedModule;
@@ -67,6 +89,46 @@ async function ensureAlert(
     }),
   });
   return true;
+}
+
+/**
+ * Revalida uma conta candidata e cria seu alerta dentro da mesma transação
+ * serializável. O callback opcional existe somente como seam de teste para
+ * pausar a execução depois da leitura elegível e reproduzir corridas.
+ */
+export async function ensureBillDueAlertForEntry(
+  db: TenantPrismaClient,
+  entryId: string,
+  options: {
+    now: Date;
+    billLimit: Date;
+    afterEligibleRead?: () => Promise<void>;
+  },
+): Promise<boolean> {
+  return runSerializableTenantTransaction(db, async (tx) => {
+    const entry = await tx.financialEntry.findFirst({
+      where: {
+        id: entryId,
+        status: "pending",
+        due_date: { gte: options.now, lte: options.billLimit },
+      },
+    });
+    if (!entry || !entry.due_date) return false;
+
+    await options.afterEligibleRead?.();
+    return ensureAlert(tx, {
+      alert_type: "bill_due",
+      related_module: entry.related_module ?? "geral",
+      related_id: entry.id,
+      message: buildBillDueMessage({
+        entry_type: entry.entry_type,
+        category: entry.category,
+        amount: decToNum(entry.amount) ?? 0,
+        due_date: entry.due_date,
+        now: options.now,
+      }),
+    });
+  });
 }
 
 /** Gera os alertas do dia para UM tenant (as 4 verificações da spec 4.10). */
@@ -111,16 +173,12 @@ export async function generateAlertsForTenant(tenantId: string): Promise<{ creat
   const billLimit = new Date(now.getTime() + BILL_DAYS * 86_400_000);
   const bills = await db.financialEntry.findMany({
     where: { status: "pending", due_date: { gte: now, lte: billLimit } },
+    select: { id: true },
   });
   for (const b of bills) {
-    const days = Math.ceil((b.due_date!.getTime() - now.getTime()) / 86_400_000);
-    const kind = b.entry_type === "income" ? "receber" : "pagar";
-    const amount = decToNum(b.amount) ?? 0;
-    const didCreate = await ensureAlert(db, {
-      alert_type: "bill_due",
-      related_module: b.related_module ?? "geral",
-      related_id: b.id,
-      message: `💰 Conta a ${kind}: ${b.category ?? "lançamento"} de R$ ${amount.toFixed(2)} vence em ${days} dia(s).`,
+    const didCreate = await ensureBillDueAlertForEntry(db, b.id, {
+      now,
+      billLimit,
     });
     if (didCreate) created++;
   }
