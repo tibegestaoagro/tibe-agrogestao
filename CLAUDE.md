@@ -767,9 +767,9 @@ construiu tudo em volta dele.
   KPI escaneiam **todos** os tenants do banco por desenho, os testes usam
   baseline antes/depois (não contagem absoluta) para não quebrar num banco
   de dev com dados de outros testes/seed.
-- **Seed do `master_admin`**: ainda não adicionado a `prisma/seed.ts`:
-  precisa de nome/email/senha reais do responsável (Dilton), não inventados.
-  Pendente até essa informação chegar.
+- **Seed do `master_admin`**: existe em `prisma/seed.ts`
+  (`tibe.gestaoagro@gmail.com`), com credenciais reais fornecidas pelo
+  usuário, já aplicado em produção (Neon).
 - **Mensagem de boas-vindas por WhatsApp** (spec 2026-07-28,
   `src/lib/whatsapp-welcome.ts`): `createTenantManuallyAction` dispara,
   melhor esforço (nunca bloqueia a criação), uma mensagem com o link de login
