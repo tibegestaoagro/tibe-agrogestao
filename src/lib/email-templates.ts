@@ -87,3 +87,15 @@ export function buildAlertEmailHtml(params: { message: string }): string {
   `;
   return wrapper(body);
 }
+
+/** Código de recuperação de senha (6 dígitos, expira em 10 minutos). */
+export function buildPasswordResetEmailHtml(params: { code: string }): string {
+  const body = `
+    <p>Você pediu para recuperar sua senha no Tibé.</p>
+    <div style="background-color:${COLORS.light};border-radius:8px;padding:20px;margin:16px 0;text-align:center;">
+      <span style="font-size:32px;font-weight:bold;letter-spacing:6px;color:${COLORS.dark};">${params.code}</span>
+    </div>
+    <p>Esse código expira em 10 minutos. Se você não pediu essa recuperação, pode ignorar este email com segurança.</p>
+  `;
+  return wrapper(body);
+}

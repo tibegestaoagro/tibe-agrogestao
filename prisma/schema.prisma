@@ -139,11 +139,21 @@ enum AlertStatus {
 enum EmailLogType {
   welcome
   alert
+  password_reset
 }
 
 enum EmailLogStatus {
   sent
   failed
+}
+
+// Arquitetura 2026-07-29: recuperação de senha (código de 6 dígitos por
+// email ou WhatsApp, escolha do usuário no pedido). Só para User de tenant
+// (PlatformUser fica de fora, decisão deliberada: conta sensível demais pra
+// self-service, equipe pequena da Pleno Digital).
+enum PasswordResetChannel {
+  email
+  whatsapp
 }
 
 enum SubscriptionStatus {
@@ -196,6 +206,7 @@ model Tenant {
   conversation_logs AgentConversationLog[]
   alerts            Alert[]
   email_logs        EmailLog[]
+  password_resets   PasswordResetCode[]
   subscription      Subscription?
 }
 
@@ -239,10 +250,36 @@ model User {
   active        Boolean  @default(true)
   must_change_password Boolean @default(false)
 
-  tenant            Tenant            @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  whatsapp_contacts WhatsAppContact[]
+  tenant             Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  whatsapp_contacts  WhatsAppContact[]
+  password_resets    PasswordResetCode[]
 
   @@index([tenant_id])
+}
+
+// Recuperação de senha (arquitetura 2026-07-29). code_hash: nunca em claro,
+// mesmo padrão de senha (bcrypt). O próprio `id` (cuid, não-adivinhável) é a
+// referência que a UI carrega entre as 3 telas (pedir → validar → nova
+// senha), sem precisar de um token assinado à parte. `verified_at` prova que
+// a etapa de validação aconteceu antes de aceitar a troca de senha;
+// `consumed_at` fecha o ciclo e impede reuso do mesmo código já validado.
+model PasswordResetCode {
+  id          String               @id @default(cuid())
+  tenant_id   String
+  user_id     String
+  code_hash   String
+  channel     PasswordResetChannel
+  attempts    Int                  @default(0)
+  verified_at DateTime?
+  consumed_at DateTime?
+  expires_at  DateTime
+  created_at  DateTime             @default(now())
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id])
+  @@index([user_id])
 }
 
 model Property {

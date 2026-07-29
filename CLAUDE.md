@@ -199,6 +199,11 @@ o tenant da sessão e chama `prismaForTenant`.
   spec 2026-07-24): usa `prisma.tenant.findUnique/create` e
   `prisma.user.findUnique` para checar duplicidade de documento/email antes
   do tenant existir, mesma necessidade estrutural do `/api/v1/signup`.
+  Mesma categoria: `requestPasswordResetAction`/`verifyPasswordResetCodeAction`
+  (`src/lib/actions/password-reset.ts`, spec 2026-07-29) resolvem o `User`
+  pelo email antes de saber o tenant (login sem sessão, por natureza), e
+  `confirmPasswordResetAction` resolve o `PasswordResetCode` pelo próprio
+  `id` (`rid`) antes de saber o tenant, pelo mesmo motivo.
   Qualquer uso novo do client base fora desses casos é suspeito: pare e
   pergunte.
 - `PlatformUser` e `SubscriptionStatusLog` (Módulo 6) são a **outra** exceção
@@ -232,6 +237,7 @@ npm run test:m12         # M12: ajuda e resumo (agente WhatsApp)
 npm run test:m13         # M13: seam de gate de sessão (session-gate.ts)
 npm run test:m14         # M14: platform-tenants.ts (update/archive/reenvio de boas-vindas)
 npm run test:m15         # M15: canal de email (falha graciosa, EmailLog, quem recebe)
+npm run test:m16         # M16: recuperação de senha (código, rate limit, senha forte)
 ```
 
 ---
@@ -544,6 +550,50 @@ exigência explícita do usuário por motivo de defensabilidade.
   entrega de verdade é manual, depois que a credencial do Gmail/Resend
   estiver preenchida no `.env`.
 
+## Recuperação de senha (arquitetura 2026-07-29)
+
+Só para `User` de tenant (`PlatformUser` fica de fora, deliberado: conta
+sensível demais pra self-service, equipe pequena da Pleno). 3 etapas, 3
+páginas standalone (mesmo padrão de `/trocar-senha`/`/escolher-plano`,
+fora de `(dashboard)`/`(auth)`, em `PUBLIC_PREFIXES`):
+
+- **`/esqueci-senha`** (email + escolha do canal) → `POST
+  /api/v1/password-reset/request`. Resposta **sempre genérica**
+  (`{ requested: true }`), exista ou não a conta, tenha ou não telefone pro
+  canal WhatsApp: proteção contra enumeração de conta. Rate limit
+  (`checkLoginRateLimit`, scope `password-reset-request`, 3/hora por email)
+  aplicado **antes** da busca pelo usuário, mesmo motivo. As etapas 1 e 2
+  são correlacionadas pelo **email** (que o usuário já sabe), nunca pelo id
+  do `PasswordResetCode`: criar esse id só quando a conta existe vazaria a
+  existência dela pela presença/ausência de um `rid` na resposta.
+- **`/esqueci-senha/verificar?email=`** (código de 6 dígitos, expira em 10
+  minutos, máx. 5 tentativas por código) → `POST
+  /api/v1/password-reset/verify`. Conta inexistente e código errado
+  devolvem o **mesmo** `INVALID_CODE`, sem diferenciar. Sucesso marca
+  `PasswordResetCode.verified_at` e devolve o `id` da linha (`rid`) — só
+  **aqui** que o id vira referência: nesse ponto a existência da conta já
+  está inerentemente provada (não dá pra validar um código de uma conta que
+  não existe), não tem mais nada a esconder.
+- **`/esqueci-senha/nova-senha?rid=`** (nova senha + confirmação, regra
+  forte) → `POST /api/v1/password-reset/confirm`. Exige `verified_at`
+  preenchido e `consumed_at` nulo (não deixa reusar o mesmo código validado
+  duas vezes); zera `must_change_password` (quem provou posse do
+  email/WhatsApp já pode entrar direto, sem gate adicional); redireciona
+  pro `/login`.
+- **`isStrongPassword()`** (`src/lib/passwords.ts`, mín. 8 caracteres +
+  maiúscula + número + símbolo): aplicada aqui e em `changeOwnPasswordAction`
+  (troca obrigatória da senha temporária) — **não** aplicada no signup
+  público (`/criar-conta`), decisão deliberada de escopo, não assumida.
+- **`checkLoginRateLimit`** (`src/lib/rate-limit.ts`) ganhou um 3º parâmetro
+  opcional (`{ windowSeconds, maxAttempts }`) pra sustentar o limite mais
+  restritivo do pedido de código sem afetar o padrão dos 2 logins (10
+  tentativas/15min, inalterado).
+- **`test:m16`** cobre a lógica toda (código certo/errado/expirado, limite
+  de tentativas, rate limit, `isStrongPassword()`, reuso de `rid` já
+  consumido) sem depender de entrega real. Validado também ponta a ponta
+  num navegador real (`browser-harness`): pedir código → email de verdade
+  chegou → validar → nova senha → login com a senha nova funcionou.
+
 ## Cobrança e billing (Módulo 5)
 
 - **Cliente Asaas** (`src/lib/asaas.ts`): `access_token` no header (sem
@@ -784,6 +834,7 @@ npm run test:m12          # M12
 npm run test:m13          # M13
 npm run test:m14          # M14
 npm run test:m15          # M15
+npm run test:m16          # M16
 ```
 
 Credenciais do seed (dev): `owner@damata.com.br` / `tibe123`.

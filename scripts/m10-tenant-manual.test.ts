@@ -60,13 +60,13 @@ async function main() {
   // ── troca obrigatória de senha ───────────────────────────────
   if (user) {
     const db = prismaForTenant(user.tenant_id);
-    const changeResult = await changeOwnPasswordAction(db, user.id, "novaSenha123");
+    const changeResult = await changeOwnPasswordAction(db, user.id, "novaSenha123!");
     assert(changeResult.ok, "changeOwnPasswordAction funciona");
 
     const updated = await prisma.user.findUnique({ where: { id: user.id } });
     assert(updated?.must_change_password === false, "must_change_password vira false após trocar");
 
-    const passwordOk = updated ? await bcrypt.compare("novaSenha123", updated.password_hash) : false;
+    const passwordOk = updated ? await bcrypt.compare("novaSenha123!", updated.password_hash) : false;
     assert(passwordOk, "nova senha bate no hash salvo");
 
     const shortResult = await changeOwnPasswordAction(db, user.id, "curta");
