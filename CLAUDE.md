@@ -12,6 +12,12 @@ contratos e regras de produto.
 Veja também [AGENTS.md](AGENTS.md) (mesma base técnica, redigida de forma
 agnóstica de ferramenta, para o caso de sessões abertas com outro agente).
 
+**Continuidade entre agentes:** depois destes arquivos introdutórios, leia
+[docs/agents/current-handoff.md](docs/agents/current-handoff.md). Ele é a
+memória compartilhada e versionada entre Claude Code, Codex e futuros agentes.
+O estado registrado nele prevalece sobre notas locais antigas de uma
+ferramenta.
+
 ---
 
 ## Como este projeto é conduzido (não pule isso)
@@ -35,8 +41,16 @@ fase do contrato. O usuário (Dilton) segue este protocolo com qualquer agente:
    testes automatizados sempre que possível) e reporte o que passou/faltou
    *antes* do usuário validar manualmente.
 6. **Não avance para o próximo módulo sem aprovação explícita do usuário.**
-7. **Nunca rode `git push` sem ser pedido.** Commits normalmente são pedidos
-   explicitamente também.
+7. **Toda tarefa concluída recebe commit automático** na branch de trabalho,
+   sem nova autorização. Inclua apenas escopo concluído e validado; não marque
+   trabalho parcial ou com falha conhecida como concluído.
+8. **O push da branch de trabalho é permitido** para preservar e compartilhar
+   o commit. Merge na `main`, push direto para a `main` e deploy continuam
+   exigindo aprovação explícita do usuário.
+9. **Ao encerrar uma rodada significativa**, atualize
+   `docs/agents/current-handoff.md` antes da resposta final. Registre somente
+   fatos verificados: estado, escopo, testes, commit/deploy, pendências e
+   próximo passo autorizado. Mantenha o handoff curto e não copie a conversa.
 
 ## Status dos módulos
 
@@ -49,7 +63,7 @@ fase do contrato. O usuário (Dilton) segue este protocolo com qualquer agente:
 | 4 | Financeiro e Alertas | ✅ completo: Redis/BullMQ real; PDF via link assinado (sem R2); envio WhatsApp aguarda N8N (mesmo gap do M3) |
 | 5 | Painel Web, Cobrança (Asaas) e Site | ✅ completo: Asaas real (código pronto, sem chave de sandbox testada ainda); dashboard consolidado, usuários, cobrança/bloqueio por inadimplência, site público (`/`, `/planos`, `/faq`, `/politicas/*`), documentação técnica em `/docs`, README/CONTRIBUTING |
 | 6 | Painel da Plataforma (`PlatformUser`, interno Pleno) | ✅ completo: auth separada (`/plataforma`), MRR/churn/LTV/funil, gestão de tenants e equipe |
-| 17 | Agenda com custo (agente WhatsApp) | ✅ **completo localmente, aguardando aprovação**: agenda real, previsão financeira e conciliação sem duplicidade; sem mudança de schema |
+| 17 | Agenda com custo (agente WhatsApp) | ✅ em produção: agenda real, previsão financeira e conciliação sem duplicidade; sem mudança de schema |
 
 Specs: `docs/specs/module-00-setup.md` … `module-06-painel-plataforma.md`.
 
@@ -528,7 +542,7 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
 
 Canal adicional ao WhatsApp, não substituto: boas-vindas e alertas passam a
 sair também por email, pensado para não depender só do WhatsApp em avisos
-que precisam de comprovação de envio (fatura em atraso, fim de trial) — uma
+que precisam de comprovação de envio (fatura em atraso, fim de trial), uma
 exigência explícita do usuário por motivo de defensabilidade.
 
 - **`EMAIL_PROVIDER=gmail_smtp|resend`** (`.env`, default `gmail_smtp`):
@@ -539,7 +553,7 @@ exigência explícita do usuário por motivo de defensabilidade.
   um remetente verificado. Troca é só a env var + redeploy, sem UI: decisão
   do usuário, essa troca só acontece uma vez.
 - **`src/lib/email-send.ts`**: `sendEmail()` nunca lança (sempre devolve
-  `{ok}`) e **sempre grava uma linha em `EmailLog`**, sucesso ou falha — é o
+  `{ok}`) e **sempre grava uma linha em `EmailLog`**, sucesso ou falha. Esse é o
   rastro auditável que o usuário pediu, não dá pra confiar só no retorno da
   função. `src/lib/email-templates.ts`: HTML simples escrito à mão (sem
   react-email nem outra lib de template), cores da marca
@@ -551,7 +565,7 @@ exigência explícita do usuário por motivo de defensabilidade.
   `deliverPendingAlertsForTenant`/`deliverAllPendingAlerts`
   (`alert-delivery.ts`) disparam email para os 5 tipos de `AlertType`, sem
   filtro. **Exceção deliberada**: `resendWelcomeMessageAction` continua
-  exigindo `Tenant.phone` (falha inteira sem telefone, nem tenta o email) —
+  exigindo `Tenant.phone` (falha inteira sem telefone, nem tenta o email), pois
   não foi relaxado nesta rodada porque o propósito da action é reenviar
   *pelo WhatsApp*; se precisar que o email funcione independente de
   telefone aqui também, é uma decisão de produto nova, não assumida.
@@ -583,7 +597,7 @@ fora de `(dashboard)`/`(auth)`, em `PUBLIC_PREFIXES`):
   minutos, máx. 5 tentativas por código) → `POST
   /api/v1/password-reset/verify`. Conta inexistente e código errado
   devolvem o **mesmo** `INVALID_CODE`, sem diferenciar. Sucesso marca
-  `PasswordResetCode.verified_at` e devolve o `id` da linha (`rid`) — só
+  `PasswordResetCode.verified_at` e devolve o `id` da linha (`rid`). Só
   **aqui** que o id vira referência: nesse ponto a existência da conta já
   está inerentemente provada (não dá pra validar um código de uma conta que
   não existe), não tem mais nada a esconder.
@@ -595,7 +609,7 @@ fora de `(dashboard)`/`(auth)`, em `PUBLIC_PREFIXES`):
   pro `/login`.
 - **`isStrongPassword()`** (`src/lib/passwords.ts`, mín. 8 caracteres +
   maiúscula + número + símbolo): aplicada aqui e em `changeOwnPasswordAction`
-  (troca obrigatória da senha temporária) — **não** aplicada no signup
+  (troca obrigatória da senha temporária), mas **não** aplicada no signup
   público (`/criar-conta`), decisão deliberada de escopo, não assumida.
 - **`checkLoginRateLimit`** (`src/lib/rate-limit.ts`) ganhou um 3º parâmetro
   opcional (`{ windowSeconds, maxAttempts }`) pra sustentar o limite mais
@@ -806,7 +820,9 @@ existe um sistema de memória **local à máquina**, fora do repositório, em
 do Claude Code especificamente: **não é visível** para outras ferramentas,
 outros agentes, nem para quem só olha o repositório. Trate este `CLAUDE.md`
 como a fonte que deve funcionar sozinha; a memória é um complemento, não uma
-dependência.
+dependência. Para estado operacional recente, use sempre
+`docs/agents/current-handoff.md`; ele prevalece sobre a memória local quando
+houver divergência.
 
 ## Agent skills
 

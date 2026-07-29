@@ -14,35 +14,16 @@ Veja também [CLAUDE.md](CLAUDE.md) (mesma base técnica; inclui alguns detalhes
 específicos de como o Claude Code opera neste projeto, como o sistema de
 memória local à ferramenta).
 
----
-
-## Módulo 17: completo localmente, aguardando aprovação (2026-07-29)
-
-Este projeto é conduzido por mais de um agente de código (Claude Code e Codex),
-alternadamente, conforme o limite de uso de cada assinatura. Quem assume o
-trabalho continua do ponto abaixo, sem refazer levantamento.
-
-O Módulo 17, "Agenda com custo", foi implementado localmente conforme a spec:
-[docs/specs/module-17-agenda-com-custo.md](docs/specs/module-17-agenda-com-custo.md).
-
-- Estado: **código completo no worktree local, aguardando aprovação explícita
-  do usuário**. Não houve mudança de schema Prisma.
-- A agenda do WhatsApp agora lista itens reais; previsões de vacinação usam
-  `FinancialEntry` pendente e são conciliadas com o custo real sem duplicar a
-  despesa.
-- A regressão do módulo está em `npm run test:m17`. Não avance para outra
-  rodada, commit, push ou deploy sem autorização.
+**Continuidade entre agentes:** depois destes arquivos introdutórios, leia
+[docs/agents/current-handoff.md](docs/agents/current-handoff.md). Ele contém o
+estado operacional mais recente, a última rodada concluída, validações, commit,
+deploy e próximos passos. É a memória compartilhada e versionada entre Codex,
+Claude Code e futuros agentes.
 
 **Regra de escrita permanente do usuário, válida para qualquer agente:** nunca
-use o caractere travessão (`—`) em código, comentário, texto de interface,
+use o caractere Unicode U+2014 em código, comentário, texto de interface,
 resposta do agente WhatsApp, documentação ou mensagem de commit. Use dois
 pontos, vírgula ou parênteses.
-
-**Rodada anterior, já concluída e em produção** (não precisa de ação): canal de
-email (`EmailLog`, Gmail SMTP/Resend), recuperação de senha por código
-(email/WhatsApp), e 4 refactors de arquitetura (achatamento de `routeIntent`,
-`confirmFlow`, seam de gate de sessão em `session-gate.ts`, unificação da
-criação de tenant). Ver as seções "Email" e "Recuperação de senha" abaixo.
 
 ---
 
@@ -69,8 +50,17 @@ criação de tenant). Ver as seções "Email" e "Recuperação de senha" abaixo.
    manualmente.
 6. Não avance para o próximo módulo/rodada sem aprovação explícita de quem
    está conduzindo o trabalho.
-7. Não faça push/deploy sem confirmação explícita de quem está pedindo o
-   trabalho. Commits normalmente são pedidos explicitamente também.
+7. Toda tarefa concluída deve receber commit na branch de trabalho sem precisar
+   de nova autorização. Inclua somente o escopo concluído e validado; não
+   descreva trabalho parcial ou com falha conhecida como concluído.
+8. O push da branch de trabalho é permitido para preservar e compartilhar o
+   commit. Merge na `main`, push direto para a `main` e deploy exigem aprovação
+   explícita de quem está conduzindo o trabalho.
+9. Ao encerrar uma rodada significativa, atualize
+   `docs/agents/current-handoff.md` antes da resposta final. Registre somente
+   fatos verificados: estado, escopo concluído, testes, commit/deploy, pendências
+   e próximo passo autorizado. Mantenha o arquivo curto, substituindo o estado
+   corrente e resumindo o histórico recente em vez de acumular transcrições.
 
 ## Status dos módulos
 
@@ -84,7 +74,7 @@ criação de tenant). Ver as seções "Email" e "Recuperação de senha" abaixo.
 | 5 | Painel Web, Cobrança (Asaas) e Site | ✅ completo: Asaas real (código pronto, sem chave de sandbox testada ainda); dashboard consolidado, usuários, cobrança/bloqueio por inadimplência, site público (`/`, `/planos`, `/faq`, `/politicas/*`), documentação técnica em `/docs`, README/CONTRIBUTING |
 | 6 | Painel da Plataforma (`PlatformUser`, interno Pleno) | ✅ completo: auth separada (`/plataforma`), MRR/churn/LTV/funil, gestão de tenants e equipe |
 | 7 | Provider WhatsApp configurável (fora do PRD original) | ✅ completo: Evolution API/Meta Cloud API configurável pelo painel, credenciais criptografadas |
-| 17 | Agenda com custo (agente WhatsApp) | ✅ **completo localmente, aguardando aprovação**: agenda real, previsão financeira e conciliação sem duplicidade; sem mudança de schema |
+| 17 | Agenda com custo (agente WhatsApp) | ✅ em produção: agenda real, previsão financeira e conciliação sem duplicidade; sem mudança de schema |
 
 Specs: `docs/specs/module-00-setup.md` … `module-06-painel-plataforma.md`. M7
 em diante não tem spec formal (trabalho pós-PRD, decidido diretamente com
@@ -130,7 +120,7 @@ $env:DATABASE_URL="postgresql://tibe:tibe@localhost:55432/tibe_dev?schema=public
 ```
 
 Use o `.env` (Neon) só quando a intenção for **de fato** migrar/seedar
-produção — e confirme antes com quem está conduzindo o projeto, é uma ação
+produção, e confirme antes com quem está conduzindo o projeto, pois é uma ação
 de alto impacto.
 
 ### Migrações (Prisma 7)
@@ -323,7 +313,7 @@ centralizado em `src/lib/session-gate.ts`: `requireSessionGateApi()` (usado
 por `guard()`), `requireSessionGateForPage()` (usado pelo layout do
 dashboard), `redirectIfGatePassed()` (usado pelas páginas standalone
 `/trocar-senha`, `/escolher-plano`, `/onboarding`, cada uma no próprio
-estágio da cadeia — inclusive a lógica inversa "se já passou, manda pro
+estágio da cadeia, inclusive a lógica inversa "se já passou, manda pro
 dashboard"). Nível de cobrança (`billing-access.ts`) fica fora desse seam de
 propósito: políticas diferentes o suficiente entre API e página pra não
 valer a pena unificar.
@@ -465,7 +455,7 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
 - **Envio por WhatsApp + email** (`src/lib/actions/alert-delivery.ts`): os 2
   canais são tentados independentemente (WhatsApp via `N8N_ALERT_WEBHOOK_URL`,
   email sempre tentado, ver seção Email). Um alerta vira `sent` assim que
-  **qualquer um** dos 2 canais entregar — sem isso, um alerta que só falha no
+  **qualquer um** dos 2 canais entregar. Sem isso, um alerta que só falha no
   WhatsApp (N8N não configurado, gap conhecido) ficaria `pending` pra sempre
   e reenviaria o mesmo email todo dia no cron.
 
@@ -473,7 +463,7 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
 
 Canal adicional ao WhatsApp, não substituto: boas-vindas e alertas saem
 também por email, pra não depender só do WhatsApp em avisos que precisam de
-comprovação de envio (fatura em atraso, fim de trial) — exigência explícita
+comprovação de envio (fatura em atraso, fim de trial), uma exigência explícita
 por motivo de defensabilidade.
 
 - `EMAIL_PROVIDER=gmail_smtp|resend` (`.env`, default `gmail_smtp`): Gmail
@@ -483,7 +473,7 @@ por motivo de defensabilidade.
   próprio tiver um remetente verificado. Troca é só a env var + redeploy,
   sem UI.
 - `src/lib/email-send.ts`: `sendEmail()` nunca lança (sempre devolve `{ok}`)
-  e **sempre grava uma linha em `EmailLog`**, sucesso ou falha — rastro
+  e **sempre grava uma linha em `EmailLog`**, sucesso ou falha, criando um rastro
   auditável, não dá pra confiar só no retorno da função.
   `src/lib/email-templates.ts`: HTML simples escrito à mão (sem lib de
   template), cores da marca.
@@ -516,13 +506,13 @@ padrão de `/trocar-senha`/`/escolher-plano`):
   minutos, máx. 5 tentativas por código) → `POST
   /api/v1/password-reset/verify`. Conta inexistente e código errado
   devolvem o mesmo `INVALID_CODE`. Sucesso marca `verified_at` e devolve o
-  `id` da linha (`rid`) — só aqui o id vira referência, já que nesse ponto
+  `id` da linha (`rid`). Só aqui o id vira referência, já que nesse ponto
   a existência da conta já está provada.
 - `/esqueci-senha/nova-senha?rid=` (nova senha + confirmação, regra forte) →
   `POST /api/v1/password-reset/confirm`. Exige `verified_at` preenchido e
   `consumed_at` nulo; zera `must_change_password`; redireciona pro `/login`.
 - `isStrongPassword()` (`src/lib/passwords.ts`, mín. 8 + maiúscula + número +
-  símbolo): aplicada aqui e em `changeOwnPasswordAction` — não no signup
+  símbolo): aplicada aqui e em `changeOwnPasswordAction`, mas não no signup
   público, decisão deliberada de escopo.
 - `test:m16` cobre a lógica toda sem depender de entrega real.
 
