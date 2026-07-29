@@ -49,6 +49,7 @@ fase do contrato. O usuário (Dilton) segue este protocolo com qualquer agente:
 | 4 | Financeiro e Alertas | ✅ completo: Redis/BullMQ real; PDF via link assinado (sem R2); envio WhatsApp aguarda N8N (mesmo gap do M3) |
 | 5 | Painel Web, Cobrança (Asaas) e Site | ✅ completo: Asaas real (código pronto, sem chave de sandbox testada ainda); dashboard consolidado, usuários, cobrança/bloqueio por inadimplência, site público (`/`, `/planos`, `/faq`, `/politicas/*`), documentação técnica em `/docs`, README/CONTRIBUTING |
 | 6 | Painel da Plataforma (`PlatformUser`, interno Pleno) | ✅ completo: auth separada (`/plataforma`), MRR/churn/LTV/funil, gestão de tenants e equipe |
+| 17 | Agenda com custo (agente WhatsApp) | 🔴 **especificado, não implementado** (2026-07-29): decisões todas fechadas em [docs/specs/module-17-agenda-com-custo.md](docs/specs/module-17-agenda-com-custo.md). Handoff para o Codex no topo do [AGENTS.md](AGENTS.md). Zero mudança de schema: previsão de gasto é `FinancialEntry` pendente, reusando o alerta `bill_due` que já existe |
 
 Specs: `docs/specs/module-00-setup.md` … `module-06-painel-plataforma.md`.
 

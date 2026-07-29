@@ -16,6 +16,42 @@ memória local à ferramenta).
 
 ---
 
+## 🔴 Próximo trabalho: comece por aqui (handoff de 2026-07-29)
+
+Este projeto é conduzido por mais de um agente de código (Claude Code e Codex),
+alternadamente, conforme o limite de uso de cada assinatura. Quem assume o
+trabalho continua do ponto abaixo, sem refazer levantamento.
+
+**Tarefa pendente: Módulo 17, "Agenda com custo".**
+Spec completa e com todas as decisões já fechadas com o usuário:
+[docs/specs/module-17-agenda-com-custo.md](docs/specs/module-17-agenda-com-custo.md).
+
+- Estado: **especificado, zero código escrito.** A entrevista de requisitos já
+  aconteceu (9 decisões registradas na seção 3 da spec). **Não reabra o que já
+  está decidido lá**: implemente.
+- A spec exige **zero mudança de schema Prisma** e reusa mecanismos que já
+  estão em produção (alerta `bill_due`, `FinancialEntry` pendente,
+  `createManualEntryAction`). Se você concluir que precisa de schema novo,
+  releia a seção 2 da spec antes: provavelmente é um caminho já descartado.
+- Comece pela Task 1 (seção 5) e siga na ordem. As Tasks 6 e 9.5
+  (conciliação previsão × custo real, e o teste que garante que a despesa não
+  é contada duas vezes) são o coração do módulo.
+- Ao terminar, siga a regra 5 da seção seguinte (rodar aceitação e reportar
+  antes do usuário validar) e mantenha `CLAUDE.md` e este arquivo em sincronia.
+
+**Regra de escrita permanente do usuário, válida para qualquer agente:** nunca
+use o caractere travessão (`—`) em código, comentário, texto de interface,
+resposta do agente WhatsApp, documentação ou mensagem de commit. Use dois
+pontos, vírgula ou parênteses.
+
+**Rodada anterior, já concluída e em produção** (não precisa de ação): canal de
+email (`EmailLog`, Gmail SMTP/Resend), recuperação de senha por código
+(email/WhatsApp), e 4 refactors de arquitetura (achatamento de `routeIntent`,
+`confirmFlow`, seam de gate de sessão em `session-gate.ts`, unificação da
+criação de tenant). Ver as seções "Email" e "Recuperação de senha" abaixo.
+
+---
+
 ## Regras de trabalho deste projeto
 
 1. O projeto é entregue **módulo por módulo** (specs em `docs/specs/`), na
@@ -54,6 +90,7 @@ memória local à ferramenta).
 | 5 | Painel Web, Cobrança (Asaas) e Site | ✅ completo: Asaas real (código pronto, sem chave de sandbox testada ainda); dashboard consolidado, usuários, cobrança/bloqueio por inadimplência, site público (`/`, `/planos`, `/faq`, `/politicas/*`), documentação técnica em `/docs`, README/CONTRIBUTING |
 | 6 | Painel da Plataforma (`PlatformUser`, interno Pleno) | ✅ completo: auth separada (`/plataforma`), MRR/churn/LTV/funil, gestão de tenants e equipe |
 | 7 | Provider WhatsApp configurável (fora do PRD original) | ✅ completo: Evolution API/Meta Cloud API configurável pelo painel, credenciais criptografadas |
+| 17 | Agenda com custo (agente WhatsApp) | 🔴 **especificado, não implementado**: ver [spec](docs/specs/module-17-agenda-com-custo.md) e o handoff no topo deste arquivo |
 
 Specs: `docs/specs/module-00-setup.md` … `module-06-painel-plataforma.md`. M7
 em diante não tem spec formal (trabalho pós-PRD, decidido diretamente com
@@ -651,3 +688,16 @@ npm run test:m16          # Recuperação de senha
 ```
 
 Credenciais do seed (dev): `owner@damata.com.br` / `tibe123`.
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).

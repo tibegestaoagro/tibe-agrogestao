@@ -43,3 +43,6 @@ next-env.d.ts
 
 # graphify (knowledge-graph skill output, regenerado a cada /graphify)
 /graphify-out/
+
+# tooling de agente instalado por maquina (skills do Codex), nao versionado
+/.codex/
