@@ -1,9 +1,6 @@
 import { z } from "zod";
-import bcrypt from "bcryptjs";
 import { apiOk, apiError } from "@/lib/api";
-import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
-import { TRIAL_DAYS } from "@/lib/billing-access";
-import { toBrazilPhoneDigits } from "@/lib/phone";
+import { createTenantWithOwner } from "@/lib/actions/tenants";
 
 /**
  * POST /api/v1/signup: cadastro público de novo tenant (self-service).
@@ -40,61 +37,22 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
   }
-  const { company_name, plan, owner_name, owner_email, password, utm_source, utm_medium, utm_campaign } =
+  const { company_name, document, phone, plan, owner_name, owner_email, password, utm_source, utm_medium, utm_campaign } =
     parsed.data;
-  const phone = toBrazilPhoneDigits(parsed.data.phone);
-  const document = parsed.data.document.replace(/\D/g, "");
-  if (document.length < 11) {
-    return apiError("VALIDATION_ERROR", "CNPJ ou CPF inválido", 422);
-  }
 
-  const [dupDoc, dupEmail] = await Promise.all([
-    prisma.tenant.findUnique({ where: { document } }),
-    prisma.user.findUnique({ where: { email: owner_email } }),
-  ]);
-  if (dupDoc) {
-    return apiError("DUPLICATE_DOCUMENT", "Já existe uma conta com esse CNPJ/CPF", 409);
-  }
-  if (dupEmail) {
-    return apiError("DUPLICATE_EMAIL", "Já existe uma conta com esse email", 409);
-  }
-
-  const trial_ends_at = new Date(Date.now() + TRIAL_DAYS * 86_400_000);
-  const tenant = await prisma.tenant.create({
-    data: {
-      name: company_name,
-      document,
-      phone,
-      email: owner_email,
-      plan,
-      status: "trial",
-      trial_ends_at,
-      lead_source_utm_source: utm_source ?? null,
-      lead_source_utm_medium: utm_medium ?? null,
-      lead_source_utm_campaign: utm_campaign ?? null,
-    },
+  const result = await createTenantWithOwner({
+    company_name,
+    document,
+    phone,
+    owner_name,
+    owner_email,
+    plan,
+    plan_confirmed: true,
+    password,
+    must_change_password: false,
+    utm: { source: utm_source, medium: utm_medium, campaign: utm_campaign },
   });
+  if (!result.ok) return apiError(result.code, result.message, result.status);
 
-  try {
-    const password_hash = await bcrypt.hash(password, 10);
-    await prismaForTenant(tenant.id).user.create({
-      data: scoped({
-        name: owner_name,
-        email: owner_email,
-        password_hash,
-        role: "OWNER",
-        phone,
-      }),
-    });
-  } catch (e) {
-    // Compensação: remove o tenant órfão se o usuário não pôde ser criado
-    // (ex: corrida de email duplicado entre a checagem e o create).
-    await prisma.tenant.delete({ where: { id: tenant.id } }).catch(() => {});
-    if ((e as { code?: string }).code === "P2002") {
-      return apiError("DUPLICATE_EMAIL", "Já existe uma conta com esse email", 409);
-    }
-    throw e;
-  }
-
-  return apiOk({ tenant_id: tenant.id, email: owner_email }, {}, { status: 201 });
+  return apiOk(result.data, {}, { status: 201 });
 }

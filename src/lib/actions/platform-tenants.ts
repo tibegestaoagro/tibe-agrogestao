@@ -1,12 +1,12 @@
 import bcrypt from "bcryptjs";
-import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
+import { prisma, prismaForTenant } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { logSubscriptionStatusChange } from "@/lib/platform/subscription-log";
 import { generateTempPassword } from "@/lib/passwords";
 import { toBrazilPhoneDigits } from "@/lib/phone";
 import { dispatchWelcomeMessage, buildWelcomeMessage } from "@/lib/whatsapp-welcome";
 import { sendWhatsAppMessage } from "@/lib/whatsapp-send";
-import { TRIAL_DAYS } from "@/lib/billing-access";
+import { createTenantWithOwner } from "@/lib/actions/tenants";
 import type { SubscriptionStatus, TenantPlan } from "@/generated/prisma/enums";
 
 /**
@@ -54,9 +54,11 @@ export async function forceSubscriptionStatusAction(params: {
  * Criação manual de tenant pelo painel da plataforma (spec 2026-07-24):
  * SEGUNDA exceção deliberada à regra "signup público é a única forma de
  * criar tenant" (a primeira é o próprio /criar-conta). Usada para dar acesso
- * de teste a equipes de cliente sem passar pelo formulário público. Reusa a
- * mesma lógica de POST /api/v1/signup (checagem de duplicidade, TRIAL_DAYS),
- * mas gera a senha em vez de recebê-la, e marca must_change_password.
+ * de teste a equipes de cliente sem passar pelo formulário público. Chama o
+ * mesmo seam de POST /api/v1/signup (createTenantWithOwner, arquitetura
+ * 2026-07-29), mas gera a senha em vez de recebê-la, marca
+ * must_change_password e dispara a mensagem de boas-vindas (exclusiva deste
+ * fluxo, fora do seam).
  */
 /** Plano interno até o cliente confirmar o próprio no primeiro login (ver plan_confirmed). */
 const DEFAULT_UNCONFIRMED_PLAN: TenantPlan = "fazenda";
@@ -68,62 +70,28 @@ export async function createTenantManuallyAction(params: {
   owner_name: string;
   owner_email: string;
 }): Promise<ActionResult<{ tenant_id: string; email: string; temp_password: string }>> {
-  const document = params.document.replace(/\D/g, "");
-  if (document.length < 11) {
-    return fail("VALIDATION_ERROR", "CNPJ ou CPF inválido", 422);
-  }
-
-  const [dupDoc, dupEmail] = await Promise.all([
-    prisma.tenant.findUnique({ where: { document } }),
-    prisma.user.findUnique({ where: { email: params.owner_email } }),
-  ]);
-  if (dupDoc) return fail("DUPLICATE_DOCUMENT", "Já existe uma conta com esse CNPJ/CPF", 409);
-  if (dupEmail) return fail("DUPLICATE_EMAIL", "Já existe uma conta com esse email", 409);
-
-  const phone = toBrazilPhoneDigits(params.phone);
-  const trial_ends_at = new Date(Date.now() + TRIAL_DAYS * 86_400_000);
-  const tenant = await prisma.tenant.create({
-    data: {
-      name: params.company_name,
-      document,
-      phone,
-      email: params.owner_email,
-      plan: DEFAULT_UNCONFIRMED_PLAN,
-      plan_confirmed: false,
-      status: "trial",
-      trial_ends_at,
-    },
-  });
-
   const temp_password = generateTempPassword();
-  try {
-    const password_hash = await bcrypt.hash(temp_password, 10);
-    await prismaForTenant(tenant.id).user.create({
-      data: scoped({
-        name: params.owner_name,
-        email: params.owner_email,
-        password_hash,
-        role: "OWNER",
-        phone,
-        must_change_password: true,
-      }),
-    });
-  } catch (e) {
-    await prisma.tenant.delete({ where: { id: tenant.id } }).catch(() => {});
-    if ((e as { code?: string }).code === "P2002") {
-      return fail("DUPLICATE_EMAIL", "Já existe uma conta com esse email", 409);
-    }
-    throw e;
-  }
+  const result = await createTenantWithOwner({
+    company_name: params.company_name,
+    document: params.document,
+    phone: params.phone,
+    owner_name: params.owner_name,
+    owner_email: params.owner_email,
+    plan: DEFAULT_UNCONFIRMED_PLAN,
+    plan_confirmed: false,
+    password: temp_password,
+    must_change_password: true,
+  });
+  if (!result.ok) return result;
 
   await dispatchWelcomeMessage({
-    phone,
+    phone: toBrazilPhoneDigits(params.phone),
     ownerName: params.owner_name,
     email: params.owner_email,
     tempPassword: temp_password,
   });
 
-  return ok({ tenant_id: tenant.id, email: params.owner_email, temp_password });
+  return ok({ tenant_id: result.data.tenant_id, email: result.data.email, temp_password });
 }
 
 /**
