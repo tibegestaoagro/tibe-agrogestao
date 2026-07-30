@@ -23,11 +23,12 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 
 - Atualizado em: 2026-07-30
 - Última rodada: Módulo 19, cadastro público verificado em 4 etapas
-- Estado: implementado e testado localmente, commitado na branch de trabalho.
-  Aguardando aprovação para migrar o Neon, fazer merge na `main` e deploy.
-- Branch de implementação: `claude/cadastro-verificado`
-- Banco: **tem migração nova** (`20260730120000_pending_signup`), aplicada
-  apenas no Postgres local do Docker. **O Neon ainda NÃO foi migrado.**
+- Estado: concluído, integrado na `main` e implantado em produção
+- Commit principal: `db491bd`
+- Branch de implementação: `claude/cadastro-verificado` (fast-forward na `main`)
+- Produção: <https://tibe-agrogestao.vercel.app/>
+- Banco: migração `20260730120000_pending_signup` aplicada no Docker local e
+  **também no Neon** (`prisma migrate status` confirma "up to date").
 - Spec: `docs/specs/module-19-cadastro-verificado.md`
 
 ### Entregue
@@ -61,15 +62,29 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
   stash`). Causa provável: o lock diário do cron no Redis é compartilhado entre
   execuções e o teste afirma "1ª chamada do dia executa". Não atribuível a esta
   rodada, mas fica registrado.
-- **Nada foi validado em navegador real**, e o envio real de código por
-  WhatsApp/email não foi exercitado em teste automatizado.
+- Validado ponta a ponta em navegador real (local, `browser-harness`): campo de
+  senha ausente na etapa 1; máscara de telefone e email; contador de 2 minutos;
+  código errado recusado sem vazar informação; **com apenas um canal verificado
+  o `Tenant` ainda não existe no banco**; conclusão criando a conta, apagando o
+  pendente, logando automaticamente e caindo no gate de troca de senha; senha
+  fraca recusada pela regra forte; `/configuracoes/senha` exigindo a senha atual
+  (errada recusada, correta aceita).
+- O rate limit de envio disparou de verdade durante o teste (o telefone já
+  tinha sido gasto pelos testes automatizados): a proteção funciona entre
+  processos, via Redis.
+- Produção verificada após o deploy: `POST /api/v1/signup/start` responde 422 a
+  corpo vazio, `POST /api/v1/signup` (antiga) responde 404, e a página serve o
+  formulário novo sem campos de senha.
+- **NÃO verificado: a entrega real dos códigos.** O banco local não tem provider
+  WhatsApp, então os códigos foram injetados para exercitar a máquina de
+  estados. O envio de verdade só se confirma com um cadastro real em produção.
 
 ### Pendências e próximo passo
 
-- Aguardando aprovação para: migrar o Neon, merge na `main` e deploy.
-- Recomendado antes do deploy: validar o fluxo ponta a ponta num navegador
-  real, com Evolution ativa, porque o envio dos códigos é o coração do módulo e
-  nenhum teste automatizado cobre a entrega de verdade.
+- **Próximo passo recomendado ao usuário:** fazer o primeiro cadastro real em
+  produção, com o próprio número e email, para confirmar a entrega dos códigos
+  pela Evolution e pelo Gmail SMTP. Como a rota antiga de um passo foi removida,
+  se a entrega falhar o cadastro público fica sem alternativa.
 - A fragilidade do Gmail SMTP na etapa 3 continua: o usuário informou que o
   Resend com domínio próprio entra antes de o projeto ir ao ar.
 - Há uma integração Vercel antiga ou duplicada chamada `agrogestao-tibe` que
@@ -78,9 +93,8 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 
 ## Histórico recente
 
-- 2026-07-30: Módulo 19 (cadastro verificado em 4 etapas) implementado e
-  testado na branch `claude/cadastro-verificado`, com migração pendente no
-  Neon, aguardando merge e deploy.
+- 2026-07-30: Módulo 19 (cadastro verificado em 4 etapas) concluído, migrado no
+  Neon, integrado na `main` e implantado em produção no commit `db491bd`.
 - 2026-07-30: limite de assentos por plano concluído, integrado na `main` e
   implantado em produção no commit `7e52563`.
 - 2026-07-29: protocolo de memória compartilhada integrado na `main` e
