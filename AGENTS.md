@@ -69,8 +69,8 @@ pontos, vírgula ou parênteses.
 | 0 | Setup, schema multi-tenant, auth, isolamento | ✅ em produção |
 | 1 | Rebanho e Lavoura | ✅ em produção |
 | 2 | Prestador de Serviço | ✅ em produção |
-| 3 | Agente WhatsApp | ✅ código do Tibé pronto: **N8N/Meta/Salvy ainda não provisionados** (guia: [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md)) |
-| 4 | Financeiro e Alertas | ✅ completo: Redis/BullMQ real; PDF via link assinado (sem R2); envio por WhatsApp+email (email sempre tentado, WhatsApp aguarda N8N) |
+| 3 | Agente WhatsApp | ✅ **em produção e provisionado** (2026-07-30): workflow "Tibe - Atendimento WhatsApp (Evolution)" ativo no n8n (Railway, 27 nós, execuções reais com sucesso), Evolution como provider. Guia: [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md) |
+| 4 | Financeiro e Alertas | ✅ completo: Redis/BullMQ real; PDF via link assinado (sem R2); alerta sai por WhatsApp (direto pelo provider ativo, sem N8N) e email |
 | 5 | Painel Web, Cobrança (Asaas) e Site | ✅ completo: Asaas real (código pronto, sem chave de sandbox testada ainda); dashboard consolidado, usuários, cobrança/bloqueio por inadimplência, site público (`/`, `/planos`, `/faq`, `/politicas/*`), documentação técnica em `/docs`, README/CONTRIBUTING |
 | 6 | Painel da Plataforma (`PlatformUser`, interno Pleno) | ✅ completo: auth separada (`/plataforma`), MRR/churn/LTV/funil, gestão de tenants e equipe |
 | 7 | Provider WhatsApp configurável (fora do PRD original) | ✅ completo: Evolution API/Meta Cloud API configurável pelo painel, credenciais criptografadas |

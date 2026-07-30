@@ -10,6 +10,31 @@ código do Tibé: os endpoints já estão prontos e documentados abaixo.
 
 ---
 
+## 0. Estado atual (auditado em 2026-07-30)
+
+- Instância n8n: Railway, `https://n8n-production-3d80.up.railway.app`.
+- Workflow **"Tibe - Atendimento WhatsApp (Evolution)"**, id `UAAA96aJFiiFsQCL`,
+  **ativo**, 27 nós, apontando para `https://tibe-agrogestao.vercel.app`.
+- Webhook de produção: `/webhook/atendimento` (POST), com a Evolution
+  configurada para `messages.upsert`.
+- Execuções reais com sucesso (auditadas 20 de 20 no histórico).
+- Classificação com OpenAI `gpt-4o-mini`; transcrição com `whisper-1`;
+  extração de recibo por visão no mesmo `gpt-4o-mini`.
+
+⚠️ **O prompt do classificador é estado vivo dentro do n8n, não do
+repositório.** Ao adicionar uma intenção nova ou mudar o vocabulário de
+escopos do `resumo`, atualizar o nó `Classificar Intenção (OpenAI)` na
+instância, senão a feature fica pronta no Tibé e **inalcançável pelo
+WhatsApp**. Foi o que aconteceu com o Módulo 17: `registrar_previsao_vacina`,
+`contas_a_pagar` e `ordens_a_faturar` só entraram no prompt em 2026-07-30,
+dias depois de o código ir a produção.
+
+**Alertas não passam pelo n8n** (mudança de 2026-07-30): o Tibé envia direto
+pelo provider ativo (`sendWhatsAppMessage`). O n8n cuida apenas do sentido de
+ENTRADA. A variável `N8N_ALERT_WEBHOOK_URL` deixou de existir.
+
+---
+
 ## 1. Arquitetura
 
 ```
