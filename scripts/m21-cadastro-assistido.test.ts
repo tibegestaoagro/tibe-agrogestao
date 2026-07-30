@@ -10,6 +10,7 @@ import {
   shouldRemind,
   isBusinessHour,
   purgeExpiredFlows,
+  collectPendingReminders,
   MAX_ITEMS,
   REMINDER_AFTER_MINUTES,
 } from "@/lib/actions/agent-flows";
@@ -151,6 +152,37 @@ async function main() {
     assert((await getActiveFlow(dbA, uA.id)) === null, "cadastro vencido não é mais retomado");
     const purga = await purgeExpiredFlows(dbA);
     assert(purga.deleted >= 1, "a purga remove cadastros vencidos");
+
+    // ── coletor de lembretes marca e nao repete ───────────────────────
+    await dbA.user.update({ where: { id: uA.id }, data: { phone: "5522988887777" } });
+    await startFlow(dbA, uA.id, "cadastrar_animal", 2);
+    await applyAnswer(dbA, uA.id, "777");
+    const agoraCom = new Date();
+    agoraCom.setHours(10, 0, 0, 0);
+    await dbA.agentFlowState.updateMany({
+      where: { user_id: uA.id },
+      data: { updated_at: new Date(agoraCom.getTime() - 45 * 60_000) },
+    });
+    const lembretes = await collectPendingReminders(dbA, agoraCom);
+    assert(lembretes.length === 1, `coleta 1 lembrete do cadastro parado (obtido: ${lembretes.length})`);
+    assert(lembretes[0]?.phone === "5522988887777", "lembrete vai para o telefone do usuário");
+    assert(
+      (lembretes[0]?.message ?? "").includes("cancelar"),
+      "o lembrete oferece saída, para não virar armadilha",
+    );
+    const denovo = await collectPendingReminders(dbA, agoraCom);
+    assert(denovo.length === 0, "a segunda passada NÃO reenvia o mesmo lembrete");
+
+    const semTelefone = await dbB.user.update({ where: { id: uB.id }, data: { phone: null } });
+    await startFlow(dbB, semTelefone.id, "cadastrar_animal", 1);
+    await dbB.agentFlowState.updateMany({
+      where: { user_id: uB.id },
+      data: { updated_at: new Date(agoraCom.getTime() - 45 * 60_000) },
+    });
+    const semTel = await collectPendingReminders(dbB, agoraCom);
+    assert(semTel.length === 0, "usuário sem telefone não entra na fila de lembrete");
+    await dbB.agentFlowState.deleteMany({ where: { user_id: uB.id } });
+    await dbA.agentFlowState.deleteMany({ where: { user_id: uA.id } });
 
     // ── isolamento multi-tenant ───────────────────────────────────────
     await startFlow(dbA, uA.id, "cadastrar_animal", 1);

@@ -281,3 +281,46 @@ export async function purgeExpiredFlows(db: TenantPrismaClient): Promise<{ delet
   const r = await db.agentFlowState.deleteMany({ where: { expires_at: { lte: new Date() } } });
   return { deleted: r.count };
 }
+
+/**
+ * Cadastros parados que merecem um empurrão (chamado pelo agendador do n8n a
+ * cada 15 min). Devolve o texto pronto e marca `reminded_at` na mesma passada,
+ * para que duas execuções sobrepostas não mandem o lembrete duas vezes.
+ */
+export async function collectPendingReminders(
+  db: TenantPrismaClient,
+  now = new Date(),
+): Promise<{ user_id: string; phone: string; message: string }[]> {
+  const rows = await db.agentFlowState.findMany({
+    where: { reminded_at: null, expires_at: { gt: now } },
+  });
+
+  const out: { user_id: string; phone: string; message: string }[] = [];
+  for (const row of rows) {
+    if (!shouldRemind({ updated_at: row.updated_at, reminded_at: row.reminded_at }, now)) continue;
+
+    const user = await db.user.findFirst({ where: { id: row.user_id, active: true } });
+    if (!user?.phone) continue;
+
+    const state = asState(row);
+    const hint = resumeHint(state);
+    if (!hint) continue;
+
+    // Marca ANTES de devolver: se o envio falhar, perdemos um lembrete, o que é
+    // melhor que mandar o mesmo empurrão várias vezes por causa de retry.
+    const marked = await db.agentFlowState.updateMany({
+      where: { id: row.id, reminded_at: null },
+      data: { reminded_at: now },
+    });
+    if (marked.count === 0) continue; // outra execução pegou primeiro
+
+    const feitos = state.completed_items.length;
+    const progresso = feitos > 0 ? ` Você já tinha ${feitos} animal(is) prontos.` : "";
+    out.push({
+      user_id: row.user_id,
+      phone: user.phone,
+      message: `Oi! Vi que seu cadastro ficou pela metade.${progresso} ${hint} Se preferir, responda "cancelar".`,
+    });
+  }
+  return out;
+}
