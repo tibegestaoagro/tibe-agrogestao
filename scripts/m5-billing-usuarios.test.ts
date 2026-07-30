@@ -4,7 +4,7 @@ import { getBillingAccess, TRIAL_DAYS } from "@/lib/billing-access";
 import { inviteUserAction, updateUserRoleAction, setUserActiveAction } from "@/lib/actions/users";
 import { generateAllAlerts } from "@/lib/actions/alerts";
 import { POST as webhookAsaas } from "@/app/api/webhooks/asaas/route";
-import { POST as signup } from "@/app/api/v1/signup/route";
+import { createTenantWithOwner } from "@/lib/actions/tenants";
 
 /**
  * Testes do Módulo 5: níveis de acesso por cobrança (billing-access), webhook
@@ -123,31 +123,31 @@ async function main() {
     // Isolamento: eventos sobre a subscription de B nunca tocam A.
     assert((await dbA.subscription.findFirst({})) === null, "eventos do webhook para B não criam/alteram nada em A");
 
-    // ── signup: trial_ends_at é definido corretamente ────────────────
-    const signupReq = new Request("http://localhost/api/v1/signup", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        company_name: "M5 Signup Co",
-        document: "52998224725", // CPF válido de teste
-        phone: "22999998888",
-        plan: "campo",
-        owner_name: "Dono Teste",
-        owner_email: "m5-signup-owner@test.local",
-        password: "senha12345",
-      }),
+    // ── criação de conta: trial_ends_at é definido corretamente ──────
+    // A rota POST /api/v1/signup de um passo deixou de existir (Módulo 19):
+    // o cadastro público agora exige WhatsApp e email verificados. O seam
+    // compartilhado continua sendo o mesmo, então é ele que testamos aqui.
+    const created = await createTenantWithOwner({
+      company_name: "M5 Signup Co",
+      document: "52998224725", // CPF válido de teste
+      phone: "22999998888",
+      plan: "campo",
+      plan_confirmed: true,
+      owner_name: "Dono Teste",
+      owner_email: "m5-signup-owner@test.local",
+      password: "senha12345",
+      must_change_password: false,
     });
-    const signupRes = await signup(signupReq);
-    const signupBody = await signupRes.json();
-    assert(signupRes.status === 201, "signup cria a conta (201)");
-    const signupTenant = await prisma.tenant.findUnique({ where: { id: signupBody.data.tenant_id } });
-    createdTenantIds.push(signupBody.data.tenant_id);
+    assert(created.ok, "createTenantWithOwner cria a conta");
+    const createdTenantId = created.ok ? created.data.tenant_id : "";
+    if (createdTenantId) createdTenantIds.push(createdTenantId);
+    const signupTenant = await prisma.tenant.findUnique({ where: { id: createdTenantId } });
     const daysUntilTrialEnd = signupTenant?.trial_ends_at
       ? Math.round((signupTenant.trial_ends_at.getTime() - Date.now()) / DAY)
       : null;
     assert(
       daysUntilTrialEnd === TRIAL_DAYS,
-      `signup define trial_ends_at ${TRIAL_DAYS} dias à frente (obtido: ${daysUntilTrialEnd})`,
+      `trial_ends_at fica ${TRIAL_DAYS} dias à frente (obtido: ${daysUntilTrialEnd})`,
     );
 
     // ── usuários: convite, duplicidade, role, desativação, isolamento ─

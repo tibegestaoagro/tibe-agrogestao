@@ -4,6 +4,7 @@ import { requireCronSecret } from "@/lib/internal-guard";
 import { apiOk, apiError } from "@/lib/api";
 import { generateAllAlerts } from "@/lib/actions/alerts";
 import { deliverAllPendingAlerts } from "@/lib/actions/alert-delivery";
+import { purgeExpiredSignups } from "@/lib/actions/signup-flow";
 
 const QUEUE_NAME = "tibe-alerts";
 
@@ -51,7 +52,13 @@ export async function GET(request: Request) {
   try {
     const generated = await generateAllAlerts();
     const delivered = await deliverAllPendingAlerts();
-    return apiOk({ ...generated, ...delivered }, { date: today });
+    // Varre cadastros públicos abandonados (Módulo 19): dado pessoal de quem
+    // nunca virou cliente não fica guardado. Falha aqui não derruba o cron.
+    const purged = await purgeExpiredSignups().catch(() => ({ deleted: 0 }));
+    return apiOk(
+      { ...generated, ...delivered, expired_signups_deleted: purged.deleted },
+      { date: today },
+    );
   } catch (e) {
     await connection.del(lockKey); // libera o lock para permitir nova tentativa
     return apiError(

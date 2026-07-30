@@ -88,6 +88,39 @@ export function buildAlertEmailHtml(params: { message: string }): string {
   return wrapper(body);
 }
 
+/** Código de verificação do cadastro público (Módulo 19, 6 dígitos, 10 minutos). */
+export function buildSignupCodeEmailHtml(params: { code: string; companyName: string }): string {
+  const body = `
+    <p>Estamos quase lá. Use o código abaixo para confirmar o email da conta <strong>${params.companyName}</strong>:</p>
+    <div style="background-color:${COLORS.light};border-radius:8px;padding:20px;margin:16px 0;text-align:center;">
+      <span style="font-size:32px;font-weight:bold;letter-spacing:6px;color:${COLORS.dark};">${params.code}</span>
+    </div>
+    <p>Esse código expira em 10 minutos. Se não foi você que iniciou um cadastro no Tibé, pode ignorar este email com segurança.</p>
+  `;
+  return wrapper(body);
+}
+
+/** Senha temporária enviada na conclusão do cadastro verificado (Módulo 19). */
+export function buildSignupTempPasswordEmailHtml(params: {
+  ownerName: string;
+  email: string;
+  tempPassword: string;
+}): string {
+  const body = `
+    <p>Olá, ${params.ownerName}. Sua conta no Tibé está criada e seus dois canais de contato foram confirmados.</p>
+    <p>Acesse com:</p>
+    <p style="margin:4px 0;"><strong>Email:</strong> ${params.email}</p>
+    <p style="margin:4px 0;"><strong>Senha temporária:</strong>
+      <span style="font-family:monospace;font-size:16px;">${params.tempPassword}</span>
+    </p>
+    <p>Por segurança, o Tibé vai pedir uma senha nova no primeiro acesso. Guarde esta mensagem até concluir a troca.</p>
+    <p style="margin-top:24px;">
+      <a href="${loginUrl()}" style="background-color:${COLORS.primary};color:#ffffff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block;">Abrir o Tibé</a>
+    </p>
+  `;
+  return wrapper(body);
+}
+
 /** Código de recuperação de senha (6 dígitos, expira em 10 minutos). */
 export function buildPasswordResetEmailHtml(params: { code: string }): string {
   const body = `

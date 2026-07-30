@@ -15,7 +15,9 @@ export const platformAuthConfig = {
   // senão o parser de action (@auth/core) não reconhece /api/platform-auth/*
   // e derruba toda requisição com UnknownAction.
   basePath: "/api/platform-auth",
-  session: { strategy: "jwt" },
+  // 7 dias, mesmo valor da instância de tenant (2026-07-30): o default do
+  // NextAuth (30 dias) nunca foi uma decisão deste projeto.
+  session: { strategy: "jwt", maxAge: 7 * 24 * 60 * 60 },
   pages: { signIn: "/plataforma/login" },
   secret: process.env.PLATFORM_AUTH_SECRET,
   cookies: {

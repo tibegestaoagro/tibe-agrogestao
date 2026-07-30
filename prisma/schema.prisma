@@ -282,6 +282,42 @@ model PasswordResetCode {
   @@index([user_id])
 }
 
+// Cadastro público em andamento (Módulo 19). FORA de TENANT_SCOPED_MODELS por
+// necessidade estrutural: o Tenant ainda não existe quando a linha nasce, e é
+// justamente esse o ponto (cadastro abandonado não pode virar tenant nem travar
+// o CPF/CNPJ do dono real). Mesma categoria de PlatformUser e
+// WhatsAppProviderConfig. Toda leitura é pelo `id` da própria linha, entregue
+// ao navegador por cookie httpOnly, nunca por email/telefone vindo do client.
+model PendingSignup {
+  id           String     @id @default(cuid())
+  company_name String
+  owner_name   String
+  owner_email  String
+  document     String
+  phone        String
+  plan         TenantPlan
+
+  whatsapp_code_hash       String
+  whatsapp_code_expires_at DateTime
+  whatsapp_attempts        Int       @default(0)
+  whatsapp_verified_at     DateTime?
+
+  email_code_hash       String?
+  email_code_expires_at DateTime?
+  email_attempts        Int       @default(0)
+  email_verified_at     DateTime?
+
+  utm_source   String?
+  utm_medium   String?
+  utm_campaign String?
+
+  created_at DateTime @default(now())
+  expires_at DateTime
+
+  @@index([document])
+  @@index([expires_at])
+}
+
 model Property {
   id            String    @id @default(cuid())
   tenant_id     String

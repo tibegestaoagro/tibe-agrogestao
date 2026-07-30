@@ -26,3 +26,35 @@ export async function changeOwnPasswordAction(
   });
   return ok({ id: user.id });
 }
+
+/**
+ * Troca VOLUNTÁRIA de senha, pelo próprio usuário já logado (Módulo 19).
+ *
+ * Aqui a senha atual é exigida, ao contrário da troca obrigatória: o cenário é
+ * outro. Na obrigatória, o usuário acabou de provar posse dos canais (cadastro
+ * verificado) ou digitou a temporária no login, então pedir de novo seria a
+ * mesma prova duas vezes. Aqui a sessão pode estar aberta num computador
+ * destravado, e é justamente disso que o campo protege.
+ */
+export async function changeOwnPasswordWithCurrentAction(
+  db: TenantPrismaClient,
+  userId: string,
+  currentPassword: string,
+  newPassword: string,
+): Promise<ActionResult<{ id: string }>> {
+  const user = await db.user.findFirst({ where: { id: userId } });
+  if (!user) return fail("NOT_FOUND", "Usuário não encontrado", 404);
+
+  const matches = await bcrypt.compare(currentPassword, user.password_hash);
+  if (!matches) return fail("INVALID_PASSWORD", "Senha atual incorreta", 422);
+
+  const strength = isStrongPassword(newPassword);
+  if (!strength.ok) return fail("VALIDATION_ERROR", strength.message, 422);
+
+  const password_hash = await bcrypt.hash(newPassword, 10);
+  await db.user.update({
+    where: { id: userId },
+    data: { password_hash, must_change_password: false },
+  });
+  return ok({ id: userId });
+}

@@ -10,11 +10,28 @@ import type { AppUserRole } from "@/types/next-auth";
 // Rotas públicas (não exigem sessão de TENANT). "/plataforma" tem sua própria
 // proteção (sessão de PlatformUser), aplicada manualmente em middleware.ts:
 // aqui só precisa ficar de fora da checagem de sessão de tenant.
-const PUBLIC_PATHS = ["/", "/login", "/criar-conta", "/faq", "/sitemap.xml", "/robots.txt"];
-const PUBLIC_PREFIXES = ["/planos", "/politicas", "/docs", "/plataforma", "/esqueci-senha"];
+const PUBLIC_PATHS = ["/", "/login", "/faq", "/sitemap.xml", "/robots.txt"];
+// `/criar-conta` virou prefixo (Módulo 19): as etapas 2 e 3 são sub-rotas
+// (`/criar-conta/whatsapp`, `/criar-conta/email`) e, como caminho exato, o
+// middleware mandaria o visitante pro /login no meio do cadastro.
+const PUBLIC_PREFIXES = [
+  "/planos",
+  "/politicas",
+  "/docs",
+  "/plataforma",
+  "/esqueci-senha",
+  "/criar-conta",
+];
+
+/**
+ * Sessão de 7 dias (2026-07-30), substituindo o default herdado de 30 dias do
+ * NextAuth, que nunca foi uma decisão. Uma sessão esquecida ou roubada expira
+ * em uma semana em vez de um mês. Mesmo valor na instância da plataforma.
+ */
+const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 
 export const authConfig = {
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt", maxAge: SESSION_MAX_AGE_SECONDS },
   pages: { signIn: "/login" },
   providers: [], // o provider de credenciais é injetado em lib/auth.ts
   callbacks: {

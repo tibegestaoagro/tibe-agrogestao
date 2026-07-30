@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { signIn } from "next-auth/react";
 import {
   Select,
   SelectTrigger,
@@ -37,25 +36,19 @@ export default function SignupForm() {
   const [phone, setPhone] = useState("");
   const [ownerName, setOwnerName] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-
-    if (password !== confirmPassword) {
-      setError("As senhas não coincidem.");
-      return;
-    }
-
     setLoading(true);
 
     const utm = readUtmCookie();
 
-    const res = await fetch("/api/v1/signup", {
+    // Etapa 1 não cria conta nenhuma: só abre o cadastro pendente e dispara o
+    // código de WhatsApp (Módulo 19). Tenant e User só nascem na etapa 4.
+    const res = await fetch("/api/v1/signup/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -65,31 +58,20 @@ export default function SignupForm() {
         plan,
         owner_name: ownerName,
         owner_email: email,
-        password,
         utm_source: utm?.utm_source ?? null,
         utm_medium: utm?.utm_medium ?? null,
         utm_campaign: utm?.utm_campaign ?? null,
       }),
     });
     const body = await res.json().catch(() => null);
-
-    if (!res.ok) {
-      setLoading(false);
-      setError(body?.error?.message ?? "Não foi possível criar a conta.");
-      return;
-    }
-
-    // Conta criada: login automático com as mesmas credenciais.
-    const signInRes = await signIn("credentials", { email, password, redirect: false });
     setLoading(false);
 
-    if (!signInRes || signInRes.error) {
-      // Conta foi criada, mas o login automático falhou: manda para /login.
-      router.push("/login");
+    if (!res.ok) {
+      setError(body?.error?.message ?? "Não foi possível iniciar o cadastro.");
       return;
     }
 
-    router.push("/dashboard");
+    router.push("/criar-conta/whatsapp");
     router.refresh();
   }
 
@@ -164,40 +146,18 @@ export default function SignupForm() {
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <Label htmlFor="password">Senha *</Label>
-          <Input
-            id="password"
-            type="password"
-            autoComplete="new-password"
-            required
-            minLength={8}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </div>
-        <div>
-          <Label htmlFor="confirm_password">Confirmar senha *</Label>
-          <Input
-            id="confirm_password"
-            type="password"
-            autoComplete="new-password"
-            required
-            minLength={8}
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-          />
-        </div>
-      </div>
-
       {error && (
         <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
       )}
 
       <Button type="submit" disabled={loading} className="w-full">
-        {loading ? "Criando conta..." : "Criar conta"}
+        {loading ? "Enviando código..." : "Continuar"}
       </Button>
+
+      <p className="text-center text-xs text-gray-500">
+        Vamos confirmar seu WhatsApp e seu email antes de criar a conta. A senha
+        é enviada por esses canais, então você não precisa criar uma agora.
+      </p>
     </form>
   );
 }

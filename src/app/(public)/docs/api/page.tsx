@@ -12,20 +12,63 @@ const GROUPS: Group[] = [
     endpoints: [
       {
         method: "POST",
-        path: "/api/v1/signup",
-        auth: "Público (cria a sessão implicitamente, o login em seguida é feito pelo client)",
-        description: "Cadastro self-service: cria um Tenant em status trial (14 dias) e o User owner correspondente. Usado pelo botão \"Começar teste grátis\" do site público.",
+        path: "/api/v1/signup/start",
+        auth: "Público",
+        description: "Etapa 1 do cadastro verificado. NÃO cria conta: valida, checa duplicidade de documento/email contra os dados reais, abre um cadastro pendente e dispara o código de WhatsApp. O identificador do cadastro volta em cookie httpOnly (`tibe-signup`), nunca no corpo. Sem senha: ela é gerada no fim e enviada pelos canais verificados.",
         request: `{
   "company_name": "Fazenda Boa Vista",
-  "document": "12345678000199",
-  "phone": "22999990000",
-  "plan": "fazenda",
   "owner_name": "Maria Silva",
   "owner_email": "maria@fazendaboavista.com.br",
-  "password": "senha-forte-123"
+  "document": "12345678000199",
+  "phone": "22999990000",
+  "plan": "fazenda"
 }`,
         response: `201
-{ "data": { "tenant_id": "cl...", "email": "maria@fazendaboavista.com.br" }, "meta": {} }`,
+{ "data": { "state": { "whatsapp_verified": false, "email_verified": false, "phone_masked": "5522*****0000", "email_masked": "ma****@fazendaboavista.com.br", "current_step": "whatsapp", "allow_edit_after_seconds": 120 } }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/signup/verify",
+        auth: "Público (cookie do cadastro pendente)",
+        description: "Confirma o código de 6 dígitos de um canal (WhatsApp primeiro, email depois). Quando o SEGUNDO canal é confirmado, o Tenant (trial de 14 dias) e o User owner são criados, a senha temporária é enviada pelos dois canais e devolvida aqui para o login automático. Código errado, expirado ou ausente devolvem o mesmo `INVALID_CODE`; o código expira em 10 minutos e aceita no máximo 5 tentativas.",
+        request: `{ "channel": "whatsapp", "code": "123456" }`,
+        response: `200
+{ "data": { "completed": true, "email": "maria@fazendaboavista.com.br", "temp_password": "Xy9k2Qmz" }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/signup/resend",
+        auth: "Público (cookie do cadastro pendente)",
+        description: "Reenvia o código e, com `destination`, corrige o número ou o email antes de reenviar. Só vale para canal ainda não confirmado. Limitado por destino e por origem: a rota dispara mensagem sem login, então sem limite viraria ferramenta de perturbação.",
+        request: `{ "channel": "whatsapp", "destination": "22988887777" }`,
+        response: `200
+{ "data": { "whatsapp_verified": false, "current_step": "whatsapp", "...": "..." }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/signup/state",
+        auth: "Público (cookie do cadastro pendente)",
+        description: "Estado das etapas do cadastro em andamento, usado pelas páginas para renderizar o passo certo na retomada. Devolve `SIGNUP_EXPIRED` (410) quando o cadastro venceu.",
+        response: `200
+{ "data": { "whatsapp_verified": true, "email_verified": false, "current_step": "email", "...": "..." }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/auth/change-password",
+        auth: "Sessão (sem guard de módulo/cobrança)",
+        description: "Troca OBRIGATÓRIA da senha temporária, no primeiro acesso. Não pede a senha atual de propósito: quem chega aqui acabou de provar posse dos canais (cadastro verificado) ou digitou a temporária no login. Zera `must_change_password` e exige senha forte (8+ caracteres, maiúscula, número e símbolo).",
+        request: `{ "new_password": "MinhaSenha1!" }`,
+        response: `200
+{ "data": { "id": "cl..." }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/auth/change-password-self",
+        auth: "Sessão (sem guard de módulo/cobrança)",
+        description: "Troca VOLUNTÁRIA da própria senha, a qualquer momento. Aqui a senha atual É exigida: o cenário é uma sessão aberta num computador destravado. Disponível para qualquer papel, não só Owner/Admin.",
+        request: `{ "current_password": "SenhaAtual1!", "new_password": "MinhaSenha1!" }`,
+        response: `200
+{ "data": { "id": "cl..." }, "meta": {} }`,
       },
       {
         method: "POST",

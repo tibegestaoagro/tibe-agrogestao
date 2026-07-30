@@ -22,61 +22,65 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 ## Estado atual
 
 - Atualizado em: 2026-07-30
-- Última rodada: limite de assentos por plano
-- Estado: concluído, integrado na `main` e implantado em produção
-- Commit principal: `7e52563`
-- Branch de implementação: `claude/limite-assentos-plano` (fast-forward na `main`)
-- Produção: <https://tibe-agrogestao.vercel.app/>
-- Banco: nenhuma mudança de schema ou migração
+- Última rodada: Módulo 19, cadastro público verificado em 4 etapas
+- Estado: implementado e testado localmente, commitado na branch de trabalho.
+  Aguardando aprovação para migrar o Neon, fazer merge na `main` e deploy.
+- Branch de implementação: `claude/cadastro-verificado`
+- Banco: **tem migração nova** (`20260730120000_pending_signup`), aplicada
+  apenas no Postgres local do Docker. **O Neon ainda NÃO foi migrado.**
+- Spec: `docs/specs/module-19-cadastro-verificado.md`
 
 ### Entregue
 
-- `PLAN_SEATS` (campo 1, fazenda 2, grupo 5) em `src/lib/asaas.ts`, ao lado de
-  `PLAN_PRICES`, servindo regra de negócio e vitrine da mesma fonte.
-- `src/lib/seats.ts`: `getSeatUsage`, `checkSeatAvailable`, `seatLimitMessage`.
-- Limite aplicado em `inviteUserAction` e `setUserActiveAction(true)` com
-  `SEAT_LIMIT_REACHED` (422). O Owner ocupa assento; usuário desativado libera
-  assento; o limite nunca desativa ninguém retroativamente (só bloqueia convite
-  novo e reativação).
-- No convite, a duplicidade de email é checada antes do limite, para não
-  mandar o cliente fazer upgrade por causa de um email já existente.
-- `GET /api/v1/users` ganhou `meta.seats` (extensão aditiva).
-- Tela de usuários mostra "N de M assentos em uso" e alerta quando cheio.
-- `/planos` mostra os assentos de cada plano, derivados de `PLAN_SEATS`.
-- `/docs/api` atualizada nos três endpoints afetados.
+- `PendingSignup` (modelo novo, fora de `TENANT_SCOPED_MODELS` por necessidade
+  estrutural) e a migração correspondente.
+- `src/lib/actions/signup-flow.ts`: start, verify, resend, state e purga.
+- Rotas `POST /api/v1/signup/{start,verify,resend}` e `GET .../state`. A rota
+  antiga `POST /api/v1/signup` (um passo) foi **removida**.
+- Páginas `/criar-conta` (sem senha), `/criar-conta/whatsapp` e
+  `/criar-conta/email`, com contador de 2 minutos e correção de destino.
+- Id do cadastro em cookie httpOnly (`src/lib/signup-cookie.ts`).
+- `dispatchEmail()` (envio sem `EmailLog`, só para o código pré-tenant) e dois
+  templates novos.
+- Troca voluntária de senha com senha atual: action, rota
+  `/api/v1/auth/change-password-self`, página `/configuracoes/senha` (aberta a
+  qualquer papel) e item de menu.
+- Sessão de 7 dias nas duas instâncias NextAuth.
+- Purga de cadastros vencidos no cron diário existente.
+- `/docs/api` atualizada (rotas novas, remoção da antiga, e as duas rotas de
+  troca de senha que não estavam documentadas).
 
 ### Validações
 
-- `npm run test:m18` (novo, 18 asserções): 0 falhas.
-- `npm run test:m5` (regressão, assinaturas dos dois actions mudaram):
-  0 falhas.
+- `npm run test:m19` (novo, 37 asserções): 0 falhas.
+- Regressão: `test:m5` (ajustado, usava a rota removida), `test:m16`,
+  `test:m18`, `test:m10`, `test:m13`: 0 falhas.
 - `npm run build` (lint + tsc + compilação): sucesso.
-- Deploy verificado em produção: `/planos` serve os rótulos de assento
-  derivados de `PLAN_SEATS` ("1 usuário", "Até 2 usuários", "Até 5 usuários").
-- A tela autenticada de usuários ("N de M assentos em uso") ainda não foi
-  conferida em navegador real.
+- `test:m4` teve **1 falha transitória** numa execução, não reproduzida em 5
+  execuções seguintes nem em 2 execuções com as mudanças removidas (`git
+  stash`). Causa provável: o lock diário do cron no Redis é compartilhado entre
+  execuções e o teste afirma "1ª chamada do dia executa". Não atribuível a esta
+  rodada, mas fica registrado.
+- **Nada foi validado em navegador real**, e o envio real de código por
+  WhatsApp/email não foi exercitado em teste automatizado.
 
 ### Pendências e próximo passo
 
+- Aguardando aprovação para: migrar o Neon, merge na `main` e deploy.
+- Recomendado antes do deploy: validar o fluxo ponta a ponta num navegador
+  real, com Evolution ativa, porque o envio dos códigos é o coração do módulo e
+  nenhum teste automatizado cobre a entrega de verdade.
+- A fragilidade do Gmail SMTP na etapa 3 continua: o usuário informou que o
+  Resend com domínio próprio entra antes de o projeto ir ao ar.
 - Há uma integração Vercel antiga ou duplicada chamada `agrogestao-tibe` que
   falha e deixa o status combinado do GitHub vermelho. O projeto oficial
   `tibe-agrogestao` está saudável. Não remover a integração sem autorização.
-- **Próxima demanda já acordada com o usuário:** cadastro público em 4 etapas
-  com verificação de WhatsApp e email antes de criar a conta. Decisões já
-  fechadas: `Tenant`/`User` só nascem depois das duas verificações (dados
-  ficam em uma tabela nova `PendingSignup`, com expiração e limpeza, para não
-  contaminar os KPIs do painel da plataforma nem travar o CPF/CNPJ de quem
-  abandona); dois campos de nome (empresa e responsável) mantidos, porque
-  planos com equipe precisam de `User.name` e telefone por usuário; código de
-  6 dígitos com hash, validade de 10 minutos, opção de corrigir o número aos 2
-  minutos, máximo 5 tentativas, e limite de reenvio por destino e por origem
-  (a rota dispara WhatsApp sem login, então sem limite vira ferramenta de
-  perturbação). Ainda em aberto: o que fazer quando um canal verifica e o
-  outro falha, o modelo de sessão ("manter conectado" de 1 semana) e o formato
-  da troca da senha temporária.
 
 ## Histórico recente
 
+- 2026-07-30: Módulo 19 (cadastro verificado em 4 etapas) implementado e
+  testado na branch `claude/cadastro-verificado`, com migração pendente no
+  Neon, aguardando merge e deploy.
 - 2026-07-30: limite de assentos por plano concluído, integrado na `main` e
   implantado em produção no commit `7e52563`.
 - 2026-07-29: protocolo de memória compartilhada integrado na `main` e

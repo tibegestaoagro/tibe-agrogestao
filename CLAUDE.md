@@ -63,6 +63,7 @@ fase do contrato. O usuário (Dilton) segue este protocolo com qualquer agente:
 | 4 | Financeiro e Alertas | ✅ completo: Redis/BullMQ real; PDF via link assinado (sem R2); envio WhatsApp aguarda N8N (mesmo gap do M3) |
 | 5 | Painel Web, Cobrança (Asaas) e Site | ✅ completo: Asaas real (código pronto, sem chave de sandbox testada ainda); dashboard consolidado, usuários, cobrança/bloqueio por inadimplência, site público (`/`, `/planos`, `/faq`, `/politicas/*`), documentação técnica em `/docs`, README/CONTRIBUTING |
 | 6 | Painel da Plataforma (`PlatformUser`, interno Pleno) | ✅ completo: auth separada (`/plataforma`), MRR/churn/LTV/funil, gestão de tenants e equipe |
+| 19 | Cadastro público verificado (WhatsApp + email) | ✅ implementado local: `PendingSignup`, 4 etapas, senha temporária, sessão de 7 dias |
 | 17 | Agenda com custo (agente WhatsApp) | ✅ em produção: agenda real, previsão financeira e conciliação sem duplicidade; sem mudança de schema |
 
 Specs: `docs/specs/module-00-setup.md` … `module-06-painel-plataforma.md`.
@@ -207,6 +208,9 @@ o tenant da sessão e chama `prismaForTenant`.
   e `inviteUserAction` (`src/lib/actions/users.ts`): checagem de duplicidade
   de `User.email`, que é **globalmente único** (não dá pra checar isso com o
   client escopado; só devolve 409 genérico, não vaza dado de outro tenant),
+  `PendingSignup` (Módulo 19): cadastro público em andamento, criado ANTES de
+  o tenant existir (é esse o ponto do módulo), lido sempre pelo `id` da
+  própria linha, entregue ao navegador por cookie httpOnly,
   `WhatsAppProviderConfig` (spec 2026-07-11): config GLOBAL de plataforma
   (rotas master_admin + `sendWhatsAppMessage`), mesma categoria estrutural de
   `PlatformUser`, fora de `TENANT_SCOPED_MODELS`,
@@ -255,6 +259,7 @@ npm run test:m15         # M15: canal de email (falha graciosa, EmailLog, quem r
 npm run test:m16         # M16: recuperação de senha (código, rate limit, senha forte)
 npm run test:m17         # M17: agenda com custo, conciliação e alertas
 npm run test:m18         # Limite de assentos por plano
+npm run test:m19         # Cadastro público verificado (4 etapas)
 ```
 
 ---
@@ -622,6 +627,65 @@ fora de `(dashboard)`/`(auth)`, em `PUBLIC_PREFIXES`):
   num navegador real (`browser-harness`): pedir código → email de verdade
   chegou → validar → nova senha → login com a senha nova funcionou.
 
+## Cadastro público verificado (Módulo 19, 2026-07-30)
+
+`/criar-conta` deixou de criar conta num passo só. Agora são 4 etapas, com
+**WhatsApp e email verificados antes de `Tenant`/`User` existirem**. Spec:
+[docs/specs/module-19-cadastro-verificado.md](docs/specs/module-19-cadastro-verificado.md).
+
+- **Por que verificar antes de criar:** os alertas de vencimento saem por esses
+  dois canais, e o usuário exigiu que sejam defensáveis. Além disso, criar o
+  tenant antes contaminaria os KPIs do painel da plataforma (todo cadastro
+  abandonado viraria trial no funil e no churn) e travaria o CPF/CNPJ do dono
+  real com "já existe uma conta".
+- **`PendingSignup`** (modelo novo) guarda o cadastro em andamento. **Fora de
+  `TENANT_SCOPED_MODELS` por necessidade estrutural**: o tenant ainda não
+  existe. Mesma categoria de `PlatformUser` e `WhatsAppProviderConfig`. Expira
+  em 60 minutos e é varrido por `purgeExpiredSignups()`, chamado pelo cron
+  diário que já existia: dado pessoal de quem nunca virou cliente não fica
+  guardado.
+- **O id do cadastro viaja em cookie httpOnly** (`src/lib/signup-cookie.ts`),
+  nunca na URL: lá ele ficaria no histórico e em log de referrer, e quem
+  tivesse o id poderia trocar o email de destino antes da verificação.
+- **Código:** 6 dígitos com hash, validade de 10 minutos, máximo 5 tentativas.
+  O botão de corrigir o destino aparece aos 2 minutos: são **dois cronômetros
+  diferentes** de propósito, amarrar os dois faria quem digita devagar perder
+  um código válido. Código errado, expirado e ausente respondem igual.
+- **Limite de envio é segurança, não otimização:** a rota dispara WhatsApp para
+  qualquer número, sem login. Limitado por destino e por origem
+  (`checkLoginRateLimit`, escopos `signup-send` e `signup-start`).
+- **Ordem é obrigatória** (WhatsApp, depois email) e o servidor recusa o
+  contrário. Trocar o destino de um canal **derruba a verificação dele**:
+  verificamos o contato, não a intenção de quem preencheu.
+- **Retomada:** voltar com o mesmo CPF/CNPJ enquanto o cadastro pendente vive
+  cai direto na etapa que faltava.
+- **Senha:** não é mais digitada no cadastro. Na conclusão nasce uma temporária,
+  enviada pelos dois canais e devolvida na resposta só para o login automático,
+  com `must_change_password: true`.
+- **Duas trocas de senha, deliberadamente separadas em rotas diferentes:**
+  `POST /api/v1/auth/change-password` (obrigatória, **sem** senha atual, porque
+  a posse dos canais acabou de ser provada) e
+  `POST /api/v1/auth/change-password-self` (voluntária, **com** senha atual,
+  porque aí o risco é sessão aberta em máquina destravada). Juntar as duas numa
+  rota com campo opcional criaria um caminho para pular a exigência. A página
+  `/configuracoes/senha` é acessível a **qualquer papel**: trocar a própria
+  senha não é privilégio de Owner/Admin.
+- **`POST /api/v1/signup` (um passo) foi removido.** Dois caminhos públicos de
+  criação de conta, um sem verificação, anulariam o módulo.
+- **`/criar-conta` virou PREFIXO** em `PUBLIC_PREFIXES` (`auth.config.ts`): as
+  etapas são sub-rotas, e como caminho exato o middleware mandaria o visitante
+  para `/login` no meio do cadastro. Mesma armadilha já documentada para
+  `/docs` e `/sitemap.xml`.
+- **Sessão de 7 dias** nas duas instâncias NextAuth, substituindo o default
+  herdado de 30 dias, que nunca foi decisão. **Não** existe "manter conectado":
+  a promessa de "fechou a aba, pede senha" não se sustenta (cookie de sessão
+  morre com o navegador, não com a aba, e o Chrome restaura), quase não se
+  aplica no celular, e exigiria código customizado na camada mais sensível.
+- **`dispatchEmail()`** (`src/lib/email-send.ts`) envia **sem** gravar
+  `EmailLog`, e existe só para o código de verificação, que acontece antes de
+  haver tenant a que atribuir o log. Para mensagem a cliente já cadastrado use
+  `sendEmail()`: lá o rastro auditável é o ponto.
+
 ## Cobrança e billing (Módulo 5)
 
 - **Cliente Asaas** (`src/lib/asaas.ts`): `access_token` no header (sem
@@ -883,6 +947,7 @@ npm run test:m15          # M15
 npm run test:m16          # M16
 npm run test:m17          # M17
 npm run test:m18          # Limite de assentos por plano
+npm run test:m19          # Cadastro público verificado
 ```
 
 Credenciais do seed (dev): `owner@damata.com.br` / `tibe123`.

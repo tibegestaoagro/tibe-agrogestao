@@ -74,6 +74,7 @@ pontos, vírgula ou parênteses.
 | 5 | Painel Web, Cobrança (Asaas) e Site | ✅ completo: Asaas real (código pronto, sem chave de sandbox testada ainda); dashboard consolidado, usuários, cobrança/bloqueio por inadimplência, site público (`/`, `/planos`, `/faq`, `/politicas/*`), documentação técnica em `/docs`, README/CONTRIBUTING |
 | 6 | Painel da Plataforma (`PlatformUser`, interno Pleno) | ✅ completo: auth separada (`/plataforma`), MRR/churn/LTV/funil, gestão de tenants e equipe |
 | 7 | Provider WhatsApp configurável (fora do PRD original) | ✅ completo: Evolution API/Meta Cloud API configurável pelo painel, credenciais criptografadas |
+| 19 | Cadastro público verificado (WhatsApp + email) | ✅ implementado local: `PendingSignup`, 4 etapas, senha temporária, sessão de 7 dias |
 | 17 | Agenda com custo (agente WhatsApp) | ✅ em produção: agenda real, previsão financeira e conciliação sem duplicidade; sem mudança de schema |
 
 Specs: `docs/specs/module-00-setup.md` … `module-06-painel-plataforma.md`. M7
@@ -201,7 +202,8 @@ escopar por tenant, `POST /api/webhooks/asaas` (M5), que localiza a
 `Subscription` pelo `asaas_subscription_id` (o Asaas não manda sessão de
 tenant), `getBillingAccess()` (sempre chamada com um `tenantId` já resolvido
 da sessão pelo caller), `inviteUserAction` (checagem de duplicidade de
-`User.email`, globalmente único), `WhatsAppProviderConfig` (M7: config
+`User.email`, globalmente único), `PendingSignup` (M19: cadastro público
+criado ANTES de o tenant existir, que é o ponto do módulo), `WhatsAppProviderConfig` (M7: config
 GLOBAL de plataforma, mesma categoria estrutural de `PlatformUser`, fora de
 `TENANT_SCOPED_MODELS`), `createTenantManuallyAction`
 (`src/lib/actions/platform-tenants.ts`, checa duplicidade de documento/email
@@ -242,6 +244,7 @@ npm run test:m15         # Canal de email (falha graciosa, EmailLog, quem recebe
 npm run test:m16         # Recuperação de senha (código, rate limit, senha forte)
 npm run test:m17         # Agenda com custo, conciliação e alertas
 npm run test:m18         # Limite de assentos por plano
+npm run test:m19         # Cadastro público verificado (4 etapas)
 ```
 
 ---
@@ -517,6 +520,55 @@ padrão de `/trocar-senha`/`/escolher-plano`):
   público, decisão deliberada de escopo.
 - `test:m16` cobre a lógica toda sem depender de entrega real.
 
+## Cadastro público verificado (Módulo 19, 2026-07-30)
+
+`/criar-conta` deixou de criar conta num passo só: agora são 4 etapas, com
+WhatsApp e email verificados ANTES de `Tenant`/`User` existirem. Spec completa:
+`docs/specs/module-19-cadastro-verificado.md`.
+
+- **Por que verificar antes de criar:** os alertas de vencimento saem por esses
+  dois canais e precisam ser defensáveis. Criar o tenant antes contaminaria os
+  KPIs do painel da plataforma (cadastro abandonado viraria trial no funil e no
+  churn) e travaria o CPF/CNPJ do dono real com "já existe uma conta".
+- **`PendingSignup`** guarda o cadastro em andamento e fica **fora de
+  `TENANT_SCOPED_MODELS` por necessidade estrutural** (o tenant ainda não
+  existe). Expira em 60 minutos e é varrido por `purgeExpiredSignups()`, no
+  cron diário que já existia: dado pessoal de quem nunca virou cliente não fica
+  guardado.
+- **O id do cadastro viaja em cookie httpOnly** (`src/lib/signup-cookie.ts`),
+  nunca na URL: lá ficaria no histórico e em log de referrer, e quem tivesse o
+  id poderia trocar o email de destino antes da verificação.
+- **Código:** 6 dígitos com hash, validade de 10 minutos, máximo 5 tentativas.
+  A correção do destino aparece aos 2 minutos: dois cronômetros diferentes de
+  propósito, porque amarrar os dois faria quem digita devagar perder um código
+  válido. Código errado, expirado e ausente respondem igual.
+- **Limite de envio é segurança:** a rota dispara WhatsApp para qualquer número
+  sem login, então é limitada por destino e por origem.
+- **Ordem obrigatória** (WhatsApp, depois email), recusada no servidor. Trocar
+  o destino de um canal derruba a verificação dele: verificamos o contato, não
+  a intenção de quem preencheu. Voltar com o mesmo CPF/CNPJ retoma na etapa que
+  faltava.
+- **Senha não é digitada no cadastro:** a conclusão gera uma temporária,
+  enviada pelos dois canais e devolvida na resposta só para o login automático,
+  com `must_change_password: true`.
+- **Duas trocas de senha em rotas separadas de propósito:**
+  `POST /api/v1/auth/change-password` (obrigatória, SEM senha atual, porque a
+  posse dos canais acabou de ser provada) e
+  `POST /api/v1/auth/change-password-self` (voluntária, COM senha atual, porque
+  aí o risco é sessão aberta em máquina destravada). Uma rota só com campo
+  opcional criaria caminho para pular a exigência. `/configuracoes/senha` é
+  acessível a qualquer papel.
+- **`POST /api/v1/signup` (um passo) foi removido**, e `/criar-conta` virou
+  PREFIXO em `PUBLIC_PREFIXES`: as etapas são sub-rotas e, como caminho exato,
+  o middleware mandaria o visitante para `/login` no meio do cadastro.
+- **Sessão de 7 dias** nas duas instâncias NextAuth, no lugar do default de 30
+  dias. Não existe "manter conectado": a promessa de "fechou a aba, pede senha"
+  não se sustenta (cookie de sessão morre com o navegador, não com a aba) e
+  quase não se aplica no celular, que é onde o usuário está.
+- **`dispatchEmail()`** envia sem gravar `EmailLog` e existe só para o código de
+  verificação, que ocorre antes de haver tenant. Mensagem a cliente cadastrado
+  usa `sendEmail()`, onde o rastro auditável é o ponto.
+
 ## Cobrança e billing (Módulo 5)
 
 - `src/lib/asaas.ts`: header `access_token` (sem "Bearer"), sandbox/produção
@@ -701,6 +753,7 @@ npm run test:m15          # Canal de email
 npm run test:m16          # Recuperação de senha
 npm run test:m17          # Agenda com custo
 npm run test:m18          # Limite de assentos por plano
+npm run test:m19          # Cadastro público verificado
 ```
 
 Credenciais do seed (dev): `owner@damata.com.br` / `tibe123`.

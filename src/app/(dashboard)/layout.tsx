@@ -55,6 +55,9 @@ export default async function DashboardLayout({
     { href: "/alertas", label: "Alertas", show: true },
     { href: "/configuracoes/usuarios", label: "Usuários", show: canAccess(user.role, "usuarios") },
     { href: "/configuracoes/assinatura", label: "Assinatura", show: canAccess(user.role, "assinatura") },
+    // Trocar a própria senha não é privilégio de papel: todo usuário precisa
+    // alcançar isso, inclusive quem não vê Configurações (Módulo 19).
+    { href: "/configuracoes/senha", label: "Minha senha", show: true },
   ].filter((l) => l.show);
 
   return (

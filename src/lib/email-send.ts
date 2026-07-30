@@ -51,6 +51,24 @@ async function sendViaResend(to: string, subject: string, html: string): Promise
   }
 }
 
+/**
+ * Envio SEM registro em EmailLog. Existe para o único caso em que não há
+ * tenant algum a que atribuir o log: o código de verificação do cadastro
+ * público (Módulo 19), disparado antes de o Tenant existir. Não use isto
+ * para mensagem a cliente já cadastrado: aí o rastro auditável do `EmailLog`
+ * é justamente o ponto (ver `sendEmail`).
+ */
+export async function dispatchEmail(
+  to: string,
+  subject: string,
+  html: string,
+): Promise<SendEmailResult> {
+  const provider = process.env.EMAIL_PROVIDER === "resend" ? "resend" : "gmail_smtp";
+  return provider === "resend"
+    ? sendViaResend(to, subject, html)
+    : sendViaGmailSmtp(to, subject, html);
+}
+
 export async function sendEmail(params: {
   to: string;
   subject: string;
@@ -59,11 +77,7 @@ export async function sendEmail(params: {
   type: EmailLogType;
   related_id?: string | null;
 }): Promise<SendEmailResult> {
-  const provider = process.env.EMAIL_PROVIDER === "resend" ? "resend" : "gmail_smtp";
-  const result =
-    provider === "resend"
-      ? await sendViaResend(params.to, params.subject, params.html)
-      : await sendViaGmailSmtp(params.to, params.subject, params.html);
+  const result = await dispatchEmail(params.to, params.subject, params.html);
 
   const db = prismaForTenant(params.tenant_id);
   await db.emailLog
