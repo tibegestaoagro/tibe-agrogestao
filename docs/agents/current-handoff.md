@@ -78,8 +78,27 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
   antes e depois do PUT. Lição documentada em
   `docs/n8n-whatsapp-workflow.md` seção 0.1.
 
+### Rodada do buffer e multi-intenção (2026-07-30)
+
+- Multi-intenção no ar: duas perguntas numa mensagem só passaram a ser
+  respondidas (era o bug relatado pelo usuário no áudio de teste).
+- Buffer de 12s no ar: `POST /api/internal/whatsapp/buffer` (commit `b2f126d`,
+  deploy confirmado) + cadeia de 5 nós no n8n. `npm run test:m20`: 15/15.
+- Respostas passaram a sair **uma por assunto**, a pedido do usuário.
+- Workflow com 33 nós, ativo. Todas as expressions validadas com `node --check`
+  antes e depois do PUT.
+- **NÃO testado com mensagens reais ainda**: depende do usuário.
+
 ### Pendências e próximo passo
 
+- **Próxima frente acordada: cadastro assistido por perguntas** ("quero
+  cadastrar bois, me ajuda" e o agente pergunta campo a campo, repetindo por
+  animal, com resumo antes de gravar). Exige **estado de conversa persistido**:
+  hoje o agente reconstrói contexto do `recent_history` (5 interações), o que
+  não sustenta formulário longo. Merece spec e entrevista como M17/M19.
+- Humanizador com trava numérica (aprovado pelo usuário, ainda não feito):
+  LLM reescreve o texto e um nó valida que todo número da saída existia na
+  entrada, descartando a reescrita se inventou valor.
 - Limpeza opcional: a credencial antiga `OpenAI API Key` (Header Auth) segue
   existindo e referenciada como fallback nos nós. Não atrapalha, mas remover
   evita dúvida sobre qual está valendo.

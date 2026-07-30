@@ -71,6 +71,48 @@ Guarde sempre o JSON original antes do PUT: foi o que permitiu reverter rapido.
 
 ---
 
+## 0.2 Buffer de mensagens e multi-intenção (2026-07-30)
+
+**Buffer.** O produtor escreve picado ("oi" / "tudo bom?" / "me diz..."), e sem
+buffer cada fragmento virava uma execução completa, com uma chamada de LLM e uma
+resposta cada. A janela de **12 segundos** vive no Tibé
+(`POST /api/internal/whatsapp/buffer`, `src/lib/actions/whatsapp-buffer.ts`), não
+em nós do n8n: o Redis já está configurado lá, a regra fica versionada e
+testável (`npm run test:m20`), e o n8n segue orquestrador fino.
+
+Cadeia no workflow, entre `Preparar Mensagem` e `Resolve Contact`:
+`Buffer Append` → `Aguardar Fragmentos` (Wait 12s) → `Buffer Flush` →
+`Deve Responder?` (IF) → `Consolidar Mensagem`.
+
+A corrida é decidida por **contador, não por timestamp**: cada fragmento
+incrementa um token e só processa quem carrega o último; as outras execuções
+morrem em silêncio. Timestamp empataria em mensagens quase simultâneas, que é
+exatamente o caso comum aqui.
+
+⚠️ **`Consolidar Mensagem` passou a ser a fonte do texto**, no lugar de
+`Preparar Mensagem`. As referências `$('Preparar Mensagem')` de
+`Classificar Intenção`, `Execute Action`, `Tem Intenção de Mídia?` e
+`Montar Ação de Mídia` foram repontadas. Quem esquecer disso ao editar vai
+classificar o ÚLTIMO FRAGMENTO em vez da mensagem inteira, e o bug é silencioso.
+
+**Recibo por foto também passa pelo buffer** (decisão revista na implementação):
+o desvio exigiria um ramo extra e mais religação, com ganho pequeno. O custo é
+uma espera de 12s antes de processar a foto.
+
+**Multi-intenção.** O prompt devolve `intents: []`, o `Parse Resposta LLM` emite
+**um item por intenção** (o n8n roda o `Execute Action` uma vez para cada, sem
+nó de loop) e o `Separar Respostas` manda **uma mensagem por assunto**. Teto de
+3 intenções por mensagem, para transcrição confusa não virar cinco chamadas.
+Se qualquer ação pedir confirmação, ela responde sozinha: misturar a pergunta
+de sim/não com outras respostas quebraria o fluxo de confirmação.
+
+**Armadilha do ambiente:** ao editar esses campos por script, barras invertidas
+em heredoc podem ser colapsadas, virando quebra de linha REAL dentro da string
+JS e derrubando a expression. Monte os escapes com `chr(92)` e valide com
+`node --check` antes e depois do PUT (ver seção 0.1).
+
+---
+
 ## 1. Arquitetura
 
 ```
