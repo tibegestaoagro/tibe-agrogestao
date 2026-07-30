@@ -44,8 +44,28 @@ const SEX_MAP: Record<string, string> = {
   femea: "female", "fêmea": "female", f: "female", vaca: "female", female: "female",
 };
 
+/**
+ * Normaliza a fala do usuário. Tira pontuação de propósito: o Whisper devolve
+ * "Macho." com ponto final, e a comparação exata rejeitava a resposta correta
+ * (bug real reportado em 2026-07-30, com o usuário mandando áudio duas vezes).
+ */
 function norm(s: string): string {
-  return s.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  return s
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[.,;:!?]+$/g, "")
+    .replace(/^[.,;:!?]+/g, "")
+    .trim();
+}
+
+/** Separadores que a pessoa usa ao mandar vários campos numa tacada só. */
+export function splitValues(raw: string): string[] {
+  return raw
+    .split(/[,;\r\n]+|\s+e\s+/i)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
 }
 
 export const FLOWS: Record<string, FlowDef> = {
@@ -56,8 +76,12 @@ export const FLOWS: Record<string, FlowDef> = {
         name: "ear_tag",
         question: "Qual o número do brinco?",
         parse: (raw) => {
-          const v = raw.trim();
-          return v.length > 0 && v.length <= 30 ? v : null;
+          const v = norm(raw);
+          // Sem vírgula e sem espaço: "082, nelori, macho" ficava gravado
+          // inteiro como brinco (bug real de 2026-07-30). Frase não é brinco.
+          if (v.length === 0 || v.length > 30) return null;
+          if (/[,;]/.test(v) || v.split(/\s+/).length > 2) return null;
+          return raw.trim().replace(/[.,;:]+$/g, "");
         },
         invalid: "Não entendi o brinco. Pode mandar só o número ou código dele?",
       },
@@ -65,15 +89,22 @@ export const FLOWS: Record<string, FlowDef> = {
         name: "breed",
         question: "Qual a raça?",
         parse: (raw) => {
-          const v = raw.trim();
-          return v.length > 1 ? v : null;
+          const v = raw.trim().replace(/[.,;:!?]+$/g, "");
+          return v.length > 1 && v.length <= 40 ? v : null;
         },
         invalid: "Não entendi a raça. Pode escrever o nome dela? (ex: Nelore)",
       },
       {
         name: "sex",
         question: "É macho ou fêmea?",
-        parse: (raw) => SEX_MAP[norm(raw)] ?? null,
+        parse: (raw) => {
+          const n = norm(raw);
+          if (SEX_MAP[n]) return SEX_MAP[n];
+          // Áudio raramente vem com a palavra sozinha ("é macho", "macho mesmo").
+          if (/\b(macho|boi|touro)\b/.test(n)) return "male";
+          if (/\b(femea|vaca|novilha)\b/.test(n)) return "female";
+          return null;
+        },
         invalid: "Não entendi. Responda macho ou fêmea.",
       },
     ],
@@ -191,6 +222,28 @@ export async function applyAnswer(
 
   const field = def.fields.find((f) => f.name === state.pending_field);
   if (!field) return { kind: "none" };
+
+  // Vários campos numa mensagem só ("082, nelori, macho"): bug real de
+  // 2026-07-30, em que a frase inteira virava o brinco. Se a pessoa mandou
+  // partes separadas e cada uma serve para os campos seguintes, aproveitamos
+  // todas; se qualquer parte não servir, caímos no comportamento de um campo
+  // por vez, que é o previsível.
+  const idxPend = def.fields.findIndex((f) => f.name === field.name);
+  const restantes = def.fields.slice(idxPend);
+  const partes = splitValues(raw);
+  if (partes.length > 1 && restantes.length > 1) {
+    const usar = Math.min(partes.length, restantes.length);
+    const coletado: Record<string, string> = {};
+    let todasValidas = true;
+    for (let i = 0; i < usar; i++) {
+      const v = restantes[i].parse(partes[i]);
+      if (v === null) { todasValidas = false; break; }
+      coletado[restantes[i].name] = v;
+    }
+    if (todasValidas && Object.keys(coletado).length > 1) {
+      return applyManyValues(db, userId, state, def, coletado, idxPend + usar);
+    }
+  }
 
   const value = field.parse(raw);
   if (value === null) {
@@ -323,4 +376,67 @@ export async function collectPendingReminders(
     });
   }
   return out;
+}
+
+/**
+ * Aplica de uma vez os campos que vieram juntos numa mensagem e continua o
+ * fluxo do ponto certo (próxima pergunta, próximo animal ou resumo).
+ */
+async function applyManyValues(
+  db: TenantPrismaClient,
+  userId: string,
+  state: FlowState,
+  def: FlowDef,
+  coletado: Record<string, string>,
+  proximoIdx: number,
+): Promise<AnswerResult> {
+  const item = { ...state.current_item, ...coletado };
+  const next = def.fields[proximoIdx];
+
+  if (next) {
+    await db.agentFlowState.updateMany({
+      where: { user_id: userId },
+      data: { current_item: item, pending_field: next.name, expires_at: expiry() },
+    });
+    return { kind: "question", reply: next.question };
+  }
+
+  const completed = [...state.completed_items, item];
+  const faltam = state.target_count - completed.length;
+
+  if (faltam > 0) {
+    await db.agentFlowState.updateMany({
+      where: { user_id: userId },
+      data: {
+        completed_items: completed,
+        current_item: {},
+        pending_field: def.fields[0].name,
+        expires_at: expiry(),
+      },
+    });
+    return {
+      kind: "question",
+      reply: `${def.summarizeItem(item)} Faltam ${faltam}. ${def.fields[0].question}`,
+    };
+  }
+
+  await db.agentFlowState.updateMany({
+    where: { user_id: userId },
+    data: {
+      completed_items: completed,
+      current_item: {},
+      pending_field: null,
+      awaiting_summary: true,
+      expires_at: expiry(),
+    },
+  });
+  const linhas = completed.map((i, n) => `${n + 1}. ${def.summarizeItem(i)}`).join("\n");
+  return {
+    kind: "summary",
+    reply: `Confere antes de eu salvar:
+${linhas}
+
+Posso cadastrar? Responda sim para confirmar.`,
+    items: completed,
+  };
 }

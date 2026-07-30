@@ -98,6 +98,62 @@ async function main() {
     }
     assert((await dbA.animal.count()) === 0, "mesmo no resumo, ainda NADA foi gravado");
 
+    // ── REGRESSAO 2026-07-30: audio transcrito vem com pontuacao ──────
+    await finishFlow(dbA, uA.id);
+    await startFlow(dbA, uA.id, "cadastrar_animal", 1);
+    await applyAnswer(dbA, uA.id, "081");
+    await applyAnswer(dbA, uA.id, "Nelori");
+    const audio = await applyAnswer(dbA, uA.id, "Macho.");
+    assert(audio.kind === "summary", "'Macho.' com ponto final (transcricao de audio) e aceito");
+    if (audio.kind === "summary") {
+      assert(audio.items[0].sex === "male", "'Macho.' vira male");
+    }
+
+    await finishFlow(dbA, uA.id);
+    await startFlow(dbA, uA.id, "cadastrar_animal", 1);
+    await applyAnswer(dbA, uA.id, "082");
+    await applyAnswer(dbA, uA.id, "Nelore");
+    const frase = await applyAnswer(dbA, uA.id, "É macho, sim.");
+    assert(frase.kind === "summary", "frase falada ('E macho, sim.') e entendida");
+
+    await finishFlow(dbA, uA.id);
+    await startFlow(dbA, uA.id, "cadastrar_animal", 1);
+    await applyAnswer(dbA, uA.id, "083");
+    await applyAnswer(dbA, uA.id, "Gir");
+    const femeaAudio = await applyAnswer(dbA, uA.id, "Fêmea!");
+    assert(femeaAudio.kind === "summary", "'Fêmea!' com acento e exclamacao e aceito");
+    if (femeaAudio.kind === "summary") {
+      assert(femeaAudio.items[0].sex === "female", "'Fêmea!' vira female");
+    }
+
+    // ── REGRESSAO 2026-07-30: os 3 campos numa mensagem so ────────────
+    await finishFlow(dbA, uA.id);
+    await startFlow(dbA, uA.id, "cadastrar_animal", 1);
+    const tudoJunto = await applyAnswer(dbA, uA.id, "082, nelori, macho");
+    assert(tudoJunto.kind === "summary", "os 3 campos numa mensagem so completam o animal");
+    if (tudoJunto.kind === "summary") {
+      assert(tudoJunto.items[0].ear_tag === "082", `brinco fica so '082' (obtido: '${tudoJunto.items[0].ear_tag}')`);
+      assert(tudoJunto.items[0].breed === "nelori", "raca fica separada do brinco");
+      assert(tudoJunto.items[0].sex === "male", "sexo fica separado do brinco");
+    }
+
+    await finishFlow(dbA, uA.id);
+    await startFlow(dbA, uA.id, "cadastrar_animal", 1);
+    const frasePart = await applyAnswer(dbA, uA.id, "084 e Angus");
+    assert(frasePart.kind === "question", "2 de 3 campos avanca para o campo que falta");
+    if (frasePart.kind === "question") {
+      assert(frasePart.reply.includes("macho"), "pergunta so o que ainda falta (sexo)");
+    }
+
+    await finishFlow(dbA, uA.id);
+    await startFlow(dbA, uA.id, "cadastrar_animal", 2);
+    await applyAnswer(dbA, uA.id, "042");
+    await applyAnswer(dbA, uA.id, "Nelore");
+    await applyAnswer(dbA, uA.id, "macho");
+    await applyAnswer(dbA, uA.id, "043");
+    await applyAnswer(dbA, uA.id, "Angus");
+    await applyAnswer(dbA, uA.id, "femea");
+
     // ── retomada depois de interrupção ────────────────────────────────
     const stResumo = await getActiveFlow(dbA, uA.id);
     assert(stResumo?.awaiting_summary === true, "estado marca que aguarda confirmação do resumo");
