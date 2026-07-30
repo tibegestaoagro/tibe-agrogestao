@@ -75,16 +75,26 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 - Produção verificada após o deploy: `POST /api/v1/signup/start` responde 422 a
   corpo vazio, `POST /api/v1/signup` (antiga) responde 404, e a página serve o
   formulário novo sem campos de senha.
-- **NÃO verificado: a entrega real dos códigos.** O banco local não tem provider
+- **Entrega real dos códigos VERIFICADA em produção pelo usuário** (2026-07-30):
+  cadastro completo com WhatsApp e email pessoais, todas as telas corretas e os
+  dois códigos chegando. O `PendingSignup` foi apagado corretamente ao concluir
+  (0 registros em aberto na base de produção depois do teste). O tenant gerado
+  nesse teste foi removido a pedido do usuário, para não contaminar os KPIs do
+  painel nem travar o CPF/CNPJ e o email dele.
+- Nota do teste local anterior: O banco local não tem provider
   WhatsApp, então os códigos foram injetados para exercitar a máquina de
   estados. O envio de verdade só se confirma com um cadastro real em produção.
 
 ### Pendências e próximo passo
 
-- **Próximo passo recomendado ao usuário:** fazer o primeiro cadastro real em
-  produção, com o próprio número e email, para confirmar a entrega dos códigos
-  pela Evolution e pelo Gmail SMTP. Como a rota antiga de um passo foi removida,
-  se a entrega falhar o cadastro público fica sem alternativa.
+- A rodada não possui pendências funcionais: o fluxo foi validado ponta a ponta
+  em produção, com entrega real dos códigos.
+- Lembrete de risco operacional: a rota antiga de um passo foi removida, então o
+  cadastro público depende inteiramente da Evolution e do canal de email. Se
+  algum dos dois cair, não existe caminho alternativo de criação de conta.
+- A Evolution é provisória (ambiente de desenvolvimento) e o Gmail SMTP tem
+  reputação frágil: o usuário informou que o Resend com domínio próprio entra
+  antes de o projeto ir ao ar de fato.
 - A fragilidade do Gmail SMTP na etapa 3 continua: o usuário informou que o
   Resend com domínio próprio entra antes de o projeto ir ao ar.
 - Há uma integração Vercel antiga ou duplicada chamada `agrogestao-tibe` que
