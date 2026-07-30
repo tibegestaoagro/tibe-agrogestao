@@ -64,9 +64,25 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 - **NÃO verificado:** o prompt corrigido ponta a ponta. Exige mandar uma
   mensagem real pelo WhatsApp (ex: "quais minhas contas a pagar?").
 
+### Fechamento do agente WhatsApp (2026-07-30, validado pelo usuário)
+
+- Áudio, texto e vocabulário novo do M17 **funcionando em produção**, confirmado
+  pelo usuário após teste real.
+- Os três nós de LLM passaram para a credencial **predefinida** da OpenAI
+  (`OpenAi API_Key Assistente Tibe`). A Header Auth genérica não injetava o
+  header em `multipart/form-data`, o que derrubava só a transcrição.
+- Regressão causada e corrigida na mesma sessão: ao inserir o vocabulário do M17
+  no prompt via API, entrou uma quebra de linha REAL dentro da string JS, e a
+  expression parou de compilar (`invalid syntax`, com qualquer credencial).
+  Revertido a partir do backup e reaplicado com validação por `node --check`
+  antes e depois do PUT. Lição documentada em
+  `docs/n8n-whatsapp-workflow.md` seção 0.1.
+
 ### Pendências e próximo passo
 
-- **Usuário vai testar em produção** o vocabulário novo pelo WhatsApp.
+- Limpeza opcional: a credencial antiga `OpenAI API Key` (Header Auth) segue
+  existindo e referenciada como fallback nos nós. Não atrapalha, mas remover
+  evita dúvida sobre qual está valendo.
 - Armadilha registrada para qualquer agente: o prompt do classificador é estado
   vivo dentro do n8n, não do repositório. Toda intenção nova exige atualizar o
   nó `Classificar Intenção (OpenAI)`, senão a feature nasce inalcançável.

@@ -35,6 +35,42 @@ ENTRADA. A variável `N8N_ALERT_WEBHOOK_URL` deixou de existir.
 
 ---
 
+## 0.1 Armadilhas confirmadas em produção (2026-07-30)
+
+Duas coisas quebraram o agente neste dia. Ambas custam minutos se você souber,
+e horas se não souber.
+
+**1. Credencial da OpenAI: use o tipo PREDEFINIDO, não Header Auth genérica.**
+O nó `Transcrever Áudio` é a única chamada `multipart/form-data` do workflow, e
+com "Generic Credential Type / Header Auth" o n8n **não injetava** o header de
+autorização nela: a OpenAI respondia "You didn't provide an API key" (erro de
+header AUSENTE, diferente de "Incorrect API key provided", que seria chave
+errada). Os nós JSON com a mesma credencial funcionavam normalmente, o que faz o
+problema parecer de credencial quando não é. Solução: `Authentication:
+Predefined Credential Type` + `Credential Type: OpenAi`, nos três nós de LLM
+(`Classificar Intenção`, `Transcrever Áudio`, `Extrair Recibo`).
+
+**2. Editar o prompt pela API exige validar a SINTAXE, não só o conteúdo.**
+O campo `jsonBody` do nó de classificação é uma expression do n8n
+(`={{ JSON.stringify({...}) }}`), ou seja, **código JavaScript**. Um texto
+inserido com uma quebra de linha REAL dentro da string derruba a expression
+inteira com `invalid syntax`, e aí nenhuma requisição chega a sair (o erro
+aparece com qualquer credencial, o que despista). Separador de linha dentro do
+prompt tem que ser a sequência de escape de dois caracteres, nunca um newline.
+
+**Portanto: antes de qualquer PUT que mexa nesse campo, valide.** Conferir que os
+termos novos "aparecem no texto" NÃO é validação: presença de conteúdo não é
+validade sintática. Extraia o miolo entre `={{` e `}}` e rode:
+
+```bash
+node --check arquivo-com-a-expression.js
+```
+
+E releia o workflow da API depois de escrever, revalidando o que ficou no ar.
+Guarde sempre o JSON original antes do PUT: foi o que permitiu reverter rapido.
+
+---
+
 ## 1. Arquitetura
 
 ```
