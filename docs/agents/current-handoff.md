@@ -23,9 +23,10 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 
 - Atualizado em: 2026-07-30
 - Última rodada: limite de assentos por plano
-- Estado: implementado e testado localmente, commitado na branch de trabalho.
-  Aguardando aprovação para merge na `main` e deploy.
-- Branch de implementação: `claude/limite-assentos-plano`
+- Estado: concluído, integrado na `main` e implantado em produção
+- Commit principal: `7e52563`
+- Branch de implementação: `claude/limite-assentos-plano` (fast-forward na `main`)
+- Produção: <https://tibe-agrogestao.vercel.app/>
 - Banco: nenhuma mudança de schema ou migração
 
 ### Entregue
@@ -50,11 +51,13 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 - `npm run test:m5` (regressão, assinaturas dos dois actions mudaram):
   0 falhas.
 - `npm run build` (lint + tsc + compilação): sucesso.
-- Não validado em navegador real ainda.
+- Deploy verificado em produção: `/planos` serve os rótulos de assento
+  derivados de `PLAN_SEATS` ("1 usuário", "Até 2 usuários", "Até 5 usuários").
+- A tela autenticada de usuários ("N de M assentos em uso") ainda não foi
+  conferida em navegador real.
 
 ### Pendências e próximo passo
 
-- Aguardando aprovação do usuário para merge na `main` e deploy.
 - Há uma integração Vercel antiga ou duplicada chamada `agrogestao-tibe` que
   falha e deixa o status combinado do GitHub vermelho. O projeto oficial
   `tibe-agrogestao` está saudável. Não remover a integração sem autorização.
@@ -74,8 +77,8 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 
 ## Histórico recente
 
-- 2026-07-30: limite de assentos por plano implementado e testado na branch
-  `claude/limite-assentos-plano`, aguardando merge e deploy.
+- 2026-07-30: limite de assentos por plano concluído, integrado na `main` e
+  implantado em produção no commit `7e52563`.
 - 2026-07-29: protocolo de memória compartilhada integrado na `main` e
   implantado, incluindo commit automático por tarefa e aprovação obrigatória
   para merge/deploy.
