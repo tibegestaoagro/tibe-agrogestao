@@ -22,87 +22,66 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 ## Estado atual
 
 - Atualizado em: 2026-07-30
-- Última rodada: Módulo 19, cadastro público verificado em 4 etapas
-- Estado: concluído, integrado na `main` e implantado em produção
-- Commit principal: `db491bd`
-- Branch de implementação: `claude/cadastro-verificado` (fast-forward na `main`)
-- Produção: <https://tibe-agrogestao.vercel.app/>
-- Banco: migração `20260730120000_pending_signup` aplicada no Docker local e
-  **também no Neon** (`prisma migrate status` confirma "up to date").
-- Spec: `docs/specs/module-19-cadastro-verificado.md`
+- Última rodada: provisionamento do N8N (auditoria) e alerta por WhatsApp direto
+- Estado: concluído, integrado na `main` e implantado
+- Commits: `8204e9b` (alerta direto) e `31f54c0` (auditoria + docs)
+- Banco: nenhuma mudança de schema ou migração
 
 ### Entregue
 
-- `PendingSignup` (modelo novo, fora de `TENANT_SCOPED_MODELS` por necessidade
-  estrutural) e a migração correspondente.
-- `src/lib/actions/signup-flow.ts`: start, verify, resend, state e purga.
-- Rotas `POST /api/v1/signup/{start,verify,resend}` e `GET .../state`. A rota
-  antiga `POST /api/v1/signup` (um passo) foi **removida**.
-- Páginas `/criar-conta` (sem senha), `/criar-conta/whatsapp` e
-  `/criar-conta/email`, com contador de 2 minutos e correção de destino.
-- Id do cadastro em cookie httpOnly (`src/lib/signup-cookie.ts`).
-- `dispatchEmail()` (envio sem `EmailLog`, só para o código pré-tenant) e dois
-  templates novos.
-- Troca voluntária de senha com senha atual: action, rota
-  `/api/v1/auth/change-password-self`, página `/configuracoes/senha` (aberta a
-  qualquer papel) e item de menu.
-- Sessão de 7 dias nas duas instâncias NextAuth.
-- Purga de cadastros vencidos no cron diário existente.
-- `/docs/api` atualizada (rotas novas, remoção da antiga, e as duas rotas de
-  troca de senha que não estavam documentadas).
+- **Alerta por WhatsApp agora sai direto pelo Tibé** (`sendWhatsAppMessage`), sem
+  o salto pelo N8N. Fecha um gap silencioso: `N8N_ALERT_WEBHOOK_URL` nunca foi
+  configurada, então o alerta de vencimento **nunca saiu por WhatsApp** desde o
+  M4, apenas por email.
+- Removidas do `.env.example` as variáveis `N8N_ALERT_WEBHOOK_URL` (sem uso) e
+  `N8N_WEBHOOK_SECRET` (código morto: declarada, nunca lida).
+- **Prompt do classificador no n8n alinhado ao Módulo 17**: faltavam a intenção
+  `registrar_previsao_vacina` e os escopos `contas_a_pagar` e `ordens_a_faturar`.
+  O M17 estava em produção no Tibé e **inalcançável pelo WhatsApp**.
+- `CLAUDE.md`/`AGENTS.md`: status do M3 corrigido de "não provisionado" para "em
+  produção e provisionado", e o do M4 para refletir o envio direto.
+- `docs/n8n-whatsapp-workflow.md` ganhou a seção 0 com o estado auditado.
+
+### Estado auditado do N8N (2026-07-30)
+
+- Instância: `https://n8n-production-3d80.up.railway.app` (Railway).
+- Workflow "Tibe - Atendimento WhatsApp (Evolution)", id `UAAA96aJFiiFsQCL`,
+  **ativo**, 27 nós, apontando para a produção da Vercel.
+- Webhook de produção `/webhook/atendimento`, Evolution em `messages.upsert`.
+- 20 de 20 execuções do histórico com status `success`.
+- Credenciais do n8n vivem na config do MCP (`~/.claude.json`), **não** no
+  `.env` do projeto.
 
 ### Validações
 
-- `npm run test:m19` (novo, 37 asserções): 0 falhas.
-- Regressão: `test:m5` (ajustado, usava a rota removida), `test:m16`,
-  `test:m18`, `test:m10`, `test:m13`: 0 falhas.
-- `npm run build` (lint + tsc + compilação): sucesso.
-- `test:m4` teve **1 falha transitória** numa execução, não reproduzida em 5
-  execuções seguintes nem em 2 execuções com as mudanças removidas (`git
-  stash`). Causa provável: o lock diário do cron no Redis é compartilhado entre
-  execuções e o teste afirma "1ª chamada do dia executa". Não atribuível a esta
-  rodada, mas fica registrado.
-- Validado ponta a ponta em navegador real (local, `browser-harness`): campo de
-  senha ausente na etapa 1; máscara de telefone e email; contador de 2 minutos;
-  código errado recusado sem vazar informação; **com apenas um canal verificado
-  o `Tenant` ainda não existe no banco**; conclusão criando a conta, apagando o
-  pendente, logando automaticamente e caindo no gate de troca de senha; senha
-  fraca recusada pela regra forte; `/configuracoes/senha` exigindo a senha atual
-  (errada recusada, correta aceita).
-- O rate limit de envio disparou de verdade durante o teste (o telefone já
-  tinha sido gasto pelos testes automatizados): a proteção funciona entre
-  processos, via Redis.
-- Produção verificada após o deploy: `POST /api/v1/signup/start` responde 422 a
-  corpo vazio, `POST /api/v1/signup` (antiga) responde 404, e a página serve o
-  formulário novo sem campos de senha.
-- **Entrega real dos códigos VERIFICADA em produção pelo usuário** (2026-07-30):
-  cadastro completo com WhatsApp e email pessoais, todas as telas corretas e os
-  dois códigos chegando. O `PendingSignup` foi apagado corretamente ao concluir
-  (0 registros em aberto na base de produção depois do teste). O tenant gerado
-  nesse teste foi removido a pedido do usuário, para não contaminar os KPIs do
-  painel nem travar o CPF/CNPJ e o email dele.
-- Nota do teste local anterior: O banco local não tem provider
-  WhatsApp, então os códigos foram injetados para exercitar a máquina de
-  estados. O envio de verdade só se confirma com um cadastro real em produção.
+- `npm run test:m15` e `npm run test:m4`: 0 falhas.
+- `npm run build`: sucesso.
+- Patch do prompt confirmado relendo o workflow da API (workflow segue ativo,
+  27 nós preservados). Backup do JSON original guardado antes do PUT.
+- **NÃO verificado:** a mudança dos alertas não tem superfície observável de
+  fora e só se manifesta na próxima execução do cron diário. O cron não foi
+  disparado à mão porque enviaria alertas reais a tenants reais.
+- **NÃO verificado:** o prompt corrigido ponta a ponta. Exige mandar uma
+  mensagem real pelo WhatsApp (ex: "quais minhas contas a pagar?").
 
 ### Pendências e próximo passo
 
-- A rodada não possui pendências funcionais: o fluxo foi validado ponta a ponta
-  em produção, com entrega real dos códigos.
-- Lembrete de risco operacional: a rota antiga de um passo foi removida, então o
-  cadastro público depende inteiramente da Evolution e do canal de email. Se
-  algum dos dois cair, não existe caminho alternativo de criação de conta.
-- A Evolution é provisória (ambiente de desenvolvimento) e o Gmail SMTP tem
-  reputação frágil: o usuário informou que o Resend com domínio próprio entra
-  antes de o projeto ir ao ar de fato.
-- A fragilidade do Gmail SMTP na etapa 3 continua: o usuário informou que o
-  Resend com domínio próprio entra antes de o projeto ir ao ar.
-- Há uma integração Vercel antiga ou duplicada chamada `agrogestao-tibe` que
-  falha e deixa o status combinado do GitHub vermelho. O projeto oficial
-  `tibe-agrogestao` está saudável. Não remover a integração sem autorização.
+- **Usuário vai testar em produção** o vocabulário novo pelo WhatsApp.
+- Armadilha registrada para qualquer agente: o prompt do classificador é estado
+  vivo dentro do n8n, não do repositório. Toda intenção nova exige atualizar o
+  nó `Classificar Intenção (OpenAI)`, senão a feature nasce inalcançável.
+- Fila acordada com o usuário: adotar shadcn quando forem feitos os ajustes
+  visuais da aplicação (adiado de propósito).
+- Resend com domínio próprio antes de o projeto ir ao ar (domínio em compra).
+- Integração Vercel antiga/duplicada `agrogestao-tibe` falha e deixa o status do
+  GitHub vermelho. O projeto oficial `tibe-agrogestao` está saudável. Não
+  remover sem autorização.
 
 ## Histórico recente
 
+- 2026-07-30: N8N auditado (já estava provisionado e ativo), prompt do
+  classificador alinhado ao M17 e alerta por WhatsApp passando a sair direto
+  pelo Tibé. Commits `8204e9b` e `31f54c0`.
 - 2026-07-30: Módulo 19 (cadastro verificado em 4 etapas) concluído, migrado no
   Neon, integrado na `main` e implantado em produção no commit `db491bd`.
 - 2026-07-30: limite de assentos por plano concluído, integrado na `main` e
