@@ -1,19 +1,27 @@
 import { prisma, prismaForTenant, type TenantPrismaClient } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email-send";
 import { buildAlertEmailHtml } from "@/lib/email-templates";
+import { sendWhatsAppMessage } from "@/lib/whatsapp-send";
 
 /**
  * Envio de alertas pendentes por 2 canais independentes (spec 4.11 + arquitetura
- * 2026-07-29): WhatsApp via N8N → Meta (mesma arquitetura do Módulo 3: Tibé
- * nunca fala direto com a Meta Cloud API) e email (Gmail SMTP/Resend, nunca
- * lança, sempre grava EmailLog). Um alerta vira `sent` assim que QUALQUER UM
- * dos 2 canais entregar com sucesso: sem isso, um alerta que só falha no
- * WhatsApp (ex: N8N_ALERT_WEBHOOK_URL não configurada, gap conhecido) ficaria
- * `pending` pra sempre e reenviaria o mesmo email todo dia no cron.
+ * 2026-07-29): WhatsApp e email (Gmail SMTP/Resend, nunca lança, sempre grava
+ * EmailLog). Um alerta vira `sent` assim que QUALQUER UM dos 2 canais entregar:
+ * sem isso, um alerta que só falha no WhatsApp ficaria `pending` pra sempre e
+ * reenviaria o mesmo email todo dia no cron.
  *
- * Se `N8N_ALERT_WEBHOOK_URL` não estiver configurada ou o destinatário não
- * tiver telefone, só o email é tentado (nada quebra: mesmo espírito do resto
- * do projeto, "melhor esforço" por canal, nunca bloqueia o job).
+ * ⚠️ Mudança de 2026-07-30: o WhatsApp do alerta saía por um webhook do N8N
+ * (`N8N_ALERT_WEBHOOK_URL`), herança da regra original "o Tibé nunca fala
+ * direto com a Meta". Essa regra já tinha sido quebrada de propósito no
+ * Módulo 7, quando o envio passou a ser do próprio Tibé pelo provider ATIVO
+ * (`sendWhatsAppMessage`). Manter o salto pelo N8N só para alertas era um
+ * ponto de falha extra, um segundo workflow para manter e uma variável de
+ * ambiente que nunca chegou a ser configurada (o alerta simplesmente não saía
+ * por WhatsApp). O N8N segue indispensável no sentido de ENTRADA (receber a
+ * mensagem e classificar a intenção), que é onde ele não tem substituto.
+ *
+ * Se o destinatário não tiver telefone, ou nenhum provider estiver ativo, só o
+ * email é tentado: melhor esforço por canal, nunca bloqueia o job.
  */
 
 async function findAlertRecipient(db: TenantPrismaClient) {
@@ -22,18 +30,12 @@ async function findAlertRecipient(db: TenantPrismaClient) {
   return db.user.findFirst({ where: { role: "ADMIN", active: true } });
 }
 
-async function sendAlertWhatsApp(tenantId: string, phone: string, message: string): Promise<boolean> {
-  const webhookUrl = process.env.N8N_ALERT_WEBHOOK_URL;
-  if (!webhookUrl) return false;
+async function sendAlertWhatsApp(phone: string, message: string): Promise<boolean> {
   try {
-    const res = await fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tenant_id: tenantId, phone, message }),
-    });
+    const res = await sendWhatsAppMessage(phone, message);
     return res.ok;
   } catch {
-    // N8N indisponível/erro de rede: tenta de novo na próxima execução do job.
+    // Provider indisponível/erro de rede: tenta de novo na próxima execução.
     return false;
   }
 }
@@ -49,7 +51,7 @@ export async function deliverPendingAlertsForTenant(tenantId: string): Promise<{
   let sent = 0;
   for (const alert of pending) {
     const whatsappOk = recipient.phone
-      ? await sendAlertWhatsApp(tenantId, recipient.phone, alert.message)
+      ? await sendAlertWhatsApp(recipient.phone, alert.message)
       : false;
 
     const emailResult = await sendEmail({

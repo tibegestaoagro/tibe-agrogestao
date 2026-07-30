@@ -108,7 +108,7 @@ async function main() {
     const alertLogs = await prismaForTenant(tenant.id).emailLog.findMany({
       where: { tenant_id: tenant.id, type: "alert" },
     });
-    assert(alertLogs.length === 1, "deliverPendingAlertsForTenant tenta o email mesmo sem N8N_ALERT_WEBHOOK_URL");
+    assert(alertLogs.length === 1, "deliverPendingAlertsForTenant tenta o email mesmo sem provider WhatsApp ativo");
     assert(alertLogs[0]?.related_id === alert.id, "EmailLog do alerta aponta pro Alert.id certo");
     assert(alertLogs[0]?.to_email === owner.email, "email tentado pro Owner ativo (mesmo sem telefone)");
 
