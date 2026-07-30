@@ -6,6 +6,7 @@ import ForceStatusForm from "@/components/platform/force-status-form";
 import EditTenantForm from "@/components/platform/edit-tenant-form";
 import ArchiveTenantButton from "@/components/platform/archive-tenant-button";
 import ResendWelcomeButton from "@/components/platform/resend-welcome-button";
+import EditOwnerEmailForm from "@/components/platform/edit-owner-email-form";
 import { formatDocument } from "@/lib/document";
 import { formatBrazilPhone } from "@/lib/phone";
 
@@ -25,6 +26,15 @@ export default async function PlatformTenantDetailPage({ params }: { params: { i
     },
   });
   if (!tenant) notFound();
+
+  // O login de verdade e User.email, nao Tenant.email: sao campos distintos e
+  // a tela mostrava so o segundo, o que induziu a editar o errado (2026-07-30).
+  const owner = await prisma.user.findFirst({
+    where: { tenant_id: tenant.id, role: "OWNER", active: true },
+    orderBy: { created_at: "asc" },
+    select: { email: true },
+  });
+  const ownerEmail = owner?.email ?? null;
 
   const activeProfiles = tenant.profiles.filter((p) => p.active).map((p) => p.profile_type);
   const [animalsCount, plotsCount, ordersCount] = await Promise.all([
@@ -84,15 +94,23 @@ export default async function PlatformTenantDetailPage({ params }: { params: { i
           </div>
           <div>
             <dt className="text-xs text-gray-500">Telefone</dt>
-            <dd className="text-white">{tenant.phone ? formatBrazilPhone(tenant.phone) : "—"}</dd>
+            <dd className="text-white">{tenant.phone ? formatBrazilPhone(tenant.phone) : "sem telefone"}</dd>
           </div>
           <div>
-            <dt className="text-xs text-gray-500">Email</dt>
-            <dd className="text-white">{tenant.email ?? "—"}</dd>
+            <dt className="text-xs text-gray-500">Email de contato</dt>
+            <dd className="text-white">{tenant.email ?? "sem email"}</dd>
+            <dd className="text-xs text-gray-500">Não é o login: só contato da empresa.</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-gray-500">Email de login (dono)</dt>
+            <dd className="text-white">{ownerEmail ?? "sem dono ativo"}</dd>
+            {isMasterAdmin(platformUser.role) && ownerEmail && (
+              <EditOwnerEmailForm tenantId={tenant.id} currentEmail={ownerEmail} />
+            )}
           </div>
           <div>
             <dt className="text-xs text-gray-500">Perfis ativos</dt>
-            <dd className="text-white">{activeProfiles.map((p) => PROFILE_LABEL[p] ?? p).join(", ") || "—"}</dd>
+            <dd className="text-white">{activeProfiles.map((p) => PROFILE_LABEL[p] ?? p).join(", ") || "nenhum"}</dd>
           </div>
           <div>
             <dt className="text-xs text-gray-500">Cadastrado em</dt>
@@ -134,7 +152,7 @@ export default async function PlatformTenantDetailPage({ params }: { params: { i
               Próximo vencimento:{" "}
               {tenant.subscription.next_due_date
                 ? tenant.subscription.next_due_date.toLocaleDateString("pt-BR")
-                : "—"}
+                : "sem data"}
             </p>
             <div className="mt-4 space-y-2">
               <p className="text-xs uppercase tracking-wide text-gray-500">Histórico de transições</p>
@@ -144,7 +162,7 @@ export default async function PlatformTenantDetailPage({ params }: { params: { i
               {tenant.subscription.status_logs.map((log) => (
                 <div key={log.id} className="flex flex-wrap items-center gap-2 border-b border-gray-800 py-2 text-sm">
                   <span className="text-gray-400">{log.created_at.toLocaleString("pt-BR")}</span>
-                  <StatusBadge status={log.from_status ?? "—"} />
+                  <StatusBadge status={log.from_status ?? "nao informado"} />
                   <span className="text-gray-500">→</span>
                   <StatusBadge status={log.to_status} />
                   <span className="text-xs text-gray-500">

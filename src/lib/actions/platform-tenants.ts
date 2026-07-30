@@ -217,3 +217,44 @@ export async function setTenantArchivedAction(
 
   return ok({ id: tenant.id, archived_at: tenant.archived_at });
 }
+
+/**
+ * Troca o email de LOGIN do dono do tenant (2026-07-30).
+ *
+ * Existe porque a tela de "Dados cadastrais" mostrava só `Tenant.email`, que é
+ * o contato da EMPRESA, e o usuário editou aquilo esperando trocar a
+ * credencial de acesso: o login não mudou e o acesso pareceu quebrado. São
+ * campos diferentes de propósito (uma empresa pode ter contato financeiro
+ * diferente de quem entra no sistema), mas a interface não deixava isso claro
+ * e não oferecia como trocar o login de fato.
+ *
+ * `User.email` é único GLOBALMENTE (o login recebe só email e senha, sem
+ * seletor de tenant), então a checagem de duplicidade precisa do client base e
+ * atravessa tenants: é a mesma necessidade estrutural de `inviteUserAction`.
+ */
+export async function updateOwnerLoginEmailAction(
+  tenantId: string,
+  newEmail: string,
+): Promise<ActionResult<{ user_id: string; email: string }>> {
+  const email = newEmail.trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    return fail("VALIDATION_ERROR", "Email inválido", 422);
+  }
+
+  const owner = await prisma.user.findFirst({
+    where: { tenant_id: tenantId, role: "OWNER", active: true },
+    orderBy: { created_at: "asc" },
+  });
+  if (!owner) return fail("NOT_FOUND", "Este tenant não tem um dono ativo", 404);
+  if (owner.email === email) {
+    return ok({ user_id: owner.id, email });
+  }
+
+  const dup = await prisma.user.findUnique({ where: { email } });
+  if (dup) {
+    return fail("DUPLICATE_EMAIL", "Esse email já é usado por outra conta no sistema", 409);
+  }
+
+  await prisma.user.update({ where: { id: owner.id }, data: { email } });
+  return ok({ user_id: owner.id, email });
+}
