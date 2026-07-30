@@ -96,5 +96,10 @@ export async function POST(request: Request) {
     requires_confirmation: result.requires_confirmation,
     auxiliary_data: result.auxiliary_data,
     report_url: result.report_url,
+    // Extensão aditiva (2026-07-30): o N8N usa isso para decidir o que NÃO
+    // reescrever no humanizador. Pergunta de formulário e pedido de
+    // esclarecimento são textos precisos que guiam uma máquina de estados:
+    // mudar a redação deles muda o gatilho da conversa.
+    action_taken: result.action_taken,
   });
 }
