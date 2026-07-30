@@ -76,6 +76,8 @@ export async function POST(request: Request) {
     activeProfiles,
     intent,
     parameters,
+    user_id: user.id,
+    message_text: message_text ?? null,
     confirmed,
     explicitNo,
   });

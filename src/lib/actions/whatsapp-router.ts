@@ -20,6 +20,7 @@ import {
 } from "@/lib/actions/whatsapp-handlers/financeiro";
 import { ajuda } from "@/lib/actions/whatsapp-handlers/ajuda";
 import { resumo } from "@/lib/actions/whatsapp-handlers/resumo";
+import { handleActiveFlow, maybeStartAnimalFlow } from "@/lib/actions/whatsapp-flow-bridge";
 
 export type { RouterResult } from "@/lib/actions/whatsapp-handlers/shared";
 
@@ -62,9 +63,29 @@ export async function routeIntent(
     confirmed: boolean;
     /** true quando o usuário recusou explicitamente ("não", "cancela"...). */
     explicitNo: boolean;
+    /** Necessários para o cadastro assistido (2026-07-30): o estado é por usuário. */
+    user_id?: string;
+    message_text?: string | null;
   },
 ): Promise<RouterResult> {
   const { tenant_id, role, activeProfiles, intent, parameters, confirmed, explicitNo } = ctx;
+
+  // Cadastro assistido tem prioridade sobre o roteamento normal: se existe um
+  // formulário em andamento, a mensagem é primeiro oferecida a ele. O bridge
+  // devolve null quando a mensagem claramente não é resposta de campo, e aí o
+  // fluxo segue normalmente (a interrupção é respondida e o formulário retomado
+  // logo em seguida).
+  if (ctx.user_id) {
+    const flowResult = await handleActiveFlow({
+      db,
+      userId: ctx.user_id,
+      intent,
+      messageText: ctx.message_text ?? null,
+      confirmed,
+      explicitNo,
+    });
+    if (flowResult) return flowResult;
+  }
 
   // Permissão por módulo/role e por perfil ativo (spec: "visualizador não
   // consegue cadastrar nada via WhatsApp"). gerar_relatorio/ambigua checam à parte.
@@ -104,6 +125,13 @@ export async function routeIntent(
       report_url: null,
       action_taken: "ambigua",
     };
+  }
+
+  // "quero cadastrar bois, me ajuda": sem os campos, abre o modo assistido em
+  // vez de despejar a lista inteira de campos numa mensagem só.
+  if (intent === "cadastrar_animal" && ctx.user_id) {
+    const started = await maybeStartAnimalFlow(db, ctx.user_id, parameters);
+    if (started) return started;
   }
 
   const handlerCtx: HandlerCtx = { db, tenant_id, role, activeProfiles, parameters, confirmed, explicitNo };

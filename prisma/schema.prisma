@@ -207,6 +207,7 @@ model Tenant {
   alerts            Alert[]
   email_logs        EmailLog[]
   password_resets   PasswordResetCode[]
+  agent_flows       AgentFlowState[]
   subscription      Subscription?
 }
 
@@ -253,6 +254,7 @@ model User {
   tenant             Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   whatsapp_contacts  WhatsAppContact[]
   password_resets    PasswordResetCode[]
+  agent_flows        AgentFlowState[]
 
   @@index([tenant_id])
 }
@@ -315,6 +317,40 @@ model PendingSignup {
   expires_at DateTime
 
   @@index([document])
+  @@index([expires_at])
+}
+
+// Cadastro assistido em andamento pelo WhatsApp (2026-07-30). Existe porque o
+// agente era SEM ESTADO: o contexto vinha do `recent_history` (5 interacoes), o
+// que sustenta um "sim/nao" mas nao um formulario de varios campos vezes varios
+// animais, onde a primeira resposta sai da janela antes do fim.
+//
+// Nada e gravado no rebanho antes da confirmacao final: os itens ficam aqui, em
+// `completed_items`, e so viram Animal quando o usuario confirma o resumo. O
+// risco de perder trabalho no meio e coberto pelo lembrete de abandono, que le
+// `updated_at` e `reminded_at`.
+model AgentFlowState {
+  id              String    @id @default(cuid())
+  tenant_id       String
+  user_id         String
+  flow            String
+  target_count    Int       @default(1)
+  completed_items Json      @default("[]")
+  current_item    Json      @default("{}")
+  pending_field   String?
+  awaiting_summary Boolean  @default(false)
+  reminded_at     DateTime?
+  expires_at      DateTime
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  // Um cadastro em andamento por usuario: dois formularios paralelos na mesma
+  // conversa de texto seriam impossiveis de acompanhar.
+  @@unique([tenant_id, user_id])
+  @@index([tenant_id])
   @@index([expires_at])
 }
 
