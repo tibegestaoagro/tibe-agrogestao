@@ -31,7 +31,8 @@
     "test:m16": "tsx scripts/m16-password-reset.test.ts",
     "test:m17": "tsx scripts/m17-agenda-custo.test.ts",
     "test:m18": "tsx scripts/m18-seat-limits.test.ts",
-    "test:m19": "tsx scripts/m19-cadastro-verificado.test.ts"
+    "test:m19": "tsx scripts/m19-cadastro-verificado.test.ts",
+    "test:m20": "tsx scripts/m20-buffer.test.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
