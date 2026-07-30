@@ -254,6 +254,7 @@ npm run test:m14         # M14: platform-tenants.ts (update/archive/reenvio de b
 npm run test:m15         # M15: canal de email (falha graciosa, EmailLog, quem recebe)
 npm run test:m16         # M16: recuperação de senha (código, rate limit, senha forte)
 npm run test:m17         # M17: agenda com custo, conciliação e alertas
+npm run test:m18         # Limite de assentos por plano
 ```
 
 ---
@@ -698,6 +699,22 @@ fora de `(dashboard)`/`(auth)`, em `PUBLIC_PREFIXES`):
   atualize essa lista também, senão a documentação e o código divergem. `/docs`
   precisa estar em `PUBLIC_PREFIXES` (`auth.config.ts`): mesma armadilha do
   sitemap/robots.
+- **Limite de assentos por plano** (`src/lib/seats.ts`, decisão 2026-07-30):
+  `PLAN_SEATS` fica **ao lado de `PLAN_PRICES`** em `src/lib/asaas.ts`
+  (metadado de plano numa fonte só, mesmo motivo de nunca duplicar o preço):
+  campo 1, fazenda 2, grupo 5. Três semânticas decididas com o usuário, todas
+  intencionais: o **Owner ocupa assento** (campo = uso individual); usuário
+  **desativado não ocupa** (trocar de funcionário não força upgrade); e o
+  limite **nunca desativa ninguém retroativamente** (um tenant que caiu de
+  plano e está acima do limite continua com todo mundo funcionando, só não
+  convida nem reativa). Aplicado em `inviteUserAction` e
+  `setUserActiveAction(true)`, com `SEAT_LIMIT_REACHED` (422) nomeando plano e
+  limite. Na `inviteUserAction`, a checagem vem **depois** da duplicidade de
+  email de propósito: responder "faça upgrade" a quem digitou um email já
+  existente mandaria o cliente pagar por um problema que não é esse.
+  `GET /api/v1/users` ganhou `meta.seats` (extensão aditiva) para a tela
+  mostrar "N de M assentos" sem rota nova. Gap conhecido: nada valida assentos
+  em massa fora desses dois pontos.
 - **Gestão de usuários** (`src/lib/actions/users.ts`): convite gera senha
   temporária (`generateTempPassword`) mostrada **uma única vez** na resposta:
   não há envio de email neste projeto (nenhum módulo tem infra de email).
@@ -865,6 +882,7 @@ npm run test:m14          # M14
 npm run test:m15          # M15
 npm run test:m16          # M16
 npm run test:m17          # M17
+npm run test:m18          # Limite de assentos por plano
 ```
 
 Credenciais do seed (dev): `owner@damata.com.br` / `tibe123`.

@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import PublicNav from "@/components/public/public-nav";
 import PublicFooter from "@/components/public/public-footer";
-import { PLAN_PRICES } from "@/lib/asaas";
+import { PLAN_PRICES, PLAN_SEATS } from "@/lib/asaas";
 
 export const metadata: Metadata = {
   title: "Planos",
@@ -15,13 +15,24 @@ export const metadata: Metadata = {
  *: mesma fonte usada para criar a assinatura real no Asaas, para nunca
  * divergir do que o cliente efetivamente paga.
  */
+/** Assentos viram texto de vitrine a partir de PLAN_SEATS, nunca de número solto. */
+function seatFeature(plan: keyof typeof PLAN_SEATS): string {
+  const n = PLAN_SEATS[plan];
+  return n === 1 ? "1 usuário" : `Até ${n} usuários`;
+}
+
 const PLANS = [
   {
     key: "campo",
     name: "Campo",
     price: PLAN_PRICES.campo,
     tagline: "Para o produtor iniciando o controle digital",
-    features: ["1 propriedade", "Rebanho ou lavoura", "Financeiro básico"],
+    features: [
+      seatFeature("campo"),
+      "1 propriedade",
+      "Rebanho ou lavoura",
+      "Financeiro básico",
+    ],
     highlight: false,
   },
   {
@@ -30,6 +41,7 @@ const PLANS = [
     price: PLAN_PRICES.fazenda,
     tagline: "Gestão completa de rebanho e lavoura",
     features: [
+      seatFeature("fazenda"),
       "Propriedades ilimitadas",
       "Rebanho e lavoura completos",
       "Financeiro e alertas",
@@ -43,6 +55,7 @@ const PLANS = [
     price: PLAN_PRICES.grupo,
     tagline: "Fazenda + prestação de serviço + agente no WhatsApp",
     features: [
+      seatFeature("grupo"),
       "Tudo do plano Fazenda",
       "Módulo de prestador de serviço",
       "Agente de IA no WhatsApp",

@@ -54,15 +54,15 @@ const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/users",
         auth: "Sessão · usuarios:read",
-        description: "Lista os usuários do tenant.",
+        description: "Lista os usuários do tenant. `meta.seats` traz o uso de assentos do plano (usuários ativos contra o limite).",
         response: `200
-{ "data": [{ "id": "cl...", "name": "...", "email": "...", "phone": "...", "role": "OPERADOR", "active": true, "created_at": "..." }], "meta": { "total": 1 } }`,
+{ "data": [{ "id": "cl...", "name": "...", "email": "...", "phone": "...", "role": "OPERADOR", "active": true, "created_at": "..." }], "meta": { "total": 1, "seats": { "used": 1, "limit": 2, "has_room": true } } }`,
       },
       {
         method: "POST",
         path: "/api/v1/users",
         auth: "Sessão · usuarios:write",
-        description: "Convida um novo usuário: cria o User com senha temporária (exibida uma única vez na resposta: não há envio de email neste ambiente). Só Owner pode convidar outro Owner.",
+        description: "Convida um novo usuário: cria o User com senha temporária (exibida uma única vez na resposta: não há envio de email neste ambiente). Só Owner pode convidar outro Owner. Respeita o limite de assentos do plano (campo 1, fazenda 2, grupo 5): devolve `SEAT_LIMIT_REACHED` (422) quando o limite de usuários ativos já foi atingido.",
         request: `{ "name": "João Souza", "email": "joao@fazendaboavista.com.br", "phone": "22988887777", "role": "OPERADOR" }`,
         response: `201
 { "data": { "id": "cl...", "temp_password": "Xy9k2Qmz" }, "meta": {} }`,
@@ -80,7 +80,7 @@ const GROUPS: Group[] = [
         method: "PATCH",
         path: "/api/v1/users/:id/active",
         auth: "Sessão · usuarios:write",
-        description: "Ativa ou desativa um usuário (nunca deleta: preserva histórico de ações). Não é possível desativar a própria conta.",
+        description: "Ativa ou desativa um usuário (nunca deleta: preserva histórico de ações). Não é possível desativar a própria conta. Desativar sempre é permitido e libera um assento; reativar consome um assento e devolve `SEAT_LIMIT_REACHED` (422) se o plano já estiver no limite.",
         request: `{ "active": false }`,
         response: `200
 { "data": { "id": "cl...", "active": false }, "meta": {} }`,

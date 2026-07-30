@@ -151,7 +151,7 @@ async function main() {
     );
 
     // ── usuários: convite, duplicidade, role, desativação, isolamento ─
-    const invite = await inviteUserAction(dbA, {
+    const invite = await inviteUserAction(dbA, tenantA.id, {
       name: "Operador A",
       email: "m5-operador-a@test.local",
       role: "OPERADOR",
@@ -159,7 +159,7 @@ async function main() {
     assert(invite.ok && invite.data.temp_password.length > 0, "inviteUserAction cria usuário com senha temporária");
     const userAId = invite.ok ? invite.data.id : "";
 
-    const dupInvite = await inviteUserAction(dbA, {
+    const dupInvite = await inviteUserAction(dbA, tenantA.id, {
       name: "Outro",
       email: "m5-operador-a@test.local",
       role: "OPERADOR",
@@ -174,7 +174,7 @@ async function main() {
     const ownerB = await dbB.user.create({
       data: scoped({ name: "Owner B", email: "m5-owner-b@test.local", password_hash: "x", role: "OWNER", active: true }),
     });
-    const cannotDeactivateOwner = await setUserActiveAction(dbB, ownerB.id, false);
+    const cannotDeactivateOwner = await setUserActiveAction(dbB, tenantB.id, ownerB.id, false);
     assert(
       !cannotDeactivateOwner.ok && cannotDeactivateOwner.code === "CANNOT_DEACTIVATE_OWNER",
       "setUserActiveAction bloqueia desativar um OWNER",

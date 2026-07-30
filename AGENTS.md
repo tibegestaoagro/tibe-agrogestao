@@ -241,6 +241,7 @@ npm run test:m14         # platform-tenants.ts (update/archive/reenvio de boas-v
 npm run test:m15         # Canal de email (falha graciosa, EmailLog, quem recebe)
 npm run test:m16         # Recuperação de senha (código, rate limit, senha forte)
 npm run test:m17         # Agenda com custo, conciliação e alertas
+npm run test:m18         # Limite de assentos por plano
 ```
 
 ---
@@ -562,6 +563,22 @@ padrão de `/trocar-senha`/`/escolher-plano`):
   é só um ponto que não foi conectado ao canal de email ainda). Regras de
   "não edita a si mesmo" e "só Owner promove a Owner" ficam nas rotas
   (`api/v1/users/[id]/role`, `.../active`), não nas actions.
+- **Limite de assentos por plano** (`src/lib/seats.ts`, decisão 2026-07-30):
+  `PLAN_SEATS` mora ao lado de `PLAN_PRICES` em `src/lib/asaas.ts` (metadado
+  de plano numa fonte só, mesmo motivo de nunca duplicar o preço): campo 1,
+  fazenda 2, grupo 5. Três semânticas decididas com quem conduz o projeto,
+  todas intencionais: o **Owner ocupa assento** (campo = uso individual);
+  usuário **desativado não ocupa** (trocar de funcionário não força upgrade);
+  e o limite **nunca desativa ninguém retroativamente** (tenant que caiu de
+  plano e está acima do limite mantém todo mundo funcionando, só não convida
+  nem reativa, porque cortar acesso sozinho tiraria do cliente o acesso aos
+  próprios dados). Aplicado em `inviteUserAction` e `setUserActiveAction(true)`
+  com `SEAT_LIMIT_REACHED` (422) nomeando plano e limite. No convite, a
+  checagem vem **depois** da duplicidade de email de propósito: responder
+  "faça upgrade" a quem digitou um email já existente mandaria o cliente pagar
+  por um problema que não é esse. `GET /api/v1/users` ganhou `meta.seats`
+  (extensão aditiva) para a tela mostrar "N de M assentos". Testes:
+  `npm run test:m18`.
 - `README.md`/`CONTRIBUTING.md` na raiz refletem o estado real do projeto:
   mantenha os dois em sincronia com mudanças de arquitetura, junto com este
   arquivo e o `CLAUDE.md`.
@@ -683,6 +700,7 @@ npm run test:m14          # platform-tenants.ts (update/archive/reenvio)
 npm run test:m15          # Canal de email
 npm run test:m16          # Recuperação de senha
 npm run test:m17          # Agenda com custo
+npm run test:m18          # Limite de assentos por plano
 ```
 
 Credenciais do seed (dev): `owner@damata.com.br` / `tibe123`.

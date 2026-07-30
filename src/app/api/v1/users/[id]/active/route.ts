@@ -24,7 +24,12 @@ export async function PATCH(
     return apiError("CANNOT_DEACTIVATE_SELF", "Você não pode desativar sua própria conta", 422);
   }
 
-  const result = await setUserActiveAction(g.db, params.id, parsed.data.active);
+  const result = await setUserActiveAction(
+    g.db,
+    g.user.tenant_id,
+    params.id,
+    parsed.data.active,
+  );
   if (!result.ok) return apiError(result.code, result.message, result.status);
   return apiOk(result.data);
 }

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { inviteUserAction } from "@/lib/actions/users";
+import { getSeatUsage } from "@/lib/seats";
 
 /** GET /api/v1/users · POST /api/v1/users (spec 5.2) */
 
@@ -16,7 +17,10 @@ export async function GET() {
   const g = await guard("usuarios", "read");
   if ("error" in g) return g.error;
 
-  const users = await g.db.user.findMany({ orderBy: { created_at: "asc" } });
+  const [users, seats] = await Promise.all([
+    g.db.user.findMany({ orderBy: { created_at: "asc" } }),
+    getSeatUsage(g.db, g.user.tenant_id),
+  ]);
   return apiOk(
     users.map((u) => ({
       id: u.id,
@@ -27,7 +31,9 @@ export async function GET() {
       active: u.active,
       created_at: u.created_at.toISOString(),
     })),
-    { total: users.length },
+    // `seats` é extensão aditiva do contrato da spec 5.2 (2026-07-30):
+    // a tela precisa mostrar "N de M assentos" sem uma rota nova só pra isso.
+    { total: users.length, seats },
   );
 }
 
@@ -48,7 +54,7 @@ export async function POST(request: Request) {
     return apiError("FORBIDDEN", "Apenas o Owner pode convidar outro Owner", 403);
   }
 
-  const result = await inviteUserAction(g.db, parsed.data);
+  const result = await inviteUserAction(g.db, g.user.tenant_id, parsed.data);
   if (!result.ok) return apiError(result.code, result.message, result.status);
 
   return apiOk(result.data, {}, { status: 201 });

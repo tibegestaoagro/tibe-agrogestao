@@ -23,6 +23,23 @@ export const PLAN_PRICES: Record<TenantPlan, number> = {
   grupo: 397,
 };
 
+/**
+ * Limite de usuários ATIVOS por plano (decisão 2026-07-30). Assentos não são
+ * um conceito do Asaas, mas moram aqui de propósito: metadado de plano fica
+ * junto do preço, numa fonte só, pela mesma razão que `PLAN_PRICES` nunca é
+ * duplicado (a página /planos e a regra de negócio leem daqui).
+ *
+ * O Owner ocupa um assento (plano campo = uso individual). Usuário desativado
+ * NÃO ocupa assento, então trocar de funcionário não exige upgrade. O limite
+ * nunca desativa ninguém retroativamente: só bloqueia convite novo e
+ * reativação (ver src/lib/seats.ts).
+ */
+export const PLAN_SEATS: Record<TenantPlan, number> = {
+  campo: 1,
+  fazenda: 2,
+  grupo: 5,
+};
+
 export class AsaasNotConfiguredError extends Error {
   constructor() {
     super("ASAAS_API_KEY não configurada");
