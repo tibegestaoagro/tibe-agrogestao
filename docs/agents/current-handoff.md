@@ -49,9 +49,10 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 
 ### Licoes registradas nesta rodada
 
-- **O metodo de verificacao usado a sessao inteira estava quebrado**:
-  `grep -q $'—'` da falso negativo neste shell. O padrao correto e por
-  bytes UTF-8 (`â`). Qualquer afirmacao anterior de "sem
+- **O metodo de verificacao usado a sessao inteira estava quebrado**: o
+  padrao de busca do caractere travessao pelo codigo Unicode escapado deu
+  falso negativo neste shell. O padrao correto busca pela sequencia de
+  bytes UTF-8 do proprio caractere. Qualquer afirmacao anterior de "sem
   travessao" nesta sessao deve ser considerada nao verificada.
 - **Nunca confiar em next-auth aplicar `authorized` automaticamente** quando
   o middleware usa a forma `auth((req) => {...})`: a chamada precisa ser
