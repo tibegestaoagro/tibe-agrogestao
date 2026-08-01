@@ -730,8 +730,15 @@ fora de `(dashboard)`/`(auth)`, em `PUBLIC_PREFIXES`):
   função de ordem superior (`auth((req) => { ... res.headers.set("x-pathname",
   ...) ...})`) só para conseguir propagar o pathname atual para o layout do
   dashboard (Node runtime, com Prisma) sem duplicar lógica de auth no Edge.
-  Se precisar adicionar outro header/side-effect no middleware, é aqui que
-  entra.
+  **Isso silenciosamente desligou `authConfig.callbacks.authorized`**: nessa
+  forma o next-auth chama a função de ordem superior incondicionalmente e
+  descarta o resultado de `authorized` (confirmado no código-fonte do pacote,
+  função `handleAuth`). O middleware não bloqueava nada por sessão de tenant;
+  quem protegia era só o `redirect()` de cada página. Corrigido em 2026-08-01
+  chamando `authConfig.callbacks.authorized` explicitamente dentro da função,
+  com `req.auth` (já resolvido pelo próprio next-auth). Se precisar adicionar
+  outro header/side-effect no middleware, é aqui que entra: mas qualquer nova
+  forma de HOF precisa preservar essa chamada explícita.
 - **`AlertType.trial_ending`** (extensão aditiva ao enum, spec 5.8 não previa
   no PRD original): dispara quando `trial_ends_at` está a ≤ 2 dias e o tenant
   não tem `Subscription` nenhuma. `related_id` é o próprio `tenant_id` (o

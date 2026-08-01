@@ -312,6 +312,15 @@ tenant). `middleware.ts` deixa `/api/*` fora da checagem de sessão: cada
 handler de API faz a própria autenticação e devolve `401` JSON quando
 necessário, em vez de redirecionar.
 
+**Armadilha corrigida em 2026-08-01:** `middleware.ts` usa a forma de ordem
+superior `auth((req) => {...})` (necessária para propagar `x-pathname`). Nessa
+forma o next-auth chama essa função incondicionalmente e **descarta** o
+resultado de `authConfig.callbacks.authorized` (confirmado no código-fonte do
+pacote). O middleware ficou meses sem bloquear nada por sessão de tenant; quem
+protegia era só o `redirect()` de cada página. A correção chama `authorized`
+explicitamente dentro da função, com `req.auth`. Qualquer nova forma de HOF
+nesse arquivo precisa preservar essa chamada.
+
 **Gate de sessão** (`must_change_password` → `plan_confirmed` → perfil ativo)
 centralizado em `src/lib/session-gate.ts`: `requireSessionGateApi()` (usado
 por `guard()`), `requireSessionGateForPage()` (usado pelo layout do
