@@ -1,0 +1,5 @@
+# Saida de `tsc --noEmit false --outDir dist`, usada so para provar que o
+# pacote compila sozinho. O consumo e feito a partir do TypeScript em `src/`
+# (ver `main`/`types` no package.json), entao dist nao e versionado.
+dist/
+*.tsbuildinfo

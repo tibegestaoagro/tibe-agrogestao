@@ -1,0 +1,11 @@
+{
+  // Configuracao de verificacao: a mesma da biblioteca, mais o ambiente do
+  // Node, porque o exemplo e o teste rodam em processo (usam `console` e
+  // `node:assert`). `src/` continua sendo compilado tambem pelo tsconfig.json
+  // sem esses tipos, entao o ambiente extra aqui nao mascara nada.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "examples/**/*.ts", "test/**/*.ts"]
+}
