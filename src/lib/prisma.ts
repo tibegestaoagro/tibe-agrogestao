@@ -47,6 +47,7 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   "EmailLog",
   "PasswordResetCode",
   "AgentFlowState",
+  "RefreshToken",
 ]);
 
 function createBaseClient(): PrismaClient {
