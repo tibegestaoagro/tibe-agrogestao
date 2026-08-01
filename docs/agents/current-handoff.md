@@ -21,99 +21,55 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 
 ## Estado atual
 
-- Atualizado em: 2026-07-30
-- Última rodada: provisionamento do N8N (auditoria) e alerta por WhatsApp direto
-- Estado: concluído, integrado na `main` e implantado
-- Commits: `8204e9b` (alerta direto) e `31f54c0` (auditoria + docs)
-- Banco: nenhuma mudança de schema ou migração
+- Atualizado em: 2026-07-31
+- Última rodada: análise dos documentos do cliente e plano de arquitetura
+- Estado: documentação entregue; **Onda 1 de agentes em execução**
+- Banco: nenhuma mudança nesta rodada (o agente A1 vai criar `RefreshToken`)
 
-### Entregue
+### Entregue nesta rodada
 
-- **Alerta por WhatsApp agora sai direto pelo Tibé** (`sendWhatsAppMessage`), sem
-  o salto pelo N8N. Fecha um gap silencioso: `N8N_ALERT_WEBHOOK_URL` nunca foi
-  configurada, então o alerta de vencimento **nunca saiu por WhatsApp** desde o
-  M4, apenas por email.
-- Removidas do `.env.example` as variáveis `N8N_ALERT_WEBHOOK_URL` (sem uso) e
-  `N8N_WEBHOOK_SECRET` (código morto: declarada, nunca lida).
-- **Prompt do classificador no n8n alinhado ao Módulo 17**: faltavam a intenção
-  `registrar_previsao_vacina` e os escopos `contas_a_pagar` e `ordens_a_faturar`.
-  O M17 estava em produção no Tibé e **inalcançável pelo WhatsApp**.
-- `CLAUDE.md`/`AGENTS.md`: status do M3 corrigido de "não provisionado" para "em
-  produção e provisionado", e o do M4 para refletir o envio direto.
-- `docs/n8n-whatsapp-workflow.md` ganhou a seção 0 com o estado auditado.
+- `docs/cliente/`: entendimento do produto, plano de ação e estratégia de canal,
+  escritos para serem lidos pela Agromax. Documentos de origem versionados em
+  `docs/`.
+- `docs/arquitetura/plano-separacao-e-mobile.md` e `onda-1-briefings.md`.
+- Configuração de exportação em PDF dos documentos de cliente.
 
-### Estado auditado do N8N (2026-07-30)
+### Achados que continuam abertos
 
-- Instância: `https://n8n-production-3d80.up.railway.app` (Railway).
-- Workflow "Tibe - Atendimento WhatsApp (Evolution)", id `UAAA96aJFiiFsQCL`,
-  **ativo**, 27 nós, apontando para a produção da Vercel.
-- Webhook de produção `/webhook/atendimento`, Evolution em `messages.upsert`.
-- 20 de 20 execuções do histórico com status `success`.
-- Credenciais do n8n vivem na config do MCP (`~/.claude.json`), **não** no
-  `.env` do projeto.
+1. **Rebanho:** o cliente pediu por CATEGORIA e listou controle por brinco como
+   fora da v1. Construimos o inverso. Recomendação aceita pelo usuário
+   (categoria padrão, individual opcional) mas **ainda sem confirmação da
+   Agromax**. Bloqueia a Onda 3.
+2. **Meta cobra mensagem de serviço dentro da janela a partir de 01/10/2026.**
+   Verificação do negócio na Meta precisa começar em agosto: é o item de maior
+   prazo e menor esforço nosso.
+3. **Fragmentação de resposta** (uma mensagem por assunto) foi implementada
+   antes de sabermos da cobrança e agora trabalha contra o custo. Reverter.
 
-### Validações
+### Onda 1 em execução (3 agentes, branches próprias, nada na `main`)
 
-- `npm run test:m15` e `npm run test:m4`: 0 falhas.
-- `npm run build`: sucesso.
-- Patch do prompt confirmado relendo o workflow da API (workflow segue ativo,
-  27 nós preservados). Backup do JSON original guardado antes do PUT.
-- **NÃO verificado:** a mudança dos alertas não tem superfície observável de
-  fora e só se manifesta na próxima execução do cron diário. O cron não foi
-  disparado à mão porque enviaria alertas reais a tenants reais.
-- **NÃO verificado:** o prompt corrigido ponta a ponta. Exige mandar uma
-  mensagem real pelo WhatsApp (ex: "quais minhas contas a pagar?").
+| Agente | Branch | Entrega |
+|---|---|---|
+| A1 | `agente/a1-token-auth` | Token de acesso para mobile (caminho crítico) |
+| A2 | `agente/a2-contratos` | `packages/contracts` com schemas Zod |
+| A3 | `agente/a3-pwa` | PWA instalável, sem push |
 
-### Fechamento do agente WhatsApp (2026-07-30, validado pelo usuário)
-
-- Áudio, texto e vocabulário novo do M17 **funcionando em produção**, confirmado
-  pelo usuário após teste real.
-- Os três nós de LLM passaram para a credencial **predefinida** da OpenAI
-  (`OpenAi API_Key Assistente Tibe`). A Header Auth genérica não injetava o
-  header em `multipart/form-data`, o que derrubava só a transcrição.
-- Regressão causada e corrigida na mesma sessão: ao inserir o vocabulário do M17
-  no prompt via API, entrou uma quebra de linha REAL dentro da string JS, e a
-  expression parou de compilar (`invalid syntax`, com qualquer credencial).
-  Revertido a partir do backup e reaplicado com validação por `node --check`
-  antes e depois do PUT. Lição documentada em
-  `docs/n8n-whatsapp-workflow.md` seção 0.1.
-
-### Rodada do buffer e multi-intenção (2026-07-30)
-
-- Multi-intenção no ar: duas perguntas numa mensagem só passaram a ser
-  respondidas (era o bug relatado pelo usuário no áudio de teste).
-- Buffer de 12s no ar: `POST /api/internal/whatsapp/buffer` (commit `b2f126d`,
-  deploy confirmado) + cadeia de 5 nós no n8n. `npm run test:m20`: 15/15.
-- Respostas passaram a sair **uma por assunto**, a pedido do usuário.
-- Workflow com 33 nós, ativo. Todas as expressions validadas com `node --check`
-  antes e depois do PUT.
-- **NÃO testado com mensagens reais ainda**: depende do usuário.
+Briefings completos em `docs/arquitetura/onda-1-briefings.md`. O A4 (sistema de
+design com a identidade de `docs/idVisual/`) foi movido para a Onda 3.
 
 ### Pendências e próximo passo
 
-- **Próxima frente acordada: cadastro assistido por perguntas** ("quero
-  cadastrar bois, me ajuda" e o agente pergunta campo a campo, repetindo por
-  animal, com resumo antes de gravar). Exige **estado de conversa persistido**:
-  hoje o agente reconstrói contexto do `recent_history` (5 interações), o que
-  não sustenta formulário longo. Merece spec e entrevista como M17/M19.
-- Humanizador com trava numérica (aprovado pelo usuário, ainda não feito):
-  LLM reescreve o texto e um nó valida que todo número da saída existia na
-  entrada, descartando a reescrita se inventou valor.
-- Limpeza opcional: a credencial antiga `OpenAI API Key` (Header Auth) segue
-  existindo e referenciada como fallback nos nós. Não atrapalha, mas remover
-  evita dúvida sobre qual está valendo.
-- Armadilha registrada para qualquer agente: o prompt do classificador é estado
-  vivo dentro do n8n, não do repositório. Toda intenção nova exige atualizar o
-  nó `Classificar Intenção (OpenAI)`, senão a feature nasce inalcançável.
-- Fila acordada com o usuário: adotar shadcn quando forem feitos os ajustes
-  visuais da aplicação (adiado de propósito).
-- Resend com domínio próprio antes de o projeto ir ao ar (domínio em compra).
-- Integração Vercel antiga/duplicada `agrogestao-tibe` falha e deixa o status do
-  GitHub vermelho. O projeto oficial `tibe-agrogestao` está saudável. Não
-  remover sem autorização.
+- Integrar a Onda 1 só depois do checkpoint: aplicativo autentica com token e
+  lê uma rota protegida real.
+- `MOBILE_JWT_SECRET` existe no `.env` local; **falta na Vercel** antes do deploy.
+- Confirmações pendentes da Agromax: modelo de rebanho, destino da Lavoura,
+  prioridade entre Calculadora/Máquinas/Meu Dia, e validação técnica dos
+  conteúdos das calculadoras.
 
 ## Histórico recente
 
+- 2026-07-31: análise dos documentos do cliente, plano de arquitetura por
+  contrato e disparo da Onda 1 de agentes.
 - 2026-07-30: N8N auditado (já estava provisionado e ativo), prompt do
   classificador alinhado ao M17 e alerta por WhatsApp passando a sair direto
   pelo Tibé. Commits `8204e9b` e `31f54c0`.
