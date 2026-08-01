@@ -10,7 +10,19 @@ import type { AppUserRole } from "@/types/next-auth";
 // Rotas públicas (não exigem sessão de TENANT). "/plataforma" tem sua própria
 // proteção (sessão de PlatformUser), aplicada manualmente em middleware.ts:
 // aqui só precisa ficar de fora da checagem de sessão de tenant.
-const PUBLIC_PATHS = ["/", "/login", "/faq", "/sitemap.xml", "/robots.txt"];
+const PUBLIC_PATHS = [
+  "/",
+  "/login",
+  "/faq",
+  "/sitemap.xml",
+  "/robots.txt",
+  // PWA (Onda 1, agente A3): precisam ser alcançáveis por visitante deslogado,
+  // senão a instalação quebra fora do painel. Agora que o middleware volta a
+  // bloquear de verdade (2026-08-01), esta lista passou a ter efeito real.
+  "/manifest.webmanifest",
+  "/sw.js",
+  "/offline.html",
+];
 // `/criar-conta` virou prefixo (Módulo 19): as etapas 2 e 3 são sub-rotas
 // (`/criar-conta/whatsapp`, `/criar-conta/email`) e, como caminho exato, o
 // middleware mandaria o visitante pro /login no meio do cadastro.

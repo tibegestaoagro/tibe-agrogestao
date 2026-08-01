@@ -7,6 +7,7 @@ import { getBillingAccess, isBillingExemptPath } from "@/lib/billing-access";
 import { canAccess } from "@/lib/permissions";
 import DashboardShell from "@/components/layout/dashboard-shell";
 import type { NavLink } from "@/components/layout/sidebar";
+import InstallInvite from "@/components/pwa/install-invite";
 
 const ROLE_LABEL: Record<string, string> = {
   OWNER: "Proprietário",
@@ -61,14 +62,17 @@ export default async function DashboardLayout({
   ].filter((l) => l.show);
 
   return (
-    <DashboardShell
-      navLinks={navLinks}
-      tenantName={tenant?.name ?? "—"}
-      userName={user.name ?? "—"}
-      roleLabel={ROLE_LABEL[user.role] ?? user.role}
-      billingAccess={billingAccess}
-    >
-      {children}
-    </DashboardShell>
+    <>
+      <DashboardShell
+        navLinks={navLinks}
+        tenantName={tenant?.name ?? "Fazenda"}
+        userName={user.name ?? "Usuário"}
+        roleLabel={ROLE_LABEL[user.role] ?? user.role}
+        billingAccess={billingAccess}
+      >
+        {children}
+      </DashboardShell>
+      <InstallInvite />
+    </>
   );
 }
