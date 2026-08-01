@@ -1,0 +1,31 @@
+{
+  // Configuracao da BIBLIOTECA, deliberadamente pobre em ambiente.
+  //
+  // `types: []` remove os tipos ambientes do Node, e `lib` nao inclui "dom":
+  // se algum arquivo de `src/` usar `process`, `Buffer`, `window` ou `fetch`,
+  // a compilacao quebra aqui. E essa quebra e a prova de que o pacote nao
+  // depende de servidor nem de navegador, so de zod.
+  //
+  // Nao ha `paths`: o alias `@/*` do app nao existe neste projeto, entao um
+  // import acidental de `@/lib/...` tambem quebra a compilacao.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "types": [],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "moduleDetection": "force",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": false,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts"]
+}
