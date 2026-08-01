@@ -21,53 +21,62 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 
 ## Estado atual
 
-- Atualizado em: 2026-07-31
-- Última rodada: análise dos documentos do cliente e plano de arquitetura
-- Estado: documentação entregue; **Onda 1 de agentes em execução**
-- Banco: nenhuma mudança nesta rodada (o agente A1 vai criar `RefreshToken`)
+- Atualizado em: 2026-08-01
+- Última rodada: integração da Onda 1, correcao de seguranca no middleware, varredura de travessao
+- Estado: concluido, integrado na `main` e implantado em producao
+- Commit principal: `e1c9e2d`
+- Produção: <https://tibe-agrogestao.vercel.app/>
+- Banco: migracao `20260801120000_refresh_token` aplicada no Neon
 
 ### Entregue nesta rodada
 
-- `docs/cliente/`: entendimento do produto, plano de ação e estratégia de canal,
-  escritos para serem lidos pela Agromax. Documentos de origem versionados em
-  `docs/`.
-- `docs/arquitetura/plano-separacao-e-mobile.md` e `onda-1-briefings.md`.
-- Configuração de exportação em PDF dos documentos de cliente.
+- **Onda 1 completa e integrada**: token de acesso para mobile (A1), pacote
+  `packages/contracts` (A2), PWA instalavel (A3). As tres branches mesclaram
+  sem nenhum conflito real, confirmando o desenho de escopo exclusivo por
+  agente. Convite de instalacao escopado ao painel autenticado (decisao do
+  usuario).
+- **Correcao de seguranca no middleware**: `authConfig.callbacks.authorized`
+  nunca era invocado pelo next-auth desde a reestruturacao do M5 (confirmado
+  no codigo-fonte do pacote, nao por inferencia). O middleware nao bloqueava
+  nada por sessao de tenant; so o `redirect()` de cada pagina protegia.
+  Corrigido chamando `authorized` explicitamente. Validado local (`next
+  start`) e em producao: rotas protegidas agora redirecionam com
+  `callbackUrl=`, `/api/*` continua 401 JSON, `/plataforma` intacto.
+- **Zero travessao (U+2014)** em todo arquivo rastreado pelo git (varredura
+  completa a pedido do usuario). Excecoes por principio:
+  `src/generated/prisma` (regenerado) e `prisma/migrations/*.sql`
+  (historico aplicado, nunca editar retroativamente).
 
-### Achados que continuam abertos
+### Licoes registradas nesta rodada
 
-1. **Rebanho:** o cliente pediu por CATEGORIA e listou controle por brinco como
-   fora da v1. Construimos o inverso. Recomendação aceita pelo usuário
-   (categoria padrão, individual opcional) mas **ainda sem confirmação da
-   Agromax**. Bloqueia a Onda 3.
-2. **Meta cobra mensagem de serviço dentro da janela a partir de 01/10/2026.**
-   Verificação do negócio na Meta precisa começar em agosto: é o item de maior
-   prazo e menor esforço nosso.
-3. **Fragmentação de resposta** (uma mensagem por assunto) foi implementada
-   antes de sabermos da cobrança e agora trabalha contra o custo. Reverter.
+- **O metodo de verificacao usado a sessao inteira estava quebrado**:
+  `grep -q $'—'` da falso negativo neste shell. O padrao correto e por
+  bytes UTF-8 (`â`). Qualquer afirmacao anterior de "sem
+  travessao" nesta sessao deve ser considerada nao verificada.
+- **Nunca confiar em next-auth aplicar `authorized` automaticamente** quando
+  o middleware usa a forma `auth((req) => {...})`: a chamada precisa ser
+  explicita. Documentado em `CLAUDE.md`/`AGENTS.md`.
 
-### Onda 1 em execução (3 agentes, branches próprias, nada na `main`)
+### Pendências e proximo passo
 
-| Agente | Branch | Entrega |
-|---|---|---|
-| A1 | `agente/a1-token-auth` | Token de acesso para mobile (caminho crítico) |
-| A2 | `agente/a2-contratos` | `packages/contracts` com schemas Zod |
-| A3 | `agente/a3-pwa` | PWA instalável, sem push |
-
-Briefings completos em `docs/arquitetura/onda-1-briefings.md`. O A4 (sistema de
-design com a identidade de `docs/idVisual/`) foi movido para a Onda 3.
-
-### Pendências e próximo passo
-
-- Integrar a Onda 1 só depois do checkpoint: aplicativo autentica com token e
-  lê uma rota protegida real.
-- `MOBILE_JWT_SECRET` existe no `.env` local; **falta na Vercel** antes do deploy.
-- Confirmações pendentes da Agromax: modelo de rebanho, destino da Lavoura,
-  prioridade entre Calculadora/Máquinas/Meu Dia, e validação técnica dos
-  conteúdos das calculadoras.
+- **Onda 2** (nao iniciada): seam de notificacao com push, esqueleto do
+  aplicativo mobile (`apps/mobile`), reversao da fragmentacao de resposta do
+  WhatsApp (economia de mensagem antes da cobranca da Meta em 01/10/2026).
+- Confirmacoes ainda pendentes da Agromax (documento
+  `docs/cliente/01-entendimento-do-produto.md`): modelo de rebanho (categoria
+  x individual), destino da Lavoura, prioridade entre Calculadora/Maquinas/
+  Meu Dia.
+- Verificacao do negocio na Meta: ainda nao iniciada, item de maior prazo.
+- Testar instalacao do PWA num Android e num iPhone reais contra a URL da
+  Vercel (unico item de prova que nao dava para fechar localmente).
+- Arte definitiva dos icones do PWA (atuais sao provisorios com a paleta
+  antiga); identidade nova em `docs/idVisual/` entra na Onda 3.
 
 ## Histórico recente
 
+- 2026-08-01: Onda 1 integrada, middleware corrigido (authorized() nao era
+  chamado ha meses), varredura completa de travessao. Commit `e1c9e2d`,
+  deploy verificado em producao.
 - 2026-07-31: análise dos documentos do cliente, plano de arquitetura por
   contrato e disparo da Onda 1 de agentes.
 - 2026-07-30: N8N auditado (já estava provisionado e ativo), prompt do
