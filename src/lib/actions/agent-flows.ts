@@ -1,11 +1,20 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 
 /**
- * Cadastro assistido pelo WhatsApp (2026-07-30).
+ * Cadastro assistido pelo WhatsApp (2026-07-30, abertura consolidada desde
+ * 2026-08-01).
  *
  * Antes disso, `cadastrar_animal` pedia TODOS os campos de uma vez ("preciso do
  * brinco, raça e sexo, envie novamente com esses dados"): quem não decorou os
- * campos ficava sem saída. Aqui o agente pergunta um campo por mensagem.
+ * campos ficava sem saída. Depois, passou a perguntar um campo por mensagem
+ * (até 4 idas e vindas por animal, contando a confirmação).
+ *
+ * A partir de outubro de 2026 a Meta cobra por mensagem de serviço dentro da
+ * janela de 24h, então a pergunta de ABERTURA de cada item volta a pedir os 3
+ * campos de uma vez (`FlowDef.openingQuestion`), sem reintroduzir o problema
+ * original: quem responde só uma parte cai de volta no fluxo campo a campo
+ * (`pending_field`), que continua existindo pra esse caso. O ganho é só no
+ * caminho feliz (quem já manda tudo de uma vez).
  *
  * O motor é dirigido por DADOS (`FLOWS` abaixo): acrescentar cadastro de vacina
  * ou de ordem de serviço depois é adicionar uma entrada, não escrever fluxo
@@ -35,6 +44,14 @@ export type FlowField = {
 export type FlowDef = {
   label: string;
   fields: FlowField[];
+  /**
+   * Pergunta de abertura de cada item, pedindo todos os campos de uma vez
+   * (economia de mensagem: ver comentário do topo do arquivo). Usada tanto no
+   * primeiro item quanto na abertura dos itens seguintes num cadastro
+   * multi-animal; resposta parcial cai no fluxo campo a campo de sempre
+   * (`fields[n].question`), que não muda.
+   */
+  openingQuestion: string;
   /** Uma linha curta de confirmação ao fechar cada item. */
   summarizeItem: (item: Record<string, string>) => string;
 };
@@ -108,6 +125,7 @@ export const FLOWS: Record<string, FlowDef> = {
         invalid: "Não entendi. Responda macho ou fêmea.",
       },
     ],
+    openingQuestion: "Me diga o brinco, a raça e o sexo, um por linha ou separados por vírgula.",
     summarizeItem: (i) =>
       `Brinco ${i.ear_tag}, ${i.breed}, ${i.sex === "male" ? "macho" : "fêmea"}.`,
   },
@@ -197,7 +215,7 @@ export async function startFlow(
     ? `Consigo cadastrar até ${MAX_ITEMS} de uma vez por aqui; acima disso o painel resolve melhor. Vou seguir com ${count}. `
     : "";
   const quantos = count > 1 ? `Vamos cadastrar ${count} animais, um de cada vez. ` : "";
-  return { reply: `${aviso}${quantos}${def.fields[0].question}` };
+  return { reply: `${aviso}${quantos}${def.openingQuestion}` };
 }
 
 export type AnswerResult =
@@ -281,7 +299,7 @@ export async function applyAnswer(
     });
     return {
       kind: "question",
-      reply: `${def.summarizeItem(item)} Faltam ${faltam}. ${def.fields[0].question}`,
+      reply: `${def.summarizeItem(item)} Faltam ${faltam}. ${def.openingQuestion}`,
     };
   }
 
@@ -314,6 +332,13 @@ export function resumeHint(state: FlowState): string | null {
   const def = FLOWS[state.flow];
   if (!def) return null;
   if (state.awaiting_summary) return "Voltando: posso cadastrar os animais do resumo?";
+  // pending_field só volta a ser o 1o campo quando o item atual está vazio
+  // (abertura, seja do 1o animal ou de um seguinte): repete a pergunta
+  // consolidada, não só a do brinco, senão o lembrete contradiz o que foi
+  // perguntado de fato.
+  if (state.pending_field === def.fields[0].name) {
+    return `Voltando ao ${def.label}: ${def.openingQuestion}`;
+  }
   const field = def.fields.find((f) => f.name === state.pending_field);
   return field ? `Voltando ao ${def.label}: ${field.question}` : null;
 }
@@ -416,7 +441,7 @@ async function applyManyValues(
     });
     return {
       kind: "question",
-      reply: `${def.summarizeItem(item)} Faltam ${faltam}. ${def.fields[0].question}`,
+      reply: `${def.summarizeItem(item)} Faltam ${faltam}. ${def.openingQuestion}`,
     };
   }
 
