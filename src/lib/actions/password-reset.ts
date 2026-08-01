@@ -15,11 +15,11 @@ import type { PasswordResetChannel } from "@/generated/prisma/enums";
  * (PlatformUser fica de fora, decisão deliberada).
  *
  * As etapas 1 (pedir) e 2 (validar) são correlacionadas pelo EMAIL (que o
- * usuário já sabe, não é informação nova) — nunca pelo id do
+ * usuário já sabe, não é informação nova), nunca pelo id do
  * PasswordResetCode, porque criar esse id só quando a conta existe já
  * vazaria a existência da conta pela presença/ausência de um `rid` na
  * resposta. Só depois de validar o código (prova de acesso ao canal) é que
- * o id real vira a referência (`rid`) usada na etapa 3 (nova senha) — nesse
+ * o id real vira a referência (`rid`) usada na etapa 3 (nova senha): nesse
  * ponto a existência da conta já está inerentemente provada, então não tem
  * mais nada a esconder.
  */

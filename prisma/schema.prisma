@@ -1,4 +1,4 @@
-// Tibé (AgroGestão) — schema multi-tenant
+// Tibé (AgroGestão): schema multi-tenant
 // Modelo de dados: PRD seção 4. Isolamento por tenant_id: PRD seção 10.4.
 //
 // Convenções:
@@ -122,7 +122,7 @@ enum AlertType {
   harvest_near
   bill_due
   low_balance
-  trial_ending // spec 5.8 — não previsto no PRD original, extensão aditiva
+  trial_ending // spec 5.8, não previsto no PRD original: extensão aditiva
 }
 
 enum AlertStatus {
@@ -174,17 +174,17 @@ model Tenant {
   email         String?
   plan          TenantPlan
   // Tenants criados manualmente pelo painel (spec 2026-07-27) nascem sem
-  // plano escolhido pelo cliente — plan carrega um default interno até o
+  // plano escolhido pelo cliente: plan carrega um default interno até o
   // cliente confirmar no primeiro login. Tenants do signup público (que já
   // escolhem o plano em /planos antes de criar a conta) nascem com true.
   plan_confirmed Boolean     @default(true)
   status        TenantStatus @default(trial)
   trial_ends_at DateTime?
-  // Arquivamento pelo painel da plataforma (spec 2026-07-27) — nunca deleta,
+  // Arquivamento pelo painel da plataforma (spec 2026-07-27): nunca deleta,
   // mesmo padrão de Property.archived_at (M1). Idempotente.
   archived_at   DateTime?
 
-  // Origem do lead (UTM) — PRD seção 4 / v1.1
+  // Origem do lead (UTM), PRD seção 4 / v1.1
   lead_source_utm_source   String?
   lead_source_utm_medium   String?
   lead_source_utm_campaign String?
@@ -211,7 +211,7 @@ model Tenant {
   subscription      Subscription?
 }
 
-// Equipe da Pleno Digital. NÃO carrega tenant_id — fora do isolamento (PRD 4 / 10.4).
+// Equipe da Pleno Digital. NÃO carrega tenant_id: fora do isolamento (PRD 4 / 10.4).
 model PlatformUser {
   id            String       @id @default(cuid())
   name          String
@@ -702,7 +702,7 @@ model Subscription {
 }
 
 // Histórico de toda transição de status de uma assinatura (Módulo 6, task 6.5/
-// 6.7/6.9). Não existia até o M6 — sem isso, "cancelamentos no período" e
+// 6.7/6.9). Não existia até o M6: sem isso, "cancelamentos no período" e
 // "tempo médio de conversão trial→pago" são impossíveis de calcular, e a 6.9
 // já exigia um log de auditoria para mudança manual de status. Um único
 // mecanismo cobre as duas necessidades: toda vez que Subscription.status muda
@@ -725,7 +725,7 @@ model SubscriptionStatusLog {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Config de provider WhatsApp (spec 2026-07-11) — GLOBAL da plataforma,
+// Config de provider WhatsApp (spec 2026-07-11): GLOBAL da plataforma,
 // fora de TENANT_SCOPED_MODELS (mesma categoria de PlatformUser). Os dois
 // providers podem existir configurados em paralelo; no máximo 1 active
 // (garantido por transação na ativação + partial unique index na migração).

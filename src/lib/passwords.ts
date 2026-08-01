@@ -8,7 +8,7 @@ export function generateTempPassword(): string {
 /**
  * Regra de senha forte (arquitetura 2026-07-29): recuperação de senha e
  * troca obrigatória (changeOwnPasswordAction). Deliberadamente NÃO aplicada
- * no signup público — decisão de produto adiada, não assumida aqui.
+ * no signup público: decisão de produto adiada, não assumida aqui.
  */
 export function isStrongPassword(password: string): { ok: true } | { ok: false; message: string } {
   if (password.length < 8) {
