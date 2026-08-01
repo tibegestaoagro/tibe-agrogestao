@@ -208,6 +208,7 @@ model Tenant {
   email_logs        EmailLog[]
   password_resets   PasswordResetCode[]
   agent_flows       AgentFlowState[]
+  refresh_tokens    RefreshToken[]
   subscription      Subscription?
 }
 
@@ -255,8 +256,36 @@ model User {
   whatsapp_contacts  WhatsAppContact[]
   password_resets    PasswordResetCode[]
   agent_flows        AgentFlowState[]
+  refresh_tokens     RefreshToken[]
 
   @@index([tenant_id])
+}
+
+// Sessão do aplicativo (identidade por token, Onda 1). O access token é um JWT
+// curto (15 min) que NÃO é persistido; só o refresh token vive aqui, e só como
+// hash: o valor em claro existe uma única vez, na resposta ao aplicativo.
+//
+// `tenant_id` está aqui pelo mesmo motivo dos demais modelos de negócio
+// (defense-in-depth: entra em TENANT_SCOPED_MODELS), NÃO para servir de
+// autoridade de tenant ao autenticar. Quem responde "de qual tenant é esta
+// requisição" continua sendo a linha de `User` resolvida pelo `user_id`.
+//
+// `token_hash` é único: é por ele que a renovação encontra a linha antes de
+// saber o tenant, e é o índice que sustenta o uso único (revoked_at).
+model RefreshToken {
+  id         String    @id @default(cuid())
+  tenant_id  String
+  user_id    String
+  token_hash String    @unique
+  expires_at DateTime
+  revoked_at DateTime?
+  created_at DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id])
+  @@index([user_id])
 }
 
 // Recuperação de senha (arquitetura 2026-07-29). code_hash: nunca em claro,

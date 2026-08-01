@@ -34,7 +34,8 @@
     "test:m19": "tsx scripts/m19-cadastro-verificado.test.ts",
     "test:m20": "tsx scripts/m20-buffer.test.ts",
     "test:m21": "tsx scripts/m21-cadastro-assistido.test.ts",
-    "test:m22": "tsx scripts/m22-fluxo-integracao.test.ts"
+    "test:m22": "tsx scripts/m22-fluxo-integracao.test.ts",
+    "test:m23": "tsx scripts/m23-token-auth.test.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
