@@ -7,10 +7,10 @@ import type { EvolutionCredentials } from "@/lib/actions/platform-whatsapp-confi
  * Busca o base64 de uma mídia (áudio/imagem/documento) recebida pelo agente
  * WhatsApp (spec 2026-07-28). Necessário porque `webhookBase64: true` não é
  * confiável pra áudio/imagem na Evolution API em produção (comportamento
- * documentado do projeto — o campo às vezes não vem no payload do webhook,
- * mesmo configurado): então buscamos sob demanda em vez de depender dele.
+ * documentado do projeto: o campo às vezes não vem no payload do webhook,
+ * mesmo configurado), então buscamos sob demanda em vez de depender dele.
  * Só suporta Evolution por enquanto (Meta Cloud API tem outro mecanismo de
- * download de mídia, não implementado aqui — ver CLAUDE.md se for adicionar).
+ * download de mídia, não implementado aqui: ver CLAUDE.md se for adicionar).
  */
 export async function fetchEvolutionMediaBase64(
   messageId: string,

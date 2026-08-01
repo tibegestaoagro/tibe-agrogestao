@@ -136,7 +136,7 @@ export default async function FinanceiroPage({
                   <TableRow key={e.id}>
                     <TableCell>{e.due_date ? e.due_date.toLocaleDateString("pt-BR") : "sem data"}</TableCell>
                     <TableCell>{ENTRY_LABEL[e.entry_type]}</TableCell>
-                    <TableCell>{e.category ?? "—"}</TableCell>
+                    <TableCell>{e.category ?? "não informado"}</TableCell>
                     <TableCell>{MODULE_LABEL[e.related_module ?? "geral"]}</TableCell>
                     <TableCell>{brl(decToNum(e.amount) ?? 0)}</TableCell>
                     <TableCell><Badge variant={st.variant}>{st.label}</Badge></TableCell>

@@ -69,7 +69,7 @@ export default async function AssinaturaPage() {
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-sm text-gray-500">Plano atual</p>
           <p className="text-lg font-semibold text-tibe-dark">
-            {PLAN_LABEL[subscription?.plan ?? tenant?.plan ?? ""] ?? "—"}
+            {PLAN_LABEL[subscription?.plan ?? tenant?.plan ?? ""] ?? "não informado"}
           </p>
           {st && (
             <Badge variant={isPendingFirstPayment ? "blue" : st.variant}>

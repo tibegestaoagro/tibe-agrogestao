@@ -33,7 +33,7 @@ async function callExecute(input: {
 }
 
 async function main() {
-  console.log("🔒 M12 — ajuda e resumo\n");
+  console.log("🔒 M12: ajuda e resumo\n");
 
   // ── Tenant A: os dois perfis (fazenda + prestador) ──────────────────
   const tenantA = await prisma.tenant.create({

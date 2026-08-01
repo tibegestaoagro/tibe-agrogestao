@@ -142,7 +142,7 @@ Todas confirmadas explicitamente em entrevista. Não reabrir sem pedir.
 
 ## 4. Regra de escrita obrigatória
 
-**Nunca use o caractere travessão (`—`, em-dash) em nada deste projeto:** código,
+**Nunca use o caractere travessão (U+2014, em-dash) em nada deste projeto:** código,
 comentários, texto de UI, resposta do agente, documentação ou mensagem de
 commit. É uma regra permanente do usuário. Use dois pontos, vírgula ou
 parênteses. Isso vale especialmente para o texto que o agente manda no WhatsApp.
@@ -275,7 +275,7 @@ chamar `createLinkedEntry`:
 ### Task 7: faxina
 
 `src/app/(dashboard)/financeiro/page.tsx` linha ~137: o fallback de vencimento
-nulo usa um travessão (`—`), violando a regra da seção 4. Trocar por
+nulo usa um travessão (U+2014), violando a regra da seção 4. Trocar por
 `"sem data"`.
 
 ### Task 8: documentação
@@ -334,5 +334,5 @@ Derivados diretamente do que o usuário disse que não pode acontecer:
 3. Toda previsão registrada com `due_date` futuro **de fato** gera alerta
    `bill_due` 3 dias antes (verificável rodando `generateAlertsForTenant`).
 4. "Contas a receber" significa a mesma coisa no WhatsApp, no DRE e no painel.
-5. Nenhum travessão (`—`) introduzido em código, texto de agente ou docs.
+5. Nenhum travessão (U+2014) introduzido em código, texto de agente ou docs.
 6. Nenhuma mudança de schema Prisma foi necessária.

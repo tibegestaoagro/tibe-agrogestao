@@ -1,7 +1,7 @@
 /**
  * Templates de email (arquitetura 2026-07-29): HTML simples escrito à mão,
  * cores da marca (tailwind.config.ts: tibe.primary/dark/light), sem
- * biblioteca de template — mesmo espírito do resto do projeto (UI kit
+ * biblioteca de template: mesmo espírito do resto do projeto (UI kit
  * feito à mão em vez de framework instalado via CLI).
  */
 
@@ -37,7 +37,7 @@ function wrapper(bodyHtml: string): string {
             </tr>
             <tr>
               <td style="padding:16px 32px;background-color:${COLORS.light};color:#666666;font-size:12px;">
-                Tibé — Gestão agropecuária direto pelo WhatsApp.
+                Tibé: gestão agropecuária direto pelo WhatsApp.
               </td>
             </tr>
           </table>

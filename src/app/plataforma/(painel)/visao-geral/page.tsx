@@ -110,15 +110,15 @@ export default async function PlatformKpisPage({
         <div className="mt-3 flex flex-wrap gap-8">
           <div>
             <p className="text-xs text-gray-500">LTV estimado</p>
-            <p className="text-xl font-bold text-white">{ltv.ltv != null ? fmtBRL(ltv.ltv) : "—"}</p>
+            <p className="text-xl font-bold text-white">{ltv.ltv != null ? fmtBRL(ltv.ltv) : "não calculável"}</p>
           </div>
           <div>
             <p className="text-xs text-gray-500">Ticket médio mensal</p>
-            <p className="text-xl font-bold text-white">{ltv.avg_ticket_mensal != null ? fmtBRL(ltv.avg_ticket_mensal) : "—"}</p>
+            <p className="text-xl font-bold text-white">{ltv.avg_ticket_mensal != null ? fmtBRL(ltv.avg_ticket_mensal) : "não calculável"}</p>
           </div>
           <div>
             <p className="text-xs text-gray-500">Churn mensal usado</p>
-            <p className="text-xl font-bold text-white">{ltv.churn_mensal_pct != null ? `${ltv.churn_mensal_pct}%` : "—"}</p>
+            <p className="text-xl font-bold text-white">{ltv.churn_mensal_pct != null ? `${ltv.churn_mensal_pct}%` : "não calculável"}</p>
           </div>
         </div>
         {ltv.ltv == null && (

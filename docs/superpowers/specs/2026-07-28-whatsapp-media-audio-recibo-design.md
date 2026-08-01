@@ -15,13 +15,13 @@ pediu duas extensões, priorizadas nesta ordem:
    lançar isso no financeiro sem digitar tudo manualmente.
 
 Uma terceira ideia (foto de animal/produção para comparação futura) foi
-levantada mas está **fora de escopo** — o usuário ainda vai validar com o
+levantada mas está **fora de escopo**, o usuário ainda vai validar com o
 cliente (Da Mata/Agromax) antes de especificar isso.
 
 ## Decisão de arquitetura
 
 Toda chamada a modelo de IA (classificação de texto, transcrição de áudio,
-visão de imagem/PDF) continua acontecendo **só no N8N**, nunca no Tibé — é a
+visão de imagem/PDF) continua acontecendo **só no N8N**, nunca no Tibé, é a
 mesma regra já em vigor hoje ("a chave de API do provedor de LLM fica nas
 credenciais do N8N, não no `.env` do Tibé", CLAUDE.md). O Tibé nunca recebe
 mídia bruta nem chama a OpenAI diretamente; ele só recebe intenção +
@@ -42,13 +42,13 @@ antes de "Classificar Intenção"):
 2. Enviar o áudio para `POST https://api.openai.com/v1/audio/transcriptions`
    (Whisper), usando a credencial "OpenAI API Key" já existente no N8N.
 3. Pegar o texto transcrito e injetá-lo no mesmo caminho que uma mensagem de
-   texto normal seguiria — cai direto em "Classificar Intenção" e segue
+   texto normal seguiria, cai direto em "Classificar Intenção" e segue
    idêntico daí em diante (permissão, confirmação, resposta).
 4. Falha na transcrição (API fora do ar, áudio corrompido): responder
    direto, sem acionar o Tibé, algo como "Não consegui entender o áudio,
    pode tentar de novo ou digitar sua mensagem?".
 
-Nenhum teste novo do lado Tibé é necessário para esta parte — o Tibé nunca
+Nenhum teste novo do lado Tibé é necessário para esta parte, o Tibé nunca
 sabe se o texto veio de voz ou de digitação.
 
 ## 2. Foto/PDF de recibo → lançamento financeiro
@@ -60,9 +60,9 @@ Novo ramo em "Normalizar e Filtrar": se a mensagem tiver `imageMessage` ou
 extração antes de "Classificar Intenção":
 
 1. PDF: renderizar a primeira página como imagem antes de enviar (detalhe
-   de implementação a decidir na hora — ex: node de conversão, ou usar
+   de implementação a decidir na hora, ex: node de conversão, ou usar
    input de arquivo da própria API da OpenAI se suportar PDF direto).
-2. Enviar a imagem para um modelo com visão (GPT-4o ou GPT-4o-mini — testar
+2. Enviar a imagem para um modelo com visão (GPT-4o ou GPT-4o-mini, testar
    qualidade de leitura em cupom fiscal/nota antes de decidir qual),
    pedindo extração estruturada em JSON:
    ```json
@@ -70,7 +70,7 @@ extração antes de "Classificar Intenção":
    ```
    O prompt deve instruir o modelo a escolher `category` **só entre as
    opções fixas do produto** (`Ração, Combustível, Mão de obra, Manutenção,
-   Insumos, Veterinário, Outros` — mesma lista de
+   Insumos, Veterinário, Outros`, mesma lista de
    `src/lib/category-suggestions.ts`), nunca inventar uma categoria livre.
 3. Se `amount` vier `null` (não deu pra ler o valor com confiança): **não
    aciona o Tibé**. Responde direto pedindo uma foto mais nítida ou pra
@@ -88,21 +88,21 @@ extração antes de "Classificar Intenção":
 `src/lib/whatsapp-intents.ts`:
 - `INTENTS`: `+ "registrar_lancamento_financeiro"`
 - `INTENT_ACCESS`: `{ module: "financeiro", action: "write" }` (sem
-  `profile` — financeiro está disponível pros dois perfis, igual
+  `profile`, financeiro está disponível pros dois perfis, igual
   `consultar_saldo` hoje)
 
 **Novo handler** em `src/lib/actions/whatsapp-router.ts`, no mesmo padrão
 de `registrar_movimento`/`cadastrar_servico_ordem` (campo `confirmed` /
-`explicitNo` já genéricos no roteador — nenhuma mudança na assinatura de
+`explicitNo` já genéricos no roteador, nenhuma mudança na assinatura de
 `routeIntent` nem no contrato HTTP de `execute-action`):
 
 - Parâmetros esperados: `amount` (number, obrigatório), `category` (string,
-  obrigatório — se vier fora da lista fixa, cai em `"Outros"`), `vendor`
+  obrigatório, se vier fora da lista fixa, cai em `"Outros"`), `vendor`
   (string, opcional, vai pro campo `notes`), `description` (string,
   opcional, também compõe `notes`).
 - **Sempre** pede confirmação, independente do valor (decisão do usuário:
   leitura de imagem erra mais que digitação manual, então todo valor exige
-  o mesmo cuidado — não reusa `CONFIRMATION_THRESHOLD`, que é só pra
+  o mesmo cuidado, não reusa `CONFIRMATION_THRESHOLD`, que é só pra
   venda/compra de animal e ordem de serviço).
   - `explicitNo` → `"Lançamento cancelado."`, sem gravar nada.
   - `!confirmed` → responde um resumo e pede "sim": `` `Entendi: R$
@@ -112,19 +112,19 @@ de `registrar_movimento`/`cadastrar_servico_ordem` (campo `confirmed` /
   - `confirmed` → chama `createManualEntryAction(db, { entry_type:
     "expense", category, amount, due_date: new Date(), notes: vendor ??
     description ?? null })` (mesma action que `POST
-    /api/v1/financial-entries` já usa — nasce `related_module: geral`,
+    /api/v1/financial-entries` já usa, nasce `related_module: geral`,
     editável depois pelo painel, igual qualquer lançamento manual).
   - Resposta de sucesso: `` `Lançamento registrado: R$ {amount},
     {category}${vendor ? `, ${vendor}` : ""}.` ``
 
-Escopo: só despesa (`entry_type: "expense"`) — compra ou serviço
+Escopo: só despesa (`entry_type: "expense"`), compra ou serviço
 contratado, como pedido. Não cobre "recebi um pagamento" (receita).
 
 ## Testes
 
 - `scripts/m3-whatsapp.test.ts` (ou um teste M11 novo, a decidir na hora
   seguindo a convenção `test:mN`): cobrir `registrar_lancamento_financeiro`
-  direto no `routeIntent`/`execute-action` — fluxo completo (pedir
+  direto no `routeIntent`/`execute-action`, fluxo completo (pedir
   confirmação → confirmar → `FinancialEntry` criado com os dados certos),
   `explicitNo` cancela sem gravar, categoria fora da lista fixa cai em
   "Outros", isolamento entre tenants.

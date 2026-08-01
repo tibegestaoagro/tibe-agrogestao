@@ -17,7 +17,7 @@ function keyFor(scope: string, identifier: string): string {
 
 /**
  * true = liberado, false = limite excedido para a janela atual. `opts`
- * sobrescreve o padrão (10 tentativas/15min, usado pelos 2 logins) — ex:
+ * sobrescreve o padrão (10 tentativas/15min, usado pelos 2 logins): ex:
  * pedido de código de recuperação usa uma janela mais restritiva de
  * propósito (evitar spam de envio, que tem custo real no WhatsApp).
  */

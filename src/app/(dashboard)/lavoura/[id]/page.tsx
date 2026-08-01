@@ -85,7 +85,7 @@ export default async function PlotDetail({
           </Link>
           <h1 className="mt-1 text-xl font-semibold text-gray-900">{plot.name}</h1>
           <p className="text-sm text-gray-500">
-            {plot.property?.name ?? "—"} · {area ?? "—"} ha
+            {plot.property?.name ?? "não informada"} · {area ?? "não informada"} ha
           </p>
         </div>
         {writable && (
@@ -95,15 +95,15 @@ export default async function PlotDetail({
 
       {/* Resumo do ciclo ativo */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Stat label="Cultura atual" value={plot.current_crop ?? "—"} />
+        <Stat label="Cultura atual" value={plot.current_crop ?? "não informada"} />
         <Stat label="Custo de insumos" value={brl(totalInputCost)} />
-        <Stat label="Custo / ha" value={costPerHa != null ? brl(costPerHa) : "—"} />
+        <Stat label="Custo / ha" value={costPerHa != null ? brl(costPerHa) : "sem valor"} />
         <Stat
           label="Produtividade / ha"
           value={
             productivity != null
               ? `${productivity.toFixed(2)} ${active?.yield_unit ?? ""}`
-              : "—"
+              : "sem valor"
           }
         />
       </div>
@@ -135,9 +135,9 @@ export default async function PlotDetail({
                   <TableCell>{INPUT[i.input_type] ?? i.input_type}</TableCell>
                   <TableCell>{i.name}</TableCell>
                   <TableCell>
-                    {decToNum(i.quantity) != null ? `${decToNum(i.quantity)} ${i.unit ?? ""}` : "—"}
+                    {decToNum(i.quantity) != null ? `${decToNum(i.quantity)} ${i.unit ?? ""}` : "sem valor"}
                   </TableCell>
-                  <TableCell>{decToNum(i.cost) != null ? brl(decToNum(i.cost)!) : "—"}</TableCell>
+                  <TableCell>{decToNum(i.cost) != null ? brl(decToNum(i.cost)!) : "sem valor"}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -168,10 +168,10 @@ export default async function PlotDetail({
                 return (
                   <TableRow key={c.id}>
                     <TableCell>{c.crop_name}</TableCell>
-                    <TableCell>{c.planted_at ? c.planted_at.toLocaleDateString("pt-BR") : "—"}</TableCell>
-                    <TableCell>{c.harvested_at ? c.harvested_at.toLocaleDateString("pt-BR") : "—"}</TableCell>
+                    <TableCell>{c.planted_at ? c.planted_at.toLocaleDateString("pt-BR") : "sem data"}</TableCell>
+                    <TableCell>{c.harvested_at ? c.harvested_at.toLocaleDateString("pt-BR") : "sem data"}</TableCell>
                     <TableCell>
-                      {decToNum(c.yield_amount) != null ? `${decToNum(c.yield_amount)} ${c.yield_unit ?? ""}` : "—"}
+                      {decToNum(c.yield_amount) != null ? `${decToNum(c.yield_amount)} ${c.yield_unit ?? ""}` : "sem valor"}
                     </TableCell>
                     <TableCell><Badge variant={st.variant}>{st.label}</Badge></TableCell>
                   </TableRow>

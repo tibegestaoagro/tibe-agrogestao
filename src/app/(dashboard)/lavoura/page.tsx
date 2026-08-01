@@ -89,14 +89,14 @@ export default async function LavouraPage() {
                       {p.name}
                     </Link>
                   </TableCell>
-                  <TableCell>{p.property?.name ?? "—"}</TableCell>
-                  <TableCell>{decToNum(p.area_hectares) ?? "—"}</TableCell>
-                  <TableCell>{p.current_crop ?? "—"}</TableCell>
-                  <TableCell>{st ? <Badge variant={st.variant}>{st.label}</Badge> : "—"}</TableCell>
+                  <TableCell>{p.property?.name ?? "não informada"}</TableCell>
+                  <TableCell>{decToNum(p.area_hectares) ?? "sem valor"}</TableCell>
+                  <TableCell>{p.current_crop ?? "não informada"}</TableCell>
+                  <TableCell>{st ? <Badge variant={st.variant}>{st.label}</Badge> : "sem ciclo"}</TableCell>
                   <TableCell>
                     {cycle?.expected_harvest_at
                       ? cycle.expected_harvest_at.toLocaleDateString("pt-BR")
-                      : "—"}
+                      : "sem data"}
                   </TableCell>
                 </TableRow>
               );

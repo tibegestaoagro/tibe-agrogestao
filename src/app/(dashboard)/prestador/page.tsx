@@ -106,7 +106,7 @@ export default async function PrestadorPage({
                       {c.name}
                     </Link>
                   </TableCell>
-                  <TableCell>{c.phone ?? "—"}</TableCell>
+                  <TableCell>{c.phone ?? "sem telefone"}</TableCell>
                   <TableCell>{brl(t.invoiced)}</TableCell>
                   <TableCell>{brl(t.pending)}</TableCell>
                 </TableRow>
@@ -227,9 +227,9 @@ async function OrdersTab({
             const st = ORDER_STATUS[o.status];
             return (
               <TableRow key={o.id}>
-                <TableCell className="font-medium">{o.service_client?.name ?? "—"}</TableCell>
-                <TableCell>{o.service?.name ?? "—"}</TableCell>
-                <TableCell>{o.performed_at ? o.performed_at.toLocaleDateString("pt-BR") : "—"}</TableCell>
+                <TableCell className="font-medium">{o.service_client?.name ?? "não informado"}</TableCell>
+                <TableCell>{o.service?.name ?? "não informado"}</TableCell>
+                <TableCell>{o.performed_at ? o.performed_at.toLocaleDateString("pt-BR") : "sem data"}</TableCell>
                 <TableCell>{brl(decToNum(o.total_value) ?? 0)}</TableCell>
                 <TableCell><Badge variant={st.variant}>{st.label}</Badge></TableCell>
                 <TableCell className="text-right">

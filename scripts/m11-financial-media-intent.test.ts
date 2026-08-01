@@ -36,7 +36,7 @@ async function callExecute(input: {
 }
 
 async function main() {
-  console.log("🔒 M11 — registrar_lancamento_financeiro (recibo por mídia)\n");
+  console.log("🔒 M11: registrar_lancamento_financeiro (recibo por mídia)\n");
 
   const tenant = await prisma.tenant.create({
     data: { name: "M11 Tenant", document: "M11A000000001", plan: "fazenda" },

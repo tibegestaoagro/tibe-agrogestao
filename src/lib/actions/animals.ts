@@ -405,7 +405,7 @@ export async function getAnimalSummaryAction(
     gmd: computeGmd(logs),
     last_vaccination: lastVaccination
       ? {
-          vaccine_name: lastVaccination.vaccine?.name ?? "—",
+          vaccine_name: lastVaccination.vaccine?.name ?? "não informada",
           applied_at: lastVaccination.applied_at.toISOString(),
           next_due_at: lastVaccination.next_due_at
             ? lastVaccination.next_due_at.toISOString()

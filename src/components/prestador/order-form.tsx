@@ -105,7 +105,7 @@ export default function OrderForm({
           </div>
           {!isFixed && (
             <div>
-              <Label htmlFor="o-qty">Quantidade ({service ? UNIT[service.pricing_type] : "—"}) *</Label>
+              <Label htmlFor="o-qty">Quantidade ({service ? UNIT[service.pricing_type] : "unidade"}) *</Label>
               <Input id="o-qty" type="number" step="0.01" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
             </div>
           )}

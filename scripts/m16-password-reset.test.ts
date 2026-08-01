@@ -152,7 +152,7 @@ async function main() {
       where: { user_id: user3.id },
       orderBy: { created_at: "desc" },
     });
-    // Não temos o código em claro (só o hash) — regeneramos um hash conhecido pra simular o envio real.
+    // Não temos o código em claro (só o hash): regeneramos um hash conhecido pra simular o envio real.
     const knownCode = "654321";
     await prismaForTenant(tenant.id).passwordResetCode.update({
       where: { id: codeRow3!.id },

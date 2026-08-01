@@ -12,7 +12,7 @@ const INTENTS: [string, string, string][] = [
   ["consultar_animal", "ear_tag", "rebanho:read · perfil fazenda"],
   ["consultar_cliente", "client_name", "prestador:read · perfil prestador"],
   ["gerar_relatorio", "tipo (financeiro|rebanho|lavoura|prestador), period", "varia pelo tipo: só financeiro tem PDF pronto"],
-  ["ambigua", "—", "sem checagem: pede esclarecimento"],
+  ["ambigua", "nenhum", "sem checagem: pede esclarecimento"],
 ];
 
 export default function WhatsappDocsPage() {

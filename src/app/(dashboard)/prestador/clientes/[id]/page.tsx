@@ -68,7 +68,7 @@ export default async function ClientDetail({
         </Link>
         <h1 className="mt-1 text-xl font-semibold text-gray-900">{client.name}</h1>
         <p className="text-sm text-gray-500">
-          {[client.document, client.phone, client.email].filter(Boolean).join(" · ") || "—"}
+          {[client.document, client.phone, client.email].filter(Boolean).join(" · ") || "sem dados de contato"}
         </p>
         {client.notes && <p className="mt-1 text-sm text-gray-600">{client.notes}</p>}
       </div>
@@ -106,8 +106,8 @@ export default async function ClientDetail({
                 const st = ORDER_STATUS[o.status];
                 return (
                   <TableRow key={o.id}>
-                    <TableCell>{o.service?.name ?? "—"}</TableCell>
-                    <TableCell>{o.performed_at ? o.performed_at.toLocaleDateString("pt-BR") : "—"}</TableCell>
+                    <TableCell>{o.service?.name ?? "não informado"}</TableCell>
+                    <TableCell>{o.performed_at ? o.performed_at.toLocaleDateString("pt-BR") : "sem data"}</TableCell>
                     <TableCell>{brl(decToNum(o.total_value) ?? 0)}</TableCell>
                     <TableCell><Badge variant={st.variant}>{st.label}</Badge></TableCell>
                     <TableCell className="text-right">

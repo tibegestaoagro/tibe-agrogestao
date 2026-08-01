@@ -137,17 +137,17 @@ export default async function RebanhoPage({
                       {a.ear_tag}
                     </Link>
                   </TableCell>
-                  <TableCell>{a.breed ?? "—"}</TableCell>
+                  <TableCell>{a.breed ?? "não informada"}</TableCell>
                   <TableCell>{SEX[a.sex] ?? a.sex}</TableCell>
-                  <TableCell>{a.property?.name ?? "—"}</TableCell>
-                  <TableCell>{decToNum(a.current_weight) ?? "—"}</TableCell>
+                  <TableCell>{a.property?.name ?? "não informada"}</TableCell>
+                  <TableCell>{decToNum(a.current_weight) ?? "sem valor"}</TableCell>
                   <TableCell>
                     <Badge variant={st.variant}>{st.label}</Badge>
                   </TableCell>
                   <TableCell>
                     {a.vaccinations[0]
                       ? a.vaccinations[0].applied_at.toLocaleDateString("pt-BR")
-                      : "—"}
+                      : "sem data"}
                   </TableCell>
                 </TableRow>
               );

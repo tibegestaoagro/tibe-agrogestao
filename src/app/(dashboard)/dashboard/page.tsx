@@ -96,7 +96,7 @@ export default async function DashboardHome() {
         )}
         <Card
           label="Saldo do mês"
-          value={balance.ok ? brl(balance.data.balance) : "—"}
+          value={balance.ok ? brl(balance.data.balance) : "indisponível"}
           href="/financeiro"
         />
         <Card label="Alertas pendentes" value={pendingAlerts} href="/alertas" />

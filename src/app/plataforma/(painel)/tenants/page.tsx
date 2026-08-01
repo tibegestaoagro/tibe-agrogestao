@@ -90,7 +90,7 @@ export default async function PlatformTenantsPage({
                     )}
                   </div>
                 </td>
-                <td className="px-4 py-3 text-gray-300">{t.active_profiles.join(", ") || "—"}</td>
+                <td className="px-4 py-3 text-gray-300">{t.active_profiles.join(", ") || "nenhum"}</td>
                 <td className="px-4 py-3 text-gray-400">{t.created_at.toLocaleDateString("pt-BR")}</td>
               </tr>
             ))}

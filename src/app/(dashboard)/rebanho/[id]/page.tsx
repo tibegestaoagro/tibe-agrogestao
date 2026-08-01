@@ -135,17 +135,17 @@ export default async function AnimalDetail({
 
       {/* Dados cadastrais + custo */}
       <div className="grid grid-cols-2 gap-4 rounded-lg border border-gray-200 bg-white p-5 sm:grid-cols-4 lg:grid-cols-6">
-        <Stat label="Raça" value={animal.breed ?? "—"} />
+        <Stat label="Raça" value={animal.breed ?? "não informada"} />
         <Stat label="Sexo" value={SEX[animal.sex] ?? animal.sex} />
-        <Stat label="Propriedade" value={animal.property?.name ?? "—"} />
+        <Stat label="Propriedade" value={animal.property?.name ?? "não informada"} />
         <Stat
           label="Peso atual"
-          value={decToNum(animal.current_weight) != null ? `${decToNum(animal.current_weight)} kg` : "—"}
+          value={decToNum(animal.current_weight) != null ? `${decToNum(animal.current_weight)} kg` : "sem valor"}
         />
-        <Stat label="GMD" value={gmd != null ? `${gmd} kg/dia` : "—"} />
+        <Stat label="GMD" value={gmd != null ? `${gmd} kg/dia` : "sem valor"} />
         <Stat
           label="Nascimento"
-          value={animal.birth_date ? animal.birth_date.toLocaleDateString("pt-BR") : "—"}
+          value={animal.birth_date ? animal.birth_date.toLocaleDateString("pt-BR") : "sem data"}
         />
       </div>
 
@@ -180,10 +180,10 @@ export default async function AnimalDetail({
             )}
             {vaccinations.map((v) => (
               <TableRow key={v.id}>
-                <TableCell>{v.vaccine?.name ?? "—"}</TableCell>
+                <TableCell>{v.vaccine?.name ?? "não informada"}</TableCell>
                 <TableCell>{v.applied_at.toLocaleDateString("pt-BR")}</TableCell>
-                <TableCell>{v.next_due_at ? v.next_due_at.toLocaleDateString("pt-BR") : "—"}</TableCell>
-                <TableCell>{decToNum(v.cost) != null ? brl(decToNum(v.cost)!) : "—"}</TableCell>
+                <TableCell>{v.next_due_at ? v.next_due_at.toLocaleDateString("pt-BR") : "sem data"}</TableCell>
+                <TableCell>{decToNum(v.cost) != null ? brl(decToNum(v.cost)!) : "sem valor"}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -209,8 +209,8 @@ export default async function AnimalDetail({
               <TableRow key={m.id}>
                 <TableCell>{MOV[m.movement_type] ?? m.movement_type}</TableCell>
                 <TableCell>{m.occurred_at.toLocaleDateString("pt-BR")}</TableCell>
-                <TableCell>{decToNum(m.value) != null ? brl(decToNum(m.value)!) : "—"}</TableCell>
-                <TableCell>{m.notes ?? "—"}</TableCell>
+                <TableCell>{decToNum(m.value) != null ? brl(decToNum(m.value)!) : "sem valor"}</TableCell>
+                <TableCell>{m.notes ?? "sem observação"}</TableCell>
               </TableRow>
             ))}
           </TableBody>

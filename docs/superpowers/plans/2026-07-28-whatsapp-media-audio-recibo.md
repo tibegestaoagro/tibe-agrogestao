@@ -1,4 +1,4 @@
-# Suporte a áudio e foto/PDF de recibo no agente WhatsApp — Plano de Implementação
+# Suporte a áudio e foto/PDF de recibo no agente WhatsApp (Plano de Implementação)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -7,7 +7,7 @@ tratado como texto) e foto/PDF de recibo (extrai valor/categoria/fornecedor
 e cria um lançamento financeiro após confirmação).
 
 **Architecture:** Toda chamada de IA (transcrição, visão) acontece no N8N,
-nunca no Tibé — o Tibé só ganha UMA intenção nova
+nunca no Tibé, o Tibé só ganha UMA intenção nova
 (`registrar_lancamento_financeiro`) que segue o mesmo contrato HTTP e o
 mesmo padrão de confirmação sim/não já usado por `registrar_movimento` e
 `cadastrar_servico_ordem`. Áudio não toca o Tibé: vira texto antes de chegar
@@ -92,7 +92,7 @@ import { POST as executeAction } from "@/app/api/internal/whatsapp/execute-actio
 
 /**
  * Teste da intenção registrar_lancamento_financeiro (spec 2026-07-28: mídia
- * no agente WhatsApp — extração de recibo por imagem/PDF). Roda: `npm run test:m11`
+ * no agente WhatsApp, extração de recibo por imagem/PDF). Roda: `npm run test:m11`
  */
 
 let failures = 0;
@@ -124,7 +124,7 @@ async function callExecute(input: {
 }
 
 async function main() {
-  console.log("🔒 M11 — registrar_lancamento_financeiro (recibo por mídia)\n");
+  console.log("🔒 M11, registrar_lancamento_financeiro (recibo por mídia)\n");
 
   const tenant = await prisma.tenant.create({
     data: { name: "M11 Tenant", document: "M11A000000001", plan: "fazenda" },
@@ -246,7 +246,7 @@ $env:DATABASE_URL="postgresql://tibe:tibe@localhost:55432/tibe_dev?schema=public
 ```
 
 Esperado: falha (a intenção cai no `default: "ambigua"` porque o `case`
-ainda não existe — as respostas não vão bater com os `assert`).
+ainda não existe, as respostas não vão bater com os `assert`).
 
 - [ ] **Step 4: Implementar o handler em `whatsapp-router.ts`**
 
@@ -257,7 +257,7 @@ import { createManualEntryAction } from "@/lib/actions/financial-entries";
 import { FINANCIAL_CATEGORIES } from "@/lib/category-suggestions";
 ```
 
-Dentro do `switch (intent)`, adicione o `case` novo — pode ir logo depois do
+Dentro do `switch (intent)`, adicione o `case` novo, pode ir logo depois do
 `case "cadastrar_servico_ordem": { ... }` e antes de `case "consultar_saldo"`:
 
 ```ts
@@ -340,9 +340,9 @@ git commit -m "Nova intenção registrar_lancamento_financeiro no agente WhatsAp
 
 ---
 
-## Task 2: Workflow N8N — áudio (Whisper) e recibo (visão)
+## Task 2: Workflow N8N, áudio (Whisper) e recibo (visão)
 
-**Files:** nenhum arquivo deste repositório — mudança inteiramente no
+**Files:** nenhum arquivo deste repositório, mudança inteiramente no
 workflow "Tibe - Atendimento WhatsApp (Evolution)" hospedado no N8N
 (Railway), via API REST do N8N.
 
@@ -356,7 +356,7 @@ workflow "Tibe - Atendimento WhatsApp (Evolution)" hospedado no N8N
 
 **Pré-requisito:** esta task precisa da URL base do N8N e de uma API key de
 gerenciamento do N8N (`X-N8N-API-KEY`) pra ler/gravar o workflow via API
-REST (`GET/PUT /api/v1/workflows/:id`) — não estão nas variáveis de
+REST (`GET/PUT /api/v1/workflows/:id`), não estão nas variáveis de
 ambiente deste projeto (N8N é infra externa). **Pausar e pedir esse acesso
 ao usuário antes de iniciar esta task**, a menos que as credenciais já
 estejam disponíveis na sessão atual.
@@ -369,8 +369,7 @@ curl -s -H "X-N8N-API-KEY: $N8N_API_KEY" "$N8N_BASE_URL/api/v1/workflows/<workfl
 
 Ler o node "Normalizar e Filtrar" (Code node) pra entender exatamente como
 o payload da Evolution é parseado hoje (campo `message.conversation` vs.
-`message.audioMessage`/`message.imageMessage`/`message.documentMessage`) —
-usar como base real pros próximos steps, não assumir o formato.
+`message.audioMessage`/`message.imageMessage`/`message.documentMessage`), usar como base real pros próximos steps, não assumir o formato.
 
 - [ ] **Step 2: Adicionar branch de áudio**
 
@@ -382,7 +381,7 @@ No node "Normalizar e Filtrar" (ou um IF logo depois dele), detectar
    `multipart/form-data` com `file` (o áudio decodificado) e `model:
    whisper-1`, autenticado com a credencial "OpenAI API Key" já existente.
 3. Sucesso: usar o campo `text` da resposta como se fosse
-   `message.conversation` — reconectar no MESMO caminho que já existe hoje
+   `message.conversation`, reconectar no MESMO caminho que já existe hoje
    pra mensagem de texto (entra em "Resolve Contact" → ... →
    "Classificar Intenção").
 4. Falha na transcrição: node de resposta direta (POST
@@ -396,14 +395,13 @@ Branch paralelo ao do Step 2: quando `message.imageMessage` presente OU
 `message.documentMessage` com `mimetype: application/pdf`:
 1. Extrair o base64 da mídia.
 2. Se for PDF: renderizar a primeira página como imagem antes do próximo
-   passo (node de conversão — escolher a ferramenta disponível no N8N na
+   passo (node de conversão, escolher a ferramenta disponível no N8N na
    hora; se não houver nó nativo, usar um HTTP Request pra um serviço de
-   conversão, ou pular PDF nesta primeira versão e cobrir só imagem —
-   decisão de implementação, registrar no changelog do commit se PDF ficar
+   conversão, ou pular PDF nesta primeira versão e cobrir só imagem, decisão de implementação, registrar no changelog do commit se PDF ficar
    de fora nesta rodada).
 3. Node HTTP Request → OpenAI Chat Completions
    (`https://api.openai.com/v1/chat/completions`), modelo com visão
-   (`gpt-4o-mini` ou `gpt-4o` — testar os dois com uma nota fiscal real e
+   (`gpt-4o-mini` ou `gpt-4o`, testar os dois com uma nota fiscal real e
    escolher o que ler melhor), mensagem com a imagem em base64 (`image_url`
    com `data:image/...;base64,...`) e um prompt de extração:
 
@@ -428,12 +426,12 @@ Branch paralelo ao do Step 2: quando `message.imageMessage` presente OU
    "registrar_lancamento_financeiro"` e `parameters: { amount, category,
    vendor, description }`, reusando o MESMO node "Execute Action" que já
    existe pro fluxo de texto (mesma URL, mesma credencial "Tibe Internal
-   Secret") — não duplicar o node, só rotear pra ele.
+   Secret"), não duplicar o node, só rotear pra ele.
 
 - [ ] **Step 4: Salvar o workflow**
 
 ```bash
-# Body: só {name, nodes, connections, settings} — a API rejeita campos
+# Body: só {name, nodes, connections, settings}, a API rejeita campos
 # read-only como id/createdAt/active/versionCounter (mesma armadilha já
 # documentada no CLAUDE.md desta sessão).
 curl -s -X PUT -H "X-N8N-API-KEY: $N8N_API_KEY" -H "Content-Type: application/json" \
@@ -452,7 +450,7 @@ Com o workflow publicado/ativo:
    e conferir no painel (`/financeiro`) que o lançamento foi criado com
    `related_module: geral`, status `pending`.
 3. Reportar ao usuário os dois resultados (com prints/transcrição da
-   conversa, já que não há teste automatizado pra esta parte — mudança é
+   conversa, já que não há teste automatizado pra esta parte, mudança é
    só no N8N).
 
 - [ ] **Step 6: Documentar**

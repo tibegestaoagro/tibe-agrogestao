@@ -1,10 +1,10 @@
-# Agente WhatsApp: ajuda e resumo — Plano de Implementação
+# Agente WhatsApp: ajuda e resumo (Plano de Implementação)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** O agente WhatsApp ganha duas intenções novas — `ajuda` (resposta
+**Goal:** O agente WhatsApp ganha duas intenções novas, `ajuda` (resposta
 fixa de como usar cada recurso) e `resumo` (funil de perguntas que termina
-em dado real do rebanho/lavoura/prestador/financeiro) — e o fallback
+em dado real do rebanho/lavoura/prestador/financeiro), e o fallback
 `ambigua` fica menos robótico.
 
 **Architecture:** Mesmo padrão das 11 intenções existentes
@@ -14,7 +14,7 @@ queries Prisma que já alimentam `/dashboard`, sem action nova (mesmo
 padrão de `src/app/(dashboard)/dashboard/page.tsx`, que já consulta
 `db.animal.count`/`db.plot.count`/etc. direto, sem passar por
 `src/lib/actions/*`). O funil de perguntas do `resumo` não usa estado
-novo — reusa o mecanismo já existente de o LLM reconstruir a intenção a
+novo, reusa o mecanismo já existente de o LLM reconstruir a intenção a
 partir de `recent_history` na próxima mensagem (mesmo mecanismo da
 confirmação sim/não e do "qual das suas propriedades?").
 
@@ -24,13 +24,13 @@ confirmação sim/não e do "qual das suas propriedades?").
 
 - Contrato HTTP de `POST /api/internal/whatsapp/execute-action` não muda.
 - `resumo` e `ajuda`: `INTENT_ACCESS` com `module: null, action: "read"`
-  (sem perfil obrigatório no nível da intenção — a checagem de perfil
+  (sem perfil obrigatório no nível da intenção, a checagem de perfil
   acontece dentro do handler, por tópico/escopo).
 - Categorias fixas do `resumo`: nível 1 = `rebanho`(fazenda) /
   `lavoura`(fazenda) / `prestador`(prestador) / `financeiro`(sempre);
   nível 2 (só sob `prestador`) = `clientes` / `agendamentos` /
   `contas_a_receber`.
-- Nenhum estado de conversa novo no Tibé — toda a lógica de "já
+- Nenhum estado de conversa novo no Tibé, toda a lógica de "já
   perguntei, não pergunto de novo" fica no prompt do LLM (N8N), não no
   router.
 
@@ -155,7 +155,7 @@ async function callExecute(input: {
 }
 
 async function main() {
-  console.log("🔒 M12 — ajuda e resumo\n");
+  console.log("🔒 M12, ajuda e resumo\n");
 
   // ── Tenant A: os dois perfis (fazenda + prestador) ──────────────────
   const tenantA = await prisma.tenant.create({
@@ -674,16 +674,16 @@ git commit -m "Adiciona intencoes ajuda e resumo (funil de dados) ao agente What
 
 ---
 
-## Task 3: Prompt do classificador (N8N) — ajuda, resumo, e "não pergunte 2x"
+## Task 3: Prompt do classificador (N8N), ajuda, resumo, e "não pergunte 2x"
 
-**Files:** nenhum arquivo deste repositório — mudança no node
+**Files:** nenhum arquivo deste repositório, mudança no node
 `Classificar Intenção (OpenAI)` do workflow "Tibe - Atendimento WhatsApp
 (Evolution)", via API REST do N8N (mesmo mecanismo já usado nas sessões
 anteriores: `GET`/`PUT /api/v1/workflows/:id`, credenciais em `.env` como
 `URL_N8N`/`N8N_API_KEY`, workflow id `UAAA96aJFiiFsQCL`).
 
 **Interfaces:**
-- Consumes: intenções `ajuda`/`resumo` da Task 1/2 — o prompt precisa
+- Consumes: intenções `ajuda`/`resumo` da Task 1/2, o prompt precisa
   listar exatamente esses nomes e os parâmetros que o handler espera
   (`topic` pra `ajuda`; `scope` pra `resumo`, com os valores exatos
   `rebanho`/`lavoura`/`prestador`/`financeiro`/`clientes`/
@@ -705,8 +705,8 @@ intenções com um bullet cada (`- nome_intencao: {parametros}`). Adicione,
 antes do bullet `- ambigua:`, estes dois:
 
 ```
-- ajuda: {topic?} — o usuário está perguntando COMO usar um recurso (ex: "como cadastro um animal?", "quais campos tem?"), não tentando executar a ação. topic é o nome de uma das intenções acima (cadastrar_animal, registrar_peso, registrar_vacina, registrar_movimento, cadastrar_servico_ordem, consultar_saldo, consultar_animal, consultar_cliente, gerar_relatorio, registrar_lancamento_financeiro) se a pergunta for sobre algo específico, ou omitido se for uma pergunta geral tipo "o que você faz?"/"me ajuda".
-- resumo: {scope?} — o usuário quer saber o que já está cadastrado (ex: "me mostra o que eu tenho", "quantos animais eu tenho"). scope é um destes valores exatos, conforme o que a mensagem OU o histórico recente indicam: "rebanho", "lavoura", "prestador", "financeiro" (nível 1), ou "clientes"/"agendamentos"/"contas_a_receber" (nível 2, só depois do assistente ter perguntado sobre "prestador"). Omita scope se a pessoa ainda não especificou.
+- ajuda: {topic?}, o usuário está perguntando COMO usar um recurso (ex: "como cadastro um animal?", "quais campos tem?"), não tentando executar a ação. topic é o nome de uma das intenções acima (cadastrar_animal, registrar_peso, registrar_vacina, registrar_movimento, cadastrar_servico_ordem, consultar_saldo, consultar_animal, consultar_cliente, gerar_relatorio, registrar_lancamento_financeiro) se a pergunta for sobre algo específico, ou omitido se for uma pergunta geral tipo "o que você faz?"/"me ajuda".
+- resumo: {scope?}, o usuário quer saber o que já está cadastrado (ex: "me mostra o que eu tenho", "quantos animais eu tenho"). scope é um destes valores exatos, conforme o que a mensagem OU o histórico recente indicam: "rebanho", "lavoura", "prestador", "financeiro" (nível 1), ou "clientes"/"agendamentos"/"contas_a_receber" (nível 2, só depois do assistente ter perguntado sobre "prestador"). Omita scope se a pessoa ainda não especificou.
 ```
 
 Logo depois do bullet `- ambigua:` já existente, adicione esta regra
@@ -714,7 +714,7 @@ Logo depois do bullet `- ambigua:` já existente, adicione esta regra
 mais um item da lista):
 
 ```
-- Se o histórico recente mostra que o assistente já fez uma pergunta de esclarecimento sobre "resumo" (perguntando qual categoria: rebanho/lavoura/prestador/financeiro ou clientes/agendamentos/contas_a_receber) e a mensagem atual do usuário NÃO indica claramente uma dessas opções, classifique como "ambigua" em vez de "resumo" de novo — não repita a pergunta.
+- Se o histórico recente mostra que o assistente já fez uma pergunta de esclarecimento sobre "resumo" (perguntando qual categoria: rebanho/lavoura/prestador/financeiro ou clientes/agendamentos/contas_a_receber) e a mensagem atual do usuário NÃO indica claramente uma dessas opções, classifique como "ambigua" em vez de "resumo" de novo, não repita a pergunta.
 ```
 
 - [ ] **Step 3: Publicar (só os 4 campos aceitos pela API)**

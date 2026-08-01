@@ -6,7 +6,7 @@ import { fetchEvolutionMediaBase64 } from "@/lib/whatsapp-media";
 /**
  * POST /api/internal/whatsapp/fetch-media (spec 2026-07-28): chamado pelo N8N
  * quando uma mensagem de áudio/imagem/documento chega sem base64 inline no
- * webhook (comportamento inconsistente da Evolution API em produção — ver
+ * webhook (comportamento inconsistente da Evolution API em produção: ver
  * src/lib/whatsapp-media.ts). Busca a mídia decriptada sob demanda.
  */
 

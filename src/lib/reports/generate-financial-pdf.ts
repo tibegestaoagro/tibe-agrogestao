@@ -90,9 +90,9 @@ export async function generateFinancialPdf(
   }
   for (const e of entries) {
     const amount = decToNum(e.amount) ?? 0;
-    const dueDate = e.due_date ? e.due_date.toLocaleDateString("pt-BR") : "—";
+    const dueDate = e.due_date ? e.due_date.toLocaleDateString("pt-BR") : "sem data";
     writeLine(
-      `${dueDate}  ·  ${ENTRY_LABEL[e.entry_type]}  ·  ${e.category ?? "—"}  ·  ${brl(amount)}  ·  ${STATUS_LABEL[e.status]}  ·  ${MODULE_LABEL[e.related_module ?? "geral"]}`,
+      `${dueDate}  ·  ${ENTRY_LABEL[e.entry_type]}  ·  ${e.category ?? "não informado"}  ·  ${brl(amount)}  ·  ${STATUS_LABEL[e.status]}  ·  ${MODULE_LABEL[e.related_module ?? "geral"]}`,
       { size: 9 },
     );
   }
