@@ -1,5 +1,8 @@
 # Onda 1: briefings dos agentes
 
+**Agentes desta onda: A1, A2 e A3.** O A4 (sistema de design) foi movido para a
+Onda 3, ver seção no fim deste documento.
+
 **Base:** [plano-separacao-e-mobile.md](plano-separacao-e-mobile.md)
 **Decisões confirmadas pelo usuário em 31/07/2026:**
 separação por contrato (não por deploy), aplicativo sem regra de negócio
@@ -175,6 +178,27 @@ src/app/layout.tsx           (AUTORIZADO: só registrar o service worker)
 - Nenhuma resposta de API aparece no cache.
 
 ---
+
+## Sistema de design: adiado para a Onda 3
+
+O usuário enviou a identidade visual em `docs/idVisual/` (logo e mockup de
+dashboard) e pediu a adopção do shadcn. **Decidiu-se aplicar isso na Onda 3**,
+com o argumento de que visual novo sobre rotas que ainda vão mudar é retrabalho.
+
+Registrado para quem for executar depois:
+
+- **A paleta muda.** Hoje o sistema usa `#2E7D32` e `#1B5E20`. A identidade nova
+  é mais escura e inclui **laranja como cor de ação**, que hoje não existe.
+  Valores estimados do JPEG: verde escuro `#12321F`, verde médio `#5A9E2F`,
+  laranja `#F07A1F`, fundo `#F7F6F2`. Pedir os valores exatos da marca antes de
+  fixar tokens.
+- **`npx shadcn@latest init` trava neste ambiente** esperando prompt interativo
+  (registrado no `CLAUDE.md`). Usar as flags não interativas; se ainda travar,
+  seguir manualmente, que foi como os componentes atuais nasceram.
+- **O mockup mostra a navegação do documento do cliente** (Início, Minha
+  Fazenda, Meu Dia, Calculadora Pecuária, Fazenda em Números, WhatsApp), não a
+  atual. Reestruturar navegação é mudança de produto e pertence às tarefas de
+  rebanho e áreas novas, não ao agente de design.
 
 ## Ponto de integração da Onda 1
 

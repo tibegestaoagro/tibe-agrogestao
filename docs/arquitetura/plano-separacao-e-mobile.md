@@ -244,6 +244,7 @@ WhatsApp.
 |---|---|---|
 | **C1 Rebanho por categoria** | `prisma/schema.prisma`, `src/lib/actions/animals.ts`, herd novo | **Dono exclusivo do schema nesta onda.** Nenhum outro agente migra |
 | **C2 Calculadora Pecuária** | `src/lib/calculadoras/**`, páginas próprias | Zero schema, zero colisão. Pode rodar junto com qualquer coisa |
+| **C3 Sistema de design** | `src/components/ui/**`, `tailwind.config.ts`, `components.json`, `globals.css` | shadcn e a identidade nova de `docs/idVisual`. Movido da Onda 1 para cá por decisão do usuário: aplicar visual novo sobre rotas que ainda vão mudar seria retrabalho |
 
 C2 é o candidato ideal a paralelismo: cálculo puro, sem banco, sem integração.
 
