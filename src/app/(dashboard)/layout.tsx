@@ -8,6 +8,7 @@ import { canAccess } from "@/lib/permissions";
 import DashboardShell from "@/components/layout/dashboard-shell";
 import type { NavLink } from "@/components/layout/sidebar";
 import InstallInvite from "@/components/pwa/install-invite";
+import NotificationOptIn from "@/components/pwa/notification-opt-in";
 
 const ROLE_LABEL: Record<string, string> = {
   OWNER: "Proprietário",
@@ -73,6 +74,7 @@ export default async function DashboardLayout({
         {children}
       </DashboardShell>
       <InstallInvite />
+      <NotificationOptIn />
     </>
   );
 }

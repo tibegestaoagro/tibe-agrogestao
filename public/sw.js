@@ -1,10 +1,13 @@
 /* eslint-disable */
 /**
- * Service worker do Tibé (Onda 1, agente A3).
+ * Service worker do Tibé (Onda 1, agente A3; push adicionado na Onda 2,
+ * agente B1).
  *
- * Faz duas coisas e mais nada:
+ * Faz tres coisas e mais nada:
  *   1. guarda recursos estaticos em cache, para o aplicativo abrir rapido;
- *   2. mostra a tela de offline quando a navegacao falha por falta de rede.
+ *   2. mostra a tela de offline quando a navegacao falha por falta de rede;
+ *   3. mostra a notificacao do sistema quando chega um push, e abre/foca o
+ *      painel quando o usuario clica nela.
  *
  * ---------------------------------------------------------------------------
  * A REGRA QUE NAO PODE SER QUEBRADA: nenhuma resposta de /api/ entra no cache.
@@ -16,19 +19,20 @@
  * o que esta explicitamente autorizado. Uma lista de proibicao seria frageil,
  * porque bastaria alguem criar uma rota nova para o vazamento aparecer sozinho.
  * O bloqueio explicito de /api/ logo no inicio do `fetch` e defesa em segunda
- * camada, nao a defesa principal.
+ * camada, nao a defesa principal. Os ouvintes `push`/`notificationclick`
+ * abaixo nao tocam nesse pipeline de cache/fetch: sao um mecanismo do
+ * navegador inteiramente separado.
  *
  * Documento HTML tambem nao entra em cache: /dashboard e as demais paginas do
  * painel sao renderizadas no servidor com dado do tenant.
  *
  * ---------------------------------------------------------------------------
- * Push (notificacao) NAO faz parte desta onda.
+ * Push (Onda 2, seam de notificacao em src/lib/notify).
  * ---------------------------------------------------------------------------
- * Fica para a Onda 2, junto com o seam de notificacao. Quando chegar, os
- * ouvintes `push` e `notificationclick` entram no fim deste arquivo e a
- * inscricao (`registration.pushManager.subscribe`) fica no componente de UI, ja
- * que exige gesto do usuario. Nada disso esta implementado aqui de proposito:
- * registrar um ouvinte vazio agora so criaria a impressao de que existe.
+ * A inscricao (`registration.pushManager.subscribe`) fica no componente de UI
+ * (src/components/pwa/notification-opt-in.tsx), ja que exige gesto do
+ * usuario; este arquivo so recebe o push ja enviado pelo servidor e desenha a
+ * notificacao.
  */
 
 // Trocar a versao invalida os caches antigos no `activate`. E o unico botao de
@@ -199,3 +203,58 @@ async function trim(cache) {
     // Cache cheio ou indisponível: seguir sem podar é melhor do que falhar.
   }
 }
+
+/** Notificação padrão quando o payload do push não é o esperado (não deveria acontecer, mas uma notificação genérica é melhor que nenhuma). */
+const DEFAULT_PUSH = { title: "Tibé", body: "Você tem uma novidade no painel.", url: "/dashboard" };
+
+/**
+ * Push (Onda 2): o corpo já vem pronto (title/body/url) do servidor via
+ * web-push (src/lib/notify/push.ts); este ouvinte só desenha a notificação
+ * do sistema. `event.waitUntil` mantém o service worker vivo até
+ * `showNotification` terminar, como o navegador exige.
+ */
+self.addEventListener("push", (event) => {
+  let payload = DEFAULT_PUSH;
+  try {
+    if (event.data) payload = { ...DEFAULT_PUSH, ...event.data.json() };
+  } catch {
+    // Payload não é JSON válido: segue com o texto genérico acima.
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      data: { url: payload.url },
+    }),
+  );
+});
+
+/**
+ * Clique na notificação: foca uma aba já aberta do painel na mesma URL, se
+ * existir, senão abre uma nova. Nunca toca no cache (mesma regra do resto
+ * deste arquivo: só o pipeline de `fetch` acima decide o que é guardado).
+ */
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = event.notification.data && event.notification.data.url ? event.notification.data.url : "/dashboard";
+
+  event.waitUntil(
+    (async () => {
+      const clientsList = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const existing = clientsList.find((c) => {
+        try {
+          return new URL(c.url).pathname === url;
+        } catch {
+          return false;
+        }
+      });
+      if (existing) {
+        await existing.focus();
+        return;
+      }
+      await self.clients.openWindow(url);
+    })(),
+  );
+});
