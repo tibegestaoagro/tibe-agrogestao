@@ -27,7 +27,13 @@ escopos do `resumo`, atualizar o nó `Classificar Intenção (OpenAI)` na
 instância, senão a feature fica pronta no Tibé e **inalcançável pelo
 WhatsApp**. Foi o que aconteceu com o Módulo 17: `registrar_previsao_vacina`,
 `contas_a_pagar` e `ordens_a_faturar` só entraram no prompt em 2026-07-30,
-dias depois de o código ir a produção.
+dias depois de o código ir a produção. **Aconteceu de novo com o Módulo 25**:
+`registrar_lote_animal` ficou pronto no código desde 2026-08-03 e só foi
+notado e corrigido no prompt em 2026-08-04, junto da entrada do Módulo 27
+(`criar_tarefa`). A partir de 2026-08-04 o payload enviado ao classificador
+também inclui `current_date` (`$now.toISODate()`), necessário pra `criar_tarefa`
+interpretar datas relativas ("quinta", "amanhã") de verdade: sem isso o
+modelo não tem como saber que dia é hoje.
 
 **Alertas não passam pelo n8n** (mudança de 2026-07-30): o Tibé envia direto
 pelo provider ativo (`sendWhatsAppMessage`). O n8n cuida apenas do sentido de
