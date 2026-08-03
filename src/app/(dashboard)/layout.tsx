@@ -73,9 +73,12 @@ export default async function DashboardLayout({
     },
     { kind: "link", href: "/meu-dia", label: "Meu Dia", icon: "meu-dia", show: true },
     { kind: "link", href: "/calculadoras", label: "Calculadora Pecuária", icon: "calculadora", show: true },
-    // "Fazenda em Números" e "WhatsApp" existem no mockup mas não têm
-    // conteúdo/dado real ainda (decisão do briefing): entram desabilitadas.
-    { kind: "soon", label: "Fazenda em Números", icon: "numeros" },
+    // "Fazenda em Números" (Fase 2): esclarecido pelo usuário como área de
+    // inteligência que centraliza os relatórios (DRE, evolução do rebanho,
+    // produtividade, faturamento), não mais um placeholder "em breve".
+    { kind: "link", href: "/relatorios", label: "Fazenda em Números", icon: "numeros", show: true },
+    // "WhatsApp" continua sem conteúdo real (nenhum número de contato
+    // configurado em lugar nenhum do código ainda): segue desabilitado.
     { kind: "soon", label: "WhatsApp", icon: "whatsapp" },
     {
       kind: "group",

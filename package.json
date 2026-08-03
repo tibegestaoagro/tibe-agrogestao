@@ -12,6 +12,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:check": "tsx scripts/db-check.ts",
     "db:seed": "tsx prisma/seed.ts",
+    "seed:demo": "tsx scripts/seed-demo-data.ts",
     "auth:check": "tsx scripts/auth-check.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:m1": "tsx scripts/m1-isolation.test.ts",

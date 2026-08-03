@@ -93,7 +93,10 @@ export default function Sidebar({
         }`}
       >
         <div className="flex items-center justify-between px-5 py-5">
-          <span className="text-xl font-bold tracking-tight text-white">Tibé</span>
+          <div className="flex items-center gap-2">
+            <TibeMark className="h-8 w-8 shrink-0" />
+            <span className="text-xl font-bold tracking-wide text-white">TIBÉ</span>
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -197,9 +200,12 @@ export default function Sidebar({
           })}
         </nav>
 
-        <div className="space-y-3 px-3 pb-3">
-          <div className="flex items-center justify-between gap-2 rounded-lg bg-white/5 px-3 py-2.5">
-            <div className="min-w-0">
+        <div className="space-y-2 px-3 pb-2">
+          <div className="flex items-center gap-2.5 rounded-lg bg-white/5 px-3 py-2.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-tibe-primary/25 text-tibe-primary">
+              <Home className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-white">{tenantName}</p>
               <p className="truncate text-xs text-tibe-light/60">{userName}</p>
             </div>
@@ -224,23 +230,77 @@ export default function Sidebar({
             </div>
           </div>
 
-          <svg
-            viewBox="0 0 240 56"
-            aria-hidden="true"
-            className="h-14 w-full text-tibe-dark"
-          >
-            <path
-              d="M0 40 Q 30 20 60 34 T 120 30 T 180 38 T 240 28 V56 H0 Z"
-              fill="currentColor"
-              opacity="0.6"
-            />
-            <path
-              d="M0 48 Q 40 32 90 44 T 180 42 T 240 44 V56 H0 Z"
-              fill="currentColor"
-            />
-          </svg>
+          <FarmSilhouette className="h-16 w-full text-tibe-dark" />
         </div>
       </aside>
     </>
+  );
+}
+
+/** Marca do Tibé (docs/idVisual/id-visual-marca.jpeg), simplificada para 32px. */
+function TibeMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} aria-hidden="true">
+      <path
+        d="M20 10 L9 24 L20 38"
+        fill="none"
+        stroke="#FCF8F5"
+        strokeWidth={5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M28 10 L39 24 L28 38"
+        fill="none"
+        stroke="#649721"
+        strokeWidth={5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <rect x="17.5" y="15" width="13" height="4" rx="1.5" fill="#FCF8F5" />
+      <rect x="22" y="15" width="4" height="20" rx="1.5" fill="#FCF8F5" />
+      <path
+        d="M20 9 Q24 5 28 9"
+        fill="none"
+        stroke="#E97D0F"
+        strokeWidth={2}
+        strokeLinecap="round"
+      />
+      <path
+        d="M22 6.5 Q24 4.5 26 6.5"
+        fill="none"
+        stroke="#E97D0F"
+        strokeWidth={2}
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+/** Ilustração decorativa leve (colinas + árvores), sem imagem/asset externo. */
+function FarmSilhouette({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 240 64" aria-hidden="true" className={className}>
+      <path
+        d="M0 44 Q30 24 60 38 T120 34 T180 42 T240 32 V64 H0 Z"
+        fill="currentColor"
+        opacity="0.55"
+      />
+      <path
+        d="M0 52 Q40 36 90 48 T180 46 T240 48 V64 H0 Z"
+        fill="currentColor"
+      />
+      {[
+        { x: 34, s: 1 },
+        { x: 58, s: 0.8 },
+        { x: 196, s: 0.9 },
+        { x: 218, s: 1.1 },
+      ].map((tree, i) => (
+        <g key={i} transform={`translate(${tree.x} 30) scale(${tree.s})`} opacity="0.9">
+          <rect x="-1.5" y="10" width="3" height="10" fill="currentColor" />
+          <circle cx="0" cy="8" r="7" fill="currentColor" />
+        </g>
+      ))}
+    </svg>
   );
 }

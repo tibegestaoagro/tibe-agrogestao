@@ -22,66 +22,75 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 ## Estado atual
 
 - Atualizado em: 2026-08-04
-- Última rodada: **pausa deliberada no app mobile**, a pedido do usuário,
-  pra revisar o layout do painel web usando o mockup do cliente
-  (`docs/idVisual/ID-visual-dashboard.jpeg`) como referência. Briefing em
-  `docs/design/briefing-novo-layout.md` (leitura do mockup, gap vs. hoje,
-  achados técnicos do shadcn neste projeto, decisões fechadas com o
-  usuário, fatiamento em fases). **Fase 1 (sidebar + IA de navegação +
-  topbar) implementada e validada nesta rodada; ainda não commitada.**
+- Última rodada: continuação da iniciativa de layout (pausa deliberada no
+  app mobile, ainda pausado). Fase 1 (sidebar + IA de navegação + topbar)
+  **commitada** (`3b65490`). Nesta rodada: correções pedidas pelo usuário
+  sobre a Fase 1 (faltava laranja, "Fazenda em Números" é área de
+  inteligência, não placeholder) + Fase 2/3 do layout tratadas juntas
+  (KPIs, gráficos, Meu Dia+calendário, calculadoras, "Fazenda em Números"
+  real) + dado de demonstração de 2 anos pra validar visualmente. Ver
+  `docs/design/briefing-novo-layout.md` (seções 10 e 11). **Implementado e
+  validado; ainda não commitado.**
 - Produção: <https://tibe-agrogestao.vercel.app/> reflete até o Módulo 27
-  (Meu Dia) + ajuste do n8n, push `f0d7871`. Módulo 28 (`ec2d478`/`39c1a32`)
-  e a Fase 1 do layout continuam só locais, push/deploy não solicitado.
+  (Meu Dia) + ajuste do n8n, push `f0d7871`. Módulo 28 (`ec2d478`/`39c1a32`),
+  a Fase 1 (`3b65490`) e a Fase 2/3 do layout continuam só locais,
+  push/deploy não solicitado.
 - Banco: nova migração `20260804180000_financial_category_alert_preference`
   (Módulo 28) aplicada só no Docker local; Neon pendente até aprovação de
-  deploy.
+  deploy. Nenhuma migração nova nesta rodada de layout.
 
-### Entregue nesta rodada (briefing de layout + Fase 1: sidebar e navegação)
+### Entregue nesta rodada (Fase 2+3 do layout + dado de demonstração)
 
-- Reabre deliberadamente a reestruturação de navegação, adiada 3 vezes em
-  rodadas anteriores (Onda 1 A3/A4, Onda 3 C2/C3): o usuário autorizou
-  agora, com o mockup como referência de IA (7 itens agrupados em vez dos
-  12 links planos de antes).
-- Sidebar (`src/components/layout/sidebar.tsx`, reescrita): fundo
-  `tibe.darkest`, ícones lucide, estado ativo em `tibe.primary`, grupos
-  "Minha Fazenda" (Rebanho/Máquinas/Lavoura/Prestador/Financeiro/Alertas) e
-  "Configurações" (aponta pro hub `/configuracoes` já existente + "Minha
-  senha") expansíveis, "Fazenda em Números" e "WhatsApp" desabilitados
-  ("em breve": nenhum dos dois tem conteúdo/número real ainda), cartão de
-  conta no rodapé (tenant + usuário + atalhos de senha/logout) no lugar do
-  texto que antes só existia no header.
-- **Decisão deliberada**: "Configurações da conta" na sidebar aponta pro
-  hub `/configuracoes` (gated `hasMinRole(role,"ADMIN")`) em vez de repetir
-  cada link (Usuários/Assinatura/Categorias/Alertas) com sua própria regra
-  de permissão na sidebar, evitando duplicar controle de acesso em dois
-  lugares (confirmado que `hasMinRole("ADMIN")` reproduz exatamente o que
-  `canAccess("usuarios"/"assinatura")` já fazia).
-- Topbar (`dashboard-shell.tsx`): sem busca/sino/seletor de fazenda
-  (nenhum dos três existe de verdade hoje: decisão explícita de
-  simplificar, não esquecimento); avatar de iniciais no lugar do texto de
-  nome/papel.
-- Notificações in-app, busca global, avatar de foto e seletor de
-  propriedade ficam fora desta rodada: cada uma é decisão de produto
-  própria (registrado no briefing).
-- Validado com navegador real (login, os 2 grupos expansíveis, navegação
-  pra filho de grupo com destaque correto, hub de Configurações, atalhos
-  do rodapé, drawer mobile 390×844). `npm run build` limpo. Sem teste
-  automatizado novo (mudança é só de camada visual/navegação, sem lógica
-  de servidor).
-- **Achado não corrigido, fora do escopo desta fase**: o aviso de
-  instalação do PWA (`install-invite.tsx`, `fixed inset-x-0 bottom-0
-  z-50`) sobrepõe o novo cartão de rodapé da sidebar no mobile. Já
-  sobrepunha conteúdo antes; só ficou mais visível agora que o rodapé tem
-  conteúdo de verdade. Registrado no briefing, não bloqueia.
-- Próximo desta iniciativa: Fase 2 (cards de KPI com o estilo do mockup) e
-  Fase 3 (calendário + Meu Dia + calculadoras embutidos no dashboard).
+- **`scripts/seed-demo-data.ts`** (`npm run seed:demo`, recusa rodar fora
+  do Docker local): ~2 anos de histórico simulado pro tenant Da Mata
+  Sementes (Property "Fazenda Boa Vista", mesmo nome do mockup): ~230
+  animais ativos, vendas/mortes, pesagens, vacinações, 5 máquinas com
+  manutenções, 3 talhões com 2 anos de ciclos, 6 clientes/30 ordens de
+  serviço, ~85 tarefas, 24 meses de financeiro recorrente. Todo lançamento
+  ligado segue exatamente o formato de `createLinkedEntry` das actions
+  reais (mesma categoria/`related_module`/mapeamento due_date-paid_at),
+  pra não ensinar convenção divergente da que o app usa de verdade.
+- **Dashboard redesenhado** (`(dashboard)/dashboard/page.tsx`): 4 KPIs
+  hero verde/laranja no estilo do mockup, indicadores secundários mantidos,
+  gráfico "Evolução do rebanho" (`getHerdEvolution()`, novo em
+  `animals.ts`: reconstrói por diferença, sem snapshot gravado, mesmo
+  espírito de status computado já usado em `Task`/`FinancialEntry`),
+  gráfico "Receitas x despesas" com legenda de totais+saldo, painel Meu
+  Dia + calendário do mês (marcador só em item **pendente**), grade
+  "Calculadora Pecuária" embutida.
+- **"Fazenda em Números" virou link real** (`/relatorios`): esclarecido
+  pelo usuário como área de inteligência que centraliza relatórios, não
+  mais "em breve". Reusa `getDre`/`getCashFlow`/`getHerdEvolution` já
+  existentes, sem cálculo novo: resultado do mês por módulo, 2 gráficos de
+  12 meses, produtividade da lavoura, faturamento do prestador. "WhatsApp"
+  segue "em breve" (nenhum número de contato configurado em lugar nenhum
+  do código ainda).
+- **2 consolidações de duplicação encontradas no caminho**: catálogo das
+  12 calculadoras (antes só dentro de `/calculadoras/page.tsx`, agora
+  `src/lib/calculadoras/catalog.ts`, reusado também no dashboard);
+  `MODULE_LABEL` (antes duplicado em `financeiro/page.tsx` e
+  `generate-financial-pdf.ts`, e as duas cópias já tinham divergido: a do
+  PDF estava sem `"maquinas"`, bug real e silencioso ali). Consolidado em
+  `src/lib/related-modules.ts`.
+- **Marca real na sidebar**: logo do Tibé simplificado em SVG inline
+  (`docs/idVisual/id-visual-marca.jpeg`), ilustração do rodapé ganhou
+  árvores além das colinas.
+- Validado com navegador real, sessão logada, dado semeado: dashboard,
+  `/relatorios`, `/calculadoras`, `/financeiro`, mobile (390×844). `npm run
+  build` limpo e suíte ampla (`isolation`, `m1`-`m5`, `m17`, `m25`-`m29`)
+  sem regressão.
+- **Achado, não corrigido, fora do escopo**: o aviso de instalação do PWA
+  (`install-invite.tsx`) sobrepõe o rodapé da sidebar no mobile (já
+  sobrepunha conteúdo antes, mais visível agora). Registrado no briefing.
 
 ### Pendências e próximo passo
 
-- **Aprovar e commitar a Fase 1 do layout** (ainda não commitada nesta
-  rodada). Depois, decidir com o usuário: seguir direto pra Fase 2/3 do
-  layout, ou voltar pro app mobile (que está pausado, não cancelado).
-- **Push do Módulo 28 e desta Fase 1 pra produção**: ainda não solicitado.
+- **Aprovar e commitar a Fase 2/3 do layout** (implementada e validada
+  nesta rodada, ainda não commitada). Depois, decidir com o usuário: mais
+  alguma correção de fidelidade visual, ou voltar pro app mobile (pausado,
+  não cancelado).
+- **Push do Módulo 28 e do layout (Fase 1+2+3) pra produção**: ainda não
+  solicitado.
 - Confirmações ainda pendentes da Agromax: modelo de rebanho por categoria
   (Módulo 25, sem confirmação formal), destino da Lavoura.
 - Validação técnica das 3 calculadoras de confiança média (água, calagem,
@@ -95,9 +104,11 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 
 ## Histórico recente
 
-- 2026-08-04: briefing de layout (`docs/design/briefing-novo-layout.md`) e
-  Fase 1 (sidebar escura + nova IA de navegação + topbar simplificada)
-  implementados e validados; commit desta rodada pendente.
+- 2026-08-04: Fase 2+3 do layout (KPIs, gráficos, Meu Dia+calendário,
+  calculadoras, "Fazenda em Números" real) + seed de demonstração de 2
+  anos; commit desta rodada pendente.
+- 2026-08-04: Fase 1 do layout (sidebar escura + nova IA de navegação +
+  topbar simplificada) implementada e validada. Commit `3b65490`.
 - 2026-08-04: Módulo 28 (ajustes financeiros e tela inicial reformulada)
   implementado. Commits `ec2d478`/`39c1a32`, push ainda não solicitado.
 - 2026-08-04: Módulo 27 (Meu Dia: tarefas e compromissos) integrado e
@@ -105,6 +116,3 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
   registrar_lote_animal, que faltava desde a Onda 3). Commit `f0d7871`.
 - 2026-08-04: Módulo 26 (máquinas e equipamentos) integrado e implantado
   em produção. Commit `f7aa0b9`.
-- 2026-08-04: Onda 4 (GET /api/v1/tenant, correção de /docs/api, branded
-  type, paleta oficial do cliente) integrada e implantada em produção.
-  Commits `c9e7348`/`5606d62`/`02e901a`.

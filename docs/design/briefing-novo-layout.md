@@ -232,3 +232,79 @@ reagrupamento de links que já existem.
 - Próximo: Fase 2 (cards de KPI com o estilo do mockup) e Fase 3
   (calendário + Meu Dia + grade de calculadoras embutidos no dashboard),
   cada uma com sua própria rodada de validação.
+
+## 10. Correções pedidas após a Fase 1 (2026-08-04)
+
+Feedback do usuário ao ver a Fase 1 em produção local: faltava o laranja da
+paleta (só aparecia depois que os KPIs coloridos existissem, ou seja, Fase
+2), "Fazenda em Números" não é um placeholder e sim uma área de
+inteligência que centraliza os relatórios, e o pedido explícito de ir o
+mais perto possível do mockup, com dado de demonstração realista (2 anos)
+para validar visualmente em vez de telas zeradas. As duas fases (2 e 3 do
+plano original) foram tratadas juntas nesta rodada, porque no mockup elas
+formam uma composição visual única (separar a entrega deixaria o dashboard
+visualmente incoerente por uma rodada inteira).
+
+## 11. Fase 2+3 (KPIs, gráficos, Meu Dia+calendário, calculadoras, Fazenda em Números): entregue (2026-08-04)
+
+- **Dado de demonstração**: `scripts/seed-demo-data.ts` (`npm run seed:demo`,
+  recusa rodar fora do Postgres local/Docker). Gera ~2 anos de histórico
+  para o tenant Da Mata Sementes: ~230 animais ativos (Property "Fazenda
+  Boa Vista", mesmo nome do mockup), vendas/mortes com `AnimalMovement` +
+  `FinancialEntry` ligado, pesagens, vacinações (algumas com próximo reforço
+  em ≤20 dias, pra alimentar alerta/KPI de verdade), 5 máquinas com
+  manutenções (2 propositalmente dentro da janela de "próximas"), 3 talhões
+  com ciclos de 2 anos (1 ativo por talhão), 6 clientes/30 ordens de
+  serviço, ~85 tarefas (Meu Dia), 24 meses de despesas recorrentes com uma
+  fatia pending/vencida de propósito. Todo lançamento financeiro ligado
+  segue byte a byte o formato de `createLinkedEntry` (mesma categoria,
+  mesmo `related_module`, mesmo mapeamento due_date/paid_at por status) das
+  actions reais (`animals.ts`, `machines.ts`, rota de faturamento de
+  ordem), pra não ensinar convenção diferente da que o app realmente usa.
+  Escala da receita da lavoura foi calibrada pra não dominar o gráfico de 6
+  meses (pecuária é o negócio principal desta fazenda-demo).
+- **`getHerdEvolution()`** (`src/lib/actions/animals.ts`): série mensal do
+  rebanho ativo, sem snapshot gravado: reconstrói por diferença (animais
+  cadastrados até o fim do mês, menos saída por venda/morte até lá), mesmo
+  espírito de status computado (não armazenado) já usado em `Task`/
+  `FinancialEntry`.
+- **Dashboard redesenhado** (`(dashboard)/dashboard/page.tsx`): 4 KPIs
+  hero no estilo do mockup (`src/components/dashboard/kpi-card.tsx`, verde
+  = positivo/informativo, laranja = atenção), indicadores secundários
+  mantidos (nenhum removido), 2 gráficos (`herd-evolution-chart.tsx` área
+  verde, `revenue-expense-chart.tsx` barras verde/laranja com legenda de
+  totais + saldo), painel Meu Dia + calendário do mês
+  (`mini-calendar.tsx`, navegação própria, marcador só em tarefa/conta/
+  vacina **pendente**, evita poluir o calendário com histórico já
+  resolvido), grade "Calculadora Pecuária" embutida
+  (`calculadora-grid.tsx`).
+- **Catálogo de calculadoras extraído** (`src/lib/calculadoras/catalog.ts`):
+  antes vivia hand-rolled só dentro de `/calculadoras/page.tsx`; agora é a
+  fonte única, reusada também na grade do dashboard.
+- **`MODULE_LABEL` consolidado** (`src/lib/related-modules.ts`): estava
+  duplicado em `financeiro/page.tsx` e `generate-financial-pdf.ts`, e as
+  duas cópias já tinham divergido (a do PDF estava sem `"maquinas"`, bug
+  real e silencioso: o relatório em PDF mostraria "undefined" pra
+  lançamento de máquina). Corrigido consolidando numa fonte só, mesma
+  categoria de gap já registrada no projeto (`RelatedModule` duplicado,
+  Módulo 26).
+- **"Fazenda em Números" saiu de "em breve" pra link real** (`/relatorios`,
+  nova página): central de relatórios que reusa `getDre`/`getCashFlow`/
+  `getHerdEvolution` já existentes (nenhum cálculo novo), com resultado do
+  mês por módulo, 2 gráficos de 12 meses, produtividade da lavoura e
+  faturamento do prestador. "WhatsApp" continua "em breve": nenhum número
+  de contato existe configurado em lugar nenhum do código ainda, mesma
+  situação de antes.
+- **Marca real na sidebar**: logo do Tibé (`docs/idVisual/id-visual-marca.jpeg`)
+  simplificado em SVG inline (não um `<img>`: fica nítido em qualquer
+  tamanho, sem asset extra pra servir), ilustração do rodapé ganhou
+  silhueta de árvores além das colinas.
+- Validado com navegador real, sessão logada, dado semeado: dashboard,
+  `/relatorios`, `/calculadoras`, `/financeiro`, mobile (390×844). `npm run
+  build` limpo e suíte ampla (`isolation`, `m1`-`m5`, `m17`, `m25`-`m29`)
+  sem regressão.
+- **Achado, não é bug**: em telas capturadas por automação logo após um
+  clique programático (sem o intervalo natural de interação humana), os
+  gráficos Recharts podem aparecer momentaneamente em branco até o
+  `ResizeObserver` interno assentar; num carregamento normal (humano) isso
+  não é perceptível. Não mexido, não é regressão de produto.

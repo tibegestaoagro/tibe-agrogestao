@@ -2,6 +2,7 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
 import type { TenantPrismaClient } from "@/lib/prisma";
 import { getDre } from "@/lib/actions/financial-reports";
 import { decToNum } from "@/lib/serialize";
+import { MODULE_LABEL } from "@/lib/related-modules";
 
 /**
  * Gera o PDF do relatório financeiro (spec 4.7): resumo do período, DRE por
@@ -10,12 +11,6 @@ import { decToNum } from "@/lib/serialize";
  * conteúdo do relatório.
  */
 
-const MODULE_LABEL: Record<string, string> = {
-  rebanho: "Rebanho",
-  lavoura: "Lavoura",
-  servico: "Prestador de Serviço",
-  geral: "Geral",
-};
 const ENTRY_LABEL: Record<string, string> = { income: "Receita", expense: "Despesa" };
 const STATUS_LABEL: Record<string, string> = {
   pending: "Pendente",

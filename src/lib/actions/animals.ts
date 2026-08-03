@@ -358,6 +358,38 @@ export async function listUpcomingVaccinations(db: TenantPrismaClient, days: num
   }));
 }
 
+/**
+ * Série mensal do tamanho do rebanho ativo, para o gráfico "Evolução do
+ * rebanho" (briefing de layout, Fase 2). Não existe snapshot histórico
+ * gravado: reconstrói cada ponto por diferença (animais já cadastrados até
+ * o fim do mês, menos os que já saíram por venda/morte até lá), mesmo
+ * espírito de `calculatePendingDaysOverdue` (status computado, nunca
+ * armazenado).
+ */
+export async function getHerdEvolution(
+  db: TenantPrismaClient,
+  opts: { months: number },
+): Promise<{ month: string; count: number }[]> {
+  const now = new Date();
+  const points: { month: string; count: number }[] = [];
+
+  for (let i = opts.months - 1; i >= 0; i--) {
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59, 999);
+    const [registered, departed] = await Promise.all([
+      db.animal.count({ where: { created_at: { lte: monthEnd } } }),
+      db.animalMovement.count({
+        where: { movement_type: { in: ["sale", "death"] }, occurred_at: { lte: monthEnd } },
+      }),
+    ]);
+    points.push({
+      month: monthEnd.toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""),
+      count: Math.max(registered - departed, 0),
+    });
+  }
+
+  return points;
+}
+
 // ── Consulta (leitura, usado pelo agente WhatsApp) ──────────────────
 
 export async function getAnimalSummaryAction(

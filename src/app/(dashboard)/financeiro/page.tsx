@@ -3,6 +3,7 @@ import { getSessionUser, getTenantDb } from "@/lib/tenant-context";
 import { canWrite } from "@/lib/permissions";
 import { decToNum } from "@/lib/serialize";
 import { getDre, getCashFlow, getUpcoming, resolvePeriod } from "@/lib/actions/financial-reports";
+import { MODULE_LABEL } from "@/lib/related-modules";
 import {
   Table,
   TableHeader,
@@ -23,13 +24,6 @@ import CancelButton from "@/components/financeiro/cancel-button";
 const brl = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const ENTRY_LABEL: Record<string, string> = { income: "Receita", expense: "Despesa" };
-const MODULE_LABEL: Record<string, string> = {
-  rebanho: "Rebanho",
-  lavoura: "Lavoura",
-  servico: "Prestador",
-  maquinas: "Máquinas",
-  geral: "Geral",
-};
 const STATUS: Record<string, { label: string; variant: "amber" | "green" | "red" | "gray" }> = {
   pending: { label: "Pendente", variant: "amber" },
   paid: { label: "Pago", variant: "green" },
