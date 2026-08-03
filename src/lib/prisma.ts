@@ -158,7 +158,22 @@ function buildTenantClient(tenantId: string) {
   });
 }
 
-export type TenantPrismaClient = ReturnType<typeof buildTenantClient>;
+/**
+ * Marca de tipo (branded type, Onda 4): sem o `[tenantScopedBrand]`, o client
+ * base `PrismaClient` é estruturalmente idêntico ao que `$extends()` devolve
+ * (a extensão só muda comportamento em runtime, não o formato do tipo), então
+ * `TenantPrismaClient` era assignable a partir de `prisma` (base, sem
+ * escopo) sem erro de compilação: a garantia de isolamento dependia só de
+ * disciplina humana, não do compilador. A marca é só de TIPO (o objeto em
+ * runtime nunca tem essa propriedade de verdade); `prismaForTenant()` é o
+ * ÚNICO lugar que pode produzir o cast. Passar `prisma` onde se espera
+ * `TenantPrismaClient` agora é erro de tipo, não só uma regra a lembrar.
+ */
+declare const tenantScopedBrand: unique symbol;
+
+export type TenantPrismaClient = ReturnType<typeof buildTenantClient> & {
+  readonly [tenantScopedBrand]: true;
+};
 
 /**
  * Retorna o client Prisma escopado a um tenant. Cacheado por tenantId para reuso.
@@ -175,7 +190,7 @@ export function prismaForTenant(tenantId: string): TenantPrismaClient {
     client = buildTenantClient(tenantId);
     cache.set(tenantId, client);
   }
-  return client;
+  return client as TenantPrismaClient;
 }
 
 /**

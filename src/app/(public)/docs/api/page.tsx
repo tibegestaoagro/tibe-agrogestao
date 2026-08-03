@@ -14,14 +14,17 @@ const GROUPS: Group[] = [
         method: "POST",
         path: "/api/v1/signup/start",
         auth: "Público",
-        description: "Etapa 1 do cadastro verificado. NÃO cria conta: valida, checa duplicidade de documento/email contra os dados reais, abre um cadastro pendente e dispara o código de WhatsApp. O identificador do cadastro volta em cookie httpOnly (`tibe-signup`), nunca no corpo. Sem senha: ela é gerada no fim e enviada pelos canais verificados.",
+        description: "Etapa 1 do cadastro verificado. NÃO cria conta: valida, checa duplicidade de documento/email contra os dados reais, abre um cadastro pendente e dispara o código de WhatsApp. O identificador do cadastro volta em cookie httpOnly (`tibe-signup`), nunca no corpo. Sem senha: ela é gerada no fim e enviada pelos canais verificados. `utm_source`/`utm_medium`/`utm_campaign` são opcionais (first-touch, ver `src/lib/utm.ts`): persistidos no `Tenant` quando o cadastro conclui.",
         request: `{
   "company_name": "Fazenda Boa Vista",
   "owner_name": "Maria Silva",
   "owner_email": "maria@fazendaboavista.com.br",
   "document": "12345678000199",
   "phone": "22999990000",
-  "plan": "fazenda"
+  "plan": "fazenda",
+  "utm_source": "google",
+  "utm_medium": "cpc",
+  "utm_campaign": "lancamento"
 }`,
         response: `201
 { "data": { "state": { "whatsapp_verified": false, "email_verified": false, "phone_masked": "5522*****0000", "email_masked": "ma****@fazendaboavista.com.br", "current_step": "whatsapp", "allow_edit_after_seconds": 120 } }, "meta": {} }`,
@@ -30,9 +33,12 @@ const GROUPS: Group[] = [
         method: "POST",
         path: "/api/v1/signup/verify",
         auth: "Público (cookie do cadastro pendente)",
-        description: "Confirma o código de 6 dígitos de um canal (WhatsApp primeiro, email depois). Quando o SEGUNDO canal é confirmado, o Tenant (trial de 14 dias) e o User owner são criados, a senha temporária é enviada pelos dois canais e devolvida aqui para o login automático. Código errado, expirado ou ausente devolvem o mesmo `INVALID_CODE`; o código expira em 10 minutos e aceita no máximo 5 tentativas.",
+        description: "Confirma o código de 6 dígitos de um canal (WhatsApp primeiro, email depois). Quando o SEGUNDO canal é confirmado, o Tenant (trial de 14 dias) e o User owner são criados, a senha temporária é enviada pelos dois canais e devolvida aqui para o login automático. Código errado, expirado ou ausente devolvem o mesmo `INVALID_CODE`; o código expira em 10 minutos e aceita no máximo 5 tentativas. Duas formas de resposta: confirmar o PRIMEIRO canal devolve `completed: false` com o estado atualizado (mesmo formato de `GET /signup/state`); confirmar o SEGUNDO devolve `completed: true` com a credencial.",
         request: `{ "channel": "whatsapp", "code": "123456" }`,
-        response: `200
+        response: `200 (1º canal)
+{ "data": { "completed": false, "state": { "whatsapp_verified": true, "email_verified": false, "current_step": "email", "...": "..." } }, "meta": {} }
+
+200 (2º canal, conta criada)
 { "data": { "completed": true, "email": "maria@fazendaboavista.com.br", "temp_password": "Xy9k2Qmz" }, "meta": {} }`,
       },
       {
@@ -80,6 +86,14 @@ const GROUPS: Group[] = [
 { "data": { "id": "cl...", "profile_type": "fazenda", "active": true, "created_at": "2026-07-10T12:00:00.000Z" }, "meta": {} }`,
       },
       {
+        method: "GET",
+        path: "/api/v1/tenant",
+        auth: "Sessão · qualquer papel",
+        description: "Dados cadastrais do tenant (nome, documento, telefone, email). Leitura liberada pra qualquer papel, inclusive VISUALIZADOR: usado pelo aplicativo mobile pra mostrar o nome da fazenda na tela Início.",
+        response: `200
+{ "data": { "id": "cl...", "name": "...", "document": "...", "phone": "...", "email": "..." }, "meta": {} }`,
+      },
+      {
         method: "PATCH",
         path: "/api/v1/tenant",
         auth: "Sessão · usuarios:write",
@@ -87,6 +101,39 @@ const GROUPS: Group[] = [
         request: `{ "name": "Fazenda Boa Vista LTDA", "document": "12345678000199", "phone": "22999990000", "email": "contato@fazendaboavista.com.br" }`,
         response: `200
 { "data": { "id": "cl...", "name": "...", "document": "...", "phone": "...", "email": "..." }, "meta": {} }`,
+      },
+    ],
+  },
+  {
+    title: "Recuperação de senha",
+    note: "3 etapas, todas SEM sessão (usuário esqueceu a senha, por natureza). Só para User de tenant, não para PlatformUser.",
+    endpoints: [
+      {
+        method: "POST",
+        path: "/api/v1/password-reset/request",
+        auth: "Público",
+        description: "Pede um código de recuperação por email ou WhatsApp. Resposta sempre `{ requested: true }`, exista ou não a conta (proteção contra enumeração). Limitado por email (3/hora).",
+        request: `{ "email": "maria@fazendaboavista.com.br", "channel": "whatsapp" }`,
+        response: `200
+{ "data": { "requested": true }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/password-reset/verify",
+        auth: "Público",
+        description: "Valida o código de 6 dígitos (expira em 10 minutos, máximo 5 tentativas). Código errado e conta inexistente devolvem o mesmo `INVALID_CODE`. Sucesso devolve `reset_id`, exigido pela etapa seguinte.",
+        request: `{ "email": "maria@fazendaboavista.com.br", "code": "123456" }`,
+        response: `200
+{ "data": { "reset_id": "cl..." }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/password-reset/confirm",
+        auth: "Público (posse do `reset_id` verificado)",
+        description: "Define a nova senha. Exige `reset_id` com `verified_at` preenchido e `consumed_at` nulo (uso único). Zera `must_change_password` e exige senha forte (8+ caracteres, maiúscula, número e símbolo).",
+        request: `{ "reset_id": "cl...", "new_password": "MinhaSenha1!" }`,
+        response: `200
+{ "data": { "id": "cl..." }, "meta": {} }`,
       },
     ],
   },
@@ -117,7 +164,7 @@ const GROUPS: Group[] = [
         description: "Altera o papel de um usuário. Não é possível alterar o próprio papel, nem promover a Owner sem ser Owner.",
         request: `{ "role": "ADMIN" }`,
         response: `200
-{ "data": { "id": "cl...", "role": "ADMIN" }, "meta": {} }`,
+{ "data": { "id": "cl..." }, "meta": {} }`,
       },
       {
         method: "PATCH",
@@ -126,7 +173,7 @@ const GROUPS: Group[] = [
         description: "Ativa ou desativa um usuário (nunca deleta: preserva histórico de ações). Não é possível desativar a própria conta. Desativar sempre é permitido e libera um assento; reativar consome um assento e devolve `SEAT_LIMIT_REACHED` (422) se o plano já estiver no limite.",
         request: `{ "active": false }`,
         response: `200
-{ "data": { "id": "cl...", "active": false }, "meta": {} }`,
+{ "data": { "id": "cl..." }, "meta": {} }`,
       },
     ],
   },
@@ -795,6 +842,11 @@ export default function ApiDocsPage() {
         <code className="rounded bg-gray-100 px-1 text-xs">/api/platform/*</code> exigem uma sessão de{" "}
         <code className="rounded bg-gray-100 px-1 text-xs">PlatformUser</code>: uma instância NextAuth
         completamente separada (cookie próprio), nunca a mesma sessão de tenant.
+      </p>
+      <p className="mt-3 max-w-2xl text-gray-600">
+        <code className="rounded bg-gray-100 px-1 text-xs">meta</code> está sempre presente numa resposta de
+        sucesso, mesmo quando um exemplo abaixo mostra só{" "}
+        <code className="rounded bg-gray-100 px-1 text-xs">{"{}"}</code> por brevidade: o servidor nunca a omite.
       </p>
 
       <nav className="mt-6 flex flex-wrap gap-2">
