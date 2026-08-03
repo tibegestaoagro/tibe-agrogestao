@@ -11,19 +11,22 @@ const config: Config = {
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
-        // Identidade visual do Tibé (Onda 3, C3, 2026-08-03): tons extraídos
-        // de docs/idVisual/ (logo + mockup de dashboard fornecidos pelo
-        // cliente). Valores ainda não confirmados formalmente pela Agromax:
-        // ver relatório do agente C3 para os pixels de origem de cada tom.
-        // "accent*" é novo (laranja como cor de ação: não existia na paleta
-        // anterior).
+        // Identidade visual do Tibé. Onda 3 (C3, 2026-08-03) aplicou uma
+        // estimativa extraída por pixel de docs/idVisual/ (mockup de
+        // dashboard); Onda 4 (2026-08-04) corrigiu para os hex oficiais que
+        // o cliente enviou depois (docs/idVisual/paleta-de cores.png), fonte
+        // de verdade a partir de agora. "darkest" é um tom extra que a
+        // paleta oficial trouxe além do "dark" já existente (dois verdes
+        // bem escuros e próximos: mantidos os dois, sem descartar dado do
+        // cliente). "accent*" continua sendo laranja como cor de ação.
         tibe: {
-          primary: "#17802B",
-          dark: "#0A2A1D",
-          light: "#E7F5EA",
-          accent: "#F2600A",
-          accentDark: "#C24D08",
-          accentLight: "#FDECE2",
+          primary: "#649721",
+          dark: "#022E20",
+          darkest: "#09241B",
+          light: "#FCF8F5",
+          accent: "#E97D0F",
+          accentDark: "#BA640C",
+          accentLight: "#FCEFE2",
         },
       },
       fontFamily: {

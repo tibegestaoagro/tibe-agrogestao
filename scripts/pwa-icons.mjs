@@ -1,13 +1,16 @@
 /**
- * Gera os icones PROVISORIOS do PWA (Onda 1, agente A3) em public/icons/.
+ * Gera os icones do PWA em public/icons/.
  *
- * Por que um gerador em vez de arte solta no repo: a arte definitiva chega na
- * Onda 3 junto com a identidade visual nova (docs/idVisual/). Ate la os icones
- * precisam existir, ser reproduziveis e nao destoar da paleta atual. Este
- * script deixa a origem deles explicita: quem trocar a arte apaga o script.
+ * Nasceram PROVISORIOS na Onda 1 (agente A3), com a paleta antiga. Onda 4
+ * (2026-08-04): cores atualizadas pra bater com a identidade nova aplicada
+ * pelo C3 na Onda 3 (tailwind.config.ts, secao "tibe"), ja que os PNGs nao
+ * sao gerados a partir do Tailwind (nao existe pipeline de build pra isso) e
+ * ficaram desatualizados quando so os componentes/tokens mudaram. A arte
+ * ainda e geometrica/provisoria (nao o logo real de docs/idVisual/): quem
+ * trocar pela arte definitiva apaga este script.
  *
- * Sem dependencia nova (package.json e recurso global e nao pode ser alterado
- * nesta onda): o PNG e escrito na mao com zlib, que ja vem no Node.
+ * Sem dependencia nova (package.json e recurso global): o PNG e escrito na
+ * mao com zlib, que ja vem no Node.
  *
  * Uso: node scripts/pwa-icons.mjs
  */
@@ -19,8 +22,8 @@ import { fileURLToPath } from "node:url";
 const OUT_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "public", "icons");
 
 // Cores da marca, iguais as de tailwind.config.ts (tibe.primary / tibe.dark).
-const PRIMARY = [0x2e, 0x7d, 0x32];
-const DARK = [0x1b, 0x5e, 0x20];
+const PRIMARY = [0x64, 0x97, 0x21];
+const DARK = [0x02, 0x2e, 0x20];
 const WHITE = [0xff, 0xff, 0xff];
 
 // Amostras por eixo dentro de cada pixel: 4x4 = 16 amostras, o suficiente para
