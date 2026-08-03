@@ -21,79 +21,68 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 
 ## Estado atual
 
-- Atualizado em: 2026-08-03
-- Última rodada: Onda 3 (Módulo 25 rebanho por categoria, Calculadora
-  Pecuária, identidade visual nova), integrada localmente na `main`.
-  **Push/deploy ainda não feitos: aguardando aprovação explícita do usuário
-  nesta mesma rodada.**
-- Estado: integrado localmente, testado, build limpo. Não empurrado pra
-  `origin/main` nem aplicado no Neon ainda.
-- Produção: <https://tibe-agrogestao.vercel.app/> (ainda reflete a Onda 2,
-  não esta rodada)
-- Banco: migração `20260803142620_animal_category_batch` aplicada só no
-  Docker local; Neon pendente até a aprovação de deploy.
-- VAPID configurado pelo usuário na Vercel e no `.env` local nesta rodada
-  (pendência da Onda 2, resolvida).
+- Atualizado em: 2026-08-04
+- Última rodada: Onda 4 (limpeza técnica: `GET /api/v1/tenant`, correção de
+  `/docs/api`, branded type no client escopado, paleta oficial do cliente).
+  **Commitado na `main` localmente; push/deploy desta rodada específica
+  ainda não solicitado.**
+- Produção: <https://tibe-agrogestao.vercel.app/> reflete até a Onda 3 +
+  ajuste do resumo diário pro n8n (push anterior, `eb6b73c`).
+- Onda 3 (Módulo 25, Calculadora, design) e o ajuste do resumo diário pro
+  n8n: integrados, testados e **já em produção** (rodadas anteriores).
 
-### Entregue nesta rodada
+### Entregue nesta rodada (Onda 4)
 
-- **Onda 3 completa, integrada localmente**: 3 agentes em paralelo (C1
-  rebanho por categoria, C2 calculadora, C3 design), briefing em
-  `docs/arquitetura/onda-3-briefings.md`. Único conflito de merge foi o
-  trivial esperado em `package.json` (`test:m25` vs `test:m26`, mesma
-  linha), resolvido mantendo as duas.
-- **C1, Módulo 25 (rebanho por categoria e quantidade)**: spec fechada em
-  `docs/specs/module-25-rebanho-por-categoria.md` após entrevista com o
-  usuário (decisão de seguir sem confirmação formal da Agromax). Modelos
-  novos `AnimalCategory`/`AnimalBatch`, paralelos ao `Animal` individual
-  (intocado, `test:m1`/`test:m17` seguem 0 falhas). Cada aquisição gera um
-  lote novo; venda decrementa FIFO entre lotes da mesma categoria (mais
-  antigo primeiro), valor rateado proporcionalmente com ajuste no último
-  lote para não haver drift de arredondamento. Nova intenção WhatsApp
-  `registrar_lote_animal` vira o caminho padrão de cadastro; o cadastro
-  assistido individual (Onda 2) continua existindo como opção. `/rebanho`
-  unificado (lotes + individuais numa tabela só). `test:m25`: 43 asserções,
-  0 falhas.
-- **C2, Calculadora Pecuária** (`src/lib/calculadoras/`, sem persistência):
-  as 12 ferramentas do documento do cliente entregues (cerca, pastagem,
-  lotação, sal mineral, ração, água, cocho, adubação, calagem, mão de obra,
-  máquinas e combustível, compra/venda de gado em simulação isolada). Cada
-  fórmula documentada com fonte (majoritariamente Embrapa) e nível de
-  confiança em comentário; 3 marcadas como confiança MÉDIA (água, calagem,
-  mão de obra) e sinalizadas para revisão técnica antes de uso real com
-  clientes. `test:m26`: 0 falhas.
-- **C3, identidade visual nova**: paleta extraída por pixel de
-  `docs/idVisual/` (não confirmada formalmente pela Agromax ainda,
-  documentado em comentário no `tailwind.config.ts`), laranja como cor de
-  ação nova (`tibe.accent`). Interface de todos os componentes de
-  `src/components/ui/` preservada (nenhuma prop/variante existente mudou,
-  só estilo interno); `variant="accent"` do `Button` é aditivo, não usado
-  em nenhuma página ainda.
-- **Migração e build verificados juntos** após os 3 merges: `test:isolation`,
-  `m1`, `m2`, `m4`, `m17`, `m20`, `m21`, `m22`, `m24`, `m25`, `m26` e
-  `npm run build`, todos 0 falhas/limpos, rodados por quem integrou (não só
-  confiando no relatório de cada agente).
+- **`GET /api/v1/tenant`** (aditivo): destrava o app mobile mostrar o nome
+  da fazenda. Leitura liberada pra qualquer papel (reusa a permissão
+  `alertas`, mesmo critério já usado pelo seam de notificação da Onda 2).
+- **Corrigidas as 5 divergências reais entre `/docs/api` e o comportamento
+  das rotas**, mapeadas desde a Onda 1 (agente A2) e nunca corrigidas até
+  agora: PATCH de role/active documentado devolvendo campo a mais do que
+  devolve de verdade; `POST /signup/verify` só documentava um dos dois
+  ramos de resposta; rotas de recuperação de senha ausentes da
+  documentação; campos `utm_*` de `/signup/start` não documentados; nota
+  geral sobre `meta` sempre presente mesmo quando o exemplo abrevia.
+- **Branded type em `TenantPrismaClient`**: o client base sem escopo era
+  estruturalmente idêntico ao escopado (extensão do Prisma não muda o tipo,
+  só o comportamento em runtime), então passar o client errado num lugar
+  que espera o escopado não dava erro de compilação. Agora dá: só
+  `prismaForTenant()` produz o tipo. Build e suíte completa passaram sem
+  precisar tocar em nenhum caller existente (prova de que todo mundo já
+  usava o caminho certo).
+- **Paleta da identidade visual corrigida pros hex oficiais do cliente**
+  (`docs/idVisual/paleta-de cores.png`, enviada depois da Onda 3): a
+  estimativa por pixel do C3 tinha primary/dark/light diferentes do
+  pretendido (primary mais saturado que o oliva real, light com tingimento
+  verde em vez do creme neutro oficial). Corrigido em `tailwind.config.ts`
+  (token novo `tibe.darkest`, a paleta oficial trouxe 2 verdes escuros bem
+  próximos, os dois preservados) e ícones do PWA regenerados
+  (`scripts/pwa-icons.mjs`) com as cores certas.
+- Commits: `c9e7348` (itens de código) e `5606d62` (correção de paleta).
 
 ### Pendências e próximo passo
 
-- **Decisão imediata: aprovar push pra `origin/main` + aplicar migração no
-  Neon + deploy.** Tudo pronto e verificado localmente, só falta a
-  aprovação (protocolo do projeto).
-- **Confirmar com a Agromax** os hex extraídos pelo C3 (paleta) e o modelo
-  de rebanho por categoria do C1 (ainda sem confirmação formal, seguido por
-  decisão do usuário de não esperar mais).
-- **Ícones do PWA** ainda usam a paleta antiga: C3 mudou só
-  `tailwind.config.ts`/`src/components/ui/`, não regenerou os PNGs de
-  `public/icons/`.
+- **Push desta rodada (Onda 4) pra produção**: ainda não solicitado ao
+  usuário.
+- **Confirmar com a Agromax** o modelo de rebanho por categoria do C1
+  (ainda sem confirmação formal, seguido por decisão do usuário de não
+  esperar mais). A paleta de cores já foi corrigida com valor oficial nesta
+  rodada, deixou de ser pendência.
+- **Fila de ondas seguintes, já priorizada com o usuário** (2026-08-04):
+  Onda 5 (Máquinas e equipamentos) → Onda 6 (Meu Dia) → Onda 7 (tela inicial
+  reformulada + ajustes financeiros: adiar vencimento, cancelar conta,
+  categorias personalizadas de receita/despesa, preferências de lembrete) →
+  Onda 8 (app mobile: telas de escrita) → Onda 9 (medir consumo de mensagem
+  por cliente). Depois, sem prazo: reestruturar a navegação pro formato do
+  mockup do cliente.
 - Confirmações ainda pendentes da Agromax: destino da Lavoura, prioridade
-  entre Calculadora/Máquinas/Meu Dia (Calculadora já entregue nesta rodada,
-  os outros dois não).
+  entre Máquinas e Meu Dia (Calculadora já entregue).
+- Validação técnica das 3 calculadoras de confiança média (água, calagem,
+  mão de obra) antes de uso real com clientes.
 - Verificação do negócio na Meta: ainda não iniciada, item de maior prazo.
 - Testar instalação do PWA e o app mobile (Expo) em Android/iPhone reais.
-- Rota `GET /api/v1/tenant` (aditiva, Onda 2): destravaria o app mobile
-  mostrar o nome da fazenda na tela Início, não só o nome do usuário.
-- `apps/mobile` e `packages/contracts` ainda não cobrem rebanho (C1 não
-  tocou nenhum dos dois, decisão deliberada registrada no briefing).
+- `apps/mobile` e `packages/contracts` ainda não cobrem rebanho (decisão
+  deliberada da Onda 3, registrada no briefing).
 
 ## Histórico recente
 
@@ -101,22 +90,17 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
   mesmo padrão do lembrete de cadastro abandonado), elimina a dúvida sobre
   limite de cron do plano da Vercel. `daily-digest` agora autentica por
   `INTERNAL_API_SECRET`, não mais `CRON_SECRET`.
-- 2026-08-03: Onda 3 integrada localmente (Módulo 25 rebanho por categoria,
-  Calculadora Pecuária, identidade visual nova). Push/deploy pendente de
-  aprovação.
+- 2026-08-04: Onda 4 (GET /api/v1/tenant, correção de /docs/api, branded
+  type, paleta oficial do cliente). Commits `c9e7348`/`5606d62`, push desta
+  rodada ainda não solicitado.
+- 2026-08-03: resumo diário movido pro n8n (Schedule Trigger), elimina a
+  dúvida sobre limite de cron do plano da Vercel.
+- 2026-08-03: Onda 3 integrada e implantada em produção (Módulo 25 rebanho
+  por categoria, Calculadora Pecuária, identidade visual nova). Commit
+  `3b7b6cf`.
 - 2026-08-03: Onda 2 integrada (notificação push, resumo diário, esqueleto
   mobile, cadastro guiado mais curto), 3 correções de integração aplicadas,
   deploy em produção.
 - 2026-08-01: Onda 1 integrada, middleware corrigido (authorized() nao era
   chamado ha meses), varredura completa de travessao. Commit `e1c9e2d`,
   deploy verificado em producao.
-- 2026-07-31: análise dos documentos do cliente, plano de arquitetura por
-  contrato e disparo da Onda 1 de agentes.
-- 2026-07-30: N8N auditado (já estava provisionado e ativo), prompt do
-  classificador alinhado ao M17 e alerta por WhatsApp passando a sair direto
-  pelo Tibé. Commits `8204e9b` e `31f54c0`.
-- 2026-07-29: protocolo de memória compartilhada integrado na `main` e
-  implantado, incluindo commit automático por tarefa e aprovação obrigatória
-  para merge/deploy.
-- 2026-07-29: Módulo 17 concluído, integrado na `main` e implantado em
-  produção no commit `b3c72cc`.
