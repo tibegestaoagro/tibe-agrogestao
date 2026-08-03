@@ -99,6 +99,12 @@ export default async function ConfiguracoesPage() {
         <Link href="/configuracoes/usuarios" className="text-tibe-primary hover:underline">
           Usuários
         </Link>
+        <Link href="/configuracoes/categorias-financeiras" className="text-tibe-primary hover:underline">
+          Categorias financeiras
+        </Link>
+        <Link href="/configuracoes/alertas" className="text-tibe-primary hover:underline">
+          Alertas
+        </Link>
         {hasMinRole(user.role, "OWNER") && (
           <Link href="/configuracoes/assinatura" className="text-tibe-primary hover:underline">
             Assinatura

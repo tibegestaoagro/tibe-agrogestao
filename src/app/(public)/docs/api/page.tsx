@@ -630,6 +630,66 @@ const GROUPS: Group[] = [
 { "data": { "id": "cl...", "status": "paid", "paid_at": "..." } }`,
       },
       {
+        method: "PATCH",
+        path: "/api/v1/financial-entries/:id/postpone",
+        auth: "Sessão · financeiro:write",
+        description: "Adia o vencimento (Módulo 28). Só para lançamento pending; sem restrição de origem (related_module).",
+        request: `{ "due_date": "2026-08-20T00:00:00.000Z" }`,
+        response: `200
+{ "data": { "id": "cl...", "due_date": "..." } }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/financial-entries/:id/cancel",
+        auth: "Sessão · financeiro:write",
+        description: "Cancela um lançamento (Módulo 28). Sem restrição de origem nem de status atual; só muda status para \"cancelled\", não apaga.",
+        response: `200
+{ "data": { "id": "cl...", "status": "cancelled" } }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/financial-categories",
+        auth: "Sessão · financeiro:read",
+        description: "Lista categorias de receita/despesa do tenant (Módulo 28). Filtro opcional: entry_type.",
+        response: `200
+{ "data": [{ "id": "cl...", "name": "Ração", "entry_type": "expense", "active": true }], "meta": { "total": 1 } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/financial-categories",
+        auth: "Sessão · financeiro:write",
+        description: "Cria uma categoria.",
+        request: `{ "name": "Frete", "entry_type": "expense" }`,
+        response: `201
+{ "data": { "id": "cl...", "name": "Frete", "entry_type": "expense", "active": true }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/financial-categories/:id",
+        auth: "Sessão · financeiro:write",
+        description: "Renomeia ou ativa/desativa uma categoria.",
+        request: `{ "active": false }`,
+        response: `200
+{ "data": { "id": "cl...", "name": "Frete", "active": false }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/alert-preferences",
+        auth: "Sessão · alertas:read",
+        description: "Lista os 7 tipos de alerta com seu estado atual (Módulo 28). Ausência de preferência gravada = habilitado.",
+        response: `200
+{ "data": [{ "alert_type": "harvest_near", "enabled": true }], "meta": { "total": 7 } }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/alert-preferences",
+        auth: "Sessão · alertas:write",
+        description: "Liga/desliga um tipo de alerta pro tenant inteiro. Nunca mexe em canal (push/WhatsApp/email): isso continua sendo decisão do notify() (Onda 2).",
+        request: `{ "alert_type": "harvest_near", "enabled": false }`,
+        response: `200
+{ "data": { "alert_type": "harvest_near", "enabled": false }, "meta": {} }`,
+      },
+      {
         method: "GET",
         path: "/api/v1/financial/cash-flow",
         auth: "Sessão · financeiro:read",

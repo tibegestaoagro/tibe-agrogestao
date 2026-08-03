@@ -126,6 +126,7 @@ enum FinancialEntryStatus {
   pending
   paid
   overdue
+  cancelled
 }
 
 enum MessageDirection {
@@ -218,6 +219,8 @@ model Tenant {
   animal_batches    AnimalBatch[]
   machines          Machine[]
   tasks             Task[]
+  financial_categories FinancialCategory[]
+  alert_preferences AlertPreference[]
   vaccines          Vaccine[]
   plots             Plot[]
   service_clients   ServiceClient[]
@@ -795,6 +798,24 @@ model FinancialEntry {
   @@index([tenant_id])
 }
 
+// Módulo 28, 2026-08-04. `category` de FinancialEntry continua texto livre
+// de propósito (não vira FK obrigatória: lançamento antigo e os automáticos
+// de createLinkedEntry já passam string solta); esta lista é só a fonte da
+// sugestão no painel, separada por tipo (receita/despesa).
+model FinancialCategory {
+  id         String    @id @default(cuid())
+  tenant_id  String
+  name       String
+  entry_type EntryType
+  active     Boolean   @default(true)
+  created_at DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@unique([tenant_id, entry_type, name])
+  @@index([tenant_id])
+}
+
 // ─────────────────────────────────────────────────────────────
 // Agente WhatsApp
 // ─────────────────────────────────────────────────────────────
@@ -851,6 +872,23 @@ model Alert {
 
   tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
 
+  @@index([tenant_id])
+}
+
+// Módulo 28, 2026-08-04. Ausência de linha = habilitado (opt-out): só existe
+// linha quando alguém desliga um tipo. Por TENANT, não por usuário (mesmo
+// nível de findAlertRecipient); por TIPO de alerta, nunca por canal (a
+// política de canal do notify(), Onda 2, continua sendo decisão do sistema).
+model AlertPreference {
+  id         String    @id @default(cuid())
+  tenant_id  String
+  alert_type AlertType
+  enabled    Boolean   @default(false)
+  created_at DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@unique([tenant_id, alert_type])
   @@index([tenant_id])
 }
 

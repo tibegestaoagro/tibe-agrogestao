@@ -40,7 +40,8 @@
     "test:m25": "tsx scripts/m25-rebanho-categoria.test.ts",
     "test:m26": "tsx scripts/m26-calculadora-pecuaria.test.ts",
     "test:m27": "tsx scripts/m27-maquinas-equipamentos.test.ts",
-    "test:m28": "tsx scripts/m28-meu-dia.test.ts"
+    "test:m28": "tsx scripts/m28-meu-dia.test.ts",
+    "test:m29": "tsx scripts/m29-ajustes-financeiros.test.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

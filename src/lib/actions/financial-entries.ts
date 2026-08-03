@@ -93,3 +93,42 @@ export async function markEntryPaidAction(
   });
   return ok({ id, paid_at });
 }
+
+/**
+ * Adia o vencimento: permitido para qualquer lançamento pendente,
+ * independente da origem (Módulo 28). Diferente de editar (NOT_EDITABLE
+ * fora de "geral"): só muda a data, não descola o dado da origem.
+ */
+export async function postponeEntryDueDateAction(
+  db: TenantPrismaClient,
+  id: string,
+  newDueDate: Date,
+): Promise<ActionResult<{ id: string; due_date: Date }>> {
+  const existing = await db.financialEntry.findFirst({ where: { id } });
+  if (!existing) return fail("NOT_FOUND", "Lançamento não encontrado", 404);
+  if (existing.status !== "pending") {
+    return fail("NOT_PENDING", "Só é possível adiar o vencimento de um lançamento pendente", 422);
+  }
+
+  await db.financialEntry.update({ where: { id }, data: { due_date: newDueDate } });
+  return ok({ id, due_date: newDueDate });
+}
+
+/**
+ * Cancela um lançamento: permitido para qualquer um, independente da
+ * origem ou do status atual (Módulo 28). Só muda o status, não apaga nem
+ * mexe em valor/categoria: risco bem menor que editar.
+ */
+export async function cancelEntryAction(
+  db: TenantPrismaClient,
+  id: string,
+): Promise<ActionResult<{ id: string }>> {
+  const existing = await db.financialEntry.findFirst({ where: { id } });
+  if (!existing) return fail("NOT_FOUND", "Lançamento não encontrado", 404);
+  if (existing.status === "cancelled") {
+    return fail("ALREADY_CANCELLED", "Este lançamento já está cancelado", 409);
+  }
+
+  await db.financialEntry.update({ where: { id }, data: { status: "cancelled" } });
+  return ok({ id });
+}

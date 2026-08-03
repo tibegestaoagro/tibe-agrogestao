@@ -17,6 +17,8 @@ import EntryForm from "@/components/financeiro/entry-form";
 import EntryFilters from "@/components/financeiro/entry-filters";
 import ExportReportButton from "@/components/financeiro/export-report-button";
 import PayButton from "@/components/financeiro/pay-button";
+import PostponeButton from "@/components/financeiro/postpone-button";
+import CancelButton from "@/components/financeiro/cancel-button";
 
 const brl = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -25,12 +27,14 @@ const MODULE_LABEL: Record<string, string> = {
   rebanho: "Rebanho",
   lavoura: "Lavoura",
   servico: "Prestador",
+  maquinas: "Máquinas",
   geral: "Geral",
 };
-const STATUS: Record<string, { label: string; variant: "amber" | "green" | "red" }> = {
+const STATUS: Record<string, { label: string; variant: "amber" | "green" | "red" | "gray" }> = {
   pending: { label: "Pendente", variant: "amber" },
   paid: { label: "Pago", variant: "green" },
   overdue: { label: "Vencido", variant: "red" },
+  cancelled: { label: "Cancelado", variant: "gray" },
 };
 
 function Card({ label, value, sub }: { label: string; value: string; sub?: string }) {
@@ -141,7 +145,14 @@ export default async function FinanceiroPage({
                     <TableCell>{brl(decToNum(e.amount) ?? 0)}</TableCell>
                     <TableCell><Badge variant={st.variant}>{st.label}</Badge></TableCell>
                     <TableCell className="text-right">
-                      {writable && e.status !== "paid" && <PayButton entryId={e.id} />}
+                      {writable && e.status === "pending" && (
+                        <div className="flex justify-end gap-2">
+                          <PayButton entryId={e.id} />
+                          <PostponeButton entryId={e.id} />
+                          <CancelButton entryId={e.id} />
+                        </div>
+                      )}
+                      {writable && e.status === "overdue" && <CancelButton entryId={e.id} />}
                     </TableCell>
                   </TableRow>
                 );

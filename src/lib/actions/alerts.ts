@@ -4,6 +4,7 @@ import { decToNum } from "@/lib/serialize";
 import { listUpcomingVaccinations } from "@/lib/actions/animals";
 import { getBalanceAction } from "@/lib/actions/financial-summary";
 import { runSerializableTenantTransaction } from "@/lib/financial";
+import { isAlertTypeEnabled } from "@/lib/actions/alert-preferences";
 
 /**
  * Geração de alertas (spec 4.9/4.10). Idempotência por
@@ -139,127 +140,141 @@ export async function generateAlertsForTenant(tenantId: string): Promise<{ creat
   let created = 0;
 
   // 1. Vacinas vencendo em até 15 dias.
-  const vaccinations = await listUpcomingVaccinations(db, VACCINE_DAYS);
-  for (const v of vaccinations) {
-    const didCreate = await ensureAlert(db, {
-      alert_type: "vaccine_due",
-      related_module: "rebanho",
-      related_id: v.id,
-      message: `🐄 Atenção: a vacina ${v.vaccine_name ?? "?"} do animal ${v.ear_tag ?? v.animal_id} vence em ${v.days_remaining} dia(s).`,
-    });
-    if (didCreate) created++;
+  if (await isAlertTypeEnabled(db, "vaccine_due")) {
+    const vaccinations = await listUpcomingVaccinations(db, VACCINE_DAYS);
+    for (const v of vaccinations) {
+      const didCreate = await ensureAlert(db, {
+        alert_type: "vaccine_due",
+        related_module: "rebanho",
+        related_id: v.id,
+        message: `🐄 Atenção: a vacina ${v.vaccine_name ?? "?"} do animal ${v.ear_tag ?? v.animal_id} vence em ${v.days_remaining} dia(s).`,
+      });
+      if (didCreate) created++;
+    }
   }
 
   // 2. Ciclos de lavoura com colheita prevista em até 7 dias.
-  const harvestLimit = new Date(now.getTime() + HARVEST_DAYS * 86_400_000);
-  const cycles = await db.cropCycle.findMany({
-    where: {
-      status: { in: ["planted", "growing"] },
-      expected_harvest_at: { gte: now, lte: harvestLimit },
-    },
-    include: { plot: { select: { name: true } } },
-  });
-  for (const c of cycles) {
-    const days = Math.ceil((c.expected_harvest_at!.getTime() - now.getTime()) / 86_400_000);
-    const didCreate = await ensureAlert(db, {
-      alert_type: "harvest_near",
-      related_module: "lavoura",
-      related_id: c.id,
-      message: `🌾 Colheita de ${c.crop_name} (talhão ${c.plot?.name ?? "?"}) prevista para daqui a ${days} dia(s).`,
+  if (await isAlertTypeEnabled(db, "harvest_near")) {
+    const harvestLimit = new Date(now.getTime() + HARVEST_DAYS * 86_400_000);
+    const cycles = await db.cropCycle.findMany({
+      where: {
+        status: { in: ["planted", "growing"] },
+        expected_harvest_at: { gte: now, lte: harvestLimit },
+      },
+      include: { plot: { select: { name: true } } },
     });
-    if (didCreate) created++;
+    for (const c of cycles) {
+      const days = Math.ceil((c.expected_harvest_at!.getTime() - now.getTime()) / 86_400_000);
+      const didCreate = await ensureAlert(db, {
+        alert_type: "harvest_near",
+        related_module: "lavoura",
+        related_id: c.id,
+        message: `🌾 Colheita de ${c.crop_name} (talhão ${c.plot?.name ?? "?"}) prevista para daqui a ${days} dia(s).`,
+      });
+      if (didCreate) created++;
+    }
   }
 
   // 3. Contas a pagar/receber vencendo em até 3 dias.
-  const billLimit = new Date(now.getTime() + BILL_DAYS * 86_400_000);
-  const bills = await db.financialEntry.findMany({
-    where: { status: "pending", due_date: { gte: now, lte: billLimit } },
-    select: { id: true },
-  });
-  for (const b of bills) {
-    const didCreate = await ensureBillDueAlertForEntry(db, b.id, {
-      now,
-      billLimit,
+  if (await isAlertTypeEnabled(db, "bill_due")) {
+    const billLimit = new Date(now.getTime() + BILL_DAYS * 86_400_000);
+    const bills = await db.financialEntry.findMany({
+      where: { status: "pending", due_date: { gte: now, lte: billLimit } },
+      select: { id: true },
     });
-    if (didCreate) created++;
+    for (const b of bills) {
+      const didCreate = await ensureBillDueAlertForEntry(db, b.id, {
+        now,
+        billLimit,
+      });
+      if (didCreate) created++;
+    }
   }
 
   // 4. Saldo do mês corrente negativo: no máximo 1 alerta por semana (via related_id = semana ISO).
-  const balance = await getBalanceAction(db, null);
-  if (balance.ok && balance.data.balance < 0) {
-    const didCreate = await ensureAlert(db, {
-      alert_type: "low_balance",
-      related_module: "geral",
-      related_id: isoWeekKey(now),
-      message: `⚠️ Saldo do mês está negativo: R$ ${balance.data.balance.toFixed(2)}.`,
-    });
-    if (didCreate) created++;
+  if (await isAlertTypeEnabled(db, "low_balance")) {
+    const balance = await getBalanceAction(db, null);
+    if (balance.ok && balance.data.balance < 0) {
+      const didCreate = await ensureAlert(db, {
+        alert_type: "low_balance",
+        related_module: "geral",
+        related_id: isoWeekKey(now),
+        message: `⚠️ Saldo do mês está negativo: R$ ${balance.data.balance.toFixed(2)}.`,
+      });
+      if (didCreate) created++;
+    }
   }
 
   // 5. Trial vencendo em até 2 dias, sem assinatura ainda (spec 5.8).
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: tenantId },
-    select: { status: true, trial_ends_at: true },
-  });
-  if (tenant?.status === "trial" && tenant.trial_ends_at) {
-    const daysLeft = Math.ceil((tenant.trial_ends_at.getTime() - now.getTime()) / 86_400_000);
-    if (daysLeft >= 0 && daysLeft <= TRIAL_ENDING_DAYS) {
-      const hasSubscription = (await db.subscription.findFirst({})) !== null;
-      if (!hasSubscription) {
-        const didCreate = await ensureAlert(db, {
-          alert_type: "trial_ending",
-          related_module: "geral",
-          related_id: tenantId, // um trial só termina uma vez: idempotente por natureza
-          message: `⏳ Seu período de teste do Tibé termina em ${daysLeft} dia(s). Assine um plano em Configurações → Assinatura para não perder o acesso.`,
-        });
-        if (didCreate) created++;
+  if (await isAlertTypeEnabled(db, "trial_ending")) {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { status: true, trial_ends_at: true },
+    });
+    if (tenant?.status === "trial" && tenant.trial_ends_at) {
+      const daysLeft = Math.ceil((tenant.trial_ends_at.getTime() - now.getTime()) / 86_400_000);
+      if (daysLeft >= 0 && daysLeft <= TRIAL_ENDING_DAYS) {
+        const hasSubscription = (await db.subscription.findFirst({})) !== null;
+        if (!hasSubscription) {
+          const didCreate = await ensureAlert(db, {
+            alert_type: "trial_ending",
+            related_module: "geral",
+            related_id: tenantId, // um trial só termina uma vez: idempotente por natureza
+            message: `⏳ Seu período de teste do Tibé termina em ${daysLeft} dia(s). Assine um plano em Configurações → Assinatura para não perder o acesso.`,
+          });
+          if (didCreate) created++;
+        }
       }
     }
   }
 
   // 6. Máquinas com manutenção prevista em até 15 dias (Módulo 26).
-  const maintenanceLimit = new Date(now.getTime() + MAINTENANCE_DAYS * 86_400_000);
-  const machines = await db.machine.findMany({
-    where: {
-      status: { not: "sold" },
-      next_maintenance_at: { gte: now, lte: maintenanceLimit },
-    },
-  });
-  for (const m of machines) {
-    const days = Math.ceil((m.next_maintenance_at!.getTime() - now.getTime()) / 86_400_000);
-    const didCreate = await ensureAlert(db, {
-      alert_type: "maintenance_due",
-      related_module: "maquinas",
-      related_id: m.id,
-      message: `🔧 Manutenção de ${m.name} prevista para daqui a ${days} dia(s).`,
+  if (await isAlertTypeEnabled(db, "maintenance_due")) {
+    const maintenanceLimit = new Date(now.getTime() + MAINTENANCE_DAYS * 86_400_000);
+    const machines = await db.machine.findMany({
+      where: {
+        status: { not: "sold" },
+        next_maintenance_at: { gte: now, lte: maintenanceLimit },
+      },
     });
-    if (didCreate) created++;
+    for (const m of machines) {
+      const days = Math.ceil((m.next_maintenance_at!.getTime() - now.getTime()) / 86_400_000);
+      const didCreate = await ensureAlert(db, {
+        alert_type: "maintenance_due",
+        related_module: "maquinas",
+        related_id: m.id,
+        message: `🔧 Manutenção de ${m.name} prevista para daqui a ${days} dia(s).`,
+      });
+      if (didCreate) created++;
+    }
   }
 
   // 7. Tarefas com lembrete para hoje (Módulo 27). Dispara NO DIA marcado,
   // não com antecedência (mecanismo diferente dos 6 anteriores): janela é o
   // próprio dia corrente, 00h-23h59.
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const todayEnd = new Date(todayStart.getTime() + 86_400_000 - 1);
-  const tasks = await db.task.findMany({
-    where: {
-      status: "pending",
-      remind: true,
-      reminded_at: null,
-      due_date: { gte: todayStart, lte: todayEnd },
-    },
-  });
-  for (const t of tasks) {
-    const didCreate = await ensureAlert(db, {
-      alert_type: "task_reminder",
-      related_module: "geral",
-      related_id: t.id,
-      message: `📌 Lembrete de hoje: ${t.title}.`,
+  if (await isAlertTypeEnabled(db, "task_reminder")) {
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayEnd = new Date(todayStart.getTime() + 86_400_000 - 1);
+    const tasks = await db.task.findMany({
+      where: {
+        status: "pending",
+        remind: true,
+        reminded_at: null,
+        due_date: { gte: todayStart, lte: todayEnd },
+      },
     });
-    if (didCreate) created++;
-    // Marca mesmo se ensureAlert não criou (já existia um igual): a tarefa
-    // não deve voltar a ser candidata em execuções futuras do cron.
-    await db.task.update({ where: { id: t.id }, data: { reminded_at: now } });
+    for (const t of tasks) {
+      const didCreate = await ensureAlert(db, {
+        alert_type: "task_reminder",
+        related_module: "geral",
+        related_id: t.id,
+        message: `📌 Lembrete de hoje: ${t.title}.`,
+      });
+      if (didCreate) created++;
+      // Marca mesmo se ensureAlert não criou (já existia um igual): a tarefa
+      // não deve voltar a ser candidata em execuções futuras do cron.
+      await db.task.update({ where: { id: t.id }, data: { reminded_at: now } });
+    }
   }
 
   return { created };
