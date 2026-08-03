@@ -1,6 +1,6 @@
 import { Queue } from "bullmq";
 import { getRedisConnection, getRedisConnectionOptions } from "@/lib/redis";
-import { requireCronSecret } from "@/lib/internal-guard";
+import { requireInternalSecret } from "@/lib/internal-guard";
 import { apiOk, apiError } from "@/lib/api";
 import { sendAllDailyDigests } from "./send-digest";
 
@@ -9,19 +9,20 @@ const QUEUE_NAME = "tibe-daily-digest";
 /**
  * GET /api/internal/jobs/daily-digest (Onda 2, plano de arquitetura seção 2.4)
  *
- * Disparado 1x/dia pela Vercel Cron (vercel.json), MESMO padrão de
- * /api/internal/jobs/generate-alerts: autenticado por CRON_SECRET, sem
- * worker BullMQ persistente (o processamento roda síncrono aqui dentro), com
- * a Queue usada só para registrar um histórico auditável de execuções no
- * Redis. A idempotência "não rodar 2x no mesmo dia" é o mesmo lock simples
- * (`SET NX`), com chave própria para não colidir com o lock de alertas.
+ * Disparado 1x/dia pelo N8N (workflow "Tibe - Resumo diario", Schedule
+ * Trigger, mesmo padrão de "Tibe - Lembrete de cadastro abandonado"), não
+ * pela Vercel Cron: evita depender de um segundo slot de cron no plano da
+ * Vercel, que não era verificável. Autenticado por INTERNAL_API_SECRET
+ * (x-internal-secret), o mesmo padrão de toda rota /api/internal/* chamada
+ * pelo N8N, reusando a credencial "Tibe Internal Secret" já configurada lá.
  *
- * Horário sugerido em vercel.json: 11h UTC (08h em Brasília), antes do job de
- * alertas (09h Brasília): ver relatório do agente B1 sobre a suposição de que
- * o plano da Vercel do projeto comporta um segundo cron.
+ * Sem worker BullMQ persistente (o processamento roda síncrono aqui dentro),
+ * com a Queue usada só para registrar um histórico auditável de execuções no
+ * Redis. A idempotência "não rodar 2x no mesmo dia" é um lock simples
+ * (`SET NX`), com chave própria para não colidir com o lock de alertas.
  */
 export async function GET(request: Request) {
-  const auth = requireCronSecret(request);
+  const auth = requireInternalSecret(request);
   if ("error" in auth) return auth.error;
 
   const connection = getRedisConnection();

@@ -352,20 +352,20 @@ async function main() {
     const allDigests = await sendAllDailyDigests();
     assert(allDigests.tenants >= 3, `sendAllDailyDigests varre todos os tenants trial/active (obtido: ${allDigests.tenants})`);
 
-    // ── 7. Rota de cron do resumo diário: auth + lock diário ──────────────
+    // ── 7. Rota do resumo diário (disparada pelo N8N, não pela Vercel Cron): auth + lock diário ──
     const noAuthDigest = await dailyDigestRoute(new Request("http://localhost/api/internal/jobs/daily-digest"));
-    assert(noAuthDigest.status === 401, "rota de cron do resumo sem Authorization -> 401");
+    assert(noAuthDigest.status === 401, "rota do resumo sem x-internal-secret -> 401");
 
-    const CRON_SECRET = process.env.CRON_SECRET!;
+    const INTERNAL_SECRET = process.env.INTERNAL_API_SECRET!;
     const digestReq = () =>
       dailyDigestRoute(
         new Request("http://localhost/api/internal/jobs/daily-digest", {
-          headers: { Authorization: `Bearer ${CRON_SECRET}` },
+          headers: { "x-internal-secret": INTERNAL_SECRET },
         }),
       );
     const firstDigestRun = await (await digestReq()).json();
     const secondDigestRun = await (await digestReq()).json();
-    assert(!firstDigestRun.data.skipped, "1ª chamada do dia do cron de resumo executa (não fica skipped)");
+    assert(!firstDigestRun.data.skipped, "1ª chamada do dia do resumo executa (não fica skipped)");
     assert(secondDigestRun.data.skipped === true, "2ª chamada do MESMO dia é pulada (lock funcionando, chave própria)");
 
     const today = new Date().toISOString().slice(0, 10);

@@ -33,6 +33,20 @@ dias depois de o código ir a produção.
 pelo provider ativo (`sendWhatsAppMessage`). O n8n cuida apenas do sentido de
 ENTRADA. A variável `N8N_ALERT_WEBHOOK_URL` deixou de existir.
 
+**Duas rotinas agendadas menores, fora deste workflow principal** (n8n como
+gatilho de cron, não de conversa): "Tibe - Lembrete de cadastro abandonado"
+(Schedule Trigger a cada 15min, chama `POST
+/api/internal/whatsapp/pending-flows`) e "Tibe - Resumo diario" (Schedule
+Trigger diário às 11h UTC/08h Brasília, chama `GET
+/api/internal/jobs/daily-digest`, Onda 2/3). As duas usam a credencial
+`httpHeaderAuth` "Tibe Internal Secret" (`x-internal-secret` contra
+`INTERNAL_API_SECRET`), o mesmo padrão de toda rota `/api/internal/*`. O
+resumo diário nasceu pensado pra Vercel Cron (`vercel.json`), mas foi movido
+pro n8n em 2026-08-03: o plano da Vercel do projeto não era verificável pelo
+usuário, e o n8n já resolvia exatamente esse tipo de rotina sem essa dúvida.
+Só `/api/internal/jobs/generate-alerts` continua na Vercel Cron (já
+comprovadamente funciona lá, sem motivo pra mudar).
+
 ---
 
 ## 0.1 Armadilhas confirmadas em produção (2026-07-30)
