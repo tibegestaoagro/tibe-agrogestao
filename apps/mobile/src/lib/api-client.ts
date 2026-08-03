@@ -6,8 +6,8 @@ import { API_BASE_URL } from "@/lib/config";
  * (`{ data, meta }` ou `{ error: { code, message } }`, ver src/lib/api.ts no
  * back-end) e devolve os dois pedaços crus (`res`, `body`) para quem chamou
  * decidir o que fazer. A orquestração de identidade (anexar
- * `Authorization`, renovar em 401, etc.) mora em `src/lib/auth-context.tsx`
- * — de propósito, para manter este arquivo simples e testável sozinho.
+ * `Authorization`, renovar em 401, etc.) mora em `src/lib/auth-context.tsx`,
+ * de propósito, para manter este arquivo simples e testável sozinho.
  */
 
 /** Erro de API já traduzido do envelope de erro do back-end. */
@@ -44,7 +44,7 @@ export type RequestOptions = Omit<RequestInit, "body"> & {
 /**
  * Chamada HTTP crua contra `${API_BASE_URL}${path}`. Nunca lança por causa
  * de um corpo de erro do próprio Tibé (`res.ok === false` só vira valor de
- * retorno, não exceção) — só propaga exceção de falha de rede de verdade
+ * retorno, não exceção): só propaga exceção de falha de rede de verdade
  * (sem conexão, DNS, timeout), que quem chama trata separadamente.
  */
 export async function rawRequest(

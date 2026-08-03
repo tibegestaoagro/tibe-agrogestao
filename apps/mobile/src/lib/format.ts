@@ -1,5 +1,5 @@
 /**
- * Formatação de exibição (moeda e data). Puramente apresentação — nenhuma
+ * Formatação de exibição (moeda e data). Puramente apresentação: nenhuma
  * regra de negócio mora aqui (o que conta como "vencido", como o saldo é
  * calculado, etc. já vem pronto do back-end). Se um dia este arquivo
  * precisar decidir algo em vez de só formatar, é sinal de que a regra

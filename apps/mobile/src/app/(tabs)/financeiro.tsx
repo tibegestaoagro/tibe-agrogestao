@@ -18,7 +18,7 @@ const EMPTY_LABEL: Record<FinancialEntryType, string> = {
 
 // Mesmo texto usado no painel web para o status de um FinancialEntry
 // (`(dashboard)/financeiro/page.tsx`): o app só mostra o status como o
-// back-end devolve, nunca infere "vencido" comparando datas — isso seria
+// back-end devolve, nunca infere "vencido" comparando datas: isso seria
 // regra de negócio duplicada no cliente.
 const STATUS_LABEL: Record<FinancialEntry['status'], string> = {
   pending: 'Pendente',
@@ -34,7 +34,7 @@ const STATUS_LABEL: Record<FinancialEntry['status'], string> = {
  * (`src/lib/actions/financial-reports.ts`, `listPendingEntries`), consumida
  * aqui pela rota HTTP equivalente e já existente,
  * `GET /api/v1/financial-entries?status=pending&entry_type=...`
- * (`src/app/api/v1/financial-entries/route.ts`) — não a função da action
+ * (`src/app/api/v1/financial-entries/route.ts`), não a função da action
  * diretamente, que não é HTTP.
  */
 export default function FinanceiroScreen() {

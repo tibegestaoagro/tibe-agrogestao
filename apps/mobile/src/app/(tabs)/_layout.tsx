@@ -6,7 +6,7 @@ import { useTheme } from '@/hooks/use-theme';
 /**
  * Navegação principal do app autenticado (briefing da Onda 2, agente B2,
  * decisão 7): três telas, todas de leitura. Sem ícones customizados de
- * propósito — nesta rodada o objetivo é o esqueleto funcional (auth + dado
+ * propósito: nesta rodada o objetivo é o esqueleto funcional (auth + dado
  * real), não o sistema visual definitivo (isso é trabalho da Onda 3, ver
  * docs/arquitetura/onda-1-briefings.md, seção "Sistema de design").
  */

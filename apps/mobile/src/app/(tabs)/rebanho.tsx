@@ -23,14 +23,14 @@ const SEX_LABEL: Record<Animal['sex'], string> = { male: 'Macho', female: 'Fême
  * `GET /api/v1/animals`, a mesma rota que o painel web usa para listar
  * (a página `(dashboard)/rebanho/page.tsx` no web busca direto no Prisma
  * por ser Server Component, mas o contrato de campos é o mesmo desta rota
- * — ver `src/lib/serializers.ts`, `serializeAnimal`). Sem filtro nem busca
+ * (ver `src/lib/serializers.ts`, `serializeAnimal`). Sem filtro nem busca
  * nesta rodada (só leitura simples, "esqueleto"); a rota já suporta
  * `property_id`/`status`/`breed`/`q` se um filtro for adicionado depois.
  *
  * Exige o perfil "fazenda" ativo no tenant (mesma regra do back-end,
  * `guard("rebanho", "read", { profile: "fazenda" })`): um tenant só-
  * prestador de serviço recebe `PROFILE_INACTIVE` da API, mostrado aqui como
- * qualquer outro erro — não é tratado como caso especial no app.
+ * qualquer outro erro: não é tratado como caso especial no app.
  */
 export default function RebanhoScreen() {
   const { authedFetch } = useAuth();

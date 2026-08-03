@@ -12,7 +12,7 @@ SplashScreen.preventAutoHideAsync();
 /**
  * Layout raiz do app. Só tem uma responsabilidade: decidir, a partir do
  * estado de sessão (`AuthProvider`), se quem abriu o app vê o grupo
- * autenticado `(tabs)` ou a tela `login`. Nenhuma tela decide isso sozinha —
+ * autenticado `(tabs)` ou a tela `login`. Nenhuma tela decide isso sozinha:
  * é o padrão de "rotas protegidas" atual do Expo Router (`Stack.Protected`
  * com uma guarda booleana), que troca de grupo automaticamente quando o
  * estado muda (ex: sessão expira no meio do uso, ou logout).

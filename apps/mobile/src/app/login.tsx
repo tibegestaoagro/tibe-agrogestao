@@ -17,7 +17,7 @@ import { Brand, Spacing } from '@/constants/theme';
 
 /**
  * Tela de login do aplicativo. Chama `POST /api/v1/auth/token` (via
- * `signIn()` do `AuthProvider`) com email e senha — a MESMA credencial do
+ * `signIn()` do `AuthProvider`) com email e senha: a MESMA credencial do
  * login web, sem seletor de tenant (um email pertence a exatamente um
  * tenant, resolvido pelo servidor). Não existe lógica de validação de
  * negócio aqui: só o mínimo de UX (campos preenchidos) antes de mandar pro

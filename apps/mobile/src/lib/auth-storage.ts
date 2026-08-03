@@ -21,7 +21,7 @@ import type { AuthUser } from "@/types/api";
  * em cada rota, a partir do token), nunca a partir deste cache local. E
  * `tenant_id` nunca é guardado aqui, nem em nenhum outro lugar do app: o
  * login por token não devolve esse campo (de propósito, ver
- * `src/lib/auth-token.ts` no back-end) — o tenant é sempre resolvido no
+ * `src/lib/auth-token.ts` no back-end): o tenant é sempre resolvido no
  * servidor a partir do usuário.
  */
 

@@ -28,7 +28,7 @@ export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
 /**
  * Identidade visual do Tibé (mesmos valores de `tailwind.config.ts` no
- * painel web, seção "tibe" — PRD seção 9). Cores fixas (não variam por
+ * painel web, seção "tibe", PRD seção 9). Cores fixas (não variam por
  * tema claro/escuro): usadas em botões de ação e destaques, não em
  * fundo/texto padrão de tela.
  */

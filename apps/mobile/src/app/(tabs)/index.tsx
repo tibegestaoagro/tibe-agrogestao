@@ -24,11 +24,11 @@ const ROLE_LABEL: Record<string, string> = {
  * web) chamada SEM `start`/`end`: o back-end já aplica o mês corrente como
  * padrão (`resolvePeriod`/`defaultMonthRange` em
  * src/lib/actions/financial-reports.ts), então o app não precisa calcular
- * nenhuma data — isso seria regra de negócio vazando pro cliente.
+ * nenhuma data: isso seria regra de negócio vazando pro cliente.
  *
  * Não existe rota `/api/v1` que devolva o nome da fazenda/tenant hoje (o
  * painel web busca isso direto no Prisma, dentro de um Server Component,
- * não por HTTP — ver `(dashboard)/layout.tsx`): por isso esta tela mostra
+ * não por HTTP, ver `(dashboard)/layout.tsx`): por isso esta tela mostra
  * só o nome de quem logou, não o nome da fazenda. Ver relatório final desta
  * rodada para o detalhe.
  */

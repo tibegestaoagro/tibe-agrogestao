@@ -20,7 +20,7 @@ import type { ApiOk, AuthUser, LoginData, TokenPair } from "@/types/api";
  *
  * Espelha, do lado do cliente, o mesmo seam que `getSessionUser()`
  * implementa no back-end (`src/lib/tenant-context.ts`): o token carrega
- * só identidade (`user_id`), nunca `tenant_id` — o servidor resolve o
+ * só identidade (`user_id`), nunca `tenant_id`: o servidor resolve o
  * tenant sozinho a cada requisição. Este arquivo nunca guarda, deriva ou
  * envia um `tenant_id`; se um dia alguém sentir necessidade de adicionar
  * isso aqui, pare: é sinal de que a regra está migrando pro lugar errado.
@@ -140,7 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (res.status === 401) {
         // O back-end devolve o MESMO INVALID_REFRESH_TOKEN para token
-        // inexistente, expirado, revogado OU já usado — é aqui, e só aqui,
+        // inexistente, expirado, revogado OU já usado: é aqui, e só aqui,
         // que a sessão termina de verdade.
         await forceSignOut();
         return null;

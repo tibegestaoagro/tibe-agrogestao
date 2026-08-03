@@ -96,7 +96,7 @@ export type FinancialEntry = {
  * caixa: só lançamentos pagos, agrupados por `paid_at`). Chamada com
  * `group_by=month` e sem `start`/`end`, o back-end aplica o range do mês
  * corrente por padrão (`resolvePeriod`/`defaultMonthRange` em
- * financial-reports.ts) — é assim que a tela Início lê o "saldo do mês" sem
+ * financial-reports.ts): é assim que a tela Início lê o "saldo do mês" sem
  * o app precisar calcular datas.
  */
 export type CashFlowBucket = {

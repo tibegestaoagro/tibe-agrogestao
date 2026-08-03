@@ -15,7 +15,7 @@ Contexto completo da decisão de arquitetura:
 - Login por email/senha contra `POST /api/v1/auth/token`.
 - Sessão persistente: o refresh token (30 dias) fica no `expo-secure-store`
   (Keychain/Keystore); ao reabrir o app, uma renovação silenciosa troca esse
-  refresh por um par novo (`POST /api/v1/auth/token/refresh`, uso único —
+  refresh por um par novo (`POST /api/v1/auth/token/refresh`, uso único:
   o back-end invalida o token apresentado a cada renovação).
 - Três telas de leitura: Início (saldo do mês), Rebanho (lista de animais) e
   Financeiro (contas a pagar/a receber).
@@ -82,10 +82,10 @@ contrato).
 | Login | `POST /api/v1/auth/token` | `{ email, password }` → par de tokens + usuário |
 | Renovação silenciosa | `POST /api/v1/auth/token/refresh` | uso único, rotaciona os dois tokens |
 | Logout | `POST /api/v1/auth/token/revoke` | melhor esforço, não bloqueia o logout local |
-| Início — saldo do mês | `GET /api/v1/financial/cash-flow?group_by=month` | sem `start`/`end`: o back-end já aplica o mês corrente por padrão |
+| Início (saldo do mês) | `GET /api/v1/financial/cash-flow?group_by=month` | sem `start`/`end`: o back-end já aplica o mês corrente por padrão |
 | Rebanho | `GET /api/v1/animals` | exige perfil "fazenda" ativo no tenant |
-| Financeiro — a pagar | `GET /api/v1/financial-entries?status=pending&entry_type=expense` | |
-| Financeiro — a receber | `GET /api/v1/financial-entries?status=pending&entry_type=income` | |
+| Financeiro (a pagar) | `GET /api/v1/financial-entries?status=pending&entry_type=expense` | |
+| Financeiro (a receber) | `GET /api/v1/financial-entries?status=pending&entry_type=income` | |
 
 ## Gaps conhecidos desta rodada
 
@@ -95,7 +95,7 @@ contrato).
   só `apps/mobile/**`, a tela Início mostra apenas o nome de quem logou
   (devolvido pelo próprio login), não o nome da fazenda. Resolver isso
   exigiria uma rota nova e aditiva no back-end (ex.: `GET /api/v1/tenant`
-  passando a aceitar `GET` além do `PATCH` que já existe hoje) — fora do
+  passando a aceitar `GET` além do `PATCH` que já existe hoje), fora do
   escopo de arquivos desta rodada.
 - **Sem notificação push** (decisão 9 do briefing: depende de credencial
   Apple/Google, ainda não provisionada).
