@@ -79,6 +79,22 @@ export default async function ConfiguracoesPage() {
         </section>
       )}
 
+      {profiles.includes("fazenda") && (
+        <section>
+          <h2 className="text-sm font-medium text-gray-700">Categorias de rebanho</h2>
+          <p className="mt-2 text-sm text-gray-500">
+            Categorias usadas no cadastro de rebanho por lote (quantidade,
+            sem brinco individual).
+          </p>
+          <Link
+            href="/configuracoes/categorias-rebanho"
+            className="mt-2 inline-block text-sm text-tibe-primary hover:underline"
+          >
+            Gerenciar categorias →
+          </Link>
+        </section>
+      )}
+
       <section className="flex flex-wrap gap-4 border-t border-gray-200 pt-6 text-sm">
         <Link href="/configuracoes/usuarios" className="text-tibe-primary hover:underline">
           Usuários

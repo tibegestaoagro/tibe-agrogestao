@@ -24,6 +24,35 @@ const STATUS: Record<string, { label: string; variant: "green" | "gray" | "red" 
 
 const SEX: Record<string, string> = { male: "Macho", female: "Fêmea" };
 
+// Módulo 25: linha unificada de /rebanho, cobrindo tanto o animal individual
+// (Animal, brinco obrigatório) quanto o lote por categoria e quantidade
+// (AnimalBatch), sem mexer no modelo individual.
+type UnifiedRow =
+  | {
+      kind: "individual";
+      id: string;
+      label: string;
+      detail: string;
+      property_name: string | null;
+      quantity_or_weight: string;
+      status_label: string;
+      status_variant: "green" | "gray" | "red";
+      last_vaccination: string;
+      created_at: Date;
+    }
+  | {
+      kind: "lote";
+      id: string;
+      label: string;
+      detail: string;
+      property_name: string | null;
+      quantity_or_weight: string;
+      status_label: string;
+      status_variant: "green" | "gray" | "red";
+      last_vaccination: string;
+      created_at: Date;
+    };
+
 export default async function RebanhoPage({
   searchParams,
 }: {
@@ -42,7 +71,7 @@ export default async function RebanhoPage({
   const writable = canWrite(user.role, "rebanho");
   const db = await getTenantDb();
 
-  const [animals, propertiesRaw] = await Promise.all([
+  const [animals, batches, propertiesRaw] = await Promise.all([
     db.animal.findMany({
       where: {
         ...(searchParams.property_id ? { property_id: searchParams.property_id } : {}),
@@ -66,6 +95,18 @@ export default async function RebanhoPage({
         },
       },
     }),
+    // Lotes não têm filtro por raça/status/brinco (não fazem sentido para
+    // categoria/quantidade): só o filtro de propriedade, comum aos dois tipos.
+    db.animalBatch.findMany({
+      where: {
+        ...(searchParams.property_id ? { property_id: searchParams.property_id } : {}),
+      },
+      orderBy: { created_at: "desc" },
+      include: {
+        category: { select: { name: true } },
+        property: { select: { name: true } },
+      },
+    }),
     db.property.findMany({
       where: { archived_at: null },
       orderBy: { name: "asc" },
@@ -82,6 +123,45 @@ export default async function RebanhoPage({
   const breeds = Array.from(
     new Set(animals.map((a) => a.breed).filter((b): b is string => !!b)),
   ).sort();
+
+  const individualRows: UnifiedRow[] = animals.map((a) => {
+    const st = STATUS[a.status] ?? { label: a.status, variant: "gray" as const };
+    const weight = decToNum(a.current_weight);
+    return {
+      kind: "individual",
+      id: a.id,
+      label: a.ear_tag,
+      detail: `${a.breed ?? "raça não informada"} · ${SEX[a.sex] ?? a.sex}`,
+      property_name: a.property?.name ?? null,
+      quantity_or_weight: weight != null ? `${weight} kg` : "sem valor",
+      status_label: st.label,
+      status_variant: st.variant,
+      last_vaccination: a.vaccinations[0]
+        ? a.vaccinations[0].applied_at.toLocaleDateString("pt-BR")
+        : "sem data",
+      created_at: a.created_at,
+    };
+  });
+
+  const loteRows: UnifiedRow[] = batches.map((b) => {
+    const weight = decToNum(b.average_weight);
+    return {
+      kind: "lote",
+      id: b.id,
+      label: b.category?.name ?? "categoria não informada",
+      detail: `${b.quantity} cabeça(s)`,
+      property_name: b.property?.name ?? null,
+      quantity_or_weight: weight != null ? `${weight} kg (média)` : "sem valor",
+      status_label: b.quantity > 0 ? "Ativo" : "Esgotado",
+      status_variant: b.quantity > 0 ? "green" : "gray",
+      last_vaccination: "não se aplica",
+      created_at: b.created_at,
+    };
+  });
+
+  const rows = [...individualRows, ...loteRows].sort(
+    (a, b) => b.created_at.getTime() - a.created_at.getTime(),
+  );
 
   return (
     <div className="space-y-5">
@@ -111,47 +191,47 @@ export default async function RebanhoPage({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Brinco</TableHead>
-              <TableHead>Raça</TableHead>
-              <TableHead>Sexo</TableHead>
+              <TableHead>Tipo</TableHead>
+              <TableHead>Identificação</TableHead>
+              <TableHead>Detalhe</TableHead>
               <TableHead>Propriedade</TableHead>
-              <TableHead>Peso (kg)</TableHead>
+              <TableHead>Peso</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Última vacinação</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {animals.length === 0 && (
+            {rows.length === 0 && (
               <TableRow>
                 <TableCell colSpan={7} className="py-6 text-center text-gray-500">
-                  Nenhum animal encontrado.
+                  Nenhum animal ou lote encontrado.
                 </TableCell>
               </TableRow>
             )}
-            {animals.map((a) => {
-              const st = STATUS[a.status] ?? { label: a.status, variant: "gray" as const };
-              return (
-                <TableRow key={a.id}>
-                  <TableCell className="font-medium">
-                    <Link href={`/rebanho/${a.id}`} className="text-tibe-dark hover:underline">
-                      {a.ear_tag}
-                    </Link>
-                  </TableCell>
-                  <TableCell>{a.breed ?? "não informada"}</TableCell>
-                  <TableCell>{SEX[a.sex] ?? a.sex}</TableCell>
-                  <TableCell>{a.property?.name ?? "não informada"}</TableCell>
-                  <TableCell>{decToNum(a.current_weight) ?? "sem valor"}</TableCell>
-                  <TableCell>
-                    <Badge variant={st.variant}>{st.label}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    {a.vaccinations[0]
-                      ? a.vaccinations[0].applied_at.toLocaleDateString("pt-BR")
-                      : "sem data"}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
+            {rows.map((row) => (
+              <TableRow key={`${row.kind}-${row.id}`}>
+                <TableCell>
+                  <Badge variant={row.kind === "individual" ? "gray" : "blue"}>
+                    {row.kind === "individual" ? "Individual" : "Lote"}
+                  </Badge>
+                </TableCell>
+                <TableCell className="font-medium">
+                  <Link
+                    href={row.kind === "individual" ? `/rebanho/${row.id}` : `/rebanho/lote/${row.id}`}
+                    className="text-tibe-dark hover:underline"
+                  >
+                    {row.label}
+                  </Link>
+                </TableCell>
+                <TableCell>{row.detail}</TableCell>
+                <TableCell>{row.property_name ?? "não informada"}</TableCell>
+                <TableCell>{row.quantity_or_weight}</TableCell>
+                <TableCell>
+                  <Badge variant={row.status_variant}>{row.status_label}</Badge>
+                </TableCell>
+                <TableCell>{row.last_vaccination}</TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       </div>
