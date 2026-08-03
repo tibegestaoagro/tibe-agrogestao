@@ -4,6 +4,7 @@ import type { ProfileType } from "@/lib/tenant-context";
 /** Intenções suportadas no MVP (spec 3.4). */
 export const INTENTS = [
   "cadastrar_animal",
+  "registrar_lote_animal",
   "registrar_peso",
   "registrar_vacina",
   "registrar_previsao_vacina",
@@ -31,6 +32,9 @@ export const INTENT_ACCESS: Record<
   { module: ModuleKey | null; action: "read" | "write"; profile?: ProfileType }
 > = {
   cadastrar_animal: { module: "rebanho", action: "write", profile: "fazenda" },
+  // Módulo 25: caminho padrão de cadastro de rebanho (categoria + quantidade),
+  // paralelo ao cadastro individual acima. Mesma regra de módulo/perfil.
+  registrar_lote_animal: { module: "rebanho", action: "write", profile: "fazenda" },
   registrar_peso: { module: "rebanho", action: "write", profile: "fazenda" },
   registrar_vacina: { module: "rebanho", action: "write", profile: "fazenda" },
   registrar_previsao_vacina: {

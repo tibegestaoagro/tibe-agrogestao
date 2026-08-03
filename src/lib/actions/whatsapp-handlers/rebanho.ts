@@ -12,6 +12,9 @@ import { resolvePendingEntriesCalendar } from "@/lib/actions/financial-reports";
 import { upsertVaccinationForecastAction } from "@/lib/actions/vaccination-forecast";
 import { CONFIRMATION_THRESHOLD } from "@/lib/whatsapp-intents";
 import { ask, failReply, str, num, confirmFlow, type Handler } from "./shared";
+// Módulo 25: registrar_lote_animal (rebanho por categoria e quantidade).
+import { findActiveCategoryByName } from "@/lib/actions/animal-categories";
+import { createBatchAction, sellFromCategoryAction } from "@/lib/actions/animal-batches";
 
 const MOVEMENT_LABEL: Record<string, string> = {
   purchase: "Compra",
@@ -333,5 +336,153 @@ export const consultarAnimal: Handler = async ({ db, parameters }) => {
     auxiliary_data: a,
     report_url: null,
     action_taken: "consultar_animal",
+  };
+};
+
+// ── Módulo 25: rebanho por categoria e quantidade ───────────────────
+//
+// Caminho padrão de cadastro de rebanho (spec 25 §4): "comprei 20 bezerros
+// por R$ 60.000" some com o passo extra do cadastro assistido individual
+// para o caso comum. Sempre pede confirmação com resumo antes de gravar
+// (mesmo padrão de cadastrar_animal guiado e registrar_lancamento_financeiro),
+// tanto para compra/entrada quanto para venda.
+
+export const registrarLoteAnimal: Handler = async ({ db, parameters, confirmed, explicitNo }) => {
+  const categoryName = str(parameters.category);
+  const quantity = num(parameters.quantity);
+  const value = num(parameters.value);
+  const operationRaw = str(parameters.operation);
+  const operation = operationRaw === "venda" ? "venda" : operationRaw === "compra" ? "compra" : null;
+
+  if (!categoryName || quantity == null) {
+    return ask(
+      "Para registrar o lote, preciso da categoria (ex: bezerro, novilha) e da quantidade.",
+    );
+  }
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    return ask("A quantidade precisa ser um número inteiro positivo.");
+  }
+  if (!operation) {
+    return ask("Isso é uma compra/entrada de animais ou uma venda?");
+  }
+
+  const category = await findActiveCategoryByName(db, categoryName);
+  if (!category) {
+    const all = await db.animalCategory.findMany({
+      where: { active: true },
+      orderBy: { name: "asc" },
+    });
+    return ask(
+      `Não encontrei a categoria '${categoryName}'. Categorias disponíveis: ${
+        all.map((c) => c.name).join(", ") || "nenhuma cadastrada"
+      }.`,
+    );
+  }
+
+  if (operation === "venda") {
+    // Checagem de disponibilidade ANTES de pedir confirmação: se não há o
+    // suficiente, a resposta já é "não há": não faz sentido confirmar uma
+    // venda impossível (spec 25 §2.5). A validação atômica de verdade
+    // acontece de novo, sob transação serializável, dentro de sellFromCategoryAction.
+    const existingBatches = await db.animalBatch.findMany({
+      where: { category_id: category.id, quantity: { gt: 0 } },
+    });
+    const available = existingBatches.reduce((sum, b) => sum + b.quantity, 0);
+    if (available < quantity) {
+      return {
+        reply_text: `Você tem apenas ${available} ${category.name}(s) disponível(is): não é possível vender ${quantity}.`,
+        requires_confirmation: false,
+        auxiliary_data: null,
+        report_url: null,
+        action_taken: "registrar_lote_animal:quantidade_insuficiente",
+      };
+    }
+
+    const gate = confirmFlow({
+      intent: "registrar_lote_animal",
+      explicitNo,
+      confirmed,
+      cancelledText: "Venda cancelada.",
+      question: `Confirma a venda de ${quantity} ${category.name}(s)${
+        value != null ? ` por R$ ${value.toFixed(2)}` : ""
+      }?`,
+      auxiliary: { category_id: category.id, category: category.name, quantity, value, operation },
+    });
+    if (gate) return gate;
+
+    const result = await sellFromCategoryAction(db, { category_id: category.id, quantity, value });
+    if (!result.ok) return failReply("registrar_lote_animal", result);
+    return {
+      reply_text: `Venda registrada: ${quantity} ${category.name}(s)${
+        value != null ? ` por R$ ${value.toFixed(2)}` : ""
+      }.`,
+      requires_confirmation: false,
+      auxiliary_data: null,
+      report_url: null,
+      action_taken: "registrar_lote_animal:venda",
+    };
+  }
+
+  // Compra/entrada: resolve propriedade (mesma lógica de cadastrarAnimal acima).
+  let propertyId = str(parameters.property_id);
+  if (!propertyId) {
+    const propertyName = str(parameters.property_name) ?? str(parameters.property);
+    if (propertyName) {
+      const prop = await findActivePropertyByName(db, propertyName);
+      if (!prop) return ask(`Não encontrei a propriedade '${propertyName}'. Pode confirmar o nome?`);
+      propertyId = prop.id;
+    } else {
+      const props = await listActiveProperties(db);
+      if (props.length === 0) {
+        return ask(
+          "Você ainda não tem nenhuma propriedade cadastrada. Cadastre uma propriedade antes de adicionar lotes.",
+        );
+      }
+      if (props.length === 1) {
+        propertyId = props[0].id;
+      } else {
+        return ask(
+          `Você tem mais de uma propriedade. Em qual devo registrar o lote? Opções: ${props.map((p) => p.name).join(", ")}.`,
+          { properties: props.map((p) => ({ id: p.id, name: p.name })) },
+        );
+      }
+    }
+  }
+
+  const averageWeight = num(parameters.average_weight);
+
+  const gate = confirmFlow({
+    intent: "registrar_lote_animal",
+    explicitNo,
+    confirmed,
+    cancelledText: "Registro de lote cancelado.",
+    question: `Confirma o registro de ${quantity} ${category.name}(s)${
+      value != null ? ` por R$ ${value.toFixed(2)}` : ", sem custo informado"
+    }?`,
+    auxiliary: {
+      category_id: category.id,
+      category: category.name,
+      quantity,
+      value,
+      property_id: propertyId,
+      operation,
+    },
+  });
+  if (gate) return gate;
+
+  const result = await createBatchAction(db, {
+    category_id: category.id,
+    property_id: propertyId,
+    quantity,
+    average_weight: averageWeight,
+    acquisition_cost: value,
+  });
+  if (!result.ok) return failReply("registrar_lote_animal", result);
+  return {
+    reply_text: `Lote de ${result.data.quantity} ${result.data.category_name}(s) registrado com sucesso! ✅`,
+    requires_confirmation: false,
+    auxiliary_data: null,
+    report_url: null,
+    action_taken: `registrar_lote_animal:${result.data.id}`,
   };
 };

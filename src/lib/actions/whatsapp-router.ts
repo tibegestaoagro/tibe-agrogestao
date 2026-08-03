@@ -6,6 +6,7 @@ import { INTENT_ACCESS, type Intent } from "@/lib/whatsapp-intents";
 import type { RouterResult, HandlerCtx, Handler } from "@/lib/actions/whatsapp-handlers/shared";
 import {
   cadastrarAnimal,
+  registrarLoteAnimal,
   registrarPeso,
   registrarVacina,
   registrarPrevisaoVacina,
@@ -37,6 +38,7 @@ export type { RouterResult } from "@/lib/actions/whatsapp-handlers/shared";
  */
 const HANDLERS: Record<Exclude<Intent, "ambigua">, Handler> = {
   cadastrar_animal: cadastrarAnimal,
+  registrar_lote_animal: registrarLoteAnimal,
   registrar_peso: registrarPeso,
   registrar_vacina: registrarVacina,
   registrar_previsao_vacina: registrarPrevisaoVacina,

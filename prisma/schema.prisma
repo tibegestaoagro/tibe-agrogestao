@@ -196,6 +196,8 @@ model Tenant {
   users             User[]
   properties        Property[]
   animals           Animal[]
+  animal_categories AnimalCategory[]
+  animal_batches    AnimalBatch[]
   vaccines          Vaccine[]
   plots             Plot[]
   service_clients   ServiceClient[]
@@ -396,6 +398,7 @@ model Property {
 
   tenant         Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   animals        Animal[]
+  animal_batches AnimalBatch[]
   plots          Plot[]
   movements_from AnimalMovement[] @relation("MovementFromProperty")
   movements_to   AnimalMovement[] @relation("MovementToProperty")
@@ -496,6 +499,56 @@ model AnimalMovement {
 
   @@index([tenant_id])
   @@index([animal_id])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Rebanho por categoria e quantidade (Módulo 25, 2026-08-03).
+//
+// Modelo paralelo ao Animal individual (brinco obrigatório), NÃO um
+// substituto: cobre o caso de uso do documento da Agromax ("comprei 20
+// bezerros"), sem exigir identificação individual. Cada aquisição gera um
+// AnimalBatch novo (nunca acumula numa linha existente da mesma categoria),
+// o que preserva o custo de cada compra separadamente; venda decrementa
+// FIFO entre lotes da mesma categoria (mais antigo primeiro), sem escolha
+// do usuário. Sem peso individual, GMD, vacina, agenda ou histórico de
+// movimentação por lote nesta rodada: ver docs/specs/module-25-rebanho-por-categoria.md.
+// ─────────────────────────────────────────────────────────────
+
+model AnimalCategory {
+  id         String   @id @default(cuid())
+  tenant_id  String
+  name       String
+  active     Boolean  @default(true)
+  created_at DateTime @default(now())
+
+  tenant  Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  batches AnimalBatch[]
+
+  @@unique([tenant_id, name])
+  @@index([tenant_id])
+}
+
+// quantity = 0 não apaga o lote: mantém o histórico de que existiu e foi
+// totalmente vendido/consumido (mesmo espírito de Property.archived_at).
+model AnimalBatch {
+  id               String    @id @default(cuid())
+  tenant_id        String
+  property_id      String
+  category_id      String
+  quantity         Int
+  average_weight   Decimal?  @db.Decimal(10, 3)
+  acquisition_cost Decimal?  @db.Decimal(14, 2)
+  acquired_at      DateTime  @default(now())
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  tenant   Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  property Property       @relation(fields: [property_id], references: [id], onDelete: Restrict)
+  category AnimalCategory @relation(fields: [category_id], references: [id], onDelete: Restrict)
+
+  @@index([tenant_id])
+  @@index([property_id])
+  @@index([category_id])
 }
 
 // ─────────────────────────────────────────────────────────────
