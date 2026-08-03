@@ -209,6 +209,7 @@ model Tenant {
   password_resets   PasswordResetCode[]
   agent_flows       AgentFlowState[]
   refresh_tokens    RefreshToken[]
+  push_subscriptions PushSubscription[]
   subscription      Subscription?
 }
 
@@ -257,6 +258,7 @@ model User {
   password_resets    PasswordResetCode[]
   agent_flows        AgentFlowState[]
   refresh_tokens     RefreshToken[]
+  push_subscriptions PushSubscription[]
 
   @@index([tenant_id])
 }
@@ -708,6 +710,33 @@ model EmailLog {
   tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
 
   @@index([tenant_id])
+}
+
+// Inscrição de push web (Onda 2, seam de notificação em src/lib/notify).
+// Guarda o necessário para disparar uma notificação via Web Push (RFC 8030):
+// endpoint do push service do navegador + as duas chaves da assinatura
+// (p256dh, auth). Mais de uma linha por usuário é o caso normal (um
+// aparelho = uma inscrição): por isso um alerta pode notificar mais de um
+// aparelho do mesmo tenant de uma vez, diferente de WhatsApp/email, que têm
+// destinatário único (ver notify() em src/lib/notify/index.ts).
+//
+// Sem tabela de log de entrega separada: push não tem o mesmo requisito de
+// comprovação que WhatsApp/email já cobrem para os alertas críticos (ver
+// CLAUDE.md, seção Financeiro e Alertas).
+model PushSubscription {
+  id         String   @id @default(cuid())
+  tenant_id  String
+  user_id    String
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  created_at DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id])
+  @@index([user_id])
 }
 
 // ─────────────────────────────────────────────────────────────
