@@ -42,7 +42,7 @@ export async function GET(request: Request) {
       ...(entry_type ? { entry_type: entry_type as "income" | "expense" } : {}),
       ...(category ? { category: { contains: category, mode: "insensitive" } } : {}),
       ...(related_module
-        ? { related_module: related_module as "rebanho" | "lavoura" | "servico" | "geral" }
+        ? { related_module: related_module as "rebanho" | "lavoura" | "servico" | "maquinas" | "geral" }
         : {}),
       ...(status ? { status: status as "pending" | "paid" | "overdue" } : {}),
     },

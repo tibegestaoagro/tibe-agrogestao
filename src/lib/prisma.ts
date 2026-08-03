@@ -31,6 +31,8 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   "Animal",
   "AnimalCategory",
   "AnimalBatch",
+  "Machine",
+  "MachineMaintenance",
   "AnimalWeightLog",
   "Vaccine",
   "AnimalVaccination",

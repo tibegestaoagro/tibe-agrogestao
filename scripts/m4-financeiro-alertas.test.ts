@@ -95,8 +95,8 @@ async function main() {
     assert(rebanhoRow.total_income === 8000, `DRE rebanho.total_income = 8000 (obtido: ${rebanhoRow.total_income})`);
     assert(geralRow.total_expense === 350, `DRE geral.total_expense = 350 (obtido: ${geralRow.total_expense})`);
     assert(
-      dre.by_module.length === 4,
-      "DRE sempre retorna os 4 módulos (mesmo sem movimento)",
+      dre.by_module.length === 5,
+      "DRE sempre retorna os 5 módulos (mesmo sem movimento; maquinas somado no Módulo 26)",
     );
 
     // ── Fluxo de caixa (regime de caixa: só pago) ────────────────

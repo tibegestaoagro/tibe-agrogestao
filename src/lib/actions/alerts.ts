@@ -19,6 +19,7 @@ const VACCINE_DAYS = 15;
 const HARVEST_DAYS = 7;
 const BILL_DAYS = 3;
 const TRIAL_ENDING_DAYS = 2; // spec 5.8
+const MAINTENANCE_DAYS = 15; // Módulo 26: mesma janela de vaccine_due (peça/mecânico também leva tempo)
 
 function isoWeekKey(d: Date): string {
   const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -36,8 +37,8 @@ function isoWeekKey(d: Date): string {
   return `${date.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
 }
 
-type AlertType = "vaccine_due" | "harvest_near" | "bill_due" | "low_balance" | "trial_ending";
-type RelatedModule = "rebanho" | "lavoura" | "servico" | "geral";
+type AlertType = "vaccine_due" | "harvest_near" | "bill_due" | "low_balance" | "trial_ending" | "maintenance_due";
+type RelatedModule = "rebanho" | "lavoura" | "servico" | "maquinas" | "geral";
 type AlertEnsureClient = {
   alert: {
     findFirst(args: Prisma.AlertFindFirstArgs): Promise<{ id: string } | null>;
@@ -214,6 +215,25 @@ export async function generateAlertsForTenant(tenantId: string): Promise<{ creat
         if (didCreate) created++;
       }
     }
+  }
+
+  // 6. Máquinas com manutenção prevista em até 15 dias (Módulo 26).
+  const maintenanceLimit = new Date(now.getTime() + MAINTENANCE_DAYS * 86_400_000);
+  const machines = await db.machine.findMany({
+    where: {
+      status: { not: "sold" },
+      next_maintenance_at: { gte: now, lte: maintenanceLimit },
+    },
+  });
+  for (const m of machines) {
+    const days = Math.ceil((m.next_maintenance_at!.getTime() - now.getTime()) / 86_400_000);
+    const didCreate = await ensureAlert(db, {
+      alert_type: "maintenance_due",
+      related_module: "maquinas",
+      related_id: m.id,
+      message: `🔧 Manutenção de ${m.name} prevista para daqui a ${days} dia(s).`,
+    });
+    if (didCreate) created++;
   }
 
   return { created };

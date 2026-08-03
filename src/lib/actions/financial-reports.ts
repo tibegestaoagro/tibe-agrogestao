@@ -11,7 +11,7 @@ import { decToNum } from "@/lib/serialize";
  * - upcoming: `due_date` nos próximos N dias, `status: pending`.
  */
 
-const RELATED_MODULES = ["rebanho", "lavoura", "servico", "geral"] as const;
+const RELATED_MODULES = ["rebanho", "lavoura", "servico", "maquinas", "geral"] as const;
 const CALENDAR_DAY_MS = 86_400_000;
 const pendingEntriesDateFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: "America/Sao_Paulo",

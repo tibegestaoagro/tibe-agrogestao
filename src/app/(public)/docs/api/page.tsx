@@ -348,6 +348,55 @@ const GROUPS: Group[] = [
     ],
   },
   {
+    title: "Máquinas e equipamentos",
+    note: "Módulo 26. Sem exclusão: mudar status é o único jeito de \"remover\" uma máquina da operação ativa.",
+    endpoints: [
+      {
+        method: "GET",
+        path: "/api/v1/machines",
+        auth: "Sessão · maquinas:read · perfil fazenda",
+        description: "Lista as máquinas do tenant.",
+        response: `200
+{ "data": [{ "id": "cl...", "name": "Trator 1", "type": "trator", "status": "active", "next_maintenance_at": null, "...": "..." }], "meta": { "total": 1 } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/machines",
+        auth: "Sessão · maquinas:write · perfil fazenda",
+        description: "Cadastra uma máquina. Com `acquisition_cost`, gera despesa automática vinculada.",
+        request: `{ "property_id": "cl...", "name": "Trator 1", "type": "trator", "brand": "Massey Ferguson", "acquisition_cost": 180000 }`,
+        response: `201
+{ "data": { "id": "cl..." }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/machines/:id",
+        auth: "Sessão · maquinas:read · perfil fazenda",
+        description: "Detalhe da máquina, incluindo o histórico de manutenções.",
+        response: `200
+{ "data": { "id": "cl...", "name": "Trator 1", "maintenances": [{ "id": "cl...", "description": "Troca de óleo", "...": "..." }], "...": "..." }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/machines/:id",
+        auth: "Sessão · maquinas:write · perfil fazenda",
+        description: "Edita dados cadastrais ou muda o status (active, maintenance, sold, inactive).",
+        request: `{ "status": "maintenance" }`,
+        response: `200
+{ "data": { "id": "cl..." }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/machines/:id/maintenances",
+        auth: "Sessão · maquinas:write · perfil fazenda",
+        description: "Registra uma manutenção. Com `cost`, gera despesa automática vinculada à manutenção (não à máquina). Com `next_due_at`, substitui a previsão anterior de `next_maintenance_at` e alimenta o alerta `maintenance_due` (janela de 15 dias).",
+        request: `{ "description": "Troca de óleo e filtros", "cost": 450, "next_due_at": "2026-11-01T00:00:00.000Z" }`,
+        response: `201
+{ "data": { "id": "cl..." }, "meta": {} }`,
+      },
+    ],
+  },
+  {
     title: "Lavoura: Talhões e ciclos",
     endpoints: [
       {

@@ -58,6 +58,13 @@ enum AnimalStatus {
   deceased
 }
 
+enum MachineStatus {
+  active
+  maintenance
+  sold
+  inactive
+}
+
 enum AnimalSex {
   male
   female
@@ -103,6 +110,7 @@ enum RelatedModule {
   rebanho
   lavoura
   servico
+  maquinas
   geral
 }
 
@@ -123,6 +131,7 @@ enum AlertType {
   bill_due
   low_balance
   trial_ending // spec 5.8, não previsto no PRD original: extensão aditiva
+  maintenance_due // Módulo 26, 2026-08-04: manutenção de máquina próxima
 }
 
 enum AlertStatus {
@@ -198,6 +207,7 @@ model Tenant {
   animals           Animal[]
   animal_categories AnimalCategory[]
   animal_batches    AnimalBatch[]
+  machines          Machine[]
   vaccines          Vaccine[]
   plots             Plot[]
   service_clients   ServiceClient[]
@@ -399,6 +409,7 @@ model Property {
   tenant         Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   animals        Animal[]
   animal_batches AnimalBatch[]
+  machines       Machine[]
   plots          Plot[]
   movements_from AnimalMovement[] @relation("MovementFromProperty")
   movements_to   AnimalMovement[] @relation("MovementToProperty")
@@ -549,6 +560,60 @@ model AnimalBatch {
   @@index([tenant_id])
   @@index([property_id])
   @@index([category_id])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Máquinas e equipamentos (Módulo 26, 2026-08-04).
+//
+// `next_maintenance_at` fica denormalizado na própria Machine (atualizado a
+// cada manutenção registrada), mesmo padrão de Animal.current_weight +
+// AnimalWeightLog: o pai guarda o valor atual, o filho guarda o histórico.
+// Sem cálculo de recorrência por dias/horímetro nesta rodada: a próxima data
+// é sempre informada pelo usuário. Ver
+// docs/specs/module-26-maquinas-equipamentos.md.
+// ─────────────────────────────────────────────────────────────
+
+model Machine {
+  id                  String        @id @default(cuid())
+  tenant_id           String
+  property_id         String
+  name                String
+  type                String
+  brand               String?
+  model               String?
+  year                Int?
+  acquired_at         DateTime?
+  acquisition_cost    Decimal?      @db.Decimal(14, 2)
+  hour_meter          Decimal?      @db.Decimal(10, 1)
+  status              MachineStatus @default(active)
+  next_maintenance_at DateTime?
+  created_at          DateTime      @default(now())
+  updated_at          DateTime      @updatedAt
+
+  tenant       Tenant               @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  property     Property             @relation(fields: [property_id], references: [id], onDelete: Restrict)
+  maintenances MachineMaintenance[]
+
+  @@index([tenant_id])
+  @@index([property_id])
+}
+
+// tenant_id incluído para o middleware de isolamento (mesmo padrão de
+// AnimalWeightLog): filho de Machine, não tem where próprio de negócio.
+model MachineMaintenance {
+  id           String    @id @default(cuid())
+  tenant_id    String
+  machine_id   String
+  performed_at DateTime
+  description  String
+  cost         Decimal?  @db.Decimal(14, 2)
+  next_due_at  DateTime?
+  created_at   DateTime  @default(now())
+
+  machine Machine @relation(fields: [machine_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id])
+  @@index([machine_id])
 }
 
 // ─────────────────────────────────────────────────────────────

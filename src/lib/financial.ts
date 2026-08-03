@@ -1,7 +1,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 
-type RelatedModule = "rebanho" | "lavoura" | "servico" | "geral";
+type RelatedModule = "rebanho" | "lavoura" | "servico" | "maquinas" | "geral";
 type EntryType = "income" | "expense";
 type EntryStatus = "pending" | "paid" | "overdue";
 

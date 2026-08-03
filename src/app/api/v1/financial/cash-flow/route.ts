@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     start,
     end,
     groupBy,
-    related_module: related_module as "rebanho" | "lavoura" | "servico" | "geral" | undefined,
+    related_module: related_module as "rebanho" | "lavoura" | "servico" | "maquinas" | "geral" | undefined,
   });
 
   return apiOk(series, {

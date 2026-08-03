@@ -76,7 +76,7 @@ export default async function FinanceiroPage({
       where: {
         ...(searchParams.entry_type ? { entry_type: searchParams.entry_type as "income" | "expense" } : {}),
         ...(searchParams.related_module
-          ? { related_module: searchParams.related_module as "rebanho" | "lavoura" | "servico" | "geral" }
+          ? { related_module: searchParams.related_module as "rebanho" | "lavoura" | "servico" | "maquinas" | "geral" }
           : {}),
         ...(searchParams.status ? { status: searchParams.status as "pending" | "paid" | "overdue" } : {}),
       },

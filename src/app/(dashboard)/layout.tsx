@@ -51,6 +51,7 @@ export default async function DashboardLayout({
   const navLinks: NavLink[] = [
     { href: "/dashboard", label: "Início", show: true },
     { href: "/rebanho", label: "Rebanho", show: hasFazenda },
+    { href: "/maquinas", label: "Máquinas", show: hasFazenda },
     { href: "/lavoura", label: "Lavoura", show: hasFazenda },
     { href: "/prestador", label: "Prestador", show: hasPrestador },
     { href: "/financeiro", label: "Financeiro", show: true },
