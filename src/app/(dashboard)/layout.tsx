@@ -55,6 +55,7 @@ export default async function DashboardLayout({
     { href: "/prestador", label: "Prestador", show: hasPrestador },
     { href: "/financeiro", label: "Financeiro", show: true },
     { href: "/alertas", label: "Alertas", show: true },
+    { href: "/calculadoras", label: "Calculadoras", show: true },
     { href: "/configuracoes/usuarios", label: "Usuários", show: canAccess(user.role, "usuarios") },
     { href: "/configuracoes/assinatura", label: "Assinatura", show: canAccess(user.role, "assinatura") },
     // Trocar a própria senha não é privilégio de papel: todo usuário precisa
