@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import type { AuthUser } from "@/types/api";
 
@@ -28,24 +29,60 @@ import type { AuthUser } from "@/types/api";
 const REFRESH_TOKEN_KEY = "tibe_refresh_token";
 const USER_CACHE_KEY = "tibe_user_cache";
 
+/**
+ * `expo-secure-store` não tem implementação nenhuma pra web (não é "menos
+ * seguro", é literalmente ausente: `getValueWithKeyAsync` nem existe no
+ * módulo web, quebra com "is not a function"). O produto real é iOS/Android
+ * (o PWA já é o produto web do Tibé, construído dentro do próprio Next.js,
+ * não este app); web aqui existe só pra rodar `expo start --web` durante o
+ * desenvolvimento/validação local. Por isso, e só nesse caso, cai pra
+ * `localStorage` (sem criptografia: aceitável para essa finalidade, nunca
+ * para o app publicado de verdade, que roda em iOS/Android via Keychain/
+ * Keystore normalmente).
+ */
+const isWeb = Platform.OS === "web";
+
+async function setItem(key: string, value: string): Promise<void> {
+  if (isWeb) {
+    globalThis.localStorage?.setItem(key, value);
+    return;
+  }
+  await SecureStore.setItemAsync(key, value);
+}
+
+async function getItem(key: string): Promise<string | null> {
+  if (isWeb) {
+    return globalThis.localStorage?.getItem(key) ?? null;
+  }
+  return SecureStore.getItemAsync(key);
+}
+
+async function deleteItem(key: string): Promise<void> {
+  if (isWeb) {
+    globalThis.localStorage?.removeItem(key);
+    return;
+  }
+  await SecureStore.deleteItemAsync(key);
+}
+
 export async function saveRefreshToken(token: string): Promise<void> {
-  await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, token);
+  await setItem(REFRESH_TOKEN_KEY, token);
 }
 
 export async function loadRefreshToken(): Promise<string | null> {
-  return SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+  return getItem(REFRESH_TOKEN_KEY);
 }
 
 export async function clearRefreshToken(): Promise<void> {
-  await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+  await deleteItem(REFRESH_TOKEN_KEY);
 }
 
 export async function saveUserCache(user: AuthUser): Promise<void> {
-  await SecureStore.setItemAsync(USER_CACHE_KEY, JSON.stringify(user));
+  await setItem(USER_CACHE_KEY, JSON.stringify(user));
 }
 
 export async function loadUserCache(): Promise<AuthUser | null> {
-  const raw = await SecureStore.getItemAsync(USER_CACHE_KEY);
+  const raw = await getItem(USER_CACHE_KEY);
   if (!raw) return null;
   try {
     return JSON.parse(raw) as AuthUser;
@@ -55,5 +92,5 @@ export async function loadUserCache(): Promise<AuthUser | null> {
 }
 
 export async function clearUserCache(): Promise<void> {
-  await SecureStore.deleteItemAsync(USER_CACHE_KEY);
+  await deleteItem(USER_CACHE_KEY);
 }

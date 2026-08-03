@@ -22,82 +22,97 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 ## Estado atual
 
 - Atualizado em: 2026-08-04
-- Última rodada: continuação da iniciativa de layout (pausa deliberada no
-  app mobile). Fase 1 (`3b65490`), Fase 2+3 (`07f5210`, KPIs/gráficos/Meu
-  Dia+calendário/"Fazenda em Números" real/dado de demonstração) e seletor
-  de propriedade + menu de conta (`de693bf`, seção 12 do briefing)
-  **commitadas e com push/deploy aprovados e executados nesta rodada**
-  (`git push origin main`, 39c1a32→de693bf). App mobile retomado logo em
-  seguida, autorizado pelo usuário.
-- Produção: <https://tibe-agrogestao.vercel.app/> deployada com
-  `de693bf` (deploy automático da Vercel no push). **Correção de registro**:
-  o Módulo 28 (`ec2d478`/`39c1a32`) já estava em produção desde antes desta
-  rodada (um handoff anterior registrou "push não solicitado" por engano;
-  `git fetch` confirmou `origin/main` já em `39c1a32` antes deste push).
-- Banco: `npx prisma migrate status` contra o Neon confirmou **schema já
-  em dia** antes deste push (a migração do Módulo 28,
-  `20260804180000_financial_category_alert_preference`, já estava aplicada
-  em produção). Nenhuma das 3 rodadas de layout mexeu em schema (seletor de
-  propriedade é cookie, não coluna).
+- Última rodada: **app mobile retomado** (pausa desde o início da
+  iniciativa de layout, que fechou com push/deploy aprovado em `de693bf`,
+  já em produção). Usuário pediu telas de escrita e avisou que só vai
+  validar no dia seguinte: esta rodada é código real, testado em navegador
+  (via `expo start --web`, com um ajuste local pra viabilizar isso, ver
+  abaixo), mas **ainda não testado em Android/iPhone físico/emulador**.
+- Produção: <https://tibe-agrogestao.vercel.app/> em `de693bf` (layout
+  completo). Esta rodada (app mobile) não tem nada pra fazer deploy (é um
+  app separado, sem build/publicação nesta rodada) além do ajuste dev-only
+  em `next.config.mjs`, que não muda o comportamento em produção
+  (confirmado rodando `next start` com `NODE_ENV=production` e conferindo
+  que o header CORS não aparece).
+- Banco: nenhuma mudança de schema nesta rodada.
 
-### Entregue nesta rodada (seletor de propriedade + menu de conta)
+### Entregue nesta rodada (app mobile: telas de escrita + correções)
 
-- **Propriedade ativa filtra o app inteiro** (`src/lib/active-property.ts`,
-  cookie `tibe_active_property_id`, não campo no banco): decisão do usuário
-  entre 2 opções apresentadas (leve: só mostra/troca; completo: filtra
-  tudo). Escolheu completo. `POST /api/v1/tenant/active-property` troca.
-  Aplicado em Rebanho (parâmetro de URL explícito continua vencendo),
-  Máquinas e Lavoura (ganharam filtro que não tinham, com aviso "Filtrado
-  por: X"), Dashboard e "Fazenda em Números" (KPIs/gráficos de
-  rebanho/talhões/máquinas/vacinas/calendário). Financeiro/Prestador ficam
-  de fora: `FinancialEntry`/`ServiceOrder` não têm `property_id` no schema.
-- **Menu de conta no topo** (`user-menu.tsx`): avatar + nome + chevron →
-  Perfil, Minha senha, Sair. Os atalhos já existentes no rodapé da sidebar
-  (Fase 1) continuam, fiel ao mockup (coexistem, não é redundância por
-  descuido).
-- **Página "Perfil" nova** (`/configuracoes/perfil`): só o nome é editável
-  (`updateOwnNameAction`, `auth-self.ts`); email fica de fora de propósito
-  (identificador de login globalmente único, trocar exigiria
-  reverificação).
-- **Dropdown escrito à mão** (`src/components/ui/use-dropdown.ts`, hook
-  compartilhado entre o seletor de propriedade e o menu de conta): não o
-  Radix DropdownMenu do shadcn, mesmo motivo da Fase 1 (classes
-  `oklch(...)` incompatíveis com este projeto).
-- **Seed de demonstração ganhou uma 2ª propriedade** ("Sítio Recanto",
-  ~20% do rebanho/máquinas/lavoura): sem ela não dava pra validar o filtro
-  de verdade.
-- Validado com navegador real: troca de propriedade filtrando
-  Dashboard/Máquinas de verdade (rebanho 232→44 cabeças, talhões 3→1,
-  manutenções 2→1, financeiro inalterado como esperado), menu de conta,
-  edição de nome. `npm run build` limpo e suíte ampla (`isolation`,
-  `m1`-`m5`, `m17`, `m19`, `m25`-`m29`) sem regressão.
-- **Achado, não corrigido, fora do escopo** (herdado da rodada anterior): o
-  aviso de instalação do PWA sobrepõe o rodapé da sidebar no mobile.
+- **Telas de escrita na tela Financeiro** (`apps/mobile`, plano de
+  arquitetura item 10, "registro rápido"): "marcar como pago" por
+  lançamento (`PATCH .../:id/pay`) e "novo lançamento"
+  (`POST /api/v1/financial-entries`, formulário mínimo: categoria, valor,
+  observação opcional, vencimento sempre hoje, sem date picker de
+  propósito). Escondidas na UI pra `VISUALIZADOR`; a garantia real
+  continua sendo `guard("financeiro","write")` no back-end.
+  **Rebanho, Máquinas e Tarefas continuam fora do app e de
+  `packages/contracts`** (decisão deliberada documentada em várias specs):
+  não reaberta nesta rodada, fica pra uma rodada própria com o usuário.
+- **Tela Início mostra o nome real da fazenda**: `GET /api/v1/tenant`
+  (criada na Onda 4 especificamente pra isso) nunca tinha sido consumida
+  pelo app até agora.
+- **2 achados corrigidos de caminho**: `Brand` (cores do app mobile) ainda
+  usava o placeholder verde genérico da Onda 2 (`#2E7D32`), nunca
+  atualizado pra paleta oficial do cliente corrigida na Onda 4 (`#649721`
+  etc.): o painel web já usava a certa, o mobile não. `RelatedModule` no
+  mobile também estava sem `"maquinas"` (mesma classe de gap já achada
+  2x nesta sessão no lado web).
+- **`node_modules` de `apps/mobile` nunca tinham sido instalados** nesta
+  máquina: `tsc`/`lint`/`expo-doctor`/`expo export` de rodadas anteriores
+  reportados como "limpos" no README não podiam ter rodado de verdade
+  sem isso. Rodado `npm install` (590 pacotes) antes de validar esta
+  rodada; achado um gap real de tipo (`TS2882`, import de `global.css`
+  sem declaração ambiente) só visível depois da instalação, corrigido
+  (`src/global.d.ts`).
+- **`expo-secure-store` não tem implementação pra web** (quebra em runtime
+  com "is not a function", só descoberto testando de verdade no
+  navegador): `auth-storage.ts` ganhou fallback pra `localStorage` só
+  quando `Platform.OS === "web"` (sem criptografia, aceitável só pra essa
+  finalidade de desenvolvimento local; iOS/Android continuam 100% Keychain/
+  Keystore, sem mudança).
+- **CORS dev-only** (`next.config.mjs`, raiz do repo): `expo start --web`
+  roda em origem diferente (`localhost:8081`) da API (`localhost:3000`);
+  sem isso a tela de login nem conectava ("Não foi possível conectar ao
+  servidor"). Cabeçalho só existe quando `NODE_ENV !== "production"`:
+  confirmado que não vaza pra produção.
+- Validado com navegador real, backend local, sessão logada de verdade:
+  login, saldo do mês, nome da fazenda, lista de Rebanho (com as 2
+  propriedades da Onda de layout), marcar como pago (item some da lista),
+  novo lançamento (aparece na lista). `tsc --noEmit`, `expo lint`,
+  `expo-doctor` (20/20) e `expo export --platform web` limpos.
+- **Não testado**: instalação/uso num Android ou iPhone real (Expo Go ou
+  build nativo), pendência que já existia, continua.
 
 ### Pendências e próximo passo
 
-- **Próximo passo autorizado pelo usuário: retomar o app mobile** (telas de
-  escrita), pausado desde o início da iniciativa de layout. Usuário avisou
-  que vai validar tudo (layout em produção + o que for feito no mobile) no
-  dia seguinte: registre o estado real do mobile ao final desta rodada,
-  não dê como "pronto" o que não foi testado em navegador/emulador.
+- **Testar o app mobile num aparelho Android/iPhone real ou emulador**
+  (Expo Go): nunca foi feito, nem nesta rodada nem nas anteriores.
+- Decidir com o usuário se/quando reabrir Rebanho, Máquinas e Tarefas
+  para o app mobile e `packages/contracts` (decisão deliberada de ficarem
+  de fora, documentada em specs de módulo; a extração de contrato de
+  rebanho especificamente só devia acontecer depois de mudança de schema
+  daquele domínio, que já aconteceu no Módulo 25, então a janela pra
+  reabrir isso está tecnicamente aberta).
 - Confirmações ainda pendentes da Agromax: modelo de rebanho por categoria
   (Módulo 25, sem confirmação formal), destino da Lavoura.
 - Validação técnica das 3 calculadoras de confiança média (água, calagem,
   mão de obra) antes de uso real com clientes.
 - Verificação do negócio na Meta: ainda não iniciada, item de maior prazo.
-- Testar instalação do PWA e o app mobile (Expo) em Android/iPhone reais.
-- `apps/mobile` e `packages/contracts` ainda não cobrem rebanho, máquinas
-  nem tarefas (decisão deliberada, mesmo critério das rodadas anteriores):
-  a rodada de app mobile (retomada depois do layout) provavelmente precisa
-  reabrir essa decisão.
+- Testar instalação do PWA (web) em Android/iPhone reais.
+- **Achado, não corrigido, fora do escopo** (herdado da rodada anterior): o
+  aviso de instalação do PWA sobrepõe o rodapé da sidebar no mobile
+  (painel WEB, não o app `apps/mobile`).
 
 ## Histórico recente
 
+- 2026-08-04: app mobile retomado: telas de escrita em Financeiro (marcar
+  como pago, novo lançamento), nome da fazenda na tela Início, cores
+  oficiais corrigidas, `expo-secure-store` com fallback web, CORS dev-only.
+  Validado em navegador contra o back-end local; não testado em
+  Android/iPhone reais. Commit desta rodada pendente.
 - 2026-08-04: push/deploy aprovado pelo usuário: `git push origin main`
   levou as 3 rodadas de layout (`3b65490`/`07f5210`/`de693bf`) pra
-  produção de uma vez (Módulo 28 já estava lá desde antes). App mobile
-  retomado em seguida.
+  produção de uma vez (Módulo 28 já estava lá desde antes).
 - 2026-08-04: seletor de propriedade no topo (filtra o app inteiro) + menu
   de conta (Perfil/Minha senha/Sair) + página Perfil. Commit `de693bf`.
 - 2026-08-04: Fase 2+3 do layout (KPIs, gráficos, Meu Dia+calendário,
@@ -105,5 +120,3 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
   anos. Commit `07f5210`.
 - 2026-08-04: Fase 1 do layout (sidebar escura + nova IA de navegação +
   topbar simplificada) implementada e validada. Commit `3b65490`.
-- 2026-08-04: Módulo 28 (ajustes financeiros e tela inicial reformulada)
-  implementado e implantado em produção. Commits `ec2d478`/`39c1a32`.

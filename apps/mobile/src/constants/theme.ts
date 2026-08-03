@@ -28,14 +28,23 @@ export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
 /**
  * Identidade visual do Tibé (mesmos valores de `tailwind.config.ts` no
- * painel web, seção "tibe", PRD seção 9). Cores fixas (não variam por
- * tema claro/escuro): usadas em botões de ação e destaques, não em
- * fundo/texto padrão de tela.
+ * painel web, chave "tibe"). Cores fixas (não variam por tema claro/escuro):
+ * usadas em botões de ação e destaques, não em fundo/texto padrão de tela.
+ *
+ * Corrigido nesta rodada: os valores anteriores (`#2E7D32`/`#1B5E20`/
+ * `#E8F5E9`) eram um placeholder da Onda 2 (esqueleto do app), anterior à
+ * paleta oficial que o cliente enviou (Onda 4, `docs/idVisual/paleta-de
+ * cores.png`) e que já corrigiu o painel web. O app mobile nunca tinha sido
+ * atualizado pra acompanhar.
  */
 export const Brand = {
-  primary: '#2E7D32',
-  dark: '#1B5E20',
-  light: '#E8F5E9',
+  primary: '#649721',
+  dark: '#022E20',
+  darkest: '#09241B',
+  light: '#FCF8F5',
+  accent: '#E97D0F',
+  accentDark: '#BA640C',
+  accentLight: '#FCEFE2',
 } as const;
 
 export const Fonts = Platform.select({

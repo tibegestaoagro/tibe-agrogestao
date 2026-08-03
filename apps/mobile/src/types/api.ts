@@ -11,6 +11,10 @@
  *                              `property_name`/`last_vaccination_at`)
  * - FinancialEntry:           src/lib/serializers.ts (`serializeFinancialEntry`)
  * - Saldo em fluxo de caixa:  src/lib/actions/financial-reports.ts (`getCashFlow`)
+ * - Tenant:                   src/app/api/v1/tenant/route.ts (GET, Onda 4:
+ *                              existe desde então especificamente pra suprir
+ *                              este gap do app mobile, nunca consumida aqui
+ *                              até esta rodada)
  *
  * Deliberadamente SEM depender de `packages/contracts` (decisão desta onda,
  * ver docs/arquitetura/plano-separacao-e-mobile.md): o aplicativo é standalone
@@ -74,7 +78,7 @@ export type Animal = {
 
 export type FinancialEntryType = "income" | "expense";
 export type FinancialEntryStatus = "pending" | "paid" | "overdue";
-export type RelatedModule = "rebanho" | "lavoura" | "servico" | "geral";
+export type RelatedModule = "rebanho" | "lavoura" | "servico" | "maquinas" | "geral";
 
 /** GET /api/v1/financial-entries */
 export type FinancialEntry = {
@@ -105,4 +109,13 @@ export type CashFlowBucket = {
   income: number;
   expense: number;
   balance: number;
+};
+
+/** GET /api/v1/tenant */
+export type Tenant = {
+  id: string;
+  name: string;
+  document: string;
+  phone: string | null;
+  email: string | null;
 };

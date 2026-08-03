@@ -8,7 +8,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { Spacing } from '@/constants/theme';
 import { AuthExpiredError } from '@/lib/api-client';
 import { formatCurrencyBRL } from '@/lib/format';
-import type { CashFlowBucket } from '@/types/api';
+import type { CashFlowBucket, Tenant } from '@/types/api';
 
 const ROLE_LABEL: Record<string, string> = {
   OWNER: 'Proprietário',
@@ -26,11 +26,10 @@ const ROLE_LABEL: Record<string, string> = {
  * src/lib/actions/financial-reports.ts), então o app não precisa calcular
  * nenhuma data: isso seria regra de negócio vazando pro cliente.
  *
- * Não existe rota `/api/v1` que devolva o nome da fazenda/tenant hoje (o
- * painel web busca isso direto no Prisma, dentro de um Server Component,
- * não por HTTP, ver `(dashboard)/layout.tsx`): por isso esta tela mostra
- * só o nome de quem logou, não o nome da fazenda. Ver relatório final desta
- * rodada para o detalhe.
+ * `GET /api/v1/tenant` (Onda 4) traz o nome da fazenda: essa rota foi
+ * criada especificamente pra suprir o gap descrito nas rodadas anteriores
+ * (o painel web busca isso direto no Prisma, dentro de um Server Component,
+ * não por HTTP), mas nunca tinha sido consumida por este app até agora.
  */
 export default function InicioScreen() {
   const { state, authedFetch, signOut } = useAuth();
@@ -39,14 +38,19 @@ export default function InicioScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [balance, setBalance] = useState<CashFlowBucket | null>(null);
+  const [tenant, setTenant] = useState<Tenant | null>(null);
 
   const user = state.status === 'signedIn' ? state.user : null;
 
   const load = useCallback(async () => {
     setError(null);
     try {
-      const { data } = await authedFetch<CashFlowBucket[]>('/api/v1/financial/cash-flow?group_by=month');
-      setBalance(data[0] ?? null);
+      const [balanceRes, tenantRes] = await Promise.all([
+        authedFetch<CashFlowBucket[]>('/api/v1/financial/cash-flow?group_by=month'),
+        authedFetch<Tenant>('/api/v1/tenant'),
+      ]);
+      setBalance(balanceRes.data[0] ?? null);
+      setTenant(tenantRes.data);
     } catch (e) {
       if (e instanceof AuthExpiredError) return; // AuthProvider já derrubou a sessão; a navegação troca sozinha.
       setError(e instanceof Error ? e.message : 'Não foi possível carregar o saldo do mês.');
@@ -77,6 +81,7 @@ export default function InicioScreen() {
           {user?.role && (
             <ThemedText type="small" themeColor="textSecondary">
               {ROLE_LABEL[user.role] ?? user.role}
+              {tenant?.name ? ` · ${tenant.name}` : ''}
             </ThemedText>
           )}
         </View>
