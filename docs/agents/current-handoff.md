@@ -22,78 +22,70 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 ## Estado atual
 
 - Atualizado em: 2026-08-04
-- Última rodada: Onda 4 (limpeza técnica: `GET /api/v1/tenant`, correção de
-  `/docs/api`, branded type no client escopado, paleta oficial do cliente).
-  **Commitado na `main` localmente; push/deploy desta rodada específica
-  ainda não solicitado.**
-- Produção: <https://tibe-agrogestao.vercel.app/> reflete até a Onda 3 +
-  ajuste do resumo diário pro n8n (push anterior, `eb6b73c`).
-- Onda 3 (Módulo 25, Calculadora, design) e o ajuste do resumo diário pro
-  n8n: integrados, testados e **já em produção** (rodadas anteriores).
+- Última rodada: Módulo 26 (máquinas e equipamentos), primeira da fila
+  priorizada de "ondas seguintes" combinada com o usuário. **Commitado na
+  `main` localmente (`d042f49`); push/deploy ainda não solicitado.**
+- Produção: <https://tibe-agrogestao.vercel.app/> reflete até a Onda 4
+  (limpeza técnica + paleta oficial), push `02e901a`, aprovado e
+  implantado nesta mesma rodada de trabalho.
+- Banco: nova migração `20260804090000_machine_maintenance` aplicada só no
+  Docker local; Neon pendente até a aprovação de deploy desta rodada.
 
-### Entregue nesta rodada (Onda 4)
+### Entregue nesta rodada (Módulo 26: máquinas e equipamentos)
 
-- **`GET /api/v1/tenant`** (aditivo): destrava o app mobile mostrar o nome
-  da fazenda. Leitura liberada pra qualquer papel (reusa a permissão
-  `alertas`, mesmo critério já usado pelo seam de notificação da Onda 2).
-- **Corrigidas as 5 divergências reais entre `/docs/api` e o comportamento
-  das rotas**, mapeadas desde a Onda 1 (agente A2) e nunca corrigidas até
-  agora: PATCH de role/active documentado devolvendo campo a mais do que
-  devolve de verdade; `POST /signup/verify` só documentava um dos dois
-  ramos de resposta; rotas de recuperação de senha ausentes da
-  documentação; campos `utm_*` de `/signup/start` não documentados; nota
-  geral sobre `meta` sempre presente mesmo quando o exemplo abrevia.
-- **Branded type em `TenantPrismaClient`**: o client base sem escopo era
-  estruturalmente idêntico ao escopado (extensão do Prisma não muda o tipo,
-  só o comportamento em runtime), então passar o client errado num lugar
-  que espera o escopado não dava erro de compilação. Agora dá: só
-  `prismaForTenant()` produz o tipo. Build e suíte completa passaram sem
-  precisar tocar em nenhum caller existente (prova de que todo mundo já
-  usava o caminho certo).
-- **Paleta da identidade visual corrigida pros hex oficiais do cliente**
-  (`docs/idVisual/paleta-de cores.png`, enviada depois da Onda 3): a
-  estimativa por pixel do C3 tinha primary/dark/light diferentes do
-  pretendido (primary mais saturado que o oliva real, light com tingimento
-  verde em vez do creme neutro oficial). Corrigido em `tailwind.config.ts`
-  (token novo `tibe.darkest`, a paleta oficial trouxe 2 verdes escuros bem
-  próximos, os dois preservados) e ícones do PWA regenerados
-  (`scripts/pwa-icons.mjs`) com as cores certas.
-- Commits: `c9e7348` (itens de código) e `5606d62` (correção de paleta).
+- Spec fechada em `docs/specs/module-26-maquinas-equipamentos.md` após
+  entrevista com o usuário. Modelos novos `Machine`/`MachineMaintenance`,
+  com `next_maintenance_at` denormalizado na própria máquina (mesmo padrão
+  de `Animal.current_weight` + `AnimalWeightLog`): a manutenção mais
+  recente que informa `next_due_at` substitui a previsão anterior.
+- Cadastro de máquina com custo de aquisição, e registro de manutenção com
+  custo, geram despesa automática (`createLinkedEntry`), a segunda ligada à
+  manutenção, não à máquina (várias manutenções na mesma máquina não
+  colidem no `related_id`).
+- Alerta novo `maintenance_due` (janela de 15 dias, mesmo seam de
+  notificação já existente desde o M4/Onda 2: push/WhatsApp/email).
+- `ModuleKey`/`RelatedModule` "maquinas" próprios. **Achado só na
+  integração**: 5 lugares no código duplicavam manualmente o tipo
+  `RelatedModule` em vez de derivar do Prisma (`financial.ts`, `alerts.ts`,
+  `financial-reports.ts`, e 2 rotas de filtro de lançamento financeiro),
+  todos precisaram de atualização manual pro build passar. `test:m4`
+  também precisou de ajuste (DRE soma 5 módulos agora, não mais 4).
+- Painel: `/maquinas` (listagem) e `/maquinas/:id` (detalhe + histórico de
+  manutenções + registro). Sem intenção no WhatsApp nem cálculo de
+  recorrência por intervalo nesta rodada (decisão fechada na spec).
+- `test:m27`: 25 asserções, 0 falhas. Suíte completa (`isolation`, `m1`,
+  `m2`, `m4`, `m5`, `m17`, `m20`-`m22`, `m24`-`m27`) e `npm run build`
+  verificados juntos depois da implementação.
 
 ### Pendências e próximo passo
 
-- **Push desta rodada (Onda 4) pra produção**: ainda não solicitado ao
-  usuário.
-- **Confirmar com a Agromax** o modelo de rebanho por categoria do C1
-  (ainda sem confirmação formal, seguido por decisão do usuário de não
-  esperar mais). A paleta de cores já foi corrigida com valor oficial nesta
-  rodada, deixou de ser pendência.
-- **Fila de ondas seguintes, já priorizada com o usuário** (2026-08-04):
-  Onda 5 (Máquinas e equipamentos) → Onda 6 (Meu Dia) → Onda 7 (tela inicial
-  reformulada + ajustes financeiros: adiar vencimento, cancelar conta,
-  categorias personalizadas de receita/despesa, preferências de lembrete) →
-  Onda 8 (app mobile: telas de escrita) → Onda 9 (medir consumo de mensagem
-  por cliente). Depois, sem prazo: reestruturar a navegação pro formato do
-  mockup do cliente.
-- Confirmações ainda pendentes da Agromax: destino da Lavoura, prioridade
-  entre Máquinas e Meu Dia (Calculadora já entregue).
+- **Push desta rodada (Módulo 26) pra produção**: ainda não solicitado.
+- **Fila de ondas seguintes, priorizada com o usuário em 2026-08-04**:
+  Módulo 26 (feito, esta rodada) → Meu Dia → tela inicial reformulada +
+  ajustes financeiros (adiar vencimento, cancelar conta, categorias
+  personalizadas de receita/despesa, preferências de lembrete) → app
+  mobile (telas de escrita) → medir consumo de mensagem por cliente.
+  Depois, sem prazo: reestruturar a navegação pro formato do mockup do
+  cliente.
+- Confirmações ainda pendentes da Agromax: modelo de rebanho por categoria
+  (Módulo 25, sem confirmação formal), destino da Lavoura, prioridade entre
+  Máquinas (entregue) e Meu Dia.
 - Validação técnica das 3 calculadoras de confiança média (água, calagem,
   mão de obra) antes de uso real com clientes.
 - Verificação do negócio na Meta: ainda não iniciada, item de maior prazo.
 - Testar instalação do PWA e o app mobile (Expo) em Android/iPhone reais.
-- `apps/mobile` e `packages/contracts` ainda não cobrem rebanho (decisão
-  deliberada da Onda 3, registrada no briefing).
+- `apps/mobile` e `packages/contracts` ainda não cobrem rebanho nem
+  máquinas (decisão deliberada, mesmo critério das duas rodadas).
 
 ## Histórico recente
 
-- 2026-08-03: resumo diário movido da Vercel Cron pro n8n (Schedule Trigger,
-  mesmo padrão do lembrete de cadastro abandonado), elimina a dúvida sobre
-  limite de cron do plano da Vercel. `daily-digest` agora autentica por
-  `INTERNAL_API_SECRET`, não mais `CRON_SECRET`.
+- 2026-08-04: Módulo 26 (máquinas e equipamentos) implementado. Commit
+  `d042f49`, push desta rodada ainda não solicitado.
 - 2026-08-04: Onda 4 (GET /api/v1/tenant, correção de /docs/api, branded
-  type, paleta oficial do cliente). Commits `c9e7348`/`5606d62`, push desta
-  rodada ainda não solicitado.
-- 2026-08-03: resumo diário movido pro n8n (Schedule Trigger), elimina a
+  type, paleta oficial do cliente) integrada e implantada em produção.
+  Commits `c9e7348`/`5606d62`/`02e901a`.
+- 2026-08-03: resumo diário movido da Vercel Cron pro n8n (Schedule
+  Trigger, mesmo padrão do lembrete de cadastro abandonado), elimina a
   dúvida sobre limite de cron do plano da Vercel.
 - 2026-08-03: Onda 3 integrada e implantada em produção (Módulo 25 rebanho
   por categoria, Calculadora Pecuária, identidade visual nova). Commit
@@ -101,6 +93,3 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 - 2026-08-03: Onda 2 integrada (notificação push, resumo diário, esqueleto
   mobile, cadastro guiado mais curto), 3 correções de integração aplicadas,
   deploy em produção.
-- 2026-08-01: Onda 1 integrada, middleware corrigido (authorized() nao era
-  chamado ha meses), varredura completa de travessao. Commit `e1c9e2d`,
-  deploy verificado em producao.
