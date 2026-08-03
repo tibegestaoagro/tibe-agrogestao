@@ -4,9 +4,9 @@ import { getSessionUser } from "@/lib/tenant-context";
 import { prisma } from "@/lib/prisma";
 import { requireSessionGateForPage } from "@/lib/session-gate";
 import { getBillingAccess, isBillingExemptPath } from "@/lib/billing-access";
-import { canAccess } from "@/lib/permissions";
+import { hasMinRole } from "@/lib/permissions";
 import DashboardShell from "@/components/layout/dashboard-shell";
-import type { NavLink } from "@/components/layout/sidebar";
+import type { NavItem } from "@/components/layout/sidebar";
 import InstallInvite from "@/components/pwa/install-invite";
 import NotificationOptIn from "@/components/pwa/notification-opt-in";
 
@@ -48,27 +48,53 @@ export default async function DashboardLayout({
 
   const hasFazenda = profiles.includes("fazenda");
   const hasPrestador = profiles.includes("prestador");
-  const navLinks: NavLink[] = [
-    { href: "/dashboard", label: "Início", show: true },
-    { href: "/meu-dia", label: "Meu Dia", show: true },
-    { href: "/rebanho", label: "Rebanho", show: hasFazenda },
-    { href: "/maquinas", label: "Máquinas", show: hasFazenda },
-    { href: "/lavoura", label: "Lavoura", show: hasFazenda },
-    { href: "/prestador", label: "Prestador", show: hasPrestador },
-    { href: "/financeiro", label: "Financeiro", show: true },
-    { href: "/alertas", label: "Alertas", show: true },
-    { href: "/calculadoras", label: "Calculadoras", show: true },
-    { href: "/configuracoes/usuarios", label: "Usuários", show: canAccess(user.role, "usuarios") },
-    { href: "/configuracoes/assinatura", label: "Assinatura", show: canAccess(user.role, "assinatura") },
-    // Trocar a própria senha não é privilégio de papel: todo usuário precisa
-    // alcançar isso, inclusive quem não vê Configurações (Módulo 19).
-    { href: "/configuracoes/senha", label: "Minha senha", show: true },
-  ].filter((l) => l.show);
+
+  // Fase 1 do briefing de layout (docs/design/briefing-novo-layout.md):
+  // reagrupa os 12 links planos de sempre em 7 entradas, seguindo a IA do
+  // mockup do cliente. Nenhuma regra de permissão nova: "Configurações da
+  // conta" aponta pro hub /configuracoes, que já é gated por
+  // hasMinRole("ADMIN") e já lista Usuários/Assinatura internamente (a
+  // segunda com o gate extra de OWNER): evita duplicar essa checagem aqui.
+  const navItems: NavItem[] = [
+    { kind: "link", href: "/dashboard", label: "Início", icon: "home", show: true },
+    {
+      kind: "group",
+      label: "Minha Fazenda",
+      icon: "fazenda",
+      show: true,
+      children: [
+        { href: "/rebanho", label: "Rebanho", show: hasFazenda },
+        { href: "/maquinas", label: "Máquinas", show: hasFazenda },
+        { href: "/lavoura", label: "Lavoura", show: hasFazenda },
+        { href: "/prestador", label: "Prestador", show: hasPrestador },
+        { href: "/financeiro", label: "Financeiro", show: true },
+        { href: "/alertas", label: "Alertas", show: true },
+      ],
+    },
+    { kind: "link", href: "/meu-dia", label: "Meu Dia", icon: "meu-dia", show: true },
+    { kind: "link", href: "/calculadoras", label: "Calculadora Pecuária", icon: "calculadora", show: true },
+    // "Fazenda em Números" e "WhatsApp" existem no mockup mas não têm
+    // conteúdo/dado real ainda (decisão do briefing): entram desabilitadas.
+    { kind: "soon", label: "Fazenda em Números", icon: "numeros" },
+    { kind: "soon", label: "WhatsApp", icon: "whatsapp" },
+    {
+      kind: "group",
+      label: "Configurações",
+      icon: "configuracoes",
+      show: true,
+      children: [
+        { href: "/configuracoes", label: "Configurações da conta", show: hasMinRole(user.role, "ADMIN") },
+        // Trocar a própria senha não é privilégio de papel: todo usuário
+        // precisa alcançar isso, inclusive quem não vê o resto (Módulo 19).
+        { href: "/configuracoes/senha", label: "Minha senha", show: true },
+      ],
+    },
+  ];
 
   return (
     <>
       <DashboardShell
-        navLinks={navLinks}
+        navItems={navItems}
         tenantName={tenant?.name ?? "Fazenda"}
         userName={user.name ?? "Usuário"}
         roleLabel={ROLE_LABEL[user.role] ?? user.role}

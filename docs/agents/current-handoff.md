@@ -22,47 +22,66 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 ## Estado atual
 
 - Atualizado em: 2026-08-04
-- Última rodada: Módulo 28 (ajustes financeiros e tela inicial
-  reformulada), última peça da fila priorizada combinada com o usuário
-  antes do app mobile. **Commitado na `main` localmente (`ec2d478`);
-  push/deploy ainda não solicitado.**
+- Última rodada: **pausa deliberada no app mobile**, a pedido do usuário,
+  pra revisar o layout do painel web usando o mockup do cliente
+  (`docs/idVisual/ID-visual-dashboard.jpeg`) como referência. Briefing em
+  `docs/design/briefing-novo-layout.md` (leitura do mockup, gap vs. hoje,
+  achados técnicos do shadcn neste projeto, decisões fechadas com o
+  usuário, fatiamento em fases). **Fase 1 (sidebar + IA de navegação +
+  topbar) implementada e validada nesta rodada; ainda não commitada.**
 - Produção: <https://tibe-agrogestao.vercel.app/> reflete até o Módulo 27
-  (Meu Dia) + ajuste do n8n, push `f0d7871`, aprovado e implantado nesta
-  mesma rodada de trabalho.
+  (Meu Dia) + ajuste do n8n, push `f0d7871`. Módulo 28 (`ec2d478`/`39c1a32`)
+  e a Fase 1 do layout continuam só locais, push/deploy não solicitado.
 - Banco: nova migração `20260804180000_financial_category_alert_preference`
-  aplicada só no Docker local; Neon pendente até a aprovação de deploy
-  desta rodada.
+  (Módulo 28) aplicada só no Docker local; Neon pendente até aprovação de
+  deploy.
 
-### Entregue nesta rodada (Módulo 28: ajustes financeiros e dashboard)
+### Entregue nesta rodada (briefing de layout + Fase 1: sidebar e navegação)
 
-- Spec fechada em `docs/specs/module-28-ajustes-financeiros-e-dashboard.md`
-  após entrevista com o usuário. `FinancialCategory` novo, por tenant e por
-  tipo (receita/despesa), mesmo padrão de `AnimalCategory` (Módulo 25).
-- **Adiar vencimento e cancelar lançamento liberados pra qualquer origem**,
-  diferente de editar (que continua restrito a `related_module: geral`):
-  risco bem menor, só muda data/status, não descola do dado de origem.
-- `AlertPreference` novo: liga/desliga TIPO de alerta por tenant, nunca
-  canal (a política do `notify()`, Onda 2, continua intacta). Ausência de
-  linha = habilitado (opt-out): nenhum tenant existente perdeu alerta
-  nenhum com o deploy desta rodada.
-- Dashboard: 4 indicadores novos SOMADOS ao que já existia (próximos
-  compromissos, contas vencidas, manutenções próximas, últimos
-  lançamentos), sem remover nenhum card atual.
-- **Achado na integração**: `"maquinas"` faltava no `MODULE_LABEL` de
-  `/financeiro` desde o Módulo 26 (a coluna de módulo ficava em branco pra
-  lançamento de máquina). Corrigido.
-- `test:m29`: 27 asserções, 0 falhas. Suíte completa (`isolation`, `m1`-
-  `m5`, `m12`, `m17`, `m20`-`m22`, `m24`-`m29`) e `npm run build`
-  verificados juntos.
+- Reabre deliberadamente a reestruturação de navegação, adiada 3 vezes em
+  rodadas anteriores (Onda 1 A3/A4, Onda 3 C2/C3): o usuário autorizou
+  agora, com o mockup como referência de IA (7 itens agrupados em vez dos
+  12 links planos de antes).
+- Sidebar (`src/components/layout/sidebar.tsx`, reescrita): fundo
+  `tibe.darkest`, ícones lucide, estado ativo em `tibe.primary`, grupos
+  "Minha Fazenda" (Rebanho/Máquinas/Lavoura/Prestador/Financeiro/Alertas) e
+  "Configurações" (aponta pro hub `/configuracoes` já existente + "Minha
+  senha") expansíveis, "Fazenda em Números" e "WhatsApp" desabilitados
+  ("em breve": nenhum dos dois tem conteúdo/número real ainda), cartão de
+  conta no rodapé (tenant + usuário + atalhos de senha/logout) no lugar do
+  texto que antes só existia no header.
+- **Decisão deliberada**: "Configurações da conta" na sidebar aponta pro
+  hub `/configuracoes` (gated `hasMinRole(role,"ADMIN")`) em vez de repetir
+  cada link (Usuários/Assinatura/Categorias/Alertas) com sua própria regra
+  de permissão na sidebar, evitando duplicar controle de acesso em dois
+  lugares (confirmado que `hasMinRole("ADMIN")` reproduz exatamente o que
+  `canAccess("usuarios"/"assinatura")` já fazia).
+- Topbar (`dashboard-shell.tsx`): sem busca/sino/seletor de fazenda
+  (nenhum dos três existe de verdade hoje: decisão explícita de
+  simplificar, não esquecimento); avatar de iniciais no lugar do texto de
+  nome/papel.
+- Notificações in-app, busca global, avatar de foto e seletor de
+  propriedade ficam fora desta rodada: cada uma é decisão de produto
+  própria (registrado no briefing).
+- Validado com navegador real (login, os 2 grupos expansíveis, navegação
+  pra filho de grupo com destaque correto, hub de Configurações, atalhos
+  do rodapé, drawer mobile 390×844). `npm run build` limpo. Sem teste
+  automatizado novo (mudança é só de camada visual/navegação, sem lógica
+  de servidor).
+- **Achado não corrigido, fora do escopo desta fase**: o aviso de
+  instalação do PWA (`install-invite.tsx`, `fixed inset-x-0 bottom-0
+  z-50`) sobrepõe o novo cartão de rodapé da sidebar no mobile. Já
+  sobrepunha conteúdo antes; só ficou mais visível agora que o rodapé tem
+  conteúdo de verdade. Registrado no briefing, não bloqueia.
+- Próximo desta iniciativa: Fase 2 (cards de KPI com o estilo do mockup) e
+  Fase 3 (calendário + Meu Dia + calculadoras embutidos no dashboard).
 
 ### Pendências e próximo passo
 
-- **Push desta rodada (Módulo 28) pra produção**: ainda não solicitado.
-- **Fila de ondas priorizada com o usuário em 2026-08-04, completa**:
-  Máquinas (feito) → Meu Dia (feito) → ajustes financeiros e dashboard
-  (feito, esta rodada) → **próximo: app mobile (telas de escrita)** →
-  medir consumo de mensagem por cliente. Depois, sem prazo: reestruturar a
-  navegação pro formato do mockup do cliente.
+- **Aprovar e commitar a Fase 1 do layout** (ainda não commitada nesta
+  rodada). Depois, decidir com o usuário: seguir direto pra Fase 2/3 do
+  layout, ou voltar pro app mobile (que está pausado, não cancelado).
+- **Push do Módulo 28 e desta Fase 1 pra produção**: ainda não solicitado.
 - Confirmações ainda pendentes da Agromax: modelo de rebanho por categoria
   (Módulo 25, sem confirmação formal), destino da Lavoura.
 - Validação técnica das 3 calculadoras de confiança média (água, calagem,
@@ -71,13 +90,16 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 - Testar instalação do PWA e o app mobile (Expo) em Android/iPhone reais.
 - `apps/mobile` e `packages/contracts` ainda não cobrem rebanho, máquinas
   nem tarefas (decisão deliberada, mesmo critério das rodadas anteriores):
-  a próxima rodada (app mobile, telas de escrita) provavelmente precisa
+  a rodada de app mobile (retomada depois do layout) provavelmente precisa
   reabrir essa decisão.
 
 ## Histórico recente
 
+- 2026-08-04: briefing de layout (`docs/design/briefing-novo-layout.md`) e
+  Fase 1 (sidebar escura + nova IA de navegação + topbar simplificada)
+  implementados e validados; commit desta rodada pendente.
 - 2026-08-04: Módulo 28 (ajustes financeiros e tela inicial reformulada)
-  implementado. Commit `ec2d478`, push ainda não solicitado.
+  implementado. Commits `ec2d478`/`39c1a32`, push ainda não solicitado.
 - 2026-08-04: Módulo 27 (Meu Dia: tarefas e compromissos) integrado e
   implantado em produção, prompt do n8n atualizado (criar_tarefa +
   registrar_lote_animal, que faltava desde a Onda 3). Commit `f0d7871`.
@@ -86,6 +108,3 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 - 2026-08-04: Onda 4 (GET /api/v1/tenant, correção de /docs/api, branded
   type, paleta oficial do cliente) integrada e implantada em produção.
   Commits `c9e7348`/`5606d62`/`02e901a`.
-- 2026-08-03: resumo diário movido da Vercel Cron pro n8n (Schedule
-  Trigger, mesmo padrão do lembrete de cadastro abandonado), elimina a
-  dúvida sobre limite de cron do plano da Vercel.
