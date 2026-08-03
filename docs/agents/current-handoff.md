@@ -21,60 +21,101 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 
 ## Estado atual
 
-- Atualizado em: 2026-08-01
-- Última rodada: integração da Onda 1, correcao de seguranca no middleware, varredura de travessao
-- Estado: concluido, integrado na `main` e implantado em producao
-- Commit principal: `e1c9e2d`
+- Atualizado em: 2026-08-03
+- Última rodada: Onda 2 (notificação push, resumo diário, esqueleto mobile,
+  cadastro guiado mais curto), integrada e implantada em produção
+- Estado: concluído, integrado na `main` e implantado em produção
+- Commit principal: ver histórico recente abaixo (rodada com múltiplos commits:
+  3 merges `--no-ff` + correções de integração)
 - Produção: <https://tibe-agrogestao.vercel.app/>
-- Banco: migracao `20260801120000_refresh_token` aplicada no Neon
+- Banco: migração `20260801200000_push_subscription` aplicada no Neon
 
 ### Entregue nesta rodada
 
-- **Onda 1 completa e integrada**: token de acesso para mobile (A1), pacote
-  `packages/contracts` (A2), PWA instalavel (A3). As tres branches mesclaram
-  sem nenhum conflito real, confirmando o desenho de escopo exclusivo por
-  agente. Convite de instalacao escopado ao painel autenticado (decisao do
-  usuario).
-- **Correcao de seguranca no middleware**: `authConfig.callbacks.authorized`
-  nunca era invocado pelo next-auth desde a reestruturacao do M5 (confirmado
-  no codigo-fonte do pacote, nao por inferencia). O middleware nao bloqueava
-  nada por sessao de tenant; so o `redirect()` de cada pagina protegia.
-  Corrigido chamando `authorized` explicitamente. Validado local (`next
-  start`) e em producao: rotas protegidas agora redirecionam com
-  `callbackUrl=`, `/api/*` continua 401 JSON, `/plataforma` intacto.
-- **Zero travessao (U+2014)** em todo arquivo rastreado pelo git (varredura
-  completa a pedido do usuario). Excecoes por principio:
-  `src/generated/prisma` (regenerado) e `prisma/migrations/*.sql`
-  (historico aplicado, nunca editar retroativamente).
+- **Onda 2 completa e integrada**: 3 agentes em paralelo (B1 notificação, B2
+  mobile, B3 cadastro guiado), briefing em
+  `docs/arquitetura/onda-2-briefings.md`. Zero conflito real de merge entre
+  as 3 branches, mesmo padrão da Onda 1.
+- **B1, seam `notify()`** (`src/lib/notify/`): alertas críticos (os 5
+  `AlertType` existentes) tentam push+WhatsApp+email em paralelo, `sent`
+  assim que qualquer canal entregar (push é aditivo, não substitui os 2
+  canais existentes). Resumo diário novo (cron `daily-digest`, 08h Brasília)
+  tenta push primeiro e só cai para WhatsApp quando não há NENHUMA inscrição
+  ativa (existência, não sucesso de entrega), nunca por email. Modelo
+  `PushSubscription` novo em `TENANT_SCOPED_MODELS`. Corrigiu um bug real de
+  `upsert()`: o filtro de tenant injetado pela extension fazia o Postgres
+  pular a escrita em silêncio quando o endpoint já pertencia a outro tenant,
+  sem erro nenhum; trocado por fluxo explícito find-then-create.
+- **B2, esqueleto mobile** (`apps/mobile/`, Expo/React Native, Expo Router):
+  standalone nesta onda (sem `packages/contracts`). Autenticação real contra
+  `POST /api/v1/auth/token`, refresh token no `expo-secure-store` (nunca
+  `AsyncStorage`), coalescência de chamadas concorrentes para não colidir
+  com a rotação de uso único do back-end. `tenant_id` nunca aparece no app.
+  3 telas de leitura (Início, Rebanho, Financeiro) com dado real. Gap
+  conhecido: não existe `GET /api/v1/tenant`, então a tela Início mostra só
+  o nome do usuário, não o da fazenda (documentado no README do app).
+- **B3, cadastro guiado mais curto** (`src/lib/actions/agent-flows.ts`):
+  abertura de cada item passou a pedir os 3 campos numa mensagem só, caindo
+  de volta no fluxo campo a campo para resposta parcial. Caminho feliz caiu
+  de até 4 mensagens para 2 por animal; confirmação final intacta.
+- **Preparo fora do escopo dos agentes**: node `Separar Respostas` do n8n
+  corrigido para consolidar respostas de múltiplas intenções numa única
+  mensagem (antes: uma por assunto), redução de custo direto pensando na
+  cobrança da Meta em 01/10/2026.
+- **3 correções encontradas só na integração** (nenhum agente isolado
+  conseguiria pegar sozinho): 17 travessões (U+2014) em comentários do app
+  mobile (regra do briefing não seguida pelo B2, corrigido); `tsconfig.json`
+  raiz sem excluir `apps/`, quebrando `next build` ao tentar typecheckar o
+  app mobile junto (`apps` adicionado ao `exclude`); `test:m24` dependia de
+  ausência de credencial real no `.env` (Gmail já configurado na máquina
+  principal, diferente do worktree isolado do agente), tornado
+  determinístico.
 
-### Licoes registradas nesta rodada
+### Lições registradas nesta rodada
 
-- **O metodo de verificacao usado a sessao inteira estava quebrado**: o
-  padrao de busca do caractere travessao pelo codigo Unicode escapado deu
-  falso negativo neste shell. O padrao correto busca pela sequencia de
-  bytes UTF-8 do proprio caractere. Qualquer afirmacao anterior de "sem
-  travessao" nesta sessao deve ser considerada nao verificada.
-- **Nunca confiar em next-auth aplicar `authorized` automaticamente** quando
-  o middleware usa a forma `auth((req) => {...})`: a chamada precisa ser
-  explicita. Documentado em `CLAUDE.md`/`AGENTS.md`.
+- **Rodar o mesmo teste de lock de cron (Redis compartilhado, sem instância
+  local) duas vezes no mesmo dia, em processos diferentes, produz falha
+  correta mas enganosa** ("já rodou hoje"): não é regressão, é o
+  comportamento certo do lock reagindo a uma execução anterior real.
+  Confirmar sempre inspecionando a chave no Redis antes de investigar código.
+- **Testes que dependem da AUSÊNCIA de uma credencial real no `.env` são
+  frágeis**: passam no worktree isolado do agente (que nunca teve a
+  credencial) e falham na máquina principal (que já tem, porque o recurso
+  já está em produção). Corrigido zerando a credencial e injetando valores
+  descartáveis dentro do próprio teste, mesmo espírito do servidor fake já
+  usado para o WhatsApp.
+- **Regra de "nunca usar travessão" precisa ser reforçada por verificação
+  pós-entrega, não só por instrução no briefing**: o agente B2 recebeu a
+  regra explícita e mesmo assim escreveu 17 ocorrências em comentários.
 
-### Pendências e proximo passo
+### Pendências e próximo passo
 
-- **Onda 2** (nao iniciada): seam de notificacao com push, esqueleto do
-  aplicativo mobile (`apps/mobile`), reversao da fragmentacao de resposta do
-  WhatsApp (economia de mensagem antes da cobranca da Meta em 01/10/2026).
-- Confirmacoes ainda pendentes da Agromax (documento
+- **Configurar as 3 variáveis VAPID na Vercel** (`VAPID_PUBLIC_KEY`,
+  `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`): sem isso o canal de push fica
+  indisponível em produção (falha graciosa, não quebra nada, só não envia
+  push até estar configurado). Gerar com `npx web-push generate-vapid-keys`.
+- **Confirmar se o plano da Vercel comporta o 2º cron** (`daily-digest`,
+  além do `generate-alerts` já existente): não verificável de dentro de um
+  agente/sessão sem acesso ao painel da Vercel.
+- **Onda 3** (não iniciada): C1 rebanho por categoria (dono exclusivo do
+  schema), C2 calculadora pecuária, C3 sistema de design (`docs/idVisual/`).
+- Confirmações ainda pendentes da Agromax (documento
   `docs/cliente/01-entendimento-do-produto.md`): modelo de rebanho (categoria
-  x individual), destino da Lavoura, prioridade entre Calculadora/Maquinas/
+  x individual), destino da Lavoura, prioridade entre Calculadora/Máquinas/
   Meu Dia.
-- Verificacao do negocio na Meta: ainda nao iniciada, item de maior prazo.
-- Testar instalacao do PWA num Android e num iPhone reais contra a URL da
-  Vercel (unico item de prova que nao dava para fechar localmente).
-- Arte definitiva dos icones do PWA (atuais sao provisorios com a paleta
+- Verificação do negócio na Meta: ainda não iniciada, item de maior prazo.
+- Testar instalação do PWA e o app mobile (Expo) em Android/iPhone reais:
+  não verificável a partir do ambiente de desenvolvimento.
+- Arte definitiva dos ícones do PWA (atuais são provisórios com a paleta
   antiga); identidade nova em `docs/idVisual/` entra na Onda 3.
+- Rota `GET /api/v1/tenant` (aditiva): destravaria o app mobile mostrar o
+  nome da fazenda na tela Início, não só o nome do usuário.
 
 ## Histórico recente
 
+- 2026-08-03: Onda 2 integrada (notificação push, resumo diário, esqueleto
+  mobile, cadastro guiado mais curto), 3 correções de integração aplicadas,
+  deploy em produção.
 - 2026-08-01: Onda 1 integrada, middleware corrigido (authorized() nao era
   chamado ha meses), varredura completa de travessao. Commit `e1c9e2d`,
   deploy verificado em producao.
@@ -85,8 +126,6 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
   pelo Tibé. Commits `8204e9b` e `31f54c0`.
 - 2026-07-30: Módulo 19 (cadastro verificado em 4 etapas) concluído, migrado no
   Neon, integrado na `main` e implantado em produção no commit `db491bd`.
-- 2026-07-30: limite de assentos por plano concluído, integrado na `main` e
-  implantado em produção no commit `7e52563`.
 - 2026-07-29: protocolo de memória compartilhada integrado na `main` e
   implantado, incluindo commit automático por tarefa e aprovação obrigatória
   para merge/deploy.
