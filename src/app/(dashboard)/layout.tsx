@@ -50,6 +50,7 @@ export default async function DashboardLayout({
   const hasPrestador = profiles.includes("prestador");
   const navLinks: NavLink[] = [
     { href: "/dashboard", label: "Início", show: true },
+    { href: "/meu-dia", label: "Meu Dia", show: true },
     { href: "/rebanho", label: "Rebanho", show: hasFazenda },
     { href: "/maquinas", label: "Máquinas", show: hasFazenda },
     { href: "/lavoura", label: "Lavoura", show: hasFazenda },

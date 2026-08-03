@@ -15,6 +15,7 @@ export const INTENTS = [
   "consultar_cliente",
   "gerar_relatorio",
   "registrar_lancamento_financeiro",
+  "criar_tarefa",
   "ajuda",
   "resumo",
   "ambigua",
@@ -49,6 +50,9 @@ export const INTENT_ACCESS: Record<
   consultar_cliente: { module: "prestador", action: "read", profile: "prestador" },
   gerar_relatorio: { module: null, action: "read" }, // módulo varia por parameters.tipo
   registrar_lancamento_financeiro: { module: "financeiro", action: "write" },
+  // Módulo 27: "me lembra de comprar sal na quinta". Sem perfil exigido
+  // (tarefa não é exclusiva do perfil fazenda, diferente de rebanho).
+  criar_tarefa: { module: "tarefas", action: "write" },
   ajuda: { module: null, action: "read" },
   resumo: { module: null, action: "read" },
   ambigua: { module: null, action: "read" },

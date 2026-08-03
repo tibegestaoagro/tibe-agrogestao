@@ -11,6 +11,7 @@ export type ModuleKey =
   | "rebanho"
   | "lavoura"
   | "maquinas"
+  | "tarefas"
   | "prestador"
   | "financeiro"
   | "alertas"
@@ -28,6 +29,7 @@ const ACCESS_MATRIX: Record<ModuleKey, Record<AppUserRole, AccessLevel>> = {
   rebanho: { OWNER: W, ADMIN: W, OPERADOR: W, VISUALIZADOR: R },
   lavoura: { OWNER: W, ADMIN: W, OPERADOR: W, VISUALIZADOR: R },
   maquinas: { OWNER: W, ADMIN: W, OPERADOR: W, VISUALIZADOR: R },
+  tarefas: { OWNER: W, ADMIN: W, OPERADOR: W, VISUALIZADOR: R },
   prestador: { OWNER: W, ADMIN: W, OPERADOR: W, VISUALIZADOR: R },
   financeiro: { OWNER: W, ADMIN: W, OPERADOR: W, VISUALIZADOR: R },
   alertas: { OWNER: W, ADMIN: W, OPERADOR: R, VISUALIZADOR: R },

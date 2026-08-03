@@ -397,6 +397,38 @@ const GROUPS: Group[] = [
     ],
   },
   {
+    title: "Meu Dia (tarefas)",
+    note: "Módulo 27. Tarefas são compartilhadas dentro do tenant (visíveis a todo mundo, não privadas por usuário). Concluir/cancelar só pelo painel: o agente WhatsApp só cria.",
+    endpoints: [
+      {
+        method: "GET",
+        path: "/api/v1/tasks",
+        auth: "Sessão · tarefas:read",
+        description: "Lista as tarefas do tenant. `effective_status` inclui \"overdue\" (calculado: pending + due_date no passado), nunca gravado.",
+        response: `200
+{ "data": [{ "id": "cl...", "title": "Comprar sal mineral", "due_date": "...", "remind": true, "status": "pending", "effective_status": "pending", "...": "..." }], "meta": { "total": 1 } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/tasks",
+        auth: "Sessão · tarefas:write",
+        description: "Cria uma tarefa.",
+        request: `{ "title": "Comprar sal mineral", "due_date": "2026-09-11T00:00:00.000Z", "remind": true }`,
+        response: `201
+{ "data": { "id": "cl..." }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/tasks/:id",
+        auth: "Sessão · tarefas:write",
+        description: "Conclui ou cancela uma tarefa.",
+        request: `{ "status": "completed" }`,
+        response: `200
+{ "data": { "id": "cl..." }, "meta": {} }`,
+      },
+    ],
+  },
+  {
     title: "Lavoura: Talhões e ciclos",
     endpoints: [
       {

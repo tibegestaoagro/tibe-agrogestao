@@ -37,7 +37,7 @@ function isoWeekKey(d: Date): string {
   return `${date.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
 }
 
-type AlertType = "vaccine_due" | "harvest_near" | "bill_due" | "low_balance" | "trial_ending" | "maintenance_due";
+type AlertType = "vaccine_due" | "harvest_near" | "bill_due" | "low_balance" | "trial_ending" | "maintenance_due" | "task_reminder";
 type RelatedModule = "rebanho" | "lavoura" | "servico" | "maquinas" | "geral";
 type AlertEnsureClient = {
   alert: {
@@ -234,6 +234,32 @@ export async function generateAlertsForTenant(tenantId: string): Promise<{ creat
       message: `🔧 Manutenção de ${m.name} prevista para daqui a ${days} dia(s).`,
     });
     if (didCreate) created++;
+  }
+
+  // 7. Tarefas com lembrete para hoje (Módulo 27). Dispara NO DIA marcado,
+  // não com antecedência (mecanismo diferente dos 6 anteriores): janela é o
+  // próprio dia corrente, 00h-23h59.
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const todayEnd = new Date(todayStart.getTime() + 86_400_000 - 1);
+  const tasks = await db.task.findMany({
+    where: {
+      status: "pending",
+      remind: true,
+      reminded_at: null,
+      due_date: { gte: todayStart, lte: todayEnd },
+    },
+  });
+  for (const t of tasks) {
+    const didCreate = await ensureAlert(db, {
+      alert_type: "task_reminder",
+      related_module: "geral",
+      related_id: t.id,
+      message: `📌 Lembrete de hoje: ${t.title}.`,
+    });
+    if (didCreate) created++;
+    // Marca mesmo se ensureAlert não criou (já existia um igual): a tarefa
+    // não deve voltar a ser candidata em execuções futuras do cron.
+    await db.task.update({ where: { id: t.id }, data: { reminded_at: now } });
   }
 
   return { created };

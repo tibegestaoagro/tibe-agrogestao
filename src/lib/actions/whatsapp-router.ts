@@ -19,6 +19,7 @@ import {
   gerarRelatorio,
   registrarLancamentoFinanceiro,
 } from "@/lib/actions/whatsapp-handlers/financeiro";
+import { criarTarefa } from "@/lib/actions/whatsapp-handlers/tarefas";
 import { ajuda } from "@/lib/actions/whatsapp-handlers/ajuda";
 import { resumo } from "@/lib/actions/whatsapp-handlers/resumo";
 import { handleActiveFlow, maybeStartAnimalFlow } from "@/lib/actions/whatsapp-flow-bridge";
@@ -49,6 +50,7 @@ const HANDLERS: Record<Exclude<Intent, "ambigua">, Handler> = {
   consultar_cliente: consultarCliente,
   gerar_relatorio: gerarRelatorio,
   registrar_lancamento_financeiro: registrarLancamentoFinanceiro,
+  criar_tarefa: criarTarefa,
   ajuda,
   resumo,
 };

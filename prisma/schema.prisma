@@ -65,6 +65,14 @@ enum MachineStatus {
   inactive
 }
 
+// "atrasada" não é um valor aqui: é calculado (pending + due_date no
+// passado), nunca gravado. Ver docs/specs/module-27-meu-dia.md, seção 2.3.
+enum TaskStatus {
+  pending
+  completed
+  cancelled
+}
+
 enum AnimalSex {
   male
   female
@@ -132,6 +140,7 @@ enum AlertType {
   low_balance
   trial_ending // spec 5.8, não previsto no PRD original: extensão aditiva
   maintenance_due // Módulo 26, 2026-08-04: manutenção de máquina próxima
+  task_reminder // Módulo 27, 2026-08-04: lembrete de tarefa, dispara NO DIA marcado
 }
 
 enum AlertStatus {
@@ -208,6 +217,7 @@ model Tenant {
   animal_categories AnimalCategory[]
   animal_batches    AnimalBatch[]
   machines          Machine[]
+  tasks             Task[]
   vaccines          Vaccine[]
   plots             Plot[]
   service_clients   ServiceClient[]
@@ -614,6 +624,36 @@ model MachineMaintenance {
 
   @@index([tenant_id])
   @@index([machine_id])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Meu Dia: tarefas e compromissos (Módulo 27, 2026-08-04).
+//
+// Compartilhada dentro do tenant (visível a todo mundo, não privada por
+// usuário): `created_by` é só metadado, nunca filtro de visibilidade. Sem
+// relação Prisma para User de propósito (mesmo espírito de
+// SubscriptionStatusLog.changed_by_platform_user_id): não precisa navegar
+// daqui para lá em nenhum fluxo desta rodada. `reminded_at` marca que o
+// lembrete do dia já foi gerado (idempotência explícita, além do mecanismo
+// de ensureAlert). Ver docs/specs/module-27-meu-dia.md.
+// ─────────────────────────────────────────────────────────────
+
+model Task {
+  id          String     @id @default(cuid())
+  tenant_id   String
+  title       String
+  due_date    DateTime
+  remind      Boolean    @default(true)
+  status      TaskStatus @default(pending)
+  created_by  String?
+  reminded_at DateTime?
+  created_at  DateTime   @default(now())
+  updated_at  DateTime   @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id])
+  @@index([due_date])
 }
 
 // ─────────────────────────────────────────────────────────────
