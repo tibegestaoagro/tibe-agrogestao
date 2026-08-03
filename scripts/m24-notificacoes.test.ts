@@ -15,6 +15,29 @@ import crypto from "node:crypto";
  */
 (globalThis as unknown as { AsyncLocalStorage: unknown }).AsyncLocalStorage = AsyncLocalStorage;
 
+// Este teste exercita o caminho de FALHA do canal de email de propósito (ver
+// asserções abaixo). O `.env` real da máquina pode ter credencial de Gmail
+// configurada (é um recurso já em produção, não exclusivo deste teste): sem
+// isto, o teste passaria ou falharia dependendo de quem/onde roda, o que
+// contradiz o propósito de um teste de regressão. Mesmo espírito do servidor
+// fake do WhatsApp: força um resultado determinístico em vez de depender do
+// ambiente.
+delete process.env.GMAIL_SMTP_USER;
+delete process.env.GMAIL_SMTP_APP_PASSWORD;
+delete process.env.RESEND_API_KEY;
+
+// O canal de push precisa de um par VAPID válido (formato ECDSA P-256) só
+// para CONSEGUIR TENTAR o envio; o teste então falha de propósito, do lado
+// do push service, mandando para um endpoint `.invalid`. Sem VAPID
+// configurado (produção ainda não tem, ver relatório do agente B1), o canal
+// nem chega a tentar (`attempted: false`), o que quebraria a asserção de
+// "tentou e falhou". Par gerado uma única vez com `npx web-push
+// generate-vapid-keys`, descartável, nunca usado fora deste teste.
+process.env.VAPID_PUBLIC_KEY ??=
+  "BBKcnCM2gVI84yGKA44HIo1QXafOfM_wn2DDH7_6K7gy1C3Xqa2lmONBr4ny38aO5J2--Ud86dMgi6H_BTdD7kI";
+process.env.VAPID_PRIVATE_KEY ??= "SwcY_pj49wmUO4PHxvGw9yDMxwgLIpd85jXCcxuPA_Y";
+process.env.VAPID_SUBJECT ??= "mailto:dev@tibe.com.br";
+
 let failures = 0;
 function assert(cond: boolean, msg: string) {
   if (cond) console.log(`  ✅ ${msg}`);
