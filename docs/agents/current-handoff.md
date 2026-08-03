@@ -85,8 +85,6 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 - **Ícones do PWA** ainda usam a paleta antiga: C3 mudou só
   `tailwind.config.ts`/`src/components/ui/`, não regenerou os PNGs de
   `public/icons/`.
-- **Confirmar se o plano da Vercel comporta o cron `daily-digest`** (Onda
-  2, ainda não confirmado).
 - Confirmações ainda pendentes da Agromax: destino da Lavoura, prioridade
   entre Calculadora/Máquinas/Meu Dia (Calculadora já entregue nesta rodada,
   os outros dois não).
@@ -99,6 +97,10 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 
 ## Histórico recente
 
+- 2026-08-03: resumo diário movido da Vercel Cron pro n8n (Schedule Trigger,
+  mesmo padrão do lembrete de cadastro abandonado), elimina a dúvida sobre
+  limite de cron do plano da Vercel. `daily-digest` agora autentica por
+  `INTERNAL_API_SECRET`, não mais `CRON_SECRET`.
 - 2026-08-03: Onda 3 integrada localmente (Módulo 25 rebanho por categoria,
   Calculadora Pecuária, identidade visual nova). Push/deploy pendente de
   aprovação.
