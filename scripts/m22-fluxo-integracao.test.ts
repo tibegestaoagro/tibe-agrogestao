@@ -3,11 +3,14 @@ import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { POST as executeAction } from "@/app/api/internal/whatsapp/execute-action/route";
 
 /**
- * Integração do cadastro assistido pela rota real (2026-07-30).
+ * Integração do cadastro assistido pela rota real (2026-07-30, abertura
+ * consolidada desde 2026-08-01).
  *
  * O m21 cobre a máquina de estados isolada; aqui o caminho é o de verdade:
  * execute-action -> routeIntent -> ponte -> fluxo. É onde os dois bugs
- * relatados pelo usuário apareceram, e nenhum teste passava por aqui.
+ * relatados pelo usuário apareceram, e nenhum teste passava por aqui. Por
+ * isso a prova de que o caminho feliz caiu para 2 mensagens (abertura
+ * consolidada + confirmação) também mora aqui, não só no m21.
  * Roda: `npm run test:m22`
  */
 
@@ -45,11 +48,17 @@ async function main() {
     });
 
     const abre = await say(t.id, u.id, "cadastrar_animal", "quero cadastrar um boi, me ajuda");
-    assert(abre.includes("brinco"), `pedido sem campos abre o modo assistido (resposta: "${abre.slice(0, 50)}")`);
+    assert(
+      abre.includes("brinco") && abre.includes("raça") && abre.includes("sexo"),
+      `pedido sem campos abre o modo assistido pedindo os 3 campos de uma vez (resposta: "${abre.slice(0, 80)}")`,
+    );
 
-    // BUG 2 relatado: os 3 campos numa mensagem so
+    // Caminho feliz (2026-08-01): abertura consolidada + os 3 campos numa
+    // mensagem so + confirmacao = 2 perguntas do agente antes de salvar, em
+    // vez das 4 de antes (brinco, raca, sexo, confirmacao). Era o BUG 2
+    // relatado (a frase inteira virava o brinco); agora e o caminho normal.
     const tudo = await say(t.id, u.id, "ambigua", "082, nelori, macho");
-    assert(tudo.includes("Confere antes de eu salvar"), "3 campos numa mensagem so chegam direto ao resumo");
+    assert(tudo.includes("Confere antes de eu salvar"), "3 campos numa mensagem so chegam direto ao resumo (2a e ultima pergunta do agente)");
     // O resumo formata como "Brinco 082, nelori, macho.", entao procurar a
     // substring "082, nelori" daria falso positivo: a prova de que os campos
     // foram separados e o resumo trazer os TRES, e o brinco no banco (abaixo).
@@ -66,8 +75,14 @@ async function main() {
     assert(criado?.ear_tag === "082", `brinco gravado corretamente (obtido: "${criado?.ear_tag}")`);
     assert(criado?.property_id === prop.id, "animal vai para a propriedade ativa");
 
-    // BUG 1 relatado: audio transcrito com pontuacao
-    await say(t.id, u.id, "cadastrar_animal", "cadastrar mais um boi");
+    // BUG 1 relatado: audio transcrito com pontuacao. Tambem confirma que a
+    // abertura do 2o cadastro (independente do 1o) continua consolidada, e
+    // que quem responde campo a campo (habito antigo) ainda e atendido.
+    const abre2 = await say(t.id, u.id, "cadastrar_animal", "cadastrar mais um boi");
+    assert(
+      abre2.includes("raça") && abre2.includes("sexo"),
+      `abertura de um novo cadastro tambem pede os 3 campos de uma vez (resposta: "${abre2.slice(0, 80)}")`,
+    );
     await say(t.id, u.id, "ambigua", "090");
     await say(t.id, u.id, "ambigua", "Angus");
     const audio = await say(t.id, u.id, "ambigua", "Macho.");
@@ -82,6 +97,18 @@ async function main() {
     const cancel = await say(t.id, u.id, "ambigua", "cancelar");
     assert(cancel.toLowerCase().includes("cancelei"), "cancelar encerra pelo caminho real");
     assert((await db.agentFlowState.count()) === 0, "estado apagado apos cancelar");
+
+    // resposta parcial (2 de 3 campos) pela rota real: m21 cobre isolado,
+    // aqui confirma que o roteador de verdade chega no mesmo resultado, sem
+    // reiniciar o item do zero.
+    await say(t.id, u.id, "cadastrar_animal", "cadastrar outro boi");
+    const parcial = await say(t.id, u.id, "ambigua", "091 e Nelore");
+    assert(
+      parcial.includes("macho") && !parcial.includes("Confere antes de eu salvar"),
+      `2 de 3 campos numa mensagem so pergunta so o que falta (resposta: "${parcial.slice(0, 60)}")`,
+    );
+    const limpa = await say(t.id, u.id, "ambigua", "cancelar");
+    assert(limpa.toLowerCase().includes("cancelei"), "limpa o cadastro de teste ao final");
   } finally {
     await prisma.tenant.delete({ where: { id: t.id } });
   }

@@ -53,13 +53,24 @@ async function main() {
       data: scoped({ name: "Dono B", email: `m21b-${stamp}@t.local`, password_hash: "x", role: "OWNER" }),
     });
 
-    // ── abre o fluxo e pergunta UM campo por vez ──────────────────────
+    // ── abre o fluxo pedindo os 3 campos numa mensagem so (2026-08-01) ─
+    // Antes a abertura pedia so o brinco (1 campo por mensagem); agora pede
+    // os 3 de uma vez pra reduzir mensagem de ida e volta (a Meta cobra por
+    // mensagem de servico a partir de outubro/2026). Resposta parcial
+    // continua caindo no fluxo campo a campo, testado nos blocos abaixo.
     const s1 = await startFlow(dbA, uA.id, "cadastrar_animal", 2);
-    assert(s1.reply.includes("brinco"), "a primeira pergunta é o brinco");
+    assert(
+      s1.reply.includes("brinco") && s1.reply.includes("raça") && s1.reply.includes("sexo"),
+      "a abertura pede os 3 campos de uma vez (brinco, raça e sexo), não só o brinco",
+    );
     assert(s1.reply.includes("2 animais"), "avisa quantos animais serão cadastrados");
 
     const st = await getActiveFlow(dbA, uA.id);
     assert(st?.pending_field === "ear_tag", "estado guarda qual campo está pendente");
+    assert(
+      (resumeHint(st!) ?? "").includes("raça") && (resumeHint(st!) ?? "").includes("sexo"),
+      "retomada logo na abertura repete a pergunta consolidada, não só o brinco",
+    );
 
     // ── resposta inválida repete a MESMA pergunta ─────────────────────
     const r1 = await applyAnswer(dbA, uA.id, "  ");
@@ -70,6 +81,16 @@ async function main() {
     // ── sequência normal do primeiro animal ───────────────────────────
     const r2 = await applyAnswer(dbA, uA.id, "042");
     assert(r2.kind === "question" && r2.reply.includes("raça"), "depois do brinco pergunta a raça");
+
+    // Brinco já respondido, raça pendente: a retomada aqui tem que repetir
+    // só "Qual a raça?", não a pergunta consolidada de novo (senão pareceria
+    // que o brinco, já dado, foi esquecido).
+    const stMeio = await getActiveFlow(dbA, uA.id);
+    assert(
+      resumeHint(stMeio!) === "Voltando ao cadastro de animal: Qual a raça?",
+      `retomada no meio do item repete só o campo pendente (obtido: "${resumeHint(stMeio!)}")`,
+    );
+
     const r3 = await applyAnswer(dbA, uA.id, "Nelore");
     assert(r3.kind === "question" && r3.reply.includes("macho"), "depois da raça pergunta o sexo");
 
@@ -78,8 +99,12 @@ async function main() {
 
     const r4 = await applyAnswer(dbA, uA.id, "macho");
     assert(r4.kind === "question", "com 2 animais, o primeiro não fecha o fluxo");
-    assert(r4.reply.includes("Brinco 042"), "confirma o animal recém-fechado numa linha");
-    assert(r4.reply.includes("Faltam 1"), "avisa quantos faltam");
+    assert(r4.kind === "question" && r4.reply.includes("Brinco 042"), "confirma o animal recém-fechado numa linha");
+    assert(r4.kind === "question" && r4.reply.includes("Faltam 1"), "avisa quantos faltam");
+    assert(
+      r4.kind === "question" && r4.reply.includes("raça") && r4.reply.includes("sexo"),
+      "abertura do próximo animal também pede os 3 campos de uma vez, não só o brinco",
+    );
 
     assert(
       (await dbA.animal.count()) === 0,
@@ -136,6 +161,38 @@ async function main() {
       assert(tudoJunto.items[0].breed === "nelori", "raca fica separada do brinco");
       assert(tudoJunto.items[0].sex === "male", "sexo fica separado do brinco");
     }
+
+    // ── os 3 campos respondidos um por linha (a abertura oferece as 2 formas) ──
+    await finishFlow(dbA, uA.id);
+    await startFlow(dbA, uA.id, "cadastrar_animal", 1);
+    const porLinha = await applyAnswer(dbA, uA.id, "085\nNelore\nfemea");
+    assert(porLinha.kind === "summary", "os 3 campos separados por linha também completam o animal numa mensagem só");
+    if (porLinha.kind === "summary") {
+      assert(porLinha.items[0].ear_tag === "085", "brinco correto quando os campos vêm um por linha");
+      assert(porLinha.items[0].breed === "Nelore", "raça correta quando os campos vêm um por linha");
+      assert(porLinha.items[0].sex === "female", "sexo correto quando os campos vêm um por linha");
+    }
+
+    // ── REGRESSAO: 3 campos colados sem separador NAO pode virar brinco ──
+    // Sem vírgula, sem "e" e sem quebra de linha: splitValues não separa nada,
+    // e o comportamento correto é pedir esclarecimento, não adivinhar (a
+    // mesma proteção de antes da abertura consolidada, agora com um gatilho
+    // mais fácil de acontecer: quem recebe "me diga os 3" pode tentar colar
+    // tudo numa frase só, sem pontuação nenhuma).
+    await finishFlow(dbA, uA.id);
+    await startFlow(dbA, uA.id, "cadastrar_animal", 1);
+    const colado = await applyAnswer(dbA, uA.id, "086 nelore macho");
+    assert(
+      colado.kind === "question" && colado.reply.includes("brinco"),
+      "3 campos colados sem separador não são absorvidos: o agente pede esclarecimento",
+    );
+    const stColado = await getActiveFlow(dbA, uA.id);
+    assert(
+      stColado?.pending_field === "ear_tag" && Object.keys(stColado.current_item).length === 0,
+      "a resposta colada e rejeitada não avança nem preenche nenhum campo",
+    );
+    const recuperado = await applyAnswer(dbA, uA.id, "086, nelore, macho");
+    assert(recuperado.kind === "summary", "com separador de verdade, a mesma informação completa o animal normalmente");
 
     await finishFlow(dbA, uA.id);
     await startFlow(dbA, uA.id, "cadastrar_animal", 1);
