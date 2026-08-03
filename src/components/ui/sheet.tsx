@@ -36,7 +36,7 @@ const SheetContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed inset-y-0 right-0 z-50 flex h-full w-full max-w-md flex-col gap-4 overflow-y-auto border-l bg-white p-6 shadow-lg transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right data-[state=closed]:duration-200 data-[state=open]:duration-300",
+        "fixed inset-y-0 right-0 z-50 flex h-full w-full max-w-md flex-col gap-4 overflow-y-auto border-l bg-white p-6 shadow-2xl transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right data-[state=closed]:duration-200 data-[state=open]:duration-300",
         className,
       )}
       {...props}
@@ -45,7 +45,7 @@ const SheetContent = React.forwardRef<
         {title ?? "Painel"}
       </DialogPrimitive.Title>
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm text-gray-400 transition hover:text-gray-700 focus:outline-none">
+      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm text-gray-400 transition hover:text-tibe-dark focus:outline-none">
         <X className="h-5 w-5" />
         <span className="sr-only">Fechar</span>
       </DialogPrimitive.Close>
