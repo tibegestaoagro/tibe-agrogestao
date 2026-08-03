@@ -23,20 +23,22 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 
 - Atualizado em: 2026-08-04
 - Última rodada: continuação da iniciativa de layout (pausa deliberada no
-  app mobile, ainda pausado). Fase 1 (`3b65490`) e Fase 2+3 (`07f5210`,
-  KPIs/gráficos/Meu Dia+calendário/"Fazenda em Números" real/dado de
-  demonstração) **commitadas**. Nesta rodada: seletor de propriedade no
-  topo (filtra o app inteiro, decisão do usuário) e menu de conta
-  (Perfil/Minha senha/Sair). Ver `docs/design/briefing-novo-layout.md`
-  seção 12. **Implementado e validado; ainda não commitado.**
-- Produção: <https://tibe-agrogestao.vercel.app/> reflete até o Módulo 27
-  (Meu Dia) + ajuste do n8n, push `f0d7871`. Módulo 28 (`ec2d478`/`39c1a32`)
-  e as 3 rodadas do layout (`3b65490`/`07f5210`/esta) continuam só locais,
-  push/deploy não solicitado.
-- Banco: nova migração `20260804180000_financial_category_alert_preference`
-  (Módulo 28) aplicada só no Docker local; Neon pendente até aprovação de
-  deploy. Nenhuma migração nova nas rodadas de layout (seletor de
-  propriedade é cookie, não schema).
+  app mobile). Fase 1 (`3b65490`), Fase 2+3 (`07f5210`, KPIs/gráficos/Meu
+  Dia+calendário/"Fazenda em Números" real/dado de demonstração) e seletor
+  de propriedade + menu de conta (`de693bf`, seção 12 do briefing)
+  **commitadas e com push/deploy aprovados e executados nesta rodada**
+  (`git push origin main`, 39c1a32→de693bf). App mobile retomado logo em
+  seguida, autorizado pelo usuário.
+- Produção: <https://tibe-agrogestao.vercel.app/> deployada com
+  `de693bf` (deploy automático da Vercel no push). **Correção de registro**:
+  o Módulo 28 (`ec2d478`/`39c1a32`) já estava em produção desde antes desta
+  rodada (um handoff anterior registrou "push não solicitado" por engano;
+  `git fetch` confirmou `origin/main` já em `39c1a32` antes deste push).
+- Banco: `npx prisma migrate status` contra o Neon confirmou **schema já
+  em dia** antes deste push (a migração do Módulo 28,
+  `20260804180000_financial_category_alert_preference`, já estava aplicada
+  em produção). Nenhuma das 3 rodadas de layout mexeu em schema (seletor de
+  propriedade é cookie, não coluna).
 
 ### Entregue nesta rodada (seletor de propriedade + menu de conta)
 
@@ -74,12 +76,11 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 
 ### Pendências e próximo passo
 
-- **Aprovar e commitar esta rodada** (seletor de propriedade + menu de
-  conta, implementada e validada, ainda não commitada). Depois, decidir
-  com o usuário: mais alguma correção de fidelidade visual, ou voltar pro
-  app mobile (pausado, não cancelado).
-- **Push do Módulo 28 e das 3 rodadas do layout pra produção**: ainda não
-  solicitado.
+- **Próximo passo autorizado pelo usuário: retomar o app mobile** (telas de
+  escrita), pausado desde o início da iniciativa de layout. Usuário avisou
+  que vai validar tudo (layout em produção + o que for feito no mobile) no
+  dia seguinte: registre o estado real do mobile ao final desta rodada,
+  não dê como "pronto" o que não foi testado em navegador/emulador.
 - Confirmações ainda pendentes da Agromax: modelo de rebanho por categoria
   (Módulo 25, sem confirmação formal), destino da Lavoura.
 - Validação técnica das 3 calculadoras de confiança média (água, calagem,
@@ -93,16 +94,16 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 
 ## Histórico recente
 
+- 2026-08-04: push/deploy aprovado pelo usuário: `git push origin main`
+  levou as 3 rodadas de layout (`3b65490`/`07f5210`/`de693bf`) pra
+  produção de uma vez (Módulo 28 já estava lá desde antes). App mobile
+  retomado em seguida.
 - 2026-08-04: seletor de propriedade no topo (filtra o app inteiro) + menu
-  de conta (Perfil/Minha senha/Sair) + página Perfil; commit desta rodada
-  pendente.
+  de conta (Perfil/Minha senha/Sair) + página Perfil. Commit `de693bf`.
 - 2026-08-04: Fase 2+3 do layout (KPIs, gráficos, Meu Dia+calendário,
   calculadoras, "Fazenda em Números" real) + seed de demonstração de 2
   anos. Commit `07f5210`.
 - 2026-08-04: Fase 1 do layout (sidebar escura + nova IA de navegação +
   topbar simplificada) implementada e validada. Commit `3b65490`.
 - 2026-08-04: Módulo 28 (ajustes financeiros e tela inicial reformulada)
-  implementado. Commits `ec2d478`/`39c1a32`, push ainda não solicitado.
-- 2026-08-04: Módulo 27 (Meu Dia: tarefas e compromissos) integrado e
-  implantado em produção, prompt do n8n atualizado (criar_tarefa +
-  registrar_lote_animal, que faltava desde a Onda 3). Commit `f0d7871`.
+  implementado e implantado em produção. Commits `ec2d478`/`39c1a32`.
