@@ -22,55 +22,47 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 ## Estado atual
 
 - Atualizado em: 2026-08-04
-- Última rodada: Módulo 27 (Meu Dia: tarefas e compromissos), segunda da
-  fila priorizada combinada com o usuário. **Commitado na `main`
-  localmente (`cc17729` + `35f0bec` do ajuste do n8n); push/deploy ainda
-  não solicitado.**
-- Produção: <https://tibe-agrogestao.vercel.app/> reflete até o Módulo 26
-  (máquinas e equipamentos), push `f7aa0b9`, aprovado e implantado nesta
+- Última rodada: Módulo 28 (ajustes financeiros e tela inicial
+  reformulada), última peça da fila priorizada combinada com o usuário
+  antes do app mobile. **Commitado na `main` localmente (`ec2d478`);
+  push/deploy ainda não solicitado.**
+- Produção: <https://tibe-agrogestao.vercel.app/> reflete até o Módulo 27
+  (Meu Dia) + ajuste do n8n, push `f0d7871`, aprovado e implantado nesta
   mesma rodada de trabalho.
-- Banco: nova migração `20260804140000_task` aplicada só no Docker local;
-  Neon pendente até a aprovação de deploy desta rodada.
-- **n8n atualizado** (estado vivo, fora do repositório): prompt do
-  classificador ganhou `criar_tarefa` e `current_date`, e também
-  `registrar_lote_animal` (Módulo 25), que tinha ficado de fora por
-  descuido desde 2026-08-03 e só foi notado agora. Ver
-  `docs/n8n-whatsapp-workflow.md`.
+- Banco: nova migração `20260804180000_financial_category_alert_preference`
+  aplicada só no Docker local; Neon pendente até a aprovação de deploy
+  desta rodada.
 
-### Entregue nesta rodada (Módulo 27: Meu Dia)
+### Entregue nesta rodada (Módulo 28: ajustes financeiros e dashboard)
 
-- Spec fechada em `docs/specs/module-27-meu-dia.md` após entrevista com o
-  usuário. Modelo novo `Task`, compartilhado dentro do tenant (não privado
-  por usuário; `created_by` é só metadado).
-- **"Atrasada" é calculada, nunca gravada** (`status: pending` + `due_date`
-  no passado, em `serializeTask`).
-- Alerta novo `task_reminder`: mecanismo DIFERENTE dos outros 6 tipos
-  (`vaccine_due`/`harvest_near`/`bill_due`/`low_balance`/`trial_ending`/
-  `maintenance_due`, que avisam com antecedência): dispara NO DIA marcado,
-  batendo com o exemplo literal do cliente. `reminded_at` evita reprocessar.
-- Nova intenção WhatsApp `criar_tarefa` ("me lembra de comprar sal na
-  quinta"), com confirmação antes de gravar. Concluir/cancelar fica só no
-  painel nesta rodada.
-- Painel: `/meu-dia` (lista, criação, concluir/cancelar).
-- `test:m28`: 28 asserções, 0 falhas. Suíte completa (`isolation`, `m1`-
-  `m5`, `m12`, `m17`, `m20`-`m22`, `m24`-`m28`) e `npm run build`
+- Spec fechada em `docs/specs/module-28-ajustes-financeiros-e-dashboard.md`
+  após entrevista com o usuário. `FinancialCategory` novo, por tenant e por
+  tipo (receita/despesa), mesmo padrão de `AnimalCategory` (Módulo 25).
+- **Adiar vencimento e cancelar lançamento liberados pra qualquer origem**,
+  diferente de editar (que continua restrito a `related_module: geral`):
+  risco bem menor, só muda data/status, não descola do dado de origem.
+- `AlertPreference` novo: liga/desliga TIPO de alerta por tenant, nunca
+  canal (a política do `notify()`, Onda 2, continua intacta). Ausência de
+  linha = habilitado (opt-out): nenhum tenant existente perdeu alerta
+  nenhum com o deploy desta rodada.
+- Dashboard: 4 indicadores novos SOMADOS ao que já existia (próximos
+  compromissos, contas vencidas, manutenções próximas, últimos
+  lançamentos), sem remover nenhum card atual.
+- **Achado na integração**: `"maquinas"` faltava no `MODULE_LABEL` de
+  `/financeiro` desde o Módulo 26 (a coluna de módulo ficava em branco pra
+  lançamento de máquina). Corrigido.
+- `test:m29`: 27 asserções, 0 falhas. Suíte completa (`isolation`, `m1`-
+  `m5`, `m12`, `m17`, `m20`-`m22`, `m24`-`m29`) e `npm run build`
   verificados juntos.
-- **Achado na integração**: o mesmo gap já documentado com o Módulo 17
-  (feature pronta no código, inalcançável pelo WhatsApp até o prompt do
-  n8n ser atualizado manualmente) tinha se repetido com o Módulo 25
-  (`registrar_lote_animal`, desde 2026-08-03). Corrigido junto com a
-  entrada do Módulo 27.
 
 ### Pendências e próximo passo
 
-- **Push desta rodada (Módulo 27) pra produção**: ainda não solicitado.
-- **Fila de ondas seguintes, priorizada com o usuário em 2026-08-04**:
-  Máquinas (feito) → Meu Dia (feito, esta rodada) → tela inicial
-  reformulada + ajustes financeiros (adiar vencimento, cancelar conta,
-  categorias personalizadas de receita/despesa, preferências de lembrete)
-  → app mobile (telas de escrita) → medir consumo de mensagem por cliente.
-  Depois, sem prazo: reestruturar a navegação pro formato do mockup do
-  cliente.
+- **Push desta rodada (Módulo 28) pra produção**: ainda não solicitado.
+- **Fila de ondas priorizada com o usuário em 2026-08-04, completa**:
+  Máquinas (feito) → Meu Dia (feito) → ajustes financeiros e dashboard
+  (feito, esta rodada) → **próximo: app mobile (telas de escrita)** →
+  medir consumo de mensagem por cliente. Depois, sem prazo: reestruturar a
+  navegação pro formato do mockup do cliente.
 - Confirmações ainda pendentes da Agromax: modelo de rebanho por categoria
   (Módulo 25, sem confirmação formal), destino da Lavoura.
 - Validação técnica das 3 calculadoras de confiança média (água, calagem,
@@ -78,14 +70,17 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 - Verificação do negócio na Meta: ainda não iniciada, item de maior prazo.
 - Testar instalação do PWA e o app mobile (Expo) em Android/iPhone reais.
 - `apps/mobile` e `packages/contracts` ainda não cobrem rebanho, máquinas
-  nem tarefas (decisão deliberada, mesmo critério das rodadas anteriores).
+  nem tarefas (decisão deliberada, mesmo critério das rodadas anteriores):
+  a próxima rodada (app mobile, telas de escrita) provavelmente precisa
+  reabrir essa decisão.
 
 ## Histórico recente
 
-- 2026-08-04: Módulo 27 (Meu Dia: tarefas e compromissos) implementado,
-  prompt do n8n atualizado (criar_tarefa + registrar_lote_animal, que
-  faltava desde a Onda 3). Commits `cc17729`/`35f0bec`, push ainda não
-  solicitado.
+- 2026-08-04: Módulo 28 (ajustes financeiros e tela inicial reformulada)
+  implementado. Commit `ec2d478`, push ainda não solicitado.
+- 2026-08-04: Módulo 27 (Meu Dia: tarefas e compromissos) integrado e
+  implantado em produção, prompt do n8n atualizado (criar_tarefa +
+  registrar_lote_animal, que faltava desde a Onda 3). Commit `f0d7871`.
 - 2026-08-04: Módulo 26 (máquinas e equipamentos) integrado e implantado
   em produção. Commit `f7aa0b9`.
 - 2026-08-04: Onda 4 (GET /api/v1/tenant, correção de /docs/api, branded
@@ -94,6 +89,3 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 - 2026-08-03: resumo diário movido da Vercel Cron pro n8n (Schedule
   Trigger, mesmo padrão do lembrete de cadastro abandonado), elimina a
   dúvida sobre limite de cron do plano da Vercel.
-- 2026-08-03: Onda 3 integrada e implantada em produção (Módulo 25 rebanho
-  por categoria, Calculadora Pecuária, identidade visual nova). Commit
-  `3b7b6cf`.
