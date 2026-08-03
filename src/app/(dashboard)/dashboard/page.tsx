@@ -4,6 +4,7 @@ import { getSessionUser, getActiveProfiles, getTenantDb } from "@/lib/tenant-con
 import { getCashFlow } from "@/lib/actions/financial-reports";
 import { getBalanceAction } from "@/lib/actions/financial-summary";
 import { listUpcomingVaccinations, getHerdEvolution } from "@/lib/actions/animals";
+import { getActivePropertyId } from "@/lib/active-property";
 import { decToNum } from "@/lib/serialize";
 import KpiCard from "@/components/dashboard/kpi-card";
 import HerdEvolutionChart from "@/components/dashboard/herd-evolution-chart";
@@ -37,6 +38,10 @@ export default async function DashboardHome() {
 
   const hasFazenda = profiles.includes("fazenda");
   const hasPrestador = profiles.includes("prestador");
+  // Seletor de propriedade no topo (briefing de layout, seção 12): filtra
+  // os KPIs de fazenda. Financeiro não tem property_id no schema (nunca
+  // teve), então fica de fora do filtro: não há o que filtrar ali.
+  const activePropertyId = hasFazenda ? await getActivePropertyId(db) : null;
 
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -70,22 +75,35 @@ export default async function DashboardHome() {
     calendarEntries,
     calendarVaccinations,
   ] = await Promise.all([
-    hasFazenda ? db.animal.count({ where: { status: "active" } }) : Promise.resolve(0),
     hasFazenda
-      ? db.plot.count({ where: { cycles: { some: { status: { in: ["planted", "growing"] } } } } })
+      ? db.animal.count({
+          where: { status: "active", ...(activePropertyId ? { property_id: activePropertyId } : {}) },
+        })
       : Promise.resolve(0),
-    hasFazenda ? listUpcomingVaccinations(db, 15) : Promise.resolve([]),
+    hasFazenda
+      ? db.plot.count({
+          where: {
+            cycles: { some: { status: { in: ["planted", "growing"] } } },
+            ...(activePropertyId ? { property_id: activePropertyId } : {}),
+          },
+        })
+      : Promise.resolve(0),
+    hasFazenda ? listUpcomingVaccinations(db, 15, activePropertyId) : Promise.resolve([]),
     hasPrestador ? db.serviceClient.count() : Promise.resolve(0),
     hasPrestador ? db.serviceOrder.count({ where: { status: "completed" } }) : Promise.resolve(0),
     getBalanceAction(db, null),
     db.alert.count({ where: { status: "pending" } }),
     getCashFlow(db, { start: sixMonthsAgo, end: now, groupBy: "month" }),
-    hasFazenda ? getHerdEvolution(db, { months: 6 }) : Promise.resolve([]),
+    hasFazenda ? getHerdEvolution(db, { months: 6, propertyId: activePropertyId }) : Promise.resolve([]),
     db.task.count({ where: { status: "pending", due_date: { gte: now, lte: taskLimit } } }),
     db.financialEntry.count({ where: { status: "pending", due_date: { lt: now } } }),
     hasFazenda
       ? db.machine.count({
-          where: { status: { not: "sold" }, next_maintenance_at: { gte: now, lte: maintenanceLimit } },
+          where: {
+            status: { not: "sold" },
+            next_maintenance_at: { gte: now, lte: maintenanceLimit },
+            ...(activePropertyId ? { property_id: activePropertyId } : {}),
+          },
         })
       : Promise.resolve(0),
     db.financialEntry.findMany({ orderBy: { created_at: "desc" }, take: 5 }),
@@ -120,7 +138,10 @@ export default async function DashboardHome() {
     }),
     hasFazenda
       ? db.animalVaccination.findMany({
-          where: { next_due_at: { gte: eventWindowStart, lte: eventWindowEnd } },
+          where: {
+            next_due_at: { gte: eventWindowStart, lte: eventWindowEnd },
+            ...(activePropertyId ? { animal: { property_id: activePropertyId } } : {}),
+          },
           select: { next_due_at: true },
         })
       : Promise.resolve([]),

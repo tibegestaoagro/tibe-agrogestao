@@ -17,9 +17,12 @@ const ALL = "__all__";
 export default function AnimalFilters({
   properties,
   breeds,
+  defaultPropertyId,
 }: {
   properties: Property[];
   breeds: string[];
+  /** Propriedade ativa (seletor do topo), usada quando a URL não tem `property_id`. */
+  defaultPropertyId?: string | null;
 }) {
   const router = useRouter();
   const sp = useSearchParams();
@@ -40,7 +43,7 @@ export default function AnimalFilters({
         className="w-48"
       />
       <Select
-        value={sp.get("property_id") ?? ALL}
+        value={sp.get("property_id") ?? defaultPropertyId ?? ALL}
         onValueChange={(v) => setParam("property_id", v)}
       >
         <SelectTrigger className="w-44">

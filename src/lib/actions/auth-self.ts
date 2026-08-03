@@ -58,3 +58,21 @@ export async function changeOwnPasswordWithCurrentAction(
   });
   return ok({ id: userId });
 }
+
+/**
+ * Renomeia o próprio usuário (briefing de layout, menu "Perfil" do topo).
+ * Só o nome: email é o identificador de login (globalmente único, spec
+ * 0.6) e trocar exigiria reverificação, fora de escopo aqui.
+ */
+export async function updateOwnNameAction(
+  db: TenantPrismaClient,
+  userId: string,
+  name: string,
+): Promise<ActionResult<{ id: string; name: string }>> {
+  const trimmed = name.trim();
+  if (trimmed.length < 2) {
+    return fail("VALIDATION_ERROR", "Informe um nome com pelo menos 2 caracteres", 422);
+  }
+  const user = await db.user.update({ where: { id: userId }, data: { name: trimmed } });
+  return ok({ id: user.id, name: user.name });
+}

@@ -1,6 +1,7 @@
 import { getActiveProfiles, getTenantDb } from "@/lib/tenant-context";
 import { getDre, getCashFlow, resolvePeriod } from "@/lib/actions/financial-reports";
 import { getHerdEvolution } from "@/lib/actions/animals";
+import { getActivePropertyId } from "@/lib/active-property";
 import { MODULE_LABEL } from "@/lib/related-modules";
 import ExportReportButton from "@/components/financeiro/export-report-button";
 import HerdEvolutionChart from "@/components/dashboard/herd-evolution-chart";
@@ -26,15 +27,22 @@ export default async function RelatoriosPage() {
   const now = new Date();
   const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
   const monthRange = resolvePeriod();
+  // Seletor de propriedade no topo (briefing de layout, seção 12): filtra
+  // rebanho/lavoura. Financeiro não tem property_id no schema, fica de fora.
+  const activePropertyId = hasFazenda ? await getActivePropertyId(db) : null;
 
   const [dre, cashFlow, herdEvolution, harvestByCrop, serviceOrders] = await Promise.all([
     getDre(db, monthRange),
     getCashFlow(db, { start: twelveMonthsAgo, end: now, groupBy: "month" }),
-    hasFazenda ? getHerdEvolution(db, { months: 12 }) : Promise.resolve([]),
+    hasFazenda ? getHerdEvolution(db, { months: 12, propertyId: activePropertyId }) : Promise.resolve([]),
     hasFazenda
       ? db.cropCycle.groupBy({
           by: ["crop_name"],
-          where: { status: "harvested", harvested_at: { gte: twelveMonthsAgo, lte: now } },
+          where: {
+            status: "harvested",
+            harvested_at: { gte: twelveMonthsAgo, lte: now },
+            ...(activePropertyId ? { plot: { property_id: activePropertyId } } : {}),
+          },
           _sum: { yield_amount: true },
           _count: true,
         })

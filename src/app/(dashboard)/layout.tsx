@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import { getSessionUser } from "@/lib/tenant-context";
+import { getSessionUser, getTenantDb } from "@/lib/tenant-context";
 import { prisma } from "@/lib/prisma";
 import { requireSessionGateForPage } from "@/lib/session-gate";
 import { getBillingAccess, isBillingExemptPath } from "@/lib/billing-access";
 import { hasMinRole } from "@/lib/permissions";
+import { getActivePropertyId } from "@/lib/active-property";
 import DashboardShell from "@/components/layout/dashboard-shell";
 import type { NavItem } from "@/components/layout/sidebar";
 import InstallInvite from "@/components/pwa/install-invite";
@@ -49,6 +50,24 @@ export default async function DashboardLayout({
   const hasFazenda = profiles.includes("fazenda");
   const hasPrestador = profiles.includes("prestador");
 
+  // Seletor de propriedade no topo (briefing de layout, seção 12): só
+  // busca se o perfil fazenda estiver ativo (senão não existe Property).
+  let properties: { id: string; name: string }[] = [];
+  let activePropertyId: string | null = null;
+  if (hasFazenda) {
+    const db = await getTenantDb();
+    const [propertyRows, active] = await Promise.all([
+      db.property.findMany({
+        where: { archived_at: null },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true },
+      }),
+      getActivePropertyId(db),
+    ]);
+    properties = propertyRows;
+    activePropertyId = active;
+  }
+
   // Fase 1 do briefing de layout (docs/design/briefing-novo-layout.md):
   // reagrupa os 12 links planos de sempre em 7 entradas, seguindo a IA do
   // mockup do cliente. Nenhuma regra de permissão nova: "Configurações da
@@ -87,8 +106,9 @@ export default async function DashboardLayout({
       show: true,
       children: [
         { href: "/configuracoes", label: "Configurações da conta", show: hasMinRole(user.role, "ADMIN") },
-        // Trocar a própria senha não é privilégio de papel: todo usuário
-        // precisa alcançar isso, inclusive quem não vê o resto (Módulo 19).
+        // Perfil e senha não são privilégio de papel: todo usuário precisa
+        // alcançar isso, inclusive quem não vê o resto (Módulo 19).
+        { href: "/configuracoes/perfil", label: "Perfil", show: true },
         { href: "/configuracoes/senha", label: "Minha senha", show: true },
       ],
     },
@@ -102,6 +122,8 @@ export default async function DashboardLayout({
         userName={user.name ?? "Usuário"}
         roleLabel={ROLE_LABEL[user.role] ?? user.role}
         billingAccess={billingAccess}
+        properties={properties}
+        activePropertyId={activePropertyId}
       >
         {children}
       </DashboardShell>

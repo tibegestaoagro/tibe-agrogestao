@@ -308,3 +308,56 @@ visualmente incoerente por uma rodada inteira).
   gráficos Recharts podem aparecer momentaneamente em branco até o
   `ResizeObserver` interno assentar; num carregamento normal (humano) isso
   não é perceptível. Não mexido, não é regressão de produto.
+
+## 12. Seletor de propriedade + menu de conta no topo: entregue (2026-08-04)
+
+Feedback do usuário sobre a Fase 2/3: gostou do seletor de propriedade do
+mockup (topbar, ícone de casa + nome + chevron) e pediu um menu de conta no
+topo com Perfil/Minha senha/Sair. Investigado antes de implementar: o app
+não tinha nenhum conceito de "propriedade ativa" (só Rebanho filtrava por
+propriedade, via parâmetro de URL sem persistência; Máquinas e Lavoura
+sempre somavam tudo do tenant; Dashboard também). Perguntado ao usuário a
+profundidade: **"Completo" foi a escolha** (propriedade ativa filtra o app
+inteiro), não a opção mais leve (só mostrar/trocar, sem filtrar).
+
+- **`src/lib/active-property.ts`**: propriedade ativa é cookie
+  (`tibe_active_property_id`), não campo no banco: qual propriedade estou
+  olhando agora não é dado de negócio. `getActivePropertyId(db)` sempre
+  revalida contra o tenant atual (cookie de outra sessão/propriedade
+  arquivada vira "todas as propriedades", nunca erro).
+- **`POST /api/v1/tenant/active-property`**: troca a propriedade ativa,
+  `guard("rebanho", "read")` (toda role tem pelo menos leitura de rebanho;
+  trocar o que estou vendo não é uma escrita de negócio).
+- **Filtro aplicado em**: Rebanho (parâmetro de URL explícito continua
+  vencendo; sem ele, cai pra propriedade ativa), Máquinas e Lavoura
+  (ganharam filtro que não tinham, com aviso "Filtrado por: X" no cabeçalho,
+  já que essas páginas não têm seletor próprio), Dashboard (KPIs de rebanho/
+  talhões/máquinas/vacinas/calendário) e "Fazenda em Números" (evolução do
+  rebanho e produtividade da lavoura). **Financeiro/Prestador ficam de
+  fora**: `FinancialEntry` e `ServiceOrder` não têm `property_id` no schema
+  (nunca tiveram), não há o que filtrar.
+- **`getHerdEvolution`/`listUpcomingVaccinations`** (`animals.ts`) ganharam
+  `propertyId` opcional, mantendo compatibilidade com quem já chamava sem
+  esse parâmetro.
+- **Menu de conta no topo** (`user-menu.tsx`): avatar + nome + chevron →
+  Perfil, Minha senha, Sair. Os atalhos de senha/logout continuam TAMBÉM no
+  rodapé da sidebar (Fase 1): os dois coexistem no mockup, não são
+  redundância por descuido.
+- **Página "Perfil" nova** (`/configuracoes/perfil`): só o nome é editável
+  (`updateOwnNameAction`, `auth-self.ts`); email fica de fora de propósito
+  (identificador de login, globalmente único, trocar exigiria
+  reverificação, fora de escopo aqui). Sem gate de papel, mesmo motivo de
+  "Minha senha": todo usuário precisa alcançar isso.
+- **Dropdown escrito à mão** (`use-dropdown.ts`, hook compartilhado:
+  trigger + clique fora + Escape fecham): não o Radix DropdownMenu do
+  shadcn, pelo mesmo motivo já registrado na Fase 1 (classes `oklch(...)`
+  incompatíveis com este projeto).
+- **Seed de demonstração ganhou uma 2ª propriedade** ("Sítio Recanto", ~20%
+  do rebanho/máquinas/lavoura) especificamente pra dar o que testar no
+  filtro: sem uma segunda propriedade de verdade, o seletor não tinha como
+  ser validado ponta a ponta.
+- Validado com navegador real: troca de propriedade filtrando Dashboard/
+  Máquinas de verdade (rebanho 232→44 cabeças, talhões 3→1, manutenções
+  2→1, financeiro inalterado como esperado), menu de conta, edição de nome
+  no Perfil. `npm run build` limpo e suíte ampla (`isolation`, `m1`-`m5`,
+  `m17`, `m19`, `m25`-`m29`) sem regressão.

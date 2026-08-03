@@ -5,14 +5,9 @@ import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import Sidebar, { type NavItem } from "@/components/layout/sidebar";
 import BillingBanner from "@/components/billing/billing-banner";
+import PropertySelector, { type PropertyOption } from "@/components/layout/property-selector";
+import UserMenu from "@/components/layout/user-menu";
 import type { BillingAccess } from "@/lib/billing-access";
-
-function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  const first = parts[0]?.[0] ?? "";
-  const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  return (first + last).toUpperCase() || "?";
-}
 
 /**
  * Casca do dashboard (sidebar + header + conteúdo). Extraído de
@@ -20,11 +15,10 @@ function initialsOf(name: string): string {
  * abrir/fechar o menu no celular, já que o painel é usado majoritariamente
  * pelo WhatsApp/celular, não desktop.
  *
- * Fase 1 do briefing de layout (docs/design/briefing-novo-layout.md): nome
- * do tenant/usuário e o botão de sair migraram para o rodapé da sidebar
- * (mais perto do mockup); o header ficou só com o essencial (menu mobile +
- * avatar de iniciais), sem busca/sino/seletor de fazenda (decisão explícita
- * de simplificar por enquanto, não um esquecimento).
+ * Briefing de layout (docs/design/briefing-novo-layout.md): seletor de
+ * propriedade e menu de conta (Perfil/Minha senha/Sair) no topo, seção 12;
+ * nome do tenant/usuário e os atalhos de senha/logout continuam TAMBÉM no
+ * rodapé da sidebar (Fase 1): os dois elementos coexistem no mockup.
  */
 export default function DashboardShell({
   navItems,
@@ -32,6 +26,8 @@ export default function DashboardShell({
   userName,
   roleLabel,
   billingAccess,
+  properties,
+  activePropertyId,
   children,
 }: {
   navItems: NavItem[];
@@ -39,6 +35,8 @@ export default function DashboardShell({
   userName: string;
   roleLabel: string;
   billingAccess: BillingAccess;
+  properties: PropertyOption[];
+  activePropertyId: string | null;
   children: React.ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -68,17 +66,9 @@ export default function DashboardShell({
           >
             <Menu className="h-5 w-5" />
           </button>
+          <PropertySelector properties={properties} activePropertyId={activePropertyId} />
           <div className="min-w-0 flex-1" />
-          <div className="hidden text-right sm:block">
-            <p className="truncate text-sm font-medium text-gray-900">{userName}</p>
-            <p className="truncate text-xs text-gray-500">{roleLabel}</p>
-          </div>
-          <div
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-tibe-primary text-sm font-semibold text-white"
-            title={userName}
-          >
-            {initialsOf(userName)}
-          </div>
+          <UserMenu userName={userName} roleLabel={roleLabel} />
         </header>
         <main className="flex-1 p-4 md:p-6">{children}</main>
       </div>

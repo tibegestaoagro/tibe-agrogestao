@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSessionUser, getActiveProfiles, getTenantDb } from "@/lib/tenant-context";
 import { canWrite } from "@/lib/permissions";
 import { decToNum } from "@/lib/serialize";
+import { getActivePropertyId } from "@/lib/active-property";
 import {
   Table,
   TableHeader,
@@ -29,8 +30,12 @@ export default async function LavouraPage() {
   const writable = canWrite(user.role, "lavoura");
   const db = await getTenantDb();
 
+  // Seletor de propriedade no topo (briefing de layout, seção 12).
+  const activePropertyId = await getActivePropertyId(db);
+
   const [plots, properties] = await Promise.all([
     db.plot.findMany({
+      where: activePropertyId ? { property_id: activePropertyId } : {},
       orderBy: { created_at: "desc" },
       include: {
         property: { select: { name: true } },
@@ -44,10 +49,17 @@ export default async function LavouraPage() {
     db.property.findMany({ where: { archived_at: null }, orderBy: { name: "asc" } }),
   ]);
 
+  const activePropertyName = properties.find((p) => p.id === activePropertyId)?.name;
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-gray-900">Lavoura</h1>
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900">Lavoura</h1>
+          {activePropertyName && (
+            <p className="mt-0.5 text-sm text-gray-500">Filtrado por: {activePropertyName}</p>
+          )}
+        </div>
         {writable && properties.length > 0 && (
           <PlotForm properties={properties.map((p) => ({ id: p.id, name: p.name }))} />
         )}

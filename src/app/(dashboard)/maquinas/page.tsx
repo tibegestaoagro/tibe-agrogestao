@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser, getActiveProfiles, getTenantDb } from "@/lib/tenant-context";
 import { canWrite } from "@/lib/permissions";
+import { getActivePropertyId } from "@/lib/active-property";
 import {
   Table,
   TableHeader,
@@ -29,8 +30,12 @@ export default async function MaquinasPage() {
   const writable = canWrite(user.role, "maquinas");
   const db = await getTenantDb();
 
+  // Seletor de propriedade no topo (briefing de layout, seção 12).
+  const activePropertyId = await getActivePropertyId(db);
+
   const [machines, propertiesRaw] = await Promise.all([
     db.machine.findMany({
+      where: activePropertyId ? { property_id: activePropertyId } : {},
       orderBy: { created_at: "desc" },
       include: { property: { select: { name: true } } },
     }),
@@ -39,10 +44,17 @@ export default async function MaquinasPage() {
 
   const properties = propertiesRaw.map((p) => ({ id: p.id, name: p.name }));
 
+  const activePropertyName = properties.find((p) => p.id === activePropertyId)?.name;
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-gray-900">Máquinas e equipamentos</h1>
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900">Máquinas e equipamentos</h1>
+          {activePropertyName && (
+            <p className="mt-0.5 text-sm text-gray-500">Filtrado por: {activePropertyName}</p>
+          )}
+        </div>
         {writable && properties.length > 0 && <MachineForm properties={properties} />}
       </div>
 

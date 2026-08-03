@@ -333,12 +333,19 @@ export async function addMovementAction(
 }
 
 /** Vacinações com next_due_at nos próximos N dias (spec 1.4, reusado pelo Módulo 4). */
-export async function listUpcomingVaccinations(db: TenantPrismaClient, days: number) {
+export async function listUpcomingVaccinations(
+  db: TenantPrismaClient,
+  days: number,
+  propertyId?: string | null,
+) {
   const now = new Date();
   const limit = new Date(now.getTime() + days * 86_400_000);
 
   const rows = await db.animalVaccination.findMany({
-    where: { next_due_at: { gte: now, lte: limit } },
+    where: {
+      next_due_at: { gte: now, lte: limit },
+      ...(propertyId ? { animal: { property_id: propertyId } } : {}),
+    },
     orderBy: { next_due_at: "asc" },
     include: {
       animal: { select: { ear_tag: true } },
@@ -368,17 +375,26 @@ export async function listUpcomingVaccinations(db: TenantPrismaClient, days: num
  */
 export async function getHerdEvolution(
   db: TenantPrismaClient,
-  opts: { months: number },
+  opts: { months: number; propertyId?: string | null },
 ): Promise<{ month: string; count: number }[]> {
   const now = new Date();
   const points: { month: string; count: number }[] = [];
+  // Filtra pela propriedade ATUAL do animal (Animal.property_id): uma
+  // transferência entre propriedades não é reconstruída retroativamente
+  // aqui, mesma aproximação já aceita no resto do módulo (sem histórico de
+  // property_id por data).
+  const propertyFilter = opts.propertyId ? { property_id: opts.propertyId } : {};
 
   for (let i = opts.months - 1; i >= 0; i--) {
     const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59, 999);
     const [registered, departed] = await Promise.all([
-      db.animal.count({ where: { created_at: { lte: monthEnd } } }),
+      db.animal.count({ where: { created_at: { lte: monthEnd }, ...propertyFilter } }),
       db.animalMovement.count({
-        where: { movement_type: { in: ["sale", "death"] }, occurred_at: { lte: monthEnd } },
+        where: {
+          movement_type: { in: ["sale", "death"] },
+          occurred_at: { lte: monthEnd },
+          ...(opts.propertyId ? { animal: { property_id: opts.propertyId } } : {}),
+        },
       }),
     ]);
     points.push({

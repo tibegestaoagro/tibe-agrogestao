@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser, getActiveProfiles, getTenantDb } from "@/lib/tenant-context";
 import { canWrite } from "@/lib/permissions";
+import { getActivePropertyId } from "@/lib/active-property";
 import {
   Table,
   TableHeader,
@@ -71,10 +72,16 @@ export default async function RebanhoPage({
   const writable = canWrite(user.role, "rebanho");
   const db = await getTenantDb();
 
+  // Seletor de propriedade no topo (briefing de layout, seção 12): filtro
+  // explícito na URL (o Select desta página) sempre vence; sem ele, cai pra
+  // propriedade ativa escolhida no topo; sem nenhum dos dois, mostra tudo.
+  const activePropertyId = await getActivePropertyId(db);
+  const effectivePropertyId = searchParams.property_id ?? activePropertyId ?? undefined;
+
   const [animals, batches, propertiesRaw] = await Promise.all([
     db.animal.findMany({
       where: {
-        ...(searchParams.property_id ? { property_id: searchParams.property_id } : {}),
+        ...(effectivePropertyId ? { property_id: effectivePropertyId } : {}),
         ...(searchParams.status
           ? { status: searchParams.status as "active" | "sold" | "deceased" }
           : {}),
@@ -99,7 +106,7 @@ export default async function RebanhoPage({
     // categoria/quantidade): só o filtro de propriedade, comum aos dois tipos.
     db.animalBatch.findMany({
       where: {
-        ...(searchParams.property_id ? { property_id: searchParams.property_id } : {}),
+        ...(effectivePropertyId ? { property_id: effectivePropertyId } : {}),
       },
       orderBy: { created_at: "desc" },
       include: {
@@ -185,6 +192,7 @@ export default async function RebanhoPage({
       <AnimalFilters
         properties={properties.map((p) => ({ id: p.id, name: p.name }))}
         breeds={breeds}
+        defaultPropertyId={activePropertyId}
       />
 
       <div className="rounded-lg border border-gray-200 bg-white">

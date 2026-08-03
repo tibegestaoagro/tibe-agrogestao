@@ -40,6 +40,11 @@ function randFloat(min: number, max: number, decimals = 2) {
 function pick<T>(arr: readonly T[]): T {
   return arr[randInt(0, arr.length - 1)];
 }
+/** ~80% na primeira propriedade, o resto dividido entre as demais. */
+function pickPropertyId(propertyIds: string[]): string {
+  if (propertyIds.length === 1 || Math.random() < 0.8) return propertyIds[0];
+  return pick(propertyIds.slice(1));
+}
 function daysAgo(n: number) {
   return new Date(Date.now() - n * 86_400_000);
 }
@@ -102,7 +107,7 @@ async function wipeDemoData() {
   await prisma.property.deleteMany({ where: { tenant_id } });
 }
 
-async function seedAnimals(propertyId: string, categoryByName: Map<string, string>) {
+async function seedAnimals(propertyIds: string[], categoryByName: Map<string, string>) {
   type Def = { category: string; sex: "male" | "female"; weightRange: [number, number]; ageMonths: [number, number] };
   const DEFS: Def[] = [
     { category: "Bezerro", sex: "male", weightRange: [60, 180], ageMonths: [0, 11] },
@@ -145,7 +150,7 @@ async function seedAnimals(propertyId: string, categoryByName: Map<string, strin
     animals.push({
       id,
       tenant_id: TENANT_ID,
-      property_id: propertyId,
+      property_id: pickPropertyId(propertyIds),
       ear_tag: `BV-${String(tagSeq++).padStart(4, "0")}`,
       breed: pick(BREEDS),
       sex: def.sex,
@@ -258,7 +263,7 @@ async function seedAnimals(propertyId: string, categoryByName: Map<string, strin
   ].map((b) => ({
     id: randomUUID(),
     tenant_id: TENANT_ID,
-    property_id: propertyId,
+    property_id: propertyIds[0],
     category_id: categoryByName.get(b.category)!,
     quantity: b.qty,
     average_weight: randFloat(120, 420, 1),
@@ -283,7 +288,7 @@ async function seedAnimals(propertyId: string, categoryByName: Map<string, strin
   return entries;
 }
 
-async function seedMachines(propertyId: string) {
+async function seedMachines(propertyIds: string[]) {
   const defs = [
     { name: "Trator New Holland TL75", type: "trator", brand: "New Holland", model: "TL75", year: 2019, cost: 180000, maintDays: 10, status: "active" as const },
     { name: "Caminhonete Toyota Hilux", type: "veiculo", brand: "Toyota", model: "Hilux", year: 2021, cost: 220000, maintDays: 42, status: "active" as const },
@@ -302,7 +307,7 @@ async function seedMachines(propertyId: string) {
     machines.push({
       id,
       tenant_id: TENANT_ID,
-      property_id: propertyId,
+      property_id: pickPropertyId(propertyIds),
       name: d.name,
       type: d.type,
       brand: d.brand,
@@ -365,11 +370,12 @@ async function seedMachines(propertyId: string) {
   return entries;
 }
 
-async function seedLavoura(propertyId: string) {
+async function seedLavoura(propertyIds: string[]) {
+  const [mainPropertyId, secondPropertyId = propertyIds[0]] = propertyIds;
   const plots = [
-    { name: "Talhão 1 - Soja", area: 85, crop: "Soja", cycles: 4, permanent: false },
-    { name: "Talhão 2 - Milho", area: 60, crop: "Milho", cycles: 3, permanent: false },
-    { name: "Talhão 3 - Pastagem Braquiária", area: 220, crop: "Braquiária", cycles: 1, permanent: true },
+    { name: "Talhão 1 - Soja", area: 85, crop: "Soja", cycles: 4, permanent: false, propertyId: mainPropertyId },
+    { name: "Talhão 2 - Milho", area: 60, crop: "Milho", cycles: 3, permanent: false, propertyId: mainPropertyId },
+    { name: "Talhão 3 - Pastagem Braquiária", area: 220, crop: "Braquiária", cycles: 1, permanent: true, propertyId: secondPropertyId },
   ];
 
   const plotRows: Prisma.PlotCreateManyInput[] = [];
@@ -382,7 +388,7 @@ async function seedLavoura(propertyId: string) {
     plotRows.push({
       id: plotId,
       tenant_id: TENANT_ID,
-      property_id: propertyId,
+      property_id: p.propertyId,
       name: p.name,
       area_hectares: p.area,
       current_crop: p.crop,
@@ -730,9 +736,16 @@ async function main() {
   console.log("   Limpando histórico de demonstração anterior...");
   await wipeDemoData();
 
+  // 2 propriedades (não 1): pra dar o que testar de verdade no seletor de
+  // propriedade do topo (briefing de layout, seção 12). ~80% do rebanho/
+  // máquinas/talhões fica na principal, ~20% na segunda.
   const property = await prisma.property.create({
     data: { tenant_id: TENANT_ID, name: "Fazenda Boa Vista", area_hectares: 480, created_at: daysAgo(730) },
   });
+  const property2 = await prisma.property.create({
+    data: { tenant_id: TENANT_ID, name: "Sítio Recanto", area_hectares: 65, created_at: daysAgo(500) },
+  });
+  const propertyIds = [property.id, property2.id];
 
   const db = prismaForTenant(TENANT_ID);
   await provisionDefaultAnimalCategories(db);
@@ -743,13 +756,13 @@ async function main() {
   const categoryByName = new Map(categories.map((c) => [c.name, c.id]));
 
   console.log("   Rebanho (≈260 animais, 2 anos de movimentação)...");
-  const animalEntries = await seedAnimals(property.id, categoryByName);
+  const animalEntries = await seedAnimals(propertyIds, categoryByName);
 
   console.log("   Máquinas e manutenções...");
-  const machineEntries = await seedMachines(property.id);
+  const machineEntries = await seedMachines(propertyIds);
 
   console.log("   Lavoura (talhões, ciclos, insumos)...");
-  const lavouraEntries = await seedLavoura(property.id);
+  const lavouraEntries = await seedLavoura(propertyIds);
 
   console.log("   Prestador de serviço (clientes, ordens)...");
   const prestadorEntries = await seedPrestador();
