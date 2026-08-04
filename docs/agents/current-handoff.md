@@ -24,20 +24,20 @@ escritório. Leia depois de `CLAUDE.md`.
 ## Estado atual
 
 - Atualizado em: 2026-08-04
-- Última rodada: **auditoria de performance e enxugamento** (`/loop-goal`,
+- **Produção: `cd8ba4e` no ar, com as 2 migrações de rebanho já aplicadas no
+  Neon.** Rebanho por categoria (brinco opcional) é o estado atual do produto.
+  Detalhes e evidências na seção "EM PRODUÇÃO" abaixo.
+- Banco local de dev está no MESMO schema de produção agora: a divergência
+  avisada na rodada anterior acabou, a `main` roda contra ele normalmente.
+- Rodada anterior: **auditoria de performance e enxugamento** (`/loop-goal`,
   contrato de missão aprovado pelo usuário antes de executar). Objetivo:
   "código limpo, estrutura enxuta e performática". 6 metas (G1..G6), todas
   batidas, verificadas por comando e por um juiz subagente independente.
   Detalhes na seção abaixo. Antes dela, na mesma sessão: remoção do suporte
   multi-agente (Codex) e do graphify, e a auditoria de arquitetura com o
   skill do Matt Pocock (5 candidatos + 1 bug, commits `9b777ad`..`c5953ef`).
-- Produção: **`5e9caa2` no ar** (push aprovado pelo usuário ao fim da
-  sessão). Levou de uma vez o Módulo 29, a auditoria de arquitetura, a
-  auditoria de performance e o cancelamento de assinatura.
-- Banco: a migração do Módulo 29
-  (`20260804120413_minha_fazenda_pasture`) **foi aplicada no Neon** nesta
-  sessão, com aprovação do usuário. Dado preservado (4 tenants, 1
-  propriedade). `prisma migrate status`: "Database schema is up to date".
+  Tudo isso foi para produção em `5e9caa2`, junto com o Módulo 29 e o
+  cancelamento de assinatura.
 
 ### ⚠️ Incidente evitado no push: código de schema novo sem a migração
 
@@ -191,13 +191,9 @@ separada, ver `CLAUDE.md`). Antes de investigar como bug, cheque isto:
 Quatro decisões grandes, registradas assim que foram tomadas. Nenhuma tem
 código ainda; cada uma precisa de rodada própria com spec.
 
-1. **Rebanho é POR CATEGORIA, brinco vira opcional.** Encerra o maior
-   desalinhamento aberto do projeto (foi pedido por categoria, foi
-   construído por brinco). Hoje `Animal.ear_tag` é OBRIGATÓRIO e único por
-   tenant, e `AnimalBatch` (categoria + quantidade, Módulo 25) é o caminho
-   paralelo. A decisão inverte isso: categoria/quantidade é o padrão, o
-   brinco existe só para quem trabalha com brinco. Exige migração e revisão
-   de todo ponto que assume brinco (inclusive o agente e o app).
+1. ~~**Rebanho é POR CATEGORIA, brinco vira opcional.**~~ **FEITO e em
+   produção** (`cd8ba4e`): encerrou o maior desalinhamento aberto do projeto.
+   Ver a seção "EM PRODUÇÃO" acima.
 2. **Cancelamento: acesso até o fim do período pago, depois arquiva o
    tenant por 60 dias.** Muda `getBillingAccess()` (hoje `canceled` vira
    `blocked` na hora) e introduz o arquivamento com janela. **Em aberto:**
@@ -212,16 +208,40 @@ código ainda; cada uma precisa de rodada própria com spec.
 4. **As 27 rotas sem documentação são urgentes** (antes estavam como
    dívida aceitável).
 
-### EM ANDAMENTO: rebanho por categoria (branch `rebanho-por-categoria`)
+### EM PRODUÇÃO: rebanho por categoria (`cd8ba4e`)
 
 Spec: [docs/superpowers/specs/2026-08-04-rebanho-por-categoria-design.md](../superpowers/specs/2026-08-04-rebanho-por-categoria-design.md).
-Passos 1 a 4 de 6 concluídos. **A branch compila, faz build de produção e tem
-a suíte inteira verde (33/33).** Ainda NÃO foi mesclada nem enviada.
+Passos 1 a 5 de 6 concluídos, mesclado na `main` e **no ar**. A branch
+`rebanho-por-categoria` foi mesclada com `--no-ff` (conflito só no handoff,
+resolvido pela versão da branch).
 
-**Antes de rodar localmente:** o banco de dev já tem as 2 migrações novas, e a
-`main` não tem o código correspondente, então rodar a `main` contra esse banco
-quebra. Trabalhe na branch, ou recrie o banco (`prisma migrate reset` +
-`db:seed` + `seed:demo`). **Produção não foi tocada.**
+**Ordem seguida no deploy, e por que ela importa:** esta migração APAGA a
+tabela `Animal`, então não existe ordem sem janela de indisponibilidade.
+Escolhida (com aprovação do usuário) **migração antes do push**: se a migração
+falhasse, bastava não empurrar e produção seguiria íntegra com código e schema
+antigos, ambos coerentes. O inverso repetiria o incidente descrito acima.
+A janela real foi o build da Vercel: `/planos` e `/login` devolveram 503/500
+por volta de 150s e voltaram sozinhos.
+
+**Verificado em produção depois do deploy**, não presumido:
+- Retrato do Neon ANTES (`Animal=2, AnimalBatch=0, histórico=0, Tenant=4`) e
+  DEPOIS: 2 cabeças em 2 lotes, brincos `081` e `082` preservados, categoria
+  "Não classificado" criada, `to_regclass('"Animal"')` devolve nulo.
+- A query exata da página `/rebanho`, rodada pelo client escopado tenant a
+  tenant: só "Da Mata Sementes LTDA" tem rebanho (2 cabeças); os 3 tenants
+  Agromax em trial têm 0, como antes.
+- `countActiveAnimals` devolve **2 cabeças** (não 2 lotes) e
+  `getHerdEvolution` devolve `jul=2 ago=2`: as duas funções que passaram a
+  somar `quantity` em vez de contar linhas.
+- `/docs/api` público já serve o contrato novo (`category_id`, `quantity`,
+  `ear_tag`); `/rebanho` sem sessão dá 307 pro login e `/api/v1/animals` dá
+  401 JSON.
+
+**Não foi possível validar por navegador logado em produção:** a credencial do
+seed (`owner@damata.com.br`) é de DEV e não existe no Neon (o login devolve
+`CredentialsSignin`). A validação de tela foi feita no navegador local, com o
+mesmo código, antes do merge. Para validar produção logado é preciso uma
+credencial real de tenant.
 
 Feito: modelo único `AnimalBatch` com brinco opcional (`Animal` e
 `AnimalStatus` removidos, histórico em `batch_id`); migração escrita à mão (a
@@ -289,8 +309,12 @@ que fazer com as rotas `/api/v1/animal-batches`, que hoje convivem com
   para o app mobile e `packages/contracts` (decisão deliberada de ficarem
   de fora, documentada em specs de módulo; tecnicamente já dá pra reabrir
   desde o Módulo 25).
-- Confirmações ainda pendentes da Agromax: modelo de rebanho por categoria
-  (Módulo 25, sem confirmação formal), destino da Lavoura.
+- Confirmação ainda pendente da Agromax: destino da Lavoura. (O modelo de
+  rebanho por categoria deixou de ser dúvida: foi confirmado pelo cliente e
+  já está em produção.)
+- **Próximo passo autorizado e não iniciado:** documentar as 27 rotas
+  (o usuário classificou como urgente) e retomar o app mobile pelo
+  assistente, que a decisão 3 promoveu a item mais importante do roadmap.
 - Validação técnica das 3 calculadoras de confiança média (água, calagem,
   mão de obra) antes de uso real com clientes.
 - Verificação do negócio na Meta: ainda não iniciada, item de maior prazo.
@@ -302,6 +326,9 @@ que fazer com as rotas `/api/v1/animal-batches`, que hoje convivem com
 
 ## Histórico recente
 
+- 2026-08-04: **rebanho por categoria em produção** (`cd8ba4e`): modelo único
+  `AnimalBatch` com brinco opcional, `Animal` removido, migração escrita à mão
+  aplicada no Neon antes do push, dado preservado (2 cabeças, brincos 081/082).
 - 2026-08-04: auditoria de arquitetura (`/improve-codebase-architecture`):
   5 candidatos implementados (guardrail TENANT_SCOPED_MODELS, /docs/api +
   teste de completude, buildNavItems extraído, 4 contagens compartilhadas

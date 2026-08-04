@@ -18,7 +18,7 @@ export async function getHerdEvolution(
   opts: { months: number; propertyId?: string | null },
 ): Promise<{ month: string; count: number }[]> {
   const now = new Date();
-  // Filtra pela propriedade ATUAL do animal (Animal.property_id): uma
+  // Filtra pela propriedade ATUAL do lote (AnimalBatch.property_id): uma
   // transferência entre propriedades não é reconstruída retroativamente
   // aqui, mesma aproximação já aceita no resto do módulo (sem histórico de
   // property_id por data).
