@@ -7,7 +7,7 @@ import type { TenantPrismaClient } from "@/lib/prisma";
 export async function upsertVaccinationForecastAction(
   db: TenantPrismaClient,
   input: {
-    animal_id: string;
+    batch_id: string;
     vaccine_id: string;
     vaccine_name: string;
     ear_tag: string;
@@ -15,7 +15,7 @@ export async function upsertVaccinationForecastAction(
     due_date: Date;
   },
 ): Promise<ActionResult<{ id: string; updated: boolean }>> {
-  const relatedId = `${input.animal_id}:${input.vaccine_id}`;
+  const relatedId = `${input.batch_id}:${input.vaccine_id}`;
   const outcome = await runSerializableTenantTransaction(db, async (tx) => {
     const existing = await tx.financialEntry.findFirst({
       where: {

@@ -24,7 +24,7 @@ export async function getHerdEvolution(
   // property_id por data).
   const propertyFilter = opts.propertyId ? { property_id: opts.propertyId } : {};
   const movementPropertyFilter = opts.propertyId
-    ? { animal: { property_id: opts.propertyId } }
+    ? { batch: { property_id: opts.propertyId } }
     : {};
 
   if (opts.months < 1) return [];
@@ -48,18 +48,25 @@ export async function getHerdEvolution(
   // `$queryRaw`, que burla a extensão de isolamento por tenant. Se algum dia
   // um tenant registrar dezenas de milhares de animais por ano, o custo vira
   // transferência de linhas (render lento), nunca dado errado.
+  // Soma CABEÇAS, não linhas: no modelo de lote, uma linha pode valer 20
+  // cabeças. Contar linhas (como fazia o modelo antigo, de 1 animal por
+  // linha) daria um gráfico silenciosamente errado.
   const [registeredBefore, departedBefore, registeredDates, departedDates] = await Promise.all([
-    db.animal.count({ where: { created_at: { lt: windowStart }, ...propertyFilter } }),
-    db.animalMovement.count({
+    db.animalBatch.aggregate({
+      where: { created_at: { lt: windowStart }, ...propertyFilter },
+      _sum: { quantity: true },
+    }),
+    db.animalMovement.aggregate({
       where: {
         movement_type: { in: ["sale", "death"] },
         occurred_at: { lt: windowStart },
         ...movementPropertyFilter,
       },
+      _sum: { quantity: true },
     }),
-    db.animal.findMany({
+    db.animalBatch.findMany({
       where: { created_at: { gte: windowStart, lte: windowEnd }, ...propertyFilter },
-      select: { created_at: true },
+      select: { created_at: true, quantity: true },
     }),
     db.animalMovement.findMany({
       where: {
@@ -67,29 +74,33 @@ export async function getHerdEvolution(
         occurred_at: { gte: windowStart, lte: windowEnd },
         ...movementPropertyFilter,
       },
-      select: { occurred_at: true },
+      select: { occurred_at: true, quantity: true },
     }),
   ]);
 
   // `monthEnds` está em ordem crescente, então uma varredura só resolve os N
   // meses: cada data entra na contagem no mês em que cai e nunca mais é
   // revisitada. Ordenar uma vez é o que permite isso.
-  const registeredTimes = registeredDates.map((a) => a.created_at.getTime()).sort((a, b) => a - b);
-  const departedTimes = departedDates.map((m) => m.occurred_at.getTime()).sort((a, b) => a - b);
+  const registeredTimes = registeredDates
+    .map((b) => ({ t: b.created_at.getTime(), q: b.quantity }))
+    .sort((a, b) => a.t - b.t);
+  const departedTimes = departedDates
+    .map((m) => ({ t: m.occurred_at.getTime(), q: m.quantity }))
+    .sort((a, b) => a.t - b.t);
 
-  let registered = registeredBefore;
-  let departed = departedBefore;
+  let registered = registeredBefore._sum.quantity ?? 0;
+  let departed = departedBefore._sum.quantity ?? 0;
   let iRegistered = 0;
   let iDeparted = 0;
 
   return monthEnds.map((monthEnd) => {
     const limite = monthEnd.getTime();
-    while (iRegistered < registeredTimes.length && registeredTimes[iRegistered] <= limite) {
-      registered++;
+    while (iRegistered < registeredTimes.length && registeredTimes[iRegistered].t <= limite) {
+      registered += registeredTimes[iRegistered].q;
       iRegistered++;
     }
-    while (iDeparted < departedTimes.length && departedTimes[iDeparted] <= limite) {
-      departed++;
+    while (iDeparted < departedTimes.length && departedTimes[iDeparted].t <= limite) {
+      departed += departedTimes[iDeparted].q;
       iDeparted++;
     }
     return {

@@ -11,28 +11,28 @@ import { ok, fail, type ActionResult } from "@/lib/actions/types";
 
 export async function addWeightLogAction(
   db: TenantPrismaClient,
-  input: { animal_id: string; weight: number; measured_at?: Date | null },
+  input: { batch_id: string; weight: number; measured_at?: Date | null },
 ): Promise<ActionResult<{ weight: number; current_weight: number | null; gmd: number | null }>> {
-  const animal = await db.animal.findFirst({ where: { id: input.animal_id } });
+  const animal = await db.animalBatch.findFirst({ where: { id: input.batch_id } });
   if (!animal) return fail("NOT_FOUND", "Animal não encontrado", 404);
 
   await db.animalWeightLog.create({
     data: scoped({
-      animal_id: input.animal_id,
+      batch_id: input.batch_id,
       weight: input.weight,
       measured_at: input.measured_at ?? new Date(),
     }),
   });
 
   const logs = await db.animalWeightLog.findMany({
-    where: { animal_id: input.animal_id },
+    where: { batch_id: input.batch_id },
     orderBy: { measured_at: "desc" },
   });
   const latestWeight = decToNum(logs[0]?.weight);
 
-  await db.animal.update({
-    where: { id: input.animal_id },
-    data: { current_weight: latestWeight ?? input.weight },
+  await db.animalBatch.update({
+    where: { id: input.batch_id },
+    data: { average_weight: latestWeight ?? input.weight },
   });
 
   return ok({

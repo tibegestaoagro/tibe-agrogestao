@@ -147,7 +147,7 @@ export async function generateAlertsForTenant(tenantId: string): Promise<{ creat
         alert_type: "vaccine_due",
         related_module: "rebanho",
         related_id: v.id,
-        message: `🐄 Atenção: a vacina ${v.vaccine_name ?? "?"} do animal ${v.ear_tag ?? v.animal_id} vence em ${v.days_remaining} dia(s).`,
+        message: `🐄 Atenção: a vacina ${v.vaccine_name ?? "?"} do animal ${v.ear_tag ?? v.batch_id} vence em ${v.days_remaining} dia(s).`,
       });
       if (didCreate) created++;
     }

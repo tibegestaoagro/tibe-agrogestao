@@ -22,8 +22,21 @@ export async function createBatchAction(
     average_weight?: number | null;
     acquisition_cost?: number | null;
     acquired_at?: Date | null;
+    /** Só para quem trabalha com brinco: identifica UMA cabeça. */
+    ear_tag?: string | null;
+    breed?: string | null;
+    sex?: "male" | "female" | null;
+    birth_date?: Date | null;
   },
-): Promise<ActionResult<{ id: string; category_id: string; category_name: string; quantity: number }>> {
+): Promise<
+  ActionResult<{
+    id: string;
+    category_id: string;
+    category_name: string;
+    quantity: number;
+    ear_tag: string | null;
+  }>
+> {
   if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
     return fail("VALIDATION_ERROR", "A quantidade deve ser um número inteiro positivo", 422);
   }
@@ -48,18 +61,42 @@ export async function createBatchAction(
   if (!category) return fail("INVALID_CATEGORY", "Categoria inválida", 422);
   if (!category.active) return fail("CATEGORY_INACTIVE", "Categoria desativada", 422);
 
+  // Brinco identifica UMA cabeça: aceitar brinco num lote de 20 criaria um
+  // registro que mente sobre o que representa.
+  const ear_tag = input.ear_tag?.trim() || null;
+  if (ear_tag && input.quantity !== 1) {
+    return fail(
+      "EAR_TAG_REQUIRES_SINGLE",
+      "Brinco identifica uma cabeça: um lote com brinco precisa ter quantidade 1",
+      422,
+    );
+  }
+
   const acquiredAt = input.acquired_at ?? new Date();
 
-  const batch = await db.animalBatch.create({
+  let batch;
+  try {
+    batch = await db.animalBatch.create({
     data: scoped({
       property_id: input.property_id,
       category_id: input.category_id,
       quantity: input.quantity,
+      ear_tag,
+      breed: input.breed ?? null,
+      sex: input.sex ?? null,
+      birth_date: input.birth_date ?? null,
       average_weight: input.average_weight ?? null,
       acquisition_cost: input.acquisition_cost ?? null,
       acquired_at: acquiredAt,
-    }),
-  });
+      }),
+    });
+  } catch (e) {
+    // P2002 vem do índice único parcial de `ear_tag` (único quando preenchido).
+    if ((e as { code?: string }).code === "P2002") {
+      return fail("DUPLICATE_EAR_TAG", `Já existe rebanho com o brinco '${ear_tag}' neste tenant`, 409);
+    }
+    throw e;
+  }
 
   // Sem valor: lote sem custo e sem lançamento financeiro (nem todo lote vem
   // de compra, pode ser nascimento na propriedade: spec 4).
@@ -79,6 +116,7 @@ export async function createBatchAction(
     category_id: category.id,
     category_name: category.name,
     quantity: batch.quantity,
+    ear_tag: batch.ear_tag,
   });
 }
 

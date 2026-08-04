@@ -34,7 +34,12 @@ export async function GET(
   const hasPrestador = activeProfiles.includes("prestador");
 
   const [animalsCount, plotsCount, ordersCount] = await Promise.all([
-    hasFazenda ? prisma.animal.count({ where: { tenant_id: tenant.id } }) : Promise.resolve(0),
+    hasFazenda
+      ? prisma.animalBatch
+          // Soma CABEÇAS, não lotes: um lote vale `quantity` cabeças.
+          .aggregate({ where: { tenant_id: tenant.id }, _sum: { quantity: true } })
+          .then((a) => a._sum.quantity ?? 0)
+      : Promise.resolve(0),
     hasFazenda ? prisma.plot.count({ where: { tenant_id: tenant.id } }) : Promise.resolve(0),
     hasPrestador ? prisma.serviceOrder.count({ where: { tenant_id: tenant.id } }) : Promise.resolve(0),
   ]);

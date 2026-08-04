@@ -31,11 +31,11 @@ export async function GET(
   const g = await guard("rebanho", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
-  const animal = await g.db.animal.findFirst({ where: { id: params.id } });
+  const animal = await g.db.animalBatch.findFirst({ where: { id: params.id } });
   if (!animal) return apiError(...ApiErrors.NOT_FOUND);
 
   const movements = await g.db.animalMovement.findMany({
-    where: { animal_id: params.id },
+    where: { batch_id: params.id },
     orderBy: { occurred_at: "desc" },
   });
 
@@ -60,7 +60,7 @@ export async function POST(
     parsed.data;
 
   const result = await addMovementAction(g.db, {
-    animal_id: params.id,
+    batch_id: params.id,
     movement_type,
     from_property_id,
     to_property_id,
@@ -71,7 +71,7 @@ export async function POST(
   if (!result.ok) return apiError(result.code, result.message, result.status);
 
   const movement = await g.db.animalMovement.findFirst({
-    where: { animal_id: params.id },
+    where: { batch_id: params.id },
     orderBy: { created_at: "desc" },
   });
 

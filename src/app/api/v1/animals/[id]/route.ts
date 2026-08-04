@@ -23,7 +23,7 @@ export async function GET(
   const g = await guard("rebanho", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
-  const animal = await g.db.animal.findFirst({
+  const animal = await g.db.animalBatch.findFirst({
     where: { id: params.id },
     include: { property: { select: { name: true } } },
   });
@@ -51,7 +51,7 @@ export async function PATCH(
   }
   const data = parsed.data;
 
-  const existing = await g.db.animal.findFirst({ where: { id: params.id } });
+  const existing = await g.db.animalBatch.findFirst({ where: { id: params.id } });
   if (!existing) return apiError(...ApiErrors.NOT_FOUND);
 
   // Valida nova propriedade, se informada.
@@ -62,7 +62,7 @@ export async function PATCH(
 
   // Valida unicidade de brinco, se alterado.
   if (data.ear_tag && data.ear_tag !== existing.ear_tag) {
-    const dup = await g.db.animal.findFirst({ where: { ear_tag: data.ear_tag } });
+    const dup = await g.db.animalBatch.findFirst({ where: { ear_tag: data.ear_tag } });
     if (dup) {
       return apiError(
         "DUPLICATE_EAR_TAG",
@@ -72,7 +72,7 @@ export async function PATCH(
     }
   }
 
-  const animal = await g.db.animal.update({
+  const animal = await g.db.animalBatch.update({
     where: { id: params.id },
     data: {
       ...(data.ear_tag !== undefined ? { ear_tag: data.ear_tag } : {}),

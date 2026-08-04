@@ -16,10 +16,12 @@ const ALL = "__all__";
 
 export default function AnimalFilters({
   properties,
+  categories,
   breeds,
   defaultPropertyId,
 }: {
   properties: Property[];
+  categories: { id: string; name: string }[];
   breeds: string[];
   /** Propriedade ativa (seletor do topo), usada quando a URL não tem `property_id`. */
   defaultPropertyId?: string | null;
@@ -58,18 +60,22 @@ export default function AnimalFilters({
           ))}
         </SelectContent>
       </Select>
+      {/* Categoria no lugar do antigo filtro de status: sem `status` no
+          modelo único, "quantos bezerros eu tenho" é a pergunta real. */}
       <Select
-        value={sp.get("status") ?? ALL}
-        onValueChange={(v) => setParam("status", v)}
+        value={sp.get("category_id") ?? ALL}
+        onValueChange={(v) => setParam("category_id", v)}
       >
-        <SelectTrigger className="w-40">
-          <SelectValue placeholder="Status" />
+        <SelectTrigger className="w-44">
+          <SelectValue placeholder="Categoria" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={ALL}>Todos os status</SelectItem>
-          <SelectItem value="active">Ativo</SelectItem>
-          <SelectItem value="sold">Vendido</SelectItem>
-          <SelectItem value="deceased">Morto</SelectItem>
+          <SelectItem value={ALL}>Todas as categorias</SelectItem>
+          {categories.map((c) => (
+            <SelectItem key={c.id} value={c.id}>
+              {c.name}
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
       {breeds.length > 0 && (

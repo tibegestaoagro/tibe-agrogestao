@@ -107,7 +107,7 @@ async function main() {
     );
 
     assert(
-      (await dbA.animal.count()) === 0,
+      (await dbA.animalBatch.count()) === 0,
       "NENHUM animal existe no banco com o cadastro em andamento",
     );
 
@@ -121,7 +121,7 @@ async function main() {
       assert(fim.reply.includes("042") && fim.reply.includes("043"), "resumo lista os dois brincos");
       assert(fim.items[1].sex === "female", "'femea' sem acento é aceito como fêmea");
     }
-    assert((await dbA.animal.count()) === 0, "mesmo no resumo, ainda NADA foi gravado");
+    assert((await dbA.animalBatch.count()) === 0, "mesmo no resumo, ainda NADA foi gravado");
 
     // ── REGRESSAO 2026-07-30: audio transcrito vem com pontuacao ──────
     await finishFlow(dbA, uA.id);

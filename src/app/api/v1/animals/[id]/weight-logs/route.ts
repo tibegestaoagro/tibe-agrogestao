@@ -8,7 +8,7 @@ import { addWeightLogAction } from "@/lib/actions/animal-weights";
 
 /**
  * GET  /api/v1/animals/:id/weight-logs   histórico (ordenado por data) + GMD
- * POST /api/v1/animals/:id/weight-logs   registra pesagem, atualiza current_weight e GMD
+ * POST /api/v1/animals/:id/weight-logs   registra pesagem, atualiza o peso médio do lote e o GMD
  */
 
 const createSchema = z.object({
@@ -23,18 +23,18 @@ export async function GET(
   const g = await guard("rebanho", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
-  const animal = await g.db.animal.findFirst({ where: { id: params.id } });
+  const animal = await g.db.animalBatch.findFirst({ where: { id: params.id } });
   if (!animal) return apiError(...ApiErrors.NOT_FOUND);
 
   const logs = await g.db.animalWeightLog.findMany({
-    where: { animal_id: params.id },
+    where: { batch_id: params.id },
     orderBy: { measured_at: "asc" },
   });
 
   return apiOk(logs.map(serializeWeightLog), {
     count: logs.length,
     gmd: computeGmd(logs),
-    current_weight: decToNum(animal.current_weight),
+    current_weight: decToNum(animal.average_weight),
   });
 }
 
@@ -55,14 +55,14 @@ export async function POST(
   const { weight, measured_at } = parsed.data;
 
   const result = await addWeightLogAction(g.db, {
-    animal_id: params.id,
+    batch_id: params.id,
     weight,
     measured_at: measured_at ? new Date(measured_at) : null,
   });
   if (!result.ok) return apiError(result.code, result.message, result.status);
 
   const log = await g.db.animalWeightLog.findFirst({
-    where: { animal_id: params.id },
+    where: { batch_id: params.id },
     orderBy: { created_at: "desc" },
   });
 

@@ -16,7 +16,7 @@ export async function GET(
   const g = await guard("rebanho", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
-  const animal = await g.db.animal.findFirst({ where: { id: params.id } });
+  const animal = await g.db.animalBatch.findFirst({ where: { id: params.id } });
   if (!animal) return apiError(...ApiErrors.NOT_FOUND);
 
   // Despesas vinculadas ao animal.
@@ -32,7 +32,7 @@ export async function GET(
 
   // Data de entrada: compra mais antiga, senão created_at.
   const purchase = await g.db.animalMovement.findFirst({
-    where: { animal_id: params.id, movement_type: "purchase" },
+    where: { batch_id: params.id, movement_type: "purchase" },
     orderBy: { occurred_at: "asc" },
     select: { occurred_at: true },
   });
@@ -45,7 +45,7 @@ export async function GET(
   const monthlyAvg = Number((total / months).toFixed(2));
 
   return apiOk({
-    animal_id: params.id,
+    batch_id: params.id,
     total_cost: Number(total.toFixed(2)),
     monthly_avg_cost: monthlyAvg,
     since: since.toISOString(),

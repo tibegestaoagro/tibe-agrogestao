@@ -143,16 +143,27 @@ async function commitAnimals(
   const propertyId = props[0]?.id;
   if (!propertyId) return { ok: 0, failed: items.length };
 
+  // Categoria padrão: o cadastro assistido pergunta brinco, raça e sexo, não
+  // categoria. "Não classificado" é a mesma que a migração usou.
+  const category =
+    (await db.animalCategory.findFirst({ where: { name: "Não classificado" } })) ??
+    (await db.animalCategory.create({ data: scoped({ name: "Não classificado" }) }));
+  const categoryId = category.id;
+
   let ok = 0;
   let failed = 0;
   for (const item of items) {
     try {
-      await db.animal.create({
+      // Modelo único (2026-08-04): cada animal identificado do cadastro
+      // assistido vira um lote de 1 cabeça, na categoria padrão.
+      await db.animalBatch.create({
         data: scoped({
           ear_tag: item.ear_tag,
           breed: item.breed,
           sex: item.sex as "male" | "female",
           property_id: propertyId,
+          category_id: categoryId,
+          quantity: 1,
         }),
       });
       ok++;

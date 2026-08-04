@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
+import { createTestAnimal , deleteTestTenants } from "./helpers/herd";
 import { POST as executeAction } from "@/app/api/internal/whatsapp/execute-action/route";
 
 /**
@@ -61,14 +62,14 @@ async function main() {
 
     // ── dados reais pro resumo ────────────────────────────────────────
     const propA = await dbA.property.create({ data: scoped({ name: "Fazenda A" }) });
-    const animal = await dbA.animal.create(
-      { data: scoped({ ear_tag: "M12-1", breed: "Nelore", sex: "male", property_id: propA.id }) },
-    );
+    const animal = await createTestAnimal(dbA, tenantA.id, {
+      ear_tag: "M12-1", breed: "Nelore", sex: "male", property_id: propA.id,
+    });
     const vaccine = await dbA.vaccine.create({ data: scoped({ name: "Aftosa M12" }) });
     const vaccineDueAt = new Date(Date.now() + 5 * 86_400_000);
     await dbA.animalVaccination.create({
       data: scoped({
-        animal_id: animal.id,
+        batch_id: animal.id,
         vaccine_id: vaccine.id,
         applied_at: new Date(),
         next_due_at: vaccineDueAt,
@@ -282,7 +283,7 @@ async function main() {
       "ambigua convida a perguntar 'o que você faz?' em vez de só pedir pra reformular",
     );
   } finally {
-    await prisma.tenant.deleteMany({ where: { id: { in: [tenantA.id, tenantB.id] } } });
+    await deleteTestTenants([tenantA.id, tenantB.id]);
   }
 
   console.log("");

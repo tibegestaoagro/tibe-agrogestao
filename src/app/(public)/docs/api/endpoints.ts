@@ -309,7 +309,7 @@ export const GROUPS: Group[] = [
   },
   {
     title: "Rebanho: Categorias e Lotes",
-    note: "Módulo 25. Caminho de rebanho por CATEGORIA e quantidade (bezerro, novilha, boi gordo...), paralelo ao cadastro individual por brinco. Cadastrar um lote não cria um registro por cabeça: guarda categoria, quantidade e peso médio.",
+    note: "Desde 2026-08-04 existe UM modelo de rebanho (AnimalBatch): sempre categoria + quantidade, com brinco opcional para quem trabalha com brinco (lote de 1 cabeça). O modelo `Animal` e o campo `status` deixaram de existir. Cadastrar um lote não cria um registro por cabeça: guarda categoria, quantidade e peso médio.",
     endpoints: [
       {
         method: "GET",
@@ -390,18 +390,21 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/animals",
         auth: "Sessão · rebanho:read · perfil fazenda",
-        description: "Lista animais. Filtros: property_id, status, breed, q (busca por brinco).",
+        description: "Lista o rebanho. Filtros: property_id, category_id, breed, q (busca por brinco). O filtro `status` deixou de existir com o modelo único (2026-08-04): `quantity` diz o que resta, e a pergunta real passou a ser por categoria.",
         response: `200
-{ "data": [{ "id": "cl...", "ear_tag": "1234", "breed": "Nelore", "sex": "male", "status": "active", "current_weight": 380.5, "property_name": "Sede", "last_vaccination_at": "2026-05-01T00:00:00.000Z" }], "meta": { "total": 1 } }`,
+{ "data": [{ "id": "cl...", "category_id": "cl...", "category_name": "Bezerro", "quantity": 20, "ear_tag": null, "breed": "Nelore", "sex": null, "average_weight": 180.5, "property_name": "Sede", "last_vaccination_at": "2026-05-01T00:00:00.000Z" }], "meta": { "total": 1 } }`,
       },
       {
         method: "POST",
         path: "/api/v1/animals",
         auth: "Sessão · rebanho:write · perfil fazenda",
-        description: "Cadastra animal. ear_tag é único por tenant (não por propriedade).",
-        request: `{ "ear_tag": "1234", "breed": "Nelore", "sex": "male", "property_id": "cl...", "birth_date": "2025-01-10T00:00:00.000Z", "initial_weight": 35 }`,
+        description: "Cadastra rebanho. `category_id`, `property_id` e `quantity` são obrigatórios; `ear_tag` é OPCIONAL, só para quem trabalha com brinco. Brinco identifica UMA cabeça: enviar `ear_tag` com `quantity` diferente de 1 devolve 422 (EAR_TAG_REQUIRES_SINGLE). O brinco é único por tenant apenas quando preenchido (índice parcial): duplicar devolve 409.",
+        request: `{ "category_id": "cl...", "property_id": "cl...", "quantity": 20, "breed": "Nelore", "initial_weight": 180.5 }
+
+// com brinco (uma cabeça identificada)
+{ "category_id": "cl...", "property_id": "cl...", "quantity": 1, "ear_tag": "1234", "breed": "Nelore", "sex": "male" }`,
         response: `201
-{ "data": { "id": "cl...", "ear_tag": "1234", "status": "active", "current_weight": 35 } }`,
+{ "data": { "id": "cl...", "category_id": "cl...", "quantity": 20, "ear_tag": null, "average_weight": 180.5 } }`,
       },
       {
         method: "GET",
@@ -409,7 +412,7 @@ export const GROUPS: Group[] = [
         auth: "Sessão · rebanho:read · perfil fazenda",
         description: "Detalhe do animal.",
         response: `200
-{ "data": { "id": "cl...", "ear_tag": "1234", "breed": "Nelore", "property_name": "Sede", "current_weight": 380.5 } }`,
+{ "data": { "id": "cl...", "ear_tag": "1234", "quantity": 1, "breed": "Nelore", "property_name": "Sede", "average_weight": 380.5 } }`,
       },
       {
         method: "PATCH",

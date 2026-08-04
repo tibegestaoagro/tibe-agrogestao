@@ -67,11 +67,11 @@ async function main() {
       "o resumo traz os 3 campos separados, nao a frase crua no brinco",
     );
 
-    assert((await db.animal.count()) === 0, "nada gravado antes da confirmacao");
+    assert((await db.animalBatch.count()) === 0, "nada gravado antes da confirmacao");
 
     const ok = await say(t.id, u.id, "ambigua", "sim");
     assert(ok.includes("cadastrado"), `confirmacao grava (resposta: "${ok.slice(0, 40)}")`);
-    const criado = await db.animal.findFirst({});
+    const criado = await db.animalBatch.findFirst({});
     assert(criado?.ear_tag === "082", `brinco gravado corretamente (obtido: "${criado?.ear_tag}")`);
     assert(criado?.property_id === prop.id, "animal vai para a propriedade ativa");
 

@@ -24,11 +24,11 @@ export async function GET(
   const g = await guard("rebanho", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
-  const animal = await g.db.animal.findFirst({ where: { id: params.id } });
+  const animal = await g.db.animalBatch.findFirst({ where: { id: params.id } });
   if (!animal) return apiError(...ApiErrors.NOT_FOUND);
 
   const vaccinations = await g.db.animalVaccination.findMany({
-    where: { animal_id: params.id },
+    where: { batch_id: params.id },
     orderBy: { applied_at: "desc" },
     include: { vaccine: { select: { name: true } } },
   });
@@ -55,7 +55,7 @@ export async function POST(
   const { vaccine_id, applied_at, interval_days, cost } = parsed.data;
 
   const result = await addVaccinationAction(g.db, {
-    animal_id: params.id,
+    batch_id: params.id,
     vaccine_id,
     applied_at: applied_at ? new Date(applied_at) : null,
     interval_days,
@@ -64,7 +64,7 @@ export async function POST(
   if (!result.ok) return apiError(result.code, result.message, result.status);
 
   const vaccination = await g.db.animalVaccination.findFirst({
-    where: { animal_id: params.id },
+    where: { batch_id: params.id },
     orderBy: { created_at: "desc" },
     include: { vaccine: { select: { name: true } } },
   });

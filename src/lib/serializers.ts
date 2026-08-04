@@ -34,16 +34,26 @@ export function serializePasture(p: any) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+/**
+ * Serializa um registro de rebanho (`AnimalBatch`). Desde a unificação de
+ * 2026-08-04: `ear_tag` e `sex` podem ser nulos (quem trabalha por
+ * categoria), `quantity` diz quantas cabeças o registro representa, e
+ * `status` deixou de existir (quantidade 0 significa que não resta nada).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function serializeAnimal(a: any) {
   return {
     id: a.id,
-    ear_tag: a.ear_tag,
+    category_id: a.category_id,
+    quantity: a.quantity,
+    ear_tag: a.ear_tag ?? null,
     breed: a.breed ?? null,
-    sex: a.sex,
+    sex: a.sex ?? null,
     property_id: a.property_id,
     birth_date: isoOrNull(a.birth_date),
-    status: a.status,
-    current_weight: decToNum(a.current_weight),
+    average_weight: decToNum(a.average_weight),
+    acquisition_cost: decToNum(a.acquisition_cost),
+    acquired_at: a.acquired_at ? a.acquired_at.toISOString() : null,
     created_at: a.created_at.toISOString(),
   };
 }
@@ -52,7 +62,7 @@ export function serializeAnimal(a: any) {
 export function serializeWeightLog(w: any) {
   return {
     id: w.id,
-    animal_id: w.animal_id,
+    batch_id: w.batch_id,
     weight: decToNum(w.weight),
     measured_at: w.measured_at.toISOString(),
     created_at: w.created_at.toISOString(),
@@ -63,7 +73,7 @@ export function serializeWeightLog(w: any) {
 export function serializeVaccination(v: any) {
   return {
     id: v.id,
-    animal_id: v.animal_id,
+    batch_id: v.batch_id,
     vaccine_id: v.vaccine_id,
     vaccine_name: v.vaccine?.name ?? null,
     applied_at: v.applied_at.toISOString(),
@@ -77,7 +87,7 @@ export function serializeVaccination(v: any) {
 export function serializeMovement(m: any) {
   return {
     id: m.id,
-    animal_id: m.animal_id,
+    batch_id: m.batch_id,
     movement_type: m.movement_type,
     from_property_id: m.from_property_id ?? null,
     to_property_id: m.to_property_id ?? null,
