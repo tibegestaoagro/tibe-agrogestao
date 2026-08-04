@@ -212,6 +212,54 @@ código ainda; cada uma precisa de rodada própria com spec.
 4. **As 27 rotas sem documentação são urgentes** (antes estavam como
    dívida aceitável).
 
+### ⚠️ EM ANDAMENTO: rebanho por categoria (branch `rebanho-por-categoria`)
+
+Spec aprovada:
+[docs/superpowers/specs/2026-08-04-rebanho-por-categoria-design.md](../superpowers/specs/2026-08-04-rebanho-por-categoria-design.md).
+Execução começou e está no passo 1 de 6. **A branch não compila ainda**, de
+propósito fora da `main`.
+
+**⚠️ Antes de rodar qualquer coisa localmente:** o banco de dev (Docker
+`tibe-pg`) **já tem a migração aplicada**, mas a `main` não tem o código
+correspondente. Rodar a `main` contra esse banco quebra (o código consulta
+`Animal`, que não existe mais lá). Duas saídas: trabalhar na branch
+`rebanho-por-categoria` (onde código e banco batem), ou recriar o banco local
+do zero (`prisma migrate reset` + `db:seed` + `seed:demo`) para voltar a
+rodar a `main`. **Produção não foi tocada**: as 2 migrações novas não foram
+aplicadas no Neon.
+
+Pronto e verificado na branch:
+
+- Modelo único `AnimalBatch` (ganhou `ear_tag` opcional, `breed`, `sex`
+  opcional, `birth_date`); `Animal` e `AnimalStatus` removidos; as 3 tabelas
+  de histórico apontam para `batch_id`.
+- Migração **escrita à mão**: o SQL que o `prisma migrate diff` gera para
+  esta mudança apagaria todo o histórico (`DROP COLUMN animal_id` +
+  `ADD COLUMN batch_id NOT NULL`). A versão escrita move o dado antes de
+  apertar as restrições, e aborta se sobrar órfã.
+- Validada contra volume real: 260 animais, 202 pesagens, 232 vacinações e
+  28 movimentações no banco local viraram 263 lotes com **zero** linha de
+  histórico perdida.
+- `test:m30` (novo, passando): dois lotes sem brinco convivem, brinco
+  duplicado é barrado, mesmo brinco vale em outro tenant, lote sem brinco
+  tem histórico e GMD, isolamento segue valendo.
+
+**Dois buracos do desenho, achados implementando:**
+
+1. `AnimalMovement` não tinha `quantity`. Vender 5 de um lote de 20 não tinha
+   como ser registrado. Corrigido com migração aditiva (default 1).
+2. `sellBatchAction` **nunca cria `AnimalMovement`**: venda de lote só
+   decrementa quantidade e gera lançamento financeiro. O histórico de
+   movimentação só existe para animal individual. **Ainda não corrigido**,
+   entra no passo 2.
+
+Falta (passos 2 a 6): consolidar as actions, rotas e `/docs/api`, tela de
+Rebanho, intenções do WhatsApp e `packages/contracts`. São 24 arquivos, e o
+risco não é mecânico: cada um tem armadilha semântica. A já encontrada:
+`getHerdEvolution` passou a contar LOTES em vez de cabeças depois de um
+rename mecânico (um lote de 20 valia 1 no gráfico). Corrigido com
+`_sum: { quantity }`, mas serve de aviso para os outros arquivos.
+
 ### Pendências e próximo passo
 
 - Usuário quer **continuar dando funcionalidade ao app mobile**: pausado
