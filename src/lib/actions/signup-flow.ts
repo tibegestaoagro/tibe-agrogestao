@@ -28,11 +28,11 @@ import type { TenantPlan } from "@/generated/prisma/enums";
 
 export const CODE_TTL_MINUTES = 10;
 export const MAX_CODE_ATTEMPTS = 5;
-export const SIGNUP_TTL_MINUTES = 60;
+const SIGNUP_TTL_MINUTES = 60;
 /** Aos 2 minutos a tela oferece corrigir o destino. Cronômetro de UI, separado
  *  da validade do código (10 min): amarrar os dois faria quem digita devagar
  *  perder um código ainda válido. */
-export const ALLOW_EDIT_AFTER_SECONDS = 120;
+const ALLOW_EDIT_AFTER_SECONDS = 120;
 
 /** Envio tem custo real e a rota roda sem login: sem limite vira ferramenta de perturbação. */
 const SEND_LIMIT = { windowSeconds: 3600, maxAttempts: 5 };

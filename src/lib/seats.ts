@@ -39,7 +39,7 @@ export async function getSeatUsage(
 }
 
 /** Mensagem de erro que nomeia plano e limite, em vez de um "não permitido" seco. */
-export function seatLimitMessage(plan: string, limit: number): string {
+function seatLimitMessage(plan: string, limit: number): string {
   const usuarios = limit === 1 ? "1 usuário ativo" : `${limit} usuários ativos`;
   return `Seu plano ${plan} permite ${usuarios} e o limite já foi atingido. Desative um usuário existente ou faça upgrade do plano.`;
 }

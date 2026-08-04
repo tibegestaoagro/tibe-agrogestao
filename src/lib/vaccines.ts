@@ -4,7 +4,7 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
  * Catálogo básico de vacinas (spec 1.4). Intervalos padrão em dias: ajustáveis
  * por tenant depois. São tenant-scoped, então provisionadas por tenant.
  */
-export const DEFAULT_VACCINES: { name: string; default_interval_days: number }[] = [
+const DEFAULT_VACCINES: { name: string; default_interval_days: number }[] = [
   { name: "Aftosa", default_interval_days: 180 },
   { name: "Brucelose", default_interval_days: 365 },
   { name: "Raiva", default_interval_days: 365 },

@@ -34,9 +34,9 @@ import type { SessionUser } from "@/lib/tenant-context";
  */
 
 /** 15 minutos: janela curta o bastante para um token vazado envelhecer sozinho. */
-export const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
+const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
 /** 30 dias: o aplicativo não pode pedir senha toda semana; a rotação é quem protege. */
-export const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
+const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 /** Escopo de rate limit da rota de login por token (pública, alvo de força bruta). */
 const RATE_LIMIT_SCOPE = "mobile-token";
@@ -219,7 +219,7 @@ function hashRefreshToken(raw: string): string {
 }
 
 /** Emite um par novo e persiste apenas o hash do refresh. */
-export async function issueTokenPair(user: {
+async function issueTokenPair(user: {
   id: string;
   tenant_id: string;
 }): Promise<TokenPair> {

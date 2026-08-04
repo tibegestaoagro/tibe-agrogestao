@@ -4,7 +4,7 @@
  * real do lead com uma navegação interna sem UTM (e.g. clicar de /planos
  * para /criar-conta).
  */
-export const UTM_COOKIE_NAME = "tibe_utm";
+const UTM_COOKIE_NAME = "tibe_utm";
 const UTM_COOKIE_MAX_AGE_DAYS = 30;
 
 export type UtmData = {

@@ -7,7 +7,7 @@ import { cookies } from "next/headers";
  * antes da verificação, sequestrando o cadastro.
  */
 
-export const SIGNUP_COOKIE = "tibe-signup";
+const SIGNUP_COOKIE = "tibe-signup";
 const MAX_AGE_SECONDS = 60 * 60; // mesma vida do PendingSignup
 
 export function buildSignupCookie(signupId: string) {

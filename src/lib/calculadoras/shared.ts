@@ -24,7 +24,3 @@ export function round(value: number, decimals = 2): number {
 export function isPositiveNumber(value: number): boolean {
   return Number.isFinite(value) && value > 0;
 }
-
-export function isNonNegativeNumber(value: number): boolean {
-  return Number.isFinite(value) && value >= 0;
-}

@@ -28,10 +28,10 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
  */
 
 export const MAX_ITEMS = 20;
-export const FLOW_TTL_HOURS = 24;
+const FLOW_TTL_HOURS = 24;
 export const REMINDER_AFTER_MINUTES = 30;
-export const BUSINESS_HOUR_START = 8;
-export const BUSINESS_HOUR_END = 18;
+const BUSINESS_HOUR_START = 8;
+const BUSINESS_HOUR_END = 18;
 
 export type FlowField = {
   name: string;

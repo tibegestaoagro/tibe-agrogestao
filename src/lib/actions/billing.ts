@@ -92,6 +92,15 @@ export async function subscribeAction(
   return ok({ method: "redirect", subscriptionId: record.id, redirectUrl: firstPayment.invoiceUrl });
 }
 
+/**
+ * ⚠️ Implementada e completa, mas SEM NENHUM CONSUMIDOR (achado da auditoria
+ * de 2026-08-04). Não existe rota nem botão que chame isto: hoje o cliente
+ * não tem como cancelar a própria assinatura pelo painel, só falando com a
+ * Pleno. Mantida (não é código morto: a lógica funciona, cancela no Asaas e
+ * registra a transição em SubscriptionStatusLog) porque o que falta é
+ * expor, não reescrever. Ligar isso a uma rota + confirmação na tela de
+ * assinatura é decisão de produto pendente com o usuário.
+ */
 export async function cancelSubscriptionAction(
   db: TenantPrismaClient,
 ): Promise<ActionResult<{ id: string }>> {

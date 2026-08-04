@@ -73,7 +73,7 @@ export const getSessionUser = perRequestCache(async function getSessionUser(): P
 });
 
 /** Retorna o tenant_id da sessão atual. Lança se não houver sessão válida. */
-export async function getCurrentTenantId(): Promise<string> {
+async function getCurrentTenantId(): Promise<string> {
   const user = await getSessionUser();
   if (!user) {
     throw new Error("Sem sessão autenticada: tenant_id indisponível.");

@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/tenant-context";
 import type { AppUserRole } from "@/types/next-auth";
 
@@ -79,20 +78,8 @@ export async function requireRole(
   return { id: user.id, tenant_id: user.tenant_id, role: user.role };
 }
 
-/**
- * Guard de rota (Server Component): redireciona para o dashboard se o usuário não
- * tem o acesso exigido ao módulo. Implementa o "redirecionamento automático quando
- * usuário tenta acessar rota sem permissão" (spec task 0.6).
- */
-export async function requireModuleAccess(
-  module: ModuleKey,
-  action: "read" | "write" = "read",
-  redirectTo = "/dashboard",
-): Promise<void> {
-  const user = await getSessionUser();
-  if (!user) redirect("/login");
-  const level = getAccessLevel(user!.role, module);
-  const allowed =
-    action === "read" ? level !== "none" : level === "write";
-  if (!allowed) redirect(redirectTo);
-}
+// `requireModuleAccess()` existia aqui desde o Módulo 0 (spec task 0.6) e
+// nunca foi usada por nenhuma das ~30 páginas: todas fazem o redirect
+// explícito com `canWrite`/`canAccess`, que deixa visível na própria página
+// qual é a regra. Removida na auditoria de 2026-08-04 em vez de continuar
+// sendo uma segunda forma de fazer a mesma coisa, sem consumidor.

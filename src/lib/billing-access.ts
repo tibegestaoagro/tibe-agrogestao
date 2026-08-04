@@ -67,7 +67,7 @@ export const getBillingAccess = perRequestCache(async function getBillingAccess(
 });
 
 /** Rotas que continuam acessíveis mesmo com acesso "blocked" (regularização). */
-export const BILLING_EXEMPT_PATH_PREFIXES = [
+const BILLING_EXEMPT_PATH_PREFIXES = [
   "/configuracoes/assinatura",
   "/api/v1/billing",
   "/api/webhooks/asaas",
