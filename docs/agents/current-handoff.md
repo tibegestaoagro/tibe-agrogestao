@@ -31,11 +31,33 @@ escritório. Leia depois de `CLAUDE.md`.
   Detalhes na seção abaixo. Antes dela, na mesma sessão: remoção do suporte
   multi-agente (Codex) e do graphify, e a auditoria de arquitetura com o
   skill do Matt Pocock (5 candidatos + 1 bug, commits `9b777ad`..`c5953ef`).
-- Produção: nenhuma mudança nesta rodada (só commits locais na `main`,
-  sem push). `https://tibe-agrogestao.vercel.app/` segue em `de693bf` +
-  `acc89a5` (mobile parte 1); os commits do Módulo 29, da auditoria de
-  arquitetura e desta auditoria de performance ainda não foram enviados.
-- Banco: nenhuma migração nova nesta rodada.
+- Produção: **`5e9caa2` no ar** (push aprovado pelo usuário ao fim da
+  sessão). Levou de uma vez o Módulo 29, a auditoria de arquitetura, a
+  auditoria de performance e o cancelamento de assinatura.
+- Banco: a migração do Módulo 29
+  (`20260804120413_minha_fazenda_pasture`) **foi aplicada no Neon** nesta
+  sessão, com aprovação do usuário. Dado preservado (4 tenants, 1
+  propriedade). `prisma migrate status`: "Database schema is up to date".
+
+### ⚠️ Incidente evitado no push: código de schema novo sem a migração
+
+O push levou o Módulo 29 (que exige `Property.city`, `Property.district` e
+a tabela `Pasture`) para produção **antes** de a migração existir no Neon.
+Nesse intervalo, qualquer página logada de fazenda quebraria ao consultar
+`Property` ("column does not exist"): Rebanho, Máquinas, Lavoura e o
+seletor de propriedade do topo. As páginas públicas continuaram de pé, o
+que mascara o problema.
+
+**A causa é estrutural, não distração:** a Vercel faz deploy automático em
+push na `main`, mas o build **não roda migração** (`build` é só
+`next build`, `postinstall` é só `prisma generate`). Ou seja, código e
+schema saem dessincronizados por padrão, e nada avisa.
+
+**Regra pra próxima vez:** antes de qualquer push que inclua mudança de
+schema, rode `npx prisma migrate status` apontando pro Neon. Se houver
+migração pendente, aplique ANTES do push (`npm run db:deploy`, URL Direct
+sem `-pooler`), não depois. Detectado e corrigido no mesmo intervalo desta
+vez, mas por checagem manual minha, não por nenhuma proteção do processo.
 
 ### Entregue nesta rodada (auditoria de performance, G1..G6)
 
@@ -171,11 +193,19 @@ separada, ver `CLAUDE.md`). Antes de investigar como bug, cheque isto:
   arquitetura e (3) a auditoria de performance. As três concluídas; próximo
   passo é retomar o mobile, decidindo COM o usuário qual recurso vem a
   seguir.
-- **Achado aberto, decisão de produto**: `cancelSubscriptionAction`
-  (`src/lib/actions/billing.ts`) está implementada e funciona (cancela no
-  Asaas, registra a transição), mas NENHUMA rota ou botão a chama. Hoje o
-  cliente não consegue cancelar a própria assinatura pelo painel, só
-  falando com a Pleno. Falta expor, não reescrever.
+- **Decisão de produto pendente (cancelamento)**: o botão foi entregue
+  (`POST /api/v1/billing/cancel` + bloco no fim de
+  `/configuracoes/assinatura`), expondo o comportamento que já existia.
+  Falta decidir se cancelar deve BLOQUEAR na hora (é o que acontece hoje:
+  `getBillingAccess()` devolve `blocked` para assinatura cancelada) ou dar
+  carência até `next_due_date`. A tela avisa da consequência antes de
+  confirmar, então não pega ninguém de surpresa, mas bloquear quem já pagou
+  o mês é uma escolha, não uma obviedade.
+- **Nunca testado contra o Asaas real**: o fluxo de cancelamento foi
+  validado só no caminho de erro (sem `ASAAS_API_KEY`, devolve 503 tratado
+  e não deixa a assinatura em estado parcial). O caminho de sucesso depende
+  de uma chave de sandbox que este ambiente nunca teve, igual ao resto da
+  integração desde o Módulo 5.
 - **Achado aberto, dívida conhecida**: 27 rotas reais nunca documentadas em
   `/docs/api`, listadas em `KNOWN_UNDOCUMENTED_GAPS`
   (`scripts/docs-api-completeness.test.ts`). Rota nova sem doc já quebra o
