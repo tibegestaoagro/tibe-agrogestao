@@ -18,11 +18,6 @@ import AnimalActions from "@/components/rebanho/animal-actions";
 import AnimalEditForm from "@/components/rebanho/animal-edit-form";
 
 const SEX: Record<string, string> = { male: "Macho", female: "Fêmea" };
-const STATUS: Record<string, { label: string; variant: "green" | "gray" | "red" }> = {
-  active: { label: "Ativo", variant: "green" },
-  sold: { label: "Vendido", variant: "gray" },
-  deceased: { label: "Morto", variant: "red" },
-};
 const MOV: Record<string, string> = {
   purchase: "Compra",
   sale: "Venda",
@@ -52,7 +47,7 @@ export default async function AnimalDetail({
   if (!profiles.includes("fazenda")) redirect("/dashboard");
 
   const db = await getTenantDb();
-  const animal = await db.animal.findFirst({
+  const animal = await db.animalBatch.findFirst({
     where: { id: params.id },
     include: { property: { select: { name: true } } },
   });
@@ -61,16 +56,16 @@ export default async function AnimalDetail({
   const [weightLogs, vaccinations, movements, vaccines, propertiesRaw, expenses, purchase] =
     await Promise.all([
       db.animalWeightLog.findMany({
-        where: { animal_id: params.id },
+        where: { batch_id: params.id },
         orderBy: { measured_at: "asc" },
       }),
       db.animalVaccination.findMany({
-        where: { animal_id: params.id },
+        where: { batch_id: params.id },
         orderBy: { applied_at: "desc" },
         include: { vaccine: { select: { name: true } } },
       }),
       db.animalMovement.findMany({
-        where: { animal_id: params.id },
+        where: { batch_id: params.id },
         orderBy: { occurred_at: "desc" },
       }),
       db.vaccine.findMany({ orderBy: { name: "asc" } }),
@@ -80,7 +75,7 @@ export default async function AnimalDetail({
         select: { amount: true },
       }),
       db.animalMovement.findFirst({
-        where: { animal_id: params.id, movement_type: "purchase" },
+        where: { batch_id: params.id, movement_type: "purchase" },
         orderBy: { occurred_at: "asc" },
         select: { occurred_at: true },
       }),
@@ -92,7 +87,11 @@ export default async function AnimalDetail({
   const since = purchase?.occurred_at ?? animal.created_at;
   const months = Math.max(1, (Date.now() - since.getTime()) / (30.4375 * 86_400_000));
   const monthlyAvg = totalCost / months;
-  const st = STATUS[animal.status] ?? { label: animal.status, variant: "gray" as const };
+  // Sem `status` no modelo único: o que resta é `quantity`.
+  const st =
+    animal.quantity > 0
+      ? { label: `${animal.quantity} cabeça(s)`, variant: "green" as const }
+      : { label: "Sem saldo", variant: "gray" as const };
 
   const chartData = weightLogs.map((w) => ({
     date: w.measured_at.toLocaleDateString("pt-BR"),
@@ -116,9 +115,9 @@ export default async function AnimalDetail({
             <AnimalEditForm
               animal={{
                 id: animal.id,
-                ear_tag: animal.ear_tag,
+                ear_tag: animal.ear_tag ?? "",
                 breed: animal.breed,
-                sex: animal.sex,
+                sex: animal.sex ?? "male",
                 property_id: animal.property_id,
                 birth_date: animal.birth_date ? animal.birth_date.toISOString() : null,
               }}
@@ -136,11 +135,11 @@ export default async function AnimalDetail({
       {/* Dados cadastrais + custo */}
       <div className="grid grid-cols-2 gap-4 rounded-lg border border-gray-200 bg-white p-5 sm:grid-cols-4 lg:grid-cols-6">
         <Stat label="Raça" value={animal.breed ?? "não informada"} />
-        <Stat label="Sexo" value={SEX[animal.sex] ?? animal.sex} />
+        <Stat label="Sexo" value={animal.sex ? (SEX[animal.sex] ?? animal.sex) : "não informado"} />
         <Stat label="Propriedade" value={animal.property?.name ?? "não informada"} />
         <Stat
           label="Peso atual"
-          value={decToNum(animal.current_weight) != null ? `${decToNum(animal.current_weight)} kg` : "sem valor"}
+          value={decToNum(animal.average_weight) != null ? `${decToNum(animal.average_weight)} kg` : "sem valor"}
         />
         <Stat label="GMD" value={gmd != null ? `${gmd} kg/dia` : "sem valor"} />
         <Stat

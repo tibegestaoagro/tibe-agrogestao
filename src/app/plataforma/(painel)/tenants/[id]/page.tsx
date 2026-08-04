@@ -38,7 +38,12 @@ export default async function PlatformTenantDetailPage({ params }: { params: { i
 
   const activeProfiles = tenant.profiles.filter((p) => p.active).map((p) => p.profile_type);
   const [animalsCount, plotsCount, ordersCount] = await Promise.all([
-    activeProfiles.includes("fazenda") ? prisma.animal.count({ where: { tenant_id: tenant.id } }) : 0,
+    activeProfiles.includes("fazenda")
+      ? // Soma CABEÇAS, não lotes: um registro vale `quantity` cabeças.
+        prisma.animalBatch
+          .aggregate({ where: { tenant_id: tenant.id }, _sum: { quantity: true } })
+          .then((a) => a._sum.quantity ?? 0)
+      : 0,
     activeProfiles.includes("fazenda") ? prisma.plot.count({ where: { tenant_id: tenant.id } }) : 0,
     activeProfiles.includes("prestador") ? prisma.serviceOrder.count({ where: { tenant_id: tenant.id } }) : 0,
   ]);
