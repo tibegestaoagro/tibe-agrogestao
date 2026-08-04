@@ -186,6 +186,32 @@ separada, ver `CLAUDE.md`). Antes de investigar como bug, cheque isto:
   Diagnóstico: ler `tibe:login-attempts:signup-send:5522988887777` no
   Redis; some a chave para destravar.
 
+### Decisões do cliente/usuário tomadas em 2026-08-04 (não implementadas ainda)
+
+Quatro decisões grandes, registradas assim que foram tomadas. Nenhuma tem
+código ainda; cada uma precisa de rodada própria com spec.
+
+1. **Rebanho é POR CATEGORIA, brinco vira opcional.** Encerra o maior
+   desalinhamento aberto do projeto (foi pedido por categoria, foi
+   construído por brinco). Hoje `Animal.ear_tag` é OBRIGATÓRIO e único por
+   tenant, e `AnimalBatch` (categoria + quantidade, Módulo 25) é o caminho
+   paralelo. A decisão inverte isso: categoria/quantidade é o padrão, o
+   brinco existe só para quem trabalha com brinco. Exige migração e revisão
+   de todo ponto que assume brinco (inclusive o agente e o app).
+2. **Cancelamento: acesso até o fim do período pago, depois arquiva o
+   tenant por 60 dias.** Muda `getBillingAccess()` (hoje `canceled` vira
+   `blocked` na hora) e introduz o arquivamento com janela. **Em aberto:**
+   o que acontece DEPOIS dos 60 dias (apagar? bloquear pra sempre?) e se
+   isso reusa o arquivamento de tenant que já existe no painel da
+   plataforma (`POST /api/platform/tenants/:id/archive`).
+3. **"WhatsApp", na fala do cliente, significa ASSISTENTE (voz e
+   mensagem), não o canal.** O WhatsApp segue como um canal possível, mas
+   o alvo é o produtor usar o assistente DENTRO do nosso app, sem ficar
+   refém da Meta. Isso reordena o roadmap: o item mais importante do app
+   mobile deixa de ser portar telas do painel e passa a ser o assistente.
+4. **As 27 rotas sem documentação são urgentes** (antes estavam como
+   dívida aceitável).
+
 ### Pendências e próximo passo
 
 - Usuário quer **continuar dando funcionalidade ao app mobile**: pausado
