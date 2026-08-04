@@ -54,6 +54,7 @@ export async function deliverPendingAlertsForTenant(tenantId: string): Promise<{
           subject: "Novo aviso no Tibé",
           html: buildAlertEmailHtml({ message: alert.message }),
           type: "alert",
+          related_id: alert.id,
         },
       },
       "critical",

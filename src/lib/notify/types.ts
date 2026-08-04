@@ -40,7 +40,7 @@ export type NotifyContent = {
    * preenchido: resumo diário nunca sai por email (decisão de produto, não
    * um detalhe de implementação).
    */
-  email?: { subject: string; html: string; type?: EmailLogType };
+  email?: { subject: string; html: string; type?: EmailLogType; related_id?: string | null };
 };
 
 export type NotifyChannelResult = { attempted: boolean; ok: boolean };

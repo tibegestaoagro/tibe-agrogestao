@@ -55,6 +55,7 @@ export async function notify(
             subject: content.email.subject,
             html: content.email.html,
             type: content.email.type,
+            related_id: content.email.related_id,
           })
         : Promise.resolve(NOT_ATTEMPTED),
     ]);
