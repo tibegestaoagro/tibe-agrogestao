@@ -2,7 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError, ApiErrors } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { serializeVaccination } from "@/lib/serializers";
-import { addVaccinationAction } from "@/lib/actions/animals";
+import { addVaccinationAction } from "@/lib/actions/animal-vaccinations";
 
 /**
  * GET  /api/v1/animals/:id/vaccinations   histórico de vacinação do animal

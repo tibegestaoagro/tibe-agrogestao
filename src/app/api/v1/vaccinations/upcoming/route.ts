@@ -1,6 +1,6 @@
 import { apiOk } from "@/lib/api";
 import { guard } from "@/lib/api-guard";
-import { listUpcomingVaccinations } from "@/lib/actions/animals";
+import { listUpcomingVaccinations } from "@/lib/actions/animal-vaccinations";
 import { isoOrNull } from "@/lib/serialize";
 
 /**

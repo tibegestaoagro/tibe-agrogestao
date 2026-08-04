@@ -1,6 +1,6 @@
 import { getActiveProfiles, getTenantDb } from "@/lib/tenant-context";
 import { getDre, getCashFlow, resolvePeriod } from "@/lib/actions/financial-reports";
-import { getHerdEvolution } from "@/lib/actions/animals";
+import { getHerdEvolution } from "@/lib/actions/herd-evolution";
 import { getActivePropertyId } from "@/lib/active-property";
 import { MODULE_LABEL } from "@/lib/related-modules";
 import ExportReportButton from "@/components/financeiro/export-report-button";

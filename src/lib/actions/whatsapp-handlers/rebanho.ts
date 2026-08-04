@@ -1,12 +1,7 @@
-import {
-  createAnimalAction,
-  findAnimalByEarTag,
-  addWeightLogAction,
-  addVaccinationAction,
-  findVaccineByName,
-  addMovementAction,
-  getAnimalSummaryAction,
-} from "@/lib/actions/animals";
+import { addMovementAction } from "@/lib/actions/animal-movements";
+import { addVaccinationAction, findVaccineByName } from "@/lib/actions/animal-vaccinations";
+import { addWeightLogAction } from "@/lib/actions/animal-weights";
+import { createAnimalAction, findAnimalByEarTag, getAnimalSummaryAction } from "@/lib/actions/animals";
 import { findActivePropertyByName, listActiveProperties } from "@/lib/actions/properties";
 import { resolvePendingEntriesCalendar } from "@/lib/actions/financial-reports";
 import { upsertVaccinationForecastAction } from "@/lib/actions/vaccination-forecast";

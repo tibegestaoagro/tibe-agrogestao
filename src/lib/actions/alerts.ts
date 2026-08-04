@@ -1,7 +1,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { scoped, prisma, prismaForTenant, type TenantPrismaClient } from "@/lib/prisma";
 import { decToNum } from "@/lib/serialize";
-import { listUpcomingVaccinations } from "@/lib/actions/animals";
+import { listUpcomingVaccinations } from "@/lib/actions/animal-vaccinations";
 import { getBalanceAction } from "@/lib/actions/financial-summary";
 import { runSerializableTenantTransaction } from "@/lib/financial";
 import { isAlertTypeEnabled } from "@/lib/actions/alert-preferences";

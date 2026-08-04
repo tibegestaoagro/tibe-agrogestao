@@ -3,7 +3,9 @@ import { PiggyBank, Wallet, FileWarning, CalendarClock, ChevronRight } from "luc
 import { getSessionUser, getActiveProfiles, getTenantDb } from "@/lib/tenant-context";
 import { getCashFlow } from "@/lib/actions/financial-reports";
 import { getBalanceAction } from "@/lib/actions/financial-summary";
-import { listUpcomingVaccinations, getHerdEvolution, countActiveAnimals } from "@/lib/actions/animals";
+import { listUpcomingVaccinations } from "@/lib/actions/animal-vaccinations";
+import { countActiveAnimals } from "@/lib/actions/animals";
+import { getHerdEvolution } from "@/lib/actions/herd-evolution";
 import { countActivePlots } from "@/lib/actions/plots";
 import { countServiceClients } from "@/lib/actions/service-clients";
 import { countCompletedUnbilledOrders } from "@/lib/actions/service-orders";

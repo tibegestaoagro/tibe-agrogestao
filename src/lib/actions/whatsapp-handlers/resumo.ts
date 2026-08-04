@@ -1,5 +1,6 @@
 import type { ProfileType } from "@/lib/tenant-context";
-import { listUpcomingVaccinations, countActiveAnimals } from "@/lib/actions/animals";
+import { listUpcomingVaccinations } from "@/lib/actions/animal-vaccinations";
+import { countActiveAnimals } from "@/lib/actions/animals";
 import { countActivePlots } from "@/lib/actions/plots";
 import { countServiceClients } from "@/lib/actions/service-clients";
 import { countCompletedUnbilledOrders } from "@/lib/actions/service-orders";

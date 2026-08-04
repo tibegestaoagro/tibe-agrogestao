@@ -4,7 +4,7 @@ import {
   listPendingEntries,
   resolvePendingEntriesCalendar,
 } from "@/lib/actions/financial-reports";
-import { addVaccinationAction } from "@/lib/actions/animals";
+import { addVaccinationAction } from "@/lib/actions/animal-vaccinations";
 import {
   ensureBillDueAlertForEntry,
   generateAlertsForTenant,

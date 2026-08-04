@@ -1,6 +1,6 @@
 import type { TenantPrismaClient } from "@/lib/prisma";
 import type { ProfileType } from "@/lib/tenant-context";
-import { listUpcomingVaccinations } from "@/lib/actions/animals";
+import { listUpcomingVaccinations } from "@/lib/actions/animal-vaccinations";
 import { listPendingEntries } from "@/lib/actions/financial-reports";
 import { getBalanceAction } from "@/lib/actions/financial-summary";
 

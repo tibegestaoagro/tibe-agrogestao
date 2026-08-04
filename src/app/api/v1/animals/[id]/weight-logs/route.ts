@@ -4,7 +4,7 @@ import { guard, readJson } from "@/lib/api-guard";
 import { serializeWeightLog } from "@/lib/serializers";
 import { decToNum } from "@/lib/serialize";
 import { computeGmd } from "@/lib/livestock";
-import { addWeightLogAction } from "@/lib/actions/animals";
+import { addWeightLogAction } from "@/lib/actions/animal-weights";
 
 /**
  * GET  /api/v1/animals/:id/weight-logs   histórico (ordenado por data) + GMD

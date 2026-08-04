@@ -2,7 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError, ApiErrors } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { serializeMovement } from "@/lib/serializers";
-import { addMovementAction } from "@/lib/actions/animals";
+import { addMovementAction } from "@/lib/actions/animal-movements";
 
 /**
  * GET  /api/v1/animals/:id/movements    histórico de movimentações

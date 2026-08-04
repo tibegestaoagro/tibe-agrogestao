@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { prisma, prismaForTenant, type TenantPrismaClient } from "@/lib/prisma";
-import { getHerdEvolution } from "@/lib/actions/animals";
+import { getHerdEvolution } from "@/lib/actions/herd-evolution";
 
 /**
  * Prova que a reescrita de `getHerdEvolution` (auditoria de performance,
