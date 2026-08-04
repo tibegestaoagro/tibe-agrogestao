@@ -4,10 +4,9 @@ import { getSessionUser, getTenantDb } from "@/lib/tenant-context";
 import { prisma } from "@/lib/prisma";
 import { requireSessionGateForPage } from "@/lib/session-gate";
 import { getBillingAccess, isBillingExemptPath } from "@/lib/billing-access";
-import { hasMinRole } from "@/lib/permissions";
 import { getActivePropertyId } from "@/lib/active-property";
+import { buildNavItems } from "@/lib/nav";
 import DashboardShell from "@/components/layout/dashboard-shell";
-import type { NavItem } from "@/components/layout/sidebar";
 import InstallInvite from "@/components/pwa/install-invite";
 import NotificationOptIn from "@/components/pwa/notification-opt-in";
 
@@ -68,58 +67,7 @@ export default async function DashboardLayout({
     activePropertyId = active;
   }
 
-  // Fase 1 do briefing de layout (docs/design/briefing-novo-layout.md):
-  // reagrupa os 12 links planos de sempre em 7 entradas, seguindo a IA do
-  // mockup do cliente. Nenhuma regra de permissão nova: "Configurações da
-  // conta" aponta pro hub /configuracoes, que já é gated por
-  // hasMinRole("ADMIN") e já lista Usuários/Assinatura internamente (a
-  // segunda com o gate extra de OWNER): evita duplicar essa checagem aqui.
-  const navItems: NavItem[] = [
-    { kind: "link", href: "/dashboard", label: "Início", icon: "home", show: true },
-    // "Minha Fazenda" (Módulo 29): tela própria de cadastro da fazenda +
-    // pastos, ponto de partida do sistema (docs/Minha Fazenda —
-    // Especificação Funcional.doc). Antes deste módulo, "Minha Fazenda" era
-    // o nome do grupo abaixo (Rebanho/Máquinas/.../Alertas): renomeado pra
-    // "Operação" pra não colidir com o novo significado (decisão do
-    // usuário, 2026-08-04).
-    { kind: "link", href: "/minha-fazenda", label: "Minha Fazenda", icon: "fazenda", show: hasFazenda },
-    {
-      kind: "group",
-      label: "Operação",
-      icon: "operacao",
-      show: true,
-      children: [
-        { href: "/rebanho", label: "Rebanho", show: hasFazenda },
-        { href: "/maquinas", label: "Máquinas", show: hasFazenda },
-        { href: "/lavoura", label: "Lavoura", show: hasFazenda },
-        { href: "/prestador", label: "Prestador", show: hasPrestador },
-        { href: "/financeiro", label: "Financeiro", show: true },
-        { href: "/alertas", label: "Alertas", show: true },
-      ],
-    },
-    { kind: "link", href: "/meu-dia", label: "Meu Dia", icon: "meu-dia", show: true },
-    { kind: "link", href: "/calculadoras", label: "Calculadora Pecuária", icon: "calculadora", show: true },
-    // "Fazenda em Números" (Fase 2): esclarecido pelo usuário como área de
-    // inteligência que centraliza os relatórios (DRE, evolução do rebanho,
-    // produtividade, faturamento), não mais um placeholder "em breve".
-    { kind: "link", href: "/relatorios", label: "Fazenda em Números", icon: "numeros", show: true },
-    // "WhatsApp" continua sem conteúdo real (nenhum número de contato
-    // configurado em lugar nenhum do código ainda): segue desabilitado.
-    { kind: "soon", label: "WhatsApp", icon: "whatsapp" },
-    {
-      kind: "group",
-      label: "Configurações",
-      icon: "configuracoes",
-      show: true,
-      children: [
-        { href: "/configuracoes", label: "Configurações da conta", show: hasMinRole(user.role, "ADMIN") },
-        // Perfil e senha não são privilégio de papel: todo usuário precisa
-        // alcançar isso, inclusive quem não vê o resto (Módulo 19).
-        { href: "/configuracoes/perfil", label: "Perfil", show: true },
-        { href: "/configuracoes/senha", label: "Minha senha", show: true },
-      ],
-    },
-  ];
+  const navItems = buildNavItems({ role: user.role, hasFazenda, hasPrestador });
 
   return (
     <>
