@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { getSessionUser, getTenantDb } from "@/lib/tenant-context";
-import { prisma } from "@/lib/prisma";
+import { getTenantRecord } from "@/lib/tenant-record";
 import { requireSessionGateForPage } from "@/lib/session-gate";
 import { getBillingAccess, isBillingExemptPath } from "@/lib/billing-access";
 import { getActivePropertyId } from "@/lib/active-property";
@@ -40,11 +40,10 @@ export default async function DashboardLayout({
     redirect("/configuracoes/assinatura");
   }
 
-  // Nome do tenant da própria sessão (Tenant não é tenant-scoped; lookup por id).
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: user.tenant_id },
-    select: { name: true },
-  });
+  // Nome do tenant da própria sessão (Tenant não é tenant-scoped; lookup por
+  // id). Vem do registro único por request: o gate de sessão e o controle de
+  // inadimplência precisam da mesma linha, com outros campos.
+  const tenant = await getTenantRecord(user.tenant_id);
 
   const hasFazenda = profiles.includes("fazenda");
   const hasPrestador = profiles.includes("prestador");

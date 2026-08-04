@@ -1,6 +1,8 @@
+import { perRequestCache } from "@/lib/per-request-cache";
 import { redirect } from "next/navigation";
-import { prisma, prismaForTenant } from "@/lib/prisma";
-import type { SessionUser, ProfileType } from "@/lib/tenant-context";
+import { prismaForTenant } from "@/lib/prisma";
+import { getTenantRecord } from "@/lib/tenant-record";
+import { getActiveProfilesForTenant, type SessionUser, type ProfileType } from "@/lib/tenant-context";
 import { apiError } from "@/lib/api";
 
 /**
@@ -19,17 +21,33 @@ export type SessionGateCore = {
   plan_confirmed: boolean;
 };
 
-/** As 2 queries que toda checagem de gate precisa, sempre juntas. */
-export async function getSessionGateCore(user: SessionUser): Promise<SessionGateCore> {
-  const db = prismaForTenant(user.tenant_id);
+/**
+ * As 2 queries que toda checagem de gate precisa, sempre juntas.
+ *
+ * Memoizado por request (ver o aviso sobre `cache()` em tenant-context.ts):
+ * o layout do dashboard e a página abaixo dele chamavam o gate de forma
+ * independente, repetindo as mesmas 2 queries a cada render. A chave do
+ * cache é o par de ids em STRING, não o objeto `SessionUser`: `cache()`
+ * compara argumentos por identidade, então dois objetos de usuário
+ * equivalentes mas distintos seriam 2 entradas diferentes.
+ */
+const getSessionGateCoreByIds = perRequestCache(async function getSessionGateCoreByIds(
+  userId: string,
+  tenantId: string,
+): Promise<SessionGateCore> {
+  const db = prismaForTenant(tenantId);
   const [dbUser, tenant] = await Promise.all([
-    db.user.findUnique({ where: { id: user.id }, select: { must_change_password: true } }),
-    prisma.tenant.findUnique({ where: { id: user.tenant_id }, select: { plan_confirmed: true } }),
+    db.user.findUnique({ where: { id: userId }, select: { must_change_password: true } }),
+    getTenantRecord(tenantId),
   ]);
   return {
     must_change_password: dbUser?.must_change_password ?? false,
     plan_confirmed: tenant?.plan_confirmed ?? true,
   };
+});
+
+export async function getSessionGateCore(user: SessionUser): Promise<SessionGateCore> {
+  return getSessionGateCoreByIds(user.id, user.tenant_id);
 }
 
 /** Usado por guard() (api-guard.ts): mesmo gate, no formato de erro de API. */
@@ -71,9 +89,11 @@ export async function requireSessionGateForPage(
   if (core.must_change_password) redirect("/trocar-senha");
   if (!core.plan_confirmed) redirect("/escolher-plano");
 
-  const db = prismaForTenant(user.tenant_id);
-  const profiles = await db.tenantProfile.findMany({ where: { active: true } });
-  const active_profiles = profiles.map((p) => p.profile_type as ProfileType);
+  // Reusa a mesma função memoizada que `getActiveProfiles()` usa por baixo,
+  // em vez de repetir a query aqui: antes, este gate e a página abaixo dele
+  // buscavam a mesma lista de perfis, cada um pelo seu caminho, a cada
+  // render. Passa o tenant que já veio por parâmetro, sem voltar à sessão.
+  const active_profiles = await getActiveProfilesForTenant(user.tenant_id);
   if (active_profiles.length === 0) redirect("/onboarding");
 
   return { active_profiles };

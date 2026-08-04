@@ -1,3 +1,4 @@
+import { perRequestCache } from "@/lib/per-request-cache";
 import { cookies } from "next/headers";
 import type { TenantPrismaClient } from "@/lib/prisma";
 
@@ -17,9 +18,14 @@ export const ACTIVE_PROPERTY_COOKIE = "tibe_active_property_id";
  * possível mesmo num cookie forjado; é só uma questão de o filtro "sumir"
  * graciosamente se o id não for mais válido.
  */
-export async function getActivePropertyId(db: TenantPrismaClient): Promise<string | null> {
+export const getActivePropertyId = perRequestCache(async function getActivePropertyId(
+  db: TenantPrismaClient,
+): Promise<string | null> {
   const raw = cookies().get(ACTIVE_PROPERTY_COOKIE)?.value;
   if (!raw) return null;
-  const property = await db.property.findFirst({ where: { id: raw, archived_at: null } });
+  const property = await db.property.findFirst({
+    where: { id: raw, archived_at: null },
+    select: { id: true },
+  });
   return property ? property.id : null;
-}
+});

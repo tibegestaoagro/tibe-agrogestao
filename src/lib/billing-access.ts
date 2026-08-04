@@ -1,4 +1,6 @@
+import { perRequestCache } from "@/lib/per-request-cache";
 import { prisma } from "@/lib/prisma";
+import { getTenantRecord } from "@/lib/tenant-record";
 
 /**
  * Controle de acesso por inadimplência (spec 5.7/5.8), 3 estágios: mesma
@@ -27,17 +29,24 @@ function tierFromDaysOverdue(days: number): BillingAccess {
   return "blocked";
 }
 
-export async function getBillingAccess(tenantId: string): Promise<BillingAccess> {
-  const tenant = await prisma.tenant.findUnique({
-    where: { id: tenantId },
-    select: { status: true, trial_ends_at: true },
-  });
+/**
+ * Memoizado por request e com as 2 queries em paralelo (auditoria de
+ * performance, 2026-08-04): são independentes entre si, e o layout do
+ * dashboard chamava isto a cada render junto com o gate de sessão. Ver o
+ * aviso sobre `cache()` em tenant-context.ts: memoização é por request, o
+ * `tenantId` entra na chave, não há compartilhamento entre tenants.
+ */
+export const getBillingAccess = perRequestCache(async function getBillingAccess(
+  tenantId: string,
+): Promise<BillingAccess> {
+  const [tenant, subscription] = await Promise.all([
+    getTenantRecord(tenantId),
+    prisma.subscription.findUnique({
+      where: { tenant_id: tenantId },
+      select: { status: true, next_due_date: true, created_at: true },
+    }),
+  ]);
   if (!tenant) return "blocked";
-
-  const subscription = await prisma.subscription.findUnique({
-    where: { tenant_id: tenantId },
-    select: { status: true, next_due_date: true, created_at: true },
-  });
 
   if (subscription) {
     if (subscription.status === "active") return "full";
@@ -55,7 +64,7 @@ export async function getBillingAccess(tenantId: string): Promise<BillingAccess>
 
   // Sem assinatura e sem trial rastreado (ex: tenant seedado manualmente): não bloqueia.
   return "full";
-}
+});
 
 /** Rotas que continuam acessíveis mesmo com acesso "blocked" (regularização). */
 export const BILLING_EXEMPT_PATH_PREFIXES = [

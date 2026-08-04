@@ -1,0 +1,110 @@
+import "dotenv/config";
+import { prisma, prismaForTenant, type TenantPrismaClient } from "@/lib/prisma";
+import { getHerdEvolution } from "@/lib/actions/animals";
+
+/**
+ * Prova que a reescrita de `getHerdEvolution` (auditoria de performance,
+ * 2026-08-04: de 2 queries POR MÊS para 4 no total) devolve exatamente o
+ * mesmo resultado da implementação antiga, contra os dados reais do banco.
+ *
+ * A implementação antiga está reproduzida aqui de propósito: é a referência
+ * contra a qual a nova é comparada. Se um dia a regra do gráfico mudar de
+ * verdade, este teste deve ser atualizado junto, conscientemente.
+ *
+ * Roda: `npm run test:herd`
+ */
+
+let failures = 0;
+function assert(cond: boolean, msg: string) {
+  if (cond) {
+    console.log(`  ✅ ${msg}`);
+  } else {
+    console.error(`  ❌ ${msg}`);
+    failures++;
+  }
+}
+
+/** Implementação ANTIGA, laço mês a mês: referência da comparação. */
+async function getHerdEvolutionLegacy(
+  db: TenantPrismaClient,
+  opts: { months: number; propertyId?: string | null },
+): Promise<{ month: string; count: number }[]> {
+  const now = new Date();
+  const points: { month: string; count: number }[] = [];
+  const propertyFilter = opts.propertyId ? { property_id: opts.propertyId } : {};
+
+  for (let i = opts.months - 1; i >= 0; i--) {
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59, 999);
+    const [registered, departed] = await Promise.all([
+      db.animal.count({ where: { created_at: { lte: monthEnd }, ...propertyFilter } }),
+      db.animalMovement.count({
+        where: {
+          movement_type: { in: ["sale", "death"] },
+          occurred_at: { lte: monthEnd },
+          ...(opts.propertyId ? { animal: { property_id: opts.propertyId } } : {}),
+        },
+      }),
+    ]);
+    points.push({
+      month: monthEnd.toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""),
+      count: Math.max(registered - departed, 0),
+    });
+  }
+  return points;
+}
+
+async function main() {
+  console.log("📈 getHerdEvolution: nova implementação x antiga\n");
+
+  // Roda contra todos os tenants que têm animais: o seed de demonstração dá
+  // volume real (2 anos de histórico), e tenants vazios cobrem o caso zero.
+  const tenants = await prisma.tenant.findMany({ select: { id: true, name: true } });
+  let comparados = 0;
+
+  for (const tenant of tenants) {
+    const db = prismaForTenant(tenant.id);
+    const total = await db.animal.count();
+    if (total === 0) continue;
+
+    const properties = await db.property.findMany({ select: { id: true }, take: 2 });
+    const cenarios: (string | null)[] = [null, ...properties.map((p) => p.id)];
+
+    for (const propertyId of cenarios) {
+      for (const months of [1, 6, 12]) {
+        const [novo, antigo] = await Promise.all([
+          getHerdEvolution(db, { months, propertyId }),
+          getHerdEvolutionLegacy(db, { months, propertyId }),
+        ]);
+        const escopo = `${tenant.name} / ${propertyId ?? "todas"} / ${months}m`;
+        assert(
+          JSON.stringify(novo) === JSON.stringify(antigo),
+          `${escopo}: resultado idêntico (${JSON.stringify(novo.map((p) => p.count))})`,
+        );
+        comparados++;
+      }
+    }
+  }
+
+  if (comparados === 0) {
+    console.error("  ❌ nenhum tenant com animais: o teste não provou nada");
+    failures++;
+  }
+
+  console.log("");
+  if (failures === 0) {
+    console.log(`✅ getHerdEvolution validado em ${comparados} cenário(s): 0 falhas.`);
+  } else {
+    console.error(`❌ getHerdEvolution DIVERGIU: ${failures} cenário(s) com erro.`);
+  }
+}
+
+main()
+  .then(async () => {
+    await prisma.$disconnect();
+    process.exit(failures === 0 ? 0 : 1);
+  })
+  .catch(async (err) => {
+    console.error("❌ Erro inesperado:", err);
+    await prisma.$disconnect();
+    process.exit(1);
+  });
