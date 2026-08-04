@@ -73,15 +73,24 @@ O `log_statement` foi restaurado para `none` ao fim da rodada.
   arquivos que importavam foram apontados para o módulo específico, sem
   barrel de re-export (um barrel preservaria justamente o acoplamento que a
   quebra desfaz).
-- **Revisão independente** (commit final): um subagente sem o meu contexto
-  avaliou o diff contra a rubrica do contrato e **reprovou** em "comentários
-  explicam o porquê" (7/10). Os 3 achados eram justos e foram corrigidos,
-  incluindo um comentário que era factualmente FALSO (dizia "acumular mês a
-  mês" enquanto o código re-varria o array a cada mês: o código passou a
-  acumular de verdade, em vez de o comentário ser rebaixado). O juiz também
-  pegou uma regressão de tipo que eu tinha introduzido (`TenantRecord`
-  declarava `status: string` à mão, o que fazia `tenant.status === "trial"`
-  perder a checagem contra o enum `TenantStatus`).
+- **Revisão independente** (commits `62fd90c` e `1a2190f`): um subagente sem
+  o meu contexto avaliou o diff contra a rubrica do contrato e **reprovou**
+  em "comentários explicam o porquê" (7/10). Os 3 achados eram justos e
+  foram corrigidos, incluindo um comentário factualmente FALSO (dizia
+  "acumular mês a mês" enquanto o código re-varria o array a cada mês: o
+  código passou a acumular de verdade, em vez de o comentário ser rebaixado
+  para caber no código). O juiz também pegou uma regressão de tipo que eu
+  tinha introduzido (`TenantRecord` declarava `status: string` à mão, o que
+  fazia `tenant.status === "trial"` perder a checagem contra o enum
+  `TenantStatus`) e, na rodada de correção, um defeito NOVO meu: empilhei
+  dois blocos `/** */` em `active-property.ts`, e o TypeScript descarta o
+  primeiro nesse caso (provado com a API do compilador), sumindo justamente
+  o comentário sobre cookie forjado não vazar entre tenants.
+  **Veredito final: (a) 9, (b) 9, (c) 8, (d) 9, (e) 9**, todos acima da
+  régua de 8 do contrato, sem nenhum bug de correção ou isolamento
+  encontrado.
+- **Suíte completa: 32/32 verdes** ao final (com a ressalva do `test:m19`
+  descrita abaixo, que é limite de envio esgotado, não regressão).
 
 ### Limpeza de repositório (mesma rodada)
 
