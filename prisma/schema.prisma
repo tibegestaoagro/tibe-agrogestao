@@ -223,6 +223,7 @@ model Tenant {
   alert_preferences AlertPreference[]
   vaccines          Vaccine[]
   plots             Plot[]
+  pastures          Pasture[]
   service_clients   ServiceClient[]
   services          Service[]
   service_orders    ServiceOrder[]
@@ -415,6 +416,11 @@ model Property {
   tenant_id     String
   name          String
   address       String?
+  // city/district = município/distrito (Módulo 29, "Minha Fazenda"): nullable
+  // no banco porque propriedades já existentes não têm valor; obrigatório só
+  // na validação de criação (Zod), não no schema, pra não quebrar dado real.
+  city          String?
+  district      String?
   area_hectares Decimal?  @db.Decimal(12, 2)
   archived_at   DateTime? // arquivamento (1.1): não deletar, preservar histórico
   created_at    DateTime  @default(now())
@@ -424,10 +430,34 @@ model Property {
   animal_batches AnimalBatch[]
   machines       Machine[]
   plots          Plot[]
+  pastures       Pasture[]
   movements_from AnimalMovement[] @relation("MovementFromProperty")
   movements_to   AnimalMovement[] @relation("MovementToProperty")
 
   @@index([tenant_id])
+}
+
+// Módulo 29 ("Minha Fazenda"): divisão da propriedade em áreas de pastagem,
+// conforme docs/Minha Fazenda — Especificação Funcional.doc. Entidade nova,
+// sem relação com Plot/"Talhão" (que é do domínio de Lavoura/CropCycle):
+// mesma forma superficial ("área dentro de uma propriedade"), domínios
+// diferentes, não conflatar. V1 é só cadastro (nome + tamanho); vínculos
+// futuros com Task/FinancialEntry (seção 9 do documento) ficam de fora
+// deliberadamente por decisão do usuário (2026-08-04).
+model Pasture {
+  id            String    @id @default(cuid())
+  tenant_id     String
+  property_id   String
+  name          String
+  area_hectares Decimal   @db.Decimal(12, 2)
+  archived_at   DateTime? // "excluir ou desativar um pasto" (doc §5): desativar, nunca deletar
+  created_at    DateTime  @default(now())
+
+  tenant   Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [property_id], references: [id], onDelete: Restrict)
+
+  @@index([tenant_id])
+  @@index([property_id])
 }
 
 // ─────────────────────────────────────────────────────────────

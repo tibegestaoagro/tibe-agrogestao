@@ -76,10 +76,17 @@ export default async function DashboardLayout({
   // segunda com o gate extra de OWNER): evita duplicar essa checagem aqui.
   const navItems: NavItem[] = [
     { kind: "link", href: "/dashboard", label: "Início", icon: "home", show: true },
+    // "Minha Fazenda" (Módulo 29): tela própria de cadastro da fazenda +
+    // pastos, ponto de partida do sistema (docs/Minha Fazenda —
+    // Especificação Funcional.doc). Antes deste módulo, "Minha Fazenda" era
+    // o nome do grupo abaixo (Rebanho/Máquinas/.../Alertas): renomeado pra
+    // "Operação" pra não colidir com o novo significado (decisão do
+    // usuário, 2026-08-04).
+    { kind: "link", href: "/minha-fazenda", label: "Minha Fazenda", icon: "fazenda", show: hasFazenda },
     {
       kind: "group",
-      label: "Minha Fazenda",
-      icon: "fazenda",
+      label: "Operação",
+      icon: "operacao",
       show: true,
       children: [
         { href: "/rebanho", label: "Rebanho", show: hasFazenda },

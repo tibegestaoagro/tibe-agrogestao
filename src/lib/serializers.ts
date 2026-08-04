@@ -11,6 +11,21 @@ export function serializeProperty(p: any) {
     id: p.id,
     name: p.name,
     address: p.address ?? null,
+    city: p.city ?? null,
+    district: p.district ?? null,
+    area_hectares: decToNum(p.area_hectares),
+    archived: p.archived_at != null,
+    archived_at: isoOrNull(p.archived_at),
+    created_at: p.created_at.toISOString(),
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function serializePasture(p: any) {
+  return {
+    id: p.id,
+    property_id: p.property_id,
+    name: p.name,
     area_hectares: decToNum(p.area_hectares),
     archived: p.archived_at != null,
     archived_at: isoOrNull(p.archived_at),

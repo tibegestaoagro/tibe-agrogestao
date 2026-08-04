@@ -14,7 +14,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import AnimalForm from "@/components/rebanho/animal-form";
 import AnimalFilters from "@/components/rebanho/animal-filters";
-import PropertyManager from "@/components/rebanho/property-manager";
 import { decToNum } from "@/lib/serialize";
 
 const STATUS: Record<string, { label: string; variant: "green" | "gray" | "red" }> = {
@@ -175,7 +174,6 @@ export default async function RebanhoPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-gray-900">Rebanho</h1>
         <div className="flex gap-2">
-          <PropertyManager properties={properties} canWrite={writable} />
           {writable && properties.length > 0 && (
             <AnimalForm properties={properties.filter((p) => !p.archived)} />
           )}
@@ -184,8 +182,11 @@ export default async function RebanhoPage({
 
       {properties.length === 0 && (
         <p className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Cadastre uma propriedade antes de adicionar animais (botão
-          &quot;Propriedades&quot;).
+          Cadastre uma fazenda antes de adicionar animais (menu{" "}
+          <Link href="/minha-fazenda" className="font-medium underline">
+            Minha Fazenda
+          </Link>
+          ).
         </p>
       )}
 

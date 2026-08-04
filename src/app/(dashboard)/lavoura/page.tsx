@@ -67,7 +67,11 @@ export default async function LavouraPage() {
 
       {properties.length === 0 && (
         <p className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Cadastre uma propriedade (em Rebanho → Propriedades) antes de criar talhões.
+          Cadastre uma fazenda (menu{" "}
+          <Link href="/minha-fazenda" className="font-medium underline">
+            Minha Fazenda
+          </Link>
+          ) antes de criar talhões.
         </p>
       )}
 

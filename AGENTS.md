@@ -76,6 +76,7 @@ pontos, vírgula ou parênteses.
 | 7 | Provider WhatsApp configurável (fora do PRD original) | ✅ completo: Evolution API/Meta Cloud API configurável pelo painel, credenciais criptografadas |
 | 19 | Cadastro público verificado (WhatsApp + email) | ✅ implementado local: `PendingSignup`, 4 etapas, senha temporária, sessão de 7 dias |
 | 17 | Agenda com custo (agente WhatsApp) | ✅ em produção: agenda real, previsão financeira e conciliação sem duplicidade; sem mudança de schema |
+| 29 | Minha Fazenda (fazenda + pastos) | ✅ implementado local (V1: web only, sem WhatsApp ainda): `Property.city/district`, model `Pasture` novo, tela própria `/minha-fazenda`, aviso de soma sem bloquear |
 
 Specs: `docs/specs/module-00-setup.md` … `module-06-painel-plataforma.md`. M7
 em diante não tem spec formal (trabalho pós-PRD, decidido diretamente com

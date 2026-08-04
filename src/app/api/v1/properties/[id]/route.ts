@@ -11,7 +11,9 @@ import { serializeProperty } from "@/lib/serializers";
 const updateSchema = z.object({
   name: z.string().trim().min(1).optional(),
   address: z.string().trim().nullish(),
-  area_hectares: z.number().nonnegative().nullish(),
+  city: z.string().trim().min(1).optional(),
+  district: z.string().trim().nullish(),
+  area_hectares: z.number().positive("Tamanho deve ser maior que zero").optional(),
 });
 
 export async function GET(
@@ -51,6 +53,8 @@ export async function PATCH(
     data: {
       ...(data.name !== undefined ? { name: data.name } : {}),
       ...(data.address !== undefined ? { address: data.address } : {}),
+      ...(data.city !== undefined ? { city: data.city } : {}),
+      ...(data.district !== undefined ? { district: data.district } : {}),
       ...(data.area_hectares !== undefined
         ? { area_hectares: data.area_hectares }
         : {}),

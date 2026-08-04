@@ -11,10 +11,15 @@ import { serializeProperty } from "@/lib/serializers";
  * Query (GET): ?include_archived=true  inclui as arquivadas.
  */
 
+// Município e tamanho total passam a ser obrigatórios na criação (doc "Minha
+// Fazenda" §3.2/§3.3, Módulo 29): schema do banco continua nullable (não
+// quebra propriedades já existentes sem esses valores).
 const createSchema = z.object({
   name: z.string().trim().min(1, "Nome é obrigatório"),
   address: z.string().trim().nullish(),
-  area_hectares: z.number().nonnegative().nullish(),
+  city: z.string().trim().min(1, "Município é obrigatório"),
+  district: z.string().trim().nullish(),
+  area_hectares: z.number().positive("Tamanho deve ser maior que zero"),
 });
 
 export async function GET(request: Request) {
