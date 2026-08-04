@@ -92,8 +92,12 @@ export async function routeIntent(
   }
 
   // Permissão por módulo/role e por perfil ativo (spec: "visualizador não
-  // consegue cadastrar nada via WhatsApp"). gerar_relatorio/ambigua checam à parte.
-  if (intent !== "ambigua" && intent !== "gerar_relatorio") {
+  // consegue cadastrar nada via WhatsApp"). "ambigua" não tem módulo, cai
+  // fora do gate abaixo do mesmo jeito que "gerar_relatorio" (module: null
+  // em INTENT_ACCESS: o módulo real só se sabe depois de ler
+  // parameters.tipo, então gerarRelatorio() faz sua própria checagem de
+  // canAccess()/perfil internamente).
+  if (intent !== "ambigua") {
     const rule = INTENT_ACCESS[intent];
     if (rule.module) {
       const allowed =
