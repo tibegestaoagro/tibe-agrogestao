@@ -1,7 +1,8 @@
+import { scoped } from "@/lib/prisma";
 import { addMovementAction } from "@/lib/actions/animal-movements";
 import { addVaccinationAction, findVaccineByName } from "@/lib/actions/animal-vaccinations";
 import { addWeightLogAction } from "@/lib/actions/animal-weights";
-import { createAnimalAction, findAnimalByEarTag, getAnimalSummaryAction } from "@/lib/actions/animals";
+import { findBatchByEarTag, getBatchSummaryAction } from "@/lib/actions/animals";
 import { findActivePropertyByName, listActiveProperties } from "@/lib/actions/properties";
 import { resolvePendingEntriesCalendar } from "@/lib/actions/financial-reports";
 import { upsertVaccinationForecastAction } from "@/lib/actions/vaccination-forecast";
@@ -93,7 +94,29 @@ export const cadastrarAnimal: Handler = async ({ db, parameters }) => {
     }
   }
 
-  const result = await createAnimalAction(db, { ear_tag, breed, sex, property_id: propertyId });
+  // Modelo único (2026-08-04): um animal com brinco é um lote de 1 cabeça.
+  // A categoria passou a ser obrigatória; quando o produtor não diz qual,
+  // cai em "Não classificado" (a mesma categoria que a migração usou) em vez
+  // de travar o cadastro por um dado que ele não tem em mente na hora.
+  const categoryName = str(parameters.category) ?? str(parameters.category_name);
+  let category = categoryName ? await findActiveCategoryByName(db, categoryName) : null;
+  if (categoryName && !category) {
+    return ask(`Não encontrei a categoria '${categoryName}'. Pode confirmar o nome?`);
+  }
+  if (!category) {
+    category =
+      (await db.animalCategory.findFirst({ where: { name: "Não classificado" } })) ??
+      (await db.animalCategory.create({ data: scoped({ name: "Não classificado" }) }));
+  }
+
+  const result = await createBatchAction(db, {
+    category_id: category.id,
+    property_id: propertyId,
+    quantity: 1,
+    ear_tag,
+    breed,
+    sex,
+  });
   if (!result.ok) return failReply("cadastrar_animal", result);
   return {
     reply_text: `Animal ${result.data.ear_tag} cadastrado com sucesso! ✅`,
@@ -110,10 +133,10 @@ export const registrarPeso: Handler = async ({ db, parameters }) => {
   if (!ear_tag || weight == null) {
     return ask("Para registrar o peso, preciso do brinco do animal e do peso em kg.");
   }
-  const animal = await findAnimalByEarTag(db, ear_tag);
+  const animal = await findBatchByEarTag(db, ear_tag);
   if (!animal) return ask(`Não encontrei nenhum animal com o brinco '${ear_tag}'.`);
 
-  const result = await addWeightLogAction(db, { animal_id: animal.id, weight });
+  const result = await addWeightLogAction(db, { batch_id: animal.id, weight });
   if (!result.ok) return failReply("registrar_peso", result);
   return {
     reply_text: `Peso de ${weight}kg registrado para o brinco ${ear_tag}. Peso atual: ${result.data.current_weight}kg${
@@ -132,7 +155,7 @@ export const registrarVacina: Handler = async ({ db, parameters }) => {
   if (!ear_tag || !vaccineName) {
     return ask("Para registrar a vacina, preciso do brinco do animal e do nome da vacina.");
   }
-  const animal = await findAnimalByEarTag(db, ear_tag);
+  const animal = await findBatchByEarTag(db, ear_tag);
   if (!animal) return ask(`Não encontrei nenhum animal com o brinco '${ear_tag}'.`);
 
   const vaccine = await findVaccineByName(db, vaccineName);
@@ -147,7 +170,7 @@ export const registrarVacina: Handler = async ({ db, parameters }) => {
   const cost = num(parameters.cost);
 
   const result = await addVaccinationAction(db, {
-    animal_id: animal.id,
+    batch_id: animal.id,
     vaccine_id: vaccine.id,
     cost,
   });
@@ -179,7 +202,7 @@ export const registrarPrevisaoVacina: Handler = async ({ db, parameters }) => {
     );
   }
 
-  const animal = await findAnimalByEarTag(db, earTag);
+  const animal = await findBatchByEarTag(db, earTag);
   if (!animal) return ask(`Não encontrei nenhum animal com o brinco '${earTag}'.`);
 
   const vaccine = await findVaccineByName(db, vaccineName);
@@ -210,7 +233,7 @@ export const registrarPrevisaoVacina: Handler = async ({ db, parameters }) => {
     dueDate = parseDueDate(dueDateRaw);
   } else {
     const latestVaccination = await db.animalVaccination.findFirst({
-      where: { animal_id: animal.id, vaccine_id: vaccine.id },
+      where: { batch_id: animal.id, vaccine_id: vaccine.id },
       orderBy: { applied_at: "desc" },
       select: { next_due_at: true },
     });
@@ -223,10 +246,10 @@ export const registrarPrevisaoVacina: Handler = async ({ db, parameters }) => {
   }
 
   const outcome = await upsertVaccinationForecastAction(db, {
-    animal_id: animal.id,
+    batch_id: animal.id,
     vaccine_id: vaccine.id,
     vaccine_name: vaccine.name,
-    ear_tag: animal.ear_tag,
+    ear_tag: animal.ear_tag ?? "sem brinco",
     cost,
     due_date: dueDate,
   });
@@ -260,7 +283,7 @@ export const registrarMovimento: Handler = async ({ db, parameters, confirmed, e
       "Para registrar a movimentação, preciso do brinco do animal e do tipo (compra, venda, transferência ou morte).",
     );
   }
-  const animal = await findAnimalByEarTag(db, ear_tag);
+  const animal = await findBatchByEarTag(db, ear_tag);
   if (!animal) return ask(`Não encontrei nenhum animal com o brinco '${ear_tag}'.`);
 
   const value = num(parameters.value);
@@ -295,7 +318,7 @@ export const registrarMovimento: Handler = async ({ db, parameters, confirmed, e
   }
 
   const result = await addMovementAction(db, {
-    animal_id: animal.id,
+    batch_id: animal.id,
     movement_type,
     value,
     to_property_id,
@@ -315,12 +338,17 @@ export const registrarMovimento: Handler = async ({ db, parameters, confirmed, e
 export const consultarAnimal: Handler = async ({ db, parameters }) => {
   const ear_tag = str(parameters.ear_tag);
   if (!ear_tag) return ask("Qual o brinco do animal que você quer consultar?");
-  const result = await getAnimalSummaryAction(db, ear_tag);
+  const result = await getBatchSummaryAction(db, ear_tag);
   if (!result.ok) return failReply("consultar_animal", result);
   const a = result.data;
-  let text = `Brinco ${a.ear_tag} (${a.breed ?? "raça não informada"}, ${SEX_LABEL[a.sex] ?? a.sex}): status: ${STATUS_LABEL[a.status] ?? a.status}.`;
+  // Sem `status` no modelo único: `quantity` já diz o que resta, e o brinco
+  // pode não existir (quem trabalha por categoria).
+  const identificacao = a.ear_tag ? `Brinco ${a.ear_tag}` : `${a.category_name} (${a.quantity} cabeça(s))`;
+  const sexo = a.sex ? `, ${SEX_LABEL[a.sex] ?? a.sex}` : "";
+  let text = `${identificacao} (${a.breed ?? "raça não informada"}${sexo}).`;
+  if (a.quantity === 0) text += " Sem cabeças restantes (saiu por venda ou morte).";
   if (a.property_name) text += ` Propriedade: ${a.property_name}.`;
-  if (a.current_weight != null) text += ` Peso atual: ${a.current_weight}kg.`;
+  if (a.average_weight != null) text += ` Peso médio: ${a.average_weight}kg.`;
   if (a.gmd != null) text += ` GMD: ${a.gmd}kg/dia.`;
   if (a.last_vaccination) {
     text += ` Última vacina: ${a.last_vaccination.vaccine_name} em ${new Date(a.last_vaccination.applied_at).toLocaleDateString("pt-BR")}.`;

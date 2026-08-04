@@ -20,8 +20,8 @@ export async function addMovementAction(
     occurred_at?: Date | null;
   },
 ): Promise<ActionResult<{ movement_type: string; value: number | null }>> {
-  const animal = await db.animalBatch.findFirst({ where: { id: input.batch_id } });
-  if (!animal) return fail("NOT_FOUND", "Animal não encontrado", 404);
+  const batch = await db.animalBatch.findFirst({ where: { id: input.batch_id } });
+  if (!batch) return fail("NOT_FOUND", "Rebanho não encontrado", 404);
 
   const occurred = input.occurred_at ?? new Date();
   let from_property_id = input.from_property_id ?? null;

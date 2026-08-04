@@ -32,7 +32,7 @@ export async function addWeightLogAction(
 
   await db.animalBatch.update({
     where: { id: input.batch_id },
-    data: { current_weight: latestWeight ?? input.weight },
+    data: { average_weight: latestWeight ?? input.weight },
   });
 
   return ok({

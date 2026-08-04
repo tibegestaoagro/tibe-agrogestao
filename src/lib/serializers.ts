@@ -34,16 +34,25 @@ export function serializePasture(p: any) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+/**
+ * Serializa um registro de rebanho (`AnimalBatch`). Desde a unificação de
+ * 2026-08-04: `ear_tag` e `sex` podem ser nulos (quem trabalha por
+ * categoria), `quantity` diz quantas cabeças o registro representa, e
+ * `status` deixou de existir (quantidade 0 significa que não resta nada).
+ */
 export function serializeAnimal(a: any) {
   return {
     id: a.id,
-    ear_tag: a.ear_tag,
+    category_id: a.category_id,
+    quantity: a.quantity,
+    ear_tag: a.ear_tag ?? null,
     breed: a.breed ?? null,
-    sex: a.sex,
+    sex: a.sex ?? null,
     property_id: a.property_id,
     birth_date: isoOrNull(a.birth_date),
-    status: a.status,
-    current_weight: decToNum(a.current_weight),
+    average_weight: decToNum(a.average_weight),
+    acquisition_cost: decToNum(a.acquisition_cost),
+    acquired_at: a.acquired_at ? a.acquired_at.toISOString() : null,
     created_at: a.created_at.toISOString(),
   };
 }

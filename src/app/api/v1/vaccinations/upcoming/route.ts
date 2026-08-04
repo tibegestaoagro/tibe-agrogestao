@@ -13,7 +13,7 @@ export async function GET() {
 
   const rows = await listUpcomingVaccinations(g.db, 15);
   const data = rows.map((r) => ({
-    animal_id: r.animal_id,
+    batch_id: r.batch_id,
     ear_tag: r.ear_tag,
     vaccine_name: r.vaccine_name,
     last_applied_at: isoOrNull(r.last_applied_at),

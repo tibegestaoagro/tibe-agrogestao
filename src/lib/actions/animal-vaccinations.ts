@@ -154,7 +154,7 @@ export async function listUpcomingVaccinations(
     id: r.id,
     batch_id: r.batch_id,
     vaccine_id: r.vaccine_id,
-    ear_tag: r.animal?.ear_tag ?? null,
+    ear_tag: r.batch?.ear_tag ?? null,
     vaccine_name: r.vaccine?.name ?? null,
     last_applied_at: r.applied_at,
     next_due_at: r.next_due_at!,

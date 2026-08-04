@@ -3,20 +3,33 @@ import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { serializeAnimal } from "@/lib/serializers";
 import { isoOrNull } from "@/lib/serialize";
-import { createAnimalAction } from "@/lib/actions/animals";
+import { createBatchAction } from "@/lib/actions/animal-batches";
 
 /**
- * GET  /api/v1/animals    lista animais (filtros: property_id, status, breed, q=brinco)
- * POST /api/v1/animals     cadastra animal (contrato da spec 1.2)
+ * GET  /api/v1/animals    lista o rebanho (filtros: property_id, category_id, breed, q=brinco)
+ * POST /api/v1/animals     cadastra rebanho
+ *
+ * Desde 2026-08-04 o rebanho é sempre lote por categoria, com brinco
+ * OPCIONAL: quem trabalha com brinco manda `quantity: 1` e `ear_tag`. O
+ * caminho paralelo `/api/v1/animal-batches` deixou de existir, junto com o
+ * modelo `Animal`.
+ *
+ * O filtro `status` saiu: no modelo de lote é `quantity` que diz o que
+ * resta, então "quantos bezerros eu tenho" (filtro por categoria) passou a
+ * ser a pergunta que a listagem responde.
  */
 
 const createSchema = z.object({
-  ear_tag: z.string().trim().min(1, "Brinco é obrigatório"),
-  breed: z.string().trim().min(1, "Raça é obrigatória"),
-  sex: z.enum(["male", "female"]),
+  category_id: z.string().min(1, "Categoria é obrigatória"),
   property_id: z.string().min(1, "Propriedade é obrigatória"),
+  quantity: z.number().int().positive("Quantidade deve ser um inteiro positivo"),
+  ear_tag: z.string().trim().min(1).nullish(),
+  breed: z.string().trim().min(1).nullish(),
+  sex: z.enum(["male", "female"]).nullish(),
   birth_date: z.string().datetime().nullish(),
   initial_weight: z.number().positive().nullish(),
+  acquisition_cost: z.number().nonnegative().nullish(),
+  acquired_at: z.string().datetime().nullish(),
 });
 
 export async function GET(request: Request) {
@@ -25,20 +38,21 @@ export async function GET(request: Request) {
 
   const sp = new URL(request.url).searchParams;
   const property_id = sp.get("property_id") || undefined;
-  const status = sp.get("status") || undefined;
+  const category_id = sp.get("category_id") || undefined;
   const breed = sp.get("breed") || undefined;
   const q = sp.get("q")?.trim() || undefined;
 
-  const animals = await g.db.animal.findMany({
+  const batches = await g.db.animalBatch.findMany({
     where: {
       ...(property_id ? { property_id } : {}),
-      ...(status ? { status: status as "active" | "sold" | "deceased" } : {}),
+      ...(category_id ? { category_id } : {}),
       ...(breed ? { breed: { contains: breed, mode: "insensitive" } } : {}),
       ...(q ? { ear_tag: { contains: q, mode: "insensitive" } } : {}),
     },
     orderBy: { created_at: "desc" },
     include: {
       property: { select: { name: true } },
+      category: { select: { name: true } },
       vaccinations: {
         orderBy: { applied_at: "desc" },
         take: 1,
@@ -47,12 +61,11 @@ export async function GET(request: Request) {
     },
   });
 
-  const data = animals.map((a) => ({
-    ...serializeAnimal(a),
-    property_name: a.property?.name ?? null,
-    last_vaccination_at: a.vaccinations[0]
-      ? isoOrNull(a.vaccinations[0].applied_at)
-      : null,
+  const data = batches.map((b) => ({
+    ...serializeAnimal(b),
+    property_name: b.property?.name ?? null,
+    category_name: b.category?.name ?? null,
+    last_vaccination_at: b.vaccinations[0] ? isoOrNull(b.vaccinations[0].applied_at) : null,
   }));
 
   return apiOk(data, { total: data.length });
@@ -69,19 +82,22 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
   }
-  const { ear_tag, breed, sex, property_id, birth_date, initial_weight } =
-    parsed.data;
+  const d = parsed.data;
 
-  const result = await createAnimalAction(g.db, {
-    ear_tag,
-    breed,
-    sex,
-    property_id,
-    birth_date: birth_date ? new Date(birth_date) : null,
-    initial_weight,
+  const result = await createBatchAction(g.db, {
+    category_id: d.category_id,
+    property_id: d.property_id,
+    quantity: d.quantity,
+    ear_tag: d.ear_tag,
+    breed: d.breed,
+    sex: d.sex,
+    birth_date: d.birth_date ? new Date(d.birth_date) : null,
+    average_weight: d.initial_weight,
+    acquisition_cost: d.acquisition_cost,
+    acquired_at: d.acquired_at ? new Date(d.acquired_at) : null,
   });
   if (!result.ok) return apiError(result.code, result.message, result.status);
 
-  const animal = await g.db.animal.findFirst({ where: { id: result.data.id } });
-  return apiOk(serializeAnimal(animal!), {}, { status: 201 });
+  const batch = await g.db.animalBatch.findFirst({ where: { id: result.data.id } });
+  return apiOk(serializeAnimal(batch!), {}, { status: 201 });
 }

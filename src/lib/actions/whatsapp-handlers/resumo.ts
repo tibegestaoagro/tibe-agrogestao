@@ -40,7 +40,7 @@ export const resumo: Handler = async ({ db, parameters, activeProfiles }) => {
     const relatedIds = Array.from(
       new Set(
         upcoming.map((vaccination) =>
-          `${vaccination.animal_id}:${vaccination.vaccine_id}`),
+          `${vaccination.batch_id}:${vaccination.vaccine_id}`),
       ),
     );
     const previsions = relatedIds.length
@@ -62,14 +62,14 @@ export const resumo: Handler = async ({ db, parameters, activeProfiles }) => {
     const firstWithoutPrevision = upcoming.find(
       (vaccination) =>
         !previsionByRelatedId.has(
-          `${vaccination.animal_id}:${vaccination.vaccine_id}`,
+          `${vaccination.batch_id}:${vaccination.vaccine_id}`,
         ),
     );
     const vaccineLines = upcoming.map((vaccination) => {
       const vaccineName = vaccination.vaccine_name ?? "Vacina";
       const earTag = vaccination.ear_tag ?? "?";
       const date = formatCivilDate(vaccination.next_due_at);
-      const relatedId = `${vaccination.animal_id}:${vaccination.vaccine_id}`;
+      const relatedId = `${vaccination.batch_id}:${vaccination.vaccine_id}`;
       const prevision = previsionByRelatedId.get(relatedId);
       return prevision !== undefined
         ? `${vaccineName} (brinco ${earTag}) dia ${date}, previsão R$ ${formatAmount(prevision)}`
