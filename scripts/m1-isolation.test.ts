@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
+import { createTestAnimal , deleteTestTenants } from "./helpers/herd";
 import { computeGmd } from "@/lib/livestock";
 
 /**
@@ -31,18 +32,16 @@ async function main() {
 
   try {
     const propA = await dbA.property.create({ data: scoped({ name: "Faz A" }) });
-    const animalA = await dbA.animal.create({
-      data: scoped({ ear_tag: "A001", breed: "Nelore", sex: "male", property_id: propA.id }),
-    });
+    const animalA = await createTestAnimal(dbA, a.id, { ear_tag: "A001", breed: "Nelore", sex: "male", property_id: propA.id });
     const wlogA = await dbA.animalWeightLog.create({
-      data: scoped({ animal_id: animalA.id, weight: 200, measured_at: new Date() }),
+      data: scoped({ batch_id: animalA.id, weight: 200, measured_at: new Date() }),
     });
 
     // Isolamento do pai (Animal).
-    const bSeesAnimals = await dbB.animal.findMany();
+    const bSeesAnimals = await dbB.animalBatch.findMany();
     assert(bSeesAnimals.length === 0, "tenant B não vê animais de A");
     assert(
-      (await dbB.animal.findUnique({ where: { id: animalA.id } })) === null,
+      (await dbB.animalBatch.findUnique({ where: { id: animalA.id } })) === null,
       "findUnique de B pelo id do animal de A retorna null",
     );
 
@@ -59,9 +58,7 @@ async function main() {
     // Unicidade de ear_tag por tenant.
     let dupRejected = false;
     try {
-      await dbA.animal.create({
-        data: scoped({ ear_tag: "A001", breed: "Angus", sex: "female", property_id: propA.id }),
-      });
+      await createTestAnimal(dbA, a.id, { ear_tag: "A001", breed: "Angus", sex: "female", property_id: propA.id });
     } catch {
       dupRejected = true;
     }
@@ -69,9 +66,7 @@ async function main() {
 
     // Mesmo ear_tag em OUTRO tenant é permitido.
     const propB = await dbB.property.create({ data: scoped({ name: "Faz B" }) });
-    const animalB = await dbB.animal.create({
-      data: scoped({ ear_tag: "A001", breed: "Nelore", sex: "male", property_id: propB.id }),
-    });
+    const animalB = await createTestAnimal(dbB, b.id, { ear_tag: "A001", breed: "Nelore", sex: "male", property_id: propB.id });
     assert(!!animalB.id, "mesmo ear_tag em tenant diferente é permitido");
 
     // GMD entre as duas últimas pesagens.
@@ -82,7 +77,7 @@ async function main() {
     ]);
     assert(gmd === 1, `GMD calculado corretamente (30kg/30d = 1 kg/dia) [obtido: ${gmd}]`);
   } finally {
-    await prisma.tenant.deleteMany({ where: { id: { in: [a.id, b.id] } } });
+    await deleteTestTenants([a.id, b.id]);
   }
 
   console.log("");

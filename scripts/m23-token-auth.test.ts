@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { createTestAnimal } from "./helpers/herd";
 
 /**
  * Testes da identidade por token do aplicativo (Onda 1, agente A1).
@@ -97,9 +98,7 @@ async function main() {
     const db = prismaForTenant(tenant.id);
     await db.tenantProfile.create({ data: scoped({ profile_type: "fazenda", active: true }) });
     const property = await db.property.create({ data: scoped({ name: `Faz ${label}` }) });
-    const animal = await db.animal.create({
-      data: scoped({ ear_tag: earTag, breed: "Nelore", sex: "male", property_id: property.id }),
-    });
+    const animal = await createTestAnimal(db, tenant.id, { ear_tag: earTag, breed: "Nelore", sex: "male", property_id: property.id });
     return { tenant, user, animal };
   }
 

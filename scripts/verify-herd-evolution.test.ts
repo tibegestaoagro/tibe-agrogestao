@@ -7,8 +7,11 @@ import { getHerdEvolution } from "@/lib/actions/herd-evolution";
  * 2026-08-04: de 2 queries POR MÊS para 4 no total) devolve exatamente o
  * mesmo resultado da implementação antiga, contra os dados reais do banco.
  *
- * A implementação antiga está reproduzida aqui de propósito: é a referência
- * contra a qual a nova é comparada. Se um dia a regra do gráfico mudar de
+ * A implementação antiga (laço mês a mês) está reproduzida aqui de propósito:
+ * é a referência contra a qual a nova é comparada. Atualizada em 2026-08-04
+ * para SOMAR cabeças em vez de contar linhas: o que a referência guarda é a
+ * FORMA de calcular (uma query por mês), não a semântica antiga de 1 animal
+ * por linha, que deixou de existir com o modelo único de lote. Se um dia a regra do gráfico mudar de
  * verdade, este teste deve ser atualizado junto, conscientemente.
  *
  * Roda: `npm run test:herd`
@@ -36,14 +39,17 @@ async function getHerdEvolutionLegacy(
   for (let i = opts.months - 1; i >= 0; i--) {
     const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59, 999);
     const [registered, departed] = await Promise.all([
-      db.animal.count({ where: { created_at: { lte: monthEnd }, ...propertyFilter } }),
-      db.animalMovement.count({
+      db.animalBatch
+        .aggregate({ where: { created_at: { lte: monthEnd }, ...propertyFilter }, _sum: { quantity: true } })
+        .then((a) => a._sum.quantity ?? 0),
+      db.animalMovement.aggregate({
         where: {
           movement_type: { in: ["sale", "death"] },
           occurred_at: { lte: monthEnd },
-          ...(opts.propertyId ? { animal: { property_id: opts.propertyId } } : {}),
+          ...(opts.propertyId ? { batch: { property_id: opts.propertyId } } : {}),
         },
-      }),
+        _sum: { quantity: true },
+      }).then((a) => a._sum.quantity ?? 0),
     ]);
     points.push({
       month: monthEnd.toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""),
@@ -63,7 +69,7 @@ async function main() {
 
   for (const tenant of tenants) {
     const db = prismaForTenant(tenant.id);
-    const total = await db.animal.count();
+    const total = await db.animalBatch.count();
     if (total === 0) continue;
 
     const properties = await db.property.findMany({ select: { id: true }, take: 2 });

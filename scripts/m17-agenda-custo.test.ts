@@ -12,6 +12,7 @@ import {
 import { routeIntent } from "@/lib/actions/whatsapp-router";
 import { supportsThreeDayReminder } from "@/lib/actions/whatsapp-handlers/rebanho";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
+import { createTestAnimal , deleteTestTenants } from "./helpers/herd";
 
 /**
  * Teste de integração do Módulo 17: agenda com custo.
@@ -516,13 +517,9 @@ async function main() {
     });
     const animals = await Promise.all(
       ["M17-101", "M17-102", "M17-103"].map((earTag) =>
-        dbA.animal.create({
-          data: scoped({
-            property_id: propertyA.id,
+        createTestAnimal(dbA, tenantA.id, { property_id: propertyA.id,
             ear_tag: earTag,
-            sex: "female",
-          }),
-        }),
+            sex: "female" }),
       ),
     );
     const vaccines = await Promise.all(
@@ -538,7 +535,7 @@ async function main() {
     for (let index = 0; index < animals.length; index++) {
       await dbA.animalVaccination.create({
         data: scoped({
-          animal_id: animals[index]!.id,
+          batch_id: animals[index]!.id,
           vaccine_id: vaccines[index]!.id,
           applied_at: addUtcCalendarDays(now, -20),
           next_due_at: vaccinationDates[index],
@@ -557,19 +554,15 @@ async function main() {
       }),
     });
 
-    const isolatedAnimal = await dbB.animal.create({
-      data: scoped({
-        property_id: propertyB.id,
+    const isolatedAnimal = await createTestAnimal(dbB, tenantB.id, { property_id: propertyB.id,
         ear_tag: "M17-B-999",
-        sex: "male",
-      }),
-    });
+        sex: "male" });
     const isolatedVaccine = await dbB.vaccine.create({
       data: scoped({ name: "Vacina Outro Tenant M17" }),
     });
     await dbB.animalVaccination.create({
       data: scoped({
-        animal_id: isolatedAnimal.id,
+        batch_id: isolatedAnimal.id,
         vaccine_id: isolatedVaccine.id,
         applied_at: addUtcCalendarDays(now, -10),
         next_due_at: addUtcCalendarDays(now, 3),
@@ -684,20 +677,16 @@ async function main() {
       "lavoura responde vazio quando não há colheita futura ativa",
     );
 
-    const previsionAnimal = await dbA.animal.create({
-      data: scoped({
-        property_id: propertyA.id,
+    const previsionAnimal = await createTestAnimal(dbA, tenantA.id, { property_id: propertyA.id,
         ear_tag: "M17-PREV-101",
-        sex: "female",
-      }),
-    });
+        sex: "female" });
     const previsionVaccine = await dbA.vaccine.create({
       data: scoped({ name: "Vacina Previsão M17" }),
     });
     const fallbackDueDate = addUtcCalendarDays(now, 8);
     await dbA.animalVaccination.create({
       data: scoped({
-        animal_id: previsionAnimal.id,
+        batch_id: previsionAnimal.id,
         vaccine_id: previsionVaccine.id,
         applied_at: addUtcCalendarDays(now, -60),
         next_due_at: addUtcCalendarDays(now, 20),
@@ -705,7 +694,7 @@ async function main() {
     });
     await dbA.animalVaccination.create({
       data: scoped({
-        animal_id: previsionAnimal.id,
+        batch_id: previsionAnimal.id,
         vaccine_id: previsionVaccine.id,
         applied_at: addUtcCalendarDays(now, -30),
         next_due_at: fallbackDueDate,
@@ -802,7 +791,7 @@ async function main() {
       }),
     });
     const reconciliation = await addVaccinationAction(dbA, {
-      animal_id: previsionAnimal.id,
+      batch_id: previsionAnimal.id,
       vaccine_id: previsionVaccine.id,
       applied_at: addUtcCalendarDays(now, 1),
       cost: 320,
@@ -845,13 +834,9 @@ async function main() {
       "conciliação descarta bill_due pendente e preserva alerta já enviado",
     );
 
-    const noCostAnimal = await dbA.animal.create({
-      data: scoped({
-        property_id: propertyA.id,
+    const noCostAnimal = await createTestAnimal(dbA, tenantA.id, { property_id: propertyA.id,
         ear_tag: "M17-SEM-CUSTO",
-        sex: "male",
-      }),
-    });
+        sex: "male" });
     const noCostVaccine = await dbA.vaccine.create({
       data: scoped({ name: "Vacina Sem Custo M17" }),
     });
@@ -879,7 +864,7 @@ async function main() {
       }),
     });
     const noCostVaccination = await addVaccinationAction(dbA, {
-      animal_id: noCostAnimal.id,
+      batch_id: noCostAnimal.id,
       vaccine_id: noCostVaccine.id,
     });
     const noCostEntryAfter = await dbA.financialEntry.findFirst({
@@ -906,13 +891,9 @@ async function main() {
       "conciliação usa o client escopado e não altera previsão de outro tenant com a mesma chave",
     );
 
-    const handlerAnimal = await dbA.animal.create({
-      data: scoped({
-        property_id: propertyA.id,
+    const handlerAnimal = await createTestAnimal(dbA, tenantA.id, { property_id: propertyA.id,
         ear_tag: "M17-HANDLER-REC",
-        sex: "female",
-      }),
-    });
+        sex: "female" });
     const handlerVaccine = await dbA.vaccine.create({
       data: scoped({
         name: "Vacina Handler M17",
@@ -969,18 +950,14 @@ async function main() {
       "registrar_vacina avisa sobre previsão pendente quando o custo real não foi informado",
     );
 
-    const regularAnimal = await dbA.animal.create({
-      data: scoped({
-        property_id: propertyA.id,
+    const regularAnimal = await createTestAnimal(dbA, tenantA.id, { property_id: propertyA.id,
         ear_tag: "M17-SEM-PREVISAO",
-        sex: "male",
-      }),
-    });
+        sex: "male" });
     const regularVaccine = await dbA.vaccine.create({
       data: scoped({ name: "Vacina Regular M17" }),
     });
     const regularVaccination = await addVaccinationAction(dbA, {
-      animal_id: regularAnimal.id,
+      batch_id: regularAnimal.id,
       vaccine_id: regularVaccine.id,
       applied_at: addUtcCalendarDays(now, 1),
       cost: 45.6,
@@ -997,21 +974,17 @@ async function main() {
       "vacina sem previsão preserva a criação normal do lançamento vinculado pago",
     );
 
-    const costValidationAnimal = await dbA.animal.create({
-      data: scoped({
-        property_id: propertyA.id,
+    const costValidationAnimal = await createTestAnimal(dbA, tenantA.id, { property_id: propertyA.id,
         ear_tag: "M17-VALIDA-CUSTO",
-        sex: "female",
-      }),
-    });
+        sex: "female" });
     const costValidationVaccine = await dbA.vaccine.create({
       data: scoped({ name: "Vacina Validação Custo M17" }),
     });
     const vaccinationsBeforeInvalidCost = await dbA.animalVaccination.count({
-      where: { animal_id: costValidationAnimal.id },
+      where: { batch_id: costValidationAnimal.id },
     });
     const negativeVaccination = await addVaccinationAction(dbA, {
-      animal_id: costValidationAnimal.id,
+      batch_id: costValidationAnimal.id,
       vaccine_id: costValidationVaccine.id,
       cost: -1,
     });
@@ -1029,7 +1002,7 @@ async function main() {
       explicitNo: false,
     });
     const vaccinationsAfterInvalidCost = await dbA.animalVaccination.count({
-      where: { animal_id: costValidationAnimal.id },
+      where: { batch_id: costValidationAnimal.id },
     });
     const entriesAfterInvalidCost = await dbA.financialEntry.count({
       where: { related_module: "rebanho", related_id: costValidationAnimal.id },
@@ -1045,12 +1018,12 @@ async function main() {
     );
 
     const zeroVaccination = await addVaccinationAction(dbA, {
-      animal_id: costValidationAnimal.id,
+      batch_id: costValidationAnimal.id,
       vaccine_id: costValidationVaccine.id,
       cost: 0,
     });
     const vaccinationsAfterZeroCost = await dbA.animalVaccination.count({
-      where: { animal_id: costValidationAnimal.id },
+      where: { batch_id: costValidationAnimal.id },
     });
     const entriesAfterZeroCost = await dbA.financialEntry.count({
       where: { related_module: "rebanho", related_id: costValidationAnimal.id },
@@ -1062,13 +1035,9 @@ async function main() {
       "vacinação aceita custo zero sem criar lançamento vinculado",
     );
 
-    const rollbackAnimal = await dbA.animal.create({
-      data: scoped({
-        property_id: propertyA.id,
+    const rollbackAnimal = await createTestAnimal(dbA, tenantA.id, { property_id: propertyA.id,
         ear_tag: "M17-ROLLBACK-ATOMICO",
-        sex: "male",
-      }),
-    });
+        sex: "male" });
     const rollbackVaccine = await dbA.vaccine.create({
       data: scoped({ name: "Vacina Rollback Atômico M17" }),
     });
@@ -1095,7 +1064,7 @@ async function main() {
       `);
       try {
         await addVaccinationAction(dbA, {
-          animal_id: rollbackAnimal.id,
+          batch_id: rollbackAnimal.id,
           vaccine_id: rollbackVaccine.id,
           cost: 77,
         });
@@ -1111,7 +1080,7 @@ async function main() {
       );
     }
     const rollbackVaccinations = await dbA.animalVaccination.count({
-      where: { animal_id: rollbackAnimal.id },
+      where: { batch_id: rollbackAnimal.id },
     });
     const rollbackEntries = await dbA.financialEntry.count({
       where: { related_module: "rebanho", related_id: rollbackAnimal.id },
@@ -1141,13 +1110,9 @@ async function main() {
       "registrar_previsao_vacina pergunta o custo obrigatório ausente",
     );
 
-    const missingDateAnimal = await dbA.animal.create({
-      data: scoped({
-        property_id: propertyA.id,
+    const missingDateAnimal = await createTestAnimal(dbA, tenantA.id, { property_id: propertyA.id,
         ear_tag: "M17-SEM-DATA",
-        sex: "female",
-      }),
-    });
+        sex: "female" });
     const missingDateVaccine = await dbA.vaccine.create({
       data: scoped({ name: "Vacina Sem Data M17" }),
     });
@@ -1432,13 +1397,9 @@ async function main() {
       "cron cria novo bill_due na chave original quando a previsão reagendada entra na janela",
     );
 
-    const raceAnimal = await dbA.animal.create({
-      data: scoped({
-        property_id: propertyA.id,
+    const raceAnimal = await createTestAnimal(dbA, tenantA.id, { property_id: propertyA.id,
         ear_tag: "M17-RACE-CRON",
-        sex: "female",
-      }),
-    });
+        sex: "female" });
     const raceVaccine = await dbA.vaccine.create({
       data: scoped({ name: "Vacina Race Cron M17" }),
     });
@@ -1530,13 +1491,9 @@ async function main() {
       "nova data na janela cria bill_due correto após corrida serializada",
     );
 
-    const concurrentAnimal = await dbA.animal.create({
-      data: scoped({
-        property_id: propertyA.id,
+    const concurrentAnimal = await createTestAnimal(dbA, tenantA.id, { property_id: propertyA.id,
         ear_tag: "M17-CONCORRENTE",
-        sex: "male",
-      }),
-    });
+        sex: "male" });
     const concurrentVaccine = await dbA.vaccine.create({
       data: scoped({ name: "Vacina Concorrente M17" }),
     });
@@ -1752,7 +1709,7 @@ async function main() {
     );
   } finally {
     if (tenantIds.length > 0) {
-      await prisma.tenant.deleteMany({ where: { id: { in: tenantIds } } });
+      await deleteTestTenants(tenantIds);
     }
   }
 

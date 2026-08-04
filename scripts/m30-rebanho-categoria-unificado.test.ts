@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
+import { deleteTestTenants } from "./helpers/herd";
 
 /**
  * Rebanho por categoria: modelo único de lote (2026-08-04).
@@ -156,7 +157,7 @@ async function main() {
       "apagar o lote apaga o histórico dele (onDelete: Cascade)",
     );
   } finally {
-    await prisma.tenant.deleteMany({ where: { id: { in: [tenantA.id, tenantB.id] } } });
+    await deleteTestTenants([tenantA.id, tenantB.id]);
   }
 
   console.log("");

@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
+import { deleteTestTenants } from "./helpers/herd";
 import { POST as resolveContact } from "@/app/api/internal/whatsapp/resolve-contact/route";
 import { POST as executeAction } from "@/app/api/internal/whatsapp/execute-action/route";
 
@@ -120,7 +121,7 @@ async function main() {
       !/cadastrado com sucesso/.test(eDenied.body.data.reply_text) && eDenied.status === 200,
       "visualizador NÃO consegue cadastrar animal via WhatsApp",
     );
-    const deniedAnimal = await dbA.animal.findFirst({ where: { ear_tag: "V001" } });
+    const deniedAnimal = await dbA.animalBatch.findFirst({ where: { ear_tag: "V001" } });
     assert(deniedAnimal === null, "nenhum animal foi criado pela tentativa negada");
 
     // ── cadastrar_animal (auto-resolve propriedade única) ───────
@@ -134,7 +135,7 @@ async function main() {
       /cadastrado com sucesso/.test(eCreate.body.data.reply_text),
       "owner cadastra animal via WhatsApp (propriedade única auto-resolvida)",
     );
-    const created = await dbA.animal.findFirst({ where: { ear_tag: "A100" } });
+    const created = await dbA.animalBatch.findFirst({ where: { ear_tag: "A100" } });
     assert(created?.property_id === propA.id, "animal criado na única propriedade do tenant");
 
     // ── registrar_peso ───────────────────────────────────────────
@@ -169,8 +170,9 @@ async function main() {
         !/Confirma/.test(eSaleConfirm.body.data.reply_text),
       "resposta 'sim' (texto livre) confirma a venda",
     );
-    const soldAnimal = await dbA.animal.findFirst({ where: { ear_tag: "A100" } });
-    assert(soldAnimal?.status === "sold", "status do animal atualizado para vendido");
+    const soldAnimal = await dbA.animalBatch.findFirst({ where: { ear_tag: "A100" } });
+    // Modelo único: não há `status`. Vendido = nenhuma cabeça restante.
+    assert(soldAnimal?.quantity === 0, "animal vendido fica com 0 cabeças restantes");
     const entry = await dbA.financialEntry.findFirst({ where: { related_module: "rebanho" } });
     assert(!!entry && entry.entry_type === "income", "FinancialEntry de receita criado após confirmação");
 
@@ -205,7 +207,7 @@ async function main() {
     assert(logs.some((l) => l.direction === "in"), "log registra mensagens recebidas (in)");
     assert(logs.some((l) => l.direction === "out"), "log registra respostas enviadas (out)");
   } finally {
-    await prisma.tenant.deleteMany({ where: { id: { in: [tenantA.id, tenantB.id] } } });
+    await deleteTestTenants([tenantA.id, tenantB.id]);
   }
 
   console.log("");

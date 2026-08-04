@@ -91,7 +91,7 @@ async function wipeDemoData() {
   await prisma.animalWeightLog.deleteMany({ where: { tenant_id } });
   await prisma.animalVaccination.deleteMany({ where: { tenant_id } });
   await prisma.animalMovement.deleteMany({ where: { tenant_id } });
-  await prisma.animal.deleteMany({ where: { tenant_id } });
+  await prisma.animalBatch.deleteMany({ where: { tenant_id } });
   await prisma.animalBatch.deleteMany({ where: { tenant_id } });
   await prisma.machineMaintenance.deleteMany({ where: { tenant_id } });
   await prisma.machine.deleteMany({ where: { tenant_id } });
@@ -126,7 +126,7 @@ async function seedAnimals(propertyIds: string[], categoryByName: Map<string, st
   for (const d of DEFS) for (let i = 0; i < WEIGHTS[d.category]; i++) pool.push(d);
 
   const TOTAL = 260;
-  const animals: Prisma.AnimalCreateManyInput[] = [];
+  const animals: Prisma.AnimalBatchCreateManyInput[] = [];
   const movements: Prisma.AnimalMovementCreateManyInput[] = [];
   const entries: Prisma.FinancialEntryCreateManyInput[] = [];
   const weightLogs: Prisma.AnimalWeightLogCreateManyInput[] = [];
@@ -147,16 +147,21 @@ async function seedAnimals(propertyIds: string[], categoryByName: Map<string, st
 
     let status: "active" | "sold" | "deceased" = "active";
 
+    // Modelo único (2026-08-04): cada animal identificado é um lote de 1
+    // cabeça. `quantity` cai para 0 quando ele sai por venda ou morte (o
+    // antigo `status`), mais abaixo.
     animals.push({
       id,
       tenant_id: TENANT_ID,
       property_id: pickPropertyId(propertyIds),
+      category_id: categoryByName.get(def.category)!,
+      quantity: 1,
       ear_tag: `BV-${String(tagSeq++).padStart(4, "0")}`,
       breed: pick(BREEDS),
       sex: def.sex,
       birth_date,
-      status: "active", // ajustado abaixo se vendido/morto
-      current_weight: weight,
+      average_weight: weight,
+      acquired_at: created_at,
       created_at,
     });
 
@@ -171,7 +176,7 @@ async function seedAnimals(propertyIds: string[], categoryByName: Map<string, st
       movements.push({
         id: randomUUID(),
         tenant_id: TENANT_ID,
-        animal_id: id,
+        batch_id: id,
         movement_type: "sale",
         occurred_at,
         value,
@@ -192,12 +197,13 @@ async function seedAnimals(propertyIds: string[], categoryByName: Map<string, st
       movements.push({
         id: randomUUID(),
         tenant_id: TENANT_ID,
-        animal_id: id,
+        batch_id: id,
         movement_type: "death",
         occurred_at,
       });
     }
-    animals[animals.length - 1].status = status;
+    // Sem `status` no modelo único: saiu por venda ou morte = 0 cabeças.
+    if (status !== "active") animals[animals.length - 1].quantity = 0;
 
     // Pesagens (só ativos, ~45% dos animais, 1-3 registros).
     if (status === "active" && Math.random() < 0.45) {
@@ -207,7 +213,7 @@ async function seedAnimals(propertyIds: string[], categoryByName: Map<string, st
         weightLogs.push({
           id: randomUUID(),
           tenant_id: TENANT_ID,
-          animal_id: id,
+          batch_id: id,
           weight: randFloat(def.weightRange[0], def.weightRange[1], 1),
           measured_at,
         });
@@ -228,7 +234,7 @@ async function seedAnimals(propertyIds: string[], categoryByName: Map<string, st
         vaccinations.push({
           id: randomUUID(),
           tenant_id: TENANT_ID,
-          animal_id: id,
+          batch_id: id,
           vaccine_id: vaccine.id,
           applied_at,
           next_due_at,
@@ -250,7 +256,7 @@ async function seedAnimals(propertyIds: string[], categoryByName: Map<string, st
     }
   }
 
-  await prisma.animal.createMany({ data: animals });
+  await prisma.animalBatch.createMany({ data: animals });
   if (movements.length) await prisma.animalMovement.createMany({ data: movements });
   if (weightLogs.length) await prisma.animalWeightLog.createMany({ data: weightLogs });
   if (vaccinations.length) await prisma.animalVaccination.createMany({ data: vaccinations });
@@ -785,7 +791,10 @@ async function main() {
   const alertResult = await generateAlertsForTenant(TENANT_ID);
 
   const [animalCount, entryCount, machineCount, taskCount, plotCount, clientCount] = await Promise.all([
-    prisma.animal.count({ where: { tenant_id: TENANT_ID, status: "active" } }),
+    // Soma CABEÇAS, não lotes.
+    prisma.animalBatch
+      .aggregate({ where: { tenant_id: TENANT_ID }, _sum: { quantity: true } })
+      .then((a) => a._sum.quantity ?? 0),
     prisma.financialEntry.count({ where: { tenant_id: TENANT_ID } }),
     prisma.machine.count({ where: { tenant_id: TENANT_ID } }),
     prisma.task.count({ where: { tenant_id: TENANT_ID } }),
