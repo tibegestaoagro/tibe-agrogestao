@@ -144,6 +144,45 @@ export const GROUPS: Group[] = [
         response: `200
 { "data": { "id": "cl..." }, "meta": {} }`,
       },
+      {
+        method: "POST",
+        path: "/api/v1/auth/token",
+        auth: "Público (é o passo que cria a identidade)",
+        description:
+          "Login do aplicativo por email e senha, devolvendo o par access + refresh. Roda sem sessão por natureza, como as rotas de recuperação de senha. Não aplica o gate de sessão de propósito: quem tem senha temporária precisa autenticar para conseguir trocá-la, e as rotas de negócio seguem barradas pelo guard(). O rate limit é aplicado ANTES da busca pelo usuário, para não diferenciar conta inexistente de senha errada nem pelo erro nem pelo tempo de resposta.",
+        request: `{ "email": "maria@fazenda.com.br", "password": "..." }`,
+        response: `200
+{ "data": { "access_token": "...", "refresh_token": "...", "expires_in": 900, "user": { "id": "cl...", "name": "Maria", "email": "maria@fazenda.com.br", "role": "OWNER" } }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/auth/token/refresh",
+        auth: "Público (posse do refresh token)",
+        description:
+          "Troca o refresh por um par novo. Uso único: o token apresentado é invalidado na troca (rotação), então um refresh capturado e reusado depois falha. Só o hash do refresh é persistido, nunca o token em claro.",
+        request: `{ "refresh_token": "..." }`,
+        response: `200
+{ "data": { "access_token": "...", "refresh_token": "...", "expires_in": 900 }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/auth/token/revoke",
+        auth: "Público (posse do refresh token)",
+        description: "Invalida o refresh token informado. Usado no logout do aplicativo, em melhor esforço: o app limpa a sessão local mesmo se esta chamada falhar.",
+        request: `{ "refresh_token": "..." }`,
+        response: `200
+{ "data": { "revoked": true }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/auth/profile",
+        auth: "Sessão (qualquer papel)",
+        description:
+          "O próprio usuário renomeia a si mesmo. Sem guard() de módulo nem checagem de cobrança de propósito: editar o próprio nome não é privilégio de papel nem deve ser bloqueado por inadimplência.",
+        request: `{ "name": "Maria Silva" }`,
+        response: `200
+{ "data": { "id": "cl...", "name": "Maria Silva" }, "meta": {} }`,
+      },
     ],
   },
   {
@@ -265,6 +304,82 @@ export const GROUPS: Group[] = [
         description: "Desativa o pasto (não deleta). Idempotente.",
         response: `200
 { "data": { "id": "cl...", "archived_at": "2026-08-04T12:00:00.000Z" }, "meta": { "area_summary": { "total_area": 120.5, "distributed_area": 0, "remaining_area": 120.5, "over_allocated": false } } }`,
+      },
+    ],
+  },
+  {
+    title: "Rebanho: Categorias e Lotes",
+    note: "Módulo 25. Caminho de rebanho por CATEGORIA e quantidade (bezerro, novilha, boi gordo...), paralelo ao cadastro individual por brinco. Cadastrar um lote não cria um registro por cabeça: guarda categoria, quantidade e peso médio.",
+    endpoints: [
+      {
+        method: "GET",
+        path: "/api/v1/animal-categories",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description: "Lista as categorias de rebanho do tenant. Cada tenant nasce com um conjunto padrão no seed e pode criar as próprias.",
+        response: `200
+{ "data": [{ "id": "cl...", "name": "Bezerro", "active": true }], "meta": { "total": 1 } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/animal-categories",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "Cria uma categoria de rebanho.",
+        request: `{ "name": "Novilha" }`,
+        response: `201
+{ "data": { "id": "cl...", "name": "Novilha", "active": true }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/animal-categories/:id",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "Renomeia ou desativa uma categoria. Desativar não apaga: categoria usada por lotes existentes continua referenciada, só deixa de ser oferecida em cadastros novos.",
+        request: `{ "name": "Novilha 12-24m", "active": false }`,
+        response: `200
+{ "data": { "id": "cl...", "name": "Novilha 12-24m", "active": false }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/animal-batches",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description: "Lista os lotes. Filtros opcionais: property_id e category_id.",
+        response: `200
+{ "data": [{ "id": "cl...", "category_id": "cl...", "category_name": "Bezerro", "property_id": "cl...", "property_name": "Sede", "quantity": 20, "average_weight": 180.5, "acquisition_cost": 25000, "acquired_at": "2026-07-01T00:00:00.000Z" }], "meta": { "total": 1 } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/animal-batches",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "Cadastra um lote. `quantity` é inteiro positivo; `average_weight`, `acquisition_cost` e `acquired_at` são opcionais. Informar `acquisition_cost` gera o lançamento financeiro de despesa correspondente.",
+        request: `{ "category_id": "cl...", "property_id": "cl...", "quantity": 20, "average_weight": 180.5, "acquisition_cost": 25000, "acquired_at": "2026-07-01T00:00:00.000Z" }`,
+        response: `201
+{ "data": { "id": "cl...", "category_id": "cl...", "quantity": 20 }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/animal-batches/:id",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description: "Detalhe do lote, já com o nome da categoria e da propriedade resolvidos.",
+        response: `200
+{ "data": { "id": "cl...", "category_id": "cl...", "category_name": "Bezerro", "property_name": "Sede", "quantity": 20, "average_weight": 180.5 }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/animal-batches/:id",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "Atualiza o peso médio do lote (a pesagem de um lote é sempre uma média, não uma pesagem individual). Só esse campo é editável: quantidade muda por venda, não por edição.",
+        request: `{ "average_weight": 195 }`,
+        response: `200
+{ "data": { "id": "cl...", "average_weight": 195 }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/animal-batches/sell",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "Vende N cabeças de uma CATEGORIA, não de um lote específico: baixa a quantidade dos lotes daquela categoria (mais antigo primeiro) e, com `value` informado, gera o lançamento de receita. Devolve 422 quando o estoque da categoria é menor que a quantidade pedida.",
+        request: `{ "category_id": "cl...", "quantity": 5, "value": 12000, "occurred_at": "2026-08-01T00:00:00.000Z" }`,
+        response: `200
+{ "data": { "sold": 5, "remaining": 15 }, "meta": {} }`,
       },
     ],
   },
@@ -797,6 +912,63 @@ export const GROUPS: Group[] = [
     ],
   },
   {
+    title: "Notificações (push web)",
+    note: "Push é por INSCRIÇÃO, não por usuário: todo aparelho inscrito no tenant recebe. Por isso a inscrição guarda o endpoint do navegador, e não só o id de quem clicou.",
+    endpoints: [
+      {
+        method: "GET",
+        path: "/api/v1/notifications/public-key",
+        auth: "Sessão",
+        description: "Devolve a chave pública VAPID que o navegador precisa para criar a inscrição. Responde 503 quando o push não está configurado no ambiente (VAPID ausente).",
+        response: `200
+{ "data": { "vapid_public_key": "BEl62i..." }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/notifications/subscribe",
+        auth: "Sessão",
+        description: "Registra o aparelho para receber push. Idempotente por endpoint: reinscrever o mesmo navegador atualiza a inscrição existente em vez de duplicar.",
+        request: `{ "endpoint": "https://fcm.googleapis.com/fcm/send/...", "keys": { "p256dh": "...", "auth": "..." } }`,
+        response: `201
+{ "data": { "subscribed": true }, "meta": {} }`,
+      },
+      {
+        method: "DELETE",
+        path: "/api/v1/notifications/subscribe",
+        auth: "Sessão",
+        description: "Cancela a inscrição daquele endpoint (o usuário desliga a notificação no aparelho).",
+        request: `{ "endpoint": "https://fcm.googleapis.com/fcm/send/..." }`,
+        response: `200
+{ "data": { "unsubscribed": true }, "meta": {} }`,
+      },
+    ],
+  },
+  {
+    title: "Preferências do tenant",
+    endpoints: [
+      {
+        method: "POST",
+        path: "/api/v1/tenant/active-property",
+        auth: "Sessão · rebanho:read",
+        description:
+          "Define a propriedade ativa do seletor do topo, que filtra o painel inteiro. Guardada em cookie, não no banco: qual propriedade estou olhando agora é preferência de sessão, não dado de negócio. `property_id: null` limpa o filtro (volta para \"todas\").",
+        request: `{ "property_id": "cl..." }`,
+        response: `200
+{ "data": { "property_id": "cl..." }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/tenant/plan",
+        auth: "Sessão (sem guard de propósito)",
+        description:
+          "Confirma o plano escolhido em /escolher-plano, marcando `plan_confirmed`. Não passa por guard() de propósito: o guard exige plano confirmado, então quem ainda não confirmou nunca conseguiria confirmar (deadlock).",
+        request: `{ "plan": "fazenda" }`,
+        response: `200
+{ "data": { "plan": "fazenda" }, "meta": {} }`,
+      },
+    ],
+  },
+  {
     title: "Cobrança (Asaas)",
     endpoints: [
       {
@@ -874,6 +1046,43 @@ export const GROUPS: Group[] = [
         response: `200
 { "data": { "provider": "evolution", "message_id": "BAE5..." }, "meta": {} }`,
       },
+      {
+        method: "POST",
+        path: "/api/internal/whatsapp/buffer",
+        auth: "Header x-internal-secret",
+        description:
+          "Junta mensagens picotadas numa só. Duas operações no mesmo endpoint, chamadas pelo n8n em volta de uma espera: `append` guarda o fragmento e devolve o token daquela execução; `flush` devolve o texto concatenado apenas se o token ainda for o último. Quando não for, responde `ready: false` e aquela execução do n8n deve encerrar sem responder nada, evitando que duas respostas saiam para a mesma pessoa.",
+        request: `{ "op": "append", "phone": "5522999990000", "message_text": "cadastra 20" }
+
+{ "op": "flush", "phone": "5522999990000", "token": 3 }`,
+        response: `200 (append)
+{ "data": { "token": 3 }, "meta": {} }
+
+200 (flush, este é o último)
+{ "data": { "ready": true, "message_text": "cadastra 20 bezerros" }, "meta": {} }
+
+200 (flush, chegou mensagem mais nova)
+{ "data": { "ready": false }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/internal/whatsapp/fetch-media",
+        auth: "Header x-internal-secret",
+        description:
+          "Busca áudio, imagem ou documento decriptado sob demanda, pelo id da mensagem. Existe porque `webhookBase64: true` da Evolution não é confiável em produção (o campo simplesmente não vem no webhook, mesmo configurado), descoberto testando com áudio real. O n8n chama isto antes de transcrever ou extrair. Só suporta Evolution: a Meta Cloud API teria outro mecanismo de download, não implementado.",
+        request: `{ "message_id": "BAE5F1..." }`,
+        response: `200
+{ "data": { "base64": "SUQzBAAAA...", "mimetype": "audio/ogg" }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/internal/whatsapp/pending-flows",
+        auth: "Header x-internal-secret",
+        description:
+          "Lembra quem abandonou um cadastro assistido no meio e limpa os fluxos vencidos. Chamado por um agendador do n8n a cada 15 minutos, e não pela Vercel Cron, que roda 1x/dia: lembrar no dia seguinte de um cadastro largado às 14h não ajuda ninguém. O n8n não decide nada, só acorda o Tibé; quem escolhe o destinatário, monta o texto e envia é esta rota. Varre todos os tenants ativos, por natureza.",
+        response: `200
+{ "data": { "sent": 2, "failed": 0, "expired_flows_purged": 1 }, "meta": { "tenants": 4 } }`,
+      },
     ],
   },
   {
@@ -886,6 +1095,18 @@ export const GROUPS: Group[] = [
         description: "Roda 1x/dia (09:00 UTC = 06:00 América/São Paulo). Gera alertas de vacina, colheita, conta a vencer, saldo negativo e trial acabando; dispara envio via WhatsApp. Idempotente por dia (lock no Redis) e por evento (não duplica Alert).",
         response: `200
 { "data": { "vaccine_due": 2, "harvest_near": 0, "bill_due": 1, "low_balance": 0, "trial_ending": 1, "sent": 3 }, "meta": { "date": "2026-07-10" } }`,
+      },
+      {
+        method: "GET",
+        path: "/api/internal/jobs/daily-digest",
+        auth: "Header x-internal-secret",
+        description:
+          "Resumo diário do que importa no dia (contas a vencer, vacinas, tarefas), entregue por push quando o tenant tem aparelho inscrito e por WhatsApp quando não tem. Disparado 1x/dia pelo n8n, e não pela Vercel Cron, para não depender de um segundo slot de cron no plano da Vercel. Idempotente por dia com lock no Redis, em chave própria (separada da chave do job de alertas): responde `skipped: true` na segunda chamada do mesmo dia. Nunca sai por email, por decisão de produto: resumo diário por email todo dia é ruído.",
+        response: `200
+{ "data": { "sent": 3, "skipped": 1 }, "meta": { "date": "2026-08-04" } }
+
+200 (2ª chamada no mesmo dia)
+{ "data": { "skipped": true, "reason": "já executado hoje" }, "meta": { "date": "2026-08-04" } }`,
       },
     ],
   },
@@ -917,6 +1138,53 @@ export const GROUPS: Group[] = [
         request: `{ "status": "active", "reason": "reativado manualmente, erro no processamento do Asaas" }`,
         response: `200
 { "data": { "id": "cl...", "status": "active" } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/platform/tenants",
+        auth: "Sessão de PlatformUser · só master_admin",
+        description:
+          "Cria um tenant manualmente, para dar acesso de teste a uma equipe de cliente sem passar pelo cadastro público. Reusa a mesma lógica do cadastro (trial de 14 dias, checagem de documento e email duplicados), mas GERA uma senha temporária em vez de receber uma, e marca `must_change_password`: o usuário é obrigado a trocá-la antes de acessar qualquer outra coisa. Dispara a mensagem de boas-vindas por WhatsApp e email, em melhor esforço (falha no envio não impede a criação).",
+        request: `{ "company_name": "Fazenda Santa Helena", "document": "12345678000199", "phone": "22999990000", "owner_name": "João", "owner_email": "joao@santahelena.com.br" }`,
+        response: `201
+{ "data": { "tenant_id": "cl...", "email": "joao@santahelena.com.br", "temp_password": "Xy9k2Qmz" }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/platform/tenants/:id",
+        auth: "Sessão de PlatformUser · só master_admin",
+        description: "Corrige os dados cadastrais do tenant (razão social, documento, telefone, email de contato e plano). Todos os campos são opcionais: só o que vier é alterado.",
+        request: `{ "name": "Fazenda Santa Helena LTDA", "plan": "grupo" }`,
+        response: `200
+{ "data": { "id": "cl...", "status": "active" }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/platform/tenants/:id/owner-email",
+        auth: "Sessão de PlatformUser · só master_admin",
+        description:
+          "Troca o email de login do OWNER do tenant, para quando o cliente errou o endereço no cadastro e não consegue nem entrar nem recuperar a senha. Recusa se o email novo já pertencer a outro usuário (`User.email` é único globalmente).",
+        request: `{ "email": "joao.novo@santahelena.com.br" }`,
+        response: `200
+{ "data": { "id": "cl..." }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/platform/tenants/:id/archive",
+        auth: "Sessão de PlatformUser · só master_admin",
+        description: "Arquiva ou desarquiva o tenant. Arquivar não apaga nada: tira o tenant das listas e dos KPIs sem perder histórico. `archived: false` reverte.",
+        request: `{ "archived": true }`,
+        response: `200
+{ "data": { "id": "cl...", "archived_at": "2026-08-04T12:00:00.000Z" }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/platform/tenants/:id/welcome-message",
+        auth: "Sessão de PlatformUser · só master_admin",
+        description:
+          "Reenvia as boas-vindas com uma credencial que funciona. GERA uma senha temporária nova e remarca `must_change_password`, em vez de repetir a antiga: a senha original em claro não é recuperável (só o hash é salvo), então reenviar a mesma mensagem mandaria uma senha que o usuário talvez já tenha trocado. Exige `Tenant.phone`: falha inteira sem telefone, sem tentar só o email, porque o propósito da ação é reenviar pelo WhatsApp.",
+        response: `200
+{ "data": { "sent": true }, "meta": {} }`,
       },
       {
         method: "GET",
@@ -1017,6 +1285,23 @@ export const GROUPS: Group[] = [
         description: "Ativa o provider (e desativa o outro, transacional). 404 se ainda não configurado.",
         response: `200
 { "data": { "provider": "meta_cloud_api" }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/platform/whatsapp-config/evolution/connect",
+        auth: "Sessão de PlatformUser · só master_admin",
+        description:
+          "Cria (ou reusa) a instância na Evolution API e devolve o QR Code para parear o número lendo pelo celular. Configura o webhook de entrada no mesmo passo; `webhook_configured: false` indica que o pareamento pode funcionar mas as mensagens recebidas não chegarão ao n8n. Host inalcançável não derruba a rota: devolve `qrcode: null` em vez de erro, porque a Evolution é infraestrutura externa e instável por natureza.",
+        response: `200
+{ "data": { "instance": "tibe", "qrcode": "data:image/png;base64,...", "webhook_configured": true }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/platform/whatsapp-config/evolution/status",
+        auth: "Sessão de PlatformUser · só master_admin",
+        description: "Estado do pareamento da instância Evolution, usado pela tela para saber se o número já está conectado ou se ainda espera a leitura do QR.",
+        response: `200
+{ "data": { "instance": "tibe", "state": "open", "connected": true }, "meta": {} }`,
       },
     ],
   },

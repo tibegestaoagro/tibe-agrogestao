@@ -31,44 +31,13 @@ const SCAN_DIRS = ["v1", "internal", "webhooks", "platform"];
 const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 
 /**
- * Débito conhecido, descoberto por este mesmo teste em 2026-08-04: rotas
- * reais que já existiam ANTES desta rodada e nunca foram documentadas em
- * /docs/api (a divergência não é nova, só ficou visível agora). Escrever a
- * documentação de cada uma é trabalho de conteúdo, não de arquitetura;
- * fora do escopo desta rodada (candidato 2 da auditoria de arquitetura).
- * Cada linha removida daqui, sem adicionar de volta em outro lugar, é uma
- * rota que passou a estar documentada de verdade.
+ * Débito zerado em 2026-08-04: as 28 rotas que existiam sem documentação
+ * foram escritas e a lista ficou vazia. Mantida (em vez de removida junto
+ * com a lógica) para o caso de uma rota precisar de exceção temporária:
+ * adicionar aqui é uma decisão consciente e visível no diff, enquanto
+ * afrouxar a asserção não seria.
  */
-const KNOWN_UNDOCUMENTED_GAPS = new Set<string>([
-  "DELETE /api/v1/notifications/subscribe",
-  "GET /api/internal/jobs/daily-digest",
-  "GET /api/platform/whatsapp-config/evolution/status",
-  "GET /api/v1/animal-batches",
-  "GET /api/v1/animal-batches/:id",
-  "GET /api/v1/animal-categories",
-  "GET /api/v1/notifications/public-key",
-  "PATCH /api/platform/tenants/:id",
-  "PATCH /api/platform/tenants/:id/owner-email",
-  "PATCH /api/v1/animal-batches/:id",
-  "PATCH /api/v1/animal-categories/:id",
-  "PATCH /api/v1/auth/profile",
-  "POST /api/internal/whatsapp/buffer",
-  "POST /api/internal/whatsapp/fetch-media",
-  "POST /api/internal/whatsapp/pending-flows",
-  "POST /api/platform/tenants",
-  "POST /api/platform/tenants/:id/archive",
-  "POST /api/platform/tenants/:id/welcome-message",
-  "POST /api/platform/whatsapp-config/evolution/connect",
-  "POST /api/v1/animal-batches",
-  "POST /api/v1/animal-batches/sell",
-  "POST /api/v1/animal-categories",
-  "POST /api/v1/auth/token",
-  "POST /api/v1/auth/token/refresh",
-  "POST /api/v1/auth/token/revoke",
-  "POST /api/v1/notifications/subscribe",
-  "POST /api/v1/tenant/active-property",
-  "POST /api/v1/tenant/plan",
-]);
+const KNOWN_UNDOCUMENTED_GAPS = new Set<string>([]);
 
 function findRouteFiles(dir: string): string[] {
   const entries = readdirSync(dir);
@@ -135,7 +104,7 @@ function main() {
   assert(
     missingFromDocs.length === 0,
     missingFromDocs.length === 0
-      ? "nenhuma rota NOVA sem documentação em /docs/api (além do débito já conhecido)"
+      ? "toda rota real (v1/internal/webhooks/platform) está documentada em /docs/api"
       : `rotas reais sem documentação em /docs/api: ${missingFromDocs.join(", ")}`,
   );
   if (closedGaps.length > 0) {
