@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getSubscription, AsaasNotConfiguredError } from "@/lib/asaas";
 import { logSubscriptionStatusChange } from "@/lib/platform/subscription-log";
 import type { SubscriptionStatus } from "@/generated/prisma/enums";
+import { subscriptionStatusData } from "@/lib/billing-access";
 
 /**
  * POST /api/webhooks/asaas (spec 5.6)
@@ -90,7 +91,10 @@ export async function POST(request: Request) {
     await prisma.subscription.update({
       where: { id: subscription.id },
       data: {
-        status: "active",
+        // Pagamento confirmado limpa `canceled_at` junto: quem voltou a
+        // pagar não pode continuar com a marca do cancelamento anterior,
+        // que o painel da plataforma leria como arquivamento em curso.
+        ...subscriptionStatusData("active"),
         ...(nextDueDate ? { next_due_date: nextDueDate } : {}),
       },
     });
@@ -101,12 +105,12 @@ export async function POST(request: Request) {
   } else if (event === "PAYMENT_OVERDUE") {
     await prisma.subscription.update({
       where: { id: subscription.id },
-      data: { status: "overdue" },
+      data: subscriptionStatusData("overdue"),
     });
   } else if (event === "PAYMENT_DELETED") {
     await prisma.subscription.update({
       where: { id: subscription.id },
-      data: { status: "canceled" },
+      data: subscriptionStatusData("canceled"),
     });
   }
 

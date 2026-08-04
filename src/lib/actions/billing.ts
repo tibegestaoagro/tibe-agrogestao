@@ -4,6 +4,7 @@ import type { AsaasBillingType } from "@/lib/asaas";
 import type { TenantPlan } from "@/generated/prisma/enums";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { logSubscriptionStatusChange } from "@/lib/platform/subscription-log";
+import { subscriptionStatusData } from "@/lib/billing-access";
 
 /**
  * Criação de assinatura real no Asaas (spec 5.5). PIX e boleto são exibidos
@@ -101,11 +102,12 @@ export async function subscribeAction(
  * Pleno). Exposta no mesmo dia em `POST /api/v1/billing/cancel` e no fim da
  * tela de assinatura.
  *
- * ⚠️ Cancelar BLOQUEIA o acesso na hora, não ao fim do período pago:
- * `getBillingAccess()` devolve `blocked` para `status: "canceled"`. Isso é
- * o comportamento que já existia; a tela avisa disso antes de confirmar.
- * Dar carência até `next_due_date` seria mudança de regra de produto, não
- * de código, e ainda não foi decidida.
+ * Cancelar NÃO bloqueia na hora (spec 2026-08-04): o acesso segue total até
+ * o fim do período pago, depois vira leitura por 60 dias, e só então
+ * bloqueia. A régua inteira está em `getCancellationWindow()`
+ * (`billing-access.ts`), que é quem interpreta o `canceled_at` gravado aqui.
+ * Até 2026-08-04 o cancelamento bloqueava imediatamente, o que cobrava o mês
+ * e tirava o acesso no mesmo dia.
  */
 export async function cancelSubscriptionAction(
   db: TenantPrismaClient,
@@ -117,7 +119,7 @@ export async function cancelSubscriptionAction(
   await asaas.cancelSubscription(existing.asaas_subscription_id);
   const updated = await db.subscription.update({
     where: { id: existing.id },
-    data: { status: "canceled" },
+    data: subscriptionStatusData("canceled"),
   });
   if (existing.status !== "canceled") {
     await logSubscriptionStatusChange({

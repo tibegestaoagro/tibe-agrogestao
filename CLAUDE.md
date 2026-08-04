@@ -272,6 +272,8 @@ npm run test:m16         # M16: recuperação de senha (código, rate limit, sen
 npm run test:m17         # M17: agenda com custo, conciliação e alertas
 npm run test:m18         # Limite de assentos por plano
 npm run test:m19         # Cadastro público verificado (4 etapas)
+npm run test:m30         # Rebanho por categoria (modelo único, brinco opcional)
+npm run test:m31         # Cancelamento: janela de arquivamento de 60 dias
 ```
 
 ---
@@ -792,6 +794,27 @@ fora de `(dashboard)`/`(auth)`, em `PUBLIC_PREFIXES`):
   `overdue`), `PAYMENT_DELETED` (→ `canceled`); outros eventos e assinaturas
   não rastreadas são reconhecidos com `200 { processed: false }`, nunca erro
   (o Asaas não deve reenviar por causa de eventos fora do nosso escopo).
+- **Cancelamento tem régua própria** (spec 2026-08-04): quem cancela não é
+  inadimplente, pagou o que devia e escolheu sair. Acesso **total até
+  `next_due_date`**, depois **leitura por `ARCHIVE_WINDOW_DAYS` (60) dias**,
+  depois **bloqueio**. A leitura na janela é deliberada: portabilidade do
+  próprio dado é direito do titular na LGPD, não cortesia. `Subscription`
+  ganhou `canceled_at` porque `next_due_date` sozinho não ancora quem cancela
+  **já vencido** (aí a janela começa no cancelamento, não num vencimento que
+  já passou): `getCancellationWindow()` faz esse `max` e é função **pura**,
+  testável sem esperar 60 dias. **A fase é sempre calculada das datas, nunca
+  lida de um campo que o cron preenche**: um cron atrasado não pode decidir
+  acesso. `sweepCanceledSubscriptions()` (`cancellation-sweep.ts`, roda no
+  cron diário) só reflete a fase em `Tenant.archived_at` para o painel da
+  plataforma enxergar, e **desfaz** o arquivamento de quem reativou.
+  **Passados os 60 dias nada é apagado**: o tenant fica bloqueado e aparece em
+  destaque em `/plataforma/tenants` como pendente de decisão humana (decisão
+  do usuário: apagar cliente é irreversível, e automatizar isso significa que
+  um erro de data apaga a fazenda de alguém sem ninguém no circuito).
+  Os três pontos que mudam status (`cancelSubscriptionAction`, webhook do
+  Asaas, `forceSubscriptionStatusAction`) usam `subscriptionStatusData()`,
+  que grava e **limpa** a data: sem isso, reativar deixaria arquivamento
+  fantasma. Testes: `npm run test:m31`.
 - **Acesso por nível de cobrança** (`src/lib/billing-access.ts`,
   `getBillingAccess(tenantId)`): três níveis: `full` / `read_only` /
   `blocked`: pela mesma régua de dias, tanto para assinatura em atraso
@@ -1036,6 +1059,8 @@ npm run test:m16          # M16
 npm run test:m17          # M17
 npm run test:m18          # Limite de assentos por plano
 npm run test:m19          # Cadastro público verificado
+npm run test:m30          # Rebanho por categoria (modelo único)
+npm run test:m31          # Cancelamento com janela de arquivamento (60 dias)
 ```
 
 Credenciais do seed (dev): `owner@damata.com.br` / `tibe123`.

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getSessionUser, getTenantDb } from "@/lib/tenant-context";
 import { hasMinRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { getBillingAccess } from "@/lib/billing-access";
+import { getBillingAccess, ARCHIVE_WINDOW_DAYS } from "@/lib/billing-access";
 import { listSubscriptionPayments, AsaasNotConfiguredError } from "@/lib/asaas";
 import SubscribeForm from "@/components/billing/subscribe-form";
 import CancelSubscription from "@/components/billing/cancel-subscription";
@@ -126,7 +126,10 @@ export default async function AssinaturaPage() {
       {/* Só aparece quando existe assinatura ativa no Asaas para cancelar:
           em trial (sem Subscription) ou já cancelada, não há o que fazer. */}
       {subscription?.asaas_subscription_id && subscription.status !== "canceled" && (
-        <CancelSubscription />
+        <CancelSubscription
+          paidUntil={subscription?.next_due_date ?? null}
+          archiveWindowDays={ARCHIVE_WINDOW_DAYS}
+        />
       )}
     </div>
   );

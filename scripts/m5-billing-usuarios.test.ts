@@ -66,8 +66,34 @@ async function main() {
     await dbA.subscription.update({ where: { id: sub.id }, data: { status: "overdue", next_due_date: new Date(Date.now() - 8 * DAY) } });
     assert((await getBillingAccess(tenantA.id)) === "read_only", "assinatura overdue há 8 dias -> read_only");
 
-    await dbA.subscription.update({ where: { id: sub.id }, data: { status: "canceled" } });
-    assert((await getBillingAccess(tenantA.id)) === "blocked", "assinatura canceled -> blocked sempre");
+    // Cancelamento deixou de bloquear na hora (spec 2026-08-04): o acesso
+    // segue até o fim do período pago, depois vira leitura por 60 dias.
+    // A régua completa é coberta por `test:m31`; aqui ficam só as duas
+    // fronteiras que este arquivo já vigiava, agora com o valor certo.
+    await dbA.subscription.update({
+      where: { id: sub.id },
+      data: {
+        status: "canceled",
+        canceled_at: new Date(),
+        next_due_date: new Date(Date.now() + 10 * DAY),
+      },
+    });
+    assert(
+      (await getBillingAccess(tenantA.id)) === "full",
+      "assinatura canceled dentro do período pago -> full",
+    );
+
+    await dbA.subscription.update({
+      where: { id: sub.id },
+      data: {
+        next_due_date: new Date(Date.now() - 90 * DAY),
+        canceled_at: new Date(Date.now() - 90 * DAY),
+      },
+    });
+    assert(
+      (await getBillingAccess(tenantA.id)) === "blocked",
+      "assinatura canceled com a janela de 60 dias vencida -> blocked",
+    );
 
     await dbA.subscription.delete({ where: { id: sub.id } });
 

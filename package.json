@@ -46,7 +46,8 @@
     "test:m28": "tsx scripts/m28-meu-dia.test.ts",
     "test:m29": "tsx scripts/m29-ajustes-financeiros.test.ts",
     "test:herd": "tsx scripts/verify-herd-evolution.test.ts",
-    "test:m30": "tsx scripts/m30-rebanho-categoria-unificado.test.ts"
+    "test:m30": "tsx scripts/m30-rebanho-categoria-unificado.test.ts",
+    "test:m31": "tsx scripts/m31-cancelamento-janela.test.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
