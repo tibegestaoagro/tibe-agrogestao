@@ -41,6 +41,13 @@ export async function getHerdEvolution(
   // dashboard inteiro). O resultado é idêntico ao do laço anterior, incluindo
   // o piso em zero: o que estava fora da janela vira uma contagem só, e o que
   // está dentro dela é acumulado sem voltar ao banco.
+  //
+  // A aposta: os dois `findMany` não têm `take`, então trazem uma linha (só
+  // a data) por animal/movimento CRIADO na janela. Vale porque um `take`
+  // daria gráfico errado, e empurrar o agrupamento pro SQL exigiria
+  // `$queryRaw`, que burla a extensão de isolamento por tenant. Se algum dia
+  // um tenant registrar dezenas de milhares de animais por ano, o custo vira
+  // transferência de linhas (render lento), nunca dado errado.
   const [registeredBefore, departedBefore, registeredDates, departedDates] = await Promise.all([
     db.animal.count({ where: { created_at: { lt: windowStart }, ...propertyFilter } }),
     db.animalMovement.count({
@@ -67,23 +74,23 @@ export async function getHerdEvolution(
   // `monthEnds` está em ordem crescente, então uma varredura só resolve os N
   // meses: cada data entra na contagem no mês em que cai e nunca mais é
   // revisitada. Ordenar uma vez é o que permite isso.
-  const registradas = registeredDates.map((a) => a.created_at.getTime()).sort((a, b) => a - b);
-  const baixadas = departedDates.map((m) => m.occurred_at.getTime()).sort((a, b) => a - b);
+  const registeredTimes = registeredDates.map((a) => a.created_at.getTime()).sort((a, b) => a - b);
+  const departedTimes = departedDates.map((m) => m.occurred_at.getTime()).sort((a, b) => a - b);
 
   let registered = registeredBefore;
   let departed = departedBefore;
-  let iReg = 0;
-  let iBaixa = 0;
+  let iRegistered = 0;
+  let iDeparted = 0;
 
   return monthEnds.map((monthEnd) => {
     const limite = monthEnd.getTime();
-    while (iReg < registradas.length && registradas[iReg] <= limite) {
+    while (iRegistered < registeredTimes.length && registeredTimes[iRegistered] <= limite) {
       registered++;
-      iReg++;
+      iRegistered++;
     }
-    while (iBaixa < baixadas.length && baixadas[iBaixa] <= limite) {
+    while (iDeparted < departedTimes.length && departedTimes[iDeparted] <= limite) {
       departed++;
-      iBaixa++;
+      iDeparted++;
     }
     return {
       month: monthEnd.toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""),

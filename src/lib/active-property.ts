@@ -17,8 +17,7 @@ export const ACTIVE_PROPERTY_COOKIE = "tibe_active_property_id";
  * já é escopada pelo client do tenant, então não há vazamento cross-tenant
  * possível mesmo num cookie forjado; é só uma questão de o filtro "sumir"
  * graciosamente se o id não for mais válido.
- */
-/**
+ *
  * ⚠️ Único ponto do projeto memoizado por uma chave de OBJETO (o client
  * Prisma), a armadilha que `session-gate.ts` evita de propósito ao usar
  * strings. Funciona porque `prismaForTenant()` devolve sempre a mesma

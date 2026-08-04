@@ -24,22 +24,75 @@ escritório. Leia depois de `CLAUDE.md`.
 ## Estado atual
 
 - Atualizado em: 2026-08-04
-- Última rodada: **auditoria de arquitetura** (skill `mattpocock-skills`,
-  `/improve-codebase-architecture`), pedida pelo usuário ("nosso app está
-  ficando inchado, quero uma revisão de arquivos, engenharia de software e
-  verbosidade"). 3 agentes de exploração levantaram fricção real no código;
-  relatório HTML com 5 candidatos (não commitado: escrito no temp da
-  sessão, não faz parte do repo). Usuário aprovou os 5 e pediu execução em
-  ordem de prioridade. Todos os 5 implementados, testados e commitados
-  nesta rodada; mais 1 bug real encontrado ao rodar a suíte completa
-  (corrigido à parte, fora dos 5 candidatos).
+- Última rodada: **auditoria de performance e enxugamento** (`/loop-goal`,
+  contrato de missão aprovado pelo usuário antes de executar). Objetivo:
+  "código limpo, estrutura enxuta e performática". 6 metas (G1..G6), todas
+  batidas, verificadas por comando e por um juiz subagente independente.
+  Detalhes na seção abaixo. Antes dela, na mesma sessão: remoção do suporte
+  multi-agente (Codex) e do graphify, e a auditoria de arquitetura com o
+  skill do Matt Pocock (5 candidatos + 1 bug, commits `9b777ad`..`c5953ef`).
 - Produção: nenhuma mudança nesta rodada (só commits locais na `main`,
   sem push). `https://tibe-agrogestao.vercel.app/` segue em `de693bf` +
-  `acc89a5` (mobile parte 1); os commits do Módulo 29 e desta auditoria
-  ainda não foram enviados.
+  `acc89a5` (mobile parte 1); os commits do Módulo 29, da auditoria de
+  arquitetura e desta auditoria de performance ainda não foram enviados.
 - Banco: nenhuma migração nova nesta rodada.
 
-### Entregue nesta rodada (auditoria de arquitetura, 5 candidatos + 1 bug)
+### Entregue nesta rodada (auditoria de performance, G1..G6)
+
+**Como medir de novo** (`scripts/measure-page-queries.sh`): precisa de
+`log_statement='all'` no Postgres local, `next dev` no ar e um cookie de
+sessão válido em `/tmp/tibe-sess.txt`. Medir pelo navegador NÃO serve: cada
+navegação do Next dispara 2 ou 3 renders (prefetch RSC + documento) e o
+número varia entre execuções; por isso o script usa `curl`, que é 1 render.
+O `log_statement` foi restaurado para `none` ao fim da rodada.
+
+- **G1/G2, performance** (commit `994e331`): render do `/dashboard` caiu de
+  **42 para 31 queries (-26%)**. Três causas distintas, todas medidas:
+  a linha do `Tenant` era lida 3x por request (cada consumidor com um
+  `select` diferente, por isso memoizar função por função não resolvia:
+  precisou unificar em `src/lib/tenant-record.ts`); `TenantProfile` 2x (o
+  gate de sessão repetia a query em vez de usar a função que já existia);
+  e `getHerdEvolution` fazia 2 queries POR MÊS num laço (12 com 6 meses,
+  ~29% do orçamento da página). `test:herd` prova resultado idêntico ao da
+  versão antiga em 9 cenários.
+- **G3, superfície pública** (commit `5a47d08`): 14 símbolos usados só
+  dentro do próprio arquivo perderam o `export`; 2 funções sem consumidor
+  algum removidas. `cancelSubscriptionAction` foi MANTIDA e documentada:
+  ver "achados abertos" abaixo.
+- **G4** (commit `7bc49e4`): `/docs/api` era o maior arquivo autoral do
+  projeto (1057 linhas), 1007 delas um array de dados dentro de um
+  componente. Dados foram para `endpoints.ts`; a página caiu para 55 linhas.
+- **G5** (commit `a32a572`): partia de uma premissa minha ERRADA. Eu tinha
+  reportado que `test:m28` "imprime Módulo 27" como bug de numeração; a
+  evidência mostrou o contrário: o texto impresso segue a spec e está certo,
+  e o `mNN` do nome do arquivo é um contador de suítes que descolou do
+  número do módulo por volta do `m25`. Renomear colidiria (`m26` já existe).
+  Documentado no `CLAUDE.md` para ninguém mais tratar como bug.
+- **G6** (commit `f73a3f2`): `animals.ts` (478 linhas, 4 razões diferentes
+  para mudar) virou 5 módulos por sub-domínio, maior com 168 linhas. Os 13
+  arquivos que importavam foram apontados para o módulo específico, sem
+  barrel de re-export (um barrel preservaria justamente o acoplamento que a
+  quebra desfaz).
+- **Revisão independente** (commit final): um subagente sem o meu contexto
+  avaliou o diff contra a rubrica do contrato e **reprovou** em "comentários
+  explicam o porquê" (7/10). Os 3 achados eram justos e foram corrigidos,
+  incluindo um comentário que era factualmente FALSO (dizia "acumular mês a
+  mês" enquanto o código re-varria o array a cada mês: o código passou a
+  acumular de verdade, em vez de o comentário ser rebaixado). O juiz também
+  pegou uma regressão de tipo que eu tinha introduzido (`TenantRecord`
+  declarava `status: string` à mão, o que fazia `tenant.status === "trial"`
+  perder a checagem contra o enum `TenantStatus`).
+
+### Limpeza de repositório (mesma rodada)
+
+- `AGENTS.md`, `.codex/`, skill `graphify` e sua saída: removidos (Codex
+  descontinuado, só Claude Code agora; graphify rejeitado pelo usuário).
+- 20 branches locais e 1 worktree órfão do Codex: removidos depois de
+  verificar que **nenhum** tinha commit fora da `main`. Sobrou só `main`.
+- **Pendente, precisa da sua aprovação** (apagar branch remota empurra
+  alteração pro GitHub): as mesmas branches ainda existem em `origin`.
+
+### Entregue na rodada anterior (auditoria de arquitetura, 5 candidatos + 1 bug)
 
 1. **`TENANT_SCOPED_MODELS` guardrail** (`scripts/tenant-isolation.test.ts`,
    `npm run test:isolation`): compara o Set hand-maintido em
@@ -87,23 +140,37 @@ Commits (todos locais, `main`, nenhum enviado): `9b777ad` (candidato 1),
 
 Validação: `tsc --noEmit`/`eslint` limpos em cada passo (único erro de tsc
 pré-existente e não relacionado é em `scripts/m23-token-auth.test.ts`).
-Suíte completa (`test:isolation` até `test:m29`, mais os 3 novos) rodada ao
-final: só 2 falhas, ambas em `test:m4`/`test:m24` ("1ª chamada do dia..."),
-pré-existentes e sem relação com esta rodada: lock diário em Redis Cloud
-compartilhado com produção, já documentado no `CLAUDE.md` como ambiente
-que não tem instância local separada. **Também achado, não corrigido**: os
-números dos scripts `test:mXX` já estavam com 1 dígito de desvio em
-relação ao número do módulo real bem antes desta rodada (`test:m28`
-imprime "Módulo 27", `test:m29` imprime "Módulo 28"): não é algo desta
-rodada, fora do escopo dos 5 candidatos, mas vale corrigir num momento
-dedicado se for mexer nesses scripts de novo.
+
+### Armadilhas de teste descobertas nesta sessão (ambiente, não código)
+
+Três suítes falham sozinhas quando rodadas repetidamente na mesma hora,
+porque o **Redis é compartilhado com produção** (não existe instância local
+separada, ver `CLAUDE.md`). Antes de investigar como bug, cheque isto:
+
+- `test:m4` e `test:m24`: lock diário de alertas/resumo (`SET NX`). Falham
+  na 2ª execução do dia com "1ª chamada do dia executa".
+- `test:m19`: usa telefone FIXO (`22988887777`) e `signup-send` limita a 5
+  envios/hora POR NÚMERO. A 6ª execução na mesma hora quebra com
+  "PendingSignup não encontrado", que parece bug de banco e não é.
+  Diagnóstico: ler `tibe:login-attempts:signup-send:5522988887777` no
+  Redis; some a chave para destravar.
 
 ### Pendências e próximo passo
 
 - Usuário quer **continuar dando funcionalidade ao app mobile**: pausado
-  desde o Módulo 29 para (1) a spec de "Minha Fazenda" e (2) esta auditoria
-  de arquitetura. Ambos concluídos; próximo passo é retomar o mobile,
-  decidindo COM o usuário qual recurso vem a seguir.
+  desde o Módulo 29 para (1) a spec de "Minha Fazenda", (2) a auditoria de
+  arquitetura e (3) a auditoria de performance. As três concluídas; próximo
+  passo é retomar o mobile, decidindo COM o usuário qual recurso vem a
+  seguir.
+- **Achado aberto, decisão de produto**: `cancelSubscriptionAction`
+  (`src/lib/actions/billing.ts`) está implementada e funciona (cancela no
+  Asaas, registra a transição), mas NENHUMA rota ou botão a chama. Hoje o
+  cliente não consegue cancelar a própria assinatura pelo painel, só
+  falando com a Pleno. Falta expor, não reescrever.
+- **Achado aberto, dívida conhecida**: 27 rotas reais nunca documentadas em
+  `/docs/api`, listadas em `KNOWN_UNDOCUMENTED_GAPS`
+  (`scripts/docs-api-completeness.test.ts`). Rota nova sem doc já quebra o
+  teste; as 27 antigas seguem liberadas até alguém escrever o conteúdo.
 - **Pivot de arquitetura ainda não escopado**: o usuário quer que o app
   (não só o WhatsApp) entenda voz/texto/imagem/documento diretamente,
   reduzindo a dependência do WhatsApp como canal primário (cobrança da
