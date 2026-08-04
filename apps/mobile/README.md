@@ -47,6 +47,18 @@ npm run start
 Abra no Expo Go (celular físico) ou num simulador/emulador a partir do menu
 que o `expo start` mostra no terminal.
 
+**⚠️ Armadilha: versão do Expo Go instalada precisa suportar o SDK deste
+projeto.** O app Expo Go da loja (Play Store/App Store) só entende UMA
+janela de versões de SDK por vez (a mais recente que a Expo já liberou pra
+ele); um projeto num SDK mais novo que o suportado abre em tela branca,
+sem erro nenhum visível, mesmo com a rede e o backend 100% acessíveis
+(confirmado ao vivo: SDK 57 → Expo Go só suportava até o 54 → tela branca,
+Metro sem receber nenhum pedido do celular). Verifique em Expo Go →
+perfil/configurações → "SDK version" antes de gastar tempo depurando rede.
+Este projeto está fixado no **SDK 54** justamente por causa disso; ao
+atualizar o `expo` no futuro, confira a compatibilidade do Expo Go
+publicado antes de subir de versão de novo.
+
 O back-end (`next dev`, na raiz do repo) precisa estar rodando e acessível a
 partir de onde o app roda:
 

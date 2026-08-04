@@ -7,35 +7,15 @@ import '@/global.css';
 
 import { Platform } from 'react-native';
 
-export const Colors = {
-  light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
-  },
-  dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
-  },
-} as const;
-
-export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
-
 /**
  * Identidade visual do Tibé (mesmos valores de `tailwind.config.ts` no
  * painel web, chave "tibe"). Cores fixas (não variam por tema claro/escuro):
  * usadas em botões de ação e destaques, não em fundo/texto padrão de tela.
  *
- * Corrigido nesta rodada: os valores anteriores (`#2E7D32`/`#1B5E20`/
+ * Corrigido na rodada anterior: os valores antigos (`#2E7D32`/`#1B5E20`/
  * `#E8F5E9`) eram um placeholder da Onda 2 (esqueleto do app), anterior à
  * paleta oficial que o cliente enviou (Onda 4, `docs/idVisual/paleta-de
- * cores.png`) e que já corrigiu o painel web. O app mobile nunca tinha sido
- * atualizado pra acompanhar.
+ * cores.png`) e que já corrigiu o painel web.
  */
 export const Brand = {
   primary: '#649721',
@@ -46,6 +26,35 @@ export const Brand = {
   accentDark: '#BA640C',
   accentLight: '#FCEFE2',
 } as const;
+
+/**
+ * Fundo/texto/superfície por tema (claro/escuro, segue a preferência do
+ * sistema, ver `use-theme.ts`). Corrigido nesta rodada: os valores
+ * anteriores eram o cinza genérico do template do Expo (nunca tocados),
+ * sem nenhuma relação com a marca: só `Brand` (botões/destaques) tinha
+ * sido corrigido antes. O painel web não tem modo escuro definido (é só
+ * claro); o escuro daqui reusa a mesma paleta verde-escura já usada na
+ * barra lateral do painel (`tibe.darkest`/`tibe.dark`), não uma invenção
+ * nova.
+ */
+export const Colors = {
+  light: {
+    text: '#0B1F16',
+    background: Brand.light,
+    backgroundElement: '#FFFFFF',
+    backgroundSelected: '#E5DED5',
+    textSecondary: '#6B6459',
+  },
+  dark: {
+    text: Brand.light,
+    background: Brand.darkest,
+    backgroundElement: '#0F3327',
+    backgroundSelected: '#1A4A36',
+    textSecondary: '#9FB0A8',
+  },
+} as const;
+
+export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
 export const Fonts = Platform.select({
   ios: {

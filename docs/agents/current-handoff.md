@@ -22,19 +22,24 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 ## Estado atual
 
 - Atualizado em: 2026-08-04
-- Última rodada: **app mobile retomado** (pausa desde o início da
-  iniciativa de layout, que fechou com push/deploy aprovado em `de693bf`,
-  já em produção). Usuário pediu telas de escrita e avisou que só vai
-  validar no dia seguinte: esta rodada é código real, testado em navegador
-  (via `expo start --web`, com um ajuste local pra viabilizar isso, ver
-  abaixo), mas **ainda não testado em Android/iPhone físico/emulador**.
+- Última rodada: **app mobile retomado**, em duas partes no mesmo dia. Parte
+  1 (commit `acc89a5`, já enviado): telas de escrita em Financeiro, nome da
+  fazenda, correções de cor/tipo, validado só via `expo start --web`. Parte
+  2 (esta atualização, ainda sem commit): **testado ao vivo num Android
+  físico via Expo Go**, achou e corrigiu 2 problemas reais que só
+  apareceram em dispositivo de verdade (ver abaixo), e um tema claro/escuro
+  de verdade (a cor de fundo ainda era o cinza genérico do template do
+  Expo). **Login e as 3 telas confirmadas funcionando num celular real.**
 - Produção: <https://tibe-agrogestao.vercel.app/> em `de693bf` (layout
-  completo). Esta rodada (app mobile) não tem nada pra fazer deploy (é um
-  app separado, sem build/publicação nesta rodada) além do ajuste dev-only
-  em `next.config.mjs`, que não muda o comportamento em produção
-  (confirmado rodando `next start` com `NODE_ENV=production` e conferindo
-  que o header CORS não aparece).
-- Banco: nenhuma mudança de schema nesta rodada.
+  completo) + `acc89a5` (parte 1 do mobile, sem efeito em produção: só o
+  ajuste dev-only de CORS em `next.config.mjs`, confirmado que não aparece
+  com `NODE_ENV=production`). Esta rodada (parte 2) não tem nada pra fazer
+  deploy: é só `apps/mobile/**`.
+- Banco: nenhuma mudança de schema. O Postgres local (Docker `tibe-pg`)
+  caiu sozinho durante a sessão (uso prolongado) e foi religado
+  (`docker start tibe-pg`): não é um problema do código, é só o container
+  local; mencionado aqui porque causou um "Erro inesperado" confuso no
+  login pelo celular até ser diagnosticado.
 
 ### Entregue nesta rodada (app mobile: telas de escrita + correções)
 
@@ -80,13 +85,49 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
   propriedades da Onda de layout), marcar como pago (item some da lista),
   novo lançamento (aparece na lista). `tsc --noEmit`, `expo lint`,
   `expo-doctor` (20/20) e `expo export --platform web` limpos.
-- **Não testado**: instalação/uso num Android ou iPhone real (Expo Go ou
-  build nativo), pendência que já existia, continua.
+- **Testado nesta rodada num Android físico** (não mais pendência): login,
+  Início, Rebanho e Financeiro (incluindo marcar como pago) confirmados
+  funcionando de ponta a ponta contra o back-end local.
+
+### Entregue na parte 2 (teste em dispositivo real + correções)
+
+- **Downgrade do Expo SDK 57 → 54** (`apps/mobile/package.json` e todas as
+  dependências `expo-*`/React/React Native alinhadas via
+  `npx expo install --fix` + reinstalação limpa): o Expo Go publicado nas
+  lojas (Play Store/App Store) só suporta até o SDK 54 hoje, um projeto
+  num SDK mais novo abre em **tela branca, sem erro nenhum visível**,
+  mesmo com rede/back-end 100% acessíveis (só descoberto testando de
+  verdade no celular; confirmado olhando "SDK version" no próprio Expo
+  Go). Documentado como armadilha no README do app pra não se repetir.
+  Efeito colateral do downgrade: `useColorScheme()` do React Native não
+  tem mais o valor `"unspecified"` (só existia na versão mais nova);
+  `use-theme.ts` corrigido pra usar `?? "light"` em vez de comparar com
+  essa string.
+- **Tema claro/escuro de verdade** (`constants/theme.ts`, `Colors`): a cor
+  de fundo/texto ainda era o cinza genérico do template do Expo (preto
+  puro no escuro), nunca trocada pela paleta do Tibé, mesmo depois de
+  `Brand` (botões/destaques) já ter sido corrigido na parte 1. O painel
+  web não tem modo escuro definido (só existe versão clara); o escuro do
+  app mobile reusa a mesma paleta verde-escura já usada na barra lateral
+  do painel (`tibe.darkest`/`tibe.dark`), não é uma cor nova inventada.
+- **Achado, não é bug do código**: o Postgres local (Docker `tibe-pg`)
+  caiu sozinho por uso prolongado da máquina durante a sessão; religado.
+  Nada a corrigir no projeto.
+- Validado com Expo Go num Android físico de verdade, contra o back-end
+  local: login (inclusive o cenário de erro real do Postgres caído, que
+  ajudou a confirmar que a mensagem de erro do app está correta), Início
+  com nome da fazenda, Rebanho, Financeiro com "marcar como pago". `tsc
+  --noEmit`, `expo lint`, `expo-doctor` (18/18 no SDK 54) e
+  `expo export --platform web` limpos depois do downgrade.
+- **Não testado ainda**: iPhone real (só Android testado até agora).
 
 ### Pendências e próximo passo
 
-- **Testar o app mobile num aparelho Android/iPhone real ou emulador**
-  (Expo Go): nunca foi feito, nem nesta rodada nem nas anteriores.
+- Usuário quer **continuar dando funcionalidade ao app mobile**: próximo
+  passo é decidir COM o usuário qual recurso vem a seguir (não assumir
+  sozinho), incluindo se é hora de reabrir Rebanho/Máquinas/Tarefas pro
+  mobile (ver ponto abaixo) ou aprofundar o que já existe (Financeiro,
+  Início).
 - Decidir com o usuário se/quando reabrir Rebanho, Máquinas e Tarefas
   para o app mobile e `packages/contracts` (decisão deliberada de ficarem
   de fora, documentada em specs de módulo; a extração de contrato de
@@ -105,11 +146,14 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 
 ## Histórico recente
 
-- 2026-08-04: app mobile retomado: telas de escrita em Financeiro (marcar
-  como pago, novo lançamento), nome da fazenda na tela Início, cores
-  oficiais corrigidas, `expo-secure-store` com fallback web, CORS dev-only.
-  Validado em navegador contra o back-end local; não testado em
-  Android/iPhone reais. Commit desta rodada pendente.
+- 2026-08-04: app mobile testado ao vivo num Android físico via Expo Go;
+  downgrade pro SDK 54 (Expo Go da loja não suportava o 57 ainda, achado
+  testando de verdade) e tema claro/escuro com a paleta oficial. Commit
+  desta rodada pendente.
+- 2026-08-04: app mobile: telas de escrita em Financeiro (marcar como
+  pago, novo lançamento), nome da fazenda, cores oficiais corrigidas,
+  `expo-secure-store` com fallback web, CORS dev-only. Commit `acc89a5`,
+  enviado a pedido do usuário.
 - 2026-08-04: push/deploy aprovado pelo usuário: `git push origin main`
   levou as 3 rodadas de layout (`3b65490`/`07f5210`/`de693bf`) pra
   produção de uma vez (Módulo 28 já estava lá desde antes).
@@ -118,5 +162,3 @@ Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
 - 2026-08-04: Fase 2+3 do layout (KPIs, gráficos, Meu Dia+calendário,
   calculadoras, "Fazenda em Números" real) + seed de demonstração de 2
   anos. Commit `07f5210`.
-- 2026-08-04: Fase 1 do layout (sidebar escura + nova IA de navegação +
-  topbar simplificada) implementada e validada. Commit `3b65490`.
