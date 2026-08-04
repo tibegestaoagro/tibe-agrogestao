@@ -19,12 +19,6 @@ const MOVEMENT_LABEL: Record<string, string> = {
   death: "Morte",
 };
 const SEX_LABEL: Record<string, string> = { male: "macho", female: "fêmea" };
-const STATUS_LABEL: Record<string, string> = {
-  active: "ativo",
-  sold: "vendido",
-  deceased: "morto",
-};
-
 function formatUtcCivilDate(date: Date): string {
   return date.toLocaleDateString("pt-BR", { timeZone: "UTC" });
 }

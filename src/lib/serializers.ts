@@ -40,6 +40,7 @@ export function serializePasture(p: any) {
  * categoria), `quantity` diz quantas cabeças o registro representa, e
  * `status` deixou de existir (quantidade 0 significa que não resta nada).
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function serializeAnimal(a: any) {
   return {
     id: a.id,
