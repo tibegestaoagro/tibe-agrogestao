@@ -5,7 +5,9 @@ export const metadata: Metadata = { title: "API" };
 
 type Group = { title: string; note?: string; endpoints: Endpoint[] };
 
-const GROUPS: Group[] = [
+// Exportado (além de usado nesta página) para o teste de completude em
+// scripts/docs-api-completeness.test.ts poder comparar contra as rotas reais.
+export const GROUPS: Group[] = [
   {
     title: "Autenticação e conta",
     note: "Login não é uma rota /api/v1 própria: usa o fluxo padrão do NextAuth (signIn(\"credentials\", {...}) no client, contra /api/auth/callback/credentials). A sessão resultante carrega tenant_id e role.",
@@ -178,7 +180,8 @@ const GROUPS: Group[] = [
     ],
   },
   {
-    title: "Rebanho: Propriedades",
+    title: "Minha Fazenda: Propriedades e Pastos",
+    note: "Módulo 29. \"Pasto\" (model Pasture) é a divisão da fazenda em áreas de pastagem; não confundir com Plot (\"Talhão\", domínio de Lavoura).",
     endpoints: [
       {
         method: "GET",
@@ -186,16 +189,16 @@ const GROUPS: Group[] = [
         auth: "Sessão · rebanho:read · perfil fazenda",
         description: "Lista propriedades. ?include_archived=true inclui as arquivadas (excluídas por padrão).",
         response: `200
-{ "data": [{ "id": "cl...", "name": "Sede", "address": "...", "area_hectares": 120.5, "archived_at": null }], "meta": { "total": 1 } }`,
+{ "data": [{ "id": "cl...", "name": "Sede", "address": "...", "city": "Montes Claros", "district": null, "area_hectares": 120.5, "archived_at": null }], "meta": { "total": 1 } }`,
       },
       {
         method: "POST",
         path: "/api/v1/properties",
         auth: "Sessão · rebanho:write · perfil fazenda",
-        description: "Cadastra propriedade.",
-        request: `{ "name": "Sede", "address": "Rodovia BR-101, km 42", "area_hectares": 120.5 }`,
+        description: "Cadastra propriedade. city e area_hectares (> 0) são obrigatórios; address e district são opcionais.",
+        request: `{ "name": "Sede", "city": "Montes Claros", "district": "São João da Vereda", "address": "Rodovia BR-101, km 42", "area_hectares": 120.5 }`,
         response: `201
-{ "data": { "id": "cl...", "name": "Sede", "area_hectares": 120.5, "archived_at": null } }`,
+{ "data": { "id": "cl...", "name": "Sede", "city": "Montes Claros", "district": "São João da Vereda", "area_hectares": 120.5, "archived_at": null } }`,
       },
       {
         method: "GET",
@@ -203,14 +206,14 @@ const GROUPS: Group[] = [
         auth: "Sessão · rebanho:read · perfil fazenda",
         description: "Detalhe da propriedade.",
         response: `200
-{ "data": { "id": "cl...", "name": "Sede", "address": "...", "area_hectares": 120.5 } }`,
+{ "data": { "id": "cl...", "name": "Sede", "address": "...", "city": "Montes Claros", "district": null, "area_hectares": 120.5 } }`,
       },
       {
         method: "PATCH",
         path: "/api/v1/properties/:id",
         auth: "Sessão · rebanho:write · perfil fazenda",
-        description: "Edita propriedade.",
-        request: `{ "name": "Sede Nova" }`,
+        description: "Edita propriedade. Todos os campos opcionais.",
+        request: `{ "name": "Sede Nova", "city": "Montes Claros" }`,
         response: `200
 { "data": { "id": "cl...", "name": "Sede Nova" } }`,
       },
@@ -218,9 +221,43 @@ const GROUPS: Group[] = [
         method: "POST",
         path: "/api/v1/properties/:id/archive",
         auth: "Sessão · rebanho:write · perfil fazenda",
-        description: "Arquiva a propriedade (não deleta, preserva histórico de animais/talhões). Idempotente.",
+        description: "Arquiva a propriedade (não deleta, preserva histórico de animais/talhões/pastos). Idempotente.",
         response: `200
 { "data": { "id": "cl...", "archived_at": "2026-07-10T12:00:00.000Z" } }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/pastures",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description: "Lista pastos ativos de uma fazenda. property_id é obrigatório. meta.area_summary traz a soma das áreas x tamanho total da fazenda.",
+        response: `200
+{ "data": [{ "id": "cl...", "property_id": "cl...", "name": "Pasto da Sede", "area_hectares": 25, "archived_at": null }], "meta": { "total": 1, "area_summary": { "total_area": 120.5, "distributed_area": 25, "remaining_area": 95.5, "over_allocated": false } } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/pastures",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "Cadastra pasto. area_hectares (> 0) e property_id são obrigatórios. Não bloqueia se a soma dos pastos ultrapassar o tamanho da fazenda: meta.area_summary.over_allocated só avisa.",
+        request: `{ "name": "Pasto da Sede", "area_hectares": 25, "property_id": "cl..." }`,
+        response: `201
+{ "data": { "id": "cl...", "property_id": "cl...", "name": "Pasto da Sede", "area_hectares": 25 }, "meta": { "area_summary": { "total_area": 120.5, "distributed_area": 25, "remaining_area": 95.5, "over_allocated": false } } }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/pastures/:id",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "Edita nome/tamanho do pasto.",
+        request: `{ "area_hectares": 30 }`,
+        response: `200
+{ "data": { "id": "cl...", "area_hectares": 30 }, "meta": { "area_summary": { "total_area": 120.5, "distributed_area": 30, "remaining_area": 90.5, "over_allocated": false } } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/pastures/:id/archive",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "Desativa o pasto (não deleta). Idempotente.",
+        response: `200
+{ "data": { "id": "cl...", "archived_at": "2026-08-04T12:00:00.000Z" }, "meta": { "area_summary": { "total_area": 120.5, "distributed_area": 0, "remaining_area": 120.5, "over_allocated": false } } }`,
       },
     ],
   },
@@ -959,7 +996,7 @@ const GROUPS: Group[] = [
       },
       {
         method: "POST",
-        path: "/api/platform/whatsapp-config/{provider}/activate",
+        path: "/api/platform/whatsapp-config/:provider/activate",
         auth: "Sessão de PlatformUser · só master_admin",
         description: "Ativa o provider (e desativa o outro, transacional). 404 se ainda não configurado.",
         response: `200

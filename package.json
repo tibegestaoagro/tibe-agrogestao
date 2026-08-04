@@ -15,6 +15,7 @@
     "seed:demo": "tsx scripts/seed-demo-data.ts",
     "auth:check": "tsx scripts/auth-check.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
+    "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:m1": "tsx scripts/m1-isolation.test.ts",
     "test:m2": "tsx scripts/m2-isolation.test.ts",
     "test:m3": "tsx scripts/m3-whatsapp.test.ts",
