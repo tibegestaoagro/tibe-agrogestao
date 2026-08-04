@@ -212,6 +212,42 @@ código ainda; cada uma precisa de rodada própria com spec.
 4. **As 27 rotas sem documentação são urgentes** (antes estavam como
    dívida aceitável).
 
+### EM ANDAMENTO: rebanho por categoria (branch `rebanho-por-categoria`)
+
+Spec: [docs/superpowers/specs/2026-08-04-rebanho-por-categoria-design.md](../superpowers/specs/2026-08-04-rebanho-por-categoria-design.md).
+Passos 1 a 4 de 6 concluídos. **A branch compila, faz build de produção e tem
+a suíte inteira verde (33/33).** Ainda NÃO foi mesclada nem enviada.
+
+**Antes de rodar localmente:** o banco de dev já tem as 2 migrações novas, e a
+`main` não tem o código correspondente, então rodar a `main` contra esse banco
+quebra. Trabalhe na branch, ou recrie o banco (`prisma migrate reset` +
+`db:seed` + `seed:demo`). **Produção não foi tocada.**
+
+Feito: modelo único `AnimalBatch` com brinco opcional (`Animal` e
+`AnimalStatus` removidos, histórico em `batch_id`); migração escrita à mão (a
+gerada pelo Prisma apagaria o histórico), validada contra 260 animais e 462
+registros de histórico com zero perda; `AnimalMovement.quantity`; actions
+consolidadas (`createBatchAction` existia DUAS vezes); rotas; tela de Rebanho
+como listagem única; scripts e seed; `test:m30` novo; `/docs/api` atualizado.
+
+Falta: **`packages/contracts` de rebanho** (passo 6, não iniciado) e decidir o
+que fazer com as rotas `/api/v1/animal-batches`, que hoje convivem com
+`/api/v1/animals` fazendo quase a mesma coisa.
+
+**Três armadilhas de método descobertas aqui, que valem para o projeto todo:**
+
+1. O comando que eu usava para contar erros de `tsc`
+   (`grep -oP "^[^(]+\.tsx?"`) EXCLUÍA silenciosamente arquivos em pastas com
+   parênteses (`(dashboard)`, `(public)`). Use
+   `grep -oP "^\S+?\.tsx?(?=\(\d+,\d+\))"`.
+2. `test:docs-api` verifica PRESENÇA da rota, não veracidade do conteúdo:
+   ficou verde com a documentação descrevendo o contrato antigo.
+3. Apagar tenant deixou de limpar por cascata (`AnimalBatch` referencia
+   `AnimalCategory` com `Restrict`, correto no domínio). Sem
+   `deleteTestTenants` (novo, em `scripts/helpers/herd.ts`), cada teste
+   abortado deixa tenant órfão que quebra a execução seguinte com documento
+   duplicado.
+
 ### Pendências e próximo passo
 
 - Usuário quer **continuar dando funcionalidade ao app mobile**: pausado
