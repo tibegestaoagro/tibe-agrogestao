@@ -1,5 +1,8 @@
 import type { ProfileType } from "@/lib/tenant-context";
-import { listUpcomingVaccinations } from "@/lib/actions/animals";
+import { listUpcomingVaccinations, countActiveAnimals } from "@/lib/actions/animals";
+import { countActivePlots } from "@/lib/actions/plots";
+import { countServiceClients } from "@/lib/actions/service-clients";
+import { countCompletedUnbilledOrders } from "@/lib/actions/service-orders";
 import { listPendingEntries } from "@/lib/actions/financial-reports";
 import { getBalanceAction } from "@/lib/actions/financial-summary";
 import { decToNum } from "@/lib/serialize";
@@ -30,7 +33,7 @@ export const resumo: Handler = async ({ db, parameters, activeProfiles }) => {
 
   if (scope === "rebanho" && availableTopLevel.some((o) => o.scope === "rebanho")) {
     const [count, upcoming] = await Promise.all([
-      db.animal.count({ where: { status: "active" } }),
+      countActiveAnimals(db),
       listUpcomingVaccinations(db, 30),
     ]);
     const relatedIds = Array.from(
@@ -95,9 +98,7 @@ export const resumo: Handler = async ({ db, parameters, activeProfiles }) => {
       expected_harvest_at: { gt: now },
     };
     const [count, cycles, cycleCount] = await Promise.all([
-      db.plot.count({
-        where: { cycles: { some: { status: { in: ["planted", "growing"] } } } },
-      }),
+      countActivePlots(db),
       db.cropCycle.findMany({
         where: cycleWhere,
         orderBy: { expected_harvest_at: "asc" },
@@ -161,7 +162,7 @@ export const resumo: Handler = async ({ db, parameters, activeProfiles }) => {
       };
     }
     if (scope === "clientes") {
-      const count = await db.serviceClient.count();
+      const count = await countServiceClients(db);
       return {
         reply_text: `🧾 Você tem ${count} cliente(s) cadastrado(s).`,
         requires_confirmation: false,
@@ -211,7 +212,7 @@ export const resumo: Handler = async ({ db, parameters, activeProfiles }) => {
       };
     }
     const [count, agg] = await Promise.all([
-      db.serviceOrder.count({ where: { status: "completed" } }),
+      countCompletedUnbilledOrders(db),
       db.serviceOrder.aggregate({ where: { status: "completed" }, _sum: { total_value: true } }),
     ]);
     const total = decToNum(agg._sum.total_value) ?? 0;

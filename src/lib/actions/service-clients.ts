@@ -3,6 +3,15 @@ import { decToNum, isoOrNull } from "@/lib/serialize";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 
 /**
+ * Total de clientes cadastrados (auditoria de arquitetura, 2026-08-04):
+ * extraído porque o dashboard web e o `resumo` do WhatsApp calculavam a
+ * mesma contagem com duas queries Prisma independentes.
+ */
+export async function countServiceClients(db: TenantPrismaClient) {
+  return db.serviceClient.count();
+}
+
+/**
  * Resumo financeiro do cliente (spec 2.5): extraído para ser reusado pela rota
  * HTTP e pelo agente WhatsApp ("quanto o cliente X me deve").
  */

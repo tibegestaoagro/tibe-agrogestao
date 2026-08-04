@@ -332,6 +332,20 @@ export async function addMovementAction(
   return ok({ movement_type: input.movement_type, value: input.value ?? null });
 }
 
+/**
+ * Animais ativos (auditoria de arquitetura, 2026-08-04): extraído porque o
+ * dashboard web e o `resumo` do WhatsApp calculavam a mesma contagem com
+ * duas queries Prisma independentes, sem passar pelo seam de actions.
+ */
+export async function countActiveAnimals(
+  db: TenantPrismaClient,
+  propertyId?: string | null,
+) {
+  return db.animal.count({
+    where: { status: "active", ...(propertyId ? { property_id: propertyId } : {}) },
+  });
+}
+
 /** Vacinações com next_due_at nos próximos N dias (spec 1.4, reusado pelo Módulo 4). */
 export async function listUpcomingVaccinations(
   db: TenantPrismaClient,

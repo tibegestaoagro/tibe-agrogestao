@@ -11,6 +11,15 @@ function startOfDay(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
 
+/**
+ * Ordens concluídas aguardando fatura (auditoria de arquitetura,
+ * 2026-08-04): extraído porque o dashboard web e o `resumo` do WhatsApp
+ * calculavam a mesma contagem com duas queries Prisma independentes.
+ */
+export async function countCompletedUnbilledOrders(db: TenantPrismaClient) {
+  return db.serviceOrder.count({ where: { status: "completed" } });
+}
+
 export async function createServiceOrderAction(
   db: TenantPrismaClient,
   input: {

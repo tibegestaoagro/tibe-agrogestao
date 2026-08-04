@@ -3,7 +3,10 @@ import { PiggyBank, Wallet, FileWarning, CalendarClock, ChevronRight } from "luc
 import { getSessionUser, getActiveProfiles, getTenantDb } from "@/lib/tenant-context";
 import { getCashFlow } from "@/lib/actions/financial-reports";
 import { getBalanceAction } from "@/lib/actions/financial-summary";
-import { listUpcomingVaccinations, getHerdEvolution } from "@/lib/actions/animals";
+import { listUpcomingVaccinations, getHerdEvolution, countActiveAnimals } from "@/lib/actions/animals";
+import { countActivePlots } from "@/lib/actions/plots";
+import { countServiceClients } from "@/lib/actions/service-clients";
+import { countCompletedUnbilledOrders } from "@/lib/actions/service-orders";
 import { getActivePropertyId } from "@/lib/active-property";
 import { decToNum } from "@/lib/serialize";
 import KpiCard from "@/components/dashboard/kpi-card";
@@ -75,22 +78,11 @@ export default async function DashboardHome() {
     calendarEntries,
     calendarVaccinations,
   ] = await Promise.all([
-    hasFazenda
-      ? db.animal.count({
-          where: { status: "active", ...(activePropertyId ? { property_id: activePropertyId } : {}) },
-        })
-      : Promise.resolve(0),
-    hasFazenda
-      ? db.plot.count({
-          where: {
-            cycles: { some: { status: { in: ["planted", "growing"] } } },
-            ...(activePropertyId ? { property_id: activePropertyId } : {}),
-          },
-        })
-      : Promise.resolve(0),
+    hasFazenda ? countActiveAnimals(db, activePropertyId) : Promise.resolve(0),
+    hasFazenda ? countActivePlots(db, activePropertyId) : Promise.resolve(0),
     hasFazenda ? listUpcomingVaccinations(db, 15, activePropertyId) : Promise.resolve([]),
-    hasPrestador ? db.serviceClient.count() : Promise.resolve(0),
-    hasPrestador ? db.serviceOrder.count({ where: { status: "completed" } }) : Promise.resolve(0),
+    hasPrestador ? countServiceClients(db) : Promise.resolve(0),
+    hasPrestador ? countCompletedUnbilledOrders(db) : Promise.resolve(0),
     getBalanceAction(db, null),
     db.alert.count({ where: { status: "pending" } }),
     getCashFlow(db, { start: sixMonthsAgo, end: now, groupBy: "month" }),
