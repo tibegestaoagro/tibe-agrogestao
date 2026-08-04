@@ -1,8 +1,10 @@
-# Handoff compartilhado do Tibé
+# Handoff do Tibé (continuidade entre dispositivos)
 
-Este arquivo é a memória operacional curta e versionada do projeto. Codex,
-Claude Code e qualquer outro agente devem lê-lo depois de `AGENTS.md` ou
-`CLAUDE.md`.
+Este arquivo é a memória operacional curta e versionada do projeto. O
+trabalho acontece em mais de uma máquina (desktop e notebook): não existe
+mais coordenação multi-agente (Codex descontinuado, 2026-08-04), só Claude
+Code, retomado em dispositivos diferentes conforme o usuário está ou não no
+escritório. Leia depois de `CLAUDE.md`.
 
 ## Protocolo de manutenção
 

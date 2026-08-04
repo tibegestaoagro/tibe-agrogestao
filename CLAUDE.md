@@ -9,14 +9,13 @@ spec do módulo em que for trabalhar em `docs/specs/module-XX-*.md`. Este arquiv
 é um resumo operacional: o PRD é a fonte de verdade para modelo de dados,
 contratos e regras de produto.
 
-Veja também [AGENTS.md](AGENTS.md) (mesma base técnica, redigida de forma
-agnóstica de ferramenta, para o caso de sessões abertas com outro agente).
-
-**Continuidade entre agentes:** depois destes arquivos introdutórios, leia
-[docs/agents/current-handoff.md](docs/agents/current-handoff.md). Ele é a
-memória compartilhada e versionada entre Claude Code, Codex e futuros agentes.
-O estado registrado nele prevalece sobre notas locais antigas de uma
-ferramenta.
+**Continuidade entre dispositivos:** depois deste arquivo, leia
+[docs/agents/current-handoff.md](docs/agents/current-handoff.md). O trabalho
+acontece em mais de uma máquina (desktop e notebook, conforme o usuário está
+ou não no escritório): o handoff é o que permite pausar numa e retomar na
+outra sem perder o fio. Não existe mais coordenação multi-agente (Codex foi
+descontinuado, 2026-08-04): é só Claude Code, em dispositivos diferentes. O
+estado registrado nele prevalece sobre notas antigas.
 
 ---
 
@@ -48,9 +47,11 @@ fase do contrato. O usuário (Dilton) segue este protocolo com qualquer agente:
    o commit. Merge na `main`, push direto para a `main` e deploy continuam
    exigindo aprovação explícita do usuário.
 9. **Ao encerrar uma rodada significativa**, atualize
-   `docs/agents/current-handoff.md` antes da resposta final. Registre somente
-   fatos verificados: estado, escopo, testes, commit/deploy, pendências e
-   próximo passo autorizado. Mantenha o handoff curto e não copie a conversa.
+   `docs/agents/current-handoff.md` antes da resposta final: é o que permite
+   retomar numa outra máquina sem perder o fio (não mais coordenação
+   multi-agente). Registre somente fatos verificados: estado, escopo, testes,
+   commit/deploy, pendências e próximo passo autorizado. Mantenha o handoff
+   curto e não copie a conversa.
 
 ## Status dos módulos
 
@@ -389,7 +390,8 @@ páginas de conteúdo.
 ## Minha Fazenda (Módulo 29, 2026-08-04)
 
 Área nova pedida pelo cliente (documento funcional enviado pelo cliente,
-arquivo `.doc` em `docs/`, binário, não versionado no git):
+arquivo `.doc` binário em `docs/`, versionado no git para preservar a
+origem):
 cadastro da fazenda em si (nome, tamanho total, município, distrito) e sua
 divisão em pastos (nome + tamanho cada). Objetivo do cliente: "o ponto de
 partida para o restante do sistema" (rebanho, pastos, compromissos, receitas,

@@ -69,7 +69,7 @@ partir de onde o app roda:
   `http://192.168.0.10:3000`. `localhost` no celular aponta para o próprio
   celular, nunca para o computador.
 
-Credenciais de teste (seed do projeto, ver `CLAUDE.md`/`AGENTS.md` na raiz):
+Credenciais de teste (seed do projeto, ver `CLAUDE.md` na raiz):
 `owner@damata.com.br` / `tibe123`.
 
 ## Estrutura
