@@ -11,10 +11,26 @@ import { apiPost } from "@/lib/client-api";
  * Fica no FIM da página, num bloco separado e discreto, longe do botão de
  * assinar: é a única ação terminal desta tela, e encostá-la na ação
  * principal convida ao clique errado. Pelo mesmo motivo tem confirmação em
- * dois passos, e o texto diz a consequência real (bloqueio imediato) antes
- * de o botão vermelho aparecer, não depois.
+ * dois passos, e o texto diz a consequência real antes de o botão vermelho
+ * aparecer, não depois.
+ *
+ * Recebe `paidUntil` para dizer a DATA em que o acesso muda, em vez de
+ * "até o fim do período pago": quem está decidindo se cancela precisa saber
+ * o dia, não a regra.
+ *
+ * `archiveWindowDays` chega por prop, e não por import de
+ * `ARCHIVE_WINDOW_DAYS`, porque `billing-access.ts` importa Prisma: trazê-lo
+ * para um client component arrastaria módulos de Node para o bundle do
+ * browser e quebraria o build (mesma armadilha já documentada no CLAUDE.md
+ * para `@/lib/permissions` dentro do dashboard).
  */
-export default function CancelSubscription() {
+export default function CancelSubscription({
+  paidUntil,
+  archiveWindowDays,
+}: {
+  paidUntil?: Date | null;
+  archiveWindowDays: number;
+}) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -40,7 +56,8 @@ export default function CancelSubscription() {
       {!confirming ? (
         <>
           <p className="mt-2 text-sm text-gray-500">
-            Encerra a cobrança recorrente. Você pode assinar de novo quando quiser.
+            Encerra a cobrança recorrente. Você continua usando normalmente até o fim do
+            período já pago. Pode assinar de novo quando quiser.
           </p>
           <Button
             variant="ghost"
@@ -54,12 +71,15 @@ export default function CancelSubscription() {
       ) : (
         <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-4">
           <p className="text-sm font-medium text-red-800">
-            O acesso é bloqueado assim que o cancelamento for confirmado.
+            {paidUntil
+              ? `Você usa o sistema normalmente até ${paidUntil.toLocaleDateString("pt-BR")}.`
+              : "Você usa o sistema normalmente até o fim do período já pago."}
           </p>
           <p className="mt-1 text-sm text-red-700">
-            Não há uso até o fim do período já pago: a conta fica limitada à
-            própria tela de assinatura na mesma hora. Seus dados continuam
-            guardados, e voltam a ficar acessíveis se você assinar de novo.
+            Depois dessa data, a conta fica em modo leitura por {archiveWindowDays} dias: dá
+            para consultar e exportar tudo, mas não para lançar nada novo. Passado esse prazo, o
+            acesso é bloqueado. Seus dados continuam guardados e voltam ao normal se você
+            assinar de novo.
           </p>
           {error && <p className="mt-3 text-sm text-red-800">{error}</p>}
           <div className="mt-4 flex flex-wrap gap-2">

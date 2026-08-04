@@ -976,6 +976,13 @@ model Subscription {
   plan                  TenantPlan
   status                SubscriptionStatus @default(active)
   next_due_date         DateTime?
+  // Quando a assinatura foi cancelada (spec 2026-08-04). Existe porque a
+  // janela de arquivamento precisa de uma âncora: quem cancela já vencido
+  // não tem período pago a honrar, e aí a contagem dos 60 dias começa no
+  // próprio cancelamento. A data também vive em SubscriptionStatusLog, mas
+  // ler aquele log em getBillingAccess() custaria uma query no caminho mais
+  // quente do app (o layout do dashboard chama a cada render).
+  canceled_at           DateTime?
   created_at            DateTime           @default(now())
 
   tenant       Tenant                   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)

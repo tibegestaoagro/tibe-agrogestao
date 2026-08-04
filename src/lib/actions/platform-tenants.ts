@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { prisma, prismaForTenant } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { logSubscriptionStatusChange } from "@/lib/platform/subscription-log";
+import { subscriptionStatusData } from "@/lib/billing-access";
 import { generateTempPassword } from "@/lib/passwords";
 import { toBrazilPhoneDigits } from "@/lib/phone";
 import { dispatchWelcomeMessage, buildWelcomeMessage } from "@/lib/whatsapp-welcome";
@@ -33,7 +34,7 @@ export async function forceSubscriptionStatusAction(params: {
 
   const updated = await prisma.subscription.update({
     where: { id: subscription.id },
-    data: { status: params.newStatus },
+    data: subscriptionStatusData(params.newStatus),
   });
 
   await logSubscriptionStatusChange({

@@ -999,7 +999,7 @@ export const GROUPS: Group[] = [
         path: "/api/v1/billing/cancel",
         auth: "Sessão · assinatura:write, só OWNER (acessível mesmo com a conta bloqueada, pelo mesmo motivo de /subscribe)",
         description:
-          "Cancela a assinatura no Asaas e marca `canceled`, registrando a transição em SubscriptionStatusLog. Atenção: o acesso é BLOQUEADO na hora, não ao fim do período pago (getBillingAccess devolve `blocked` para assinatura cancelada). Devolve 404 quando não há assinatura no Asaas para cancelar.",
+          "Cancela a assinatura no Asaas, marca `canceled` e grava `canceled_at`, registrando a transição em SubscriptionStatusLog. O acesso NÃO é bloqueado na hora: segue total até o fim do período pago (next_due_date), depois vira leitura por 60 dias, e só então bloqueia (getCancellationWindow em billing-access.ts). Quem cancela já vencido não tem período pago a honrar, e a janela de 60 dias começa no próprio cancelamento. Devolve 404 quando não há assinatura no Asaas para cancelar.",
         response: `200
 { "data": { "id": "cl..." }, "meta": {} }`,
       },
@@ -1095,7 +1095,7 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/internal/jobs/generate-alerts",
         auth: "Header Authorization: Bearer (CRON_SECRET, injetado automaticamente pela Vercel Cron: ver vercel.json)",
-        description: "Roda 1x/dia (09:00 UTC = 06:00 América/São Paulo). Gera alertas de vacina, colheita, conta a vencer, saldo negativo e trial acabando; dispara envio via WhatsApp. Idempotente por dia (lock no Redis) e por evento (não duplica Alert).",
+        description: "Roda 1x/dia (09:00 UTC = 06:00 América/São Paulo). Gera alertas de vacina, colheita, conta a vencer, saldo negativo e trial acabando; dispara envio via WhatsApp. Varre também cadastros públicos expirados e a janela de arquivamento de quem cancelou (marca Tenant.archived_at, sem apagar nada). Idempotente por dia (lock no Redis) e por evento (não duplica Alert).",
         response: `200
 { "data": { "vaccine_due": 2, "harvest_near": 0, "bill_due": 1, "low_balance": 0, "trial_ending": 1, "sent": 3 }, "meta": { "date": "2026-07-10" } }`,
       },

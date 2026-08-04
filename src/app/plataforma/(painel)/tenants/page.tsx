@@ -4,6 +4,8 @@ import TenantFilters from "@/components/platform/tenant-filters";
 import StatusBadge from "@/components/platform/status-badge";
 import CreateTenantForm from "@/components/platform/create-tenant-form";
 import { formatDocument } from "@/lib/document";
+import { listTenantsPendingDecision } from "@/lib/actions/cancellation-sweep";
+import { ARCHIVE_WINDOW_DAYS } from "@/lib/billing-access";
 
 const PLAN_LABEL: Record<string, string> = { campo: "Campo", fazenda: "Fazenda", grupo: "Grupo" };
 
@@ -47,6 +49,12 @@ export default async function PlatformTenantsPage({
 
   const filtered = searchParams.status ? mapped.filter((t) => t.status === searchParams.status) : mapped;
 
+  // Cancelados cuja janela de 60 dias já fechou. Aparecem em destaque porque
+  // esperam uma decisão humana (apagar, anonimizar ou manter) que ninguém
+  // vai tomar se ficar diluída no meio da lista: o fim da janela não apaga
+  // dado sozinho, por decisão do usuário.
+  const pendingDecision = await listTenantsPendingDecision();
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -56,6 +64,33 @@ export default async function PlatformTenantsPage({
           <CreateTenantForm />
         </div>
       </div>
+
+      {pendingDecision.length > 0 && (
+        <section className="rounded-lg border border-amber-800/60 bg-amber-950/30 p-4">
+          <h2 className="text-sm font-semibold text-amber-200">
+            {pendingDecision.length} tenant(s) aguardando decisão
+          </h2>
+          <p className="mt-1 text-xs text-amber-200/70">
+            Cancelaram e a janela de {ARCHIVE_WINDOW_DAYS} dias de leitura já terminou. O acesso
+            está bloqueado e os dados continuam no banco: nada é apagado automaticamente.
+          </p>
+          <ul className="mt-3 space-y-1.5">
+            {pendingDecision.map((t) => (
+              <li key={t.tenant_id} className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                <Link
+                  href={`/plataforma/tenants/${t.tenant_id}`}
+                  className="font-medium text-amber-100 hover:underline"
+                >
+                  {t.name}
+                </Link>
+                <span className="text-xs text-amber-200/60">
+                  janela encerrada em {t.archive_ended_at.toLocaleDateString("pt-BR")}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="overflow-x-auto rounded-lg border border-gray-800 bg-gray-900">
         <table className="w-full text-left text-sm">
