@@ -250,9 +250,17 @@ registros de histórico com zero perda; `AnimalMovement.quantity`; actions
 consolidadas (`createBatchAction` existia DUAS vezes); rotas; tela de Rebanho
 como listagem única; scripts e seed; `test:m30` novo; `/docs/api` atualizado.
 
-Falta: **`packages/contracts` de rebanho** (passo 6, não iniciado) e decidir o
-que fazer com as rotas `/api/v1/animal-batches`, que hoje convivem com
-`/api/v1/animals` fazendo quase a mesma coisa.
+Falta decidir o que fazer com as rotas `/api/v1/animal-batches`, que hoje
+convivem com `/api/v1/animals` fazendo quase a mesma coisa.
+
+**O passo 6 (`packages/contracts` de rebanho) foi DESACONSELHADO, não
+esquecido.** Verificado: o pacote existe com 8 arquivos, mas tem **zero
+consumidores**. Nenhum arquivo em `src` ou `apps` importa `@tibe/contracts`,
+o `apps/mobile/package.json` nem o declara como dependência, e não há import
+por caminho relativo. Um contrato de tipos só rende quando duas pontas
+precisam concordar; com uma ponta só, ele vira mais uma cópia do schema para
+manter em sincronia, sem nada conferindo se está certa. O contrato de rebanho
+deve nascer junto com a tela de Rebanho do mobile, não antes dela.
 
 **Três armadilhas de método descobertas aqui, que valem para o projeto todo:**
 
