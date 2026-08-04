@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { GROUPS } from "@/app/(public)/docs/api/page";
+import { GROUPS } from "@/app/(public)/docs/api/endpoints";
 
 /**
  * Guardrail (auditoria de arquitetura, 2026-08-04): /docs/api (GROUPS em
