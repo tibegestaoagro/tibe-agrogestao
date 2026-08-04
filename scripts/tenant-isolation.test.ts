@@ -1,5 +1,7 @@
 import "dotenv/config";
-import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { prisma, prismaForTenant, scoped, TENANT_SCOPED_MODELS } from "@/lib/prisma";
 
 /**
  * Teste automatizado de isolamento multi-tenant (spec tasks 0.3 / critério de
@@ -19,8 +21,48 @@ function assert(cond: boolean, msg: string) {
   }
 }
 
+/**
+ * Guardrail (auditoria de arquitetura, 2026-08-04): TENANT_SCOPED_MODELS
+ * (src/lib/prisma.ts) é digitado à mão, sem nada que force um model novo com
+ * `tenant_id` a entrar na lista. Esquecer quebra o isolamento em silêncio
+ * pra esse model (a regra mais importante do projeto). Este check lê o
+ * schema.prisma real e falha se algum dos dois lados divergir.
+ */
+function checkTenantScopedModelsCoverage() {
+  const schemaPath = join(__dirname, "..", "prisma", "schema.prisma");
+  const schema = readFileSync(schemaPath, "utf-8");
+
+  const modelsWithTenantId = new Set<string>();
+  const modelBlockRe = /^model\s+(\w+)\s*\{([\s\S]*?)\n\}/gm;
+  let match: RegExpExecArray | null;
+  while ((match = modelBlockRe.exec(schema)) !== null) {
+    const [, name, body] = match;
+    if (/^\s*tenant_id\s+String\b/m.test(body)) {
+      modelsWithTenantId.add(name);
+    }
+  }
+
+  const missingFromSet = Array.from(modelsWithTenantId).filter((m) => !TENANT_SCOPED_MODELS.has(m));
+  const extraInSet = Array.from(TENANT_SCOPED_MODELS).filter((m) => !modelsWithTenantId.has(m));
+
+  assert(
+    missingFromSet.length === 0,
+    missingFromSet.length === 0
+      ? "todo model com tenant_id no schema está em TENANT_SCOPED_MODELS"
+      : `TENANT_SCOPED_MODELS está faltando: ${missingFromSet.join(", ")}`,
+  );
+  assert(
+    extraInSet.length === 0,
+    extraInSet.length === 0
+      ? "TENANT_SCOPED_MODELS não tem entrada sem model correspondente com tenant_id"
+      : `TENANT_SCOPED_MODELS tem entrada(s) sem tenant_id no schema: ${extraInSet.join(", ")}`,
+  );
+}
+
 async function main() {
   console.log("🔒 Teste de isolamento multi-tenant\n");
+
+  checkTenantScopedModelsCoverage();
 
   // 1. Cria dois tenants (via client base, sem escopo).
   const tenantA = await prisma.tenant.create({
