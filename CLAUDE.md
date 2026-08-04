@@ -241,6 +241,16 @@ Todo módulo que adiciona endpoints ganha um teste de isolamento automatizado
 diretamente com um `Request` construído). Rode sempre antes de reportar um
 módulo como concluído:
 
+⚠️ **O `mNN` de `test:mNN` é um contador de SUÍTES, não o número do módulo**
+(esclarecido na auditoria de 2026-08-04, depois de parecer um bug). Os dois
+coincidiram até por volta do `m25` e depois descolaram: `test:m26` é a
+calculadora pecuária, enquanto o *Módulo 26* das specs é Máquinas, testado
+por `test:m27`. Por isso vários scripts imprimem um número diferente do que
+está no próprio nome do arquivo: o texto impresso é que segue a spec, e está
+certo. Renumerar não resolve (colide: já existe um `m26`). Ao criar uma suíte
+nova, use o próximo número livre da sequência e deixe o texto impresso
+apontando o módulo real.
+
 ```powershell
 $env:DATABASE_URL="postgresql://tibe:tibe@localhost:55432/tibe_dev?schema=public"
 npm run test:isolation   # M0: isolamento genérico
@@ -1007,6 +1017,7 @@ npm run auth:check        # valida credencial do seed (bcrypt)
 npm run test:isolation    # M0 (inclui guardrail: TENANT_SCOPED_MODELS vs schema.prisma)
 npm run test:docs-api     # /docs/api sincronizado com as rotas reais (sem DB)
 npm run test:nav          # buildNavItems (sidebar), função pura (sem DB)
+npm run test:herd         # getHerdEvolution: resultado idêntico ao da versão antiga
 npm run test:m1           # M1
 npm run test:m2           # M2
 npm run test:m3           # M3
