@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getBillingAccess } from "@/lib/billing-access";
 import { listSubscriptionPayments, AsaasNotConfiguredError } from "@/lib/asaas";
 import SubscribeForm from "@/components/billing/subscribe-form";
+import CancelSubscription from "@/components/billing/cancel-subscription";
 import { Badge } from "@/components/ui/badge";
 
 const PLAN_LABEL: Record<string, string> = { campo: "Campo", fazenda: "Fazenda", grupo: "Grupo" };
@@ -121,6 +122,12 @@ export default async function AssinaturaPage() {
           </ul>
         )}
       </div>
+
+      {/* Só aparece quando existe assinatura ativa no Asaas para cancelar:
+          em trial (sem Subscription) ou já cancelada, não há o que fazer. */}
+      {subscription?.asaas_subscription_id && subscription.status !== "canceled" && (
+        <CancelSubscription />
+      )}
     </div>
   );
 }

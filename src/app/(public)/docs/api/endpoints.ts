@@ -821,6 +821,15 @@ export const GROUPS: Group[] = [
       },
       {
         method: "POST",
+        path: "/api/v1/billing/cancel",
+        auth: "Sessão · assinatura:write, só OWNER (acessível mesmo com a conta bloqueada, pelo mesmo motivo de /subscribe)",
+        description:
+          "Cancela a assinatura no Asaas e marca `canceled`, registrando a transição em SubscriptionStatusLog. Atenção: o acesso é BLOQUEADO na hora, não ao fim do período pago (getBillingAccess devolve `blocked` para assinatura cancelada). Devolve 404 quando não há assinatura no Asaas para cancelar.",
+        response: `200
+{ "data": { "id": "cl..." }, "meta": {} }`,
+      },
+      {
+        method: "POST",
         path: "/api/webhooks/asaas",
         auth: "Header asaas-access-token (comparado contra ASAAS_WEBHOOK_TOKEN, cadastrado no painel do Asaas)",
         description: "Recebe eventos de pagamento. PAYMENT_CONFIRMED → Subscription ativa + next_due_date atualizado. PAYMENT_OVERDUE → status overdue. PAYMENT_DELETED → status canceled. Outros eventos são reconhecidos (200) sem processamento.",

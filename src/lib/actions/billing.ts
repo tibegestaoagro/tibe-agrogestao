@@ -93,13 +93,19 @@ export async function subscribeAction(
 }
 
 /**
- * ⚠️ Implementada e completa, mas SEM NENHUM CONSUMIDOR (achado da auditoria
- * de 2026-08-04). Não existe rota nem botão que chame isto: hoje o cliente
- * não tem como cancelar a própria assinatura pelo painel, só falando com a
- * Pleno. Mantida (não é código morto: a lógica funciona, cancela no Asaas e
- * registra a transição em SubscriptionStatusLog) porque o que falta é
- * expor, não reescrever. Ligar isso a uma rota + confirmação na tela de
- * assinatura é decisão de produto pendente com o usuário.
+ * Cancela no Asaas e marca `canceled`, registrando a transição em
+ * `SubscriptionStatusLog`.
+ *
+ * Existia desde o Módulo 5 sem nenhum consumidor (achado da auditoria de
+ * 2026-08-04: o cliente não conseguia cancelar sozinho, só falando com a
+ * Pleno). Exposta no mesmo dia em `POST /api/v1/billing/cancel` e no fim da
+ * tela de assinatura.
+ *
+ * ⚠️ Cancelar BLOQUEIA o acesso na hora, não ao fim do período pago:
+ * `getBillingAccess()` devolve `blocked` para `status: "canceled"`. Isso é
+ * o comportamento que já existia; a tela avisa disso antes de confirmar.
+ * Dar carência até `next_due_date` seria mudança de regra de produto, não
+ * de código, e ainda não foi decidida.
  */
 export async function cancelSubscriptionAction(
   db: TenantPrismaClient,
