@@ -219,10 +219,10 @@ separada, ver `CLAUDE.md`). Antes de investigar como bug, cheque isto:
   com muita coisa em aberto: onde entra a chamada ao LLM, se substitui ou
   convive com o classificador do N8N, se a pipeline de mídia hoje só do
   WhatsApp é reusada). Nada implementado ainda.
-- Módulo 29 (Minha Fazenda): aplicar a migração no Neon de produção só
-  quando o usuário aprovar; cadastro de fazenda/pasto por WhatsApp e
-  vínculos futuros (Task/FinancialEntry por pasto) ficam pra rodada
-  própria (decisão do usuário).
+- Módulo 29 (Minha Fazenda): migração já aplicada em produção. Falta o
+  cadastro de fazenda/pasto pelo WhatsApp (seção 10 do documento do
+  cliente) e os vínculos futuros (Task/FinancialEntry por pasto), que
+  ficaram pra rodada própria por decisão do usuário.
 - Decidir com o usuário se/quando reabrir Rebanho, Máquinas e Tarefas
   para o app mobile e `packages/contracts` (decisão deliberada de ficarem
   de fora, documentada em specs de módulo; tecnicamente já dá pra reabrir
