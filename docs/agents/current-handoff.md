@@ -288,10 +288,12 @@ que fazer com as rotas `/api/v1/animal-batches`, que hoje convivem com
   e não deixa a assinatura em estado parcial). O caminho de sucesso depende
   de uma chave de sandbox que este ambiente nunca teve, igual ao resto da
   integração desde o Módulo 5.
-- **Achado aberto, dívida conhecida**: 27 rotas reais nunca documentadas em
-  `/docs/api`, listadas em `KNOWN_UNDOCUMENTED_GAPS`
-  (`scripts/docs-api-completeness.test.ts`). Rota nova sem doc já quebra o
-  teste; as 27 antigas seguem liberadas até alguém escrever o conteúdo.
+- ~~27 rotas sem documentação~~ **QUITADO** (commit `1200630`, em produção):
+  eram 28 na conta final. `KNOWN_UNDOCUMENTED_GAPS` está VAZIO em
+  `scripts/docs-api-completeness.test.ts`, ou seja, hoje qualquer rota nova
+  sem documentação quebra `npm run test:docs-api`, sem exceção liberada.
+  `/docs/api` documenta 134 rotas. **Ressalva que continua valendo:** o teste
+  verifica PRESENÇA da rota, não veracidade do conteúdo.
 - **Pivot de arquitetura ainda não escopado**: o usuário quer que o app
   (não só o WhatsApp) entenda voz/texto/imagem/documento diretamente,
   reduzindo a dependência do WhatsApp como canal primário (cobrança da
@@ -312,8 +314,7 @@ que fazer com as rotas `/api/v1/animal-batches`, que hoje convivem com
 - Confirmação ainda pendente da Agromax: destino da Lavoura. (O modelo de
   rebanho por categoria deixou de ser dúvida: foi confirmado pelo cliente e
   já está em produção.)
-- **Próximo passo autorizado e não iniciado:** documentar as 27 rotas
-  (o usuário classificou como urgente) e retomar o app mobile pelo
+- **Próximo passo autorizado e não iniciado:** retomar o app mobile pelo
   assistente, que a decisão 3 promoveu a item mais importante do roadmap.
 - Validação técnica das 3 calculadoras de confiança média (água, calagem,
   mão de obra) antes de uso real com clientes.
