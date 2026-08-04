@@ -30,11 +30,9 @@ function tierFromDaysOverdue(days: number): BillingAccess {
 }
 
 /**
- * Memoizado por request e com as 2 queries em paralelo (auditoria de
- * performance, 2026-08-04): são independentes entre si, e o layout do
- * dashboard chamava isto a cada render junto com o gate de sessão. Ver o
- * aviso sobre `cache()` em tenant-context.ts: memoização é por request, o
- * `tenantId` entra na chave, não há compartilhamento entre tenants.
+ * Memoizado por `tenantId`, por request (ver o aviso em
+ * per-request-cache.ts): o layout do dashboard chamava isto a cada render,
+ * junto com o gate de sessão, refazendo as mesmas leituras.
  */
 export const getBillingAccess = perRequestCache(async function getBillingAccess(
   tenantId: string,

@@ -15,19 +15,16 @@ import { prisma } from "@/lib/prisma";
  * sempre com um `tenantId` já resolvido da sessão pelo caller, nunca vindo
  * do client. A memoização é por request (ver o aviso em tenant-context.ts).
  */
-export type TenantRecord = {
-  name: string;
-  plan_confirmed: boolean;
-  status: string;
-  trial_ends_at: Date | null;
-};
-
-export const getTenantRecord = perRequestCache(async function getTenantRecord(
-  tenantId: string,
-): Promise<TenantRecord | null> {
-  const tenant = await prisma.tenant.findUnique({
+// O tipo é INFERIDO do próprio `select`, não escrito à mão: declarar
+// `status: string` aqui faria `tenant.status === "trial"` em
+// billing-access.ts virar comparação entre strings, perdendo a checagem
+// contra o enum `TenantStatus` que o Prisma gera (um typo passaria a
+// compilar em silêncio).
+export const getTenantRecord = perRequestCache(async function getTenantRecord(tenantId: string) {
+  return prisma.tenant.findUnique({
     where: { id: tenantId },
     select: { name: true, plan_confirmed: true, status: true, trial_ends_at: true },
   });
-  return tenant as TenantRecord | null;
 });
+
+export type TenantRecord = NonNullable<Awaited<ReturnType<typeof getTenantRecord>>>;

@@ -27,6 +27,8 @@ export async function getHerdEvolution(
     ? { animal: { property_id: opts.propertyId } }
     : {};
 
+  if (opts.months < 1) return [];
+
   const monthEnds = Array.from({ length: opts.months }, (_, idx) => {
     const i = opts.months - 1 - idx;
     return new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59, 999);
@@ -36,10 +38,9 @@ export async function getHerdEvolution(
 
   // 4 queries no total, em vez de 2 por mês (auditoria de performance,
   // 2026-08-04: com 6 meses eram 12 idas ao banco, ~29% das queries do
-  // dashboard inteiro). A ideia: contar UMA vez o que já existia antes da
-  // janela e, dentro dela, trazer só as datas (poucas linhas, limitadas pelo
-  // período) para acumular mês a mês em memória. O resultado é idêntico ao
-  // do laço anterior, incluindo o piso em zero.
+  // dashboard inteiro). O resultado é idêntico ao do laço anterior, incluindo
+  // o piso em zero: o que estava fora da janela vira uma contagem só, e o que
+  // está dentro dela é acumulado sem voltar ao banco.
   const [registeredBefore, departedBefore, registeredDates, departedDates] = await Promise.all([
     db.animal.count({ where: { created_at: { lt: windowStart }, ...propertyFilter } }),
     db.animalMovement.count({
@@ -63,12 +64,27 @@ export async function getHerdEvolution(
     }),
   ]);
 
-  const countUpTo = (dates: Date[], limit: Date) =>
-    dates.reduce((total, d) => (d.getTime() <= limit.getTime() ? total + 1 : total), 0);
+  // `monthEnds` está em ordem crescente, então uma varredura só resolve os N
+  // meses: cada data entra na contagem no mês em que cai e nunca mais é
+  // revisitada. Ordenar uma vez é o que permite isso.
+  const registradas = registeredDates.map((a) => a.created_at.getTime()).sort((a, b) => a - b);
+  const baixadas = departedDates.map((m) => m.occurred_at.getTime()).sort((a, b) => a - b);
+
+  let registered = registeredBefore;
+  let departed = departedBefore;
+  let iReg = 0;
+  let iBaixa = 0;
 
   return monthEnds.map((monthEnd) => {
-    const registered = registeredBefore + countUpTo(registeredDates.map((a) => a.created_at), monthEnd);
-    const departed = departedBefore + countUpTo(departedDates.map((m) => m.occurred_at), monthEnd);
+    const limite = monthEnd.getTime();
+    while (iReg < registradas.length && registradas[iReg] <= limite) {
+      registered++;
+      iReg++;
+    }
+    while (iBaixa < baixadas.length && baixadas[iBaixa] <= limite) {
+      departed++;
+      iBaixa++;
+    }
     return {
       month: monthEnd.toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""),
       count: Math.max(registered - departed, 0),

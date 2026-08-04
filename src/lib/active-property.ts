@@ -18,6 +18,17 @@ export const ACTIVE_PROPERTY_COOKIE = "tibe_active_property_id";
  * possível mesmo num cookie forjado; é só uma questão de o filtro "sumir"
  * graciosamente se o id não for mais válido.
  */
+/**
+ * ⚠️ Único ponto do projeto memoizado por uma chave de OBJETO (o client
+ * Prisma), a armadilha que `session-gate.ts` evita de propósito ao usar
+ * strings. Funciona porque `prismaForTenant()` devolve sempre a mesma
+ * instância para um tenant (cache em `globalThis`, ver prisma.ts), então a
+ * identidade é estável dentro do request. Se um dia esse cache do client
+ * sair, isto vira um no-op silencioso: perde a memoização, não corrompe
+ * nada (clients de tenants diferentes são objetos diferentes, então nunca
+ * colidem). Preferi não trocar a assinatura só por isso; se trocar, use o
+ * `tenantId` como chave.
+ */
 export const getActivePropertyId = perRequestCache(async function getActivePropertyId(
   db: TenantPrismaClient,
 ): Promise<string | null> {
