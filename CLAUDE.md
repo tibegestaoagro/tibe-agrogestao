@@ -1002,7 +1002,9 @@ npm run db:deploy         # aplica migrações pendentes (não-interativo)
 npm run db:seed           # seed (tenant Da Mata + owner + vacinas padrão)
 npm run db:check          # valida conexão com o banco
 npm run auth:check        # valida credencial do seed (bcrypt)
-npm run test:isolation    # M0
+npm run test:isolation    # M0 (inclui guardrail: TENANT_SCOPED_MODELS vs schema.prisma)
+npm run test:docs-api     # /docs/api sincronizado com as rotas reais (sem DB)
+npm run test:nav          # buildNavItems (sidebar), função pura (sem DB)
 npm run test:m1           # M1
 npm run test:m2           # M2
 npm run test:m3           # M3
