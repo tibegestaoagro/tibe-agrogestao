@@ -52,7 +52,7 @@ export function serializeAnimal(a: any) {
 export function serializeWeightLog(w: any) {
   return {
     id: w.id,
-    animal_id: w.animal_id,
+    batch_id: w.batch_id,
     weight: decToNum(w.weight),
     measured_at: w.measured_at.toISOString(),
     created_at: w.created_at.toISOString(),
@@ -63,7 +63,7 @@ export function serializeWeightLog(w: any) {
 export function serializeVaccination(v: any) {
   return {
     id: v.id,
-    animal_id: v.animal_id,
+    batch_id: v.batch_id,
     vaccine_id: v.vaccine_id,
     vaccine_name: v.vaccine?.name ?? null,
     applied_at: v.applied_at.toISOString(),
@@ -77,7 +77,7 @@ export function serializeVaccination(v: any) {
 export function serializeMovement(m: any) {
   return {
     id: m.id,
-    animal_id: m.animal_id,
+    batch_id: m.batch_id,
     movement_type: m.movement_type,
     from_property_id: m.from_property_id ?? null,
     to_property_id: m.to_property_id ?? null,

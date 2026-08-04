@@ -11,7 +11,7 @@ import { ok, fail, type ActionResult } from "@/lib/actions/types";
 export async function addVaccinationAction(
   db: TenantPrismaClient,
   input: {
-    animal_id: string;
+    batch_id: string;
     vaccine_id: string;
     applied_at?: Date | null;
     interval_days?: number | null;
@@ -33,7 +33,7 @@ export async function addVaccinationAction(
     );
   }
 
-  const animal = await db.animal.findFirst({ where: { id: input.animal_id } });
+  const animal = await db.animalBatch.findFirst({ where: { id: input.batch_id } });
   if (!animal) return fail("NOT_FOUND", "Animal não encontrado", 404);
 
   const vaccine = await db.vaccine.findFirst({ where: { id: input.vaccine_id } });
@@ -49,7 +49,7 @@ export async function addVaccinationAction(
     async (tx) => {
       await tx.animalVaccination.create({
         data: scoped({
-          animal_id: input.animal_id,
+          batch_id: input.batch_id,
           vaccine_id: input.vaccine_id,
           applied_at: appliedDate,
           next_due_at: nextDue,
@@ -59,7 +59,7 @@ export async function addVaccinationAction(
 
       const prevision = await tx.financialEntry.findFirst({
         where: {
-          related_id: `${input.animal_id}:${input.vaccine_id}`,
+          related_id: `${input.batch_id}:${input.vaccine_id}`,
           entry_type: "expense",
           status: "pending",
         },
@@ -99,7 +99,7 @@ export async function addVaccinationAction(
           category: `Vacinação - ${vaccine.name}`,
           amount: input.cost,
           related_module: "rebanho",
-          related_id: input.animal_id,
+          related_id: input.batch_id,
           occurred_at: appliedDate,
         });
       }
@@ -141,18 +141,18 @@ export async function listUpcomingVaccinations(
   const rows = await db.animalVaccination.findMany({
     where: {
       next_due_at: { gte: now, lte: limit },
-      ...(propertyId ? { animal: { property_id: propertyId } } : {}),
+      ...(propertyId ? { batch: { property_id: propertyId } } : {}),
     },
     orderBy: { next_due_at: "asc" },
     include: {
-      animal: { select: { ear_tag: true } },
+      batch: { select: { ear_tag: true } },
       vaccine: { select: { name: true } },
     },
   });
 
   return rows.map((r) => ({
     id: r.id,
-    animal_id: r.animal_id,
+    batch_id: r.batch_id,
     vaccine_id: r.vaccine_id,
     ear_tag: r.animal?.ear_tag ?? null,
     vaccine_name: r.vaccine?.name ?? null,

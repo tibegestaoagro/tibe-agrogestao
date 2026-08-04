@@ -52,11 +52,9 @@ enum UserRole {
   VISUALIZADOR
 }
 
-enum AnimalStatus {
-  active
-  sold
-  deceased
-}
+// `AnimalStatus` foi removido em 2026-08-04 (rebanho por categoria): no
+// modelo de lote, `quantity` já diz o que resta, e a diferença entre vendido
+// e morto vive em `AnimalMovement.movement_type`.
 
 enum MachineStatus {
   active
@@ -214,7 +212,6 @@ model Tenant {
   profiles          TenantProfile[]
   users             User[]
   properties        Property[]
-  animals           Animal[]
   animal_categories AnimalCategory[]
   animal_batches    AnimalBatch[]
   machines          Machine[]
@@ -383,7 +380,7 @@ model PendingSignup {
 // animais, onde a primeira resposta sai da janela antes do fim.
 //
 // Nada e gravado no rebanho antes da confirmacao final: os itens ficam aqui, em
-// `completed_items`, e so viram Animal quando o usuario confirma o resumo. O
+// `completed_items`, e so viram lote quando o usuario confirma o resumo. O
 // risco de perder trabalho no meio e coberto pelo lembrete de abandono, que le
 // `updated_at` e `reminded_at`.
 model AgentFlowState {
@@ -426,7 +423,6 @@ model Property {
   created_at    DateTime  @default(now())
 
   tenant         Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  animals        Animal[]
   animal_batches AnimalBatch[]
   machines       Machine[]
   plots          Plot[]
@@ -464,43 +460,22 @@ model Pasture {
 // Módulo Rebanho
 // ─────────────────────────────────────────────────────────────
 
-model Animal {
-  id             String       @id @default(cuid())
-  tenant_id      String
-  property_id    String
-  ear_tag        String
-  breed          String?
-  sex            AnimalSex
-  birth_date     DateTime?
-  status         AnimalStatus @default(active)
-  current_weight Decimal?     @db.Decimal(10, 3)
-  created_at     DateTime     @default(now())
-  updated_at     DateTime     @updatedAt
-
-  tenant       Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  property     Property            @relation(fields: [property_id], references: [id], onDelete: Restrict)
-  weight_logs  AnimalWeightLog[]
-  vaccinations AnimalVaccination[]
-  movements    AnimalMovement[]
-
-  @@unique([tenant_id, ear_tag])
-  @@index([tenant_id])
-  @@index([property_id])
-}
 
 // tenant_id incluído para entrar no middleware de isolamento (decisão M1).
+/// Peso de um LOTE numa data. Para lote de várias cabeças é a média; para
+/// lote de 1 (quem usa brinco) é o peso daquele animal. Sustenta o GMD.
 model AnimalWeightLog {
   id          String   @id @default(cuid())
   tenant_id   String
-  animal_id   String
+  batch_id    String
   weight      Decimal  @db.Decimal(10, 3)
   measured_at DateTime
   created_at  DateTime @default(now())
 
-  animal Animal @relation(fields: [animal_id], references: [id], onDelete: Cascade)
+  batch AnimalBatch @relation(fields: [batch_id], references: [id], onDelete: Cascade)
 
   @@index([tenant_id])
-  @@index([animal_id])
+  @@index([batch_id])
 }
 
 model Vaccine {
@@ -519,18 +494,18 @@ model Vaccine {
 model AnimalVaccination {
   id          String    @id @default(cuid())
   tenant_id   String
-  animal_id   String
+  batch_id    String
   vaccine_id  String
   applied_at  DateTime
   next_due_at DateTime?
   cost        Decimal?  @db.Decimal(14, 2) // custo opcional → gera FinancialEntry (1.4/1.6)
   created_at  DateTime  @default(now())
 
-  animal  Animal  @relation(fields: [animal_id], references: [id], onDelete: Cascade)
-  vaccine Vaccine @relation(fields: [vaccine_id], references: [id], onDelete: Restrict)
+  batch   AnimalBatch @relation(fields: [batch_id], references: [id], onDelete: Cascade)
+  vaccine Vaccine     @relation(fields: [vaccine_id], references: [id], onDelete: Restrict)
 
   @@index([tenant_id])
-  @@index([animal_id])
+  @@index([batch_id])
   @@index([vaccine_id])
 }
 
@@ -538,7 +513,11 @@ model AnimalVaccination {
 model AnimalMovement {
   id               String       @id @default(cuid())
   tenant_id        String
-  animal_id        String
+  batch_id         String
+  /// Quantas cabeças se moveram. No modelo de lote, vender 5 de 20 é um
+  /// movimento de 5: sem isto, a evolução do rebanho não teria como subtrair
+  /// a saída parcial. Migrações do modelo antigo (1 linha por cabeça) valem 1.
+  quantity         Int          @default(1)
   movement_type    MovementType
   from_property_id String?
   to_property_id   String?
@@ -547,20 +526,21 @@ model AnimalMovement {
   occurred_at      DateTime
   created_at       DateTime     @default(now())
 
-  animal        Animal    @relation(fields: [animal_id], references: [id], onDelete: Cascade)
-  from_property Property? @relation("MovementFromProperty", fields: [from_property_id], references: [id], onDelete: SetNull)
-  to_property   Property? @relation("MovementToProperty", fields: [to_property_id], references: [id], onDelete: SetNull)
+  batch         AnimalBatch @relation(fields: [batch_id], references: [id], onDelete: Cascade)
+  from_property Property?   @relation("MovementFromProperty", fields: [from_property_id], references: [id], onDelete: SetNull)
+  to_property   Property?   @relation("MovementToProperty", fields: [to_property_id], references: [id], onDelete: SetNull)
 
   @@index([tenant_id])
-  @@index([animal_id])
+  @@index([batch_id])
 }
 
 // ─────────────────────────────────────────────────────────────
-// Rebanho por categoria e quantidade (Módulo 25, 2026-08-03).
+// Rebanho por categoria e quantidade (Módulo 25, 2026-08-03; virou o modelo
+// ÚNICO em 2026-08-04).
 //
-// Modelo paralelo ao Animal individual (brinco obrigatório), NÃO um
-// substituto: cobre o caso de uso do documento da Agromax ("comprei 20
-// bezerros"), sem exigir identificação individual. Cada aquisição gera um
+// Cobre o caso de uso do documento da Agromax ("comprei 20 bezerros") sem
+// exigir identificação individual, e agora também o caso de quem usa brinco
+// (lote de 1 cabeça com `ear_tag` preenchido). Cada aquisição gera um
 // AnimalBatch novo (nunca acumula numa linha existente da mesma categoria),
 // o que preserva o custo de cada compra separadamente; venda decrementa
 // FIFO entre lotes da mesma categoria (mais antigo primeiro), sem escolha
@@ -584,21 +564,40 @@ model AnimalCategory {
 
 // quantity = 0 não apaga o lote: mantém o histórico de que existiu e foi
 // totalmente vendido/consumido (mesmo espírito de Property.archived_at).
+/// Modelo ÚNICO de rebanho (2026-08-04). Antes existiam dois caminhos
+/// paralelos: `Animal` (uma linha por cabeça, brinco obrigatório) e
+/// `AnimalBatch` (categoria + quantidade). O produtor tinha dois jeitos de
+/// cadastrar boi, com telas e regras diferentes. Agora tudo é lote por
+/// categoria, e o brinco é OPCIONAL: quem trabalha com brinco cadastra um
+/// lote de 1 cabeça e preenche o campo.
+///
+/// `ear_tag` é único por tenant apenas QUANDO PREENCHIDO, via índice único
+/// parcial escrito à mão na migração (o Prisma não representa índice parcial,
+/// então todo `migrate diff` vai sugerir apagá-lo: ver aviso no CLAUDE.md).
 model AnimalBatch {
-  id               String    @id @default(cuid())
+  id               String     @id @default(cuid())
   tenant_id        String
   property_id      String
   category_id      String
   quantity         Int
-  average_weight   Decimal?  @db.Decimal(10, 3)
-  acquisition_cost Decimal?  @db.Decimal(14, 2)
-  acquired_at      DateTime  @default(now())
-  created_at       DateTime  @default(now())
-  updated_at       DateTime  @updatedAt
+  /// Opcional: só para quem trabalha com brinco (lote de 1 cabeça).
+  ear_tag          String?
+  breed            String?
+  /// Opcional: um lote de 20 cabeças pode ser misto.
+  sex              AnimalSex?
+  birth_date       DateTime?
+  average_weight   Decimal?   @db.Decimal(10, 3)
+  acquisition_cost Decimal?   @db.Decimal(14, 2)
+  acquired_at      DateTime   @default(now())
+  created_at       DateTime   @default(now())
+  updated_at       DateTime   @updatedAt
 
-  tenant   Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  property Property       @relation(fields: [property_id], references: [id], onDelete: Restrict)
-  category AnimalCategory @relation(fields: [category_id], references: [id], onDelete: Restrict)
+  tenant       Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  property     Property            @relation(fields: [property_id], references: [id], onDelete: Restrict)
+  category     AnimalCategory      @relation(fields: [category_id], references: [id], onDelete: Restrict)
+  weight_logs  AnimalWeightLog[]
+  vaccinations AnimalVaccination[]
+  movements    AnimalMovement[]
 
   @@index([tenant_id])
   @@index([property_id])
@@ -609,7 +608,7 @@ model AnimalBatch {
 // Máquinas e equipamentos (Módulo 26, 2026-08-04).
 //
 // `next_maintenance_at` fica denormalizado na própria Machine (atualizado a
-// cada manutenção registrada), mesmo padrão de Animal.current_weight +
+// cada manutenção registrada), mesmo padrão de AnimalBatch.average_weight +
 // AnimalWeightLog: o pai guarda o valor atual, o filho guarda o histórico.
 // Sem cálculo de recorrência por dias/horímetro nesta rodada: a próxima data
 // é sempre informada pelo usuário. Ver
