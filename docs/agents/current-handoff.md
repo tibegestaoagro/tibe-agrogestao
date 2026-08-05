@@ -205,9 +205,28 @@ movimentações sob uma confirmação. `test:m3`, `test:m12`, `test:m32`,
 §4.1), incluindo o aviso de que `registrar_lote_animal` é o caminho antigo e
 escreve num modelo que o saldo não lê mais.
 
-**Nunca validado com WhatsApp real:** os handlers passaram por teste de action
-e build. A validação de ponta a ponta depende de atualizar o prompt do
-workflow no n8n (Railway) com o §4.1 e mandar mensagem de um aparelho.
+**Prompt do n8n JÁ ATUALIZADO** (2026-08-05, workflow
+`UAAA96aJFiiFsQCL`, "Tibe - Atendimento WhatsApp (Evolution)", nó
+"Classificar Intenção (OpenAI)"): as duas intenções novas e as três regras de
+rebanho estão no prompt em produção, validado (0 erros). O n8n guardou backup
+automático das versões anteriores (ids 486, 487 e a desta rodada), então dá
+para reverter por `n8n_workflow_versions` se precisar. **Cuidado ao editar
+esse prompt por patch:** o valor é uma expressão com `\n` e `\"` literais, e
+uma barra invertida a mais grava lixo silencioso. Escreva o texto novo **sem
+aspas duplas** e o risco some.
+
+**Decisão do usuário (2026-08-05), pasto sem saldo:** quando o produtor cita
+um pasto onde não há saldo mas a categoria existe em outro ponto da fazenda, o
+assistente **diz onde os animais estão e pergunta**, em vez de responder
+"existem apenas 0" ou de mover sozinho do outro pasto. Escolher de qual pasto
+tirar é da mesma família de chute que o §14 proíbe para faixa de idade.
+`conferirOndeEstaOSaldo()` roda ANTES da confirmação, para não pedir "sim" a
+algo que já se sabe que vai falhar. Quando não há saldo em lugar nenhum, a
+resposta continua sendo a mensagem literal do cliente.
+
+**Ainda não validado com WhatsApp real:** os handlers passaram por teste de
+action, tsc, lint e build, e o prompt está no ar, mas ninguém mandou mensagem
+de um aparelho ainda. É o que falta para fechar a fase 1 de verdade.
 
 **A troca do §6, resolvida em parte (2026-08-05).** As três rotas
 `/api/v1/animal-batches` foram **removidas**: não tinham um consumidor

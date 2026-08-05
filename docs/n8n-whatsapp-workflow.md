@@ -340,6 +340,28 @@ reconstruídos do `recent_history`, trocando apenas `categoria` pela faixa que
 o usuário escolheu. Não existe estado de conversa novo no banco para isso: é
 o mesmo mecanismo do funil do `resumo`.
 
+### 4.2. Rebanho: quando o pasto citado não tem saldo
+
+O pasto faz parte da identidade da posição. Se o rebanho foi cadastrado sem
+separar por pasto, "morreram 2 vacas no Pasto da Baixada" não acha nada lá. O
+Tibé **não** move do outro pasto sozinho: responde onde os animais estão e
+devolve a escolha, mesmo princípio do §14.
+
+```
+Usuário: Morreram duas vacas no Pasto da Baixada.
+Tibé:    Não encontrei Fêmea - acima de 36 meses no Pasto da Baixada.
+         Você tem 45 em sem pasto informado. Registro por lá?
+```
+
+**Turno seguinte:** um "sim", ou uma resposta que nomeia o lugar ("do Pasto da
+Sede", "sem pasto mesmo"), deve reemitir `registrar_movimentacao_rebanho` com
+os parâmetros originais do histórico, ajustando `pasto` (ou omitindo-o, quando
+a resposta for "sem pasto"). Mesma mecânica da faixa de idade.
+
+Quando a categoria não tem saldo em lugar nenhum, a resposta é outra: a
+mensagem literal do documento do cliente, "Existem apenas N animais nesta
+categoria. Revise a quantidade informada."
+
 Termos que resolvem sozinhos, sem pergunta: `bezerro`, `bezerra`, `vaca`,
 `boi`, `touro`, e os rótulos oficiais. Plural funciona (`vacas`, `bezerros`,
 `bois`). A lista de apelidos é `CATEGORY_ALIASES` em

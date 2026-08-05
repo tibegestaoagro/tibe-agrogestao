@@ -130,6 +130,74 @@ async function resolverPasto(
   return { ok: true, id: pasto.id, nome: pasto.name };
 }
 
+/**
+ * O pasto faz parte da IDENTIDADE da posição, então "morreram 2 vacas no Pasto
+ * da Baixada" não acha nada se as vacas foram cadastradas sem pasto. O saldo
+ * está certo; a resposta "existem apenas 0 animais nesta categoria" é que
+ * mentia por omissão, porque existem 45, só em outro lugar.
+ *
+ * Aqui a gente confere ANTES de pedir confirmação e, quando a categoria tem
+ * saldo em outro ponto da fazenda, diz onde está e devolve a escolha ao
+ * produtor. Não move sozinho: escolher de qual pasto tirar é da mesma família
+ * de chute que o §14 proíbe para faixa de idade.
+ *
+ * Devolve `null` quando pode seguir: ou há saldo suficiente na posição exata,
+ * ou não há saldo em lugar nenhum (aí quem responde é a mensagem literal do
+ * cliente, no §10.3, que é a certa para esse caso).
+ */
+async function conferirOndeEstaOSaldo(
+  db: TenantPrismaClient,
+  categoria: HerdCategory,
+  propertyId: string,
+  pastureIdPedido: string | null,
+  quantidade: number,
+): Promise<RouterResult | null> {
+  const posicoes = await getPositions(db, {
+    category_id: categoria.id,
+    property_id: propertyId,
+    owner: "proprio",
+  });
+
+  const naPosicaoExata = posicoes
+    .filter((p) => p.pasture_id === pastureIdPedido)
+    .reduce((soma, p) => soma + p.quantity, 0);
+  if (naPosicaoExata >= quantidade) return null;
+
+  const comSaldo = posicoes.filter((p) => p.quantity > 0);
+  const totalNaFazenda = comSaldo.reduce((soma, p) => soma + p.quantity, 0);
+  if (totalNaFazenda === 0) return null;
+
+  const pastos = await db.pasture.findMany({
+    where: { property_id: propertyId },
+    select: { id: true, name: true },
+  });
+  const nomeDoPasto = new Map(pastos.map((p) => [p.id, p.name]));
+  const ondeEstao = comSaldo.map((p) => ({
+    lugar: p.pasture_id ? (nomeDoPasto.get(p.pasture_id) ?? "pasto removido") : "sem pasto informado",
+    quantidade: p.quantity,
+  }));
+
+  const pedido = pastureIdPedido
+    ? (nomeDoPasto.get(pastureIdPedido) ?? "no pasto informado")
+    : null;
+  const abertura = pedido
+    ? `Não encontrei ${categoria.label} no ${pedido}.`
+    : `Não encontrei ${categoria.label} sem pasto informado.`;
+
+  if (ondeEstao.length === 1) {
+    const unico = ondeEstao[0];
+    return ask(
+      `${abertura}\nVocê tem ${unico.quantidade} em ${unico.lugar}. Registro por lá?`,
+      { categoria: categoria.id, sugerir_pasture_id: comSaldo[0].pasture_id },
+    );
+  }
+
+  const lista = ondeEstao.map((o) => `- ${o.lugar}: ${o.quantidade}`).join("\n");
+  return ask(`${abertura}\nVocê tem ${categoria.label} em:\n${lista}\nDe onde devo tirar?`, {
+    categoria: categoria.id,
+  });
+}
+
 // ── §13.1 e §13.2: consulta ────────────────────────────────────────
 
 export const consultarRebanho: Handler = async ({ db, parameters }) => {
@@ -269,6 +337,22 @@ export const registrarMovimentacaoRebanho: Handler = async ({
       const destino = await resolverFazenda(db, nome);
       if (!destino.ok) return destino.resposta;
       fazendaDestino = { id: destino.id, nome: destino.nome };
+    }
+  }
+
+  // Só quem TIRA de algum lugar precisa desta conferência: entrada não tem
+  // origem. Roda antes da confirmação, para não pedir "sim" a uma coisa que
+  // já se sabe que vai falhar.
+  if (!ENTRADAS.has(tipo)) {
+    for (const item of itens) {
+      const aviso = await conferirOndeEstaOSaldo(
+        db,
+        item.categoria,
+        fazenda.id,
+        pastoOrigem.id,
+        item.quantidade,
+      );
+      if (aviso) return aviso;
     }
   }
 

@@ -299,7 +299,48 @@ async function main() {
       semSaldo.reply_text,
     );
 
-    console.log("\n10. Fazenda: não adivinha quando há mais de uma");
+    console.log("\n10. Pasto sem saldo: diz onde os animais estão, não 'existem apenas 0'");
+    // femea_13_24 foi cadastrada SEM pasto. Pedir a saída dela citando um
+    // pasto não pode responder que não existem: existem 25, em outro lugar.
+    const pastoErrado = await registrarMovimentacaoRebanho(
+      ctx(db, tenant.id, {
+        movement_type: "morte",
+        categoria: "Fêmea - 13 a 24 meses",
+        quantidade: 2,
+        pasto: "Sede",
+      }),
+    );
+    check(
+      "não devolve a mensagem de saldo zerado",
+      !pastoErrado.reply_text.includes("Existem apenas"),
+      pastoErrado.reply_text,
+    );
+    check(
+      "diz onde os animais realmente estão",
+      pastoErrado.reply_text.includes("sem pasto informado") &&
+        pastoErrado.reply_text.includes("25"),
+      pastoErrado.reply_text,
+    );
+    check(
+      "devolve a escolha ao produtor, não move sozinho",
+      pastoErrado.action_taken === "clarification_requested",
+    );
+
+    const semSaldoDeVerdade = await registrarMovimentacaoRebanho(
+      ctx(
+        db,
+        tenant.id,
+        { movement_type: "morte", categoria: "garrote reprodutor", quantidade: 1 },
+        { confirmed: true },
+      ),
+    );
+    check(
+      "categoria sem saldo em lugar nenhum continua com a mensagem do cliente",
+      semSaldoDeVerdade.reply_text.includes("Revise a quantidade informada."),
+      semSaldoDeVerdade.reply_text,
+    );
+
+    console.log("\n11. Fazenda: não adivinha quando há mais de uma");
     await db.property.create({ data: scoped({ name: "Sítio Recanto" }) });
     const qualFazenda = await registrarMovimentacaoRebanho(
       ctx(db, tenant.id, { movement_type: "nascimento", categoria: "bezerro", quantidade: 2 }),
