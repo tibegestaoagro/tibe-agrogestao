@@ -5,6 +5,7 @@ import {
   findCategory,
   isValidCategory,
   nextCategoryByAge,
+  resolveBirthCategoryTerm,
   resolveCategoryTerm,
 } from "@/lib/herd/categories";
 import { summarizePositions } from "@/lib/herd/summary";
@@ -118,6 +119,36 @@ check(
 check(
   "rótulo oficial (termina em 'meses') não é estropiado pelo plural",
   resolveCategoryTerm("Fêmea - 13 a 24 meses").kind === "exact",
+);
+
+// §13.4: "Nasceram 4 machos e 3 fêmeas" precisa virar bezerro e bezerra.
+// Recém-nascido é 0 a 7 meses por definição, então o sexo sozinho basta.
+// Achado num teste real de WhatsApp em 2026-08-05: o classificador manda
+// "macho"/"femea" e o registro morria em "não reconheci a categoria".
+const nascidoMacho = resolveBirthCategoryTerm("macho");
+const nascidaFemea = resolveBirthCategoryTerm("fêmeas");
+check(
+  "nascimento: 'macho' vira Bezerro 0 a 7",
+  nascidoMacho.kind === "exact" && nascidoMacho.category.id === "bezerro_0_7",
+);
+check(
+  "nascimento: 'fêmeas' vira Bezerra 0 a 7",
+  nascidaFemea.kind === "exact" && nascidaFemea.category.id === "bezerra_0_7",
+);
+check(
+  "FORA do nascimento, 'macho' sozinho continua desconhecido",
+  resolveCategoryTerm("macho").kind === "unknown",
+);
+check(
+  "categoria explícita vence o atalho do nascimento",
+  (() => {
+    const r = resolveBirthCategoryTerm("bezerra");
+    return r.kind === "exact" && r.category.id === "bezerra_0_7";
+  })(),
+);
+check(
+  "nascimento não atropela ambiguidade: 'novilha' continua perguntando",
+  resolveBirthCategoryTerm("novilha").kind === "ambiguous",
 );
 check("termo desconhecido não vira chute", resolveCategoryTerm("jumento").kind === "unknown");
 check(

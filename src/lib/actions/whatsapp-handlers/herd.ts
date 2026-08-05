@@ -6,7 +6,11 @@ import {
   type HerdPositionKey,
 } from "@/lib/actions/herd-ledger";
 import { summarizePositions } from "@/lib/herd/summary";
-import { resolveCategoryTerm, type HerdCategory } from "@/lib/herd/categories";
+import {
+  resolveBirthCategoryTerm,
+  resolveCategoryTerm,
+  type HerdCategory,
+} from "@/lib/herd/categories";
 import { findActivePropertyByName, listActiveProperties } from "@/lib/actions/properties";
 import { ask, failReply, str, num, confirmFlow, type Handler, type RouterResult } from "./shared";
 
@@ -66,8 +70,10 @@ type CategoriaResolvida =
   | { ok: true; categoria: HerdCategory }
   | { ok: false; resposta: RouterResult };
 
-function resolverCategoria(termo: string): CategoriaResolvida {
-  const resolucao = resolveCategoryTerm(termo);
+function resolverCategoria(termo: string, nascimento = false): CategoriaResolvida {
+  // Num nascimento, o sexo sozinho já basta: recém-nascido é 0 a 7 meses.
+  // É o que o §13.4 espera de "nasceram 4 machos e 3 fêmeas".
+  const resolucao = nascimento ? resolveBirthCategoryTerm(termo) : resolveCategoryTerm(termo);
   if (resolucao.kind === "exact") return { ok: true, categoria: resolucao.category };
   if (resolucao.kind === "ambiguous") {
     return { ok: false, resposta: perguntaDeFaixa(termo, resolucao.candidates) };
@@ -298,7 +304,7 @@ export const registrarMovimentacaoRebanho: Handler = async ({
   // outros itens e deixar um pendente daria a impressão de que já registrou.
   const itens: { categoria: HerdCategory; quantidade: number }[] = [];
   for (const item of itensBrutos) {
-    const resolvida = resolverCategoria(item.categoria);
+    const resolvida = resolverCategoria(item.categoria, tipo === "nascimento");
     if (!resolvida.ok) return resolvida.resposta;
     itens.push({ categoria: resolvida.categoria, quantidade: item.quantidade });
   }

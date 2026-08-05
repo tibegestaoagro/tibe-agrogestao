@@ -175,8 +175,10 @@ async function main() {
         {
           movement_type: "nascimento",
           itens: [
-            { categoria: "bezerro", quantidade: 4 },
-            { categoria: "bezerra", quantidade: 3 },
+            // Termos que o classificador do n8n manda de verdade (teste real
+            // de WhatsApp, 2026-08-05): sexo sozinho, sem idade.
+            { categoria: "macho", quantidade: 4 },
+            { categoria: "femea", quantidade: 3 },
           ],
         },
         { confirmed: true },

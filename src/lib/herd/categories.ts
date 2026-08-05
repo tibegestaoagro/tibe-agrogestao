@@ -153,6 +153,45 @@ function tentarResolver(limpo: string): AliasResolution {
   return { kind: "unknown" };
 }
 
+/**
+ * Só o sexo, sem idade: "macho", "fêmea". Fora de um nascimento isso é
+ * ambíguo de verdade (7 categorias de macho), então NÃO entra em
+ * `CATEGORY_ALIASES`. Ver `resolveBirthCategoryTerm`.
+ */
+const SEXO_PURO: Readonly<Record<string, string>> = {
+  macho: "bezerro_0_7",
+  masculino: "bezerro_0_7",
+  femea: "bezerra_0_7",
+  feminino: "bezerra_0_7",
+};
+
+/**
+ * A categoria de um animal que ACABOU de nascer.
+ *
+ * No §13.4 o produtor escreve "nasceram 4 machos e 3 fêmeas" e o documento
+ * espera "4 bezerros e 3 bezerras". Isso não é chute e não fere o §14:
+ * recém-nascido é 0 a 7 meses por definição, então o sexo sozinho já
+ * determina a categoria. Fora do nascimento, "macho" continua ambíguo e
+ * continua virando pergunta.
+ *
+ * Um termo de categoria explícito sempre vence: quem escreve "nasceram 4
+ * bezerros" cai no caminho normal.
+ */
+export function resolveBirthCategoryTerm(term: string): AliasResolution {
+  const direto = resolveCategoryTerm(term);
+  if (direto.kind === "exact") return direto;
+
+  const limpo = term.trim();
+  const semPlural = limpo.length > 3 && /s$/i.test(limpo) ? limpo.slice(0, -1) : limpo;
+  for (const [sexo, id] of Object.entries(SEXO_PURO)) {
+    if (!mesmoTermo(sexo, semPlural)) continue;
+    const categoria = findCategory(id);
+    if (categoria) return { kind: "exact", category: categoria };
+  }
+
+  return direto;
+}
+
 export function resolveCategoryTerm(term: string): AliasResolution {
   const limpo = term.trim();
   const direto = tentarResolver(limpo);

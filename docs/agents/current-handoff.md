@@ -224,9 +224,32 @@ tirar é da mesma família de chute que o §14 proíbe para faixa de idade.
 algo que já se sabe que vai falhar. Quando não há saldo em lugar nenhum, a
 resposta continua sendo a mensagem literal do cliente.
 
-**Ainda não validado com WhatsApp real:** os handlers passaram por teste de
-action, tsc, lint e build, e o prompt está no ar, mas ninguém mandou mensagem
-de um aparelho ainda. É o que falta para fechar a fase 1 de verdade.
+**Testado com WhatsApp REAL em 2026-08-05, 3 mensagens.** Duas passaram de
+primeira: §13.1 ("Quantos animais eu tenho?" devolveu 2 animais, 0 fêmeas e 2
+machos, já humanizado) e §13.7 (a pergunta de faixa com as 3 opções de
+novilha). A terceira encontrou um bug real.
+
+**Bug achado só no aparelho: §13.4 morria em "não reconheci a categoria".**
+"Nasceram 4 machos e 3 fêmeas hoje" faz o classificador mandar
+`categoria: "macho"` e `"femea"`, sexo sem idade, e nenhum dos dois estava em
+`CATEGORY_ALIASES`. O documento do cliente já respondia isso no §13.4 ("4
+bezerros e 3 bezerras"), e a regra não é chute: **recém-nascido é 0 a 7 meses
+por definição**, então o sexo sozinho determina a categoria.
+`resolveBirthCategoryTerm()` (`categories.ts`) faz esse atalho **só em
+nascimento**; fora dele "macho" continua desconhecido e continua virando
+pergunta, porque aí são 7 categorias possíveis. Categoria explícita sempre
+vence o atalho, e "novilha" continua ambíguo mesmo num nascimento.
+
+Este é o quarto caso da lista de "a suíte verde não basta" do `CLAUDE.md`
+dentro deste módulo: tsc, lint, build e 28 verificações passavam, e o defeito
+só apareceu com uma mensagem de verdade, porque dependia de COMO o LLM
+nomeia a categoria.
+
+**Ainda não testado no aparelho:** §13.3 (saldo inicial), §13.5 (morte com
+pasto), §13.6 (mudança de categoria), a volta da pergunta de faixa (responder
+"13 a 24 meses" e ver se o classificador reconstrói o pedido) e a volta da
+pergunta de pasto. A volta das duas perguntas é o ponto mais frágil, porque
+depende do `recent_history` chegar ao classificador.
 
 **A troca do §6, resolvida em parte (2026-08-05).** As três rotas
 `/api/v1/animal-batches` foram **removidas**: não tinham um consumidor
