@@ -3,11 +3,12 @@ import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Vie
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
+import { PendingBanner } from '@/components/ui/pending-banner';
 import NewEntryForm from '@/components/financeiro/new-entry-form';
 import { useAuth } from '@/lib/auth-context';
 import { useTheme } from '@/hooks/use-theme';
 import { Brand, Spacing } from '@/constants/theme';
-import { ApiError, AuthExpiredError } from '@/lib/api-client';
+import { ApiError, AuthExpiredError, toUserMessage } from '@/lib/api-client';
 import { formatCurrencyBRL, formatDateBR } from '@/lib/format';
 import type { FinancialEntry, FinancialEntryType } from '@/types/api';
 
@@ -70,7 +71,7 @@ export default function FinanceiroScreen() {
         setEntries(data);
       } catch (e) {
         if (e instanceof AuthExpiredError) return;
-        setError(e instanceof Error ? e.message : 'Não foi possível carregar os lançamentos.');
+        setError(toUserMessage(e));
       }
     },
     [authedFetch],
@@ -112,6 +113,10 @@ export default function FinanceiroScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['bottom']}>
+      <View style={styles.bannerWrap}>
+        <PendingBanner />
+      </View>
+
       <View style={styles.toggleRow}>
         {(['expense', 'income'] as FinancialEntryType[]).map((k) => (
           <Pressable
@@ -191,6 +196,7 @@ export default function FinanceiroScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.four },
+  bannerWrap: { paddingHorizontal: Spacing.four, paddingTop: Spacing.three },
   toggleRow: { flexDirection: 'row', gap: Spacing.two, padding: Spacing.four, paddingBottom: 0 },
   toggleButton: {
     flex: 1,

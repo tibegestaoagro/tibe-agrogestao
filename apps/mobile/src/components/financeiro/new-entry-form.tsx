@@ -4,8 +4,8 @@ import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react
 import { ThemedText } from '@/components/themed-text';
 import { Brand, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { ApiError, AuthExpiredError } from '@/lib/api-client';
-import { useAuth } from '@/lib/auth-context';
+import { AuthExpiredError, toUserMessage } from '@/lib/api-client';
+import { useQueue } from '@/lib/queue-context';
 import type { FinancialEntryType } from '@/types/api';
 
 const TYPE_LABEL: Record<FinancialEntryType, string> = { expense: 'despesa', income: 'receita' };
@@ -30,13 +30,14 @@ export default function NewEntryForm({
   entryType: FinancialEntryType;
   onCreated: () => void;
 }) {
-  const { authedFetch } = useAuth();
+  const { submit } = useQueue();
   const theme = useTheme();
   const [category, setCategory] = useState('');
   const [amount, setAmount] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [queued, setQueued] = useState(false);
 
   async function handleSubmit() {
     if (submitting) return;
@@ -55,9 +56,16 @@ export default function NewEntryForm({
 
     setSubmitting(true);
     try {
-      await authedFetch('/api/v1/financial-entries', {
+      // Passa pela FILA, não por `authedFetch` direto. Antes ia direto, e
+      // lançar sem sinal simplesmente falhava com "não foi possível
+      // registrar": defeito encontrado no teste com modo avião de
+      // 2026-08-04. Lançar despesa no pasto é justamente o caso que a fila
+      // existe para atender.
+      const res = await submit({
+        path: '/api/v1/financial-entries',
         method: 'POST',
-        json: {
+        label: `${entryType === 'expense' ? 'Despesa' : 'Receita'} ${trimmedCategory}`,
+        body: {
           entry_type: entryType,
           category: trimmedCategory,
           amount: parsedAmount,
@@ -68,10 +76,14 @@ export default function NewEntryForm({
       setCategory('');
       setAmount('');
       setNotes('');
-      onCreated();
+      if (res.queued) {
+        setQueued(true);
+      } else {
+        onCreated();
+      }
     } catch (e) {
       if (e instanceof AuthExpiredError) return; // AuthProvider já derrubou a sessão.
-      setError(e instanceof ApiError ? e.message : 'Não foi possível registrar o lançamento.');
+      setError(toUserMessage(e));
     } finally {
       setSubmitting(false);
     }
@@ -113,6 +125,12 @@ export default function NewEntryForm({
         </ThemedText>
       )}
 
+      {queued && (
+        <ThemedText type="small" style={styles.queued}>
+          Sem conexão: guardado no aparelho. Sobe sozinho quando a internet voltar.
+        </ThemedText>
+      )}
+
       <Pressable
         onPress={handleSubmit}
         disabled={submitting}
@@ -140,6 +158,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   error: { color: '#DC2626' },
+  queued: { color: '#BA640C' },
   button: { borderRadius: Spacing.two, paddingVertical: Spacing.three, alignItems: 'center', marginTop: Spacing.one },
   buttonText: { color: '#ffffff', fontWeight: '700' },
 });

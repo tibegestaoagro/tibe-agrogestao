@@ -8,7 +8,7 @@ import { PendingBanner } from '@/components/ui/pending-banner';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states';
 import { Sheet } from '@/components/ui/sheet';
 import { Spacing } from '@/constants/theme';
-import { AuthExpiredError } from '@/lib/api-client';
+import { AuthExpiredError, toUserMessage } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { formatDateBR } from '@/lib/format';
 import { useTheme } from '@/hooks/use-theme';
@@ -45,7 +45,7 @@ export default function RebanhoScreen() {
       setBatches(data);
     } catch (e) {
       if (e instanceof AuthExpiredError) return;
-      setError(e instanceof Error ? e.message : 'Não foi possível carregar o rebanho.');
+      setError(toUserMessage(e));
     }
   }, [authedFetch]);
 
