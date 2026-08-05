@@ -23,10 +23,36 @@ escritório. Leia depois de `CLAUDE.md`.
 
 ## Estado atual
 
-- Atualizado em: 2026-08-04
-- **Produção: `cd8ba4e` no ar, com as 2 migrações de rebanho já aplicadas no
-  Neon.** Rebanho por categoria (brinco opcional) é o estado atual do produto.
-  Detalhes e evidências na seção "EM PRODUÇÃO" abaixo.
+- Atualizado em: 2026-08-05
+- **Produção: `83b813c` no ar.** Levou rebanho por categoria (brinco opcional)
+  e o cancelamento com janela de arquivamento de 60 dias. As 3 migrações
+  correspondentes já estão aplicadas no Neon.
+
+### Três branches vivas, nenhuma mesclada
+
+| Branch | Commit | Estado |
+|---|---|---|
+| `app-mobile-fundacao` | `482bd50` | fundação de UI do app; **defeitos de teste em aparelho já corrigidos, aguardando reteste** |
+| `rebanho-livro-razao` | `ed052ff` | **só a spec**, sem código; aguardando sua revisão |
+| `cancelamento-com-janela` | `db52dc3` | já mesclada em `main` e no ar; pode ser apagada |
+
+**Ao trocar de branch, os arquivos do app somem do editor.** É esperado: o
+trabalho do mobile vive só em `app-mobile-fundacao`.
+
+### Próximo passo autorizado
+
+Revisar [docs/specs/module-30-rebanho-livro-razao.md](../specs/module-30-rebanho-livro-razao.md),
+principalmente a seção 2 (os cinco eixos da posição): é dela que sai todo o
+resto, e corrigir um eixo depois de treze tipos de movimentação escritos em
+cima dele é caro. Depois da aprovação, fase 1 começa por schema e migração,
+com os testes da régua de saldo antes das telas.
+
+### Janela que fecha
+
+A migração de rebanho é barata **enquanto produção tiver 2 cabeças em "Não
+classificado"**. Quando clientes reais cadastrarem rebanho, cada um terá suas
+categorias digitadas e converter para a lista fixa vira trabalho de verdade.
+Mesma janela que tornou a unificação de 2026-08-04 barata.
 - Banco local de dev está no MESMO schema de produção agora: a divergência
   avisada na rodada anterior acabou, a `main` roda contra ele normalmente.
 - Rodada anterior: **auditoria de performance e enxugamento** (`/loop-goal`,
@@ -335,6 +361,21 @@ deve nascer junto com a tela de Rebanho do mobile, não antes dela.
 
 ## Histórico recente
 
+- 2026-08-05: **spec do Módulo 30** (rebanho como livro-razão), a partir de 2
+  documentos do cliente. Saldo passa a ser derivado das movimentações; posição
+  = categoria x fazenda x pasto x situação x dono; 12 categorias viram
+  constante de código. Sem código ainda. Commit `ed052ff`.
+- 2026-08-05: **fundação de UI do app mobile** (`482bd50`): 5 abas com o Tibé
+  central, primitivos, fila de escrita offline, Máquinas, biometria, e a tela
+  de Rebanho refeita (estava quebrada contra o back-end novo). **5 defeitos
+  achados só testando com modo avião num Android real**, nenhum pego por tsc,
+  lint ou expo-doctor: o formulário não abria sem sinal, o Financeiro não
+  usava a fila, "Network request failed" vazava em inglês, a faixa de
+  pendências não aparecia em 2 telas, e o cache exigia um gesto que ninguém
+  faz. Todos corrigidos; **falta reteste em aparelho**.
+- 2026-08-05: **cancelamento com janela de 60 dias em produção** (`83b813c`).
+  Descoberto no caminho que `Tenant.archived_at` não fazia nada: nenhum ponto
+  de auth, sessão ou billing lia o campo.
 - 2026-08-04: **rebanho por categoria em produção** (`cd8ba4e`): modelo único
   `AnimalBatch` com brinco opcional, `Animal` removido, migração escrita à mão
   aplicada no Neon antes do push, dado preservado (2 cabeças, brincos 081/082).
