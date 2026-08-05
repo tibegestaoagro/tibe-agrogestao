@@ -48,9 +48,9 @@ Spec **aprovada pelo usuário** em 2026-08-05. Duas tarefas concluídas:
 | 1 | 12 categorias como constante + apelidos + `test:m32` (26 verificações) | `9f461ae` |
 | 2 | Schema `HerdMovement` + migração que converte o rebanho existente | `c1f884c` |
 | 3 | Actions do livro-razão (`getPositions` + `recordMovement`) + `test:m33` | `7793df0` |
-| 4 | Histórico, cancelamento e as 4 rotas de API | commit desta rodada |
-| 5 | **Telas** | **próxima, não iniciada** |
-| 6 | Assistente (§13 e §14) | pendente |
+| 4 | Histórico, cancelamento e as 4 rotas de API | `fdd3870`, **em produção** |
+| 5 | Tela `/rebanho` (§11 e §12), validada em navegador | commit desta rodada |
+| 6 | **Assistente (§13 e §14)** | **próxima, não iniciada** |
 
 **Tarefa 3 concluída:** `src/lib/actions/herd-ledger.ts`.
 `getPositions(db, filtro)` soma as movimentações não canceladas por posição
@@ -131,16 +131,51 @@ listar valor fora do enum do Prisma para de compilar.
 do build). O único erro de `tsc` segue sendo o pré-existente de
 `scripts/m23-token-auth.test.ts`.
 
-**Como retomar a tarefa 5:** as telas (§11 e §12). `GET /herd/positions`
-devolve a lista crua de posições porque tudo que o §11 pede (total geral,
-machos, fêmeas, por categoria, por fazenda, por pasto) é derivável dela com
-as 12 categorias de `@/lib/herd/categories`. **Nada de rota nova para
-somatório**, o agrupamento é da tela.
+**Tarefa 5 concluída:** `/rebanho` foi reconstruída sobre o livro-razão.
 
-**Nunca validado em navegador:** as 4 rotas passaram por teste de action e
-build, não por uso real. Rota atrás de `guard()` não dá para invocar direto
-sem sessão de verdade (mesma limitação dos M1/M2/M5/M6), então a validação
-delas é no navegador, junto com a tarefa 5.
+`summarizePositions` (`src/lib/herd/summary.ts`) é função **pura** e deriva
+tudo que o §11 pede a partir das posições: total geral, fêmeas e machos por
+categoria, por fazenda e por pasto. **Nenhuma rota de somatório existe**, e
+nenhuma deve existir: somar no banco criaria um segundo caminho para o mesmo
+número, que é o que o módulo foi desenhado para evitar. O teste em `test:m32`
+usa **os números do exemplo do §12 na íntegra** (117 fêmeas + 58 machos =
+175): se aquele bloco quebrar, o resumo deixou de bater com o documento.
+`getPeriodTotals` (`herd-ledger.ts`) faz as 4 linhas de "Movimentações do
+mês" e recebe `TenantPrismaClient`, não o union `HerdLedgerClient`, porque
+`groupBy` tem sobrecargas genéricas demais para o TypeScript resolver sobre
+uma união.
+
+**Layout decidido com o usuário:** saldo em cima, e a tabela de lotes que
+ocupava a página virou a seção "Animais identificados" no fim, mostrando só
+registro que tem brinco, peso ou vacinação. O §4 manda manter esses dados
+como anexo opcional e o §6 proíbe duas contagens disputando a mesma tela;
+quem trabalha só por categoria nunca vê a tabela. **Categoria zerada aparece
+na lista, em cinza**: no exemplo do §12 o produtor lê a lista inteira, e uma
+linha faltando confunde mais do que um zero.
+
+`MovementForm` e `MovementCancel` (`src/components/rebanho/`) importam
+`@/lib/herd/categories` (puro) e **nunca** `herd-ledger.ts`, que arrastaria
+Prisma para o bundle do navegador: mesma armadilha já documentada para
+`@/lib/permissions`. A fase 1 sempre envia `situation: "presente"` e
+`owner: "proprio"`.
+
+**Validado em navegador real** (`next dev` + banco local, não só suíte):
+registrar 4 nascimentos moveu junto o total (270→274), machos (122→126),
+Bezerro 0-7 (33→37), nascimentos do mês (0→4), a fazenda (226→230) e o
+histórico (235→236), com fêmeas intactas. Cancelar desfez todos esses
+números de volta **e manteve as 236 linhas**, com a linha marcada
+"Cancelada", o motivo visível e o link de cancelar sumindo dela. É o §10.8
+funcionando de ponta a ponta.
+
+**Como retomar a tarefa 6:** o assistente (§13 e §14). São 7 consultas e
+registros pelo WhatsApp, e o classificador do n8n precisa ser sincronizado
+junto. `resolveCategoryTerm()` já devolve `ambiguous` em vez de chutar, que é
+o que impede lançar animais na faixa de idade errada.
+
+**Ainda não feito, e não é da tarefa 6:** a troca do §6 (matar
+`/api/v1/animal-batches` e servir `GET /api/v1/animals` pelas posições). A
+tela nova já não depende dele, mas o app mobile e as 7 intenções do
+assistente ainda leem o modelo antigo.
 
 **Estado do banco local:** a migração do livro-razão já foi aplicada, e o
 rebanho existente foi convertido (270 cabeças, 10 das 12 categorias, zero

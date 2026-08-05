@@ -1,6 +1,12 @@
 import "dotenv/config";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
-import { cancelMovement, getPositions, listMovements, recordMovement } from "@/lib/actions/herd-ledger";
+import {
+  cancelMovement,
+  getPeriodTotals,
+  getPositions,
+  listMovements,
+  recordMovement,
+} from "@/lib/actions/herd-ledger";
 
 /**
  * Módulo 30, tarefa 3: o livro-razão em si.
@@ -682,7 +688,37 @@ async function main() {
       assert(semEstorno.length === 0, "nada de estorno para o que nunca virou dinheiro");
     }
 
-    console.log("\n21. isolamento multi-tenant continua valendo");
+    console.log("\n21. getPeriodTotals: as 4 linhas de 'Movimentações do mês' (§12)");
+    const inicioDeJunho = new Date("2026-06-01");
+    const fimDeJunho = new Date("2026-06-30T23:59:59.999Z");
+    const junho = await getPeriodTotals(db, inicioDeJunho, fimDeJunho);
+    assert(
+      junho.nascimentos === 3,
+      `nascimentos de junho (o de 15/06, 3 cabeças): obtido ${junho.nascimentos}`,
+    );
+    assert(
+      junho.compras === 0 && junho.vendas === 0 && junho.mortes === 0,
+      "o que aconteceu fora de junho não entra na conta do mês",
+    );
+
+    const desdeSempre = await getPeriodTotals(db, new Date("2020-01-01"), new Date("2030-01-01"));
+    assert(desdeSempre.nascimentos > 0 && desdeSempre.vendas > 0, "janela ampla pega tudo");
+    // Foram registradas 3 compras: 5 (seção 3, viva), 10 e 4 (canceladas).
+    // Obter 5 em vez de 19 é a prova de que o cancelamento vale aqui também.
+    assert(
+      desdeSempre.compras === 5,
+      `compra cancelada não conta no período: esperado 5, obtido ${desdeSempre.compras}`,
+    );
+
+    const soFazendaB = await getPeriodTotals(db, new Date("2020-01-01"), new Date("2030-01-01"), {
+      property_id: propB.id,
+    });
+    assert(
+      soFazendaB.nascimentos === 0,
+      `filtro por fazenda exclui o nascimento da fazenda A (obtido: ${soFazendaB.nascimentos})`,
+    );
+
+    console.log("\n22. isolamento multi-tenant continua valendo");
     const tenantB = await prisma.tenant.create({
       data: { name: "M33 Ledger B", document: `33${stamp}1`, plan: "fazenda" },
     });

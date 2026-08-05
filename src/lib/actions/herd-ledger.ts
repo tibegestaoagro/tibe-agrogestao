@@ -341,6 +341,58 @@ export function serializeHerdMovementRecord(m: HerdMovementRecord) {
   };
 }
 
+/** As 4 linhas de "Movimentações do mês" do §12. */
+export type HerdPeriodTotals = {
+  nascimentos: number;
+  compras: number;
+  vendas: number;
+  mortes: number;
+};
+
+const PERIOD_TYPES = ["nascimento", "compra", "venda", "morte"] as const;
+
+/**
+ * Soma por tipo no período, para o bloco de movimentações do §11/§12.
+ * Ignora canceladas pelo mesmo motivo do saldo: o que foi desfeito não conta.
+ */
+// Recebe `TenantPrismaClient`, não o union `HerdLedgerClient`: `groupBy` tem
+// sobrecargas genéricas demais para o TypeScript resolver sobre uma união, e
+// esta função nunca roda dentro da transação de `recordMovement`.
+export async function getPeriodTotals(
+  db: TenantPrismaClient,
+  since: Date,
+  until: Date,
+  filter: { property_id?: string } = {},
+): Promise<HerdPeriodTotals> {
+  const rows = await db.herdMovement.groupBy({
+    by: ["movement_type"],
+    where: {
+      canceled_at: null,
+      occurred_at: { gte: since, lte: until },
+      movement_type: { in: [...PERIOD_TYPES] },
+      ...(filter.property_id
+        ? {
+            OR: [
+              { from_property_id: filter.property_id },
+              { to_property_id: filter.property_id },
+            ],
+          }
+        : {}),
+    },
+    _sum: { quantity: true },
+  });
+
+  const total = (type: (typeof PERIOD_TYPES)[number]) =>
+    rows.find((r) => r.movement_type === type)?._sum.quantity ?? 0;
+
+  return {
+    nascimentos: total("nascimento"),
+    compras: total("compra"),
+    vendas: total("venda"),
+    mortes: total("morte"),
+  };
+}
+
 const ENTRY_ONLY: readonly HerdMovementType[] = ["saldo_inicial", "nascimento", "compra"];
 const EXIT_ONLY: readonly HerdMovementType[] = ["venda", "morte"];
 const TRANSFER: readonly HerdMovementType[] = [

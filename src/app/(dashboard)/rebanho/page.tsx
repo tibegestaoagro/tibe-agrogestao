@@ -12,33 +12,48 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import AnimalForm from "@/components/rebanho/animal-form";
-import AnimalFilters from "@/components/rebanho/animal-filters";
+import MovementForm from "@/components/rebanho/movement-form";
+import MovementCancel from "@/components/rebanho/movement-cancel";
 import { decToNum } from "@/lib/serialize";
-
-const SEX: Record<string, string> = { male: "Macho", female: "Fêmea" };
+import { getPeriodTotals, getPositions, listMovements } from "@/lib/actions/herd-ledger";
+import { summarizePositions } from "@/lib/herd/summary";
+import { findCategory } from "@/lib/herd/categories";
 
 /**
- * Rebanho: UMA listagem só (2026-08-04).
+ * Rebanho como livro-razão (Módulo 30, §11 e §12).
  *
- * Antes desta data a tela mostrava duas coisas lado a lado, com uma coluna
- * "Individual/Lote" para distinguir: era o reflexo na interface de haver dois
- * modelos no banco. Com o modelo único, todo registro é um lote por
- * categoria, e o brinco é só um campo a mais para quem trabalha com brinco.
+ * A tela abre com o SALDO, que é sempre a soma das movimentações não
+ * canceladas, nunca um número gravado. A tabela de lotes que ocupava esta
+ * página virou a seção "Animais identificados", no fim, e só mostra registro
+ * que tem brinco, peso ou vacinação: o §4 manda manter esses dados como anexo
+ * opcional, e o §6 proíbe duas contagens de rebanho disputando a mesma tela.
  *
- * A coluna "Status" saiu junto com o campo: `quantity` já diz o que resta, e
- * o filtro que fazia sentido de verdade ("quantos bezerros eu tenho") é por
- * CATEGORIA.
+ * Nenhum somatório vem de rota nova: tudo é derivado das posições por
+ * `summarizePositions`, função pura testada em `test:m32` contra os números do
+ * exemplo do §12.
  */
+
+const TIPO_LABEL: Record<string, string> = {
+  saldo_inicial: "Saldo inicial",
+  nascimento: "Nascimento",
+  compra: "Compra",
+  venda: "Venda",
+  morte: "Morte",
+  transferencia_pasto: "Mudança de pasto",
+  transferencia_fazenda: "Mudança de fazenda",
+  mudanca_categoria: "Mudança de categoria",
+  ajuste: "Ajuste",
+};
+
+function nomeCategoria(id: string | null | undefined) {
+  if (!id) return null;
+  return findCategory(id)?.label ?? id;
+}
+
 export default async function RebanhoPage({
   searchParams,
 }: {
-  searchParams: {
-    q?: string;
-    property_id?: string;
-    category_id?: string;
-    breed?: string;
-  };
+  searchParams: { property_id?: string };
 }) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
@@ -48,50 +63,58 @@ export default async function RebanhoPage({
   const writable = canWrite(user.role, "rebanho");
   const db = await getTenantDb();
 
-  // Seletor de propriedade no topo: filtro explícito na URL sempre vence;
-  // sem ele, cai na propriedade ativa; sem nenhum dos dois, mostra tudo.
   const activePropertyId = await getActivePropertyId(db);
   const effectivePropertyId = searchParams.property_id ?? activePropertyId ?? undefined;
 
-  const [batches, propertiesRaw, categories] = await Promise.all([
+  const agora = new Date();
+  const inicioDoMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
+  const fimDoMes = new Date(agora.getFullYear(), agora.getMonth() + 1, 0, 23, 59, 59, 999);
+
+  const [positions, periodo, historico, properties, pastures, identificados] = await Promise.all([
+    // `owner: proprio` é o que faz "total geral" significar o rebanho DO
+    // produtor: animal de terceiro na fazenda não entra na conta dele.
+    getPositions(db, {
+      owner: "proprio",
+      ...(effectivePropertyId ? { property_id: effectivePropertyId } : {}),
+    }),
+    getPeriodTotals(db, inicioDoMes, fimDoMes, { property_id: effectivePropertyId }),
+    listMovements(
+      db,
+      effectivePropertyId ? { property_id: effectivePropertyId } : {},
+      { limit: 8 },
+    ),
+    db.property.findMany({ where: { archived_at: null }, orderBy: { name: "asc" } }),
+    db.pasture.findMany({ where: { archived_at: null }, orderBy: { name: "asc" } }),
     db.animalBatch.findMany({
       where: {
         ...(effectivePropertyId ? { property_id: effectivePropertyId } : {}),
-        ...(searchParams.category_id ? { category_id: searchParams.category_id } : {}),
-        ...(searchParams.breed
-          ? { breed: { contains: searchParams.breed, mode: "insensitive" } }
-          : {}),
-        ...(searchParams.q
-          ? { ear_tag: { contains: searchParams.q, mode: "insensitive" } }
-          : {}),
+        OR: [
+          { ear_tag: { not: null } },
+          { average_weight: { not: null } },
+          { vaccinations: { some: {} } },
+        ],
       },
       orderBy: { created_at: "desc" },
+      take: 20,
       include: {
         property: { select: { name: true } },
         category: { select: { name: true } },
-        vaccinations: {
-          orderBy: { applied_at: "desc" },
-          take: 1,
-          select: { applied_at: true },
-        },
+        vaccinations: { orderBy: { applied_at: "desc" }, take: 1, select: { applied_at: true } },
       },
     }),
-    db.property.findMany({ where: { archived_at: null }, orderBy: { name: "asc" } }),
-    db.animalCategory.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
   ]);
 
-  const properties = propertiesRaw.map((p) => ({
-    id: p.id,
-    name: p.name,
-    area_hectares: decToNum(p.area_hectares),
-    archived: p.archived_at != null,
-  }));
+  const resumo = summarizePositions(positions);
+  const nomeFazenda = new Map(properties.map((p) => [p.id, p.name]));
+  const nomePasto = new Map(pastures.map((p) => [p.id, p.name]));
 
-  const breeds = Array.from(
-    new Set(batches.map((b) => b.breed).filter((b): b is string => !!b)),
-  ).sort();
-
-  const totalCabecas = batches.reduce((soma, b) => soma + b.quantity, 0);
+  const lugar = (propertyId: string | null, pastureId: string | null) =>
+    [
+      propertyId ? nomeFazenda.get(propertyId) ?? "fazenda removida" : null,
+      pastureId ? nomePasto.get(pastureId) ?? "pasto removido" : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
 
   return (
     <div className="space-y-5">
@@ -99,22 +122,25 @@ export default async function RebanhoPage({
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Rebanho</h1>
           <p className="mt-0.5 text-sm text-gray-500">
-            {totalCabecas.toLocaleString("pt-BR")} cabeça(s) em {batches.length} registro(s)
+            Total geral: {resumo.total.toLocaleString("pt-BR")} animais
           </p>
         </div>
-        <div className="flex gap-2">
-          {writable && properties.length > 0 && categories.length > 0 && (
-            <AnimalForm
-              properties={properties.filter((p) => !p.archived)}
-              categories={categories.map((c) => ({ id: c.id, name: c.name }))}
-            />
-          )}
-        </div>
+        {writable && properties.length > 0 && (
+          <MovementForm
+            properties={properties.map((p) => ({ id: p.id, name: p.name }))}
+            pastures={pastures.map((p) => ({
+              id: p.id,
+              name: p.name,
+              property_id: p.property_id,
+            }))}
+            defaultPropertyId={effectivePropertyId ?? null}
+          />
+        )}
       </div>
 
       {properties.length === 0 && (
         <p className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Cadastre uma fazenda antes de adicionar animais (menu{" "}
+          Cadastre uma fazenda antes de registrar o rebanho (menu{" "}
           <Link href="/minha-fazenda" className="font-medium underline">
             Minha Fazenda
           </Link>
@@ -122,61 +148,181 @@ export default async function RebanhoPage({
         </p>
       )}
 
-      <AnimalFilters
-        properties={properties.map((p) => ({ id: p.id, name: p.name }))}
-        categories={categories.map((c) => ({ id: c.id, name: c.name }))}
-        breeds={breeds}
-        defaultPropertyId={activePropertyId}
-      />
+      {resumo.unknown_category_quantity > 0 && (
+        <p className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-800">
+          {resumo.unknown_category_quantity} cabeça(s) estão em uma categoria que não
+          existe mais na lista oficial. O total geral acima já as inclui, mas elas não
+          aparecem em nenhuma linha por categoria.
+        </p>
+      )}
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {resumo.by_sex.map((bloco) => (
+          <div key={bloco.sex} className="rounded-lg border border-gray-200 bg-white p-4">
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+                {bloco.label}
+              </h2>
+              <span className="text-lg font-semibold text-gray-900">
+                {bloco.total.toLocaleString("pt-BR")}
+              </span>
+            </div>
+            <ul className="mt-3 space-y-1.5">
+              {bloco.categories.map((linha) => (
+                <li key={linha.id} className="flex justify-between gap-3 text-sm">
+                  <span className={linha.quantity === 0 ? "text-gray-400" : "text-gray-700"}>
+                    {linha.label}
+                  </span>
+                  <span
+                    className={
+                      linha.quantity === 0
+                        ? "tabular-nums text-gray-400"
+                        : "tabular-nums font-medium text-gray-900"
+                    }
+                  >
+                    {linha.quantity.toLocaleString("pt-BR")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+            Movimentações do mês
+          </h2>
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              ["Nascimentos", periodo.nascimentos],
+              ["Compras", periodo.compras],
+              ["Vendas", periodo.vendas],
+              ["Mortes", periodo.mortes],
+            ].map(([rotulo, valor]) => (
+              <div key={String(rotulo)}>
+                <p className="text-xs text-gray-500">{rotulo}</p>
+                <p className="text-lg font-semibold tabular-nums text-gray-900">
+                  {Number(valor).toLocaleString("pt-BR")}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+            Onde estão
+          </h2>
+          {resumo.by_property.length === 0 ? (
+            <p className="mt-3 text-sm text-gray-500">Nenhum animal registrado ainda.</p>
+          ) : (
+            <ul className="mt-3 space-y-1.5">
+              {resumo.by_property.map((linha) => (
+                <li key={linha.id} className="flex justify-between gap-3 text-sm">
+                  <span className="text-gray-700">
+                    {nomeFazenda.get(linha.id) ?? "fazenda removida"}
+                  </span>
+                  <span className="tabular-nums font-medium text-gray-900">
+                    {linha.quantity.toLocaleString("pt-BR")}
+                  </span>
+                </li>
+              ))}
+              {resumo.by_pasture.map((linha) => (
+                <li
+                  key={linha.id}
+                  className="flex justify-between gap-3 pl-4 text-sm text-gray-500"
+                >
+                  <span>{nomePasto.get(linha.id) ?? "pasto removido"}</span>
+                  <span className="tabular-nums">{linha.quantity.toLocaleString("pt-BR")}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
 
       <div className="rounded-lg border border-gray-200 bg-white">
+        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+            Últimas movimentações
+          </h2>
+          <span className="text-xs text-gray-500">
+            {historico.total.toLocaleString("pt-BR")} no total
+          </span>
+        </div>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Categoria</TableHead>
+              <TableHead>Data</TableHead>
+              <TableHead>O que</TableHead>
               <TableHead>Cabeças</TableHead>
-              <TableHead>Brinco</TableHead>
-              <TableHead>Detalhe</TableHead>
-              <TableHead>Propriedade</TableHead>
-              <TableHead>Peso médio</TableHead>
-              <TableHead>Última vacinação</TableHead>
+              <TableHead>De</TableHead>
+              <TableHead>Para</TableHead>
+              <TableHead>Quem</TableHead>
+              <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {batches.length === 0 && (
+            {historico.items.length === 0 && (
               <TableRow>
                 <TableCell colSpan={7} className="py-6 text-center text-gray-500">
-                  Nenhum registro de rebanho encontrado.
+                  Nenhuma movimentação registrada ainda.
                 </TableCell>
               </TableRow>
             )}
-            {batches.map((b) => {
-              const peso = decToNum(b.average_weight);
+            {historico.items.map((m) => {
+              const cancelada = m.canceled_at != null;
               return (
-                <TableRow key={b.id}>
+                <TableRow key={m.id} className={cancelada ? "text-gray-400" : undefined}>
+                  <TableCell>{m.occurred_at.toLocaleDateString("pt-BR")}</TableCell>
                   <TableCell className="font-medium">
-                    <Link href={`/rebanho/${b.id}`} className="text-tibe-dark hover:underline">
-                      {b.category?.name ?? "não informada"}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    {b.quantity === 0 ? (
-                      <Badge variant="gray">Sem saldo</Badge>
-                    ) : (
-                      b.quantity.toLocaleString("pt-BR")
+                    {TIPO_LABEL[m.movement_type] ?? m.movement_type}
+                    {cancelada && (
+                      <Badge variant="gray" className="ml-2">
+                        Cancelada
+                      </Badge>
+                    )}
+                    {cancelada && m.canceled_reason && (
+                      <span className="block text-xs">{m.canceled_reason}</span>
                     )}
                   </TableCell>
-                  <TableCell>{b.ear_tag ?? "sem brinco"}</TableCell>
-                  <TableCell>
-                    {[b.breed, b.sex ? SEX[b.sex] : null].filter(Boolean).join(" · ") ||
-                      "não informado"}
+                  <TableCell className="tabular-nums">
+                    {m.quantity.toLocaleString("pt-BR")}
                   </TableCell>
-                  <TableCell>{b.property?.name ?? "não informada"}</TableCell>
-                  <TableCell>{peso != null ? `${peso} kg` : "sem valor"}</TableCell>
                   <TableCell>
-                    {b.vaccinations[0]
-                      ? b.vaccinations[0].applied_at.toLocaleDateString("pt-BR")
-                      : "sem data"}
+                    {m.from ? (
+                      <>
+                        {nomeCategoria(m.from.category_id)}
+                        <span className="block text-xs text-gray-500">
+                          {lugar(m.from.property_id, m.from.pasture_id)}
+                        </span>
+                      </>
+                    ) : (
+                      "entrada"
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {m.to ? (
+                      <>
+                        {nomeCategoria(m.to.category_id)}
+                        <span className="block text-xs text-gray-500">
+                          {lugar(m.to.property_id, m.to.pasture_id)}
+                        </span>
+                      </>
+                    ) : (
+                      "saída"
+                    )}
+                  </TableCell>
+                  <TableCell>{m.recorded_by?.name ?? "não informado"}</TableCell>
+                  <TableCell>
+                    {writable && !cancelada && (
+                      <MovementCancel
+                        movementId={m.id}
+                        descricao={`${TIPO_LABEL[m.movement_type] ?? m.movement_type} de ${m.quantity} cabeça(s) em ${m.occurred_at.toLocaleDateString("pt-BR")}`}
+                      />
+                    )}
                   </TableCell>
                 </TableRow>
               );
@@ -184,6 +330,53 @@ export default async function RebanhoPage({
           </TableBody>
         </Table>
       </div>
+
+      {identificados.length > 0 && (
+        <div className="rounded-lg border border-gray-200 bg-white">
+          <div className="border-b border-gray-200 px-4 py-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+              Animais identificados
+            </h2>
+            <p className="mt-0.5 text-xs text-gray-500">
+              Registros com brinco, peso ou vacinação. A quantidade do rebanho vem do
+              saldo acima, não desta lista.
+            </p>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Brinco</TableHead>
+                <TableHead>Categoria</TableHead>
+                <TableHead>Fazenda</TableHead>
+                <TableHead>Peso médio</TableHead>
+                <TableHead>Última vacinação</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {identificados.map((b) => {
+                const peso = decToNum(b.average_weight);
+                return (
+                  <TableRow key={b.id}>
+                    <TableCell className="font-medium">
+                      <Link href={`/rebanho/${b.id}`} className="text-tibe-dark hover:underline">
+                        {b.ear_tag ?? "sem brinco"}
+                      </Link>
+                    </TableCell>
+                    <TableCell>{b.category?.name ?? "não informada"}</TableCell>
+                    <TableCell>{b.property?.name ?? "não informada"}</TableCell>
+                    <TableCell>{peso != null ? `${peso} kg` : "sem valor"}</TableCell>
+                    <TableCell>
+                      {b.vaccinations[0]
+                        ? b.vaccinations[0].applied_at.toLocaleDateString("pt-BR")
+                        : "sem data"}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import {
   nextCategoryByAge,
   resolveCategoryTerm,
 } from "@/lib/herd/categories";
+import { summarizePositions } from "@/lib/herd/summary";
 
 /**
  * Módulo 30, tarefa 1: as 12 categorias como constante.
@@ -115,9 +116,92 @@ console.log("\n5. Busca");
 check("findCategory devolve null para id inexistente", findCategory("nao_existe") === null);
 check("isValidCategory recusa id inventado", !isValidCategory("boi_gordo"));
 
+console.log("\n6. Resumo do rebanho (§11 e §12), sobre as posições do livro-razão");
+
+// Os números do exemplo do §12 do documento do cliente, na íntegra: 117
+// fêmeas + 58 machos = 175. Se este bloco quebrar, o resumo deixou de bater
+// com o exemplo que o cliente escreveu.
+const exemplo12 = [
+  ["bezerra_0_7", 21],
+  ["femea_8_12", 12],
+  ["femea_13_24", 25],
+  ["femea_25_36", 14],
+  ["femea_36_mais", 45],
+  ["bezerro_0_7", 18],
+  ["macho_8_12", 10],
+  ["macho_13_24", 16],
+  ["macho_25_36", 8],
+  ["macho_36_mais", 3],
+  ["garrote_reprodutor", 2],
+  ["tourinho_reprodutor", 1],
+] as const;
+
+const resumo = summarizePositions(
+  exemplo12.map(([category_id, quantity]) => ({
+    category_id,
+    property_id: "fazenda_santa_helena",
+    pasture_id: null,
+    quantity,
+  })),
+);
+
+const femeas = resumo.by_sex[0];
+const machos = resumo.by_sex[1];
+
+check("total geral bate com o §12 (175)", resumo.total === 175, String(resumo.total));
+check("fêmeas vêm primeiro, como no §12", femeas.sex === "femea");
+check("total de fêmeas bate (117)", femeas.total === 117, String(femeas.total));
+check("total de machos bate (58)", machos.total === 58, String(machos.total));
+check(
+  "as 5 categorias de fêmea aparecem na ordem do documento",
+  femeas.categories.map((c) => c.id).join(",") ===
+    "bezerra_0_7,femea_8_12,femea_13_24,femea_25_36,femea_36_mais",
+);
+check(
+  "as 7 de macho terminam nas duas reprodutivas",
+  machos.categories.map((c) => c.id).slice(-2).join(",") ===
+    "garrote_reprodutor,tourinho_reprodutor",
+);
+check("por fazenda soma o total", resumo.by_property[0]?.quantity === 175);
+check("sem pasto informado, não inventa linha de pasto", resumo.by_pasture.length === 0);
+check("nenhuma quantidade em categoria desconhecida", resumo.unknown_category_quantity === 0);
+
+const comZero = summarizePositions([
+  { category_id: "femea_36_mais", property_id: "p1", pasture_id: null, quantity: 5 },
+]);
+check(
+  "categoria sem saldo continua na lista, com zero",
+  comZero.by_sex[1].categories.length === 7 &&
+    comZero.by_sex[1].categories.every((c) => c.quantity === 0),
+);
+
+const comPasto = summarizePositions([
+  { category_id: "femea_36_mais", property_id: "p1", pasture_id: "pasto_a", quantity: 30 },
+  { category_id: "macho_36_mais", property_id: "p1", pasture_id: "pasto_b", quantity: 12 },
+  { category_id: "bezerro_0_7", property_id: "p2", pasture_id: null, quantity: 8 },
+]);
+check("por pasto lista só quem tem pasto", comPasto.by_pasture.length === 2);
+check("por pasto vem do maior para o menor", comPasto.by_pasture[0].id === "pasto_a");
+check("por fazenda separa as duas", comPasto.by_property.length === 2);
+check("total soma as três posições", comPasto.total === 50, String(comPasto.total));
+
+const posicaoZerada = summarizePositions([
+  { category_id: "femea_36_mais", property_id: "p1", pasture_id: "pasto_a", quantity: 0 },
+]);
+check("posição zerada não vira linha de fazenda nem de pasto",
+  posicaoZerada.by_property.length === 0 && posicaoZerada.by_pasture.length === 0);
+
+const categoriaSumida = summarizePositions([
+  { category_id: "categoria_que_alguem_removeu", property_id: "p1", pasture_id: null, quantity: 9 },
+]);
+check(
+  "categoria fora da constante é denunciada, não somem 9 cabeças em silêncio",
+  categoriaSumida.unknown_category_quantity === 9 && categoriaSumida.total === 9,
+);
+
 console.log(
   falhas === 0
-    ? `\n✅ Categorias do rebanho: 0 falhas.`
-    : `\n❌ Categorias do rebanho: ${falhas} falha(s).`,
+    ? `\n✅ Categorias e resumo do rebanho: 0 falhas.`
+    : `\n❌ Categorias e resumo do rebanho: ${falhas} falha(s).`,
 );
 process.exit(falhas === 0 ? 0 : 1);
