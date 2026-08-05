@@ -2,6 +2,7 @@ import type { HerdMovementType, HerdOwner, HerdSituation, Prisma } from "@/gener
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { createLinkedEntry, runSerializableTenantTransaction, type TenantTransactionClient } from "@/lib/financial";
 import { isValidCategory } from "@/lib/herd/categories";
+import { decToNum, isoOrNull } from "@/lib/serialize";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 
 /**
@@ -13,6 +14,34 @@ import { ok, fail, type ActionResult } from "@/lib/actions/types";
  * porque ele PRECISA da soma corrente pra decidir: não tem como validar sem
  * primeiro somar.
  */
+
+/**
+ * Os enums do schema como lista em runtime, para o Zod das rotas e o parse de
+ * query string. `satisfies` é o guardrail: listar um valor que não existe no
+ * enum do Prisma para de compilar.
+ */
+export const HERD_SITUATIONS = [
+  "presente",
+  "evento",
+  "pasto_terceiro",
+  "boitel",
+  "confinamento",
+  "desaparecido",
+] as const satisfies readonly HerdSituation[];
+
+export const HERD_OWNERS = ["proprio", "terceiro"] as const satisfies readonly HerdOwner[];
+
+export const HERD_MOVEMENT_TYPES = [
+  "saldo_inicial",
+  "nascimento",
+  "compra",
+  "venda",
+  "morte",
+  "transferencia_pasto",
+  "transferencia_fazenda",
+  "mudanca_categoria",
+  "ajuste",
+] as const satisfies readonly HerdMovementType[];
 
 export type HerdPositionKey = {
   category_id: string;
@@ -148,6 +177,170 @@ export async function getPositions(
   return Array.from(totals.values());
 }
 
+/**
+ * Filtro do histórico (§10.7). Os eixos de posição (categoria, fazenda, pasto)
+ * casam quando a movimentação toca o valor em QUALQUER um dos dois lados: uma
+ * transferência do Pasto A para o Pasto B aparece no histórico dos dois.
+ *
+ * `include_canceled` nasce `true` de propósito: o §10.8 exige que o registro
+ * cancelado continue identificado no histórico. É `getPositions` que ignora
+ * canceladas, porque lá elas não podem contar no saldo; aqui elas precisam
+ * aparecer, marcadas. É por isso que as duas leituras são funções separadas em
+ * vez de um parâmetro da mesma.
+ */
+export type HerdMovementFilter = {
+  category_id?: string;
+  property_id?: string;
+  pasture_id?: string | null;
+  movement_type?: HerdMovementType;
+  since?: Date;
+  until?: Date;
+  include_canceled?: boolean;
+};
+
+export type ListMovementsOptions = { limit?: number; offset?: number };
+
+export type HerdMovementHistoryItem = {
+  id: string;
+  movement_type: HerdMovementType;
+  quantity: number;
+  from: HerdPositionKey | null;
+  to: HerdPositionKey | null;
+  value: number | null;
+  financial_entry_id: string | null;
+  reason: string | null;
+  notes: string | null;
+  occurred_at: Date;
+  created_at: Date;
+  canceled_at: Date | null;
+  canceled_reason: string | null;
+  recorded_by: { id: string; name: string } | null;
+};
+
+const DEFAULT_HISTORY_LIMIT = 50;
+const MAX_HISTORY_LIMIT = 200;
+
+function eitherSide(
+  fromField: keyof Prisma.HerdMovementWhereInput,
+  toField: keyof Prisma.HerdMovementWhereInput,
+  value: string | null,
+): Prisma.HerdMovementWhereInput {
+  return { OR: [{ [fromField]: value }, { [toField]: value }] };
+}
+
+function historyWhere(filter: HerdMovementFilter): Prisma.HerdMovementWhereInput {
+  const where: Prisma.HerdMovementWhereInput = {};
+  if (filter.include_canceled === false) where.canceled_at = null;
+  if (filter.movement_type !== undefined) where.movement_type = filter.movement_type;
+  if (filter.since !== undefined || filter.until !== undefined) {
+    where.occurred_at = {
+      ...(filter.since !== undefined ? { gte: filter.since } : {}),
+      ...(filter.until !== undefined ? { lte: filter.until } : {}),
+    };
+  }
+
+  const axes: Prisma.HerdMovementWhereInput[] = [];
+  if (filter.category_id !== undefined) {
+    axes.push(eitherSide("from_category_id", "to_category_id", filter.category_id));
+  }
+  if (filter.property_id !== undefined) {
+    axes.push(eitherSide("from_property_id", "to_property_id", filter.property_id));
+  }
+  if (filter.pasture_id !== undefined) {
+    axes.push(eitherSide("from_pasture_id", "to_pasture_id", filter.pasture_id));
+  }
+  if (axes.length > 0) where.AND = axes;
+
+  return where;
+}
+
+/**
+ * O histórico do §10.7, da movimentação mais recente para a mais antiga.
+ * Devolve `total` do filtro inteiro (não da página) para a tela conseguir
+ * paginar sem uma segunda chamada.
+ */
+export async function listMovements(
+  db: HerdLedgerClient,
+  filter: HerdMovementFilter = {},
+  options: ListMovementsOptions = {},
+): Promise<{ items: HerdMovementHistoryItem[]; total: number }> {
+  const where = historyWhere(filter);
+  const take = Math.min(Math.max(options.limit ?? DEFAULT_HISTORY_LIMIT, 1), MAX_HISTORY_LIMIT);
+  const skip = Math.max(options.offset ?? 0, 0);
+
+  const [rows, total] = await Promise.all([
+    db.herdMovement.findMany({
+      where,
+      // created_at e id desempatam: sem eles, duas movimentações no mesmo dia
+      // podem trocar de lugar entre uma página e outra e sumir da listagem.
+      orderBy: [{ occurred_at: "desc" }, { created_at: "desc" }, { id: "desc" }],
+      take,
+      skip,
+      include: { recorded_by: { select: { id: true, name: true } } },
+    }),
+    db.herdMovement.count({ where }),
+  ]);
+
+  const items = rows.map((row) => ({
+    id: row.id,
+    movement_type: row.movement_type,
+    quantity: row.quantity,
+    from: extractPosition(row, "from"),
+    to: extractPosition(row, "to"),
+    value: decToNum(row.value),
+    financial_entry_id: row.financial_entry_id,
+    reason: row.reason,
+    notes: row.notes,
+    occurred_at: row.occurred_at,
+    created_at: row.created_at,
+    canceled_at: row.canceled_at,
+    canceled_reason: row.canceled_reason,
+    recorded_by: row.recorded_by ? { id: row.recorded_by.id, name: row.recorded_by.name } : null,
+  }));
+
+  return { items, total };
+}
+
+/**
+ * Contrato HTTP do histórico: `Date` vira ISO8601, como no resto de `/api/v1`.
+ * Fica aqui (e não em serializers.ts) porque o tipo de origem é de action, não
+ * do Prisma: mesmo motivo de `serializeBatch` viver em `animal-batches.ts`.
+ */
+export function serializeHerdMovement(m: HerdMovementHistoryItem) {
+  return {
+    id: m.id,
+    movement_type: m.movement_type,
+    quantity: m.quantity,
+    from: m.from,
+    to: m.to,
+    value: m.value,
+    financial_entry_id: m.financial_entry_id,
+    reason: m.reason,
+    notes: m.notes,
+    occurred_at: m.occurred_at.toISOString(),
+    created_at: m.created_at.toISOString(),
+    canceled_at: isoOrNull(m.canceled_at),
+    canceled_reason: m.canceled_reason,
+    recorded_by: m.recorded_by,
+  };
+}
+
+/** Mesma ideia, para o retorno de `recordMovement` (que ainda não tem histórico). */
+export function serializeHerdMovementRecord(m: HerdMovementRecord) {
+  return {
+    id: m.id,
+    movement_type: m.movement_type,
+    quantity: m.quantity,
+    from: m.from,
+    to: m.to,
+    value: m.value,
+    financial_entry_id: m.financial_entry_id,
+    reason: m.reason,
+    notes: m.notes,
+    occurred_at: m.occurred_at.toISOString(),
+  };
+}
+
 const ENTRY_ONLY: readonly HerdMovementType[] = ["saldo_inicial", "nascimento", "compra"];
 const EXIT_ONLY: readonly HerdMovementType[] = ["venda", "morte"];
 const TRANSFER: readonly HerdMovementType[] = [
@@ -231,6 +424,11 @@ async function validatePosition(
 const FINANCIAL_CATEGORY: Partial<Record<HerdMovementType, string>> = {
   compra: "Compra de animal",
   venda: "Venda de animal",
+};
+
+const REVERSAL_CATEGORY: Partial<Record<HerdMovementType, string>> = {
+  compra: "Estorno de compra de animal",
+  venda: "Estorno de venda de animal",
 };
 
 /**
@@ -325,6 +523,110 @@ export async function recordMovement(
       reason: input.reason ?? null,
       notes: input.notes ?? null,
       occurred_at,
+    });
+  });
+}
+
+/**
+ * Cancela uma movimentação (§10.8). Não apaga: marca `canceled_at`, e a linha
+ * continua identificada no histórico. O saldo se recalcula sozinho, porque ele
+ * sempre foi a soma das não canceladas.
+ *
+ * O bloqueio de saldo negativo vale aqui também, e olha para o lado OPOSTO ao
+ * de `recordMovement`: cancelar devolve animais à origem e os TIRA do destino,
+ * então quem pode ficar negativo é o destino. O caso real: comprar 10, vender
+ * 8, e depois tentar cancelar a compra. Bloquear em vez de cancelar em cascata
+ * é deliberado: cascata desfaria em silêncio movimentações que o produtor não
+ * pediu para desfazer.
+ *
+ * Editar uma movimentação é cancelar e lançar de novo. Não existe edição no
+ * lugar porque o §10.8 exige que o registro original permaneça identificado no
+ * histórico, e sobrescrever a linha é justamente o que apagaria esse rastro.
+ *
+ * O `FinancialEntry` da compra/venda segue a régua decidida com o usuário em
+ * 2026-08-05: **pendente é apagado, pago é estornado**. Erro recém-digitado
+ * some limpo, sem sujeira no DRE; dinheiro que de fato entrou ou saiu nunca é
+ * apagado, ganha um lançamento contrário com rastro. Atenção: hoje
+ * `recordMovement` cria o lançamento como `paid` (o evento já ocorreu), então
+ * na prática o caminho que roda é o do estorno. O ramo do apagar existe para
+ * lançamento pendente, que passa a ser possível se um dia a compra a prazo
+ * entrar no contrato.
+ */
+export async function cancelMovement(
+  db: TenantPrismaClient,
+  id: string,
+  reason: string,
+): Promise<ActionResult<HerdMovementHistoryItem>> {
+  return runSerializableTenantTransaction(db, async (tx) => {
+    const movement = await tx.herdMovement.findFirst({ where: { id } });
+    if (!movement) return fail("NOT_FOUND", "Movimentação não encontrada", 404);
+    if (movement.canceled_at) {
+      return fail("ALREADY_CANCELED", "Esta movimentação já foi cancelada", 422);
+    }
+
+    const to = extractPosition(movement, "to");
+    if (to) {
+      const [current] = await getPositions(tx, to);
+      const available = current?.quantity ?? 0;
+      if (available < movement.quantity) {
+        return fail(
+          "INSUFFICIENT_BALANCE",
+          `Não dá para cancelar: esta movimentação trouxe ${movement.quantity} animais e restam apenas ${available} nesta posição. Cancele antes as movimentações que usaram estes animais.`,
+          422,
+        );
+      }
+    }
+
+    let clearFinancialLink = false;
+    if (movement.financial_entry_id) {
+      const entry = await tx.financialEntry.findFirst({ where: { id: movement.financial_entry_id } });
+      if (entry && entry.status === "pending") {
+        // Ainda não virou dinheiro: apagar não perde nada, e evita deixar uma
+        // conta a pagar de uma compra que não existe mais.
+        await tx.financialEntry.delete({ where: { id: entry.id } });
+        clearFinancialLink = true;
+      } else if (entry) {
+        await createLinkedEntry(tx, {
+          entry_type: entry.entry_type === "income" ? "expense" : "income",
+          category: REVERSAL_CATEGORY[movement.movement_type] ?? "Estorno de movimentação de rebanho",
+          amount: decToNum(entry.amount) ?? 0,
+          related_module: "rebanho",
+          related_id: movement.id,
+          // O estorno é datado no dia do cancelamento, não no da compra: é
+          // quando o dinheiro voltou, e é isso que o fluxo de caixa precisa ver.
+          occurred_at: new Date(),
+        });
+      }
+    }
+
+    const canceled = await tx.herdMovement.update({
+      where: { id },
+      data: {
+        canceled_at: new Date(),
+        canceled_reason: reason,
+        // Sem isso o vínculo apontaria para uma linha apagada.
+        ...(clearFinancialLink ? { financial_entry_id: null } : {}),
+      },
+      include: { recorded_by: { select: { id: true, name: true } } },
+    });
+
+    return ok({
+      id: canceled.id,
+      movement_type: canceled.movement_type,
+      quantity: canceled.quantity,
+      from: extractPosition(canceled, "from"),
+      to: extractPosition(canceled, "to"),
+      value: decToNum(canceled.value),
+      financial_entry_id: canceled.financial_entry_id,
+      reason: canceled.reason,
+      notes: canceled.notes,
+      occurred_at: canceled.occurred_at,
+      created_at: canceled.created_at,
+      canceled_at: canceled.canceled_at,
+      canceled_reason: canceled.canceled_reason,
+      recorded_by: canceled.recorded_by
+        ? { id: canceled.recorded_by.id, name: canceled.recorded_by.name }
+        : null,
     });
   });
 }

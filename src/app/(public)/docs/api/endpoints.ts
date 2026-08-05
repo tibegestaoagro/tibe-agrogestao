@@ -384,6 +384,49 @@ export const GROUPS: Group[] = [
     ],
   },
   {
+    title: "Rebanho: livro-razão (Módulo 30)",
+    endpoints: [
+      {
+        method: "GET",
+        path: "/api/v1/herd/positions",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description:
+          "Saldo do rebanho por posição, onde posição é `categoria x fazenda x pasto x situação x dono`. A quantidade é sempre a SOMA das movimentações não canceladas, nunca um campo gravado. Posição zerada não é devolvida. Filtros opcionais: category_id, property_id, pasture_id, situation, owner. O total do rebanho PRÓPRIO é a consulta com `?owner=proprio`, senão animais de terceiro entram na conta.",
+        response: `200
+{ "data": [{ "category_id": "femea_36_mais", "property_id": "cl...", "pasture_id": null, "situation": "presente", "owner": "proprio", "quantity": 45 }], "meta": { "total": 1, "total_quantity": 45 } }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/herd/movements",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description:
+          "Histórico obrigatório do rebanho, da movimentação mais recente para a mais antiga. Movimentações canceladas APARECEM por padrão, marcadas com `canceled_at`: o registro cancelado precisa continuar identificado no histórico. Use `include_canceled=false` para ver só o que conta no saldo. Filtros: category_id, property_id, pasture_id, movement_type, since, until, limit (máx. 200), offset.",
+        response: `200
+{ "data": [{ "id": "cl...", "movement_type": "venda", "quantity": 8, "from": { "category_id": "femea_25_36", "property_id": "cl...", "pasture_id": null, "situation": "presente", "owner": "proprio" }, "to": null, "value": 28000, "occurred_at": "2026-08-05T00:00:00.000Z", "canceled_at": null, "recorded_by": { "id": "cl...", "name": "Zé" } }], "meta": { "total": 12 } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/herd/movements",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "Registra uma movimentação. UMA rota para os 9 tipos (`saldo_inicial`, `nascimento`, `compra`, `venda`, `morte`, `transferencia_pasto`, `transferencia_fazenda`, `mudanca_categoria`, `ajuste`), porque mudança de categoria não é caso especial: é um movimento com categorias diferentes nas duas pontas. Entrada exige só `to`, saída só `from`, transferência os dois, ajuste exatamente um. Devolve 422 `INSUFFICIENT_BALANCE` quando a origem não tem saldo. `compra` e `venda` com `value` geram lançamento financeiro; `nascimento` e `morte` nunca.",
+        request: `{ "movement_type": "compra", "quantity": 10, "to": { "category_id": "femea_25_36", "property_id": "cl...", "pasture_id": null, "situation": "presente", "owner": "proprio" }, "value": 30000 }`,
+        response: `201
+{ "data": { "id": "cl...", "movement_type": "compra", "quantity": 10, "financial_entry_id": "cl..." }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/herd/movements/:id/cancel",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "Cancela uma movimentação. Não apaga: marca a linha, que continua no histórico, e o saldo se recalcula sozinho. É POST em sub-rota (não DELETE) porque o recurso não é removido e a operação exige o motivo. Editar é cancelar e lançar de novo, por isso não existe PATCH. Devolve 422 `INSUFFICIENT_BALANCE` quando o cancelamento deixaria o destino negativo (comprou 10, vendeu 8, tentou cancelar a compra) e 422 `ALREADY_CANCELED` na segunda vez. O lançamento financeiro pendente é apagado; o pago ganha um estorno.",
+        request: `{ "reason": "lançado errado" }`,
+        response: `200
+{ "data": { "id": "cl...", "canceled_at": "2026-08-05T12:00:00.000Z", "canceled_reason": "lançado errado" }, "meta": {} }`,
+      },
+    ],
+  },
+  {
     title: "Rebanho: Animais",
     endpoints: [
       {

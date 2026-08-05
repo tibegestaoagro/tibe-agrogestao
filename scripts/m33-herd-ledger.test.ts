@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
-import { getPositions, recordMovement } from "@/lib/actions/herd-ledger";
+import { cancelMovement, getPositions, listMovements, recordMovement } from "@/lib/actions/herd-ledger";
 
 /**
  * Módulo 30, tarefa 3: o livro-razão em si.
@@ -461,7 +461,228 @@ async function main() {
       "o próprio não ganha os 4 de terceiro",
     );
 
-    console.log("\n15. isolamento multi-tenant continua valendo");
+    console.log("\n15. listMovements: os 9 campos obrigatórios do §10.7");
+    const operador = await db.user.create({
+      data: scoped({
+        name: "Zé do Curral",
+        email: `m33-${stamp}@tibe.test`,
+        password_hash: "nao-usado-neste-teste",
+        role: "OPERADOR",
+      }),
+    });
+    const comTodosOsCampos = await recordMovement(db, {
+      movement_type: "nascimento",
+      quantity: 3,
+      to: {
+        category_id: "garrote_reprodutor",
+        property_id: propA.id,
+        pasture_id: pastoSede.id,
+        situation: "presente",
+        owner: "proprio",
+      },
+      reason: "parto normal",
+      notes: "tres bezerros da vaca 42",
+      recorded_by_user_id: operador.id,
+      occurred_at: new Date("2026-06-15"),
+    });
+    assert(comTodosOsCampos.ok, "movimentação com motivo, observação e usuário é registrada");
+
+    const historicoGarrote = await listMovements(db, { category_id: "garrote_reprodutor" });
+    const linha = historicoGarrote.items[0];
+    assert(
+      historicoGarrote.total === 1,
+      `o filtro por categoria acha exatamente 1 (obtido: ${historicoGarrote.total})`,
+    );
+    assert(!!linha && linha.occurred_at.getTime() === new Date("2026-06-15").getTime(), "1/9: data");
+    assert(linha?.to?.category_id === "garrote_reprodutor", "2/9: categoria");
+    assert(linha?.quantity === 3, "3/9: quantidade");
+    assert(linha?.movement_type === "nascimento", "4/9: tipo de movimentação");
+    assert(linha?.to?.property_id === propA.id, "5/9: fazenda");
+    assert(linha?.to?.pasture_id === pastoSede.id, "6/9: pasto, quando informado");
+    assert(linha?.recorded_by?.name === "Zé do Curral", "7/9: usuário responsável, pelo nome");
+    assert(linha?.reason === "parto normal", "8/9: motivo, quando houver");
+    assert(linha?.notes === "tres bezerros da vaca 42", "9/9: observação, quando houver");
+
+    console.log("\n16. listMovements: filtros, ordem e paginação");
+    const porTipo = await listMovements(db, { movement_type: "ajuste" });
+    assert(
+      porTipo.total === 1 && porTipo.items[0]?.movement_type === "ajuste",
+      "filtro por tipo de movimentação",
+    );
+    const porFazendaB = await listMovements(db, { property_id: propB.id });
+    assert(
+      porFazendaB.items.every((m) => m.from?.property_id === propB.id || m.to?.property_id === propB.id),
+      "filtro por fazenda casa nos dois lados da movimentação",
+    );
+    const noPeriodo = await listMovements(db, {
+      since: new Date("2026-06-01"),
+      until: new Date("2026-06-30"),
+    });
+    assert(
+      noPeriodo.total === 1 && noPeriodo.items[0]?.movement_type === "nascimento",
+      `filtro por período pega só junho (obtido: ${noPeriodo.total})`,
+    );
+
+    const tudo = await listMovements(db);
+    assert(tudo.total > 5, `sem filtro, o histórico traz tudo (obtido: ${tudo.total})`);
+    const ordenado = tudo.items.every(
+      (m, i) => i === 0 || tudo.items[i - 1].occurred_at.getTime() >= m.occurred_at.getTime(),
+    );
+    assert(ordenado, "histórico vem da movimentação mais recente para a mais antiga");
+
+    const pagina1 = await listMovements(db, {}, { limit: 2, offset: 0 });
+    const pagina2 = await listMovements(db, {}, { limit: 2, offset: 2 });
+    assert(pagina1.items.length === 2, "limit corta a página em 2");
+    assert(pagina1.total === tudo.total, "total é o do filtro, não o da página");
+    assert(
+      pagina1.items.every((m) => !pagina2.items.some((o) => o.id === m.id)),
+      "offset não repete linha entre páginas",
+    );
+
+    console.log("\n17. cancelMovement: cancela, some do saldo, fica no histórico (§10.8)");
+    const compraParaCancelar = await recordMovement(db, {
+      movement_type: "compra",
+      quantity: 10,
+      to: {
+        category_id: "femea_25_36",
+        property_id: propB.id,
+        pasture_id: null,
+        situation: "presente",
+        owner: "proprio",
+      },
+      value: 30000,
+    });
+    assert(compraParaCancelar.ok, "compra de 10 registrada");
+    if (!compraParaCancelar.ok) throw new Error("sem a compra o resto da seção não faz sentido");
+
+    const vendaDeParte = await recordMovement(db, {
+      movement_type: "venda",
+      quantity: 8,
+      from: {
+        category_id: "femea_25_36",
+        property_id: propB.id,
+        pasture_id: null,
+        situation: "presente",
+        owner: "proprio",
+      },
+      value: 28000,
+    });
+    assert(vendaDeParte.ok, "venda de 8 das 10 registrada");
+    if (!vendaDeParte.ok) throw new Error("sem a venda o resto da seção não faz sentido");
+
+    console.log("\n18. cancelar o que já foi usado é bloqueado (§10.3 no cancelamento)");
+    const cancelaCompraCedo = await cancelMovement(db, compraParaCancelar.data.id, "comprei errado");
+    assert(
+      !cancelaCompraCedo.ok,
+      "cancelar a compra deixaria o saldo negativo, então é recusado",
+    );
+    assert(
+      !cancelaCompraCedo.ok && cancelaCompraCedo.code === "INSUFFICIENT_BALANCE",
+      "o código do erro é INSUFFICIENT_BALANCE",
+    );
+    const saldoIntacto = await getPositions(db, { category_id: "femea_25_36", property_id: propB.id });
+    assert(saldoIntacto[0]?.quantity === 2, `saldo intacto depois da recusa (obtido: ${saldoIntacto[0]?.quantity})`);
+
+    const cancelaVenda = await cancelMovement(db, vendaDeParte.data.id, "venda nao se concretizou");
+    assert(cancelaVenda.ok, "cancelar a venda é permitido: ela só devolve animais à posição");
+    const depoisDeDesfazerVenda = await getPositions(db, {
+      category_id: "femea_25_36",
+      property_id: propB.id,
+    });
+    assert(
+      depoisDeDesfazerVenda[0]?.quantity === 10,
+      `os 8 voltam para o saldo (obtido: ${depoisDeDesfazerVenda[0]?.quantity})`,
+    );
+
+    const cancelaCompraAgora = await cancelMovement(db, compraParaCancelar.data.id, "comprei errado");
+    assert(cancelaCompraAgora.ok, "com a venda desfeita, a compra pode ser cancelada");
+    const zerado = await getPositions(db, { category_id: "femea_25_36", property_id: propB.id });
+    assert((zerado[0]?.quantity ?? 0) === 0, `posição volta a zero (obtido: ${zerado[0]?.quantity})`);
+
+    console.log("\n19. cancelamento: uma vez só, e a linha continua identificada");
+    const cancelaDeNovo = await cancelMovement(db, compraParaCancelar.data.id, "de novo");
+    assert(!cancelaDeNovo.ok, "cancelar duas vezes a mesma movimentação é recusado");
+    assert(
+      !cancelaDeNovo.ok && cancelaDeNovo.code === "ALREADY_CANCELED",
+      "o código do erro é ALREADY_CANCELED",
+    );
+    const inexistente = await cancelMovement(db, "id-que-nao-existe", "teste");
+    assert(!inexistente.ok && inexistente.code === "NOT_FOUND", "id inexistente devolve NOT_FOUND");
+
+    const comCanceladas = await listMovements(db, { movement_type: "compra" });
+    const canceladaNoHistorico = comCanceladas.items.find((m) => m.id === compraParaCancelar.data.id);
+    assert(!!canceladaNoHistorico, "a compra cancelada continua aparecendo no histórico (§10.8)");
+    assert(
+      !!canceladaNoHistorico?.canceled_at && canceladaNoHistorico.canceled_reason === "comprei errado",
+      "a linha cancelada vem marcada, com o motivo do cancelamento",
+    );
+    const semCanceladas = await listMovements(db, {
+      movement_type: "compra",
+      include_canceled: false,
+    });
+    assert(
+      !semCanceladas.items.some((m) => m.id === compraParaCancelar.data.id),
+      "include_canceled: false esconde as canceladas, para quem quiser só o que conta",
+    );
+
+    console.log("\n20. financeiro do cancelamento: pago estorna, pendente apaga");
+    const lancamentosDaCompra = await db.financialEntry.findMany({
+      where: { related_module: "rebanho", related_id: compraParaCancelar.data.id },
+    });
+    const originalDaCompra = lancamentosDaCompra.find((e) => e.category === "Compra de animal");
+    const estornoDaCompra = lancamentosDaCompra.find((e) => e.category === "Estorno de compra de animal");
+    assert(
+      lancamentosDaCompra.length === 2,
+      `compra paga e cancelada fica com 2 linhas: original e estorno (obtido: ${lancamentosDaCompra.length})`,
+    );
+    assert(
+      !!originalDaCompra && originalDaCompra.entry_type === "expense",
+      "a despesa original continua no financeiro, não é apagada",
+    );
+    assert(
+      !!estornoDaCompra && estornoDaCompra.entry_type === "income",
+      "o estorno entra no sentido contrário (despesa vira receita)",
+    );
+    assert(Number(estornoDaCompra?.amount ?? 0) === 30000, "o estorno tem o mesmo valor da compra");
+
+    const compraAPrazo = await recordMovement(db, {
+      movement_type: "compra",
+      quantity: 4,
+      to: {
+        category_id: "femea_36_mais",
+        property_id: propB.id,
+        pasture_id: null,
+        situation: "presente",
+        owner: "proprio",
+      },
+      value: 12000,
+    });
+    assert(compraAPrazo.ok, "compra a prazo registrada");
+    if (compraAPrazo.ok && compraAPrazo.data.financial_entry_id) {
+      // recordMovement nasce `paid` (o evento já ocorreu). Forçamos `pending`
+      // aqui para exercitar o outro ramo da régua, que passa a rodar sozinho
+      // se um dia a compra a prazo entrar no contrato.
+      await db.financialEntry.update({
+        where: { id: compraAPrazo.data.financial_entry_id },
+        data: { status: "pending", paid_at: null },
+      });
+      const cancelaAPrazo = await cancelMovement(db, compraAPrazo.data.id, "pedido cancelado");
+      assert(cancelaAPrazo.ok, "compra com lançamento pendente pode ser cancelada");
+      const lancamentoSumiu = await db.financialEntry.findFirst({
+        where: { id: compraAPrazo.data.financial_entry_id },
+      });
+      assert(!lancamentoSumiu, "lançamento pendente é apagado, não estornado");
+      assert(
+        cancelaAPrazo.ok && cancelaAPrazo.data.financial_entry_id === null,
+        "o vínculo não fica apontando para uma linha apagada",
+      );
+      const semEstorno = await db.financialEntry.findMany({
+        where: { related_module: "rebanho", related_id: compraAPrazo.data.id },
+      });
+      assert(semEstorno.length === 0, "nada de estorno para o que nunca virou dinheiro");
+    }
+
+    console.log("\n21. isolamento multi-tenant continua valendo");
     const tenantB = await prisma.tenant.create({
       data: { name: "M33 Ledger B", document: `33${stamp}1`, plan: "fazenda" },
     });
@@ -469,6 +690,15 @@ async function main() {
       const dbB = prismaForTenant(tenantB.id);
       const posicoesTenantB = await getPositions(dbB);
       assert(posicoesTenantB.length === 0, "tenant B não enxerga nenhuma posição do tenant A");
+
+      const historicoTenantB = await listMovements(dbB);
+      assert(historicoTenantB.total === 0, "tenant B não enxerga o histórico do tenant A");
+
+      const cancelaDoOutro = await cancelMovement(dbB, comTodosOsCampos.ok ? comTodosOsCampos.data.id : "x", "invasao");
+      assert(
+        !cancelaDoOutro.ok && cancelaDoOutro.code === "NOT_FOUND",
+        "tenant B não consegue cancelar movimentação do tenant A",
+      );
     } finally {
       await prisma.tenant.deleteMany({ where: { id: tenantB.id } });
     }

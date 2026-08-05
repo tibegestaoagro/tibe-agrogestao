@@ -47,9 +47,9 @@ Spec **aprovada pelo usuário** em 2026-08-05. Duas tarefas concluídas:
 |---|---|---|
 | 1 | 12 categorias como constante + apelidos + `test:m32` (26 verificações) | `9f461ae` |
 | 2 | Schema `HerdMovement` + migração que converte o rebanho existente | `c1f884c` |
-| 3 | Actions do livro-razão (`getPositions` + `recordMovement`) + `test:m33` (39 verificações) | pendente de commit nesta rodada |
-| 4 | **Rotas de API** | **próxima, não iniciada** |
-| 5 | Telas | pendente |
+| 3 | Actions do livro-razão (`getPositions` + `recordMovement`) + `test:m33` | `7793df0` |
+| 4 | Histórico, cancelamento e as 4 rotas de API | commit desta rodada |
+| 5 | **Telas** | **próxima, não iniciada** |
 | 6 | Assistente (§13 e §14) | pendente |
 
 **Tarefa 3 concluída:** `src/lib/actions/herd-ledger.ts`.
@@ -79,13 +79,68 @@ na mesma posição, e isolamento multi-tenant. `test:isolation` e `tsc
 --noEmit` seguem limpos (único erro de tsc é o pré-existente e não
 relacionado em `scripts/m23-token-auth.test.ts`, já documentado acima).
 
-**Como retomar a tarefa 4:** rotas de API para `recordMovement`/
-`getPositions` (o §16 critério 13 pede consulta ao histórico também, que
-`getPositions` sozinho não cobre: precisa de uma leitura direta de
-`HerdMovement` por filtro/paginação, ainda não escrita). Decidir com o
-usuário o formato exato das rotas (uma rota genérica de "registrar
-movimentação" com `movement_type` no body, ou uma rota por tipo) antes de
-implementar: a spec não define o contrato HTTP.
+**Tarefa 4 concluída:** duas actions novas em `herd-ledger.ts` e as 4 rotas.
+
+`listMovements(db, filtro, {limit, offset})` é o histórico do §10.7 (os 9
+campos: data, categoria, quantidade, tipo, fazenda, pasto, usuário
+responsável, motivo, observação), da mais recente para a mais antiga, com
+`created_at` e `id` desempatando para a paginação não trocar linha de página.
+Ela **mostra as canceladas por padrão**, ao contrário de `getPositions`, que
+as ignora: é por isso que são funções separadas em vez de um parâmetro da
+mesma, o §10.8 exige que o registro cancelado continue identificado no
+histórico e o saldo exige o contrário. Filtro por categoria/fazenda/pasto
+casa nos DOIS lados da movimentação (uma transferência aparece no histórico
+da origem e do destino).
+
+`cancelMovement(db, id, motivo)` marca `canceled_at` e nunca apaga. O
+bloqueio de saldo negativo vale aqui também e olha para o lado **oposto** ao
+de `recordMovement`: cancelar devolve à origem e TIRA do destino, então quem
+pode ficar negativo é o destino. Caso real coberto por teste: comprar 10,
+vender 8, tentar cancelar a compra. Bloqueia em vez de cancelar em cascata,
+de propósito, porque cascata desfaria em silêncio movimentação que o produtor
+não pediu para desfazer. **Editar é cancelar e lançar de novo**: não existe
+edição no lugar, sobrescrever a linha apagaria o rastro que o §10.8 pede.
+
+**Decisão nova do usuário (2026-08-05), financeiro no cancelamento:**
+lançamento **pendente é apagado, pago é estornado** (lançamento contrário,
+datado no dia do cancelamento). Erro recém-digitado some limpo; dinheiro que
+de fato entrou ou saiu nunca é apagado. **Na prática hoje só o estorno roda**,
+porque `recordMovement` cria o lançamento como `paid` (o evento já ocorreu);
+o ramo do apagar existe para quando a compra a prazo entrar no contrato.
+Quando apaga, `financial_entry_id` da movimentação é zerado para não apontar
+para linha inexistente.
+
+Rotas (todas `guard("rebanho", ..., { profile: "fazenda" })`):
+`GET /api/v1/herd/positions`, `GET` e `POST /api/v1/herd/movements`,
+`POST /api/v1/herd/movements/:id/cancel`. **A escrita é UMA rota para os 9
+tipos**, com `movement_type` no corpo, e não uma rota por tipo: a decisão
+central do módulo é que mudança de categoria não é caso especial, e nove
+rotas finas reintroduziriam no HTTP o caso-a-caso que o modelo de dados
+eliminou (a fase 2 viraria mais seis rotas em vez de seis valores de enum).
+O Zod valida forma de dado; a regra de negócio fica na action, onde é testada.
+Cancelar é POST em sub-rota, não DELETE: o recurso não é removido e a
+operação exige o motivo no corpo.
+
+`HERD_SITUATIONS`/`HERD_OWNERS`/`HERD_MOVEMENT_TYPES` são os enums do schema
+como lista em runtime (para o Zod e o parse de query), em `herd-ledger.ts` e
+não em `categories.ts`, que é puro de propósito. O `satisfies` é o guardrail:
+listar valor fora do enum do Prisma para de compilar.
+
+`test:m33` foi de 39 para 71 verificações; `test:docs-api`, `test:isolation`,
+`test:m32`, `eslint` e `npm run build` limpos (as 3 rotas aparecem no output
+do build). O único erro de `tsc` segue sendo o pré-existente de
+`scripts/m23-token-auth.test.ts`.
+
+**Como retomar a tarefa 5:** as telas (§11 e §12). `GET /herd/positions`
+devolve a lista crua de posições porque tudo que o §11 pede (total geral,
+machos, fêmeas, por categoria, por fazenda, por pasto) é derivável dela com
+as 12 categorias de `@/lib/herd/categories`. **Nada de rota nova para
+somatório**, o agrupamento é da tela.
+
+**Nunca validado em navegador:** as 4 rotas passaram por teste de action e
+build, não por uso real. Rota atrás de `guard()` não dá para invocar direto
+sem sessão de verdade (mesma limitação dos M1/M2/M5/M6), então a validação
+delas é no navegador, junto com a tarefa 5.
 
 **Estado do banco local:** a migração do livro-razão já foi aplicada, e o
 rebanho existente foi convertido (270 cabeças, 10 das 12 categorias, zero
