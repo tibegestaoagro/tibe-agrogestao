@@ -83,6 +83,43 @@ enum MovementType {
   death
 }
 
+// ─────────────────────────────────────────────────────────────
+// Livro-razão do rebanho (Módulo 30). Ver
+// docs/specs/module-30-rebanho-livro-razao.md.
+
+/// Onde os animais estão. A situação é o eixo que permite dizer "são meus,
+/// mas não estão aqui". Fase 2 usa evento/pasto_terceiro/boitel/desaparecido.
+enum HerdSituation {
+  presente
+  evento
+  pasto_terceiro
+  boitel
+  confinamento
+  desaparecido
+}
+
+/// De quem os animais são. `terceiro` só aparece na fase 2 (aluguel de
+/// pasto), mas o eixo nasce agora: incluí-lo depois obrigaria a migrar toda
+/// movimentação já gravada.
+enum HerdOwner {
+  proprio
+  terceiro
+}
+
+/// Tipos da fase 1. Os da fase 2 (envio_evento, envio_pasto_terceiro,
+/// envio_boitel, entrada_terceiro, desaparecimento...) entram por cima.
+enum HerdMovementType {
+  saldo_inicial
+  nascimento
+  compra
+  venda
+  morte
+  transferencia_pasto
+  transferencia_fazenda
+  mudanca_categoria
+  ajuste
+}
+
 enum CropCycleStatus {
   planted
   growing
@@ -233,6 +270,7 @@ model Tenant {
   agent_flows       AgentFlowState[]
   refresh_tokens    RefreshToken[]
   push_subscriptions PushSubscription[]
+  herd_movements    HerdMovement[]
   subscription      Subscription?
 }
 
@@ -281,6 +319,7 @@ model User {
   password_resets    PasswordResetCode[]
   agent_flows        AgentFlowState[]
   refresh_tokens     RefreshToken[]
+  herd_movements     HerdMovement[]
   push_subscriptions PushSubscription[]
 
   @@index([tenant_id])
@@ -598,6 +637,7 @@ model AnimalBatch {
   weight_logs  AnimalWeightLog[]
   vaccinations AnimalVaccination[]
   movements    AnimalMovement[]
+  herd_movements HerdMovement[]
 
   @@index([tenant_id])
   @@index([property_id])
@@ -1035,4 +1075,72 @@ model WhatsAppProviderConfig {
   credentials_encrypted String
   updated_at            DateTime         @updatedAt
   created_at            DateTime         @default(now())
+}
+
+/// Livro-razão do rebanho (Módulo 30). O SALDO NUNCA É GRAVADO: a quantidade
+/// de cada posição é a soma das movimentações que entram menos as que saem.
+///
+/// Uma POSIÇÃO é a interseção de cinco eixos:
+///   categoria x fazenda x pasto x situação x dono
+///
+/// Uma movimentação tira `quantity` cabeças de uma posição (os campos `from_`)
+/// e coloca na outra (os campos `to_`). Entrada não tem origem (nascimento,
+/// compra, saldo inicial); saída não tem destino (venda, morte); transferência
+/// e mudança de categoria têm as duas pontas. É esse formato uniforme que faz
+/// a regra de ouro do cliente cair de graça: comparar `from_owner` com
+/// `to_owner` responde "ainda é dele?", e `from_situation`/`to_situation`
+/// responde "ainda está aqui?".
+///
+/// `category_id` NÃO é chave estrangeira: aponta para a constante em
+/// `src/lib/herd/categories.ts`, deliberadamente (ver spec, seção 3).
+model HerdMovement {
+  id            String           @id @default(cuid())
+  tenant_id     String
+  movement_type HerdMovementType
+  /// Sempre > 0. O sentido vem de ter origem, destino, ou os dois.
+  quantity      Int
+
+  from_category_id String?
+  from_property_id String?
+  from_pasture_id  String?
+  from_situation   HerdSituation?
+  from_owner       HerdOwner?
+
+  to_category_id String?
+  to_property_id String?
+  to_pasture_id  String?
+  to_situation   HerdSituation?
+  to_owner       HerdOwner?
+
+  /// Valor da compra ou venda. Nascimento e morte nunca têm (§10.4 e §10.5).
+  value              Decimal? @db.Decimal(14, 2)
+  /// Lançamento financeiro gerado, quando houve valor.
+  financial_entry_id String?
+
+  /// Motivo (morte, ajuste) e observação livre: os dois são §10.7.
+  reason String?
+  notes  String?
+
+  /// §10.7 exige o usuário responsável em toda alteração do rebanho.
+  recorded_by_user_id String?
+
+  /// Lote identificado (brinco), quando o produtor usa brinco. Opcional por
+  /// desenho: o rebanho é por categoria, e o lote é só detalhe de quem quer.
+  batch_id String?
+
+  /// §10.8: cancelar NÃO apaga. A linha continua no histórico, identificada,
+  /// e para de contar no saldo. É o que permite conferência depois.
+  canceled_at        DateTime?
+  canceled_reason    String?
+
+  occurred_at DateTime
+  created_at  DateTime @default(now())
+
+  tenant       Tenant       @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  batch        AnimalBatch? @relation(fields: [batch_id], references: [id], onDelete: SetNull)
+  recorded_by  User?        @relation(fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
+
+  @@index([tenant_id])
+  @@index([tenant_id, occurred_at])
+  @@index([batch_id])
 }
