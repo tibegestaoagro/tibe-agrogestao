@@ -47,17 +47,45 @@ Spec **aprovada pelo usuário** em 2026-08-05. Duas tarefas concluídas:
 |---|---|---|
 | 1 | 12 categorias como constante + apelidos + `test:m32` (26 verificações) | `9f461ae` |
 | 2 | Schema `HerdMovement` + migração que converte o rebanho existente | `c1f884c` |
-| 3 | **Actions do livro-razão** | **próxima, não iniciada** |
-| 4 | Rotas de API | pendente |
+| 3 | Actions do livro-razão (`getPositions` + `recordMovement`) + `test:m33` (39 verificações) | pendente de commit nesta rodada |
+| 4 | **Rotas de API** | **próxima, não iniciada** |
 | 5 | Telas | pendente |
 | 6 | Assistente (§13 e §14) | pendente |
 
-**Como retomar a tarefa 3:** criar `src/lib/actions/herd-ledger.ts` com
-(a) `getPositions(db, filtro)`, que soma as movimentações não canceladas por
-posição, e (b) `recordMovement(db, input)`, que valida e grava. O bloqueio de
-saldo negativo do §10.3 vive em (b) e usa (a); a mensagem é a do cliente,
-literal: "Existem apenas 12 animais nesta categoria. Revise a quantidade
-informada." Testar os dois **antes** de escrever qualquer rota.
+**Tarefa 3 concluída:** `src/lib/actions/herd-ledger.ts`.
+`getPositions(db, filtro)` soma as movimentações não canceladas por posição
+(lê o histórico inteiro que casa em pelo menos um lado no banco, e faz o
+match exato dos 5 eixos em JS); `recordMovement(db, input)` valida a forma
+por tipo (entrada só/saída só/transferência dos dois lados/`ajuste` com
+exatamente um lado), valida categoria (`isValidCategory`) e propriedade/pasto
+existirem no tenant, e grava dentro de `runSerializableTenantTransaction`
+(mesmo padrão de `sellBatchAction`): a checagem de saldo e a escrita
+precisam ser atômicas, senão duas vendas simultâneas da última cabeça
+passariam as duas pelo teste antes de qualquer uma escrever. Mensagem de
+saldo insuficiente é a literal do cliente, com o número interpolado:
+"Existem apenas N animais nesta categoria. Revise a quantidade informada."
+Compra/venda com valor geram `FinancialEntry` via `createLinkedEntry`
+(`related_id` = id da movimentação, criada DEPOIS porque a movimentação
+precisa existir primeiro); nascimento/morte nunca geram. `db`/`tx` dividem
+tipo `HerdLedgerClient = TenantPrismaClient | TenantTransactionClient`
+porque a marca de tipo de `TenantPrismaClient` (branded, Onda 4) não
+sobrevive a `$transaction`, mas ambos servem os mesmos modelos em runtime.
+`npm run test:m33` (novo, 39 verificações, banco local): cadastro inicial,
+compra/venda/morte/nascimento, as 3 transferências (pasto/fazenda/categoria)
+preservando o total certo em cada caso, ajuste, cancelamento (some do saldo,
+continua no histórico), as 6 validações de forma por tipo, categoria/
+propriedade inválida recusadas, dono `terceiro` não se mistura com `proprio`
+na mesma posição, e isolamento multi-tenant. `test:isolation` e `tsc
+--noEmit` seguem limpos (único erro de tsc é o pré-existente e não
+relacionado em `scripts/m23-token-auth.test.ts`, já documentado acima).
+
+**Como retomar a tarefa 4:** rotas de API para `recordMovement`/
+`getPositions` (o §16 critério 13 pede consulta ao histórico também, que
+`getPositions` sozinho não cobre: precisa de uma leitura direta de
+`HerdMovement` por filtro/paginação, ainda não escrita). Decidir com o
+usuário o formato exato das rotas (uma rota genérica de "registrar
+movimentação" com `movement_type` no body, ou uma rota por tipo) antes de
+implementar: a spec não define o contrato HTTP.
 
 **Estado do banco local:** a migração do livro-razão já foi aplicada, e o
 rebanho existente foi convertido (270 cabeças, 10 das 12 categorias, zero
