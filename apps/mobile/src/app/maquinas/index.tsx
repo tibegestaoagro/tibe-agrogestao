@@ -13,8 +13,9 @@ import { PendingBanner } from '@/components/ui/pending-banner';
 import { EmptyState, ErrorState, LoadingState, StaleBanner } from '@/components/ui/states';
 import { Brand, Spacing } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
+import { warmProperties } from '@/lib/reference-data';
 import { useTheme } from '@/hooks/use-theme';
-import type { Machine } from '@/types/api';
+import type { Machine, Property } from '@/types/api';
 
 /**
  * Máquinas: área-piloto da fundação de UI (decisão D7 do roadmap).
@@ -52,6 +53,12 @@ export default function MaquinasScreen() {
       setLoadedAt(new Date());
       setStale(false);
       setError(null);
+      // Aquece o cache de fazendas de passagem, sem esperar: abrir esta
+      // lista com internet é o gesto natural, e é o que garante que o
+      // formulário de cadastro funcione depois, sem sinal. Sem isto, o
+      // cache só existiria se o usuário tivesse aberto o FORMULÁRIO online,
+      // o que ninguém faz de propósito.
+      warmProperties(async () => (await authedFetch<Property[]>('/api/v1/properties')).data);
     } catch (e) {
       // Já tinha lista: mantém na tela e MARCA como desatualizada, em vez de
       // trocar dado velho por uma tela de erro. Sumir com o que já estava
