@@ -12,6 +12,10 @@ export const INTENTS = [
   "cadastrar_servico_ordem",
   "consultar_saldo",
   "consultar_animal",
+  // Módulo 30 (§13). `consultar_saldo` é do FINANCEIRO, não do rebanho: nomes
+  // parecidos, módulos de permissão diferentes, não unifique.
+  "consultar_rebanho",
+  "registrar_movimentacao_rebanho",
   "consultar_cliente",
   "gerar_relatorio",
   "registrar_lancamento_financeiro",
@@ -47,6 +51,12 @@ export const INTENT_ACCESS: Record<
   cadastrar_servico_ordem: { module: "prestador", action: "write", profile: "prestador" },
   consultar_saldo: { module: "financeiro", action: "read" },
   consultar_animal: { module: "rebanho", action: "read", profile: "fazenda" },
+  consultar_rebanho: { module: "rebanho", action: "read", profile: "fazenda" },
+  registrar_movimentacao_rebanho: {
+    module: "rebanho",
+    action: "write",
+    profile: "fazenda",
+  },
   consultar_cliente: { module: "prestador", action: "read", profile: "prestador" },
   gerar_relatorio: { module: null, action: "read" }, // módulo varia por parameters.tipo
   registrar_lancamento_financeiro: { module: "financeiro", action: "write" },

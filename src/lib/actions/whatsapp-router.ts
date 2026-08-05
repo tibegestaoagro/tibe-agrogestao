@@ -20,6 +20,10 @@ import {
   registrarLancamentoFinanceiro,
 } from "@/lib/actions/whatsapp-handlers/financeiro";
 import { criarTarefa } from "@/lib/actions/whatsapp-handlers/tarefas";
+import {
+  consultarRebanho,
+  registrarMovimentacaoRebanho,
+} from "@/lib/actions/whatsapp-handlers/herd";
 import { ajuda } from "@/lib/actions/whatsapp-handlers/ajuda";
 import { resumo } from "@/lib/actions/whatsapp-handlers/resumo";
 import { handleActiveFlow, maybeStartAnimalFlow } from "@/lib/actions/whatsapp-flow-bridge";
@@ -47,6 +51,8 @@ const HANDLERS: Record<Exclude<Intent, "ambigua">, Handler> = {
   cadastrar_servico_ordem: cadastrarServicoOrdem,
   consultar_saldo: consultarSaldo,
   consultar_animal: consultarAnimal,
+  consultar_rebanho: consultarRebanho,
+  registrar_movimentacao_rebanho: registrarMovimentacaoRebanho,
   consultar_cliente: consultarCliente,
   gerar_relatorio: gerarRelatorio,
   registrar_lancamento_financeiro: registrarLancamentoFinanceiro,

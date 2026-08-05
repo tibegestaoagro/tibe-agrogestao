@@ -305,14 +305,51 @@ uma mensagem de fallback amigável (sem detalhes técnicos), por exemplo:
 | `registrar_previsao_vacina` | `ear_tag`, `vaccine_name`, `cost`, `due_date` (opcional, formato `YYYY-MM-DD`; sem data, o Tibé usa o próximo vencimento calculado). Use quando o usuário informar um valor previsto para uma vacina futura, inclusive ao responder à oferta feita pelo `resumo:rebanho`. Nessa resposta curta, reconstrua `ear_tag` e `vaccine_name` pelo `recent_history`. |
 | `registrar_movimento` | `ear_tag`, `movement_type` (purchase\|sale\|transfer\|death), `value` (opcional), `to_property_name` (obrigatório se transfer) |
 | `cadastrar_servico_ordem` | `client_name`, `service_name`, `quantity` |
-| `consultar_saldo` | `period` (opcional, formato "YYYY-MM", default mês atual) |
+| `consultar_saldo` | `period` (opcional, formato "YYYY-MM", default mês atual). **É do FINANCEIRO**, não do rebanho: "qual meu saldo" fala de dinheiro. Para "quantos animais tenho", use `consultar_rebanho`. |
 | `consultar_animal` | `ear_tag` |
+| `consultar_rebanho` | `categoria` (opcional), `fazenda` (opcional). Módulo 30, §13.1 e §13.2. Sem `categoria`, responde o total geral do rebanho. Com `categoria`, responde só aquela faixa. Ex: "Quantos animais tenho?" e "Quantas fêmeas de 13 a 24 meses eu tenho?" |
+| `registrar_movimentacao_rebanho` | `movement_type` (obrigatório: `saldo_inicial`\|`nascimento`\|`compra`\|`venda`\|`morte`\|`transferencia_pasto`\|`transferencia_fazenda`\|`mudanca_categoria`\|`ajuste`), `itens` (lista de `{categoria, quantidade}`) ou, para um item só, `categoria` + `quantidade`. Opcionais: `fazenda`, `pasto` (ou `pasto_origem`), `pasto_destino`, `categoria_destino` (obrigatório em `mudanca_categoria`), `fazenda_destino` (obrigatório em `transferencia_fazenda`), `valor`. Módulo 30, §13.3 a §13.7. **Sempre** exige confirmação, independente de valor: não usa o limiar de R$ 5.000, porque aqui o risco é o saldo do rebanho ficar errado, não o financeiro. |
 | `consultar_cliente` | `client_name` |
 | `gerar_relatorio` | `tipo` (financeiro\|rebanho\|lavoura\|prestador), `period`. **Retorna "em breve"** enquanto a geração de PDF real depende do Módulo 4, ainda não implementado |
 | `registrar_lancamento_financeiro` | `amount`, `category` (opcional, cai em "Outros" se fora da lista fixa), `vendor` (opcional), `description` (opcional). Disparada tanto por texto ("gastei 50 reais com ração") quanto pelo ramo de recibo por foto/PDF (seção 5). **Sempre** exige confirmação, mesmo com valor baixo: não usa o limiar de R$ 5.000. |
 | `ajuda` | `topic` (opcional: nome de uma das intenções acima; omitido para pergunta geral tipo "o que você faz?"). Usada quando o usuário pergunta COMO usar um recurso, não tenta executá-lo. Resposta é texto fixo (nunca gerado pela LLM), tabela `HELP_TEXT` em `whatsapp-router.ts`. |
 | `resumo` | `scope` opcional. Nível 1: `rebanho`/`lavoura`/`prestador`/`financeiro`. Sob `prestador`: `clientes`/`agendamentos`/`ordens_a_faturar`. Escopos financeiros disponíveis em qualquer perfil: `contas_a_pagar` e `contas_a_receber`. `contas_a_pagar` lista despesas pendentes; `contas_a_receber` lista receitas pendentes de `FinancialEntry`; `ordens_a_faturar` lista ordens concluídas ainda não faturadas. Use quando o usuário quer consultar agenda, contas ou o que já está cadastrado. Sem `scope` claro, o assistente pergunta a categoria em vez de despejar tudo: funil de até 2 perguntas, reconstruído do `recent_history` a cada turno. Se o histórico mostra que já perguntou e a resposta não resolveu, o LLM deve classificar como `ambigua` em vez de perguntar de novo. |
 | `ambigua` | usar quando não for possível classificar com confiança. Com `ajuda`/`resumo` cobrindo "como faço"/"o que eu tenho", sobra pra isso o que realmente foge do escopo. |
+
+### 4.1. Rebanho: a pergunta de faixa de idade (Módulo 30, §14)
+
+O produtor usa nome popular, e vários deles servem a mais de uma faixa:
+"novilha" pode ser fêmea de 8 a 12, 13 a 24 ou 25 a 36 meses; "garrote" idem
+no macho. O documento do cliente fecha o §14 com **"o sistema não deverá
+escolher uma categoria sem confirmação"**, então o Tibé responde com a
+pergunta e as faixas candidatas, e **não registra nada**:
+
+```
+Usuário: Passe 20 novilhas do Pasto da Sede para o Pasto da Baixada.
+Tibé:    "novilhas" pode ser mais de uma categoria. Qual é a idade aproximada?
+         - Fêmea - 8 a 12 meses
+         - Fêmea - 13 a 24 meses
+         - Fêmea - 25 a 36 meses
+```
+
+**O que o LLM precisa fazer no turno seguinte:** quando a mensagem do usuário
+for só a faixa ("13 a 24 meses", "as de 13 a 24"), reemita
+`registrar_movimentacao_rebanho` **com todos os parâmetros originais**
+(`movement_type`, `quantidade`, `pasto_origem`, `pasto_destino`...),
+reconstruídos do `recent_history`, trocando apenas `categoria` pela faixa que
+o usuário escolheu. Não existe estado de conversa novo no banco para isso: é
+o mesmo mecanismo do funil do `resumo`.
+
+Termos que resolvem sozinhos, sem pergunta: `bezerro`, `bezerra`, `vaca`,
+`boi`, `touro`, e os rótulos oficiais. Plural funciona (`vacas`, `bezerros`,
+`bois`). A lista de apelidos é `CATEGORY_ALIASES` em
+`src/lib/herd/categories.ts`, e é ela que manda: se um termo novo aparecer no
+uso real, adicione lá, não no prompt.
+
+⚠️ **`registrar_lote_animal` é o caminho ANTIGO** e escreve num modelo que o
+saldo do rebanho não lê mais. Para qualquer quantidade de rebanho, use
+`registrar_movimentacao_rebanho`. O antigo segue existindo só enquanto a
+migração dos consumidores não termina.
 
 Na classificação operacional, diferencie os pedidos pelo dado solicitado:
 `registrar_vacina` registra uma aplicação realizada;

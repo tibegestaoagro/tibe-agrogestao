@@ -49,8 +49,11 @@ Spec **aprovada pelo usuário** em 2026-08-05. Duas tarefas concluídas:
 | 2 | Schema `HerdMovement` + migração que converte o rebanho existente | `c1f884c` |
 | 3 | Actions do livro-razão (`getPositions` + `recordMovement`) + `test:m33` | `7793df0` |
 | 4 | Histórico, cancelamento e as 4 rotas de API | `fdd3870`, **em produção** |
-| 5 | Tela `/rebanho` (§11 e §12), validada em navegador | commit desta rodada |
-| 6 | **Assistente (§13 e §14)** | **próxima, não iniciada** |
+| 5 | Tela `/rebanho` (§11 e §12), validada em navegador | `e9b3587`, **em produção** |
+| 6 | Assistente WhatsApp (§13 e §14) | commit desta rodada |
+
+**As 6 tarefas da fase 1 estão concluídas.** Falta a validação do usuário
+(combinada para o fim de todas as tarefas, não a cada uma) e a fase 2.
 
 **Tarefa 3 concluída:** `src/lib/actions/herd-ledger.ts`.
 `getPositions(db, filtro)` soma as movimentações não canceladas por posição
@@ -167,10 +170,44 @@ números de volta **e manteve as 236 linhas**, com a linha marcada
 "Cancelada", o motivo visível e o link de cancelar sumindo dela. É o §10.8
 funcionando de ponta a ponta.
 
-**Como retomar a tarefa 6:** o assistente (§13 e §14). São 7 consultas e
-registros pelo WhatsApp, e o classificador do n8n precisa ser sincronizado
-junto. `resolveCategoryTerm()` já devolve `ambiguous` em vez de chutar, que é
-o que impede lançar animais na faixa de idade errada.
+**Tarefa 6 concluída:** os 7 diálogos do §13, em
+`src/lib/actions/whatsapp-handlers/herd.ts`, com duas intenções novas:
+`consultar_rebanho` (§13.1, §13.2) e `registrar_movimentacao_rebanho`
+(§13.3 a §13.7). Uma intenção de escrita para os 9 tipos, com
+`movement_type` no parâmetro, pelo mesmo motivo da rota única.
+
+**A desambiguação do §14 não criou estado novo.** Termo ambíguo devolve a
+pergunta com as faixas candidatas e para; o classificador do n8n reemite a
+intenção com todos os parâmetros originais mais a faixa escolhida, lendo o
+`recent_history`, igual ao funil do `resumo`. `AgentFlowState` foi descartado
+de propósito: é máquina de formulário, um fluxo por usuário, para uma pergunta
+só seria peso morto.
+
+**Confirmação é obrigatória em todo registro**, independentemente de valor:
+não usa `CONFIRMATION_THRESHOLD`, porque o risco aqui é o saldo do rebanho
+ficar errado, não o financeiro. Também **não adivinha a fazenda**: com mais de
+uma cadastrada e nenhuma informada, pergunta.
+
+**Achado real do teste, corrigido na origem: plural não resolvia.**
+"novilhas", "vacas" e "bezerros" caíam em `unknown`, e os exemplos do próprio
+cliente são todos no plural. `resolveCategoryTerm` ganhou uma tentativa extra
+tirando o "s" final, **depois** da tentativa direta (o rótulo oficial termina
+em "meses" e não pode ser estropiado). Coberto em `test:m32`.
+
+`npm run test:m34` (novo, 24 verificações) percorre os 7 diálogos do documento
+um a um, mais: termo ambíguo não vira chute nem na consulta nem no registro,
+"não" cancela sem registrar, saldo insuficiente devolve a mensagem literal do
+cliente, e nascimento de machos E fêmeas numa mensagem só vira duas
+movimentações sob uma confirmação. `test:m3`, `test:m12`, `test:m32`,
+`test:m33`, `test:docs-api`, eslint e build limpos.
+
+**Classificador do n8n sincronizado** (`docs/n8n-whatsapp-workflow.md` §4 e
+§4.1), incluindo o aviso de que `registrar_lote_animal` é o caminho antigo e
+escreve num modelo que o saldo não lê mais.
+
+**Nunca validado com WhatsApp real:** os handlers passaram por teste de action
+e build. A validação de ponta a ponta depende de atualizar o prompt do
+workflow no n8n (Railway) com o §4.1 e mandar mensagem de um aparelho.
 
 **A troca do §6, resolvida em parte (2026-08-05).** As três rotas
 `/api/v1/animal-batches` foram **removidas**: não tinham um consumidor

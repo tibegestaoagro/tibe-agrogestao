@@ -136,9 +136,7 @@ export type AliasResolution =
  * escolher uma categoria sem confirmação", e essa é a regra que impede o
  * assistente de lançar 20 animais na faixa errada.
  */
-export function resolveCategoryTerm(term: string): AliasResolution {
-  const limpo = term.trim();
-
+function tentarResolver(limpo: string): AliasResolution {
   const porId = HERD_CATEGORIES.find((c) => mesmoTermo(c.id, limpo));
   if (porId) return { kind: "exact", category: porId };
 
@@ -150,6 +148,30 @@ export function resolveCategoryTerm(term: string): AliasResolution {
     const candidatos = ids.map((id) => findCategory(id)).filter((c): c is HerdCategory => !!c);
     if (candidatos.length === 1) return { kind: "exact", category: candidatos[0] };
     return { kind: "ambiguous", candidates: candidatos };
+  }
+
+  return { kind: "unknown" };
+}
+
+export function resolveCategoryTerm(term: string): AliasResolution {
+  const limpo = term.trim();
+  const direto = tentarResolver(limpo);
+  if (direto.kind !== "unknown") return direto;
+
+  /**
+   * Plural. O produtor fala no plural quase sempre, e os exemplos do próprio
+   * cliente são todos assim: "Passe 20 novilhas", "Morreram duas vacas",
+   * "Tenho 18 bezerros". Sem isto, "novilhas" caía em `unknown` e o assistente
+   * respondia que não reconheceu a categoria mais comum da fazenda.
+   *
+   * Tirar o "s" final resolve todos os apelidos da tabela, inclusive "bois"
+   * (boi + s). É deliberadamente burro: um singularizador de verdade erraria
+   * em outros pontos e aqui só existe um caso a cobrir. Roda DEPOIS da
+   * tentativa direta, então rótulo oficial (que termina em "meses") nunca
+   * passa por aqui.
+   */
+  if (limpo.length > 3 && /s$/i.test(limpo)) {
+    return tentarResolver(limpo.slice(0, -1));
   }
 
   return { kind: "unknown" };

@@ -106,6 +106,19 @@ check(
   resolveCategoryTerm("VACA").kind === "exact",
 );
 check("id cru também resolve", resolveCategoryTerm("macho_8_12").kind === "exact");
+
+// O produtor fala no plural, e os exemplos do §13 do cliente são todos assim.
+check("plural: 'vacas' resolve como 'vaca'", resolveCategoryTerm("vacas").kind === "exact");
+check("plural: 'bezerros' resolve", resolveCategoryTerm("bezerros").kind === "exact");
+check("plural: 'bois' resolve", resolveCategoryTerm("bois").kind === "exact");
+check(
+  "plural NÃO atropela a ambiguidade: 'novilhas' continua ambíguo",
+  resolveCategoryTerm("novilhas").kind === "ambiguous",
+);
+check(
+  "rótulo oficial (termina em 'meses') não é estropiado pelo plural",
+  resolveCategoryTerm("Fêmea - 13 a 24 meses").kind === "exact",
+);
 check("termo desconhecido não vira chute", resolveCategoryTerm("jumento").kind === "unknown");
 check(
   "todo apelido aponta só para categoria que existe",
