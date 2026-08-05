@@ -19,6 +19,50 @@ estado registrado nele prevalece sobre notas antigas.
 
 ---
 
+## Invariantes: as 8 regras que nunca podem ser quebradas
+
+Se você só ler uma parte deste arquivo, leia esta. Cada linha aqui já foi
+violada por engano em alguma sessão, e cada violação custou caro. O resto do
+arquivo explica o porquê; isto é o resumo operacional.
+
+1. **`tenant_id` nunca vem do client.** Toda query de negócio usa o client
+   escopado (`getTenantDb()` / `prismaForTenant()`), nunca filtro manual. Todo
+   model novo com `tenant_id` entra em `TENANT_SCOPED_MODELS`, e
+   `npm run test:isolation` reprova se esquecer.
+2. **O saldo do rebanho nunca é gravado** (Módulo 30): é a soma das
+   movimentações. Se você se pegar escrevendo um campo de quantidade, pare.
+3. **Migração ANTES do push**, sempre que o commit mexer em schema. A Vercel
+   faz deploy automático e o build **não** roda migração: código e schema saem
+   dessincronizados por padrão e nada avisa. Confira com
+   `npx prisma migrate status` apontando pro Neon.
+4. **Nunca use travessão (—) em código, documentação ou mensagem de commit.**
+   Verifique com `grep -naP "\xe2\x80\x94"` antes de commitar.
+5. **Nunca escreva conteúdo com escape (regex, `\n`, `\\`) por heredoc no
+   shell:** este ambiente corrompe a sequência silenciosamente, e o sintoma
+   parece bug de regra de negócio. Use as ferramentas Edit/Write.
+6. **Regra de negócio vive em `src/lib/actions/*`**, nunca no route handler.
+   As rotas são wrappers finos; o agente WhatsApp chama as mesmas actions.
+7. **Merge na `main`, push para a `main` e deploy exigem aprovação explícita
+   do usuário, a cada vez.** Commit e push de branch de trabalho são livres.
+8. **Teste automatizado verde não é validação.** Vários defeitos reais deste
+   projeto só apareceram em navegador ou aparelho de verdade, com `tsc`,
+   `lint` e a suíte inteira limpos. Ver a seção de validação ao vivo.
+
+## Retomando depois de um resumo de contexto
+
+Sessões longas passam por resumo automático, e o detalhe literal se perde. O
+que sobrevive é o que está em arquivo. Ao retomar, nesta ordem:
+
+1. Este arquivo (invariantes + a seção da área em que for mexer).
+2. [docs/agents/current-handoff.md](docs/agents/current-handoff.md): estado
+   operacional, branches vivas e o próximo passo exato. **Se divergir daqui,
+   o handoff vence**, porque é atualizado a cada rodada.
+3. `git log --oneline -15` e a spec do módulo em `docs/specs/`.
+
+Não confie na memória local do Claude Code para estado: ela é invisível para
+outras ferramentas e envelhece sem aviso. Ela serve para preferência do
+usuário e armadilha de ambiente, não para "onde o projeto está".
+
 ## Como este projeto é conduzido (não pule isso)
 
 Este projeto é dividido em módulos, entregues **um de cada vez**, seguindo a
@@ -66,9 +110,24 @@ fase do contrato. O usuário (Dilton) segue este protocolo com qualquer agente:
 | 6 | Painel da Plataforma (`PlatformUser`, interno Pleno) | ✅ completo: auth separada (`/plataforma`), MRR/churn/LTV/funil, gestão de tenants e equipe |
 | 19 | Cadastro público verificado (WhatsApp + email) | ✅ implementado local: `PendingSignup`, 4 etapas, senha temporária, sessão de 7 dias |
 | 17 | Agenda com custo (agente WhatsApp) | ✅ em produção: agenda real, previsão financeira e conciliação sem duplicidade; sem mudança de schema |
-| 29 | Minha Fazenda (fazenda + pastos) | ✅ implementado local (V1: web only, sem WhatsApp ainda): `Property.city/district`, model `Pasture` novo, tela própria `/minha-fazenda`, aviso de soma sem bloquear |
+| 26 | Máquinas e equipamentos | ✅ em produção (`test:m27`) |
+| 27 | Meu Dia (tarefas) | ✅ em produção (`test:m28`) |
+| 28 | Ajustes financeiros e dashboard | ✅ em produção (`test:m29`) |
+| 29 | Minha Fazenda (fazenda + pastos) | ✅ em produção: `Property.city/district`, model `Pasture`, tela `/minha-fazenda`. V1 web only, sem WhatsApp |
+| 30 | **Rebanho como livro-razão** | 🚧 **em andamento**, branch `rebanho-livro-razao`: tarefas 1-2 de 6 |
 
-Specs: `docs/specs/module-00-setup.md` … `module-06-painel-plataforma.md`.
+⚠️ **A numeração de módulo NÃO bate com a de teste.** `test:mNN` é um contador
+de SUÍTES que descolou do número do módulo por volta do `m25`: o Módulo 26
+(Máquinas) é testado por `test:m27`, e o Módulo 30 por `test:m32`. Renumerar
+colidiria. Ao criar suíte nova, use o próximo número livre e deixe o texto
+impresso apontando o módulo real.
+
+Também existem suítes sem módulo próprio na tabela, de recursos entregues
+dentro de outros módulos: `m20` (buffer de mensagens picadas), `m21`
+(cadastro assistido de animais), `m22` (fluxo de integração), `m23` (auth por
+token para o app), `m24` (notificações), `m26` (calculadora pecuária).
+
+Specs: `docs/specs/module-00-setup.md` … `module-30-rebanho-livro-razao.md`.
 
 ---
 
@@ -78,12 +137,11 @@ Next.js 14 (App Router) · TypeScript · Tailwind · Prisma 7 · PostgreSQL 17
 (Neon) · NextAuth v5 beta (**duas instâncias**: tenant e plataforma, M6) ·
 Zod · Recharts · UI kit shadcn-style feito à mão (ver seção UI) · Redis Cloud
 + BullMQ (M4) · Asaas (M5, cobrança recorrente) · nodemailer (Gmail SMTP) +
-Resend (canal de email, fora do PRD original: ver seção Email). N8N e
-Cloudflare R2 continuam no PRD mas fora do código: N8N é infra externa
-(orquestra o agente WhatsApp, não roda dentro do Tibé) ainda não
-provisionada; R2 nunca chegou a ser necessário (PDFs são gerados sob
-demanda, sem storage: ver Módulo 4). Todos os 7 módulos do PRD (0-6) têm
-código completo agora.
+Resend (canal de email, fora do PRD original: ver seção Email). N8N é infra
+externa **já provisionada e no ar** (Railway): orquestra o agente WhatsApp,
+não roda dentro do Tibé, e por isso não aparece no `package.json`. Cloudflare
+R2 continua no PRD mas nunca chegou a ser necessário: PDFs são gerados sob
+demanda, sem storage (ver Módulo 4).
 
 ## Deploy e infra
 
@@ -923,8 +981,11 @@ fora de `(dashboard)`/`(auth)`, em `PUBLIC_PREFIXES`):
   mostrar "N de M assentos" sem rota nova. Gap conhecido: nada valida assentos
   em massa fora desses dois pontos.
 - **Gestão de usuários** (`src/lib/actions/users.ts`): convite gera senha
-  temporária (`generateTempPassword`) mostrada **uma única vez** na resposta:
-  não há envio de email neste projeto (nenhum módulo tem infra de email).
+  temporária (`generateTempPassword`) mostrada **uma única vez** na resposta.
+  **O convite NÃO envia email**, embora o projeto tenha canal de email desde
+  2026-07-29 (ver seção Email): quem convida precisa passar a senha ao
+  convidado por fora. Ligar o email aqui é melhoria pendente, não limitação
+  de infra.
   Regras de "não pode editar/desativar a si mesmo" e "só Owner promove a
   Owner" ficam nas rotas (`api/v1/users/[id]/role`, `.../active`), não nas
   actions: a action em si é mais simples (`updateUserRoleAction`,
@@ -1035,6 +1096,38 @@ construiu tudo em volta dele.
 
 ---
 
+## Validação ao vivo: por que a suíte verde não basta
+
+Este projeto tem 35 suítes automatizadas, `tsc` e `eslint` limpos e build de
+produção passando. Ainda assim, **os defeitos mais graves só apareceram em uso
+real**. Lista curta, toda ela de casos verificados:
+
+- O formulário de máquina do app **se recusava a abrir sem sinal**, tornando a
+  fila offline inútil justo no curral. Achado ligando o modo avião num Android.
+- O **Financeiro do app não usava a fila** de escrita: lançar sem sinal
+  falhava em vez de enfileirar.
+- `"Network request failed"` **vazava em inglês** para o produtor em 4 telas.
+- A tela de Rebanho do app ficou **quebrada** contra o back-end novo: filtrava
+  por um campo que a API deixou de devolver.
+- `Tenant.archived_at` **não fazia nada**: nenhum ponto de auth, sessão ou
+  billing lia o campo, embora a interface mostrasse "Arquivado".
+- O middleware **não bloqueava nada** por sessão de tenant havia meses
+  (`authConfig.callbacks.authorized` era descartado na forma HOF).
+
+Nenhum desses seria pego por teste de unidade, porque nenhum é erro de
+cálculo: são erros de **integração com o mundo** (rede caindo, campo que
+sumiu, config que não é lida). Antes de reportar um módulo como concluído,
+valide no navegador real (`browser-harness`) ou no aparelho, não só na suíte.
+
+Duas armadilhas de ambiente que aparecem nesses testes:
+
+- **Testar sessão autenticada via `next start` + cookie jar não funciona**
+  localmente (o Edge Middleware não reconhece a sessão nesse setup). Rotas
+  `/api/v1/*` funcionam normalmente. Use `next dev` + navegador real.
+- **O Redis é compartilhado com produção** (não há instância local). Três
+  suítes (`m4`, `m19`, `m24`) falham na segunda execução da mesma hora por
+  lock diário ou limite de envio. Não é regressão: apague a chave no Redis.
+
 ## Memória de longo prazo (Claude Code, específico desta ferramenta)
 
 Além deste arquivo (versionado, visível a qualquer sessão/ferramenta/humano),
@@ -1094,8 +1187,19 @@ npm run test:m16          # M16
 npm run test:m17          # M17
 npm run test:m18          # Limite de assentos por plano
 npm run test:m19          # Cadastro público verificado
-npm run test:m30          # Rebanho por categoria (modelo único)
+npm run test:m20          # Buffer de mensagens picadas (WhatsApp)
+npm run test:m21          # Cadastro assistido de animais
+npm run test:m22          # Fluxo de integracao
+npm run test:m23          # Auth por token (app mobile)
+npm run test:m24          # Notificacoes
+npm run test:m25          # Rebanho por categoria (Modulo 25, historico)
+npm run test:m26          # Calculadora pecuaria
+npm run test:m27          # Maquinas (Modulo 26)
+npm run test:m28          # Meu Dia (Modulo 27)
+npm run test:m29          # Ajustes financeiros (Modulo 28)
+npm run test:m30          # Rebanho por categoria (modelo unico)
 npm run test:m31          # Cancelamento com janela de arquivamento (60 dias)
+npm run test:m32          # Rebanho: as 12 categorias (Modulo 30, sem banco)
 ```
 
 Credenciais do seed (dev): `owner@damata.com.br` / `tibe123`.
