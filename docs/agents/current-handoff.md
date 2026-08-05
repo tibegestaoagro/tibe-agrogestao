@@ -172,10 +172,27 @@ registros pelo WhatsApp, e o classificador do n8n precisa ser sincronizado
 junto. `resolveCategoryTerm()` já devolve `ambiguous` em vez de chutar, que é
 o que impede lançar animais na faixa de idade errada.
 
-**Ainda não feito, e não é da tarefa 6:** a troca do §6 (matar
-`/api/v1/animal-batches` e servir `GET /api/v1/animals` pelas posições). A
-tela nova já não depende dele, mas o app mobile e as 7 intenções do
-assistente ainda leem o modelo antigo.
+**A troca do §6, resolvida em parte (2026-08-05).** As três rotas
+`/api/v1/animal-batches` foram **removidas**: não tinham um consumidor
+sequer (nem web, nem mobile, nem `packages/contracts`, nem teste), e o
+comentário de `/api/v1/animals` já afirmava desde 2026-08-04 que elas não
+existiam. `animal-form.tsx` e `animal-filters.tsx` saíram junto, órfãos
+desde que a tarefa 5 reconstruiu a tela.
+
+**O que NÃO foi unificado, e por quê:** um lote criado por
+`POST /api/v1/animals` ou pelo assistente ainda **não aparece no saldo** do
+livro-razão. Ligar as duas escritas exige traduzir `AnimalCategory.name`
+para uma das 12 faixas de idade, e isso não é seguro: medido em produção, a
+única categoria ativa é **"Não classificado"**, que `resolveCategoryTerm`
+devolve como `unknown`; "Novilha" e "Garrote" dão `ambiguous`. Chutar a
+faixa lançaria animais na idade errada, exatamente o que a constante existe
+para impedir. A desambiguação é a tarefa 6.
+
+**Decisão do usuário sobre a ordem (2026-08-05):** deployar tudo mesmo com
+essa lacuna, porque **ainda não há cliente em produção**. Sem isso a ordem
+segura seria segurar a tela até a tarefa 6, já que a tela nova quebra o
+vínculo "registrei pelo WhatsApp, apareceu no painel" que funcionava antes.
+A validação do usuário acontece ao final de todas as tarefas, não a cada uma.
 
 **Estado do banco local:** a migração do livro-razão já foi aplicada, e o
 rebanho existente foi convertido (270 cabeças, 10 das 12 categorias, zero
