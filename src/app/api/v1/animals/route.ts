@@ -11,12 +11,23 @@ import { createBatchAction } from "@/lib/actions/animal-batches";
  *
  * Desde 2026-08-04 o rebanho é sempre lote por categoria, com brinco
  * OPCIONAL: quem trabalha com brinco manda `quantity: 1` e `ear_tag`. O
- * caminho paralelo `/api/v1/animal-batches` deixou de existir, junto com o
- * modelo `Animal`.
+ * caminho paralelo `/api/v1/animal-batches` foi de fato removido em
+ * 2026-08-05 (o comentário anterior dizia que já não existia, mas as três
+ * rotas continuavam lá, sem nenhum consumidor).
  *
  * O filtro `status` saiu: no modelo de lote é `quantity` que diz o que
  * resta, então "quantos bezerros eu tenho" (filtro por categoria) passou a
  * ser a pergunta que a listagem responde.
+ *
+ * ⚠️ Módulo 30: o SALDO do rebanho passou a ser o livro-razão
+ * (`GET /api/v1/herd/positions`), não o `quantity` destes lotes. Esta rota
+ * ainda lê e escreve `AnimalBatch` porque é onde vivem brinco, raça, peso e
+ * vacinação (§4 da spec do Módulo 30, anexo opcional que não se joga fora).
+ * Enquanto as duas escritas não forem unificadas, um lote criado aqui NÃO
+ * aparece no saldo: unificar depende de traduzir `AnimalCategory.name` para
+ * uma das 12 faixas de idade, e `resolveCategoryTerm` devolve `ambiguous`
+ * (ou `unknown`, como em "Não classificado") justamente onde não dá para
+ * chutar. Essa desambiguação é a tarefa 6 do módulo.
  */
 
 const createSchema = z.object({

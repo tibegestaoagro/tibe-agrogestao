@@ -337,50 +337,6 @@ export const GROUPS: Group[] = [
         response: `200
 { "data": { "id": "cl...", "name": "Novilha 12-24m", "active": false }, "meta": {} }`,
       },
-      {
-        method: "GET",
-        path: "/api/v1/animal-batches",
-        auth: "Sessão · rebanho:read · perfil fazenda",
-        description: "Lista os lotes. Filtros opcionais: property_id e category_id.",
-        response: `200
-{ "data": [{ "id": "cl...", "category_id": "cl...", "category_name": "Bezerro", "property_id": "cl...", "property_name": "Sede", "quantity": 20, "average_weight": 180.5, "acquisition_cost": 25000, "acquired_at": "2026-07-01T00:00:00.000Z" }], "meta": { "total": 1 } }`,
-      },
-      {
-        method: "POST",
-        path: "/api/v1/animal-batches",
-        auth: "Sessão · rebanho:write · perfil fazenda",
-        description: "Cadastra um lote. `quantity` é inteiro positivo; `average_weight`, `acquisition_cost` e `acquired_at` são opcionais. Informar `acquisition_cost` gera o lançamento financeiro de despesa correspondente.",
-        request: `{ "category_id": "cl...", "property_id": "cl...", "quantity": 20, "average_weight": 180.5, "acquisition_cost": 25000, "acquired_at": "2026-07-01T00:00:00.000Z" }`,
-        response: `201
-{ "data": { "id": "cl...", "category_id": "cl...", "quantity": 20 }, "meta": {} }`,
-      },
-      {
-        method: "GET",
-        path: "/api/v1/animal-batches/:id",
-        auth: "Sessão · rebanho:read · perfil fazenda",
-        description: "Detalhe do lote, já com o nome da categoria e da propriedade resolvidos.",
-        response: `200
-{ "data": { "id": "cl...", "category_id": "cl...", "category_name": "Bezerro", "property_name": "Sede", "quantity": 20, "average_weight": 180.5 }, "meta": {} }`,
-      },
-      {
-        method: "PATCH",
-        path: "/api/v1/animal-batches/:id",
-        auth: "Sessão · rebanho:write · perfil fazenda",
-        description: "Atualiza o peso médio do lote (a pesagem de um lote é sempre uma média, não uma pesagem individual). Só esse campo é editável: quantidade muda por venda, não por edição.",
-        request: `{ "average_weight": 195 }`,
-        response: `200
-{ "data": { "id": "cl...", "average_weight": 195 }, "meta": {} }`,
-      },
-      {
-        method: "POST",
-        path: "/api/v1/animal-batches/sell",
-        auth: "Sessão · rebanho:write · perfil fazenda",
-        description:
-          "Vende N cabeças de uma CATEGORIA, não de um lote específico: baixa a quantidade dos lotes daquela categoria (mais antigo primeiro) e, com `value` informado, gera o lançamento de receita. Devolve 422 quando o estoque da categoria é menor que a quantidade pedida.",
-        request: `{ "category_id": "cl...", "quantity": 5, "value": 12000, "occurred_at": "2026-08-01T00:00:00.000Z" }`,
-        response: `200
-{ "data": { "sold": 5, "remaining": 15 }, "meta": {} }`,
-      },
     ],
   },
   {
