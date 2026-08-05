@@ -57,22 +57,35 @@ export type TokenPair = {
 export type LoginData = TokenPair & { user: AuthUser };
 
 export type AnimalSex = "male" | "female";
-export type AnimalStatus = "active" | "sold" | "deceased";
 
-/** GET /api/v1/animals */
-export type Animal = {
+/**
+ * GET /api/v1/animals: um LOTE do rebanho, não um animal.
+ *
+ * Renomeado de `Animal` em 2026-08-04, quando o back-end unificou o rebanho
+ * em `AnimalBatch`: rebanho é sempre categoria + quantidade, e o brinco é
+ * OPCIONAL (quem trabalha com brinco cadastra um lote de 1 cabeça). O modelo
+ * `Animal` e o enum `AnimalStatus` deixaram de existir; `quantity` substitui
+ * `status` para dizer o que resta.
+ *
+ * Espelha `serializeAnimal` (src/lib/serializers.ts) mais as três extensões
+ * aditivas da rota de listagem.
+ */
+export type AnimalBatch = {
   id: string;
-  ear_tag: string;
+  category_id: string;
+  quantity: number;
+  ear_tag: string | null;
   breed: string | null;
-  sex: AnimalSex;
+  sex: AnimalSex | null;
   property_id: string;
   birth_date: string | null;
-  status: AnimalStatus;
-  current_weight: number | null;
+  average_weight: number | null;
+  acquisition_cost: number | null;
+  acquired_at: string | null;
   created_at: string;
-  /** Extensão aditiva desta rota (não está em `serializeAnimal`): nome da propriedade. */
+  /** Extensões aditivas da rota de listagem (não estão em `serializeAnimal`). */
   property_name: string | null;
-  /** Extensão aditiva desta rota: data da última vacinação aplicada, se houver. */
+  category_name: string | null;
   last_vaccination_at: string | null;
 };
 
@@ -118,4 +131,40 @@ export type Tenant = {
   document: string;
   phone: string | null;
   email: string | null;
+};
+
+/** GET /api/v1/machines (Módulo 26). Espelha `serializeMachine`. */
+export type Machine = {
+  id: string;
+  property_id: string;
+  name: string;
+  type: string;
+  brand: string | null;
+  model: string | null;
+  year: number | null;
+  acquired_at: string | null;
+  acquisition_cost: number | null;
+  hour_meter: number | null;
+  status: string;
+  next_maintenance_at: string | null;
+  created_at: string;
+};
+
+/** GET /api/v1/machines/:id devolve a máquina com o histórico de manutenção. */
+export type MachineMaintenance = {
+  id: string;
+  machine_id: string;
+  performed_at: string | null;
+  description: string;
+  cost: number | null;
+  next_due_at: string | null;
+  created_at: string;
+};
+
+export type MachineDetailData = Machine & { maintenances?: MachineMaintenance[] };
+
+/** GET /api/v1/properties: usado pelo formulário de máquina. */
+export type Property = {
+  id: string;
+  name: string;
 };

@@ -175,12 +175,17 @@ Nenhuma bloqueia começar a fundação, mas as três precisam de resposta antes
 das peças que dependem delas:
 
 1. **Onde roda o LLM do Tibé** e o que acontece com o classificador do N8N.
-   Bloqueia a peça 5.
-2. **O que acontece depois dos 60 dias** de tenant arquivado por cancelamento
-   (apagar, bloquear para sempre, outra coisa). Tem implicação de LGPD.
-   Bloqueia o módulo de cancelamento, não o app.
-3. **Se o rebanho por categoria muda o que o app mostra** de rebanho, além do
-   cadastro. Bloqueia a área de Rebanho no app.
+   Bloqueia a peça 5. **Continua aberta.** O usuário pediu para decidir na
+   hora, com os impactos de cada opção explicados.
+2. ~~O que acontece depois dos 60 dias de tenant arquivado~~ **RESPONDIDA e
+   implementada** (2026-08-04, commit `83b813c`, em produção): acesso total
+   até o vencimento, leitura por 60 dias, depois bloqueio. Nada é apagado; o
+   tenant fica pendente de decisão humana no painel da plataforma.
+3. ~~Se o rebanho por categoria muda o que o app mostra~~ **RESPONDIDA pela
+   implementação** (2026-08-04, commit `cd8ba4e`, em produção): muda sim. O
+   modelo `Animal` deixou de existir, `ear_tag` virou opcional e a listagem
+   passou a ser por categoria + quantidade. A tela de rebanho do app precisa
+   ser refeita nesses termos, não só o cadastro.
 
 ## Critérios de aceite da fundação
 

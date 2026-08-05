@@ -9,6 +9,7 @@ import {
   saveRefreshToken,
   saveUserCache,
 } from "@/lib/auth-storage";
+import { isBiometricEnabled, promptBiometrics } from "@/lib/biometrics";
 import type { ApiOk, AuthUser, LoginData, TokenPair } from "@/types/api";
 
 /**
@@ -241,6 +242,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!cancelled) setState({ status: "signedOut" });
         return;
       }
+
+      // Portão biométrico (spec da fundação de UI): quando o usuário ativou
+      // biometria, ela é pedida ANTES de a sessão salva ser restaurada.
+      // Precisa ser aqui, e não numa tela: qualquer gate desenhado depois
+      // deste ponto teria a sessão já válida por trás dele, e bastaria
+      // fechar o aviso para estar dentro.
+      //
+      // Falhar cai na tela de senha em vez de bloquear o app: a biometria é
+      // um atalho, e perdê-la (dedo sujo, máscara, leitor quebrado) não pode
+      // significar perder o acesso à própria fazenda.
+      if (await isBiometricEnabled()) {
+        const passou = await promptBiometrics("Entrar no Tibé");
+        if (cancelled) return;
+        if (!passou) {
+          setState({ status: "signedOut" });
+          return;
+        }
+      }
+
       refreshTokenRef.current = raw;
       const token = await triggerRefresh();
       if (cancelled) return;

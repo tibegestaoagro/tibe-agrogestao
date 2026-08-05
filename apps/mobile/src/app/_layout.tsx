@@ -5,6 +5,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 
 import { AuthProvider, useAuth } from '@/lib/auth-context';
+import { QueueProvider } from '@/lib/queue-context';
 import { useTheme } from '@/hooks/use-theme';
 
 SplashScreen.preventAutoHideAsync();
@@ -20,7 +21,14 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <RootNavigator />
+      {/* A fila de escrita fica DENTRO do AuthProvider porque precisa do
+          `authedFetch` para subir os itens, e do estado de sessão para não
+          tentar subir deslogado. Fica FORA do navegador para sobreviver à
+          troca de tela: um item enfileirado no Rebanho continua na fila
+          quando o usuário vai para o Financeiro. */}
+      <QueueProvider>
+        <RootNavigator />
+      </QueueProvider>
     </AuthProvider>
   );
 }

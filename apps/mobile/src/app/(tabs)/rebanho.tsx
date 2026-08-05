@@ -1,50 +1,48 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
-import { useAuth } from '@/lib/auth-context';
-import { useTheme } from '@/hooks/use-theme';
+import { ListCard } from '@/components/ui/list-card';
+import { PendingBanner } from '@/components/ui/pending-banner';
+import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states';
+import { Sheet } from '@/components/ui/sheet';
 import { Spacing } from '@/constants/theme';
 import { AuthExpiredError } from '@/lib/api-client';
+import { useAuth } from '@/lib/auth-context';
 import { formatDateBR } from '@/lib/format';
-import type { Animal } from '@/types/api';
+import { useTheme } from '@/hooks/use-theme';
+import type { AnimalBatch } from '@/types/api';
 
-const STATUS_LABEL: Record<Animal['status'], string> = {
-  active: 'Ativo',
-  sold: 'Vendido',
-  deceased: 'Morto',
-};
-
-const SEX_LABEL: Record<Animal['sex'], string> = { male: 'Macho', female: 'Fêmea' };
+const SEX_LABEL: Record<string, string> = { male: 'Macho', female: 'Fêmea' };
 
 /**
- * Tela Rebanho (briefing, decisão 7): lista de animais de
- * `GET /api/v1/animals`, a mesma rota que o painel web usa para listar
- * (a página `(dashboard)/rebanho/page.tsx` no web busca direto no Prisma
- * por ser Server Component, mas o contrato de campos é o mesmo desta rota
- * (ver `src/lib/serializers.ts`, `serializeAnimal`). Sem filtro nem busca
- * nesta rodada (só leitura simples, "esqueleto"); a rota já suporta
- * `property_id`/`status`/`breed`/`q` se um filtro for adicionado depois.
+ * Rebanho: lista por CATEGORIA, não por animal.
  *
- * Exige o perfil "fazenda" ativo no tenant (mesma regra do back-end,
- * `guard("rebanho", "read", { profile: "fazenda" })`): um tenant só-
- * prestador de serviço recebe `PROFILE_INACTIVE` da API, mostrado aqui como
- * qualquer outro erro: não é tratado como caso especial no app.
+ * Refeita em 2026-08-04 junto com a unificação do back-end. Antes a tela
+ * listava animais e mostrava o brinco como identificação e o status como
+ * estado. Os dois deixaram de valer: o brinco é opcional (a maioria dos lotes
+ * não tem) e `status` não existe mais, então a tela mostrava um campo vazio e
+ * outro indefinido. O que identifica um lote agora é a CATEGORIA, e o número
+ * que importa é a QUANTIDADE de cabeças.
+ *
+ * Segue as regras de densidade (D3): o cartão mostra 3 dados e o resto abre
+ * no modal de detalhe, sem nada ser removido.
  */
 export default function RebanhoScreen() {
   const { authedFetch } = useAuth();
   const theme = useTheme();
-  const [animals, setAnimals] = useState<Animal[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+
+  const [batches, setBatches] = useState<AnimalBatch[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selected, setSelected] = useState<AnimalBatch | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
     try {
-      const { data } = await authedFetch<Animal[]>('/api/v1/animals');
-      setAnimals(data);
+      const { data } = await authedFetch<AnimalBatch[]>('/api/v1/animals');
+      setBatches(data);
     } catch (e) {
       if (e instanceof AuthExpiredError) return;
       setError(e instanceof Error ? e.message : 'Não foi possível carregar o rebanho.');
@@ -52,8 +50,7 @@ export default function RebanhoScreen() {
   }, [authedFetch]);
 
   useEffect(() => {
-    setLoading(true);
-    load().finally(() => setLoading(false));
+    load();
   }, [load]);
 
   const onRefresh = useCallback(async () => {
@@ -62,55 +59,118 @@ export default function RebanhoScreen() {
     setRefreshing(false);
   }, [load]);
 
+  const totalCabecas = (batches ?? []).reduce((soma, b) => soma + b.quantity, 0);
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['bottom']}>
-      {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={theme.text} />
-        </View>
-      ) : (
-        <FlatList
-          data={animals}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          ListEmptyComponent={
-            <View style={styles.center}>
-              <ThemedText type="small" themeColor="textSecondary">
-                {error ?? 'Nenhum animal cadastrado.'}
-              </ThemedText>
-            </View>
-          }
-          renderItem={({ item }) => (
-            <View style={[styles.row, { borderColor: theme.backgroundSelected }]}>
-              <View style={styles.rowHeader}>
-                <ThemedText type="smallBold">{item.ear_tag}</ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">
-                  {STATUS_LABEL[item.status] ?? item.status}
-                </ThemedText>
-              </View>
-              <ThemedText type="small" themeColor="textSecondary">
-                {item.breed ?? 'raça não informada'} · {SEX_LABEL[item.sex]}
-              </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                {item.property_name ?? 'propriedade não informada'}
-                {item.current_weight != null ? ` · ${item.current_weight} kg` : ''}
-              </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                Última vacinação: {item.last_vaccination_at ? formatDateBR(item.last_vaccination_at) : 'sem data'}
-              </ThemedText>
-            </View>
-          )}
-        />
-      )}
+      <ScrollView
+        contentContainerStyle={styles.list}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
+        <PendingBanner />
+
+        {batches !== null && batches.length > 0 ? (
+          <ThemedText type="small" themeColor="textSecondary">
+            {totalCabecas.toLocaleString('pt-BR')} cabeça(s) em {batches.length} registro(s)
+          </ThemedText>
+        ) : null}
+
+        {batches === null && !error ? <LoadingState /> : null}
+        {error ? <ErrorState message={error} onRetry={load} /> : null}
+
+        {batches !== null && batches.length === 0 ? (
+          <EmptyState
+            title="Nenhum rebanho cadastrado"
+            hint="Cadastre pelo painel web ou peça ao Tibé para registrar."
+          />
+        ) : null}
+
+        {(batches ?? []).map((b) => (
+          <ListCard
+            key={b.id}
+            title={b.category_name ?? 'Categoria não informada'}
+            value={[
+              b.ear_tag ? `Brinco ${b.ear_tag}` : null,
+              b.breed,
+              b.property_name,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+            state={
+              b.quantity === 0
+                ? { label: 'Sem saldo', tone: 'neutral' }
+                : { label: `${b.quantity.toLocaleString('pt-BR')} cab`, tone: 'good' }
+            }
+            onPress={() => setSelected(b)}
+          />
+        ))}
+      </ScrollView>
+
+      <Sheet
+        visible={!!selected}
+        onClose={() => setSelected(null)}
+        title={selected?.category_name ?? 'Lote'}
+      >
+        {selected ? (
+          <View style={styles.detail}>
+            <Row label="Cabeças" value={selected.quantity.toLocaleString('pt-BR')} />
+            <Row label="Brinco" value={selected.ear_tag ?? 'sem brinco'} />
+            <Row label="Raça" value={selected.breed ?? 'não informada'} />
+            <Row label="Sexo" value={selected.sex ? SEX_LABEL[selected.sex] : 'lote misto'} />
+            <Row label="Fazenda" value={selected.property_name ?? 'não informada'} />
+            <Row
+              label="Peso médio"
+              value={selected.average_weight != null ? `${selected.average_weight} kg` : 'sem valor'}
+            />
+            <Row
+              label="Nascimento"
+              value={selected.birth_date ? formatDateBR(selected.birth_date) : 'não informado'}
+            />
+            <Row
+              label="Aquisição"
+              value={selected.acquired_at ? formatDateBR(selected.acquired_at) : 'não informada'}
+            />
+            <Row
+              label="Custo de aquisição"
+              value={
+                selected.acquisition_cost != null
+                  ? `R$ ${selected.acquisition_cost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                  : 'não informado'
+              }
+            />
+            <Row
+              label="Última vacinação"
+              value={
+                selected.last_vaccination_at
+                  ? formatDateBR(selected.last_vaccination_at)
+                  : 'sem data'
+              }
+            />
+          </View>
+        ) : null}
+      </Sheet>
     </SafeAreaView>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.row}>
+      <ThemedText type="small" themeColor="textSecondary" style={styles.rowLabel}>
+        {label}
+      </ThemedText>
+      <ThemedText type="small" style={styles.rowValue}>
+        {value}
+      </ThemedText>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.four },
-  list: { padding: Spacing.four, gap: Spacing.three, flexGrow: 1 },
-  row: { borderWidth: 1, borderRadius: Spacing.two, padding: Spacing.three, gap: Spacing.half },
-  rowHeader: { flexDirection: 'row', justifyContent: 'space-between' },
+  list: { padding: Spacing.three, gap: Spacing.two, flexGrow: 1 },
+  detail: { gap: Spacing.two },
+  row: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.two },
+  rowLabel: { flex: 1, fontSize: 13 },
+  rowValue: { flex: 1.4, textAlign: 'right' },
 });
