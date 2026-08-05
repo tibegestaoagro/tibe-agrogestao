@@ -223,7 +223,7 @@ export const consultarRebanho: Handler = async ({ db, parameters }) => {
     owner: "proprio",
     ...(propertyId ? { property_id: propertyId } : {}),
   });
-  const onde = nomeDaFazenda ? ` na ${nomeDaFazenda}` : "";
+  const onde = nomeDaFazenda ? ` em ${nomeDaFazenda}` : "";
 
   // §13.2: consulta por categoria. Termo ambíguo pergunta, nunca chuta.
   if (termoCategoria) {
@@ -235,7 +235,7 @@ export const consultarRebanho: Handler = async ({ db, parameters }) => {
       .reduce((soma, p) => soma + p.quantity, 0);
 
     return {
-      reply_text: `Você possui ${total} em ${categoria.categoria.label}${onde}.`,
+      reply_text: `Você possui ${total} ${categoria.categoria.plural}${onde}.`,
       requires_confirmation: false,
       auxiliary_data: { category_id: categoria.categoria.id, quantidade: total },
       report_url: null,
@@ -271,8 +271,19 @@ const VERBO: Record<string, string> = {
   morte: "registrar a morte de",
 };
 
+/** Como o cliente escreve nos §13.4 e §13.5: "4 bezerros e 3 bezerras". */
 function descreverItens(itens: { categoria: HerdCategory; quantidade: number }[]): string {
-  return itens.map((i) => `${i.quantidade} em ${i.categoria.label}`).join(" e ");
+  return itens.map((i) => `${i.quantidade} ${i.categoria.plural}`).join(" e ");
+}
+
+/** "hoje" quando for hoje; a data por extenso quando o produtor disser outra. */
+function descreverData(data: Date): string {
+  const hoje = new Date();
+  const mesmoDia =
+    data.getFullYear() === hoje.getFullYear() &&
+    data.getMonth() === hoje.getMonth() &&
+    data.getDate() === hoje.getDate();
+  return mesmoDia ? "hoje" : `em ${data.toLocaleDateString("pt-BR")}`;
 }
 
 export const registrarMovimentacaoRebanho: Handler = async ({
@@ -363,21 +374,33 @@ export const registrarMovimentacaoRebanho: Handler = async ({
   }
 
   const valor = num(parameters.valor) ?? num(parameters.value);
-  const lugar = pastoOrigem.nome ? `no ${pastoOrigem.nome}` : `na ${fazenda.nome}`;
+  const dataInformada = str(parameters.data) ?? str(parameters.date) ?? str(parameters.occurred_at);
+  const quando = dataInformada ? new Date(`${dataInformada.slice(0, 10)}T12:00:00`) : new Date();
+  if (Number.isNaN(quando.getTime())) {
+    return ask("Não entendi a data. Diga por exemplo 'hoje', 'ontem' ou '05/08/2026'.");
+  }
+
+  // "no Pasto X" é seguro (pasto é masculino e o nome começa com "Pasto").
+  // Para a fazenda, "em X" em vez de "na X": o nome é livre e adivinhar o
+  // artigo produz coisas como "na Da Mata".
+  const lugar = pastoOrigem.nome ? `no ${pastoOrigem.nome}` : `em ${fazenda.nome}`;
 
   let pergunta: string;
   if (TRANSFERENCIAS.has(tipo)) {
+    // O §13.6 do cliente usa o RÓTULO oficial nos dois lados aqui, não o
+    // plural coloquial: "da categoria Bezerra - 0 a 7 meses para Fêmea - 8 a
+    // 12 meses". É mais preciso, e é o que a mudança de categoria pede.
     const origem = itens[0];
     const destinoTexto = categoriaDestino
       ? `para ${categoriaDestino.label}`
       : fazendaDestino
-        ? `para a ${fazendaDestino.nome}`
+        ? `para ${fazendaDestino.nome}`
         : `para o ${pastoDestino.nome}`;
-    pergunta = `Deseja transferir ${origem.quantidade} animais de ${origem.categoria.label} ${destinoTexto}?`;
+    pergunta = `Deseja transferir ${origem.quantidade} animais da categoria ${origem.categoria.label} ${destinoTexto}?`;
   } else {
     const verbo = VERBO[tipo] ?? "registrar";
     const complemento = valor != null ? ` no valor de R$ ${valor.toLocaleString("pt-BR")}` : "";
-    pergunta = `Deseja ${verbo} ${descreverItens(itens)} ${lugar}${complemento}?`;
+    pergunta = `Deseja ${verbo} ${descreverItens(itens)} ${descreverData(quando)} ${lugar}${complemento}?`;
   }
 
   const parado = confirmFlow({
@@ -426,6 +449,7 @@ export const registrarMovimentacaoRebanho: Handler = async ({
       from: ENTRADAS.has(tipo) ? null : origem,
       to: SAIDAS.has(tipo) ? null : destino,
       value: valor ?? null,
+      occurred_at: quando,
       notes: "Registrado pelo assistente no WhatsApp",
     });
 
@@ -438,7 +462,7 @@ export const registrarMovimentacaoRebanho: Handler = async ({
         reply_text: `⚠️ ${resultado.message}${jaFeito}`,
       };
     }
-    registradas.push(`${item.quantidade} em ${item.categoria.label}`);
+    registradas.push(`${item.quantidade} ${item.categoria.plural}`);
   }
 
   const total = itens.reduce((soma, i) => soma + i.quantidade, 0);

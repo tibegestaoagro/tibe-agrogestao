@@ -97,8 +97,7 @@ async function main() {
     );
     check(
       "responde a quantidade da categoria pedida",
-      porCategoria.reply_text.includes("25") &&
-        porCategoria.reply_text.includes("13 a 24 meses"),
+      porCategoria.reply_text.includes("25 fêmeas de 13 a 24 meses"),
       porCategoria.reply_text,
     );
 
@@ -141,9 +140,9 @@ async function main() {
       }),
     );
     check(
-      "primeiro pergunta, no formato do documento",
+      "primeiro pergunta, na redacao do documento (§13.3)",
       pedeConfirmacao.requires_confirmation === true &&
-        pedeConfirmacao.reply_text.startsWith("Deseja registrar 18"),
+        pedeConfirmacao.reply_text.startsWith("Deseja registrar 18 bezerros hoje em Fazenda Santa Helena"),
       pedeConfirmacao.reply_text,
     );
     const antesDeConfirmar = await consultarRebanho(ctx(db, tenant.id, {}));
@@ -186,7 +185,7 @@ async function main() {
     );
     check(
       "as duas categorias entram na mesma confirmação",
-      nascimento.reply_text.includes("4 em Bezerro") && nascimento.reply_text.includes("3 em Bezerra"),
+      nascimento.reply_text.includes("4 bezerros") && nascimento.reply_text.includes("3 bezerras"),
       nascimento.reply_text,
     );
     const aposNascimento = await consultarRebanho(ctx(db, tenant.id, {}));

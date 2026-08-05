@@ -245,11 +245,29 @@ dentro deste módulo: tsc, lint, build e 28 verificações passavam, e o defeito
 só apareceu com uma mensagem de verdade, porque dependia de COMO o LLM
 nomeia a categoria.
 
-**Ainda não testado no aparelho:** §13.3 (saldo inicial), §13.5 (morte com
-pasto), §13.6 (mudança de categoria), a volta da pergunta de faixa (responder
-"13 a 24 meses" e ver se o classificador reconstrói o pedido) e a volta da
-pergunta de pasto. A volta das duas perguntas é o ponto mais frágil, porque
-depende do `recent_history` chegar ao classificador.
+**Segunda rodada no aparelho: o §13.4 passou, mas a REDAÇÃO estava pior que a
+do cliente.** Saiu "Deseja registrar o nascimento de 4 em Bezerro - 0 a 7
+meses e 3 em Bezerra - 0 a 7 meses na Da Mata?"; o §13.4 escreve "4 bezerros e
+3 bezerras hoje na Fazenda Santa Helena". O documento é spec também na
+redação, ainda mais para um público com resistência a tecnologia. Três
+correções:
+
+- **`HerdCategory` ganhou `plural`**, o nome coloquial usado DENTRO de frase
+  ("bezerros", "fêmeas acima de 36 meses"). `label` continua para tabela e
+  lista. O §13.6 usa o rótulo oficial nos dois lados da mudança de categoria,
+  então lá continua `label`: cada um onde o cliente escreveu.
+- **A data entra na confirmação** ("hoje", ou a data quando for outra), e
+  `occurred_at` passou a ser de fato enviado ao `recordMovement`. Antes o
+  parâmetro de data era ignorado: "nasceram 4 ontem" gravava hoje.
+- **Preposição da fazenda virou "em"**, não "na". O nome é livre e adivinhar o
+  artigo produz "na Da Mata". Para pasto continua "no", que é seguro porque o
+  nome começa com "Pasto".
+
+**Ainda não testado no aparelho:** §13.5 (morte com pasto), §13.6 (mudança de
+categoria), a volta da pergunta de faixa (responder "13 a 24 meses" e ver se o
+classificador reconstrói o pedido) e a volta da pergunta de pasto. A volta das
+duas perguntas é o ponto mais frágil, porque depende do `recent_history`
+chegar ao classificador. O §13.3 foi exercitado só em teste, não no aparelho.
 
 **A troca do §6, resolvida em parte (2026-08-05).** As três rotas
 `/api/v1/animal-batches` foram **removidas**: não tinham um consumidor

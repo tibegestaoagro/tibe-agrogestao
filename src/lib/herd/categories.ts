@@ -21,8 +21,14 @@ export type HerdSex = "macho" | "femea";
 export type HerdCategory = {
   /** Chave estável, gravada no banco. Nunca mude uma que já existe. */
   id: string;
-  /** Rótulo exato do documento do cliente. */
+  /** Rótulo exato do documento do cliente. Usado em tabela e em lista. */
   label: string;
+  /**
+   * Como o cliente escreve a categoria DENTRO de uma frase, no plural
+   * (§13.2, §13.4, §13.5): "4 bezerros e 3 bezerras", "2 femeas acima de 36
+   * meses". O `label` fica estranho em frase ("4 em Bezerro - 0 a 7 meses").
+   */
+  plural: string;
   sex: HerdSex;
   /** Faixa etária em meses. `null` em `max` significa "em diante". */
   min_months: number | null;
@@ -35,18 +41,18 @@ export type HerdCategory = {
 };
 
 export const HERD_CATEGORIES: readonly HerdCategory[] = [
-  { id: "bezerro_0_7", label: "Bezerro - 0 a 7 meses", sex: "macho", min_months: 0, max_months: 7, reproductive: false },
-  { id: "bezerra_0_7", label: "Bezerra - 0 a 7 meses", sex: "femea", min_months: 0, max_months: 7, reproductive: false },
-  { id: "femea_8_12", label: "Fêmea - 8 a 12 meses", sex: "femea", min_months: 8, max_months: 12, reproductive: false },
-  { id: "macho_8_12", label: "Macho - 8 a 12 meses", sex: "macho", min_months: 8, max_months: 12, reproductive: false },
-  { id: "femea_13_24", label: "Fêmea - 13 a 24 meses", sex: "femea", min_months: 13, max_months: 24, reproductive: false },
-  { id: "macho_13_24", label: "Macho - 13 a 24 meses", sex: "macho", min_months: 13, max_months: 24, reproductive: false },
-  { id: "femea_25_36", label: "Fêmea - 25 a 36 meses", sex: "femea", min_months: 25, max_months: 36, reproductive: false },
-  { id: "macho_25_36", label: "Macho - 25 a 36 meses", sex: "macho", min_months: 25, max_months: 36, reproductive: false },
-  { id: "femea_36_mais", label: "Fêmea - acima de 36 meses", sex: "femea", min_months: 37, max_months: null, reproductive: false },
-  { id: "macho_36_mais", label: "Macho - acima de 36 meses", sex: "macho", min_months: 37, max_months: null, reproductive: false },
-  { id: "garrote_reprodutor", label: "Garrote reprodutor", sex: "macho", min_months: null, max_months: null, reproductive: true },
-  { id: "tourinho_reprodutor", label: "Tourinho reprodutor", sex: "macho", min_months: null, max_months: null, reproductive: true },
+  { id: "bezerro_0_7", label: "Bezerro - 0 a 7 meses", plural: "bezerros", sex: "macho", min_months: 0, max_months: 7, reproductive: false },
+  { id: "bezerra_0_7", label: "Bezerra - 0 a 7 meses", plural: "bezerras", sex: "femea", min_months: 0, max_months: 7, reproductive: false },
+  { id: "femea_8_12", label: "Fêmea - 8 a 12 meses", plural: "fêmeas de 8 a 12 meses", sex: "femea", min_months: 8, max_months: 12, reproductive: false },
+  { id: "macho_8_12", label: "Macho - 8 a 12 meses", plural: "machos de 8 a 12 meses", sex: "macho", min_months: 8, max_months: 12, reproductive: false },
+  { id: "femea_13_24", label: "Fêmea - 13 a 24 meses", plural: "fêmeas de 13 a 24 meses", sex: "femea", min_months: 13, max_months: 24, reproductive: false },
+  { id: "macho_13_24", label: "Macho - 13 a 24 meses", plural: "machos de 13 a 24 meses", sex: "macho", min_months: 13, max_months: 24, reproductive: false },
+  { id: "femea_25_36", label: "Fêmea - 25 a 36 meses", plural: "fêmeas de 25 a 36 meses", sex: "femea", min_months: 25, max_months: 36, reproductive: false },
+  { id: "macho_25_36", label: "Macho - 25 a 36 meses", plural: "machos de 25 a 36 meses", sex: "macho", min_months: 25, max_months: 36, reproductive: false },
+  { id: "femea_36_mais", label: "Fêmea - acima de 36 meses", plural: "fêmeas acima de 36 meses", sex: "femea", min_months: 37, max_months: null, reproductive: false },
+  { id: "macho_36_mais", label: "Macho - acima de 36 meses", plural: "machos acima de 36 meses", sex: "macho", min_months: 37, max_months: null, reproductive: false },
+  { id: "garrote_reprodutor", label: "Garrote reprodutor", plural: "garrotes reprodutores", sex: "macho", min_months: null, max_months: null, reproductive: true },
+  { id: "tourinho_reprodutor", label: "Tourinho reprodutor", plural: "tourinhos reprodutores", sex: "macho", min_months: null, max_months: null, reproductive: true },
 ] as const;
 
 const BY_ID = new Map(HERD_CATEGORIES.map((c) => [c.id, c]));
