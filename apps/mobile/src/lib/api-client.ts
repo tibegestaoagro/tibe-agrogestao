@@ -64,6 +64,26 @@ export async function rawRequest(
   return { res, body };
 }
 
+/**
+ * Traduz QUALQUER erro em texto que o produtor entenda, em pt-BR.
+ *
+ * Existe porque o `fetch` do React Native lança `TypeError: Network request
+ * failed` (inglês, e sem dizer o que fazer), e esse texto apareceu na tela
+ * durante o teste com modo avião. Mensagem de erro é interface: "Network
+ * request failed" não diz a quem está no pasto que o problema é o sinal.
+ *
+ * Erros do próprio Tibé já vêm em pt-BR do back-end e passam intactos.
+ */
+export function toUserMessage(e: unknown): string {
+  if (e instanceof ApiError) return e.message;
+  if (e instanceof AuthExpiredError) return e.message;
+  const raw = e instanceof Error ? e.message : '';
+  if (/network request failed|failed to fetch|timeout|abort/i.test(raw)) {
+    return 'Sem conexão com a internet. Verifique o sinal e tente de novo.';
+  }
+  return 'Não foi possível concluir agora. Tente de novo.';
+}
+
 /** Traduz um corpo de erro `{ error: { code, message } }` para `ApiError`, com fallback em pt-BR. */
 export function toApiError(body: unknown, status: number): ApiError {
   const errorBody = body as { error?: { code?: string; message?: string } } | null;

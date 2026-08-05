@@ -5,6 +5,7 @@ import { Sheet } from '@/components/ui/sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ApiError } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
+import { fetchWithCache } from '@/lib/local-cache';
 import { useQueue } from '@/lib/queue-context';
 import type { Property } from '@/types/api';
 
@@ -43,6 +44,7 @@ export function MachineForm({
   const { submit } = useQueue();
 
   const [properties, setProperties] = useState<Property[]>([]);
+  const [propertiesFromCache, setPropertiesFromCache] = useState(false);
   const [propertyId, setPropertyId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [type, setType] = useState('');
@@ -56,14 +58,19 @@ export function MachineForm({
 
   useEffect(() => {
     if (!visible) return;
-    authedFetch<Property[]>('/api/v1/properties')
-      .then(({ data }) => {
-        setProperties(data);
-        if (data.length === 1) setPropertyId(data[0].id);
-      })
-      // Sem conexão não dá para listar propriedades, e sem propriedade não dá
-      // para cadastrar: o formulário avisa em vez de falhar em silêncio.
-      .catch(() => setProperties([]));
+    // Busca a lista de fazendas com CACHE: sem isso, o formulário não abria
+    // sem sinal, e a fila de escrita ficava inútil no caso que ela existe
+    // para resolver (cadastrar no curral). Defeito encontrado testando com
+    // o modo avião ligado, não pelo tsc nem pelo lint.
+    fetchWithCache<Property[]>('properties', async () => {
+      const { data } = await authedFetch<Property[]>('/api/v1/properties');
+      return data;
+    }).then(({ data, fromCache }) => {
+      const list = data ?? [];
+      setProperties(list);
+      setPropertiesFromCache(fromCache && list.length > 0);
+      if (list.length === 1) setPropertyId(list[0].id);
+    });
   }, [visible, authedFetch]);
 
   function reset() {
@@ -130,16 +137,25 @@ export function MachineForm({
 
       {properties.length === 0 ? (
         <ThemedText type="small" themeColor="textSecondary">
-          Nenhuma fazenda carregada. Conecte-se à internet para cadastrar uma máquina nova.
+          Nenhuma fazenda disponível. Abra esta tela uma vez com internet para poder
+          cadastrar sem sinal depois.
         </ThemedText>
       ) : (
-        <ChoiceField
-          label="Fazenda"
-          required
-          options={properties.map((p) => ({ value: p.id, label: p.name }))}
-          value={propertyId}
-          onChange={setPropertyId}
-        />
+        <>
+          <ChoiceField
+            label="Fazenda"
+            required
+            options={properties.map((p) => ({ value: p.id, label: p.name }))}
+            value={propertyId}
+            onChange={setPropertyId}
+          />
+          {propertiesFromCache ? (
+            <ThemedText type="small" themeColor="textSecondary" style={{ fontSize: 12 }}>
+              Sem conexão: lista de fazendas guardada no aparelho. Uma fazenda cadastrada
+              recentemente pode não aparecer.
+            </ThemedText>
+          ) : null}
+        </>
       )}
 
       <Field label="Nome" required value={name} onChangeText={setName} placeholder="Trator 4x4" />

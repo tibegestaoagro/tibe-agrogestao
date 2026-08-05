@@ -3,10 +3,11 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, V
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
+import { PendingBanner } from '@/components/ui/pending-banner';
 import { useAuth } from '@/lib/auth-context';
 import { useTheme } from '@/hooks/use-theme';
 import { Spacing } from '@/constants/theme';
-import { AuthExpiredError } from '@/lib/api-client';
+import { AuthExpiredError, toUserMessage } from '@/lib/api-client';
 import { formatCurrencyBRL } from '@/lib/format';
 import type { CashFlowBucket, Tenant } from '@/types/api';
 
@@ -53,7 +54,7 @@ export default function InicioScreen() {
       setTenant(tenantRes.data);
     } catch (e) {
       if (e instanceof AuthExpiredError) return; // AuthProvider já derrubou a sessão; a navegação troca sozinha.
-      setError(e instanceof Error ? e.message : 'Não foi possível carregar o saldo do mês.');
+      setError(toUserMessage(e));
     }
   }, [authedFetch]);
 
@@ -74,6 +75,7 @@ export default function InicioScreen() {
         contentContainerStyle={styles.container}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
+        <PendingBanner />
         <View>
           <ThemedText type="title" style={styles.greeting}>
             {user?.name ? `Olá, ${user.name.split(' ')[0]}` : 'Olá'}

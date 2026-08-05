@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { toUserMessage } from '@/lib/api-client';
 import { ThemedText } from '@/components/themed-text';
 import { MachineDetail } from '@/components/maquinas/machine-detail';
 import { MachineForm } from '@/components/maquinas/machine-form';
@@ -56,7 +57,7 @@ export default function MaquinasScreen() {
       // trocar dado velho por uma tela de erro. Sumir com o que já estava
       // visível é pior do que mostrar com ressalva (decisão D4).
       if (machines) setStale(true);
-      else setError(e instanceof Error ? e.message : 'Erro inesperado.');
+      else setError(toUserMessage(e));
     }
   }, [authedFetch, machines]);
 
