@@ -5,7 +5,7 @@ import { Sheet } from '@/components/ui/sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ApiError } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
-import { fetchWithCache } from '@/lib/local-cache';
+import { loadProperties } from '@/lib/reference-data';
 import { useQueue } from '@/lib/queue-context';
 import type { Property } from '@/types/api';
 
@@ -54,6 +54,7 @@ export function MachineForm({
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [queuedNotice, setQueuedNotice] = useState(false);
 
   useEffect(() => {
@@ -62,15 +63,13 @@ export function MachineForm({
     // sem sinal, e a fila de escrita ficava inútil no caso que ela existe
     // para resolver (cadastrar no curral). Defeito encontrado testando com
     // o modo avião ligado, não pelo tsc nem pelo lint.
-    fetchWithCache<Property[]>('properties', async () => {
-      const { data } = await authedFetch<Property[]>('/api/v1/properties');
-      return data;
-    }).then(({ data, fromCache }) => {
-      const list = data ?? [];
-      setProperties(list);
-      setPropertiesFromCache(fromCache && list.length > 0);
-      if (list.length === 1) setPropertyId(list[0].id);
-    });
+    loadProperties(async () => (await authedFetch<Property[]>('/api/v1/properties')).data).then(
+      ({ properties: list, fromCache }) => {
+        setProperties(list);
+        setPropertiesFromCache(fromCache);
+        if (list.length === 1) setPropertyId(list[0].id);
+      },
+    );
   }, [visible, authedFetch]);
 
   function reset() {
@@ -83,11 +82,17 @@ export function MachineForm({
     setQueuedNotice(false);
   }
 
+  /** Marca o erro no PRÓPRIO campo, para a instrução aparecer junto do que ela manda corrigir. */
+  function setFieldError(field: string, message: string) {
+    setFieldErrors({ [field]: message });
+  }
+
   async function save() {
     setError(null);
-    if (!propertyId) return setError('Escolha a fazenda.');
-    if (!name.trim()) return setError('O nome é obrigatório.');
-    if (!type.trim()) return setError('O tipo é obrigatório.');
+    setFieldErrors({});
+    if (!propertyId) return setFieldError('property', 'Escolha a fazenda.');
+    if (!name.trim()) return setFieldError('name', 'O nome é obrigatório.');
+    if (!type.trim()) return setFieldError('type', 'O tipo é obrigatório.');
 
     setSaving(true);
     try {
@@ -137,8 +142,8 @@ export function MachineForm({
 
       {properties.length === 0 ? (
         <ThemedText type="small" themeColor="textSecondary">
-          Nenhuma fazenda disponível. Abra esta tela uma vez com internet para poder
-          cadastrar sem sinal depois.
+          Nenhuma fazenda disponível sem conexão. Conecte-se uma vez: a lista fica guardada
+          no aparelho e o cadastro passa a funcionar sem sinal.
         </ThemedText>
       ) : (
         <>
@@ -148,6 +153,7 @@ export function MachineForm({
             options={properties.map((p) => ({ value: p.id, label: p.name }))}
             value={propertyId}
             onChange={setPropertyId}
+            error={fieldErrors.property}
           />
           {propertiesFromCache ? (
             <ThemedText type="small" themeColor="textSecondary" style={{ fontSize: 12 }}>
@@ -158,8 +164,22 @@ export function MachineForm({
         </>
       )}
 
-      <Field label="Nome" required value={name} onChangeText={setName} placeholder="Trator 4x4" />
-      <Field label="Tipo" required value={type} onChangeText={setType} placeholder="Trator" />
+      <Field
+        label="Nome"
+        required
+        value={name}
+        onChangeText={setName}
+        placeholder="Trator 4x4"
+        error={fieldErrors.name}
+      />
+      <Field
+        label="Tipo"
+        required
+        value={type}
+        onChangeText={setType}
+        placeholder="Trator"
+        error={fieldErrors.type}
+      />
       <Field label="Marca" value={brand} onChangeText={setBrand} placeholder="John Deere" />
       <Field label="Modelo" value={model} onChangeText={setModel} placeholder="5075E" />
       <Field

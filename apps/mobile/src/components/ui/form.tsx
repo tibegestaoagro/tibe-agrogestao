@@ -84,12 +84,19 @@ export function ChoiceField<T extends string>({
   value,
   onChange,
   required,
+  error,
 }: {
   label: string;
   options: { value: T; label: string }[];
   value: T | null;
   onChange: (v: T) => void;
   required?: boolean;
+  /**
+   * Erro deste campo. Existe porque um formulário rolável mostrava "Escolha
+   * a fazenda" no rodapé enquanto o seletor ficava fora da tela, em cima:
+   * o usuário lia a instrução sem ver o que ela mandava fazer.
+   */
+  error?: string | null;
 }) {
   const theme = useTheme();
 
@@ -126,6 +133,11 @@ export function ChoiceField<T extends string>({
           );
         })}
       </View>
+      {error ? (
+        <ThemedText type="small" style={styles.error}>
+          {error}
+        </ThemedText>
+      ) : null}
     </View>
   );
 }
