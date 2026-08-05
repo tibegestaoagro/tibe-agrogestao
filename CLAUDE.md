@@ -465,6 +465,41 @@ despesa→fazenda, cerca→pasto): decisão do usuário, não avançar nisso ain
 
 ---
 
+## Rebanho como livro-razão (Módulo 30, EM ANDAMENTO desde 2026-08-05)
+
+Branch `rebanho-livro-razao`. Spec:
+[docs/specs/module-30-rebanho-livro-razao.md](docs/specs/module-30-rebanho-livro-razao.md).
+Origem: 2 documentos do cliente em `docs/Modulo Rebanho/` (versionados).
+
+**A regra central: o saldo do rebanho NUNCA é gravado.** A quantidade de cada
+posição é a soma das movimentações em `HerdMovement`. Se você se pegar
+escrevendo um campo de quantidade em algum lugar, pare: é sinal de que a
+regra está voltando para o modelo antigo.
+
+- **Posição** = `categoria x fazenda x pasto x situação x dono` (enums
+  `HerdSituation` e `HerdOwner`). Uma movimentação tira `quantity` cabeças de
+  uma posição (campos `from_*`) e põe na outra (`to_*`). Entrada não tem
+  origem, saída não tem destino, transferência tem as duas pontas. **Mudança
+  de categoria não é caso especial**: é um movimento com categorias
+  diferentes nas duas pontas.
+- **As 12 categorias são constante de código** (`src/lib/herd/categories.ts`),
+  não linha de banco editável, pelo mesmo motivo de `PLAN_PRICES`. Cada uma
+  carrega sexo, faixa em meses e flag de reprodutiva: sem isso, "total de
+  machos", traduzir "novilha" e o envelhecimento não são calculáveis.
+  `resolveCategoryTerm()` devolve **`ambiguous` em vez de chutar** quando o
+  termo serve a mais de uma faixa: é o que impede o assistente de lançar
+  animais na idade errada.
+- **`AnimalCategory` (tabela) segue existindo** só para o modelo antigo
+  enquanto a migração dos consumidores não termina. Os nomes populares que
+  ela guardava viraram a tabela de apelidos em `categories.ts`.
+- **`canceled_at` não apaga**: cancelar para de contar no saldo e mantém a
+  linha identificada no histórico, como o §10.8 exige.
+- **Fase 1** (em andamento): as 9 movimentações básicas. **Fase 2**: leilão,
+  pasto de terceiros, boitel, confinamento, desaparecimento e animais de
+  terceiros. Dividir é seguro porque os eixos de dono e situação já nascem na
+  fase 1.
+- Testes: `npm run test:m32` (categorias, função pura, sem banco).
+
 ## Signup público (`/planos` + `/criar-conta`): fora do escopo original do PRD
 
 O PRD §12 marca "onboarding self-service completo" como **fora do MVP** (v1.1).

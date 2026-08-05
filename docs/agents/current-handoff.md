@@ -39,13 +39,33 @@ escritório. Leia depois de `CLAUDE.md`.
 **Ao trocar de branch, os arquivos do app somem do editor.** É esperado: o
 trabalho do mobile vive só em `app-mobile-fundacao`.
 
-### Próximo passo autorizado
+### EM ANDAMENTO: Módulo 30, fase 1 (branch `rebanho-livro-razao`)
 
-Revisar [docs/specs/module-30-rebanho-livro-razao.md](../specs/module-30-rebanho-livro-razao.md),
-principalmente a seção 2 (os cinco eixos da posição): é dela que sai todo o
-resto, e corrigir um eixo depois de treze tipos de movimentação escritos em
-cima dele é caro. Depois da aprovação, fase 1 começa por schema e migração,
-com os testes da régua de saldo antes das telas.
+Spec **aprovada pelo usuário** em 2026-08-05. Duas tarefas concluídas:
+
+| # | Tarefa | Commit |
+|---|---|---|
+| 1 | 12 categorias como constante + apelidos + `test:m32` (26 verificações) | `9f461ae` |
+| 2 | Schema `HerdMovement` + migração que converte o rebanho existente | `c1f884c` |
+| 3 | **Actions do livro-razão** | **próxima, não iniciada** |
+| 4 | Rotas de API | pendente |
+| 5 | Telas | pendente |
+| 6 | Assistente (§13 e §14) | pendente |
+
+**Como retomar a tarefa 3:** criar `src/lib/actions/herd-ledger.ts` com
+(a) `getPositions(db, filtro)`, que soma as movimentações não canceladas por
+posição, e (b) `recordMovement(db, input)`, que valida e grava. O bloqueio de
+saldo negativo do §10.3 vive em (b) e usa (a); a mensagem é a do cliente,
+literal: "Existem apenas 12 animais nesta categoria. Revise a quantidade
+informada." Testar os dois **antes** de escrever qualquer rota.
+
+**Estado do banco local:** a migração do livro-razão já foi aplicada, e o
+rebanho existente foi convertido (270 cabeças, 10 das 12 categorias, zero
+perda). **Produção não foi tocada.**
+
+**Cuidado ao criar model novo:** `test:isolation` reprovou porque
+`HerdMovement` faltava em `TENANT_SCOPED_MODELS`. Todo model com `tenant_id`
+precisa entrar lá.
 
 ### Janela que fecha
 
