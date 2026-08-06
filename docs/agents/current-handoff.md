@@ -297,6 +297,26 @@ Escopo fechado no rebanho, por decisão do usuário: vacina, resumo e cadastro
 assistido não foram tocados. Se o mesmo sintoma aparecer neles, o mecanismo já
 existe para reusar.
 
+**VERIFICADO EM PRODUÇÃO** (2026-08-06, pela rota interna, sem gravar nada):
+mandando `movement_type: "nascimento"` e nenhuma quantidade como resposta a um
+saldo inicial pendente de 20, a resposta foi "Deseja registrar 20 fêmeas de 13
+a 24 meses hoje em Da Mata?". Manteve o tipo do pedido guardado (o verbo é
+"registrar", não "registrar o nascimento de"), preservou a quantidade que não
+vinha na mensagem, e não caiu na trava. É a regressão do teste das 11:58,
+resolvida.
+
+⚠️ Isso prova o lado do **Tibé**, não o do classificador: a sonda manda os
+parâmetros direto, sem passar pelo LLM. O que mudou é que agora o back-end se
+recupera de um parâmetro errado em vez de depender de o LLM acertar.
+
+**Rotação do `INTERNAL_API_SECRET` (2026-08-06):** feita pelo usuário. Um só
+ponto no n8n (credencial `Tibe Internal Secret`, id `V1xArzqFVVcSp1AH`, usada
+pelos TRÊS workflows) e a env var na Vercel, que **exige redeploy**: variável
+nova só vale em build novo, e enquanto os dois lados divergem o agente fica
+mudo, sem erro visível. Lembrete não óbvio: `reports/report-token.ts` reusa
+esse segredo como chave HMAC dos links de relatório, então rotacionar invalida
+links já enviados (TTL de 1 hora, irrelevante hoje, relevante com cliente).
+
 **Quarta rodada: dois bugs de CÓDIGO, achados só no aparelho.**
 
 1. **"cancela" não cancelava.** O `explicitNo` era checado lá no fim, dentro do
