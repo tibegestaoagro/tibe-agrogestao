@@ -316,6 +316,35 @@ uma mensagem de fallback amigável (sem detalhes técnicos), por exemplo:
 | `resumo` | `scope` opcional. Nível 1: `rebanho`/`lavoura`/`prestador`/`financeiro`. Sob `prestador`: `clientes`/`agendamentos`/`ordens_a_faturar`. Escopos financeiros disponíveis em qualquer perfil: `contas_a_pagar` e `contas_a_receber`. `contas_a_pagar` lista despesas pendentes; `contas_a_receber` lista receitas pendentes de `FinancialEntry`; `ordens_a_faturar` lista ordens concluídas ainda não faturadas. Use quando o usuário quer consultar agenda, contas ou o que já está cadastrado. Sem `scope` claro, o assistente pergunta a categoria em vez de despejar tudo: funil de até 2 perguntas, reconstruído do `recent_history` a cada turno. Se o histórico mostra que já perguntou e a resposta não resolveu, o LLM deve classificar como `ambigua` em vez de perguntar de novo. |
 | `ambigua` | usar quando não for possível classificar com confiança. Com `ajuda`/`resumo` cobrindo "como faço"/"o que eu tenho", sobra pra isso o que realmente foge do escopo. |
 
+### 4.0. Por que o classificador é `gpt-4o-mini` com `temperature: 0`
+
+Medido em 2026-08-06, contra os 4 casos que falharam em teste real e com o
+`recent_history` contaminado que causou o bug (histórico cheio de
+`nascimento`), 3 rodadas cada:
+
+| Configuração | Acertos |
+|---|---|
+| **`gpt-4o-mini` (o que está no ar)** | **12/12** |
+| `gpt-4o-mini` + `temperature: 0` | 12/12 |
+| `gpt-4.1` | 9/12 |
+| `gpt-5-mini` | 12/12 |
+| `gpt-5.1` | 9/12 |
+
+**O modelo nunca foi o gargalo: o prompt era.** O que consertou foi mover o
+mapa de verbo para tipo (`tenho` = `saldo_inicial`, `nasceram` = `nascimento`)
+para DENTRO da descrição da intenção, que é onde o modelo decide o parâmetro.
+Antes essa regra vivia só na seção de regras do rodapé e era ignorada.
+
+**Os modelos mais fortes se saíram PIOR**, e de um jeito específico: acertaram
+o sentido mas devolveram o formulário fora do formato (`movement_type` em
+outro lugar). O formato está descrito em prosa, e modelo mais forte se sente
+mais livre para reestruturar. Trocar de modelo aqui exigiria antes trocar o
+`response_format: json_object` por um JSON Schema estrito.
+
+`temperature: 0` foi adicionado porque classificação estruturada não deve ser
+aleatória: o nó rodava no default 1.0. Não mudou acerto no teste, mas torna o
+comportamento reprodutível quando for preciso depurar.
+
 ### 4.1. Rebanho: a pergunta de faixa de idade (Módulo 30, §14)
 
 O produtor usa nome popular, e vários deles servem a mais de uma faixa:
