@@ -341,7 +341,72 @@ async function main() {
       semSaldoDeVerdade.reply_text,
     );
 
-    console.log("\n11. Fazenda: não adivinha quando há mais de uma");
+    console.log("\n11. 'cancela' vence tudo, inclusive pergunta pendente");
+    // Teste real: o produtor disse "cancela" e recebeu a pergunta de faixa de
+    // novo, porque o explicitNo era checado só lá no fim, depois de toda
+    // pergunta de esclarecimento retornar cedo.
+    const cancelaComTermoAmbiguo = await registrarMovimentacaoRebanho(
+      ctx(
+        db,
+        tenant.id,
+        { movement_type: "transferencia_pasto", categoria: "novilhas", quantidade: 20 },
+        { explicitNo: true },
+      ),
+    );
+    check(
+      "cancela mesmo com categoria ambígua pendente",
+      cancelaComTermoAmbiguo.action_taken.endsWith(":cancelado"),
+      cancelaComTermoAmbiguo.reply_text,
+    );
+    const cancelaSemDados = await registrarMovimentacaoRebanho(
+      ctx(db, tenant.id, {}, { explicitNo: true }),
+    );
+    check(
+      "cancela mesmo sem tipo nem categoria na mensagem",
+      cancelaSemDados.action_taken.endsWith(":cancelado"),
+      cancelaSemDados.reply_text,
+    );
+
+    console.log("\n12. Nascimento não entra em categoria de bicho adulto");
+    // Teste real: o classificador se confundiu e mandou nascimento com
+    // femea_13_24. Recém-nascido tem 0 a 7 meses; a trava é de código.
+    const nascimentoImpossivel = await registrarMovimentacaoRebanho(
+      ctx(
+        db,
+        tenant.id,
+        {
+          movement_type: "nascimento",
+          categoria: "Fêmea - 13 a 24 meses",
+          quantidade: 4,
+        },
+        { confirmed: true },
+      ),
+    );
+    check(
+      "recusa nascimento em Fêmea 13 a 24 meses",
+      nascimentoImpossivel.action_taken === "clarification_requested" &&
+        nascimentoImpossivel.reply_text.includes("Bezerro ou Bezerra"),
+      nascimentoImpossivel.reply_text,
+    );
+    check(
+      "e explica qual é o registro certo",
+      nascimentoImpossivel.reply_text.includes("saldo inicial ou compra"),
+    );
+    const nascimentoValido = await registrarMovimentacaoRebanho(
+      ctx(
+        db,
+        tenant.id,
+        { movement_type: "nascimento", categoria: "bezerra", quantidade: 1 },
+        { confirmed: true },
+      ),
+    );
+    check(
+      "nascimento em Bezerra continua passando",
+      nascimentoValido.action_taken.includes("nascimento"),
+      nascimentoValido.reply_text,
+    );
+
+    console.log("\n13. Fazenda: não adivinha quando há mais de uma");
     await db.property.create({ data: scoped({ name: "Sítio Recanto" }) });
     const qualFazenda = await registrarMovimentacaoRebanho(
       ctx(db, tenant.id, { movement_type: "nascimento", categoria: "bezerro", quantidade: 2 }),

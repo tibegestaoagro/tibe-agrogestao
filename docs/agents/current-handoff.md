@@ -285,6 +285,26 @@ equivalente), **decisão ainda não tomada com o usuário**: eu havia descartado
 estado novo quando só existia uma pergunta por vez, e este teste mostrou o
 limite dessa escolha.
 
+**Quarta rodada: dois bugs de CÓDIGO, achados só no aparelho.**
+
+1. **"cancela" não cancelava.** O `explicitNo` era checado lá no fim, dentro do
+   `confirmFlow`, e qualquer pergunta de esclarecimento (faixa, fazenda, pasto)
+   retornava antes: o produtor dizia "cancela" e recebia a pergunta de novo.
+   Agora o `explicitNo` é a **primeira** coisa do handler e vence tudo.
+2. **Gravou "nascimento de 4 fêmeas de 13 a 24 meses".** Impossível:
+   recém-nascido tem 0 a 7 meses. A regra existia só no prompt do LLM, e
+   prompt não é garantia. Virou trava de código
+   (`CATEGORIAS_DE_NASCIMENTO`): nascimento só entra em Bezerro ou Bezerra, e
+   a recusa explica que o registro certo seria saldo inicial ou compra.
+
+A lição desta rodada, que vale para a fase 2: **toda regra que depende do LLM
+acertar precisa de um par em código.** As duas travas acima teriam bloqueado o
+lançamento errado independentemente da confusão do classificador.
+
+**Sujeira em produção desta rodada:** ficou um `nascimento` de 4 em
+`femea_13_24` no tenant Da Mata, gravado antes da trava. Cancelar pelo painel
+(`/rebanho`, link "Cancelar" na linha) resolve e ainda exercita o §10.8.
+
 **Ainda não testado no aparelho:** §13.5 (morte com pasto), §13.6 (mudança de
 categoria) e a volta da pergunta de pasto. O §13.3 foi exercitado só em teste.
 

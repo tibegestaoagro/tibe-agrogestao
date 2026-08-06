@@ -260,6 +260,8 @@ export const consultarRebanho: Handler = async ({ db, parameters }) => {
 // ── §13.3 a §13.7: registro ────────────────────────────────────────
 
 const ENTRADAS = new Set(["saldo_inicial", "nascimento", "compra"]);
+/** §5: as duas únicas categorias de 0 a 7 meses. Nascimento não entra em outra. */
+const CATEGORIAS_DE_NASCIMENTO = new Set(["bezerro_0_7", "bezerra_0_7"]);
 const SAIDAS = new Set(["venda", "morte"]);
 const TRANSFERENCIAS = new Set(["transferencia_pasto", "transferencia_fazenda", "mudanca_categoria"]);
 
@@ -293,6 +295,21 @@ export const registrarMovimentacaoRebanho: Handler = async ({
   explicitNo,
 }) => {
   const intent = "registrar_movimentacao_rebanho";
+
+  // "cancela" / "não" vence TUDO e vem primeiro. Antes isto vivia lá embaixo,
+  // dentro do confirmFlow, e qualquer pergunta de esclarecimento (faixa de
+  // idade, fazenda, pasto) retornava antes: o produtor dizia "cancela" e
+  // recebia a pergunta de novo, sem nada ser cancelado. Achado em teste real.
+  if (explicitNo) {
+    return {
+      reply_text: "Tudo bem, não registrei nada.",
+      requires_confirmation: false,
+      auxiliary_data: null,
+      report_url: null,
+      action_taken: `${intent}:cancelado`,
+    };
+  }
+
   const tipo = str(parameters.movement_type) ?? str(parameters.tipo);
   if (!tipo || !(HERD_MOVEMENT_TYPES as readonly string[]).includes(tipo)) {
     return ask(
@@ -317,6 +334,18 @@ export const registrarMovimentacaoRebanho: Handler = async ({
   for (const item of itensBrutos) {
     const resolvida = resolverCategoria(item.categoria, tipo === "nascimento");
     if (!resolvida.ok) return resolvida.resposta;
+
+    // Recém-nascido tem 0 a 7 meses. Sem esta trava, um classificador
+    // confuso grava "nascimento de 4 fêmeas de 13 a 24 meses", que aconteceu
+    // num teste real: a regra estava só no prompt do LLM, e prompt não é
+    // garantia. Aqui é código, e vale mesmo quando o LLM erra.
+    if (tipo === "nascimento" && !CATEGORIAS_DE_NASCIMENTO.has(resolvida.categoria.id)) {
+      return ask(
+        `Nascimento só pode entrar em Bezerro ou Bezerra (0 a 7 meses), e você pediu ${resolvida.categoria.label}. ` +
+          "Se esses animais já têm essa idade, o registro certo é saldo inicial ou compra.",
+      );
+    }
+
     itens.push({ categoria: resolvida.categoria, quantidade: item.quantidade });
   }
 
