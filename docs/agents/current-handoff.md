@@ -319,11 +319,35 @@ backspace (0x08) no código-fonte, invisível no editor e no `git diff`. O
 invariante 5 do `CLAUDE.md`. Para checar depois de qualquer edição com
 escape: `grep -c $'\x08' <arquivo>` tem que dar 0.
 
-**Sujeira em produção:** existe UM registro inválido, medido no banco: um
-`nascimento` de 4 em `femea_13_24` (Da Mata, 06/08 13:21), gravado antes da
-trava de categoria de nascimento. Os outros dois movimentos são os
-`saldo_inicial` legítimos da conversão. Cancelar pelo painel (`/rebanho`,
-link "Cancelar" na linha) resolve e ainda exercita o §10.8 em uso real.
+**Estado de produção depois da limpeza (2026-08-06):** as 3 movimentações
+existentes foram **canceladas pelo usuário no painel**, incluindo os 2
+`saldo_inicial` da conversão. **O rebanho de produção está em zero, de
+propósito**, como base limpa para os testes. O §10.8 foi exercitado em uso
+real nesse cancelamento: as linhas continuam no histórico, marcadas.
+
+**Mapa de produção, para não desperdiçar teste:**
+
+| Tenant | Fazenda | Pastos |
+|---|---|---|
+| Da Mata Sementes LTDA | Da Mata | **nenhum** |
+| Laíza Agromax | Fazenda Mendes | barrage, estrada velha |
+| Max Dias Agromax, Lucas Agromax | nenhuma | nenhum |
+
+⚠️ **O WhatsApp do teste resolve para a Da Mata**, que não tem pasto. Qualquer
+mensagem citando pasto vai responder "não encontrei o pasto" e isso é
+CORRETO, não regressão. Para testar pasto pelo WhatsApp é preciso cadastrar um
+pasto na Da Mata antes, em `/minha-fazenda`.
+
+**Armadilha de depuração (custou uma sessão inteira, 2026-08-06):** o usuário
+via "Application error: a server-side exception has occurred" em toda tentativa
+de login, e o servidor estava **são**. Provado emitindo um cookie de sessão com
+o `NEXTAUTH_SECRET` e fazendo GET em produção: `/dashboard` e `/rebanho`
+devolveram 200 e renderizaram. Resolveu abrindo em **outro navegador**, ou
+seja, era estado local (cache, service worker ou storage do Chrome). Antes de
+investigar servidor num sintoma assim, **peça para abrir numa aba anônima ou
+noutro navegador**: separa em segundos o que é aplicação do que é cliente.
+Em HTTPS o cookie de sessão é `__Secure-authjs.session-token`, e o `salt` do
+`encode` precisa ser esse mesmo nome, senão o token é recusado.
 
 **Ainda não testado no aparelho:** §13.5 (morte com pasto), §13.6 (mudança de
 categoria) e a volta da pergunta de pasto. O §13.3 foi exercitado só em teste.
