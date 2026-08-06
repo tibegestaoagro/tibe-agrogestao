@@ -121,6 +121,31 @@ check(
   resolveCategoryTerm("Fêmea - 13 a 24 meses").kind === "exact",
 );
 
+// O sistema precisa entender as PRÓPRIAS palavras. O assistente escreve a
+// categoria usando `plural` ("fêmeas de 13 a 24 meses"); o produtor e o
+// classificador devolvem essa frase de volta, e ela tem que resolver. Achado
+// em teste real: "Não reconheci a categoria 'fêmea de 13 a 24 meses'", logo
+// depois de o próprio Tibé ter escrito exatamente isso.
+for (const categoria of HERD_CATEGORIES) {
+  const ida = resolveCategoryTerm(categoria.plural);
+  check(
+    `ida e volta: "${categoria.plural}" resolve de volta em ${categoria.id}`,
+    ida.kind === "exact" && ida.category.id === categoria.id,
+    ida.kind === "exact" ? ida.category.id : ida.kind,
+  );
+}
+check(
+  "singular com 'de' casa com o rótulo de hífen",
+  (() => {
+    const r = resolveCategoryTerm("fêmea de 13 a 24 meses");
+    return r.kind === "exact" && r.category.id === "femea_13_24";
+  })(),
+);
+check(
+  "normalizar não estropia palavra que contém 'de'",
+  resolveCategoryTerm("bezerro desmamado").kind === "ambiguous",
+);
+
 // §13.4: "Nasceram 4 machos e 3 fêmeas" precisa virar bezerro e bezerra.
 // Recém-nascido é 0 a 7 meses por definição, então o sexo sozinho basta.
 // Achado num teste real de WhatsApp em 2026-08-05: o classificador manda

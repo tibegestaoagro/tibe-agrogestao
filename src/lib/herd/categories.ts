@@ -142,12 +142,40 @@ export type AliasResolution =
  * escolher uma categoria sem confirmação", e essa é a regra que impede o
  * assistente de lançar 20 animais na faixa errada.
  */
+/**
+ * Tira a pontuacao e os conectores que variam entre como o TIBE ESCREVE e
+ * como o produtor (ou o classificador) DEVOLVE a mesma categoria:
+ * "Femea - 13 a 24 meses" e "femea de 13 a 24 meses" viram a mesma coisa.
+ *
+ * Sem isto o sistema nao entendia as proprias palavras: o assistente perguntava
+ * "morte de 2 femeas de 13 a 24 meses?", o usuario dizia sim, o classificador
+ * devolvia essa frase como categoria e a resposta era "nao reconheci a
+ * categoria". Achado em teste real de WhatsApp, 2026-08-05.
+ */
+function normalizar(termo: string): string {
+  return termo
+    .toLowerCase()
+    .replace(/-/g, " ")
+    .replace(/\bde\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function mesmaFrase(a: string, b: string): boolean {
+  return mesmoTermo(normalizar(a), normalizar(b));
+}
+
 function tentarResolver(limpo: string): AliasResolution {
   const porId = HERD_CATEGORIES.find((c) => mesmoTermo(c.id, limpo));
   if (porId) return { kind: "exact", category: porId };
 
-  const porRotulo = HERD_CATEGORIES.find((c) => mesmoTermo(c.label, limpo));
+  const porRotulo = HERD_CATEGORIES.find((c) => mesmaFrase(c.label, limpo));
   if (porRotulo) return { kind: "exact", category: porRotulo };
+
+  // O `plural` e a forma que o proprio assistente usa dentro das frases.
+  // Ele PRECISA voltar: e o que o produtor repete de volta.
+  const porPlural = HERD_CATEGORIES.find((c) => mesmaFrase(c.plural, limpo));
+  if (porPlural) return { kind: "exact", category: porPlural };
 
   for (const [alias, ids] of Object.entries(CATEGORY_ALIASES)) {
     if (!mesmoTermo(alias, limpo)) continue;

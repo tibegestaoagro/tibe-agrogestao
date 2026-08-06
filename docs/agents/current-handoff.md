@@ -301,9 +301,29 @@ A lição desta rodada, que vale para a fase 2: **toda regra que depende do LLM
 acertar precisa de um par em código.** As duas travas acima teriam bloqueado o
 lançamento errado independentemente da confusão do classificador.
 
-**Sujeira em produção desta rodada:** ficou um `nascimento` de 4 em
-`femea_13_24` no tenant Da Mata, gravado antes da trava. Cancelar pelo painel
-(`/rebanho`, link "Cancelar" na linha) resolve e ainda exercita o §10.8.
+**Quinta rodada: o sistema não entendia as PRÓPRIAS palavras.** O assistente
+perguntava "morte de 2 fêmeas de 13 a 24 meses?", o produtor dizia sim, o
+classificador devolvia essa frase como categoria e a resposta era "não
+reconheci a categoria" (sugerindo, na mesma mensagem, a forma que o parser
+rejeitava). Causa: eu criei o campo `plural` para ESCREVER as frases e nunca
+ensinei `resolveCategoryTerm` a LER de volta; o rótulo usa hífen ("Fêmea - 13
+a 24 meses") e a frase usa "de". Agora o resolvedor casa por `plural` e
+normaliza hífen e o conector "de" antes de comparar. `test:m32` faz a **ida e
+volta das 12 categorias**: cada `plural` tem que resolver de volta no próprio
+id, então essa classe de bug não volta em silêncio.
+
+⚠️ **Armadilha do ambiente, cometida por mim nesta rodada:** escrevi o regex
+`\bde\b` por heredoc de Python e o shell gravou o caractere de CONTROLE
+backspace (0x08) no código-fonte, invisível no editor e no `git diff`. O
+`Edit` não conseguia casar a string, o que foi o sintoma. É exatamente a
+invariante 5 do `CLAUDE.md`. Para checar depois de qualquer edição com
+escape: `grep -c $'\x08' <arquivo>` tem que dar 0.
+
+**Sujeira em produção:** existe UM registro inválido, medido no banco: um
+`nascimento` de 4 em `femea_13_24` (Da Mata, 06/08 13:21), gravado antes da
+trava de categoria de nascimento. Os outros dois movimentos são os
+`saldo_inicial` legítimos da conversão. Cancelar pelo painel (`/rebanho`,
+link "Cancelar" na linha) resolve e ainda exercita o §10.8 em uso real.
 
 **Ainda não testado no aparelho:** §13.5 (morte com pasto), §13.6 (mudança de
 categoria) e a volta da pergunta de pasto. O §13.3 foi exercitado só em teste.
