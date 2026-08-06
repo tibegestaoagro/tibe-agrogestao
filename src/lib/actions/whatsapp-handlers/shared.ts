@@ -30,6 +30,12 @@ export type HandlerCtx = {
   confirmed: boolean;
   /** true quando o usuário recusou explicitamente ("não", "cancela"...). */
   explicitNo: boolean;
+  /**
+   * Quem mandou a mensagem. Opcional porque nem toda chamada interna resolve
+   * usuário. Usado por handlers que guardam estado de conversa por pessoa,
+   * como o pendente de rebanho (Módulo 30 §14).
+   */
+  user_id?: string;
 };
 
 export type Handler = (ctx: HandlerCtx) => Promise<RouterResult>;

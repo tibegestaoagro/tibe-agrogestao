@@ -29,7 +29,7 @@ function ctx(
   db: TenantPrismaClient,
   tenantId: string,
   parameters: Record<string, unknown>,
-  opts: { confirmed?: boolean; explicitNo?: boolean } = {},
+  opts: { confirmed?: boolean; explicitNo?: boolean; userId?: string } = {},
 ): HandlerCtx {
   return {
     db,
@@ -39,6 +39,10 @@ function ctx(
     parameters,
     confirmed: opts.confirmed ?? false,
     explicitNo: opts.explicitNo ?? false,
+    // Sem `user_id` não há memória de pergunta pendente: a maioria das seções
+    // roda assim de propósito, para provar que cada resposta se sustenta
+    // sozinha. A seção do pendente passa um id.
+    user_id: opts.userId,
   };
 }
 
@@ -448,7 +452,73 @@ async function main() {
       termoDeIdadeAmbigua.reply_text,
     );
 
-    console.log("\n14. Fazenda: não adivinha quando há mais de uma");
+    console.log("\n14. Pergunta pendente: o pedido guardado manda, não o LLM");
+    // A regressão exata do teste real de 2026-08-06: "Tenho 20 novilhas" (que
+    // é saldo inicial) virava NASCIMENTO quando o produtor respondia a faixa,
+    // porque o classificador herdava o tipo de outra conversa. Agora o tipo
+    // vem do pedido guardado, e da resposta entra só a categoria.
+    const quemPergunta = `user-pendente-${stamp}`;
+
+    const perguntaFaixa = await registrarMovimentacaoRebanho(
+      ctx(
+        db,
+        tenant.id,
+        {
+          movement_type: "saldo_inicial",
+          categoria: "novilhas",
+          quantidade: 20,
+          fazenda: "Santa Helena",
+        },
+        { userId: quemPergunta },
+      ),
+    );
+    check(
+      "primeiro pergunta a faixa",
+      perguntaFaixa.reply_text.includes("Qual é a idade aproximada?"),
+      perguntaFaixa.reply_text,
+    );
+
+    // O classificador volta com o TIPO ERRADO e sem a quantidade, que é
+    // exatamente o que ele fez em produção.
+    const respostaComLixo = await registrarMovimentacaoRebanho(
+      ctx(
+        db,
+        tenant.id,
+        { movement_type: "nascimento", categoria: "Fêmea - 13 a 24 meses" },
+        { confirmed: true, userId: quemPergunta },
+      ),
+    );
+    check(
+      "o tipo errado do classificador é ignorado: vale o pedido guardado",
+      respostaComLixo.action_taken.includes("saldo_inicial"),
+      `${respostaComLixo.action_taken} | ${respostaComLixo.reply_text}`,
+    );
+    check(
+      "a quantidade original (20) é preservada",
+      respostaComLixo.reply_text.includes("20 fêmeas de 13 a 24 meses"),
+      respostaComLixo.reply_text,
+    );
+    check(
+      "e NÃO caiu na trava de nascimento, porque nunca foi nascimento",
+      !respostaComLixo.reply_text.includes("Bezerro ou Bezerra"),
+      respostaComLixo.reply_text,
+    );
+
+    const semPendenteAgora = await registrarMovimentacaoRebanho(
+      ctx(
+        db,
+        tenant.id,
+        { movement_type: "morte", categoria: "Fêmea - 13 a 24 meses", quantidade: 1 },
+        { confirmed: true, userId: quemPergunta },
+      ),
+    );
+    check(
+      "depois de registrar, o pendente é limpo e o pedido novo passa inteiro",
+      semPendenteAgora.action_taken.includes("morte"),
+      `${semPendenteAgora.action_taken} | ${semPendenteAgora.reply_text}`,
+    );
+
+    console.log("\n15. Fazenda: não adivinha quando há mais de uma");
     await db.property.create({ data: scoped({ name: "Sítio Recanto" }) });
     const qualFazenda = await registrarMovimentacaoRebanho(
       ctx(db, tenant.id, { movement_type: "nascimento", categoria: "bezerro", quantidade: 2 }),

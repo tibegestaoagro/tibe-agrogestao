@@ -12,6 +12,13 @@ import {
   type HerdCategory,
 } from "@/lib/herd/categories";
 import { findActivePropertyByName, listActiveProperties } from "@/lib/actions/properties";
+import {
+  aplicarResposta,
+  clearPendingHerd,
+  loadPendingHerd,
+  savePendingHerd,
+  type CampoPendente,
+} from "@/lib/actions/herd-pending";
 import { ask, failReply, str, num, confirmFlow, type Handler, type RouterResult } from "./shared";
 
 /**
@@ -302,17 +309,21 @@ function descreverData(data: Date): string {
 
 export const registrarMovimentacaoRebanho: Handler = async ({
   db,
-  parameters,
+  tenant_id,
+  user_id,
+  parameters: parametrosDaMensagem,
   confirmed,
   explicitNo,
 }) => {
   const intent = "registrar_movimentacao_rebanho";
+  const temMemoria = !!user_id;
 
   // "cancela" / "não" vence TUDO e vem primeiro. Antes isto vivia lá embaixo,
   // dentro do confirmFlow, e qualquer pergunta de esclarecimento (faixa de
   // idade, fazenda, pasto) retornava antes: o produtor dizia "cancela" e
   // recebia a pergunta de novo, sem nada ser cancelado. Achado em teste real.
   if (explicitNo) {
+    if (temMemoria) await clearPendingHerd(tenant_id, user_id!);
     return {
       reply_text: "Tudo bem, não registrei nada.",
       requires_confirmation: false,
@@ -321,6 +332,37 @@ export const registrarMovimentacaoRebanho: Handler = async ({
       action_taken: `${intent}:cancelado`,
     };
   }
+
+  /**
+   * O pedido que ficou esperando resposta manda sobre a reconstrução do
+   * classificador. Da mensagem nova entra só o campo perguntado; tipo,
+   * quantidade, fazenda e pasto vêm do que foi guardado. Sem isto, um
+   * "13 a 24 meses" respondido a um saldo inicial voltava como nascimento,
+   * porque o LLM herdava o tipo de outra conversa (achado em teste real,
+   * 2026-08-06).
+   */
+  let parameters = parametrosDaMensagem;
+  const pendente = temMemoria ? await loadPendingHerd(tenant_id, user_id!) : null;
+  if (pendente) {
+    const juntado = aplicarResposta(pendente, parametrosDaMensagem);
+    if (juntado) {
+      parameters = juntado;
+    } else {
+      // A mensagem não responde ao que foi perguntado: é assunto novo.
+      await clearPendingHerd(tenant_id, user_id!);
+    }
+  }
+
+  /** Toda pergunta de esclarecimento guarda o pedido antes de sair. */
+  const perguntar = async (
+    resposta: RouterResult,
+    campo: CampoPendente,
+  ): Promise<RouterResult> => {
+    if (temMemoria) {
+      await savePendingHerd(tenant_id, user_id!, { parameters, aguardando: campo });
+    }
+    return resposta;
+  };
 
   const tipo = str(parameters.movement_type) ?? str(parameters.tipo);
   if (!tipo || !(HERD_MOVEMENT_TYPES as readonly string[]).includes(tipo)) {
@@ -345,7 +387,7 @@ export const registrarMovimentacaoRebanho: Handler = async ({
   const itens: { categoria: HerdCategory; quantidade: number }[] = [];
   for (const item of itensBrutos) {
     const resolvida = resolverCategoria(item.categoria, tipo === "nascimento");
-    if (!resolvida.ok) return resolvida.resposta;
+    if (!resolvida.ok) return perguntar(resolvida.resposta, "categoria");
 
     // Recém-nascido tem 0 a 7 meses. Sem esta trava, um classificador
     // confuso grava "nascimento de 4 fêmeas de 13 a 24 meses", que aconteceu
@@ -362,14 +404,14 @@ export const registrarMovimentacaoRebanho: Handler = async ({
   }
 
   const fazenda = await resolverFazenda(db, str(parameters.fazenda) ?? str(parameters.property));
-  if (!fazenda.ok) return fazenda.resposta;
+  if (!fazenda.ok) return perguntar(fazenda.resposta, "fazenda");
 
   const pastoOrigem = await resolverPasto(
     db,
     fazenda.id,
     str(parameters.pasto_origem) ?? str(parameters.pasto),
   );
-  if (!pastoOrigem.ok) return pastoOrigem.resposta;
+  if (!pastoOrigem.ok) return perguntar(pastoOrigem.resposta, "pasto");
 
   const pastoDestino = await resolverPasto(db, fazenda.id, str(parameters.pasto_destino));
   if (!pastoDestino.ok) return pastoDestino.resposta;
@@ -381,9 +423,11 @@ export const registrarMovimentacaoRebanho: Handler = async ({
   if (TRANSFERENCIAS.has(tipo)) {
     if (tipo === "mudanca_categoria") {
       const termo = str(parameters.categoria_destino) ?? str(parameters.category_destino);
-      if (!termo) return ask("Para qual categoria devo passar esses animais?");
+      if (!termo) {
+        return perguntar(ask("Para qual categoria devo passar esses animais?"), "categoria_destino");
+      }
       const resolvida = resolverCategoria(termo);
-      if (!resolvida.ok) return resolvida.resposta;
+      if (!resolvida.ok) return perguntar(resolvida.resposta, "categoria_destino");
       categoriaDestino = resolvida.categoria;
     }
     if (tipo === "transferencia_pasto" && !pastoDestino.id) {
@@ -410,7 +454,7 @@ export const registrarMovimentacaoRebanho: Handler = async ({
         pastoOrigem.id,
         item.quantidade,
       );
-      if (aviso) return aviso;
+      if (aviso) return perguntar(aviso, "pasto");
     }
   }
 
@@ -505,6 +549,11 @@ export const registrarMovimentacaoRebanho: Handler = async ({
     }
     registradas.push(`${item.quantidade} ${item.categoria.plural}`);
   }
+
+  // Registrou: o pedido deixou de estar pendente. Sem isto, a próxima
+  // mensagem curta do produtor seria interpretada como resposta a uma
+  // pergunta que já foi respondida.
+  if (temMemoria) await clearPendingHerd(tenant_id, user_id!);
 
   const total = itens.reduce((soma, i) => soma + i.quantidade, 0);
   const saldo = await getPositions(db, { owner: "proprio" });

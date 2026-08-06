@@ -148,6 +148,18 @@ export async function routeIntent(
     if (started) return started;
   }
 
-  const handlerCtx: HandlerCtx = { db, tenant_id, role, activeProfiles, parameters, confirmed, explicitNo };
+  // `user_id` chega aos handlers para o estado de conversa por usuário (o
+  // pendente de rebanho, Módulo 30 §14). Opcional: rota interna sem usuário
+  // resolvido continua funcionando, só sem memória de pergunta pendente.
+  const handlerCtx: HandlerCtx = {
+    db,
+    tenant_id,
+    role,
+    activeProfiles,
+    parameters,
+    confirmed,
+    explicitNo,
+    user_id: ctx.user_id,
+  };
   return HANDLERS[intent](handlerCtx);
 }

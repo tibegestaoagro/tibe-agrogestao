@@ -278,12 +278,24 @@ classificador misturou as duas e devolveu um nascimento de 4 bezerros,
 perdendo as 3 bezerras. Mitigado por duas regras novas no prompt: a pergunta
 pendente é **sempre a mais recente**, e pergunta de outro dia **não revive**.
 
-⚠️ **Isso é mitigação, não garantia.** Enquanto o `recent_history` for o único
-estado, o classificador continua livre para escolher errado. A solução
-definitiva é guardar a pergunta pendente com prazo (um `AgentFlowState` ou
-equivalente), **decisão ainda não tomada com o usuário**: eu havia descartado
-estado novo quando só existia uma pergunta por vez, e este teste mostrou o
-limite dessa escolha.
+**RESOLVIDO em 2026-08-06, revertendo minha decisão de projeto.** As regras de
+prompt não bastaram: o erro voltou três vezes, o pior deles trocando o TIPO da
+movimentação ("tenho 20 novilhas", que é saldo inicial, voltou como nascimento,
+herdado de uma conversa de uma hora antes). Agora o pedido pendente é
+**guardado** (`src/lib/actions/herd-pending.ts`) e é ele que manda: da mensagem
+seguinte entra SÓ o campo que foi perguntado, e tipo, quantidade, fazenda e
+pasto vêm do que foi gravado.
+
+**Guardado no Redis, não em tabela**, e não no `AgentFlowState`. Dois motivos,
+os dois medidos: é estado de conversa efêmero (perder só faz o produtor repetir
+a frase, e o Redis dá TTL de graça, 15 minutos); e `AgentFlowState` é
+`@@unique([tenant_id, user_id])` com `getActiveFlow` que **não filtra por tipo
+de fluxo**, então gravar o pendente de rebanho lá dentro mataria em silêncio um
+cadastro assistido em andamento. `test:m21` continua verde.
+
+Escopo fechado no rebanho, por decisão do usuário: vacina, resumo e cadastro
+assistido não foram tocados. Se o mesmo sintoma aparecer neles, o mecanismo já
+existe para reusar.
 
 **Quarta rodada: dois bugs de CÓDIGO, achados só no aparelho.**
 
