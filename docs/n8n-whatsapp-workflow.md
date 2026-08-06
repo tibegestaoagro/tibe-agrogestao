@@ -332,6 +332,16 @@ Tibé:    "novilhas" pode ser mais de uma categoria. Qual é a idade aproximada?
          - Fêmea - 25 a 36 meses
 ```
 
+⚠️ **Duas perguntas penduradas confundem o classificador** (achado em teste
+real, 2026-08-05). O produtor deixou a pergunta da faixa sem resposta, mudou de
+assunto ("nasceram 4 machos e 3 fêmeas"), e no dia seguinte respondeu a faixa:
+o classificador misturou as duas e devolveu um nascimento de 4 bezerros,
+perdendo as 3 bezerras. Duas regras no prompt cobrem isso: a pergunta pendente
+é **sempre a mais recente**, e pergunta de outro dia **não revive**. Enquanto o
+histórico for o único estado, isso é mitigação, não garantia: a solução
+definitiva seria guardar a pergunta pendente com prazo, decisão ainda não
+tomada.
+
 **O que o LLM precisa fazer no turno seguinte:** quando a mensagem do usuário
 for só a faixa ("13 a 24 meses", "as de 13 a 24"), reemita
 `registrar_movimentacao_rebanho` **com todos os parâmetros originais**

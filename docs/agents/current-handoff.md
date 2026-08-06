@@ -263,11 +263,30 @@ correções:
   artigo produz "na Da Mata". Para pasto continua "no", que é seguro porque o
   nome começa com "Pasto".
 
+**Terceira rodada: a VOLTA da pergunta de faixa FUNCIONA.** Era o ponto mais
+frágil de todos e passou: o produtor respondeu "13 a 24 meses" no dia
+seguinte, e o classificador remontou a transferência inteira (tipo,
+quantidade, pasto de origem e destino) com a faixa escolhida. A resposta
+("não encontrei o pasto Pasto da Sede nessa fazenda") estava **certa**:
+produção tem os pastos "barrage" e "estrada velha", e duas fazendas ("Da
+Mata" e "Fazenda Mendes"). Não confunda esse erro com falha de reconstrução.
+
+**Falha real da mesma rodada: duas perguntas penduradas se misturam.** O
+produtor deixou a pergunta da faixa sem resposta (19:29), mudou de assunto
+(nascimento às 20:08, nunca confirmado) e no dia seguinte respondeu a faixa. O
+classificador misturou as duas e devolveu um nascimento de 4 bezerros,
+perdendo as 3 bezerras. Mitigado por duas regras novas no prompt: a pergunta
+pendente é **sempre a mais recente**, e pergunta de outro dia **não revive**.
+
+⚠️ **Isso é mitigação, não garantia.** Enquanto o `recent_history` for o único
+estado, o classificador continua livre para escolher errado. A solução
+definitiva é guardar a pergunta pendente com prazo (um `AgentFlowState` ou
+equivalente), **decisão ainda não tomada com o usuário**: eu havia descartado
+estado novo quando só existia uma pergunta por vez, e este teste mostrou o
+limite dessa escolha.
+
 **Ainda não testado no aparelho:** §13.5 (morte com pasto), §13.6 (mudança de
-categoria), a volta da pergunta de faixa (responder "13 a 24 meses" e ver se o
-classificador reconstrói o pedido) e a volta da pergunta de pasto. A volta das
-duas perguntas é o ponto mais frágil, porque depende do `recent_history`
-chegar ao classificador. O §13.3 foi exercitado só em teste, não no aparelho.
+categoria) e a volta da pergunta de pasto. O §13.3 foi exercitado só em teste.
 
 **A troca do §6, resolvida em parte (2026-08-05).** As três rotas
 `/api/v1/animal-batches` foram **removidas**: não tinham um consumidor
