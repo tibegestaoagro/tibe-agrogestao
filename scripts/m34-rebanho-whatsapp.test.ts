@@ -406,7 +406,49 @@ async function main() {
       nascimentoValido.reply_text,
     );
 
-    console.log("\n13. Fazenda: não adivinha quando há mais de uma");
+    console.log("\n13. Faixa sem sexo pergunta o sexo, não recusa");
+    // Teste real: "Tenho 20 novilhas de 13 a 24 meses" fez o classificador
+    // mandar categoria "13 a 24 meses", sem o sexo, e a resposta era
+    // "não reconheci a categoria". A informação estava quase toda lá.
+    const faixaSemSexo = await registrarMovimentacaoRebanho(
+      ctx(db, tenant.id, {
+        movement_type: "saldo_inicial",
+        categoria: "13 a 24 meses",
+        quantidade: 20,
+        fazenda: "Santa Helena",
+      }),
+    );
+    check(
+      "não responde 'não reconheci'",
+      !faixaSemSexo.reply_text.includes("Não reconheci"),
+      faixaSemSexo.reply_text,
+    );
+    check(
+      "pergunta o SEXO, não a idade que o produtor já disse",
+      faixaSemSexo.reply_text.includes("São machos ou fêmeas?"),
+      faixaSemSexo.reply_text,
+    );
+    check(
+      "oferece as duas categorias da mesma faixa",
+      faixaSemSexo.reply_text.includes("Fêmea - 13 a 24 meses") &&
+        faixaSemSexo.reply_text.includes("Macho - 13 a 24 meses"),
+    );
+
+    const termoDeIdadeAmbigua = await registrarMovimentacaoRebanho(
+      ctx(db, tenant.id, {
+        movement_type: "saldo_inicial",
+        categoria: "novilha",
+        quantidade: 20,
+        fazenda: "Santa Helena",
+      }),
+    );
+    check(
+      "termo de sexo conhecido e idade incerta continua perguntando a IDADE",
+      termoDeIdadeAmbigua.reply_text.includes("Qual é a idade aproximada?"),
+      termoDeIdadeAmbigua.reply_text,
+    );
+
+    console.log("\n14. Fazenda: não adivinha quando há mais de uma");
     await db.property.create({ data: scoped({ name: "Sítio Recanto" }) });
     const qualFazenda = await registrarMovimentacaoRebanho(
       ctx(db, tenant.id, { movement_type: "nascimento", categoria: "bezerro", quantidade: 2 }),

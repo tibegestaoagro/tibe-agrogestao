@@ -160,7 +160,7 @@ export default async function RebanhoPage({
         {resumo.by_sex.map((bloco) => (
           <div key={bloco.sex} className="rounded-lg border border-gray-200 bg-white p-4">
             <div className="flex items-baseline justify-between">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-600">
                 {bloco.label}
               </h2>
               <span className="text-lg font-semibold text-gray-900">
@@ -169,14 +169,17 @@ export default async function RebanhoPage({
             </div>
             <ul className="mt-3 space-y-1.5">
               {bloco.categories.map((linha) => (
+                // Zero fica mais discreto que o resto, mas continua LEGÍVEL:
+                // com o rebanho ainda vazio a lista inteira é zero, e um cinza
+                // fraco demais faz a tela parecer desabilitada ou quebrada.
                 <li key={linha.id} className="flex justify-between gap-3 text-sm">
-                  <span className={linha.quantity === 0 ? "text-gray-400" : "text-gray-700"}>
+                  <span className={linha.quantity === 0 ? "text-gray-500" : "text-gray-700"}>
                     {linha.label}
                   </span>
                   <span
                     className={
                       linha.quantity === 0
-                        ? "tabular-nums text-gray-400"
+                        ? "tabular-nums text-gray-500"
                         : "tabular-nums font-medium text-gray-900"
                     }
                   >
@@ -191,7 +194,7 @@ export default async function RebanhoPage({
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-600">
             Movimentações do mês
           </h2>
           <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -212,7 +215,7 @@ export default async function RebanhoPage({
         </div>
 
         <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-600">
             Onde estão
           </h2>
           {resumo.by_property.length === 0 ? (
@@ -245,7 +248,7 @@ export default async function RebanhoPage({
 
       <div className="rounded-lg border border-gray-200 bg-white">
         <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-600">
             Últimas movimentações
           </h2>
           <span className="text-xs text-gray-500">
@@ -334,7 +337,7 @@ export default async function RebanhoPage({
       {identificados.length > 0 && (
         <div className="rounded-lg border border-gray-200 bg-white">
           <div className="border-b border-gray-200 px-4 py-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-600">
               Animais identificados
             </h2>
             <p className="mt-0.5 text-xs text-gray-500">

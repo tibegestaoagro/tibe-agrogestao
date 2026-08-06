@@ -165,6 +165,17 @@ function mesmaFrase(a: string, b: string): boolean {
   return mesmoTermo(normalizar(a), normalizar(b));
 }
 
+/**
+ * A parte de IDADE do rótulo, sem o sexo: de "Fêmea - 13 a 24 meses" tira
+ * "13 a 24 meses". Derivado do próprio rótulo, para não existir uma segunda
+ * lista de faixas para alguém esquecer de atualizar. As duas categorias
+ * reprodutivas não têm faixa e devolvem `null`.
+ */
+function faixaDoLabel(label: string): string | null {
+  const partes = label.split(" - ");
+  return partes.length === 2 ? partes[1] : null;
+}
+
 function tentarResolver(limpo: string): AliasResolution {
   const porId = HERD_CATEGORIES.find((c) => mesmoTermo(c.id, limpo));
   if (porId) return { kind: "exact", category: porId };
@@ -176,6 +187,18 @@ function tentarResolver(limpo: string): AliasResolution {
   // Ele PRECISA voltar: e o que o produtor repete de volta.
   const porPlural = HERD_CATEGORIES.find((c) => mesmaFrase(c.plural, limpo));
   if (porPlural) return { kind: "exact", category: porPlural };
+
+  // A FAIXA SOZINHA, sem o sexo: "13 a 24 meses", "acima de 36 meses". O
+  // classificador faz isso o tempo todo ao processar "novilhas de 13 a 24
+  // meses": guarda a faixa e descarta o sexo. Recusar seria o pior caminho,
+  // porque a informação está quase toda lá; o certo é devolver as duas
+  // candidatas e deixar o §14 perguntar qual sexo.
+  const porFaixa = HERD_CATEGORIES.filter((c) => {
+    const faixa = faixaDoLabel(c.label);
+    return faixa !== null && (mesmaFrase(faixa, limpo) || mesmaFrase(faixa, `${limpo} meses`));
+  });
+  if (porFaixa.length === 1) return { kind: "exact", category: porFaixa[0] };
+  if (porFaixa.length > 1) return { kind: "ambiguous", candidates: porFaixa };
 
   for (const [alias, ids] of Object.entries(CATEGORY_ALIASES)) {
     if (!mesmoTermo(alias, limpo)) continue;

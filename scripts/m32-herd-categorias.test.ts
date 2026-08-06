@@ -146,6 +146,43 @@ check(
   resolveCategoryTerm("bezerro desmamado").kind === "ambiguous",
 );
 
+// A faixa SEM o sexo. O classificador manda isso ao processar "novilhas de 13
+// a 24 meses": guarda a faixa e descarta o sexo. Achado em teste real.
+const soFaixa = resolveCategoryTerm("13 a 24 meses");
+check(
+  "faixa sem sexo é AMBÍGUA (macho e fêmea), não desconhecida",
+  soFaixa.kind === "ambiguous" && soFaixa.candidates.length === 2,
+  soFaixa.kind,
+);
+check(
+  "e as duas candidatas são a mesma idade, sexos diferentes",
+  soFaixa.kind === "ambiguous" &&
+    new Set(soFaixa.candidates.map((c) => c.sex)).size === 2 &&
+    new Set(soFaixa.candidates.map((c) => c.min_months)).size === 1,
+);
+check(
+  "faixa sem a palavra 'meses' também resolve",
+  resolveCategoryTerm("25 a 36").kind === "ambiguous",
+);
+check(
+  "faixa aberta: 'acima de 36 meses'",
+  resolveCategoryTerm("acima de 36 meses").kind === "ambiguous",
+);
+check(
+  "'0 a 7 meses' cai em bezerro e bezerra",
+  (() => {
+    const r = resolveCategoryTerm("0 a 7 meses");
+    return (
+      r.kind === "ambiguous" &&
+      r.candidates.map((c) => c.id).sort().join(",") === "bezerra_0_7,bezerro_0_7"
+    );
+  })(),
+);
+check(
+  "sexo + faixa continua exato, sem virar ambíguo",
+  resolveCategoryTerm("fêmeas de 13 a 24 meses").kind === "exact",
+);
+
 // §13.4: "Nasceram 4 machos e 3 fêmeas" precisa virar bezerro e bezerra.
 // Recém-nascido é 0 a 7 meses por definição, então o sexo sozinho basta.
 // Achado num teste real de WhatsApp em 2026-08-05: o classificador manda

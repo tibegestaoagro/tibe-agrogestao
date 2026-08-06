@@ -57,13 +57,25 @@ function itensDosParametros(parameters: Record<string, unknown>): Item[] {
   return [];
 }
 
-/** A pergunta do §14, com as faixas candidatas como opções. */
+/**
+ * A pergunta do §14, com as candidatas como opções.
+ *
+ * O que falta muda o texto. "novilha" serve a três idades do mesmo sexo, e aí
+ * a pergunta é a do documento ("qual é a idade aproximada?"). Já "13 a 24
+ * meses" (o classificador manda isso ao processar "novilhas de 13 a 24
+ * meses", guardando a faixa e descartando o sexo) tem a idade e falta o sexo:
+ * perguntar a idade de novo faria o produtor repetir o que acabou de dizer.
+ */
 function perguntaDeFaixa(termo: string, candidatas: HerdCategory[]): RouterResult {
-  const opcoes = candidatas.map((c) => `- ${c.label}`).join("\n");
-  return ask(
-    `"${termo}" pode ser mais de uma categoria. Qual é a idade aproximada?\n${opcoes}`,
-    { termo_ambiguo: termo, opcoes: candidatas.map((c) => c.id) },
+  const mesmaIdade = candidatas.every(
+    (c) => c.min_months === candidatas[0].min_months && c.max_months === candidatas[0].max_months,
   );
+  const pergunta = mesmaIdade ? "São machos ou fêmeas?" : "Qual é a idade aproximada?";
+  const opcoes = candidatas.map((c) => `- ${c.label}`).join("\n");
+  return ask(`"${termo}" pode ser mais de uma categoria. ${pergunta}\n${opcoes}`, {
+    termo_ambiguo: termo,
+    opcoes: candidatas.map((c) => c.id),
+  });
 }
 
 type CategoriaResolvida =
