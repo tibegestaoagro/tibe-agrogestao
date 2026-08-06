@@ -27,13 +27,35 @@ import { getRedisConnection } from "@/lib/redis";
 /** Curto de propósito: conversa de WhatsApp que esfria não deve ressuscitar. */
 const TTL_SEGUNDOS = 15 * 60;
 
-/** O campo que o assistente perguntou e está esperando. */
-export type CampoPendente = "categoria" | "categoria_destino" | "fazenda" | "pasto";
+/**
+ * O campo que o assistente perguntou e está esperando.
+ *
+ * `movement_type` entra na lista porque o classificador erra o TIPO com
+ * frequência (herda "nascimento" de uma conversa anterior). Quando o tipo
+ * conflita com a categoria de forma impossível, perguntar o tipo é melhor do
+ * que recusar: a informação que falta é uma só.
+ */
+export type CampoPendente =
+  | "movement_type"
+  | "categoria"
+  | "categoria_destino"
+  | "fazenda"
+  | "pasto";
 
 export type PedidoPendente = {
   parameters: Record<string, unknown>;
   aguardando: CampoPendente;
+  /**
+   * Quantas vezes o MESMO campo já foi perguntado. Se o classificador insiste
+   * no mesmo valor errado, perguntar de novo vira laço e o produtor fica preso
+   * respondendo a mesma coisa. A partir do limite, o assistente para de
+   * perguntar e diz o que escrever.
+   */
+  tentativas?: number;
 };
+
+/** Depois disto, perguntar de novo só repete o problema. */
+export const MAX_TENTATIVAS = 3;
 
 function chave(tenantId: string, userId: string): string {
   return `tibe:herd-pending:${tenantId}:${userId}`;
@@ -103,5 +125,6 @@ function atalho(campo: CampoPendente): string {
   if (campo === "categoria") return "category";
   if (campo === "fazenda") return "property";
   if (campo === "pasto") return "pasto_origem";
+  if (campo === "movement_type") return "tipo";
   return campo;
 }

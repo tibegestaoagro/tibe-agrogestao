@@ -387,14 +387,15 @@ async function main() {
       ),
     );
     check(
-      "recusa nascimento em Fêmea 13 a 24 meses",
-      nascimentoImpossivel.action_taken === "clarification_requested" &&
-        nascimentoImpossivel.reply_text.includes("Bezerro ou Bezerra"),
+      "não grava nascimento em Fêmea 13 a 24 meses",
+      nascimentoImpossivel.action_taken === "clarification_requested",
       nascimentoImpossivel.reply_text,
     );
     check(
-      "e explica qual é o registro certo",
-      nascimentoImpossivel.reply_text.includes("saldo inicial ou compra"),
+      "explica por que não é nascimento e oferece a saída",
+      nascimentoImpossivel.reply_text.includes("não é nascimento") &&
+        nascimentoImpossivel.reply_text.includes("Saldo inicial"),
+      nascimentoImpossivel.reply_text,
     );
     const nascimentoValido = await registrarMovimentacaoRebanho(
       ctx(
@@ -518,7 +519,74 @@ async function main() {
       `${semPendenteAgora.action_taken} | ${semPendenteAgora.reply_text}`,
     );
 
-    console.log("\n15. Fazenda: não adivinha quando há mais de uma");
+    console.log("\n15. Nascimento com categoria adulta: pergunta o tipo, não recusa");
+    // Teste real de 2026-08-06: o classificador mandava nascimento JA NA
+    // PRIMEIRA mensagem de "tenho 20 novilhas". Guardar o pedido preservava o
+    // tipo errado, e a trava recusava: o produtor repetia a frase e caía no
+    // mesmo lugar. Agora a saída é perguntar o tipo, que é o dado errado.
+    const quemInsiste = `user-conflito-${stamp}`;
+    const conflito = await registrarMovimentacaoRebanho(
+      ctx(
+        db,
+        tenant.id,
+        {
+          movement_type: "nascimento",
+          categoria: "Fêmea - 13 a 24 meses",
+          quantidade: 20,
+          fazenda: "Santa Helena",
+        },
+        { userId: quemInsiste },
+      ),
+    );
+    check(
+      "não é mais um beco sem saída: pergunta o que registrar",
+      conflito.reply_text.includes("O que você quer registrar?"),
+      conflito.reply_text,
+    );
+    check(
+      "oferece saldo inicial e compra",
+      conflito.reply_text.includes("Saldo inicial") && conflito.reply_text.includes("Compra"),
+    );
+
+    const respondeuTipo = await registrarMovimentacaoRebanho(
+      ctx(
+        db,
+        tenant.id,
+        { movement_type: "saldo_inicial" },
+        { confirmed: true, userId: quemInsiste },
+      ),
+    );
+    check(
+      "respondido o tipo, registra com a categoria e a quantidade originais",
+      respondeuTipo.reply_text.includes("20 fêmeas de 13 a 24 meses"),
+      `${respondeuTipo.action_taken} | ${respondeuTipo.reply_text}`,
+    );
+
+    console.log("\n16. Laço de pergunta: para depois de insistir");
+    const quemNaoResolve = `user-laco-${stamp}`;
+    const params = {
+      movement_type: "saldo_inicial",
+      categoria: "novilhas",
+      quantidade: 5,
+      fazenda: "Santa Helena",
+    };
+    const volta1 = await registrarMovimentacaoRebanho(
+      ctx(db, tenant.id, params, { userId: quemNaoResolve }),
+    );
+    const volta2 = await registrarMovimentacaoRebanho(
+      ctx(db, tenant.id, params, { userId: quemNaoResolve }),
+    );
+    const volta3 = await registrarMovimentacaoRebanho(
+      ctx(db, tenant.id, params, { userId: quemNaoResolve }),
+    );
+    check("1a e 2a vez ainda perguntam", volta1.reply_text.includes("idade aproximada") && volta2.reply_text.includes("idade aproximada"));
+    check(
+      "3a vez para de perguntar e ensina o que escrever",
+      volta3.reply_text.includes("tudo numa frase só"),
+      volta3.reply_text,
+    );
+
+    console.log("\n17. Fazenda: não adivinha quando há mais de uma");
     await db.property.create({ data: scoped({ name: "Sítio Recanto" }) });
     const qualFazenda = await registrarMovimentacaoRebanho(
       ctx(db, tenant.id, { movement_type: "nascimento", categoria: "bezerro", quantidade: 2 }),

@@ -17,6 +17,7 @@ import {
   clearPendingHerd,
   loadPendingHerd,
   savePendingHerd,
+  MAX_TENTATIVAS,
   type CampoPendente,
 } from "@/lib/actions/herd-pending";
 import { ask, failReply, str, num, confirmFlow, type Handler, type RouterResult } from "./shared";
@@ -36,10 +37,11 @@ import { ask, failReply, str, num, confirmFlow, type Handler, type RouterResult 
  *    `CONFIRMATION_THRESHOLD`: aqui o risco não é financeiro, é o saldo do
  *    rebanho ficar errado.
  *
- * A resposta à pergunta de desambiguação NÃO cria estado novo: o classificador
- * do n8n reemite a intenção com a faixa já escolhida, lendo o `recent_history`,
- * exatamente como o funil do `resumo` faz. Estado de conversa em banco é o
- * `AgentFlowState`, que serve a formulário de cadastro, não a uma pergunta só.
+ * **O pedido que espera resposta é GUARDADO** (`herd-pending.ts`), e é ele que
+ * manda. Até 2026-08-06 isso era delegado ao classificador do n8n, que
+ * remontava o pedido pelo `recent_history`: falhou em três testes reais
+ * seguidos, o pior deles trocando o TIPO da movimentação. Da mensagem seguinte
+ * entra SÓ o campo perguntado; o resto vem do que foi gravado.
  */
 
 type Item = { categoria: string; quantidade: number };
@@ -353,14 +355,28 @@ export const registrarMovimentacaoRebanho: Handler = async ({
     }
   }
 
-  /** Toda pergunta de esclarecimento guarda o pedido antes de sair. */
+  /**
+   * Toda pergunta de esclarecimento guarda o pedido antes de sair, e conta
+   * quantas vezes o MESMO campo já foi perguntado. Se o classificador insiste
+   * no mesmo valor errado, repetir a pergunta prende o produtor num laço: a
+   * partir do limite, o assistente para de perguntar e diz o que escrever.
+   */
   const perguntar = async (
     resposta: RouterResult,
     campo: CampoPendente,
   ): Promise<RouterResult> => {
-    if (temMemoria) {
-      await savePendingHerd(tenant_id, user_id!, { parameters, aguardando: campo });
+    if (!temMemoria) return resposta;
+
+    const tentativas = pendente?.aguardando === campo ? (pendente.tentativas ?? 1) + 1 : 1;
+    if (tentativas >= MAX_TENTATIVAS) {
+      await clearPendingHerd(tenant_id, user_id!);
+      return ask(
+        "Não estou conseguindo entender essa parte. Tente mandar tudo numa frase só, " +
+          'por exemplo: "saldo inicial de 20 fêmeas de 13 a 24 meses na Fazenda Boa Vista".',
+      );
     }
+
+    await savePendingHerd(tenant_id, user_id!, { parameters, aguardando: campo, tentativas });
     return resposta;
   };
 
@@ -394,9 +410,23 @@ export const registrarMovimentacaoRebanho: Handler = async ({
     // num teste real: a regra estava só no prompt do LLM, e prompt não é
     // garantia. Aqui é código, e vale mesmo quando o LLM erra.
     if (tipo === "nascimento" && !CATEGORIAS_DE_NASCIMENTO.has(resolvida.categoria.id)) {
-      return ask(
-        `Nascimento só pode entrar em Bezerro ou Bezerra (0 a 7 meses), e você pediu ${resolvida.categoria.label}. ` +
-          "Se esses animais já têm essa idade, o registro certo é saldo inicial ou compra.",
+      /**
+       * O combinado é impossível, mas RECUSAR deixava o produtor num beco: ele
+       * repetia a frase e caía no mesmo lugar (visto em teste real, três
+       * vezes). Entre o tipo e a categoria, quem quase sempre está errado é o
+       * TIPO, porque o classificador herda "nascimento" de conversa anterior;
+       * a idade veio da boca do produtor. Então perguntamos o tipo, com o
+       * pedido guardado, em vez de mandar recomeçar.
+       */
+      return perguntar(
+        ask(
+          `Você disse ${resolvida.categoria.plural}, então não é nascimento ` +
+            "(recém-nascido tem 0 a 7 meses). O que você quer registrar?\n" +
+            "- Saldo inicial (já são seus, só ainda não estavam no sistema)\n" +
+            "- Compra (você acabou de comprar)",
+          { conflito: "nascimento_com_categoria_adulta", categoria: resolvida.categoria.id },
+        ),
+        "movement_type",
       );
     }
 
