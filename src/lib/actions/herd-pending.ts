@@ -40,7 +40,16 @@ export type CampoPendente =
   | "categoria"
   | "categoria_destino"
   | "fazenda"
-  | "pasto";
+  | "pasto"
+  /**
+   * Não é um campo: é o pedido inteiro esperando um "sim". Guardado pelo mesmo
+   * mecanismo porque o problema é o mesmo. Em 2026-08-10 um "sim" gravou 18
+   * animais que o produtor nunca pediu: ele mandou VENDER 100, o assistente
+   * respondeu "você tem 18", e o classificador montou um pedido novo com o 18
+   * que leu na própria resposta. Com o pedido guardado, o "sim" executa o que
+   * foi MOSTRADO, e um "sim" sem nada guardado não escreve nada.
+   */
+  | "confirmacao";
 
 export type PedidoPendente = {
   parameters: Record<string, unknown>;
@@ -120,9 +129,18 @@ export function aplicarResposta(
   return { ...pendente.parameters, [pendente.aguardando]: valor };
 }
 
-/** Nome alternativo que o classificador às vezes usa para o mesmo campo. */
+/**
+ * Nome alternativo que o classificador às vezes usa para o mesmo campo.
+ *
+ * `categoria_destino` aceita `categoria` porque, para o modelo, a resposta a
+ * "São machos ou fêmeas?" é só "uma categoria": ele não carrega de volta que a
+ * pergunta era sobre o DESTINO. Sem isso, a resposta não casava, o pedido
+ * guardado era descartado e a reconstrução do LLM punha a mesma categoria nas
+ * duas pontas, gerando "transferir de Fêmea 25-36 para Fêmea 25-36".
+ */
 function atalho(campo: CampoPendente): string {
   if (campo === "categoria") return "category";
+  if (campo === "categoria_destino") return "categoria";
   if (campo === "fazenda") return "property";
   if (campo === "pasto") return "pasto_origem";
   if (campo === "movement_type") return "tipo";

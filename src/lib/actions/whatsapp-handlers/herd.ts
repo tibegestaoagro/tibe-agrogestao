@@ -190,7 +190,17 @@ async function conferirOndeEstaOSaldo(
     .reduce((soma, p) => soma + p.quantity, 0);
   if (naPosicaoExata >= quantidade) return null;
 
-  const comSaldo = posicoes.filter((p) => p.quantity > 0);
+  /**
+   * Só interessa saldo em OUTRO lugar. Se tudo que existe já está na posição
+   * pedida e apenas não dá a quantidade, quem responde é o bloqueio de saldo
+   * negativo, com a mensagem literal do cliente.
+   *
+   * Sem este filtro, "vendi 100" com 18 em estoque respondia "Não encontrei
+   * Fêmea 13 a 24 sem pasto informado. Você tem 18 em sem pasto informado",
+   * que aponta o mesmo lugar duas vezes e não diz o que importa: são 18, você
+   * pediu 100. Visto em teste real, 2026-08-10.
+   */
+  const comSaldo = posicoes.filter((p) => p.quantity > 0 && p.pasture_id !== pastureIdPedido);
   const totalNaFazenda = comSaldo.reduce((soma, p) => soma + p.quantity, 0);
   if (totalNaFazenda === 0) return null;
 
@@ -344,15 +354,40 @@ export const registrarMovimentacaoRebanho: Handler = async ({
    * 2026-08-06).
    */
   let parameters = parametrosDaMensagem;
+  let confirmado = confirmed;
   const pendente = temMemoria ? await loadPendingHerd(tenant_id, user_id!) : null;
-  if (pendente) {
-    const juntado = aplicarResposta(pendente, parametrosDaMensagem);
-    if (juntado) {
-      parameters = juntado;
+
+  if (temMemoria && confirmed) {
+    /**
+     * "Sim" só vale para o que o assistente MOSTROU. Sem um pedido guardado
+     * esperando confirmação, não escreve nada.
+     *
+     * Em 2026-08-10 um "sim" gravou 18 animais que ninguém pediu: o produtor
+     * mandou VENDER 100, o assistente respondeu "você tem 18", e o
+     * classificador montou um pedido de saldo inicial com o 18 que leu na
+     * própria resposta. Confirmação sem âncora é assinatura em papel em
+     * branco.
+     */
+    if (pendente?.aguardando === "confirmacao") {
+      parameters = pendente.parameters;
+    } else if (pendente) {
+      // Há pendência, mas de um CAMPO: o produtor está respondendo a pergunta,
+      // não confirmando. Ninguém confirma o que ainda não viu.
+      confirmado = false;
     } else {
-      // A mensagem não responde ao que foi perguntado: é assunto novo.
-      await clearPendingHerd(tenant_id, user_id!);
+      return ask(
+        "Não tenho nenhum registro esperando confirmação. Me diga de novo o que você quer registrar.",
+      );
     }
+  }
+
+  if (pendente && pendente.aguardando !== "confirmacao") {
+    const juntado = aplicarResposta(pendente, parametrosDaMensagem);
+    if (juntado) parameters = juntado;
+    // Quando não é resposta, o pendente NÃO é apagado: apagar zerava o contador
+    // de tentativas e a trava de laço nunca chegava a disparar (visto em teste
+    // real, a mesma pergunta repetiu sem parar). Ele morre por TTL, por
+    // sucesso ou por cancelamento.
   }
 
   /**
@@ -521,7 +556,7 @@ export const registrarMovimentacaoRebanho: Handler = async ({
   const parado = confirmFlow({
     intent,
     explicitNo,
-    confirmed,
+    confirmed: confirmado,
     question: pergunta,
     auxiliary: {
       movement_type: tipo,
@@ -535,7 +570,18 @@ export const registrarMovimentacaoRebanho: Handler = async ({
     },
     cancelledText: "Tudo bem, não registrei nada.",
   });
-  if (parado) return parado;
+  if (parado) {
+    // Guarda o pedido JUNTO com a pergunta de confirmação: é ele que o "sim"
+    // vai executar, não o que o classificador reconstruir.
+    if (parado.requires_confirmation && temMemoria) {
+      await savePendingHerd(tenant_id, user_id!, {
+        parameters,
+        aguardando: "confirmacao",
+        tentativas: 1,
+      });
+    }
+    return parado;
+  }
 
   const posicao = (
     categoria: HerdCategory,

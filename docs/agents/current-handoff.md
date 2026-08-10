@@ -441,12 +441,43 @@ remontar tudo pelo histórico, que é o caminho frágil já corrigido em todo o
 resto. Correção pendente: guardar o pedido também no `confirmFlow`, e executar
 o guardado no "sim" em vez do que o LLM reconstruir.
 
-**Nada foi corrigido ainda, de propósito:** mexer no comportamento no meio da
-bateria invalidaria o bloco 3.
+## Bloco 3 (2026-08-10): o defeito mais grave da fase, e as 3 correções
 
-⚠️ **Os números esperados do bloco 3 mudaram**, porque a transferência falhou:
-`femea_13_24` está em **18** (não 13) e `femea_25_36` em **0** (não 5). Então
-"vendi 100 novilhas de 13 a 24 meses" deve responder "Existem apenas **18**".
+§13 conflito de nascimento e cancelamento passaram. A venda acima do saldo
+expôs três defeitos encadeados, **e o terceiro gravou dado que ninguém pediu**.
+
+**GRAVAÇÃO FANTASMA.** O produtor mandou "vendi 100 novilhas de 13 a 24 meses"
+(havia 18). O assistente respondeu com o aviso errado ("você tem 18"), o
+classificador leu o **18 da própria resposta do assistente**, montou um pedido
+de saldo inicial e o "sim" do produtor executou: `saldo_inicial 18
+femea_13_24`, rebanho de 21 para 39. **Pediu vender 100, gravou 18.**
+
+As três causas e o que foi feito:
+
+1. **O aviso de "onde estão os animais" disparava no mesmo lugar.**
+   `conferirOndeEstaOSaldo` não distinguia "não tem aqui, tem ali" de "tem
+   aqui, mas é pouco". Agora só considera saldo em posição DIFERENTE da
+   pedida; mesma posição com saldo insuficiente cai no bloqueio do §10.3, com
+   a mensagem literal do cliente.
+2. **A trava de laço nunca disparava.** Ao descartar o pendente que não era
+   resposta, eu zerava o contador de tentativas. O pendente agora não é
+   apagado nesse caso: morre por TTL, sucesso ou cancelamento.
+3. **A confirmação não estava ancorada** (a raiz da gravação fantasma). O
+   pedido agora é guardado TAMBÉM ao pedir confirmação (`aguardando:
+   "confirmacao"`), e o "sim" executa o que foi MOSTRADO. **"Sim" sem nada
+   guardado não escreve nada**, responde pedindo para repetir. E quando a
+   pendência é de um CAMPO, um `confirmed` do classificador é ignorado:
+   ninguém confirma o que ainda não viu.
+
+Também corrigido do bloco 2: `categoria_destino` passa a aceitar `categoria`
+como resposta, que era o que fazia a transferência sair com origem igual ao
+destino.
+
+`test:m34` ganhou as seções 14b (sim sem pendência não grava) e 14c (saldo
+insuficiente na mesma posição). Suíte, tsc, eslint e build limpos.
+
+⚠️ **Produção tem uma linha fantasma para cancelar:** `saldo_inicial 18
+femea_13_24` de 10/08 13:55. Cancelar pelo painel deixa o rebanho em 21.
 
 Pasto segue sem teste possível: a Da Mata não tem nenhum cadastrado, e mensagem
 citando pasto responder "não encontrei" é CORRETO.

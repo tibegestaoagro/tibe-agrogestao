@@ -486,17 +486,12 @@ async function main() {
         db,
         tenant.id,
         { movement_type: "nascimento", categoria: "Fêmea - 13 a 24 meses" },
-        { confirmed: true, userId: quemPergunta },
+        { userId: quemPergunta },
       ),
     );
     check(
       "o tipo errado do classificador é ignorado: vale o pedido guardado",
-      respostaComLixo.action_taken.includes("saldo_inicial"),
-      `${respostaComLixo.action_taken} | ${respostaComLixo.reply_text}`,
-    );
-    check(
-      "a quantidade original (20) é preservada",
-      respostaComLixo.reply_text.includes("20 fêmeas de 13 a 24 meses"),
+      respostaComLixo.reply_text.startsWith("Deseja registrar 20 fêmeas de 13 a 24 meses"),
       respostaComLixo.reply_text,
     );
     check(
@@ -505,18 +500,68 @@ async function main() {
       respostaComLixo.reply_text,
     );
 
+    const simFinal = await registrarMovimentacaoRebanho(
+      ctx(db, tenant.id, {}, { confirmed: true, userId: quemPergunta }),
+    );
+    check(
+      "o 'sim' executa o pedido guardado, mesmo sem parâmetro nenhum na mensagem",
+      simFinal.action_taken.includes("saldo_inicial") &&
+        simFinal.reply_text.includes("20 fêmeas de 13 a 24 meses"),
+      `${simFinal.action_taken} | ${simFinal.reply_text}`,
+    );
+
     const semPendenteAgora = await registrarMovimentacaoRebanho(
       ctx(
         db,
         tenant.id,
         { movement_type: "morte", categoria: "Fêmea - 13 a 24 meses", quantidade: 1 },
-        { confirmed: true, userId: quemPergunta },
+        { userId: quemPergunta },
       ),
     );
     check(
       "depois de registrar, o pendente é limpo e o pedido novo passa inteiro",
-      semPendenteAgora.action_taken.includes("morte"),
+      semPendenteAgora.reply_text.startsWith("Deseja registrar a morte de 1"),
       `${semPendenteAgora.action_taken} | ${semPendenteAgora.reply_text}`,
+    );
+
+    console.log("\n14b. 'sim' sem nada pendente NÃO grava (gravação fantasma)");
+    // O pior defeito do teste real de 2026-08-10: o produtor mandou VENDER
+    // 100, o assistente respondeu "você tem 18", e o "sim" gravou 18 animais
+    // de saldo inicial que ninguem pediu. O numero veio da propria resposta
+    // do assistente, lida do historico pelo classificador.
+    const quemSoDizSim = `user-sim-solto-${stamp}`;
+    const simSolto = await registrarMovimentacaoRebanho(
+      ctx(
+        db,
+        tenant.id,
+        { movement_type: "saldo_inicial", categoria: "Fêmea - 13 a 24 meses", quantidade: 18 },
+        { confirmed: true, userId: quemSoDizSim },
+      ),
+    );
+    check(
+      "não registra: nada foi mostrado para confirmar",
+      simSolto.action_taken === "clarification_requested" &&
+        simSolto.reply_text.includes("esperando confirmação"),
+      `${simSolto.action_taken} | ${simSolto.reply_text}`,
+    );
+
+    console.log("\n14c. Saldo insuficiente na MESMA posição usa a mensagem do cliente");
+    // Teste real: "vendi 100" com 18 em estoque respondia "Não encontrei ...
+    // sem pasto informado. Você tem 18 em sem pasto informado", apontando o
+    // mesmo lugar duas vezes. O aviso de "onde estão" só vale para OUTRO lugar.
+    const quemVendeDemais = `user-vende-${stamp}`;
+    const pedeVenda = await registrarMovimentacaoRebanho(
+      ctx(
+        db,
+        tenant.id,
+        { movement_type: "venda", categoria: "Fêmea - 13 a 24 meses", quantidade: 999 },
+        { userId: quemVendeDemais },
+      ),
+    );
+    check(
+      "não devolve o aviso de pasto quando o saldo está no mesmo lugar",
+      !pedeVenda.reply_text.includes("Não encontrei"),
+      pedeVenda.reply_text,
     );
 
     console.log("\n15. Nascimento com categoria adulta: pergunta o tipo, não recusa");
