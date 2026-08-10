@@ -381,8 +381,36 @@ noutro navegador**: separa em segundos o que é aplicação do que é cliente.
 Em HTTPS o cookie de sessão é `__Secure-authjs.session-token`, e o `salt` do
 `encode` precisa ser esse mesmo nome, senão o token é recusado.
 
-**Ainda não testado no aparelho:** §13.5 (morte com pasto), §13.6 (mudança de
-categoria) e a volta da pergunta de pasto. O §13.3 foi exercitado só em teste.
+## Validação no aparelho, bloco 1 (2026-08-10): PASSOU 4/4
+
+Sequência de teste em 3 blocos, contra produção zerada (Da Mata, 1 fazenda,
+**sem pastos**). Bloco 1:
+
+| Mensagem | Resposta | Veredito |
+|---|---|---|
+| "Tenho 20 novilhas de 13 a 24 meses" | pergunta a faixa (novilha é ambíguo) | ok |
+| "Fêmea - 13 a 24 meses" | **"Deseja registrar 20 fêmeas de 13 a 24 meses hoje em Da Mata?"** | ok |
+| "sim" | "Registro feito: 20 fêmeas de 13 a 24 meses. Rebanho: 20" | ok |
+| "Quantas fêmeas de 13 a 24 meses eu tenho?" | "Você tem 20 fêmeas com idades entre 13 e 24 meses" | ok, §13.2 |
+
+**A segunda linha é a prova que faltava.** O verbo mandou (`registrar`, não
+`registrar o nascimento de`), então o mapa de verbo→tipo pegou; e a quantidade
+20 sobreviveu à pergunta de esclarecimento, então o pedido guardado
+(`herd-pending.ts`) funciona ponta a ponta **passando pelo classificador real**,
+não só pela sonda interna. Era a regressão que travou três testes seguidos.
+
+Conferido no banco: uma linha `saldo_inicial 20 para femea_13_24`, não
+cancelada. Livro-razão e resposta do WhatsApp batem.
+
+**Ruído menor, não é falha:** o classificador continua descartando a idade de
+"novilhas de 13 a 24 meses" e perguntando a faixa que o produtor já disse. Custa
+um turno a mais. O fluxo completa, então não vale mexer antes de terminar os
+blocos 2 e 3.
+
+**Blocos 2 e 3 em andamento** (§13.4 nascimento, §13.5 morte, §13.6 mudança de
+categoria, bloqueio de saldo negativo, conflito de nascimento virando pergunta,
+cancelamento). Pasto segue sem teste possível: a Da Mata não tem nenhum
+cadastrado, e mensagem citando pasto responder "não encontrei" é CORRETO.
 
 **A troca do §6, resolvida em parte (2026-08-05).** As três rotas
 `/api/v1/animal-batches` foram **removidas**: não tinham um consumidor
