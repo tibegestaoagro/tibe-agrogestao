@@ -407,10 +407,49 @@ cancelada. Livro-razão e resposta do WhatsApp batem.
 um turno a mais. O fluxo completa, então não vale mexer antes de terminar os
 blocos 2 e 3.
 
-**Blocos 2 e 3 em andamento** (§13.4 nascimento, §13.5 morte, §13.6 mudança de
-categoria, bloqueio de saldo negativo, conflito de nascimento virando pergunta,
-cancelamento). Pasto segue sem teste possível: a Da Mata não tem nenhum
-cadastrado, e mensagem citando pasto responder "não encontrei" é CORRETO.
+## Bloco 2 (2026-08-10): dado correto, conversa com 2 defeitos
+
+**O livro-razão saiu certo**: `saldo_inicial 20 femea_13_24`, `nascimento 3
+bezerro_0_7`, `morte 2 femea_13_24`, saldo 21, e **nenhuma transferência
+falsa gravada**. §13.4 e §13.5 passaram, e a morte preservou tipo e quantidade
+através da pergunta de faixa.
+
+**DEFEITO 1: transferência aceita origem igual ao destino.** A confirmação saiu
+como "transferir 5 animais da categoria Fêmea - 25 a 36 meses **para Fêmea - 25
+a 36 meses**". Causa: o assistente perguntou o sexo da categoria de DESTINO, e a
+resposta voltou do classificador como `categoria` genérica;
+`aplicarResposta` só aceita o nome exato do campo (`categoria_destino`) ou o
+apelido `category_destino`, não casou, descartou o pendente e caiu na
+reconstrução do LLM, que repetiu a mesma categoria nas duas pontas.
+
+Correções pendentes, as duas em código:
+1. `atalho("categoria_destino")` precisa aceitar também `categoria` (quando a
+   pergunta foi sobre o destino, "uma categoria" na resposta É o destino).
+2. `recordMovement` deve **recusar** transferência com as duas pontas iguais:
+   mesma categoria em `mudanca_categoria`, mesmo pasto em
+   `transferencia_pasto`, mesma fazenda em `transferencia_fazenda`. Isso teria
+   barrado o absurdo alto e claro, em vez de virar confirmação sem sentido.
+
+**DEFEITO 2, mais sério: um "sim" confirmou DUAS ações pendentes.** O produtor
+deixou a morte sem confirmar e mudou de assunto; o "sim" seguinte confirmou a
+morte E a transferência, e as duas respostas vieram grudadas numa bolha só
+(uma com ✅ e outra com ⚠️).
+
+Raiz: o pendente é guardado quando o assistente pergunta um CAMPO, mas **não
+quando pede CONFIRMAÇÃO**. A confirmação continua dependendo do classificador
+remontar tudo pelo histórico, que é o caminho frágil já corrigido em todo o
+resto. Correção pendente: guardar o pedido também no `confirmFlow`, e executar
+o guardado no "sim" em vez do que o LLM reconstruir.
+
+**Nada foi corrigido ainda, de propósito:** mexer no comportamento no meio da
+bateria invalidaria o bloco 3.
+
+⚠️ **Os números esperados do bloco 3 mudaram**, porque a transferência falhou:
+`femea_13_24` está em **18** (não 13) e `femea_25_36` em **0** (não 5). Então
+"vendi 100 novilhas de 13 a 24 meses" deve responder "Existem apenas **18**".
+
+Pasto segue sem teste possível: a Da Mata não tem nenhum cadastrado, e mensagem
+citando pasto responder "não encontrei" é CORRETO.
 
 **A troca do §6, resolvida em parte (2026-08-05).** As três rotas
 `/api/v1/animal-batches` foram **removidas**: não tinham um consumidor
