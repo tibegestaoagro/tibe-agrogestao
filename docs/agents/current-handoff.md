@@ -476,8 +476,30 @@ destino.
 `test:m34` ganhou as seções 14b (sim sem pendência não grava) e 14c (saldo
 insuficiente na mesma posição). Suíte, tsc, eslint e build limpos.
 
-⚠️ **Produção tem uma linha fantasma para cancelar:** `saldo_inicial 18
-femea_13_24` de 10/08 13:55. Cancelar pelo painel deixa o rebanho em 21.
+## FASE 1 VALIDADA no aparelho (2026-08-11)
+
+A linha fantasma foi cancelada pelo painel (com motivo "testes com lançamento
+errado", visível no histórico: §10.8 exercitado em uso real) e o reteste da
+venda passou:
+
+> "vendi 100 novilhas de 13 a 24 meses" ... "Deseja registrar a venda de 100
+> fêmeas de 13 a 24 meses hoje em Da Mata?" ... "sim" ...
+> **"Só temos 18 animais nesta categoria. Por favor, revise a quantidade
+> informada."**
+
+Os três defeitos do bloco 3 estão fechados: nenhuma pergunta de pasto, nenhum
+laço, e o "sim" executou **a venda de 100 que foi mostrada**, não uma invenção.
+Conferido no banco: nada gravado, saldo 21.
+
+**Painel e WhatsApp batem exatamente**: 21 total, 18 em `femea_13_24`, 3 em
+`bezerro_0_7`, 3 nascimentos e 2 mortes no mês.
+
+**Ruído resolvido, e a culpa era do meu prompt.** O assistente perguntava a
+idade, o produtor respondia "Fêmea - 13 a 24 meses", e ele perguntava o sexo
+logo em seguida. Causa: eu havia escrito na regra *"trocando apenas categoria
+pela FAIXA escolhida"*, o que literalmente manda o modelo enviar só a faixa e
+descartar o sexo. Corrigido para pedir a **opção inteira, com sexo e idade,
+exatamente como o assistente listou**. Vale a partir da próxima mensagem.
 
 Pasto segue sem teste possível: a Da Mata não tem nenhum cadastrado, e mensagem
 citando pasto responder "não encontrei" é CORRETO.
