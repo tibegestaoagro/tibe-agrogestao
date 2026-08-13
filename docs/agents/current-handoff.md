@@ -512,6 +512,20 @@ Provado ponta a ponta na primeira rodada, sem ninguem no circuito:
     >> sim
     << Registro concluido: 20 bezerros. Agora, seu rebanho conta com 20 animais.
 
+⚠️ **A conversa acima estava CERTA como prova da ferramenta e ERRADA como
+prova do produto**, e ficou aqui semanas parecendo sucesso. Um juiz
+independente notou na quinta rodada: "comprei 20 bezerros" registrou 20 cabeças
+e **zero dinheiro**, calado, enquanto o §6.1 do documento lista o valor total
+como obrigatório e o §17.3 diz que a compra gera despesa ou conta a pagar.
+Corrigido em 2026-08-13: toda compra e venda de gado agora vira negócio e o
+assistente **pergunta** o valor que falta. Quem repetir esse teste hoje deve
+ver "Por quanto você comprou?" no lugar da confirmação direta.
+
+O que a conversa prova, e continua provando, é o BANCO DE PROVAS: mensagem
+entrou pelo fluxo real, resposta voltou legível por programa, conversa de
+vários turnos funcionou. É a ferramenta que estava sendo validada ali, não a
+regra de negócio.
+
 Nao cobre entrega no aparelho, audio nem foto de recibo: a passada final no
 celular de verdade continua valendo uma vez por rodada.
 
