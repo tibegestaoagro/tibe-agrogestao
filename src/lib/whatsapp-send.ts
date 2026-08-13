@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decryptConfig } from "@/lib/crypto-config";
+import { recordOutbound } from "@/lib/whatsapp-outbox";
 import type { EvolutionCredentials, MetaCredentials } from "@/lib/actions/platform-whatsapp-config";
 
 /**
@@ -15,6 +16,12 @@ export async function sendWhatsAppMessage(
   to: string,
   text: string,
 ): Promise<ActionResult<{ provider: string; message_id: string | null }>> {
+  // Registra ANTES de despachar, de propósito: o que interessa auditar é o
+  // que o Tibé decidiu responder, e isso vale inclusive quando a entrega
+  // falha (número inexistente, provider fora do ar). Registrar só no sucesso
+  // esconderia justamente o caso que se quer investigar. Ver whatsapp-outbox.
+  await recordOutbound(to, text);
+
   const config = await prisma.whatsAppProviderConfig.findFirst({ where: { active: true } });
   if (!config) {
     return fail(
