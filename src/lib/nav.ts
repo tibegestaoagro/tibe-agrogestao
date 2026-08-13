@@ -40,6 +40,11 @@ export function buildNavItems({
       show: true,
       children: [
         { href: "/rebanho", label: "Rebanho", show: hasFazenda },
+        // Módulo 31: "Negociações" substitui a nomenclatura "Compra e Venda"
+        // (§1), porque as relações comerciais da fazenda não se limitam a
+        // comprar e vender. Fica ao lado de Rebanho porque é de lá que sai a
+        // maior parte do que se negocia.
+        { href: "/negociacoes", label: "Negociações", show: hasFazenda },
         { href: "/maquinas", label: "Máquinas", show: hasFazenda },
         { href: "/lavoura", label: "Lavoura", show: hasFazenda },
         { href: "/prestador", label: "Prestador", show: hasPrestador },

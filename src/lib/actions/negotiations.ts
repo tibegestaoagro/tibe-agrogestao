@@ -85,6 +85,8 @@ export type NegotiationDetail = {
     id: string;
     movement_type: string;
     quantity: number;
+    /** Categoria negociada: destino numa compra, origem numa venda. */
+    category_id: string | null;
     canceled_at: Date | null;
   }[];
   lancamentos: {
@@ -307,7 +309,14 @@ export async function getNegotiation(
     include: {
       contact: { select: { name: true } },
       movements: {
-        select: { id: true, movement_type: true, quantity: true, canceled_at: true },
+        select: {
+          id: true,
+          movement_type: true,
+          quantity: true,
+          from_category_id: true,
+          to_category_id: true,
+          canceled_at: true,
+        },
         orderBy: { created_at: "asc" },
       },
       entries: {
@@ -362,7 +371,14 @@ export async function getNegotiation(
       total: principal + custos,
       liquido: principal - custos,
     },
-    movimentos: n.movements,
+    movimentos: n.movements.map((m) => ({
+      id: m.id,
+      movement_type: m.movement_type,
+      quantity: m.quantity,
+      // Numa compra os animais ENTRAM (to); numa venda SAEM (from).
+      category_id: m.to_category_id ?? m.from_category_id,
+      canceled_at: m.canceled_at,
+    })),
     lancamentos,
   };
 }
@@ -540,6 +556,7 @@ export function serializeNegotiation(n: NegotiationDetail) {
       id: m.id,
       movement_type: m.movement_type,
       quantity: m.quantity,
+      category_id: m.category_id,
       canceled_at: isoOrNull(m.canceled_at),
     })),
     lancamentos: n.lancamentos.map((l) => ({
