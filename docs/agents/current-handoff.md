@@ -441,6 +441,45 @@ remontar tudo pelo histórico, que é o caminho frágil já corrigido em todo o
 resto. Correção pendente: guardar o pedido também no `confirmFlow`, e executar
 o guardado no "sim" em vez do que o LLM reconstruir.
 
+## EM ANDAMENTO: Módulo 31, Negociações (branch `negociacoes`)
+
+Spec e as 12 decisões: [docs/specs/module-31-negociacoes.md](../specs/module-31-negociacoes.md).
+Contrato de missão aprovado pelo usuário em 2026-08-11 (formato loop-goal).
+Branch `negociacoes`, criada de `main` em `8d777b8`. **Nada empurrado ainda**:
+o usuário pediu avaliação de push/merge só no fim.
+
+| Missão | Estado |
+|---|---|
+| 1. Negócio de gado | núcleo pronto (`7cff024`); faltam rotas, tela, WhatsApp e juiz |
+| 2. Estoque e produtos | não iniciada |
+| 3. Leilão e eventos | não iniciada |
+| 4. Permuta | não iniciada |
+
+**A decisão que rege tudo:** a Negociação é um ENVELOPE comercial, não a fonte
+da verdade. Saldo do rebanho continua sendo soma de `HerdMovement`, dinheiro
+continua em `FinancialEntry`, e os filhos apontam para a negociação
+(`negotiation_id` anulável). Se algum dia aparecer um campo de saldo ou de
+situação na `Negotiation`, a decisão foi revertida por engano.
+
+**Pronto e verde na missão 1:** schema (`Contact`, `Negotiation`, 3 enums,
+migração aditiva com zero DROP), `src/lib/actions/negotiations.ts` com compra,
+venda, parcelamento (§14 recusa quando a soma não fecha), custos adicionais como
+lançamentos filhos (§15), cancelamento em cascata com bloqueio quando os animais
+já saíram, e situação derivada. `test:m35` com 43 verificações. 13 suítes
+existentes sem regressão, mais isolation, docs-api, nav, tsc, eslint e build.
+
+⚠️ **Duas armadilhas achadas aqui, valem para as próximas missões:**
+1. **`return fail(...)` de dentro de `$transaction` CONFIRMA a transação.** Só
+   `throw` faz rollback. Deixava a negociação órfã quando a venda não tinha
+   saldo. Use `AbortarNegociacao`.
+2. **`recordMovement` abre a própria transação.** Para operação composta, use
+   `recordMovementInTx`, extraído para isso.
+
+**Próximo passo exato:** rotas `/api/v1/negotiations` e `/api/v1/contacts`,
+atualizar a lista de `/docs/api` (o `test:docs-api` reprova se esquecer), tela
+`/negociacoes` validada em navegador real, intenções de WhatsApp, e o juiz
+subagente com a rubrica R1-R5 exigindo nota >= 8.
+
 ## Bloco 3 (2026-08-10): o defeito mais grave da fase, e as 3 correções
 
 §13 conflito de nascimento e cancelamento passaram. A venda acima do saldo
