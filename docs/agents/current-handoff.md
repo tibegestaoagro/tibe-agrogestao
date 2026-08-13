@@ -520,8 +520,48 @@ tipo em `scripts/m23-token-auth.test.ts` (pre-existentes, confirmado com
 stash). Nao quebram o build (a Vercel nao compila `scripts/`), mas corroem a
 rede de seguranca.
 
-**Falta na missão 1:** intenções de WhatsApp (comprei/vendi gado), juiz
-subagente com a rubrica R1-R5 exigindo nota >= 8, e o relatório de evidências.
+## G1.7 pronta: negócio de gado pelo WhatsApp (2026-08-13)
+
+Intenção `registrar_negocio_gado`, uma só, com o tipo (compra/venda) em
+`parameters`, pelo mesmo motivo de `registrar_movimentacao_rebanho`: é o mesmo
+gesto do produtor, e separar em duas daria ao classificador mais uma chance de
+errar. Handler em `src/lib/actions/whatsapp-handlers/negociacao.ts`,
+memória de conversa em `negotiation-pending.ts`. `npm run test:m36`, 40
+verificações, zero falhas.
+
+Carrega as três regras que custaram uma rodada cada no Módulo 30, aqui com mais
+peso porque um negócio grava rebanho E financeiro de uma vez: recusa vence tudo
+e é a primeira coisa checada, confirmação é SEMPRE obrigatória (não usa
+`CONFIRMATION_THRESHOLD`), e o "sim" executa o que foi MOSTRADO.
+
+Reusa `resolverCategoria`/`resolverFazenda` do handler de rebanho (exportados
+para isso) em vez de duplicar: se a regra de nunca chutar faixa de idade
+divergisse entre os dois caminhos, o assistente lançaria animais na idade
+errada por um caminho e não pelo outro.
+
+Validado também pela ROTA HTTP real (`/api/internal/whatsapp/execute-action`,
+`next dev` local): pergunta, confirma, grava (rebanho 20, 1 negociação, 3
+parcelas) e barra `VISUALIZADOR` com "Você não tem permissão".
+
+**⚠️ Desvio de numeração do contrato:** o contrato reservava `test:m36` para a
+Missão 2 (Estoque). Como a Missão 1 ganhou uma suíte de WhatsApp que não estava
+prevista, ela ficou com o `m36` (o número é contador de SUÍTES, não de módulo,
+conforme o CLAUDE.md). As Missões 2, 3 e 4 passam a ser `m37`, `m38` e `m39`.
+
+**BUG VIVO ACHADO E CORRIGIDO no caminho:** `getPositions(db, {})` devolvia
+lista VAZIA com o livro cheio, porque `OR: [{}, {}]` no Prisma não significa
+"qualquer linha", significa nenhuma. Dois estragos reais:
+`GET /api/v1/herd/positions` **sem query param respondia "rebanho vazio" a quem
+tem gado** (o app mobile consome essa rota), e a asserção de isolamento do m33
+(`getPositions(dbB).length === 0`) passava **por causa do bug**, não por
+isolamento: teria passado igual se um tenant enxergasse o outro. m33, m34 e m35
+seguem verdes, agora pelo motivo certo.
+
+**Falta na missão 1:** o juiz subagente (rodando) e o relatório de evidências.
+Depois disso, a validação ao vivo pelo banco de provas depende de duas coisas
+que andam juntas: deploy da branch e ensinar a intenção nova ao classificador
+do n8n. Ensinar o classificador ANTES do deploy quebraria produção, porque a
+`main` ainda não tem o handler.
 
 **Próximo passo exato:** rotas `/api/v1/negotiations` e `/api/v1/contacts`,
 atualizar a lista de `/docs/api` (o `test:docs-api` reprova se esquecer), tela
