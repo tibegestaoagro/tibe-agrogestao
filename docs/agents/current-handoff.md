@@ -571,11 +571,56 @@ tem gado** (o app mobile consome essa rota), e a asserção de isolamento do m33
 isolamento: teria passado igual se um tenant enxergasse o outro. m33, m34 e m35
 seguem verdes, agora pelo motivo certo.
 
-**Falta na missão 1:** o juiz subagente (rodando) e o relatório de evidências.
-Depois disso, a validação ao vivo pelo banco de provas depende de duas coisas
-que andam juntas: deploy da branch e ensinar a intenção nova ao classificador
-do n8n. Ensinar o classificador ANTES do deploy quebraria produção, porque a
-`main` ainda não tem o handler.
+## Missão 1: seis rodadas de juiz (2026-08-13)
+
+Notas por rodada, na ordem R1/R2/R3/R4/R5:
+
+| Rodada | R1 | R2 | R3 | R4 | R5 |
+|---|---|---|---|---|---|
+| 1 | 5 | 7 | 7 | 6 | 6 |
+| 2 | 6 | 8 | 6 | 6 | 6 |
+| 3 | 7 | 9 | 7 | 8 | 7 |
+| 4 | 7 | 8 | 7 | 7 | 7 |
+| 5 | 7 | 9 | 9 | 8 | 8 |
+| 6 | 7 | 9 | 9 | 9 | 7 |
+
+**O padrão que dominou estas rodadas, e que vale para as missões 2 a 4:** em
+quatro das seis, uma correção minha introduziu o problema OPOSTO ao que
+corrigia. Bloquear o cancelamento em vez de apagar dinheiro pago. Fazer a
+situação olhar todos os lançamentos em vez de só o principal. Mover a criação
+do contato para dentro da transação e deixar a action virar código morto.
+Criar um ramo para tornar uma pergunta respondível e esquecer o caso em que a
+resposta não casa.
+
+A causa é sempre a mesma: eu corrigia a direção apontada sem testar a direção
+oposta. O remédio que funcionou foi escrever **as duas bordas como teste com
+nome**, por exemplo "venda recebida com frete em aberto continua Recebida" ao
+lado de "compra com frete em aberto NÃO está quitada".
+
+Defeitos de dinheiro achados e corrigidos, que nenhum teste anterior pegava:
+
+- `getDre` não filtrava status, então lançamento CANCELADO continuava pesando
+  no "Resultado do mês". Bug anterior ao módulo; o módulo o tornou comum.
+- O estorno somava receita com despesa: numa venda, errava em 2x os custos.
+- `getPositions(db, {})` devolvia lista vazia com o livro cheio, e fazia a
+  asserção de isolamento do `m33` passar pelo motivo errado.
+- `num("60.000")` devolvia 60: uma compra de sessenta mil virava sessenta reais.
+
+**Falta na missão 1:** fechar o juiz (R1 e R5 na última rodada) e o relatório de
+evidências. Depois disso, a validação ao vivo pelo banco de provas depende de
+duas coisas que andam juntas: deploy da branch e ensinar a intenção nova ao
+classificador do n8n. Ensinar o classificador ANTES do deploy quebraria
+produção, porque a `main` ainda não tem o handler.
+
+**4 migrações pendentes no Neon**, todas aditivas, zero `DROP`:
+`20260811100000_negociacoes_envelope`,
+`20260813190000_negotiation_entry_role_estorno`,
+`20260813200000_negotiation_canceled_by` e
+`20260813210000_negotiation_canceled_by_fk`. Vão ANTES do push da `main`
+(invariante 3).
+
+**Roteiro do teste no aparelho, pronto:**
+[roteiro-aparelho-negociacoes.md](roteiro-aparelho-negociacoes.md), 7 blocos.
 
 **Próximo passo exato:** rotas `/api/v1/negotiations` e `/api/v1/contacts`,
 atualizar a lista de `/docs/api` (o `test:docs-api` reprova se esquecer), tela
