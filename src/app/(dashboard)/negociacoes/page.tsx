@@ -200,8 +200,12 @@ export default async function NegociacoesPage({
                     {writable && !cancelada && (
                       <NegotiationCancel
                         negotiationId={n.id}
+                        venda={venda}
+                        valorRecebido={n.lancamentos
+                          .filter((l) => l.status === "paid" && l.entry_type === "income")
+                          .reduce((s, l) => s + l.amount, 0)}
                         valorPago={n.lancamentos
-                          .filter((l) => l.status === "paid")
+                          .filter((l) => l.status === "paid" && l.entry_type === "expense")
                           .reduce((s, l) => s + l.amount, 0)}
                         descricao={`${TIPO_LABEL[n.type] ?? n.type}, ${reais(n.totais.principal)}, em ${n.occurred_at.toLocaleDateString("pt-BR")}`}
                       />

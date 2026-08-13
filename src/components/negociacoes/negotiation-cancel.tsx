@@ -22,11 +22,17 @@ import { apiPost } from "@/lib/client-api";
 export default function NegotiationCancel({
   negotiationId,
   descricao,
+  venda,
+  valorRecebido,
   valorPago,
 }: {
   negotiationId: string;
   descricao: string;
-  /** Quanto deste negócio já foi pago: continua lançado depois do cancelamento. */
+  /** Muda a pergunta: numa venda o dinheiro ENTROU, não saiu. */
+  venda: boolean;
+  /** O que já entrou (o principal de uma venda). */
+  valorRecebido: number;
+  /** O que já saiu (o principal de uma compra, e os custos dos dois lados). */
   valorPago: number;
 }) {
   const router = useRouter();
@@ -37,6 +43,20 @@ export default function NegotiationCancel({
   // Padrão "mantem": é o único que não inventa nada sobre o dinheiro do
   // produtor. Só aparece quando existe pagamento, e resolve na mesma tela.
   const [dinheiroPago, setDinheiroPago] = useState<"mantem" | "devolvido" | "engano">("mantem");
+
+  /**
+   * "Pago" e "recebido" não se somam, e não são a mesma frase.
+   *
+   * Numa venda o principal ENTROU e os custos do §15 saíram: somar os dois num
+   * número só e chamar de "dinheiro que já foi pago" mostrava um valor inflado
+   * com um rótulo errado, na tela em que o produtor decide desfazer um negócio.
+   */
+  const moeda = (v: number) =>
+    v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const partes: string[] = [];
+  if (valorRecebido > 0) partes.push(`${moeda(valorRecebido)} já recebidos`);
+  if (valorPago > 0) partes.push(`${moeda(valorPago)} já pagos`);
+  const resumoDoDinheiro = partes.join(" e ");
 
   async function submit() {
     if (!reason.trim()) return setError("Informe o motivo do cancelamento.");
@@ -84,18 +104,33 @@ export default function NegotiationCancel({
             já foi vendida ou movimentada, o cancelamento é recusado.
           </p>
 
-          {valorPago > 0 && (
+          {valorRecebido + valorPago > 0 && (
             <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
               <p className="text-sm font-medium text-amber-900">
-                E o dinheiro que já foi pago (
-                {valorPago.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})?
+                E o dinheiro deste negócio ({resumoDoDinheiro})?
               </p>
               <div className="mt-2 space-y-2">
                 {(
                   [
-                    ["mantem", "Continua lançado", "Eu paguei mesmo, e o dinheiro não voltou."],
-                    ["devolvido", "O dinheiro voltou", "Lanço a devolução com a data de hoje."],
-                    ["engano", "Foi engano meu", "Esse pagamento não existiu, pode apagar."],
+                    [
+                      "mantem",
+                      "Continua lançado",
+                      venda
+                        ? "Eu recebi mesmo, e não devolvi."
+                        : "Eu paguei mesmo, e o dinheiro não voltou.",
+                    ],
+                    [
+                      "devolvido",
+                      venda ? "Eu devolvi" : "O dinheiro voltou",
+                      "Lanço a devolução com a data de hoje.",
+                    ],
+                    [
+                      "engano",
+                      "Foi engano meu",
+                      venda
+                        ? "Esse recebimento não existiu, pode apagar."
+                        : "Esse pagamento não existiu, pode apagar.",
+                    ],
                   ] as const
                 ).map(([valor, titulo, explicacao]) => (
                   <label key={valor} className="flex cursor-pointer gap-2 text-sm text-amber-900">
