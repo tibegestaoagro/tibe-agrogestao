@@ -25,6 +25,7 @@ import {
   registrarMovimentacaoRebanho,
 } from "@/lib/actions/whatsapp-handlers/herd";
 import { registrarNegocioGado } from "@/lib/actions/whatsapp-handlers/negociacao";
+import { loadPendingNegotiation } from "@/lib/actions/negotiation-pending";
 import { ajuda } from "@/lib/actions/whatsapp-handlers/ajuda";
 import { resumo } from "@/lib/actions/whatsapp-handlers/resumo";
 import { handleActiveFlow, maybeStartAnimalFlow } from "@/lib/actions/whatsapp-flow-bridge";
@@ -127,7 +128,36 @@ export async function routeIntent(
   const { tenant_id, role, activeProfiles, parameters, confirmed, explicitNo } = ctx;
   // O desempate vem antes de qualquer checagem: a permissão e o handler têm
   // que ser os da intenção que vai de fato executar.
-  const intent = desempatarIntencao(ctx.intent, parameters);
+  let intent = desempatarIntencao(ctx.intent, parameters);
+
+  /**
+   * A RESPOSTA a uma pergunta pendente volta para quem perguntou.
+   *
+   * `desempatarIntencao` decide pela frase, e uma resposta curta não tem
+   * frase: "de 13 a 24 meses" não carrega `movement_type` nenhum. Sem esta
+   * guarda, o produtor que respondia a pergunta do assistente sobre um NEGÓCIO
+   * caía no handler de rebanho e ouvia "não entendi que tipo de movimentação
+   * é", enquanto o negócio dele seguia guardado, esperando a mesma resposta que
+   * ele acabou de dar. É a família da pergunta repetida que custou uma rodada
+   * de teste no Módulo 30, e foi reproduzida por um revisor independente com o
+   * roteiro de aparelho na mão.
+   *
+   * Deliberadamente estreita: só age quando o classificador mandou uma
+   * movimentação de rebanho NÃO comercial (compra e venda já foram convertidas
+   * acima) e existe um negócio esperando resposta. Intenção clara de outro
+   * assunto ("quantos animais eu tenho?") continua passando direto, porque
+   * interromper um registro para responder uma pergunta é o comportamento
+   * certo e já existia.
+   *
+   * O par em código é o que importa aqui: sem ele, lembrar do contexto viraria
+   * responsabilidade do prompt, que é justamente o que este módulo evita.
+   */
+  if (ctx.user_id && intent === "registrar_movimentacao_rebanho") {
+    const negocioEsperando = await loadPendingNegotiation(tenant_id, ctx.user_id);
+    if (negocioEsperando && negocioEsperando.aguardando !== "confirmacao") {
+      intent = "registrar_negocio_gado";
+    }
+  }
 
   // Cadastro assistido tem prioridade sobre o roteamento normal: se existe um
   // formulário em andamento, a mensagem é primeiro oferecida a ele. O bridge

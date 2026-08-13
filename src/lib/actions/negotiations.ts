@@ -297,7 +297,17 @@ export async function createCattleNegotiation(
     // O dinheiro do valor principal: uma linha à vista, ou uma por parcela.
     const parcelas: ParcelaInput[] =
       input.pago || !input.parcelas || input.parcelas.length === 0
-        ? [{ due_date: input.pago ? occurred_at : (input.due_date ?? occurred_at), amount: input.amount }]
+        ? [
+            {
+              // Sem vencimento informado, a conta vence HOJE, não na data do
+              // negócio: num registro retroativo ("comprei semana passada,
+              // ainda não paguei") ela nasceria vencida, disparando o alerta
+              // `bill_due` na criação e pintando a linha de vermelho. Mesma
+              // regra do custo adicional, abaixo, que já tinha sido corrigido.
+              due_date: input.pago ? occurred_at : (input.due_date ?? new Date()),
+              amount: input.amount,
+            },
+          ]
         : input.parcelas;
 
     for (const parcela of parcelas) {

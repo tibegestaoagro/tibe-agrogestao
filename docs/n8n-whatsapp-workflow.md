@@ -318,19 +318,34 @@ uma mensagem de fallback amigável (sem detalhes técnicos), por exemplo:
 | `ambigua` | usar quando não for possível classificar com confiança. Com `ajuda`/`resumo` cobrindo "como faço"/"o que eu tenho", sobra pra isso o que realmente foge do escopo. |
 
 **[1] Empate com `registrar_movimentacao_rebanho`, resolvido em código, não no
-prompt.** "Comprei 20 bezerros por 60 mil" satisfaz as duas intenções: a do
-rebanho aceita `movement_type: "compra"` com `valor` e já grava movimento mais
-lançamento financeiro. O prompt não precisa acertar essa escolha, e não deve
-ser o único a decidi-la: `desempatarIntencao()`, em
-`src/lib/actions/whatsapp-router.ts`, converte **compra ou venda COM valor** em
-`registrar_negocio_gado` antes de qualquer checagem de permissão. Compra e
-venda **sem** valor continuam no rebanho, que é a correção de livro-razão sem
-dinheiro envolvido. A regra é função pura e testada em `test:m36`, e vale numa direção só:
-`registrar_movimentacao_rebanho` com valor **vira** negócio, mas
-`registrar_negocio_gado` sem valor **não** volta para o rebanho, e nesse caso
-o assistente fica pedindo o valor. Por isso: mande `registrar_negocio_gado`
-apenas quando a frase tiver valor em dinheiro; sem valor, mande
-`registrar_movimentacao_rebanho`.
+prompt.** "Comprei 20 bezerros" satisfaz as duas intenções. O prompt não
+precisa acertar essa escolha, e não deve ser o único a decidi-la:
+`desempatarIntencao()`, em `src/lib/actions/whatsapp-router.ts`, converte
+**toda compra e toda venda de gado**, com ou sem valor na frase, em
+`registrar_negocio_gado`, antes de qualquer checagem de permissão. Quando o
+valor não vem, o Tibé **pergunta** ("Por quanto você comprou?").
+
+Vale com ou sem valor porque o §6.1 e o §7.1 do documento listam o valor total
+como informação **obrigatória**, e o §17.3 diz que a compra "aumenta o Rebanho
+e gera despesa ou conta a pagar": registrar 20 cabeças e zero dinheiro seria o
+oposto do pedido. Uma versão anterior deste guia dizia para mandar
+`registrar_movimentacao_rebanho` quando não houvesse valor, e era isso que
+produzia o registro sem dinheiro.
+
+**Além disso, a RESPOSTA a uma pergunta pendente também é roteada em código.**
+Quando o assistente pergunta a faixa de idade e o produtor responde "de 13 a 24
+meses", essa mensagem não carrega `movement_type` nenhum, e classificá-la como
+`registrar_movimentacao_rebanho` a mandaria para o handler de rebanho, fora de
+assunto, com o negócio pendente intocado. `routeIntent` resolve isso olhando se
+existe um negócio esperando resposta para aquele usuário. Ou seja: **o
+classificador não precisa lembrar do contexto**, e não deve tentar.
+
+**Na prática, para quem escreve o prompt:** classifique pela frase mais
+natural. `registrar_movimentacao_rebanho` com `movement_type: "compra"` ou
+`"venda"` chega no lugar certo sozinho. Os outros tipos (`saldo_inicial`,
+`nascimento`, `morte`, `ajuste`, transferências) continuam no rebanho, porque
+não têm dinheiro envolvido. As duas regras são função pura e testadas em
+`test:m36`.
 
 ### 4.0. Por que o classificador é `gpt-4o-mini` com `temperature: 0`
 

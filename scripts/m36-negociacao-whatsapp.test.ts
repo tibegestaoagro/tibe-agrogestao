@@ -680,8 +680,8 @@ async function main() {
     console.log("\n20. As travas contra o formato que o modelo manda");
     // ------------------------------------------------------------------
     // Estas existem porque o classificador repassa o que o produtor falou, e
-    // não o formato ideal. Sem teste, elas eram promessa: o R5 do contrato pede
-    // par em código TESTADO, não só em código.
+    // não o formato ideal. Sem teste, elas eram promessa: o que impede a
+    // proteção de sumir numa refatoração é justamente o teste.
 
     await clearPendingNegotiation(tenant.id, USUARIO);
     const pagoComoTexto = await registrarNegocioGado(
@@ -855,6 +855,71 @@ async function main() {
       umGarrote.reply_text.includes("1 garrote reprodutor") &&
         !umGarrote.reply_text.includes("reprodutores"),
       umGarrote.reply_text,
+    );
+
+    // ------------------------------------------------------------------
+    console.log("\n25. A RESPOSTA a uma pergunta pendente volta para quem perguntou");
+    // ------------------------------------------------------------------
+    // Cenário do Bloco 3 do roteiro de aparelho, reproduzido por um revisor
+    // independente: "Comprei 10 novilhas" abre um negócio e pergunta a faixa de
+    // idade; a resposta "de 13 a 24 meses" NÃO carrega movement_type, então o
+    // desempate não a convertia e ela caía no handler de rebanho. O produtor
+    // ouvia "não entendi que tipo de movimentação é" e o negócio dele ficava
+    // guardado, esperando a mesma resposta que ele acabou de dar.
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    const abriuNegocio = await routeIntent(db, {
+      tenant_id: tenant.id,
+      role: "OWNER",
+      activeProfiles: ["fazenda"],
+      intent: "registrar_movimentacao_rebanho",
+      parameters: { movement_type: "compra", categoria: "novilha", quantidade: 10 },
+      confirmed: false,
+      explicitNo: false,
+      user_id: USUARIO,
+    });
+    check(
+      "sanidade: a frase abre um negócio e pergunta a faixa de idade",
+      abriuNegocio.reply_text.includes("pode ser mais de uma categoria"),
+      abriuNegocio.reply_text,
+    );
+
+    // A resposta, como o classificador realmente a devolve: sem movement_type.
+    const respostaDeFaixa = await routeIntent(db, {
+      tenant_id: tenant.id,
+      role: "OWNER",
+      activeProfiles: ["fazenda"],
+      intent: "registrar_movimentacao_rebanho",
+      parameters: { categoria: "femea_13_24" },
+      confirmed: false,
+      explicitNo: false,
+      user_id: USUARIO,
+    });
+    check(
+      "a resposta NÃO cai no handler de rebanho",
+      !respostaDeFaixa.reply_text.includes("que tipo de movimentação"),
+      respostaDeFaixa.reply_text,
+    );
+    check(
+      "ela continua o negócio e pergunta o valor",
+      respostaDeFaixa.reply_text.includes("Por quanto"),
+      respostaDeFaixa.reply_text,
+    );
+
+    // A guarda é estreita de propósito: assunto claramente novo passa direto.
+    const outroAssunto = await routeIntent(db, {
+      tenant_id: tenant.id,
+      role: "OWNER",
+      activeProfiles: ["fazenda"],
+      intent: "consultar_rebanho",
+      parameters: {},
+      confirmed: false,
+      explicitNo: false,
+      user_id: USUARIO,
+    });
+    check(
+      "e uma pergunta de outro assunto continua sendo respondida normalmente",
+      outroAssunto.reply_text.includes("rebanho"),
+      outroAssunto.reply_text,
     );
 
     // ------------------------------------------------------------------

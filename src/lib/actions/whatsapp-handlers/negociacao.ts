@@ -149,8 +149,9 @@ function custosDosParametros(parameters: Record<string, unknown>): CustoLido[] {
  * devolvia `null` em silêncio para tudo que não fosse ISO. Na prática isso
  * significava que "para pagar dia 10", o exemplo-bandeira do documento do
  * cliente, só virava vencimento se o modelo acertasse o formato: a informação
- * mais importante da frase dependia do LLM, sem par em código, que é o que o
- * R5 do contrato proíbe.
+ * mais importante da frase dependia do LLM acertar o formato, sem nenhuma
+ * trava em código: é o tipo de regra que este projeto não aceita deixar só no
+ * prompt, porque prompt muda sem quebrar teste nenhum.
  *
  * Devolve `"invalida"` quando havia algo escrito e não deu para entender, para
  * o chamador PERGUNTAR em vez de descartar calado. Mesma escolha do handler de
@@ -185,7 +186,16 @@ function interpretarData(bruto: string, hoje = new Date()): Date | null {
   }
 
   const iso = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (iso) return aoMeioDia(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+  if (iso) {
+    // Mesma conferência de ida e volta do ramo brasileiro, abaixo: sem ela,
+    // "2026-02-31" virava 03/03/2026 em silêncio. É o caso 5.3 do roteiro de
+    // aparelho ("trinta e um de fevereiro"), e depender da confirmação
+    // impressa para o produtor notar não é trava.
+    const mes = Number(iso[2]) - 1;
+    const dia = Number(iso[3]);
+    const d = aoMeioDia(Number(iso[1]), mes, dia);
+    return d.getMonth() === mes && d.getDate() === dia ? d : null;
+  }
 
   const br = texto.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
   if (br) {
@@ -534,7 +544,8 @@ export const registrarNegocioGado: Handler = async ({
    *
    * `conferirOndeEstaOSaldo` devolve `null` quando pode seguir e uma pergunta
    * quando o saldo está em outro lugar. Não move sozinho: escolher de qual
-   * pasto tirar é do mesmo tipo de chute que o §14 proíbe.
+   * pasto tirar é do mesmo tipo de chute que o §14 do documento de REBANHO
+   * proíbe (aqui o §14 é parcelamento, outro assunto).
    */
   if (!compra) {
     for (const item of itens) {

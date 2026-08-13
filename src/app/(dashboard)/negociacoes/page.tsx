@@ -177,13 +177,23 @@ export default async function NegociacoesPage({
                     )}
                   </TableCell>
                   <TableCell>{n.contact_name ?? "não informado"}</TableCell>
+                  {/*
+                    §15 pede os quatro números separados: valor principal,
+                    custos adicionais, total da compra e líquido da venda. Antes
+                    o valor dos custos em si não aparecia em lugar nenhum da
+                    web, só o total já somado, então o produtor via a diferença
+                    e não sabia de onde ela vinha.
+                  */}
                   <TableCell className="tabular-nums">
                     {reais(n.totais.principal)}
                     {n.totais.custos > 0 && (
                       <span className="block text-xs text-gray-500">
-                        {venda
-                          ? `líquido ${reais(n.totais.liquido)}`
-                          : `com custos ${reais(n.totais.total)}`}
+                        {venda ? "menos" : "mais"} {reais(n.totais.custos)} de custos
+                        <span className="block">
+                          {venda
+                            ? `líquido ${reais(n.totais.liquido)}`
+                            : `total ${reais(n.totais.total)}`}
+                        </span>
                       </span>
                     )}
                   </TableCell>
