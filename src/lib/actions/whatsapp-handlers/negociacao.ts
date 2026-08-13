@@ -8,7 +8,6 @@ import {
   MAX_TENTATIVAS,
   type CampoNegocio,
 } from "@/lib/actions/negotiation-pending";
-import { findOrCreateContactByName } from "@/lib/actions/contacts";
 import {
   itensDosParametros,
   resolverCategoria,
@@ -56,14 +55,27 @@ function reais(v: number): string {
 }
 
 /**
- * Sempre `plural`, inclusive para uma cabeça só. `categories.ts` documenta o
- * porquê: o `label` ("Bezerro - 0 a 7 meses") fica estranho dentro de frase, e
- * "Comprar 1 Bezerro - 0 a 7 meses por R$ 500,00?" é justamente a frase que o
- * §2 pede para não parecer sistema contábil. Mesmo tratamento do handler de
- * rebanho, que o produtor lê na mesma conversa.
+ * O nome da categoria dentro de frase.
+ *
+ * Nunca o `label` ("Bezerro - 0 a 7 meses"): ele fica estranho no meio de uma
+ * pergunta, e "Comprar 1 Bezerro - 0 a 7 meses por R$ 500,00?" é exatamente o
+ * que o §2 pede para não parecer sistema contábil.
+ *
+ * Para uma cabeça só, o plural também não serve: "1 bezerros" está errado em
+ * português e o produtor lê isso. Aqui o plural é dobrado para o singular pela
+ * regra que cobre os 12 nomes reais ("bezerros" -> "bezerro", "fêmeas de 8 a 12
+ * meses" -> "fêmea de 8 a 12 meses"): só a primeira palavra flexiona, o resto é
+ * complemento de idade.
  */
+function nomeDaCategoria(categoria: HerdCategory, quantidade: number): string {
+  if (quantidade !== 1) return categoria.plural;
+  const [primeira, ...resto] = categoria.plural.split(" ");
+  const singular = primeira.replace(/s$/, "");
+  return [singular, ...resto].join(" ");
+}
+
 function descreverItens(itens: { categoria: HerdCategory; quantidade: number }[]): string {
-  return itens.map((i) => `${i.quantidade} ${i.categoria.plural}`).join(" e ");
+  return itens.map((i) => `${i.quantidade} ${nomeDaCategoria(i.categoria, i.quantidade)}`).join(" e ");
 }
 
 type CustoLido = { descricao: string; valor: number };
@@ -86,20 +98,28 @@ function custosDosParametros(parameters: Record<string, unknown>): CustoLido[] {
     }
     if (saida.length > 0) return saida;
   }
-  // A lista do §15, inteira. Antes só `frete`, `comissao` e `taxa` eram lidos, e
-  // "taxa de leilão", "carregamento", "guia de transporte" e "exames", todos
-  // citados no documento, sumiam em silêncio.
+  /**
+   * Os oito custos nomeados no §15, mais dois que aparecem na prática (vacinas
+   * e pedágio) e o `outros` que o próprio parágrafo prevê.
+   *
+   * Uma versão anterior dizia "a lista do §15, inteira" e faltavam
+   * DESCARREGAMENTO e TAXA DE FEIRA, ou seja, o comentário afirmava ter
+   * corrigido o sumiço silencioso enquanto dois itens continuavam sumindo.
+   */
   for (const [campo, rotulo] of [
     ["frete", "Frete"],
     ["comissao", "Comissão"],
     ["taxa", "Taxa"],
     ["taxa_leilao", "Taxa de leilão"],
+    ["taxa_feira", "Taxa de feira"],
     ["carregamento", "Carregamento"],
+    ["descarregamento", "Descarregamento"],
     ["guia", "Guia de transporte"],
     ["guia_transporte", "Guia de transporte"],
     ["exames", "Exames"],
     ["vacinas", "Vacinas"],
     ["pedagio", "Pedágio"],
+    ["outros", "Outros custos"],
   ] as const) {
     const valor = num(parameters[campo]);
     if (valor != null && valor > 0) saida.push({ descricao: rotulo, valor });
@@ -186,6 +206,30 @@ function interpretarData(bruto: string, hoje = new Date()): Date | null {
   }
 
   return null;
+}
+
+/**
+ * "3x", "3 vezes", "em tres vezes": o modelo repassa o que o produtor falou.
+ * Devolve `null` quando não há número nenhum, e aí o chamador PERGUNTA.
+ */
+function extrairNumeroDeParcelas(bruto: unknown): number | null {
+  if (typeof bruto !== "string") return null;
+  const achado = bruto.match(/(\d{1,2})/);
+  if (!achado) return null;
+  const n = Number(achado[1]);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+/**
+ * `pago` chega como booleano quando o classificador colabora e como "sim" /
+ * "já paguei" quando ele repassa a fala. Só o `true` explícito valia, e um
+ * "sim" virava conta em aberto sem ninguém notar.
+ */
+function interpretarSim(bruto: unknown): boolean {
+  if (bruto === true) return true;
+  if (typeof bruto !== "string") return false;
+  const texto = bruto.trim().toLowerCase();
+  return ["sim", "s", "ja paguei", "já paguei", "pago", "paguei", "true"].includes(texto);
 }
 
 /**
@@ -324,7 +368,18 @@ export const registrarNegocioGado: Handler = async ({
 
   // --- o que foi negociado -------------------------------------------------
 
-  const tipoBruto = (str(parameters.tipo) ?? str(parameters.negotiation_type) ?? "").toLowerCase();
+  // `movement_type` entra aqui porque é o campo que `desempatarIntencao` usa
+  // para converter uma movimentação de rebanho em negócio. Sem lê-lo, a
+  // informação que decidiu o roteamento era jogada fora e o assistente
+  // perguntava "foi uma compra ou uma venda?" logo depois de "comprei 20
+  // bezerros por 60 mil": a mesma família da pergunta repetida que custou uma
+  // rodada no Módulo 30.
+  const tipoBruto = (
+    str(parameters.tipo) ??
+    str(parameters.negotiation_type) ??
+    str(parameters.movement_type) ??
+    ""
+  ).toLowerCase();
   const type = TIPOS[tipoBruto];
   if (!type) {
     return perguntar(ask("Foi uma compra ou uma venda de animais?"), "tipo");
@@ -439,14 +494,23 @@ export const registrarNegocioGado: Handler = async ({
 
   const custos = custosDosParametros(parameters);
   const totalCustos = custos.reduce((s, c) => s + c.valor, 0);
-  const parcelasPedidas = num(parameters.parcelas) ?? num(parameters.installments);
+  const parcelasBruto = parameters.parcelas ?? parameters.installments;
+  const parcelasPedidas = num(parcelasBruto) ?? extrairNumeroDeParcelas(parcelasBruto);
+  if (parcelasBruto != null && parcelasPedidas == null) {
+    // "3x", "tres vezes": o modelo manda o que o produtor falou, e descartar
+    // calado faria a compra virar uma conta unica sem ninguem perceber.
+    return perguntar(
+      ask(`Não entendi o parcelamento "${String(parcelasBruto)}". Em quantas vezes?`),
+      "valor",
+    );
+  }
   const quantasParcelas =
     parcelasPedidas != null && Number.isInteger(parcelasPedidas) && parcelasPedidas > 1
       ? parcelasPedidas
       : null;
   // §6.3 e §7.3: "o pagamento já foi feito?". Sem parcelamento e sem alguém
   // dizer que pagou, o negócio nasce pendente, que é o caso comum de curral.
-  if (parameters.pago === true && quantasParcelas) {
+  if (interpretarSim(parameters.pago) && quantasParcelas) {
     // A API recusa esta contradição em vez de escolher por conta própria; aqui
     // seria pior escolher calado, porque o produtor nem vê o formulário.
     return perguntar(
@@ -454,7 +518,7 @@ export const registrarNegocioGado: Handler = async ({
       "valor",
     );
   }
-  const pago = parameters.pago === true;
+  const pago = interpretarSim(parameters.pago);
 
   const quando = dataDoNegocio.tipo === "ok" ? dataDoNegocio.data : new Date();
   // §6.3 e §7.3: quando não foi pago, o vencimento é o PRIMEIRO dado pedido
@@ -493,7 +557,18 @@ export const registrarNegocioGado: Handler = async ({
       );
     }
     if (quantasParcelas) {
-      linhas.push(`Em ${quantasParcelas}x de ${reais(valor / quantasParcelas)}, a partir do mês que vem`);
+      // As parcelas MOSTRADAS são as mesmas que serão gravadas: antes a tela
+      // dividia por conta própria e dizia "3x de R$ 33,33" enquanto o banco
+      // recebia 33,33 / 33,33 / 33,34. E "a partir do mês que vem" era falso
+      // num negócio retroativo, porque as datas contam a partir da data do
+      // negócio, não de hoje.
+      const previa = montarParcelas(valor, quantasParcelas, quando);
+      const iguais = previa.every((p) => p.amount === previa[0].amount);
+      linhas.push(
+        iguais
+          ? `Em ${quantasParcelas}x de ${reais(previa[0].amount)}, a primeira em ${previa[0].due_date.toLocaleDateString("pt-BR")}`
+          : `Em ${quantasParcelas}x: ${previa.map((p) => reais(p.amount)).join(" + ")}, a primeira em ${previa[0].due_date.toLocaleDateString("pt-BR")}`,
+      );
     } else if (pago) {
       linhas.push("Pagamento: já foi feito");
     } else if (vencimento) {
@@ -524,9 +599,6 @@ export const registrarNegocioGado: Handler = async ({
 
   // --- grava ---------------------------------------------------------------
 
-  // Depois do "sim": agora sim o contato pode nascer (§4, só o nome basta).
-  const contato = nomeContato ? await findOrCreateContactByName(db, nomeContato) : null;
-
   const resultado = await createCattleNegotiation(db, {
     type,
     property_id: fazenda.id,
@@ -536,7 +608,9 @@ export const registrarNegocioGado: Handler = async ({
       pasture_id: pasto.id,
     })),
     amount: valor,
-    contact_id: contato?.id ?? null,
+    // O nome vai para a action, que resolve ou cria DENTRO da transação: assim
+    // uma recusa por saldo não deixa o contato órfão no banco.
+    contact_name: nomeContato,
     due_date: vencimento,
     pago,
     parcelas: quantasParcelas ? montarParcelas(valor, quantasParcelas, quando) : undefined,

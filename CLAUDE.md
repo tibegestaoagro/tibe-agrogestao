@@ -115,6 +115,7 @@ fase do contrato. O usuário (Dilton) segue este protocolo com qualquer agente:
 | 28 | Ajustes financeiros e dashboard | ✅ em produção (`test:m29`) |
 | 29 | Minha Fazenda (fazenda + pastos) | ✅ em produção: `Property.city/district`, model `Pasture`, tela `/minha-fazenda`. V1 web only, sem WhatsApp |
 | 30 | **Rebanho como livro-razão** | 🚧 **em andamento**, branch `rebanho-livro-razao`: tarefas 1-2 de 6 |
+| 31 | **Negociações** (compra/venda de gado, contatos) | 🚧 **em andamento**, branch `negociacoes`: missão 1 de 4, sem merge. `test:m35` + `test:m36` |
 
 ⚠️ **A numeração de módulo NÃO bate com a de teste.** `test:mNN` é um contador
 de SUÍTES que descolou do número do módulo por volta do `m25`: o Módulo 26

@@ -113,7 +113,24 @@ export async function getCashFlow(
 
 export async function getDre(db: TenantPrismaClient, params: { start: Date; end: Date }) {
   const entries = await db.financialEntry.findMany({
-    where: { due_date: { gte: params.start, lte: params.end } },
+    /**
+     * Cancelado NÃO entra no resultado.
+     *
+     * A DRE é por competência, então ela ignora se a conta foi paga: o que ela
+     * não pode ignorar é uma linha que não representa mais nada. Até
+     * 2026-08-13 este `where` só filtrava data, e um lançamento `cancelled`
+     * seguia pesando no "Resultado do mês". Ficou latente enquanto cancelar
+     * era raro; o Módulo 31 tornou isso comum, porque cancelar uma negociação
+     * cancela as contas em aberto dela. Um negócio de R$ 60.000 desfeito
+     * continuava derrubando o resultado do mês em R$ 60.000.
+     *
+     * O fluxo de caixa (`getCashFlow`) nunca teve o problema: ele filtra
+     * `status: "paid"`, e cancelado nunca é pago.
+     */
+    where: {
+      due_date: { gte: params.start, lte: params.end },
+      status: { not: "cancelled" },
+    },
     select: { entry_type: true, amount: true, related_module: true },
   });
 

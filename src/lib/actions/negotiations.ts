@@ -49,6 +49,13 @@ export type NegociacaoGadoInput = {
   /** Valor PRINCIPAL combinado, sem os custos adicionais (§15). */
   amount: number;
   contact_id?: string | null;
+  /**
+   * Nome dito na conversa ("comprei 20 bezerros DO JOÃO", §18.1). Resolvido ou
+   * criado DENTRO da transação, para que uma recusa posterior (saldo
+   * insuficiente, por exemplo) não deixe o contato órfão no banco.
+   * Ignorado quando `contact_id` já vem preenchido.
+   */
+  contact_name?: string | null;
   occurred_at?: Date | null;
   /** §6.3 e §7.3: "o pagamento já foi feito?" */
   pago?: boolean;
@@ -227,12 +234,26 @@ export async function createCattleNegotiation(
 
   return comRollback(() =>
     runSerializableTenantTransaction(db, async (tx) => {
+    // §4: o contato nasce com só o nome, sem classificação. Busca exata (sem
+    // caixa) para "João" não casar com "João Pedro Silva" e pendurar a compra
+    // na pessoa errada.
+    let contactId = input.contact_id ?? null;
+    if (!contactId && input.contact_name?.trim()) {
+      const nome = input.contact_name.trim();
+      const existente = await tx.contact.findFirst({
+        where: { archived_at: null, name: { equals: nome, mode: "insensitive" } },
+      });
+      contactId = existente
+        ? existente.id
+        : (await tx.contact.create({ data: scoped({ name: nome }) })).id;
+    }
+
     const negociacao = await tx.negotiation.create({
       data: scoped({
         type: input.type,
         occurred_at,
         property_id: input.property_id,
-        contact_id: input.contact_id ?? null,
+        contact_id: contactId,
         amount: input.amount,
         notes: input.notes ?? null,
         recorded_by_user_id: input.recorded_by_user_id ?? null,
@@ -410,7 +431,15 @@ export async function getNegotiation(
     canceled_at: n.canceled_at,
     canceled_reason: n.canceled_reason,
     created_at: n.created_at,
-    situacao: derivarSituacao(n.canceled_at, principais),
+    // Todos os lançamentos, não só os principais: um negócio com o frete em
+    // aberto NÃO está pago, e mostrar "Quitada" enquanto o mesmo frete é somado
+    // em "Ainda tenho a pagar", no cabeçalho da mesma tela, é o painel se
+    // contradizendo. Estorno fica de fora: ele é o registro de que o dinheiro
+    // voltou, não uma conta do negócio.
+    situacao: derivarSituacao(
+      n.canceled_at,
+      lancamentos.filter((l) => l.negotiation_role !== "estorno"),
+    ),
     totais: {
       principal,
       custos,
@@ -514,20 +543,48 @@ export async function cancelNegotiation(
   id: string,
   reason: string,
   dinheiroPago: DestinoDoPagamento = "mantem",
+  /** §17.10: quem desfez. Sem isto, o evento mais sensível ficava sem autor. */
+  canceledByUserId?: string | null,
 ): Promise<ActionResult<{ id: string; valor_pago_mantido: number; valor_estornado: number }>> {
-  const negociacao = await db.negotiation.findFirst({
-    where: { id },
-    include: { movements: true },
-  });
-  if (!negociacao) return fail("NOT_FOUND", "Negociação não encontrada", 404);
-  if (negociacao.canceled_at) {
-    return fail("ALREADY_CANCELED", "Esta negociação já foi cancelada", 422);
-  }
-
   return comRollback(() =>
     runSerializableTenantTransaction(db, async (tx) => {
     /**
-     * O QUE JÁ FOI PAGO CONTINUA PAGO. §17.9 manda **alertar**, não bloquear.
+     * A leitura e a guarda ficam DENTRO da transação, de propósito.
+     *
+     * `runSerializableTenantTransaction` reexecuta o callback inteiro em caso
+     * de P2034 (conflito de serialização). Com a guarda do lado de fora, dois
+     * cancelamentos concorrentes levavam a um reexecutar sem passar de novo
+     * pela checagem de `canceled_at`, criando um SEGUNDO lançamento de estorno
+     * com a mesma data: o produtor veria o dinheiro voltando duas vezes.
+     */
+    const negociacao = await tx.negotiation.findFirst({
+      where: { id },
+      include: { movements: true },
+    });
+    if (!negociacao) {
+      throw new AbortarNegociacao({
+        ok: false,
+        code: "NOT_FOUND",
+        message: "Negociação não encontrada",
+        status: 404,
+      });
+    }
+    if (negociacao.canceled_at) {
+      throw new AbortarNegociacao({
+        ok: false,
+        code: "ALREADY_CANCELED",
+        message: "Esta negociação já foi cancelada",
+        status: 422,
+      });
+    }
+
+    /**
+     * O QUE FAZER COM O QUE JÁ FOI PAGO.
+     *
+     * Isto NÃO vem do §17.9: aquele parágrafo fala de ITEM já utilizado,
+     * vendido ou movimentado, e está atendido logo abaixo, na conferência de
+     * saldo. O que segue é decisão de produto, tomada com o usuário em
+     * 2026-08-13, sem parágrafo que a exija.
      *
      * Duas versões anteriores erraram aqui, em direções opostas. A primeira
      * marcava `cancelled` TODO lançamento, inclusive os `paid`: uma compra de
@@ -640,9 +697,13 @@ export async function cancelNegotiation(
       });
     }
 
-    // Lançamento financeiro cancelado, não apagado: o §17.10 exige o histórico,
-    // e o status `cancelled` já existe e já é ignorado pelo DRE e pelo caixa.
-    // Só os pendentes chegam aqui: pago trava o cancelamento lá em cima.
+    // Só as contas em ABERTO. O que já foi pago foi tratado acima, conforme
+    // `dinheiroPago`. Cancelado, não apagado: o §17.10 exige o histórico.
+    //
+    // O DRE passou a ignorar `cancelled` em 2026-08-13 (`financial-reports.ts`):
+    // até então filtrava só por data, e um negócio desfeito continuava pesando
+    // no "Resultado do mês". O fluxo de caixa nunca teve o problema, porque
+    // filtra `status: "paid"`.
     await tx.financialEntry.updateMany({
       where: { negotiation_id: id, status: "pending" },
       data: { status: "cancelled" },
@@ -650,7 +711,11 @@ export async function cancelNegotiation(
 
     await tx.negotiation.update({
       where: { id },
-      data: { canceled_at: new Date(), canceled_reason: reason },
+      data: {
+        canceled_at: new Date(),
+        canceled_reason: reason,
+        canceled_by_user_id: canceledByUserId ?? null,
+      },
     });
 
     return ok({

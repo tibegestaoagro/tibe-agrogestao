@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { cancelMovement } from "@/lib/actions/herd-ledger";
+import { getDre } from "@/lib/actions/financial-reports";
 import { createContact, listContacts, findOrCreateContactByName } from "@/lib/actions/contacts";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { getPositions, recordMovement } from "@/lib/actions/herd-ledger";
@@ -572,6 +573,43 @@ async function main() {
       );
     }
 
+    console.log("\n21. Negócio cancelado sai do RESULTADO DO MÊS");
+    // Bug real e anterior a este módulo: `getDre` filtrava só por data, sem
+    // olhar status, então um lançamento `cancelled` continuava pesando no
+    // "Resultado do mês" do Financeiro. Ficou latente enquanto cancelar era
+    // raro; este módulo tornou isso o caminho comum, porque cancelar uma
+    // negociação cancela as contas em aberto dela.
+    const inicioDoMes = new Date();
+    inicioDoMes.setDate(1);
+    inicioDoMes.setHours(0, 0, 0, 0);
+    const fimDoMes = new Date(inicioDoMes.getFullYear(), inicioDoMes.getMonth() + 1, 0, 23, 59, 59);
+
+    const dreAntes = await getDre(db, { start: inicioDoMes, end: fimDoMes });
+    const rebanhoAntes = dreAntes.by_module.find((m) => m.module === "rebanho")!.total_expense;
+
+    const paraSairDoDre = await createCattleNegotiation(db, {
+      ...base,
+      itens: [{ category_id: "bezerro_0_7", quantity: 4 }],
+      amount: 40000,
+      pago: false,
+      due_date: new Date(),
+    });
+    if (paraSairDoDre.ok) {
+      const dreComNegocio = await getDre(db, { start: inicioDoMes, end: fimDoMes });
+      check(
+        dreComNegocio.by_module.find((m) => m.module === "rebanho")!.total_expense ===
+          rebanhoAntes + 40000,
+        "a compra a prazo entra no resultado do mês por competência (§ DRE)",
+      );
+
+      await cancelNegotiation(db, paraSairDoDre.data.id, "desfeito");
+      const dreDepois = await getDre(db, { start: inicioDoMes, end: fimDoMes });
+      check(
+        dreDepois.by_module.find((m) => m.module === "rebanho")!.total_expense === rebanhoAntes,
+        `e SAI quando o negócio é cancelado (antes ${rebanhoAntes}, depois ${dreDepois.by_module.find((m) => m.module === "rebanho")!.total_expense})`,
+      );
+    }
+
     console.log("\n15. §16: o rótulo depende do TIPO, não só da situação");
     // Já houve inversão de sinal aqui: uma venda em aberto aparecia como
     // "A pagar", na única coluna que o produtor lê de relance.
@@ -642,6 +680,34 @@ async function main() {
       Math.round(totais.aReceber * 100) === Math.round(esperadoReceber * 100),
       `"ainda tenho a receber" bate com o banco (${totais.aReceber} vs ${esperadoReceber})`,
     );
+    // A comparação acima usa a MESMA consulta da implementação, então prova
+    // pouco sozinha: o que ela pega é a paginação. O ramo de receita precisa de
+    // um valor de verdade, senão "0 vs 0" passa sem nunca ter sido exercitado.
+    const vendaEmAberto = await createCattleNegotiation(db, {
+      type: "venda_gado",
+      property_id: fazenda.id,
+      itens: [{ category_id: "femea_36_mais", quantity: 3 }],
+      amount: 21000,
+      pago: false,
+      due_date: new Date("2027-01-15"),
+    });
+    if (vendaEmAberto.ok) {
+      const comReceita = await getOpenTotals(db);
+      check(
+        Math.round((comReceita.aReceber - totais.aReceber) * 100) === Math.round(21000 * 100),
+        `uma venda em aberto soma exatamente em "a receber" (${totais.aReceber} -> ${comReceita.aReceber})`,
+      );
+      check(
+        comReceita.aPagar === totais.aPagar,
+        "e NÃO vaza para 'a pagar', que é o erro que a separação por entry_type evita",
+      );
+      await cancelNegotiation(db, vendaEmAberto.data.id, "limpando o teste");
+      const depoisDeCancelar = await getOpenTotals(db);
+      check(
+        Math.round(depoisDeCancelar.aReceber * 100) === Math.round(totais.aReceber * 100),
+        "e negócio cancelado sai da conta, em vez de continuar prometendo dinheiro",
+      );
+    }
 
     console.log("\n18. Movimento de negócio não se desfaz pela porta do rebanho");
     const comMovimento = await createCattleNegotiation(db, {

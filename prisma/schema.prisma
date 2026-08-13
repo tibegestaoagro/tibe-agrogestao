@@ -1254,6 +1254,10 @@ model Negotiation {
   /// é cancelar os filhos, e a linha permanece no histórico (§17.10).
   canceled_at     DateTime?
   canceled_reason String?
+  /// §17.10 pede "usuário responsável" no histórico. Sem esta coluna, o evento
+  /// que mais importa auditar (desfazer um negócio, que mexe em rebanho E
+  /// dinheiro) era o único sem autor.
+  canceled_by_user_id String?
 
   created_at DateTime @default(now())
 

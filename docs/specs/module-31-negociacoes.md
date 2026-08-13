@@ -118,3 +118,44 @@ aborta e é reconvertido fora da transação (`AbortarNegociacao` em
 3 parcelas são 6 escritas que ou entram todas ou nenhuma. Por isso existe
 `recordMovementInTx`, que é o corpo sem a transação. Chamar `recordMovement` em
 sequência abriria uma transação por movimento.
+
+
+---
+
+## 6. Registrado na revisão de 2026-08-13 (terceira rodada de juiz)
+
+Coisas do documento do cliente que NÃO estão na missão 1, para não ficarem nem
+feitas nem adiadas:
+
+- **§19, os nove filtros da tela** (hoje, esta semana, este mês, este ano,
+  período, tipo, fazenda, contato, situação). A action `listNegotiations` já
+  aceita filtro; a tela só herda o seletor global de propriedade. Fica para a
+  rodada seguinte, junto com o histórico do aceite 23, porque filtro sem
+  volume de dado é enfeite: o primeiro cliente com 200 negócios é quem define
+  quais filtros importam de verdade.
+- **§13, formas de pagamento** (dinheiro, pix, boleto, prazo...). Não foi
+  implementado nem citado. O §14 já cobre PARCELAMENTO, que é o que muda o
+  financeiro; a forma em si é informação descritiva. Entra com o Estoque
+  (missão 2), onde a mesma escolha aparece na compra de insumo.
+- **§6.2 e §7.2 pedem pasto** de destino e de origem. O caminho do WhatsApp lê
+  e grava; **o formulário web ainda não tem o campo**. Diferença conhecida e
+  registrada, não descuido.
+- **Aceite 23 do §21 ("Consultar o histórico")** não estava atribuído a missão
+  nenhuma na tabela acima. Fica na missão 2, junto com os filtros do §19.
+
+Divergências deliberadas de vocabulário em relação ao §16, todas a favor do §2
+("a área não deverá ter aparência ou linguagem de um sistema contábil"):
+
+- "Confirmada" virou **"A pagar"** (compra) e **"A receber"** (venda). O
+  produtor não lê "confirmada" como estado de dinheiro.
+- **"Vencida"** foi acrescentada. O §16 não a lista para a negociação, só o
+  §14 a lista para a parcela, mas uma negociação com parcela vencida precisa
+  se distinguir de uma em dia na única coluna que se lê de relance.
+- "Paga" virou **"Quitada"** (compra) e **"Recebida"** (venda), acompanhando a
+  distinção que o próprio §16 faz entre os dois lados.
+
+Escolha registrada sobre o estorno: quando o produtor diz que **o dinheiro
+voltou**, o estorno cobre o valor pago INTEIRO, inclusive frete e comissão. Na
+prática esses custos raramente voltam, mas oferecer devolução parcial exigiria
+uma terceira tela de conferência de valores no meio de um cancelamento. Se o
+uso real mostrar que atrapalha, o lugar de mexer é `cancelNegotiation`.

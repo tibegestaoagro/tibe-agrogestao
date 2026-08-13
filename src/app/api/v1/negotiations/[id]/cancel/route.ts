@@ -47,6 +47,7 @@ export async function POST(
     params.id,
     parsed.data.reason,
     parsed.data.dinheiro_pago ?? "mantem",
+    g.user.id,
   );
   if (!result.ok) return apiError(result.code, result.message, result.status);
 

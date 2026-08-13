@@ -9,7 +9,7 @@ import {
   clearPendingNegotiation,
   loadPendingNegotiation,
 } from "@/lib/actions/negotiation-pending";
-import { desempatarIntencao } from "@/lib/actions/whatsapp-router";
+import { desempatarIntencao, routeIntent } from "@/lib/actions/whatsapp-router";
 import { getPositions, recordMovement } from "@/lib/actions/herd-ledger";
 import { POST as executeAction } from "@/app/api/internal/whatsapp/execute-action/route";
 import type { HandlerCtx } from "@/lib/actions/whatsapp-handlers/shared";
@@ -407,6 +407,33 @@ async function main() {
       desempatarIntencao("consultar_rebanho", { valor: 10 }) === "consultar_rebanho",
     );
 
+    // TESTAR A FUNÇÃO PURA NÃO BASTA. O desempate decide lendo `movement_type`,
+    // e o handler de destino não lia esse campo: o produtor dizia "comprei 20
+    // bezerros por 60 mil" e ouvia de volta "foi uma compra ou uma venda?". A
+    // suíte ficava verde com o defeito vivo porque só a função isolada era
+    // exercitada. Agora o teste vai pela `routeIntent`, que é o caminho real.
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    const pelaRota = await routeIntent(db, {
+      tenant_id: tenant.id,
+      role: "OWNER",
+      activeProfiles: ["fazenda"],
+      intent: "registrar_movimentacao_rebanho",
+      parameters: { movement_type: "compra", categoria: "bezerro", quantidade: 20, valor: 60000 },
+      confirmed: false,
+      explicitNo: false,
+      user_id: USUARIO,
+    });
+    check(
+      "a frase que o desempate converteu NÃO volta perguntando compra ou venda",
+      !pelaRota.reply_text.includes("compra ou uma venda"),
+      pelaRota.reply_text,
+    );
+    check(
+      "ela chega direto na confirmação do negócio",
+      pelaRota.requires_confirmation === true && pelaRota.reply_text.includes("20 bezerros"),
+      pelaRota.reply_text,
+    );
+
     // ------------------------------------------------------------------
     console.log("\n10. Sem usuário identificado, o 'sim' NÃO escreve");
     // ------------------------------------------------------------------
@@ -529,10 +556,22 @@ async function main() {
       ctx(db, tenant.id, { tipo: "compra", categoria: "bezerro", quantidade: 1, valor: 500 }),
     );
     check(
-      "usa o plural coloquial, não o rótulo de tabela dentro da frase",
-      umaCabeca.reply_text.includes("1 bezerros") &&
+      'diz "1 bezerro", não "1 bezerros" nem o rótulo de tabela',
+      umaCabeca.reply_text.includes("1 bezerro por") &&
+        !umaCabeca.reply_text.includes("1 bezerros") &&
         !umaCabeca.reply_text.includes("Bezerro - 0 a 7 meses"),
       umaCabeca.reply_text,
+    );
+    // A regra do singular vale para os nomes compostos também: só a primeira
+    // palavra flexiona, o resto é complemento de idade.
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    const umaFemea = await registrarNegocioGado(
+      ctx(db, tenant.id, { tipo: "compra", categoria: "femea_8_12", quantidade: 1, valor: 900 }),
+    );
+    check(
+      'e "1 fêmea de 8 a 12 meses", não "1 fêmeas de 8 a 12 meses"',
+      umaFemea.reply_text.includes("1 fêmea de 8 a 12 meses"),
+      umaFemea.reply_text,
     );
 
     // ------------------------------------------------------------------
