@@ -322,7 +322,8 @@ model User {
   agent_flows        AgentFlowState[]
   refresh_tokens     RefreshToken[]
   herd_movements     HerdMovement[]
-  negotiations       Negotiation[]
+  negotiations          Negotiation[] @relation("NegotiationRecordedBy")
+  negotiations_canceled Negotiation[] @relation("NegotiationCanceledBy")
   push_subscriptions PushSubscription[]
 
   @@index([tenant_id])
@@ -1264,7 +1265,10 @@ model Negotiation {
   tenant      Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   property    Property         @relation(fields: [property_id], references: [id], onDelete: Cascade)
   contact     Contact?         @relation(fields: [contact_id], references: [id], onDelete: SetNull)
-  recorded_by User?            @relation(fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
+  recorded_by User?            @relation("NegotiationRecordedBy", fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
+  /// §17.10: sem a relação, o campo do usuário responsável podia apontar para
+  /// um id que não existe mais, e o nome de quem cancelou não era consultável.
+  canceled_by User?            @relation("NegotiationCanceledBy", fields: [canceled_by_user_id], references: [id], onDelete: SetNull)
   movements   HerdMovement[]
   entries     FinancialEntry[]
 

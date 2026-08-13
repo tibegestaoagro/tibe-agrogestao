@@ -573,6 +573,29 @@ async function main() {
       );
     }
 
+    console.log("\n25. Contato não fica órfão quando a negociação é recusada");
+    // A criação do contato foi movida para DENTRO da transação com essa
+    // justificativa, e a justificativa não tinha prova. É o mesmo lugar em que
+    // uma afirmação sem prova já precisou ser corrigida antes.
+    const contatosAntesDaRecusa = await db.contact.count();
+    const vendaSemSaldoComContato = await createCattleNegotiation(db, {
+      type: "venda_gado",
+      property_id: fazenda.id,
+      itens: [{ category_id: "femea_36_mais", quantity: 99999 }],
+      amount: 500000,
+      contact_name: "Frigorífico Que Não Deve Existir",
+      pago: false,
+    });
+    check(!vendaSemSaldoComContato.ok, "a venda sem saldo é recusada");
+    check(
+      (await db.contact.count()) === contatosAntesDaRecusa,
+      `e o contato citado NÃO foi criado (${contatosAntesDaRecusa} -> ${await db.contact.count()})`,
+    );
+    check(
+      (await db.contact.findFirst({ where: { name: "Frigorífico Que Não Deve Existir" } })) === null,
+      "confirmado pelo nome: o rollback levou o contato junto",
+    );
+
     console.log("\n22. VENDA com custos: estorno não pode somar receita com despesa");
     // O caso que quebrava. Numa venda o principal é RECEITA e os custos são
     // DESPESA; somar os dois com o mesmo sinal errava o estorno em exatamente

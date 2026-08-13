@@ -69,9 +69,20 @@ function reais(v: number): string {
  */
 function nomeDaCategoria(categoria: HerdCategory, quantidade: number): string {
   if (quantidade !== 1) return categoria.plural;
-  const [primeira, ...resto] = categoria.plural.split(" ");
-  const singular = primeira.replace(/s$/, "");
-  return [singular, ...resto].join(" ");
+  /**
+   * Cada palavra que é plural vira singular, até a primeira preposição.
+   *
+   * "garrotes reprodutores" é duas palavras no plural, e uma versão anterior
+   * flexionava só a primeira, produzindo "garrote reprodutores". Já em "fêmeas
+   * de 8 a 12 meses" o "meses" é complemento de idade e NÃO pode virar "mese":
+   * a preposição marca onde o nome acaba.
+   */
+  const palavras = categoria.plural.split(" ");
+  const fim = palavras.findIndex((p) => p === "de" || p === "da" || p === "do");
+  const limite = fim === -1 ? palavras.length : fim;
+  return palavras
+    .map((p, i) => (i < limite ? p.replace(/s$/, "") : p))
+    .join(" ");
 }
 
 function descreverItens(itens: { categoria: HerdCategory; quantidade: number }[]): string {
@@ -209,6 +220,38 @@ function interpretarData(bruto: string, hoje = new Date()): Date | null {
 }
 
 /**
+ * Dinheiro dito na conversa.
+ *
+ * `num("60.000")` devolve 60, porque em JavaScript o ponto é separador
+ * decimal: uma compra de sessenta mil viraria sessenta reais. O que salvava
+ * até aqui era a confirmação obrigatória imprimindo o valor antes de gravar,
+ * mas depender de o produtor conferir não é trava. Dinheiro era o último campo
+ * do handler que ainda confiava no formato do LLM, enquanto data, parcelamento
+ * e "pago" já tinham leitor próprio.
+ *
+ * Aceita número puro, "60000", "60.000", "60.000,50" e "60000.50".
+ */
+function lerDinheiro(parameters: Record<string, unknown>, ...campos: string[]): number | null {
+  for (const campo of campos) {
+    const bruto = parameters[campo];
+    if (typeof bruto === "number" && Number.isFinite(bruto)) return bruto;
+    if (typeof bruto !== "string" || bruto.trim() === "") continue;
+
+    const texto = bruto.trim().replace(/r\$\s*/i, "");
+    // Vírgula presente: formato brasileiro, ponto é milhar.
+    // Sem vírgula: ponto SÓ é decimal quando sobram 1 ou 2 casas no fim.
+    const normalizado = texto.includes(",")
+      ? texto.replace(/\./g, "").replace(",", ".")
+      : /\.\d{1,2}$/.test(texto)
+        ? texto
+        : texto.replace(/\./g, "");
+    const n = Number(normalizado);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+/**
  * "3x", "3 vezes", "em tres vezes": o modelo repassa o que o produtor falou.
  * Devolve `null` quando não há número nenhum, e aí o chamador PERGUNTA.
  */
@@ -342,18 +385,40 @@ export const registrarNegocioGado: Handler = async ({
   }
 
   if (pendente?.aguardando === "pagamento") {
-    // Única mesclagem que REMOVE: ver o comentário da contradição, abaixo.
+    /**
+     * Única mesclagem que REMOVE um campo: ver o comentário da contradição,
+     * abaixo. E o `else` no fim é obrigatório.
+     *
+     * Sem ele, uma resposta que não casasse com nenhum dos dois ramos ("a
+     * prazo", "ainda não") deixava `parameters` valendo só a mensagem nova: os
+     * animais, o valor, o vendedor e a data sumiam de uma vez, e o assistente
+     * recomeçava do zero com o contador de tentativas limpo, sem nem cair na
+     * trava de laço. O ramo criado para tornar a pergunta respondível abria um
+     * caminho de perda silenciosa, que é o defeito que este arquivo mais
+     * combate.
+     */
     const dito = (
       str(parametrosDaMensagem.pagamento) ??
+      str(parametrosDaMensagem.pago) ??
       str(parametrosDaMensagem.resposta) ??
       ""
     ).toLowerCase();
-    if (interpretarSim(parametrosDaMensagem.pago) || /pago|paguei|vista/.test(dito)) {
+    const disseQuePagou =
+      interpretarSim(parametrosDaMensagem.pago) || /pago|paguei|vista/.test(dito);
+    const disseQueParcela =
+      /parcel|vezes|prazo|\dx/.test(dito) || parametrosDaMensagem.parcelas != null;
+
+    if (disseQuePagou && !disseQueParcela) {
       parameters = { ...pendente.parameters, pago: true };
       delete parameters.parcelas;
       delete parameters.installments;
-    } else if (/parcel|vezes|\dx/.test(dito) || parametrosDaMensagem.parcelas != null) {
+    } else if (disseQueParcela) {
       parameters = { ...pendente.parameters, ...parametrosDaMensagem, pago: false };
+      delete parameters.pago;
+    } else {
+      // Não deu para entender: o pendente continua valendo INTEIRO, e a
+      // pergunta se repete até a trava de laço, que é o comportamento certo.
+      parameters = { ...pendente.parameters, ...parametrosDaMensagem };
     }
   } else if (pendente && pendente.aguardando !== "confirmacao") {
     const juntado = aplicarRespostaNegocio(pendente, parametrosDaMensagem);
@@ -431,7 +496,7 @@ export const registrarNegocioGado: Handler = async ({
     itens.push({ categoria: resolvida.categoria, quantidade: item.quantidade });
   }
 
-  const valor = num(parameters.valor) ?? num(parameters.amount) ?? num(parameters.valor_total);
+  const valor = lerDinheiro(parameters, "valor", "amount", "valor_total");
   if (valor == null || valor <= 0) {
     return perguntar(
       ask(compra ? "Por quanto você comprou?" : "Por quanto você vendeu?"),
@@ -480,7 +545,11 @@ export const registrarNegocioGado: Handler = async ({
         pasto.id,
         item.quantidade,
       );
-      if (ondeEsta) return perguntar(ondeEsta, "categoria");
+      // "pasto", não "categoria": a resposta a esta pergunta é o NOME DO PASTO,
+      // e `atalho()` já mapeia `pasto` para `pasto_origem`. Com "categoria", a
+      // resposta nunca casava e o contador de tentativas era compartilhado com
+      // a pergunta de faixa de idade, fazendo a conversa desistir antes da hora.
+      if (ondeEsta) return perguntar(ondeEsta, "pasto");
     }
   }
 

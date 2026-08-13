@@ -159,3 +159,28 @@ voltou**, o estorno cobre o valor pago INTEIRO, inclusive frete e comissão. Na
 prática esses custos raramente voltam, mas oferecer devolução parcial exigiria
 uma terceira tela de conferência de valores no meio de um cancelamento. Se o
 uso real mostrar que atrapalha, o lugar de mexer é `cancelNegotiation`.
+
+
+## 8. Registrado na revisão de 2026-08-13 (quinta rodada de juiz)
+
+**§17.2 ("apresentar um resumo para confirmação") no formulário web.** O
+caminho do WhatsApp cumpre com um resumo explícito e um "sim". O formulário
+web envia no clique, sem uma segunda tela. A leitura adotada é que **o
+formulário preenchido É o resumo**: ele mostra, ao vivo e antes do envio, o
+custo total da compra, o valor líquido da venda e a soma das parcelas, que são
+exatamente os números que um resumo mostraria, e o botão diz o que vai
+acontecer. Uma segunda tela repetindo os mesmos campos seria fricção sem
+informação nova. No WhatsApp o resumo é indispensável porque lá o produtor NÃO
+vê o formulário: ele só tem a frase que falou.
+
+Se o cliente entender que o §17.2 exige a etapa extra também na web, é uma
+tela a mais, não uma mudança de modelo.
+
+**Compra e venda sem valor.** A regra de desempate manda TODA compra e TODA
+venda de gado para `registrar_negocio_gado`, mesmo sem valor na frase, e o
+assistente pergunta o valor. A regra anterior deixava a frase sem valor no
+livro-razão do rebanho, e o efeito era "comprei 20 bezerros" registrando 20
+cabeças e zero dinheiro, em silêncio, contra o §6.1 (valor total obrigatório),
+o §17.3 (a compra gera despesa ou conta a pagar) e o §18.6 (perguntar o dado
+indispensável que falta). Correção de livro-razão sem dinheiro continua
+possível pelos tipos que não são comerciais.

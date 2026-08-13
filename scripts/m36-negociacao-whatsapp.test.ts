@@ -385,14 +385,31 @@ async function main() {
       desempatarIntencao("registrar_movimentacao_rebanho", { movement_type: "venda", amount: "500" }) ===
         "registrar_negocio_gado",
     );
+    // Compra e venda SEM valor também são negócio, e o assistente PERGUNTA o
+    // valor. A regra anterior mandava essas frases para o rebanho, e o efeito
+    // era o oposto do que o documento pede: "comprei 20 bezerros" registrava 20
+    // cabeças e zero dinheiro, calado, enquanto o §6.1 lista o valor como
+    // obrigatório e o §17.3 diz que a compra gera despesa ou conta a pagar.
     check(
-      "compra SEM valor continua no rebanho (correção de livro-razão, sem dinheiro)",
+      "compra SEM valor também vira negócio, para o valor ser PERGUNTADO (§6.1, §17.3, §18.6)",
       desempatarIntencao("registrar_movimentacao_rebanho", { movement_type: "compra" }) ===
-        "registrar_movimentacao_rebanho",
+        "registrar_negocio_gado",
     );
     check(
-      "valor zero não é negócio",
-      desempatarIntencao("registrar_movimentacao_rebanho", { movement_type: "compra", valor: 0 }) ===
+      "e venda sem valor também",
+      desempatarIntencao("registrar_movimentacao_rebanho", { movement_type: "venda" }) ===
+        "registrar_negocio_gado",
+    );
+    check(
+      "saldo inicial NÃO vira negócio: é correção de livro-razão, sem dinheiro",
+      desempatarIntencao("registrar_movimentacao_rebanho", {
+        movement_type: "saldo_inicial",
+        quantidade: 50,
+      }) === "registrar_movimentacao_rebanho",
+    );
+    check(
+      "ajuste também não",
+      desempatarIntencao("registrar_movimentacao_rebanho", { movement_type: "ajuste" }) ===
         "registrar_movimentacao_rebanho",
     );
     check(
@@ -763,6 +780,81 @@ async function main() {
         resolveu.reply_text.includes("já foi feito") &&
         !resolveu.reply_text.includes("Em 3x"),
       resolveu.reply_text,
+    );
+
+    // ------------------------------------------------------------------
+    console.log("\n22. Resposta que não dá para entender NÃO apaga o negócio");
+    // ------------------------------------------------------------------
+    // O ramo criado para tornar a pergunta da contradição respondível não podia
+    // ter uma saída sem `else`: sem ela, uma resposta fora dos dois padrões
+    // deixava `parameters` valendo só a mensagem nova, e os animais, o valor e o
+    // vendedor sumiam de uma vez, com o contador de tentativas zerado.
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    await registrarNegocioGado(
+      ctx(
+        db,
+        tenant.id,
+        {
+          tipo: "compra",
+          categoria: "bezerro",
+          quantidade: 9,
+          valor: 18000,
+          pago: true,
+          parcelas: 2,
+        },
+        { userId: USUARIO },
+      ),
+    );
+    const respostaSemSentido = await registrarNegocioGado(
+      ctx(db, tenant.id, { pagamento: "sei lá" }, { userId: USUARIO }),
+    );
+    check(
+      "repete a pergunta em vez de recomeçar do zero",
+      respostaSemSentido.reply_text.includes("já foi pago ou vai ser parcelado"),
+      respostaSemSentido.reply_text,
+    );
+    const aindaTemTudo = await loadPendingNegotiation(tenant.id, USUARIO);
+    check(
+      "e o negócio inteiro continua guardado (9 bezerros, R$ 18.000)",
+      aindaTemTudo?.parameters.quantidade === 9 && aindaTemTudo?.parameters.valor === 18000,
+      JSON.stringify(aindaTemTudo?.parameters),
+    );
+
+    // ------------------------------------------------------------------
+    console.log("\n23. Valor em formato brasileiro");
+    // ------------------------------------------------------------------
+    // `num("60.000")` devolve 60 em JavaScript: uma compra de sessenta mil
+    // viraria sessenta reais. Era o último campo do handler que ainda confiava
+    // no formato do modelo.
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    const valorBr = await registrarNegocioGado(
+      ctx(db, tenant.id, { tipo: "compra", categoria: "bezerro", quantidade: 20, valor: "60.000" }),
+    );
+    check(
+      '"60.000" é sessenta mil, não sessenta',
+      valorBr.reply_text.includes("60.000,00"),
+      valorBr.reply_text,
+    );
+    const valorComCentavos = await registrarNegocioGado(
+      ctx(db, tenant.id, { tipo: "compra", categoria: "bezerro", quantidade: 1, valor: "1.234,56" }),
+    );
+    check(
+      '"1.234,56" mantém os centavos',
+      valorComCentavos.reply_text.includes("1.234,56"),
+      valorComCentavos.reply_text,
+    );
+
+    // ------------------------------------------------------------------
+    console.log("\n24. Singular das categorias com duas palavras");
+    // ------------------------------------------------------------------
+    const umGarrote = await registrarNegocioGado(
+      ctx(db, tenant.id, { tipo: "compra", categoria: "garrote_reprodutor", quantidade: 1, valor: 5000 }),
+    );
+    check(
+      '"1 garrote reprodutor", não "1 garrote reprodutores"',
+      umGarrote.reply_text.includes("1 garrote reprodutor") &&
+        !umGarrote.reply_text.includes("reprodutores"),
+      umGarrote.reply_text,
     );
 
     // ------------------------------------------------------------------

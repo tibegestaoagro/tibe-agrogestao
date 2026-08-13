@@ -1,4 +1,4 @@
-import type { NegotiationType, Prisma } from "@/generated/prisma/client";
+import type { NegotiationType, Prisma, FinancialEntryStatus } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { runSerializableTenantTransaction, createLinkedEntry } from "@/lib/financial";
 import { recordMovementInTx, getPositions, type HerdPositionKey } from "@/lib/actions/herd-ledger";
@@ -160,6 +160,17 @@ async function comRollback<T>(
     throw err;
   }
 }
+
+/**
+ * Os status que ainda representam uma conta viva.
+ *
+ * `overdue` entra junto com `pending` em TODOS os pontos: nada no código grava
+ * esse status hoje, mas o enum existe, a tela do Financeiro filtra por ele e
+ * oferece cancelamento para ele. No dia em que alguém passar a gravá-lo, olhar
+ * só `pending` faria um negócio cancelado deixar uma conta atrasada viva, e a
+ * situação derivada deixaria de enxergar o atraso.
+ */
+const EM_ABERTO: FinancialEntryStatus[] = ["pending", "overdue"];
 
 /** Comparação de dinheiro em centavos: `0.1 + 0.2 !== 0.3` em ponto flutuante. */
 function centavos(v: number): number {
@@ -358,7 +369,7 @@ function derivarSituacao(
   // vencimento hoje, nascer "vencido" milissegundos depois.
   const inicioDeHoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
   const vencida = lancamentosPrincipais.some(
-    (l) => l.status === "pending" && l.due_date != null && l.due_date < inicioDeHoje,
+    (l) => (EM_ABERTO as string[]).includes(l.status) && l.due_date != null && l.due_date < inicioDeHoje,
   );
   if (vencida) return "vencida";
 
@@ -754,7 +765,7 @@ export async function cancelNegotiation(
     // no "Resultado do mês". O fluxo de caixa nunca teve o problema, porque
     // filtra `status: "paid"`.
     await tx.financialEntry.updateMany({
-      where: { negotiation_id: id, status: "pending" },
+      where: { negotiation_id: id, status: { in: EM_ABERTO } },
       data: { status: "cancelled" },
     });
 
@@ -820,7 +831,7 @@ export async function getOpenTotals(
 ): Promise<{ aPagar: number; aReceber: number }> {
   const lancamentos = await db.financialEntry.findMany({
     where: {
-      status: "pending",
+      status: { in: EM_ABERTO },
       negotiation: {
         canceled_at: null,
         ...(filtro.property_id ? { property_id: filtro.property_id } : {}),

@@ -66,19 +66,32 @@ const HANDLERS: Record<Exclude<Intent, "ambigua">, Handler> = {
 /**
  * DESEMPATE ENTRE AS DUAS INTENÇÕES DE COMPRA E VENDA, EM CÓDIGO.
  *
- * "Comprei 20 bezerros por 60 mil" satisfaz tanto
- * `registrar_movimentacao_rebanho` (com `movement_type: "compra"` e um valor,
- * que já grava `HerdMovement` + `FinancialEntry`) quanto
- * `registrar_negocio_gado`. Deixar a escolha só para o prompt do classificador
- * significaria dois caminhos de escrita para o mesmo gesto, e a decisão 1 da
- * spec deste módulo descarta isso com o argumento de que "caminho duplicado é
- * onde o dado diverge".
+ * "Comprei 20 bezerros" satisfaz tanto `registrar_movimentacao_rebanho` (com
+ * `movement_type: "compra"`) quanto `registrar_negocio_gado`. Deixar a escolha
+ * só para o prompt do classificador significaria dois caminhos de escrita para
+ * o mesmo gesto, e a decisão 1 da spec deste módulo descarta isso com o
+ * argumento de que "caminho duplicado é onde o dado diverge".
  *
- * A regra: compra ou venda COM valor é sempre negócio. Não se perde nada, pois
- * a negociação grava o mesmo movimento de rebanho e o mesmo lançamento
- * financeiro, e ainda amarra os dois num envelope que o produtor consegue
- * cancelar de uma vez. Compra e venda SEM valor continuam no rebanho: é a
- * correção de livro-razão, que não tem dinheiro envolvido.
+ * A regra: **compra e venda de gado são SEMPRE negócio**, com ou sem valor na
+ * frase.
+ *
+ * Uma versão anterior exigia valor para converter, e o que ficava sem valor
+ * seguia pelo rebanho. O efeito era o oposto do que o documento do cliente
+ * pede: "Comprei 20 bezerros" registrava 20 cabeças e ZERO dinheiro, em
+ * silêncio, enquanto o §6.1 e o §7.1 listam o valor total como informação
+ * OBRIGATÓRIA, o §17.3 e o §17.4 dizem que a compra "aumenta o Rebanho e gera
+ * despesa ou conta a pagar", e o §18.6 manda o assistente PERGUNTAR o dado que
+ * falta. Perguntar é o que o handler de negócio já faz ("Por quanto você
+ * comprou?"), e é a resposta certa.
+ *
+ * De quebra, isso mantém a conversa inteira num único pendente: com a regra
+ * antiga, "comprei 10 novilhas" abria um pendente no rebanho e o "por 45 mil"
+ * seguinte trocava de handler, abrindo um pendente vazio do outro lado, e o
+ * produtor ouvia de novo "quantos animais e de qual categoria?".
+ *
+ * Correção de livro-razão sem dinheiro continua possível pelos tipos que não
+ * são comerciais (`saldo_inicial`, `ajuste`, `nascimento`, `morte`,
+ * transferências), que é o que eles significam.
  *
  * Função pura, testada em `test:m36`: a regra não pode viver só no prompt.
  */
@@ -90,10 +103,6 @@ export function desempatarIntencao(
 
   const tipo = typeof parameters.movement_type === "string" ? parameters.movement_type : parameters.tipo;
   if (tipo !== "compra" && tipo !== "venda") return intent;
-
-  const bruto = parameters.valor ?? parameters.amount ?? parameters.valor_total;
-  const valor = typeof bruto === "number" ? bruto : typeof bruto === "string" ? Number(bruto) : NaN;
-  if (!Number.isFinite(valor) || valor <= 0) return intent;
 
   return "registrar_negocio_gado";
 }
