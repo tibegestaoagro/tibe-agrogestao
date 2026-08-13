@@ -475,6 +475,23 @@ existentes sem regressão, mais isolation, docs-api, nav, tsc, eslint e build.
 2. **`recordMovement` abre a própria transação.** Para operação composta, use
    `recordMovementInTx`, extraído para isso.
 
+**VALIDADO EM NAVEGADOR REAL (2026-08-13).** Registrei uma compra de 20
+bezerros por R$ 60.000 em 3 parcelas, com R$ 2.000 de comissão, e conferi as
+duas pontas:
+
+- Tela: "ainda tenho a pagar R$ 62.000,00", linha com "R$ 60.000,00 / com
+  custos R$ 62.000,00", situação "A pagar", categoria "Bezerro - 0 a 7 meses".
+- Rebanho: subiu de 270 para **290** sozinho, sem nenhum lançamento manual.
+- Banco: 1 `Negotiation`, 1 `HerdMovement` (compra, 20, bezerro_0_7) e 4
+  `FinancialEntry` (3 parcelas `principal` vencendo em set/out/nov, mais 1
+  `custo_adicional` de 2.000).
+
+É a promessa do §22 funcionando ponta a ponta: o produtor registrou UMA vez e
+o rebanho e o financeiro se atualizaram sozinhos.
+
+**Falta na missão 1:** intenções de WhatsApp (comprei/vendi gado), juiz
+subagente com a rubrica R1-R5 exigindo nota >= 8, e o relatório de evidências.
+
 **Próximo passo exato:** rotas `/api/v1/negotiations` e `/api/v1/contacts`,
 atualizar a lista de `/docs/api` (o `test:docs-api` reprova se esquecer), tela
 `/negociacoes` validada em navegador real, intenções de WhatsApp, e o juiz
