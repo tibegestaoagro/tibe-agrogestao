@@ -742,6 +742,27 @@ async function main() {
         { userId: USUARIO },
       ),
     );
+    // "dia 10" é SEMPRE o mês corrente, mesmo que o dia já tenha passado
+    // (decisão do usuário, 2026-08-13). Empurrar para o mês seguinte esconderia
+    // uma conta vencida e tiraria o lançamento do mês a que ele pertence.
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    const soDia = await registrarNegocioGado(
+      ctx(
+        db,
+        tenant.id,
+        { tipo: "compra", categoria: "bezerro", quantidade: 3, valor: 7000, vencimento: "dia 1" },
+        { userId: USUARIO },
+      ),
+    );
+    const primeiroDesteMes = new Date();
+    primeiroDesteMes.setDate(1);
+    check(
+      '"dia 1" cai no mês corrente mesmo já tendo passado, para a conta aparecer VENCIDA',
+      soDia.reply_text.includes(primeiroDesteMes.toLocaleDateString("pt-BR")),
+      soDia.reply_text,
+    );
+
+    await clearPendingNegotiation(tenant.id, USUARIO);
     check(
       "data que não dá para entender vira PERGUNTA, não sumiço",
       dataRuim.reply_text.includes("Não entendi a data"),

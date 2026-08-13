@@ -514,6 +514,64 @@ async function main() {
       );
     }
 
+    console.log("\n20. O dinheiro já pago: as três saídas, todas na mesma tela");
+    // Decisão do usuário (2026-08-13): correto contabilmente, mas sem obrigar
+    // o produtor a um segundo passo no Financeiro.
+    const comPagamento = async (quantidade: number, valor: number) =>
+      await createCattleNegotiation(db, {
+        ...base,
+        itens: [{ category_id: "bezerro_0_7", quantity: quantidade }],
+        amount: valor,
+        pago: true,
+      });
+
+    const paraManter = await comPagamento(2, 4000);
+    if (paraManter.ok) {
+      const r = await cancelNegotiation(db, paraManter.data.id, "desfeito", "mantem");
+      check(r.ok, "mantem: cancela");
+      check(
+        r.ok && r.data.valor_pago_mantido === 4000 && r.data.valor_estornado === 0,
+        `mantem: o dinheiro continua lançado (mantido ${r.ok ? r.data.valor_pago_mantido : "-"})`,
+      );
+      const d = await getNegotiation(db, paraManter.data.id);
+      check(
+        d?.lancamentos.every((l) => l.status === "paid") === true,
+        "mantem: a despesa segue paga, porque saiu mesmo",
+      );
+    }
+
+    const paraDevolver = await comPagamento(2, 5000);
+    if (paraDevolver.ok) {
+      const r = await cancelNegotiation(db, paraDevolver.data.id, "vendedor devolveu", "devolvido");
+      check(r.ok && r.data.valor_estornado === 5000, "devolvido: registra o estorno");
+      const d = await getNegotiation(db, paraDevolver.data.id);
+      const estorno = d?.lancamentos.find((l) => l.negotiation_role === "estorno");
+      check(estorno != null, "devolvido: nasce um lançamento de estorno");
+      check(
+        estorno?.entry_type === "income",
+        `devolvido: numa COMPRA o estorno é entrada (obtido: ${estorno?.entry_type})`,
+      );
+      check(
+        d?.lancamentos.some((l) => l.negotiation_role === "principal" && l.status === "paid") === true,
+        "devolvido: a despesa original NÃO é apagada, senão o mês em que o dinheiro saiu fecharia errado",
+      );
+    }
+
+    const foiEngano = await comPagamento(2, 3000);
+    if (foiEngano.ok) {
+      const r = await cancelNegotiation(db, foiEngano.data.id, "digitei errado", "engano");
+      check(r.ok && r.data.valor_pago_mantido === 0, "engano: nada continua lançado");
+      const d = await getNegotiation(db, foiEngano.data.id);
+      check(
+        d?.lancamentos.every((l) => l.status === "cancelled") === true,
+        `engano: o pagamento que nunca existiu some (obtido: ${d?.lancamentos.map((l) => l.status).join(", ")})`,
+      );
+      check(
+        d?.lancamentos.every((l) => l.negotiation_role !== "estorno") === true,
+        "engano: e NÃO inventa um estorno de dinheiro que nunca voltou",
+      );
+    }
+
     console.log("\n15. §16: o rótulo depende do TIPO, não só da situação");
     // Já houve inversão de sinal aqui: uma venda em aberto aparecia como
     // "A pagar", na única coluna que o produtor lê de relance.

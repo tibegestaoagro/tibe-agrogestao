@@ -492,11 +492,29 @@ export async function listNegotiations(
  * animais que entraram por ela já saíram. Aqui a checagem é a mesma, feita
  * antes de mexer em qualquer coisa.
  */
+/**
+ * O que fazer com o dinheiro que JÁ FOI PAGO, quando o negócio é cancelado.
+ *
+ * As três são realidades diferentes do curral, e o produtor resolve na mesma
+ * tela, sem sair para o Financeiro (decisão do usuário, 2026-08-13: correto
+ * contabilmente, mas sem exigir desvio).
+ *
+ * - `mantem`: paguei e o dinheiro não voltou. A despesa continua lançada,
+ *   porque saiu mesmo. É o padrão, e o único que não inventa nada.
+ * - `devolvido`: o dinheiro voltou. Gera um lançamento de ESTORNO com a data de
+ *   hoje, em vez de apagar o original: saiu num mês e voltou em outro, e o DRE
+ *   dos dois meses precisa contar a história como ela aconteceu.
+ * - `engano`: o pagamento nunca existiu, foi erro de digitação. Aí o lançamento
+ *   é cancelado, porque não há nada que ele represente no mundo.
+ */
+export type DestinoDoPagamento = "mantem" | "devolvido" | "engano";
+
 export async function cancelNegotiation(
   db: TenantPrismaClient,
   id: string,
   reason: string,
-): Promise<ActionResult<{ id: string; valor_pago_mantido: number }>> {
+  dinheiroPago: DestinoDoPagamento = "mantem",
+): Promise<ActionResult<{ id: string; valor_pago_mantido: number; valor_estornado: number }>> {
   const negociacao = await db.negotiation.findFirst({
     where: { id },
     include: { movements: true },
@@ -522,17 +540,54 @@ export async function cancelNegotiation(
      * uma ação que a tela do Financeiro não oferece para lançamento pago.
      *
      * A resposta certa é contábil, não de permissão: cancelar um negócio não
-     * des-gasta o dinheiro. Os animais voltam, as contas em aberto somem, e o
-     * que saiu da conta permanece lançado, porque saiu mesmo. Se houve
-     * devolução, ela é uma entrada nova, com data própria.
+     * des-gasta o dinheiro. Os animais voltam, as contas em ABERTO somem, e o
+     * que já saiu da conta segue o que `dinheiroPago` disser (ver
+     * `DestinoDoPagamento`), resolvido na mesma tela, sem desvio para o
+     * Financeiro.
      *
-     * O produtor precisa SABER disso, então o resultado devolve quanto ficou.
+     * O resultado devolve quanto ficou e quanto foi estornado, para a resposta
+     * ao produtor dizer o que aconteceu com o dinheiro dele.
      */
     const pagos = await tx.financialEntry.findMany({
       where: { negotiation_id: id, status: "paid" },
-      select: { amount: true },
+      select: { id: true, amount: true, entry_type: true },
     });
-    const valorPagoMantido = pagos.reduce((s, l) => s + Number(l.amount), 0);
+    const totalPago = pagos.reduce((s, l) => s + Number(l.amount), 0);
+
+    let valorPagoMantido = totalPago;
+    let valorEstornado = 0;
+
+    if (pagos.length > 0 && dinheiroPago === "devolvido") {
+      /**
+       * O dinheiro voltou: lançamento NOVO, de sinal contrário, com a data de
+       * hoje. Apagar a despesa original faria o mês em que o dinheiro saiu
+       * fechar como se nada tivesse saído, e o mês em que voltou como se nada
+       * tivesse entrado: dois fechamentos errados em vez de zero.
+       */
+      const compra = negociacao.type === "compra_gado";
+      await createLinkedEntry(tx, {
+        entry_type: compra ? "income" : "expense",
+        category: compra ? "Devolução de compra de animal" : "Devolução de venda de animal",
+        amount: totalPago,
+        related_module: "rebanho",
+        related_id: id,
+        occurred_at: new Date(),
+        status: "paid",
+        negotiation_id: id,
+        negotiation_role: "estorno",
+      });
+      valorEstornado = totalPago;
+      valorPagoMantido = 0;
+    }
+
+    if (pagos.length > 0 && dinheiroPago === "engano") {
+      // O pagamento nunca existiu: não há nada no mundo que a linha represente.
+      await tx.financialEntry.updateMany({
+        where: { id: { in: pagos.map((l) => l.id) } },
+        data: { status: "cancelled" },
+      });
+      valorPagoMantido = 0;
+    }
 
     for (const movimento of negociacao.movements) {
       if (movimento.canceled_at) continue;
@@ -598,7 +653,11 @@ export async function cancelNegotiation(
       data: { canceled_at: new Date(), canceled_reason: reason },
     });
 
-    return ok({ id, valor_pago_mantido: valorPagoMantido });
+    return ok({
+      id,
+      valor_pago_mantido: valorPagoMantido,
+      valor_estornado: valorEstornado,
+    });
     }),
   );
 }

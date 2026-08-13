@@ -16,10 +16,15 @@ import { cancelNegotiation, getNegotiation, serializeNegotiation } from "@/lib/a
  * O §17.9 pede alerta quando parte do item já foi movimentada: a action
  * recusa com 422 e explica quantos animais restam, em vez de cancelar em
  * cascata coisas que o produtor não pediu para desfazer.
+ *
+ * `dinheiro_pago` resolve, na mesma chamada, o que fazer com o que já saiu da
+ * conta. Sem ele, o produtor teria que ir ao Financeiro num segundo passo, e a
+ * tela de lá nem oferece ação para lançamento pago.
  */
 
 const cancelSchema = z.object({
   reason: z.string().trim().min(1, "Informe o motivo do cancelamento").max(500),
+  dinheiro_pago: z.enum(["mantem", "devolvido", "engano"]).nullish(),
 });
 
 export async function POST(
@@ -37,9 +42,18 @@ export async function POST(
     return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
   }
 
-  const result = await cancelNegotiation(g.db, params.id, parsed.data.reason);
+  const result = await cancelNegotiation(
+    g.db,
+    params.id,
+    parsed.data.reason,
+    parsed.data.dinheiro_pago ?? "mantem",
+  );
   if (!result.ok) return apiError(result.code, result.message, result.status);
 
   const detalhe = await getNegotiation(g.db, params.id);
-  return apiOk(detalhe ? serializeNegotiation(detalhe) : { id: params.id });
+  return apiOk(detalhe ? serializeNegotiation(detalhe) : { id: params.id }, {
+    // Aditivo: a tela usa para dizer ao produtor o que aconteceu com o dinheiro.
+    valor_pago_mantido: result.data.valor_pago_mantido,
+    valor_estornado: result.data.valor_estornado,
+  });
 }

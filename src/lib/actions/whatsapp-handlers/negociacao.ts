@@ -167,16 +167,21 @@ function interpretarData(bruto: string, hoje = new Date()): Date | null {
   }
 
   /**
-   * Só o dia ("dia 10"). É a forma do §18.1, e sozinha ela é ambígua: quem diz
-   * "dia 10" no dia 13 quer o mês que vem. A regra é a que qualquer pessoa usa
-   * no balcão: dia já passado neste mês significa o próximo mês.
+   * Só o dia ("dia 10"), a forma do §18.1. É SEMPRE o mês corrente, mesmo que
+   * o dia já tenha passado.
+   *
+   * Uma versão anterior empurrava para o mês seguinte quando o dia já tinha
+   * passado, imitando o que se faz num balcão. Decisão do usuário, 2026-08-13,
+   * e ele tem razão: se hoje é 13 e o vencimento é dia 10, isso é uma conta
+   * VENCIDA, e o produtor precisa vê-la como vencida. Empurrar para o mês que
+   * vem esconderia um atraso real e tiraria o lançamento do mês a que ele
+   * pertence, sujando o fechamento dos dois meses.
    */
   const soDia = texto.match(/^(?:dia\s+)?(\d{1,2})$/);
   if (soDia) {
     const dia = Number(soDia[1]);
     if (dia < 1 || dia > 31) return null;
-    const mes = dia >= hoje.getDate() ? hoje.getMonth() : hoje.getMonth() + 1;
-    const d = aoMeioDia(hoje.getFullYear(), mes, dia);
+    const d = aoMeioDia(hoje.getFullYear(), hoje.getMonth(), dia);
     return d.getDate() === dia ? d : null;
   }
 
