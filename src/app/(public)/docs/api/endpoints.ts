@@ -394,10 +394,10 @@ export const GROUPS: Group[] = [
         path: "/api/v1/negotiations/:id/cancel",
         auth: "Sessão · rebanho:write · perfil fazenda",
         description:
-          "Cancela a negociação e, em cascata, os movimentos de rebanho e os lançamentos financeiros filhos. Não apaga nada: a linha continua no histórico. Devolve 422 `INSUFFICIENT_BALANCE` quando parte dos animais que entraram por esta negociação já saiu, dizendo quantos restam (§17.9), em vez de cancelar em cascata o que o produtor não pediu.",
-        request: `{ "reason": "comprei errado" }`,
+          "Cancela a negociação: os movimentos de rebanho voltam e as contas EM ABERTO são canceladas. Não apaga nada, a linha continua no histórico. Devolve 422 `INSUFFICIENT_BALANCE` quando parte dos animais que entraram por esta negociação já saiu, dizendo quantos restam (§17.9). O que já foi PAGO segue o `dinheiro_pago`: `mantem` (padrão) deixa lançado, porque o dinheiro saiu de verdade; `devolvido` cria um lançamento de estorno com a data de hoje, sem apagar o original, para os dois meses fecharem certo; `engano` cancela o lançamento, porque aquele pagamento nunca existiu. `meta` traz `valor_pago_mantido` e `valor_estornado`.",
+        request: `{ "reason": "comprei errado", "dinheiro_pago": "devolvido" }`,
         response: `200
-{ "data": { "id": "cl...", "situacao": "cancelada", "canceled_reason": "comprei errado" }, "meta": {} }`,
+{ "data": { "id": "cl...", "situacao": "cancelada", "canceled_reason": "comprei errado" }, "meta": { "valor_pago_mantido": 0, "valor_estornado": 60000 } }`,
       },
     ],
   },

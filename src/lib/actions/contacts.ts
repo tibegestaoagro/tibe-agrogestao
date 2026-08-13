@@ -1,6 +1,13 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, type ActionResult } from "@/lib/actions/types";
-import type { ContactType } from "@/generated/prisma/client";
+import type { ContactType, Prisma } from "@/generated/prisma/client";
+
+/**
+ * O mínimo que esta action precisa do client. Aceita tanto o client escopado
+ * quanto um `tx` de transação, que é o que permite criar o contato junto com a
+ * negociação, tudo ou nada.
+ */
+export type ContactClient = Pick<TenantPrismaClient, "contact"> | Prisma.TransactionClient;
 
 /**
  * Contatos de negociação (Módulo 31, §4 e §5).
@@ -15,6 +22,12 @@ import type { ContactType } from "@/generated/prisma/client";
  * do WhatsApp precisa da mesma criação ("comprei 20 bezerros DO JOÃO", §18.1) e
  * duplicá-la faria os dois caminhos divergirem, que é a razão do CLAUDE.md
  * exigir regra de negócio em `src/lib/actions`.
+ *
+ * `findOrCreateContact` aceita um `tx` justamente por isso: a criação a partir
+ * da conversa acontece DENTRO da transação da negociação, para uma recusa por
+ * saldo não deixar contato órfão. Uma versão anterior tinha uma cópia inline em
+ * `negotiations.ts` enquanto o comentário aqui afirmava que os dois caminhos
+ * compartilhavam a regra: era exatamente a divergência que ele dizia evitar.
  */
 
 export const CONTACT_TYPES = [
@@ -101,11 +114,17 @@ export async function createContact(
  * não altera saldo nem dinheiro: o risco de errar é um nome duplicado na lista,
  * não um número errado no rebanho.
  *
- * A busca é exata (sem acento e sem caixa) em vez de "contém": "João" não pode
- * casar com "João Pedro Silva" e pendurar a compra na pessoa errada.
+ * A busca é EXATA e ignora só a CAIXA, não o acento: `mode: "insensitive"` vira
+ * `ILIKE` no Postgres, que não normaliza acentuação. "Joao" e "João" viram dois
+ * contatos, e é uma limitação conhecida, não o que um comentário anterior
+ * afirmava ("sem acento"). Exata em vez de "contém" de propósito: "João" não
+ * pode casar com "João Pedro Silva" e pendurar a compra na pessoa errada.
+ *
+ * Aceita `tx` para a criação a partir da conversa acontecer dentro da transação
+ * da negociação.
  */
-export async function findOrCreateContactByName(
-  db: TenantPrismaClient,
+export async function findOrCreateContact(
+  db: ContactClient,
   nome: string,
 ): Promise<{ id: string; name: string; criado: boolean }> {
   const limpo = nome.trim();

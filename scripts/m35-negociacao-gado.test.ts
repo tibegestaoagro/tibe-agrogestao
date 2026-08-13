@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { cancelMovement } from "@/lib/actions/herd-ledger";
 import { getDre } from "@/lib/actions/financial-reports";
-import { createContact, listContacts, findOrCreateContactByName } from "@/lib/actions/contacts";
+import { createContact, listContacts, findOrCreateContact } from "@/lib/actions/contacts";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { getPositions, recordMovement } from "@/lib/actions/herd-ledger";
 import {
@@ -471,7 +471,7 @@ async function main() {
         `o dinheiro que saiu continua lançado como pago (obtido: ${depoisDoCancelamento?.lancamentos.map((l) => l.status).join(", ")})`,
       );
       check(
-        depoisDoCancelamento?.canceled_at !== null,
+        depoisDoCancelamento != null && depoisDoCancelamento.canceled_at instanceof Date,
         "e a negociação fica marcada como cancelada no histórico",
       );
     }
@@ -570,6 +570,113 @@ async function main() {
       check(
         d?.lancamentos.every((l) => l.negotiation_role !== "estorno") === true,
         "engano: e NÃO inventa um estorno de dinheiro que nunca voltou",
+      );
+    }
+
+    console.log("\n22. VENDA com custos: estorno não pode somar receita com despesa");
+    // O caso que quebrava. Numa venda o principal é RECEITA e os custos são
+    // DESPESA; somar os dois com o mesmo sinal errava o estorno em exatamente
+    // 2x os custos. Com o exemplo do §15 (venda 80.000, comissão 4.000, frete
+    // 1.500) o estorno saía como despesa de 85.500 e o resultado ia para
+    // -11.000, quando o certo é 0.
+    const vendaComCustos = await createCattleNegotiation(db, {
+      type: "venda_gado",
+      property_id: fazenda.id,
+      itens: [{ category_id: "femea_36_mais", quantity: 5 }],
+      amount: 80000,
+      pago: true,
+      custos: [
+        { descricao: "Comissão", amount: 4000 },
+        { descricao: "Frete", amount: 1500 },
+      ],
+    });
+    if (vendaComCustos.ok) {
+      const antesDeDesfazer = await getNegotiation(db, vendaComCustos.data.id);
+      check(
+        antesDeDesfazer?.situacao === "paga",
+        `venda recebida com frete pago: "paga" (obtida: ${antesDeDesfazer?.situacao})`,
+      );
+
+      const r = await cancelNegotiation(db, vendaComCustos.data.id, "comprador desistiu", "devolvido");
+      check(r.ok, "cancela com devolução", !r.ok ? r.message : "");
+      const d = await getNegotiation(db, vendaComCustos.data.id);
+      const estornos = d?.lancamentos.filter((l) => l.negotiation_role === "estorno") ?? [];
+
+      const estornoDespesa = estornos.filter((l) => l.entry_type === "expense");
+      const estornoReceita = estornos.filter((l) => l.entry_type === "income");
+      check(
+        estornoDespesa.reduce((s, l) => s + l.amount, 0) === 80000,
+        `o que foi RECEBIDO volta como despesa de 80.000 (obtido: ${estornoDespesa.reduce((s, l) => s + l.amount, 0)})`,
+      );
+      check(
+        estornoReceita.reduce((s, l) => s + l.amount, 0) === 5500,
+        `o que foi PAGO em custos volta como receita de 5.500 (obtido: ${estornoReceita.reduce((s, l) => s + l.amount, 0)})`,
+      );
+
+      // A prova que importa: depois do estorno, o negócio não deixa resultado.
+      const receitaLiquida =
+        (d?.lancamentos ?? [])
+          .filter((l) => l.status === "paid" && l.entry_type === "income")
+          .reduce((s, l) => s + l.amount, 0) -
+        (d?.lancamentos ?? [])
+          .filter((l) => l.status === "paid" && l.entry_type === "expense")
+          .reduce((s, l) => s + l.amount, 0);
+      check(
+        receitaLiquida === 0,
+        `o negócio desfeito não deixa resultado nenhum (obtido: ${receitaLiquida})`,
+      );
+    }
+
+    console.log("\n23. §16: venda recebida com frete EM ABERTO continua 'Recebida'");
+    // O erro oposto, que a correção anterior tinha criado: numa venda, o frete
+    // é despesa e não torna a venda "parcialmente recebida". Ele é uma conta a
+    // pagar de verdade, e aparece em "Ainda tenho a pagar".
+    const vendaComFreteAberto = await createCattleNegotiation(db, {
+      type: "venda_gado",
+      property_id: fazenda.id,
+      itens: [{ category_id: "femea_36_mais", quantity: 2 }],
+      amount: 12000,
+      pago: true,
+      custos: [{ descricao: "Frete", amount: 900 }],
+    });
+    if (vendaComFreteAberto.ok) {
+      // O frete nasce pago junto (pago: true). Deixa ele em aberto à mão, que é
+      // o caso real: recebi a venda, o frete eu pago depois.
+      const d0 = await getNegotiation(db, vendaComFreteAberto.data.id);
+      const frete = d0?.lancamentos.find((l) => l.negotiation_role === "custo_adicional");
+      await prisma.financialEntry.update({
+        where: { id: frete!.id },
+        data: { status: "pending", paid_at: null },
+      });
+      const d = await getNegotiation(db, vendaComFreteAberto.data.id);
+      check(
+        d?.situacao === "paga",
+        `venda inteiramente recebida continua "paga", mesmo com frete em aberto (obtida: ${d?.situacao})`,
+      );
+    }
+
+    console.log("\n24. §16: COMPRA com frete em aberto NÃO está quitada");
+    // E o outro lado da mesma regra: numa compra tudo é despesa, então o frete
+    // em aberto significa que ainda há o que pagar.
+    const compraComFreteAberto = await createCattleNegotiation(db, {
+      type: "compra_gado",
+      property_id: fazenda.id,
+      itens: [{ category_id: "bezerro_0_7", quantity: 2 }],
+      amount: 5000,
+      pago: true,
+      custos: [{ descricao: "Frete", amount: 700 }],
+    });
+    if (compraComFreteAberto.ok) {
+      const d0 = await getNegotiation(db, compraComFreteAberto.data.id);
+      const frete = d0?.lancamentos.find((l) => l.negotiation_role === "custo_adicional");
+      await prisma.financialEntry.update({
+        where: { id: frete!.id },
+        data: { status: "pending", paid_at: null, due_date: new Date("2027-06-01") },
+      });
+      const d = await getNegotiation(db, compraComFreteAberto.data.id);
+      check(
+        d?.situacao === "parcialmente_paga",
+        `compra com frete em aberto não é "Quitada" (obtida: ${d?.situacao})`,
       );
     }
 
@@ -747,7 +854,7 @@ async function main() {
       filtrada.length === 1 && filtrada[0].name === "Frigorífico Boi Bom",
       `filtro por tipo funciona (${filtrada.length})`,
     );
-    const achado = await findOrCreateContactByName(db, "zé da ponte");
+    const achado = await findOrCreateContact(db, "zé da ponte");
     check(
       !achado.criado && soNome.ok && achado.id === soNome.data.id,
       "acha o mesmo contato escrito em outra caixa, em vez de duplicar",

@@ -7,9 +7,10 @@ import { listContacts, createContact, CONTACT_TYPES } from "@/lib/actions/contac
  * GET  /api/v1/contacts   lista contatos de negociação (Módulo 31, §5)
  * POST /api/v1/contacts   cadastro simplificado
  *
- * Wrapper fino: a regra vive em `src/lib/actions/contacts.ts`, porque o
- * caminho do WhatsApp cria contato pela mesma porta (§18.1, "comprei 20
- * bezerros DO JOÃO").
+ * Wrapper fino: a regra vive em `src/lib/actions/contacts.ts`. O caminho do
+ * WhatsApp cria contato pela mesma porta (`findOrCreateContact`, chamada de
+ * dentro da transação da negociação), atendendo o §18.1 ("comprei 20 bezerros
+ * DO JOÃO") sem uma segunda implementação.
  *
  * Reusa o guard de "rebanho": o PRD §5.2 não define um módulo de permissão
  * para Negociações, e as matrizes de `rebanho` e `financeiro` são idênticas

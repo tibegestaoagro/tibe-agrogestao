@@ -518,10 +518,13 @@ async function main() {
 
     const contatoCriado = await db.contact.findFirst({ where: { name: "João" } });
     check("o contato João foi criado (§4: só o nome basta)", contatoCriado !== null);
-    const negExemplo = await db.negotiation.findFirst({
-      where: { contact_id: contatoCriado?.id },
-    });
-    check("e a negociação ficou pendurada nele", negExemplo !== null);
+    const negExemplo = contatoCriado
+      ? await db.negotiation.findFirst({ where: { contact_id: contatoCriado.id } })
+      : null;
+    check(
+      "e a negociação ficou pendurada nele",
+      contatoCriado != null && negExemplo != null && negExemplo.contact_id === contatoCriado.id,
+    );
     const contaDoExemplo = await db.financialEntry.findFirst({
       where: { negotiation_id: negExemplo?.id, negotiation_role: "principal" },
     });
@@ -654,6 +657,112 @@ async function main() {
       "e não pede confirmação enquanto isso não se resolve",
       vendaEmPasto.requires_confirmation === false,
       vendaEmPasto.reply_text,
+    );
+
+    // ------------------------------------------------------------------
+    console.log("\n20. As travas contra o formato que o modelo manda");
+    // ------------------------------------------------------------------
+    // Estas existem porque o classificador repassa o que o produtor falou, e
+    // não o formato ideal. Sem teste, elas eram promessa: o R5 do contrato pede
+    // par em código TESTADO, não só em código.
+
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    const pagoComoTexto = await registrarNegocioGado(
+      ctx(
+        db,
+        tenant.id,
+        { tipo: "compra", categoria: "bezerro", quantidade: 2, valor: 3000, pago: "sim" },
+        { userId: USUARIO },
+      ),
+    );
+    check(
+      '`pago: "sim"` conta como pago, em vez de virar conta em aberto calada',
+      pagoComoTexto.reply_text.includes("já foi feito"),
+      pagoComoTexto.reply_text,
+    );
+
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    const parcelasComoTexto = await registrarNegocioGado(
+      ctx(
+        db,
+        tenant.id,
+        { tipo: "compra", categoria: "bezerro", quantidade: 2, valor: 3000, parcelas: "3x" },
+        { userId: USUARIO },
+      ),
+    );
+    check(
+      '`parcelas: "3x"` vira 3 parcelas, em vez de uma conta única',
+      parcelasComoTexto.reply_text.includes("Em 3x"),
+      parcelasComoTexto.reply_text,
+    );
+
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    const parcelasComoObjeto = await registrarNegocioGado(
+      ctx(
+        db,
+        tenant.id,
+        {
+          tipo: "compra",
+          categoria: "bezerro",
+          quantidade: 2,
+          valor: 3000,
+          parcelas: [{ valor: 1500 }, { valor: 1500 }],
+        },
+        { userId: USUARIO },
+      ),
+    );
+    check(
+      "parcelamento em formato que não dá para ler vira pergunta",
+      parcelasComoObjeto.reply_text.includes("Em quantas vezes"),
+      parcelasComoObjeto.reply_text,
+    );
+    check(
+      'e NUNCA imprime "[object Object]" na cara do produtor',
+      !parcelasComoObjeto.reply_text.includes("[object Object]"),
+      parcelasComoObjeto.reply_text,
+    );
+
+    // ------------------------------------------------------------------
+    console.log("\n21. A contradição 'já paguei' + 'vou parcelar' TEM saída");
+    // ------------------------------------------------------------------
+    // A pergunta existia mas era irrespondível: a mesclagem é aditiva, então
+    // nenhuma resposta removia o campo antigo e o produtor girava até bater no
+    // limite de tentativas e ouvir "tente mandar tudo numa frase só".
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    const contradicao = await registrarNegocioGado(
+      ctx(
+        db,
+        tenant.id,
+        {
+          tipo: "compra",
+          categoria: "bezerro",
+          quantidade: 2,
+          valor: 3000,
+          pago: true,
+          parcelas: 3,
+        },
+        { userId: USUARIO },
+      ),
+    );
+    check(
+      "pergunta qual dos dois é",
+      contradicao.reply_text.includes("já foi pago ou vai ser parcelado"),
+      contradicao.reply_text,
+    );
+    const resolveu = await registrarNegocioGado(
+      ctx(db, tenant.id, { pagamento: "já paguei" }, { userId: USUARIO }),
+    );
+    check(
+      'responder "já paguei" SAI do impasse, em vez de repetir a pergunta',
+      !resolveu.reply_text.includes("já foi pago ou vai ser parcelado"),
+      resolveu.reply_text,
+    );
+    check(
+      "e chega na confirmação como pago à vista, sem parcelamento",
+      resolveu.requires_confirmation === true &&
+        resolveu.reply_text.includes("já foi feito") &&
+        !resolveu.reply_text.includes("Em 3x"),
+      resolveu.reply_text,
     );
 
     // ------------------------------------------------------------------

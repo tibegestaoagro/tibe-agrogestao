@@ -32,6 +32,9 @@ export type CampoNegocio =
   | "pasto"
   | "data"
   | "vencimento"
+  | "parcelamento"
+  /** A contradição "já paguei" + "vou parcelar". Responder LIMPA o lado oposto. */
+  | "pagamento"
   /** Não é campo: é o negócio inteiro esperando um "sim". */
   | "confirmacao";
 
@@ -121,6 +124,8 @@ function atalho(campo: CampoNegocio): string {
   if (campo === "pasto") return "pasto_origem";
   if (campo === "data") return "date";
   if (campo === "vencimento") return "due_date";
+  if (campo === "parcelamento") return "parcelas";
+  if (campo === "pagamento") return "pago";
   if (campo === "valor") return "amount";
   if (campo === "quantidade") return "quantity";
   if (campo === "tipo") return "negotiation_type";

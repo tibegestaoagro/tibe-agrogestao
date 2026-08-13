@@ -233,19 +233,31 @@ function interpretarSim(bruto: unknown): boolean {
 }
 
 /**
- * Parcelas (§14). Só o número de parcelas é aceito da conversa: pedir datas
- * uma a uma por WhatsApp seria pior que abrir o painel. As datas saem daí, uma
- * por mês, e a última parcela absorve o centavo da divisão para a soma bater
+ * Parcelas (§14). Só o número de parcelas é aceito da conversa: pedir datas uma
+ * a uma por WhatsApp seria pior que abrir o painel. As datas saem daí, uma por
+ * mês, e a última parcela absorve o centavo da divisão para a soma bater
  * exatamente com o valor combinado, que é o que a action exige.
+ *
+ * `primeiroVencimento` é o vencimento que o produtor disse ("para pagar dia
+ * 10"). Quando ele existe, é a data da PRIMEIRA parcela, e as outras contam a
+ * partir dela: o §6.3 pede vencimento e número de parcelas na mesma frase, e
+ * antes disso o vencimento dito era lido e depois descartado, com as parcelas
+ * contando da data do negócio.
  */
-function montarParcelas(total: number, quantas: number, base: Date) {
+function montarParcelas(
+  total: number,
+  quantas: number,
+  base: Date,
+  primeiroVencimento?: Date | null,
+) {
   const centavos = Math.round(total * 100);
   const fatia = Math.floor(centavos / quantas);
+  const inicio = primeiroVencimento ?? somarMeses(base, 1);
   const parcelas: { amount: number; due_date: Date }[] = [];
   for (let i = 0; i < quantas; i++) {
     parcelas.push({
       amount: (i === quantas - 1 ? centavos - fatia * (quantas - 1) : fatia) / 100,
-      due_date: somarMeses(base, i + 1),
+      due_date: i === 0 ? inicio : somarMeses(inicio, i),
     });
   }
   return parcelas;
@@ -329,7 +341,21 @@ export const registrarNegocioGado: Handler = async ({
     }
   }
 
-  if (pendente && pendente.aguardando !== "confirmacao") {
+  if (pendente?.aguardando === "pagamento") {
+    // Única mesclagem que REMOVE: ver o comentário da contradição, abaixo.
+    const dito = (
+      str(parametrosDaMensagem.pagamento) ??
+      str(parametrosDaMensagem.resposta) ??
+      ""
+    ).toLowerCase();
+    if (interpretarSim(parametrosDaMensagem.pago) || /pago|paguei|vista/.test(dito)) {
+      parameters = { ...pendente.parameters, pago: true };
+      delete parameters.parcelas;
+      delete parameters.installments;
+    } else if (/parcel|vezes|\dx/.test(dito) || parametrosDaMensagem.parcelas != null) {
+      parameters = { ...pendente.parameters, ...parametrosDaMensagem, pago: false };
+    }
+  } else if (pendente && pendente.aguardando !== "confirmacao") {
     const juntado = aplicarRespostaNegocio(pendente, parametrosDaMensagem);
     if (juntado) {
       parameters = juntado;
@@ -497,12 +523,14 @@ export const registrarNegocioGado: Handler = async ({
   const parcelasBruto = parameters.parcelas ?? parameters.installments;
   const parcelasPedidas = num(parcelasBruto) ?? extrairNumeroDeParcelas(parcelasBruto);
   if (parcelasBruto != null && parcelasPedidas == null) {
-    // "3x", "tres vezes": o modelo manda o que o produtor falou, e descartar
-    // calado faria a compra virar uma conta unica sem ninguem perceber.
-    return perguntar(
-      ask(`Não entendi o parcelamento "${String(parcelasBruto)}". Em quantas vezes?`),
-      "valor",
-    );
+    // "3x", "três vezes": o modelo manda o que o produtor falou, e descartar
+    // calado faria a compra virar uma conta única sem ninguém perceber.
+    //
+    // O texto só é ecoado quando ele é TEXTO. Uma lista estruturada
+    // (`parcelas: [{...}]`, que o classificador emite às vezes, como já emite
+    // para custos) virava "[object Object]" na cara do produtor.
+    const eco = typeof parcelasBruto === "string" ? ` "${parcelasBruto}"` : "";
+    return perguntar(ask(`Não entendi o parcelamento${eco}. Em quantas vezes?`), "parcelamento");
   }
   const quantasParcelas =
     parcelasPedidas != null && Number.isInteger(parcelasPedidas) && parcelasPedidas > 1
@@ -511,11 +539,18 @@ export const registrarNegocioGado: Handler = async ({
   // §6.3 e §7.3: "o pagamento já foi feito?". Sem parcelamento e sem alguém
   // dizer que pagou, o negócio nasce pendente, que é o caso comum de curral.
   if (interpretarSim(parameters.pago) && quantasParcelas) {
-    // A API recusa esta contradição em vez de escolher por conta própria; aqui
-    // seria pior escolher calado, porque o produtor nem vê o formulário.
+    /**
+     * A contradição vira pergunta, e a pergunta precisa ser RESPONDÍVEL.
+     *
+     * A mesclagem de resposta é aditiva por desenho (o que já foi dito não se
+     * perde), então uma resposta nova nunca removeria o campo antigo: quem
+     * dissesse "já paguei" continuaria com `parcelas: 3` e voltaria à mesma
+     * pergunta até bater no limite de tentativas. Por isso a resposta a ESTE
+     * campo limpa o lado contrário, que é a única forma de sair do impasse.
+     */
     return perguntar(
       ask("Esse negócio já foi pago ou vai ser parcelado? Não dá para os dois."),
-      "valor",
+      "pagamento",
     );
   }
   const pago = interpretarSim(parameters.pago);
@@ -562,7 +597,7 @@ export const registrarNegocioGado: Handler = async ({
       // recebia 33,33 / 33,33 / 33,34. E "a partir do mês que vem" era falso
       // num negócio retroativo, porque as datas contam a partir da data do
       // negócio, não de hoje.
-      const previa = montarParcelas(valor, quantasParcelas, quando);
+      const previa = montarParcelas(valor, quantasParcelas, quando, vencimento);
       const iguais = previa.every((p) => p.amount === previa[0].amount);
       linhas.push(
         iguais
@@ -613,7 +648,9 @@ export const registrarNegocioGado: Handler = async ({
     contact_name: nomeContato,
     due_date: vencimento,
     pago,
-    parcelas: quantasParcelas ? montarParcelas(valor, quantasParcelas, quando) : undefined,
+    parcelas: quantasParcelas
+      ? montarParcelas(valor, quantasParcelas, quando, vencimento)
+      : undefined,
     custos: custos.length > 0 ? custos.map((c) => ({ descricao: c.descricao, amount: c.valor })) : undefined,
     occurred_at: quando,
     recorded_by_user_id: user_id ?? null,

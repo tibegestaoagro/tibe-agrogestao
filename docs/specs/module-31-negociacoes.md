@@ -122,7 +122,7 @@ sequência abriria uma transação por movimento.
 
 ---
 
-## 6. Registrado na revisão de 2026-08-13 (terceira rodada de juiz)
+## 7. Registrado na revisão de 2026-08-13 (terceira rodada de juiz)
 
 Coisas do documento do cliente que NÃO estão na missão 1, para não ficarem nem
 feitas nem adiadas:

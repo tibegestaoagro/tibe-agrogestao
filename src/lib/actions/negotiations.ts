@@ -4,6 +4,7 @@ import { runSerializableTenantTransaction, createLinkedEntry } from "@/lib/finan
 import { recordMovementInTx, getPositions, type HerdPositionKey } from "@/lib/actions/herd-ledger";
 import { decToNum, isoOrNull } from "@/lib/serialize";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
+import { findOrCreateContact } from "@/lib/actions/contacts";
 
 /**
  * Área Negociações (docs/moduloNegociacao), missão 1: negócio de gado.
@@ -234,18 +235,12 @@ export async function createCattleNegotiation(
 
   return comRollback(() =>
     runSerializableTenantTransaction(db, async (tx) => {
-    // §4: o contato nasce com só o nome, sem classificação. Busca exata (sem
-    // caixa) para "João" não casar com "João Pedro Silva" e pendurar a compra
-    // na pessoa errada.
+    // §4: o contato nasce com só o nome, sem classificação. A regra vive em
+    // `contacts.ts` e roda com o `tx` desta transação: se a negociação for
+    // recusada adiante (saldo, por exemplo), o contato não fica órfão.
     let contactId = input.contact_id ?? null;
     if (!contactId && input.contact_name?.trim()) {
-      const nome = input.contact_name.trim();
-      const existente = await tx.contact.findFirst({
-        where: { archived_at: null, name: { equals: nome, mode: "insensitive" } },
-      });
-      contactId = existente
-        ? existente.id
-        : (await tx.contact.create({ data: scoped({ name: nome }) })).id;
+      contactId = (await findOrCreateContact(tx, input.contact_name)).id;
     }
 
     const negociacao = await tx.negotiation.create({
@@ -321,7 +316,11 @@ export async function createCattleNegotiation(
         related_module: "rebanho",
         related_id: negociacao.id,
         occurred_at,
-        due_date: occurred_at,
+        // Um custo em aberto NÃO vence na data do negócio: num registro
+        // retroativo ("comprei semana passada") ele nasceria vencido e marcaria
+        // a negociação inteira como "Vencida" no instante da criação. Segue o
+        // vencimento combinado; sem ele, a data do próprio registro.
+        due_date: input.pago ? occurred_at : (input.due_date ?? new Date()),
         status: input.pago ? "paid" : "pending",
         negotiation_id: negociacao.id,
         negotiation_role: "custo_adicional",
@@ -431,14 +430,31 @@ export async function getNegotiation(
     canceled_at: n.canceled_at,
     canceled_reason: n.canceled_reason,
     created_at: n.created_at,
-    // Todos os lançamentos, não só os principais: um negócio com o frete em
-    // aberto NÃO está pago, e mostrar "Quitada" enquanto o mesmo frete é somado
-    // em "Ainda tenho a pagar", no cabeçalho da mesma tela, é o painel se
-    // contradizendo. Estorno fica de fora: ele é o registro de que o dinheiro
-    // voltou, não uma conta do negócio.
+    /**
+     * A situação olha os lançamentos NA DIREÇÃO do negócio: despesa numa
+     * compra, receita numa venda.
+     *
+     * Isso resolve os dois erros opostos que já aconteceram aqui. Olhar só o
+     * `principal` deixava uma COMPRA com frete em aberto aparecendo como
+     * "Quitada" enquanto o mesmo frete era somado em "Ainda tenho a pagar" na
+     * mesma tela. Olhar TUDO fazia uma VENDA inteiramente recebida aparecer
+     * como "Parcialmente recebida", porque o frete dela é despesa e entrava na
+     * conta como se fosse um recebimento que faltou.
+     *
+     * Numa compra, principal e custos são os dois despesa, então ambos contam:
+     * o negócio só está quitado quando não sobra nada a pagar. Numa venda, o
+     * que se recebe é a receita; o frete é uma conta a pagar de verdade, que
+     * aparece em "Ainda tenho a pagar" e não torna a venda "parcialmente
+     * recebida". Estorno fica fora dos dois: ele registra que o dinheiro
+     * voltou, não é uma conta do negócio.
+     */
     situacao: derivarSituacao(
       n.canceled_at,
-      lancamentos.filter((l) => l.negotiation_role !== "estorno"),
+      lancamentos.filter(
+        (l) =>
+          l.negotiation_role !== "estorno" &&
+          l.entry_type === (n.type === "venda_gado" ? "income" : "expense"),
+      ),
     ),
     totais: {
       principal,
@@ -609,31 +625,64 @@ export async function cancelNegotiation(
       where: { negotiation_id: id, status: "paid" },
       select: { id: true, amount: true, entry_type: true },
     });
-    const totalPago = pagos.reduce((s, l) => s + Number(l.amount), 0);
 
-    let valorPagoMantido = totalPago;
+    /**
+     * SAÍDA E ENTRADA NÃO SE SOMAM. Cada lado é estornado com o sinal
+     * contrário AO SEU, nunca ao da negociação.
+     *
+     * Uma versão anterior somava tudo num `totalPago` e criava um único
+     * lançamento contrário ao tipo do negócio. Na COMPRA dava certo por
+     * coincidência, porque principal e custos são os dois despesa. Na VENDA
+     * não: o principal é receita e o frete é despesa, e somar os dois com o
+     * mesmo sinal errava o estorno em exatamente 2x os custos. Com o exemplo
+     * do §15 (venda de R$ 80.000, comissão 4.000, frete 1.500), o estorno saía
+     * como despesa de R$ 85.500 e o resultado ficava em -11.000 onde deveria
+     * ser 0.
+     */
+    const recebido = pagos
+      .filter((l) => l.entry_type === "income")
+      .reduce((s, l) => s + Number(l.amount), 0);
+    const desembolsado = pagos
+      .filter((l) => l.entry_type === "expense")
+      .reduce((s, l) => s + Number(l.amount), 0);
+
+    let valorPagoMantido = recebido + desembolsado;
     let valorEstornado = 0;
 
     if (pagos.length > 0 && dinheiroPago === "devolvido") {
       /**
-       * O dinheiro voltou: lançamento NOVO, de sinal contrário, com a data de
-       * hoje. Apagar a despesa original faria o mês em que o dinheiro saiu
-       * fechar como se nada tivesse saído, e o mês em que voltou como se nada
-       * tivesse entrado: dois fechamentos errados em vez de zero.
+       * O dinheiro voltou: lançamento NOVO, com a data de hoje. Apagar o
+       * original faria o mês em que o dinheiro saiu fechar como se nada tivesse
+       * saído, e o mês em que voltou como se nada tivesse entrado: dois
+       * fechamentos errados em vez de zero.
        */
-      const compra = negociacao.type === "compra_gado";
-      await createLinkedEntry(tx, {
-        entry_type: compra ? "income" : "expense",
-        category: compra ? "Devolução de compra de animal" : "Devolução de venda de animal",
-        amount: totalPago,
-        related_module: "rebanho",
-        related_id: id,
-        occurred_at: new Date(),
-        status: "paid",
-        negotiation_id: id,
-        negotiation_role: "estorno",
-      });
-      valorEstornado = totalPago;
+      if (desembolsado > 0) {
+        await createLinkedEntry(tx, {
+          entry_type: "income",
+          category: "Devolução de valor pago",
+          amount: desembolsado,
+          related_module: "rebanho",
+          related_id: id,
+          occurred_at: new Date(),
+          status: "paid",
+          negotiation_id: id,
+          negotiation_role: "estorno",
+        });
+      }
+      if (recebido > 0) {
+        await createLinkedEntry(tx, {
+          entry_type: "expense",
+          category: "Devolução de valor recebido",
+          amount: recebido,
+          related_module: "rebanho",
+          related_id: id,
+          occurred_at: new Date(),
+          status: "paid",
+          negotiation_id: id,
+          negotiation_role: "estorno",
+        });
+      }
+      valorEstornado = recebido + desembolsado;
       valorPagoMantido = 0;
     }
 
