@@ -2,7 +2,7 @@ import type { NegotiationType, Prisma } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { runSerializableTenantTransaction } from "@/lib/financial";
 import { recordMovementInTx, type HerdPositionKey } from "@/lib/actions/herd-ledger";
-import { decToNum } from "@/lib/serialize";
+import { decToNum, isoOrNull } from "@/lib/serialize";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 
 /**
@@ -514,4 +514,42 @@ export async function cancelNegotiation(
     return ok({ id });
     }),
   );
+}
+
+/**
+ * Contrato HTTP: `Date` vira ISO8601, `Decimal` vira number. Fica aqui, e não
+ * em serializers.ts, porque o tipo de origem é de action: mesmo motivo de
+ * `serializeBatch` viver em `animal-batches.ts`.
+ */
+export function serializeNegotiation(n: NegotiationDetail) {
+  return {
+    id: n.id,
+    type: n.type,
+    occurred_at: n.occurred_at.toISOString(),
+    property_id: n.property_id,
+    contact_id: n.contact_id,
+    contact_name: n.contact_name,
+    amount: n.amount,
+    notes: n.notes,
+    canceled_at: isoOrNull(n.canceled_at),
+    canceled_reason: n.canceled_reason,
+    created_at: n.created_at.toISOString(),
+    situacao: n.situacao,
+    totais: n.totais,
+    movimentos: n.movimentos.map((m) => ({
+      id: m.id,
+      movement_type: m.movement_type,
+      quantity: m.quantity,
+      canceled_at: isoOrNull(m.canceled_at),
+    })),
+    lancamentos: n.lancamentos.map((l) => ({
+      id: l.id,
+      entry_type: l.entry_type,
+      amount: l.amount,
+      status: l.status,
+      due_date: isoOrNull(l.due_date),
+      category: l.category,
+      negotiation_role: l.negotiation_role,
+    })),
+  };
 }
