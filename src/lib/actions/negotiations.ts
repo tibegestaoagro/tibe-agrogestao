@@ -158,11 +158,6 @@ function centavos(v: number): number {
   return Math.round(v * 100);
 }
 
-/** Moeda na mensagem ao produtor: "R$ 60.000,00", nunca "60000". */
-function reaisSimples(v: number): string {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
 function validar(input: NegociacaoGadoInput): { code: string; message: string } | null {
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
     return { code: "VALIDATION_ERROR", message: "Informe o valor total do negócio." };
