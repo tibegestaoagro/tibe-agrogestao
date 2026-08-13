@@ -1,8 +1,12 @@
 import "dotenv/config";
+import { cancelMovement } from "@/lib/actions/herd-ledger";
+import { createContact, listContacts, findOrCreateContactByName } from "@/lib/actions/contacts";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { getPositions, recordMovement } from "@/lib/actions/herd-ledger";
 import {
   cancelNegotiation,
+  getOpenTotals,
+  situacaoLabel,
   createCattleNegotiation,
   getNegotiation,
   listNegotiations,
@@ -22,10 +26,17 @@ import {
 
 let falhas = 0;
 /**
- * Ordem `(condição, nome)`, igual ao `assert` de m33 e m34. Escrevi este
- * helper na ordem inversa por engano e 42 das 43 verificações passaram a
- * receber uma string não vazia como condição, ou seja, passavam SEMPRE, sem
- * verificar nada. Quem pegou foi o `tsc`.
+ * Ordem `(condição, nome)`, igual ao `assert` do m33. **Atenção: o m34 e o m36
+ * usam a ordem INVERSA**, `(nome, condição)`, seguindo o padrão mais comum do
+ * repositório. As duas convivem, e a afirmação anterior deste comentário
+ * ("igual ao m33 e m34") estava errada.
+ *
+ * Por que isso merece um aviso: este helper nasceu na ordem trocada e 42 das 43
+ * verificações passaram a receber uma string não vazia como condição, ou seja,
+ * passavam SEMPRE, sem verificar nada. Quem pegou foi o `tsc`, que é o que
+ * continua protegendo as duas ordens hoje: `boolean` e `string` não se
+ * confundem em silêncio. Ao copiar um bloco de teste de um arquivo para o
+ * outro, confira a ordem antes de confiar no verde.
  */
 function check(cond: boolean, nome: string, detalhe?: string) {
   if (cond) console.log(`  ✅ ${nome}`);
@@ -420,33 +431,64 @@ async function main() {
       );
     }
 
-    // A TRAVA MAIS CARA DESTA RODADA. Antes dela, cancelar marcava `cancelled`
-    // TODO lançamento da negociação, inclusive os `paid`: uma compra quitada em
-    // janeiro, cancelada em março, sumia do DRE e do fluxo de caixa como se o
-    // dinheiro nunca tivesse saído da conta. O lado do rebanho já travava; o do
-    // dinheiro não travava nada.
+    // CANCELAR UM NEGÓCIO NÃO DES-GASTA O DINHEIRO.
+    //
+    // Duas versões erradas antecederam esta. A primeira marcava `cancelled` todo
+    // lançamento, inclusive os `paid`: uma compra quitada em janeiro, cancelada
+    // em março, sumia do DRE e do fluxo de caixa como se o dinheiro nunca
+    // tivesse saído da conta. A segunda recusou o cancelamento inteiro quando
+    // havia qualquer pago, e foi pior: o formulário nasce em "à vista", então o
+    // caminho mais comum do módulo passou a gerar um registro que ninguém
+    // conseguia desfazer, com uma mensagem mandando "desfazer o pagamento no
+    // Financeiro", ação que a tela não oferece para lançamento pago.
+    //
+    // A resposta certa é contábil: os animais voltam, as contas em aberto somem,
+    // e o que saiu da conta permanece lançado, porque saiu mesmo.
     const jaPaga = await createCattleNegotiation(db, {
       ...base,
       itens: [{ category_id: "bezerro_0_7", quantity: 4 }],
       amount: 8000,
       pago: true,
+      custos: [{ descricao: "Frete", amount: 500 }],
     });
     if (jaPaga.ok) {
-      const recusado = await cancelNegotiation(db, jaPaga.data.id, "quero desfazer");
+      const saldoAntes = await saldoDe("bezerro_0_7");
+      const cancelado = await cancelNegotiation(db, jaPaga.data.id, "comprei errado");
+      check(cancelado.ok, "negócio já pago PODE ser cancelado", !cancelado.ok ? cancelado.message : "");
       check(
-        !recusado.ok && recusado.code === "ALREADY_PAID",
-        `negócio já pago não pode ser cancelado (${!recusado.ok ? recusado.code : "ACEITOU"})`,
+        cancelado.ok && cancelado.data.valor_pago_mantido === 8500,
+        `e devolve quanto continua lançado, para a tela avisar (obtido: ${cancelado.ok ? cancelado.data.valor_pago_mantido : "-"})`,
       );
       check(
-        !recusado.ok && recusado.message.includes("8.000"),
-        `a recusa diz QUANTO já foi pago (obtida: ${!recusado.ok ? recusado.message : ""})`,
+        (await saldoDe("bezerro_0_7")) === saldoAntes - 4,
+        "os animais voltaram do rebanho",
       );
-      const aindaViva = await getNegotiation(db, jaPaga.data.id);
-      check(aindaViva?.canceled_at === null, "e a negociação continua viva depois da recusa");
+      const depoisDoCancelamento = await getNegotiation(db, jaPaga.data.id);
       check(
-        (aindaViva?.lancamentos.length ?? 0) > 0 &&
-          aindaViva?.lancamentos.every((l) => l.status === "paid") === true,
-        "os lançamentos que estavam pagos continuam pagos",
+        (depoisDoCancelamento?.lancamentos.length ?? 0) > 0 &&
+          depoisDoCancelamento?.lancamentos.every((l) => l.status === "paid") === true,
+        `o dinheiro que saiu continua lançado como pago (obtido: ${depoisDoCancelamento?.lancamentos.map((l) => l.status).join(", ")})`,
+      );
+      check(
+        depoisDoCancelamento?.canceled_at !== null,
+        "e a negociação fica marcada como cancelada no histórico",
+      );
+    }
+
+    // Já as contas em ABERTO somem, que é o outro lado da mesma regra.
+    const abertaComParcela = await createCattleNegotiation(db, {
+      ...base,
+      itens: [{ category_id: "bezerro_0_7", quantity: 2 }],
+      amount: 6000,
+      pago: false,
+    });
+    if (abertaComParcela.ok) {
+      await cancelNegotiation(db, abertaComParcela.data.id, "desfeito");
+      const d = await getNegotiation(db, abertaComParcela.data.id);
+      check(
+        (d?.lancamentos.length ?? 0) > 0 &&
+          d?.lancamentos.every((l) => l.status === "cancelled") === true,
+        `conta em aberto de negócio cancelado some do financeiro (obtido: ${d?.lancamentos.map((l) => l.status).join(", ")})`,
       );
     }
 
@@ -471,6 +513,121 @@ async function main() {
         `vencimento no futuro não é "vencida" (obtida: ${d?.situacao})`,
       );
     }
+
+    console.log("\n15. §16: o rótulo depende do TIPO, não só da situação");
+    // Já houve inversão de sinal aqui: uma venda em aberto aparecia como
+    // "A pagar", na única coluna que o produtor lê de relance.
+    check(situacaoLabel("confirmada", false) === "A pagar", "compra em aberto: A pagar");
+    check(situacaoLabel("confirmada", true) === "A receber", "venda em aberto: A receber");
+    check(situacaoLabel("paga", false) === "Quitada", "compra paga: Quitada");
+    check(situacaoLabel("paga", true) === "Recebida", "venda paga: Recebida");
+    check(
+      situacaoLabel("parcialmente_paga", true) === "Parcialmente recebida",
+      "venda parcial: Parcialmente recebida (§16)",
+    );
+    check(situacaoLabel("vencida", true) === "Vencida", "vencida é vencida nos dois lados");
+
+    console.log("\n16. §16: parcialmente paga, com vencimentos no FUTURO");
+    // O bloco 9 usa parcelas já vencidas, então lá o resultado é "vencida" e o
+    // ramo "parcialmente_paga" nunca era exercitado, apesar de ser um dos cinco
+    // estados que o §16 exige.
+    const doisAnosAFrente = new Date();
+    doisAnosAFrente.setFullYear(doisAnosAFrente.getFullYear() + 2);
+    const outroAno = new Date(doisAnosAFrente);
+    outroAno.setMonth(outroAno.getMonth() + 1);
+
+    const parcialFuturo = await createCattleNegotiation(db, {
+      ...base,
+      itens: [{ category_id: "bezerro_0_7", quantity: 2 }],
+      amount: 10000,
+      pago: false,
+      parcelas: [
+        { due_date: doisAnosAFrente, amount: 5000 },
+        { due_date: outroAno, amount: 5000 },
+      ],
+    });
+    if (parcialFuturo.ok) {
+      const antesDePagar = await getNegotiation(db, parcialFuturo.data.id);
+      check(
+        antesDePagar?.situacao === "confirmada",
+        `nada pago e nada vencido: confirmada (obtida: ${antesDePagar?.situacao})`,
+      );
+      const primeira = antesDePagar?.lancamentos.find((l) => l.negotiation_role === "principal");
+      await prisma.financialEntry.update({
+        where: { id: primeira!.id },
+        data: { status: "paid", paid_at: new Date() },
+      });
+      const meioPagoFuturo = await getNegotiation(db, parcialFuturo.data.id);
+      check(
+        meioPagoFuturo?.situacao === "parcialmente_paga",
+        `uma paga, a outra ainda no prazo: parcialmente_paga (obtida: ${meioPagoFuturo?.situacao})`,
+      );
+    }
+
+    console.log("\n17. Os dois números do topo somam TUDO, não só a página");
+    const totais = await getOpenTotals(db);
+    const pendentes = await db.financialEntry.findMany({
+      where: { status: "pending", negotiation: { canceled_at: null } },
+      select: { amount: true, entry_type: true },
+    });
+    const esperadoPagar = pendentes
+      .filter((l) => l.entry_type === "expense")
+      .reduce((s, l) => s + Number(l.amount), 0);
+    const esperadoReceber = pendentes
+      .filter((l) => l.entry_type === "income")
+      .reduce((s, l) => s + Number(l.amount), 0);
+    check(
+      Math.round(totais.aPagar * 100) === Math.round(esperadoPagar * 100),
+      `"ainda tenho a pagar" bate com o banco (${totais.aPagar} vs ${esperadoPagar})`,
+    );
+    check(
+      Math.round(totais.aReceber * 100) === Math.round(esperadoReceber * 100),
+      `"ainda tenho a receber" bate com o banco (${totais.aReceber} vs ${esperadoReceber})`,
+    );
+
+    console.log("\n18. Movimento de negócio não se desfaz pela porta do rebanho");
+    const comMovimento = await createCattleNegotiation(db, {
+      ...base,
+      itens: [{ category_id: "bezerro_0_7", quantity: 3 }],
+      amount: 6000,
+      pago: false,
+    });
+    if (comMovimento.ok) {
+      const detalhe = await getNegotiation(db, comMovimento.data.id);
+      const movimentoId = detalhe!.movimentos[0].id;
+      const porFora = await cancelMovement(db, movimentoId, "tentando por fora");
+      check(
+        !porFora.ok && porFora.code === "BELONGS_TO_NEGOTIATION",
+        `recusa e aponta o caminho certo (${!porFora.ok ? porFora.code : "ACEITOU"})`,
+      );
+      check(
+        !porFora.ok && porFora.message.includes("Negociações"),
+        `e diz ONDE cancelar (obtida: ${!porFora.ok ? porFora.message : ""})`,
+      );
+      const intacta = await getNegotiation(db, comMovimento.data.id);
+      check(
+        intacta?.movimentos.every((m) => m.canceled_at === null) === true,
+        "o movimento continua valendo depois da recusa",
+      );
+    }
+
+    console.log("\n19. Contatos (§4 e §5)");
+    const criado = await createContact(db, { name: "Frigorífico Boi Bom", type: "frigorifico" });
+    check(criado.ok, "cria com nome e tipo");
+    const soNome = await createContact(db, { name: "Zé da Ponte" });
+    check(soNome.ok, "cria só com o nome, sem tipo (§4)");
+    const lista = await listContacts(db);
+    check(lista.length >= 2, `lista devolve os dois (${lista.length})`);
+    const filtrada = await listContacts(db, { type: "frigorifico" });
+    check(
+      filtrada.length === 1 && filtrada[0].name === "Frigorífico Boi Bom",
+      `filtro por tipo funciona (${filtrada.length})`,
+    );
+    const achado = await findOrCreateContactByName(db, "zé da ponte");
+    check(
+      !achado.criado && soNome.ok && achado.id === soNome.data.id,
+      "acha o mesmo contato escrito em outra caixa, em vez de duplicar",
+    );
 
     console.log("\n11. Isolamento multi-tenant");
     const tenantB = await prisma.tenant.create({

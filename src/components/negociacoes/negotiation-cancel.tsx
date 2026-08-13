@@ -22,9 +22,12 @@ import { apiPost } from "@/lib/client-api";
 export default function NegotiationCancel({
   negotiationId,
   descricao,
+  valorPago,
 }: {
   negotiationId: string;
   descricao: string;
+  /** Quanto deste negócio já foi pago: continua lançado depois do cancelamento. */
+  valorPago: number;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -71,10 +74,19 @@ export default function NegotiationCancel({
         <div className="mt-4 space-y-4">
           <p className="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-700">{descricao}</p>
           <p className="text-sm text-gray-500">
-            Os animais voltam ao rebanho e os lançamentos saem do financeiro. O negócio
-            continua no histórico, marcado, com o motivo. Se parte dos animais já foi
-            vendida, o cancelamento é recusado.
+            Os animais voltam ao rebanho e as contas em aberto saem do financeiro. O
+            negócio continua no histórico, marcado, com o motivo. Se parte dos animais
+            já foi vendida ou movimentada, o cancelamento é recusado.
           </p>
+
+          {valorPago > 0 && (
+            <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Atenção: {valorPago.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}{" "}
+              deste negócio já {valorPago > 0 ? "foi pago" : ""} e vai continuar lançado no
+              financeiro, porque o dinheiro saiu de verdade. Se houver devolução, registre
+              como uma entrada nova.
+            </p>
+          )}
 
           <div>
             <Label htmlFor="cancel-motivo">Motivo</Label>

@@ -93,8 +93,9 @@ export async function createContact(
  * Acha o contato pelo nome dito na conversa, ou cria um novo com só o nome.
  *
  * CRIA EM SILÊNCIO, de propósito, e é a única escrita deste módulo que não pede
- * confirmação. O §4 diz que o cadastro "deverá ser simples e rápido" e que o
- * produtor não é obrigado a classificar ninguém; parar a conversa para
+ * confirmação. O §5 pede cadastro simples, sem CPF, endereço nem dados
+ * bancários, e o §4 diz que o produtor "não deverá ser obrigado a classificar
+ * a pessoa ou empresa quando não souber"; parar a conversa para
  * perguntar "o João é fazendeiro ou comerciante?" no meio de um registro de
  * compra é exatamente a fricção que o §5 manda evitar. Um contato só com nome
  * não altera saldo nem dinheiro: o risco de errar é um nome duplicado na lista,

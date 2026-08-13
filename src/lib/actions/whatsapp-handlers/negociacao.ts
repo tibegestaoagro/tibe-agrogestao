@@ -13,6 +13,7 @@ import {
   itensDosParametros,
   resolverCategoria,
   resolverFazenda,
+  resolverPasto,
   conferirOndeEstaOSaldo,
 } from "./herd";
 import { ask, failReply, str, num, type Handler, type RouterResult } from "./shared";
@@ -106,15 +107,79 @@ function custosDosParametros(parameters: Record<string, unknown>): CustoLido[] {
   return saida;
 }
 
-/** Lê "para pagar dia 10" / "vence em 2026-09-10". */
-function lerData(parameters: Record<string, unknown>, ...campos: string[]): Date | null {
+/**
+ * Lê uma data dita na conversa.
+ *
+ * Aceita o que o produtor fala, não só o que o classificador idealmente
+ * emitiria: ISO (`2026-12-10`), brasileiro (`10/12/2026` e `10/12`), o dia
+ * sozinho do §18.1 ("para pagar dia 10") e as palavras "hoje" e "ontem".
+ *
+ * Uma versão anterior fazia só `new Date(bruto.slice(0,10) + "T12:00:00")` e
+ * devolvia `null` em silêncio para tudo que não fosse ISO. Na prática isso
+ * significava que "para pagar dia 10", o exemplo-bandeira do documento do
+ * cliente, só virava vencimento se o modelo acertasse o formato: a informação
+ * mais importante da frase dependia do LLM, sem par em código, que é o que o
+ * R5 do contrato proíbe.
+ *
+ * Devolve `"invalida"` quando havia algo escrito e não deu para entender, para
+ * o chamador PERGUNTAR em vez de descartar calado. Mesma escolha do handler de
+ * rebanho.
+ */
+type DataLida = { tipo: "vazio" } | { tipo: "ok"; data: Date } | { tipo: "invalida"; bruto: string };
+
+function lerData(parameters: Record<string, unknown>, ...campos: string[]): DataLida {
   for (const campo of campos) {
     const bruto = str(parameters[campo]);
     if (!bruto) continue;
-    // Meio-dia evita o pulo de um dia por fuso ao normalizar só a data.
-    const data = new Date(`${bruto.slice(0, 10)}T12:00:00`);
-    if (!Number.isNaN(data.getTime())) return data;
+    const data = interpretarData(bruto);
+    if (data) return { tipo: "ok", data };
+    return { tipo: "invalida", bruto };
   }
+  return { tipo: "vazio" };
+}
+
+/** Meio-dia em toda data: evita o pulo de um dia por fuso. */
+function aoMeioDia(ano: number, mes: number, dia: number): Date {
+  return new Date(ano, mes, dia, 12, 0, 0);
+}
+
+function interpretarData(bruto: string, hoje = new Date()): Date | null {
+  const texto = bruto.trim().toLowerCase();
+
+  if (texto === "hoje") return aoMeioDia(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  if (texto === "ontem") {
+    const d = aoMeioDia(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+    d.setDate(d.getDate() - 1);
+    return d;
+  }
+
+  const iso = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return aoMeioDia(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+
+  const br = texto.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
+  if (br) {
+    const dia = Number(br[1]);
+    const mes = Number(br[2]) - 1;
+    const anoBruto = br[3] ? Number(br[3]) : hoje.getFullYear();
+    const ano = anoBruto < 100 ? 2000 + anoBruto : anoBruto;
+    const d = aoMeioDia(ano, mes, dia);
+    return d.getMonth() === mes && d.getDate() === dia ? d : null;
+  }
+
+  /**
+   * Só o dia ("dia 10"). É a forma do §18.1, e sozinha ela é ambígua: quem diz
+   * "dia 10" no dia 13 quer o mês que vem. A regra é a que qualquer pessoa usa
+   * no balcão: dia já passado neste mês significa o próximo mês.
+   */
+  const soDia = texto.match(/^(?:dia\s+)?(\d{1,2})$/);
+  if (soDia) {
+    const dia = Number(soDia[1]);
+    if (dia < 1 || dia > 31) return null;
+    const mes = dia >= hoje.getDate() ? hoje.getMonth() : hoje.getMonth() + 1;
+    const d = aoMeioDia(hoje.getFullYear(), mes, dia);
+    return d.getDate() === dia ? d : null;
+  }
+
   return null;
 }
 
@@ -292,6 +357,20 @@ export const registrarNegocioGado: Handler = async ({
   if (!fazenda.ok) return perguntar(fazenda.resposta, "fazenda");
 
   /**
+   * §6.2 e §7.2 pedem pasto de destino e de origem. Sem ler o pasto, a pergunta
+   * "você tem 45 no Pasto da Baixada, registro por lá?" não tinha resposta
+   * possível: qualquer coisa que o produtor dissesse voltava ao mesmo ponto até
+   * o assistente desistir. Agora a resposta entra, e o negócio grava na posição
+   * certa.
+   */
+  const pasto = await resolverPasto(
+    db,
+    fazenda.id,
+    str(parameters.pasto) ?? str(parameters.pasto_origem) ?? str(parameters.pasture),
+  );
+  if (!pasto.ok) return perguntar(pasto.resposta, "pasto");
+
+  /**
    * NUMA VENDA, CONFERIR ONDE O SALDO ESTÁ, ANTES DE PEDIR CONFIRMAÇÃO.
    *
    * A venda procura na posição `(categoria, fazenda, pasto=null)`, porque a
@@ -312,7 +391,7 @@ export const registrarNegocioGado: Handler = async ({
         db,
         item.categoria,
         fazenda.id,
-        null,
+        pasto.id,
         item.quantidade,
       );
       if (ondeEsta) return perguntar(ondeEsta, "categoria");
@@ -331,14 +410,25 @@ export const registrarNegocioGado: Handler = async ({
     (compra ? str(parameters.vendedor) : str(parameters.comprador)) ??
     str(parameters.vendedor) ??
     str(parameters.comprador);
-  const contato = nomeContato ? await findOrCreateContactByName(db, nomeContato) : null;
+  // NÃO cria aqui. Criar antes do "sim" gravava o contato "João" no banco assim
+  // que o produtor descrevia o negócio, e ele ficava lá mesmo se a resposta
+  // fosse "cancela". A promessa é que nada é gravado antes da confirmação, e
+  // contato é gravação.
 
   /**
    * §6.1 e §7.1 listam a data da operação como obrigatória, e o handler de
    * rebanho já lia "ontem"/"dia 10" desde o Módulo 30. Aqui a data era sempre
    * `new Date()`, então "comprei 20 bezerros ontem" era gravado hoje, calado.
    */
-  const quandoInformado = lerData(parameters, "data", "date", "occurred_at");
+  const dataDoNegocio = lerData(parameters, "data", "date", "occurred_at");
+  if (dataDoNegocio.tipo === "invalida") {
+    return perguntar(
+      ask(
+        `Não entendi a data "${dataDoNegocio.bruto}". Diga por exemplo "hoje", "ontem" ou "05/08/2026".`,
+      ),
+      "data",
+    );
+  }
 
   // --- como foi pago -------------------------------------------------------
 
@@ -351,14 +441,31 @@ export const registrarNegocioGado: Handler = async ({
       : null;
   // §6.3 e §7.3: "o pagamento já foi feito?". Sem parcelamento e sem alguém
   // dizer que pagou, o negócio nasce pendente, que é o caso comum de curral.
-  const pago = parameters.pago === true && !quantasParcelas;
+  if (parameters.pago === true && quantasParcelas) {
+    // A API recusa esta contradição em vez de escolher por conta própria; aqui
+    // seria pior escolher calado, porque o produtor nem vê o formulário.
+    return perguntar(
+      ask("Esse negócio já foi pago ou vai ser parcelado? Não dá para os dois."),
+      "valor",
+    );
+  }
+  const pago = parameters.pago === true;
 
-  const quando = quandoInformado ?? new Date();
+  const quando = dataDoNegocio.tipo === "ok" ? dataDoNegocio.data : new Date();
   // §6.3 e §7.3: quando não foi pago, o vencimento é o PRIMEIRO dado pedido
   // ("Data de vencimento; Quantidade de parcelas, quando houver"). É o que faz
   // "para pagar dia 10" do §18.1 virar uma conta que vence dia 10, em vez de
   // uma conta vencendo hoje que dispara alerta de atraso na mesma hora.
-  const vencimento = lerData(parameters, "vencimento", "due_date", "data_pagamento");
+  const vencimentoLido = lerData(parameters, "vencimento", "due_date", "data_pagamento");
+  if (vencimentoLido.tipo === "invalida") {
+    return perguntar(
+      ask(
+        `Não entendi o vencimento "${vencimentoLido.bruto}". Diga por exemplo "dia 10" ou "10/12/2026".`,
+      ),
+      "vencimento",
+    );
+  }
+  const vencimento = vencimentoLido.tipo === "ok" ? vencimentoLido.data : null;
 
   // --- regra 2: confirmar sempre, mostrando o que vai ser escrito ----------
 
@@ -369,8 +476,9 @@ export const registrarNegocioGado: Handler = async ({
         : `Vender ${descreverItens(itens)} por ${reais(valor)}?`,
       `Fazenda: ${fazenda.nome}`,
     ];
-    if (contato) linhas.push(`${compra ? "Vendedor" : "Comprador"}: ${contato.name}`);
-    if (quandoInformado) linhas.push(`Data: ${quando.toLocaleDateString("pt-BR")}`);
+    if (pasto.nome) linhas.push(`Pasto: ${pasto.nome}`);
+    if (nomeContato) linhas.push(`${compra ? "Vendedor" : "Comprador"}: ${nomeContato}`);
+    if (dataDoNegocio.tipo === "ok") linhas.push(`Data: ${quando.toLocaleDateString("pt-BR")}`);
     for (const c of custos) linhas.push(`${c.descricao}: ${reais(c.valor)}`);
     if (totalCustos > 0) {
       linhas.push(
@@ -411,10 +519,17 @@ export const registrarNegocioGado: Handler = async ({
 
   // --- grava ---------------------------------------------------------------
 
+  // Depois do "sim": agora sim o contato pode nascer (§4, só o nome basta).
+  const contato = nomeContato ? await findOrCreateContactByName(db, nomeContato) : null;
+
   const resultado = await createCattleNegotiation(db, {
     type,
     property_id: fazenda.id,
-    itens: itens.map((i) => ({ category_id: i.categoria.id, quantity: i.quantidade })),
+    itens: itens.map((i) => ({
+      category_id: i.categoria.id,
+      quantity: i.quantidade,
+      pasture_id: pasto.id,
+    })),
     amount: valor,
     contact_id: contato?.id ?? null,
     due_date: vencimento,

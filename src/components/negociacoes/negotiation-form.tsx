@@ -45,10 +45,29 @@ function hoje() {
   return new Date().toISOString().slice(0, 10);
 }
 
+/**
+ * Soma meses SEM pular para o mês seguinte.
+ *
+ * `setMonth` faz 31/01 + 1 virar 03/03, porque fevereiro não tem 31 dias, e a
+ * parcela de fevereiro apareceria em março. É a mesma regra de `somarMeses` no
+ * handler de WhatsApp: as duas telas parcelam o mesmo negócio, então dois
+ * cálculos diferentes dariam datas diferentes para a mesma compra.
+ */
 function emMeses(base: string, meses: number) {
   const d = new Date(`${base}T12:00:00`);
-  d.setMonth(d.getMonth() + meses);
-  return d.toISOString().slice(0, 10);
+  const alvo = d.getMonth() + meses;
+  const ultimoDiaDoMesDestino = new Date(d.getFullYear(), alvo + 1, 0).getDate();
+  const resultado = new Date(
+    d.getFullYear(),
+    alvo,
+    Math.min(d.getDate(), ultimoDiaDoMesDestino),
+    12,
+    0,
+    0,
+  );
+  const mm = String(resultado.getMonth() + 1).padStart(2, "0");
+  const dd = String(resultado.getDate()).padStart(2, "0");
+  return `${resultado.getFullYear()}-${mm}-${dd}`;
 }
 
 export default function NegotiationForm({

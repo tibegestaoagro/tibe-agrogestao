@@ -325,9 +325,12 @@ ser o único a decidi-la: `desempatarIntencao()`, em
 `src/lib/actions/whatsapp-router.ts`, converte **compra ou venda COM valor** em
 `registrar_negocio_gado` antes de qualquer checagem de permissão. Compra e
 venda **sem** valor continuam no rebanho, que é a correção de livro-razão sem
-dinheiro envolvido. A regra é função pura e testada em `test:m36`: se algum dia
-o prompt mandar a intenção "errada" das duas, o resultado gravado continua o
-mesmo. Classifique pela frase mais natural e deixe o desempate para o Tibé.
+dinheiro envolvido. A regra é função pura e testada em `test:m36`, e vale numa direção só:
+`registrar_movimentacao_rebanho` com valor **vira** negócio, mas
+`registrar_negocio_gado` sem valor **não** volta para o rebanho, e nesse caso
+o assistente fica pedindo o valor. Por isso: mande `registrar_negocio_gado`
+apenas quando a frase tiver valor em dinheiro; sem valor, mande
+`registrar_movimentacao_rebanho`.
 
 ### 4.0. Por que o classificador é `gpt-4o-mini` com `temperature: 0`
 

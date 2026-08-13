@@ -11,6 +11,7 @@ import {
 } from "@/lib/actions/negotiation-pending";
 import { desempatarIntencao } from "@/lib/actions/whatsapp-router";
 import { getPositions, recordMovement } from "@/lib/actions/herd-ledger";
+import { POST as executeAction } from "@/app/api/internal/whatsapp/execute-action/route";
 import type { HandlerCtx } from "@/lib/actions/whatsapp-handlers/shared";
 
 /**
@@ -58,6 +59,12 @@ async function main() {
   const stamp = Date.now().toString().slice(-9);
   const tenant = await prisma.tenant.create({
     data: { name: "M36 Negocio Whats", document: `36${stamp}0`, plan: "fazenda" },
+  });
+
+  // O perfil ativo e checado pela ROTA, nao pelo handler: sem ele o teste de
+  // rota recebe 'requer o perfil Fazenda' e nada do resto e exercitado.
+  await prisma.tenantProfile.create({
+    data: { tenant_id: tenant.id, profile_type: "fazenda", active: true },
   });
 
   const usuario = await prisma.user.create({
@@ -610,6 +617,168 @@ async function main() {
       vendaEmPasto.reply_text,
     );
 
+    // ------------------------------------------------------------------
+    console.log("\n17. Pela ROTA de verdade, não pela função");
+    // ------------------------------------------------------------------
+    // O CLAUDE.md exige teste de rota em todo módulo que adiciona endpoint. As
+    // rotas /api/v1 ficam atrás de sessão e o padrão do projeto é testá-las
+    // pela action; a rota interna do agente é testável de verdade, com Request
+    // construído, e é ela que cobre o registro da intenção, o gate de permissão
+    // e a serialização, que nenhum teste de função alcança.
+    const chamarRota = async (body: Record<string, unknown>) => {
+      const req = new Request("http://localhost/api/internal/whatsapp/execute-action", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-internal-secret": process.env.INTERNAL_API_SECRET ?? "",
+        },
+        body: JSON.stringify({ parameters: {}, ...body }),
+      });
+      const res = await executeAction(req);
+      return { status: res.status, body: (await res.json()) as Record<string, unknown> };
+    };
+
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    const rotaPergunta = await chamarRota({
+      tenant_id: tenant.id,
+      user_id: USUARIO,
+      intent: "registrar_negocio_gado",
+      parameters: { tipo: "compra", categoria: "bezerro", quantidade: 6, valor: 12000 },
+    });
+    const dadosPergunta = rotaPergunta.body.data as Record<string, unknown> | undefined;
+    check("a rota responde 200", rotaPergunta.status === 200, String(rotaPergunta.status));
+    check(
+      "e a intenção nova está registrada de verdade (não cai em 'não entendi')",
+      dadosPergunta?.requires_confirmation === true,
+      JSON.stringify(rotaPergunta.body).slice(0, 300),
+    );
+
+    const rotaGrava = await chamarRota({
+      tenant_id: tenant.id,
+      user_id: USUARIO,
+      intent: "registrar_negocio_gado",
+      confirmed: true,
+    });
+    check(
+      "o 'sim' pela rota grava",
+      String((rotaGrava.body.data as Record<string, unknown>)?.reply_text ?? "").startsWith("✅"),
+      JSON.stringify(rotaGrava.body).slice(0, 300),
+    );
+
+    // VISUALIZADOR não escreve, e a checagem tem que acontecer na rota, não só
+    // no handler: é a role RELIDA do banco que vale, nunca a que o caller diz.
+    const leitor = await prisma.user.create({
+      data: {
+        tenant_id: tenant.id,
+        name: "Somente Leitura",
+        email: `m36-leitor-${stamp}@teste.local`,
+        password_hash: "x",
+        role: "VISUALIZADOR",
+      },
+    });
+    const rotaBarrada = await chamarRota({
+      tenant_id: tenant.id,
+      user_id: leitor.id,
+      intent: "registrar_negocio_gado",
+      parameters: { tipo: "compra", categoria: "bezerro", quantidade: 5, valor: 9000 },
+    });
+    check(
+      "VISUALIZADOR é barrado pela rota",
+      String((rotaBarrada.body.data as Record<string, unknown>)?.reply_text ?? "").includes(
+        "não tem permissão",
+      ),
+      JSON.stringify(rotaBarrada.body).slice(0, 300),
+    );
+
+    // ------------------------------------------------------------------
+    console.log("\n18. Datas ditas como o produtor fala, não como o LLM idealmente emitiria");
+    // ------------------------------------------------------------------
+    // "10/12/2026" produzia Invalid Date e o vencimento sumia em silêncio: o
+    // exemplo-bandeira do §18.1 dependia do modelo acertar o formato ISO.
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    const dataBr = await registrarNegocioGado(
+      ctx(
+        db,
+        tenant.id,
+        {
+          tipo: "compra",
+          categoria: "bezerro",
+          quantidade: 3,
+          valor: 7000,
+          vencimento: "10/12/2026",
+        },
+        { userId: USUARIO },
+      ),
+    );
+    check(
+      "vencimento em formato brasileiro é entendido",
+      dataBr.reply_text.includes("10/12/2026"),
+      dataBr.reply_text,
+    );
+
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    const dataOntem = await registrarNegocioGado(
+      ctx(
+        db,
+        tenant.id,
+        { tipo: "compra", categoria: "bezerro", quantidade: 3, valor: 7000, data: "ontem" },
+        { userId: USUARIO },
+      ),
+    );
+    const ontem = new Date();
+    ontem.setDate(ontem.getDate() - 1);
+    check(
+      '"ontem" é entendido, em vez de virar hoje calado',
+      dataOntem.reply_text.includes(ontem.toLocaleDateString("pt-BR")),
+      dataOntem.reply_text,
+    );
+
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    const dataRuim = await registrarNegocioGado(
+      ctx(
+        db,
+        tenant.id,
+        { tipo: "compra", categoria: "bezerro", quantidade: 3, valor: 7000, data: "sei lá quando" },
+        { userId: USUARIO },
+      ),
+    );
+    check(
+      "data que não dá para entender vira PERGUNTA, não sumiço",
+      dataRuim.reply_text.includes("Não entendi a data"),
+      dataRuim.reply_text,
+    );
+    check("e não pede confirmação enquanto isso", dataRuim.requires_confirmation === false);
+
+    // ------------------------------------------------------------------
+    console.log("\n19. Nada é gravado antes do sim: nem contato");
+    // ------------------------------------------------------------------
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    const contatosAntes = await db.contact.count();
+    await registrarNegocioGado(
+      ctx(
+        db,
+        tenant.id,
+        {
+          tipo: "compra",
+          categoria: "bezerro",
+          quantidade: 2,
+          valor: 3000,
+          vendedor: "Sebastião do Vale",
+        },
+        { userId: USUARIO },
+      ),
+    );
+    check(
+      "o contato NÃO nasce só por ter sido citado na descrição",
+      (await db.contact.count()) === contatosAntes,
+      `${contatosAntes} -> ${await db.contact.count()}`,
+    );
+    await registrarNegocioGado(ctx(db, tenant.id, {}, { explicitNo: true, userId: USUARIO }));
+    check(
+      "e depois de cancelar, ele continua não existindo",
+      (await db.contact.findFirst({ where: { name: "Sebastião do Vale" } })) === null,
+    );
+
     await clearPendingNegotiation(tenant.id, USUARIO);
   } finally {
     await prisma.financialEntry.deleteMany({ where: { tenant_id: tenant.id } });
@@ -619,6 +788,7 @@ async function main() {
     await prisma.pasture.deleteMany({ where: { tenant_id: tenant.id } });
     await prisma.property.deleteMany({ where: { tenant_id: tenant.id } });
     await prisma.user.deleteMany({ where: { tenant_id: tenant.id } });
+    await prisma.tenantProfile.deleteMany({ where: { tenant_id: tenant.id } });
     await prisma.tenant.deleteMany({ where: { id: tenant.id } });
     await clearPendingNegotiation(tenant.id, USUARIO);
   }

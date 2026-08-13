@@ -1,6 +1,6 @@
 import type { NegotiationType, Prisma } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
-import { runSerializableTenantTransaction } from "@/lib/financial";
+import { runSerializableTenantTransaction, createLinkedEntry } from "@/lib/financial";
 import { recordMovementInTx, getPositions, type HerdPositionKey } from "@/lib/actions/herd-ledger";
 import { decToNum, isoOrNull } from "@/lib/serialize";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
@@ -23,16 +23,13 @@ import { ok, fail, type ActionResult } from "@/lib/actions/types";
  * transação por movimento, e uma falha no terceiro deixaria os dois primeiros
  * gravados, com o rebanho já alterado e sem negociação nenhuma apontando.
  *
- * DESVIO DECLARADO: `tx.financialEntry.create` direto, sem `createLinkedEntry`.
- * O CLAUDE.md manda nunca criar `FinancialEntry` fora daquele helper, e a
- * regra continua valendo em todo o resto do projeto. Aqui ela não serve por
- * dois motivos somados: o helper não conhece `negotiation_id` nem
- * `negotiation_role`, que são o que amarra o envelope, e ele abre a própria
- * transação, o que quebraria a atomicidade descrita acima. Estender o helper
- * para aceitar os dois campos e um `tx` opcional é a saída limpa, e está
- * anotada como dívida no handoff. Enquanto não for feito, este é o ÚNICO lugar
- * autorizado a criar lançamento por fora: quem for copiar este atalho para
- * outro módulo, pare.
+ * O dinheiro passa por `createLinkedEntry`, como o CLAUDE.md exige de todo
+ * lançamento automático. O helper ganhou `negotiation_id`/`negotiation_role`
+ * para isto (`src/lib/financial.ts`). Uma versão anterior criava o
+ * `FinancialEntry` direto e justificava o desvio dizendo que o helper "abre a
+ * própria transação": era falso, ele recebe o client por parâmetro e já era
+ * chamado com `tx` em quatro lugares, inclusive no `herd-ledger.ts` em que esta
+ * action se apoia.
  */
 
 export type ItemGadoInput = {
@@ -282,19 +279,17 @@ export async function createCattleNegotiation(
         : input.parcelas;
 
     for (const parcela of parcelas) {
-      await tx.financialEntry.create({
-        data: scoped({
-          entry_type: compra ? "expense" : "income",
-          category: CATEGORIA_FINANCEIRA[input.type],
-          amount: parcela.amount,
-          related_module: "rebanho",
-          related_id: negociacao.id,
-          due_date: parcela.due_date,
-          paid_at: input.pago ? occurred_at : null,
-          status: input.pago ? "paid" : "pending",
-          negotiation_id: negociacao.id,
-          negotiation_role: "principal",
-        }),
+      await createLinkedEntry(tx, {
+        entry_type: compra ? "expense" : "income",
+        category: CATEGORIA_FINANCEIRA[input.type],
+        amount: parcela.amount,
+        related_module: "rebanho",
+        related_id: negociacao.id,
+        occurred_at,
+        due_date: parcela.due_date,
+        status: input.pago ? "paid" : "pending",
+        negotiation_id: negociacao.id,
+        negotiation_role: "principal",
       });
     }
 
@@ -303,19 +298,17 @@ export async function createCattleNegotiation(
     // da negociação eles sumiriam do financeiro, e o produtor veria a venda
     // render menos sem conseguir apontar onde.
     for (const custo of input.custos ?? []) {
-      await tx.financialEntry.create({
-        data: scoped({
-          entry_type: "expense",
-          category: custo.descricao,
-          amount: custo.amount,
-          related_module: "rebanho",
-          related_id: negociacao.id,
-          due_date: occurred_at,
-          paid_at: input.pago ? occurred_at : null,
-          status: input.pago ? "paid" : "pending",
-          negotiation_id: negociacao.id,
-          negotiation_role: "custo_adicional",
-        }),
+      await createLinkedEntry(tx, {
+        entry_type: "expense",
+        category: custo.descricao,
+        amount: custo.amount,
+        related_module: "rebanho",
+        related_id: negociacao.id,
+        occurred_at,
+        due_date: occurred_at,
+        status: input.pago ? "paid" : "pending",
+        negotiation_id: negociacao.id,
+        negotiation_role: "custo_adicional",
       });
     }
 
@@ -332,8 +325,9 @@ export async function createCattleNegotiation(
  * "parcial" faria a linha que precisa de atenção parecer igual à que está em
  * dia. Só perde para "paga" e "cancelada", que já encerraram o assunto.
  *
- * `agora` entra por parâmetro para o teste conseguir provar o vencimento sem
- * esperar a data chegar, mesmo motivo de `getCancellationWindow` no M5.
+ * `agora` entra por parâmetro para tornar a função determinística: quem
+ * chama de dentro de um teste pode fixar o dia e provar as duas bordas
+ * (vence hoje, venceu ontem) sem depender de quando a suíte roda.
  */
 function derivarSituacao(
   canceled_at: Date | null,
@@ -507,7 +501,7 @@ export async function cancelNegotiation(
   db: TenantPrismaClient,
   id: string,
   reason: string,
-): Promise<ActionResult<{ id: string }>> {
+): Promise<ActionResult<{ id: string; valor_pago_mantido: number }>> {
   const negociacao = await db.negotiation.findFirst({
     where: { id },
     include: { movements: true },
@@ -520,42 +514,30 @@ export async function cancelNegotiation(
   return comRollback(() =>
     runSerializableTenantTransaction(db, async (tx) => {
     /**
-     * DINHEIRO JÁ PAGO TRAVA O CANCELAMENTO (§17.9).
+     * O QUE JÁ FOI PAGO CONTINUA PAGO. §17.9 manda **alertar**, não bloquear.
      *
-     * Antes desta trava, cancelar marcava `cancelled` TODO lançamento da
-     * negociação, inclusive os `paid`. Uma compra de R$ 60.000 quitada em
-     * janeiro, cancelada em março, sumia do DRE e do fluxo de caixa como se o
-     * dinheiro nunca tivesse saído da conta. Do lado do rebanho a trava já
-     * existia (animal que já saiu impede o cancelamento); do lado do dinheiro
-     * não existia nenhuma, e é o lado que o produtor não consegue reconstruir
-     * de memória.
+     * Duas versões anteriores erraram aqui, em direções opostas. A primeira
+     * marcava `cancelled` TODO lançamento, inclusive os `paid`: uma compra de
+     * R$ 60.000 quitada em janeiro, cancelada em março, sumia do DRE e do fluxo
+     * de caixa como se o dinheiro nunca tivesse saído da conta. A segunda
+     * recusou o cancelamento inteiro quando havia qualquer pago, e isso foi
+     * pior: o formulário nasce em "à vista", então o caminho MAIS COMUM do
+     * módulo passava a gerar um registro que ninguém consegue mais desfazer, e
+     * a mensagem mandava o produtor "desfazer o pagamento no Financeiro", que é
+     * uma ação que a tela do Financeiro não oferece para lançamento pago.
      *
-     * Recusa em vez de cancelar só o que está pendente: cancelar metade
-     * deixaria a negociação num estado que nem o painel nem o produtor sabem
-     * ler. Quem precisa mesmo desfazer estorna o pagamento no Financeiro
-     * primeiro, e aí cancela.
+     * A resposta certa é contábil, não de permissão: cancelar um negócio não
+     * des-gasta o dinheiro. Os animais voltam, as contas em aberto somem, e o
+     * que saiu da conta permanece lançado, porque saiu mesmo. Se houve
+     * devolução, ela é uma entrada nova, com data própria.
+     *
+     * O produtor precisa SABER disso, então o resultado devolve quanto ficou.
      */
     const pagos = await tx.financialEntry.findMany({
       where: { negotiation_id: id, status: "paid" },
-      select: { amount: true, paid_at: true },
+      select: { amount: true },
     });
-    if (pagos.length > 0) {
-      const total = pagos.reduce((s, l) => s + Number(l.amount), 0);
-      const quando = pagos
-        .map((l) => l.paid_at)
-        .filter((d): d is Date => d != null)
-        .sort((a, b) => a.getTime() - b.getTime())[0];
-      throw new AbortarNegociacao({
-        ok: false,
-        code: "ALREADY_PAID",
-        message:
-          `Não dá para cancelar: ${reaisSimples(total)} desta negociação já ` +
-          `${pagos.length === 1 ? "foi pago" : "foram pagos"}` +
-          `${quando ? ` (a partir de ${quando.toLocaleDateString("pt-BR")})` : ""}. ` +
-          "Desfaça o pagamento no Financeiro antes de cancelar o negócio.",
-        status: 422,
-      });
-    }
+    const valorPagoMantido = pagos.reduce((s, l) => s + Number(l.amount), 0);
 
     for (const movimento of negociacao.movements) {
       if (movimento.canceled_at) continue;
@@ -621,7 +603,7 @@ export async function cancelNegotiation(
       data: { canceled_at: new Date(), canceled_reason: reason },
     });
 
-    return ok({ id });
+    return ok({ id, valor_pago_mantido: valorPagoMantido });
     }),
   );
 }
@@ -639,6 +621,31 @@ export async function cancelNegotiation(
  * abatida do "a receber": ela vira uma conta a pagar de verdade, e escondê-la
  * dentro do líquido faria sumir do painel um compromisso real.
  */
+/**
+ * O rótulo da situação como o produtor lê, que depende do TIPO: §16 separa as
+ * situações de compra e de venda ("Parcialmente recebida", "Recebida").
+ *
+ * Fica aqui, e não na página, porque já houve uma inversão de sinal real neste
+ * ponto (uma venda em aberto aparecia como "A pagar", na única coluna que se lê
+ * de relance) e função pura é o que permite provar que não voltou.
+ */
+export function situacaoLabel(situacao: SituacaoNegociacao | string, venda: boolean): string {
+  switch (situacao) {
+    case "confirmada":
+      return venda ? "A receber" : "A pagar";
+    case "vencida":
+      return "Vencida";
+    case "parcialmente_paga":
+      return venda ? "Parcialmente recebida" : "Parcialmente paga";
+    case "paga":
+      return venda ? "Recebida" : "Quitada";
+    case "cancelada":
+      return "Cancelada";
+    default:
+      return String(situacao);
+  }
+}
+
 export async function getOpenTotals(
   db: TenantPrismaClient,
   filtro: { property_id?: string } = {},

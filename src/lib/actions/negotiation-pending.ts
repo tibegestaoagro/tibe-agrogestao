@@ -29,6 +29,9 @@ export type CampoNegocio =
   | "quantidade"
   | "valor"
   | "fazenda"
+  | "pasto"
+  | "data"
+  | "vencimento"
   /** Não é campo: é o negócio inteiro esperando um "sim". */
   | "confirmacao";
 
@@ -115,6 +118,9 @@ export function aplicarRespostaNegocio(
 function atalho(campo: CampoNegocio): string {
   if (campo === "categoria") return "category";
   if (campo === "fazenda") return "property";
+  if (campo === "pasto") return "pasto_origem";
+  if (campo === "data") return "date";
+  if (campo === "vencimento") return "due_date";
   if (campo === "valor") return "amount";
   if (campo === "quantidade") return "quantity";
   if (campo === "tipo") return "negotiation_type";

@@ -14,7 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import NegotiationForm from "@/components/negociacoes/negotiation-form";
 import NegotiationCancel from "@/components/negociacoes/negotiation-cancel";
-import { listNegotiations, getOpenTotals } from "@/lib/actions/negotiations";
+import { listNegotiations, getOpenTotals, situacaoLabel } from "@/lib/actions/negotiations";
 import { findCategory } from "@/lib/herd/categories";
 
 /**
@@ -39,28 +39,6 @@ const TIPO_LABEL: Record<string, string> = {
   evento: "Remessa para evento",
 };
 
-/**
- * §16 separa as situações de compra e de venda ("Parcialmente recebida",
- * "Recebida"), e é por isso que o rótulo depende do TIPO. Antes o mapa era
- * único e uma venda de R$ 80.000 que o frigorífico ainda não pagou aparecia
- * como "A pagar": inversão de sinal na única coluna que se lê de relance.
- */
-function situacaoLabel(situacao: string, venda: boolean): string {
-  switch (situacao) {
-    case "confirmada":
-      return venda ? "A receber" : "A pagar";
-    case "vencida":
-      return "Vencida";
-    case "parcialmente_paga":
-      return venda ? "Parcialmente recebida" : "Parcialmente paga";
-    case "paga":
-      return venda ? "Recebida" : "Quitada";
-    case "cancelada":
-      return "Cancelada";
-    default:
-      return situacao;
-  }
-}
 
 function reais(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -222,6 +200,9 @@ export default async function NegociacoesPage({
                     {writable && !cancelada && (
                       <NegotiationCancel
                         negotiationId={n.id}
+                        valorPago={n.lancamentos
+                          .filter((l) => l.status === "paid")
+                          .reduce((s, l) => s + l.amount, 0)}
                         descricao={`${TIPO_LABEL[n.type] ?? n.type}, ${reais(n.totais.principal)}, em ${n.occurred_at.toLocaleDateString("pt-BR")}`}
                       />
                     )}

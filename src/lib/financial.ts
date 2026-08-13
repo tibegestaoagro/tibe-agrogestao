@@ -1,4 +1,4 @@
-import type { Prisma } from "@/generated/prisma/client";
+import type { Prisma, NegotiationEntryRole } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 
 type RelatedModule = "rebanho" | "lavoura" | "servico" | "maquinas" | "geral";
@@ -62,6 +62,15 @@ export async function createLinkedEntry(
     occurred_at: Date;
     status?: EntryStatus;
     due_date?: Date | null;
+    /**
+     * Módulo 31: amarra o lançamento ao envelope da negociação, e diz se ele é
+     * o valor combinado (`principal`) ou um custo adicional do §15
+     * (`custo_adicional`). Sem estes dois campos aqui, o módulo de Negociações
+     * teria que criar `FinancialEntry` por fora deste helper, que é justamente
+     * o que o CLAUDE.md proíbe.
+     */
+    negotiation_id?: string | null;
+    negotiation_role?: NegotiationEntryRole | null;
   },
 ) {
   const status = params.status ?? "paid";
@@ -75,6 +84,8 @@ export async function createLinkedEntry(
       due_date: params.due_date ?? params.occurred_at,
       paid_at: status === "paid" ? params.occurred_at : null,
       status,
+      negotiation_id: params.negotiation_id ?? null,
+      negotiation_role: params.negotiation_role ?? null,
     }),
   });
 }

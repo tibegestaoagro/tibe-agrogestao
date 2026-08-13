@@ -150,7 +150,7 @@ export async function resolverFazenda(
   return { ok: false, resposta: ask(`Em qual fazenda?\n${nomes}`) };
 }
 
-async function resolverPasto(
+export async function resolverPasto(
   db: TenantPrismaClient,
   propertyId: string,
   nome: string | null,
