@@ -24,6 +24,7 @@ import {
   consultarRebanho,
   registrarMovimentacaoRebanho,
 } from "@/lib/actions/whatsapp-handlers/herd";
+import { registrarNegocioGado } from "@/lib/actions/whatsapp-handlers/negociacao";
 import { ajuda } from "@/lib/actions/whatsapp-handlers/ajuda";
 import { resumo } from "@/lib/actions/whatsapp-handlers/resumo";
 import { handleActiveFlow, maybeStartAnimalFlow } from "@/lib/actions/whatsapp-flow-bridge";
@@ -53,6 +54,7 @@ const HANDLERS: Record<Exclude<Intent, "ambigua">, Handler> = {
   consultar_animal: consultarAnimal,
   consultar_rebanho: consultarRebanho,
   registrar_movimentacao_rebanho: registrarMovimentacaoRebanho,
+  registrar_negocio_gado: registrarNegocioGado,
   consultar_cliente: consultarCliente,
   gerar_relatorio: gerarRelatorio,
   registrar_lancamento_financeiro: registrarLancamentoFinanceiro,

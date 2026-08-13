@@ -140,10 +140,28 @@ export async function getPositions(
   db: HerdLedgerClient,
   filter: HerdPositionFilter = {},
 ): Promise<HerdPosition[]> {
+  /**
+   * Sem filtro nenhum, o `OR` precisa sumir do `where`.
+   *
+   * `OR: [{}, {}]` NÃO significa "qualquer linha" no Prisma: significa nenhuma.
+   * Com isso, `getPositions(db, {})` devolvia lista vazia mesmo com o livro
+   * cheio, contrariando o que este próprio arquivo documenta logo acima
+   * ("sem filtro, devolve toda posição com alguma movimentação").
+   *
+   * O estrago real era em dois lugares. `GET /api/v1/herd/positions` sem
+   * nenhum query param respondia "rebanho vazio" a quem tem gado. E o teste de
+   * isolamento do m33 (`getPositions(dbB).length === 0`) passava por este bug,
+   * não por isolamento: teria passado igual se um tenant enxergasse o outro.
+   * Achado em 2026-08-13 escrevendo o m36.
+   */
+  const from = fromWhere(filter);
+  const to = toWhere(filter);
+  const temFiltro = Object.keys(from).length > 0 || Object.keys(to).length > 0;
+
   const rows = await db.herdMovement.findMany({
     where: {
       canceled_at: null,
-      OR: [fromWhere(filter), toWhere(filter)],
+      ...(temFiltro ? { OR: [from, to] } : {}),
     },
     select: {
       quantity: true,

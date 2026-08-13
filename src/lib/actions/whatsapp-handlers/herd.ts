@@ -44,9 +44,17 @@ import { ask, failReply, str, num, confirmFlow, type Handler, type RouterResult 
  * entra SÓ o campo perguntado; o resto vem do que foi gravado.
  */
 
-type Item = { categoria: string; quantidade: number };
+/**
+ * Exportados para o handler de Negociações (Módulo 31): "comprei 20 bezerros"
+ * precisa resolver categoria e fazenda exatamente como "nasceram 20
+ * bezerros". Duplicar essa resolução seria pior que duplicar código: a regra
+ * de nunca chutar faixa de idade divergiria entre os dois caminhos, e o
+ * assistente passaria a lançar animais na idade errada por um caminho e não
+ * pelo outro.
+ */
+export type Item = { categoria: string; quantidade: number };
 
-function itensDosParametros(parameters: Record<string, unknown>): Item[] {
+export function itensDosParametros(parameters: Record<string, unknown>): Item[] {
   const brutos = parameters.itens;
   if (Array.isArray(brutos)) {
     const lista: Item[] = [];
@@ -91,7 +99,7 @@ type CategoriaResolvida =
   | { ok: true; categoria: HerdCategory }
   | { ok: false; resposta: RouterResult };
 
-function resolverCategoria(termo: string, nascimento = false): CategoriaResolvida {
+export function resolverCategoria(termo: string, nascimento = false): CategoriaResolvida {
   // Num nascimento, o sexo sozinho já basta: recém-nascido é 0 a 7 meses.
   // É o que o §13.4 espera de "nasceram 4 machos e 3 fêmeas".
   const resolucao = nascimento ? resolveBirthCategoryTerm(termo) : resolveCategoryTerm(termo);
@@ -116,7 +124,7 @@ type FazendaResolvida =
  * só existe uma, e PERGUNTA quando existe mais de uma. Adivinhar a fazenda tem
  * o mesmo defeito de adivinhar a categoria, o saldo vai parar no lugar errado.
  */
-async function resolverFazenda(
+export async function resolverFazenda(
   db: TenantPrismaClient,
   nome: string | null,
 ): Promise<FazendaResolvida> {
