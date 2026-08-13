@@ -50,7 +50,8 @@
     "test:m31": "tsx scripts/m31-cancelamento-janela.test.ts",
     "test:m32": "tsx scripts/m32-herd-categorias.test.ts",
     "test:m33": "tsx scripts/m33-herd-ledger.test.ts",
-    "test:m34": "tsx scripts/m34-rebanho-whatsapp.test.ts"
+    "test:m34": "tsx scripts/m34-rebanho-whatsapp.test.ts",
+    "test:m35": "tsx scripts/m35-negociacao-gado.test.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

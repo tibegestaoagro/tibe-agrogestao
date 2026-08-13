@@ -221,22 +221,22 @@ enum SubscriptionStatus {
 // ─────────────────────────────────────────────────────────────
 
 model Tenant {
-  id            String       @id @default(cuid())
-  name          String
-  document      String       @unique // CNPJ ou CPF
-  phone         String?
-  email         String?
-  plan          TenantPlan
+  id             String       @id @default(cuid())
+  name           String
+  document       String       @unique // CNPJ ou CPF
+  phone          String?
+  email          String?
+  plan           TenantPlan
   // Tenants criados manualmente pelo painel (spec 2026-07-27) nascem sem
   // plano escolhido pelo cliente: plan carrega um default interno até o
   // cliente confirmar no primeiro login. Tenants do signup público (que já
   // escolhem o plano em /planos antes de criar a conta) nascem com true.
-  plan_confirmed Boolean     @default(true)
-  status        TenantStatus @default(trial)
-  trial_ends_at DateTime?
+  plan_confirmed Boolean      @default(true)
+  status         TenantStatus @default(trial)
+  trial_ends_at  DateTime?
   // Arquivamento pelo painel da plataforma (spec 2026-07-27): nunca deleta,
   // mesmo padrão de Property.archived_at (M1). Idempotente.
-  archived_at   DateTime?
+  archived_at    DateTime?
 
   // Origem do lead (UTM), PRD seção 4 / v1.1
   lead_source_utm_source   String?
@@ -246,32 +246,34 @@ model Tenant {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  profiles          TenantProfile[]
-  users             User[]
-  properties        Property[]
-  animal_categories AnimalCategory[]
-  animal_batches    AnimalBatch[]
-  machines          Machine[]
-  tasks             Task[]
+  profiles             TenantProfile[]
+  users                User[]
+  properties           Property[]
+  contacts             Contact[]
+  negotiations         Negotiation[]
+  animal_categories    AnimalCategory[]
+  animal_batches       AnimalBatch[]
+  machines             Machine[]
+  tasks                Task[]
   financial_categories FinancialCategory[]
-  alert_preferences AlertPreference[]
-  vaccines          Vaccine[]
-  plots             Plot[]
-  pastures          Pasture[]
-  service_clients   ServiceClient[]
-  services          Service[]
-  service_orders    ServiceOrder[]
-  financial_entries FinancialEntry[]
-  whatsapp_contacts WhatsAppContact[]
-  conversation_logs AgentConversationLog[]
-  alerts            Alert[]
-  email_logs        EmailLog[]
-  password_resets   PasswordResetCode[]
-  agent_flows       AgentFlowState[]
-  refresh_tokens    RefreshToken[]
-  push_subscriptions PushSubscription[]
-  herd_movements    HerdMovement[]
-  subscription      Subscription?
+  alert_preferences    AlertPreference[]
+  vaccines             Vaccine[]
+  plots                Plot[]
+  pastures             Pasture[]
+  service_clients      ServiceClient[]
+  services             Service[]
+  service_orders       ServiceOrder[]
+  financial_entries    FinancialEntry[]
+  whatsapp_contacts    WhatsAppContact[]
+  conversation_logs    AgentConversationLog[]
+  alerts               Alert[]
+  email_logs           EmailLog[]
+  password_resets      PasswordResetCode[]
+  agent_flows          AgentFlowState[]
+  refresh_tokens       RefreshToken[]
+  push_subscriptions   PushSubscription[]
+  herd_movements       HerdMovement[]
+  subscription         Subscription?
 }
 
 // Equipe da Pleno Digital. NÃO carrega tenant_id: fora do isolamento (PRD 4 / 10.4).
@@ -301,18 +303,18 @@ model TenantProfile {
 }
 
 model User {
-  id            String   @id @default(cuid())
-  tenant_id     String
-  name          String
+  id                   String   @id @default(cuid())
+  tenant_id            String
+  name                 String
   // Email globalmente único: o contrato POST /api/auth/login recebe apenas
   // email+senha (sem seletor de tenant), então o email resolve um único usuário.
-  email         String   @unique
-  password_hash String
-  role          UserRole @default(OPERADOR)
-  phone         String?
-  created_at    DateTime @default(now())
-  active        Boolean  @default(true)
-  must_change_password Boolean @default(false)
+  email                String   @unique
+  password_hash        String
+  role                 UserRole @default(OPERADOR)
+  phone                String?
+  created_at           DateTime @default(now())
+  active               Boolean  @default(true)
+  must_change_password Boolean  @default(false)
 
   tenant             Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   whatsapp_contacts  WhatsAppContact[]
@@ -320,6 +322,7 @@ model User {
   agent_flows        AgentFlowState[]
   refresh_tokens     RefreshToken[]
   herd_movements     HerdMovement[]
+  negotiations       Negotiation[]
   push_subscriptions PushSubscription[]
 
   @@index([tenant_id])
@@ -423,19 +426,19 @@ model PendingSignup {
 // risco de perder trabalho no meio e coberto pelo lembrete de abandono, que le
 // `updated_at` e `reminded_at`.
 model AgentFlowState {
-  id              String    @id @default(cuid())
-  tenant_id       String
-  user_id         String
-  flow            String
-  target_count    Int       @default(1)
-  completed_items Json      @default("[]")
-  current_item    Json      @default("{}")
-  pending_field   String?
-  awaiting_summary Boolean  @default(false)
-  reminded_at     DateTime?
-  expires_at      DateTime
-  created_at      DateTime  @default(now())
-  updated_at      DateTime  @updatedAt
+  id               String    @id @default(cuid())
+  tenant_id        String
+  user_id          String
+  flow             String
+  target_count     Int       @default(1)
+  completed_items  Json      @default("[]")
+  current_item     Json      @default("{}")
+  pending_field    String?
+  awaiting_summary Boolean   @default(false)
+  reminded_at      DateTime?
+  expires_at       DateTime
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
 
   tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -466,6 +469,7 @@ model Property {
   machines       Machine[]
   plots          Plot[]
   pastures       Pasture[]
+  negotiations   Negotiation[]
   movements_from AnimalMovement[] @relation("MovementFromProperty")
   movements_to   AnimalMovement[] @relation("MovementToProperty")
 
@@ -498,7 +502,6 @@ model Pasture {
 // ─────────────────────────────────────────────────────────────
 // Módulo Rebanho
 // ─────────────────────────────────────────────────────────────
-
 
 // tenant_id incluído para entrar no middleware de isolamento (decisão M1).
 /// Peso de um LOTE numa data. Para lote de várias cabeças é a média; para
@@ -631,12 +634,12 @@ model AnimalBatch {
   created_at       DateTime   @default(now())
   updated_at       DateTime   @updatedAt
 
-  tenant       Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  property     Property            @relation(fields: [property_id], references: [id], onDelete: Restrict)
-  category     AnimalCategory      @relation(fields: [category_id], references: [id], onDelete: Restrict)
-  weight_logs  AnimalWeightLog[]
-  vaccinations AnimalVaccination[]
-  movements    AnimalMovement[]
+  tenant         Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  property       Property            @relation(fields: [property_id], references: [id], onDelete: Restrict)
+  category       AnimalCategory      @relation(fields: [category_id], references: [id], onDelete: Restrict)
+  weight_logs    AnimalWeightLog[]
+  vaccinations   AnimalVaccination[]
+  movements      AnimalMovement[]
   herd_movements HerdMovement[]
 
   @@index([tenant_id])
@@ -862,9 +865,16 @@ model FinancialEntry {
   notes          String?
   created_at     DateTime             @default(now())
 
-  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  /// Negociações: o lançamento nasceu de um negócio. Nulo em tudo que já
+  /// existia e em lançamento manual, que continua funcionando igual.
+  negotiation_id   String?
+  negotiation_role NegotiationEntryRole?
+
+  tenant      Tenant       @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  negotiation Negotiation? @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
 
   @@index([tenant_id])
+  @@index([negotiation_id])
 }
 
 // Módulo 28, 2026-08-04. `category` de FinancialEntry continua texto livre
@@ -1025,8 +1035,8 @@ model Subscription {
   canceled_at           DateTime?
   created_at            DateTime           @default(now())
 
-  tenant       Tenant                   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  status_logs  SubscriptionStatusLog[]
+  tenant      Tenant                  @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  status_logs SubscriptionStatusLog[]
 
   @@index([tenant_id])
 }
@@ -1039,13 +1049,13 @@ model Subscription {
 // (webhook do Asaas OU ação manual de um master_admin), grava-se uma linha
 // aqui. changed_by_platform_user_id nulo = mudança automática (webhook).
 model SubscriptionStatusLog {
-  id                           String              @id @default(cuid())
-  subscription_id              String
-  from_status                  SubscriptionStatus?
-  to_status                    SubscriptionStatus
-  changed_by_platform_user_id  String?
-  reason                       String?
-  created_at                   DateTime            @default(now())
+  id                          String              @id @default(cuid())
+  subscription_id             String
+  from_status                 SubscriptionStatus?
+  to_status                   SubscriptionStatus
+  changed_by_platform_user_id String?
+  reason                      String?
+  created_at                  DateTime            @default(now())
 
   subscription Subscription  @relation(fields: [subscription_id], references: [id], onDelete: Cascade)
   changed_by   PlatformUser? @relation(fields: [changed_by_platform_user_id], references: [id], onDelete: SetNull)
@@ -1130,17 +1140,139 @@ model HerdMovement {
 
   /// §10.8: cancelar NÃO apaga. A linha continua no histórico, identificada,
   /// e para de contar no saldo. É o que permite conferência depois.
-  canceled_at        DateTime?
-  canceled_reason    String?
+  canceled_at     DateTime?
+  canceled_reason String?
+
+  /// Negociações: o movimento nasceu de um negócio. Nulo em nascimento, morte,
+  /// transferência e ajuste, que não são negócio nenhum. É por isso que a
+  /// Negociação é envelope e não dona: nem todo movimento tem um negócio atrás.
+  negotiation_id String?
 
   occurred_at DateTime
   created_at  DateTime @default(now())
 
-  tenant       Tenant       @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  batch        AnimalBatch? @relation(fields: [batch_id], references: [id], onDelete: SetNull)
-  recorded_by  User?        @relation(fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
+  tenant      Tenant       @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  batch       AnimalBatch? @relation(fields: [batch_id], references: [id], onDelete: SetNull)
+  recorded_by User?        @relation(fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
+  negotiation Negotiation? @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
 
   @@index([tenant_id])
   @@index([tenant_id, occurred_at])
   @@index([batch_id])
+  @@index([negotiation_id])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Área Negociações (docs/moduloNegociacao). Decisões tomadas com o usuário em
+// 2026-08-11, por grilling, 12 perguntas em 3 rodadas.
+//
+// A DECISÃO CENTRAL: a Negociação é um ENVELOPE COMERCIAL, não a fonte da
+// verdade. O "registro único" que o §17.1 pede é exigência de EXPERIÊNCIA
+// (preencher um formulário só), não de armazenamento. O saldo do rebanho
+// continua sendo a soma de HerdMovement, o do estoque a soma de StockMovement,
+// e o dinheiro continua em FinancialEntry. A negociação guarda o que é
+// COMERCIAL (com quem, quanto, custos, parcelas) e os filhos apontam para ela.
+//
+// Por que não o contrário: nem todo movimento nasce de um negócio (nascimento,
+// morte e transferência não nascem), então uma Negociação "acima" criaria dois
+// caminhos de escrita para a mesma coisa.
+// ─────────────────────────────────────────────────────────────
+
+/// §5: o produtor NÃO é obrigado a classificar o contato. Por isso o tipo é
+/// opcional, e a primeira versão não pede CPF, CNPJ nem endereço.
+enum ContactType {
+  particular
+  fazendeiro
+  comerciante_gado
+  frigorifico
+  leilao
+  feira_evento
+  cooperativa
+  loja_fornecedor
+  prestador_servico
+  outro
+}
+
+/// Contraparte de um negócio da fazenda (vendedor, comprador, frigorífico,
+/// leiloeira). NÃO é o `ServiceClient`: aquele é cliente de quem PRESTA
+/// serviço, vive no perfil prestador, e juntar os dois arrastaria um módulo
+/// validado para dentro deste. Decisão do usuário, com o custo aceito de um
+/// tenant com os dois perfis cadastrar a mesma pessoa duas vezes.
+model Contact {
+  id          String       @id @default(cuid())
+  tenant_id   String
+  name        String
+  type        ContactType?
+  phone       String?
+  city        String?
+  notes       String?
+  /// Desativar, nunca apagar: mesmo padrão de Property e Pasture.
+  archived_at DateTime?
+  created_at  DateTime     @default(now())
+
+  tenant       Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  negotiations Negotiation[]
+
+  @@index([tenant_id])
+}
+
+enum NegotiationType {
+  compra_gado
+  venda_gado
+  compra_produto
+  venda_produto
+  permuta
+  /// Remessa para leilão, feira ou evento (§8). Não é venda: o §17.8 é
+  /// explícito que o envio não pode gerar receita antes da confirmação.
+  evento
+}
+
+/// O envelope comercial. NÃO tem campo de situação: o §16 (em aberto,
+/// confirmada, parcialmente paga, paga) é DERIVADO dos filhos, porque campo
+/// gravado e realidade divergem em silêncio e o número errado é o que o
+/// produtor vê. "Em aberto" nem existe como estado salvo: o §17.2 exige
+/// confirmação ANTES de concluir, então nada é gravado sem confirmação.
+model Negotiation {
+  id          String          @id @default(cuid())
+  tenant_id   String
+  type        NegotiationType
+  occurred_at DateTime
+  property_id String
+  contact_id  String?
+
+  /// Valor PRINCIPAL do negócio, sem os custos adicionais. É gravado porque é
+  /// um dado de entrada (o preço combinado), não uma soma: e porque o §14
+  /// exige validar que a soma das parcelas corresponde a ele, o que só é
+  /// possível conhecendo-o de forma independente.
+  amount Decimal? @db.Decimal(14, 2)
+
+  notes               String?
+  recorded_by_user_id String?
+
+  /// §17.9: cancelar recalcula tudo. Como o saldo é sempre soma, cancelar aqui
+  /// é cancelar os filhos, e a linha permanece no histórico (§17.10).
+  canceled_at     DateTime?
+  canceled_reason String?
+
+  created_at DateTime @default(now())
+
+  tenant      Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  property    Property         @relation(fields: [property_id], references: [id], onDelete: Cascade)
+  contact     Contact?         @relation(fields: [contact_id], references: [id], onDelete: SetNull)
+  recorded_by User?            @relation(fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
+  movements   HerdMovement[]
+  entries     FinancialEntry[]
+
+  @@index([tenant_id])
+  @@index([tenant_id, occurred_at])
+  @@index([contact_id])
+}
+
+/// Distingue o lançamento do valor combinado dos custos que vieram junto
+/// (§15: frete, comissão, taxa). Sem isso não dá para montar o quadro "valor
+/// principal / custos adicionais / líquido" que o documento pede, porque as
+/// parcelas do principal também são filhas da mesma negociação.
+enum NegotiationEntryRole {
+  principal
+  custo_adicional
 }

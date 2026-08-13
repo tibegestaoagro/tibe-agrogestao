@@ -412,6 +412,8 @@ export type RecordMovementInput = {
   occurred_at?: Date | null;
   recorded_by_user_id?: string | null;
   batch_id?: string | null;
+  /** Envelope comercial que originou o movimento (Negociações). */
+  negotiation_id?: string | null;
 };
 
 export type HerdMovementRecord = {
@@ -494,6 +496,28 @@ export async function recordMovement(
   db: TenantPrismaClient,
   input: RecordMovementInput,
 ): Promise<ActionResult<HerdMovementRecord>> {
+  return runSerializableTenantTransaction(db, async (tx) =>
+    recordMovementInTx(db, tx, input),
+  );
+}
+
+/**
+ * O corpo de `recordMovement`, SEM abrir transação.
+ *
+ * Existe porque uma operação maior precisa gravar vários movimentos e os
+ * lançamentos financeiros de uma vez só: uma negociação de gado com 2
+ * categorias e 3 parcelas são 6 escritas que ou entram todas ou nenhuma.
+ * Chamar `recordMovement` em sequência abriria uma transação por movimento, e
+ * uma falha no terceiro deixaria os dois primeiros gravados.
+ *
+ * `db` continua sendo pedido separado porque as validações de leitura (posição,
+ * propriedade, pasto) rodam fora do escopo transacional, como antes.
+ */
+export async function recordMovementInTx(
+  db: TenantPrismaClient,
+  tx: TenantTransactionClient,
+  input: RecordMovementInput,
+): Promise<ActionResult<HerdMovementRecord>> {
   if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
     return fail("VALIDATION_ERROR", "A quantidade deve ser um número inteiro maior que zero", 422);
   }
@@ -511,7 +535,7 @@ export async function recordMovement(
   const from = input.from ?? null;
   const to = input.to ?? null;
 
-  return runSerializableTenantTransaction(db, async (tx) => {
+  return (async () => {
     if (from) {
       const [current] = await getPositions(tx, from);
       const available = current?.quantity ?? 0;
@@ -543,6 +567,7 @@ export async function recordMovement(
         notes: input.notes ?? null,
         recorded_by_user_id: input.recorded_by_user_id ?? null,
         batch_id: input.batch_id ?? null,
+        negotiation_id: input.negotiation_id ?? null,
         occurred_at,
       }),
     });
@@ -576,7 +601,7 @@ export async function recordMovement(
       notes: input.notes ?? null,
       occurred_at,
     });
-  });
+  })();
 }
 
 /**

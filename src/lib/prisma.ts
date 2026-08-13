@@ -40,6 +40,8 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   "AnimalVaccination",
   "AnimalMovement",
   "HerdMovement",
+  "Contact",
+  "Negotiation",
   "Plot",
   "Pasture",
   "CropCycle",
