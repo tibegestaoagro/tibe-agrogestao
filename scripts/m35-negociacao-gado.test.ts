@@ -132,7 +132,10 @@ async function main() {
         d?.totais.principal === 45000,
         `soma das parcelas = valor da operação (obtido: ${d?.totais.principal})`,
       );
-      check(d?.situacao === "confirmada", `nenhuma paga ainda (obtida: ${d?.situacao})`);
+      check(
+        d?.situacao === "vencida",
+        `nenhuma paga e as parcelas ja venceram: "vencida" (§14) (obtida: ${d?.situacao})`,
+      );
     }
 
     console.log("\n3. §14: soma das parcelas diferente do valor é RECUSADA");
@@ -220,7 +223,9 @@ async function main() {
       property_id: fazenda.id,
       itens: [{ category_id: "bezerra_0_7", quantity: 8 }],
       amount: 20000,
-      pago: true,
+      // Em aberto de propósito: este bloco testa a volta do rebanho. Negócio
+      // já pago tem trava própria, exercitada no bloco 8.b.
+      pago: false,
     });
     check(paraCancelar.ok, "compra a ser cancelada registrada");
     if (paraCancelar.ok) {
@@ -232,12 +237,12 @@ async function main() {
       const d = await getNegotiation(db, paraCancelar.data.id);
       check(d?.situacao === "cancelada", "situação derivada vira cancelada");
       check(
-        !!d?.movimentos.every((m) => m.canceled_at !== null),
-        "os movimentos filhos ficaram cancelados",
+        (d?.movimentos.length ?? 0) > 0 && !!d?.movimentos.every((m) => m.canceled_at !== null),
+        `os movimentos filhos ficaram cancelados (${d?.movimentos.length ?? 0} movimento(s))`,
       );
       check(
-        !!d?.lancamentos.every((l) => l.status === "cancelled"),
-        "os lançamentos filhos ficaram cancelados",
+        (d?.lancamentos.length ?? 0) > 0 && !!d?.lancamentos.every((l) => l.status === "cancelled"),
+        `os lançamentos filhos ficaram cancelados (${d?.lancamentos.length ?? 0} lançamento(s))`,
       );
       check(!!d, "a negociação continua no histórico, não foi apagada (§17.10)");
     }
@@ -248,7 +253,7 @@ async function main() {
       property_id: fazenda.id,
       itens: [{ category_id: "macho_25_36", quantity: 10 }],
       amount: 30000,
-      pago: true,
+      pago: false,
     });
     if (compraUsada.ok) {
       await createCattleNegotiation(db, {
@@ -261,8 +266,11 @@ async function main() {
       const bloqueado = await cancelNegotiation(db, compraUsada.data.id, "tentando desfazer");
       check(!bloqueado.ok, "recusa: 8 dos 10 já foram vendidos");
       check(
-        !bloqueado.ok && bloqueado.message.length > 20,
-        `e explica o porquê (obtida: ${!bloqueado.ok ? bloqueado.message : ""})`,
+        !bloqueado.ok &&
+          bloqueado.code === "INSUFFICIENT_BALANCE" &&
+          bloqueado.message.includes("10") &&
+          bloqueado.message.includes("2"),
+        `explica quantos trouxe e quantos restam (obtida: ${!bloqueado.ok ? bloqueado.message : ""})`,
       );
       check((await saldoDe("macho_25_36")) === 2, "o saldo continua intacto depois da recusa");
     }
@@ -281,7 +289,10 @@ async function main() {
     });
     if (parcial.ok) {
       const antesDoPagamento = await getNegotiation(db, parcial.data.id);
-      check(antesDoPagamento?.situacao === "confirmada", "sem pagar nada: confirmada");
+      check(
+        antesDoPagamento?.situacao === "vencida",
+        `sem pagar nada e com parcela vencida: "vencida" (obtida: ${antesDoPagamento?.situacao})`,
+      );
 
       const primeira = antesDoPagamento!.lancamentos[0];
       await db.financialEntry.update({
@@ -290,8 +301,8 @@ async function main() {
       });
       const meioPago = await getNegotiation(db, parcial.data.id);
       check(
-        meioPago?.situacao === "parcialmente_paga",
-        `uma parcela paga: parcialmente paga (obtida: ${meioPago?.situacao})`,
+        meioPago?.situacao === "vencida",
+        `uma paga e a outra vencida: "vencida" vence sobre "parcialmente paga", porque e a unica que pede acao hoje (obtida: ${meioPago?.situacao})`,
       );
 
       await db.financialEntry.updateMany({
@@ -311,6 +322,155 @@ async function main() {
       !colunas.includes("status") && !colunas.includes("situacao"),
       `situação é derivada, não gravada (colunas: ${colunas.join(", ")})`,
     );
+
+    console.log("\n12. Caminhos de ERRO: cada recusa da action, uma a uma");
+    // Um juiz independente apontou que ~10 ramos de recusa existiam no código e
+    // nenhum era exercitado. Testar só o caminho feliz deixa a mensagem de erro,
+    // que é justamente o que o produtor lê quando algo dá errado, sem nenhuma
+    // prova de que chega até ele.
+    const base = {
+      type: "compra_gado" as const,
+      property_id: fazenda.id,
+      itens: [{ category_id: "bezerro_0_7", quantity: 5 }],
+      amount: 10000,
+    };
+
+    const semValor = await createCattleNegotiation(db, { ...base, amount: 0 });
+    check(!semValor.ok && semValor.code === "VALIDATION_ERROR", "valor zero é recusado");
+
+    const valorNegativo = await createCattleNegotiation(db, { ...base, amount: -1 });
+    check(!valorNegativo.ok, "valor negativo é recusado");
+
+    const semItens = await createCattleNegotiation(db, { ...base, itens: [] });
+    check(!semItens.ok && semItens.message.includes("categoria"), "sem itens é recusado");
+
+    const quantidadeQuebrada = await createCattleNegotiation(db, {
+      ...base,
+      itens: [{ category_id: "bezerro_0_7", quantity: 2.5 }],
+    });
+    check(!quantidadeQuebrada.ok, "quantidade fracionada de animal é recusada");
+
+    const quantidadeZero = await createCattleNegotiation(db, {
+      ...base,
+      itens: [{ category_id: "bezerro_0_7", quantity: 0 }],
+    });
+    check(!quantidadeZero.ok, "quantidade zero é recusada");
+
+    const fazendaInvalida = await createCattleNegotiation(db, { ...base, property_id: "nao-existe" });
+    check(
+      !fazendaInvalida.ok && fazendaInvalida.code === "INVALID_PROPERTY",
+      `fazenda inexistente é recusada (${!fazendaInvalida.ok ? fazendaInvalida.code : "ACEITOU"})`,
+    );
+
+    const contatoInvalido = await createCattleNegotiation(db, { ...base, contact_id: "nao-existe" });
+    check(
+      !contatoInvalido.ok && contatoInvalido.code === "INVALID_CONTACT",
+      `contato inexistente é recusado (${!contatoInvalido.ok ? contatoInvalido.code : "ACEITOU"})`,
+    );
+
+    const custoNegativo = await createCattleNegotiation(db, {
+      ...base,
+      custos: [{ descricao: "Frete", amount: -100 }],
+    });
+    check(
+      !custoNegativo.ok && custoNegativo.message.includes("negativo"),
+      "custo adicional negativo é recusado",
+    );
+
+    const parcelaZerada = await createCattleNegotiation(db, {
+      ...base,
+      pago: false,
+      parcelas: [
+        { due_date: new Date("2026-09-10"), amount: 10000 },
+        { due_date: new Date("2026-10-10"), amount: 0 },
+      ],
+    });
+    check(!parcelaZerada.ok, "parcela de valor zero é recusada");
+
+    const pagoEParcelado = await createCattleNegotiation(db, {
+      ...base,
+      pago: true,
+      parcelas: [{ due_date: new Date("2026-09-10"), amount: 10000 }],
+    });
+    check(
+      !pagoEParcelado.ok && pagoEParcelado.message.includes("não pode ser parcelado"),
+      "pago à vista E parcelado é contradição, e é recusado em vez de descartar as parcelas calado",
+    );
+
+    console.log("\n13. Cancelamento: os três jeitos de ser recusado");
+    const inexistente = await cancelNegotiation(db, "nao-existe", "teste");
+    check(
+      !inexistente.ok && inexistente.code === "NOT_FOUND",
+      "cancelar negociação inexistente devolve NOT_FOUND",
+    );
+
+    const paraCancelarDuasVezes = await createCattleNegotiation(db, {
+      ...base,
+      itens: [{ category_id: "bezerro_0_7", quantity: 3 }],
+      amount: 5000,
+      pago: false,
+    });
+    if (paraCancelarDuasVezes.ok) {
+      const primeiro = await cancelNegotiation(db, paraCancelarDuasVezes.data.id, "certo");
+      check(primeiro.ok, "primeiro cancelamento aceito");
+      const segundo = await cancelNegotiation(db, paraCancelarDuasVezes.data.id, "de novo");
+      check(
+        !segundo.ok && segundo.code === "ALREADY_CANCELED",
+        "cancelar duas vezes devolve ALREADY_CANCELED",
+      );
+    }
+
+    // A TRAVA MAIS CARA DESTA RODADA. Antes dela, cancelar marcava `cancelled`
+    // TODO lançamento da negociação, inclusive os `paid`: uma compra quitada em
+    // janeiro, cancelada em março, sumia do DRE e do fluxo de caixa como se o
+    // dinheiro nunca tivesse saído da conta. O lado do rebanho já travava; o do
+    // dinheiro não travava nada.
+    const jaPaga = await createCattleNegotiation(db, {
+      ...base,
+      itens: [{ category_id: "bezerro_0_7", quantity: 4 }],
+      amount: 8000,
+      pago: true,
+    });
+    if (jaPaga.ok) {
+      const recusado = await cancelNegotiation(db, jaPaga.data.id, "quero desfazer");
+      check(
+        !recusado.ok && recusado.code === "ALREADY_PAID",
+        `negócio já pago não pode ser cancelado (${!recusado.ok ? recusado.code : "ACEITOU"})`,
+      );
+      check(
+        !recusado.ok && recusado.message.includes("8.000"),
+        `a recusa diz QUANTO já foi pago (obtida: ${!recusado.ok ? recusado.message : ""})`,
+      );
+      const aindaViva = await getNegotiation(db, jaPaga.data.id);
+      check(aindaViva?.canceled_at === null, "e a negociação continua viva depois da recusa");
+      check(
+        (aindaViva?.lancamentos.length ?? 0) > 0 &&
+          aindaViva?.lancamentos.every((l) => l.status === "paid") === true,
+        "os lançamentos que estavam pagos continuam pagos",
+      );
+    }
+
+    console.log("\n14. §6.3: vencimento informado, sem parcelamento");
+    const comVencimento = await createCattleNegotiation(db, {
+      ...base,
+      itens: [{ category_id: "bezerro_0_7", quantity: 2 }],
+      amount: 4000,
+      pago: false,
+      due_date: new Date("2026-12-20T12:00:00"),
+      occurred_at: new Date("2026-08-13T12:00:00"),
+    });
+    if (comVencimento.ok) {
+      const d = await getNegotiation(db, comVencimento.data.id);
+      const principal = d?.lancamentos.find((l) => l.negotiation_role === "principal");
+      check(
+        principal?.due_date?.toISOString().slice(0, 10) === "2026-12-20",
+        `a conta vence na data combinada, não no dia da compra (obtida: ${principal?.due_date?.toISOString().slice(0, 10)})`,
+      );
+      check(
+        d?.situacao === "confirmada",
+        `vencimento no futuro não é "vencida" (obtida: ${d?.situacao})`,
+      );
+    }
 
     console.log("\n11. Isolamento multi-tenant");
     const tenantB = await prisma.tenant.create({

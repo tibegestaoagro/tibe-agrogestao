@@ -180,7 +180,7 @@ async function resolverPasto(
  * ou não há saldo em lugar nenhum (aí quem responde é a mensagem literal do
  * cliente, no §10.3, que é a certa para esse caso).
  */
-async function conferirOndeEstaOSaldo(
+export async function conferirOndeEstaOSaldo(
   db: TenantPrismaClient,
   categoria: HerdCategory,
   propertyId: string,

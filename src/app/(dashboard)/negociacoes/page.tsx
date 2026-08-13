@@ -14,7 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import NegotiationForm from "@/components/negociacoes/negotiation-form";
 import NegotiationCancel from "@/components/negociacoes/negotiation-cancel";
-import { listNegotiations } from "@/lib/actions/negotiations";
+import { listNegotiations, getOpenTotals } from "@/lib/actions/negotiations";
 import { findCategory } from "@/lib/herd/categories";
 
 /**
@@ -39,12 +39,28 @@ const TIPO_LABEL: Record<string, string> = {
   evento: "Remessa para evento",
 };
 
-const SITUACAO_LABEL: Record<string, string> = {
-  confirmada: "A pagar",
-  parcialmente_paga: "Parcial",
-  paga: "Quitada",
-  cancelada: "Cancelada",
-};
+/**
+ * §16 separa as situações de compra e de venda ("Parcialmente recebida",
+ * "Recebida"), e é por isso que o rótulo depende do TIPO. Antes o mapa era
+ * único e uma venda de R$ 80.000 que o frigorífico ainda não pagou aparecia
+ * como "A pagar": inversão de sinal na única coluna que se lê de relance.
+ */
+function situacaoLabel(situacao: string, venda: boolean): string {
+  switch (situacao) {
+    case "confirmada":
+      return venda ? "A receber" : "A pagar";
+    case "vencida":
+      return "Vencida";
+    case "parcialmente_paga":
+      return venda ? "Parcialmente recebida" : "Parcialmente paga";
+    case "paga":
+      return venda ? "Recebida" : "Quitada";
+    case "cancelada":
+      return "Cancelada";
+    default:
+      return situacao;
+  }
+}
 
 function reais(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -66,29 +82,20 @@ export default async function NegociacoesPage({
   const activePropertyId = await getActivePropertyId(db);
   const effectivePropertyId = searchParams.property_id ?? activePropertyId ?? undefined;
 
-  const [{ items, total }, properties, contacts] = await Promise.all([
+  const [{ items, total }, totais, properties, contacts] = await Promise.all([
     listNegotiations(
       db,
       effectivePropertyId ? { property_id: effectivePropertyId } : {},
       { limit: 30 },
     ),
+    getOpenTotals(db, effectivePropertyId ? { property_id: effectivePropertyId } : {}),
     db.property.findMany({ where: { archived_at: null }, orderBy: { name: "asc" } }),
     db.contact.findMany({ where: { archived_at: null }, orderBy: { name: "asc" } }),
   ]);
 
-  // §19: "valores a pagar" e "valores a receber". Somados das negociações
-  // vivas, ignorando canceladas e já quitadas.
-  const vivas = items.filter((n) => !n.canceled_at);
-  const aPagar = vivas
-    .filter((n) => n.type === "compra_gado" || n.type === "compra_produto")
-    .flatMap((n) => n.lancamentos)
-    .filter((l) => l.status === "pending")
-    .reduce((s, l) => s + l.amount, 0);
-  const aReceber = vivas
-    .filter((n) => n.type === "venda_gado" || n.type === "venda_produto")
-    .flatMap((n) => n.lancamentos)
-    .filter((l) => l.status === "pending" && l.entry_type === "income")
-    .reduce((s, l) => s + l.amount, 0);
+  // §19: "valores a pagar" e "valores a receber", de TODAS as negociações
+  // vivas, não só das 30 que a lista abaixo mostra. Ver getOpenTotals.
+  const { aPagar, aReceber } = totais;
 
   return (
     <div className="space-y-5">
@@ -203,8 +210,12 @@ export default async function NegociacoesPage({
                     )}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={cancelada ? "gray" : n.situacao === "paga" ? "green" : "gray"}>
-                      {SITUACAO_LABEL[n.situacao] ?? n.situacao}
+                    <Badge
+                      variant={
+                        cancelada ? "gray" : n.situacao === "paga" ? "green" : n.situacao === "vencida" ? "red" : "gray"
+                      }
+                    >
+                      {situacaoLabel(n.situacao, venda)}
                     </Badge>
                   </TableCell>
                   <TableCell>

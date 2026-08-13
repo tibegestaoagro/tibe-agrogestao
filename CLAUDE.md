@@ -1200,6 +1200,11 @@ npm run test:m29          # Ajustes financeiros (Modulo 28)
 npm run test:m30          # Rebanho por categoria (modelo unico)
 npm run test:m31          # Cancelamento com janela de arquivamento (60 dias)
 npm run test:m32          # Rebanho: as 12 categorias (Modulo 30, sem banco)
+npm run test:m33          # Rebanho: livro-razao (Modulo 30)
+npm run test:m34          # Rebanho pelo WhatsApp (Modulo 30)
+npm run test:m35          # Negociacao de gado (Modulo 31)
+npm run test:m36          # Negocio de gado pelo WhatsApp (Modulo 31)
+npm run wa                # Banco de provas do agente (docs/agents/banco-de-provas-whatsapp.md)
 ```
 
 Credenciais do seed (dev): `owner@damata.com.br` / `tibe123`.

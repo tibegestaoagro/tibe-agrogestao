@@ -47,6 +47,9 @@ const createSchema = z.object({
   occurred_at: z.string().datetime({ message: "Data inválida" }).nullish(),
   /** §6.3 e §7.3: "o pagamento já foi feito?" */
   pago: z.boolean().nullish(),
+  // §6.3 e §7.3: quando não foi pago, o vencimento é o primeiro dado pedido.
+  // Sem ele a conta nasce vencendo hoje e o alerta de atraso dispara na hora.
+  due_date: z.string().datetime({ message: "Data de vencimento inválida" }).nullish(),
   parcelas: z.array(parcelaSchema).nullish(),
   custos: z.array(custoSchema).nullish(),
   notes: z.string().trim().max(1000).nullish(),
@@ -125,6 +128,7 @@ export async function POST(request: Request) {
     contact_id: d.contact_id ?? null,
     occurred_at: d.occurred_at ? new Date(d.occurred_at) : null,
     pago: d.pago ?? false,
+    due_date: d.due_date ? new Date(d.due_date) : null,
     parcelas: (d.parcelas ?? []).map((p) => ({
       due_date: new Date(p.due_date),
       amount: p.amount,

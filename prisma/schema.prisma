@@ -1178,7 +1178,8 @@ model HerdMovement {
 // caminhos de escrita para a mesma coisa.
 // ─────────────────────────────────────────────────────────────
 
-/// §5: o produtor NÃO é obrigado a classificar o contato. Por isso o tipo é
+/// §4: o produtor NÃO é obrigado a classificar o contato (o §5 lista o tipo
+/// como opcional). Por isso o tipo é
 /// opcional, e a primeira versão não pede CPF, CNPJ nem endereço.
 enum ContactType {
   particular

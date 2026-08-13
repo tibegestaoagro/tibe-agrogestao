@@ -82,10 +82,16 @@ não parecer descuido.
 
 | # | Missão | Entrega | Aceite do §21 | Suíte |
 |---|---|---|---|---|
-| 1 | Negócio de gado | `Negotiation`, `Contact`, compra e venda, parcelamento, custos, tela, WhatsApp | 1, 2, 7, 8, 9, 10, 11, 15, 16, 24, 25 | `test:m35` |
-| 2 | Estoque e produtos | `Product`, categorias por tenant, `StockMovement`, compra/venda/uso, ajuste, mínimo | 3, 4, 17, 19, 20, 21, 22 | `test:m36` |
-| 3 | Leilão e eventos | Remessa, "em evento", encerramento com venda parcial | 12, 13, 14 | `test:m37` |
-| 4 | Permuta | Troca entre os 4 tipos, com diferença em dinheiro | 5, 6, 18 | `test:m38` |
+| 1 | Negócio de gado | `Negotiation`, `Contact`, compra e venda, parcelamento, custos, tela, WhatsApp | 1, 2, 7, 8, 9, 10, 11, 15, 16, 24, 25 | `test:m35` + `test:m36` |
+| 2 | Estoque e produtos | `Product`, categorias por tenant, `StockMovement`, compra/venda/uso, ajuste, mínimo | 3, 4, 17, 19, 20, 21, 22 | `test:m37` |
+| 3 | Leilão e eventos | Remessa, "em evento", encerramento com venda parcial | 12, 13, 14 | `test:m38` |
+| 4 | Permuta | Troca entre os 4 tipos, com diferença em dinheiro | 5, 6, 18 | `test:m39` |
+
+> **Numeração:** a missão 1 acabou com DUAS suítes, porque o registro por
+> WhatsApp (§18) rendeu uma bateria própria que o contrato não previa. O
+> `mNN` é contador de SUÍTES, não de módulo (ver CLAUDE.md), então o `m36`
+> ficou com ela e as missões seguintes andaram um número. Renumerar
+> colidiria, que é exatamente o estrago que o CLAUDE.md documenta.
 
 ---
 

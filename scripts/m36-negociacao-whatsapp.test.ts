@@ -5,12 +5,16 @@ import {
   _montarParcelas,
   _custosDosParametros,
 } from "@/lib/actions/whatsapp-handlers/negociacao";
-import { clearPendingNegotiation } from "@/lib/actions/negotiation-pending";
-import { getPositions } from "@/lib/actions/herd-ledger";
+import {
+  clearPendingNegotiation,
+  loadPendingNegotiation,
+} from "@/lib/actions/negotiation-pending";
+import { desempatarIntencao } from "@/lib/actions/whatsapp-router";
+import { getPositions, recordMovement } from "@/lib/actions/herd-ledger";
 import type { HandlerCtx } from "@/lib/actions/whatsapp-handlers/shared";
 
 /**
- * Módulo 31: registro de negócio de gado pelo WhatsApp (§22).
+ * Módulo 31: registro de negócio de gado pelo WhatsApp (§18).
  *
  * O que este arquivo protege são as três regras que já falharam em produção no
  * Módulo 30, agora num caminho que grava rebanho E financeiro de uma vez:
@@ -49,7 +53,7 @@ function ctx(
 }
 
 async function main() {
-  console.log("💬 Módulo 31: negócio de gado pelo WhatsApp (§22)\n");
+  console.log("💬 Módulo 31: negócio de gado pelo WhatsApp (§18)\n");
 
   const stamp = Date.now().toString().slice(-9);
   const tenant = await prisma.tenant.create({
@@ -155,6 +159,10 @@ async function main() {
     // Com uma pergunta em aberto, "cancela" ainda cancela: era exatamente aqui
     // que o rebanho devolvia a pergunta de novo, sem cancelar (achado real).
     await registrarNegocioGado(ctx(db, tenant.id, { tipo: "compra" }, { userId: USUARIO }));
+    check(
+      "sanidade: existe um pedido pendente antes da recusa",
+      (await loadPendingNegotiation(tenant.id, USUARIO)) !== null,
+    );
     const recusaComPendencia = await registrarNegocioGado(
       ctx(db, tenant.id, {}, { explicitNo: true, userId: USUARIO }),
     );
@@ -162,6 +170,14 @@ async function main() {
       "com pergunta pendente, cancela de verdade em vez de repetir a pergunta",
       recusaComPendencia.reply_text.includes("não registrei nada"),
       recusaComPendencia.reply_text,
+    );
+    // Verificar só o TEXTO passaria mesmo se o pendente nunca fosse limpo, que
+    // é justamente o defeito que a frase acima alega cobrir: `explicitNo` é a
+    // primeira instrução do handler e a resposta sairia igual. O que prova o
+    // cancelamento é o pedido ter sumido.
+    check(
+      "e o pedido guardado sumiu de verdade, não só a mensagem",
+      (await loadPendingNegotiation(tenant.id, USUARIO)) === null,
     );
 
     // ------------------------------------------------------------------
@@ -343,12 +359,264 @@ async function main() {
       respondeuValor.reply_text,
     );
 
+    // ------------------------------------------------------------------
+    console.log("\n9. O desempate entre as duas intenções vive em CÓDIGO");
+    // ------------------------------------------------------------------
+    // "Comprei 20 bezerros por 60 mil" satisfaz tanto
+    // registrar_movimentacao_rebanho quanto registrar_negocio_gado. Deixar a
+    // escolha só para o prompt do classificador seria dois caminhos de escrita
+    // para o mesmo gesto, e caminho duplicado é onde o dado diverge.
+    check(
+      "compra COM valor vira negócio",
+      desempatarIntencao("registrar_movimentacao_rebanho", {
+        movement_type: "compra",
+        valor: 60000,
+      }) === "registrar_negocio_gado",
+    );
+    check(
+      "venda COM valor vira negócio",
+      desempatarIntencao("registrar_movimentacao_rebanho", { movement_type: "venda", amount: "500" }) ===
+        "registrar_negocio_gado",
+    );
+    check(
+      "compra SEM valor continua no rebanho (correção de livro-razão, sem dinheiro)",
+      desempatarIntencao("registrar_movimentacao_rebanho", { movement_type: "compra" }) ===
+        "registrar_movimentacao_rebanho",
+    );
+    check(
+      "valor zero não é negócio",
+      desempatarIntencao("registrar_movimentacao_rebanho", { movement_type: "compra", valor: 0 }) ===
+        "registrar_movimentacao_rebanho",
+    );
+    check(
+      "nascimento nunca vira negócio, mesmo com valor",
+      desempatarIntencao("registrar_movimentacao_rebanho", {
+        movement_type: "nascimento",
+        valor: 1000,
+      }) === "registrar_movimentacao_rebanho",
+    );
+    check(
+      "outras intenções passam intactas",
+      desempatarIntencao("consultar_rebanho", { valor: 10 }) === "consultar_rebanho",
+    );
+
+    // ------------------------------------------------------------------
+    console.log("\n10. Sem usuário identificado, o 'sim' NÃO escreve");
+    // ------------------------------------------------------------------
+    // A regra 3 vivia atrás de `temMemoria`, então uma chamada sem user_id
+    // caía direto na gravação com o que o classificador tinha remontado,
+    // mexendo em rebanho E financeiro sem âncora nenhuma.
+    const negociacoesAntes = await db.negotiation.count();
+    const semUsuario = await registrarNegocioGado(
+      ctx(db, tenant.id, { tipo: "compra", categoria: "bezerro", quantidade: 30, valor: 90000 }, {
+        confirmed: true,
+      }),
+    );
+    check(
+      "recusa e explica",
+      semUsuario.reply_text.includes("não vou registrar nada"),
+      semUsuario.reply_text,
+    );
+    check(
+      "e não gravou nada",
+      (await db.negotiation.count()) === negociacoesAntes,
+      `${negociacoesAntes} -> ${await db.negotiation.count()}`,
+    );
+
+    // ------------------------------------------------------------------
+    console.log("\n11. O que já foi dito não se perde no meio da conversa");
+    // ------------------------------------------------------------------
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    await registrarNegocioGado(
+      ctx(db, tenant.id, { tipo: "compra", categoria: "bezerro", quantidade: 7 }, { userId: USUARIO }),
+    );
+    // O assistente perguntou o valor. O produtor responde com o VENDEDOR, que
+    // não é o que foi perguntado. Antes, isso jogava fora os 7 bezerros e
+    // voltava para a primeira pergunta.
+    const respostaFora = await registrarNegocioGado(
+      ctx(db, tenant.id, { vendedor: "João" }, { userId: USUARIO }),
+    );
+    check(
+      "responder outra coisa não apaga o que já foi coletado",
+      respostaFora.reply_text.includes("Por quanto"),
+      respostaFora.reply_text,
+    );
+    const comValorDepois = await registrarNegocioGado(
+      ctx(db, tenant.id, { valor: 14000 }, { userId: USUARIO }),
+    );
+    check(
+      "e a confirmação traz os 7 bezerros E o vendedor, ditos em mensagens diferentes",
+      comValorDepois.reply_text.includes("7 bezerros") &&
+        comValorDepois.reply_text.includes("João"),
+      comValorDepois.reply_text,
+    );
+
+    // ------------------------------------------------------------------
+    console.log("\n12. §18.1: o exemplo do cliente, inteiro");
+    // ------------------------------------------------------------------
+    // "Comprei 20 bezerros do João por 60 mil para pagar dia 10."
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    const exemplo = await registrarNegocioGado(
+      ctx(
+        db,
+        tenant.id,
+        {
+          tipo: "compra",
+          categoria: "bezerro",
+          quantidade: 20,
+          valor: 60000,
+          vendedor: "João",
+          vencimento: "2026-12-10",
+        },
+        { userId: USUARIO },
+      ),
+    );
+    check("mostra o vendedor", exemplo.reply_text.includes("Vendedor: João"), exemplo.reply_text);
+    check(
+      "mostra o vencimento combinado, não a data de hoje",
+      exemplo.reply_text.includes("10/12/2026"),
+      exemplo.reply_text,
+    );
+    const exemploGravado = await registrarNegocioGado(
+      ctx(db, tenant.id, {}, { confirmed: true, userId: USUARIO }),
+    );
+    check("grava", exemploGravado.reply_text.startsWith("✅"), exemploGravado.reply_text);
+
+    const contatoCriado = await db.contact.findFirst({ where: { name: "João" } });
+    check("o contato João foi criado (§4: só o nome basta)", contatoCriado !== null);
+    const negExemplo = await db.negotiation.findFirst({
+      where: { contact_id: contatoCriado?.id },
+    });
+    check("e a negociação ficou pendurada nele", negExemplo !== null);
+    const contaDoExemplo = await db.financialEntry.findFirst({
+      where: { negotiation_id: negExemplo?.id, negotiation_role: "principal" },
+    });
+    check(
+      "a conta vence em 10/12, não hoje",
+      contaDoExemplo?.due_date?.toISOString().slice(0, 10) === "2026-12-10",
+      String(contaDoExemplo?.due_date),
+    );
+
+    // Repetir o mesmo vendedor não pode criar um segundo João.
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    await registrarNegocioGado(
+      ctx(
+        db,
+        tenant.id,
+        { tipo: "compra", categoria: "bezerro", quantidade: 1, valor: 900, vendedor: "joão" },
+        { userId: USUARIO },
+      ),
+    );
+    await registrarNegocioGado(ctx(db, tenant.id, {}, { confirmed: true, userId: USUARIO }));
+    check(
+      "o mesmo vendedor, escrito diferente, não vira um contato novo",
+      (await db.contact.count({ where: { name: { equals: "João", mode: "insensitive" } } })) === 1,
+      String(await db.contact.count()),
+    );
+
+    // ------------------------------------------------------------------
+    console.log("\n13. Uma cabeça só: a frase precisa fazer sentido");
+    // ------------------------------------------------------------------
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    const umaCabeca = await registrarNegocioGado(
+      ctx(db, tenant.id, { tipo: "compra", categoria: "bezerro", quantidade: 1, valor: 500 }),
+    );
+    check(
+      "usa o plural coloquial, não o rótulo de tabela dentro da frase",
+      umaCabeca.reply_text.includes("1 bezerros") &&
+        !umaCabeca.reply_text.includes("Bezerro - 0 a 7 meses"),
+      umaCabeca.reply_text,
+    );
+
+    // ------------------------------------------------------------------
+    console.log("\n14. Parcela não pode pular o mês");
+    // ------------------------------------------------------------------
+    // 31/01 + 1 mês com setMonth vira 03/03, porque fevereiro não tem 31 dias:
+    // a parcela de fevereiro apareceria em março.
+    const fimDeMes = _montarParcelas(3000, 3, new Date(2026, 0, 31, 12));
+    check(
+      "31 de janeiro gera parcela em fevereiro, não em março",
+      fimDeMes[0].due_date.getMonth() === 1,
+      fimDeMes.map((p) => p.due_date.toISOString().slice(0, 10)).join(", "),
+    );
+    check(
+      "e cai no último dia do mês quando o dia não existe",
+      fimDeMes[0].due_date.getDate() === 28,
+      String(fimDeMes[0].due_date.getDate()),
+    );
+
+    // ------------------------------------------------------------------
+    console.log("\n15. §15: os custos do documento, todos");
+    // ------------------------------------------------------------------
+    const todosOsCustos = _custosDosParametros({
+      frete: 1000,
+      comissao: 500,
+      taxa_leilao: 300,
+      carregamento: 200,
+      guia_transporte: 100,
+      exames: 80,
+    });
+    check(
+      "taxa de leilão, carregamento, guia e exames deixaram de sumir em silêncio",
+      todosOsCustos.length === 6,
+      todosOsCustos.map((c) => c.descricao).join(", "),
+    );
+
+    // ------------------------------------------------------------------
+    console.log("\n16. Vender quem está em PASTO: diz onde está, não 'você tem 0'");
+    // ------------------------------------------------------------------
+    // A venda procura em (categoria, fazenda, pasto=null), porque a conversa
+    // não fala de pasto. Quem lançou o rebanho por pasto tem o saldo em
+    // (categoria, fazenda, pasto=P): sem a conferência, o produtor com 45
+    // cabeças no pasto ouvia "existem apenas 0 animais", e pior, só DEPOIS de
+    // ter dito "sim". Este defeito já tinha acontecido no rebanho em 2026-08-10.
+    const pasto = await db.pasture.create({
+      data: scoped({ property_id: fazenda.id, name: "Pasto da Baixada", area_hectares: 30 }),
+    });
+    await recordMovement(db, {
+      movement_type: "saldo_inicial",
+      quantity: 45,
+      to: {
+        category_id: "femea_36_mais",
+        property_id: fazenda.id,
+        pasture_id: pasto.id,
+        situation: "presente",
+        owner: "proprio",
+      },
+    });
+
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    const vendaEmPasto = await registrarNegocioGado(
+      ctx(
+        db,
+        tenant.id,
+        { tipo: "venda", categoria: "vaca", quantidade: 10, valor: 50000 },
+        { userId: USUARIO },
+      ),
+    );
+    check(
+      "não diz que o produtor tem 0 animais",
+      !vendaEmPasto.reply_text.includes("apenas 0"),
+      vendaEmPasto.reply_text,
+    );
+    check(
+      "diz ONDE os animais estão, e devolve a escolha ao produtor",
+      vendaEmPasto.reply_text.includes("Pasto da Baixada"),
+      vendaEmPasto.reply_text,
+    );
+    check(
+      "e não pede confirmação enquanto isso não se resolve",
+      vendaEmPasto.requires_confirmation === false,
+      vendaEmPasto.reply_text,
+    );
+
     await clearPendingNegotiation(tenant.id, USUARIO);
   } finally {
     await prisma.financialEntry.deleteMany({ where: { tenant_id: tenant.id } });
     await prisma.herdMovement.deleteMany({ where: { tenant_id: tenant.id } });
     await prisma.negotiation.deleteMany({ where: { tenant_id: tenant.id } });
     await prisma.contact.deleteMany({ where: { tenant_id: tenant.id } });
+    await prisma.pasture.deleteMany({ where: { tenant_id: tenant.id } });
     await prisma.property.deleteMany({ where: { tenant_id: tenant.id } });
     await prisma.user.deleteMany({ where: { tenant_id: tenant.id } });
     await prisma.tenant.deleteMany({ where: { id: tenant.id } });

@@ -8,11 +8,17 @@ import {
   MAX_TENTATIVAS,
   type CampoNegocio,
 } from "@/lib/actions/negotiation-pending";
-import { itensDosParametros, resolverCategoria, resolverFazenda } from "./herd";
+import { findOrCreateContactByName } from "@/lib/actions/contacts";
+import {
+  itensDosParametros,
+  resolverCategoria,
+  resolverFazenda,
+  conferirOndeEstaOSaldo,
+} from "./herd";
 import { ask, failReply, str, num, type Handler, type RouterResult } from "./shared";
 
 /**
- * Registro de negócio de gado pelo WhatsApp (Módulo 31, §22).
+ * Registro de negócio de gado pelo WhatsApp (Módulo 31, §18).
  *
  * A promessa do módulo é que o produtor conte o negócio UMA vez e o rebanho, o
  * financeiro e o histórico se atualizem sozinhos. Pela conversa isso vale
@@ -48,10 +54,15 @@ function reais(v: number): string {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+/**
+ * Sempre `plural`, inclusive para uma cabeça só. `categories.ts` documenta o
+ * porquê: o `label` ("Bezerro - 0 a 7 meses") fica estranho dentro de frase, e
+ * "Comprar 1 Bezerro - 0 a 7 meses por R$ 500,00?" é justamente a frase que o
+ * §2 pede para não parecer sistema contábil. Mesmo tratamento do handler de
+ * rebanho, que o produtor lê na mesma conversa.
+ */
 function descreverItens(itens: { categoria: HerdCategory; quantidade: number }[]): string {
-  return itens
-    .map((i) => `${i.quantidade} ${i.quantidade === 1 ? i.categoria.label : i.categoria.plural}`)
-    .join(" e ");
+  return itens.map((i) => `${i.quantidade} ${i.categoria.plural}`).join(" e ");
 }
 
 type CustoLido = { descricao: string; valor: number };
@@ -74,15 +85,37 @@ function custosDosParametros(parameters: Record<string, unknown>): CustoLido[] {
     }
     if (saida.length > 0) return saida;
   }
+  // A lista do §15, inteira. Antes só `frete`, `comissao` e `taxa` eram lidos, e
+  // "taxa de leilão", "carregamento", "guia de transporte" e "exames", todos
+  // citados no documento, sumiam em silêncio.
   for (const [campo, rotulo] of [
     ["frete", "Frete"],
     ["comissao", "Comissão"],
     ["taxa", "Taxa"],
+    ["taxa_leilao", "Taxa de leilão"],
+    ["carregamento", "Carregamento"],
+    ["guia", "Guia de transporte"],
+    ["guia_transporte", "Guia de transporte"],
+    ["exames", "Exames"],
+    ["vacinas", "Vacinas"],
+    ["pedagio", "Pedágio"],
   ] as const) {
     const valor = num(parameters[campo]);
     if (valor != null && valor > 0) saida.push({ descricao: rotulo, valor });
   }
   return saida;
+}
+
+/** Lê "para pagar dia 10" / "vence em 2026-09-10". */
+function lerData(parameters: Record<string, unknown>, ...campos: string[]): Date | null {
+  for (const campo of campos) {
+    const bruto = str(parameters[campo]);
+    if (!bruto) continue;
+    // Meio-dia evita o pulo de um dia por fuso ao normalizar só a data.
+    const data = new Date(`${bruto.slice(0, 10)}T12:00:00`);
+    if (!Number.isNaN(data.getTime())) return data;
+  }
+  return null;
 }
 
 /**
@@ -96,12 +129,32 @@ function montarParcelas(total: number, quantas: number, base: Date) {
   const fatia = Math.floor(centavos / quantas);
   const parcelas: { amount: number; due_date: Date }[] = [];
   for (let i = 0; i < quantas; i++) {
-    const venc = new Date(base);
-    venc.setMonth(venc.getMonth() + i + 1);
-    const valorCentavos = i === quantas - 1 ? centavos - fatia * (quantas - 1) : fatia;
-    parcelas.push({ amount: valorCentavos / 100, due_date: venc });
+    parcelas.push({
+      amount: (i === quantas - 1 ? centavos - fatia * (quantas - 1) : fatia) / 100,
+      due_date: somarMeses(base, i + 1),
+    });
   }
   return parcelas;
+}
+
+/**
+ * Soma meses SEM pular para o mês seguinte. `setMonth` faz 31/01 + 1 virar
+ * 03/03, porque fevereiro não tem 31 dias: a parcela de fevereiro apareceria em
+ * março e o produtor cobraria uma conta que o sistema mostrou na data errada.
+ * Quando o dia não existe no mês de destino, cai no último dia do mês.
+ */
+function somarMeses(base: Date, meses: number): Date {
+  const ano = base.getFullYear();
+  const mes = base.getMonth() + meses;
+  const ultimoDiaDoMesDestino = new Date(ano, mes + 1, 0).getDate();
+  return new Date(
+    ano,
+    mes,
+    Math.min(base.getDate(), ultimoDiaDoMesDestino),
+    12,
+    0,
+    0,
+  );
 }
 
 export const registrarNegocioGado: Handler = async ({
@@ -132,7 +185,23 @@ export const registrarNegocioGado: Handler = async ({
   const pendente = temMemoria ? await loadPendingNegotiation(tenant_id, user_id!) : null;
 
   // Regra 3: o "sim" só vale para o que foi mostrado.
-  if (temMemoria && confirmed) {
+  if (confirmed) {
+    if (!temMemoria) {
+      /**
+       * SEM USUÁRIO RESOLVIDO, NÃO ESCREVE. Não há onde guardar o que foi
+       * mostrado, então não há como saber se o "sim" se refere a isto.
+       *
+       * Esta guarda estava dentro do `temMemoria` e por isso não existia: uma
+       * chamada sem `user_id` caía direto na gravação com o que o
+       * classificador tinha remontado, mexendo em rebanho E financeiro sem
+       * âncora nenhuma. Era exatamente a "assinatura em papel em branco" que o
+       * cabeçalho deste arquivo diz proibir, no caminho em que ninguém olhava.
+       */
+      return ask(
+        "Não consegui identificar quem está falando comigo, então não vou registrar nada. " +
+          "Me conte de novo o que você comprou ou vendeu.",
+      );
+    }
     if (pendente?.aguardando === "confirmacao") {
       parameters = pendente.parameters;
     } else if (pendente) {
@@ -148,9 +217,23 @@ export const registrarNegocioGado: Handler = async ({
 
   if (pendente && pendente.aguardando !== "confirmacao") {
     const juntado = aplicarRespostaNegocio(pendente, parametrosDaMensagem);
-    if (juntado) parameters = juntado;
-    // Quando não é resposta, o pendente NÃO é apagado: apagar zerava o contador
-    // e a trava de laço nunca disparava. Ele morre por TTL, sucesso ou recusa.
+    if (juntado) {
+      parameters = juntado;
+    } else {
+      /**
+       * A mensagem não responde ao que foi perguntado, mas o que já foi
+       * coletado continua valendo: o que a mensagem nova traz entra POR CIMA do
+       * acumulado, nunca no lugar dele.
+       *
+       * Antes ficava só a mensagem nova, e `perguntar()` salvava esse conjunto
+       * empobrecido por cima do pendente: quem dissesse "comprei 20 bezerros",
+       * ouvisse "por quanto?" e respondesse "do João" perdia os 20 bezerros e
+       * voltava para a primeira pergunta.
+       */
+      parameters = { ...pendente.parameters, ...parametrosDaMensagem };
+    }
+    // O pendente NÃO é apagado aqui: apagar zerava o contador e a trava de laço
+    // nunca disparava. Ele morre por TTL, sucesso ou recusa.
   }
 
   const perguntar = async (resposta: RouterResult, campo: CampoNegocio): Promise<RouterResult> => {
@@ -208,6 +291,55 @@ export const registrarNegocioGado: Handler = async ({
   const fazenda = await resolverFazenda(db, str(parameters.fazenda) ?? str(parameters.property));
   if (!fazenda.ok) return perguntar(fazenda.resposta, "fazenda");
 
+  /**
+   * NUMA VENDA, CONFERIR ONDE O SALDO ESTÁ, ANTES DE PEDIR CONFIRMAÇÃO.
+   *
+   * A venda procura na posição `(categoria, fazenda, pasto=null)`, porque a
+   * conversa não fala de pasto. Quem lançou o rebanho por pasto tem o saldo em
+   * `(categoria, fazenda, pasto=P)`, e a busca acha zero: o produtor com 45
+   * cabeças no pasto ouvia "existem apenas 0 animais". O rebanho já tinha
+   * corrigido isso (achado em teste real, 2026-08-10) e este caminho nascia com
+   * a mesma falha, pior: sem a conferência, ele só descobria DEPOIS de dizer
+   * "sim".
+   *
+   * `conferirOndeEstaOSaldo` devolve `null` quando pode seguir e uma pergunta
+   * quando o saldo está em outro lugar. Não move sozinho: escolher de qual
+   * pasto tirar é do mesmo tipo de chute que o §14 proíbe.
+   */
+  if (!compra) {
+    for (const item of itens) {
+      const ondeEsta = await conferirOndeEstaOSaldo(
+        db,
+        item.categoria,
+        fazenda.id,
+        null,
+        item.quantidade,
+      );
+      if (ondeEsta) return perguntar(ondeEsta, "categoria");
+    }
+  }
+
+  /**
+   * §18.1: "Comprei 20 bezerros DO JOÃO por 60 mil". O contato é parte do
+   * exemplo-bandeira do cliente, e a resposta esperada no documento traz
+   * "Vendedor: João". Sem isto, o nome que o produtor disse era descartado.
+   * §4 permite criar com só o nome, sem classificar.
+   */
+  const nomeContato =
+    str(parameters.contato) ??
+    str(parameters.contact) ??
+    (compra ? str(parameters.vendedor) : str(parameters.comprador)) ??
+    str(parameters.vendedor) ??
+    str(parameters.comprador);
+  const contato = nomeContato ? await findOrCreateContactByName(db, nomeContato) : null;
+
+  /**
+   * §6.1 e §7.1 listam a data da operação como obrigatória, e o handler de
+   * rebanho já lia "ontem"/"dia 10" desde o Módulo 30. Aqui a data era sempre
+   * `new Date()`, então "comprei 20 bezerros ontem" era gravado hoje, calado.
+   */
+  const quandoInformado = lerData(parameters, "data", "date", "occurred_at");
+
   // --- como foi pago -------------------------------------------------------
 
   const custos = custosDosParametros(parameters);
@@ -221,7 +353,12 @@ export const registrarNegocioGado: Handler = async ({
   // dizer que pagou, o negócio nasce pendente, que é o caso comum de curral.
   const pago = parameters.pago === true && !quantasParcelas;
 
-  const quando = new Date();
+  const quando = quandoInformado ?? new Date();
+  // §6.3 e §7.3: quando não foi pago, o vencimento é o PRIMEIRO dado pedido
+  // ("Data de vencimento; Quantidade de parcelas, quando houver"). É o que faz
+  // "para pagar dia 10" do §18.1 virar uma conta que vence dia 10, em vez de
+  // uma conta vencendo hoje que dispara alerta de atraso na mesma hora.
+  const vencimento = lerData(parameters, "vencimento", "due_date", "data_pagamento");
 
   // --- regra 2: confirmar sempre, mostrando o que vai ser escrito ----------
 
@@ -232,6 +369,8 @@ export const registrarNegocioGado: Handler = async ({
         : `Vender ${descreverItens(itens)} por ${reais(valor)}?`,
       `Fazenda: ${fazenda.nome}`,
     ];
+    if (contato) linhas.push(`${compra ? "Vendedor" : "Comprador"}: ${contato.name}`);
+    if (quandoInformado) linhas.push(`Data: ${quando.toLocaleDateString("pt-BR")}`);
     for (const c of custos) linhas.push(`${c.descricao}: ${reais(c.valor)}`);
     if (totalCustos > 0) {
       linhas.push(
@@ -242,8 +381,12 @@ export const registrarNegocioGado: Handler = async ({
     }
     if (quantasParcelas) {
       linhas.push(`Em ${quantasParcelas}x de ${reais(valor / quantasParcelas)}, a partir do mês que vem`);
+    } else if (pago) {
+      linhas.push("Pagamento: já foi feito");
+    } else if (vencimento) {
+      linhas.push(`Pagamento previsto para ${vencimento.toLocaleDateString("pt-BR")}`);
     } else {
-      linhas.push(pago ? "Pagamento: já foi feito" : "Pagamento: ainda em aberto");
+      linhas.push("Pagamento: ainda em aberto");
     }
     linhas.push(
       compra
@@ -273,6 +416,8 @@ export const registrarNegocioGado: Handler = async ({
     property_id: fazenda.id,
     itens: itens.map((i) => ({ category_id: i.categoria.id, quantity: i.quantidade })),
     amount: valor,
+    contact_id: contato?.id ?? null,
+    due_date: vencimento,
     pago,
     parcelas: quantasParcelas ? montarParcelas(valor, quantasParcelas, quando) : undefined,
     custos: custos.length > 0 ? custos.map((c) => ({ descricao: c.descricao, amount: c.valor })) : undefined,

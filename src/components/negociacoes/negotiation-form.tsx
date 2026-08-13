@@ -31,8 +31,8 @@ import { HERD_CATEGORIES } from "@/lib/herd/categories";
  * O documento é insistente sobre não parecer sistema contábil (§2), então a
  * ordem das perguntas segue a da conversa do produtor: o que, quanto, de quem,
  * já pagou. Peso, arroba e valor por cabeça ficam de fora desta versão porque o
- * §6.2 os marca como opcionais e o §6.1 diz que o sistema não deve exigi-los
- * quando o produtor informar apenas o valor total.
+ * §6.2 os marca como opcionais e diz, no fim do parágrafo, que o sistema não
+ * deve exigi-los quando o produtor informar apenas o valor total.
  */
 
 type Property = { id: string; name: string };
@@ -73,6 +73,11 @@ export default function NegotiationForm({
   const [amount, setAmount] = useState("");
   const [occurredAt, setOccurredAt] = useState(hoje());
   const [pago, setPago] = useState(true);
+  // §6.3 e §7.3: quando não foi pago, o vencimento é o PRIMEIRO dado pedido,
+  // e as parcelas são o condicional ("quando houver"). Sem este campo, quem
+  // marcava "Ainda não" sem parcelar criava uma conta vencendo hoje, e o
+  // alerta de atraso disparava no mesmo dia da compra.
+  const [vencimento, setVencimento] = useState(hoje());
   const [parcelas, setParcelas] = useState<Parcela[]>([]);
   const [custos, setCustos] = useState<Custo[]>([]);
   const [notes, setNotes] = useState("");
@@ -100,6 +105,7 @@ export default function NegotiationForm({
     setAmount("");
     setOccurredAt(hoje());
     setPago(true);
+    setVencimento(hoje());
     setParcelas([]);
     setCustos([]);
     setNotes("");
@@ -141,6 +147,7 @@ export default function NegotiationForm({
       amount: valorNumero,
       occurred_at: new Date(`${occurredAt}T12:00:00`).toISOString(),
       pago,
+      due_date: pago || parcelas.length > 0 ? null : new Date(`${vencimento}T12:00:00`).toISOString(),
       parcelas: pago
         ? []
         : parcelas.map((p) => ({
@@ -302,6 +309,17 @@ export default function NegotiationForm({
 
             {!pago && (
               <div className="mt-3 space-y-2">
+                {parcelas.length === 0 && (
+                  <div>
+                    <Label htmlFor="neg-vencimento">Vence em</Label>
+                    <Input
+                      id="neg-vencimento"
+                      type="date"
+                      value={vencimento}
+                      onChange={(e) => setVencimento(e.target.value)}
+                    />
+                  </div>
+                )}
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm text-gray-600">Dividir em:</span>
                   {[1, 2, 3, 6, 12].map((n) => (

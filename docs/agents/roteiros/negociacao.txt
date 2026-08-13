@@ -1,0 +1,33 @@
+# Roteiro de conversa: registrar um negocio de gado pelo WhatsApp.
+# Uma mensagem por linha. Linhas vazias e comecadas por # sao ignoradas.
+# Rode com:  npm run wa limpa  &&  npm run wa roteiro docs/agents/roteiros/negociacao.txt
+#
+# O exemplo do §18.1 do documento do cliente, inteiro, mais os desvios que
+# custaram uma rodada cada no Modulo 30.
+
+# 1. O exemplo do cliente, numa frase so.
+Comprei 20 bezerros do Joao por 60 mil para pagar dia 10
+sim
+
+# 2. Conferir que o rebanho subiu sozinho.
+Quantos animais eu tenho?
+
+# 3. Recusa: "cancela" tem que cancelar de verdade, nao repetir a pergunta.
+Vendi 5 bezerros por 20 mil
+cancela
+
+# 4. E depois da recusa, nada pode ter sido gravado.
+Quantos animais eu tenho?
+
+# 5. Conversa picada: o que ja foi dito nao pode se perder.
+Comprei 10 novilhas
+femeas de 13 a 24 meses
+por 45 mil
+sim
+
+# 6. Parcelamento.
+Vendi 8 bezerros por 32 mil em 4 vezes
+sim
+
+# 7. Um "sim" solto, sem nada esperando confirmacao, nao pode escrever nada.
+sim

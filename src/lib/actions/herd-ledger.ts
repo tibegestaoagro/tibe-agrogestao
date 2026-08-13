@@ -659,6 +659,29 @@ export async function cancelMovement(
       return fail("ALREADY_CANCELED", "Esta movimentação já foi cancelada", 422);
     }
 
+    /**
+     * MOVIMENTO QUE PERTENCE A UMA NEGOCIAÇÃO SÓ SE DESFAZ PELA NEGOCIAÇÃO
+     * (Módulo 31).
+     *
+     * A situação da negociação é derivada dos filhos, mas só dos FINANCEIROS.
+     * Cancelar o movimento por fora devolvia os animais e deixava o envelope
+     * exibindo "Quitada", com o dinheiro intacto e o rebanho já desfeito: um
+     * estado que nem o painel nem o produtor conseguem ler, e que ninguém
+     * pediu, porque quem cancela quer desfazer o NEGÓCIO.
+     *
+     * Recusar e apontar o caminho certo é melhor que cancelar a negociação
+     * inteira por conta própria: desfazer dinheiro é decisão do produtor, e o
+     * cancelamento da negociação tem travas próprias (parcela já paga, animais
+     * já revendidos) que precisam ser respeitadas.
+     */
+    if (movement.negotiation_id) {
+      return fail(
+        "BELONGS_TO_NEGOTIATION",
+        "Esta movimentação faz parte de um negócio. Para desfazer, cancele o negócio em Negociações: assim os animais e o financeiro voltam juntos.",
+        422,
+      );
+    }
+
     const to = extractPosition(movement, "to");
     if (to) {
       const [current] = await getPositions(tx, to);

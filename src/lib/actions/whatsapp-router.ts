@@ -63,6 +63,41 @@ const HANDLERS: Record<Exclude<Intent, "ambigua">, Handler> = {
   resumo,
 };
 
+/**
+ * DESEMPATE ENTRE AS DUAS INTENÇÕES DE COMPRA E VENDA, EM CÓDIGO.
+ *
+ * "Comprei 20 bezerros por 60 mil" satisfaz tanto
+ * `registrar_movimentacao_rebanho` (com `movement_type: "compra"` e um valor,
+ * que já grava `HerdMovement` + `FinancialEntry`) quanto
+ * `registrar_negocio_gado`. Deixar a escolha só para o prompt do classificador
+ * significaria dois caminhos de escrita para o mesmo gesto, e a decisão 1 da
+ * spec deste módulo descarta isso com o argumento de que "caminho duplicado é
+ * onde o dado diverge".
+ *
+ * A regra: compra ou venda COM valor é sempre negócio. Não se perde nada, pois
+ * a negociação grava o mesmo movimento de rebanho e o mesmo lançamento
+ * financeiro, e ainda amarra os dois num envelope que o produtor consegue
+ * cancelar de uma vez. Compra e venda SEM valor continuam no rebanho: é a
+ * correção de livro-razão, que não tem dinheiro envolvido.
+ *
+ * Função pura, testada em `test:m36`: a regra não pode viver só no prompt.
+ */
+export function desempatarIntencao(
+  intent: Intent,
+  parameters: Record<string, unknown>,
+): Intent {
+  if (intent !== "registrar_movimentacao_rebanho") return intent;
+
+  const tipo = typeof parameters.movement_type === "string" ? parameters.movement_type : parameters.tipo;
+  if (tipo !== "compra" && tipo !== "venda") return intent;
+
+  const bruto = parameters.valor ?? parameters.amount ?? parameters.valor_total;
+  const valor = typeof bruto === "number" ? bruto : typeof bruto === "string" ? Number(bruto) : NaN;
+  if (!Number.isFinite(valor) || valor <= 0) return intent;
+
+  return "registrar_negocio_gado";
+}
+
 export async function routeIntent(
   db: TenantPrismaClient,
   ctx: {
@@ -80,7 +115,10 @@ export async function routeIntent(
     message_text?: string | null;
   },
 ): Promise<RouterResult> {
-  const { tenant_id, role, activeProfiles, intent, parameters, confirmed, explicitNo } = ctx;
+  const { tenant_id, role, activeProfiles, parameters, confirmed, explicitNo } = ctx;
+  // O desempate vem antes de qualquer checagem: a permissão e o handler têm
+  // que ser os da intenção que vai de fato executar.
+  const intent = desempatarIntencao(ctx.intent, parameters);
 
   // Cadastro assistido tem prioridade sobre o roteamento normal: se existe um
   // formulário em andamento, a mensagem é primeiro oferecida a ele. O bridge

@@ -1,7 +1,7 @@
 import type { NegotiationType, Prisma } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { runSerializableTenantTransaction } from "@/lib/financial";
-import { recordMovementInTx, type HerdPositionKey } from "@/lib/actions/herd-ledger";
+import { recordMovementInTx, getPositions, type HerdPositionKey } from "@/lib/actions/herd-ledger";
 import { decToNum, isoOrNull } from "@/lib/serialize";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 
@@ -22,6 +22,17 @@ import { ok, fail, type ActionResult } from "@/lib/actions/types";
  * `recordMovementInTx`: chamar `recordMovement` em sequência abriria uma
  * transação por movimento, e uma falha no terceiro deixaria os dois primeiros
  * gravados, com o rebanho já alterado e sem negociação nenhuma apontando.
+ *
+ * DESVIO DECLARADO: `tx.financialEntry.create` direto, sem `createLinkedEntry`.
+ * O CLAUDE.md manda nunca criar `FinancialEntry` fora daquele helper, e a
+ * regra continua valendo em todo o resto do projeto. Aqui ela não serve por
+ * dois motivos somados: o helper não conhece `negotiation_id` nem
+ * `negotiation_role`, que são o que amarra o envelope, e ele abre a própria
+ * transação, o que quebraria a atomicidade descrita acima. Estender o helper
+ * para aceitar os dois campos e um `tx` opcional é a saída limpa, e está
+ * anotada como dívida no handoff. Enquanto não for feito, este é o ÚNICO lugar
+ * autorizado a criar lançamento por fora: quem for copiar este atalho para
+ * outro módulo, pare.
  */
 
 export type ItemGadoInput = {
@@ -44,6 +55,14 @@ export type NegociacaoGadoInput = {
   occurred_at?: Date | null;
   /** §6.3 e §7.3: "o pagamento já foi feito?" */
   pago?: boolean;
+  /**
+   * §6.3 e §7.3: quando NÃO foi pago, o vencimento é o primeiro dado pedido
+   * ("Data de vencimento; Quantidade de parcelas, QUANDO HOUVER"). Sem ele, a
+   * conta nascia vencendo no mesmo dia e o alerta `bill_due` disparava na hora,
+   * mostrando como atrasada uma conta combinada para dali a 30 dias.
+   * Ignorado quando há parcelas: aí cada parcela traz o seu.
+   */
+  due_date?: Date | null;
   /** §14: quando não foi pago. A soma tem que dar exatamente `amount`. */
   parcelas?: ParcelaInput[];
   custos?: CustoInput[];
@@ -54,6 +73,8 @@ export type NegociacaoGadoInput = {
 /** §16, derivada dos filhos: nunca gravada. Ver o comentário no schema. */
 export type SituacaoNegociacao =
   | "confirmada"
+  /** §14: parcela em aberto com vencimento no passado. */
+  | "vencida"
   | "parcialmente_paga"
   | "paga"
   | "cancelada";
@@ -140,6 +161,11 @@ function centavos(v: number): number {
   return Math.round(v * 100);
 }
 
+/** Moeda na mensagem ao produtor: "R$ 60.000,00", nunca "60000". */
+function reaisSimples(v: number): string {
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
 function validar(input: NegociacaoGadoInput): { code: string; message: string } | null {
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
     return { code: "VALIDATION_ERROR", message: "Informe o valor total do negócio." };
@@ -162,6 +188,15 @@ function validar(input: NegociacaoGadoInput): { code: string; message: string } 
   }
 
   const parcelas = input.parcelas ?? [];
+  // Pago à vista E parcelado é contradição: antes desta checagem as parcelas
+  // eram descartadas em silêncio e o produtor via uma linha só, quitada, sem
+  // nenhum aviso de que o parcelamento que ele digitou tinha sumido.
+  if (input.pago && parcelas.length > 0) {
+    return {
+      code: "VALIDATION_ERROR",
+      message: "Um negócio já pago não pode ser parcelado. Escolha uma coisa ou outra.",
+    };
+  }
   if (!input.pago && parcelas.length > 0) {
     // §14: "a soma das parcelas deverá corresponder ao valor financeiro da
     // operação". Validado em centavos e RECUSADO, não ajustado: corrigir a
@@ -243,7 +278,7 @@ export async function createCattleNegotiation(
     // O dinheiro do valor principal: uma linha à vista, ou uma por parcela.
     const parcelas: ParcelaInput[] =
       input.pago || !input.parcelas || input.parcelas.length === 0
-        ? [{ due_date: occurred_at, amount: input.amount }]
+        ? [{ due_date: input.pago ? occurred_at : (input.due_date ?? occurred_at), amount: input.amount }]
         : input.parcelas;
 
     for (const parcela of parcelas) {
@@ -289,14 +324,36 @@ export async function createCattleNegotiation(
   );
 }
 
+/**
+ * §16, derivada dos filhos, nunca gravada.
+ *
+ * "Vencida" (§14) vence sobre "confirmada" e sobre "parcialmente_paga" de
+ * propósito: é a única das situações que pede ação hoje, e escondê-la atrás de
+ * "parcial" faria a linha que precisa de atenção parecer igual à que está em
+ * dia. Só perde para "paga" e "cancelada", que já encerraram o assunto.
+ *
+ * `agora` entra por parâmetro para o teste conseguir provar o vencimento sem
+ * esperar a data chegar, mesmo motivo de `getCancellationWindow` no M5.
+ */
 function derivarSituacao(
   canceled_at: Date | null,
-  lancamentosPrincipais: { status: string }[],
+  lancamentosPrincipais: { status: string; due_date: Date | null }[],
+  agora: Date = new Date(),
 ): SituacaoNegociacao {
   if (canceled_at) return "cancelada";
   const pagos = lancamentosPrincipais.filter((l) => l.status === "paid").length;
+  if (pagos === lancamentosPrincipais.length && lancamentosPrincipais.length > 0) return "paga";
+
+  // Comparação por DIA, não por instante: uma conta que vence HOJE não está
+  // vencida, e comparar timestamps fazia um negócio criado agora, com
+  // vencimento hoje, nascer "vencido" milissegundos depois.
+  const inicioDeHoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+  const vencida = lancamentosPrincipais.some(
+    (l) => l.status === "pending" && l.due_date != null && l.due_date < inicioDeHoje,
+  );
+  if (vencida) return "vencida";
+
   if (pagos === 0) return "confirmada";
-  if (pagos === lancamentosPrincipais.length) return "paga";
   return "parcialmente_paga";
 }
 
@@ -462,40 +519,76 @@ export async function cancelNegotiation(
 
   return comRollback(() =>
     runSerializableTenantTransaction(db, async (tx) => {
+    /**
+     * DINHEIRO JÁ PAGO TRAVA O CANCELAMENTO (§17.9).
+     *
+     * Antes desta trava, cancelar marcava `cancelled` TODO lançamento da
+     * negociação, inclusive os `paid`. Uma compra de R$ 60.000 quitada em
+     * janeiro, cancelada em março, sumia do DRE e do fluxo de caixa como se o
+     * dinheiro nunca tivesse saído da conta. Do lado do rebanho a trava já
+     * existia (animal que já saiu impede o cancelamento); do lado do dinheiro
+     * não existia nenhuma, e é o lado que o produtor não consegue reconstruir
+     * de memória.
+     *
+     * Recusa em vez de cancelar só o que está pendente: cancelar metade
+     * deixaria a negociação num estado que nem o painel nem o produtor sabem
+     * ler. Quem precisa mesmo desfazer estorna o pagamento no Financeiro
+     * primeiro, e aí cancela.
+     */
+    const pagos = await tx.financialEntry.findMany({
+      where: { negotiation_id: id, status: "paid" },
+      select: { amount: true, paid_at: true },
+    });
+    if (pagos.length > 0) {
+      const total = pagos.reduce((s, l) => s + Number(l.amount), 0);
+      const quando = pagos
+        .map((l) => l.paid_at)
+        .filter((d): d is Date => d != null)
+        .sort((a, b) => a.getTime() - b.getTime())[0];
+      throw new AbortarNegociacao({
+        ok: false,
+        code: "ALREADY_PAID",
+        message:
+          `Não dá para cancelar: ${reaisSimples(total)} desta negociação já ` +
+          `${pagos.length === 1 ? "foi pago" : "foram pagos"}` +
+          `${quando ? ` (a partir de ${quando.toLocaleDateString("pt-BR")})` : ""}. ` +
+          "Desfaça o pagamento no Financeiro antes de cancelar o negócio.",
+        status: 422,
+      });
+    }
+
     for (const movimento of negociacao.movements) {
       if (movimento.canceled_at) continue;
 
-      // Só o DESTINO pode ficar negativo ao desfazer: cancelar devolve à
-      // origem e tira do destino. Mesma regra de `cancelMovement`, repetida
-      // aqui porque precisa rodar dentro DESTA transação.
+      /**
+       * Só o DESTINO pode ficar negativo ao desfazer: cancelar devolve à
+       * origem e tira do destino.
+       *
+       * Usa `getPositions` com a chave COMPLETA da posição, a mesma que
+       * `cancelMovement` usa. A versão anterior reimplementava a soma aqui e
+       * comparava só 3 dos 5 eixos (faltavam `situation` e `owner`), sob um
+       * comentário que afirmava ser "a mesma regra": não era. Um movimento que
+       * só muda a situação (presente -> evento, boitel, desaparecido) casava
+       * dos dois lados e se anulava, então animais que saíram para leilão
+       * seguiam contando como disponíveis e o cancelamento passava, empurrando
+       * o destino para negativo. A fase 2 do Módulo 30 e a missão 3 deste
+       * módulo acionam exatamente esses valores.
+       *
+       * A justificativa da cópia ("precisa rodar dentro DESTA transação")
+       * também não procedia: `getPositions` aceita qualquer `HerdLedgerClient`,
+       * e o próprio `herd-ledger.ts` já a chama com `tx`. De quebra, a cópia
+       * lia a tabela INTEIRA de movimentações do tenant, sem filtro, dentro de
+       * uma transação serializável, uma vez por movimento.
+       */
       if (movimento.to_category_id && movimento.to_property_id) {
-        const posicoes = await tx.herdMovement.findMany({
-          where: { canceled_at: null },
-          select: {
-            quantity: true,
-            from_category_id: true,
-            from_property_id: true,
-            from_pasture_id: true,
-            to_category_id: true,
-            to_property_id: true,
-            to_pasture_id: true,
-          },
+        const [posicao] = await getPositions(tx, {
+          category_id: movimento.to_category_id,
+          property_id: movimento.to_property_id,
+          pasture_id: movimento.to_pasture_id,
+          situation: movimento.to_situation ?? undefined,
+          owner: movimento.to_owner ?? undefined,
         });
-        const mesmaPosicao = (c: string | null, p: string | null, past: string | null) =>
-          c === movimento.to_category_id &&
-          p === movimento.to_property_id &&
-          past === movimento.to_pasture_id;
-
-        const disponivel = posicoes.reduce((soma, linha) => {
-          let s = soma;
-          if (mesmaPosicao(linha.to_category_id, linha.to_property_id, linha.to_pasture_id)) {
-            s += linha.quantity;
-          }
-          if (mesmaPosicao(linha.from_category_id, linha.from_property_id, linha.from_pasture_id)) {
-            s -= linha.quantity;
-          }
-          return s;
-        }, 0);
+        const disponivel = posicao?.quantity ?? 0;
 
         if (disponivel < movimento.quantity) {
           // throw: sem isso, um movimento ja cancelado no laco anterior ficaria
@@ -517,8 +610,9 @@ export async function cancelNegotiation(
 
     // Lançamento financeiro cancelado, não apagado: o §17.10 exige o histórico,
     // e o status `cancelled` já existe e já é ignorado pelo DRE e pelo caixa.
+    // Só os pendentes chegam aqui: pago trava o cancelamento lá em cima.
     await tx.financialEntry.updateMany({
-      where: { negotiation_id: id },
+      where: { negotiation_id: id, status: "pending" },
       data: { status: "cancelled" },
     });
 
@@ -530,6 +624,44 @@ export async function cancelNegotiation(
     return ok({ id });
     }),
   );
+}
+
+/**
+ * Os dois números do topo da tela (§2: "Quanto ainda tenho para pagar?" e
+ * "Quanto tenho para receber?").
+ *
+ * Query própria, e não soma da lista já carregada, porque a lista é PAGINADA:
+ * somar o que veio na página dava um total certo só até a 30ª negociação e
+ * errado dali em diante, sem nada na tela avisando. Um número que o banco não
+ * sustenta é exatamente o que o cabeçalho da tela promete não fazer.
+ *
+ * A comissão pendente de uma VENDA é despesa (§15) e entra em "a pagar", não
+ * abatida do "a receber": ela vira uma conta a pagar de verdade, e escondê-la
+ * dentro do líquido faria sumir do painel um compromisso real.
+ */
+export async function getOpenTotals(
+  db: TenantPrismaClient,
+  filtro: { property_id?: string } = {},
+): Promise<{ aPagar: number; aReceber: number }> {
+  const lancamentos = await db.financialEntry.findMany({
+    where: {
+      status: "pending",
+      negotiation: {
+        canceled_at: null,
+        ...(filtro.property_id ? { property_id: filtro.property_id } : {}),
+      },
+    },
+    select: { amount: true, entry_type: true },
+  });
+
+  let aPagar = 0;
+  let aReceber = 0;
+  for (const l of lancamentos) {
+    const valor = decToNum(l.amount) ?? 0;
+    if (l.entry_type === "income") aReceber += valor;
+    else aPagar += valor;
+  }
+  return { aPagar, aReceber };
 }
 
 /**

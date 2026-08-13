@@ -1,17 +1,15 @@
 import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
-import { scoped } from "@/lib/prisma";
+import { listContacts, createContact, CONTACT_TYPES } from "@/lib/actions/contacts";
 
 /**
  * GET  /api/v1/contacts   lista contatos de negociação (Módulo 31, §5)
  * POST /api/v1/contacts   cadastro simplificado
  *
- * §5 é explícito sobre a simplicidade: nesta primeira versão o sistema NÃO
- * deve exigir CPF, CNPJ, inscrição estadual, endereço completo, dados
- * bancários nem documentação fiscal. Só o nome é obrigatório, e até o TIPO é
- * opcional, porque "o usuário não deverá ser obrigado a classificar a pessoa
- * ou empresa quando não souber" (§4).
+ * Wrapper fino: a regra vive em `src/lib/actions/contacts.ts`, porque o
+ * caminho do WhatsApp cria contato pela mesma porta (§18.1, "comprei 20
+ * bezerros DO JOÃO").
  *
  * Reusa o guard de "rebanho": o PRD §5.2 não define um módulo de permissão
  * para Negociações, e as matrizes de `rebanho` e `financeiro` são idênticas
@@ -20,18 +18,7 @@ import { scoped } from "@/lib/prisma";
  * escreve nos dois módulos.
  */
 
-const TIPOS = [
-  "particular",
-  "fazendeiro",
-  "comerciante_gado",
-  "frigorifico",
-  "leilao",
-  "feira_evento",
-  "cooperativa",
-  "loja_fornecedor",
-  "prestador_servico",
-  "outro",
-] as const;
+const TIPOS = CONTACT_TYPES;
 
 const createSchema = z.object({
   name: z.string().trim().min(1, "Informe o nome do contato"),
@@ -49,28 +36,12 @@ export async function GET(request: Request) {
   const busca = params.get("q")?.trim();
   const tipo = params.get("type");
 
-  const contatos = await g.db.contact.findMany({
-    where: {
-      archived_at: null,
-      ...(busca ? { name: { contains: busca, mode: "insensitive" as const } } : {}),
-      ...(tipo && (TIPOS as readonly string[]).includes(tipo)
-        ? { type: tipo as (typeof TIPOS)[number] }
-        : {}),
-    },
-    orderBy: { name: "asc" },
+  const contatos = await listContacts(g.db, {
+    busca,
+    type: tipo && (TIPOS as readonly string[]).includes(tipo) ? (tipo as (typeof TIPOS)[number]) : null,
   });
 
-  return apiOk(
-    contatos.map((c) => ({
-      id: c.id,
-      name: c.name,
-      type: c.type,
-      phone: c.phone,
-      city: c.city,
-      notes: c.notes,
-    })),
-    { total: contatos.length },
-  );
+  return apiOk(contatos, { total: contatos.length });
 }
 
 export async function POST(request: Request) {
@@ -86,26 +57,8 @@ export async function POST(request: Request) {
   }
   const d = parsed.data;
 
-  const contato = await g.db.contact.create({
-    data: scoped({
-      name: d.name,
-      type: d.type ?? null,
-      phone: d.phone ?? null,
-      city: d.city ?? null,
-      notes: d.notes ?? null,
-    }),
-  });
+  const resultado = await createContact(g.db, d);
+  if (!resultado.ok) return apiError(resultado.code, resultado.message, resultado.status);
 
-  return apiOk(
-    {
-      id: contato.id,
-      name: contato.name,
-      type: contato.type,
-      phone: contato.phone,
-      city: contato.city,
-      notes: contato.notes,
-    },
-    {},
-    { status: 201 },
-  );
+  return apiOk(resultado.data, {}, { status: 201 });
 }

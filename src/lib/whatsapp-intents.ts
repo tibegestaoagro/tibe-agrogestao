@@ -16,7 +16,7 @@ export const INTENTS = [
   // parecidos, módulos de permissão diferentes, não unifique.
   "consultar_rebanho",
   "registrar_movimentacao_rebanho",
-  // Módulo 31 (§22): "comprei 20 bezerros do Joao por 60 mil". Uma intencao
+  // Módulo 31 (§18): "comprei 20 bezerros do Joao por 60 mil". Uma intencao
   // so, com o tipo (compra/venda) em parameters, pelo mesmo motivo de
   // registrar_movimentacao_rebanho: sao o mesmo gesto do produtor, e separar
   // em duas intencoes so daria ao classificador mais uma chance de errar.
