@@ -489,6 +489,37 @@ duas pontas:
 É a promessa do §22 funcionando ponta a ponta: o produtor registrou UMA vez e
 o rebanho e o financeiro se atualizaram sozinhos.
 
+## Banco de provas do agente WhatsApp (2026-08-13, JA EM PRODUCAO)
+
+Deploy aprovado e feito na `main` (`69f8c3a`, cherry-pick do `8419ace`), sem
+schema e sem migracao. O Modulo 31 segue SEM merge, como o contrato manda.
+
+`recordOutbound()` grava em Redis o que sai por `sendWhatsAppMessage`, e
+`npm run wa` manda a mensagem para o webhook do fluxo REAL de producao e le a
+resposta de volta. Nao existe copia do fluxo: o classificador exercitado e o de
+producao. Guia: [banco-de-provas-whatsapp.md](banco-de-provas-whatsapp.md).
+
+Tenant proprio em producao (`BANCO DE PROVAS (automacao Tibe)`,
+tel `5511900000001`, `WA_TEST_PHONE` no `.env`): as outras 4 contas sao de
+pessoas reais da equipe do cliente, e o seed recusa telefone ja usado.
+
+Provado ponta a ponta na primeira rodada, sem ninguem no circuito:
+
+    >> Quantos animais eu tenho?
+    << Atualmente, seu rebanho conta com 0 animais.
+    >> Comprei 20 bezerros
+    << Deseja registrar a compra de 20 bezerros hoje em Fazenda de Provas?
+    >> sim
+    << Registro concluido: 20 bezerros. Agora, seu rebanho conta com 20 animais.
+
+Nao cobre entrega no aparelho, audio nem foto de recibo: a passada final no
+celular de verdade continua valendo uma vez por rodada.
+
+**Pendencia separada, achada de passagem:** `npx tsc --noEmit` acusa erros de
+tipo em `scripts/m23-token-auth.test.ts` (pre-existentes, confirmado com
+stash). Nao quebram o build (a Vercel nao compila `scripts/`), mas corroem a
+rede de seguranca.
+
 **Falta na missão 1:** intenções de WhatsApp (comprei/vendi gado), juiz
 subagente com a rubrica R1-R5 exigindo nota >= 8, e o relatório de evidências.
 
