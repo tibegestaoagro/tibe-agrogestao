@@ -922,6 +922,40 @@ async function main() {
       outroAssunto.reply_text,
     );
 
+    // A ASSERÇÃO QUE FALTAVA, e que é o caso perigoso de verdade.
+    //
+    // A primeira versão desta guarda convertia QUALQUER movimentação de rebanho
+    // enquanto houvesse negócio pendente: "morreu 1 bezerro", dito no meio de
+    // uma compra em andamento, era engolido e respondido com "Por quanto você
+    // comprou?". A morte nunca era registrada e ninguém era avisado. O teste
+    // anterior usava `consultar_rebanho`, que a guarda nem toca, então não
+    // podia falhar.
+    const morteNoMeio = await routeIntent(db, {
+      tenant_id: tenant.id,
+      role: "OWNER",
+      activeProfiles: ["fazenda"],
+      intent: "registrar_movimentacao_rebanho",
+      parameters: { movement_type: "morte", categoria: "bezerro", quantidade: 1 },
+      confirmed: false,
+      explicitNo: false,
+      user_id: USUARIO,
+    });
+    check(
+      "uma MORTE dita no meio de um negócio não é engolida",
+      !morteNoMeio.reply_text.includes("Por quanto"),
+      morteNoMeio.reply_text,
+    );
+    check(
+      "ela é tratada como movimentação de rebanho, que é o que ela é",
+      morteNoMeio.requires_confirmation === true &&
+        morteNoMeio.reply_text.toLowerCase().includes("morte"),
+      morteNoMeio.reply_text,
+    );
+    check(
+      "e o negócio pendente continua guardado, esperando",
+      (await loadPendingNegotiation(tenant.id, USUARIO)) !== null,
+    );
+
     // ------------------------------------------------------------------
     console.log("\n17. Pela ROTA de verdade, não pela função");
     // ------------------------------------------------------------------

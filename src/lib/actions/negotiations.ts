@@ -172,6 +172,11 @@ async function comRollback<T>(
  */
 const EM_ABERTO: FinancialEntryStatus[] = ["pending", "overdue"];
 
+/** Moeda como o produtor lê: "R$ 60.000,00", com centavos, nunca "R$ 60.000". */
+function moeda(v: number): string {
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
 /** Comparação de dinheiro em centavos: `0.1 + 0.2 !== 0.3` em ponto flutuante. */
 function centavos(v: number): number {
   return Math.round(v * 100);
@@ -216,7 +221,9 @@ function validar(input: NegociacaoGadoInput): { code: string; message: string } 
     if (soma !== centavos(input.amount)) {
       return {
         code: "PARCELAS_NAO_FECHAM",
-        message: `A soma das parcelas (R$ ${(soma / 100).toLocaleString("pt-BR")}) não corresponde ao valor do negócio (R$ ${input.amount.toLocaleString("pt-BR")}). Revise os valores.`,
+        message:
+          `A soma das parcelas (${moeda(soma / 100)}) não corresponde ao valor ` +
+          `do negócio (${moeda(input.amount)}). Revise os valores.`,
       };
     }
     if (parcelas.some((p) => !Number.isFinite(p.amount) || p.amount <= 0)) {
@@ -582,7 +589,16 @@ export async function cancelNegotiation(
   dinheiroPago: DestinoDoPagamento = "mantem",
   /** §17.10: quem desfez. Sem isto, o evento mais sensível ficava sem autor. */
   canceledByUserId?: string | null,
-): Promise<ActionResult<{ id: string; valor_pago_mantido: number; valor_estornado: number }>> {
+): Promise<
+  ActionResult<{
+    id: string;
+    /** O que já tinha ENTRADO e continua lançado (principal de uma venda). */
+    valor_recebido_mantido: number;
+    /** O que já tinha SAÍDO e continua lançado (principal de uma compra, custos). */
+    valor_pago_mantido: number;
+    valor_estornado: number;
+  }>
+> {
   return comRollback(() =>
     runSerializableTenantTransaction(db, async (tx) => {
     /**
@@ -667,7 +683,12 @@ export async function cancelNegotiation(
       .filter((l) => l.entry_type === "expense")
       .reduce((s, l) => s + Number(l.amount), 0);
 
-    let valorPagoMantido = recebido + desembolsado;
+    // Separados, não somados: numa venda o principal ENTROU e os custos
+    // saíram, e juntá-los num número só sob o rótulo "pago" é a mesma mistura
+    // que o estorno abaixo existe para não fazer. A tela de cancelamento já
+    // mostra os dois em frases diferentes.
+    let valorRecebidoMantido = recebido;
+    let valorPagoMantido = desembolsado;
     let valorEstornado = 0;
 
     if (pagos.length > 0 && dinheiroPago === "devolvido") {
@@ -704,6 +725,7 @@ export async function cancelNegotiation(
         });
       }
       valorEstornado = recebido + desembolsado;
+      valorRecebidoMantido = 0;
       valorPagoMantido = 0;
     }
 
@@ -713,6 +735,7 @@ export async function cancelNegotiation(
         where: { id: { in: pagos.map((l) => l.id) } },
         data: { status: "cancelled" },
       });
+      valorRecebidoMantido = 0;
       valorPagoMantido = 0;
     }
 
@@ -790,6 +813,7 @@ export async function cancelNegotiation(
 
     return ok({
       id,
+      valor_recebido_mantido: valorRecebidoMantido,
       valor_pago_mantido: valorPagoMantido,
       valor_estornado: valorEstornado,
     });

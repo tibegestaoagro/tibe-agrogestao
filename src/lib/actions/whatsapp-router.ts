@@ -142,20 +142,34 @@ export async function routeIntent(
    * de teste no Módulo 30, e foi reproduzida por um revisor independente com o
    * roteiro de aparelho na mão.
    *
-   * Deliberadamente estreita: só age quando o classificador mandou uma
-   * movimentação de rebanho NÃO comercial (compra e venda já foram convertidas
-   * acima) e existe um negócio esperando resposta. Intenção clara de outro
-   * assunto ("quantos animais eu tenho?") continua passando direto, porque
-   * interromper um registro para responder uma pergunta é o comportamento
-   * certo e já existia.
+   * ESTREITA DE VERDADE: só age quando a mensagem NÃO traz um
+   * `movement_type` próprio.
+   *
+   * A primeira versão desta guarda convertia qualquer movimentação de rebanho
+   * enquanto houvesse negócio pendente, e criou o problema oposto ao que
+   * resolvia: "morreu 1 bezerro", dito no meio de uma compra em andamento, era
+   * engolido e respondido com "Por quanto você comprou?". A morte nunca era
+   * registrada e o produtor não era avisado de nada, por até 15 minutos (o TTL
+   * do pendente). Um animal morto que some do registro é exatamente o erro que
+   * o produtor só descobre quando o saldo não bate.
+   *
+   * A distinção que importa: uma RESPOSTA ("de 13 a 24 meses") não carrega
+   * tipo de movimentação, porque não é uma frase sobre movimentação. Uma
+   * mensagem que carrega `movement_type` é assunto novo, e assunto novo
+   * interrompe o registro em andamento, que é o comportamento certo e já
+   * existia.
    *
    * O par em código é o que importa aqui: sem ele, lembrar do contexto viraria
    * responsabilidade do prompt, que é justamente o que este módulo evita.
    */
   if (ctx.user_id && intent === "registrar_movimentacao_rebanho") {
-    const negocioEsperando = await loadPendingNegotiation(tenant_id, ctx.user_id);
-    if (negocioEsperando && negocioEsperando.aguardando !== "confirmacao") {
-      intent = "registrar_negocio_gado";
+    const tipoProprio =
+      typeof parameters.movement_type === "string" ? parameters.movement_type : parameters.tipo;
+    if (!tipoProprio) {
+      const negocioEsperando = await loadPendingNegotiation(tenant_id, ctx.user_id);
+      if (negocioEsperando && negocioEsperando.aguardando !== "confirmacao") {
+        intent = "registrar_negocio_gado";
+      }
     }
   }
 

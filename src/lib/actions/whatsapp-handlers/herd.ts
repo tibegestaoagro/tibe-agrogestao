@@ -314,7 +314,27 @@ const VERBO: Record<string, string> = {
 
 /** Como o cliente escreve nos §13.4 e §13.5: "4 bezerros e 3 bezerras". */
 function descreverItens(itens: { categoria: HerdCategory; quantidade: number }[]): string {
-  return itens.map((i) => `${i.quantidade} ${i.categoria.plural}`).join(" e ");
+  return itens.map((i) => `${i.quantidade} ${nomeDaCategoria(i.categoria, i.quantidade)}`).join(" e ");
+}
+
+/**
+ * O nome da categoria dentro de frase, no singular quando for uma cabeça só.
+ *
+ * "morreu 1 bezerros" é o que saía antes, e o produtor lê isso. Cada palavra
+ * que é plural vira singular até a primeira preposição: "garrotes reprodutores"
+ * vira "garrote reprodutor", mas em "fêmeas de 8 a 12 meses" o "meses" é
+ * complemento de idade e não pode virar "mese".
+ *
+ * Exportado para o handler de Negociações usar a MESMA regra: o produtor lê os
+ * dois na mesma conversa, e duas grafias para a mesma categoria pareceriam dois
+ * sistemas falando.
+ */
+export function nomeDaCategoria(categoria: HerdCategory, quantidade: number): string {
+  if (quantidade !== 1) return categoria.plural;
+  const palavras = categoria.plural.split(" ");
+  const fim = palavras.findIndex((p) => p === "de" || p === "da" || p === "do");
+  const limite = fim === -1 ? palavras.length : fim;
+  return palavras.map((p, i) => (i < limite ? p.replace(/s$/, "") : p)).join(" ");
 }
 
 /** "hoje" quando for hoje; a data por extenso quando o produtor disser outra. */

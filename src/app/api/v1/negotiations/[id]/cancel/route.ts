@@ -54,6 +54,7 @@ export async function POST(
   const detalhe = await getNegotiation(g.db, params.id);
   return apiOk(detalhe ? serializeNegotiation(detalhe) : { id: params.id }, {
     // Aditivo: a tela usa para dizer ao produtor o que aconteceu com o dinheiro.
+    valor_recebido_mantido: result.data.valor_recebido_mantido,
     valor_pago_mantido: result.data.valor_pago_mantido,
     valor_estornado: result.data.valor_estornado,
   });

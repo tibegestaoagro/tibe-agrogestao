@@ -41,6 +41,10 @@ type Contact = { id: string; name: string };
 type Parcela = { due_date: string; amount: string };
 type Custo = { descricao: string; amount: string };
 
+function moeda(v: number) {
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
 function hoje() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -86,7 +90,9 @@ export default function NegotiationForm({
 
   const [type, setType] = useState<"compra_gado" | "venda_gado">("compra_gado");
   const [propertyId, setPropertyId] = useState(defaultPropertyId ?? properties[0]?.id ?? "");
-  const [contactId, setContactId] = useState("");
+  // Texto livre, nao id: quem digita um nome novo cadastra o contato junto
+  // com o negocio (§5). Ver o comentario do campo, abaixo.
+  const [contactName, setContactName] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [quantity, setQuantity] = useState("");
   const [amount, setAmount] = useState("");
@@ -118,7 +124,7 @@ export default function NegotiationForm({
 
   function reset() {
     setType("compra_gado");
-    setContactId("");
+    setContactName("");
     setCategoryId("");
     setQuantity("");
     setAmount("");
@@ -153,7 +159,7 @@ export default function NegotiationForm({
     if (valorNumero <= 0) return setError("Informe o valor total do negócio.");
     if (!parcelasFecham) {
       return setError(
-        `A soma das parcelas (R$ ${somaParcelas.toLocaleString("pt-BR")}) não fecha com o valor do negócio (R$ ${valorNumero.toLocaleString("pt-BR")}).`,
+        `A soma das parcelas (${moeda(somaParcelas)}) não fecha com o valor do negócio (${moeda(valorNumero)}).`,
       );
     }
 
@@ -161,7 +167,7 @@ export default function NegotiationForm({
     const res = await apiPost("/api/v1/negotiations", {
       type,
       property_id: propertyId,
-      contact_id: contactId || null,
+      contact_name: contactName.trim() || null,
       itens: [{ category_id: categoryId, quantity: qtd }],
       amount: valorNumero,
       occurred_at: new Date(`${occurredAt}T12:00:00`).toISOString(),
@@ -284,23 +290,38 @@ export default function NegotiationForm({
             </Select>
           </div>
 
-          {contacts.length > 0 && (
-            <div>
-              <Label>{compra ? "Vendedor (opcional)" : "Comprador (opcional)"}</Label>
-              <Select value={contactId} onValueChange={setContactId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Não informar" />
-                </SelectTrigger>
-                <SelectContent>
-                  {contacts.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          {/*
+            §5: "cadastro simples e rápido", sem CPF, endereço nem dados
+            bancários. Campo de TEXTO com sugestões, não um seletor do que já
+            existe: com o seletor, um tenant novo não tinha caminho nenhum para
+            cadastrar o primeiro contato (o campo nem aparecia com a lista
+            vazia), e "Com quem negociei?" é a terceira pergunta do §2.
+
+            O nome digitado vai como `contact_name` e a action resolve ou cria
+            DENTRO da transação, com busca exata: nome já existente reaproveita
+            o contato, nome novo cria com só o nome (§4, não é obrigado a
+            classificar), e uma recusa por saldo não deixa contato órfão.
+          */}
+          <div>
+            <Label htmlFor="neg-contato">
+              {compra ? "Vendedor (opcional)" : "Comprador (opcional)"}
+            </Label>
+            <Input
+              id="neg-contato"
+              list="neg-contatos"
+              value={contactName}
+              onChange={(e) => setContactName(e.target.value)}
+              placeholder="Nome de quem você negociou"
+            />
+            <datalist id="neg-contatos">
+              {contacts.map((c) => (
+                <option key={c.id} value={c.name} />
+              ))}
+            </datalist>
+            <p className="mt-1 text-xs text-gray-500">
+              Pode digitar um nome novo: eu cadastro junto com o negócio.
+            </p>
+          </div>
 
           <div className="rounded-md border border-gray-200 p-3">
             <p className="text-sm font-medium text-gray-700">

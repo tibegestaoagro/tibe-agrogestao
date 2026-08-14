@@ -14,6 +14,7 @@ import {
   resolverFazenda,
   resolverPasto,
   conferirOndeEstaOSaldo,
+  nomeDaCategoria,
 } from "./herd";
 import { ask, failReply, str, num, type Handler, type RouterResult } from "./shared";
 
@@ -62,29 +63,10 @@ function reais(v: number): string {
  * que o §2 pede para não parecer sistema contábil.
  *
  * Para uma cabeça só, o plural também não serve: "1 bezerros" está errado em
- * português e o produtor lê isso. Aqui o plural é dobrado para o singular pela
- * regra que cobre os 12 nomes reais ("bezerros" -> "bezerro", "fêmeas de 8 a 12
- * meses" -> "fêmea de 8 a 12 meses"): só a primeira palavra flexiona, o resto é
- * complemento de idade.
+ * português e o produtor lê isso. `nomeDaCategoria` vive no handler de rebanho
+ * e é importado aqui de propósito: o produtor lê os dois na mesma conversa, e
+ * duas grafias para a mesma categoria pareceriam dois sistemas falando.
  */
-function nomeDaCategoria(categoria: HerdCategory, quantidade: number): string {
-  if (quantidade !== 1) return categoria.plural;
-  /**
-   * Cada palavra que é plural vira singular, até a primeira preposição.
-   *
-   * "garrotes reprodutores" é duas palavras no plural, e uma versão anterior
-   * flexionava só a primeira, produzindo "garrote reprodutores". Já em "fêmeas
-   * de 8 a 12 meses" o "meses" é complemento de idade e NÃO pode virar "mese":
-   * a preposição marca onde o nome acaba.
-   */
-  const palavras = categoria.plural.split(" ");
-  const fim = palavras.findIndex((p) => p === "de" || p === "da" || p === "do");
-  const limite = fim === -1 ? palavras.length : fim;
-  return palavras
-    .map((p, i) => (i < limite ? p.replace(/s$/, "") : p))
-    .join(" ");
-}
-
 function descreverItens(itens: { categoria: HerdCategory; quantidade: number }[]): string {
   return itens.map((i) => `${i.quantidade} ${nomeDaCategoria(i.categoria, i.quantidade)}`).join(" e ");
 }
