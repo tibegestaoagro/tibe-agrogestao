@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { cancelMovement } from "@/lib/actions/herd-ledger";
 import { getDre } from "@/lib/actions/financial-reports";
+import { negotiationCreateSchema } from "@/lib/validation/negotiation";
 import { createContact, listContacts, findOrCreateContact } from "@/lib/actions/contacts";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { getPositions, recordMovement } from "@/lib/actions/herd-ledger";
@@ -570,6 +571,35 @@ async function main() {
       check(
         d?.lancamentos.every((l) => l.negotiation_role !== "estorno") === true,
         "engano: e NÃO inventa um estorno de dinheiro que nunca voltou",
+      );
+    }
+
+    console.log("\n26. O que a TELA manda sobrevive à validação da rota");
+    // O degrau em que um defeito real morou: o formulário passou a mandar
+    // `contact_name` e o schema da rota não tinha esse campo, então o Zod
+    // descartava a chave em silêncio. O nome digitado sumia entre a tela e o
+    // banco, o formulário parecia funcionar e o contato nunca nascia. Nenhuma
+    // suíte pegou, porque elas chamam a action direto e as rotas /api/v1 ficam
+    // atrás de sessão.
+    const corpoDaTela = {
+      type: "compra_gado" as const,
+      property_id: fazenda.id,
+      contact_name: "Zé do Caminhão",
+      itens: [{ category_id: "bezerro_0_7", quantity: 5 }],
+      amount: 12000,
+      occurred_at: new Date().toISOString(),
+      pago: false,
+      due_date: new Date("2027-01-10T12:00:00Z").toISOString(),
+      parcelas: [],
+      custos: [{ descricao: "Frete", amount: 500 }],
+      notes: "teste",
+    };
+    const validado = negotiationCreateSchema.safeParse(corpoDaTela);
+    check(validado.success, "o corpo que o formulário envia passa na validação");
+    for (const campo of Object.keys(corpoDaTela) as (keyof typeof corpoDaTela)[]) {
+      check(
+        validado.success && campo in validado.data,
+        `o campo "${campo}" sobrevive à validação, em vez de ser descartado calado`,
       );
     }
 

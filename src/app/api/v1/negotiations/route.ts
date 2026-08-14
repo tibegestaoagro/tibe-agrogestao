@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { negotiationCreateSchema } from "@/lib/validation/negotiation";
 import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import {
@@ -21,39 +21,6 @@ import {
  * (soma das parcelas, saldo disponível, atomicidade) vive na action, onde é
  * testada por `test:m35`.
  */
-
-const itemSchema = z.object({
-  category_id: z.string().min(1, "Informe a categoria dos animais"),
-  quantity: z.number().int().positive("A quantidade deve ser maior que zero"),
-  pasture_id: z.string().min(1).nullish(),
-});
-
-const parcelaSchema = z.object({
-  due_date: z.string().datetime({ message: "Data de vencimento inválida" }),
-  amount: z.number().positive("O valor da parcela deve ser maior que zero"),
-});
-
-const custoSchema = z.object({
-  descricao: z.string().trim().min(1, "Descreva o custo adicional"),
-  amount: z.number().nonnegative("Custo adicional não pode ser negativo"),
-});
-
-const createSchema = z.object({
-  type: z.enum(["compra_gado", "venda_gado"]),
-  property_id: z.string().min(1, "Informe a fazenda"),
-  itens: z.array(itemSchema).min(1, "Informe pelo menos uma categoria"),
-  amount: z.number().positive("Informe o valor total do negócio"),
-  contact_id: z.string().min(1).nullish(),
-  occurred_at: z.string().datetime({ message: "Data inválida" }).nullish(),
-  /** §6.3 e §7.3: "o pagamento já foi feito?" */
-  pago: z.boolean().nullish(),
-  // §6.3 e §7.3: quando não foi pago, o vencimento é o primeiro dado pedido.
-  // Sem ele a conta nasce vencendo hoje e o alerta de atraso dispara na hora.
-  due_date: z.string().datetime({ message: "Data de vencimento inválida" }).nullish(),
-  parcelas: z.array(parcelaSchema).nullish(),
-  custos: z.array(custoSchema).nullish(),
-  notes: z.string().trim().max(1000).nullish(),
-});
 
 const TIPOS_LISTA = [
   "compra_gado",
@@ -110,7 +77,7 @@ export async function POST(request: Request) {
   const body = await readJson(request);
   if ("error" in body) return body.error;
 
-  const parsed = createSchema.safeParse(body.json);
+  const parsed = negotiationCreateSchema.safeParse(body.json);
   if (!parsed.success) {
     return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
   }
@@ -126,6 +93,7 @@ export async function POST(request: Request) {
     })),
     amount: d.amount,
     contact_id: d.contact_id ?? null,
+    contact_name: d.contact_name ?? null,
     occurred_at: d.occurred_at ? new Date(d.occurred_at) : null,
     pago: d.pago ?? false,
     due_date: d.due_date ? new Date(d.due_date) : null,
