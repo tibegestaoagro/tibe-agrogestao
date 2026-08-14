@@ -115,6 +115,7 @@ fase do contrato. O usuário (Dilton) segue este protocolo com qualquer agente:
 | 28 | Ajustes financeiros e dashboard | ✅ em produção (`test:m29`) |
 | 29 | Minha Fazenda (fazenda + pastos) | ✅ em produção: `Property.city/district`, model `Pasture`, tela `/minha-fazenda`. V1 web only, sem WhatsApp |
 | 30 | **Rebanho como livro-razão** | 🚧 **em andamento**, branch `rebanho-livro-razao`: tarefas 1-2 de 6 |
+| 31 | **Negociações** (compra/venda de gado, contatos) | 🚧 **em andamento**, branch `negociacoes`: missão 1 de 4, sem merge. `test:m35` + `test:m36` |
 
 ⚠️ **A numeração de módulo NÃO bate com a de teste.** `test:mNN` é um contador
 de SUÍTES que descolou do número do módulo por volta do `m25`: o Módulo 26
@@ -1200,6 +1201,11 @@ npm run test:m29          # Ajustes financeiros (Modulo 28)
 npm run test:m30          # Rebanho por categoria (modelo unico)
 npm run test:m31          # Cancelamento com janela de arquivamento (60 dias)
 npm run test:m32          # Rebanho: as 12 categorias (Modulo 30, sem banco)
+npm run test:m33          # Rebanho: livro-razao (Modulo 30)
+npm run test:m34          # Rebanho pelo WhatsApp (Modulo 30)
+npm run test:m35          # Negociacao de gado (Modulo 31)
+npm run test:m36          # Negocio de gado pelo WhatsApp (Modulo 31)
+npm run wa                # Banco de provas do agente (docs/agents/banco-de-provas-whatsapp.md)
 ```
 
 Credenciais do seed (dev): `owner@damata.com.br` / `tibe123`.

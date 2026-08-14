@@ -16,11 +16,19 @@ export async function sendWhatsAppMessage(
   to: string,
   text: string,
 ): Promise<ActionResult<{ provider: string; message_id: string | null }>> {
-  // Registra ANTES de despachar, de propósito: o que interessa auditar é o
-  // que o Tibé decidiu responder, e isso vale inclusive quando a entrega
-  // falha (número inexistente, provider fora do ar). Registrar só no sucesso
-  // esconderia justamente o caso que se quer investigar. Ver whatsapp-outbox.
-  await recordOutbound(to, text);
+  /**
+   * Registra o que vai ser dito, SEM esperar (sem `await`).
+   *
+   * Antes de despachar, de propósito: o que interessa auditar é o que o Tibé
+   * decidiu responder, e isso vale inclusive quando a entrega falha (número
+   * inexistente, provider fora do ar).
+   *
+   * Sem `await` porque isto existe para diagnóstico, e diagnóstico não pode
+   * atrasar a resposta a um produtor de verdade: o `try/catch` de
+   * `recordOutbound` protege contra erro, não contra um Redis lento. O
+   * `.catch` abaixo é só para a promessa nunca ficar sem tratamento.
+   */
+  void recordOutbound(to, text).catch(() => {});
 
   const config = await prisma.whatsAppProviderConfig.findFirst({ where: { active: true } });
   if (!config) {

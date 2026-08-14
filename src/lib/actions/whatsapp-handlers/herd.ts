@@ -44,9 +44,17 @@ import { ask, failReply, str, num, confirmFlow, type Handler, type RouterResult 
  * entra SÓ o campo perguntado; o resto vem do que foi gravado.
  */
 
-type Item = { categoria: string; quantidade: number };
+/**
+ * Exportados para o handler de Negociações (Módulo 31): "comprei 20 bezerros"
+ * precisa resolver categoria e fazenda exatamente como "nasceram 20
+ * bezerros". Duplicar essa resolução seria pior que duplicar código: a regra
+ * de nunca chutar faixa de idade divergiria entre os dois caminhos, e o
+ * assistente passaria a lançar animais na idade errada por um caminho e não
+ * pelo outro.
+ */
+export type Item = { categoria: string; quantidade: number };
 
-function itensDosParametros(parameters: Record<string, unknown>): Item[] {
+export function itensDosParametros(parameters: Record<string, unknown>): Item[] {
   const brutos = parameters.itens;
   if (Array.isArray(brutos)) {
     const lista: Item[] = [];
@@ -91,7 +99,7 @@ type CategoriaResolvida =
   | { ok: true; categoria: HerdCategory }
   | { ok: false; resposta: RouterResult };
 
-function resolverCategoria(termo: string, nascimento = false): CategoriaResolvida {
+export function resolverCategoria(termo: string, nascimento = false): CategoriaResolvida {
   // Num nascimento, o sexo sozinho já basta: recém-nascido é 0 a 7 meses.
   // É o que o §13.4 espera de "nasceram 4 machos e 3 fêmeas".
   const resolucao = nascimento ? resolveBirthCategoryTerm(termo) : resolveCategoryTerm(termo);
@@ -116,7 +124,7 @@ type FazendaResolvida =
  * só existe uma, e PERGUNTA quando existe mais de uma. Adivinhar a fazenda tem
  * o mesmo defeito de adivinhar a categoria, o saldo vai parar no lugar errado.
  */
-async function resolverFazenda(
+export async function resolverFazenda(
   db: TenantPrismaClient,
   nome: string | null,
 ): Promise<FazendaResolvida> {
@@ -142,7 +150,7 @@ async function resolverFazenda(
   return { ok: false, resposta: ask(`Em qual fazenda?\n${nomes}`) };
 }
 
-async function resolverPasto(
+export async function resolverPasto(
   db: TenantPrismaClient,
   propertyId: string,
   nome: string | null,
@@ -172,7 +180,7 @@ async function resolverPasto(
  * ou não há saldo em lugar nenhum (aí quem responde é a mensagem literal do
  * cliente, no §10.3, que é a certa para esse caso).
  */
-async function conferirOndeEstaOSaldo(
+export async function conferirOndeEstaOSaldo(
   db: TenantPrismaClient,
   categoria: HerdCategory,
   propertyId: string,
@@ -306,7 +314,27 @@ const VERBO: Record<string, string> = {
 
 /** Como o cliente escreve nos §13.4 e §13.5: "4 bezerros e 3 bezerras". */
 function descreverItens(itens: { categoria: HerdCategory; quantidade: number }[]): string {
-  return itens.map((i) => `${i.quantidade} ${i.categoria.plural}`).join(" e ");
+  return itens.map((i) => `${i.quantidade} ${nomeDaCategoria(i.categoria, i.quantidade)}`).join(" e ");
+}
+
+/**
+ * O nome da categoria dentro de frase, no singular quando for uma cabeça só.
+ *
+ * "morreu 1 bezerros" é o que saía antes, e o produtor lê isso. Cada palavra
+ * que é plural vira singular até a primeira preposição: "garrotes reprodutores"
+ * vira "garrote reprodutor", mas em "fêmeas de 8 a 12 meses" o "meses" é
+ * complemento de idade e não pode virar "mese".
+ *
+ * Exportado para o handler de Negociações usar a MESMA regra: o produtor lê os
+ * dois na mesma conversa, e duas grafias para a mesma categoria pareceriam dois
+ * sistemas falando.
+ */
+export function nomeDaCategoria(categoria: HerdCategory, quantidade: number): string {
+  if (quantidade !== 1) return categoria.plural;
+  const palavras = categoria.plural.split(" ");
+  const fim = palavras.findIndex((p) => p === "de" || p === "da" || p === "do");
+  const limite = fim === -1 ? palavras.length : fim;
+  return palavras.map((p, i) => (i < limite ? p.replace(/s$/, "") : p)).join(" ");
 }
 
 /** "hoje" quando for hoje; a data por extenso quando o produtor disser outra. */

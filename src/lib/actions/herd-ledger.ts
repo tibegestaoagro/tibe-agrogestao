@@ -140,10 +140,28 @@ export async function getPositions(
   db: HerdLedgerClient,
   filter: HerdPositionFilter = {},
 ): Promise<HerdPosition[]> {
+  /**
+   * Sem filtro nenhum, o `OR` precisa sumir do `where`.
+   *
+   * `OR: [{}, {}]` NÃO significa "qualquer linha" no Prisma: significa nenhuma.
+   * Com isso, `getPositions(db, {})` devolvia lista vazia mesmo com o livro
+   * cheio, contrariando o que este próprio arquivo documenta logo acima
+   * ("sem filtro, devolve toda posição com alguma movimentação").
+   *
+   * O estrago real era em dois lugares. `GET /api/v1/herd/positions` sem
+   * nenhum query param respondia "rebanho vazio" a quem tem gado. E o teste de
+   * isolamento do m33 (`getPositions(dbB).length === 0`) passava por este bug,
+   * não por isolamento: teria passado igual se um tenant enxergasse o outro.
+   * Achado em 2026-08-13 escrevendo o m36.
+   */
+  const from = fromWhere(filter);
+  const to = toWhere(filter);
+  const temFiltro = Object.keys(from).length > 0 || Object.keys(to).length > 0;
+
   const rows = await db.herdMovement.findMany({
     where: {
       canceled_at: null,
-      OR: [fromWhere(filter), toWhere(filter)],
+      ...(temFiltro ? { OR: [from, to] } : {}),
     },
     select: {
       quantity: true,
@@ -412,6 +430,8 @@ export type RecordMovementInput = {
   occurred_at?: Date | null;
   recorded_by_user_id?: string | null;
   batch_id?: string | null;
+  /** Envelope comercial que originou o movimento (Negociações). */
+  negotiation_id?: string | null;
 };
 
 export type HerdMovementRecord = {
@@ -494,6 +514,28 @@ export async function recordMovement(
   db: TenantPrismaClient,
   input: RecordMovementInput,
 ): Promise<ActionResult<HerdMovementRecord>> {
+  return runSerializableTenantTransaction(db, async (tx) =>
+    recordMovementInTx(db, tx, input),
+  );
+}
+
+/**
+ * O corpo de `recordMovement`, SEM abrir transação.
+ *
+ * Existe porque uma operação maior precisa gravar vários movimentos e os
+ * lançamentos financeiros de uma vez só: uma negociação de gado com 2
+ * categorias e 3 parcelas são 6 escritas que ou entram todas ou nenhuma.
+ * Chamar `recordMovement` em sequência abriria uma transação por movimento, e
+ * uma falha no terceiro deixaria os dois primeiros gravados.
+ *
+ * `db` continua sendo pedido separado porque as validações de leitura (posição,
+ * propriedade, pasto) rodam fora do escopo transacional, como antes.
+ */
+export async function recordMovementInTx(
+  db: TenantPrismaClient,
+  tx: TenantTransactionClient,
+  input: RecordMovementInput,
+): Promise<ActionResult<HerdMovementRecord>> {
   if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
     return fail("VALIDATION_ERROR", "A quantidade deve ser um número inteiro maior que zero", 422);
   }
@@ -511,7 +553,7 @@ export async function recordMovement(
   const from = input.from ?? null;
   const to = input.to ?? null;
 
-  return runSerializableTenantTransaction(db, async (tx) => {
+  return (async () => {
     if (from) {
       const [current] = await getPositions(tx, from);
       const available = current?.quantity ?? 0;
@@ -543,6 +585,7 @@ export async function recordMovement(
         notes: input.notes ?? null,
         recorded_by_user_id: input.recorded_by_user_id ?? null,
         batch_id: input.batch_id ?? null,
+        negotiation_id: input.negotiation_id ?? null,
         occurred_at,
       }),
     });
@@ -576,7 +619,7 @@ export async function recordMovement(
       notes: input.notes ?? null,
       occurred_at,
     });
-  });
+  })();
 }
 
 /**
@@ -614,6 +657,29 @@ export async function cancelMovement(
     if (!movement) return fail("NOT_FOUND", "Movimentação não encontrada", 404);
     if (movement.canceled_at) {
       return fail("ALREADY_CANCELED", "Esta movimentação já foi cancelada", 422);
+    }
+
+    /**
+     * MOVIMENTO QUE PERTENCE A UMA NEGOCIAÇÃO SÓ SE DESFAZ PELA NEGOCIAÇÃO
+     * (Módulo 31).
+     *
+     * A situação da negociação é derivada dos filhos, mas só dos FINANCEIROS.
+     * Cancelar o movimento por fora devolvia os animais e deixava o envelope
+     * exibindo "Quitada", com o dinheiro intacto e o rebanho já desfeito: um
+     * estado que nem o painel nem o produtor conseguem ler, e que ninguém
+     * pediu, porque quem cancela quer desfazer o NEGÓCIO.
+     *
+     * Recusar e apontar o caminho certo é melhor que cancelar a negociação
+     * inteira por conta própria: desfazer dinheiro é decisão do produtor, e o
+     * cancelamento da negociação tem travas próprias (parcela já paga, animais
+     * já revendidos) que precisam ser respeitadas.
+     */
+    if (movement.negotiation_id) {
+      return fail(
+        "BELONGS_TO_NEGOTIATION",
+        "Esta movimentação faz parte de um negócio. Para desfazer, cancele o negócio em Negociações: assim os animais e o financeiro voltam juntos.",
+        422,
+      );
     }
 
     const to = extractPosition(movement, "to");

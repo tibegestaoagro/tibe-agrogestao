@@ -40,8 +40,19 @@ descreve em "teste automatizado verde não é validação".
 O gancho é `recordOutbound()` em `src/lib/whatsapp-outbox.ts`, chamado no topo
 de `sendWhatsAppMessage()`. Registra **antes** de despachar, de propósito: o
 que interessa auditar é o que o Tibé decidiu responder, inclusive quando a
-entrega falha. Dado efêmero em Redis (TTL 15 min, 20 mensagens por telefone),
-mesma categoria do buffer de fragmentos. O histórico de verdade continua em
+entrega falha. **O que fica guardado, e onde:** o TEXTO da mensagem que o Tibé mandou, em
+Redis, chaveado por telefone, com TTL de 15 minutos e no máximo 20 mensagens
+por número. Isso inclui conversa de produtor real em produção, com valores e
+nomes de contraparte. É a mesma categoria e o mesmo Redis do buffer de
+fragmentos, que já guarda o texto de ENTRADA pelo mesmo período, e por isso não
+amplia a superfície: quem tivesse acesso ao Redis já lia as mensagens que
+chegam. A chave é por telefone, não por tenant, porque quem escreve
+(`sendWhatsAppMessage`) recebe só o número. O rastro com valor de auditoria
+continua sendo `AgentConversationLog`, no Postgres, esse sim escopado por
+tenant.
+
+A gravação **não bloqueia** o envio: diagnóstico não pode atrasar a resposta a
+um produtor de verdade. O histórico de verdade continua em
 `AgentConversationLog`, no Postgres.
 
 ## O que ele NÃO cobre

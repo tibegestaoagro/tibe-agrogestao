@@ -340,6 +340,68 @@ export const GROUPS: Group[] = [
     ],
   },
   {
+    title: "Negociações (Módulo 31)",
+    endpoints: [
+      {
+        method: "GET",
+        path: "/api/v1/contacts",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description:
+          "Lista os contatos de negociação (vendedor, comprador, frigorífico, leiloeira). Filtros opcionais: `q` (parte do nome) e `type`. Cadastro deliberadamente simples: o §5 do documento proíbe exigir CPF, CNPJ, endereço ou dados bancários nesta versão.",
+        response: `200
+{ "data": [{ "id": "cl...", "name": "João da Ponte", "type": "fazendeiro", "phone": null, "city": "Unaí" }], "meta": { "total": 1 } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/contacts",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "Cadastra um contato. Só `name` é obrigatório: até o tipo é opcional, porque o §4 diz que o usuário não deve ser obrigado a classificar quem não souber classificar.",
+        request: `{ "name": "Frigorífico Boa Carne", "type": "frigorifico", "city": "Paracatu" }`,
+        response: `201
+{ "data": { "id": "cl...", "name": "Frigorífico Boa Carne", "type": "frigorifico" }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/negotiations",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description:
+          "Lista as negociações, da mais recente para a mais antiga. Canceladas aparecem por padrão (o §17.10 exige histórico completo); use `include_canceled=false` para ocultar. Filtros: type, contact_id, property_id, since, until, limit (máx. 200), offset. Cada item já traz a SITUAÇÃO derivada e os totais do §15.",
+        response: `200
+{ "data": [{ "id": "cl...", "type": "venda_gado", "amount": 80000, "situacao": "paga", "totais": { "principal": 80000, "custos": 5500, "total": 85500, "liquido": 74500 } }], "meta": { "total": 1 } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/negotiations",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "Registra um negócio de gado. UMA rota para `compra_gado` e `venda_gado`, com o tipo no corpo: são a mesma operação com o sinal invertido. Tudo numa transação só: se a venda não tiver saldo, NADA é gravado, nem o envelope. `pago: true` gera lançamento já quitado; `pago: false` com `parcelas` gera uma conta a pagar/receber por parcela, e a soma delas precisa bater exatamente com `amount` (§14), senão devolve 422 `PARCELAS_NAO_FECHAM`. `custos` (frete, comissão, taxa) viram lançamentos de DESPESA próprios, para aparecerem no DRE.",
+        request: `{ "type": "compra_gado", "property_id": "cl...", "itens": [{ "category_id": "bezerro_0_7", "quantity": 20 }], "amount": 60000, "contact_id": "cl...", "pago": false, "parcelas": [{ "due_date": "2026-03-10T00:00:00.000Z", "amount": 60000 }] }`,
+        response: `201
+{ "data": { "id": "cl..." }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/negotiations/:id",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description:
+          "Detalhe do negócio, com os movimentos de rebanho e os lançamentos financeiros que ele gerou. Não existe PATCH: o §17.9 pede recálculo ao editar, e a decisão do módulo é que editar é CANCELAR e refazer, porque uma edição de valor teria que desfazer filhos que já podem ter virado dinheiro pago.",
+        response: `200
+{ "data": { "id": "cl...", "situacao": "parcialmente_paga", "movimentos": [{ "movement_type": "compra", "quantity": 20 }], "lancamentos": [{ "amount": 30000, "status": "paid", "negotiation_role": "principal" }] }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/negotiations/:id/cancel",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "Cancela a negociação: os movimentos de rebanho voltam e as contas EM ABERTO são canceladas. Não apaga nada, a linha continua no histórico. Devolve 422 `INSUFFICIENT_BALANCE` quando parte dos animais que entraram por esta negociação já saiu, dizendo quantos restam (§17.9). O que já foi PAGO segue o `dinheiro_pago`: `mantem` (padrão) deixa lançado, porque o dinheiro saiu de verdade; `devolvido` cria um lançamento de estorno com a data de hoje, sem apagar o original, para os dois meses fecharem certo; `engano` cancela o lançamento, porque aquele pagamento nunca existiu. `meta` traz `valor_recebido_mantido`, `valor_pago_mantido` e `valor_estornado`, separados porque numa venda o principal entrou e os custos sairam.",
+        request: `{ "reason": "comprei errado", "dinheiro_pago": "devolvido" }`,
+        response: `200
+{ "data": { "id": "cl...", "situacao": "cancelada", "canceled_reason": "comprei errado" }, "meta": { "valor_recebido_mantido": 0, "valor_pago_mantido": 0, "valor_estornado": 60000 } }`,
+      },
+    ],
+  },
+  {
     title: "Rebanho: livro-razão (Módulo 30)",
     endpoints: [
       {

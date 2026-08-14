@@ -16,6 +16,11 @@ export const INTENTS = [
   // parecidos, módulos de permissão diferentes, não unifique.
   "consultar_rebanho",
   "registrar_movimentacao_rebanho",
+  // Módulo 31 (§18): "comprei 20 bezerros do Joao por 60 mil". Uma intencao
+  // so, com o tipo (compra/venda) em parameters, pelo mesmo motivo de
+  // registrar_movimentacao_rebanho: sao o mesmo gesto do produtor, e separar
+  // em duas intencoes so daria ao classificador mais uma chance de errar.
+  "registrar_negocio_gado",
   "consultar_cliente",
   "gerar_relatorio",
   "registrar_lancamento_financeiro",
@@ -57,6 +62,10 @@ export const INTENT_ACCESS: Record<
     action: "write",
     profile: "fazenda",
   },
+  // Reusa "rebanho" pela mesma razao de Minha Fazenda e das rotas de
+  // negociacao: o PRD nao define ModuleKey proprio, e Negociacoes sempre foi
+  // parte do mesmo bloco de permissao que Rebanho.
+  registrar_negocio_gado: { module: "rebanho", action: "write", profile: "fazenda" },
   consultar_cliente: { module: "prestador", action: "read", profile: "prestador" },
   gerar_relatorio: { module: null, action: "read" }, // módulo varia por parameters.tipo
   registrar_lancamento_financeiro: { module: "financeiro", action: "write" },

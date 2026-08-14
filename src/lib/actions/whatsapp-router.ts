@@ -24,6 +24,8 @@ import {
   consultarRebanho,
   registrarMovimentacaoRebanho,
 } from "@/lib/actions/whatsapp-handlers/herd";
+import { registrarNegocioGado } from "@/lib/actions/whatsapp-handlers/negociacao";
+import { loadPendingNegotiation } from "@/lib/actions/negotiation-pending";
 import { ajuda } from "@/lib/actions/whatsapp-handlers/ajuda";
 import { resumo } from "@/lib/actions/whatsapp-handlers/resumo";
 import { handleActiveFlow, maybeStartAnimalFlow } from "@/lib/actions/whatsapp-flow-bridge";
@@ -53,6 +55,7 @@ const HANDLERS: Record<Exclude<Intent, "ambigua">, Handler> = {
   consultar_animal: consultarAnimal,
   consultar_rebanho: consultarRebanho,
   registrar_movimentacao_rebanho: registrarMovimentacaoRebanho,
+  registrar_negocio_gado: registrarNegocioGado,
   consultar_cliente: consultarCliente,
   gerar_relatorio: gerarRelatorio,
   registrar_lancamento_financeiro: registrarLancamentoFinanceiro,
@@ -60,6 +63,50 @@ const HANDLERS: Record<Exclude<Intent, "ambigua">, Handler> = {
   ajuda,
   resumo,
 };
+
+/**
+ * DESEMPATE ENTRE AS DUAS INTENÇÕES DE COMPRA E VENDA, EM CÓDIGO.
+ *
+ * "Comprei 20 bezerros" satisfaz tanto `registrar_movimentacao_rebanho` (com
+ * `movement_type: "compra"`) quanto `registrar_negocio_gado`. Deixar a escolha
+ * só para o prompt do classificador significaria dois caminhos de escrita para
+ * o mesmo gesto, e a decisão 1 da spec deste módulo descarta isso com o
+ * argumento de que "caminho duplicado é onde o dado diverge".
+ *
+ * A regra: **compra e venda de gado são SEMPRE negócio**, com ou sem valor na
+ * frase.
+ *
+ * Uma versão anterior exigia valor para converter, e o que ficava sem valor
+ * seguia pelo rebanho. O efeito era o oposto do que o documento do cliente
+ * pede: "Comprei 20 bezerros" registrava 20 cabeças e ZERO dinheiro, em
+ * silêncio, enquanto o §6.1 e o §7.1 listam o valor total como informação
+ * OBRIGATÓRIA, o §17.3 e o §17.4 dizem que a compra "aumenta o Rebanho e gera
+ * despesa ou conta a pagar", e o §18.6 manda o assistente PERGUNTAR o dado que
+ * falta. Perguntar é o que o handler de negócio já faz ("Por quanto você
+ * comprou?"), e é a resposta certa.
+ *
+ * De quebra, isso mantém a conversa inteira num único pendente: com a regra
+ * antiga, "comprei 10 novilhas" abria um pendente no rebanho e o "por 45 mil"
+ * seguinte trocava de handler, abrindo um pendente vazio do outro lado, e o
+ * produtor ouvia de novo "quantos animais e de qual categoria?".
+ *
+ * Correção de livro-razão sem dinheiro continua possível pelos tipos que não
+ * são comerciais (`saldo_inicial`, `ajuste`, `nascimento`, `morte`,
+ * transferências), que é o que eles significam.
+ *
+ * Função pura, testada em `test:m36`: a regra não pode viver só no prompt.
+ */
+export function desempatarIntencao(
+  intent: Intent,
+  parameters: Record<string, unknown>,
+): Intent {
+  if (intent !== "registrar_movimentacao_rebanho") return intent;
+
+  const tipo = typeof parameters.movement_type === "string" ? parameters.movement_type : parameters.tipo;
+  if (tipo !== "compra" && tipo !== "venda") return intent;
+
+  return "registrar_negocio_gado";
+}
 
 export async function routeIntent(
   db: TenantPrismaClient,
@@ -78,7 +125,61 @@ export async function routeIntent(
     message_text?: string | null;
   },
 ): Promise<RouterResult> {
-  const { tenant_id, role, activeProfiles, intent, parameters, confirmed, explicitNo } = ctx;
+  const { tenant_id, role, activeProfiles, parameters, confirmed, explicitNo } = ctx;
+  // O desempate vem antes de qualquer checagem: a permissão e o handler têm
+  // que ser os da intenção que vai de fato executar.
+  let intent = desempatarIntencao(ctx.intent, parameters);
+
+  /**
+   * A RESPOSTA a uma pergunta pendente volta para quem perguntou.
+   *
+   * `desempatarIntencao` decide pela frase, e uma resposta curta não tem
+   * frase: "de 13 a 24 meses" não carrega `movement_type` nenhum. Sem esta
+   * guarda, o produtor que respondia a pergunta do assistente sobre um NEGÓCIO
+   * caía no handler de rebanho e ouvia "não entendi que tipo de movimentação
+   * é", enquanto o negócio dele seguia guardado, esperando a mesma resposta que
+   * ele acabou de dar. É a família da pergunta repetida que custou uma rodada
+   * de teste no Módulo 30, e foi reproduzida por um revisor independente com o
+   * roteiro de aparelho na mão.
+   *
+   * ESTREITA DE VERDADE: só age quando a mensagem NÃO traz um
+   * `movement_type` próprio.
+   *
+   * A primeira versão desta guarda convertia qualquer movimentação de rebanho
+   * enquanto houvesse negócio pendente, e criou o problema oposto ao que
+   * resolvia: "morreu 1 bezerro", dito no meio de uma compra em andamento, era
+   * engolido e respondido com "Por quanto você comprou?". A morte nunca era
+   * registrada e o produtor não era avisado de nada, por até 15 minutos (o TTL
+   * do pendente). Um animal morto que some do registro é exatamente o erro que
+   * o produtor só descobre quando o saldo não bate.
+   *
+   * A distinção que importa: uma RESPOSTA ("de 13 a 24 meses") não carrega
+   * tipo de movimentação, porque não é uma frase sobre movimentação. Uma
+   * mensagem que carrega `movement_type` é assunto novo, e assunto novo
+   * interrompe o registro em andamento, que é o comportamento certo e já
+   * existia.
+   *
+   * O par em código é o que importa aqui: sem ele, lembrar do contexto viraria
+   * responsabilidade do prompt, que é justamente o que este módulo evita.
+   */
+  if (ctx.user_id && intent === "registrar_movimentacao_rebanho") {
+    const tipoProprio =
+      typeof parameters.movement_type === "string" ? parameters.movement_type : parameters.tipo;
+    if (!tipoProprio) {
+      /**
+       * Inclui o pendente de CONFIRMAÇÃO de propósito.
+       *
+       * O "sim" também chega sem `movement_type`, e o classificador às vezes o
+       * devolve como `registrar_movimentacao_rebanho` (é o formato que ele usa
+       * para responder). Excluir a confirmação fazia o produtor ouvir "não
+       * tenho nenhum registro esperando confirmação" enquanto o negócio dele
+       * seguia guardado por 15 minutos: o defeito oposto ao que esta guarda
+       * corrige, no mesmo trecho.
+       */
+      const negocioEsperando = await loadPendingNegotiation(tenant_id, ctx.user_id);
+      if (negocioEsperando) intent = "registrar_negocio_gado";
+    }
+  }
 
   // Cadastro assistido tem prioridade sobre o roteamento normal: se existe um
   // formulário em andamento, a mensagem é primeiro oferecida a ele. O bridge

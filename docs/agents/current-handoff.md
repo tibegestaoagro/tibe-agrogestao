@@ -441,6 +441,192 @@ remontar tudo pelo histórico, que é o caminho frágil já corrigido em todo o
 resto. Correção pendente: guardar o pedido também no `confirmFlow`, e executar
 o guardado no "sim" em vez do que o LLM reconstruir.
 
+## EM ANDAMENTO: Módulo 31, Negociações (branch `negociacoes`)
+
+Spec e as 12 decisões: [docs/specs/module-31-negociacoes.md](../specs/module-31-negociacoes.md).
+Contrato de missão aprovado pelo usuário em 2026-08-11 (formato loop-goal).
+Branch `negociacoes`, criada de `main` em `8d777b8`. **Nada empurrado ainda**:
+o usuário pediu avaliação de push/merge só no fim.
+
+| Missão | Estado |
+|---|---|
+| 1. Negócio de gado | núcleo pronto (`7cff024`); faltam rotas, tela, WhatsApp e juiz |
+| 2. Estoque e produtos | não iniciada |
+| 3. Leilão e eventos | não iniciada |
+| 4. Permuta | não iniciada |
+
+**A decisão que rege tudo:** a Negociação é um ENVELOPE comercial, não a fonte
+da verdade. Saldo do rebanho continua sendo soma de `HerdMovement`, dinheiro
+continua em `FinancialEntry`, e os filhos apontam para a negociação
+(`negotiation_id` anulável). Se algum dia aparecer um campo de saldo ou de
+situação na `Negotiation`, a decisão foi revertida por engano.
+
+**Pronto e verde na missão 1:** schema (`Contact`, `Negotiation`, 3 enums,
+migração aditiva com zero DROP), `src/lib/actions/negotiations.ts` com compra,
+venda, parcelamento (§14 recusa quando a soma não fecha), custos adicionais como
+lançamentos filhos (§15), cancelamento em cascata com bloqueio quando os animais
+já saíram, e situação derivada. `test:m35` com 43 verificações. 13 suítes
+existentes sem regressão, mais isolation, docs-api, nav, tsc, eslint e build.
+
+⚠️ **Duas armadilhas achadas aqui, valem para as próximas missões:**
+1. **`return fail(...)` de dentro de `$transaction` CONFIRMA a transação.** Só
+   `throw` faz rollback. Deixava a negociação órfã quando a venda não tinha
+   saldo. Use `AbortarNegociacao`.
+2. **`recordMovement` abre a própria transação.** Para operação composta, use
+   `recordMovementInTx`, extraído para isso.
+
+**VALIDADO EM NAVEGADOR REAL (2026-08-13).** Registrei uma compra de 20
+bezerros por R$ 60.000 em 3 parcelas, com R$ 2.000 de comissão, e conferi as
+duas pontas:
+
+- Tela: "ainda tenho a pagar R$ 62.000,00", linha com "R$ 60.000,00 / com
+  custos R$ 62.000,00", situação "A pagar", categoria "Bezerro - 0 a 7 meses".
+- Rebanho: subiu de 270 para **290** sozinho, sem nenhum lançamento manual.
+- Banco: 1 `Negotiation`, 1 `HerdMovement` (compra, 20, bezerro_0_7) e 4
+  `FinancialEntry` (3 parcelas `principal` vencendo em set/out/nov, mais 1
+  `custo_adicional` de 2.000).
+
+É a promessa do §22 funcionando ponta a ponta: o produtor registrou UMA vez e
+o rebanho e o financeiro se atualizaram sozinhos.
+
+## Banco de provas do agente WhatsApp (2026-08-13, JA EM PRODUCAO)
+
+Deploy aprovado e feito na `main` (`69f8c3a`, cherry-pick do `8419ace`), sem
+schema e sem migracao. O Modulo 31 segue SEM merge, como o contrato manda.
+
+`recordOutbound()` grava em Redis o que sai por `sendWhatsAppMessage`, e
+`npm run wa` manda a mensagem para o webhook do fluxo REAL de producao e le a
+resposta de volta. Nao existe copia do fluxo: o classificador exercitado e o de
+producao. Guia: [banco-de-provas-whatsapp.md](banco-de-provas-whatsapp.md).
+
+Tenant proprio em producao (`BANCO DE PROVAS (automacao Tibe)`,
+tel `5511900000001`, `WA_TEST_PHONE` no `.env`): as outras 4 contas sao de
+pessoas reais da equipe do cliente, e o seed recusa telefone ja usado.
+
+Provado ponta a ponta na primeira rodada, sem ninguem no circuito:
+
+    >> Quantos animais eu tenho?
+    << Atualmente, seu rebanho conta com 0 animais.
+    >> Comprei 20 bezerros
+    << Deseja registrar a compra de 20 bezerros hoje em Fazenda de Provas?
+    >> sim
+    << Registro concluido: 20 bezerros. Agora, seu rebanho conta com 20 animais.
+
+⚠️ **A conversa acima estava CERTA como prova da ferramenta e ERRADA como
+prova do produto**, e ficou aqui semanas parecendo sucesso. Um juiz
+independente notou na quinta rodada: "comprei 20 bezerros" registrou 20 cabeças
+e **zero dinheiro**, calado, enquanto o §6.1 do documento lista o valor total
+como obrigatório e o §17.3 diz que a compra gera despesa ou conta a pagar.
+Corrigido em 2026-08-13: toda compra e venda de gado agora vira negócio e o
+assistente **pergunta** o valor que falta. Quem repetir esse teste hoje deve
+ver "Por quanto você comprou?" no lugar da confirmação direta.
+
+O que a conversa prova, e continua provando, é o BANCO DE PROVAS: mensagem
+entrou pelo fluxo real, resposta voltou legível por programa, conversa de
+vários turnos funcionou. É a ferramenta que estava sendo validada ali, não a
+regra de negócio.
+
+Nao cobre entrega no aparelho, audio nem foto de recibo: a passada final no
+celular de verdade continua valendo uma vez por rodada.
+
+**Pendencia separada, achada de passagem:** `npx tsc --noEmit` acusa erros de
+tipo em `scripts/m23-token-auth.test.ts` (pre-existentes, confirmado com
+stash). Nao quebram o build (a Vercel nao compila `scripts/`), mas corroem a
+rede de seguranca.
+
+## G1.7 pronta: negócio de gado pelo WhatsApp (2026-08-13)
+
+Intenção `registrar_negocio_gado`, uma só, com o tipo (compra/venda) em
+`parameters`, pelo mesmo motivo de `registrar_movimentacao_rebanho`: é o mesmo
+gesto do produtor, e separar em duas daria ao classificador mais uma chance de
+errar. Handler em `src/lib/actions/whatsapp-handlers/negociacao.ts`,
+memória de conversa em `negotiation-pending.ts`. `npm run test:m36`, 40
+verificações, zero falhas.
+
+Carrega as três regras que custaram uma rodada cada no Módulo 30, aqui com mais
+peso porque um negócio grava rebanho E financeiro de uma vez: recusa vence tudo
+e é a primeira coisa checada, confirmação é SEMPRE obrigatória (não usa
+`CONFIRMATION_THRESHOLD`), e o "sim" executa o que foi MOSTRADO.
+
+Reusa `resolverCategoria`/`resolverFazenda` do handler de rebanho (exportados
+para isso) em vez de duplicar: se a regra de nunca chutar faixa de idade
+divergisse entre os dois caminhos, o assistente lançaria animais na idade
+errada por um caminho e não pelo outro.
+
+Validado também pela ROTA HTTP real (`/api/internal/whatsapp/execute-action`,
+`next dev` local): pergunta, confirma, grava (rebanho 20, 1 negociação, 3
+parcelas) e barra `VISUALIZADOR` com "Você não tem permissão".
+
+**⚠️ Desvio de numeração do contrato:** o contrato reservava `test:m36` para a
+Missão 2 (Estoque). Como a Missão 1 ganhou uma suíte de WhatsApp que não estava
+prevista, ela ficou com o `m36` (o número é contador de SUÍTES, não de módulo,
+conforme o CLAUDE.md). As Missões 2, 3 e 4 passam a ser `m37`, `m38` e `m39`.
+
+**BUG VIVO ACHADO E CORRIGIDO no caminho:** `getPositions(db, {})` devolvia
+lista VAZIA com o livro cheio, porque `OR: [{}, {}]` no Prisma não significa
+"qualquer linha", significa nenhuma. Dois estragos reais:
+`GET /api/v1/herd/positions` **sem query param respondia "rebanho vazio" a quem
+tem gado** (o app mobile consome essa rota), e a asserção de isolamento do m33
+(`getPositions(dbB).length === 0`) passava **por causa do bug**, não por
+isolamento: teria passado igual se um tenant enxergasse o outro. m33, m34 e m35
+seguem verdes, agora pelo motivo certo.
+
+## Missão 1: seis rodadas de juiz (2026-08-13)
+
+Notas por rodada, na ordem R1/R2/R3/R4/R5:
+
+| Rodada | R1 | R2 | R3 | R4 | R5 |
+|---|---|---|---|---|---|
+| 1 | 5 | 7 | 7 | 6 | 6 |
+| 2 | 6 | 8 | 6 | 6 | 6 |
+| 3 | 7 | 9 | 7 | 8 | 7 |
+| 4 | 7 | 8 | 7 | 7 | 7 |
+| 5 | 7 | 9 | 9 | 8 | 8 |
+| 6 | 7 | 9 | 9 | 9 | 7 |
+
+**O padrão que dominou estas rodadas, e que vale para as missões 2 a 4:** em
+quatro das seis, uma correção minha introduziu o problema OPOSTO ao que
+corrigia. Bloquear o cancelamento em vez de apagar dinheiro pago. Fazer a
+situação olhar todos os lançamentos em vez de só o principal. Mover a criação
+do contato para dentro da transação e deixar a action virar código morto.
+Criar um ramo para tornar uma pergunta respondível e esquecer o caso em que a
+resposta não casa.
+
+A causa é sempre a mesma: eu corrigia a direção apontada sem testar a direção
+oposta. O remédio que funcionou foi escrever **as duas bordas como teste com
+nome**, por exemplo "venda recebida com frete em aberto continua Recebida" ao
+lado de "compra com frete em aberto NÃO está quitada".
+
+Defeitos de dinheiro achados e corrigidos, que nenhum teste anterior pegava:
+
+- `getDre` não filtrava status, então lançamento CANCELADO continuava pesando
+  no "Resultado do mês". Bug anterior ao módulo; o módulo o tornou comum.
+- O estorno somava receita com despesa: numa venda, errava em 2x os custos.
+- `getPositions(db, {})` devolvia lista vazia com o livro cheio, e fazia a
+  asserção de isolamento do `m33` passar pelo motivo errado.
+- `num("60.000")` devolvia 60: uma compra de sessenta mil virava sessenta reais.
+
+**Falta na missão 1:** fechar o juiz (R1 e R5 na última rodada) e o relatório de
+evidências. Depois disso, a validação ao vivo pelo banco de provas depende de
+duas coisas que andam juntas: deploy da branch e ensinar a intenção nova ao
+classificador do n8n. Ensinar o classificador ANTES do deploy quebraria
+produção, porque a `main` ainda não tem o handler.
+
+**4 migrações pendentes no Neon**, todas aditivas, zero `DROP`:
+`20260811100000_negociacoes_envelope`,
+`20260813190000_negotiation_entry_role_estorno`,
+`20260813200000_negotiation_canceled_by` e
+`20260813210000_negotiation_canceled_by_fk`. Vão ANTES do push da `main`
+(invariante 3).
+
+**Roteiro do teste no aparelho, pronto:**
+[roteiro-aparelho-negociacoes.md](roteiro-aparelho-negociacoes.md), 7 blocos.
+
+**Próximo passo exato:** rotas `/api/v1/negotiations` e `/api/v1/contacts`,
+atualizar a lista de `/docs/api` (o `test:docs-api` reprova se esquecer), tela
+`/negociacoes` validada em navegador real, intenções de WhatsApp, e o juiz
+subagente com a rubrica R1-R5 exigindo nota >= 8.
+
 ## Bloco 3 (2026-08-10): o defeito mais grave da fase, e as 3 correções
 
 §13 conflito de nascimento e cancelamento passaram. A venda acima do saldo

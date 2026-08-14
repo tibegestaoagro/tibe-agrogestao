@@ -309,12 +309,43 @@ uma mensagem de fallback amigável (sem detalhes técnicos), por exemplo:
 | `consultar_animal` | `ear_tag` |
 | `consultar_rebanho` | `categoria` (opcional), `fazenda` (opcional). Módulo 30, §13.1 e §13.2. Sem `categoria`, responde o total geral do rebanho. Com `categoria`, responde só aquela faixa. Ex: "Quantos animais tenho?" e "Quantas fêmeas de 13 a 24 meses eu tenho?" |
 | `registrar_movimentacao_rebanho` | `movement_type` (obrigatório: `saldo_inicial`\|`nascimento`\|`compra`\|`venda`\|`morte`\|`transferencia_pasto`\|`transferencia_fazenda`\|`mudanca_categoria`\|`ajuste`), `itens` (lista de `{categoria, quantidade}`) ou, para um item só, `categoria` + `quantidade`. Opcionais: `fazenda`, `pasto` (ou `pasto_origem`), `pasto_destino`, `categoria_destino` (obrigatório em `mudanca_categoria`), `fazenda_destino` (obrigatório em `transferencia_fazenda`), `valor`. Módulo 30, §13.3 a §13.7. **Sempre** exige confirmação, independente de valor: não usa o limiar de R$ 5.000, porque aqui o risco é o saldo do rebanho ficar errado, não o financeiro. |
+| `registrar_negocio_gado` [1] | `tipo` (obrigatório: `compra`\|`venda`), `categoria` + `quantidade` (ou `itens`, lista de `{categoria, quantidade}`), `valor`. Opcionais: `fazenda`, `pasto` (ou `pasto_origem` numa venda, `pasto_destino` numa compra), `vendedor` ou `comprador` (o contato é criado com só o nome, §4), `vencimento` ("para pagar dia 10"), `data` (a data do negócio, se não for hoje), `parcelas` (número), `pago` (booleano), e os custos do §15: `frete`, `comissao`, `taxa_leilao`, `taxa_feira`, `carregamento`, `descarregamento`, `guia_transporte`, `exames`, `vacinas`, `pedagio`, `outros`. Módulo 31, §18. **Sempre** exige confirmação, independente de valor: um negócio grava rebanho E financeiro numa tacada, e desfazer exige cancelar a negociação inteira. |
 | `consultar_cliente` | `client_name` |
 | `gerar_relatorio` | `tipo` (financeiro\|rebanho\|lavoura\|prestador), `period`. **Retorna "em breve"** enquanto a geração de PDF real depende do Módulo 4, ainda não implementado |
 | `registrar_lancamento_financeiro` | `amount`, `category` (opcional, cai em "Outros" se fora da lista fixa), `vendor` (opcional), `description` (opcional). Disparada tanto por texto ("gastei 50 reais com ração") quanto pelo ramo de recibo por foto/PDF (seção 5). **Sempre** exige confirmação, mesmo com valor baixo: não usa o limiar de R$ 5.000. |
 | `ajuda` | `topic` (opcional: nome de uma das intenções acima; omitido para pergunta geral tipo "o que você faz?"). Usada quando o usuário pergunta COMO usar um recurso, não tenta executá-lo. Resposta é texto fixo (nunca gerado pela LLM), tabela `HELP_TEXT` em `whatsapp-router.ts`. |
 | `resumo` | `scope` opcional. Nível 1: `rebanho`/`lavoura`/`prestador`/`financeiro`. Sob `prestador`: `clientes`/`agendamentos`/`ordens_a_faturar`. Escopos financeiros disponíveis em qualquer perfil: `contas_a_pagar` e `contas_a_receber`. `contas_a_pagar` lista despesas pendentes; `contas_a_receber` lista receitas pendentes de `FinancialEntry`; `ordens_a_faturar` lista ordens concluídas ainda não faturadas. Use quando o usuário quer consultar agenda, contas ou o que já está cadastrado. Sem `scope` claro, o assistente pergunta a categoria em vez de despejar tudo: funil de até 2 perguntas, reconstruído do `recent_history` a cada turno. Se o histórico mostra que já perguntou e a resposta não resolveu, o LLM deve classificar como `ambigua` em vez de perguntar de novo. |
 | `ambigua` | usar quando não for possível classificar com confiança. Com `ajuda`/`resumo` cobrindo "como faço"/"o que eu tenho", sobra pra isso o que realmente foge do escopo. |
+
+**[1] Empate com `registrar_movimentacao_rebanho`, resolvido em código, não no
+prompt.** "Comprei 20 bezerros" satisfaz as duas intenções. O prompt não
+precisa acertar essa escolha, e não deve ser o único a decidi-la:
+`desempatarIntencao()`, em `src/lib/actions/whatsapp-router.ts`, converte
+**toda compra e toda venda de gado**, com ou sem valor na frase, em
+`registrar_negocio_gado`, antes de qualquer checagem de permissão. Quando o
+valor não vem, o Tibé **pergunta** ("Por quanto você comprou?").
+
+Vale com ou sem valor porque o §6.1 e o §7.1 do documento listam o valor total
+como informação **obrigatória**, e o §17.3 diz que a compra "aumenta o Rebanho
+e gera despesa ou conta a pagar": registrar 20 cabeças e zero dinheiro seria o
+oposto do pedido. Uma versão anterior deste guia dizia para mandar
+`registrar_movimentacao_rebanho` quando não houvesse valor, e era isso que
+produzia o registro sem dinheiro.
+
+**Além disso, a RESPOSTA a uma pergunta pendente também é roteada em código.**
+Quando o assistente pergunta a faixa de idade e o produtor responde "de 13 a 24
+meses", essa mensagem não carrega `movement_type` nenhum, e classificá-la como
+`registrar_movimentacao_rebanho` a mandaria para o handler de rebanho, fora de
+assunto, com o negócio pendente intocado. `routeIntent` resolve isso olhando se
+existe um negócio esperando resposta para aquele usuário. Ou seja: **o
+classificador não precisa lembrar do contexto**, e não deve tentar.
+
+**Na prática, para quem escreve o prompt:** classifique pela frase mais
+natural. `registrar_movimentacao_rebanho` com `movement_type: "compra"` ou
+`"venda"` chega no lugar certo sozinho. Os outros tipos (`saldo_inicial`,
+`nascimento`, `morte`, `ajuste`, transferências) continuam no rebanho, porque
+não têm dinheiro envolvido. As duas regras são função pura e testadas em
+`test:m36`.
 
 ### 4.0. Por que o classificador é `gpt-4o-mini` com `temperature: 0`
 

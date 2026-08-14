@@ -1,0 +1,472 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Sheet,
+  SheetTrigger,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { apiPost } from "@/lib/client-api";
+import { HERD_CATEGORIES } from "@/lib/herd/categories";
+
+/**
+ * "Comprei gado" e "Vendi gado" (§3.1 e §3.2) num formulário só.
+ *
+ * Importa `@/lib/herd/categories` (módulo puro) e NUNCA uma action, que
+ * arrastaria Prisma para o bundle do navegador.
+ *
+ * O documento é insistente sobre não parecer sistema contábil (§2), então a
+ * ordem das perguntas segue a da conversa do produtor: o que, quanto, de quem,
+ * já pagou. Peso, arroba e valor por cabeça ficam de fora desta versão porque o
+ * §6.2 os marca como opcionais e diz, no fim do parágrafo, que o sistema não
+ * deve exigi-los quando o produtor informar apenas o valor total.
+ */
+
+type Property = { id: string; name: string };
+type Contact = { id: string; name: string };
+
+type Parcela = { due_date: string; amount: string };
+type Custo = { descricao: string; amount: string };
+
+function moeda(v: number) {
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function hoje() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Soma meses SEM pular para o mês seguinte.
+ *
+ * `setMonth` faz 31/01 + 1 virar 03/03, porque fevereiro não tem 31 dias, e a
+ * parcela de fevereiro apareceria em março. É a mesma regra de `somarMeses` no
+ * handler de WhatsApp: as duas telas parcelam o mesmo negócio, então dois
+ * cálculos diferentes dariam datas diferentes para a mesma compra.
+ */
+function emMeses(base: string, meses: number) {
+  const d = new Date(`${base}T12:00:00`);
+  const alvo = d.getMonth() + meses;
+  const ultimoDiaDoMesDestino = new Date(d.getFullYear(), alvo + 1, 0).getDate();
+  const resultado = new Date(
+    d.getFullYear(),
+    alvo,
+    Math.min(d.getDate(), ultimoDiaDoMesDestino),
+    12,
+    0,
+    0,
+  );
+  const mm = String(resultado.getMonth() + 1).padStart(2, "0");
+  const dd = String(resultado.getDate()).padStart(2, "0");
+  return `${resultado.getFullYear()}-${mm}-${dd}`;
+}
+
+export default function NegotiationForm({
+  properties,
+  contacts,
+  defaultPropertyId,
+}: {
+  properties: Property[];
+  contacts: Contact[];
+  defaultPropertyId?: string | null;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [type, setType] = useState<"compra_gado" | "venda_gado">("compra_gado");
+  const [propertyId, setPropertyId] = useState(defaultPropertyId ?? properties[0]?.id ?? "");
+  // Texto livre, nao id: quem digita um nome novo cadastra o contato junto
+  // com o negocio (§5). Ver o comentario do campo, abaixo.
+  const [contactName, setContactName] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [amount, setAmount] = useState("");
+  const [occurredAt, setOccurredAt] = useState(hoje());
+  const [pago, setPago] = useState(true);
+  // §6.3 e §7.3: quando não foi pago, o vencimento é o PRIMEIRO dado pedido,
+  // e as parcelas são o condicional ("quando houver"). Sem este campo, quem
+  // marcava "Ainda não" sem parcelar criava uma conta vencendo hoje, e o
+  // alerta de atraso disparava no mesmo dia da compra.
+  const [vencimento, setVencimento] = useState(hoje());
+  const [parcelas, setParcelas] = useState<Parcela[]>([]);
+  const [custos, setCustos] = useState<Custo[]>([]);
+  const [notes, setNotes] = useState("");
+
+  const compra = type === "compra_gado";
+  const valorNumero = Number(amount.replace(",", ".")) || 0;
+
+  const somaParcelas = useMemo(
+    () => parcelas.reduce((s, p) => s + (Number(p.amount.replace(",", ".")) || 0), 0),
+    [parcelas],
+  );
+  const somaCustos = useMemo(
+    () => custos.reduce((s, c) => s + (Number(c.amount.replace(",", ".")) || 0), 0),
+    [custos],
+  );
+  // §14: a soma tem que fechar. Mostrado ANTES de enviar, para o produtor
+  // corrigir sem levar erro do servidor na cara.
+  const parcelasFecham = parcelas.length === 0 || Math.round(somaParcelas * 100) === Math.round(valorNumero * 100);
+
+  function reset() {
+    setType("compra_gado");
+    setContactName("");
+    setCategoryId("");
+    setQuantity("");
+    setAmount("");
+    setOccurredAt(hoje());
+    setPago(true);
+    setVencimento(hoje());
+    setParcelas([]);
+    setCustos([]);
+    setNotes("");
+    setError(null);
+  }
+
+  function parcelar(n: number) {
+    if (!valorNumero || n < 1) return;
+    // A última parcela absorve o centavo que sobra da divisão, senão a soma
+    // não fecha e o servidor recusa (§14).
+    const base = Math.floor((valorNumero * 100) / n) / 100;
+    const novas: Parcela[] = Array.from({ length: n }, (_, i) => ({
+      due_date: emMeses(occurredAt, i + 1),
+      amount: String(i === n - 1 ? Number((valorNumero - base * (n - 1)).toFixed(2)) : base),
+    }));
+    setParcelas(novas);
+    setPago(false);
+  }
+
+  async function submit() {
+    setError(null);
+    const qtd = Number(quantity);
+    if (!propertyId) return setError("Escolha a fazenda.");
+    if (!categoryId) return setError("Escolha a categoria dos animais.");
+    if (!Number.isInteger(qtd) || qtd <= 0) return setError("Informe uma quantidade inteira maior que zero.");
+    if (valorNumero <= 0) return setError("Informe o valor total do negócio.");
+    if (!parcelasFecham) {
+      return setError(
+        `A soma das parcelas (${moeda(somaParcelas)}) não fecha com o valor do negócio (${moeda(valorNumero)}).`,
+      );
+    }
+
+    setLoading(true);
+    const res = await apiPost("/api/v1/negotiations", {
+      type,
+      property_id: propertyId,
+      contact_name: contactName.trim() || null,
+      itens: [{ category_id: categoryId, quantity: qtd }],
+      amount: valorNumero,
+      occurred_at: new Date(`${occurredAt}T12:00:00`).toISOString(),
+      pago,
+      due_date: pago || parcelas.length > 0 ? null : new Date(`${vencimento}T12:00:00`).toISOString(),
+      parcelas: pago
+        ? []
+        : parcelas.map((p) => ({
+            due_date: new Date(`${p.due_date}T12:00:00`).toISOString(),
+            amount: Number(p.amount.replace(",", ".")) || 0,
+          })),
+      custos: custos
+        .filter((c) => c.descricao.trim() && Number(c.amount.replace(",", ".")) > 0)
+        .map((c) => ({ descricao: c.descricao.trim(), amount: Number(c.amount.replace(",", ".")) })),
+      notes: notes.trim() || null,
+    });
+    setLoading(false);
+
+    if (!res.ok) return setError(res.message);
+    setOpen(false);
+    reset();
+    router.refresh();
+  }
+
+  return (
+    <Sheet
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) reset();
+      }}
+    >
+      <SheetTrigger asChild>
+        <Button>Registrar negócio</Button>
+      </SheetTrigger>
+      <SheetContent>
+        <SheetHeader>
+          <SheetTitle>Registrar negócio de gado</SheetTitle>
+        </SheetHeader>
+
+        <div className="mt-4 space-y-4">
+          <div>
+            <Label>O que aconteceu</Label>
+            <Select value={type} onValueChange={(v) => setType(v as typeof type)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="compra_gado">Comprei gado</SelectItem>
+                <SelectItem value="venda_gado">Vendi gado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="neg-categoria">Categoria</Label>
+              <Select value={categoryId} onValueChange={setCategoryId}>
+                <SelectTrigger id="neg-categoria">
+                  <SelectValue placeholder="Escolha" />
+                </SelectTrigger>
+                <SelectContent>
+                  {HERD_CATEGORIES.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="neg-qtd">Quantidade</Label>
+              <Input
+                id="neg-qtd"
+                type="number"
+                min={1}
+                step={1}
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="neg-valor">Valor total (R$)</Label>
+              <Input
+                id="neg-valor"
+                type="number"
+                min={0}
+                step="0.01"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="neg-data">Data</Label>
+              <Input
+                id="neg-data"
+                type="date"
+                value={occurredAt}
+                onChange={(e) => setOccurredAt(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div>
+            <Label>Fazenda</Label>
+            <Select value={propertyId} onValueChange={setPropertyId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Escolha a fazenda" />
+              </SelectTrigger>
+              <SelectContent>
+                {properties.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/*
+            §5: "cadastro simples e rápido", sem CPF, endereço nem dados
+            bancários. Campo de TEXTO com sugestões, não um seletor do que já
+            existe: com o seletor, um tenant novo não tinha caminho nenhum para
+            cadastrar o primeiro contato (o campo nem aparecia com a lista
+            vazia), e "Com quem negociei?" é a terceira pergunta do §2.
+
+            O nome digitado vai como `contact_name` e a action resolve ou cria
+            DENTRO da transação, com busca exata: nome já existente reaproveita
+            o contato, nome novo cria com só o nome (§4, não é obrigado a
+            classificar), e uma recusa por saldo não deixa contato órfão.
+          */}
+          <div>
+            <Label htmlFor="neg-contato">
+              {compra ? "Vendedor (opcional)" : "Comprador (opcional)"}
+            </Label>
+            <Input
+              id="neg-contato"
+              list="neg-contatos"
+              value={contactName}
+              onChange={(e) => setContactName(e.target.value)}
+              placeholder="Nome de quem você negociou"
+            />
+            <datalist id="neg-contatos">
+              {contacts.map((c) => (
+                <option key={c.id} value={c.name} />
+              ))}
+            </datalist>
+            <p className="mt-1 text-xs text-gray-500">
+              Pode digitar um nome novo: eu cadastro junto com o negócio.
+            </p>
+          </div>
+
+          <div className="rounded-md border border-gray-200 p-3">
+            <p className="text-sm font-medium text-gray-700">
+              {compra ? "O pagamento já foi feito?" : "O valor já foi recebido?"}
+            </p>
+            <div className="mt-2 flex gap-2">
+              <Button
+                type="button"
+                variant={pago ? "default" : "outline"}
+                onClick={() => {
+                  setPago(true);
+                  setParcelas([]);
+                }}
+              >
+                Sim
+              </Button>
+              <Button
+                type="button"
+                variant={!pago ? "default" : "outline"}
+                onClick={() => setPago(false)}
+              >
+                Ainda não
+              </Button>
+            </div>
+
+            {!pago && (
+              <div className="mt-3 space-y-2">
+                {parcelas.length === 0 && (
+                  <div>
+                    <Label htmlFor="neg-vencimento">Vence em</Label>
+                    <Input
+                      id="neg-vencimento"
+                      type="date"
+                      value={vencimento}
+                      onChange={(e) => setVencimento(e.target.value)}
+                    />
+                  </div>
+                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm text-gray-600">Dividir em:</span>
+                  {[1, 2, 3, 6, 12].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => parcelar(n)}
+                      className="rounded border border-gray-300 px-2 py-1 text-sm text-gray-700 hover:border-tibe-primary"
+                    >
+                      {n}x
+                    </button>
+                  ))}
+                </div>
+
+                {parcelas.map((p, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="w-6 text-sm text-gray-500">{i + 1}.</span>
+                    <Input
+                      type="date"
+                      value={p.due_date}
+                      onChange={(e) => {
+                        const novas = [...parcelas];
+                        novas[i] = { ...novas[i], due_date: e.target.value };
+                        setParcelas(novas);
+                      }}
+                    />
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={p.amount}
+                      onChange={(e) => {
+                        const novas = [...parcelas];
+                        novas[i] = { ...novas[i], amount: e.target.value };
+                        setParcelas(novas);
+                      }}
+                    />
+                  </div>
+                ))}
+
+                {parcelas.length > 0 && (
+                  <p className={parcelasFecham ? "text-sm text-gray-600" : "text-sm text-red-700"}>
+                    Soma das parcelas: R$ {moeda(somaParcelas)}
+                    {!parcelasFecham && " (precisa fechar com o valor do negócio)"}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-md border border-gray-200 p-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-gray-700">Frete, comissão, taxas</p>
+              <button
+                type="button"
+                onClick={() => setCustos([...custos, { descricao: "", amount: "" }])}
+                className="text-sm text-tibe-dark underline"
+              >
+                Adicionar
+              </button>
+            </div>
+            {custos.map((c, i) => (
+              <div key={i} className="mt-2 flex items-center gap-2">
+                <Input
+                  placeholder="Ex: Comissão"
+                  value={c.descricao}
+                  onChange={(e) => {
+                    const novos = [...custos];
+                    novos[i] = { ...novos[i], descricao: e.target.value };
+                    setCustos(novos);
+                  }}
+                />
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0,00"
+                  value={c.amount}
+                  onChange={(e) => {
+                    const novos = [...custos];
+                    novos[i] = { ...novos[i], amount: e.target.value };
+                    setCustos(novos);
+                  }}
+                />
+              </div>
+            ))}
+            {somaCustos > 0 && valorNumero > 0 && (
+              <p className="mt-2 text-sm text-gray-600">
+                {compra
+                  ? `Custo total da compra: ${moeda(valorNumero + somaCustos)}`
+                  : `Valor líquido da venda: ${moeda(valorNumero - somaCustos)}`}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <Label htmlFor="neg-obs">Observação (opcional)</Label>
+            <Input id="neg-obs" value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+
+          {error && (
+            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+          )}
+
+          <Button onClick={submit} disabled={loading} className="w-full">
+            {loading ? "Registrando..." : "Registrar negócio"}
+          </Button>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
