@@ -877,6 +877,35 @@ async function main() {
       valorComCentavos.reply_text,
     );
 
+    // "60 mil" é COMO O PRODUTOR FALA, e é o que o prompt manda o classificador
+    // repassar. Sem isto, a frase-bandeira do §18.1 chegava com o valor
+    // ilegível e o assistente perguntava "por quanto você comprou?" logo depois
+    // de o produtor ter dito quanto. Pego pelo banco de provas contra
+    // PRODUÇÃO, minutos depois do deploy.
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    const valorPorExtenso = await registrarNegocioGado(
+      ctx(db, tenant.id, { tipo: "compra", categoria: "bezerro", quantidade: 20, valor: "60 mil" }),
+    );
+    check(
+      '"60 mil" é sessenta mil',
+      valorPorExtenso.reply_text.includes("60.000,00"),
+      valorPorExtenso.reply_text,
+    );
+    const meioMilhao = await registrarNegocioGado(
+      ctx(db, tenant.id, { tipo: "venda", categoria: "bezerro", quantidade: 1, valor: "1,5 milhão" }),
+    );
+    check(
+      '"1,5 milhão" é um milhão e meio',
+      meioMilhao.reply_text.includes("1.500.000,00"),
+      meioMilhao.reply_text,
+    );
+    const custoPorExtenso = _custosDosParametros({ frete: "2 mil" });
+    check(
+      'custo "2 mil" também',
+      custoPorExtenso[0]?.valor === 2000,
+      JSON.stringify(custoPorExtenso),
+    );
+
     // ------------------------------------------------------------------
     console.log("\n24. Singular das categorias com duas palavras");
     // ------------------------------------------------------------------

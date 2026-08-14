@@ -240,16 +240,36 @@ function lerDinheiro(parameters: Record<string, unknown>, ...campos: string[]): 
     if (typeof bruto === "number" && Number.isFinite(bruto)) return bruto;
     if (typeof bruto !== "string" || bruto.trim() === "") continue;
 
-    const texto = bruto.trim().replace(/r\$\s*/i, "");
+    const texto = bruto.trim().toLowerCase().replace(/r\$\s*/i, "").trim();
+
+    /**
+     * "60 mil" é como o produtor fala, e é o que o prompt manda o classificador
+     * repassar. Sem isto, a frase-bandeira do §18.1 ("comprei 20 bezerros do
+     * João por 60 mil") chegava com o valor ilegível e o assistente perguntava
+     * "por quanto você comprou?" logo depois de o produtor ter dito quanto.
+     * Pego pelo banco de provas contra produção, minutos depois do deploy.
+     */
+    const multiplicador = /milh(ao|ão|oes|ões)/.test(texto)
+      ? 1_000_000
+      : /\bmil\b/.test(texto)
+        ? 1_000
+        : 1;
+    const semPalavra =
+      multiplicador === 1 ? texto : texto.replace(/milh(ao|ão|oes|ões)|\bmil\b/, "").trim();
+
     // Vírgula presente: formato brasileiro, ponto é milhar.
     // Sem vírgula: ponto SÓ é decimal quando sobram 1 ou 2 casas no fim.
-    const normalizado = texto.includes(",")
-      ? texto.replace(/\./g, "").replace(",", ".")
-      : /\.\d{1,2}$/.test(texto)
-        ? texto
-        : texto.replace(/\./g, "");
+    const normalizado = semPalavra.includes(",")
+      ? semPalavra.replace(/\./g, "").replace(",", ".")
+      : /\.\d{1,2}$/.test(semPalavra)
+        ? semPalavra
+        : semPalavra.replace(/\./g, "");
+
+    // "mil" sozinho, sem número na frente, é mil.
+    if (normalizado === "" && multiplicador > 1) return multiplicador;
+
     const n = Number(normalizado);
-    if (Number.isFinite(n)) return n;
+    if (Number.isFinite(n)) return n * multiplicador;
   }
   return null;
 }
