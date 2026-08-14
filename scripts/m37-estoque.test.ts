@@ -14,6 +14,7 @@ import {
 } from "@/lib/actions/products";
 import { STOCK_UNITS, descreverQuantidade, findUnit } from "@/lib/stock/units";
 import { createProductNegotiation } from "@/lib/actions/product-negotiations";
+import { cancelNegotiation } from "@/lib/actions/negotiations";
 import {
   productCreateSchema,
   productNegotiationSchema,
@@ -771,7 +772,63 @@ async function main() {
     );
 
     // ------------------------------------------------------------------
-    console.log("\n18. Isolamento multi-tenant");
+    console.log("\n18. Cancelar um negócio de produto devolve o estoque");
+    // ------------------------------------------------------------------
+    const negocioACancelar = await createProductNegotiation(db, {
+      type: "compra_produto",
+      property_id: fazendaA.id,
+      itens: [{ product_id: enxada.data.id, quantity: 4 }],
+      amount: 400,
+      pago: false,
+      due_date: new Date(Date.now() + 15 * 86400000),
+    });
+    if (!negocioACancelar.ok) throw new Error("faltou a negociação para cancelar");
+    check("4 enxadas entraram", (await saldoDe(enxada.data.id, fazendaA.id)) === 4);
+
+    const cancelado = await cancelNegotiation(db, negocioACancelar.data.id, "comprei errado");
+    check("cancelamento aceito", cancelado.ok, !cancelado.ok ? cancelado.message : "");
+    check(
+      "e o estoque voltou a zero",
+      (await saldoDe(enxada.data.id, fazendaA.id)) === 0,
+      String(await saldoDe(enxada.data.id, fazendaA.id)),
+    );
+    const contaCancelada = await db.financialEntry.findFirst({
+      where: { negotiation_id: negocioACancelar.data.id },
+    });
+    check("e a conta a pagar em aberto foi cancelada", contaCancelada?.status === "cancelled");
+
+    // A borda contrária: se parte já foi usada, cancelar deixaria o saldo
+    // negativo, e o §10.7 não permite.
+    const jaUsada = await createProductNegotiation(db, {
+      type: "compra_produto",
+      property_id: fazendaA.id,
+      itens: [{ product_id: enxada.data.id, quantity: 3 }],
+      amount: 300,
+      pago: true,
+    });
+    if (!jaUsada.ok) throw new Error("faltou a segunda negociação");
+    await recordStockMovement(db, {
+      product_id: enxada.data.id,
+      property_id: fazendaA.id,
+      movement_type: "utilizacao",
+      quantity: 2,
+    });
+    const recusado = await cancelNegotiation(db, jaUsada.data.id, "arrependi");
+    check(
+      "cancelar o que já foi usado é recusado",
+      !recusado.ok && recusado.code === "INSUFFICIENT_STOCK",
+      recusado.ok ? "PASSOU" : recusado.code,
+    );
+    check(
+      "e o saldo continua intacto depois da recusa",
+      (await saldoDe(enxada.data.id, fazendaA.id)) === 1,
+      String(await saldoDe(enxada.data.id, fazendaA.id)),
+    );
+    const aindaViva = await db.negotiation.findFirst({ where: { id: jaUsada.data.id } });
+    check("e a negociação não ficou meio cancelada", aindaViva?.canceled_at === null);
+
+    // ------------------------------------------------------------------
+    console.log("\n19. Isolamento multi-tenant");
     // ------------------------------------------------------------------
     const tenantB = await prisma.tenant.create({
       data: { name: "M37 Estoque B", document: `37${stamp}1`, plan: "fazenda" },

@@ -45,6 +45,10 @@ export function buildNavItems({
         // comprar e vender. Fica ao lado de Rebanho porque é de lá que sai a
         // maior parte do que se negocia.
         { href: "/negociacoes", label: "Negociações", show: hasFazenda },
+        // Módulo 31, §9 e §10: o estoque de insumos. Fica depois de
+        // Negociações porque é de lá que a maior parte do que entra vem: uma
+        // compra de produto abastece o estoque, e o uso é a outra ponta.
+        { href: "/estoque", label: "Estoque", show: hasFazenda },
         { href: "/maquinas", label: "Máquinas", show: hasFazenda },
         { href: "/lavoura", label: "Lavoura", show: hasFazenda },
         { href: "/prestador", label: "Prestador", show: hasPrestador },

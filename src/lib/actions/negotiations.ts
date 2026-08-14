@@ -5,6 +5,8 @@ import { recordMovementInTx, getPositions, type HerdPositionKey } from "@/lib/ac
 import { decToNum, isoOrNull } from "@/lib/serialize";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { findOrCreateContact } from "@/lib/actions/contacts";
+import { getStockBalance, deltaDoMovimento } from "@/lib/actions/stock-ledger";
+import { descreverQuantidade } from "@/lib/stock/units";
 
 /**
  * Área Negociações (docs/moduloNegociacao), missão 1: negócio de gado.
@@ -113,6 +115,20 @@ export type NegotiationDetail = {
     quantity: number;
     /** Categoria negociada: destino numa compra, origem numa venda. */
     category_id: string | null;
+    canceled_at: Date | null;
+  }[];
+  /**
+   * Os produtos, quando o negócio é de insumo (§9). Uma negociação de gado tem
+   * esta lista vazia e vice-versa; ficam separadas porque animal se conta por
+   * categoria e produto se conta por unidade, e juntar os dois numa lista só
+   * obrigaria toda leitura a descobrir qual dos dois está olhando.
+   */
+  produtos: {
+    id: string;
+    product_id: string;
+    product_name: string;
+    unit: string;
+    quantity: number;
     canceled_at: Date | null;
   }[];
   lancamentos: {
@@ -413,6 +429,16 @@ export async function getNegotiation(
         },
         orderBy: { created_at: "asc" },
       },
+      stock_movements: {
+        select: {
+          id: true,
+          product_id: true,
+          quantity: true,
+          canceled_at: true,
+          product: { select: { name: true, unit: true } },
+        },
+        orderBy: { created_at: "asc" },
+      },
       entries: {
         select: {
           id: true,
@@ -496,6 +522,14 @@ export async function getNegotiation(
       quantity: m.quantity,
       // Numa compra os animais ENTRAM (to); numa venda SAEM (from).
       category_id: m.to_category_id ?? m.from_category_id,
+      canceled_at: m.canceled_at,
+    })),
+    produtos: n.stock_movements.map((m) => ({
+      id: m.id,
+      product_id: m.product_id,
+      product_name: m.product.name,
+      unit: m.product.unit,
+      quantity: decToNum(m.quantity) ?? 0,
       canceled_at: m.canceled_at,
     })),
     lancamentos,
@@ -612,7 +646,7 @@ export async function cancelNegotiation(
      */
     const negociacao = await tx.negotiation.findFirst({
       where: { id },
-      include: { movements: true },
+      include: { movements: true, stock_movements: { include: { product: true } } },
     });
     if (!negociacao) {
       throw new AbortarNegociacao({
@@ -790,6 +824,52 @@ export async function cancelNegotiation(
       });
     }
 
+    /**
+     * O estoque, pela MESMA regra do rebanho (§17.9).
+     *
+     * Cancelar uma compra de produto tira do estoque o que ela colocou, e por
+     * isso é recusada quando parte do produto já foi usada: 20 sacas compradas
+     * e 18 já dadas ao gado deixariam o saldo em -16, e o §10.7 existe
+     * justamente para o saldo nunca ficar negativo. Uma VENDA cancelada devolve
+     * ao estoque e nunca precisa dessa conferência, porque devolver só soma.
+     */
+    for (const movimento of negociacao.stock_movements) {
+      if (movimento.canceled_at) continue;
+
+      const entrouNoEstoque = deltaDoMovimento({
+        movement_type: movimento.movement_type,
+        quantity: decToNum(movimento.quantity) ?? 0,
+        previous_balance: decToNum(movimento.previous_balance),
+        corrected_balance: decToNum(movimento.corrected_balance),
+      });
+
+      if (entrouNoEstoque > 0) {
+        const [posicao] = await getStockBalance(tx, {
+          product_id: movimento.product_id,
+          property_id: movimento.property_id,
+        });
+        const disponivel = posicao?.quantity ?? 0;
+        if (disponivel < entrouNoEstoque) {
+          throw new AbortarNegociacao({
+            ok: false,
+            code: "INSUFFICIENT_STOCK",
+            message:
+              `Não dá para cancelar: esta negociação trouxe ` +
+              `${descreverQuantidade(entrouNoEstoque, movimento.product.unit)} de ` +
+              `${movimento.product.name} e restam apenas ` +
+              `${descreverQuantidade(disponivel, movimento.product.unit)}. ` +
+              `Parte já foi usada ou vendida.`,
+            status: 422,
+          });
+        }
+      }
+
+      await tx.stockMovement.update({
+        where: { id: movimento.id },
+        data: { canceled_at: new Date(), canceled_reason: reason },
+      });
+    }
+
     // Só as contas em ABERTO. O que já foi pago foi tratado acima, conforme
     // `dinheiroPago`. Cancelado, não apagado: o §17.10 exige o histórico.
     //
@@ -914,6 +994,14 @@ export function serializeNegotiation(n: NegotiationDetail) {
       quantity: m.quantity,
       category_id: m.category_id,
       canceled_at: isoOrNull(m.canceled_at),
+    })),
+    produtos: n.produtos.map((p) => ({
+      id: p.id,
+      product_id: p.product_id,
+      product_name: p.product_name,
+      unit: p.unit,
+      quantity: p.quantity,
+      canceled_at: isoOrNull(p.canceled_at),
     })),
     lancamentos: n.lancamentos.map((l) => ({
       id: l.id,
