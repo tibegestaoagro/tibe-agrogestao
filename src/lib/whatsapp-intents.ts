@@ -21,6 +21,15 @@ export const INTENTS = [
   // registrar_movimentacao_rebanho: sao o mesmo gesto do produtor, e separar
   // em duas intencoes so daria ao classificador mais uma chance de errar.
   "registrar_negocio_gado",
+  // Modulo 31 (§9 e §10): estoque de insumos. Quatro intencoes separadas, e
+  // nao uma so com tipo em parameters como no rebanho, porque os gestos sao
+  // de fato diferentes: usar nao tem dinheiro, ajustar informa o saldo REAL
+  // (nao a diferenca), e comprar cria conta a pagar. Juntar obrigaria o
+  // classificador a acertar um discriminador extra sem nenhum ganho.
+  "registrar_negocio_produto",
+  "registrar_uso_estoque",
+  "ajustar_estoque",
+  "consultar_estoque",
   "consultar_cliente",
   "gerar_relatorio",
   "registrar_lancamento_financeiro",
@@ -66,6 +75,13 @@ export const INTENT_ACCESS: Record<
   // negociacao: o PRD nao define ModuleKey proprio, e Negociacoes sempre foi
   // parte do mesmo bloco de permissao que Rebanho.
   registrar_negocio_gado: { module: "rebanho", action: "write", profile: "fazenda" },
+  // Estoque reusa "rebanho" pelo mesmo motivo das rotas: o PRD nao define
+  // ModuleKey proprio, e quem pode comprar precisa poder ver onde o produto
+  // foi parar.
+  registrar_negocio_produto: { module: "rebanho", action: "write", profile: "fazenda" },
+  registrar_uso_estoque: { module: "rebanho", action: "write", profile: "fazenda" },
+  ajustar_estoque: { module: "rebanho", action: "write", profile: "fazenda" },
+  consultar_estoque: { module: "rebanho", action: "read", profile: "fazenda" },
   consultar_cliente: { module: "prestador", action: "read", profile: "prestador" },
   gerar_relatorio: { module: null, action: "read" }, // módulo varia por parameters.tipo
   registrar_lancamento_financeiro: { module: "financeiro", action: "write" },

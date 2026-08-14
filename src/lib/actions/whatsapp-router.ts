@@ -25,6 +25,14 @@ import {
   registrarMovimentacaoRebanho,
 } from "@/lib/actions/whatsapp-handlers/herd";
 import { registrarNegocioGado } from "@/lib/actions/whatsapp-handlers/negociacao";
+import { resolveCategoryTerm } from "@/lib/herd/categories";
+import {
+  registrarNegocioProduto,
+  registrarUsoEstoque,
+  ajustarEstoque,
+  consultarEstoque,
+  resolverProduto,
+} from "@/lib/actions/whatsapp-handlers/estoque";
 import { loadPendingNegotiation } from "@/lib/actions/negotiation-pending";
 import { ajuda } from "@/lib/actions/whatsapp-handlers/ajuda";
 import { resumo } from "@/lib/actions/whatsapp-handlers/resumo";
@@ -56,6 +64,10 @@ const HANDLERS: Record<Exclude<Intent, "ambigua">, Handler> = {
   consultar_rebanho: consultarRebanho,
   registrar_movimentacao_rebanho: registrarMovimentacaoRebanho,
   registrar_negocio_gado: registrarNegocioGado,
+  registrar_negocio_produto: registrarNegocioProduto,
+  registrar_uso_estoque: registrarUsoEstoque,
+  ajustar_estoque: ajustarEstoque,
+  consultar_estoque: consultarEstoque,
   consultar_cliente: consultarCliente,
   gerar_relatorio: gerarRelatorio,
   registrar_lancamento_financeiro: registrarLancamentoFinanceiro,
@@ -100,12 +112,77 @@ export function desempatarIntencao(
   intent: Intent,
   parameters: Record<string, unknown>,
 ): Intent {
+  /**
+   * PRODUTO QUE NA VERDADE É GADO.
+   *
+   * O classificador pode mandar `registrar_negocio_produto` para "comprei 20
+   * bezerros", porque a frase tem a mesma forma da compra de insumo. Quando o
+   * item dito é uma CATEGORIA DE REBANHO conhecida, isso é decidível em código,
+   * sem consultar nada: `resolveCategoryTerm` é a mesma função que traduz
+   * "novilha" no rebanho.
+   *
+   * O caminho contrário (gado que é produto) precisa do catálogo do tenant e
+   * por isso mora em `routeIntent`, que tem banco.
+   */
+  if (intent === "registrar_negocio_produto") {
+    const item =
+      typeof parameters.produto === "string"
+        ? parameters.produto
+        : typeof parameters.product === "string"
+          ? parameters.product
+          : typeof parameters.item === "string"
+            ? parameters.item
+            : null;
+    if (item && resolveCategoryTerm(item).kind === "exact") return "registrar_negocio_gado";
+    return intent;
+  }
+
   if (intent !== "registrar_movimentacao_rebanho") return intent;
 
   const tipo = typeof parameters.movement_type === "string" ? parameters.movement_type : parameters.tipo;
   if (tipo !== "compra" && tipo !== "venda") return intent;
 
   return "registrar_negocio_gado";
+}
+
+/**
+ * GADO QUE NA VERDADE É PRODUTO.
+ *
+ * "Comprei 10 sacas de sal por 1200" chega como `registrar_negocio_gado`
+ * sempre que o classificador generaliza a partir dos exemplos de compra de
+ * boi, e sem esta guarda o produtor ouviria "qual categoria de animal?" depois
+ * de falar de sal.
+ *
+ * Precisa do banco, porque o que separa os dois é o CATÁLOGO do tenant: só
+ * quem cadastrou "Sal mineral 60 P" tem sal.
+ *
+ * ESTREITA DE PROPÓSITO, e cada condição existe para não repetir o erro que a
+ * guarda gêmea do Módulo 30 cometeu (agir demais e engolir assunto novo):
+ *
+ * - só quando NÃO há categoria de rebanho reconhecível na mensagem;
+ * - só quando o item casa com EXATAMENTE um produto do catálogo;
+ * - só quando não existe negócio de gado pendente, para nunca sequestrar uma
+ *   conversa em andamento no meio de uma pergunta.
+ */
+async function pareceNegocioDeProduto(
+  db: TenantPrismaClient,
+  parameters: Record<string, unknown>,
+): Promise<boolean> {
+  const item =
+    typeof parameters.produto === "string"
+      ? parameters.produto
+      : typeof parameters.product === "string"
+        ? parameters.product
+        : typeof parameters.item === "string"
+          ? parameters.item
+          : typeof parameters.categoria === "string"
+            ? parameters.categoria
+            : null;
+  if (!item) return false;
+  if (resolveCategoryTerm(item).kind === "exact") return false;
+
+  const resolvido = await resolverProduto(db, item);
+  return resolvido.ok;
 }
 
 export async function routeIntent(
@@ -178,6 +255,17 @@ export async function routeIntent(
        */
       const negocioEsperando = await loadPendingNegotiation(tenant_id, ctx.user_id);
       if (negocioEsperando) intent = "registrar_negocio_gado";
+    }
+  }
+
+  // Ver `pareceNegocioDeProduto`: o classificador manda compra de insumo pelo
+  // caminho do gado, e sem isto o produtor que falou de sal ouve "qual
+  // categoria de animal?". A checagem do pendente vem junto e é o que impede
+  // esta guarda de sequestrar uma conversa de gado em andamento.
+  if (intent === "registrar_negocio_gado") {
+    const pendente = ctx.user_id ? await loadPendingNegotiation(tenant_id, ctx.user_id) : null;
+    if (!pendente && (await pareceNegocioDeProduto(db, parameters))) {
+      intent = "registrar_negocio_produto";
     }
   }
 
