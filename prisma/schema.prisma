@@ -120,6 +120,25 @@ enum HerdMovementType {
   ajuste
 }
 
+// ─────────────────────────────────────────────────────────────
+// Estoque de produtos (Módulo 31, missão 2). Ver §9 e §10 do
+// documento do cliente e docs/specs/module-31-negociacoes.md.
+
+/// Como o estoque se mexe (§10.1).
+///
+/// `permuta_entrada` e `permuta_saida` nascem aqui mesmo sem terem uso ainda:
+/// a permuta é a missão 4, e acrescentar valor a um enum depois obrigaria a
+/// migrar movimentação já gravada. Mesmo motivo pelo qual os eixos de dono e
+/// situação do rebanho nasceram na fase 1.
+enum StockMovementType {
+  compra
+  venda
+  utilizacao
+  ajuste
+  permuta_entrada
+  permuta_saida
+}
+
 enum CropCycleStatus {
   planted
   growing
@@ -177,6 +196,7 @@ enum AlertType {
   trial_ending // spec 5.8, não previsto no PRD original: extensão aditiva
   maintenance_due // Módulo 26, 2026-08-04: manutenção de máquina próxima
   task_reminder // Módulo 27, 2026-08-04: lembrete de tarefa, dispara NO DIA marcado
+  low_stock // Módulo 31 §10.8: saldo do produto atingiu o mínimo definido
 }
 
 enum AlertStatus {
@@ -251,6 +271,9 @@ model Tenant {
   properties           Property[]
   contacts             Contact[]
   negotiations         Negotiation[]
+  product_categories   ProductCategory[]
+  products             Product[]
+  stock_movements      StockMovement[]
   animal_categories    AnimalCategory[]
   animal_batches       AnimalBatch[]
   machines             Machine[]
@@ -324,6 +347,7 @@ model User {
   herd_movements     HerdMovement[]
   negotiations          Negotiation[] @relation("NegotiationRecordedBy")
   negotiations_canceled Negotiation[] @relation("NegotiationCanceledBy")
+  stock_movements       StockMovement[] @relation("StockRecordedBy")
   push_subscriptions PushSubscription[]
 
   @@index([tenant_id])
@@ -468,6 +492,7 @@ model Property {
   tenant         Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   animal_batches AnimalBatch[]
   machines       Machine[]
+  stock_movements StockMovement[]
   plots          Plot[]
   pastures       Pasture[]
   negotiations   Negotiation[]
@@ -484,6 +509,114 @@ model Property {
 // diferentes, não conflatar. V1 é só cadastro (nome + tamanho); vínculos
 // futuros com Task/FinancialEntry (seção 9 do documento) ficam de fora
 // deliberadamente por decisão do usuário (2026-08-04).
+/// Categoria de produto (§9.1). Tabela POR TENANT, não constante de código.
+///
+/// Diferente das 12 categorias do rebanho, que são constante em
+/// `src/lib/herd/categories.ts` porque carregam sexo, faixa etária e flag de
+/// reprodutiva, e sem isso "total de machos" e o envelhecimento não seriam
+/// calculáveis. Categoria de produto não carrega semântica nenhuma: é rótulo,
+/// e o produtor precisa poder acrescentar o dele ("Herbicida", "Arame liso").
+///
+/// As 15 do §9.1 nascem na primeira vez que o tenant abre o Estoque (decisão
+/// do usuário, 2026-08-14): sem migração de dado, e um tenant que apagar todas
+/// não fica travado.
+model ProductCategory {
+  id         String    @id @default(cuid())
+  tenant_id  String
+  name       String
+  archived_at DateTime?
+  created_at DateTime  @default(now())
+
+  tenant   Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([tenant_id, name])
+  @@index([tenant_id])
+}
+
+/// O produto em si (§9.2 e §9.3). É catálogo do tenant, não da fazenda: o
+/// SALDO é que vive por fazenda, na soma das movimentações.
+model Product {
+  id          String  @id @default(cuid())
+  tenant_id   String
+  category_id String
+  name        String
+  /// Constante de código (`src/lib/stock/units.ts`), não tabela: as 11 do
+  /// §10.5 são vocabulário fechado, e "saca" precisa significar a mesma coisa
+  /// em todo tenant para o saldo ser comparável.
+  unit        String
+  brand       String?
+  /// §10.8: quando o saldo atinge este limite, o alerta dispara. Nulo = sem
+  /// alerta para este produto.
+  minimum_stock Decimal? @db.Decimal(14, 3)
+  storage_location String?
+  notes       String?
+  archived_at DateTime?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  tenant    Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  category  ProductCategory @relation(fields: [category_id], references: [id], onDelete: Restrict)
+  movements StockMovement[]
+
+  @@unique([tenant_id, name])
+  @@index([tenant_id])
+  @@index([category_id])
+}
+
+/// O livro-razão do estoque (§10).
+///
+/// **O saldo NUNCA é gravado**: é a soma de `quantity` das movimentações não
+/// canceladas, por produto e fazenda. Mesma regra do rebanho, e pelo mesmo
+/// motivo: um campo de saldo e uma soma de movimentações são duas verdades, e
+/// no dia em que discordarem ninguém sabe qual está certa.
+///
+/// `quantity` é SEMPRE positiva; quem decide o sinal é o `movement_type`.
+/// Guardar negativo faria a leitura depender de lembrar a convenção.
+model StockMovement {
+  id            String            @id @default(cuid())
+  tenant_id     String
+  product_id    String
+  property_id   String
+  movement_type StockMovementType
+  /// §10.5: aceita parcial ("0,5 saca"), então decimal, nunca inteiro.
+  quantity      Decimal           @db.Decimal(14, 3)
+  occurred_at   DateTime
+
+  /// §10.6: o ajuste registra o saldo anterior e o corrigido, não só a
+  /// diferença. Sem isso o histórico não explica o que o produtor viu quando
+  /// decidiu corrigir.
+  previous_balance  Decimal? @db.Decimal(14, 3)
+  corrected_balance Decimal? @db.Decimal(14, 3)
+
+  /// §10.4, opcional: para qual grupo de animais o produto foi usado. Aponta
+  /// para a CATEGORIA do rebanho (decisão do usuário, 2026-08-14), que é o
+  /// mais próximo de "grupo" que existe hoje e já é vocabulário do produtor.
+  herd_category_id String?
+  pasture_id       String?
+  purpose          String?
+
+  notes           String?
+  negotiation_id  String?
+  recorded_by_user_id String?
+
+  canceled_at     DateTime?
+  canceled_reason String?
+  created_at      DateTime @default(now())
+
+  tenant      Tenant       @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  product     Product      @relation(fields: [product_id], references: [id], onDelete: Restrict)
+  property    Property     @relation(fields: [property_id], references: [id], onDelete: Cascade)
+  pasture     Pasture?     @relation(fields: [pasture_id], references: [id], onDelete: SetNull)
+  negotiation Negotiation? @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
+  recorded_by User?        @relation("StockRecordedBy", fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
+
+  @@index([tenant_id])
+  @@index([tenant_id, product_id, property_id])
+  @@index([product_id])
+  @@index([negotiation_id])
+}
+
 model Pasture {
   id            String    @id @default(cuid())
   tenant_id     String
@@ -494,6 +627,7 @@ model Pasture {
   created_at    DateTime  @default(now())
 
   tenant   Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  stock_movements StockMovement[]
   property Property @relation(fields: [property_id], references: [id], onDelete: Restrict)
 
   @@index([tenant_id])
@@ -1270,6 +1404,7 @@ model Negotiation {
   /// um id que não existe mais, e o nome de quem cancelou não era consultável.
   canceled_by User?            @relation("NegotiationCanceledBy", fields: [canceled_by_user_id], references: [id], onDelete: SetNull)
   movements   HerdMovement[]
+  stock_movements StockMovement[]
   entries     FinancialEntry[]
 
   @@index([tenant_id])

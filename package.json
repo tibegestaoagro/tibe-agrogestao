@@ -53,6 +53,7 @@
     "test:m34": "tsx scripts/m34-rebanho-whatsapp.test.ts",
     "test:m35": "tsx scripts/m35-negociacao-gado.test.ts",
     "test:m36": "tsx scripts/m36-negociacao-whatsapp.test.ts",
+    "test:m37": "tsx scripts/m37-estoque.test.ts",
     "wa": "tsx scripts/whatsapp-e2e.ts",
     "wa:seed": "tsx scripts/seed-banco-de-provas.ts"
   },
