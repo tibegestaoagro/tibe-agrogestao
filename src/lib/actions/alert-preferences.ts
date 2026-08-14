@@ -16,6 +16,7 @@ const ALERT_TYPES = [
   "trial_ending",
   "maintenance_due",
   "task_reminder",
+  "low_stock",
 ] as const;
 export type AlertTypeInput = (typeof ALERT_TYPES)[number];
 

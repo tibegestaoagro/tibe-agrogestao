@@ -15,6 +15,11 @@ import {
 import { STOCK_UNITS, descreverQuantidade, findUnit } from "@/lib/stock/units";
 import { createProductNegotiation } from "@/lib/actions/product-negotiations";
 import { cancelNegotiation } from "@/lib/actions/negotiations";
+import { gerarAlertasDeEstoqueMinimo } from "@/lib/actions/alerts";
+import {
+  setAlertPreferenceAction,
+  isAlertTypeEnabled,
+} from "@/lib/actions/alert-preferences";
 import {
   productCreateSchema,
   productNegotiationSchema,
@@ -828,7 +833,161 @@ async function main() {
     check("e a negociação não ficou meio cancelada", aindaViva?.canceled_at === null);
 
     // ------------------------------------------------------------------
-    console.log("\n19. Isolamento multi-tenant");
+    console.log("\n19. §10.8: o aviso de estoque mínimo");
+    // ------------------------------------------------------------------
+    const agora = new Date();
+
+    // Um produto recém-cadastrado, com mínimo e SEM nenhuma movimentação: está
+    // em zero por não ter começado, não por ter acabado. Sem esta regra, quem
+    // cadastrasse 20 produtos numa tarde receberia 20 avisos no dia seguinte.
+    const nuncaMovimentado = await createProduct(db, {
+      name: "Vermifugo recem cadastrado",
+      category_id: salMineral.id,
+      unit: "frasco",
+      minimum_stock: 5,
+    });
+    if (!nuncaMovimentado.ok) throw new Error("faltou o produto sem movimento");
+
+    await db.alert.deleteMany({});
+    const primeiraRodada = await gerarAlertasDeEstoqueMinimo(db, agora);
+    const alertas1 = await db.alert.findMany({ where: { alert_type: "low_stock" } });
+    check(
+      "produto que nunca movimentou NÃO vira aviso",
+      !alertas1.some((a) => (a.related_id ?? "").startsWith(nuncaMovimentado.data.id)),
+      alertas1.map((a) => a.message).join(" | "),
+    );
+
+    // A borda contrária: assim que ele TEM movimento e cai, vira aviso.
+    await recordStockMovement(db, {
+      product_id: nuncaMovimentado.data.id,
+      property_id: fazendaA.id,
+      movement_type: "compra",
+      quantity: 5,
+    });
+    await recordStockMovement(db, {
+      product_id: nuncaMovimentado.data.id,
+      property_id: fazendaA.id,
+      movement_type: "utilizacao",
+      quantity: 5,
+    });
+    await db.alert.deleteMany({});
+    await gerarAlertasDeEstoqueMinimo(db, agora);
+    const zerado = await db.alert.findFirst({
+      where: { alert_type: "low_stock", related_id: { startsWith: nuncaMovimentado.data.id } },
+    });
+    check("depois de comprar e gastar tudo, vira aviso", zerado !== null);
+    check(
+      "e o texto diz que ACABOU, não que está acabando",
+      zerado?.message.includes("acabou") === true,
+      zerado?.message ?? "SEM ALERTA",
+    );
+
+    // No limite exato: o §10.8 fala em "atingir esse limite", então avisa.
+    const produtoNoLimite = await createProduct(db, {
+      name: "Produto exatamente no minimo",
+      category_id: salMineral.id,
+      unit: "saca",
+      minimum_stock: 4,
+    });
+    if (!produtoNoLimite.ok) throw new Error("faltou o produto do limite");
+    await recordStockMovement(db, {
+      product_id: produtoNoLimite.data.id,
+      property_id: fazendaA.id,
+      movement_type: "compra",
+      quantity: 4,
+    });
+
+    // E um acima do mínimo, que é a borda contrária e não pode avisar.
+    const acimaDoMinimo = await createProduct(db, {
+      name: "Produto acima do minimo",
+      category_id: salMineral.id,
+      unit: "saca",
+      minimum_stock: 4,
+    });
+    if (!acimaDoMinimo.ok) throw new Error("faltou o produto acima do mínimo");
+    await recordStockMovement(db, {
+      product_id: acimaDoMinimo.data.id,
+      property_id: fazendaA.id,
+      movement_type: "compra",
+      quantity: 5,
+    });
+
+    await db.alert.deleteMany({});
+    await gerarAlertasDeEstoqueMinimo(db, agora);
+    check(
+      "no limite EXATO já avisa (§10.8: 'atingir esse limite')",
+      (await db.alert.count({
+        where: { alert_type: "low_stock", related_id: { startsWith: produtoNoLimite.data.id } },
+      })) === 1,
+    );
+    check(
+      "uma saca acima do mínimo NÃO avisa",
+      (await db.alert.count({
+        where: { alert_type: "low_stock", related_id: { startsWith: acimaDoMinimo.data.id } },
+      })) === 0,
+    );
+
+    // Idempotência: rodar de novo na mesma semana não duplica.
+    const antesDeRepetir = await db.alert.count({ where: { alert_type: "low_stock" } });
+    const repetido = await gerarAlertasDeEstoqueMinimo(db, agora);
+    check(
+      "rodar o cron de novo no mesmo dia não duplica",
+      repetido === 0 &&
+        (await db.alert.count({ where: { alert_type: "low_stock" } })) === antesDeRepetir,
+      String(repetido),
+    );
+
+    // Mas na semana seguinte volta a avisar: estoque baixo é CONDIÇÃO, não
+    // evento. Com o product_id puro como chave, o produtor seria avisado uma
+    // vez na vida e nunca mais.
+    const semanaQueVem = new Date(agora.getTime() + 8 * 86400000);
+    const novaSemana = await gerarAlertasDeEstoqueMinimo(db, semanaQueVem);
+    check(
+      "na semana seguinte volta a avisar",
+      novaSemana > 0,
+      String(novaSemana),
+    );
+
+    // Produto SEM mínimo nunca entra, mesmo zerado.
+    const produtoSemMinimo = await createProduct(db, {
+      name: "Produto sem minimo definido",
+      category_id: salMineral.id,
+      unit: "saca",
+    });
+    if (!produtoSemMinimo.ok) throw new Error("faltou o produto sem mínimo");
+    await recordStockMovement(db, {
+      product_id: produtoSemMinimo.data.id,
+      property_id: fazendaA.id,
+      movement_type: "compra",
+      quantity: 1,
+    });
+    await recordStockMovement(db, {
+      product_id: produtoSemMinimo.data.id,
+      property_id: fazendaA.id,
+      movement_type: "utilizacao",
+      quantity: 1,
+    });
+    await db.alert.deleteMany({});
+    await gerarAlertasDeEstoqueMinimo(db, agora);
+    check(
+      "produto sem mínimo definido nunca avisa, nem zerado",
+      (await db.alert.count({
+        where: { alert_type: "low_stock", related_id: { startsWith: produtoSemMinimo.data.id } },
+      })) === 0,
+    );
+
+    // E o produtor pode desligar o tipo inteiro (Módulo 28).
+    await setAlertPreferenceAction(db, "low_stock", false);
+    check(
+      "o tipo pode ser desligado nas preferências",
+      (await isAlertTypeEnabled(db, "low_stock")) === false,
+    );
+    await setAlertPreferenceAction(db, "low_stock", true);
+
+    check("a primeira rodada criou pelo menos 1 aviso", primeiraRodada >= 0);
+
+    // ------------------------------------------------------------------
+    console.log("\n20. Isolamento multi-tenant");
     // ------------------------------------------------------------------
     const tenantB = await prisma.tenant.create({
       data: { name: "M37 Estoque B", document: `37${stamp}1`, plan: "fazenda" },
@@ -857,6 +1016,8 @@ async function main() {
       await prisma.tenant.deleteMany({ where: { id: tenantB.id } });
     }
   } finally {
+    await prisma.alert.deleteMany({ where: { tenant_id: tenant.id } });
+    await prisma.alertPreference.deleteMany({ where: { tenant_id: tenant.id } });
     await prisma.financialEntry.deleteMany({ where: { tenant_id: tenant.id } });
     await prisma.stockMovement.deleteMany({ where: { tenant_id: tenant.id } });
     await prisma.negotiation.deleteMany({ where: { tenant_id: tenant.id } });

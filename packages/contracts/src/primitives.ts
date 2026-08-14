@@ -68,11 +68,13 @@ export type FinancialEntryStatus = z.infer<typeof financialEntryStatusSchema>;
  * `AlertType` (schema.prisma). Inclui `trial_ending`, extensao aditiva da
  * spec 5.8.
  *
- * Atencao: `GET /api/v1/alerts` faz um cast TypeScript do filtro `?type=` que
- * lista so os 4 tipos originais e esquece `trial_ending`. O cast nao valida
- * nada em tempo de execucao (o valor vai direto pro Prisma), entao filtrar por
- * `trial_ending` funciona de verdade. O tipo do banco e este aqui, com 5
- * valores.
+ * Precisa listar TODOS os valores do enum do banco, e nao so os que o app
+ * usa hoje: um alerta de tipo ausente daqui faz o parse do app FALHAR, e a
+ * lista inteira de alertas some por causa de uma linha. Ficou parado em 5
+ * valores enquanto o banco chegava a 8, entao um tenant com manutencao de
+ * maquina prevista ja quebrava a tela de alertas do celular.
+ *
+ * Ao adicionar um `AlertType` no schema, adicione aqui tambem.
  */
 export const alertTypeSchema = z.enum([
   "vaccine_due",
@@ -80,6 +82,9 @@ export const alertTypeSchema = z.enum([
   "bill_due",
   "low_balance",
   "trial_ending",
+  "maintenance_due",
+  "task_reminder",
+  "low_stock",
 ]);
 export type AlertType = z.infer<typeof alertTypeSchema>;
 

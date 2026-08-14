@@ -12,6 +12,7 @@ const LABELS: Record<string, string> = {
   trial_ending: "Período de teste terminando",
   maintenance_due: "Manutenção de máquina próxima",
   task_reminder: "Lembrete de tarefa (Meu Dia)",
+  low_stock: "Produto acabando no estoque",
 };
 
 /**

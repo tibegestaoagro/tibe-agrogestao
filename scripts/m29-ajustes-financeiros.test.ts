@@ -131,8 +131,8 @@ async function main() {
     // ── Preferência de alerta: por tipo, some sozinha sem gravar tudo ────
     const defaultPrefs = await listAlertPreferencesAction(dbA);
     assert(
-      defaultPrefs.length === 7 && defaultPrefs.every((p) => p.enabled === true),
-      "todos os 7 tipos habilitados por padrão, mesmo sem nenhuma linha gravada",
+      defaultPrefs.length === 8 && defaultPrefs.every((p) => p.enabled === true),
+      "todos os 8 tipos habilitados por padrão, mesmo sem nenhuma linha gravada",
     );
     assert(await isAlertTypeEnabled(dbA, "bill_due"), "isAlertTypeEnabled: bill_due habilitado por padrão");
 
