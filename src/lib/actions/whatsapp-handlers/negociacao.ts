@@ -85,7 +85,7 @@ function custosDosParametros(parameters: Record<string, unknown>): CustoLido[] {
     for (const bruto of brutos) {
       if (typeof bruto !== "object" || bruto === null) continue;
       const registro = bruto as Record<string, unknown>;
-      const valor = num(registro.valor) ?? num(registro.amount);
+      const valor = lerDinheiro(registro, "valor", "amount");
       const descricao = str(registro.descricao) ?? str(registro.description) ?? "Custo adicional";
       if (valor != null && valor > 0) saida.push({ descricao, valor });
     }
@@ -107,6 +107,10 @@ function custosDosParametros(parameters: Record<string, unknown>): CustoLido[] {
     ["taxa_feira", "Taxa de feira"],
     ["carregamento", "Carregamento"],
     ["descarregamento", "Descarregamento"],
+    // `guia` e `guia_transporte` são o mesmo custo com dois nomes possíveis do
+    // classificador, e `taxa`/`taxa_leilao` idem: a checagem por rótulo no laço
+    // abaixo mantém só a primeira ocorrência, senão o custo entraria duas vezes
+    // se o modelo mandasse os dois nomes.
     ["guia", "Guia de transporte"],
     ["guia_transporte", "Guia de transporte"],
     ["exames", "Exames"],
@@ -114,8 +118,10 @@ function custosDosParametros(parameters: Record<string, unknown>): CustoLido[] {
     ["pedagio", "Pedágio"],
     ["outros", "Outros custos"],
   ] as const) {
-    const valor = num(parameters[campo]);
-    if (valor != null && valor > 0) saida.push({ descricao: rotulo, valor });
+    const valor = lerDinheiro(parameters, campo);
+    if (valor != null && valor > 0 && !saida.some((c) => c.descricao === rotulo)) {
+      saida.push({ descricao: rotulo, valor });
+    }
   }
   return saida;
 }
@@ -217,9 +223,14 @@ function interpretarData(bruto: string, hoje = new Date()): Date | null {
  * `num("60.000")` devolve 60, porque em JavaScript o ponto é separador
  * decimal: uma compra de sessenta mil viraria sessenta reais. O que salvava
  * até aqui era a confirmação obrigatória imprimindo o valor antes de gravar,
- * mas depender de o produtor conferir não é trava. Dinheiro era o último campo
- * do handler que ainda confiava no formato do LLM, enquanto data, parcelamento
- * e "pago" já tinham leitor próprio.
+ * mas depender de o produtor conferir não é trava.
+ *
+ * Vale para TODO dinheiro do handler, principal e custos do §15. Uma versão
+ * anterior corrigiu só o principal e afirmou aqui, por escrito, que dinheiro
+ * tinha deixado de confiar no formato do LLM: era falso, porque
+ * `custosDosParametros` seguia lendo por `num()` uma linha acima. Um frete de
+ * "2.000" virava R$ 2,00 e "2.000,00" sumia calado, o que erra o líquido da
+ * venda em mil vezes sem nada na tela denunciar.
  *
  * Aceita número puro, "60000", "60.000", "60.000,50" e "60000.50".
  */
@@ -509,7 +520,14 @@ export const registrarNegocioGado: Handler = async ({
   const pasto = await resolverPasto(
     db,
     fazenda.id,
-    str(parameters.pasto) ?? str(parameters.pasto_origem) ?? str(parameters.pasture),
+    // `pasto_destino` numa compra e `pasto_origem` numa venda são os nomes que
+    // o §6.2 e o §7.2 usam. Ler só `pasto_origem` fazia o pasto de uma COMPRA
+    // ser descartado sem aviso.
+    str(parameters.pasto) ??
+      (compra ? str(parameters.pasto_destino) : str(parameters.pasto_origem)) ??
+      str(parameters.pasto_origem) ??
+      str(parameters.pasto_destino) ??
+      str(parameters.pasture),
   );
   if (!pasto.ok) return perguntar(pasto.resposta, "pasto");
 
@@ -718,8 +736,12 @@ export const registrarNegocioGado: Handler = async ({
     recorded_by_user_id: user_id ?? null,
   });
 
-  if (temMemoria) await clearPendingNegotiation(tenant_id, user_id!);
+  // Só limpa DEPOIS de saber que gravou. Antes, uma recusa por saldo apagava a
+  // conversa inteira: o produtor tinha dito categoria, quantidade, valor,
+  // vendedor e vencimento, ouvia "existem apenas 40 animais" e precisava
+  // recomeçar do zero. Mantido, ele corrige só a quantidade e segue.
   if (!resultado.ok) return failReply(intent, resultado);
+  if (temMemoria) await clearPendingNegotiation(tenant_id, user_id!);
 
   const partes = [
     compra

@@ -117,6 +117,39 @@ async function main() {
     );
     check("custo zero é ignorado", _custosDosParametros({ frete: 0 }).length === 0);
 
+    // CUSTO TAMBÉM É DINHEIRO. Uma versão anterior corrigiu o formato só do
+    // valor principal e deixou os custos lendo por `num()`, sob um comentário
+    // que afirmava o contrário: `num("2.000")` devolve 2, e `num("2.000,00")`
+    // devolve null. Um frete de R$ 2.000 virava R$ 2,00 e o de "2.000,00"
+    // sumia calado, errando o líquido da venda em mil vezes.
+    check(
+      'custo "2.000" é dois mil, não dois reais',
+      _custosDosParametros({ frete: "2.000" })[0]?.valor === 2000,
+      JSON.stringify(_custosDosParametros({ frete: "2.000" })),
+    );
+    check(
+      'custo "2.000,00" não some',
+      _custosDosParametros({ comissao: "2.000,00" })[0]?.valor === 2000,
+      JSON.stringify(_custosDosParametros({ comissao: "2.000,00" })),
+    );
+    check(
+      'custo "R$ 1.500,50" é entendido com centavos',
+      _custosDosParametros({ taxa_leilao: "R$ 1.500,50" })[0]?.valor === 1500.5,
+      JSON.stringify(_custosDosParametros({ taxa_leilao: "R$ 1.500,50" })),
+    );
+    check(
+      "custo estruturado em formato brasileiro também",
+      _custosDosParametros({ custos: [{ descricao: "Frete", valor: "3.000" }] })[0]?.valor === 3000,
+      JSON.stringify(_custosDosParametros({ custos: [{ descricao: "Frete", valor: "3.000" }] })),
+    );
+    // `guia` e `guia_transporte` são o mesmo custo com dois nomes: se o modelo
+    // mandar os dois, ele entrava DUAS vezes.
+    check(
+      "o mesmo custo com dois nomes não entra duplicado",
+      _custosDosParametros({ guia: 300, guia_transporte: 300 }).length === 1,
+      JSON.stringify(_custosDosParametros({ guia: 300, guia_transporte: 300 })),
+    );
+
     // ------------------------------------------------------------------
     console.log("\n2. Confirmação é obrigatória, e nada é gravado antes dela");
     // ------------------------------------------------------------------

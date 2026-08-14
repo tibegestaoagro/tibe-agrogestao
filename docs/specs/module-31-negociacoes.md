@@ -184,3 +184,29 @@ cabeças e zero dinheiro, em silêncio, contra o §6.1 (valor total obrigatório
 o §17.3 (a compra gera despesa ou conta a pagar) e o §18.6 (perguntar o dado
 indispensável que falta). Correção de livro-razão sem dinheiro continua
 possível pelos tipos que não são comerciais.
+
+
+## 9. Registrado na revisão de 2026-08-14 (oitava rodada de juiz)
+
+**§6.2 e §7.2: peso total, peso médio, arrobas, valor por arroba e valor por
+cabeça ficam para a missão 2.** Não existem no schema, na action, na rota nem
+no WhatsApp. O único registro até aqui era um comentário de componente, com uma
+leitura frouxa do parágrafo: o §6.2 diz que o sistema não deve **exigir** esses
+campos quando o produtor informar só o valor total, o que não é o mesmo que
+dizer que eles não precisam existir. Para quem compra gado, R$/arroba é a
+língua do negócio. Adiado, não descartado.
+
+**§5, aceite 7: a v1 do cadastro de contato é o nome digitado no formulário do
+negócio.** O model e `POST /api/v1/contacts` aceitam tipo, telefone, município
+e observação; a tela expõe só o nome. Não existe lista de contatos, nem edição,
+nem como corrigir um nome duplicado. Isso atende "cadastro simples e rápido" no
+fluxo em que ele importa (registrar o negócio sem parar para cadastrar
+ninguém), e deixa a gestão de contatos para a missão 2, junto com os filtros do
+§19 e o histórico do aceite 23.
+
+**Pasto no contrato do classificador.** A seção 7 dizia que "o caminho do
+WhatsApp lê e grava" o pasto, e isso era verdade no código e falso no contrato:
+`docs/n8n-whatsapp-workflow.md` não listava `pasto` entre os parâmetros de
+`registrar_negocio_gado`, então o campo só chegava por acaso, herdado do
+contrato da outra intenção. Corrigido no guia. O handler passou a ler também
+`pasto_destino`, que é o nome que o §6.2 usa para a compra.

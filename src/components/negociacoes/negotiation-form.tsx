@@ -401,7 +401,7 @@ export default function NegotiationForm({
 
                 {parcelas.length > 0 && (
                   <p className={parcelasFecham ? "text-sm text-gray-600" : "text-sm text-red-700"}>
-                    Soma das parcelas: R$ {somaParcelas.toLocaleString("pt-BR")}
+                    Soma das parcelas: R$ {moeda(somaParcelas)}
                     {!parcelasFecham && " (precisa fechar com o valor do negócio)"}
                   </p>
                 )}
@@ -447,8 +447,8 @@ export default function NegotiationForm({
             {somaCustos > 0 && valorNumero > 0 && (
               <p className="mt-2 text-sm text-gray-600">
                 {compra
-                  ? `Custo total da compra: R$ ${(valorNumero + somaCustos).toLocaleString("pt-BR")}`
-                  : `Valor líquido da venda: R$ ${(valorNumero - somaCustos).toLocaleString("pt-BR")}`}
+                  ? `Custo total da compra: ${moeda(valorNumero + somaCustos)}`
+                  : `Valor líquido da venda: ${moeda(valorNumero - somaCustos)}`}
               </p>
             )}
           </div>

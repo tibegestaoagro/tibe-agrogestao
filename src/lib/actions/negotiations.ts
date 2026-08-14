@@ -855,7 +855,11 @@ export function situacaoLabel(situacao: SituacaoNegociacao | string, venda: bool
     case "cancelada":
       return "Cancelada";
     default:
-      return String(situacao);
+      // Situação nova sem rótulo: melhor uma palavra genérica do que vazar o
+      // nome do enum ("parcialmente_paga") na tela do produtor. O `tsc` já
+      // obriga a tratar todo valor de `SituacaoNegociacao`, então este ramo só
+      // é alcançável por dado vindo de fora do tipo.
+      return "Em andamento";
   }
 }
 

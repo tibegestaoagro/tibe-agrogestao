@@ -166,10 +166,18 @@ export async function routeIntent(
     const tipoProprio =
       typeof parameters.movement_type === "string" ? parameters.movement_type : parameters.tipo;
     if (!tipoProprio) {
+      /**
+       * Inclui o pendente de CONFIRMAÇÃO de propósito.
+       *
+       * O "sim" também chega sem `movement_type`, e o classificador às vezes o
+       * devolve como `registrar_movimentacao_rebanho` (é o formato que ele usa
+       * para responder). Excluir a confirmação fazia o produtor ouvir "não
+       * tenho nenhum registro esperando confirmação" enquanto o negócio dele
+       * seguia guardado por 15 minutos: o defeito oposto ao que esta guarda
+       * corrige, no mesmo trecho.
+       */
       const negocioEsperando = await loadPendingNegotiation(tenant_id, ctx.user_id);
-      if (negocioEsperando && negocioEsperando.aguardando !== "confirmacao") {
-        intent = "registrar_negocio_gado";
-      }
+      if (negocioEsperando) intent = "registrar_negocio_gado";
     }
   }
 
