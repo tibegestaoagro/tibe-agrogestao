@@ -2,9 +2,23 @@ import type { TenantPrismaClient } from "@/lib/prisma";
 import { createProductNegotiation } from "@/lib/actions/product-negotiations";
 import { recordStockMovement, adjustStock, getStockBalance } from "@/lib/actions/stock-ledger";
 import { listProductsWithBalance } from "@/lib/actions/products";
-import { descreverQuantidade, findUnit } from "@/lib/stock/units";
+import {
+  descreverQuantidade,
+  findUnit,
+  quantosOuQuantas,
+  concordar,
+} from "@/lib/stock/units";
+import {
+  savePendingStock,
+  loadPendingStock,
+  clearPendingStock,
+  aplicarRespostaEstoque,
+  MAX_TENTATIVAS,
+  type CampoEstoque,
+  type PedidoEstoquePendente,
+} from "@/lib/actions/stock-pending";
 import { resolverFazenda } from "./herd";
-import { ask, failReply, str, num, type Handler, type RouterResult } from "./shared";
+import { ask, failReply, str, type Handler, type RouterResult } from "./shared";
 import {
   custosDosParametros,
   lerData,
@@ -12,6 +26,7 @@ import {
   extrairNumeroDeParcelas,
   interpretarSim,
   montarParcelas,
+  lerNumeroBr,
 } from "./parsers";
 
 /**
@@ -21,17 +36,28 @@ import {
  * mais acontece e o que menos combina com painel: quem acabou de dar sal ao
  * gado está no curral, não na frente do computador.
  *
- * DUAS REGRAS QUE NÃO PODEM AFROUXAR:
+ * AS REGRAS QUE NÃO PODEM AFROUXAR. A primeira versão deste arquivo quebrou
+ * três delas de uma vez, e um revisor independente reproduziu cada uma ao vivo:
  *
- * 1. **O produto é resolvido no CATÁLOGO, nunca criado pela conversa.**
- *    Cadastrar produto exige categoria e unidade (§9.1), e adivinhar as duas a
- *    partir de uma frase produziria "sal", "sal mineral" e "sal mineral 60"
- *    como três produtos diferentes, com três saldos, para a mesma coisa. Não
- *    achou, PERGUNTA e mostra o que existe.
- * 2. **Escrita de dinheiro sempre confirma**, como no negócio de gado, e pelo
- *    mesmo motivo: uma linha grava estoque E contas a pagar de uma vez. Uso e
- *    ajuste NÃO pedem confirmação: não mexem em dinheiro, são o gesto de maior
- *    frequência do módulo, e um erro ali se desfaz com outro ajuste.
+ * 1. **O pedido fica GUARDADO** (`stock-pending.ts`) e é ele que manda. A
+ *    primeira versão não guardava nada e afirmava, por escrito, que a
+ *    confirmação viajava em `auxiliary_data`: falso, aquilo é só SAÍDA, o
+ *    contrato da rota interna não tem por onde receber de volta, e o guia do
+ *    n8n manda o LLM remontar os parâmetros pelo histórico. O "sim" acabava
+ *    executando o que o classificador reconstruiu: mostrava 10 sacas e gravava
+ *    100, com o frete sumindo no caminho.
+ * 2. **"não"/"cancela" é a PRIMEIRA coisa checada**, nos quatro gestos. Sem
+ *    isso o produtor ficava preso num laço de pergunta sem conseguir desistir.
+ * 3. **Da resposta entra SÓ o campo perguntado.** Sem isso, responder "2" a
+ *    "quantas sacas?" apagava o produto já escolhido e a conversa girava.
+ * 4. **O produto é resolvido no CATÁLOGO, nunca criado pela conversa.**
+ *    Cadastrar exige categoria e unidade (§9.1), e adivinhar produziria "sal",
+ *    "sal mineral" e "sal mineral 60" como três saldos para a mesma coisa.
+ *
+ * Confirmação: compra, venda e AJUSTE confirmam; uso não. A linha é o que a
+ * operação pode estragar. Uso é limitado pelo saldo disponível e costuma ser
+ * pequeno; ajuste é ilimitado para baixo, e "faltaram 2 sacas" lido como saldo
+ * final tira 18 de um estoque de 20 sem nada denunciando.
  */
 
 type ProdutoDoCatalogo = {
@@ -125,12 +151,16 @@ function reais(v: number): string {
 function lerQuantidade(
   bruto: unknown,
   produto: ProdutoDoCatalogo,
-): { ok: true; valor: number } | { ok: false; resposta: RouterResult } {
-  const valor = num(bruto);
+): { ok: true; valor: number } | { ok: false; pergunta: string } {
+  // `lerNumeroBr`, nao `num`: "comprei 2.000 kg de racao" virava 2 quilos no
+  // estoque, e "usei 2,5 sacas" era recusado apesar de saca aceitar quantidade
+  // quebrada. E o mesmo erro de ordem de grandeza que ja custou uma rodada com
+  // dinheiro, repetido no saldo.
+  const valor = lerNumeroBr(bruto);
   if (valor == null || valor <= 0) {
     return {
       ok: false,
-      resposta: ask(`Quantas ${plural(produto)} de ${produto.name}?`),
+      pergunta: `${quantosOuQuantas(produto.unit)} ${plural(produto)} de ${produto.name}?`,
     };
   }
 
@@ -138,9 +168,9 @@ function lerQuantidade(
   if (unidade && !unidade.fracionavel && !Number.isInteger(valor)) {
     return {
       ok: false,
-      resposta: ask(
-        `${produto.name} é contado em ${unidade.plural}, que não aceita quantidade quebrada. Quantas exatamente?`,
-      ),
+      pergunta:
+        `${produto.name} é contado em ${unidade.plural}, que não aceita quantidade quebrada. ` +
+        `${quantosOuQuantas(produto.unit)} exatamente?`,
     };
   }
 
@@ -151,34 +181,160 @@ function plural(produto: ProdutoDoCatalogo): string {
   return findUnit(produto.unit)?.plural ?? "unidades";
 }
 
+function responder(texto: string, acao: string): RouterResult {
+  return {
+    reply_text: texto,
+    requires_confirmation: false,
+    auxiliary_data: null,
+    report_url: null,
+    action_taken: acao,
+  };
+}
+
+/**
+ * O começo de todo handler: junta a mensagem nova ao que estava guardado.
+ *
+ * Devolve os parâmetros efetivos, ou uma resposta pronta quando a conversa
+ * precisa parar (cancelamento, ou o mesmo campo perguntado vezes demais).
+ */
+async function comMemoria(
+  intent: PedidoEstoquePendente["intent"],
+  ctx: {
+    tenant_id: string;
+    user_id?: string;
+    parameters: Record<string, unknown>;
+    explicitNo: boolean;
+  },
+): Promise<
+  | {
+      ok: true;
+      parameters: Record<string, unknown>;
+      confirmadoAntes: boolean;
+      /**
+       * Quantas vezes o MESMO campo ja foi perguntado.
+       *
+       * Precisa VIAJAR ate a proxima pergunta. Na primeira versao `perguntar`
+       * gravava o pendente sem este campo, zerando o contador a cada volta, e a
+       * trava de laco nunca disparava: o produtor ficava preso ouvindo a mesma
+       * pergunta para sempre. E o mesmo defeito que o comentario logo abaixo
+       * descreve, reintroduzido uma funcao adiante.
+       */
+      tentativas: number;
+    }
+  | { ok: false; resposta: RouterResult }
+> {
+  // Regra 2: recusa vence tudo, e antes de qualquer pergunta.
+  if (ctx.explicitNo) {
+    if (ctx.user_id) await clearPendingStock(ctx.tenant_id, ctx.user_id);
+    return {
+      ok: false,
+      resposta: responder("Ok, não registrei nada.", `${intent}:cancelado`),
+    };
+  }
+
+  if (!ctx.user_id) {
+    return { ok: true, parameters: { ...ctx.parameters }, confirmadoAntes: false, tentativas: 0 };
+  }
+
+  const pendente = await loadPendingStock(ctx.tenant_id, ctx.user_id);
+  if (!pendente || pendente.intent !== intent) {
+    return { ok: true, parameters: { ...ctx.parameters }, confirmadoAntes: false, tentativas: 0 };
+  }
+
+  const juntos = aplicarRespostaEstoque(pendente, ctx.parameters);
+  if (juntos) {
+    return {
+      ok: true,
+      parameters: juntos,
+      confirmadoAntes: pendente.aguardando === "confirmacao",
+      tentativas: 0,
+    };
+  }
+
+  /**
+   * A resposta não trouxe o campo perguntado.
+   *
+   * O pendente NÃO é apagado aqui: apagar zerava o contador e a trava de laço
+   * nunca disparava, defeito real do Módulo 30. Ele morre por TTL, por sucesso
+   * ou por cancelamento.
+   */
+  const tentativas = (pendente.tentativas ?? 0) + 1;
+  if (tentativas >= MAX_TENTATIVAS) {
+    await clearPendingStock(ctx.tenant_id, ctx.user_id);
+    return {
+      ok: false,
+      resposta: responder(
+        "Não consegui entender. Vamos recomeçar: me conte de novo numa frase só, " +
+          'por exemplo "usei 2 sacas de sal".',
+        `${intent}:desisti`,
+      ),
+    };
+  }
+  await savePendingStock(ctx.tenant_id, ctx.user_id, { ...pendente, tentativas });
+  return { ok: true, parameters: { ...pendente.parameters }, confirmadoAntes: false, tentativas };
+}
+
+/** Pergunta um campo E guarda o que já foi entendido, para não perder no caminho. */
+async function perguntar(
+  intent: PedidoEstoquePendente["intent"],
+  ctx: { tenant_id: string; user_id?: string },
+  parameters: Record<string, unknown>,
+  campo: CampoEstoque,
+  texto: string,
+  tentativas: number,
+): Promise<RouterResult> {
+  if (ctx.user_id) {
+    await savePendingStock(ctx.tenant_id, ctx.user_id, {
+      intent,
+      parameters,
+      aguardando: campo,
+      tentativas,
+    });
+  }
+  return ask(texto);
+}
+
 /**
  * "Usei 2 sacas de sal no lote do curral" (§10.3).
  *
  * Não pede confirmação: é o gesto mais frequente do módulo, não mexe em
- * dinheiro, e um erro se desfaz contando de novo. Exigir "sim" a cada saca de
- * sal faria o produtor parar de registrar, e estoque que ninguém registra não
- * serve para nada.
+ * dinheiro, é limitado pelo saldo disponível, e um erro se desfaz contando de
+ * novo. Exigir "sim" a cada saca de sal faria o produtor parar de registrar, e
+ * estoque que ninguém registra não serve para nada.
  */
-export const registrarUsoEstoque: Handler = async ({ db, parameters }) => {
+export const registrarUsoEstoque: Handler = async (ctx) => {
+  const { db, parameters: brutos, tenant_id, user_id, explicitNo } = ctx;
+  const memoria = await comMemoria("registrar_uso_estoque", {
+    tenant_id,
+    user_id,
+    parameters: brutos,
+    explicitNo,
+  });
+  if (!memoria.ok) return memoria.resposta;
+  const parameters = memoria.parameters;
+  const guardar = (campo: CampoEstoque, texto: string) =>
+    perguntar("registrar_uso_estoque", ctx, parameters, campo, texto, memoria.tentativas);
+
   const produtoResolvido = await resolverProduto(
     db,
     str(parameters.produto) ?? str(parameters.product) ?? str(parameters.item),
   );
-  if (!produtoResolvido.ok) return produtoResolvido.resposta;
+  if (!produtoResolvido.ok) return guardar("produto", produtoResolvido.resposta.reply_text);
   const produto = produtoResolvido.produto;
+  parameters.produto = produto.name;
 
   const quantidade = lerQuantidade(
     parameters.quantidade ?? parameters.quantity ?? parameters.qtd,
     produto,
   );
-  if (!quantidade.ok) return quantidade.resposta;
+  if (!quantidade.ok) return guardar("quantidade", quantidade.pergunta);
 
   const fazenda = await resolverFazenda(db, str(parameters.fazenda) ?? str(parameters.property));
-  if (!fazenda.ok) return fazenda.resposta;
+  if (!fazenda.ok) return guardar("fazenda", fazenda.resposta.reply_text);
 
   const data = lerData(parameters, "data", "date", "occurred_at");
   if (data.tipo === "invalida") {
-    return ask(`Não entendi a data "${data.bruto}". Pode dizer como 10/12 ou "hoje"?`);
+    return guardar("quantidade", `Não entendi a data "${data.bruto}". Pode dizer 10/12 ou "hoje"?`);
   }
 
   const resultado = await recordStockMovement(db, {
@@ -188,7 +344,11 @@ export const registrarUsoEstoque: Handler = async ({ db, parameters }) => {
     quantity: quantidade.valor,
     occurred_at: data.tipo === "ok" ? data.data : null,
     purpose: str(parameters.finalidade) ?? str(parameters.purpose) ?? null,
+    // §10.6 exige usuario responsavel no historico. Sem isto, o canal que vai
+    // gerar a MAIORIA dos registros gravava tudo sem autor.
+    recorded_by_user_id: user_id ?? null,
   });
+  if (user_id) await clearPendingStock(tenant_id, user_id);
   if (!resultado.ok) return failReply("registrar_uso_estoque", resultado);
 
   const [posicao] = await getStockBalance(db, {
@@ -200,7 +360,8 @@ export const registrarUsoEstoque: Handler = async ({ db, parameters }) => {
   return {
     reply_text:
       `✅ Anotei: ${descreverQuantidade(quantidade.valor, produto.unit)} de ${produto.name} ` +
-      `usadas em ${fazenda.nome}. Restam ${descreverQuantidade(restante, produto.unit)}.`,
+      `${concordar("usadas", produto.unit)} em ${fazenda.nome}. ` +
+      `Restam ${descreverQuantidade(restante, produto.unit)}.`,
     requires_confirmation: false,
     auxiliary_data: { movement_id: resultado.data.id, saldo: restante },
     report_url: null,
@@ -211,41 +372,110 @@ export const registrarUsoEstoque: Handler = async ({ db, parameters }) => {
 /**
  * "Contei e tem só 6 sacas de sal" (§10.6).
  *
- * O produtor informa o que EXISTE; a diferença é conta do sistema. Também não
- * pede confirmação, pelo mesmo motivo do uso, e porque a resposta já mostra a
- * diferença aplicada: se ele errou o número, corrige contando de novo.
+ * O produtor informa o que EXISTE; a diferença é conta do sistema.
+ *
+ * CONFIRMA, ao contrário do uso, e a razão é concreta: "faltaram 2 sacas" é
+ * como o produtor fala, e lido como saldo final tira 18 de um estoque de 20.
+ * O guia do n8n instrui o classificador a perguntar o total nesse caso, mas
+ * regra que vive só no prompt não é trava: a confirmação mostrando "de 20 para
+ * 2" é o par em código que barra o absurdo alto e claro. Um campo de diferença
+ * vindo do classificador também vira pergunta, nunca saldo.
  */
-export const ajustarEstoque: Handler = async ({ db, parameters }) => {
+export const ajustarEstoque: Handler = async (ctx) => {
+  const { db, parameters: brutos, tenant_id, user_id, explicitNo, confirmed } = ctx;
+  const memoria = await comMemoria("ajustar_estoque", {
+    tenant_id,
+    user_id,
+    parameters: brutos,
+    explicitNo,
+  });
+  if (!memoria.ok) return memoria.resposta;
+  const parameters = memoria.parameters;
+  const guardar = (campo: CampoEstoque, texto: string) =>
+    perguntar("ajustar_estoque", ctx, parameters, campo, texto, memoria.tentativas);
+
   const produtoResolvido = await resolverProduto(
     db,
     str(parameters.produto) ?? str(parameters.product) ?? str(parameters.item),
   );
-  if (!produtoResolvido.ok) return produtoResolvido.resposta;
+  if (!produtoResolvido.ok) return guardar("produto", produtoResolvido.resposta.reply_text);
   const produto = produtoResolvido.produto;
+  parameters.produto = produto.name;
 
-  const bruto =
-    parameters.saldo ?? parameters.quantidade ?? parameters.quantity ?? parameters.corrected_balance;
-  const contado = num(bruto);
+  // Par em código da regra do §10.6: diferença NÃO é saldo.
+  const diferencaDita =
+    parameters.diferenca ?? parameters.faltaram ?? parameters.sobraram ?? parameters.difference;
+  if (diferencaDita != null && parameters.saldo == null && parameters.quantidade == null) {
+    return guardar(
+      "quantidade",
+      "Para corrigir eu preciso do total, não da diferença. " +
+        `${quantosOuQuantas(produto.unit)} ${plural(produto)} de ${produto.name} tem hoje, ao todo?`,
+    );
+  }
+
+  const contado = lerNumeroBr(
+    parameters.saldo ?? parameters.quantidade ?? parameters.quantity ?? parameters.corrected_balance,
+  );
   if (contado == null || contado < 0) {
-    return ask(`Quantas ${plural(produto)} de ${produto.name} você contou?`);
+    return guardar(
+      "quantidade",
+      `${quantosOuQuantas(produto.unit)} ${plural(produto)} de ${produto.name} você contou?`,
+    );
   }
   const unidade = findUnit(produto.unit);
   if (unidade && !unidade.fracionavel && !Number.isInteger(contado)) {
-    return ask(
-      `${produto.name} é contado em ${unidade.plural}, que não aceita quantidade quebrada. Quantas exatamente?`,
+    return guardar(
+      "quantidade",
+      `${produto.name} é contado em ${unidade.plural}, que não aceita quantidade quebrada. ` +
+        `${quantosOuQuantas(produto.unit)} exatamente?`,
     );
   }
 
   const fazenda = await resolverFazenda(db, str(parameters.fazenda) ?? str(parameters.property));
-  if (!fazenda.ok) return fazenda.resposta;
+  if (!fazenda.ok) return guardar("fazenda", fazenda.resposta.reply_text);
+
+  const [posicao] = await getStockBalance(db, {
+    product_id: produto.id,
+    property_id: fazenda.id,
+  });
+  const atual = posicao?.quantity ?? 0;
+
+  if (!confirmed && !memoria.confirmadoAntes) {
+    if (user_id) {
+      await savePendingStock(tenant_id, user_id, {
+        intent: "ajustar_estoque",
+        parameters: { ...parameters, saldo: contado, fazenda: fazenda.nome },
+        aguardando: "confirmacao",
+      });
+    }
+    return {
+      reply_text:
+        `Confirma? ${produto.name} em ${fazenda.nome} passa de ` +
+        `${descreverQuantidade(atual, produto.unit)} para ` +
+        `${descreverQuantidade(contado, produto.unit)}.`,
+      requires_confirmation: true,
+      auxiliary_data: null,
+      report_url: null,
+      action_taken: "ajustar_estoque:aguardando_confirmacao",
+    };
+  }
 
   const resultado = await adjustStock(db, {
     product_id: produto.id,
     property_id: fazenda.id,
     corrected_balance: contado,
     reason: str(parameters.motivo) ?? str(parameters.reason) ?? "Contagem informada pelo WhatsApp",
+    recorded_by_user_id: user_id ?? null,
   });
-  if (!resultado.ok) return failReply("ajustar_estoque", resultado);
+  if (user_id) await clearPendingStock(tenant_id, user_id);
+  if (!resultado.ok) {
+    // `NO_CHANGE` não é alerta: o produtor conferiu e o sistema já estava
+    // certo. O "⚠️" de `failReply` transformava um acerto em susto.
+    if (resultado.code === "NO_CHANGE") {
+      return responder(resultado.message, "ajustar_estoque:sem_mudanca");
+    }
+    return failReply("ajustar_estoque", resultado);
+  }
 
   const diferenca = resultado.data.diferenca;
   const movimento =
@@ -279,23 +509,28 @@ export const consultarEstoque: Handler = async ({ db, parameters }) => {
   if (nome) {
     const resolvido = await resolverProduto(db, nome);
     if (!resolvido.ok) return resolvido.resposta;
-    const p = produtos.find((x) => x.id === resolvido.produto.id);
-    if (!p) {
-      return responder(
-        `${resolvido.produto.name} ainda não teve nenhuma movimentação.`,
-        "consultar_estoque:sem_movimento",
-      );
-    }
-    const alerta = p.abaixo_do_minimo && p.minimum_stock != null
-      ? ` (seu mínimo é ${descreverQuantidade(p.minimum_stock, p.unit)})`
-      : "";
+    const p = produtos.find((x) => x.id === resolvido.produto.id)!;
+    const alerta =
+      p.abaixo_do_minimo && p.minimum_stock != null
+        ? ` (seu mínimo é ${descreverQuantidade(p.minimum_stock, p.unit)})`
+        : "";
     return responder(
       `📦 ${p.name}: ${descreverQuantidade(p.saldo_total, p.unit)}${alerta}.`,
       "consultar_estoque:ok",
     );
   }
 
-  const acabando = produtos.filter((p) => p.abaixo_do_minimo);
+  /**
+   * "O que está acabando" precisa dar a MESMA resposta do alerta diário.
+   *
+   * O alerta ignora produto que nunca movimentou, para não inundar quem
+   * cadastrou 20 itens numa tarde; esta consulta não ignorava, e respondia
+   * "precisa repor: Vermífugo, 0 frascos" para um produto cadastrado hoje,
+   * escondendo o sal e o óleo que de fato têm saldo. Duas respostas para a
+   * mesma pergunta, pelo mesmo produto, no mesmo dia.
+   */
+  const jaMovimentou = (p: (typeof produtos)[number]) => p.saldo_por_fazenda.length > 0;
+  const acabando = produtos.filter((p) => p.abaixo_do_minimo && jaMovimentou(p));
   const comSaldo = produtos.filter((p) => p.saldo_total > 0);
 
   // Sem produto citado, a resposta é o que ele precisa saber, não o catálogo
@@ -322,16 +557,6 @@ export const consultarEstoque: Handler = async ({ db, parameters }) => {
   );
 };
 
-function responder(texto: string, acao: string): RouterResult {
-  return {
-    reply_text: texto,
-    requires_confirmation: false,
-    auxiliary_data: null,
-    report_url: null,
-    action_taken: acao,
-  };
-}
-
 const TIPOS: Record<string, "compra_produto" | "venda_produto"> = {
   compra: "compra_produto",
   compra_produto: "compra_produto",
@@ -349,67 +574,64 @@ const TIPOS: Record<string, "compra_produto" | "venda_produto"> = {
  * rebanho, e é por isso que os leitores de dinheiro, data e parcela vêm de
  * `parsers.ts`, compartilhados: "60 mil" precisa significar a mesma coisa nas
  * duas conversas.
- *
- * NÃO usa o pendente de conversa do negócio de gado. Uma compra de insumo tem
- * menos campos (não tem categoria, pasto nem situação), e reaproveitar a
- * máquina de perguntas do gado traria de volta o risco que ela existe para
- * conter: uma resposta curta caindo no fluxo errado. Aqui o que falta é
- * perguntado direto, e o produtor repete a frase inteira, que é curta.
  */
-export const registrarNegocioProduto: Handler = async ({
-  db,
-  parameters,
-  confirmed,
-  explicitNo,
-}) => {
-  // "não"/"cancela" vence tudo e é a PRIMEIRA coisa checada, como no gado:
-  // sem isso, qualquer pergunta de esclarecimento retorna antes e o produtor
-  // vê a mesma pergunta de novo sem nada ter sido cancelado.
-  if (explicitNo) {
-    return responder("Ok, não registrei nada.", "registrar_negocio_produto:cancelado");
-  }
+export const registrarNegocioProduto: Handler = async (ctx) => {
+  const { db, parameters: brutos, tenant_id, user_id, explicitNo, confirmed } = ctx;
+  const memoria = await comMemoria("registrar_negocio_produto", {
+    tenant_id,
+    user_id,
+    parameters: brutos,
+    explicitNo,
+  });
+  if (!memoria.ok) return memoria.resposta;
+  const parameters = memoria.parameters;
+  const guardar = (campo: CampoEstoque, texto: string) =>
+    perguntar("registrar_negocio_produto", ctx, parameters, campo, texto, memoria.tentativas);
 
   const tipoBruto = (str(parameters.tipo) ?? str(parameters.type) ?? "").toLowerCase();
   const tipo = TIPOS[tipoBruto];
-  if (!tipo) {
-    return ask("Você comprou ou vendeu esse produto?");
-  }
+  if (!tipo) return guardar("tipo", "Você comprou ou vendeu esse produto?");
   const compra = tipo === "compra_produto";
 
   const produtoResolvido = await resolverProduto(
     db,
     str(parameters.produto) ?? str(parameters.product) ?? str(parameters.item),
   );
-  if (!produtoResolvido.ok) return produtoResolvido.resposta;
+  if (!produtoResolvido.ok) return guardar("produto", produtoResolvido.resposta.reply_text);
   const produto = produtoResolvido.produto;
+  parameters.produto = produto.name;
 
   const quantidade = lerQuantidade(
     parameters.quantidade ?? parameters.quantity ?? parameters.qtd,
     produto,
   );
-  if (!quantidade.ok) return quantidade.resposta;
+  if (!quantidade.ok) return guardar("quantidade", quantidade.pergunta);
 
-  const valor = lerDinheiro(parameters, "valor", "amount", "valor_total", "preco");
+  // `preco` NAO entra: "comprei 10 sacas a 120 reais" e preco UNITARIO, e ler
+  // como total gravaria R$ 120 no lugar de R$ 1.200, com a confirmacao
+  // imprimindo justamente o numero que o produtor falou. Mesma lista do
+  // negocio de gado, de proposito.
+  const valor = lerDinheiro(parameters, "valor", "amount", "valor_total");
   if (valor == null || valor <= 0) {
-    return ask(
-      compra
-        ? `Por quanto você comprou ${descreverQuantidade(quantidade.valor, produto.unit)} de ${produto.name}?`
-        : `Por quanto você vendeu ${descreverQuantidade(quantidade.valor, produto.unit)} de ${produto.name}?`,
+    return guardar(
+      "valor",
+      `Por quanto você ${compra ? "comprou" : "vendeu"} ` +
+        `${descreverQuantidade(quantidade.valor, produto.unit)} de ${produto.name}?`,
     );
   }
 
   const fazenda = await resolverFazenda(db, str(parameters.fazenda) ?? str(parameters.property));
-  if (!fazenda.ok) return fazenda.resposta;
+  if (!fazenda.ok) return guardar("fazenda", fazenda.resposta.reply_text);
 
   const dataNegocio = lerData(parameters, "data", "date", "occurred_at");
   if (dataNegocio.tipo === "invalida") {
-    return ask(`Não entendi a data "${dataNegocio.bruto}". Pode dizer como 10/12 ou "hoje"?`);
+    return guardar("valor", `Não entendi a data "${dataNegocio.bruto}". Pode dizer 10/12 ou "hoje"?`);
   }
   const occurredAt = dataNegocio.tipo === "ok" ? dataNegocio.data : new Date();
 
   const vencimento = lerData(parameters, "vencimento", "due_date");
   if (vencimento.tipo === "invalida") {
-    return ask(`Não entendi o vencimento "${vencimento.bruto}". Pode dizer como 10/12 ou "dia 10"?`);
+    return guardar("valor", `Não entendi o vencimento "${vencimento.bruto}". Pode dizer 10/12?`);
   }
 
   const pago = interpretarSim(parameters.pago ?? parameters.paid);
@@ -417,12 +639,13 @@ export const registrarNegocioProduto: Handler = async ({
     parameters.parcelas ?? parameters.installments ?? parameters.parcelamento,
   );
   const custos = custosDosParametros(parameters);
+  const contato = str(parameters.contato) ?? str(parameters.contact_name) ?? null;
 
   // "Já paguei" e "vou parcelar em 3x" não podem valer ao mesmo tempo. A
   // action recusaria, mas a pergunta aqui é melhor que o erro depois da
   // confirmação: o produtor ainda está com a frase na cabeça.
   if (pago && quantasParcelas != null && quantasParcelas > 1) {
-    return ask("Você já pagou ou vai parcelar? Uma coisa ou outra.");
+    return guardar("valor", "Você já pagou ou vai parcelar? Uma coisa ou outra.");
   }
 
   const parcelas =
@@ -447,22 +670,31 @@ export const registrarNegocioProduto: Handler = async ({
       : vencimento.tipo === "ok"
         ? `\nA ${compra ? "pagar" : "receber"} em ${vencimento.data.toLocaleDateString("pt-BR")}.`
         : `\nA ${compra ? "pagar" : "receber"}, sem data informada (vou lançar para hoje).`;
+  // Contato e data ENTRAM na confirmação: os dois são gravados (o nome vira um
+  // `Contact` de verdade, "ontem" muda o mês do lançamento), e pedir "sim" sem
+  // mostrar é pedir assinatura no que não foi lido.
+  const descricaoContato = contato ? `\nCom: ${contato}.` : "";
+  const descricaoData = `\nData: ${occurredAt.toLocaleDateString("pt-BR")}.`;
 
-  if (!confirmed) {
+  if (!confirmed && !memoria.confirmadoAntes) {
+    if (user_id) {
+      // O pedido inteiro fica GUARDADO: o "sim" executa o que foi MOSTRADO,
+      // nunca o que o classificador remontar da própria resposta do
+      // assistente. Sem âncora, confirmação é assinatura em papel em branco.
+      await savePendingStock(tenant_id, user_id, {
+        intent: "registrar_negocio_produto",
+        parameters: { ...parameters, tipo, fazenda: fazenda.nome },
+        aguardando: "confirmacao",
+      });
+    }
     return {
       reply_text:
         `Confirma?\n${compra ? "Compra" : "Venda"} de ` +
         `${descreverQuantidade(quantidade.valor, produto.unit)} de ${produto.name} ` +
         `por ${reais(valor)}${totalCustos > 0 ? ` mais ${reais(totalCustos)} de custos` : ""}, ` +
-        `em ${fazenda.nome}.${descricaoCustos}${descricaoPagamento}`,
+        `em ${fazenda.nome}.${descricaoContato}${descricaoData}${descricaoCustos}${descricaoPagamento}`,
       requires_confirmation: true,
-      // O pedido inteiro viaja no auxiliary: o "sim" executa o que foi
-      // MOSTRADO, nunca o que o classificador remontar da própria resposta do
-      // assistente. Confirmação sem âncora é assinatura em papel em branco.
-      auxiliary_data: {
-        intent: "registrar_negocio_produto",
-        parameters,
-      },
+      auxiliary_data: null,
       report_url: null,
       action_taken: "registrar_negocio_produto:aguardando_confirmacao",
     };
@@ -473,14 +705,16 @@ export const registrarNegocioProduto: Handler = async ({
     property_id: fazenda.id,
     itens: [{ product_id: produto.id, quantity: quantidade.valor }],
     amount: valor,
-    contact_name: str(parameters.contato) ?? str(parameters.contact_name) ?? null,
+    contact_name: contato,
     occurred_at: occurredAt,
     pago,
     due_date: vencimento.tipo === "ok" ? vencimento.data : null,
     parcelas: parcelas.map((p) => ({ due_date: p.due_date, amount: p.amount })),
     custos: custos.map((c) => ({ descricao: c.descricao, amount: c.valor })),
     notes: str(parameters.observacao) ?? str(parameters.notes) ?? null,
+    recorded_by_user_id: user_id ?? null,
   });
+  if (user_id) await clearPendingStock(tenant_id, user_id);
   if (!resultado.ok) return failReply("registrar_negocio_produto", resultado);
 
   const [posicao] = await getStockBalance(db, {

@@ -23,20 +23,31 @@ export type StockUnit = {
    * um erro de digitação que o produtor não veria.
    */
   fracionavel: boolean;
+  /**
+   * Gênero gramatical, para o assistente escrever "QuantOS litros" e "QuantAS
+   * sacas".
+   *
+   * Sem isto, a pergunta mais frequente do módulo saía "Quantas litros de Óleo
+   * diesel?" em 6 das 11 unidades, e a confirmação dizia "30 litros usadAS". O
+   * §2 do documento exige que a área não pareça sistema, e concordância
+   * quebrada é a primeira coisa que o produtor lê. Achado por um revisor
+   * independente lendo as mensagens em voz alta, não por teste.
+   */
+  genero: "m" | "f";
 };
 
 export const STOCK_UNITS: StockUnit[] = [
-  { id: "saca", label: "Saca", plural: "sacas", abbr: "sc", fracionavel: true },
-  { id: "quilograma", label: "Quilograma", plural: "quilogramas", abbr: "kg", fracionavel: true },
-  { id: "litro", label: "Litro", plural: "litros", abbr: "L", fracionavel: true },
-  { id: "unidade", label: "Unidade", plural: "unidades", abbr: "un", fracionavel: false },
-  { id: "frasco", label: "Frasco", plural: "frascos", abbr: "fr", fracionavel: false },
-  { id: "caixa", label: "Caixa", plural: "caixas", abbr: "cx", fracionavel: false },
-  { id: "pacote", label: "Pacote", plural: "pacotes", abbr: "pct", fracionavel: false },
-  { id: "rolo", label: "Rolo", plural: "rolos", abbr: "rl", fracionavel: false },
-  { id: "tonelada", label: "Tonelada", plural: "toneladas", abbr: "t", fracionavel: true },
-  { id: "metro", label: "Metro", plural: "metros", abbr: "m", fracionavel: true },
-  { id: "outro", label: "Outro", plural: "outros", abbr: "un", fracionavel: true },
+  { id: "saca", label: "Saca", plural: "sacas", abbr: "sc", fracionavel: true, genero: "f" },
+  { id: "quilograma", label: "Quilograma", plural: "quilogramas", abbr: "kg", fracionavel: true, genero: "m" },
+  { id: "litro", label: "Litro", plural: "litros", abbr: "L", fracionavel: true, genero: "m" },
+  { id: "unidade", label: "Unidade", plural: "unidades", abbr: "un", fracionavel: false, genero: "f" },
+  { id: "frasco", label: "Frasco", plural: "frascos", abbr: "fr", fracionavel: false, genero: "m" },
+  { id: "caixa", label: "Caixa", plural: "caixas", abbr: "cx", fracionavel: false, genero: "f" },
+  { id: "pacote", label: "Pacote", plural: "pacotes", abbr: "pct", fracionavel: false, genero: "m" },
+  { id: "rolo", label: "Rolo", plural: "rolos", abbr: "rl", fracionavel: false, genero: "m" },
+  { id: "tonelada", label: "Tonelada", plural: "toneladas", abbr: "t", fracionavel: true, genero: "f" },
+  { id: "metro", label: "Metro", plural: "metros", abbr: "m", fracionavel: true, genero: "m" },
+  { id: "outro", label: "Outro", plural: "outros", abbr: "un", fracionavel: true, genero: "m" },
 ];
 
 const POR_ID = new Map(STOCK_UNITS.map((u) => [u.id, u]));
@@ -61,6 +72,17 @@ export function descreverQuantidade(quantidade: number, unidadeId: string): stri
   const numero = quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
   if (!unidade) return numero;
   return `${numero} ${quantidade === 1 ? unidade.label.toLowerCase() : unidade.plural}`;
+}
+
+/** "Quantas" para saca, "Quantos" para litro. */
+export function quantosOuQuantas(unidadeId: string): string {
+  return findUnit(unidadeId)?.genero === "f" ? "Quantas" : "Quantos";
+}
+
+/** "usadas" para saca, "usados" para litro. */
+export function concordar(palavraNoFeminino: string, unidadeId: string): string {
+  if (findUnit(unidadeId)?.genero === "f") return palavraNoFeminino;
+  return palavraNoFeminino.replace(/as$/, "os").replace(/a$/, "o");
 }
 
 /**

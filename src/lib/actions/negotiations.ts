@@ -142,6 +142,32 @@ export type NegotiationDetail = {
   }[];
 };
 
+/**
+ * Todo tipo de negociação que ENTRA dinheiro.
+ *
+ * Existe como função porque a comparação estava escrita à mão como
+ * `type === "venda_gado"`, e no dia em que `venda_produto` passou a existir a
+ * situação dela virou "decidida pelos custos": uma venda inteiramente recebida
+ * ficava sem situação nenhuma, e uma venda a receber com o frete pago aparecia
+ * como PAGA, com o dinheiro do produtor ainda na rua. Achado por um revisor
+ * independente, não por teste. A missão 3 traz `evento` e a 4 traz `permuta`:
+ * as duas passam por aqui, e a lista precisa ser um lugar só.
+ */
+function ehVenda(tipo: NegotiationType): boolean {
+  return tipo === "venda_gado" || tipo === "venda_produto";
+}
+
+/**
+ * Onde o estorno do cancelamento é arquivado.
+ *
+ * O lançamento original de uma compra de PRODUTO nasce `geral`, e o estorno dela
+ * estava indo para `rebanho`: cancelar uma compra de adubo devolvia o dinheiro
+ * dentro do módulo Rebanho. Valor e sinal estavam certos, a gaveta não.
+ */
+function moduloDoEstorno(tipo: NegotiationType): "rebanho" | "geral" {
+  return tipo === "compra_gado" || tipo === "venda_gado" ? "rebanho" : "geral";
+}
+
 const CATEGORIA_FINANCEIRA: Record<"compra_gado" | "venda_gado", string> = {
   compra_gado: "Compra de animal",
   venda_gado: "Venda de animal",
@@ -507,7 +533,7 @@ export async function getNegotiation(
       lancamentos.filter(
         (l) =>
           l.negotiation_role !== "estorno" &&
-          l.entry_type === (n.type === "venda_gado" ? "income" : "expense"),
+          l.entry_type === (ehVenda(n.type) ? "income" : "expense"),
       ),
     ),
     totais: {
@@ -737,7 +763,7 @@ export async function cancelNegotiation(
           entry_type: "income",
           category: "Devolução de valor pago",
           amount: desembolsado,
-          related_module: "rebanho",
+          related_module: moduloDoEstorno(negociacao.type),
           related_id: id,
           occurred_at: new Date(),
           status: "paid",
@@ -750,7 +776,7 @@ export async function cancelNegotiation(
           entry_type: "expense",
           category: "Devolução de valor recebido",
           amount: recebido,
-          related_module: "rebanho",
+          related_module: moduloDoEstorno(negociacao.type),
           related_id: id,
           occurred_at: new Date(),
           status: "paid",

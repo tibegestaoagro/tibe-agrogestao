@@ -254,11 +254,50 @@ export async function recordStockMovementInTx(
   tx: Prisma.TransactionClient,
   input: StockMovementInput,
 ): Promise<ActionResult<{ id: string }>> {
+  /**
+   * `ajuste` NÃO entra por aqui, e a recusa é da action, não só do Zod da rota.
+   *
+   * Esta função nunca preenche `previous_balance`/`corrected_balance`, que é
+   * de onde o ajuste tira o sinal: um ajuste gravado por aqui teria `quantity`
+   * positiva e delta ZERO, ou seja, uma linha visível no histórico que o saldo
+   * ignora. São as "duas verdades" que o módulo inteiro existe para impedir.
+   * Hoje nenhum chamador faz isso; a recusa é para o próximo (permuta da
+   * missão 4, rota interna nova) não descobrir por acidente.
+   */
+  if (input.movement_type === "ajuste") {
+    return fail(
+      "USE_ADJUST_STOCK",
+      "Ajuste de estoque precisa do saldo contado: use adjustStock.",
+      422,
+    );
+  }
+
   const produto = await tx.product.findFirst({ where: { id: input.product_id } });
   if (!produto) return fail("INVALID_PRODUCT", "Produto inválido", 422);
 
   const propriedade = await tx.property.findFirst({ where: { id: input.property_id } });
   if (!propriedade) return fail("INVALID_PROPERTY", "Fazenda inválida", 422);
+
+  /**
+   * O pasto precisa ser DAQUELA fazenda, e a conferência não é opcional.
+   *
+   * O `pasture_id` chega do cliente e era gravado cru: a extensão do Prisma só
+   * injeta `tenant_id` na linha nova, e a FK do Postgres só confere que a
+   * chave existe em algum lugar do banco. Ou seja, dava para gravar uma
+   * movimentação apontando para o pasto de OUTRO tenant. Hoje nenhuma leitura
+   * traz o pasto junto, então nada vaza; bastaria alguém acrescentar o nome do
+   * pasto ao histórico, exatamente o que já foi feito com o nome do produto,
+   * para o dado alheio aparecer na tela.
+   *
+   * O livro-razão do rebanho já fazia essa checagem (`INVALID_PASTURE`); o de
+   * estoque nasceu sem, e um revisor independente notou a assimetria.
+   */
+  if (input.pasture_id) {
+    const pasto = await tx.pasture.findFirst({
+      where: { id: input.pasture_id, property_id: input.property_id },
+    });
+    if (!pasto) return fail("INVALID_PASTURE", "Pasto inválido para esta fazenda", 422);
+  }
 
   if (!Number.isFinite(input.quantity) || input.quantity <= 0) {
     return fail("VALIDATION_ERROR", "A quantidade precisa ser maior que zero.", 422);

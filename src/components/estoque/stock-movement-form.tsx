@@ -81,6 +81,15 @@ export default function StockMovementForm({
     if (!productId) return setError("Escolha o produto.");
     if (!propertyId) return setError("Escolha a fazenda.");
 
+    // `Number("")` é 0, e 0 é finito: sem esta linha, clicar em "Corrigir
+    // saldo" com o campo VAZIO mandava `corrected_balance: 0` e zerava o
+    // estoque do produto com um clique, sem confirmação e sem como desfazer
+    // (movimentação avulsa não tem cancelamento).
+    if (!quantity.trim()) {
+      return setError(
+        acao === "utilizacao" ? "Informe quanto você usou." : "Informe quanto tem de verdade.",
+      );
+    }
     const numero = Number(quantity.replace(",", "."));
     if (!Number.isFinite(numero)) return setError("Informe a quantidade.");
     if (acao === "utilizacao" && numero <= 0) {

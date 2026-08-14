@@ -9,16 +9,39 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import type { AlertType, AlertStatus } from "@/generated/prisma/client";
 import { Badge } from "@/components/ui/badge";
 import AlertFilters from "@/components/alertas/alert-filters";
 import AlertDismissButton from "@/components/alertas/alert-dismiss-button";
 
+/**
+ * Precisa listar TODOS os tipos do enum.
+ *
+ * Ficou nos 4 originais enquanto o banco chegava a 8, e o `?? a.alert_type` do
+ * fallback fazia o produtor ler "maintenance_due" na coluna Tipo da unica tela
+ * de alertas que ele abre. Ao acrescentar um `AlertType`, acrescente aqui.
+ */
 const TYPE_LABEL: Record<string, string> = {
   vaccine_due: "🐄 Vacina a vencer",
   harvest_near: "🌾 Colheita próxima",
   bill_due: "💰 Conta a vencer",
   low_balance: "⚠️ Saldo negativo",
+  low_stock: "📦 Produto acabando",
+  maintenance_due: "🔧 Manutenção de máquina",
+  task_reminder: "📌 Lembrete de tarefa",
+  trial_ending: "⏳ Fim do período de teste",
 };
+
+/**
+ * O filtro e conferido contra a lista de verdade, nao afirmado por um cast.
+ *
+ * A versao anterior fazia `as "vaccine_due" | ...` com 4 dos 8 valores: nao
+ * checava nada em runtime, entao `/alertas?type=xyz` chegava cru no Prisma e
+ * derrubava a PAGINA. O mesmo defeito foi corrigido na rota de API; aqui
+ * ficou uma pasta ao lado, intacto, ate um revisor apontar.
+ */
+const TIPOS_VALIDOS: readonly string[] = Object.keys(TYPE_LABEL);
+const STATUS_VALIDOS: readonly string[] = ["pending", "sent", "dismissed"];
 const STATUS: Record<string, { label: string; variant: "amber" | "green" | "gray" }> = {
   pending: { label: "Pendente", variant: "amber" },
   sent: { label: "Enviado", variant: "green" },
@@ -38,11 +61,11 @@ export default async function AlertasPage({
 
   const alerts = await db.alert.findMany({
     where: {
-      ...(searchParams.type
-        ? { alert_type: searchParams.type as "vaccine_due" | "harvest_near" | "bill_due" | "low_balance" }
+      ...(searchParams.type && TIPOS_VALIDOS.includes(searchParams.type)
+        ? { alert_type: searchParams.type as AlertType }
         : {}),
-      ...(searchParams.status
-        ? { status: searchParams.status as "pending" | "sent" | "dismissed" }
+      ...(searchParams.status && STATUS_VALIDOS.includes(searchParams.status)
+        ? { status: searchParams.status as AlertStatus }
         : {}),
     },
     orderBy: { created_at: "desc" },

@@ -14,7 +14,7 @@ import {
 } from "@/lib/actions/products";
 import { STOCK_UNITS, descreverQuantidade, findUnit } from "@/lib/stock/units";
 import { createProductNegotiation } from "@/lib/actions/product-negotiations";
-import { cancelNegotiation } from "@/lib/actions/negotiations";
+import { cancelNegotiation, getNegotiation } from "@/lib/actions/negotiations";
 import { gerarAlertasDeEstoqueMinimo } from "@/lib/actions/alerts";
 import {
   setAlertPreferenceAction,
@@ -987,7 +987,182 @@ async function main() {
     check("a primeira rodada criou pelo menos 1 aviso", primeiraRodada >= 0);
 
     // ------------------------------------------------------------------
-    console.log("\n20. Isolamento multi-tenant");
+    console.log("\n20. Achados do revisor independente");
+    // ------------------------------------------------------------------
+    // 20a. A SITUAÇÃO de uma venda de PRODUTO olhava o lado errado do razão.
+    const vendaRecebida = await createProductNegotiation(db, {
+      type: "venda_produto",
+      property_id: fazendaB.id,
+      itens: [{ product_id: sal.data.id, quantity: 1 }],
+      amount: 10000,
+      pago: true,
+    });
+    if (!vendaRecebida.ok) throw new Error("faltou a venda recebida");
+    const detalheRecebida = await getNegotiation(db, vendaRecebida.data.id);
+    check(
+      "venda de produto inteiramente recebida fica PAGA",
+      detalheRecebida?.situacao === "paga",
+      String(detalheRecebida?.situacao),
+    );
+
+    // A borda contrária, que é o estrago de verdade: a venda a receber com o
+    // FRETE pago não pode aparecer como paga.
+    const vendaAReceber = await createProductNegotiation(db, {
+      type: "venda_produto",
+      property_id: fazendaB.id,
+      itens: [{ product_id: sal.data.id, quantity: 1 }],
+      amount: 10000,
+      pago: false,
+      due_date: new Date(Date.now() + 30 * 86400000),
+      custos: [{ descricao: "Frete", amount: 500 }],
+    });
+    if (!vendaAReceber.ok) throw new Error("faltou a venda a receber");
+    const frete = await db.financialEntry.findFirst({
+      where: { negotiation_id: vendaAReceber.data.id, negotiation_role: "custo_adicional" },
+    });
+    await db.financialEntry.update({
+      where: { id: frete!.id },
+      data: { status: "paid", paid_at: new Date() },
+    });
+    const detalheAReceber = await getNegotiation(db, vendaAReceber.data.id);
+    check(
+      "venda a receber com o FRETE pago NÃO vira paga",
+      detalheAReceber?.situacao !== "paga",
+      String(detalheAReceber?.situacao),
+    );
+
+    // 20b. "Abaixo do mínimo" tem que significar a mesma coisa na tela, no
+    // alerta e no WhatsApp: o total do tenant, porque o mínimo é do produto.
+    const soNaOutraFazenda = await createProduct(db, {
+      name: "Produto so na fazenda B",
+      category_id: salMineral.id,
+      unit: "saca",
+      minimum_stock: 5,
+    });
+    if (!soNaOutraFazenda.ok) throw new Error("faltou o produto de duas fazendas");
+    await recordStockMovement(db, {
+      product_id: soNaOutraFazenda.data.id,
+      property_id: fazendaB.id,
+      movement_type: "compra",
+      quantity: 50,
+    });
+    const vistoDaFazendaA = (await listProductsWithBalance(db, { property_id: fazendaA.id })).find(
+      (p) => p.id === soNaOutraFazenda.data.id,
+    )!;
+    check(
+      "zero numa fazenda com 50 na outra NÃO conta como acabando",
+      vistoDaFazendaA.abaixo_do_minimo === false,
+      `saldo_total=${vistoDaFazendaA.saldo_total} tenant=${vistoDaFazendaA.saldo_no_tenant}`,
+    );
+    check(
+      "mas a tela ainda mostra o zero daquela fazenda",
+      vistoDaFazendaA.saldo_total === 0 && vistoDaFazendaA.saldo_no_tenant === 50,
+    );
+    // A borda contrária: com pouco em todas as fazendas, conta mesmo filtrado.
+    await recordStockMovement(db, {
+      product_id: soNaOutraFazenda.data.id,
+      property_id: fazendaB.id,
+      movement_type: "utilizacao",
+      quantity: 48,
+    });
+    const agoraAcabando = (await listProductsWithBalance(db, { property_id: fazendaA.id })).find(
+      (p) => p.id === soNaOutraFazenda.data.id,
+    )!;
+    check(
+      "e com 2 no tenant inteiro, conta como acabando mesmo olhando outra fazenda",
+      agoraAcabando.abaixo_do_minimo === true,
+    );
+
+    // 20c. Recadastrar nome arquivado devolvia 500 (P2002 sem tratamento).
+    const arquivado = await createProduct(db, {
+      name: "Produto que sera arquivado",
+      category_id: salMineral.id,
+      unit: "saca",
+    });
+    if (!arquivado.ok) throw new Error("faltou o produto a arquivar");
+    await db.product.update({
+      where: { id: arquivado.data.id },
+      data: { archived_at: new Date() },
+    });
+    const recadastro = await createProduct(db, {
+      name: "Produto que sera arquivado",
+      category_id: salMineral.id,
+      unit: "saca",
+    });
+    check(
+      "nome de produto ARQUIVADO devolve 409, não estoura o banco",
+      !recadastro.ok && recadastro.code === "DUPLICATE_PRODUCT" && recadastro.status === 409,
+      recadastro.ok ? "CRIOU" : `${recadastro.code}/${recadastro.status}`,
+    );
+    check(
+      "e a mensagem manda reativar em vez de duplicar o saldo",
+      !recadastro.ok && recadastro.message.includes("Reative"),
+      recadastro.ok ? "" : recadastro.message,
+    );
+
+    // 20d. `ajuste` por `recordStockMovement` gravaria linha de delta ZERO.
+    const ajustePelaPortaErrada = await recordStockMovement(db, {
+      product_id: sal.data.id,
+      property_id: fazendaA.id,
+      movement_type: "ajuste",
+      quantity: 5,
+    });
+    check(
+      "ajuste pela rota de movimentação é recusado na action",
+      !ajustePelaPortaErrada.ok && ajustePelaPortaErrada.code === "USE_ADJUST_STOCK",
+      ajustePelaPortaErrada.ok ? "GRAVOU" : ajustePelaPortaErrada.code,
+    );
+
+    // 20e. O estorno de uma compra de PRODUTO ia para o módulo Rebanho.
+    const paraEstornar = await createProductNegotiation(db, {
+      type: "compra_produto",
+      property_id: fazendaA.id,
+      itens: [{ product_id: sal.data.id, quantity: 1 }],
+      amount: 500,
+      pago: true,
+    });
+    if (!paraEstornar.ok) throw new Error("faltou a compra para estornar");
+    await cancelNegotiation(db, paraEstornar.data.id, "devolvi", "devolvido");
+    const estorno = await db.financialEntry.findFirst({
+      where: { negotiation_id: paraEstornar.data.id, negotiation_role: "estorno" },
+    });
+    check(
+      "o estorno de uma compra de produto NÃO é arquivado como rebanho",
+      estorno?.related_module === "geral",
+      String(estorno?.related_module),
+    );
+
+    // 20f. `pasture_id` era gravado cru, sem conferir de qual fazenda ele e.
+    const pastoDaB = await db.pasture.create({
+      data: scoped({ property_id: fazendaB.id, name: "Pasto da B", area_hectares: 10 }),
+    });
+    const pastoDeOutraFazenda = await recordStockMovement(db, {
+      product_id: sal.data.id,
+      property_id: fazendaA.id,
+      movement_type: "utilizacao",
+      quantity: 1,
+      pasture_id: pastoDaB.id,
+    });
+    check(
+      "pasto de OUTRA fazenda e recusado, nao gravado cru",
+      !pastoDeOutraFazenda.ok && pastoDeOutraFazenda.code === "INVALID_PASTURE",
+      pastoDeOutraFazenda.ok ? "GRAVOU" : pastoDeOutraFazenda.code,
+    );
+    // A borda contraria: o pasto certo daquela fazenda passa.
+    const pastoDaA = await db.pasture.create({
+      data: scoped({ property_id: fazendaA.id, name: "Pasto da A", area_hectares: 10 }),
+    });
+    const pastoCerto = await recordStockMovement(db, {
+      product_id: sal.data.id,
+      property_id: fazendaA.id,
+      movement_type: "utilizacao",
+      quantity: 1,
+      pasture_id: pastoDaA.id,
+    });
+    check("e o pasto da propria fazenda passa", pastoCerto.ok, pastoCerto.ok ? "" : pastoCerto.code);
+
+    // ------------------------------------------------------------------
+    console.log("\n21. Isolamento multi-tenant");
     // ------------------------------------------------------------------
     const tenantB = await prisma.tenant.create({
       data: { name: "M37 Estoque B", document: `37${stamp}1`, plan: "fazenda" },
@@ -1016,6 +1191,7 @@ async function main() {
       await prisma.tenant.deleteMany({ where: { id: tenantB.id } });
     }
   } finally {
+    await prisma.pasture.deleteMany({ where: { tenant_id: tenant.id } });
     await prisma.alert.deleteMany({ where: { tenant_id: tenant.id } });
     await prisma.alertPreference.deleteMany({ where: { tenant_id: tenant.id } });
     await prisma.financialEntry.deleteMany({ where: { tenant_id: tenant.id } });

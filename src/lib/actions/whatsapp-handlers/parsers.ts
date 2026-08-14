@@ -180,11 +180,29 @@ export function interpretarData(bruto: string, hoje = new Date()): Date | null {
  */
 export function lerDinheiro(parameters: Record<string, unknown>, ...campos: string[]): number | null {
   for (const campo of campos) {
-    const bruto = parameters[campo];
-    if (typeof bruto === "number" && Number.isFinite(bruto)) return bruto;
-    if (typeof bruto !== "string" || bruto.trim() === "") continue;
+    const n = lerNumeroBr(parameters[campo]);
+    if (n != null) return n;
+  }
+  return null;
+}
 
-    const texto = bruto.trim().toLowerCase().replace(/r\$\s*/i, "").trim();
+/**
+ * O NUMERO como o brasileiro escreve, seja ele dinheiro ou quantidade.
+ *
+ * Nasceu dentro de `lerDinheiro` e foi extraido quando um revisor independente
+ * mostrou que a QUANTIDADE ainda passava pelo leitor generico: "comprei 2.000
+ * kg de racao" virava 2 quilos no estoque, e "usei 2,5 sacas" era recusado
+ * apesar de saca aceitar quantidade quebrada. E o mesmo erro de ordem de
+ * grandeza que ja tinha custado uma rodada com dinheiro, repetido no saldo.
+ *
+ * Aceita numero puro, "60000", "60.000", "60.000,50", "60000.50", "2,5",
+ * "60 mil" e "1,5 milhao".
+ */
+export function lerNumeroBr(bruto: unknown): number | null {
+  if (typeof bruto === "number" && Number.isFinite(bruto)) return bruto;
+  if (typeof bruto !== "string" || bruto.trim() === "") return null;
+
+  const texto = bruto.trim().toLowerCase().replace(/r\$\s*/i, "").trim();
 
     /**
      * "60 mil" é como o produtor fala, e é o que o prompt manda o classificador
@@ -212,10 +230,8 @@ export function lerDinheiro(parameters: Record<string, unknown>, ...campos: stri
     // "mil" sozinho, sem número na frente, é mil.
     if (normalizado === "" && multiplicador > 1) return multiplicador;
 
-    const n = Number(normalizado);
-    if (Number.isFinite(n)) return n * multiplicador;
-  }
-  return null;
+  const n = Number(normalizado);
+  return Number.isFinite(n) ? n * multiplicador : null;
 }
 
 /**

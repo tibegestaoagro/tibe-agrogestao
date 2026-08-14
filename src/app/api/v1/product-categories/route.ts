@@ -21,7 +21,19 @@ export async function GET() {
   const g = await guard("rebanho", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
-  const criadas = await ensureProductCategories(g.db);
+  /**
+   * A semeadura só acontece para quem PODE escrever.
+   *
+   * Esta é uma rota de leitura que grava, e isso tem duas consequências que
+   * escaparam na primeira versão: um VISUALIZADOR criava 15 linhas só de abrir
+   * a tela, e um tenant em `read_only` por atraso de pagamento também, furando
+   * a promessa de que naquele estado nada é gravado. A segunda chamada ao
+   * `guard` reusa a régua de cobrança que já existe, em vez de reimplementá-la
+   * aqui; quando ela recusa, a resposta é a lista como está (vazia, no caso),
+   * nunca um erro: quem só quer ler continua lendo.
+   */
+  const podeEscrever = await guard("rebanho", "write", { profile: "fazenda" });
+  const criadas = "error" in podeEscrever ? 0 : await ensureProductCategories(g.db);
   const categorias = await listProductCategories(g.db);
 
   return apiOk(categorias, { seeded: criadas });

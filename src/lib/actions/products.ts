@@ -41,8 +41,16 @@ export async function ensureProductCategories(db: TenantPrismaClient): Promise<n
   const quantas = await db.productCategory.count();
   if (quantas > 0) return 0;
 
+  /**
+   * `skipDuplicates` não é detalhe: entre o `count` e o `createMany` cabe outra
+   * requisição. Duas abas abertas, ou a página e o app ao mesmo tempo, num
+   * tenant novo, faziam a segunda estourar P2002 contra o
+   * `@@unique([tenant_id, name])` e a tela de Estoque respondia 500 na
+   * primeira visita da vida do cliente.
+   */
   await db.productCategory.createMany({
     data: CATEGORIAS_INICIAIS.map((name) => scoped({ name })),
+    skipDuplicates: true,
   });
   return CATEGORIAS_INICIAIS.length;
 }
@@ -85,13 +93,28 @@ export async function createProduct(
     }
   }
 
-  // Nome é único por tenant: dois "Sal mineral" no catálogo dariam dois saldos
-  // para a mesma coisa, que é justamente o que o estoque existe para evitar.
+  /**
+   * Nome é único por tenant: dois "Sal mineral" no catálogo dariam dois saldos
+   * para a mesma coisa, que é justamente o que o estoque existe para evitar.
+   *
+   * A busca NÃO filtra por `archived_at`, embora só o ativo importe para o
+   * produtor. Motivo: o índice do banco é `@@unique([tenant_id, name])` sem
+   * predicado, então recadastrar um nome arquivado passava por esta checagem e
+   * estourava P2002 sem tratamento, virando 500 em vez do 409 pretendido. A
+   * mensagem diferencia os dois casos, porque "já existe" e "existe arquivado"
+   * pedem ações diferentes de quem está cadastrando.
+   */
   const existente = await db.product.findFirst({
-    where: { name: { equals: nome, mode: "insensitive" }, archived_at: null },
+    where: { name: { equals: nome, mode: "insensitive" } },
   });
   if (existente) {
-    return fail("DUPLICATE_PRODUCT", `Você já tem um produto chamado "${existente.name}".`, 409);
+    return fail(
+      "DUPLICATE_PRODUCT",
+      existente.archived_at
+        ? `Você já teve um produto chamado "${existente.name}" e ele foi desativado. Reative em vez de cadastrar outro, para não dividir o saldo em dois.`
+        : `Você já tem um produto chamado "${existente.name}".`,
+      409,
+    );
   }
 
   const produto = await db.product.create({
@@ -123,8 +146,20 @@ export async function createProduct(
 export type ProductWithBalance = ProductView & {
   /** Saldo por fazenda, e o total somado. O saldo NUNCA vem de coluna. */
   saldo_por_fazenda: { property_id: string; quantity: number }[];
+  /** Soma do que o filtro pediu: uma fazenda, ou todas quando não há filtro. */
   saldo_total: number;
-  /** §10.8: true quando o total atingiu o mínimo definido. */
+  /**
+   * Soma de TODAS as fazendas, sempre, independente do filtro.
+   *
+   * Existe porque `minimum_stock` é campo do PRODUTO, não da fazenda: só há um
+   * número para comparar. Sem isto, a tela filtrada por uma fazenda dizia
+   * "precisa de reposição" para um produto com 50 sacas na fazenda vizinha,
+   * enquanto o alerta diário e o WhatsApp (que somam o tenant) ficavam
+   * calados. Duas respostas diferentes para a mesma pergunta, e nada no
+   * código decidindo qual valia.
+   */
+  saldo_no_tenant: number;
+  /** §10.8: true quando o total DO TENANT atingiu o mínimo definido. */
   abaixo_do_minimo: boolean;
 };
 
@@ -146,10 +181,19 @@ export async function listProductsWithBalance(
   });
 
   const posicoes = await getStockBalance(db, filtro);
+  // Uma segunda leitura só quando há filtro: sem filtro as duas são a mesma
+  // consulta, e repeti-la seria dobrar o custo da tela principal do módulo.
+  const posicoesGerais = filtro.property_id ? await getStockBalance(db, {}) : posicoes;
 
   return produtos.map((p) => {
     const doProduto = posicoes.filter((s) => s.product_id === p.id);
     const total = Math.round(doProduto.reduce((s, x) => s + x.quantity, 0) * 1000) / 1000;
+    const noTenant =
+      Math.round(
+        posicoesGerais
+          .filter((s) => s.product_id === p.id)
+          .reduce((s, x) => s + x.quantity, 0) * 1000,
+      ) / 1000;
     const minimo = decToNum(p.minimum_stock);
     return {
       id: p.id,
@@ -167,7 +211,8 @@ export async function listProductsWithBalance(
         quantity: s.quantity,
       })),
       saldo_total: total,
-      abaixo_do_minimo: minimo != null && total <= minimo,
+      saldo_no_tenant: noTenant,
+      abaixo_do_minimo: minimo != null && noTenant <= minimo,
     };
   });
 }

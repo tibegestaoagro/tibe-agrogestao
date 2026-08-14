@@ -34,6 +34,7 @@ import {
   resolverProduto,
 } from "@/lib/actions/whatsapp-handlers/estoque";
 import { loadPendingNegotiation } from "@/lib/actions/negotiation-pending";
+import { loadPendingStock } from "@/lib/actions/stock-pending";
 import { ajuda } from "@/lib/actions/whatsapp-handlers/ajuda";
 import { resumo } from "@/lib/actions/whatsapp-handlers/resumo";
 import { handleActiveFlow, maybeStartAnimalFlow } from "@/lib/actions/whatsapp-flow-bridge";
@@ -51,6 +52,19 @@ export type { RouterResult } from "@/lib/actions/whatsapp-handlers/shared";
  * whatsapp-intents.ts que não ganhar entrada aqui é erro de compilação, não
  * silêncio em produção.
  */
+/** As intenções do estoque, para a guarda de resposta não agir sobre elas mesmas. */
+const EH_ESTOQUE: ReadonlySet<string> = new Set([
+  "registrar_negocio_produto",
+  "registrar_uso_estoque",
+  "ajustar_estoque",
+  "consultar_estoque",
+]);
+
+/** Texto não vazio, sem arrastar o helper do módulo de handlers para cá. */
+function str(v: unknown): string | null {
+  return typeof v === "string" && v.trim() !== "" ? v.trim() : null;
+}
+
 const HANDLERS: Record<Exclude<Intent, "ambigua">, Handler> = {
   cadastrar_animal: cadastrarAnimal,
   registrar_lote_animal: registrarLoteAnimal,
@@ -258,14 +272,46 @@ export async function routeIntent(
     }
   }
 
-  // Ver `pareceNegocioDeProduto`: o classificador manda compra de insumo pelo
-  // caminho do gado, e sem isto o produtor que falou de sal ouve "qual
-  // categoria de animal?". A checagem do pendente vem junto e é o que impede
-  // esta guarda de sequestrar uma conversa de gado em andamento.
-  if (intent === "registrar_negocio_gado") {
-    const pendente = ctx.user_id ? await loadPendingNegotiation(tenant_id, ctx.user_id) : null;
-    if (!pendente && (await pareceNegocioDeProduto(db, parameters))) {
-      intent = "registrar_negocio_produto";
+  /**
+   * Ver `pareceNegocioDeProduto`: o classificador manda compra de insumo pelo
+   * caminho do gado, e sem isto o produtor que falou de sal ouve "qual
+   * categoria de animal?".
+   *
+   * A mensagem que traz um PRODUTO do catálogo é assunto novo, e assunto novo
+   * interrompe o anterior: o handler de estoque, ao guardar o pedido dele,
+   * apaga o pendente de gado (`stock-pending.ts`).
+   *
+   * A primeira versão desta guarda fazia o contrário, recusando o desvio
+   * enquanto houvesse pendente de gado, e criou o defeito que um revisor
+   * reproduziu ao vivo: o produtor confirmava uma compra de R$ 600 de sal e o
+   * "sim" executava um negócio de 20 bezerros de R$ 60.000 pendente de 15
+   * minutos antes.
+   */
+  if (intent === "registrar_negocio_gado" && (await pareceNegocioDeProduto(db, parameters))) {
+    intent = "registrar_negocio_produto";
+  }
+
+  /**
+   * A RESPOSTA a uma pergunta do ESTOQUE volta para o estoque.
+   *
+   * Gêmea da guarda de rebanho acima, e pelo mesmo motivo: "60 mil" ou "2" não
+   * carregam assunto nenhum, e o classificador devolve a intenção que achar
+   * mais provável. Sem isto, responder o valor de uma compra de sal caía no
+   * handler de gado, e o pendente de estoque ficava esperando a resposta que o
+   * produtor acabou de dar.
+   *
+   * ESTREITA: só age quando a mensagem NÃO traz produto nem categoria de
+   * rebanho própria, ou seja, quando ela de fato é só uma resposta.
+   */
+  if (ctx.user_id && !EH_ESTOQUE.has(intent)) {
+    const semAssuntoProprio =
+      !str(parameters.produto) &&
+      !str(parameters.product) &&
+      !str(parameters.categoria) &&
+      !str(parameters.item);
+    if (semAssuntoProprio) {
+      const estoqueEsperando = await loadPendingStock(tenant_id, ctx.user_id);
+      if (estoqueEsperando) intent = estoqueEsperando.intent;
     }
   }
 

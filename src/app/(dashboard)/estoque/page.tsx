@@ -62,8 +62,19 @@ export default async function EstoquePage({
   // As 15 categorias do §9.1 nascem aqui, na primeira abertura da tela.
   await ensureProductCategories(db);
 
-  const [produtos, categorias, properties, { items: movimentos }] = await Promise.all([
+  const [produtos, produtosTodasFazendas, categorias, properties, { items: movimentos }] = await Promise.all([
     listProductsWithBalance(db, { property_id: effectivePropertyId }),
+    /**
+     * O painel de "usar ou corrigir" deixa TROCAR de fazenda, então precisa do
+     * saldo de todas.
+     *
+     * Com a lista filtrada, o produtor que abria o painel com a Fazenda A no
+     * seletor do topo, trocava para a B e digitava 2, ouvia "existem apenas 0
+     * sacas disponíveis" para um estoque de 30 que o servidor teria aceitado.
+     * A trava do §10.7 na tela vale para avisar antes, nunca para impedir o que
+     * o servidor permite.
+     */
+    effectivePropertyId ? listProductsWithBalance(db) : Promise.resolve(null),
     listProductCategories(db),
     db.property.findMany({ where: { archived_at: null }, orderBy: { name: "asc" } }),
     listStockMovements(
@@ -90,7 +101,7 @@ export default async function EstoquePage({
           <div className="flex flex-wrap gap-2">
             {produtos.length > 0 && properties.length > 0 && (
               <StockMovementForm
-                products={produtos.map((p) => ({
+                products={(produtosTodasFazendas ?? produtos).map((p) => ({
                   id: p.id,
                   name: p.name,
                   unit: p.unit,
@@ -135,9 +146,9 @@ export default async function EstoquePage({
           <p className="mt-1 text-sm text-amber-800">
             {abaixoDoMinimo
               .map((p) =>
-                p.saldo_total === 0
+                p.saldo_no_tenant === 0
                   ? `${p.name} (acabou)`
-                  : `${p.name} (${descreverQuantidade(p.saldo_total, p.unit)}, mínimo ${descreverQuantidade(p.minimum_stock ?? 0, p.unit)})`,
+                  : `${p.name} (${descreverQuantidade(p.saldo_no_tenant, p.unit)}, mínimo ${descreverQuantidade(p.minimum_stock ?? 0, p.unit)})`,
               )
               .join(", ")}
           </p>
@@ -180,8 +191,19 @@ export default async function EstoquePage({
                   {descreverQuantidade(p.saldo_total, p.unit)}
                   {p.abaixo_do_minimo && (
                     <Badge variant="red" className="ml-2">
-                      {p.saldo_total === 0 ? "acabou" : "acabando"}
+                      {p.saldo_no_tenant === 0 ? "acabou" : "acabando"}
                     </Badge>
+                  )}
+                  {/*
+                    Filtrado por fazenda, o total do tenant vira contexto: zero
+                    aqui com 50 na fazenda vizinha é uma notícia bem diferente
+                    de zero em lugar nenhum, e é o segundo número que diz qual
+                    das duas é.
+                  */}
+                  {p.saldo_no_tenant !== p.saldo_total && (
+                    <span className="block text-xs text-gray-500">
+                      {descreverQuantidade(p.saldo_no_tenant, p.unit)} somando as fazendas
+                    </span>
                   )}
                 </TableCell>
                 <TableCell className="tabular-nums text-gray-600">
