@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Recibo de teste (sem valor fiscal)</title>
+    <style>
+      :root {
+        --tinta: #1a1a1a;
+        --papel: #fffdf7;
+        --linha: #c9c2b0;
+        --carimbo: #b91c1c;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #6b7280;
+        font-family: "Courier New", ui-monospace, monospace;
+        display: flex;
+        justify-content: center;
+      }
+      .papel {
+        position: relative;
+        width: 100%;
+        max-width: 520px;
+        background: var(--papel);
+        color: var(--tinta);
+        padding: 28px 26px 34px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+        overflow: hidden;
+      }
+      .carimbo {
+        position: absolute;
+        top: 96px;
+        left: 50%;
+        transform: translateX(-50%) rotate(-14deg);
+        border: 4px solid var(--carimbo);
+        color: var(--carimbo);
+        padding: 8px 18px;
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        opacity: 0.32;
+        white-space: nowrap;
+        pointer-events: none;
+      }
+      h1 {
+        margin: 0 0 2px;
+        font-size: 19px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+      }
+      .sub { font-size: 12px; margin-bottom: 18px; }
+      hr { border: 0; border-top: 1px dashed var(--linha); margin: 14px 0; }
+      table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      th {
+        text-align: left;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        border-bottom: 1px solid var(--linha);
+        padding-bottom: 5px;
+      }
+      td { padding: 7px 0; vertical-align: top; }
+      td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+      .total {
+        display: flex;
+        justify-content: space-between;
+        font-size: 17px;
+        font-weight: 700;
+        margin-top: 12px;
+        padding-top: 10px;
+        border-top: 2px solid var(--tinta);
+      }
+      .campos { font-size: 13px; line-height: 1.9; }
+      .campos b { display: inline-block; min-width: 108px; font-weight: 400; opacity: 0.65; }
+      .assina {
+        margin-top: 34px;
+        border-top: 1px solid var(--tinta);
+        width: 65%;
+        padding-top: 5px;
+        font-size: 12px;
+      }
+      .aviso {
+        margin-top: 22px;
+        font-size: 11px;
+        line-height: 1.6;
+        color: var(--carimbo);
+        border: 1px solid var(--carimbo);
+        padding: 8px 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="papel">
+      <div class="carimbo">DOCUMENTO DE TESTE</div>
+
+      <h1>Recibo de compra</h1>
+      <div class="sub">Agropecuária Boa Esperança &middot; Unaí / MG</div>
+
+      <div class="campos">
+        <div><b>Recibo nº</b> 004821</div>
+        <div><b>Data</b> 14/08/2026</div>
+        <div><b>Pagador</b> Da Mata Sementes LTDA</div>
+        <div><b>Referente a</b> Insumos para o rebanho</div>
+      </div>
+
+      <hr />
+
+      <table>
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th class="n">Qtd</th>
+            <th class="n">Unit.</th>
+            <th class="n">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Sal mineral 60 P (saco 30 kg)</td>
+            <td class="n">12</td>
+            <td class="n">148,50</td>
+            <td class="n">1.782,00</td>
+          </tr>
+          <tr>
+            <td>Vermífugo injetável 500 ml</td>
+            <td class="n">4</td>
+            <td class="n">212,00</td>
+            <td class="n">848,00</td>
+          </tr>
+          <tr>
+            <td>Frete até a fazenda</td>
+            <td class="n">1</td>
+            <td class="n">220,00</td>
+            <td class="n">220,00</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="total">
+        <span>TOTAL</span>
+        <span>R$ 2.850,00</span>
+      </div>
+
+      <div class="campos" style="margin-top: 16px">
+        <div><b>Forma de pgto</b> PIX &middot; à vista</div>
+      </div>
+
+      <div class="assina">Agropecuária Boa Esperança</div>
+
+      <p class="aviso">
+        <strong>Documento simulado, sem valor fiscal.</strong> Criado apenas para
+        testar a leitura de recibo por foto do assistente do Tibé. A empresa, o
+        número e os valores são fictícios.
+      </p>
+    </div>
+  </body>
+</html>
