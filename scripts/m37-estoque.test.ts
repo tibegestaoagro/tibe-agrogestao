@@ -13,6 +13,13 @@ import {
   listProductsWithBalance,
 } from "@/lib/actions/products";
 import { STOCK_UNITS, descreverQuantidade, findUnit } from "@/lib/stock/units";
+import { createProductNegotiation } from "@/lib/actions/product-negotiations";
+import {
+  productCreateSchema,
+  productNegotiationSchema,
+  stockMovementSchema,
+  stockAdjustSchema,
+} from "@/lib/validation/stock";
 
 /**
  * Módulo 31, missão 2: estoque de produtos (§9 e §10).
@@ -507,7 +514,264 @@ async function main() {
     );
 
     // ------------------------------------------------------------------
-    console.log("\n15. Isolamento multi-tenant");
+    console.log("\n15. §9: comprei produtos (o envelope de negociação)");
+    // ------------------------------------------------------------------
+    const saldoAntesDaCompra = await saldoDe(sal.data.id, fazendaB.id);
+
+    const compraProduto = await createProductNegotiation(db, {
+      type: "compra_produto",
+      property_id: fazendaB.id,
+      itens: [{ product_id: sal.data.id, quantity: 20 }],
+      amount: 2400,
+      contact_name: "Agropecuária do Zé",
+      pago: false,
+      due_date: new Date(Date.now() + 30 * 86400000),
+      custos: [{ descricao: "Frete", amount: 200 }],
+    });
+    check("compra de produto registrada", compraProduto.ok, !compraProduto.ok ? compraProduto.message : "");
+    if (!compraProduto.ok) throw new Error("sem a negociação o bloco não faz sentido");
+
+    check(
+      "o estoque da fazenda B subiu 20 sacas",
+      (await saldoDe(sal.data.id, fazendaB.id)) === saldoAntesDaCompra + 20,
+      String(await saldoDe(sal.data.id, fazendaB.id)),
+    );
+
+    const lancamentos = await db.financialEntry.findMany({
+      where: { negotiation_id: compraProduto.data.id },
+    });
+    check(
+      "nasceu 1 conta a pagar do principal e 1 do frete",
+      lancamentos.length === 2,
+      String(lancamentos.length),
+    );
+    check(
+      "as duas são DESPESA numa compra",
+      lancamentos.every((l) => l.entry_type === "expense"),
+    );
+    check(
+      "as duas nascem pendentes, porque o negócio não foi pago",
+      lancamentos.every((l) => l.status === "pending"),
+    );
+
+    const movimentosDaCompra = await db.stockMovement.findMany({
+      where: { negotiation_id: compraProduto.data.id },
+    });
+    check(
+      "o movimento aponta para a negociação que o criou",
+      movimentosDaCompra.length === 1 && movimentosDaCompra[0].movement_type === "compra",
+    );
+
+    const contatoNovo = await db.contact.findFirst({ where: { name: "Agropecuária do Zé" } });
+    check(
+      "o fornecedor digitado virou contato de verdade",
+      contatoNovo !== null,
+      contatoNovo ? "" : "SUMIU",
+    );
+
+    // A borda contrária: uma venda de produto TIRA do estoque, e é receita.
+    const vendaProduto = await createProductNegotiation(db, {
+      type: "venda_produto",
+      property_id: fazendaB.id,
+      itens: [{ product_id: sal.data.id, quantity: 5 }],
+      amount: 700,
+      pago: true,
+    });
+    check("venda de produto registrada", vendaProduto.ok, !vendaProduto.ok ? vendaProduto.message : "");
+    check(
+      "e o estoque CAIU 5 sacas",
+      (await saldoDe(sal.data.id, fazendaB.id)) === saldoAntesDaCompra + 15,
+      String(await saldoDe(sal.data.id, fazendaB.id)),
+    );
+    if (vendaProduto.ok) {
+      const daVenda = await db.financialEntry.findMany({
+        where: { negotiation_id: vendaProduto.data.id },
+      });
+      check(
+        "numa venda o principal é RECEITA",
+        daVenda.length === 1 && daVenda[0].entry_type === "income" && daVenda[0].status === "paid",
+      );
+    }
+
+    // §15: numa VENDA o frete continua sendo despesa. É a borda que a missão 1
+    // errou: um estorno somou receita com despesa e o valor saiu 2x maior.
+    const vendaComFrete = await createProductNegotiation(db, {
+      type: "venda_produto",
+      property_id: fazendaB.id,
+      itens: [{ product_id: sal.data.id, quantity: 1 }],
+      amount: 140,
+      pago: true,
+      custos: [{ descricao: "Frete", amount: 40 }],
+    });
+    if (vendaComFrete.ok) {
+      const linhas = await db.financialEntry.findMany({
+        where: { negotiation_id: vendaComFrete.data.id },
+      });
+      const frete = linhas.find((l) => l.negotiation_role === "custo_adicional");
+      check(
+        "o frete de uma venda é DESPESA, não desconto de receita",
+        frete?.entry_type === "expense",
+        frete ? String(frete.entry_type) : "SEM FRETE",
+      );
+    }
+
+    // ------------------------------------------------------------------
+    console.log("\n16. A negociação de produto é atômica");
+    // ------------------------------------------------------------------
+    const negociacoesAntes = await db.negotiation.count();
+    const semSaldo = await createProductNegotiation(db, {
+      type: "venda_produto",
+      property_id: fazendaB.id,
+      itens: [{ product_id: sal.data.id, quantity: 9999 }],
+      amount: 100,
+      pago: true,
+    });
+    check(
+      "venda sem saldo é recusada",
+      !semSaldo.ok && semSaldo.code === "INSUFFICIENT_STOCK",
+      semSaldo.ok ? "PASSOU" : semSaldo.code,
+    );
+    check(
+      "e NADA foi gravado, nem o envelope",
+      (await db.negotiation.count()) === negociacoesAntes,
+      `${await db.negotiation.count()} vs ${negociacoesAntes}`,
+    );
+
+    const parcelasErradas = await createProductNegotiation(db, {
+      type: "compra_produto",
+      property_id: fazendaB.id,
+      itens: [{ product_id: sal.data.id, quantity: 1 }],
+      amount: 1000,
+      pago: false,
+      parcelas: [
+        { due_date: new Date(), amount: 400 },
+        { due_date: new Date(), amount: 400 },
+      ],
+    });
+    check(
+      "parcelas que não somam o total são recusadas (§14)",
+      !parcelasErradas.ok && parcelasErradas.code === "PARCELAS_NAO_FECHAM",
+      parcelasErradas.ok ? "PASSOU" : parcelasErradas.code,
+    );
+
+    // A borda contrária: somando certo, passa.
+    const parcelasCertas = await createProductNegotiation(db, {
+      type: "compra_produto",
+      property_id: fazendaB.id,
+      itens: [{ product_id: sal.data.id, quantity: 1 }],
+      amount: 1000,
+      pago: false,
+      parcelas: [
+        { due_date: new Date(), amount: 400 },
+        { due_date: new Date(), amount: 600 },
+      ],
+    });
+    check("e somando certo, entra", parcelasCertas.ok, !parcelasCertas.ok ? parcelasCertas.code : "");
+    if (parcelasCertas.ok) {
+      const duas = await db.financialEntry.count({
+        where: { negotiation_id: parcelasCertas.data.id },
+      });
+      check("com uma conta por parcela", duas === 2, String(duas));
+    }
+
+    check(
+      "compra já paga não pode ser parcelada",
+      !(
+        await createProductNegotiation(db, {
+          type: "compra_produto",
+          property_id: fazendaB.id,
+          itens: [{ product_id: sal.data.id, quantity: 1 }],
+          amount: 100,
+          pago: true,
+          parcelas: [{ due_date: new Date(), amount: 100 }],
+        })
+      ).ok,
+    );
+
+    // ------------------------------------------------------------------
+    console.log("\n17. O contrato das rotas (o degrau onde o dado some)");
+    // ------------------------------------------------------------------
+    // Na missão 1 a tela passou a mandar `contact_name`, o Zod da rota não
+    // tinha o campo, e o valor sumia em silêncio. Aqui o corpo é montado como a
+    // tela manda, e cada campo é conferido do outro lado da validação.
+    const corpoDaTela = {
+      type: "compra_produto",
+      property_id: fazendaB.id,
+      itens: [{ product_id: sal.data.id, quantity: 2.5 }],
+      amount: 300,
+      contact_name: "Casa do Produtor",
+      occurred_at: new Date().toISOString(),
+      pago: false,
+      due_date: new Date().toISOString(),
+      custos: [{ descricao: "Frete", amount: 30 }],
+      notes: "entrega no galpão",
+    };
+    const validado = productNegotiationSchema.safeParse(corpoDaTela);
+    check("o corpo que a tela manda passa na validação", validado.success, validado.success ? "" : JSON.stringify(validado.error.issues[0]));
+    if (validado.success) {
+      for (const campo of Object.keys(corpoDaTela)) {
+        check(
+          `  o campo ${campo} sobrevive ao Zod`,
+          campo in validado.data,
+          "DESCARTADO EM SILÊNCIO",
+        );
+      }
+    }
+
+    const usoDaTela = {
+      product_id: sal.data.id,
+      property_id: fazendaA.id,
+      movement_type: "utilizacao",
+      quantity: 1,
+      purpose: "sal do lote do curral",
+      pasture_id: null,
+      herd_category_id: null,
+      notes: null,
+    };
+    check("o corpo de utilização passa", stockMovementSchema.safeParse(usoDaTela).success);
+    check(
+      "e `ajuste` NÃO entra pela rota de movimentação",
+      !stockMovementSchema.safeParse({ ...usoDaTela, movement_type: "ajuste" }).success,
+    );
+    check(
+      "quantidade zero é recusada na validação, antes da action",
+      !stockMovementSchema.safeParse({ ...usoDaTela, quantity: 0 }).success,
+    );
+    check(
+      "ajuste aceita saldo ZERO (contou e não tinha nada)",
+      stockAdjustSchema.safeParse({
+        product_id: sal.data.id,
+        property_id: fazendaA.id,
+        corrected_balance: 0,
+      }).success,
+    );
+    check(
+      "mas não aceita saldo negativo",
+      !stockAdjustSchema.safeParse({
+        product_id: sal.data.id,
+        property_id: fazendaA.id,
+        corrected_balance: -1,
+      }).success,
+    );
+    check(
+      "produto sem unidade da lista é recusado na validação",
+      !productCreateSchema.safeParse({
+        name: "Qualquer",
+        category_id: salMineral.id,
+        unit: "arroba",
+      }).success,
+    );
+    check(
+      "e com unidade da lista passa",
+      productCreateSchema.safeParse({
+        name: "Qualquer",
+        category_id: salMineral.id,
+        unit: "saca",
+      }).success,
+    );
+
+    // ------------------------------------------------------------------
+    console.log("\n18. Isolamento multi-tenant");
     // ------------------------------------------------------------------
     const tenantB = await prisma.tenant.create({
       data: { name: "M37 Estoque B", document: `37${stamp}1`, plan: "fazenda" },
@@ -536,7 +800,10 @@ async function main() {
       await prisma.tenant.deleteMany({ where: { id: tenantB.id } });
     }
   } finally {
+    await prisma.financialEntry.deleteMany({ where: { tenant_id: tenant.id } });
     await prisma.stockMovement.deleteMany({ where: { tenant_id: tenant.id } });
+    await prisma.negotiation.deleteMany({ where: { tenant_id: tenant.id } });
+    await prisma.contact.deleteMany({ where: { tenant_id: tenant.id } });
     await prisma.product.deleteMany({ where: { tenant_id: tenant.id } });
     await prisma.productCategory.deleteMany({ where: { tenant_id: tenant.id } });
     await prisma.property.deleteMany({ where: { tenant_id: tenant.id } });

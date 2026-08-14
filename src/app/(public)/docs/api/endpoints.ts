@@ -375,7 +375,7 @@ export const GROUPS: Group[] = [
         path: "/api/v1/negotiations",
         auth: "Sessão · rebanho:write · perfil fazenda",
         description:
-          "Registra um negócio de gado. UMA rota para `compra_gado` e `venda_gado`, com o tipo no corpo: são a mesma operação com o sinal invertido. Tudo numa transação só: se a venda não tiver saldo, NADA é gravado, nem o envelope. `pago: true` gera lançamento já quitado; `pago: false` com `parcelas` gera uma conta a pagar/receber por parcela, e a soma delas precisa bater exatamente com `amount` (§14), senão devolve 422 `PARCELAS_NAO_FECHAM`. `custos` (frete, comissão, taxa) viram lançamentos de DESPESA próprios, para aparecerem no DRE.",
+          "Registra um negócio. UMA rota para `compra_gado`, `venda_gado`, `compra_produto` e `venda_produto`, com o tipo no corpo: são a mesma operação com o sinal invertido, e só muda o filho que o negócio cria (`HerdMovement` ou `StockMovement`). Nos tipos de produto, `itens` traz `product_id` em vez de `category_id`, e a quantidade aceita casa decimal quando a unidade permite (saca sim, ferramenta não). Tudo numa transação só: se a venda não tiver saldo, NADA é gravado, nem o envelope. `pago: true` gera lançamento já quitado; `pago: false` com `parcelas` gera uma conta a pagar/receber por parcela, e a soma delas precisa bater exatamente com `amount` (§14), senão devolve 422 `PARCELAS_NAO_FECHAM`. `custos` (frete, comissão, taxa) viram lançamentos de DESPESA próprios, para aparecerem no DRE.",
         request: `{ "type": "compra_gado", "property_id": "cl...", "itens": [{ "category_id": "bezerro_0_7", "quantity": 20 }], "amount": 60000, "contact_id": "cl...", "pago": false, "parcelas": [{ "due_date": "2026-03-10T00:00:00.000Z", "amount": 60000 }] }`,
         response: `201
 { "data": { "id": "cl..." }, "meta": {} }`,
@@ -398,6 +398,68 @@ export const GROUPS: Group[] = [
         request: `{ "reason": "comprei errado", "dinheiro_pago": "devolvido" }`,
         response: `200
 { "data": { "id": "cl...", "situacao": "cancelada", "canceled_reason": "comprei errado" }, "meta": { "valor_recebido_mantido": 0, "valor_pago_mantido": 0, "valor_estornado": 60000 } }`,
+      },
+    ],
+  },
+  {
+    title: "Estoque de insumos (Módulo 31)",
+    endpoints: [
+      {
+        method: "GET",
+        path: "/api/v1/product-categories",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description:
+          "As categorias de produto do §9.1. Semeia as 15 do documento no primeiro acesso do tenant e devolve a lista; `meta.seeded` diz quantas nasceram agora. Semear na leitura, e não na migração, trata tenant novo e antigo igual sem tocar em dado de produção. Só cria quando NÃO existe nenhuma: não ressuscita a que o produtor arquivou de propósito.",
+        response: `200
+{ "data": [{ "id": "cl...", "name": "Sal mineral" }], "meta": { "seeded": 15 } }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/products",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description:
+          "O catálogo com o SALDO de cada produto. O saldo nunca é coluna: é a soma das movimentações não canceladas, por produto e fazenda. `?property_id=` filtra o saldo, não o catálogo, então um produto sem movimentação naquela fazenda aparece com zero (e é isso que deixa lançar a primeira compra dele lá). `meta.units` traz as 11 unidades do §10.5, cada uma dizendo se aceita quantidade quebrada.",
+        response: `200
+{ "data": [{ "id": "cl...", "name": "Sal mineral 60 P", "unit": "saca", "saldo_total": 12.5, "minimum_stock": 10, "abaixo_do_minimo": false }], "meta": { "abaixo_do_minimo": 0 } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/products",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "Cadastra um produto (§9.1). `minimum_stock` nulo significa sem alerta para este produto. Nome duplicado devolve 409 `DUPLICATE_PRODUCT`: dois produtos com o mesmo nome dariam dois saldos para a mesma coisa, que é o que o estoque existe para evitar.",
+        request: `{ "name": "Sal mineral 60 P", "category_id": "cl...", "unit": "saca", "minimum_stock": 10, "storage_location": "Galpão 1" }`,
+        response: `201
+{ "data": { "id": "cl...", "name": "Sal mineral 60 P", "unit_label": "saca" }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/stock/movements",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description:
+          "Histórico de movimentações (§10.2). Canceladas aparecem, com `canceled_at` preenchido: o histórico mostra o que aconteceu, inclusive o que foi desfeito, e quem ignora as canceladas é a soma do saldo. Cada item traz `delta`, o quanto aquele movimento mexeu no saldo COM sinal. Filtros: product_id, property_id, movement_type, since, until, limit (máx. 200), offset.",
+        response: `200
+{ "data": [{ "id": "cl...", "movement_type": "utilizacao", "quantity": 2, "delta": -2, "product_name": "Sal mineral 60 P" }], "meta": { "total": 1 } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/stock/movements",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "Registra `utilizacao` (§10.3, saída sem dinheiro: aplicar vacina, dar sal ao gado), ou compra/venda avulsa quando o saldo entrou por fora. Compra e venda COM dinheiro entram por `/api/v1/negotiations`, que cria o lançamento financeiro junto. Saída acima do disponível devolve 422 `INSUFFICIENT_STOCK` com a mensagem literal do §10.7; a conferência e a escrita acontecem na mesma transação serializável, senão duas saídas simultâneas leriam o mesmo saldo e as duas passariam. Quantidade quebrada em unidade que não fraciona também é 422. `ajuste` NÃO entra aqui: tem rota própria.",
+        request: `{ "product_id": "cl...", "property_id": "cl...", "movement_type": "utilizacao", "quantity": 2, "purpose": "sal para o lote do curral" }`,
+        response: `201
+{ "data": { "id": "cl..." }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/stock/adjust",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "Ajuste de estoque (§10.6). O corpo traz `corrected_balance`, o que EXISTE de verdade, contado pelo produtor: quem calcula a diferença é o sistema, porque pedir a diferença a quem está com o produto na mão é onde nasce o erro de sinal. Guarda saldo anterior, saldo corrigido e motivo, para depois dar para saber o que o produtor via na tela quando decidiu corrigir. Saldo igual ao atual devolve 422 `NO_CHANGE` em vez de gravar um movimento de zero.",
+        request: `{ "product_id": "cl...", "property_id": "cl...", "corrected_balance": 8, "reason": "contagem do galpão" }`,
+        response: `201
+{ "data": { "id": "cl...", "diferenca": -1 }, "meta": {} }`,
       },
     ],
   },

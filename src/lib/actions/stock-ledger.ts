@@ -119,6 +119,99 @@ export async function getStockBalance(
   return posicoes;
 }
 
+export type StockMovementView = {
+  id: string;
+  product_id: string;
+  product_name: string;
+  unit: string;
+  property_id: string;
+  movement_type: StockMovementType;
+  quantity: number;
+  /** O quanto este movimento mexeu no saldo, COM sinal. É o que a tela mostra. */
+  delta: number;
+  occurred_at: string;
+  previous_balance: number | null;
+  corrected_balance: number | null;
+  purpose: string | null;
+  notes: string | null;
+  negotiation_id: string | null;
+  canceled_at: string | null;
+};
+
+/**
+ * O histórico de movimentações (§10.2 e §17).
+ *
+ * Canceladas aparecem por padrão, com `canceled_at` preenchido: o histórico
+ * mostra o que aconteceu, inclusive o que foi desfeito. Quem soma o saldo é
+ * `getStockBalance`, que ignora as canceladas.
+ */
+export async function listStockMovements(
+  db: TenantPrismaClient,
+  filtro: {
+    product_id?: string;
+    property_id?: string;
+    movement_type?: StockMovementType;
+    since?: Date;
+    until?: Date;
+  } = {},
+  paginacao: { limit?: number; offset?: number } = {},
+): Promise<{ items: StockMovementView[]; total: number }> {
+  const where: Prisma.StockMovementWhereInput = {};
+  if (filtro.product_id !== undefined) where.product_id = filtro.product_id;
+  if (filtro.property_id !== undefined) where.property_id = filtro.property_id;
+  if (filtro.movement_type !== undefined) where.movement_type = filtro.movement_type;
+  if (filtro.since || filtro.until) {
+    where.occurred_at = {
+      ...(filtro.since ? { gte: filtro.since } : {}),
+      ...(filtro.until ? { lte: filtro.until } : {}),
+    };
+  }
+
+  const limit = Math.min(paginacao.limit ?? 50, 200);
+  const offset = paginacao.offset ?? 0;
+
+  const [linhas, total] = await Promise.all([
+    db.stockMovement.findMany({
+      where,
+      include: { product: { select: { name: true, unit: true } } },
+      orderBy: [{ occurred_at: "desc" }, { created_at: "desc" }],
+      take: limit,
+      skip: offset,
+    }),
+    db.stockMovement.count({ where }),
+  ]);
+
+  const items = linhas.map((l) => {
+    const quantidade = decToNum(l.quantity) ?? 0;
+    const anterior = decToNum(l.previous_balance);
+    const corrigido = decToNum(l.corrected_balance);
+    return {
+      id: l.id,
+      product_id: l.product_id,
+      product_name: l.product.name,
+      unit: l.product.unit,
+      property_id: l.property_id,
+      movement_type: l.movement_type,
+      quantity: quantidade,
+      delta: deltaDoMovimento({
+        movement_type: l.movement_type,
+        quantity: quantidade,
+        previous_balance: anterior,
+        corrected_balance: corrigido,
+      }),
+      occurred_at: l.occurred_at.toISOString(),
+      previous_balance: anterior,
+      corrected_balance: corrigido,
+      purpose: l.purpose,
+      notes: l.notes,
+      negotiation_id: l.negotiation_id,
+      canceled_at: l.canceled_at ? l.canceled_at.toISOString() : null,
+    };
+  });
+
+  return { items, total };
+}
+
 export type StockMovementInput = {
   product_id: string;
   property_id: string;
