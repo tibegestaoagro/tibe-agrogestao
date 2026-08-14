@@ -450,10 +450,65 @@ o usuário pediu avaliação de push/merge só no fim.
 
 | Missão | Estado |
 |---|---|
-| 1. Negócio de gado | núcleo pronto (`7cff024`); faltam rotas, tela, WhatsApp e juiz |
-| 2. Estoque e produtos | não iniciada |
+| 1. Negócio de gado | **EM PRODUÇÃO** desde 2026-08-14, validada por áudio no aparelho |
+| 2. Estoque e produtos | **código completo**, branch `estoque`, sem merge |
 | 3. Leilão e eventos | não iniciada |
 | 4. Permuta | não iniciada |
+
+## Missão 2: Estoque e produtos (branch `estoque`, 2026-08-14)
+
+Cinco commits, `5ea731b`..`55b1b06`, **sem merge e sem deploy**. Sai da branch
+`negociacoes` já mesclada, então carrega a missão 1 junto.
+
+O saldo do estoque segue a mesma regra do rebanho: **nunca é gravado**, é a soma
+de `StockMovement` não cancelados, por produto e fazenda. `test:m37` lê o
+`information_schema` para provar que `Product` não tem coluna de saldo.
+
+Entregue, na ordem action → rota → tela que o usuário fixou nesta rodada:
+
+| Peça | Onde |
+|---|---|
+| Livro-razão, 11 unidades do §10.5, 15 categorias do §9.1 | `stock-ledger.ts`, `stock/units.ts`, `products.ts` |
+| Compra e venda de produto no MESMO envelope do gado | `product-negotiations.ts` |
+| 5 rotas + `POST /api/v1/negotiations` aceitando produto | `api/v1/products`, `product-categories`, `stock/*` |
+| Tela `/estoque` | `(dashboard)/estoque/`, `components/estoque/` |
+| Alerta `low_stock` | `alerts.ts` (`gerarAlertasDeEstoqueMinimo`) |
+| 4 intenções de WhatsApp | `whatsapp-handlers/estoque.ts` |
+
+Suítes novas: `test:m37` (128 verificações) e `test:m38` (WhatsApp). Nenhuma
+regressão em isolation, m3, m4, m12, m29, m33, m34, m35, m36, docs-api,
+contracts, tsc e lint.
+
+**Três decisões que o documento não resolve, tomadas e registradas:**
+
+1. **O produto nunca nasce da conversa.** Cadastrar exige categoria e unidade,
+   e adivinhar as duas criaria "sal", "sal mineral" e "sal mineral 60" como
+   três saldos para a mesma coisa. Não achou, mostra o catálogo.
+2. **O alerta só olha produto que já teve movimentação.** Quem cadastra 20
+   produtos numa tarde não recebe 20 avisos no dia seguinte. Decisão do usuário.
+3. **Um aviso por produto por SEMANA**, pela mecânica do `low_balance`: estoque
+   baixo é condição, não evento.
+
+**Achados em navegador real, que a suíte verde não pegava:** a linha de uso
+mostrava quantidade sem sinal ao lado da compra com "+"; e o aviso dizia "está
+no limite" para produto em ZERO.
+
+**Dois buracos PRÉ-EXISTENTES corrigidos de passagem, os dois mais graves que a
+feature:** `packages/contracts` parou em 5 tipos de alerta enquanto o banco
+chegou a 8, então um alerta de manutenção de máquina já quebrava a lista de
+alertas inteira no app mobile; e `GET /api/v1/alerts` afirmava o tipo por cast
+com 4 dos 8 valores, sem checar nada em runtime, então `?type=` inválido
+derrubava a rota com 500.
+
+**Pendências da missão 2:**
+
+- Migração `20260814...` do estoque **não aplicada no Neon** (invariante 3).
+- O classificador do n8n **não conhece** as 4 intenções novas. A tabela do
+  `docs/n8n-whatsapp-workflow.md` já está atualizada; mexer no workflow exige
+  autorização, e fazer isso ANTES do deploy quebraria produção.
+- Missões 3 e 4 não começaram. Próximo número livre de suíte: `m39`.
+
+## Missão 1 (referência)
 
 **A decisão que rege tudo:** a Negociação é um ENVELOPE comercial, não a fonte
 da verdade. Saldo do rebanho continua sendo soma de `HerdMovement`, dinheiro
