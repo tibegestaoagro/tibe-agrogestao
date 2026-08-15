@@ -7,6 +7,7 @@ import {
   findUnit,
   quantosOuQuantas,
   concordar,
+  recusaPorFracao,
 } from "@/lib/stock/units";
 import {
   savePendingStock,
@@ -46,10 +47,18 @@ import {
  *    n8n manda o LLM remontar os parâmetros pelo histórico. O "sim" acabava
  *    executando o que o classificador reconstruiu: mostrava 10 sacas e gravava
  *    100, com o frete sumindo no caminho.
- * 2. **"não"/"cancela" é a PRIMEIRA coisa checada**, nos quatro gestos. Sem
- *    isso o produtor ficava preso num laço de pergunta sem conseguir desistir.
- * 3. **Da resposta entra SÓ o campo perguntado.** Sem isso, responder "2" a
- *    "quantas sacas?" apagava o produto já escolhido e a conversa girava.
+ * 2. **"não"/"cancela" é checado antes de qualquer pergunta**, nos três gestos
+ *    que escrevem (a consulta não tem o que cancelar). Sem isso o produtor
+ *    ficava preso num laço sem conseguir desistir. Com UMA exceção medida: se
+ *    o assistente espera um CAMPO e a mensagem traz a resposta dele, ela vence,
+ *    porque "não sei ao certo, umas 3" é uma resposta com um "não" no meio.
+ *    Esperando CONFIRMAÇÃO não há exceção: ali "não" é a resposta à pergunta.
+ * 3. **O campo perguntado é lido do lugar certo, e nada é jogado fora.** A
+ *    resposta esperada entra no campo esperado; quando ela não vem, o que a
+ *    mensagem trouxer entra POR CIMA do acumulado, nunca no lugar dele. As duas
+ *    metades importam: sem a primeira, responder "2" a "quantas sacas?" apagava
+ *    o produto já escolhido; sem a segunda, dizer "do Zé" quando se perguntou o
+ *    valor perdia o fornecedor em silêncio.
  * 4. **O produto é resolvido no CATÁLOGO, nunca criado pela conversa.**
  *    Cadastrar exige categoria e unidade (§9.1), e adivinhar produziria "sal",
  *    "sal mineral" e "sal mineral 60" como três saldos para a mesma coisa.
@@ -164,13 +173,11 @@ function lerQuantidade(
     };
   }
 
-  const unidade = findUnit(produto.unit);
-  if (unidade && !unidade.fracionavel && !Number.isInteger(valor)) {
+  const recusa = recusaPorFracao(produto.name, valor, produto.unit);
+  if (recusa) {
     return {
       ok: false,
-      pergunta:
-        `${produto.name} é contado em ${unidade.plural}, que não aceita quantidade quebrada. ` +
-        `${quantosOuQuantas(produto.unit)} exatamente?`,
+      pergunta: `${recusa} ${quantosOuQuantas(produto.unit)} exatamente?`,
     };
   }
 
@@ -230,6 +237,8 @@ async function comMemoria(
       parameters: Record<string, unknown>;
       /** Este turno grava. Só é true com um "sim" ancorado no que foi mostrado. */
       executar: boolean;
+      /** O que estava guardado, para a trava de laço contar repergunta. */
+      pendente: PedidoEstoquePendente | null;
       /**
        * Quantas vezes o MESMO campo ja foi perguntado.
        *
@@ -283,7 +292,22 @@ async function comMemoria(
     }
   }
 
-  if (ctx.confirmed) {
+  /**
+   * A guarda do "sim" só existe para os gestos que PEDEM "sim".
+   *
+   * O uso não confirma nunca (§10.3, é o gesto mais frequente e não mexe em
+   * dinheiro), então para ele `confirmed` não quer dizer nada. Aplicar a guarda
+   * ali criava uma recusa absurda: "ok, usei 3 sacas de sal" tem um "ok" que o
+   * interpretador de confirmação marca como sim, e o registro era recusado com
+   * "não tenho nada esperando confirmação" em vez de acontecer.
+   *
+   * Achado por uma sonda adversarial minha, depois de três rodadas de juiz: é
+   * mais uma regra copiada do handler de gado, onde ela é coerente porque lá
+   * TODO registro confirma.
+   */
+  const gestoConfirma = intent !== "registrar_uso_estoque";
+
+  if (ctx.confirmed && gestoConfirma) {
     if (!ctx.user_id) {
       return {
         ok: false,
@@ -296,7 +320,7 @@ async function comMemoria(
     if (meuPendente?.aguardando === "confirmacao") {
       // Executa o que foi MOSTRADO, lido do guardado, nunca o que veio na
       // mensagem: é isto que a palavra "confirmar" significa.
-      return { ok: true, parameters: { ...meuPendente.parameters }, executar: true, tentativas: 0 };
+      return { ok: true, parameters: { ...meuPendente.parameters }, executar: true, pendente, tentativas: 0 };
     }
     if (!pendente) {
       return {
@@ -310,12 +334,12 @@ async function comMemoria(
   }
 
   if (!ctx.user_id || !meuPendente) {
-    return { ok: true, parameters: { ...ctx.parameters }, executar: false, tentativas: 0 };
+    return { ok: true, parameters: { ...ctx.parameters }, executar: false, pendente, tentativas: 0 };
   }
 
   const juntos = aplicarRespostaEstoque(meuPendente, ctx.parameters);
   if (juntos) {
-    return { ok: true, parameters: juntos, executar: false, tentativas: 0 };
+    return { ok: true, parameters: juntos, executar: false, pendente, tentativas: 0 };
   }
 
   /**
@@ -325,39 +349,65 @@ async function comMemoria(
    * nunca disparava, defeito real do Módulo 30. Ele morre por TTL, por sucesso
    * ou por cancelamento.
    */
-  const tentativas = (meuPendente.tentativas ?? 0) + 1;
-  if (tentativas >= MAX_TENTATIVAS) {
-    await clearPendingStock(ctx.tenant_id, ctx.user_id);
-    return {
-      ok: false,
-      resposta: responder(
-        "Não consegui entender. Vamos recomeçar: me conte de novo numa frase só, " +
-          'por exemplo "usei 2 sacas de sal".',
-        `${intent}:desisti`,
-      ),
-    };
-  }
-  await savePendingStock(ctx.tenant_id, ctx.user_id, { ...meuPendente, tentativas });
-  return { ok: true, parameters: { ...meuPendente.parameters }, executar: false, tentativas };
+  const tentativas = meuPendente.tentativas ?? 0;
+  /**
+   * O que a mensagem traz entra POR CIMA do acumulado, nunca no lugar dele, e
+   * nunca é descartado.
+   *
+   * A versão anterior devolvia só o guardado, jogando a mensagem nova fora:
+   * quem dizia "comprei 10 sacas de sal", ouvia "por quanto?" e respondia "do
+   * Zé" perdia o fornecedor, porque "do Zé" não é valor e por isso não casava.
+   * O handler de gado já fazia certo, com o comentário explicando que o
+   * conjunto empobrecido era o defeito; esta cópia ficou sem a parte.
+   */
+  const acumulado = { ...meuPendente.parameters, ...ctx.parameters };
+  await savePendingStock(ctx.tenant_id, ctx.user_id, {
+    ...meuPendente,
+    parameters: acumulado,
+    tentativas,
+  });
+  return { ok: true, parameters: acumulado, executar: false, pendente, tentativas };
 }
 
 /** Pergunta um campo E guarda o que já foi entendido, para não perder no caminho. */
+/**
+ * Pergunta um campo E guarda o que já foi entendido, para não perder no caminho.
+ *
+ * A TRAVA DE LAÇO CONTA REPERGUNTA DO MESMO CAMPO, não resposta ilegível.
+ *
+ * A versão anterior só incrementava quando a resposta não casava com o campo
+ * esperado, e isso deixava um laço infinito de fora: "usei sal" com dois
+ * produtos parecidos no catálogo pergunta qual; o produtor responde "sal", que
+ * CASA com o campo `produto` e zera o contador, mas continua ambíguo e a mesma
+ * pergunta volta. Para sempre, até o TTL. O handler de gado conta pelo campo
+ * desde o Módulo 30, e é a contagem certa: o que cansa o produtor é ouvir a
+ * mesma pergunta, não o parser falhar.
+ */
 async function perguntar(
   intent: PedidoEstoquePendente["intent"],
   ctx: { tenant_id: string; user_id?: string },
   parameters: Record<string, unknown>,
   campo: CampoEstoque,
   texto: string,
-  tentativas: number,
+  pendenteAtual: PedidoEstoquePendente | null,
 ): Promise<RouterResult> {
-  if (ctx.user_id) {
-    await savePendingStock(ctx.tenant_id, ctx.user_id, {
-      intent,
-      parameters,
-      aguardando: campo,
-      tentativas,
-    });
+  if (!ctx.user_id) return ask(texto);
+
+  const tentativas = pendenteAtual?.aguardando === campo ? (pendenteAtual.tentativas ?? 1) + 1 : 1;
+  if (tentativas >= MAX_TENTATIVAS) {
+    await clearPendingStock(ctx.tenant_id, ctx.user_id);
+    return ask(
+      "Não estou conseguindo entender essa parte. Tente mandar tudo numa frase só, " +
+        'por exemplo: "usei 2 sacas de sal mineral no lote do curral".',
+    );
   }
+
+  await savePendingStock(ctx.tenant_id, ctx.user_id, {
+    intent,
+    parameters,
+    aguardando: campo,
+    tentativas,
+  });
   return ask(texto);
 }
 
@@ -381,7 +431,7 @@ export const registrarUsoEstoque: Handler = async (ctx) => {
   if (!memoria.ok) return memoria.resposta;
   const parameters = memoria.parameters;
   const guardar = (campo: CampoEstoque, texto: string) =>
-    perguntar("registrar_uso_estoque", ctx, parameters, campo, texto, memoria.tentativas);
+    perguntar("registrar_uso_estoque", ctx, parameters, campo, texto, memoria.pendente);
 
   const produtoResolvido = await resolverProduto(
     db,
@@ -465,7 +515,7 @@ export const ajustarEstoque: Handler = async (ctx) => {
   if (!memoria.ok) return memoria.resposta;
   const parameters = memoria.parameters;
   const guardar = (campo: CampoEstoque, texto: string) =>
-    perguntar("ajustar_estoque", ctx, parameters, campo, texto, memoria.tentativas);
+    perguntar("ajustar_estoque", ctx, parameters, campo, texto, memoria.pendente);
 
   const produtoResolvido = await resolverProduto(
     db,
@@ -495,13 +545,9 @@ export const ajustarEstoque: Handler = async (ctx) => {
       `${quantosOuQuantas(produto.unit)} ${plural(produto)} de ${produto.name} você contou?`,
     );
   }
-  const unidade = findUnit(produto.unit);
-  if (unidade && !unidade.fracionavel && !Number.isInteger(contado)) {
-    return guardar(
-      "quantidade",
-      `${produto.name} é contado em ${unidade.plural}, que não aceita quantidade quebrada. ` +
-        `${quantosOuQuantas(produto.unit)} exatamente?`,
-    );
+  const recusaDoAjuste = recusaPorFracao(produto.name, contado, produto.unit);
+  if (recusaDoAjuste) {
+    return guardar("quantidade", `${recusaDoAjuste} ${quantosOuQuantas(produto.unit)} exatamente?`);
   }
 
   const fazenda = await resolverFazenda(db, str(parameters.fazenda) ?? str(parameters.property));
@@ -660,9 +706,21 @@ export const registrarNegocioProduto: Handler = async (ctx) => {
   if (!memoria.ok) return memoria.resposta;
   const parameters = memoria.parameters;
   const guardar = (campo: CampoEstoque, texto: string) =>
-    perguntar("registrar_negocio_produto", ctx, parameters, campo, texto, memoria.tentativas);
+    perguntar("registrar_negocio_produto", ctx, parameters, campo, texto, memoria.pendente);
 
-  const tipoBruto = (str(parameters.tipo) ?? str(parameters.type) ?? "").toLowerCase();
+  /**
+   * `movement_type` entra na lista pelo mesmo motivo do handler de gado: é o
+   * campo que o classificador usa para dizer compra ou venda, e é o que
+   * `desempatarIntencao` leu para rotear até aqui. Sem ele, a informação que
+   * decidiu o roteamento era jogada fora e o assistente perguntava "comprou ou
+   * vendeu?" logo depois de "comprei 10 sacas de sal".
+   */
+  const tipoBruto = (
+    str(parameters.tipo) ??
+    str(parameters.type) ??
+    str(parameters.movement_type) ??
+    ""
+  ).toLowerCase();
   const tipo = TIPOS[tipoBruto];
   if (!tipo) return guardar("tipo", "Você comprou ou vendeu esse produto?");
   const compra = tipo === "compra_produto";

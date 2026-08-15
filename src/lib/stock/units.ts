@@ -74,6 +74,28 @@ export function descreverQuantidade(quantidade: number, unidadeId: string): stri
   return `${numero} ${quantidade === 1 ? unidade.label.toLowerCase() : unidade.plural}`;
 }
 
+/**
+ * A recusa do §10.5, escrita UMA vez.
+ *
+ * Devolve `null` quando a quantidade serve, e a mensagem para o produtor quando
+ * não serve. Meia saca existe; meia enxada não.
+ *
+ * EXISTE PORQUE A REGRA ESTAVA EM CINCO LUGARES, com duas redações diferentes:
+ * duas vezes no livro-razão, duas no handler de WhatsApp e uma na tela. Foi
+ * assim que a leitura de número ficou corrigida no WhatsApp e errada na tela
+ * por uma rodada inteira, transformando 1.500 em 1,5. Regra repetida é regra
+ * que só é corrigida onde alguém apontou.
+ */
+export function recusaPorFracao(
+  nomeDoProduto: string,
+  quantidade: number,
+  unidadeId: string,
+): string | null {
+  const unidade = findUnit(unidadeId);
+  if (!unidade || unidade.fracionavel || Number.isInteger(quantidade)) return null;
+  return `${nomeDoProduto} é contado em ${unidade.plural}, que não aceita quantidade quebrada.`;
+}
+
 /** "Quantas" para saca, "Quantos" para litro. */
 export function quantosOuQuantas(unidadeId: string): string {
   return findUnit(unidadeId)?.genero === "f" ? "Quantas" : "Quantos";

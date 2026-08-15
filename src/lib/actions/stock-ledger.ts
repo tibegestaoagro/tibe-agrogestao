@@ -3,7 +3,7 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { runSerializableTenantTransaction } from "@/lib/financial";
 import { decToNum } from "@/lib/serialize";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
-import { findUnit, descreverQuantidade } from "@/lib/stock/units";
+import { descreverQuantidade, recusaPorFracao } from "@/lib/stock/units";
 import { isValidCategory } from "@/lib/herd/categories";
 
 /**
@@ -316,17 +316,12 @@ export async function recordStockMovementInTx(
     return fail("VALIDATION_ERROR", "A quantidade precisa ser maior que zero.", 422);
   }
 
-  const unidade = findUnit(produto.unit);
-  if (unidade && !unidade.fracionavel && !Number.isInteger(input.quantity)) {
-    // §10.5: "quando necessário, o sistema poderá aceitar quantidades
-    // parciais". Meia saca existe; meia ferramenta não, e aceitar seria deixar
-    // passar um erro de digitação que o produtor não veria.
-    return fail(
-      "VALIDATION_ERROR",
-      `${produto.name} é contado em ${unidade.plural}, que não aceita quantidade quebrada.`,
-      422,
-    );
-  }
+  // §10.5: "quando necessário, o sistema poderá aceitar quantidades parciais".
+  // Meia saca existe; meia FERRAMENTA não, e aceitar seria deixar passar um
+  // erro de digitação que o produtor não veria. A regra mora em `units.ts`,
+  // uma vez só: ver o comentário de `recusaPorFracao`.
+  const recusa = recusaPorFracao(produto.name, input.quantity, produto.unit);
+  if (recusa) return fail("VALIDATION_ERROR", recusa, 422);
 
   if (SAIDAS.has(input.movement_type)) {
     const [posicao] = await getStockBalance(tx, {
@@ -396,14 +391,12 @@ export async function adjustStock(
       return fail("VALIDATION_ERROR", "O saldo corrigido não pode ser negativo.", 422);
     }
 
-    const unidade = findUnit(produto.unit);
-    if (unidade && !unidade.fracionavel && !Number.isInteger(input.corrected_balance)) {
-      return fail(
-        "VALIDATION_ERROR",
-        `${produto.name} é contado em ${unidade.plural}, que não aceita quantidade quebrada.`,
-        422,
-      );
-    }
+    const recusaDoAjuste = recusaPorFracao(
+      produto.name,
+      input.corrected_balance,
+      produto.unit,
+    );
+    if (recusaDoAjuste) return fail("VALIDATION_ERROR", recusaDoAjuste, 422);
 
     const [posicao] = await getStockBalance(tx, {
       product_id: input.product_id,

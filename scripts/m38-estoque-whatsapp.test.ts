@@ -630,14 +630,20 @@ async function main() {
     check("e tirou 2 do saldo", (await saldoDe(sal.data.id)) === saldoAntesDoUso - 2);
 
     // 9b. A trava de laço: o mesmo campo perguntado vezes demais desiste.
+    // A trava conta REPERGUNTA do mesmo campo: a pergunta do produto e a 1a, e
+    // cada volta sem a quantidade e mais uma. Na 3a o assistente desiste.
     await registrarUsoEstoque(comoEle({ produto: "sal" }));
-    await registrarUsoEstoque(comoEle({ observacao: "nada a ver" }));
     await registrarUsoEstoque(comoEle({ observacao: "nada a ver" }));
     const segundaVolta = await registrarUsoEstoque(comoEle({ observacao: "nada a ver" }));
     check(
       "depois de tentativas demais, desiste em vez de perguntar para sempre",
-      segundaVolta.action_taken === "registrar_uso_estoque:desisti",
-      segundaVolta.action_taken,
+      segundaVolta.reply_text.includes("numa frase só"),
+      segundaVolta.reply_text,
+    );
+    check(
+      "e o pendente e apagado, para a conversa recomecar limpa",
+      (await loadPendingStock(tenant.id, conversador.id)) === null,
+      "SOBREVIVEU",
     );
 
     // 9c. "cancela" no meio de uma pergunta funciona.
@@ -1129,6 +1135,119 @@ async function main() {
     check("texto sem numero nao vira zero", lerNumeroBr("umas quantas") === null);
     check("vazio nao vira zero", lerNumeroBr("") === null);
     check("mas o zero de verdade continua zero", lerNumeroBr("0") === 0);
+
+    // ------------------------------------------------------------------
+    console.log("\n20. Paridade com o handler de gado (auditoria propria)");
+    // ------------------------------------------------------------------
+    // Estes quatro casos nao vieram de juiz nenhum: sairam de comparar, regra
+    // por regra, este handler com o de gado, que esta validado em producao. O
+    // de estoque foi escrito como copia dele e ficou sem partes.
+
+    // P1. A mensagem nova entra POR CIMA do acumulado, nunca no lugar.
+    await clearPendingStock(tenant.id, conversador.id);
+    await registrarNegocioProduto(comoEle({ tipo: "compra", produto: "sal", quantidade: 3 }));
+    // "do Ze" nao e valor, entao nao casa com o campo perguntado. Nem por isso
+    // pode ser jogado fora: o fornecedor foi dito.
+    await registrarNegocioProduto(comoEle({ contato: "Ze da Esquina" }));
+    const comFornecedor = await registrarNegocioProduto(comoEle({ valor: 400 }));
+    check(
+      "o fornecedor dito no meio do caminho sobrevive ate a confirmacao",
+      comFornecedor.reply_text.includes("Ze da Esquina"),
+      comFornecedor.reply_text,
+    );
+
+    // P2. Laco infinito quando a resposta CASA mas nao resolve.
+    // Dois produtos parecidos: "sal" responde o campo `produto` e zera o
+    // contador antigo, mas continua ambiguo, e a pergunta voltava para sempre.
+    await clearPendingStock(tenant.id, conversador.id);
+    const salBranco2 = await createProduct(db, {
+      name: "Sal branco grosso",
+      category_id: salMineral.id,
+      unit: "saca",
+    });
+    if (!salBranco2.ok) throw new Error("faltou o segundo sal");
+    const respostas: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      const r = await registrarUsoEstoque(comoEle({ produto: "sal", quantidade: 1 }));
+      respostas.push(r.reply_text);
+    }
+    check(
+      "responder sempre um termo ambiguo NAO gira para sempre: o assistente desiste",
+      respostas.some((r) => r.includes("numa frase só")),
+      respostas.join(" || ").slice(0, 220),
+    );
+    await db.product.update({
+      where: { id: salBranco2.data.id },
+      data: { archived_at: new Date() },
+    });
+    await clearPendingStock(tenant.id, conversador.id);
+
+    // P3. `movement_type` e apelido de `tipo`: o campo que roteou ate aqui nao
+    // pode ser jogado fora e virar "comprou ou vendeu?".
+    const comMovementType = await registrarNegocioProduto(
+      comoEle({ movement_type: "compra", produto: "sal", quantidade: 2, valor: 200 }),
+    );
+    check(
+      "movement_type vale como tipo, sem reperguntar o que ja foi dito",
+      comMovementType.requires_confirmation === true &&
+        comMovementType.reply_text.includes("Compra"),
+      comMovementType.reply_text,
+    );
+    await clearPendingStock(tenant.id, conversador.id);
+
+    // ------------------------------------------------------------------
+    console.log("\n21. Sonda adversarial (achados meus, sem juiz)");
+    // ------------------------------------------------------------------
+    // "ok, usei 3 sacas de sal": o "ok" e muleta de fala, e o interpretador de
+    // confirmacao marca como sim. O uso NAO confirma nunca, entao a guarda do
+    // "sim" nao se aplica a ele: aplicar recusava o registro com "nao tenho
+    // nada esperando confirmacao".
+    await clearPendingStock(tenant.id, conversador.id);
+    await recordStockMovement(db, {
+      product_id: sal.data.id,
+      property_id: fazenda.id,
+      movement_type: "compra",
+      quantity: 10,
+    });
+    const antesDoOkUso = await saldoDe(sal.data.id);
+    const usoComOk = await registrarUsoEstoque(
+      comoEle({ produto: "sal", quantidade: 3 }, { confirmed: true }),
+    );
+    check(
+      '"ok, usei 3 sacas" REGISTRA, em vez de pedir confirmacao de nada',
+      usoComOk.action_taken === "registrar_uso_estoque:ok",
+      usoComOk.action_taken,
+    );
+    check("e o saldo caiu 3", (await saldoDe(sal.data.id)) === antesDoOkUso - 3);
+
+    // A borda contraria: nos gestos que CONFIRMAM, um sim sem nada guardado
+    // continua nao escrevendo.
+    await clearPendingStock(tenant.id, conversador.id);
+    const antesDoSimSolto = await saldoDe(sal.data.id);
+    const ajusteComSimSolto = await ajustarEstoque(
+      comoEle({ produto: "sal", saldo: 1 }, { confirmed: true }),
+    );
+    check(
+      "mas o ajuste com sim solto ainda pede confirmacao antes",
+      ajusteComSimSolto.action_taken !== "ajustar_estoque:ok" &&
+        (await saldoDe(sal.data.id)) === antesDoSimSolto,
+      ajusteComSimSolto.action_taken,
+    );
+
+    // A ancora aguenta o classificador remontar o TIPO errado.
+    await clearPendingStock(tenant.id, conversador.id);
+    await registrarNegocioProduto(
+      comoEle({ tipo: "compra", produto: "sal", quantidade: 4, valor: 400 }),
+    );
+    await registrarNegocioProduto(
+      comoEle({ tipo: "venda", produto: "sal", quantidade: 4, valor: 400 }, { confirmed: true }),
+    );
+    const ultimoNegocio = await db.negotiation.findFirst({ orderBy: { created_at: "desc" } });
+    check(
+      "o sim grava a COMPRA mostrada, mesmo o classificador remontando venda",
+      ultimoNegocio?.type === "compra_produto",
+      String(ultimoNegocio?.type),
+    );
 
     // ------------------------------------------------------------------
     console.log("\n11. Permissão: VISUALIZADOR não escreve pelo WhatsApp");    // ------------------------------------------------------------------

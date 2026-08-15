@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiPost } from "@/lib/client-api";
-import { descreverQuantidade, findUnit } from "@/lib/stock/units";
+import { descreverQuantidade, findUnit, recusaPorFracao } from "@/lib/stock/units";
 import { lerNumeroBr } from "@/lib/numero-br";
 
 /**
@@ -109,9 +109,11 @@ export default function StockMovementForm({
     if (acao === "ajuste" && numero < 0) {
       return setError("O saldo contado não pode ser negativo.");
     }
-    if (unidade && !unidade.fracionavel && !Number.isInteger(numero)) {
-      return setError(`${produto?.name} é contado em ${unidade.plural}, sem quantidade quebrada.`);
-    }
+    // A MESMA funcao do servidor e do WhatsApp: a tela dizia "sem quantidade
+    // quebrada" e o servidor "que nao aceita quantidade quebrada", duas
+    // redacoes para a mesma regra.
+    const recusa = produto ? recusaPorFracao(produto.name, numero, produto.unit) : null;
+    if (recusa) return setError(recusa);
     // §10.7 conferido aqui também, e não só no servidor: quem está com o
     // produto na mão merece saber o teto antes de enviar.
     if (acao === "utilizacao" && numero > saldo) {
