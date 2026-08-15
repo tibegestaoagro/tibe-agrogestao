@@ -479,13 +479,39 @@ Suítes novas: `test:m37` (139 verificações) e `test:m38` (119). Nenhuma
 regressão em isolation, m3, m4, m12, m21, m29, m33, m34, m35, m36, docs-api,
 contracts, tsc e lint.
 
-### Três rodadas de juiz e uma auditoria própria (2026-08-15)
+### Três voltas de juiz e uma auditoria própria (2026-08-15)
 
-| Lente | Volta 1 | Volta 2 |
-|---|---|---|
-| R1, dinheiro e saldo | 6 | 6 |
-| R2, a conversa | 3 | 3 |
-| R3, isolamento e regressão | 7 | 5 |
+| Lente | Volta 1 | Volta 2 | Volta 3 |
+|---|---|---|---|
+| R1, dinheiro e saldo | 6 | 6 | **7** |
+| R2, a conversa | 3 | 3 | **5** |
+| R3, isolamento e regressão | 7 | 5 | **8** |
+
+**A volta 3 subiu nas três lentes**, e o R3 bateu a meta de 8 com a frase que
+resume o critério: *"o isolamento está provado, não afirmado"*.
+
+**O que a volta 3 achou, e que valia gravação indevida:**
+
+- `detectConfirmation` casava a palavra nua ou seguida de espaço, então
+  "Não, deixa pra lá", "Não!", "nao." e "sim, pode" davam NULL. O produtor
+  recusava, a confirmação voltava igual, e a saída que sobrava era "ok", que
+  executava. **Vale para o agente inteiro**, não só o estoque.
+- A exceção do `explicitNo` (deixar a resposta vencer o "não") GRAVAVA: o guia
+  do n8n manda o LLM remontar os parâmetros pelo histórico, então "não deixa
+  pra lá" chega com produto e quantidade preenchidos. Removida. **A assimetria
+  decide: deixar de cancelar escreve; cancelar por engano custa uma frase.**
+- `parcelas: 3` (o contrato PUBLICADO no guia do n8n) era descartado calado, e
+  a compra virava conta única vencendo hoje.
+- A guarda de resposta do estoque não respeitava `movement_type`, então
+  "morreram 3 hoje" virava 3 sacas de sal; e o cadastro assistido comia o "sim"
+  de uma confirmação de compra.
+- **A trava de banco local deixou de fora a suíte que a motivou:** o filtro era
+  `scripts/m*.test.ts` e o arquivo se chama `tenant-isolation.test.ts`.
+
+**Próximo passo sugerido, não executado:** uma quarta volta **só do R2**, que é
+a única lente abaixo da meta. O próprio juiz listou o corte dele para 8, e os
+quatro itens estão feitos. Rodar as três de novo seria mais caro e mediria o
+que já bateu.
 
 **As notas não subiram, e o motivo importa mais que elas:** eu corrigia o ponto
 apontado e criava o problema OPOSTO. Aconteceu em SETE correções ao longo das
@@ -558,8 +584,9 @@ derrubava a rota com 500.
 
 **Pendências da missão 2, todas dependendo de decisão do usuário:**
 
-- **Dois tenants de teste no Neon**, do acidente acima, aguardando autorização
-  para apagar. Ficam em `/plataforma/tenants` como trial de 2026-08-15.
+- ~~Dois tenants de teste no Neon~~: **apagados em 2026-08-15**, com autorização
+  e depois de conferir que não tinham usuário, dinheiro nem negociação.
+  Produção voltou aos 5 tenants reais.
 - Migração `20260814190000_estoque_de_produtos` **não aplicada no Neon**
   (invariante 3): vai ANTES do push, com a URL Direct.
 - O classificador do n8n **não conhece** as 4 intenções novas. A tabela do
@@ -570,7 +597,8 @@ derrubava a rota com 500.
   Módulo 30, e nenhum juiz substitui. Depende do deploy e do n8n acima.
 - Missões 3 e 4 não começaram. Próximo número livre de suíte: `m39`.
 
-**Estado final da branch:** `c1c32cb`, 8 commits, árvore limpa, sem merge e sem
+**Estado final da branch:** `7114628`, 11 commits, árvore limpa, sem merge e sem
+deploy. Retomar por aqui.
 deploy.
 
 ## Missão 1 (referência)
