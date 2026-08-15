@@ -347,8 +347,13 @@ qualquer escrita:
 - `registrar_negocio_gado` cujo item **não é categoria de rebanho** mas casa com
   exatamente um produto do **catálogo do tenant** vira
   `registrar_negocio_produto`. Essa direção precisa de banco, porque só quem
-  cadastrou "Sal mineral 60 P" tem sal, e nunca age quando existe um negócio de
-  gado pendente, para não sequestrar uma conversa em andamento.
+  cadastrou "Sal mineral 60 P" tem sal.
+
+Uma mensagem que nomeia um produto do catálogo é **assunto novo**, e assunto
+novo interrompe o anterior. Quando há mais de uma conversa aberta, quem responde
+é a **mais recente**, decidido em código pela data de cada pedido guardado; a
+mais antiga continua viva até expirar. O classificador não precisa lembrar do
+contexto, e não deve tentar.
 
 **O produto nunca é criado pela conversa.** Cadastrar exige categoria e unidade
 (§9.1); adivinhar as duas produziria "sal", "sal mineral" e "sal mineral 60"

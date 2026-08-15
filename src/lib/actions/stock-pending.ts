@@ -18,12 +18,21 @@ import { getRedisConnection } from "@/lib/redis";
  * porque já foram validados em produção; o que este arquivo acrescenta é a
  * regra que faltava aos três.
  *
- * **A REGRA NOVA: no máximo UM pendente por pessoa.** Uma pessoa tem uma
- * conversa. Com três chaves independentes no Redis, um pendente de gado de 15
- * minutos atrás sobrevivia a uma compra de sal e o "sim" seguinte executava o
- * gado: o produtor confirmava R$ 600 de sal e levava 20 bezerros e R$ 60.000 de
- * conta a pagar. Guardar um pendente aqui APAGA os outros dois, porque assunto
- * novo encerra o anterior.
+ * **A REGRA: a conversa MAIS RECENTE manda, e nenhuma é destruída.**
+ *
+ * Com três chaves independentes no Redis, um pendente de gado de 15 minutos
+ * atrás sobrevivia a uma compra de sal, e o "sim" seguinte executava o gado: o
+ * produtor confirmava R$ 600 de sal e levava 20 bezerros e R$ 60.000 de conta a
+ * pagar.
+ *
+ * A primeira tentativa de resolver isso APAGAVA os pendentes dos outros
+ * domínios, e criou o defeito oposto: "morreram 3 bezerros", ainda sem
+ * confirmar, era destruído por uma pergunta de estoque, e o "sim" seguinte não
+ * registrava a morte nem avisava ninguém. Um revisor reproduziu ao vivo.
+ *
+ * Por isso agora cada pedido carrega `salvo_em`, e quem decide é a data: o mais
+ * recente responde, e o mais antigo continua vivo até o TTL, disponível se a
+ * conversa nova terminar antes. Nada é apagado por conta de outro assunto.
  */
 
 const TTL_SEGUNDOS = 15 * 60;
@@ -35,6 +44,10 @@ export type CampoEstoque =
   | "quantidade"
   | "valor"
   | "fazenda"
+  | "data"
+  | "vencimento"
+  /** A contradição "já paguei" + "vou parcelar". Responder LIMPA o lado oposto. */
+  | "pagamento"
   /** Não é campo: é o pedido inteiro esperando um "sim". */
   | "confirmacao";
 
@@ -48,6 +61,12 @@ export type PedidoEstoquePendente = {
   aguardando: CampoEstoque;
   /** Quantas vezes o MESMO campo já foi perguntado: trava de laço. */
   tentativas?: number;
+  /**
+   * Quando este pedido foi guardado. É o desempate entre os três domínios de
+   * conversa; ausente (pedido gravado por uma versão anterior) conta como o
+   * mais antigo de todos.
+   */
+  salvo_em?: number;
 };
 
 export const MAX_TENTATIVAS = 3;
@@ -56,11 +75,51 @@ function chave(tenantId: string, userId: string): string {
   return `tibe:estoque-pending:${tenantId}:${userId}`;
 }
 
-/** As outras duas conversas, que precisam morrer quando esta começa. */
+/**
+ * As chaves das outras duas conversas, só para LER a data delas.
+ *
+ * Nunca para apagar: ver o comentário do topo. Ficam escritas aqui porque os
+ * dois módulos donos foram validados em produção e não vale reabri-los; se
+ * alguma dessas chaves mudar lá, esta lista precisa acompanhar.
+ */
 const CHAVES_DE_OUTROS_DOMINIOS = [
   (t: string, u: string) => `tibe:negocio-pending:${t}:${u}`,
   (t: string, u: string) => `tibe:herd-pending:${t}:${u}`,
 ];
+
+/**
+ * Quando a conversa mais recente de OUTRO domínio foi guardada.
+ *
+ * `0` quando não há nenhuma. Pedido antigo, gravado antes de `salvo_em` existir,
+ * conta como muito antigo (1), não como inexistente: assim ele perde para o
+ * estoque recente mas ainda se distingue de "não existe".
+ */
+export async function quandoOutroDominioFalou(
+  tenantId: string,
+  userId: string,
+): Promise<number> {
+  try {
+    const redis = getRedisConnection();
+    const brutos = await Promise.all(
+      CHAVES_DE_OUTROS_DOMINIOS.map((montar) => redis.get(montar(tenantId, userId))),
+    );
+    let maisRecente = 0;
+    for (const bruto of brutos) {
+      if (!bruto) continue;
+      let quando = 1;
+      try {
+        const pedido = JSON.parse(bruto) as { salvo_em?: number };
+        if (typeof pedido?.salvo_em === "number") quando = pedido.salvo_em;
+      } catch {
+        // JSON quebrado conta como pendente antigo, não como ausente.
+      }
+      if (quando > maisRecente) maisRecente = quando;
+    }
+    return maisRecente;
+  } catch {
+    return 0;
+  }
+}
 
 export async function savePendingStock(
   tenantId: string,
@@ -69,10 +128,11 @@ export async function savePendingStock(
 ): Promise<void> {
   try {
     const redis = getRedisConnection();
-    await redis.set(chave(tenantId, userId), JSON.stringify(pedido), "EX", TTL_SEGUNDOS);
-    // Assunto novo encerra o anterior: ver o comentário do topo.
-    await Promise.all(
-      CHAVES_DE_OUTROS_DOMINIOS.map((montar) => redis.del(montar(tenantId, userId))),
+    await redis.set(
+      chave(tenantId, userId),
+      JSON.stringify({ ...pedido, salvo_em: pedido.salvo_em ?? Date.now() }),
+      "EX",
+      TTL_SEGUNDOS,
     );
   } catch {
     // Redis fora do ar não pode derrubar o registro: sem o pendente o
@@ -145,8 +205,78 @@ export function aplicarRespostaEstoque(
       return atalho("tipo", "type") ? juntos : null;
     case "fazenda":
       return atalho("fazenda", "property", "property_name") ? juntos : null;
-    case "confirmacao":
-      // Nada da mensagem nova entra: o "sim" confirma o que foi MOSTRADO.
+    case "data":
+      return atalho("data", "date", "occurred_at") ? juntos : null;
+    case "vencimento":
+      return atalho("vencimento", "due_date") ? juntos : null;
+    case "pagamento": {
+      /**
+       * "Já paguei" e "vou parcelar" não podem valer juntos, então responder um
+       * lado tem de LIMPAR o outro. Sem isso a contradição era impossível de
+       * resolver: qualquer resposta reencontrava os dois campos preenchidos e a
+       * mesma pergunta voltava até a conversa ser jogada fora.
+       */
+      const parcelou = novos.parcelas ?? novos.installments ?? novos.parcelamento;
+      if (parcelou !== undefined && parcelou !== null && parcelou !== "") {
+        juntos.parcelas = parcelou;
+        delete juntos.pago;
+        delete juntos.paid;
+        return juntos;
+      }
+      const pagou = novos.pago ?? novos.paid;
+      if (pagou !== undefined && pagou !== null && pagou !== "") {
+        juntos.pago = pagou;
+        delete juntos.parcelas;
+        delete juntos.installments;
+        delete juntos.parcelamento;
+        return juntos;
+      }
+      return null;
+    }
+    case "confirmacao": {
+      /**
+       * Esperando um "sim", mas veio outra coisa.
+       *
+       * Se a mensagem traz DADO, ela é uma correção ("foram 50 sacas, não 10"),
+       * e o corrigido tem de vencer o guardado: descartar a correção fazia o
+       * assistente repetir a confirmação antiga como se nada tivesse sido dito,
+       * e a segunda tentativa do produtor era ainda pior, porque ele já achava
+       * que tinha corrigido.
+       *
+       * Se não traz dado nenhum ("peraí", "deixa eu ver"), o guardado continua
+       * valendo e a confirmação é repetida: é o caso em que a correção da
+       * rodada anterior errou para o outro lado, executando a compra.
+       *
+       * Quem decide EXECUTAR é o chamador, e só com um "sim" de verdade. Aqui
+       * só se decide o que está sobre a mesa.
+       */
+      const CAMPOS_DE_DADO = [
+        "produto",
+        "product",
+        "item",
+        "quantidade",
+        "quantity",
+        "qtd",
+        "saldo",
+        "valor",
+        "amount",
+        "valor_total",
+        "tipo",
+        "type",
+        "fazenda",
+        "property",
+        "contato",
+        "contact_name",
+        "vencimento",
+        "due_date",
+        "parcelas",
+        "pago",
+      ];
+      for (const campo of CAMPOS_DE_DADO) {
+        const valor = novos[campo];
+        if (valor !== undefined && valor !== null && valor !== "") juntos[campo] = valor;
+      }
       return juntos;
+    }
   }
 }

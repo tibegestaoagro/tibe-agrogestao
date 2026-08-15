@@ -1,8 +1,12 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant } from "@/lib/prisma";
 import { createTaskAction, updateTaskStatusAction, listTasksAction, serializeTask } from "@/lib/actions/tasks";
 import { generateAlertsForTenant } from "@/lib/actions/alerts";
 import { POST as executeAction } from "@/app/api/internal/whatsapp/execute-action/route";
+
+exigirBancoLocal();
+
 
 /**
  * Teste do Módulo 27: Meu Dia (tarefas e compromissos)

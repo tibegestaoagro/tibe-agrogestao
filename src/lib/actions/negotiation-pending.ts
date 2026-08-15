@@ -43,6 +43,15 @@ export type NegocioPendente = {
   aguardando: CampoNegocio;
   /** Quantas vezes o MESMO campo já foi perguntado: trava de laço. */
   tentativas?: number;
+  /**
+   * Quando este pedido foi guardado.
+   *
+   * É o desempate entre os três domínios de conversa (rebanho, negócio de gado,
+   * estoque): quando há mais de um aberto, quem responde é o mais recente, e o
+   * mais antigo continua vivo até o TTL. Ausente, num pedido gravado por uma
+   * versão anterior, conta como o mais antigo de todos.
+   */
+  salvo_em?: number;
 };
 
 export const MAX_TENTATIVAS = 3;
@@ -58,7 +67,12 @@ export async function savePendingNegotiation(
 ): Promise<void> {
   try {
     const redis = getRedisConnection();
-    await redis.set(chave(tenantId, userId), JSON.stringify(pedido), "EX", TTL_SEGUNDOS);
+    await redis.set(
+      chave(tenantId, userId),
+      JSON.stringify({ ...pedido, salvo_em: pedido.salvo_em ?? Date.now() }),
+      "EX",
+      TTL_SEGUNDOS,
+    );
   } catch {
     // Redis fora do ar não pode derrubar o registro: sem o pendente o
     // assistente volta a depender do histórico, que é o comportamento antigo.

@@ -1,7 +1,11 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email-send";
 import { deliverPendingAlertsForTenant } from "@/lib/actions/alert-delivery";
+
+exigirBancoLocal();
+
 
 /**
  * Testes do canal de email (arquitetura 2026-07-29): sendEmail() nunca

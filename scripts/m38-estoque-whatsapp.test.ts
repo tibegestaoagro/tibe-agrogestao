@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped, type TenantPrismaClient } from "@/lib/prisma";
 import {
   registrarUsoEstoque,
@@ -12,7 +13,12 @@ import { createProduct, ensureProductCategories, listProductCategories } from "@
 import { getStockBalance, recordStockMovement } from "@/lib/actions/stock-ledger";
 import type { HandlerCtx } from "@/lib/actions/whatsapp-handlers/shared";
 import { loadPendingStock, clearPendingStock } from "@/lib/actions/stock-pending";
-import { savePendingNegotiation } from "@/lib/actions/negotiation-pending";
+import {
+  savePendingNegotiation,
+  clearPendingNegotiation,
+} from "@/lib/actions/negotiation-pending";
+
+exigirBancoLocal();
 
 /**
  * Módulo 31, missão 2: estoque pelo WhatsApp (§9 e §10).
@@ -90,6 +96,40 @@ async function main() {
     const saldoDe = async (produtoId: string) => {
       const p = await getStockBalance(db, { product_id: produtoId, property_id: fazenda.id });
       return p.reduce((s, x) => s + x.quantity, 0);
+    };
+
+    /**
+     * Um usuario para os gestos que CONFIRMAM.
+     *
+     * Confirmacao sem usuario resolvido passou a ser recusada, e e a regra
+     * certa: sem quem, nao ha onde guardar o que foi mostrado, e o "sim" so
+     * poderia executar o que o classificador remontou. Os testes que exercitam
+     * gravacao viram, por isso, conversa de duas voltas: pergunta e confirma.
+     */
+    const operador = await prisma.user.create({
+      data: {
+        tenant_id: tenant.id,
+        name: "Operador Padrao",
+        email: `m38-op-${stamp}@teste.local`,
+        password_hash: "x",
+        role: "OWNER",
+      },
+    });
+    const comOperador = (
+      parametros: Record<string, unknown>,
+      opts: { confirmed?: boolean; explicitNo?: boolean } = {},
+    ) => ctx(db, tenant.id, parametros, { ...opts, userId: operador.id });
+
+    /** Pergunta e confirma, que e como o produtor de fato faz. */
+    const ajustarConfirmando = async (parametros: Record<string, unknown>) => {
+      await clearPendingStock(tenant.id, operador.id);
+      await ajustarEstoque(comOperador(parametros));
+      return ajustarEstoque(comOperador({}, { confirmed: true }));
+    };
+    const comprarConfirmando = async (parametros: Record<string, unknown>) => {
+      await clearPendingStock(tenant.id, operador.id);
+      await registrarNegocioProduto(comOperador(parametros));
+      return registrarNegocioProduto(comOperador({}, { confirmed: true }));
     };
 
     // ------------------------------------------------------------------
@@ -221,9 +261,11 @@ async function main() {
       semConfirmar.reply_text,
     );
 
-    const ajusteMenos = await ajustarEstoque(
-      ctx(db, tenant.id, { produto: "sal", saldo: 6, motivo: "contagem do galpao" }, { confirmed: true }),
-    );
+    const ajusteMenos = await ajustarConfirmando({
+      produto: "sal",
+      saldo: 6,
+      motivo: "contagem do galpao",
+    });
     check("com o sim, o ajuste entra", ajusteMenos.action_taken === "ajustar_estoque:ok");
     check("saldo virou 6", (await saldoDe(sal.data.id)) === 6, String(await saldoDe(sal.data.id)));
     check(
@@ -233,9 +275,7 @@ async function main() {
     );
 
     // A borda contrária, que é onde o sinal errado passaria despercebido.
-    const ajusteMais = await ajustarEstoque(
-      ctx(db, tenant.id, { produto: "sal", saldo: 9 }, { confirmed: true }),
-    );
+    const ajusteMais = await ajustarConfirmando({ produto: "sal", saldo: 9 });
     check("saldo virou 9", (await saldoDe(sal.data.id)) === 9);
     check(
       "e a resposta diz que SOMOU",
@@ -243,9 +283,7 @@ async function main() {
       ajusteMais.reply_text,
     );
 
-    const semMudanca = await ajustarEstoque(
-      ctx(db, tenant.id, { produto: "sal", saldo: 9 }, { confirmed: true }),
-    );
+    const semMudanca = await ajustarConfirmando({ produto: "sal", saldo: 9 });
     check(
       "contar o mesmo número não grava movimento de zero",
       semMudanca.reply_text.includes("Não mudei nada"),
@@ -254,8 +292,7 @@ async function main() {
 
     check(
       "ajuste aceita ZERO: contou e não tinha nada",
-      (await ajustarEstoque(ctx(db, tenant.id, { produto: "enxada", saldo: 0 }, { confirmed: true })))
-        .action_taken ===
+      (await ajustarConfirmando({ produto: "enxada", saldo: 0 })).action_taken ===
         "ajustar_estoque:ok",
     );
 
@@ -303,22 +340,15 @@ async function main() {
     );
 
     const saldoAntes = await saldoDe(sal.data.id);
-    const executada = await registrarNegocioProduto(
-      ctx(
-        db,
-        tenant.id,
-        {
-          tipo: "compra",
-          produto: "sal",
-          quantidade: 10,
-          valor: "1.200",
-          contato: "Agropecuaria Central",
-          vencimento: "dia 10",
-          custos: [{ descricao: "Frete", valor: "150" }],
-        },
-        { confirmed: true },
-      ),
-    );
+    const executada = await comprarConfirmando({
+      tipo: "compra",
+      produto: "sal",
+      quantidade: 10,
+      valor: "1.200",
+      contato: "Agropecuaria Central",
+      vencimento: "dia 10",
+      custos: [{ descricao: "Frete", valor: "150" }],
+    });
     check("com o sim, grava", executada.action_taken === "registrar_negocio_produto:ok", executada.reply_text);
     check("o estoque subiu 10 sacas", (await saldoDe(sal.data.id)) === saldoAntes + 10);
 
@@ -475,14 +505,12 @@ async function main() {
     });
     if (!racao.ok) throw new Error("faltou a ração");
 
-    await registrarNegocioProduto(
-      ctx(
-        db,
-        tenant.id,
-        { tipo: "compra", produto: "racao", quantidade: "2.000", valor: "4 mil" },
-        { confirmed: true },
-      ),
-    );
+    await comprarConfirmando({
+      tipo: "compra",
+      produto: "racao",
+      quantidade: "2.000",
+      valor: "4 mil",
+    });
     check(
       '"2.000 kg" entra como 2000, não como 2',
       (await saldoDe(racao.data.id)) === 2000,
@@ -499,9 +527,7 @@ async function main() {
     );
     check("e tirou 2,5 quilos", (await saldoDe(racao.data.id)) === 1997.5);
 
-    const contagemGrande = await ajustarEstoque(
-      ctx(db, tenant.id, { produto: "racao", saldo: "1.500" }, { confirmed: true }),
-    );
+    const contagemGrande = await ajustarConfirmando({ produto: "racao", saldo: "1.500" });
     check(
       '"contei 1.500" ajusta para 1500, não para 1,5',
       contagemGrande.action_taken === "ajustar_estoque:ok" &&
@@ -547,9 +573,9 @@ async function main() {
       String(comAutor?.recorded_by_user_id),
     );
 
-    await ajustarEstoque(
-      ctx(db, tenant.id, { produto: "racao", saldo: 1000 }, { userId: autor.id, confirmed: true }),
-    );
+    await clearPendingStock(tenant.id, autor.id);
+    await ajustarEstoque(ctx(db, tenant.id, { produto: "racao", saldo: 1000 }, { userId: autor.id }));
+    await ajustarEstoque(ctx(db, tenant.id, {}, { userId: autor.id, confirmed: true }));
     const ajusteComAutor = await db.stockMovement.findFirst({
       where: { product_id: racao.data.id, movement_type: "ajuste" },
       orderBy: { created_at: "desc" },
@@ -754,6 +780,277 @@ async function main() {
     );
     await clearPendingStock(tenant.id, conversador.id);
 
+    // ------------------------------------------------------------------
+    console.log("\n12. A borda que faltava: o produtor NAO disse sim");
+    // ------------------------------------------------------------------
+    // Todos os casos abaixo vieram de um revisor independente que reproduziu
+    // cada um ao vivo. A suite anterior passava verde porque so exercitava
+    // `confirmed: true`, ou seja, nunca testava a confirmacao de fato.
+    await clearPendingStock(tenant.id, conversador.id);
+    // Repoe o estoque: os blocos anteriores gastaram o sal, e uma falha por
+    // falta de saldo aqui pareceria defeito de confirmacao.
+    await recordStockMovement(db, {
+      product_id: sal.data.id,
+      property_id: fazenda.id,
+      movement_type: "compra",
+      quantity: 40,
+    });
+    const saldoBase = await saldoDe(sal.data.id);
+
+    const mostrouAjuste = await ajustarEstoque(comoEle({ produto: "sal", saldo: 7 }));
+    check(
+      "o ajuste pergunta antes",
+      mostrouAjuste.requires_confirmation === true,
+      mostrouAjuste.reply_text,
+    );
+    const enrolou = await ajustarEstoque(comoEle({ observacao: "perai, deixa eu contar de novo" }));
+    check(
+      '"peraí, deixa eu contar de novo" NAO confirma o ajuste',
+      enrolou.action_taken !== "ajustar_estoque:ok",
+      enrolou.action_taken,
+    );
+    check(
+      "e o saldo continua intacto",
+      (await saldoDe(sal.data.id)) === saldoBase,
+      String(await saldoDe(sal.data.id)),
+    );
+
+    // A borda contraria, para a correcao nao criar o problema oposto: o "sim"
+    // de verdade ainda executa.
+    const simDeVerdade = await ajustarEstoque(comoEle({}, { confirmed: true }));
+    check(
+      "e o sim de verdade executa",
+      simDeVerdade.action_taken === "ajustar_estoque:ok" && (await saldoDe(sal.data.id)) === 7,
+      simDeVerdade.action_taken,
+    );
+
+    // Corrigir o valor no meio da confirmacao NAO pode valer como sim.
+    await clearPendingStock(tenant.id, conversador.id);
+    const negociosAntesDaCorrecao = await db.negotiation.count();
+    await registrarNegocioProduto(
+      comoEle({ tipo: "compra", produto: "sal", quantidade: 10, valor: 1200 }),
+    );
+    const corrigindo = await registrarNegocioProduto(
+      comoEle({ tipo: "compra", produto: "sal", quantidade: 50, valor: 6000 }),
+    );
+    check(
+      "corrigir a quantidade durante a confirmacao NAO grava a versao antiga",
+      corrigindo.action_taken !== "registrar_negocio_produto:ok" &&
+        (await db.negotiation.count()) === negociosAntesDaCorrecao,
+      corrigindo.action_taken,
+    );
+    check(
+      "e a nova confirmacao mostra o valor CORRIGIDO",
+      corrigindo.reply_text.includes("50 sacas"),
+      corrigindo.reply_text,
+    );
+
+    // "ok sao 4 sacas": o "ok" e muleta de fala, nao confirmacao de nada.
+    await clearPendingStock(tenant.id, conversador.id);
+    const saldoAntesDoOk = await saldoDe(sal.data.id);
+    await ajustarEstoque(comoEle({ produto: "sal" }));
+    const okComNumero = await ajustarEstoque(comoEle({ saldo: 4 }, { confirmed: true }));
+    check(
+      '"ok são 4 sacas" responde a pergunta, nao confirma o ajuste',
+      okComNumero.requires_confirmation === true,
+      okComNumero.reply_text,
+    );
+    check("e nao mexeu no saldo", (await saldoDe(sal.data.id)) === saldoAntesDoOk);
+
+    // "sim" sem nada guardado nao escreve.
+    await clearPendingStock(tenant.id, conversador.id);
+    const simSozinho = await registrarNegocioProduto(
+      comoEle({ tipo: "compra", produto: "sal", quantidade: 99, valor: 9999 }, { confirmed: true }),
+    );
+    check(
+      '"sim" sem nada esperando confirmacao NAO grava',
+      simSozinho.action_taken === "clarification_requested",
+      simSozinho.action_taken,
+    );
+
+    // Sem user_id nao ha ancora, entao um confirmed tambem nao escreve.
+    const semAncora = await registrarNegocioProduto(
+      ctx(db, tenant.id, { tipo: "compra", produto: "sal", quantidade: 7, valor: 700 }, { confirmed: true }),
+    );
+    check(
+      "sem usuario resolvido, confirmed NAO escreve",
+      semAncora.action_taken === "clarification_requested",
+      semAncora.action_taken,
+    );
+
+    // ------------------------------------------------------------------
+    console.log("\n13. Assunto novo NAO e engolido pela conversa aberta");
+    // ------------------------------------------------------------------
+    const rotear = (intent: string, parametros: Record<string, unknown>) =>
+      routeIntent(db, {
+        tenant_id: tenant.id,
+        role: "OWNER",
+        activeProfiles: ["fazenda"],
+        intent: intent as Parameters<typeof routeIntent>[1]["intent"],
+        parameters: parametros,
+        confirmed: false,
+        explicitNo: false,
+        user_id: conversador.id,
+      });
+
+    await clearPendingStock(tenant.id, conversador.id);
+    await registrarUsoEstoque(comoEle({ produto: "sal" })); // deixa uma pergunta aberta
+
+    const tarefa = await rotear("criar_tarefa", { titulo: "vacinar o lote 3", quando: "amanha" });
+    check(
+      "uma tarefa nova nao vira 'Quantas sacas de sal?'",
+      !tarefa.action_taken.startsWith("registrar_uso_estoque"),
+      tarefa.action_taken,
+    );
+
+    const ajudaPedida = await rotear("ajuda", {});
+    check(
+      '"o que voce faz?" tambem nao',
+      !ajudaPedida.action_taken.startsWith("registrar_uso_estoque"),
+      ajudaPedida.action_taken,
+    );
+
+    const despesa = await rotear("registrar_lancamento_financeiro", {
+      amount: 500,
+      category: "Combustível",
+      description: "diesel",
+    });
+    check(
+      "e uma despesa avulsa tambem nao",
+      !despesa.action_taken.startsWith("registrar_uso_estoque"),
+      despesa.action_taken,
+    );
+
+    // A borda contraria: uma RESPOSTA curta continua voltando para o estoque.
+    const respostaCurta = await rotear("ambigua", { quantidade: 1 });
+    check(
+      "mas uma resposta curta ainda volta para a pergunta do estoque",
+      respostaCurta.action_taken.startsWith("registrar_uso_estoque"),
+      respostaCurta.action_taken,
+    );
+    await clearPendingStock(tenant.id, conversador.id);
+
+    // ------------------------------------------------------------------
+    console.log("\n14. Duas conversas abertas: a MAIS RECENTE responde");
+    // ------------------------------------------------------------------
+    await clearPendingStock(tenant.id, conversador.id);
+    await clearPendingNegotiation(tenant.id, conversador.id);
+
+    // Estoque primeiro, gado depois: o "sim" e do GADO.
+    await registrarUsoEstoque(comoEle({ produto: "sal" }));
+    await savePendingNegotiation(tenant.id, conversador.id, {
+      parameters: { tipo: "compra", categoria: "bezerro", quantidade: 20, valor: 60000 },
+      aguardando: "confirmacao",
+      salvo_em: Date.now() + 1000,
+    });
+    const gadoAntes = await db.negotiation.count({ where: { type: "compra_gado" } });
+    await routeIntent(db, {
+      tenant_id: tenant.id,
+      role: "OWNER",
+      activeProfiles: ["fazenda"],
+      intent: "registrar_negocio_gado",
+      parameters: {},
+      confirmed: true,
+      explicitNo: false,
+      user_id: conversador.id,
+    });
+    check(
+      'com o gado mais recente, o "sim" registra o GADO',
+      (await db.negotiation.count({ where: { type: "compra_gado" } })) === gadoAntes + 1,
+      "o estoque roubou a resposta",
+    );
+    check(
+      "e a pergunta do estoque continua viva, nao foi destruida",
+      (await loadPendingStock(tenant.id, conversador.id)) !== null,
+      "APAGADA",
+    );
+    await clearPendingStock(tenant.id, conversador.id);
+    await clearPendingNegotiation(tenant.id, conversador.id);
+
+    // ------------------------------------------------------------------
+    console.log("\n15. Perguntas que guardavam o campo ERRADO");
+    // ------------------------------------------------------------------
+    await clearPendingStock(tenant.id, conversador.id);
+    const dataRuim = await registrarUsoEstoque(
+      comoEle({ produto: "sal", quantidade: 1, data: "2026-02-31" }),
+    );
+    check(
+      "data impossivel vira pergunta",
+      dataRuim.action_taken === "clarification_requested",
+      dataRuim.reply_text,
+    );
+    const dataBoa = await registrarUsoEstoque(comoEle({ data: "10/12" }));
+    check(
+      "e a data certa RESOLVE, em vez de repetir a velha",
+      dataBoa.action_taken === "registrar_uso_estoque:ok",
+      dataBoa.reply_text,
+    );
+
+    await clearPendingStock(tenant.id, conversador.id);
+    const contradicao = await registrarNegocioProduto(
+      comoEle({ tipo: "compra", produto: "sal", quantidade: 1, valor: 300, pago: "sim", parcelas: "3x" }),
+    );
+    check(
+      "pago e parcelado ao mesmo tempo vira pergunta",
+      contradicao.action_taken === "clarification_requested",
+      contradicao.reply_text,
+    );
+    const escolheu = await registrarNegocioProduto(comoEle({ parcelas: "3x" }));
+    check(
+      "e escolher um dos lados RESOLVE a contradicao",
+      escolheu.requires_confirmation === true,
+      escolheu.reply_text,
+    );
+    await clearPendingStock(tenant.id, conversador.id);
+
+    // ------------------------------------------------------------------
+    console.log("\n16. Recusa nao pode engolir resposta");
+    // ------------------------------------------------------------------
+    await clearPendingStock(tenant.id, conversador.id);
+    await recordStockMovement(db, {
+      product_id: sal.data.id,
+      property_id: fazenda.id,
+      movement_type: "compra",
+      quantity: 20,
+    });
+    const saldoAntesDoNao = await saldoDe(sal.data.id);
+    await registrarUsoEstoque(comoEle({ produto: "sal" }));
+    const naoSeiAoCerto = await registrarUsoEstoque(
+      comoEle({ quantidade: 1 }, { explicitNo: true }),
+    );
+    check(
+      '"nao sei ao certo, umas 1" e RESPOSTA, nao cancelamento',
+      naoSeiAoCerto.action_taken === "registrar_uso_estoque:ok",
+      naoSeiAoCerto.action_taken,
+    );
+    check("e o uso entrou", (await saldoDe(sal.data.id)) === saldoAntesDoNao - 1);
+
+    // A borda contraria: "nao" seco continua cancelando.
+    await registrarUsoEstoque(comoEle({ produto: "sal" }));
+    const naoSeco = await registrarUsoEstoque(comoEle({}, { explicitNo: true }));
+    check(
+      'e "nao" seco continua cancelando',
+      naoSeco.action_taken === "registrar_uso_estoque:cancelado",
+      naoSeco.action_taken,
+    );
+
+    // ------------------------------------------------------------------
+    console.log("\n17. Concordancia de NUMERO, nao so de genero");
+    // ------------------------------------------------------------------
+    await clearPendingStock(tenant.id, conversador.id);
+    const umaSaca = await registrarUsoEstoque(comoEle({ produto: "sal", quantidade: 1 }));
+    check(
+      '"1 saca usada", nao "1 saca usadas"',
+      umaSaca.reply_text.includes("usada em") && !umaSaca.reply_text.includes("usadas em"),
+      umaSaca.reply_text,
+    );
+    const umLitro = await registrarUsoEstoque(comoEle({ produto: "diesel", quantidade: 1 }));
+    check(
+      '"1 litro usado", nao "usados"',
+      umLitro.reply_text.includes("usado em") && !umLitro.reply_text.includes("usados em"),
+      umLitro.reply_text,
+    );
+    await clearPendingStock(tenant.id, conversador.id);
     // ------------------------------------------------------------------
     console.log("\n11. Permissão: VISUALIZADOR não escreve pelo WhatsApp");    // ------------------------------------------------------------------
     const semPermissao = await routeIntent(db, {

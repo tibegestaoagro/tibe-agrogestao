@@ -1,6 +1,10 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { POST as executeAction } from "@/app/api/internal/whatsapp/execute-action/route";
+
+exigirBancoLocal();
+
 
 /**
  * Teste da intenção registrar_lancamento_financeiro (spec 2026-07-28: mídia

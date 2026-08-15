@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import {
   DEFAULT_ANIMAL_CATEGORIES,
@@ -9,6 +10,9 @@ import {
 } from "@/lib/actions/animal-categories";
 import { createBatchAction, sellFromCategoryAction } from "@/lib/actions/animal-batches";
 import { POST as executeAction } from "@/app/api/internal/whatsapp/execute-action/route";
+
+exigirBancoLocal();
+
 
 /**
  * Teste do Módulo 25: rebanho por categoria e quantidade

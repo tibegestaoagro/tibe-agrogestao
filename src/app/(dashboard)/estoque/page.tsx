@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSessionUser, getActiveProfiles, getTenantDb } from "@/lib/tenant-context";
 import { canWrite } from "@/lib/permissions";
 import { getActivePropertyId } from "@/lib/active-property";
+import { getBillingAccess } from "@/lib/billing-access";
 import {
   Table,
   TableHeader,
@@ -59,8 +60,19 @@ export default async function EstoquePage({
   const activePropertyId = await getActivePropertyId(db);
   const effectivePropertyId = searchParams.property_id ?? activePropertyId ?? undefined;
 
-  // As 15 categorias do §9.1 nascem aqui, na primeira abertura da tela.
-  await ensureProductCategories(db);
+  /**
+   * As 15 categorias do §9.1 nascem aqui, na primeira abertura da tela, mas
+   * SO para quem pode escrever.
+   *
+   * Endurecer a rota `/api/v1/product-categories` nao bastou, e um revisor
+   * mostrou por que: aquela rota nao e chamada por ninguem ainda, e quem semeia
+   * de verdade e esta pagina. Sem esta condicao, um VISUALIZADOR gravava 15
+   * linhas so de abrir a tela, e um tenant em `read_only` por atraso de
+   * pagamento tambem, furando a promessa de que naquele estado nada e gravado
+   * (o layout do dashboard so barra `blocked`).
+   */
+  const acesso = await getBillingAccess(user.tenant_id);
+  if (writable && acesso === "full") await ensureProductCategories(db);
 
   const [produtos, produtosTodasFazendas, categorias, properties, { items: movimentos }] = await Promise.all([
     listProductsWithBalance(db, { property_id: effectivePropertyId }),

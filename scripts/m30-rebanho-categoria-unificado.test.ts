@@ -1,6 +1,10 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { deleteTestTenants } from "./helpers/herd";
+
+exigirBancoLocal();
+
 
 /**
  * Rebanho por categoria: modelo único de lote (2026-08-04).

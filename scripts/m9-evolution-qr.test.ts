@@ -1,5 +1,9 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { getInstanceStatus, createInstance, connectInstance, setInstanceWebhook } from "@/lib/evolution-client";
+
+exigirBancoLocal();
+
 
 /**
  * Testes do cliente Evolution (spec 2026-07-24): contra credenciais

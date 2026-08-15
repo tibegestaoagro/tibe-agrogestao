@@ -4,6 +4,7 @@ import { runSerializableTenantTransaction } from "@/lib/financial";
 import { decToNum } from "@/lib/serialize";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { findUnit, descreverQuantidade } from "@/lib/stock/units";
+import { isValidCategory } from "@/lib/herd/categories";
 
 /**
  * O livro-razão do estoque (Módulo 31, §10).
@@ -297,6 +298,18 @@ export async function recordStockMovementInTx(
       where: { id: input.pasture_id, property_id: input.property_id },
     });
     if (!pasto) return fail("INVALID_PASTURE", "Pasto inválido para esta fazenda", 422);
+  }
+
+  /**
+   * §10.4: para qual grupo de animais o insumo foi usado.
+   *
+   * E uma das 12 categorias de codigo, entao a conferencia e local e barata.
+   * Estava sendo gravado cru, o mesmo padrao que acabou de ser corrigido em
+   * `pasture_id`. Nao vaza dado de outro tenant (nao e chave estrangeira), mas
+   * enche o historico do §10.4 de lixo que ninguem consegue ler depois.
+   */
+  if (input.herd_category_id && !isValidCategory(input.herd_category_id)) {
+    return fail("INVALID_CATEGORY", "Categoria de rebanho inválida", 422);
   }
 
   if (!Number.isFinite(input.quantity) || input.quantity <= 0) {

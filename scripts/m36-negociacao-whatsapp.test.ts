@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped, type TenantPrismaClient } from "@/lib/prisma";
 import {
   registrarNegocioGado,
@@ -13,6 +14,9 @@ import { desempatarIntencao, routeIntent } from "@/lib/actions/whatsapp-router";
 import { getPositions, recordMovement } from "@/lib/actions/herd-ledger";
 import { POST as executeAction } from "@/app/api/internal/whatsapp/execute-action/route";
 import type { HandlerCtx } from "@/lib/actions/whatsapp-handlers/shared";
+
+exigirBancoLocal();
+
 
 /**
  * Módulo 31: registro de negócio de gado pelo WhatsApp (§18).

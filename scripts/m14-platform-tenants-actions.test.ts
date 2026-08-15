@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import {
@@ -6,6 +7,8 @@ import {
   setTenantArchivedAction,
   resendWelcomeMessageAction,
 } from "@/lib/actions/platform-tenants";
+
+exigirBancoLocal();
 
 /**
  * Testes das actions de platform-tenants.ts sem cobertura antes desta

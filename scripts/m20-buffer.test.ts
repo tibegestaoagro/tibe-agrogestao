@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import {
   appendToBuffer,
   flushBuffer,
@@ -6,6 +7,9 @@ import {
   BUFFER_WINDOW_SECONDS,
 } from "@/lib/actions/whatsapp-buffer";
 import { getRedisConnection } from "@/lib/redis";
+
+exigirBancoLocal();
+
 
 /**
  * Testes do buffer de mensagens picadas (2026-07-30).

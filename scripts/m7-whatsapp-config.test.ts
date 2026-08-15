@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { encryptConfig, decryptConfig } from "@/lib/crypto-config";
 import { prisma } from "@/lib/prisma";
 import {
@@ -8,6 +9,9 @@ import {
 } from "@/lib/actions/platform-whatsapp-config";
 import { sendWhatsAppMessage } from "@/lib/whatsapp-send";
 import { POST as sendMessageRoute } from "@/app/api/internal/whatsapp/send-message/route";
+
+exigirBancoLocal();
+
 
 /**
  * Testes do provider WhatsApp configurável (spec 2026-07-11): criptografia,

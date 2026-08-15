@@ -34,7 +34,7 @@ import {
   resolverProduto,
 } from "@/lib/actions/whatsapp-handlers/estoque";
 import { loadPendingNegotiation } from "@/lib/actions/negotiation-pending";
-import { loadPendingStock } from "@/lib/actions/stock-pending";
+import { loadPendingStock, quandoOutroDominioFalou } from "@/lib/actions/stock-pending";
 import { ajuda } from "@/lib/actions/whatsapp-handlers/ajuda";
 import { resumo } from "@/lib/actions/whatsapp-handlers/resumo";
 import { handleActiveFlow, maybeStartAnimalFlow } from "@/lib/actions/whatsapp-flow-bridge";
@@ -52,6 +52,24 @@ export type { RouterResult } from "@/lib/actions/whatsapp-handlers/shared";
  * whatsapp-intents.ts que não ganhar entrada aqui é erro de compilação, não
  * silêncio em produção.
  */
+/**
+ * As intenções que o classificador emite quando a mensagem é só uma RESPOSTA.
+ *
+ * Uma resposta curta ("2", "60 mil", "sim") não tem assunto, então o LLM chuta
+ * a intenção mais provável, e na prática ela cai sempre numa destas. Tudo que
+ * está FORA desta lista é assunto novo de verdade e não pode ser desviado:
+ * `criar_tarefa`, `ajuda`, `resumo`, `cadastrar_animal` e os `consultar_*`
+ * eram engolidos pela versão anterior desta guarda.
+ */
+const REMONTAVEIS: ReadonlySet<string> = new Set([
+  "ambigua",
+  "registrar_movimentacao_rebanho",
+  "registrar_negocio_gado",
+  "registrar_negocio_produto",
+  "registrar_uso_estoque",
+  "ajustar_estoque",
+]);
+
 /** As intenções do estoque, para a guarda de resposta não agir sobre elas mesmas. */
 const EH_ESTOQUE: ReadonlySet<string> = new Set([
   "registrar_negocio_produto",
@@ -174,9 +192,17 @@ export function desempatarIntencao(
  * guarda gêmea do Módulo 30 cometeu (agir demais e engolir assunto novo):
  *
  * - só quando NÃO há categoria de rebanho reconhecível na mensagem;
- * - só quando o item casa com EXATAMENTE um produto do catálogo;
- * - só quando não existe negócio de gado pendente, para nunca sequestrar uma
- *   conversa em andamento no meio de uma pergunta.
+ * - só quando o item casa com EXATAMENTE um produto do catálogo.
+ *
+ * Ela NÃO consulta pendente nenhum, e é de propósito: uma mensagem que nomeia
+ * um produto do catálogo é assunto novo, e assunto novo tem direito de
+ * interromper. Quem resolve o empate entre conversas abertas é a guarda de
+ * resposta, logo abaixo, pela data de cada pedido.
+ *
+ * (Uma versão anterior deste comentário afirmava que aqui se checava o pendente
+ * de gado. Não se checava, e a frase falsa tinha ido parar até no guia do n8n,
+ * onde vira contrato para quem mexe no classificador. É o defeito que este
+ * projeto mais combate: comentário que o código ao lado desmente.)
  */
 async function pareceNegocioDeProduto(
   db: TenantPrismaClient,
@@ -291,29 +317,6 @@ export async function routeIntent(
     intent = "registrar_negocio_produto";
   }
 
-  /**
-   * A RESPOSTA a uma pergunta do ESTOQUE volta para o estoque.
-   *
-   * Gêmea da guarda de rebanho acima, e pelo mesmo motivo: "60 mil" ou "2" não
-   * carregam assunto nenhum, e o classificador devolve a intenção que achar
-   * mais provável. Sem isto, responder o valor de uma compra de sal caía no
-   * handler de gado, e o pendente de estoque ficava esperando a resposta que o
-   * produtor acabou de dar.
-   *
-   * ESTREITA: só age quando a mensagem NÃO traz produto nem categoria de
-   * rebanho própria, ou seja, quando ela de fato é só uma resposta.
-   */
-  if (ctx.user_id && !EH_ESTOQUE.has(intent)) {
-    const semAssuntoProprio =
-      !str(parameters.produto) &&
-      !str(parameters.product) &&
-      !str(parameters.categoria) &&
-      !str(parameters.item);
-    if (semAssuntoProprio) {
-      const estoqueEsperando = await loadPendingStock(tenant_id, ctx.user_id);
-      if (estoqueEsperando) intent = estoqueEsperando.intent;
-    }
-  }
 
   // Cadastro assistido tem prioridade sobre o roteamento normal: se existe um
   // formulário em andamento, a mensagem é primeiro oferecida a ele. O bridge
@@ -330,6 +333,52 @@ export async function routeIntent(
       explicitNo,
     });
     if (flowResult) return flowResult;
+  }
+
+  /**
+   * A RESPOSTA a uma pergunta do ESTOQUE volta para o estoque.
+   *
+   * Gêmea da guarda de rebanho acima, e pelo mesmo motivo: "60 mil" ou "2" não
+   * carregam assunto nenhum, e o classificador devolve a intenção que achar
+   * mais provável. Sem isto, responder o valor de uma compra de sal caía no
+   * handler de gado, e o pendente de estoque ficava esperando a resposta que o
+   * produtor acabou de dar.
+   *
+   * ESTREITA POR TRÊS CONDIÇÕES, e cada uma tapa um buraco que a primeira
+   * versão abriu, todos reproduzidos ao vivo por um revisor:
+   *
+   * 1. Só intenções que o classificador de fato emite para uma resposta curta
+   *    (`REMONTAVEIS`). A versão anterior agia sobre QUALQUER intenção sem
+   *    produto na frase, então "me lembra de vacinar o lote 3 amanhã" e "o que
+   *    você faz?" viravam "Quantas sacas de sal?", e a tarefa nunca era criada.
+   * 2. Só depois do cadastro assistido ter tido a chance de responder, senão a
+   *    resposta de um campo do formulário de animal era desviada para cá.
+   * 3. Só quando o pedido de estoque é MAIS RECENTE que o de gado ou rebanho.
+   *    Sem isso o estoque roubava a resposta de uma conversa de gado começada
+   *    depois dele, e gravava a compra errada.
+   */
+  if (ctx.user_id && !EH_ESTOQUE.has(intent) && REMONTAVEIS.has(intent)) {
+    /**
+     * `category` em INGLES entra na lista.
+     *
+     * A primeira versao checava so `categoria`, e o classificador emite os dois
+     * nomes (o resto do codigo mapeia `categoria -> category`). Um revisor
+     * reproduziu: "comprei 20 bezerros por 60 mil" chegando com `category`
+     * virava uso de estoque, e o 20 era lido como 20 SACAS DE SAL.
+     */
+    const semAssuntoProprio =
+      !str(parameters.produto) &&
+      !str(parameters.product) &&
+      !str(parameters.categoria) &&
+      !str(parameters.category) &&
+      !str(parameters.item);
+    if (semAssuntoProprio) {
+      const estoqueEsperando = await loadPendingStock(tenant_id, ctx.user_id);
+      if (estoqueEsperando) {
+        const outro = await quandoOutroDominioFalou(tenant_id, ctx.user_id);
+        if ((estoqueEsperando.salvo_em ?? 0) > outro) intent = estoqueEsperando.intent;
+      }
+    }
   }
 
   // Permissão por módulo/role e por perfil ativo (spec: "visualizador não

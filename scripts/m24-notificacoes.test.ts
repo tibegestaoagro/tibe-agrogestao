@@ -1,7 +1,11 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { AsyncLocalStorage } from "node:async_hooks";
 import http from "node:http";
 import crypto from "node:crypto";
+
+exigirBancoLocal();
+
 
 /**
  * Testes do Módulo 24: seam de notificação (Onda 2, agente B1: push web,

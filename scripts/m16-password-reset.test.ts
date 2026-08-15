@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import bcrypt from "bcryptjs";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { isStrongPassword } from "@/lib/passwords";
@@ -7,6 +8,8 @@ import {
   verifyPasswordResetCodeAction,
   confirmPasswordResetAction,
 } from "@/lib/actions/password-reset";
+
+exigirBancoLocal();
 
 /**
  * Testes do fluxo de recuperação de senha (arquitetura 2026-07-29): código

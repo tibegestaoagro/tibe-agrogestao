@@ -79,10 +79,23 @@ export function quantosOuQuantas(unidadeId: string): string {
   return findUnit(unidadeId)?.genero === "f" ? "Quantas" : "Quantos";
 }
 
-/** "usadas" para saca, "usados" para litro. */
-export function concordar(palavraNoFeminino: string, unidadeId: string): string {
-  if (findUnit(unidadeId)?.genero === "f") return palavraNoFeminino;
-  return palavraNoFeminino.replace(/as$/, "os").replace(/a$/, "o");
+/**
+ * "usadas" para 10 sacas, "usados" para 10 litros, "usada" para 1 saca.
+ *
+ * Gênero E número. A primeira versão só trocava o gênero, e sobrava
+ * "1 saca de sal usadas" e "1 litro de óleo usados": o singular é justamente
+ * o caso mais comum de quem tira uma unidade de cada vez.
+ */
+export function concordar(
+  palavraNoFemininoPlural: string,
+  unidadeId: string,
+  quantidade: number,
+): string {
+  const feminino = findUnit(unidadeId)?.genero === "f";
+  const base = feminino
+    ? palavraNoFemininoPlural
+    : palavraNoFemininoPlural.replace(/as$/, "os").replace(/a$/, "o");
+  return quantidade === 1 ? base.replace(/s$/, "") : base;
 }
 
 /**

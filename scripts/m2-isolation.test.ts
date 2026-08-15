@@ -1,7 +1,11 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { createLinkedEntry } from "@/lib/financial";
 import { decToNum } from "@/lib/serialize";
+
+exigirBancoLocal();
+
 
 /**
  * Testes do Módulo 2: isolamento (ServiceClient/Service/ServiceOrder), persistência

@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { cancelMovement } from "@/lib/actions/herd-ledger";
 import { getDre } from "@/lib/actions/financial-reports";
 import { negotiationCreateSchema } from "@/lib/validation/negotiation";
@@ -13,6 +14,8 @@ import {
   getNegotiation,
   listNegotiations,
 } from "@/lib/actions/negotiations";
+
+exigirBancoLocal();
 
 /**
  * Área Negociações, missão 1: negócio de gado.

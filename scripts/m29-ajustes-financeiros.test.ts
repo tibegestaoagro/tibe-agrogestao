@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import {
   createFinancialCategoryAction,
@@ -17,6 +18,9 @@ import {
   setAlertPreferenceAction,
 } from "@/lib/actions/alert-preferences";
 import { generateAlertsForTenant } from "@/lib/actions/alerts";
+
+exigirBancoLocal();
+
 
 /**
  * Teste do Módulo 28: ajustes financeiros e tela inicial reformulada

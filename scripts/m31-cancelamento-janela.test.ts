@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma } from "@/lib/prisma";
 import {
   getCancellationWindow,
@@ -10,6 +11,8 @@ import {
   sweepCanceledSubscriptions,
   listTenantsPendingDecision,
 } from "@/lib/actions/cancellation-sweep";
+
+exigirBancoLocal();
 
 /**
  * Cancelamento com janela de arquivamento (spec 2026-08-04).

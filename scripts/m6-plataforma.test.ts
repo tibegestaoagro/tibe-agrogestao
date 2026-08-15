@@ -1,9 +1,13 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma } from "@/lib/prisma";
 import { TENANT_SCOPED_MODELS } from "@/lib/prisma";
 import { calculateMRR, calculateChurn, calculateLTV, calculateFunnel } from "@/lib/platform/kpis";
 import { forceSubscriptionStatusAction } from "@/lib/actions/platform-tenants";
 import { inviteTeamMemberAction, updateTeamMemberRoleAction, setTeamMemberActiveAction } from "@/lib/actions/platform-team";
+
+exigirBancoLocal();
+
 
 /**
  * Testes do Módulo 6: isolamento de PlatformUser/SubscriptionStatusLog,

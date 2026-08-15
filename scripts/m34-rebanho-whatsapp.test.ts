@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { recordMovement } from "@/lib/actions/herd-ledger";
 import {
@@ -6,6 +7,9 @@ import {
   registrarMovimentacaoRebanho,
 } from "@/lib/actions/whatsapp-handlers/herd";
 import type { HandlerCtx } from "@/lib/actions/whatsapp-handlers/shared";
+
+exigirBancoLocal();
+
 
 /**
  * Módulo 30, tarefa 6: o rebanho pelo WhatsApp (§13 e §14).

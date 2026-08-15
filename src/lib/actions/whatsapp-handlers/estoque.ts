@@ -192,10 +192,28 @@ function responder(texto: string, acao: string): RouterResult {
 }
 
 /**
- * O começo de todo handler: junta a mensagem nova ao que estava guardado.
+ * O começo de todo handler: junta a mensagem nova ao que estava guardado e
+ * decide se este turno EXECUTA ou apenas pergunta.
  *
- * Devolve os parâmetros efetivos, ou uma resposta pronta quando a conversa
- * precisa parar (cancelamento, ou o mesmo campo perguntado vezes demais).
+ * A decisão de executar mora aqui, e não no handler, porque a primeira versão
+ * a espalhou em três lugares e perdeu metade da regra pelo caminho: bastava
+ * existir um pendente em "confirmacao" para a PRÓXIMA MENSAGEM QUALQUER
+ * executar. "Peraí, deixa eu contar de novo" apagava 18 sacas do livro; "qual
+ * meu saldo?" gravava uma compra com conta a pagar. A confirmação existia e se
+ * assinava sozinha.
+ *
+ * A regra completa, a mesma de `negociacao.ts`, que já a tinha certa:
+ *
+ * - `confirmed` vem de interpretar o TEXTO do produtor ("sim", "pode"), então
+ *   sozinho ele não basta: precisa haver um pedido em "confirmacao" para o
+ *   "sim" ter a que se referir.
+ * - `confirmed` com pendência de CAMPO não confirma nada: o produtor está
+ *   respondendo a pergunta, e ninguém confirma o que ainda não viu. Vale
+ *   inclusive para "ok são 4 sacas", em que o "ok" é só muleta de fala.
+ * - `confirmed` SEM pendência nenhuma não escreve: seria assinar em papel em
+ *   branco o que o classificador remontou.
+ * - Sem `user_id` não há onde guardar, então também não há âncora: um
+ *   `confirmed` nesse caminho é recusado, em vez de gravar o remontado.
  */
 async function comMemoria(
   intent: PedidoEstoquePendente["intent"],
@@ -204,12 +222,14 @@ async function comMemoria(
     user_id?: string;
     parameters: Record<string, unknown>;
     explicitNo: boolean;
+    confirmed: boolean;
   },
 ): Promise<
   | {
       ok: true;
       parameters: Record<string, unknown>;
-      confirmadoAntes: boolean;
+      /** Este turno grava. Só é true com um "sim" ancorado no que foi mostrado. */
+      executar: boolean;
       /**
        * Quantas vezes o MESMO campo ja foi perguntado.
        *
@@ -223,32 +243,62 @@ async function comMemoria(
     }
   | { ok: false; resposta: RouterResult }
 > {
-  // Regra 2: recusa vence tudo, e antes de qualquer pergunta.
+  const pendente = ctx.user_id ? await loadPendingStock(ctx.tenant_id, ctx.user_id) : null;
+  const meuPendente = pendente && pendente.intent === intent ? pendente : null;
+
+  /**
+   * Recusa vence tudo, MENOS quando a mensagem também traz a resposta.
+   *
+   * "não" e "cancela" precisam cancelar, e essa regra custou uma rodada no
+   * Módulo 30. Mas checar `explicitNo` cegamente antes de tudo criou o defeito
+   * oposto: "não sei ao certo, umas 3" é uma RESPOSTA com um "não" no meio, e o
+   * produtor levava "Ok, não registrei nada" com o 3 que ele acabou de dar
+   * indo para o lixo.
+   */
   if (ctx.explicitNo) {
-    if (ctx.user_id) await clearPendingStock(ctx.tenant_id, ctx.user_id);
-    return {
-      ok: false,
-      resposta: responder("Ok, não registrei nada.", `${intent}:cancelado`),
-    };
+    const trazResposta = meuPendente != null && aplicarRespostaEstoque(meuPendente, ctx.parameters) != null;
+    if (!trazResposta) {
+      if (ctx.user_id) await clearPendingStock(ctx.tenant_id, ctx.user_id);
+      return {
+        ok: false,
+        resposta: responder("Ok, não registrei nada.", `${intent}:cancelado`),
+      };
+    }
   }
 
-  if (!ctx.user_id) {
-    return { ok: true, parameters: { ...ctx.parameters }, confirmadoAntes: false, tentativas: 0 };
+  if (ctx.confirmed) {
+    if (!ctx.user_id) {
+      return {
+        ok: false,
+        resposta: ask(
+          "Não consegui identificar quem está falando comigo, então não vou registrar nada. " +
+            "Me conte de novo o que você quer lançar no estoque.",
+        ),
+      };
+    }
+    if (meuPendente?.aguardando === "confirmacao") {
+      // Executa o que foi MOSTRADO, lido do guardado, nunca o que veio na
+      // mensagem: é isto que a palavra "confirmar" significa.
+      return { ok: true, parameters: { ...meuPendente.parameters }, executar: true, tentativas: 0 };
+    }
+    if (!pendente) {
+      return {
+        ok: false,
+        resposta: ask(
+          "Não tenho nada esperando confirmação. Me conte de novo o que você quer lançar no estoque.",
+        ),
+      };
+    }
+    // Pendência de campo: segue como resposta, sem executar.
   }
 
-  const pendente = await loadPendingStock(ctx.tenant_id, ctx.user_id);
-  if (!pendente || pendente.intent !== intent) {
-    return { ok: true, parameters: { ...ctx.parameters }, confirmadoAntes: false, tentativas: 0 };
+  if (!ctx.user_id || !meuPendente) {
+    return { ok: true, parameters: { ...ctx.parameters }, executar: false, tentativas: 0 };
   }
 
-  const juntos = aplicarRespostaEstoque(pendente, ctx.parameters);
+  const juntos = aplicarRespostaEstoque(meuPendente, ctx.parameters);
   if (juntos) {
-    return {
-      ok: true,
-      parameters: juntos,
-      confirmadoAntes: pendente.aguardando === "confirmacao",
-      tentativas: 0,
-    };
+    return { ok: true, parameters: juntos, executar: false, tentativas: 0 };
   }
 
   /**
@@ -258,7 +308,7 @@ async function comMemoria(
    * nunca disparava, defeito real do Módulo 30. Ele morre por TTL, por sucesso
    * ou por cancelamento.
    */
-  const tentativas = (pendente.tentativas ?? 0) + 1;
+  const tentativas = (meuPendente.tentativas ?? 0) + 1;
   if (tentativas >= MAX_TENTATIVAS) {
     await clearPendingStock(ctx.tenant_id, ctx.user_id);
     return {
@@ -270,8 +320,8 @@ async function comMemoria(
       ),
     };
   }
-  await savePendingStock(ctx.tenant_id, ctx.user_id, { ...pendente, tentativas });
-  return { ok: true, parameters: { ...pendente.parameters }, confirmadoAntes: false, tentativas };
+  await savePendingStock(ctx.tenant_id, ctx.user_id, { ...meuPendente, tentativas });
+  return { ok: true, parameters: { ...meuPendente.parameters }, executar: false, tentativas };
 }
 
 /** Pergunta um campo E guarda o que já foi entendido, para não perder no caminho. */
@@ -303,12 +353,13 @@ async function perguntar(
  * estoque que ninguém registra não serve para nada.
  */
 export const registrarUsoEstoque: Handler = async (ctx) => {
-  const { db, parameters: brutos, tenant_id, user_id, explicitNo } = ctx;
+  const { db, parameters: brutos, tenant_id, user_id, explicitNo, confirmed } = ctx;
   const memoria = await comMemoria("registrar_uso_estoque", {
     tenant_id,
     user_id,
     parameters: brutos,
     explicitNo,
+    confirmed,
   });
   if (!memoria.ok) return memoria.resposta;
   const parameters = memoria.parameters;
@@ -334,7 +385,11 @@ export const registrarUsoEstoque: Handler = async (ctx) => {
 
   const data = lerData(parameters, "data", "date", "occurred_at");
   if (data.tipo === "invalida") {
-    return guardar("quantidade", `Não entendi a data "${data.bruto}". Pode dizer 10/12 ou "hoje"?`);
+    // Guarda o campo DATA, nao "quantidade": guardando o campo errado, a
+    // resposta certa nunca casava e o assistente repetia a data velha na cara
+    // de quem tinha acabado de dar a nova, ate a trava de laco jogar a
+    // conversa fora.
+    return guardar("data", `Não entendi a data "${data.bruto}". Pode dizer 10/12 ou "hoje"?`);
   }
 
   const resultado = await recordStockMovement(db, {
@@ -360,7 +415,7 @@ export const registrarUsoEstoque: Handler = async (ctx) => {
   return {
     reply_text:
       `✅ Anotei: ${descreverQuantidade(quantidade.valor, produto.unit)} de ${produto.name} ` +
-      `${concordar("usadas", produto.unit)} em ${fazenda.nome}. ` +
+      `${concordar("usadas", produto.unit, quantidade.valor)} em ${fazenda.nome}. ` +
       `Restam ${descreverQuantidade(restante, produto.unit)}.`,
     requires_confirmation: false,
     auxiliary_data: { movement_id: resultado.data.id, saldo: restante },
@@ -388,6 +443,7 @@ export const ajustarEstoque: Handler = async (ctx) => {
     user_id,
     parameters: brutos,
     explicitNo,
+    confirmed,
   });
   if (!memoria.ok) return memoria.resposta;
   const parameters = memoria.parameters;
@@ -440,7 +496,7 @@ export const ajustarEstoque: Handler = async (ctx) => {
   });
   const atual = posicao?.quantity ?? 0;
 
-  if (!confirmed && !memoria.confirmadoAntes) {
+  if (!memoria.executar) {
     if (user_id) {
       await savePendingStock(tenant_id, user_id, {
         intent: "ajustar_estoque",
@@ -582,6 +638,7 @@ export const registrarNegocioProduto: Handler = async (ctx) => {
     user_id,
     parameters: brutos,
     explicitNo,
+    confirmed,
   });
   if (!memoria.ok) return memoria.resposta;
   const parameters = memoria.parameters;
@@ -625,13 +682,13 @@ export const registrarNegocioProduto: Handler = async (ctx) => {
 
   const dataNegocio = lerData(parameters, "data", "date", "occurred_at");
   if (dataNegocio.tipo === "invalida") {
-    return guardar("valor", `Não entendi a data "${dataNegocio.bruto}". Pode dizer 10/12 ou "hoje"?`);
+    return guardar("data", `Não entendi a data "${dataNegocio.bruto}". Pode dizer 10/12 ou "hoje"?`);
   }
   const occurredAt = dataNegocio.tipo === "ok" ? dataNegocio.data : new Date();
 
   const vencimento = lerData(parameters, "vencimento", "due_date");
   if (vencimento.tipo === "invalida") {
-    return guardar("valor", `Não entendi o vencimento "${vencimento.bruto}". Pode dizer 10/12?`);
+    return guardar("vencimento", `Não entendi o vencimento "${vencimento.bruto}". Pode dizer 10/12?`);
   }
 
   const pago = interpretarSim(parameters.pago ?? parameters.paid);
@@ -645,7 +702,9 @@ export const registrarNegocioProduto: Handler = async (ctx) => {
   // action recusaria, mas a pergunta aqui é melhor que o erro depois da
   // confirmação: o produtor ainda está com a frase na cabeça.
   if (pago && quantasParcelas != null && quantasParcelas > 1) {
-    return guardar("valor", "Você já pagou ou vai parcelar? Uma coisa ou outra.");
+    // Campo PAGAMENTO, dedicado: guardando "valor", nenhuma resposta possivel
+    // resolvia a contradicao e a conversa morria na trava de laco.
+    return guardar("pagamento", "Você já pagou ou vai parcelar? Uma coisa ou outra.");
   }
 
   const parcelas =
@@ -676,7 +735,7 @@ export const registrarNegocioProduto: Handler = async (ctx) => {
   const descricaoContato = contato ? `\nCom: ${contato}.` : "";
   const descricaoData = `\nData: ${occurredAt.toLocaleDateString("pt-BR")}.`;
 
-  if (!confirmed && !memoria.confirmadoAntes) {
+  if (!memoria.executar) {
     if (user_id) {
       // O pedido inteiro fica GUARDADO: o "sim" executa o que foi MOSTRADO,
       // nunca o que o classificador remontar da própria resposta do

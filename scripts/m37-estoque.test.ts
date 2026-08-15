@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import {
   getStockBalance,
@@ -26,6 +27,8 @@ import {
   stockMovementSchema,
   stockAdjustSchema,
 } from "@/lib/validation/stock";
+
+exigirBancoLocal();
 
 /**
  * Módulo 31, missão 2: estoque de produtos (§9 e §10).
