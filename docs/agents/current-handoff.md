@@ -475,9 +475,65 @@ Entregue, na ordem action → rota → tela que o usuário fixou nesta rodada:
 | Alerta `low_stock` | `alerts.ts` (`gerarAlertasDeEstoqueMinimo`) |
 | 4 intenções de WhatsApp | `whatsapp-handlers/estoque.ts` |
 
-Suítes novas: `test:m37` (128 verificações) e `test:m38` (WhatsApp). Nenhuma
-regressão em isolation, m3, m4, m12, m29, m33, m34, m35, m36, docs-api,
+Suítes novas: `test:m37` (139 verificações) e `test:m38` (119). Nenhuma
+regressão em isolation, m3, m4, m12, m21, m29, m33, m34, m35, m36, docs-api,
 contracts, tsc e lint.
+
+### Três rodadas de juiz e uma auditoria própria (2026-08-15)
+
+| Lente | Volta 1 | Volta 2 |
+|---|---|---|
+| R1, dinheiro e saldo | 6 | 6 |
+| R2, a conversa | 3 | 3 |
+| R3, isolamento e regressão | 7 | 5 |
+
+**As notas não subiram, e o motivo importa mais que elas:** eu corrigia o ponto
+apontado e criava o problema OPOSTO. Aconteceu em SETE correções ao longo das
+duas voltas. O usuário mandou parar o ciclo de juiz e atacar o padrão, e foi
+isso que funcionou.
+
+**As quatro auditorias que substituíram a quarta rodada**, cada uma achando o
+que juiz nenhum tinha pego:
+
+1. **Paridade com `negociacao.ts`**, que está validado em produção. O handler de
+   estoque foi escrito como cópia dele e ficou sem partes: a mensagem nova era
+   descartada quando não casava com o campo perguntado (o fornecedor dito no
+   meio do caminho sumia); a trava de laço contava resposta ilegível em vez de
+   REPERGUNTA, deixando um laço infinito quando o termo respondido casa mas
+   continua ambíguo; e `movement_type` não valia como tipo.
+2. **A mesma regra em N lugares.** A recusa de quantidade quebrada estava em
+   CINCO cópias com duas redações. Foi assim que a leitura de número ficou
+   certa no WhatsApp e errada na tela por uma rodada inteira (`1.500` virava
+   `1,5` num campo que sobrescreve o saldo). Virou `recusaPorFracao`, uma vez
+   só; e `lerNumeroBr` saiu do módulo de WhatsApp para `@/lib/numero-br`, PURO,
+   porque a casa errada era o que mantinha a tela para trás.
+3. **Verdade dos comentários.** Duas afirmações do cabeçalho tinham ficado
+   falsas depois das próprias correções.
+4. **Sonda adversarial contra as mudanças recém-feitas**, em vez de argumentar
+   que estavam certas. Achou que `"ok, usei 3 sacas"` era RECUSADO: o "ok" é
+   muleta de fala, e a guarda do "sim" tinha sido copiada para um gesto que
+   nunca confirma.
+
+**Os defeitos mais graves das rodadas, para não voltarem:** a confirmação se
+auto-confirmava (qualquer mensagem executava o que estava pendente); um "sim"
+de compra de sal executava um negócio de gado de 15 minutos antes; e a guarda
+do roteador engolia todo assunto novo, inclusive `criar_tarefa` e `ajuda`.
+
+**A regra que fechou o problema das conversas concorrentes:** cada pedido
+pendente carrega `salvo_em`, e **a conversa mais recente responde**. Nada é
+apagado por causa de outro assunto (a primeira tentativa apagava, e destruía a
+morte de um animal ainda não confirmada).
+
+### Contaminação de produção, e a trava que a impede
+
+Um juiz rodou as suítes com a variável no formato do PowerShell dentro do Bash;
+o `.env` (que aponta para o **Neon**) prevaleceu, e a limpeza do `finally`
+falhou porque as suítes apagam `StockMovement`/`Product` primeiro e essas
+tabelas ainda não existem lá. **Dois tenants de teste ficaram em produção**
+(`M37 Estoque` e `M38 Estoque Whats`, sem usuário, sem dinheiro, mas contando
+como trial no funil). `scripts/_banco-local.ts` novo: as 35 suítes agora
+RECUSAM rodar contra qualquer banco que não seja o local. Documentar a
+armadilha não impede um comando; a trava impede.
 
 **Três decisões que o documento não resolve, tomadas e registradas:**
 
@@ -500,13 +556,22 @@ alertas inteira no app mobile; e `GET /api/v1/alerts` afirmava o tipo por cast
 com 4 dos 8 valores, sem checar nada em runtime, então `?type=` inválido
 derrubava a rota com 500.
 
-**Pendências da missão 2:**
+**Pendências da missão 2, todas dependendo de decisão do usuário:**
 
-- Migração `20260814...` do estoque **não aplicada no Neon** (invariante 3).
+- **Dois tenants de teste no Neon**, do acidente acima, aguardando autorização
+  para apagar. Ficam em `/plataforma/tenants` como trial de 2026-08-15.
+- Migração `20260814190000_estoque_de_produtos` **não aplicada no Neon**
+  (invariante 3): vai ANTES do push, com a URL Direct.
 - O classificador do n8n **não conhece** as 4 intenções novas. A tabela do
   `docs/n8n-whatsapp-workflow.md` já está atualizada; mexer no workflow exige
-  autorização, e fazer isso ANTES do deploy quebraria produção.
+  autorização, e fazer isso ANTES do deploy quebraria produção, porque a `main`
+  não tem os handlers.
+- **Validação no aparelho não aconteceu.** É o passo que mais achou defeito no
+  Módulo 30, e nenhum juiz substitui. Depende do deploy e do n8n acima.
 - Missões 3 e 4 não começaram. Próximo número livre de suíte: `m39`.
+
+**Estado final da branch:** `c1c32cb`, 8 commits, árvore limpa, sem merge e sem
+deploy.
 
 ## Missão 1 (referência)
 
