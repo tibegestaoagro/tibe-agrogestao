@@ -211,7 +211,10 @@ export async function createProductNegotiation(
       }
 
       // §15: frete e taxas são DESPESA sempre, mesmo numa venda.
-      for (const custo of input.custos ?? []) {
+      // Custo ZERO não vira lançamento: o caminho do WhatsApp já filtrava, o da
+      // API não, e um "Frete = 0" criava um `FinancialEntry` de R$ 0,00 que só
+      // suja o extrato. `validar` recusa negativo; aqui o zero é ignorado.
+      for (const custo of (input.custos ?? []).filter((c) => c.amount > 0)) {
         await createLinkedEntry(tx, {
           entry_type: "expense",
           category: custo.descricao,

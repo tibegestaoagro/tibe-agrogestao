@@ -1,11 +1,22 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { prisma, prismaForTenant } from "@/lib/prisma";
+import { exigirBancoLocal } from "./_banco-local";
 import { provisionDefaultAnimalCategories } from "@/lib/actions/animal-categories";
 import { provisionDefaultVaccines } from "@/lib/vaccines";
 import { listFinancialCategoriesAction } from "@/lib/actions/financial-categories";
 import { generateAlertsForTenant } from "@/lib/actions/alerts";
 import type { Prisma } from "@/generated/prisma/client";
+
+/**
+ * Escreve tenants de demonstracao: nunca contra producao.
+ *
+ * Este arquivo tinha a PROPRIA copia da regra (`assertLocalDatabase`), que
+ * aceitava qualquer URL contendo "55432" ou "tibe_dev" e ensinava a sintaxe do
+ * PowerShell. A mesma regra em dois lugares e o padrao que este modulo vem
+ * combatendo, e a copia daqui era a mais fraca das duas. Ver `_banco-local.ts`.
+ */
+exigirBancoLocal();
 
 /**
  * Popula o tenant Da Mata Sementes (dev) com ~2 anos de histórico simulado
@@ -20,16 +31,6 @@ import type { Prisma } from "@/generated/prisma/client";
  */
 
 const TENANT_DOCUMENT = "11222333000181";
-
-function assertLocalDatabase() {
-  const url = process.env.DATABASE_URL ?? "";
-  if (!url.includes("55432") && !url.includes("tibe_dev")) {
-    console.error("❌ Recusado: este script só roda contra o Postgres LOCAL (Docker, porta 55432/tibe_dev).");
-    console.error(`   DATABASE_URL atual: ${url.replace(/:[^:@]*@/, ":****@")}`);
-    console.error("   Use: $env:DATABASE_URL=\"postgresql://tibe:tibe@localhost:55432/tibe_dev?schema=public\"");
-    process.exit(1);
-  }
-}
 
 function randInt(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -729,7 +730,6 @@ async function seedRecurringFinancials() {
 }
 
 async function main() {
-  assertLocalDatabase();
 
   const tenant = await prisma.tenant.findUnique({ where: { document: TENANT_DOCUMENT } });
   if (!tenant) {

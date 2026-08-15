@@ -216,7 +216,23 @@ export async function listProductsWithBalance(
       })),
       saldo_total: total,
       saldo_no_tenant: noTenant,
-      abaixo_do_minimo: minimo != null && noTenant <= minimo,
+      /**
+       * §10.8, com a MESMA regra do alerta diário e da consulta por WhatsApp:
+       * produto que nunca movimentou não está acabando, está por começar.
+       *
+       * A regra tinha sido aplicada em duas das três superfícies. A tela e o
+       * `GET /api/v1/products` continuavam dizendo "precisa de reposição" para
+       * um produto cadastrado hoje, enquanto o alerta e o WhatsApp ficavam
+       * calados sobre o mesmo produto no mesmo dia.
+       */
+      abaixo_do_minimo:
+        minimo != null &&
+        // A conferência de "já movimentou" olha TODAS as fazendas, igual ao
+        // saldo comparado. Olhar a lista filtrada dizia "nunca movimentou" para
+        // um produto que só se move na fazenda vizinha, e o aviso sumia
+        // justamente de quem estava com pouco.
+        posicoesGerais.some((s) => s.product_id === p.id) &&
+        noTenant <= minimo,
     };
   });
 }

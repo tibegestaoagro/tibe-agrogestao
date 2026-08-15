@@ -121,6 +121,53 @@ export async function quandoOutroDominioFalou(
   }
 }
 
+function chaveDaUltimaExecucao(tenantId: string, userId: string): string {
+  return `tibe:ultima-execucao:${tenantId}:${userId}`;
+}
+
+/**
+ * Marca que ALGUMA COISA foi gravada para esta pessoa, agora.
+ *
+ * Serve para invalidar pedido pendente ANTERIOR à última gravação. O caso que
+ * obrigou isto, reproduzido por um revisor: o produtor deixa um ajuste de
+ * estoque sem confirmar, cinco minutos depois fecha uma compra de gado e diz
+ * "sim" (que registra o gado, correto), e um segundo "sim" solto executa o
+ * ajuste abandonado, tirando 14 sacas do livro sem nada ter sido perguntado na
+ * tela.
+ *
+ * É a terceira volta do MESMO eixo. Primeiro os pendentes eram independentes e
+ * um "sim" pegava o do domínio errado; a correção passou a apagar os outros, e
+ * isso destruía conversa legítima; a correção seguinte parou de apagar e
+ * desempatou por data, e sobrou este buraco. A regra que faltava: pendência
+ * anterior à última execução também é papel em branco.
+ */
+export async function marcarExecucao(tenantId: string, userId: string): Promise<void> {
+  try {
+    await getRedisConnection().set(
+      chaveDaUltimaExecucao(tenantId, userId),
+      String(Date.now()),
+      "EX",
+      TTL_SEGUNDOS,
+    );
+  } catch {
+    // Sem Redis, o comportamento volta a ser o anterior: pior, não quebrado.
+  }
+}
+
+/** Quando esta pessoa gravou alguma coisa pela última vez. `0` se nunca. */
+export async function quandoExecutouPorUltimo(
+  tenantId: string,
+  userId: string,
+): Promise<number> {
+  try {
+    const bruto = await getRedisConnection().get(chaveDaUltimaExecucao(tenantId, userId));
+    const n = bruto ? Number(bruto) : 0;
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
 export async function savePendingStock(
   tenantId: string,
   userId: string,
@@ -216,16 +263,36 @@ export function aplicarRespostaEstoque(
        * resolver: qualquer resposta reencontrava os dois campos preenchidos e a
        * mesma pergunta voltava até a conversa ser jogada fora.
        */
+      /**
+       * Lê a FALA, não só os campos estruturados.
+       *
+       * A versão anterior olhava apenas `parcelas` e `pago`, e isso quebrava dos
+       * dois lados: "vou parcelar" chegando como `{pago: false}` gravava `pago`
+       * e APAGAVA as parcelas (o produtor pedia 3x e levava uma conta única); e
+       * a mesma frase chegando no campo `pagamento` não casava com nada, então
+       * a contradição era impossível de resolver e a compra inteira ia para a
+       * trava de laço. O handler de gado, validado em produção, lê o texto por
+       * regex; esta cópia tinha ficado só com os campos.
+       */
+      const dito = [novos.pagamento, novos.resposta, novos.pago, novos.parcelas]
+        .map((v) => (typeof v === "string" ? v : ""))
+        .join(" ")
+        .toLowerCase();
+
       const parcelou = novos.parcelas ?? novos.installments ?? novos.parcelamento;
-      if (parcelou !== undefined && parcelou !== null && parcelou !== "") {
-        juntos.parcelas = parcelou;
-        delete juntos.pago;
+      const falouEmParcelar = /parcel|vezes|prazo|\dx/.test(dito);
+      if (falouEmParcelar || (parcelou !== undefined && parcelou !== null && parcelou !== "")) {
+        if (parcelou !== undefined && parcelou !== null && parcelou !== "") juntos.parcelas = parcelou;
+        else if (dito) juntos.parcelas = dito;
+        juntos.pago = false;
         delete juntos.paid;
         return juntos;
       }
+
+      const falouEmPagar = /\bpago\b|paguei|a vista|à vista/.test(dito);
       const pagou = novos.pago ?? novos.paid;
-      if (pagou !== undefined && pagou !== null && pagou !== "") {
-        juntos.pago = pagou;
+      if (falouEmPagar || pagou === true) {
+        juntos.pago = true;
         delete juntos.parcelas;
         delete juntos.installments;
         delete juntos.parcelamento;

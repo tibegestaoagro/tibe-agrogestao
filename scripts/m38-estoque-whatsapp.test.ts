@@ -14,6 +14,7 @@ import { getStockBalance, recordStockMovement } from "@/lib/actions/stock-ledger
 import type { HandlerCtx } from "@/lib/actions/whatsapp-handlers/shared";
 import { loadPendingStock, clearPendingStock } from "@/lib/actions/stock-pending";
 import { lerNumeroBr } from "@/lib/numero-br";
+import { detectConfirmation } from "@/lib/actions/confirmation";
 import {
   savePendingNegotiation,
   clearPendingNegotiation,
@@ -246,7 +247,7 @@ async function main() {
     check(
       "meia enxada é recusada ANTES de gravar",
       meiaEnxada.action_taken === "clarification_requested" &&
-        meiaEnxada.reply_text.includes("não aceita quantidade quebrada"),
+        meiaEnxada.reply_text.includes("não aceitam quantidade quebrada"),
       meiaEnxada.reply_text,
     );
     check("e nenhuma enxada saiu", (await saldoDe(enxada.data.id)) === 5);
@@ -1022,15 +1023,27 @@ async function main() {
     });
     const saldoAntesDoNao = await saldoDe(sal.data.id);
     await registrarUsoEstoque(comoEle({ produto: "sal" }));
+    /**
+     * "nao sei ao certo, umas 1" CANCELA, e isto e deliberado.
+     *
+     * Uma versao anterior deixava a resposta vencer o "nao", e um revisor
+     * mostrou que isso GRAVAVA: o guia do n8n manda o LLM remontar os
+     * parametros pelo historico, entao "nao deixa pra la" chega com produto e
+     * quantidade preenchidos e era lido como resposta. Como o uso nao confirma,
+     * as sacas saiam do livro.
+     *
+     * A assimetria decide: deixar de cancelar ESCREVE; cancelar por engano
+     * custa uma frase repetida.
+     */
     const naoSeiAoCerto = await registrarUsoEstoque(
       comoEle({ quantidade: 1 }, { explicitNo: true }),
     );
     check(
-      '"nao sei ao certo, umas 1" e RESPOSTA, nao cancelamento',
-      naoSeiAoCerto.action_taken === "registrar_uso_estoque:ok",
+      '"nao" cancela mesmo com a resposta junto, porque nao cancelar GRAVA',
+      naoSeiAoCerto.action_taken === "registrar_uso_estoque:cancelado",
       naoSeiAoCerto.action_taken,
     );
-    check("e o uso entrou", (await saldoDe(sal.data.id)) === saldoAntesDoNao - 1);
+    check("e nada foi usado", (await saldoDe(sal.data.id)) === saldoAntesDoNao);
 
     // A borda contraria: "nao" seco continua cancelando.
     await registrarUsoEstoque(comoEle({ produto: "sal" }));
@@ -1114,11 +1127,11 @@ async function main() {
       comoEle({ quantidade: 2 }, { explicitNo: true }),
     );
     check(
-      '"nao sei ao certo, umas 2" esperando CAMPO continua sendo resposta',
-      naoComResposta.action_taken === "registrar_uso_estoque:ok",
+      'esperando CAMPO, "nao" tambem cancela: nao ha como distinguir de "nao deixa pra la"',
+      naoComResposta.action_taken === "registrar_uso_estoque:cancelado",
       naoComResposta.action_taken,
     );
-    check("e o uso entrou", (await saldoDe(sal.data.id)) === saldoAntesDoTalvez - 2);
+    check("e nada foi usado", (await saldoDe(sal.data.id)) === saldoAntesDoTalvez);
 
     // ------------------------------------------------------------------
     console.log("\n19. O leitor de numero e o MESMO na tela e na conversa");
@@ -1247,6 +1260,163 @@ async function main() {
       "o sim grava a COMPRA mostrada, mesmo o classificador remontando venda",
       ultimoNegocio?.type === "compra_produto",
       String(ultimoNegocio?.type),
+    );
+
+    // ------------------------------------------------------------------
+    console.log("\n22. Terceira rodada de juizes");
+    // ------------------------------------------------------------------
+    // R2 #2: pontuacao matava o sim e o nao. Funcao pura, as duas direcoes.
+    check('"Não, deixa pra lá" e recusa', detectConfirmation("Não, deixa pra lá") === "no");
+    check('"Não!" e recusa', detectConfirmation("Não!") === "no");
+    check('"nao." e recusa', detectConfirmation("nao.") === "no");
+    check('"cancela, por favor" e recusa', detectConfirmation("cancela, por favor") === "no");
+    check('"sim, pode" e confirmacao', detectConfirmation("sim, pode") === "yes");
+    check('"Sim!" e confirmacao', detectConfirmation("Sim!") === "yes");
+    // A borda contraria: nada disso pode virar sim ou nao por acidente.
+    check('"nao sei o que fazer" NAO e recusa cega', detectConfirmation("naopode") === null);
+    check("frase sem sim nem nao continua neutra", detectConfirmation("comprei 10 sacas") === null);
+
+    // R2 #1: "nao deixa pra la" com os parametros remontados pelo LLM.
+    await clearPendingStock(tenant.id, conversador.id);
+    await recordStockMovement(db, {
+      product_id: sal.data.id,
+      property_id: fazenda.id,
+      movement_type: "compra",
+      quantity: 30,
+    });
+    const antesDoNaoRemontado = await saldoDe(sal.data.id);
+    await registrarUsoEstoque(comoEle({ produto: "sal" }));
+    const naoRemontado = await registrarUsoEstoque(
+      // O guia do n8n manda o LLM remontar tudo pelo historico, entao a recusa
+      // chega COM produto e quantidade preenchidos. Nao pode gravar.
+      comoEle({ produto: "sal", quantidade: 2 }, { explicitNo: true }),
+    );
+    check(
+      '"nao deixa pra la" com parametros remontados NAO grava',
+      naoRemontado.action_taken === "registrar_uso_estoque:cancelado" &&
+        (await saldoDe(sal.data.id)) === antesDoNaoRemontado,
+      naoRemontado.action_taken,
+    );
+
+    // R2 #3: `movement_type` marca assunto novo, igual a guarda de rebanho.
+    await clearPendingStock(tenant.id, conversador.id);
+    await registrarUsoEstoque(comoEle({ produto: "sal" }));
+    const morteNoMeio = await routeIntent(db, {
+      tenant_id: tenant.id,
+      role: "OWNER",
+      activeProfiles: ["fazenda"],
+      intent: "registrar_movimentacao_rebanho",
+      parameters: { movement_type: "morte", quantidade: 3 },
+      confirmed: false,
+      explicitNo: false,
+      user_id: conversador.id,
+    });
+    check(
+      '"morreram 3 hoje" no meio de uma pergunta de estoque NAO vira sacas',
+      !morteNoMeio.action_taken.startsWith("registrar_uso_estoque"),
+      morteNoMeio.action_taken,
+    );
+    await clearPendingStock(tenant.id, conversador.id);
+
+    // R1 #1: `parcelas` em NUMERO, que e o contrato documentado.
+    await clearPendingStock(tenant.id, conversador.id);
+    const comNumero = await registrarNegocioProduto(
+      comoEle({ tipo: "compra", produto: "sal", quantidade: 3, valor: 3000, parcelas: 3 }),
+    );
+    check(
+      "parcelas como NUMERO viram 3 parcelas, nao uma conta unica",
+      comNumero.reply_text.includes("Em 3x"),
+      comNumero.reply_text,
+    );
+    // A borda contraria: o que nao se entende PERGUNTA, nao descarta calado.
+    await clearPendingStock(tenant.id, conversador.id);
+    const parcelaIlegivel = await registrarNegocioProduto(
+      comoEle({ tipo: "compra", produto: "sal", quantidade: 3, valor: 3000, parcelas: "nao sei" }),
+    );
+    check(
+      "parcelamento ilegivel vira pergunta, nao conta unica calada",
+      parcelaIlegivel.action_taken === "clarification_requested",
+      parcelaIlegivel.reply_text,
+    );
+
+    // R2 #5: responder "vou parcelar" preserva o parcelamento.
+    await clearPendingStock(tenant.id, conversador.id);
+    await registrarNegocioProduto(
+      comoEle({
+        tipo: "compra",
+        produto: "sal",
+        quantidade: 3,
+        valor: 1200,
+        pago: "sim",
+        parcelas: "3x",
+      }),
+    );
+    const escolheuParcelar = await registrarNegocioProduto(
+      comoEle({ pagamento: "vou parcelar em 3 vezes" }),
+    );
+    check(
+      '"vou parcelar em 3 vezes" resolve a contradicao E mantem as 3x',
+      escolheuParcelar.reply_text.includes("Em 3x"),
+      escolheuParcelar.reply_text,
+    );
+    await clearPendingStock(tenant.id, conversador.id);
+
+    // R1 #2: o desempate por recencia vale NO PONTO DE EXECUCAO.
+    await clearPendingStock(tenant.id, conversador.id);
+    await clearPendingNegotiation(tenant.id, conversador.id);
+    const saldoAntesDoDesempate = await saldoDe(sal.data.id);
+    await registrarNegocioProduto(
+      comoEle({ tipo: "compra", produto: "sal", quantidade: 10, valor: 600 }),
+    );
+    await savePendingNegotiation(tenant.id, conversador.id, {
+      parameters: { tipo: "compra", categoria: "bezerro", quantidade: 20, valor: 60000 },
+      aguardando: "confirmacao",
+      salvo_em: Date.now() + 5000,
+    });
+    const simComGadoMaisNovo = await registrarNegocioProduto(comoEle({}, { confirmed: true }));
+    check(
+      'com o gado MAIS RECENTE, o "sim" nao grava a compra de sal antiga',
+      simComGadoMaisNovo.action_taken !== "registrar_negocio_produto:ok" &&
+        (await saldoDe(sal.data.id)) === saldoAntesDoDesempate,
+      simComGadoMaisNovo.action_taken,
+    );
+    await clearPendingNegotiation(tenant.id, conversador.id);
+    await clearPendingStock(tenant.id, conversador.id);
+
+    // R2 #8: recusa por saldo nao apaga o pedido do produtor.
+    await clearPendingStock(tenant.id, conversador.id);
+    await registrarUsoEstoque(comoEle({ produto: "sal" }));
+    const semSaldoSuficiente = await registrarUsoEstoque(comoEle({ quantidade: 99999 }));
+    check(
+      "recusa por saldo mantem o pedido guardado, sem obrigar a redigitar tudo",
+      semSaldoSuficiente.reply_text.includes("Existem apenas") &&
+        (await loadPendingStock(tenant.id, conversador.id)) !== null,
+      semSaldoSuficiente.reply_text.slice(0, 60),
+    );
+    await clearPendingStock(tenant.id, conversador.id);
+
+    // R1 #5 e #6: lixo que o livro-razao nao deve aceitar.
+    const quantidadeMinuscula = await recordStockMovement(db, {
+      product_id: sal.data.id,
+      property_id: fazenda.id,
+      movement_type: "compra",
+      quantity: 0.0004,
+    });
+    check(
+      "quantidade abaixo da precisao da coluna e recusada, nao vira linha de zero",
+      !quantidadeMinuscula.ok,
+      quantidadeMinuscula.ok ? "GRAVOU" : quantidadeMinuscula.code,
+    );
+    check(
+      "e a menor quantidade valida ainda passa",
+      (
+        await recordStockMovement(db, {
+          product_id: sal.data.id,
+          property_id: fazenda.id,
+          movement_type: "compra",
+          quantity: 0.001,
+        })
+      ).ok,
     );
 
     // ------------------------------------------------------------------

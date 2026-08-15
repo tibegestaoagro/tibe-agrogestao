@@ -2,6 +2,19 @@ import "dotenv/config";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { prisma, prismaForTenant, scoped, TENANT_SCOPED_MODELS } from "@/lib/prisma";
+import { exigirBancoLocal } from "./_banco-local";
+
+/**
+ * ESTA é a suíte que motivou a trava, e foi a única a ficar sem ela.
+ *
+ * O docstring de `_banco-local.ts` cita, por nome, "um revisor rodou
+ * `test:isolation`" como a origem dos dois tenants que nasceram em produção. A
+ * trava entrou em 35 arquivos por um filtro `scripts/m*.test.ts`, e o nome
+ * desta é `tenant-isolation.test.ts`: não casava. A regra escrita no arquivo
+ * certo, e o arquivo certo sem a regra, que é o erro que este projeto vem
+ * pagando caro. Achado por um revisor independente na terceira rodada.
+ */
+exigirBancoLocal();
 
 /**
  * Teste automatizado de isolamento multi-tenant (spec tasks 0.3 / critério de

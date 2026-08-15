@@ -315,6 +315,19 @@ export async function recordStockMovementInTx(
   if (!Number.isFinite(input.quantity) || input.quantity <= 0) {
     return fail("VALIDATION_ERROR", "A quantidade precisa ser maior que zero.", 422);
   }
+  /**
+   * A coluna é `Decimal(14,3)`: 0,0004 é gravado como 0,000 e o delta vira
+   * ZERO. Uma linha "Comprei +0 litros" no histórico que o saldo ignora é a
+   * "duas verdades" em miniatura, exatamente o que este módulo existe para
+   * impedir. Recusar é melhor que gravar uma linha que não significa nada.
+   */
+  if (input.quantity < 0.001) {
+    return fail(
+      "VALIDATION_ERROR",
+      "A quantidade é pequena demais para ser registrada (o mínimo é 0,001).",
+      422,
+    );
+  }
 
   // §10.5: "quando necessário, o sistema poderá aceitar quantidades parciais".
   // Meia saca existe; meia FERRAMENTA não, e aceitar seria deixar passar um

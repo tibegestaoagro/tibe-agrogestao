@@ -13,6 +13,8 @@ import {
   savePendingStock,
   loadPendingStock,
   clearPendingStock,
+  quandoExecutouPorUltimo,
+  quandoOutroDominioFalou,
   aplicarRespostaEstoque,
   MAX_TENTATIVAS,
   type CampoEstoque,
@@ -47,12 +49,10 @@ import {
  *    n8n manda o LLM remontar os parâmetros pelo histórico. O "sim" acabava
  *    executando o que o classificador reconstruiu: mostrava 10 sacas e gravava
  *    100, com o frete sumindo no caminho.
- * 2. **"não"/"cancela" é checado antes de qualquer pergunta**, nos três gestos
- *    que escrevem (a consulta não tem o que cancelar). Sem isso o produtor
- *    ficava preso num laço sem conseguir desistir. Com UMA exceção medida: se
- *    o assistente espera um CAMPO e a mensagem traz a resposta dele, ela vence,
- *    porque "não sei ao certo, umas 3" é uma resposta com um "não" no meio.
- *    Esperando CONFIRMAÇÃO não há exceção: ali "não" é a resposta à pergunta.
+ * 2. **"não"/"cancela" cancela, sem exceção**, nos três gestos que escrevem (a
+ *    consulta não tem o que cancelar). Uma exceção foi tentada e removida: ver
+ *    o comentário em `comMemoria`. A assimetria manda: deixar de cancelar
+ *    escreve no livro; cancelar por engano custa uma frase repetida.
  * 3. **O campo perguntado é lido do lugar certo, e nada é jogado fora.** A
  *    resposta esperada entra no campo esperado; quando ela não vem, o que a
  *    mensagem trouxer entra POR CIMA do acumulado, nunca no lugar dele. As duas
@@ -188,6 +188,13 @@ function plural(produto: ProdutoDoCatalogo): string {
   return findUnit(produto.unit)?.plural ?? "unidades";
 }
 
+/** A frase-modelo de cada gesto, para a saída do laço não mandar o produtor para o gesto errado. */
+const EXEMPLO_POR_GESTO: Record<PedidoEstoquePendente["intent"], string> = {
+  registrar_uso_estoque: "usei 2 sacas de sal mineral no lote do curral",
+  ajustar_estoque: "contei e tem 8 sacas de sal mineral",
+  registrar_negocio_produto: "comprei 10 sacas de sal do Zé por 1200, para pagar dia 10",
+};
+
 function responder(texto: string, acao: string): RouterResult {
   return {
     reply_text: texto,
@@ -256,40 +263,27 @@ async function comMemoria(
   const meuPendente = pendente && pendente.intent === intent ? pendente : null;
 
   /**
-   * Recusa vence tudo, MENOS quando a mensagem também traz a resposta.
+   * RECUSA VENCE TUDO, SEM EXCEÇÃO.
    *
-   * "não" e "cancela" precisam cancelar, e essa regra custou uma rodada no
-   * Módulo 30. Mas checar `explicitNo` cegamente antes de tudo criou o defeito
-   * oposto: "não sei ao certo, umas 3" é uma RESPOSTA com um "não" no meio, e o
-   * produtor levava "Ok, não registrei nada" com o 3 que ele acabou de dar
-   * indo para o lixo.
+   * Houve uma exceção aqui, e ela foi removida depois de um revisor mostrar que
+   * ela GRAVAVA. A ideia era boa no papel: "não sei ao certo, umas 3" é uma
+   * resposta com um "não" no meio, então valeria a resposta. O que derruba a
+   * ideia é que o guia do n8n manda o LLM REMONTAR os parâmetros pelo
+   * histórico: depois de "usei 2 sacas de sal", qualquer mensagem seguinte
+   * chega com produto e quantidade preenchidos, inclusive "não deixa pra lá".
+   * A exceção então enxergava uma "resposta" onde havia uma recusa, e como o
+   * uso não confirma, gravava as 2 sacas.
+   *
+   * A assimetria decide: deixar de cancelar ESCREVE no livro; cancelar por
+   * engano custa uma frase repetida. É também o que o handler de gado faz, e
+   * ele está validado em produção.
    */
   if (ctx.explicitNo) {
-    /**
-     * ...mas SÓ quando o assistente espera um CAMPO.
-     *
-     * A primeira versão desta guarda perguntava "a mensagem traz a resposta?"
-     * sem olhar o que estava sendo esperado, e o caso `"confirmacao"` responde
-     * SEMPRE que sim (ele carrega o pedido guardado por definição). Resultado:
-     * "não" na hora de confirmar não cancelava nada, a mesma confirmação
-     * voltava, o contador de tentativas nem subia, e a única saída que restava
-     * ao produtor preso era dizer "ok" -- que EXECUTAVA o ajuste que ele tinha
-     * acabado de recusar. Um revisor reproduziu: 20 sacas viravam 2 depois de
-     * dois "não".
-     *
-     * Esperando confirmação, "não" é recusa e ponto: é literalmente a resposta
-     * à pergunta feita.
-     */
-    const esperandoCampo = meuPendente != null && meuPendente.aguardando !== "confirmacao";
-    const trazResposta =
-      esperandoCampo && aplicarRespostaEstoque(meuPendente, ctx.parameters) != null;
-    if (!trazResposta) {
-      if (ctx.user_id) await clearPendingStock(ctx.tenant_id, ctx.user_id);
-      return {
-        ok: false,
-        resposta: responder("Ok, não registrei nada.", `${intent}:cancelado`),
-      };
-    }
+    if (ctx.user_id) await clearPendingStock(ctx.tenant_id, ctx.user_id);
+    return {
+      ok: false,
+      resposta: responder("Ok, não registrei nada.", `${intent}:cancelado`),
+    };
   }
 
   /**
@@ -318,6 +312,38 @@ async function comMemoria(
       };
     }
     if (meuPendente?.aguardando === "confirmacao") {
+      /**
+       * O pedido precisa ser POSTERIOR à última coisa que esta pessoa gravou.
+       *
+       * Sem isto, um pedido abandonado continuava executável para sempre (até o
+       * TTL): o produtor deixava um ajuste sem confirmar, cinco minutos depois
+       * fechava uma compra de gado com um "sim", e um segundo "sim" solto
+       * executava o ajuste esquecido, tirando 14 sacas sem nada ter sido
+       * perguntado na tela. Reproduzido por um revisor independente.
+       */
+      const ultimaExecucao = await quandoExecutouPorUltimo(ctx.tenant_id, ctx.user_id);
+      /**
+       * ...e precisa ser o MAIS RECENTE entre os três domínios de conversa.
+       *
+       * O desempate por data existia só no roteador, e lá ele nunca rodava
+       * quando o palpite do classificador já era uma intenção de estoque. Um
+       * revisor reproduziu: pedido de sal em confirmação, depois um negócio de
+       * gado de R$ 60.000 também em confirmação, e o "sim" gravava o SAL. Aqui,
+       * no ponto onde a escrita de fato acontece, a comparação vale sempre,
+       * qualquer que tenha sido o caminho até chegar.
+       */
+      const outroDominio = await quandoOutroDominioFalou(ctx.tenant_id, ctx.user_id);
+      const piso = Math.max(ultimaExecucao, outroDominio);
+      if ((meuPendente.salvo_em ?? 0) <= piso) {
+        await clearPendingStock(ctx.tenant_id, ctx.user_id);
+        return {
+          ok: false,
+          resposta: ask(
+            "Esse pedido não é o mais recente da nossa conversa, então não vou " +
+              "executá-lo. Me conte de novo o que você quer lançar no estoque.",
+          ),
+        };
+      }
       // Executa o que foi MOSTRADO, lido do guardado, nunca o que veio na
       // mensagem: é isto que a palavra "confirmar" significa.
       return { ok: true, parameters: { ...meuPendente.parameters }, executar: true, pendente, tentativas: 0 };
@@ -396,9 +422,11 @@ async function perguntar(
   const tentativas = pendenteAtual?.aguardando === campo ? (pendenteAtual.tentativas ?? 1) + 1 : 1;
   if (tentativas >= MAX_TENTATIVAS) {
     await clearPendingStock(ctx.tenant_id, ctx.user_id);
+    // O exemplo é do gesto em curso: oferecer "usei 2 sacas" a quem está
+    // tentando registrar uma COMPRA manda o produtor para o lugar errado.
     return ask(
       "Não estou conseguindo entender essa parte. Tente mandar tudo numa frase só, " +
-        'por exemplo: "usei 2 sacas de sal mineral no lote do curral".',
+        `por exemplo: "${EXEMPLO_POR_GESTO[intent]}".`,
     );
   }
 
@@ -470,7 +498,9 @@ export const registrarUsoEstoque: Handler = async (ctx) => {
     // gerar a MAIORIA dos registros gravava tudo sem autor.
     recorded_by_user_id: user_id ?? null,
   });
-  if (user_id) await clearPendingStock(tenant_id, user_id);
+  // Só limpa quando DEU CERTO: apagar antes de saber fazia o produtor perder a
+  // frase inteira numa recusa por saldo e ter que redigitar tudo.
+  if (resultado.ok && user_id) await clearPendingStock(tenant_id, user_id);
   if (!resultado.ok) return failReply("registrar_uso_estoque", resultado);
 
   const [posicao] = await getStockBalance(db, {
@@ -561,10 +591,29 @@ export const ajustarEstoque: Handler = async (ctx) => {
 
   if (!memoria.executar) {
     if (user_id) {
+      /**
+       * A confirmação também conta tentativa.
+       *
+       * Sem o contador, "peraí, deixa eu ver" repetia a mesma confirmação para
+       * sempre: o produtor não conseguia sair nem confirmando nem recusando, e
+       * a única saída era um "ok" que executava.
+       */
+      const jaPerguntou =
+        memoria.pendente?.aguardando === "confirmacao"
+          ? (memoria.pendente.tentativas ?? 1) + 1
+          : 1;
+      if (jaPerguntou >= MAX_TENTATIVAS) {
+        await clearPendingStock(tenant_id, user_id);
+        return ask(
+          "Vou deixar esse registro de lado por enquanto. Quando quiser, me conte de novo, " +
+            `por exemplo: "${EXEMPLO_POR_GESTO["ajustar_estoque"]}".`,
+        );
+      }
       await savePendingStock(tenant_id, user_id, {
         intent: "ajustar_estoque",
         parameters: { ...parameters, saldo: contado, fazenda: fazenda.nome },
         aguardando: "confirmacao",
+        tentativas: jaPerguntou,
       });
     }
     return {
@@ -586,7 +635,7 @@ export const ajustarEstoque: Handler = async (ctx) => {
     reason: str(parameters.motivo) ?? str(parameters.reason) ?? "Contagem informada pelo WhatsApp",
     recorded_by_user_id: user_id ?? null,
   });
-  if (user_id) await clearPendingStock(tenant_id, user_id);
+  if (resultado.ok && user_id) await clearPendingStock(tenant_id, user_id);
   if (!resultado.ok) {
     // `NO_CHANGE` não é alerta: o produtor conferiu e o sistema já estava
     // certo. O "⚠️" de `failReply` transformava um acerto em susto.
@@ -767,9 +816,25 @@ export const registrarNegocioProduto: Handler = async (ctx) => {
   }
 
   const pago = interpretarSim(parameters.pago ?? parameters.paid);
-  const quantasParcelas = extrairNumeroDeParcelas(
-    parameters.parcelas ?? parameters.installments ?? parameters.parcelamento,
-  );
+  /**
+   * Parcelas: número OU texto, e o que não se entende PERGUNTA.
+   *
+   * `extrairNumeroDeParcelas` só lê texto ("3x", "em tres vezes"), e o contrato
+   * publicado em `docs/n8n-whatsapp-workflow.md` manda o classificador enviar
+   * `parcelas` como NÚMERO. As duas pontas discordavam: "comprei sal por 3.000
+   * em 3 vezes" virava uma conta ÚNICA de R$ 3.000 vencendo hoje, calada, com
+   * o `bill_due` disparando no mesmo dia. O handler de gado lê os dois formatos
+   * e recusa seguir quando não entende; esta cópia tinha perdido as duas
+   * metades. Um revisor reproduziu a tabela inteira.
+   */
+  const parcelasBrutas = parameters.parcelas ?? parameters.installments ?? parameters.parcelamento;
+  const quantasParcelas =
+    parcelasBrutas == null || parcelasBrutas === ""
+      ? null
+      : (lerNumeroBr(parcelasBrutas) ?? extrairNumeroDeParcelas(parcelasBrutas));
+  if (parcelasBrutas != null && parcelasBrutas !== "" && quantasParcelas == null) {
+    return guardar("pagamento", "Não entendi o parcelamento. Em quantas vezes você vai pagar?");
+  }
   const custos = custosDosParametros(parameters);
   const contato = str(parameters.contato) ?? str(parameters.contact_name) ?? null;
 
@@ -815,10 +880,29 @@ export const registrarNegocioProduto: Handler = async (ctx) => {
       // O pedido inteiro fica GUARDADO: o "sim" executa o que foi MOSTRADO,
       // nunca o que o classificador remontar da própria resposta do
       // assistente. Sem âncora, confirmação é assinatura em papel em branco.
+      /**
+       * A confirmação também conta tentativa.
+       *
+       * Sem o contador, "peraí, deixa eu ver" repetia a mesma confirmação para
+       * sempre: o produtor não conseguia sair nem confirmando nem recusando, e
+       * a única saída era um "ok" que executava.
+       */
+      const jaPerguntou =
+        memoria.pendente?.aguardando === "confirmacao"
+          ? (memoria.pendente.tentativas ?? 1) + 1
+          : 1;
+      if (jaPerguntou >= MAX_TENTATIVAS) {
+        await clearPendingStock(tenant_id, user_id);
+        return ask(
+          "Vou deixar esse registro de lado por enquanto. Quando quiser, me conte de novo, " +
+            `por exemplo: "${EXEMPLO_POR_GESTO["registrar_negocio_produto"]}".`,
+        );
+      }
       await savePendingStock(tenant_id, user_id, {
         intent: "registrar_negocio_produto",
         parameters: { ...parameters, tipo, fazenda: fazenda.nome },
         aguardando: "confirmacao",
+        tentativas: jaPerguntou,
       });
     }
     return {
@@ -848,7 +932,7 @@ export const registrarNegocioProduto: Handler = async (ctx) => {
     notes: str(parameters.observacao) ?? str(parameters.notes) ?? null,
     recorded_by_user_id: user_id ?? null,
   });
-  if (user_id) await clearPendingStock(tenant_id, user_id);
+  if (resultado.ok && user_id) await clearPendingStock(tenant_id, user_id);
   if (!resultado.ok) return failReply("registrar_negocio_produto", resultado);
 
   const [posicao] = await getStockBalance(db, {

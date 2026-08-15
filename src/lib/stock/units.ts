@@ -93,7 +93,11 @@ export function recusaPorFracao(
 ): string | null {
   const unidade = findUnit(unidadeId);
   if (!unidade || unidade.fracionavel || Number.isInteger(quantidade)) return null;
-  return `${nomeDoProduto} é contado em ${unidade.plural}, que não aceita quantidade quebrada.`;
+  // Frase NEUTRA: o nome do produto tem gênero livre ("Enxada é contado" estava
+  // errado) e "que não aceita" concordava com o singular quando `plural` é
+  // plural. Duas concordâncias erradas na mesma linha, num módulo que investiu
+  // em `quantosOuQuantas`/`concordar` justamente para não parecer sistema.
+  return `${nomeDoProduto} é medido em ${unidade.plural}, que não aceitam quantidade quebrada.`;
 }
 
 /** "Quantas" para saca, "Quantos" para litro. */

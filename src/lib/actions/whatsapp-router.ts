@@ -34,7 +34,11 @@ import {
   resolverProduto,
 } from "@/lib/actions/whatsapp-handlers/estoque";
 import { loadPendingNegotiation } from "@/lib/actions/negotiation-pending";
-import { loadPendingStock, quandoOutroDominioFalou } from "@/lib/actions/stock-pending";
+import {
+  loadPendingStock,
+  quandoOutroDominioFalou,
+  marcarExecucao,
+} from "@/lib/actions/stock-pending";
 import { ajuda } from "@/lib/actions/whatsapp-handlers/ajuda";
 import { resumo } from "@/lib/actions/whatsapp-handlers/resumo";
 import { handleActiveFlow, maybeStartAnimalFlow } from "@/lib/actions/whatsapp-flow-bridge";
@@ -304,8 +308,15 @@ export async function routeIntent(
    * categoria de animal?".
    *
    * A mensagem que traz um PRODUTO do catálogo é assunto novo, e assunto novo
-   * interrompe o anterior: o handler de estoque, ao guardar o pedido dele,
-   * apaga o pendente de gado (`stock-pending.ts`).
+   * interrompe o anterior. Ele NÃO apaga o pendente de gado: apagar destruía
+   * conversa legítima (uma pergunta de estoque matava "morreram 3 bezerros"
+   * ainda sem confirmar). Os dois convivem, e quem decide na hora de gravar é a
+   * data de cada pedido, conferida dentro de `comMemoria`.
+   *
+   * (Uma versão anterior deste comentário afirmava que o handler apagava o
+   * pendente de gado. Não apaga, e o cabeçalho de `stock-pending.ts` dizia o
+   * contrário na mesma árvore. A frase falsa era justamente a justificativa de
+   * uma assimetria que deixava o "sim" executar a negociação errada.)
    *
    * A primeira versão desta guarda fazia o contrário, recusando o desvio
    * enquanto houvesse pendente de gado, e criou o defeito que um revisor
@@ -323,7 +334,25 @@ export async function routeIntent(
   // devolve null quando a mensagem claramente não é resposta de campo, e aí o
   // fluxo segue normalmente (a interrupção é respondida e o formulário retomado
   // logo em seguida).
-  if (ctx.user_id) {
+  /**
+   * Uma CONFIRMAÇÃO pendente vem antes do formulário de cadastro.
+   *
+   * O "sim" chega classificado como `ambigua` (é o rótulo do LLM para resposta
+   * curta), e `handleActiveFlow` trata `ambigua` como resposta de campo. Com um
+   * cadastro de animal aberto e uma compra esperando confirmação, o "sim" era
+   * consumido pelo formulário ("Qual a raça?") e a compra de R$ 1.200 ficava
+   * pendurada para sempre. As quatro intenções de estoque já estavam em
+   * `INTERRUPTING` justamente para isso, mas o "sim" não é uma delas.
+   *
+   * ESTREITA: só quando o pedido está em "confirmacao". Uma pergunta de CAMPO
+   * do estoque não tem prioridade sobre o formulário.
+   */
+  if (ctx.user_id && confirmed) {
+    const esperandoSim = await loadPendingStock(tenant_id, ctx.user_id);
+    if (esperandoSim?.aguardando === "confirmacao") intent = esperandoSim.intent;
+  }
+
+  if (ctx.user_id && !EH_ESTOQUE.has(intent)) {
     const flowResult = await handleActiveFlow({
       db,
       userId: ctx.user_id,
@@ -366,12 +395,23 @@ export async function routeIntent(
      * reproduziu: "comprei 20 bezerros por 60 mil" chegando com `category`
      * virava uso de estoque, e o 20 era lido como 20 SACAS DE SAL.
      */
+    /**
+     * `movement_type` é marca de ASSUNTO NOVO, igual à guarda de rebanho.
+     *
+     * A guarda gêmea, 60 linhas acima, aprendeu isso depois que um revisor
+     * reproduziu "morreu 1 bezerro" sendo engolido no meio de uma compra. Esta,
+     * escrita depois e no mesmo arquivo, nasceu sem: com uma pergunta de
+     * estoque aberta, "morreram 3 hoje" virava "Por quanto você comprou 3 sacas
+     * de sal?", a morte nunca era registrada, e o 3 do produtor virava
+     * quantidade de sacas. Uma linha de diferença entre as duas.
+     */
     const semAssuntoProprio =
       !str(parameters.produto) &&
       !str(parameters.product) &&
       !str(parameters.categoria) &&
       !str(parameters.category) &&
-      !str(parameters.item);
+      !str(parameters.item) &&
+      !str(parameters.movement_type);
     if (semAssuntoProprio) {
       const estoqueEsperando = await loadPendingStock(tenant_id, ctx.user_id);
       if (estoqueEsperando) {
@@ -445,5 +485,28 @@ export async function routeIntent(
     explicitNo,
     user_id: ctx.user_id,
   };
-  return HANDLERS[intent](handlerCtx);
+  const resultado = await HANDLERS[intent](handlerCtx);
+
+  /**
+   * Marca que esta pessoa GRAVOU alguma coisa, em qualquer domínio.
+   *
+   * É o que invalida um pedido pendente mais antigo que a última gravação. Sem
+   * isso, um ajuste de estoque deixado sem confirmar continuava executável por
+   * 15 minutos, e um "sim" solto dito depois de uma compra de gado o disparava,
+   * tirando sacas do livro sem nada ter sido perguntado na tela.
+   *
+   * O critério é o TURNO ter se fechado, não o texto do `action_taken`: cada
+   * handler nomeia o sucesso do seu jeito (`:ok`, `:compra_gado`, `:morte`), e
+   * depender desses nomes seria mais uma regra que quebra em silêncio quando
+   * alguém renomear um. Aqui basta: foi uma intenção de ESCRITA, o handler não
+   * está esperando confirmação e não está perguntando nada.
+   */
+  const regra = INTENT_ACCESS[intent];
+  const turnoFechado =
+    !resultado.requires_confirmation && resultado.action_taken !== "clarification_requested";
+  if (ctx.user_id && regra.action === "write" && turnoFechado) {
+    await marcarExecucao(tenant_id, ctx.user_id);
+  }
+
+  return resultado;
 }
