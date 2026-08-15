@@ -103,6 +103,10 @@ export async function createProduct(
    * estourava P2002 sem tratamento, virando 500 em vez do 409 pretendido. A
    * mensagem diferencia os dois casos, porque "já existe" e "existe arquivado"
    * pedem ações diferentes de quem está cadastrando.
+   *
+   * A mensagem do caso arquivado NÃO manda "reative": não existe rota nem tela
+   * para desarquivar produto, e mandar o produtor fazer o que o sistema não
+   * oferece é pior que não dizer nada.
    */
   const existente = await db.product.findFirst({
     where: { name: { equals: nome, mode: "insensitive" } },
@@ -111,7 +115,7 @@ export async function createProduct(
     return fail(
       "DUPLICATE_PRODUCT",
       existente.archived_at
-        ? `Você já teve um produto chamado "${existente.name}" e ele foi desativado. Reative em vez de cadastrar outro, para não dividir o saldo em dois.`
+        ? `Você já teve um produto chamado "${existente.name}" e ele foi desativado. Use outro nome, ou fale com o suporte para reativar o antigo: cadastrar um igual dividiria o saldo em dois.`
         : `Você já tem um produto chamado "${existente.name}".`,
       409,
     );

@@ -13,6 +13,7 @@ import { createProduct, ensureProductCategories, listProductCategories } from "@
 import { getStockBalance, recordStockMovement } from "@/lib/actions/stock-ledger";
 import type { HandlerCtx } from "@/lib/actions/whatsapp-handlers/shared";
 import { loadPendingStock, clearPendingStock } from "@/lib/actions/stock-pending";
+import { lerNumeroBr } from "@/lib/numero-br";
 import {
   savePendingNegotiation,
   clearPendingNegotiation,
@@ -1051,6 +1052,84 @@ async function main() {
       umLitro.reply_text,
     );
     await clearPendingStock(tenant.id, conversador.id);
+    // ------------------------------------------------------------------
+    console.log("\n18. Recusa na hora de CONFIRMAR (a borda que faltava)");
+    // ------------------------------------------------------------------
+    // A correcao anterior do `explicitNo` criou o problema oposto: "nao" na
+    // hora de confirmar nao cancelava, a mesma confirmacao voltava, o contador
+    // de tentativas nem subia, e a unica saida do produtor preso era dizer
+    // "ok", que EXECUTAVA o ajuste que ele tinha acabado de recusar.
+    await clearPendingStock(tenant.id, conversador.id);
+    await recordStockMovement(db, {
+      product_id: sal.data.id,
+      property_id: fazenda.id,
+      movement_type: "compra",
+      quantity: 20,
+    });
+    const saldoAntesDaRecusa = await saldoDe(sal.data.id);
+
+    const pediuConfirmacao = await ajustarEstoque(comoEle({ produto: "sal", saldo: 2 }));
+    check(
+      "o ajuste pede confirmacao",
+      pediuConfirmacao.requires_confirmation === true,
+      pediuConfirmacao.reply_text,
+    );
+    const recusou = await ajustarEstoque(comoEle({}, { explicitNo: true }));
+    check(
+      '"nao" na hora de confirmar CANCELA',
+      recusou.action_taken === "ajustar_estoque:cancelado",
+      recusou.action_taken,
+    );
+    check(
+      "e o pendente morre junto, sem laco",
+      (await loadPendingStock(tenant.id, conversador.id)) === null,
+      "SOBREVIVEU",
+    );
+    check(
+      "o saldo fica intacto depois da recusa",
+      (await saldoDe(sal.data.id)) === saldoAntesDaRecusa,
+      String(await saldoDe(sal.data.id)),
+    );
+    // E o "ok" seguinte NAO pode ressuscitar o ajuste recusado.
+    const okDepoisDaRecusa = await ajustarEstoque(comoEle({}, { confirmed: true }));
+    check(
+      'um "ok" depois da recusa nao executa o ajuste que foi recusado',
+      okDepoisDaRecusa.action_taken !== "ajustar_estoque:ok" &&
+        (await saldoDe(sal.data.id)) === saldoAntesDaRecusa,
+      okDepoisDaRecusa.action_taken,
+    );
+
+    // A borda contraria, para a correcao nao criar o oposto de novo: "nao"
+    // esperando um CAMPO, com a resposta junto, continua sendo resposta.
+    await clearPendingStock(tenant.id, conversador.id);
+    const saldoAntesDoTalvez = await saldoDe(sal.data.id);
+    await registrarUsoEstoque(comoEle({ produto: "sal" }));
+    const naoComResposta = await registrarUsoEstoque(
+      comoEle({ quantidade: 2 }, { explicitNo: true }),
+    );
+    check(
+      '"nao sei ao certo, umas 2" esperando CAMPO continua sendo resposta',
+      naoComResposta.action_taken === "registrar_uso_estoque:ok",
+      naoComResposta.action_taken,
+    );
+    check("e o uso entrou", (await saldoDe(sal.data.id)) === saldoAntesDoTalvez - 2);
+
+    // ------------------------------------------------------------------
+    console.log("\n19. O leitor de numero e o MESMO na tela e na conversa");
+    // ------------------------------------------------------------------
+    // Um revisor achou que a correcao de magnitude tinha sido feita so no
+    // WhatsApp: a tela seguia com `Number` cru, e "1.500" virava 1,5 num campo
+    // que sobrescreve o saldo com um clique e sem como desfazer.
+    check('"1.500" e mil e quinhentos', lerNumeroBr("1.500") === 1500, String(lerNumeroBr("1.500")));
+    check('"1.000" e mil', lerNumeroBr("1.000") === 1000, String(lerNumeroBr("1.000")));
+    check('"2,5" e dois e meio', lerNumeroBr("2,5") === 2.5, String(lerNumeroBr("2,5")));
+    check('"2.5" tambem e dois e meio', lerNumeroBr("2.5") === 2.5, String(lerNumeroBr("2.5")));
+    check('"60 mil" e sessenta mil', lerNumeroBr("60 mil") === 60000, String(lerNumeroBr("60 mil")));
+    check('"12.50" e doze e cinquenta', lerNumeroBr("12.50") === 12.5, String(lerNumeroBr("12.50")));
+    check("texto sem numero nao vira zero", lerNumeroBr("umas quantas") === null);
+    check("vazio nao vira zero", lerNumeroBr("") === null);
+    check("mas o zero de verdade continua zero", lerNumeroBr("0") === 0);
+
     // ------------------------------------------------------------------
     console.log("\n11. Permissão: VISUALIZADOR não escreve pelo WhatsApp");    // ------------------------------------------------------------------
     const semPermissao = await routeIntent(db, {

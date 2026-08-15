@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiPost } from "@/lib/client-api";
 import { descreverQuantidade, findUnit } from "@/lib/stock/units";
+import { lerNumeroBr } from "@/lib/numero-br";
 
 /**
  * Usar e ajustar (§10.3 e §10.6), no mesmo painel.
@@ -90,8 +91,18 @@ export default function StockMovementForm({
         acao === "utilizacao" ? "Informe quanto você usou." : "Informe quanto tem de verdade.",
       );
     }
-    const numero = Number(quantity.replace(",", "."));
-    if (!Number.isFinite(numero)) return setError("Informe a quantidade.");
+    /**
+     * `lerNumeroBr`, nao `Number`: "1.500" e como o produtor escreve mil e
+     * quinhentos, e `Number` devolvia 1,5. Num campo que SOBRESCREVE o saldo
+     * com um clique, e sem cancelamento de movimentacao avulsa, o erro de mil
+     * vezes so seria descoberto contando o galpao de novo.
+     *
+     * A correcao foi feita antes no WhatsApp e esqueceu a tela, que e a outra
+     * borda do mesmo campo. Por isso a funcao mudou de casa: agora e modulo
+     * puro, e os dois lados leem igual.
+     */
+    const numero = lerNumeroBr(quantity);
+    if (numero == null) return setError("Não entendi a quantidade.");
     if (acao === "utilizacao" && numero <= 0) {
       return setError("A quantidade precisa ser maior que zero.");
     }

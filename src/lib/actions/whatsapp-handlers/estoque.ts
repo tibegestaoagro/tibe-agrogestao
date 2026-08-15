@@ -256,7 +256,24 @@ async function comMemoria(
    * indo para o lixo.
    */
   if (ctx.explicitNo) {
-    const trazResposta = meuPendente != null && aplicarRespostaEstoque(meuPendente, ctx.parameters) != null;
+    /**
+     * ...mas SÓ quando o assistente espera um CAMPO.
+     *
+     * A primeira versão desta guarda perguntava "a mensagem traz a resposta?"
+     * sem olhar o que estava sendo esperado, e o caso `"confirmacao"` responde
+     * SEMPRE que sim (ele carrega o pedido guardado por definição). Resultado:
+     * "não" na hora de confirmar não cancelava nada, a mesma confirmação
+     * voltava, o contador de tentativas nem subia, e a única saída que restava
+     * ao produtor preso era dizer "ok" -- que EXECUTAVA o ajuste que ele tinha
+     * acabado de recusar. Um revisor reproduziu: 20 sacas viravam 2 depois de
+     * dois "não".
+     *
+     * Esperando confirmação, "não" é recusa e ponto: é literalmente a resposta
+     * à pergunta feita.
+     */
+    const esperandoCampo = meuPendente != null && meuPendente.aguardando !== "confirmacao";
+    const trazResposta =
+      esperandoCampo && aplicarRespostaEstoque(meuPendente, ctx.parameters) != null;
     if (!trazResposta) {
       if (ctx.user_id) await clearPendingStock(ctx.tenant_id, ctx.user_id);
       return {

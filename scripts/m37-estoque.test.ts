@@ -1098,8 +1098,10 @@ async function main() {
       recadastro.ok ? "CRIOU" : `${recadastro.code}/${recadastro.status}`,
     );
     check(
-      "e a mensagem manda reativar em vez de duplicar o saldo",
-      !recadastro.ok && recadastro.message.includes("Reative"),
+      "e a mensagem explica por que, sem prometer uma reativacao que nao existe",
+      !recadastro.ok &&
+        recadastro.message.includes("dividiria o saldo") &&
+        !recadastro.message.includes("Reative em vez"),
       recadastro.ok ? "" : recadastro.message,
     );
 

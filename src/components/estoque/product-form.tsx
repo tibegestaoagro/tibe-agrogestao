@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiPost } from "@/lib/client-api";
 import { STOCK_UNITS } from "@/lib/stock/units";
+import { lerNumeroBr } from "@/lib/numero-br";
 
 /**
  * Cadastro de produto (§9.1).
@@ -67,8 +68,13 @@ export default function ProductForm({ categories }: { categories: Categoria[] })
     if (!categoryId) return setError("Escolha a categoria.");
     if (!unit) return setError("Escolha a unidade de medida.");
 
-    const minimoNumero = minimo.trim() ? Number(minimo.replace(",", ".")) : null;
-    if (minimoNumero != null && (!Number.isFinite(minimoNumero) || minimoNumero < 0)) {
+    // Mesmo leitor da quantidade: um mínimo de "1.500" lido como 1,5 mudaria
+    // quando o aviso de reposição dispara, em mil vezes.
+    const minimoNumero = minimo.trim() ? lerNumeroBr(minimo) : null;
+    if (minimo.trim() && minimoNumero == null) {
+      return setError("Não entendi o estoque mínimo.");
+    }
+    if (minimoNumero != null && minimoNumero < 0) {
       return setError("O estoque mínimo não pode ser negativo.");
     }
 
