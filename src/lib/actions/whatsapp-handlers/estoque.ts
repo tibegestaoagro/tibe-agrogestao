@@ -810,7 +810,10 @@ export const registrarNegocioProduto: Handler = async (ctx) => {
   }
   const occurredAt = dataNegocio.tipo === "ok" ? dataNegocio.data : new Date();
 
-  const vencimento = lerData(parameters, "vencimento", "due_date");
+  // `data_pagamento` é o terceiro nome que o classificador usa, e o handler de
+  // gado já o lia. Sem ele, "para pagar dia 10" dito com esse rótulo virava uma
+  // conta vencendo HOJE.
+  const vencimento = lerData(parameters, "vencimento", "due_date", "data_pagamento");
   if (vencimento.tipo === "invalida") {
     return guardar("vencimento", `Não entendi o vencimento "${vencimento.bruto}". Pode dizer 10/12?`);
   }
@@ -833,10 +836,25 @@ export const registrarNegocioProduto: Handler = async (ctx) => {
       ? null
       : (lerNumeroBr(parcelasBrutas) ?? extrairNumeroDeParcelas(parcelasBrutas));
   if (parcelasBrutas != null && parcelasBrutas !== "" && quantasParcelas == null) {
-    return guardar("pagamento", "Não entendi o parcelamento. Em quantas vezes você vai pagar?");
+    // Ecoa o que foi dito, como o handler de gado faz: "não entendi" sem dizer
+    // o que não foi entendido obriga o produtor a adivinhar qual palavra trocar.
+    const eco = typeof parcelasBrutas === "string" ? ` "${parcelasBrutas}"` : "";
+    return guardar("pagamento", `Não entendi o parcelamento${eco}. Em quantas vezes você vai pagar?`);
   }
   const custos = custosDosParametros(parameters);
-  const contato = str(parameters.contato) ?? str(parameters.contact_name) ?? null;
+  /**
+   * `vendedor` e `comprador` entram na lista: são os nomes que o §9.2 usa e que
+   * o classificador emite ("comprei do Zé"). Lendo só `contato`, o fornecedor
+   * dito na frase era descartado e o `Contact` nunca nascia.
+   */
+  const contato =
+    str(parameters.contato) ??
+    str(parameters.contact_name) ??
+    str(parameters.contact) ??
+    (compra ? str(parameters.vendedor) : str(parameters.comprador)) ??
+    str(parameters.vendedor) ??
+    str(parameters.comprador) ??
+    null;
 
   // "Já paguei" e "vou parcelar em 3x" não podem valer ao mesmo tempo. A
   // action recusaria, mas a pergunta aqui é melhor que o erro depois da
@@ -874,6 +892,32 @@ export const registrarNegocioProduto: Handler = async (ctx) => {
   // mostrar é pedir assinatura no que não foi lido.
   const descricaoContato = contato ? `\nCom: ${contato}.` : "";
   const descricaoData = `\nData: ${occurredAt.toLocaleDateString("pt-BR")}.`;
+
+  /**
+   * Numa VENDA, o saldo é conferido ANTES de pedir confirmação.
+   *
+   * O próprio arquivo já argumenta, na leitura de quantidade, que "perguntar
+   * 'confirma 2,5 enxadas?' já é aceitar a premissa errada". Vale igual para
+   * "confirma a venda de 500 sacas?" quando existem 28: o produtor dizia sim e
+   * só então ouvia a recusa. O handler de gado confere o saldo antes de montar
+   * a confirmação desde o Módulo 30, pelo mesmo motivo.
+   *
+   * Só na venda: a compra ACRESCENTA, e não tem teto.
+   */
+  if (!compra) {
+    const [posicaoAtual] = await getStockBalance(db, {
+      product_id: produto.id,
+      property_id: fazenda.id,
+    });
+    const disponivel = posicaoAtual?.quantity ?? 0;
+    if (disponivel < quantidade.valor) {
+      return guardar(
+        "quantidade",
+        `Existem apenas ${descreverQuantidade(disponivel, produto.unit)} de ${produto.name} ` +
+          `em ${fazenda.nome}. Revise a quantidade informada.`,
+      );
+    }
+  }
 
   if (!memoria.executar) {
     if (user_id) {

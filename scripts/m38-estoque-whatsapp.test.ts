@@ -1420,6 +1420,97 @@ async function main() {
     );
 
     // ------------------------------------------------------------------
+    console.log("\n23. Paridade com o gado, segunda passada");
+    // ------------------------------------------------------------------
+    // Nenhum destes veio de juiz: sairam de comparar de novo, regra por regra,
+    // com `negociacao.ts`. A primeira passada tinha deixado quatro para tras.
+    await clearPendingStock(tenant.id, conversador.id);
+    await recordStockMovement(db, {
+      product_id: sal.data.id,
+      property_id: fazenda.id,
+      movement_type: "compra",
+      quantity: 40,
+    });
+
+    // P5: "comprei do Ze" -- o §9.2 chama de vendedor, nao de contato.
+    const comVendedor = await registrarNegocioProduto(
+      comoEle({ tipo: "compra", produto: "sal", quantidade: 2, valor: 200, vendedor: "Ze da Serra" }),
+    );
+    check(
+      '"vendedor" vale como contato, e aparece na confirmacao',
+      comVendedor.reply_text.includes("Ze da Serra"),
+      comVendedor.reply_text,
+    );
+    await clearPendingStock(tenant.id, conversador.id);
+
+    // P6: `data_pagamento` e o terceiro nome do vencimento.
+    const comDataPagamento = await registrarNegocioProduto(
+      comoEle({
+        tipo: "compra",
+        produto: "sal",
+        quantidade: 2,
+        valor: 200,
+        data_pagamento: "10/12",
+      }),
+    );
+    check(
+      '"data_pagamento" vale como vencimento, em vez de virar conta de hoje',
+      comDataPagamento.reply_text.includes("10/12"),
+      comDataPagamento.reply_text,
+    );
+    await clearPendingStock(tenant.id, conversador.id);
+
+    // P7: a pergunta ecoa o que nao foi entendido.
+    const ecoDoParcelamento = await registrarNegocioProduto(
+      comoEle({
+        tipo: "compra",
+        produto: "sal",
+        quantidade: 2,
+        valor: 200,
+        parcelas: "quando der",
+      }),
+    );
+    check(
+      "o pedido de parcelamento ecoa o que o produtor disse",
+      ecoDoParcelamento.reply_text.includes("quando der"),
+      ecoDoParcelamento.reply_text,
+    );
+    await clearPendingStock(tenant.id, conversador.id);
+
+    // P8: numa VENDA o saldo e conferido ANTES de pedir confirmacao.
+    const saldoParaVender = await saldoDe(sal.data.id);
+    const vendaAcimaDoSaldo = await registrarNegocioProduto(
+      comoEle({ tipo: "venda", produto: "sal", quantidade: saldoParaVender + 500, valor: 60000 }),
+    );
+    check(
+      "venda acima do saldo NAO chega a pedir confirmacao",
+      vendaAcimaDoSaldo.requires_confirmation === false &&
+        vendaAcimaDoSaldo.reply_text.includes("Existem apenas"),
+      vendaAcimaDoSaldo.reply_text.slice(0, 70),
+    );
+    // A borda contraria: dentro do saldo, a venda segue para a confirmacao.
+    await clearPendingStock(tenant.id, conversador.id);
+    const vendaPossivel = await registrarNegocioProduto(
+      comoEle({ tipo: "venda", produto: "sal", quantidade: 1, valor: 140 }),
+    );
+    check(
+      "e uma venda dentro do saldo continua pedindo confirmacao",
+      vendaPossivel.requires_confirmation === true,
+      vendaPossivel.reply_text.slice(0, 70),
+    );
+    // E a COMPRA nunca e barrada por saldo: ela acrescenta.
+    await clearPendingStock(tenant.id, conversador.id);
+    const compraGrande = await registrarNegocioProduto(
+      comoEle({ tipo: "compra", produto: "sal", quantidade: 99999, valor: 1000 }),
+    );
+    check(
+      "compra de qualquer tamanho passa: comprar nao tem teto",
+      compraGrande.requires_confirmation === true,
+      compraGrande.reply_text.slice(0, 70),
+    );
+    await clearPendingStock(tenant.id, conversador.id);
+
+    // ------------------------------------------------------------------
     console.log("\n11. Permissão: VISUALIZADOR não escreve pelo WhatsApp");    // ------------------------------------------------------------------
     const semPermissao = await routeIntent(db, {
       tenant_id: tenant.id,
