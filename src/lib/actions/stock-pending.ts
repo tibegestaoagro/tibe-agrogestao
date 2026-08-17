@@ -104,6 +104,124 @@ export const CAMPOS_DE_CORRECAO = [
   "pago",
 ] as const;
 
+
+/** Normaliza para comparar: sem acento, sem caixa, sem espaco sobrando. */
+function texto(v: unknown): string {
+  return String(v ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** "compra", "comprei" e "compra_produto" sao a mesma coisa. */
+function tipoNormalizado(v: unknown): string {
+  const t = texto(v);
+  if (t.startsWith("compr")) return "compra";
+  if (t.startsWith("vend")) return "venda";
+  return t;
+}
+
+/** Numero escrito de qualquer jeito: "10", 10, "1.200" e 1200. */
+function numeroNormalizado(v: unknown): string {
+  if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  const bruto = texto(v);
+  if (!bruto) return "";
+  const semMilhar = bruto.includes(",")
+    ? bruto.replace(/\./g, "").replace(",", ".")
+    : /\.\d{1,2}$/.test(bruto)
+      ? bruto
+      : bruto.replace(/\./g, "");
+  const n = Number(semMilhar);
+  return Number.isFinite(n) ? String(n) : bruto;
+}
+
+const NUMERICOS = new Set(["quantidade", "quantity", "qtd", "saldo", "valor", "amount", "valor_total"]);
+
+function comparavel(campo: string, valor: unknown): string {
+  if (campo === "tipo" || campo === "type") return tipoNormalizado(valor);
+  if (NUMERICOS.has(campo)) return numeroNormalizado(valor);
+  if (campo === "pago" || campo === "paid") {
+    const t = texto(valor);
+    return t === "true" || t === "sim" || t === "paguei" || t === "pago" ? "sim" : t;
+  }
+  return texto(valor);
+}
+
+/**
+ * A mensagem MUDA o pedido que está guardado?
+ *
+ * ESTA É A PERGUNTA CERTA, e levou cinco rodadas para aparecer. As anteriores
+ * perguntavam "a mensagem traz dado?", e a resposta em produção é SEMPRE sim:
+ * o guia do n8n (`docs/n8n-whatsapp-workflow.md`) manda o classificador
+ * **remontar a intenção e os parâmetros** a cada turno, inclusive no "não". Ou
+ * seja, todo "não" chega carregando o pedido inteiro de volta, e qualquer regra
+ * baseada em "traz dado" lê uma recusa como resposta.
+ *
+ * Um revisor reproduziu o estrago: "não" repetia a confirmação para sempre, e
+ * um "ok obrigado" duas voltas depois GRAVAVA a compra recusada.
+ *
+ * Com a pergunta certa, três coisas caem no lugar de uma vez:
+ *
+ * - **eco do pedido = recusa.** "Não" que devolve exatamente o que foi mostrado
+ *   é "não", não é resposta.
+ * - **diferença = correção.** "Não é o proteinado, é o 60 P" muda `produto`,
+ *   então corrige em vez de cancelar.
+ * - **contador de laço de graça.** Repetir o mesmo pedido É o laço; mudar o
+ *   pedido é progresso.
+ *
+ * A normalização não é detalhe: o guardado tem `tipo: "compra_produto"` e o
+ * produto já resolvido ("Sal mineral 60 P"), enquanto o classificador reenvia
+ * `"compra"` e `"sal mineral 60 P"`. Sem normalizar, NADA nunca é igual, e a
+ * regra volta a valer o oposto do que promete.
+ */
+export function mudaOPedido(
+  pendente: PedidoEstoquePendente,
+  novos: Record<string, unknown>,
+): boolean {
+  for (const campo of CAMPOS_DE_CORRECAO) {
+    const chegou = novos[campo];
+    if (chegou === undefined || chegou === null || chegou === "") continue;
+
+    // O guardado pode ter o valor sob o mesmo nome ou sob o canônico.
+    const guardado =
+      pendente.parameters[campo] ??
+      (campo === "type" ? pendente.parameters.tipo : undefined) ??
+      (campo === "product" || campo === "item" ? pendente.parameters.produto : undefined) ??
+      (campo === "quantity" || campo === "qtd" ? pendente.parameters.quantidade : undefined) ??
+      (campo === "amount" || campo === "valor_total" ? pendente.parameters.valor : undefined) ??
+      (campo === "property" ? pendente.parameters.fazenda : undefined);
+
+    const a = comparavel(campo, chegou);
+    const b = comparavel(campo, guardado);
+    if (a === b) continue;
+
+    /**
+     * O PRODUTO é comparado por conteúdo, não por igualdade exata.
+     *
+     * O pendente guarda o nome RESOLVIDO ("Sal mineral 60 P") e o produtor
+     * digita o apelido ("sal"), que é justamente o que `resolverProduto`
+     * aceita. Exigir igualdade exata fazia toda recusa parecer correção: o
+     * "não" remontado trazia "sal", o guardado dizia "Sal mineral 60 P", e a
+     * conversa entendia que o produtor tinha trocado de produto.
+     *
+     * A regra é a mesma do catálogo, com uma direção: vale como IGUAL quando o
+     * guardado já é o nome completo e a mensagem traz o apelido. O contrário é
+     * MUDANÇA, e é o caso mais importante do módulo: quando o assistente
+     * pergunta "qual deles?", o guardado é o termo ambíguo ("sal") e a resposta
+     * é o nome específico ("Sal mineral 60 P"). Tratar isso como igual faria
+     * "não é o proteinado, é o 60 P" cancelar o registro, que é exatamente o
+     * defeito que motivou esta rodada.
+     */
+    if (campo === "produto" || campo === "product" || campo === "item") {
+      if (a && b && b.includes(a)) continue;
+    }
+    return true;
+  }
+  return false;
+}
+
 function chave(tenantId: string, userId: string): string {
   return `tibe:estoque-pending:${tenantId}:${userId}`;
 }

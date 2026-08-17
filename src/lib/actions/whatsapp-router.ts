@@ -38,6 +38,7 @@ import {
   loadPendingStock,
   quandoOutroDominioFalou,
   marcarExecucao,
+  mudaOPedido,
 } from "@/lib/actions/stock-pending";
 import { ajuda } from "@/lib/actions/whatsapp-handlers/ajuda";
 import { resumo } from "@/lib/actions/whatsapp-handlers/resumo";
@@ -364,13 +365,17 @@ export async function routeIntent(
        *    compra e ele via o sucesso do que nem estava na tela. Mesma regra de
        *    recência que já decide entre os três domínios de conversa.
        */
+      /**
+       * ECO DO PEDIDO NÃO É GESTO PRÓPRIO.
+       *
+       * A versão anterior olhava só a presença dos campos, e o guia do n8n
+       * manda o classificador remontar o pedido inteiro no "sim". Resultado: o
+       * "sim" legítimo era lido como gesto novo e a confirmação ficava órfã, ou
+       * pior, executava outra coisa (um "sim" a uma COMPRA de R$ 1.200
+       * consumiu 10 sacas do estoque). Gesto novo é o que MUDA o pedido.
+       */
       const temGestoProprio =
-        !!str(parameters.produto) ||
-        !!str(parameters.product) ||
-        !!str(parameters.item) ||
-        !!str(parameters.movement_type) ||
-        parameters.quantidade != null ||
-        parameters.quantity != null;
+        !!str(parameters.movement_type) || mudaOPedido(esperandoSim, parameters);
 
       // Lê a linha crua: `getActiveFlow` devolve o estado mapeado, sem a data,
       // e é a data que decide quem tem a vez.

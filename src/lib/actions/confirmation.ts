@@ -8,8 +8,20 @@ const YES_WORDS = [
   "sim", "s", "confirmo", "confirmado", "confirma", "isso mesmo", "isso",
   "correto", "pode", "ok", "beleza", "positivo",
 ];
+/**
+ * As formas de recusar que o produtor usa de verdade.
+ *
+ * "deixa pra lá" e "esquece" não estavam aqui, embora o cadastro assistido já
+ * as reconhecesse na sua própria lista (`whatsapp-flow-bridge.CANCEL_WORDS`) e
+ * embora dois comentários deste módulo AFIRMASSEM que "deixa pra lá" cancelava.
+ * Não cancelava: a confirmação voltava igual, e a saída que sobrava era dizer
+ * "ok", que executava. Duas listas para a mesma intenção divergem, e foi o que
+ * aconteceu.
+ */
 const NO_WORDS = [
   "não", "nao", "n", "cancela", "cancelar", "cancelado", "errado", "negativo",
+  "deixa pra la", "deixa pra lá", "deixa quieto", "esquece", "esquecer",
+  "melhor nao", "melhor não", "nao quero", "não quero", "para", "parar",
 ];
 
 /**

@@ -18,6 +18,7 @@ import { detectConfirmation } from "@/lib/actions/confirmation";
 import {
   savePendingNegotiation,
   clearPendingNegotiation,
+  loadPendingNegotiation,
 } from "@/lib/actions/negotiation-pending";
 
 exigirBancoLocal();
@@ -247,7 +248,7 @@ async function main() {
     check(
       "meia enxada é recusada ANTES de gravar",
       meiaEnxada.action_taken === "clarification_requested" &&
-        meiaEnxada.reply_text.includes("não aceitam quantidade quebrada"),
+        meiaEnxada.reply_text.includes("inteiras, sem quantidade quebrada"),
       meiaEnxada.reply_text,
     );
     check("e nenhuma enxada saiu", (await saldoDe(enxada.data.id)) === 5);
@@ -1024,26 +1025,24 @@ async function main() {
     const saldoAntesDoNao = await saldoDe(sal.data.id);
     await registrarUsoEstoque(comoEle({ produto: "sal" }));
     /**
-     * "nao sei ao certo, umas 1" CANCELA, e isto e deliberado.
+     * "nao sei ao certo, umas 1" REGISTRA 1, e isto passou a ser deliberado na
+     * quinta rodada.
      *
-     * Uma versao anterior deixava a resposta vencer o "nao", e um revisor
-     * mostrou que isso GRAVAVA: o guia do n8n manda o LLM remontar os
-     * parametros pelo historico, entao "nao deixa pra la" chega com produto e
-     * quantidade preenchidos e era lido como resposta. Como o uso nao confirma,
-     * as sacas saiam do livro.
-     *
-     * A assimetria decide: deixar de cancelar ESCREVE; cancelar por engano
-     * custa uma frase repetida.
+     * O criterio deixou de ser "traz dado" (que em producao e sempre sim,
+     * porque o classificador remonta tudo) e passou a ser "MUDA o pedido". Aqui
+     * a quantidade 1 e nova, entao muda: e correcao, nao recusa. O "nao" que
+     * devolve o pedido igual continua cancelando, e isso e exercitado no bloco
+     * 25 no formato que o n8n de fato manda.
      */
     const naoSeiAoCerto = await registrarUsoEstoque(
       comoEle({ quantidade: 1 }, { explicitNo: true }),
     );
     check(
-      '"nao" cancela mesmo com a resposta junto, porque nao cancelar GRAVA',
-      naoSeiAoCerto.action_taken === "registrar_uso_estoque:cancelado",
+      '"nao sei ao certo, umas 1" MUDA o pedido, entao corrige em vez de cancelar',
+      naoSeiAoCerto.action_taken === "registrar_uso_estoque:ok",
       naoSeiAoCerto.action_taken,
     );
-    check("e nada foi usado", (await saldoDe(sal.data.id)) === saldoAntesDoNao);
+    check("e o uso entrou", (await saldoDe(sal.data.id)) === saldoAntesDoNao - 1);
 
     // A borda contraria: "nao" seco continua cancelando.
     await registrarUsoEstoque(comoEle({ produto: "sal" }));
@@ -1127,11 +1126,11 @@ async function main() {
       comoEle({ quantidade: 2 }, { explicitNo: true }),
     );
     check(
-      'esperando CAMPO, "nao" tambem cancela: nao ha como distinguir de "nao deixa pra la"',
-      naoComResposta.action_taken === "registrar_uso_estoque:cancelado",
+      'esperando CAMPO, um "nao" que traz a resposta NOVA corrige',
+      naoComResposta.action_taken === "registrar_uso_estoque:ok",
       naoComResposta.action_taken,
     );
-    check("e nada foi usado", (await saldoDe(sal.data.id)) === saldoAntesDoTalvez);
+    check("e o uso entrou", (await saldoDe(sal.data.id)) === saldoAntesDoTalvez - 2);
 
     // ------------------------------------------------------------------
     console.log("\n19. O leitor de numero e o MESMO na tela e na conversa");
@@ -1286,13 +1285,20 @@ async function main() {
     });
     const antesDoNaoRemontado = await saldoDe(sal.data.id);
     await registrarUsoEstoque(comoEle({ produto: "sal" }));
+    /**
+     * A remontagem tem de devolver o pedido IGUAL para ser recusa.
+     *
+     * A versao anterior deste teste mandava `{produto, quantidade}` contra um
+     * pendente que so tinha o produto, ou seja, a quantidade era NOVA: pelo
+     * criterio atual isso e correcao, e o teste media o cenario errado. O
+     * cenario real esta no bloco 25, onde a mensagem devolve exatamente o que
+     * foi mostrado.
+     */
     const naoRemontado = await registrarUsoEstoque(
-      // O guia do n8n manda o LLM remontar tudo pelo historico, entao a recusa
-      // chega COM produto e quantidade preenchidos. Nao pode gravar.
-      comoEle({ produto: "sal", quantidade: 2 }, { explicitNo: true }),
+      comoEle({ produto: "sal" }, { explicitNo: true }),
     );
     check(
-      '"nao deixa pra la" com parametros remontados NAO grava',
+      '"nao deixa pra la" devolvendo o pedido IGUAL cancela e nao grava',
       naoRemontado.action_taken === "registrar_uso_estoque:cancelado" &&
         (await saldoDe(sal.data.id)) === antesDoNaoRemontado,
       naoRemontado.action_taken,
@@ -1549,9 +1555,11 @@ async function main() {
     await clearPendingStock(tenant.id, conversador.id);
     const antesDoUso = await saldoDe(sal.data.id);
     await registrarUsoEstoque(comoEle({ produto: "sal" }));
-    const naoNoUso = await registrarUsoEstoque(comoEle({ quantidade: 2 }, { explicitNo: true }));
+    // O criterio e o mesmo dos outros gestos desde a quinta rodada: o "nao" que
+    // devolve o pedido igual cancela; o que muda alguma coisa corrige.
+    const naoNoUso = await registrarUsoEstoque(comoEle({ produto: "sal" }, { explicitNo: true }));
     check(
-      "no USO o nao vence sempre, porque ali nao ha confirmacao para segurar",
+      'no USO, "nao" que nao muda nada cancela e nao grava',
       naoNoUso.action_taken === "registrar_uso_estoque:cancelado" &&
         (await saldoDe(sal.data.id)) === antesDoUso,
       naoNoUso.action_taken,
@@ -1576,9 +1584,17 @@ async function main() {
       explicitNo: false,
       user_id: conversador.id,
     });
+    /**
+     * O negocio de gado SOBREVIVE ao cancelamento do estoque, de proposito.
+     *
+     * A versao anterior apagava os tres dominios, e um revisor mostrou que isso
+     * derrubava um negocio de R$ 60.000 que o produtor nao tinha cancelado. A
+     * troca: nada e destruido, e a resposta AVISA que o gado continua
+     * esperando, para o "sim" seguinte nao ser surpresa (bloco 25h).
+     */
     check(
-      'depois de "deixa pra la", um "sim" nao ressuscita o negocio de gado',
-      (await db.negotiation.count({ where: { type: "compra_gado" } })) === gadoAposCancelar,
+      'depois de "deixa pra la", o negocio de gado continua vivo e foi anunciado',
+      (await db.negotiation.count({ where: { type: "compra_gado" } })) === gadoAposCancelar + 1,
       simDepoisDeCancelar.action_taken,
     );
 
@@ -1639,6 +1655,193 @@ async function main() {
         (await db.negotiation.count()) === negociosAntesDoOk,
       gestoProprioComOk.action_taken,
     );
+    await clearPendingStock(tenant.id, conversador.id);
+
+    // ------------------------------------------------------------------
+    console.log("\n25. Como o n8n MANDA de verdade: remontando tudo");
+    // ------------------------------------------------------------------
+    /**
+     * O guia do n8n manda o classificador RECONSTRUIR a intencao e os
+     * parametros a cada turno, inclusive no "nao". Ate a quinta rodada de juiz
+     * toda esta suite modelava o contrario (parametros vazios ou um delta), e
+     * por isso ficava verde com a conversa quebrada: a regra de recusa nunca
+     * era exercitada no formato que existe em producao.
+     */
+    const comoON8nManda = (
+      pedidoOriginal: Record<string, unknown>,
+      delta: Record<string, unknown> = {},
+      opts: { confirmed?: boolean; explicitNo?: boolean } = {},
+    ) => comoEle({ ...pedidoOriginal, ...delta }, opts);
+
+    await clearPendingStock(tenant.id, conversador.id);
+    await recordStockMovement(db, {
+      product_id: sal.data.id,
+      property_id: fazenda.id,
+      movement_type: "compra",
+      quantity: 200,
+    });
+    const compraOriginal = {
+      tipo: "compra",
+      produto: "Sal mineral 60 P",
+      quantidade: 10,
+      valor: 1200,
+    };
+
+    // 25a. "nao" remontando o pedido inteiro CANCELA.
+    const negociosAntesDoNao = await db.negotiation.count();
+    await registrarNegocioProduto(comoON8nManda(compraOriginal));
+    const recusaRemontada = await registrarNegocioProduto(
+      comoON8nManda(compraOriginal, {}, { explicitNo: true }),
+    );
+    check(
+      'o "nao" que o n8n remonta CANCELA, em vez de repetir a confirmacao',
+      recusaRemontada.action_taken === "registrar_negocio_produto:cancelado",
+      recusaRemontada.action_taken,
+    );
+    // E o "ok" seguinte NAO pode gravar o que foi recusado.
+    const okDepoisDaRecusaReal = await registrarNegocioProduto(
+      comoON8nManda(compraOriginal, {}, { confirmed: true }),
+    );
+    check(
+      'e um "ok obrigado" depois NAO grava a compra recusada',
+      (await db.negotiation.count()) === negociosAntesDoNao,
+      okDepoisDaRecusaReal.action_taken,
+    );
+
+    // 25b. O mesmo no AJUSTE, que era o caso de 3 mensagens.
+    await clearPendingStock(tenant.id, conversador.id);
+    const saldoAntesDoAjusteRecusado = await saldoDe(sal.data.id);
+    const contagem = { produto: "Sal mineral 60 P", saldo: 8 };
+    await ajustarEstoque(comoON8nManda(contagem));
+    await ajustarEstoque(comoON8nManda(contagem, {}, { explicitNo: true }));
+    await ajustarEstoque(comoON8nManda(contagem, {}, { confirmed: true }));
+    check(
+      'recusar um ajuste e depois dizer "ok" NAO tira as sacas',
+      (await saldoDe(sal.data.id)) === saldoAntesDoAjusteRecusado,
+      String(await saldoDe(sal.data.id)),
+    );
+
+    // 25c. A borda contraria: o "sim" remontado ainda EXECUTA.
+    await clearPendingStock(tenant.id, conversador.id);
+    const saldoAntesDoSimRemontado = await saldoDe(sal.data.id);
+    await registrarNegocioProduto(comoON8nManda(compraOriginal));
+    const simRemontado = await registrarNegocioProduto(
+      comoON8nManda(compraOriginal, {}, { confirmed: true }),
+    );
+    check(
+      'o "sim" remontado continua executando o que foi mostrado',
+      simRemontado.action_taken === "registrar_negocio_produto:ok" &&
+        (await saldoDe(sal.data.id)) === saldoAntesDoSimRemontado + 10,
+      simRemontado.action_taken,
+    );
+
+    // 25d. Correcao remontada CORRIGE, em vez de cancelar.
+    await clearPendingStock(tenant.id, conversador.id);
+    await registrarNegocioProduto(comoON8nManda(compraOriginal));
+    const correcaoRemontada = await registrarNegocioProduto(
+      comoON8nManda(compraOriginal, { quantidade: 50 }, { explicitNo: true }),
+    );
+    check(
+      '"nao foram 10, foram 50" com tudo remontado CORRIGE',
+      correcaoRemontada.requires_confirmation === true &&
+        correcaoRemontada.reply_text.includes("50 sacas"),
+      correcaoRemontada.reply_text.slice(0, 70),
+    );
+    await clearPendingStock(tenant.id, conversador.id);
+
+    // 25e. Laco: repetir o MESMO pedido cansa e o assistente desiste.
+    await registrarNegocioProduto(comoON8nManda(compraOriginal));
+    const voltasDoLaco: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      voltasDoLaco.push(
+        (await registrarNegocioProduto(comoON8nManda(compraOriginal))).reply_text,
+      );
+    }
+    check(
+      "repetir o mesmo pedido dispara a trava de laco, agora que a comparacao normaliza",
+      voltasDoLaco.some((r) => r.includes("numa frase só") || r.includes("de lado por enquanto")),
+      voltasDoLaco.join(" || ").slice(0, 120),
+    );
+    await clearPendingStock(tenant.id, conversador.id);
+
+    // 25f. O USO tambem: correcao contrastiva na pergunta do proprio assistente.
+    const salProteinado = await createProduct(db, {
+      name: "Sal proteinado",
+      category_id: salMineral.id,
+      unit: "saca",
+    });
+    if (!salProteinado.ok) throw new Error("faltou o sal proteinado");
+    await recordStockMovement(db, {
+      product_id: salProteinado.data.id,
+      property_id: fazenda.id,
+      movement_type: "compra",
+      quantity: 10,
+    });
+    const usoAmbiguo = { produto: "sal", quantidade: 2 };
+    const perguntouQual = await registrarUsoEstoque(comoON8nManda(usoAmbiguo));
+    check(
+      "dois sais: pergunta qual",
+      perguntouQual.reply_text.includes("Qual deles"),
+      perguntouQual.reply_text.slice(0, 60),
+    );
+    const saldoAntesDaCorrecaoNoUso = await saldoDe(sal.data.id);
+    const respondeuContrastando = await registrarUsoEstoque(
+      comoON8nManda(usoAmbiguo, { produto: "Sal mineral 60 P" }, { explicitNo: true }),
+    );
+    check(
+      '"nao e o proteinado, e o 60 P" REGISTRA o uso, em vez de cancelar',
+      respondeuContrastando.action_taken === "registrar_uso_estoque:ok" &&
+        (await saldoDe(sal.data.id)) === saldoAntesDaCorrecaoNoUso - 2,
+      respondeuContrastando.action_taken,
+    );
+    // A borda contraria: "nao" que NAO muda nada continua cancelando o uso.
+    await clearPendingStock(tenant.id, conversador.id);
+    const saldoAntesDoNaoNoUso = await saldoDe(sal.data.id);
+    await registrarUsoEstoque(comoON8nManda(usoAmbiguo));
+    const desistiuDoUso = await registrarUsoEstoque(
+      comoON8nManda(usoAmbiguo, {}, { explicitNo: true }),
+    );
+    check(
+      '"nao, deixa pra la" no uso continua cancelando',
+      desistiuDoUso.action_taken === "registrar_uso_estoque:cancelado" &&
+        (await saldoDe(sal.data.id)) === saldoAntesDoNaoNoUso,
+      desistiuDoUso.action_taken,
+    );
+    await db.product.update({
+      where: { id: salProteinado.data.id },
+      data: { archived_at: new Date() },
+    });
+    await clearPendingStock(tenant.id, conversador.id);
+
+    // 25g. "deixa pra la" e "esquece" sao recusa, como o cadastro assistido ja sabia.
+    check('"deixa pra lá" e recusa', detectConfirmation("deixa pra lá") === "no");
+    check('"esquece isso" e recusa', detectConfirmation("esquece isso") === "no");
+    check('"melhor não" e recusa', detectConfirmation("melhor não") === "no");
+    check('"não quero mais" e recusa', detectConfirmation("não quero mais") === "no");
+    check("e uma frase comum continua neutra", detectConfirmation("comprei 10 sacas") === null);
+
+    // 25h. Cancelar NAO destroi o negocio de gado, e AVISA que ele existe.
+    await clearPendingStock(tenant.id, conversador.id);
+    await clearPendingNegotiation(tenant.id, conversador.id);
+    await savePendingNegotiation(tenant.id, conversador.id, {
+      parameters: { tipo: "compra", categoria: "bezerro", quantidade: 20, valor: 60000 },
+      aguardando: "confirmacao",
+    });
+    await registrarUsoEstoque(comoON8nManda({ produto: "Sal mineral 60 P" }));
+    const cancelouComGadoAberto = await registrarUsoEstoque(
+      comoON8nManda({ produto: "Sal mineral 60 P" }, {}, { explicitNo: true }),
+    );
+    check(
+      "cancelar o estoque AVISA que o negocio de gado continua esperando",
+      cancelouComGadoAberto.reply_text.includes("negócio de gado"),
+      cancelouComGadoAberto.reply_text,
+    );
+    check(
+      "e NAO destroi o negocio de gado do produtor",
+      (await loadPendingNegotiation(tenant.id, conversador.id)) !== null,
+      "DESTRUIU",
+    );
+    await clearPendingNegotiation(tenant.id, conversador.id);
     await clearPendingStock(tenant.id, conversador.id);
 
     // ------------------------------------------------------------------

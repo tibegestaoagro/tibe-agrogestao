@@ -17,13 +17,12 @@ import {
   quandoOutroDominioFalou,
   marcarExecucao,
   aplicarRespostaEstoque,
-  CAMPOS_DE_CORRECAO,
+  mudaOPedido,
   MAX_TENTATIVAS,
   type CampoEstoque,
   type PedidoEstoquePendente,
 } from "@/lib/actions/stock-pending";
-import { clearPendingNegotiation } from "@/lib/actions/negotiation-pending";
-import { clearPendingHerd as clearHerdPending } from "@/lib/actions/herd-pending";
+import { loadPendingNegotiation } from "@/lib/actions/negotiation-pending";
 import { resolverFazenda } from "./herd";
 import { ask, failReply, str, type Handler, type RouterResult } from "./shared";
 import {
@@ -200,40 +199,31 @@ const EXEMPLO_POR_GESTO: Record<PedidoEstoquePendente["intent"], string> = {
 };
 
 /**
- * A mensagem traz algo que o assistente possa APROVEITAR no que perguntou?
+ * Encerra a conversa DE ESTOQUE, e avisa se sobrou outra aberta.
  *
- * Esperando um campo, é a resposta daquele campo. Esperando confirmação, é
- * qualquer dado do pedido (uma correção). Sem pendente, é qualquer coisa.
+ * Duas versões anteriores erraram nas pontas opostas. A primeira apagava os
+ * pendentes dos três domínios, e um revisor mostrou que isso derrubava um
+ * negócio de gado de R$ 60.000 que o produtor não tinha cancelado. Não apagar
+ * nada tem o defeito espelhado: o "sim" seguinte executa o que ficou aberto,
+ * sem nada na tela.
+ *
+ * A saída é não decidir pelo produtor e não escondê-lo: encerra o que a
+ * mensagem de fato encerrou, e DIZ o que continua esperando. Assim o "sim"
+ * seguinte deixa de ser surpresa, e nada é destruído às escondidas.
  */
-function trazDadoUtilizavel(
-  pendente: PedidoEstoquePendente | null,
-  novos: Record<string, unknown>,
-): boolean {
-  if (!pendente) return false;
-  if (pendente.aguardando !== "confirmacao") {
-    return aplicarRespostaEstoque(pendente, novos) != null;
+async function encerrarConversaDoEstoque(
+  tenantId: string,
+  userId: string,
+  tinhaPendente: boolean,
+): Promise<string> {
+  if (tinhaPendente) {
+    await clearPendingStock(tenantId, userId);
+    await marcarExecucao(tenantId, userId);
   }
-  return CAMPOS_DE_CORRECAO.some((campo) => {
-    const valor = novos[campo];
-    return valor !== undefined && valor !== null && valor !== "";
-  });
-}
-
-/**
- * "Deixa pra lá" encerra TUDO que estava aberto, nos três domínios.
- *
- * Um revisor reproduziu o motivo: com um negócio de gado esperando confirmação,
- * o produtor cancelava a conversa de estoque e o "sim" seguinte gravava os 20
- * bezerros e os R$ 60.000. Ele tinha acabado de dizer "não" e não havia mais
- * nada na tela. Apagar por causa de OUTRO ASSUNTO destrói conversa legítima (e
- * por isso não é feito); apagar porque a pessoa pediu para deixar pra lá é o
- * que a palavra significa.
- */
-async function cancelarTudoQueEstavaAberto(tenantId: string, userId: string): Promise<void> {
-  await clearPendingStock(tenantId, userId);
-  await marcarExecucao(tenantId, userId);
-  await clearPendingNegotiation(tenantId, userId);
-  await clearHerdPending(tenantId, userId);
+  const outro = await loadPendingNegotiation(tenantId, userId);
+  return outro
+    ? " Você ainda tem um negócio de gado esperando confirmação: responda sim para registrar, ou não para cancelar também."
+    : "";
 }
 
 function responder(texto: string, acao: string): RouterResult {
@@ -332,21 +322,24 @@ async function comMemoria(
      * que convida exatamente isso ("Qual deles?" → "não é o proteinado, é o 60
      * P"). Cinco perguntas do módulo caíam nisso, todas jogando o registro fora.
      *
-     * O que separa as duas é o RISCO, não a frase:
-     *
-     * - `registrar_uso_estoque` grava sem confirmação (§10.3), então ali um
-     *   "não" mal lido escreve no livro: recusa vence, ponto.
-     * - compra, venda e ajuste só gravam depois de um "sim". Nesses, tratar a
-     *   mensagem como correção não pode escrever nada, e a recusa continua
-     *   disponível: basta dizer "não" sem corrigir nada junto.
+     * O que separa as duas NÃO é o risco nem a presença de dado: é se a
+     * mensagem MUDA o pedido que está na tela. Ver `mudaOPedido`. A tentativa
+     * anterior (separar por risco, e perguntar "traz dado?") nunca chegava a
+     * recusar em compra, venda e ajuste, porque o classificador remonta o
+     * pedido inteiro em toda mensagem, inclusive no "não".
      */
-    const dadoUtil = trazDadoUtilizavel(meuPendente, ctx.parameters);
-    const gravaSemConfirmar = intent === "registrar_uso_estoque";
-    if (gravaSemConfirmar || !dadoUtil) {
-      if (ctx.user_id) await cancelarTudoQueEstavaAberto(ctx.tenant_id, ctx.user_id);
+    const corrige = meuPendente != null && mudaOPedido(meuPendente, ctx.parameters);
+    if (!corrige) {
+      const aviso = ctx.user_id
+        ? await encerrarConversaDoEstoque(ctx.tenant_id, ctx.user_id, meuPendente != null)
+        : "";
       return {
         ok: false,
-        resposta: responder("Ok, não registrei nada.", `${intent}:cancelado`),
+        resposta: responder(
+          (meuPendente ? "Ok, não registrei nada." : "Não tinha nada pendente para cancelar.") +
+            aviso,
+          `${intent}:cancelado`,
+        ),
       };
     }
   }
@@ -673,7 +666,7 @@ export const ajustarEstoque: Handler = async (ctx) => {
        */
       const jaPerguntou =
         memoria.pendente?.aguardando === "confirmacao" &&
-        JSON.stringify(memoria.pendente.parameters) === JSON.stringify(parameters)
+        !mudaOPedido(memoria.pendente, parameters)
           ? (memoria.pendente.tentativas ?? 1) + 1
           : 1;
       if (jaPerguntou >= MAX_TENTATIVAS) {
@@ -1015,7 +1008,7 @@ export const registrarNegocioProduto: Handler = async (ctx) => {
        */
       const jaPerguntou =
         memoria.pendente?.aguardando === "confirmacao" &&
-        JSON.stringify(memoria.pendente.parameters) === JSON.stringify(parameters)
+        !mudaOPedido(memoria.pendente, parameters)
           ? (memoria.pendente.tentativas ?? 1) + 1
           : 1;
       if (jaPerguntou >= MAX_TENTATIVAS) {

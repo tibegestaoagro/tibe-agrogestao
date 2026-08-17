@@ -106,7 +106,9 @@ export function recusaPorFracao(
    * nenhuma forma flexionada serve. A saída é não flexionar nada, começando
    * pela unidade em vez do produto.
    */
-  return `A unidade de ${nomeDoProduto} é ${unidade.plural}, que não aceitam quantidade quebrada.`;
+  // Sem flexionar o nome do produto (gênero livre) e sem a circularidade de "a
+  // unidade de X é unidades". A frase fala do NÚMERO, que é o que foi recusado.
+  return `${nomeDoProduto} só entra em ${unidade.plural} inteiras, sem quantidade quebrada.`;
 }
 
 /** "Quantas" para saca, "Quantos" para litro. */
