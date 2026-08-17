@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiPost } from "@/lib/client-api";
-import { descreverQuantidade, findUnit, recusaPorFracao } from "@/lib/stock/units";
+import { descreverQuantidade, findUnit, recusaPorFracao, disponiveis } from "@/lib/stock/units";
 import { lerNumeroBr } from "@/lib/numero-br";
 
 /**
@@ -118,7 +118,7 @@ export default function StockMovementForm({
     // produto na mão merece saber o teto antes de enviar.
     if (acao === "utilizacao" && numero > saldo) {
       return setError(
-        `Existem apenas ${descreverQuantidade(saldo, produto!.unit)} disponíveis. Revise a quantidade informada.`,
+        `Existem apenas ${descreverQuantidade(saldo, produto!.unit)} ${disponiveis(saldo)}. Revise a quantidade informada.`,
       );
     }
 

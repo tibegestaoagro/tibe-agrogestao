@@ -68,7 +68,18 @@ export async function POST(request: Request) {
 
   const confirmationSignal = detectConfirmation(message_text);
   const confirmed = parsed.data.confirmed === true || confirmationSignal === "yes";
-  const explicitNo = parsed.data.confirmed === false || confirmationSignal === "no";
+  /**
+   * Recusa vem do TEXTO, não de `confirmed: false`.
+   *
+   * `confirmed` significa "o produtor confirmou": `false` é a AUSÊNCIA de
+   * confirmação, não uma negativa. Tratar os dois como a mesma coisa era um
+   * erro de leitura com consequência real, porque o guia do n8n manda o
+   * classificador emitir o campo em TODA mensagem: um `false` de rotina em
+   * "usei 2 sacas de sal no curral" cancelava o registro. Antes doía menos
+   * (virava pergunta repetida); com a regra de que "não" cancela sempre,
+   * passou a custar o gesto inteiro.
+   */
+  const explicitNo = confirmationSignal === "no";
 
   const result = await routeIntent(db, {
     tenant_id,

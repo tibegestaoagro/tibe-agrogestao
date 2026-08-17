@@ -349,7 +349,40 @@ export async function routeIntent(
    */
   if (ctx.user_id && confirmed) {
     const esperandoSim = await loadPendingStock(tenant_id, ctx.user_id);
-    if (esperandoSim?.aguardando === "confirmacao") intent = esperandoSim.intent;
+    if (esperandoSim?.aguardando === "confirmacao") {
+      /**
+       * DUAS CONDIÇÕES, e as duas nasceram do defeito oposto.
+       *
+       * 1. A mensagem não pode carregar gesto PRÓPRIO. "ok, usei 3 sacas de sal
+       *    no curral" tem um "ok" que o interpretador marca como confirmação, e
+       *    a troca cega executava a compra pendente E jogava o uso fora, em
+       *    silêncio. Um "sim" de verdade não vem com produto e quantidade
+       *    junto.
+       * 2. Um formulário de cadastro MAIS RECENTE tem a vez. O produtor que
+       *    abandonou a compra, abriu um cadastro de animal e leu "Responda sim
+       *    para confirmar" está confirmando o ANIMAL: a troca cega gravava a
+       *    compra e ele via o sucesso do que nem estava na tela. Mesma regra de
+       *    recência que já decide entre os três domínios de conversa.
+       */
+      const temGestoProprio =
+        !!str(parameters.produto) ||
+        !!str(parameters.product) ||
+        !!str(parameters.item) ||
+        !!str(parameters.movement_type) ||
+        parameters.quantidade != null ||
+        parameters.quantity != null;
+
+      // Lê a linha crua: `getActiveFlow` devolve o estado mapeado, sem a data,
+      // e é a data que decide quem tem a vez.
+      const formulario = await db.agentFlowState.findFirst({
+        where: { user_id: ctx.user_id, expires_at: { gt: new Date() } },
+        select: { updated_at: true },
+      });
+      const formularioMaisRecente =
+        formulario != null && formulario.updated_at.getTime() > (esperandoSim.salvo_em ?? 0);
+
+      if (!temGestoProprio && !formularioMaisRecente) intent = esperandoSim.intent;
+    }
   }
 
   if (ctx.user_id && !EH_ESTOQUE.has(intent)) {

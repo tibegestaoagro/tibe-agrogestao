@@ -3,7 +3,7 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { runSerializableTenantTransaction } from "@/lib/financial";
 import { decToNum } from "@/lib/serialize";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
-import { descreverQuantidade, recusaPorFracao } from "@/lib/stock/units";
+import { descreverQuantidade, recusaPorFracao, disponiveis } from "@/lib/stock/units";
 import { isValidCategory } from "@/lib/herd/categories";
 
 /**
@@ -348,7 +348,7 @@ export async function recordStockMovementInTx(
       // pelo cliente e cada uma é citada onde vale.
       return fail(
         "INSUFFICIENT_STOCK",
-        `Existem apenas ${descreverQuantidade(disponivel, produto.unit)} disponíveis. Revise a quantidade informada.`,
+        `Existem apenas ${descreverQuantidade(disponivel, produto.unit)} ${disponiveis(disponivel)}. Revise a quantidade informada.`,
         422,
       );
     }

@@ -67,6 +67,11 @@ export function isStockUnit(id: unknown): id is string {
  * detalhe que faz o produtor achar que está falando com uma máquina. Meio não
  * é singular: "0,5 sacas" é o certo em português.
  */
+/** "1 saca disponível", "3 sacas disponíveis". */
+export function disponiveis(quantidade: number): string {
+  return quantidade === 1 ? "disponível" : "disponíveis";
+}
+
 export function descreverQuantidade(quantidade: number, unidadeId: string): string {
   const unidade = findUnit(unidadeId);
   const numero = quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
@@ -93,11 +98,15 @@ export function recusaPorFracao(
 ): string | null {
   const unidade = findUnit(unidadeId);
   if (!unidade || unidade.fracionavel || Number.isInteger(quantidade)) return null;
-  // Frase NEUTRA: o nome do produto tem gênero livre ("Enxada é contado" estava
-  // errado) e "que não aceita" concordava com o singular quando `plural` é
-  // plural. Duas concordâncias erradas na mesma linha, num módulo que investiu
-  // em `quantosOuQuantas`/`concordar` justamente para não parecer sistema.
-  return `${nomeDoProduto} é medido em ${unidade.plural}, que não aceitam quantidade quebrada.`;
+  /**
+   * Frase NEUTRA de verdade.
+   *
+   * A tentativa anterior ("é medido em") ainda concordava no masculino, e
+   * "Enxada é medido" continuava errado: o nome do produto é livre, então
+   * nenhuma forma flexionada serve. A saída é não flexionar nada, começando
+   * pela unidade em vez do produto.
+   */
+  return `A unidade de ${nomeDoProduto} é ${unidade.plural}, que não aceitam quantidade quebrada.`;
 }
 
 /** "Quantas" para saca, "Quantos" para litro. */

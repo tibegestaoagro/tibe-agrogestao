@@ -1511,6 +1511,137 @@ async function main() {
     await clearPendingStock(tenant.id, conversador.id);
 
     // ------------------------------------------------------------------
+    console.log("\n24. Quarta rodada: corrigir NAO e recusar");
+    // ------------------------------------------------------------------
+    await clearPendingStock(tenant.id, conversador.id);
+    await recordStockMovement(db, {
+      product_id: sal.data.id,
+      property_id: fazenda.id,
+      movement_type: "compra",
+      quantity: 60,
+    });
+
+    // "nao e X, e Y" e a forma mais natural de corrigir em portugues, e o
+    // assistente PERGUNTA de um jeito que convida exatamente isso.
+    await registrarNegocioProduto(
+      comoEle({ tipo: "compra", produto: "sal", quantidade: 10, valor: 1200 }),
+    );
+    const corrigiuComNao = await registrarNegocioProduto(
+      comoEle({ quantidade: 50 }, { explicitNo: true }),
+    );
+    check(
+      '"nao foram 10, foram 50" CORRIGE em vez de cancelar',
+      corrigiuComNao.requires_confirmation === true &&
+        corrigiuComNao.reply_text.includes("50 sacas"),
+      corrigiuComNao.reply_text.slice(0, 80),
+    );
+
+    // A borda contraria: "nao" SEM dado nenhum continua cancelando.
+    const naoSemDado = await registrarNegocioProduto(comoEle({}, { explicitNo: true }));
+    check(
+      '"nao, deixa pra la" (sem corrigir nada) continua cancelando',
+      naoSemDado.action_taken === "registrar_negocio_produto:cancelado",
+      naoSemDado.action_taken,
+    );
+
+    // E no USO, que grava sem confirmar, o "nao" vence sempre: ali um "nao" mal
+    // lido escreveria no livro.
+    await clearPendingStock(tenant.id, conversador.id);
+    const antesDoUso = await saldoDe(sal.data.id);
+    await registrarUsoEstoque(comoEle({ produto: "sal" }));
+    const naoNoUso = await registrarUsoEstoque(comoEle({ quantidade: 2 }, { explicitNo: true }));
+    check(
+      "no USO o nao vence sempre, porque ali nao ha confirmacao para segurar",
+      naoNoUso.action_taken === "registrar_uso_estoque:cancelado" &&
+        (await saldoDe(sal.data.id)) === antesDoUso,
+      naoNoUso.action_taken,
+    );
+
+    // "deixa pra la" encerra o que estava aberto nos TRES dominios.
+    await clearPendingStock(tenant.id, conversador.id);
+    await savePendingNegotiation(tenant.id, conversador.id, {
+      parameters: { tipo: "compra", categoria: "bezerro", quantidade: 20, valor: 60000 },
+      aguardando: "confirmacao",
+    });
+    await registrarUsoEstoque(comoEle({ produto: "sal" }));
+    await registrarUsoEstoque(comoEle({}, { explicitNo: true }));
+    const gadoAposCancelar = await db.negotiation.count({ where: { type: "compra_gado" } });
+    const simDepoisDeCancelar = await routeIntent(db, {
+      tenant_id: tenant.id,
+      role: "OWNER",
+      activeProfiles: ["fazenda"],
+      intent: "registrar_negocio_gado",
+      parameters: {},
+      confirmed: true,
+      explicitNo: false,
+      user_id: conversador.id,
+    });
+    check(
+      'depois de "deixa pra la", um "sim" nao ressuscita o negocio de gado',
+      (await db.negotiation.count({ where: { type: "compra_gado" } })) === gadoAposCancelar,
+      simDepoisDeCancelar.action_taken,
+    );
+
+    // Duas correcoes seguidas nao podem virar "laco".
+    await clearPendingStock(tenant.id, conversador.id);
+    await registrarNegocioProduto(
+      comoEle({ tipo: "compra", produto: "sal", quantidade: 10, valor: 1200 }),
+    );
+    await registrarNegocioProduto(comoEle({ quantidade: 50 }));
+    const segundaCorrecao = await registrarNegocioProduto(comoEle({ valor: 5000 }));
+    check(
+      "duas correcoes seguidas continuam a conversa, em vez de descartar a compra",
+      segundaCorrecao.requires_confirmation === true &&
+        segundaCorrecao.reply_text.includes("5.000"),
+      segundaCorrecao.reply_text.slice(0, 80),
+    );
+    // A borda contraria: repetir a MESMA coisa ainda cansa e desiste.
+    await clearPendingStock(tenant.id, conversador.id);
+    await registrarNegocioProduto(
+      comoEle({ tipo: "compra", produto: "sal", quantidade: 4, valor: 400 }),
+    );
+    // Junta TODAS as respostas: depois de desistir, o pendente e apagado e a
+    // volta seguinte ja recomeca do zero. Olhar so a ultima mediria a conversa
+    // NOVA, nao a trava que acabou de disparar.
+    const respostasDoLaco: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      respostasDoLaco.push(
+        (await registrarNegocioProduto(comoEle({ observacao: "hum" }))).reply_text,
+      );
+    }
+    check(
+      "mas repetir a mesma coisa ainda cansa e o assistente desiste",
+      respostasDoLaco.some(
+        (r) => r.includes("numa frase só") || r.includes("de lado por enquanto"),
+      ),
+      respostasDoLaco.join(" || ").slice(0, 140),
+    );
+
+    // "ok, usei 3 sacas" no meio de uma confirmacao NAO executa a compra.
+    await clearPendingStock(tenant.id, conversador.id);
+    const negociosAntesDoOk = await db.negotiation.count();
+    await registrarNegocioProduto(
+      comoEle({ tipo: "compra", produto: "sal", quantidade: 10, valor: 1200 }),
+    );
+    const gestoProprioComOk = await routeIntent(db, {
+      tenant_id: tenant.id,
+      role: "OWNER",
+      activeProfiles: ["fazenda"],
+      intent: "registrar_uso_estoque",
+      parameters: { produto: "sal", quantidade: 3 },
+      confirmed: true,
+      explicitNo: false,
+      user_id: conversador.id,
+    });
+    check(
+      '"ok, usei 3 sacas" registra o USO, sem executar a compra pendente',
+      gestoProprioComOk.action_taken === "registrar_uso_estoque:ok" &&
+        (await db.negotiation.count()) === negociosAntesDoOk,
+      gestoProprioComOk.action_taken,
+    );
+    await clearPendingStock(tenant.id, conversador.id);
+
+    // ------------------------------------------------------------------
     console.log("\n11. Permissão: VISUALIZADOR não escreve pelo WhatsApp");    // ------------------------------------------------------------------
     const semPermissao = await routeIntent(db, {
       tenant_id: tenant.id,

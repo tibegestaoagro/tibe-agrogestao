@@ -71,6 +71,39 @@ export type PedidoEstoquePendente = {
 
 export const MAX_TENTATIVAS = 3;
 
+/**
+ * Os campos que uma CORREÇÃO pode trazer durante a confirmação.
+ *
+ * Exportado porque o handler precisa da mesma lista para distinguir "não, é o
+ * 60 P" (correção) de "não, deixa pra lá" (recusa): duas listas divergiriam no
+ * primeiro campo novo que alguém acrescentasse de um lado só.
+ */
+export const CAMPOS_DE_CORRECAO = [
+  "produto",
+  "product",
+  "item",
+  "quantidade",
+  "quantity",
+  "qtd",
+  "saldo",
+  "valor",
+  "amount",
+  "valor_total",
+  "tipo",
+  "type",
+  "fazenda",
+  "property",
+  "contato",
+  "contact_name",
+  "vendedor",
+  "comprador",
+  "vencimento",
+  "due_date",
+  "data_pagamento",
+  "parcelas",
+  "pago",
+] as const;
+
 function chave(tenantId: string, userId: string): string {
   return `tibe:estoque-pending:${tenantId}:${userId}`;
 }
@@ -317,28 +350,7 @@ export function aplicarRespostaEstoque(
        * Quem decide EXECUTAR é o chamador, e só com um "sim" de verdade. Aqui
        * só se decide o que está sobre a mesa.
        */
-      const CAMPOS_DE_DADO = [
-        "produto",
-        "product",
-        "item",
-        "quantidade",
-        "quantity",
-        "qtd",
-        "saldo",
-        "valor",
-        "amount",
-        "valor_total",
-        "tipo",
-        "type",
-        "fazenda",
-        "property",
-        "contato",
-        "contact_name",
-        "vencimento",
-        "due_date",
-        "parcelas",
-        "pago",
-      ];
+      const CAMPOS_DE_DADO = CAMPOS_DE_CORRECAO;
       for (const campo of CAMPOS_DE_DADO) {
         const valor = novos[campo];
         if (valor !== undefined && valor !== null && valor !== "") juntos[campo] = valor;

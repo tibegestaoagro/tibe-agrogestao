@@ -15,11 +15,15 @@ import {
   clearPendingStock,
   quandoExecutouPorUltimo,
   quandoOutroDominioFalou,
+  marcarExecucao,
   aplicarRespostaEstoque,
+  CAMPOS_DE_CORRECAO,
   MAX_TENTATIVAS,
   type CampoEstoque,
   type PedidoEstoquePendente,
 } from "@/lib/actions/stock-pending";
+import { clearPendingNegotiation } from "@/lib/actions/negotiation-pending";
+import { clearPendingHerd as clearHerdPending } from "@/lib/actions/herd-pending";
 import { resolverFazenda } from "./herd";
 import { ask, failReply, str, type Handler, type RouterResult } from "./shared";
 import {
@@ -195,6 +199,43 @@ const EXEMPLO_POR_GESTO: Record<PedidoEstoquePendente["intent"], string> = {
   registrar_negocio_produto: "comprei 10 sacas de sal do Zé por 1200, para pagar dia 10",
 };
 
+/**
+ * A mensagem traz algo que o assistente possa APROVEITAR no que perguntou?
+ *
+ * Esperando um campo, é a resposta daquele campo. Esperando confirmação, é
+ * qualquer dado do pedido (uma correção). Sem pendente, é qualquer coisa.
+ */
+function trazDadoUtilizavel(
+  pendente: PedidoEstoquePendente | null,
+  novos: Record<string, unknown>,
+): boolean {
+  if (!pendente) return false;
+  if (pendente.aguardando !== "confirmacao") {
+    return aplicarRespostaEstoque(pendente, novos) != null;
+  }
+  return CAMPOS_DE_CORRECAO.some((campo) => {
+    const valor = novos[campo];
+    return valor !== undefined && valor !== null && valor !== "";
+  });
+}
+
+/**
+ * "Deixa pra lá" encerra TUDO que estava aberto, nos três domínios.
+ *
+ * Um revisor reproduziu o motivo: com um negócio de gado esperando confirmação,
+ * o produtor cancelava a conversa de estoque e o "sim" seguinte gravava os 20
+ * bezerros e os R$ 60.000. Ele tinha acabado de dizer "não" e não havia mais
+ * nada na tela. Apagar por causa de OUTRO ASSUNTO destrói conversa legítima (e
+ * por isso não é feito); apagar porque a pessoa pediu para deixar pra lá é o
+ * que a palavra significa.
+ */
+async function cancelarTudoQueEstavaAberto(tenantId: string, userId: string): Promise<void> {
+  await clearPendingStock(tenantId, userId);
+  await marcarExecucao(tenantId, userId);
+  await clearPendingNegotiation(tenantId, userId);
+  await clearHerdPending(tenantId, userId);
+}
+
 function responder(texto: string, acao: string): RouterResult {
   return {
     reply_text: texto,
@@ -279,11 +320,35 @@ async function comMemoria(
    * ele está validado em produção.
    */
   if (ctx.explicitNo) {
-    if (ctx.user_id) await clearPendingStock(ctx.tenant_id, ctx.user_id);
-    return {
-      ok: false,
-      resposta: responder("Ok, não registrei nada.", `${intent}:cancelado`),
-    };
+    /**
+     * ...MAS "não é X, é Y" é correção, não recusa.
+     *
+     * Esta regra já foi escrita de três jeitos, e os dois primeiros erraram em
+     * direções opostas. Deixar a resposta sempre vencer o "não" GRAVAVA, porque
+     * o guia do n8n manda o LLM remontar os parâmetros pelo histórico e
+     * "não deixa pra lá" chegava com produto e quantidade preenchidos. Fazer o
+     * "não" vencer sempre criou o oposto, e pior: a forma mais natural de
+     * corrigir em português é contrastiva, e o assistente PERGUNTA de um jeito
+     * que convida exatamente isso ("Qual deles?" → "não é o proteinado, é o 60
+     * P"). Cinco perguntas do módulo caíam nisso, todas jogando o registro fora.
+     *
+     * O que separa as duas é o RISCO, não a frase:
+     *
+     * - `registrar_uso_estoque` grava sem confirmação (§10.3), então ali um
+     *   "não" mal lido escreve no livro: recusa vence, ponto.
+     * - compra, venda e ajuste só gravam depois de um "sim". Nesses, tratar a
+     *   mensagem como correção não pode escrever nada, e a recusa continua
+     *   disponível: basta dizer "não" sem corrigir nada junto.
+     */
+    const dadoUtil = trazDadoUtilizavel(meuPendente, ctx.parameters);
+    const gravaSemConfirmar = intent === "registrar_uso_estoque";
+    if (gravaSemConfirmar || !dadoUtil) {
+      if (ctx.user_id) await cancelarTudoQueEstavaAberto(ctx.tenant_id, ctx.user_id);
+      return {
+        ok: false,
+        resposta: responder("Ok, não registrei nada.", `${intent}:cancelado`),
+      };
+    }
   }
 
   /**
@@ -598,8 +663,17 @@ export const ajustarEstoque: Handler = async (ctx) => {
        * sempre: o produtor não conseguia sair nem confirmando nem recusando, e
        * a única saída era um "ok" que executava.
        */
+      /**
+       * O contador zera quando o PEDIDO MUDA.
+       *
+       * Contar toda repetição da confirmação como laço fazia duas correções
+       * seguidas ("foram 50 sacas" e depois "e foi 5000, não 1200") jogarem a
+       * compra fora: o produtor estava progredindo, não travado. Laço é repetir
+       * a MESMA coisa; correção é outra coisa.
+       */
       const jaPerguntou =
-        memoria.pendente?.aguardando === "confirmacao"
+        memoria.pendente?.aguardando === "confirmacao" &&
+        JSON.stringify(memoria.pendente.parameters) === JSON.stringify(parameters)
           ? (memoria.pendente.tentativas ?? 1) + 1
           : 1;
       if (jaPerguntou >= MAX_TENTATIVAS) {
@@ -931,8 +1005,17 @@ export const registrarNegocioProduto: Handler = async (ctx) => {
        * sempre: o produtor não conseguia sair nem confirmando nem recusando, e
        * a única saída era um "ok" que executava.
        */
+      /**
+       * O contador zera quando o PEDIDO MUDA.
+       *
+       * Contar toda repetição da confirmação como laço fazia duas correções
+       * seguidas ("foram 50 sacas" e depois "e foi 5000, não 1200") jogarem a
+       * compra fora: o produtor estava progredindo, não travado. Laço é repetir
+       * a MESMA coisa; correção é outra coisa.
+       */
       const jaPerguntou =
-        memoria.pendente?.aguardando === "confirmacao"
+        memoria.pendente?.aguardando === "confirmacao" &&
+        JSON.stringify(memoria.pendente.parameters) === JSON.stringify(parameters)
           ? (memoria.pendente.tentativas ?? 1) + 1
           : 1;
       if (jaPerguntou >= MAX_TENTATIVAS) {
