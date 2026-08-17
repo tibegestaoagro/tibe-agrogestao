@@ -23,10 +23,16 @@ escritório. Leia depois de `CLAUDE.md`.
 
 ## Estado atual
 
-- Atualizado em: 2026-08-05
-- **Produção: `83b813c` no ar.** Levou rebanho por categoria (brinco opcional)
-  e o cancelamento com janela de arquivamento de 60 dias. As 3 migrações
-  correspondentes já estão aplicadas no Neon.
+- Atualizado em: 2026-08-17
+- **Produção: `8f0c13a` no ar.** É o merge da missão 2 (Estoque e produtos) do
+  Módulo 31, autorizado pelo usuário. A migração
+  `20260814190000_estoque_de_produtos` foi aplicada no Neon ANTES do push, e
+  `prisma migrate status` responde "Database schema is up to date!".
+- Verificado em produção depois do deploy: `/estoque` responde 307 (existe,
+  pede sessão), `/api/v1/products` e `/api/v1/stock/movements` respondem 401,
+  `/api/v1/stock/adjust` responde 405 (é POST). `/docs/api` já lista as três.
+- **Falta o classificador do n8n e o teste no aparelho.** Ver "Onde parou"
+  no fim desta seção.
 
 ### Três branches vivas, nenhuma mesclada
 
@@ -615,41 +621,40 @@ alertas inteira no app mobile; e `GET /api/v1/alerts` afirmava o tipo por cast
 com 4 dos 8 valores, sem checar nada em runtime, então `?type=` inválido
 derrubava a rota com 500.
 
-**Pendências da missão 2, todas dependendo de decisão do usuário:**
+**Pendências da missão 2:**
 
 - ~~Dois tenants de teste no Neon~~: **apagados em 2026-08-15**, com autorização
   e depois de conferir que não tinham usuário, dinheiro nem negociação.
   Produção voltou aos 5 tenants reais.
-- Migração `20260814190000_estoque_de_produtos` **não aplicada no Neon**
-  (invariante 3): vai ANTES do push, com a URL Direct.
-- O classificador do n8n **não conhece** as 4 intenções novas. A tabela do
-  `docs/n8n-whatsapp-workflow.md` já está atualizada; mexer no workflow exige
-  autorização, e fazer isso ANTES do deploy quebraria produção, porque a `main`
-  não tem os handlers.
+- ~~Migração no Neon~~: **aplicada em 2026-08-17**, antes do push.
+- ~~Merge e deploy~~: **feitos em 2026-08-17** (`8f0c13a`), autorizados.
+- O classificador do n8n **ainda não conhece** as 4 intenções novas. Agora o
+  passo está desbloqueado (a `main` tem os handlers no ar), e é manual: o
+  `N8N_API_KEY` do `.env` está vazio, então nenhuma sessão consegue editar o
+  workflow por API. Quem edita é o usuário, no nó `Classificar Intenção
+  (OpenAI)`. A tabela de referência está em `docs/n8n-whatsapp-workflow.md` §4.
 - **Validação no aparelho não aconteceu.** É o passo que mais achou defeito no
-  Módulo 30, e nenhum juiz substitui. Depende do deploy e do n8n acima.
+  Módulo 30, e nenhum juiz substitui. Roteiro pronto em
+  [roteiro-aparelho-estoque.md](roteiro-aparelho-estoque.md), 6 blocos, com as
+  respostas esperadas transcritas do handler.
 - Missões 3 e 4 não começaram. Próximo número livre de suíte: `m39`.
 
-**Estado final da branch:** `a2bf878`, 17 commits, árvore limpa, sem merge e sem
-deploy. Retomar por aqui.
+### Onde parou (2026-08-17)
 
-### Próximo passo COMBINADO com o usuário (2026-08-16)
+Produção está com o código; o agente ainda não sabe falar de estoque. Faltam,
+nesta ordem:
 
-Ele vai **testar no aparelho**. A sequência, na ordem, e cada passo depende da
-autorização dele:
-
-1. Aprovar o merge da `estoque` na `main`.
-2. **Aplicar a migração `20260814190000_estoque_de_produtos` no Neon ANTES do
-   push** (invariante 3, URL Direct sem `-pooler`).
-3. Push/deploy.
-4. **Só então** ensinar as 4 intenções novas ao classificador do n8n (a tabela
-   do `docs/n8n-whatsapp-workflow.md` já está pronta). Fazer isso antes do
-   deploy quebraria produção, porque a `main` não tem os handlers.
-
-**Os dois roteiros que mais importam no aparelho**, os dois da volta 5:
-recusar uma compra e depois dizer "ok" (não pode gravar), e corrigir
-contrastando ("não é o proteinado, é o 60 P" deve corrigir, não cancelar).
-deploy.
+1. **Ensinar as 4 intenções ao classificador do n8n** (manual, do usuário).
+   Teste de um minuto para saber se pegou: mandar "o que está acabando?" no
+   WhatsApp. Qualquer resposta sobre estoque, inclusive "você ainda não tem
+   produto cadastrado", prova que classificou. "Não entendi" significa que o
+   prompt não salvou ou o nome da intenção saiu diferente.
+2. **Cadastrar os três produtos do bloco 0 do roteiro** no painel, em
+   `/estoque`. O WhatsApp não cadastra produto de propósito.
+3. **Rodar o roteiro no aparelho.** Os dois blocos que mais importam são os da
+   volta 5, e são os únicos que só se provam com o classificador de verdade:
+   recusar uma compra e depois dizer "ok" (não pode gravar), e corrigir
+   contrastando ("não é o proteinado, é o 60 P" deve corrigir, não cancelar).
 
 ## Missão 1 (referência)
 
