@@ -479,13 +479,46 @@ Suítes novas: `test:m37` (139 verificações) e `test:m38` (119). Nenhuma
 regressão em isolation, m3, m4, m12, m21, m29, m33, m34, m35, m36, docs-api,
 contracts, tsc e lint.
 
-### Três voltas de juiz e uma auditoria própria (2026-08-15)
+### ⚠️ O ACHADO MAIS IMPORTANTE DE TODAS AS RODADAS (volta 5, 2026-08-16)
 
-| Lente | Volta 1 | Volta 2 | Volta 3 |
-|---|---|---|---|
-| R1, dinheiro e saldo | 6 | 6 | **7** |
-| R2, a conversa | 3 | 3 | **5** |
-| R3, isolamento e regressão | 7 | 5 | **8** |
+**O guia do n8n manda o classificador RECONSTRUIR a intenção e os parâmetros a
+cada turno, inclusive no "não".** Ou seja, em produção **toda mensagem chega
+carregando o pedido inteiro de volta**, e não só o campo que o produtor falou.
+
+Isso invalida qualquer regra de conversa baseada em "a mensagem traz dado?", e
+foi por aí que a recusa quebrou em três rodadas seguidas: `trazDadoUtilizavel()`
+devolvia sempre `true`, o ramo de recusa nunca rodava, e um "ok obrigado" duas
+voltas depois de um "não" gravava a compra recusada.
+
+**A pergunta certa é "a mensagem MUDA o pedido?"** (`mudaOPedido`, em
+`stock-pending.ts`). Com ela: eco do pedido é recusa, diferença é correção, e
+repetir o mesmo pedido É o laço (o contador sai de graça).
+
+**A normalização é parte da regra, não detalhe.** O guardado tem
+`tipo: "compra_produto"` e o produto já resolvido; o classificador reenvia
+`"compra"` e o apelido digitado. E a comparação do produto tem DIREÇÃO: o
+guardado conter o apelido é igual (resolvido × digitado), mas o apelido
+guardado sendo especificado na resposta é MUDANÇA ("não é o proteinado, é o 60
+P"). Errar a direção inverte o comportamento inteiro.
+
+**E o pior era o método, não o código:** a suíte `m38` modelava um classificador
+que NÃO remonta, o oposto do que o guia manda. Ficava verde com a conversa
+quebrada, o que enfraquece as quatro rodadas de teste anteriores. O bloco 25 tem
+`comoON8nManda(pedidoOriginal, delta)`, que reenvia o pacote inteiro a cada
+turno. **Todo teste de conversa novo deve passar por ele.**
+
+### Cinco voltas de juiz e duas auditorias próprias (2026-08-15 e 16)
+
+| Lente | V1 | V2 | V3 | V4 | V5 |
+|---|---|---|---|---|---|
+| R1, dinheiro e saldo | 6 | 6 | **7** | - | - |
+| R2, a conversa | 3 | 3 | 5 | 5 | **4** |
+| R3, isolamento e regressão | 7 | 5 | **8** | - | - |
+
+As voltas 4 e 5 foram **só do R2**, a única lente abaixo da meta. A queda de 5
+para 4 na volta 5 não foi regressão de código: foi o revisor encontrando o
+achado do quadro acima, que estava lá desde o começo e que nenhuma rodada
+anterior tinha visto.
 
 **A volta 3 subiu nas três lentes**, e o R3 bateu a meta de 8 com a frase que
 resume o critério: *"o isolamento está provado, não afirmado"*.
@@ -597,8 +630,25 @@ derrubava a rota com 500.
   Módulo 30, e nenhum juiz substitui. Depende do deploy e do n8n acima.
 - Missões 3 e 4 não começaram. Próximo número livre de suíte: `m39`.
 
-**Estado final da branch:** `7114628`, 11 commits, árvore limpa, sem merge e sem
+**Estado final da branch:** `a2bf878`, 17 commits, árvore limpa, sem merge e sem
 deploy. Retomar por aqui.
+
+### Próximo passo COMBINADO com o usuário (2026-08-16)
+
+Ele vai **testar no aparelho**. A sequência, na ordem, e cada passo depende da
+autorização dele:
+
+1. Aprovar o merge da `estoque` na `main`.
+2. **Aplicar a migração `20260814190000_estoque_de_produtos` no Neon ANTES do
+   push** (invariante 3, URL Direct sem `-pooler`).
+3. Push/deploy.
+4. **Só então** ensinar as 4 intenções novas ao classificador do n8n (a tabela
+   do `docs/n8n-whatsapp-workflow.md` já está pronta). Fazer isso antes do
+   deploy quebraria produção, porque a `main` não tem os handlers.
+
+**Os dois roteiros que mais importam no aparelho**, os dois da volta 5:
+recusar uma compra e depois dizer "ok" (não pode gravar), e corrigir
+contrastando ("não é o proteinado, é o 60 P" deve corrigir, não cancelar).
 deploy.
 
 ## Missão 1 (referência)
