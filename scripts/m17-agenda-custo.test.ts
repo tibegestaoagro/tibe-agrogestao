@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import {
   calculatePendingDaysOverdue,
   listPendingEntries,
@@ -13,6 +14,9 @@ import { routeIntent } from "@/lib/actions/whatsapp-router";
 import { supportsThreeDayReminder } from "@/lib/actions/whatsapp-handlers/rebanho";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { createTestAnimal , deleteTestTenants } from "./helpers/herd";
+
+exigirBancoLocal();
+
 
 /**
  * Teste de integração do Módulo 17: agenda com custo.

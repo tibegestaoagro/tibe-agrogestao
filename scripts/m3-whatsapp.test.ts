@@ -1,8 +1,12 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { deleteTestTenants } from "./helpers/herd";
 import { POST as resolveContact } from "@/app/api/internal/whatsapp/resolve-contact/route";
 import { POST as executeAction } from "@/app/api/internal/whatsapp/execute-action/route";
+
+exigirBancoLocal();
+
 
 /**
  * Testes do Módulo 3 (Agente WhatsApp): resolução de contato, permissão por

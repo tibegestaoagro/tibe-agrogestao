@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import {
   getSessionGateCore,
@@ -7,6 +8,9 @@ import {
   redirectIfGatePassed,
 } from "@/lib/session-gate";
 import type { SessionUser } from "@/lib/tenant-context";
+
+exigirBancoLocal();
+
 
 /**
  * Testes do seam de gate de sessão (arquitetura 2026-07-29, candidato #3 do

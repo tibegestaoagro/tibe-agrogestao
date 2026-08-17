@@ -1,10 +1,14 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { getBillingAccess, TRIAL_DAYS } from "@/lib/billing-access";
 import { inviteUserAction, updateUserRoleAction, setUserActiveAction } from "@/lib/actions/users";
 import { generateAllAlerts } from "@/lib/actions/alerts";
 import { POST as webhookAsaas } from "@/app/api/webhooks/asaas/route";
 import { createTenantWithOwner } from "@/lib/actions/tenants";
+
+exigirBancoLocal();
+
 
 /**
  * Testes do Módulo 5: níveis de acesso por cobrança (billing-access), webhook

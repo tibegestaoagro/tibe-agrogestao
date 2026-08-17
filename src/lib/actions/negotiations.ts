@@ -5,6 +5,8 @@ import { recordMovementInTx, getPositions, type HerdPositionKey } from "@/lib/ac
 import { decToNum, isoOrNull } from "@/lib/serialize";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { findOrCreateContact } from "@/lib/actions/contacts";
+import { getStockBalance, deltaDoMovimento } from "@/lib/actions/stock-ledger";
+import { descreverQuantidade } from "@/lib/stock/units";
 
 /**
  * Área Negociações (docs/moduloNegociacao), missão 1: negócio de gado.
@@ -115,6 +117,20 @@ export type NegotiationDetail = {
     category_id: string | null;
     canceled_at: Date | null;
   }[];
+  /**
+   * Os produtos, quando o negócio é de insumo (§9). Uma negociação de gado tem
+   * esta lista vazia e vice-versa; ficam separadas porque animal se conta por
+   * categoria e produto se conta por unidade, e juntar os dois numa lista só
+   * obrigaria toda leitura a descobrir qual dos dois está olhando.
+   */
+  produtos: {
+    id: string;
+    product_id: string;
+    product_name: string;
+    unit: string;
+    quantity: number;
+    canceled_at: Date | null;
+  }[];
   lancamentos: {
     id: string;
     entry_type: string;
@@ -125,6 +141,32 @@ export type NegotiationDetail = {
     negotiation_role: string | null;
   }[];
 };
+
+/**
+ * Todo tipo de negociação que ENTRA dinheiro.
+ *
+ * Existe como função porque a comparação estava escrita à mão como
+ * `type === "venda_gado"`, e no dia em que `venda_produto` passou a existir a
+ * situação dela virou "decidida pelos custos": uma venda inteiramente recebida
+ * ficava sem situação nenhuma, e uma venda a receber com o frete pago aparecia
+ * como PAGA, com o dinheiro do produtor ainda na rua. Achado por um revisor
+ * independente, não por teste. A missão 3 traz `evento` e a 4 traz `permuta`:
+ * as duas passam por aqui, e a lista precisa ser um lugar só.
+ */
+function ehVenda(tipo: NegotiationType): boolean {
+  return tipo === "venda_gado" || tipo === "venda_produto";
+}
+
+/**
+ * Onde o estorno do cancelamento é arquivado.
+ *
+ * O lançamento original de uma compra de PRODUTO nasce `geral`, e o estorno dela
+ * estava indo para `rebanho`: cancelar uma compra de adubo devolvia o dinheiro
+ * dentro do módulo Rebanho. Valor e sinal estavam certos, a gaveta não.
+ */
+function moduloDoEstorno(tipo: NegotiationType): "rebanho" | "geral" {
+  return tipo === "compra_gado" || tipo === "venda_gado" ? "rebanho" : "geral";
+}
 
 const CATEGORIA_FINANCEIRA: Record<"compra_gado" | "venda_gado", string> = {
   compra_gado: "Compra de animal",
@@ -413,6 +455,16 @@ export async function getNegotiation(
         },
         orderBy: { created_at: "asc" },
       },
+      stock_movements: {
+        select: {
+          id: true,
+          product_id: true,
+          quantity: true,
+          canceled_at: true,
+          product: { select: { name: true, unit: true } },
+        },
+        orderBy: { created_at: "asc" },
+      },
       entries: {
         select: {
           id: true,
@@ -481,7 +533,7 @@ export async function getNegotiation(
       lancamentos.filter(
         (l) =>
           l.negotiation_role !== "estorno" &&
-          l.entry_type === (n.type === "venda_gado" ? "income" : "expense"),
+          l.entry_type === (ehVenda(n.type) ? "income" : "expense"),
       ),
     ),
     totais: {
@@ -496,6 +548,14 @@ export async function getNegotiation(
       quantity: m.quantity,
       // Numa compra os animais ENTRAM (to); numa venda SAEM (from).
       category_id: m.to_category_id ?? m.from_category_id,
+      canceled_at: m.canceled_at,
+    })),
+    produtos: n.stock_movements.map((m) => ({
+      id: m.id,
+      product_id: m.product_id,
+      product_name: m.product.name,
+      unit: m.product.unit,
+      quantity: decToNum(m.quantity) ?? 0,
       canceled_at: m.canceled_at,
     })),
     lancamentos,
@@ -612,7 +672,7 @@ export async function cancelNegotiation(
      */
     const negociacao = await tx.negotiation.findFirst({
       where: { id },
-      include: { movements: true },
+      include: { movements: true, stock_movements: { include: { product: true } } },
     });
     if (!negociacao) {
       throw new AbortarNegociacao({
@@ -703,7 +763,7 @@ export async function cancelNegotiation(
           entry_type: "income",
           category: "Devolução de valor pago",
           amount: desembolsado,
-          related_module: "rebanho",
+          related_module: moduloDoEstorno(negociacao.type),
           related_id: id,
           occurred_at: new Date(),
           status: "paid",
@@ -716,7 +776,7 @@ export async function cancelNegotiation(
           entry_type: "expense",
           category: "Devolução de valor recebido",
           amount: recebido,
-          related_module: "rebanho",
+          related_module: moduloDoEstorno(negociacao.type),
           related_id: id,
           occurred_at: new Date(),
           status: "paid",
@@ -785,6 +845,52 @@ export async function cancelNegotiation(
       }
 
       await tx.herdMovement.update({
+        where: { id: movimento.id },
+        data: { canceled_at: new Date(), canceled_reason: reason },
+      });
+    }
+
+    /**
+     * O estoque, pela MESMA regra do rebanho (§17.9).
+     *
+     * Cancelar uma compra de produto tira do estoque o que ela colocou, e por
+     * isso é recusada quando parte do produto já foi usada: 20 sacas compradas
+     * e 18 já dadas ao gado deixariam o saldo em -16, e o §10.7 existe
+     * justamente para o saldo nunca ficar negativo. Uma VENDA cancelada devolve
+     * ao estoque e nunca precisa dessa conferência, porque devolver só soma.
+     */
+    for (const movimento of negociacao.stock_movements) {
+      if (movimento.canceled_at) continue;
+
+      const entrouNoEstoque = deltaDoMovimento({
+        movement_type: movimento.movement_type,
+        quantity: decToNum(movimento.quantity) ?? 0,
+        previous_balance: decToNum(movimento.previous_balance),
+        corrected_balance: decToNum(movimento.corrected_balance),
+      });
+
+      if (entrouNoEstoque > 0) {
+        const [posicao] = await getStockBalance(tx, {
+          product_id: movimento.product_id,
+          property_id: movimento.property_id,
+        });
+        const disponivel = posicao?.quantity ?? 0;
+        if (disponivel < entrouNoEstoque) {
+          throw new AbortarNegociacao({
+            ok: false,
+            code: "INSUFFICIENT_STOCK",
+            message:
+              `Não dá para cancelar: esta negociação trouxe ` +
+              `${descreverQuantidade(entrouNoEstoque, movimento.product.unit)} de ` +
+              `${movimento.product.name} e restam apenas ` +
+              `${descreverQuantidade(disponivel, movimento.product.unit)}. ` +
+              `Parte já foi usada ou vendida.`,
+            status: 422,
+          });
+        }
+      }
+
+      await tx.stockMovement.update({
         where: { id: movimento.id },
         data: { canceled_at: new Date(), canceled_reason: reason },
       });
@@ -914,6 +1020,14 @@ export function serializeNegotiation(n: NegotiationDetail) {
       quantity: m.quantity,
       category_id: m.category_id,
       canceled_at: isoOrNull(m.canceled_at),
+    })),
+    produtos: n.produtos.map((p) => ({
+      id: p.id,
+      product_id: p.product_id,
+      product_name: p.product_name,
+      unit: p.unit,
+      quantity: p.quantity,
+      canceled_at: isoOrNull(p.canceled_at),
     })),
     lancamentos: n.lancamentos.map((l) => ({
       id: l.id,

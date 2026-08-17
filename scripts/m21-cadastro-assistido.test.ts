@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import {
   startFlow,
@@ -14,6 +15,8 @@ import {
   MAX_ITEMS,
   REMINDER_AFTER_MINUTES,
 } from "@/lib/actions/agent-flows";
+
+exigirBancoLocal();
 
 /**
  * Testes do cadastro assistido (2026-07-30).

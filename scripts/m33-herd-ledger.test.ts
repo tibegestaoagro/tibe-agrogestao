@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import {
   cancelMovement,
@@ -7,6 +8,8 @@ import {
   listMovements,
   recordMovement,
 } from "@/lib/actions/herd-ledger";
+
+exigirBancoLocal();
 
 /**
  * Módulo 30, tarefa 3: o livro-razão em si.

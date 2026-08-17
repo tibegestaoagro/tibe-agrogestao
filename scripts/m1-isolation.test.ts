@@ -1,7 +1,11 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { createTestAnimal , deleteTestTenants } from "./helpers/herd";
 import { computeGmd } from "@/lib/livestock";
+
+exigirBancoLocal();
+
 
 /**
  * Testes do Módulo 1: isolamento dos novos modelos (incl. filhos com tenant_id),

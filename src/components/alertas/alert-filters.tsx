@@ -27,11 +27,21 @@ export default function AlertFilters() {
       <Select value={sp.get("type") ?? ALL} onValueChange={(v) => setParam("type", v)}>
         <SelectTrigger className="w-52"><SelectValue placeholder="Tipo" /></SelectTrigger>
         <SelectContent>
+          {/*
+            Precisa listar TODOS os tipos do enum. Ficou parado nos 4 originais
+            enquanto o banco chegava a 8, e um alerta de manutenção de máquina
+            ou de lembrete de tarefa era impossível de isolar no filtro: quem
+            recebia muitos avisos não conseguia achar o que procurava.
+          */}
           <SelectItem value={ALL}>Todos os tipos</SelectItem>
           <SelectItem value="vaccine_due">Vacina a vencer</SelectItem>
           <SelectItem value="harvest_near">Colheita próxima</SelectItem>
           <SelectItem value="bill_due">Conta a vencer</SelectItem>
           <SelectItem value="low_balance">Saldo negativo</SelectItem>
+          <SelectItem value="low_stock">Produto acabando</SelectItem>
+          <SelectItem value="maintenance_due">Manutenção de máquina</SelectItem>
+          <SelectItem value="task_reminder">Lembrete de tarefa</SelectItem>
+          <SelectItem value="trial_ending">Fim do período de teste</SelectItem>
         </SelectContent>
       </Select>
       <Select value={sp.get("status") ?? ALL} onValueChange={(v) => setParam("status", v)}>

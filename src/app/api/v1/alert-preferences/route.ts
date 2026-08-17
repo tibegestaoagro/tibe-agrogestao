@@ -20,6 +20,7 @@ const schema = z.object({
     "trial_ending",
     "maintenance_due",
     "task_reminder",
+    "low_stock",
   ]),
   enabled: z.boolean(),
 });

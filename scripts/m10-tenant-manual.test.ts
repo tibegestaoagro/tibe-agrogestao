@@ -1,8 +1,12 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import bcrypt from "bcryptjs";
 import { prisma, prismaForTenant } from "@/lib/prisma";
 import { createTenantManuallyAction } from "@/lib/actions/platform-tenants";
 import { changeOwnPasswordAction } from "@/lib/actions/auth-self";
+
+exigirBancoLocal();
+
 
 /**
  * Testes de criação manual de tenant pelo painel (spec 2026-07-24).

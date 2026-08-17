@@ -1,6 +1,10 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { POST as executeAction } from "@/app/api/internal/whatsapp/execute-action/route";
+
+exigirBancoLocal();
+
 
 /**
  * Integração do cadastro assistido pela rota real (2026-07-30, abertura

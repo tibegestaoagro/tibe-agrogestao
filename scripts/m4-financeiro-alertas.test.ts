@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import {
   createManualEntryAction,
@@ -13,6 +14,9 @@ import { signReportToken, verifyReportToken } from "@/lib/reports/report-token";
 import { POST as executeAction } from "@/app/api/internal/whatsapp/execute-action/route";
 import { GET as generateAlertsRoute } from "@/app/api/internal/jobs/generate-alerts/route";
 import { getRedisConnection } from "@/lib/redis";
+
+exigirBancoLocal();
+
 
 /**
  * Testes do Módulo 4: lançamentos manuais (create/edit-restrito/pay), DRE,

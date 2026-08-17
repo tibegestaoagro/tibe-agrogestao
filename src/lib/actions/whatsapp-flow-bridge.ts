@@ -50,6 +50,15 @@ function isYes(text: string): boolean {
 const INTERRUPTING: ReadonlySet<string> = new Set([
   "consultar_saldo", "consultar_animal", "consultar_cliente",
   "gerar_relatorio", "resumo", "ajuda",
+  /**
+   * Estoque (Módulo 31). As quatro entraram aqui porque ficar de fora tem
+   * consequência dupla: "usei 2 sacas de sal hoje", dito no meio de um cadastro
+   * de animal, era tratado como RESPOSTA DE CAMPO. A saída de estoque sumia sem
+   * aviso e o animal ficava com raça "usei 2 sacas de sal hoje". `consultar_*`
+   * já estava aqui por esse motivo; faltava o estoque.
+   */
+  "consultar_estoque", "registrar_uso_estoque", "ajustar_estoque",
+  "registrar_negocio_produto",
 ]);
 
 export async function handleActiveFlow(params: {

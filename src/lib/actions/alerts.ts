@@ -5,6 +5,8 @@ import { listUpcomingVaccinations } from "@/lib/actions/animal-vaccinations";
 import { getBalanceAction } from "@/lib/actions/financial-summary";
 import { runSerializableTenantTransaction } from "@/lib/financial";
 import { isAlertTypeEnabled } from "@/lib/actions/alert-preferences";
+import { getStockBalance } from "@/lib/actions/stock-ledger";
+import { descreverQuantidade } from "@/lib/stock/units";
 
 /**
  * Geração de alertas (spec 4.9/4.10). Idempotência por
@@ -38,7 +40,7 @@ function isoWeekKey(d: Date): string {
   return `${date.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
 }
 
-type AlertType = "vaccine_due" | "harvest_near" | "bill_due" | "low_balance" | "trial_ending" | "maintenance_due" | "task_reminder";
+type AlertType = "vaccine_due" | "harvest_near" | "bill_due" | "low_balance" | "trial_ending" | "maintenance_due" | "task_reminder" | "low_stock";
 type RelatedModule = "rebanho" | "lavoura" | "servico" | "maquinas" | "geral";
 type AlertEnsureClient = {
   alert: {
@@ -277,7 +279,70 @@ export async function generateAlertsForTenant(tenantId: string): Promise<{ creat
     }
   }
 
+  // 8. Produtos que atingiram o estoque mínimo (Módulo 31, §10.8).
+  if (await isAlertTypeEnabled(db, "low_stock")) {
+    created += await gerarAlertasDeEstoqueMinimo(db, now);
+  }
+
   return { created };
+}
+
+/**
+ * §10.8: "o sistema poderá emitir um aviso quando o saldo atingir esse limite".
+ *
+ * Três decisões que o parágrafo não resolve:
+ *
+ * 1. **Só alerta produto que JÁ TEVE movimentação.** Um produto recém-cadastrado
+ *    com mínimo definido e nenhuma compra está em zero por não ter começado, não
+ *    por ter acabado. Sem esta regra, o tenant que cadastrasse 20 produtos numa
+ *    tarde receberia 20 avisos no dia seguinte, e o primeiro contato do produtor
+ *    com o recurso seria uma enxurrada que ele desligaria na hora. Sai de graça:
+ *    `getStockBalance` só devolve posição de quem tem movimento.
+ * 2. **Compara o total do tenant, não o saldo de cada fazenda.** `minimum_stock`
+ *    é um campo do PRODUTO, então só existe um número para comparar. Um produto
+ *    zerado na Fazenda A com 50 na B não avisa: a decisão de carregar o caminhão
+ *    é logística, e o documento não pede alerta por fazenda.
+ * 3. **No máximo um aviso por produto por semana**, pela mesma mecânica do
+ *    `low_balance`: estoque baixo é uma CONDIÇÃO que dura dias, não um evento.
+ *    Com o `product_id` puro como chave, o produtor receberia um aviso na vida e
+ *    nunca mais; com a semana junto, ele volta a ser avisado enquanto o problema
+ *    existir, sem virar cobrança diária.
+ */
+export async function gerarAlertasDeEstoqueMinimo(
+  db: TenantPrismaClient,
+  now: Date,
+): Promise<number> {
+  const produtos = await db.product.findMany({
+    where: { archived_at: null, minimum_stock: { not: null } },
+    select: { id: true, name: true, unit: true, minimum_stock: true },
+  });
+  if (produtos.length === 0) return 0;
+
+  const posicoes = await getStockBalance(db, {});
+  const semana = isoWeekKey(now);
+  let criados = 0;
+
+  for (const p of produtos) {
+    const doProduto = posicoes.filter((s) => s.product_id === p.id);
+    if (doProduto.length === 0) continue; // nunca movimentou: ver decisão 1
+
+    const saldo = Math.round(doProduto.reduce((s, x) => s + x.quantity, 0) * 1000) / 1000;
+    const minimo = decToNum(p.minimum_stock) ?? 0;
+    if (saldo > minimo) continue;
+
+    const didCreate = await ensureAlert(db, {
+      alert_type: "low_stock",
+      related_module: "geral",
+      related_id: `${p.id}:${semana}`,
+      message:
+        saldo === 0
+          ? `📦 ${p.name} acabou no estoque.`
+          : `📦 ${p.name} está acabando: restam ${descreverQuantidade(saldo, p.unit)} e seu mínimo é ${descreverQuantidade(minimo, p.unit)}.`,
+    });
+    if (didCreate) criados++;
+  }
+
+  return criados;
 }
 
 /**

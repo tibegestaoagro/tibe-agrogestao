@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import {
   createMachineAction,
@@ -9,6 +10,9 @@ import {
 } from "@/lib/actions/machines";
 import { generateAlertsForTenant } from "@/lib/actions/alerts";
 import { getAccessLevel } from "@/lib/permissions";
+
+exigirBancoLocal();
+
 
 /**
  * Teste do Módulo 26: máquinas e equipamentos

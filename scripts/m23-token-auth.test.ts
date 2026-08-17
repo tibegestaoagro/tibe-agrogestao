@@ -1,6 +1,10 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createTestAnimal } from "./helpers/herd";
+
+exigirBancoLocal();
+
 
 /**
  * Testes da identidade por token do aplicativo (Onda 1, agente A1).

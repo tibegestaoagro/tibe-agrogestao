@@ -47,6 +47,18 @@ const HELP_TEXT: Record<string, { text: string; label: string }> = {
     label: "lançar despesas (inclusive por foto de recibo)",
     text: "Pra lançar uma despesa, me conta o valor e do que se trata: ou, mais fácil, me manda uma foto ou PDF da nota que eu leio pra você.",
   },
+  registrar_uso_estoque: {
+    label: "uso de produtos do estoque",
+    text: "Quando usar alguma coisa do estoque, é só me contar: 'usei 2 sacas de sal no lote do curral'. Eu baixo do saldo e te digo quanto sobrou. Se quiser saber o que tem, pergunta 'quanto tenho de sal' ou 'o que está acabando'.",
+  },
+  ajustar_estoque: {
+    label: "corrigir o estoque",
+    text: "Se você contou e o número não bate, me diz o que TEM de verdade: 'contei e tem só 6 sacas de sal'. Eu calculo a diferença sozinho e guardo o antes e o depois.",
+  },
+  registrar_negocio_produto: {
+    label: "compra de insumos",
+    text: "Me conta a compra inteira de uma vez: 'comprei 10 sacas de sal do Zé por 1200, pra pagar dia 10'. Eu somo no estoque e crio a conta a pagar junto. Produto novo precisa ser cadastrado antes no painel, em Estoque.",
+  },
 };
 
 function requiredProfile(topic: string) {

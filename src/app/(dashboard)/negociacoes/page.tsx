@@ -16,6 +16,7 @@ import NegotiationForm from "@/components/negociacoes/negotiation-form";
 import NegotiationCancel from "@/components/negociacoes/negotiation-cancel";
 import { listNegotiations, getOpenTotals, situacaoLabel } from "@/lib/actions/negotiations";
 import { findCategory } from "@/lib/herd/categories";
+import { descreverQuantidade } from "@/lib/stock/units";
 
 /**
  * Área Negociações (Módulo 31, §19).
@@ -133,7 +134,7 @@ export default async function NegociacoesPage({
             <TableRow>
               <TableHead>Data</TableHead>
               <TableHead>O que</TableHead>
-              <TableHead>Animais</TableHead>
+              <TableHead>O quê</TableHead>
               <TableHead>Com quem</TableHead>
               <TableHead>Valor</TableHead>
               <TableHead>Situação</TableHead>
@@ -161,8 +162,14 @@ export default async function NegociacoesPage({
                       <span className="block text-xs">{n.canceled_reason}</span>
                     )}
                   </TableCell>
+                  {/*
+                    Gado e produto na mesma coluna, cada um contado do seu jeito:
+                    animal por cabeça e categoria, produto pela unidade dele. Sem
+                    isso, "Comprei produtos" aparecia com um traço, e o produtor
+                    não via o que tinha comprado.
+                  */}
                   <TableCell>
-                    {animais > 0 ? (
+                    {animais > 0 && (
                       <>
                         {animais.toLocaleString("pt-BR")}
                         <span className="block text-xs text-gray-500">
@@ -172,9 +179,15 @@ export default async function NegociacoesPage({
                             .join(", ") || ""}
                         </span>
                       </>
-                    ) : (
-                      "-"
                     )}
+                    {n.produtos.length > 0 && (
+                      <span className="block text-xs text-gray-600">
+                        {n.produtos
+                          .map((p) => `${descreverQuantidade(p.quantity, p.unit)} de ${p.product_name}`)
+                          .join(", ")}
+                      </span>
+                    )}
+                    {animais === 0 && n.produtos.length === 0 && "-"}
                   </TableCell>
                   <TableCell>{n.contact_name ?? "não informado"}</TableCell>
                   {/*

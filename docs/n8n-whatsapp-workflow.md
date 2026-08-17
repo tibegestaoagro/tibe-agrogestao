@@ -310,6 +310,10 @@ uma mensagem de fallback amigável (sem detalhes técnicos), por exemplo:
 | `consultar_rebanho` | `categoria` (opcional), `fazenda` (opcional). Módulo 30, §13.1 e §13.2. Sem `categoria`, responde o total geral do rebanho. Com `categoria`, responde só aquela faixa. Ex: "Quantos animais tenho?" e "Quantas fêmeas de 13 a 24 meses eu tenho?" |
 | `registrar_movimentacao_rebanho` | `movement_type` (obrigatório: `saldo_inicial`\|`nascimento`\|`compra`\|`venda`\|`morte`\|`transferencia_pasto`\|`transferencia_fazenda`\|`mudanca_categoria`\|`ajuste`), `itens` (lista de `{categoria, quantidade}`) ou, para um item só, `categoria` + `quantidade`. Opcionais: `fazenda`, `pasto` (ou `pasto_origem`), `pasto_destino`, `categoria_destino` (obrigatório em `mudanca_categoria`), `fazenda_destino` (obrigatório em `transferencia_fazenda`), `valor`. Módulo 30, §13.3 a §13.7. **Sempre** exige confirmação, independente de valor: não usa o limiar de R$ 5.000, porque aqui o risco é o saldo do rebanho ficar errado, não o financeiro. |
 | `registrar_negocio_gado` [1] | `tipo` (obrigatório: `compra`\|`venda`), `categoria` + `quantidade` (ou `itens`, lista de `{categoria, quantidade}`), `valor`. Opcionais: `fazenda`, `pasto` (ou `pasto_origem` numa venda, `pasto_destino` numa compra), `vendedor` ou `comprador` (o contato é criado com só o nome, §4), `vencimento` ("para pagar dia 10"), `data` (a data do negócio, se não for hoje), `parcelas` (número), `pago` (booleano), e os custos do §15: `frete`, `comissao`, `taxa_leilao`, `taxa_feira`, `carregamento`, `descarregamento`, `guia_transporte`, `exames`, `vacinas`, `pedagio`, `outros`. Módulo 31, §18. **Sempre** exige confirmação, independente de valor: um negócio grava rebanho E financeiro numa tacada, e desfazer exige cancelar a negociação inteira. |
+| `registrar_negocio_produto` [2] | `tipo` (obrigatório: `compra`\|`venda`), `produto` (o nome dito, do jeito que o produtor falou), `quantidade`, `valor`. Opcionais: `fazenda`, `contato` (fornecedor ou comprador), `vencimento`, `data`, `parcelas` (número), `pago` (booleano) e os mesmos custos do §15 listados acima. Módulo 31, §9. **Sempre** exige confirmação: grava estoque E conta a pagar de uma vez. |
+| `registrar_uso_estoque` | `produto`, `quantidade`. Opcionais: `fazenda`, `finalidade` ("pro lote do curral"), `data`. Módulo 31, §10.3. **Não** pede confirmação: é o gesto mais frequente do módulo, não mexe em dinheiro, e um erro se desfaz contando de novo. |
+| `ajustar_estoque` | `produto`, `saldo` (o que EXISTE de verdade, contado pelo produtor, NUNCA a diferença). Opcionais: `fazenda`, `motivo`. Módulo 31, §10.6. Se o produtor falar em diferença ("faltaram 2 sacas"), pergunte quanto tem no total: o sistema calcula a diferença sozinho. |
+| `consultar_estoque` | `produto` (opcional). Sem produto, responde o que precisa de reposição. Módulo 31, §10.2 e §10.8. |
 | `consultar_cliente` | `client_name` |
 | `gerar_relatorio` | `tipo` (financeiro\|rebanho\|lavoura\|prestador), `period`. **Retorna "em breve"** enquanto a geração de PDF real depende do Módulo 4, ainda não implementado |
 | `registrar_lancamento_financeiro` | `amount`, `category` (opcional, cai em "Outros" se fora da lista fixa), `vendor` (opcional), `description` (opcional). Disparada tanto por texto ("gastei 50 reais com ração") quanto pelo ramo de recibo por foto/PDF (seção 5). **Sempre** exige confirmação, mesmo com valor baixo: não usa o limiar de R$ 5.000. |
@@ -331,6 +335,30 @@ e gera despesa ou conta a pagar": registrar 20 cabeças e zero dinheiro seria o
 oposto do pedido. Uma versão anterior deste guia dizia para mandar
 `registrar_movimentacao_rebanho` quando não houvesse valor, e era isso que
 produzia o registro sem dinheiro.
+
+**[2] Empate entre gado e produto, também resolvido em código.** "Comprei 10
+sacas de sal por 1200" tem a mesma forma de "comprei 20 bezerros por 60 mil", e
+o classificador erra os dois lados. As duas direções são corrigidas antes de
+qualquer escrita:
+
+- `registrar_negocio_produto` cujo item é uma **categoria de rebanho conhecida**
+  vira `registrar_negocio_gado` (decidido por `resolveCategoryTerm`, função
+  pura, sem consultar banco);
+- `registrar_negocio_gado` cujo item **não é categoria de rebanho** mas casa com
+  exatamente um produto do **catálogo do tenant** vira
+  `registrar_negocio_produto`. Essa direção precisa de banco, porque só quem
+  cadastrou "Sal mineral 60 P" tem sal.
+
+Uma mensagem que nomeia um produto do catálogo é **assunto novo**, e assunto
+novo interrompe o anterior. Quando há mais de uma conversa aberta, quem responde
+é a **mais recente**, decidido em código pela data de cada pedido guardado; a
+mais antiga continua viva até expirar. O classificador não precisa lembrar do
+contexto, e não deve tentar.
+
+**O produto nunca é criado pela conversa.** Cadastrar exige categoria e unidade
+(§9.1); adivinhar as duas produziria "sal", "sal mineral" e "sal mineral 60"
+como três saldos para a mesma coisa. Produto não encontrado vira uma resposta
+listando o que existe, com o pedido de cadastrar no painel.
 
 **Além disso, a RESPOSTA a uma pergunta pendente também é roteada em código.**
 Quando o assistente pergunta a faixa de idade e o produtor responde "de 13 a 24

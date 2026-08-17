@@ -1,22 +1,43 @@
+import type { AlertType, AlertStatus } from "@/generated/prisma/client";
 import { apiOk } from "@/lib/api";
 import { guard } from "@/lib/api-guard";
 import { isoOrNull } from "@/lib/serialize";
 
-/** GET /api/v1/alerts?type=&status=: lista de alertas (spec 4.12). */
+/**
+ * GET /api/v1/alerts?type=&status=: lista de alertas (spec 4.12).
+ *
+ * O filtro é conferido contra a lista de verdade, e não afirmado por um cast.
+ * A versão anterior fazia `as "vaccine_due" | ...` com 4 dos 8 tipos: o cast
+ * mentia para o TypeScript e não checava nada em runtime, então `?type=xyz`
+ * chegava cru no Prisma e derrubava a rota com 500 em vez de simplesmente não
+ * filtrar.
+ */
+const TIPOS: readonly string[] = [
+  "vaccine_due",
+  "harvest_near",
+  "bill_due",
+  "low_balance",
+  "trial_ending",
+  "maintenance_due",
+  "task_reminder",
+  "low_stock",
+];
+const STATUS: readonly string[] = ["pending", "sent", "dismissed"];
+
 export async function GET(request: Request) {
   const g = await guard("alertas", "read");
   if ("error" in g) return g.error;
 
   const sp = new URL(request.url).searchParams;
-  const alert_type = sp.get("type") || undefined;
-  const status = sp.get("status") || undefined;
+  const tipo = sp.get("type");
+  const situacao = sp.get("status");
+  const alert_type = tipo && TIPOS.includes(tipo) ? (tipo as AlertType) : undefined;
+  const status = situacao && STATUS.includes(situacao) ? (situacao as AlertStatus) : undefined;
 
   const alerts = await g.db.alert.findMany({
     where: {
-      ...(alert_type
-        ? { alert_type: alert_type as "vaccine_due" | "harvest_near" | "bill_due" | "low_balance" }
-        : {}),
-      ...(status ? { status: status as "pending" | "sent" | "dismissed" } : {}),
+      ...(alert_type ? { alert_type } : {}),
+      ...(status ? { status } : {}),
     },
     orderBy: { created_at: "desc" },
   });

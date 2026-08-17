@@ -1,8 +1,12 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { PLAN_SEATS } from "@/lib/asaas";
 import { getSeatUsage, checkSeatAvailable } from "@/lib/seats";
 import { inviteUserAction, setUserActiveAction } from "@/lib/actions/users";
+
+exigirBancoLocal();
+
 
 /**
  * Testes do limite de assentos por plano (decisão 2026-07-30).

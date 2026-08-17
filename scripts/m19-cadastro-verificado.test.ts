@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import {
@@ -11,6 +12,8 @@ import {
   maskPhone,
   MAX_CODE_ATTEMPTS,
 } from "@/lib/actions/signup-flow";
+
+exigirBancoLocal();
 
 /**
  * Testes do Módulo 19 (cadastro público verificado em 4 etapas).

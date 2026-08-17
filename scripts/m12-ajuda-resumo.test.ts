@@ -1,7 +1,11 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { createTestAnimal , deleteTestTenants } from "./helpers/herd";
 import { POST as executeAction } from "@/app/api/internal/whatsapp/execute-action/route";
+
+exigirBancoLocal();
+
 
 /**
  * Teste das intenções ajuda e resumo (spec 2026-07-28). Roda: `npm run test:m12`
