@@ -1,6 +1,17 @@
 import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, type TenantPrismaClient } from "@/lib/prisma";
 import { getHerdEvolution } from "@/lib/actions/herd-evolution";
+
+/**
+ * A trava faltava aqui, e a falha e a MESMA que causou o acidente de
+ * 2026-08-15: ela foi aplicada em massa por um filtro `scripts/m*.test.ts`, e
+ * este arquivo nao casa com o padrao. Ele varre `prisma.tenant.findMany()` sem
+ * escopo, entao rodar contra o Neon leria a base inteira de clientes reais.
+ * Nao ha perda de proposito: o comentario do laco ja diz que o volume vem do
+ * `npm run seed:demo`, que semeia o banco local.
+ */
+exigirBancoLocal();
 
 /**
  * Prova que a reescrita de `getHerdEvolution` (auditoria de performance,

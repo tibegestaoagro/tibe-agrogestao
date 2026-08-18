@@ -57,6 +57,29 @@ function exigirTelefone(): string {
   return TELEFONE;
 }
 
+/**
+ * Confirma que o telefone pertence ao tenant de PROVAS, e não a um cliente.
+ *
+ * Este script não pode receber `exigirBancoLocal()`: ele fala com o n8n de
+ * produção de propósito, e é esse o ponto do banco de provas. A guarda certa é
+ * a mesma de `_provas-estoque-seed.ts`, por NOME do tenant. Sem ela, um
+ * `WA_TEST_PHONE` trocado por engano faria o `limpa` apagar o histórico de
+ * conversa de um produtor real, sem aviso e sem volta.
+ */
+async function exigirTenantDeProvas(phone: string): Promise<void> {
+  const contato = await prisma.whatsAppContact.findFirst({
+    where: { phone },
+    select: { tenant: { select: { name: true } } },
+  });
+  const nome = contato?.tenant.name;
+  if (nome && !/prova/i.test(nome)) {
+    throw new Error(
+      `Recusando: ${phone} pertence ao tenant "${nome}", que não é o de provas.\n` +
+        "Corrija WA_TEST_PHONE no .env, ou rode `npm run wa:seed <telefone>` para criar o tenant de provas.",
+    );
+  }
+}
+
 async function dormir(ms: number) {
   await new Promise((r) => setTimeout(r, ms));
 }
@@ -201,6 +224,10 @@ async function roteiro(caminho: string) {
 
 async function main() {
   const [comando, ...resto] = process.argv.slice(2);
+
+  // Antes de qualquer comando, inclusive `estado`: descobrir tarde que o
+  // telefone e de um cliente ja seria tarde demais para o `limpa`.
+  if (TELEFONE) await exigirTenantDeProvas(TELEFONE);
 
   switch (comando) {
     case "diga":
