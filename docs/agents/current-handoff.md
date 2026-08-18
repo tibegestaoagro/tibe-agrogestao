@@ -31,8 +31,49 @@ escritório. Leia depois de `CLAUDE.md`.
 - Verificado em produção depois do deploy: `/estoque` responde 307 (existe,
   pede sessão), `/api/v1/products` e `/api/v1/stock/movements` respondem 401,
   `/api/v1/stock/adjust` responde 405 (é POST). `/docs/api` já lista as três.
-- **Falta o classificador do n8n e o teste no aparelho.** Ver "Onde parou"
-  no fim desta seção.
+- **Classificador do n8n ensinado em 2026-08-18**, pelo MCP do n8n (a chave
+  `N8N_API_KEY` do `.env` funciona; uma sessão anterior concluiu que estava
+  vazia por ter lido o `.env` com `grep -o '^N8N[A-Z_]*='`, que corta o valor).
+  Backup do workflow antes da edição em `D:\tmp\n8n-backup\`.
+- ⚠️ **`071645c` corrige um defeito que GRAVOU dinheiro em produção e ainda
+  NÃO foi empurrado.** Ver a seção logo abaixo.
+
+## ⚠️ O classificador NÃO remonta literal (2026-08-18)
+
+Achado testando o agente de produção pelo `npm run wa`, minutos depois de
+ensinar as 4 intenções. É a correção da conclusão da volta 5, e a volta 5
+estava errada num ponto que só o classificador real revela.
+
+**O sintoma:** "Comprei 10 sacas de sal do Ze por 1200" → confirmação; "não,
+deixa pra lá" → **a mesma confirmação de novo**; "ok obrigado" → gravou. 10
+sacas no livro e R$ 1.200 a pagar que ninguém pediu.
+
+**A causa, medida na execução do n8n** (`n8n_executions`, nó `Parse Resposta
+LLM`): o classificador mandou `confirmed: false` certinho. O que mudou foram
+os parâmetros, porque **ele remonta a partir da confirmação que o próprio
+assistente imprimiu**, não da frase do produtor:
+
+| campo | no pedido | no "não" |
+|---|---|---|
+| `vencimento` | `"dia 10"` | `"10/08/2026"` |
+| `fazenda` | ausente | `"Fazenda de Provas"` |
+| `valor` | `1200` | `"1200"` |
+
+`mudaOPedido` lia isso como correção. Ou seja: **toda recusa parecia
+correção**, e a regra da volta 5 nunca chegava a cancelar em produção.
+
+**A correção (`071645c`):** o estoque volta à regra do handler de gado, que
+está em produção desde 14/08 e nunca teve este defeito: **recusa cancela,
+ponto**. O preço aceito é que corrigir contrastando ("não é o proteinado, é o
+60 P") volta a cancelar, e o produtor repete a frase.
+
+**Se um dia reabrir isto**, a mudança precisa ser ancorada no TEXTO que o
+produtor digitou (`message_text`), nunca em comparar campos remontados. Comparar
+campos remontados é o que gravou.
+
+**O gado NÃO tem este defeito** (`negociacao.ts` cancela sempre). O estoque se
+afastou dessa regra e foi a divergência que quebrou, exatamente o que a lição
+de paridade já dizia.
 
 ### Três branches vivas, nenhuma mesclada
 
