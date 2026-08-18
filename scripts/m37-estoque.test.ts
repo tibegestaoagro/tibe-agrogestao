@@ -13,7 +13,7 @@ import {
   createProduct,
   listProductsWithBalance,
 } from "@/lib/actions/products";
-import { STOCK_UNITS, descreverQuantidade, findUnit } from "@/lib/stock/units";
+import { STOCK_UNITS, descreverQuantidade, findUnit, recusaPorFracao } from "@/lib/stock/units";
 import { createProductNegotiation } from "@/lib/actions/product-negotiations";
 import { cancelNegotiation, getNegotiation } from "@/lib/actions/negotiations";
 import { gerarAlertasDeEstoqueMinimo } from "@/lib/actions/alerts";
@@ -128,6 +128,29 @@ async function main() {
       'meio não é singular: "0,5 sacas"',
       descreverQuantidade(0.5, "saca") === "0,5 sacas",
       descreverQuantidade(0.5, "saca"),
+    );
+    /**
+     * A recusa por fração concorda com a UNIDADE, nos dois gêneros.
+     *
+     * Visto em produção em 2026-08-18: "Vermifugo só entra em frascos
+     * inteiras". A frase é escrita uma vez e serve a 11 unidades, então basta
+     * uma delas ser masculina para o produtor ler português errado. Os dois
+     * gêneros ficam no teste porque corrigir só o masculino quebraria o
+     * feminino, que é o caso mais comum.
+     */
+    check(
+      "recusa por fração no masculino: frascos inteiros",
+      (recusaPorFracao("Vermifugo", 0.5, "frasco") ?? "").includes("frascos inteiros"),
+      recusaPorFracao("Vermifugo", 0.5, "frasco") ?? "null",
+    );
+    check(
+      "e no feminino: unidades inteiras",
+      (recusaPorFracao("Enxada", 2.5, "unidade") ?? "").includes("unidades inteiras"),
+      recusaPorFracao("Enxada", 2.5, "unidade") ?? "null",
+    );
+    check(
+      "e unidade fracionável não recusa nada",
+      recusaPorFracao("Sal mineral", 0.5, "saca") === null,
     );
 
     // ------------------------------------------------------------------

@@ -108,7 +108,12 @@ export function recusaPorFracao(
    */
   // Sem flexionar o nome do produto (gênero livre) e sem a circularidade de "a
   // unidade de X é unidades". A frase fala do NÚMERO, que é o que foi recusado.
-  return `${nomeDoProduto} só entra em ${unidade.plural} inteiras, sem quantidade quebrada.`;
+  //
+  // "inteiras" concorda com a UNIDADE, não com o produto, e o gênero da unidade
+  // está na tabela: sem `concordar` saía "Vermifugo só entra em frascos
+  // inteiras", visto em produção em 2026-08-18. O raciocínio do comentário
+  // acima continua valendo para o NOME do produto, que segue sem flexão.
+  return `${nomeDoProduto} só entra em ${unidade.plural} ${concordar("inteiras", unidade.id, 2)}, sem quantidade quebrada.`;
 }
 
 /** "Quantas" para saca, "Quantos" para litro. */
