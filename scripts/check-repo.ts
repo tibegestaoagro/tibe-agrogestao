@@ -288,6 +288,15 @@ const CASOS_HOOK: [string, Record<string, unknown>, number, string][] = [
     2,
     "push com o alvo escondido atras de aspas",
   ],
+  // A valvula: existe para o caminho autorizado nao ser "desligar o hook", que
+  // e o unico contorno que nao volta sozinho.
+  [
+    "guarda-bash.mjs",
+    { command: "AUTORIZADO_PELO_USUARIO=1 git merge higiene-instrucoes" },
+    0,
+    "merge com a marca de autorizacao explicita",
+  ],
+  ["guarda-bash.mjs", { command: "git merge higiene-instrucoes" }, 2, "merge sem a marca"],
   ["guarda-escrita.mjs", { content: `frase ${TRAVESSAO} com travessao` }, 2, "Write com travessao"],
   ["guarda-escrita.mjs", { content: "frase limpa" }, 0, "Write limpo"],
   [

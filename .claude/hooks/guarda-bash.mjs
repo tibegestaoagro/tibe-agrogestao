@@ -125,7 +125,24 @@ function semAspas(s) {
   return s.replace(/'[^']*'|"[^"]*"/g, " CITACAO ");
 }
 
+/**
+ * A valvula, e por que ela existe em vez de "desligar o hook".
+ *
+ * O invariante 7 pede que merge, push na main e deploy sejam DELIBERADOS e do
+ * usuario. A trava impede que aconteçam por inercia; ela nao pode impedir que
+ * aconteçam quando o usuario acabou de pedir, senao a saida vira desligar o
+ * hook, e um hook desligado nao volta sozinho.
+ *
+ * Entao o caminho autorizado e carregar a marca no proprio comando. Ela nao
+ * torna a acao mais facil: torna-a VISIVEL, no historico do shell e no que voce
+ * leu antes de digitar. Use apenas depois de autorizacao explicita NESTA
+ * conversa, e nunca deduzida de uma autorizacao anterior.
+ */
+const MARCA_DE_AUTORIZACAO = "AUTORIZADO_PELO_USUARIO=1";
+
 function precisaDeAutorizacao(cmd) {
+  if (cmd.includes(MARCA_DE_AUTORIZACAO)) return null;
+
   const limpo = segmentos(cmd)
     .filter((s) => /^(git|npx|vercel|pnpm|yarn)\b/.test(s))
     .join(" ; ")
@@ -146,22 +163,24 @@ function precisaDeAutorizacao(cmd) {
       "vez (invariante 7 do CLAUDE.md).\n\n" +
       "Push de branch de trabalho continua livre: nomeie a branch " +
       "(`git push origin minha-branch`).\n\n" +
-      "Se o usuario ja autorizou NESTA conversa, peca para ele confirmar de " +
-      "novo em uma frase e so entao repita o comando."
+      "Se o usuario autorizou NESTA conversa, repita com a marca:\n" +
+      `  ${MARCA_DE_AUTORIZACAO} git push origin main`
     );
   }
 
   if (/\bgit\s+merge\b/.test(t)) {
     return (
       "Bloqueado: merge exige autorizacao explicita do usuario (invariante 7 " +
-      "do CLAUDE.md). Pergunte antes, dizendo o que vai entrar na main."
+      "do CLAUDE.md). Pergunte antes, dizendo o que vai entrar na main.\n" +
+      `Autorizado? Repita com a marca: ${MARCA_DE_AUTORIZACAO} git merge ...`
     );
   }
 
   if (/\bvercel\b(?!\s+(env|ls|list|inspect|whoami|logs))/.test(t)) {
     return (
       "Bloqueado: deploy exige autorizacao explicita do usuario (invariante 7 " +
-      "do CLAUDE.md). Lembre tambem do invariante 3: migracao ANTES do push."
+      "do CLAUDE.md). Lembre tambem do invariante 3: migracao ANTES do push.\n" +
+      `Autorizado? Repita com a marca: ${MARCA_DE_AUTORIZACAO} ...`
     );
   }
 
