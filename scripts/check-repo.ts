@@ -264,8 +264,30 @@ const CASOS_HOOK: [string, Record<string, unknown>, number, string][] = [
   ["guarda-bash.mjs", { command: "git push origin main" }, 2, "push na main"],
   ["guarda-bash.mjs", { command: "git merge estoque" }, 2, "merge"],
   ["guarda-bash.mjs", { command: "npx vercel --prod" }, 2, "deploy"],
+  ["guarda-bash.mjs", { command: "cd x && git push origin main" }, 2, "push na main depois de &&"],
   ["guarda-bash.mjs", { command: "git push origin minha-branch" }, 0, "push de branch de trabalho"],
   ["guarda-bash.mjs", { command: "npm run test:m38" }, 0, "comando comum"],
+  // Falsos positivos que a primeira versao produzia: a palavra dentro de aspas,
+  // num comando que so LE. Bloquear isso ensina a contornar a trava.
+  [
+    "guarda-bash.mjs",
+    { command: `node -e "const r=/vercel|git push|git merge/; console.log(r)"` },
+    0,
+    "as palavras dentro de aspas, num comando que so le",
+  ],
+  ["guarda-bash.mjs", { command: "grep -rn 'git push' docs/" }, 0, "procurar pela expressao num arquivo"],
+  [
+    "guarda-bash.mjs",
+    { command: `git commit -m "trava: mencionar git push e git merge nao e executa-los"` },
+    0,
+    "commit cuja MENSAGEM cita os comandos proibidos",
+  ],
+  [
+    "guarda-bash.mjs",
+    { command: `git push origin "main"` },
+    2,
+    "push com o alvo escondido atras de aspas",
+  ],
   ["guarda-escrita.mjs", { content: `frase ${TRAVESSAO} com travessao` }, 2, "Write com travessao"],
   ["guarda-escrita.mjs", { content: "frase limpa" }, 0, "Write limpo"],
   [

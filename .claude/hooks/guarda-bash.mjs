@@ -62,18 +62,84 @@ function heredocPerigoso(cmd) {
 }
 
 /**
+ * Os pedacos do comando que estao em POSICAO DE COMANDO.
+ *
+ * Sem isto a trava casava a palavra em qualquer lugar da linha, inclusive
+ * dentro de aspas: um `node -e "...vercel..."` que so INSPECIONAVA uma lista de
+ * permissoes foi bloqueado como se fosse deploy, e um `grep "git push"` teria o
+ * mesmo destino. Trava que grita demais e trava que se aprende a contornar, que
+ * e pior do que nao ter trava.
+ *
+ * A separacao e por `;`, `&&`, `||`, `|` e quebra de linha, ignorando
+ * atribuicoes de variavel no inicio (`FOO=1 git push ...`).
+ */
+function segmentos(cmd) {
+  // Separador DENTRO de aspas nao separa nada. Sem este passo, um
+  // `node -e "/vercel|git push/"` era fatiado no proprio `|` da expressao
+  // regular e um pedaco comecava com `git push`, bloqueando um comando que so
+  // LE. Marcar e restaurar preserva o texto inteiro para as checagens.
+  const SEPARADORES = ["|", ";", "&", "\n"];
+  // Marcador pelo ponto de codigo: caractere de controle escrito literal no
+  // fonte e invisivel no diff e some numa copia descuidada, que e a mesma
+  // familia de armadilha do invariante 5.
+  const marca = (i) => String.fromCharCode(1 + i);
+
+  let dentro = null;
+  let mascarado = "";
+  for (const ch of cmd) {
+    if (dentro) {
+      if (ch === dentro) dentro = null;
+      const i = SEPARADORES.indexOf(ch);
+      mascarado += i >= 0 ? marca(i) : ch;
+      continue;
+    }
+    if (ch === "'" || ch === '"') dentro = ch;
+    mascarado += ch;
+  }
+
+  const restaura = (t) =>
+    SEPARADORES.reduce((acc, sep, i) => acc.split(marca(i)).join(sep), t);
+
+  return mascarado
+    .split(/(?:\|\||&&|[;|\n])/)
+    .map((t) => restaura(t).trim().replace(/^(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)+/, ""))
+    .filter(Boolean);
+}
+
+/**
  * Merge, push na main e deploy: sao do usuario, a cada vez (invariante 7).
  *
  * O push de branch de trabalho continua livre, porque a regra sempre distinguiu
- * os dois. Por isso a checagem olha o ALVO do push, nao o verbo.
+ * os dois. Por isso a checagem olha o ALVO do push, nao o verbo. E so olha
+ * segmento que COMECA com o comando: mencionar a palavra nao e executa-la.
  */
-function precisaDeAutorizacao(cmd) {
-  const limpo = cmd.replace(/\s+/g, " ");
+/**
+ * Troca todo trecho entre aspas por um marcador.
+ *
+ * Segunda borda do mesmo erro: filtrar por inicio de segmento nao bastava,
+ * porque `git commit -m "...git push..."` COMECA com git e a mensagem citava o
+ * comando proibido. O que decide e o argumento nao-citado; texto entre aspas e
+ * dado, nao comando.
+ */
+function semAspas(s) {
+  return s.replace(/'[^']*'|"[^"]*"/g, " CITACAO ");
+}
 
-  const push = /\bgit\s+push\b/.test(limpo);
+function precisaDeAutorizacao(cmd) {
+  const limpo = segmentos(cmd)
+    .filter((s) => /^(git|npx|vercel|pnpm|yarn)\b/.test(s))
+    .join(" ; ")
+    .replace(/\s+/g, " ");
+  if (!limpo) return null;
+
+  const t = semAspas(limpo);
+  const push = /\bgit\s+push\b/.test(t);
   const miraMain =
-    /\bgit\s+push\b[^&|;]*\b(main|master)\b/.test(limpo) ||
-    (push && /\bgit\s+push\b\s*(--\S+\s*)*$/.test(limpo.trim()));
+    /\bgit\s+push\b[^;]*\b(main|master)\b/.test(t) ||
+    (push && /\bgit\s+push\b\s*(--\S+\s*)*$/.test(t.trim())) ||
+    // Alvo escondido atras de aspas: na duvida, pergunta. Desquotar a branch
+    // resolve, e o custo de errar para o outro lado e empurrar na main sozinho.
+    /\bgit\s+push\b[^;]*CITACAO/.test(t);
   if (push && miraMain) {
     return (
       "Bloqueado: push na main exige autorizacao explicita do usuario, a cada " +
@@ -85,14 +151,14 @@ function precisaDeAutorizacao(cmd) {
     );
   }
 
-  if (/\bgit\s+merge\b/.test(limpo)) {
+  if (/\bgit\s+merge\b/.test(t)) {
     return (
       "Bloqueado: merge exige autorizacao explicita do usuario (invariante 7 " +
       "do CLAUDE.md). Pergunte antes, dizendo o que vai entrar na main."
     );
   }
 
-  if (/\bvercel\b(?!\s+(env|ls|list|inspect|whoami|logs))/.test(limpo)) {
+  if (/\bvercel\b(?!\s+(env|ls|list|inspect|whoami|logs))/.test(t)) {
     return (
       "Bloqueado: deploy exige autorizacao explicita do usuario (invariante 7 " +
       "do CLAUDE.md). Lembre tambem do invariante 3: migracao ANTES do push."
