@@ -37,14 +37,20 @@ const versionados = () =>
     .split("\n")
     .filter(Boolean);
 
+/** Varre uma pasta de `.md`, se ela existir. */
+const mdsDe = (...partes: string[]) => {
+  const dir = join(RAIZ, ...partes);
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((f) => f.endsWith(".md"))
+    .map((f) => [...partes, f].join("/"));
+};
+
+// `.claude/rules/` entra porque desde 2026-08-18 e la que mora a maior parte do
+// que era o CLAUDE.md. Sair do arquivo grande nao torna o conteudo imune a
+// envelhecer: torna mais facil esquecer que ele existe.
 const DOCS = ["CLAUDE.md", "README.md"]
-  .concat(
-    existsSync(join(RAIZ, "docs", "agents"))
-      ? readdirSync(join(RAIZ, "docs", "agents"))
-          .filter((f) => f.endsWith(".md"))
-          .map((f) => `docs/agents/${f}`)
-      : [],
-  )
+  .concat(mdsDe("docs", "agents"), mdsDe(".claude", "rules"))
   .filter((f) => existsSync(join(RAIZ, f)));
 
 const textoDe = (rel: string) => readFileSync(join(RAIZ, rel), "utf8");
@@ -188,8 +194,6 @@ function conferirComandos() {
  * limpos, para a checagem nascer verde e ser levada a serio.
  */
 const TRAVESSAO_LEGADO = new Set<string>([
-  // Precisa citar o caractere para enunciar a propria regra (invariante 4).
-  "CLAUDE.md",
   "prisma/migrations/20260711120000_whatsapp_provider_config/migration.sql",
   "prisma/migrations/20260724150000_user_must_change_password/migration.sql",
   "prisma/schema.prisma",
