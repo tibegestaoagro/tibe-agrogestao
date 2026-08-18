@@ -73,7 +73,7 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
   cron rearma `bill_due` quando a nova data entra na janela, preservando alertas
   já enviados ou dispensados para auditoria.
 - `gerar_relatorio` (tipo `financeiro`) devolve um `report_url` de verdade
-  (link assinado, ver Módulo 4 abaixo); tipos `rebanho|lavoura|prestador`
+  (link assinado, ver `.claude/rules/financeiro.md`); tipos `rebanho|lavoura|prestador`
   ainda respondem "não disponível": não há gerador de PDF para eles.
 - Guia completo para montar o workflow no N8N (nó a nó, incluindo o suporte a
   áudio e recibo por foto/PDF): [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md).

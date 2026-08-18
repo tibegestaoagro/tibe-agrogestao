@@ -74,47 +74,14 @@ o tenant da sessão e chama `prismaForTenant`.
   `SubscriptionStatusLog` só é lido por rotas de plataforma via
   `tenant_id` explícito quando precisa filtrar por tenant). `PlatformUser`
   nunca deve ser alcançável a partir de uma sessão de tenant: e o inverso
-  também: ver seção "Painel da Plataforma" abaixo para como isso é garantido
+  também: ver `.claude/rules/plataforma.md` para como isso é garantido
   (duas instâncias NextAuth com cookies diferentes, não uma checagem de role).
 
 Todo módulo que adiciona endpoints ganha um teste de isolamento automatizado
-(`scripts/*.test.ts`, rodados via `tsx`, chamando os route handlers
-diretamente com um `Request` construído). Rode sempre antes de reportar um
-módulo como concluído:
+(`scripts/*.test.ts`, rodados via `tsx`, chamando os route handlers diretamente
+com um `Request` construído). Rode antes de reportar um módulo como concluído.
 
-⚠️ **O `mNN` de `test:mNN` é um contador de SUÍTES, não o número do módulo**
-(esclarecido na auditoria de 2026-08-04, depois de parecer um bug). Os dois
-coincidiram até por volta do `m25` e depois descolaram: `test:m26` é a
-calculadora pecuária, enquanto o *Módulo 26* das specs é Máquinas, testado
-por `test:m27`. Por isso vários scripts imprimem um número diferente do que
-está no próprio nome do arquivo: o texto impresso é que segue a spec, e está
-certo. Renumerar não resolve (colide: já existe um `m26`). Ao criar uma suíte
-nova, use o próximo número livre da sequência e deixe o texto impresso
-apontando o módulo real.
-
-```powershell
-$env:DATABASE_URL="postgresql://tibe:tibe@localhost:55432/tibe_dev?schema=public"
-npm run test:isolation   # M0: isolamento genérico
-npm run test:m1          # M1: Rebanho/Lavoura + isolamento dos "filhos"
-npm run test:m2          # M2: Prestador + total_value persistido
-npm run test:m3          # M3: WhatsApp: permissão por role/perfil, confirmação, isolamento
-npm run test:m4          # M4: Financeiro/Alertas + idempotência + cron
-npm run test:m5          # M5: billing-access, webhook Asaas, usuários, trial_ending
-npm run test:m6          # M6: MRR/churn/LTV/funil, isolamento PlatformUser, força de status
-npm run test:m7          # M7: provider WhatsApp configurável (crypto, config, envio)
-npm run test:m9          # M9: Evolution client (QR)
-npm run test:m10         # M10: criação manual de tenant + troca de senha
-npm run test:m11         # M11: registrar_lancamento_financeiro (recibo por mídia)
-npm run test:m12         # M12: ajuda e resumo (agente WhatsApp)
-npm run test:m13         # M13: seam de gate de sessão (session-gate.ts)
-npm run test:m14         # M14: platform-tenants.ts (update/archive/reenvio de boas-vindas)
-npm run test:m15         # M15: canal de email (falha graciosa, EmailLog, quem recebe)
-npm run test:m16         # M16: recuperação de senha (código, rate limit, senha forte)
-npm run test:m17         # M17: agenda com custo, conciliação e alertas
-npm run test:m18         # Limite de assentos por plano
-npm run test:m19         # Cadastro público verificado (4 etapas)
-npm run test:m30         # Rebanho por categoria (modelo único, brinco opcional)
-npm run test:m31         # Cancelamento: janela de arquivamento de 60 dias
-```
-
----
+**A lista de suítes e o comando correto estão no `CLAUDE.md` e no
+`package.json`.** Não copie comando de teste daqui: a versão que vivia neste
+trecho usava `$env:` com `localhost`, as duas armadilhas que o projeto já
+pagou para aprender, e sobreviveu meses porque ninguém relê texto movido.
