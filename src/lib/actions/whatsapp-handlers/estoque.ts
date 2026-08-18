@@ -311,37 +311,44 @@ async function comMemoria(
    */
   if (ctx.explicitNo) {
     /**
-     * ...MAS "não é X, é Y" é correção, não recusa.
+     * SEM EXCEÇÃO MESMO, e a exceção que existia aqui foi removida em
+     * 2026-08-18 depois de gravar uma compra em PRODUÇÃO.
      *
-     * Esta regra já foi escrita de três jeitos, e os dois primeiros erraram em
-     * direções opostas. Deixar a resposta sempre vencer o "não" GRAVAVA, porque
-     * o guia do n8n manda o LLM remontar os parâmetros pelo histórico e
-     * "não deixa pra lá" chegava com produto e quantidade preenchidos. Fazer o
-     * "não" vencer sempre criou o oposto, e pior: a forma mais natural de
-     * corrigir em português é contrastiva, e o assistente PERGUNTA de um jeito
-     * que convida exatamente isso ("Qual deles?" → "não é o proteinado, é o 60
-     * P"). Cinco perguntas do módulo caíam nisso, todas jogando o registro fora.
+     * A exceção tentava distinguir a recusa da correção contrastiva ("não é o
+     * proteinado, é o 60 P") comparando o pedido guardado com o que chegou:
+     * se MUDAVA algum campo, era correção. A premissa era que o classificador
+     * remonta os parâmetros iguais quando o produtor só recusa.
      *
-     * O que separa as duas NÃO é o risco nem a presença de dado: é se a
-     * mensagem MUDA o pedido que está na tela. Ver `mudaOPedido`. A tentativa
-     * anterior (separar por risco, e perguntar "traz dado?") nunca chegava a
-     * recusar em compra, venda e ajuste, porque o classificador remonta o
-     * pedido inteiro em toda mensagem, inclusive no "não".
+     * Ele não remonta iguais. Ele remonta a partir da CONFIRMAÇÃO QUE O
+     * PRÓPRIO ASSISTENTE IMPRIMIU, então os campos voltam normalizados e
+     * enriquecidos mesmo sem o produtor ter dito nada. Medido em produção, no
+     * mesmo negócio, entre o pedido e o "não, deixa pra lá":
+     *
+     *   vencimento: "dia 10"  ->  "10/08/2026"   (o assistente tinha impresso)
+     *   fazenda:    ausente   ->  "Fazenda de Provas"
+     *
+     * Com isso TODA recusa parecia correção, o assistente repetia a
+     * confirmação, e o "ok obrigado" seguinte executava a compra recusada:
+     * 10 sacas no livro e R$ 1.200 a pagar que ninguém pediu.
+     *
+     * A troca aceita conscientemente: corrigir contrastando volta a cancelar,
+     * e o produtor repete a frase. A assimetria manda, como sempre mandou
+     * neste módulo, e é a MESMA regra do handler de gado, validado em
+     * produção desde 2026-08-14 e que nunca apresentou este defeito.
+     *
+     * Reabrir isto exige ancorar a mudança no TEXTO que o produtor digitou
+     * (`message_text`), nunca em comparar campos remontados.
      */
-    const corrige = meuPendente != null && mudaOPedido(meuPendente, ctx.parameters);
-    if (!corrige) {
-      const aviso = ctx.user_id
-        ? await encerrarConversaDoEstoque(ctx.tenant_id, ctx.user_id, meuPendente != null)
-        : "";
-      return {
-        ok: false,
-        resposta: responder(
-          (meuPendente ? "Ok, não registrei nada." : "Não tinha nada pendente para cancelar.") +
-            aviso,
-          `${intent}:cancelado`,
-        ),
-      };
-    }
+    const aviso = ctx.user_id
+      ? await encerrarConversaDoEstoque(ctx.tenant_id, ctx.user_id, meuPendente != null)
+      : "";
+    return {
+      ok: false,
+      resposta: responder(
+        (meuPendente ? "Ok, não registrei nada." : "Não tinha nada pendente para cancelar.") + aviso,
+        `${intent}:cancelado`,
+      ),
+    };
   }
 
   /**

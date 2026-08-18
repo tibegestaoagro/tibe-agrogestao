@@ -1025,24 +1025,29 @@ async function main() {
     const saldoAntesDoNao = await saldoDe(sal.data.id);
     await registrarUsoEstoque(comoEle({ produto: "sal" }));
     /**
-     * "nao sei ao certo, umas 1" REGISTRA 1, e isto passou a ser deliberado na
-     * quinta rodada.
+     * RECUSA CANCELA, mesmo trazendo dado novo junto.
      *
-     * O criterio deixou de ser "traz dado" (que em producao e sempre sim,
-     * porque o classificador remonta tudo) e passou a ser "MUDA o pedido". Aqui
-     * a quantidade 1 e nova, entao muda: e correcao, nao recusa. O "nao" que
-     * devolve o pedido igual continua cancelando, e isso e exercitado no bloco
-     * 25 no formato que o n8n de fato manda.
+     * A volta 5 tinha invertido isto: um "nao" que MUDASSE algum campo valia
+     * como correcao. Medido contra o classificador REAL em 2026-08-18, a
+     * premissa caiu: ele remonta os parametros a partir da confirmacao que o
+     * ASSISTENTE imprimiu, entao campos voltam normalizados e enriquecidos sem
+     * o produtor ter dito nada (vencimento "dia 10" virou "10/08/2026", fazenda
+     * ausente virou "Fazenda de Provas"). Com isso TODA recusa parecia
+     * correcao, e o "ok obrigado" seguinte gravou uma compra de R$ 1.200 em
+     * producao.
+     *
+     * Agora vale a regra do handler de gado, validada em producao: recusa
+     * cancela, ponto. Corrigir contrastando custa repetir a frase.
      */
     const naoSeiAoCerto = await registrarUsoEstoque(
       comoEle({ quantidade: 1 }, { explicitNo: true }),
     );
     check(
-      '"nao sei ao certo, umas 1" MUDA o pedido, entao corrige em vez de cancelar',
-      naoSeiAoCerto.action_taken === "registrar_uso_estoque:ok",
+      '"nao sei ao certo, umas 1" CANCELA: recusa vence o dado que veio junto',
+      naoSeiAoCerto.action_taken === "registrar_uso_estoque:cancelado",
       naoSeiAoCerto.action_taken,
     );
-    check("e o uso entrou", (await saldoDe(sal.data.id)) === saldoAntesDoNao - 1);
+    check("e nada foi usado", (await saldoDe(sal.data.id)) === saldoAntesDoNao);
 
     // A borda contraria: "nao" seco continua cancelando.
     await registrarUsoEstoque(comoEle({ produto: "sal" }));
@@ -1126,11 +1131,11 @@ async function main() {
       comoEle({ quantidade: 2 }, { explicitNo: true }),
     );
     check(
-      'esperando CAMPO, um "nao" que traz a resposta NOVA corrige',
-      naoComResposta.action_taken === "registrar_uso_estoque:ok",
+      'esperando CAMPO, "nao" tambem cancela: nao ha como distinguir de "nao deixa pra la"',
+      naoComResposta.action_taken === "registrar_uso_estoque:cancelado",
       naoComResposta.action_taken,
     );
-    check("e o uso entrou", (await saldoDe(sal.data.id)) === saldoAntesDoTalvez - 2);
+    check("e nada foi usado", (await saldoDe(sal.data.id)) === saldoAntesDoTalvez);
 
     // ------------------------------------------------------------------
     console.log("\n19. O leitor de numero e o MESMO na tela e na conversa");
@@ -1536,10 +1541,9 @@ async function main() {
       comoEle({ quantidade: 50 }, { explicitNo: true }),
     );
     check(
-      '"nao foram 10, foram 50" CORRIGE em vez de cancelar',
-      corrigiuComNao.requires_confirmation === true &&
-        corrigiuComNao.reply_text.includes("50 sacas"),
-      corrigiuComNao.reply_text.slice(0, 80),
+      '"nao foram 10, foram 50" CANCELA: a compra recusada nunca pode sobreviver',
+      corrigiuComNao.action_taken === "registrar_negocio_produto:cancelado",
+      corrigiuComNao.action_taken,
     );
 
     // A borda contraria: "nao" SEM dado nenhum continua cancelando.
@@ -1735,17 +1739,18 @@ async function main() {
       simRemontado.action_taken,
     );
 
-    // 25d. Correcao remontada CORRIGE, em vez de cancelar.
+    // 25d. Recusa remontada CANCELA, mesmo com campo diferente no pacote.
+    // Este e o caso EXATO que gravou em producao: o pacote remontado difere do
+    // pedido original sem o produtor ter mudado nada.
     await clearPendingStock(tenant.id, conversador.id);
     await registrarNegocioProduto(comoON8nManda(compraOriginal));
     const correcaoRemontada = await registrarNegocioProduto(
       comoON8nManda(compraOriginal, { quantidade: 50 }, { explicitNo: true }),
     );
     check(
-      '"nao foram 10, foram 50" com tudo remontado CORRIGE',
-      correcaoRemontada.requires_confirmation === true &&
-        correcaoRemontada.reply_text.includes("50 sacas"),
-      correcaoRemontada.reply_text.slice(0, 70),
+      '"nao" com o pacote remontado diferente CANCELA, nunca vira confirmacao nova',
+      correcaoRemontada.action_taken === "registrar_negocio_produto:cancelado",
+      correcaoRemontada.action_taken,
     );
     await clearPendingStock(tenant.id, conversador.id);
 
@@ -1788,10 +1793,16 @@ async function main() {
     const respondeuContrastando = await registrarUsoEstoque(
       comoON8nManda(usoAmbiguo, { produto: "Sal mineral 60 P" }, { explicitNo: true }),
     );
+    /**
+     * A correcao contrastiva CANCELA, e este e o preco aceito da correcao de
+     * 2026-08-18. O produtor repete "usei 2 sacas do 60 P" e segue. Trocar isto
+     * de volta exige ancorar a mudanca no TEXTO digitado, nunca em comparar
+     * campos remontados: foi essa comparacao que gravou uma compra recusada.
+     */
     check(
-      '"nao e o proteinado, e o 60 P" REGISTRA o uso, em vez de cancelar',
-      respondeuContrastando.action_taken === "registrar_uso_estoque:ok" &&
-        (await saldoDe(sal.data.id)) === saldoAntesDaCorrecaoNoUso - 2,
+      '"nao e o proteinado, e o 60 P" cancela, e o uso NAO entra',
+      respondeuContrastando.action_taken === "registrar_uso_estoque:cancelado" &&
+        (await saldoDe(sal.data.id)) === saldoAntesDaCorrecaoNoUso,
       respondeuContrastando.action_taken,
     );
     // A borda contraria: "nao" que NAO muda nada continua cancelando o uso.

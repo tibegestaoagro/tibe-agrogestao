@@ -118,10 +118,17 @@ async function diga(texto: string, seq = 0): Promise<string[]> {
 }
 
 /**
- * Zera a conversa: caixa de saída, buffer de fragmentos, pedido pendente do
- * rebanho e o histórico que alimenta o `recent_history`. Sem isso, um caso de
- * teste enxerga a conversa do caso anterior e o resultado deixa de ser
- * reproduzível.
+ * Zera a conversa: caixa de saída, buffer de fragmentos, os pedidos pendentes
+ * dos TRÊS domínios, a marca de última execução e o histórico que alimenta o
+ * `recent_history`. Sem isso, um caso de teste enxerga a conversa do caso
+ * anterior e o resultado deixa de ser reproduzível.
+ *
+ * Até 2026-08-18 só a pendência do REBANHO era apagada, e as de negócio (M31,
+ * missão 1) e de estoque (missão 2) sobreviviam ao `limpa`. O sintoma não
+ * parecia sujeira de estado: dois casos seguidos que perguntavam o mesmo campo
+ * faziam o segundo cair na trava de laço e responder "vou deixar de lado",
+ * como se a conversa estivesse quebrada. `tibe:ultima-execucao` entra pelo
+ * mesmo motivo: é ele que decide se um "sim" ainda tem a que se referir.
  */
 async function limpa() {
   const phone = exigirTelefone();
@@ -138,8 +145,14 @@ async function limpa() {
     });
     console.log(`historico apagado: ${apagados.count} linha(s)`);
     if (contato.user_id) {
-      await redis.del(`tibe:herd-pending:${contato.tenant_id}:${contato.user_id}`);
-      console.log("pedido pendente do rebanho: limpo");
+      const escopo = `${contato.tenant_id}:${contato.user_id}`;
+      await redis.del(
+        `tibe:herd-pending:${escopo}`,
+        `tibe:negocio-pending:${escopo}`,
+        `tibe:estoque-pending:${escopo}`,
+        `tibe:ultima-execucao:${escopo}`,
+      );
+      console.log("pedidos pendentes (rebanho, negocio, estoque): limpos");
     }
   } else {
     console.log(`nenhum WhatsAppContact para ${phone} (conversa ainda nao comecou)`);
