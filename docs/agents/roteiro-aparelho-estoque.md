@@ -10,22 +10,22 @@ meio, mande "cancela".
 
 ---
 
-## Antes de começar: 4 coisas que precisam estar prontas
+## Antes de começar: tudo pronto desde 2026-08-18
 
-Sem as quatro, o agente responde "não entendi" e o teste não significa nada.
-Cada uma depende de autorização sua, nesta ordem, e a 4 depois da 3:
+Os quatro passos que este roteiro exigia foram feitos, nesta ordem e com sua
+autorização: merge na `main`, migração `20260814190000_estoque_de_produtos`
+aplicada no Neon **antes** do push, deploy, e as 4 intenções ensinadas ao
+classificador do n8n (`registrar_uso_estoque`, `ajustar_estoque`,
+`consultar_estoque`, `registrar_negocio_produto`).
 
-1. Merge da branch `estoque` na `main`.
-2. Migração `20260814190000_estoque_de_produtos` aplicada no Neon, **antes do
-   push** (URL Direct, sem `-pooler`).
-3. Deploy na Vercel.
-4. As 4 intenções novas ensinadas ao classificador do n8n. A tabela já está
-   pronta em [n8n-whatsapp-workflow.md](../n8n-whatsapp-workflow.md):
-   `registrar_uso_estoque`, `ajustar_estoque`, `consultar_estoque` e
-   `registrar_negocio_produto`.
+A ordem importava e vale registrar para a próxima vez: **ensinar o
+classificador antes do deploy quebraria produção**, porque a `main` ainda não
+teria os handlers, e o n8n classificaria a intenção para chamar uma rota
+inexistente.
 
-**Fazer o 4 antes do 3 quebra produção**, porque a `main` ainda não tem os
-handlers: o n8n classificaria a intenção e chamaria uma rota que não existe.
+Se algum dia o agente responder "não entendi" a uma frase de estoque, o
+suspeito número um é o prompt do classificador ter sido sobrescrito. Há backup
+do workflow na pasta `n8n-backup` dentro de `D:\tmp`.
 
 ---
 
@@ -54,9 +54,14 @@ Isso já testa o caminho da tela. O resto é tudo pelo celular.
 
 ## Bloco 1: os dois roteiros que mais importam
 
-São os dois da quinta rodada de revisão. Cada um foi um defeito real que
-gravava dado errado, e os dois só se provam com o classificador de verdade,
-porque dependem de como o n8n remonta os parâmetros.
+Dependem de como o n8n remonta os parâmetros, então só se provam com o
+classificador de verdade.
+
+**Os dois já foram exercitados contra produção em 2026-08-18**, pelo banco de
+provas (`npm run wa`), e passaram. O 1a chegou a FALHAR nesse teste, gravando
+uma compra recusada de R$ 1.200, e foi corrigido antes de chegar aqui. Refazer
+no aparelho continua valendo: o banco de provas não cobre entrega no celular,
+áudio nem foto.
 
 ### 1a. Recusar e depois agradecer NÃO pode gravar
 
@@ -72,18 +77,27 @@ gravava a compra recusada, com conta a pagar de R$ 1.200. A suíte passava
 verde, porque simulava um classificador que não remonta os parâmetros. O que o
 1.4 mede é justamente isso: se sobrou saldo a mais, gravou escondido.
 
-### 1b. Corrigir contrastando deve CORRIGIR, não cancelar
+### 1b. Corrigir contrastando CANCELA, e isso é deliberado
 
 | # | Mande | Deve responder |
 |---|---|---|
 | 1.5 | `Contei e tem 8 sacas de sal mineral proteinado` | `Confirma? Sal mineral proteinado em ... passa de 10 sacas para 8 sacas.` |
-| 1.6 | `não é o proteinado, é o 60 P` | Deve trocar o produto: um `Confirma?` novo, agora com **Sal mineral 60 P**, passando de 20 sacas para 8 |
-| 1.7 | `isso` | `✅ Corrigido: Sal mineral 60 P agora está com 8 sacas ... Tirei 12 sacas.` |
+| 1.6 | `não é o proteinado, é o 60 P` | **`Ok, não registrei nada.`** Não é defeito: leia a nota abaixo |
+| 1.7 | `Contei e tem 8 sacas de sal mineral 60 P` | `Confirma? Sal mineral 60 P ... passa de 20 sacas para 8 sacas.` |
+| 1.8 | `isso` | `✅ Corrigido: Sal mineral 60 P agora está com 8 sacas ... Tirei 12 sacas.` |
 
-**O que se mede aqui:** essa é a correção mais natural do português, e a
-pergunta do assistente convida a ela. Uma versão anterior lia o "não" e
-cancelava tudo. Se o 1.6 responder "Ok, não registrei nada", é o defeito
-voltando, e é grave: o produtor não tem como corrigir sem recomeçar.
+**Por que o 1.6 cancela, se essa é a correção mais natural do português.** Até
+2026-08-18 ele corrigia, e essa regra foi removida porque **gravava**. Ela
+distinguia recusa de correção comparando o pedido guardado com o que o
+classificador mandava de volta. A premissa era que uma recusa devolve o pedido
+igual. Medido contra o classificador de verdade, ela é falsa: ele remonta os
+parâmetros a partir da confirmação que o próprio assistente imprimiu, então
+`"dia 10"` volta como `"10/08/2026"` e a fazenda volta preenchida, sem o
+produtor ter dito nada. Com isso toda recusa parecia correção, e um "ok
+obrigado" depois de um "não" gravou uma compra de R$ 1.200 em produção.
+
+A troca aceita: o produtor repete a frase, como no 1.7. É a mesma regra do
+negócio de gado, que está no ar desde 14/08 e nunca teve esse defeito.
 
 ---
 
@@ -117,12 +131,16 @@ acertar. É onde a conversa costuma quebrar.
 |---|---|---|
 | 3.1 | `usei 2 sacas de sal` | Deve **perguntar qual**, listando os dois: `Tenho mais de um parecido com "sal". Qual deles?` Nunca escolher sozinho |
 | 3.2 | `o 60 P` | Registra as 2 sacas do Sal mineral 60 P e diz quanto restou |
-| 3.3 | `usei meio frasco de vermífugo` | `Vermífugo só entra em frascos inteiras, sem quantidade quebrada.` mais a pergunta de quantos |
+| 3.3 | `usei meio frasco de vermífugo` | `Vermífugo só entra em frascos inteiros, sem quantidade quebrada. Quantos exatamente?` |
 | 3.4 | `cancela` | Encerra sem registrar |
 | 3.5 | `vendi 500 sacas de sal mineral 60 P por 60 mil` | `Existem apenas N sacas de Sal mineral 60 P em ... Revise a quantidade informada.` **A recusa vem ANTES de pedir "sim"** |
-| 3.6 | `faltaram 2 sacas de sal mineral proteinado` | `Para corrigir eu preciso do total, não da diferença. Quantas sacas de Sal mineral proteinado tem hoje, ao todo?` |
+| 3.6 | `faltaram 2 sacas de sal mineral proteinado` | Uma pergunta pelo TOTAL: `Quantas sacas de Sal mineral proteinado você contou?`, ou a versão longa `Para corrigir eu preciso do total, não da diferença...`. As duas servem; o que **não** pode é virar saldo 2 |
 | 3.7 | `8` | `Confirma? Sal mineral proteinado ... passa de 10 sacas para 8 sacas.` |
 | 3.8 | `cancela` | Encerra sem registrar |
+
+**As quatro travas acima já foram verificadas contra produção em 2026-08-18**,
+pelo banco de provas, e passaram. A 3.3 chegou a sair com a concordância errada
+("frascos inteiras"), corrigida antes de chegar aqui.
 
 **O 3.5 é o que mais importa deste bloco.** Perguntar "confirma a venda de 500
 sacas?" quando existem 4 já é aceitar a premissa errada: o produtor diz sim e
