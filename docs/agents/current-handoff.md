@@ -32,8 +32,26 @@ Se ele passar de umas 200, arquive antes de acrescentar.
   schema is up to date!".
 - **O classificador do n8n já conhece as 4 intenções de estoque**, ensinadas em
   2026-08-18 pelo MCP do n8n. Backup do workflow anterior em `D:\tmp\n8n-backup`.
-- **Branch de trabalho viva: `higiene-instrucoes`** (esta rodada: travas de
-  agente, `npm run check`, e a reestruturação do `CLAUDE.md`). Sem merge.
+- **`higiene-instrucoes` foi mesclada e está no ar** (`79cb615`, merge `--no-ff`
+  autorizado em 2026-08-18): travas de agente versionadas, `npm run check`, o
+  `CLAUDE.md` reestruturado e o `CONTRIBUTING.md` apagado. Deploy conferido:
+  `/estoque` 307, `/api/v1/products` 401, e o agente respondeu uma consulta de
+  estoque pelo banco de provas.
+
+### As travas de agente, e como passar por elas
+
+`.claude/settings.json` e `.claude/hooks/` são versionados, então valem também
+no notebook. Eles **recusam** travessão novo, heredoc com escape, e merge, push
+mirando a `main` e deploy.
+
+Quando o usuário autorizar, o caminho é repetir o comando com a marca
+`AUTORIZADO_PELO_USUARIO=1` na frente. **Nunca desligue o hook**: a marca existe
+justamente para o caminho autorizado não ser desligá-lo, porque hook desligado
+não volta sozinho. E a marca só vale para autorização dada NA CONVERSA, nunca
+deduzida de uma anterior.
+
+O `/doctor` de 2026-08-18 mudou `permissions.defaultMode` para `"auto"` no
+escopo de usuário. Testado: **os hooks continuam bloqueando nesse modo**.
 
 ### Próximo passo
 
