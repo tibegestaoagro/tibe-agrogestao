@@ -957,7 +957,7 @@ fora de `(dashboard)`/`(auth)`, em `PUBLIC_PREFIXES`):
   `/login`.
 - **Documentação técnica em `/docs`** (dentro do próprio Tibé: decisão do
   usuário, sem Mintlify/Notion): `src/app/(public)/docs/`: layout com sidebar
-  fixa (`docs/layout.tsx`) e uma página por seção (`arquitetura`, `schema`,
+  fixa (`src/app/(public)/docs/layout.tsx`) e uma página por seção (`arquitetura`, `schema`,
   `api`, `whatsapp`, `setup`, `deploy`, `glossario`). A página `/docs/api` é
   **gerada a partir de um array de dados** (`Endpoint[]`, componente
   `EndpointCard` em `src/components/public/`) cobrindo todos os endpoints

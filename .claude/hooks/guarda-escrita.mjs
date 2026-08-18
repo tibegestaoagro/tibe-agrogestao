@@ -12,13 +12,18 @@
  * nome e nao pode ser reescrito sem deixar de apontar para o arquivo.
  */
 
-const TRAVESSAO = "—";
+// Pelo ponto de codigo: escrito literal, este arquivo violaria a propria regra
+// que ele existe para impor, e o `npm run check` o acusaria com razao.
+const TRAVESSAO = String.fromCharCode(0x2014);
 
 /**
  * Citacoes legitimas: nomes de arquivo do cliente, que existem em disco com
  * travessao. Reescrever aqui quebraria o ponteiro para o documento.
  */
-const PERMITIDOS = [/Minha Fazenda — Especifica/, /TIBÉ — /];
+const PERMITIDOS = [
+  new RegExp(`Minha Fazenda ${TRAVESSAO} Especifica`),
+  new RegExp(`TIBÉ ${TRAVESSAO} `),
+];
 
 function lerEntrada() {
   return new Promise((resolve) => {
