@@ -127,6 +127,40 @@ do push, pelo invariante 3.
   do segredo interno, `tenant_id` do corpo conferido contra o dono do
   `user_id` (403 em divergência), e idempotência por `wamid` via
   `AgentRequest`.
+- **Exceção em página deixa de ser invisível**: `src/instrumentation.ts` com
+  `onRequestError`, que o `withApi` não alcança. Provado ao vivo com erro
+  injetado numa página, revertido em seguida.
+- **Normalização uniforme dos parâmetros do agente** (`test:m43`), com um
+  defeito grave achado no caminho: ver abaixo.
+
+### ⚠️ `new Date` cru não falhava, acertava errado (2026-08-20)
+
+O handler de `criar_tarefa` lia a data com `new Date(texto)`. O que isso faz,
+medido:
+
+- `new Date("dia 10")` devolve **1 de outubro de 2001**. Não é erro, é uma data
+  válida 25 anos no passado.
+- `new Date("10/12/2026")`, que o produtor escreve para **10 de dezembro**,
+  devolve **12 de outubro**, porque o JavaScript lê no formato americano.
+
+Ou seja: o lembrete era gravado numa data que ninguém pediu, **sem nenhuma
+pergunta e sem nenhum erro**. Os parsers do projeto (`lerData`,
+`interpretarData`) já tratavam todas essas formas, e três handlers ainda não os
+usavam. Agora usam.
+
+Isso apareceu porque a suíte desmentiu uma afirmação minha, que dizia que
+`new Date` falharia nesses casos. **Vale como método:** afirmar o que o código
+antigo fazia, e deixar o teste conferir.
+
+### Sobre o Zod por intenção, que estava no plano e NÃO foi feito
+
+O levantamento dos payloads reais mostrou que schema estrito é o instrumento
+errado neste canal: rejeitar contradiz o desenho ("não entendi, pergunto"), o
+`strip` do Zod apagaria cerca de 34 aliases que os handlers leem e que não
+estão no contrato documentado, e `z.number()` quebraria com o que já está
+medido em produção (`1200`, `"1200"`, `"60.000"`, `"60 mil"`). O que fazia
+falta era normalização, e ela foi feita. Se um schema entrar um dia, que seja
+por coerção e com `passthrough`, nunca por rejeição.
 
 ⚠️ **Duas coisas precisam de você antes de isto valer inteiro:**
 1. **`REPORT_LINK_SECRET` na Vercel.** Sem ela o sistema funciona usando o
