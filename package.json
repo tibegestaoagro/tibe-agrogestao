@@ -18,6 +18,7 @@
     "test:drift": "tsx scripts/ci-migration-drift.ts",
     "test:m39": "tsx scripts/m39-sessao-rotas.test.ts",
     "test:m40": "tsx scripts/m40-envelope-de-erro.test.ts",
+    "test:m41": "tsx scripts/m41-integridade.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",

@@ -63,7 +63,24 @@ export function buildBillDueMessage(params: {
   return `💰 Conta a ${kind}: ${params.category ?? "lançamento"} de R$ ${params.amount.toFixed(2)} vence em ${days} dia(s).`;
 }
 
-/** Cria o Alert se ainda não existir um igual (mesmo tipo+módulo+entidade). Retorna se criou. */
+/**
+ * Chave de deduplicação do alerta: o alvo mais o DIA.
+ *
+ * O dia entra porque alerta aqui é recorrente por natureza (vacina que vence
+ * de novo no ciclo seguinte é o caso de 50 dos 67 alertas existentes). Sem a
+ * janela, o mesmo alvo nunca mais seria avisado.
+ */
+export function alertDedupKey(params: {
+  alert_type: AlertType;
+  related_module: RelatedModule;
+  related_id: string;
+  dia: Date;
+}): string {
+  const dia = params.dia.toISOString().slice(0, 10);
+  return `${params.alert_type}|${params.related_module}|${params.related_id}|${dia}`;
+}
+
+/** Cria o Alert se ainda não existir um igual no mesmo dia. Retorna se criou. */
 async function ensureAlert(
   db: AlertEnsureClient,
   params: {
@@ -73,25 +90,35 @@ async function ensureAlert(
     message: string;
   },
 ): Promise<boolean> {
-  const existing = await db.alert.findFirst({
-    where: {
-      alert_type: params.alert_type,
-      related_module: params.related_module,
-      related_id: params.related_id,
-    },
-  });
+  const agora = new Date();
+  const dedup_key = alertDedupKey({ ...params, dia: agora });
+
+  // A checagem por leitura continua, porque ela evita a ida ao banco no caso
+  // comum e mantém a resposta rápida. O que mudou é que ela deixou de ser a
+  // ÚNICA garantia: `findFirst` seguido de `create` é racy, e dois jobs
+  // concorrentes criavam dois alertas iguais sem nada impedir. Agora existe
+  // `@@unique([tenant_id, dedup_key])`, e a colisão é tratada abaixo.
+  const existing = await db.alert.findFirst({ where: { dedup_key } });
   if (existing) return false;
 
-  await db.alert.create({
-    data: scoped({
-      alert_type: params.alert_type,
-      related_module: params.related_module,
-      related_id: params.related_id,
-      message: params.message,
-      status: "pending" as const,
-      scheduled_for: new Date(),
-    }),
-  });
+  try {
+    await db.alert.create({
+      data: scoped({
+        alert_type: params.alert_type,
+        related_module: params.related_module,
+        related_id: params.related_id,
+        message: params.message,
+        status: "pending" as const,
+        scheduled_for: agora,
+        dedup_key,
+      }),
+    });
+  } catch (e) {
+    // P2002 aqui não é erro: é a corrida perdida, e o outro lado já criou o
+    // alerta. Engolir qualquer outro código esconderia defeito de verdade.
+    if ((e as { code?: unknown })?.code === "P2002") return false;
+    throw e;
+  }
   return true;
 }
 

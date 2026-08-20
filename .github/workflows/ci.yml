@@ -149,6 +149,12 @@ jobs:
       - name: Isolamento multi-tenant
         run: npm run test:isolation
 
+      # As garantias que passaram a viver no banco, e nao so no codigo:
+      # idempotencia de alerta (inclusive sob corrida), integridade dos eixos
+      # de posicao do livro-razao, e auditoria do financeiro.
+      - name: Integridade e auditoria
+        run: npm run test:m41
+
   drift:
     name: Schema e migracoes contam a mesma historia
     runs-on: ubuntu-latest

@@ -1,4 +1,4 @@
-import { buildBillDueMessage } from "@/lib/actions/alerts";
+import { alertDedupKey, buildBillDueMessage } from "@/lib/actions/alerts";
 import { createManualEntryAction } from "@/lib/actions/financial-entries";
 import { ok, type ActionResult } from "@/lib/actions/types";
 import { runSerializableTenantTransaction } from "@/lib/financial";
@@ -36,10 +36,21 @@ export async function upsertVaccinationForecastAction(
           },
         });
         for (const alert of previousAlerts) {
+          const novoRelatedId = `${existing.id}:superseded:${alert.id}`;
           await tx.alert.update({
             where: { id: alert.id },
             data: {
-              related_id: `${existing.id}:superseded:${alert.id}`,
+              related_id: novoRelatedId,
+              // A `dedup_key` DERIVA do `related_id`, então renomear um sem o
+              // outro deixaria a chave original ocupada pelo alerta antigo, e
+              // o alerta da data nova nunca seria criado. O reagendamento
+              // existe justamente para liberar aquela chave.
+              dedup_key: alertDedupKey({
+                alert_type: "bill_due",
+                related_module: alert.related_module ?? "geral",
+                related_id: novoRelatedId,
+                dia: alert.scheduled_for ?? alert.created_at,
+              }),
               ...(alert.status === "pending"
                 ? { status: "dismissed" as const }
                 : {}),
