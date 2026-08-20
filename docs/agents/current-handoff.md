@@ -25,30 +25,30 @@ Se ele passar de umas 200, arquive antes de acrescentar.
 ## Estado atual
 
 - Atualizado em: 2026-08-20.
-- **Produção: `e719a45` no ar.** Merge `--no-ff` da branch `fundacao`,
-  autorizado pelo usuário na conversa, e deploy conferido (ver abaixo). Sem
-  migração nesta rodada: `prisma migrate status` contra o Neon respondeu
-  "Database schema is up to date!" antes do merge.
-- **A rodada de hoje foi a fase 0 do plano de evolução** (diagnóstico completo
-  do repositório, entrevista e plano em
-  `C:\Users\dilto\.claude\plans\analise-o-projeto-me-elegant-walrus.md`, fora do
-  repo). Cinco commits, nesta ordem:
-  1. **CI existe** (`.github/workflows/ci.yml`): job estático (check, tsc, lint,
-     docs-api, nav, m39, build), job com banco em PR (Postgres **e Redis**
-     próprios, tirando três suítes de cima do Redis de produção) e job de drift
-     de migração, que mecaniza o invariante 3. Pré-requisito resolvido:
-     `scripts/m23-token-auth.test.ts` compila, e `tsc --noEmit` sai zero pela
-     primeira vez.
-  2. **Suíte `m39`**, que prova que a porta fecha. Achou um vazamento latente:
-     prefixo público casava por texto, então `/docsinterno` entrava por causa de
-     `/docs`. Passou a casar por segmento.
-  3. **Next 16.3.1 + React 19.2.8.** O Next 14 estava sem patch de segurança
-     desde 11/12/2025. Feito antes do redesenho de propósito: o codemod
-     reescreve as mesmas páginas que a próxima fase vai tocar.
-  4. **O middleware virou `src/proxy.ts`** (a convenção antiga foi deprecada
-     no 16 e sai no próximo major).
-  5. **`next-auth` para a beta.32**, fechando quatro advisories, entre elas a
-     que deixava checagem de sessão falhar abrindo.
+- **Produção: `21d5641` no ar.** A fase 0 do plano de evolução foi mesclada e
+  implantada inteira, em duas levas (`fundacao` e `observabilidade`), com o
+  worker por cima. As **duas migrações foram aplicadas no Neon antes do push**,
+  conforme o invariante 3, e `prisma migrate status` responde "Database schema
+  is up to date!".
+- **Conferido contra produção depois do deploy:** os seis cabeçalhos de
+  segurança saem na resposta; `/dashboard` e `/docsinterno` devolvem 307;
+  `/planos` devolve 200; `/api/v1/products` devolve 401 com o envelope; e o
+  agente respondeu pelo banco de provas. A conferência de integridade contra o
+  Neon voltou zero órfãos e zero duplicatas depois das migrações.
+- **Duas correções provadas com o classificador real**, não só em teste:
+  "me lembra de comprar sal dia 10" virou 10/09/2026 (antes o `new Date` cru
+  daria outubro de 2001), e "gastei 1.200,00 com combustível" foi lido como
+  R$ 1200.00 (antes viraria `NaN` e o assistente pediria o valor de novo).
+  A recusa também segue cancelando, como deve.
+- **O que a fase 0 entregou:** CI de verdade (com Postgres e Redis proprios, e
+  drift de migracao), suites que provam gate de sessao e envelope de erro,
+  Next 16 com React 19, quatro advisories de auth fechadas, cabecalhos de
+  seguranca, integridade e auditoria no banco, `execute-action` endurecido,
+  captura de excecao em pagina, normalizacao uniforme dos parametros do
+  agente, e o worker da rotina diaria (codigo pronto, nao provisionado).
+  O relato completo esta em [historico/2026-08.md](historico/2026-08.md); o
+  plano que originou tudo vive fora do repo, em
+  `C:\Users\dilto\.claude\plans\analise-o-projeto-me-elegant-walrus.md`.
 - **O classificador do n8n já conhece as 4 intenções de estoque**, ensinadas em
   2026-08-18 pelo MCP do n8n. Backup do workflow anterior em `D:\tmp\n8n-backup`.
   Ele segue **congelado** por decisão do usuário: só volta a ser mexido quando o
@@ -69,89 +69,6 @@ deduzida de uma anterior.
 O `/doctor` de 2026-08-18 mudou `permissions.defaultMode` para `"auto"` no
 escopo de usuário. Testado: **os hooks continuam bloqueando nesse modo**.
 
-### Como a rodada de hoje foi validada
-
-Não só por compilação, porque aqui isso nunca bastou:
-
-- **36 suítes verdes** contra o Docker local, no Next 16.
-- **Navegador real** (`next dev` + browser-harness): login, painel com os
-  gráficos, rota com parâmetro dinâmico, e um lançamento financeiro criado de
-  verdade (`POST /api/v1/financial-entries` 201, conferido no banco depois).
-- **Requisição real** contra o `proxy`: `/dashboard` sem sessão devolve 307 para
-  o login, `/api/v1/animals` devolve 401 com o envelope certo, a raiz devolve
-  200, e `/docsinterno` devolve 307, provando fora do teste unitário que o
-  vazamento de prefixo fechou.
-- Duas falhas apareceram e **nenhuma era regressão**, as duas confirmadas lendo
-  o Redis em vez de deduzir: `m4` e `m24` pelo lock diário (passaram na
-  reexecução) e `m19` pelo contador `signup-send` em 7 contra um teto de 5 por
-  hora.
-
-### O deploy, conferido contra produção
-
-- Gate de sessão: `/dashboard`, `/estoque`, `/rebanho` e `/financeiro` devolvem
-  307 sem sessão.
-- **O vazamento de prefixo fechou em produção:** `/docsinterno` e
-  `/planosecreto` devolviam 404 antes do deploy (entravam como públicos e caíam
-  em rota inexistente) e agora devolvem 307. Foi a sonda usada para saber que o
-  código novo tinha propagado.
-- Públicas em 200: `/`, `/planos`, `/faq`, `/docs`, `/docs/api`,
-  `/politicas/privacidade` e `/criar-conta`.
-- `/api/v1/products`, `/animals` e `/financial-entries` devolvem 401 com o
-  envelope `{error:{code,message}}`.
-- **O agente continua respondendo:** `npm run wa` conversou com o agente de
-  produção e devolveu o saldo do rebanho, exercitando `resolve-contact` e
-  `execute-action` no Next 16.
-- HSTS já vinha da Vercel. Os demais cabeçalhos de segurança (CSP,
-  `X-Frame-Options`, `Referrer-Policy`) continuam ausentes: é item da próxima
-  etapa, não regressão.
-
-### A branch `observabilidade` (2026-08-20, NÃO mesclada)
-
-Continuação da fase 0, quatro commits, `96218e4` no remoto. **Não foi para
-produção**, e leva **duas migrações** que precisam ser aplicadas no Neon antes
-do push, pelo invariante 3.
-
-- **Envelope de erro garantido**: `withApi` em 111 arquivos e 145 handlers,
-  mais `src/lib/log.ts` (log estruturado, com a regra de privacidade escrita
-  no arquivo). Erro conhecido do Prisma vira status de negócio; a mensagem ao
-  cliente nunca é a do Prisma. `test:m40` prova as duas bordas e reprova rota
-  nova sem wrapper.
-- **Cabeçalhos de segurança** em `next.config.mjs`, com CSP em `Report-Only`
-  de propósito: o redesenho da fase seguinte muda a superfície de estilo.
-- **Integridade no banco** (`test:m41`): FKs dos eixos de posição do
-  livro-razão (`Restrict`) e da entrada financeira (`SetNull`, porque
-  `cancelMovement` apaga a entrada de propósito), índices nos eixos realmente
-  consultados, `updated_at` e autoria em `FinancialEntry`, e `dedup_key` com
-  unicidade por DIA no `Alert`.
-- **`execute-action` endurecido** (`test:m42`): `REPORT_LINK_SECRET` separado
-  do segredo interno, `tenant_id` do corpo conferido contra o dono do
-  `user_id` (403 em divergência), e idempotência por `wamid` via
-  `AgentRequest`.
-- **Exceção em página deixa de ser invisível**: `src/instrumentation.ts` com
-  `onRequestError`, que o `withApi` não alcança. Provado ao vivo com erro
-  injetado numa página, revertido em seguida.
-- **Normalização uniforme dos parâmetros do agente** (`test:m43`), com um
-  defeito grave achado no caminho: ver abaixo.
-
-### ⚠️ `new Date` cru não falhava, acertava errado (2026-08-20)
-
-O handler de `criar_tarefa` lia a data com `new Date(texto)`. O que isso faz,
-medido:
-
-- `new Date("dia 10")` devolve **1 de outubro de 2001**. Não é erro, é uma data
-  válida 25 anos no passado.
-- `new Date("10/12/2026")`, que o produtor escreve para **10 de dezembro**,
-  devolve **12 de outubro**, porque o JavaScript lê no formato americano.
-
-Ou seja: o lembrete era gravado numa data que ninguém pediu, **sem nenhuma
-pergunta e sem nenhum erro**. Os parsers do projeto (`lerData`,
-`interpretarData`) já tratavam todas essas formas, e três handlers ainda não os
-usavam. Agora usam.
-
-Isso apareceu porque a suíte desmentiu uma afirmação minha, que dizia que
-`new Date` falharia nesses casos. **Vale como método:** afirmar o que o código
-antigo fazia, e deixar o teste conferir.
-
 ### Sobre o Zod por intenção, que estava no plano e NÃO foi feito
 
 O levantamento dos payloads reais mostrou que schema estrito é o instrumento
@@ -170,12 +87,33 @@ por coerção e com `passthrough`, nunca por rejeição.
    payload) para a idempotência valer. Sem o campo, o comportamento é o antigo.
    É edição de um nó, e entra quando o agente for descongelado.
 
+### O que depende do usuário, e degrada em silêncio até ser feito
+
+Três itens, todos de interface, nenhum de código:
+
+1. **`REPORT_LINK_SECRET` na Vercel.** Sem ela o link de relatório continua
+   assinado com o segredo interno, avisando no log. É o buraco que o commit
+   dos segredos separados existe para fechar.
+2. **O n8n passar `provider_message_id`** (o `wamid` que ele já tem no
+   payload). Sem o campo, a idempotência não vale e o log registra cada
+   chamada desprotegida. É edição de um nó.
+3. **Provisionar o worker no Railway**, seguindo
+   [worker-de-rotina.md](worker-de-rotina.md). A ordem importa: subir o
+   processo primeiro, conferir no log que ele está ouvindo, e **só então**
+   ligar `ROTINA_COM_WORKER=1`. Inverter faz o sistema parar de gerar alerta
+   sem nenhum erro.
+
+Mais dois de higiene: ligar a proteção de branch no GitHub, e conferir se o CI
+ficou verde (sem `gh` nesta máquina, quem lê o resultado é o usuário).
+
 ### Próximo passo
 
-O que resta da fase 0: telemetria com Sentry (falta o DSN), o esquema Zod por
-intenção para `parameters` (hoje é `z.record(z.string(), z.unknown())`, o único
-caminho de escrita sem validação de domínio), o worker de fila no Railway, o
-staging em branch do Neon, e a decisão sobre as duas verdades do rebanho.
+O que resta da fase 0: telemetria com coletor externo (o ponto de plugue já
+está em `src/instrumentation.ts`, falta o DSN), o staging em branch do Neon, e
+a decisão sobre as duas verdades do rebanho (270 contra 297 cabeças no banco
+local, com a diferença explicada por duas compras gravadas sem lote).
+
+O esquema Zod por intenção **saiu do escopo**, com motivo escrito acima.
 
 Continua pendente, de antes: **teste no aparelho** pelo roteiro em
 [roteiro-aparelho-estoque.md](roteiro-aparelho-estoque.md), cadastrando antes os
@@ -214,10 +152,11 @@ Quatro achadas hoje, que não estavam em `dividas.md`:
 
 ## Histórico recente
 
-- **2026-08-20:** fase 0 da evolução, em produção (`e719a45`): CI de verdade, suíte
-  de gate de sessão, Next 16 com React 19, middleware renomeado para proxy e
-  quatro advisories de auth fechadas. Validado em navegador e por requisição
-  real, não só por suíte verde.
+- **2026-08-20:** fase 0 da evolução inteira em produção (`21d5641`), em duas
+  levas mais o worker: CI de verdade, Next 16, quatro advisories de auth
+  fechadas, envelope de erro e log estruturado, cabeçalhos de segurança,
+  integridade e auditoria no banco, e a porta do agente endurecida. Validado em
+  navegador, por requisição real e contra o classificador de produção.
 - **2026-08-18:** higiene das instruções. `CLAUDE.md` de 1.211 para ~270 linhas,
   com a arqueologia movida para `.claude/rules/*.md` (carregam sozinhas por
   glob); travas de agente versionadas para travessão, heredoc com escape e
