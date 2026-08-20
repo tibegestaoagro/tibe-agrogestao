@@ -24,15 +24,33 @@ paths:
   `paid_at`. Os dois em `src/lib/actions/financial-reports.ts`.
 - **PDF sem R2**: `src/lib/reports/generate-financial-pdf.ts` (pdf-lib, gera
   na hora, nunca armazena) atrás de um link assinado por HMAC com expiração
-  (`src/lib/reports/report-token.ts`, reusa `INTERNAL_API_SECRET` como
-  chave): funciona sem sessão (necessário para quem clica vindo do
-  WhatsApp). `GET /api/v1/financial/report/link` (sessão, gera o link) →
+  (`src/lib/reports/report-token.ts`): funciona sem sessão (necessário para
+  quem clica vindo do WhatsApp). **A chave é `REPORT_LINK_SECRET`, própria,
+  desde 2026-08-20.** Antes era a mesma `INTERNAL_API_SECRET` que autentica
+  `/api/internal/*`, e isso era um buraco real: este link circula em conversa
+  de WhatsApp e em captura de tela, então vazá-lo entregava junto a credencial
+  que escreve em qualquer tenant. Enquanto a variável nova não estiver
+  configurada no ambiente, o código cai na antiga como reserva e **avisa no
+  log**; isso é transição, não desenho. `GET /api/v1/financial/report/link` (sessão, gera o link) →
   `GET /api/v1/financial/report?token=` (público, serve o PDF). Trocar pelo
   R2 real no futuro não deve exigir mudar quem consome o link.
 - **Alertas** (`src/lib/actions/alerts.ts`): idempotência por
   `(alert_type, related_module, related_id)`: inclusive `low_balance`, que
   usa a **semana ISO** como `related_id` sintético (resolve "no máximo 1 por
   semana" com o mesmo mecanismo dos outros tipos, sem regra especial).
+
+  **Desde 2026-08-20 isso é garantido pelo BANCO**, e não só pelo código: a
+  coluna `Alert.dedup_key` (montada por `alertDedupKey()`) tem
+  `@@unique([tenant_id, dedup_key])`, e o `findFirst` seguido de `create`,
+  que era racy, virou create com tratamento de colisão. **A chave inclui o
+  DIA**, decisão do usuário: sem a janela, uma vacina que vence de novo no
+  ciclo seguinte nunca mais seria avisada, e a constraint tornaria isso
+  irreversível.
+
+  Consequência que já mordeu uma vez: a `dedup_key` **deriva** do
+  `related_id`, então quem renomear um precisa renomear a outra. É o que
+  `vaccination-forecast.ts` faz ao reagendar uma previsão, e esquecer disso
+  deixa a chave original ocupada e o alerta novo nunca nasce.
 - **BullMQ real** (Redis Cloud já provisionado), mas **sem worker
   persistente**: decisão do módulo, não há onde hospedar um processo 24/7
   hoje. `GET /api/internal/jobs/generate-alerts` (disparado 1x/dia pela

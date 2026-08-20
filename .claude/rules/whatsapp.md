@@ -78,6 +78,26 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
 - Guia completo para montar o workflow no N8N (nó a nó, incluindo o suporte a
   áudio e recibo por foto/PDF): [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md).
   Inclui a seção de envio de alertas (Módulo 4) via `N8N_ALERT_WEBHOOK_URL`.
+- **`execute-action` endurecido (2026-08-20).** Três garantias novas nessa
+  rota, que é por onde o agente escreve dinheiro, rebanho e estoque:
+  1. **O `tenant_id` do corpo não é mais autoridade.** Ele é conferido contra o
+     tenant do dono do `user_id` (que é cuid globalmente único), e divergência
+     devolve 403. O segredo continua sendo a autenticação, mas deixou de ser a
+     autorização.
+  2. **Idempotência por `provider_message_id`** (o `wamid`), guardada em
+     `AgentRequest` junto com a resposta: replay devolve o que foi respondido
+     antes, sem reexecutar e sem duplicar a conversa. **O n8n ainda não manda
+     esse campo**, e enquanto não mandar o log avisa a cada chamada. Passar
+     adiante é edição de um nó.
+  3. A chave é o `wamid`, **nunca** o id de execução do n8n: retry manual cria
+     execução nova, e a chave mudaria junto sem impedir nada.
+- **Número e data se leem com os parsers, nunca com `Number()` ou `new Date()`**
+  (`parsers.ts`, `numero-br.ts`). O classificador manda o mesmo campo ora como
+  número, ora como texto: `1200` e `"1200"`, `"dia 10"` e `"10/08/2026"`. E
+  `new Date` cru não falha nesses casos, **acerta errado em silêncio**:
+  `new Date("dia 10")` devolve outubro de 2001, e `new Date("10/12/2026")`
+  devolve 12 de outubro, porque o JavaScript lê no formato americano. Era o que
+  o handler de tarefas fazia até 2026-08-20.
 - ⚠️ **O classificador NÃO remonta os parâmetros literalmente** (achado de
   2026-08-18, testando o agente de produção pelo `npm run wa`). Ele reconstrói
   os campos a partir da confirmação que o **próprio assistente imprimiu**, não
