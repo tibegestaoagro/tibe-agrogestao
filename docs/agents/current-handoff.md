@@ -24,12 +24,32 @@ Se ele passar de umas 200, arquive antes de acrescentar.
 
 ## Estado atual
 
-- Atualizado em: 2026-08-18.
-- **Produção: `bc02532` no ar.** Levou a missão 2 do Módulo 31 (Estoque e
-  produtos), a correção da recusa no estoque e a concordância de gênero na
-  recusa por fração. A migração `20260814190000_estoque_de_produtos` foi
-  aplicada no Neon antes do push; `prisma migrate status` responde "Database
-  schema is up to date!".
+- Atualizado em: 2026-08-20.
+- **Produção continua `bc02532`.** Nada da rodada de hoje foi para a `main`: o
+  trabalho está na branch **`fundacao`** (`e656c8a`, empurrada para o remoto),
+  esperando aprovação para merge.
+- **A rodada de hoje foi a fase 0 do plano de evolução** (diagnóstico completo
+  do repositório, entrevista e plano em
+  `C:\Users\dilto\.claude\plans\analise-o-projeto-me-elegant-walrus.md`, fora do
+  repo). Cinco commits, nesta ordem:
+  1. **CI existe** (`.github/workflows/ci.yml`): job estático (check, tsc, lint,
+     docs-api, nav, m39, build), job com banco em PR (Postgres **e Redis**
+     próprios, tirando três suítes de cima do Redis de produção) e job de drift
+     de migração, que mecaniza o invariante 3. Pré-requisito resolvido:
+     `scripts/m23-token-auth.test.ts` compila, e `tsc --noEmit` sai zero pela
+     primeira vez.
+  2. **Suíte `m39`**, que prova que a porta fecha. Achou um vazamento latente:
+     prefixo público casava por texto, então `/docsinterno` entrava por causa de
+     `/docs`. Passou a casar por segmento.
+  3. **Next 16.3.1 + React 19.2.8.** O Next 14 estava sem patch de segurança
+     desde 11/12/2025. Feito antes do redesenho de propósito: o codemod
+     reescreve as mesmas páginas que a próxima fase vai tocar.
+  4. **O middleware virou `src/proxy.ts`** (a convenção antiga foi deprecada
+     no 16 e sai no próximo major).
+  5. **`next-auth` para a beta.32**, fechando quatro advisories, entre elas a
+     que deixava checagem de sessão falhar abrindo.
+- **Migração: nenhuma.** O schema não foi tocado hoje, então não há nada a
+  aplicar no Neon antes de um eventual push.
 - **O classificador do n8n já conhece as 4 intenções de estoque**, ensinadas em
   2026-08-18 pelo MCP do n8n. Backup do workflow anterior em `D:\tmp\n8n-backup`.
 - **`higiene-instrucoes` foi mesclada e está no ar** (`79cb615`, merge `--no-ff`
@@ -53,15 +73,37 @@ deduzida de uma anterior.
 O `/doctor` de 2026-08-18 mudou `permissions.defaultMode` para `"auto"` no
 escopo de usuário. Testado: **os hooks continuam bloqueando nesse modo**.
 
+### Como a rodada de hoje foi validada
+
+Não só por compilação, porque aqui isso nunca bastou:
+
+- **36 suítes verdes** contra o Docker local, no Next 16.
+- **Navegador real** (`next dev` + browser-harness): login, painel com os
+  gráficos, rota com parâmetro dinâmico, e um lançamento financeiro criado de
+  verdade (`POST /api/v1/financial-entries` 201, conferido no banco depois).
+- **Requisição real** contra o `proxy`: `/dashboard` sem sessão devolve 307 para
+  o login, `/api/v1/animals` devolve 401 com o envelope certo, a raiz devolve
+  200, e `/docsinterno` devolve 307, provando fora do teste unitário que o
+  vazamento de prefixo fechou.
+- Duas falhas apareceram e **nenhuma era regressão**, as duas confirmadas lendo
+  o Redis em vez de deduzir: `m4` e `m24` pelo lock diário (passaram na
+  reexecução) e `m19` pelo contador `signup-send` em 7 contra um teto de 5 por
+  hora.
+
 ### Próximo passo
 
-**Teste no aparelho**, pelo roteiro em
-[roteiro-aparelho-estoque.md](roteiro-aparelho-estoque.md). Os blocos 1 e 3 já
-passaram contra produção pelo banco de provas (`npm run wa`); o que o aparelho
-acrescenta é entrega real no celular, áudio e foto de recibo, além dos blocos 2,
-4 e 5, que ainda não foram exercitados.
+**Decisão do usuário sobre merge da `fundacao` na `main`.** Nada foi mesclado
+nem implantado.
 
-Antes disso, cadastre os três produtos do bloco 0 no painel, em `/estoque`.
+Depois disso, a fase 0 do plano continua onde parou: telemetria, envelope de
+erro garantido nas 113 rotas, endurecimento de `execute-action` (segredo
+separado, `tenant_id` conferido contra o `user_id`, idempotência por `wamid`) e
+o trem de migração (FKs e índices do livro-razão, `Alert` idempotente de
+verdade, e as duas verdades do rebanho).
+
+Continua pendente, de antes: **teste no aparelho** pelo roteiro em
+[roteiro-aparelho-estoque.md](roteiro-aparelho-estoque.md), cadastrando antes os
+três produtos do bloco 0 em `/estoque`.
 
 ### Pendências
 
@@ -73,8 +115,25 @@ O levantamento completo, com evidência e custo de cada item, está em
 - **`app-mobile-fundacao` tem 3 commits fora da `main` desde 05/08**, com 5
   defeitos corrigidos e nunca retestados, enquanto a `main` recebeu os Módulos
   30 e 31 inteiros. É a dívida que mais cresce sozinha.
-- **Não existe CI.** Todo guard-rail depende de alguém digitar o comando. Os
-  hooks de agente cobrem parte, mas só valem para o Claude Code.
+- ~~**Não existe CI.**~~ Resolvido em 2026-08-20, na branch `fundacao`. Falta
+  ligar a proteção de branch no GitHub, que é trabalho de interface web.
+
+Três achadas hoje, que não estavam em `dividas.md`:
+
+- **`gh` CLI não existe nesta máquina**, embora `issue-tracker.md` o pressuponha.
+  `git push` funciona; abrir issue, PR ou ler resultado de CI, não.
+- **Defeito ativo no rebanho:** `whatsapp-flow-bridge.ts` e `POST /api/v1/animals`
+  criam lote na categoria "Não classificado", e o saldo lê `HerdMovement`. Quem
+  cadastra animal pelo assistente não o vê no rebanho. A recomendação de correção
+  está no plano e no documento novo para o cliente.
+- **12 calculadoras no ar sem a validação técnica assinada** que o próprio plano
+  de ação exige. Cobrança preparada em
+  [../cliente/04-decisoes-pendentes.md](../cliente/04-decisoes-pendentes.md),
+  junto com o modelo de rebanho, o destino da Lavoura e as cinco decisões de
+  canal. **Nada disso foi enviado ainda.**
+- **Verificação de negócio na Meta não começou.** Recomendada em 31/07 com o
+  aviso de que "se ficar para setembro, chega atrasado". A cobrança da Meta muda
+  em 01/10/2026. É o maior risco de calendário aberto, e não depende de código.
 
 ## ⚠️ O classificador NÃO remonta literal (2026-08-18)
 
@@ -111,6 +170,10 @@ campos remontados é o que gravou.
 
 ## Histórico recente
 
+- **2026-08-20:** fase 0 da evolução, na branch `fundacao`: CI de verdade, suíte
+  de gate de sessão, Next 16 com React 19, middleware renomeado para proxy e
+  quatro advisories de auth fechadas. Validado em navegador e por requisição
+  real, não só por suíte verde.
 - **2026-08-18:** higiene das instruções. `CLAUDE.md` de 1.211 para ~270 linhas,
   com a arqueologia movida para `.claude/rules/*.md` (carregam sozinhas por
   glob); travas de agente versionadas para travessão, heredoc com escape e
@@ -122,8 +185,6 @@ campos remontados é o que gravou.
   validada por áudio no aparelho.
 - **2026-08-13:** banco de provas do agente (`npm run wa`) em produção: conversa
   com o agente real e lê a resposta por programa, sem depender de print.
-- **2026-08-11:** fase 1 do Módulo 30 (rebanho como livro-razão) validada no
-  aparelho.
 
 O detalhe de tudo isso, na íntegra e sem reescrita, está em
 [historico/2026-08.md](historico/2026-08.md).
