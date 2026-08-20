@@ -1,0 +1,177 @@
+name: CI
+
+# Antes deste arquivo, todo guard-rail do projeto dependia de alguem digitar o
+# comando: uma edicao feita no editor, a mao, nao passava pelos hooks do agente.
+# Aqui a conferencia passa a ser da maquina.
+#
+# Tres jobs, deliberadamente separados:
+#   estatico  roda sempre, nao precisa de banco, e e o que da resposta rapida
+#   banco     roda em PR, com Postgres E Redis proprios (o Redis e o ponto:
+#             tres suites falhavam na segunda execucao da hora porque usavam o
+#             Redis de PRODUCAO, que e compartilhado e nao tem instancia local)
+#   drift     confere que schema.prisma e as migracoes contam a mesma historia,
+#             mecanizando o invariante 3 do CLAUDE.md
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  estatico:
+    name: Conferencia estatica
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      # `npm ci` respeita o package-lock. E o ponto de usar ci e nao install:
+      # um deploy limpo com `^` nas dependencias pode trazer minor nao testada.
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Conferencia do repo
+        run: npm run check
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Docs da API sincronizadas com as rotas reais
+        run: npm run test:docs-api
+
+      - name: Navegacao aponta para rotas que existem
+        run: npm run test:nav
+
+      # O build precisa das variaveis existirem, nao serem validas: nenhuma
+      # chamada externa acontece aqui. Valores de fachada, nunca segredo real.
+      - name: Build
+        run: npm run build
+        env:
+          DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci?schema=public
+          NEXTAUTH_SECRET: ci-nextauth-secret-nao-usar-em-lugar-nenhum
+          NEXTAUTH_URL: http://localhost:3000
+          PLATFORM_AUTH_SECRET: ci-platform-secret-diferente-do-de-cima
+          MOBILE_JWT_SECRET: ci-mobile-secret-tambem-diferente
+          INTERNAL_API_SECRET: ci-internal-secret
+          CRON_SECRET: ci-cron-secret
+          CONFIG_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+  banco:
+    name: Suites com banco
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: tibe
+          POSTGRES_PASSWORD: tibe
+          POSTGRES_DB: tibe_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U tibe"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # 127.0.0.1 e nao localhost: a mesma armadilha que o ambiente de
+      # desenvolvimento deste projeto ja documentou.
+      DATABASE_URL: postgresql://tibe:tibe@127.0.0.1:5432/tibe_ci?schema=public
+      REDIS_URL: redis://127.0.0.1:6379
+      NEXTAUTH_SECRET: ci-nextauth-secret-nao-usar-em-lugar-nenhum
+      NEXTAUTH_URL: http://localhost:3000
+      PLATFORM_AUTH_SECRET: ci-platform-secret-diferente-do-de-cima
+      MOBILE_JWT_SECRET: ci-mobile-secret-tambem-diferente
+      INTERNAL_API_SECRET: ci-internal-secret
+      CRON_SECRET: ci-cron-secret
+      CONFIG_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Aplicar migracoes
+        run: npm run db:deploy
+
+      - name: Isolamento multi-tenant
+        run: npm run test:isolation
+
+  drift:
+    name: Schema e migracoes contam a mesma historia
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: tibe
+          POSTGRES_PASSWORD: tibe
+          POSTGRES_DB: tibe_drift
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U tibe"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://tibe:tibe@127.0.0.1:5432/tibe_drift?schema=public
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Aplicar migracoes
+        run: npm run db:deploy
+
+      # O invariante 3 do CLAUDE.md existe porque a Vercel faz deploy
+      # automatico e o build NAO roda migracao: codigo e schema saem
+      # dessincronizados por padrao e nada avisa. Aqui algo avisa.
+      #
+      # Os dois indices parciais que o Prisma nao sabe representar
+      # (WhatsAppProviderConfig_one_active e AnimalBatch_tenant_ear_tag_key)
+      # aparecem em todo diff como um DROP INDEX que NAO deve ser aplicado.
+      # Por isso o script descarta essas linhas antes de julgar o resto.
+      - name: Conferir drift
+        run: npm run test:drift

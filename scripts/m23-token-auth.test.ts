@@ -111,7 +111,10 @@ async function main() {
 
   try {
     // ── 1. Login por senha ────────────────────────────────────────────────
-    let res = await tokenRoute.POST(
+    // `res` é reusado para handlers de rotas diferentes, e cada um devolve um
+    // NextResponse com payload próprio. Sem a anotação, o TypeScript fixa o
+    // tipo no retorno do primeiro e reprova todos os outros.
+    let res: Response = await tokenRoute.POST(
       post("http://localhost/api/v1/auth/token", { email: A.user.email, password }),
     );
     const loginOk = await body(res);
