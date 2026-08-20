@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { saveSubscription, removeSubscription } from "@/lib/notify";
+import { withApi } from "@/lib/route";
 
 /**
  * POST   /api/v1/notifications/subscribe: registra a inscrição de push do
@@ -28,7 +29,7 @@ const unsubscribeSchema = z.object({
   endpoint: z.string().trim().min(1),
 });
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const g = await guard("alertas", "read");
   if ("error" in g) return g.error;
 
@@ -52,7 +53,7 @@ export async function POST(request: Request) {
   return apiOk({ subscribed: true }, {}, { status: 201 });
 }
 
-export async function DELETE(request: Request) {
+async function DELETEHandler(request: Request) {
   const g = await guard("alertas", "read");
   if ("error" in g) return g.error;
 
@@ -72,3 +73,6 @@ export async function DELETE(request: Request) {
 
   return apiOk({ unsubscribed: true });
 }
+
+export const POST = withApi(POSTHandler);
+export const DELETE = withApi(DELETEHandler);

@@ -65,9 +65,22 @@ function toUrlPath(routeFilePath: string): string {
   return `/api/${segments.join("/")}`;
 }
 
+/**
+ * Reconhece as DUAS formas de exportar um handler.
+ *
+ * A forma antiga (`export async function GET`) deixou de existir em
+ * 2026-08-20, quando todas as rotas passaram a ser embrulhadas por `withApi`
+ * e viraram `export const GET = withApi(GETHandler)`. As duas continuam aqui
+ * de propósito: reconhecer só a nova faria este teste mentir se alguém
+ * escrever uma rota no formato antigo, e ela ficaria fora da conferência de
+ * documentação sem ninguém notar. Quem garante que o wrapper foi aplicado é a
+ * suíte `test:m40`, não esta.
+ */
 function extractMethods(fileContent: string): string[] {
-  return HTTP_METHODS.filter((m) =>
-    new RegExp(`^export\\s+async\\s+function\\s+${m}\\b`, "m").test(fileContent),
+  return HTTP_METHODS.filter(
+    (m) =>
+      new RegExp(`^export\\s+async\\s+function\\s+${m}\\b`, "m").test(fileContent) ||
+      new RegExp(`^export\\s+const\\s+${m}\\s*=`, "m").test(fileContent),
   );
 }
 

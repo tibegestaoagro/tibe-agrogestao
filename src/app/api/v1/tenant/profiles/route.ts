@@ -3,6 +3,7 @@ import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { scoped } from "@/lib/prisma";
 import { provisionDefaultVaccines } from "@/lib/vaccines";
+import { withApi } from "@/lib/route";
 
 /**
  * POST /api/v1/tenant/profiles  (spec Módulo 0, task 0.5)
@@ -24,7 +25,7 @@ const bodySchema = z.object({
   profile_type: z.enum(["fazenda", "prestador"]),
 });
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const g = await guard("usuarios", "write");
   if ("error" in g) return g.error;
 
@@ -74,3 +75,5 @@ export async function POST(request: Request) {
     { status: 201 },
   );
 }
+
+export const POST = withApi(POSTHandler);

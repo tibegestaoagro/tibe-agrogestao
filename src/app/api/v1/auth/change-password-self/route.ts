@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError, ApiErrors } from "@/lib/api";
 import { getSessionUser, getTenantDb } from "@/lib/tenant-context";
 import { changeOwnPasswordWithCurrentAction } from "@/lib/actions/auth-self";
+import { withApi } from "@/lib/route";
 
 /**
  * POST /api/v1/auth/change-password-self (Módulo 19): troca VOLUNTÁRIA, com
@@ -17,7 +18,7 @@ const schema = z.object({
   new_password: z.string().min(8, "A senha deve ter ao menos 8 caracteres"),
 });
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const user = await getSessionUser();
   if (!user) return apiError(...ApiErrors.UNAUTHORIZED);
 
@@ -37,3 +38,5 @@ export async function POST(request: Request) {
   if (!result.ok) return apiError(result.code, result.message, result.status);
   return apiOk(result.data);
 }
+
+export const POST = withApi(POSTHandler);

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError, ApiErrors } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { serializeService } from "@/lib/serializers";
+import { withApi } from "@/lib/route";
 
 /**
  * PATCH /api/v1/services/:id   edita serviço (nome, tipo, valor).
@@ -14,7 +15,7 @@ const updateSchema = z.object({
   unit_price: z.number().nonnegative().optional(),
 });
 
-export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+async function PATCHHandler(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guard("prestador", "write", { profile: "prestador" });
   if ("error" in g) return g.error;
@@ -42,3 +43,5 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
   return apiOk(serializeService(service));
 }
+
+export const PATCH = withApi(PATCHHandler);

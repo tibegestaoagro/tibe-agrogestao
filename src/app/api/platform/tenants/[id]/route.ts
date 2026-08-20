@@ -4,6 +4,7 @@ import { guardPlatform } from "@/lib/platform-guard";
 import { apiOk, apiError, ApiErrors } from "@/lib/api";
 import { isoOrNull } from "@/lib/serialize";
 import { updateTenantAction } from "@/lib/actions/platform-tenants";
+import { withApi } from "@/lib/route";
 
 /**
  * GET /api/platform/tenants/:id (spec 6.3): detalhe completo: cadastro,
@@ -11,7 +12,7 @@ import { updateTenantAction } from "@/lib/actions/platform-tenants";
  * conforme os perfis ativos. Lookup cross-tenant legítimo (client base,
  * tenant_id explícito): a exceção que dá nome a este módulo inteiro.
  */
-export async function GET(_request: Request, props: { params: Promise<{ id: string }> }) {
+async function GETHandler(_request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guardPlatform();
   if ("error" in g) return g.error;
@@ -87,7 +88,7 @@ const patchSchema = z.object({
 });
 
 /** PATCH /api/platform/tenants/:id (spec 2026-07-27): edita dados cadastrais e plano, só master_admin. */
-export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+async function PATCHHandler(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guardPlatform({ requireMasterAdmin: true });
   if ("error" in g) return g.error;
@@ -102,3 +103,6 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
   if (!result.ok) return apiError(result.code, result.message, result.status);
   return apiOk(result.data);
 }
+
+export const GET = withApi(GETHandler);
+export const PATCH = withApi(PATCHHandler);

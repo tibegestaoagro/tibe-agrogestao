@@ -2,6 +2,7 @@ import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { stockAdjustSchema } from "@/lib/validation/stock";
 import { adjustStock } from "@/lib/actions/stock-ledger";
+import { withApi } from "@/lib/route";
 
 /**
  * POST /api/v1/stock/adjust   ajuste de estoque (Módulo 31, §10.6)
@@ -15,7 +16,7 @@ import { adjustStock } from "@/lib/actions/stock-ledger";
  * de zero: o produtor conferiu e estava certo, e o histórico não ganha nada com
  * uma linha que não mudou nada.
  */
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const g = await guard("rebanho", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -39,3 +40,5 @@ export async function POST(request: Request) {
 
   return apiOk(result.data, {}, { status: 201 });
 }
+
+export const POST = withApi(POSTHandler);

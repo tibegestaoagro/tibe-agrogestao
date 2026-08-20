@@ -3,6 +3,7 @@ import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { scoped } from "@/lib/prisma";
 import { serializeProperty } from "@/lib/serializers";
+import { withApi } from "@/lib/route";
 
 /**
  * GET  /api/v1/properties           lista propriedades (exclui arquivadas por padrão)
@@ -22,7 +23,7 @@ const createSchema = z.object({
   area_hectares: z.number().positive("Tamanho deve ser maior que zero"),
 });
 
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   const g = await guard("rebanho", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -37,7 +38,7 @@ export async function GET(request: Request) {
   return apiOk(properties.map(serializeProperty), { total: properties.length });
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const g = await guard("rebanho", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -60,3 +61,6 @@ export async function POST(request: Request) {
 
   return apiOk(serializeProperty(property), {}, { status: 201 });
 }
+
+export const GET = withApi(GETHandler);
+export const POST = withApi(POSTHandler);

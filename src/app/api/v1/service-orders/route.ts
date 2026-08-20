@@ -3,6 +3,7 @@ import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { serializeServiceOrder } from "@/lib/serializers";
 import { createServiceOrderAction } from "@/lib/actions/service-orders";
+import { withApi } from "@/lib/route";
 
 /**
  * GET  /api/v1/service-orders?status=&service_client_id=   lista ordens (filtros)
@@ -20,7 +21,7 @@ const createSchema = z.object({
   performed_at: z.string().datetime(),
 });
 
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   const g = await guard("prestador", "read", { profile: "prestador" });
   if ("error" in g) return g.error;
 
@@ -51,7 +52,7 @@ export async function GET(request: Request) {
   return apiOk(data, { total: data.length });
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const g = await guard("prestador", "write", { profile: "prestador" });
   if ("error" in g) return g.error;
 
@@ -77,3 +78,6 @@ export async function POST(request: Request) {
   const order = await g.db.serviceOrder.findFirst({ where: { id: result.data.id } });
   return apiOk(serializeServiceOrder(order!), {}, { status: 201 });
 }
+
+export const GET = withApi(GETHandler);
+export const POST = withApi(POSTHandler);

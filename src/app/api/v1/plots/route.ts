@@ -4,6 +4,7 @@ import { guard, readJson } from "@/lib/api-guard";
 import { scoped } from "@/lib/prisma";
 import { serializePlot } from "@/lib/serializers";
 import { decToNum, isoOrNull } from "@/lib/serialize";
+import { withApi } from "@/lib/route";
 
 /**
  * GET  /api/v1/plots    lista talhões (com propriedade e ciclo ativo)
@@ -16,7 +17,7 @@ const createSchema = z.object({
   property_id: z.string().min(1, "Propriedade é obrigatória"),
 });
 
-export async function GET() {
+async function GETHandler() {
   const g = await guard("lavoura", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -51,7 +52,7 @@ export async function GET() {
   return apiOk(data, { total: data.length });
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const g = await guard("lavoura", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -84,3 +85,6 @@ export async function POST(request: Request) {
     { status: 201 },
   );
 }
+
+export const GET = withApi(GETHandler);
+export const POST = withApi(POSTHandler);

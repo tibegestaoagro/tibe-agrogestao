@@ -2,11 +2,12 @@ import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { setUserActiveAction } from "@/lib/actions/users";
+import { withApi } from "@/lib/route";
 
 const schema = z.object({ active: z.boolean() });
 
 /** PATCH /api/v1/users/:id/active: ativa/desativa (spec 5.2, não deleta). */
-export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+async function PATCHHandler(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guard("usuarios", "write");
   if ("error" in g) return g.error;
@@ -31,3 +32,5 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
   if (!result.ok) return apiError(result.code, result.message, result.status);
   return apiOk(result.data);
 }
+
+export const PATCH = withApi(PATCHHandler);

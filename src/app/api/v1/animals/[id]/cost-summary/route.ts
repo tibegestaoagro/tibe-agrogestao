@@ -1,6 +1,7 @@
 import { apiOk, apiError, ApiErrors } from "@/lib/api";
 import { guard } from "@/lib/api-guard";
 import { decToNum } from "@/lib/serialize";
+import { withApi } from "@/lib/route";
 
 /**
  * GET /api/v1/animals/:id/cost-summary   (spec 1.6)
@@ -9,7 +10,7 @@ import { decToNum } from "@/lib/serialize";
  *
  * "Entrada" = data da movimentação de compra; se não houver, created_at do animal.
  */
-export async function GET(_request: Request, props: { params: Promise<{ id: string }> }) {
+async function GETHandler(_request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guard("rebanho", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
@@ -50,3 +51,5 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
     months: Number(months.toFixed(2)),
   });
 }
+
+export const GET = withApi(GETHandler);

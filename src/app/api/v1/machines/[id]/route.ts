@@ -7,6 +7,7 @@ import {
   serializeMaintenance,
   updateMachineAction,
 } from "@/lib/actions/machines";
+import { withApi } from "@/lib/route";
 
 /**
  * GET   /api/v1/machines/:id   detalhe da máquina + histórico de manutenções
@@ -23,7 +24,7 @@ const updateSchema = z.object({
   status: z.enum(["active", "maintenance", "sold", "inactive"]).optional(),
 });
 
-export async function GET(_request: Request, props: { params: Promise<{ id: string }> }) {
+async function GETHandler(_request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guard("maquinas", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
@@ -37,7 +38,7 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
   });
 }
 
-export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+async function PATCHHandler(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guard("maquinas", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
@@ -63,3 +64,6 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
   if (!result.ok) return apiError(result.code, result.message, result.status);
   return apiOk(result.data);
 }
+
+export const GET = withApi(GETHandler);
+export const PATCH = withApi(PATCHHandler);

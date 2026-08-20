@@ -2,6 +2,7 @@ import { apiError } from "@/lib/api";
 import { prisma, prismaForTenant } from "@/lib/prisma";
 import { verifyReportToken } from "@/lib/reports/report-token";
 import { generateFinancialPdf } from "@/lib/reports/generate-financial-pdf";
+import { withApi } from "@/lib/route";
 
 /**
  * GET /api/v1/financial/report?token=...
@@ -11,7 +12,7 @@ import { generateFinancialPdf } from "@/lib/reports/generate-financial-pdf";
  * (HMAC, expira em 1h), não de cookie/sessão. Gera o PDF sob demanda e
  * transmite direto na resposta, sem armazenar em lugar nenhum.
  */
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   const token = new URL(request.url).searchParams.get("token");
   if (!token) return apiError("VALIDATION_ERROR", "token é obrigatório", 400);
 
@@ -42,3 +43,5 @@ export async function GET(request: Request) {
     },
   });
 }
+
+export const GET = withApi(GETHandler);

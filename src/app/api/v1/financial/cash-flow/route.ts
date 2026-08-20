@@ -1,12 +1,13 @@
 import { apiOk, apiError } from "@/lib/api";
 import { guard } from "@/lib/api-guard";
 import { getCashFlow, resolvePeriod } from "@/lib/actions/financial-reports";
+import { withApi } from "@/lib/route";
 
 /**
  * GET /api/v1/financial/cash-flow?start=&end=&group_by=day|month&related_module=
  * (spec 4.4): regime de caixa, agrupado por dia ou mês.
  */
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   const g = await guard("financeiro", "read");
   if ("error" in g) return g.error;
 
@@ -30,3 +31,5 @@ export async function GET(request: Request) {
     group_by: groupBy,
   });
 }
+
+export const GET = withApi(GETHandler);

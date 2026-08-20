@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { requireInternalSecret } from "@/lib/internal-guard";
 import { sendWhatsAppMessage } from "@/lib/whatsapp-send";
+import { withApi } from "@/lib/route";
 
 /**
  * POST /api/internal/whatsapp/send-message (spec 2026-07-11): chamado pelo
@@ -14,7 +15,7 @@ const schema = z.object({
   text: z.string().min(1),
 });
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const auth = requireInternalSecret(request);
   if ("error" in auth) return auth.error;
 
@@ -28,3 +29,5 @@ export async function POST(request: Request) {
   if (!result.ok) return apiError(result.code, result.message, result.status);
   return apiOk(result.data);
 }
+
+export const POST = withApi(POSTHandler);

@@ -1,11 +1,12 @@
 import { apiOk, apiError } from "@/lib/api";
 import { guardPlatform } from "@/lib/platform-guard";
 import { calculateChurn, type Period } from "@/lib/platform/kpis";
+import { withApi } from "@/lib/route";
 
 const VALID_PERIODS: Period[] = ["30d", "90d", "12m"];
 
 /** GET /api/platform/kpis/churn?period=30d (spec 6.5): só master_admin. */
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   const g = await guardPlatform({ requireMasterAdmin: true });
   if ("error" in g) return g.error;
 
@@ -17,3 +18,5 @@ export async function GET(request: Request) {
   const data = await calculateChurn(period);
   return apiOk(data);
 }
+
+export const GET = withApi(GETHandler);

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { registerMaintenanceAction } from "@/lib/actions/machines";
+import { withApi } from "@/lib/route";
 
 /** POST /api/v1/machines/:id/maintenances: registra uma manutenção. */
 
@@ -12,7 +13,7 @@ const schema = z.object({
   next_due_at: z.string().datetime().nullish(),
 });
 
-export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+async function POSTHandler(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guard("maquinas", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
@@ -35,3 +36,5 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   if (!result.ok) return apiError(result.code, result.message, result.status);
   return apiOk(result.data, {}, { status: 201 });
 }
+
+export const POST = withApi(POSTHandler);

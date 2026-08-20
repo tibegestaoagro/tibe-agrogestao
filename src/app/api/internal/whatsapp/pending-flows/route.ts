@@ -3,6 +3,7 @@ import { requireInternalSecret } from "@/lib/internal-guard";
 import { prisma, prismaForTenant } from "@/lib/prisma";
 import { collectPendingReminders, purgeExpiredFlows } from "@/lib/actions/agent-flows";
 import { sendWhatsAppMessage } from "@/lib/whatsapp-send";
+import { withApi } from "@/lib/route";
 
 /**
  * POST /api/internal/whatsapp/pending-flows (2026-07-30)
@@ -19,7 +20,7 @@ import { sendWhatsAppMessage } from "@/lib/whatsapp-send";
  * Varre todos os tenants ativos, como o job diário de alertas: por natureza é
  * cross-tenant, e cada iteração usa o client escopado.
  */
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const auth = requireInternalSecret(request);
   if ("error" in auth) return auth.error;
 
@@ -50,3 +51,5 @@ export async function POST(request: Request) {
 
   return apiOk({ sent, failed, expired_flows_purged: purged }, { tenants: tenants.length });
 }
+
+export const POST = withApi(POSTHandler);

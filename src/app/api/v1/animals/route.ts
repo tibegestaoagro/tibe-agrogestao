@@ -4,6 +4,7 @@ import { guard, readJson } from "@/lib/api-guard";
 import { serializeAnimal } from "@/lib/serializers";
 import { isoOrNull } from "@/lib/serialize";
 import { createBatchAction } from "@/lib/actions/animal-batches";
+import { withApi } from "@/lib/route";
 
 /**
  * GET  /api/v1/animals    lista o rebanho (filtros: property_id, category_id, breed, q=brinco)
@@ -43,7 +44,7 @@ const createSchema = z.object({
   acquired_at: z.string().datetime().nullish(),
 });
 
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   const g = await guard("rebanho", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -82,7 +83,7 @@ export async function GET(request: Request) {
   return apiOk(data, { total: data.length });
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const g = await guard("rebanho", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -112,3 +113,6 @@ export async function POST(request: Request) {
   const batch = await g.db.animalBatch.findFirst({ where: { id: result.data.id } });
   return apiOk(serializeAnimal(batch!), {}, { status: 201 });
 }
+
+export const GET = withApi(GETHandler);
+export const POST = withApi(POSTHandler);

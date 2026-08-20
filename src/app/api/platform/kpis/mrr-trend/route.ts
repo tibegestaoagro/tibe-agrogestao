@@ -1,13 +1,14 @@
 import { apiOk, apiError } from "@/lib/api";
 import { guardPlatform } from "@/lib/platform-guard";
 import { calculateMrrTrend } from "@/lib/platform/kpis";
+import { withApi } from "@/lib/route";
 
 /**
  * GET /api/platform/kpis/mrr-trend?months=6 (spec 6.8: gráfico de evolução
  * de MRR). Extensão aditiva: a spec pede o gráfico mas não define um
  * endpoint de série temporal próprio nos "Contratos de API".
  */
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   const g = await guardPlatform({ requireMasterAdmin: true });
   if ("error" in g) return g.error;
 
@@ -19,3 +20,5 @@ export async function GET(request: Request) {
   const data = await calculateMrrTrend(months);
   return apiOk(data);
 }
+
+export const GET = withApi(GETHandler);

@@ -6,7 +6,8 @@ import { resolvePeriod } from "@/lib/actions/financial-reports";
 import { buildReportLink } from "@/lib/reports/report-link";
 import { createManualEntryAction } from "@/lib/actions/financial-entries";
 import { FINANCIAL_CATEGORIES } from "@/lib/category-suggestions";
-import { ask, failReply, str, num, confirmFlow, type Handler } from "./shared";
+import { ask, failReply, str, confirmFlow, type Handler } from "./shared";
+import { lerDinheiro } from "./parsers";
 
 const REPORT_TYPE_MODULE: Record<string, ModuleKey> = {
   financeiro: "financeiro",
@@ -78,7 +79,18 @@ export const gerarRelatorio: Handler = async ({ tenant_id, role, activeProfiles,
 };
 
 export const registrarLancamentoFinanceiro: Handler = async ({ db, parameters, confirmed, explicitNo }) => {
-  const amount = num(parameters.amount);
+  /**
+   * `lerDinheiro`, e não `num`.
+   *
+   * `num()` é `Number()` cru: "1.200,00" vira NaN e "60 mil" também. O
+   * produtor fala assim, e o classificador repassa a fala. Este projeto já
+   * pagou o mesmo defeito duas vezes em outros handlers ("60 mil e como o
+   * produtor fala, e o codigo nao sabia ler", e o frete de R$ 2.000 que virava
+   * R$ 2,00), e a correção nunca tinha chegado aqui: o lançamento financeiro
+   * pelo WhatsApp continuava perguntando o valor de novo quando ele vinha
+   * formatado.
+   */
+  const amount = lerDinheiro(parameters, "amount", "valor", "valor_total");
   const categoryRaw = str(parameters.category);
   const vendor = str(parameters.vendor);
   const description = str(parameters.description);

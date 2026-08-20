@@ -3,6 +3,7 @@ import { getRedisConnection, getRedisConnectionOptions } from "@/lib/redis";
 import { requireInternalSecret } from "@/lib/internal-guard";
 import { apiOk, apiError } from "@/lib/api";
 import { sendAllDailyDigests } from "./send-digest";
+import { withApi } from "@/lib/route";
 
 const QUEUE_NAME = "tibe-daily-digest";
 
@@ -21,7 +22,7 @@ const QUEUE_NAME = "tibe-daily-digest";
  * Redis. A idempotência "não rodar 2x no mesmo dia" é um lock simples
  * (`SET NX`), com chave própria para não colidir com o lock de alertas.
  */
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   const auth = requireInternalSecret(request);
   if ("error" in auth) return auth.error;
 
@@ -59,3 +60,5 @@ export async function GET(request: Request) {
     );
   }
 }
+
+export const GET = withApi(GETHandler);

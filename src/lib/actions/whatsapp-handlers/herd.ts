@@ -20,7 +20,8 @@ import {
   MAX_TENTATIVAS,
   type CampoPendente,
 } from "@/lib/actions/herd-pending";
-import { ask, failReply, str, num, confirmFlow, type Handler, type RouterResult } from "./shared";
+import { ask, failReply, str, confirmFlow, type Handler, type RouterResult } from "./shared";
+import { lerData, lerDinheiro, lerNumeroBr } from "./parsers";
 
 /**
  * O rebanho pelo WhatsApp (Módulo 30, §13 e §14).
@@ -62,14 +63,17 @@ export function itensDosParametros(parameters: Record<string, unknown>): Item[] 
       if (typeof bruto !== "object" || bruto === null) continue;
       const registro = bruto as Record<string, unknown>;
       const categoria = str(registro.categoria) ?? str(registro.category);
-      const quantidade = num(registro.quantidade) ?? num(registro.quantity);
+      // `lerNumeroBr`, e não `num`: o handler de estoque já aprendeu isso
+      // ("comprei 2.000 kg de racao" virava 2 quilos), e a mesma frase com
+      // cabeças de gado tinha o mesmo destino aqui.
+      const quantidade = lerNumeroBr(registro.quantidade) ?? lerNumeroBr(registro.quantity);
       if (categoria && quantidade != null) lista.push({ categoria, quantidade });
     }
     if (lista.length > 0) return lista;
   }
   // Forma plana, para o caso de um item só (a maioria das mensagens).
   const categoria = str(parameters.categoria) ?? str(parameters.category);
-  const quantidade = num(parameters.quantidade) ?? num(parameters.quantity);
+  const quantidade = lerNumeroBr(parameters.quantidade) ?? lerNumeroBr(parameters.quantity);
   if (categoria && quantidade != null) return [{ categoria, quantidade }];
   return [];
 }
@@ -551,12 +555,17 @@ export const registrarMovimentacaoRebanho: Handler = async ({
     }
   }
 
-  const valor = num(parameters.valor) ?? num(parameters.value);
-  const dataInformada = str(parameters.data) ?? str(parameters.date) ?? str(parameters.occurred_at);
-  const quando = dataInformada ? new Date(`${dataInformada.slice(0, 10)}T12:00:00`) : new Date();
-  if (Number.isNaN(quando.getTime())) {
+  // `lerDinheiro` e `lerData`, e não `num` + `new Date` cru: os mesmos
+  // parsers que os handlers de negociação e estoque já usam. Antes disto,
+  // "60 mil" virava NaN aqui e a data só era aceita em ISO, embora a própria
+  // mensagem de erro abaixo sugira o formato '05/08/2026', que a linha antiga
+  // não conseguia ler.
+  const valor = lerDinheiro(parameters, "valor", "value", "valor_total");
+  const dataLida = lerData(parameters, "data", "date", "occurred_at");
+  if (dataLida.tipo === "invalida") {
     return ask("Não entendi a data. Diga por exemplo 'hoje', 'ontem' ou '05/08/2026'.");
   }
+  const quando = dataLida.tipo === "ok" ? dataLida.data : new Date();
 
   // "no Pasto X" é seguro (pasto é masculino e o nome começa com "Pasto").
   // Para a fazenda, "em X" em vez de "na X": o nome é livre e adivinhar o

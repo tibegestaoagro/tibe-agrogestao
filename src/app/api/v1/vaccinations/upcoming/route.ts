@@ -2,12 +2,13 @@ import { apiOk } from "@/lib/api";
 import { guard } from "@/lib/api-guard";
 import { listUpcomingVaccinations } from "@/lib/actions/animal-vaccinations";
 import { isoOrNull } from "@/lib/serialize";
+import { withApi } from "@/lib/route";
 
 /**
  * GET /api/v1/vaccinations/upcoming   (contrato spec 1.4)
  * Vacinações vencendo nos próximos 15 dias (usado pelo Módulo 4: Alertas).
  */
-export async function GET() {
+async function GETHandler() {
   const g = await guard("rebanho", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -23,3 +24,5 @@ export async function GET() {
 
   return apiOk(data, { total: data.length });
 }
+
+export const GET = withApi(GETHandler);

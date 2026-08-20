@@ -2,11 +2,12 @@ import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { guardPlatform } from "@/lib/platform-guard";
 import { updateTeamMemberRoleAction } from "@/lib/actions/platform-team";
+import { withApi } from "@/lib/route";
 
 const schema = z.object({ role: z.enum(["MASTER_ADMIN", "EQUIPE"]) });
 
 /** PATCH /api/platform/team/:id/role (spec 6.10): só master_admin, não pode alterar a própria role. */
-export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+async function PATCHHandler(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guardPlatform({ requireMasterAdmin: true });
   if ("error" in g) return g.error;
@@ -25,3 +26,5 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
   if (!result.ok) return apiError(result.code, result.message, result.status);
   return apiOk(result.data);
 }
+
+export const PATCH = withApi(PATCHHandler);

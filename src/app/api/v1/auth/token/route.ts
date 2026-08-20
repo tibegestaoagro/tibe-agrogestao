@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { authenticateWithPassword } from "@/lib/auth-token";
+import { withApi } from "@/lib/route";
 
 /**
  * POST /api/v1/auth/token: login do aplicativo (email e senha), devolve o par
@@ -20,7 +21,7 @@ const schema = z.object({
   password: z.string().min(1),
 });
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const json = await request.json().catch(() => null);
   const parsed = schema.safeParse(json);
   if (!parsed.success) {
@@ -31,3 +32,5 @@ export async function POST(request: Request) {
   if (!result.ok) return apiError(result.code, result.message, result.status);
   return apiOk(result.data);
 }
+
+export const POST = withApi(POSTHandler);

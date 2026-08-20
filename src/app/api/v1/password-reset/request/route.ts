@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { requestPasswordResetAction } from "@/lib/actions/password-reset";
+import { withApi } from "@/lib/route";
 
 /**
  * POST /api/v1/password-reset/request: pede um código de recuperação de
@@ -14,7 +15,7 @@ const schema = z.object({
   channel: z.enum(["email", "whatsapp"]),
 });
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const json = await request.json().catch(() => null);
   const parsed = schema.safeParse(json);
   if (!parsed.success) {
@@ -25,3 +26,5 @@ export async function POST(request: Request) {
   if (!result.ok) return apiError(result.code, result.message, result.status);
   return apiOk(result.data);
 }
+
+export const POST = withApi(POSTHandler);

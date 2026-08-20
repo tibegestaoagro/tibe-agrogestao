@@ -6,6 +6,7 @@ import {
   HERD_SITUATIONS,
   type HerdPositionFilter,
 } from "@/lib/actions/herd-ledger";
+import { withApi } from "@/lib/route";
 
 /**
  * GET /api/v1/herd/positions   saldo do rebanho por posição (Módulo 30)
@@ -25,7 +26,7 @@ import {
  * tela lista tudo e agrupa, e a action continua suportando o caso para quem
  * chama por dentro.
  */
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   const g = await guard("rebanho", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -60,3 +61,5 @@ export async function GET(request: Request) {
     total_quantity: withBalance.reduce((sum, p) => sum + p.quantity, 0),
   });
 }
+
+export const GET = withApi(GETHandler);

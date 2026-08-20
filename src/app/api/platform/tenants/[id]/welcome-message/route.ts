@@ -1,12 +1,13 @@
 import { apiOk, apiError } from "@/lib/api";
 import { guardPlatform } from "@/lib/platform-guard";
 import { resendWelcomeMessageAction } from "@/lib/actions/platform-tenants";
+import { withApi } from "@/lib/route";
 
 /**
  * POST /api/platform/tenants/:id/welcome-message: só master_admin.
  * Reenvia a mensagem de boas-vindas do Tibé pelo WhatsApp (provider ativo).
  */
-export async function POST(_request: Request, props: { params: Promise<{ id: string }> }) {
+async function POSTHandler(_request: Request, props: { params: Promise<{ id: string }> }) {
  const params = await props.params;
  const g = await guardPlatform({ requireMasterAdmin: true });
  if ("error" in g) return g.error;
@@ -15,3 +16,5 @@ export async function POST(_request: Request, props: { params: Promise<{ id: str
  if (!result.ok) return apiError(result.code, result.message, result.status);
  return apiOk(result.data);
 }
+
+export const POST = withApi(POSTHandler);

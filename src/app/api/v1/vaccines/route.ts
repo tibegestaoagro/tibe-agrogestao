@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { scoped } from "@/lib/prisma";
+import { withApi } from "@/lib/route";
 
 /**
  * GET  /api/v1/vaccines    catálogo de vacinas do tenant
@@ -13,7 +14,7 @@ const createSchema = z.object({
   default_interval_days: z.number().int().positive().nullish(),
 });
 
-export async function GET() {
+async function GETHandler() {
   const g = await guard("rebanho", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -28,7 +29,7 @@ export async function GET() {
   );
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const g = await guard("rebanho", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -57,3 +58,6 @@ export async function POST(request: Request) {
     { status: 201 },
   );
 }
+
+export const GET = withApi(GETHandler);
+export const POST = withApi(POSTHandler);

@@ -3,6 +3,7 @@ import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { prisma } from "@/lib/prisma";
 import { toBrazilPhoneDigits } from "@/lib/phone";
+import { withApi } from "@/lib/route";
 
 /**
  * GET/PATCH /api/v1/tenant (spec 5.3 + extensão aditiva, Onda 4): consulta e
@@ -23,7 +24,7 @@ const schema = z.object({
   email: z.string().trim().email().nullish(),
 });
 
-export async function GET() {
+async function GETHandler() {
   // "alertas" não tem relação com o conteúdo desta rota: é reusado aqui só
   // porque é o único ModuleKey com leitura liberada para TODAS as roles,
   // inclusive VISUALIZADOR (mesma escolha já feita pelo seam de notificação
@@ -45,7 +46,7 @@ export async function GET() {
   });
 }
 
-export async function PATCH(request: Request) {
+async function PATCHHandler(request: Request) {
   const g = await guard("usuarios", "write");
   if ("error" in g) return g.error;
 
@@ -87,3 +88,6 @@ export async function PATCH(request: Request) {
     email: tenant.email,
   });
 }
+
+export const GET = withApi(GETHandler);
+export const PATCH = withApi(PATCHHandler);

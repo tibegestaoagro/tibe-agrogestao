@@ -1,6 +1,7 @@
 import { apiOk } from "@/lib/api";
 import { guard } from "@/lib/api-guard";
 import { getVapidPublicKey } from "@/lib/notify";
+import { withApi } from "@/lib/route";
 
 /**
  * GET /api/v1/notifications/public-key (Onda 2): devolve a chave pública
@@ -18,9 +19,11 @@ import { getVapidPublicKey } from "@/lib/notify";
  * por consistência com o resto do projeto (o componente de opt-in só
  * aparece dentro do painel autenticado de qualquer forma).
  */
-export async function GET() {
+async function GETHandler() {
   const g = await guard("alertas", "read");
   if ("error" in g) return g.error;
 
   return apiOk({ vapid_public_key: getVapidPublicKey() });
 }
+
+export const GET = withApi(GETHandler);

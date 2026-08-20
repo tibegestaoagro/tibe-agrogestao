@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { ACTIVE_PROPERTY_COOKIE } from "@/lib/active-property";
+import { withApi } from "@/lib/route";
 
 /**
  * POST /api/v1/tenant/active-property
@@ -13,7 +14,7 @@ import { ACTIVE_PROPERTY_COOKIE } from "@/lib/active-property";
  */
 const schema = z.object({ property_id: z.string().nullable() });
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const g = await guard("rebanho", "read");
   if ("error" in g) return g.error;
 
@@ -44,3 +45,5 @@ export async function POST(request: Request) {
   }
   return res;
 }
+
+export const POST = withApi(POSTHandler);

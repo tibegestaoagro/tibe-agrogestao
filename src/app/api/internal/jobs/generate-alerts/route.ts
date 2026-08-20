@@ -6,6 +6,7 @@ import { generateAllAlerts } from "@/lib/actions/alerts";
 import { deliverAllPendingAlerts } from "@/lib/actions/alert-delivery";
 import { purgeExpiredSignups } from "@/lib/actions/signup-flow";
 import { sweepCanceledSubscriptions } from "@/lib/actions/cancellation-sweep";
+import { withApi } from "@/lib/route";
 
 const QUEUE_NAME = "tibe-alerts";
 
@@ -24,7 +25,7 @@ const QUEUE_NAME = "tibe-alerts";
  * garantida por um lock simples no Redis (`SET NX`), não pelo estado interno
  * do job do BullMQ: mais simples e robusto sem um worker para gerenciá-lo.
  */
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   const auth = requireCronSecret(request);
   if ("error" in auth) return auth.error;
 
@@ -85,3 +86,5 @@ export async function GET(request: Request) {
     );
   }
 }
+
+export const GET = withApi(GETHandler);

@@ -2,6 +2,7 @@ import { apiOk, apiError } from "@/lib/api";
 import { guard } from "@/lib/api-guard";
 import { cancelSubscriptionAction } from "@/lib/actions/billing";
 import { AsaasNotConfiguredError, AsaasApiError } from "@/lib/asaas";
+import { withApi } from "@/lib/route";
 
 /**
  * POST /api/v1/billing/cancel
@@ -16,7 +17,7 @@ import { AsaasNotConfiguredError, AsaasApiError } from "@/lib/asaas";
  * atraso ou bloqueado precisa conseguir chegar aqui. Sem isso, um tenant
  * bloqueado ficaria preso, sem poder nem regularizar nem sair.
  */
-export async function POST() {
+async function POSTHandler() {
   const g = await guard("assinatura", "write", { skipBillingCheck: true });
   if ("error" in g) return g.error;
 
@@ -38,3 +39,5 @@ export async function POST() {
     throw e;
   }
 }
+
+export const POST = withApi(POSTHandler);

@@ -4,6 +4,7 @@ import { guard, readJson } from "@/lib/api-guard";
 import { prisma } from "@/lib/prisma";
 import { subscribeAction } from "@/lib/actions/billing";
 import { AsaasNotConfiguredError, AsaasApiError } from "@/lib/asaas";
+import { withApi } from "@/lib/route";
 
 /**
  * POST /api/v1/billing/subscribe (spec 5.5)
@@ -17,7 +18,7 @@ const schema = z.object({
   billing_type: z.enum(["PIX", "BOLETO", "CREDIT_CARD"]),
 });
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const g = await guard("assinatura", "write", { skipBillingCheck: true });
   if ("error" in g) return g.error;
 
@@ -60,3 +61,5 @@ export async function POST(request: Request) {
     throw e;
   }
 }
+
+export const POST = withApi(POSTHandler);

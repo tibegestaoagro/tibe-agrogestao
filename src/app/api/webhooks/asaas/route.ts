@@ -6,6 +6,7 @@ import { getSubscription, AsaasNotConfiguredError } from "@/lib/asaas";
 import { logSubscriptionStatusChange } from "@/lib/platform/subscription-log";
 import type { SubscriptionStatus } from "@/generated/prisma/enums";
 import { subscriptionStatusData } from "@/lib/billing-access";
+import { withApi } from "@/lib/route";
 
 /**
  * POST /api/webhooks/asaas (spec 5.6)
@@ -32,7 +33,7 @@ const schema = z.object({
     .nullish(),
 });
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const expected = process.env.ASAAS_WEBHOOK_TOKEN;
   const provided = request.headers.get("asaas-access-token");
   if (!expected) {
@@ -126,3 +127,5 @@ export async function POST(request: Request) {
 
   return apiOk({ received: true, processed: true });
 }
+
+export const POST = withApi(POSTHandler);

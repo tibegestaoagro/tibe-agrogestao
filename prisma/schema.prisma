@@ -289,6 +289,7 @@ model Tenant {
   financial_entries    FinancialEntry[]
   whatsapp_contacts    WhatsAppContact[]
   conversation_logs    AgentConversationLog[]
+  agent_requests       AgentRequest[]
   alerts               Alert[]
   email_logs           EmailLog[]
   password_resets      PasswordResetCode[]
@@ -349,6 +350,8 @@ model User {
   negotiations_canceled Negotiation[] @relation("NegotiationCanceledBy")
   stock_movements       StockMovement[] @relation("StockRecordedBy")
   push_subscriptions PushSubscription[]
+  financial_entries_created FinancialEntry[] @relation("FinancialEntryCreatedBy")
+  financial_entries_updated FinancialEntry[] @relation("FinancialEntryUpdatedBy")
 
   @@index([tenant_id])
 }
@@ -499,6 +502,11 @@ model Property {
   movements_from AnimalMovement[] @relation("MovementFromProperty")
   movements_to   AnimalMovement[] @relation("MovementToProperty")
 
+  /// Livro-razão do rebanho (Módulo 30). Nomes diferentes dos de cima porque
+  /// `AnimalMovement` é o modelo ANTIGO, que continua existindo.
+  herd_movements_from HerdMovement[] @relation("HerdMovementFromProperty")
+  herd_movements_to   HerdMovement[] @relation("HerdMovementToProperty")
+
   @@index([tenant_id])
 }
 
@@ -615,6 +623,9 @@ model StockMovement {
   @@index([tenant_id, product_id, property_id])
   @@index([product_id])
   @@index([negotiation_id])
+  /// Mesmo motivo do índice equivalente em `HerdMovement`: `getStockBalance`
+  /// sempre filtra por movimentação não cancelada.
+  @@index([tenant_id, canceled_at])
 }
 
 model Pasture {
@@ -629,6 +640,9 @@ model Pasture {
   tenant   Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   stock_movements StockMovement[]
   property Property @relation(fields: [property_id], references: [id], onDelete: Restrict)
+
+  herd_movements_from HerdMovement[] @relation("HerdMovementFromPasture")
+  herd_movements_to   HerdMovement[] @relation("HerdMovementToPasture")
 
   @@index([tenant_id])
   @@index([property_id])
@@ -1005,11 +1019,33 @@ model FinancialEntry {
   negotiation_id   String?
   negotiation_role NegotiationEntryRole?
 
+  /// Auditoria (2026-08-20). Este é o modelo onde o dinheiro é registrado e
+  /// editado, e até aqui não dava para responder "quem mudou este lançamento,
+  /// e quando": só existia `created_at`. `HerdMovement` já carregava
+  /// `recorded_by_user_id` desde o Módulo 30, e a assimetria não tinha razão
+  /// de ser.
+  ///
+  /// Tudo anulável, e sem preencher o que já existe: autor retroativo seria
+  /// invenção. O que importa é passar a existir daqui para a frente.
+  updated_at          DateTime? @updatedAt
+  created_by_user_id  String?
+  updated_by_user_id  String?
+
   tenant      Tenant       @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   negotiation Negotiation? @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
+  created_by  User?        @relation("FinancialEntryCreatedBy", fields: [created_by_user_id], references: [id], onDelete: SetNull)
+  updated_by  User?        @relation("FinancialEntryUpdatedBy", fields: [updated_by_user_id], references: [id], onDelete: SetNull)
+
+  /// O livro-razão do rebanho aponta para cá (`HerdMovement.financial_entry_id`).
+  herd_movements HerdMovement[]
 
   @@index([tenant_id])
   @@index([negotiation_id])
+  /// `getCashFlow` filtra por status pago mais a janela de `paid_at`;
+  /// `getDre` e `getUpcoming` filtram por `due_date` mais status. Nenhuma das
+  /// três colunas aparecia em índice nenhum.
+  @@index([tenant_id, status, paid_at])
+  @@index([tenant_id, due_date, status])
 }
 
 // Módulo 28, 2026-08-04. `category` de FinancialEntry continua texto livre
@@ -1050,6 +1086,37 @@ model WhatsAppContact {
   @@index([tenant_id])
 }
 
+/// Uma execução do agente por mensagem do provider, para que repetir a mesma
+/// mensagem não repita a escrita.
+///
+/// O problema (2026-08-20): `POST /api/internal/whatsapp/execute-action` não
+/// tinha idempotência nenhuma. Um retry do n8n, ou uma reexecução manual no
+/// painel dele, gravava de novo a mesma venda de gado, o mesmo lançamento
+/// financeiro, a mesma saída de estoque. Numa rota que escreve dinheiro.
+///
+/// A chave é o id da mensagem no provider (o `wamid` do WhatsApp), e NÃO o id
+/// de execução do n8n: retry manual cria execução nova, e a chave mudaria
+/// junto, sem impedir nada. O `wamid` não muda.
+///
+/// A resposta fica guardada porque replay precisa devolver o que foi
+/// respondido da primeira vez. Devolver outra coisa faria o produtor ver duas
+/// respostas diferentes para a mesma frase.
+model AgentRequest {
+  id                  String   @id @default(cuid())
+  tenant_id           String
+  /// `wamid` da mensagem que originou a execução.
+  provider_message_id String
+  intent              String
+  /// Corpo devolvido na primeira execução, reenviado em caso de replay.
+  response            Json
+  created_at          DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@unique([tenant_id, provider_message_id])
+  @@index([tenant_id])
+}
+
 model AgentConversationLog {
   id                  String           @id @default(cuid())
   tenant_id           String
@@ -1084,9 +1151,29 @@ model Alert {
   sent_at        DateTime?
   created_at     DateTime       @default(now())
 
+  /// Chave de deduplicação, montada pela aplicação em `ensureAlert()` como
+  /// `alert_type|related_module|related_id|AAAA-MM-DD`.
+  ///
+  /// Por que existe (2026-08-20): a idempotência do alerta era prometida na
+  /// documentação e implementada como `findFirst` seguido de `create`, que é
+  /// racy sob concorrência. Faltava a garantia no banco.
+  ///
+  /// Por que é uma COLUNA e não um índice único direto sobre os quatro campos:
+  /// primeiro, `related_module` e `related_id` são anuláveis, e no Postgres
+  /// NULL não colide em índice único, então a constraint existiria sem
+  /// proteger nada, em silêncio. Segundo, a janela de um dia precisa entrar na
+  /// chave, e índice sobre expressão não é representável no `schema.prisma`.
+  ///
+  /// Por que a janela é de UM DIA, e não unicidade eterna (decisão do usuário,
+  /// 2026-08-20): 50 dos 67 alertas são de vacina, que é recorrente. Chave
+  /// eterna faria a vacina do próximo ciclo nunca mais ser avisada, e a
+  /// constraint tornaria isso irreversível no banco.
+  dedup_key String?
+
   tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
 
   @@index([tenant_id])
+  @@unique([tenant_id, dedup_key])
 }
 
 // Módulo 28, 2026-08-04. Ausência de linha = habilitado (opt-out): só existe
@@ -1291,10 +1378,45 @@ model HerdMovement {
   recorded_by User?        @relation(fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
   negotiation Negotiation? @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
 
+  /// Os eixos de POSIÇÃO ganharam chave estrangeira em 2026-08-20. Antes, o
+  /// livro-razão apontava para propriedade e pasto por texto solto: apagar uma
+  /// propriedade deixava o histórico do rebanho órfão e o banco não impedia.
+  ///
+  /// `Restrict` e não `SetNull` porque aqui a referência é o próprio conteúdo
+  /// do registro contábil: "saíram 20 da Fazenda A" perde o sentido se a
+  /// origem virar nula. Propriedade e pasto neste projeto são ARQUIVADOS
+  /// (`archived_at`), nunca apagados, então na prática isto não bloqueia
+  /// nenhum fluxo que exista: ele bloqueia o `DELETE` que ninguém deveria
+  /// fazer.
+  ///
+  /// CATEGORIA fica de fora de propósito, e isso não é esquecimento:
+  /// `from_category_id`/`to_category_id` guardam CHAVE DE CÓDIGO das 12
+  /// categorias (`src/lib/herd/categories.ts`), não id de linha de
+  /// `AnimalCategory`. Uma chave estrangeira ali travaria toda linha
+  /// existente. Quem valida é `isValidCategory()`.
+  from_property Property? @relation("HerdMovementFromProperty", fields: [from_property_id], references: [id], onDelete: Restrict)
+  to_property   Property? @relation("HerdMovementToProperty", fields: [to_property_id], references: [id], onDelete: Restrict)
+  from_pasture  Pasture?  @relation("HerdMovementFromPasture", fields: [from_pasture_id], references: [id], onDelete: Restrict)
+  to_pasture    Pasture?  @relation("HerdMovementToPasture", fields: [to_pasture_id], references: [id], onDelete: Restrict)
+
+  /// `SetNull`, ao contrário dos de cima, porque `cancelMovement()` APAGA
+  /// fisicamente a `FinancialEntry` quando ela ainda está pendente
+  /// (`herd-ledger.ts`). Com `Restrict`, o cancelamento passaria a falhar.
+  /// Com `SetNull`, o banco garante o que o código hoje faz à mão, e passa a
+  /// garantir também para as linhas que o código esquecer.
+  financial_entry FinancialEntry? @relation(fields: [financial_entry_id], references: [id], onDelete: SetNull)
+
   @@index([tenant_id])
   @@index([tenant_id, occurred_at])
   @@index([batch_id])
   @@index([negotiation_id])
+  /// Toda leitura de saldo (`getPositions`) varre as movimentações não
+  /// canceladas do tenant. Índice normal, e não parcial com
+  /// `WHERE canceled_at IS NULL`: o parcial seria mais eficiente, mas não é
+  /// representável no `schema.prisma`, e este projeto já paga o preço de dois
+  /// índices assim, que todo `migrate diff` tenta derrubar como falso drift.
+  /// Não vale criar um terceiro.
+  @@index([tenant_id, canceled_at])
 }
 
 // ─────────────────────────────────────────────────────────────

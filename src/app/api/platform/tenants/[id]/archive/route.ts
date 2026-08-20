@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { guardPlatform } from "@/lib/platform-guard";
 import { setTenantArchivedAction } from "@/lib/actions/platform-tenants";
+import { withApi } from "@/lib/route";
 
 const schema = z.object({ archived: z.boolean() });
 
@@ -9,7 +10,7 @@ const schema = z.object({ archived: z.boolean() });
  * POST /api/platform/tenants/:id/archive (spec 2026-07-27): só master_admin.
  * `{ archived: true }` arquiva, `{ archived: false }` desarquiva. Idempotente.
  */
-export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+async function POSTHandler(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guardPlatform({ requireMasterAdmin: true });
   if ("error" in g) return g.error;
@@ -24,3 +25,5 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   if (!result.ok) return apiError(result.code, result.message, result.status);
   return apiOk(result.data);
 }
+
+export const POST = withApi(POSTHandler);

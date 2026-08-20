@@ -3,6 +3,7 @@ import { apiOk, apiError, ApiErrors } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { serializePasture } from "@/lib/serializers";
 import { getPastureAreaSummary } from "@/lib/actions/properties";
+import { withApi } from "@/lib/route";
 
 /**
  * PATCH /api/v1/pastures/:id   edita nome/tamanho do pasto (Módulo 29)
@@ -13,7 +14,7 @@ const updateSchema = z.object({
   area_hectares: z.number().positive("Tamanho deve ser maior que zero").optional(),
 });
 
-export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+async function PATCHHandler(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guard("rebanho", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
@@ -42,3 +43,5 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
   return apiOk(serializePasture(pasture), { area_summary });
 }
+
+export const PATCH = withApi(PATCHHandler);

@@ -3,6 +3,7 @@ import { apiOk, apiError } from "@/lib/api";
 import { requireInternalSecret } from "@/lib/internal-guard";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { normalizePhone } from "@/lib/phone";
+import { withApi } from "@/lib/route";
 
 /**
  * POST /api/internal/whatsapp/resolve-contact (spec 3.2)
@@ -30,7 +31,7 @@ const PROFILE_LABEL: Record<string, string> = {
 
 const schema = z.object({ phone: z.string().min(3) });
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const auth = requireInternalSecret(request);
   if ("error" in auth) return auth.error;
 
@@ -121,3 +122,5 @@ export async function POST(request: Request) {
     },
   );
 }
+
+export const POST = withApi(POSTHandler);

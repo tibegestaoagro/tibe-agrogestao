@@ -82,6 +82,17 @@ jobs:
       - name: Gate de sessao por rota
         run: npm run test:m39
 
+      # Nenhuma rota pode devolver algo fora do envelope do contrato, nem
+      # mesmo quando a excecao nao foi prevista. A suite tambem reprova rota
+      # nova que exporte handler cru, sem o wrapper.
+      - name: Envelope de erro garantido
+        run: npm run test:m40
+
+      # Numero e data lidos igual em todo handler do agente: o classificador
+      # manda o mesmo campo ora como numero, ora como texto formatado.
+      - name: Normalizacao de parametros do agente
+        run: npm run test:m43
+
       - name: Build
         run: npm run build
 
@@ -142,6 +153,17 @@ jobs:
 
       - name: Isolamento multi-tenant
         run: npm run test:isolation
+
+      # As garantias que passaram a viver no banco, e nao so no codigo:
+      # idempotencia de alerta (inclusive sob corrida), integridade dos eixos
+      # de posicao do livro-razao, e auditoria do financeiro.
+      - name: Integridade e auditoria
+        run: npm run test:m41
+
+      # A porta de entrada do agente: o tenant do corpo nao e mais autoridade,
+      # e a mesma mensagem nao escreve duas vezes.
+      - name: execute-action endurecido
+        run: npm run test:m42
 
   drift:
     name: Schema e migracoes contam a mesma historia

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError, ApiErrors } from "@/lib/api";
 import { getSessionUser, getTenantDb } from "@/lib/tenant-context";
 import { updateOwnNameAction } from "@/lib/actions/auth-self";
+import { withApi } from "@/lib/route";
 
 /**
  * PATCH /api/v1/auth/profile (briefing de layout, menu "Perfil" do topo):
@@ -10,7 +11,7 @@ import { updateOwnNameAction } from "@/lib/actions/auth-self";
  */
 const schema = z.object({ name: z.string().min(2, "Informe um nome com pelo menos 2 caracteres") });
 
-export async function PATCH(request: Request) {
+async function PATCHHandler(request: Request) {
   const user = await getSessionUser();
   if (!user) return apiError(...ApiErrors.UNAUTHORIZED);
 
@@ -25,3 +26,5 @@ export async function PATCH(request: Request) {
   if (!result.ok) return apiError(result.code, result.message, result.status);
   return apiOk(result.data);
 }
+
+export const PATCH = withApi(PATCHHandler);

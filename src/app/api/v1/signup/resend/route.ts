@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { resendSignupCodeAction } from "@/lib/actions/signup-flow";
 import { readSignupId } from "@/lib/signup-cookie";
+import { withApi } from "@/lib/route";
 
 /**
  * POST /api/v1/signup/resend (Módulo 19).
@@ -14,7 +15,7 @@ const schema = z.object({
   destination: z.string().trim().min(1).nullish(),
 });
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const signupId = await readSignupId();
   if (!signupId) {
     return apiError("SIGNUP_EXPIRED", "Seu cadastro expirou. Recomece pelo formulário.", 410);
@@ -34,3 +35,5 @@ export async function POST(request: Request) {
   if (!result.ok) return apiError(result.code, result.message, result.status);
   return apiOk(result.data);
 }
+
+export const POST = withApi(POSTHandler);

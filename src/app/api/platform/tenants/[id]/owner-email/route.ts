@@ -2,6 +2,7 @@ import { z } from "zod";
 import { guardPlatform } from "@/lib/platform-guard";
 import { apiOk, apiError } from "@/lib/api";
 import { updateOwnerLoginEmailAction } from "@/lib/actions/platform-tenants";
+import { withApi } from "@/lib/route";
 
 /**
  * PATCH /api/platform/tenants/:id/owner-email (2026-07-30)
@@ -16,7 +17,7 @@ import { updateOwnerLoginEmailAction } from "@/lib/actions/platform-tenants";
  */
 const schema = z.object({ email: z.string().trim().email("Email inválido") });
 
-export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+async function PATCHHandler(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guardPlatform({ requireMasterAdmin: true });
   if ("error" in g) return g.error;
@@ -31,3 +32,5 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
   if (!result.ok) return apiError(result.code, result.message, result.status);
   return apiOk(result.data);
 }
+
+export const PATCH = withApi(PATCHHandler);

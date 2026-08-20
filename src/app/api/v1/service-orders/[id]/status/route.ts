@@ -4,6 +4,7 @@ import { guard, readJson } from "@/lib/api-guard";
 import { serializeServiceOrder } from "@/lib/serializers";
 import { createLinkedEntry } from "@/lib/financial";
 import { decToNum } from "@/lib/serialize";
+import { withApi } from "@/lib/route";
 
 /**
  * PATCH /api/v1/service-orders/:id/status   transição manual de status (2.4).
@@ -24,7 +25,7 @@ const NEXT: Record<string, string | null> = {
   invoiced: null,
 };
 
-export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+async function PATCHHandler(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guard("prestador", "write", { profile: "prestador" });
   if ("error" in g) return g.error;
@@ -76,3 +77,5 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
   return apiOk(serializeServiceOrder(updated));
 }
+
+export const PATCH = withApi(PATCHHandler);
