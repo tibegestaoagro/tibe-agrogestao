@@ -10,6 +10,8 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useAviso } from "@/components/ui/toast";
 import { apiPost } from "@/lib/client-api";
 import PastureForm from "@/components/minha-fazenda/pasture-form";
 
@@ -25,10 +27,21 @@ export default function PastureList({
   canWrite: boolean;
 }) {
   const router = useRouter();
+  const aviso = useAviso();
 
+  /**
+   * Desativar um pasto engolia o erro (2026-08-20) e, pior, não pedia
+   * confirmação nenhuma, enquanto arquivar a FAZENDA inteira pedia. Duas ações
+   * do mesmo tipo, com proteções diferentes, na mesma tela.
+   */
   async function archive(id: string) {
-    await apiPost(`/api/v1/pastures/${id}/archive`);
-    router.refresh();
+    const res = await apiPost(`/api/v1/pastures/${id}/archive`);
+    if (res.ok) {
+      aviso.sucesso("Pasto desativado.");
+      router.refresh();
+    } else {
+      aviso.erro(res.message);
+    }
   }
 
   return (
@@ -78,9 +91,17 @@ export default function PastureList({
                         </Button>
                       }
                     />
-                    <Button variant="ghost" size="sm" onClick={() => archive(p.id)}>
-                      Desativar
-                    </Button>
+                    <ConfirmDialog
+                      gatilho={
+                        <Button variant="ghost" size="sm">
+                          Desativar
+                        </Button>
+                      }
+                      titulo={`Desativar o pasto ${p.name}?`}
+                      descricao="Ele sai da lista e deixa de aparecer como destino nas movimentações. O histórico do que já passou por ele continua."
+                      rotuloConfirmar="Desativar pasto"
+                      aoConfirmar={() => archive(p.id)}
+                    />
                   </div>
                 </TableCell>
               )}

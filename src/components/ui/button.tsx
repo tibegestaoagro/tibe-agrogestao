@@ -17,11 +17,24 @@ const buttonVariants = cva(
         // extensão aditiva, não usada em nenhuma página ainda.
         accent: "bg-tibe-accent text-white hover:bg-tibe-accentDark",
       },
+      /**
+       * Alvo de toque: 44px no celular, densidade no desktop.
+       *
+       * Medido no DOM em 2026-08-20, antes desta mudança: 41 dos 42 alvos da
+       * tela Meu Dia e 71 dos 72 do Financeiro ficavam abaixo de 44px. Num
+       * produto usado com a mão suja, de luva, no sol, isso é o problema de
+       * usabilidade mais mecânico que existe.
+       *
+       * O piso vale onde ele importa, e some no `sm:` para cima: no desktop o
+       * ponteiro é preciso e uma tabela com dez ações de 44px vira uma tabela
+       * esparsa. `text-sm` mínimo pelo mesmo motivo: 12px num botão é rótulo
+       * ilegível ao sol, e `text-xs` no `sm` era o menor do produto.
+       */
       size: {
-        default: "h-9 px-4 py-2",
-        sm: "h-8 rounded-md px-3 text-xs",
-        lg: "h-10 rounded-lg px-6",
-        icon: "h-9 w-9",
+        default: "min-h-11 px-4 py-2 sm:min-h-0 sm:h-9",
+        sm: "min-h-11 rounded-md px-3 text-sm sm:min-h-0 sm:h-8 sm:text-xs",
+        lg: "min-h-12 rounded-lg px-6 text-base sm:min-h-0 sm:h-10 sm:text-sm",
+        icon: "h-11 w-11 sm:h-9 sm:w-9",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

@@ -75,7 +75,7 @@ export default async function MinhaFazendaPage(
             <Link
               key={p.id}
               href={`/minha-fazenda?property_id=${p.id}`}
-              className={`rounded-full px-3 py-1 text-sm ${
+              className={`inline-flex min-h-11 items-center rounded-full px-4 py-1 text-sm sm:min-h-0 sm:px-3 ${
                 p.id === selected?.id
                   ? "bg-tibe-primary text-white"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"

@@ -67,7 +67,7 @@ export default function MovementCancel({
       <SheetTrigger asChild>
         <button
           type="button"
-          className="text-sm text-gray-500 underline hover:text-red-700"
+          className="inline-flex min-h-11 items-center text-sm text-gray-600 underline hover:text-red-700 sm:min-h-0"
         >
           Cancelar
         </button>

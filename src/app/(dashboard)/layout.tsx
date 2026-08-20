@@ -9,6 +9,7 @@ import { buildNavItems } from "@/lib/nav";
 import DashboardShell from "@/components/layout/dashboard-shell";
 import InstallInvite from "@/components/pwa/install-invite";
 import NotificationOptIn from "@/components/pwa/notification-opt-in";
+import { ToastProvider } from "@/components/ui/toast";
 
 const ROLE_LABEL: Record<string, string> = {
   OWNER: "Proprietário",
@@ -70,19 +71,24 @@ export default async function DashboardLayout({
 
   return (
     <>
-      <DashboardShell
-        navItems={navItems}
-        tenantName={tenant?.name ?? "Fazenda"}
-        userName={user.name ?? "Usuário"}
-        roleLabel={ROLE_LABEL[user.role] ?? user.role}
-        billingAccess={billingAccess}
-        properties={properties}
-        activePropertyId={activePropertyId}
-      >
-        {children}
-      </DashboardShell>
-      <InstallInvite />
-      <NotificationOptIn />
+      {/* O provider envolve o painel inteiro porque toda ação de escrita
+          precisa poder avisar, e elas estão espalhadas por 27 formulários e
+          por botões soltos dentro de tabela. */}
+      <ToastProvider>
+        <DashboardShell
+          navItems={navItems}
+          tenantName={tenant?.name ?? "Fazenda"}
+          userName={user.name ?? "Usuário"}
+          roleLabel={ROLE_LABEL[user.role] ?? user.role}
+          billingAccess={billingAccess}
+          properties={properties}
+          activePropertyId={activePropertyId}
+        >
+          {children}
+        </DashboardShell>
+        <InstallInvite />
+        <NotificationOptIn />
+      </ToastProvider>
     </>
   );
 }

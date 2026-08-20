@@ -67,7 +67,7 @@ export default function DashboardShell({
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
-            className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 md:hidden"
+            className="flex h-11 w-11 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary md:hidden"
             aria-label="Abrir menu"
           >
             <Menu className="h-5 w-5" />

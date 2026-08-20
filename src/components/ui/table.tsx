@@ -64,7 +64,16 @@ const TableCell = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <td
     ref={ref}
-    className={cn("px-3 py-2.5 align-middle text-gray-800", className)}
+    className={cn(
+      // Linha de tabela e o alvo de toque mais comum do produto, e era o
+      // menor: 37px medidos no celular. O piso vale no celular e some no
+      // `sm:`, senao uma tabela de vinte linhas vira uma tabela esparsa
+      // no desktop. O seletor de descendente estica o link da celula ate
+      // a borda: alvo grande sem inflar a linha.
+      "px-3 py-3 align-middle text-gray-800 sm:py-2.5",
+      "[&>a]:inline-flex [&>a]:min-h-11 [&>a]:items-center sm:[&>a]:min-h-0",
+      className,
+    )}
     {...props}
   />
 ));

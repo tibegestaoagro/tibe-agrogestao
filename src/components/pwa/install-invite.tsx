@@ -177,14 +177,14 @@ export default function InstallInvite() {
                 <button
                   type="button"
                   onClick={install}
-                  className="rounded-lg bg-tibe-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-tibe-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tibe-primary"
+                  className="min-h-11 rounded-lg bg-tibe-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-tibe-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tibe-primary disabled:opacity-60"
                 >
                   Instalar
                 </button>
                 <button
                   type="button"
                   onClick={dismiss}
-                  className="rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100"
+                  className="min-h-11 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100"
                 >
                   Agora não
                 </button>
@@ -203,7 +203,7 @@ export default function InstallInvite() {
           type="button"
           onClick={dismiss}
           aria-label="Dispensar o convite de instalação"
-          className="-mr-1 -mt-1 shrink-0 rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+          className="-mr-1 -mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
         >
           <X className="h-4 w-4" aria-hidden="true" />
         </button>

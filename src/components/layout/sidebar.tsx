@@ -103,7 +103,7 @@ export default function Sidebar({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md p-1 text-tibe-light/70 hover:bg-white/10 hover:text-white md:hidden"
+            className="flex h-11 w-11 items-center justify-center rounded-md text-tibe-light/70 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary md:hidden"
             aria-label="Fechar menu"
           >
             <X className="h-5 w-5" />
@@ -124,7 +124,7 @@ export default function Sidebar({
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition ${
+                  className={`flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary md:min-h-0 ${
                     active
                       ? "bg-tibe-primary text-white"
                       : "text-tibe-light/85 hover:bg-white/10 hover:text-white"
@@ -140,7 +140,7 @@ export default function Sidebar({
               return (
                 <div
                   key={item.label}
-                  className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-tibe-light/40"
+                  className="flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-tibe-light/60 md:min-h-0"
                   aria-disabled="true"
                 >
                   <Icon className="h-[18px] w-[18px] shrink-0" />
@@ -165,7 +165,7 @@ export default function Sidebar({
                   onClick={() =>
                     setManualToggle((prev) => ({ ...prev, [item.label]: !open }))
                   }
-                  className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition ${
+                  className={`flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary md:min-h-0 ${
                     hasActiveChild
                       ? "text-white"
                       : "text-tibe-light/85 hover:bg-white/10 hover:text-white"
@@ -186,7 +186,7 @@ export default function Sidebar({
                         <Link
                           key={child.href}
                           href={child.href}
-                          className={`block rounded-md px-3 py-1.5 text-sm transition ${
+                          className={`flex min-h-11 items-center rounded-md px-3 py-1.5 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary md:min-h-0 ${
                             active
                               ? "font-medium text-white"
                               : "text-tibe-light/70 hover:text-white"
@@ -215,7 +215,7 @@ export default function Sidebar({
             <div className="flex shrink-0 items-center gap-1">
               <Link
                 href="/configuracoes/senha"
-                className="rounded-md p-1.5 text-tibe-light/70 hover:bg-white/10 hover:text-white"
+                className="flex h-11 w-11 items-center justify-center rounded-md text-tibe-light/70 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary sm:h-9 sm:w-9"
                 aria-label="Minha senha"
                 title="Minha senha"
               >
@@ -224,7 +224,7 @@ export default function Sidebar({
               <button
                 type="button"
                 onClick={() => signOut({ callbackUrl: "/login" })}
-                className="rounded-md p-1.5 text-tibe-light/70 hover:bg-white/10 hover:text-white"
+                className="flex h-11 w-11 items-center justify-center rounded-md text-tibe-light/70 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary sm:h-9 sm:w-9"
                 aria-label="Sair"
                 title="Sair"
               >
