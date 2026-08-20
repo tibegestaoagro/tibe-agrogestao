@@ -14,7 +14,7 @@ export default function ApiDocsPage() {
         <code className="rounded bg-gray-100 px-1 text-xs">{'{ error: { code, message } }'}</code> em erro. Rotas
         sob <code className="rounded bg-gray-100 px-1 text-xs">/api/v1/*</code> exigem sessão de tenant (cookie do
         NextAuth) salvo indicação em contrário; a permissão por módulo segue a matriz descrita em{" "}
-        <a href="/docs/arquitetura" className="text-tibe-primary hover:underline">Arquitetura</a>. Rotas sob{" "}
+        <a href="/docs/arquitetura" className="text-primaria-tinta hover:underline">Arquitetura</a>. Rotas sob{" "}
         <code className="rounded bg-gray-100 px-1 text-xs">/api/platform/*</code> exigem uma sessão de{" "}
         <code className="rounded bg-gray-100 px-1 text-xs">PlatformUser</code>: uma instância NextAuth
         completamente separada (cookie próprio), nunca a mesma sessão de tenant.

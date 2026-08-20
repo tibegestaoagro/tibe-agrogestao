@@ -58,7 +58,7 @@ export default async function MachineDetail(props: { params: Promise<{ id: strin
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/maquinas" className="text-sm text-tibe-primary hover:underline">
+        <Link href="/maquinas" className="text-sm text-primaria-tinta hover:underline">
           ← Máquinas
         </Link>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-3">

@@ -4,18 +4,28 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium shadow-sm transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium shadow-sm transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primaria-tinta focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none",
   {
     variants: {
+      /**
+       * Texto ESCURO sobre a cor da marca, não branco.
+       *
+       * Medido em 2026-08-20: branco sobre o verde `#649721` dá 3,51:1 e sobre
+       * o laranja `#E97D0F` dá 2,84:1. Os dois reprovam em AA, ou seja, o botão
+       * primário de todo o produto era ilegível ao sol, que é onde ele é usado.
+       * O verde-escuro da própria marca resolve sem tocar no hex que o cliente
+       * aprovou: 4,68:1 no verde e 5,79:1 no laranja.
+       *
+       * Consequência: o hover CLAREIA em vez de escurecer. Escurecer o fundo
+       * sob texto escuro derruba o contraste de volta para 3,49:1.
+       */
       variant: {
-        default: "bg-tibe-primary text-white hover:bg-tibe-dark",
+        default: "bg-primaria text-sobre-primaria hover:bg-primaria-hover",
         outline:
-          "border border-gray-300 bg-white text-gray-800 shadow-none hover:bg-gray-50 hover:border-gray-400",
-        ghost: "text-gray-700 shadow-none hover:bg-gray-100",
-        destructive: "bg-red-600 text-white hover:bg-red-700",
-        // Novo nesta rodada (identidade visual, laranja como cor de ação):
-        // extensão aditiva, não usada em nenhuma página ainda.
-        accent: "bg-tibe-accent text-white hover:bg-tibe-accentDark",
+          "border border-borda-forte bg-superficie text-texto shadow-none hover:border-borda-campo hover:bg-superficie-afundada",
+        ghost: "text-texto-secundario shadow-none hover:bg-superficie-afundada",
+        destructive: "bg-perigo text-white hover:bg-perigo-tinta",
+        accent: "bg-acento text-sobre-acento hover:bg-acento-hover",
       },
       /**
        * Alvo de toque: 44px no celular, densidade no desktop.

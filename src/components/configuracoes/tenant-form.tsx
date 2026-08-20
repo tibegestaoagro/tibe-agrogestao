@@ -53,7 +53,7 @@ export default function TenantForm({
         <Input id="t-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
       </div>
       {error && <p className="text-sm text-red-700">{error}</p>}
-      {saved && <p className="text-sm text-tibe-primary">Dados salvos.</p>}
+      {saved && <p className="text-sm text-primaria-tinta">Dados salvos.</p>}
       <Button onClick={submit} disabled={loading}>
         {loading ? "Salvando..." : "Salvar"}
       </Button>

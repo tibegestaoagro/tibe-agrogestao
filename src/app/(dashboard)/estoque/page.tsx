@@ -258,7 +258,7 @@ export default async function EstoquePage(
             {movimentos.map((m) => {
               const cancelado = m.canceled_at != null;
               return (
-                <TableRow key={m.id} className={cancelado ? "text-gray-400" : undefined}>
+                <TableRow key={m.id} className={cancelado ? "text-texto-discreto" : undefined}>
                   <TableCell>{new Date(m.occurred_at).toLocaleDateString("pt-BR")}</TableCell>
                   <TableCell className="font-medium">
                     {TIPO_LABEL[m.movement_type] ?? m.movement_type}

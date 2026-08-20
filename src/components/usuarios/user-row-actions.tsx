@@ -51,7 +51,7 @@ export default function UserRowActions({
   }
 
   if (!canEdit || isSelf || role === "OWNER") {
-    return <span className="text-xs text-gray-400">{ROLE_LABEL[role]}</span>;
+    return <span className="text-xs text-texto-discreto">{ROLE_LABEL[role]}</span>;
   }
 
   return (

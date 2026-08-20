@@ -81,7 +81,7 @@ export default async function PlotDetail(
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <Link href="/lavoura" className="text-sm text-tibe-primary hover:underline">
+          <Link href="/lavoura" className="text-sm text-primaria-tinta hover:underline">
             ← Lavoura
           </Link>
           <h1 className="mt-1 text-xl font-semibold text-gray-900">{plot.name}</h1>

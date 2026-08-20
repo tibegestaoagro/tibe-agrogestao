@@ -24,7 +24,7 @@ export default function TermosPage() {
               O Tibé é uma plataforma de gestão agropecuária operada por Pleno Digital, oferecida
               como serviço (SaaS) mediante assinatura. Ao criar uma conta, você concorda com estes
               termos e com nossa{" "}
-              <a href="/politicas/privacidade" className="text-tibe-primary hover:underline">
+              <a href="/politicas/privacidade" className="text-primaria-tinta hover:underline">
                 Política de Privacidade
               </a>
               .

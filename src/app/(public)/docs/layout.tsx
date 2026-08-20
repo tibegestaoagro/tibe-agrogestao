@@ -45,7 +45,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
               Documentação
             </Link>
           </div>
-          <Link href="/" className="text-sm text-tibe-primary hover:underline">
+          <Link href="/" className="text-sm text-primaria-tinta hover:underline">
             ← Voltar ao site
           </Link>
         </div>
@@ -56,7 +56,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
           <nav className="sticky top-10 space-y-6">
             {NAV.map((group) => (
               <div key={group.label}>
-                <p className="px-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                <p className="px-2 text-xs font-semibold uppercase tracking-wide text-texto-discreto">
                   {group.label}
                 </p>
                 <div className="mt-1 space-y-0.5">

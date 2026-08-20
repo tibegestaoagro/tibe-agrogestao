@@ -54,7 +54,7 @@ export default function FaqPage() {
         <h1 className="text-3xl font-bold text-tibe-dark">Perguntas frequentes</h1>
         <p className="mt-2 text-gray-600">
           Não achou o que procurava? Fale com a gente em{" "}
-          <a href="mailto:contato@tibe.com.br" className="text-tibe-primary hover:underline">
+          <a href="mailto:contato@tibe.com.br" className="text-primaria-tinta hover:underline">
             contato@tibe.com.br
           </a>
           .
@@ -66,7 +66,7 @@ export default function FaqPage() {
               <summary className="cursor-pointer list-none font-medium text-gray-900 marker:content-none">
                 <span className="flex items-center justify-between gap-4">
                   {item.q}
-                  <span className="text-tibe-primary group-open:rotate-45 transition-transform">+</span>
+                  <span className="text-primaria-tinta group-open:rotate-45 transition-transform">+</span>
                 </span>
               </summary>
               <p className="mt-3 text-sm text-gray-600">{item.a}</p>
@@ -77,7 +77,7 @@ export default function FaqPage() {
         <p className="mt-10 text-center">
           <Link
             href="/criar-conta"
-            className="inline-block rounded-md bg-tibe-primary px-6 py-3 font-medium text-white transition hover:bg-tibe-dark"
+            className="inline-block rounded-md bg-primaria px-6 py-3 font-medium text-sobre-primaria transition hover:bg-primaria-hover"
           >
             Começar teste grátis
           </Link>

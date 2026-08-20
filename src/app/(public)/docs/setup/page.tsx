@@ -132,7 +132,7 @@ npm run test:m4          # Financeiro e Alertas`}
             Sem N8N/Meta configurados, o agente WhatsApp pode ser testado chamando{" "}
             <code className="rounded bg-gray-100 px-1">/api/internal/whatsapp/*</code> diretamente com o header{" "}
             <code className="rounded bg-gray-100 px-1">x-internal-secret</code>: ver{" "}
-            <a href="/docs/whatsapp" className="text-tibe-primary hover:underline">Agente WhatsApp</a>.
+            <a href="/docs/whatsapp" className="text-primaria-tinta hover:underline">Agente WhatsApp</a>.
           </li>
         </ul>
       </section>

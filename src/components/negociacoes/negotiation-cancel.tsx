@@ -87,7 +87,7 @@ export default function NegotiationCancel({
       }}
     >
       <SheetTrigger asChild>
-        <button type="button" className="text-sm text-gray-500 underline hover:text-red-700">
+        <button type="button" className="inline-flex min-h-11 items-center text-sm text-texto-secundario underline hover:text-perigo-tinta sm:min-h-0">
           Cancelar
         </button>
       </SheetTrigger>

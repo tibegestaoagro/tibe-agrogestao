@@ -58,7 +58,7 @@ export default function LoginPage() {
           <label htmlFor="password" className="block text-sm font-medium text-gray-700">
             Senha
           </label>
-          <Link href="/esqueci-senha" className="text-xs text-tibe-primary hover:underline">
+          <Link href="/esqueci-senha" className="text-xs text-primaria-tinta hover:underline">
             Esqueci minha senha
           </Link>
         </div>
@@ -82,14 +82,14 @@ export default function LoginPage() {
       <button
         type="submit"
         disabled={loading}
-        className="w-full rounded-md bg-tibe-primary px-4 py-2 font-medium text-white transition hover:bg-tibe-dark disabled:opacity-60"
+        className="w-full rounded-md bg-primaria px-4 py-2 font-medium text-sobre-primaria transition hover:bg-primaria-hover disabled:opacity-60"
       >
         {loading ? "Entrando..." : "Entrar"}
       </button>
 
       <p className="text-center text-sm text-gray-500">
         Não tem conta?{" "}
-        <Link href="/planos" className="text-tibe-primary hover:underline">
+        <Link href="/planos" className="text-primaria-tinta hover:underline">
           Ver planos
         </Link>
       </p>

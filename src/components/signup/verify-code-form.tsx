@@ -186,7 +186,7 @@ export default function VerifyCodeForm({
             type="button"
             onClick={() => handleResend()}
             disabled={loading}
-            className="text-tibe-primary hover:underline"
+            className="text-primaria-tinta hover:underline"
           >
             Reenviar código
           </button>
@@ -194,7 +194,7 @@ export default function VerifyCodeForm({
             type="button"
             onClick={() => setEditing(true)}
             disabled={loading}
-            className="text-tibe-primary hover:underline"
+            className="text-primaria-tinta hover:underline"
           >
             Corrigir {label}
           </button>

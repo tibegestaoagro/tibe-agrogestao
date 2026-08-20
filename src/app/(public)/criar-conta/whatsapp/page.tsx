@@ -37,7 +37,7 @@ export default async function ConfirmarWhatsappPage() {
 
         <p className="mt-6 text-center text-sm text-gray-500">
           Preencheu algo errado?{" "}
-          <Link href="/criar-conta" className="text-tibe-primary hover:underline">
+          <Link href="/criar-conta" className="text-primaria-tinta hover:underline">
             Voltar ao formulário
           </Link>
         </p>

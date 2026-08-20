@@ -74,7 +74,7 @@ export default function NewPasswordForm({ resetId }: { resetId: string }) {
       <button
         type="submit"
         disabled={loading}
-        className="w-full rounded-md bg-tibe-primary px-4 py-2 font-medium text-white transition hover:bg-tibe-dark disabled:opacity-60"
+        className="w-full rounded-md bg-primaria px-4 py-2 font-medium text-sobre-primaria transition hover:bg-primaria-hover disabled:opacity-60"
       >
         {loading ? "Salvando..." : "Definir nova senha"}
       </button>

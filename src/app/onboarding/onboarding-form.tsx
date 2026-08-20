@@ -78,7 +78,7 @@ export default function OnboardingForm() {
         type="button"
         disabled={!selected || loading}
         onClick={handleConfirm}
-        className="mt-6 w-full rounded-md bg-tibe-primary px-4 py-2 font-medium text-white transition hover:bg-tibe-dark disabled:opacity-50"
+        className="mt-6 w-full rounded-md bg-primaria px-4 py-2 font-medium text-sobre-primaria transition hover:bg-primaria-hover disabled:opacity-50"
       >
         {loading ? "Configurando..." : "Confirmar"}
       </button>

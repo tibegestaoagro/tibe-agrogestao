@@ -45,7 +45,7 @@ const SheetContent = React.forwardRef<
         {title ?? "Painel"}
       </DialogPrimitive.Title>
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm text-gray-400 transition hover:text-tibe-dark focus:outline-none">
+      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm text-texto-discreto transition hover:text-tibe-dark focus:outline-none">
         <X className="h-5 w-5" />
         <span className="sr-only">Fechar</span>
       </DialogPrimitive.Close>

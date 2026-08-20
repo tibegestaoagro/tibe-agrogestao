@@ -2,14 +2,86 @@
 @tailwind components;
 @tailwind utilities;
 
+/**
+ * Tokens semanticos do Tibe.
+ *
+ * A regra: o nome diz o PAPEL, nunca a cor. `--cor-primaria` e nome de papel;
+ * `--verde` seria nome de marca, e nome de marca em tela e o que faz uma troca
+ * de identidade custar 142 arquivos em vez de um. Os hex sao valores; eles
+ * mudam aqui e em nenhum outro lugar.
+ *
+ * Contraste: cada par (texto, fundo) que o produto realmente desenha esta
+ * conferido em `scripts/check-contraste.ts`, que roda dentro de `npm run check`
+ * e LE ESTE ARQUIVO. Trocar um hex por um valor que reprova em AA quebra o
+ * check. Isso existe porque a medicao de 2026-08-20 encontrou o proprio verde
+ * da marca a 3,51:1 com texto branco: todo botao primario do produto reprovava,
+ * e nenhuma revisao humana tinha percebido.
+ *
+ * Sobre o verde e o laranja: os dois hex sao os que a Agromax entregou, e estao
+ * preservados. O que mudou foi a cor do TEXTO em cima deles, que passou a ser o
+ * verde-escuro da propria marca (4,68:1 no verde, 5,79:1 no laranja). Escurecer
+ * o fundo teria sido mexer na identidade sem aprovacao, que ja aconteceu duas
+ * vezes neste projeto por engano.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Superficies */
+  --superficie: #ffffff;
+  --superficie-afundada: #fcf8f5;
+  --superficie-invertida: #022e20;
+
+  /* Texto */
+  --texto: #111827;
+  --texto-secundario: #4b5563;
+  --texto-discreto: #6b7280;
+  --texto-invertido: #fcf8f5;
+
+  /* Bordas. `--borda` separa; `--borda-campo` delimita controle, e por isso
+     precisa dos 3:1 da WCAG 1.4.11, que a cinza clara nao dava (1,47:1). */
+  --borda: #e5e7eb;
+  --borda-forte: #d1d5db;
+  --borda-campo: #878f9a;
+
+  /* Acao primaria */
+  --primaria: #649721;
+  --primaria-hover: #6fa527;
+  --sobre-primaria: #09241b;
+  --primaria-tinta: #4a7317;
+  --primaria-suave: #f1f6e8;
+
+  /* Acento */
+  --acento: #e97d0f;
+  --acento-hover: #ce6c0b;
+  --sobre-acento: #09241b;
+  --acento-tinta: #a0570a;
+  --acento-suave: #fcefe2;
+
+  /* Estado */
+  --perigo: #dc2626;
+  --perigo-tinta: #b91c1c;
+  --perigo-suave: #fef2f2;
+  --sucesso: #15803d;
+  --sucesso-tinta: #166534;
+  --sucesso-suave: #f0fdf4;
+  --atencao-tinta: #b45309;
+  --atencao-suave: #fffbeb;
+  --info-tinta: #1d4ed8;
+  --info-suave: #eff6ff;
+
+  /* Elevacao. Sombra fraca some no celular ao sol; a escala e curta de
+     proposito, porque tres niveis ja cobrem cartao, painel e menu. */
+  --sombra-1: 0 1px 2px 0 rgb(2 46 32 / 0.06);
+  --sombra-2: 0 2px 8px -1px rgb(2 46 32 / 0.10), 0 1px 3px -1px rgb(2 46 32 / 0.06);
+  --sombra-3: 0 12px 28px -8px rgb(2 46 32 / 0.18), 0 4px 10px -4px rgb(2 46 32 / 0.10);
+
+  /* Movimento */
+  --duracao-rapida: 120ms;
+  --duracao-media: 200ms;
+  --curva: cubic-bezier(0.2, 0, 0, 1);
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
+  color: var(--texto);
+  background: var(--superficie);
 }
 
 @layer utilities {

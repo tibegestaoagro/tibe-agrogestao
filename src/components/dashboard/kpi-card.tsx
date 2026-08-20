@@ -2,18 +2,25 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
+/**
+ * As cores da marca continuam as mesmas; o que mudou foi o que se pinta EM
+ * CIMA delas. Ícone e texto usam a variante "tinta" (o mesmo matiz, escurecido
+ * o suficiente para passar em AA sobre o fundo tintado), e o botão usa o
+ * verde-escuro da marca em vez de branco. Antes: ícone laranja sobre laranja
+ * claro a 2,3:1 e botão branco sobre laranja a 2,84:1.
+ */
 const VARIANTS = {
   green: {
-    bg: "bg-tibe-primary/10",
-    iconBg: "bg-tibe-primary/15",
-    iconColor: "text-tibe-primary",
-    button: "bg-tibe-primary text-white group-hover:bg-tibe-dark",
+    bg: "bg-primaria-suave",
+    iconBg: "bg-primaria/15",
+    iconColor: "text-primaria-tinta",
+    button: "bg-primaria text-sobre-primaria group-hover:bg-primaria-hover",
   },
   orange: {
-    bg: "bg-tibe-accentLight",
-    iconBg: "bg-white/70",
-    iconColor: "text-tibe-accent",
-    button: "bg-tibe-accent text-white group-hover:bg-tibe-accentDark",
+    bg: "bg-acento-suave",
+    iconBg: "bg-superficie/70",
+    iconColor: "text-acento-tinta",
+    button: "bg-acento text-sobre-acento group-hover:bg-acento-hover",
   },
 } as const;
 
@@ -50,7 +57,7 @@ export default function KpiCard({
       </div>
       <p className="mt-3 text-sm text-gray-600">{label}</p>
       <p className="text-2xl font-semibold text-tibe-dark">{value}</p>
-      {sub && <p className="mt-0.5 truncate text-xs text-gray-500">{sub}</p>}
+      {sub && <p className="mt-0.5 truncate text-xs text-texto-secundario">{sub}</p>}
     </Link>
   );
 }

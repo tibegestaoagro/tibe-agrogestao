@@ -85,7 +85,7 @@ export default async function RelatoriosPage() {
           {relevantModules.map((m) => (
             <div key={m.module} className="rounded-lg bg-tibe-light p-3">
               <p className="text-xs text-gray-500">{MODULE_LABEL[m.module]}</p>
-              <p className={`mt-0.5 text-base font-semibold ${m.result >= 0 ? "text-tibe-primary" : "text-red-600"}`}>
+              <p className={`mt-0.5 text-base font-semibold ${m.result >= 0 ? "text-primaria-tinta" : "text-red-600"}`}>
                 {brl(m.result)}
               </p>
             </div>

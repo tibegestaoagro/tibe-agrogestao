@@ -28,7 +28,7 @@ export default function RevenueExpenseChart({ data }: { data: Point[] }) {
         </span>
         <span className="flex items-center gap-1.5 text-gray-600">
           Saldo{" "}
-          <span className={`font-semibold ${saldo >= 0 ? "text-tibe-primary" : "text-red-600"}`}>
+          <span className={`font-semibold ${saldo >= 0 ? "text-primaria-tinta" : "text-red-600"}`}>
             {brl(saldo)}
           </span>
         </span>

@@ -19,7 +19,7 @@ export default function EsqueciSenhaPage() {
           <RequestCodeForm />
         </div>
         <p className="mt-6 text-center text-sm text-gray-500">
-          <Link href="/login" className="text-tibe-primary hover:underline">
+          <Link href="/login" className="text-primaria-tinta hover:underline">
             Voltar para o login
           </Link>
         </p>

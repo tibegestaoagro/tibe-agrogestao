@@ -47,7 +47,7 @@ export default function VerifyCodeForm({ email }: { email: string }) {
       <button
         type="submit"
         disabled={loading || code.length !== 6}
-        className="w-full rounded-md bg-tibe-primary px-4 py-2 font-medium text-white transition hover:bg-tibe-dark disabled:opacity-60"
+        className="w-full rounded-md bg-primaria px-4 py-2 font-medium text-sobre-primaria transition hover:bg-primaria-hover disabled:opacity-60"
       >
         {loading ? "Validando..." : "Validar código"}
       </button>

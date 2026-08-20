@@ -54,7 +54,7 @@ export default function ChangePasswordForm() {
         type="button"
         onClick={submit}
         disabled={loading}
-        className="w-full rounded-md bg-tibe-primary px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-60"
+        className="w-full rounded-md bg-primaria px-4 py-2 text-sm font-medium text-sobre-primaria transition hover:opacity-90 disabled:opacity-60"
       >
         {loading ? "Salvando..." : "Definir nova senha"}
       </button>

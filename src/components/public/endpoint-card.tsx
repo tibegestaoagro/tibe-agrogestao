@@ -23,20 +23,20 @@ export function EndpointCard({ endpoint }: { endpoint: Endpoint }) {
           {endpoint.method}
         </span>
         <code className="text-sm font-medium text-gray-900">{endpoint.path}</code>
-        <span className="ml-auto text-xs text-gray-400">{endpoint.auth}</span>
+        <span className="ml-auto text-xs text-texto-discreto">{endpoint.auth}</span>
       </div>
       <p className="mt-2 text-sm text-gray-600">{endpoint.description}</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         {endpoint.request && (
           <div>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Request</p>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-texto-discreto">Request</p>
             <pre className="overflow-x-auto rounded-md bg-gray-900 p-3 text-xs text-gray-100">
               <code>{endpoint.request}</code>
             </pre>
           </div>
         )}
         <div className={endpoint.request ? "" : "sm:col-span-2"}>
-          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Response</p>
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-texto-discreto">Response</p>
           <pre className="overflow-x-auto rounded-md bg-gray-900 p-3 text-xs text-gray-100">
             <code>{endpoint.response}</code>
           </pre>

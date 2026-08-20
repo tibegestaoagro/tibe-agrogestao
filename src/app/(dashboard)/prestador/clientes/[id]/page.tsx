@@ -64,7 +64,7 @@ export default async function ClientDetail(
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/prestador" className="text-sm text-tibe-primary hover:underline">
+        <Link href="/prestador" className="text-sm text-primaria-tinta hover:underline">
           ← Prestador
         </Link>
         <h1 className="mt-1 text-xl font-semibold text-gray-900">{client.name}</h1>

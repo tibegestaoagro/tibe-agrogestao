@@ -126,7 +126,7 @@ export default function Sidebar({
                   href={item.href}
                   className={`flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary md:min-h-0 ${
                     active
-                      ? "bg-tibe-primary text-white"
+                      ? "bg-primaria text-sobre-primaria"
                       : "text-tibe-light/85 hover:bg-white/10 hover:text-white"
                   }`}
                 >

@@ -155,7 +155,7 @@ export default async function NegociacoesPage(
               const animais = n.movimentos.reduce((s, m) => s + m.quantity, 0);
               const venda = n.type === "venda_gado" || n.type === "venda_produto";
               return (
-                <TableRow key={n.id} className={cancelada ? "text-gray-400" : undefined}>
+                <TableRow key={n.id} className={cancelada ? "text-texto-discreto" : undefined}>
                   <TableCell>{n.occurred_at.toLocaleDateString("pt-BR")}</TableCell>
                   <TableCell className="font-medium">
                     {TIPO_LABEL[n.type] ?? n.type}

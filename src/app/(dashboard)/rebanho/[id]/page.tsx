@@ -107,7 +107,7 @@ export default async function AnimalDetail(
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <Link href="/rebanho" className="text-sm text-tibe-primary hover:underline">
+          <Link href="/rebanho" className="text-sm text-primaria-tinta hover:underline">
             ← Rebanho
           </Link>
           <h1 className="mt-1 flex items-center gap-2 text-xl font-semibold text-gray-900">

@@ -150,7 +150,7 @@ function AvisoUnico({ aviso, aoFechar }: { aviso: Aviso; aoFechar: (id: number) 
         aria-hidden="true"
         className={cn(
           "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
-          sucesso ? "bg-tibe-primary/15 text-tibe-primary" : "bg-red-100 text-red-700",
+          sucesso ? "bg-tibe-primary/15 text-primaria-tinta" : "bg-red-100 text-red-700",
         )}
       >
         <Icone className="h-4 w-4" />

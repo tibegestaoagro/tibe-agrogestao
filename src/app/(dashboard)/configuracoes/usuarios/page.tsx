@@ -57,7 +57,7 @@ export default async function UsuariosPage() {
             {users.map((u) => (
               <TableRow key={u.id}>
                 <TableCell className="font-medium">
-                  {u.name} {u.id === sessionUser.id && <span className="text-xs text-gray-400">(você)</span>}
+                  {u.name} {u.id === sessionUser.id && <span className="text-xs text-texto-discreto">(você)</span>}
                 </TableCell>
                 <TableCell>{u.email}</TableCell>
                 <TableCell>{u.phone ?? "sem telefone"}</TableCell>

@@ -36,7 +36,7 @@ function Card({ label, value, sub }: { label: string; value: string; sub?: strin
     <div className="rounded-lg border border-gray-200 bg-white p-4">
       <p className="text-xs text-gray-500">{label}</p>
       <p className="mt-1 text-xl font-semibold text-tibe-dark">{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-gray-400">{sub}</p>}
+      {sub && <p className="mt-0.5 text-xs text-texto-discreto">{sub}</p>}
     </div>
   );
 }

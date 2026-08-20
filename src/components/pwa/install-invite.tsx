@@ -177,7 +177,7 @@ export default function InstallInvite() {
                 <button
                   type="button"
                   onClick={install}
-                  className="min-h-11 rounded-lg bg-tibe-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-tibe-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tibe-primary disabled:opacity-60"
+                  className="min-h-11 rounded-lg bg-primaria px-4 py-2 text-sm font-semibold text-sobre-primaria transition-colors hover:bg-primaria-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tibe-primary disabled:opacity-60"
                 >
                   Instalar
                 </button>

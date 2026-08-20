@@ -279,7 +279,7 @@ export default async function RebanhoPage(
             {historico.items.map((m) => {
               const cancelada = m.canceled_at != null;
               return (
-                <TableRow key={m.id} className={cancelada ? "text-gray-400" : undefined}>
+                <TableRow key={m.id} className={cancelada ? "text-texto-discreto" : undefined}>
                   <TableCell>{m.occurred_at.toLocaleDateString("pt-BR")}</TableCell>
                   <TableCell className="font-medium">
                     {TIPO_LABEL[m.movement_type] ?? m.movement_type}

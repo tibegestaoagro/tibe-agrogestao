@@ -163,7 +163,7 @@ export default function NotificationOptIn() {
     >
       <div className="animate-in fade-in slide-in-from-bottom-4 flex w-full max-w-md items-start gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-lg duration-300">
         <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-tibe-light">
-          <Bell className="h-5 w-5 text-tibe-primary" aria-hidden="true" />
+          <Bell className="h-5 w-5 text-primaria-tinta" aria-hidden="true" />
         </div>
 
         <div className="min-w-0 flex-1">
@@ -179,7 +179,7 @@ export default function NotificationOptIn() {
               type="button"
               onClick={enable}
               disabled={busy}
-              className="min-h-11 rounded-lg bg-tibe-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-tibe-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tibe-primary disabled:opacity-60"
+              className="min-h-11 rounded-lg bg-primaria px-4 py-2 text-sm font-semibold text-sobre-primaria transition-colors hover:bg-primaria-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tibe-primary disabled:opacity-60"
             >
               {busy ? "Ativando" : "Ativar"}
             </button>

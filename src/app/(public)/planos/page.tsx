@@ -97,7 +97,7 @@ export default function PlanosPage() {
               <ul className="mt-4 flex-1 space-y-2 text-sm text-gray-700">
                 {plan.features.map((f) => (
                   <li key={f} className="flex items-start gap-2">
-                    <span className="text-tibe-primary">✓</span> {f}
+                    <span className="text-primaria-tinta">✓</span> {f}
                   </li>
                 ))}
               </ul>
@@ -105,8 +105,8 @@ export default function PlanosPage() {
                 href={`/criar-conta?plan=${plan.key}`}
                 className={`mt-6 rounded-md px-4 py-2 text-center font-medium transition ${
                   plan.highlight
-                    ? "bg-tibe-primary text-white hover:bg-tibe-dark"
-                    : "border border-tibe-primary text-tibe-primary hover:bg-tibe-light"
+                    ? "bg-primaria text-sobre-primaria hover:bg-primaria-hover"
+                    : "border border-tibe-primary text-primaria-tinta hover:bg-tibe-light"
                 }`}
               >
                 Contratar
@@ -117,7 +117,7 @@ export default function PlanosPage() {
 
         <p className="mt-8 text-sm text-gray-500">
           Já tem conta?{" "}
-          <Link href="/login" className="text-tibe-primary hover:underline">
+          <Link href="/login" className="text-primaria-tinta hover:underline">
             Entrar
           </Link>
         </p>

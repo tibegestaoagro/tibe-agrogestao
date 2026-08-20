@@ -60,13 +60,13 @@ export default function HomePage() {
           <div className="mt-8 flex flex-wrap justify-center gap-4">
             <Link
               href="/criar-conta"
-              className="rounded-md bg-tibe-primary px-6 py-3 font-medium text-white transition hover:bg-tibe-dark"
+              className="rounded-md bg-primaria px-6 py-3 font-medium text-sobre-primaria transition hover:bg-primaria-hover"
             >
               Começar teste grátis de 14 dias
             </Link>
             <Link
               href="/planos"
-              className="rounded-md border border-tibe-primary px-6 py-3 font-medium text-tibe-primary transition hover:bg-white"
+              className="rounded-md border border-tibe-primary px-6 py-3 font-medium text-primaria-tinta transition hover:bg-white"
             >
               Ver planos
             </Link>
@@ -96,7 +96,7 @@ export default function HomePage() {
           <div className="mt-10 grid gap-8 sm:grid-cols-3">
             {STEPS.map((s) => (
               <div key={s.n} className="text-center">
-                <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-tibe-primary text-lg font-bold text-white">
+                <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-primaria text-lg font-bold text-sobre-primaria">
                   {s.n}
                 </span>
                 <h3 className="mt-3 font-semibold text-gray-900">{s.title}</h3>
@@ -112,7 +112,7 @@ export default function HomePage() {
         <h2 className="text-2xl font-bold text-tibe-dark">Pronto para organizar sua operação?</h2>
         <Link
           href="/criar-conta"
-          className="mt-6 inline-block rounded-md bg-tibe-primary px-6 py-3 font-medium text-white transition hover:bg-tibe-dark"
+          className="mt-6 inline-block rounded-md bg-primaria px-6 py-3 font-medium text-sobre-primaria transition hover:bg-primaria-hover"
         >
           Começar teste grátis
         </Link>

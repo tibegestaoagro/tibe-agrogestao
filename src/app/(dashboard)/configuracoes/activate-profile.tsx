@@ -37,7 +37,7 @@ export default function ActivateProfile({
         type="button"
         onClick={activate}
         disabled={loading}
-        className="rounded-md bg-tibe-primary px-4 py-2 text-sm font-medium text-white transition hover:bg-tibe-dark disabled:opacity-60"
+        className="rounded-md bg-primaria px-4 py-2 text-sm font-medium text-sobre-primaria transition hover:bg-primaria-hover disabled:opacity-60"
       >
         {loading ? "Ativando..." : label}
       </button>

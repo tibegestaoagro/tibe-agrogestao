@@ -160,7 +160,7 @@ export default function CalcPage({
                   type="checkbox"
                   checked={values[f.key] as boolean}
                   onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.checked }))}
-                  className="h-4 w-4 rounded border-gray-300 text-tibe-primary focus:ring-tibe-primary"
+                  className="h-4 w-4 rounded border-gray-300 text-primaria-tinta focus:ring-tibe-primary"
                 />
                 {f.label}
               </label>

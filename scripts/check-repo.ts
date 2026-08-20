@@ -1,6 +1,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { conferirContraste } from "./check-contraste";
 
 /**
  * Conferencias estaticas do repositorio, sem banco. Roda: `npm run check`.
@@ -330,6 +331,7 @@ function main() {
   conferirTravessao();
   conferirIndicesParciais();
   conferirHooks();
+  conferirContraste(check);
 
   console.log("");
   if (falhas === 0) console.log("✅ Repositorio consistente: 0 falhas.");

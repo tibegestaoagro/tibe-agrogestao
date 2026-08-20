@@ -23,7 +23,7 @@ export default function PrivacidadePage() {
               confirmar], responsável pelo tratamento dos dados pessoais descritos nesta
               política, nos termos da Lei nº 13.709/2018 (LGPD). Dúvidas ou solicitações sobre
               seus dados podem ser enviadas para{" "}
-              <a href="mailto:contato@tibe.com.br" className="text-tibe-primary hover:underline">
+              <a href="mailto:contato@tibe.com.br" className="text-primaria-tinta hover:underline">
                 contato@tibe.com.br
               </a>
               .

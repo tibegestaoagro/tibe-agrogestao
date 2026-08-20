@@ -23,7 +23,7 @@ export default function CriarContaPage() {
         </Suspense>
         <p className="mt-6 text-center text-sm text-gray-500">
           Já tem conta?{" "}
-          <Link href="/login" className="text-tibe-primary hover:underline">
+          <Link href="/login" className="text-primaria-tinta hover:underline">
             Entrar
           </Link>
         </p>

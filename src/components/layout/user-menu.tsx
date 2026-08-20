@@ -32,12 +32,12 @@ export default function UserMenu({ userName, roleLabel }: { userName: string; ro
           <span className="block text-xs text-gray-500">{roleLabel}</span>
         </span>
         <span
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-tibe-primary text-sm font-semibold text-white"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primaria text-sm font-semibold text-sobre-primaria"
           title={userName}
         >
           {initialsOf(userName)}
         </span>
-        <ChevronDown className="hidden h-4 w-4 shrink-0 text-gray-400 sm:block" />
+        <ChevronDown className="hidden h-4 w-4 shrink-0 text-texto-discreto sm:block" />
       </button>
       {open && (
         <div className="absolute right-0 z-50 mt-1 w-52 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
@@ -46,7 +46,7 @@ export default function UserMenu({ userName, roleLabel }: { userName: string; ro
             onClick={() => setOpen(false)}
             className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-tibe-light"
           >
-            <User className="h-4 w-4 text-gray-400" />
+            <User className="h-4 w-4 text-texto-discreto" />
             Perfil
           </Link>
           <Link
@@ -54,7 +54,7 @@ export default function UserMenu({ userName, roleLabel }: { userName: string; ro
             onClick={() => setOpen(false)}
             className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-tibe-light"
           >
-            <KeyRound className="h-4 w-4 text-gray-400" />
+            <KeyRound className="h-4 w-4 text-texto-discreto" />
             Minha senha
           </Link>
           <div className="my-1 border-t border-gray-100" />
@@ -63,7 +63,7 @@ export default function UserMenu({ userName, roleLabel }: { userName: string; ro
             onClick={() => signOut({ callbackUrl: "/login" })}
             className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-tibe-light"
           >
-            <LogOut className="h-4 w-4 text-gray-400" />
+            <LogOut className="h-4 w-4 text-texto-discreto" />
             Sair
           </button>
         </div>

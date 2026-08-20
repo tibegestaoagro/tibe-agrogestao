@@ -48,7 +48,7 @@ export default function MiniCalendar({ eventDates }: { eventDates: string[] }) {
           <button
             type="button"
             onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}
-            className="rounded-md p-1 text-gray-500 hover:bg-gray-100"
+            className="flex h-11 w-11 items-center justify-center rounded-md text-texto-secundario hover:bg-superficie-afundada sm:h-8 sm:w-8"
             aria-label="Mês anterior"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -56,14 +56,14 @@ export default function MiniCalendar({ eventDates }: { eventDates: string[] }) {
           <button
             type="button"
             onClick={() => setCursor(new Date(today.getFullYear(), today.getMonth(), 1))}
-            className="rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+            className="flex min-h-11 items-center rounded-md border border-borda px-3 py-1 text-xs font-medium text-texto-secundario hover:bg-superficie-afundada sm:min-h-8"
           >
             Hoje
           </button>
           <button
             type="button"
             onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}
-            className="rounded-md p-1 text-gray-500 hover:bg-gray-100"
+            className="flex h-11 w-11 items-center justify-center rounded-md text-texto-secundario hover:bg-superficie-afundada sm:h-8 sm:w-8"
             aria-label="Próximo mês"
           >
             <ChevronRight className="h-4 w-4" />
@@ -72,7 +72,7 @@ export default function MiniCalendar({ eventDates }: { eventDates: string[] }) {
       </div>
       <div className="grid grid-cols-7 gap-y-1 text-center text-xs">
         {WEEKDAYS.map((w) => (
-          <span key={w} className="pb-1 font-medium text-gray-400">
+          <span key={w} className="pb-1 font-medium text-texto-discreto">
             {w}
           </span>
         ))}
@@ -86,10 +86,10 @@ export default function MiniCalendar({ eventDates }: { eventDates: string[] }) {
               <span
                 className={`flex h-7 w-7 items-center justify-center rounded-full ${
                   isToday
-                    ? "bg-tibe-primary font-semibold text-white"
+                    ? "bg-primaria font-semibold text-sobre-primaria"
                     : inMonth
                       ? "text-gray-700"
-                      : "text-gray-300"
+                      : "text-texto-discreto"
                 }`}
               >
                 {d.getDate()}

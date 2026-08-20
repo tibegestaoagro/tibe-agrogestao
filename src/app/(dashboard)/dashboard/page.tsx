@@ -272,7 +272,7 @@ export default async function DashboardHome() {
         <div className="rounded-xl border border-gray-200 bg-white p-5">
           <div className="mb-3 flex items-center justify-between">
             <p className="text-sm font-medium text-gray-700">Meu Dia</p>
-            <Link href="/meu-dia" className="text-sm text-tibe-primary hover:underline">
+            <Link href="/meu-dia" className="inline-flex min-h-11 items-center text-sm text-primaria-tinta hover:underline sm:min-h-0">
               Ver tudo →
             </Link>
           </div>
@@ -282,7 +282,7 @@ export default async function DashboardHome() {
             <ul className="divide-y divide-gray-100">
               {meuDiaItems.map((item, i) => (
                 <li key={i}>
-                  <Link href={item.href} className="flex items-center justify-between py-2.5 text-sm hover:text-tibe-primary">
+                  <Link href={item.href} className="flex min-h-11 items-center justify-between py-2.5 text-sm hover:text-primaria-tinta sm:min-h-0">
                     <span className="text-gray-700">{item.label}</span>
                     <span className="flex items-center gap-2 text-gray-500">
                       {item.sub}
@@ -310,7 +310,7 @@ export default async function DashboardHome() {
             {recentEntries.map((e) => (
               <li key={e.id} className="flex items-center justify-between py-2 text-sm">
                 <span className="text-gray-700">{e.category ?? "não informado"}</span>
-                <span className={e.entry_type === "income" ? "text-tibe-primary" : "text-gray-900"}>
+                <span className={e.entry_type === "income" ? "text-primaria-tinta" : "text-gray-900"}>
                   {e.entry_type === "income" ? "+" : "-"}
                   {brl(decToNum(e.amount) ?? 0)}
                 </span>
@@ -318,7 +318,7 @@ export default async function DashboardHome() {
             ))}
           </ul>
         )}
-        <Link href="/financeiro" className="mt-3 inline-block text-sm text-tibe-primary hover:underline">
+        <Link href="/financeiro" className="mt-3 inline-flex min-h-11 items-center text-sm text-primaria-tinta hover:underline sm:min-h-0">
           Ver todos →
         </Link>
       </div>

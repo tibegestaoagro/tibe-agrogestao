@@ -21,7 +21,7 @@ export default function TabNav() {
           key={t.key}
           href={`/prestador?tab=${t.key}`}
           className={cn(
-            "px-4 py-2 text-sm font-medium",
+            "flex min-h-11 items-center px-4 py-2 text-sm font-medium sm:min-h-0",
             active === t.key
               ? "border-b-2 border-tibe-primary text-tibe-dark"
               : "text-gray-500 hover:text-gray-800",

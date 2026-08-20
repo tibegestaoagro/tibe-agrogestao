@@ -16,7 +16,7 @@ export default function PublicNav() {
         <nav className="flex items-center gap-6 text-sm">
           <Link href="/planos" className="text-gray-600 hover:text-tibe-dark">Planos</Link>
           <Link href="/faq" className="text-gray-600 hover:text-tibe-dark">FAQ</Link>
-          <Link href="/login" className="font-medium text-tibe-primary hover:text-tibe-dark">Entrar</Link>
+          <Link href="/login" className="font-medium text-primaria-tinta hover:text-tibe-dark">Entrar</Link>
         </nav>
       </div>
     </header>

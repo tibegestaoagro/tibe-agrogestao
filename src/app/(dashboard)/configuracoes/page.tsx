@@ -72,7 +72,7 @@ export default async function ConfiguracoesPage() {
           </p>
           <Link
             href="/rebanho"
-            className="mt-2 inline-block text-sm text-tibe-primary hover:underline"
+            className="mt-2 inline-flex min-h-11 items-center text-sm text-primaria-tinta hover:underline sm:min-h-0"
           >
             Gerenciar propriedades →
           </Link>
@@ -88,7 +88,7 @@ export default async function ConfiguracoesPage() {
           </p>
           <Link
             href="/configuracoes/categorias-rebanho"
-            className="mt-2 inline-block text-sm text-tibe-primary hover:underline"
+            className="mt-2 inline-flex min-h-11 items-center text-sm text-primaria-tinta hover:underline sm:min-h-0"
           >
             Gerenciar categorias →
           </Link>
@@ -96,17 +96,17 @@ export default async function ConfiguracoesPage() {
       )}
 
       <section className="flex flex-wrap gap-4 border-t border-gray-200 pt-6 text-sm">
-        <Link href="/configuracoes/usuarios" className="text-tibe-primary hover:underline">
+        <Link href="/configuracoes/usuarios" className="inline-flex min-h-11 items-center text-primaria-tinta hover:underline sm:min-h-0">
           Usuários
         </Link>
-        <Link href="/configuracoes/categorias-financeiras" className="text-tibe-primary hover:underline">
+        <Link href="/configuracoes/categorias-financeiras" className="inline-flex min-h-11 items-center text-primaria-tinta hover:underline sm:min-h-0">
           Categorias financeiras
         </Link>
-        <Link href="/configuracoes/alertas" className="text-tibe-primary hover:underline">
+        <Link href="/configuracoes/alertas" className="inline-flex min-h-11 items-center text-primaria-tinta hover:underline sm:min-h-0">
           Alertas
         </Link>
         {hasMinRole(user.role, "OWNER") && (
-          <Link href="/configuracoes/assinatura" className="text-tibe-primary hover:underline">
+          <Link href="/configuracoes/assinatura" className="inline-flex min-h-11 items-center text-primaria-tinta hover:underline sm:min-h-0">
             Assinatura
           </Link>
         )}

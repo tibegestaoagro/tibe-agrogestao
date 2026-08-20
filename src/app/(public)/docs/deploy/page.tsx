@@ -34,7 +34,7 @@ export default function DeployPage() {
         <h2 className="text-lg font-semibold text-gray-900">Variáveis de ambiente de produção</h2>
         <p className="mt-2">
           As mesmas de <code className="rounded bg-gray-100 px-1">.env.example</code> (ver{" "}
-          <a href="/docs/setup" className="text-tibe-primary hover:underline">Setup local</a>), configuradas em
+          <a href="/docs/setup" className="text-primaria-tinta hover:underline">Setup local</a>), configuradas em
           Project Settings → Environment Variables na Vercel. Duas merecem atenção especial:
         </p>
         <ul className="mt-2 list-disc space-y-1 pl-5">
@@ -75,7 +75,7 @@ export default function DeployPage() {
         <p className="mt-2">
           09:00 UTC = 06:00 no horário de Brasília. Não há worker persistente hospedado em lugar nenhum: o
           processamento roda síncrono dentro da própria requisição de cron (ver{" "}
-          <a href="/docs/arquitetura" className="text-tibe-primary hover:underline">Arquitetura</a>).
+          <a href="/docs/arquitetura" className="text-primaria-tinta hover:underline">Arquitetura</a>).
         </p>
       </section>
 
