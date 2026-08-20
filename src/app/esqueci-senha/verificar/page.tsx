@@ -2,11 +2,12 @@ import { redirect } from "next/navigation";
 import VerifyCodeForm from "./verify-code-form";
 
 /** Recuperação de senha, etapa 2 (spec 2026-07-29): validar o código de 6 dígitos. */
-export default function VerificarCodigoPage({
-  searchParams,
-}: {
-  searchParams: { email?: string };
-}) {
+export default async function VerificarCodigoPage(
+  props: {
+    searchParams: Promise<{ email?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const email = searchParams.email;
   if (!email) redirect("/esqueci-senha");
 

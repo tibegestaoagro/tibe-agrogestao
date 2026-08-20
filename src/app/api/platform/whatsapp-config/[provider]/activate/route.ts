@@ -7,10 +7,8 @@ import { activateProviderAction } from "@/lib/actions/platform-whatsapp-config";
 
 const providerSchema = z.enum(["evolution", "meta_cloud_api"]);
 
-export async function POST(
-  _request: Request,
-  { params }: { params: { provider: string } },
-) {
+export async function POST(_request: Request, props: { params: Promise<{ provider: string }> }) {
+  const params = await props.params;
   const g = await guardPlatform({ requireMasterAdmin: true });
   if ("error" in g) return g.error;
 

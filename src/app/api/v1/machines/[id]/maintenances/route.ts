@@ -12,7 +12,8 @@ const schema = z.object({
   next_due_at: z.string().datetime().nullish(),
 });
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const g = await guard("maquinas", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
 

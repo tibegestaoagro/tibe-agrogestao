@@ -10,7 +10,8 @@ const schema = z.object({
   active: z.boolean().optional(),
 });
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const g = await guard("financeiro", "write");
   if ("error" in g) return g.error;
 

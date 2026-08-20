@@ -23,7 +23,8 @@ const updateSchema = z.object({
   status: z.enum(["active", "maintenance", "sold", "inactive"]).optional(),
 });
 
-export async function GET(_request: Request, { params }: { params: { id: string } }) {
+export async function GET(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const g = await guard("maquinas", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -36,7 +37,8 @@ export async function GET(_request: Request, { params }: { params: { id: string 
   });
 }
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const g = await guard("maquinas", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
 

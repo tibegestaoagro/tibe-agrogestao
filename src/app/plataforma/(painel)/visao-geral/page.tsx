@@ -18,11 +18,12 @@ function fmtBRL(n: number): string {
  * diretamente (Server Component), sem round-trip pela própria API HTTP:
  * mesmo padrão das páginas server do painel de tenant.
  */
-export default async function PlatformKpisPage({
-  searchParams,
-}: {
-  searchParams: { period?: string };
-}) {
+export default async function PlatformKpisPage(
+  props: {
+    searchParams: Promise<{ period?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const platformUser = await getPlatformSessionUser();
   if (!platformUser) redirect("/plataforma/login");
   if (!isMasterAdmin(platformUser.role)) redirect("/plataforma/tenants");

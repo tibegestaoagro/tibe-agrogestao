@@ -33,7 +33,7 @@ export function serializePasture(p: any) {
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 /**
  * Serializa um registro de rebanho (`AnimalBatch`). Desde a unificação de
  * 2026-08-04: `ear_tag` e `sex` podem ser nulos (quem trabalha por

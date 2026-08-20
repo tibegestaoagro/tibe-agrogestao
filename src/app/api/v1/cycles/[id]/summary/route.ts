@@ -6,10 +6,8 @@ import { decToNum } from "@/lib/serialize";
  * GET /api/v1/cycles/:id/summary   (contrato spec 1.11)
  * Custo total de insumos, custo por hectare, produtividade por hectare (se colhido).
  */
-export async function GET(
-  _request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function GET(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const g = await guard("lavoura", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
 

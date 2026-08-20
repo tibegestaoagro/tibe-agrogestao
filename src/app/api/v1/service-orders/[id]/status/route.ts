@@ -24,10 +24,8 @@ const NEXT: Record<string, string | null> = {
   invoiced: null,
 };
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const g = await guard("prestador", "write", { profile: "prestador" });
   if ("error" in g) return g.error;
 

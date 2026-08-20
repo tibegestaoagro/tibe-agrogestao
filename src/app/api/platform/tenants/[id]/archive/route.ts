@@ -9,10 +9,8 @@ const schema = z.object({ archived: z.boolean() });
  * POST /api/platform/tenants/:id/archive (spec 2026-07-27): só master_admin.
  * `{ archived: true }` arquiva, `{ archived: false }` desarquiva. Idempotente.
  */
-export async function POST(
-  request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const g = await guardPlatform({ requireMasterAdmin: true });
   if ("error" in g) return g.error;
 

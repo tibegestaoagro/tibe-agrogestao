@@ -34,7 +34,7 @@ export default async function DashboardLayout({
 
   const { active_profiles: profiles } = await requireSessionGateForPage(user);
 
-  const pathname = headers().get("x-pathname") ?? "";
+  const pathname = (await headers()).get("x-pathname") ?? "";
   const billingAccess = await getBillingAccess(user.tenant_id);
   if (billingAccess === "blocked" && !isBillingExemptPath(pathname)) {
     redirect("/configuracoes/assinatura");

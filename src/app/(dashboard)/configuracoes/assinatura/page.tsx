@@ -39,10 +39,16 @@ export default async function AssinaturaPage() {
     getBillingAccess(user.tenant_id),
   ]);
 
+  // `Date.now()` num Server Component roda uma vez por requisicao, nao a cada
+  // pintura: a regra de pureza do React 19 mira re-render de cliente. Ler o
+  // relogio aqui e o comportamento desejado, e nao ha caminho mais puro sem
+  // fingir que a data vem de fora.
+  // eslint-disable-next-line react-hooks/purity
+  const agora = Date.now();
   const isPendingFirstPayment =
     subscription?.status === "overdue" &&
     subscription.next_due_date &&
-    subscription.next_due_date.getTime() > Date.now();
+    subscription.next_due_date.getTime() > agora;
 
   const statusKey = subscription
     ? subscription.status

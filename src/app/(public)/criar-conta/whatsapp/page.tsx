@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 /** Etapa 2 do cadastro verificado (Módulo 19). */
 export default async function ConfirmarWhatsappPage() {
-  const signupId = readSignupId();
+  const signupId = await readSignupId();
   if (!signupId) redirect("/criar-conta");
 
   const state = await getSignupStateAction(signupId);

@@ -6,10 +6,8 @@ import { setTeamMemberActiveAction } from "@/lib/actions/platform-team";
 const schema = z.object({ active: z.boolean() });
 
 /** PATCH /api/platform/team/:id/active (spec 6.10): só master_admin, não pode desativar a si mesmo. */
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const g = await guardPlatform({ requireMasterAdmin: true });
   if ("error" in g) return g.error;
 

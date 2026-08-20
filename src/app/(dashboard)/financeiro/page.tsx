@@ -41,16 +41,17 @@ function Card({ label, value, sub }: { label: string; value: string; sub?: strin
   );
 }
 
-export default async function FinanceiroPage({
-  searchParams,
-}: {
-  searchParams: {
-    entry_type?: string;
-    category?: string;
-    related_module?: string;
-    status?: string;
-  };
-}) {
+export default async function FinanceiroPage(
+  props: {
+    searchParams: Promise<{
+      entry_type?: string;
+      category?: string;
+      related_module?: string;
+      status?: string;
+    }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const user = await getSessionUser();
   if (!user) redirect("/login");
 

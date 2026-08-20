@@ -4,7 +4,7 @@ import { readSignupId } from "@/lib/signup-cookie";
 
 /** GET /api/v1/signup/state (Módulo 19): estado das etapas do cadastro em andamento. */
 export async function GET() {
-  const signupId = readSignupId();
+  const signupId = await readSignupId();
   if (!signupId) {
     return apiError("SIGNUP_EXPIRED", "Seu cadastro expirou. Recomece pelo formulário.", 410);
   }

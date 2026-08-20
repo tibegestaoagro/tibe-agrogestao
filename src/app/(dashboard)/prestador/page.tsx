@@ -28,11 +28,12 @@ const ORDER_STATUS: Record<string, { label: string; variant: "blue" | "amber" | 
   invoiced: { label: "Faturada", variant: "green" },
 };
 
-export default async function PrestadorPage({
-  searchParams,
-}: {
-  searchParams: { tab?: string; status?: string; service_client_id?: string };
-}) {
+export default async function PrestadorPage(
+  props: {
+    searchParams: Promise<{ tab?: string; status?: string; service_client_id?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const user = await getSessionUser();
   if (!user) redirect("/login");
   const profiles = await getActiveProfiles();

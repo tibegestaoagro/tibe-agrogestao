@@ -44,11 +44,12 @@ const TIPO_LABEL: Record<string, string> = {
   permuta_saida: "Saiu por permuta",
 };
 
-export default async function EstoquePage({
-  searchParams,
-}: {
-  searchParams: { property_id?: string };
-}) {
+export default async function EstoquePage(
+  props: {
+    searchParams: Promise<{ property_id?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const user = await getSessionUser();
   if (!user) redirect("/login");
   const profiles = await getActiveProfiles();

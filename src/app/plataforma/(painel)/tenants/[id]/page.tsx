@@ -14,7 +14,8 @@ const PLAN_LABEL: Record<string, string> = { campo: "Campo", fazenda: "Fazenda",
 const PROFILE_LABEL: Record<string, string> = { fazenda: "Fazenda", prestador: "Prestador de Serviço" };
 
 /** Detalhe do tenant (spec 6.3/6.9): histórico de assinatura e resumo de uso. */
-export default async function PlatformTenantDetailPage({ params }: { params: { id: string } }) {
+export default async function PlatformTenantDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const platformUser = await getPlatformSessionUser();
   if (!platformUser) redirect("/plataforma/login");
 

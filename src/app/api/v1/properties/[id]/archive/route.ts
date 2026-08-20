@@ -6,10 +6,8 @@ import { serializeProperty } from "@/lib/serializers";
  * POST /api/v1/properties/:id/archive   arquiva a propriedade (não deleta: 1.1).
  * Idempotente: re-arquivar mantém o archived_at original.
  */
-export async function POST(
-  _request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function POST(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const g = await guard("rebanho", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
 

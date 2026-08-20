@@ -45,11 +45,12 @@ function reais(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-export default async function NegociacoesPage({
-  searchParams,
-}: {
-  searchParams: { property_id?: string };
-}) {
+export default async function NegociacoesPage(
+  props: {
+    searchParams: Promise<{ property_id?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const user = await getSessionUser();
   if (!user) redirect("/login");
   const profiles = await getActiveProfiles();

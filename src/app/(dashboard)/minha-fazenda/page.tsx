@@ -26,11 +26,12 @@ function Stat({ label, value }: { label: string; value: string }) {
  * Máquinas, Lavoura, Prestador, Financeiro, Alertas): esta tela é sobre a
  * ESTRUTURA da propriedade, não sobre os módulos que rodam dentro dela.
  */
-export default async function MinhaFazendaPage({
-  searchParams,
-}: {
-  searchParams: { property_id?: string };
-}) {
+export default async function MinhaFazendaPage(
+  props: {
+    searchParams: Promise<{ property_id?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const user = await getSessionUser();
   if (!user) redirect("/login");
   const profiles = await getActiveProfiles();

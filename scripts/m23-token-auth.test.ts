@@ -49,26 +49,13 @@ async function main() {
     readBearerToken,
     resolveSessionUserFromAccessToken,
   } = await import("@/lib/auth-token");
-  const { requestAsyncStorage } = await import(
-    "next/dist/client/components/request-async-storage.external"
-  );
+  const { withBearer } = await import("./_escopo-de-requisicao");
   const tokenRoute = await import("@/app/api/v1/auth/token/route");
   const refreshRoute = await import("@/app/api/v1/auth/token/refresh/route");
   const revokeRoute = await import("@/app/api/v1/auth/token/revoke/route");
   // Rotas de negócio EXISTENTES, importadas exatamente como estão no repositório.
   const animalsRoute = await import("@/app/api/v1/animals/route");
   const animalDetailRoute = await import("@/app/api/v1/animals/[id]/route");
-
-  /** Executa `fn` como se fosse uma requisição com (ou sem) header Authorization. */
-  function withBearer<T>(token: string | null, fn: () => Promise<T>): Promise<T> {
-    const store = {
-      headers: new Headers(token ? { authorization: `Bearer ${token}` } : {}),
-      cookies: { get: () => undefined, getAll: () => [], has: () => false },
-      mutableCookies: { get: () => undefined, getAll: () => [], has: () => false, set: () => {} },
-      draftMode: { isEnabled: false },
-    } as unknown as Parameters<typeof requestAsyncStorage.run>[0];
-    return requestAsyncStorage.run(store, fn);
-  }
 
   function post(url: string, payload: unknown): Request {
     return new Request(url, {
@@ -198,8 +185,9 @@ async function main() {
 
     // ── 4. Isolamento entre tenants ───────────────────────────────────────
     res = await withBearer(pair.access_token, () =>
+      // `params` virou promessa no Next 16: o handler faz `await` nele.
       animalDetailRoute.GET(new Request("http://localhost/api/v1/animals/x"), {
-        params: { id: B.animal.id },
+        params: Promise.resolve({ id: B.animal.id }),
       }),
     );
     assert(

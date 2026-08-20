@@ -26,7 +26,13 @@ export function clearSignupCookie() {
   return { ...buildSignupCookie(""), maxAge: 0 };
 }
 
-/** Lê o id do cadastro em andamento (Server Component ou route handler). */
-export function readSignupId(): string | null {
-  return cookies().get(SIGNUP_COOKIE)?.value || null;
+/**
+ * Lê o id do cadastro em andamento (Server Component ou route handler).
+ *
+ * Assíncrona desde o Next 16: `cookies()` passou a devolver promessa. Os cinco
+ * pontos de chamada já rodavam dentro de função assíncrona, então a mudança
+ * ficou no `await`.
+ */
+export async function readSignupId(): Promise<string | null> {
+  return (await cookies()).get(SIGNUP_COOKIE)?.value || null;
 }

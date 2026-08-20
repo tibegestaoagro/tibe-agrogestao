@@ -5,7 +5,8 @@ import { cancelEntryAction } from "@/lib/actions/financial-entries";
 
 /** PATCH /api/v1/financial-entries/:id/cancel: cancela um lançamento (Módulo 28). */
 
-export async function PATCH(_request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const g = await guard("financeiro", "write");
   if ("error" in g) return g.error;
 

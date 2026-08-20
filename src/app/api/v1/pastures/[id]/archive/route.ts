@@ -7,10 +7,8 @@ import { getPastureAreaSummary } from "@/lib/actions/properties";
  * POST /api/v1/pastures/:id/archive   desativa o pasto (não deleta: doc §5 "excluir ou desativar").
  * Idempotente: re-desativar mantém o archived_at original.
  */
-export async function POST(
-  _request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function POST(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const g = await guard("rebanho", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
 

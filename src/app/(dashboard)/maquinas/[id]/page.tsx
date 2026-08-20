@@ -32,7 +32,8 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default async function MachineDetail({ params }: { params: { id: string } }) {
+export default async function MachineDetail(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getSessionUser();
   if (!user) redirect("/login");
   const profiles = await getActiveProfiles();
