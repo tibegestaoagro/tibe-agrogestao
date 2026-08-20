@@ -2,12 +2,13 @@ import { apiOk, apiError, ApiErrors } from "@/lib/api";
 import { guard } from "@/lib/api-guard";
 import { serializePasture } from "@/lib/serializers";
 import { getPastureAreaSummary } from "@/lib/actions/properties";
+import { withApi } from "@/lib/route";
 
 /**
  * POST /api/v1/pastures/:id/archive   desativa o pasto (não deleta: doc §5 "excluir ou desativar").
  * Idempotente: re-desativar mantém o archived_at original.
  */
-export async function POST(_request: Request, props: { params: Promise<{ id: string }> }) {
+async function POSTHandler(_request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guard("rebanho", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
@@ -26,3 +27,5 @@ export async function POST(_request: Request, props: { params: Promise<{ id: str
 
   return apiOk(serializePasture(pasture), { area_summary });
 }
+
+export const POST = withApi(POSTHandler);

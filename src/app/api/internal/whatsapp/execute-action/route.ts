@@ -6,6 +6,7 @@ import { isIntent } from "@/lib/whatsapp-intents";
 import { detectConfirmation } from "@/lib/actions/confirmation";
 import { logInbound, logOutbound } from "@/lib/actions/conversation-log";
 import { routeIntent } from "@/lib/actions/whatsapp-router";
+import { withApi } from "@/lib/route";
 
 /**
  * POST /api/internal/whatsapp/execute-action (spec 3.5)
@@ -30,7 +31,7 @@ const schema = z.object({
   confirmed: z.boolean().nullish(),
 });
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const auth = requireInternalSecret(request);
   if ("error" in auth) return auth.error;
 
@@ -114,3 +115,5 @@ export async function POST(request: Request) {
     action_taken: result.action_taken,
   });
 }
+
+export const POST = withApi(POSTHandler);

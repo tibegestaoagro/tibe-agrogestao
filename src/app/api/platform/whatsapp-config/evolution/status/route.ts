@@ -4,9 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { decryptConfig } from "@/lib/crypto-config";
 import type { EvolutionCredentials } from "@/lib/actions/platform-whatsapp-config";
 import { getInstanceStatus } from "@/lib/evolution-client";
+import { withApi } from "@/lib/route";
 
 /** GET /api/platform/whatsapp-config/evolution/status: usado pelo polling do card. */
-export async function GET() {
+async function GETHandler() {
   const g = await guardPlatform({ requireMasterAdmin: true });
   if ("error" in g) return g.error;
 
@@ -17,3 +18,5 @@ export async function GET() {
   const result = await getInstanceStatus(creds);
   return apiOk(result);
 }
+
+export const GET = withApi(GETHandler);

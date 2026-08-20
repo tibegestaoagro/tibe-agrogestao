@@ -4,6 +4,7 @@ import { guard, readJson } from "@/lib/api-guard";
 import { scoped } from "@/lib/prisma";
 import { serializePasture } from "@/lib/serializers";
 import { getPastureAreaSummary } from "@/lib/actions/properties";
+import { withApi } from "@/lib/route";
 
 /**
  * GET  /api/v1/pastures?property_id=   lista pastos ativos de uma fazenda (Módulo 29)
@@ -21,7 +22,7 @@ const createSchema = z.object({
   property_id: z.string().min(1, "Propriedade é obrigatória"),
 });
 
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   const g = await guard("rebanho", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -40,7 +41,7 @@ export async function GET(request: Request) {
   return apiOk(pastures.map(serializePasture), { total: pastures.length, area_summary });
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const g = await guard("rebanho", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -71,3 +72,6 @@ export async function POST(request: Request) {
 
   return apiOk(serializePasture(pasture), { area_summary }, { status: 201 });
 }
+
+export const GET = withApi(GETHandler);
+export const POST = withApi(POSTHandler);

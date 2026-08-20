@@ -1,6 +1,7 @@
 import { apiOk, apiError, ApiErrors } from "@/lib/api";
 import { guard } from "@/lib/api-guard";
 import { getNegotiation, serializeNegotiation } from "@/lib/actions/negotiations";
+import { withApi } from "@/lib/route";
 
 /**
  * GET /api/v1/negotiations/:id   detalhe da negociação (Módulo 31, §17.10)
@@ -14,7 +15,7 @@ import { getNegotiation, serializeNegotiation } from "@/lib/actions/negotiations
  * quantidade ou valor teria que desfazer filhos que já podem ter virado
  * dinheiro pago ou animal vendido.
  */
-export async function GET(_request: Request, props: { params: Promise<{ id: string }> }) {
+async function GETHandler(_request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guard("rebanho", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
@@ -24,3 +25,5 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
 
   return apiOk(serializeNegotiation(negociacao));
 }
+
+export const GET = withApi(GETHandler);

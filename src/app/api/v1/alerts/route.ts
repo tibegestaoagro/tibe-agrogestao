@@ -2,6 +2,7 @@ import type { AlertType, AlertStatus } from "@/generated/prisma/client";
 import { apiOk } from "@/lib/api";
 import { guard } from "@/lib/api-guard";
 import { isoOrNull } from "@/lib/serialize";
+import { withApi } from "@/lib/route";
 
 /**
  * GET /api/v1/alerts?type=&status=: lista de alertas (spec 4.12).
@@ -24,7 +25,7 @@ const TIPOS: readonly string[] = [
 ];
 const STATUS: readonly string[] = ["pending", "sent", "dismissed"];
 
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   const g = await guard("alertas", "read");
   if ("error" in g) return g.error;
 
@@ -56,3 +57,5 @@ export async function GET(request: Request) {
 
   return apiOk(data, { total: data.length });
 }
+
+export const GET = withApi(GETHandler);

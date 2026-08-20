@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { createMachineAction, listMachinesAction, serializeMachine } from "@/lib/actions/machines";
+import { withApi } from "@/lib/route";
 
 /**
  * GET  /api/v1/machines    lista máquinas do tenant (Módulo 26)
@@ -20,7 +21,7 @@ const createSchema = z.object({
   hour_meter: z.number().nonnegative().nullish(),
 });
 
-export async function GET() {
+async function GETHandler() {
   const g = await guard("maquinas", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -29,7 +30,7 @@ export async function GET() {
   return apiOk(data, { total: data.length });
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const g = await guard("maquinas", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -56,3 +57,6 @@ export async function POST(request: Request) {
   if (!result.ok) return apiError(result.code, result.message, result.status);
   return apiOk(result.data, {}, { status: 201 });
 }
+
+export const GET = withApi(GETHandler);
+export const POST = withApi(POSTHandler);

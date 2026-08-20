@@ -4,6 +4,7 @@ import { guard, readJson } from "@/lib/api-guard";
 import { scoped } from "@/lib/prisma";
 import { serializeInput } from "@/lib/serializers";
 import { createLinkedEntry } from "@/lib/financial";
+import { withApi } from "@/lib/route";
 
 /**
  * GET  /api/v1/cycles/:id/inputs    lista insumos do ciclo
@@ -19,7 +20,7 @@ const createSchema = z.object({
   applied_at: z.string().datetime().nullish(),
 });
 
-export async function GET(_request: Request, props: { params: Promise<{ id: string }> }) {
+async function GETHandler(_request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guard("lavoura", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
@@ -35,7 +36,7 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
   return apiOk(inputs.map(serializeInput), { total: inputs.length });
 }
 
-export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+async function POSTHandler(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guard("lavoura", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
@@ -79,3 +80,6 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
   return apiOk(serializeInput(input), {}, { status: 201 });
 }
+
+export const GET = withApi(GETHandler);
+export const POST = withApi(POSTHandler);

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { requireInternalSecret } from "@/lib/internal-guard";
 import { appendToBuffer, flushBuffer } from "@/lib/actions/whatsapp-buffer";
+import { withApi } from "@/lib/route";
 
 /**
  * POST /api/internal/whatsapp/buffer (2026-07-30)
@@ -27,7 +28,7 @@ const schema = z.discriminatedUnion("op", [
   }),
 ]);
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const auth = requireInternalSecret(request);
   if ("error" in auth) return auth.error;
 
@@ -45,3 +46,5 @@ export async function POST(request: Request) {
   const result = await flushBuffer(parsed.data.phone, parsed.data.token);
   return apiOk(result);
 }
+
+export const POST = withApi(POSTHandler);

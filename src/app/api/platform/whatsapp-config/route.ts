@@ -7,6 +7,7 @@ import {
   upsertProviderConfigAction,
   maskCredentials,
 } from "@/lib/actions/platform-whatsapp-config";
+import { withApi } from "@/lib/route";
 
 /**
  * GET/PUT /api/platform/whatsapp-config (spec 2026-07-11): só master_admin.
@@ -33,7 +34,7 @@ const putSchema = z.discriminatedUnion("provider", [
   }),
 ]);
 
-export async function GET() {
+async function GETHandler() {
   const g = await guardPlatform({ requireMasterAdmin: true });
   if ("error" in g) return g.error;
 
@@ -48,7 +49,7 @@ export async function GET() {
   );
 }
 
-export async function PUT(request: Request) {
+async function PUTHandler(request: Request) {
   const g = await guardPlatform({ requireMasterAdmin: true });
   if ("error" in g) return g.error;
 
@@ -62,3 +63,6 @@ export async function PUT(request: Request) {
   if (!result.ok) return apiError(result.code, result.message, result.status);
   return apiOk(result.data);
 }
+
+export const GET = withApi(GETHandler);
+export const PUT = withApi(PUTHandler);

@@ -2,13 +2,14 @@ import { apiOk } from "@/lib/api";
 import { guard } from "@/lib/api-guard";
 import { prisma } from "@/lib/prisma";
 import { isoOrNull } from "@/lib/serialize";
+import { withApi } from "@/lib/route";
 
 /**
  * GET /api/v1/billing/subscription (contrato spec 5.9)
  * Acessível mesmo com a conta bloqueada (skipBillingCheck): é a própria
  * página de regularização que depende disso.
  */
-export async function GET() {
+async function GETHandler() {
   const g = await guard("assinatura", "read", { skipBillingCheck: true });
   if ("error" in g) return g.error;
 
@@ -27,3 +28,5 @@ export async function GET() {
     trial_ends_at: isoOrNull(tenant?.trial_ends_at ?? null),
   });
 }
+
+export const GET = withApi(GETHandler);

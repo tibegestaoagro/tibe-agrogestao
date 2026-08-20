@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { confirmPasswordResetAction } from "@/lib/actions/password-reset";
+import { withApi } from "@/lib/route";
 
 /**
  * POST /api/v1/password-reset/confirm: define a nova senha depois do código
@@ -13,7 +14,7 @@ const schema = z.object({
   new_password: z.string().min(1, "Nova senha é obrigatória"),
 });
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const json = await request.json().catch(() => null);
   const parsed = schema.safeParse(json);
   if (!parsed.success) {
@@ -27,3 +28,5 @@ export async function POST(request: Request) {
   if (!result.ok) return apiError(result.code, result.message, result.status);
   return apiOk(result.data);
 }
+
+export const POST = withApi(POSTHandler);

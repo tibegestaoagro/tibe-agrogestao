@@ -11,6 +11,7 @@ import {
   serializeHerdMovementRecord,
   type HerdMovementFilter,
 } from "@/lib/actions/herd-ledger";
+import { withApi } from "@/lib/route";
 
 /**
  * GET  /api/v1/herd/movements   histórico do rebanho (§10.7)
@@ -53,7 +54,7 @@ function parseDate(raw: string | null): Date | undefined {
   return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   const g = await guard("rebanho", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -93,7 +94,7 @@ export async function GET(request: Request) {
   return apiOk(items.map(serializeHerdMovement), { total });
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const g = await guard("rebanho", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -121,3 +122,6 @@ export async function POST(request: Request) {
 
   return apiOk(serializeHerdMovementRecord(result.data), {}, { status: 201 });
 }
+
+export const GET = withApi(GETHandler);
+export const POST = withApi(POSTHandler);

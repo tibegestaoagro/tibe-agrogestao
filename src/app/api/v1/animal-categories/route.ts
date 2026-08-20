@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { listCategoriesAction, createCategoryAction } from "@/lib/actions/animal-categories";
+import { withApi } from "@/lib/route";
 
 /**
  * GET  /api/v1/animal-categories    lista categorias do tenant (semeia a
@@ -13,7 +14,7 @@ const createSchema = z.object({
   name: z.string().trim().min(1, "Nome é obrigatório"),
 });
 
-export async function GET() {
+async function GETHandler() {
   const g = await guard("rebanho", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -27,7 +28,7 @@ export async function GET() {
   return apiOk(data, { total: data.length });
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const g = await guard("rebanho", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -43,3 +44,6 @@ export async function POST(request: Request) {
   if (!result.ok) return apiError(result.code, result.message, result.status);
   return apiOk(result.data, {}, { status: 201 });
 }
+
+export const GET = withApi(GETHandler);
+export const POST = withApi(POSTHandler);

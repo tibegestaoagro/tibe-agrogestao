@@ -3,6 +3,7 @@ import { apiOk, apiError, ApiErrors } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { serializeMovement } from "@/lib/serializers";
 import { addMovementAction } from "@/lib/actions/animal-movements";
+import { withApi } from "@/lib/route";
 
 /**
  * GET  /api/v1/animals/:id/movements    histórico de movimentações
@@ -24,7 +25,7 @@ const createSchema = z.object({
   occurred_at: z.string().datetime().nullish(),
 });
 
-export async function GET(_request: Request, props: { params: Promise<{ id: string }> }) {
+async function GETHandler(_request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guard("rebanho", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
@@ -40,7 +41,7 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
   return apiOk(movements.map(serializeMovement), { count: movements.length });
 }
 
-export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+async function POSTHandler(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guard("rebanho", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
@@ -73,3 +74,6 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
   return apiOk(serializeMovement(movement!), {}, { status: 201 });
 }
+
+export const GET = withApi(GETHandler);
+export const POST = withApi(POSTHandler);

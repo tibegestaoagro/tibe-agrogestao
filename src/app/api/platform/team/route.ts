@@ -3,6 +3,7 @@ import { apiOk, apiError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { guardPlatform } from "@/lib/platform-guard";
 import { inviteTeamMemberAction } from "@/lib/actions/platform-team";
+import { withApi } from "@/lib/route";
 
 /** GET /api/platform/team · POST /api/platform/team (spec 6.10): só master_admin. */
 
@@ -12,7 +13,7 @@ const createSchema = z.object({
   role: z.enum(["MASTER_ADMIN", "EQUIPE"]),
 });
 
-export async function GET() {
+async function GETHandler() {
   const g = await guardPlatform({ requireMasterAdmin: true });
   if ("error" in g) return g.error;
 
@@ -30,7 +31,7 @@ export async function GET() {
   );
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const g = await guardPlatform({ requireMasterAdmin: true });
   if ("error" in g) return g.error;
 
@@ -45,3 +46,6 @@ export async function POST(request: Request) {
 
   return apiOk(result.data, {}, { status: 201 });
 }
+
+export const GET = withApi(GETHandler);
+export const POST = withApi(POSTHandler);

@@ -82,6 +82,12 @@ jobs:
       - name: Gate de sessao por rota
         run: npm run test:m39
 
+      # Nenhuma rota pode devolver algo fora do envelope do contrato, nem
+      # mesmo quando a excecao nao foi prevista. A suite tambem reprova rota
+      # nova que exporte handler cru, sem o wrapper.
+      - name: Envelope de erro garantido
+        run: npm run test:m40
+
       - name: Build
         run: npm run build
 

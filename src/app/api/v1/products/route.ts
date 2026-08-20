@@ -3,6 +3,7 @@ import { guard, readJson } from "@/lib/api-guard";
 import { productCreateSchema } from "@/lib/validation/stock";
 import { createProduct, listProductsWithBalance } from "@/lib/actions/products";
 import { STOCK_UNITS } from "@/lib/stock/units";
+import { withApi } from "@/lib/route";
 
 /**
  * GET  /api/v1/products   catálogo com o saldo de cada produto (Módulo 31, §9)
@@ -16,7 +17,7 @@ import { STOCK_UNITS } from "@/lib/stock/units";
  * segunda rota: as 11 unidades do §10.5 são constante de código, não linha de
  * banco, e cada uma carrega se aceita quantidade quebrada.
  */
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   const g = await guard("rebanho", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -31,7 +32,7 @@ export async function GET(request: Request) {
   });
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const g = await guard("rebanho", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -57,3 +58,6 @@ export async function POST(request: Request) {
 
   return apiOk(result.data, {}, { status: 201 });
 }
+
+export const GET = withApi(GETHandler);
+export const POST = withApi(POSTHandler);

@@ -1,6 +1,7 @@
 import { apiOk } from "@/lib/api";
 import { guard } from "@/lib/api-guard";
 import { ensureProductCategories, listProductCategories } from "@/lib/actions/products";
+import { withApi } from "@/lib/route";
 
 /**
  * GET /api/v1/product-categories  as categorias de produto (Módulo 31, §9.1)
@@ -17,7 +18,7 @@ import { ensureProductCategories, listProductCategories } from "@/lib/actions/pr
  * estoque já vivem sob essa chave. Um recorte próprio criaria a situação de
  * alguém poder comprar um produto e não poder ver onde ele foi parar.
  */
-export async function GET() {
+async function GETHandler() {
   const g = await guard("rebanho", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -38,3 +39,5 @@ export async function GET() {
 
   return apiOk(categorias, { seeded: criadas });
 }
+
+export const GET = withApi(GETHandler);

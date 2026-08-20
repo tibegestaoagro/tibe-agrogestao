@@ -3,6 +3,7 @@ import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { inviteUserAction } from "@/lib/actions/users";
 import { getSeatUsage } from "@/lib/seats";
+import { withApi } from "@/lib/route";
 
 /** GET /api/v1/users · POST /api/v1/users (spec 5.2) */
 
@@ -13,7 +14,7 @@ const createSchema = z.object({
   role: z.enum(["OWNER", "ADMIN", "OPERADOR", "VISUALIZADOR"]),
 });
 
-export async function GET() {
+async function GETHandler() {
   const g = await guard("usuarios", "read");
   if ("error" in g) return g.error;
 
@@ -37,7 +38,7 @@ export async function GET() {
   );
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const g = await guard("usuarios", "write");
   if ("error" in g) return g.error;
 
@@ -59,3 +60,6 @@ export async function POST(request: Request) {
 
   return apiOk(result.data, {}, { status: 201 });
 }
+
+export const GET = withApi(GETHandler);
+export const POST = withApi(POSTHandler);

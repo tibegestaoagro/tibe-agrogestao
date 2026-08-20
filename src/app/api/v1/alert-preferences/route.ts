@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { listAlertPreferencesAction, setAlertPreferenceAction } from "@/lib/actions/alert-preferences";
+import { withApi } from "@/lib/route";
 
 /**
  * GET   /api/v1/alert-preferences    lista os 7 tipos com seu estado (Módulo 28)
@@ -25,7 +26,7 @@ const schema = z.object({
   enabled: z.boolean(),
 });
 
-export async function GET() {
+async function GETHandler() {
   const g = await guard("alertas", "read");
   if ("error" in g) return g.error;
 
@@ -33,7 +34,7 @@ export async function GET() {
   return apiOk(prefs, { total: prefs.length });
 }
 
-export async function PATCH(request: Request) {
+async function PATCHHandler(request: Request) {
   const g = await guard("alertas", "write");
   if ("error" in g) return g.error;
 
@@ -49,3 +50,6 @@ export async function PATCH(request: Request) {
   if (!result.ok) return apiError(result.code, result.message, result.status);
   return apiOk(result.data);
 }
+
+export const GET = withApi(GETHandler);
+export const PATCH = withApi(PATCHHandler);

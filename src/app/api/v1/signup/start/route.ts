@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { startSignupAction } from "@/lib/actions/signup-flow";
 import { buildSignupCookie } from "@/lib/signup-cookie";
+import { withApi } from "@/lib/route";
 
 /**
  * POST /api/v1/signup/start (Módulo 19, etapa 1).
@@ -23,7 +24,7 @@ const schema = z.object({
   utm_campaign: z.string().trim().min(1).nullish(),
 });
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const json = await request.json().catch(() => null);
   const parsed = schema.safeParse(json);
   if (!parsed.success) {
@@ -46,3 +47,5 @@ export async function POST(request: Request) {
   res.cookies.set(buildSignupCookie(result.data.signup_id));
   return res;
 }
+
+export const POST = withApi(POSTHandler);

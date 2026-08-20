@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError, ApiErrors } from "@/lib/api";
 import { getSessionUser } from "@/lib/tenant-context";
 import { prisma } from "@/lib/prisma";
+import { withApi } from "@/lib/route";
 
 /**
  * POST /api/v1/tenant/plan (spec 2026-07-27): confirma o plano de um tenant
@@ -14,7 +15,7 @@ import { prisma } from "@/lib/prisma";
  */
 const schema = z.object({ plan: z.enum(["campo", "fazenda", "grupo"]) });
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const user = await getSessionUser();
   if (!user) return apiError(...ApiErrors.UNAUTHORIZED);
 
@@ -31,3 +32,5 @@ export async function POST(request: Request) {
 
   return apiOk({ plan: parsed.data.plan });
 }
+
+export const POST = withApi(POSTHandler);

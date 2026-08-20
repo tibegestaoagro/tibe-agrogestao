@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError, ApiErrors } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { decToNum, isoOrNull } from "@/lib/serialize";
+import { withApi } from "@/lib/route";
 
 /**
  * PATCH /api/v1/cycles/:id/harvest   (contrato spec 1.9)
@@ -14,7 +15,7 @@ const schema = z.object({
   yield_unit: z.enum(["saca", "tonelada", "kg"]),
 });
 
-export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+async function PATCHHandler(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guard("lavoura", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
@@ -58,3 +59,5 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     harvested_at: isoOrNull(updated.harvested_at),
   });
 }
+
+export const PATCH = withApi(PATCHHandler);

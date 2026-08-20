@@ -3,12 +3,13 @@ import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { serializeFinancialEntry } from "@/lib/serializers";
 import { markEntryPaidAction } from "@/lib/actions/financial-entries";
+import { withApi } from "@/lib/route";
 
 /** PATCH /api/v1/financial-entries/:id/pay: marca como pago (spec 4.2). */
 
 const schema = z.object({ paid_at: z.string().datetime().nullish() });
 
-export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+async function PATCHHandler(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guard("financeiro", "write");
   if ("error" in g) return g.error;
@@ -31,3 +32,5 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
   const entry = await g.db.financialEntry.findFirst({ where: { id: params.id } });
   return apiOk(serializeFinancialEntry(entry!));
 }
+
+export const PATCH = withApi(PATCHHandler);

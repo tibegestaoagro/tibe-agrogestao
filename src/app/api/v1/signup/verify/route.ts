@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { verifySignupCodeAction } from "@/lib/actions/signup-flow";
 import { readSignupId, clearSignupCookie } from "@/lib/signup-cookie";
+import { withApi } from "@/lib/route";
 
 /**
  * POST /api/v1/signup/verify (Módulo 19, etapas 2 e 3).
@@ -16,7 +17,7 @@ const schema = z.object({
   code: z.string().trim().regex(/^\d{6}$/, "Código inválido ou expirado"),
 });
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const signupId = await readSignupId();
   if (!signupId) {
     return apiError("SIGNUP_EXPIRED", "Seu cadastro expirou. Recomece pelo formulário.", 410);
@@ -36,3 +37,5 @@ export async function POST(request: Request) {
   if (result.data.completed) res.cookies.set(clearSignupCookie());
   return res;
 }
+
+export const POST = withApi(POSTHandler);

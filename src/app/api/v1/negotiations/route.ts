@@ -10,6 +10,7 @@ import {
 } from "@/lib/actions/negotiations";
 import { createProductNegotiation } from "@/lib/actions/product-negotiations";
 import type { TenantPrismaClient } from "@/lib/prisma";
+import { withApi } from "@/lib/route";
 
 /**
  * GET  /api/v1/negotiations   lista as negociações (Módulo 31, §19)
@@ -44,7 +45,7 @@ function parseDate(raw: string | null): Date | undefined {
   return Number.isNaN(d.getTime()) ? undefined : d;
 }
 
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   const g = await guard("rebanho", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -77,7 +78,7 @@ export async function GET(request: Request) {
   return apiOk(items.map(serializeNegotiation), { total });
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const g = await guard("rebanho", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -157,3 +158,6 @@ async function criarNegocioDeProduto(g: GuardOk, json: unknown) {
 
   return apiOk(result.data, {}, { status: 201 });
 }
+
+export const GET = withApi(GETHandler);
+export const POST = withApi(POSTHandler);

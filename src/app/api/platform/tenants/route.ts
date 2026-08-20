@@ -4,6 +4,7 @@ import { guardPlatform } from "@/lib/platform-guard";
 import { apiOk, apiError } from "@/lib/api";
 import { isoOrNull } from "@/lib/serialize";
 import { createTenantManuallyAction } from "@/lib/actions/platform-tenants";
+import { withApi } from "@/lib/route";
 
 /**
  * GET /api/platform/tenants (spec 6.3). "equipe" e "master_admin" têm o
@@ -14,7 +15,7 @@ import { createTenantManuallyAction } from "@/lib/actions/platform-tenants";
  * overdue|canceled) num único enum, porque é assim que a spec define o
  * filtro: sem assinatura conta como "trial" independente de Tenant.status.
  */
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   const g = await guardPlatform();
   if ("error" in g) return g.error;
 
@@ -74,7 +75,7 @@ const createSchema = z.object({
 });
 
 /** POST /api/platform/tenants (spec 2026-07-24): só master_admin. */
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const g = await guardPlatform({ requireMasterAdmin: true });
   if ("error" in g) return g.error;
 
@@ -88,3 +89,6 @@ export async function POST(request: Request) {
   if (!result.ok) return apiError(result.code, result.message, result.status);
   return apiOk(result.data, {}, { status: 201 });
 }
+
+export const GET = withApi(GETHandler);
+export const POST = withApi(POSTHandler);

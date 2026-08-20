@@ -9,6 +9,7 @@ import {
   connectInstance,
   setInstanceWebhook,
 } from "@/lib/evolution-client";
+import { withApi } from "@/lib/route";
 
 /**
  * POST /api/platform/whatsapp-config/evolution/connect (spec 2026-07-24,
@@ -17,7 +18,7 @@ import {
  * estiver conectada) e aponta o webhook pro N8N: nunca precisa mexer na
  * Evolution direto, tudo pelo painel.
  */
-export async function POST() {
+async function POSTHandler() {
   const g = await guardPlatform({ requireMasterAdmin: true });
   if ("error" in g) return g.error;
 
@@ -38,3 +39,5 @@ export async function POST() {
 
   return apiOk({ ...result, webhook_configured: webhook.ok });
 }
+
+export const POST = withApi(POSTHandler);

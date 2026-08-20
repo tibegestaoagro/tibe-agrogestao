@@ -3,6 +3,7 @@ import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { scoped } from "@/lib/prisma";
 import { serializeService } from "@/lib/serializers";
+import { withApi } from "@/lib/route";
 
 /**
  * GET  /api/v1/services    catálogo de serviços do tenant
@@ -15,7 +16,7 @@ const createSchema = z.object({
   unit_price: z.number().nonnegative("Valor inválido"),
 });
 
-export async function GET() {
+async function GETHandler() {
   const g = await guard("prestador", "read", { profile: "prestador" });
   if ("error" in g) return g.error;
 
@@ -23,7 +24,7 @@ export async function GET() {
   return apiOk(services.map(serializeService), { total: services.length });
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const g = await guard("prestador", "write", { profile: "prestador" });
   if ("error" in g) return g.error;
 
@@ -45,3 +46,6 @@ export async function POST(request: Request) {
 
   return apiOk(serializeService(service), {}, { status: 201 });
 }
+
+export const GET = withApi(GETHandler);
+export const POST = withApi(POSTHandler);

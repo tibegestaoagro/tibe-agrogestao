@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError, ApiErrors } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { serializeAnimal } from "@/lib/serializers";
+import { withApi } from "@/lib/route";
 
 /**
  * GET   /api/v1/animals/:id    detalhe do animal
@@ -16,7 +17,7 @@ const updateSchema = z.object({
   birth_date: z.string().datetime().nullish(),
 });
 
-export async function GET(_request: Request, props: { params: Promise<{ id: string }> }) {
+async function GETHandler(_request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guard("rebanho", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
@@ -33,7 +34,7 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
   });
 }
 
-export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+async function PATCHHandler(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guard("rebanho", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
@@ -83,3 +84,6 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
   return apiOk(serializeAnimal(animal));
 }
+
+export const GET = withApi(GETHandler);
+export const PATCH = withApi(PATCHHandler);

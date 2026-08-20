@@ -1,11 +1,12 @@
 import { apiOk, apiError, ApiErrors } from "@/lib/api";
 import { guard } from "@/lib/api-guard";
 import { serializePlot, serializeCycle } from "@/lib/serializers";
+import { withApi } from "@/lib/route";
 
 /**
  * GET /api/v1/plots/:id   detalhe do talhão com ciclos (atual + histórico).
  */
-export async function GET(_request: Request, props: { params: Promise<{ id: string }> }) {
+async function GETHandler(_request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guard("lavoura", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
@@ -30,3 +31,5 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
     cycles,
   });
 }
+
+export const GET = withApi(GETHandler);

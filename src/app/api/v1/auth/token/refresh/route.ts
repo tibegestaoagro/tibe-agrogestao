@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { rotateRefreshToken } from "@/lib/auth-token";
+import { withApi } from "@/lib/route";
 
 /**
  * POST /api/v1/auth/token/refresh: troca um refresh token por um par novo.
@@ -12,7 +13,7 @@ import { rotateRefreshToken } from "@/lib/auth-token";
  */
 const schema = z.object({ refresh_token: z.string().min(1) });
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const json = await request.json().catch(() => null);
   const parsed = schema.safeParse(json);
   if (!parsed.success) {
@@ -29,3 +30,5 @@ export async function POST(request: Request) {
   }
   return apiOk(pair);
 }
+
+export const POST = withApi(POSTHandler);

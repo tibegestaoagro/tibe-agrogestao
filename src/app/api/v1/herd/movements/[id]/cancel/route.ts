@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { cancelMovement, serializeHerdMovement } from "@/lib/actions/herd-ledger";
+import { withApi } from "@/lib/route";
 
 /**
  * POST /api/v1/herd/movements/:id/cancel   cancela uma movimentação (§10.8)
@@ -21,7 +22,7 @@ const cancelSchema = z.object({
   reason: z.string().trim().min(1, "Informe o motivo do cancelamento").max(500),
 });
 
-export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+async function POSTHandler(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guard("rebanho", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
@@ -39,3 +40,5 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
   return apiOk(serializeHerdMovement(result.data));
 }
+
+export const POST = withApi(POSTHandler);

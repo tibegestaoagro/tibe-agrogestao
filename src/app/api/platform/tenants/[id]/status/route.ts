@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { guardPlatform } from "@/lib/platform-guard";
 import { forceSubscriptionStatusAction } from "@/lib/actions/platform-tenants";
+import { withApi } from "@/lib/route";
 
 const schema = z.object({
   status: z.enum(["active", "overdue", "canceled"]),
@@ -13,7 +14,7 @@ const schema = z.object({
  * Grava em SubscriptionStatusLog com o PlatformUser responsável (log de
  * auditoria exigido pela spec).
  */
-export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+async function PATCHHandler(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guardPlatform({ requireMasterAdmin: true });
   if ("error" in g) return g.error;
@@ -34,3 +35,5 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
   return apiOk(result.data);
 }
+
+export const PATCH = withApi(PATCHHandler);

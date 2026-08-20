@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { createFinancialCategoryAction, listFinancialCategoriesAction } from "@/lib/actions/financial-categories";
+import { withApi } from "@/lib/route";
 
 /**
  * GET  /api/v1/financial-categories    lista categorias do tenant (Módulo 28)
@@ -13,7 +14,7 @@ const createSchema = z.object({
   entry_type: z.enum(["income", "expense"]),
 });
 
-export async function GET(request: Request) {
+async function GETHandler(request: Request) {
   const g = await guard("financeiro", "read");
   if ("error" in g) return g.error;
 
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
   return apiOk(categories, { total: categories.length });
 }
 
-export async function POST(request: Request) {
+async function POSTHandler(request: Request) {
   const g = await guard("financeiro", "write");
   if ("error" in g) return g.error;
 
@@ -42,3 +43,6 @@ export async function POST(request: Request) {
   if (!result.ok) return apiError(result.code, result.message, result.status);
   return apiOk(result.data, {}, { status: 201 });
 }
+
+export const GET = withApi(GETHandler);
+export const POST = withApi(POSTHandler);

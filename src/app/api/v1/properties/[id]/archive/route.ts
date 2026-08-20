@@ -1,12 +1,13 @@
 import { apiOk, apiError, ApiErrors } from "@/lib/api";
 import { guard } from "@/lib/api-guard";
 import { serializeProperty } from "@/lib/serializers";
+import { withApi } from "@/lib/route";
 
 /**
  * POST /api/v1/properties/:id/archive   arquiva a propriedade (não deleta: 1.1).
  * Idempotente: re-arquivar mantém o archived_at original.
  */
-export async function POST(_request: Request, props: { params: Promise<{ id: string }> }) {
+async function POSTHandler(_request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guard("rebanho", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
@@ -23,3 +24,5 @@ export async function POST(_request: Request, props: { params: Promise<{ id: str
 
   return apiOk(serializeProperty(property));
 }
+
+export const POST = withApi(POSTHandler);

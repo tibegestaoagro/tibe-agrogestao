@@ -3,6 +3,7 @@ import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { serializeFinancialEntry } from "@/lib/serializers";
 import { updateManualEntryAction } from "@/lib/actions/financial-entries";
+import { withApi } from "@/lib/route";
 
 /** PATCH /api/v1/financial-entries/:id: edita lançamento manual (spec 4.2). */
 
@@ -13,7 +14,7 @@ const updateSchema = z.object({
   notes: z.string().trim().nullish(),
 });
 
-export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+async function PATCHHandler(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const g = await guard("financeiro", "write");
   if ("error" in g) return g.error;
@@ -38,3 +39,5 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
   const entry = await g.db.financialEntry.findFirst({ where: { id: params.id } });
   return apiOk(serializeFinancialEntry(entry!));
 }
+
+export const PATCH = withApi(PATCHHandler);
