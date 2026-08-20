@@ -78,6 +78,18 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
 - Guia completo para montar o workflow no N8N (nó a nó, incluindo o suporte a
   áudio e recibo por foto/PDF): [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md).
   Inclui a seção de envio de alertas (Módulo 4) via `N8N_ALERT_WEBHOOK_URL`.
+- ⚠️ **O classificador NÃO remonta os parâmetros literalmente** (achado de
+  2026-08-18, testando o agente de produção pelo `npm run wa`). Ele reconstrói
+  os campos a partir da confirmação que o **próprio assistente imprimiu**, não
+  da frase do produtor: `"dia 10"` volta como `"10/08/2026"`, um campo ausente
+  volta preenchido, `1200` volta como `"1200"`. Quem comparar os parâmetros de
+  uma volta com os da anterior vai ler **toda recusa como correção**, e foi
+  assim que "não, deixa pra lá" gravou uma compra de R$ 1.200 no estoque.
+  **A regra em vigor é a do handler de gado: recusa cancela, ponto.** Se um dia
+  isso for reaberto, a decisão precisa ser ancorada no TEXTO que o produtor
+  digitou (`message_text`), nunca em comparar campos remontados. O relato
+  completo, com a tabela de campos, está em
+  [docs/agents/historico/2026-08.md](../../docs/agents/historico/2026-08.md).
 - **Envio de mensagem agora é do Tibé** (spec 2026-07-11, desvio deliberado da
   regra "N8N é o único intermediário", aprovado pelo usuário): o N8N chama
   `POST /api/internal/whatsapp/send-message` e o Tibé entrega pelo provider

@@ -131,7 +131,7 @@ O levantamento completo, com evidência e custo de cada item, está em
   proteção de branch no GitHub, que é trabalho de interface web, e conferir a
   primeira execução (sem `gh` aqui, quem lê o resultado é o usuário).
 
-Três achadas hoje, que não estavam em `dividas.md`:
+Quatro achadas hoje, que não estavam em `dividas.md`:
 
 - **`gh` CLI não existe nesta máquina**, embora `issue-tracker.md` o pressuponha.
   `git push` funciona; abrir issue, PR ou ler resultado de CI, não.
@@ -147,39 +147,6 @@ Três achadas hoje, que não estavam em `dividas.md`:
 - **Verificação de negócio na Meta não começou.** Recomendada em 31/07 com o
   aviso de que "se ficar para setembro, chega atrasado". A cobrança da Meta muda
   em 01/10/2026. É o maior risco de calendário aberto, e não depende de código.
-
-## ⚠️ O classificador NÃO remonta literal (2026-08-18)
-
-Achado testando o agente de produção pelo `npm run wa`, minutos depois de
-ensinar as 4 intenções. É a correção da conclusão da volta 5, e a volta 5 estava
-errada num ponto que só o classificador real revela.
-
-**O sintoma:** "Comprei 10 sacas de sal do Ze por 1200" virou confirmação; "não,
-deixa pra lá" trouxe **a mesma confirmação de novo**; "ok obrigado" **gravou**.
-10 sacas no livro e R$ 1.200 a pagar que ninguém pediu.
-
-**A causa, medida na execução do n8n** (nó `Parse Resposta LLM`): o classificador
-mandou `confirmed: false` certinho. O que mudou foram os parâmetros, porque
-**ele remonta a partir da confirmação que o próprio assistente imprimiu**, não
-da frase do produtor:
-
-| campo | no pedido | no "não" |
-|---|---|---|
-| `vencimento` | `"dia 10"` | `"10/08/2026"` |
-| `fazenda` | ausente | `"Fazenda de Provas"` |
-| `valor` | `1200` | `"1200"` |
-
-`mudaOPedido` lia isso como correção. Ou seja: **toda recusa parecia correção**,
-e a regra da volta 5 nunca chegava a cancelar em produção.
-
-**A correção (`071645c`):** o estoque voltou à regra do handler de gado, que
-está em produção desde 14/08 e nunca teve este defeito: **recusa cancela,
-ponto**. O preço aceito é que corrigir contrastando ("não é o proteinado, é o 60
-P") volta a cancelar, e o produtor repete a frase.
-
-**Se um dia reabrir isto**, a mudança precisa ser ancorada no TEXTO que o
-produtor digitou (`message_text`), nunca em comparar campos remontados. Comparar
-campos remontados é o que gravou.
 
 ## Histórico recente
 
