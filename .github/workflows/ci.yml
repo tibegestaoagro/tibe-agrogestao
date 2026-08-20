@@ -88,6 +88,11 @@ jobs:
       - name: Envelope de erro garantido
         run: npm run test:m40
 
+      # Numero e data lidos igual em todo handler do agente: o classificador
+      # manda o mesmo campo ora como numero, ora como texto formatado.
+      - name: Normalizacao de parametros do agente
+        run: npm run test:m43
+
       - name: Build
         run: npm run build
 

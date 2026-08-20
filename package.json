@@ -20,6 +20,7 @@
     "test:m40": "tsx scripts/m40-envelope-de-erro.test.ts",
     "test:m41": "tsx scripts/m41-integridade.test.ts",
     "test:m42": "tsx scripts/m42-execute-action-endurecido.test.ts",
+    "test:m43": "tsx scripts/m43-normalizacao-de-parametros.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",

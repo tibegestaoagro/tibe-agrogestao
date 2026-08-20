@@ -1,5 +1,6 @@
 import { createTaskAction } from "@/lib/actions/tasks";
 import { str, confirmFlow, failReply, ask, type Handler } from "./shared";
+import { lerData } from "./parsers";
 
 /**
  * Módulo 27 (Meu Dia): "me lembra de comprar sal na quinta". A interpretação
@@ -10,16 +11,21 @@ import { str, confirmFlow, failReply, ask, type Handler } from "./shared";
  */
 export const criarTarefa: Handler = async ({ db, parameters, confirmed, explicitNo }) => {
   const title = str(parameters.title);
-  const dueDateRaw = str(parameters.due_date);
+  const dataLida = lerData(parameters, "due_date", "data", "date");
 
-  if (!title || !dueDateRaw) {
+  if (!title || dataLida.tipo === "vazio") {
     return ask("Para criar o lembrete, preciso do que é e de quando (ex: 'comprar sal na quinta').");
   }
 
-  const dueDate = new Date(dueDateRaw);
-  if (Number.isNaN(dueDate.getTime())) {
+  // `lerData`, e não `new Date` cru. O comentário acima diz que o
+  // classificador devolve a data já em ISO, e isso é verdade quando ele
+  // colabora; nas voltas em que ele repassa a fala ("dia 10", "10/12/2026"),
+  // `new Date` devolvia Invalid Date e o lembrete morria numa pergunta que o
+  // produtor já tinha respondido. Os outros handlers já liam essas formas.
+  if (dataLida.tipo === "invalida") {
     return ask("Não entendi a data. Pode dizer de novo, com o dia?");
   }
+  const dueDate = dataLida.data;
 
   const gate = confirmFlow({
     intent: "criar_tarefa",
@@ -27,7 +33,9 @@ export const criarTarefa: Handler = async ({ db, parameters, confirmed, explicit
     confirmed,
     cancelledText: "Lembrete cancelado.",
     question: `Confirma: ${title}, dia ${dueDate.toLocaleDateString("pt-BR")}?`,
-    auxiliary: { title, due_date: dueDateRaw },
+    // A data normalizada, e não o texto cru: o pendente é reenviado na
+    // confirmação, e devolver "dia 10" ali obrigaria a interpretar de novo.
+    auxiliary: { title, due_date: dueDate.toISOString() },
   });
   if (gate) return gate;
 
