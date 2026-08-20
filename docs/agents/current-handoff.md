@@ -126,7 +126,7 @@ falham em silêncio hoje. É o que torna todo o resto testável por um humano.
 Dois itens saíram do escopo da fase 0 com motivo, e não por esquecimento: o
 esquema Zod por intenção (acima) e o coletor de erro externo (o ponto de plugue
 está em `src/instrumentation.ts`; a razão de não instalar o SDK está em
-[pendencias-do-usuario.md](pendencias-do-usuario.md), item 8).
+[pendencias-do-usuario.md](pendencias-do-usuario.md), item 9).
 
 Continua pendente, de antes: **teste no aparelho** pelo roteiro em
 [roteiro-aparelho-estoque.md](roteiro-aparelho-estoque.md), cadastrando antes os

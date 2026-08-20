@@ -156,7 +156,33 @@ que fecha a única incerteza grande do relatório de custos.
 
 ---
 
-## 8. Decidir se vale um coletor de erro externo (opcional)
+## 8. Duas cabeças invisíveis em produção (decisão de produto, pequena)
+
+Medido em 2026-08-20, com `npx tsx scripts/diagnostico-integridade.ts`:
+
+```
+     2  cabecas em AnimalBatch (todas as fazendas)
+    61  cabecas pelo livro-razao
+     2  LOTES com saldo que o razao nao conhece (rebanho invisivel)
+```
+
+São os dois lotes antigos com brinco (`081` e `082`), criados **antes** da
+correção de hoje, quando cadastrar rebanho não emitia movimentação. Eles
+existem como ficha e não entram no saldo.
+
+**Daqui para frente isso não acontece mais**: todo cadastro novo emite
+movimentação quando a categoria traduz, e quando não traduz o resíduo aparece
+neste mesmo diagnóstico em vez de sumir.
+
+**O que fazer com os dois:** ou emitir a movimentação de saldo inicial para
+eles (e aí o saldo sobe de 61 para 63), ou aceitar que são ficha de
+identidade sem contagem. É decisão sua, e a diferença é de duas cabeças num
+tenant de teste, então não é urgente. Só não deve ser esquecida, porque o
+número vira pergunta quando alguém conferir.
+
+---
+
+## 9. Decidir se vale um coletor de erro externo (opcional)
 
 **O plano previa Sentry, e eu não instalei.** A razão é específica deste
 produto, e você pode discordar.
