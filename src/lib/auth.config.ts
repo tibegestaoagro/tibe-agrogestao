@@ -26,6 +26,12 @@ const PUBLIC_PATHS = [
 // `/criar-conta` virou prefixo (Módulo 19): as etapas 2 e 3 são sub-rotas
 // (`/criar-conta/whatsapp`, `/criar-conta/email`) e, como caminho exato, o
 // middleware mandaria o visitante pro /login no meio do cadastro.
+//
+// O casamento é por SEGMENTO, não por texto (2026-08-20): com `startsWith`
+// cru, qualquer rota futura que apenas começasse com um destes textos nasceria
+// pública sem ninguém decidir isso. `/docsinterno` entrava por causa de
+// `/docs`. Nenhuma rota assim existe hoje, e a suíte `test:m39` existe para
+// que criar uma seja uma decisão em vez de um acidente.
 const PUBLIC_PREFIXES = [
   "/planos",
   "/politicas",
@@ -56,7 +62,7 @@ export const authConfig = {
       if (pathname.startsWith("/api")) return true;
       const isPublic =
         PUBLIC_PATHS.includes(pathname) ||
-        PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
+        PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
       if (isPublic) return true;
       return !!auth?.user; // não logado → NextAuth redireciona para /login
     },

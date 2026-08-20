@@ -57,6 +57,11 @@ jobs:
       - name: Navegacao aponta para rotas que existem
         run: npm run test:nav
 
+      # A porta fecha: rota de painel sem sessao e recusada, rota de API nao
+      # redireciona, e prefixo publico nao vaza para rota vizinha.
+      - name: Gate de sessao por rota
+        run: npm run test:m39
+
       # O build precisa das variaveis existirem, nao serem validas: nenhuma
       # chamada externa acontece aqui. Valores de fachada, nunca segredo real.
       - name: Build
