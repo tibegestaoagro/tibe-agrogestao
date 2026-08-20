@@ -65,13 +65,16 @@ Antes disso, cadastre os três produtos do bloco 0 no painel, em `/estoque`.
 
 ### Pendências
 
-- Missões 3 (leilão e eventos) e 4 (permuta) do Módulo 31 não começaram.
-  Próximo número livre de suíte: `m39`.
-- `npx tsc --noEmit` acusa erros de tipo pré-existentes em
-  `scripts/m23-token-auth.test.ts`. Não quebram o build (a Vercel não compila
-  `scripts/`), mas corroem a rede de segurança.
-- O app mobile (`app-mobile-fundacao`) teve 5 defeitos corrigidos e **falta
-  reteste em aparelho**.
+O levantamento completo, com evidência e custo de cada item, está em
+**[dividas.md](dividas.md)** (2026-08-18). As três que mais pesam:
+
+- **Estoque nunca foi testado no aparelho**, embora esteja em produção. É o
+  próximo passo acima.
+- **`app-mobile-fundacao` tem 3 commits fora da `main` desde 05/08**, com 5
+  defeitos corrigidos e nunca retestados, enquanto a `main` recebeu os Módulos
+  30 e 31 inteiros. É a dívida que mais cresce sozinha.
+- **Não existe CI.** Todo guard-rail depende de alguém digitar o comando. Os
+  hooks de agente cobrem parte, mas só valem para o Claude Code.
 
 ## ⚠️ O classificador NÃO remonta literal (2026-08-18)
 
