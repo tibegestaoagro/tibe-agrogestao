@@ -8,7 +8,13 @@ import type { NavItem, NavChild } from "@/components/layout/sidebar";
  * sidebar exigia renderizar a página inteira do dashboard (sessão, billing,
  * Prisma). Como função pura, roda sem DB e sem sessão.
  *
- * Roda: `npm run test:nav` (sem DB necessário).
+ * Roda: `npm run test:nav`. **Não abre conexão, mas exige `DATABASE_URL`
+ * definida**, mesmo que apontando para lugar nenhum: `nav.ts` importa
+ * `permissions`, que importa `tenant-context`, que importa `prisma`, e esse
+ * módulo lança no carregamento quando a variável não existe. Na máquina de
+ * quem desenvolve o `.env` cobre isso, então só apareceu quando o CI rodou num
+ * clone sem `.env`, em 2026-08-20. A frase anterior aqui dizia "roda sem DB",
+ * o que era falso.
  */
 
 let failures = 0;

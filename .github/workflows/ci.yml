@@ -29,6 +29,26 @@ jobs:
   estatico:
     name: Conferencia estatica
     runs-on: ubuntu-latest
+
+    # Estas variaveis precisam existir, nao ser validas: nenhuma chamada externa
+    # acontece neste job, e nenhum passo aqui abre conexao. Elas estao no nivel
+    # do JOB, e nao de um passo, porque varios scripts importam modulos do app
+    # e a cadeia de imports chega em `src/lib/prisma.ts`, que LANCA quando
+    # DATABASE_URL nao existe, mesmo sem tocar no banco (`nav.ts` importa
+    # `permissions`, que importa `tenant-context`, que importa `prisma`).
+    # Na maquina de quem desenvolve isso nunca aparece, porque o `.env` local
+    # cobre; aqui nao ha `.env`, e foi o que reprovou as seis primeiras
+    # execucoes do CI. Valores de fachada, nunca segredo real.
+    env:
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci?schema=public
+      NEXTAUTH_SECRET: ci-nextauth-secret-nao-usar-em-lugar-nenhum
+      NEXTAUTH_URL: http://localhost:3000
+      PLATFORM_AUTH_SECRET: ci-platform-secret-diferente-do-de-cima
+      MOBILE_JWT_SECRET: ci-mobile-secret-tambem-diferente
+      INTERNAL_API_SECRET: ci-internal-secret
+      CRON_SECRET: ci-cron-secret
+      CONFIG_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
     steps:
       - uses: actions/checkout@v4
 
@@ -62,19 +82,8 @@ jobs:
       - name: Gate de sessao por rota
         run: npm run test:m39
 
-      # O build precisa das variaveis existirem, nao serem validas: nenhuma
-      # chamada externa acontece aqui. Valores de fachada, nunca segredo real.
       - name: Build
         run: npm run build
-        env:
-          DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci?schema=public
-          NEXTAUTH_SECRET: ci-nextauth-secret-nao-usar-em-lugar-nenhum
-          NEXTAUTH_URL: http://localhost:3000
-          PLATFORM_AUTH_SECRET: ci-platform-secret-diferente-do-de-cima
-          MOBILE_JWT_SECRET: ci-mobile-secret-tambem-diferente
-          INTERNAL_API_SECRET: ci-internal-secret
-          CRON_SECRET: ci-cron-secret
-          CONFIG_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 
   banco:
     name: Suites com banco
