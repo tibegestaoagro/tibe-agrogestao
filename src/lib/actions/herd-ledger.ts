@@ -2,6 +2,7 @@ import type { HerdMovementType, HerdOwner, HerdSituation, Prisma } from "@/gener
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { createLinkedEntry, runSerializableTenantTransaction, type TenantTransactionClient } from "@/lib/financial";
 import { isValidCategory } from "@/lib/herd/categories";
+import { medirLeituraDeSaldo } from "@/lib/jobs/medir-saldo";
 import { decToNum, isoOrNull } from "@/lib/serialize";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 
@@ -154,6 +155,7 @@ export async function getPositions(
    * não por isolamento: teria passado igual se um tenant enxergasse o outro.
    * Achado em 2026-08-13 escrevendo o m36.
    */
+  const inicio = Date.now();
   const from = fromWhere(filter);
   const to = toWhere(filter);
   const temFiltro = Object.keys(from).length > 0 || Object.keys(to).length > 0;
@@ -192,6 +194,7 @@ export async function getPositions(
     apply(extractPosition(row, "to"), row.quantity);
   }
 
+  medirLeituraDeSaldo("getPositions", inicio, rows.length);
   return Array.from(totals.values());
 }
 

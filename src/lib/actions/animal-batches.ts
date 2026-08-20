@@ -2,6 +2,9 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
 import { decToNum } from "@/lib/serialize";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
+import { recordMovement } from "@/lib/actions/herd-ledger";
+import { resolveCategoryTerm } from "@/lib/herd/categories";
+import { log } from "@/lib/log";
 
 /**
  * Lógica de negócio de AnimalBatch (Módulo 25, spec seção 2). Cada aquisição
@@ -108,6 +111,53 @@ export async function createBatchAction(
       related_module: "rebanho",
       related_id: batch.id,
       occurred_at: acquiredAt,
+    });
+  }
+
+  /**
+   * O lote precisa entrar no SALDO, e não só existir como ficha.
+   *
+   * O defeito que isto corrige (2026-08-20): desde o Módulo 30 o saldo do
+   * rebanho é o livro-razão (`HerdMovement`), e esta rota gravava apenas
+   * `AnimalBatch.quantity`, que o saldo ignora. Quem cadastrava rebanho aqui,
+   * ou pelo cadastro assistido do WhatsApp, criava cabeças que **não
+   * apareciam em lugar nenhum**: nem no painel, nem na resposta do assistente.
+   * Sem erro, sem aviso.
+   *
+   * A ponte é a categoria. `AnimalCategory` é a tabela ANTIGA, com nomes
+   * livres ("Bezerro", "Novilha", "Não classificado"); o livro-razão usa as 12
+   * categorias que são constante de código. `resolveCategoryTerm` faz a
+   * tradução e **devolve ambíguo em vez de chutar**, que é a regra do módulo:
+   * lançar animal na faixa de idade errada é pior que não lançar.
+   *
+   * Quando a tradução não resolve, o lote continua sendo criado (quebrar o
+   * cadastro seria pior, e o app móvel depende desta rota), mas o resíduo
+   * passa a ser VISÍVEL: fica no log e aparece em
+   * `scripts/diagnostico-integridade.ts` como "rebanho invisivel". Antes ele
+   * era invisível por desenho.
+   */
+  const traducao = resolveCategoryTerm(category.name);
+  if (traducao.kind === "exact") {
+    await recordMovement(db, {
+      movement_type: "saldo_inicial",
+      quantity: input.quantity,
+      to: {
+        category_id: traducao.category.id,
+        property_id: input.property_id,
+        pasture_id: null,
+        situation: "presente",
+        owner: "proprio",
+      },
+      occurred_at: acquiredAt,
+      batch_id: batch.id,
+      notes: `Cadastro de lote (${category.name})`,
+    });
+  } else {
+    log.warn("lote criado sem entrar no saldo: categoria antiga nao traduzida", {
+      code: "REBANHO_SEM_MOVIMENTO",
+      // O nome, e não o id: é o nome que precisa ser corrigido pelo produtor.
+      intent: category.name,
+      status: input.quantity,
     });
   }
 

@@ -48,10 +48,10 @@ violada por engano em alguma sessão, e cada violação custou caro.
    projeto só apareceram em navegador, aparelho ou contra o classificador de
    verdade, com `tsc`, `lint` e a suíte inteira limpos.
 
-### Quatro delas não dependem mais de você lembrar
+### Cinco delas não dependem mais de você lembrar
 
-Desde 2026-08-18 há travas mecânicas em `.claude/`, versionadas para valerem
-também no notebook:
+Travas mecânicas em `.claude/` (desde 2026-08-18) e no CI (desde 2026-08-20),
+versionadas para valerem também no notebook:
 
 | invariante | o que impede | onde |
 |---|---|---|
@@ -59,6 +59,7 @@ também no notebook:
 | 5 | heredoc que escreva conteúdo com escape | `.claude/hooks/guarda-bash.mjs` |
 | 7 | `git merge`, `git push` mirando a `main`, e deploy | `.claude/hooks/guarda-bash.mjs` |
 | 1 | model com `tenant_id` fora de `TENANT_SCOPED_MODELS` | `npm run test:isolation` |
+| 3 | schema mudado sem migração correspondente | `npm run test:drift`, no CI |
 
 As travas recusam a ação e explicam o caminho certo. Se uma delas te bloquear,
 **a resposta não é contorná-la**: ou o caminho proposto na mensagem resolve, ou
@@ -67,6 +68,14 @@ a regra precisa mudar, e isso é conversa com o usuário.
 `npm run check` completa o quadro sem banco: caminho citado que não existe, rota
 que não existe mais, `npm run` inexistente, travessão novo, e os dois índices
 parciais que o `migrate diff` tenta derrubar.
+
+**O CI (`.github/workflows/ci.yml`) roda em todo push**, e é o que faz uma
+edição feita à mão, no editor, passar pelas mesmas conferências que os hooks
+aplicam ao agente. Três jobs: estático (sem banco), com banco em PR (Postgres
+**e Redis próprios**, o que tirou três suítes de cima do Redis de produção) e
+drift de migração. Falta ligar a proteção de branch no GitHub, que é trabalho
+de interface: ver
+[docs/agents/pendencias-do-usuario.md](docs/agents/pendencias-do-usuario.md).
 
 ## Retomando depois de um resumo de contexto
 
@@ -248,9 +257,17 @@ npm run db:seed
 npm run wa                # banco de provas do agente WhatsApp
 npm run test:isolation    # M0 + guardrail TENANT_SCOPED_MODELS
 npm run test:docs-api     # /docs/api sincronizado com as rotas reais
+npm run test:all          # a suíte INTEIRA, uma por vez, com resumo no fim
+npm run worker            # consome a fila da rotina diária (roda fora da Vercel)
 ```
 
 As suítes por módulo (`test:m1` em diante) estão todas no `package.json`.
+
+`npm run test:all` fecha a dívida de que "a suíte completa nunca roda de uma
+vez". Ele **não para na primeira falha** (parar esconderia as outras) e
+**recusa rodar contra produção**, porque as suítes criam e apagam tenants.
+Leva alguns minutos. `npm run test:all -- --sem-redis` pula as três que
+dependem do Redis compartilhado e falham na segunda execução da mesma hora.
 
 A lista completa é o `package.json`, e é ela que vale: `npm run check` reprova
 qualquer comando citado na documentação que não exista lá. Credenciais do seed

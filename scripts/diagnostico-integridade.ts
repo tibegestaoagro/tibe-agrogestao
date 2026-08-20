@@ -74,6 +74,45 @@ const ALERTAS: Consulta[] = [
   },
 ];
 
+/**
+ * As duas verdades do rebanho.
+ *
+ * `AnimalBatch.quantity` e a soma de `HerdMovement` sao fontes concorrentes, e
+ * o invariante 2 diz que o saldo e o livro-razao. Esta secao mede a distancia
+ * entre as duas e mostra DE ONDE ela vem, porque a causa muda a correcao:
+ *
+ * - lote com quantidade que o razao nao conhece: veio de `POST /api/v1/animals`
+ *   ou do cadastro assistido do WhatsApp, que gravam ficha sem movimentacao;
+ * - movimentacao sem lote: veio de uma compra registrada por categoria, sem
+ *   brinco, que e o caminho normal do modelo novo.
+ *
+ * O segundo nao e defeito: e o modelo por categoria funcionando. O primeiro e
+ * rebanho invisivel ao saldo.
+ */
+const REBANHO: Consulta[] = [
+  {
+    titulo: "cabecas em AnimalBatch (todas as fazendas)",
+    sql: `SELECT COALESCE(sum(quantity),0)::int AS n FROM "AnimalBatch"`,
+  },
+  {
+    titulo: "cabecas pelo livro-razao (entradas menos saidas, sem canceladas)",
+    sql: `SELECT (COALESCE(sum(CASE WHEN to_category_id IS NOT NULL THEN quantity ELSE 0 END),0)
+                - COALESCE(sum(CASE WHEN from_category_id IS NOT NULL THEN quantity ELSE 0 END),0))::int AS n
+          FROM "HerdMovement" WHERE canceled_at IS NULL`,
+  },
+  {
+    titulo: "LOTES com saldo que o razao nao conhece (rebanho invisivel)",
+    sql: `SELECT COALESCE(sum(b.quantity),0)::int AS n FROM "AnimalBatch" b
+          WHERE b.quantity > 0
+            AND NOT EXISTS (SELECT 1 FROM "HerdMovement" h WHERE h.batch_id = b.id AND h.canceled_at IS NULL)`,
+  },
+  {
+    titulo: "movimentacoes sem lote (esperado: compra por categoria, sem brinco)",
+    sql: `SELECT COALESCE(sum(quantity),0)::int AS n FROM "HerdMovement"
+          WHERE batch_id IS NULL AND canceled_at IS NULL AND to_category_id IS NOT NULL`,
+  },
+];
+
 const TAMANHOS: Consulta = {
   titulo: "tamanho das tabelas que recebem indice",
   sql: `SELECT relname AS tabela,
@@ -112,6 +151,25 @@ async function main() {
     const r = await client.query<{ n: number }>(c.sql);
     const n = r.rows[0]?.n ?? 0;
     console.log(`${n === 0 ? "ok  " : "!!  "} ${String(n).padStart(6)}  ${c.titulo}`);
+  }
+
+  console.log("\n--- as duas verdades do rebanho ---");
+  const numeros: Record<string, number> = {};
+  for (const c of REBANHO) {
+    const r = await client.query<{ n: number }>(c.sql);
+    const n = r.rows[0]?.n ?? 0;
+    numeros[c.titulo] = n;
+    console.log(`     ${String(n).padStart(6)}  ${c.titulo}`);
+  }
+  const emLote = numeros["cabecas em AnimalBatch (todas as fazendas)"] ?? 0;
+  const noRazao = numeros["cabecas pelo livro-razao (entradas menos saidas, sem canceladas)"] ?? 0;
+  const invisivel = numeros["LOTES com saldo que o razao nao conhece (rebanho invisivel)"] ?? 0;
+  console.log(`     ${String(noRazao - emLote).padStart(6)}  diferenca (razao menos lotes)`);
+  if (invisivel > 0) {
+    console.log("");
+    console.log(`     !! ${invisivel} cabeca(s) existem como ficha e NAO aparecem no saldo.`);
+    console.log("        Vieram de POST /api/v1/animals ou do cadastro assistido do");
+    console.log("        WhatsApp, que gravam ficha sem emitir movimentacao.");
   }
 
   console.log("\n--- " + TAMANHOS.titulo + " ---");

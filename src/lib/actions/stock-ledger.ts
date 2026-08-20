@@ -5,6 +5,7 @@ import { decToNum } from "@/lib/serialize";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { descreverQuantidade, recusaPorFracao, disponiveis } from "@/lib/stock/units";
 import { isValidCategory } from "@/lib/herd/categories";
+import { medirLeituraDeSaldo } from "@/lib/jobs/medir-saldo";
 
 /**
  * O livro-razão do estoque (Módulo 31, §10).
@@ -79,6 +80,7 @@ export async function getStockBalance(
   db: StockLedgerClient,
   filtro: { product_id?: string; property_id?: string } = {},
 ): Promise<StockPosition[]> {
+  const inicio = Date.now();
   const where: Prisma.StockMovementWhereInput = { canceled_at: null };
   if (filtro.product_id !== undefined) where.product_id = filtro.product_id;
   if (filtro.property_id !== undefined) where.property_id = filtro.property_id;
@@ -117,6 +119,7 @@ export async function getStockBalance(
   const posicoes = Array.from(total.values());
   for (const p of posicoes) p.quantity = Math.round(p.quantity * 1000) / 1000;
 
+  medirLeituraDeSaldo("getStockBalance", inicio, linhas.length);
   return posicoes;
 }
 
