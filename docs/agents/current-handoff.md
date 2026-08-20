@@ -105,13 +105,43 @@ Não só por compilação, porque aqui isso nunca bastou:
   `X-Frame-Options`, `Referrer-Policy`) continuam ausentes: é item da próxima
   etapa, não regressão.
 
+### A branch `observabilidade` (2026-08-20, NÃO mesclada)
+
+Continuação da fase 0, quatro commits, `96218e4` no remoto. **Não foi para
+produção**, e leva **duas migrações** que precisam ser aplicadas no Neon antes
+do push, pelo invariante 3.
+
+- **Envelope de erro garantido**: `withApi` em 111 arquivos e 145 handlers,
+  mais `src/lib/log.ts` (log estruturado, com a regra de privacidade escrita
+  no arquivo). Erro conhecido do Prisma vira status de negócio; a mensagem ao
+  cliente nunca é a do Prisma. `test:m40` prova as duas bordas e reprova rota
+  nova sem wrapper.
+- **Cabeçalhos de segurança** em `next.config.mjs`, com CSP em `Report-Only`
+  de propósito: o redesenho da fase seguinte muda a superfície de estilo.
+- **Integridade no banco** (`test:m41`): FKs dos eixos de posição do
+  livro-razão (`Restrict`) e da entrada financeira (`SetNull`, porque
+  `cancelMovement` apaga a entrada de propósito), índices nos eixos realmente
+  consultados, `updated_at` e autoria em `FinancialEntry`, e `dedup_key` com
+  unicidade por DIA no `Alert`.
+- **`execute-action` endurecido** (`test:m42`): `REPORT_LINK_SECRET` separado
+  do segredo interno, `tenant_id` do corpo conferido contra o dono do
+  `user_id` (403 em divergência), e idempotência por `wamid` via
+  `AgentRequest`.
+
+⚠️ **Duas coisas precisam de você antes de isto valer inteiro:**
+1. **`REPORT_LINK_SECRET` na Vercel.** Sem ela o sistema funciona usando o
+   segredo interno como reserva e avisando no log, que é justamente o problema
+   que o commit resolve.
+2. **O n8n precisa passar `provider_message_id`** (o `wamid` que ele já tem no
+   payload) para a idempotência valer. Sem o campo, o comportamento é o antigo.
+   É edição de um nó, e entra quando o agente for descongelado.
+
 ### Próximo passo
 
-Continuar a fase 0 do plano, onde ela parou: telemetria, envelope de
-erro garantido nas 113 rotas, endurecimento de `execute-action` (segredo
-separado, `tenant_id` conferido contra o `user_id`, idempotência por `wamid`) e
-o trem de migração (FKs e índices do livro-razão, `Alert` idempotente de
-verdade, e as duas verdades do rebanho).
+O que resta da fase 0: telemetria com Sentry (falta o DSN), o esquema Zod por
+intenção para `parameters` (hoje é `z.record(z.string(), z.unknown())`, o único
+caminho de escrita sem validação de domínio), o worker de fila no Railway, o
+staging em branch do Neon, e a decisão sobre as duas verdades do rebanho.
 
 Continua pendente, de antes: **teste no aparelho** pelo roteiro em
 [roteiro-aparelho-estoque.md](roteiro-aparelho-estoque.md), cadastrando antes os
