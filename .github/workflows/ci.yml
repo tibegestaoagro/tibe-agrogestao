@@ -155,6 +155,11 @@ jobs:
       - name: Integridade e auditoria
         run: npm run test:m41
 
+      # A porta de entrada do agente: o tenant do corpo nao e mais autoridade,
+      # e a mesma mensagem nao escreve duas vezes.
+      - name: execute-action endurecido
+        run: npm run test:m42
+
   drift:
     name: Schema e migracoes contam a mesma historia
     runs-on: ubuntu-latest

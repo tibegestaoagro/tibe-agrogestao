@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { log } from "@/lib/log";
 
 /**
  * Link de download assinado (HMAC) com expiração, usado no lugar de um upload
@@ -8,20 +9,42 @@ import crypto from "node:crypto";
  * WhatsApp (sem sessão). Quando o R2 real entrar, troca-se apenas a "origem"
  * do arquivo: este módulo pode ser substituído sem mudar quem o consome.
  *
- * Reusa INTERNAL_API_SECRET como chave HMAC (evita adicionar mais uma env var
- * só para isto).
+ * ⚠️ A chave HMAC é `REPORT_LINK_SECRET`, e NÃO mais `INTERNAL_API_SECRET`
+ * (2026-08-20). Antes as duas eram a mesma, com a justificativa de "evita
+ * adicionar mais uma env var só para isto". O problema disso não é teórico:
+ * este link é feito para ser mandado por WhatsApp e aberto sem sessão, então
+ * ele circula em conversa, em grupo, em captura de tela. Enquanto a chave era
+ * a mesma, quem descobrisse o segredo por esse caminho ganhava junto a chave
+ * que autentica `/api/internal/*`, ou seja, escrita em QUALQUER tenant.
+ * Comprometer um passou a não comprometer o outro.
+ *
+ * O `INTERNAL_API_SECRET` continua servindo de reserva enquanto a variável
+ * nova não estiver configurada, para a subida não derrubar relatório em
+ * produção. É reserva de transição, não desenho: rodando assim, avisa no log.
  */
 
 type ReportPayload = { tenant_id: string; start: string; end: string; exp: number };
 
+let avisouSobreReserva = false;
+
 function getSecret(): string {
-  const s = process.env.INTERNAL_API_SECRET;
-  if (!s) {
-    throw new Error(
-      "INTERNAL_API_SECRET não configurado: necessário para assinar links de relatório.",
-    );
+  const proprio = process.env.REPORT_LINK_SECRET;
+  if (proprio) return proprio;
+
+  const reserva = process.env.INTERNAL_API_SECRET;
+  if (reserva) {
+    if (!avisouSobreReserva) {
+      avisouSobreReserva = true;
+      log.warn("REPORT_LINK_SECRET ausente: assinando link de relatorio com a chave interna", {
+        code: "REPORT_LINK_SECRET_AUSENTE",
+      });
+    }
+    return reserva;
   }
-  return s;
+
+  throw new Error(
+    "REPORT_LINK_SECRET não configurado: necessário para assinar links de relatório.",
+  );
 }
 
 export function signReportToken(

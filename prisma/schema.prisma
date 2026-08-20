@@ -289,6 +289,7 @@ model Tenant {
   financial_entries    FinancialEntry[]
   whatsapp_contacts    WhatsAppContact[]
   conversation_logs    AgentConversationLog[]
+  agent_requests       AgentRequest[]
   alerts               Alert[]
   email_logs           EmailLog[]
   password_resets      PasswordResetCode[]
@@ -1082,6 +1083,37 @@ model WhatsAppContact {
   logs   AgentConversationLog[]
 
   @@unique([tenant_id, phone])
+  @@index([tenant_id])
+}
+
+/// Uma execução do agente por mensagem do provider, para que repetir a mesma
+/// mensagem não repita a escrita.
+///
+/// O problema (2026-08-20): `POST /api/internal/whatsapp/execute-action` não
+/// tinha idempotência nenhuma. Um retry do n8n, ou uma reexecução manual no
+/// painel dele, gravava de novo a mesma venda de gado, o mesmo lançamento
+/// financeiro, a mesma saída de estoque. Numa rota que escreve dinheiro.
+///
+/// A chave é o id da mensagem no provider (o `wamid` do WhatsApp), e NÃO o id
+/// de execução do n8n: retry manual cria execução nova, e a chave mudaria
+/// junto, sem impedir nada. O `wamid` não muda.
+///
+/// A resposta fica guardada porque replay precisa devolver o que foi
+/// respondido da primeira vez. Devolver outra coisa faria o produtor ver duas
+/// respostas diferentes para a mesma frase.
+model AgentRequest {
+  id                  String   @id @default(cuid())
+  tenant_id           String
+  /// `wamid` da mensagem que originou a execução.
+  provider_message_id String
+  intent              String
+  /// Corpo devolvido na primeira execução, reenviado em caso de replay.
+  response            Json
+  created_at          DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@unique([tenant_id, provider_message_id])
   @@index([tenant_id])
 }
 
