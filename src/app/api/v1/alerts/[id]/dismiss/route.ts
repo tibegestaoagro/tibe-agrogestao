@@ -6,10 +6,8 @@ import { guard } from "@/lib/api-guard";
  * Marca um alerta como resolvido manualmente. Operador só tem leitura em
  * Alertas (PRD 5.2): dismiss exige escrita (Owner/Admin).
  */
-export async function PATCH(
-  _request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function PATCH(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const g = await guard("alertas", "write");
   if ("error" in g) return g.error;
 

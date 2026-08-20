@@ -21,6 +21,12 @@ import { authConfig } from "@/lib/auth.config";
  * `authConfig.callbacks.authorized` explicitamente abaixo, usando `req.auth`
  * (já resolvido pelo próprio next-auth antes de chamar esta função).
  *
+ * Consequência disso, em 2026-08-20: `next-auth` passou a ser fixado na versão
+ * EXATA no `package.json` (sem `^`). O comportamento acima é de um beta, não
+ * está em contrato estável, e um bump de patch trazido por um `npm install`
+ * numa terça pode reabrir exatamente este buraco sem nenhum aviso. Subir de
+ * versão aqui é decisão consciente, com o teste de sessão rodando junto.
+ *
  * "/plataforma" está em PUBLIC_PREFIXES (authConfig): não passa pela checagem
  * de sessão de TENANT; a proteção dela (sessão de PlatformUser, Módulo 6) é
  * feita manualmente abaixo, via `getToken` lendo o cookie próprio
@@ -34,7 +40,7 @@ import { authConfig } from "@/lib/auth.config";
  */
 const { auth } = NextAuth(authConfig);
 
-export const middleware = auth(async (req) => {
+export const proxy = auth(async (req) => {
   const { pathname } = req.nextUrl;
 
   if (pathname.startsWith("/plataforma")) {

@@ -10,11 +10,12 @@ import { ARCHIVE_WINDOW_DAYS } from "@/lib/billing-access";
 const PLAN_LABEL: Record<string, string> = { campo: "Campo", fazenda: "Fazenda", grupo: "Grupo" };
 
 /** Lista de tenants (spec 6.3/6.9): acessível a equipe e master_admin. */
-export default async function PlatformTenantsPage({
-  searchParams,
-}: {
-  searchParams: { status?: string; plan?: string; q?: string; archived?: string };
-}) {
+export default async function PlatformTenantsPage(
+  props: {
+    searchParams: Promise<{ status?: string; plan?: string; q?: string; archived?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const showArchived = searchParams.archived === "1";
   const tenants = await prisma.tenant.findMany({
     where: {

@@ -70,7 +70,7 @@ paths:
   acessíveis para o tenant conseguir regularizar). O layout do dashboard
   aplica a mesma regra a nível de página, redirecionando para
   `/configuracoes/assinatura` quando bloqueado.
-- **`x-pathname` via middleware**: `middleware.ts` foi reestruturado da forma
+- **`x-pathname` via proxy**: `src/proxy.ts` (o antigo `middleware.ts`, renomeado no Next 16) foi reestruturado da forma
   `export const { auth: middleware } = NextAuth(authConfig)` para a forma de
   função de ordem superior (`auth((req) => { ... res.headers.set("x-pathname",
   ...) ...})`) só para conseguir propagar o pathname atual para o layout do

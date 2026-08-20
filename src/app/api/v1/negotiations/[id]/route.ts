@@ -14,10 +14,8 @@ import { getNegotiation, serializeNegotiation } from "@/lib/actions/negotiations
  * quantidade ou valor teria que desfazer filhos que já podem ter virado
  * dinheiro pago ou animal vendido.
  */
-export async function GET(
-  _request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function GET(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const g = await guard("rebanho", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
 

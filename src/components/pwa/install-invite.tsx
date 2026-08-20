@@ -84,6 +84,14 @@ export default function InstallInvite() {
     if (isRunningStandalone() || isDismissed()) return;
 
     // Caso normal: o evento já foi capturado antes da hidratação.
+    //
+    // O plugin do React 19 sinaliza este `setState` no corpo do efeito, e a
+    // resposta canônica seria `useSyncExternalStore`: `window.__tibeInstallPrompt`
+    // é exatamente um sistema externo com evento de assinatura. Não fica aqui
+    // porque inicializar pelo `useState` daria descompasso de hidratação (o
+    // servidor não tem o evento) e porque a refatoração pertence à rodada que
+    // vai rever os componentes de PWA, não a uma subida de framework.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (window.__tibeInstallPrompt) setPromptEvent(window.__tibeInstallPrompt);
 
     const onCaptured = () => {

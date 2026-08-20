@@ -50,11 +50,12 @@ function nomeCategoria(id: string | null | undefined) {
   return findCategory(id)?.label ?? id;
 }
 
-export default async function RebanhoPage({
-  searchParams,
-}: {
-  searchParams: { property_id?: string };
-}) {
+export default async function RebanhoPage(
+  props: {
+    searchParams: Promise<{ property_id?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const user = await getSessionUser();
   if (!user) redirect("/login");
   const profiles = await getActiveProfiles();

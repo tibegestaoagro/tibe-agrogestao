@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import Sidebar, { type NavItem } from "@/components/layout/sidebar";
@@ -42,9 +42,15 @@ export default function DashboardShell({
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
 
-  useEffect(() => {
+  // Fecha a gaveta ao navegar. Ajuste durante o render, e nao efeito: com
+  // efeito, o React pintava a tela nova com a gaveta ainda aberta e so entao
+  // fechava, causando um piscar. Este e o padrao que a documentacao do React
+  // chama de "ajustar estado quando uma prop muda".
+  const [pathAnterior, setPathAnterior] = useState(pathname);
+  if (pathAnterior !== pathname) {
+    setPathAnterior(pathname);
     setMobileOpen(false);
-  }, [pathname]);
+  }
 
   return (
     <div className="flex min-h-screen bg-tibe-light">

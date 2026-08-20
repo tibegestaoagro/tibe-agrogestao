@@ -5,10 +5,8 @@ import { serializePlot, serializeCycle } from "@/lib/serializers";
 /**
  * GET /api/v1/plots/:id   detalhe do talhão com ciclos (atual + histórico).
  */
-export async function GET(
-  _request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function GET(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const g = await guard("lavoura", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
 

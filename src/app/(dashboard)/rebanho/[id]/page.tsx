@@ -36,11 +36,12 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default async function AnimalDetail({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function AnimalDetail(
+  props: {
+    params: Promise<{ id: string }>;
+  }
+) {
+  const params = await props.params;
   const user = await getSessionUser();
   if (!user) redirect("/login");
   const profiles = await getActiveProfiles();
@@ -85,7 +86,11 @@ export default async function AnimalDetail({
   const gmd = computeGmd(weightLogs);
   const totalCost = expenses.reduce((s, e) => s + (decToNum(e.amount) ?? 0), 0);
   const since = purchase?.occurred_at ?? animal.created_at;
-  const months = Math.max(1, (Date.now() - since.getTime()) / (30.4375 * 86_400_000));
+  // Ver a nota em configuracoes/assinatura: Server Component le o relogio uma
+  // vez por requisicao, e a regra de pureza mira re-render de cliente.
+  // eslint-disable-next-line react-hooks/purity
+  const agora = Date.now();
+  const months = Math.max(1, (agora - since.getTime()) / (30.4375 * 86_400_000));
   const monthlyAvg = totalCost / months;
   // Sem `status` no modelo único: o que resta é `quantity`.
   const st =

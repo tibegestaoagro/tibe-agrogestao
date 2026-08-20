@@ -2,11 +2,12 @@ import { redirect } from "next/navigation";
 import NewPasswordForm from "./new-password-form";
 
 /** Recuperação de senha, etapa 3 (spec 2026-07-29): definir a nova senha. */
-export default function NovaSenhaPage({
-  searchParams,
-}: {
-  searchParams: { rid?: string };
-}) {
+export default async function NovaSenhaPage(
+  props: {
+    searchParams: Promise<{ rid?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const resetId = searchParams.rid;
   if (!resetId) redirect("/esqueci-senha");
 

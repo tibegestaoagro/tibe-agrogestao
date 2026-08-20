@@ -105,19 +105,7 @@ async function main() {
     "@/lib/actions/platform-whatsapp-config"
   );
   const { getRedisConnection } = await import("@/lib/redis");
-  const { requestAsyncStorage } = await import(
-    "next/dist/client/components/request-async-storage.external"
-  );
-
-  function withBearer<T>(token: string | null, fn: () => Promise<T>): Promise<T> {
-    const store = {
-      headers: new Headers(token ? { authorization: `Bearer ${token}` } : {}),
-      cookies: { get: () => undefined, getAll: () => [], has: () => false },
-      mutableCookies: { get: () => undefined, getAll: () => [], has: () => false, set: () => {} },
-      draftMode: { isEnabled: false },
-    } as unknown as Parameters<typeof requestAsyncStorage.run>[0];
-    return requestAsyncStorage.run(store, fn);
-  }
+  const { withBearer } = await import("./_escopo-de-requisicao");
 
   function post(url: string, payload: unknown, method = "POST"): Request {
     return new Request(url, {

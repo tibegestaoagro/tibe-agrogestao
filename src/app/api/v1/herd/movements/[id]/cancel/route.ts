@@ -21,10 +21,8 @@ const cancelSchema = z.object({
   reason: z.string().trim().min(1, "Informe o motivo do cancelamento").max(500),
 });
 
-export async function POST(
-  request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const g = await guard("rebanho", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
 

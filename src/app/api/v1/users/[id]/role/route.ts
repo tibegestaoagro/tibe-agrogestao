@@ -6,10 +6,8 @@ import { updateUserRoleAction } from "@/lib/actions/users";
 const schema = z.object({ role: z.enum(["OWNER", "ADMIN", "OPERADOR", "VISUALIZADOR"]) });
 
 /** PATCH /api/v1/users/:id/role (spec 5.2) */
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const g = await guard("usuarios", "write");
   if ("error" in g) return g.error;
 

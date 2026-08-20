@@ -17,7 +17,7 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
-  const signupId = readSignupId();
+  const signupId = await readSignupId();
   if (!signupId) {
     return apiError("SIGNUP_EXPIRED", "Seu cadastro expirou. Recomece pelo formulário.", 410);
   }

@@ -13,10 +13,8 @@ const schema = z.object({
  * Grava em SubscriptionStatusLog com o PlatformUser responsável (log de
  * auditoria exigido pela spec).
  */
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const g = await guardPlatform({ requireMasterAdmin: true });
   if ("error" in g) return g.error;
 

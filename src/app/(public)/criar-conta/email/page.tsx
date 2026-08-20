@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 /** Etapa 3 do cadastro verificado (Módulo 19). */
 export default async function ConfirmarEmailPage() {
-  const signupId = readSignupId();
+  const signupId = await readSignupId();
   if (!signupId) redirect("/criar-conta");
 
   const state = await getSignupStateAction(signupId);

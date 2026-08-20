@@ -9,10 +9,8 @@ import { decToNum } from "@/lib/serialize";
  *
  * "Entrada" = data da movimentação de compra; se não houver, created_at do animal.
  */
-export async function GET(
-  _request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function GET(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const g = await guard("rebanho", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
 

@@ -16,10 +16,8 @@ import { updateOwnerLoginEmailAction } from "@/lib/actions/platform-tenants";
  */
 const schema = z.object({ email: z.string().trim().email("Email inválido") });
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const g = await guardPlatform({ requireMasterAdmin: true });
   if ("error" in g) return g.error;
 

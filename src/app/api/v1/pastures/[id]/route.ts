@@ -13,10 +13,8 @@ const updateSchema = z.object({
   area_hectares: z.number().positive("Tamanho deve ser maior que zero").optional(),
 });
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const g = await guard("rebanho", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
 

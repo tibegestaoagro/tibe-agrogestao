@@ -7,10 +7,8 @@ import { getClientSummaryAction } from "@/lib/actions/service-clients";
  * total_invoiced = ordens 'invoiced'; total_pending = ordens 'completed' não faturadas.
  * Usado pelo painel e pelo agente WhatsApp ("quanto o cliente X me deve").
  */
-export async function GET(
-  _request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function GET(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const g = await guard("prestador", "read", { profile: "prestador" });
   if ("error" in g) return g.error;
 

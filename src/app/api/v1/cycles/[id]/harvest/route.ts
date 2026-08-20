@@ -14,10 +14,8 @@ const schema = z.object({
   yield_unit: z.enum(["saca", "tonelada", "kg"]),
 });
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const g = await guard("lavoura", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
 

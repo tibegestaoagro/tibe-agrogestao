@@ -208,7 +208,7 @@ funcionam. Para validar página autenticada, use `next dev` + navegador real.
 ## Autenticação, roles e permissões
 
 NextAuth v5 (beta), Credentials + bcrypt, dividido por causa do Edge runtime:
-`src/lib/auth.config.ts` é a config edge-safe usada por `src/middleware.ts` (e é
+`src/lib/auth.config.ts` é a config edge-safe usada por `src/proxy.ts` (e é
 lá que fica a lista de rotas públicas); `src/lib/auth.ts` é a instância completa,
 Node runtime. `User.email` é **globalmente único**: um email pertence a
 exatamente um tenant. O middleware libera `/api/*` da checagem de sessão, para

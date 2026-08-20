@@ -37,7 +37,7 @@ export type SessionUser = {
 async function getBearerSessionUser(): Promise<SessionUser | null> {
   let authorization: string | null = null;
   try {
-    authorization = headers().get("authorization");
+    authorization = (await headers()).get("authorization");
   } catch (e) {
     // Erros com `digest` são controle de fluxo do Next (ex: DYNAMIC_SERVER_USAGE,
     // que faz uma página cair para render dinâmico): engoli-los mudaria o

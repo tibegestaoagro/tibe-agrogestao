@@ -40,7 +40,7 @@ construiu tudo em volta dele.
   `node_modules/next-auth/lib/env.js` se precisar reconfirmar o mecanismo).
 - **Middleware**: `/plataforma` está em `PUBLIC_PREFIXES` de `auth.config.ts`
   (isento da checagem de sessão de TENANT): a proteção de verdade é manual,
-  dentro do próprio `middleware.ts`, usando `getToken({ req, secret:
+  dentro do próprio `src/proxy.ts` (o antigo `middleware.ts`), usando `getToken({ req, secret:
   PLATFORM_AUTH_SECRET, cookieName: "tibe-platform-session" })` (de
   `next-auth/jwt`, não a instância `auth()` da plataforma: `getToken` é a
   primitiva de baixo nível que não depende de estar dentro do HOF

@@ -48,11 +48,12 @@ const STATUS: Record<string, { label: string; variant: "amber" | "green" | "gray
   dismissed: { label: "Resolvido", variant: "gray" },
 };
 
-export default async function AlertasPage({
-  searchParams,
-}: {
-  searchParams: { type?: string; status?: string };
-}) {
+export default async function AlertasPage(
+  props: {
+    searchParams: Promise<{ type?: string; status?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const user = await getSessionUser();
   if (!user) redirect("/login");
 

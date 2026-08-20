@@ -19,10 +19,8 @@ const createSchema = z.object({
   applied_at: z.string().datetime().nullish(),
 });
 
-export async function GET(
-  _request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function GET(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const g = await guard("lavoura", "read", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
@@ -37,10 +35,8 @@ export async function GET(
   return apiOk(inputs.map(serializeInput), { total: inputs.length });
 }
 
-export async function POST(
-  request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const g = await guard("lavoura", "write", { profile: "fazenda" });
   if ("error" in g) return g.error;
 
