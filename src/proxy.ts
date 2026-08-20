@@ -40,7 +40,7 @@ import { authConfig } from "@/lib/auth.config";
  */
 const { auth } = NextAuth(authConfig);
 
-export const middleware = auth(async (req) => {
+export const proxy = auth(async (req) => {
   const { pathname } = req.nextUrl;
 
   if (pathname.startsWith("/plataforma")) {
