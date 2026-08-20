@@ -25,9 +25,10 @@ Se ele passar de umas 200, arquive antes de acrescentar.
 ## Estado atual
 
 - Atualizado em: 2026-08-20.
-- **Produção continua `bc02532`.** Nada da rodada de hoje foi para a `main`: o
-  trabalho está na branch **`fundacao`** (`e656c8a`, empurrada para o remoto),
-  esperando aprovação para merge.
+- **Produção: `e719a45` no ar.** Merge `--no-ff` da branch `fundacao`,
+  autorizado pelo usuário na conversa, e deploy conferido (ver abaixo). Sem
+  migração nesta rodada: `prisma migrate status` contra o Neon respondeu
+  "Database schema is up to date!" antes do merge.
 - **A rodada de hoje foi a fase 0 do plano de evolução** (diagnóstico completo
   do repositório, entrevista e plano em
   `C:\Users\dilto\.claude\plans\analise-o-projeto-me-elegant-walrus.md`, fora do
@@ -48,15 +49,10 @@ Se ele passar de umas 200, arquive antes de acrescentar.
      no 16 e sai no próximo major).
   5. **`next-auth` para a beta.32**, fechando quatro advisories, entre elas a
      que deixava checagem de sessão falhar abrindo.
-- **Migração: nenhuma.** O schema não foi tocado hoje, então não há nada a
-  aplicar no Neon antes de um eventual push.
 - **O classificador do n8n já conhece as 4 intenções de estoque**, ensinadas em
   2026-08-18 pelo MCP do n8n. Backup do workflow anterior em `D:\tmp\n8n-backup`.
-- **`higiene-instrucoes` foi mesclada e está no ar** (`79cb615`, merge `--no-ff`
-  autorizado em 2026-08-18): travas de agente versionadas, `npm run check`, o
-  `CLAUDE.md` reestruturado e o `CONTRIBUTING.md` apagado. Deploy conferido:
-  `/estoque` 307, `/api/v1/products` 401, e o agente respondeu uma consulta de
-  estoque pelo banco de provas.
+  Ele segue **congelado** por decisão do usuário: só volta a ser mexido quando o
+  sistema estiver revisado, para não retrabalhar a cada mudança.
 
 ### As travas de agente, e como passar por elas
 
@@ -90,12 +86,28 @@ Não só por compilação, porque aqui isso nunca bastou:
   reexecução) e `m19` pelo contador `signup-send` em 7 contra um teto de 5 por
   hora.
 
+### O deploy, conferido contra produção
+
+- Gate de sessão: `/dashboard`, `/estoque`, `/rebanho` e `/financeiro` devolvem
+  307 sem sessão.
+- **O vazamento de prefixo fechou em produção:** `/docsinterno` e
+  `/planosecreto` devolviam 404 antes do deploy (entravam como públicos e caíam
+  em rota inexistente) e agora devolvem 307. Foi a sonda usada para saber que o
+  código novo tinha propagado.
+- Públicas em 200: `/`, `/planos`, `/faq`, `/docs`, `/docs/api`,
+  `/politicas/privacidade` e `/criar-conta`.
+- `/api/v1/products`, `/animals` e `/financial-entries` devolvem 401 com o
+  envelope `{error:{code,message}}`.
+- **O agente continua respondendo:** `npm run wa` conversou com o agente de
+  produção e devolveu o saldo do rebanho, exercitando `resolve-contact` e
+  `execute-action` no Next 16.
+- HSTS já vinha da Vercel. Os demais cabeçalhos de segurança (CSP,
+  `X-Frame-Options`, `Referrer-Policy`) continuam ausentes: é item da próxima
+  etapa, não regressão.
+
 ### Próximo passo
 
-**Decisão do usuário sobre merge da `fundacao` na `main`.** Nada foi mesclado
-nem implantado.
-
-Depois disso, a fase 0 do plano continua onde parou: telemetria, envelope de
+Continuar a fase 0 do plano, onde ela parou: telemetria, envelope de
 erro garantido nas 113 rotas, endurecimento de `execute-action` (segredo
 separado, `tenant_id` conferido contra o `user_id`, idempotência por `wamid`) e
 o trem de migração (FKs e índices do livro-razão, `Alert` idempotente de
@@ -115,8 +127,9 @@ O levantamento completo, com evidência e custo de cada item, está em
 - **`app-mobile-fundacao` tem 3 commits fora da `main` desde 05/08**, com 5
   defeitos corrigidos e nunca retestados, enquanto a `main` recebeu os Módulos
   30 e 31 inteiros. É a dívida que mais cresce sozinha.
-- ~~**Não existe CI.**~~ Resolvido em 2026-08-20, na branch `fundacao`. Falta
-  ligar a proteção de branch no GitHub, que é trabalho de interface web.
+- ~~**Não existe CI.**~~ Resolvido em 2026-08-20 e já na `main`. Falta ligar a
+  proteção de branch no GitHub, que é trabalho de interface web, e conferir a
+  primeira execução (sem `gh` aqui, quem lê o resultado é o usuário).
 
 Três achadas hoje, que não estavam em `dividas.md`:
 
@@ -170,7 +183,7 @@ campos remontados é o que gravou.
 
 ## Histórico recente
 
-- **2026-08-20:** fase 0 da evolução, na branch `fundacao`: CI de verdade, suíte
+- **2026-08-20:** fase 0 da evolução, em produção (`e719a45`): CI de verdade, suíte
   de gate de sessão, Next 16 com React 19, middleware renomeado para proxy e
   quatro advisories de auth fechadas. Validado em navegador e por requisição
   real, não só por suíte verde.
