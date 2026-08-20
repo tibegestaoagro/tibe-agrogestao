@@ -165,6 +165,11 @@ jobs:
       - name: execute-action endurecido
         run: npm run test:m42
 
+      # O worker consome a fila certa e ignora o job de historico. Nao executa
+      # a rotina real: ela envia alerta para cliente de verdade.
+      - name: Worker da rotina diaria
+        run: npm run test:m44
+
   drift:
     name: Schema e migracoes contam a mesma historia
     runs-on: ubuntu-latest
