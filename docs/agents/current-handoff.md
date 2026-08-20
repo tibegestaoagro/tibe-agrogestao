@@ -25,7 +25,7 @@ Se ele passar de umas 200, arquive antes de acrescentar.
 ## Estado atual
 
 - Atualizado em: 2026-08-20.
-- **Produção: `21d5641` no ar.** A fase 0 do plano de evolução foi mesclada e
+- **Produção: `21d5641` no ar**, e a fase 0 fechou por completo na branch. Ela foi mesclada e
   implantada inteira, em duas levas (`fundacao` e `observabilidade`), com o
   worker por cima. As **duas migrações foram aplicadas no Neon antes do push**,
   conforme o invariante 3, e `prisma migrate status` responde "Database schema
@@ -79,17 +79,24 @@ medido em produção (`1200`, `"1200"`, `"60.000"`, `"60 mil"`). O que fazia
 falta era normalização, e ela foi feita. Se um schema entrar um dia, que seja
 por coerção e com `passthrough`, nunca por rejeição.
 
-⚠️ **Duas coisas precisam de você antes de isto valer inteiro:**
-1. **`REPORT_LINK_SECRET` na Vercel.** Sem ela o sistema funciona usando o
-   segredo interno como reserva e avisando no log, que é justamente o problema
-   que o commit resolve.
-2. **O n8n precisa passar `provider_message_id`** (o `wamid` que ele já tem no
-   payload) para a idempotência valer. Sem o campo, o comportamento é o antigo.
-   É edição de um nó, e entra quando o agente for descongelado.
+### A fase 0 está fechada
+
+O último item era o rebanho cadastrado que não aparecia no saldo, e ele foi
+corrigido: `createBatchAction` passa a emitir movimentação quando a categoria
+antiga traduz para uma das 12, e quando não traduz o resíduo fica **visível**
+(log e `scripts/diagnostico-integridade.ts`) em vez de silencioso.
+
+Fechou junto: `npm run test:all` (as 48 suítes num comando, ~2 min) e
+`medir-saldo.ts`, que é o gatilho escrito que autorizaria um dia introduzir
+cache de saldo, decisão que o plano deliberadamente adiou.
+
+**Próxima fase é a 1: identidade e sistema de design.** É onde a diferença
+passa a aparecer na tela, e não só no comportamento.
 
 ### O que depende do usuário, e degrada em silêncio até ser feito
 
-Três itens, todos de interface, nenhum de código:
+A lista completa, com passo a passo e o que acontece se não for feito, está em
+**[pendencias-do-usuario.md](pendencias-do-usuario.md)**. Em resumo:
 
 1. **`REPORT_LINK_SECRET` na Vercel.** Sem ela o link de relatório continua
    assinado com o segredo interno, avisando no log. É o buraco que o commit
@@ -108,12 +115,18 @@ ficou verde (sem `gh` nesta máquina, quem lê o resultado é o usuário).
 
 ### Próximo passo
 
-O que resta da fase 0: telemetria com coletor externo (o ponto de plugue já
-está em `src/instrumentation.ts`, falta o DSN), o staging em branch do Neon, e
-a decisão sobre as duas verdades do rebanho (270 contra 297 cabeças no banco
-local, com a diferença explicada por duas compras gravadas sem lote).
+**Fase 1 do plano: identidade e sistema de design.** A ordem interna dela já
+está desenhada e importa: direção visual escolhida olhando, depois tokens
+semânticos e o kit de componentes (serial, tudo depende deles), e só então as
+telas, em ondas, com um commit por tela.
 
-O esquema Zod por intenção **saiu do escopo**, com motivo escrito acima.
+O primeiro commit da fase, antes até do kit, é a varredura das sete ações que
+falham em silêncio hoje. É o que torna todo o resto testável por um humano.
+
+Dois itens saíram do escopo da fase 0 com motivo, e não por esquecimento: o
+esquema Zod por intenção (acima) e o coletor de erro externo (o ponto de plugue
+está em `src/instrumentation.ts`; a razão de não instalar o SDK está em
+[pendencias-do-usuario.md](pendencias-do-usuario.md), item 8).
 
 Continua pendente, de antes: **teste no aparelho** pelo roteiro em
 [roteiro-aparelho-estoque.md](roteiro-aparelho-estoque.md), cadastrando antes os
