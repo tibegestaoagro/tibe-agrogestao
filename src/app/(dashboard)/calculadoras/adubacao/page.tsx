@@ -1,6 +1,7 @@
 "use client";
 
 import CalcPage, { type CalcField, type CalcOutcome } from "../_components/calc-page";
+import { lerNumeroBr } from "@/lib/numero-br";
 import { calcularAdubacao } from "@/lib/calculadoras/adubacao";
 
 const FIELDS: CalcField[] = [
@@ -23,11 +24,11 @@ const FIELDS: CalcField[] = [
 ];
 
 function compute(values: Record<string, string | boolean>): CalcOutcome {
-  const pesoSacoKg = values.pesoSacoKg ? Number(values.pesoSacoKg) : undefined;
+  const pesoSacoKg = lerNumeroBr(values.pesoSacoKg) ?? undefined;
   const r = calcularAdubacao({
-    doseNutrienteKgHa: Number(values.doseNutrienteKgHa),
-    teorNutrientePercent: Number(values.teorNutrientePercent),
-    areaHectares: Number(values.areaHectares),
+    doseNutrienteKgHa: lerNumeroBr(values.doseNutrienteKgHa) ?? NaN,
+    teorNutrientePercent: lerNumeroBr(values.teorNutrientePercent) ?? NaN,
+    areaHectares: lerNumeroBr(values.areaHectares) ?? NaN,
     pesoSacoKg,
   });
   if (!r.ok) return { ok: false, error: r.error };

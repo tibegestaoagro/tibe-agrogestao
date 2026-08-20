@@ -1,6 +1,7 @@
 "use client";
 
 import CalcPage, { type CalcField, type CalcOutcome } from "../_components/calc-page";
+import { lerNumeroBr } from "@/lib/numero-br";
 import { calcularCompraVendaGado } from "@/lib/calculadoras/compra-venda-gado";
 
 const FIELDS: CalcField[] = [
@@ -21,16 +22,16 @@ const FIELDS: CalcField[] = [
 ];
 
 function compute(values: Record<string, string | boolean>): CalcOutcome {
-  const numeroAnimais = values.numeroAnimais ? Number(values.numeroAnimais) : undefined;
-  const custosAdicionais = values.custosAdicionais ? Number(values.custosAdicionais) : undefined;
+  const numeroAnimais = lerNumeroBr(values.numeroAnimais) ?? undefined;
+  const custosAdicionais = lerNumeroBr(values.custosAdicionais) ?? undefined;
 
   const r = calcularCompraVendaGado({
-    pesoVivoCompraKg: Number(values.pesoVivoCompraKg),
-    rendimentoCarcacaCompraPercent: Number(values.rendimentoCarcacaCompraPercent),
-    precoArrobaCompra: Number(values.precoArrobaCompra),
-    pesoVivoVendaKg: Number(values.pesoVivoVendaKg),
-    rendimentoCarcacaVendaPercent: Number(values.rendimentoCarcacaVendaPercent),
-    precoArrobaVenda: Number(values.precoArrobaVenda),
+    pesoVivoCompraKg: lerNumeroBr(values.pesoVivoCompraKg) ?? NaN,
+    rendimentoCarcacaCompraPercent: lerNumeroBr(values.rendimentoCarcacaCompraPercent) ?? NaN,
+    precoArrobaCompra: lerNumeroBr(values.precoArrobaCompra) ?? NaN,
+    pesoVivoVendaKg: lerNumeroBr(values.pesoVivoVendaKg) ?? NaN,
+    rendimentoCarcacaVendaPercent: lerNumeroBr(values.rendimentoCarcacaVendaPercent) ?? NaN,
+    precoArrobaVenda: lerNumeroBr(values.precoArrobaVenda) ?? NaN,
     numeroAnimais,
     custosAdicionais,
   });

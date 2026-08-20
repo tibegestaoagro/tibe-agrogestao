@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import { apiPost } from "@/lib/client-api";
 
@@ -64,8 +65,8 @@ export default function MachineForm({ properties }: { properties: Property[] }) 
       model: model || null,
       year: year ? Number(year) : null,
       property_id: propertyId,
-      acquisition_cost: acquisitionCost ? Number(acquisitionCost) : null,
-      hour_meter: hourMeter ? Number(hourMeter) : null,
+      acquisition_cost: lerValorDoCampo(acquisitionCost),
+      hour_meter: lerValorDoCampo(hourMeter),
     });
     setLoading(false);
     if (!res.ok) {
@@ -130,22 +131,20 @@ export default function MachineForm({ properties }: { properties: Property[] }) 
           </div>
           <div>
             <Label htmlFor="hour_meter">Horímetro (h)</Label>
-            <Input
+            <MoneyInput
               id="hour_meter"
-              type="number"
-              step="0.1"
+              kind="quantidade"
+              unit="h"
               value={hourMeter}
-              onChange={(e) => setHourMeter(e.target.value)}
+              onValueChange={setHourMeter}
             />
           </div>
           <div>
             <Label htmlFor="cost">Custo de aquisição (R$)</Label>
-            <Input
+            <MoneyInput
               id="cost"
-              type="number"
-              step="0.01"
               value={acquisitionCost}
-              onChange={(e) => setAcquisitionCost(e.target.value)}
+              onValueChange={setAcquisitionCost}
             />
             <p className="mt-1 text-xs text-gray-500">
               Preenchido, gera uma despesa automática vinculada à máquina.

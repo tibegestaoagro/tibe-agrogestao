@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import { apiPost } from "@/lib/client-api";
 
@@ -60,7 +61,7 @@ function WeightSheet({ animalId }: { animalId: string }) {
     s.setLoading(true);
     s.setError(null);
     const res = await apiPost(`/api/v1/animals/${animalId}/weight-logs`, {
-      weight: Number(weight),
+      weight: lerValorDoCampo(weight),
       measured_at: date ? new Date(date).toISOString() : null,
     });
     s.setLoading(false);
@@ -81,7 +82,7 @@ function WeightSheet({ animalId }: { animalId: string }) {
         <div className="space-y-3">
           <div>
             <Label htmlFor="w">Peso (kg) *</Label>
-            <Input id="w" type="number" step="0.001" value={weight} onChange={(e) => setWeight(e.target.value)} />
+            <MoneyInput id="w" kind="quantidade" unit="kg" value={weight} onValueChange={setWeight} />
           </div>
           <div>
             <Label htmlFor="wd">Data</Label>
@@ -110,7 +111,7 @@ function VaccinationSheet({ animalId, vaccines }: { animalId: string; vaccines: 
     const res = await apiPost(`/api/v1/animals/${animalId}/vaccinations`, {
       vaccine_id: vaccineId,
       applied_at: date ? new Date(date).toISOString() : null,
-      cost: cost ? Number(cost) : null,
+      cost: lerValorDoCampo(cost),
     });
     s.setLoading(false);
     if (!res.ok) return s.setError(res.message);
@@ -144,7 +145,7 @@ function VaccinationSheet({ animalId, vaccines }: { animalId: string; vaccines: 
           </div>
           <div>
             <Label htmlFor="vc">Custo (R$)</Label>
-            <Input id="vc" type="number" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} />
+            <MoneyInput id="vc" value={cost} onValueChange={setCost} />
           </div>
           {s.error && <p className="text-sm text-red-700">{s.error}</p>}
           <Button onClick={submit} disabled={s.loading} className="w-full">
@@ -171,7 +172,7 @@ function MovementSheet({ animalId, properties }: { animalId: string; properties:
     s.setError(null);
     const res = await apiPost(`/api/v1/animals/${animalId}/movements`, {
       movement_type: type,
-      value: value ? Number(value) : null,
+      value: lerValorDoCampo(value),
       to_property_id: type === "transfer" ? toProperty : null,
       occurred_at: date ? new Date(date).toISOString() : null,
     });
@@ -205,7 +206,7 @@ function MovementSheet({ animalId, properties }: { animalId: string; properties:
           {(type === "purchase" || type === "sale") && (
             <div>
               <Label htmlFor="mv">Valor (R$)</Label>
-              <Input id="mv" type="number" step="0.01" value={value} onChange={(e) => setValue(e.target.value)} />
+              <MoneyInput id="mv" value={value} onValueChange={setValue} />
               <p className="mt-1 text-xs text-gray-500">
                 Gera lançamento financeiro automático ({type === "sale" ? "receita" : "despesa"}).
               </p>

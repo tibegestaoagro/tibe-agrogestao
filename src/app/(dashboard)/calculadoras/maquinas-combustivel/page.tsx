@@ -1,6 +1,7 @@
 "use client";
 
 import CalcPage, { type CalcField, type CalcOutcome } from "../_components/calc-page";
+import { lerNumeroBr } from "@/lib/numero-br";
 import { calcularCombustivel, MODOS_CONSUMO, type ModoConsumo } from "@/lib/calculadoras/maquinas-combustivel";
 
 const FIELDS: CalcField[] = [
@@ -23,11 +24,11 @@ const FIELDS: CalcField[] = [
 ];
 
 function compute(values: Record<string, string | boolean>): CalcOutcome {
-  const precoPorLitro = values.precoPorLitro ? Number(values.precoPorLitro) : undefined;
+  const precoPorLitro = lerNumeroBr(values.precoPorLitro) ?? undefined;
   const r = calcularCombustivel({
     modo: values.modo as ModoConsumo,
-    consumoLitros: Number(values.consumoLitros),
-    quantidade: Number(values.quantidade),
+    consumoLitros: lerNumeroBr(values.consumoLitros) ?? NaN,
+    quantidade: lerNumeroBr(values.quantidade) ?? NaN,
     precoPorLitro,
   });
   if (!r.ok) return { ok: false, error: r.error };

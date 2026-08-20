@@ -1,6 +1,7 @@
 "use client";
 
 import CalcPage, { type CalcField, type CalcOutcome } from "../_components/calc-page";
+import { lerNumeroBr } from "@/lib/numero-br";
 import { calcularCerca } from "@/lib/calculadoras/cerca";
 
 const FIELDS: CalcField[] = [
@@ -17,10 +18,10 @@ const FIELDS: CalcField[] = [
 ];
 
 function compute(values: Record<string, string | boolean>): CalcOutcome {
-  const comprimentoMetros = Number(values.comprimentoMetros);
-  const espacamentoMetros = Number(values.espacamentoMetros);
-  const numeroFios = Number(values.numeroFios);
-  const metrosPorRoloArame = values.metrosPorRoloArame ? Number(values.metrosPorRoloArame) : undefined;
+  const comprimentoMetros = lerNumeroBr(values.comprimentoMetros) ?? NaN;
+  const espacamentoMetros = lerNumeroBr(values.espacamentoMetros) ?? NaN;
+  const numeroFios = lerNumeroBr(values.numeroFios) ?? NaN;
+  const metrosPorRoloArame = lerNumeroBr(values.metrosPorRoloArame) ?? undefined;
 
   const r = calcularCerca({ comprimentoMetros, espacamentoMetros, numeroFios, metrosPorRoloArame });
   if (!r.ok) return { ok: false, error: r.error };

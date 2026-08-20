@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import { apiPost } from "@/lib/client-api";
 import { HERD_CATEGORIES } from "@/lib/herd/categories";
@@ -121,7 +122,7 @@ export default function MovementForm({
 
   async function submit() {
     setError(null);
-    const qtd = Number(quantity);
+    const qtd = lerValorDoCampo(quantity) ?? 0;
     if (!type) return setError("Escolha o tipo de movimentação.");
     if (!Number.isInteger(qtd) || qtd <= 0) return setError("Informe uma quantidade inteira maior que zero.");
     if (precisaOrigem && (!fromCategory || !fromProperty)) {
@@ -137,7 +138,7 @@ export default function MovementForm({
       quantity: qtd,
       from: precisaOrigem ? posicao(fromCategory, fromProperty, fromPasture) : null,
       to: precisaDestino ? posicao(toCategory, toProperty, toPasture) : null,
-      value: WITH_VALUE.has(type) && value ? Number(value) : null,
+      value: WITH_VALUE.has(type) ? lerValorDoCampo(value) : null,
       reason: reason.trim() || null,
       notes: notes.trim() || null,
       occurred_at: occurredAt ? new Date(`${occurredAt}T12:00:00`).toISOString() : null,
@@ -274,13 +275,12 @@ export default function MovementForm({
 
           <div>
             <Label htmlFor="mov-qtd">Quantidade de cabeças</Label>
-            <Input
+            <MoneyInput
               id="mov-qtd"
-              type="number"
-              min={1}
-              step={1}
+              kind="quantidade"
+              unit="cabeças"
               value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
+              onValueChange={setQuantity}
             />
           </div>
 
@@ -313,13 +313,10 @@ export default function MovementForm({
               <Label htmlFor="mov-valor">
                 Valor total em R$ (opcional, gera lançamento no Financeiro)
               </Label>
-              <Input
+              <MoneyInput
                 id="mov-valor"
-                type="number"
-                min={0}
-                step="0.01"
                 value={value}
-                onChange={(e) => setValue(e.target.value)}
+                onValueChange={setValue}
               />
             </div>
           )}

@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import { apiPost, apiPatch } from "@/lib/client-api";
 
@@ -54,7 +55,7 @@ export default function FazendaForm({
       city,
       district: district || null,
       address: address || null,
-      area_hectares: area ? Number(area) : undefined,
+      area_hectares: lerValorDoCampo(area) ?? undefined,
     };
     const res = editing
       ? await apiPatch(`/api/v1/properties/${fazenda.id}`, payload)
@@ -85,14 +86,13 @@ export default function FazendaForm({
           </div>
           <div>
             <Label htmlFor="fazenda-area">Tamanho total (hectares)</Label>
-            <Input
+            <MoneyInput
               id="fazenda-area"
-              type="number"
-              step="0.01"
-              min="0"
+              kind="quantidade"
+              unit="ha"
               placeholder="Ex: 120"
               value={area}
-              onChange={(e) => setArea(e.target.value)}
+              onValueChange={setArea}
             />
           </div>
           <div>

@@ -323,6 +323,65 @@ function conferirHooks() {
   }
 }
 
+// -------------------------------------------- 7. numero escrito em portugues
+/**
+ * `<input type="number">` usa o parser do INGLES, e nao ha como troca-lo.
+ * Medido no Chrome em 2026-08-20:
+ *
+ *   digitado "1.500,00"  ->  .value = ""       ->  Number() = 0
+ *   digitado "1.500"     ->  .value = "1.500"  ->  Number() = 1.5
+ *
+ * com `validity.valid === true` nos dois. Um produtor que conta 1.500 cabecas
+ * gravava 1,5, sem erro na tela. O comentario de `src/lib/numero-br.ts` conta
+ * que esse mesmo defeito ja foi corrigido duas vezes e voltou nas duas, porque
+ * a correcao era pontual e a tela seguinte nascia com `Number` cru de novo.
+ *
+ * Esta e a catraca: campo de dinheiro ou quantidade usa `MoneyInput`. A lista
+ * abaixo e a linha de base, e ela so pode ENCOLHER.
+ */
+const NUMBER_PERMITIDO = new Set<string>([
+  // Ano de fabricacao: inteiro de 4 digitos, sem milhar e sem decimal.
+  "src/components/maquinas/machine-form.tsx",
+]);
+
+function conferirCamposNumericos() {
+  console.log("\n7. Numero escrito em portugues (MoneyInput)");
+
+  const ofensores: string[] = [];
+  const permitidosLimpos: string[] = [];
+
+  for (const rel of versionados()) {
+    if (!rel.startsWith("src/") || !rel.endsWith(".tsx")) continue;
+    const full = join(RAIZ, rel);
+    if (!existsSync(full)) continue;
+    // Sem os comentarios: um arquivo que EXPLICA por que nao se usa
+    // `type="number"` estava sendo acusado de usar. Verificador que le codigo
+    // nao pode tropecar em prosa.
+    const semComentarios = readFileSync(full, "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+    const temNumero = semComentarios.includes('type="number"');
+
+    if (NUMBER_PERMITIDO.has(rel)) {
+      if (!temNumero) permitidosLimpos.push(rel);
+      continue;
+    }
+    if (temNumero) ofensores.push(rel);
+  }
+
+  check(
+    'nenhuma tela nova com <input type="number">',
+    ofensores.length === 0,
+    ofensores.length > 0
+      ? `use MoneyInput (src/components/ui/money-input.tsx):\n       ${ofensores.slice(0, 12).join("\n       ")}`
+      : undefined,
+  );
+
+  if (permitidosLimpos.length > 0) {
+    console.log(`  ℹ️  ja sem type="number", remova da linha de base: ${permitidosLimpos.join(", ")}`);
+  }
+}
+
 function main() {
   console.log("🔎 Conferencia estatica do repositorio (sem banco)");
   conferirCaminhos();
@@ -332,6 +391,7 @@ function main() {
   conferirIndicesParciais();
   conferirHooks();
   conferirContraste(check);
+  conferirCamposNumericos();
 
   console.log("");
   if (falhas === 0) console.log("✅ Repositorio consistente: 0 falhas.");

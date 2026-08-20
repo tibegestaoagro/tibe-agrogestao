@@ -1,6 +1,7 @@
 "use client";
 
 import CalcPage, { type CalcField, type CalcOutcome } from "../_components/calc-page";
+import { lerNumeroBr } from "@/lib/numero-br";
 import { calcularRacao, TIPOS_ALIMENTO, type TipoAlimento } from "@/lib/calculadoras/racao";
 
 const FIELDS: CalcField[] = [
@@ -17,8 +18,8 @@ const FIELDS: CalcField[] = [
 
 function compute(values: Record<string, string | boolean>): CalcOutcome {
   const r = calcularRacao({
-    pesoMedioKg: Number(values.pesoMedioKg),
-    numeroAnimais: Number(values.numeroAnimais),
+    pesoMedioKg: lerNumeroBr(values.pesoMedioKg) ?? NaN,
+    numeroAnimais: lerNumeroBr(values.numeroAnimais) ?? NaN,
     tipoAlimento: values.tipoAlimento as TipoAlimento,
   });
   if (!r.ok) return { ok: false, error: r.error };

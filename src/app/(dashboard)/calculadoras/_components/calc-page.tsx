@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
@@ -122,17 +122,28 @@ export default function CalcPage({
           <div key={f.key} className="space-y-1.5">
             {f.kind !== "checkbox" && <Label htmlFor={f.key}>{f.label}</Label>}
 
+            {/* O campo era `type="number"`, e o parser do navegador e o do
+                ingles: "1.500" virava 1,5 e a conta saia mil vezes menor, sem
+                erro nenhum na tela. Numa calculadora isso pesa mais que num
+                formulario, porque o resultado nao fica guardado, vira
+                recomendacao levada para o campo. */}
             {f.kind === "number" && (
-              <div className="flex items-center gap-2">
-                <Input
-                  id={f.key}
-                  type="number"
-                  step={f.step ?? "any"}
-                  placeholder={f.placeholder}
-                  value={values[f.key] as string}
-                  onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
-                />
-                {f.suffix && <span className="whitespace-nowrap text-sm text-gray-500">{f.suffix}</span>}
+              <div className="flex items-start gap-2">
+                <div className="flex-1">
+                  <MoneyInput
+                    id={f.key}
+                    kind="quantidade"
+                    unit={f.suffix}
+                    placeholder={f.placeholder}
+                    value={values[f.key] as string}
+                    onValueChange={(valor) => setValues((v) => ({ ...v, [f.key]: valor }))}
+                  />
+                </div>
+                {f.suffix && (
+                  <span className="mt-2 whitespace-nowrap text-sm text-texto-secundario">
+                    {f.suffix}
+                  </span>
+                )}
               </div>
             )}
 

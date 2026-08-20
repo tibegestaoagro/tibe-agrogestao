@@ -1,6 +1,7 @@
 "use client";
 
 import CalcPage, { type CalcField, type CalcOutcome } from "../_components/calc-page";
+import { lerNumeroBr } from "@/lib/numero-br";
 import { calcularSalMineral } from "@/lib/calculadoras/sal-mineral";
 
 const FIELDS: CalcField[] = [
@@ -11,9 +12,9 @@ const FIELDS: CalcField[] = [
 
 function compute(values: Record<string, string | boolean>): CalcOutcome {
   const r = calcularSalMineral({
-    pesoMedioKg: Number(values.pesoMedioKg),
-    numeroAnimais: Number(values.numeroAnimais),
-    diasPeriodo: Number(values.diasPeriodo),
+    pesoMedioKg: lerNumeroBr(values.pesoMedioKg) ?? NaN,
+    numeroAnimais: lerNumeroBr(values.numeroAnimais) ?? NaN,
+    diasPeriodo: lerNumeroBr(values.diasPeriodo) ?? NaN,
   });
   if (!r.ok) return { ok: false, error: r.error };
 

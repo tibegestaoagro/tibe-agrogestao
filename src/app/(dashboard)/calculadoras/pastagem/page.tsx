@@ -1,6 +1,7 @@
 "use client";
 
 import CalcPage, { type CalcField, type CalcOutcome } from "../_components/calc-page";
+import { lerNumeroBr } from "@/lib/numero-br";
 import { calcularCapacidadeSuportePastagem } from "@/lib/calculadoras/pastagem";
 
 const FIELDS: CalcField[] = [
@@ -29,12 +30,12 @@ const FIELDS: CalcField[] = [
 ];
 
 function compute(values: Record<string, string | boolean>): CalcOutcome {
-  const areaHectares = values.areaHectares ? Number(values.areaHectares) : undefined;
-  const numeroAnimaisRebanho = values.numeroAnimaisRebanho ? Number(values.numeroAnimaisRebanho) : undefined;
-  const pesoMedioKg = values.pesoMedioKg ? Number(values.pesoMedioKg) : undefined;
+  const areaHectares = lerNumeroBr(values.areaHectares) ?? undefined;
+  const numeroAnimaisRebanho = lerNumeroBr(values.numeroAnimaisRebanho) ?? undefined;
+  const pesoMedioKg = lerNumeroBr(values.pesoMedioKg) ?? undefined;
 
   const r = calcularCapacidadeSuportePastagem({
-    producaoForragemKgMsHaAno: Number(values.producaoForragemKgMsHaAno),
+    producaoForragemKgMsHaAno: lerNumeroBr(values.producaoForragemKgMsHaAno) ?? NaN,
     areaHectares,
     numeroAnimaisRebanho,
     pesoMedioKg,

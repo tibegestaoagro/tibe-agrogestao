@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import { apiPost } from "@/lib/client-api";
 
@@ -43,7 +44,7 @@ export default function MaintenanceForm({ machineId }: { machineId: string }) {
     const res = await apiPost(`/api/v1/machines/${machineId}/maintenances`, {
       performed_at: performedAt ? new Date(performedAt).toISOString() : null,
       description,
-      cost: cost ? Number(cost) : null,
+      cost: lerValorDoCampo(cost),
       next_due_at: nextDueAt ? new Date(nextDueAt).toISOString() : null,
     });
     setLoading(false);
@@ -87,7 +88,7 @@ export default function MaintenanceForm({ machineId }: { machineId: string }) {
           </div>
           <div>
             <Label htmlFor="cost">Custo (R$)</Label>
-            <Input id="cost" type="number" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} />
+            <MoneyInput id="cost" value={cost} onValueChange={setCost} />
             <p className="mt-1 text-xs text-gray-500">
               Preenchido, gera uma despesa automática vinculada a esta manutenção.
             </p>

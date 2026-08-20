@@ -1,6 +1,7 @@
 "use client";
 
 import CalcPage, { type CalcField, type CalcOutcome } from "../_components/calc-page";
+import { lerNumeroBr } from "@/lib/numero-br";
 import { calcularAgua } from "@/lib/calculadoras/agua";
 
 const FIELDS: CalcField[] = [
@@ -10,10 +11,10 @@ const FIELDS: CalcField[] = [
 ];
 
 function compute(values: Record<string, string | boolean>): CalcOutcome {
-  const diasPeriodo = values.diasPeriodo ? Number(values.diasPeriodo) : undefined;
+  const diasPeriodo = lerNumeroBr(values.diasPeriodo) ?? undefined;
   const r = calcularAgua({
-    pesoMedioKg: Number(values.pesoMedioKg),
-    numeroAnimais: Number(values.numeroAnimais),
+    pesoMedioKg: lerNumeroBr(values.pesoMedioKg) ?? NaN,
+    numeroAnimais: lerNumeroBr(values.numeroAnimais) ?? NaN,
     diasPeriodo,
   });
   if (!r.ok) return { ok: false, error: r.error };

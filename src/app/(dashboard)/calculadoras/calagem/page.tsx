@@ -1,6 +1,7 @@
 "use client";
 
 import CalcPage, { type CalcField, type CalcOutcome } from "../_components/calc-page";
+import { lerNumeroBr } from "@/lib/numero-br";
 import { calcularCalagem } from "@/lib/calculadoras/calagem";
 
 const FIELDS: CalcField[] = [
@@ -18,12 +19,12 @@ const FIELDS: CalcField[] = [
 ];
 
 function compute(values: Record<string, string | boolean>): CalcOutcome {
-  const areaHectares = values.areaHectares ? Number(values.areaHectares) : undefined;
+  const areaHectares = lerNumeroBr(values.areaHectares) ?? undefined;
   const r = calcularCalagem({
-    ctc: Number(values.ctc),
-    saturacaoAtualPercent: Number(values.saturacaoAtualPercent),
-    saturacaoDesejadaPercent: Number(values.saturacaoDesejadaPercent),
-    prntPercent: Number(values.prntPercent),
+    ctc: lerNumeroBr(values.ctc) ?? NaN,
+    saturacaoAtualPercent: lerNumeroBr(values.saturacaoAtualPercent) ?? NaN,
+    saturacaoDesejadaPercent: lerNumeroBr(values.saturacaoDesejadaPercent) ?? NaN,
+    prntPercent: lerNumeroBr(values.prntPercent) ?? NaN,
     areaHectares,
   });
   if (!r.ok) return { ok: false, error: r.error };

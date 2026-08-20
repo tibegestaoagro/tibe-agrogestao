@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import { apiPost, apiPatch } from "@/lib/client-api";
 
@@ -111,9 +112,9 @@ function InputSheet({ cycleId }: { cycleId: string }) {
     const res = await apiPost(`/api/v1/cycles/${cycleId}/inputs`, {
       input_type: type,
       name,
-      quantity: quantity ? Number(quantity) : null,
+      quantity: lerValorDoCampo(quantity),
       unit: unit || null,
-      cost: cost ? Number(cost) : null,
+      cost: lerValorDoCampo(cost),
     });
     setLoading(false);
     if (!res.ok) return setError(res.message);
@@ -146,7 +147,7 @@ function InputSheet({ cycleId }: { cycleId: string }) {
           <div className="flex gap-2">
             <div className="flex-1">
               <Label htmlFor="iq">Quantidade</Label>
-              <Input id="iq" type="number" step="0.001" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+              <MoneyInput id="iq" kind="quantidade" value={quantity} onValueChange={setQuantity} />
             </div>
             <div className="flex-1">
               <Label htmlFor="iu">Unidade</Label>
@@ -155,7 +156,7 @@ function InputSheet({ cycleId }: { cycleId: string }) {
           </div>
           <div>
             <Label htmlFor="ic">Custo (R$)</Label>
-            <Input id="ic" type="number" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} />
+            <MoneyInput id="ic" value={cost} onValueChange={setCost} />
           </div>
           {error && <p className="text-sm text-red-700">{error}</p>}
           <Button onClick={submit} disabled={loading} className="w-full">
@@ -182,7 +183,7 @@ function HarvestSheet({ cycleId }: { cycleId: string }) {
     setLoading(true); setError(null);
     const res = await apiPatch(`/api/v1/cycles/${cycleId}/harvest`, {
       harvested_at: new Date(date).toISOString(),
-      yield_amount: Number(amount),
+      yield_amount: lerValorDoCampo(amount),
       yield_unit: unit,
     });
     setLoading(false);
@@ -204,7 +205,7 @@ function HarvestSheet({ cycleId }: { cycleId: string }) {
           </div>
           <div>
             <Label htmlFor="ha">Quantidade colhida *</Label>
-            <Input id="ha" type="number" step="0.001" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            <MoneyInput id="ha" kind="quantidade" value={amount} onValueChange={setAmount} />
           </div>
           <div>
             <Label>Unidade *</Label>

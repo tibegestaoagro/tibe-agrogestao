@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import { apiPost } from "@/lib/client-api";
 
@@ -51,7 +52,7 @@ export default function OrderForm({
   const service = useMemo(() => services.find((s) => s.id === serviceId), [services, serviceId]);
   const isFixed = service?.pricing_type === "fixed";
   const total = service?.unit_price != null
-    ? (isFixed ? 1 : Number(quantity || 0)) * service.unit_price
+    ? (isFixed ? 1 : (lerValorDoCampo(quantity) ?? 0)) * service.unit_price
     : null;
 
   async function submit() {
@@ -62,7 +63,7 @@ export default function OrderForm({
     const res = await apiPost("/api/v1/service-orders", {
       service_client_id: clientId,
       service_id: serviceId,
-      quantity: isFixed ? 1 : Number(quantity),
+      quantity: isFixed ? 1 : lerValorDoCampo(quantity),
       description: description || null,
       performed_at: new Date(date).toISOString(),
     });
@@ -106,7 +107,7 @@ export default function OrderForm({
           {!isFixed && (
             <div>
               <Label htmlFor="o-qty">Quantidade ({service ? UNIT[service.pricing_type] : "unidade"}) *</Label>
-              <Input id="o-qty" type="number" step="0.01" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+              <MoneyInput id="o-qty" kind="quantidade" value={quantity} onValueChange={setQuantity} />
             </div>
           )}
           <div>

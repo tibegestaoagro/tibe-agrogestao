@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import { apiPost } from "@/lib/client-api";
 
@@ -41,7 +42,7 @@ export default function PlotForm({ properties }: { properties: Property[] }) {
     setError(null);
     const res = await apiPost("/api/v1/plots", {
       name,
-      area_hectares: Number(area),
+      area_hectares: lerValorDoCampo(area),
       property_id: propertyId,
     });
     setLoading(false);
@@ -65,7 +66,7 @@ export default function PlotForm({ properties }: { properties: Property[] }) {
           </div>
           <div>
             <Label htmlFor="pa">Área (ha) *</Label>
-            <Input id="pa" type="number" step="0.01" value={area} onChange={(e) => setArea(e.target.value)} />
+            <MoneyInput id="pa" kind="quantidade" unit="ha" value={area} onValueChange={setArea} />
           </div>
           <div>
             <Label>Propriedade *</Label>

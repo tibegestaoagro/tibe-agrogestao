@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import { apiPost } from "@/lib/client-api";
 import { HERD_CATEGORIES } from "@/lib/herd/categories";
@@ -108,14 +109,14 @@ export default function NegotiationForm({
   const [notes, setNotes] = useState("");
 
   const compra = type === "compra_gado";
-  const valorNumero = Number(amount.replace(",", ".")) || 0;
+  const valorNumero = lerValorDoCampo(amount) ?? 0;
 
   const somaParcelas = useMemo(
-    () => parcelas.reduce((s, p) => s + (Number(p.amount.replace(",", ".")) || 0), 0),
+    () => parcelas.reduce((s, p) => s + (lerValorDoCampo(p.amount) ?? 0), 0),
     [parcelas],
   );
   const somaCustos = useMemo(
-    () => custos.reduce((s, c) => s + (Number(c.amount.replace(",", ".")) || 0), 0),
+    () => custos.reduce((s, c) => s + (lerValorDoCampo(c.amount) ?? 0), 0),
     [custos],
   );
   // §14: a soma tem que fechar. Mostrado ANTES de enviar, para o produtor
@@ -152,7 +153,7 @@ export default function NegotiationForm({
 
   async function submit() {
     setError(null);
-    const qtd = Number(quantity);
+    const qtd = lerValorDoCampo(quantity) ?? 0;
     if (!propertyId) return setError("Escolha a fazenda.");
     if (!categoryId) return setError("Escolha a categoria dos animais.");
     if (!Number.isInteger(qtd) || qtd <= 0) return setError("Informe uma quantidade inteira maior que zero.");
@@ -177,11 +178,11 @@ export default function NegotiationForm({
         ? []
         : parcelas.map((p) => ({
             due_date: new Date(`${p.due_date}T12:00:00`).toISOString(),
-            amount: Number(p.amount.replace(",", ".")) || 0,
+            amount: lerValorDoCampo(p.amount) ?? 0,
           })),
       custos: custos
-        .filter((c) => c.descricao.trim() && Number(c.amount.replace(",", ".")) > 0)
-        .map((c) => ({ descricao: c.descricao.trim(), amount: Number(c.amount.replace(",", ".")) })),
+        .filter((c) => c.descricao.trim() && (lerValorDoCampo(c.amount) ?? 0) > 0)
+        .map((c) => ({ descricao: c.descricao.trim(), amount: lerValorDoCampo(c.amount) ?? 0 })),
       notes: notes.trim() || null,
     });
     setLoading(false);
@@ -240,13 +241,12 @@ export default function NegotiationForm({
             </div>
             <div>
               <Label htmlFor="neg-qtd">Quantidade</Label>
-              <Input
+              <MoneyInput
                 id="neg-qtd"
-                type="number"
-                min={1}
-                step={1}
+                kind="quantidade"
+                unit="cabeças"
                 value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
+                onValueChange={setQuantity}
               />
             </div>
           </div>
@@ -254,13 +254,10 @@ export default function NegotiationForm({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="neg-valor">Valor total (R$)</Label>
-              <Input
+              <MoneyInput
                 id="neg-valor"
-                type="number"
-                min={0}
-                step="0.01"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onValueChange={setAmount}
               />
             </div>
             <div>
@@ -386,13 +383,13 @@ export default function NegotiationForm({
                         setParcelas(novas);
                       }}
                     />
-                    <Input
-                      type="number"
-                      step="0.01"
+                    <MoneyInput
+                      hideEcho
+                      aria-label={`Valor da parcela ${i + 1}`}
                       value={p.amount}
-                      onChange={(e) => {
+                      onValueChange={(v) => {
                         const novas = [...parcelas];
-                        novas[i] = { ...novas[i], amount: e.target.value };
+                        novas[i] = { ...novas[i], amount: v };
                         setParcelas(novas);
                       }}
                     />
@@ -431,14 +428,14 @@ export default function NegotiationForm({
                     setCustos(novos);
                   }}
                 />
-                <Input
-                  type="number"
-                  step="0.01"
+                <MoneyInput
+                  hideEcho
+                  aria-label={`Valor do custo ${i + 1}`}
                   placeholder="0,00"
                   value={c.amount}
-                  onChange={(e) => {
+                  onValueChange={(v) => {
                     const novos = [...custos];
-                    novos[i] = { ...novos[i], amount: e.target.value };
+                    novos[i] = { ...novos[i], amount: v };
                     setCustos(novos);
                   }}
                 />

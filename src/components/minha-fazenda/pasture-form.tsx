@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import { apiPost, apiPatch } from "@/lib/client-api";
 
@@ -44,11 +45,11 @@ export default function PastureForm({
     const res = editing
       ? await apiPatch(`/api/v1/pastures/${pasture.id}`, {
           name,
-          area_hectares: area ? Number(area) : undefined,
+          area_hectares: lerValorDoCampo(area) ?? undefined,
         })
       : await apiPost("/api/v1/pastures", {
           name,
-          area_hectares: area ? Number(area) : undefined,
+          area_hectares: lerValorDoCampo(area) ?? undefined,
           property_id: propertyId,
         });
     setLoading(false);
@@ -77,14 +78,13 @@ export default function PastureForm({
           </div>
           <div>
             <Label htmlFor="pasture-area">Tamanho (hectares)</Label>
-            <Input
+            <MoneyInput
               id="pasture-area"
-              type="number"
-              step="0.01"
-              min="0"
+              kind="quantidade"
+              unit="ha"
               placeholder="Ex: 20"
               value={area}
-              onChange={(e) => setArea(e.target.value)}
+              onValueChange={setArea}
             />
           </div>
           {error && <p className="text-sm text-red-700">{error}</p>}

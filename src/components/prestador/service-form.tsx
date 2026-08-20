@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import { apiPost, apiPatch } from "@/lib/client-api";
 
@@ -38,7 +39,7 @@ export default function ServiceForm({ service }: { service?: Service }) {
     if (!name || !pricing || !price) return setError("Preencha nome, tipo e valor.");
     setLoading(true);
     setError(null);
-    const payload = { name, pricing_type: pricing, unit_price: Number(price) };
+    const payload = { name, pricing_type: pricing, unit_price: lerValorDoCampo(price) };
     const res = editing
       ? await apiPatch(`/api/v1/services/${service!.id}`, payload)
       : await apiPost("/api/v1/services", payload);
@@ -77,7 +78,7 @@ export default function ServiceForm({ service }: { service?: Service }) {
               </SelectContent>
             </Select>
           </div>
-          <div><Label htmlFor="s-price">Valor unitário (R$) *</Label><Input id="s-price" type="number" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} /></div>
+          <div><Label htmlFor="s-price">Valor unitário (R$) *</Label><MoneyInput id="s-price" value={price} onValueChange={setPrice} /></div>
           {editing && (
             <p className="text-xs text-gray-500">
               Alterar o valor não afeta ordens já registradas, apenas novas.

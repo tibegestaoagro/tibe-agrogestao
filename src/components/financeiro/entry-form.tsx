@@ -3,13 +3,6 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Sheet,
-  SheetTrigger,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
   Select,
   SelectTrigger,
   SelectValue,
@@ -18,15 +11,22 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
+import { FormSheet } from "@/components/ui/form-sheet";
+import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
+import { useAviso } from "@/components/ui/toast";
 import { apiPost } from "@/lib/client-api";
 import { FINANCIAL_CATEGORIES, suggestCategory } from "@/lib/category-suggestions";
 
+type Erros = Partial<Record<"entryType" | "category" | "amount" | "dueDate", string>>;
+
 export default function EntryForm() {
   const router = useRouter();
+  const aviso = useAviso();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [erros, setErros] = useState<Erros>({});
 
   const [entryType, setEntryType] = useState<"income" | "expense" | "">("");
   const [category, setCategory] = useState("");
@@ -46,95 +46,147 @@ export default function EntryForm() {
     }
   }
 
+  function limpar() {
+    setEntryType("");
+    setCategory("");
+    setCategoryTouched(false);
+    setAmount("");
+    setDueDate("");
+    setNotes("");
+    setErros({});
+    setError(null);
+  }
+
   async function submit() {
-    if (!entryType || !category || !amount || !dueDate) {
-      setError("Preencha tipo, categoria, valor e data de vencimento.");
-      return;
-    }
+    const valor = lerValorDoCampo(amount);
+    const novos: Erros = {};
+    if (!entryType) novos.entryType = "Escolha se é receita ou despesa.";
+    if (!category) novos.category = "Escolha uma categoria.";
+    if (valor === null) novos.amount = "Informe o valor.";
+    else if (valor <= 0) novos.amount = "O valor precisa ser maior que zero.";
+    if (!dueDate) novos.dueDate = "Informe a data de vencimento.";
+
+    setErros(novos);
+    if (Object.keys(novos).length > 0) return;
+
     setLoading(true);
     setError(null);
     const res = await apiPost("/api/v1/financial-entries", {
       entry_type: entryType,
       category,
-      amount: Number(amount),
+      amount: valor,
       due_date: new Date(dueDate).toISOString(),
       notes: notes || null,
     });
     setLoading(false);
     if (!res.ok) return setError(res.message);
-    setEntryType(""); setCategory(""); setCategoryTouched(false);
-    setAmount(""); setDueDate(""); setNotes("");
+
+    limpar();
     setOpen(false);
+    aviso.sucesso(entryType === "income" ? "Receita cadastrada." : "Despesa cadastrada.");
     router.refresh();
   }
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button>Novo lançamento</Button>
-      </SheetTrigger>
-      <SheetContent title="Novo lançamento">
-        <SheetHeader><SheetTitle>Novo lançamento</SheetTitle></SheetHeader>
-        <div className="space-y-3">
-          <div>
-            <Label>Tipo *</Label>
-            <Select value={entryType} onValueChange={(v) => setEntryType(v as "income" | "expense")}>
-              <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="income">Receita</SelectItem>
-                <SelectItem value="expense">Despesa</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+    <FormSheet
+      trigger={<Button>Novo lançamento</Button>}
+      title="Novo lançamento"
+      description="Uma conta a pagar ou a receber. O valor entra no fluxo de caixa quando for pago."
+      open={open}
+      onOpenChange={(aberto) => {
+        setOpen(aberto);
+        if (!aberto) limpar();
+      }}
+      onSubmit={submit}
+      submitLabel="Cadastrar"
+      pending={loading}
+      error={error}
+    >
+      <Field label="Tipo" required error={erros.entryType}>
+        {({ id, ...aria }) => (
+          <Select
+            value={entryType}
+            onValueChange={(v) => setEntryType(v as "income" | "expense")}
+          >
+            <SelectTrigger id={id} {...aria}>
+              <SelectValue placeholder="Selecione" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="income">Receita</SelectItem>
+              <SelectItem value="expense">Despesa</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+      </Field>
 
-          <div>
-            <Label htmlFor="notes">Observações</Label>
-            <Input
-              id="notes"
-              value={notes}
-              onChange={(e) => handleNotesChange(e.target.value)}
-              placeholder="Ex: combustível do trator"
-            />
-          </div>
+      <Field
+        label="Observações"
+        hint="O que você escrever aqui sugere a categoria sozinho."
+      >
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            value={notes}
+            onChange={(e) => handleNotesChange(e.target.value)}
+            placeholder="Ex: combustível do trator"
+          />
+        )}
+      </Field>
 
-          <div>
-            <Label>Categoria *</Label>
-            <Select
-              value={category}
-              onValueChange={(v) => {
-                setCategory(v);
-                setCategoryTouched(true);
-              }}
-            >
-              <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-              <SelectContent>
-                {FINANCIAL_CATEGORIES.map((c) => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {suggested && !categoryTouched && (
-              <p className="mt-1 text-xs text-gray-500">Sugestão automática: {suggested}</p>
-            )}
-          </div>
+      <Field
+        label="Categoria"
+        required
+        error={erros.category}
+        hint={
+          suggested && !categoryTouched ? `Sugestão automática: ${suggested}` : undefined
+        }
+      >
+        {({ id, ...aria }) => (
+          <Select
+            value={category}
+            onValueChange={(v) => {
+              setCategory(v);
+              setCategoryTouched(true);
+            }}
+          >
+            <SelectTrigger id={id} {...aria}>
+              <SelectValue placeholder="Selecione" />
+            </SelectTrigger>
+            <SelectContent>
+              {FINANCIAL_CATEGORIES.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </Field>
 
-          <div>
-            <Label htmlFor="amount">Valor (R$) *</Label>
-            <Input id="amount" type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
-          </div>
+      <Field label="Valor" required error={erros.amount}>
+        {({ id, ...aria }) => (
+          <MoneyInput
+            id={id}
+            {...aria}
+            value={amount}
+            onValueChange={setAmount}
+            placeholder="0,00"
+          />
+        )}
+      </Field>
 
-          <div>
-            <Label htmlFor="due">Data de vencimento *</Label>
-            <Input id="due" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-          </div>
-
-          {error && <p className="text-sm text-red-700">{error}</p>}
-
-          <Button onClick={submit} disabled={loading} className="w-full">
-            {loading ? "Salvando..." : "Cadastrar"}
-          </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
+      <Field label="Data de vencimento" required error={erros.dueDate}>
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+          />
+        )}
+      </Field>
+    </FormSheet>
   );
 }
