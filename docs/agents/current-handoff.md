@@ -92,36 +92,39 @@ fora da máquina de origem trabalha pelo que está escrito aqui e nos commits.
 
 ### A cópia nova: `C:\projetos\tibe-agrogestao`
 
-Clonada em 2026-08-24, e preparada e conferida na mesma rodada: `npm install`
-(628 pacotes, Prisma Client gerado), container `tibe-pg` criado do zero
-(`postgres:17`, porta `55432`, `tibe`/`tibe`/`tibe_dev`), as 32 migrações
-aplicadas, seed rodado, `npm run check` com 0 falhas e `npm run test:isolation`
-verde. Note que o `docker start tibe-pg` do `CLAUDE.md` pressupõe o container já
-existente: numa máquina nova ele precisa ser criado antes.
+Clonada em 2026-08-24 e preparada na mesma rodada: `npm install`, container
+`tibe-pg` criado do zero (`postgres:17`, porta `55432`, `tibe`/`tibe`/
+`tibe_dev`), 32 migrações, `db:seed`, `seed:demo`, `.env` decifrado do
+`.env.enc` (22 variáveis, nenhuma vazia). Conferido: `npm run check` com 0
+falhas e **`npm run test:all -- --sem-redis` com 45/45**.
 
-Duas coisas ficaram de fora, e valem para quem retomar aqui:
+Três coisas que só montar do zero revelou, e que valem para a próxima máquina:
 
-- **O `.env` ainda não foi decifrado nesta cópia**, porque depende da senha, que
-  está no gerenciador. Sem ele só rodam as suítes que não precisam de segredo, e
-  sempre com a URL do Docker inline.
-- **`gh` continua não existindo**, como já acontecia na outra máquina.
+- **`docker start tibe-pg` pressupõe o container existente.** Numa máquina nova
+  ele precisa ser criado antes, e o `CLAUDE.md` não diz isso.
+- **`npm run seed:demo` não é opcional.** Sem ele o `test:herd` falha com
+  "nenhum tenant com animais: o teste não provou nada", que é a suíte se
+  recusando a passar vazia. Só o `db:seed` não basta, e nenhum documento dizia.
+- **`openssl` não está no PATH do PowerShell**, embora venha com o Git. Resolvido
+  aqui acrescentando `C:\Program Files\Git\mingw64\bin` ao PATH do usuário (a
+  `usr\bin` NÃO serve: tem `find.exe` e `sort.exe`, que sequestram comandos do
+  Windows).
+
+**`gh` continua não existindo**, como já acontecia na outra máquina.
 
 ### O que depende do usuário, e degrada em silêncio até ser feito
 
 A lista completa, com passo a passo e o que acontece se não for feito, está em
 **[pendencias-do-usuario.md](pendencias-do-usuario.md)**. Em resumo:
 
-1. **`REPORT_LINK_SECRET` na Vercel.** Sem ela o link de relatório continua
-   assinado com o segredo interno, avisando no log. É o buraco que o commit
-   dos segredos separados existe para fechar.
-2. **O n8n passar `provider_message_id`** (o `wamid` que ele já tem no
-   payload). Sem o campo, a idempotência não vale e o log registra cada
-   chamada desprotegida. É edição de um nó.
+1. **`REPORT_LINK_SECRET` na Vercel.** Sem ela o link de relatório segue
+   assinado com o segredo interno. Falta também no `.env` local.
+2. **O n8n passar `provider_message_id`.** Sem o campo a idempotência não vale.
+   É edição de um nó.
 3. **Provisionar o worker no Railway**, seguindo
    [worker-de-rotina.md](worker-de-rotina.md). A ordem importa: subir o
-   processo primeiro, conferir no log que ele está ouvindo, e **só então**
-   ligar `ROTINA_COM_WORKER=1`. Inverter faz o sistema parar de gerar alerta
-   sem nenhum erro.
+   processo, conferir no log que ele ouve, e **só então** ligar
+   `ROTINA_COM_WORKER=1`. Inverter faz o sistema parar de alertar sem erro.
 
 Mais dois de higiene: ligar a proteção de branch no GitHub, e conferir se o CI
 ficou verde (sem `gh` nesta máquina, quem lê o resultado é o usuário).
@@ -156,6 +159,10 @@ O levantamento completo, com evidência e custo de cada item, está em
 - **`app-mobile-fundacao` tem 3 commits fora da `main` desde 05/08**, com 5
   defeitos corrigidos e nunca retestados, enquanto a `main` recebeu os Módulos
   30 e 31 inteiros. É a dívida que mais cresce sozinha.
+- **Três segredos no `.env` que nenhuma linha de código lê** (2026-08-24):
+  `OPENAI_API_KEY`, `N8N_API_KEY` e `N8N_WEBHOOK_SECRET`. A classificação
+  acontece dentro do n8n, então eles deviam viver só lá. O da OpenAI gasta
+  dinheiro se vazar, e hoje viaja no backup cifrado sem servir para nada.
 
 Quatro achadas hoje, que não estavam em `dividas.md`:
 
