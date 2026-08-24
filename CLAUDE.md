@@ -302,10 +302,12 @@ qualquer comando citado na documentação que não exista lá. Credenciais do se
 
 Além deste arquivo (versionado, visível a qualquer sessão e a qualquer humano),
 existe uma memória **local à máquina**, fora do repositório, em
-`C:\Users\dilto\.claude\projects\d--Projetos-Web-agrogestao-tibe\memory\`. Ela
-guarda preferência do usuário e armadilha de ambiente, **não** estado do
-projeto, e não é visível para outras ferramentas. Trate este arquivo como a
-fonte que precisa funcionar sozinha.
+`~/.claude/projects/<pasta-do-projeto>/memory/`. O trecho do meio é derivado do
+caminho onde o projeto está clonado, então **muda de máquina para máquina**:
+citar um caminho absoluto aqui envelhece na primeira vez que o projeto se move,
+como já aconteceu. Essa memória guarda preferência do usuário e armadilha de
+ambiente, **não** estado do projeto, e não é visível para outras ferramentas.
+Trate este arquivo como a fonte que precisa funcionar sozinha.
 
 Issues ficam nas GitHub Issues do repo, via `gh` CLI
 ([docs/agents/issue-tracker.md](docs/agents/issue-tracker.md)), com as labels de
