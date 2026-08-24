@@ -35,37 +35,21 @@ Se ele passar de umas 200, arquive antes de acrescentar.
   `main`, na ordem que o plano exige:
   - `60e4d87`: as sete escritas que falhavam em silêncio passam a avisar, e os
     alvos de toque chegam a 44px. É o que torna o resto testável por um humano.
-  - `638d0f6`: os valores de cor saem de 142 arquivos e viram tokens semânticos
-    em `globals.css`. O achado da rodada: texto branco sobre o verde da marca
-    dava 3,51:1, reprovando em AA. A correção mudou a cor do TEXTO, não os hex
-    da Agromax, e `scripts/check-contraste.ts` entrou no `npm run check`.
+  - `638d0f6`: cor sai de 142 arquivos e vira token semântico em `globals.css`.
+    O achado: texto branco sobre o verde da marca dava 3,51:1, reprovando em AA.
+    Mudou a cor do TEXTO, não os hex da Agromax, e `check-contraste.ts` entrou
+    no `npm run check`.
   - `979ba2e`: `<input type="number">` lia "1.500" como 1,5 e "1.500,00" como
     zero, em 31 campos, sem mensagem. Vieram `MoneyInput`, `Field` e
     `FormSheet` (os 27 painéis de escrita eram `<div>`, sem `<form>`), mais uma
     catraca no `npm run check` que reprova `type="number"` novo.
-- **`cbe4afb` acrescentou o `.env.enc`**, backup cifrado do `.env` (AES-256-CBC,
-  PBKDF2, 600 mil iterações), para o projeto viajar entre máquinas sem o
-  chaveiro em texto puro. A senha vive fora do repositório, e o passo a passo
-  está em [../backup-env.md](../backup-env.md).
+- **`cbe4afb` acrescentou o `.env.enc`**, backup cifrado do `.env`, para o
+  projeto viajar sem o chaveiro em texto puro. Passo a passo em
+  [../backup-env.md](../backup-env.md).
 - **O classificador do n8n já conhece as 4 intenções de estoque**, ensinadas em
   2026-08-18 pelo MCP do n8n. Backup do workflow anterior em `D:\tmp\n8n-backup`.
   Ele segue **congelado** por decisão do usuário: só volta a ser mexido quando o
   sistema estiver revisado, para não retrabalhar a cada mudança.
-
-### As travas de agente, e como passar por elas
-
-`.claude/settings.json` e `.claude/hooks/` são versionados, então valem também
-no notebook. Eles **recusam** travessão novo, heredoc com escape, e merge, push
-mirando a `main` e deploy.
-
-Quando o usuário autorizar, o caminho é repetir o comando com a marca
-`AUTORIZADO_PELO_USUARIO=1` na frente. **Nunca desligue o hook**: a marca existe
-justamente para o caminho autorizado não ser desligá-lo, porque hook desligado
-não volta sozinho. E a marca só vale para autorização dada NA CONVERSA, nunca
-deduzida de uma anterior.
-
-O `/doctor` de 2026-08-18 mudou `permissions.defaultMode` para `"auto"` no
-escopo de usuário. Testado: **os hooks continuam bloqueando nesse modo**.
 
 ### Sobre o Zod por intenção, que estava no plano e NÃO foi feito
 
@@ -76,13 +60,11 @@ e com `passthrough`, nunca por rejeição.
 
 ### A fase 0 está fechada
 
-Entregou CI de verdade (com Postgres e Redis próprios, e drift de migração),
-Next 16 com React 19, quatro advisories de auth fechadas, envelope de erro e
-log estruturado, cabeçalhos de segurança, integridade e auditoria no banco,
-`execute-action` endurecido, normalização dos parâmetros do agente, o worker da
-rotina diária (código pronto, não provisionado), `npm run test:all` (as 48
-suítes num comando, ~2 min) e `medir-saldo.ts`, o gatilho escrito que
-autorizaria um dia introduzir cache de saldo. O relato completo está em
+Entregou CI, Next 16, quatro advisories de auth, envelope de erro e log
+estruturado, cabeçalhos de segurança, integridade e auditoria no banco, a porta
+do agente endurecida, o worker da rotina diária (código pronto, não
+provisionado), `npm run test:all` e `medir-saldo.ts`, o gatilho escrito que
+autorizaria um dia introduzir cache de saldo. Relato completo em
 [historico/2026-08.md](historico/2026-08.md).
 
 ⚠️ **O plano que originou a fase 0 e desenha a fase 1 vive FORA do repositório**,
@@ -96,7 +78,8 @@ Clonada em 2026-08-24 e preparada na mesma rodada: `npm install`, container
 `tibe-pg` criado do zero (`postgres:17`, porta `55432`, `tibe`/`tibe`/
 `tibe_dev`), 32 migrações, `db:seed`, `seed:demo`, `.env` decifrado do
 `.env.enc` (22 variáveis, nenhuma vazia). Conferido: `npm run check` com 0
-falhas e **`npm run test:all -- --sem-redis` com 45/45**.
+falhas e **48/48 suítes verdes** (45 pelo `test:all -- --sem-redis`, mais as
+três do Redis contra um `tibe-redis` local).
 
 Três coisas que só montar do zero revelou, e que valem para a próxima máquina:
 
@@ -105,6 +88,11 @@ Três coisas que só montar do zero revelou, e que valem para a próxima máquin
 - **`npm run seed:demo` não é opcional.** Sem ele o `test:herd` falha com
   "nenhum tenant com animais: o teste não provou nada", que é a suíte se
   recusando a passar vazia. Só o `db:seed` não basta, e nenhum documento dizia.
+- **As três suítes do Redis não precisavam doer.** Um `tibe-redis` local
+  (`redis:7-alpine`, porta `56379`) faz `m4`, `m19` e `m24` passarem sem tocar
+  em produção. O `CLAUDE.md` dizia que instância local não existia; agora traz o
+  comando. Apagar a chave em produção virou último recurso, porque a de
+  `digest` protege o resumo diário de cliente real contra envio duplicado.
 - **`openssl` não está no PATH do PowerShell**, embora venha com o Git. Resolvido
   aqui acrescentando `C:\Program Files\Git\mingw64\bin` ao PATH do usuário (a
   `usr\bin` NÃO serve: tem `find.exe` e `sort.exe`, que sequestram comandos do

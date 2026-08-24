@@ -65,6 +65,14 @@ As travas recusam a ação e explicam o caminho certo. Se uma delas te bloquear,
 **a resposta não é contorná-la**: ou o caminho proposto na mensagem resolve, ou
 a regra precisa mudar, e isso é conversa com o usuário.
 
+Quando o usuário autorizar merge, push na `main` ou deploy, o caminho é repetir
+o comando com a marca `AUTORIZADO_PELO_USUARIO=1` na frente. **Nunca desligue o
+hook**: a marca existe justamente para o caminho autorizado não ser desligá-lo,
+porque hook desligado não volta sozinho. E ela só vale para autorização dada NA
+CONVERSA, nunca deduzida de uma anterior. `permissions.defaultMode` está em
+`"auto"` no escopo de usuário desde 2026-08-18, e foi testado: **os hooks
+continuam bloqueando nesse modo**.
+
 `npm run check` completa o quadro sem banco: caminho citado que não existe, rota
 que não existe mais, `npm run` inexistente, travessão novo, e os dois índices
 parciais que o `migrate diff` tenta derrubar.
@@ -206,9 +214,26 @@ todo `migrate diff` sugere um `DROP INDEX` deles como se fosse drift:
 **Não aplique esses drops**; remova a linha do SQL gerado. `npm run check`
 confere que os dois continuam criados.
 
-⚠️ **O Redis é compartilhado com produção** (não há instância local). Três
-suítes (`m4`, `m19`, `m24`) falham na segunda execução da mesma hora por lock
-diário ou limite de envio. Não é regressão: apague a chave no Redis.
+⚠️ **O `.env` aponta para o Redis de PRODUÇÃO**, como faz com o banco. Três
+suítes (`m4`, `m19`, `m24`) leem o lock diário (`tibe:alerts:generated:<data>`
+e `tibe:digest:generated:<data>`, chaves globais, não por tenant) e falham
+quando a rodada de produção do dia já passou. Não é regressão.
+
+A saída limpa é um Redis local, provada em 2026-08-24 (as três verdes, sem
+tocar em produção). Uma vez por máquina:
+
+```
+docker run -d --name tibe-redis -p 56379:6379 redis:7-alpine
+```
+
+Depois, passe as duas URLs inline, como já se faz com o banco:
+
+```
+DATABASE_URL="postgresql://tibe:tibe@127.0.0.1:55432/tibe_dev?schema=public" REDIS_URL="redis://127.0.0.1:56379" npm run test:m4
+```
+
+Apagar a chave em produção também funciona, mas é o último recurso: a de
+`digest` guarda o resumo diário de clientes reais contra envio em duplicata.
 
 ⚠️ **Sessão autenticada via `next start` + cookie jar não funciona localmente**:
 o Edge Middleware não reconhece a sessão nesse setup. Rotas `/api/v1/*` (Node)
