@@ -117,39 +117,6 @@ variável tipada como resposta de token.
 
 **Custo:** pequeno, uma sessão curta. O ganho é `tsc` voltar a ser um sinal.
 
-### 3.2 Três suítes falham na segunda execução da mesma hora
-
-`m4`, `m19` e `m24` dependem do Redis, que **é compartilhado com produção** (não
-há instância local). Na segunda execução dentro da mesma hora, o lock diário ou
-o limite de envio derruba a suíte.
-
-Hoje isso é contornado apagando a chave à mão, o que significa que a suíte
-completa nunca roda duas vezes seguidas sem intervenção.
-
-**Custo:** subir um Redis local no Docker, como já é feito com o Postgres, e
-apontar as suítes para ele.
-
-### 3.3 A suíte completa nunca roda de uma vez
-
-São 41 scripts `test:*`. Não existe um comando que rode todos, e as tentativas
-de encadear estouram o limite de tempo do shell. Na prática, cada rodada testa o
-que o autor lembrou de rodar.
-
-**Custo:** um runner que rode em série com relatório final, respeitando o item
-3.2 acima.
-
-### 3.4 Não existe CI
-
-`.github/` não existe. Nenhum teste roda sozinho em push ou PR. Todos os
-guard-rails do projeto (`test:isolation`, `npm run check`, `test:docs-api`)
-dependem de alguém digitar o comando.
-
-Desde 2026-08-18 os hooks de agente cobrem parte disso, mas **só valem para o
-Claude Code**: uma edição feita no editor, à mão, não passa por eles.
-
-**Custo:** um workflow simples com `npm run check` e `tsc` já fecharia a maior
-parte do buraco, sem precisar de banco.
-
 ---
 
 ## 4. Cobertura desigual
