@@ -24,11 +24,14 @@ Se ele passar de umas 200, arquive antes de acrescentar.
 
 ## Estado atual
 
-- Atualizado em: 2026-08-24.
-- **`cbe4afb` é o topo da `main`, e a `main` local está igual à `origin/main`.**
+- Atualizado em: 2026-08-25.
+- **`3dc32e5` é o topo da `main`, e a `main` local está igual à `origin/main`.**
   O deploy da Vercel é automático em push, então essa deve ser a versão no ar.
   **Isso não foi conferido contra produção nesta rodada**: a última conferência
   ao vivo registrada é a de 2026-08-20, sobre o `21d5641`.
+- **Os quatro commits depois do `cbe4afb` são só de documentação** (`CLAUDE.md`
+  e `docs/agents/`): nenhum toca em `src/` ou `prisma/`, então não há mudança
+  de comportamento no ar desde o `979ba2e`.
 - **Nenhuma migração nova desde o `21d5641`.** Os commits posteriores não tocam
   em `prisma/`, então o invariante 3 não está em jogo e o Neon segue em dia.
 - **A fase 1 (identidade e sistema de design) começou**, com três commits na
@@ -126,9 +129,6 @@ primeiras peças do kit (`Field`, `FormSheet`, `MoneyInput`). A referência visu
 planejamento e não spec fechada, e cujas decisões pendentes valem reler antes de
 codificar.
 
-Antes disso, nesta cópia: **decifrar o `.env`**, sem o qual não dá para rodar a
-suíte inteira nem falar com o agente pelo banco de provas.
-
 Dois itens saíram do escopo da fase 0 com motivo, e não por esquecimento: o
 esquema Zod por intenção (acima) e o coletor de erro externo (o ponto de plugue
 está em `src/instrumentation.ts`; a razão de não instalar o SDK está em
@@ -171,6 +171,9 @@ Quatro achadas hoje, que não estavam em `dividas.md`:
 
 ## Histórico recente
 
+- **2026-08-25:** `dividas.md` perdeu os itens 3.2, 3.3 e 3.4, que estavam
+  fechados desde 18 a 24/08 (Redis local, `npm run test:all`, CI). Da seção 3
+  sobrou o 3.1, o `m23-token-auth.test.ts` que não compila.
 - **2026-08-24:** cópia nova do projeto em `C:\projetos\tibe-agrogestao`,
   preparada e conferida (dependências, `tibe-pg` criado, 32 migrações, seed,
   `check` e `test:isolation` verdes). Falta decifrar o `.env`. Este handoff
@@ -189,8 +192,6 @@ Quatro achadas hoje, que não estavam em `dividas.md`:
 - **2026-08-18:** missão 2 do Módulo 31 (Estoque) em produção, mais o
   classificador do n8n ensinado. O teste contra produção achou um defeito que
   gravava dinheiro, corrigido no mesmo dia.
-- **2026-08-14:** missão 1 do Módulo 31 (Negociações, gado) em produção,
-  validada por áudio no aparelho.
 
 O detalhe de tudo isso, na íntegra e sem reescrita, está em
 [historico/2026-08.md](historico/2026-08.md).
