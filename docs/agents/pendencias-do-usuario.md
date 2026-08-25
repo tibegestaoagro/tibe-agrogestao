@@ -9,7 +9,50 @@ Ordenado por consequência, não por esforço.
 
 ---
 
-## 1. `REPORT_LINK_SECRET` na Vercel
+## 1. Descobrir por quanto tempo o repositório ficou público
+
+**Por quê.** Em 2026-08-25, por volta das 10h50 (GMT-3), o repositório estava
+**público**: a página do Actions abriu sem nenhuma sessão, e a API anônima
+devolveu `"private": false`. Meia hora depois já estava privado, e hoje as três
+portas anônimas (API, HTML e `raw`) respondem 404.
+
+O que isso significa: `.env.enc` é versionado de propósito, então durante essa
+janela **o chaveiro cifrado esteve baixável por qualquer pessoa**. São 22
+variáveis, entre elas a `DATABASE_URL` do Neon de produção, os dois segredos de
+sessão, a `CONFIG_ENCRYPTION_KEY` (que decifra as credenciais de WhatsApp
+guardadas no banco) e a `OPENAI_API_KEY`.
+
+A cifra é forte (AES-256-CBC, PBKDF2 com 600 mil iterações), então isso **não é
+vazamento em texto puro**. Mas o [../backup-env.md](../backup-env.md) foi
+escrito contando com o repositório fechado como segunda camada, e sem ela a
+única proteção é a força da senha. Fechar o repositório agora não alcança quem
+tenha clonado antes.
+
+**O que fazer.** Logado como **`tibegestaoagro`**, que é a conta dona, abrir
+`https://github.com/settings/security-log?q=action%3Arepo.access` e ler as duas
+datas: quando virou público e quando fechou.
+
+⚠️ **Não adianta tentar por `dilton-pleno`.** Essa conta é colaboradora com
+escrita, e a página `Settings` do repositório responde "You don't have access to
+repository options". O evento também não aparece no security log dela: quem
+mudou a visibilidade foi a conta dona. E `tibegestaoagro` é conta de usuário,
+não organização, então não existe audit log de organização para consultar.
+
+Com o intervalo na mão, a decisão fica objetiva:
+
+- **Se foram só as horas entre 24 e 25/08:** trocar a senha do backup e
+  regravar o `.env.enc` (o passo a passo está no `backup-env.md`) já fecha o
+  cenário de alguém ter guardado o arquivo para tentar depois.
+- **Se foram semanas ou meses:** rotacionar também as quatro que mais doem, a
+  `OPENAI_API_KEY` (gasta dinheiro alheio se vazar), a `CONFIG_ENCRYPTION_KEY`,
+  os dois segredos de sessão e a senha do Neon.
+
+**Enquanto não for feito.** Não dá para dimensionar o risco, e o security log
+não guarda evento para sempre. Este é o item da lista com prazo de validade.
+
+---
+
+## 2. `REPORT_LINK_SECRET` na Vercel
 
 **Por quê.** Até 2026-08-20, a mesma chave (`INTERNAL_API_SECRET`) autenticava
 as rotas internas **e** assinava o link público de relatório financeiro. Esse
@@ -36,7 +79,7 @@ isso só afeta quem estiver com um link aberto no momento da troca.
 
 ---
 
-## 2. Provisionar o worker da rotina diária (Railway)
+## 3. Provisionar o worker da rotina diária (Railway)
 
 **Por quê.** `generateAllAlerts` percorre **todos os tenants ativos**, e isso
 roda dentro da requisição da Vercel Cron, com o teto do timeout da função
@@ -64,7 +107,7 @@ requisição, como sempre fez.
 
 ---
 
-## 3. O n8n passar `provider_message_id`
+## 4. O n8n passar `provider_message_id`
 
 **Por quê.** `execute-action` ganhou idempotência: a mesma mensagem não escreve
 duas vezes. Um retry do n8n, ou uma reexecução manual no painel dele, regravava
@@ -86,7 +129,7 @@ congelado por sua decisão. É passar adiante um campo que já existe.
 
 ---
 
-## 4. Conferir o CI e ligar a proteção de branch (GitHub)
+## 5. Conferir o CI e ligar a proteção de branch (GitHub)
 
 **Por quê.** O CI existe e roda, mas nada impede um push que o reprove.
 
@@ -106,12 +149,20 @@ a branch trava permanentemente.
 Quando o fluxo de PR virar rotina, volte e marque também "Require a pull
 request before merging", e aí sim adicione os outros checks.
 
-**Não consigo fazer daqui.** O `gh` CLI não está instalado nesta máquina, então
-não leio o resultado do CI nem configuro regra.
+**O passo 1 já está conferido:** em 2026-08-25 o CI estava verde até o
+`17cd95d` (execução CI #26), e nenhuma das 26 execuções falhou. O que falta é a
+regra.
+
+⚠️ **A regra exige a conta `tibegestaoagro`.** Por `dilton-pleno`,
+`/settings/rules` e `/settings/branches` devolvem 404, porque ela é
+colaboradora sem acesso a opções do repositório. É a mesma barreira do item 1.
+
+**Não consigo fazer daqui.** O `gh` CLI não está instalado nesta máquina, e
+configurar regra é interface, não comando.
 
 ---
 
-## 5. Staging: uma branch do Neon
+## 6. Staging: uma branch do Neon
 
 **Por quê.** Hoje merge na `main` é produção, sem nenhum degrau entre as duas.
 O CI cobre o estático e o isolamento, mas não substitui um ambiente onde clicar.
@@ -129,7 +180,7 @@ O CI cobre o estático e o isolamento, mas não substitui um ambiente onde clica
 
 ---
 
-## 6. As três decisões represadas com a Agromax
+## 7. As três decisões represadas com a Agromax
 
 O documento está pronto em
 [../cliente/04-decisoes-pendentes.md](../cliente/04-decisoes-pendentes.md) e
@@ -142,7 +193,7 @@ calculadora vai ao ar sem validação assinada pela equipe TIBÉ". O risco escri
 
 ---
 
-## 7. Verificação de negócio na Meta
+## 8. Verificação de negócio na Meta
 
 **É o maior risco de calendário aberto, e não depende de nenhuma fase deste
 plano.** Foi recomendada em 31/07 com o aviso de que "se ficar para setembro,
@@ -156,7 +207,7 @@ que fecha a única incerteza grande do relatório de custos.
 
 ---
 
-## 8. Duas cabeças invisíveis em produção (decisão de produto, pequena)
+## 9. Duas cabeças invisíveis em produção (decisão de produto, pequena)
 
 Medido em 2026-08-20, com `npx tsx scripts/diagnostico-integridade.ts`:
 
@@ -182,7 +233,7 @@ número vira pergunta quando alguém conferir.
 
 ---
 
-## 9. Decidir se vale um coletor de erro externo (opcional)
+## 10. Decidir se vale um coletor de erro externo (opcional)
 
 **O plano previa Sentry, e eu não instalei.** A razão é específica deste
 produto, e você pode discordar.

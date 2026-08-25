@@ -25,10 +25,12 @@ Se ele passar de umas 200, arquive antes de acrescentar.
 ## Estado atual
 
 - Atualizado em: 2026-08-25.
-- **`3dc32e5` é o topo da `main`, e a `main` local está igual à `origin/main`.**
-  O deploy da Vercel é automático em push, então essa deve ser a versão no ar.
-  **Isso não foi conferido contra produção nesta rodada**: a última conferência
-  ao vivo registrada é a de 2026-08-20, sobre o `21d5641`.
+- **O topo da `main` é o commit desta rodada**, e a `main` local está igual à
+  `origin/main` (o commit anterior a este é o `17cd95d`; um handoff nunca cita
+  o próprio hash, então esta linha é sempre uma atrás). O deploy da Vercel é
+  automático em push. `https://tibe-agrogestao.vercel.app` responde 200,
+  conferido em 25/08, mas **a última validação funcional ao vivo continua sendo
+  a de 2026-08-20**, sobre o `21d5641`.
 - **Os quatro commits depois do `cbe4afb` são só de documentação** (`CLAUDE.md`
   e `docs/agents/`): nenhum toca em `src/` ou `prisma/`, então não há mudança
   de comportamento no ar desde o `979ba2e`.
@@ -77,48 +79,39 @@ fora da máquina de origem trabalha pelo que está escrito aqui e nos commits.
 
 ### A cópia nova: `C:\projetos\tibe-agrogestao`
 
-Clonada em 2026-08-24 e preparada na mesma rodada: `npm install`, container
-`tibe-pg` criado do zero (`postgres:17`, porta `55432`, `tibe`/`tibe`/
-`tibe_dev`), 32 migrações, `db:seed`, `seed:demo`, `.env` decifrado do
-`.env.enc` (22 variáveis, nenhuma vazia). Conferido: `npm run check` com 0
-falhas e **48/48 suítes verdes** (45 pelo `test:all -- --sem-redis`, mais as
-três do Redis contra um `tibe-redis` local).
+Clonada em 2026-08-24, preparada e conferida na mesma rodada: `npm run check`
+com 0 falhas e **48/48 suítes verdes**. O que montar do zero revelou (container
+que precisa ser criado antes, `seed:demo` obrigatório, Redis local, `openssl`
+fora do PATH) já virou texto no `CLAUDE.md`, e o relato está arquivado em
+[historico/2026-08.md](historico/2026-08.md).
 
-Três coisas que só montar do zero revelou, e que valem para a próxima máquina:
-
-- **`docker start tibe-pg` pressupõe o container existente.** Numa máquina nova
-  ele precisa ser criado antes, e o `CLAUDE.md` não diz isso.
-- **`npm run seed:demo` não é opcional.** Sem ele o `test:herd` falha com
-  "nenhum tenant com animais: o teste não provou nada", que é a suíte se
-  recusando a passar vazia. Só o `db:seed` não basta, e nenhum documento dizia.
-- **As três suítes do Redis não precisavam doer.** Um `tibe-redis` local
-  (`redis:7-alpine`, porta `56379`) faz `m4`, `m19` e `m24` passarem sem tocar
-  em produção. O `CLAUDE.md` dizia que instância local não existia; agora traz o
-  comando. Apagar a chave em produção virou último recurso, porque a de
-  `digest` protege o resumo diário de cliente real contra envio duplicado.
-- **`openssl` não está no PATH do PowerShell**, embora venha com o Git. Resolvido
-  aqui acrescentando `C:\Program Files\Git\mingw64\bin` ao PATH do usuário (a
-  `usr\bin` NÃO serve: tem `find.exe` e `sort.exe`, que sequestram comandos do
-  Windows).
-
-**`gh` continua não existindo**, como já acontecia na outra máquina.
+**`gh` continua não existindo**, como já acontecia na outra máquina. E a conta
+logada no navegador é a `dilton-pleno`, colaboradora: para regra de branch,
+visibilidade e security log, é preciso a conta dona, `tibegestaoagro`.
 
 ### O que depende do usuário, e degrada em silêncio até ser feito
 
 A lista completa, com passo a passo e o que acontece se não for feito, está em
 **[pendencias-do-usuario.md](pendencias-do-usuario.md)**. Em resumo:
 
-1. **`REPORT_LINK_SECRET` na Vercel.** Sem ela o link de relatório segue
+1. **Descobrir por quanto tempo o repositório ficou público** (era, em 25/08 de
+   manhã; fechou na mesma manhã). Enquanto o `.env.enc` esteve baixável, o
+   chaveiro cifrado circulou. O security log da conta `tibegestaoagro` diz o
+   tamanho da janela, e é ele que decide se basta trocar a senha do backup ou
+   se vale rotacionar credencial.
+2. **`REPORT_LINK_SECRET` na Vercel.** Sem ela o link de relatório segue
    assinado com o segredo interno. Falta também no `.env` local.
-2. **O n8n passar `provider_message_id`.** Sem o campo a idempotência não vale.
+3. **O n8n passar `provider_message_id`.** Sem o campo a idempotência não vale.
    É edição de um nó.
-3. **Provisionar o worker no Railway**, seguindo
+4. **Provisionar o worker no Railway**, seguindo
    [worker-de-rotina.md](worker-de-rotina.md). A ordem importa: subir o
    processo, conferir no log que ele ouve, e **só então** ligar
    `ROTINA_COM_WORKER=1`. Inverter faz o sistema parar de alertar sem erro.
 
-Mais dois de higiene: ligar a proteção de branch no GitHub, e conferir se o CI
-ficou verde (sem `gh` nesta máquina, quem lê o resultado é o usuário).
+O CI **está verde**, conferido no navegador em 25/08 até o `17cd95d` (CI #26),
+sem nenhuma das 26 execuções falhando. Segue de higiene ligar a proteção de
+branch, que agora se sabe exigir a conta `tibegestaoagro`: por `dilton-pleno`,
+que é colaboradora, as páginas de regra devolvem 404.
 
 ### Próximo passo
 
@@ -132,7 +125,7 @@ codificar.
 Dois itens saíram do escopo da fase 0 com motivo, e não por esquecimento: o
 esquema Zod por intenção (acima) e o coletor de erro externo (o ponto de plugue
 está em `src/instrumentation.ts`; a razão de não instalar o SDK está em
-[pendencias-do-usuario.md](pendencias-do-usuario.md), item 9).
+[pendencias-do-usuario.md](pendencias-do-usuario.md), item 10).
 
 Continua pendente, de antes: **teste no aparelho** pelo roteiro em
 [roteiro-aparelho-estoque.md](roteiro-aparelho-estoque.md), cadastrando antes os
@@ -173,7 +166,10 @@ Quatro achadas hoje, que não estavam em `dividas.md`:
 
 - **2026-08-25:** `dividas.md` perdeu os itens 3.2, 3.3 e 3.4, que estavam
   fechados desde 18 a 24/08 (Redis local, `npm run test:all`, CI). Da seção 3
-  sobrou o 3.1, o `m23-token-auth.test.ts` que não compila.
+  sobrou o 3.1, o `m23-token-auth.test.ts` que não compila. Conferir o CI pelo
+  navegador achou o repositório **público**, com o `.env.enc` baixável por
+  qualquer um; fechado na mesma manhã, e a janela de exposição virou o item 1
+  das pendências do usuário.
 - **2026-08-24:** cópia nova do projeto em `C:\projetos\tibe-agrogestao`,
   preparada e conferida (dependências, `tibe-pg` criado, 32 migrações, seed,
   `check` e `test:isolation` verdes). Falta decifrar o `.env`. Este handoff
