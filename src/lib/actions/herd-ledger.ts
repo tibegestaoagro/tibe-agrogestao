@@ -414,12 +414,36 @@ export async function getPeriodTotals(
   };
 }
 
-const ENTRY_ONLY: readonly HerdMovementType[] = ["saldo_inicial", "nascimento", "compra"];
-const EXIT_ONLY: readonly HerdMovementType[] = ["venda", "morte"];
+const ENTRY_ONLY: readonly HerdMovementType[] = [
+  "saldo_inicial",
+  "nascimento",
+  "compra",
+  // Fase 2: o animal de terceiro não estava aqui, então não sai de posição
+  // nenhuma. É entrada como uma compra, sem virar rebanho próprio, porque o
+  // eixo de dono é que faz essa distinção.
+  "entrada_terceiro",
+];
+const EXIT_ONLY: readonly HerdMovementType[] = [
+  "venda",
+  "morte",
+  // Fase 2: os dois tiram cabeças de vez. `saida_terceiro` devolve ao dono, e
+  // `perda_confirmada` é o desaparecimento que ninguém resolveu.
+  "saida_terceiro",
+  "perda_confirmada",
+];
 const TRANSFER: readonly HerdMovementType[] = [
   "transferencia_pasto",
   "transferencia_fazenda",
   "mudanca_categoria",
+  // Fase 2: toda estadia é transferência entre SITUAÇÕES, com as duas pontas.
+  // O total do rebanho não muda quando o animal vai para o boitel: muda onde
+  // ele está. É essa forma que sustenta "no meu rebanho, fora da minha
+  // fazenda".
+  "envio_evento",
+  "envio_pasto_terceiro",
+  "envio_boitel",
+  "desaparecimento",
+  "retorno_estadia",
 ];
 
 export type RecordMovementInput = {
@@ -435,6 +459,8 @@ export type RecordMovementInput = {
   batch_id?: string | null;
   /** Envelope comercial que originou o movimento (Negociações). */
   negotiation_id?: string | null;
+  /** Estadia que originou o movimento (fase 2). Mesmo desenho do envelope. */
+  stay_id?: string | null;
 };
 
 export type HerdMovementRecord = {
@@ -592,6 +618,7 @@ export async function recordMovementInTx(
         recorded_by_user_id: input.recorded_by_user_id ?? null,
         batch_id: input.batch_id ?? null,
         negotiation_id: input.negotiation_id ?? null,
+        stay_id: input.stay_id ?? null,
         occurred_at,
       }),
     });
