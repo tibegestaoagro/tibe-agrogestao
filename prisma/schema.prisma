@@ -106,8 +106,13 @@ enum HerdOwner {
   terceiro
 }
 
-/// Tipos da fase 1. Os da fase 2 (envio_evento, envio_pasto_terceiro,
-/// envio_boitel, entrada_terceiro, desaparecimento...) entram por cima.
+/// Os nove primeiros são da fase 1; os sete de baixo entraram na fase 2, por
+/// cima, como o comentário original previa.
+///
+/// Um `retorno_estadia` só para os três casos de volta (pasto de terceiro,
+/// boitel, evento): a situação de ORIGEM já diz de onde o animal está
+/// voltando, então três tipos diriam a mesma coisa duas vezes. Morte
+/// confirmada de um desaparecido reusa `morte`, com origem em `desaparecido`.
 enum HerdMovementType {
   saldo_inicial
   nascimento
@@ -118,6 +123,37 @@ enum HerdMovementType {
   transferencia_fazenda
   mudanca_categoria
   ajuste
+  envio_pasto_terceiro
+  envio_boitel
+  retorno_estadia
+  entrada_terceiro
+  saida_terceiro
+  desaparecimento
+  perda_confirmada
+}
+
+/// O tipo da estadia (fase 2). `evento` nasce sem uso: a remessa para leilão é
+/// a missão 3 do Módulo 31, e acrescentar valor a enum depois obrigaria a
+/// migrar movimentação já gravada. Mesmo motivo de `permuta_entrada` no
+/// estoque, e dos próprios eixos de situação e dono, criados na fase 1.
+enum HerdStayType {
+  pasto_terceiro
+  boitel
+  evento
+  terceiro_na_fazenda
+  desaparecimento
+}
+
+/// Como o terceiro cobra pela estadia. É informação do acordo, gravada e
+/// mostrada: NÃO entra em cálculo nenhum. O documento do cliente não define a
+/// fórmula (mês cheio ou proporcional? conta o dia da saída?), e fórmula
+/// inventada gera dinheiro errado em silêncio, que é o pior modo de falha
+/// deste produto. O valor lançado é o que o produtor digitar.
+enum HerdChargeType {
+  por_cabeca
+  por_mes
+  por_periodo
+  fechado
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -297,6 +333,7 @@ model Tenant {
   refresh_tokens       RefreshToken[]
   push_subscriptions   PushSubscription[]
   herd_movements       HerdMovement[]
+  herd_stays           HerdStay[]
   subscription         Subscription?
 }
 
@@ -346,6 +383,7 @@ model User {
   agent_flows        AgentFlowState[]
   refresh_tokens     RefreshToken[]
   herd_movements     HerdMovement[]
+  herd_stays         HerdStay[]
   negotiations          Negotiation[] @relation("NegotiationRecordedBy")
   negotiations_canceled Negotiation[] @relation("NegotiationCanceledBy")
   stock_movements       StockMovement[] @relation("StockRecordedBy")
@@ -506,6 +544,7 @@ model Property {
   /// `AnimalMovement` é o modelo ANTIGO, que continua existindo.
   herd_movements_from HerdMovement[] @relation("HerdMovementFromProperty")
   herd_movements_to   HerdMovement[] @relation("HerdMovementToProperty")
+  herd_stays          HerdStay[]
 
   @@index([tenant_id])
 }
@@ -1370,6 +1409,11 @@ model HerdMovement {
   /// Negociação é envelope e não dona: nem todo movimento tem um negócio atrás.
   negotiation_id String?
 
+  /// Fase 2: a estadia que originou o movimento. Nulo em tudo que não é
+  /// estadia. Mesmo desenho do `negotiation_id` acima: o FILHO aponta para o
+  /// envelope, nunca o contrário, porque nem todo movimento nasce de um.
+  stay_id String?
+
   occurred_at DateTime
   created_at  DateTime @default(now())
 
@@ -1377,6 +1421,7 @@ model HerdMovement {
   batch       AnimalBatch? @relation(fields: [batch_id], references: [id], onDelete: SetNull)
   recorded_by User?        @relation(fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
   negotiation Negotiation? @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
+  stay        HerdStay?    @relation(fields: [stay_id], references: [id], onDelete: SetNull)
 
   /// Os eixos de POSIÇÃO ganharam chave estrangeira em 2026-08-20. Antes, o
   /// livro-razão apontava para propriedade e pasto por texto solto: apagar uma
@@ -1417,6 +1462,61 @@ model HerdMovement {
   /// índices assim, que todo `migrate diff` tenta derrubar como falso drift.
   /// Não vale criar um terceiro.
   @@index([tenant_id, canceled_at])
+  @@index([stay_id])
+}
+
+/// Uma ESTADIA: as cabeças estão fora do normal, temporariamente, e isso
+/// termina. Fase 2 do Módulo 30, ver
+/// docs/superpowers/specs/2026-08-27-modulo-30-fase-2-design.md.
+///
+/// Existe porque o encerramento exige IDENTIDADE. O documento do cliente manda
+/// a soma dos destinos (vendidos, retornados, outros) bater com a quantidade
+/// enviada, e o saldo por posição não distingue uma remessa de 20 de duas de
+/// 10, nem sabe qual delas está sendo encerrada.
+///
+/// NÃO tem quantidade nem campo de "encerrada", e os dois são deliberados. A
+/// quantidade é a soma das movimentações que apontam para cá (invariante 2), e
+/// a estadia está aberta enquanto esse saldo for maior que zero: campo gravado
+/// e realidade divergem em silêncio, que é a decisão 9 do Módulo 31.
+model HerdStay {
+  id          String       @id @default(cuid())
+  tenant_id   String
+  type        HerdStayType
+  property_id String
+
+  /// Dono do pasto, nome do boitel, dono dos animais de terceiros. Nulo no
+  /// desaparecimento, que não tem contraparte nem lugar.
+  counterparty_name String?
+  location_name     String?
+  city              String?
+
+  /// Data de saída, de entrada, ou o dia em que o sumiço foi percebido.
+  started_at      DateTime
+  expected_end_at DateTime?
+
+  charge_type  HerdChargeType?
+  charge_value Decimal?        @db.Decimal(14, 2)
+
+  /// Motivo provável, que o complemento pede no desaparecimento.
+  reason String?
+  notes  String?
+
+  recorded_by_user_id String?
+
+  /// Cancelar não apaga, como em todo o resto do projeto.
+  canceled_at         DateTime?
+  canceled_reason     String?
+  canceled_by_user_id String?
+
+  created_at DateTime @default(now())
+
+  tenant      Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  property    Property       @relation(fields: [property_id], references: [id], onDelete: Restrict)
+  recorded_by User?          @relation(fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
+  movements   HerdMovement[]
+
+  @@index([tenant_id, type])
+  @@index([tenant_id, started_at])
 }
 
 // ─────────────────────────────────────────────────────────────
