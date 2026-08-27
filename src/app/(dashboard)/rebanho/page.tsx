@@ -14,6 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import MovementForm from "@/components/rebanho/movement-form";
 import MovementCancel from "@/components/rebanho/movement-cancel";
+import { EmptyState } from "@/components/ui/empty-state";
 import { decToNum } from "@/lib/serialize";
 import { getPeriodTotals, getPositions, listMovements } from "@/lib/actions/herd-ledger";
 import { summarizePositions } from "@/lib/herd/summary";
@@ -220,7 +221,9 @@ export default async function RebanhoPage(
             Onde estão
           </h2>
           {resumo.by_property.length === 0 ? (
-            <p className="mt-3 text-sm text-gray-500">Nenhum animal registrado ainda.</p>
+            <EmptyState compacto titulo="Nenhum animal registrado ainda." className="mt-2">
+              Assim que houver movimentação, as fazendas aparecem aqui com o saldo de cada uma.
+            </EmptyState>
           ) : (
             <ul className="mt-3 space-y-1.5">
               {resumo.by_property.map((linha) => (
@@ -271,8 +274,12 @@ export default async function RebanhoPage(
           <TableBody>
             {historico.items.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="py-6 text-center text-gray-500">
-                  Nenhuma movimentação registrada ainda.
+                <TableCell colSpan={7} className="p-3">
+                  <EmptyState titulo="Nenhuma movimentação registrada ainda.">
+                    Toda entrada, saída ou transferência de cabeças aparece aqui, e é a soma
+                    delas que forma o saldo. Comece pelo botão Registrar movimentação, no alto
+                    da página.
+                  </EmptyState>
                 </TableCell>
               </TableRow>
             )}
