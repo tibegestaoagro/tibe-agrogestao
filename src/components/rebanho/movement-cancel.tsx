@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { FormSheet } from "@/components/ui/form-sheet";
 import { apiPost } from "@/lib/client-api";
-import { primeiroInvalido, aplicarErroDoServidor } from "@/lib/erros-de-formulario";
+import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 
 /**
  * Cancelar uma movimentação (§10.8). O motivo é obrigatório porque a linha
@@ -16,8 +16,6 @@ import { primeiroInvalido, aplicarErroDoServidor } from "@/lib/erros-de-formular
 
 /** Um campo só, mas em `ORDEM`: o segundo campo vai chegar um dia. */
 const ORDEM = ["reason"] as const;
-type Campo = (typeof ORDEM)[number];
-type Erros = Partial<Record<Campo, string>>;
 
 export default function MovementCancel({
   movementId,
@@ -29,27 +27,17 @@ export default function MovementCancel({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [erros, setErros] = useState<Erros>({});
-  const [foco, setFoco] = useState<Campo | null>(null);
-  const [tentativa, setTentativa] = useState(0);
+  const err = useErrosDeFormulario(ORDEM);
   const [reason, setReason] = useState("");
-
-  function reprovar(novos: Erros) {
-    setErros(novos);
-    setFoco(primeiroInvalido(novos, ORDEM));
-    setTentativa((n) => n + 1);
-  }
 
   async function submit() {
     if (!reason.trim()) {
-      setError(null);
-      reprovar({ reason: "Informe o motivo do cancelamento." });
+      err.setGlobal(null);
+      err.reprovar({ reason: "Informe o motivo do cancelamento." });
       return;
     }
 
-    setErros({});
-    setError(null);
+    err.limparTudo();
     setLoading(true);
     const res = await apiPost(`/api/v1/herd/movements/${movementId}/cancel`, {
       reason: reason.trim(),
@@ -57,9 +45,7 @@ export default function MovementCancel({
     setLoading(false);
 
     if (!res.ok) {
-      const { erros: doServidor, global } = aplicarErroDoServidor(res, ORDEM);
-      setError(global);
-      reprovar(doServidor);
+      err.doServidor(res);
       return;
     }
 
@@ -85,29 +71,28 @@ export default function MovementCancel({
         setOpen(o);
         if (!o) {
           setReason("");
-          setErros({});
-          setError(null);
+          err.limparTudo();
         }
       }}
       onSubmit={submit}
       submitLabel="Confirmar cancelamento"
       submitPendingLabel="Cancelando..."
       pending={loading}
-      error={error}
-      focarCampoId={foco}
-      tentativa={tentativa}
+      error={err.global}
+      focarCampoId={err.focarCampoId}
+      tentativa={err.tentativa}
     >
       <p className="rounded-md bg-superficie-afundada px-3 py-2 text-sm text-texto-secundario">
         {descricao}
       </p>
 
-      <Field label="Motivo" required id="reason" error={erros.reason}>
+      <Field label="Motivo" required id="reason" error={err.erros.reason}>
         {({ id, ...aria }) => (
           <Input
             id={id}
             {...aria}
             value={reason}
-            onChange={(e) => setReason(e.target.value)}
+            onChange={(e) => { setReason(e.target.value); err.limparCampo("reason"); }}
             placeholder="Ex: lançado errado"
           />
         )}

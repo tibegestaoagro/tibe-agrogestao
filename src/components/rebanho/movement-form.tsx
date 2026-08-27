@@ -15,7 +15,7 @@ import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
 import { Field } from "@/components/ui/field";
 import { FormSheet } from "@/components/ui/form-sheet";
 import { apiPost } from "@/lib/client-api";
-import { primeiroInvalido, aplicarErroDoServidor } from "@/lib/erros-de-formulario";
+import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { HERD_CATEGORIES } from "@/lib/herd/categories";
 
 /**
@@ -89,10 +89,7 @@ export default function MovementForm({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [erros, setErros] = useState<Erros>({});
-  const [foco, setFoco] = useState<Campo | null>(null);
-  const [tentativa, setTentativa] = useState(0);
+  const err = useErrosDeFormulario(ORDEM);
 
   const [type, setType] = useState("");
   const [quantity, setQuantity] = useState("1");
@@ -129,14 +126,7 @@ export default function MovementForm({
     setFromPasture("");
     setToCategory("");
     setToPasture("");
-    setError(null);
-    setErros({});
-  }
-
-  function reprovar(novos: Erros) {
-    setErros(novos);
-    setFoco(primeiroInvalido(novos, ORDEM));
-    setTentativa((n) => n + 1);
+    err.limparTudo();
   }
 
   function posicao(category: string, property: string, pasture: string) {
@@ -170,13 +160,12 @@ export default function MovementForm({
     }
 
     if (Object.keys(novos).length > 0) {
-      setError(null);
-      reprovar(novos);
+      err.setGlobal(null);
+      err.reprovar(novos);
       return;
     }
 
-    setErros({});
-    setError(null);
+    err.limparTudo();
     setLoading(true);
     const res = await apiPost("/api/v1/herd/movements", {
       movement_type: type,
@@ -193,9 +182,7 @@ export default function MovementForm({
     if (!res.ok) {
       // O caso que motivou o `field` no envelope: saldo insuficiente é erro
       // de QUANTIDADE, e aparecia no rodapé.
-      const { erros: doServidor, global } = aplicarErroDoServidor(res, ORDEM);
-      setError(global);
-      reprovar(doServidor);
+      err.doServidor(res);
       return;
     }
 
@@ -222,10 +209,16 @@ export default function MovementForm({
         label="Categoria"
         required
         id={`${prefixo}_category_id`}
-        error={erros[`${prefixo}_category_id` as Campo]}
+        error={err.erros[`${prefixo}_category_id` as Campo]}
       >
         {({ id, ...aria }) => (
-          <Select value={category} onValueChange={setCategory}>
+          <Select
+            value={category}
+            onValueChange={(v) => {
+              setCategory(v);
+              err.limparCampo(`${prefixo}_category_id` as Campo);
+            }}
+          >
             <SelectTrigger id={id} {...aria}>
               <SelectValue placeholder="Escolha a categoria" />
             </SelectTrigger>
@@ -244,7 +237,7 @@ export default function MovementForm({
         label="Fazenda"
         required
         id={`${prefixo}_property_id`}
-        error={erros[`${prefixo}_property_id` as Campo]}
+        error={err.erros[`${prefixo}_property_id` as Campo]}
       >
         {({ id, ...aria }) => (
           <Select
@@ -252,6 +245,7 @@ export default function MovementForm({
             onValueChange={(v) => {
               setProperty(v);
               setPasture("");
+              err.limparCampo(`${prefixo}_property_id` as Campo);
             }}
           >
             <SelectTrigger id={id} {...aria}>
@@ -273,7 +267,7 @@ export default function MovementForm({
           label="Pasto"
           hint="Opcional."
           id={`${prefixo}_pasture_id`}
-          error={erros[`${prefixo}_pasture_id` as Campo]}
+          error={err.erros[`${prefixo}_pasture_id` as Campo]}
         >
           {({ id, ...aria }) => (
             <Select value={pasture} onValueChange={setPasture}>
@@ -307,13 +301,13 @@ export default function MovementForm({
       submitLabel="Registrar"
       submitPendingLabel="Registrando..."
       pending={loading}
-      error={error}
-      focarCampoId={foco}
-      tentativa={tentativa}
+      error={err.global}
+      focarCampoId={err.focarCampoId}
+      tentativa={err.tentativa}
     >
-      <Field label="O que aconteceu" required id="movement_type" error={erros.movement_type}>
+      <Field label="O que aconteceu" required id="movement_type" error={err.erros.movement_type}>
         {({ id, ...aria }) => (
-          <Select value={type} onValueChange={setType}>
+          <Select value={type} onValueChange={(v) => { setType(v); err.limparCampo("movement_type"); }}>
             <SelectTrigger id={id} {...aria}>
               <SelectValue placeholder="Escolha o tipo" />
             </SelectTrigger>
@@ -347,7 +341,7 @@ export default function MovementForm({
         </Field>
       )}
 
-      <Field label="Quantidade de cabeças" required id="quantity" error={erros.quantity}>
+      <Field label="Quantidade de cabeças" required id="quantity" error={err.erros.quantity}>
         {({ id, ...aria }) => (
           <MoneyInput
             id={id}
@@ -355,7 +349,7 @@ export default function MovementForm({
             kind="quantidade"
             unit="cabeças"
             value={quantity}
-            onValueChange={setQuantity}
+            onValueChange={(v) => { setQuantity(v); err.limparCampo("quantity"); }}
           />
         )}
       </Field>
@@ -391,15 +385,20 @@ export default function MovementForm({
           label="Valor total em R$"
           hint="Opcional. Gera lançamento no Financeiro."
           id="value"
-          error={erros.value}
+          error={err.erros.value}
         >
           {({ id, ...aria }) => (
-            <MoneyInput id={id} {...aria} value={value} onValueChange={setValue} />
+            <MoneyInput
+              id={id}
+              {...aria}
+              value={value}
+              onValueChange={(v) => { setValue(v); err.limparCampo("value"); }}
+            />
           )}
         </Field>
       )}
 
-      <Field label="Data" id="occurred_at" error={erros.occurred_at}>
+      <Field label="Data" id="occurred_at" error={err.erros.occurred_at}>
         {({ id, ...aria }) => (
           <Input
             id={id}
@@ -411,7 +410,7 @@ export default function MovementForm({
         )}
       </Field>
 
-      <Field label="Motivo" hint="Opcional." id="reason" error={erros.reason}>
+      <Field label="Motivo" hint="Opcional." id="reason" error={err.erros.reason}>
         {({ id, ...aria }) => (
           <Input
             id={id}
@@ -423,7 +422,7 @@ export default function MovementForm({
         )}
       </Field>
 
-      <Field label="Observação" hint="Opcional." id="notes" error={erros.notes}>
+      <Field label="Observação" hint="Opcional." id="notes" error={err.erros.notes}>
         {({ id, ...aria }) => (
           <Input id={id} {...aria} value={notes} onChange={(e) => setNotes(e.target.value)} />
         )}

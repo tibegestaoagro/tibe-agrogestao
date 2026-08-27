@@ -15,7 +15,7 @@ import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
 import { Field } from "@/components/ui/field";
 import { FormSheet } from "@/components/ui/form-sheet";
 import { apiPost } from "@/lib/client-api";
-import { primeiroInvalido, aplicarErroDoServidor } from "@/lib/erros-de-formulario";
+import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 
 /**
  * As três ações do animal, em painéis irmãos na mesma página.
@@ -51,54 +51,16 @@ export default function AnimalActions({
 }
 
 /**
- * O estado comum aos três painéis, incluindo a reprovação.
- *
- * `prefixo` compõe o id do DOM; `ordem` são os nomes da API, na ordem em que
- * os campos aparecem na tela.
+ * O que os três painéis têm em comum: navegação, abrir/fechar, pendência e o
+ * estado de erro, que vem do hook do kit.
  */
 function usePainel<K extends string>(ordem: readonly K[], prefixo: string) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [erros, setErros] = useState<Partial<Record<K, string>>>({});
-  const [foco, setFoco] = useState<K | null>(null);
-  const [tentativa, setTentativa] = useState(0);
+  const err = useErrosDeFormulario(ordem, prefixo);
 
-  function reprovar(novos: Partial<Record<K, string>>) {
-    setErros(novos);
-    setFoco(primeiroInvalido(novos, ordem));
-    setTentativa((n) => n + 1);
-  }
-
-  function doServidor(res: { code: string; message: string; field?: string }) {
-    const { erros: novos, global } = aplicarErroDoServidor(res, ordem);
-    setError(global);
-    reprovar(novos);
-  }
-
-  function limpar() {
-    setErros({});
-    setError(null);
-  }
-
-  return {
-    router,
-    open,
-    setOpen,
-    loading,
-    setLoading,
-    error,
-    setError,
-    erros,
-    reprovar,
-    doServidor,
-    limpar,
-    /** Id no DOM: único no documento, diferente do nome na API. */
-    idDe: (campo: K) => `${prefixo}-${campo}`,
-    focarCampoId: foco ? `${prefixo}-${foco}` : null,
-    tentativa,
-  };
+  return { router, open, setOpen, loading, setLoading, ...err };
 }
 
 const ORDEM_PESO = ["weight", "measured_at"] as const;
@@ -111,12 +73,12 @@ function WeightSheet({ animalId }: { animalId: string }) {
   async function submit() {
     const kg = lerValorDoCampo(weight);
     if (kg === null || kg <= 0) {
-      s.setError(null);
+      s.setGlobal(null);
       s.reprovar({ weight: "Informe o peso em quilos." });
       return;
     }
 
-    s.limpar();
+    s.limparTudo();
     s.setLoading(true);
     const res = await apiPost(`/api/v1/animals/${animalId}/weight-logs`, {
       weight: kg,
@@ -144,7 +106,7 @@ function WeightSheet({ animalId }: { animalId: string }) {
       onSubmit={submit}
       submitLabel="Salvar"
       pending={s.loading}
-      error={s.error}
+      error={s.global}
       focarCampoId={s.focarCampoId}
       tentativa={s.tentativa}
     >
@@ -156,7 +118,7 @@ function WeightSheet({ animalId }: { animalId: string }) {
             kind="quantidade"
             unit="kg"
             value={weight}
-            onValueChange={setWeight}
+            onValueChange={(v) => { setWeight(v); s.limparCampo("weight"); }}
           />
         )}
       </Field>
@@ -186,12 +148,12 @@ function VaccinationSheet({ animalId, vaccines }: { animalId: string; vaccines: 
 
   async function submit() {
     if (!vaccineId) {
-      s.setError(null);
+      s.setGlobal(null);
       s.reprovar({ vaccine_id: "Escolha a vacina." });
       return;
     }
 
-    s.limpar();
+    s.limparTudo();
     s.setLoading(true);
     const res = await apiPost(`/api/v1/animals/${animalId}/vaccinations`, {
       vaccine_id: vaccineId,
@@ -221,13 +183,13 @@ function VaccinationSheet({ animalId, vaccines }: { animalId: string; vaccines: 
       onSubmit={submit}
       submitLabel="Salvar"
       pending={s.loading}
-      error={s.error}
+      error={s.global}
       focarCampoId={s.focarCampoId}
       tentativa={s.tentativa}
     >
       <Field label="Vacina" required id={s.idDe("vaccine_id")} error={s.erros.vaccine_id}>
         {({ id, ...aria }) => (
-          <Select value={vaccineId} onValueChange={setVaccineId}>
+          <Select value={vaccineId} onValueChange={(v) => { setVaccineId(v); s.limparCampo("vaccine_id"); }}>
             <SelectTrigger id={id} {...aria}>
               <SelectValue placeholder="Selecione" />
             </SelectTrigger>
@@ -279,12 +241,12 @@ function MovementSheet({ animalId, properties }: { animalId: string; properties:
       novos.to_property_id = "Escolha a propriedade de destino.";
     }
     if (Object.keys(novos).length > 0) {
-      s.setError(null);
+      s.setGlobal(null);
       s.reprovar(novos);
       return;
     }
 
-    s.limpar();
+    s.limparTudo();
     s.setLoading(true);
     const res = await apiPost(`/api/v1/animals/${animalId}/movements`, {
       movement_type: type,
@@ -316,13 +278,19 @@ function MovementSheet({ animalId, properties }: { animalId: string; properties:
       onSubmit={submit}
       submitLabel="Salvar"
       pending={s.loading}
-      error={s.error}
+      error={s.global}
       focarCampoId={s.focarCampoId}
       tentativa={s.tentativa}
     >
       <Field label="Tipo" required id={s.idDe("movement_type")} error={s.erros.movement_type}>
         {({ id, ...aria }) => (
-          <Select value={type} onValueChange={(v) => setType(v as typeof type)}>
+          <Select
+            value={type}
+            onValueChange={(v) => {
+              setType(v as typeof type);
+              s.limparCampo("movement_type");
+            }}
+          >
             <SelectTrigger id={id} {...aria}>
               <SelectValue placeholder="Selecione" />
             </SelectTrigger>
@@ -357,7 +325,10 @@ function MovementSheet({ animalId, properties }: { animalId: string; properties:
           error={s.erros.to_property_id}
         >
           {({ id, ...aria }) => (
-            <Select value={toProperty} onValueChange={setToProperty}>
+            <Select
+              value={toProperty}
+              onValueChange={(v) => { setToProperty(v); s.limparCampo("to_property_id"); }}
+            >
               <SelectTrigger id={id} {...aria}>
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>

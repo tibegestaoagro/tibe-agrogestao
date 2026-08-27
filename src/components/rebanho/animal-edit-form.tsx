@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { FormSheet } from "@/components/ui/form-sheet";
 import { apiPatch } from "@/lib/client-api";
-import { primeiroInvalido, aplicarErroDoServidor } from "@/lib/erros-de-formulario";
+import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 
 type Property = { id: string; name: string };
 
@@ -44,10 +44,7 @@ export default function AnimalEditForm({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [erros, setErros] = useState<Erros>({});
-  const [foco, setFoco] = useState<Campo | null>(null);
-  const [tentativa, setTentativa] = useState(0);
+  const err = useErrosDeFormulario(ORDEM);
 
   const [earTag, setEarTag] = useState(animal.ear_tag);
   const [breed, setBreed] = useState(animal.breed ?? "");
@@ -57,25 +54,18 @@ export default function AnimalEditForm({
     animal.birth_date ? animal.birth_date.slice(0, 10) : "",
   );
 
-  function reprovar(novos: Erros) {
-    setErros(novos);
-    setFoco(primeiroInvalido(novos, ORDEM));
-    setTentativa((n) => n + 1);
-  }
-
   async function submit() {
     const novos: Erros = {};
     if (!earTag.trim()) novos.ear_tag = "Informe o brinco.";
     if (!breed.trim()) novos.breed = "Informe a raça.";
     if (Object.keys(novos).length > 0) {
-      setError(null);
-      reprovar(novos);
+      err.setGlobal(null);
+      err.reprovar(novos);
       return;
     }
 
     setLoading(true);
-    setErros({});
-    setError(null);
+    err.limparTudo();
     const res = await apiPatch(`/api/v1/animals/${animal.id}`, {
       ear_tag: earTag,
       breed,
@@ -86,9 +76,7 @@ export default function AnimalEditForm({
     setLoading(false);
 
     if (!res.ok) {
-      const { erros: doServidor, global } = aplicarErroDoServidor(res, ORDEM);
-      setError(global);
-      reprovar(doServidor);
+      err.doServidor(res);
       return;
     }
 
@@ -109,30 +97,30 @@ export default function AnimalEditForm({
       onSubmit={submit}
       submitLabel="Salvar alterações"
       pending={loading}
-      error={error}
-      focarCampoId={foco}
-      tentativa={tentativa}
+      error={err.global}
+      focarCampoId={err.focarCampoId}
+      tentativa={err.tentativa}
     >
-      <Field label="Brinco" required id="ear_tag" error={erros.ear_tag}>
+      <Field label="Brinco" required id="ear_tag" error={err.erros.ear_tag}>
         {({ id, ...aria }) => (
           <Input
             id={id}
             {...aria}
             value={earTag}
-            onChange={(e) => setEarTag(e.target.value)}
+            onChange={(e) => { setEarTag(e.target.value); err.limparCampo("ear_tag"); }}
           />
         )}
       </Field>
 
-      <Field label="Raça" required id="breed" error={erros.breed}>
+      <Field label="Raça" required id="breed" error={err.erros.breed}>
         {({ id, ...aria }) => (
-          <Input id={id} {...aria} value={breed} onChange={(e) => setBreed(e.target.value)} />
+          <Input id={id} {...aria} value={breed} onChange={(e) => { setBreed(e.target.value); err.limparCampo("breed"); }} />
         )}
       </Field>
 
-      <Field label="Sexo" required id="sex" error={erros.sex}>
+      <Field label="Sexo" required id="sex" error={err.erros.sex}>
         {({ id, ...aria }) => (
-          <Select value={sex} onValueChange={(v) => setSex(v as "male" | "female")}>
+          <Select value={sex} onValueChange={(v) => { setSex(v as "male" | "female"); err.limparCampo("sex"); }}>
             <SelectTrigger id={id} {...aria}>
               <SelectValue />
             </SelectTrigger>
@@ -144,9 +132,9 @@ export default function AnimalEditForm({
         )}
       </Field>
 
-      <Field label="Propriedade" required id="property_id" error={erros.property_id}>
+      <Field label="Propriedade" required id="property_id" error={err.erros.property_id}>
         {({ id, ...aria }) => (
-          <Select value={propertyId} onValueChange={setPropertyId}>
+          <Select value={propertyId} onValueChange={(v) => { setPropertyId(v); err.limparCampo("property_id"); }}>
             <SelectTrigger id={id} {...aria}>
               <SelectValue placeholder="Selecione" />
             </SelectTrigger>
@@ -161,14 +149,14 @@ export default function AnimalEditForm({
         )}
       </Field>
 
-      <Field label="Data de nascimento" id="birth_date" error={erros.birth_date}>
+      <Field label="Data de nascimento" id="birth_date" error={err.erros.birth_date}>
         {({ id, ...aria }) => (
           <Input
             id={id}
             {...aria}
             type="date"
             value={birthDate}
-            onChange={(e) => setBirthDate(e.target.value)}
+            onChange={(e) => { setBirthDate(e.target.value); err.limparCampo("birth_date"); }}
           />
         )}
       </Field>
