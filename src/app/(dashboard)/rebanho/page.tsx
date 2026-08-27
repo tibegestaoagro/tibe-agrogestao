@@ -73,10 +73,12 @@ export default async function RebanhoPage(
   const fimDoMes = new Date(agora.getFullYear(), agora.getMonth() + 1, 0, 23, 59, 59, 999);
 
   const [positions, periodo, historico, properties, pastures, identificados] = await Promise.all([
-    // `owner: proprio` é o que faz "total geral" significar o rebanho DO
-    // produtor: animal de terceiro na fazenda não entra na conta dele.
+    // SEM filtro de dono, desde a fase 2: quem separa próprio de terceiro é
+    // `summarizePositions`, que precisa ver os dois para responder "quanto é
+    // meu" e "quanto tem para tratar hoje" na mesma passada. Filtrar aqui
+    // esconderia o animal de terceiro do total físico do pasto, que é
+    // justamente o número que o complemento do Rebanho pediu.
     getPositions(db, {
-      owner: "proprio",
       ...(effectivePropertyId ? { property_id: effectivePropertyId } : {}),
     }),
     getPeriodTotals(db, inicioDoMes, fimDoMes, { property_id: effectivePropertyId }),

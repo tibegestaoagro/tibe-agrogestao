@@ -247,6 +247,8 @@ const resumo = summarizePositions(
     category_id,
     property_id: "fazenda_santa_helena",
     pasture_id: null,
+    situation: "presente" as const,
+    owner: "proprio" as const,
     quantity,
   })),
 );
@@ -273,7 +275,7 @@ check("sem pasto informado, não inventa linha de pasto", resumo.by_pasture.leng
 check("nenhuma quantidade em categoria desconhecida", resumo.unknown_category_quantity === 0);
 
 const comZero = summarizePositions([
-  { category_id: "femea_36_mais", property_id: "p1", pasture_id: null, quantity: 5 },
+  { category_id: "femea_36_mais", property_id: "p1", pasture_id: null, situation: "presente", owner: "proprio", quantity: 5 },
 ]);
 check(
   "categoria sem saldo continua na lista, com zero",
@@ -282,9 +284,9 @@ check(
 );
 
 const comPasto = summarizePositions([
-  { category_id: "femea_36_mais", property_id: "p1", pasture_id: "pasto_a", quantity: 30 },
-  { category_id: "macho_36_mais", property_id: "p1", pasture_id: "pasto_b", quantity: 12 },
-  { category_id: "bezerro_0_7", property_id: "p2", pasture_id: null, quantity: 8 },
+  { category_id: "femea_36_mais", property_id: "p1", pasture_id: "pasto_a", situation: "presente", owner: "proprio", quantity: 30 },
+  { category_id: "macho_36_mais", property_id: "p1", pasture_id: "pasto_b", situation: "presente", owner: "proprio", quantity: 12 },
+  { category_id: "bezerro_0_7", property_id: "p2", pasture_id: null, situation: "presente", owner: "proprio", quantity: 8 },
 ]);
 check("por pasto lista só quem tem pasto", comPasto.by_pasture.length === 2);
 check("por pasto vem do maior para o menor", comPasto.by_pasture[0].id === "pasto_a");
@@ -292,17 +294,90 @@ check("por fazenda separa as duas", comPasto.by_property.length === 2);
 check("total soma as três posições", comPasto.total === 50, String(comPasto.total));
 
 const posicaoZerada = summarizePositions([
-  { category_id: "femea_36_mais", property_id: "p1", pasture_id: "pasto_a", quantity: 0 },
+  { category_id: "femea_36_mais", property_id: "p1", pasture_id: "pasto_a", situation: "presente", owner: "proprio", quantity: 0 },
 ]);
 check("posição zerada não vira linha de fazenda nem de pasto",
   posicaoZerada.by_property.length === 0 && posicaoZerada.by_pasture.length === 0);
 
 const categoriaSumida = summarizePositions([
-  { category_id: "categoria_que_alguem_removeu", property_id: "p1", pasture_id: null, quantity: 9 },
+  { category_id: "categoria_que_alguem_removeu", property_id: "p1", pasture_id: null, situation: "presente", owner: "proprio", quantity: 9 },
 ]);
 check(
   "categoria fora da constante é denunciada, não somem 9 cabeças em silêncio",
   categoriaSumida.unknown_category_quantity === 9 && categoriaSumida.total === 9,
+);
+
+// ─────────────────────────────────────────────────────────────
+// Fase 2: os cinco números do complemento do Rebanho.
+//
+// O documento abre pedindo que o Tibé mostre SEPARADAMENTE o rebanho próprio,
+// os próprios na fazenda, os próprios fora e os de terceiros, "para evitar que
+// o sistema mostre um total errado". O exemplo dele é o caso de teste.
+
+console.log("\nOs cinco números do complemento (o exemplo do cliente)");
+
+const pos = (
+  quantity: number,
+  situation: "presente" | "pasto_terceiro" | "boitel" | "desaparecido",
+  owner: "proprio" | "terceiro",
+  pasture_id: string | null = null,
+) => ({
+  category_id: "femea_36_mais",
+  property_id: "faz-1",
+  pasture_id,
+  situation,
+  owner,
+  quantity,
+});
+
+// 180 próprios: 150 na fazenda, 20 em pasto de terceiro, 10 em boitel.
+// Mais 40 de terceiros ocupando o pasto.
+const cinco = summarizePositions([
+  pos(150, "presente", "proprio"),
+  pos(20, "pasto_terceiro", "proprio"),
+  pos(10, "boitel", "proprio"),
+  pos(40, "presente", "terceiro"),
+]);
+
+check("rebanho próprio soma 180", cinco.total === 180, `total=${cinco.total}`);
+check("próprios na fazenda: 150", cinco.na_fazenda === 150, `na_fazenda=${cinco.na_fazenda}`);
+check("próprios fora: 30 (evento, pasto de terceiro e boitel)", cinco.fora === 30, `fora=${cinco.fora}`);
+check("de terceiros aqui: 40", cinco.de_terceiros === 40, `de_terceiros=${cinco.de_terceiros}`);
+check("total físico na propriedade: 190", cinco.total_fisico === 190, `total_fisico=${cinco.total_fisico}`);
+check(
+  "a identidade fecha: próprio = na fazenda + fora + desaparecidos",
+  cinco.total === cinco.na_fazenda + cinco.fora + cinco.desaparecidos,
+);
+check(
+  "animal de terceiro NÃO entra no rebanho próprio",
+  cinco.total === 180 && cinco.by_sex.reduce((s, b) => s + b.total, 0) === 180,
+);
+
+console.log("\nDesaparecido conta no próprio, em linha própria");
+
+const sumico = summarizePositions([
+  pos(100, "presente", "proprio"),
+  pos(3, "desaparecido", "proprio"),
+]);
+check("o total NÃO cai quando alguém registra um sumiço", sumico.total === 103, `total=${sumico.total}`);
+check("os desaparecidos aparecem separados", sumico.desaparecidos === 3);
+check("e não contam como presentes na fazenda", sumico.na_fazenda === 100);
+check("nem como 'fora', que é estadia planejada", sumico.fora === 0);
+
+console.log("\nOcupação física do pasto inclui o animal de terceiro");
+
+// O documento pede "contabilizar os animais na ocupação física dos pastos".
+// Quem trata do gado no pasto trata dos 60, não dos 20 que são do produtor.
+const ocupacao = summarizePositions([
+  pos(20, "presente", "proprio", "pasto-a"),
+  pos(40, "presente", "terceiro", "pasto-a"),
+  pos(15, "boitel", "proprio", "pasto-a"),
+]);
+const pastoA = ocupacao.by_pasture.find((p) => p.id === "pasto-a");
+check("o pasto mostra 60, e não 20", pastoA?.quantity === 60, `pasto-a=${pastoA?.quantity}`);
+check(
+  "quem está no boitel não ocupa pasto nenhum na fazenda",
+  ocupacao.by_pasture.reduce((s, p) => s + p.quantity, 0) === 60,
 );
 
 console.log(
