@@ -84,6 +84,20 @@ const nextConfig = {
   // a regra do repositorio, quem manda e a regra.
   agentRules: false,
 
+  // Sem isto, validar no navegador nesta maquina e impossivel, e o sintoma
+  // engana: a pagina carrega o HTML e fica em carregamento infinito.
+  //
+  // O Next 16 bloqueia os chunks de `/_next/*` quando a origem do pedido nao e
+  // a que ele anuncia (`localhost:3000`). Aqui `localhost` NAO resolve, e o
+  // proprio CLAUDE.md ja documenta isso para a conexao com o Postgres do
+  // Docker: sobra `127.0.0.1`, que o Next entao recusa por ser outra origem.
+  // Os dois caminhos fechados, e o defeito parece de aplicacao.
+  //
+  // O IP da rede local entra junto porque e por ele que se abre o painel no
+  // celular de verdade, que e como varios defeitos deste projeto apareceram.
+  // Vale so em `next dev`.
+  allowedDevOrigins: ["127.0.0.1", "192.168.1.6"],
+
   async headers() {
     const rules = [{ source: "/:path*", headers: securityHeaders }];
 
