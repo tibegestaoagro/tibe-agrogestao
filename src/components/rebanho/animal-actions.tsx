@@ -3,13 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Sheet,
-  SheetTrigger,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
   Select,
   SelectTrigger,
   SelectValue,
@@ -19,8 +12,22 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
-import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
+import { FormSheet } from "@/components/ui/form-sheet";
 import { apiPost } from "@/lib/client-api";
+import { primeiroInvalido, aplicarErroDoServidor } from "@/lib/erros-de-formulario";
+
+/**
+ * As três ações do animal, em painéis irmãos na mesma página.
+ *
+ * Por isso o id do campo no DOM leva prefixo do painel, e NÃO é o nome do
+ * campo na API: `value` existe em dois painéis daqui, e id repetido faz
+ * `getElementById` focar o primeiro que encontrar, que seria o painel errado.
+ *
+ * O nome da API continua sendo a chave de `erros` e de `ORDEM`, porque é ele
+ * que o servidor devolve em `error.field`. As duas coisas são diferentes: uma
+ * casa com o contrato, a outra tem que ser única no documento.
+ */
 
 type Vaccine = { id: string; name: string };
 type Property = { id: string; name: string };
@@ -43,29 +50,81 @@ export default function AnimalActions({
   );
 }
 
-function useSheet() {
+/**
+ * O estado comum aos três painéis, incluindo a reprovação.
+ *
+ * `prefixo` compõe o id do DOM; `ordem` são os nomes da API, na ordem em que
+ * os campos aparecem na tela.
+ */
+function usePainel<K extends string>(ordem: readonly K[], prefixo: string) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  return { router, open, setOpen, loading, setLoading, error, setError };
+  const [erros, setErros] = useState<Partial<Record<K, string>>>({});
+  const [foco, setFoco] = useState<K | null>(null);
+  const [tentativa, setTentativa] = useState(0);
+
+  function reprovar(novos: Partial<Record<K, string>>) {
+    setErros(novos);
+    setFoco(primeiroInvalido(novos, ordem));
+    setTentativa((n) => n + 1);
+  }
+
+  function doServidor(res: { code: string; message: string; field?: string }) {
+    const { erros: novos, global } = aplicarErroDoServidor(res, ordem);
+    setError(global);
+    reprovar(novos);
+  }
+
+  function limpar() {
+    setErros({});
+    setError(null);
+  }
+
+  return {
+    router,
+    open,
+    setOpen,
+    loading,
+    setLoading,
+    error,
+    setError,
+    erros,
+    reprovar,
+    doServidor,
+    limpar,
+    /** Id no DOM: único no documento, diferente do nome na API. */
+    idDe: (campo: K) => `${prefixo}-${campo}`,
+    focarCampoId: foco ? `${prefixo}-${foco}` : null,
+    tentativa,
+  };
 }
 
+const ORDEM_PESO = ["weight", "measured_at"] as const;
+
 function WeightSheet({ animalId }: { animalId: string }) {
-  const s = useSheet();
+  const s = usePainel(ORDEM_PESO, "peso");
   const [weight, setWeight] = useState("");
   const [date, setDate] = useState("");
 
   async function submit() {
-    if (!weight) return s.setError("Informe o peso.");
+    const kg = lerValorDoCampo(weight);
+    if (kg === null || kg <= 0) {
+      s.setError(null);
+      s.reprovar({ weight: "Informe o peso em quilos." });
+      return;
+    }
+
+    s.limpar();
     s.setLoading(true);
-    s.setError(null);
     const res = await apiPost(`/api/v1/animals/${animalId}/weight-logs`, {
-      weight: lerValorDoCampo(weight),
+      weight: kg,
       measured_at: date ? new Date(date).toISOString() : null,
     });
     s.setLoading(false);
-    if (!res.ok) return s.setError(res.message);
+    if (!res.ok) return s.doServidor(res);
+
     setWeight("");
     setDate("");
     s.setOpen(false);
@@ -73,103 +132,160 @@ function WeightSheet({ animalId }: { animalId: string }) {
   }
 
   return (
-    <Sheet open={s.open} onOpenChange={s.setOpen}>
-      <SheetTrigger asChild>
-        <Button variant="outline" size="sm">Registrar pesagem</Button>
-      </SheetTrigger>
-      <SheetContent title="Registrar pesagem">
-        <SheetHeader><SheetTitle>Registrar pesagem</SheetTitle></SheetHeader>
-        <div className="space-y-3">
-          <div>
-            <Label htmlFor="w">Peso (kg) *</Label>
-            <MoneyInput id="w" kind="quantidade" unit="kg" value={weight} onValueChange={setWeight} />
-          </div>
-          <div>
-            <Label htmlFor="wd">Data</Label>
-            <Input id="wd" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          </div>
-          {s.error && <p className="text-sm text-red-700">{s.error}</p>}
-          <Button onClick={submit} disabled={s.loading} className="w-full">
-            {s.loading ? "Salvando..." : "Salvar"}
-          </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
+    <FormSheet
+      trigger={
+        <Button variant="outline" size="sm">
+          Registrar pesagem
+        </Button>
+      }
+      title="Registrar pesagem"
+      open={s.open}
+      onOpenChange={s.setOpen}
+      onSubmit={submit}
+      submitLabel="Salvar"
+      pending={s.loading}
+      error={s.error}
+      focarCampoId={s.focarCampoId}
+      tentativa={s.tentativa}
+    >
+      <Field label="Peso" required id={s.idDe("weight")} hint="Em quilos." error={s.erros.weight}>
+        {({ id, ...aria }) => (
+          <MoneyInput
+            id={id}
+            {...aria}
+            kind="quantidade"
+            unit="kg"
+            value={weight}
+            onValueChange={setWeight}
+          />
+        )}
+      </Field>
+
+      <Field label="Data" id={s.idDe("measured_at")} error={s.erros.measured_at}>
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+          />
+        )}
+      </Field>
+    </FormSheet>
   );
 }
 
+const ORDEM_VACINA = ["vaccine_id", "applied_at", "cost"] as const;
+
 function VaccinationSheet({ animalId, vaccines }: { animalId: string; vaccines: Vaccine[] }) {
-  const s = useSheet();
+  const s = usePainel(ORDEM_VACINA, "vacina");
   const [vaccineId, setVaccineId] = useState("");
   const [date, setDate] = useState("");
   const [cost, setCost] = useState("");
 
   async function submit() {
-    if (!vaccineId) return s.setError("Selecione a vacina.");
+    if (!vaccineId) {
+      s.setError(null);
+      s.reprovar({ vaccine_id: "Escolha a vacina." });
+      return;
+    }
+
+    s.limpar();
     s.setLoading(true);
-    s.setError(null);
     const res = await apiPost(`/api/v1/animals/${animalId}/vaccinations`, {
       vaccine_id: vaccineId,
       applied_at: date ? new Date(date).toISOString() : null,
       cost: lerValorDoCampo(cost),
     });
     s.setLoading(false);
-    if (!res.ok) return s.setError(res.message);
-    setVaccineId(""); setDate(""); setCost("");
+    if (!res.ok) return s.doServidor(res);
+
+    setVaccineId("");
+    setDate("");
+    setCost("");
     s.setOpen(false);
     s.router.refresh();
   }
 
   return (
-    <Sheet open={s.open} onOpenChange={s.setOpen}>
-      <SheetTrigger asChild>
-        <Button variant="outline" size="sm">Registrar vacinação</Button>
-      </SheetTrigger>
-      <SheetContent title="Registrar vacinação">
-        <SheetHeader><SheetTitle>Registrar vacinação</SheetTitle></SheetHeader>
-        <div className="space-y-3">
-          <div>
-            <Label>Vacina *</Label>
-            <Select value={vaccineId} onValueChange={setVaccineId}>
-              <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-              <SelectContent>
-                {vaccines.map((v) => (
-                  <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="vd">Data de aplicação</Label>
-            <Input id="vd" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          </div>
-          <div>
-            <Label htmlFor="vc">Custo (R$)</Label>
-            <MoneyInput id="vc" value={cost} onValueChange={setCost} />
-          </div>
-          {s.error && <p className="text-sm text-red-700">{s.error}</p>}
-          <Button onClick={submit} disabled={s.loading} className="w-full">
-            {s.loading ? "Salvando..." : "Salvar"}
-          </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
+    <FormSheet
+      trigger={
+        <Button variant="outline" size="sm">
+          Registrar vacinação
+        </Button>
+      }
+      title="Registrar vacinação"
+      open={s.open}
+      onOpenChange={s.setOpen}
+      onSubmit={submit}
+      submitLabel="Salvar"
+      pending={s.loading}
+      error={s.error}
+      focarCampoId={s.focarCampoId}
+      tentativa={s.tentativa}
+    >
+      <Field label="Vacina" required id={s.idDe("vaccine_id")} error={s.erros.vaccine_id}>
+        {({ id, ...aria }) => (
+          <Select value={vaccineId} onValueChange={setVaccineId}>
+            <SelectTrigger id={id} {...aria}>
+              <SelectValue placeholder="Selecione" />
+            </SelectTrigger>
+            <SelectContent>
+              {vaccines.map((v) => (
+                <SelectItem key={v.id} value={v.id}>
+                  {v.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </Field>
+
+      <Field label="Data de aplicação" id={s.idDe("applied_at")} error={s.erros.applied_at}>
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+          />
+        )}
+      </Field>
+
+      <Field label="Custo em R$" hint="Opcional." id={s.idDe("cost")} error={s.erros.cost}>
+        {({ id, ...aria }) => (
+          <MoneyInput id={id} {...aria} value={cost} onValueChange={setCost} />
+        )}
+      </Field>
+    </FormSheet>
   );
 }
 
+const ORDEM_MOV = ["movement_type", "value", "to_property_id", "occurred_at"] as const;
+
 function MovementSheet({ animalId, properties }: { animalId: string; properties: Property[] }) {
-  const s = useSheet();
+  const s = usePainel(ORDEM_MOV, "mov");
   const [type, setType] = useState<"purchase" | "sale" | "transfer" | "death" | "">("");
   const [value, setValue] = useState("");
   const [toProperty, setToProperty] = useState("");
   const [date, setDate] = useState("");
 
   async function submit() {
-    if (!type) return s.setError("Selecione o tipo.");
-    if (type === "transfer" && !toProperty)
-      return s.setError("Selecione a propriedade de destino.");
+    const novos: Partial<Record<(typeof ORDEM_MOV)[number], string>> = {};
+    if (!type) novos.movement_type = "Escolha o tipo.";
+    if (type === "transfer" && !toProperty) {
+      novos.to_property_id = "Escolha a propriedade de destino.";
+    }
+    if (Object.keys(novos).length > 0) {
+      s.setError(null);
+      s.reprovar(novos);
+      return;
+    }
+
+    s.limpar();
     s.setLoading(true);
-    s.setError(null);
     const res = await apiPost(`/api/v1/animals/${animalId}/movements`, {
       movement_type: type,
       value: lerValorDoCampo(value),
@@ -177,64 +293,97 @@ function MovementSheet({ animalId, properties }: { animalId: string; properties:
       occurred_at: date ? new Date(date).toISOString() : null,
     });
     s.setLoading(false);
-    if (!res.ok) return s.setError(res.message);
-    setType(""); setValue(""); setToProperty(""); setDate("");
+    if (!res.ok) return s.doServidor(res);
+
+    setType("");
+    setValue("");
+    setToProperty("");
+    setDate("");
     s.setOpen(false);
     s.router.refresh();
   }
 
   return (
-    <Sheet open={s.open} onOpenChange={s.setOpen}>
-      <SheetTrigger asChild>
-        <Button variant="outline" size="sm">Registrar movimentação</Button>
-      </SheetTrigger>
-      <SheetContent title="Registrar movimentação">
-        <SheetHeader><SheetTitle>Registrar movimentação</SheetTitle></SheetHeader>
-        <div className="space-y-3">
-          <div>
-            <Label>Tipo *</Label>
-            <Select value={type} onValueChange={(v) => setType(v as typeof type)}>
-              <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+    <FormSheet
+      trigger={
+        <Button variant="outline" size="sm">
+          Registrar movimentação
+        </Button>
+      }
+      title="Registrar movimentação"
+      open={s.open}
+      onOpenChange={s.setOpen}
+      onSubmit={submit}
+      submitLabel="Salvar"
+      pending={s.loading}
+      error={s.error}
+      focarCampoId={s.focarCampoId}
+      tentativa={s.tentativa}
+    >
+      <Field label="Tipo" required id={s.idDe("movement_type")} error={s.erros.movement_type}>
+        {({ id, ...aria }) => (
+          <Select value={type} onValueChange={(v) => setType(v as typeof type)}>
+            <SelectTrigger id={id} {...aria}>
+              <SelectValue placeholder="Selecione" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="purchase">Compra</SelectItem>
+              <SelectItem value="sale">Venda</SelectItem>
+              <SelectItem value="transfer">Transferência</SelectItem>
+              <SelectItem value="death">Morte</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+      </Field>
+
+      {(type === "purchase" || type === "sale") && (
+        <Field
+          label="Valor em R$"
+          id={s.idDe("value")}
+          hint={`Gera lançamento financeiro automático (${type === "sale" ? "receita" : "despesa"}).`}
+          error={s.erros.value}
+        >
+          {({ id, ...aria }) => (
+            <MoneyInput id={id} {...aria} value={value} onValueChange={setValue} />
+          )}
+        </Field>
+      )}
+
+      {type === "transfer" && (
+        <Field
+          label="Propriedade de destino"
+          required
+          id={s.idDe("to_property_id")}
+          error={s.erros.to_property_id}
+        >
+          {({ id, ...aria }) => (
+            <Select value={toProperty} onValueChange={setToProperty}>
+              <SelectTrigger id={id} {...aria}>
+                <SelectValue placeholder="Selecione" />
+              </SelectTrigger>
               <SelectContent>
-                <SelectItem value="purchase">Compra</SelectItem>
-                <SelectItem value="sale">Venda</SelectItem>
-                <SelectItem value="transfer">Transferência</SelectItem>
-                <SelectItem value="death">Morte</SelectItem>
+                {properties.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
-          </div>
-          {(type === "purchase" || type === "sale") && (
-            <div>
-              <Label htmlFor="mv">Valor (R$)</Label>
-              <MoneyInput id="mv" value={value} onValueChange={setValue} />
-              <p className="mt-1 text-xs text-gray-500">
-                Gera lançamento financeiro automático ({type === "sale" ? "receita" : "despesa"}).
-              </p>
-            </div>
           )}
-          {type === "transfer" && (
-            <div>
-              <Label>Propriedade de destino *</Label>
-              <Select value={toProperty} onValueChange={setToProperty}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>
-                  {properties.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          <div>
-            <Label htmlFor="md">Data</Label>
-            <Input id="md" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          </div>
-          {s.error && <p className="text-sm text-red-700">{s.error}</p>}
-          <Button onClick={submit} disabled={s.loading} className="w-full">
-            {s.loading ? "Salvando..." : "Salvar"}
-          </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
+        </Field>
+      )}
+
+      <Field label="Data" id={s.idDe("occurred_at")} error={s.erros.occurred_at}>
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+          />
+        )}
+      </Field>
+    </FormSheet>
   );
 }

@@ -3,13 +3,6 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Sheet,
-  SheetTrigger,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
   Select,
   SelectTrigger,
   SelectValue,
@@ -19,8 +12,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
-import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
+import { FormSheet } from "@/components/ui/form-sheet";
 import { apiPost } from "@/lib/client-api";
+import { primeiroInvalido, aplicarErroDoServidor } from "@/lib/erros-de-formulario";
 import { HERD_CATEGORIES } from "@/lib/herd/categories";
 
 /**
@@ -54,6 +49,30 @@ const TYPES: { id: string; label: string; shape: Shape; group: string }[] = [
 
 const WITH_VALUE = new Set(["compra", "venda"]);
 
+/**
+ * A ordem é a da TELA, de cima para baixo, e os nomes são os que a API usa no
+ * corpo: `movement_type`, `quantity`, e as posições achatadas com o prefixo do
+ * lado (`from_category_id`). O achatamento existe porque `error.field` é uma
+ * string: o servidor que recusar a categoria de origem diz
+ * `from_category_id`, e o painel acha o campo sem tradutor no meio.
+ */
+const ORDEM = [
+  "movement_type",
+  "quantity",
+  "from_category_id",
+  "from_property_id",
+  "from_pasture_id",
+  "to_category_id",
+  "to_property_id",
+  "to_pasture_id",
+  "value",
+  "occurred_at",
+  "reason",
+  "notes",
+] as const;
+type Campo = (typeof ORDEM)[number];
+type Erros = Partial<Record<Campo, string>>;
+
 function hoje() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -71,6 +90,9 @@ export default function MovementForm({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [erros, setErros] = useState<Erros>({});
+  const [foco, setFoco] = useState<Campo | null>(null);
+  const [tentativa, setTentativa] = useState(0);
 
   const [type, setType] = useState("");
   const [quantity, setQuantity] = useState("1");
@@ -108,6 +130,13 @@ export default function MovementForm({
     setToCategory("");
     setToPasture("");
     setError(null);
+    setErros({});
+  }
+
+  function reprovar(novos: Erros) {
+    setErros(novos);
+    setFoco(primeiroInvalido(novos, ORDEM));
+    setTentativa((n) => n + 1);
   }
 
   function posicao(category: string, property: string, pasture: string) {
@@ -121,17 +150,33 @@ export default function MovementForm({
   }
 
   async function submit() {
-    setError(null);
     const qtd = lerValorDoCampo(quantity) ?? 0;
-    if (!type) return setError("Escolha o tipo de movimentação.");
-    if (!Number.isInteger(qtd) || qtd <= 0) return setError("Informe uma quantidade inteira maior que zero.");
-    if (precisaOrigem && (!fromCategory || !fromProperty)) {
-      return setError("Informe a categoria e a fazenda de origem.");
+    const novos: Erros = {};
+
+    // Uma mensagem por campo. Antes eram quatro frases juntas ("Informe a
+    // categoria e a fazenda de origem"), e o produtor tinha que descobrir
+    // qual das duas faltava.
+    if (!type) novos.movement_type = "Escolha o que aconteceu.";
+    if (!Number.isInteger(qtd) || qtd <= 0) {
+      novos.quantity = "Informe uma quantidade inteira maior que zero.";
     }
-    if (precisaDestino && (!toCategory || !toProperty)) {
-      return setError("Informe a categoria e a fazenda de destino.");
+    if (precisaOrigem) {
+      if (!fromCategory) novos.from_category_id = "Escolha a categoria de origem.";
+      if (!fromProperty) novos.from_property_id = "Escolha a fazenda de origem.";
+    }
+    if (precisaDestino) {
+      if (!toCategory) novos.to_category_id = "Escolha a categoria de destino.";
+      if (!toProperty) novos.to_property_id = "Escolha a fazenda de destino.";
     }
 
+    if (Object.keys(novos).length > 0) {
+      setError(null);
+      reprovar(novos);
+      return;
+    }
+
+    setErros({});
+    setError(null);
     setLoading(true);
     const res = await apiPost("/api/v1/herd/movements", {
       movement_type: type,
@@ -146,15 +191,21 @@ export default function MovementForm({
     setLoading(false);
 
     if (!res.ok) {
-      setError(res.message);
+      // O caso que motivou o `field` no envelope: saldo insuficiente é erro
+      // de QUANTIDADE, e aparecia no rodapé.
+      const { erros: doServidor, global } = aplicarErroDoServidor(res, ORDEM);
+      setError(global);
+      reprovar(doServidor);
       return;
     }
+
     setOpen(false);
     reset();
     router.refresh();
   }
 
   const blocoPosicao = (
+    prefixo: "from" | "to",
     titulo: string,
     category: string,
     setCategory: (v: string) => void,
@@ -164,201 +215,219 @@ export default function MovementForm({
     setPasture: (v: string) => void,
     pastosDisponiveis: Pasture[],
   ) => (
-    <div className="space-y-3 rounded-md border border-gray-200 p-3">
-      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{titulo}</p>
-      <div>
-        <Label>Categoria</Label>
-        <Select value={category} onValueChange={setCategory}>
-          <SelectTrigger>
-            <SelectValue placeholder="Escolha a categoria" />
-          </SelectTrigger>
-          <SelectContent>
-            {HERD_CATEGORIES.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <Label>Fazenda</Label>
-        <Select
-          value={property}
-          onValueChange={(v) => {
-            setProperty(v);
-            setPasture("");
-          }}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Escolha a fazenda" />
-          </SelectTrigger>
-          <SelectContent>
-            {properties.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      {pastosDisponiveis.length > 0 && (
-        <div>
-          <Label>Pasto (opcional)</Label>
-          <Select value={pasture} onValueChange={setPasture}>
-            <SelectTrigger>
-              <SelectValue placeholder="Sem pasto informado" />
+    <div className="space-y-3 rounded-md border border-borda p-3">
+      <p className="text-xs font-medium uppercase tracking-wide text-texto-discreto">{titulo}</p>
+
+      <Field
+        label="Categoria"
+        required
+        id={`${prefixo}_category_id`}
+        error={erros[`${prefixo}_category_id` as Campo]}
+      >
+        {({ id, ...aria }) => (
+          <Select value={category} onValueChange={setCategory}>
+            <SelectTrigger id={id} {...aria}>
+              <SelectValue placeholder="Escolha a categoria" />
             </SelectTrigger>
             <SelectContent>
-              {pastosDisponiveis.map((p) => (
+              {HERD_CATEGORIES.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </Field>
+
+      <Field
+        label="Fazenda"
+        required
+        id={`${prefixo}_property_id`}
+        error={erros[`${prefixo}_property_id` as Campo]}
+      >
+        {({ id, ...aria }) => (
+          <Select
+            value={property}
+            onValueChange={(v) => {
+              setProperty(v);
+              setPasture("");
+            }}
+          >
+            <SelectTrigger id={id} {...aria}>
+              <SelectValue placeholder="Escolha a fazenda" />
+            </SelectTrigger>
+            <SelectContent>
+              {properties.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
                   {p.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-        </div>
+        )}
+      </Field>
+
+      {pastosDisponiveis.length > 0 && (
+        <Field
+          label="Pasto"
+          hint="Opcional."
+          id={`${prefixo}_pasture_id`}
+          error={erros[`${prefixo}_pasture_id` as Campo]}
+        >
+          {({ id, ...aria }) => (
+            <Select value={pasture} onValueChange={setPasture}>
+              <SelectTrigger id={id} {...aria}>
+                <SelectValue placeholder="Sem pasto informado" />
+              </SelectTrigger>
+              <SelectContent>
+                {pastosDisponiveis.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </Field>
       )}
     </div>
   );
 
   return (
-    <Sheet
+    <FormSheet
+      trigger={<Button>Registrar movimentação</Button>}
+      title="Registrar movimentação"
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
         if (!o) reset();
       }}
+      onSubmit={submit}
+      submitLabel="Registrar"
+      submitPendingLabel="Registrando..."
+      pending={loading}
+      error={error}
+      focarCampoId={foco}
+      tentativa={tentativa}
     >
-      <SheetTrigger asChild>
-        <Button>Registrar movimentação</Button>
-      </SheetTrigger>
-      <SheetContent>
-        <SheetHeader>
-          <SheetTitle>Registrar movimentação</SheetTitle>
-        </SheetHeader>
+      <Field label="O que aconteceu" required id="movement_type" error={erros.movement_type}>
+        {({ id, ...aria }) => (
+          <Select value={type} onValueChange={setType}>
+            <SelectTrigger id={id} {...aria}>
+              <SelectValue placeholder="Escolha o tipo" />
+            </SelectTrigger>
+            <SelectContent>
+              {TYPES.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.group}: {t.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </Field>
 
-        <div className="mt-4 space-y-4">
-          <div>
-            <Label>O que aconteceu</Label>
-            <Select value={type} onValueChange={setType}>
-              <SelectTrigger>
-                <SelectValue placeholder="Escolha o tipo" />
+      {shape === "ajuste" && (
+        <Field label="O ajuste" id="ajuste_direction">
+          {({ id, ...aria }) => (
+            <Select
+              value={ajusteDirection}
+              onValueChange={(v) => setAjusteDirection(v as "aumentar" | "diminuir")}
+            >
+              <SelectTrigger id={id} {...aria}>
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {TYPES.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.group}: {t.label}
-                  </SelectItem>
-                ))}
+                <SelectItem value="aumentar">Aumenta o saldo</SelectItem>
+                <SelectItem value="diminuir">Diminui o saldo</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-
-          {shape === "ajuste" && (
-            <div>
-              <Label>O ajuste</Label>
-              <Select
-                value={ajusteDirection}
-                onValueChange={(v) => setAjusteDirection(v as "aumentar" | "diminuir")}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="aumentar">Aumenta o saldo</SelectItem>
-                  <SelectItem value="diminuir">Diminui o saldo</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           )}
+        </Field>
+      )}
 
-          <div>
-            <Label htmlFor="mov-qtd">Quantidade de cabeças</Label>
-            <MoneyInput
-              id="mov-qtd"
-              kind="quantidade"
-              unit="cabeças"
-              value={quantity}
-              onValueChange={setQuantity}
-            />
-          </div>
+      <Field label="Quantidade de cabeças" required id="quantity" error={erros.quantity}>
+        {({ id, ...aria }) => (
+          <MoneyInput
+            id={id}
+            {...aria}
+            kind="quantidade"
+            unit="cabeças"
+            value={quantity}
+            onValueChange={setQuantity}
+          />
+        )}
+      </Field>
 
-          {precisaOrigem &&
-            blocoPosicao(
-              shape === "transferencia" ? "De onde sai" : "De onde",
-              fromCategory,
-              setFromCategory,
-              fromProperty,
-              setFromProperty,
-              fromPasture,
-              setFromPasture,
-              pastosDaOrigem,
-            )}
+      {precisaOrigem &&
+        blocoPosicao(
+          "from",
+          shape === "transferencia" ? "De onde sai" : "De onde",
+          fromCategory,
+          setFromCategory,
+          fromProperty,
+          setFromProperty,
+          fromPasture,
+          setFromPasture,
+          pastosDaOrigem,
+        )}
 
-          {precisaDestino &&
-            blocoPosicao(
-              shape === "transferencia" ? "Para onde vai" : "Onde entra",
-              toCategory,
-              setToCategory,
-              toProperty,
-              setToProperty,
-              toPasture,
-              setToPasture,
-              pastosDoDestino,
-            )}
+      {precisaDestino &&
+        blocoPosicao(
+          "to",
+          shape === "transferencia" ? "Para onde vai" : "Onde entra",
+          toCategory,
+          setToCategory,
+          toProperty,
+          setToProperty,
+          toPasture,
+          setToPasture,
+          pastosDoDestino,
+        )}
 
-          {type && WITH_VALUE.has(type) && (
-            <div>
-              <Label htmlFor="mov-valor">
-                Valor total em R$ (opcional, gera lançamento no Financeiro)
-              </Label>
-              <MoneyInput
-                id="mov-valor"
-                value={value}
-                onValueChange={setValue}
-              />
-            </div>
+      {type && WITH_VALUE.has(type) && (
+        <Field
+          label="Valor total em R$"
+          hint="Opcional. Gera lançamento no Financeiro."
+          id="value"
+          error={erros.value}
+        >
+          {({ id, ...aria }) => (
+            <MoneyInput id={id} {...aria} value={value} onValueChange={setValue} />
           )}
+        </Field>
+      )}
 
-          <div>
-            <Label htmlFor="mov-data">Data</Label>
-            <Input
-              id="mov-data"
-              type="date"
-              value={occurredAt}
-              onChange={(e) => setOccurredAt(e.target.value)}
-            />
-          </div>
+      <Field label="Data" id="occurred_at" error={erros.occurred_at}>
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            type="date"
+            value={occurredAt}
+            onChange={(e) => setOccurredAt(e.target.value)}
+          />
+        )}
+      </Field>
 
-          <div>
-            <Label htmlFor="mov-motivo">Motivo (opcional)</Label>
-            <Input
-              id="mov-motivo"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Ex: contagem física"
-            />
-          </div>
+      <Field label="Motivo" hint="Opcional." id="reason" error={erros.reason}>
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Ex: contagem física"
+          />
+        )}
+      </Field>
 
-          <div>
-            <Label htmlFor="mov-obs">Observação (opcional)</Label>
-            <Input
-              id="mov-obs"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </div>
-
-          {error && (
-            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-          )}
-
-          <Button onClick={submit} disabled={loading} className="w-full">
-            {loading ? "Registrando..." : "Registrar"}
-          </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
+      <Field label="Observação" hint="Opcional." id="notes" error={erros.notes}>
+        {({ id, ...aria }) => (
+          <Input id={id} {...aria} value={notes} onChange={(e) => setNotes(e.target.value)} />
+        )}
+      </Field>
+    </FormSheet>
   );
 }
