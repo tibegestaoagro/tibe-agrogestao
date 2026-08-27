@@ -24,6 +24,16 @@ export default function ApiDocsPage() {
         sucesso, mesmo quando um exemplo abaixo mostra só{" "}
         <code className="rounded bg-gray-100 px-1 text-xs">{"{}"}</code> por brevidade: o servidor nunca a omite.
       </p>
+      <p className="mt-3 max-w-2xl text-gray-600">
+        O erro aceita um terceiro campo, opcional:{" "}
+        <code className="rounded bg-gray-100 px-1 text-xs">{'{ error: { code, message, field } }'}</code>.{" "}
+        <code className="rounded bg-gray-100 px-1 text-xs">field</code> aparece só quando a recusa pertence a um
+        campo do formulário, e traz o nome do campo <strong>na API</strong> (
+        <code className="rounded bg-gray-100 px-1 text-xs">quantity</code>,{" "}
+        <code className="rounded bg-gray-100 px-1 text-xs">ear_tag</code>), para o cliente mostrar a mensagem no
+        lugar certo em vez de num rodapé genérico. A maioria dos erros não pertence a campo nenhum (rede,
+        permissão, conflito) e nesses a chave não vem. Quem não a lê continua funcionando como antes.
+      </p>
 
       <nav className="mt-6 flex flex-wrap gap-2">
         {GROUPS.map((g) => (

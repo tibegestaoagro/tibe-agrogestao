@@ -1,5 +1,7 @@
 import "dotenv/config";
 import { withApi } from "@/lib/route";
+import { apiError } from "@/lib/api";
+import { apiErrorSchema } from "@tibe/contracts/envelope";
 
 /**
  * O envelope de erro do contrato vale para TODA rota, inclusive quando ninguem
@@ -142,6 +144,31 @@ async function main() {
         ? "nenhuma rota exporta handler cru"
         : `rotas sem withApi: ${semWrapper.join(", ")}`,
     );
+  }
+
+  console.log("\n7. O envelope diz QUAL campo o servidor recusou");
+  {
+    // Sem isto, "Existem apenas 3 animais" aparece no rodape do painel e o
+    // produtor le que algo falhou sem saber onde corrigir. A extensao e
+    // aditiva: quem nao le `field` continua funcionando igual.
+    const res = apiError("SALDO_INSUFICIENTE", "Existem apenas 3 animais.", 422, "quantity");
+    const body = (await res.json()) as { error?: { field?: string } };
+    assert(res.status === 422, "o status continua sendo o que a rota pediu");
+    assert(body.error?.field === "quantity", "apiError propaga o campo recusado");
+    // `safeParse().success` sozinho nao provaria nada: `z.object` DESCARTA
+    // chave desconhecida em vez de rejeitar, entao passaria antes e depois.
+    // O que prova e o valor sobreviver ao parse.
+    const lido = apiErrorSchema.safeParse(body);
+    assert(
+      lido.success && lido.data.error.field === "quantity",
+      "o schema conhece `field` e o valor sobrevive ao parse",
+    );
+  }
+  {
+    const res = apiError("NOT_FOUND", "Nao encontrado", 404);
+    const body = (await res.json()) as { error: Record<string, unknown> };
+    assert(!("field" in body.error), "sem field, a chave nem aparece na resposta");
+    assert(apiErrorSchema.safeParse(body).success, "envelope sem field continua valido");
   }
 
   console.log("");

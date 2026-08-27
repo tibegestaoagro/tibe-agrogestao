@@ -18,7 +18,9 @@ export const metaRecordSchema = z.record(z.string(), z.unknown());
 export type MetaRecord = z.infer<typeof metaRecordSchema>;
 
 export type ApiOk<T> = { data: T; meta: Record<string, unknown> };
-export type ApiError = { error: { code: string; message: string } };
+export type ApiError = {
+  error: { code: string; message: string; field?: string };
+};
 export type ApiResponse<T> = ApiOk<T> | ApiError;
 
 /**
@@ -30,6 +32,19 @@ export const apiErrorSchema = z.object({
   error: z.object({
     code: z.string(),
     message: z.string(),
+    /**
+     * Qual campo do formulario o servidor recusou.
+     *
+     * Opcional de proposito: a maioria dos erros nao pertence a campo nenhum
+     * (rede, permissao, conflito, excecao). Quem nao le esta chave continua
+     * funcionando exatamente como antes, que e o que torna a extensao
+     * aditiva.
+     *
+     * O nome e o do campo NA API (`quantity`, `ear_tag`), nunca o do estado
+     * da tela: e assim que o painel casa a recusa com o campo sem precisar de
+     * um tradutor no meio.
+     */
+    field: z.string().optional(),
   }),
 });
 

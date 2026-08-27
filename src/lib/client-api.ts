@@ -4,7 +4,7 @@
 
 type ApiResult<T> =
   | { ok: true; data: T }
-  | { ok: false; code: string; message: string };
+  | { ok: false; code: string; message: string; field?: string };
 
 async function request<T>(
   method: string,
@@ -22,6 +22,10 @@ async function request<T>(
       ok: false,
       code: json?.error?.code ?? "ERROR",
       message: json?.error?.message ?? "Erro inesperado",
+      // Conferido em vez de repassado: resposta de erro pode vir de qualquer
+      // borda (proxy, CDN, rota antiga), e um `field` que nao seja string
+      // viraria chave de objeto estranha no painel.
+      field: typeof json?.error?.field === "string" ? json.error.field : undefined,
     };
   }
   return { ok: true, data: json?.data as T };

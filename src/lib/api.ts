@@ -14,12 +14,22 @@ export function apiOk<T>(
   return NextResponse.json({ data, meta }, init);
 }
 
+/**
+ * `field` diz QUAL campo do formulario foi recusado, e por isso usa o nome da
+ * API (`quantity`, `ear_tag`), nao o do estado da tela. A chave so aparece
+ * quando existe: mandar `field: undefined` sujaria toda resposta de erro que
+ * nao pertence a campo nenhum, que sao a maioria.
+ */
 export function apiError(
   code: string,
   message: string,
   status = 400,
+  field?: string,
 ) {
-  return NextResponse.json({ error: { code, message } }, { status });
+  return NextResponse.json(
+    { error: field ? { code, message, field } : { code, message } },
+    { status },
+  );
 }
 
 /** Códigos de erro comuns reutilizados entre rotas. */
