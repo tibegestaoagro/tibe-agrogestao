@@ -31,8 +31,8 @@ const ENTRY_TYPE_LABEL: Record<string, string> = {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="text-sm font-medium text-gray-900">{value}</p>
+      <p className="text-xs text-texto-discreto">{label}</p>
+      <p className="text-sm font-medium text-texto">{value}</p>
     </div>
   );
 }
@@ -72,7 +72,7 @@ export default async function LoteDetail(
         <Link href="/rebanho" className="text-sm text-primaria-tinta hover:underline">
           ← Rebanho
         </Link>
-        <h1 className="mt-1 flex items-center gap-2 text-xl font-semibold text-gray-900">
+        <h1 className="mt-1 flex items-center gap-2 text-xl font-semibold text-texto">
           Lote de {batch.category?.name ?? "categoria não informada"}
           <Badge variant={batch.quantity > 0 ? "green" : "gray"}>
             {batch.quantity > 0 ? "Ativo" : "Esgotado"}
@@ -80,7 +80,7 @@ export default async function LoteDetail(
         </h1>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 rounded-lg border border-gray-200 bg-white p-5 sm:grid-cols-4 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 rounded-lg border border-borda bg-superficie p-5 sm:grid-cols-4 lg:grid-cols-5">
         <Stat label="Categoria" value={batch.category?.name ?? "não informada"} />
         <Stat label="Quantidade atual" value={`${batch.quantity} cabeça(s)`} />
         <Stat label="Peso médio" value={averageWeight != null ? `${averageWeight} kg` : "sem valor"} />
@@ -92,8 +92,8 @@ export default async function LoteDetail(
         <Stat label="Adquirido em" value={batch.acquired_at.toLocaleDateString("pt-BR")} />
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white">
-        <h2 className="border-b px-5 py-3 text-sm font-medium text-gray-700">
+      <div className="rounded-lg border border-borda bg-superficie">
+        <h2 className="border-b px-5 py-3 text-sm font-medium text-texto-secundario">
           Lançamentos financeiros vinculados
         </h2>
         <div className="p-2">
@@ -109,7 +109,7 @@ export default async function LoteDetail(
             <TableBody>
               {entries.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4} className="py-4 text-center text-gray-500">
+                  <TableCell colSpan={4} className="py-4 text-center text-texto-discreto">
                     Nenhum lançamento vinculado.
                   </TableCell>
                 </TableRow>

@@ -15,7 +15,7 @@ type Point = { date: string; weight: number };
 export default function WeightChart({ data }: { data: Point[] }) {
   if (data.length === 0) {
     return (
-      <p className="text-sm text-gray-500">Sem pesagens registradas ainda.</p>
+      <p className="text-sm text-texto-discreto">Sem pesagens registradas ainda.</p>
     );
   }
 

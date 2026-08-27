@@ -30,8 +30,8 @@ const brl = (n: number) =>
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="text-sm font-medium text-gray-900">{value}</p>
+      <p className="text-xs text-texto-discreto">{label}</p>
+      <p className="text-sm font-medium text-texto">{value}</p>
     </div>
   );
 }
@@ -110,7 +110,7 @@ export default async function AnimalDetail(
           <Link href="/rebanho" className="text-sm text-primaria-tinta hover:underline">
             ← Rebanho
           </Link>
-          <h1 className="mt-1 flex items-center gap-2 text-xl font-semibold text-gray-900">
+          <h1 className="mt-1 flex items-center gap-2 text-xl font-semibold text-texto">
             Brinco {animal.ear_tag}
             <Badge variant={st.variant}>{st.label}</Badge>
           </h1>
@@ -138,7 +138,7 @@ export default async function AnimalDetail(
       </div>
 
       {/* Dados cadastrais + custo */}
-      <div className="grid grid-cols-2 gap-4 rounded-lg border border-gray-200 bg-white p-5 sm:grid-cols-4 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-4 rounded-lg border border-borda bg-superficie p-5 sm:grid-cols-4 lg:grid-cols-6">
         <Stat label="Raça" value={animal.breed ?? "não informada"} />
         <Stat label="Sexo" value={animal.sex ? (SEX[animal.sex] ?? animal.sex) : "não informado"} />
         <Stat label="Propriedade" value={animal.property?.name ?? "não informada"} />
@@ -154,15 +154,15 @@ export default async function AnimalDetail(
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="rounded-lg border border-gray-200 bg-white p-5">
-          <p className="text-xs text-gray-500">Custo total acumulado</p>
+        <div className="rounded-lg border border-borda bg-superficie p-5">
+          <p className="text-xs text-texto-discreto">Custo total acumulado</p>
           <p className="mt-1 text-2xl font-semibold text-tibe-dark">{brl(totalCost)}</p>
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-texto-discreto">
             Média mensal: {brl(monthlyAvg)} · desde {since.toLocaleDateString("pt-BR")}
           </p>
         </div>
-        <div className="lg:col-span-2 rounded-lg border border-gray-200 bg-white p-5">
-          <p className="mb-3 text-sm font-medium text-gray-700">Evolução de peso</p>
+        <div className="lg:col-span-2 rounded-lg border border-borda bg-superficie p-5">
+          <p className="mb-3 text-sm font-medium text-texto-secundario">Evolução de peso</p>
           <WeightChart data={chartData} />
         </div>
       </div>
@@ -180,7 +180,7 @@ export default async function AnimalDetail(
           </TableHeader>
           <TableBody>
             {vaccinations.length === 0 && (
-              <TableRow><TableCell colSpan={4} className="py-4 text-center text-gray-500">Nenhuma vacinação.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={4} className="py-4 text-center text-texto-discreto">Nenhuma vacinação.</TableCell></TableRow>
             )}
             {vaccinations.map((v) => (
               <TableRow key={v.id}>
@@ -207,7 +207,7 @@ export default async function AnimalDetail(
           </TableHeader>
           <TableBody>
             {movements.length === 0 && (
-              <TableRow><TableCell colSpan={4} className="py-4 text-center text-gray-500">Nenhuma movimentação.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={4} className="py-4 text-center text-texto-discreto">Nenhuma movimentação.</TableCell></TableRow>
             )}
             {movements.map((m) => (
               <TableRow key={m.id}>
@@ -226,8 +226,8 @@ export default async function AnimalDetail(
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white">
-      <h2 className="border-b px-5 py-3 text-sm font-medium text-gray-700">{title}</h2>
+    <div className="rounded-lg border border-borda bg-superficie">
+      <h2 className="border-b px-5 py-3 text-sm font-medium text-texto-secundario">{title}</h2>
       <div className="p-2">{children}</div>
     </div>
   );

@@ -122,8 +122,8 @@ export default async function RebanhoPage(
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Rebanho</h1>
-          <p className="mt-0.5 text-sm text-gray-500">
+          <h1 className="text-xl font-semibold text-texto">Rebanho</h1>
+          <p className="mt-0.5 text-sm text-texto-discreto">
             Total geral: {resumo.total.toLocaleString("pt-BR")} animais
           </p>
         </div>
@@ -141,7 +141,7 @@ export default async function RebanhoPage(
       </div>
 
       {properties.length === 0 && (
-        <p className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <p className="rounded-md bg-atencao-suave px-4 py-3 text-sm text-atencao-tinta">
           Cadastre uma fazenda antes de registrar o rebanho (menu{" "}
           <Link href="/minha-fazenda" className="font-medium underline">
             Minha Fazenda
@@ -151,7 +151,7 @@ export default async function RebanhoPage(
       )}
 
       {resumo.unknown_category_quantity > 0 && (
-        <p className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-800">
+        <p className="rounded-md bg-perigo-suave px-4 py-3 text-sm text-perigo-tinta">
           {resumo.unknown_category_quantity} cabeça(s) estão em uma categoria que não
           existe mais na lista oficial. O total geral acima já as inclui, mas elas não
           aparecem em nenhuma linha por categoria.
@@ -160,12 +160,12 @@ export default async function RebanhoPage(
 
       <div className="grid gap-4 md:grid-cols-2">
         {resumo.by_sex.map((bloco) => (
-          <div key={bloco.sex} className="rounded-lg border border-gray-200 bg-white p-4">
+          <div key={bloco.sex} className="rounded-lg border border-borda bg-superficie p-4">
             <div className="flex items-baseline justify-between">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-600">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-texto-secundario">
                 {bloco.label}
               </h2>
-              <span className="text-lg font-semibold text-gray-900">
+              <span className="text-lg font-semibold text-texto">
                 {bloco.total.toLocaleString("pt-BR")}
               </span>
             </div>
@@ -175,14 +175,14 @@ export default async function RebanhoPage(
                 // com o rebanho ainda vazio a lista inteira é zero, e um cinza
                 // fraco demais faz a tela parecer desabilitada ou quebrada.
                 <li key={linha.id} className="flex justify-between gap-3 text-sm">
-                  <span className={linha.quantity === 0 ? "text-gray-500" : "text-gray-700"}>
+                  <span className={linha.quantity === 0 ? "text-texto-discreto" : "text-texto-secundario"}>
                     {linha.label}
                   </span>
                   <span
                     className={
                       linha.quantity === 0
-                        ? "tabular-nums text-gray-500"
-                        : "tabular-nums font-medium text-gray-900"
+                        ? "tabular-nums text-texto-discreto"
+                        : "tabular-nums font-medium text-texto"
                     }
                   >
                     {linha.quantity.toLocaleString("pt-BR")}
@@ -195,8 +195,8 @@ export default async function RebanhoPage(
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-600">
+        <div className="rounded-lg border border-borda bg-superficie p-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-texto-secundario">
             Movimentações do mês
           </h2>
           <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -207,8 +207,8 @@ export default async function RebanhoPage(
               ["Mortes", periodo.mortes],
             ].map(([rotulo, valor]) => (
               <div key={String(rotulo)}>
-                <p className="text-xs text-gray-500">{rotulo}</p>
-                <p className="text-lg font-semibold tabular-nums text-gray-900">
+                <p className="text-xs text-texto-discreto">{rotulo}</p>
+                <p className="text-lg font-semibold tabular-nums text-texto">
                   {Number(valor).toLocaleString("pt-BR")}
                 </p>
               </div>
@@ -216,8 +216,8 @@ export default async function RebanhoPage(
           </div>
         </div>
 
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-600">
+        <div className="rounded-lg border border-borda bg-superficie p-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-texto-secundario">
             Onde estão
           </h2>
           {resumo.by_property.length === 0 ? (
@@ -228,10 +228,10 @@ export default async function RebanhoPage(
             <ul className="mt-3 space-y-1.5">
               {resumo.by_property.map((linha) => (
                 <li key={linha.id} className="flex justify-between gap-3 text-sm">
-                  <span className="text-gray-700">
+                  <span className="text-texto-secundario">
                     {nomeFazenda.get(linha.id) ?? "fazenda removida"}
                   </span>
-                  <span className="tabular-nums font-medium text-gray-900">
+                  <span className="tabular-nums font-medium text-texto">
                     {linha.quantity.toLocaleString("pt-BR")}
                   </span>
                 </li>
@@ -239,7 +239,7 @@ export default async function RebanhoPage(
               {resumo.by_pasture.map((linha) => (
                 <li
                   key={linha.id}
-                  className="flex justify-between gap-3 pl-4 text-sm text-gray-500"
+                  className="flex justify-between gap-3 pl-4 text-sm text-texto-discreto"
                 >
                   <span>{nomePasto.get(linha.id) ?? "pasto removido"}</span>
                   <span className="tabular-nums">{linha.quantity.toLocaleString("pt-BR")}</span>
@@ -250,12 +250,12 @@ export default async function RebanhoPage(
         </div>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white">
-        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-600">
+      <div className="rounded-lg border border-borda bg-superficie">
+        <div className="flex items-center justify-between border-b border-borda px-4 py-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-texto-secundario">
             Últimas movimentações
           </h2>
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-texto-discreto">
             {historico.total.toLocaleString("pt-BR")} no total
           </span>
         </div>
@@ -306,7 +306,7 @@ export default async function RebanhoPage(
                     {m.from ? (
                       <>
                         {nomeCategoria(m.from.category_id)}
-                        <span className="block text-xs text-gray-500">
+                        <span className="block text-xs text-texto-discreto">
                           {lugar(m.from.property_id, m.from.pasture_id)}
                         </span>
                       </>
@@ -318,7 +318,7 @@ export default async function RebanhoPage(
                     {m.to ? (
                       <>
                         {nomeCategoria(m.to.category_id)}
-                        <span className="block text-xs text-gray-500">
+                        <span className="block text-xs text-texto-discreto">
                           {lugar(m.to.property_id, m.to.pasture_id)}
                         </span>
                       </>
@@ -343,12 +343,12 @@ export default async function RebanhoPage(
       </div>
 
       {identificados.length > 0 && (
-        <div className="rounded-lg border border-gray-200 bg-white">
-          <div className="border-b border-gray-200 px-4 py-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-600">
+        <div className="rounded-lg border border-borda bg-superficie">
+          <div className="border-b border-borda px-4 py-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-texto-secundario">
               Animais identificados
             </h2>
-            <p className="mt-0.5 text-xs text-gray-500">
+            <p className="mt-0.5 text-xs text-texto-discreto">
               Registros com brinco, peso ou vacinação. A quantidade do rebanho vem do
               saldo acima, não desta lista.
             </p>
