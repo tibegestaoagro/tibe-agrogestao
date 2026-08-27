@@ -36,7 +36,7 @@ async function POSTHandler(request: Request, props: { params: Promise<{ id: stri
   }
 
   const result = await cancelMovement(g.db, params.id, parsed.data.reason);
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
 
   return apiOk(serializeHerdMovement(result.data));
 }

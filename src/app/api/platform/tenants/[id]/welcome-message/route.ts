@@ -13,7 +13,7 @@ async function POSTHandler(_request: Request, props: { params: Promise<{ id: str
  if ("error" in g) return g.error;
 
  const result = await resendWelcomeMessageAction(params.id);
- if (!result.ok) return apiError(result.code, result.message, result.status);
+ if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
  return apiOk(result.data);
 }
 

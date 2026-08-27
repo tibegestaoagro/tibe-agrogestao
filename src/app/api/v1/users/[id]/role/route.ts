@@ -27,7 +27,7 @@ async function PATCHHandler(request: Request, props: { params: Promise<{ id: str
   }
 
   const result = await updateUserRoleAction(g.db, params.id, parsed.data.role);
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
   return apiOk(result.data);
 }
 

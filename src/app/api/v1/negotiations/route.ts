@@ -121,7 +121,7 @@ async function POSTHandler(request: Request) {
     notes: d.notes ?? null,
     recorded_by_user_id: g.user.id,
   });
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
 
   return apiOk(result.data, {}, { status: 201 });
 }
@@ -154,7 +154,7 @@ async function criarNegocioDeProduto(g: GuardOk, json: unknown) {
     notes: d.notes ?? null,
     recorded_by_user_id: g.user.id,
   });
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
 
   return apiOk(result.data, {}, { status: 201 });
 }

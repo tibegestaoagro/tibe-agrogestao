@@ -33,7 +33,7 @@ async function POSTHandler(request: Request, props: { params: Promise<{ id: stri
     cost: d.cost ?? null,
     next_due_at: d.next_due_at !== undefined ? (d.next_due_at ? new Date(d.next_due_at) : null) : undefined,
   });
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
   return apiOk(result.data, {}, { status: 201 });
 }
 

@@ -58,7 +58,7 @@ async function POSTHandler(request: Request, props: { params: Promise<{ id: stri
     interval_days,
     cost,
   });
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
 
   const vaccination = await g.db.animalVaccination.findFirst({
     where: { batch_id: params.id },

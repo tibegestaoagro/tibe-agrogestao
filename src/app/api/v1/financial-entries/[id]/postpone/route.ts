@@ -23,7 +23,7 @@ async function PATCHHandler(request: Request, props: { params: Promise<{ id: str
   }
 
   const result = await postponeEntryDueDateAction(g.db, params.id, new Date(parsed.data.due_date));
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
 
   const entry = await g.db.financialEntry.findFirst({ where: { id: params.id } });
   return apiOk(serializeFinancialEntry(entry!));

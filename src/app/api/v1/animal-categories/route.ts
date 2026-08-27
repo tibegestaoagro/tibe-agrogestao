@@ -41,7 +41,7 @@ async function POSTHandler(request: Request) {
   }
 
   const result = await createCategoryAction(g.db, parsed.data);
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
   return apiOk(result.data, {}, { status: 201 });
 }
 

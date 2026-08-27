@@ -61,7 +61,7 @@ async function PATCHHandler(request: Request, props: { params: Promise<{ id: str
     ...(d.hour_meter !== undefined ? { hour_meter: d.hour_meter } : {}),
     ...(d.status !== undefined ? { status: d.status } : {}),
   });
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
   return apiOk(result.data);
 }
 

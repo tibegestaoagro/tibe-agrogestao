@@ -65,7 +65,7 @@ async function POSTHandler(request: Request, props: { params: Promise<{ id: stri
     notes,
     occurred_at: occurred_at ? new Date(occurred_at) : null,
   });
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
 
   const movement = await g.db.animalMovement.findFirst({
     where: { batch_id: params.id },

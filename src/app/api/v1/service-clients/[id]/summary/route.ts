@@ -14,7 +14,7 @@ async function GETHandler(_request: Request, props: { params: Promise<{ id: stri
   if ("error" in g) return g.error;
 
   const result = await getClientSummaryAction(g.db, params.id);
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
 
   return apiOk(result.data);
 }

@@ -43,7 +43,7 @@ async function POSTHandler(request: Request) {
     remind: d.remind,
     created_by: g.user.id,
   });
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
   return apiOk(result.data, {}, { status: 201 });
 }
 

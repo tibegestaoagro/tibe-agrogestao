@@ -48,7 +48,7 @@ async function POSTHandler(request: Request, props: { params: Promise<{ id: stri
     parsed.data.dinheiro_pago ?? "mantem",
     g.user.id,
   );
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
 
   const detalhe = await getNegotiation(g.db, params.id);
   return apiOk(detalhe ? serializeNegotiation(detalhe) : { id: params.id }, {

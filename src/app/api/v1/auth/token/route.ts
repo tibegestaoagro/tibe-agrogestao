@@ -29,6 +29,8 @@ async function POSTHandler(request: Request) {
   }
 
   const result = await authenticateWithPassword(parsed.data.email, parsed.data.password);
+  // Sem `field` de propósito: recusa de login não diz se errou o email ou a
+  // senha, porque isso entrega metade do caminho a quem tenta adivinhar.
   if (!result.ok) return apiError(result.code, result.message, result.status);
   return apiOk(result.data);
 }

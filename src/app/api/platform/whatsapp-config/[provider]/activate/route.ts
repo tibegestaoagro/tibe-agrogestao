@@ -19,7 +19,7 @@ async function POSTHandler(_request: Request, props: { params: Promise<{ provide
   }
 
   const result = await activateProviderAction(parsed.data);
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
   return apiOk(result.data);
 }
 

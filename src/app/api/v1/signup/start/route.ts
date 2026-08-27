@@ -41,7 +41,7 @@ async function POSTHandler(request: Request) {
     plan: d.plan,
     utm: { source: d.utm_source, medium: d.utm_medium, campaign: d.utm_campaign },
   });
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
 
   const res = apiOk({ state: result.data.state }, {}, { status: 201 });
   res.cookies.set(buildSignupCookie(result.data.signup_id));

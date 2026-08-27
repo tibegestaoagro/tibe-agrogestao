@@ -10,7 +10,7 @@ async function GETHandler() {
     return apiError("SIGNUP_EXPIRED", "Seu cadastro expirou. Recomece pelo formulário.", 410);
   }
   const result = await getSignupStateAction(signupId);
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
   return apiOk(result.data);
 }
 

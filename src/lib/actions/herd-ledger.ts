@@ -561,10 +561,13 @@ export async function recordMovementInTx(
       const [current] = await getPositions(tx, from);
       const available = current?.quantity ?? 0;
       if (available < input.quantity) {
+        // A frase termina em "revise a quantidade informada", então a mensagem
+        // pertence ao campo de quantidade, e é lá que ela tem que aparecer.
         return fail(
           "INSUFFICIENT_BALANCE",
           `Existem apenas ${available} animais nesta categoria. Revise a quantidade informada.`,
           422,
+          "quantity",
         );
       }
     }

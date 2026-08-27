@@ -54,7 +54,7 @@ async function POSTHandler(request: Request) {
     storage_location: d.storage_location ?? null,
     notes: d.notes ?? null,
   });
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
 
   return apiOk(result.data, {}, { status: 201 });
 }

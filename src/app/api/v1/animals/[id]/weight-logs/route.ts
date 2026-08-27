@@ -56,7 +56,7 @@ async function POSTHandler(request: Request, props: { params: Promise<{ id: stri
     weight,
     measured_at: measured_at ? new Date(measured_at) : null,
   });
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
 
   const log = await g.db.animalWeightLog.findFirst({
     where: { batch_id: params.id },

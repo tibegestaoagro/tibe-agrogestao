@@ -23,7 +23,7 @@ async function POSTHandler(request: Request) {
 
   const db = await getTenantDb();
   const result = await changeOwnPasswordAction(db, user.id, parsed.data.new_password);
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
   return apiOk(result.data);
 }
 

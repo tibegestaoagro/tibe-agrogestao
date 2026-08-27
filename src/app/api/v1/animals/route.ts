@@ -108,7 +108,7 @@ async function POSTHandler(request: Request) {
     acquisition_cost: d.acquisition_cost,
     acquired_at: d.acquired_at ? new Date(d.acquired_at) : null,
   });
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
 
   const batch = await g.db.animalBatch.findFirst({ where: { id: result.data.id } });
   return apiOk(serializeAnimal(batch!), {}, { status: 201 });

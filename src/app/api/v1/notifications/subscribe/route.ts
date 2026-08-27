@@ -48,7 +48,7 @@ async function POSTHandler(request: Request) {
     p256dh: parsed.data.keys.p256dh,
     auth: parsed.data.keys.auth,
   });
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
 
   return apiOk({ subscribed: true }, {}, { status: 201 });
 }

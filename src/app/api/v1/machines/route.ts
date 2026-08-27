@@ -54,7 +54,7 @@ async function POSTHandler(request: Request) {
     acquisition_cost: d.acquisition_cost ?? null,
     hour_meter: d.hour_meter ?? null,
   });
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
   return apiOk(result.data, {}, { status: 201 });
 }
 

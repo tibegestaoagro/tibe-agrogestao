@@ -60,7 +60,7 @@ async function POSTHandler(request: Request) {
   const d = parsed.data;
 
   const resultado = await createContact(g.db, d);
-  if (!resultado.ok) return apiError(resultado.code, resultado.message, resultado.status);
+  if (!resultado.ok) return apiError(resultado.code, resultado.message, resultado.status, resultado.field);
 
   return apiOk(resultado.data, {}, { status: 201 });
 }

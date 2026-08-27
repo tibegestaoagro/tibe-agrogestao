@@ -45,7 +45,7 @@ async function POSTHandler(request: Request) {
       plan: parsed.data.plan,
       billingType: parsed.data.billing_type,
     });
-    if (!result.ok) return apiError(result.code, result.message, result.status);
+    if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
     return apiOk(result.data, {}, { status: 201 });
   } catch (e) {
     if (e instanceof AsaasNotConfiguredError) {

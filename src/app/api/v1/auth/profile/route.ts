@@ -23,7 +23,7 @@ async function PATCHHandler(request: Request) {
 
   const db = await getTenantDb();
   const result = await updateOwnNameAction(db, user.id, parsed.data.name);
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
   return apiOk(result.data);
 }
 

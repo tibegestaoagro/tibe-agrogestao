@@ -25,7 +25,7 @@ async function PATCHHandler(request: Request, props: { params: Promise<{ id: str
   }
 
   const result = await updateFinancialCategoryAction(g.db, params.id, parsed.data);
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
   return apiOk(result.data);
 }
 

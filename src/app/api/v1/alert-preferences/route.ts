@@ -47,7 +47,7 @@ async function PATCHHandler(request: Request) {
   }
 
   const result = await setAlertPreferenceAction(g.db, parsed.data.alert_type, parsed.data.enabled);
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
   return apiOk(result.data);
 }
 

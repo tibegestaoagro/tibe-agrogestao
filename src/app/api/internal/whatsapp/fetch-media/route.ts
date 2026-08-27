@@ -26,7 +26,7 @@ async function POSTHandler(request: Request) {
   }
 
   const result = await fetchEvolutionMediaBase64(parsed.data.message_id);
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
   return apiOk(result.data);
 }
 

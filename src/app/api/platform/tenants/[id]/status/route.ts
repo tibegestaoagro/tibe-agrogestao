@@ -31,7 +31,7 @@ async function PATCHHandler(request: Request, props: { params: Promise<{ id: str
     reason: parsed.data.reason ?? null,
     platformUserId: g.platformUser.id,
   });
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
 
   return apiOk(result.data);
 }

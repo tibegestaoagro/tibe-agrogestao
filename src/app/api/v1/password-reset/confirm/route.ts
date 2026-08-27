@@ -25,7 +25,7 @@ async function POSTHandler(request: Request) {
     reset_id: parsed.data.reset_id,
     newPassword: parsed.data.new_password,
   });
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
   return apiOk(result.data);
 }
 

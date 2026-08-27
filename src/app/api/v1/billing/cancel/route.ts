@@ -23,7 +23,7 @@ async function POSTHandler() {
 
   try {
     const result = await cancelSubscriptionAction(g.db);
-    if (!result.ok) return apiError(result.code, result.message, result.status);
+    if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
     return apiOk(result.data);
   } catch (e) {
     if (e instanceof AsaasNotConfiguredError) {

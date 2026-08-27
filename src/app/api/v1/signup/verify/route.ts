@@ -31,7 +31,7 @@ async function POSTHandler(request: Request) {
   }
 
   const result = await verifySignupCodeAction(signupId, parsed.data.channel, parsed.data.code);
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
 
   const res = apiOk(result.data);
   if (result.data.completed) res.cookies.set(clearSignupCookie());

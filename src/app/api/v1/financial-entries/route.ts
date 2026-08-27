@@ -73,7 +73,7 @@ async function POSTHandler(request: Request) {
     due_date: new Date(due_date),
     notes,
   });
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
 
   const entry = await g.db.financialEntry.findFirst({ where: { id: result.data.id } });
   return apiOk(serializeFinancialEntry(entry!), {}, { status: 201 });

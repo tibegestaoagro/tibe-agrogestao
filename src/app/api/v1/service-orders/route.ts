@@ -73,7 +73,7 @@ async function POSTHandler(request: Request) {
     description,
     performed_at: new Date(performed_at),
   });
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
 
   const order = await g.db.serviceOrder.findFirst({ where: { id: result.data.id } });
   return apiOk(serializeServiceOrder(order!), {}, { status: 201 });

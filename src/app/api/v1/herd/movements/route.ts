@@ -118,7 +118,7 @@ async function POSTHandler(request: Request) {
     occurred_at: input.occurred_at ? new Date(input.occurred_at) : null,
     recorded_by_user_id: g.user.id,
   });
-  if (!result.ok) return apiError(result.code, result.message, result.status);
+  if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
 
   return apiOk(serializeHerdMovementRecord(result.data), {}, { status: 201 });
 }
