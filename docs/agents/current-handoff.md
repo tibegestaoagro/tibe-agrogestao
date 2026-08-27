@@ -25,10 +25,13 @@ Se ele passar de umas 200, arquive antes de acrescentar.
 ## Estado atual
 
 - Atualizado em: 2026-08-27.
-- ⚠️ **O trabalho vivo NÃO está na `main`.** A branch é
-  `piloto-design-rebanho`, com a frente 1 inteira e nada mesclado ainda. A
-  `main` continua no `727db50`, e o que está no ar é o `979ba2e`: nenhum
-  commit depois dele tocou `src/` até esta branch nascer.
+- **A frente 1 está na `main` e empurrada** (`20f40fa`), com a suíte inteira
+  verde (49/49) antes do merge. A branch `piloto-design-rebanho` foi apagada
+  depois do avanço direto.
+- ⚠️ **Provavelmente NÃO está no ar.** O push saiu pela credencial do
+  `dilton-pleno`, e no plano gratuito da Vercel push de colaborador não dispara
+  deploy (item 1 das pendências do usuário). O commit entra na `main` e nenhuma
+  versão nasce, sem erro em lugar nenhum. Confira antes de supor que subiu.
 - **Nenhuma migração nova desde o `21d5641`**, e a frente 1 não toca schema.
   O invariante 3 não está em jogo.
 - **Nenhuma migração nova desde o `21d5641`.** Os commits posteriores não tocam
@@ -106,8 +109,11 @@ que é colaboradora, as páginas de regra devolvem 404.
 
 ### Próximo passo
 
-**A frente 1 está pronta na branch `piloto-design-rebanho`, esperando sua
-aprovação para mesclar.** Depois dela vem a frente 2, a fase 2 do Módulo 30.
+**A frente 2: a fase 2 do Módulo 30.** Cinco fluxos sem dinheiro (pasto de
+terceiros, animais de terceiros na fazenda, desaparecimento, confinamento
+próprio, boitel) e, antes deles, a regra de modelo que separa propriedade de
+localização e reescreve os quatro totais da tela de Rebanho. Suíte `m47`.
+Começa pela spec da frente, que ainda não existe.
 
 O plano de sequência das cinco frentes está em
 [../superpowers/specs/2026-08-27-sequencia-para-fechar-os-modulos-design.md](../superpowers/specs/2026-08-27-sequencia-para-fechar-os-modulos-design.md)
