@@ -382,6 +382,70 @@ function conferirCamposNumericos() {
   }
 }
 
+// ------------------------------------------------- 8. cor crua do Tailwind
+/**
+ * A paleta semantica existe desde o `638d0f6`, mas o produto continua pintando
+ * com a paleta crua do Tailwind. Medido em 2026-08-27: 966 ocorrencias em 131
+ * arquivos fora da `/plataforma`.
+ *
+ * Isso importa alem do estilo. O `check-contraste.ts` confere os 25 pares de
+ * token do `globals.css` e NAO enxerga `text-gray-500`, nem `text-white`. Foi
+ * exatamente `text-white` sobre o verde da marca que deu 3,51:1 e reprovou em
+ * AA, e foi um cinza claro a 2,85:1 que a mesma medicao pegou. Ou seja: a
+ * catraca de contraste protegia a paleta que quase ninguem estava usando.
+ *
+ * `white` e `black` entram junto com a paleta numerada porque custam quase
+ * nada: incluir os dois aumentou a linha de base de 123 para 125 arquivos,
+ * ja que quase todo arquivo que pinta branco cru tambem pinta cinza cru.
+ *
+ * A linha de base em `baseline-cor-crua.json` so pode ENCOLHER. Arquivo novo
+ * com cor crua reprova; arquivo da base que ficou limpo vira aviso para sair
+ * da lista, e nunca o contrario.
+ *
+ * A `/plataforma` fica de fora, mesma excecao do `638d0f6`: aquele painel tem
+ * casca escura, e la o cinza claro e a escolha certa.
+ */
+const COR_CRUA =
+  /(text|bg|border)-(gray|slate|zinc|red|green|blue|yellow|amber|emerald)-[0-9]{2,3}|\b(bg|text|border)-(white|black)\b/;
+
+function conferirCorCrua() {
+  console.log("\n8. Cor crua do Tailwind (tokens semanticos)");
+
+  const base = new Set<string>(
+    JSON.parse(readFileSync(join(RAIZ, "scripts", "baseline-cor-crua.json"), "utf8")),
+  );
+  const ofensores: string[] = [];
+  const limpos: string[] = [];
+
+  for (const rel of versionados()) {
+    if (!rel.startsWith("src/") || !rel.endsWith(".tsx")) continue;
+    if (rel.includes("plataforma")) continue;
+    const full = join(RAIZ, rel);
+    if (!existsSync(full)) continue;
+    const tem = COR_CRUA.test(readFileSync(full, "utf8"));
+
+    if (base.has(rel)) {
+      if (!tem) limpos.push(rel);
+      continue;
+    }
+    if (tem) ofensores.push(rel);
+  }
+
+  check(
+    "nenhuma tela nova pintando com a paleta crua",
+    ofensores.length === 0,
+    ofensores.length > 0
+      ? `use os tokens de globals.css (texto, texto-secundario, superficie, borda...):\n       ${ofensores.slice(0, 12).join("\n       ")}`
+      : undefined,
+  );
+
+  if (limpos.length > 0) {
+    console.log(
+      `  ℹ️  ja sem cor crua, remova de baseline-cor-crua.json (${limpos.length}): ${limpos.slice(0, 6).join(", ")}`,
+    );
+  }
+}
+
 function main() {
   console.log("🔎 Conferencia estatica do repositorio (sem banco)");
   conferirCaminhos();
@@ -392,6 +456,7 @@ function main() {
   conferirHooks();
   conferirContraste(check);
   conferirCamposNumericos();
+  conferirCorCrua();
 
   console.log("");
   if (falhas === 0) console.log("✅ Repositorio consistente: 0 falhas.");
