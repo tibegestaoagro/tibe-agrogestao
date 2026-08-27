@@ -5,17 +5,19 @@ produção, os dois segredos de sessão (tenant e plataforma) e a
 `CONFIG_ENCRYPTION_KEY`, que decifra as credenciais de WhatsApp guardadas no
 banco. Em texto puro, esse arquivo é o chaveiro inteiro do sistema.
 
-Por isso ele **nunca** entra no repositório em texto puro, nem com o repo
-privado. Segredo commitado não se apaga depois: reescrever a história não
-alcança os clones já feitos, e a única limpeza real é rotacionar as 22
-credenciais. O que é versionado é `.env.enc`, a versão cifrada.
+Por isso ele **nunca** entra no repositório, nem em texto puro nem cifrado.
+Segredo commitado não se apaga depois: reescrever a história não alcança os
+clones já feitos, e a única limpeza real é rotacionar as 22 credenciais.
 
-**A senha não está no repositório, e não pode estar.** Ela vive fora dele, no
-gerenciador de senhas. Foi gerada em 2026-08-18 e deixada em
-`D:\tmp\tibe-env-senha.txt` na máquina de origem: mova para o gerenciador e
-apague o arquivo.
+**O backup existe, e mora fora do git:** o `.env.enc` fica no PC de trabalho, e
+a senha, no gerenciador de senhas. Nunca em arquivo solto na máquina, nunca
+aqui.
 
 ## Restaurar num computador novo
+
+O `.env.enc` **não vem mais junto com o clone**, então leve o arquivo por fora
+(pen drive, anexo no gerenciador de senhas, o que for), coloque na raiz do
+projeto e decifre:
 
 ```bash
 openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
@@ -24,6 +26,9 @@ openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
 
 O `openssl` pergunta a senha. Ele já vem no Git Bash, no macOS e no Linux.
 
+Se o arquivo não estiver à mão, use o caminho alternativo mais abaixo: a Vercel
+devolve 15 das 22 variáveis sozinha.
+
 ## Regravar o backup depois de mudar o `.env`
 
 ```bash
@@ -31,7 +36,7 @@ openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
   -in .env -out .env.enc
 ```
 
-Depois de gerar, **confira a volta antes de commitar**. Backup que não se prova
+Depois de gerar, **confira a volta antes de guardar**. Backup que não se prova
 não é backup:
 
 ```bash

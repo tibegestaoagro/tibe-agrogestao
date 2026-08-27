@@ -31,26 +31,20 @@ Se ele passar de umas 200, arquive antes de acrescentar.
   automático em push. `https://tibe-agrogestao.vercel.app` responde 200,
   conferido em 25/08, mas **a última validação funcional ao vivo continua sendo
   a de 2026-08-20**, sobre o `21d5641`.
-- **Os quatro commits depois do `cbe4afb` são só de documentação** (`CLAUDE.md`
-  e `docs/agents/`): nenhum toca em `src/` ou `prisma/`, então não há mudança
-  de comportamento no ar desde o `979ba2e`.
+- **Nenhum commit depois do `979ba2e` toca `src/` ou `prisma/`**: são todos de
+  documentação, `.gitignore` e configuração, então não há mudança de
+  comportamento no ar desde ele.
 - **Nenhuma migração nova desde o `21d5641`.** Os commits posteriores não tocam
   em `prisma/`, então o invariante 3 não está em jogo e o Neon segue em dia.
 - **A fase 1 (identidade e sistema de design) começou**, com três commits na
-  `main`, na ordem que o plano exige:
-  - `60e4d87`: as sete escritas que falhavam em silêncio passam a avisar, e os
-    alvos de toque chegam a 44px. É o que torna o resto testável por um humano.
-  - `638d0f6`: cor sai de 142 arquivos e vira token semântico em `globals.css`.
-    O achado: texto branco sobre o verde da marca dava 3,51:1, reprovando em AA.
-    Mudou a cor do TEXTO, não os hex da Agromax, e `check-contraste.ts` entrou
-    no `npm run check`.
-  - `979ba2e`: `<input type="number">` lia "1.500" como 1,5 e "1.500,00" como
-    zero, em 31 campos, sem mensagem. Vieram `MoneyInput`, `Field` e
-    `FormSheet` (os 27 painéis de escrita eram `<div>`, sem `<form>`), mais uma
-    catraca no `npm run check` que reprova `type="number"` novo.
-- **`cbe4afb` acrescentou o `.env.enc`**, backup cifrado do `.env`, para o
-  projeto viajar sem o chaveiro em texto puro. Passo a passo em
-  [../backup-env.md](../backup-env.md).
+  `main`, na ordem que o plano exige: falha visível e alvo de 44px (`60e4d87`),
+  tokens semânticos de cor com a catraca de contraste (`638d0f6`), e leitura de
+  número em português com `Field`, `FormSheet` e `MoneyInput` (`979ba2e`). O
+  detalhe de cada um está na mensagem do commit; as três catracas novas rodam
+  no `npm run check`.
+- **O `.env.enc` saiu do git em 25/08** e voltou a ser arquivo local: backup de
+  chaveiro não transita pelo repositório. O `.gitignore` cobre todo `.env*` sem
+  exceção. Caminho atual em [../backup-env.md](../backup-env.md).
 - **O classificador do n8n já conhece as 4 intenções de estoque**, ensinadas em
   2026-08-18 pelo MCP do n8n. Backup do workflow anterior em `D:\tmp\n8n-backup`.
   Ele segue **congelado** por decisão do usuário: só volta a ser mexido quando o
@@ -85,20 +79,31 @@ que precisa ser criado antes, `seed:demo` obrigatório, Redis local, `openssl`
 fora do PATH) já virou texto no `CLAUDE.md`, e o relato está arquivado em
 [historico/2026-08.md](historico/2026-08.md).
 
-**`gh` continua não existindo**, como já acontecia na outra máquina. E a conta
-logada no navegador é a `dilton-pleno`, colaboradora: para regra de branch,
-visibilidade e security log, é preciso a conta dona, `tibegestaoagro`.
+**`gh` continua não existindo**, como já acontecia na outra máquina. O que
+existe, desde 25/08, é a extensão do Claude em **dois perfis do Chrome**: um
+logado como `dilton-pleno`, colaboradora, e outro como `tibegestaoagro`, a
+conta dona. Configuração de repositório só abre pelo segundo, e a extensão
+precisa estar **conectada à conta Claude em cada perfil**, não só instalada.
+
+⚠️ **A identidade do git neste repositório é local** (`user.name` e
+`user.email` apontando para `tibegestaoagro` desde 25/08). A credencial de
+push, porém, continua sendo a do Gerenciador de Credenciais do Windows: assinar
+o commit e empurrar são coisas diferentes, e a Vercel olha para quem empurra.
 
 ### O que depende do usuário, e degrada em silêncio até ser feito
 
 A lista completa, com passo a passo e o que acontece se não for feito, está em
 **[pendencias-do-usuario.md](pendencias-do-usuario.md)**. Em resumo:
 
-1. **Descobrir por quanto tempo o repositório ficou público** (era, em 25/08 de
-   manhã; fechou na mesma manhã). Enquanto o `.env.enc` esteve baixável, o
-   chaveiro cifrado circulou. O security log da conta `tibegestaoagro` diz o
-   tamanho da janela, e é ele que decide se basta trocar a senha do backup ou
-   se vale rotacionar credencial.
+⚠️ **Nem tudo está lá.** O que envolve segredo, chaveiro e rotação **não é
+versionado**, por decisão do usuário em 25/08: vive num arquivo local, numa
+pasta irmã da do projeto, com o sufixo `-local` no nome. Ele não viaja com o
+clone e não existe na outra máquina. Se você é uma sessão futura: não traga
+esse conteúdo para cá, nem redescubra e escreva de novo.
+
+1. **Subir o plano da Vercel.** No gratuito, push de colaborador não dispara
+   deploy, e o `dilton-pleno` é colaborador: o commit entra na `main` e nenhum
+   deploy nasce, sem erro. Enquanto isso, empurrar pela conta dona.
 2. **`REPORT_LINK_SECRET` na Vercel.** Sem ela o link de relatório segue
    assinado com o segredo interno. Falta também no `.env` local.
 3. **O n8n passar `provider_message_id`.** Sem o campo a idempotência não vale.
@@ -125,7 +130,7 @@ codificar.
 Dois itens saíram do escopo da fase 0 com motivo, e não por esquecimento: o
 esquema Zod por intenção (acima) e o coletor de erro externo (o ponto de plugue
 está em `src/instrumentation.ts`; a razão de não instalar o SDK está em
-[pendencias-do-usuario.md](pendencias-do-usuario.md), item 10).
+[pendencias-do-usuario.md](pendencias-do-usuario.md), item 11).
 
 Continua pendente, de antes: **teste no aparelho** pelo roteiro em
 [roteiro-aparelho-estoque.md](roteiro-aparelho-estoque.md), cadastrando antes os
@@ -166,10 +171,9 @@ Quatro achadas hoje, que não estavam em `dividas.md`:
 
 - **2026-08-25:** `dividas.md` perdeu os itens 3.2, 3.3 e 3.4, que estavam
   fechados desde 18 a 24/08 (Redis local, `npm run test:all`, CI). Da seção 3
-  sobrou o 3.1, o `m23-token-auth.test.ts` que não compila. Conferir o CI pelo
-  navegador achou o repositório **público**, com o `.env.enc` baixável por
-  qualquer um; fechado na mesma manhã, e a janela de exposição virou o item 1
-  das pendências do usuário.
+  sobrou o 3.1, o `m23-token-auth.test.ts` que não compila. O `.env.enc` saiu
+  do controle de versão, e a identidade do git deste repositório passou a ser a
+  conta dona.
 - **2026-08-24:** cópia nova do projeto em `C:\projetos\tibe-agrogestao`,
   preparada e conferida (dependências, `tibe-pg` criado, 32 migrações, seed,
   `check` e `test:isolation` verdes). Falta decifrar o `.env`. Este handoff

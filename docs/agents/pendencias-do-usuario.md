@@ -9,46 +9,36 @@ Ordenado por consequência, não por esforço.
 
 ---
 
-## 1. Descobrir por quanto tempo o repositório ficou público
+## 1. Vercel: push de colaborador não vira deploy, e o plano precisa subir
 
-**Por quê.** Em 2026-08-25, por volta das 10h50 (GMT-3), o repositório estava
-**público**: a página do Actions abriu sem nenhuma sessão, e a API anônima
-devolveu `"private": false`. Meia hora depois já estava privado, e hoje as três
-portas anônimas (API, HTML e `raw`) respondem 404.
+**Por quê.** No plano gratuito da Vercel, o deploy automático só dispara para
+push da conta dona do projeto. Push feito por colaborador é ignorado, sem erro
+visível no git: o commit entra na `main` e nenhum deploy nasce. Como o
+`dilton-pleno` é colaborador, **todo push feito por ele para de virar versão no
+ar**, e o sintoma só aparece quando alguém repara que a mudança não subiu.
 
-O que isso significa: `.env.enc` é versionado de propósito, então durante essa
-janela **o chaveiro cifrado esteve baixável por qualquer pessoa**. São 22
-variáveis, entre elas a `DATABASE_URL` do Neon de produção, os dois segredos de
-sessão, a `CONFIG_ENCRYPTION_KEY` (que decifra as credenciais de WhatsApp
-guardadas no banco) e a `OPENAI_API_KEY`.
+Isto foi relatado pelo usuário em 25/08. Os últimos commits eram só de
+documentação, então nada de comportamento ficou para trás, mas o primeiro
+commit de código empurrado assim ficaria.
 
-A cifra é forte (AES-256-CBC, PBKDF2 com 600 mil iterações), então isso **não é
-vazamento em texto puro**. Mas o [../backup-env.md](../backup-env.md) foi
-escrito contando com o repositório fechado como segunda camada, e sem ela a
-única proteção é a força da senha. Fechar o repositório agora não alcança quem
-tenha clonado antes.
+**O que fazer.** Subir o plano da Vercel, que é a decisão já tomada. Com o
+plano pago, push de colaborador volta a disparar deploy.
 
-**O que fazer.** Logado como **`tibegestaoagro`**, que é a conta dona, abrir
-`https://github.com/settings/security-log?q=action%3Arepo.access` e ler as duas
-datas: quando virou público e quando fechou.
+**Enquanto o plano não sobe**, o caminho é empurrar como a conta dona. Neste PC
+isso já está meio pronto:
 
-⚠️ **Não adianta tentar por `dilton-pleno`.** Essa conta é colaboradora com
-escrita, e a página `Settings` do repositório responde "You don't have access to
-repository options". O evento também não aparece no security log dela: quem
-mudou a visibilidade foi a conta dona. E `tibegestaoagro` é conta de usuário,
-não organização, então não existe audit log de organização para consultar.
+- **Autoria: feita em 25/08.** Este repositório tem `user.name` e `user.email`
+  locais apontando para `tibegestaoagro` (`git config --local --list | grep
+  user` mostra). Vale só aqui, não mexe em outros projetos da máquina.
+- **Credencial de push: falta.** O push usa o Gerenciador de Credenciais do
+  Windows, onde ainda está a conta `dilton-pleno`. Para trocar, abra
+  `Gerenciador de Credenciais` → `Credenciais do Windows`, remova a entrada
+  `git:https://github.com`, e o próximo `git push` vai pedir login. É mexer em
+  configuração do sistema, então é sua, não minha.
 
-Com o intervalo na mão, a decisão fica objetiva:
-
-- **Se foram só as horas entre 24 e 25/08:** trocar a senha do backup e
-  regravar o `.env.enc` (o passo a passo está no `backup-env.md`) já fecha o
-  cenário de alguém ter guardado o arquivo para tentar depois.
-- **Se foram semanas ou meses:** rotacionar também as quatro que mais doem, a
-  `OPENAI_API_KEY` (gasta dinheiro alheio se vazar), a `CONFIG_ENCRYPTION_KEY`,
-  os dois segredos de sessão e a senha do Neon.
-
-**Enquanto não for feito.** Não dá para dimensionar o risco, e o security log
-não guarda evento para sempre. Este é o item da lista com prazo de validade.
+⚠️ **Autoria e credencial são coisas diferentes.** O nome no commit pode dizer
+`tibegestaoagro` enquanto o push continua saindo pela credencial antiga, e a
+Vercel olha para quem **empurrou**, não para quem assinou o commit.
 
 ---
 
@@ -155,7 +145,8 @@ regra.
 
 ⚠️ **A regra exige a conta `tibegestaoagro`.** Por `dilton-pleno`,
 `/settings/rules` e `/settings/branches` devolvem 404, porque ela é
-colaboradora sem acesso a opções do repositório. É a mesma barreira do item 1.
+colaboradora sem acesso a opções do repositório. É a mesma diferença de conta
+do item 1.
 
 **Não consigo fazer daqui.** O `gh` CLI não está instalado nesta máquina, e
 configurar regra é interface, não comando.

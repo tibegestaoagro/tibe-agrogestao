@@ -41,10 +41,9 @@ next-env.d.ts
 .vercel
 .env*
 
-# O .env CIFRADO e versionado de proposito, como backup: o texto puro nunca.
-# A excecao vem depois das duas linhas `.env*` acima porque a ultima regra que
-# casa e a que vale. A senha NAO esta no repositorio: ver docs/backup-env.md.
-!.env.enc
+# Nenhum arquivo de ambiente entra no repositorio, nem cifrado. O `.env.enc`
+# foi versionado entre 24 e 25/08/2026 como backup de urgencia e saiu: backup
+# de chaveiro fica fora do git. O caminho atual esta em docs/backup-env.md.
 
 # graphify (knowledge-graph skill output, regenerado a cada /graphify)
 /graphify-out/
