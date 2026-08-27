@@ -47,6 +47,22 @@ export interface FormSheetProps {
   pending?: boolean;
   /** Erro que não pertence a nenhum campo (falha de rede, recusa do servidor). */
   error?: string | null;
+  /**
+   * Id do campo que deve receber o foco depois de uma recusa. Quem escolhe é
+   * `primeiroInvalido`, em `src/lib/erros-de-formulario.ts`; aqui só se
+   * executa a escolha.
+   *
+   * O campo precisa ter `id` estável (passado ao `Field`), porque o `useId`
+   * do React gera valor diferente entre servidor e cliente.
+   */
+  focarCampoId?: string | null;
+  /**
+   * Contador de tentativas. Precisa mudar a cada submit reprovado, mesmo
+   * quando o campo errado é o MESMO da vez anterior: sem ele, `focarCampoId`
+   * não muda, o efeito não roda de novo, e o produtor toca em salvar sem nada
+   * acontecer na tela.
+   */
+  tentativa?: number;
   children: React.ReactNode;
 }
 
@@ -61,8 +77,21 @@ export function FormSheet({
   submitPendingLabel = "Salvando...",
   pending,
   error,
+  focarCampoId,
+  tentativa,
   children,
 }: FormSheetProps) {
+  React.useEffect(() => {
+    if (!focarCampoId) return;
+    const alvo = document.getElementById(focarCampoId);
+    if (!alvo) return;
+    // `preventScroll` e depois `scrollIntoView` porque o rolar do próprio
+    // foco é abrupto e costuma parar com o campo colado no topo, atrás do
+    // cabeçalho fixo do painel.
+    alvo.focus({ preventScroll: true });
+    alvo.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [focarCampoId, tentativa]);
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetTrigger asChild>{trigger}</SheetTrigger>

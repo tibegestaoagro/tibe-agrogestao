@@ -20,6 +20,12 @@ import { cn } from "@/lib/utils";
  * acontece por construção e não depende de ninguém lembrar. O `children` é uma
  * função que recebe as props a repassar ao controle, porque o controle pode ser
  * `Input`, `Select` do Radix ou `textarea`, e cada um recebe `id` de um jeito.
+ *
+ * Para o campo poder RECEBER FOCO de fora, depois de uma recusa, passe um `id`
+ * estável em vez de deixar o `useId` gerar, e use o nome do campo NA API
+ * (`quantity`, `ear_tag`). Dois motivos: id gerado muda entre renders, e é
+ * esse nome que o servidor devolve em `error.field`, então o painel casa os
+ * dois sem tradutor no meio. Quem foca é o `FormSheet`.
  */
 
 export interface FieldProps {
