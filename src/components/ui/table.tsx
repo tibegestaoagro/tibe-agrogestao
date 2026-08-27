@@ -1,11 +1,29 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+/**
+ * Tabela larga em tela estreita.
+ *
+ * A regra deste projeto: **a tabela rola dentro do próprio quadro, nunca a
+ * página**. Página que rola de lado no celular leva o menu e o cabeçalho junto,
+ * e o produtor perde a referência de onde está.
+ *
+ * `overflow-x-auto` e não `overflow-auto`: o segundo cria também uma área de
+ * rolagem vertical, que no toque compete com a rolagem da página e faz o dedo
+ * "prender" no meio da tabela.
+ *
+ * `overscroll-x-contain` impede que o fim da rolagem horizontal vire gesto de
+ * voltar do navegador, que apaga o que a pessoa estava preenchendo.
+ *
+ * A sangria negativa no celular faz a rolagem começar na borda da tela, e é o
+ * que sinaliza que há mais coisa ao lado: tabela cortada com folga em volta
+ * parece tabela truncada, não tabela rolável.
+ */
 const Table = React.forwardRef<
   HTMLTableElement,
   React.HTMLAttributes<HTMLTableElement>
 >(({ className, ...props }, ref) => (
-  <div className="relative w-full overflow-auto">
+  <div className="relative -mx-4 w-[calc(100%+2rem)] overflow-x-auto overscroll-x-contain px-4 sm:mx-0 sm:w-full sm:px-0">
     <table
       ref={ref}
       className={cn("w-full caption-bottom text-sm", className)}
