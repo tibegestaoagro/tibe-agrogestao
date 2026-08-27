@@ -30,11 +30,15 @@ esquecimento: o raciocínio de cada um já está escrito em
 
 | # | Frente | Toca schema | Suíte |
 |---|---|---|---|
-| 1 | Piloto de design no Rebanho | não | nenhuma nova |
-| 2 | Módulo 30, fase 2 | sim | `m46` |
-| 3 | Módulo 31, missão 3: leilão e eventos | sim | `m47` |
-| 4 | Módulo 31, missão 4: permuta | sim | `m48` |
+| 1 | Piloto de design no Rebanho | não | `m46` |
+| 2 | Módulo 30, fase 2 | sim | `m47` |
+| 3 | Módulo 31, missão 3: leilão e eventos | sim | `m48` |
+| 4 | Módulo 31, missão 4: permuta | sim | `m49` |
 | 5 | Rollout do design system no que sobrar | não | nenhuma nova |
+
+O piloto acabou ganhando suíte, o que este documento não previa: as duas
+decisões de formulário saíram do componente para funções puras, e aí passaram a
+ser testáveis. Ficaram com o `m46`, e as missões andaram um número.
 
 A permuta é a última por decisão da própria spec do Módulo 31 (decisão 11):
 ela toca quatro módulos ao mesmo tempo, e fazer por último é fazer sobre peças
@@ -192,10 +196,16 @@ defeitos que só apareceram em uso real está no `CLAUDE.md`. Por frente:
 
 1. **Numeração de suíte.** A spec do Módulo 31 promete `m38` para o leilão e
    `m39` para a permuta. Os dois já foram usados: `m38` é
-   `estoque-whatsapp` e `m39` é `sessao-rotas`. O próximo livre é `m46`, e a
-   distribuição passa a ser `m46` fase 2, `m47` leilão, `m48` permuta.
+   `estoque-whatsapp` e `m39` é `sessao-rotas`. O `m46` ficou com o piloto, e a
+   distribuição passa a ser `m47` fase 2, `m48` leilão, `m49` permuta.
 2. **A contradição sobre o leilão** entre `dividas.md` e a spec do Módulo 31,
    explicada na seção 3.
+3. **O envelope de erro ganhou `field`** (opcional), e `ActionResult` e
+   `fail()` também. Uma action que recusa um campo diz qual, com o nome do
+   campo na API, e a tela mostra a mensagem embaixo dele em vez de num rodapé.
+   As missões seguintes não precisam reabrir rota para usar isso: as 59 rotas
+   que traduzem `ActionResult` já repassam. A de login fica de fora de
+   propósito.
 
 As duas correções entram nos documentos de origem quando a frente
 correspondente começar, para não editar spec de coisa que ainda não vai ser

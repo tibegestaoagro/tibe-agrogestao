@@ -24,16 +24,13 @@ Se ele passar de umas 200, arquive antes de acrescentar.
 
 ## Estado atual
 
-- Atualizado em: 2026-08-25.
-- **O topo da `main` é o commit desta rodada**, e a `main` local está igual à
-  `origin/main` (o commit anterior a este é o `17cd95d`; um handoff nunca cita
-  o próprio hash, então esta linha é sempre uma atrás). O deploy da Vercel é
-  automático em push. `https://tibe-agrogestao.vercel.app` responde 200,
-  conferido em 25/08, mas **a última validação funcional ao vivo continua sendo
-  a de 2026-08-20**, sobre o `21d5641`.
-- **Nenhum commit depois do `979ba2e` toca `src/` ou `prisma/`**: são todos de
-  documentação, `.gitignore` e configuração, então não há mudança de
-  comportamento no ar desde ele.
+- Atualizado em: 2026-08-27.
+- ⚠️ **O trabalho vivo NÃO está na `main`.** A branch é
+  `piloto-design-rebanho`, com a frente 1 inteira e nada mesclado ainda. A
+  `main` continua no `727db50`, e o que está no ar é o `979ba2e`: nenhum
+  commit depois dele tocou `src/` até esta branch nascer.
+- **Nenhuma migração nova desde o `21d5641`**, e a frente 1 não toca schema.
+  O invariante 3 não está em jogo.
 - **Nenhuma migração nova desde o `21d5641`.** Os commits posteriores não tocam
   em `prisma/`, então o invariante 3 não está em jogo e o Neon segue em dia.
 - **A fase 1 (identidade e sistema de design) começou**, com três commits na
@@ -50,26 +47,15 @@ Se ele passar de umas 200, arquive antes de acrescentar.
   Ele segue **congelado** por decisão do usuário: só volta a ser mexido quando o
   sistema estiver revisado, para não retrabalhar a cada mudança.
 
-### Sobre o Zod por intenção, que estava no plano e NÃO foi feito
+### A fase 0 está fechada, e o Zod por intenção não foi feito
 
-A razão (schema estrito é o instrumento errado neste canal) está arquivada em
-[historico/2026-08.md](historico/2026-08.md). Em uma linha: o que faltava era
-normalização, e ela foi feita. Se um schema entrar um dia, que seja por coerção
-e com `passthrough`, nunca por rejeição.
+Os dois relatos estão em [historico/2026-08.md](historico/2026-08.md): o que a
+fase 0 entregou (CI, Next 16, envelope de erro, cabeçalhos, integridade,
+auditoria, worker), e por que schema estrito é o instrumento errado no canal do
+WhatsApp. Em uma linha, sobre o Zod: faltava normalização, e ela foi feita.
 
-### A fase 0 está fechada
-
-Entregou CI, Next 16, quatro advisories de auth, envelope de erro e log
-estruturado, cabeçalhos de segurança, integridade e auditoria no banco, a porta
-do agente endurecida, o worker da rotina diária (código pronto, não
-provisionado), `npm run test:all` e `medir-saldo.ts`, o gatilho escrito que
-autorizaria um dia introduzir cache de saldo. Relato completo em
-[historico/2026-08.md](historico/2026-08.md).
-
-⚠️ **O plano que originou a fase 0 e desenha a fase 1 vive FORA do repositório**,
-em `C:\Users\dilto\.claude\plans\analise-o-projeto-me-elegant-walrus.md`, e por
-isso **não viajou para a cópia nova**: lá aquela pasta nem existe. Quem retomar
-fora da máquina de origem trabalha pelo que está escrito aqui e nos commits.
+⚠️ **O plano que originou a fase 0 vive FORA do repositório** e não viajou para
+esta cópia. O que o substituiu está em `docs/superpowers/`, versionado.
 
 ### A cópia nova: `C:\projetos\tibe-agrogestao`
 
@@ -120,12 +106,37 @@ que é colaboradora, as páginas de regra devolvem 404.
 
 ### Próximo passo
 
-**Seguir a fase 1: as telas, em ondas, com um commit por tela.** As camadas de
-que elas dependem já estão na `main`: falha visível, tokens semânticos e as três
-primeiras peças do kit (`Field`, `FormSheet`, `MoneyInput`). A referência visual
-é [../design/briefing-novo-layout.md](../design/briefing-novo-layout.md), que é
-planejamento e não spec fechada, e cujas decisões pendentes valem reler antes de
-codificar.
+**A frente 1 está pronta na branch `piloto-design-rebanho`, esperando sua
+aprovação para mesclar.** Depois dela vem a frente 2, a fase 2 do Módulo 30.
+
+O plano de sequência das cinco frentes está em
+[../superpowers/specs/2026-08-27-sequencia-para-fechar-os-modulos-design.md](../superpowers/specs/2026-08-27-sequencia-para-fechar-os-modulos-design.md)
+e o plano de execução da frente 1, em
+[../superpowers/plans/2026-08-27-piloto-design-rebanho.md](../superpowers/plans/2026-08-27-piloto-design-rebanho.md).
+Decisões do usuário registradas ali: app mobile e n8n só depois do sistema
+completo; nas missões novas o handler de WhatsApp nasce junto, o classificador
+não; e nos primitivos compartilhados, só troca de cor invisível.
+
+**O que a frente 1 entregou**, em dez commits: o envelope de erro passa a dizer
+qual campo o servidor recusou (e a fiação atravessa `ActionResult`, `fail()` e
+as 59 rotas); as duas decisões de formulário viraram função pura com suíte
+(`npm run test:m46`); os quatro painéis do Rebanho viraram `<form>` de verdade,
+com erro por campo, foco no primeiro inválido e limpeza ao corrigir;
+`EmptyState` e `Carregando` nasceram (o primeiro esqueleto do projeto); a
+tabela larga passou a rolar dentro do quadro; o Rebanho zerou a cor crua; e o
+`npm run check` ganhou a catraca de cor, com linha de base de 125 arquivos que
+só pode encolher.
+
+**Validado no navegador em 27/08**, contra o Postgres local, com as seis
+conferências do plano fechadas por medição e não por impressão: foco no campo
+certo, refoco na segunda tentativa, saldo insuficiente aparecendo no campo de
+quantidade, submit pelo `requestSubmit` (o caminho da tecla do teclado), os
+dois estados vazios, e a 400px a tabela de 419px rolando por dentro sem a
+página rolar de lado.
+
+A referência visual continua sendo
+[../design/briefing-novo-layout.md](../design/briefing-novo-layout.md), que é
+planejamento e não spec fechada.
 
 Dois itens saíram do escopo da fase 0 com motivo, e não por esquecimento: o
 esquema Zod por intenção (acima) e o coletor de erro externo (o ponto de plugue
@@ -169,6 +180,10 @@ Quatro achadas hoje, que não estavam em `dividas.md`:
 
 ## Histórico recente
 
+- **2026-08-27:** frente 1 (piloto de design no Rebanho) pronta na branch
+  `piloto-design-rebanho`, em dez commits, validada no navegador contra o banco
+  local. O alinhamento das cinco frentes e o plano de execução estão em
+  `docs/superpowers/`.
 - **2026-08-25:** `dividas.md` perdeu os itens 3.2, 3.3 e 3.4, que estavam
   fechados desde 18 a 24/08 (Redis local, `npm run test:all`, CI). Da seção 3
   sobrou o 3.1, o `m23-token-auth.test.ts` que não compila. O `.env.enc` saiu
@@ -189,9 +204,6 @@ Quatro achadas hoje, que não estavam em `dividas.md`:
   com a arqueologia movida para `.claude/rules/*.md` (carregam sozinhas por
   glob); travas de agente versionadas para travessão, heredoc com escape e
   merge/push/deploy; `npm run check`; `CONTRIBUTING.md` apagado.
-- **2026-08-18:** missão 2 do Módulo 31 (Estoque) em produção, mais o
-  classificador do n8n ensinado. O teste contra produção achou um defeito que
-  gravava dinheiro, corrigido no mesmo dia.
 
 O detalhe de tudo isso, na íntegra e sem reescrita, está em
 [historico/2026-08.md](historico/2026-08.md).
