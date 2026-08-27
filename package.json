@@ -26,6 +26,7 @@
     "test:m44": "tsx scripts/m44-worker-de-rotina.test.ts",
     "test:m45": "tsx scripts/m45-lote-entra-no-saldo.test.ts",
     "test:m46": "tsx scripts/m46-erros-de-formulario.test.ts",
+    "test:m47": "tsx scripts/m47-estadias.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",

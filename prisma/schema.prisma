@@ -123,6 +123,7 @@ enum HerdMovementType {
   transferencia_fazenda
   mudanca_categoria
   ajuste
+  envio_evento
   envio_pasto_terceiro
   envio_boitel
   retorno_estadia
