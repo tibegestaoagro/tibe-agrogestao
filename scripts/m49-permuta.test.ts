@@ -46,7 +46,9 @@ async function comBanco() {
   const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
   const { getPositions, recordMovement } = await import("@/lib/actions/herd-ledger");
   const { createBarter } = await import("@/lib/actions/barters");
-  const { getNegotiation, situacaoLabel } = await import("@/lib/actions/negotiations");
+  const { getNegotiation, situacaoLabel, cancelNegotiation } = await import(
+    "@/lib/actions/negotiations"
+  );
   const { getStockBalance, recordStockMovement } = await import("@/lib/actions/stock-ledger");
   const { ensureProductCategories, listProductCategories, createProduct } = await import(
     "@/lib/actions/products"
@@ -522,6 +524,87 @@ async function comBanco() {
         !maquinaSemNome.ok && maquinaSemNome.field === "name",
         maquinaSemNome.ok ? "aceitou" : String(maquinaSemNome.field),
       );
+    }
+
+    console.log("\n11. Cancelar desfaz rebanho, máquina e dinheiro juntos");
+    {
+      const boisAntes = soma(await getPositions(db, { owner: "proprio", category_id: "macho_36_mais" }));
+      const r = await createBarter(db, {
+        property_id: fazenda.id,
+        entregue: { kind: "animais", category_id: "macho_36_mais", quantity: 10, pasture_id: pasto.id },
+        recebido: { kind: "maquina", name: "Colheitadeira", type: "Colheitadeira" },
+        diferenca: { direcao: "paguei", amount: 5000 },
+        pago: false,
+      });
+      check("a permuta abre", r.ok, r.ok ? "" : r.message);
+      const maquinaId = r.ok ? r.data.machine_id ?? "" : "";
+
+      const c = await cancelNegotiation(db, r.ok ? r.data.id : "", "lancei errado");
+      check("cancela", c.ok, c.ok ? "" : c.message);
+      check(
+        "os 10 bois voltam",
+        soma(await getPositions(db, { owner: "proprio", category_id: "macho_36_mais" })) === boisAntes,
+      );
+
+      const maquina = await db.machine.findFirst({ where: { id: maquinaId } });
+      check("a colheitadeira NÃO é apagada", maquina != null);
+      check("vira inativa", maquina?.status === "inactive", maquina?.status);
+      check("e continua apontando para a permuta cancelada", maquina?.acquired_negotiation_id != null);
+
+      const conta = await db.financialEntry.findFirst({
+        where: { negotiation_id: r.ok ? r.data.id : "" },
+      });
+      check("a conta em aberto é cancelada", conta?.status === "cancelled", conta?.status);
+    }
+
+    console.log("\n12. Máquina com manutenção lançada trava o cancelamento");
+    {
+      const r = await createBarter(db, {
+        property_id: fazenda.id,
+        entregue: { kind: "animais", category_id: "macho_36_mais", quantity: 5, pasture_id: pasto.id },
+        recebido: { kind: "maquina", name: "Pulverizador", type: "Pulverizador" },
+      });
+      check("a permuta abre", r.ok, r.ok ? "" : r.message);
+      const maquinaId = r.ok ? r.data.machine_id ?? "" : "";
+      await db.machineMaintenance.create({
+        data: scoped({
+          machine_id: maquinaId,
+          performed_at: new Date(),
+          description: "Troca de bicos",
+        }),
+      });
+
+      const c = await cancelNegotiation(db, r.ok ? r.data.id : "", "mudei de ideia");
+      check(
+        "recusa, porque desfazer destruiria a manutenção",
+        !c.ok && c.code === "MAQUINA_COM_MANUTENCAO",
+        c.ok ? "cancelou" : c.code,
+      );
+
+      const maquina = await db.machine.findFirst({ where: { id: maquinaId } });
+      check("e a máquina continua ativa", maquina?.status === "active", maquina?.status);
+      const negociacao = await db.negotiation.findFirst({ where: { id: r.ok ? r.data.id : "" } });
+      check("com a negociação viva", negociacao?.canceled_at === null);
+    }
+
+    console.log("\n13. A máquina entregue volta a ser do produtor");
+    {
+      const velha = await db.machine.create({
+        data: scoped({ property_id: fazenda.id, name: "Grade aradora", type: "Implemento" }),
+      });
+      const r = await createBarter(db, {
+        property_id: fazenda.id,
+        entregue: { kind: "maquina", machine_id: velha.id },
+        recebido: { kind: "animais", category_id: "bezerro_0_7", quantity: 3, pasture_id: pasto.id },
+      });
+      check("a permuta abre", r.ok, r.ok ? "" : r.message);
+
+      const c = await cancelNegotiation(db, r.ok ? r.data.id : "", "nao foi isso");
+      check("cancela", c.ok, c.ok ? "" : c.message);
+
+      const depois = await db.machine.findFirst({ where: { id: velha.id } });
+      check("a grade volta a ativa", depois?.status === "active", depois?.status);
+      check("e o vínculo de saída é limpo", depois?.disposed_negotiation_id === null);
     }
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });

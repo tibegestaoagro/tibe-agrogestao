@@ -784,6 +784,43 @@ export async function cancelNegotiation(
      * decidir o que fazer com a venda, e essa decisão é do produtor. O caminho
      * é cancelar a movimentação de encerramento primeiro.
      */
+    /**
+     * A MÁQUINA (missão 4, a permuta).
+     *
+     * As duas recusas vêm ANTES de qualquer escrita. O §17.9 manda alertar
+     * "quando parte do item já tiver sido utilizada", e manutenção lançada é
+     * exatamente isso: inativar a máquina deixaria pendurada uma história que
+     * o produtor criou à mão, sobre uma máquina que ele passaria a não ter.
+     */
+    const maquinaQueEntrou = await tx.machine.findFirst({
+      where: { acquired_negotiation_id: id },
+    });
+    if (maquinaQueEntrou) {
+      const manutencoes = await tx.machineMaintenance.count({
+        where: { machine_id: maquinaQueEntrou.id },
+      });
+      if (manutencoes > 0) {
+        throw new AbortarNegociacao({
+          ok: false,
+          code: "MAQUINA_COM_MANUTENCAO",
+          message:
+            `Não dá para cancelar: você já registrou ${manutencoes} manutenção(ões) em ` +
+            `${maquinaQueEntrou.name}. Cancele-as antes.`,
+          status: 422,
+        });
+      }
+      if (maquinaQueEntrou.disposed_negotiation_id) {
+        throw new AbortarNegociacao({
+          ok: false,
+          code: "MAQUINA_JA_NEGOCIADA",
+          message:
+            `Não dá para cancelar: ${maquinaQueEntrou.name} já saiu numa outra permuta. ` +
+            `Cancele aquela primeiro.`,
+          status: 422,
+        });
+      }
+    }
+
     const estadia = await tx.herdStay.findFirst({
       where: { negotiation_id: id, canceled_at: null },
     });
@@ -1024,6 +1061,28 @@ export async function cancelNegotiation(
       where: { negotiation_id: id, status: { in: EM_ABERTO } },
       data: { status: "cancelled" },
     });
+
+    // A máquina que ENTROU não é apagada: cancelar nunca apaga, em todo o
+    // resto do projeto. Ela fica inativa, e o vínculo permanece para a tela
+    // conseguir dizer de onde ela veio.
+    if (maquinaQueEntrou) {
+      await tx.machine.update({
+        where: { id: maquinaQueEntrou.id },
+        data: { status: "inactive" },
+      });
+    }
+
+    // A que SAIU volta a ser do produtor, e o vínculo é limpo: ela pode ser
+    // entregue de novo numa permuta futura.
+    const maquinaQueSaiu = await tx.machine.findFirst({
+      where: { disposed_negotiation_id: id },
+    });
+    if (maquinaQueSaiu) {
+      await tx.machine.update({
+        where: { id: maquinaQueSaiu.id },
+        data: { status: "active", disposed_negotiation_id: null },
+      });
+    }
 
     // Depois do laço de movimentações, não antes: o laço já cancelou o envio
     // que aponta para a estadia, e cancelá-lo duas vezes reescreveria a data.
