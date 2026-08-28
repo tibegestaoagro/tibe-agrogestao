@@ -62,21 +62,30 @@ assinatura, webhook de pagamento, webhook de atraso).
 Não começaram. Estão desenhadas na spec:
 
 - **Missão 3, leilão e eventos:** remessa temporária, situação "Em evento",
-  encerramento com venda parcial. Depende do que a fase 2 do Módulo 30 abriu.
+  encerramento com venda parcial. O terreno já está pronto desde a fase 2 do
+  Módulo 30: `HerdStay` com `type: evento`, a situação `evento` e o tipo de
+  movimento `envio_evento` existem no schema, sem uso.
 - **Missão 4, permuta:** qualquer item por qualquer item, com diferença em
   dinheiro, tocando 4 módulos num registro só. É o pedaço mais arriscado do
   documento do cliente.
 
-Próximo número livre de suíte: `m39`.
+Próximo número livre de suíte: `m48`.
 
-### 2.2 Módulo 30, fase 2
+### 2.2 Módulo 30, fase 2: FEITA em 2026-08-28
 
-`docs/specs/module-30-rebanho-livro-razao.md`, seção "Fase 2: complemento":
-pasto de terceiros, boitel, confinamento próprio, desaparecimento e animais de
-terceiros na fazenda. Cada um com seu encerramento, e a soma entre vendidos,
-retornados e outras destinações precisa bater com a quantidade enviada.
+Está na branch `modulo-30-fase-2`, esperando merge. Entregou pasto de
+terceiros, boitel, animais de terceiros na fazenda e desaparecimento, com
+identidade por `HerdStay`, encerramento que exige a soma bater, e os cinco
+números separando propriedade de localização.
 
-A própria spec diz onde moram os piores bugs: nos encerramentos parciais.
+⚠️ **Duas correções ao que este arquivo dizia.** Ela não era "sem dinheiro":
+o documento do cliente manda gerar despesa em pasto de terceiro e boitel, e
+receita em animais de terceiros, e isso foi implementado. E o **confinamento
+próprio não virou fluxo**: o documento pede que ele seja um local interno,
+parecido com um pasto, então é `transferencia_pasto` para um pasto que
+represente o confinamento, sem estadia nenhuma.
+
+Spec e plano em `docs/superpowers/`.
 
 ### 2.3 Itens do documento do cliente registrados como adiados
 

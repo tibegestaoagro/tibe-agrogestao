@@ -26,16 +26,16 @@ Se ele passar de umas 200, arquive antes de acrescentar.
 
 - Atualizado em: 2026-08-27.
 - **A frente 1 está na `main` e empurrada** (`20f40fa`), com a suíte inteira
-  verde (49/49) antes do merge. A branch `piloto-design-rebanho` foi apagada
-  depois do avanço direto.
+  verde antes do merge. A branch `piloto-design-rebanho` foi apagada.
+- ⚠️ **A frente 2 está PRONTA e NÃO mesclada**, na branch `modulo-30-fase-2`.
+  Nove tarefas, validada no navegador em 28/08.
+- ⚠️ **A migração da frente 2 NÃO foi aplicada no Neon**, por decisão do
+  usuário: ela vai junto do merge, na ordem do invariante 3 (migração primeiro,
+  push depois). O banco local já está com as 33.
 - ⚠️ **Provavelmente NÃO está no ar.** O push saiu pela credencial do
   `dilton-pleno`, e no plano gratuito da Vercel push de colaborador não dispara
   deploy (item 1 das pendências do usuário). O commit entra na `main` e nenhuma
   versão nasce, sem erro em lugar nenhum. Confira antes de supor que subiu.
-- **Nenhuma migração nova desde o `21d5641`**, e a frente 1 não toca schema.
-  O invariante 3 não está em jogo.
-- **Nenhuma migração nova desde o `21d5641`.** Os commits posteriores não tocam
-  em `prisma/`, então o invariante 3 não está em jogo e o Neon segue em dia.
 - **A fase 1 (identidade e sistema de design) começou**, com três commits na
   `main`, na ordem que o plano exige: falha visível e alvo de 44px (`60e4d87`),
   tokens semânticos de cor com a catraca de contraste (`638d0f6`), e leitura de
@@ -109,36 +109,39 @@ que é colaboradora, as páginas de regra devolvem 404.
 
 ### Próximo passo
 
-**A frente 2: a fase 2 do Módulo 30.** Cinco fluxos sem dinheiro (pasto de
-terceiros, animais de terceiros na fazenda, desaparecimento, confinamento
-próprio, boitel) e, antes deles, a regra de modelo que separa propriedade de
-localização e reescreve os quatro totais da tela de Rebanho. Suíte `m47`.
-Começa pela spec da frente, que ainda não existe.
+**A frente 2 está pronta, esperando sua autorização para migração e merge.**
+Depois dela vem a frente 3, a missão 3 do Módulo 31 (leilão e eventos), que
+encontra o terreno pronto: `HerdStayType.evento`, `HerdSituation.evento` e
+`envio_evento` já existem no schema, sem uso.
+
+**O que a frente 2 entregou**, em nove commits na `modulo-30-fase-2`: o model
+`HerdStay` com as movimentações apontando para ele por `stay_id`; os cinco
+números separando propriedade de localização (`test:m32` com o exemplo do
+cliente); a tabela de regras por tipo (`test:m47`); abrir, encerrar, listar e
+cancelar estadia; as quatro rotas; e a tela, com o painel que cresce conforme
+a fazenda tem o que mostrar.
+
+**Validado no navegador em 28/08**, com as seis conferências do plano: enviar
+20 para pasto de terceiro não mexe no rebanho próprio e move 20 para "fora";
+encerrar com 12 vendidos e 8 retornados leva o próprio de 100 para 88 e faz a
+decomposição sumir sozinha; o painel com os cinco números fecha a identidade
+(75 + 10 + 3 = 88, e 115 físicos contando 40 de terceiros); vender animal
+desaparecido é recusado; e a conta a pagar do pasto nasce ligada à estadia.
 
 O plano de sequência das cinco frentes está em
 [../superpowers/specs/2026-08-27-sequencia-para-fechar-os-modulos-design.md](../superpowers/specs/2026-08-27-sequencia-para-fechar-os-modulos-design.md)
-e o plano de execução da frente 1, em
-[../superpowers/plans/2026-08-27-piloto-design-rebanho.md](../superpowers/plans/2026-08-27-piloto-design-rebanho.md).
+e os planos de execução, em `../superpowers/plans/`. A spec da frente 2 está em
+[../superpowers/specs/2026-08-27-modulo-30-fase-2-design.md](../superpowers/specs/2026-08-27-modulo-30-fase-2-design.md).
 Decisões do usuário registradas ali: app mobile e n8n só depois do sistema
 completo; nas missões novas o handler de WhatsApp nasce junto, o classificador
 não; e nos primitivos compartilhados, só troca de cor invisível.
 
-**O que a frente 1 entregou**, em dez commits: o envelope de erro passa a dizer
-qual campo o servidor recusou (e a fiação atravessa `ActionResult`, `fail()` e
-as 59 rotas); as duas decisões de formulário viraram função pura com suíte
-(`npm run test:m46`); os quatro painéis do Rebanho viraram `<form>` de verdade,
-com erro por campo, foco no primeiro inválido e limpeza ao corrigir;
-`EmptyState` e `Carregando` nasceram (o primeiro esqueleto do projeto); a
-tabela larga passou a rolar dentro do quadro; o Rebanho zerou a cor crua; e o
-`npm run check` ganhou a catraca de cor, com linha de base de 125 arquivos que
-só pode encolher.
-
-**Validado no navegador em 27/08**, contra o Postgres local, com as seis
-conferências do plano fechadas por medição e não por impressão: foco no campo
-certo, refoco na segunda tentativa, saldo insuficiente aparecendo no campo de
-quantidade, submit pelo `requestSubmit` (o caminho da tecla do teclado), os
-dois estados vazios, e a 400px a tabela de 419px rolando por dentro sem a
-página rolar de lado.
+**O que a frente 1 deixou como padrão**, e que toda tela nova precisa seguir: o
+envelope de erro diz qual campo o servidor recusou, e a fiação atravessa
+`ActionResult`, `fail()` e as 59 rotas; o painel de escrita é `FormSheet` mais
+`Field`, com o estado de erro pelo hook `useErrosDeFormulario`, que move o foco
+e limpa o erro ao corrigir; vazio e espera são `EmptyState` e `Carregando`; e o
+`npm run check` reprova cor crua nova, com linha de base que só encolhe.
 
 A referência visual continua sendo
 [../design/briefing-novo-layout.md](../design/briefing-novo-layout.md), que é
@@ -186,6 +189,9 @@ Quatro achadas hoje, que não estavam em `dividas.md`:
 
 ## Histórico recente
 
+- **2026-08-28:** frente 2 (estadias temporárias do rebanho) pronta na branch
+  `modulo-30-fase-2`, em nove commits, validada no navegador. O rebanho passa a
+  separar propriedade de localização.
 - **2026-08-27:** frente 1 (piloto de design no Rebanho) pronta na branch
   `piloto-design-rebanho`, em dez commits, validada no navegador contra o banco
   local. O alinhamento das cinco frentes e o plano de execução estão em
@@ -206,10 +212,6 @@ Quatro achadas hoje, que não estavam em `dividas.md`:
   navegador, por requisição real e contra o classificador de produção. No mesmo
   dia começou a fase 1, com três commits de interface (`60e4d87`, `638d0f6`,
   `979ba2e`) que este arquivo só registrou em 24/08.
-- **2026-08-18:** higiene das instruções. `CLAUDE.md` de 1.211 para ~270 linhas,
-  com a arqueologia movida para `.claude/rules/*.md` (carregam sozinhas por
-  glob); travas de agente versionadas para travessão, heredoc com escape e
-  merge/push/deploy; `npm run check`; `CONTRIBUTING.md` apagado.
 
 O detalhe de tudo isso, na íntegra e sem reescrita, está em
 [historico/2026-08.md](historico/2026-08.md).
