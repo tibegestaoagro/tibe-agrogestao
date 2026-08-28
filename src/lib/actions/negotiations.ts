@@ -1078,7 +1078,18 @@ export async function cancelNegotiation(
  * ponto (uma venda em aberto aparecia como "A pagar", na única coluna que se lê
  * de relance) e função pura é o que permite provar que não voltou.
  */
-export function situacaoLabel(situacao: SituacaoNegociacao | string, venda: boolean): string {
+export function situacaoLabel(
+  situacao: SituacaoNegociacao | string,
+  venda: boolean,
+  /**
+   * Só `sem_valor` usa. "Sem venda" foi escolhido na missão 3 para a remessa
+   * de leilão ainda aberta, em que de fato não houve venda. Numa PERMUTA a
+   * palavra mente ao contrário: a troca aconteceu, o que não houve foi
+   * dinheiro. Terceiro e opcional de propósito, para nenhuma das chamadas que
+   * já existem mudar de texto.
+   */
+  tipo?: NegotiationType,
+): string {
   switch (situacao) {
     case "confirmada":
       return venda ? "A receber" : "A pagar";
@@ -1091,7 +1102,7 @@ export function situacaoLabel(situacao: SituacaoNegociacao | string, venda: bool
     case "cancelada":
       return "Cancelada";
     case "sem_valor":
-      return "Sem venda";
+      return tipo === "permuta" ? "Troca sem dinheiro" : "Sem venda";
     default:
       // Situação nova sem rótulo: melhor uma palavra genérica do que vazar o
       // nome do enum ("parcialmente_paga") na tela do produtor. O `tsc` já

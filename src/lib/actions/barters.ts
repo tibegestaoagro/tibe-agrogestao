@@ -85,6 +85,16 @@ function validarLado(
   if (lado.kind === "descricao" && !lado.texto.trim()) {
     return { code: "VALIDATION_ERROR", message: "Descreva o item.", field: campo };
   }
+  // A mesma checagem que `createMachineAction` faz: sem ela um nome vazio vira
+  // uma linha inútil no cadastro de Máquinas.
+  if (lado.kind === "maquina" && "name" in lado) {
+    if (!lado.name.trim()) {
+      return { code: "VALIDATION_ERROR", message: "Informe o nome da máquina.", field: "name" };
+    }
+    if (!lado.type.trim()) {
+      return { code: "VALIDATION_ERROR", message: "Informe o tipo da máquina.", field: "type" };
+    }
+  }
   return null;
 }
 
@@ -164,7 +174,63 @@ export async function createBarter(
         }),
       });
 
-      const machineId: string | null = null;
+      let machineId: string | null = null;
+
+      // A MÁQUINA QUE SAI: já existe, e passa a não ser mais do produtor.
+      if (input.entregue?.kind === "maquina") {
+        const maquina = await tx.machine.findFirst({ where: { id: input.entregue.machine_id } });
+        if (!maquina) {
+          throw new AbortarNegociacao({
+            ok: false,
+            code: "MAQUINA_INDISPONIVEL",
+            message: "Máquina não encontrada.",
+            status: 422,
+            field: "machine_id",
+          });
+        }
+        if (
+          maquina.disposed_negotiation_id ||
+          maquina.status === "negociada" ||
+          maquina.status === "sold"
+        ) {
+          throw new AbortarNegociacao({
+            ok: false,
+            code: "MAQUINA_INDISPONIVEL",
+            message: `${maquina.name} já saiu do seu patrimônio e não pode ser entregue de novo.`,
+            status: 422,
+            field: "machine_id",
+          });
+        }
+        await tx.machine.update({
+          where: { id: maquina.id },
+          // `negociada` e não `sold`: a tela mostra `sold` como "Vendida", e
+          // esta máquina não foi vendida, foi trocada.
+          data: { status: "negociada", disposed_negotiation_id: negociacao.id },
+        });
+      }
+
+      // A MÁQUINA QUE ENTRA: nasce aqui, ligada à troca que a trouxe.
+      if (input.recebido?.kind === "maquina") {
+        const maquina = await tx.machine.create({
+          data: scoped({
+            property_id: input.property_id,
+            name: input.recebido.name.trim(),
+            type: input.recebido.type.trim(),
+            brand: input.recebido.brand ?? null,
+            model: input.recebido.model ?? null,
+            year: input.recebido.year ?? null,
+            acquired_at: occurred_at,
+            // SEM custo de aquisição: o que o trator custou foi o gado, não
+            // dinheiro. `createMachineAction` cria um `FinancialEntry` sozinha
+            // quando recebe custo, e aqui isso seria uma despesa fantasma além
+            // da diferença. É também por isso que esta action grava a Machine
+            // direto, e não por aquela: ela não aceita `tx`.
+            acquisition_cost: null,
+            acquired_negotiation_id: negociacao.id,
+          }),
+        });
+        machineId = maquina.id;
+      }
 
       const posicaoDe = (lado: {
         category_id: string;

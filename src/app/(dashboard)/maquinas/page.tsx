@@ -19,6 +19,7 @@ const STATUS: Record<string, { label: string; variant: "green" | "amber" | "gray
   maintenance: { label: "Em manutenção", variant: "amber" },
   sold: { label: "Vendida", variant: "gray" },
   inactive: { label: "Inativa", variant: "red" },
+  negociada: { label: "Negociada", variant: "gray" },
 };
 
 export default async function MaquinasPage() {

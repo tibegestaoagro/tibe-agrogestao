@@ -94,7 +94,10 @@ export default async function DashboardHome() {
     hasFazenda
       ? db.machine.count({
           where: {
-            status: { not: "sold" },
+            // `negociada` entra junto de `sold`: uma máquina entregue numa
+            // permuta não é mais do produtor, e lembrá-lo de fazer manutenção
+            // nela é um alerta para uma máquina que ele não tem.
+            status: { notIn: ["sold", "negociada"] },
             next_maintenance_at: { gte: now, lte: maintenanceLimit },
             ...(activePropertyId ? { property_id: activePropertyId } : {}),
           },

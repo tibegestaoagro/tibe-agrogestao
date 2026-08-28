@@ -264,6 +264,104 @@ async function comBanco() {
         soma(await getPositions(db, { owner: "proprio", category_id: "bezerro_0_7" })) === bezerrosAntes,
       );
     }
+
+    console.log("\n4. O exemplo §12.7: 20 bois por 1 trator, pagando R$ 30.000");
+    {
+      const boisAntes = soma(await getPositions(db, { owner: "proprio", category_id: "macho_36_mais" }));
+
+      const r = await createBarter(db, {
+        property_id: fazenda.id,
+        entregue: { kind: "animais", category_id: "macho_36_mais", quantity: 20, pasture_id: pasto.id },
+        recebido: { kind: "maquina", name: "Trator John Deere 6110", type: "Trator", brand: "John Deere" },
+        diferenca: { direcao: "paguei", amount: 30000 },
+        pago: true,
+        contact_name: "Revenda Agrícola",
+      });
+      check("a permuta abre", r.ok, r.ok ? "" : r.message);
+
+      check(
+        "saíram os 20 bois",
+        soma(await getPositions(db, { owner: "proprio", category_id: "macho_36_mais" })) === boisAntes - 20,
+      );
+
+      const maquina = await db.machine.findFirst({ where: { id: r.ok ? r.data.machine_id ?? "" : "" } });
+      check("o trator foi cadastrado", maquina != null);
+      check("apontando para a permuta", maquina?.acquired_negotiation_id === (r.ok ? r.data.id : null));
+      check("ativo", maquina?.status === "active", maquina?.status);
+      // A máquina veio de gado, não de dinheiro: pôr valor aqui geraria uma
+      // despesa de aquisição ALÉM da diferença.
+      check("e SEM custo de aquisição", maquina?.acquisition_cost === null, String(maquina?.acquisition_cost));
+
+      const lancamentos = await db.financialEntry.findMany({
+        where: { negotiation_id: r.ok ? r.data.id : "" },
+      });
+      check("UM lançamento, não dois", lancamentos.length === 1, String(lancamentos.length));
+      check("e ele é DESPESA", lancamentos[0]?.entry_type === "expense", lancamentos[0]?.entry_type);
+      check("de R$ 30.000", Number(lancamentos[0]?.amount) === 30000, String(lancamentos[0]?.amount));
+
+      const detalhe = await getNegotiation(db, r.ok ? r.data.id : "");
+      check("o dinheiro SAIU", detalhe?.recebe_dinheiro === false);
+      check(
+        "e a tela diz Quitada",
+        situacaoLabel(detalhe?.situacao ?? "", detalhe?.recebe_dinheiro ?? false) === "Quitada",
+        situacaoLabel(detalhe?.situacao ?? "", detalhe?.recebe_dinheiro ?? false),
+      );
+    }
+
+    console.log("\n5. A máquina que SAI vira 'negociada', não 'vendida'");
+    {
+      const velha = await db.machine.create({
+        data: scoped({ property_id: fazenda.id, name: "Trator velho", type: "Trator" }),
+      });
+
+      const r = await createBarter(db, {
+        property_id: fazenda.id,
+        entregue: { kind: "maquina", machine_id: velha.id },
+        recebido: { kind: "animais", category_id: "bezerro_0_7", quantity: 8, pasture_id: pasto.id },
+      });
+      check("a permuta abre", r.ok, r.ok ? "" : r.message);
+
+      const depois = await db.machine.findFirst({ where: { id: velha.id } });
+      check("o status é negociada", depois?.status === "negociada", depois?.status);
+      check("apontando para a permuta que a levou", depois?.disposed_negotiation_id === (r.ok ? r.data.id : null));
+      check("e o vínculo de entrada continua vazio", depois?.acquired_negotiation_id === null);
+
+      const lancamentos = await db.financialEntry.count({
+        where: { negotiation_id: r.ok ? r.data.id : "" },
+      });
+      check("troca seca não gera lançamento nenhum", lancamentos === 0, String(lancamentos));
+
+      const detalhe = await getNegotiation(db, r.ok ? r.data.id : "");
+      check("e a situação é sem_valor", detalhe?.situacao === "sem_valor", detalhe?.situacao);
+      // A palavra muda por tipo: "Sem venda" serve para a remessa de leilão
+      // ainda aberta, mas numa permuta a troca ACONTECEU, o que não houve foi
+      // dinheiro.
+      check(
+        "e a tela diz 'Troca sem dinheiro'",
+        situacaoLabel(detalhe?.situacao ?? "", false, "permuta") === "Troca sem dinheiro",
+        situacaoLabel(detalhe?.situacao ?? "", false, "permuta"),
+      );
+      check(
+        "sem o tipo, a palavra de sempre continua",
+        situacaoLabel("sem_valor", false) === "Sem venda",
+        situacaoLabel("sem_valor", false),
+      );
+    }
+
+    console.log("\n6. Máquina que já saiu não sai de novo");
+    {
+      const jaSaiu = await db.machine.findFirst({ where: { name: "Trator velho" } });
+      const r = await createBarter(db, {
+        property_id: fazenda.id,
+        entregue: { kind: "maquina", machine_id: jaSaiu?.id ?? "" },
+        recebido: { kind: "animais", category_id: "bezerro_0_7", quantity: 1, pasture_id: pasto.id },
+      });
+      check(
+        "recusa: ela não é mais do produtor",
+        !r.ok && r.code === "MAQUINA_INDISPONIVEL",
+        r.ok ? "aceitou" : r.code,
+      );
+    }
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });
   }
