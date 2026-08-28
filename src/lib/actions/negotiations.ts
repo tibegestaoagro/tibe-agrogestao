@@ -173,7 +173,14 @@ const CATEGORIA_FINANCEIRA: Record<"compra_gado" | "venda_gado", string> = {
   venda_gado: "Venda de animal",
 };
 
-type Falha = { ok: false; code: string; message: string; status: number };
+type Falha = {
+  ok: false;
+  code: string;
+  message: string;
+  status: number;
+  /** Preservado até a rota: é o que põe a mensagem embaixo do campo certo. */
+  field?: string;
+};
 
 /**
  * Aborta a transação carregando o erro de negócio.
@@ -184,7 +191,7 @@ type Falha = { ok: false; code: string; message: string; status: number };
  * sem saldo deixava o envelope gravado e órfão, apontando para nada. Quem pegou
  * foi o próprio teste de atomicidade do `test:m35`.
  */
-class AbortarNegociacao extends Error {
+export class AbortarNegociacao extends Error {
   constructor(readonly falha: Falha) {
     super(falha.message);
     this.name = "AbortarNegociacao";
@@ -192,7 +199,7 @@ class AbortarNegociacao extends Error {
 }
 
 /** Converte o abort de volta em resultado, depois do rollback já ter ocorrido. */
-async function comRollback<T>(
+export async function comRollback<T>(
   operacao: () => Promise<ActionResult<T>>,
 ): Promise<ActionResult<T>> {
   try {
