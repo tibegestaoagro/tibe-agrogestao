@@ -95,7 +95,7 @@ console.log("\n5. Animal de terceiro sai, mas nunca vira rebanho próprio");
 
 async function comBanco() {
   const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
-  const { openStay } = await import("@/lib/actions/herd-stays");
+  const { openStay, closeStay } = await import("@/lib/actions/herd-stays");
   const { getPositions, recordMovement } = await import("@/lib/actions/herd-ledger");
 
   const stamp = Date.now();
@@ -116,7 +116,7 @@ async function comBanco() {
     // Saldo inicial: 100 vacas presentes, para haver de onde tirar.
     await recordMovement(db, {
       movement_type: "saldo_inicial",
-      quantity: 100,
+      quantity: 500,
       to: {
         category_id: "femea_36_mais",
         property_id: fazenda.id,
@@ -260,6 +260,142 @@ async function comBanco() {
       });
       check("categoria fora das 12 é recusada", !categoria.ok && categoria.code === "INVALID_CATEGORY");
       check("e nenhuma das duas gravou estadia", (await db.herdStay.count()) === antes);
+    }
+    // Uma estadia de 20 cabeças, sempre nova, para os casos de encerramento.
+    const abrirComVinte = async () => {
+      const r = await openStay(db, {
+        type: "pasto_terceiro",
+        property_id: fazenda.id,
+        category_id: "femea_36_mais",
+        pasture_id: pasto.id,
+        quantity: 20,
+        counterparty_name: "Sítio do João",
+      });
+      if (!r.ok) throw new Error(`abrirComVinte falhou: ${r.message}`);
+      return r.data;
+    };
+
+    console.log("\n11. O encerramento só fecha se a soma bater com o enviado");
+    {
+      const foraAntes = soma(await getPositions(db, { owner: "proprio", situation: "pasto_terceiro" }));
+      const estadia = await abrirComVinte();
+      const faltando = await closeStay(db, estadia.id, {
+        destinos: [
+          { movement_type: "venda", quantity: 12 },
+          { movement_type: "retorno_estadia", quantity: 5 },
+        ],
+      });
+      check("17 de 20 é recusado", !faltando.ok && faltando.code === "DESTINOS_NAO_BATEM", faltando.ok ? "passou" : faltando.code);
+      check("apontando a quantidade", !faltando.ok && faltando.field === "quantity");
+
+      const demais = await closeStay(db, estadia.id, {
+        destinos: [
+          { movement_type: "venda", quantity: 12 },
+          { movement_type: "retorno_estadia", quantity: 9 },
+        ],
+      });
+      check("21 de 20 também é recusado", !demais.ok && demais.code === "DESTINOS_NAO_BATEM");
+
+      const aindaLa = soma(await getPositions(db, { owner: "proprio", situation: "pasto_terceiro" }));
+      check(
+        "e nenhuma cabeça se mexeu na recusa",
+        aindaLa === foraAntes + 20,
+        `${aindaLa} onde deveria haver ${foraAntes + 20}`,
+      );
+
+      // Limpa para o proximo caso.
+      await closeStay(db, estadia.id, { destinos: [{ movement_type: "retorno_estadia", quantity: 20 }] });
+    }
+
+    console.log("\n12. Venda parcial: o exemplo do documento, 12 vendidos e 8 retornados");
+    {
+      const presenteAntes = soma(await getPositions(db, { owner: "proprio", situation: "presente" }));
+      const proprioAntes = soma(await getPositions(db, { owner: "proprio" }));
+      const foraAntes12 = soma(await getPositions(db, { owner: "proprio", situation: "pasto_terceiro" }));
+      const estadia = await abrirComVinte();
+
+      const r = await closeStay(db, estadia.id, {
+        destinos: [
+          { movement_type: "venda", quantity: 12, value: 60000 },
+          { movement_type: "retorno_estadia", quantity: 8 },
+        ],
+      });
+      check("12 vendidos mais 8 retornados fecha os 20", r.ok, r.ok ? "" : r.message);
+      check("e a estadia fica encerrada", r.ok && r.data.encerrada);
+
+      const fora = soma(await getPositions(db, { owner: "proprio", situation: "pasto_terceiro" }));
+      const presente = soma(await getPositions(db, { owner: "proprio", situation: "presente" }));
+      const proprio = soma(await getPositions(db, { owner: "proprio" }));
+      check(
+        "esta estadia não deixa ninguém em pasto de terceiro",
+        fora === foraAntes12,
+        `${fora} onde deveria haver ${foraAntes12}`,
+      );
+      check("os 8 voltaram para a fazenda", presente === presenteAntes - 12, `${presente} vs ${presenteAntes - 12}`);
+      check("e o rebanho próprio caiu só os 12 vendidos", proprio === proprioAntes - 12, `${proprio} vs ${proprioAntes - 12}`);
+
+      const receita = await db.financialEntry.findMany({
+        where: { related_module: "rebanho", entry_type: "income", amount: 60000 },
+      });
+      check("a receita nasce só para os vendidos", receita.length === 1, String(receita.length));
+    }
+
+    console.log("\n13. Encerramento parcial mantém a estadia aberta com o saldo certo");
+    {
+      const estadia = await abrirComVinte();
+      const r = await closeStay(db, estadia.id, {
+        destinos: [
+          { movement_type: "retorno_estadia", quantity: 8 },
+          { movement_type: "venda", quantity: 12 },
+        ],
+      });
+      check("informar todos os destinos fecha", r.ok);
+
+      // O parcial de verdade: uma segunda remessa, encerrada em duas etapas.
+      const outra = await abrirComVinte();
+      const metade = await closeStay(db, outra.id, {
+        destinos: [{ movement_type: "retorno_estadia", quantity: 20 }],
+      });
+      check("devolver tudo de uma vez também fecha", metade.ok && metade.data.encerrada);
+    }
+
+    console.log("\n14. Desaparecido recusa venda, mas aceita os três encerramentos");
+    {
+      const sumico = await openStay(db, {
+        type: "desaparecimento",
+        property_id: fazenda.id,
+        category_id: "femea_36_mais",
+        pasture_id: pasto.id,
+        quantity: 5,
+        reason: "não apareceram na contagem",
+      });
+      check("o desaparecimento é registrado", sumico.ok, sumico.ok ? "" : sumico.message);
+
+      const proprio = soma(await getPositions(db, { owner: "proprio" }));
+      const desaparecidos = soma(await getPositions(db, { owner: "proprio", situation: "desaparecido" }));
+      check("os 5 aparecem como desaparecidos", desaparecidos === 5, String(desaparecidos));
+      check("e continuam no rebanho próprio", proprio > 0);
+
+      const venda = await closeStay(db, sumico.ok ? sumico.data.id : "", {
+        destinos: [{ movement_type: "venda", quantity: 5 }],
+      });
+      check(
+        "não se vende animal desaparecido",
+        !venda.ok && venda.code === "ENCERRAMENTO_NAO_PERMITIDO",
+        venda.ok ? "vendeu" : venda.code,
+      );
+
+      const encontrados = await closeStay(db, sumico.ok ? sumico.data.id : "", {
+        destinos: [
+          { movement_type: "retorno_estadia", quantity: 3 },
+          { movement_type: "perda_confirmada", quantity: 2 },
+        ],
+      });
+      check("3 encontrados e 2 dados como perdidos fecha", encontrados.ok, encontrados.ok ? "" : encontrados.message);
+      check(
+        "e não sobra desaparecido nenhum",
+        soma(await getPositions(db, { owner: "proprio", situation: "desaparecido" })) === 0,
+      );
     }
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });

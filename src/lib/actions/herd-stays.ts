@@ -1,9 +1,20 @@
-import type { HerdChargeType, HerdStayType } from "@/generated/prisma/client";
+import type {
+  HerdChargeType,
+  HerdMovementType,
+  HerdOwner,
+  HerdSituation,
+  HerdStayType,
+} from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
 import { recordMovementInTx, type HerdPositionKey } from "@/lib/actions/herd-ledger";
 import { isValidCategory } from "@/lib/herd/categories";
-import { donoDaEstadia, situacaoDaEstadia, tipoDeEnvio } from "@/lib/herd/stay-rules";
+import {
+  donoDaEstadia,
+  permiteEncerramento,
+  situacaoDaEstadia,
+  tipoDeEnvio,
+} from "@/lib/herd/stay-rules";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 
 /**
@@ -176,6 +187,165 @@ export async function openStay(
       quantity: input.quantity,
       financial_entry_id,
     });
+  }).catch((erro: unknown) => {
+    if (erro instanceof EstadiaRecusada) {
+      return fail(erro.code, erro.message, 422, erro.field);
+    }
+    throw erro;
+  });
+}
+
+export type DestinoDeEncerramento = {
+  movement_type: HerdMovementType;
+  quantity: number;
+  /** Só para venda: gera a receita dos vendidos. */
+  value?: number | null;
+};
+
+export type CloseStayInput = {
+  destinos: DestinoDeEncerramento[];
+  occurred_at?: Date | null;
+  recorded_by_user_id?: string | null;
+};
+
+/**
+ * O saldo ABERTO de uma estadia: o que entrou nela menos o que já saiu.
+ *
+ * Derivado das movimentações que apontam para ela, nunca gravado. É o mesmo
+ * princípio do saldo do rebanho, aplicado ao episódio: assim não existe um
+ * campo que possa divergir da realidade.
+ */
+function saldoAberto(
+  movimentos: {
+    quantity: number;
+    from_situation: HerdSituation | null;
+    from_owner: HerdOwner | null;
+    to_situation: HerdSituation | null;
+    to_owner: HerdOwner | null;
+  }[],
+  situacao: HerdSituation,
+  dono: HerdOwner,
+): number {
+  return movimentos.reduce((total, m) => {
+    const entra = m.to_situation === situacao && m.to_owner === dono;
+    const sai = m.from_situation === situacao && m.from_owner === dono;
+    return total + (entra ? m.quantity : 0) - (sai ? m.quantity : 0);
+  }, 0);
+}
+
+/**
+ * Encerra uma estadia, total ou parcialmente.
+ *
+ * A regra que o documento cobra: "a soma dessas destinações deverá
+ * corresponder à quantidade enviada". Encerramento parcial NÃO é informar
+ * menos que o total: é informar todos os destinos, sendo um deles "seguiram
+ * para outro destino". A soma sempre fecha; o que varia é para onde foram.
+ */
+export async function closeStay(
+  db: TenantPrismaClient,
+  stayId: string,
+  input: CloseStayInput,
+): Promise<ActionResult<{ id: string; encerrada: boolean; saldo_aberto: number }>> {
+  const destinos = input.destinos.filter((d) => d.quantity > 0);
+  if (destinos.length === 0) {
+    return fail("VALIDATION_ERROR", "Informe ao menos um destino.", 422, "quantity");
+  }
+  if (destinos.some((d) => !Number.isInteger(d.quantity) || d.quantity <= 0)) {
+    return fail("VALIDATION_ERROR", "Cada destino precisa de uma quantidade inteira.", 422, "quantity");
+  }
+
+  const stay = await db.herdStay.findFirst({ where: { id: stayId } });
+  if (!stay) return fail("NOT_FOUND", "Estadia não encontrada.", 404);
+  if (stay.canceled_at) {
+    return fail("ESTADIA_CANCELADA", "Esta estadia foi cancelada e não pode ser encerrada.", 422);
+  }
+
+  const situacao = situacaoDaEstadia(stay.type);
+  const dono = donoDaEstadia(stay.type);
+
+  for (const destino of destinos) {
+    if (!permiteEncerramento(stay.type, destino.movement_type)) {
+      return fail(
+        "ENCERRAMENTO_NAO_PERMITIDO",
+        `Este tipo de estadia não permite ${destino.movement_type}.`,
+        422,
+        "movement_type",
+      );
+    }
+  }
+
+  const occurred_at = input.occurred_at ?? new Date();
+
+  return runSerializableTenantTransaction(db, async (tx) => {
+    const movimentos = await tx.herdMovement.findMany({
+      where: { stay_id: stayId, canceled_at: null },
+      select: {
+        quantity: true,
+        from_situation: true,
+        from_owner: true,
+        to_situation: true,
+        to_owner: true,
+        to_category_id: true,
+        to_property_id: true,
+      },
+    });
+
+    const aberto = saldoAberto(movimentos, situacao, dono);
+    const informado = destinos.reduce((s, d) => s + d.quantity, 0);
+    if (informado !== aberto) {
+      throw new EstadiaRecusada(
+        "DESTINOS_NAO_BATEM",
+        `A soma dos destinos (${informado}) precisa ser igual ao que está na estadia (${aberto}).`,
+        "quantity",
+      );
+    }
+
+    // A categoria e a fazenda vêm do DESTINO do movimento de abertura, que é o
+    // único lado sempre preenchido (a entrada de terceiro não tem origem).
+    // Encerrar não é hora de escolher categoria de novo: deixar escolher
+    // abriria caminho para as cabeças voltarem numa categoria diferente da que
+    // saiu, e o saldo fecharia mentindo.
+    const abertura = movimentos.find((m) => m.to_situation === situacao && m.to_owner === dono);
+    if (!abertura?.to_category_id || !abertura.to_property_id) {
+      throw new EstadiaRecusada("ESTADIA_SEM_ABERTURA", "Esta estadia não tem movimentação de abertura.", undefined);
+    }
+    const category_id = abertura.to_category_id;
+    const property_id = abertura.to_property_id;
+
+    const naEstadia: HerdPositionKey = {
+      category_id,
+      property_id,
+      pasture_id: null,
+      situation: situacao,
+      owner: dono,
+    };
+    const naFazenda: HerdPositionKey = {
+      category_id,
+      property_id,
+      pasture_id: null,
+      situation: "presente",
+      owner: dono === "terceiro" ? "terceiro" : "proprio",
+    };
+
+    for (const destino of destinos) {
+      const volta = destino.movement_type === "retorno_estadia";
+      const movimento = await recordMovementInTx(db, tx, {
+        movement_type: destino.movement_type,
+        quantity: destino.quantity,
+        from: naEstadia,
+        to: volta ? naFazenda : null,
+        value: destino.value ?? null,
+        occurred_at,
+        recorded_by_user_id: input.recorded_by_user_id ?? null,
+        stay_id: stayId,
+      });
+      if (!movimento.ok) {
+        throw new EstadiaRecusada(movimento.code, movimento.message, movimento.field);
+      }
+    }
+
+    const restante = aberto - informado;
+    return ok({ id: stayId, encerrada: restante === 0, saldo_aberto: restante });
   }).catch((erro: unknown) => {
     if (erro instanceof EstadiaRecusada) {
       return fail(erro.code, erro.message, 422, erro.field);
