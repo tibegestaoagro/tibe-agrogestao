@@ -235,6 +235,23 @@ export function saldoAberto(
 }
 
 /**
+ * A estadia já teve encerramento? Qualquer movimento que TIRE cabeças dela
+ * conta: venda, retorno, morte.
+ *
+ * Mora aqui, e não dentro de `cancelStay`, porque a missão 3 do Módulo 31
+ * precisa da mesma decisão ao cancelar a negociação que criou a remessa. Em
+ * dois lugares, uma das cópias envelhece, e a que envelhecesse deixaria
+ * desfazer um negócio cujas cabeças já foram vendidas.
+ */
+export function estadiaJaEncerrada(
+  movimentos: { from_situation: HerdSituation | null; from_owner: HerdOwner | null }[],
+  situacao: HerdSituation,
+  dono: HerdOwner,
+): boolean {
+  return movimentos.some((m) => m.from_situation === situacao && m.from_owner === dono);
+}
+
+/**
  * Encerra uma estadia, total ou parcialmente.
  *
  * A regra que o documento cobra: "a soma dessas destinações deverá
@@ -465,10 +482,7 @@ export async function cancelStay(
       where: { stay_id: stayId, canceled_at: null },
     });
 
-    const jaEncerrada = movimentos.some(
-      (m) => m.from_situation === situacao && m.from_owner === dono,
-    );
-    if (jaEncerrada) {
+    if (estadiaJaEncerrada(movimentos, situacao, dono)) {
       throw new EstadiaRecusada(
         "ESTADIA_JA_ENCERRADA",
         "Esta estadia já tem encerramento registrado. Cancele a movimentação de encerramento antes.",

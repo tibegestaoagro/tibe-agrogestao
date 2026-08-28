@@ -30,6 +30,7 @@ async function comBanco() {
     "@/lib/actions/event-consignments"
   );
   const { listStays } = await import("@/lib/actions/herd-stays");
+  const { cancelNegotiation } = await import("@/lib/actions/negotiations");
   const { getPositions, recordMovement } = await import("@/lib/actions/herd-ledger");
 
   const stamp = Date.now();
@@ -377,6 +378,59 @@ async function comBanco() {
       });
       check("duas parcelas, uma linha cada", lancamentos.length === 2, String(lancamentos.length));
       check("as duas em aberto", lancamentos.every((l) => l.status === "pending"));
+    }
+
+    console.log("\n9. Cancelar a remessa desfaz rebanho, dinheiro e estadia");
+    {
+      const presenteAntes = soma(await getPositions(db, { owner: "proprio", situation: "presente" }));
+      const remessa = await abrirComVinte();
+      check(
+        "as 20 saíram da fazenda",
+        soma(await getPositions(db, { owner: "proprio", situation: "presente" })) === presenteAntes - 20,
+      );
+
+      const r = await cancelNegotiation(db, remessa.id, "lançado errado");
+      check("cancela", r.ok, r.ok ? "" : r.message);
+      check(
+        "as 20 voltam para a fazenda",
+        soma(await getPositions(db, { owner: "proprio", situation: "presente" })) === presenteAntes,
+      );
+
+      const estadia = await db.herdStay.findFirst({ where: { id: remessa.stay_id } });
+      check("e a estadia fica marcada como cancelada", estadia?.canceled_at != null);
+      check("com o motivo registrado", estadia?.canceled_reason === "lançado errado", estadia?.canceled_reason ?? "");
+
+      const abertas = await listStays(db, { apenas_abertas: true });
+      check(
+        "a remessa cancelada some de 'fora da fazenda agora'",
+        abertas.ok && !abertas.data.some((e) => e.id === remessa.stay_id),
+      );
+    }
+
+    console.log("\n10. Remessa já encerrada não se cancela inteira");
+    {
+      const remessa = await abrirComVinte();
+      const fechou = await closeEventConsignment(db, remessa.id, {
+        vendidos: 10,
+        retornados: 10,
+        amount: 30000,
+        pago: true,
+      });
+      check("encerra primeiro", fechou.ok, fechou.ok ? "" : fechou.message);
+
+      const r = await cancelNegotiation(db, remessa.id, "mudei de ideia");
+      check(
+        "recusa, porque desfazer venda é decisão do produtor",
+        !r.ok && r.code === "ESTADIA_JA_ENCERRADA",
+        r.ok ? "cancelou" : r.code,
+      );
+
+      const negociacao = await db.negotiation.findFirst({ where: { id: remessa.id } });
+      check("e a negociação continua viva", negociacao?.canceled_at === null);
+      const lancamentos = await db.financialEntry.findMany({
+        where: { negotiation_id: remessa.id, status: "paid" },
+      });
+      check("com o dinheiro dela intacto", lancamentos.length === 1, String(lancamentos.length));
     }
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });

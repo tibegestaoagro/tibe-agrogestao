@@ -6,6 +6,8 @@ import { decToNum, isoOrNull } from "@/lib/serialize";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { findOrCreateContact } from "@/lib/actions/contacts";
 import { getStockBalance, deltaDoMovimento } from "@/lib/actions/stock-ledger";
+import { estadiaJaEncerrada } from "@/lib/actions/herd-stays";
+import { donoDaEstadia, situacaoDaEstadia } from "@/lib/herd/stay-rules";
 import { descreverQuantidade } from "@/lib/stock/units";
 
 /**
@@ -717,6 +719,42 @@ export async function cancelNegotiation(
     }
 
     /**
+     * A ESTADIA FILHA (missão 3: a remessa para leilão, feira ou evento).
+     *
+     * Cancelar a negociação sem tocar nela deixaria a remessa aberta em "fora
+     * da fazenda agora", apontando para um negócio que não existe mais, com as
+     * cabeças já de volta ao pasto pelo laço de movimentações abaixo.
+     *
+     * A recusa é a mesma de `cancelStay`, e por isso a decisão vive numa
+     * função só: desfazer uma remessa cujas cabeças já foram vendidas exigiria
+     * decidir o que fazer com a venda, e essa decisão é do produtor. O caminho
+     * é cancelar a movimentação de encerramento primeiro.
+     */
+    const estadia = await tx.herdStay.findFirst({
+      where: { negotiation_id: id, canceled_at: null },
+    });
+    if (estadia) {
+      const movimentosDaEstadia = await tx.herdMovement.findMany({
+        where: { stay_id: estadia.id, canceled_at: null },
+        select: { from_situation: true, from_owner: true },
+      });
+      const encerrada = estadiaJaEncerrada(
+        movimentosDaEstadia,
+        situacaoDaEstadia(estadia.type),
+        donoDaEstadia(estadia.type),
+      );
+      if (encerrada) {
+        throw new AbortarNegociacao({
+          ok: false,
+          code: "ESTADIA_JA_ENCERRADA",
+          message:
+            "Esta remessa já tem encerramento registrado. Cancele a movimentação de encerramento antes.",
+          status: 422,
+        });
+      }
+    }
+
+    /**
      * O QUE FAZER COM O QUE JÁ FOI PAGO.
      *
      * Isto NÃO vem do §17.9: aquele parágrafo fala de ITEM já utilizado,
@@ -932,6 +970,19 @@ export async function cancelNegotiation(
       where: { negotiation_id: id, status: { in: EM_ABERTO } },
       data: { status: "cancelled" },
     });
+
+    // Depois do laço de movimentações, não antes: o laço já cancelou o envio
+    // que aponta para a estadia, e cancelá-lo duas vezes reescreveria a data.
+    if (estadia) {
+      await tx.herdStay.update({
+        where: { id: estadia.id },
+        data: {
+          canceled_at: new Date(),
+          canceled_reason: reason,
+          canceled_by_user_id: canceledByUserId ?? null,
+        },
+      });
+    }
 
     await tx.negotiation.update({
       where: { id },
