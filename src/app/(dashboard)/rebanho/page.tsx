@@ -250,7 +250,22 @@ export default async function RebanhoPage(
                   <span className="tabular-nums text-sm font-medium text-texto">
                     {estadia.saldo_aberto.toLocaleString("pt-BR")}
                   </span>
-                  {writable && (
+                  {/*
+                    A remessa de evento é encerrada em NEGOCIAÇÕES, e não aqui:
+                    lá o produtor informa quanto vendeu e a comissão, e o
+                    encerramento gera a receita. Encerrar por este botão moveria
+                    as cabeças sem registrar dinheiro nenhum, e a venda sumiria
+                    em silêncio. Um caminho só para cada coisa.
+                  */}
+                  {writable && estadia.negotiation_id && (
+                    <Link
+                      href="/negociacoes"
+                      className="text-sm text-acento-tinta underline"
+                    >
+                      Encerrar em Negociações
+                    </Link>
+                  )}
+                  {writable && !estadia.negotiation_id && (
                     <StayCloseForm
                       stayId={estadia.id}
                       tipo={estadia.type}

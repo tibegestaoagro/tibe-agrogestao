@@ -16,7 +16,7 @@ import NegotiationForm from "@/components/negociacoes/negotiation-form";
 import NegotiationCancel from "@/components/negociacoes/negotiation-cancel";
 import EventForm from "@/components/negociacoes/event-form";
 import EventCloseForm from "@/components/negociacoes/event-close-form";
-import { listNegotiations, getOpenTotals, situacaoLabel } from "@/lib/actions/negotiations";
+import { listNegotiations, getOpenTotals, situacaoLabel, ehVenda } from "@/lib/actions/negotiations";
 import { listStays } from "@/lib/actions/herd-stays";
 import { findCategory } from "@/lib/herd/categories";
 import { descreverQuantidade } from "@/lib/stock/units";
@@ -177,8 +177,18 @@ export default async function NegociacoesPage(
             )}
             {items.map((n) => {
               const cancelada = n.canceled_at != null;
-              const animais = n.movimentos.reduce((s, m) => s + m.quantity, 0);
-              const venda = n.type === "venda_gado" || n.type === "venda_produto";
+              // A remessa de evento tem movimentação de IDA e de VOLTA na
+              // mesma negociação (envio, venda, retorno), então somar todas
+              // contava as mesmas cabeças três vezes: uma remessa de 20
+              // encerrada aparecia como 40. Aqui conta só o envio, que é
+              // quantas cabeças o negócio moveu de fato.
+              const animais =
+                n.type === "evento"
+                  ? n.movimentos
+                      .filter((m) => m.movement_type === "envio_evento")
+                      .reduce((s, m) => s + m.quantity, 0)
+                  : n.movimentos.reduce((s, m) => s + m.quantity, 0);
+              const venda = ehVenda(n.type);
               // A remessa aberta é a única linha em que ainda não há valor
               // nenhum, e é assim de propósito: o §17.8 proíbe receita antes
               // da confirmação. A coluna do valor mostra onde o gado está.
@@ -203,10 +213,17 @@ export default async function NegociacoesPage(
                       <>
                         {animais.toLocaleString("pt-BR")}
                         <span className="block text-xs text-gray-500">
-                          {n.movimentos
-                            .map((m) => (m.category_id ? findCategory(m.category_id)?.label : null))
-                            .filter(Boolean)
-                            .join(", ") || ""}
+                          {/* Sem o `Set`, a remessa encerrada repetia "Fêmea -
+                              acima de 36 meses" uma vez por movimentação. */}
+                          {Array.from(
+                            new Set(
+                              n.movimentos
+                                .map((m) =>
+                                  m.category_id ? findCategory(m.category_id)?.label : null,
+                                )
+                                .filter(Boolean),
+                            ),
+                          ).join(", ") || ""}
                         </span>
                       </>
                     )}

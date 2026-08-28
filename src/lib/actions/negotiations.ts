@@ -86,7 +86,17 @@ export type SituacaoNegociacao =
   | "vencida"
   | "parcialmente_paga"
   | "paga"
-  | "cancelada";
+  | "cancelada"
+  /**
+   * Negócio sem NENHUM lançamento principal: não há dinheiro a pagar nem a
+   * receber. Hoje só a remessa para evento chega aqui, e é por desenho (§17.8:
+   * o envio não gera receita antes da confirmação).
+   *
+   * Sem esta situação, uma remessa aberta caía em "confirmada" e a tela a
+   * rotulava "A pagar", dizendo ao produtor que ele devia um dinheiro que não
+   * existe. Achado na validação ao vivo, não por teste.
+   */
+  | "sem_valor";
 
 export type NegotiationDetail = {
   id: string;
@@ -155,8 +165,13 @@ export type NegotiationDetail = {
  * independente, não por teste. A missão 3 traz `evento` e a 4 traz `permuta`:
  * as duas passam por aqui, e a lista precisa ser um lugar só.
  */
-function ehVenda(tipo: NegotiationType): boolean {
-  return tipo === "venda_gado" || tipo === "venda_produto";
+export function ehVenda(tipo: NegotiationType): boolean {
+  // `evento` entra aqui: uma remessa encerrada COM venda é dinheiro que
+  // ENTROU, e sem isto a tela dizia "Quitada" e "mais R$ 3.000,00 de custos,
+  // total R$ 63.000,00" para uma venda de leilão, invertendo o sinal na única
+  // coluna que o produtor lê de relance. Uma remessa ainda aberta não é
+  // afetada: sem lançamento principal, a situação é `sem_valor`.
+  return tipo === "venda_gado" || tipo === "venda_produto" || tipo === "evento";
 }
 
 /**
@@ -447,6 +462,10 @@ function derivarSituacao(
   agora: Date = new Date(),
 ): SituacaoNegociacao {
   if (canceled_at) return "cancelada";
+  // Antes de qualquer conta de pagamento: sem lançamento principal não há o
+  // que pagar nem receber, e chamar isso de "confirmada" fazia a tela dizer
+  // "A pagar" para uma remessa que não deve nada.
+  if (lancamentosPrincipais.length === 0) return "sem_valor";
   const pagos = lancamentosPrincipais.filter((l) => l.status === "paid").length;
   if (pagos === lancamentosPrincipais.length && lancamentosPrincipais.length > 0) return "paga";
 
@@ -1036,6 +1055,8 @@ export function situacaoLabel(situacao: SituacaoNegociacao | string, venda: bool
       return venda ? "Recebida" : "Quitada";
     case "cancelada":
       return "Cancelada";
+    case "sem_valor":
+      return "Sem venda";
     default:
       // Situação nova sem rótulo: melhor uma palavra genérica do que vazar o
       // nome do enum ("parcialmente_paga") na tela do produtor. O `tsc` já

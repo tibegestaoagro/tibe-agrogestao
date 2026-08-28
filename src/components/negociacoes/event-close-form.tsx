@@ -355,11 +355,14 @@ export default function EventCloseForm({
       )}
 
       {/* O placar da soma: aparece enquanto se digita, para a recusa do
-          servidor nunca ser surpresa ao tocar em encerrar. */}
+          servidor nunca ser surpresa ao tocar em encerrar. Some quando a
+          reprovação aparece, porque as duas frases dizem o mesmo número e ler
+          isso duas vezes seguidas faz o aviso parecer eco, não resposta. */}
       <p
         className={
           falta === 0 ? "text-sm font-medium text-sucesso-tinta" : "text-sm text-texto-secundario"
         }
+        hidden={!!err.erros.quantity}
       >
         {falta === 0
           ? "A conta fecha: os destinos somam o que está na remessa."

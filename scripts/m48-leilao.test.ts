@@ -50,7 +50,9 @@ async function comBanco() {
     "@/lib/actions/event-consignments"
   );
   const { listStays } = await import("@/lib/actions/herd-stays");
-  const { cancelNegotiation } = await import("@/lib/actions/negotiations");
+  const { cancelNegotiation, getNegotiation, situacaoLabel, ehVenda } = await import(
+    "@/lib/actions/negotiations"
+  );
   const { getPositions, recordMovement } = await import("@/lib/actions/herd-ledger");
   const { registrarRemessaEvento, encerrarRemessaEvento } = await import(
     "@/lib/actions/whatsapp-handlers/evento"
@@ -156,6 +158,17 @@ async function comBanco() {
       const contato = await db.contact.findFirst({ where: { name: "Leiloeira Central" } });
       check("o organizador vira contato", contato != null);
       check("e a negociação aponta para ele", negociacao?.contact_id === contato?.id);
+
+      // Sem esta situação a remessa aberta caía em "confirmada", e a tela a
+      // rotulava "A pagar": uma dívida que não existe, na coluna que o
+      // produtor lê de relance. Achado na validação ao vivo do navegador.
+      const detalhe = await getNegotiation(db, r.ok ? r.data.id : "");
+      check("a situação derivada é 'sem_valor'", detalhe?.situacao === "sem_valor", detalhe?.situacao);
+      check(
+        "e a tela nunca a chama de 'A pagar'",
+        situacaoLabel(detalhe?.situacao ?? "", false) === "Sem venda",
+        situacaoLabel(detalhe?.situacao ?? "", false),
+      );
     }
 
     console.log("\n2. Sem saldo não abre, e nada fica pela metade");
@@ -305,6 +318,30 @@ async function comBanco() {
         `${custos.length} / ${String(custos[0]?.amount)}`,
       );
       check("e ela é DESPESA, mesmo numa venda", custos[0]?.entry_type === "expense", custos[0]?.entry_type);
+
+      // Os três defeitos que a validação no navegador achou, na mesma linha
+      // da tela, todos vindos de `evento` não contar como venda.
+      const depois = await getNegotiation(db, remessa.id);
+      check(
+        "uma venda de leilão é RECEBIDA, não 'Quitada'",
+        situacaoLabel(depois?.situacao ?? "", ehVenda("evento")) === "Recebida",
+        situacaoLabel(depois?.situacao ?? "", ehVenda("evento")),
+      );
+      check("e o tipo evento conta como venda", ehVenda("evento"));
+      check(
+        "o líquido desconta a comissão, não a soma",
+        depois?.totais.liquido === 57000,
+        String(depois?.totais.liquido),
+      );
+      // A remessa tem ida E volta na mesma negociação (envio, venda, retorno).
+      // Somar tudo contava as mesmas cabeças três vezes, e a tela mostrava 40
+      // numa remessa de 20.
+      const envios = (depois?.movimentos ?? []).filter((m) => m.movement_type === "envio_evento");
+      check(
+        "só o envio conta as cabeças da remessa",
+        envios.reduce((s, m) => s + m.quantity, 0) === 20,
+        String(envios.reduce((s, m) => s + m.quantity, 0)),
+      );
 
       const encerrar = await closeEventConsignment(db, remessa.id, { retornados: 1 });
       check(
