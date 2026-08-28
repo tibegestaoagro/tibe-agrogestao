@@ -15,8 +15,12 @@ import { Badge } from "@/components/ui/badge";
 import MovementForm from "@/components/rebanho/movement-form";
 import MovementCancel from "@/components/rebanho/movement-cancel";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ResumoDoRebanho } from "@/components/rebanho/resumo-do-rebanho";
+import StayForm from "@/components/rebanho/stay-form";
+import StayCloseForm from "@/components/rebanho/stay-close-form";
 import { decToNum } from "@/lib/serialize";
 import { getPeriodTotals, getPositions, listMovements } from "@/lib/actions/herd-ledger";
+import { listStays } from "@/lib/actions/herd-stays";
 import { summarizePositions } from "@/lib/herd/summary";
 import { findCategory } from "@/lib/herd/categories";
 
@@ -46,6 +50,15 @@ const TIPO_LABEL: Record<string, string> = {
   ajuste: "Ajuste",
 };
 
+/** Como cada tipo de estadia aparece para o produtor, na língua dele. */
+const ESTADIA_LABEL: Record<string, string> = {
+  pasto_terceiro: "Pasto de terceiro",
+  boitel: "Boitel",
+  evento: "Leilão ou feira",
+  terceiro_na_fazenda: "Animais de terceiro aqui",
+  desaparecimento: "Desaparecidos",
+};
+
 function nomeCategoria(id: string | null | undefined) {
   if (!id) return null;
   return findCategory(id)?.label ?? id;
@@ -72,7 +85,7 @@ export default async function RebanhoPage(
   const inicioDoMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
   const fimDoMes = new Date(agora.getFullYear(), agora.getMonth() + 1, 0, 23, 59, 59, 999);
 
-  const [positions, periodo, historico, properties, pastures, identificados] = await Promise.all([
+  const [positions, periodo, historico, properties, pastures, estadias, identificados] = await Promise.all([
     // SEM filtro de dono, desde a fase 2: quem separa próprio de terceiro é
     // `summarizePositions`, que precisa ver os dois para responder "quanto é
     // meu" e "quanto tem para tratar hoje" na mesma passada. Filtrar aqui
@@ -89,6 +102,10 @@ export default async function RebanhoPage(
     ),
     db.property.findMany({ where: { archived_at: null }, orderBy: { name: "asc" } }),
     db.pasture.findMany({ where: { archived_at: null }, orderBy: { name: "asc" } }),
+    listStays(db, {
+      ...(effectivePropertyId ? { property_id: effectivePropertyId } : {}),
+      apenas_abertas: true,
+    }),
     db.animalBatch.findMany({
       where: {
         ...(effectivePropertyId ? { property_id: effectivePropertyId } : {}),
@@ -125,22 +142,32 @@ export default async function RebanhoPage(
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-texto">Rebanho</h1>
-          <p className="mt-0.5 text-sm text-texto-discreto">
-            Total geral: {resumo.total.toLocaleString("pt-BR")} animais
-          </p>
         </div>
         {writable && properties.length > 0 && (
-          <MovementForm
-            properties={properties.map((p) => ({ id: p.id, name: p.name }))}
-            pastures={pastures.map((p) => ({
-              id: p.id,
-              name: p.name,
-              property_id: p.property_id,
-            }))}
-            defaultPropertyId={effectivePropertyId ?? null}
-          />
+          <div className="flex flex-wrap gap-2">
+            <StayForm
+              properties={properties.map((p) => ({ id: p.id, name: p.name }))}
+              pastures={pastures.map((p) => ({
+                id: p.id,
+                name: p.name,
+                property_id: p.property_id,
+              }))}
+              defaultPropertyId={effectivePropertyId ?? null}
+            />
+            <MovementForm
+              properties={properties.map((p) => ({ id: p.id, name: p.name }))}
+              pastures={pastures.map((p) => ({
+                id: p.id,
+                name: p.name,
+                property_id: p.property_id,
+              }))}
+              defaultPropertyId={effectivePropertyId ?? null}
+            />
+          </div>
         )}
       </div>
+
+      <ResumoDoRebanho resumo={resumo} />
 
       {properties.length === 0 && (
         <p className="rounded-md bg-atencao-suave px-4 py-3 text-sm text-atencao-tinta">
@@ -195,6 +222,50 @@ export default async function RebanhoPage(
           </div>
         ))}
       </div>
+
+      {estadias.ok && estadias.data.length > 0 && (
+        <div className="rounded-lg border border-borda bg-superficie p-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-texto-secundario">
+            Fora da fazenda agora
+          </h2>
+          <ul className="mt-3 divide-y divide-borda">
+            {estadias.data.map((estadia) => (
+              <li
+                key={estadia.id}
+                className="flex flex-wrap items-center justify-between gap-2 py-2.5"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-texto">
+                    {ESTADIA_LABEL[estadia.type] ?? estadia.type}
+                    {estadia.counterparty_name ? ` · ${estadia.counterparty_name}` : ""}
+                  </p>
+                  <p className="text-xs text-texto-discreto">
+                    Desde {estadia.started_at.toLocaleDateString("pt-BR")}
+                    {estadia.expected_end_at
+                      ? ` · volta prevista ${estadia.expected_end_at.toLocaleDateString("pt-BR")}`
+                      : ""}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="tabular-nums text-sm font-medium text-texto">
+                    {estadia.saldo_aberto.toLocaleString("pt-BR")}
+                  </span>
+                  {writable && (
+                    <StayCloseForm
+                      stayId={estadia.id}
+                      tipo={estadia.type}
+                      saldoAberto={estadia.saldo_aberto}
+                      descricao={`${ESTADIA_LABEL[estadia.type] ?? estadia.type}${
+                        estadia.counterparty_name ? ` com ${estadia.counterparty_name}` : ""
+                      }, desde ${estadia.started_at.toLocaleDateString("pt-BR")}.`}
+                    />
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded-lg border border-borda bg-superficie p-4">
