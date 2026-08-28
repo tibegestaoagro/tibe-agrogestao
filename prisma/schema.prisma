@@ -1498,6 +1498,16 @@ model HerdStay {
   charge_type  HerdChargeType?
   charge_value Decimal?        @db.Decimal(14, 2)
 
+  /// De qual envelope comercial a estadia nasceu. Só a remessa de evento tem:
+  /// pasto de terceiro, boitel e desaparecimento não são negócio. O filho
+  /// aponta para o envelope, como em `HerdMovement.negotiation_id`.
+  negotiation_id String?
+
+  /// "Tipo do evento" do §8.1: leilão, feira, exposição. Texto livre porque o
+  /// documento não fecha a lista, e uma constante nossa recusaria o que o
+  /// produtor escrever.
+  event_type String?
+
   /// Motivo provável, que o complemento pede no desaparecimento.
   reason String?
   notes  String?
@@ -1514,10 +1524,12 @@ model HerdStay {
   tenant      Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   property    Property       @relation(fields: [property_id], references: [id], onDelete: Restrict)
   recorded_by User?          @relation(fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
+  negotiation Negotiation?   @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
   movements   HerdMovement[]
 
   @@index([tenant_id, type])
   @@index([tenant_id, started_at])
+  @@index([negotiation_id])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1629,6 +1641,7 @@ model Negotiation {
   movements   HerdMovement[]
   stock_movements StockMovement[]
   entries     FinancialEntry[]
+  herd_stays  HerdStay[]
 
   @@index([tenant_id])
   @@index([tenant_id, occurred_at])
