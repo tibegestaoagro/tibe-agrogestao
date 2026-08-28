@@ -25,15 +25,12 @@ Se ele passar de umas 200, arquive antes de acrescentar.
 ## Estado atual
 
 - Atualizado em: 2026-08-28.
-- **As frentes 1 e 2 estão na `main`.** A `modulo-30-fase-2` foi mesclada e a
-  spec da frente 3 é o topo da `main` (`cbcf857`).
-- ⚠️ **A frente 3 está PRONTA e NÃO mesclada**, na branch `modulo-31-leilao`.
-  Oito tarefas, suíte `m48` nova, **51/51 suítes verdes** e validada no
-  navegador em 28/08 (as seis conferências do plano).
-- ⚠️ **A migração da frente 3 NÃO foi aplicada no Neon**
-  (`20260828120000_remessa_de_evento`: duas colunas anuláveis em `HerdStay`).
-  Ela vai junto do merge, na ordem do invariante 3. O banco local já está com
-  ela.
+- **As frentes 1, 2 e 3 estão na `main`.** A frente 3 (leilão, feira e evento)
+  foi mesclada em 28/08, em nove commits, com suíte `m48` nova, **51/51 suítes
+  verdes** e validação no navegador (as seis conferências do plano).
+- **A migração `20260828120000_remessa_de_evento` foi aplicada no Neon** antes
+  do push, na ordem do invariante 3. O Neon está com as 34, e
+  `npx prisma migrate status` responde "up to date".
 - ⚠️ **Confira se o deploy nasceu.** No plano gratuito da Vercel, push de
   colaborador não dispara deploy, e o commit entra na `main` sem nenhuma versão
   nascer e sem erro em lugar nenhum. O usuário disse em 28/08 que "sobre o
@@ -111,29 +108,46 @@ que é colaboradora, as páginas de regra devolvem 404.
 
 ### Próximo passo
 
-**A frente 2 está pronta, esperando sua autorização para migração e merge.**
-Depois dela vem a frente 3, a missão 3 do Módulo 31 (leilão e eventos), que
-encontra o terreno pronto: `HerdStayType.evento`, `HerdSituation.evento` e
-`envio_evento` já existem no schema, sem uso.
+**A frente 4 é a próxima: a missão 4 do Módulo 31, a permuta.** A decisão 11 da
+spec do Módulo 31 manda ser a última: qualquer item por qualquer item, com
+diferença em dinheiro, tocando quatro módulos num registro só, sobre peças já
+testadas em uso real. Próximo número livre de suíte: `m49`.
 
-**O que a frente 2 entregou**, em nove commits na `modulo-30-fase-2`: o model
-`HerdStay` com as movimentações apontando para ele por `stay_id`; os cinco
-números separando propriedade de localização (`test:m32` com o exemplo do
-cliente); a tabela de regras por tipo (`test:m47`); abrir, encerrar, listar e
-cancelar estadia; as quatro rotas; e a tela, com o painel que cresce conforme
-a fazenda tem o que mostrar.
+Depois dela vem a frente 5, o rollout do sistema de design nos painéis de
+escrita restantes e nos arquivos que ainda pintam com a paleta crua do
+Tailwind (`scripts/baseline-cor-crua.json`, que só pode encolher).
 
-**Validado no navegador em 28/08**, com as seis conferências do plano: enviar
-20 para pasto de terceiro não mexe no rebanho próprio e move 20 para "fora";
-encerrar com 12 vendidos e 8 retornados leva o próprio de 100 para 88 e faz a
-decomposição sumir sozinha; o painel com os cinco números fecha a identidade
-(75 + 10 + 3 = 88, e 115 físicos contando 40 de terceiros); vender animal
-desaparecido é recusado; e a conta a pagar do pasto nasce ligada à estadia.
+**O que a frente 3 entregou**, em nove commits: a remessa como
+`Negotiation(evento)` **sem valor** com uma `HerdStay(evento)` filha, e o envio
+sem lançamento financeiro nenhum (§17.8); o encerramento em que a soma dos três
+destinos tem que bater com o enviado, com a receita e os custos nascendo só ali;
+o cancelamento que desfaz rebanho, dinheiro e estadia juntos; as duas rotas; o
+handler de WhatsApp com pendência guardada; e as duas telas, com o placar da
+soma ao vivo.
+
+⚠️ **Três decisões que a execução forçou**, e que valem para quem mexer nisso:
+
+1. **"Outro destino" grava DOIS movimentos**, não um. `HerdMovement.stay_id`
+   aponta para uma estadia só, e com um movimento ou a remessa antiga ficava
+   aberta com saldo fantasma, ou a estadia nova nascia vazia. Os dois entram na
+   mesma transação, então a passagem pela fazenda não é observável.
+2. **O handler de WhatsApp tem store de pendência próprio**
+   (`event-pending.ts`, chave `tibe:remessa-pending:`). Sem âncora, o "sim"
+   executaria o que o classificador remontou: é a cicatriz de 18/08 no estoque.
+3. **`HerdStay(evento)` não é mais criável direto.** Quem abre remessa é
+   Negociações, e o Rebanho manda encerrar lá: encerrar pelo Rebanho moveria as
+   cabeças sem registrar a venda.
+
+**A validação no navegador achou quatro defeitos que a suíte verde não pegava**,
+todos de sinal invertido na tela: a remessa aberta como "A pagar" (uma dívida
+que não existe), a encerrada como "Quitada" com custos somados em vez de
+descontados, a contagem somando ida e volta (40 numa remessa de 20), e um
+segundo botão de encerrar no Rebanho. Os quatro viraram teste.
 
 O plano de sequência das cinco frentes está em
 [../superpowers/specs/2026-08-27-sequencia-para-fechar-os-modulos-design.md](../superpowers/specs/2026-08-27-sequencia-para-fechar-os-modulos-design.md)
-e os planos de execução, em `../superpowers/plans/`. A spec da frente 2 está em
-[../superpowers/specs/2026-08-27-modulo-30-fase-2-design.md](../superpowers/specs/2026-08-27-modulo-30-fase-2-design.md).
+e os planos de execução, em `../superpowers/plans/`. A spec da frente 3 está em
+[../superpowers/specs/2026-08-28-modulo-31-missao-3-leilao-design.md](../superpowers/specs/2026-08-28-modulo-31-missao-3-leilao-design.md).
 Decisões do usuário registradas ali: app mobile e n8n só depois do sistema
 completo; nas missões novas o handler de WhatsApp nasce junto, o classificador
 não; e nos primitivos compartilhados, só troca de cor invisível.

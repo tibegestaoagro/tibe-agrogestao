@@ -67,7 +67,7 @@ Próximo número livre de suíte: `m49`.
 
 ### 2.1.1 Missão 3, leilão e eventos: FEITA em 2026-08-28
 
-Está na branch `modulo-31-leilao`, esperando merge. A remessa é uma
+Mesclada na `main` em 2026-08-28, com a migração aplicada no Neon antes do push. A remessa é uma
 `Negotiation(evento)` sem valor com uma `HerdStay(evento)` filha, e **o envio
 não gera lançamento financeiro nenhum** (§17.8). O encerramento exige a soma
 dos três destinos bater com o enviado, e só aí nasce a receita, com comissão e
