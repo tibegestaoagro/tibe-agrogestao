@@ -14,7 +14,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import NegotiationForm from "@/components/negociacoes/negotiation-form";
 import NegotiationCancel from "@/components/negociacoes/negotiation-cancel";
+import EventForm from "@/components/negociacoes/event-form";
+import EventCloseForm from "@/components/negociacoes/event-close-form";
 import { listNegotiations, getOpenTotals, situacaoLabel } from "@/lib/actions/negotiations";
+import { listStays } from "@/lib/actions/herd-stays";
 import { findCategory } from "@/lib/herd/categories";
 import { descreverQuantidade } from "@/lib/stock/units";
 
@@ -62,7 +65,7 @@ export default async function NegociacoesPage(
   const activePropertyId = await getActivePropertyId(db);
   const effectivePropertyId = searchParams.property_id ?? activePropertyId ?? undefined;
 
-  const [{ items, total }, totais, properties, contacts] = await Promise.all([
+  const [{ items, total }, totais, properties, contacts, pastures, remessas] = await Promise.all([
     listNegotiations(
       db,
       effectivePropertyId ? { property_id: effectivePropertyId } : {},
@@ -71,7 +74,18 @@ export default async function NegociacoesPage(
     getOpenTotals(db, effectivePropertyId ? { property_id: effectivePropertyId } : {}),
     db.property.findMany({ where: { archived_at: null }, orderBy: { name: "asc" } }),
     db.contact.findMany({ where: { archived_at: null }, orderBy: { name: "asc" } }),
+    db.pasture.findMany({ where: { archived_at: null }, orderBy: { name: "asc" } }),
+    // As remessas ainda ABERTAS, para a linha mostrar quantas cabeças estão no
+    // evento e oferecer o encerramento. "Aberta" é saldo maior que zero,
+    // derivado das movimentações: não existe campo dizendo isso.
+    listStays(db, { type: "evento", apenas_abertas: true }),
   ]);
+
+  const remessaPorNegociacao = new Map(
+    (remessas.ok ? remessas.data : [])
+      .filter((e) => e.negotiation_id)
+      .map((e) => [e.negotiation_id!, e]),
+  );
 
   // §19: "valores a pagar" e "valores a receber", de TODAS as negociações
   // vivas, não só das 30 que a lista abaixo mostra. Ver getOpenTotals.
@@ -87,11 +101,22 @@ export default async function NegociacoesPage(
           </p>
         </div>
         {writable && properties.length > 0 && (
-          <NegotiationForm
-            properties={properties.map((p) => ({ id: p.id, name: p.name }))}
-            contacts={contacts.map((c) => ({ id: c.id, name: c.name }))}
-            defaultPropertyId={effectivePropertyId ?? null}
-          />
+          <div className="flex flex-wrap gap-2">
+            <EventForm
+              properties={properties.map((p) => ({ id: p.id, name: p.name }))}
+              pastures={pastures.map((p) => ({
+                id: p.id,
+                name: p.name,
+                property_id: p.property_id,
+              }))}
+              defaultPropertyId={effectivePropertyId ?? null}
+            />
+            <NegotiationForm
+              properties={properties.map((p) => ({ id: p.id, name: p.name }))}
+              contacts={contacts.map((c) => ({ id: c.id, name: c.name }))}
+              defaultPropertyId={effectivePropertyId ?? null}
+            />
+          </div>
         )}
       </div>
 
@@ -154,6 +179,10 @@ export default async function NegociacoesPage(
               const cancelada = n.canceled_at != null;
               const animais = n.movimentos.reduce((s, m) => s + m.quantity, 0);
               const venda = n.type === "venda_gado" || n.type === "venda_produto";
+              // A remessa aberta é a única linha em que ainda não há valor
+              // nenhum, e é assim de propósito: o §17.8 proíbe receita antes
+              // da confirmação. A coluna do valor mostra onde o gado está.
+              const remessaAberta = remessaPorNegociacao.get(n.id);
               return (
                 <TableRow key={n.id} className={cancelada ? "text-texto-discreto" : undefined}>
                   <TableCell>{n.occurred_at.toLocaleDateString("pt-BR")}</TableCell>
@@ -199,8 +228,15 @@ export default async function NegociacoesPage(
                     e não sabia de onde ela vinha.
                   */}
                   <TableCell className="tabular-nums">
-                    {reais(n.totais.principal)}
-                    {n.totais.custos > 0 && (
+                    {remessaAberta ? (
+                      <span className="text-texto-secundario">
+                        {remessaAberta.saldo_aberto.toLocaleString("pt-BR")} no evento
+                        <span className="block text-xs">ainda sem venda</span>
+                      </span>
+                    ) : (
+                      reais(n.totais.principal)
+                    )}
+                    {!remessaAberta && n.totais.custos > 0 && (
                       <span className="block text-xs text-gray-500">
                         {venda ? "menos" : "mais"} {reais(n.totais.custos)} de custos
                         <span className="block">
@@ -220,7 +256,14 @@ export default async function NegociacoesPage(
                       {situacaoLabel(n.situacao, venda)}
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="flex flex-wrap gap-2">
+                    {writable && !cancelada && remessaAberta && (
+                      <EventCloseForm
+                        negotiationId={n.id}
+                        saldoAberto={remessaAberta.saldo_aberto}
+                        descricao={`${remessaAberta.location_name ?? "Evento"}, ${remessaAberta.saldo_aberto.toLocaleString("pt-BR")} cabeça(s)`}
+                      />
+                    )}
                     {writable && !cancelada && (
                       <NegotiationCancel
                         negotiationId={n.id}

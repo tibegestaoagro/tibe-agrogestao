@@ -378,6 +378,8 @@ export type HerdStayListItem = {
   property_id: string;
   counterparty_name: string | null;
   location_name: string | null;
+  /** De qual negociação a estadia nasceu. Só a remessa de evento tem. */
+  negotiation_id: string | null;
   started_at: Date;
   expected_end_at: Date | null;
   charge_type: HerdChargeType | null;
@@ -440,6 +442,7 @@ export async function listStays(
       property_id: stay.property_id,
       counterparty_name: stay.counterparty_name,
       location_name: stay.location_name,
+      negotiation_id: stay.negotiation_id,
       started_at: stay.started_at,
       expected_end_at: stay.expected_end_at,
       charge_type: stay.charge_type,
