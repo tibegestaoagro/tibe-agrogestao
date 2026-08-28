@@ -57,3 +57,64 @@ export const negotiationCreateSchema = z.object({
 });
 
 export type NegotiationCreateBody = z.infer<typeof negotiationCreateSchema>;
+
+/**
+ * Missão 3: a remessa para leilão, feira ou evento (§8).
+ *
+ * NÃO tem `amount`, e isso é o contrato inteiro em uma linha: o §17.8 diz que
+ * o envio não pode gerar venda antes da confirmação, e um campo de valor aqui
+ * seria o convite para gerar. O valor entra no encerramento.
+ */
+export const eventConsignmentSchema = z.object({
+  property_id: z.string().min(1, "Informe a fazenda"),
+  category_id: z.string().min(1, "Informe a categoria dos animais"),
+  quantity: z.number().int().positive("A quantidade deve ser maior que zero"),
+  pasture_id: z.string().min(1).nullish(),
+  /** §8.1: nome do evento, tipo do evento, município, organizador. */
+  event_name: z.string().trim().min(1, "Informe o nome do evento").max(200),
+  event_type: z.string().trim().min(1).max(100).nullish(),
+  city: z.string().trim().min(1).max(120).nullish(),
+  organizer_name: z.string().trim().min(1).max(200).nullish(),
+  contact_id: z.string().min(1).nullish(),
+  occurred_at: z.string().datetime({ message: "Data inválida" }).nullish(),
+  expected_end_at: z.string().datetime({ message: "Data prevista inválida" }).nullish(),
+  notes: z.string().trim().max(1000).nullish(),
+});
+
+export type EventConsignmentBody = z.infer<typeof eventConsignmentSchema>;
+
+/**
+ * Os destinos possíveis do "outro destino" no encerramento.
+ *
+ * `terceiro_na_fazenda` fica de fora: aquele tipo troca o DONO das cabeças, e
+ * o gado do produtor não passa a ser de outra pessoa por mudar de lugar. A
+ * action recusa pela mesma razão, e ter a lista nos dois lugares é de
+ * propósito: o schema recusa a forma, a action recusa a regra.
+ */
+const outroDestinoSchema = z.object({
+  quantity: z.number().int().positive("A quantidade deve ser maior que zero"),
+  type: z.enum(["pasto_terceiro", "boitel", "evento", "desaparecimento"]),
+  counterparty_name: z.string().trim().min(1).max(200).nullish(),
+  location_name: z.string().trim().min(1).max(200).nullish(),
+  city: z.string().trim().min(1).max(120).nullish(),
+  expected_end_at: z.string().datetime({ message: "Data prevista inválida" }).nullish(),
+});
+
+/**
+ * O encerramento da remessa: quantos venderam, quantos voltaram e quantos
+ * seguiram para outro destino. A soma tem que bater com o enviado, e quem
+ * confere isso é a action, que conhece o saldo.
+ */
+export const eventCloseSchema = z.object({
+  vendidos: z.number().int().nonnegative().nullish(),
+  retornados: z.number().int().nonnegative().nullish(),
+  outro_destino: outroDestinoSchema.nullish(),
+  amount: z.number().positive("O valor da venda deve ser maior que zero").nullish(),
+  pago: z.boolean().nullish(),
+  due_date: z.string().datetime({ message: "Data de vencimento inválida" }).nullish(),
+  parcelas: z.array(parcelaSchema).nullish(),
+  custos: z.array(custoSchema).nullish(),
+  occurred_at: z.string().datetime({ message: "Data inválida" }).nullish(),
+});
+
+export type EventCloseBody = z.infer<typeof eventCloseSchema>;

@@ -399,6 +399,26 @@ export const GROUPS: Group[] = [
         response: `200
 { "data": { "id": "cl...", "situacao": "cancelada", "canceled_reason": "comprei errado" }, "meta": { "valor_recebido_mantido": 0, "valor_pago_mantido": 0, "valor_estornado": 60000 } }`,
       },
+      {
+        method: "POST",
+        path: "/api/v1/negotiations/events",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "Abre a REMESSA para leilão, feira ou evento (§8). NÃO gera lançamento financeiro nenhum, e o corpo nem aceita valor: o §17.8 diz que o envio de animais para um evento não pode virar venda antes da confirmação. As cabeças saem da quantidade física da fazenda e continuam no rebanho do produtor, na situação `evento`. Cria três coisas numa transação só: a negociação (tipo `evento`, sem valor), a estadia filha com os campos do §8.1, e a movimentação `envio_evento` apontando para as duas. Sem saldo, NADA é gravado: devolve 422 `INSUFFICIENT_BALANCE` no campo `quantity`, e nem a negociação nem o contato do organizador ficam para trás.",
+        request: `{ "property_id": "cl...", "category_id": "femea_36_mais", "quantity": 20, "event_name": "Leilão de Outubro", "event_type": "leilão", "organizer_name": "Leiloeira Central", "expected_end_at": "2026-10-20T00:00:00.000Z" }`,
+        response: `201
+{ "data": { "id": "cl...", "stay_id": "cl..." }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/negotiations/:id/close-event",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "Encerra a remessa: quantos venderam, quantos voltaram e quantos seguiram para outro destino. A SOMA DOS TRÊS precisa ser igual ao que está na remessa, senão devolve 422 `DESTINOS_NAO_BATEM` no campo `quantity` e nada se move. O dinheiro só nasce AGORA: `amount` vira o valor da mesma negociação e o lançamento `principal` (com parcelas, quando houver, somando exatamente `amount`), e `custos` (comissão da leiloeira, taxa do evento, frete) viram lançamentos de DESPESA próprios. Venda sem valor é 422 `VENDA_SEM_VALOR` e valor sem venda é 422 `VALOR_SEM_VENDA`, os dois no campo `amount`. `outro_destino` fecha esta remessa e abre uma estadia NOVA do tipo escolhido, cujo id volta em `meta.nova_estadia_id`: nenhuma cabeça some, e nenhuma volta para a fazenda por engano.",
+        request: `{ "vendidos": 12, "retornados": 8, "amount": 60000, "pago": true, "custos": [{ "descricao": "Comissão da leiloeira", "amount": 3000 }] }`,
+        response: `200
+{ "data": { "id": "cl...", "type": "evento", "amount": 60000, "situacao": "paga" }, "meta": { "nova_estadia_id": null, "encerrada": true } }`,
+      },
     ],
   },
   {
