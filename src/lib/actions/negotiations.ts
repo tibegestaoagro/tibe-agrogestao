@@ -150,8 +150,21 @@ export type NegotiationDetail = {
     product_name: string;
     unit: string;
     quantity: number;
+    /**
+     * Aditivo, para a permuta: sem ele a tela não sabe de qual LADO da troca o
+     * produto veio, e uma permuta de produto por máquina mostrava o mesmo
+     * produto nos dois lados.
+     */
+    movement_type: string;
     canceled_at: Date | null;
   }[];
+  /**
+   * Os dois lados da permuta que não têm área no Tibé (serviço, outro). Nulos
+   * em todo tipo que não é permuta, e também numa permuta cujos dois lados o
+   * Tibé sabe guardar.
+   */
+  barter_out_note: string | null;
+  barter_in_note: string | null;
   lancamentos: {
     id: string;
     entry_type: string;
@@ -536,6 +549,7 @@ export async function getNegotiation(
           id: true,
           product_id: true,
           quantity: true,
+          movement_type: true,
           canceled_at: true,
           product: { select: { name: true, unit: true } },
         },
@@ -637,8 +651,11 @@ export async function getNegotiation(
       product_name: m.product.name,
       unit: m.product.unit,
       quantity: decToNum(m.quantity) ?? 0,
+      movement_type: m.movement_type,
       canceled_at: m.canceled_at,
     })),
+    barter_out_note: n.barter_out_note,
+    barter_in_note: n.barter_in_note,
     lancamentos,
   };
 }

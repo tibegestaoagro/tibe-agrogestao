@@ -16,7 +16,8 @@ import NegotiationForm from "@/components/negociacoes/negotiation-form";
 import NegotiationCancel from "@/components/negociacoes/negotiation-cancel";
 import EventForm from "@/components/negociacoes/event-form";
 import EventCloseForm from "@/components/negociacoes/event-close-form";
-import { listNegotiations, getOpenTotals, situacaoLabel, ehVenda } from "@/lib/actions/negotiations";
+import BarterForm from "@/components/negociacoes/barter-form";
+import { listNegotiations, getOpenTotals, situacaoLabel } from "@/lib/actions/negotiations";
 import { listStays } from "@/lib/actions/herd-stays";
 import { findCategory } from "@/lib/herd/categories";
 import { descreverQuantidade } from "@/lib/stock/units";
@@ -48,6 +49,53 @@ function reais(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+/**
+ * Um lado da permuta, em uma frase.
+ *
+ * Lê os FILHOS, nunca um campo de item: é a decisão 6 da spec da missão 4. O
+ * texto só entra quando o lado é serviço ou outro, que são os únicos sem filho
+ * para ler. Uma máquina não aparece aqui porque ela não é filha da negociação
+ * por movimentação, e sim pelo vínculo em `Machine`: a linha diz "uma máquina"
+ * e o detalhe fica em Máquinas.
+ */
+function resumoDoLado(
+  n: {
+    movimentos: { movement_type: string; quantity: number; category_id: string | null }[];
+    produtos: { quantity: number; unit: string; product_name: string; movement_type: string }[];
+  },
+  tipo: "permuta_saida" | "permuta_entrada",
+  texto: string | null,
+): string {
+  if (texto) return texto;
+
+  const animaisDoLado = n.movimentos.filter((m) => m.movement_type === tipo);
+  if (animaisDoLado.length > 0) {
+    const cabecas = animaisDoLado.reduce((s, m) => s + m.quantity, 0);
+    const categorias = Array.from(
+      new Set(
+        animaisDoLado
+          .map((m) => (m.category_id ? findCategory(m.category_id)?.label : null))
+          .filter(Boolean),
+      ),
+    ).join(", ");
+    return `${cabecas.toLocaleString("pt-BR")} ${categorias || "cabeças"}`;
+  }
+
+  // O tipo do movimento de ESTOQUE tem os mesmos nomes do rebanho, então o
+  // mesmo filtro serve: sem ele, uma permuta de produto por máquina mostraria
+  // o produto nos dois lados.
+  const produtosDoLado = n.produtos.filter((p) => p.movement_type === tipo);
+  if (produtosDoLado.length > 0) {
+    return produtosDoLado
+      .map((p) => `${descreverQuantidade(p.quantity, p.unit)} de ${p.product_name}`)
+      .join(", ");
+  }
+
+  // Sobrou a máquina, que não é filha por movimentação e sim pelo vínculo em
+  // `Machine`. O detalhe dela fica em Máquinas.
+  return "uma máquina";
+}
+
 export default async function NegociacoesPage(
   props: {
     searchParams: Promise<{ property_id?: string }>;
@@ -65,7 +113,16 @@ export default async function NegociacoesPage(
   const activePropertyId = await getActivePropertyId(db);
   const effectivePropertyId = searchParams.property_id ?? activePropertyId ?? undefined;
 
-  const [{ items, total }, totais, properties, contacts, pastures, remessas] = await Promise.all([
+  const [
+    { items, total },
+    totais,
+    properties,
+    contacts,
+    pastures,
+    machines,
+    produtos,
+    remessas,
+  ] = await Promise.all([
     listNegotiations(
       db,
       effectivePropertyId ? { property_id: effectivePropertyId } : {},
@@ -75,6 +132,18 @@ export default async function NegociacoesPage(
     db.property.findMany({ where: { archived_at: null }, orderBy: { name: "asc" } }),
     db.contact.findMany({ where: { archived_at: null }, orderBy: { name: "asc" } }),
     db.pasture.findMany({ where: { archived_at: null }, orderBy: { name: "asc" } }),
+    // Só as máquinas que ainda são do produtor: uma já negociada ou vendida
+    // não pode ser entregue de novo, e oferecê-la seria convidar a recusa.
+    db.machine.findMany({
+      where: { status: { notIn: ["sold", "negociada"] } },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+    db.product.findMany({
+      where: { archived_at: null },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, unit: true },
+    }),
     // As remessas ainda ABERTAS, para a linha mostrar quantas cabeças estão no
     // evento e oferecer o encerramento. "Aberta" é saldo maior que zero,
     // derivado das movimentações: não existe campo dizendo isso.
@@ -109,6 +178,17 @@ export default async function NegociacoesPage(
                 name: p.name,
                 property_id: p.property_id,
               }))}
+              defaultPropertyId={effectivePropertyId ?? null}
+            />
+            <BarterForm
+              properties={properties.map((p) => ({ id: p.id, name: p.name }))}
+              pastures={pastures.map((p) => ({
+                id: p.id,
+                name: p.name,
+                property_id: p.property_id,
+              }))}
+              machines={machines}
+              produtos={produtos}
               defaultPropertyId={effectivePropertyId ?? null}
             />
             <NegotiationForm
@@ -188,7 +268,11 @@ export default async function NegociacoesPage(
                       .filter((m) => m.movement_type === "envio_evento")
                       .reduce((s, m) => s + m.quantity, 0)
                   : n.movimentos.reduce((s, m) => s + m.quantity, 0);
-              const venda = ehVenda(n.type);
+              // `recebe_dinheiro`, nunca `ehVenda(n.type)`: numa PERMUTA a
+              // direção depende da diferença, não do tipo, e chamar `ehVenda`
+              // aqui faria a linha dizer "A pagar" numa troca em que o
+              // produtor recebeu.
+              const venda = n.recebe_dinheiro;
               // A remessa aberta é a única linha em que ainda não há valor
               // nenhum, e é assim de propósito: o §17.8 proíbe receita antes
               // da confirmação. A coluna do valor mostra onde o gado está.
@@ -209,7 +293,23 @@ export default async function NegociacoesPage(
                     não via o que tinha comprado.
                   */}
                   <TableCell>
-                    {animais > 0 && (
+                    {/*
+                      A PERMUTA tem os dois lados na mesma negociação, então
+                      somar todos os movimentos contaria uma troca de 15 por 10
+                      como 25. Aqui cada lado aparece por si, que é como o
+                      produtor pensa a troca.
+                    */}
+                    {n.type === "permuta" ? (
+                      <>
+                        <span className="block text-xs">
+                          entregou {resumoDoLado(n, "permuta_saida", n.barter_out_note)}
+                        </span>
+                        <span className="block text-xs">
+                          recebeu {resumoDoLado(n, "permuta_entrada", n.barter_in_note)}
+                        </span>
+                      </>
+                    ) : (
+                      animais > 0 && (
                       <>
                         {animais.toLocaleString("pt-BR")}
                         <span className="block text-xs text-gray-500">
@@ -226,15 +326,16 @@ export default async function NegociacoesPage(
                           ).join(", ") || ""}
                         </span>
                       </>
+                      )
                     )}
-                    {n.produtos.length > 0 && (
+                    {n.type !== "permuta" && n.produtos.length > 0 && (
                       <span className="block text-xs text-gray-600">
                         {n.produtos
                           .map((p) => `${descreverQuantidade(p.quantity, p.unit)} de ${p.product_name}`)
                           .join(", ")}
                       </span>
                     )}
-                    {animais === 0 && n.produtos.length === 0 && "-"}
+                    {n.type !== "permuta" && animais === 0 && n.produtos.length === 0 && "-"}
                   </TableCell>
                   <TableCell>{n.contact_name ?? "não informado"}</TableCell>
                   {/*
@@ -270,7 +371,9 @@ export default async function NegociacoesPage(
                         cancelada ? "gray" : n.situacao === "paga" ? "green" : n.situacao === "vencida" ? "red" : "gray"
                       }
                     >
-                      {situacaoLabel(n.situacao, venda)}
+                      {/* O terceiro argumento é o que faz a troca seca dizer
+                          "Troca sem dinheiro" em vez de "Sem venda". */}
+                      {situacaoLabel(n.situacao, venda, n.type)}
                     </Badge>
                   </TableCell>
                   <TableCell className="flex flex-wrap gap-2">
