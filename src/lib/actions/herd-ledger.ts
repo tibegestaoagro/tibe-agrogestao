@@ -467,6 +467,11 @@ const ENTRY_ONLY: readonly HerdMovementType[] = [
   // nenhuma. É entrada como uma compra, sem virar rebanho próprio, porque o
   // eixo de dono é que faz essa distinção.
   "entrada_terceiro",
+  // Missão 4 do Módulo 31: o animal recebido numa permuta não sai de posição
+  // nenhuma, do mesmo jeito que uma compra. Fora desta lista ele cairia no
+  // ramo de `ajuste`, que aceita a movimentação com só a ORIGEM: uma entrada
+  // que SUBTRAI do rebanho, gravada em silêncio.
+  "permuta_entrada",
 ];
 const EXIT_ONLY: readonly HerdMovementType[] = [
   "venda",
@@ -475,6 +480,11 @@ const EXIT_ONLY: readonly HerdMovementType[] = [
   // `perda_confirmada` é o desaparecimento que ninguém resolveu.
   "saida_terceiro",
   "perda_confirmada",
+  // Missão 4 do Módulo 31: o animal entregue numa permuta sai do rebanho de
+  // vez, sem destino, do mesmo jeito que uma venda. Fora desta lista ele
+  // cairia no ramo de `ajuste`, que aceita a movimentação com só o DESTINO:
+  // uma saída que SOMA ao rebanho.
+  "permuta_saida",
 ];
 const TRANSFER: readonly HerdMovementType[] = [
   "transferencia_pasto",

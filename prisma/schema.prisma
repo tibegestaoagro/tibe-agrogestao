@@ -61,6 +61,10 @@ enum MachineStatus {
   maintenance
   sold
   inactive
+  /// Máquina entregue numa permuta (missão 4 do Módulo 31). `sold` não serve:
+  /// a tela o mostra como "Vendida", e a máquina dada em troca não foi
+  /// vendida. É a mesma razão de `permuta_saida` existir no rebanho.
+  negociada
 }
 
 // "atrasada" não é um valor aqui: é calculado (pending + due_date no
@@ -131,6 +135,12 @@ enum HerdMovementType {
   saida_terceiro
   desaparecimento
   perda_confirmada
+  /// Missão 4 do Módulo 31. Tipos PRÓPRIOS, e não `compra`/`venda`
+  /// reaproveitados: uma permuta não é venda, e o extrato do rebanho mostrando
+  /// "Venda" de 20 cabeças sem receita nenhuma ligada é o §12.6 quebrado no
+  /// lugar em que ele mais importa. O estoque já resolveu assim na missão 2.
+  permuta_entrada
+  permuta_saida
 }
 
 /// O tipo da estadia (fase 2). `evento` nasce sem uso: a remessa para leilão é
@@ -864,12 +874,24 @@ model Machine {
   created_at          DateTime      @default(now())
   updated_at          DateTime      @updatedAt
 
+  /// De qual permuta esta máquina VEIO. Duas colunas e não uma: um trator pode
+  /// entrar por uma permuta e sair por outra, meses depois, e com uma coluna
+  /// só o cancelamento não saberia qual dos dois vínculos está desfazendo.
+  acquired_negotiation_id String?
+  /// Por qual permuta esta máquina SAIU.
+  disposed_negotiation_id String?
+
   tenant       Tenant               @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   property     Property             @relation(fields: [property_id], references: [id], onDelete: Restrict)
   maintenances MachineMaintenance[]
 
+  acquired_negotiation Negotiation? @relation("MachineAcquired", fields: [acquired_negotiation_id], references: [id], onDelete: SetNull)
+  disposed_negotiation Negotiation? @relation("MachineDisposed", fields: [disposed_negotiation_id], references: [id], onDelete: SetNull)
+
   @@index([tenant_id])
   @@index([property_id])
+  @@index([acquired_negotiation_id])
+  @@index([disposed_negotiation_id])
 }
 
 // tenant_id incluído para o middleware de isolamento (mesmo padrão de
@@ -1620,6 +1642,12 @@ model Negotiation {
   notes               String?
   recorded_by_user_id String?
 
+  /// O lado da permuta que NÃO tem área no Tibé (serviço, outro): a descrição
+  /// do produtor é tudo que existe. Nulos quando o lado é animais, produtos ou
+  /// máquina, porque aí quem guarda o quê é o filho.
+  barter_out_note String?
+  barter_in_note  String?
+
   /// §17.9: cancelar recalcula tudo. Como o saldo é sempre soma, cancelar aqui
   /// é cancelar os filhos, e a linha permanece no histórico (§17.10).
   canceled_at     DateTime?
@@ -1642,6 +1670,8 @@ model Negotiation {
   stock_movements StockMovement[]
   entries     FinancialEntry[]
   herd_stays  HerdStay[]
+  machines_acquired Machine[] @relation("MachineAcquired")
+  machines_disposed Machine[] @relation("MachineDisposed")
 
   @@index([tenant_id])
   @@index([tenant_id, occurred_at])
