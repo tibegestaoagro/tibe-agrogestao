@@ -57,19 +57,31 @@ assinatura, webhook de pagamento, webhook de atraso).
 
 ## 2. Escopo desenhado e adiado
 
-### 2.1 Módulo 31, missões 3 e 4
+### 2.1 Módulo 31, missão 4: permuta
 
-Não começaram. Estão desenhadas na spec:
+Não começou. Está desenhada na spec: qualquer item por qualquer item, com
+diferença em dinheiro, tocando 4 módulos num registro só. É o pedaço mais
+arriscado do documento do cliente, e a decisão 11 da spec manda ser a última.
 
-- **Missão 3, leilão e eventos:** remessa temporária, situação "Em evento",
-  encerramento com venda parcial. O terreno já está pronto desde a fase 2 do
-  Módulo 30: `HerdStay` com `type: evento`, a situação `evento` e o tipo de
-  movimento `envio_evento` existem no schema, sem uso.
-- **Missão 4, permuta:** qualquer item por qualquer item, com diferença em
-  dinheiro, tocando 4 módulos num registro só. É o pedaço mais arriscado do
-  documento do cliente.
+Próximo número livre de suíte: `m49`.
 
-Próximo número livre de suíte: `m48`.
+### 2.1.1 Missão 3, leilão e eventos: FEITA em 2026-08-28
+
+Está na branch `modulo-31-leilao`, esperando merge. A remessa é uma
+`Negotiation(evento)` sem valor com uma `HerdStay(evento)` filha, e **o envio
+não gera lançamento financeiro nenhum** (§17.8). O encerramento exige a soma
+dos três destinos bater com o enviado, e só aí nasce a receita, com comissão e
+taxa como lançamentos filhos.
+
+⚠️ **`HerdStay(evento)` deixou de ser criável direto**: quem abre remessa é
+Negociações, e o Rebanho manda o produtor encerrar lá. Encerrar pelo Rebanho
+moveria as cabeças sem registrar a venda.
+
+O handler de WhatsApp existe e é testado, mas **o classificador do n8n ainda
+não emite as duas intenções novas** (`registrar_remessa_evento`,
+`encerrar_remessa_evento`): congelado por decisão do usuário.
+
+Suíte `m48`. Spec e plano em `docs/superpowers/`.
 
 ### 2.2 Módulo 30, fase 2: FEITA em 2026-08-28
 

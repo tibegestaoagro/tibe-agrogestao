@@ -24,18 +24,20 @@ Se ele passar de umas 200, arquive antes de acrescentar.
 
 ## Estado atual
 
-- Atualizado em: 2026-08-27.
-- **A frente 1 está na `main` e empurrada** (`20f40fa`), com a suíte inteira
-  verde antes do merge. A branch `piloto-design-rebanho` foi apagada.
-- ⚠️ **A frente 2 está PRONTA e NÃO mesclada**, na branch `modulo-30-fase-2`.
-  Nove tarefas, validada no navegador em 28/08.
-- ⚠️ **A migração da frente 2 NÃO foi aplicada no Neon**, por decisão do
-  usuário: ela vai junto do merge, na ordem do invariante 3 (migração primeiro,
-  push depois). O banco local já está com as 33.
-- ⚠️ **Provavelmente NÃO está no ar.** O push saiu pela credencial do
-  `dilton-pleno`, e no plano gratuito da Vercel push de colaborador não dispara
-  deploy (item 1 das pendências do usuário). O commit entra na `main` e nenhuma
-  versão nasce, sem erro em lugar nenhum. Confira antes de supor que subiu.
+- Atualizado em: 2026-08-28.
+- **As frentes 1 e 2 estão na `main`.** A `modulo-30-fase-2` foi mesclada e a
+  spec da frente 3 é o topo da `main` (`cbcf857`).
+- ⚠️ **A frente 3 está PRONTA e NÃO mesclada**, na branch `modulo-31-leilao`.
+  Oito tarefas, suíte `m48` nova, **51/51 suítes verdes** e validada no
+  navegador em 28/08 (as seis conferências do plano).
+- ⚠️ **A migração da frente 3 NÃO foi aplicada no Neon**
+  (`20260828120000_remessa_de_evento`: duas colunas anuláveis em `HerdStay`).
+  Ela vai junto do merge, na ordem do invariante 3. O banco local já está com
+  ela.
+- ⚠️ **Confira se o deploy nasceu.** No plano gratuito da Vercel, push de
+  colaborador não dispara deploy, e o commit entra na `main` sem nenhuma versão
+  nascer e sem erro em lugar nenhum. O usuário disse em 28/08 que "sobre o
+  deploy eu resolvi": confirme na Vercel antes de supor que subiu.
 - **A fase 1 (identidade e sistema de design) começou**, com três commits na
   `main`, na ordem que o plano exige: falha visível e alvo de 44px (`60e4d87`),
   tokens semânticos de cor com a catraca de contraste (`638d0f6`), e leitura de
@@ -189,6 +191,11 @@ Quatro achadas hoje, que não estavam em `dividas.md`:
 
 ## Histórico recente
 
+- **2026-08-28:** frente 3 (leilão, feira e evento) pronta na branch
+  `modulo-31-leilao`, em oito commits mais um de correções. A remessa é uma
+  `Negotiation(evento)` sem valor com uma `HerdStay(evento)` filha, e o envio
+  não gera lançamento nenhum. A validação no navegador achou quatro defeitos
+  que a suíte verde não pegava, todos de sinal invertido na tela.
 - **2026-08-28:** frente 2 (estadias temporárias do rebanho) pronta na branch
   `modulo-30-fase-2`, em nove commits, validada no navegador. O rebanho passa a
   separar propriedade de localização.
