@@ -28,14 +28,16 @@ Se ele passar de umas 200, arquive antes de acrescentar.
 - **As frentes 1, 2 e 3 estão na `main` e no ar.** O deploy da frente 3 foi
   confirmado em produção pelo `/docs/api`, que é público e lista as rotas
   novas: o gatilho de deploy voltou a funcionar.
-- ⚠️ **A frente 4 está PRONTA e NÃO mesclada**, na branch `modulo-31-permuta`.
-  Nove tarefas, suíte `m49` nova, **52/52 suítes verdes** e validada no
-  navegador em 28/08 (as oito conferências do plano). Com ela o **Módulo 31
-  fecha**: as quatro missões entregues.
-- ⚠️ **A migração `20260828170000_permuta` NÃO foi aplicada no Neon**
-  (dois valores em `HerdMovementType`, um em `MachineStatus`, duas colunas em
-  `Machine` e duas em `Negotiation`). Ela vai junto do merge, na ordem do
-  invariante 3. O banco local já está com ela.
+- **A frente 4 (permuta) também está na `main`**, mesclada em 28/08 em dez
+  commits, com suíte `m49` nova, **52/52 suítes verdes** e validação no
+  navegador (as oito conferências do plano). Com ela o **Módulo 31 fecha**: as
+  quatro missões entregues.
+- **A migração `20260828170000_permuta` foi aplicada no Neon** antes do push,
+  na ordem do invariante 3. O Neon está com as 35, e `npx prisma migrate
+  status` responde "up to date".
+- ⚠️ **Confirme o deploy antes de supor que subiu.** O jeito barato de checar,
+  sem senha: `/docs/api` é público e lista as rotas reais. Se
+  `/api/v1/negotiations/barters` aparecer lá, é este commit no ar.
 - **A fase 1 (identidade e sistema de design) começou**, com três commits na
   `main`, na ordem que o plano exige: falha visível e alvo de 44px (`60e4d87`),
   tokens semânticos de cor com a catraca de contraste (`638d0f6`), e leitura de

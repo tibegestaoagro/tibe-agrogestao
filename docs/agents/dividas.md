@@ -59,8 +59,8 @@ assinatura, webhook de pagamento, webhook de atraso).
 
 ### 2.1 Módulo 31: FECHADO em 2026-08-28
 
-As quatro missões entregues. A missão 4 (permuta) está na branch
-`modulo-31-permuta`, esperando merge: um lado entregue e um recebido, cada um
+As quatro missões entregues e mescladas. A missão 4 (permuta) tem um lado
+entregue e um recebido, cada um
 gravado por quem já sabe gravá-lo (rebanho, estoque, cadastro de Máquinas), e o
 lado sem área no Tibé vira texto com aviso na tela. O valor da negociação é
 **só a diferença em dinheiro**; os valores estimados do §12.4 ficaram fora da
@@ -77,7 +77,7 @@ Próximo número livre de suíte: `m50`.
 
 ### 2.1.1 Missão 3, leilão e eventos: FEITA em 2026-08-28
 
-Mesclada na `main` em 2026-08-28, com a migração aplicada no Neon antes do push. A remessa é uma
+Mesclada e em produção desde 2026-08-28. A remessa é uma
 `Negotiation(evento)` sem valor com uma `HerdStay(evento)` filha, e **o envio
 não gera lançamento financeiro nenhum** (§17.8). O encerramento exige a soma
 dos três destinos bater com o enviado, e só aí nasce a receita, com comissão e
@@ -95,7 +95,7 @@ Suíte `m48`. Spec e plano em `docs/superpowers/`.
 
 ### 2.2 Módulo 30, fase 2: FEITA em 2026-08-28
 
-Está na branch `modulo-30-fase-2`, esperando merge. Entregou pasto de
+Mesclada e em produção desde 2026-08-28. Entregou pasto de
 terceiros, boitel, animais de terceiros na fazenda e desaparecimento, com
 identidade por `HerdStay`, encerramento que exige a soma bater, e os cinco
 números separando propriedade de localização.
