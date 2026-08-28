@@ -1,4 +1,11 @@
-import type { HerdMovementType, HerdOwner, HerdSituation, Prisma } from "@/generated/prisma/client";
+import type {
+  HerdChargeType,
+  HerdMovementType,
+  HerdOwner,
+  HerdSituation,
+  HerdStayType,
+  Prisma,
+} from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { createLinkedEntry, runSerializableTenantTransaction, type TenantTransactionClient } from "@/lib/financial";
 import { isValidCategory } from "@/lib/herd/categories";
@@ -32,6 +39,18 @@ export const HERD_SITUATIONS = [
 
 export const HERD_OWNERS = ["proprio", "terceiro"] as const satisfies readonly HerdOwner[];
 
+/**
+ * Os tipos que `POST /api/v1/herd/movements` aceita direto.
+ *
+ * Os oito tipos da fase 2 (envio para estadia, retorno, entrada e saída de
+ * terceiro, desaparecimento, perda) NÃO estão aqui, e isso é proteção, não
+ * esquecimento: eles só existem dentro de uma estadia. Aceitos por esta rota,
+ * seria possível gravar cabeças em `boitel` sem `stay_id`, e aí `listStays`
+ * não as enxergaria, a regra de encerramento não as governaria, e elas
+ * ficariam fora da fazenda para sempre, sem nada que as trouxesse de volta.
+ *
+ * O caminho delas é `POST /api/v1/herd/stays`.
+ */
 export const HERD_MOVEMENT_TYPES = [
   "saldo_inicial",
   "nascimento",
@@ -43,6 +62,32 @@ export const HERD_MOVEMENT_TYPES = [
   "mudanca_categoria",
   "ajuste",
 ] as const satisfies readonly HerdMovementType[];
+
+/** Os tipos de estadia, para o Zod das rotas de `/herd/stays`. */
+export const HERD_STAY_TYPES = [
+  "pasto_terceiro",
+  "boitel",
+  "evento",
+  "terceiro_na_fazenda",
+  "desaparecimento",
+] as const satisfies readonly HerdStayType[];
+
+/** Os destinos que um encerramento pode informar. A tabela de regras diz quais valem por tipo. */
+export const HERD_CLOSE_TYPES = [
+  "retorno_estadia",
+  "venda",
+  "morte",
+  "perda_confirmada",
+  "saida_terceiro",
+] as const satisfies readonly HerdMovementType[];
+
+/** Formas de cobrança do §2 e do §6 do complemento. */
+export const HERD_CHARGE_TYPES = [
+  "por_cabeca",
+  "por_mes",
+  "por_periodo",
+  "fechado",
+] as const satisfies readonly HerdChargeType[];
 
 export type HerdPositionKey = {
   category_id: string;

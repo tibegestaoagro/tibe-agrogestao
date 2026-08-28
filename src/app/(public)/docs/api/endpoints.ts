@@ -504,6 +504,45 @@ export const GROUPS: Group[] = [
         response: `200
 { "data": { "id": "cl...", "canceled_at": "2026-08-05T12:00:00.000Z", "canceled_reason": "lançado errado" }, "meta": {} }`,
       },
+      {
+        method: "GET",
+        path: "/api/v1/herd/stays",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description:
+          "Estadias temporárias do rebanho (fase 2): pasto de terceiros, boitel, evento, animais de terceiros na fazenda e desaparecimento. `saldo_aberto` e `aberta` são DERIVADOS das movimentações que apontam para a estadia, nunca gravados: a estadia está aberta enquanto sobrar cabeça nela. Filtros: property_id, type, abertas=true.",
+        response: `200
+{ "data": [{ "id": "cl...", "type": "pasto_terceiro", "counterparty_name": "Sítio do João", "started_at": "2026-08-27T00:00:00.000Z", "charge_type": "por_mes", "charge_value": 1200, "saldo_aberto": 20, "aberta": true, "canceled_at": null }], "meta": { "total": 1 } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/herd/stays",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "Abre uma estadia e grava a movimentação de envio no mesmo passo. UMA rota para os 5 tipos, porque os cinco fluxos são o mesmo ciclo com validação diferente. O animal continua no rebanho próprio e sai da quantidade física da fazenda, salvo `terceiro_na_fazenda`, que é entrada de animal alheio e nunca soma ao rebanho. Com `charge_value` informado nasce UM lançamento: despesa em `pasto_terceiro` e `boitel`, receita em `terceiro_na_fazenda`, com o valor exato que o produtor informou (`charge_type` é informação do acordo, não entra em cálculo). Devolve 422 `INSUFFICIENT_BALANCE` com `field: quantity` quando não há saldo, e nada fica gravado pela metade.",
+        request: `{ "type": "pasto_terceiro", "property_id": "cl...", "category_id": "femea_36_mais", "quantity": 20, "counterparty_name": "Sítio do João", "charge_type": "por_mes", "charge_value": 1200 }`,
+        response: `201
+{ "data": { "id": "cl...", "type": "pasto_terceiro", "quantity": 20, "financial_entry_id": "cl..." }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/herd/stays/:id/close",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "Encerra a estadia. A soma dos destinos precisa ser IGUAL ao que está na estadia, e o servidor devolve 422 `DESTINOS_NAO_BATEM` com `field: quantity` quando não bate. Os destinos vêm como lista por tipo de movimento (`retorno_estadia`, `venda`, `morte`, `perda_confirmada`, `saida_terceiro`), e cada tipo de estadia aceita só alguns: desaparecimento não aceita `venda`, e devolve 422 `ENCERRAMENTO_NAO_PERMITIDO`. `value` numa venda gera a receita dos vendidos.",
+        request: `{ "destinos": [{ "movement_type": "venda", "quantity": 12, "value": 60000 }, { "movement_type": "retorno_estadia", "quantity": 8 }] }`,
+        response: `200
+{ "data": { "id": "cl...", "encerrada": true, "saldo_aberto": 0 }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/herd/stays/:id/cancel",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "Cancela a estadia inteira: as cabeças voltam para onde estavam e o lançamento pendente é apagado (o pago ganha estorno). Não apaga nada: a estadia e as movimentações continuam no histórico, marcadas. Devolve 422 `ESTADIA_JA_ENCERRADA` quando já houve encerramento, porque desfazer o que já foi vendido é decisão do produtor, e 422 `ESTADIA_JA_CANCELADA` na segunda vez.",
+        request: `{ "reason": "lançado errado" }`,
+        response: `200
+{ "data": { "id": "cl..." }, "meta": {} }`,
+      },
     ],
   },
   {
