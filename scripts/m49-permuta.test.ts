@@ -47,6 +47,10 @@ async function comBanco() {
   const { getPositions, recordMovement } = await import("@/lib/actions/herd-ledger");
   const { createBarter } = await import("@/lib/actions/barters");
   const { getNegotiation, situacaoLabel } = await import("@/lib/actions/negotiations");
+  const { getStockBalance, recordStockMovement } = await import("@/lib/actions/stock-ledger");
+  const { ensureProductCategories, listProductCategories, createProduct } = await import(
+    "@/lib/actions/products"
+  );
 
   const stamp = Date.now();
   const tenant = await prisma.tenant.create({
@@ -360,6 +364,163 @@ async function comBanco() {
         "recusa: ela não é mais do produtor",
         !r.ok && r.code === "MAQUINA_INDISPONIVEL",
         r.ok ? "aceitou" : r.code,
+      );
+    }
+
+    console.log("\n7. Produto por animal, e o estoque cai");
+    {
+      await ensureProductCategories(db);
+      const categorias = await listProductCategories(db);
+      const produto = await createProduct(db, {
+        name: "Sal mineral",
+        category_id: categorias[0].id,
+        unit: "saca",
+      });
+      const produtoId = produto.ok ? produto.data.id : "";
+      await recordStockMovement(db, {
+        product_id: produtoId,
+        property_id: fazenda.id,
+        movement_type: "compra",
+        quantity: 100,
+      });
+
+      const r = await createBarter(db, {
+        property_id: fazenda.id,
+        entregue: { kind: "produtos", product_id: produtoId, quantity: 30 },
+        recebido: { kind: "animais", category_id: "bezerro_0_7", quantity: 5, pasture_id: pasto.id },
+      });
+      check("a permuta abre", r.ok, r.ok ? "" : r.message);
+
+      const saldo = await getStockBalance(db, { product_id: produtoId, property_id: fazenda.id });
+      check("o estoque caiu 30 sacas", (saldo[0]?.quantity ?? 0) === 70, String(saldo[0]?.quantity));
+
+      const movs = await db.stockMovement.findMany({
+        where: { negotiation_id: r.ok ? r.data.id : "" },
+        select: { movement_type: true },
+      });
+      check("com o tipo permuta_saida", movs[0]?.movement_type === "permuta_saida", movs[0]?.movement_type);
+
+      // Sem saldo, o estoque recusa e nada fica pela metade.
+      const semSaldo = await createBarter(db, {
+        property_id: fazenda.id,
+        entregue: { kind: "produtos", product_id: produtoId, quantity: 9999 },
+        recebido: { kind: "animais", category_id: "bezerro_0_7", quantity: 1, pasture_id: pasto.id },
+      });
+      check(
+        "sem saca suficiente, recusa",
+        !semSaldo.ok && semSaldo.code === "INSUFFICIENT_STOCK",
+        semSaldo.ok ? "abriu" : semSaldo.code,
+      );
+      const saldoDepois = await getStockBalance(db, { product_id: produtoId, property_id: fazenda.id });
+      check("e o saldo não se mexeu", (saldoDepois[0]?.quantity ?? 0) === 70, String(saldoDepois[0]?.quantity));
+    }
+
+    console.log("\n8. Bezerro por serviço: o que o Tibé sabe registrar, ele registra");
+    {
+      const bezerrosAntes = soma(await getPositions(db, { owner: "proprio", category_id: "bezerro_0_7" }));
+
+      const r = await createBarter(db, {
+        property_id: fazenda.id,
+        entregue: { kind: "animais", category_id: "bezerro_0_7", quantity: 1, pasture_id: pasto.id },
+        recebido: { kind: "descricao", texto: "Construção de 500m de cerca" },
+        contact_name: "Seu Zé da cerca",
+      });
+      check("a permuta abre", r.ok, r.ok ? "" : r.message);
+      check(
+        "o bezerro sai do rebanho de verdade",
+        soma(await getPositions(db, { owner: "proprio", category_id: "bezerro_0_7" })) === bezerrosAntes - 1,
+      );
+
+      const negociacao = await db.negotiation.findFirst({ where: { id: r.ok ? r.data.id : "" } });
+      check(
+        "e o outro lado fica como texto",
+        negociacao?.barter_in_note === "Construção de 500m de cerca",
+        negociacao?.barter_in_note ?? "",
+      );
+      check("o lado entregue não vira texto", negociacao?.barter_out_note === null);
+    }
+
+    console.log("\n9. Permuta que não move nada é recusada");
+    {
+      const negociacoesAntes = await db.negotiation.count();
+      const r = await createBarter(db, {
+        property_id: fazenda.id,
+        entregue: { kind: "descricao", texto: "Uma tarde de trabalho" },
+        recebido: { kind: "descricao", texto: "Uma tarde de trabalho" },
+      });
+      check(
+        "sem item e sem dinheiro, não é negócio",
+        !r.ok && r.code === "PERMUTA_VAZIA",
+        r.ok ? "aceitou" : r.code,
+      );
+      check("e nada é gravado", (await db.negotiation.count()) === negociacoesAntes);
+
+      // Com dinheiro, os dois lados descritivos passam: o dinheiro é real.
+      const comDinheiro = await createBarter(db, {
+        property_id: fazenda.id,
+        entregue: { kind: "descricao", texto: "Uma tarde de trabalho" },
+        recebido: { kind: "descricao", texto: "Reparo do curral" },
+        diferenca: { direcao: "paguei", amount: 500 },
+        pago: true,
+      });
+      check("com diferença, passa", comDinheiro.ok, comDinheiro.ok ? "" : comDinheiro.message);
+    }
+
+    console.log("\n10. As recusas de entrada");
+    {
+      const semLados = await createBarter(db, {
+        property_id: fazenda.id,
+        entregue: null,
+        recebido: null,
+        diferenca: { direcao: "paguei", amount: 100 },
+        pago: true,
+      });
+      // §12.3 põe "item entregue" e "item recebido" entre os obrigatórios: uma
+      // troca com um lado só não é troca, é venda, compra ou pagamento.
+      check(
+        "os dois lados vazios é recusado, mesmo com dinheiro",
+        !semLados.ok && semLados.code === "PERMUTA_INCOMPLETA",
+        semLados.ok ? "aceitou" : semLados.code,
+      );
+      check("apontando o lado que falta", !semLados.ok && semLados.field === "entregue");
+
+      const soUmLado = await createBarter(db, {
+        property_id: fazenda.id,
+        entregue: { kind: "animais", category_id: "bezerro_0_7", quantity: 1, pasture_id: pasto.id },
+        recebido: null,
+      });
+      check(
+        "um lado só também é recusado",
+        !soUmLado.ok && soUmLado.code === "PERMUTA_INCOMPLETA",
+        soUmLado.ok ? "aceitou" : soUmLado.code,
+      );
+      check("apontando o lado recebido", !soUmLado.ok && soUmLado.field === "recebido");
+
+      const parcelaErrada = await createBarter(db, {
+        property_id: fazenda.id,
+        entregue: { kind: "animais", category_id: "bezerro_0_7", quantity: 1, pasture_id: pasto.id },
+        recebido: { kind: "descricao", texto: "Uma roçadeira" },
+        diferenca: { direcao: "paguei", amount: 1000 },
+        parcelas: [
+          { due_date: new Date(), amount: 300 },
+          { due_date: new Date(), amount: 300 },
+        ],
+      });
+      check(
+        "parcela que não fecha com a diferença é recusada",
+        !parcelaErrada.ok && parcelaErrada.code === "PARCELAS_NAO_FECHAM",
+        parcelaErrada.ok ? "aceitou" : parcelaErrada.code,
+      );
+
+      const maquinaSemNome = await createBarter(db, {
+        property_id: fazenda.id,
+        entregue: { kind: "animais", category_id: "bezerro_0_7", quantity: 1, pasture_id: pasto.id },
+        recebido: { kind: "maquina", name: "   ", type: "Trator" },
+      });
+      check(
+        "máquina sem nome é recusada",
+        !maquinaSemNome.ok && maquinaSemNome.field === "name",
+        maquinaSemNome.ok ? "aceitou" : String(maquinaSemNome.field),
       );
     }
   } finally {

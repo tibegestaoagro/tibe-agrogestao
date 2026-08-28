@@ -1,6 +1,7 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
 import { recordMovementInTx, type HerdPositionKey } from "@/lib/actions/herd-ledger";
+import { recordStockMovementInTx } from "@/lib/actions/stock-ledger";
 import { isValidCategory } from "@/lib/herd/categories";
 import { findOrCreateContact } from "@/lib/actions/contacts";
 import { AbortarNegociacao, comRollback, validarPagamento } from "@/lib/actions/negotiations";
@@ -102,6 +103,20 @@ export async function createBarter(
   db: TenantPrismaClient,
   input: BarterInput,
 ): Promise<ActionResult<{ id: string; machine_id: string | null }>> {
+  /**
+   * §12.3 lista "item entregue" e "item recebido" entre as informações
+   * OBRIGATÓRIAS. Uma troca com um lado só não é troca: é venda, compra ou
+   * pagamento, e cada uma dessas tem o seu caminho no Tibé.
+   */
+  if (!input.entregue || !input.recebido) {
+    return fail(
+      "PERMUTA_INCOMPLETA",
+      "Uma permuta tem dois lados. Informe o que saiu e o que entrou.",
+      422,
+      input.entregue ? "recebido" : "entregue",
+    );
+  }
+
   /**
    * §12: uma permuta em que nada se move e nenhum dinheiro muda de mão é uma
    * anotação, não um negócio. Gravá-la encheria a lista de linhas que não
@@ -259,6 +274,32 @@ export async function createBarter(
         });
         // throw, nunca return: devolver de dentro do `$transaction` CONFIRMA a
         // transação, e a negociação ficaria gravada apontando para nada.
+        if (!movimento.ok) throw new AbortarNegociacao(movimento);
+      }
+
+      if (input.entregue?.kind === "produtos") {
+        const movimento = await recordStockMovementInTx(db, tx, {
+          product_id: input.entregue.product_id,
+          property_id: input.property_id,
+          movement_type: "permuta_saida",
+          quantity: input.entregue.quantity,
+          occurred_at,
+          negotiation_id: negociacao.id,
+          recorded_by_user_id: input.recorded_by_user_id ?? null,
+        });
+        if (!movimento.ok) throw new AbortarNegociacao(movimento);
+      }
+
+      if (input.recebido?.kind === "produtos") {
+        const movimento = await recordStockMovementInTx(db, tx, {
+          product_id: input.recebido.product_id,
+          property_id: input.property_id,
+          movement_type: "permuta_entrada",
+          quantity: input.recebido.quantity,
+          occurred_at,
+          negotiation_id: negociacao.id,
+          recorded_by_user_id: input.recorded_by_user_id ?? null,
+        });
         if (!movimento.ok) throw new AbortarNegociacao(movimento);
       }
 
