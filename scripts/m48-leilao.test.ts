@@ -1,5 +1,7 @@
 import "dotenv/config";
 import { exigirBancoLocal } from "./_banco-local";
+import type { TenantPrismaClient } from "@/lib/prisma";
+import type { HandlerCtx } from "@/lib/actions/whatsapp-handlers/shared";
 
 exigirBancoLocal();
 
@@ -24,6 +26,24 @@ function check(nome: string, cond: boolean, detalhe?: string) {
   }
 }
 
+function ctx(
+  db: TenantPrismaClient,
+  tenantId: string,
+  parameters: Record<string, unknown>,
+  opts: { confirmed?: boolean; explicitNo?: boolean; userId?: string } = {},
+): HandlerCtx {
+  return {
+    db,
+    tenant_id: tenantId,
+    role: "OWNER",
+    activeProfiles: ["fazenda"],
+    parameters,
+    confirmed: opts.confirmed ?? false,
+    explicitNo: opts.explicitNo ?? false,
+    user_id: opts.userId,
+  };
+}
+
 async function comBanco() {
   const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
   const { openEventConsignment, closeEventConsignment } = await import(
@@ -32,11 +52,25 @@ async function comBanco() {
   const { listStays } = await import("@/lib/actions/herd-stays");
   const { cancelNegotiation } = await import("@/lib/actions/negotiations");
   const { getPositions, recordMovement } = await import("@/lib/actions/herd-ledger");
+  const { registrarRemessaEvento, encerrarRemessaEvento } = await import(
+    "@/lib/actions/whatsapp-handlers/evento"
+  );
+  const { clearPendingEvent } = await import("@/lib/actions/event-pending");
 
   const stamp = Date.now();
   const tenant = await prisma.tenant.create({
     data: { name: `M48 ${stamp}`, document: `M48${stamp}`.slice(0, 14), plan: "fazenda" },
   });
+  const usuario = await prisma.user.create({
+    data: {
+      tenant_id: tenant.id,
+      name: "Produtor de Teste",
+      email: `m48-${stamp}@teste.local`,
+      password_hash: "x",
+      role: "OWNER",
+    },
+  });
+  const USUARIO = usuario.id;
   const db = prismaForTenant(tenant.id);
 
   const soma = (posicoes: { quantity: number }[]) =>
@@ -432,7 +466,121 @@ async function comBanco() {
       });
       check("com o dinheiro dela intacto", lancamentos.length === 1, String(lancamentos.length));
     }
+
+    console.log("\n11. Pelo WhatsApp: recusa vence tudo, e o sim só vale para o que foi mostrado");
+    {
+      await clearPendingEvent(tenant.id, USUARIO);
+
+      const negociacoesAntes = await db.negotiation.count();
+      const recusa = await registrarRemessaEvento(
+        ctx(db, tenant.id, { quantidade: 20, categoria: "vacas", evento: "Leilão de Outubro" }, {
+          explicitNo: true,
+          userId: USUARIO,
+        }),
+      );
+      check("a recusa cancela", recusa.action_taken.endsWith(":cancelado"), recusa.action_taken);
+      check("e nada é gravado", (await db.negotiation.count()) === negociacoesAntes);
+
+      // O "sim" sem nada guardado NÃO escreve: é a cicatriz de 2026-08-18, em
+      // que o classificador remontou os parâmetros e a compra recusada foi
+      // gravada com a quantidade errada.
+      const simSolto = await registrarRemessaEvento(
+        ctx(db, tenant.id, { quantidade: 999, categoria: "vacas", evento: "Leilão fantasma" }, {
+          confirmed: true,
+          userId: USUARIO,
+        }),
+      );
+      check(
+        "um sim sem pendente não grava nada",
+        simSolto.action_taken === "clarification_requested",
+        simSolto.action_taken,
+      );
+      check("e a contagem continua igual", (await db.negotiation.count()) === negociacoesAntes);
+    }
+
+    console.log("\n12. Pelo WhatsApp: abrir a remessa e encerrar");
+    {
+      await clearPendingEvent(tenant.id, USUARIO);
+      const emEventoAntes = soma(await getPositions(db, { owner: "proprio", situation: "evento" }));
+
+      // Nome PRÓPRIO, e não o "Leilão de Outubro" dos casos acima: eles
+      // deixaram remessas abertas de propósito, e o handler recusa escolher
+      // entre duas com o mesmo nome, que é o comportamento certo dele.
+      const abrir = await registrarRemessaEvento(
+        ctx(db, tenant.id, { quantidade: 20, categoria: "vacas", evento: "Feira de Novembro" }, {
+          userId: USUARIO,
+        }),
+      );
+      check("o assistente confirma antes de gravar", abrir.requires_confirmation === true, abrir.reply_text);
+      check(
+        "e avisa que não está registrando venda",
+        /nenhuma venda/i.test(abrir.reply_text),
+        abrir.reply_text,
+      );
+
+      const confirmado = await registrarRemessaEvento(
+        ctx(db, tenant.id, { quantidade: 20, categoria: "vacas", evento: "Feira de Novembro" }, {
+          confirmed: true,
+          userId: USUARIO,
+        }),
+      );
+      check(
+        "confirmado, a remessa nasce",
+        confirmado.action_taken.startsWith("registrar_remessa_evento:ok"),
+        confirmado.action_taken,
+      );
+      check(
+        "e a resposta diz que não houve venda",
+        /não registrei venda/i.test(confirmado.reply_text),
+        confirmado.reply_text,
+      );
+      check(
+        "as 20 estão em evento",
+        soma(await getPositions(db, { owner: "proprio", situation: "evento" })) === emEventoAntes + 20,
+      );
+
+      // Encerrar: 12 vendidos, e os 8 que sobraram voltam sem precisar dizer.
+      const encerrar = await encerrarRemessaEvento(
+        ctx(db, tenant.id, { evento: "Feira de Novembro", vendidos: 12, valor: 60000 }, {
+          userId: USUARIO,
+        }),
+      );
+      check("o encerramento também confirma antes", encerrar.requires_confirmation === true, encerrar.reply_text);
+
+      const fechado = await encerrarRemessaEvento(
+        ctx(db, tenant.id, { evento: "Feira de Novembro", vendidos: 12, valor: 60000 }, {
+          confirmed: true,
+          userId: USUARIO,
+        }),
+      );
+      check(
+        "confirmado, a remessa fecha",
+        fechado.action_taken.startsWith("encerrar_remessa_evento:ok"),
+        `${fechado.action_taken} / ${fechado.reply_text}`,
+      );
+      check(
+        "as 20 saíram do evento",
+        soma(await getPositions(db, { owner: "proprio", situation: "evento" })) === emEventoAntes,
+      );
+      check("e a resposta conta os dois destinos", /12/.test(fechado.reply_text) && /8/.test(fechado.reply_text), fechado.reply_text);
+
+      await clearPendingEvent(tenant.id, USUARIO);
+    }
+
+    console.log("\n13. Pelo WhatsApp: sem remessa aberta, não inventa");
+    {
+      await clearPendingEvent(tenant.id, USUARIO);
+      const r = await encerrarRemessaEvento(
+        ctx(db, tenant.id, { evento: "Leilão que nunca existiu", vendidos: 5 }, { userId: USUARIO }),
+      );
+      check(
+        "avisa que não achou a remessa, em vez de fechar outra",
+        r.action_taken === "clarification_requested",
+        r.action_taken,
+      );
+    }
   } finally {
+    await clearPendingEvent(tenant.id, USUARIO);
     await prisma.tenant.delete({ where: { id: tenant.id } });
   }
 }

@@ -30,6 +30,16 @@ export const INTENTS = [
   "registrar_uso_estoque",
   "ajustar_estoque",
   "consultar_estoque",
+  // Modulo 31 (missao 3, §19): leilao, feira e evento. Duas intencoes, e nao
+  // uma so com tipo em parameters, porque abrir e encerrar sao gestos de
+  // momentos diferentes: entre um e outro passa o evento inteiro. O §19 pede
+  // "registrar vendas parciais" e "registrar o retorno" como o MESMO gesto,
+  // porque a soma dos destinos tem que bater com o enviado.
+  //
+  // O classificador do n8n ainda NAO emite estas duas: elas ficam roteadas e
+  // testadas, esperando a rodada em que o agente for atualizado.
+  "registrar_remessa_evento",
+  "encerrar_remessa_evento",
   "consultar_cliente",
   "gerar_relatorio",
   "registrar_lancamento_financeiro",
@@ -82,6 +92,10 @@ export const INTENT_ACCESS: Record<
   registrar_uso_estoque: { module: "rebanho", action: "write", profile: "fazenda" },
   ajustar_estoque: { module: "rebanho", action: "write", profile: "fazenda" },
   consultar_estoque: { module: "rebanho", action: "read", profile: "fazenda" },
+  // Leilao e evento reusam "rebanho" pelo mesmo motivo: quem pode mandar gado
+  // para um leilao precisa poder ver onde ele foi parar.
+  registrar_remessa_evento: { module: "rebanho", action: "write", profile: "fazenda" },
+  encerrar_remessa_evento: { module: "rebanho", action: "write", profile: "fazenda" },
   consultar_cliente: { module: "prestador", action: "read", profile: "prestador" },
   gerar_relatorio: { module: null, action: "read" }, // módulo varia por parameters.tipo
   registrar_lancamento_financeiro: { module: "financeiro", action: "write" },
