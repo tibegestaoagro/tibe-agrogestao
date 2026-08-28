@@ -118,3 +118,82 @@ export const eventCloseSchema = z.object({
 });
 
 export type EventCloseBody = z.infer<typeof eventCloseSchema>;
+
+/**
+ * Missão 4: a permuta (§12).
+ *
+ * Cada lado é um objeto com `kind` e os campos que aquele `kind` exige. O
+ * discriminador vive no schema para o Zod recusar um lado de animais sem
+ * categoria antes de a action ver o corpo, e para o lado ENTREGUE (uma máquina
+ * que já existe) não aceitar por engano os campos de cadastro do lado
+ * RECEBIDO (uma máquina que nasce agora).
+ */
+const ladoEntregueSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("animais"),
+    category_id: z.string().min(1, "Informe a categoria dos animais"),
+    quantity: z.number().int().positive("A quantidade deve ser maior que zero"),
+    pasture_id: z.string().min(1).nullish(),
+  }),
+  z.object({
+    kind: z.literal("produtos"),
+    product_id: z.string().min(1, "Informe o produto"),
+    quantity: z.number().positive("A quantidade deve ser maior que zero"),
+  }),
+  z.object({
+    kind: z.literal("maquina"),
+    machine_id: z.string().min(1, "Informe a máquina entregue"),
+  }),
+  z.object({
+    kind: z.literal("descricao"),
+    texto: z.string().trim().min(1, "Descreva o que foi entregue").max(300),
+  }),
+]);
+
+const ladoRecebidoSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("animais"),
+    category_id: z.string().min(1, "Informe a categoria dos animais"),
+    quantity: z.number().int().positive("A quantidade deve ser maior que zero"),
+    pasture_id: z.string().min(1).nullish(),
+  }),
+  z.object({
+    kind: z.literal("produtos"),
+    product_id: z.string().min(1, "Informe o produto"),
+    quantity: z.number().positive("A quantidade deve ser maior que zero"),
+  }),
+  z.object({
+    kind: z.literal("maquina"),
+    name: z.string().trim().min(1, "Informe o nome da máquina").max(200),
+    type: z.string().trim().min(1, "Informe o tipo da máquina").max(100),
+    brand: z.string().trim().min(1).max(100).nullish(),
+    model: z.string().trim().min(1).max(100).nullish(),
+    year: z.number().int().min(1900).max(2200).nullish(),
+  }),
+  z.object({
+    kind: z.literal("descricao"),
+    texto: z.string().trim().min(1, "Descreva o que foi recebido").max(300),
+  }),
+]);
+
+export const barterSchema = z.object({
+  property_id: z.string().min(1, "Informe a fazenda"),
+  entregue: ladoEntregueSchema.nullish(),
+  recebido: ladoRecebidoSchema.nullish(),
+  /** §12.2: "houve diferença em dinheiro?". É o valor da negociação. */
+  diferenca: z
+    .object({
+      direcao: z.enum(["paguei", "recebi"]),
+      amount: z.number().positive("A diferença deve ser maior que zero"),
+    })
+    .nullish(),
+  contact_id: z.string().min(1).nullish(),
+  contact_name: z.string().trim().min(1).max(200).nullish(),
+  occurred_at: z.string().datetime({ message: "Data inválida" }).nullish(),
+  pago: z.boolean().nullish(),
+  due_date: z.string().datetime({ message: "Data de vencimento inválida" }).nullish(),
+  parcelas: z.array(parcelaSchema).nullish(),
+  notes: z.string().trim().max(1000).nullish(),
+});
+
+export type BarterBody = z.infer<typeof barterSchema>;

@@ -419,6 +419,16 @@ export const GROUPS: Group[] = [
         response: `200
 { "data": { "id": "cl...", "type": "evento", "amount": 60000, "situacao": "paga" }, "meta": { "nova_estadia_id": null, "encerrada": true } }`,
       },
+      {
+        method: "POST",
+        path: "/api/v1/negotiations/barters",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "Registra uma PERMUTA (§12): o produtor entrega uma coisa e recebe outra, com ou sem diferença em dinheiro. UMA chamada atualiza rebanho, estoque, máquinas e financeiro, que é o §12.6 (\"o produtor não deverá precisar criar manualmente uma venda e depois uma compra\"). Cada lado tem um `kind`: `animais` (vira `permuta_saida`/`permuta_entrada` no livro-razão, nunca `venda`/`compra`), `produtos` (idem no estoque), `maquina` (no lado entregue é o `machine_id` de uma máquina que já existe, que passa a `negociada`; no recebido são os campos de cadastro, e a máquina nasce ligada à permuta e SEM custo de aquisição, porque o que ela custou foi o gado) e `descricao` (serviço ou outro, que não tem área no Tibé e fica como texto). O VALOR da negociação é a `diferenca`, e só ela: `paguei` gera despesa, `recebi` gera receita, com parcelas quando houver (a soma tem que dar o valor, §14). Recusas: 422 `PERMUTA_INCOMPLETA` quando falta um dos lados (§12.3 os torna obrigatórios), 422 `PERMUTA_VAZIA` quando nada se move e não há dinheiro, 422 `MAQUINA_INDISPONIVEL` quando a máquina entregue já saiu, e 422 `INSUFFICIENT_BALANCE` ou `INSUFFICIENT_STOCK` sem saldo. Em qualquer recusa NADA é gravado, nem o envelope nem o contato.",
+        request: `{ "property_id": "cl...", "entregue": { "kind": "animais", "category_id": "macho_36_mais", "quantity": 20 }, "recebido": { "kind": "maquina", "name": "Trator John Deere 6110", "type": "Trator" }, "diferenca": { "direcao": "paguei", "amount": 30000 }, "pago": true }`,
+        response: `201
+{ "data": { "id": "cl...", "machine_id": "cl..." }, "meta": {} }`,
+      },
     ],
   },
   {
