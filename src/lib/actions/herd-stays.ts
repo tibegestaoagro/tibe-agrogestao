@@ -216,7 +216,7 @@ export type CloseStayInput = {
  * princípio do saldo do rebanho, aplicado ao episódio: assim não existe um
  * campo que possa divergir da realidade.
  */
-function saldoAberto(
+export function saldoAberto(
   movimentos: {
     quantity: number;
     from_situation: HerdSituation | null;

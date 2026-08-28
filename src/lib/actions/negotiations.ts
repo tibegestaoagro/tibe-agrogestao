@@ -246,6 +246,24 @@ function validar(input: NegociacaoGadoInput): { code: string; message: string } 
       };
     }
   }
+  return validarPagamento(input);
+}
+
+/**
+ * As regras do DINHEIRO de um negócio, separadas das regras dos ANIMAIS.
+ *
+ * Extraídas de `validar()` porque a missão 3 (leilão) precisa exatamente
+ * delas e de nenhuma das outras: um encerramento de remessa tem valor,
+ * parcelas e custos, mas não tem "itens". Duas cópias da regra do §14
+ * divergiriam no primeiro ajuste, e a que divergisse deixaria passar parcela
+ * que não fecha com o valor.
+ */
+export function validarPagamento(input: {
+  amount: number;
+  pago?: boolean;
+  parcelas?: ParcelaInput[];
+  custos?: CustoInput[];
+}): { code: string; message: string } | null {
   for (const custo of input.custos ?? []) {
     if (!Number.isFinite(custo.amount) || custo.amount < 0) {
       return { code: "VALIDATION_ERROR", message: "Custo adicional não pode ser negativo." };
