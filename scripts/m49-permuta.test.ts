@@ -53,6 +53,10 @@ async function comBanco() {
   const { ensureProductCategories, listProductCategories, createProduct } = await import(
     "@/lib/actions/products"
   );
+  const { registrarPermuta, _lerLado } = await import(
+    "@/lib/actions/whatsapp-handlers/permuta"
+  );
+  const { clearPendingBarter } = await import("@/lib/actions/barter-pending");
 
   const stamp = Date.now();
   const tenant = await prisma.tenant.create({
@@ -606,7 +610,109 @@ async function comBanco() {
       check("a grade volta a ativa", depois?.status === "active", depois?.status);
       check("e o vínculo de saída é limpo", depois?.disposed_negotiation_id === null);
     }
+
+    console.log("\n14. Pelo WhatsApp: a leitura de cada lado da frase");
+    {
+      const bois = _lerLado("20 bois");
+      check(
+        "'20 bois' vira animais",
+        bois.ok && bois.lado.kind === "animais" && bois.lado.quantity === 20,
+        JSON.stringify(bois),
+      );
+
+      const cerca = _lerLado("construção de cerca");
+      check(
+        "'construção de cerca' vira descrição",
+        cerca.ok && cerca.lado.kind === "descricao",
+        JSON.stringify(cerca),
+      );
+
+      // ⚠️ O QUE NÃO PODE ACONTECER: "um trator" virar texto. A máquina
+      // ficaria fora do cadastro e ninguém perceberia.
+      const trator = _lerLado("um trator");
+      check(
+        "'um trator' NÃO vira descrição: manda para o painel",
+        !trator.ok && trator.motivo === "catalogo",
+        JSON.stringify(trator),
+      );
+
+      const sacas = _lerLado("10 sacas de sal");
+      check(
+        "'10 sacas de sal' também manda para o painel",
+        !sacas.ok && (sacas.motivo === "catalogo" || sacas.motivo === "categoria"),
+        JSON.stringify(sacas),
+      );
+    }
+
+    console.log("\n15. Pelo WhatsApp: recusa vence tudo, e o sim só vale para o mostrado");
+    {
+      await clearPendingBarter(tenant.id, USUARIO);
+      const negociacoesAntes = await db.negotiation.count();
+
+      const recusa = await registrarPermuta(
+        ctx(db, tenant.id, { entregue: "20 bois", recebido: "construção de cerca" }, {
+          explicitNo: true,
+          userId: USUARIO,
+        }),
+      );
+      check("a recusa cancela", recusa.action_taken.endsWith(":cancelado"), recusa.action_taken);
+      check("e nada é gravado", (await db.negotiation.count()) === negociacoesAntes);
+
+      // A cicatriz de 18/08: um "sim" sem pendente executava o que o
+      // classificador remontou.
+      const simSolto = await registrarPermuta(
+        ctx(db, tenant.id, { entregue: "999 bois", recebido: "uma cerca" }, {
+          confirmed: true,
+          userId: USUARIO,
+        }),
+      );
+      check(
+        "um sim sem pendente não grava nada",
+        simSolto.action_taken === "clarification_requested",
+        simSolto.action_taken,
+      );
+      check("a contagem continua igual", (await db.negotiation.count()) === negociacoesAntes);
+    }
+
+    console.log("\n16. Pelo WhatsApp: o resumo do §18.5 e o registro");
+    {
+      await clearPendingBarter(tenant.id, USUARIO);
+      const boisAntes = soma(await getPositions(db, { owner: "proprio", category_id: "macho_36_mais" }));
+
+      const resumo = await registrarPermuta(
+        ctx(db, tenant.id, { entregue: "4 bois", recebido: "conserto do curral", pasto: "Pasto A" }, {
+          userId: USUARIO,
+        }),
+      );
+      check("pede confirmação antes de gravar", resumo.requires_confirmation === true, resumo.reply_text);
+      check(
+        "com o resumo do §18.5",
+        /Entendi a seguinte permuta/.test(resumo.reply_text) &&
+          /Entregou/.test(resumo.reply_text) &&
+          /Recebeu/.test(resumo.reply_text),
+        resumo.reply_text,
+      );
+
+      const feito = await registrarPermuta(
+        ctx(db, tenant.id, { entregue: "4 bois", recebido: "conserto do curral", pasto: "Pasto A" }, {
+          confirmed: true,
+          userId: USUARIO,
+        }),
+      );
+      check(
+        "confirmado, a permuta nasce",
+        feito.action_taken.startsWith("registrar_permuta:ok"),
+        `${feito.action_taken} / ${feito.reply_text}`,
+      );
+      check(
+        "e os 4 bois saem do rebanho",
+        soma(await getPositions(db, { owner: "proprio", category_id: "macho_36_mais" })) === boisAntes - 4,
+      );
+
+      await clearPendingBarter(tenant.id, USUARIO);
+    }
   } finally {
+    await clearPendingBarter(tenant.id, USUARIO);
     await prisma.tenant.delete({ where: { id: tenant.id } });
   }
 }

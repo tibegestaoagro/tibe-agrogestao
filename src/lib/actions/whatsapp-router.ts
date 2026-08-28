@@ -37,6 +37,7 @@ import {
   registrarRemessaEvento,
   encerrarRemessaEvento,
 } from "@/lib/actions/whatsapp-handlers/evento";
+import { registrarPermuta } from "@/lib/actions/whatsapp-handlers/permuta";
 import { loadPendingNegotiation } from "@/lib/actions/negotiation-pending";
 import {
   loadPendingStock,
@@ -111,6 +112,7 @@ const HANDLERS: Record<Exclude<Intent, "ambigua">, Handler> = {
   consultar_estoque: consultarEstoque,
   registrar_remessa_evento: registrarRemessaEvento,
   encerrar_remessa_evento: encerrarRemessaEvento,
+  registrar_permuta: registrarPermuta,
   consultar_cliente: consultarCliente,
   gerar_relatorio: gerarRelatorio,
   registrar_lancamento_financeiro: registrarLancamentoFinanceiro,

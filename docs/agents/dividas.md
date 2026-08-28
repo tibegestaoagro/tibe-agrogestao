@@ -138,6 +138,22 @@ variável tipada como resposta de token.
 
 **Custo:** pequeno, uma sessão curta. O ganho é `tsc` voltar a ser um sinal.
 
+### 3.2 Cinco cópias do store de pendência do WhatsApp
+
+`herd-pending.ts`, `negotiation-pending.ts`, `stock-pending.ts`,
+`event-pending.ts` e `barter-pending.ts` são o mesmo mecanismo com prefixo de
+chave diferente: cerca de 90 linhas de Redis repetidas cinco vezes. O
+comentário de `negotiation-pending.ts` previa extrair um store genérico "quando
+o terceiro domínio precisar disto"; chegamos ao quinto.
+
+Extrair é seguro (nenhum tem lógica própria além do mapa de atalhos de campo),
+mas toca quatro módulos que estão em produção, e por isso **não** foi feito no
+meio da missão 4: é exatamente o risco que a nota original alertava.
+
+**Custo:** uma rodada própria, com `m24`, `m36`, `m37`, `m48` e `m49` rodando
+antes e depois. O ganho é uma correção de bug de pendência valer para os cinco
+domínios de uma vez, em vez de precisar ser aplicada cinco vezes.
+
 ---
 
 ## 4. Cobertura desigual

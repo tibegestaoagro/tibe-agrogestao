@@ -40,6 +40,10 @@ export const INTENTS = [
   // testadas, esperando a rodada em que o agente for atualizado.
   "registrar_remessa_evento",
   "encerrar_remessa_evento",
+  // Modulo 31 (missao 4, §18.5): "troquei 20 bois por um trator e paguei mais
+  // 30 mil". O classificador do n8n ainda NAO emite esta intencao: ela fica
+  // roteada e testada, esperando a rodada em que o agente for atualizado.
+  "registrar_permuta",
   "consultar_cliente",
   "gerar_relatorio",
   "registrar_lancamento_financeiro",
@@ -96,6 +100,10 @@ export const INTENT_ACCESS: Record<
   // para um leilao precisa poder ver onde ele foi parar.
   registrar_remessa_evento: { module: "rebanho", action: "write", profile: "fazenda" },
   encerrar_remessa_evento: { module: "rebanho", action: "write", profile: "fazenda" },
+  // A permuta toca rebanho, estoque, maquinas e financeiro, e reusa "rebanho"
+  // pelo mesmo motivo dos outros: o PRD nao define ModuleKey proprio para
+  // Negociacoes, e quem pode trocar gado precisa poder ver o resultado.
+  registrar_permuta: { module: "rebanho", action: "write", profile: "fazenda" },
   consultar_cliente: { module: "prestador", action: "read", profile: "prestador" },
   gerar_relatorio: { module: null, action: "read" }, // módulo varia por parameters.tipo
   registrar_lancamento_financeiro: { module: "financeiro", action: "write" },
