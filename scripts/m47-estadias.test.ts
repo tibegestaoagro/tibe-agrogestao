@@ -95,7 +95,7 @@ console.log("\n5. Animal de terceiro sai, mas nunca vira rebanho próprio");
 
 async function comBanco() {
   const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
-  const { openStay, closeStay } = await import("@/lib/actions/herd-stays");
+  const { openStay, closeStay, listStays, cancelStay } = await import("@/lib/actions/herd-stays");
   const { getPositions, recordMovement } = await import("@/lib/actions/herd-ledger");
 
   const stamp = Date.now();
@@ -395,6 +395,87 @@ async function comBanco() {
       check(
         "e não sobra desaparecido nenhum",
         soma(await getPositions(db, { owner: "proprio", situation: "desaparecido" })) === 0,
+      );
+    }
+    console.log("\n15. A lista traz o saldo aberto, derivado das movimentações");
+    {
+      const estadia = await abrirComVinte();
+      const antes = await listStays(db, {});
+      const aberta = antes.ok ? antes.data.find((e) => e.id === estadia.id) : null;
+      check("estadia recém-aberta tem saldo 20", aberta?.saldo_aberto === 20, String(aberta?.saldo_aberto));
+      check("e está aberta", aberta?.aberta === true);
+
+      await closeStay(db, estadia.id, {
+        destinos: [{ movement_type: "retorno_estadia", quantity: 20 }],
+      });
+      const depois = await listStays(db, {});
+      const fechada = depois.ok ? depois.data.find((e) => e.id === estadia.id) : null;
+      check("depois de encerrada, saldo zero", fechada?.saldo_aberto === 0, String(fechada?.saldo_aberto));
+      check("e deixa de estar aberta", fechada?.aberta === false);
+
+      const soAbertas = await listStays(db, { apenas_abertas: true });
+      check(
+        "o filtro de abertas não traz a encerrada",
+        soAbertas.ok && !soAbertas.data.some((e) => e.id === estadia.id),
+      );
+    }
+
+    console.log("\n16. Cancelar desfaz o rebanho e o dinheiro pendente");
+    {
+      const presenteAntes = soma(await getPositions(db, { owner: "proprio", situation: "presente" }));
+      const boitelAntes = soma(await getPositions(db, { owner: "proprio", situation: "boitel" }));
+      const r = await openStay(db, {
+        type: "boitel",
+        property_id: fazenda.id,
+        category_id: "femea_36_mais",
+        pasture_id: pasto.id,
+        quantity: 20,
+        counterparty_name: "Boitel Central",
+        charge_type: "fechado",
+        charge_value: 3000,
+      });
+      const id = r.ok ? r.data.id : "";
+      check(
+        "as 20 saíram da fazenda ao abrir",
+        soma(await getPositions(db, { owner: "proprio", situation: "presente" })) === presenteAntes - 20,
+      );
+
+      const cancel = await cancelStay(db, id, { reason: "lançado errado" });
+      check("cancela", cancel.ok, cancel.ok ? "" : cancel.message);
+      check(
+        "as 20 cabeças voltam para a fazenda",
+        soma(await getPositions(db, { owner: "proprio", situation: "presente" })) === presenteAntes,
+      );
+      check(
+        "e esta estadia não deixa ninguém no boitel",
+        soma(await getPositions(db, { owner: "proprio", situation: "boitel" })) === boitelAntes,
+      );
+
+      const contas = await db.financialEntry.findMany({ where: { related_module: "rebanho", related_id: id } });
+      check("a conta a pagar pendente some", contas.length === 0, String(contas.length));
+
+      const movimentos = await db.herdMovement.findMany({ where: { stay_id: id } });
+      check("mas a movimentação continua no histórico, marcada", movimentos.length === 1);
+      check("com a data de cancelamento", movimentos[0]?.canceled_at != null);
+
+      const denovo = await cancelStay(db, id, {});
+      check("cancelar duas vezes é recusado", !denovo.ok && denovo.code === "ESTADIA_JA_CANCELADA");
+    }
+
+    console.log("\n17. Estadia com encerramento não pode ser cancelada inteira");
+    {
+      const estadia = await abrirComVinte();
+      await closeStay(db, estadia.id, {
+        destinos: [
+          { movement_type: "venda", quantity: 10, value: 30000 },
+          { movement_type: "retorno_estadia", quantity: 10 },
+        ],
+      });
+      const r = await cancelStay(db, estadia.id, { reason: "mudei de ideia" });
+      check(
+        "recusa, porque desfazer venda é decisão do produtor",
+        !r.ok && r.code === "ESTADIA_JA_ENCERRADA",
+        r.ok ? "cancelou" : r.code,
       );
     }
   } finally {

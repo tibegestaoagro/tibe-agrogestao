@@ -9,6 +9,7 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
 import { recordMovementInTx, type HerdPositionKey } from "@/lib/actions/herd-ledger";
 import { isValidCategory } from "@/lib/herd/categories";
+import { decToNum } from "@/lib/serialize";
 import {
   donoDaEstadia,
   permiteEncerramento,
@@ -346,6 +347,171 @@ export async function closeStay(
 
     const restante = aberto - informado;
     return ok({ id: stayId, encerrada: restante === 0, saldo_aberto: restante });
+  }).catch((erro: unknown) => {
+    if (erro instanceof EstadiaRecusada) {
+      return fail(erro.code, erro.message, 422, erro.field);
+    }
+    throw erro;
+  });
+}
+
+export type HerdStayListItem = {
+  id: string;
+  type: HerdStayType;
+  property_id: string;
+  counterparty_name: string | null;
+  location_name: string | null;
+  started_at: Date;
+  expected_end_at: Date | null;
+  charge_type: HerdChargeType | null;
+  charge_value: number | null;
+  /** O que ainda está na estadia. Derivado, nunca gravado. */
+  saldo_aberto: number;
+  /** Aberta é `saldo_aberto > 0`. Não existe campo dizendo isso. */
+  aberta: boolean;
+  canceled_at: Date | null;
+};
+
+/**
+ * Lista as estadias com o saldo aberto de cada uma.
+ *
+ * O saldo sai das movimentações, numa consulta só para todas as estadias: uma
+ * por estadia viraria N+1 na tela que mais importa desta frente.
+ */
+export async function listStays(
+  db: TenantPrismaClient,
+  filtro: { property_id?: string; type?: HerdStayType; apenas_abertas?: boolean } = {},
+): Promise<ActionResult<HerdStayListItem[]>> {
+  const stays = await db.herdStay.findMany({
+    where: {
+      ...(filtro.property_id ? { property_id: filtro.property_id } : {}),
+      ...(filtro.type ? { type: filtro.type } : {}),
+    },
+    orderBy: { started_at: "desc" },
+  });
+  if (stays.length === 0) return ok([]);
+
+  const movimentos = await db.herdMovement.findMany({
+    where: { stay_id: { in: stays.map((s) => s.id) }, canceled_at: null },
+    select: {
+      stay_id: true,
+      quantity: true,
+      from_situation: true,
+      from_owner: true,
+      to_situation: true,
+      to_owner: true,
+    },
+  });
+
+  const porEstadia = new Map<string, typeof movimentos>();
+  for (const m of movimentos) {
+    if (!m.stay_id) continue;
+    const lista = porEstadia.get(m.stay_id) ?? [];
+    lista.push(m);
+    porEstadia.set(m.stay_id, lista);
+  }
+
+  const itens = stays.map((stay) => {
+    const aberto = saldoAberto(
+      porEstadia.get(stay.id) ?? [],
+      situacaoDaEstadia(stay.type),
+      donoDaEstadia(stay.type),
+    );
+    return {
+      id: stay.id,
+      type: stay.type,
+      property_id: stay.property_id,
+      counterparty_name: stay.counterparty_name,
+      location_name: stay.location_name,
+      started_at: stay.started_at,
+      expected_end_at: stay.expected_end_at,
+      charge_type: stay.charge_type,
+      charge_value: decToNum(stay.charge_value),
+      saldo_aberto: aberto,
+      aberta: aberto > 0 && stay.canceled_at === null,
+      canceled_at: stay.canceled_at,
+    };
+  });
+
+  return ok(filtro.apenas_abertas ? itens.filter((i) => i.aberta) : itens);
+}
+
+/**
+ * Cancela a estadia inteira: as cabeças voltam para onde estavam e o dinheiro
+ * pendente para de contar.
+ *
+ * Cancelar NÃO apaga, aqui como no resto do projeto: a estadia e as
+ * movimentações continuam no histórico, marcadas, e param de contar no saldo.
+ *
+ * Recusa estadia que já teve encerramento, e isso é deliberado: desfazer um
+ * encerramento parcial exigiria decidir o que fazer com o que já foi vendido,
+ * e essa decisão é do produtor, não nossa. O caminho é cancelar a movimentação
+ * de encerramento primeiro.
+ */
+export async function cancelStay(
+  db: TenantPrismaClient,
+  stayId: string,
+  input: { reason?: string | null; canceled_by_user_id?: string | null } = {},
+): Promise<ActionResult<{ id: string }>> {
+  const stay = await db.herdStay.findFirst({ where: { id: stayId } });
+  if (!stay) return fail("NOT_FOUND", "Estadia não encontrada.", 404);
+  if (stay.canceled_at) return fail("ESTADIA_JA_CANCELADA", "Esta estadia já foi cancelada.", 422);
+
+  const situacao = situacaoDaEstadia(stay.type);
+  const dono = donoDaEstadia(stay.type);
+
+  return runSerializableTenantTransaction(db, async (tx) => {
+    const movimentos = await tx.herdMovement.findMany({
+      where: { stay_id: stayId, canceled_at: null },
+    });
+
+    const jaEncerrada = movimentos.some(
+      (m) => m.from_situation === situacao && m.from_owner === dono,
+    );
+    if (jaEncerrada) {
+      throw new EstadiaRecusada(
+        "ESTADIA_JA_ENCERRADA",
+        "Esta estadia já tem encerramento registrado. Cancele a movimentação de encerramento antes.",
+      );
+    }
+
+    const agora = new Date();
+    await tx.herdMovement.updateMany({
+      where: { stay_id: stayId, canceled_at: null },
+      data: { canceled_at: agora, canceled_reason: input.reason ?? "Estadia cancelada" },
+    });
+
+    // O dinheiro segue o mesmo tratamento do `cancelMovement`: pendente é
+    // apagado, porque nunca virou dinheiro; pago ganha estorno datado de hoje,
+    // porque o dinheiro saiu de verdade e o fluxo de caixa precisa ver a volta.
+    const contas = await tx.financialEntry.findMany({
+      where: { related_module: "rebanho", related_id: stayId },
+    });
+    for (const conta of contas) {
+      if (conta.status === "pending") {
+        await tx.financialEntry.delete({ where: { id: conta.id } });
+      } else {
+        await createLinkedEntry(tx, {
+          entry_type: conta.entry_type === "income" ? "expense" : "income",
+          category: "Estorno de estadia do rebanho",
+          amount: decToNum(conta.amount) ?? 0,
+          related_module: "rebanho",
+          related_id: stayId,
+          occurred_at: agora,
+        });
+      }
+    }
+
+    await tx.herdStay.update({
+      where: { id: stayId },
+      data: {
+        canceled_at: agora,
+        canceled_reason: input.reason ?? null,
+        canceled_by_user_id: input.canceled_by_user_id ?? null,
+      },
+    });
+
+    return ok({ id: stayId });
   }).catch((erro: unknown) => {
     if (erro instanceof EstadiaRecusada) {
       return fail(erro.code, erro.message, 422, erro.field);
