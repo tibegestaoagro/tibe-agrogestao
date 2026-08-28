@@ -45,6 +45,8 @@ function ctx(
 async function comBanco() {
   const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
   const { getPositions, recordMovement } = await import("@/lib/actions/herd-ledger");
+  const { createBarter } = await import("@/lib/actions/barters");
+  const { getNegotiation, situacaoLabel } = await import("@/lib/actions/negotiations");
 
   const stamp = Date.now();
   const tenant = await prisma.tenant.create({
@@ -182,6 +184,84 @@ async function comBanco() {
         "e ACRESCENTA 5 cabeças, em vez de tirar",
         soma(await getPositions(db, { owner: "proprio", category_id: "femea_13_24" })) === 305,
         String(soma(await getPositions(db, { owner: "proprio", category_id: "femea_13_24" }))),
+      );
+    }
+
+    console.log("\n2. O exemplo §12.8: 15 fêmeas por 10 bezerros e R$ 18.000 recebidos");
+    {
+      const femeasAntes = soma(await getPositions(db, { owner: "proprio", category_id: "femea_13_24" }));
+      const bezerrosAntes = soma(await getPositions(db, { owner: "proprio", category_id: "bezerro_0_7" }));
+
+      const r = await createBarter(db, {
+        property_id: fazenda.id,
+        entregue: { kind: "animais", category_id: "femea_13_24", quantity: 15, pasture_id: pasto.id },
+        recebido: { kind: "animais", category_id: "bezerro_0_7", quantity: 10, pasture_id: pasto.id },
+        diferenca: { direcao: "recebi", amount: 18000 },
+        pago: true,
+        contact_name: "Fazenda Vizinha",
+      });
+      check("a permuta abre", r.ok, r.ok ? "" : r.message);
+
+      check(
+        "saíram 15 fêmeas",
+        soma(await getPositions(db, { owner: "proprio", category_id: "femea_13_24" })) === femeasAntes - 15,
+      );
+      check(
+        "entraram 10 bezerros",
+        soma(await getPositions(db, { owner: "proprio", category_id: "bezerro_0_7" })) === bezerrosAntes + 10,
+      );
+
+      const movs = await db.herdMovement.findMany({
+        where: { negotiation_id: r.ok ? r.data.id : "" },
+        select: { movement_type: true, quantity: true },
+      });
+      check("dois movimentos, um de cada lado", movs.length === 2, String(movs.length));
+      check(
+        "o extrato diz PERMUTA, nunca venda",
+        movs.every((m) => m.movement_type === "permuta_saida" || m.movement_type === "permuta_entrada"),
+        movs.map((m) => m.movement_type).join(","),
+      );
+
+      const lancamentos = await db.financialEntry.findMany({
+        where: { negotiation_id: r.ok ? r.data.id : "" },
+      });
+      check("um lançamento só", lancamentos.length === 1, String(lancamentos.length));
+      check("e ele é RECEITA", lancamentos[0]?.entry_type === "income", lancamentos[0]?.entry_type);
+      check("de R$ 18.000", Number(lancamentos[0]?.amount) === 18000, String(lancamentos[0]?.amount));
+
+      // A ARMADILHA: `ehVenda()` decide pelo TIPO, e numa permuta a direção do
+      // dinheiro depende da diferença. Sem tratar, a linha diria "A pagar"
+      // numa permuta em que o produtor RECEBEU.
+      const detalhe = await getNegotiation(db, r.ok ? r.data.id : "");
+      check("a negociação sabe que o dinheiro ENTROU", detalhe?.recebe_dinheiro === true);
+      check(
+        "e a tela diz Recebida, nunca 'A pagar'",
+        situacaoLabel(detalhe?.situacao ?? "", detalhe?.recebe_dinheiro ?? false) === "Recebida",
+        situacaoLabel(detalhe?.situacao ?? "", detalhe?.recebe_dinheiro ?? false),
+      );
+      check("o valor da negociação é a diferença", Number(detalhe?.amount) === 18000, String(detalhe?.amount));
+      check("o contato foi criado", detalhe?.contact_name === "Fazenda Vizinha", detalhe?.contact_name ?? "");
+    }
+
+    console.log("\n3. Sem saldo, nada fica pela metade");
+    {
+      const negociacoesAntes = await db.negotiation.count();
+      const contatosAntes = await db.contact.count();
+      const bezerrosAntes = soma(await getPositions(db, { owner: "proprio", category_id: "bezerro_0_7" }));
+
+      const r = await createBarter(db, {
+        property_id: fazenda.id,
+        entregue: { kind: "animais", category_id: "femea_13_24", quantity: 9999, pasture_id: pasto.id },
+        recebido: { kind: "animais", category_id: "bezerro_0_7", quantity: 10, pasture_id: pasto.id },
+        contact_name: "Contato Fantasma",
+      });
+      check("recusa por saldo", !r.ok && r.code === "INSUFFICIENT_BALANCE", r.ok ? "abriu" : r.code);
+      check("apontando a quantidade", !r.ok && r.field === "quantity");
+      check("nenhuma negociação órfã", (await db.negotiation.count()) === negociacoesAntes);
+      check("nenhum contato órfão", (await db.contact.count()) === contatosAntes);
+      check(
+        "e os bezerros do outro lado NÃO entraram",
+        soma(await getPositions(db, { owner: "proprio", category_id: "bezerro_0_7" })) === bezerrosAntes,
       );
     }
   } finally {

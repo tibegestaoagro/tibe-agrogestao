@@ -111,6 +111,15 @@ export type NegotiationDetail = {
   canceled_reason: string | null;
   created_at: Date;
   situacao: SituacaoNegociacao;
+  /**
+   * O dinheiro deste negócio ENTRA para o produtor?
+   *
+   * Aditivo, e existe porque `ehVenda()` decide pelo TIPO e numa PERMUTA a
+   * direção depende da diferença, não do tipo: a mesma `permuta` pode ser
+   * dinheiro entrando ou saindo. Quem lê a tela deve usar este campo, nunca
+   * chamar `ehVenda` por conta própria.
+   */
+  recebe_dinheiro: boolean;
   totais: {
     /** O valor combinado. */
     principal: number;
@@ -172,6 +181,27 @@ export function ehVenda(tipo: NegotiationType): boolean {
   // coluna que o produtor lê de relance. Uma remessa ainda aberta não é
   // afetada: sem lançamento principal, a situação é `sem_valor`.
   return tipo === "venda_gado" || tipo === "venda_produto" || tipo === "evento";
+}
+
+/**
+ * O lado do dinheiro DESTE negócio, e não do tipo dele.
+ *
+ * Para tudo que não é permuta, é o tipo que manda, como sempre foi. Para a
+ * PERMUTA, quem sabe a resposta é o lançamento principal: uma troca em que o
+ * produtor pagou a diferença gera despesa, e uma em que ele recebeu gera
+ * receita, com o mesmo `NegotiationType`. Uma lista fixa de tipos não tem como
+ * responder isso, e sem esta função a tela diria "A pagar" numa permuta em que
+ * o produtor recebeu, que é o mesmo sinal invertido que a validação ao vivo da
+ * missão 3 encontrou.
+ */
+function dinheiroEntra(
+  tipo: NegotiationType,
+  lancamentos: { entry_type: string; negotiation_role: string | null }[],
+): boolean {
+  if (tipo !== "permuta") return ehVenda(tipo);
+  return lancamentos.some(
+    (l) => l.negotiation_role === "principal" && l.entry_type === "income",
+  );
 }
 
 /**
@@ -544,6 +574,10 @@ export async function getNegotiation(
   const principal = principais.reduce((s, l) => s + l.amount, 0);
   const custos = custosLista.reduce((s, l) => s + l.amount, 0);
 
+  // Calculada UMA vez: a situação e o rótulo da tela precisam da mesma
+  // resposta, e numa permuta ela não sai do tipo.
+  const recebe = dinheiroEntra(n.type, lancamentos);
+
   return {
     id: n.id,
     type: n.type,
@@ -579,9 +613,10 @@ export async function getNegotiation(
       lancamentos.filter(
         (l) =>
           l.negotiation_role !== "estorno" &&
-          l.entry_type === (ehVenda(n.type) ? "income" : "expense"),
+          l.entry_type === (recebe ? "income" : "expense"),
       ),
     ),
+    recebe_dinheiro: recebe,
     totais: {
       principal,
       custos,
