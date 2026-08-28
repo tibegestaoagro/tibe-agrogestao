@@ -38,6 +38,16 @@ import { findCategory } from "@/lib/herd/categories";
  * exemplo do §12.
  */
 
+/**
+ * Como cada movimentação aparece no extrato, na língua do produtor.
+ *
+ * ⚠️ TODO valor de `HerdMovementType` precisa estar aqui. Sem a chave, o
+ * extrato mostra o nome cru do enum (`envio_boitel`, `permuta_saida`), que é
+ * pior do que a "linguagem de sistema contábil" que o §2 do documento proíbe:
+ * é nome de coluna de banco na tela do produtor. As oito linhas das fases 2 e
+ * 3 ficaram faltando desde que nasceram, e só apareceram na validação ao vivo
+ * da missão 4. O `npm run check` passou a reprovar a ausência.
+ */
 const TIPO_LABEL: Record<string, string> = {
   saldo_inicial: "Saldo inicial",
   nascimento: "Nascimento",
@@ -48,6 +58,16 @@ const TIPO_LABEL: Record<string, string> = {
   transferencia_fazenda: "Mudança de fazenda",
   mudanca_categoria: "Mudança de categoria",
   ajuste: "Ajuste",
+  envio_evento: "Envio para leilão ou feira",
+  envio_pasto_terceiro: "Envio para pasto de terceiro",
+  envio_boitel: "Envio para boitel",
+  retorno_estadia: "Retorno para a fazenda",
+  entrada_terceiro: "Entrada de animal de terceiro",
+  saida_terceiro: "Devolução ao dono",
+  desaparecimento: "Desaparecimento",
+  perda_confirmada: "Perda confirmada",
+  permuta_saida: "Permuta (entregue)",
+  permuta_entrada: "Permuta (recebido)",
 };
 
 /** Como cada tipo de estadia aparece para o produtor, na língua dele. */

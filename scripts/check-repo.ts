@@ -446,6 +446,50 @@ function conferirCorCrua() {
   }
 }
 
+/**
+ * Todo `HerdMovementType` tem rotulo em portugues na tela do Rebanho.
+ *
+ * Sem esta trava, um tipo novo aparece no extrato do produtor com o nome CRU
+ * do enum (`envio_boitel`, `permuta_saida`): nome de coluna de banco na tela,
+ * pior do que a "linguagem de sistema contabil" que o paragrafo 2 do documento
+ * do cliente proibe. Os oito tipos das fases 2 e 3 do Modulo 30 ficaram sem
+ * rotulo desde que nasceram, e so apareceram na validacao ao vivo da missao 4
+ * do Modulo 31: a suite inteira estava verde o tempo todo.
+ */
+function conferirRotulosDeMovimento() {
+  console.log("\n9. Rotulo de movimentacao do rebanho");
+
+  const schema = readFileSync(join(RAIZ, "prisma", "schema.prisma"), "utf8");
+  const bloco = schema.match(/enum HerdMovementType \{([^}]*)\}/);
+  if (!bloco) {
+    check("enum HerdMovementType encontrado no schema", false);
+    return;
+  }
+  const tipos = bloco[1]
+    .split("\n")
+    .map((l) => l.replace(/\/\/\/.*/, "").trim())
+    .filter((l) => l.length > 0 && /^[a-z_]+$/.test(l));
+
+  const pagina = readFileSync(
+    join(RAIZ, "src", "app", "(dashboard)", "rebanho", "page.tsx"),
+    "utf8",
+  );
+  const mapa = pagina.match(/const TIPO_LABEL: Record<string, string> = \{([\s\S]*?)\n\};/);
+  if (!mapa) {
+    check("TIPO_LABEL encontrado na tela de Rebanho", false);
+    return;
+  }
+
+  const semRotulo = tipos.filter((t) => !new RegExp(`\\b${t}:`).test(mapa[1]));
+  check(
+    `os ${tipos.length} tipos de movimentacao tem rotulo em portugues`,
+    semRotulo.length === 0,
+    semRotulo.length > 0
+      ? `sem rotulo em TIPO_LABEL (o extrato mostraria o nome do enum): ${semRotulo.join(", ")}`
+      : undefined,
+  );
+}
+
 function main() {
   console.log("🔎 Conferencia estatica do repositorio (sem banco)");
   conferirCaminhos();
@@ -457,6 +501,7 @@ function main() {
   conferirContraste(check);
   conferirCamposNumericos();
   conferirCorCrua();
+  conferirRotulosDeMovimento();
 
   console.log("");
   if (falhas === 0) console.log("✅ Repositorio consistente: 0 falhas.");

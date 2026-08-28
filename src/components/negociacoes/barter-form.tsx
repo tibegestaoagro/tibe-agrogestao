@@ -53,20 +53,42 @@ function ehDescricao(tipo: Tipo | ""): boolean {
   return tipo === "servico" || tipo === "outro";
 }
 
+/**
+ * Os campos, QUALIFICADOS POR LADO.
+ *
+ * Os dois lados oferecem categoria, quantidade e produto, e usar a mesma chave
+ * nos dois repetiria o `id` no DOM: o rótulo passa a apontar para o campo
+ * errado, e o foco do erro cai no lado de cima mesmo quando o problema é no de
+ * baixo. Visto na validação ao vivo.
+ */
 const ORDEM = [
   "property_id",
   "entregue",
-  "recebido",
-  "category_id",
-  "quantity",
-  "product_id",
+  "entregue_category_id",
+  "entregue_quantity",
+  "entregue_product_id",
   "machine_id",
+  "recebido",
+  "recebido_category_id",
+  "recebido_quantity",
+  "recebido_product_id",
   "name",
   "type",
   "amount",
-  "outro_destino",
 ] as const;
 type Campo = (typeof ORDEM)[number];
+
+/**
+ * O servidor recusa dizendo `quantity`, `category_id` ou `product_id`, sem
+ * dizer de qual lado: ele não precisa saber, porque só o lado ENTREGUE pode
+ * faltar saldo (o recebido soma). Traduzir aqui mantém a mensagem embaixo do
+ * campo certo em vez de mandá-la para o rodapé.
+ */
+const CAMPO_DO_SERVIDOR: Record<string, Campo> = {
+  quantity: "entregue_quantity",
+  category_id: "entregue_category_id",
+  product_id: "entregue_product_id",
+};
 
 function hoje() {
   return new Date().toISOString().slice(0, 10);
@@ -196,10 +218,18 @@ export default function BarterForm({
     if (!propertyId) novos.property_id = "Escolha a fazenda.";
     if (!tipoSaiu) novos.entregue = "Escolha o que saiu da fazenda.";
     if (!tipoEntrou) novos.recebido = "Escolha o que entrou na fazenda.";
-    if (tipoSaiu === "animais" && !catSaiu) novos.category_id = "Escolha a categoria que saiu.";
-    if (tipoEntrou === "animais" && !catEntrou) novos.category_id = "Escolha a categoria que entrou.";
-    if (tipoSaiu === "produtos" && !prodSaiu) novos.product_id = "Escolha o produto que saiu.";
-    if (tipoEntrou === "produtos" && !prodEntrou) novos.product_id = "Escolha o produto que entrou.";
+    if (tipoSaiu === "animais" && !catSaiu) {
+      novos.entregue_category_id = "Escolha a categoria que saiu.";
+    }
+    if (tipoEntrou === "animais" && !catEntrou) {
+      novos.recebido_category_id = "Escolha a categoria que entrou.";
+    }
+    if (tipoSaiu === "produtos" && !prodSaiu) {
+      novos.entregue_product_id = "Escolha o produto que saiu.";
+    }
+    if (tipoEntrou === "produtos" && !prodEntrou) {
+      novos.recebido_product_id = "Escolha o produto que entrou.";
+    }
     if (tipoSaiu === "maquina" && !maqSaiu) novos.machine_id = "Escolha a máquina entregue.";
     if (tipoEntrou === "maquina" && !maqNome.trim()) novos.name = "Informe o nome da máquina.";
     if (tipoEntrou === "maquina" && !maqTipo.trim()) novos.type = "Informe o tipo da máquina.";
@@ -233,7 +263,10 @@ export default function BarterForm({
     setLoading(false);
 
     if (!res.ok) {
-      err.doServidor(res);
+      err.doServidor({
+        ...res,
+        field: res.field ? (CAMPO_DO_SERVIDOR[res.field] ?? res.field) : undefined,
+      });
       return;
     }
 
@@ -245,17 +278,23 @@ export default function BarterForm({
   /** Os campos de um lado, que mudam conforme o tipo escolhido. */
   function camposDoLado(lado: "saiu" | "entrou") {
     const tipo = lado === "saiu" ? tipoSaiu : tipoEntrou;
+    // Cada lado tem chaves próprias: id repetido no DOM faz o rótulo apontar
+    // para o campo errado e o foco do erro cair no lado de cima.
+    const kCategoria = lado === "saiu" ? "entregue_category_id" : "recebido_category_id";
+    const kQuantidade = lado === "saiu" ? "entregue_quantity" : "recebido_quantity";
+    const kProduto = lado === "saiu" ? "entregue_product_id" : "recebido_product_id";
+
     if (tipo === "animais") {
       return (
         <>
-          <Field label="Categoria" required id="category_id" error={err.erros.category_id}>
+          <Field label="Categoria" required id={kCategoria} error={err.erros[kCategoria]}>
             {({ id, ...aria }) => (
               <Select
                 value={lado === "saiu" ? catSaiu : catEntrou}
                 onValueChange={(v) => {
                   if (lado === "saiu") setCatSaiu(v);
                   else setCatEntrou(v);
-                  err.limparCampo("category_id");
+                  err.limparCampo(kCategoria);
                 }}
               >
                 <SelectTrigger id={id} {...aria}>
@@ -271,7 +310,12 @@ export default function BarterForm({
               </Select>
             )}
           </Field>
-          <Field label="Quantidade de cabeças" required id="quantity" error={err.erros.quantity}>
+          <Field
+            label="Quantidade de cabeças"
+            required
+            id={kQuantidade}
+            error={err.erros[kQuantidade]}
+          >
             {({ id, ...aria }) => (
               <MoneyInput
                 id={id}
@@ -282,7 +326,7 @@ export default function BarterForm({
                 onValueChange={(v) => {
                   if (lado === "saiu") setQtdSaiu(v);
                   else setQtdEntrou(v);
-                  err.limparCampo("quantity");
+                  err.limparCampo(kQuantidade);
                 }}
               />
             )}
@@ -294,14 +338,14 @@ export default function BarterForm({
     if (tipo === "produtos") {
       return (
         <>
-          <Field label="Produto" required id="product_id" error={err.erros.product_id}>
+          <Field label="Produto" required id={kProduto} error={err.erros[kProduto]}>
             {({ id, ...aria }) => (
               <Select
                 value={lado === "saiu" ? prodSaiu : prodEntrou}
                 onValueChange={(v) => {
                   if (lado === "saiu") setProdSaiu(v);
                   else setProdEntrou(v);
-                  err.limparCampo("product_id");
+                  err.limparCampo(kProduto);
                 }}
               >
                 <SelectTrigger id={id} {...aria}>
@@ -317,7 +361,7 @@ export default function BarterForm({
               </Select>
             )}
           </Field>
-          <Field label="Quantidade" required id="quantity" error={err.erros.quantity}>
+          <Field label="Quantidade" required id={kQuantidade} error={err.erros[kQuantidade]}>
             {({ id, ...aria }) => (
               <MoneyInput
                 id={id}
@@ -327,7 +371,7 @@ export default function BarterForm({
                 onValueChange={(v) => {
                   if (lado === "saiu") setQtdSaiu(v);
                   else setQtdEntrou(v);
-                  err.limparCampo("quantity");
+                  err.limparCampo(kQuantidade);
                 }}
               />
             )}

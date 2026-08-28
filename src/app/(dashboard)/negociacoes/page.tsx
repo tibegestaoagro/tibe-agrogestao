@@ -351,6 +351,11 @@ export default async function NegociacoesPage(
                         {remessaAberta.saldo_aberto.toLocaleString("pt-BR")} no evento
                         <span className="block text-xs">ainda sem venda</span>
                       </span>
+                    ) : n.situacao === "sem_valor" ? (
+                      // "R$ 0,00" lê como "valeu zero", e não é isso: não
+                      // houve dinheiro nenhum. A situação ao lado já diz qual
+                      // dos dois casos é.
+                      <span className="text-texto-discreto">sem dinheiro</span>
                     ) : (
                       reais(n.totais.principal)
                     )}

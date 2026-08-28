@@ -25,16 +25,17 @@ Se ele passar de umas 200, arquive antes de acrescentar.
 ## Estado atual
 
 - Atualizado em: 2026-08-28.
-- **As frentes 1, 2 e 3 estão na `main`.** A frente 3 (leilão, feira e evento)
-  foi mesclada em 28/08, em nove commits, com suíte `m48` nova, **51/51 suítes
-  verdes** e validação no navegador (as seis conferências do plano).
-- **A migração `20260828120000_remessa_de_evento` foi aplicada no Neon** antes
-  do push, na ordem do invariante 3. O Neon está com as 34, e
-  `npx prisma migrate status` responde "up to date".
-- ⚠️ **Confira se o deploy nasceu.** No plano gratuito da Vercel, push de
-  colaborador não dispara deploy, e o commit entra na `main` sem nenhuma versão
-  nascer e sem erro em lugar nenhum. O usuário disse em 28/08 que "sobre o
-  deploy eu resolvi": confirme na Vercel antes de supor que subiu.
+- **As frentes 1, 2 e 3 estão na `main` e no ar.** O deploy da frente 3 foi
+  confirmado em produção pelo `/docs/api`, que é público e lista as rotas
+  novas: o gatilho de deploy voltou a funcionar.
+- ⚠️ **A frente 4 está PRONTA e NÃO mesclada**, na branch `modulo-31-permuta`.
+  Nove tarefas, suíte `m49` nova, **52/52 suítes verdes** e validada no
+  navegador em 28/08 (as oito conferências do plano). Com ela o **Módulo 31
+  fecha**: as quatro missões entregues.
+- ⚠️ **A migração `20260828170000_permuta` NÃO foi aplicada no Neon**
+  (dois valores em `HerdMovementType`, um em `MachineStatus`, duas colunas em
+  `Machine` e duas em `Negotiation`). Ela vai junto do merge, na ordem do
+  invariante 3. O banco local já está com ela.
 - **A fase 1 (identidade e sistema de design) começou**, com três commits na
   `main`, na ordem que o plano exige: falha visível e alvo de 44px (`60e4d87`),
   tokens semânticos de cor com a catraca de contraste (`638d0f6`), e leitura de
@@ -108,10 +109,39 @@ que é colaboradora, as páginas de regra devolvem 404.
 
 ### Próximo passo
 
-**A frente 4 é a próxima: a missão 4 do Módulo 31, a permuta.** A decisão 11 da
-spec do Módulo 31 manda ser a última: qualquer item por qualquer item, com
-diferença em dinheiro, tocando quatro módulos num registro só, sobre peças já
-testadas em uso real. Próximo número livre de suíte: `m49`.
+**A frente 5 é a próxima, e é a última: o rollout do sistema de design** nos
+painéis de escrita restantes e nos arquivos que ainda pintam com a paleta crua
+do Tailwind (`scripts/baseline-cor-crua.json`, que só pode encolher). É onde a
+skill `loop-goal` finalmente cabe, porque é trabalho repetitivo com critério
+mecânico de parada. Próximo número livre de suíte: `m50`.
+
+**O que a frente 4 entregou**, em nove commits na `modulo-31-permuta`: a
+permuta como `Negotiation(permuta)` com um lado entregue e um recebido, cada um
+gravado por quem já sabe gravá-lo; `permuta_saida`/`permuta_entrada` no
+rebanho; `MachineStatus.negociada`; o cancelamento que desfaz rebanho, estoque,
+máquina e dinheiro juntos; a rota; o handler de WhatsApp; e a tela de dois
+lados.
+
+⚠️ **Quatro decisões da execução que valem para quem mexer nisso:**
+
+1. **O valor da permuta é SÓ a diferença.** Os valores estimados do §12.4
+   ficaram fora da v1 por decisão do usuário.
+2. **`PERMUTA_INCOMPLETA` e `PERMUTA_VAZIA` são recusas diferentes.** Falta de
+   um lado (§12.3 os torna obrigatórios) contra "nada se move e não há
+   dinheiro".
+3. **`ehVenda()` não responde por uma permuta.** Quem responde é
+   `dinheiroEntra()`, pelo lançamento, e a tela usa `recebe_dinheiro`. Nunca
+   chame `ehVenda` direto numa tela.
+4. **O handler de WhatsApp aceita só `animais` e `descricao`.** Máquina e
+   produto exigem escolher um registro do catálogo, e o handler manda para o
+   painel em vez de adivinhar.
+
+**A validação no navegador achou dois defeitos que a suíte verde não pegava**,
+os dois já corrigidos: os dois lados do formulário usavam `id` repetido no DOM
+(rótulo apontando para o campo errado, foco caindo no lado de cima), e o extrato
+do Rebanho mostrava o nome CRU do enum. Este segundo vinha desde a frente 2:
+oito tipos sem rótulo. O `npm run check` ganhou a conferência 9, que reprova
+`HerdMovementType` novo sem rótulo em português.
 
 Depois dela vem a frente 5, o rollout do sistema de design nos painéis de
 escrita restantes e nos arquivos que ainda pintam com a paleta crua do
@@ -205,6 +235,11 @@ Quatro achadas hoje, que não estavam em `dividas.md`:
 
 ## Histórico recente
 
+- **2026-08-28:** frente 4 (permuta) pronta na branch `modulo-31-permuta`, em
+  nove commits, com o Módulo 31 fechando as quatro missões. A validação ao vivo
+  achou `id` repetido no formulário de dois lados e o extrato do Rebanho
+  mostrando nome de enum desde a frente 2, os dois corrigidos, o segundo com
+  trava nova no `npm run check`.
 - **2026-08-28:** frente 3 (leilão, feira e evento) pronta na branch
   `modulo-31-leilao`, em oito commits mais um de correções. A remessa é uma
   `Negotiation(evento)` sem valor com uma `HerdStay(evento)` filha, e o envio

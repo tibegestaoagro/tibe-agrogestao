@@ -57,13 +57,23 @@ assinatura, webhook de pagamento, webhook de atraso).
 
 ## 2. Escopo desenhado e adiado
 
-### 2.1 Módulo 31, missão 4: permuta
+### 2.1 Módulo 31: FECHADO em 2026-08-28
 
-Não começou. Está desenhada na spec: qualquer item por qualquer item, com
-diferença em dinheiro, tocando 4 módulos num registro só. É o pedaço mais
-arriscado do documento do cliente, e a decisão 11 da spec manda ser a última.
+As quatro missões entregues. A missão 4 (permuta) está na branch
+`modulo-31-permuta`, esperando merge: um lado entregue e um recebido, cada um
+gravado por quem já sabe gravá-lo (rebanho, estoque, cadastro de Máquinas), e o
+lado sem área no Tibé vira texto com aviso na tela. O valor da negociação é
+**só a diferença em dinheiro**; os valores estimados do §12.4 ficaram fora da
+v1, por decisão do usuário.
 
-Próximo número livre de suíte: `m49`.
+⚠️ **O que continua fora**, e não é esquecimento: peso, arroba e valor por
+cabeça (§6.2, adiado desde a revisão de 2026-08-14), formas de pagamento do
+§13, os nove filtros do §19, e o classificador do n8n, congelado por decisão do
+usuário. Os handlers de WhatsApp das missões 3 e 4 existem e são testados, mas
+**o agente ainda não emite** `registrar_remessa_evento`,
+`encerrar_remessa_evento` nem `registrar_permuta`.
+
+Próximo número livre de suíte: `m50`.
 
 ### 2.1.1 Missão 3, leilão e eventos: FEITA em 2026-08-28
 
