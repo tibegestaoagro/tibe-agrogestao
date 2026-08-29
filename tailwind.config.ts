@@ -47,6 +47,7 @@ const config: Config = {
           suave: "var(--primaria-suave)",
         },
         "sobre-primaria": "var(--sobre-primaria)",
+        sobreposicao: "var(--sobreposicao)",
         acento: {
           DEFAULT: "var(--acento)",
           hover: "var(--acento-hover)",

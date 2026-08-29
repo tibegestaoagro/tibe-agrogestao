@@ -37,7 +37,7 @@ const TableHeader = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
-  <thead ref={ref} className={cn("border-b bg-gray-50", className)} {...props} />
+  <thead ref={ref} className={cn("border-b bg-superficie-afundada", className)} {...props} />
 ));
 TableHeader.displayName = "TableHeader";
 
@@ -88,7 +88,7 @@ const TableCell = React.forwardRef<
       // `sm:`, senao uma tabela de vinte linhas vira uma tabela esparsa
       // no desktop. O seletor de descendente estica o link da celula ate
       // a borda: alvo grande sem inflar a linha.
-      "px-3 py-3 align-middle text-gray-800 sm:py-2.5",
+      "px-3 py-3 align-middle text-texto sm:py-2.5",
       "[&>a]:inline-flex [&>a]:min-h-11 [&>a]:items-center sm:[&>a]:min-h-0",
       className,
     )}

@@ -60,11 +60,11 @@ export function ConfirmDialog({
     <DialogPrimitive.Root open={aberto} onOpenChange={(v) => !ocupado && setAberto(v)}>
       <DialogPrimitive.Trigger asChild>{gatilho}</DialogPrimitive.Trigger>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-[70] bg-black/40 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-[70] bg-sobreposicao/40 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
         <DialogPrimitive.Content
           className={cn(
             "fixed left-1/2 top-1/2 z-[70] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2",
-            "rounded-lg border border-gray-200 bg-white p-5 shadow-xl shadow-black/15",
+            "rounded-lg border border-borda bg-superficie p-5 shadow-xl shadow-black/15",
             "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
             "motion-reduce:animate-none",
           )}
@@ -72,7 +72,7 @@ export function ConfirmDialog({
           <DialogPrimitive.Title className="text-base font-semibold text-tibe-dark">
             {titulo}
           </DialogPrimitive.Title>
-          <DialogPrimitive.Description className="mt-2 text-sm leading-relaxed text-gray-700">
+          <DialogPrimitive.Description className="mt-2 text-sm leading-relaxed text-texto-secundario">
             {descricao}
           </DialogPrimitive.Description>
 

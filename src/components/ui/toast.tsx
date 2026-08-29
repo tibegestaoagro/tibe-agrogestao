@@ -141,16 +141,19 @@ function AvisoUnico({ aviso, aoFechar }: { aviso: Aviso; aoFechar: (id: number) 
         "pointer-events-auto flex w-full max-w-md items-start gap-3 rounded-lg border p-3 shadow-lg shadow-black/10",
         "transition-all duration-200 ease-out motion-reduce:transition-none",
         entrou ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0",
+        // O erro tinha DOIS tons de vermelho (700 e 900) para hierarquia
+        // dentro do aviso, e o sistema tem um só (`perigo-tinta`). A
+        // hierarquia passa a vir da opacidade, como o lado do sucesso já faz.
         sucesso
-          ? "border-tibe-primary/30 bg-white text-tibe-dark"
-          : "border-red-300 bg-white text-red-900",
+          ? "border-tibe-primary/30 bg-superficie text-tibe-dark"
+          : "border-perigo bg-superficie text-perigo-tinta",
       )}
     >
       <span
         aria-hidden="true"
         className={cn(
           "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
-          sucesso ? "bg-tibe-primary/15 text-primaria-tinta" : "bg-red-100 text-red-700",
+          sucesso ? "bg-tibe-primary/15 text-primaria-tinta" : "bg-perigo-suave text-perigo-tinta",
         )}
       >
         <Icone className="h-4 w-4" />
@@ -167,7 +170,9 @@ function AvisoUnico({ aviso, aoFechar }: { aviso: Aviso; aoFechar: (id: number) 
           // precisa acertar, não o desenho.
           "-m-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-md",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary",
-          sucesso ? "text-tibe-dark/50 hover:text-tibe-dark" : "text-red-700/60 hover:text-red-900",
+          sucesso
+            ? "text-tibe-dark/50 hover:text-tibe-dark"
+            : "text-perigo-tinta/60 hover:text-perigo-tinta",
         )}
       >
         <X className="h-4 w-4" />

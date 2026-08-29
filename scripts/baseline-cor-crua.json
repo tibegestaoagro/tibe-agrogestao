@@ -115,13 +115,5 @@
   "src/components/pwa/install-invite.tsx",
   "src/components/pwa/notification-opt-in.tsx",
   "src/components/signup/verify-code-form.tsx",
-  "src/components/ui/badge.tsx",
-  "src/components/ui/button.tsx",
-  "src/components/ui/confirm-dialog.tsx",
-  "src/components/ui/label.tsx",
-  "src/components/ui/select.tsx",
-  "src/components/ui/sheet.tsx",
-  "src/components/ui/table.tsx",
-  "src/components/ui/toast.tsx",
   "src/components/usuarios/invite-form.tsx"
 ]
