@@ -2,17 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Sheet,
-  SheetTrigger,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
-import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
+import { FormSheet } from "@/components/ui/form-sheet";
+import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { apiPost, apiPatch } from "@/lib/client-api";
 
 type Fazenda = {
@@ -29,6 +23,11 @@ type Fazenda = {
  * componente para os dois modos: "criar" (sem `fazenda`) reusa a mesma
  * validação de "editar" (com `fazenda`), evitando duas cópias do formulário.
  */
+
+/** Os campos na ordem visual, com o nome que a API usa. */
+const ORDEM = ["name", "area_hectares", "city", "district", "address"] as const;
+type Campo = (typeof ORDEM)[number];
+
 export default function FazendaForm({
   fazenda,
   trigger,
@@ -45,88 +44,139 @@ export default function FazendaForm({
   const [district, setDistrict] = useState(fazenda?.district ?? "");
   const [address, setAddress] = useState(fazenda?.address ?? "");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  /**
+   * `prefixoDeId` porque a página de Minha Fazenda pode renderizar mais de um
+   * destes: o de criar e o de editar a fazenda atual. Sem ele os dois teriam
+   * `id="name"`, e o foco do erro cairia no painel errado.
+   */
+  const err = useErrosDeFormulario(ORDEM, fazenda?.id ?? "fazenda-nova");
 
   async function save() {
+    /**
+     * ⚠️ O aviso de soma dos pastos maior que a fazenda é SÓ AVISO, nunca
+     * bloqueia salvar (decisão do usuário, em `.claude/rules/rebanho-e-fazenda.md`,
+     * que confirma a leitura literal do documento: "o sistema não deverá
+     * realizar alterações automaticamente"). Ele vive na página, como
+     * `meta.area_summary`, e NÃO pode virar `err.reprovar` aqui.
+     */
+    const novos: Partial<Record<Campo, string>> = {};
+    if (!name.trim()) novos.name = "Informe o nome da fazenda.";
+    if (Object.keys(novos).length > 0) {
+      err.setGlobal(null);
+      err.reprovar(novos);
+      return;
+    }
+
+    err.limparTudo();
     setLoading(true);
-    setError(null);
     const payload = {
-      name,
-      city,
-      district: district || null,
-      address: address || null,
+      name: name.trim(),
+      city: city.trim(),
+      district: district.trim() || null,
+      address: address.trim() || null,
       area_hectares: lerValorDoCampo(area) ?? undefined,
     };
     const res = editing
       ? await apiPatch(`/api/v1/properties/${fazenda.id}`, payload)
       : await apiPost("/api/v1/properties", payload);
     setLoading(false);
-    if (!res.ok) return setError(res.message);
+    if (!res.ok) {
+      err.doServidor(res);
+      return;
+    }
     setOpen(false);
     router.refresh();
   }
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>{trigger}</SheetTrigger>
-      <SheetContent title={editing ? "Editar fazenda" : "Nova fazenda"}>
-        <SheetHeader>
-          <SheetTitle>{editing ? "Editar fazenda" : "Nova fazenda"}</SheetTitle>
-        </SheetHeader>
+    <FormSheet
+      trigger={trigger}
+      title={editing ? "Editar fazenda" : "Nova fazenda"}
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) err.limparTudo();
+      }}
+      onSubmit={save}
+      submitLabel={editing ? "Salvar alterações" : "Cadastrar fazenda"}
+      pending={loading}
+      error={err.global}
+      focarCampoId={err.focarCampoId}
+      tentativa={err.tentativa}
+    >
+      <Field label="Nome da fazenda" required id={err.idDe("name")} error={err.erros.name}>
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            placeholder="Ex: Fazenda Santa Helena"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              err.limparCampo("name");
+            }}
+          />
+        )}
+      </Field>
 
-        <div className="space-y-3">
-          <div>
-            <Label htmlFor="fazenda-name">Nome da fazenda</Label>
-            <Input
-              id="fazenda-name"
-              placeholder="Ex: Fazenda Santa Helena"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-          <div>
-            <Label htmlFor="fazenda-area">Tamanho total (hectares)</Label>
-            <MoneyInput
-              id="fazenda-area"
-              kind="quantidade"
-              unit="ha"
-              placeholder="Ex: 120"
-              value={area}
-              onValueChange={setArea}
-            />
-          </div>
-          <div>
-            <Label htmlFor="fazenda-city">Município</Label>
-            <Input
-              id="fazenda-city"
-              placeholder="Ex: Montes Claros"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-            />
-          </div>
-          <div>
-            <Label htmlFor="fazenda-district">Distrito (opcional)</Label>
-            <Input
-              id="fazenda-district"
-              placeholder="Ex: São João da Vereda"
-              value={district}
-              onChange={(e) => setDistrict(e.target.value)}
-            />
-          </div>
-          <div>
-            <Label htmlFor="fazenda-address">Endereço (opcional)</Label>
-            <Input
-              id="fazenda-address"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-            />
-          </div>
-          {error && <p className="text-sm text-red-700">{error}</p>}
-          <Button onClick={save} disabled={loading} className="w-full">
-            {loading ? "Salvando..." : editing ? "Salvar alterações" : "Cadastrar fazenda"}
-          </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
+      <Field
+        label="Tamanho total (hectares)"
+        id={err.idDe("area_hectares")}
+        error={err.erros.area_hectares}
+      >
+        {({ id, ...aria }) => (
+          <MoneyInput
+            id={id}
+            {...aria}
+            kind="quantidade"
+            unit="ha"
+            placeholder="Ex: 120"
+            value={area}
+            onValueChange={(v) => {
+              setArea(v);
+              err.limparCampo("area_hectares");
+            }}
+          />
+        )}
+      </Field>
+
+      <Field label="Município" id={err.idDe("city")} error={err.erros.city}>
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            placeholder="Ex: Montes Claros"
+            value={city}
+            onChange={(e) => {
+              setCity(e.target.value);
+              err.limparCampo("city");
+            }}
+          />
+        )}
+      </Field>
+
+      <Field label="Distrito (opcional)" id={err.idDe("district")} error={err.erros.district}>
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            placeholder="Ex: São João da Vereda"
+            value={district}
+            onChange={(e) => setDistrict(e.target.value)}
+          />
+        )}
+      </Field>
+
+      <Field label="Endereço (opcional)" id={err.idDe("address")} error={err.erros.address}>
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+          />
+        )}
+      </Field>
+    </FormSheet>
   );
 }

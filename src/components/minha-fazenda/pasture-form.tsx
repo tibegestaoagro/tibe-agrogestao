@@ -2,17 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Sheet,
-  SheetTrigger,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
-import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
+import { FormSheet } from "@/components/ui/form-sheet";
+import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { apiPost, apiPatch } from "@/lib/client-api";
 
 type Pasture = { id: string; name: string; area_hectares: number | null };
@@ -22,6 +16,11 @@ type Pasture = { id: string; name: string; area_hectares: number | null };
  * de `FazendaForm`: um componente para criar (sem `pasture`) e editar (com
  * `pasture`).
  */
+
+/** Os campos na ordem visual, com o nome que a API usa. */
+const ORDEM = ["name", "area_hectares"] as const;
+type Campo = (typeof ORDEM)[number];
+
 export default function PastureForm({
   propertyId,
   pasture,
@@ -37,62 +36,95 @@ export default function PastureForm({
   const [name, setName] = useState(pasture?.name ?? "");
   const [area, setArea] = useState(pasture?.area_hectares?.toString() ?? "");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  /**
+   * ⚠️ `prefixoDeId` é obrigatório aqui: a lista de pastos renderiza UM destes
+   * por linha, e sem o prefixo todos teriam `id="name"`. O rótulo passaria a
+   * apontar para o campo do primeiro painel, e o foco do erro cairia sempre na
+   * primeira linha, mesmo quando o problema é na quinta.
+   */
+  const err = useErrosDeFormulario(ORDEM, pasture?.id ?? "pasto-novo");
 
   async function save() {
+    const novos: Partial<Record<Campo, string>> = {};
+    if (!name.trim()) novos.name = "Informe o nome do pasto.";
+    if (Object.keys(novos).length > 0) {
+      err.setGlobal(null);
+      err.reprovar(novos);
+      return;
+    }
+
+    err.limparTudo();
     setLoading(true);
-    setError(null);
     const res = editing
       ? await apiPatch(`/api/v1/pastures/${pasture.id}`, {
-          name,
+          name: name.trim(),
           area_hectares: lerValorDoCampo(area) ?? undefined,
         })
       : await apiPost("/api/v1/pastures", {
-          name,
+          name: name.trim(),
           area_hectares: lerValorDoCampo(area) ?? undefined,
           property_id: propertyId,
         });
     setLoading(false);
-    if (!res.ok) return setError(res.message);
+    if (!res.ok) {
+      err.doServidor(res);
+      return;
+    }
     setOpen(false);
     router.refresh();
   }
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>{trigger}</SheetTrigger>
-      <SheetContent title={editing ? "Editar pasto" : "Novo pasto"}>
-        <SheetHeader>
-          <SheetTitle>{editing ? "Editar pasto" : "Novo pasto"}</SheetTitle>
-        </SheetHeader>
+    <FormSheet
+      trigger={trigger}
+      title={editing ? "Editar pasto" : "Novo pasto"}
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) err.limparTudo();
+      }}
+      onSubmit={save}
+      submitLabel={editing ? "Salvar alterações" : "Cadastrar pasto"}
+      pending={loading}
+      error={err.global}
+      focarCampoId={err.focarCampoId}
+      tentativa={err.tentativa}
+    >
+      <Field label="Nome do pasto" required id={err.idDe("name")} error={err.erros.name}>
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            placeholder="Ex: Pasto da Sede"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              err.limparCampo("name");
+            }}
+          />
+        )}
+      </Field>
 
-        <div className="space-y-3">
-          <div>
-            <Label htmlFor="pasture-name">Nome do pasto</Label>
-            <Input
-              id="pasture-name"
-              placeholder="Ex: Pasto da Sede"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-          <div>
-            <Label htmlFor="pasture-area">Tamanho (hectares)</Label>
-            <MoneyInput
-              id="pasture-area"
-              kind="quantidade"
-              unit="ha"
-              placeholder="Ex: 20"
-              value={area}
-              onValueChange={setArea}
-            />
-          </div>
-          {error && <p className="text-sm text-red-700">{error}</p>}
-          <Button onClick={save} disabled={loading} className="w-full">
-            {loading ? "Salvando..." : editing ? "Salvar alterações" : "Cadastrar pasto"}
-          </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
+      <Field
+        label="Tamanho (hectares)"
+        id={err.idDe("area_hectares")}
+        error={err.erros.area_hectares}
+      >
+        {({ id, ...aria }) => (
+          <MoneyInput
+            id={id}
+            {...aria}
+            kind="quantidade"
+            unit="ha"
+            placeholder="Ex: 20"
+            value={area}
+            onValueChange={(v) => {
+              setArea(v);
+              err.limparCampo("area_hectares");
+            }}
+          />
+        )}
+      </Field>
+    </FormSheet>
   );
 }
