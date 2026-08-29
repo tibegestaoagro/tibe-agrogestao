@@ -546,6 +546,59 @@ function conferirRecusaTratada() {
   }
 }
 
+/**
+ * Painel de escrita nasce no kit.
+ *
+ * Um componente client que ESCREVE e tem campo de formulario precisa do
+ * `FormSheet`: e ele que poe a recusa do servidor embaixo do campo certo, move
+ * o foco para o primeiro invalido e conta a tentativa. Sem esta trava, o
+ * vigesimo painel nasce como os dezenove nasceram.
+ *
+ * Botao de acao sem campo nenhum nao entra: nao ha o que converter, e por isso
+ * o filtro exige `<Input`, `<Select` ou `MoneyInput` antes de cobrar.
+ */
+function conferirPainelNoKit() {
+  console.log("\n11. Painel de escrita usa o kit");
+
+  const base = new Set<string>(
+    JSON.parse(readFileSync(join(RAIZ, "scripts", "baseline-painel-fora-do-kit.json"), "utf8")),
+  );
+  const ofensores: string[] = [];
+  const limpos: string[] = [];
+
+  for (const rel of versionados()) {
+    if (!rel.startsWith("src/") || !rel.endsWith(".tsx")) continue;
+    if (rel.includes("platform") || rel.includes("plataforma")) continue;
+    if (rel.startsWith("src/components/ui/")) continue;
+    const full = join(RAIZ, rel);
+    if (!existsSync(full)) continue;
+    const s = readFileSync(full, "utf8");
+    if (!/apiPost|apiPut|apiPatch/.test(s)) continue;
+    if (!/<Input|<Select|MoneyInput/.test(s)) continue;
+    const noKit = s.includes("FormSheet");
+
+    if (base.has(rel)) {
+      if (noKit) limpos.push(rel);
+      continue;
+    }
+    if (!noKit) ofensores.push(rel);
+  }
+
+  check(
+    "todo painel de escrita com campo usa FormSheet",
+    ofensores.length === 0,
+    ofensores.length > 0
+      ? `use FormSheet + Field + useErrosDeFormulario, como em stay-form.tsx:\n       ${ofensores.join("\n       ")}`
+      : undefined,
+  );
+
+  if (limpos.length > 0) {
+    console.log(
+      `  ℹ️  ja no kit, remova de baseline-painel-fora-do-kit.json (${limpos.length}): ${limpos.slice(0, 6).join(", ")}`,
+    );
+  }
+}
+
 function main() {
   console.log("🔎 Conferencia estatica do repositorio (sem banco)");
   conferirCaminhos();
@@ -559,6 +612,7 @@ function main() {
   conferirCorCrua();
   conferirRotulosDeMovimento();
   conferirRecusaTratada();
+  conferirPainelNoKit();
 
   console.log("");
   if (falhas === 0) console.log("✅ Repositorio consistente: 0 falhas.");
