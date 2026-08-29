@@ -3,13 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Sheet,
-  SheetTrigger,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
   Select,
   SelectTrigger,
   SelectValue,
@@ -18,7 +11,9 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
+import { FormSheet } from "@/components/ui/form-sheet";
+import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { apiPost } from "@/lib/client-api";
 import { descreverQuantidade, findUnit, recusaPorFracao, disponiveis } from "@/lib/stock/units";
 import { lerNumeroBr } from "@/lib/numero-br";
@@ -44,6 +39,16 @@ type Produto = {
 };
 type Fazenda = { id: string; name: string };
 
+/**
+ * Os campos na ordem visual, com o nome que a API usa.
+ *
+ * `quantity` serve aos DOIS gestos: no uso é quanto saiu, no ajuste é o saldo
+ * contado. São rotas diferentes (`quantity` e `corrected_balance`), mas o
+ * campo na tela é um só, e é nele que as duas recusas precisam aparecer.
+ */
+const ORDEM = ["product_id", "property_id", "quantity", "purpose"] as const;
+type Campo = (typeof ORDEM)[number];
+
 export default function StockMovementForm({
   products,
   properties,
@@ -56,7 +61,7 @@ export default function StockMovementForm({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const err = useErrosDeFormulario(ORDEM);
 
   const [acao, setAcao] = useState<"utilizacao" | "ajuste">("utilizacao");
   const [productId, setProductId] = useState("");
@@ -74,20 +79,26 @@ export default function StockMovementForm({
     setProductId("");
     setQuantity("");
     setPurpose("");
-    setError(null);
+    err.limparTudo();
+  }
+
+  /** Reprova um campo só, move o foco para ele e para por aqui. */
+  function reprovar(campo: Campo, mensagem: string) {
+    err.setGlobal(null);
+    err.reprovar({ [campo]: mensagem } as Partial<Record<Campo, string>>);
   }
 
   async function submit() {
-    setError(null);
-    if (!productId) return setError("Escolha o produto.");
-    if (!propertyId) return setError("Escolha a fazenda.");
+    if (!productId) return reprovar("product_id", "Escolha o produto.");
+    if (!propertyId) return reprovar("property_id", "Escolha a fazenda.");
 
     // `Number("")` é 0, e 0 é finito: sem esta linha, clicar em "Corrigir
     // saldo" com o campo VAZIO mandava `corrected_balance: 0` e zerava o
     // estoque do produto com um clique, sem confirmação e sem como desfazer
     // (movimentação avulsa não tem cancelamento).
     if (!quantity.trim()) {
-      return setError(
+      return reprovar(
+        "quantity",
         acao === "utilizacao" ? "Informe quanto você usou." : "Informe quanto tem de verdade.",
       );
     }
@@ -102,26 +113,28 @@ export default function StockMovementForm({
      * puro, e os dois lados leem igual.
      */
     const numero = lerNumeroBr(quantity);
-    if (numero == null) return setError("Não entendi a quantidade.");
+    if (numero == null) return reprovar("quantity", "Não entendi a quantidade.");
     if (acao === "utilizacao" && numero <= 0) {
-      return setError("A quantidade precisa ser maior que zero.");
+      return reprovar("quantity", "A quantidade precisa ser maior que zero.");
     }
     if (acao === "ajuste" && numero < 0) {
-      return setError("O saldo contado não pode ser negativo.");
+      return reprovar("quantity", "O saldo contado não pode ser negativo.");
     }
     // A MESMA funcao do servidor e do WhatsApp: a tela dizia "sem quantidade
     // quebrada" e o servidor "que nao aceita quantidade quebrada", duas
     // redacoes para a mesma regra.
     const recusa = produto ? recusaPorFracao(produto.name, numero, produto.unit) : null;
-    if (recusa) return setError(recusa);
+    if (recusa) return reprovar("quantity", recusa);
     // §10.7 conferido aqui também, e não só no servidor: quem está com o
     // produto na mão merece saber o teto antes de enviar.
     if (acao === "utilizacao" && numero > saldo) {
-      return setError(
+      return reprovar(
+        "quantity",
         `Existem apenas ${descreverQuantidade(saldo, produto!.unit)} ${disponiveis(saldo)}. Revise a quantidade informada.`,
       );
     }
 
+    err.limparTudo();
     setLoading(true);
     const res =
       acao === "utilizacao"
@@ -140,127 +153,155 @@ export default function StockMovementForm({
           });
     setLoading(false);
 
-    if (!res.ok) return setError(res.message);
+    if (!res.ok) {
+      err.doServidor(res);
+      return;
+    }
     reset();
     setOpen(false);
     router.refresh();
   }
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button variant="outline">Usar ou corrigir</Button>
-      </SheetTrigger>
-      <SheetContent>
-        <SheetHeader>
-          <SheetTitle>{acao === "utilizacao" ? "Usar do estoque" : "Corrigir o estoque"}</SheetTitle>
-        </SheetHeader>
+    <FormSheet
+      trigger={<Button variant="outline">Usar ou corrigir</Button>}
+      title={acao === "utilizacao" ? "Usar do estoque" : "Corrigir o estoque"}
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) reset();
+      }}
+      onSubmit={submit}
+      submitLabel={acao === "utilizacao" ? "Registrar uso" : "Corrigir saldo"}
+      pending={loading}
+      error={err.global}
+      focarCampoId={err.focarCampoId}
+      tentativa={err.tentativa}
+    >
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          variant={acao === "utilizacao" ? "default" : "outline"}
+          className="flex-1"
+          onClick={() => {
+            setAcao("utilizacao");
+            setQuantity("");
+            err.limparTudo();
+          }}
+        >
+          Usei
+        </Button>
+        <Button
+          type="button"
+          variant={acao === "ajuste" ? "default" : "outline"}
+          className="flex-1"
+          onClick={() => {
+            setAcao("ajuste");
+            setQuantity("");
+            err.limparTudo();
+          }}
+        >
+          Contei e está diferente
+        </Button>
+      </div>
 
-        <div className="mt-4 space-y-4">
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant={acao === "utilizacao" ? "default" : "outline"}
-              className="flex-1"
-              onClick={() => {
-                setAcao("utilizacao");
-                setQuantity("");
-                setError(null);
+      <Field label="Produto" required id="product_id" error={err.erros.product_id}>
+        {({ id, ...aria }) => (
+          <Select
+            value={productId}
+            onValueChange={(v) => {
+              setProductId(v);
+              err.limparCampo("product_id");
+            }}
+          >
+            <SelectTrigger id={id} {...aria}>
+              <SelectValue placeholder="Escolha o produto" />
+            </SelectTrigger>
+            <SelectContent>
+              {products.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </Field>
+
+      {properties.length > 1 && (
+        <Field label="Fazenda" required id="property_id" error={err.erros.property_id}>
+          {({ id, ...aria }) => (
+            <Select
+              value={propertyId}
+              onValueChange={(v) => {
+                setPropertyId(v);
+                err.limparCampo("property_id");
               }}
             >
-              Usei
-            </Button>
-            <Button
-              type="button"
-              variant={acao === "ajuste" ? "default" : "outline"}
-              className="flex-1"
-              onClick={() => {
-                setAcao("ajuste");
-                setQuantity("");
-                setError(null);
-              }}
-            >
-              Contei e está diferente
-            </Button>
-          </div>
-
-          <div>
-            <Label>Produto</Label>
-            <Select value={productId} onValueChange={setProductId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Escolha o produto" />
+              <SelectTrigger id={id} {...aria}>
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {products.map((p) => (
+                {properties.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
-
-          {properties.length > 1 && (
-            <div>
-              <Label>Fazenda</Label>
-              <Select value={propertyId} onValueChange={setPropertyId}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {properties.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
           )}
+        </Field>
+      )}
 
-          {produto && (
-            <p className="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-700">
-              Tem hoje: <strong>{descreverQuantidade(saldo, produto.unit)}</strong>
-            </p>
-          )}
+      {produto && (
+        <p className="rounded-md bg-superficie-afundada px-3 py-2 text-sm text-texto-secundario">
+          Tem hoje: <strong>{descreverQuantidade(saldo, produto.unit)}</strong>
+        </p>
+      )}
 
-          <div>
-            <Label htmlFor="estoque-qtd">
-              {acao === "utilizacao" ? "Quanto você usou" : "Quanto tem de verdade"}
-            </Label>
-            <Input
-              id="estoque-qtd"
-              inputMode="decimal"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              placeholder={unidade ? `Em ${unidade.plural}` : ""}
-            />
-            {acao === "ajuste" && (
-              <p className="mt-1 text-xs text-gray-500">
-                Informe o que você contou. A diferença o sistema calcula sozinho.
-              </p>
-            )}
-          </div>
+      <Field
+        label={acao === "utilizacao" ? "Quanto você usou" : "Quanto tem de verdade"}
+        required
+        id="quantity"
+        error={err.erros.quantity}
+        hint={
+          acao === "ajuste"
+            ? "Informe o que você contou. A diferença o sistema calcula sozinho."
+            : undefined
+        }
+      >
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            inputMode="decimal"
+            value={quantity}
+            onChange={(e) => {
+              setQuantity(e.target.value);
+              err.limparCampo("quantity");
+            }}
+            placeholder={unidade ? `Em ${unidade.plural}` : ""}
+          />
+        )}
+      </Field>
 
-          <div>
-            <Label htmlFor="estoque-motivo">
-              {acao === "utilizacao" ? "Para quê (opcional)" : "Motivo (opcional)"}
-            </Label>
-            <Input
-              id="estoque-motivo"
-              value={purpose}
-              onChange={(e) => setPurpose(e.target.value)}
-              placeholder={acao === "utilizacao" ? "Sal para o lote do curral" : "Contagem do galpão"}
-            />
-          </div>
-
-          {error && <p className="text-sm text-red-600">{error}</p>}
-
-          <Button onClick={submit} disabled={loading} className="w-full">
-            {loading ? "Salvando..." : acao === "utilizacao" ? "Registrar uso" : "Corrigir saldo"}
-          </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
+      <Field
+        label={acao === "utilizacao" ? "Para quê (opcional)" : "Motivo (opcional)"}
+        id="purpose"
+        error={err.erros.purpose}
+      >
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            value={purpose}
+            onChange={(e) => setPurpose(e.target.value)}
+            placeholder={
+              acao === "utilizacao" ? "Sal para o lote do curral" : "Contagem do galpão"
+            }
+          />
+        )}
+      </Field>
+    </FormSheet>
   );
 }
