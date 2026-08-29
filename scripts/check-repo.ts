@@ -490,6 +490,62 @@ function conferirRotulosDeMovimento() {
   );
 }
 
+/**
+ * Quem escreve tem que dizer quando falha.
+ *
+ * O padrao `if (res.ok) router.refresh()` sem nenhum `else` deixa a tela MUDA
+ * quando o servidor recusa: o produtor clica, nada acontece, e ele nao sabe se
+ * funcionou. O `pay-button.tsx` teve esse defeito ate 2026-08-20; outros
+ * quatro sobreviveram com ele por mais de uma semana, incluindo o de mudar
+ * permissao de usuario, porque ninguem varreu o resto. Esta trava e a
+ * varredura, automatica.
+ *
+ * Linha de base propria, que so ENCOLHE, pelo mesmo desenho da cor crua.
+ */
+function conferirRecusaTratada() {
+  console.log("\n10. Recusa do servidor tratada na tela");
+
+  const base = new Set<string>(
+    JSON.parse(readFileSync(join(RAIZ, "scripts", "baseline-recusa-engolida.json"), "utf8")),
+  );
+  const ofensores: string[] = [];
+  const limpos: string[] = [];
+
+  for (const rel of versionados()) {
+    if (!rel.startsWith("src/") || !rel.endsWith(".tsx")) continue;
+    const full = join(RAIZ, rel);
+    if (!existsSync(full)) continue;
+    const s = readFileSync(full, "utf8");
+    if (!/apiPost|apiPut|apiPatch/.test(s)) continue;
+    // A CHAMADA, nao o import. A primeira versao aceitava a palavra `toast`
+    // solta, que casa com `from "@/components/ui/toast"`: todo arquivo que
+    // importasse passava, mesmo sem nunca avisar nada. Descoberto no passo que
+    // exige quebrar a trava de proposito antes de confiar nela.
+    const trata = /\baviso\.\w+\(|doServidor\(|setErro\(|setError\(|\btoast\.\w+\(/.test(s);
+
+    if (base.has(rel)) {
+      if (trata) limpos.push(rel);
+      continue;
+    }
+    if (!trata) ofensores.push(rel);
+  }
+
+  check(
+    "todo painel que escreve avisa quando o servidor recusa",
+    ofensores.length === 0,
+    ofensores.length > 0
+      ? "use useAviso() como em pay-button.tsx, ou o kit de erro de formulario:\n       " +
+        ofensores.join("\n       ")
+      : undefined,
+  );
+
+  if (limpos.length > 0) {
+    console.log(
+      `  ℹ️  ja trata a recusa, remova de baseline-recusa-engolida.json (${limpos.length}): ${limpos.slice(0, 6).join(", ")}`,
+    );
+  }
+}
+
 function main() {
   console.log("🔎 Conferencia estatica do repositorio (sem banco)");
   conferirCaminhos();
@@ -502,6 +558,7 @@ function main() {
   conferirCamposNumericos();
   conferirCorCrua();
   conferirRotulosDeMovimento();
+  conferirRecusaTratada();
 
   console.log("");
   if (falhas === 0) console.log("✅ Repositorio consistente: 0 falhas.");
