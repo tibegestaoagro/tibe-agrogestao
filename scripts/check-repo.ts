@@ -557,12 +557,20 @@ function conferirRecusaTratada() {
  * Botao de acao sem campo nenhum nao entra: nao ha o que converter, e por isso
  * o filtro exige `<Input`, `<Select` ou `MoneyInput` antes de cobrar.
  *
- * ⚠️ DOIS itens da linha de base sao EXCECAO PERMANENTE, nao divida:
- * `postpone-button.tsx` (um campo de data) e `user-row-actions.tsx` (um seletor
- * de permissao) sao controles INLINE numa linha de tabela. Converte-los a
- * `FormSheet` trocaria um gesto de um clique por um painel lateral que abre, o
- * que e pior para o produtor. Decisao do usuario em 2026-08-28. Os dois ja
- * tratam a recusa do servidor, que era o que faltava de verdade neles.
+ * ⚠️ TRES itens da linha de base sao EXCECAO PERMANENTE, nao divida:
+ *
+ * - `postpone-button.tsx` (um campo de data) e `user-row-actions.tsx` (um
+ *   seletor de permissao) sao controles INLINE numa linha de tabela.
+ *   Converte-los a `FormSheet` trocaria um gesto de um clique por um painel
+ *   lateral que abre, o que e pior para o produtor. Decisao do usuario em
+ *   2026-08-28. Os dois ja tratam a recusa do servidor, que era o que faltava
+ *   de verdade neles.
+ * - `subscribe-form.tsx` e pagamento: o RESULTADO (QR Code do PIX, linha
+ *   digitavel do boleto) precisa ficar na tela para ser escaneado ou copiado,
+ *   e painel que fecha no sucesso levaria o QR embora. Nao tem campo de texto,
+ *   entao o defeito da tecla de confirmar do teclado tambem nao se aplica. Ele
+ *   usa `Field` nos dois seletores, que era o que faltava nele (os rotulos
+ *   eram `<label>` sem `htmlFor`).
  */
 function conferirPainelNoKit() {
   console.log("\n11. Painel de escrita usa o kit");

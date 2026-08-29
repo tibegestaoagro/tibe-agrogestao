@@ -8,12 +8,9 @@
   "src/app/(dashboard)/configuracoes/alertas/alert-preference-toggles.tsx",
   "src/app/(dashboard)/configuracoes/alertas/page.tsx",
   "src/app/(dashboard)/configuracoes/assinatura/page.tsx",
-  "src/app/(dashboard)/configuracoes/categorias-financeiras/category-manager.tsx",
   "src/app/(dashboard)/configuracoes/categorias-financeiras/page.tsx",
-  "src/app/(dashboard)/configuracoes/categorias-rebanho/category-manager.tsx",
   "src/app/(dashboard)/configuracoes/categorias-rebanho/page.tsx",
   "src/app/(dashboard)/configuracoes/page.tsx",
-  "src/app/(dashboard)/configuracoes/perfil/edit-name-form.tsx",
   "src/app/(dashboard)/configuracoes/perfil/page.tsx",
   "src/app/(dashboard)/configuracoes/senha/change-own-password-form.tsx",
   "src/app/(dashboard)/configuracoes/senha/page.tsx",
@@ -64,7 +61,6 @@
   "src/components/billing/billing-banner.tsx",
   "src/components/billing/cancel-subscription.tsx",
   "src/components/billing/subscribe-form.tsx",
-  "src/components/configuracoes/tenant-form.tsx",
   "src/components/dashboard/calculadora-grid.tsx",
   "src/components/dashboard/herd-evolution-chart.tsx",
   "src/components/dashboard/kpi-card.tsx",
@@ -100,6 +96,5 @@
   "src/components/public/schema-table.tsx",
   "src/components/pwa/install-invite.tsx",
   "src/components/pwa/notification-opt-in.tsx",
-  "src/components/signup/verify-code-form.tsx",
-  "src/components/usuarios/invite-form.tsx"
+  "src/components/signup/verify-code-form.tsx"
 ]

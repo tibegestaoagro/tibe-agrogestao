@@ -1,10 +1,5 @@
 [
-  "src/app/(dashboard)/configuracoes/categorias-financeiras/category-manager.tsx",
-  "src/app/(dashboard)/configuracoes/categorias-rebanho/category-manager.tsx",
-  "src/app/(dashboard)/configuracoes/perfil/edit-name-form.tsx",
   "src/components/billing/subscribe-form.tsx",
-  "src/components/configuracoes/tenant-form.tsx",
   "src/components/financeiro/postpone-button.tsx",
-  "src/components/usuarios/invite-form.tsx",
   "src/components/usuarios/user-row-actions.tsx"
 ]

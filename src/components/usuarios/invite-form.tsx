@@ -3,13 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Sheet,
-  SheetTrigger,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
   Select,
   SelectTrigger,
   SelectValue,
@@ -19,6 +12,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
+import { FormSheet } from "@/components/ui/form-sheet";
+import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { apiPost } from "@/lib/client-api";
 
 type Role = "OWNER" | "ADMIN" | "OPERADOR" | "VISUALIZADOR";
@@ -29,11 +25,15 @@ const ROLE_LABEL: Record<Role, string> = {
   VISUALIZADOR: "Visualizador",
 };
 
+/** Os campos na ordem visual, com o nome que a API usa. */
+const ORDEM = ["name", "email", "phone", "role"] as const;
+type Campo = (typeof ORDEM)[number];
+
 export default function InviteForm({ canInviteOwner }: { canInviteOwner: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const err = useErrosDeFormulario(ORDEM);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -41,82 +41,158 @@ export default function InviteForm({ canInviteOwner }: { canInviteOwner: boolean
   const [tempPassword, setTempPassword] = useState<string | null>(null);
 
   async function submit() {
-    if (!name || !email) return setError("Preencha nome e email.");
+    // Com a senha na tela, o botão do rodapé vira "Fechar": o mesmo submit
+    // encerra o painel em vez de criar outro usuário.
+    if (tempPassword) {
+      close();
+      return;
+    }
+
+    // Antes os dois dividiam UMA frase ("Preencha nome e email"), e quem
+    // tinha esquecido só o email lia a cobrança dos dois.
+    const novos: Partial<Record<Campo, string>> = {};
+    if (!name.trim()) novos.name = "Informe o nome do usuário.";
+    if (!email.trim()) novos.email = "Informe o email de acesso.";
+    if (Object.keys(novos).length > 0) {
+      err.setGlobal(null);
+      err.reprovar(novos);
+      return;
+    }
+
+    err.limparTudo();
     setLoading(true);
-    setError(null);
     const res = await apiPost<{ temp_password: string }>("/api/v1/users", {
-      name, email, phone: phone || null, role,
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone.trim() || null,
+      role,
     });
     setLoading(false);
-    if (!res.ok) return setError(res.message);
+    if (!res.ok) {
+      err.doServidor(res);
+      return;
+    }
     setTempPassword(res.data.temp_password);
     router.refresh();
   }
 
   function close() {
     setOpen(false);
-    setName(""); setEmail(""); setPhone(""); setRole("OPERADOR");
-    setTempPassword(null); setError(null);
+    setName("");
+    setEmail("");
+    setPhone("");
+    setRole("OPERADOR");
+    setTempPassword(null);
+    err.limparTudo();
   }
 
   return (
-    <Sheet open={open} onOpenChange={(v) => (v ? setOpen(true) : close())}>
-      <SheetTrigger asChild>
-        <Button>Convidar usuário</Button>
-      </SheetTrigger>
-      <SheetContent title="Convidar usuário">
-        <SheetHeader><SheetTitle>Convidar usuário</SheetTitle></SheetHeader>
-
-        {tempPassword ? (
-          <div className="space-y-3">
-            <p className="rounded-md bg-tibe-light p-3 text-sm text-tibe-dark">
-              Usuário criado. Repasse estas credenciais manualmente: a senha
-              só aparece aqui uma vez.
-            </p>
-            <div>
-              <Label>Email</Label>
-              <Input readOnly value={email} />
-            </div>
-            <div>
-              <Label>Senha temporária</Label>
-              <Input readOnly value={tempPassword} className="font-mono" />
-            </div>
-            <Button onClick={close} className="w-full">Fechar</Button>
+    <FormSheet
+      trigger={<Button>Convidar usuário</Button>}
+      title="Convidar usuário"
+      open={open}
+      onOpenChange={(v) => (v ? setOpen(true) : close())}
+      onSubmit={submit}
+      submitLabel={tempPassword ? "Fechar" : "Convidar"}
+      submitPendingLabel="Criando..."
+      pending={loading}
+      error={err.global}
+      focarCampoId={err.focarCampoId}
+      tentativa={err.tentativa}
+    >
+      {tempPassword ? (
+        /*
+         * Isto NÃO é formulário, é resultado: a senha temporária aparece uma
+         * vez só e some quando o painel fecha. Por isso continua com `Label` +
+         * `Input readOnly` em vez de `Field`, que existe para campo editável.
+         */
+        <div className="space-y-3">
+          <p className="rounded-md bg-primaria-suave p-3 text-sm text-primaria-tinta">
+            Usuário criado. Repasse estas credenciais manualmente: a senha
+            só aparece aqui uma vez.
+          </p>
+          <div className="space-y-1">
+            <Label htmlFor="convite-email-criado">Email</Label>
+            <Input id="convite-email-criado" readOnly value={email} />
           </div>
-        ) : (
-          <div className="space-y-3">
-            <div>
-              <Label htmlFor="u-name">Nome *</Label>
-              <Input id="u-name" value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="u-email">Email *</Label>
-              <Input id="u-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="u-phone">Telefone</Label>
-              <Input id="u-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-            </div>
-            <div>
-              <Label>Papel *</Label>
-              <Select value={role} onValueChange={(v) => setRole(v as Role)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+          <div className="space-y-1">
+            <Label htmlFor="convite-senha-criada">Senha temporária</Label>
+            <Input
+              id="convite-senha-criada"
+              readOnly
+              value={tempPassword}
+              className="font-mono"
+            />
+          </div>
+        </div>
+      ) : (
+        <>
+          <Field label="Nome" required id="name" error={err.erros.name}>
+            {({ id, ...aria }) => (
+              <Input
+                id={id}
+                {...aria}
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  err.limparCampo("name");
+                }}
+              />
+            )}
+          </Field>
+
+          <Field label="Email" required id="email" error={err.erros.email}>
+            {({ id, ...aria }) => (
+              <Input
+                id={id}
+                {...aria}
+                type="email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  err.limparCampo("email");
+                }}
+              />
+            )}
+          </Field>
+
+          <Field label="Telefone" id="phone" error={err.erros.phone}>
+            {({ id, ...aria }) => (
+              <Input
+                id={id}
+                {...aria}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+            )}
+          </Field>
+
+          <Field label="Papel" required id="role" error={err.erros.role}>
+            {({ id, ...aria }) => (
+              <Select
+                value={role}
+                onValueChange={(v) => {
+                  setRole(v as Role);
+                  err.limparCampo("role");
+                }}
+              >
+                <SelectTrigger id={id} {...aria}>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {(Object.keys(ROLE_LABEL) as Role[])
                     .filter((r) => r !== "OWNER" || canInviteOwner)
                     .map((r) => (
-                      <SelectItem key={r} value={r}>{ROLE_LABEL[r]}</SelectItem>
+                      <SelectItem key={r} value={r}>
+                        {ROLE_LABEL[r]}
+                      </SelectItem>
                     ))}
                 </SelectContent>
               </Select>
-            </div>
-            {error && <p className="text-sm text-red-700">{error}</p>}
-            <Button onClick={submit} disabled={loading} className="w-full">
-              {loading ? "Criando..." : "Convidar"}
-            </Button>
-          </div>
-        )}
-      </SheetContent>
-    </Sheet>
+            )}
+          </Field>
+        </>
+      )}
+    </FormSheet>
   );
 }

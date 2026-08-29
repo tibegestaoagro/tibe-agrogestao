@@ -10,6 +10,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
 import { apiPost } from "@/lib/client-api";
 
 type Plan = "campo" | "fazenda" | "grupo";
@@ -58,30 +59,36 @@ export default function SubscribeForm({ currentPlan }: { currentPlan: Plan | nul
       </p>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div>
-          <label className="block text-xs font-medium text-gray-600">Plano</label>
-          <Select value={plan} onValueChange={(v) => setPlan(v as Plan)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {(Object.keys(PLAN_LABEL) as Plan[]).map((p) => (
-                <SelectItem key={p} value={p}>
-                  {PLAN_LABEL[p]}: {PLAN_PRICE[p]}/mês
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600">Forma de pagamento</label>
-          <Select value={billingType} onValueChange={(v) => setBillingType(v as BillingType)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="PIX">PIX</SelectItem>
-              <SelectItem value="BOLETO">Boleto</SelectItem>
-              <SelectItem value="CREDIT_CARD">Cartão de crédito</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <Field label="Plano" id="plan">
+          {({ id, ...aria }) => (
+            <Select value={plan} onValueChange={(v) => setPlan(v as Plan)}>
+              <SelectTrigger id={id} {...aria}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(PLAN_LABEL) as Plan[]).map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {PLAN_LABEL[p]}: {PLAN_PRICE[p]}/mês
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </Field>
+        <Field label="Forma de pagamento" id="billing_type">
+          {({ id, ...aria }) => (
+            <Select value={billingType} onValueChange={(v) => setBillingType(v as BillingType)}>
+              <SelectTrigger id={id} {...aria}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="PIX">PIX</SelectItem>
+                <SelectItem value="BOLETO">Boleto</SelectItem>
+                <SelectItem value="CREDIT_CARD">Cartão de crédito</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+        </Field>
       </div>
 
       {billingType === "CREDIT_CARD" && (
