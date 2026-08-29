@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiOk, apiError } from "@/lib/api";
+import { apiOk, apiError, apiErroDeZod } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { updateCategoryAction } from "@/lib/actions/animal-categories";
 import { withApi } from "@/lib/route";
@@ -27,7 +27,7 @@ async function PATCHHandler(request: Request, props: { params: Promise<{ id: str
 
   const parsed = patchSchema.safeParse(body.json);
   if (!parsed.success) {
-    return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
+    return apiErroDeZod(parsed.error);
   }
 
   const result = await updateCategoryAction(g.db, params.id, parsed.data);

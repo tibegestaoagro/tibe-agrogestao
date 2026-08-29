@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiOk, apiError } from "@/lib/api";
+import { apiOk, apiError, apiErroDeZod } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { guardPlatform } from "@/lib/platform-guard";
 import { inviteTeamMemberAction } from "@/lib/actions/platform-team";
@@ -38,7 +38,7 @@ async function POSTHandler(request: Request) {
   const json = await request.json().catch(() => null);
   const parsed = createSchema.safeParse(json);
   if (!parsed.success) {
-    return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
+    return apiErroDeZod(parsed.error);
   }
 
   const result = await inviteTeamMemberAction(parsed.data);

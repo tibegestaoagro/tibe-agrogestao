@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiOk, apiError } from "@/lib/api";
+import { apiOk, apiError, apiErroDeZod } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { cancelStay } from "@/lib/actions/herd-stays";
 import { withApi } from "@/lib/route";
@@ -30,7 +30,7 @@ async function POSTHandler(request: Request, context: { params: Promise<{ id: st
 
   const parsed = cancelSchema.safeParse(body.json);
   if (!parsed.success) {
-    return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422, "reason");
+    return apiErroDeZod(parsed.error);
   }
 
   const result = await cancelStay(g.db, id, {

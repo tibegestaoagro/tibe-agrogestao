@@ -71,7 +71,16 @@ export default function FazendaForm({
     setLoading(true);
     const payload = {
       name: name.trim(),
-      city: city.trim(),
+      /**
+       * ⚠️ Município vazio sai como `undefined`, NUNCA como `""`.
+       *
+       * O schema é `city: z.string().trim().min(1).optional()`: string vazia
+       * bate no `min(1)` e vira recusa, enquanto ausente é aceito. Mandando
+       * `""` sempre, editar a fazenda sem preencher o município recusava com
+       * uma frase sobre um campo que a tela nem marca como obrigatório.
+       * Achado na validação ao vivo de 2026-08-29; vem do Módulo 29.
+       */
+      city: city.trim() || undefined,
       district: district.trim() || null,
       address: address.trim() || null,
       area_hectares: lerValorDoCampo(area) ?? undefined,

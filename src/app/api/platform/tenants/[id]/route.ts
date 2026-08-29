@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { guardPlatform } from "@/lib/platform-guard";
-import { apiOk, apiError, ApiErrors } from "@/lib/api";
+import { apiOk, apiError, ApiErrors, apiErroDeZod } from "@/lib/api";
 import { isoOrNull } from "@/lib/serialize";
 import { updateTenantAction } from "@/lib/actions/platform-tenants";
 import { withApi } from "@/lib/route";
@@ -96,7 +96,7 @@ async function PATCHHandler(request: Request, props: { params: Promise<{ id: str
   const json = await request.json().catch(() => null);
   const parsed = patchSchema.safeParse(json);
   if (!parsed.success) {
-    return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
+    return apiErroDeZod(parsed.error);
   }
 
   const result = await updateTenantAction(params.id, parsed.data);

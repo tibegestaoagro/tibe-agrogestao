@@ -614,6 +614,45 @@ function conferirPainelNoKit() {
   }
 }
 
+/**
+ * 12. A recusa do Zod nao pode sair crua da rota.
+ *
+ * Ate 2026-08-29 as 71 rotas do produto faziam a mesma linha:
+ *
+ *     return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
+ *
+ * Dois defeitos numa linha so. O texto era o default do Zod, em INGLES: quem
+ * cadastrava maquina com custo negativo lia "Too small: expected number to be
+ * >=0". E o `field` nao atravessava, entao a recusa caia no rodape do painel
+ * em vez de embaixo do campo, e o produtor tinha que adivinhar qual dos oito
+ * corrigir. Nada disso aparecia em teste: as suites leem `code`, nao a frase.
+ *
+ * `apiErroDeZod(parsed.error)` resolve os dois. Esta trava existe porque a
+ * linha errada e mais curta de escrever que a certa, e a proxima rota nasce
+ * copiando a vizinha.
+ */
+function conferirRecusaDeZodCrua() {
+  console.log("\n12. Recusa do Zod dita em portugues");
+
+  const ofensores: string[] = [];
+  for (const rel of versionados()) {
+    if (!rel.startsWith("src/app/api/") || !rel.endsWith(".ts")) continue;
+    const full = join(RAIZ, rel);
+    if (!existsSync(full)) continue;
+    if (/\.error\.issues\[0\]\.message/.test(readFileSync(full, "utf8"))) {
+      ofensores.push(rel);
+    }
+  }
+
+  check(
+    "nenhuma rota devolve a mensagem crua do Zod",
+    ofensores.length === 0,
+    ofensores.length > 0
+      ? `use apiErroDeZod(parsed.error), que traduz e leva o campo junto:\n       ${ofensores.join("\n       ")}`
+      : undefined,
+  );
+}
+
 function main() {
   console.log("🔎 Conferencia estatica do repositorio (sem banco)");
   conferirCaminhos();
@@ -628,6 +667,7 @@ function main() {
   conferirRotulosDeMovimento();
   conferirRecusaTratada();
   conferirPainelNoKit();
+  conferirRecusaDeZodCrua();
 
   console.log("");
   if (falhas === 0) console.log("✅ Repositorio consistente: 0 falhas.");

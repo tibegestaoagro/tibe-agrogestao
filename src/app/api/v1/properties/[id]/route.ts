@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiOk, apiError, ApiErrors } from "@/lib/api";
+import { apiOk, apiError, ApiErrors, apiErroDeZod } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { serializeProperty } from "@/lib/serializers";
 import { withApi } from "@/lib/route";
@@ -38,7 +38,7 @@ async function PATCHHandler(request: Request, props: { params: Promise<{ id: str
 
   const parsed = updateSchema.safeParse(body.json);
   if (!parsed.success) {
-    return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
+    return apiErroDeZod(parsed.error);
   }
 
   const existing = await g.db.property.findFirst({ where: { id: params.id } });

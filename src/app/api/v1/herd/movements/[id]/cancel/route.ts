@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiOk, apiError } from "@/lib/api";
+import { apiOk, apiError, apiErroDeZod } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { cancelMovement, serializeHerdMovement } from "@/lib/actions/herd-ledger";
 import { withApi } from "@/lib/route";
@@ -32,7 +32,7 @@ async function POSTHandler(request: Request, props: { params: Promise<{ id: stri
 
   const parsed = cancelSchema.safeParse(body.json);
   if (!parsed.success) {
-    return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
+    return apiErroDeZod(parsed.error);
   }
 
   const result = await cancelMovement(g.db, params.id, parsed.data.reason);
