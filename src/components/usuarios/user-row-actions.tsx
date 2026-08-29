@@ -10,6 +10,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { useAviso } from "@/components/ui/toast";
 import { apiPatch } from "@/lib/client-api";
 
 type Role = "OWNER" | "ADMIN" | "OPERADOR" | "VISUALIZADOR";
@@ -34,13 +35,23 @@ export default function UserRowActions({
   canEdit: boolean;
 }) {
   const router = useRouter();
+  const aviso = useAviso();
   const [loading, setLoading] = useState(false);
 
+  /**
+   * As DUAS chamadas precisam do `else`, e este era o pior dos quatro casos
+   * achados em 2026-08-28: mudar a permissão de alguém ou desativá-lo falhava
+   * e a tela não dizia nada. O seletor voltava ao valor antigo sozinho, o que
+   * lê como "não deixou" quando na verdade foi "não consegui te contar". A
+   * rota recusa por limite de assento (`SEAT_LIMIT_REACHED`) e por regra de
+   * quem pode promover a Owner, e as duas mensagens são úteis.
+   */
   async function changeRole(newRole: string) {
     setLoading(true);
     const res = await apiPatch(`/api/v1/users/${userId}/role`, { role: newRole });
     setLoading(false);
     if (res.ok) router.refresh();
+    else aviso.erro(res.message);
   }
 
   async function toggleActive() {
@@ -48,6 +59,7 @@ export default function UserRowActions({
     const res = await apiPatch(`/api/v1/users/${userId}/active`, { active: !active });
     setLoading(false);
     if (res.ok) router.refresh();
+    else aviso.erro(res.message);
   }
 
   if (!canEdit || isSelf || role === "OWNER") {
