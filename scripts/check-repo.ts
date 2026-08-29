@@ -556,6 +556,13 @@ function conferirRecusaTratada() {
  *
  * Botao de acao sem campo nenhum nao entra: nao ha o que converter, e por isso
  * o filtro exige `<Input`, `<Select` ou `MoneyInput` antes de cobrar.
+ *
+ * ⚠️ DOIS itens da linha de base sao EXCECAO PERMANENTE, nao divida:
+ * `postpone-button.tsx` (um campo de data) e `user-row-actions.tsx` (um seletor
+ * de permissao) sao controles INLINE numa linha de tabela. Converte-los a
+ * `FormSheet` trocaria um gesto de um clique por um painel lateral que abre, o
+ * que e pior para o produtor. Decisao do usuario em 2026-08-28. Os dois ja
+ * tratam a recusa do servidor, que era o que faltava de verdade neles.
  */
 function conferirPainelNoKit() {
   console.log("\n11. Painel de escrita usa o kit");

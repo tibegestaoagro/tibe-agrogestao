@@ -87,8 +87,6 @@
   "src/components/minha-fazenda/fazenda-form.tsx",
   "src/components/minha-fazenda/pasture-form.tsx",
   "src/components/minha-fazenda/pasture-list.tsx",
-  "src/components/negociacoes/negotiation-cancel.tsx",
-  "src/components/negociacoes/negotiation-form.tsx",
   "src/components/platform/archive-tenant-button.tsx",
   "src/components/platform/create-tenant-form.tsx",
   "src/components/platform/edit-owner-email-form.tsx",

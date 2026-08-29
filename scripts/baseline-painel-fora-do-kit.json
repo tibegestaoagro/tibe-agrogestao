@@ -14,8 +14,6 @@
   "src/components/meu-dia/task-form.tsx",
   "src/components/minha-fazenda/fazenda-form.tsx",
   "src/components/minha-fazenda/pasture-form.tsx",
-  "src/components/negociacoes/negotiation-cancel.tsx",
-  "src/components/negociacoes/negotiation-form.tsx",
   "src/components/prestador/client-form.tsx",
   "src/components/prestador/order-form.tsx",
   "src/components/prestador/service-form.tsx",

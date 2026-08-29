@@ -3,13 +3,6 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Sheet,
-  SheetTrigger,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
   Select,
   SelectTrigger,
   SelectValue,
@@ -19,7 +12,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
-import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
+import { FormSheet } from "@/components/ui/form-sheet";
+import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { apiPost } from "@/lib/client-api";
 import { HERD_CATEGORIES } from "@/lib/herd/categories";
 
@@ -41,6 +36,25 @@ type Contact = { id: string; name: string };
 
 type Parcela = { due_date: string; amount: string };
 type Custo = { descricao: string; amount: string };
+
+/**
+ * Os campos, na ordem visual, com o nome que a API usa.
+ *
+ * `amount` cobre o valor do negócio E a soma das parcelas: as duas recusas
+ * pertencem ao mesmo número, e o produtor corrige as duas no mesmo lugar.
+ */
+const ORDEM = [
+  "type",
+  "category_id",
+  "quantity",
+  "amount",
+  "occurred_at",
+  "property_id",
+  "contact_name",
+  "due_date",
+  "notes",
+] as const;
+type Campo = (typeof ORDEM)[number];
 
 function moeda(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -87,7 +101,7 @@ export default function NegotiationForm({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const err = useErrosDeFormulario(ORDEM);
 
   const [type, setType] = useState<"compra_gado" | "venda_gado">("compra_gado");
   const [propertyId, setPropertyId] = useState(defaultPropertyId ?? properties[0]?.id ?? "");
@@ -135,7 +149,7 @@ export default function NegotiationForm({
     setParcelas([]);
     setCustos([]);
     setNotes("");
-    setError(null);
+    err.limparTudo();
   }
 
   function parcelar(n: number) {
@@ -152,18 +166,26 @@ export default function NegotiationForm({
   }
 
   async function submit() {
-    setError(null);
     const qtd = lerValorDoCampo(quantity) ?? 0;
-    if (!propertyId) return setError("Escolha a fazenda.");
-    if (!categoryId) return setError("Escolha a categoria dos animais.");
-    if (!Number.isInteger(qtd) || qtd <= 0) return setError("Informe uma quantidade inteira maior que zero.");
-    if (valorNumero <= 0) return setError("Informe o valor total do negócio.");
+    // Cada recusa vai para o SEU campo, e não mais para um rodapé único: o
+    // produtor não tinha como saber qual dos oito campos estava errado.
+    const novos: Partial<Record<Campo, string>> = {};
+    if (!propertyId) novos.property_id = "Escolha a fazenda.";
+    if (!categoryId) novos.category_id = "Escolha a categoria dos animais.";
+    if (!Number.isInteger(qtd) || qtd <= 0) {
+      novos.quantity = "Informe uma quantidade inteira maior que zero.";
+    }
+    if (valorNumero <= 0) novos.amount = "Informe o valor total do negócio.";
     if (!parcelasFecham) {
-      return setError(
-        `A soma das parcelas (${moeda(somaParcelas)}) não fecha com o valor do negócio (${moeda(valorNumero)}).`,
-      );
+      novos.amount = `A soma das parcelas (${moeda(somaParcelas)}) não fecha com o valor do negócio (${moeda(valorNumero)}).`;
+    }
+    if (Object.keys(novos).length > 0) {
+      err.setGlobal(null);
+      err.reprovar(novos);
+      return;
     }
 
+    err.limparTudo();
     setLoading(true);
     const res = await apiPost("/api/v1/negotiations", {
       type,
@@ -187,105 +209,135 @@ export default function NegotiationForm({
     });
     setLoading(false);
 
-    if (!res.ok) return setError(res.message);
+    if (!res.ok) {
+      err.doServidor(res);
+      return;
+    }
     setOpen(false);
     reset();
     router.refresh();
   }
 
   return (
-    <Sheet
+    <FormSheet
+      trigger={<Button>Registrar negócio</Button>}
+      title="Registrar negócio de gado"
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
         if (!o) reset();
       }}
+      onSubmit={submit}
+      submitLabel="Registrar negócio"
+      submitPendingLabel="Registrando..."
+      pending={loading}
+      error={err.global}
+      focarCampoId={err.focarCampoId}
+      tentativa={err.tentativa}
     >
-      <SheetTrigger asChild>
-        <Button>Registrar negócio</Button>
-      </SheetTrigger>
-      <SheetContent>
-        <SheetHeader>
-          <SheetTitle>Registrar negócio de gado</SheetTitle>
-        </SheetHeader>
+      <Field label="O que aconteceu" id="type">
+        {({ id, ...aria }) => (
+          <Select value={type} onValueChange={(v) => setType(v as typeof type)}>
+            <SelectTrigger id={id} {...aria}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="compra_gado">Comprei gado</SelectItem>
+              <SelectItem value="venda_gado">Vendi gado</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+      </Field>
 
-        <div className="mt-4 space-y-4">
-          <div>
-            <Label>O que aconteceu</Label>
-            <Select value={type} onValueChange={(v) => setType(v as typeof type)}>
-              <SelectTrigger>
-                <SelectValue />
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Categoria" required id="category_id" error={err.erros.category_id}>
+          {({ id, ...aria }) => (
+            <Select
+              value={categoryId}
+              onValueChange={(v) => {
+                setCategoryId(v);
+                err.limparCampo("category_id");
+              }}
+            >
+              <SelectTrigger id={id} {...aria}>
+                <SelectValue placeholder="Escolha" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="compra_gado">Comprei gado</SelectItem>
-                <SelectItem value="venda_gado">Vendi gado</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="neg-categoria">Categoria</Label>
-              <Select value={categoryId} onValueChange={setCategoryId}>
-                <SelectTrigger id="neg-categoria">
-                  <SelectValue placeholder="Escolha" />
-                </SelectTrigger>
-                <SelectContent>
-                  {HERD_CATEGORIES.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="neg-qtd">Quantidade</Label>
-              <MoneyInput
-                id="neg-qtd"
-                kind="quantidade"
-                unit="cabeças"
-                value={quantity}
-                onValueChange={setQuantity}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="neg-valor">Valor total (R$)</Label>
-              <MoneyInput
-                id="neg-valor"
-                value={amount}
-                onValueChange={setAmount}
-              />
-            </div>
-            <div>
-              <Label htmlFor="neg-data">Data</Label>
-              <Input
-                id="neg-data"
-                type="date"
-                value={occurredAt}
-                onChange={(e) => setOccurredAt(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label>Fazenda</Label>
-            <Select value={propertyId} onValueChange={setPropertyId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Escolha a fazenda" />
-              </SelectTrigger>
-              <SelectContent>
-                {properties.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
+                {HERD_CATEGORIES.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          )}
+        </Field>
+        <Field label="Quantidade" required id="quantity" error={err.erros.quantity}>
+          {({ id, ...aria }) => (
+            <MoneyInput
+              id={id}
+              {...aria}
+              kind="quantidade"
+              unit="cabeças"
+              value={quantity}
+              onValueChange={(v) => {
+                setQuantity(v);
+                err.limparCampo("quantity");
+              }}
+            />
+          )}
+        </Field>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Valor total (R$)" required id="amount" error={err.erros.amount}>
+          {({ id, ...aria }) => (
+            <MoneyInput
+              id={id}
+              {...aria}
+              value={amount}
+              onValueChange={(v) => {
+                setAmount(v);
+                err.limparCampo("amount");
+              }}
+            />
+          )}
+        </Field>
+        <Field label="Data" id="occurred_at">
+          {({ id, ...aria }) => (
+            <Input
+              id={id}
+              {...aria}
+              type="date"
+              value={occurredAt}
+              onChange={(e) => setOccurredAt(e.target.value)}
+            />
+          )}
+        </Field>
+      </div>
+
+      <Field label="Fazenda" required id="property_id" error={err.erros.property_id}>
+        {({ id, ...aria }) => (
+          <Select
+            value={propertyId}
+            onValueChange={(v) => {
+              setPropertyId(v);
+              err.limparCampo("property_id");
+            }}
+          >
+            <SelectTrigger id={id} {...aria}>
+              <SelectValue placeholder="Escolha a fazenda" />
+            </SelectTrigger>
+            <SelectContent>
+              {properties.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </Field>
 
           {/*
             §5: "cadastro simples e rápido", sem CPF, endereço nem dados
@@ -299,29 +351,34 @@ export default function NegotiationForm({
             o contato, nome novo cria com só o nome (§4, não é obrigado a
             classificar), e uma recusa por saldo não deixa contato órfão.
           */}
-          <div>
-            <Label htmlFor="neg-contato">
-              {compra ? "Vendedor (opcional)" : "Comprador (opcional)"}
-            </Label>
-            <Input
-              id="neg-contato"
-              list="neg-contatos"
-              value={contactName}
-              onChange={(e) => setContactName(e.target.value)}
-              placeholder="Nome de quem você negociou"
-            />
-            <datalist id="neg-contatos">
-              {contacts.map((c) => (
-                <option key={c.id} value={c.name} />
-              ))}
-            </datalist>
-            <p className="mt-1 text-xs text-gray-500">
-              Pode digitar um nome novo: eu cadastro junto com o negócio.
-            </p>
-          </div>
+      <Field
+        label={compra ? "Vendedor (opcional)" : "Comprador (opcional)"}
+        hint="Pode digitar um nome novo: eu cadastro junto com o negócio."
+        id="contact_name"
+        error={err.erros.contact_name}
+      >
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            list="neg-contatos"
+            value={contactName}
+            onChange={(e) => {
+              setContactName(e.target.value);
+              err.limparCampo("contact_name");
+            }}
+            placeholder="Nome de quem você negociou"
+          />
+        )}
+      </Field>
+      <datalist id="neg-contatos">
+        {contacts.map((c) => (
+          <option key={c.id} value={c.name} />
+        ))}
+      </datalist>
 
-          <div className="rounded-md border border-gray-200 p-3">
-            <p className="text-sm font-medium text-gray-700">
+      <div className="rounded-md border border-borda p-3">
+            <p className="text-sm font-medium text-texto-secundario">
               {compra ? "O pagamento já foi feito?" : "O valor já foi recebido?"}
             </p>
             <div className="mt-2 flex gap-2">
@@ -347,24 +404,26 @@ export default function NegotiationForm({
             {!pago && (
               <div className="mt-3 space-y-2">
                 {parcelas.length === 0 && (
-                  <div>
-                    <Label htmlFor="neg-vencimento">Vence em</Label>
-                    <Input
-                      id="neg-vencimento"
-                      type="date"
-                      value={vencimento}
-                      onChange={(e) => setVencimento(e.target.value)}
-                    />
-                  </div>
+                  <Field label="Vence em" id="due_date">
+                    {({ id, ...aria }) => (
+                      <Input
+                        id={id}
+                        {...aria}
+                        type="date"
+                        value={vencimento}
+                        onChange={(e) => setVencimento(e.target.value)}
+                      />
+                    )}
+                  </Field>
                 )}
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm text-gray-600">Dividir em:</span>
+                  <span className="text-sm text-texto-secundario">Dividir em:</span>
                   {[1, 2, 3, 6, 12].map((n) => (
                     <button
                       key={n}
                       type="button"
                       onClick={() => parcelar(n)}
-                      className="rounded border border-gray-300 px-2 py-1 text-sm text-gray-700 hover:border-tibe-primary"
+                      className="rounded border border-borda px-2 py-1 text-sm text-texto-secundario hover:border-tibe-primary"
                     >
                       {n}x
                     </button>
@@ -373,7 +432,7 @@ export default function NegotiationForm({
 
                 {parcelas.map((p, i) => (
                   <div key={i} className="flex items-center gap-2">
-                    <span className="w-6 text-sm text-gray-500">{i + 1}.</span>
+                    <span className="w-6 text-sm text-texto-discreto">{i + 1}.</span>
                     <Input
                       type="date"
                       value={p.due_date}
@@ -391,13 +450,20 @@ export default function NegotiationForm({
                         const novas = [...parcelas];
                         novas[i] = { ...novas[i], amount: v };
                         setParcelas(novas);
+                        err.limparCampo("amount");
                       }}
                     />
                   </div>
                 ))}
 
                 {parcelas.length > 0 && (
-                  <p className={parcelasFecham ? "text-sm text-gray-600" : "text-sm text-red-700"}>
+                  <p
+                    className={
+                      parcelasFecham
+                        ? "text-sm text-texto-secundario"
+                        : "text-sm text-perigo-tinta"
+                    }
+                  >
                     Soma das parcelas: R$ {moeda(somaParcelas)}
                     {!parcelasFecham && " (precisa fechar com o valor do negócio)"}
                   </p>
@@ -406,13 +472,13 @@ export default function NegotiationForm({
             )}
           </div>
 
-          <div className="rounded-md border border-gray-200 p-3">
+      <div className="rounded-md border border-borda p-3">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-gray-700">Frete, comissão, taxas</p>
+              <p className="text-sm font-medium text-texto-secundario">Frete, comissão, taxas</p>
               <button
                 type="button"
                 onClick={() => setCustos([...custos, { descricao: "", amount: "" }])}
-                className="text-sm text-tibe-dark underline"
+                className="text-sm text-acento-tinta underline"
               >
                 Adicionar
               </button>
@@ -442,28 +508,19 @@ export default function NegotiationForm({
               </div>
             ))}
             {somaCustos > 0 && valorNumero > 0 && (
-              <p className="mt-2 text-sm text-gray-600">
+              <p className="mt-2 text-sm text-texto-secundario">
                 {compra
                   ? `Custo total da compra: ${moeda(valorNumero + somaCustos)}`
                   : `Valor líquido da venda: ${moeda(valorNumero - somaCustos)}`}
               </p>
             )}
-          </div>
+      </div>
 
-          <div>
-            <Label htmlFor="neg-obs">Observação (opcional)</Label>
-            <Input id="neg-obs" value={notes} onChange={(e) => setNotes(e.target.value)} />
-          </div>
-
-          {error && (
-            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-          )}
-
-          <Button onClick={submit} disabled={loading} className="w-full">
-            {loading ? "Registrando..." : "Registrar negócio"}
-          </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
+      <Field label="Observação (opcional)" id="notes">
+        {({ id, ...aria }) => (
+          <Input id={id} {...aria} value={notes} onChange={(e) => setNotes(e.target.value)} />
+        )}
+      </Field>
+    </FormSheet>
   );
 }
