@@ -2,24 +2,22 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Sheet,
-  SheetTrigger,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
-import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
+import { FormSheet } from "@/components/ui/form-sheet";
+import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { apiPost } from "@/lib/client-api";
+
+/** Os campos na ordem visual, com o nome que a API usa. */
+const ORDEM = ["performed_at", "description", "cost", "next_due_at"] as const;
 
 export default function MaintenanceForm({ machineId }: { machineId: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const err = useErrosDeFormulario(ORDEM);
 
   const [performedAt, setPerformedAt] = useState("");
   const [description, setDescription] = useState("");
@@ -31,25 +29,27 @@ export default function MaintenanceForm({ machineId }: { machineId: string }) {
     setDescription("");
     setCost("");
     setNextDueAt("");
-    setError(null);
+    err.limparTudo();
   }
 
   async function submit() {
-    if (!description) {
-      setError("Descreva o que foi feito.");
+    if (!description.trim()) {
+      err.setGlobal(null);
+      err.reprovar({ description: "Descreva o que foi feito." });
       return;
     }
+
+    err.limparTudo();
     setLoading(true);
-    setError(null);
     const res = await apiPost(`/api/v1/machines/${machineId}/maintenances`, {
       performed_at: performedAt ? new Date(performedAt).toISOString() : null,
-      description,
+      description: description.trim(),
       cost: lerValorDoCampo(cost),
       next_due_at: nextDueAt ? new Date(nextDueAt).toISOString() : null,
     });
     setLoading(false);
     if (!res.ok) {
-      setError(res.message);
+      err.doServidor(res);
       return;
     }
     reset();
@@ -58,61 +58,88 @@ export default function MaintenanceForm({ machineId }: { machineId: string }) {
   }
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button variant="outline">Registrar manutenção</Button>
-      </SheetTrigger>
-      <SheetContent title="Registrar manutenção">
-        <SheetHeader>
-          <SheetTitle>Registrar manutenção</SheetTitle>
-        </SheetHeader>
+    <FormSheet
+      trigger={<Button variant="outline">Registrar manutenção</Button>}
+      title="Registrar manutenção"
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) reset();
+      }}
+      onSubmit={submit}
+      submitLabel="Registrar"
+      pending={loading}
+      error={err.global}
+      focarCampoId={err.focarCampoId}
+      tentativa={err.tentativa}
+    >
+      <Field
+        label="Data"
+        hint="Deixe em branco para hoje."
+        id="performed_at"
+        error={err.erros.performed_at}
+      >
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            type="date"
+            value={performedAt}
+            onChange={(e) => setPerformedAt(e.target.value)}
+          />
+        )}
+      </Field>
 
-        <div className="space-y-3">
-          <div>
-            <Label htmlFor="performed_at">Data (deixe em branco para hoje)</Label>
-            <Input
-              id="performed_at"
-              type="date"
-              value={performedAt}
-              onChange={(e) => setPerformedAt(e.target.value)}
-            />
-          </div>
-          <div>
-            <Label htmlFor="description">O que foi feito *</Label>
-            <Input
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Ex: troca de óleo e filtros"
-            />
-          </div>
-          <div>
-            <Label htmlFor="cost">Custo (R$)</Label>
-            <MoneyInput id="cost" value={cost} onValueChange={setCost} />
-            <p className="mt-1 text-xs text-gray-500">
-              Preenchido, gera uma despesa automática vinculada a esta manutenção.
-            </p>
-          </div>
-          <div>
-            <Label htmlFor="next_due">Próxima manutenção prevista</Label>
-            <Input
-              id="next_due"
-              type="date"
-              value={nextDueAt}
-              onChange={(e) => setNextDueAt(e.target.value)}
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Se informada, substitui a previsão anterior e gera aviso quando estiver próxima.
-            </p>
-          </div>
+      <Field label="O que foi feito" required id="description" error={err.erros.description}>
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            value={description}
+            onChange={(e) => {
+              setDescription(e.target.value);
+              err.limparCampo("description");
+            }}
+            placeholder="Ex: troca de óleo e filtros"
+          />
+        )}
+      </Field>
 
-          {error && <p className="text-sm text-red-700">{error}</p>}
+      <Field
+        label="Custo (R$)"
+        hint="Preenchido, gera uma despesa automática vinculada a esta manutenção."
+        id="cost"
+        error={err.erros.cost}
+      >
+        {({ id, ...aria }) => (
+          <MoneyInput
+            id={id}
+            {...aria}
+            value={cost}
+            onValueChange={(v) => {
+              setCost(v);
+              err.limparCampo("cost");
+            }}
+          />
+        )}
+      </Field>
 
-          <Button onClick={submit} disabled={loading} className="w-full">
-            {loading ? "Salvando..." : "Registrar"}
-          </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
+      <Field
+        label="Próxima manutenção prevista"
+        hint="Se informada, substitui a previsão anterior e gera aviso quando estiver próxima."
+        id="next_due_at"
+        error={err.erros.next_due_at}
+      >
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            type="date"
+            value={nextDueAt}
+            onChange={(e) => setNextDueAt(e.target.value)}
+          />
+        )}
+      </Field>
+    </FormSheet>
   );
 }
