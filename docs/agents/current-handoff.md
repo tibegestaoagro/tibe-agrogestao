@@ -25,8 +25,10 @@ Se ele passar de umas 200, arquive antes de acrescentar.
 ## Estado atual
 
 - Atualizado em: 2026-08-31.
-- **O PILOTO DO TIME DE AGENTES RODOU, na branch `piloto-token-site-publico`**
-  (24 commits, `ec07f84..HEAD`, **não mesclado, não empurrado**). Site público
+- **O PILOTO DO TIME DE AGENTES ESTÁ NA `main` E NO AR**
+  (`ec07f84..e52acfc`, 27 commits, mesclado e empurrado em 31/08 com
+  autorização do usuário; a branch `piloto-token-site-publico` foi apagada
+  depois do merge). Site público
   em token semântico: 22 arquivos, 286 ocorrências, em 4 ondas de 9 tarefas
   paralelas. Dois tokens novos para bloco de código, suíte `m50` escrita cega
   da spec (vermelha na onda 1, verde na 2), portão de contraste de 25 para 26
@@ -164,13 +166,18 @@ que é colaboradora, as páginas de regra devolvem 404.
 
 ### Próximo passo
 
-**Validar o piloto no navegador.** O código está entregue e commitado na
-branch `time-de-agentes`, mas **nada foi visto numa tela ainda**, e neste
-projeto é a terceira etapa que acha os piores defeitos.
+**Validar o piloto no navegador. ELE JÁ ESTÁ EM PRODUÇÃO.**
 
-Abrir sem login: `/`, `/planos`, `/faq`, `/politicas/termos`, `/criar-conta`,
-`/docs`, `/docs/api`, `/docs/setup` e `/docs/schema`. Dois pontos exigem
-atenção:
+⚠️ **O usuário autorizou merge e push em 31/08 SEM a validação de navegador
+ter acontecido**, com a consequência dita na conversa e aceita: o site público
+foi ao ar com uma frente que o julgamento independente reprovou duas vezes
+(6/10 e 5/10) e que ninguém viu numa tela. Isto não é reclamação e sim
+registro: a validação continua devendo, e agora ela vale para produção, não
+para uma branch.
+
+Abrir sem login, em https://tibe-agrogestao.vercel.app (ou `npm run dev`):
+`/`, `/planos`, `/faq`, `/politicas/termos`, `/criar-conta`, `/docs`,
+`/docs/api`, `/docs/setup` e `/docs/schema`. Dois pontos exigem atenção:
 
 1. ⚠️ **O badge `PUT` em `/docs/api` mudou de roxo para verde.** É a única
    mudança de pixel deliberada do piloto inteiro. Confira os cinco métodos
