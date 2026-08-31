@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import type { HerdMovementType } from "@/generated/prisma/client";
 import { getSessionUser, getActiveProfiles, getTenantDb } from "@/lib/tenant-context";
 import { canWrite } from "@/lib/permissions";
 import {
@@ -43,7 +44,8 @@ import { descreverQuantidade } from "@/lib/stock/units";
  * deixar a categoria de fora da tela.
  */
 
-const TIPOS_MOVIMENTO_ENTRADA = new Set(["envio_confinamento", "envio_boitel"]);
+/** Os movimentos que abrem um lote: usados para achar a entrada de cada um. */
+const TIPOS_MOVIMENTO_ENTRADA: HerdMovementType[] = ["envio_confinamento", "envio_boitel"];
 
 export default async function ConfinamentoPage() {
   const user = await getSessionUser();
@@ -64,8 +66,10 @@ export default async function ConfinamentoPage() {
 
   const lotesAbertos = allLots.filter((l) => l.aberta);
   const lotIds = allLots.map((l) => l.id);
+  const lotesAbertosIds = lotesAbertos.map((l) => l.id);
 
-  const [resumos, movimentosDoConfinamento, alimentacoes, saidasPorLote] = await Promise.all([
+  const [resumos, movimentosDoConfinamento, alimentacoes, saidasPorLote, entradasDosLotesAbertos] =
+    await Promise.all([
     Promise.all(lotesAbertos.map((l) => getConfinementLotSummary(db, l.id))),
     lotIds.length > 0
       ? db.herdMovement.findMany({
@@ -107,6 +111,22 @@ export default async function ConfinamentoPage() {
           _sum: { quantity: true },
         })
       : [],
+    // Categoria e quantidade de entrada (§24) precisam do movimento que abriu
+    // CADA lote ativo, não só dos 30 mais recentes do feed acima (que somam
+    // TODOS os lotes, ativos e encerrados): com dez lotes movimentados, a
+    // entrada de um lote antigo cai fora da janela e a coluna "Categoria"
+    // passa a mentir "não informada" para um lote que tem categoria gravada.
+    // Mesmo risco que a tarefa anterior corrigiu para saídas e mortes, acima.
+    lotesAbertosIds.length > 0
+      ? db.herdMovement.findMany({
+          where: {
+            stay_id: { in: lotesAbertosIds },
+            canceled_at: null,
+            movement_type: { in: TIPOS_MOVIMENTO_ENTRADA },
+          },
+          select: { stay_id: true, to_category_id: true, quantity: true },
+        })
+      : [],
   ]);
 
   const saidasPorLoteId = new Map<string, number>();
@@ -126,13 +146,11 @@ export default async function ConfinamentoPage() {
   }
 
   // Categoria e quantidade de entrada vêm do movimento que abriu o lote: ver
-  // comentário do topo do arquivo.
+  // comentário do topo do arquivo e o comentário da consulta acima.
   const entradaPorLote = new Map<string, { category_id: string | null; quantity: number }>();
-  for (const m of movimentosDoConfinamento) {
-    if (!m.stay_id || m.canceled_at !== null) continue;
-    if (TIPOS_MOVIMENTO_ENTRADA.has(m.movement_type)) {
-      entradaPorLote.set(m.stay_id, { category_id: m.to_category_id, quantity: m.quantity });
-    }
+  for (const m of entradasDosLotesAbertos) {
+    if (!m.stay_id) continue;
+    entradaPorLote.set(m.stay_id, { category_id: m.to_category_id, quantity: m.quantity });
   }
 
   const lotesById = new Map(allLots.map((l) => [l.id, l]));

@@ -92,6 +92,10 @@ export default function StayOpenForm({
       setPropertyId(escolhido.property_id);
       err.limparCampo("property_id");
     }
+    // O pasto pertence à fazenda anterior: sem limpar aqui, o Select volta a
+    // mostrar o placeholder mas o estado ainda vale o pasto antigo, que segue
+    // no submit e a recusa cai no rodapé (INVALID_PASTURE não tem `field`).
+    setPastureId("");
   }
 
   function limpar() {

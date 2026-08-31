@@ -111,7 +111,7 @@ export default function LotFeedingForm({
         </Button>
       }
       title="Registrar alimentação"
-      description="Reduz o estoque do produto escolhido e soma no custo acumulado deste lote."
+      description="Reduz o estoque do produto escolhido, quando ele está cadastrado no estoque. Não soma no custo acumulado deste lote: nem produto nem estoque têm preço registrado."
       open={open}
       onOpenChange={(o) => {
         setOpen(o);

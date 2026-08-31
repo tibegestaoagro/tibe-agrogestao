@@ -22,6 +22,8 @@ export const CHARGE_LABEL: Record<string, string> = {
   por_mes: "Por mês",
   por_periodo: "Por período",
   fechado: "Valor fechado",
+  por_dia: "Por dia",
+  por_cabeca_dia: "Por cabeça/dia",
 };
 
 /** Os tipos de movimento que aparecem no feed de "últimas movimentações". */

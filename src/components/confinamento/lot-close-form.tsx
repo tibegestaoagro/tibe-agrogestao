@@ -14,6 +14,7 @@ import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
 import { Field } from "@/components/ui/field";
 import { FormSheet } from "@/components/ui/form-sheet";
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
+import { useAviso } from "@/components/ui/toast";
 import { apiPost } from "@/lib/client-api";
 
 /**
@@ -50,6 +51,7 @@ export default function LotCloseForm({
   pastures: Pasture[];
 }) {
   const router = useRouter();
+  const aviso = useAviso();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const err = useErrosDeFormulario(
@@ -78,29 +80,32 @@ export default function LotCloseForm({
   }
 
   async function submit() {
-    if (falta !== 0) {
+    // Somar mais do que está no lote continua recusado (pelo servidor
+    // também); somar menos passa a ser válido desde 31/08 e deixa o lote
+    // aberto com o restante (§20).
+    if (falta < 0) {
       err.setGlobal(null);
       err.reprovar({
-        quantity:
-          falta > 0
-            ? `Ainda faltam ${falta.toLocaleString("pt-BR")} cabeças para fechar as ${saldoAberto.toLocaleString("pt-BR")}.`
-            : `Você informou ${Math.abs(falta).toLocaleString("pt-BR")} a mais do que as ${saldoAberto.toLocaleString("pt-BR")} que estão no lote.`,
+        quantity: `Você informou ${Math.abs(falta).toLocaleString("pt-BR")} a mais do que as ${saldoAberto.toLocaleString("pt-BR")} que estão no lote.`,
       });
       return;
     }
 
     err.limparTudo();
     setLoading(true);
-    const res = await apiPost(`/api/v1/herd/stays/${stayId}/close`, {
-      destinos: DESTINOS.map((d) => ({
-        movement_type: d.movement_type,
-        quantity: lerValorDoCampo(valores[d.movement_type] ?? "") ?? 0,
-        value: d.movement_type === "venda" ? lerValorDoCampo(valorVenda) : null,
-        // Pasto de destino é só para quem volta ao pasto (§18): venda e morte
-        // não têm posição de destino nenhuma para o pasto pousar.
-        ...(d.movement_type === "retorno_estadia" ? { pasture_id: pastureId || null } : {}),
-      })).filter((d) => d.quantity > 0),
-    });
+    const res = await apiPost<{ id: string; encerrada: boolean; saldo_aberto: number }>(
+      `/api/v1/herd/stays/${stayId}/close`,
+      {
+        destinos: DESTINOS.map((d) => ({
+          movement_type: d.movement_type,
+          quantity: lerValorDoCampo(valores[d.movement_type] ?? "") ?? 0,
+          value: d.movement_type === "venda" ? lerValorDoCampo(valorVenda) : null,
+          // Pasto de destino é só para quem volta ao pasto (§18): venda e
+          // morte não têm posição de destino nenhuma para o pasto pousar.
+          ...(d.movement_type === "retorno_estadia" ? { pasture_id: pastureId || null } : {}),
+        })).filter((d) => d.quantity > 0),
+      },
+    );
     setLoading(false);
 
     if (!res.ok) {
@@ -108,6 +113,11 @@ export default function LotCloseForm({
       return;
     }
 
+    aviso.sucesso(
+      res.data.encerrada
+        ? "Lote encerrado."
+        : `Encerramento parcial registrado. Ainda restam ${res.data.saldo_aberto.toLocaleString("pt-BR")} cabeças no lote.`,
+    );
     setOpen(false);
     limpar();
     router.refresh();
@@ -199,14 +209,18 @@ export default function LotCloseForm({
 
       <p
         className={
-          falta === 0 ? "text-sm font-medium text-sucesso-tinta" : "text-sm text-texto-secundario"
+          falta < 0
+            ? "text-sm text-perigo-tinta"
+            : falta === 0
+              ? "text-sm font-medium text-sucesso-tinta"
+              : "text-sm text-texto-secundario"
         }
       >
         {falta === 0
-          ? "A conta fecha: os destinos somam o que está no lote."
+          ? "A conta fecha: os destinos somam tudo que está no lote."
           : falta > 0
-            ? `Faltam ${falta.toLocaleString("pt-BR")} para fechar.`
-            : `Sobram ${Math.abs(falta).toLocaleString("pt-BR")}: você informou mais do que há no lote.`}
+            ? `Encerramento parcial: ${falta.toLocaleString("pt-BR")} cabeças continuam no lote depois de salvar.`
+            : `Você informou ${Math.abs(falta).toLocaleString("pt-BR")} a mais do que há no lote.`}
       </p>
       {err.erros.quantity && (
         <p role="alert" className="text-sm text-perigo-tinta">

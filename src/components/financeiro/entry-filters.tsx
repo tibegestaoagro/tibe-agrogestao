@@ -39,6 +39,7 @@ export default function EntryFilters() {
           <SelectItem value="rebanho">Rebanho</SelectItem>
           <SelectItem value="lavoura">Lavoura</SelectItem>
           <SelectItem value="servico">Prestador</SelectItem>
+          <SelectItem value="confinamento">Confinamento</SelectItem>
           <SelectItem value="geral">Geral</SelectItem>
         </SelectContent>
       </Select>
