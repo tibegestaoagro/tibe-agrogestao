@@ -59,10 +59,11 @@ Dono de `scripts/`, do CI e das travas. **É o time que não vê a solução.**
 
 E um transversal: `explorador`, barato, só para achar onde as coisas estão.
 
-⚠️ **Agente novo só aparece depois de reiniciar o Claude Code.** As skills
-carregam a quente, os agentes não: uma sessão aberta antes de `.claude/agents/`
-existir responde "Agent type not found". Se você acabou de criar ou renomear um
-agente, feche e abra a sessão antes de despachar.
+⚠️ **Agente novo carrega a quente, mas não na hora.** Uma sessão aberta antes
+de `.claude/agents/` existir responde "Agent type not found" por alguns
+minutos, e depois passa a enxergar os agentes sozinha, sem reiniciar. Se o
+despacho falhar logo depois de criar um agente, é isso: espere e repita, em vez
+de sair procurando erro no arquivo.
 
 ### Por que o time de provas é cego
 

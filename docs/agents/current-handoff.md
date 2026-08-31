@@ -25,16 +25,17 @@ Se ele passar de umas 200, arquive antes de acrescentar.
 ## Estado atual
 
 - Atualizado em: 2026-08-31.
-- **O TIME DE AGENTES EXISTE, na branch `time-de-agentes`** (3 commits, fase 1
-  do plano). Cinco agentes em `.claude/agents/` (`tela-pagina`, `tela-kit`,
-  `prova-suite`, `prova-juiz`, `explorador`), a skill `orquestrar-ondas`, o
-  cofre `docs/conhecimento/` com 6 notas e a **conferência 13** (wikilink
-  quebrado reprova, vista falhar nos dois sentidos), a skill `memoria-cofre`,
-  o comando `/lembrar`, e o manual em
-  [como-orquestrar.md](como-orquestrar.md). `check`, `tsc` e `lint` limpos.
-  **Não mesclado, não empurrado.**
-- ⚠️ **Agente novo só aparece depois de reiniciar o Claude Code.** Skill carrega
-  a quente, agente não. A sessão que os criou não consegue despachá-los.
+- **O TIME DE AGENTES ESTÁ NA `main` E NO AR** (`bfaed95..ec07f84`, 4 commits,
+  fase 1 do plano). Cinco agentes em `.claude/agents/` (`tela-pagina`,
+  `tela-kit`, `prova-suite`, `prova-juiz`, `explorador`), a skill
+  `orquestrar-ondas`, o cofre `docs/conhecimento/` com 6 notas e a
+  **conferência 13** (wikilink quebrado reprova, vista falhar nos dois
+  sentidos: exit 1 com defeito plantado, exit 0 depois de remover), a skill
+  `memoria-cofre`, o comando `/lembrar`, e o manual em
+  [como-orquestrar.md](como-orquestrar.md). `check` (13 conferências), `tsc` e
+  `lint` limpos. O `explorador` foi despachado e respondeu certo.
+- **Agente novo carrega a quente**, como as skills: o reinício da sessão não é
+  necessário. A sessão que os criou levou alguns minutos para enxergá-los.
 - **AS CINCO FRENTES ESTÃO FECHADAS, MESCLADAS E NO AR.** A frente 5 (rollout
   do design system) foi mesclada em `bd5c88b` e empurrada
   (`143b0c2..bd5c88b`, 18 commits, 164 arquivos). Ela **não teve migração**:
@@ -154,8 +155,6 @@ que é colaboradora, as páginas de regra devolvem 404.
 estreia real do processo: ondas com `Arquivos:` e `Depende-de:`, suíte escrita
 da spec em paralelo, e o `prova-juiz` no fim sobre o range inteiro.
 
-**Antes de começar, reinicie a sessão**, senão os agentes não carregam.
-
 Escolhido como piloto porque o aceite é mecânico (a catraca cai de 52), os
 arquivos se separam sozinhos em conjuntos disjuntos, não há schema nem
 migração, e há uma armadilha conhecida à espreita para o juiz achar: o
@@ -190,7 +189,8 @@ Próximo número livre de suíte: `m50`.
 `negociacoes`, `observabilidade`, `rebanho-livro-razao`). Ficou só
 `origin/app-mobile-fundacao`, de propósito: tem os 3 commits com 5 defeitos
 corrigidos e nunca retestados (ver Pendências). O `origin` agora só tem `main`
-e essa. **Local, existe também `time-de-agentes`**, viva e não mesclada.
+e essa. A `time-de-agentes` foi mesclada e apagada em 31/08, e o repositório
+voltou a ter só as duas.
 
 ### O que estas cinco frentes ensinaram
 
