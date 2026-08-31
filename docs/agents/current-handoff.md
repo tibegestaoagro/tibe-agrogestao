@@ -25,6 +25,79 @@ Se ele passar de umas 200, arquive antes de acrescentar.
 ## Estado atual
 
 - Atualizado em: 2026-08-31.
+
+### ⚠️ CHECKPOINT: o Confinamento está pronto e NÃO empurrado
+
+**`main` local está 22 commits à frente do `origin`** (`430a1db..HEAD`), tudo
+commitado, working tree limpo. **Nada foi mesclado nem empurrado.**
+
+Verde agora: `tsc` 0, `lint` 0 erros, `npm run check` 14/14,
+`npm run test:docs-api`, e nove suítes em 0 falhas (`m51`, `m47`, `m48`, `m4`,
+`m34`, `isolation`, `drift`, `herd`, `nav`).
+
+⚠️ **DUAS MIGRAÇÕES ESPERAM O NEON, e o push não pode acontecer antes delas**
+(invariante 3). Nesta ordem, por timestamp:
+
+1. `prisma/migrations/20260831140000_confinamento/`
+2. `prisma/migrations/20260831150000_formas_de_cobranca/`
+
+O banco local está nas **37** e up to date. Produção continua nas 35.
+
+**Os três passos que faltam, em ordem:**
+
+1. **Rejulgar** o range `430a1db..HEAD`. O primeiro julgamento deu **3/10** com
+   13 achados; os 13 foram fechados na onda 6, e o rejulgamento não rodou.
+2. **Validação ao vivo no navegador.** O juiz foi explícito: os achados de tela
+   ele derivou por leitura, sem abrir navegador. Roteiro no fim desta seção.
+3. **Migrações no Neon, depois merge e push**, com autorização do usuário.
+
+**O que validar no navegador** (`npm run dev`, sem login para `/docs`, com
+login para o painel):
+
+- `/confinamento`: encerrar um lote informando **menos** que o saldo (15 de 40).
+  Precisa salvar, dizer que restam 25, e o lote continuar na tabela com os dias
+  contando. Informar **mais** que o saldo continua bloqueado.
+- `/confinamento`: coluna "Categoria" com muitos lotes movimentados.
+- `/financeiro`: filtro "Módulo" oferece Confinamento, e um lançamento de
+  confinamento mostra o rótulo em vez de branco.
+- Trocar o confinamento depois de escolher pasto: o campo precisa limpar.
+
+### O time de agentes tem DEZ, e está na `main` desde 31/08
+
+`servidor-acao`, `servidor-dados`, `servidor-agente`, `tela-pagina`,
+`tela-kit`, `prova-suite`, `prova-juiz`, `prova-viva`, `n8n-fluxo`,
+`explorador`. Mais as skills `orquestrar-ondas` e `memoria-cofre`, os comandos
+`/onda`, `/juiz` e `/lembrar`, e o manual em
+[como-orquestrar.md](como-orquestrar.md).
+
+⚠️ **`prova-juiz` e `explorador` não registram** (ver
+`docs/conhecimento/agente-com-modelo-nao-padrao-pode-nao-registrar.md`). Os
+dois julgamentos rodaram por `general-purpose` com o contrato do juiz embutido
+no prompt, e conferidos por `git status` de que não escreveram nada.
+
+**O cofre tem 15 notas.** As desta rodada que mais importam para quem retomar:
+`escrever-a-licao-nao-impede-repeti-la`,
+`briefing-de-suite-cega-precisa-carregar-o-contrato`,
+`migrate-diff-le-o-env-e-o-env-e-producao`,
+`git-checkout-descarta-o-trabalho-do-agente`.
+
+### O que vem depois do Confinamento
+
+1. **A Área Leite**, ainda sem spec. Documento em
+   `docs/area-funcional-confinamento/` (o do leite tem travessão no nome, por
+   isso não é citado literal). Decisão já tomada: **lactação será contagem com
+   data, desacoplada do livro-razão** (§37.2 e §4). A peça mais complexa é a
+   fazenda como ponto de coleta (§18 a §21), que é o mesmo padrão do rebanho:
+   mesmo espaço físico, donos diferentes, saldo por dono.
+2. **A correção do rebanho invisível**, adiada pelo usuário. Spec pronta em
+   `../superpowers/specs/2026-08-31-rebanho-invisivel-do-cadastro-assistido.md`,
+   com as duas perguntas em aberto respondidas **sim**.
+
+⚠️ **`ponytail` está ativo** (modo `full`), com 3 hooks globais, e o
+`ponytail-subagent` propaga para os agentes despachados.
+
+---
+
 - **O PILOTO DO TIME DE AGENTES ESTÁ NA `main` E NO AR**
   (`ec07f84..e52acfc`, 27 commits, mesclado e empurrado em 31/08 com
   autorização do usuário; a branch `piloto-token-site-publico` foi apagada
