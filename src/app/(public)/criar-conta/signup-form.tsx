@@ -147,14 +147,14 @@ export default function SignupForm() {
       </div>
 
       {error && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+        <p className="rounded-md bg-perigo-suave px-3 py-2 text-sm text-perigo-tinta">{error}</p>
       )}
 
       <Button type="submit" disabled={loading} className="w-full">
         {loading ? "Enviando código..." : "Continuar"}
       </Button>
 
-      <p className="text-center text-xs text-gray-500">
+      <p className="text-center text-xs text-texto-discreto">
         Vamos confirmar seu WhatsApp e seu email antes de criar a conta. A senha
         é enviada por esses canais, então você não precisa criar uma agora.
       </p>

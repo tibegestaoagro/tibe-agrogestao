@@ -22,12 +22,12 @@ export default async function ConfirmarEmailPage() {
 
   return (
     <main className="min-h-screen bg-tibe-light px-4 py-12">
-      <div className="mx-auto max-w-lg rounded-xl bg-white p-8 shadow-sm">
+      <div className="mx-auto max-w-lg rounded-xl bg-superficie p-8 shadow-sm">
         <div className="mb-6 text-center">
           <Link href="/" className="text-3xl font-bold text-tibe-dark">
             Tibé
           </Link>
-          <p className="mt-1 text-sm text-gray-500">Etapa 3 de 3: confirmar email</p>
+          <p className="mt-1 text-sm text-texto-discreto">Etapa 3 de 3: confirmar email</p>
         </div>
 
         <div className="mb-4 rounded-md bg-tibe-light px-3 py-2 text-sm text-tibe-dark">
@@ -40,9 +40,9 @@ export default async function ConfirmarEmailPage() {
           allowEditAfterSeconds={state.data.allow_edit_after_seconds}
         />
 
-        <p className="mt-6 text-center text-sm text-gray-500">
+        <p className="mt-6 text-center text-sm text-texto-discreto">
           Errou o email?{" "}
-          <span className="text-gray-500">
+          <span className="text-texto-discreto">
             Use a opção de corrigir acima: seu WhatsApp continua confirmado.
           </span>
         </p>
