@@ -25,6 +25,18 @@ Se ele passar de umas 200, arquive antes de acrescentar.
 ## Estado atual
 
 - Atualizado em: 2026-08-31.
+- **O PILOTO DO TIME DE AGENTES RODOU, e está na branch `time-de-agentes`**
+  (16 commits, `fd5fda8..HEAD`, **não mesclado, não empurrado**). Site público
+  em token semântico: 22 arquivos, 286 ocorrências, em 4 ondas de 9 tarefas
+  paralelas. Dois tokens novos para bloco de código, suíte `m50` escrita cega
+  da spec (vermelha na onda 1, verde na 2), portão de contraste de 25 para 26
+  pares, conferência 8 de 9 para 22 famílias de cor e de 3 para 14 prefixos,
+  catraca de 52 para 34. `check`, `tsc`, `lint` e `m50` verdes.
+- ⚠️ **O processo achou quatro coisas que a sessão sozinha não acharia**, e a
+  pior delas é que **o `dividas.md` e este arquivo afirmavam o falso**: que o
+  painel do tenant estava inteiro em token semântico. Quatro arquivos de
+  `(dashboard)/` pintam `divide-gray` cru, e a regex não os enxergava. Os dois
+  documentos foram corrigidos. As quatro lições estão em `docs/conhecimento/`.
 - **O TIME DE AGENTES ESTÁ NA `main` E NO AR** (`bfaed95..ec07f84`, 4 commits,
   fase 1 do plano). Cinco agentes em `.claude/agents/` (`tela-pagina`,
   `tela-kit`, `prova-suite`, `prova-juiz`, `explorador`), a skill
@@ -152,22 +164,37 @@ que é colaboradora, as páginas de regra devolvem 404.
 
 ### Próximo passo
 
-**O piloto do time de agentes, na frente do token semântico** (`dividas.md`
-§2.5, os 52 arquivos de `baseline-cor-crua.json`). É a fase 2 do plano, e a
-estreia real do processo: ondas com `Arquivos:` e `Depende-de:`, suíte escrita
-da spec em paralelo, e o `prova-juiz` no fim sobre o range inteiro.
+**Validar o piloto no navegador.** O código está entregue e commitado na
+branch `time-de-agentes`, mas **nada foi visto numa tela ainda**, e neste
+projeto é a terceira etapa que acha os piores defeitos.
 
-Escolhido como piloto porque o aceite é mecânico (a catraca cai de 52), os
-arquivos se separam sozinhos em conjuntos disjuntos, não há schema nem
-migração, e há uma armadilha conhecida à espreita para o juiz achar: o
-`bg-tibe-light` invisível, que o portão de contraste aprova para sempre porque
-compara pares de token e nunca o uso.
+Abrir sem login: `/`, `/planos`, `/faq`, `/politicas/termos`, `/criar-conta`,
+`/docs`, `/docs/api`, `/docs/setup` e `/docs/schema`. Dois pontos exigem
+atenção:
 
-⚠️ **O piloto estreia Tela e Prova, não Servidor.** O Servidor estreia na
-rodada seguinte, no defeito ativo do rebanho (lote nasce em "Não classificado"
-e o saldo lê `HerdMovement`, então quem cadastra pelo assistente não vê o
-animal). Falta escrever `servidor-acao`, `servidor-dados`, `servidor-agente` e
-`prova-viva`, que é a fase 3.
+1. ⚠️ **O badge `PUT` em `/docs/api` mudou de roxo para verde.** É a única
+   mudança de pixel deliberada do piloto inteiro. Confira os cinco métodos
+   lado a lado (GET azul, POST creme, PUT verde, PATCH âmbar, DELETE
+   vermelho): **nenhum portão mede distinguibilidade entre eles**, nem para
+   daltonismo.
+2. Tabelas densas de `/docs/schema` e `/docs/glossario` (`divide-borda`), os
+   chips `<code>` de `/docs/api`, e o separador "/" da trilha, que é decorativo
+   e some sem ninguém notar.
+
+Em todo o resto o pixel deveria ser idêntico: os tokens batem em hexadecimal
+com os cinzas que substituíram. **Qualquer diferença visível é defeito.**
+
+⚠️ **O julgamento independente NÃO rodou.** O `prova-juiz` não registra (ver
+`docs/conhecimento/agente-com-modelo-nao-padrao-pode-nao-registrar.md`), e
+substituí-lo pela sessão que orquestrou seria o julgamento contaminado que o
+desenho evita. A frente está entregue **sem esse portão**, e é preciso dizer
+isso.
+
+Depois: **fase 3**, o time Servidor (`servidor-acao`, `servidor-dados`,
+`servidor-agente`, `prova-viva`), estreando no defeito ativo do rebanho (lote
+nasce em "Não classificado" e o saldo lê `HerdMovement`, então quem cadastra
+pelo assistente não vê o animal). E a rodada seguinte do token: auth,
+onboarding e signup, os 15 arquivos que ficaram fora do piloto.
 
 As três frentes que o usuário separou continuam em aberto por trás disso:
 
