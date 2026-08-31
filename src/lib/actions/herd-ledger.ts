@@ -1,5 +1,7 @@
+// `HerdChargeType` entra como VALOR (o objeto do enum gerado), não como tipo:
+// é dele que `HERD_CHARGE_TYPES` é derivada, lá embaixo.
+import { HerdChargeType } from "@/generated/prisma/enums";
 import type {
-  HerdChargeType,
   HerdMovementType,
   HerdOwner,
   HerdSituation,
@@ -81,13 +83,22 @@ export const HERD_CLOSE_TYPES = [
   "saida_terceiro",
 ] as const satisfies readonly HerdMovementType[];
 
-/** Formas de cobrança do §2 e do §6 do complemento. */
-export const HERD_CHARGE_TYPES = [
-  "por_cabeca",
-  "por_mes",
-  "por_periodo",
-  "fechado",
-] as const satisfies readonly HerdChargeType[];
+/**
+ * Formas de cobrança do §2 e do §6 do complemento, mais `por_dia` e
+ * `por_cabeca_dia` do §15 do documento do Confinamento.
+ *
+ * Derivada do enum gerado, e não escrita à mão como as três listas acima.
+ * Ela ERA uma lista à mão, e ficou nas quatro primeiras quando o enum ganhou
+ * as duas do Confinamento: o Select da tela oferecia as seis, a rota recusava
+ * duas, e o `tsc` não reclamava, porque `satisfies readonly HerdChargeType[]`
+ * aceita subconjunto. Aqui não cabe lista parcial (toda forma de cobrança do
+ * enum é válida em toda rota), então não há o que manter em paralelo.
+ *
+ * ⚠️ As três listas acima são parciais DE PROPÓSITO (movimento direto exclui
+ * os de estadia; `HERD_STAY_TYPES` exclui `confinamento`, que abre pela rota
+ * própria em `/api/v1/confinement/stays`), e por isso continuam à mão.
+ */
+export const HERD_CHARGE_TYPES = Object.values(HerdChargeType);
 
 export type HerdPositionKey = {
   category_id: string;

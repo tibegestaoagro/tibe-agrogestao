@@ -642,6 +642,59 @@ async function comBanco() {
         soma(await getPositions(db, { owner: "proprio", situation: "confinamento" })) === confinadosAntes - 9,
       );
     }
+
+    console.log("\n14. As SEIS formas de cobrança, inclusive as duas do §15 e do §16 do cliente");
+    {
+      const { HERD_CHARGE_TYPES } = await import("@/lib/actions/herd-ledger");
+      const { HerdChargeType } = await import("@/generated/prisma/enums");
+
+      // Esta é a asserção que impede a lista paralela de voltar. Ela ERA uma
+      // lista à mão com quatro valores, e ficou para trás quando o enum ganhou
+      // `por_dia` e `por_cabeca_dia`: o Select da tela oferecia as seis, a
+      // rota recusava duas com 422, e o `tsc` não reclamava, porque
+      // `satisfies readonly HerdChargeType[]` aceita subconjunto.
+      const doEnum = Object.values(HerdChargeType).sort();
+      check(
+        "HERD_CHARGE_TYPES cobre o enum INTEIRO, sem lista paralela para ficar para trás",
+        JSON.stringify([...HERD_CHARGE_TYPES].sort()) === JSON.stringify(doEnum),
+        `${HERD_CHARGE_TYPES.length} contra ${doEnum.length}: ${doEnum.filter((v) => !HERD_CHARGE_TYPES.includes(v)).join(",") || "nenhuma faltando"}`,
+      );
+
+      // O exemplo literal do §16: "30 animais para o Boitel Boa Engorda,
+      // cobrança de R$ 12,00 por cabeça/dia".
+      const r = await openConfinementStay(db, {
+        confinement_site_id: site?.id ?? "",
+        category_id: "macho_25_36",
+        quantity: 30,
+        pasture_id: pasto.id,
+        charge_type: "por_cabeca_dia",
+        charge_value: 12,
+      });
+      check("o §16 abre: 30 cabeças a R$ 12,00 por cabeça/dia", r.ok, r.ok ? "" : `${r.code}: ${r.message}`);
+      const stayId = r.ok ? r.data.id : "";
+      const estadia = await db.herdStay.findUnique({ where: { id: stayId } });
+      check(
+        "e a forma de cobrança fica GRAVADA como por_cabeca_dia, não trocada por outra",
+        estadia?.charge_type === "por_cabeca_dia",
+        estadia?.charge_type ?? "nenhuma",
+      );
+      const conta = await db.financialEntry.findFirst({ where: { related_id: stayId } });
+      check(
+        "e o valor continua LITERAL: 12, nunca 12 × 30 nem 12 × dias (decisão 3)",
+        conta != null && Number(conta.amount) === 12,
+        conta ? String(conta.amount) : "nenhuma conta",
+      );
+
+      const porDia = await openConfinementStay(db, {
+        confinement_site_id: site?.id ?? "",
+        category_id: "macho_25_36",
+        quantity: 5,
+        pasture_id: pasto.id,
+        charge_type: "por_dia",
+        charge_value: 300,
+      });
+      check("e `por_dia`, a outra forma nova, também abre", porDia.ok, porDia.ok ? "" : `${porDia.code}`);
+    }
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });
   }

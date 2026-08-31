@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiOk, apiError, apiErroDeZod } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { listConfinementLots, openConfinementStay } from "@/lib/actions/confinement";
+import { HERD_CHARGE_TYPES } from "@/lib/actions/herd-ledger";
 import { isoOrNull } from "@/lib/serialize";
 import { withApi } from "@/lib/route";
 
@@ -22,7 +23,10 @@ const openSchema = z.object({
   pasture_id: z.string().min(1).nullish(),
   started_at: z.string().datetime({ message: "Data inválida" }).nullish(),
   expected_end_at: z.string().datetime({ message: "Data prevista inválida" }).nullish(),
-  charge_type: z.enum(["por_cabeca", "por_mes", "por_periodo", "fechado"]).nullish(),
+  // A lista vem de `HERD_CHARGE_TYPES`, nunca escrita à mão aqui: enquanto
+  // estava à mão, o §16 do cliente ("R$ 12,00 por cabeça/dia") era oferecido
+  // pelo Select da tela e recusado com 422 por esta linha.
+  charge_type: z.enum(HERD_CHARGE_TYPES).nullish(),
   charge_value: z.number().positive("O valor precisa ser maior que zero").nullish(),
   due_date: z.string().datetime({ message: "Vencimento inválido" }).nullish(),
   reason: z.string().trim().max(500).nullish(),
