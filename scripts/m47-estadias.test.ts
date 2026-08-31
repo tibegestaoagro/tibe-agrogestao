@@ -168,11 +168,24 @@ async function comBanco() {
       });
       check("a estadia com cobrança abre", r.ok, r.ok ? "" : r.message);
 
+      // A busca é por `related_id` sozinho, e o módulo vira AFIRMAÇÃO logo
+      // abaixo. Enquanto ele era filtro, a suíte não conseguia ver a conta
+      // cair no módulo errado: ela simplesmente não a encontrava, e o defeito
+      // saía como "zero lançamentos".
       const contas = await db.financialEntry.findMany({
-        where: { related_module: "rebanho", related_id: r.ok ? r.data.id : "" },
+        where: { related_id: r.ok ? r.data.id : "" },
       });
       check("um lançamento, nem zero nem dois", contas.length === 1, String(contas.length));
       check("boitel gera DESPESA", contas[0]?.entry_type === "expense", contas[0]?.entry_type);
+      // §15 do documento do cliente: boitel é confinamento em instalação de
+      // terceiro, e a cobrança dele é custo da área Confinamento. Até 31/08
+      // caía em "rebanho", e a DRE mostrava dois lotes lado a lado da mesma
+      // tela em buckets diferentes.
+      check(
+        "e cai no módulo Confinamento, não no Rebanho",
+        contas[0]?.related_module === "confinamento",
+        contas[0]?.related_module,
+      );
       check("com o valor que o produtor informou, sem cálculo", Number(contas[0]?.amount) === 3000, String(contas[0]?.amount));
       check("como conta a pagar, não como pago", contas[0]?.status === "pending", contas[0]?.status);
 
@@ -486,7 +499,12 @@ async function comBanco() {
         soma(await getPositions(db, { owner: "proprio", situation: "boitel" })) === boitelAntes,
       );
 
-      const contas = await db.financialEntry.findMany({ where: { related_module: "rebanho", related_id: id } });
+      // Sem filtro de módulo, de propósito. Enquanto esta busca citava
+      // `related_module: "rebanho"`, ela era incapaz de ver a conta órfã: uma
+      // conta viva em OUTRO módulo saía daqui como "zero contas", e o teste
+      // aprovava o defeito. Cancelamento tem que deixar zero contas ligadas à
+      // estadia, em módulo nenhum.
+      const contas = await db.financialEntry.findMany({ where: { related_id: id } });
       check("a conta a pagar pendente some", contas.length === 0, String(contas.length));
 
       const movimentos = await db.herdMovement.findMany({ where: { stay_id: id } });

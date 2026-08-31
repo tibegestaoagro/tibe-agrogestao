@@ -84,7 +84,15 @@ const COBRANCA: Partial<
   >
 > = {
   pasto_terceiro: { entry_type: "expense", category: "Arrendamento de pasto", related_module: "rebanho" },
-  boitel: { entry_type: "expense", category: "Boitel", related_module: "rebanho" },
+  /**
+   * Boitel É confinamento em instalação de terceiro (§15 do documento do
+   * cliente, `docs/area-funcional-confinamento/Área Funcional Confinamento.docx`):
+   * a cobrança dele é custo da área Confinamento, não do Rebanho. Mudado em
+   * 31/08; vale só para lançamento NOVO, de propósito: as contas de boitel já
+   * gravadas em produção antes desta data continuam em "rebanho", e essa
+   * divisão histórica é conhecida e deliberada, não um esquecimento.
+   */
+  boitel: { entry_type: "expense", category: "Boitel", related_module: "confinamento" },
   evento: { entry_type: "expense", category: "Leilão e feira", related_module: "rebanho" },
   terceiro_na_fazenda: { entry_type: "income", category: "Aluguel de pasto", related_module: "rebanho" },
   /**
@@ -562,8 +570,22 @@ export async function cancelStay(
     // O dinheiro segue o mesmo tratamento do `cancelMovement`: pendente é
     // apagado, porque nunca virou dinheiro; pago ganha estorno datado de hoje,
     // porque o dinheiro saiu de verdade e o fluxo de caixa precisa ver a volta.
+    //
+    // A busca é por `related_id` SOZINHO, sem citar módulo nenhum. Até 31/08
+    // ela filtrava por `related_module: "rebanho"` fixo, e a conta do
+    // confinamento (que nasce em "confinamento") nunca era encontrada: ficava
+    // `pending` para sempre depois do cancelamento, pesando na DRE e gerando
+    // alerta de vencimento.
+    //
+    // Derivar o módulo do `COBRANCA` do tipo da estadia NÃO resolve, e foi
+    // tentado: o mapa muda com o tempo (boitel saiu de "rebanho" hoje), e a
+    // conta gravada ontem guarda o valor de ontem. Toda vez que o mapa mudar,
+    // o cancelamento perderia as contas antigas daquele tipo.
+    //
+    // `related_id` é o id da estadia, um cuid, e a única coisa que nasce com
+    // ele é a cobrança da própria estadia. Não há o que filtrar a mais.
     const contas = await tx.financialEntry.findMany({
-      where: { related_module: "rebanho", related_id: stayId },
+      where: { related_id: stayId },
     });
     for (const conta of contas) {
       if (conta.status === "pending") {
@@ -573,7 +595,7 @@ export async function cancelStay(
           entry_type: conta.entry_type === "income" ? "expense" : "income",
           category: "Estorno de estadia do rebanho",
           amount: decToNum(conta.amount) ?? 0,
-          related_module: "rebanho",
+          related_module: conta.related_module,
           related_id: stayId,
           occurred_at: agora,
         });

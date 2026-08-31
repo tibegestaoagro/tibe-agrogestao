@@ -95,7 +95,7 @@ const DIA_MS = 24 * 60 * 60 * 1000;
 
 async function comBanco() {
   const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
-  const { closeStay, listStays } = await import("@/lib/actions/herd-stays");
+  const { closeStay, listStays, cancelStay } = await import("@/lib/actions/herd-stays");
   const { getPositions, recordMovement } = await import("@/lib/actions/herd-ledger");
   const { recordStockMovement, getStockBalance } = await import("@/lib/actions/stock-ledger");
   const {
@@ -595,6 +595,51 @@ async function comBanco() {
         "o filtro por confinement_site_id devolve só os lotes daquele site (2, não os 3)",
         doSiteNesteBloco.length === 2,
         String(doSiteNesteBloco.length),
+      );
+    }
+
+    console.log("\n13. Cancelar o lote não pode deixar a conta a pagar viva");
+    {
+      // O defeito que este bloco trava: `cancelStay` procurava as contas com
+      // `related_module: "rebanho"` fixo, e a cobrança do confinamento nasce
+      // em "confinamento". A conta não era encontrada, continuava `pending`
+      // para sempre, seguia em Contas a pagar, seguia pesando na DRE (que só
+      // exclui `cancelled`) e seguia gerando alerta de vencimento.
+      //
+      // O caso do boitel (m47, seção 16) continuava passando, e é por isso que
+      // ninguém viu: até 31/08 a conta dele nascia no mesmo módulo que a busca
+      // citava.
+      const r = await openConfinementStay(db, {
+        confinement_site_id: site?.id ?? "",
+        category_id: "macho_25_36",
+        quantity: 9,
+        pasture_id: pasto.id,
+        charge_type: "fechado",
+        charge_value: 4500,
+      });
+      check("o lote com cobrança abre", r.ok, r.ok ? "" : `${r.code}: ${r.message}`);
+      const stayId = r.ok ? r.data.id : "";
+
+      const antes = await db.financialEntry.findMany({ where: { related_id: stayId } });
+      check("e nasce com a conta a pagar", antes.length === 1, String(antes.length));
+
+      const confinadosAntes = soma(await getPositions(db, { owner: "proprio", situation: "confinamento" }));
+      const cancel = await cancelStay(db, stayId, { reason: "lançado errado" });
+      check("cancela", cancel.ok, cancel.ok ? "" : `${cancel.code}: ${cancel.message}`);
+
+      // Busca SEM filtro de módulo, de propósito: com o filtro, uma conta viva
+      // em outro módulo sairia daqui como "zero contas" e o teste aprovaria o
+      // defeito. É a mesma lição da nota do cofre sobre o portão medir a
+      // relação que lhe deram.
+      const depois = await db.financialEntry.findMany({ where: { related_id: stayId } });
+      check(
+        "e a conta a pagar some, em módulo NENHUM: não sobra órfã",
+        depois.length === 0,
+        depois.map((c) => `${c.related_module}/${c.status}`).join(",") || "0",
+      );
+      check(
+        "e as 9 cabeças voltam a sair do confinamento",
+        soma(await getPositions(db, { owner: "proprio", situation: "confinamento" })) === confinadosAntes - 9,
       );
     }
   } finally {
