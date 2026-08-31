@@ -44,7 +44,15 @@ export default async function ConfiguracoesPage() {
           {profiles.map((p) => (
             <li
               key={p}
-              className="rounded-full bg-tibe-light px-3 py-1 text-sm text-tibe-dark"
+              /**
+               * ⚠️ Era `bg-tibe-light`, que virou INVISÍVEL: o alias
+               * depreciado aponta para `--superficie-afundada`, que é
+               * exatamente o fundo do painel. A pílula ficava da cor da
+               * página e só sobrava o texto solto. Achado na varredura ao
+               * vivo de 2026-08-31; o par abaixo é conferido pelo gate de
+               * contraste como "texto sobre verde suave".
+               */
+              className="rounded-full bg-primaria-suave px-3 py-1 text-sm text-primaria-tinta"
             >
               {p === "fazenda" ? "Fazenda" : "Prestador de Serviço"}
             </li>

@@ -83,7 +83,7 @@ export default async function RelatoriosPage() {
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {relevantModules.map((m) => (
-            <div key={m.module} className="rounded-lg bg-tibe-light p-3">
+            <div key={m.module} className="rounded-lg bg-superficie-afundada p-3">
               <p className="text-xs text-texto-discreto">{MODULE_LABEL[m.module]}</p>
               <p className={`mt-0.5 text-base font-semibold ${m.result >= 0 ? "text-primaria-tinta" : "text-perigo-tinta"}`}>
                 {brl(m.result)}

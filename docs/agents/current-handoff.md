@@ -24,26 +24,43 @@ Se ele passar de umas 200, arquive antes de acrescentar.
 
 ## Estado atual
 
-- Atualizado em: 2026-08-28.
-- **As frentes 1, 2 e 3 estão na `main` e no ar.** O deploy da frente 3 foi
-  confirmado em produção pelo `/docs/api`, que é público e lista as rotas
-  novas: o gatilho de deploy voltou a funcionar.
-- **A frente 4 (permuta) também está na `main`**, mesclada em 28/08 em dez
-  commits, com suíte `m49` nova, **52/52 suítes verdes** e validação no
-  navegador (as oito conferências do plano). Com ela o **Módulo 31 fecha**: as
-  quatro missões entregues.
-- **A migração `20260828170000_permuta` foi aplicada no Neon** antes do push,
-  na ordem do invariante 3. O Neon está com as 35, e `npx prisma migrate
-  status` responde "up to date".
+- Atualizado em: 2026-08-31.
+- **A frente 5 (rollout do design system) está PRONTA na branch
+  `frente-5-design-system`, e ainda NÃO foi mesclada.** Nove commits, do
+  `5ec2c79` ao `4d5d7ff` mais o de fechamento. **Esta frente não tem migração:
+  nenhuma mudança de schema.** Falta autorização para merge, push e deploy.
+- **As cinco frentes estão fechadas.** Com esta, o painel do tenant inteiro
+  fala por token semântico e todo formulário de escrita nasce no kit
+  (`FormSheet` + `Field` + `useErrosDeFormulario`).
+- **Linhas de base, que só encolhem:** cor crua **125 → 52**; painel fora do
+  kit **25 → 3**, sendo os três exceção permanente documentada
+  (`postpone-button`, `user-row-actions`, `subscribe-form`). O que restou de
+  cor crua é site público, auth e plataforma: ver `dividas.md` §2.5.
+- ⚠️ **A validação ao vivo achou o que a suíte verde não achava, de novo.** As
+  71 rotas devolviam a recusa do Zod crua: texto default **em inglês** ("Too
+  small: expected number to be >=0") e sem o `field`, então a recusa caía no
+  rodapé do painel em vez de embaixo do campo. Corrigido com um mapa de erro
+  global (`src/lib/erros-de-zod.ts`) e `apiErroDeZod`, mais a **trava 12** no
+  `npm run check`. A infraestrutura de `field` já existia e já funcionava:
+  faltava ligá-la.
+- **Dois defeitos herdados, do mesmo tronco:** `users.ts` recusava email
+  repetido sem dizer o campo, e `fazenda-form` mandava município como string
+  vazia quando em branco (o schema aceita ausente, recusa vazio), fazendo a
+  recusa sair sobre um campo que a tela nem marca como obrigatório.
+- **`npm run seed:demo` voltou a funcionar.** `wipeDemoData` não conhecia
+  `HerdMovement`, `HerdStay`, `StockMovement` e `Negotiation`, que apontam para
+  `Property` com `onDelete: Restrict`: o seed morria em chave estrangeira desde
+  o Módulo 30, e `test:herd` falhava por falta de fixture. As duas coisas
+  voltaram juntas.
+- ⚠️ **Ferramenta nova para validar tela autenticada sem digitar senha:**
+  `scripts/_sessao-local.ts` emite o cookie de sessão do NextAuth para o owner
+  do seed, e `scripts/_cenario-onda2.ts` monta as cinco recusas no banco de
+  dev. As duas travadas por `exigirBancoLocal()`.
+- **As frentes 1 a 4 estão na `main` e no ar**, com o Módulo 31 fechado e o
+  Neon nas 35 migrações (`npx prisma migrate status` responde "up to date"). O
+  relato de cada uma está no histórico abaixo e nas mensagens de commit.
 - ⚠️ **Confirme o deploy antes de supor que subiu.** O jeito barato de checar,
-  sem senha: `/docs/api` é público e lista as rotas reais. Se
-  `/api/v1/negotiations/barters` aparecer lá, é este commit no ar.
-- **A fase 1 (identidade e sistema de design) começou**, com três commits na
-  `main`, na ordem que o plano exige: falha visível e alvo de 44px (`60e4d87`),
-  tokens semânticos de cor com a catraca de contraste (`638d0f6`), e leitura de
-  número em português com `Field`, `FormSheet` e `MoneyInput` (`979ba2e`). O
-  detalhe de cada um está na mensagem do commit; as três catracas novas rodam
-  no `npm run check`.
+  sem senha: `/docs/api` é público e lista as rotas reais.
 - **O `.env.enc` saiu do git em 25/08** e voltou a ser arquivo local: backup de
   chaveiro não transita pelo repositório. O `.gitignore` cobre todo `.env*` sem
   exceção. Caminho atual em [../backup-env.md](../backup-env.md).
@@ -111,78 +128,43 @@ que é colaboradora, as páginas de regra devolvem 404.
 
 ### Próximo passo
 
-**A frente 5 é a próxima, e é a última: o rollout do sistema de design** nos
-painéis de escrita restantes e nos arquivos que ainda pintam com a paleta crua
-do Tailwind (`scripts/baseline-cor-crua.json`, que só pode encolher). É onde a
-skill `loop-goal` finalmente cabe, porque é trabalho repetitivo com critério
-mecânico de parada. Próximo número livre de suíte: `m50`.
+**Autorizar merge, push e deploy da `frente-5-design-system`.** Sem migração:
+o invariante 3 não se aplica desta vez. Depois do deploy, conferir por
+`/docs/api`, que é público, como nas frentes anteriores.
 
-**O que a frente 4 entregou**, em nove commits na `modulo-31-permuta`: a
-permuta como `Negotiation(permuta)` com um lado entregue e um recebido, cada um
-gravado por quem já sabe gravá-lo; `permuta_saida`/`permuta_entrada` no
-rebanho; `MachineStatus.negociada`; o cancelamento que desfaz rebanho, estoque,
-máquina e dinheiro juntos; a rota; o handler de WhatsApp; e a tela de dois
-lados.
+Com as cinco frentes fechadas, o que fica em aberto é o que o usuário já
+separou: o **app mobile** e o **classificador do n8n**, os dois congelados até
+o sistema estar revisado. Próximo número livre de suíte: `m50`.
 
-⚠️ **Quatro decisões da execução que valem para quem mexer nisso:**
+⚠️ **Cinco decisões da frente 5 que valem para quem mexer nisso:**
 
-1. **O valor da permuta é SÓ a diferença.** Os valores estimados do §12.4
-   ficaram fora da v1 por decisão do usuário.
-2. **`PERMUTA_INCOMPLETA` e `PERMUTA_VAZIA` são recusas diferentes.** Falta de
-   um lado (§12.3 os torna obrigatórios) contra "nada se move e não há
-   dinheiro".
-3. **`ehVenda()` não responde por uma permuta.** Quem responde é
-   `dinheiroEntra()`, pelo lançamento, e a tela usa `recebe_dinheiro`. Nunca
-   chame `ehVenda` direto numa tela.
-4. **O handler de WhatsApp aceita só `animais` e `descricao`.** Máquina e
-   produto exigem escolher um registro do catálogo, e o handler manda para o
-   painel em vez de adivinhar.
+1. **`text-white` não tem tradução única.** No botão destrutivo é
+   `text-superficie`, o par que o gate confere; sobre fundo escuro é
+   `text-texto-invertido`. O mesmo vale para `bg-white/10`: na casca escura do
+   menu ele é `bg-texto-invertido/10`, nunca `bg-superficie/10`, que inverte
+   no modo escuro e apaga o realce.
+2. **O alias depreciado `tibe.light` é o fundo do painel.** `bg-tibe-light`
+   sobre a página fica invisível. Ver `dividas.md` §2.5.
+3. **A trava 11 (painel no kit) tem três exceções permanentes**, e elas estão
+   comentadas no `check-repo.ts`. Não as divida sem ler o porquê.
+4. **A trava 10 (recusa tratada) olha o ARQUIVO, não a função.** Um arquivo que
+   trata a recusa do painel passa mesmo tendo um botão que a engole: foi assim
+   nos dois `category-manager`, corrigidos em 31/08.
+5. **`z.config({ customError })` respeita a mensagem escrita no schema.** A
+   precedência é: mensagem do schema > mapa > default do Zod. O locale `pt`
+   embutido foi testado e recusado: diz "Muito pequeno: esperado que number
+   fosse >=0", que é português de compilador.
 
-**A validação no navegador achou dois defeitos que a suíte verde não pegava**,
-os dois já corrigidos: os dois lados do formulário usavam `id` repetido no DOM
-(rótulo apontando para o campo errado, foco caindo no lado de cima), e o extrato
-do Rebanho mostrava o nome CRU do enum. Este segundo vinha desde a frente 2:
-oito tipos sem rótulo. O `npm run check` ganhou a conferência 9, que reprova
-`HerdMovementType` novo sem rótulo em português.
+O relato completo das **frentes 1, 3 e 4** foi para
+[historico/2026-08.md](historico/2026-08.md) em 31/08: as tres estao em
+producao, e o que precisava sobreviver aqui sao as decisoes, nao a narrativa.
 
-Depois dela vem a frente 5, o rollout do sistema de design nos painéis de
-escrita restantes e nos arquivos que ainda pintam com a paleta crua do
-Tailwind (`scripts/baseline-cor-crua.json`, que só pode encolher).
-
-**O que a frente 3 entregou**, em nove commits: a remessa como
-`Negotiation(evento)` **sem valor** com uma `HerdStay(evento)` filha, e o envio
-sem lançamento financeiro nenhum (§17.8); o encerramento em que a soma dos três
-destinos tem que bater com o enviado, com a receita e os custos nascendo só ali;
-o cancelamento que desfaz rebanho, dinheiro e estadia juntos; as duas rotas; o
-handler de WhatsApp com pendência guardada; e as duas telas, com o placar da
-soma ao vivo.
-
-⚠️ **Três decisões que a execução forçou**, e que valem para quem mexer nisso:
-
-1. **"Outro destino" grava DOIS movimentos**, não um. `HerdMovement.stay_id`
-   aponta para uma estadia só, e com um movimento ou a remessa antiga ficava
-   aberta com saldo fantasma, ou a estadia nova nascia vazia. Os dois entram na
-   mesma transação, então a passagem pela fazenda não é observável.
-2. **O handler de WhatsApp tem store de pendência próprio**
-   (`event-pending.ts`, chave `tibe:remessa-pending:`). Sem âncora, o "sim"
-   executaria o que o classificador remontou: é a cicatriz de 18/08 no estoque.
-3. **`HerdStay(evento)` não é mais criável direto.** Quem abre remessa é
-   Negociações, e o Rebanho manda encerrar lá: encerrar pelo Rebanho moveria as
-   cabeças sem registrar a venda.
-
-**A validação no navegador achou quatro defeitos que a suíte verde não pegava**,
-todos de sinal invertido na tela: a remessa aberta como "A pagar" (uma dívida
-que não existe), a encerrada como "Quitada" com custos somados em vez de
-descontados, a contagem somando ida e volta (40 numa remessa de 20), e um
-segundo botão de encerrar no Rebanho. Os quatro viraram teste.
-
-O plano de sequência das cinco frentes está em
+O plano de sequencia das cinco frentes esta em
 [../superpowers/specs/2026-08-27-sequencia-para-fechar-os-modulos-design.md](../superpowers/specs/2026-08-27-sequencia-para-fechar-os-modulos-design.md)
-e os planos de execução, em `../superpowers/plans/`. A spec da frente 3 está em
-[../superpowers/specs/2026-08-28-modulo-31-missao-3-leilao-design.md](../superpowers/specs/2026-08-28-modulo-31-missao-3-leilao-design.md).
-Decisões do usuário registradas ali: app mobile e n8n só depois do sistema
-completo; nas missões novas o handler de WhatsApp nasce junto, o classificador
-não; e nos primitivos compartilhados, só troca de cor invisível.
+e os planos de execucao, em `../superpowers/plans/`. Decisoes do usuario
+registradas ali: app mobile e n8n so depois do sistema completo; nas missoes
+novas o handler de WhatsApp nasce junto, o classificador nao; e nos primitivos
+compartilhados, so troca de cor invisivel.
 
 **O que a frente 1 deixou como padrão**, e que toda tela nova precisa seguir: o
 envelope de erro diz qual campo o servidor recusou, e a fiação atravessa
@@ -237,6 +219,13 @@ Quatro achadas hoje, que não estavam em `dividas.md`:
 
 ## Histórico recente
 
+- **2026-08-31:** frente 5 (rollout do design system) pronta na branch
+  `frente-5-design-system`. O painel inteiro no kit e em token semântico, com
+  duas travas novas no `check` (recusa engolida, painel fora do kit) e uma
+  terceira depois da validação (recusa do Zod crua). A validação ao vivo achou
+  o Zod falando inglês em 71 rotas, a recusa caindo no rodapé em vez do campo,
+  o `seed:demo` quebrado desde o Módulo 30 e a pílula invisível do
+  `bg-tibe-light`. Nenhum deles aparecia em suíte.
 - **2026-08-28:** frente 4 (permuta) pronta na branch `modulo-31-permuta`, em
   nove commits, com o Módulo 31 fechando as quatro missões. A validação ao vivo
   achou `id` repetido no formulário de dois lados e o extrato do Rebanho
