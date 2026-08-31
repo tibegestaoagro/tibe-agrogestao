@@ -59,3 +59,8 @@ next-env.d.ts
 /.claude/settings.local.json.bak
 /.claude/worktrees/
 /.impeccable/
+
+# Estado do visor do Obsidian sobre docs/: e preferencia de maquina, e
+# plugin pode gravar segredo em .obsidian/plugins/*/data.json sem avisar.
+# O cofre em si (docs/conhecimento/) e versionado; a configuracao do app nao.
+/docs/.obsidian/
