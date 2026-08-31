@@ -100,6 +100,13 @@ let TENANT_ID = "";
  * morria antes de criar qualquer coisa. Efeito colateral: `test:herd` passou
  * a falhar por falta de fixture, dizendo "nenhum tenant com animais".
  *
+ * `ConfinementSite` (Modulo 30 fase 3) entrou em 2026-08-31, pelo mesmo
+ * motivo: tambem aponta para `Property` com `Restrict`. `Pasture` (Modulo 29)
+ * ja existia com o mesmo `Restrict` e nunca tinha entrado nesta lista; nao
+ * quebrava porque o seed nunca criou uma linha dela, mas o buraco era o
+ * mesmo: bastaria uma `Pasture` do tenant demo criada por fora (uso do app)
+ * para o `property.deleteMany` morrer em silencio de novo.
+ *
  * Tabela nova que referencie `Property` precisa entrar nesta lista.
  */
 async function wipeDemoData() {
@@ -124,6 +131,8 @@ async function wipeDemoData() {
   await prisma.alert.deleteMany({ where: { tenant_id } });
   await prisma.task.deleteMany({ where: { tenant_id } });
   await prisma.financialEntry.deleteMany({ where: { tenant_id } });
+  await prisma.confinementSite.deleteMany({ where: { tenant_id } });
+  await prisma.pasture.deleteMany({ where: { tenant_id } });
   await prisma.property.deleteMany({ where: { tenant_id } });
 }
 
