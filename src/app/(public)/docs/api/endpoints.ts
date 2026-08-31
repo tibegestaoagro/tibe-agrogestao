@@ -576,6 +576,71 @@ export const GROUPS: Group[] = [
     ],
   },
   {
+    title: "Confinamento (Módulo 30, fase 3)",
+    note: "Confinamento próprio e Boitel reusam a mesma estadia do rebanho (HerdStay), fase 2 do Módulo 30: não é um segundo modelo de \"onde o animal está\". ConfinementSite é só o cadastro do local; abrir uma estadia deriva o tipo (confinamento ou boitel) do tipo do site, então um site próprio nunca vira estadia boitel.",
+    endpoints: [
+      {
+        method: "GET",
+        path: "/api/v1/confinement/sites",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description: "Lista os confinamentos cadastrados (§5). Exclui arquivados por padrão; `?include_archived=true` inclui, `?type=proprio|boitel` filtra.",
+        response: `200
+{ "data": [{ "id": "cl...", "name": "Confinamento Sede", "type": "proprio", "property_id": "cl...", "counterparty_name": null, "city": null, "capacity": 500, "notes": null, "archived": false, "archived_at": null }], "meta": { "total": 1 } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/confinement/sites",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "Cadastra um confinamento (§5). `type: proprio` exige `property_id` de uma fazenda não arquivada; `type: boitel` exige `counterparty_name` (empresa ou proprietário). `capacity`, `city` e `notes` são opcionais.",
+        request: `{ "name": "Confinamento Sede", "type": "proprio", "property_id": "cl...", "capacity": 500 }`,
+        response: `201
+{ "data": { "id": "cl...", "name": "Confinamento Sede", "type": "proprio", "property_id": "cl...", "archived": false }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/confinement/sites/:id/archive",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "Arquiva o confinamento (não deleta, mesmo padrão de Property/Pasture). Idempotente: re-arquivar mantém o archived_at original.",
+        response: `200
+{ "data": { "id": "cl...", "archived": true, "archived_at": "2026-08-31T12:00:00.000Z" }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/confinement/stays",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description: "Lotes de confinamento e Boitel (§9, §25 \"lotes ativos\"), com dias confinados e saldo aberto derivados, nunca gravados. Filtros: confinement_site_id, type (confinamento|boitel), abertas=true.",
+        response: `200
+{ "data": [{ "id": "cl...", "type": "confinamento", "confinement_site_id": "cl...", "property_id": "cl...", "started_at": "2026-08-21T00:00:00.000Z", "days_confined": 10, "quantity": 37, "aberta": true, "canceled_at": null }], "meta": { "total": 1 } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/confinement/stays",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "Abre uma estadia de confinamento (§6, §7), reusando `openStay` (fase 2). O `type` da estadia (confinamento ou boitel) é DERIVADO de `confinement_site_id`, não escolhido no corpo. Entrada não altera o total do rebanho (§27.1); os animais só saem da localização anterior. `charge_type`/`charge_value` gravam a cobrança informada, sem multiplicar por cabeça ou por dia.",
+        request: `{ "confinement_site_id": "cl...", "category_id": "macho_25_36", "quantity": 37, "pasture_id": "cl...", "charge_type": "fechado", "charge_value": 4500 }`,
+        response: `201
+{ "data": { "id": "cl...", "type": "confinamento", "quantity": 37 }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/confinement/stays/:id",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description: "Resumo do lote (§8, §13, §14, §24): dias confinados, saldo atual, alimentação por produto (StockMovement com este stay_id) e custo financeiro acumulado (soma simples de FinancialEntry ligados, nunca estimativa).",
+        response: `200
+{ "data": { "id": "cl...", "type": "confinamento", "days_confined": 10, "quantity": 37, "aberta": true, "charge_type": "fechado", "charge_value": 4500, "feeding": [{ "product_id": "cl...", "product_name": "Ração", "unit": "kg", "quantity": 180 }], "financial_cost": 4500 }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/confinement/stays/:id/feeding",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "Registra alimentação (§10, §11, §12): cria um StockMovement de `utilizacao` vinculado à estadia, e o saldo do produto cai. `product_id` é OBRIGATÓRIO: sem ele a rota devolve 422 `PRODUCT_REQUIRED` no campo `product_id`, em vez de aceitar em silêncio sem gravar nada.",
+        request: `{ "product_id": "cl...", "quantity": 180, "notes": "trato da manhã" }`,
+        response: `201
+{ "data": { "stay_id": "cl...", "registered_in_stock": true, "stock_movement_id": "cl..." }, "meta": {} }`,
+      },
+    ],
+  },
+  {
     title: "Rebanho: Animais",
     endpoints: [
       {

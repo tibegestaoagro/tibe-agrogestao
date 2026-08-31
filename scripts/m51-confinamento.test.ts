@@ -14,32 +14,49 @@ exigirBancoLocal();
  * Confinamento: fase 3 do Módulo 30 (docs/superpowers/specs/
  * 2026-08-31-confinamento-fase-3-do-modulo-30.md).
  *
- * ESCRITA CEGA DA SPEC: esta suíte não leu `src/lib/actions/confinement.ts`
- * nem `src/app/api/v1/confinement/`, que nascem na mesma onda. O que ela
- * exercita são os dois pontos que a spec §2 cita como terreno já existente e
- * reusado: `stay-rules.ts` (regras puras de cada tipo de estadia) e as
- * primitivas do livro-razão (`recordMovement`/`getPositions`, em
- * `herd-ledger.ts`), mais `openStay`/`closeStay`/`listStays`
- * (`herd-stays.ts`) e `recordStockMovement`/`getStockBalance`
- * (`stock-ledger.ts`), cujo contrato já está estável em produção (fase 2 do
- * Módulo 30 e missão 2 do Módulo 31) e cuja forma este arquivo conhece pelas
- * suítes irmãs `m47-estadias.test.ts` e `m37-estoque.test.ts`, não pela
- * implementação desta frente.
+ * ⚠️ REESCRITA em T18 (2026-08-31): a versão anterior desta suíte era
+ * "escrita cega da spec" e permanecia assim depois da implementação nascer.
+ * As 34 asserções que ela tinha exercitavam só o terreno HERDADO da fase 2
+ * (`openStay`/`closeStay`/`herd-ledger`/`stock-ledger`), com a estadia de
+ * confinamento aberta chamando `openStay` diretamente e o local criado com
+ * `db.confinementSite.create` cru. Nenhuma linha de `confinement.ts` (as
+ * cinco funções que esta frente escreveu: `createConfinementSite`,
+ * `openConfinementStay`, `recordConfinementFeeding`,
+ * `getConfinementLotSummary`, `listConfinementLots`) nem as sete rotas em
+ * `src/app/api/v1/confinement/` tinham cobertura. O caso mais nítido: a
+ * seção de dias confinados lia `started_at` do banco e calculava os dias ELA
+ * MESMA, então passaria intacta se a função de produção devolvesse `0` fixo.
+ * Ver docs/conhecimento/portao-mede-a-relacao-que-lhe-deram.md.
  *
- * Prova, por seção (espelhando spec §6):
+ * Esta versão chama as cinco funções de produção diretamente, com o contrato
+ * lido em `src/lib/actions/confinement.ts` (exceção explícita do briefing
+ * T18: suíte de reparo pós-implementação, não escrita cega da onda 1).
+ *
+ * Prova, por seção:
  *   1. As regras puras: `confinamento` sabe onde o animal fica, de quem é, o
- *      envio e os encerramentos (stay-rules.ts precisa aprender o tipo novo).
- *   2. Entrada em confinamento NÃO altera o total do rebanho (§27.1).
- *   3. O animal sai da localização anterior e passa a contar em confinamento (§7).
- *   4. Dias confinados batem com a data de entrada (§8).
- *   5. Alimentação com produto do estoque REDUZ o saldo (§11).
- *   6. Alimentação com produto fora do estoque não mexe em saldo nenhum (§12).
+ *      envio e os encerramentos (stay-rules.ts, terreno já testado, mantido
+ *      como fumaça rápida sem banco).
+ *   2. `createConfinementSite` valida o §5 (fazenda obrigatória quando
+ *      próprio, contraparte quando boitel, fazenda arquivada recusada).
+ *   3. `openConfinementStay` DERIVA o tipo da estadia do `ConfinementSite.type`
+ *      (site próprio nunca vira estadia boitel), sem alterar o total do
+ *      rebanho (§27.1) e tirando os animais da localização anterior (§7).
+ *   4. `getConfinementLotSummary` calcula os dias a partir de `started_at`
+ *      (§8): dois lotes com datas de entrada diferentes precisam devolver
+ *      dias DIFERENTES, o que uma função de retorno fixo não passaria.
+ *   5. `recordConfinementFeeding` recusa sem produto (`PRODUCT_REQUIRED`,
+ *      §10 a §12) sem gravar nada, e registra vinculado à estadia quando o
+ *      produto existe, reduzindo o saldo (§11).
+ *   6. Site arquivado é recusado por `openConfinementStay`.
  *   7. Saída parcial deixa o restante no lote (§20).
  *   8. Venda direto do confinamento reduz o rebanho e cria a receita (§19).
  *   9. Morte reduz lote e rebanho (§21).
- *  10. A cobrança NÃO é multiplicada por nada (decisão 3 da spec).
- *  11. O retorno ao pasto grava o pasto informado (§18, decisão do usuário em
- *      31/08, T11), e recusa pasto de OUTRA propriedade.
+ *  10. A cobrança NÃO é multiplicada por nada (decisão 3 da spec), e o
+ *      resumo do lote soma o mesmo valor literal (§13, §14, §24).
+ *  11. O retorno ao pasto grava o pasto informado (§18), e recusa pasto de
+ *      OUTRA propriedade.
+ *  12. Os quatro números do §25 (`listConfinementLots`): confinados agora,
+ *      confinamento próprio, boitel, lotes ativos.
  *
  * Roda: `npm run test:m51`.
  */
@@ -78,9 +95,17 @@ const DIA_MS = 24 * 60 * 60 * 1000;
 
 async function comBanco() {
   const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
-  const { openStay, closeStay, listStays } = await import("@/lib/actions/herd-stays");
+  const { closeStay, listStays } = await import("@/lib/actions/herd-stays");
   const { getPositions, recordMovement } = await import("@/lib/actions/herd-ledger");
   const { recordStockMovement, getStockBalance } = await import("@/lib/actions/stock-ledger");
+  const {
+    createConfinementSite,
+    archiveConfinementSite,
+    openConfinementStay,
+    recordConfinementFeeding,
+    getConfinementLotSummary,
+    listConfinementLots,
+  } = await import("@/lib/actions/confinement");
 
   const stamp = Date.now();
   const tenant = await prisma.tenant.create({
@@ -89,19 +114,11 @@ async function comBanco() {
   const db = prismaForTenant(tenant.id);
 
   const soma = (posicoes: { quantity: number }[]) => posicoes.reduce((s, p) => s + p.quantity, 0);
-  const saldoEstoque = (posicoes: { quantity: number }[]) => posicoes.reduce((s, p) => s + p.quantity, 0);
 
   try {
     const fazenda = await db.property.create({ data: scoped({ name: "Fazenda M51" }) });
     const pasto = await db.pasture.create({
       data: scoped({ property_id: fazenda.id, name: "Pasto M51", area_hectares: 40 }),
-    });
-    const site = await db.confinementSite.create({
-      data: scoped({
-        name: "Confinamento Sede",
-        type: "proprio",
-        property_id: fazenda.id,
-      }),
     });
 
     // Base para haver de onde tirar: 500 cabeças presentes, próprias.
@@ -117,67 +134,163 @@ async function comBanco() {
       },
     });
 
-    console.log("\n2. Entrada em confinamento não altera o total do rebanho (§27.1)");
-    let stayA: string = "";
+    console.log("\n2. createConfinementSite valida o §5 (fazenda obrigatória quando próprio, contraparte quando boitel)");
+    let site: { id: string } | null = null;
+    let siteBoitel: { id: string } | null = null;
+    {
+      const semFazenda = await createConfinementSite(db, { name: "Sem fazenda", type: "proprio" });
+      check(
+        "proprio sem property_id é recusado",
+        !semFazenda.ok && semFazenda.code === "VALIDATION_ERROR" && semFazenda.field === "property_id",
+        semFazenda.ok ? "passou" : `${semFazenda.code} (${semFazenda.field})`,
+      );
+
+      const semContraparte = await createConfinementSite(db, { name: "Sem contraparte", type: "boitel" });
+      check(
+        "boitel sem counterparty_name é recusado",
+        !semContraparte.ok && semContraparte.code === "VALIDATION_ERROR" && semContraparte.field === "counterparty_name",
+        semContraparte.ok ? "passou" : `${semContraparte.code} (${semContraparte.field})`,
+      );
+
+      const fazendaArquivada = await db.property.create({ data: scoped({ name: "Fazenda arquivada M51" }) });
+      await db.property.update({ where: { id: fazendaArquivada.id }, data: { archived_at: new Date() } });
+      const emArquivada = await createConfinementSite(db, {
+        name: "Tentativa em fazenda arquivada",
+        type: "proprio",
+        property_id: fazendaArquivada.id,
+      });
+      check(
+        "proprio numa fazenda arquivada é recusado",
+        !emArquivada.ok && emArquivada.code === "PROPERTY_ARCHIVED",
+        emArquivada.ok ? "passou" : emArquivada.code,
+      );
+
+      const rProprio = await createConfinementSite(db, {
+        name: "Confinamento Sede",
+        type: "proprio",
+        property_id: fazenda.id,
+        capacity: 500,
+      });
+      check("site próprio é criado", rProprio.ok, rProprio.ok ? "" : `${rProprio.code}: ${rProprio.message}`);
+      site = rProprio.ok ? rProprio.data : null;
+
+      const rBoitel = await createConfinementSite(db, {
+        name: "Boitel Vizinho",
+        type: "boitel",
+        counterparty_name: "Fazenda Vizinha LTDA",
+      });
+      check("site boitel é criado", rBoitel.ok, rBoitel.ok ? "" : `${rBoitel.code}: ${rBoitel.message}`);
+      siteBoitel = rBoitel.ok ? rBoitel.data : null;
+    }
+
+    console.log(
+      "\n3. openConfinementStay DERIVA o tipo da estadia do ConfinementSite.type (site próprio nunca vira estadia boitel)",
+    );
+    let stayA = "";
     {
       const proprioAntes = soma(await getPositions(db, { owner: "proprio" }));
-      const r = await openStay(db, {
-        type: "confinamento",
-        property_id: fazenda.id,
+
+      const r = await openConfinementStay(db, {
+        confinement_site_id: site?.id ?? "",
         category_id: "macho_25_36",
-        pasture_id: pasto.id,
         quantity: 37,
-        confinement_site_id: site.id,
+        pasture_id: pasto.id,
         charge_type: "fechado",
         charge_value: 4500,
       });
-      check("a estadia de confinamento abre", r.ok, r.ok ? "" : `${r.code}: ${r.message}`);
+      check("a estadia no site próprio abre", r.ok, r.ok ? "" : `${r.code}: ${r.message}`);
       stayA = r.ok ? r.data.id : "";
+      check(
+        "um site PRÓPRIO vira estadia do tipo `confinamento`, não `boitel`",
+        r.ok && r.data.type === "confinamento",
+        r.ok ? r.data.type : `${r.code}`,
+      );
+
+      const rBoitelStay = await openConfinementStay(db, {
+        confinement_site_id: siteBoitel?.id ?? "",
+        category_id: "macho_25_36",
+        property_id: fazenda.id,
+        quantity: 21,
+        pasture_id: pasto.id,
+        charge_type: "por_cabeca",
+        charge_value: 3,
+      });
+      check(
+        "um site BOITEL vira estadia do tipo `boitel`, não `confinamento`: a mesma função distingue os dois sentidos",
+        rBoitelStay.ok && rBoitelStay.data.type === "boitel",
+        rBoitelStay.ok ? rBoitelStay.data.type : `${rBoitelStay.code}`,
+      );
 
       const proprioDepois = soma(await getPositions(db, { owner: "proprio" }));
       check(
-        "o total próprio não muda: os animais continuam do produtor",
+        "o total próprio não muda com as duas entradas (§27.1)",
         proprioDepois === proprioAntes,
         `${proprioDepois} vs ${proprioAntes}`,
       );
-    }
 
-    console.log("\n3. O animal sai da localização anterior e passa a contar em confinamento (§7)");
-    {
       const presente = soma(await getPositions(db, { owner: "proprio", situation: "presente" }));
       const confinados = soma(await getPositions(db, { owner: "proprio", situation: "confinamento" }));
-      check("37 cabeças saíram do pasto (500 - 37 = 463)", presente === 463, String(presente));
-      check("e as mesmas 37 aparecem em confinamento", confinados === 37, String(confinados));
-
-      const mov = await db.herdMovement.findFirst({ where: { stay_id: stayA } });
-      check("a movimentação de envio aponta para a estadia", mov != null);
-      check("com o tipo `envio_confinamento`", mov?.movement_type === "envio_confinamento", mov?.movement_type);
-      check("saindo da situação presente", mov?.from_situation === "presente", mov?.from_situation ?? "null");
-      check("e chegando na situação confinamento", mov?.to_situation === "confinamento", mov?.to_situation ?? "null");
+      const emBoitel = soma(await getPositions(db, { owner: "proprio", situation: "boitel" }));
+      check("os 37 + 21 saíram do pasto (500 - 37 - 21 = 442)", presente === 442, String(presente));
+      check("os 37 aparecem na situação `confinamento`", confinados === 37, String(confinados));
+      check("os 21 aparecem na situação `boitel`, separados (§7)", emBoitel === 21, String(emBoitel));
     }
 
-    console.log("\n4. Dias confinados batem com a data de entrada (§8)");
+    console.log(
+      "\n4. getConfinementLotSummary calcula os DIAS a partir de `started_at` (§8): reprova se a função devolver um número fixo",
+    );
     {
       const dezDiasAtras = new Date(Date.now() - 10 * DIA_MS);
-      const r = await openStay(db, {
-        type: "confinamento",
-        property_id: fazenda.id,
+      const tresDiasAtras = new Date(Date.now() - 3 * DIA_MS);
+
+      const r10 = await openConfinementStay(db, {
+        confinement_site_id: site?.id ?? "",
         category_id: "macho_25_36",
-        pasture_id: pasto.id,
         quantity: 5,
-        confinement_site_id: site.id,
+        pasture_id: pasto.id,
         started_at: dezDiasAtras,
       });
-      check("abre com data de entrada informada", r.ok, r.ok ? "" : `${r.code}: ${r.message}`);
+      check("abre com entrada há dez dias", r10.ok, r10.ok ? "" : `${r10.code}: ${r10.message}`);
+      const stay10 = r10.ok ? r10.data.id : "";
 
-      const stay = r.ok ? await db.herdStay.findUnique({ where: { id: r.data.id } }) : null;
-      check("started_at grava a data de entrada informada, não a de hoje", stay?.started_at?.getTime() === dezDiasAtras.getTime());
+      const r3 = await openConfinementStay(db, {
+        confinement_site_id: site?.id ?? "",
+        category_id: "macho_25_36",
+        quantity: 5,
+        pasture_id: pasto.id,
+        started_at: tresDiasAtras,
+      });
+      check("abre com entrada há três dias", r3.ok, r3.ok ? "" : `${r3.code}: ${r3.message}`);
+      const stay3 = r3.ok ? r3.data.id : "";
 
-      const dias = stay ? Math.round((Date.now() - stay.started_at.getTime()) / DIA_MS) : -1;
-      check("e os dias confinados batem: dez dias desde a entrada", dias === 10, String(dias));
+      const resumo10 = await getConfinementLotSummary(db, stay10);
+      const resumo3 = await getConfinementLotSummary(db, stay3);
+      check(
+        "o lote de dez dias atrás mostra 10 dias confinados",
+        resumo10.ok && resumo10.data.days_confined === 10,
+        resumo10.ok ? String(resumo10.data.days_confined) : `${resumo10.code}`,
+      );
+      check(
+        "o lote de três dias atrás mostra 3, um número DIFERENTE do outro: uma função de retorno fixo (ou 0) falharia num dos dois",
+        resumo3.ok && resumo3.data.days_confined === 3,
+        resumo3.ok ? String(resumo3.data.days_confined) : `${resumo3.code}`,
+      );
+      check(
+        "a quantidade do resumo é a que entrou, ainda sem saída",
+        resumo10.ok && resumo10.data.quantity === 5,
+        resumo10.ok ? String(resumo10.data.quantity) : "",
+      );
+      check("sem alimentação lançada, a lista vem vazia", resumo10.ok && resumo10.data.feeding.length === 0);
+      check(
+        "sem cobrança informada, o custo financeiro é zero",
+        resumo10.ok && resumo10.data.financial_cost === 0,
+        resumo10.ok ? String(resumo10.data.financial_cost) : "",
+      );
     }
 
-    console.log("\n5. Alimentação com produto do estoque reduz o saldo (§11)");
+    console.log(
+      "\n5. recordConfinementFeeding: recusa sem produto (PRODUCT_REQUIRED, §10 a §12), registra e reduz o saldo quando informado (§11)",
+    );
     let racaoId = "";
     {
       const categoria = await db.productCategory.create({ data: scoped({ name: "Ração M51" }) });
@@ -192,76 +305,81 @@ async function comBanco() {
         movement_type: "compra",
         quantity: 2000,
       });
-      const antes = saldoEstoque(await getStockBalance(db, { product_id: racao.id, property_id: fazenda.id }));
+
+      const semProduto = await recordConfinementFeeding(db, { stay_id: stayA, quantity: 50 });
+      check(
+        "sem product_id a ação RECUSA com PRODUCT_REQUIRED",
+        !semProduto.ok && semProduto.code === "PRODUCT_REQUIRED" && semProduto.field === "product_id",
+        semProduto.ok ? "passou" : `${semProduto.code} (${semProduto.field})`,
+      );
+
+      const movimentosAntes = await db.stockMovement.count({ where: { stay_id: stayA } });
+      check("e NADA fica gravado: nenhum StockMovement nasce da recusa", movimentosAntes === 0, String(movimentosAntes));
+
+      const antes = soma(await getStockBalance(db, { product_id: racao.id, property_id: fazenda.id }));
       check("2000kg comprados para o confinamento", antes === 2000, String(antes));
 
-      const uso = await recordStockMovement(db, {
-        product_id: racao.id,
-        property_id: fazenda.id,
-        movement_type: "utilizacao",
-        quantity: 180,
-        stay_id: stayA,
-      });
-      check("a alimentação é registrada", uso.ok, uso.ok ? "" : `${uso.code}: ${uso.message}`);
+      const uso = await recordConfinementFeeding(db, { stay_id: stayA, quantity: 180, product_id: racao.id });
+      check("com product_id a alimentação é registrada", uso.ok, uso.ok ? "" : `${uso.code}: ${uso.message}`);
 
-      const depois = saldoEstoque(await getStockBalance(db, { product_id: racao.id, property_id: fazenda.id }));
+      const depois = soma(await getStockBalance(db, { product_id: racao.id, property_id: fazenda.id }));
       check("e o saldo cai os 180kg usados", depois === antes - 180, `${depois} vs ${antes - 180}`);
 
-      const movimento = uso.ok ? await db.stockMovement.findUnique({ where: { id: uso.data.id } }) : null;
+      const movimento =
+        uso.ok && uso.data.stock_movement_id
+          ? await db.stockMovement.findUnique({ where: { id: uso.data.stock_movement_id } })
+          : null;
       check(
         "a utilização fica VINCULADA à estadia (§11), não solta",
         movimento?.stay_id === stayA,
         movimento?.stay_id ?? "null",
       );
+
+      const resumo = await getConfinementLotSummary(db, stayA);
+      const linha = resumo.ok ? resumo.data.feeding.find((f) => f.product_id === racaoId) : undefined;
+      check(
+        "e o resumo do lote reflete a alimentação por produto (§13)",
+        linha?.quantity === 180,
+        resumo.ok ? JSON.stringify(resumo.data.feeding) : `${resumo.code}`,
+      );
     }
 
-    console.log("\n6. Alimentação com produto fora do estoque não mexe em saldo nenhum (§12)");
+    console.log("\n6. Site arquivado é recusado: openConfinementStay não abre estadia nele");
     {
-      // O contrato exato de como o produtor registra um trato com produto
-      // FORA do catálogo (nome livre, sem StockMovement) não está no
-      // briefing desta suíte: nasce em `confinement.ts`, que esta suíte não
-      // lê. O que É verificável sem ele é a INVARIANTE que sustenta o §12: um
-      // produto nunca tocado por movimentação nenhuma permanece com saldo
-      // zero, mesmo com outras alimentações acontecendo na mesma estadia. Se
-      // alguma implementação decidisse "descontar de qualquer jeito" um
-      // produto genérico, este produto B acusaria o vazamento.
-      const categoriaB = await db.productCategory.create({ data: scoped({ name: "Suplemento M51" }) });
-      const suplemento = await db.product.create({
-        data: scoped({ name: "Suplemento nunca comprado", category_id: categoriaB.id, unit: "kg" }),
-      });
+      const siteTemp = await createConfinementSite(db, { name: "Confinamento a arquivar", type: "proprio", property_id: fazenda.id });
+      check("site auxiliar criado para o teste", siteTemp.ok, siteTemp.ok ? "" : `${siteTemp.code}`);
+      const siteTempId = siteTemp.ok ? siteTemp.data.id : "";
 
-      const antes = saldoEstoque(await getStockBalance(db, { product_id: suplemento.id, property_id: fazenda.id }));
-      check("produto fora do estoque começa em zero", antes === 0, String(antes));
-
-      // Mais alimentação do produto QUE ESTÁ no estoque, para a mesma estadia.
-      await recordStockMovement(db, {
-        product_id: racaoId,
-        property_id: fazenda.id,
-        movement_type: "utilizacao",
-        quantity: 20,
-        stay_id: stayA,
-      });
-
-      const depois = saldoEstoque(await getStockBalance(db, { product_id: suplemento.id, property_id: fazenda.id }));
+      const arquivado = await archiveConfinementSite(db, siteTempId);
       check(
-        "e continua em zero: nenhuma alimentação mexe no saldo de um produto que não é dele",
-        depois === 0,
-        String(depois),
+        "o site é arquivado",
+        arquivado.ok && arquivado.data.archived_at != null,
+        arquivado.ok ? String(arquivado.data.archived_at) : `${arquivado.code}`,
+      );
+
+      const tentativa = await openConfinementStay(db, {
+        confinement_site_id: siteTempId,
+        category_id: "macho_25_36",
+        quantity: 4,
+        pasture_id: pasto.id,
+      });
+      check(
+        "abrir estadia num site arquivado é recusado",
+        !tentativa.ok && tentativa.code === "CONFINEMENT_SITE_ARCHIVED",
+        tentativa.ok ? "passou" : tentativa.code,
       );
     }
 
     console.log("\n7. Saída parcial deixa o restante no lote (§20)");
     let stayParcial = "";
     {
-      const aberta = await openStay(db, {
-        type: "confinamento",
-        property_id: fazenda.id,
+      const aberta = await openConfinementStay(db, {
+        confinement_site_id: site?.id ?? "",
         category_id: "macho_25_36",
-        pasture_id: pasto.id,
         quantity: 30,
-        confinement_site_id: site.id,
+        pasture_id: pasto.id,
       });
-      check("estadia de 30 cabeças abre para o teste de saída parcial", aberta.ok, aberta.ok ? "" : aberta.message);
+      check("estadia de 30 cabeças abre para o teste de saída parcial", aberta.ok, aberta.ok ? "" : `${aberta.code}: ${aberta.message}`);
       stayParcial = aberta.ok ? aberta.data.id : "";
 
       const confinadosAntes = soma(await getPositions(db, { owner: "proprio", situation: "confinamento" }));
@@ -307,15 +425,13 @@ async function comBanco() {
 
     console.log("\n9. Morte reduz lote e rebanho (§21)");
     {
-      const aberta = await openStay(db, {
-        type: "confinamento",
-        property_id: fazenda.id,
+      const aberta = await openConfinementStay(db, {
+        confinement_site_id: site?.id ?? "",
         category_id: "macho_25_36",
-        pasture_id: pasto.id,
         quantity: 15,
-        confinement_site_id: site.id,
+        pasture_id: pasto.id,
       });
-      check("estadia de 15 cabeças abre para o teste de morte", aberta.ok, aberta.ok ? "" : aberta.message);
+      check("estadia de 15 cabeças abre para o teste de morte", aberta.ok, aberta.ok ? "" : `${aberta.code}: ${aberta.message}`);
       const stayId = aberta.ok ? aberta.data.id : "";
 
       const proprioAntes = soma(await getPositions(db, { owner: "proprio" }));
@@ -337,15 +453,13 @@ async function comBanco() {
       check("morte não gera lançamento financeiro nenhum", movimento?.financial_entry_id == null);
     }
 
-    console.log("\n10. A cobrança NÃO é multiplicada por nada (decisão 3)");
+    console.log("\n10. A cobrança NÃO é multiplicada por nada (decisão 3), e o resumo soma o valor literal (§13, §14, §24)");
     {
-      const r = await openStay(db, {
-        type: "confinamento",
-        property_id: fazenda.id,
+      const r = await openConfinementStay(db, {
+        confinement_site_id: site?.id ?? "",
         category_id: "macho_25_36",
-        pasture_id: pasto.id,
         quantity: 52,
-        confinement_site_id: site.id,
+        pasture_id: pasto.id,
         charge_type: "por_cabeca",
         charge_value: 12.5,
       });
@@ -365,11 +479,18 @@ async function comBanco() {
         contas[0]?.related_module === "confinamento",
         contas[0]?.related_module,
       );
+
+      const resumo = await getConfinementLotSummary(db, stayId);
+      check(
+        "e getConfinementLotSummary soma o MESMO valor literal, não 12,5 × 52",
+        resumo.ok && resumo.data.financial_cost === 12.5,
+        resumo.ok ? String(resumo.data.financial_cost) : `${resumo.code}`,
+      );
     }
 
     console.log("\n11. O retorno ao pasto grava o pasto informado, e recusa pasto de outra propriedade (§18)");
     {
-      // stayA segue aberta (37 confinados, nunca fechada nas seções 2 a 6):
+      // stayA segue aberta (37 confinados, nunca fechada nas seções 3 a 5):
       // é o teste do §18 ao pé da letra, no tipo que o documento cita.
       const outraFazenda = await db.property.create({ data: scoped({ name: "Fazenda M51 (outra)" }) });
       const pastoErrado = await db.pasture.create({
@@ -407,6 +528,73 @@ async function comBanco() {
       check(
         "e as 5 cabeças voltam PARA AQUELE pasto, não para pasto nenhum: o defeito que o §18 aponta",
         soma(await getPositions(db, { owner: "proprio", situation: "presente", pasture_id: pasto.id })) === noPastoAntes + 5,
+      );
+    }
+
+    console.log(
+      "\n12. Os quatro números do §25 (`listConfinementLots`): confinados agora, confinamento próprio, boitel, lotes ativos",
+    );
+    {
+      const siteProprio2 = await createConfinementSite(db, {
+        name: "Confinamento M51 (números)",
+        type: "proprio",
+        property_id: fazenda.id,
+      });
+      const siteBoitel2 = await createConfinementSite(db, {
+        name: "Boitel M51 (números)",
+        type: "boitel",
+        counterparty_name: "Boitel Números LTDA",
+      });
+      check("sites auxiliares criados", siteProprio2.ok && siteBoitel2.ok);
+
+      const p1 = await openConfinementStay(db, {
+        confinement_site_id: siteProprio2.ok ? siteProprio2.data.id : "",
+        category_id: "macho_25_36",
+        quantity: 12,
+        pasture_id: pasto.id,
+      });
+      const p2 = await openConfinementStay(db, {
+        confinement_site_id: siteProprio2.ok ? siteProprio2.data.id : "",
+        category_id: "macho_25_36",
+        quantity: 8,
+        pasture_id: pasto.id,
+      });
+      const b1 = await openConfinementStay(db, {
+        confinement_site_id: siteBoitel2.ok ? siteBoitel2.data.id : "",
+        category_id: "macho_25_36",
+        property_id: fazenda.id,
+        quantity: 15,
+        pasture_id: pasto.id,
+      });
+      check(
+        "os três lotes auxiliares abrem",
+        p1.ok && p2.ok && b1.ok,
+        [p1, p2, b1].map((r) => (r.ok ? "" : r.code)).join(","),
+      );
+
+      const idsDesteBloco = new Set([p1.ok ? p1.data.id : "", p2.ok ? p2.data.id : "", b1.ok ? b1.data.id : ""]);
+
+      const lotes = await listConfinementLots(db, { apenas_abertas: true });
+      const doBloco = lotes.filter((l) => idsDesteBloco.has(l.id));
+
+      const confinadosAgora = doBloco.reduce((s, l) => s + l.quantity, 0);
+      const confinamentoProprio = doBloco.filter((l) => l.type === "confinamento").reduce((s, l) => s + l.quantity, 0);
+      const boitel = doBloco.filter((l) => l.type === "boitel").reduce((s, l) => s + l.quantity, 0);
+      const lotesAtivos = doBloco.length;
+
+      check("confinados agora: 12 + 8 + 15 = 35", confinadosAgora === 35, String(confinadosAgora));
+      check("confinamento próprio: 12 + 8 = 20, separado do boitel", confinamentoProprio === 20, String(confinamentoProprio));
+      check("boitel: 15, separado do próprio", boitel === 15, String(boitel));
+      check("lotes ativos: os três, nenhum a mais nem a menos", lotesAtivos === 3, String(lotesAtivos));
+
+      const soDoSiteProprio = await listConfinementLots(db, {
+        confinement_site_id: siteProprio2.ok ? siteProprio2.data.id : "",
+      });
+      const doSiteNesteBloco = soDoSiteProprio.filter((l) => idsDesteBloco.has(l.id));
+      check(
+        "o filtro por confinement_site_id devolve só os lotes daquele site (2, não os 3)",
+        doSiteNesteBloco.length === 2,
+        String(doSiteNesteBloco.length),
       );
     }
   } finally {
