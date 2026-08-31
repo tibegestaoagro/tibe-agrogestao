@@ -55,9 +55,9 @@ export default async function LavouraPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Lavoura</h1>
+          <h1 className="text-xl font-semibold text-texto">Lavoura</h1>
           {activePropertyName && (
-            <p className="mt-0.5 text-sm text-gray-500">Filtrado por: {activePropertyName}</p>
+            <p className="mt-0.5 text-sm text-texto-discreto">Filtrado por: {activePropertyName}</p>
           )}
         </div>
         {writable && properties.length > 0 && (
@@ -66,7 +66,7 @@ export default async function LavouraPage() {
       </div>
 
       {properties.length === 0 && (
-        <p className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <p className="rounded-md bg-atencao-suave px-4 py-3 text-sm text-atencao-tinta">
           Cadastre uma fazenda (menu{" "}
           <Link href="/minha-fazenda" className="font-medium underline">
             Minha Fazenda
@@ -75,7 +75,7 @@ export default async function LavouraPage() {
         </p>
       )}
 
-      <div className="rounded-lg border border-gray-200 bg-white">
+      <div className="rounded-lg border border-borda bg-superficie">
         <Table>
           <TableHeader>
             <TableRow>
@@ -90,7 +90,7 @@ export default async function LavouraPage() {
           <TableBody>
             {plots.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="py-6 text-center text-gray-500">
+                <TableCell colSpan={6} className="py-6 text-center text-texto-discreto">
                   Nenhum talhão cadastrado.
                 </TableCell>
               </TableRow>

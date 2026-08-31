@@ -56,35 +56,35 @@ export default function PropertySelector({
         type="button"
         onClick={() => setOpen(!open)}
         disabled={loading}
-        className="flex min-h-11 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 transition hover:border-tibe-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary disabled:opacity-60 sm:min-h-0"
+        className="flex min-h-11 items-center gap-2 rounded-lg border border-borda bg-superficie px-3 py-2 text-sm text-texto-secundario transition hover:border-tibe-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary disabled:opacity-60 sm:min-h-0"
       >
         <Home className="h-4 w-4 text-primaria-tinta" />
         <span className="max-w-[10rem] truncate font-medium">{activeName}</span>
         <ChevronDown className="h-4 w-4 text-texto-discreto" />
       </button>
       {open && (
-        <div className="absolute left-0 z-50 mt-1 w-64 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+        <div className="absolute left-0 z-50 mt-1 w-64 rounded-lg border border-borda bg-superficie py-1 shadow-lg">
           <button
             type="button"
             onClick={() => select(null)}
-            className="flex min-h-11 w-full items-center justify-between px-3 py-2 text-left text-sm text-gray-700 hover:bg-tibe-light sm:min-h-9"
+            className="flex min-h-11 w-full items-center justify-between px-3 py-2 text-left text-sm text-texto-secundario hover:bg-tibe-light sm:min-h-9"
           >
             Todas as propriedades
             {!activePropertyId && <Check className="h-4 w-4 text-primaria-tinta" />}
           </button>
-          <div className="my-1 border-t border-gray-100" />
+          <div className="my-1 border-t border-borda" />
           {properties.map((p) => (
             <button
               key={p.id}
               type="button"
               onClick={() => select(p.id)}
-              className="flex min-h-11 w-full items-center justify-between px-3 py-2 text-left text-sm text-gray-700 hover:bg-tibe-light sm:min-h-9"
+              className="flex min-h-11 w-full items-center justify-between px-3 py-2 text-left text-sm text-texto-secundario hover:bg-tibe-light sm:min-h-9"
             >
               <span className="truncate">{p.name}</span>
               {activePropertyId === p.id && <Check className="h-4 w-4 shrink-0 text-primaria-tinta" />}
             </button>
           ))}
-          <div className="my-1 border-t border-gray-100" />
+          <div className="my-1 border-t border-borda" />
           {/* Apontava para `/rebanho`, onde a gestão de propriedades foi
               REMOVIDA no Módulo 29: o cadastro de fazenda passou a existir só
               em Minha Fazenda, e o link ficou levando a uma tela onde a

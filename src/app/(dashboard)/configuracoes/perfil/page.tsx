@@ -27,26 +27,26 @@ export default async function PerfilPage() {
   return (
     <div className="max-w-md space-y-5">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">Perfil</h1>
-        <p className="text-sm text-gray-500">Seus dados nesta conta.</p>
+        <h1 className="text-xl font-semibold text-texto">Perfil</h1>
+        <p className="text-sm text-texto-discreto">Seus dados nesta conta.</p>
       </div>
 
-      <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-5">
+      <div className="space-y-4 rounded-lg border border-borda bg-superficie p-5">
         <EditNameForm initialName={user.name ?? ""} />
 
         <div>
-          <p className="text-sm font-medium text-gray-700">Email</p>
-          <p className="mt-1 text-sm text-gray-600">{user.email}</p>
+          <p className="text-sm font-medium text-texto-secundario">Email</p>
+          <p className="mt-1 text-sm text-texto-secundario">{user.email}</p>
         </div>
 
         <div>
-          <p className="text-sm font-medium text-gray-700">Papel</p>
-          <p className="mt-1 text-sm text-gray-600">{ROLE_LABEL[user.role] ?? user.role}</p>
+          <p className="text-sm font-medium text-texto-secundario">Papel</p>
+          <p className="mt-1 text-sm text-texto-secundario">{ROLE_LABEL[user.role] ?? user.role}</p>
         </div>
 
         <div>
-          <p className="text-sm font-medium text-gray-700">Fazenda</p>
-          <p className="mt-1 text-sm text-gray-600">{tenant?.name ?? "-"}</p>
+          <p className="text-sm font-medium text-texto-secundario">Fazenda</p>
+          <p className="mt-1 text-sm text-texto-secundario">{tenant?.name ?? "-"}</p>
         </div>
       </div>
     </div>

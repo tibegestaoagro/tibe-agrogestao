@@ -33,8 +33,8 @@ const STATUS: Record<string, { label: string; variant: "amber" | "green" | "red"
 
 function Card({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4">
-      <p className="text-xs text-gray-500">{label}</p>
+    <div className="rounded-lg border border-borda bg-superficie p-4">
+      <p className="text-xs text-texto-discreto">{label}</p>
       <p className="mt-1 text-xl font-semibold text-tibe-dark">{value}</p>
       {sub && <p className="mt-0.5 text-xs text-texto-discreto">{sub}</p>}
     </div>
@@ -87,7 +87,7 @@ export default async function FinanceiroPage(
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-gray-900">Financeiro</h1>
+        <h1 className="text-xl font-semibold text-texto">Financeiro</h1>
         <div className="flex gap-2">
           <ExportReportButton />
           {writable && <EntryForm />}
@@ -101,14 +101,14 @@ export default async function FinanceiroPage(
         <Card label="Vencendo em 7 dias" value={String(upcoming.length)} sub="contas pendentes" />
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white p-5">
-        <p className="mb-3 text-sm font-medium text-gray-700">Fluxo de caixa (mês atual)</p>
+      <div className="rounded-lg border border-borda bg-superficie p-5">
+        <p className="mb-3 text-sm font-medium text-texto-secundario">Fluxo de caixa (mês atual)</p>
         <CashFlowChart data={cashFlow} />
       </div>
 
       <div className="space-y-3">
         <EntryFilters />
-        <div className="rounded-lg border border-gray-200 bg-white">
+        <div className="rounded-lg border border-borda bg-superficie">
           <Table>
             <TableHeader>
               <TableRow>
@@ -124,7 +124,7 @@ export default async function FinanceiroPage(
             <TableBody>
               {entries.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-6 text-center text-gray-500">
+                  <TableCell colSpan={7} className="py-6 text-center text-texto-discreto">
                     Nenhum lançamento.
                   </TableCell>
                 </TableRow>

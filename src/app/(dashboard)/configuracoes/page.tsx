@@ -26,20 +26,20 @@ export default async function ConfiguracoesPage() {
 
   return (
     <div className="max-w-xl space-y-8">
-      <h1 className="text-xl font-semibold text-gray-900">Configurações</h1>
+      <h1 className="text-xl font-semibold text-texto">Configurações</h1>
 
       <section>
-        <h2 className="text-sm font-medium text-gray-700">Dados da empresa</h2>
-        <div className="mt-3 rounded-lg border border-gray-200 bg-white p-5">
+        <h2 className="text-sm font-medium text-texto-secundario">Dados da empresa</h2>
+        <div className="mt-3 rounded-lg border border-borda bg-superficie p-5">
           {tenant && <TenantForm tenant={tenant} />}
         </div>
       </section>
 
       <section>
-        <h2 className="text-sm font-medium text-gray-700">Perfis ativos</h2>
+        <h2 className="text-sm font-medium text-texto-secundario">Perfis ativos</h2>
         <ul className="mt-2 flex gap-2">
           {profiles.length === 0 && (
-            <li className="text-sm text-gray-500">Nenhum perfil ativo.</li>
+            <li className="text-sm text-texto-discreto">Nenhum perfil ativo.</li>
           )}
           {profiles.map((p) => (
             <li
@@ -66,8 +66,8 @@ export default async function ConfiguracoesPage() {
 
       {profiles.includes("fazenda") && (
         <section>
-          <h2 className="text-sm font-medium text-gray-700">Propriedades</h2>
-          <p className="mt-2 text-sm text-gray-500">
+          <h2 className="text-sm font-medium text-texto-secundario">Propriedades</h2>
+          <p className="mt-2 text-sm text-texto-discreto">
             Cadastro e arquivamento de propriedades fica dentro do módulo Rebanho.
           </p>
           <Link
@@ -81,8 +81,8 @@ export default async function ConfiguracoesPage() {
 
       {profiles.includes("fazenda") && (
         <section>
-          <h2 className="text-sm font-medium text-gray-700">Categorias de rebanho</h2>
-          <p className="mt-2 text-sm text-gray-500">
+          <h2 className="text-sm font-medium text-texto-secundario">Categorias de rebanho</h2>
+          <p className="mt-2 text-sm text-texto-discreto">
             Categorias usadas no cadastro de rebanho por lote (quantidade,
             sem brinco individual).
           </p>
@@ -95,7 +95,7 @@ export default async function ConfiguracoesPage() {
         </section>
       )}
 
-      <section className="flex flex-wrap gap-4 border-t border-gray-200 pt-6 text-sm">
+      <section className="flex flex-wrap gap-4 border-t border-borda pt-6 text-sm">
         <Link href="/configuracoes/usuarios" className="inline-flex min-h-11 items-center text-primaria-tinta hover:underline sm:min-h-0">
           Usuários
         </Link>

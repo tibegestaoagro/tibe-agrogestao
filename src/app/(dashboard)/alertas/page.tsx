@@ -74,10 +74,10 @@ export default async function AlertasPage(
 
   return (
     <div className="space-y-5">
-      <h1 className="text-xl font-semibold text-gray-900">Alertas</h1>
+      <h1 className="text-xl font-semibold text-texto">Alertas</h1>
       <AlertFilters />
 
-      <div className="rounded-lg border border-gray-200 bg-white">
+      <div className="rounded-lg border border-borda bg-superficie">
         <Table>
           <TableHeader>
             <TableRow>
@@ -91,7 +91,7 @@ export default async function AlertasPage(
           <TableBody>
             {alerts.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="py-6 text-center text-gray-500">
+                <TableCell colSpan={5} className="py-6 text-center text-texto-discreto">
                   Nenhum alerta.
                 </TableCell>
               </TableRow>

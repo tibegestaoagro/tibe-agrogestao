@@ -63,11 +63,11 @@ export default function DashboardShell({
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <BillingBanner access={billingAccess} />
-        <header className="flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3 md:px-6">
+        <header className="flex items-center gap-3 border-b border-borda bg-superficie px-4 py-3 md:px-6">
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
-            className="flex h-11 w-11 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary md:hidden"
+            className="flex h-11 w-11 items-center justify-center rounded-md text-texto-discreto hover:bg-superficie-afundada focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary md:hidden"
             aria-label="Abrir menu"
           >
             <Menu className="h-5 w-5" />

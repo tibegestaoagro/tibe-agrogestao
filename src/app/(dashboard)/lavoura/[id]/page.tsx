@@ -29,8 +29,8 @@ const brl = (n: number) =>
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4">
-      <p className="text-xs text-gray-500">{label}</p>
+    <div className="rounded-lg border border-borda bg-superficie p-4">
+      <p className="text-xs text-texto-discreto">{label}</p>
       <p className="mt-1 text-lg font-semibold text-tibe-dark">{value}</p>
     </div>
   );
@@ -84,8 +84,8 @@ export default async function PlotDetail(
           <Link href="/lavoura" className="text-sm text-primaria-tinta hover:underline">
             ← Lavoura
           </Link>
-          <h1 className="mt-1 text-xl font-semibold text-gray-900">{plot.name}</h1>
-          <p className="text-sm text-gray-500">
+          <h1 className="mt-1 text-xl font-semibold text-texto">{plot.name}</h1>
+          <p className="text-sm text-texto-discreto">
             {plot.property?.name ?? "não informada"} · {area ?? "não informada"} ha
           </p>
         </div>
@@ -110,8 +110,8 @@ export default async function PlotDetail(
       </div>
 
       {/* Insumos do ciclo ativo */}
-      <div className="rounded-lg border border-gray-200 bg-white">
-        <h2 className="border-b px-5 py-3 text-sm font-medium text-gray-700">
+      <div className="rounded-lg border border-borda bg-superficie">
+        <h2 className="border-b px-5 py-3 text-sm font-medium text-texto-secundario">
           Insumos {active ? `(${active.crop_name})` : ""}
         </h2>
         <div className="p-2">
@@ -126,10 +126,10 @@ export default async function PlotDetail(
             </TableHeader>
             <TableBody>
               {!active && (
-                <TableRow><TableCell colSpan={4} className="py-4 text-center text-gray-500">Nenhum ciclo ativo.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={4} className="py-4 text-center text-texto-discreto">Nenhum ciclo ativo.</TableCell></TableRow>
               )}
               {active && inputs.length === 0 && (
-                <TableRow><TableCell colSpan={4} className="py-4 text-center text-gray-500">Nenhum insumo registrado.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={4} className="py-4 text-center text-texto-discreto">Nenhum insumo registrado.</TableCell></TableRow>
               )}
               {inputs.map((i) => (
                 <TableRow key={i.id}>
@@ -147,8 +147,8 @@ export default async function PlotDetail(
       </div>
 
       {/* Histórico de ciclos */}
-      <div className="rounded-lg border border-gray-200 bg-white">
-        <h2 className="border-b px-5 py-3 text-sm font-medium text-gray-700">Ciclos</h2>
+      <div className="rounded-lg border border-borda bg-superficie">
+        <h2 className="border-b px-5 py-3 text-sm font-medium text-texto-secundario">Ciclos</h2>
         <div className="p-2">
           <Table>
             <TableHeader>
@@ -162,7 +162,7 @@ export default async function PlotDetail(
             </TableHeader>
             <TableBody>
               {plot.cycles.length === 0 && (
-                <TableRow><TableCell colSpan={5} className="py-4 text-center text-gray-500">Nenhum ciclo.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="py-4 text-center text-texto-discreto">Nenhum ciclo.</TableCell></TableRow>
               )}
               {plot.cycles.map((c) => {
                 const st = CYCLE_STATUS[c.status];

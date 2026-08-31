@@ -13,8 +13,8 @@ import PastureList from "@/components/minha-fazenda/pasture-list";
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="text-sm font-medium text-gray-900">{value}</p>
+      <p className="text-xs text-texto-discreto">{label}</p>
+      <p className="text-sm font-medium text-texto">{value}</p>
     </div>
   );
 }
@@ -61,7 +61,7 @@ export default async function MinhaFazendaPage(
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-gray-900">Minha Fazenda</h1>
+        <h1 className="text-xl font-semibold text-texto">Minha Fazenda</h1>
         {writable && (
           <FazendaForm
             trigger={<Button variant="outline">+ Nova fazenda</Button>}
@@ -78,7 +78,7 @@ export default async function MinhaFazendaPage(
               className={`inline-flex min-h-11 items-center rounded-full px-4 py-1 text-sm sm:min-h-0 sm:px-3 ${
                 p.id === selected?.id
                   ? "bg-primaria text-sobre-primaria"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  : "bg-superficie-afundada text-texto-secundario hover:bg-borda"
               }`}
             >
               {p.name}
@@ -88,8 +88,8 @@ export default async function MinhaFazendaPage(
       )}
 
       {!selected && (
-        <div className="rounded-lg border border-dashed border-gray-300 bg-white p-8 text-center">
-          <p className="text-sm text-gray-600">
+        <div className="rounded-lg border border-dashed border-borda bg-superficie p-8 text-center">
+          <p className="text-sm text-texto-secundario">
             Nenhuma fazenda cadastrada ainda. Cadastre sua propriedade para começar.
           </p>
           {writable && (
@@ -102,9 +102,9 @@ export default async function MinhaFazendaPage(
 
       {selected && (
         <>
-          <div className="rounded-lg border border-gray-200 bg-white p-5">
+          <div className="rounded-lg border border-borda bg-superficie p-5">
             <div className="flex items-start justify-between gap-3">
-              <h2 className="text-lg font-medium text-gray-900">{selected.name}</h2>
+              <h2 className="text-lg font-medium text-texto">{selected.name}</h2>
               {writable && (
                 <div className="flex gap-2">
                   <FazendaForm
@@ -142,8 +142,8 @@ export default async function MinhaFazendaPage(
           </div>
 
           {areaSummary && (
-            <div className="rounded-lg border border-gray-200 bg-white p-5">
-              <h2 className="text-sm font-medium text-gray-700">Divisão de pastos</h2>
+            <div className="rounded-lg border border-borda bg-superficie p-5">
+              <h2 className="text-sm font-medium text-texto-secundario">Divisão de pastos</h2>
               <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3">
                 <Stat
                   label="Distribuído em pastos"
@@ -159,7 +159,7 @@ export default async function MinhaFazendaPage(
                 />
               </div>
               {areaSummary.over_allocated && (
-                <p className="mt-4 rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <p className="mt-4 rounded-md bg-atencao-suave px-4 py-3 text-sm text-atencao-tinta">
                   A soma das áreas dos pastos é maior que o tamanho total informado para a
                   fazenda. Deseja revisar os valores?
                 </p>

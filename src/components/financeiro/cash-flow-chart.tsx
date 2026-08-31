@@ -15,7 +15,7 @@ type Point = { period: string; income: number; expense: number; balance: number 
 
 export default function CashFlowChart({ data }: { data: Point[] }) {
   if (data.length === 0) {
-    return <p className="text-sm text-gray-500">Sem movimentação paga no período.</p>;
+    return <p className="text-sm text-texto-discreto">Sem movimentação paga no período.</p>;
   }
 
   return (

@@ -27,8 +27,8 @@ const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", curren
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="text-sm font-medium text-gray-900">{value}</p>
+      <p className="text-xs text-texto-discreto">{label}</p>
+      <p className="text-sm font-medium text-texto">{value}</p>
     </div>
   );
 }
@@ -63,7 +63,7 @@ export default async function MachineDetail(props: { params: Promise<{ id: strin
           ← Máquinas
         </Link>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="flex items-center gap-2 text-xl font-semibold text-gray-900">
+          <h1 className="flex items-center gap-2 text-xl font-semibold text-texto">
             {machine.name}
             <Badge variant={st.variant}>{st.label}</Badge>
           </h1>
@@ -71,7 +71,7 @@ export default async function MachineDetail(props: { params: Promise<{ id: strin
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 rounded-lg border border-gray-200 bg-white p-5 sm:grid-cols-4 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-4 rounded-lg border border-borda bg-superficie p-5 sm:grid-cols-4 lg:grid-cols-6">
         <Stat label="Tipo" value={machine.type} />
         <Stat label="Marca / Modelo" value={[machine.brand, machine.model].filter(Boolean).join(" / ") || "não informado"} />
         <Stat label="Ano" value={machine.year != null ? String(machine.year) : "não informado"} />
@@ -87,8 +87,8 @@ export default async function MachineDetail(props: { params: Promise<{ id: strin
         />
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white">
-        <h2 className="border-b px-5 py-3 text-sm font-medium text-gray-700">
+      <div className="rounded-lg border border-borda bg-superficie">
+        <h2 className="border-b px-5 py-3 text-sm font-medium text-texto-secundario">
           Histórico de manutenções
         </h2>
         <div className="p-2">
@@ -104,7 +104,7 @@ export default async function MachineDetail(props: { params: Promise<{ id: strin
             <TableBody>
               {machine.maintenances.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4} className="py-4 text-center text-gray-500">
+                  <TableCell colSpan={4} className="py-4 text-center text-texto-discreto">
                     Nenhuma manutenção registrada.
                   </TableCell>
                 </TableRow>

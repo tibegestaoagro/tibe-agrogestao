@@ -50,38 +50,38 @@ export default function CancelSubscription({
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-5">
-      <p className="text-sm font-medium text-gray-700">Cancelar assinatura</p>
+    <div className="rounded-lg border border-borda bg-superficie p-5">
+      <p className="text-sm font-medium text-texto-secundario">Cancelar assinatura</p>
 
       {!confirming ? (
         <>
-          <p className="mt-2 text-sm text-gray-500">
+          <p className="mt-2 text-sm text-texto-discreto">
             Encerra a cobrança recorrente. Você continua usando normalmente até o fim do
             período já pago. Pode assinar de novo quando quiser.
           </p>
           <Button
             variant="ghost"
             size="sm"
-            className="mt-3 text-red-700 hover:bg-red-50"
+            className="mt-3 text-perigo-tinta hover:bg-perigo-suave"
             onClick={() => setConfirming(true)}
           >
             Quero cancelar
           </Button>
         </>
       ) : (
-        <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-4">
-          <p className="text-sm font-medium text-red-800">
+        <div className="mt-3 rounded-md border border-perigo bg-perigo-suave p-4">
+          <p className="text-sm font-medium text-perigo-tinta">
             {paidUntil
               ? `Você usa o sistema normalmente até ${paidUntil.toLocaleDateString("pt-BR")}.`
               : "Você usa o sistema normalmente até o fim do período já pago."}
           </p>
-          <p className="mt-1 text-sm text-red-700">
+          <p className="mt-1 text-sm text-perigo-tinta">
             Depois dessa data, a conta fica em modo leitura por {archiveWindowDays} dias: dá
             para consultar e exportar tudo, mas não para lançar nada novo. Passado esse prazo, o
             acesso é bloqueado. Seus dados continuam guardados e voltam ao normal se você
             assinar de novo.
           </p>
-          {error && <p className="mt-3 text-sm text-red-800">{error}</p>}
+          {error && <p className="mt-3 text-sm text-perigo-tinta">{error}</p>}
           <div className="mt-4 flex flex-wrap gap-2">
             <Button variant="destructive" size="sm" onClick={cancel} disabled={loading}>
               {loading ? "Cancelando..." : "Confirmar cancelamento"}

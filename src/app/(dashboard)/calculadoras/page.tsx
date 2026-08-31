@@ -15,8 +15,8 @@ export default function CalculadorasPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">Calculadoras</h1>
-        <p className="mt-1 text-sm text-gray-600">
+        <h1 className="text-xl font-semibold text-texto">Calculadoras</h1>
+        <p className="mt-1 text-sm text-texto-secundario">
           Ferramentas de calculo rapido para o dia a dia da fazenda. Nenhum calculo aqui e salvo:
           preencha os campos e veja o resultado na hora.
         </p>
@@ -27,10 +27,10 @@ export default function CalculadorasPage() {
           <Link
             key={f.href}
             href={f.href}
-            className="rounded-lg border border-gray-200 bg-white p-4 transition hover:border-tibe-primary hover:shadow-sm"
+            className="rounded-lg border border-borda bg-superficie p-4 transition hover:border-tibe-primary hover:shadow-sm"
           >
-            <p className="font-medium text-gray-900">{f.title}</p>
-            <p className="mt-1 text-sm text-gray-600">{f.description}</p>
+            <p className="font-medium text-texto">{f.title}</p>
+            <p className="mt-1 text-sm text-texto-secundario">{f.description}</p>
           </Link>
         ))}
       </div>

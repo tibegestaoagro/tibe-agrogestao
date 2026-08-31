@@ -161,7 +161,7 @@ export default function NotificationOptIn() {
       aria-label="Ativar notificações"
       className="fixed inset-x-0 bottom-0 z-40 flex justify-center p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] print:hidden"
     >
-      <div className="animate-in fade-in slide-in-from-bottom-4 flex w-full max-w-md items-start gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-lg duration-300">
+      <div className="animate-in fade-in slide-in-from-bottom-4 flex w-full max-w-md items-start gap-3 rounded-xl border border-borda bg-superficie p-4 shadow-lg duration-300">
         <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-tibe-light">
           <Bell className="h-5 w-5 text-primaria-tinta" aria-hidden="true" />
         </div>
@@ -170,7 +170,7 @@ export default function NotificationOptIn() {
           <p className="text-base font-semibold leading-tight text-tibe-dark">
             Ativar notificações
           </p>
-          <p className="mt-1 text-xs leading-relaxed text-gray-600">
+          <p className="mt-1 text-xs leading-relaxed text-texto-secundario">
             Receba avisos de vencimento e o resumo do dia direto no aparelho,
             sem depender do WhatsApp.
           </p>
@@ -187,7 +187,7 @@ export default function NotificationOptIn() {
               type="button"
               onClick={dismiss}
               disabled={busy}
-              className="min-h-11 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100"
+              className="min-h-11 rounded-lg px-3 py-2 text-sm font-medium text-texto-secundario transition-colors hover:bg-superficie-afundada"
             >
               Agora não
             </button>
@@ -198,7 +198,7 @@ export default function NotificationOptIn() {
           type="button"
           onClick={dismiss}
           aria-label="Dispensar o convite de notificações"
-          className="-mr-1 -mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+          className="-mr-1 -mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-texto-discreto transition-colors hover:bg-superficie-afundada hover:text-texto-secundario"
         >
           <X className="h-4 w-4" aria-hidden="true" />
         </button>

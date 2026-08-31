@@ -68,7 +68,7 @@ export default function ChangeOwnPasswordForm() {
           value={next}
           onChange={(e) => setNext(e.target.value)}
         />
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="mt-1 text-xs text-texto-discreto">
           Mínimo de 8 caracteres, com letra maiúscula, número e símbolo.
         </p>
       </div>
@@ -86,7 +86,7 @@ export default function ChangeOwnPasswordForm() {
       </div>
 
       {error && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+        <p className="rounded-md bg-perigo-suave px-3 py-2 text-sm text-perigo-tinta">{error}</p>
       )}
       {done && (
         <p className="rounded-md bg-tibe-light px-3 py-2 text-sm text-tibe-dark">

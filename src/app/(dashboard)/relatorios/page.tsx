@@ -65,17 +65,17 @@ export default async function RelatoriosPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">Fazenda em Números</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <h1 className="text-xl font-semibold text-texto">Fazenda em Números</h1>
+        <p className="mt-1 text-sm text-texto-discreto">
           Central de relatórios: financeiro, rebanho, lavoura e prestador, num só lugar.
         </p>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white p-5">
+      <div className="rounded-xl border border-borda bg-superficie p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-medium text-gray-700">Resultado do mês</p>
-            <p className="text-xs text-gray-500">
+            <p className="text-sm font-medium text-texto-secundario">Resultado do mês</p>
+            <p className="text-xs text-texto-discreto">
               {dre.period.start} a {dre.period.end}
             </p>
           </div>
@@ -84,14 +84,14 @@ export default async function RelatoriosPage() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {relevantModules.map((m) => (
             <div key={m.module} className="rounded-lg bg-tibe-light p-3">
-              <p className="text-xs text-gray-500">{MODULE_LABEL[m.module]}</p>
-              <p className={`mt-0.5 text-base font-semibold ${m.result >= 0 ? "text-primaria-tinta" : "text-red-600"}`}>
+              <p className="text-xs text-texto-discreto">{MODULE_LABEL[m.module]}</p>
+              <p className={`mt-0.5 text-base font-semibold ${m.result >= 0 ? "text-primaria-tinta" : "text-perigo-tinta"}`}>
                 {brl(m.result)}
               </p>
             </div>
           ))}
-          <div className="rounded-lg bg-tibe-dark p-3 text-white">
-            <p className="text-xs text-white/70">Resultado total</p>
+          <div className="rounded-lg bg-tibe-dark p-3 text-texto-invertido">
+            <p className="text-xs text-texto-invertido/70">Resultado total</p>
             <p className="mt-0.5 text-base font-semibold">{brl(dre.total_result)}</p>
           </div>
         </div>
@@ -99,29 +99,29 @@ export default async function RelatoriosPage() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {hasFazenda && (
-          <div className="rounded-xl border border-gray-200 bg-white p-5">
-            <p className="mb-3 text-sm font-medium text-gray-700">Evolução do rebanho (12 meses)</p>
+          <div className="rounded-xl border border-borda bg-superficie p-5">
+            <p className="mb-3 text-sm font-medium text-texto-secundario">Evolução do rebanho (12 meses)</p>
             <HerdEvolutionChart data={herdEvolution} />
           </div>
         )}
-        <div className="rounded-xl border border-gray-200 bg-white p-5">
-          <p className="mb-3 text-sm font-medium text-gray-700">Receitas x despesas (12 meses)</p>
+        <div className="rounded-xl border border-borda bg-superficie p-5">
+          <p className="mb-3 text-sm font-medium text-texto-secundario">Receitas x despesas (12 meses)</p>
           <RevenueExpenseChart data={cashFlow} />
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {hasFazenda && (
-          <div className="rounded-xl border border-gray-200 bg-white p-5">
-            <p className="mb-3 text-sm font-medium text-gray-700">Produtividade da lavoura (12 meses)</p>
+          <div className="rounded-xl border border-borda bg-superficie p-5">
+            <p className="mb-3 text-sm font-medium text-texto-secundario">Produtividade da lavoura (12 meses)</p>
             {harvestByCrop.length === 0 ? (
-              <p className="text-sm text-gray-500">Nenhuma colheita registrada no período.</p>
+              <p className="text-sm text-texto-discreto">Nenhuma colheita registrada no período.</p>
             ) : (
               <ul className="divide-y divide-gray-100">
                 {harvestByCrop.map((h) => (
                   <li key={h.crop_name} className="flex items-center justify-between py-2 text-sm">
-                    <span className="text-gray-700">{h.crop_name}</span>
-                    <span className="text-gray-500">
+                    <span className="text-texto-secundario">{h.crop_name}</span>
+                    <span className="text-texto-discreto">
                       {h._count} colheita{h._count === 1 ? "" : "s"} · {Number(h._sum.yield_amount ?? 0).toLocaleString("pt-BR")} sacas
                     </span>
                   </li>
@@ -131,12 +131,12 @@ export default async function RelatoriosPage() {
           </div>
         )}
         {hasPrestador && serviceOrders && (
-          <div className="rounded-xl border border-gray-200 bg-white p-5">
-            <p className="mb-3 text-sm font-medium text-gray-700">Faturamento do prestador (12 meses)</p>
+          <div className="rounded-xl border border-borda bg-superficie p-5">
+            <p className="mb-3 text-sm font-medium text-texto-secundario">Faturamento do prestador (12 meses)</p>
             <p className="text-2xl font-semibold text-tibe-dark">
               {brl(Number(serviceOrders._sum.total_value ?? 0))}
             </p>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-texto-discreto">
               {serviceOrders._count} ordem{serviceOrders._count === 1 ? "" : "s"} faturada{serviceOrders._count === 1 ? "" : "s"}
             </p>
           </div>

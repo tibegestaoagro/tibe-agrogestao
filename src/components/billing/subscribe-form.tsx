@@ -53,8 +53,8 @@ export default function SubscribeForm({ currentPlan }: { currentPlan: Plan | nul
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-5">
-      <p className="text-sm font-medium text-gray-700">
+    <div className="rounded-lg border border-borda bg-superficie p-5">
+      <p className="text-sm font-medium text-texto-secundario">
         {currentPlan ? "Trocar de plano" : "Assinar agora"}
       </p>
 
@@ -92,13 +92,13 @@ export default function SubscribeForm({ currentPlan }: { currentPlan: Plan | nul
       </div>
 
       {billingType === "CREDIT_CARD" && (
-        <p className="mt-2 text-xs text-gray-500">
+        <p className="mt-2 text-xs text-texto-discreto">
           Cartão de crédito é processado numa página segura do próprio Asaas: você será
           redirecionado só nesta etapa.
         </p>
       )}
 
-      {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
+      {error && <p className="mt-3 text-sm text-perigo-tinta">{error}</p>}
 
       <Button onClick={submit} disabled={loading} className="mt-4">
         {loading ? "Processando..." : currentPlan ? "Confirmar troca de plano" : "Assinar"}
@@ -112,11 +112,11 @@ export default function SubscribeForm({ currentPlan }: { currentPlan: Plan | nul
             alt="QR Code PIX"
             className="mt-3 h-44 w-44"
           />
-          <p className="mt-3 text-xs text-gray-600">PIX copia e cola:</p>
-          <code className="mt-1 block break-all rounded bg-white p-2 text-xs">
+          <p className="mt-3 text-xs text-texto-secundario">PIX copia e cola:</p>
+          <code className="mt-1 block break-all rounded bg-superficie p-2 text-xs">
             {result.payload}
           </code>
-          <p className="mt-2 text-xs text-gray-500">
+          <p className="mt-2 text-xs text-texto-discreto">
             Expira em {new Date(result.expirationDate).toLocaleString("pt-BR")}
           </p>
         </div>
@@ -125,8 +125,8 @@ export default function SubscribeForm({ currentPlan }: { currentPlan: Plan | nul
       {result?.method === "boleto" && (
         <div className="mt-5 rounded-md bg-tibe-light p-4">
           <p className="text-sm font-medium text-tibe-dark">Pague com boleto</p>
-          <p className="mt-2 text-xs text-gray-600">Linha digitável:</p>
-          <code className="mt-1 block break-all rounded bg-white p-2 text-xs">
+          <p className="mt-2 text-xs text-texto-secundario">Linha digitável:</p>
+          <code className="mt-1 block break-all rounded bg-superficie p-2 text-xs">
             {result.identificationField}
           </code>
         </div>

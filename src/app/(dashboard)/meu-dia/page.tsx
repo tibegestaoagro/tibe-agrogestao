@@ -34,11 +34,11 @@ export default async function MeuDiaPage() {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-gray-900">Meu Dia</h1>
+        <h1 className="text-xl font-semibold text-texto">Meu Dia</h1>
         {writable && <TaskForm />}
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white">
+      <div className="rounded-lg border border-borda bg-superficie">
         <Table>
           <TableHeader>
             <TableRow>
@@ -52,7 +52,7 @@ export default async function MeuDiaPage() {
           <TableBody>
             {rows.length === 0 && (
               <TableRow>
-                <TableCell colSpan={writable ? 5 : 4} className="py-6 text-center text-gray-500">
+                <TableCell colSpan={writable ? 5 : 4} className="py-6 text-center text-texto-discreto">
                   Nenhuma tarefa cadastrada.
                 </TableCell>
               </TableRow>

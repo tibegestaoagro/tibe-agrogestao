@@ -64,7 +64,7 @@ export default async function PrestadorPage(
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-gray-900">Prestador de Serviço</h1>
+        <h1 className="text-xl font-semibold text-texto">Prestador de Serviço</h1>
         {writable && (
           <div className="flex gap-2">
             {tab === "clientes" && <ClientForm />}
@@ -167,7 +167,7 @@ export default async function PrestadorPage(
 
 function TableCard({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white">
+    <div className="rounded-lg border border-borda bg-superficie">
       <Table>{children}</Table>
     </div>
   );
@@ -176,7 +176,7 @@ function TableCard({ children }: { children: React.ReactNode }) {
 function Empty({ cols, text }: { cols: number; text: string }) {
   return (
     <TableRow>
-      <TableCell colSpan={cols} className="py-6 text-center text-gray-500">
+      <TableCell colSpan={cols} className="py-6 text-center text-texto-discreto">
         {text}
       </TableCell>
     </TableRow>

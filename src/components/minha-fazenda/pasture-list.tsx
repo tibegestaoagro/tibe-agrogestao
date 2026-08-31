@@ -45,9 +45,9 @@ export default function PastureList({
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white">
+    <div className="rounded-lg border border-borda bg-superficie">
       <div className="flex items-center justify-between border-b px-5 py-3">
-        <h2 className="text-sm font-medium text-gray-700">Pastos</h2>
+        <h2 className="text-sm font-medium text-texto-secundario">Pastos</h2>
         {canWrite && (
           <PastureForm
             propertyId={propertyId}
@@ -70,7 +70,7 @@ export default function PastureList({
         <TableBody>
           {pastures.length === 0 && (
             <TableRow>
-              <TableCell colSpan={canWrite ? 3 : 2} className="py-6 text-center text-gray-500">
+              <TableCell colSpan={canWrite ? 3 : 2} className="py-6 text-center text-texto-discreto">
                 Nenhum pasto cadastrado.
               </TableCell>
             </TableRow>

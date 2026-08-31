@@ -152,7 +152,7 @@ export default function InstallInvite() {
       aria-label="Instalar o Tibé"
       className="fixed inset-x-0 bottom-0 z-50 flex justify-center p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] print:hidden"
     >
-      <div className="animate-in fade-in slide-in-from-bottom-4 flex w-full max-w-md items-start gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-lg duration-300">
+      <div className="animate-in fade-in slide-in-from-bottom-4 flex w-full max-w-md items-start gap-3 rounded-xl border border-borda bg-superficie p-4 shadow-lg duration-300">
         <Image
           src="/icons/icon-192.png"
           alt=""
@@ -169,7 +169,7 @@ export default function InstallInvite() {
 
           {promptEvent ? (
             <>
-              <p className="mt-1 text-xs leading-relaxed text-gray-600">
+              <p className="mt-1 text-xs leading-relaxed text-texto-secundario">
                 Deixe o Tibé na tela inicial do celular e abra direto, sem
                 navegador.
               </p>
@@ -184,14 +184,14 @@ export default function InstallInvite() {
                 <button
                   type="button"
                   onClick={dismiss}
-                  className="min-h-11 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100"
+                  className="min-h-11 rounded-lg px-3 py-2 text-sm font-medium text-texto-secundario transition-colors hover:bg-superficie-afundada"
                 >
                   Agora não
                 </button>
               </div>
             </>
           ) : (
-            <p className="mt-1 text-xs leading-relaxed text-gray-600">
+            <p className="mt-1 text-xs leading-relaxed text-texto-secundario">
               No iPhone, toque em <span className="font-semibold">Compartilhar</span>{" "}
               e depois em{" "}
               <span className="font-semibold">Adicionar à Tela de Início</span>.
@@ -203,7 +203,7 @@ export default function InstallInvite() {
           type="button"
           onClick={dismiss}
           aria-label="Dispensar o convite de instalação"
-          className="-mr-1 -mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+          className="-mr-1 -mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-texto-discreto transition-colors hover:bg-superficie-afundada hover:text-texto-secundario"
         >
           <X className="h-4 w-4" aria-hidden="true" />
         </button>

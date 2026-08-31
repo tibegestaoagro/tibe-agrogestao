@@ -85,7 +85,7 @@ export default function Sidebar({
     <>
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/40 md:hidden"
+          className="fixed inset-0 z-30 bg-sobreposicao/40 md:hidden"
           onClick={onClose}
           aria-hidden="true"
         />
@@ -98,12 +98,12 @@ export default function Sidebar({
         <div className="flex items-center justify-between px-5 py-5">
           <div className="flex items-center gap-2">
             <TibeMark className="h-8 w-8 shrink-0" />
-            <span className="text-xl font-bold tracking-wide text-white">TIBÉ</span>
+            <span className="text-xl font-bold tracking-wide text-texto-invertido">TIBÉ</span>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-11 w-11 items-center justify-center rounded-md text-tibe-light/70 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary md:hidden"
+            className="flex h-11 w-11 items-center justify-center rounded-md text-tibe-light/70 hover:bg-texto-invertido/10 hover:text-texto-invertido focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary md:hidden"
             aria-label="Fechar menu"
           >
             <X className="h-5 w-5" />
@@ -127,7 +127,7 @@ export default function Sidebar({
                   className={`flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary md:min-h-0 ${
                     active
                       ? "bg-primaria text-sobre-primaria"
-                      : "text-tibe-light/85 hover:bg-white/10 hover:text-white"
+                      : "text-tibe-light/85 hover:bg-texto-invertido/10 hover:text-texto-invertido"
                   }`}
                 >
                   <Icon className="h-[18px] w-[18px] shrink-0" />
@@ -145,7 +145,7 @@ export default function Sidebar({
                 >
                   <Icon className="h-[18px] w-[18px] shrink-0" />
                   <span className="flex-1">{item.label}</span>
-                  <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-normal">
+                  <span className="rounded-full bg-texto-invertido/10 px-2 py-0.5 text-[10px] font-normal">
                     em breve
                   </span>
                 </div>
@@ -167,8 +167,8 @@ export default function Sidebar({
                   }
                   className={`flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary md:min-h-0 ${
                     hasActiveChild
-                      ? "text-white"
-                      : "text-tibe-light/85 hover:bg-white/10 hover:text-white"
+                      ? "text-texto-invertido"
+                      : "text-tibe-light/85 hover:bg-texto-invertido/10 hover:text-texto-invertido"
                   }`}
                   aria-expanded={open}
                 >
@@ -179,7 +179,7 @@ export default function Sidebar({
                   />
                 </button>
                 {open && (
-                  <div className="ml-4 space-y-1 border-l border-white/10 pl-4 pt-1">
+                  <div className="ml-4 space-y-1 border-l border-texto-invertido/10 pl-4 pt-1">
                     {children.map((child) => {
                       const active = isActive(pathname, child.href);
                       return (
@@ -188,8 +188,8 @@ export default function Sidebar({
                           href={child.href}
                           className={`flex min-h-11 items-center rounded-md px-3 py-1.5 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary md:min-h-0 ${
                             active
-                              ? "font-medium text-white"
-                              : "text-tibe-light/70 hover:text-white"
+                              ? "font-medium text-texto-invertido"
+                              : "text-tibe-light/70 hover:text-texto-invertido"
                           }`}
                         >
                           {child.label}
@@ -204,18 +204,18 @@ export default function Sidebar({
         </nav>
 
         <div className="space-y-2 px-3 pb-2">
-          <div className="flex items-center gap-2.5 rounded-lg bg-white/5 px-3 py-2.5">
+          <div className="flex items-center gap-2.5 rounded-lg bg-texto-invertido/5 px-3 py-2.5">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-tibe-primary/25 text-tibe-primary">
               <Home className="h-4 w-4" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-white">{tenantName}</p>
+              <p className="truncate text-sm font-medium text-texto-invertido">{tenantName}</p>
               <p className="truncate text-xs text-tibe-light/60">{userName}</p>
             </div>
             <div className="flex shrink-0 items-center gap-1">
               <Link
                 href="/configuracoes/senha"
-                className="flex h-11 w-11 items-center justify-center rounded-md text-tibe-light/70 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary sm:h-9 sm:w-9"
+                className="flex h-11 w-11 items-center justify-center rounded-md text-tibe-light/70 hover:bg-texto-invertido/10 hover:text-texto-invertido focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary sm:h-9 sm:w-9"
                 aria-label="Minha senha"
                 title="Minha senha"
               >
@@ -224,7 +224,7 @@ export default function Sidebar({
               <button
                 type="button"
                 onClick={() => signOut({ callbackUrl: "/login" })}
-                className="flex h-11 w-11 items-center justify-center rounded-md text-tibe-light/70 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary sm:h-9 sm:w-9"
+                className="flex h-11 w-11 items-center justify-center rounded-md text-tibe-light/70 hover:bg-texto-invertido/10 hover:text-texto-invertido focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary sm:h-9 sm:w-9"
                 aria-label="Sair"
                 title="Sair"
               >

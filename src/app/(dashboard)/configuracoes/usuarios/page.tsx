@@ -33,8 +33,8 @@ export default async function UsuariosPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Usuários</h1>
-          <p className={`text-sm ${seatsFull ? "text-amber-700" : "text-gray-500"}`}>
+          <h1 className="text-xl font-semibold text-texto">Usuários</h1>
+          <p className={`text-sm ${seatsFull ? "text-atencao-tinta" : "text-texto-discreto"}`}>
             {seats.used} de {seats.limit} assento(s) em uso
             {seatsFull && ": desative um usuário ou faça upgrade do plano para convidar mais"}
           </p>
@@ -42,7 +42,7 @@ export default async function UsuariosPage() {
         <InviteForm canInviteOwner={sessionUser.role === "OWNER"} />
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white">
+      <div className="rounded-lg border border-borda bg-superficie">
         <Table>
           <TableHeader>
             <TableRow>

@@ -22,7 +22,7 @@ export default function ExportReportButton() {
       <Button variant="outline" onClick={exportReport} disabled={loading}>
         {loading ? "Gerando..." : "Exportar relatório (PDF)"}
       </Button>
-      {error && <p className="mt-1 text-sm text-red-700">{error}</p>}
+      {error && <p className="mt-1 text-sm text-perigo-tinta">{error}</p>}
     </div>
   );
 }

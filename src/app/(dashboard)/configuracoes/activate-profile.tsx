@@ -41,7 +41,7 @@ export default function ActivateProfile({
       >
         {loading ? "Ativando..." : label}
       </button>
-      {error && <p className="mt-1 text-sm text-red-700">{error}</p>}
+      {error && <p className="mt-1 text-sm text-perigo-tinta">{error}</p>}
     </div>
   );
 }

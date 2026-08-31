@@ -20,14 +20,14 @@ export default async function CategoriasFinanceirasPage() {
   return (
     <div className="max-w-2xl space-y-8">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">Categorias financeiras</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <h1 className="text-xl font-semibold text-texto">Categorias financeiras</h1>
+        <p className="mt-1 text-sm text-texto-discreto">
           Sugestões usadas ao lançar receitas e despesas. Renomear ou
           desativar não afeta lançamento já registrado.
         </p>
       </div>
       <div>
-        <h2 className="mb-2 text-sm font-medium text-gray-700">Despesas</h2>
+        <h2 className="mb-2 text-sm font-medium text-texto-secundario">Despesas</h2>
         <CategoryManager
           entryType="expense"
           categories={categories
@@ -36,7 +36,7 @@ export default async function CategoriasFinanceirasPage() {
         />
       </div>
       <div>
-        <h2 className="mb-2 text-sm font-medium text-gray-700">Receitas</h2>
+        <h2 className="mb-2 text-sm font-medium text-texto-secundario">Receitas</h2>
         <CategoryManager
           entryType="income"
           categories={categories

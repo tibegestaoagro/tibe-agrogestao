@@ -164,8 +164,8 @@ export default async function NegociacoesPage(
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Negociações</h1>
-          <p className="mt-0.5 text-sm text-gray-500">
+          <h1 className="text-xl font-semibold text-texto">Negociações</h1>
+          <p className="mt-0.5 text-sm text-texto-discreto">
             {total.toLocaleString("pt-BR")} negócio(s) registrado(s)
           </p>
         </div>
@@ -201,7 +201,7 @@ export default async function NegociacoesPage(
       </div>
 
       {properties.length === 0 && (
-        <p className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <p className="rounded-md bg-atencao-suave px-4 py-3 text-sm text-atencao-tinta">
           Cadastre uma fazenda antes de registrar negócios (menu{" "}
           <Link href="/minha-fazenda" className="font-medium underline">
             Minha Fazenda
@@ -211,27 +211,27 @@ export default async function NegociacoesPage(
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <p className="text-sm font-semibold uppercase tracking-wide text-gray-600">
+        <div className="rounded-lg border border-borda bg-superficie p-4">
+          <p className="text-sm font-semibold uppercase tracking-wide text-texto-secundario">
             Ainda tenho a pagar
           </p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums text-gray-900">
+          <p className="mt-1 text-2xl font-semibold tabular-nums text-texto">
             {reais(aPagar)}
           </p>
         </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <p className="text-sm font-semibold uppercase tracking-wide text-gray-600">
+        <div className="rounded-lg border border-borda bg-superficie p-4">
+          <p className="text-sm font-semibold uppercase tracking-wide text-texto-secundario">
             Ainda tenho a receber
           </p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums text-gray-900">
+          <p className="mt-1 text-2xl font-semibold tabular-nums text-texto">
             {reais(aReceber)}
           </p>
         </div>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white">
-        <div className="border-b border-gray-200 px-4 py-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-600">
+      <div className="rounded-lg border border-borda bg-superficie">
+        <div className="border-b border-borda px-4 py-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-texto-secundario">
             Negócios recentes
           </h2>
         </div>
@@ -250,7 +250,7 @@ export default async function NegociacoesPage(
           <TableBody>
             {items.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="py-6 text-center text-gray-500">
+                <TableCell colSpan={7} className="py-6 text-center text-texto-discreto">
                   Nenhum negócio registrado ainda.
                 </TableCell>
               </TableRow>
@@ -312,7 +312,7 @@ export default async function NegociacoesPage(
                       animais > 0 && (
                       <>
                         {animais.toLocaleString("pt-BR")}
-                        <span className="block text-xs text-gray-500">
+                        <span className="block text-xs text-texto-discreto">
                           {/* Sem o `Set`, a remessa encerrada repetia "Fêmea -
                               acima de 36 meses" uma vez por movimentação. */}
                           {Array.from(
@@ -329,7 +329,7 @@ export default async function NegociacoesPage(
                       )
                     )}
                     {n.type !== "permuta" && n.produtos.length > 0 && (
-                      <span className="block text-xs text-gray-600">
+                      <span className="block text-xs text-texto-secundario">
                         {n.produtos
                           .map((p) => `${descreverQuantidade(p.quantity, p.unit)} de ${p.product_name}`)
                           .join(", ")}
@@ -360,7 +360,7 @@ export default async function NegociacoesPage(
                       reais(n.totais.principal)
                     )}
                     {!remessaAberta && n.totais.custos > 0 && (
-                      <span className="block text-xs text-gray-500">
+                      <span className="block text-xs text-texto-discreto">
                         {venda ? "menos" : "mais"} {reais(n.totais.custos)} de custos
                         <span className="block">
                           {venda

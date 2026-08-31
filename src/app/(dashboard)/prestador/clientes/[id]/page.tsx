@@ -24,8 +24,8 @@ const ORDER_STATUS: Record<string, { label: string; variant: "blue" | "amber" | 
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4">
-      <p className="text-xs text-gray-500">{label}</p>
+    <div className="rounded-lg border border-borda bg-superficie p-4">
+      <p className="text-xs text-texto-discreto">{label}</p>
       <p className="mt-1 text-lg font-semibold text-tibe-dark">{value}</p>
     </div>
   );
@@ -67,11 +67,11 @@ export default async function ClientDetail(
         <Link href="/prestador" className="text-sm text-primaria-tinta hover:underline">
           ← Prestador
         </Link>
-        <h1 className="mt-1 text-xl font-semibold text-gray-900">{client.name}</h1>
-        <p className="text-sm text-gray-500">
+        <h1 className="mt-1 text-xl font-semibold text-texto">{client.name}</h1>
+        <p className="text-sm text-texto-discreto">
           {[client.document, client.phone, client.email].filter(Boolean).join(" · ") || "sem dados de contato"}
         </p>
-        {client.notes && <p className="mt-1 text-sm text-gray-600">{client.notes}</p>}
+        {client.notes && <p className="mt-1 text-sm text-texto-secundario">{client.notes}</p>}
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
@@ -80,8 +80,8 @@ export default async function ClientDetail(
         <Stat label="Ordens" value={String(orders.length)} />
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white">
-        <h2 className="border-b px-5 py-3 text-sm font-medium text-gray-700">
+      <div className="rounded-lg border border-borda bg-superficie">
+        <h2 className="border-b px-5 py-3 text-sm font-medium text-texto-secundario">
           Histórico de ordens
         </h2>
         <div className="p-2">
@@ -98,7 +98,7 @@ export default async function ClientDetail(
             <TableBody>
               {orders.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-4 text-center text-gray-500">
+                  <TableCell colSpan={5} className="py-4 text-center text-texto-discreto">
                     Nenhuma ordem.
                   </TableCell>
                 </TableRow>

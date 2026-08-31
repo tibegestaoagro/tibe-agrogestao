@@ -55,7 +55,7 @@ export default function KpiCard({
           <ArrowRight className="h-4 w-4" />
         </span>
       </div>
-      <p className="mt-3 text-sm text-gray-600">{label}</p>
+      <p className="mt-3 text-sm text-texto-secundario">{label}</p>
       <p className="text-2xl font-semibold text-tibe-dark">{value}</p>
       {sub && <p className="mt-0.5 truncate text-xs text-texto-secundario">{sub}</p>}
     </Link>

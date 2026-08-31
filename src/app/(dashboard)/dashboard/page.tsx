@@ -190,10 +190,10 @@ export default async function DashboardHome() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">
+        <h1 className="text-xl font-semibold text-texto">
           {greeting()}, {firstName}! 👋
         </h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-texto-discreto">
           Perfis ativos: {profiles.map((p) => (p === "fazenda" ? "Fazenda" : "Prestador")).join(" + ")}
         </p>
       </div>
@@ -259,37 +259,37 @@ export default async function DashboardHome() {
       {/* 2 gráficos lado a lado. */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {hasFazenda && (
-          <div className="rounded-xl border border-gray-200 bg-white p-5">
-            <p className="mb-3 text-sm font-medium text-gray-700">Evolução do rebanho (6 meses)</p>
+          <div className="rounded-xl border border-borda bg-superficie p-5">
+            <p className="mb-3 text-sm font-medium text-texto-secundario">Evolução do rebanho (6 meses)</p>
             <HerdEvolutionChart data={herdEvolution} />
           </div>
         )}
-        <div className="rounded-xl border border-gray-200 bg-white p-5">
-          <p className="mb-3 text-sm font-medium text-gray-700">Receitas x despesas (6 meses)</p>
+        <div className="rounded-xl border border-borda bg-superficie p-5">
+          <p className="mb-3 text-sm font-medium text-texto-secundario">Receitas x despesas (6 meses)</p>
           <RevenueExpenseChart data={cashFlow} />
         </div>
       </div>
 
       {/* Meu Dia + calendário lado a lado. */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-gray-200 bg-white p-5">
+        <div className="rounded-xl border border-borda bg-superficie p-5">
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-sm font-medium text-gray-700">Meu Dia</p>
+            <p className="text-sm font-medium text-texto-secundario">Meu Dia</p>
             <Link href="/meu-dia" className="inline-flex min-h-11 items-center text-sm text-primaria-tinta hover:underline sm:min-h-0">
               Ver tudo →
             </Link>
           </div>
           {meuDiaItems.length === 0 ? (
-            <p className="text-sm text-gray-500">Nada previsto para hoje.</p>
+            <p className="text-sm text-texto-discreto">Nada previsto para hoje.</p>
           ) : (
             <ul className="divide-y divide-gray-100">
               {meuDiaItems.map((item, i) => (
                 <li key={i}>
                   <Link href={item.href} className="flex min-h-11 items-center justify-between py-2.5 text-sm hover:text-primaria-tinta sm:min-h-0">
-                    <span className="text-gray-700">{item.label}</span>
-                    <span className="flex items-center gap-2 text-gray-500">
+                    <span className="text-texto-secundario">{item.label}</span>
+                    <span className="flex items-center gap-2 text-texto-discreto">
                       {item.sub}
-                      <ChevronRight className="h-4 w-4 text-gray-300" />
+                      <ChevronRight className="h-4 w-4 text-texto-discreto" />
                     </span>
                   </Link>
                 </li>
@@ -297,23 +297,23 @@ export default async function DashboardHome() {
             </ul>
           )}
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-5">
+        <div className="rounded-xl border border-borda bg-superficie p-5">
           <MiniCalendar eventDates={Array.from(eventDates)} />
         </div>
       </div>
 
       {hasFazenda && <CalculadoraGrid />}
 
-      <div className="rounded-xl border border-gray-200 bg-white p-5">
-        <p className="mb-3 text-sm font-medium text-gray-700">Últimos lançamentos</p>
+      <div className="rounded-xl border border-borda bg-superficie p-5">
+        <p className="mb-3 text-sm font-medium text-texto-secundario">Últimos lançamentos</p>
         {recentEntries.length === 0 ? (
-          <p className="text-sm text-gray-500">Nenhum lançamento ainda.</p>
+          <p className="text-sm text-texto-discreto">Nenhum lançamento ainda.</p>
         ) : (
           <ul className="divide-y divide-gray-100">
             {recentEntries.map((e) => (
               <li key={e.id} className="flex items-center justify-between py-2 text-sm">
-                <span className="text-gray-700">{e.category ?? "não informado"}</span>
-                <span className={e.entry_type === "income" ? "text-primaria-tinta" : "text-gray-900"}>
+                <span className="text-texto-secundario">{e.category ?? "não informado"}</span>
+                <span className={e.entry_type === "income" ? "text-primaria-tinta" : "text-texto"}>
                   {e.entry_type === "income" ? "+" : "-"}
                   {brl(decToNum(e.amount) ?? 0)}
                 </span>
@@ -331,8 +331,8 @@ export default async function DashboardHome() {
 
 function MiniStat({ label, value, href }: { label: string; value: string | number; href: string }) {
   return (
-    <Link href={href} className="rounded-lg border border-gray-200 bg-white p-3 transition hover:border-tibe-primary">
-      <p className="truncate text-xs text-gray-500">{label}</p>
+    <Link href={href} className="rounded-lg border border-borda bg-superficie p-3 transition hover:border-tibe-primary">
+      <p className="truncate text-xs text-texto-discreto">{label}</p>
       <p className="mt-0.5 truncate text-base font-semibold text-tibe-dark">{value}</p>
     </Link>
   );
