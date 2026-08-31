@@ -449,11 +449,39 @@ function conferirCamposNumericos() {
  * regressao introduzida por esta frente. Resultado: 30 -> 34. Registrado aqui
  * porque "so encolhe" e o principio, e um crescimento sem essa nota no
  * comentario pareceria violacao dele para quem ler depois.
+ *
+ * ⚠️ **O comentario acima, na sua versao original do T09, afirmava que os
+ * prefixos cobertos eram "todos os que pintam pixel visivel" e chamava a
+ * extensao de "defesa contra o proximo furo". Era falso, e um segundo
+ * julgamento (T13, 2026-08-31) provou com a propria regex exportada:
+ * `COR_CRUA.test("shadow-black/15")` e `COR_CRUA.test("outline-gray-300")`
+ * devolviam `false`.** `shadow-` e `outline-` faltavam, e sombra crua e o
+ * mesmo problema que cor crua (ha `--sombra-1/2/3` em `globals.css`,
+ * tingidas de verde, para nao depender de preto fixo). `ring-offset-`
+ * entrou junto pelo mesmo motivo de `ring-`.
+ *
+ * Medido em 2026-08-31 (T13): 2 ocorrencias de `shadow-black` fora de
+ * `/plataforma`, as duas com sufixo de opacidade (`/15` e `/10`), nenhuma de
+ * `outline-` ou `ring-offset-`. A regex casa com e sem o sufixo de
+ * opacidade porque o `\b` de fechamento aceita `/` como fronteira de
+ * palavra (confirmado com `shadow-black` e `shadow-black/15`, os dois
+ * `true`). As duas ocorrencias entraram na linha de base (30 -> 32);
+ * NAO foram corrigidas aqui porque trocar a sombra dos dois primitivos do
+ * kit (`confirm-dialog.tsx`, `toast.tsx`) muda o visual de todo dialogo e
+ * todo aviso do app, e isso e decisao de design, nao trabalho de trava.
+ *
+ * O que a regex AINDA nao cobre, e por que ficou de fora por agora: classes
+ * com valor arbitrario (`shadow-[0_2px_8px_rgba(0,0,0,.15)]`, `bg-[#fff]`)
+ * nao usam a paleta nomeada do Tailwind, entao nao casam com
+ * `CORES_TAILWIND` nem com `white|black`; sao um problema textualmente
+ * diferente (nao ha lista fechada de valores para casar) e nenhuma
+ * ocorrencia foi medida no repositorio hoje. Se aparecer uma, e um furo
+ * novo, nao coberto por esta trava.
  */
 const CORES_TAILWIND =
   "gray|slate|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose";
 const PREFIXOS_QUE_PINTAM =
-  "text|bg|border|divide|ring|from|via|to|placeholder|caret|accent|decoration|fill|stroke";
+  "text|bg|border|divide|ring|ring-offset|from|via|to|placeholder|caret|accent|decoration|fill|stroke|shadow|outline";
 // Exportada para a m50 (scripts/m50-site-publico-em-token.test.ts) importar em
 // vez de duplicar: uma regex copiada fica presa no dia em que foi copiada, e
 // foi assim que a m50 ficou meses atras desta ao vivo em 2026-08-31.
