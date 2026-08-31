@@ -35,13 +35,13 @@ const NAV: { label: string; items: { href: string; label: string }[] }[] = [
 
 export default function DocsLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-white">
-      <header className="border-b border-gray-100">
+    <div className="min-h-screen bg-superficie">
+      <header className="border-b border-borda">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
             <Link href="/" className="text-xl font-bold text-tibe-dark">Tibé</Link>
-            <span className="text-gray-300">/</span>
-            <Link href="/docs" className="text-sm font-medium text-gray-600 hover:text-tibe-dark">
+            <span className="text-texto-discreto">/</span>
+            <Link href="/docs" className="text-sm font-medium text-texto-secundario hover:text-tibe-dark">
               Documentação
             </Link>
           </div>
@@ -64,7 +64,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                     <Link
                       key={item.href}
                       href={item.href}
-                      className="block rounded-md px-2 py-1.5 text-sm text-gray-700 transition hover:bg-tibe-light hover:text-tibe-dark"
+                      className="block rounded-md px-2 py-1.5 text-sm text-texto-secundario transition hover:bg-tibe-light hover:text-tibe-dark"
                     >
                       {item.label}
                     </Link>

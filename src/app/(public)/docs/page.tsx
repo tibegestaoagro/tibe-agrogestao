@@ -14,7 +14,7 @@ export default function DocsIndexPage() {
   return (
     <div>
       <h1 className="text-3xl font-bold text-tibe-dark">Documentação técnica</h1>
-      <p className="mt-3 max-w-2xl text-gray-600">
+      <p className="mt-3 max-w-2xl text-texto-secundario">
         Referência para quem vai integrar, manter ou estender o Tibé: uma plataforma
         SaaS multi-tenant de gestão agropecuária (rebanho, lavoura, prestação de
         serviço e financeiro), com um agente de IA no WhatsApp e cobrança recorrente
@@ -26,10 +26,10 @@ export default function DocsIndexPage() {
           <Link
             key={c.href}
             href={c.href}
-            className="rounded-lg border border-gray-200 p-5 transition hover:border-tibe-primary hover:shadow-sm"
+            className="rounded-lg border border-borda p-5 transition hover:border-tibe-primary hover:shadow-sm"
           >
-            <h2 className="font-semibold text-gray-900">{c.title}</h2>
-            <p className="mt-1 text-sm text-gray-600">{c.desc}</p>
+            <h2 className="font-semibold text-texto">{c.title}</h2>
+            <p className="mt-1 text-sm text-texto-secundario">{c.desc}</p>
           </Link>
         ))}
       </div>

@@ -32,16 +32,16 @@ export default function GlossarioPage() {
   return (
     <article className="max-w-3xl">
       <h1 className="text-3xl font-bold text-tibe-dark">Glossário</h1>
-      <p className="mt-3 text-gray-600">
+      <p className="mt-3 text-texto-secundario">
         Termos do domínio agropecuário: e alguns termos financeiros e de arquitetura: usados no código e nesta
         documentação.
       </p>
 
-      <dl className="mt-8 divide-y divide-gray-100">
+      <dl className="mt-8 divide-y divide-borda">
         {TERMS.map(([term, def]) => (
           <div key={term} className="py-4">
-            <dt className="font-semibold text-gray-900">{term}</dt>
-            <dd className="mt-1 text-sm text-gray-600">{def}</dd>
+            <dt className="font-semibold text-texto">{term}</dt>
+            <dd className="mt-1 text-sm text-texto-secundario">{def}</dd>
           </div>
         ))}
       </dl>
