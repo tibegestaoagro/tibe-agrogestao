@@ -187,6 +187,63 @@ fica invisível: sobra o texto solto. Um caso foi corrigido (as pílulas de
 de select e menus, onde o efeito é só um realce fraco, e no site público e
 auth, que esta frente não cobriu.
 
+### 2.6 `text-tibe-dark`: um token de SUPERFÍCIE pintando TEXTO, 41 vezes
+
+**O que é:** `tibe.dark` é `var(--superficie-invertida)`
+(`tailwind.config.ts`), cujo papel é "superfície inversa da página": é o verde
+escuro da sidebar. Ele é usado como **cor de texto** (`text-tibe-dark`) em **41
+lugares** do site público, nos títulos de `/`, `/planos`, `/faq`, `/docs` e das
+três etapas de `/criar-conta`.
+
+**Evidência:** achado pelo segundo julgamento independente da frente do token
+semântico, em 2026-08-31.
+
+**Por que importa, e é a dívida mais séria desta lista:** no dia do tema
+escuro, o valor de `--superficie-invertida` será decidido pelo que a **sidebar
+precisa ser**. Se ele continuar `#022e20` (verde escuro de marca, a escolha
+natural para manter a sidebar), **todos os títulos do site público ficam verde
+escuro sobre página escura**.
+
+⚠️ **Isto mina a justificativa da frente que a descobriu.** A spec do site
+público em token semântico se justifica dizendo que "depois que tudo fala
+token, o tema escuro é um bloco que redefine os 37 de uma vez". Com 41 títulos
+presos ao token da sidebar, não é.
+
+**Custo de fechar:** decidir qual token os títulos devem usar (`--texto`? um
+`--texto-marca` novo?) e trocar 41 ocorrências. É decisão de design, e deve
+ser a **primeira tarefa da frente de tokens escuros**, não um remendo.
+
+Sobram também `border-tibe-primary` (5) e `ring-tibe-primary` (1), do mesmo
+bloco de alias.
+
+### 2.7 Selos de método e chips de código no limiar do invisível
+
+**O que é:** em `/docs/api`, os cinco selos de método HTTP e os cerca de 107
+chips `<code>` de `/docs` têm fundo entre **1,037:1 e 1,100:1** contra o branco
+da página. Medições do segundo julgamento independente, por WCAG 2.1:
+
+| elemento | antes da frente | depois |
+|---|---|---|
+| selo PATCH | 1,114:1 | **1,037:1** |
+| selo DELETE | 1,222:1 | 1,094:1 |
+| selo GET | 1,220:1 | 1,088:1 |
+| selo PUT | 1,180:1 | 1,100:1 |
+| chip `<code>` | 1,101:1 | 1,056:1 |
+
+**Por que importa:** a frente do token semântico deixou esses elementos mais
+marginais do que já eram. E há inconsistência do nosso próprio critério: dois
+chips que estavam em **1,000:1** (contraste zero, invisíveis) ganharam borda
+para voltar a aparecer, e os cinco selos ficaram nesta faixa **sem borda**.
+
+⚠️ **Nenhum portão mede isto**, e o `check-contraste.ts` nunca vai medir: ele
+compara par (texto, fundo), e aqui o que está em jogo é fundo contra fundo. A
+conferência 14 pega o caso extremo (fundo idêntico ao do pai), não o limiar.
+
+**Custo de fechar:** decidir se pílula e chip precisam de contorno próprio por
+padrão no sistema de design. É decisão de design, e **só o navegador resolve**:
+1,056:1 é cálculo, não observação, e o quanto some depende de monitor e
+ambiente.
+
 ---
 
 ## 3. Rede de segurança com furo
