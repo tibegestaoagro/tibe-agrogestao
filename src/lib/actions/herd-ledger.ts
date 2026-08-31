@@ -497,6 +497,10 @@ const TRANSFER: readonly HerdMovementType[] = [
   "envio_evento",
   "envio_pasto_terceiro",
   "envio_boitel",
+  // Fase 3 (confinamento próprio): mesma forma do envio de boitel, as duas
+  // pontas preenchidas. O total do rebanho não muda quando o animal vai para
+  // o confinamento (§27.1 da spec de Confinamento): muda onde ele está.
+  "envio_confinamento",
   "desaparecimento",
   "retorno_estadia",
 ];

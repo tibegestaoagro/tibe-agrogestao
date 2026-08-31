@@ -1,7 +1,10 @@
 import type { Prisma, NegotiationEntryRole } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 
-type RelatedModule = "rebanho" | "lavoura" | "servico" | "maquinas" | "geral";
+// Espelha o RelatedModule do Prisma. Alargado em 2026-08-31 (fase 3 do
+// Módulo 30, confinamento): `related_module: "confinamento"` precisa passar
+// por este mesmo helper, nunca um FinancialEntry criado à mão.
+type RelatedModule = "rebanho" | "lavoura" | "servico" | "maquinas" | "geral" | "confinamento";
 type EntryType = "income" | "expense";
 type EntryStatus = "pending" | "paid" | "overdue";
 

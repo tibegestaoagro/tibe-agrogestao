@@ -50,6 +50,12 @@ export type OpenStayInput = {
   reason?: string | null;
   notes?: string | null;
   recorded_by_user_id?: string | null;
+  /**
+   * Fase 3 (confinamento, docs/superpowers/specs/2026-08-31-confinamento-fase-3-do-modulo-30.md).
+   * Aponta para o `ConfinementSite` cadastrado. Opcional: os outros quatro
+   * tipos de estadia não têm site cadastrado, e continuam sem ele.
+   */
+  confinement_site_id?: string | null;
 };
 
 export type HerdStayRecord = {
@@ -60,6 +66,7 @@ export type HerdStayRecord = {
   started_at: Date;
   quantity: number;
   financial_entry_id: string | null;
+  confinement_site_id: string | null;
 };
 
 /**
@@ -70,11 +77,23 @@ export type HerdStayRecord = {
  * receita ou conta a receber". Desaparecimento não gera nada: não há acordo
  * nem contraparte.
  */
-const COBRANCA: Partial<Record<HerdStayType, { entry_type: "expense" | "income"; category: string }>> = {
-  pasto_terceiro: { entry_type: "expense", category: "Arrendamento de pasto" },
-  boitel: { entry_type: "expense", category: "Boitel" },
-  evento: { entry_type: "expense", category: "Leilão e feira" },
-  terceiro_na_fazenda: { entry_type: "income", category: "Aluguel de pasto" },
+const COBRANCA: Partial<
+  Record<
+    HerdStayType,
+    { entry_type: "expense" | "income"; category: string; related_module: "rebanho" | "confinamento" }
+  >
+> = {
+  pasto_terceiro: { entry_type: "expense", category: "Arrendamento de pasto", related_module: "rebanho" },
+  boitel: { entry_type: "expense", category: "Boitel", related_module: "rebanho" },
+  evento: { entry_type: "expense", category: "Leilão e feira", related_module: "rebanho" },
+  terceiro_na_fazenda: { entry_type: "income", category: "Aluguel de pasto", related_module: "rebanho" },
+  /**
+   * Confinamento próprio (fase 3 do Módulo 30). `related_module` PRÓPRIO, e
+   * não "rebanho" reaproveitado, como o comentário do enum no schema explica:
+   * o custo do lote confinado (§13, §24 da spec) precisa ser somável separado
+   * do resto do rebanho.
+   */
+  confinamento: { entry_type: "expense", category: "Confinamento", related_module: "confinamento" },
 };
 
 export async function openStay(
@@ -120,6 +139,7 @@ export async function openStay(
         reason: input.reason ?? null,
         notes: input.notes ?? null,
         recorded_by_user_id: input.recorded_by_user_id ?? null,
+        confinement_site_id: input.confinement_site_id ?? null,
       }),
     });
 
@@ -170,7 +190,7 @@ export async function openStay(
         entry_type: cobranca.entry_type,
         category: cobranca.category,
         amount: input.charge_value,
-        related_module: "rebanho",
+        related_module: cobranca.related_module,
         related_id: stay.id,
         occurred_at: started_at,
         status: "pending",
@@ -187,6 +207,7 @@ export async function openStay(
       started_at: stay.started_at,
       quantity: input.quantity,
       financial_entry_id,
+      confinement_site_id: stay.confinement_site_id,
     });
   }).catch((erro: unknown) => {
     if (erro instanceof EstadiaRecusada) {

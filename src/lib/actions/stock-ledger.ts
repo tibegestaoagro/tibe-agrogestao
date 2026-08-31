@@ -229,6 +229,13 @@ export type StockMovementInput = {
   notes?: string | null;
   negotiation_id?: string | null;
   recorded_by_user_id?: string | null;
+  /**
+   * Fase 3 do Módulo 30 (confinamento, §11 da spec): a "utilização deverá
+   * ficar vinculada ao confinamento". Aponta para a `HerdStay` que consumiu o
+   * produto. Opcional: nem toda saída de estoque é alimentação de
+   * confinamento.
+   */
+  stay_id?: string | null;
 };
 
 /**
@@ -303,6 +310,13 @@ export async function recordStockMovementInTx(
     if (!pasto) return fail("INVALID_PASTURE", "Pasto inválido para esta fazenda", 422);
   }
 
+  // Mesma conferência do pasto acima, pelo mesmo motivo: sem ela, dava para
+  // gravar uma movimentação apontando para a estadia de OUTRO tenant.
+  if (input.stay_id) {
+    const estadia = await tx.herdStay.findFirst({ where: { id: input.stay_id } });
+    if (!estadia) return fail("INVALID_STAY", "Estadia inválida", 422);
+  }
+
   /**
    * §10.4: para qual grupo de animais o insumo foi usado.
    *
@@ -370,6 +384,7 @@ export async function recordStockMovementInTx(
       notes: input.notes ?? null,
       negotiation_id: input.negotiation_id ?? null,
       recorded_by_user_id: input.recorded_by_user_id ?? null,
+      stay_id: input.stay_id ?? null,
     }),
   });
 

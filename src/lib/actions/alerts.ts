@@ -41,7 +41,11 @@ function isoWeekKey(d: Date): string {
 }
 
 type AlertType = "vaccine_due" | "harvest_near" | "bill_due" | "low_balance" | "trial_ending" | "maintenance_due" | "task_reminder" | "low_stock";
-type RelatedModule = "rebanho" | "lavoura" | "servico" | "maquinas" | "geral";
+// Espelha o RelatedModule do Prisma. Alargado em 2026-08-31 (fase 3 do
+// Módulo 30, confinamento): um FinancialEntry de confinamento pendente
+// (bill_due) precisa gerar alerta com o related_module certo, como qualquer
+// outro módulo.
+type RelatedModule = "rebanho" | "lavoura" | "servico" | "maquinas" | "geral" | "confinamento";
 type AlertEnsureClient = {
   alert: {
     findFirst(args: Prisma.AlertFindFirstArgs): Promise<{ id: string } | null>;

@@ -92,6 +92,22 @@ const REGRAS: Record<HerdStayType, RegraDaEstadia> = {
     envio: "desaparecimento",
     encerramentos: ["retorno_estadia", "morte", "perda_confirmada"],
   },
+
+  /**
+   * Confinamento PRÓPRIO (fase 3 do Módulo 30). "Os animais continuam
+   * pertencendo ao produtor" (§3 do documento de Confinamento): mesmo dono e
+   * mesmos encerramentos do `boitel`, que é o vizinho mais próximo (retorno
+   * ao pasto, venda direta, morte: §17 a §21). `boitel` continua com seu
+   * próprio valor de `HerdStayType` (comentário no enum do schema explica o
+   * porquê): os dois só se encontram através do `ConfinementSite` que a
+   * estadia pode apontar.
+   */
+  confinamento: {
+    situacao: "confinamento",
+    dono: "proprio",
+    envio: "envio_confinamento",
+    encerramentos: ["retorno_estadia", "venda", "morte"],
+  },
 };
 
 export function situacaoDaEstadia(type: HerdStayType): HerdSituation {
