@@ -51,8 +51,9 @@ next-env.d.ts
 # tooling de agente instalado por maquina (skills do Codex), nao versionado
 /.codex/
 
-# Configuracao de agente: `.claude/settings.json`, `.claude/hooks/` e
-# `.claude/rules/` SAO versionados de proposito, para as travas e as regras
+# Configuracao de agente: `.claude/settings.json`, `.claude/hooks/`,
+# `.claude/rules/`, `.claude/agents/`, `.claude/skills/` e `.claude/commands/`
+# SAO versionados de proposito, para as travas, as regras e o time de agentes
 # viajarem entre o desktop e o notebook. So o que e da maquina fica de fora.
 /.claude/settings.local.json
 /.claude/settings.local.json.bak

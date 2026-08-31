@@ -155,6 +155,60 @@ lê um arquivo daquela área. O que você não abrir não ocupa contexto.
 qualquer action e ela chega junto. Se precisa dela sem abrir nada, leia
 `.claude/rules/isolamento.md` direto.
 
+## O time de agentes: três times, e quem chamar
+
+Trabalho delegável vai para o especialista, não para um agente genérico. As
+definições estão em `.claude/agents/`, e cada uma **aponta** para a regra da
+área em vez de copiá-la.
+
+| agente | quando usar | modelo |
+|---|---|---|
+| `servidor-acao` | action e rota: regra de negócio, contrato de API | sonnet |
+| `servidor-dados` | `schema.prisma` e migração | sonnet |
+| `servidor-agente` | handlers do WhatsApp e rotas internas | sonnet |
+| `tela-pagina` | página, formulário, componente de feature | sonnet |
+| `tela-kit` | primitivo de `components/ui/` e token de `globals.css` | sonnet |
+| `prova-suite` | suíte escrita **da spec**, trava, catraca, CI | sonnet |
+| `prova-juiz` | julgamento independente de um range de commits | opus |
+| `prova-viva` | validação contra o mundo: navegador, aparelho, `npm run wa` | sonnet |
+| `explorador` | achar onde está X, quem chama Y | haiku |
+
+O protocolo de despacho em paralelo (campos `Arquivos:` e `Depende-de:`,
+formação de onda, quem commita) está na skill `orquestrar-ondas`. O manual de
+operação, escrito para o usuário, está em
+[docs/agents/como-orquestrar.md](docs/agents/como-orquestrar.md).
+
+⚠️ **Subagente não commita.** Ele deixa a mudança no working tree e relata os
+arquivos tocados; a sessão principal commita, uma tarefa por vez, capturando o
+`HEAD` fresco antes de cada uma. Isso não afrouxa a regra 6: o commit continua
+automático, só muda quem o faz. E **nenhum subagente recebe a autorização do
+invariante 7**.
+
+⚠️ **Os agentes globais em `~/.claude/agents/` (`especialista-css`,
+`especialista-js` e afins) são de outro projeto e de outro stack** (SASS
+indentada, Vue/Nuxt). Aqui eles orientam errado. Não os despache neste
+repositório.
+
+## O cofre de conhecimento
+
+`docs/conhecimento/` guarda o que foi **aprendido**: uma nota por lição, com
+`tipo`, `data`, `tags` e `[[wikilink]]`. **Ele nunca carrega em contexto**: você
+busca e lê só a nota que interessa.
+
+```
+grep -ril "<termo>" docs/conhecimento/
+```
+
+Ele existe porque o handoff tem teto de 200 linhas, e a lição aprendida era
+resumida destrutivamente a cada rodada. **Não é lugar de estado** (isso é o
+handoff) **nem de dívida** (isso é o `dividas.md`). Para escrever, use a skill
+`memoria-cofre` ou o comando `/lembrar`. A **conferência 13** do `npm run check`
+reprova `[[wikilink]]` quebrado e frontmatter inválido.
+
+Para navegar como grafo, abra a pasta **`docs/`** no Obsidian: os arquivos que
+já existem viram vault sem migrar nada, e o agente não depende do app estar
+aberto.
+
 ## Status dos módulos
 
 | # | Módulo | Estado |
@@ -182,8 +236,9 @@ real. `npm run check` reprova suíte em disco sem entrada no `package.json`.
 
 ## Stack
 
-Next.js 14 (App Router) · TypeScript · Tailwind · Prisma 7 · PostgreSQL 17
-(Neon) · NextAuth v5 beta (**duas instâncias**: tenant e plataforma) · Zod ·
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind · Prisma 7 ·
+PostgreSQL 17 (Neon) · NextAuth v5 beta (**duas instâncias**: tenant e
+plataforma) · Zod 4 ·
 Recharts · UI kit shadcn-style feito à mão · Redis Cloud + BullMQ · Asaas ·
 nodemailer (Gmail SMTP) + Resend. N8N é infra externa já provisionada
 (Railway): orquestra o agente WhatsApp e não roda dentro do Tibé, por isso não
@@ -274,6 +329,10 @@ lá que fica a lista de rotas públicas); `src/lib/auth.ts` é a instância comp
 Node runtime. `User.email` é **globalmente único**: um email pertence a
 exatamente um tenant. O middleware libera `/api/*` da checagem de sessão, para
 rota de API sem sessão devolver `401` JSON em vez de redirecionar.
+
+⚠️ **O middleware é `src/proxy.ts`, e `middleware.ts` não existe neste
+projeto**: o Next 16 renomeou o arquivo. Procurar por `middleware.ts` não
+devolve nada, e o engano custa uma rodada.
 
 Enum `UserRole`: `OWNER | ADMIN | OPERADOR | VISUALIZADOR`. Hierarquia e matriz
 de acesso em `src/lib/permissions.ts` (espelha o PRD §5.2). `canAccess`/
