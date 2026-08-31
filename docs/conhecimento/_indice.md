@@ -47,7 +47,7 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [o portão mede a relação que lhe deram](portao-mede-a-relacao-que-lhe-deram.md) | licao | três incidentes, o mesmo defeito de categoria |
 | [a suíte cega cobra o que o briefing esqueceu](suite-cega-cobra-mais-do-que-o-briefing-mandou.md) | licao | divergência entre duas leituras do contrato |
 | [contrato incompleto diverge entre agentes paralelos](contrato-incompleto-diverge-entre-agentes-paralelos.md) | licao | o que uma cabeça só resolve sozinha, duas não |
-| [agente com modelo não padrão pode não registrar](agente-com-modelo-nao-padrao-pode-nao-registrar.md) | armadilha | e não se substitui o juiz pela sessão |
+| [agente só de leitura pode sumir do registro](agente-com-modelo-nao-padrao-pode-nao-registrar.md) | armadilha | e não se substitui o juiz pela sessão que orquestrou |
 
 ⚠️ **`[[wikilink]]` para nota que não existe reprova o `npm run check`**
 (conferência 13). É o que impede esta pasta de virar um cemitério de links
