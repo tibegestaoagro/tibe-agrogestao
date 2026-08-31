@@ -336,7 +336,7 @@ export default function StayForm({
       )}
 
       {escolhido && !ehSumico && (
-        <Field label="Local" hint="Nome ou identificação do lugar. Opcional." id="location_name">
+        <Field label="Local" hint="Nome ou identificação do lugar. Opcional." id="location_name" error={err.erros.location_name}>
           {({ id, ...aria }) => (
             <Input
               id={id}
@@ -365,7 +365,7 @@ export default function StayForm({
       </Field>
 
       {escolhido && !ehSumico && (
-        <Field label="Retorno previsto" hint="Opcional." id="expected_end_at">
+        <Field label="Retorno previsto" hint="Opcional." id="expected_end_at" error={err.erros.expected_end_at}>
           {({ id, ...aria }) => (
             <Input
               id={id}
@@ -380,7 +380,7 @@ export default function StayForm({
 
       {temCobranca && (
         <>
-          <Field label="Forma de cobrança" hint="Opcional." id="charge_type">
+          <Field label="Forma de cobrança" hint="Opcional." id="charge_type" error={err.erros.charge_type}>
             {({ id, ...aria }) => (
               <Select value={chargeType} onValueChange={setChargeType}>
                 <SelectTrigger id={id} {...aria}>
@@ -419,7 +419,7 @@ export default function StayForm({
       )}
 
       {ehSumico && (
-        <Field label="Motivo provável" hint="Opcional." id="reason">
+        <Field label="Motivo provável" hint="Opcional." id="reason" error={err.erros.reason}>
           {({ id, ...aria }) => (
             <Input
               id={id}

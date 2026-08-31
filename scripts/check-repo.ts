@@ -1095,6 +1095,118 @@ function conferirElementoQueSome() {
   );
 }
 
+/**
+ * 15. Campo do ORDEM que nao renderiza a propria recusa.
+ *
+ * A conferencia 10 pergunta se o ARQUIVO trata a recusa em algum lugar, e por
+ * isso aprovou oito campos mudos de uma vez na tela do Confinamento
+ * (2026-08-31). Esta pergunta outra coisa, campo por campo.
+ *
+ * O mecanismo: `aplicarErroDoServidor` so manda a recusa para o rodape quando
+ * o `field` NAO esta no ORDEM. Campo que ESTA no ORDEM e cujo `<Field>` nao
+ * recebe `error=` engole a mensagem por completo: ela e gravada em
+ * `erros.<campo>`, o `global` fica nulo, e nada e renderizado. O produtor toca
+ * em salvar, o foco pula para o campo, e nao ha uma palavra na tela.
+ *
+ * Catraca, como as outras: `baseline-campo-mudo.json` lista o que ja existia,
+ * e so encolhe.
+ */
+function conferirCampoMudo() {
+  console.log("\n15. Campo do ORDEM que nao renderiza a propria recusa");
+
+  const base = new Set<string>(
+    JSON.parse(readFileSync(join(RAIZ, "scripts", "baseline-campo-mudo.json"), "utf8")),
+  );
+  const ofensores: string[] = [];
+  const limpos: string[] = [];
+
+  for (const rel of versionados()) {
+    if (!rel.startsWith("src/") || !rel.endsWith(".tsx")) continue;
+    const full = join(RAIZ, rel);
+    if (!existsSync(full)) continue;
+    const s = readFileSync(full, "utf8");
+    if (!/useErrosDeFormulario\(/.test(s) || !/<Field\b/.test(s)) continue;
+
+    const campos = camposDoOrdem(s);
+    if (campos.size === 0) continue;
+
+    const mudos = camposSemErro(s, campos);
+    const marca = mudos.length > 0 ? `${rel} (${mudos.join(", ")})` : rel;
+
+    if (base.has(rel)) {
+      if (mudos.length === 0) limpos.push(rel);
+      continue;
+    }
+    if (mudos.length > 0) ofensores.push(marca);
+  }
+
+  check(
+    "todo campo do ORDEM renderiza a recusa que o servidor manda para ele",
+    ofensores.length === 0,
+    ofensores.length > 0
+      ? "sem `error={err.erros.<campo>}` a mensagem some da tela:\n       " +
+        ofensores.join("\n       ")
+      : undefined,
+  );
+
+  if (limpos.length > 0) {
+    console.log(
+      `  ℹ️  ja renderiza tudo, remova de baseline-campo-mudo.json (${limpos.length}): ${limpos.slice(0, 6).join(", ")}`,
+    );
+  }
+}
+
+/** Os nomes listados no `const ORDEM = [...] as const` do arquivo. */
+function camposDoOrdem(fonte: string): Set<string> {
+  const bloco = fonte.match(/const ORDEM = \[([\s\S]*?)\] as const;/);
+  if (!bloco) return new Set();
+  return new Set(
+    Array.from(bloco[1].matchAll(/"([a-z_0-9]+)"/g)).map((m) => m[1]),
+  );
+}
+
+/**
+ * Os campos do ORDEM cujo `<Field>` nao recebe `error=`.
+ *
+ * A tag de abertura e recortada contando chaves, e nao ate o primeiro `>`:
+ * `error={err.erros.x}` nao tem `>` dentro, mas um `hint={a > b}` teria, e uma
+ * regex ingenua cortaria a tag no meio e daria o campo por mudo sem ele estar.
+ */
+function camposSemErro(fonte: string, campos: Set<string>): string[] {
+  const vistos = new Map<string, boolean>();
+
+  let i = fonte.indexOf("<Field");
+  while (i !== -1) {
+    let profundidade = 0;
+    let j = i;
+    for (; j < fonte.length; j += 1) {
+      const c = fonte[j];
+      if (c === "{") profundidade += 1;
+      else if (c === "}") profundidade -= 1;
+      else if (c === ">" && profundidade === 0) break;
+    }
+    const tag = fonte.slice(i, j);
+
+    // `id="quantity"` ou `id={err.idDe("quantity")}`. Id calculado de
+    // variavel (`err.idDe(destino.movement_type)`) nao da para resolver aqui,
+    // e sai de fora: cobrar o que nao se consegue ler produziria falso
+    // positivo, que e como uma trava perde a confianca de quem a le.
+    const id = tag.match(/id=(?:"([a-z_0-9]+)"|\{err\.idDe\("([a-z_0-9]+)"\)\})/);
+    const campo = id?.[1] ?? id?.[2];
+    if (campo && campos.has(campo)) {
+      const temErro = /\berror=/.test(tag);
+      vistos.set(campo, (vistos.get(campo) ?? false) || temErro);
+    }
+
+    i = fonte.indexOf("<Field", j);
+  }
+
+  return Array.from(vistos.entries())
+    .filter(([, temErro]) => !temErro)
+    .map(([campo]) => campo)
+    .sort();
+}
+
 function main() {
   console.log("🔎 Conferencia estatica do repositorio (sem banco)");
   conferirCaminhos();
@@ -1112,6 +1224,7 @@ function main() {
   conferirRecusaDeZodCrua();
   conferirCofreDeConhecimento();
   conferirElementoQueSome();
+  conferirCampoMudo();
 
   console.log("");
   if (falhas === 0) console.log("✅ Repositorio consistente: 0 falhas.");

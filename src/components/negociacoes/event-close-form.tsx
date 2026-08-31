@@ -190,7 +190,7 @@ export default function EventCloseForm({
         {saldoAberto === 1 ? "cabeça" : "cabeças"}. Diga para onde cada uma foi.
       </p>
 
-      <Field label="Vendidos no evento" id="quantity">
+      <Field label="Vendidos no evento" id="quantity" error={err.erros.quantity}>
         {({ id, ...aria }) => (
           <MoneyInput
             id={id}

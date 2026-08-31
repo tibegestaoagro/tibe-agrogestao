@@ -235,7 +235,7 @@ export default function NegotiationForm({
       focarCampoId={err.focarCampoId}
       tentativa={err.tentativa}
     >
-      <Field label="O que aconteceu" id="type">
+      <Field label="O que aconteceu" id="type" error={err.erros.type}>
         {({ id, ...aria }) => (
           <Select value={type} onValueChange={(v) => setType(v as typeof type)}>
             <SelectTrigger id={id} {...aria}>
@@ -303,7 +303,7 @@ export default function NegotiationForm({
             />
           )}
         </Field>
-        <Field label="Data" id="occurred_at">
+        <Field label="Data" id="occurred_at" error={err.erros.occurred_at}>
           {({ id, ...aria }) => (
             <Input
               id={id}
@@ -404,7 +404,7 @@ export default function NegotiationForm({
             {!pago && (
               <div className="mt-3 space-y-2">
                 {parcelas.length === 0 && (
-                  <Field label="Vence em" id="due_date">
+                  <Field label="Vence em" id="due_date" error={err.erros.due_date}>
                     {({ id, ...aria }) => (
                       <Input
                         id={id}
@@ -516,7 +516,7 @@ export default function NegotiationForm({
             )}
       </div>
 
-      <Field label="Observação (opcional)" id="notes">
+      <Field label="Observação (opcional)" id="notes" error={err.erros.notes}>
         {({ id, ...aria }) => (
           <Input id={id} {...aria} value={notes} onChange={(e) => setNotes(e.target.value)} />
         )}
