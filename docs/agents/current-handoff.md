@@ -25,8 +25,8 @@ Se ele passar de umas 200, arquive antes de acrescentar.
 ## Estado atual
 
 - Atualizado em: 2026-08-31.
-- **O PILOTO DO TIME DE AGENTES RODOU, e está na branch `time-de-agentes`**
-  (16 commits, `fd5fda8..HEAD`, **não mesclado, não empurrado**). Site público
+- **O PILOTO DO TIME DE AGENTES RODOU, na branch `piloto-token-site-publico`**
+  (24 commits, `ec07f84..HEAD`, **não mesclado, não empurrado**). Site público
   em token semântico: 22 arquivos, 286 ocorrências, em 4 ondas de 9 tarefas
   paralelas. Dois tokens novos para bloco de código, suíte `m50` escrita cega
   da spec (vermelha na onda 1, verde na 2), portão de contraste de 25 para 26
@@ -193,11 +193,28 @@ passa.
 pílula, cartão ou linha de tabela que deixou de ter contorno próprio contra o
 fundo. Foi assim que o juiz achou os chips invisíveis de `/docs/setup`.
 
-⚠️ **O julgamento independente NÃO rodou.** O `prova-juiz` não registra (ver
-`docs/conhecimento/agente-com-modelo-nao-padrao-pode-nao-registrar.md`), e
-substituí-lo pela sessão que orquestrou seria o julgamento contaminado que o
-desenho evita. A frente está entregue **sem esse portão**, e é preciso dizer
-isso.
+⚠️ **O julgamento independente rodou DUAS vezes, e reprovou nas duas:
+6/10 e depois 5/10.** O agente `prova-juiz` não registra (ver
+`docs/conhecimento/agente-com-modelo-nao-padrao-pode-nao-registrar.md`), então
+os dois foram por `general-purpose` com o contrato do juiz embutido: a rubrica
+e a cegueira se preservam, mas a proibição de escrever virou disciplina em vez
+de impossibilidade estrutural. Conferido nos dois: não escreveram nada.
+
+**A segunda rodada achou sete coisas, e três continuam abertas:**
+
+1. **Selos de método e ~107 chips `<code>` entre 1,037:1 e 1,100:1** contra o
+   branco. O próprio T10 chamou 1,03:1 de "quase tão invisível quanto o
+   defeito" ao recusar fundo branco puro para os chips do aviso, e depois
+   deixou os cinco selos nessa faixa **sem borda**. É inconsistência do nosso
+   próprio critério, e a decisão de fechar ou adiar é do usuário.
+2. **`text-tibe-dark` pinta TEXTO com um token de SUPERFÍCIE**
+   (`--superficie-invertida`), em 41 lugares do site público. No dia do tema
+   escuro, o valor desse token será decidido pelo que a **sidebar** precisa
+   ser, e essa decisão passa a governar a legibilidade dos títulos do site.
+   Isso mina a justificativa da frente, que é destravar o modo escuro.
+3. **`shadow-` e `outline-` escapam da conferência 8**, com `shadow-black/15`
+   e `shadow-black/10` vivos em `confirm-dialog.tsx` e `toast.tsx`. O
+   comentário do T09 afirma cobrir tudo que pinta pixel, e não cobre.
 
 Depois: **fase 3**, o time Servidor (`servidor-acao`, `servidor-dados`,
 `servidor-agente`, `prova-viva`), estreando no defeito ativo do rebanho (lote

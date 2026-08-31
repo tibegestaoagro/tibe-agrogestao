@@ -153,7 +153,8 @@ Expostos no `tailwind.config.ts` como `codigo: { fundo, texto }`, gerando
   O princípio deste projeto é "linha de base que só encolhe", e aqui ela
   cresceu em 4. **O usuário autorizou a exceção em 2026-08-31**, e ela está
   registrada também no comentário da conferência 8 e no `dividas.md` §2.5.
-- `npm run check` verde nas 13 conferências, com o par de contraste novo.
+- `npm run check` verde nas **14** conferências, com o par de contraste novo.
+  (A 14ª nasceu desta frente: ver §4.)
 - `npx tsc --noEmit` e `npm run lint` limpos.
 - Suíte `m50`: prova que nenhum dos 22 arquivos casa com a regex de cor crua, e
   que os dois tokens novos existem no `globals.css` e no `tailwind.config.ts`.
