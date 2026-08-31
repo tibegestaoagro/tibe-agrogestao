@@ -51,6 +51,9 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [agentes da mesma onda veem o plantio um do outro](agentes-da-mesma-onda-veem-o-plantio-um-do-outro.md) | armadilha | a onda protege arquivo e commit, não o estado de verificação |
 | [ler os .docx do cliente com unzip](ler-docx-do-cliente-sem-ferramenta-extra.md) | referencia | sem Python e sem instalar nada |
 | [git checkout descarta o trabalho do agente](git-checkout-descarta-o-trabalho-do-agente.md) | armadilha | na onda, o trabalho de todos vive só no working tree |
+| [escrever a lição não impede repeti-la](escrever-a-licao-nao-impede-repeti-la.md) | licao | o mesmo defeito voltou com a nota já escrita |
+| [briefing de suíte cega precisa carregar o contrato](briefing-de-suite-cega-precisa-carregar-o-contrato.md) | licao | sem ele, a cegueira vira adivinhação |
+| [migrate diff lê o .env, e o .env é produção](migrate-diff-le-o-env-e-o-env-e-producao.md) | armadilha | o fluxo documentado engana quando o local está à frente |
 
 ⚠️ **`[[wikilink]]` para nota que não existe reprova o `npm run check`**
 (conferência 13). É o que impede esta pasta de virar um cemitério de links
