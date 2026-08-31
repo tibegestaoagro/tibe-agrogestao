@@ -130,6 +130,11 @@ enum HerdMovementType {
   envio_evento
   envio_pasto_terceiro
   envio_boitel
+  /// Fase 3 (confinamento próprio). `retorno_estadia` já serve para a volta
+  /// de qualquer tipo de estadia: a situação de origem diz de onde o animal
+  /// voltou, então um tipo de retorno por destino diria a mesma coisa duas
+  /// vezes.
+  envio_confinamento
   retorno_estadia
   entrada_terceiro
   saida_terceiro
@@ -143,16 +148,24 @@ enum HerdMovementType {
   permuta_saida
 }
 
-/// O tipo da estadia (fase 2). `evento` nasce sem uso: a remessa para leilão é
-/// a missão 3 do Módulo 31, e acrescentar valor a enum depois obrigaria a
-/// migrar movimentação já gravada. Mesmo motivo de `permuta_entrada` no
-/// estoque, e dos próprios eixos de situação e dono, criados na fase 1.
+/// O tipo da estadia (fase 2, mais `confinamento` na fase 3). `evento` nasce
+/// sem uso: a remessa para leilão é a missão 3 do Módulo 31, e acrescentar
+/// valor a enum depois obrigaria a migrar movimentação já gravada. Mesmo
+/// motivo de `permuta_entrada` no estoque, e dos próprios eixos de situação e
+/// dono, criados na fase 1.
+///
+/// `confinamento` (fase 3, docs/superpowers/specs/2026-08-31-confinamento-fase-3-do-modulo-30.md)
+/// é o confinamento PRÓPRIO do produtor. `boitel` já existia e continua
+/// separado: são dois tipos de `ConfinementSite.type`, mas a estadia em si já
+/// discriminava por dono/local antes de a tabela existir, e manter os dois
+/// valores evita reclassificar toda estadia de boitel já gravada.
 enum HerdStayType {
   pasto_terceiro
   boitel
   evento
   terceiro_na_fazenda
   desaparecimento
+  confinamento
 }
 
 /// Como o terceiro cobra pela estadia. É informação do acordo, gravada e
@@ -221,6 +234,11 @@ enum RelatedModule {
   servico
   maquinas
   geral
+  /// Fase 3 do Módulo 30 (confinamento). Valor próprio, e não `rebanho`
+  /// reaproveitado: o custo do lote confinado (§13, §24 da spec) precisa ser
+  /// somável separado do resto do rebanho, e reaproveitar `rebanho` misturaria
+  /// as duas somas.
+  confinamento
 }
 
 enum FinancialEntryStatus {
@@ -345,6 +363,7 @@ model Tenant {
   push_subscriptions   PushSubscription[]
   herd_movements       HerdMovement[]
   herd_stays           HerdStay[]
+  confinement_sites    ConfinementSite[]
   subscription         Subscription?
 }
 
@@ -388,19 +407,19 @@ model User {
   active               Boolean  @default(true)
   must_change_password Boolean  @default(false)
 
-  tenant             Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  whatsapp_contacts  WhatsAppContact[]
-  password_resets    PasswordResetCode[]
-  agent_flows        AgentFlowState[]
-  refresh_tokens     RefreshToken[]
-  herd_movements     HerdMovement[]
-  herd_stays         HerdStay[]
-  negotiations          Negotiation[] @relation("NegotiationRecordedBy")
-  negotiations_canceled Negotiation[] @relation("NegotiationCanceledBy")
-  stock_movements       StockMovement[] @relation("StockRecordedBy")
-  push_subscriptions PushSubscription[]
-  financial_entries_created FinancialEntry[] @relation("FinancialEntryCreatedBy")
-  financial_entries_updated FinancialEntry[] @relation("FinancialEntryUpdatedBy")
+  tenant                    Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  whatsapp_contacts         WhatsAppContact[]
+  password_resets           PasswordResetCode[]
+  agent_flows               AgentFlowState[]
+  refresh_tokens            RefreshToken[]
+  herd_movements            HerdMovement[]
+  herd_stays                HerdStay[]
+  negotiations              Negotiation[]       @relation("NegotiationRecordedBy")
+  negotiations_canceled     Negotiation[]       @relation("NegotiationCanceledBy")
+  stock_movements           StockMovement[]     @relation("StockRecordedBy")
+  push_subscriptions        PushSubscription[]
+  financial_entries_created FinancialEntry[]    @relation("FinancialEntryCreatedBy")
+  financial_entries_updated FinancialEntry[]    @relation("FinancialEntryUpdatedBy")
 
   @@index([tenant_id])
 }
@@ -541,21 +560,25 @@ model Property {
   archived_at   DateTime? // arquivamento (1.1): não deletar, preservar histórico
   created_at    DateTime  @default(now())
 
-  tenant         Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  animal_batches AnimalBatch[]
-  machines       Machine[]
+  tenant          Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  animal_batches  AnimalBatch[]
+  machines        Machine[]
   stock_movements StockMovement[]
-  plots          Plot[]
-  pastures       Pasture[]
-  negotiations   Negotiation[]
-  movements_from AnimalMovement[] @relation("MovementFromProperty")
-  movements_to   AnimalMovement[] @relation("MovementToProperty")
+  plots           Plot[]
+  pastures        Pasture[]
+  negotiations    Negotiation[]
+  movements_from  AnimalMovement[] @relation("MovementFromProperty")
+  movements_to    AnimalMovement[] @relation("MovementToProperty")
 
   /// Livro-razão do rebanho (Módulo 30). Nomes diferentes dos de cima porque
   /// `AnimalMovement` é o modelo ANTIGO, que continua existindo.
   herd_movements_from HerdMovement[] @relation("HerdMovementFromProperty")
   herd_movements_to   HerdMovement[] @relation("HerdMovementToProperty")
   herd_stays          HerdStay[]
+
+  /// Fase 3 do Módulo 30 (confinamento próprio). `Restrict` no filho, mesmo
+  /// motivo do resto deste modelo: propriedade é arquivada, nunca apagada.
+  confinement_sites ConfinementSite[]
 
   @@index([tenant_id])
 }
@@ -579,11 +602,11 @@ model Property {
 /// do usuário, 2026-08-14): sem migração de dado, e um tenant que apagar todas
 /// não fica travado.
 model ProductCategory {
-  id         String    @id @default(cuid())
-  tenant_id  String
-  name       String
+  id          String    @id @default(cuid())
+  tenant_id   String
+  name        String
   archived_at DateTime?
-  created_at DateTime  @default(now())
+  created_at  DateTime  @default(now())
 
   tenant   Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   products Product[]
@@ -595,23 +618,23 @@ model ProductCategory {
 /// O produto em si (§9.2 e §9.3). É catálogo do tenant, não da fazenda: o
 /// SALDO é que vive por fazenda, na soma das movimentações.
 model Product {
-  id          String  @id @default(cuid())
-  tenant_id   String
-  category_id String
-  name        String
+  id               String    @id @default(cuid())
+  tenant_id        String
+  category_id      String
+  name             String
   /// Constante de código (`src/lib/stock/units.ts`), não tabela: as 11 do
   /// §10.5 são vocabulário fechado, e "saca" precisa significar a mesma coisa
   /// em todo tenant para o saldo ser comparável.
-  unit        String
-  brand       String?
+  unit             String
+  brand            String?
   /// §10.8: quando o saldo atinge este limite, o alerta dispara. Nulo = sem
   /// alerta para este produto.
-  minimum_stock Decimal? @db.Decimal(14, 3)
+  minimum_stock    Decimal?  @db.Decimal(14, 3)
   storage_location String?
-  notes       String?
-  archived_at DateTime?
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  notes            String?
+  archived_at      DateTime?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
 
   tenant    Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   category  ProductCategory @relation(fields: [category_id], references: [id], onDelete: Restrict)
@@ -654,13 +677,20 @@ model StockMovement {
   pasture_id       String?
   purpose          String?
 
-  notes           String?
-  negotiation_id  String?
+  notes               String?
+  negotiation_id      String?
   recorded_by_user_id String?
+
+  /// Fase 3 do Módulo 30 (confinamento, §11 da spec): a "utilização deverá
+  /// ficar vinculada ao confinamento". Aponta para a `HerdStay` que consumiu o
+  /// produto. Opcional: nem toda saída de estoque é alimentação de
+  /// confinamento, e a soma do custo do lote (§13, §24) lê só o que estiver
+  /// ligado, nunca estimativa.
+  stay_id String?
 
   canceled_at     DateTime?
   canceled_reason String?
-  created_at      DateTime @default(now())
+  created_at      DateTime  @default(now())
 
   tenant      Tenant       @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   product     Product      @relation(fields: [product_id], references: [id], onDelete: Restrict)
@@ -668,11 +698,13 @@ model StockMovement {
   pasture     Pasture?     @relation(fields: [pasture_id], references: [id], onDelete: SetNull)
   negotiation Negotiation? @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
   recorded_by User?        @relation("StockRecordedBy", fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
+  stay        HerdStay?    @relation(fields: [stay_id], references: [id], onDelete: SetNull)
 
   @@index([tenant_id])
   @@index([tenant_id, product_id, property_id])
   @@index([product_id])
   @@index([negotiation_id])
+  @@index([stay_id])
   /// Mesmo motivo do índice equivalente em `HerdMovement`: `getStockBalance`
   /// sempre filtra por movimentação não cancelada.
   @@index([tenant_id, canceled_at])
@@ -687,9 +719,9 @@ model Pasture {
   archived_at   DateTime? // "excluir ou desativar um pasto" (doc §5): desativar, nunca deletar
   created_at    DateTime  @default(now())
 
-  tenant   Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  tenant          Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   stock_movements StockMovement[]
-  property Property @relation(fields: [property_id], references: [id], onDelete: Restrict)
+  property        Property        @relation(fields: [property_id], references: [id], onDelete: Restrict)
 
   herd_movements_from HerdMovement[] @relation("HerdMovementFromPasture")
   herd_movements_to   HerdMovement[] @relation("HerdMovementToPasture")
@@ -1089,9 +1121,9 @@ model FinancialEntry {
   ///
   /// Tudo anulável, e sem preencher o que já existe: autor retroativo seria
   /// invenção. O que importa é passar a existir daqui para a frente.
-  updated_at          DateTime? @updatedAt
-  created_by_user_id  String?
-  updated_by_user_id  String?
+  updated_at         DateTime? @updatedAt
+  created_by_user_id String?
+  updated_by_user_id String?
 
   tenant      Tenant       @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   negotiation Negotiation? @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
@@ -1234,8 +1266,8 @@ model Alert {
 
   tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
 
-  @@index([tenant_id])
   @@unique([tenant_id, dedup_key])
+  @@index([tenant_id])
 }
 
 // Módulo 28, 2026-08-04. Ausência de linha = habilitado (opt-out): só existe
@@ -1488,6 +1520,51 @@ model HerdMovement {
   @@index([stay_id])
 }
 
+/// Cadastro do local de confinamento (fase 3 do Módulo 30, §5 e §29 da spec
+/// docs/superpowers/specs/2026-08-31-confinamento-fase-3-do-modulo-30.md).
+///
+/// Existe porque o boitel (fase 2) guardava local só como texto livre na
+/// própria `HerdStay`, e o §25 da spec pede "quantos lotes ativos por local"
+/// e o §2 pede "quantos em próprio, quantos em Boitel": as duas perguntas
+/// exigem uma linha que sobrevive a mais de uma estadia, não texto repetido.
+///
+/// Nasce SEM obrigar nada: `HerdStay.confinement_site_id` continua opcional,
+/// e as estadias de boitel já gravadas antes desta tabela continuam válidas
+/// com o campo nulo. O `counterparty_name` que elas já têm continua sendo a
+/// resposta de "onde".
+enum ConfinementSiteType {
+  proprio
+  boitel
+}
+
+model ConfinementSite {
+  id        String              @id @default(cuid())
+  tenant_id String
+  name      String
+  type      ConfinementSiteType
+
+  /// Fazenda relacionada, quando `type` é `proprio`. Opcional porque um site
+  /// `boitel` não é uma fazenda do tenant.
+  property_id String?
+
+  /// Empresa ou proprietário, quando `type` é `boitel`. Opcional pelo motivo
+  /// espelhado: um site `proprio` não tem contraparte.
+  counterparty_name String?
+  city              String?
+  capacity          Int?
+  notes             String?
+
+  archived_at DateTime?
+  created_at  DateTime  @default(now())
+
+  tenant   Tenant     @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  property Property?  @relation(fields: [property_id], references: [id], onDelete: Restrict)
+  stays    HerdStay[]
+
+  @@index([tenant_id])
+  @@index([property_id])
+}
+
 /// Uma ESTADIA: as cabeças estão fora do normal, temporariamente, e isso
 /// termina. Fase 2 do Módulo 30, ver
 /// docs/superpowers/specs/2026-08-27-modulo-30-fase-2-design.md.
@@ -1536,6 +1613,12 @@ model HerdStay {
 
   recorded_by_user_id String?
 
+  /// Fase 3 (confinamento). Aponta para o `ConfinementSite` cadastrado.
+  /// Opcional e sem migração de dado: as estadias de boitel já gravadas antes
+  /// desta tabela continuam válidas com o campo nulo, e o `counterparty_name`
+  /// que elas já têm continua sendo a resposta de "onde".
+  confinement_site_id String?
+
   /// Cancelar não apaga, como em todo o resto do projeto.
   canceled_at         DateTime?
   canceled_reason     String?
@@ -1543,15 +1626,18 @@ model HerdStay {
 
   created_at DateTime @default(now())
 
-  tenant      Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  property    Property       @relation(fields: [property_id], references: [id], onDelete: Restrict)
-  recorded_by User?          @relation(fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
-  negotiation Negotiation?   @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
-  movements   HerdMovement[]
+  tenant           Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  property         Property         @relation(fields: [property_id], references: [id], onDelete: Restrict)
+  recorded_by      User?            @relation(fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
+  negotiation      Negotiation?     @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
+  confinement_site ConfinementSite? @relation(fields: [confinement_site_id], references: [id], onDelete: SetNull)
+  movements        HerdMovement[]
+  stock_movements  StockMovement[]
 
   @@index([tenant_id, type])
   @@index([tenant_id, started_at])
   @@index([negotiation_id])
+  @@index([confinement_site_id])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1650,8 +1736,8 @@ model Negotiation {
 
   /// §17.9: cancelar recalcula tudo. Como o saldo é sempre soma, cancelar aqui
   /// é cancelar os filhos, e a linha permanece no histórico (§17.10).
-  canceled_at     DateTime?
-  canceled_reason String?
+  canceled_at         DateTime?
+  canceled_reason     String?
   /// §17.10 pede "usuário responsável" no histórico. Sem esta coluna, o evento
   /// que mais importa auditar (desfazer um negócio, que mexe em rebanho E
   /// dinheiro) era o único sem autor.
@@ -1659,19 +1745,19 @@ model Negotiation {
 
   created_at DateTime @default(now())
 
-  tenant      Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  property    Property         @relation(fields: [property_id], references: [id], onDelete: Cascade)
-  contact     Contact?         @relation(fields: [contact_id], references: [id], onDelete: SetNull)
-  recorded_by User?            @relation("NegotiationRecordedBy", fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
+  tenant            Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  property          Property         @relation(fields: [property_id], references: [id], onDelete: Cascade)
+  contact           Contact?         @relation(fields: [contact_id], references: [id], onDelete: SetNull)
+  recorded_by       User?            @relation("NegotiationRecordedBy", fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
   /// §17.10: sem a relação, o campo do usuário responsável podia apontar para
   /// um id que não existe mais, e o nome de quem cancelou não era consultável.
-  canceled_by User?            @relation("NegotiationCanceledBy", fields: [canceled_by_user_id], references: [id], onDelete: SetNull)
-  movements   HerdMovement[]
-  stock_movements StockMovement[]
-  entries     FinancialEntry[]
-  herd_stays  HerdStay[]
-  machines_acquired Machine[] @relation("MachineAcquired")
-  machines_disposed Machine[] @relation("MachineDisposed")
+  canceled_by       User?            @relation("NegotiationCanceledBy", fields: [canceled_by_user_id], references: [id], onDelete: SetNull)
+  movements         HerdMovement[]
+  stock_movements   StockMovement[]
+  entries           FinancialEntry[]
+  herd_stays        HerdStay[]
+  machines_acquired Machine[]        @relation("MachineAcquired")
+  machines_disposed Machine[]        @relation("MachineDisposed")
 
   @@index([tenant_id])
   @@index([tenant_id, occurred_at])
