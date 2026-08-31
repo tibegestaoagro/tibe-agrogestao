@@ -12,6 +12,30 @@ paths:
 
 - Sucesso: `{ data, meta }`. Erro: `{ error: { code, message } }`. Helpers em
   `src/lib/api.ts` (`apiOk`, `apiError`, `ApiErrors`).
+- **A recusa do Zod sai por `apiErroDeZod(parsed.error)`**, nunca à mão:
+
+  ```ts
+  const parsed = createSchema.safeParse(body.json);
+  if (!parsed.success) return apiErroDeZod(parsed.error);
+  ```
+
+  Até 2026-08-31 as 71 rotas faziam
+  `apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422)`, com dois
+  defeitos numa linha: o texto era o default do Zod, **em inglês** (quem
+  cadastrava máquina com custo negativo lia "Too small: expected number to be
+  >=0"), e o `field` não atravessava, então a recusa caía no rodapé do painel
+  em vez de embaixo do campo. Nada disso aparecia em teste: as suítes leem
+  `code`, não a frase. A **trava 12** do `npm run check` impede a volta.
+
+  A tradução é um mapa global (`src/lib/erros-de-zod.ts`, instalado no topo de
+  `api.ts`), e a precedência do Zod resolve o caso difícil: **mensagem escrita
+  no schema vence**, e o mapa só responde quando o autor não escreveu nada.
+  Escrever a mensagem no schema continua sendo o melhor caminho quando a regra
+  é específica.
+
+- **`fail()` tem um 4º parâmetro, `field`, e ele é a diferença entre a recusa
+  aparecer no campo ou no rodapé.** Toda recusa que pertence a um campo precisa
+  dele: `fail("DUPLICATE_EMAIL", "...", 409, "email")`. O nome é o da API.
 - Rotas de negócio (`/api/v1/*`) autenticam por **sessão**: use o guard
   padrão:
 

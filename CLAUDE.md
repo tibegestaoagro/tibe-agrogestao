@@ -73,9 +73,16 @@ CONVERSA, nunca deduzida de uma anterior. `permissions.defaultMode` está em
 `"auto"` no escopo de usuário desde 2026-08-18, e foi testado: **os hooks
 continuam bloqueando nesse modo**.
 
-`npm run check` completa o quadro sem banco: caminho citado que não existe, rota
-que não existe mais, `npm run` inexistente, travessão novo, e os dois índices
-parciais que o `migrate diff` tenta derrubar.
+`npm run check` completa o quadro sem banco, em **12 conferências**: caminho
+citado que não existe, rota que não existe mais, `npm run` inexistente,
+travessão novo, os dois índices parciais que o `migrate diff` tenta derrubar,
+contraste de par de token, `<input type="number">` novo, cor crua do Tailwind,
+rótulo de movimentação do rebanho, recusa do servidor engolida, painel de
+escrita fora do kit, e recusa do Zod devolvida crua.
+
+As de 8 a 12 andam por **linha de base que só encolhe** (`scripts/baseline-*.json`):
+o que já existia fica listado, e o que nasce novo é reprovado. É o padrão de
+catraca deste projeto: nunca mutirão, sempre catraca.
 
 **O CI (`.github/workflows/ci.yml`) roda em todo push**, e é o que faz uma
 edição feita à mão, no editor, passar pelas mesmas conferências que os hooks
@@ -155,9 +162,14 @@ qualquer action e ela chega junto. Se precisa dela sem abrir nada, leia
 | 0 a 6 | Setup, Rebanho/Lavoura, Prestador, Agente WhatsApp, Financeiro, Painel/Cobrança/Site, Painel da Plataforma | em produção |
 | 17, 19 | Agenda com custo; cadastro público verificado | em produção |
 | 26 a 29 | Máquinas, Meu Dia, Ajustes financeiros, Minha Fazenda | em produção |
-| 30 | Rebanho como livro-razão | fase 1 completa, em produção |
-| 31 | Negociações: missão 1 (gado) e missão 2 (estoque) | em produção |
-| 31 | Missões 3 (leilão e eventos) e 4 (permuta) | não iniciadas |
+| 30 | Rebanho como livro-razão | fases 1 e 2 completas, em produção |
+| 31 | Negociações: as **quatro** missões (gado, estoque, leilão/evento, permuta) | em produção, **módulo fechado** |
+| - | Identidade e sistema de design: as cinco frentes | em produção desde 2026-08-31 |
+
+⚠️ **O agente do WhatsApp ainda NÃO emite as intenções das missões 3 e 4**
+(`registrar_remessa_evento`, `encerrar_remessa_evento`, `registrar_permuta`).
+Os handlers existem e são testados; o classificador do n8n está congelado por
+decisão do usuário até o sistema estar revisado.
 
 Specs em `docs/specs/`. O detalhe de estado e as pendências vivas ficam no
 handoff, não aqui.
@@ -183,6 +195,21 @@ aparece no `package.json`. Cloudflare R2 segue no PRD mas nunca foi necessário.
   na `main`). **Repo:** `tibegestaoagro/tibe-agrogestao`, privado.
 - **Banco de produção:** Neon. **Dev local:** Postgres 17 em Docker, container
   `tibe-pg`, porta `55432` (`docker start tibe-pg`).
+
+⚠️ **O Docker Desktop cai sozinho neste ambiente**, e o sintoma é
+`DatabaseNotReachable` numa tela que funcionava. Suba
+(`Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"`), espere
+com `until docker ps > /dev/null 2>&1; do sleep 5; done`, e reinicie os dois
+containers. O `next dev` também morre quando um `npm run build` roda em
+paralelo: confira a porta antes de culpar o código.
+
+⚠️ **`npm run seed:demo` precisa conhecer TODA tabela que referencia
+`Property`.** `wipeDemoData` ficou sem `HerdMovement`, `HerdStay`,
+`StockMovement` e `Negotiation` quando os Módulos 30 e 31 chegaram, e as quatro
+apontam para `Property` com `onDelete: Restrict` (deliberado: "saíram 20 da
+Fazenda A" perde o sentido se a origem sumir). O seed morria em chave
+estrangeira, e `test:herd` passou a falhar por falta de fixture. Corrigido em
+2026-08-31; **tabela nova que referencie `Property` entra naquela lista**.
 
 ⚠️ **O `.env` aponta para o Neon de PRODUÇÃO.** Antes de rodar migração, seed ou
 teste local, passe a URL do Docker inline, sem editar o `.env`:
@@ -265,12 +292,58 @@ passando. Ainda assim, **os defeitos mais graves só apareceram em uso real**:
 - o middleware **não bloqueava nada** por sessão de tenant havia meses;
 - no estoque, **"não, deixa pra lá" gravava a compra recusada**, porque o
   classificador do n8n não remonta os parâmetros literalmente, e cinco rodadas
-  de juiz com a suíte verde não pegaram isso.
+  de juiz com a suíte verde não pegaram isso;
+- as **71 rotas devolviam a recusa do Zod em inglês** e sem dizer o campo, então
+  quem cadastrava máquina com custo negativo lia "Too small: expected number to
+  be >=0" no rodapé do painel (2026-08-31);
+- uma **pílula invisível**: o alias `tibe.light` virou o próprio fundo da
+  página, e o gate de contraste aprovava, porque o texto continuava legível.
 
 Nenhum é erro de cálculo: são erros de **integração com o mundo**. Antes de
-reportar um módulo como concluído, valide no navegador real
-(`browser-harness`), no aparelho, ou pelo banco de provas (`npm run wa`, que
-conversa com o agente de produção e lê a resposta por programa).
+reportar um módulo como concluído, valide no navegador real, no aparelho, ou
+pelo banco de provas (`npm run wa`, que conversa com o agente de produção e lê
+a resposta por programa).
+
+**A ordem que funciona:** quebre a trava de propósito, rode a suíte, e **abra a
+tela**. Em três frentes seguidas os piores defeitos só apareceram na terceira
+etapa. Reservar tempo para ela é parte da estimativa, não sobra.
+
+⚠️ **Trava só vale depois de você a ver FALHAR.** Uma trava nova nasceu com uma
+regex que aceitava a palavra `toast` solta, e a palavra aparece no `import`:
+todo arquivo que apenas importava passava. Provar nos dois sentidos é regra.
+Pelo mesmo motivo, **teste que passa antes E depois da correção não prova
+nada**: o caso que discrimina costuma ser o da ponta que FALTA.
+
+### Como validar tela autenticada, sem digitar senha
+
+Dois scripts, os dois travados por `exigirBancoLocal()`:
+
+```
+npx tsx scripts/_sessao-local.ts     # emite o cookie de sessao do owner do seed
+npx tsx scripts/_cenario-onda2.ts    # monta cenarios de recusa no banco de dev
+```
+
+O primeiro assina o cookie do NextAuth com o segredo que o próprio app usa,
+como o `signIn` faria depois de conferir o bcrypt: ponha o valor em
+`document.cookie` no `next dev` e a sessão vale. Existe porque o outro caminho
+seria digitar senha no formulário, e **este agente não digita senha em campo
+nenhum, em ambiente nenhum**.
+
+⚠️ **Sessão via `next start` + cookie jar continua não funcionando** (o Edge
+Middleware não a reconhece nesse setup). Use `next dev` + navegador real.
+
+### Confirmar deploy
+
+`/docs/api` é público e lista as rotas reais: se a rota nova aparece lá, o
+commit subiu. **Mas isso só serve para frente que cria rota.** Numa frente só
+de interface, a impressão digital é um token do `globals.css`, lido no
+navegador com `getComputedStyle(document.documentElement)`.
+
+⚠️ **Não sonde produção em laço com `curl`.** 28 chamadas em poucos minutos
+dispararam a proteção anti-bot da Vercel (`X-Vercel-Mitigated: challenge`), e
+todas as rotas públicas passaram a devolver `403` para o cliente. Não era
+queda, navegador real resolve sozinho, e a mitigação **não é para ser
+contornada**. Confirmar deploy é verificação de navegador.
 
 ## Comandos
 

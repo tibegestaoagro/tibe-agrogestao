@@ -25,13 +25,24 @@ Se ele passar de umas 200, arquive antes de acrescentar.
 ## Estado atual
 
 - Atualizado em: 2026-08-31.
-- **A frente 5 (rollout do design system) está PRONTA na branch
-  `frente-5-design-system`, e ainda NÃO foi mesclada.** Nove commits, do
-  `5ec2c79` ao `4d5d7ff` mais o de fechamento. **Esta frente não tem migração:
-  nenhuma mudança de schema.** Falta autorização para merge, push e deploy.
-- **As cinco frentes estão fechadas.** Com esta, o painel do tenant inteiro
-  fala por token semântico e todo formulário de escrita nasce no kit
-  (`FormSheet` + `Field` + `useErrosDeFormulario`).
+- **AS CINCO FRENTES ESTÃO FECHADAS, MESCLADAS E NO AR.** A frente 5 (rollout
+  do design system) foi mesclada em `bd5c88b` e empurrada
+  (`143b0c2..bd5c88b`, 18 commits, 164 arquivos). Ela **não teve migração**:
+  nenhuma mudança de schema. A branch `frente-5-design-system` foi apagada
+  depois de conferido que não sobrava commit nem diferença de arquivo.
+- **Deploy confirmado em produção**, e a confirmação exigiu técnica nova: a
+  frente 5 **não criou rota nenhuma**, então `/docs/api` não servia de
+  impressão digital. O que provou foi o token `--sobreposicao`, que não existia
+  em `143b0c2` e hoje é servido por produção. **Para uma frente só de
+  interface, a impressão digital é um token de `globals.css`, lido no navegador
+  com `getComputedStyle(document.documentElement)`.**
+- ⚠️ **Não sonde produção em laço com `curl`.** 28 chamadas em poucos minutos
+  dispararam a proteção anti-bot da Vercel: todas as rotas públicas passaram a
+  devolver `403` com `X-Vercel-Mitigated: challenge`. Não era queda, e
+  navegador real resolve o desafio sozinho, mas o susto é caro e a mitigação
+  não é para ser contornada. Confirmar deploy é verificação de navegador.
+- **O painel do tenant inteiro fala por token semântico** e todo formulário de
+  escrita nasce no kit (`FormSheet` + `Field` + `useErrosDeFormulario`).
 - **Linhas de base, que só encolhem:** cor crua **125 → 52**; painel fora do
   kit **25 → 3**, sendo os três exceção permanente documentada
   (`postpone-button`, `user-row-actions`, `subscribe-form`). O que restou de
@@ -128,32 +139,56 @@ que é colaboradora, as páginas de regra devolvem 404.
 
 ### Próximo passo
 
-**Autorizar merge, push e deploy da `frente-5-design-system`.** Sem migração:
-o invariante 3 não se aplica desta vez. Depois do deploy, conferir por
-`/docs/api`, que é público, como nas frentes anteriores.
+**Não há trabalho de código autorizado em aberto.** As cinco frentes fecharam
+e estão em produção. O que existe é uma escolha do usuário entre três coisas
+que ele mesmo separou:
 
-Com as cinco frentes fechadas, o que fica em aberto é o que o usuário já
-separou: o **app mobile** e o **classificador do n8n**, os dois congelados até
-o sistema estar revisado. Próximo número livre de suíte: `m50`.
+1. **O app mobile**, congelado desde o início desta sequência. Nunca foi
+   testado em aparelho de verdade (`dividas.md` §1.1 e §1.2).
+2. **O classificador do n8n**, congelado pelo mesmo motivo: só volta a ser
+   mexido com o sistema revisado, para não retrabalhar a cada mudança. Os
+   handlers de WhatsApp das missões 3 e 4 existem e são testados, mas o agente
+   **ainda não emite** `registrar_remessa_evento`, `encerrar_remessa_evento`
+   nem `registrar_permuta`.
+3. **Site público, auth e plataforma sem token semântico** (`dividas.md` §2.5,
+   52 arquivos). É a frente que falta para o modo escuro ser possível no app
+   inteiro, e não só no painel.
 
-⚠️ **Cinco decisões da frente 5 que valem para quem mexer nisso:**
+Próximo número livre de suíte: `m50`.
 
-1. **`text-white` não tem tradução única.** No botão destrutivo é
-   `text-superficie`, o par que o gate confere; sobre fundo escuro é
-   `text-texto-invertido`. O mesmo vale para `bg-white/10`: na casca escura do
-   menu ele é `bg-texto-invertido/10`, nunca `bg-superficie/10`, que inverte
-   no modo escuro e apaga o realce.
-2. **O alias depreciado `tibe.light` é o fundo do painel.** `bg-tibe-light`
-   sobre a página fica invisível. Ver `dividas.md` §2.5.
-3. **A trava 11 (painel no kit) tem três exceções permanentes**, e elas estão
-   comentadas no `check-repo.ts`. Não as divida sem ler o porquê.
-4. **A trava 10 (recusa tratada) olha o ARQUIVO, não a função.** Um arquivo que
-   trata a recusa do painel passa mesmo tendo um botão que a engole: foi assim
-   nos dois `category-manager`, corrigidos em 31/08.
-5. **`z.config({ customError })` respeita a mensagem escrita no schema.** A
-   precedência é: mensagem do schema > mapa > default do Zod. O locale `pt`
-   embutido foi testado e recusado: diz "Muito pequeno: esperado que number
-   fosse >=0", que é português de compilador.
+⚠️ **Duas branches locais mescladas continuam no disco** (`modulo-31-leilao`,
+`modulo-31-permuta`), e há treze branches antigas no `origin`. Limpeza de
+higiene, nunca feita, que precisa de autorização como qualquer coisa que mexe
+no remoto.
+
+### O que estas cinco frentes ensinaram
+
+**O método foi para o `CLAUDE.md`** (seção "Validação ao vivo"), porque é lá
+que ele carrega em toda sessão: a ordem quebrar-trava → suíte → abrir a tela;
+por que trava só vale depois de vista falhar; e por que teste que passa antes
+E depois da correção não prova nada. **O detalhe de interface foi para
+`.claude/rules/ui.md`**, que chega sozinho ao abrir qualquer arquivo de
+`src/components/`, e o do contrato de erro para `.claude/rules/api.md`.
+
+O que fica aqui é só o que não cabe em regra, porque é história desta rodada:
+
+- **A trava 10 lê o ARQUIVO, não a função.** Os dois `category-manager`
+  passavam tratando a recusa do painel enquanto o botão de ativar/desativar a
+  engolia em silêncio. Quando desenhar trava nova, decida de propósito qual é
+  a unidade que ela mede.
+- **A trava 11 tem três exceções permanentes**, comentadas no `check-repo.ts`
+  (`postpone-button`, `user-row-actions`, `subscribe-form`). Não as divida sem
+  ler o porquê: as duas primeiras são controle inline em linha de tabela, e a
+  terceira é pagamento, onde o QR do PIX precisa ficar na tela.
+- **Fixture crua de rebanho precisa de `to_situation` e `to_owner`.**
+  `getPositions` agrupa por (categoria, propriedade, situação, dono), e a venda
+  procura o gado presente e próprio. Sem os dois campos o saldo fica invisível,
+  e a tela parece errada quando quem errou foi a fixture.
+- **A linha de base parou em 52, e o plano previa 32.** Não é trabalho
+  esquecido: o plano contou os componentes de plataforma e de site público
+  junto com os do painel. Ver `dividas.md` §2.5, que tem a tabela por
+  categoria. Quando um plano e a realidade divergirem em número, escreva a
+  conta: no mês que vem ninguém lembra.
 
 O relato completo das **frentes 1, 3 e 4** foi para
 [historico/2026-08.md](historico/2026-08.md) em 31/08: as tres estao em
