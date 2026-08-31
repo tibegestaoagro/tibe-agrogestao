@@ -43,6 +43,20 @@ export type ConfinamentoPendente = {
   aguardando: CampoConfinamento;
   /** Qual das quatro conversas está aberta. */
   gesto: GestoConfinamento;
+  /**
+   * O valor que a PRÓPRIA pergunta sugeriu, quando ela sugeriu algum
+   * ("Você tem 40 em Pasto da Baixada. Registro por lá?").
+   *
+   * Existe porque sem ele um "sim" a essa pergunta jogava a conversa fora: o
+   * handler via `aguardando: "pasto"` em vez de `"confirmacao"` e respondia
+   * "Não tenho nenhuma entrada esperando confirmação", perdendo a categoria e
+   * a quantidade que o produtor já tinha dado.
+   *
+   * É o nome do pasto, não o id, porque é assim que `resolverPasto` resolve:
+   * aceitar a sugestão é preencher `parameters.pasto` e seguir pelo mesmo
+   * caminho de quem digitou o nome.
+   */
+  sugestao_pasto?: string | null;
   salvo_em?: number;
 };
 

@@ -7,6 +7,7 @@ import {
   encerramentosPermitidos,
   permiteEncerramento,
 } from "@/lib/herd/stay-rules";
+import type { HandlerCtx } from "@/lib/actions/whatsapp-handlers/shared";
 
 exigirBancoLocal();
 
@@ -114,6 +115,21 @@ async function comBanco() {
   const db = prismaForTenant(tenant.id);
 
   const soma = (posicoes: { quantity: number }[]) => posicoes.reduce((s, p) => s + p.quantity, 0);
+
+  // A pendência do WhatsApp é guardada por (tenant, usuário) no Redis, e o
+  // `HerdStay` grava `recorded_by_user_id` com chave estrangeira: o id
+  // precisa ser de um usuário de verdade, não uma string inventada.
+  const usuarioDoTeste = (
+    await prisma.user.create({
+      data: {
+        tenant_id: tenant.id,
+        name: "Produtor M51",
+        email: `m51-${stamp}@teste.local`,
+        password_hash: "x",
+        role: "OWNER",
+      },
+    })
+  ).id;
 
   try {
     const fazenda = await db.property.create({ data: scoped({ name: "Fazenda M51" }) });
@@ -694,6 +710,127 @@ async function comBanco() {
         charge_value: 300,
       });
       check("e `por_dia`, a outra forma nova, também abre", porDia.ok, porDia.ok ? "" : `${porDia.code}`);
+    }
+
+    console.log("\n15. Os handlers do WhatsApp: o 'sim' que aceita a sugestão, e o boitel que existe");
+    {
+      // Os quatro handlers do Confinamento nasceram no T08 sem suíte nenhuma,
+      // enquanto os irmãos (`herd`, `negociacao`, `permuta`, `estoque`) têm as
+      // suas desde sempre. Estas asserções cobrem os dois defeitos de conversa,
+      // não o fluxo inteiro.
+      const { registrarEntradaConfinamento, registrarAlimentacaoConfinamento } = await import(
+        "@/lib/actions/whatsapp-handlers/confinamento"
+      );
+      const { clearPendingConfinement, loadPendingConfinement } = await import(
+        "@/lib/actions/confinamento-pending"
+      );
+
+      const ctx = (
+        parameters: Record<string, unknown>,
+        opts: { confirmed?: boolean } = {},
+      ): HandlerCtx => ({
+        db,
+        tenant_id: tenant.id,
+        role: "OWNER",
+        activeProfiles: ["fazenda"],
+        parameters,
+        confirmed: opts.confirmed ?? false,
+        explicitNo: false,
+        user_id: usuarioDoTeste,
+      });
+
+      await clearPendingConfinement(tenant.id, usuarioDoTeste);
+
+      // Cenário próprio, isolado: a esta altura já existem duas fazendas e
+      // três confinamentos no tenant, e o handler perguntaria "em qual?" antes
+      // de chegar na pergunta do pasto, que é o que esta seção testa.
+      const fazendaWa = await db.property.create({ data: scoped({ name: "Fazenda Zap M51" }) });
+      const pastoWa = await db.pasture.create({
+        data: scoped({ property_id: fazendaWa.id, name: "Pasto Zap", area_hectares: 12 }),
+      });
+      const saldoWa = await recordMovement(db, {
+        movement_type: "saldo_inicial",
+        quantity: 50,
+        to: {
+          category_id: "macho_25_36",
+          property_id: fazendaWa.id,
+          pasture_id: pastoWa.id,
+          situation: "presente",
+          owner: "proprio",
+        },
+      });
+      check("o saldo do cenário isolado nasce", saldoWa.ok, saldoWa.ok ? "" : saldoWa.code);
+      const siteWa = await createConfinementSite(db, {
+        name: "Confinamento Zap",
+        type: "proprio",
+        property_id: fazendaWa.id,
+      });
+      check("cenário isolado do WhatsApp montado", siteWa.ok, siteWa.ok ? "" : siteWa.code);
+
+      const pedido = {
+        categoria: "macho_25_36",
+        quantidade: 4,
+        fazenda: "Zap M51",
+        confinamento: "Confinamento Zap",
+      };
+
+      // O saldo desta categoria vive em `Pasto Zap`, e o produtor não cita
+      // pasto: é o cenário do §7, o mesmo que fazia o agente dizer que ele
+      // tem zero animais.
+      const pergunta = await registrarEntradaConfinamento(ctx(pedido));
+      check(
+        "sem citar pasto, o agente diz onde o saldo está e pergunta",
+        pergunta.reply_text.includes("Registro por lá?"),
+        pergunta.reply_text.slice(0, 90),
+      );
+
+      const guardado = await loadPendingConfinement(tenant.id, usuarioDoTeste);
+      check(
+        "e guarda a SUGESTÃO junto do pedido, não só a pergunta",
+        guardado?.sugestao_pasto === pastoWa.name,
+        `${guardado?.aguardando}/${guardado?.sugestao_pasto ?? "nenhuma"}`,
+      );
+
+      // O defeito: "sim" caía no ramo de confirmação, via `aguardando: "pasto"`
+      // em vez de `"confirmacao"`, e respondia "Não tenho nenhuma entrada
+      // esperando confirmação", perdendo categoria e quantidade.
+      const confinadosAntes = soma(await getPositions(db, { owner: "proprio", situation: "confinamento" }));
+      const sim = await registrarEntradaConfinamento(ctx({}, { confirmed: true }));
+      check(
+        "e o 'sim' NÃO responde que não há nada esperando confirmação",
+        !sim.reply_text.includes("Não tenho nenhuma entrada esperando confirmação"),
+        sim.reply_text.slice(0, 90),
+      );
+      // "Registro por lá?" já É o pedido de registrar, então o "sim" grava:
+      // não há segunda confirmação, e os dados vêm do pendente, nunca do que
+      // o classificador remontou.
+      check(
+        "o 'sim' aceita a sugestão e grava as 4 cabeças, com categoria e quantidade preservadas",
+        soma(await getPositions(db, { owner: "proprio", situation: "confinamento" })) ===
+          confinadosAntes + 4,
+        sim.reply_text.slice(0, 90),
+      );
+      const noPasto = await db.herdMovement.findFirst({
+        where: { movement_type: "envio_confinamento", from_pasture_id: pastoWa.id },
+      });
+      check(
+        "e sai do pasto que a pergunta sugeriu, não de 'sem pasto informado'",
+        noPasto != null && noPasto.quantity === 4,
+        noPasto ? String(noPasto.quantity) : "nenhum movimento saindo do Pasto Zap",
+      );
+
+      // O outro defeito: alimentar lote de boitel era negado com uma frase
+      // falsa, porque o handler filtrava `type: "confinamento"`.
+      await clearPendingConfinement(tenant.id, usuarioDoTeste);
+      const alimentar = await registrarAlimentacaoConfinamento(
+        ctx({ produto: "produto que não existe", quantidade: 5 }),
+      );
+      check(
+        "e alimentar não responde mais que não existe lote aberto",
+        !alimentar.reply_text.includes("Você não tem lote em confinamento aberto agora"),
+        alimentar.reply_text.slice(0, 90),
+      );
+      await clearPendingConfinement(tenant.id, usuarioDoTeste);
     }
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });

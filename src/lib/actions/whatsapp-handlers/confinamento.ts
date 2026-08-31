@@ -173,6 +173,17 @@ function fabricarEntrada(siteType: ConfinementSiteType, intent: string, gesto: G
       }
       if (pendente?.gesto === gesto && pendente.aguardando === "confirmacao") {
         parameters = pendente.parameters;
+      } else if (pendente?.gesto === gesto && pendente.sugestao_pasto) {
+        /**
+         * "Sim" a uma pergunta que SUGERIU algo ("Você tem 40 em Pasto da
+         * Baixada. Registro por lá?") é aceitar a sugestão, não um "sim"
+         * solto. Sem este ramo, a resposta caía no `else` abaixo e o produtor
+         * ouvia "Não tenho nenhuma entrada esperando confirmação", perdendo a
+         * categoria e a quantidade que já tinha dado. O "sim" continua valendo
+         * só para o que foi MOSTRADO: o valor vem do pendente, nunca do que o
+         * classificador remontou.
+         */
+        parameters = { ...pendente.parameters, pasto: pendente.sugestao_pasto };
       } else {
         return ask(
           "Não tenho nenhuma entrada esperando confirmação. Me conte de novo o que você colocou no confinamento.",
@@ -180,12 +191,25 @@ function fabricarEntrada(siteType: ConfinementSiteType, intent: string, gesto: G
       }
     } else if (pendente?.gesto === gesto && pendente.aguardando !== "confirmacao") {
       const juntos = aplicarRespostaConfinamento(pendente, parametrosDaMensagem);
-      if (juntos) parameters = juntos;
+      if (juntos) {
+        parameters = juntos;
+      } else if (Object.keys(parametrosDaMensagem).length === 0) {
+        // A mensagem não respondeu o que foi perguntado E não trouxe nada
+        // novo: não é assunto novo, é uma resposta que o classificador não
+        // soube mapear. Descartar o pendente aqui apagava categoria e
+        // quantidade e recomeçava a conversa do zero.
+        parameters = pendente.parameters;
+      }
     }
 
-    const guardar = async (aguardando: CampoConfinamento) => {
+    const guardar = async (aguardando: CampoConfinamento, sugestao_pasto?: string | null) => {
       if (temMemoria) {
-        await savePendingConfinement(tenant_id, user_id!, { parameters, aguardando, gesto });
+        await savePendingConfinement(tenant_id, user_id!, {
+          parameters,
+          aguardando,
+          gesto,
+          sugestao_pasto,
+        });
       }
     };
 
@@ -238,7 +262,11 @@ function fabricarEntrada(siteType: ConfinementSiteType, intent: string, gesto: G
      */
     const ondeEsta = await conferirOndeEstaOSaldo(db, categoria.categoria, fazenda.id, pastoOrigem.id, quantidade);
     if (ondeEsta) {
-      await guardar("pasto");
+      // Quando o saldo está num pasto só, a pergunta termina em "Registro por
+      // lá?", e o nome desse pasto vai junto no pendente: é o que faz o "sim"
+      // seguinte ser aceitar a sugestão em vez de perder a conversa.
+      const sugerido = ondeEsta.auxiliary_data?.sugerir_pasto_nome;
+      await guardar("pasto", typeof sugerido === "string" ? sugerido : null);
       return ondeEsta;
     }
 
@@ -379,9 +407,17 @@ export const registrarAlimentacaoConfinamento: Handler = async ({
     return ask(`${recusa} ${quantosOuQuantas(produto.unit)} exatamente?`);
   }
 
-  const lotes = await listConfinementLots(db, { type: "confinamento", apenas_abertas: true });
+  /**
+   * Sem filtro de `type`: lote em boitel também é alimentado. Enquanto o
+   * filtro estava aqui, o produtor com um único lote no Boitel Boa Engorda
+   * ouvia "Você não tem lote em confinamento aberto agora", que é falso do
+   * ponto de vista dele, e a tela `/confinamento` discordava do agente,
+   * porque ela oferece "Alimentar" em todo lote. `recordConfinementFeeding`
+   * nunca restringiu por tipo: a recusa era só do handler.
+   */
+  const lotes = await listConfinementLots(db, { apenas_abertas: true });
   if (lotes.length === 0) {
-    return ask("Você não tem lote em confinamento aberto agora.");
+    return ask("Você não tem lote de confinamento aberto agora, nem próprio nem em boitel.");
   }
   const nomeDoLote = str(parameters.confinamento) ?? str(parameters.local);
   const candidatos = nomeDoLote
@@ -395,14 +431,16 @@ export const registrarAlimentacaoConfinamento: Handler = async ({
   if (candidatos.length > 1) {
     await guardar("confinamento");
     const nomes = candidatos.map((l) => `- ${l.location_name ?? "sem nome"} (${l.quantity} animais)`).join("\n");
-    return ask(`Você tem mais de um lote em confinamento. Qual deles?\n${nomes}`);
+    return ask(`Você tem mais de um lote aberto. Qual deles?\n${nomes}`);
   }
   const lote = candidatos[0];
 
   if (!confirmed) {
     await guardar("confirmacao");
     return {
-      reply_text: `Deseja registrar a utilização de ${descreverQuantidade(quantidade, produto.unit)} de ${produto.name} no confinamento?`,
+      // O lote é nomeado na pergunta porque agora ele pode ser de boitel, e
+      // "no confinamento" seria vago para quem tem um de cada.
+      reply_text: `Deseja registrar a utilização de ${descreverQuantidade(quantidade, produto.unit)} de ${produto.name} em ${lote.location_name ?? "confinamento"}?`,
       requires_confirmation: true,
       auxiliary_data: { produto: produto.id, quantidade, stay_id: lote.id },
       report_url: null,

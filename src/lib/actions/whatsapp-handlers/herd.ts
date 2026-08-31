@@ -237,7 +237,21 @@ export async function conferirOndeEstaOSaldo(
     const unico = ondeEstao[0];
     return ask(
       `${abertura}\nVocê tem ${unico.quantidade} em ${unico.lugar}. Registro por lá?`,
-      { categoria: categoria.id, sugerir_pasture_id: comSaldo[0].pasture_id },
+      {
+        categoria: categoria.id,
+        sugerir_pasture_id: comSaldo[0].pasture_id,
+        /**
+         * O NOME do pasto, e não só o id, porque é por nome que
+         * `resolverPasto` resolve: quem guarda a pendência põe este valor em
+         * `parameters.pasto` quando o produtor responde "sim", e o resto do
+         * fluxo segue sem caminho especial nenhum.
+         *
+         * Fica `null` quando o saldo está "sem pasto informado": aí não há
+         * nome para resolver, e sugerir a frase literal faria `resolverPasto`
+         * procurar um pasto chamado "sem pasto informado".
+         */
+        sugerir_pasto_nome: comSaldo[0].pasture_id ? unico.lugar : null,
+      },
     );
   }
 
