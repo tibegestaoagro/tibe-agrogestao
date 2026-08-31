@@ -44,6 +44,10 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [trava só vale depois de vista falhar](trava-so-vale-depois-de-voce-a-ver-falhar.md) | licao | prove nos dois sentidos |
 | [teste que passa antes E depois](teste-que-passa-antes-e-depois-da-correcao-nao-prova-nada.md) | licao | o caso que discrimina é o da ponta que falta |
 | [fixture de rebanho precisa de situação e dono](fixture-de-rebanho-precisa-de-situacao-e-dono.md) | armadilha | `getPositions` agrupa por quatro campos |
+| [o portão mede a relação que lhe deram](portao-mede-a-relacao-que-lhe-deram.md) | licao | três incidentes, o mesmo defeito de categoria |
+| [a suíte cega cobra o que o briefing esqueceu](suite-cega-cobra-mais-do-que-o-briefing-mandou.md) | licao | divergência entre duas leituras do contrato |
+| [contrato incompleto diverge entre agentes paralelos](contrato-incompleto-diverge-entre-agentes-paralelos.md) | licao | o que uma cabeça só resolve sozinha, duas não |
+| [agente com modelo não padrão pode não registrar](agente-com-modelo-nao-padrao-pode-nao-registrar.md) | armadilha | e não se substitui o juiz pela sessão |
 
 ⚠️ **`[[wikilink]]` para nota que não existe reprova o `npm run check`**
 (conferência 13). É o que impede esta pasta de virar um cemitério de links
