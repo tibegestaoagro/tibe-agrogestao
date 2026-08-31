@@ -775,6 +775,294 @@ function conferirCofreDeConhecimento() {
   );
 }
 
+// ------------------------------------- 14. elemento que some dentro do pai
+/**
+ * 14. Elemento cujo fundo repete o do container que o envolve, no MESMO
+ * arquivo `.tsx`.
+ *
+ * Duas mordidas do mesmo defeito: uma pilula `bg-tibe-light` sobre a pagina
+ * (o alias aponta para `--superficie-afundada`, o proprio fundo do painel) em
+ * 31/08, e dois `<code className="bg-atencao-suave">` dentro de um
+ * `<div className="bg-atencao-suave">`, achados por julgamento independente,
+ * nao por conferencia nenhuma. O `check-contraste.ts` nunca pegaria isso: ele
+ * compara PAR (texto, fundo), e aqui falta o par fundo-contra-fundo do
+ * proprio container. Ver
+ * docs/conhecimento/pilula-invisivel-o-portao-compara-token-nao-uso.md e
+ * docs/conhecimento/portao-mede-a-relacao-que-lhe-deram.md.
+ *
+ * UNIDADE que esta trava mede: o ARQUIVO `.tsx`, com o aninhamento
+ * reconstruido por um scanner de tags feito a mao (nao ha parser de JSX
+ * aqui). Compara o token de fundo de um elemento contra o token do
+ * ANCESTRAL MAIS PROXIMO que TAMBEM declara um fundo, pulando envoltorios
+ * transparentes: e o que de fato fica atras do elemento na tela, nao
+ * necessariamente o pai imediato.
+ *
+ * Onde ela erra, de proposito, para o lado do falso negativo:
+ *  - So le `className="..."` ou `className='...'` LITERAL. `cn(...)`, crase
+ *    com `${}`, ternario fora de string: invisiveis para esta conferencia.
+ *  - Ignora `bg-` com variante (`hover:bg-x`, `sm:bg-x`, `focus:bg-x`, etc):
+ *    aquilo nao e o fundo em repouso, e cobrar isso acusaria hover legitimo
+ *    como se fosse o elemento sumindo o tempo todo.
+ *  - Nao atravessa fronteira de componente: um `<Card className="bg-x">`
+ *    cujo `Card` pinta OUTRO fundo por baixo, em outro arquivo, fica fora.
+ *  - Nao enxerga borda nem sombra: um elemento com o MESMO token do
+ *    container mas com borda visivel entre os dois nao é, de fato, invisivel,
+ *    e esta trava acusaria do mesmo jeito. Nao ha ocorrencia assim hoje (a
+ *    varredura no repositorio real da zero), mas e a categoria de falso
+ *    positivo que se essa trava vai cometer se o padrao aparecer.
+ *  - O scanner e regex/estado, nao AST: um generico de seta em `.tsx`
+ *    (`<T,>(x: T) => x`) pode ser lido como abertura de tag e desalinhar a
+ *    pilha de aninhamento dali em diante. Checado: zero ocorrencias hoje.
+ *
+ * Os alias depreciados contam como o mesmo token: `bg-tibe-light` E
+ * `--superficie-afundada`, `bg-tibe-dark` E `--superficie-invertida`, e os
+ * demais do bloco `tibe` em `tailwind.config.ts`.
+ */
+const ALIAS_TIBE: Record<string, string> = {
+  "tibe-primary": "primaria",
+  "tibe-dark": "superficie-invertida",
+  "tibe-darkest": "sobre-primaria",
+  "tibe-light": "superficie-afundada",
+  "tibe-accent": "acento",
+  "tibe-accentDark": "acento-hover",
+  "tibe-accentLight": "acento-suave",
+};
+
+const RE_NOME_TAG = /^[A-Za-z][\w.]*/;
+const RE_CLASSNAME_LITERAL = /className\s*=\s*(["'])([\s\S]*?)\1/;
+const RE_CLASSNAME_QUALQUER = /className\s*=/;
+// `bg-x` so conta se NAO vier precedido de `:` (variante: `hover:bg-x`,
+// `sm:bg-x`, `dark:bg-x`...), porque aquele fundo so aparece condicionalmente,
+// nunca em repouso.
+const RE_BG = /(^|\s)bg-([A-Za-z][A-Za-z0-9-]*)((?:\/\d+)?)(?=\s|$)/;
+
+/** Assinatura do fundo declarado num `className` literal, ou `null`. */
+function sigDeClassName(literal: string): string | null {
+  const m = RE_BG.exec(literal);
+  if (!m) return null;
+  const token = ALIAS_TIBE[m[2]] ?? m[2];
+  return token + (m[3] ?? "");
+}
+
+/**
+ * Le o fundo de uma tag a partir dos seus atributos crus, em TRES estados,
+ * nao dois. Confundir os dois ultimos foi o bug que gerou um falso positivo
+ * real (ver o comentario grande acima): um cartao com `className={\`...\`}`
+ * (crase, dinamico) tem fundo OPACO de verdade, mas esta conferencia nao
+ * consegue LER qual; tratar isso como "transparente" deixa a busca subir a
+ * pilha e casar com um ancestral distante que nunca fica visivel de verdade.
+ *
+ *  - `sig` preenchido: fundo conhecido, estatico.
+ *  - `sig: null, dinamico: false`: sem `className`, ou `className` estatico
+ *    sem `bg-`. Comprovadamente transparente: a busca pode atravessar.
+ *  - `sig: null, dinamico: true`: tem `className`, mas nao literal
+ *    (`{...}`, crase, `cn(...)`). Fundo desconhecido, PODE ser opaco: a busca
+ *    para aqui, sem concluir nada, a favor do falso negativo.
+ */
+function fundoDaTag(attrs: string): { sig: string | null; dinamico: boolean } {
+  const literal = RE_CLASSNAME_LITERAL.exec(attrs);
+  if (literal) return { sig: sigDeClassName(literal[2]), dinamico: false };
+  const temClassName = RE_CLASSNAME_QUALQUER.test(attrs);
+  return { sig: null, dinamico: temClassName };
+}
+
+type EventoTag = {
+  tipo: "abre" | "fecha" | "auto";
+  nome: string;
+  sig: string | null;
+  dinamico: boolean;
+  linha: number;
+};
+
+/**
+ * Acha o `>` que fecha a tag a partir de `inicio` (logo apos o nome),
+ * pulando conteudo dentro de `{ }` e de aspas, para um `disabled={x > 0}`
+ * nao ser confundido com o fim da tag.
+ */
+function proximoFechamentoDeTag(
+  texto: string,
+  inicio: number,
+): { fim: number; selfClose: boolean } {
+  let i = inicio;
+  let chaves = 0;
+  let aspas: string | null = null;
+  while (i < texto.length) {
+    const c = texto[i];
+    if (aspas) {
+      if (c === "\\") {
+        i += 2;
+        continue;
+      }
+      if (c === aspas) aspas = null;
+      i++;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") {
+      aspas = c;
+      i++;
+      continue;
+    }
+    if (c === "{") {
+      chaves++;
+      i++;
+      continue;
+    }
+    if (c === "}") {
+      chaves = Math.max(0, chaves - 1);
+      i++;
+      continue;
+    }
+    if (c === ">" && chaves === 0) {
+      let j = i - 1;
+      while (j > inicio && /\s/.test(texto[j])) j--;
+      return { fim: i, selfClose: texto[j] === "/" };
+    }
+    i++;
+  }
+  return { fim: texto.length, selfClose: false };
+}
+
+/** Varre o arquivo e devolve a sequencia de aberturas/fechamentos de tag. */
+export function varrerTags(texto: string): EventoTag[] {
+  const eventos: EventoTag[] = [];
+  let linha = 1;
+  let i = 0;
+  const n = texto.length;
+  while (i < n) {
+    const c = texto[i];
+    if (c === "\n") {
+      linha++;
+      i++;
+      continue;
+    }
+    if (c !== "<") {
+      i++;
+      continue;
+    }
+    const anterior = i > 0 ? texto[i - 1] : "";
+    const isClosing = texto[i + 1] === "/";
+    // `Array<string>`, `useState<Foo>()`: generico de TS, nao tag JSX. So se
+    // aplica a ABERTURA: um fechamento (`</p>`) nunca e generico de TS, e
+    // aparece o tempo todo colado em texto (`Meu Dia</p>`), onde o caractere
+    // anterior ao `<` E de identificador sem ser generico nenhum.
+    if (!isClosing && /[\w$]/.test(anterior)) {
+      i++;
+      continue;
+    }
+    const p = i + (isClosing ? 2 : 1);
+    if (texto[p] === ">") {
+      // Fragmento `<>` ou `</>`.
+      eventos.push({ tipo: isClosing ? "fecha" : "abre", nome: "Fragment", sig: null, dinamico: false, linha });
+      i = p + 1;
+      continue;
+    }
+    const mNome = RE_NOME_TAG.exec(texto.slice(p));
+    if (!mNome) {
+      // `<` que nao abre tag de verdade (comparacao, JSX que este scanner
+      // nao reconhece). Avanca um caractere e segue.
+      i++;
+      continue;
+    }
+    const nome = mNome[0];
+    const { fim, selfClose } = proximoFechamentoDeTag(texto, p + nome.length);
+    const attrs = texto.slice(p + nome.length, fim);
+    for (let k = i; k < fim; k++) if (texto[k] === "\n") linha++;
+    if (isClosing) {
+      eventos.push({ tipo: "fecha", nome, sig: null, dinamico: false, linha });
+    } else {
+      const { sig, dinamico } = fundoDaTag(attrs);
+      eventos.push({ tipo: selfClose ? "auto" : "abre", nome, sig, dinamico, linha });
+    }
+    i = fim + 1;
+  }
+  return eventos;
+}
+
+type Colisao = { nomeFilho: string; nomeAncestral: string; token: string; linha: number };
+
+/**
+ * Passa a pilha sobre a sequencia de eventos: cada elemento com fundo e
+ * comparado so contra o ANCESTRAL COM FUNDO MAIS PROXIMO (o primeiro achado
+ * subindo a pilha), nunca contra todos os ancestrais, porque um envoltorio
+ * comprovadamente transparente no meio nao muda o que fica visivel atras do
+ * elemento.
+ *
+ * A subida PARA, sem concluir nada, ao encontrar um ancestral `dinamico`
+ * (className nao literal): o fundo dele e desconhecido, pode ser opaco, e
+ * pular por cima dele para casar com um ancestral mais distante ja gerou um
+ * falso positivo real (cartao com `className={\`...\`}` dentro de uma pagina
+ * com o mesmo token: o cartao e opaco na tela, so que esta conferencia nao
+ * consegue ler o fundo dele).
+ */
+function acharColisoesDeFundo(eventos: EventoTag[]): Colisao[] {
+  const pilha: { nome: string; sig: string | null; dinamico: boolean }[] = [];
+  const colisoes: Colisao[] = [];
+  for (const ev of eventos) {
+    if (ev.tipo === "fecha") {
+      pilha.pop();
+      continue;
+    }
+    if (ev.sig) {
+      for (let k = pilha.length - 1; k >= 0; k--) {
+        if (pilha[k].sig) {
+          if (pilha[k].sig === ev.sig) {
+            colisoes.push({
+              nomeFilho: ev.nome,
+              nomeAncestral: pilha[k].nome,
+              token: ev.sig,
+              linha: ev.linha,
+            });
+          }
+          break;
+        }
+        if (pilha[k].dinamico) break;
+      }
+    }
+    if (ev.tipo === "abre") pilha.push({ nome: ev.nome, sig: ev.sig, dinamico: ev.dinamico });
+  }
+  return colisoes;
+}
+
+/**
+ * Apaga o CONTEUDO do comentario, mas preserva toda quebra de linha interna:
+ * um `replace` que sumisse com o `\n` empurraria todo numero de linha
+ * reportado depois do comentario, e esta conferencia cita linha.
+ */
+function removerComentarios(texto: string): string {
+  const semBloco = texto.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "));
+  return semBloco.replace(/^\s*\/\/.*$/gm, (m) => m.replace(/[^\n]/g, " "));
+}
+
+/** Ponto de entrada usado tanto pela conferencia quanto pelo teste da m50. */
+export function acharColisoesEmTexto(texto: string): Colisao[] {
+  return acharColisoesDeFundo(varrerTags(removerComentarios(texto)));
+}
+
+function conferirElementoQueSome() {
+  console.log("\n14. Elemento que repete o fundo do que o contem");
+
+  const ofensores: string[] = [];
+  for (const rel of versionados()) {
+    if (!rel.startsWith("src/") || !rel.endsWith(".tsx")) continue;
+    const full = join(RAIZ, rel);
+    if (!existsSync(full)) continue;
+    const colisoes = acharColisoesEmTexto(readFileSync(full, "utf8"));
+    for (const col of colisoes) {
+      ofensores.push(
+        `${rel}:${col.linha} <${col.nomeFilho}> repete bg-${col.token} de <${col.nomeAncestral}>`,
+      );
+    }
+  }
+
+  check(
+    "nenhum elemento some contra o fundo do container",
+    ofensores.length === 0,
+    ofensores.length > 0
+      ? `use um par de token diferente, ou tire o fundo do de dentro:\n       ${ofensores.slice(0, 12).join("\n       ")}`
+      : undefined,
+  );
+}
+
 function main() {
   console.log("🔎 Conferencia estatica do repositorio (sem banco)");
   conferirCaminhos();
@@ -791,6 +1079,7 @@ function main() {
   conferirPainelNoKit();
   conferirRecusaDeZodCrua();
   conferirCofreDeConhecimento();
+  conferirElementoQueSome();
 
   console.log("");
   if (falhas === 0) console.log("✅ Repositorio consistente: 0 falhas.");

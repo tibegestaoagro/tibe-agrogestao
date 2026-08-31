@@ -73,12 +73,13 @@ CONVERSA, nunca deduzida de uma anterior. `permissions.defaultMode` está em
 `"auto"` no escopo de usuário desde 2026-08-18, e foi testado: **os hooks
 continuam bloqueando nesse modo**.
 
-`npm run check` completa o quadro sem banco, em **12 conferências**: caminho
+`npm run check` completa o quadro sem banco, em **14 conferências**: caminho
 citado que não existe, rota que não existe mais, `npm run` inexistente,
 travessão novo, os dois índices parciais que o `migrate diff` tenta derrubar,
 contraste de par de token, `<input type="number">` novo, cor crua do Tailwind,
 rótulo de movimentação do rebanho, recusa do servidor engolida, painel de
-escrita fora do kit, e recusa do Zod devolvida crua.
+escrita fora do kit, recusa do Zod devolvida crua, cofre de conhecimento com
+link quebrado, e elemento cujo fundo repete o do container que o envolve.
 
 As de 8 a 12 andam por **linha de base que só encolhe** (`scripts/baseline-*.json`):
 o que já existia fica listado, e o que nasce novo é reprovado. É o padrão de
