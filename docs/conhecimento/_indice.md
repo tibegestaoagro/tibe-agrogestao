@@ -54,6 +54,9 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [escrever a lição não impede repeti-la](escrever-a-licao-nao-impede-repeti-la.md) | licao | o mesmo defeito voltou com a nota já escrita |
 | [briefing de suíte cega precisa carregar o contrato](briefing-de-suite-cega-precisa-carregar-o-contrato.md) | licao | sem ele, a cegueira vira adivinhação |
 | [migrate diff lê o .env, e o .env é produção](migrate-diff-le-o-env-e-o-env-e-producao.md) | armadilha | o fluxo documentado engana quando o local está à frente |
+| [campo do ORDEM sem error engole a recusa](campo-no-ordem-sem-error-engole-a-recusa.md) | armadilha | a mensagem nao vai para o rodape: ela morre |
+| [Record<string> e onde o enum cresce sem avisar](record-string-e-onde-o-enum-cresce-sem-avisar.md) | armadilha | cinco mapas ficaram para tras sem o tsc reclamar |
+| [filtro na busca esconde o defeito que o teste procura](filtro-na-busca-esconde-o-defeito-que-o-teste-procura.md) | licao | busque largo, afirme estreito |
 
 ⚠️ **`[[wikilink]]` para nota que não existe reprova o `npm run check`**
 (conferência 13). É o que impede esta pasta de virar um cemitério de links

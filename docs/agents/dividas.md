@@ -259,6 +259,50 @@ estreito e monoespaçado.
 
 ---
 
+### 2.8 Confinamento: dois pedidos do cliente que a spec calou
+
+Achados pelo juiz em 2026-08-31, no rejulgamento da frente. Não são defeito de
+implementação: são **escopo do documento do cliente que a spec estreitou sem
+dizer**, e por isso a tabela "o que falta" dela não os menciona.
+
+**§29, "registrar custos básicos": não existe caminho.** O `financial_cost` do
+lote é `financialEntry.findMany({ where: { related_id: stayId } })`, e a única
+coisa que nasce com `related_id = stay.id` é a cobrança do próprio `openStay`.
+O produtor compra R$ 3.000 de ração e lança em `/financeiro`: o
+`createManualEntryAction` grava `related_module: "geral"` sem `related_id`, e a
+coluna "Custo acumulado" do lote fica em R$ 0,00 para sempre. O §13/§14 lista
+nove tipos de custo que nunca chegam lá, e a decisão 6 da spec promete o
+contrário ("mão de obra, combustível e frete entram se o produtor lançar").
+
+**§17 pede sete destinos de saída, e a tela oferece três.** `stay-rules.ts` tem
+`encerramentos: ["retorno_estadia", "venda", "morte"]` para `confinamento`. O
+documento pede também transferência para outra fazenda, leilão ou feira,
+frigorífico e outro confinamento. Tirar 20 cabeças e mandar para a Fazenda B
+não tem como ser registrado: "Voltaram para o pasto" grava a posição na fazenda
+**de origem**, porque `closeStay` monta o destino com o `property_id` da
+abertura.
+
+⚠️ **Os dois exigem decisão de produto antes de virar tarefa** (como o produtor
+amarra uma despesa ao lote; quais dos sete destinos viram movimento novo no
+livro-razão). Decisão do usuário em 31/08: entram numa onda própria, depois da
+onda de correção, com as perguntas trazidas junto da spec.
+
+### 2.9 O rebanho invisível do cadastro assistido
+
+`whatsapp-flow-bridge.ts` e `POST /api/v1/animals` criam lote em "Não
+classificado", e o saldo do rebanho lê `HerdMovement`: quem cadastra pelo
+assistente **não vê o animal no rebanho**.
+
+Spec pronta em
+`../superpowers/specs/2026-08-31-rebanho-invisivel-do-cadastro-assistido.md`,
+com as duas perguntas em aberto **já respondidas "sim"** pelo usuário. Adiada
+por decisão dele em 31/08, para o Confinamento entrar primeiro sem conflito.
+
+Estava registrada só no `current-handoff.md`, que é volátil por desenho: veio
+para cá em 31/08 para não sumir no próximo arquivamento.
+
+---
+
 ## 3. Rede de segurança com furo
 
 ### 3.1 `scripts/m23-token-auth.test.ts` não compila: RESOLVIDO
