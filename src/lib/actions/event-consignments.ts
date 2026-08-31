@@ -301,6 +301,21 @@ export async function closeEventConsignment(
       const dono = donoDaEstadia("evento");
       const aberto = saldoAberto(movimentos, situacao, dono);
       const informado = vendidos + retornados + outros;
+      /**
+       * Deliberadamente EXATO, e não `informado > aberto` como `closeStay`
+       * passou a aceitar em 31/08 (T05). O comentário daquele encerramento
+       * genérico diz que a decisão vale "para todos os tipos de estadia, não
+       * só confinamento", e isso INCLUI `evento` na tabela de regras
+       * (`stay-rules.ts`), mas essa afirmação está larga demais: aqui, quem
+       * fecha é este encerramento PRÓPRIO da remessa (missão 3 do Módulo 31),
+       * não o genérico, e o documento da missão 3 é explícito nos dois
+       * pontos em que fala nisso (§8, §17.8): "a soma dessas destinações
+       * deverá corresponder à quantidade enviada". `test:m48` prova essa
+       * exigência (caso 4, "17 de 20 é recusado") e está em produção; alinhar
+       * ao `closeStay` quebraria esse caso sem ninguém ter pedido a mudança
+       * de comportamento da remessa de evento. Corrigir a afirmação na fonte
+       * (`herd-stays.ts`) fica para quem tiver esse arquivo no escopo.
+       */
       if (informado !== aberto) {
         throw recusa(
           "DESTINOS_NAO_BATEM",

@@ -5,10 +5,36 @@ import type {
 } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { openStay, saldoAberto, type HerdStayRecord } from "@/lib/actions/herd-stays";
+import { getPositions } from "@/lib/actions/herd-ledger";
 import { situacaoDaEstadia, donoDaEstadia } from "@/lib/herd/stay-rules";
 import { recordStockMovement } from "@/lib/actions/stock-ledger";
 import { decToNum } from "@/lib/serialize";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
+
+/**
+ * Dias de calendário no fuso do produtor (§8: "o produtor não deverá precisar
+ * realizar esse cálculo"). `Math.floor(ms / 86_400_000)` conta MILISSEGUNDOS,
+ * não dias: uma entrada ao meio-dia de 10/08, lida às 08:00 de 25/08, dava 14
+ * em vez de 15, e só virava 15 ao meio-dia. Aqui a data (não o instante) de
+ * cada lado é lida em America/Sao_Paulo (o servidor pode estar em outro fuso;
+ * o produtor não está) e a diferença é de dias de calendário, contada uma vez
+ * só, sem depender da hora do dia.
+ */
+const FUSO_PRODUTOR = "America/Sao_Paulo";
+const formatarDataFuso = new Intl.DateTimeFormat("en-CA", {
+  timeZone: FUSO_PRODUTOR,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function diasDeCalendario(inicio: Date, agora: Date): number {
+  const paraDataUTC = (d: Date) => {
+    const [ano, mes, dia] = formatarDataFuso.format(d).split("-").map(Number);
+    return Date.UTC(ano, mes - 1, dia);
+  };
+  return Math.max(0, Math.floor((paraDataUTC(agora) - paraDataUTC(inicio)) / 86_400_000));
+}
 
 /**
  * Confinamento: fase 3 do Módulo 30. Ver
@@ -169,6 +195,62 @@ export type OpenConfinementStayInput = {
 };
 
 /**
+ * Resolve de qual pasto os animais saem quando o produtor não informa
+ * `pasture_id` (§6: "Pasto de origem" é opcional).
+ *
+ * "Sem pasto informado" precisa significar "de onde houver", não "só de quem
+ * não tem pasto": `openStay` monta a posição de origem com o `pasture_id`
+ * literal que recebe, e `getPositions`/`matchesFilter` (`herd-ledger.ts`)
+ * tratam `null` como filtro estrito. Passar `null` adiante quando o saldo real
+ * está num pasto específico fazia a entrada ser recusada com "0 animais",
+ * mesmo com o rebanho cheio.
+ *
+ * Se o saldo da categoria estiver espalhado em mais de um pasto, a origem é
+ * ambígua e a ação RECUSA dizendo onde está, em vez de escolher por conta
+ * própria: lançar do pasto errado é dado errado gravado em silêncio.
+ */
+async function resolverPastoDeOrigem(
+  db: TenantPrismaClient,
+  params: { property_id: string; category_id: string },
+): Promise<ActionResult<string | null>> {
+  const posicoes = await getPositions(db, {
+    property_id: params.property_id,
+    category_id: params.category_id,
+    situation: "presente",
+    owner: "proprio",
+  });
+  const comSaldo = posicoes.filter((p) => p.quantity > 0);
+
+  if (comSaldo.length === 0) {
+    return fail(
+      "INSUFFICIENT_BALANCE",
+      "Não há animais desta categoria disponíveis nesta fazenda.",
+      422,
+      "quantity",
+    );
+  }
+  if (comSaldo.length === 1) {
+    return ok(comSaldo[0].pasture_id);
+  }
+
+  const idsComNome = comSaldo.map((p) => p.pasture_id).filter((id): id is string => id !== null);
+  const pastos = idsComNome.length
+    ? await db.pasture.findMany({ where: { id: { in: idsComNome } }, select: { id: true, name: true } })
+    : [];
+  const nomePorId = new Map(pastos.map((p) => [p.id, p.name]));
+  const nomes = comSaldo.map((p) =>
+    p.pasture_id ? (nomePorId.get(p.pasture_id) ?? p.pasture_id) : "sem pasto informado",
+  );
+
+  return fail(
+    "ORIGEM_AMBIGUA",
+    `O saldo desta categoria está espalhado em mais de um pasto (${nomes.join(", ")}). Informe de qual pasto os animais saem.`,
+    422,
+    "pasture_id",
+  );
+}
+
+/**
  * Abre uma estadia de confinamento, reusando `openStay` (fase 2): não existe
  * um segundo caminho de estadia, só a validação do site e a derivação do tipo
  * a partir dele (`proprio` -> `confinamento`, `boitel` -> `boitel`), para
@@ -203,12 +285,19 @@ export async function openConfinementStay(
 
   const type: HerdStayType = site.type === "boitel" ? "boitel" : "confinamento";
 
+  let pasture_id = input.pasture_id ?? null;
+  if (pasture_id === null) {
+    const origem = await resolverPastoDeOrigem(db, { property_id, category_id: input.category_id });
+    if (!origem.ok) return origem;
+    pasture_id = origem.data;
+  }
+
   return openStay(db, {
     type,
     property_id,
     category_id: input.category_id,
     quantity: input.quantity,
-    pasture_id: input.pasture_id ?? null,
+    pasture_id,
     counterparty_name: site.type === "boitel" ? site.counterparty_name : null,
     location_name: site.name,
     city: site.city,
@@ -384,10 +473,7 @@ export async function getConfinementLotSummary(
   }
 
   const financial_cost = custos.reduce((soma, c) => soma + (decToNum(c.amount) ?? 0), 0);
-  const days_confined = Math.max(
-    0,
-    Math.floor((Date.now() - stay.started_at.getTime()) / 86_400_000),
-  );
+  const days_confined = diasDeCalendario(stay.started_at, new Date());
 
   return ok({
     id: stay.id,
@@ -457,7 +543,7 @@ export async function listConfinementLots(
     porEstadia.set(m.stay_id, lista);
   }
 
-  const agora = Date.now();
+  const agora = new Date();
   const itens = stays.map((stay) => {
     const aberto = saldoAberto(
       porEstadia.get(stay.id) ?? [],
@@ -471,7 +557,7 @@ export async function listConfinementLots(
       property_id: stay.property_id,
       location_name: stay.location_name,
       started_at: stay.started_at,
-      days_confined: Math.max(0, Math.floor((agora - stay.started_at.getTime()) / 86_400_000)),
+      days_confined: diasDeCalendario(stay.started_at, agora),
       quantity: aberto,
       aberta: aberto > 0 && stay.canceled_at === null,
       canceled_at: stay.canceled_at,

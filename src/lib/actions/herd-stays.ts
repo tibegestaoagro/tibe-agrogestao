@@ -287,12 +287,19 @@ export function estadiaJaEncerrada(
  * pede que "a soma dessas destinações deverá corresponder à quantidade
  * enviada" (só fecharia exigindo o total); o do Confinamento §20 dá o
  * exemplo oposto ("lote de 40, saem 15 para venda, 25 permanecem no lote").
- * Decisão do usuário em 31/08: o do Confinamento vence, para todos os tipos
- * de estadia, não só confinamento. Informar menos que o saldo aberto é
- * aceito, e a estadia segue aberta com o restante; informar mais continua
- * recusado. É o que evita que vender 15 de 40 obrigue fechar o lote e reabrir
- * outro com 25, zerando a contagem de dias do §8 para cabeças que nunca
+ * Decisão do usuário em 31/08: o do Confinamento vence. Informar menos que o
+ * saldo aberto é aceito, e a estadia segue aberta com o restante; informar mais
+ * continua recusado. É o que evita que vender 15 de 40 obrigue fechar o lote e
+ * reabrir outro com 25, zerando a contagem de dias do §8 para cabeças que nunca
  * saíram do curral.
+ *
+ * ⚠️ Vale para os tipos que passam por AQUI, e a remessa de evento não passa.
+ * Ela é encerrada por `closeEventConsignment` (`event-consignments.ts`), que
+ * tem a própria cópia da regra e **continua exigindo soma exata**, de
+ * propósito: lá o encerramento fecha o envelope comercial da negociação, e não
+ * só a posição no rebanho. A versão anterior deste comentário dizia "para todos
+ * os tipos de estadia" e estava larga demais; corrigido no mesmo dia, depois
+ * que um julgamento independente apontou a divergência.
  */
 export async function closeStay(
   db: TenantPrismaClient,
