@@ -52,8 +52,10 @@ Se ele passar de umas 200, arquive antes de acrescentar.
   devolver `403` com `X-Vercel-Mitigated: challenge`. Não era queda, e
   navegador real resolve o desafio sozinho, mas o susto é caro e a mitigação
   não é para ser contornada. Confirmar deploy é verificação de navegador.
-- **O painel do tenant inteiro fala por token semântico** e todo formulário de
-  escrita nasce no kit (`FormSheet` + `Field` + `useErrosDeFormulario`).
+- **O painel do tenant fala por token semântico**, com quatro exceções achadas
+  em 31/08 (`dividas.md` §2.5: `divide-gray` cru, que o portão não enxergava),
+  e todo formulário de escrita nasce no kit (`FormSheet` + `Field` +
+  `useErrosDeFormulario`).
 - **Linhas de base, que só encolhem:** cor crua **125 → 52**; painel fora do
   kit **25 → 3**, sendo os três exceção permanente documentada
   (`postpone-button`, `user-row-actions`, `subscribe-form`). O que restou de

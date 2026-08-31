@@ -134,10 +134,22 @@ código, é de produto, e precisa de conversa antes de virar tarefa.
 
 ### 2.5 Site público, auth e plataforma sem token semântico
 
-A frente 5 cobriu o **painel do tenant**, e ele está inteiro: nenhum arquivo
-de `src/app/(dashboard)/` nem de `src/components/` do painel usa mais a paleta
-crua do Tailwind. Ficaram fora, por decisão do usuário em 2026-08-28, os
-**52 arquivos** que restam na linha de base (`scripts/baseline-cor-crua.json`):
+A frente 5 cobriu o **painel do tenant**, e ele está quase inteiro. Ficaram
+fora, por decisão do usuário em 2026-08-28, os arquivos que restam na linha de
+base (`scripts/baseline-cor-crua.json`):
+
+⚠️ **Corrigido em 2026-08-31: este item afirmava que o painel estava INTEIRO, e
+era falso.** A frase dizia "nenhum arquivo de `src/app/(dashboard)/` usa mais a
+paleta crua". O piloto do time de agentes descobriu por quê: a regex da
+conferência 8 cobria só `(text|bg|border)-`, e **quatro arquivos do painel
+pintam `divide-gray` cru**, invisíveis ao portão. A regex foi estendida e os
+quatro entraram na catraca. São dívida nova, pequena:
+`alert-preference-toggles.tsx`, `configuracoes/assinatura/page.tsx`,
+`dashboard/page.tsx` e `relatorios/page.tsx`.
+
+A conta abaixo é a de **2026-08-28**, quando a base tinha 52. Hoje ela tem
+**34**: saíram os 22 do site público, convertidos em 31/08, e entraram os 4 do
+painel.
 
 | o que | quantos |
 |---|---|
