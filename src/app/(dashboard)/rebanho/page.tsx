@@ -23,6 +23,7 @@ import { getPeriodTotals, getPositions, listMovements } from "@/lib/actions/herd
 import { listStays } from "@/lib/actions/herd-stays";
 import { summarizePositions } from "@/lib/herd/summary";
 import { findCategory } from "@/lib/herd/categories";
+import type { HerdMovementType, HerdStayType } from "@/generated/prisma/enums";
 
 /**
  * Rebanho como livro-razão (Módulo 30, §11 e §12).
@@ -48,7 +49,7 @@ import { findCategory } from "@/lib/herd/categories";
  * 3 ficaram faltando desde que nasceram, e só apareceram na validação ao vivo
  * da missão 4. O `npm run check` passou a reprovar a ausência.
  */
-const TIPO_LABEL: Record<string, string> = {
+const TIPO_LABEL: Record<HerdMovementType, string> = {
   saldo_inicial: "Saldo inicial",
   nascimento: "Nascimento",
   compra: "Compra",
@@ -71,13 +72,22 @@ const TIPO_LABEL: Record<string, string> = {
   permuta_entrada: "Permuta (recebido)",
 };
 
-/** Como cada tipo de estadia aparece para o produtor, na língua dele. */
-const ESTADIA_LABEL: Record<string, string> = {
+/**
+ * Como cada tipo de estadia aparece para o produtor, na língua dele.
+ *
+ * ⚠️ `Record<HerdStayType, string>`, e não `Record<string, string>`: a chave
+ * `confinamento` faltou desde que o enum a ganhou (fase 3, 31/08), e o lote
+ * aparecia escrito `confinamento`, minúsculo e cru, ao lado de "Pasto de
+ * terceiro" e "Boitel". Mesmo defeito de categoria que o `TIPO_LABEL` acima
+ * teve, e pelo mesmo motivo: o `tsc` não tinha como saber.
+ */
+const ESTADIA_LABEL: Record<HerdStayType, string> = {
   pasto_terceiro: "Pasto de terceiro",
   boitel: "Boitel",
   evento: "Leilão ou feira",
   terceiro_na_fazenda: "Animais de terceiro aqui",
   desaparecimento: "Desaparecidos",
+  confinamento: "Confinamento",
 };
 
 function nomeCategoria(id: string | null | undefined) {
@@ -246,8 +256,15 @@ export default async function RebanhoPage(
 
       {estadias.ok && estadias.data.length > 0 && (
         <div className="rounded-lg border border-borda bg-superficie p-4">
+          {/*
+            Era "Fora da fazenda agora", e o título mentia para dois dos seis
+            tipos: `terceiro_na_fazenda` é gado de outro dono DENTRO da nossa
+            fazenda, e `confinamento` próprio nunca saiu dela (só saiu do
+            pasto). O que a lista tem em comum é serem estadias abertas, e é
+            isso que o título passou a dizer.
+          */}
           <h2 className="text-sm font-semibold uppercase tracking-wide text-texto-secundario">
-            Fora da fazenda agora
+            Estadias em aberto
           </h2>
           <ul className="mt-3 divide-y divide-borda">
             {estadias.data.map((estadia) => (

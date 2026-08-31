@@ -16,6 +16,9 @@ import { FormSheet } from "@/components/ui/form-sheet";
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { useAviso } from "@/components/ui/toast";
 import { apiPost } from "@/lib/client-api";
+// Só o TIPO, que some na compilação: nada do runtime do Prisma entra no
+// bundle do cliente por causa desta linha.
+import type { HerdStayType } from "@/generated/prisma/enums";
 
 /**
  * Encerrar uma estadia.
@@ -32,7 +35,15 @@ import { apiPost } from "@/lib/client-api";
 
 type Destino = { movement_type: string; rotulo: string; ajuda?: string };
 
-const DESTINOS_POR_TIPO: Record<string, Destino[]> = {
+/**
+ * ⚠️ `Record<HerdStayType, ...>`, e não `Record<string, ...>`: quando o enum
+ * ganhou `confinamento` (fase 3, 31/08), o mapa ficou sem a chave e nada no
+ * `tsc` reclamou. O painel abria dizendo "Estão na estadia 30 cabeças. Diga
+ * para onde cada uma foi." e não mostrava campo NENHUM; tocar em "Encerrar"
+ * mandava `destinos: []` e o Zod recusava no rodapé. Agora falta de chave é
+ * erro de compilação, como em `src/lib/related-modules.ts`.
+ */
+const DESTINOS_POR_TIPO: Record<HerdStayType, Destino[]> = {
   pasto_terceiro: [
     { movement_type: "retorno_estadia", rotulo: "Voltaram para a fazenda" },
     { movement_type: "venda", rotulo: "Vendidos" },
@@ -45,6 +56,18 @@ const DESTINOS_POR_TIPO: Record<string, Destino[]> = {
   ],
   evento: [
     { movement_type: "retorno_estadia", rotulo: "Voltaram para a fazenda" },
+    { movement_type: "venda", rotulo: "Vendidos" },
+    { movement_type: "morte", rotulo: "Morreram" },
+  ],
+  /**
+   * "Voltaram para o pasto", e não "para a fazenda" como nos três acima: no
+   * confinamento próprio o gado nunca saiu da fazenda, só do pasto. Os três
+   * destinos são os que `stay-rules.ts` aceita para `confinamento`; oferecer
+   * um quarto aqui produziria recusa do servidor depois de o produtor
+   * preencher.
+   */
+  confinamento: [
+    { movement_type: "retorno_estadia", rotulo: "Voltaram para o pasto" },
     { movement_type: "venda", rotulo: "Vendidos" },
     { movement_type: "morte", rotulo: "Morreram" },
   ],
@@ -62,8 +85,6 @@ const DESTINOS_POR_TIPO: Record<string, Destino[]> = {
   ],
 };
 
-const SEM_DESTINOS: Destino[] = [];
-
 type Pasture = { id: string; name: string };
 const SEM_PASTOS: Pasture[] = [];
 
@@ -75,7 +96,7 @@ export default function StayCloseForm({
   pastures,
 }: {
   stayId: string;
-  tipo: string;
+  tipo: HerdStayType;
   saldoAberto: number;
   descricao: string;
   /**
@@ -90,9 +111,9 @@ export default function StayCloseForm({
   const aviso = useAviso();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  // `?? []` criaria um array novo a cada render, e o `useMemo` de baixo
-  // recalcularia sempre. A constante vazia é a mesma referência.
-  const destinos = DESTINOS_POR_TIPO[tipo] ?? SEM_DESTINOS;
+  // Sem `?? SEM_DESTINOS`: o mapa cobre o enum inteiro por tipo, então não
+  // existe mais o caso "tipo sem destino" que abria o painel vazio.
+  const destinos = DESTINOS_POR_TIPO[tipo];
   const pastosDisponiveis = pastures ?? SEM_PASTOS;
   const err = useErrosDeFormulario(
     destinos.map((d) => d.movement_type).concat("quantity", "value", "pasture_id"),

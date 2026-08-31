@@ -555,7 +555,11 @@ function conferirRotulosDeMovimento() {
     join(RAIZ, "src", "app", "(dashboard)", "rebanho", "page.tsx"),
     "utf8",
   );
-  const mapa = pagina.match(/const TIPO_LABEL: Record<string, string> = \{([\s\S]*?)\n\};/);
+  // A chave do Record não é fixada aqui de propósito: ela ERA `string`, e
+  // passou a ser `HerdMovementType` justamente para o `tsc` acusar chave
+  // faltando. Prender a regex à forma antiga faria esta conferência reprovar
+  // a correção que ela mesma pede.
+  const mapa = pagina.match(/const TIPO_LABEL: Record<[^,>]+, string> = \{([\s\S]*?)\n\};/);
   if (!mapa) {
     check("TIPO_LABEL encontrado na tela de Rebanho", false);
     return;
