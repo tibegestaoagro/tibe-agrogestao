@@ -1,9 +1,9 @@
 const METHOD_COLOR: Record<string, string> = {
-  GET: "bg-blue-100 text-blue-700",
-  POST: "bg-tibe-light text-tibe-dark",
+  GET: "bg-info-suave text-info-tinta",
+  POST: "bg-superficie-afundada text-tibe-dark",
   PUT: "bg-purple-100 text-purple-700",
-  PATCH: "bg-amber-100 text-amber-700",
-  DELETE: "bg-red-100 text-red-700",
+  PATCH: "bg-atencao-suave text-atencao-tinta",
+  DELETE: "bg-perigo-suave text-perigo-tinta",
 };
 
 export type Endpoint = {
@@ -17,27 +17,27 @@ export type Endpoint = {
 
 export function EndpointCard({ endpoint }: { endpoint: Endpoint }) {
   return (
-    <div id={endpoint.method + endpoint.path} className="scroll-mt-24 rounded-lg border border-gray-200 p-5">
+    <div id={endpoint.method + endpoint.path} className="scroll-mt-24 rounded-lg border border-borda p-5">
       <div className="flex flex-wrap items-center gap-2">
         <span className={`rounded px-2 py-0.5 font-mono text-xs font-bold ${METHOD_COLOR[endpoint.method]}`}>
           {endpoint.method}
         </span>
-        <code className="text-sm font-medium text-gray-900">{endpoint.path}</code>
+        <code className="text-sm font-medium text-texto">{endpoint.path}</code>
         <span className="ml-auto text-xs text-texto-discreto">{endpoint.auth}</span>
       </div>
-      <p className="mt-2 text-sm text-gray-600">{endpoint.description}</p>
+      <p className="mt-2 text-sm text-texto-secundario">{endpoint.description}</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         {endpoint.request && (
           <div>
             <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-texto-discreto">Request</p>
-            <pre className="overflow-x-auto rounded-md bg-gray-900 p-3 text-xs text-gray-100">
+            <pre className="overflow-x-auto rounded-md bg-codigo-fundo p-3 text-xs text-codigo-texto">
               <code>{endpoint.request}</code>
             </pre>
           </div>
         )}
         <div className={endpoint.request ? "" : "sm:col-span-2"}>
           <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-texto-discreto">Response</p>
-          <pre className="overflow-x-auto rounded-md bg-gray-900 p-3 text-xs text-gray-100">
+          <pre className="overflow-x-auto rounded-md bg-codigo-fundo p-3 text-xs text-codigo-texto">
             <code>{endpoint.response}</code>
           </pre>
         </div>
