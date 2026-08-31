@@ -172,6 +172,7 @@ definições estão em `.claude/agents/`, e cada uma **aponta** para a regra da
 | `prova-suite` | suíte escrita **da spec**, trava, catraca, CI | sonnet |
 | `prova-juiz` | julgamento independente de um range de commits | opus |
 | `prova-viva` | validação contra o mundo: navegador, aparelho, `npm run wa` | sonnet |
+| `n8n-fluxo` | o n8n **fora** do Tibé: workflow, intenção, prompt de nó | sonnet |
 | `explorador` | achar onde está X, quem chama Y | haiku |
 
 O protocolo de despacho em paralelo (campos `Arquivos:` e `Depende-de:`,
