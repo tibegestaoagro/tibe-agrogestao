@@ -173,11 +173,18 @@ enum HerdStayType {
 /// fórmula (mês cheio ou proporcional? conta o dia da saída?), e fórmula
 /// inventada gera dinheiro errado em silêncio, que é o pior modo de falha
 /// deste produto. O valor lançado é o que o produtor digitar.
+///
+/// As seis formas do §15 do documento do cliente estão todas aqui desde
+/// 31/08 (`por_dia` e `por_cabeca_dia` entraram por último). A ausência de
+/// cálculo automático é decisão mantida, não esquecimento: nenhum valor
+/// existente muda de significado com a adição.
 enum HerdChargeType {
   por_cabeca
   por_mes
   por_periodo
   fechado
+  por_dia
+  por_cabeca_dia
 }
 
 // ─────────────────────────────────────────────────────────────
