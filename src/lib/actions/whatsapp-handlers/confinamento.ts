@@ -429,12 +429,10 @@ export const registrarAlimentacaoConfinamento: Handler = async ({
  * (retorno ao pasto, venda direta, morte), lidos pelo que a mensagem trouxer:
  * um valor dito é venda, uma morte dita é morte, e o padrão é retorno.
  *
- * ⚠️ LIMITAÇÃO CONHECIDA: o "para o Pasto da Sede" da frase entra na
- * confirmação e na resposta como TEXTO, mas não é gravado como posição: o
- * retorno de `closeStay` sempre grava `pasture_id: null` (`herd-stays.ts`),
- * para todos os tipos de estadia, não só confinamento. Corrigir isso é mudar
- * a action, fora do escopo desta frente (`herd-stays.ts` não está na lista de
- * arquivos desta tarefa). Fica registrado como pendência no relatório.
+ * O pasto citado no retorno é resolvido (`resolverPasto`, mesma função do
+ * resto do arquivo) e vai como `pasture_id` no destino de `closeStay`. Venda
+ * e morte não têm pasto: `closeStay` grava `to: null` pra elas, e um pasto
+ * ali não teria onde pousar.
  */
 export const encerrarConfinamento: Handler = async ({
   db,
@@ -529,26 +527,46 @@ export const encerrarConfinamento: Handler = async ({
     return ask(`Por quanto os ${quantidade} foram vendidos?`);
   }
 
+  // §18: só o retorno ao pasto grava posição. Resolve o pasto citado do
+  // mesmo jeito que o resto do arquivo (nunca adivinha): sem achar, pergunta.
+  let pasto: { id: string | null; nome: string | null } = { id: null, nome: null };
+  if (movementType === "retorno_estadia" && destino) {
+    const resolvido = await resolverPasto(db, lote.property_id, destino);
+    if (!resolvido.ok) {
+      await guardar("pasto");
+      return resolvido.resposta;
+    }
+    pasto = resolvido;
+  }
+  const nomeDoDestino = pasto.nome ?? destino;
+
   const pergunta =
     movementType === "morte"
       ? `Deseja registrar a morte de ${quantidade} animais no confinamento?`
       : movementType === "venda"
         ? `Deseja registrar a venda de ${quantidade} animais do confinamento por ${reais(valor as number)}?`
-        : `Deseja registrar a saída de ${quantidade} animais do confinamento${destino ? ` para ${destino}` : ""}?`;
+        : `Deseja registrar a saída de ${quantidade} animais do confinamento${nomeDoDestino ? ` para ${nomeDoDestino}` : ""}?`;
 
   if (!confirmed) {
     await guardar("confirmacao");
     return {
       reply_text: pergunta,
       requires_confirmation: true,
-      auxiliary_data: { quantidade, stay_id: lote.id, movement_type: movementType },
+      auxiliary_data: { quantidade, stay_id: lote.id, movement_type: movementType, pasture_id: pasto.id },
       report_url: null,
       action_taken: `${intent}:aguardando_confirmacao`,
     };
   }
 
   const resultado = await closeStay(db, lote.id, {
-    destinos: [{ movement_type: movementType, quantity: quantidade, value: movementType === "venda" ? valor : null }],
+    destinos: [
+      {
+        movement_type: movementType,
+        quantity: quantidade,
+        value: movementType === "venda" ? valor : null,
+        pasture_id: pasto.id,
+      },
+    ],
     recorded_by_user_id: user_id ?? null,
   });
   if (temMemoria) await clearPendingConfinement(tenant_id, user_id!);
@@ -559,7 +577,7 @@ export const encerrarConfinamento: Handler = async ({
       ? `Registrado. ${quantidade} morte(s) no confinamento.`
       : movementType === "venda"
         ? `Registrado. Venda de ${quantidade} animais do confinamento por ${reais(valor as number)}.`
-        : `Registrado. ${quantidade} animais saíram do confinamento${destino ? ` para ${destino}` : ""}.`;
+        : `Registrado. ${quantidade} animais saíram do confinamento${nomeDoDestino ? ` para ${nomeDoDestino}` : ""}.`;
 
   return {
     reply_text: respostaFinal,
