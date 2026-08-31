@@ -40,6 +40,11 @@ export function buildNavItems({
       show: true,
       children: [
         { href: "/rebanho", label: "Rebanho", show: hasFazenda },
+        // Fase 3 do Módulo 30: o confinamento é a mesma contabilidade de
+        // cabeças do Rebanho, só que fora do pasto (§3 do documento do
+        // cliente: "o animal continua pertencendo ao produtor"). Fica ao
+        // lado de Rebanho pelo mesmo motivo que Negociações fica perto dele.
+        { href: "/confinamento", label: "Confinamento", show: hasFazenda },
         // Módulo 31: "Negociações" substitui a nomenclatura "Compra e Venda"
         // (§1), porque as relações comerciais da fazenda não se limitam a
         // comprar e vender. Fica ao lado de Rebanho porque é de lá que sai a
