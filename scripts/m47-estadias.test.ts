@@ -275,18 +275,12 @@ async function comBanco() {
       return r.data;
     };
 
-    console.log("\n11. O encerramento só fecha se a soma bater com o enviado");
+    console.log(
+      "\n11. Passar do saldo é recusado, bater fecha, e ficar abaixo é aceito deixando o resto aberto",
+    );
     {
       const foraAntes = soma(await getPositions(db, { owner: "proprio", situation: "pasto_terceiro" }));
       const estadia = await abrirComVinte();
-      const faltando = await closeStay(db, estadia.id, {
-        destinos: [
-          { movement_type: "venda", quantity: 12 },
-          { movement_type: "retorno_estadia", quantity: 5 },
-        ],
-      });
-      check("17 de 20 é recusado", !faltando.ok && faltando.code === "DESTINOS_NAO_BATEM", faltando.ok ? "passou" : faltando.code);
-      check("apontando a quantidade", !faltando.ok && faltando.field === "quantity");
 
       const demais = await closeStay(db, estadia.id, {
         destinos: [
@@ -294,7 +288,8 @@ async function comBanco() {
           { movement_type: "retorno_estadia", quantity: 9 },
         ],
       });
-      check("21 de 20 também é recusado", !demais.ok && demais.code === "DESTINOS_NAO_BATEM");
+      check("21 de 20 é recusado", !demais.ok && demais.code === "DESTINOS_NAO_BATEM", demais.ok ? "passou" : demais.code);
+      check("apontando a quantidade", !demais.ok && demais.field === "quantity");
 
       const aindaLa = soma(await getPositions(db, { owner: "proprio", situation: "pasto_terceiro" }));
       check(
@@ -303,8 +298,32 @@ async function comBanco() {
         `${aindaLa} onde deveria haver ${foraAntes + 20}`,
       );
 
+      const parcial = await closeStay(db, estadia.id, {
+        destinos: [
+          { movement_type: "venda", quantity: 12 },
+          { movement_type: "retorno_estadia", quantity: 5 },
+        ],
+      });
+      check(
+        "17 de 20 é aceito, e não fecha a estadia",
+        parcial.ok && parcial.data.encerrada === false,
+        parcial.ok ? String(parcial.data.encerrada) : parcial.code,
+      );
+
+      const listaParcial = await listStays(db, {});
+      const abertaParcial = listaParcial.ok ? listaParcial.data.find((e) => e.id === estadia.id) : null;
+      check("o saldo aberto cai para 3", abertaParcial?.saldo_aberto === 3, String(abertaParcial?.saldo_aberto));
+      check("e a estadia continua aberta", abertaParcial?.aberta === true);
+
+      const foraDepois = soma(await getPositions(db, { owner: "proprio", situation: "pasto_terceiro" }));
+      check(
+        "só as 17 saíram do pasto de terceiro, as outras 3 continuam lá",
+        foraDepois === foraAntes + 3,
+        `${foraDepois} onde deveria haver ${foraAntes + 3}`,
+      );
+
       // Limpa para o proximo caso.
-      await closeStay(db, estadia.id, { destinos: [{ movement_type: "retorno_estadia", quantity: 20 }] });
+      await closeStay(db, estadia.id, { destinos: [{ movement_type: "retorno_estadia", quantity: 3 }] });
     }
 
     console.log("\n12. Venda parcial: o exemplo do documento, 12 vendidos e 8 retornados");
@@ -342,21 +361,37 @@ async function comBanco() {
 
     console.log("\n13. Encerramento parcial mantém a estadia aberta com o saldo certo");
     {
+      // O parcial de verdade: fecha uma fração, confere que segue aberta com
+      // o saldo certo, depois fecha o resto numa segunda chamada.
       const estadia = await abrirComVinte();
-      const r = await closeStay(db, estadia.id, {
+
+      const primeira = await closeStay(db, estadia.id, {
+        destinos: [{ movement_type: "retorno_estadia", quantity: 5 }],
+      });
+      check("a primeira etapa (5 de 20) é aceita", primeira.ok, primeira.ok ? "" : primeira.message);
+      check("e não fecha a estadia", primeira.ok && primeira.data.encerrada === false);
+
+      const meioCaminho = await listStays(db, {});
+      const aberta = meioCaminho.ok ? meioCaminho.data.find((e) => e.id === estadia.id) : null;
+      check("o saldo aberto cai para 15", aberta?.saldo_aberto === 15, String(aberta?.saldo_aberto));
+      check("e a estadia segue aberta", aberta?.aberta === true);
+
+      const segunda = await closeStay(db, estadia.id, {
         destinos: [
-          { movement_type: "retorno_estadia", quantity: 8 },
-          { movement_type: "venda", quantity: 12 },
+          { movement_type: "venda", quantity: 10, value: 50000 },
+          { movement_type: "retorno_estadia", quantity: 5 },
         ],
       });
-      check("informar todos os destinos fecha", r.ok);
+      check(
+        "a segunda etapa (o resto, 15) fecha a estadia",
+        segunda.ok && segunda.data.encerrada === true,
+        segunda.ok ? String(segunda.data.encerrada) : segunda.code,
+      );
 
-      // O parcial de verdade: uma segunda remessa, encerrada em duas etapas.
-      const outra = await abrirComVinte();
-      const metade = await closeStay(db, outra.id, {
-        destinos: [{ movement_type: "retorno_estadia", quantity: 20 }],
-      });
-      check("devolver tudo de uma vez também fecha", metade.ok && metade.data.encerrada);
+      const final = await listStays(db, {});
+      const fechada = final.ok ? final.data.find((e) => e.id === estadia.id) : null;
+      check("saldo final zero", fechada?.saldo_aberto === 0, String(fechada?.saldo_aberto));
+      check("e deixa de estar aberta", fechada?.aberta === false);
     }
 
     console.log("\n14. Desaparecido recusa venda, mas aceita os três encerramentos");
