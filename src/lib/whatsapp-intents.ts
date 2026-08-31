@@ -44,6 +44,18 @@ export const INTENTS = [
   // 30 mil". O classificador do n8n ainda NAO emite esta intencao: ela fica
   // roteada e testada, esperando a rodada em que o agente for atualizado.
   "registrar_permuta",
+  // Modulo 30, fase 3 (confinamento, §26): entrada, envio a boitel,
+  // alimentacao e saida. Quatro intencoes, e nao uma so com tipo em
+  // parameters, porque sao quatro MOMENTOS diferentes da mesma conversa
+  // (entrar, mandar a terceiro, alimentar, sair), cada um com seus proprios
+  // campos obrigatorios.
+  //
+  // O classificador do n8n ainda NAO emite estas quatro: elas ficam roteadas
+  // e testadas, esperando a rodada em que o agente for atualizado.
+  "registrar_entrada_confinamento",
+  "registrar_envio_boitel",
+  "registrar_alimentacao_confinamento",
+  "encerrar_confinamento",
   "consultar_cliente",
   "gerar_relatorio",
   "registrar_lancamento_financeiro",
@@ -104,6 +116,12 @@ export const INTENT_ACCESS: Record<
   // pelo mesmo motivo dos outros: o PRD nao define ModuleKey proprio para
   // Negociacoes, e quem pode trocar gado precisa poder ver o resultado.
   registrar_permuta: { module: "rebanho", action: "write", profile: "fazenda" },
+  // Confinamento reusa "rebanho" pelo mesmo motivo dos outros: e a fase 3 do
+  // Modulo 30, nao um modulo novo (ver a decisao 1 da spec de 31/08).
+  registrar_entrada_confinamento: { module: "rebanho", action: "write", profile: "fazenda" },
+  registrar_envio_boitel: { module: "rebanho", action: "write", profile: "fazenda" },
+  registrar_alimentacao_confinamento: { module: "rebanho", action: "write", profile: "fazenda" },
+  encerrar_confinamento: { module: "rebanho", action: "write", profile: "fazenda" },
   consultar_cliente: { module: "prestador", action: "read", profile: "prestador" },
   gerar_relatorio: { module: null, action: "read" }, // módulo varia por parameters.tipo
   registrar_lancamento_financeiro: { module: "financeiro", action: "write" },

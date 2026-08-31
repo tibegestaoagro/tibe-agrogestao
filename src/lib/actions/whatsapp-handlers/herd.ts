@@ -341,8 +341,14 @@ export function nomeDaCategoria(categoria: HerdCategory, quantidade: number): st
   return palavras.map((p, i) => (i < limite ? p.replace(/s$/, "") : p)).join(" ");
 }
 
-/** "hoje" quando for hoje; a data por extenso quando o produtor disser outra. */
-function descreverData(data: Date): string {
+/**
+ * "hoje" quando for hoje; a data por extenso quando o produtor disser outra.
+ *
+ * Exportado para o handler de Confinamento (fase 3 do Módulo 30) usar a MESMA
+ * regra: a entrada em confinamento também confirma com "hoje" ou a data dita,
+ * e duas funções fariam a mesma coisa de dois jeitos.
+ */
+export function descreverData(data: Date): string {
   const hoje = new Date();
   const mesmoDia =
     data.getFullYear() === hoje.getFullYear() &&

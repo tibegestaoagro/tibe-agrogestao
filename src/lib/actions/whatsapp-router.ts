@@ -38,6 +38,12 @@ import {
   encerrarRemessaEvento,
 } from "@/lib/actions/whatsapp-handlers/evento";
 import { registrarPermuta } from "@/lib/actions/whatsapp-handlers/permuta";
+import {
+  registrarEntradaConfinamento,
+  registrarEnvioBoitel,
+  registrarAlimentacaoConfinamento,
+  encerrarConfinamento,
+} from "@/lib/actions/whatsapp-handlers/confinamento";
 import { loadPendingNegotiation } from "@/lib/actions/negotiation-pending";
 import {
   loadPendingStock,
@@ -113,6 +119,10 @@ const HANDLERS: Record<Exclude<Intent, "ambigua">, Handler> = {
   registrar_remessa_evento: registrarRemessaEvento,
   encerrar_remessa_evento: encerrarRemessaEvento,
   registrar_permuta: registrarPermuta,
+  registrar_entrada_confinamento: registrarEntradaConfinamento,
+  registrar_envio_boitel: registrarEnvioBoitel,
+  registrar_alimentacao_confinamento: registrarAlimentacaoConfinamento,
+  encerrar_confinamento: encerrarConfinamento,
   consultar_cliente: consultarCliente,
   gerar_relatorio: gerarRelatorio,
   registrar_lancamento_financeiro: registrarLancamentoFinanceiro,
