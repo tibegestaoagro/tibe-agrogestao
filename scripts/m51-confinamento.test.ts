@@ -38,6 +38,8 @@ exigirBancoLocal();
  *   8. Venda direto do confinamento reduz o rebanho e cria a receita (§19).
  *   9. Morte reduz lote e rebanho (§21).
  *  10. A cobrança NÃO é multiplicada por nada (decisão 3 da spec).
+ *  11. O retorno ao pasto grava o pasto informado (§18, decisão do usuário em
+ *      31/08, T11), e recusa pasto de OUTRA propriedade.
  *
  * Roda: `npm run test:m51`.
  */
@@ -362,6 +364,49 @@ async function comBanco() {
         "e soma separado do resto do rebanho: related_module = confinamento",
         contas[0]?.related_module === "confinamento",
         contas[0]?.related_module,
+      );
+    }
+
+    console.log("\n11. O retorno ao pasto grava o pasto informado, e recusa pasto de outra propriedade (§18)");
+    {
+      // stayA segue aberta (37 confinados, nunca fechada nas seções 2 a 6):
+      // é o teste do §18 ao pé da letra, no tipo que o documento cita.
+      const outraFazenda = await db.property.create({ data: scoped({ name: "Fazenda M51 (outra)" }) });
+      const pastoErrado = await db.pasture.create({
+        data: scoped({ property_id: outraFazenda.id, name: "Pasto de outra fazenda", area_hectares: 5 }),
+      });
+
+      const confinadosAntes = soma(await getPositions(db, { owner: "proprio", situation: "confinamento" }));
+      const noPastoAntes = soma(
+        await getPositions(db, { owner: "proprio", situation: "presente", pasture_id: pasto.id }),
+      );
+
+      // A PONTA QUE FALTA: pasto de OUTRA propriedade precisa ser recusado,
+      // não gravado em silêncio.
+      const errado = await closeStay(db, stayA, {
+        destinos: [{ movement_type: "retorno_estadia", quantity: 5, pasture_id: pastoErrado.id }],
+      });
+      check(
+        "retorno para pasto de OUTRA propriedade é recusado",
+        !errado.ok && errado.code === "INVALID_PASTURE",
+        errado.ok ? "passou" : errado.code,
+      );
+      check(
+        "e nenhuma cabeça se mexe na recusa",
+        soma(await getPositions(db, { owner: "proprio", situation: "confinamento" })) === confinadosAntes,
+      );
+
+      const certo = await closeStay(db, stayA, {
+        destinos: [{ movement_type: "retorno_estadia", quantity: 5, pasture_id: pasto.id }],
+      });
+      check(
+        "retorno para o pasto certo (da mesma propriedade) é aceito",
+        certo.ok,
+        certo.ok ? "" : `${certo.code}: ${certo.message}`,
+      );
+      check(
+        "e as 5 cabeças voltam PARA AQUELE pasto, não para pasto nenhum: o defeito que o §18 aponta",
+        soma(await getPositions(db, { owner: "proprio", situation: "presente", pasture_id: pasto.id })) === noPastoAntes + 5,
       );
     }
   } finally {

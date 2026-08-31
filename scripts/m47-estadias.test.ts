@@ -513,6 +513,63 @@ async function comBanco() {
         r.ok ? "cancelou" : r.code,
       );
     }
+    console.log(
+      "\n18. Ao voltar do pasto de terceiro, o pasto informado é gravado; pasto de outra propriedade é recusado (§18)",
+    );
+    {
+      // Generalização estrita do T10 (31/08): o mecanismo já provado no
+      // confinamento (m51) precisa valer para os outros cinco tipos também,
+      // e continuar aceitando omitir o pasto (grava nulo, como sempre).
+      const outraFazenda = await db.property.create({ data: scoped({ name: "Fazenda M47 (outra)" }) });
+      const pastoErrado = await db.pasture.create({
+        data: scoped({ property_id: outraFazenda.id, name: "Pasto de outra fazenda", area_hectares: 5 }),
+      });
+      const pastoB = await db.pasture.create({
+        data: scoped({ property_id: fazenda.id, name: "Pasto B", area_hectares: 8 }),
+      });
+
+      const estadia = await abrirComVinte();
+
+      const semPastoAntes = soma(
+        await getPositions(db, { owner: "proprio", situation: "presente", pasture_id: null }),
+      );
+      const noPastoBAntes = soma(
+        await getPositions(db, { owner: "proprio", situation: "presente", pasture_id: pastoB.id }),
+      );
+
+      // A PONTA QUE FALTA: pasto de OUTRA propriedade precisa ser recusado,
+      // não gravado em silêncio.
+      const errado = await closeStay(db, estadia.id, {
+        destinos: [{ movement_type: "retorno_estadia", quantity: 5, pasture_id: pastoErrado.id }],
+      });
+      check(
+        "retorno para pasto de OUTRA propriedade é recusado",
+        !errado.ok && errado.code === "INVALID_PASTURE",
+        errado.ok ? "passou" : errado.code,
+      );
+      check(
+        "e nenhuma cabeça se mexe na recusa",
+        soma(await getPositions(db, { owner: "proprio", situation: "presente", pasture_id: pastoB.id })) === noPastoBAntes,
+      );
+
+      const semInformar = await closeStay(db, estadia.id, {
+        destinos: [{ movement_type: "retorno_estadia", quantity: 8 }],
+      });
+      check("sem informar pasto, o encerramento é aceito", semInformar.ok, semInformar.ok ? "" : semInformar.message);
+      check(
+        "e o pasto continua nulo: omitir é generalização estrita, não regressão",
+        soma(await getPositions(db, { owner: "proprio", situation: "presente", pasture_id: null })) === semPastoAntes + 8,
+      );
+
+      const comPasto = await closeStay(db, estadia.id, {
+        destinos: [{ movement_type: "retorno_estadia", quantity: 7, pasture_id: pastoB.id }],
+      });
+      check("com pasto da mesma propriedade, o encerramento é aceito", comPasto.ok, comPasto.ok ? "" : comPasto.message);
+      check(
+        "e as 7 cabeças aparecem NAQUELE pasto, não em nulo",
+        soma(await getPositions(db, { owner: "proprio", situation: "presente", pasture_id: pastoB.id })) === noPastoBAntes + 7,
+      );
+    }
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });
   }
