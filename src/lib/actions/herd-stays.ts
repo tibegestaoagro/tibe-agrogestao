@@ -222,6 +222,14 @@ export type DestinoDeEncerramento = {
   quantity: number;
   /** Só para venda: gera a receita dos vendidos. */
   value?: number | null;
+  /**
+   * Só para `retorno_estadia`: o pasto em que as cabeças voltam a ficar.
+   *
+   * É por destino, e não por chamada, porque um encerramento pode mandar parte
+   * para um pasto e parte para venda. Ausente grava nulo, que era o único
+   * comportamento possível até 31/08.
+   */
+  pasture_id?: string | null;
 };
 
 export type CloseStayInput = {
@@ -364,15 +372,34 @@ export async function closeStay(
       situation: situacao,
       owner: dono,
     };
-    const naFazenda: HerdPositionKey = {
-      category_id,
-      property_id,
-      pasture_id: null,
-      situation: "presente",
-      owner: dono === "terceiro" ? "terceiro" : "proprio",
-    };
-
     for (const destino of destinos) {
+      /**
+       * O pasto de volta é POR DESTINO, e por isso esta posição é montada
+       * dentro do laço.
+       *
+       * Até 31/08 ela ficava fora, com `pasture_id: null` fixo, e o §18 do
+       * documento do Confinamento pede o contrário: "serão vinculados ao pasto
+       * informado". O produtor tirava 10 bois "para o Pasto da Sede", a tela e
+       * o agente confirmavam citando o pasto, e as cabeças voltavam sem pasto
+       * nenhum: ele tinha que transferir depois para onde já havia dito que
+       * tinha colocado. Decisão do usuário em 31/08, e vale para os seis tipos
+       * de estadia, porque este é o mesmo caminho de código para todos.
+       *
+       * Venda e morte ignoram o pasto por construção, não por checagem: elas
+       * não entram em `volta`, então `to` vai nulo e o campo não é lido. E o
+       * pasto de outra propriedade já é recusado por `validatePosition`
+       * (`herd-ledger.ts`), por onde toda posição de destino passa: uma segunda
+       * validação aqui seria a mesma regra em dois lugares, divergindo na
+       * primeira vez que uma delas mudasse.
+       */
+      const naFazenda: HerdPositionKey = {
+        category_id,
+        property_id,
+        pasture_id: destino.pasture_id ?? null,
+        situation: "presente",
+        owner: dono === "terceiro" ? "terceiro" : "proprio",
+      };
+
       const volta = destino.movement_type === "retorno_estadia";
       const movimento = await recordMovementInTx(db, tx, {
         movement_type: destino.movement_type,

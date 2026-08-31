@@ -25,6 +25,7 @@ const closeSchema = z.object({
         movement_type: z.enum(HERD_CLOSE_TYPES),
         quantity: z.number().int().positive("A quantidade deve ser maior que zero"),
         value: z.number().nonnegative().nullish(),
+        pasture_id: z.string().nullish(),
       }),
     )
     .min(1, "Informe ao menos um destino"),
@@ -49,6 +50,7 @@ async function POSTHandler(request: Request, context: { params: Promise<{ id: st
       movement_type: d.movement_type,
       quantity: d.quantity,
       value: d.value ?? null,
+      pasture_id: d.pasture_id ?? null,
     })),
     occurred_at: parsed.data.occurred_at ? new Date(parsed.data.occurred_at) : null,
     recorded_by_user_id: g.user.id,
