@@ -47,6 +47,10 @@ const config: Config = {
           suave: "var(--primaria-suave)",
         },
         "sobre-primaria": "var(--sobre-primaria)",
+        codigo: {
+          fundo: "var(--codigo-fundo)",
+          texto: "var(--codigo-texto)",
+        },
         // `rgb(... / <alpha-value>)` e nao `var(--x)` direto: e o unico token
         // usado com opacidade (`bg-sobreposicao/40`), e sem esta forma o `/40`
         // e ignorado em silencio. Ver o comentario em globals.css.

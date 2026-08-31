@@ -39,6 +39,14 @@
      brilho total. */
   --sobreposicao: 0 0 0;
 
+  /* Bloco de codigo (<pre> de /docs). Par proprio, e nao
+     `--superficie-invertida`: aquele token e o verde da marca (usado na
+     sidebar), e pintar codigo com cor de marca seria decisao de identidade,
+     nao traducao. Valores identicos aos `gray-900`/`gray-100` de hoje, para
+     nenhum pixel mudar. */
+  --codigo-fundo: #111827;
+  --codigo-texto: #f3f4f6;
+
   /* Texto */
   --texto: #111827;
   --texto-secundario: #4b5563;
