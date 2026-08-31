@@ -18,7 +18,14 @@ import {
   type CampoConfinamento,
   type GestoConfinamento,
 } from "@/lib/actions/confinamento-pending";
-import { resolverCategoria, resolverFazenda, resolverPasto, nomeDaCategoria, descreverData } from "./herd";
+import {
+  resolverCategoria,
+  resolverFazenda,
+  resolverPasto,
+  nomeDaCategoria,
+  descreverData,
+  conferirOndeEstaOSaldo,
+} from "./herd";
 import { resolverProduto } from "./estoque";
 import { ask, failReply, str, type Handler, type RouterResult } from "./shared";
 import { lerData, lerDinheiro, lerNumeroBr, interpretarSim } from "./parsers";
@@ -217,6 +224,22 @@ function fabricarEntrada(siteType: ConfinementSiteType, intent: string, gesto: G
     if (!pastoOrigem.ok) {
       await guardar("pasto");
       return pastoOrigem.resposta;
+    }
+
+    /**
+     * §7: conferir ONDE o saldo está antes de perguntar confirmação, mesma
+     * rede que `herd.ts`, `negociacao.ts` e `permuta.ts` já usam.
+     * `openConfinementStay` tira os animais da posição
+     * `(categoria, fazenda, pasto)`: sem citar pasto, essa posição é
+     * `pasto=null`, e quem lançou o rebanho por pasto tinha o saldo todo em
+     * `(categoria, fazenda, pasto=X)`. Sem esta conferência, o produtor com 40
+     * garrotes no Pasto da Baixada ouvia que tinha 0. Não escolhe o pasto
+     * sozinho: quando o saldo está espalhado, pergunta.
+     */
+    const ondeEsta = await conferirOndeEstaOSaldo(db, categoria.categoria, fazenda.id, pastoOrigem.id, quantidade);
+    if (ondeEsta) {
+      await guardar("pasto");
+      return ondeEsta;
     }
 
     const dataLida = lerData(parameters, "data", "date", "occurred_at");

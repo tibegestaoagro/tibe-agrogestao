@@ -7,6 +7,7 @@ import {
   markEntryPaidAction,
 } from "@/lib/actions/financial-entries";
 import { getDre, getCashFlow, getUpcoming } from "@/lib/actions/financial-reports";
+import { RELATED_MODULES } from "@/lib/related-modules";
 import { createLinkedEntry } from "@/lib/financial";
 import { generateAllAlerts } from "@/lib/actions/alerts";
 import { generateFinancialPdf } from "@/lib/reports/generate-financial-pdf";
@@ -98,9 +99,15 @@ async function main() {
     const geralRow = dre.by_module.find((m) => m.module === "geral")!;
     assert(rebanhoRow.total_income === 8000, `DRE rebanho.total_income = 8000 (obtido: ${rebanhoRow.total_income})`);
     assert(geralRow.total_expense === 350, `DRE geral.total_expense = 350 (obtido: ${geralRow.total_expense})`);
+    // O número acompanha o enum `RelatedModule`, e não uma lista à parte: eram
+    // 5 até 31/08, quando `confinamento` entrou (Módulo 30, fase 3). Escrito
+    // assim porque a versão anterior fixava 5 e teria que ser reeditada a cada
+    // módulo novo, e foi justamente uma lista paralela que causou o defeito
+    // daquele dia: a DRE escrevia o bucket do módulo novo e nunca o lia, e o
+    // "Resultado do mês" ficava alto no valor da despesa, sem aviso nenhum.
     assert(
-      dre.by_module.length === 5,
-      "DRE sempre retorna os 5 módulos (mesmo sem movimento; maquinas somado no Módulo 26)",
+      dre.by_module.length === RELATED_MODULES.length,
+      `DRE devolve um bucket por módulo de RelatedModule (esperado ${RELATED_MODULES.length}, obtido ${dre.by_module.length})`,
     );
 
     // ── Fluxo de caixa (regime de caixa: só pago) ────────────────
