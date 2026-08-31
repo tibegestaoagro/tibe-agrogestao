@@ -410,9 +410,41 @@ function conferirCamposNumericos() {
  *
  * A `/plataforma` fica de fora, mesma excecao do `638d0f6`: aquele painel tem
  * casca escura, e la o cinza claro e a escolha certa.
+ *
+ * ⚠️ **Dois furos fechados em 2026-08-31 (T09), achados por dois agentes de
+ * tela que pararam ao esbarrar em cor que a regex nao enxergava:**
+ *
+ * 1. `divide-*` nao entrava no prefixo casado, so `text|bg|border`. Um
+ *    `divide-gray-100` pinta a borda entre linhas de lista/tabela igual a um
+ *    `border-gray-200`, e passava direto. Achadas 7 ocorrencias em 6 arquivos,
+ *    **4 delas em `src/app/(dashboard)/`**: o painel que `dividas.md` §2.5
+ *    declara "inteiro em token semantico" nao estava. Foram para a catraca
+ *    (fora do escopo desta frente, que e o site publico), nao corrigidas aqui.
+ * 2. A lista de cores cobria so 9 das 22 famílias do Tailwind. Faltavam
+ *    neutral, stone, orange, lime, teal, cyan, sky, indigo, violet, purple,
+ *    fuchsia, pink e rose: um badge roxo (`bg-purple-100`) podia viver sem
+ *    nunca ser visto. Medido em 2026-08-31: zero ocorrencias reais no
+ *    repositorio hoje, mas a lacuna era real (foi assim que a `divide` viveu).
+ *
+ * `ring-` entrou pelo mesmo motivo de `divide-`: pinta um contorno visivel
+ * (`focus:ring-gray-900`), e so nao aparece na linha de base porque as 2
+ * ocorrencias encontradas estao em `src/app/plataforma/login/page.tsx`, ja
+ * fora do escopo pelo filtro de `/plataforma`.
+ *
+ * Tambem entraram `from|via|to` (parada de gradiente), `placeholder`, `caret`,
+ * `accent`, `decoration`, `fill` e `stroke`: todos pintam pixel visivel e
+ * escondem cinza cru do mesmo jeito que `text`/`bg`/`border` escondiam. Nenhum
+ * tem ocorrencia hoje fora de `/plataforma`, entao a extensao nao encolheu nem
+ * cresceu a linha de base por si so; e defesa contra o proximo furo, nao
+ * limpeza retroativa.
  */
-const COR_CRUA =
-  /(text|bg|border)-(gray|slate|zinc|red|green|blue|yellow|amber|emerald)-[0-9]{2,3}|\b(bg|text|border)-(white|black)\b/;
+const CORES_TAILWIND =
+  "gray|slate|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose";
+const PREFIXOS_QUE_PINTAM =
+  "text|bg|border|divide|ring|from|via|to|placeholder|caret|accent|decoration|fill|stroke";
+const COR_CRUA = new RegExp(
+  `(${PREFIXOS_QUE_PINTAM})-(${CORES_TAILWIND})-[0-9]{2,3}|\\b(${PREFIXOS_QUE_PINTAM})-(white|black)\\b`,
+);
 
 function conferirCorCrua() {
   console.log("\n8. Cor crua do Tailwind (tokens semanticos)");
