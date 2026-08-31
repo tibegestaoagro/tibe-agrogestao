@@ -8,9 +8,13 @@ import { withApi } from "@/lib/route";
  * POST /api/v1/confinement/stays/:id/feeding   registra alimentação (§10, §11, §12)
  *
  * Produto do catálogo (`product_id`) vira `StockMovement` de `utilizacao`
- * vinculado à estadia, e o saldo do estoque cai. Sem `product_id` (produto
- * fora do catálogo), o pedido é aceito sem tocar em estoque: ver a nota em
- * `recordConfinementFeeding` sobre o que isso NÃO grava hoje.
+ * vinculado à estadia, e o saldo do estoque cai.
+ *
+ * **Sem `product_id` a rota RECUSA** (`PRODUCT_REQUIRED`, 422, campo
+ * `product_id`). Até 31/08 ela aceitava e não gravava nada, e o produtor saía
+ * achando que tinha registrado o trato: o §12 pede que o sistema não obrigue a
+ * registrar cada refeição, não que ele finja ter registrado. Decisão do
+ * usuário: cadastrar o produto é barato, perder o registro não.
  */
 
 const feedingSchema = z.object({

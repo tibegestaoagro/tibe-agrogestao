@@ -231,9 +231,9 @@ export async function openConfinementStay(
 export type ConfinementFeedingInput = {
   stay_id: string;
   quantity: number;
-  /** Produto do catálogo de estoque. Ausente = produto fora do catálogo (§12). */
+  /** Produto do catálogo de estoque. Obrigatório: ver `recordConfinementFeeding`. */
   product_id?: string | null;
-  /** Só usado quando `product_id` está ausente, puramente descritivo. */
+  /** Não usado hoje: `product_id` é obrigatório, então não sobra caso descritivo. Mantido no tipo por compatibilidade de contrato. */
   product_name?: string | null;
   occurred_at?: Date | null;
   notes?: string | null;
@@ -242,7 +242,7 @@ export type ConfinementFeedingInput = {
 
 export type ConfinementFeedingResult = {
   stay_id: string;
-  /** Se caiu saldo de estoque de verdade, ou só foi aceito sem tocar em nada (§12). */
+  /** Sempre `true` hoje: `product_id` é obrigatório, então todo registro cai no estoque. */
   registered_in_stock: boolean;
   stock_movement_id: string | null;
 };
@@ -250,18 +250,17 @@ export type ConfinementFeedingResult = {
 /**
  * Registra o consumo de um produto no confinamento (§10).
  *
- * Quando `product_id` aponta para o catálogo, cria um `StockMovement` de
- * `utilizacao` vinculado à estadia (§11): o saldo cai pelas mesmas regras que
- * já valem para qualquer uso de estoque (inclusive a recusa por saldo
- * insuficiente, que não é relaxada aqui).
+ * Cria um `StockMovement` de `utilizacao` vinculado à estadia (§11): o saldo
+ * cai pelas mesmas regras que já valem para qualquer uso de estoque
+ * (inclusive a recusa por saldo insuficiente, que não é relaxada aqui).
  *
- * Quando o produto NÃO está no catálogo (§12, "o produtor poderá optar por
- * informar apenas consumos maiores"), não existe hoje uma tabela para esse
- * histórico: `StockMovement.product_id` é obrigatório, e o schema desta fase
- * (docs/superpowers/specs/2026-08-31-confinamento-fase-3-do-modulo-30.md §4)
- * só acrescentou `stay_id` a ela, nenhuma tabela nova para consumo livre. O
- * pedido é aceito (não é erro), mas nada fica gravado além da resposta: ver
- * a nota correspondente no relatório desta tarefa.
+ * Sem `product_id` a ação RECUSA, e não é falta de suporte a "consumo fora do
+ * catálogo": até 31/08 o pedido sem produto era aceito sem gravar nada, e o
+ * produtor saía achando que tinha registrado o trato. `StockMovement.product_id`
+ * é obrigatório no schema, e não existe hoje tabela para um histórico de
+ * consumo livre; aceitar em silêncio era o pior modo de falha (o registro
+ * some sem aviso). Decisão do usuário: recusar é mais barato que perder o
+ * dado; cadastrar o produto no estoque primeiro é o caminho.
  */
 export async function recordConfinementFeeding(
   db: TenantPrismaClient,
@@ -283,10 +282,12 @@ export async function recordConfinementFeeding(
   }
 
   if (!input.product_id) {
-    if (!input.product_name?.trim()) {
-      return fail("VALIDATION_ERROR", "Informe o produto utilizado.", 422, "product_id");
-    }
-    return ok({ stay_id: stay.id, registered_in_stock: false, stock_movement_id: null });
+    return fail(
+      "PRODUCT_REQUIRED",
+      "Cadastre o produto no estoque antes de registrar a alimentação.",
+      422,
+      "product_id",
+    );
   }
 
   const movimento = await recordStockMovement(db, {

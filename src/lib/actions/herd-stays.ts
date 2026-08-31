@@ -275,10 +275,16 @@ export function estadiaJaEncerrada(
 /**
  * Encerra uma estadia, total ou parcialmente.
  *
- * A regra que o documento cobra: "a soma dessas destinações deverá
- * corresponder à quantidade enviada". Encerramento parcial NÃO é informar
- * menos que o total: é informar todos os destinos, sendo um deles "seguiram
- * para outro destino". A soma sempre fecha; o que varia é para onde foram.
+ * Dois documentos do cliente se contradiziam aqui: o das estadias (fase 2)
+ * pede que "a soma dessas destinações deverá corresponder à quantidade
+ * enviada" (só fecharia exigindo o total); o do Confinamento §20 dá o
+ * exemplo oposto ("lote de 40, saem 15 para venda, 25 permanecem no lote").
+ * Decisão do usuário em 31/08: o do Confinamento vence, para todos os tipos
+ * de estadia, não só confinamento. Informar menos que o saldo aberto é
+ * aceito, e a estadia segue aberta com o restante; informar mais continua
+ * recusado. É o que evita que vender 15 de 40 obrigue fechar o lote e reabrir
+ * outro com 25, zerando a contagem de dias do §8 para cabeças que nunca
+ * saíram do curral.
  */
 export async function closeStay(
   db: TenantPrismaClient,
@@ -331,10 +337,10 @@ export async function closeStay(
 
     const aberto = saldoAberto(movimentos, situacao, dono);
     const informado = destinos.reduce((s, d) => s + d.quantity, 0);
-    if (informado !== aberto) {
+    if (informado > aberto) {
       throw new EstadiaRecusada(
         "DESTINOS_NAO_BATEM",
-        `A soma dos destinos (${informado}) precisa ser igual ao que está na estadia (${aberto}).`,
+        `A soma dos destinos (${informado}) não pode ser maior que o que está na estadia (${aberto}).`,
         "quantity",
       );
     }
