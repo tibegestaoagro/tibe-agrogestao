@@ -156,10 +156,14 @@ que ele mesmo separou:
 
 Próximo número livre de suíte: `m50`.
 
-⚠️ **Duas branches locais mescladas continuam no disco** (`modulo-31-leilao`,
-`modulo-31-permuta`), e há treze branches antigas no `origin`. Limpeza de
-higiene, nunca feita, que precisa de autorização como qualquer coisa que mexe
-no remoto.
+**Limpeza de branches feita em 2026-08-31.** Apagadas as 2 locais mescladas
+(`modulo-31-leilao`, `modulo-31-permuta`) e 10 remotas já mescladas em `main`
+(`backup/2026-08-18-interface`, `cancelamento-com-janela`, `estoque`,
+`fundacao`, `higiene-instrucoes`, `modulo-31-leilao`, `modulo-31-permuta`,
+`negociacoes`, `observabilidade`, `rebanho-livro-razao`). Ficou só
+`origin/app-mobile-fundacao`, de propósito: tem os 3 commits com 5 defeitos
+corrigidos e nunca retestados (ver Pendências). O `origin` agora só tem `main`
+e essa.
 
 ### O que estas cinco frentes ensinaram
 
