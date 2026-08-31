@@ -25,6 +25,16 @@ Se ele passar de umas 200, arquive antes de acrescentar.
 ## Estado atual
 
 - Atualizado em: 2026-08-31.
+- **O TIME DE AGENTES EXISTE, na branch `time-de-agentes`** (3 commits, fase 1
+  do plano). Cinco agentes em `.claude/agents/` (`tela-pagina`, `tela-kit`,
+  `prova-suite`, `prova-juiz`, `explorador`), a skill `orquestrar-ondas`, o
+  cofre `docs/conhecimento/` com 6 notas e a **conferência 13** (wikilink
+  quebrado reprova, vista falhar nos dois sentidos), a skill `memoria-cofre`,
+  o comando `/lembrar`, e o manual em
+  [como-orquestrar.md](como-orquestrar.md). `check`, `tsc` e `lint` limpos.
+  **Não mesclado, não empurrado.**
+- ⚠️ **Agente novo só aparece depois de reiniciar o Claude Code.** Skill carrega
+  a quente, agente não. A sessão que os criou não consegue despachá-los.
 - **AS CINCO FRENTES ESTÃO FECHADAS, MESCLADAS E NO AR.** A frente 5 (rollout
   do design system) foi mesclada em `bd5c88b` e empurrada
   (`143b0c2..bd5c88b`, 18 commits, 164 arquivos). Ela **não teve migração**:
@@ -139,9 +149,26 @@ que é colaboradora, as páginas de regra devolvem 404.
 
 ### Próximo passo
 
-**Não há trabalho de código autorizado em aberto.** As cinco frentes fecharam
-e estão em produção. O que existe é uma escolha do usuário entre três coisas
-que ele mesmo separou:
+**O piloto do time de agentes, na frente do token semântico** (`dividas.md`
+§2.5, os 52 arquivos de `baseline-cor-crua.json`). É a fase 2 do plano, e a
+estreia real do processo: ondas com `Arquivos:` e `Depende-de:`, suíte escrita
+da spec em paralelo, e o `prova-juiz` no fim sobre o range inteiro.
+
+**Antes de começar, reinicie a sessão**, senão os agentes não carregam.
+
+Escolhido como piloto porque o aceite é mecânico (a catraca cai de 52), os
+arquivos se separam sozinhos em conjuntos disjuntos, não há schema nem
+migração, e há uma armadilha conhecida à espreita para o juiz achar: o
+`bg-tibe-light` invisível, que o portão de contraste aprova para sempre porque
+compara pares de token e nunca o uso.
+
+⚠️ **O piloto estreia Tela e Prova, não Servidor.** O Servidor estreia na
+rodada seguinte, no defeito ativo do rebanho (lote nasce em "Não classificado"
+e o saldo lê `HerdMovement`, então quem cadastra pelo assistente não vê o
+animal). Falta escrever `servidor-acao`, `servidor-dados`, `servidor-agente` e
+`prova-viva`, que é a fase 3.
+
+As três frentes que o usuário separou continuam em aberto por trás disso:
 
 1. **O app mobile**, congelado desde o início desta sequência. Nunca foi
    testado em aparelho de verdade (`dividas.md` §1.1 e §1.2).
@@ -163,7 +190,7 @@ Próximo número livre de suíte: `m50`.
 `negociacoes`, `observabilidade`, `rebanho-livro-razao`). Ficou só
 `origin/app-mobile-fundacao`, de propósito: tem os 3 commits com 5 defeitos
 corrigidos e nunca retestados (ver Pendências). O `origin` agora só tem `main`
-e essa.
+e essa. **Local, existe também `time-de-agentes`**, viva e não mesclada.
 
 ### O que estas cinco frentes ensinaram
 
@@ -258,6 +285,13 @@ Quatro achadas hoje, que não estavam em `dividas.md`:
 
 ## Histórico recente
 
+- **2026-08-31:** time de agentes, fase 1, na branch `time-de-agentes` (3
+  commits). O achado que orientou o desenho: este projeto já tinha inventado
+  metade do protocolo (agentes A1/A2/A3 com "Escopo exclusivo" e "Proibido
+  tocar", em `docs/arquitetura/onda-1-briefings.md`, e o juiz subagente com
+  rubrica) e perdeu tudo junto com o Codex em 04/08. Voltou com as duas peças
+  que faltavam: committer único e formação de onda por regra. De quebra, a
+  stack passou a dizer Next 16, que é a versão real desde sempre.
 - **2026-08-31:** frente 5 (rollout do design system) pronta na branch
   `frente-5-design-system`. O painel inteiro no kit e em token semântico, com
   duas travas novas no `check` (recusa engolida, painel fora do kit) e uma
@@ -278,26 +312,5 @@ Quatro achadas hoje, que não estavam em `dividas.md`:
 - **2026-08-28:** frente 2 (estadias temporárias do rebanho) pronta na branch
   `modulo-30-fase-2`, em nove commits, validada no navegador. O rebanho passa a
   separar propriedade de localização.
-- **2026-08-27:** frente 1 (piloto de design no Rebanho) pronta na branch
-  `piloto-design-rebanho`, em dez commits, validada no navegador contra o banco
-  local. O alinhamento das cinco frentes e o plano de execução estão em
-  `docs/superpowers/`.
-- **2026-08-25:** `dividas.md` perdeu os itens 3.2, 3.3 e 3.4, que estavam
-  fechados desde 18 a 24/08 (Redis local, `npm run test:all`, CI). Da seção 3
-  sobrou o 3.1, o `m23-token-auth.test.ts` que não compila. O `.env.enc` saiu
-  do controle de versão, e a identidade do git deste repositório passou a ser a
-  conta dona.
-- **2026-08-24:** cópia nova do projeto em `C:\projetos\tibe-agrogestao`,
-  preparada e conferida (dependências, `tibe-pg` criado, 32 migrações, seed,
-  `check` e `test:isolation` verdes). Falta decifrar o `.env`. Este handoff
-  estava quatro commits atrasado e passou a registrar a fase 1.
-- **2026-08-20:** fase 0 da evolução inteira em produção (`21d5641`), em duas
-  levas mais o worker: CI de verdade, Next 16, quatro advisories de auth
-  fechadas, envelope de erro e log estruturado, cabeçalhos de segurança,
-  integridade e auditoria no banco, e a porta do agente endurecida. Validado em
-  navegador, por requisição real e contra o classificador de produção. No mesmo
-  dia começou a fase 1, com três commits de interface (`60e4d87`, `638d0f6`,
-  `979ba2e`) que este arquivo só registrou em 24/08.
-
 O detalhe de tudo isso, na íntegra e sem reescrita, está em
 [historico/2026-08.md](historico/2026-08.md).
