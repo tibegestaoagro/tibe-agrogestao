@@ -181,8 +181,17 @@ atenção:
    chips `<code>` de `/docs/api`, e o separador "/" da trilha, que é decorativo
    e some sem ninguém notar.
 
-Em todo o resto o pixel deveria ser idêntico: os tokens batem em hexadecimal
-com os cinzas que substituíram. **Qualquer diferença visível é defeito.**
+⚠️ **NÃO trate "qualquer diferença visível" como defeito.** Esta instrução
+estava aqui e era falsa: **cerca de 130 das 294 ocorrências mudam de tom de
+propósito**, a maior delas `bg-gray-100` (#f3f4f6) virando
+`--superficie-afundada` (#fcf8f5) em 106 lugares, o que clareia os chips
+`<code>` de `/docs`. Quem validar com o critério errado reporta dezenas de
+falsos positivos ou desiste de olhar, e nos dois casos o defeito de verdade
+passa.
+
+**O que procurar é elemento que SUMIU**, não elemento que mudou de tom: chip,
+pílula, cartão ou linha de tabela que deixou de ter contorno próprio contra o
+fundo. Foi assim que o juiz achou os chips invisíveis de `/docs/setup`.
 
 ⚠️ **O julgamento independente NÃO rodou.** O `prova-juiz` não registra (ver
 `docs/conhecimento/agente-com-modelo-nao-padrao-pode-nao-registrar.md`), e

@@ -151,6 +151,13 @@ A conta abaixo é a de **2026-08-28**, quando a base tinha 52. Hoje ela tem
 **34**: saíram os 22 do site público, convertidos em 31/08, e entraram os 4 do
 painel.
 
+⚠️ **A catraca cresceu, contra o princípio de que ela só encolhe, e a exceção
+foi autorizada pelo usuário em 2026-08-31.** Fica registrado aqui porque
+autorização que não se acha depois não vale: os 4 arquivos são dívida
+pré-existente que a regex antiga não enxergava, não regressão nova, e a
+alternativa (consertá-los na mesma rodada) foi recusada para não misturar
+frentes.
+
 | o que | quantos |
 |---|---|
 | site público (`src/app/(public)/`) | 18 |

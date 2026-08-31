@@ -72,17 +72,57 @@ contrato: nenhum agente decide tradução por conta própria.
 | `bg-gray-50` | 1 | `bg-superficie-afundada` | `--superficie-afundada` |
 | `text-gray-300` | 1 | `text-texto-discreto` | `--texto-discreto` |
 
+### Acrescentado ao contrato durante a execução
+
+Quatro cores apareceram que este levantamento não previu, porque a
+**conferência 8 não as enxergava**: a regex cobria `(text|bg|border)-` em 9
+famílias. Os agentes pararam e relataram em vez de improvisar, e as decisões
+foram tomadas na hora:
+
+| de | ocorr | para | decisão |
+|---|---|---|---|
+| `divide-gray-100` | 5 | `divide-borda` | precedente já em uso em `rebanho/page.tsx` |
+| `divide-gray-200` | 1 | `divide-borda` | idem |
+| `bg-purple-100` | 1 | `bg-primaria-suave` | ver abaixo |
+| `text-purple-700` | 1 | `text-primaria-tinta` | ver abaixo |
+
+**O badge `PUT` de `/docs/api` deixa de ser roxo e passa a ser verde**, e é a
+única mudança de pixel **deliberada** da missão. Os cinco métodos precisam de
+cinco cores distinguíveis, e os outros quatro já ocupavam os papéis
+disponíveis (GET `info`, POST `superficie-afundada`, PATCH `atencao`, DELETE
+`perigo`). Não se criou token para roxo porque o sistema proíbe nome de cor
+como token: o nome diz o papel, e "roxo" não é papel.
+
+⚠️ **Nenhum portão mede distinguibilidade entre os cinco badges**, nem para
+daltonismo. Isso é validação de navegador, e continua pendente.
+
 Vários tokens batem em hexadecimal com o cinza que substituem
 (`--texto` é `#111827`, igual a `gray-900`; `--texto-secundario` é `#4b5563`,
 igual a `gray-600`; `--borda` é `#e5e7eb`, igual a `gray-200`), o que confirma
-que a paleta foi derivada deles. **Onde bate, a troca é invisível ao olho**, e
-isso é o esperado: esta missão não muda o desenho, muda o vocabulário.
+que a paleta foi derivada deles.
 
-⚠️ **`text-gray-700` e `border-gray-100` não batem em hexadecimal** e vão para
-o token de papel mais próximo. São 12 ocorrências, e a diferença é sutil.
+⚠️ **Corrigido em 2026-08-31, depois do julgamento independente. Este trecho
+afirmava que só `text-gray-700` e `border-gray-100` não batiam em hexadecimal,
+"12 ocorrências". Era falso, e por larga margem.**
 
-⚠️ **O único ponto onde o pixel muda de propósito** são os 15 `<pre>`, e só
-porque ganham token próprio com o mesmo valor de hoje (`#111827`).
+A maior tradução da missão **muda de tom**: `bg-gray-100` (`#f3f4f6`, 106
+ocorrências) vira `--superficie-afundada` (`#fcf8f5`, um creme). Nos chips
+`<code>` de `/docs`, sobre o branco do layout, o tom da pílula cai quase pela
+metade. Somando as outras (`bg-gray-50`, `text-gray-700`, `text-gray-300`,
+`border-gray-100`, `bg-amber-100`, `text-amber-800`, `bg-red-100`,
+`bg-blue-100`), **cerca de 130 das 294 ocorrências mudam de pixel**, não 12.
+
+**Isto não é defeito: é o custo de trocar uma paleta neutra por uma paleta de
+marca.** O que era defeito é a spec dizer o contrário, porque quem valida no
+navegador com a instrução errada ou reporta dezenas de falsos positivos ou
+desiste de olhar, e nos dois casos o defeito de verdade passa.
+
+⚠️ **Duas superfícies diferentes que viram o MESMO token colidem se estiverem
+aninhadas.** `bg-amber-50` (caixa) e `bg-amber-100` (chip) foram os dois para
+`--atencao-suave`, e em `/docs/setup` os chips ficaram com o fundo idêntico ao
+do aviso que os contém: invisíveis, a 1,000:1. Achado pelo juiz, corrigido, e
+virou a **conferência 14**. Ao mapear duas cores para um token, confira se elas
+se encontram aninhadas em algum lugar.
 
 ## 5. Os dois tokens novos
 
@@ -103,7 +143,16 @@ Expostos no `tailwind.config.ts` como `codigo: { fundo, texto }`, gerando
 
 ## 6. Entrega e provas
 
-- `scripts/baseline-cor-crua.json` cai de **52 para 30** (saem os 22).
+- `scripts/baseline-cor-crua.json` cai de 52 para **34**.
+
+  ⚠️ **Corrigido em 2026-08-31: esta linha dizia 30, e a entrega foi 34.** Os 22
+  do site público saíram, como previsto, mas **4 entraram**: arquivos de
+  `src/app/(dashboard)/` que pintam `divide-gray` cru e que a regex antiga
+  nunca enxergou. São dívida pré-existente recém-descoberta, não regressão.
+
+  O princípio deste projeto é "linha de base que só encolhe", e aqui ela
+  cresceu em 4. **O usuário autorizou a exceção em 2026-08-31**, e ela está
+  registrada também no comentário da conferência 8 e no `dividas.md` §2.5.
 - `npm run check` verde nas 13 conferências, com o par de contraste novo.
 - `npx tsc --noEmit` e `npm run lint` limpos.
 - Suíte `m50`: prova que nenhum dos 22 arquivos casa com a regex de cor crua, e
