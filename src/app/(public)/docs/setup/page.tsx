@@ -66,8 +66,8 @@ npm install`}
           forma controlada, sem quebrar o resto do sistema).
         </p>
         <div className="mt-3 rounded-lg bg-atencao-suave p-4 text-atencao-tinta">
-          <code className="rounded bg-atencao-suave px-1">CLOUDFLARE_R2_*</code> existe no{" "}
-          <code className="rounded bg-atencao-suave px-1">.env.example</code> por herança do PRD original, mas não é
+          <code className="rounded border border-borda bg-superficie px-1">CLOUDFLARE_R2_*</code> existe no{" "}
+          <code className="rounded border border-borda bg-superficie px-1">.env.example</code> por herança do PRD original, mas não é
           usado por nenhum código atual: os PDFs são gerados sob demanda, sem storage (ver{" "}
           <a href="/docs/arquitetura" className="underline">Arquitetura</a>). Pode deixar em branco.
         </div>
