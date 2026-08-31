@@ -2,6 +2,8 @@ import { apiOk, apiError } from "@/lib/api";
 import { guard } from "@/lib/api-guard";
 import { getCashFlow, resolvePeriod } from "@/lib/actions/financial-reports";
 import { withApi } from "@/lib/route";
+import { RELATED_MODULES } from "@/lib/related-modules";
+import type { RelatedModule } from "@/generated/prisma/enums";
 
 /**
  * GET /api/v1/financial/cash-flow?start=&end=&group_by=day|month&related_module=
@@ -15,7 +17,7 @@ async function GETHandler(request: Request) {
   const { start, end } = resolvePeriod(sp.get("start"), sp.get("end"));
   const groupBy = sp.get("group_by") === "month" ? "month" : "day";
   const related_module = sp.get("related_module");
-  if (related_module && !["rebanho", "lavoura", "servico", "geral"].includes(related_module)) {
+  if (related_module && !(RELATED_MODULES as string[]).includes(related_module)) {
     return apiError("VALIDATION_ERROR", "related_module inválido", 422);
   }
 
@@ -23,7 +25,7 @@ async function GETHandler(request: Request) {
     start,
     end,
     groupBy,
-    related_module: related_module as "rebanho" | "lavoura" | "servico" | "maquinas" | "geral" | undefined,
+    related_module: (related_module ?? undefined) as RelatedModule | undefined,
   });
 
   return apiOk(series, {
