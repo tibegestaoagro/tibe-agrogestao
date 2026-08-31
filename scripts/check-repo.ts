@@ -51,7 +51,13 @@ const mdsDe = (...partes: string[]) => {
 // que era o CLAUDE.md. Sair do arquivo grande nao torna o conteudo imune a
 // envelhecer: torna mais facil esquecer que ele existe.
 const DOCS = ["CLAUDE.md", "README.md"]
-  .concat(mdsDe("docs", "agents"), mdsDe(".claude", "rules"))
+  .concat(
+    mdsDe("docs", "agents"),
+    // O cofre entra pelo mesmo motivo: nota que cita caminho morto envelhece
+    // igual, e la o engano e pior, porque a nota se apresenta como licao.
+    mdsDe("docs", "conhecimento"),
+    mdsDe(".claude", "rules"),
+  )
   .filter((f) => existsSync(join(RAIZ, f)));
 
 const textoDe = (rel: string) => readFileSync(join(RAIZ, rel), "utf8");
@@ -653,6 +659,75 @@ function conferirRecusaDeZodCrua() {
   );
 }
 
+// ------------------------------------------------- 13. cofre de conhecimento
+/**
+ * 13. O cofre de conhecimento nao pode apodrecer em silencio.
+ *
+ * `docs/conhecimento/` e a camada de memoria longa: uma nota por licao, ligadas
+ * por `[[wikilink]]`. Ela existe porque o `current-handoff.md` tem teto de 200
+ * linhas (autoimposto depois de chegar a 1.316), e toda rodada a licao
+ * aprendida era resumida destrutivamente para caber, ou caia no despejo
+ * cronologico de `historico/`, de onde nao se recupera por assunto.
+ *
+ * Uma pasta de notas ligadas apodrece igual a documentacao: o link quebra e
+ * ninguem ve, porque nada reclama. Esta trava e a conferencia 1 (caminho citado
+ * que nao existe) aplicada ao wikilink, que o Obsidian resolve na interface mas
+ * nao valida em lugar nenhum.
+ *
+ * Arquivos com prefixo `_` sao pulados de proposito: `_template.md` PRECISA
+ * mostrar a sintaxe num exemplo que nao resolve, e `_indice.md` e navegacao.
+ */
+function conferirCofreDeConhecimento() {
+  console.log("\n13. Cofre de conhecimento");
+
+  const dir = join(RAIZ, "docs", "conhecimento");
+  if (!existsSync(dir)) {
+    check("docs/conhecimento existe", false, "o cofre sumiu do repositorio");
+    return;
+  }
+
+  const notas = readdirSync(dir).filter(
+    (f) => f.endsWith(".md") && !f.startsWith("_"),
+  );
+  const existentes = new Set(notas.map((f) => f.replace(/\.md$/, "")));
+  const TIPOS = new Set(["licao", "decisao", "armadilha", "referencia"]);
+
+  const quebrados: string[] = [];
+  const malFormadas: string[] = [];
+
+  for (const nome of notas) {
+    const texto = readFileSync(join(dir, nome), "utf8");
+
+    const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(texto);
+    const tipo = fm ? /^tipo:\s*(\S+)/m.exec(fm[1])?.[1] : undefined;
+    const temData = fm ? /^data:\s*\d{4}-\d{2}-\d{2}\s*$/m.test(fm[1]) : false;
+    if (!tipo || !TIPOS.has(tipo) || !temData) malFormadas.push(nome);
+
+    // `[[alvo|texto]]` e `[[alvo#secao]]` sao formas validas no Obsidian: o
+    // alvo e so o que vem antes do primeiro separador.
+    for (const m of texto.matchAll(/\[\[([^\]]+)\]\]/g)) {
+      const alvo = m[1].split("|")[0].split("#")[0].trim();
+      if (!existentes.has(alvo)) quebrados.push(`${nome} -> [[${alvo}]]`);
+    }
+  }
+
+  check(
+    "todo [[wikilink]] aponta para uma nota que existe",
+    quebrados.length === 0,
+    quebrados.length > 0
+      ? `crie a nota ou corrija o link:\n       ${quebrados.join("\n       ")}`
+      : undefined,
+  );
+
+  check(
+    "toda nota tem tipo valido e data absoluta",
+    malFormadas.length === 0,
+    malFormadas.length > 0
+      ? `tipo em (licao|decisao|armadilha|referencia) e data YYYY-MM-DD:\n       ${malFormadas.join("\n       ")}`
+      : undefined,
+  );
+}
+
 function main() {
   console.log("🔎 Conferencia estatica do repositorio (sem banco)");
   conferirCaminhos();
@@ -668,6 +743,7 @@ function main() {
   conferirRecusaTratada();
   conferirPainelNoKit();
   conferirRecusaDeZodCrua();
+  conferirCofreDeConhecimento();
 
   console.log("");
   if (falhas === 0) console.log("✅ Repositorio consistente: 0 falhas.");
