@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function CriarContaPage() {
   return (
-    <main className="min-h-screen bg-tibe-light px-4 py-12">
+    <main className="min-h-screen bg-superficie-afundada px-4 py-12">
       <div className="mx-auto max-w-lg rounded-xl bg-superficie p-8 shadow-sm">
         <div className="mb-6 text-center">
           <Link href="/" className="text-3xl font-bold text-tibe-dark">

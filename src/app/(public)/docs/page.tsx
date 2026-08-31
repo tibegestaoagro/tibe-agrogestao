@@ -34,7 +34,7 @@ export default function DocsIndexPage() {
         ))}
       </div>
 
-      <div className="mt-10 rounded-lg bg-tibe-light p-5 text-sm text-tibe-dark">
+      <div className="mt-10 rounded-lg bg-superficie-afundada p-5 text-sm text-tibe-dark">
         Esta documentação cobre o estado atual do sistema (Módulos 0 a 5). O Módulo 6
         (painel interno da Pleno Digital) ainda não foi implementado.
       </div>

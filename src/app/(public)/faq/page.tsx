@@ -60,7 +60,7 @@ export default function FaqPage() {
           .
         </p>
 
-        <div className="mt-8 divide-y divide-gray-200 rounded-lg border border-borda">
+        <div className="mt-8 divide-y divide-borda rounded-lg border border-borda">
           {FAQS.map((item) => (
             <details key={item.q} className="group p-5">
               <summary className="cursor-pointer list-none font-medium text-texto marker:content-none">
