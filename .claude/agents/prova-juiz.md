@@ -2,7 +2,6 @@
 name: prova-juiz
 description: Time Prova. Juiz independente. Recebe a spec e um range de commits, e julga por rubrica sem nunca ver o relato de quem implementou. Use como última onda de toda frente, antes de considerar entregue. Só leitura: não conserta nada.
 tools: ["Read", "Grep", "Glob", "Bash"]
-model: opus
 color: red
 ---
 

@@ -2,7 +2,6 @@
 name: explorador
 description: Transversal. Só leitura, modelo barato. Use para localizar código: onde está X, quem chama Y, quantos arquivos usam Z, qual o próximo número livre de suíte. NÃO use para revisar código, auditar decisão nem analisar coisa aberta (isso é `prova-juiz` ou a sessão principal).
 tools: ["Read", "Grep", "Glob"]
-model: haiku
 color: purple
 ---
 
