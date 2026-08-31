@@ -235,11 +235,35 @@ de impossibilidade estrutural. Conferido nos dois: não escreveram nada.
    e `shadow-black/10` vivos em `confirm-dialog.tsx` e `toast.tsx`. O
    comentário do T09 afirma cobrir tudo que pinta pixel, e não cobre.
 
-Depois: **fase 3**, o time Servidor (`servidor-acao`, `servidor-dados`,
-`servidor-agente`, `prova-viva`), estreando no defeito ativo do rebanho (lote
-nasce em "Não classificado" e o saldo lê `HerdMovement`, então quem cadastra
-pelo assistente não vê o animal). E a rodada seguinte do token: auth,
-onboarding e signup, os 15 arquivos que ficaram fora do piloto.
+**A fase 3 está entregue: o time tem DEZ agentes.** Os quatro do Servidor
+(`servidor-acao`, `servidor-dados`, `servidor-agente`, `prova-viva`), mais o
+`n8n-fluxo`, pedido pelo usuário em 31/08 para alinhar as demandas de n8n que
+vierem. Mais os comandos `/onda` e `/juiz`.
+
+⚠️ **A skill `validacao-viva` que o plano previa NÃO foi escrita, de
+propósito.** O conteúdo já vive no `CLAUDE.md` (carrega sempre) e no
+`prova-viva.md` (carrega ao despachar). Terceira cópia é duplicata que
+envelhece.
+
+### O próximo passo real: os dois módulos parados em `.docx`
+
+⚠️ **A correção do rebanho invisível está ADIADA por decisão do usuário em
+31/08**, para não conflitar com o módulo novo. A spec já existe
+([2026-08-31-rebanho-invisivel-do-cadastro-assistido.md](../superpowers/specs/2026-08-31-rebanho-invisivel-do-cadastro-assistido.md)),
+com as decisões fechadas, e as duas perguntas em aberto (a pergunta a mais no
+curral, e o levantamento dos lotes já invisíveis) o usuário respondeu **sim**
+para as duas, a resolver **depois** da implementação.
+
+O que vem é `docs/area-funcional-confinamento/`, com **dois** documentos, não
+um:
+
+- `Área Funcional Confinamento.docx`: confinamento próprio e boitel (v0.1,
+  "documento em construção")
+- o documento da **Área Leite**, na mesma pasta (o nome do arquivo tem
+  travessão no meio, então não é citado literal aqui: a conferência 4 reprova)
+
+Nenhum dos dois tem spec ainda. **Dá para lê-los sem instalar nada**: ver
+`docs/conhecimento/ler-docx-do-cliente-sem-ferramenta-extra.md`.
 
 As três frentes que o usuário separou continuam em aberto por trás disso:
 
@@ -254,7 +278,7 @@ As três frentes que o usuário separou continuam em aberto por trás disso:
    52 arquivos). É a frente que falta para o modo escuro ser possível no app
    inteiro, e não só no painel.
 
-Próximo número livre de suíte: `m50`.
+Próximo número livre de suíte: `m51`.
 
 **Limpeza de branches feita em 2026-08-31.** Apagadas as 2 locais mescladas
 (`modulo-31-leilao`, `modulo-31-permuta`) e 10 remotas já mescladas em `main`
