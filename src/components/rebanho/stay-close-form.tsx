@@ -3,6 +3,13 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
 import { Field } from "@/components/ui/field";
 import { FormSheet } from "@/components/ui/form-sheet";
@@ -55,16 +62,27 @@ const DESTINOS_POR_TIPO: Record<string, Destino[]> = {
 
 const SEM_DESTINOS: Destino[] = [];
 
+type Pasture = { id: string; name: string };
+const SEM_PASTOS: Pasture[] = [];
+
 export default function StayCloseForm({
   stayId,
   tipo,
   saldoAberto,
   descricao,
+  pastures,
 }: {
   stayId: string;
   tipo: string;
   saldoAberto: number;
   descricao: string;
+  /**
+   * Pastos da fazenda desta estadia, já filtrados pela página (§18 do
+   * documento de Confinamento, que a decisão do usuário estendeu aos SEIS
+   * tipos de estadia). Opcional porque `/rebanho` ainda não os passa: sem a
+   * lista, o campo simplesmente não aparece, como antes.
+   */
+  pastures?: Pasture[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -72,12 +90,14 @@ export default function StayCloseForm({
   // `?? []` criaria um array novo a cada render, e o `useMemo` de baixo
   // recalcularia sempre. A constante vazia é a mesma referência.
   const destinos = DESTINOS_POR_TIPO[tipo] ?? SEM_DESTINOS;
+  const pastosDisponiveis = pastures ?? SEM_PASTOS;
   const err = useErrosDeFormulario(
-    destinos.map((d) => d.movement_type).concat("quantity", "value"),
+    destinos.map((d) => d.movement_type).concat("quantity", "value", "pasture_id"),
   );
 
   const [valores, setValores] = useState<Record<string, string>>({});
   const [valorVenda, setValorVenda] = useState("");
+  const [pastureId, setPastureId] = useState("");
 
   const informado = useMemo(
     () =>
@@ -86,10 +106,12 @@ export default function StayCloseForm({
   );
   const falta = saldoAberto - informado;
   const vendeuAlgo = (lerValorDoCampo(valores.venda ?? "") ?? 0) > 0;
+  const voltouParaPasto = (lerValorDoCampo(valores.retorno_estadia ?? "") ?? 0) > 0;
 
   function limpar() {
     setValores({});
     setValorVenda("");
+    setPastureId("");
     err.limparTudo();
   }
 
@@ -113,6 +135,10 @@ export default function StayCloseForm({
           movement_type: d.movement_type,
           quantity: lerValorDoCampo(valores[d.movement_type] ?? "") ?? 0,
           value: d.movement_type === "venda" ? lerValorDoCampo(valorVenda) : null,
+          // Pasto de destino é só para quem volta ao pasto (§18): venda,
+          // morte e os demais destinos não têm posição de destino para o
+          // pasto pousar.
+          ...(d.movement_type === "retorno_estadia" ? { pasture_id: pastureId || null } : {}),
         }))
         .filter((d) => d.quantity > 0),
     });
@@ -180,6 +206,29 @@ export default function StayCloseForm({
           )}
         </Field>
       ))}
+
+      {voltouParaPasto && pastosDisponiveis.length > 0 && (
+        <Field
+          label="Pasto de destino"
+          hint="Opcional. Para onde os que voltaram foram."
+          id="pasture_id"
+        >
+          {({ id, ...aria }) => (
+            <Select value={pastureId} onValueChange={setPastureId}>
+              <SelectTrigger id={id} {...aria}>
+                <SelectValue placeholder="Sem pasto informado" />
+              </SelectTrigger>
+              <SelectContent>
+                {pastosDisponiveis.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </Field>
+      )}
 
       {vendeuAlgo && (
         <Field

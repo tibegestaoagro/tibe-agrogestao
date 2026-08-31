@@ -3,6 +3,13 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
 import { Field } from "@/components/ui/field";
 import { FormSheet } from "@/components/ui/form-sheet";
@@ -28,25 +35,31 @@ const DESTINOS: { movement_type: string; rotulo: string }[] = [
   { movement_type: "morte", rotulo: "Morreram" },
 ];
 
+type Pasture = { id: string; name: string };
+
 export default function LotCloseForm({
   stayId,
   saldoAberto,
   descricao,
+  pastures,
 }: {
   stayId: string;
   saldoAberto: number;
   descricao: string;
+  /** Pastos da fazenda deste lote, já filtrados pela página (§18). */
+  pastures: Pasture[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const err = useErrosDeFormulario(
-    DESTINOS.map((d) => d.movement_type).concat("quantity", "value"),
+    DESTINOS.map((d) => d.movement_type).concat("quantity", "value", "pasture_id"),
     `encerrar-${stayId}`,
   );
 
   const [valores, setValores] = useState<Record<string, string>>({});
   const [valorVenda, setValorVenda] = useState("");
+  const [pastureId, setPastureId] = useState("");
 
   const informado = useMemo(
     () =>
@@ -55,10 +68,12 @@ export default function LotCloseForm({
   );
   const falta = saldoAberto - informado;
   const vendeuAlgo = (lerValorDoCampo(valores.venda ?? "") ?? 0) > 0;
+  const voltouParaPasto = (lerValorDoCampo(valores.retorno_estadia ?? "") ?? 0) > 0;
 
   function limpar() {
     setValores({});
     setValorVenda("");
+    setPastureId("");
     err.limparTudo();
   }
 
@@ -81,6 +96,9 @@ export default function LotCloseForm({
         movement_type: d.movement_type,
         quantity: lerValorDoCampo(valores[d.movement_type] ?? "") ?? 0,
         value: d.movement_type === "venda" ? lerValorDoCampo(valorVenda) : null,
+        // Pasto de destino é só para quem volta ao pasto (§18): venda e morte
+        // não têm posição de destino nenhuma para o pasto pousar.
+        ...(d.movement_type === "retorno_estadia" ? { pasture_id: pastureId || null } : {}),
       })).filter((d) => d.quantity > 0),
     });
     setLoading(false);
@@ -142,6 +160,29 @@ export default function LotCloseForm({
           )}
         </Field>
       ))}
+
+      {voltouParaPasto && pastures.length > 0 && (
+        <Field
+          label="Pasto de destino"
+          hint="Opcional. Para onde os que voltaram foram."
+          id={err.idDe("pasture_id")}
+        >
+          {({ id, ...aria }) => (
+            <Select value={pastureId} onValueChange={setPastureId}>
+              <SelectTrigger id={id} {...aria}>
+                <SelectValue placeholder="Sem pasto informado" />
+              </SelectTrigger>
+              <SelectContent>
+                {pastures.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </Field>
+      )}
 
       {vendeuAlgo && (
         <Field

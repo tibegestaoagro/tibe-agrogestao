@@ -65,7 +65,7 @@ export default async function ConfinamentoPage() {
   const lotesAbertos = allLots.filter((l) => l.aberta);
   const lotIds = allLots.map((l) => l.id);
 
-  const [resumos, movimentosDoConfinamento, alimentacoes] = await Promise.all([
+  const [resumos, movimentosDoConfinamento, alimentacoes, saidasPorLote] = await Promise.all([
     Promise.all(lotesAbertos.map((l) => getConfinementLotSummary(db, l.id))),
     lotIds.length > 0
       ? db.herdMovement.findMany({
@@ -91,7 +91,34 @@ export default async function ConfinamentoPage() {
           include: { product: { select: { name: true, unit: true } } },
         })
       : [],
+    // Os contadores do §24 ("quantidade de saídas", "mortes") precisam de
+    // TODOS os movimentos de saída de cada lote, não só os 30 mais recentes do
+    // feed acima (que é de todos os lotes somados). `LotCloseForm` só oferece
+    // três destinos de encerramento (`retorno_estadia`, `venda`, `morte`), e
+    // são esses três que compõem "saídas"; `morte` é contado também à parte.
+    lotIds.length > 0
+      ? db.herdMovement.groupBy({
+          by: ["stay_id", "movement_type"],
+          where: {
+            stay_id: { in: lotIds },
+            canceled_at: null,
+            movement_type: { in: ["retorno_estadia", "venda", "morte"] },
+          },
+          _sum: { quantity: true },
+        })
+      : [],
   ]);
+
+  const saidasPorLoteId = new Map<string, number>();
+  const mortesPorLoteId = new Map<string, number>();
+  for (const linha of saidasPorLote) {
+    if (!linha.stay_id) continue;
+    const soma = linha._sum.quantity ?? 0;
+    saidasPorLoteId.set(linha.stay_id, (saidasPorLoteId.get(linha.stay_id) ?? 0) + soma);
+    if (linha.movement_type === "morte") {
+      mortesPorLoteId.set(linha.stay_id, (mortesPorLoteId.get(linha.stay_id) ?? 0) + soma);
+    }
+  }
 
   const resumoPorId = new Map<string, ConfinementLotSummary>();
   for (const r of resumos) {
@@ -240,6 +267,8 @@ export default async function ConfinamentoPage() {
                 <TableHead>Entrada</TableHead>
                 <TableHead>Dias</TableHead>
                 <TableHead>Cobrança</TableHead>
+                <TableHead>Saídas</TableHead>
+                <TableHead>Mortes</TableHead>
                 <TableHead>Alimentação</TableHead>
                 <TableHead>Custo acumulado</TableHead>
                 {writable && <TableHead className="text-right">Ações</TableHead>}
@@ -283,6 +312,12 @@ export default async function ConfinamentoPage() {
                           }`
                         : "não combinada"}
                     </TableCell>
+                    <TableCell className="tabular-nums">
+                      {(saidasPorLoteId.get(lote.id) ?? 0).toLocaleString("pt-BR")}
+                    </TableCell>
+                    <TableCell className="tabular-nums">
+                      {(mortesPorLoteId.get(lote.id) ?? 0).toLocaleString("pt-BR")}
+                    </TableCell>
                     <TableCell>
                       {resumo && resumo.feeding.length > 0 ? (
                         <ul className="space-y-0.5">
@@ -316,6 +351,9 @@ export default async function ConfinamentoPage() {
                             descricao={`${TIPO_ESTADIA_LABEL[lote.type] ?? lote.type} em ${
                               lote.location_name ?? "local não informado"
                             }, desde ${lote.started_at.toLocaleDateString("pt-BR")}.`}
+                            pastures={pastures
+                              .filter((p) => p.property_id === lote.property_id)
+                              .map((p) => ({ id: p.id, name: p.name }))}
                           />
                         </div>
                       </TableCell>

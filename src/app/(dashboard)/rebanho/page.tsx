@@ -291,6 +291,13 @@ export default async function RebanhoPage(
                       stayId={estadia.id}
                       tipo={estadia.type}
                       saldoAberto={estadia.saldo_aberto}
+                      // §18: o retorno grava o pasto informado desde 31/08, e
+                      // sem esta lista o campo não aparece aqui. Filtrado pela
+                      // propriedade da estadia porque `validatePosition`
+                      // recusa pasto de outra fazenda.
+                      pastures={pastures
+                        .filter((p) => p.property_id === estadia.property_id)
+                        .map((p) => ({ id: p.id, name: p.name }))}
                       descricao={`${ESTADIA_LABEL[estadia.type] ?? estadia.type}${
                         estadia.counterparty_name ? ` com ${estadia.counterparty_name}` : ""
                       }, desde ${estadia.started_at.toLocaleDateString("pt-BR")}.`}
