@@ -261,7 +261,16 @@ estreito e monoespaçado.
 
 ## 3. Rede de segurança com furo
 
-### 3.1 `scripts/m23-token-auth.test.ts` não compila
+### 3.1 `scripts/m23-token-auth.test.ts` não compila: RESOLVIDO
+
+⚠️ **Fechado em algum momento antes de 2026-08-31, e este registro não
+acompanhou.** Conferido nessa data: `npx tsc --noEmit` sai com **0** e não
+acusa nada em `m23`. O texto abaixo fica pelo histórico, e a lição é que
+dívida fechada precisa ser apagada daqui, como o protocolo deste arquivo já
+manda. Uma dívida que mente para mais é tão cara quanto uma que mente para
+menos: ela faz alguém reservar rodada para trabalho que não existe.
+
+
 
 `npx tsc --noEmit` acusa erros de tipo neste arquivo, e só nele. São
 pré-existentes e não quebram o build (a Vercel não compila `scripts/`), mas
@@ -273,21 +282,52 @@ variável tipada como resposta de token.
 
 **Custo:** pequeno, uma sessão curta. O ganho é `tsc` voltar a ser um sinal.
 
-### 3.2 Cinco cópias do store de pendência do WhatsApp
+### 3.2 SEIS cópias do store de pendência do WhatsApp
+
+⚠️ **Eram cinco em 2026-08-18. São seis desde 31/08**, quando o Confinamento
+acrescentou `confinamento-pending.ts`, modelado linha a linha em
+`event-pending.ts`. A dívida foi paga com juros justamente na frente que a
+citava, e isso é o que acontece quando a extração fica para "a próxima".
 
 `herd-pending.ts`, `negotiation-pending.ts`, `stock-pending.ts`,
-`event-pending.ts` e `barter-pending.ts` são o mesmo mecanismo com prefixo de
-chave diferente: cerca de 90 linhas de Redis repetidas cinco vezes. O
-comentário de `negotiation-pending.ts` previa extrair um store genérico "quando
-o terceiro domínio precisar disto"; chegamos ao quinto.
+`event-pending.ts`, `barter-pending.ts` e `confinamento-pending.ts` são o mesmo
+mecanismo com prefixo de chave diferente: cerca de 90 linhas de Redis repetidas
+seis vezes. O comentário de `negotiation-pending.ts` previa extrair um store
+genérico "quando o terceiro domínio precisar disto"; chegamos ao sexto.
 
 Extrair é seguro (nenhum tem lógica própria além do mapa de atalhos de campo),
 mas toca quatro módulos que estão em produção, e por isso **não** foi feito no
 meio da missão 4: é exatamente o risco que a nota original alertava.
 
-**Custo:** uma rodada própria, com `m24`, `m36`, `m37`, `m48` e `m49` rodando
-antes e depois. O ganho é uma correção de bug de pendência valer para os cinco
-domínios de uma vez, em vez de precisar ser aplicada cinco vezes.
+**Custo:** uma rodada própria, com `m24`, `m36`, `m37`, `m48`, `m49` e `m51`
+rodando antes e depois. O ganho é uma correção de bug de pendência valer para os
+seis domínios de uma vez, em vez de precisar ser aplicada seis vezes.
+
+### 3.3 `resolverPasto` não distingue ambiguidade: pega o primeiro
+
+**O que é:** a função que traduz o pasto citado no WhatsApp (`resolverPasto`,
+usada por `herd.ts` e por todos os handlers que aceitam pasto) faz `contains`
+sem acento e **devolve o primeiro achado**. Não há tratamento de ambiguidade.
+
+**Evidência:** achado em 2026-08-31 pelo `servidor-agente`, ao implementar o
+pasto de retorno do Confinamento. O briefing pedia que o handler perguntasse
+quando o pasto fosse ambíguo; ele foi implementar, descobriu que a função
+compartilhada não distingue, **não mexeu no comportamento de outros módulos** e
+relatou.
+
+**Por que importa:** uma fazenda com "Pasto da Sede" e "Pasto da Sede Nova" faz
+"sede" cair no primeiro, em silêncio. É a classe de defeito que este produto
+menos pode ter: **dado errado gravado sem aviso**, no caminho em que o produtor
+menos confere (uma conversa de WhatsApp no curral).
+
+⚠️ Vale para **todo** o caminho de pasto do WhatsApp, não só o Confinamento, e
+é anterior a esta frente.
+
+**Custo de fechar:** a função é uma só, então a correção é local: contar os
+achados e, com mais de um, devolver a mesma pergunta que já existe para "não
+achei". O caro é conferir os handlers que a chamam, porque cada um precisa saber
+guardar o pedido e reperguntar. Uma rodada, com `m34`, `m36`, `m38` e `m51`
+antes e depois.
 
 ---
 

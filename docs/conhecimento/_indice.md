@@ -50,6 +50,7 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [agente só de leitura pode sumir do registro](agente-com-modelo-nao-padrao-pode-nao-registrar.md) | armadilha | e não se substitui o juiz pela sessão que orquestrou |
 | [agentes da mesma onda veem o plantio um do outro](agentes-da-mesma-onda-veem-o-plantio-um-do-outro.md) | armadilha | a onda protege arquivo e commit, não o estado de verificação |
 | [ler os .docx do cliente com unzip](ler-docx-do-cliente-sem-ferramenta-extra.md) | referencia | sem Python e sem instalar nada |
+| [git checkout descarta o trabalho do agente](git-checkout-descarta-o-trabalho-do-agente.md) | armadilha | na onda, o trabalho de todos vive só no working tree |
 
 ⚠️ **`[[wikilink]]` para nota que não existe reprova o `npm run check`**
 (conferência 13). É o que impede esta pasta de virar um cemitério de links
