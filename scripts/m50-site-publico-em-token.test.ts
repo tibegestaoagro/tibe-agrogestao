@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { COR_CRUA } from "./check-repo";
 
 /**
  * Suite SEM banco: le arquivo, nao consulta Postgres. Por isso NAO chama
@@ -30,13 +31,14 @@ console.log(
 const RAIZ = join(__dirname, "..");
 
 /**
- * A MESMA regex da conferencia 8 do `npm run check` (scripts/check-repo.ts,
- * funcao `conferirCorCrua`). Nao inventar uma nova aqui: se a de la mudar,
- * esta suite fica desatualizada de proposito, o que e o sinal certo de que
- * as duas precisam ser revistas juntas.
+ * `COR_CRUA` vem IMPORTADA de `scripts/check-repo.ts` (conferencia 8 do
+ * `npm run check`), nao copiada aqui. Uma copia fica presa no dia em que foi
+ * feita: a copia que existia antes cobria so 3 prefixos e 9 familias de cor,
+ * a de la ja tinha ido para 14 prefixos e 22 familias, e esta suite seguia
+ * afirmando "nenhuma cor crua no site publico" sobre codigo que a regex nova
+ * pegaria (`divide-gray-100`, `bg-purple-100`). Importar fecha essa divergencia
+ * de vez, em vez de exigir lembrar de atualizar as duas juntas.
  */
-const COR_CRUA =
-  /(text|bg|border)-(gray|slate|zinc|red|green|blue|yellow|amber|emerald)-[0-9]{2,3}|\b(bg|text|border)-(white|black)\b/;
 
 /**
  * O alias depreciado que aponta para o proprio fundo da pagina: um elemento

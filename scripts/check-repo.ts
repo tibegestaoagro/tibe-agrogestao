@@ -416,10 +416,11 @@ function conferirCamposNumericos() {
  *
  * 1. `divide-*` nao entrava no prefixo casado, so `text|bg|border`. Um
  *    `divide-gray-100` pinta a borda entre linhas de lista/tabela igual a um
- *    `border-gray-200`, e passava direto. Achadas 7 ocorrencias em 6 arquivos,
- *    **4 delas em `src/app/(dashboard)/`**: o painel que `dividas.md` §2.5
- *    declara "inteiro em token semantico" nao estava. Foram para a catraca
- *    (fora do escopo desta frente, que e o site publico), nao corrigidas aqui.
+ *    `border-gray-200`, e passava direto. Achadas 7 ocorrencias em 6 arquivos
+ *    no total, **5 delas (em 4 arquivos) dentro de `src/app/(dashboard)/`**:
+ *    o painel que `dividas.md` §2.5 declara "inteiro em token semantico" nao
+ *    estava. Foram para a catraca (fora do escopo desta frente, que e o site
+ *    publico), nao corrigidas aqui.
  * 2. A lista de cores cobria so 9 das 22 famílias do Tailwind. Faltavam
  *    neutral, stone, orange, lime, teal, cyan, sky, indigo, violet, purple,
  *    fuchsia, pink e rose: um badge roxo (`bg-purple-100`) podia viver sem
@@ -437,12 +438,26 @@ function conferirCamposNumericos() {
  * tem ocorrencia hoje fora de `/plataforma`, entao a extensao nao encolheu nem
  * cresceu a linha de base por si so; e defesa contra o proximo furo, nao
  * limpeza retroativa.
+ *
+ * **A catraca cresceu nesta mesma rodada (2026-08-31, T09), autorizado pelo
+ * usuario.** A linha de base tinha 52 entradas antes desta frente. Saem 22
+ * (o site publico inteiro, ja convertido para token). Isso baixaria para 30,
+ * mas os 4 arquivos do item 1 (`alert-preference-toggles.tsx`,
+ * `configuracoes/assinatura/page.tsx`, `dashboard/page.tsx`,
+ * `relatorios/page.tsx`) entram porque a regex nova os enxerga pela primeira
+ * vez: era divida pre-existente que a regex antiga nunca soube ver, nao
+ * regressao introduzida por esta frente. Resultado: 30 -> 34. Registrado aqui
+ * porque "so encolhe" e o principio, e um crescimento sem essa nota no
+ * comentario pareceria violacao dele para quem ler depois.
  */
 const CORES_TAILWIND =
   "gray|slate|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose";
 const PREFIXOS_QUE_PINTAM =
   "text|bg|border|divide|ring|from|via|to|placeholder|caret|accent|decoration|fill|stroke";
-const COR_CRUA = new RegExp(
+// Exportada para a m50 (scripts/m50-site-publico-em-token.test.ts) importar em
+// vez de duplicar: uma regex copiada fica presa no dia em que foi copiada, e
+// foi assim que a m50 ficou meses atras desta ao vivo em 2026-08-31.
+export const COR_CRUA = new RegExp(
   `(${PREFIXOS_QUE_PINTAM})-(${CORES_TAILWIND})-[0-9]{2,3}|\\b(${PREFIXOS_QUE_PINTAM})-(white|black)\\b`,
 );
 
@@ -783,4 +798,10 @@ function main() {
   process.exit(falhas === 0 ? 0 : 1);
 }
 
-main();
+// Guarda de entrypoint (mesmo padrao de check-contraste.ts): este modulo e
+// importado por outras suites (a m50, por `COR_CRUA`), e sem a guarda o
+// simples `import` dispararia a conferencia inteira, com o proprio
+// `process.exit` no meio de um teste que so queria a regex.
+if (require.main === module) {
+  main();
+}
