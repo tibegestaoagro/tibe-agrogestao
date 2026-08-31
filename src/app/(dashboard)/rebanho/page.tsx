@@ -61,6 +61,7 @@ const TIPO_LABEL: Record<string, string> = {
   envio_evento: "Envio para leilão ou feira",
   envio_pasto_terceiro: "Envio para pasto de terceiro",
   envio_boitel: "Envio para boitel",
+  envio_confinamento: "Envio para confinamento",
   retorno_estadia: "Retorno para a fazenda",
   entrada_terceiro: "Entrada de animal de terceiro",
   saida_terceiro: "Devolução ao dono",
