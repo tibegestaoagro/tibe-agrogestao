@@ -264,8 +264,21 @@ export default function StayOpenForm({
         )}
       </Field>
 
+      {/*
+        `error=` não é opcional aqui, ainda que o CAMPO seja: `pasture_id`
+        está no ORDEM, e `aplicarErroDoServidor` só manda a recusa para o
+        rodapé quando o campo NÃO está lá. Sem esta prop, a recusa
+        `ORIGEM_AMBIGUA` ("Informe de qual pasto os animais saem") era escrita
+        em `erros.pasture_id`, o rodapé ficava nulo, e nada aparecia na tela:
+        o produtor tocava em salvar e não acontecia nada.
+      */}
       {pastosDaFazenda.length > 0 && (
-        <Field label="Pasto de origem" hint="Opcional." id="pasture_id">
+        <Field
+          label="Pasto de origem"
+          hint="Opcional."
+          id="pasture_id"
+          error={err.erros.pasture_id}
+        >
           {({ id, ...aria }) => (
             <Select value={pastureId} onValueChange={setPastureId}>
               <SelectTrigger id={id} {...aria}>
@@ -295,7 +308,12 @@ export default function StayOpenForm({
         )}
       </Field>
 
-      <Field label="Saída prevista" hint="Opcional." id="expected_end_at">
+      <Field
+        label="Saída prevista"
+        hint="Opcional."
+        id="expected_end_at"
+        error={err.erros.expected_end_at}
+      >
         {({ id, ...aria }) => (
           <Input
             id={id}
@@ -311,6 +329,7 @@ export default function StayOpenForm({
         label="Forma de cobrança"
         hint="Opcional. A tela mostra o valor combinado, sem calcular nada em cima dele."
         id="charge_type"
+        error={err.erros.charge_type}
       >
         {({ id, ...aria }) => (
           <Select value={chargeType} onValueChange={setChargeType}>
@@ -347,7 +366,7 @@ export default function StayOpenForm({
         )}
       </Field>
 
-      <Field label="Vencimento" hint="Opcional." id="due_date">
+      <Field label="Vencimento" hint="Opcional." id="due_date" error={err.erros.due_date}>
         {({ id, ...aria }) => (
           <Input
             id={id}
@@ -359,7 +378,7 @@ export default function StayOpenForm({
         )}
       </Field>
 
-      <Field label="Observações" hint="Opcional." id="notes">
+      <Field label="Observações" hint="Opcional." id="notes" error={err.erros.notes}>
         {({ id, ...aria }) => (
           <Input id={id} {...aria} value={notes} onChange={(e) => setNotes(e.target.value)} />
         )}

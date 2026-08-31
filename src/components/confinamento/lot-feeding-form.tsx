@@ -188,7 +188,12 @@ export default function LotFeedingForm({
         )}
       </Field>
 
-      <Field label="Observações" hint="Opcional." id={err.idDe("notes")}>
+      <Field
+        label="Observações"
+        hint="Opcional."
+        id={err.idDe("notes")}
+        error={err.erros.notes}
+      >
         {({ id, ...aria }) => (
           <Input id={id} {...aria} value={notes} onChange={(e) => setNotes(e.target.value)} />
         )}

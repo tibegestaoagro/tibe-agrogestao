@@ -153,8 +153,18 @@ export default function LotCloseForm({
         {saldoAberto === 1 ? "cabeça" : "cabeças"}. Diga para onde cada uma foi.
       </p>
 
-      {DESTINOS.map((destino) => (
-        <Field key={destino.movement_type} label={destino.rotulo} id={err.idDe(destino.movement_type)}>
+      {DESTINOS.map((destino, indice) => (
+        // A recusa de quantidade do `closeStay` vem com `field: "quantity"`,
+        // que não é o id de nenhum destino: sem o `error=` no primeiro campo,
+        // "Cada destino precisa de uma quantidade inteira" era gravada em
+        // `erros.quantity` e nunca renderizada. O primeiro destino carrega a
+        // mensagem porque é onde o produtor está olhando quando ela acontece.
+        <Field
+          key={destino.movement_type}
+          label={destino.rotulo}
+          id={err.idDe(destino.movement_type)}
+          error={err.erros[destino.movement_type] ?? (indice === 0 ? err.erros.quantity : undefined)}
+        >
           {({ id, ...aria }) => (
             <MoneyInput
               id={id}
@@ -176,6 +186,7 @@ export default function LotCloseForm({
           label="Pasto de destino"
           hint="Opcional. Para onde os que voltaram foram."
           id={err.idDe("pasture_id")}
+          error={err.erros.pasture_id}
         >
           {({ id, ...aria }) => (
             <Select value={pastureId} onValueChange={setPastureId}>

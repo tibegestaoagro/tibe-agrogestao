@@ -98,8 +98,9 @@ export default async function ConfinamentoPage() {
     // Os contadores do §24 ("quantidade de saídas", "mortes") precisam de
     // TODOS os movimentos de saída de cada lote, não só os 30 mais recentes do
     // feed acima (que é de todos os lotes somados). `LotCloseForm` só oferece
-    // três destinos de encerramento (`retorno_estadia`, `venda`, `morte`), e
-    // são esses três que compõem "saídas"; `morte` é contado também à parte.
+    // três destinos de encerramento (`retorno_estadia`, `venda`, `morte`).
+    // Os dois primeiros viram "saídas"; `morte` vira a coluna própria, sem
+    // entrar nas saídas (ver o laço que monta os dois mapas, abaixo).
     lotIds.length > 0
       ? db.herdMovement.groupBy({
           by: ["stay_id", "movement_type"],
@@ -129,15 +130,19 @@ export default async function ConfinamentoPage() {
       : [],
   ]);
 
+  // As duas colunas do §24 são DISJUNTAS: "Saídas" conta quem saiu vivo
+  // (voltou ao pasto ou foi vendido) e "Mortes" conta o resto. Até 31/08
+  // "Saídas" incluía as mortes, e as mesmas duas cabeças apareciam nos dois
+  // números: um lote de 40 com 2 mortes e nada mais lia "Saídas 2 / Mortes
+  // 2", e o produtor somava quatro. Assim as duas colunas somam exatamente o
+  // que deixou o lote.
   const saidasPorLoteId = new Map<string, number>();
   const mortesPorLoteId = new Map<string, number>();
   for (const linha of saidasPorLote) {
     if (!linha.stay_id) continue;
     const soma = linha._sum.quantity ?? 0;
-    saidasPorLoteId.set(linha.stay_id, (saidasPorLoteId.get(linha.stay_id) ?? 0) + soma);
-    if (linha.movement_type === "morte") {
-      mortesPorLoteId.set(linha.stay_id, (mortesPorLoteId.get(linha.stay_id) ?? 0) + soma);
-    }
+    const destino = linha.movement_type === "morte" ? mortesPorLoteId : saidasPorLoteId;
+    destino.set(linha.stay_id, (destino.get(linha.stay_id) ?? 0) + soma);
   }
 
   const resumoPorId = new Map<string, ConfinementLotSummary>();
