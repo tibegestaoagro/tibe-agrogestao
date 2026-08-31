@@ -67,11 +67,11 @@ const PLANS = [
 
 export default function PlanosPage() {
   return (
-    <main className="min-h-screen bg-tibe-light">
+    <main className="min-h-screen bg-superficie-afundada">
       <PublicNav />
       <div className="mx-auto max-w-5xl px-4 py-16 text-center">
         <h1 className="text-3xl font-bold text-tibe-dark">Planos</h1>
-        <p className="mt-2 text-gray-600">
+        <p className="mt-2 text-texto-secundario">
           Escolha o plano ideal para sua operação. 14 dias grátis, sem cartão.
         </p>
 
@@ -79,22 +79,22 @@ export default function PlanosPage() {
           {PLANS.map((plan) => (
             <div
               key={plan.key}
-              className={`flex flex-col rounded-xl border bg-white p-6 text-left shadow-sm ${
-                plan.highlight ? "border-tibe-primary ring-1 ring-tibe-primary" : "border-gray-200"
+              className={`flex flex-col rounded-xl border bg-superficie p-6 text-left shadow-sm ${
+                plan.highlight ? "border-tibe-primary ring-1 ring-tibe-primary" : "border-borda"
               }`}
             >
               {plan.highlight && (
-                <span className="mb-2 w-fit rounded-full bg-tibe-light px-3 py-1 text-xs font-medium text-tibe-dark">
+                <span className="mb-2 w-fit rounded-full bg-superficie-afundada px-3 py-1 text-xs font-medium text-tibe-dark">
                   Mais popular
                 </span>
               )}
-              <h2 className="text-xl font-semibold text-gray-900">{plan.name}</h2>
-              <p className="mt-1 text-sm text-gray-500">{plan.tagline}</p>
+              <h2 className="text-xl font-semibold text-texto">{plan.name}</h2>
+              <p className="mt-1 text-sm text-texto-discreto">{plan.tagline}</p>
               <p className="mt-4 text-3xl font-bold text-tibe-dark">
                 R$ {plan.price}
-                <span className="text-sm font-normal text-gray-500">/mês</span>
+                <span className="text-sm font-normal text-texto-discreto">/mês</span>
               </p>
-              <ul className="mt-4 flex-1 space-y-2 text-sm text-gray-700">
+              <ul className="mt-4 flex-1 space-y-2 text-sm text-texto-secundario">
                 {plan.features.map((f) => (
                   <li key={f} className="flex items-start gap-2">
                     <span className="text-primaria-tinta">✓</span> {f}
@@ -106,7 +106,7 @@ export default function PlanosPage() {
                 className={`mt-6 rounded-md px-4 py-2 text-center font-medium transition ${
                   plan.highlight
                     ? "bg-primaria text-sobre-primaria hover:bg-primaria-hover"
-                    : "border border-tibe-primary text-primaria-tinta hover:bg-tibe-light"
+                    : "border border-tibe-primary text-primaria-tinta hover:bg-superficie-afundada"
                 }`}
               >
                 Contratar
@@ -115,7 +115,7 @@ export default function PlanosPage() {
           ))}
         </div>
 
-        <p className="mt-8 text-sm text-gray-500">
+        <p className="mt-8 text-sm text-texto-discreto">
           Já tem conta?{" "}
           <Link href="/login" className="text-primaria-tinta hover:underline">
             Entrar

@@ -44,16 +44,16 @@ const STEPS = [
 
 export default function HomePage() {
   return (
-    <main className="bg-white">
+    <main className="bg-superficie">
       <PublicNav />
 
       {/* Hero */}
-      <section className="bg-tibe-light">
+      <section className="bg-superficie-afundada">
         <div className="mx-auto max-w-3xl px-6 py-20 text-center">
           <h1 className="text-4xl font-bold text-tibe-dark sm:text-5xl">
             Sua fazenda, sua lavoura e seus clientes: organizados em um só lugar
           </h1>
-          <p className="mt-4 text-lg text-gray-700">
+          <p className="mt-4 text-lg text-texto-secundario">
             Rebanho, lavoura, prestação de serviço e financeiro. Cadastre e consulte
             pelo painel ou direto pelo WhatsApp.
           </p>
@@ -66,7 +66,7 @@ export default function HomePage() {
             </Link>
             <Link
               href="/planos"
-              className="rounded-md border border-tibe-primary px-6 py-3 font-medium text-primaria-tinta transition hover:bg-white"
+              className="rounded-md border border-tibe-primary px-6 py-3 font-medium text-primaria-tinta transition hover:bg-superficie"
             >
               Ver planos
             </Link>
@@ -81,16 +81,16 @@ export default function HomePage() {
         </h2>
         <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {MODULES.map((m) => (
-            <div key={m.title} className="rounded-xl border border-gray-200 p-6">
-              <h3 className="font-semibold text-gray-900">{m.title}</h3>
-              <p className="mt-2 text-sm text-gray-600">{m.desc}</p>
+            <div key={m.title} className="rounded-xl border border-borda p-6">
+              <h3 className="font-semibold text-texto">{m.title}</h3>
+              <p className="mt-2 text-sm text-texto-secundario">{m.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* Como funciona */}
-      <section className="bg-gray-50">
+      <section className="bg-superficie-afundada">
         <div className="mx-auto max-w-4xl px-6 py-20">
           <h2 className="text-center text-2xl font-bold text-tibe-dark">Como funciona</h2>
           <div className="mt-10 grid gap-8 sm:grid-cols-3">
@@ -99,8 +99,8 @@ export default function HomePage() {
                 <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-primaria text-lg font-bold text-sobre-primaria">
                   {s.n}
                 </span>
-                <h3 className="mt-3 font-semibold text-gray-900">{s.title}</h3>
-                <p className="mt-1 text-sm text-gray-600">{s.desc}</p>
+                <h3 className="mt-3 font-semibold text-texto">{s.title}</h3>
+                <p className="mt-1 text-sm text-texto-secundario">{s.desc}</p>
               </div>
             ))}
           </div>

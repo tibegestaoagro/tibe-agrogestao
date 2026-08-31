@@ -9,15 +9,15 @@ export const metadata: Metadata = {
 
 export default function PrivacidadePage() {
   return (
-    <main className="min-h-screen bg-white">
+    <main className="min-h-screen bg-superficie">
       <PublicNav />
       <div className="mx-auto max-w-3xl px-6 py-16">
         <h1 className="text-3xl font-bold text-tibe-dark">Política de Privacidade</h1>
-        <p className="mt-2 text-sm text-gray-500">Última atualização: 10 de julho de 2026.</p>
+        <p className="mt-2 text-sm text-texto-discreto">Última atualização: 10 de julho de 2026.</p>
 
-        <div className="prose-tibe mt-8 space-y-8 text-sm leading-relaxed text-gray-700">
+        <div className="prose-tibe mt-8 space-y-8 text-sm leading-relaxed text-texto-secundario">
           <section>
-            <h2 className="text-lg font-semibold text-gray-900">1. Controlador dos dados</h2>
+            <h2 className="text-lg font-semibold text-texto">1. Controlador dos dados</h2>
             <p className="mt-2">
               O Tibé é operado por <strong>Pleno Digital</strong> [razão social e CNPJ a
               confirmar], responsável pelo tratamento dos dados pessoais descritos nesta
@@ -31,7 +31,7 @@ export default function PrivacidadePage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-gray-900">2. Dados que coletamos</h2>
+            <h2 className="text-lg font-semibold text-texto">2. Dados que coletamos</h2>
             <ul className="mt-2 list-disc space-y-1 pl-5">
               <li>
                 <strong>Cadastrais:</strong> nome da empresa, CNPJ/CPF, endereço, telefone e
@@ -62,7 +62,7 @@ export default function PrivacidadePage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-gray-900">3. Para que usamos seus dados</h2>
+            <h2 className="text-lg font-semibold text-texto">3. Para que usamos seus dados</h2>
             <ul className="mt-2 list-disc space-y-1 pl-5">
               <li>Prestar o serviço contratado (execução do contrato).</li>
               <li>Processar cobranças e identificar inadimplência.</li>
@@ -77,7 +77,7 @@ export default function PrivacidadePage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-gray-900">4. Isolamento entre clientes</h2>
+            <h2 className="text-lg font-semibold text-texto">4. Isolamento entre clientes</h2>
             <p className="mt-2">
               O Tibé é multi-tenant: os dados de cada empresa cliente ficam logicamente isolados
               dos dados de outras empresas clientes desde a camada de banco de dados. Um usuário
@@ -86,7 +86,7 @@ export default function PrivacidadePage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-gray-900">5. Com quem compartilhamos dados</h2>
+            <h2 className="text-lg font-semibold text-texto">5. Com quem compartilhamos dados</h2>
             <p className="mt-2">Usamos os seguintes operadores para viabilizar o serviço:</p>
             <ul className="mt-2 list-disc space-y-1 pl-5">
               <li><strong>Neon</strong>: hospedagem do banco de dados (região São Paulo).</li>
@@ -102,7 +102,7 @@ export default function PrivacidadePage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-gray-900">6. Retenção e exclusão</h2>
+            <h2 className="text-lg font-semibold text-texto">6. Retenção e exclusão</h2>
             <p className="mt-2">
               Mantemos os dados enquanto sua conta estiver ativa e pelo prazo adicional necessário
               para cumprir obrigações legais (ex.: fiscais) após o cancelamento. Você pode
@@ -112,7 +112,7 @@ export default function PrivacidadePage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-gray-900">7. Seus direitos (LGPD, art. 18)</h2>
+            <h2 className="text-lg font-semibold text-texto">7. Seus direitos (LGPD, art. 18)</h2>
             <p className="mt-2">Você pode solicitar, a qualquer momento:</p>
             <ul className="mt-2 list-disc space-y-1 pl-5">
               <li>Confirmação da existência de tratamento e acesso aos dados;</li>
@@ -126,7 +126,7 @@ export default function PrivacidadePage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-gray-900">8. Segurança</h2>
+            <h2 className="text-lg font-semibold text-texto">8. Segurança</h2>
             <p className="mt-2">
               Senhas são armazenadas com hash (bcrypt), conexões usam HTTPS/TLS, e o acesso ao
               painel exige autenticação. Nenhum sistema é 100% livre de risco, mas adotamos
@@ -135,7 +135,7 @@ export default function PrivacidadePage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-gray-900">9. Alterações desta política</h2>
+            <h2 className="text-lg font-semibold text-texto">9. Alterações desta política</h2>
             <p className="mt-2">
               Podemos atualizar esta política para refletir mudanças no serviço ou na legislação.
               Alterações relevantes serão comunicadas pelo painel ou por email.

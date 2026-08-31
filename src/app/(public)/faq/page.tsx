@@ -48,11 +48,11 @@ const FAQS = [
 
 export default function FaqPage() {
   return (
-    <main className="min-h-screen bg-white">
+    <main className="min-h-screen bg-superficie">
       <PublicNav />
       <div className="mx-auto max-w-3xl px-6 py-16">
         <h1 className="text-3xl font-bold text-tibe-dark">Perguntas frequentes</h1>
-        <p className="mt-2 text-gray-600">
+        <p className="mt-2 text-texto-secundario">
           Não achou o que procurava? Fale com a gente em{" "}
           <a href="mailto:contato@tibe.com.br" className="text-primaria-tinta hover:underline">
             contato@tibe.com.br
@@ -60,16 +60,16 @@ export default function FaqPage() {
           .
         </p>
 
-        <div className="mt-8 divide-y divide-gray-200 rounded-lg border border-gray-200">
+        <div className="mt-8 divide-y divide-gray-200 rounded-lg border border-borda">
           {FAQS.map((item) => (
             <details key={item.q} className="group p-5">
-              <summary className="cursor-pointer list-none font-medium text-gray-900 marker:content-none">
+              <summary className="cursor-pointer list-none font-medium text-texto marker:content-none">
                 <span className="flex items-center justify-between gap-4">
                   {item.q}
                   <span className="text-primaria-tinta group-open:rotate-45 transition-transform">+</span>
                 </span>
               </summary>
-              <p className="mt-3 text-sm text-gray-600">{item.a}</p>
+              <p className="mt-3 text-sm text-texto-secundario">{item.a}</p>
             </details>
           ))}
         </div>

@@ -4,7 +4,7 @@ import UtmCapture from "@/components/public/utm-capture";
 
 export default function PublicNav() {
   return (
-    <header className="border-b border-gray-100">
+    <header className="border-b border-borda">
       {/* Captura UTM de qualquer entrada pelo site (Módulo 6): sem UI própria. */}
       <Suspense fallback={null}>
         <UtmCapture />
@@ -14,8 +14,8 @@ export default function PublicNav() {
           Tibé
         </Link>
         <nav className="flex items-center gap-6 text-sm">
-          <Link href="/planos" className="text-gray-600 hover:text-tibe-dark">Planos</Link>
-          <Link href="/faq" className="text-gray-600 hover:text-tibe-dark">FAQ</Link>
+          <Link href="/planos" className="text-texto-secundario hover:text-tibe-dark">Planos</Link>
+          <Link href="/faq" className="text-texto-secundario hover:text-tibe-dark">FAQ</Link>
           <Link href="/login" className="font-medium text-primaria-tinta hover:text-tibe-dark">Entrar</Link>
         </nav>
       </div>
