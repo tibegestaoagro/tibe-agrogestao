@@ -244,6 +244,19 @@ padrão no sistema de design. É decisão de design, e **só o navegador resolve
 1,056:1 é cálculo, não observação, e o quanto some depende de monitor e
 ambiente.
 
+✅ **Metade resolvida por observação, em 2026-08-31.** O usuário abriu
+`/docs/api` em produção e confirmou que **os cinco selos se distinguem** entre
+si, com o `PUT` verde de pé. A medição dizia 1,037:1 no PATCH e sugeria risco;
+o olho disse que não há. **A medição estava certa e a conclusão que se tirava
+dela, errada**, que é exatamente por que este projeto não fecha frente sem
+abrir a tela.
+
+**Continua aberto:** os cerca de 107 chips `<code>` inline de
+`/docs/arquitetura`, `/docs/schema` e `/docs/api`, a 1,056:1. Não foram objeto
+de pergunta específica na validação, e a resposta dos selos não se transfere
+automaticamente: selo tem texto colorido e forma de pílula larga, chip é
+estreito e monoespaçado.
+
 ---
 
 ## 3. Rede de segurança com furo

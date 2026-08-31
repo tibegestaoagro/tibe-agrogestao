@@ -166,14 +166,26 @@ que é colaboradora, as páginas de regra devolvem 404.
 
 ### Próximo passo
 
-**Validar o piloto no navegador. ELE JÁ ESTÁ EM PRODUÇÃO.**
+**O PILOTO FOI VALIDADO NO NAVEGADOR em 31/08, pelo usuário, e passou.**
 
-⚠️ **O usuário autorizou merge e push em 31/08 SEM a validação de navegador
-ter acontecido**, com a consequência dita na conversa e aceita: o site público
-foi ao ar com uma frente que o julgamento independente reprovou duas vezes
-(6/10 e 5/10) e que ninguém viu numa tela. Isto não é reclamação e sim
-registro: a validação continua devendo, e agora ela vale para produção, não
-para uma branch.
+Confirmado por observação direta, depois do deploy:
+
+- **`/docs/setup`:** o aviso em âmbar está certo, e os dois chips que estavam
+  invisíveis (1,000:1, o achado ALTO do juiz) **aparecem**. O conserto do T10
+  (`border border-borda bg-superficie`) resolveu.
+- **`/docs/api`:** os cinco selos de método **se distinguem** entre si, e o
+  `PUT` verde, única mudança de pixel deliberada da frente, ficou de pé.
+
+⚠️ **Isso resolve metade da dívida 2.7.** O que o usuário observou foram os
+**selos**; os cerca de 107 chips `<code>` inline de `/docs/arquitetura`,
+`/docs/schema` e `/docs/api`, a 1,056:1, não foram objeto de pergunta
+específica. A dívida continua aberta para eles.
+
+⚠️ **A ordem foi invertida nesta rodada, e vale registrar:** o merge e o push
+foram autorizados ANTES da validação, então o site público foi ao ar com uma
+frente reprovada duas vezes pelo juiz (6/10 e 5/10). Deu certo, e não é o
+caminho: a regra 8 existe porque seis defeitos deste projeto passaram por suíte
+verde.
 
 Abrir sem login, em https://tibe-agrogestao.vercel.app (ou `npm run dev`):
 `/`, `/planos`, `/faq`, `/politicas/termos`, `/criar-conta`, `/docs`,
