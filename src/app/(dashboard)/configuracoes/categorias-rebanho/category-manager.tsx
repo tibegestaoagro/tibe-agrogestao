@@ -2,17 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Sheet,
-  SheetTrigger,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Field } from "@/components/ui/field";
+import { FormSheet } from "@/components/ui/form-sheet";
+import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
+import { useAviso } from "@/components/ui/toast";
 import {
   Table,
   TableHeader,
@@ -25,6 +21,9 @@ import { apiPost, apiPatch } from "@/lib/client-api";
 
 type Category = { id: string; name: string; active: boolean };
 
+/** Os campos na ordem visual, com o nome que a API usa. */
+const ORDEM = ["name"] as const;
+
 /**
  * Gestão de categorias de rebanho (Módulo 25, spec §2.3): renomear,
  * ativar/desativar, adicionar. Sem exclusão: mesmo espírito de
@@ -33,75 +32,103 @@ type Category = { id: string; name: string; active: boolean };
  */
 export default function CategoryManager({ categories }: { categories: Category[] }) {
   const router = useRouter();
+  const aviso = useAviso();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  // Um painel só, compartilhado por criar e renomear: a pergunta é a mesma.
+  // Esta página renderiza uma instância única, então o id não precisa de prefixo.
+  const err = useErrosDeFormulario(ORDEM);
 
   function openCreate() {
     setEditing(null);
     setName("");
-    setError(null);
+    err.limparTudo();
     setOpen(true);
   }
 
   function openEdit(category: Category) {
     setEditing(category);
     setName(category.name);
-    setError(null);
+    err.limparTudo();
     setOpen(true);
   }
 
   async function submit() {
-    if (!name.trim()) return setError("Informe o nome da categoria.");
+    if (!name.trim()) {
+      err.setGlobal(null);
+      err.reprovar({ name: "Informe o nome da categoria." });
+      return;
+    }
+
+    err.limparTudo();
     setLoading(true);
-    setError(null);
     const res = editing
-      ? await apiPatch<Category>(`/api/v1/animal-categories/${editing.id}`, { name })
-      : await apiPost<Category>("/api/v1/animal-categories", { name });
+      ? await apiPatch<Category>(`/api/v1/animal-categories/${editing.id}`, { name: name.trim() })
+      : await apiPost<Category>("/api/v1/animal-categories", { name: name.trim() });
     setLoading(false);
-    if (!res.ok) return setError(res.message);
+    if (!res.ok) {
+      err.doServidor(res);
+      return;
+    }
     setOpen(false);
     router.refresh();
   }
 
   async function toggleActive(category: Category) {
     setTogglingId(category.id);
-    await apiPatch<Category>(`/api/v1/animal-categories/${category.id}`, {
+    const res = await apiPatch<Category>(`/api/v1/animal-categories/${category.id}`, {
       active: !category.active,
     });
     setTogglingId(null);
+    // A recusa aqui era ENGOLIDA: o botão voltava ao normal, o selo continuava
+    // igual, e ninguém sabia se tinha desativado. A trava A não pegou porque
+    // ela olha o arquivo inteiro, e o arquivo já tratava a recusa do painel.
+    if (!res.ok) {
+      aviso.erro(res.message);
+      return;
+    }
+    aviso.sucesso(category.active ? "Categoria desativada." : "Categoria ativada.");
     router.refresh();
   }
 
   return (
     <div className="space-y-3">
       <div className="flex justify-end">
-        <Sheet open={open} onOpenChange={(v) => (v ? openCreate() : setOpen(false))}>
-          <SheetTrigger asChild>
-            <Button>Nova categoria</Button>
-          </SheetTrigger>
-          <SheetContent title={editing ? "Renomear categoria" : "Nova categoria"}>
-            <SheetHeader>
-              <SheetTitle>{editing ? "Renomear categoria" : "Nova categoria"}</SheetTitle>
-            </SheetHeader>
-            <div className="space-y-3">
-              <div>
-                <Label htmlFor="cat-name">Nome *</Label>
-                <Input id="cat-name" value={name} onChange={(e) => setName(e.target.value)} />
-              </div>
-              {error && <p className="text-sm text-red-700">{error}</p>}
-              <Button onClick={submit} disabled={loading} className="w-full">
-                {loading ? "Salvando..." : "Salvar"}
-              </Button>
-            </div>
-          </SheetContent>
-        </Sheet>
+        <FormSheet
+          trigger={<Button onClick={openCreate}>Nova categoria</Button>}
+          title={editing ? "Renomear categoria" : "Nova categoria"}
+          open={open}
+          onOpenChange={(o) => {
+            setOpen(o);
+            if (!o) err.limparTudo();
+          }}
+          onSubmit={submit}
+          submitLabel="Salvar"
+          pending={loading}
+          error={err.global}
+          focarCampoId={err.focarCampoId}
+          tentativa={err.tentativa}
+        >
+          <Field label="Nome" required id={err.idDe("name")} error={err.erros.name}>
+            {({ id, ...aria }) => (
+              <Input
+                id={id}
+                {...aria}
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  err.limparCampo("name");
+                }}
+              />
+            )}
+          </Field>
+        </FormSheet>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white">
+      <div className="rounded-lg border border-borda bg-superficie">
         <Table>
           <TableHeader>
             <TableRow>
@@ -113,7 +140,7 @@ export default function CategoryManager({ categories }: { categories: Category[]
           <TableBody>
             {categories.length === 0 && (
               <TableRow>
-                <TableCell colSpan={3} className="py-4 text-center text-gray-500">
+                <TableCell colSpan={3} className="py-4 text-center text-texto-secundario">
                   Nenhuma categoria cadastrada.
                 </TableCell>
               </TableRow>

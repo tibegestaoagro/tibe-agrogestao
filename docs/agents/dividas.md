@@ -132,6 +132,42 @@ O maior desalinhamento aberto com o cliente Agromax: foi pedido rebanho **por
 categoria**, e o que existe é por brinco com categoria em cima. Não é dívida de
 código, é de produto, e precisa de conversa antes de virar tarefa.
 
+### 2.5 Site público, auth e plataforma sem token semântico
+
+A frente 5 cobriu o **painel do tenant**, e ele está inteiro: nenhum arquivo
+de `src/app/(dashboard)/` nem de `src/components/` do painel usa mais a paleta
+crua do Tailwind. Ficaram fora, por decisão do usuário em 2026-08-28, os
+**52 arquivos** que restam na linha de base (`scripts/baseline-cor-crua.json`):
+
+| o que | quantos |
+|---|---|
+| site público (`src/app/(public)/`) | 18 |
+| auth, onboarding, escolher plano e afins | 14 |
+| componentes do painel da plataforma (`src/components/platform/`) | 15 |
+| componentes do site público (`src/components/public/`) | 4 |
+| `src/components/signup/verify-code-form.tsx` | 1 |
+
+⚠️ O plano previa que a linha de base fecharia em **32**, contando os
+componentes de plataforma e de site público junto com o painel. Não é trabalho
+esquecido: eles pertencem a estas duas frentes, não à do painel. As páginas de
+`src/app/plataforma/` nem aparecem na conta, porque a catraca as exclui por
+desenho (casca escura, onde o cinza claro é a escolha certa).
+
+São outro contexto visual, com outro público, e validar marketing e curral no
+mesmo dia dilui a atenção. A tela de login soma-se a isso por não ser validável
+por este agente sem digitar senha.
+
+**Custo:** uma rodada própria. O ganho é o modo escuro passar a ser possível no
+app inteiro, e não só no painel.
+
+⚠️ **Armadilha herdada, achada na varredura de 2026-08-31:** o alias depreciado
+`tibe.light` aponta para `--superficie-afundada`, que é **exatamente o fundo do
+painel**. Toda pílula ou cartão que ainda usa `bg-tibe-light` sobre a página
+fica invisível: sobra o texto solto. Um caso foi corrigido (as pílulas de
+"Perfis ativos" em Configurações); os que restam estão em hover de tabela, foco
+de select e menus, onde o efeito é só um realce fraco, e no site público e
+auth, que esta frente não cobriu.
+
 ---
 
 ## 3. Rede de segurança com furo

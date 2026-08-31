@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiOk, apiError, ApiErrors } from "@/lib/api";
+import { apiOk, apiError, ApiErrors, apiErroDeZod } from "@/lib/api";
 import { getSessionUser, getTenantDb } from "@/lib/tenant-context";
 import { changeOwnPasswordWithCurrentAction } from "@/lib/actions/auth-self";
 import { withApi } from "@/lib/route";
@@ -25,7 +25,7 @@ async function POSTHandler(request: Request) {
   const json = await request.json().catch(() => null);
   const parsed = schema.safeParse(json);
   if (!parsed.success) {
-    return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
+    return apiErroDeZod(parsed.error);
   }
 
   const db = await getTenantDb();

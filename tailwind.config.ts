@@ -47,6 +47,10 @@ const config: Config = {
           suave: "var(--primaria-suave)",
         },
         "sobre-primaria": "var(--sobre-primaria)",
+        // `rgb(... / <alpha-value>)` e nao `var(--x)` direto: e o unico token
+        // usado com opacidade (`bg-sobreposicao/40`), e sem esta forma o `/40`
+        // e ignorado em silencio. Ver o comentario em globals.css.
+        sobreposicao: "rgb(var(--sobreposicao) / <alpha-value>)",
         acento: {
           DEFAULT: "var(--acento)",
           hover: "var(--acento-hover)",

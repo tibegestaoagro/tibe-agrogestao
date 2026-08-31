@@ -1,6 +1,6 @@
 import { negotiationCreateSchema } from "@/lib/validation/negotiation";
 import { productNegotiationSchema } from "@/lib/validation/stock";
-import { apiOk, apiError } from "@/lib/api";
+import { apiOk, apiError, apiErroDeZod } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import {
   createCattleNegotiation,
@@ -95,7 +95,7 @@ async function POSTHandler(request: Request) {
 
   const parsed = negotiationCreateSchema.safeParse(body.json);
   if (!parsed.success) {
-    return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
+    return apiErroDeZod(parsed.error);
   }
   const d = parsed.data;
 
@@ -132,7 +132,7 @@ type GuardOk = { user: { id: string }; db: TenantPrismaClient };
 async function criarNegocioDeProduto(g: GuardOk, json: unknown) {
   const parsed = productNegotiationSchema.safeParse(json);
   if (!parsed.success) {
-    return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
+    return apiErroDeZod(parsed.error);
   }
   const d = parsed.data;
 

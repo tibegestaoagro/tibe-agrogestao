@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { useAviso } from "@/components/ui/toast";
 import { apiPatch } from "@/lib/client-api";
 
 const NEXT: Record<string, { status: string; label: string } | null> = {
@@ -19,6 +20,7 @@ export default function OrderStatusButton({
   status: string;
 }) {
   const router = useRouter();
+  const aviso = useAviso();
   const [loading, setLoading] = useState(false);
   const next = NEXT[status];
 
@@ -30,7 +32,10 @@ export default function OrderStatusButton({
       status: next!.status,
     });
     setLoading(false);
+    // Sem o `else`, faturar uma ordem falhava e a linha continuava
+    // "Concluída", sem nada dito. Mesmo defeito que o `pay-button` teve.
     if (res.ok) router.refresh();
+    else aviso.erro(res.message);
   }
 
   return (

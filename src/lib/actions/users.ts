@@ -19,7 +19,9 @@ export async function inviteUserAction(
 ): Promise<ActionResult<{ id: string; temp_password: string }>> {
   const existing = await prisma.user.findUnique({ where: { email: input.email } });
   if (existing) {
-    return fail("DUPLICATE_EMAIL", "Já existe um usuário com esse email", 409);
+    // `field` para a recusa aparecer embaixo do campo de email, e não no
+    // rodapé do painel: o produtor precisa saber qual dos quatro corrigir.
+    return fail("DUPLICATE_EMAIL", "Já existe um usuário com esse email", 409, "email");
   }
 
   // Limite de assentos do plano (2026-07-30), checado DEPOIS da duplicidade

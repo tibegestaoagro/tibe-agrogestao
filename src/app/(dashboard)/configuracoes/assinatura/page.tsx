@@ -70,11 +70,11 @@ export default async function AssinaturaPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="text-xl font-semibold text-gray-900">Assinatura</h1>
+      <h1 className="text-xl font-semibold text-texto">Assinatura</h1>
 
-      <div className="rounded-lg border border-gray-200 bg-white p-5">
+      <div className="rounded-lg border border-borda bg-superficie p-5">
         <div className="flex flex-wrap items-center gap-3">
-          <p className="text-sm text-gray-500">Plano atual</p>
+          <p className="text-sm text-texto-discreto">Plano atual</p>
           <p className="text-lg font-semibold text-tibe-dark">
             {PLAN_LABEL[subscription?.plan ?? tenant?.plan ?? ""] ?? "não informado"}
           </p>
@@ -86,18 +86,18 @@ export default async function AssinaturaPage() {
         </div>
 
         {tenant?.status === "trial" && tenant.trial_ends_at && (
-          <p className="mt-2 text-sm text-gray-500">
+          <p className="mt-2 text-sm text-texto-discreto">
             Teste gratuito até {tenant.trial_ends_at.toLocaleDateString("pt-BR")}.
           </p>
         )}
         {subscription?.next_due_date && (
-          <p className="mt-2 text-sm text-gray-500">
+          <p className="mt-2 text-sm text-texto-discreto">
             Próxima cobrança: {subscription.next_due_date.toLocaleDateString("pt-BR")}
           </p>
         )}
 
         {access !== "full" && (
-          <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p className="mt-3 rounded-md bg-perigo-suave px-3 py-2 text-sm text-perigo-tinta">
             {access === "blocked"
               ? "Acesso bloqueado por pendência de pagamento. Regularize abaixo."
               : "Pagamento em atraso: regularize para recuperar acesso total de escrita."}
@@ -107,10 +107,10 @@ export default async function AssinaturaPage() {
 
       <SubscribeForm currentPlan={(subscription?.plan as "campo" | "fazenda" | "grupo") ?? null} />
 
-      <div className="rounded-lg border border-gray-200 bg-white p-5">
-        <p className="text-sm font-medium text-gray-700">Histórico de cobranças</p>
+      <div className="rounded-lg border border-borda bg-superficie p-5">
+        <p className="text-sm font-medium text-texto-secundario">Histórico de cobranças</p>
         {payments.length === 0 ? (
-          <p className="mt-2 text-sm text-gray-500">
+          <p className="mt-2 text-sm text-texto-discreto">
             Nenhuma cobrança encontrada ainda.
           </p>
         ) : (
@@ -120,7 +120,7 @@ export default async function AssinaturaPage() {
                 <span>
                   {p.value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                 </span>
-                <span className="text-gray-500">
+                <span className="text-texto-discreto">
                   {PAYMENT_STATUS_LABEL[p.status] ?? p.status}
                 </span>
               </li>

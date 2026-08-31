@@ -490,6 +490,169 @@ function conferirRotulosDeMovimento() {
   );
 }
 
+/**
+ * Quem escreve tem que dizer quando falha.
+ *
+ * O padrao `if (res.ok) router.refresh()` sem nenhum `else` deixa a tela MUDA
+ * quando o servidor recusa: o produtor clica, nada acontece, e ele nao sabe se
+ * funcionou. O `pay-button.tsx` teve esse defeito ate 2026-08-20; outros
+ * quatro sobreviveram com ele por mais de uma semana, incluindo o de mudar
+ * permissao de usuario, porque ninguem varreu o resto. Esta trava e a
+ * varredura, automatica.
+ *
+ * Linha de base propria, que so ENCOLHE, pelo mesmo desenho da cor crua.
+ */
+function conferirRecusaTratada() {
+  console.log("\n10. Recusa do servidor tratada na tela");
+
+  const base = new Set<string>(
+    JSON.parse(readFileSync(join(RAIZ, "scripts", "baseline-recusa-engolida.json"), "utf8")),
+  );
+  const ofensores: string[] = [];
+  const limpos: string[] = [];
+
+  for (const rel of versionados()) {
+    if (!rel.startsWith("src/") || !rel.endsWith(".tsx")) continue;
+    const full = join(RAIZ, rel);
+    if (!existsSync(full)) continue;
+    const s = readFileSync(full, "utf8");
+    if (!/apiPost|apiPut|apiPatch/.test(s)) continue;
+    // A CHAMADA, nao o import. A primeira versao aceitava a palavra `toast`
+    // solta, que casa com `from "@/components/ui/toast"`: todo arquivo que
+    // importasse passava, mesmo sem nunca avisar nada. Descoberto no passo que
+    // exige quebrar a trava de proposito antes de confiar nela.
+    const trata = /\baviso\.\w+\(|doServidor\(|setErro\(|setError\(|\btoast\.\w+\(/.test(s);
+
+    if (base.has(rel)) {
+      if (trata) limpos.push(rel);
+      continue;
+    }
+    if (!trata) ofensores.push(rel);
+  }
+
+  check(
+    "todo painel que escreve avisa quando o servidor recusa",
+    ofensores.length === 0,
+    ofensores.length > 0
+      ? "use useAviso() como em pay-button.tsx, ou o kit de erro de formulario:\n       " +
+        ofensores.join("\n       ")
+      : undefined,
+  );
+
+  if (limpos.length > 0) {
+    console.log(
+      `  ℹ️  ja trata a recusa, remova de baseline-recusa-engolida.json (${limpos.length}): ${limpos.slice(0, 6).join(", ")}`,
+    );
+  }
+}
+
+/**
+ * Painel de escrita nasce no kit.
+ *
+ * Um componente client que ESCREVE e tem campo de formulario precisa do
+ * `FormSheet`: e ele que poe a recusa do servidor embaixo do campo certo, move
+ * o foco para o primeiro invalido e conta a tentativa. Sem esta trava, o
+ * vigesimo painel nasce como os dezenove nasceram.
+ *
+ * Botao de acao sem campo nenhum nao entra: nao ha o que converter, e por isso
+ * o filtro exige `<Input`, `<Select` ou `MoneyInput` antes de cobrar.
+ *
+ * ⚠️ TRES itens da linha de base sao EXCECAO PERMANENTE, nao divida:
+ *
+ * - `postpone-button.tsx` (um campo de data) e `user-row-actions.tsx` (um
+ *   seletor de permissao) sao controles INLINE numa linha de tabela.
+ *   Converte-los a `FormSheet` trocaria um gesto de um clique por um painel
+ *   lateral que abre, o que e pior para o produtor. Decisao do usuario em
+ *   2026-08-28. Os dois ja tratam a recusa do servidor, que era o que faltava
+ *   de verdade neles.
+ * - `subscribe-form.tsx` e pagamento: o RESULTADO (QR Code do PIX, linha
+ *   digitavel do boleto) precisa ficar na tela para ser escaneado ou copiado,
+ *   e painel que fecha no sucesso levaria o QR embora. Nao tem campo de texto,
+ *   entao o defeito da tecla de confirmar do teclado tambem nao se aplica. Ele
+ *   usa `Field` nos dois seletores, que era o que faltava nele (os rotulos
+ *   eram `<label>` sem `htmlFor`).
+ */
+function conferirPainelNoKit() {
+  console.log("\n11. Painel de escrita usa o kit");
+
+  const base = new Set<string>(
+    JSON.parse(readFileSync(join(RAIZ, "scripts", "baseline-painel-fora-do-kit.json"), "utf8")),
+  );
+  const ofensores: string[] = [];
+  const limpos: string[] = [];
+
+  for (const rel of versionados()) {
+    if (!rel.startsWith("src/") || !rel.endsWith(".tsx")) continue;
+    if (rel.includes("platform") || rel.includes("plataforma")) continue;
+    if (rel.startsWith("src/components/ui/")) continue;
+    const full = join(RAIZ, rel);
+    if (!existsSync(full)) continue;
+    const s = readFileSync(full, "utf8");
+    if (!/apiPost|apiPut|apiPatch/.test(s)) continue;
+    if (!/<Input|<Select|MoneyInput/.test(s)) continue;
+    const noKit = s.includes("FormSheet");
+
+    if (base.has(rel)) {
+      if (noKit) limpos.push(rel);
+      continue;
+    }
+    if (!noKit) ofensores.push(rel);
+  }
+
+  check(
+    "todo painel de escrita com campo usa FormSheet",
+    ofensores.length === 0,
+    ofensores.length > 0
+      ? `use FormSheet + Field + useErrosDeFormulario, como em stay-form.tsx:\n       ${ofensores.join("\n       ")}`
+      : undefined,
+  );
+
+  if (limpos.length > 0) {
+    console.log(
+      `  ℹ️  ja no kit, remova de baseline-painel-fora-do-kit.json (${limpos.length}): ${limpos.slice(0, 6).join(", ")}`,
+    );
+  }
+}
+
+/**
+ * 12. A recusa do Zod nao pode sair crua da rota.
+ *
+ * Ate 2026-08-29 as 71 rotas do produto faziam a mesma linha:
+ *
+ *     return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
+ *
+ * Dois defeitos numa linha so. O texto era o default do Zod, em INGLES: quem
+ * cadastrava maquina com custo negativo lia "Too small: expected number to be
+ * >=0". E o `field` nao atravessava, entao a recusa caia no rodape do painel
+ * em vez de embaixo do campo, e o produtor tinha que adivinhar qual dos oito
+ * corrigir. Nada disso aparecia em teste: as suites leem `code`, nao a frase.
+ *
+ * `apiErroDeZod(parsed.error)` resolve os dois. Esta trava existe porque a
+ * linha errada e mais curta de escrever que a certa, e a proxima rota nasce
+ * copiando a vizinha.
+ */
+function conferirRecusaDeZodCrua() {
+  console.log("\n12. Recusa do Zod dita em portugues");
+
+  const ofensores: string[] = [];
+  for (const rel of versionados()) {
+    if (!rel.startsWith("src/app/api/") || !rel.endsWith(".ts")) continue;
+    const full = join(RAIZ, rel);
+    if (!existsSync(full)) continue;
+    if (/\.error\.issues\[0\]\.message/.test(readFileSync(full, "utf8"))) {
+      ofensores.push(rel);
+    }
+  }
+
+  check(
+    "nenhuma rota devolve a mensagem crua do Zod",
+    ofensores.length === 0,
+    ofensores.length > 0
+      ? `use apiErroDeZod(parsed.error), que traduz e leva o campo junto:\n       ${ofensores.join("\n       ")}`
+      : undefined,
+  );
+}
+
 function main() {
   console.log("🔎 Conferencia estatica do repositorio (sem banco)");
   conferirCaminhos();
@@ -502,6 +665,9 @@ function main() {
   conferirCamposNumericos();
   conferirCorCrua();
   conferirRotulosDeMovimento();
+  conferirRecusaTratada();
+  conferirPainelNoKit();
+  conferirRecusaDeZodCrua();
 
   console.log("");
   if (falhas === 0) console.log("✅ Repositorio consistente: 0 falhas.");

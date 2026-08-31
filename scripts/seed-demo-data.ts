@@ -87,8 +87,27 @@ function linkedEntry(input: {
 
 let TENANT_ID = "";
 
+/**
+ * ⚠️ A ORDEM aqui e dependencia, nao gosto: `Property` sai por ultimo porque
+ * quase tudo aponta para ela.
+ *
+ * As quatro tabelas do livro-razao (Modulo 30) e de negociacoes (Modulo 31)
+ * foram acrescentadas em 2026-08-29, depois que o seed parou de rodar neste
+ * ambiente. `HerdMovement` e `HerdStay` apontam para `Property` com
+ * `onDelete: Restrict`, de proposito (o comentario no schema explica: "sairam
+ * 20 da Fazenda A" perde o sentido se a origem virar nula). Como a limpeza
+ * nao as conhecia, `property.deleteMany` batia em chave estrangeira e o seed
+ * morria antes de criar qualquer coisa. Efeito colateral: `test:herd` passou
+ * a falhar por falta de fixture, dizendo "nenhum tenant com animais".
+ *
+ * Tabela nova que referencie `Property` precisa entrar nesta lista.
+ */
 async function wipeDemoData() {
   const tenant_id = TENANT_ID;
+  await prisma.herdMovement.deleteMany({ where: { tenant_id } });
+  await prisma.herdStay.deleteMany({ where: { tenant_id } });
+  await prisma.stockMovement.deleteMany({ where: { tenant_id } });
+  await prisma.negotiation.deleteMany({ where: { tenant_id } });
   await prisma.animalWeightLog.deleteMany({ where: { tenant_id } });
   await prisma.animalVaccination.deleteMany({ where: { tenant_id } });
   await prisma.animalMovement.deleteMany({ where: { tenant_id } });

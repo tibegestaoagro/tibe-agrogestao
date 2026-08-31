@@ -104,8 +104,8 @@ export default async function EstoquePage(
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Estoque</h1>
-          <p className="mt-0.5 text-sm text-gray-500">
+          <h1 className="text-xl font-semibold text-texto">Estoque</h1>
+          <p className="mt-0.5 text-sm text-texto-discreto">
             {produtos.length.toLocaleString("pt-BR")} produto(s) cadastrado(s), {comSaldo.length} com
             saldo
           </p>
@@ -130,7 +130,7 @@ export default async function EstoquePage(
       </div>
 
       {properties.length === 0 && (
-        <p className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <p className="rounded-md bg-atencao-suave px-4 py-3 text-sm text-atencao-tinta">
           Cadastre uma fazenda antes de movimentar o estoque (menu{" "}
           <Link href="/minha-fazenda" className="font-medium underline">
             Minha Fazenda
@@ -145,8 +145,8 @@ export default async function EstoquePage(
         visto por quem abriu a tela para outra coisa.
       */}
       {abaixoDoMinimo.length > 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-          <p className="text-sm font-semibold text-amber-900">
+        <div className="rounded-lg border border-atencao-tinta/30 bg-atencao-suave px-4 py-3">
+          <p className="text-sm font-semibold text-atencao-tinta">
             {abaixoDoMinimo.length === 1
               ? "1 produto precisa de reposição"
               : `${abaixoDoMinimo.length} produtos precisam de reposição`}
@@ -156,7 +156,7 @@ export default async function EstoquePage(
             não está chegando perto. Os dois casos disparam o mesmo aviso, mas
             não são a mesma notícia para quem vai ao curral hoje.
           */}
-          <p className="mt-1 text-sm text-amber-800">
+          <p className="mt-1 text-sm text-atencao-tinta">
             {abaixoDoMinimo
               .map((p) =>
                 p.saldo_no_tenant === 0
@@ -168,9 +168,9 @@ export default async function EstoquePage(
         </div>
       )}
 
-      <div className="rounded-lg border border-gray-200 bg-white">
-        <div className="border-b border-gray-200 px-4 py-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-600">
+      <div className="rounded-lg border border-borda bg-superficie">
+        <div className="border-b border-borda px-4 py-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-texto-secundario">
             O que eu tenho
           </h2>
         </div>
@@ -187,7 +187,7 @@ export default async function EstoquePage(
           <TableBody>
             {produtos.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="py-6 text-center text-gray-500">
+                <TableCell colSpan={5} className="py-6 text-center text-texto-discreto">
                   Nenhum produto cadastrado ainda. Cadastre o primeiro para começar a controlar o
                   estoque.
                 </TableCell>
@@ -197,9 +197,9 @@ export default async function EstoquePage(
               <TableRow key={p.id}>
                 <TableCell className="font-medium">
                   {p.name}
-                  {p.brand && <span className="block text-xs text-gray-500">{p.brand}</span>}
+                  {p.brand && <span className="block text-xs text-texto-discreto">{p.brand}</span>}
                 </TableCell>
-                <TableCell className="text-gray-600">{p.category_name}</TableCell>
+                <TableCell className="text-texto-secundario">{p.category_name}</TableCell>
                 <TableCell className="tabular-nums">
                   {descreverQuantidade(p.saldo_total, p.unit)}
                   {p.abaixo_do_minimo && (
@@ -214,26 +214,26 @@ export default async function EstoquePage(
                     das duas é.
                   */}
                   {p.saldo_no_tenant !== p.saldo_total && (
-                    <span className="block text-xs text-gray-500">
+                    <span className="block text-xs text-texto-discreto">
                       {descreverQuantidade(p.saldo_no_tenant, p.unit)} somando as fazendas
                     </span>
                   )}
                 </TableCell>
-                <TableCell className="tabular-nums text-gray-600">
+                <TableCell className="tabular-nums text-texto-secundario">
                   {p.minimum_stock == null
                     ? "sem aviso"
                     : descreverQuantidade(p.minimum_stock, p.unit)}
                 </TableCell>
-                <TableCell className="text-gray-600">{p.storage_location ?? "-"}</TableCell>
+                <TableCell className="text-texto-secundario">{p.storage_location ?? "-"}</TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white">
-        <div className="border-b border-gray-200 px-4 py-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-600">
+      <div className="rounded-lg border border-borda bg-superficie">
+        <div className="border-b border-borda px-4 py-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-texto-secundario">
             Últimas movimentações
           </h2>
         </div>
@@ -250,7 +250,7 @@ export default async function EstoquePage(
           <TableBody>
             {movimentos.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="py-6 text-center text-gray-500">
+                <TableCell colSpan={5} className="py-6 text-center text-texto-discreto">
                   Nenhuma movimentação registrada ainda.
                 </TableCell>
               </TableRow>
@@ -279,13 +279,13 @@ export default async function EstoquePage(
                     {m.delta > 0 ? "+" : m.delta < 0 ? "-" : ""}
                     {descreverQuantidade(Math.abs(m.delta), m.unit)}
                     {m.movement_type === "ajuste" && m.corrected_balance != null && (
-                      <span className="block text-xs text-gray-500">
+                      <span className="block text-xs text-texto-discreto">
                         de {descreverQuantidade(m.previous_balance ?? 0, m.unit)} para{" "}
                         {descreverQuantidade(m.corrected_balance, m.unit)}
                       </span>
                     )}
                   </TableCell>
-                  <TableCell className="text-gray-600">{m.purpose ?? m.notes ?? "-"}</TableCell>
+                  <TableCell className="text-texto-secundario">{m.purpose ?? m.notes ?? "-"}</TableCell>
                 </TableRow>
               );
             })}

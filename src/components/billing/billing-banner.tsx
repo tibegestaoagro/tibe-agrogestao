@@ -9,7 +9,9 @@ export default function BillingBanner({ access }: { access: BillingAccess }) {
   return (
     <div
       className={`flex flex-wrap items-center justify-between gap-3 px-6 py-2.5 text-sm ${
-        isBlocked ? "bg-red-600 text-white" : "bg-amber-400 text-amber-950"
+        isBlocked
+          ? "bg-perigo text-superficie"
+          : "bg-atencao-suave text-atencao-tinta"
       }`}
     >
       <p className="font-medium">
@@ -20,7 +22,11 @@ export default function BillingBanner({ access }: { access: BillingAccess }) {
       <Link
         href="/configuracoes/assinatura"
         className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold ${
-          isBlocked ? "bg-white text-red-700" : "bg-amber-950 text-amber-50"
+          // O chip inverte o par da tarja: a razão de contraste é simétrica,
+          // então o par que o gate confere vale nos dois sentidos.
+          isBlocked
+            ? "bg-superficie text-perigo-tinta"
+            : "bg-atencao-tinta text-atencao-suave"
         }`}
       >
         Regularizar assinatura

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiOk, apiError } from "@/lib/api";
+import { apiOk, apiError, apiErroDeZod } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { listContacts, createContact, CONTACT_TYPES } from "@/lib/actions/contacts";
 import { withApi } from "@/lib/route";
@@ -55,7 +55,7 @@ async function POSTHandler(request: Request) {
 
   const parsed = createSchema.safeParse(body.json);
   if (!parsed.success) {
-    return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
+    return apiErroDeZod(parsed.error);
   }
   const d = parsed.data;
 

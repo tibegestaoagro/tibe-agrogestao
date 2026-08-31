@@ -24,7 +24,10 @@ const buttonVariants = cva(
         outline:
           "border border-borda-forte bg-superficie text-texto shadow-none hover:border-borda-campo hover:bg-superficie-afundada",
         ghost: "text-texto-secundario shadow-none hover:bg-superficie-afundada",
-        destructive: "bg-perigo text-white hover:bg-perigo-tinta",
+        // `text-superficie` e não `text-texto-invertido`: o gate de contraste
+        // confere o par ["botao destrutivo", "superficie", "perigo"], e é esse
+        // o par desenhado.
+        destructive: "bg-perigo text-superficie hover:bg-perigo-tinta",
         accent: "bg-acento text-sobre-acento hover:bg-acento-hover",
       },
       /**

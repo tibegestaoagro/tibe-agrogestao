@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiOk, apiError } from "@/lib/api";
+import { apiOk, apiError, apiErroDeZod } from "@/lib/api";
 import { guardPlatform } from "@/lib/platform-guard";
 import { forceSubscriptionStatusAction } from "@/lib/actions/platform-tenants";
 import { withApi } from "@/lib/route";
@@ -22,7 +22,7 @@ async function PATCHHandler(request: Request, props: { params: Promise<{ id: str
   const json = await request.json().catch(() => null);
   const parsed = schema.safeParse(json);
   if (!parsed.success) {
-    return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
+    return apiErroDeZod(parsed.error);
   }
 
   const result = await forceSubscriptionStatusAction({

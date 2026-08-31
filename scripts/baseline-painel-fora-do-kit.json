@@ -1,0 +1,5 @@
+[
+  "src/components/billing/subscribe-form.tsx",
+  "src/components/financeiro/postpone-button.tsx",
+  "src/components/usuarios/user-row-actions.tsx"
+]

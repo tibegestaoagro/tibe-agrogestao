@@ -1,4 +1,4 @@
-import { apiOk, apiError } from "@/lib/api";
+import { apiOk, apiError, apiErroDeZod } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { stockAdjustSchema } from "@/lib/validation/stock";
 import { adjustStock } from "@/lib/actions/stock-ledger";
@@ -25,7 +25,7 @@ async function POSTHandler(request: Request) {
 
   const parsed = stockAdjustSchema.safeParse(body.json);
   if (!parsed.success) {
-    return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
+    return apiErroDeZod(parsed.error);
   }
   const d = parsed.data;
 

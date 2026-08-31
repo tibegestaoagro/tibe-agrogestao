@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiOk, apiError, ApiErrors } from "@/lib/api";
+import { apiOk, apiError, ApiErrors, apiErroDeZod } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { scoped } from "@/lib/prisma";
 import { serializeCycle } from "@/lib/serializers";
@@ -47,7 +47,7 @@ async function POSTHandler(request: Request, props: { params: Promise<{ id: stri
 
   const parsed = createSchema.safeParse(body.json);
   if (!parsed.success) {
-    return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
+    return apiErroDeZod(parsed.error);
   }
   const { crop_name, planted_at, expected_harvest_at } = parsed.data;
 

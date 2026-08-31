@@ -6,7 +6,7 @@ type Point = { month: string; count: number };
 
 export default function HerdEvolutionChart({ data }: { data: Point[] }) {
   if (data.every((d) => d.count === 0)) {
-    return <p className="text-sm text-gray-500">Sem dado de rebanho no período.</p>;
+    return <p className="text-sm text-texto-discreto">Sem dado de rebanho no período.</p>;
   }
 
   return (

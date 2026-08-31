@@ -28,6 +28,16 @@
   --superficie: #ffffff;
   --superficie-afundada: #fcf8f5;
   --superficie-invertida: #022e20;
+  /* O véu atrás de um painel aberto. Papel próprio, e não "preto com 40%":
+     numa identidade diferente ele pode não ser preto, e a opacidade fica na
+     classe, onde já estava.
+
+     ⚠️ Em CANAIS, e não em hexadecimal como todos os outros: é o único token
+     usado com opacidade (`bg-sobreposicao/40`), e a sintaxe `/40` do Tailwind
+     precisa de `rgb(var(--x) / <alpha-value>)`, que não funciona com hex. Com
+     hex o véu simplesmente não escurecia, e o painel abria sobre a página em
+     brilho total. */
+  --sobreposicao: 0 0 0;
 
   /* Texto */
   --texto: #111827;

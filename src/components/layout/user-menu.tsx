@@ -25,11 +25,11 @@ export default function UserMenu({ userName, roleLabel }: { userName: string; ro
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 rounded-lg px-1.5 py-1 transition hover:bg-gray-100"
+        className="flex items-center gap-2 rounded-lg px-1.5 py-1 transition hover:bg-superficie-afundada"
       >
         <span className="hidden text-right sm:block">
-          <span className="block text-sm font-medium text-gray-900">{userName}</span>
-          <span className="block text-xs text-gray-500">{roleLabel}</span>
+          <span className="block text-sm font-medium text-texto">{userName}</span>
+          <span className="block text-xs text-texto-discreto">{roleLabel}</span>
         </span>
         <span
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primaria text-sm font-semibold text-sobre-primaria"
@@ -40,11 +40,11 @@ export default function UserMenu({ userName, roleLabel }: { userName: string; ro
         <ChevronDown className="hidden h-4 w-4 shrink-0 text-texto-discreto sm:block" />
       </button>
       {open && (
-        <div className="absolute right-0 z-50 mt-1 w-52 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+        <div className="absolute right-0 z-50 mt-1 w-52 rounded-lg border border-borda bg-superficie py-1 shadow-lg">
           <Link
             href="/configuracoes/perfil"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-tibe-light"
+            className="flex items-center gap-2 px-3 py-2 text-sm text-texto-secundario hover:bg-tibe-light"
           >
             <User className="h-4 w-4 text-texto-discreto" />
             Perfil
@@ -52,16 +52,16 @@ export default function UserMenu({ userName, roleLabel }: { userName: string; ro
           <Link
             href="/configuracoes/senha"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-tibe-light"
+            className="flex items-center gap-2 px-3 py-2 text-sm text-texto-secundario hover:bg-tibe-light"
           >
             <KeyRound className="h-4 w-4 text-texto-discreto" />
             Minha senha
           </Link>
-          <div className="my-1 border-t border-gray-100" />
+          <div className="my-1 border-t border-borda" />
           <button
             type="button"
             onClick={() => signOut({ callbackUrl: "/login" })}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-tibe-light"
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-texto-secundario hover:bg-tibe-light"
           >
             <LogOut className="h-4 w-4 text-texto-discreto" />
             Sair

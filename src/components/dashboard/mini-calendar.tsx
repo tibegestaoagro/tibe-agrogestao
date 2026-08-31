@@ -41,7 +41,7 @@ export default function MiniCalendar({ eventDates }: { eventDates: string[] }) {
   return (
     <div>
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-sm font-medium text-gray-700">
+        <p className="text-sm font-medium text-texto-secundario">
           {MONTH_NAMES[cursor.getMonth()]} de {cursor.getFullYear()}
         </p>
         <div className="flex items-center gap-1">
@@ -88,7 +88,7 @@ export default function MiniCalendar({ eventDates }: { eventDates: string[] }) {
                   isToday
                     ? "bg-primaria font-semibold text-sobre-primaria"
                     : inMonth
-                      ? "text-gray-700"
+                      ? "text-texto-secundario"
                       : "text-texto-discreto"
                 }`}
               >

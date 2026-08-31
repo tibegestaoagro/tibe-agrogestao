@@ -3,13 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Sheet,
-  SheetTrigger,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
   Select,
   SelectTrigger,
   SelectValue,
@@ -18,7 +11,9 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
+import { FormSheet } from "@/components/ui/form-sheet";
+import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { apiPost } from "@/lib/client-api";
 import { STOCK_UNITS } from "@/lib/stock/units";
 import { lerNumeroBr } from "@/lib/numero-br";
@@ -37,11 +32,22 @@ import { lerNumeroBr } from "@/lib/numero-br";
 
 type Categoria = { id: string; name: string };
 
+/** Os campos na ordem visual, com o nome que a API usa. */
+const ORDEM = [
+  "name",
+  "category_id",
+  "unit",
+  "minimum_stock",
+  "brand",
+  "storage_location",
+] as const;
+type Campo = (typeof ORDEM)[number];
+
 export default function ProductForm({ categories }: { categories: Categoria[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const err = useErrosDeFormulario(ORDEM);
 
   const [name, setName] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -59,25 +65,31 @@ export default function ProductForm({ categories }: { categories: Categoria[] })
     setBrand("");
     setMinimo("");
     setLocal("");
-    setError(null);
+    err.limparTudo();
   }
 
   async function submit() {
-    setError(null);
-    if (!name.trim()) return setError("Informe o nome do produto.");
-    if (!categoryId) return setError("Escolha a categoria.");
-    if (!unit) return setError("Escolha a unidade de medida.");
+    const novos: Partial<Record<Campo, string>> = {};
+    if (!name.trim()) novos.name = "Informe o nome do produto.";
+    if (!categoryId) novos.category_id = "Escolha a categoria.";
+    if (!unit) novos.unit = "Escolha a unidade de medida.";
 
     // Mesmo leitor da quantidade: um mínimo de "1.500" lido como 1,5 mudaria
     // quando o aviso de reposição dispara, em mil vezes.
     const minimoNumero = minimo.trim() ? lerNumeroBr(minimo) : null;
     if (minimo.trim() && minimoNumero == null) {
-      return setError("Não entendi o estoque mínimo.");
-    }
-    if (minimoNumero != null && minimoNumero < 0) {
-      return setError("O estoque mínimo não pode ser negativo.");
+      novos.minimum_stock = "Não entendi o estoque mínimo.";
+    } else if (minimoNumero != null && minimoNumero < 0) {
+      novos.minimum_stock = "O estoque mínimo não pode ser negativo.";
     }
 
+    if (Object.keys(novos).length > 0) {
+      err.setGlobal(null);
+      err.reprovar(novos);
+      return;
+    }
+
+    err.limparTudo();
     setLoading(true);
     const res = await apiPost("/api/v1/products", {
       name: name.trim(),
@@ -89,117 +101,153 @@ export default function ProductForm({ categories }: { categories: Categoria[] })
     });
     setLoading(false);
 
-    if (!res.ok) return setError(res.message);
+    if (!res.ok) {
+      err.doServidor(res);
+      return;
+    }
     reset();
     setOpen(false);
     router.refresh();
   }
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button>Cadastrar produto</Button>
-      </SheetTrigger>
-      <SheetContent>
-        <SheetHeader>
-          <SheetTitle>Cadastrar produto</SheetTitle>
-        </SheetHeader>
+    <FormSheet
+      trigger={<Button>Cadastrar produto</Button>}
+      title="Cadastrar produto"
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) reset();
+      }}
+      onSubmit={submit}
+      submitLabel="Salvar produto"
+      pending={loading}
+      error={err.global}
+      focarCampoId={err.focarCampoId}
+      tentativa={err.tentativa}
+    >
+      <Field label="Nome do produto" required id="name" error={err.erros.name}>
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              err.limparCampo("name");
+            }}
+            placeholder="Sal mineral 60 P"
+          />
+        )}
+      </Field>
 
-        <div className="mt-4 space-y-4">
-          <div>
-            <Label htmlFor="produto-nome">Nome do produto</Label>
-            <Input
-              id="produto-nome"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Sal mineral 60 P"
-            />
-          </div>
+      <Field label="Categoria" required id="category_id" error={err.erros.category_id}>
+        {({ id, ...aria }) => (
+          <Select
+            value={categoryId}
+            onValueChange={(v) => {
+              setCategoryId(v);
+              err.limparCampo("category_id");
+            }}
+          >
+            <SelectTrigger id={id} {...aria}>
+              <SelectValue placeholder="Escolha a categoria" />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </Field>
 
-          <div>
-            <Label>Categoria</Label>
-            <Select value={categoryId} onValueChange={setCategoryId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Escolha a categoria" />
-              </SelectTrigger>
-              <SelectContent>
-                {categories.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+      {/*
+        A dica da unidade fica no `hint` do campo: dizer a regra ANTES é o que
+        evita o produtor descobri-la por uma recusa do servidor depois de
+        preencher tudo. `label` é capitalizado porque nomeia a opção da lista;
+        no meio de uma frase ele volta a ser minúsculo, senão sai "meia Saca
+        não existe".
+      */}
+      <Field
+        label="Unidade de medida"
+        required
+        id="unit"
+        error={err.erros.unit}
+        hint={
+          unidadeEscolhida
+            ? unidadeEscolhida.fracionavel
+              ? `Aceita quantidade quebrada: 0,5 ${unidadeEscolhida.plural} pode.`
+              : `Só quantidade inteira: meia ${unidadeEscolhida.label.toLowerCase()} não existe.`
+            : undefined
+        }
+      >
+        {({ id, ...aria }) => (
+          <Select
+            value={unit}
+            onValueChange={(v) => {
+              setUnit(v);
+              err.limparCampo("unit");
+            }}
+          >
+            <SelectTrigger id={id} {...aria}>
+              <SelectValue placeholder="Como você conta este produto?" />
+            </SelectTrigger>
+            <SelectContent>
+              {STOCK_UNITS.map((u) => (
+                <SelectItem key={u.id} value={u.id}>
+                  {u.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </Field>
 
-          <div>
-            <Label>Unidade de medida</Label>
-            <Select value={unit} onValueChange={setUnit}>
-              <SelectTrigger>
-                <SelectValue placeholder="Como você conta este produto?" />
-              </SelectTrigger>
-              <SelectContent>
-                {STOCK_UNITS.map((u) => (
-                  <SelectItem key={u.id} value={u.id}>
-                    {u.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {/*
-              Dizer isso ANTES é o que evita o produtor descobrir a regra por
-              uma recusa do servidor depois de preencher tudo.
-            */}
-            {unidadeEscolhida && (
-              <p className="mt-1 text-xs text-gray-500">
-                {/*
-                  `label` é capitalizado porque nomeia a opção da lista. No meio
-                  de uma frase ele precisa voltar a ser minúsculo, senão sai
-                  "meia Saca não existe".
-                */}
-                {unidadeEscolhida.fracionavel
-                  ? `Aceita quantidade quebrada: 0,5 ${unidadeEscolhida.plural} pode.`
-                  : `Só quantidade inteira: meia ${unidadeEscolhida.label.toLowerCase()} não existe.`}
-              </p>
-            )}
-          </div>
+      <Field
+        label="Estoque mínimo (opcional)"
+        hint="Você recebe um aviso quando o saldo chegar nesse número."
+        id="minimum_stock"
+        error={err.erros.minimum_stock}
+      >
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            inputMode="decimal"
+            value={minimo}
+            onChange={(e) => {
+              setMinimo(e.target.value);
+              err.limparCampo("minimum_stock");
+            }}
+            placeholder="Deixe vazio para não receber aviso"
+          />
+        )}
+      </Field>
 
-          <div>
-            <Label htmlFor="produto-minimo">Estoque mínimo (opcional)</Label>
-            <Input
-              id="produto-minimo"
-              inputMode="decimal"
-              value={minimo}
-              onChange={(e) => setMinimo(e.target.value)}
-              placeholder="Deixe vazio para não receber aviso"
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Você recebe um aviso quando o saldo chegar nesse número.
-            </p>
-          </div>
+      <Field label="Marca (opcional)" id="brand" error={err.erros.brand}>
+        {({ id, ...aria }) => (
+          <Input id={id} {...aria} value={brand} onChange={(e) => setBrand(e.target.value)} />
+        )}
+      </Field>
 
-          <div>
-            <Label htmlFor="produto-marca">Marca (opcional)</Label>
-            <Input id="produto-marca" value={brand} onChange={(e) => setBrand(e.target.value)} />
-          </div>
-
-          <div>
-            <Label htmlFor="produto-local">Onde fica guardado (opcional)</Label>
-            <Input
-              id="produto-local"
-              value={local}
-              onChange={(e) => setLocal(e.target.value)}
-              placeholder="Galpão, depósito, curral"
-            />
-          </div>
-
-          {error && <p className="text-sm text-red-600">{error}</p>}
-
-          <Button onClick={submit} disabled={loading} className="w-full">
-            {loading ? "Salvando..." : "Salvar produto"}
-          </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
+      <Field
+        label="Onde fica guardado (opcional)"
+        id="storage_location"
+        error={err.erros.storage_location}
+      >
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            value={local}
+            onChange={(e) => setLocal(e.target.value)}
+            placeholder="Galpão, depósito, curral"
+          />
+        )}
+      </Field>
+    </FormSheet>
   );
 }

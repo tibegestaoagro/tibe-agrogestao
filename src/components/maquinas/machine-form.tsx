@@ -3,13 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Sheet,
-  SheetTrigger,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
   Select,
   SelectTrigger,
   SelectValue,
@@ -19,16 +12,41 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
-import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
+import { FormSheet } from "@/components/ui/form-sheet";
+import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { apiPost } from "@/lib/client-api";
 
+/**
+ * Cadastro de máquina.
+ *
+ * ⚠️ Este painel é a cicatriz do modo avião: em teste com um Android sem sinal
+ * ele NÃO ABRIA, o que tornava a fila offline inútil justo no curral. O
+ * `FormSheet` não busca nada do servidor para renderizar, e as propriedades
+ * chegam por prop, já carregadas pela página. Não introduza nenhuma busca
+ * aqui.
+ */
+
 type Property = { id: string; name: string };
+
+/** Os campos na ordem visual, com o nome que a API usa. */
+const ORDEM = [
+  "name",
+  "type",
+  "property_id",
+  "brand",
+  "model",
+  "year",
+  "hour_meter",
+  "acquisition_cost",
+] as const;
+type Campo = (typeof ORDEM)[number];
 
 export default function MachineForm({ properties }: { properties: Property[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const err = useErrosDeFormulario(ORDEM);
 
   const [name, setName] = useState("");
   const [type, setType] = useState("");
@@ -48,21 +66,30 @@ export default function MachineForm({ properties }: { properties: Property[] }) 
     setPropertyId("");
     setAcquisitionCost("");
     setHourMeter("");
-    setError(null);
+    err.limparTudo();
   }
 
   async function submit() {
-    if (!name || !type || !propertyId) {
-      setError("Preencha nome, tipo e propriedade.");
+    // Antes, os três obrigatórios dividiam UMA frase ("Preencha nome, tipo e
+    // propriedade"), e quem tinha esquecido só a propriedade lia a cobrança
+    // dos três.
+    const novos: Partial<Record<Campo, string>> = {};
+    if (!name.trim()) novos.name = "Informe o nome da máquina.";
+    if (!type.trim()) novos.type = "Informe o tipo.";
+    if (!propertyId) novos.property_id = "Escolha a propriedade.";
+    if (Object.keys(novos).length > 0) {
+      err.setGlobal(null);
+      err.reprovar(novos);
       return;
     }
+
+    err.limparTudo();
     setLoading(true);
-    setError(null);
     const res = await apiPost("/api/v1/machines", {
-      name,
-      type,
-      brand: brand || null,
-      model: model || null,
+      name: name.trim(),
+      type: type.trim(),
+      brand: brand.trim() || null,
+      model: model.trim() || null,
       year: year ? Number(year) : null,
       property_id: propertyId,
       acquisition_cost: lerValorDoCampo(acquisitionCost),
@@ -70,7 +97,7 @@ export default function MachineForm({ properties }: { properties: Property[] }) 
     });
     setLoading(false);
     if (!res.ok) {
-      setError(res.message);
+      err.doServidor(res);
       return;
     }
     reset();
@@ -79,85 +106,133 @@ export default function MachineForm({ properties }: { properties: Property[] }) 
   }
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button>Nova máquina</Button>
-      </SheetTrigger>
-      <SheetContent title="Nova máquina">
-        <SheetHeader>
-          <SheetTitle>Nova máquina</SheetTitle>
-        </SheetHeader>
+    <FormSheet
+      trigger={<Button>Nova máquina</Button>}
+      title="Nova máquina"
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) reset();
+      }}
+      onSubmit={submit}
+      submitLabel="Cadastrar"
+      pending={loading}
+      error={err.global}
+      focarCampoId={err.focarCampoId}
+      tentativa={err.tentativa}
+    >
+      <Field label="Nome" required id="name" error={err.erros.name}>
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              err.limparCampo("name");
+            }}
+          />
+        )}
+      </Field>
 
-        <div className="space-y-3">
-          <div>
-            <Label htmlFor="name">Nome *</Label>
-            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div>
-            <Label htmlFor="type">Tipo *</Label>
-            <Input
-              id="type"
-              value={type}
-              onChange={(e) => setType(e.target.value)}
-              placeholder="Ex: trator, colheitadeira, pulverizador"
-            />
-          </div>
-          <div>
-            <Label>Propriedade *</Label>
-            <Select value={propertyId} onValueChange={setPropertyId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                {properties.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="brand">Marca</Label>
-            <Input id="brand" value={brand} onChange={(e) => setBrand(e.target.value)} />
-          </div>
-          <div>
-            <Label htmlFor="model">Modelo</Label>
-            <Input id="model" value={model} onChange={(e) => setModel(e.target.value)} />
-          </div>
-          <div>
-            <Label htmlFor="year">Ano</Label>
-            <Input id="year" type="number" value={year} onChange={(e) => setYear(e.target.value)} />
-          </div>
-          <div>
-            <Label htmlFor="hour_meter">Horímetro (h)</Label>
-            <MoneyInput
-              id="hour_meter"
-              kind="quantidade"
-              unit="h"
-              value={hourMeter}
-              onValueChange={setHourMeter}
-            />
-          </div>
-          <div>
-            <Label htmlFor="cost">Custo de aquisição (R$)</Label>
-            <MoneyInput
-              id="cost"
-              value={acquisitionCost}
-              onValueChange={setAcquisitionCost}
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Preenchido, gera uma despesa automática vinculada à máquina.
-            </p>
-          </div>
+      <Field label="Tipo" required id="type" error={err.erros.type}>
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            value={type}
+            onChange={(e) => {
+              setType(e.target.value);
+              err.limparCampo("type");
+            }}
+            placeholder="Ex: trator, colheitadeira, pulverizador"
+          />
+        )}
+      </Field>
 
-          {error && <p className="text-sm text-red-700">{error}</p>}
+      <Field label="Propriedade" required id="property_id" error={err.erros.property_id}>
+        {({ id, ...aria }) => (
+          <Select
+            value={propertyId}
+            onValueChange={(v) => {
+              setPropertyId(v);
+              err.limparCampo("property_id");
+            }}
+          >
+            <SelectTrigger id={id} {...aria}>
+              <SelectValue placeholder="Selecione" />
+            </SelectTrigger>
+            <SelectContent>
+              {properties.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </Field>
 
-          <Button onClick={submit} disabled={loading} className="w-full">
-            {loading ? "Salvando..." : "Cadastrar"}
-          </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
+      <Field label="Marca" id="brand" error={err.erros.brand}>
+        {({ id, ...aria }) => (
+          <Input id={id} {...aria} value={brand} onChange={(e) => setBrand(e.target.value)} />
+        )}
+      </Field>
+
+      <Field label="Modelo" id="model" error={err.erros.model}>
+        {({ id, ...aria }) => (
+          <Input id={id} {...aria} value={model} onChange={(e) => setModel(e.target.value)} />
+        )}
+      </Field>
+
+      {/*
+        Único `type="number"` permitido do projeto, e por um motivo escrito em
+        `NUMBER_PERMITIDO` no `check-repo.ts`: ano de fabricação é inteiro de 4
+        dígitos, sem milhar e sem decimal. Um `MoneyInput` mostraria "1.998".
+      */}
+      <Field label="Ano" id="year" error={err.erros.year}>
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            type="number"
+            value={year}
+            onChange={(e) => setYear(e.target.value)}
+          />
+        )}
+      </Field>
+
+      <Field label="Horímetro (h)" id="hour_meter" error={err.erros.hour_meter}>
+        {({ id, ...aria }) => (
+          <MoneyInput
+            id={id}
+            {...aria}
+            kind="quantidade"
+            unit="h"
+            value={hourMeter}
+            onValueChange={setHourMeter}
+          />
+        )}
+      </Field>
+
+      <Field
+        label="Custo de aquisição (R$)"
+        hint="Preenchido, gera uma despesa automática vinculada à máquina."
+        id="acquisition_cost"
+        error={err.erros.acquisition_cost}
+      >
+        {({ id, ...aria }) => (
+          <MoneyInput
+            id={id}
+            {...aria}
+            value={acquisitionCost}
+            onValueChange={(v) => {
+              setAcquisitionCost(v);
+              err.limparCampo("acquisition_cost");
+            }}
+          />
+        )}
+      </Field>
+    </FormSheet>
   );
 }

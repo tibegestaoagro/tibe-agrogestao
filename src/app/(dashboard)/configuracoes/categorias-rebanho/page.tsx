@@ -21,8 +21,8 @@ export default async function CategoriasRebanhoPage() {
   return (
     <div className="max-w-2xl space-y-5">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">Categorias de rebanho</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <h1 className="text-xl font-semibold text-texto">Categorias de rebanho</h1>
+        <p className="mt-1 text-sm text-texto-discreto">
           Categorias usadas no cadastro de rebanho por lote (quantidade), no
           painel e pelo WhatsApp. Renomear ou desativar não afeta lotes já
           registrados.

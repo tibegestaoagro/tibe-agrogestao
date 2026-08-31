@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiOk, apiError } from "@/lib/api";
+import { apiOk, apiError, apiErroDeZod } from "@/lib/api";
 import { startSignupAction } from "@/lib/actions/signup-flow";
 import { buildSignupCookie } from "@/lib/signup-cookie";
 import { withApi } from "@/lib/route";
@@ -28,7 +28,7 @@ async function POSTHandler(request: Request) {
   const json = await request.json().catch(() => null);
   const parsed = schema.safeParse(json);
   if (!parsed.success) {
-    return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
+    return apiErroDeZod(parsed.error);
   }
   const d = parsed.data;
 

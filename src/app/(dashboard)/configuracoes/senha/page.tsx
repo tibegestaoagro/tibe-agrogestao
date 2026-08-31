@@ -14,13 +14,13 @@ export default async function TrocarMinhaSenhaPage() {
   return (
     <div className="max-w-md space-y-5">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">Minha senha</h1>
-        <p className="text-sm text-gray-500">
+        <h1 className="text-xl font-semibold text-texto">Minha senha</h1>
+        <p className="text-sm text-texto-discreto">
           Você está alterando a senha de <strong>{user.email}</strong>.
         </p>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white p-5">
+      <div className="rounded-lg border border-borda bg-superficie p-5">
         <ChangeOwnPasswordForm />
       </div>
     </div>

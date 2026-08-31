@@ -1,4 +1,10 @@
 import { NextResponse } from "next/server";
+import type { z } from "zod";
+import { instalarMensagensDeZodEmPortugues, recusaDeZod } from "@/lib/erros-de-zod";
+
+// Toda rota importa este modulo, entao o mapa de mensagens fica de pe antes de
+// qualquer `safeParse`: import roda no carregar, o handler roda depois.
+instalarMensagensDeZodEmPortugues();
 
 /**
  * Helpers de resposta de API no padrão do PRD seção 10.3:
@@ -30,6 +36,19 @@ export function apiError(
     { error: field ? { code, message, field } : { code, message } },
     { status },
   );
+}
+
+/**
+ * A recusa do Zod virando resposta, com a frase em português e o campo junto.
+ *
+ * Substitui `apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422)`,
+ * que era a linha das 71 rotas e tinha dois defeitos: mostrava o texto default
+ * do Zod (em inglês) e perdia o `field`, jogando no rodapé do painel uma
+ * recusa que pertencia a um campo. O porquê inteiro está em `erros-de-zod.ts`.
+ */
+export function apiErroDeZod(error: z.ZodError) {
+  const r = recusaDeZod(error);
+  return apiError(r.code, r.message, r.status, r.field);
 }
 
 /** Códigos de erro comuns reutilizados entre rotas. */

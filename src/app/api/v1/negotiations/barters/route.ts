@@ -1,4 +1,4 @@
-import { apiOk, apiError } from "@/lib/api";
+import { apiOk, apiError, apiErroDeZod } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { createBarter } from "@/lib/actions/barters";
 import { barterSchema } from "@/lib/validation/negotiation";
@@ -27,7 +27,7 @@ async function POSTHandler(request: Request) {
 
   const parsed = barterSchema.safeParse(body.json);
   if (!parsed.success) {
-    return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
+    return apiErroDeZod(parsed.error);
   }
   const d = parsed.data;
 

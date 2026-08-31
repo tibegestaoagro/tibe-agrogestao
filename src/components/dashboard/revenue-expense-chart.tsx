@@ -8,7 +8,7 @@ const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", curren
 
 export default function RevenueExpenseChart({ data }: { data: Point[] }) {
   if (data.length === 0) {
-    return <p className="text-sm text-gray-500">Sem movimentação paga no período.</p>;
+    return <p className="text-sm text-texto-discreto">Sem movimentação paga no período.</p>;
   }
 
   const totalIncome = data.reduce((s, d) => s + d.income, 0);
@@ -18,17 +18,17 @@ export default function RevenueExpenseChart({ data }: { data: Point[] }) {
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
-        <span className="flex items-center gap-1.5 text-gray-600">
+        <span className="flex items-center gap-1.5 text-texto-secundario">
           <span className="h-2.5 w-2.5 rounded-full bg-tibe-primary" aria-hidden="true" />
           Receitas <span className="font-semibold text-tibe-dark">{brl(totalIncome)}</span>
         </span>
-        <span className="flex items-center gap-1.5 text-gray-600">
+        <span className="flex items-center gap-1.5 text-texto-secundario">
           <span className="h-2.5 w-2.5 rounded-full bg-tibe-accent" aria-hidden="true" />
           Despesas <span className="font-semibold text-tibe-dark">{brl(totalExpense)}</span>
         </span>
-        <span className="flex items-center gap-1.5 text-gray-600">
+        <span className="flex items-center gap-1.5 text-texto-secundario">
           Saldo{" "}
-          <span className={`font-semibold ${saldo >= 0 ? "text-primaria-tinta" : "text-red-600"}`}>
+          <span className={`font-semibold ${saldo >= 0 ? "text-primaria-tinta" : "text-perigo-tinta"}`}>
             {brl(saldo)}
           </span>
         </span>

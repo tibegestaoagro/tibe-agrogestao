@@ -1,0 +1,5 @@
+[
+  "src/components/platform/archive-tenant-button.tsx",
+  "src/components/platform/resend-welcome-button.tsx",
+  "src/components/platform/team-row-actions.tsx"
+]

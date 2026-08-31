@@ -63,10 +63,16 @@ const CONFIDENCE_LABEL: Record<Confidence, string> = {
   baixa: "Confianca baixa",
 };
 
+/**
+ * A borda sai da própria tinta, a 30%: os tokens semânticos têm `tinta` e
+ * `suave`, e nenhum tom intermediário para contorno. Inventar um token só
+ * para três pílulas decorativas seria caro, e a opacidade dá o mesmo efeito
+ * sem acrescentar vocabulário.
+ */
 const CONFIDENCE_CLASS: Record<Confidence, string> = {
-  alta: "bg-green-50 text-green-700 border-green-200",
-  media: "bg-amber-50 text-amber-700 border-amber-200",
-  baixa: "bg-red-50 text-red-700 border-red-200",
+  alta: "bg-sucesso-suave text-sucesso-tinta border-sucesso-tinta/30",
+  media: "bg-atencao-suave text-atencao-tinta border-atencao-tinta/30",
+  baixa: "bg-perigo-suave text-perigo-tinta border-perigo-tinta/30",
 };
 
 function initialValues(fields: CalcField[]): Record<string, string | boolean> {
@@ -104,11 +110,11 @@ export default function CalcPage({
   return (
     <div className="max-w-2xl space-y-5">
       <div>
-        <Link href="/calculadoras" className="text-xs text-gray-500 hover:text-tibe-dark hover:underline">
+        <Link href="/calculadoras" className="text-xs text-texto-discreto hover:text-tibe-dark hover:underline">
           &larr; Calculadoras
         </Link>
-        <h1 className="mt-1 text-xl font-semibold text-gray-900">{title}</h1>
-        <p className="mt-1 text-sm text-gray-600">{description}</p>
+        <h1 className="mt-1 text-xl font-semibold text-texto">{title}</h1>
+        <p className="mt-1 text-sm text-texto-secundario">{description}</p>
       </div>
 
       <span
@@ -117,7 +123,7 @@ export default function CalcPage({
         {CONFIDENCE_LABEL[confidence]}: revise com um tecnico antes de aplicar no campo em escala
       </span>
 
-      <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-gray-200 bg-white p-4">
+      <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-borda bg-superficie p-4">
         {fields.map((f) => (
           <div key={f.key} className="space-y-1.5">
             {f.kind !== "checkbox" && <Label htmlFor={f.key}>{f.label}</Label>}
@@ -166,36 +172,36 @@ export default function CalcPage({
             )}
 
             {f.kind === "checkbox" && (
-              <label className="flex items-center gap-2 text-sm text-gray-700">
+              <label className="flex items-center gap-2 text-sm text-texto-secundario">
                 <input
                   type="checkbox"
                   checked={values[f.key] as boolean}
                   onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.checked }))}
-                  className="h-4 w-4 rounded border-gray-300 text-primaria-tinta focus:ring-tibe-primary"
+                  className="h-4 w-4 rounded border-borda text-primaria-tinta focus:ring-tibe-primary"
                 />
                 {f.label}
               </label>
             )}
 
-            {f.help && <p className="text-xs text-gray-500">{f.help}</p>}
+            {f.help && <p className="text-xs text-texto-discreto">{f.help}</p>}
           </div>
         ))}
         <Button type="submit">Calcular</Button>
       </form>
 
       {result && !result.ok && (
-        <p className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{result.error}</p>
+        <p className="rounded-md bg-perigo-suave px-4 py-3 text-sm text-perigo-tinta">{result.error}</p>
       )}
 
       {result && result.ok && (
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <h2 className="mb-3 text-sm font-semibold text-gray-900">Resultado</h2>
+        <div className="rounded-lg border border-borda bg-superficie p-4">
+          <h2 className="mb-3 text-sm font-semibold text-texto">Resultado</h2>
           <dl className="space-y-2">
             {result.rows.map((r) => (
               <div
                 key={r.label}
                 className={`flex items-center justify-between gap-4 text-sm ${
-                  r.highlight ? "font-semibold text-tibe-dark" : "text-gray-700"
+                  r.highlight ? "font-semibold text-tibe-dark" : "text-texto-secundario"
                 }`}
               >
                 <dt>{r.label}</dt>
@@ -206,7 +212,7 @@ export default function CalcPage({
         </div>
       )}
 
-      <p className="text-xs leading-relaxed text-gray-500">{sourceNote}</p>
+      <p className="text-xs leading-relaxed text-texto-discreto">{sourceNote}</p>
     </div>
   );
 }

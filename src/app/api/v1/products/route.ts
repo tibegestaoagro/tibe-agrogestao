@@ -1,4 +1,4 @@
-import { apiOk, apiError } from "@/lib/api";
+import { apiOk, apiError, apiErroDeZod } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { productCreateSchema } from "@/lib/validation/stock";
 import { createProduct, listProductsWithBalance } from "@/lib/actions/products";
@@ -41,7 +41,7 @@ async function POSTHandler(request: Request) {
 
   const parsed = productCreateSchema.safeParse(body.json);
   if (!parsed.success) {
-    return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
+    return apiErroDeZod(parsed.error);
   }
   const d = parsed.data;
 

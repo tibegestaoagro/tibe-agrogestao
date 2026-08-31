@@ -2,23 +2,23 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Sheet,
-  SheetTrigger,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
+import { FormSheet } from "@/components/ui/form-sheet";
+import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { apiPost } from "@/lib/client-api";
+
+/** Os campos na ordem visual, com o nome que a API usa. */
+const ORDEM = ["title", "due_date"] as const;
+type Campo = (typeof ORDEM)[number];
 
 export default function TaskForm() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const err = useErrosDeFormulario(ORDEM);
 
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -28,24 +28,32 @@ export default function TaskForm() {
     setTitle("");
     setDueDate("");
     setRemind(true);
-    setError(null);
+    err.limparTudo();
   }
 
   async function submit() {
-    if (!title || !dueDate) {
-      setError("Preencha o que precisa ser feito e a data.");
+    // Antes, os dois campos obrigatórios compartilhavam UMA frase no rodapé
+    // ("Preencha o que precisa ser feito e a data"), e o produtor que tinha
+    // esquecido só a data lia a cobrança dos dois.
+    const novos: Partial<Record<Campo, string>> = {};
+    if (!title.trim()) novos.title = "Diga o que precisa ser feito.";
+    if (!dueDate) novos.due_date = "Escolha a data.";
+    if (Object.keys(novos).length > 0) {
+      err.setGlobal(null);
+      err.reprovar(novos);
       return;
     }
+
+    err.limparTudo();
     setLoading(true);
-    setError(null);
     const res = await apiPost("/api/v1/tasks", {
-      title,
+      title: title.trim(),
       due_date: new Date(dueDate).toISOString(),
       remind,
     });
     setLoading(false);
     if (!res.ok) {
-      setError(res.message);
+      err.doServidor(res);
       return;
     }
     reset();
@@ -54,49 +62,63 @@ export default function TaskForm() {
   }
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button>Nova tarefa</Button>
-      </SheetTrigger>
-      <SheetContent title="Nova tarefa">
-        <SheetHeader>
-          <SheetTitle>Nova tarefa</SheetTitle>
-        </SheetHeader>
+    <FormSheet
+      trigger={<Button>Nova tarefa</Button>}
+      title="Nova tarefa"
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) reset();
+      }}
+      onSubmit={submit}
+      submitLabel="Criar"
+      pending={loading}
+      error={err.global}
+      focarCampoId={err.focarCampoId}
+      tentativa={err.tentativa}
+    >
+      <Field label="O que precisa ser feito" required id="title" error={err.erros.title}>
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            value={title}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              err.limparCampo("title");
+            }}
+            placeholder="Ex: comprar sal mineral"
+          />
+        )}
+      </Field>
 
-        <div className="space-y-3">
-          <div>
-            <Label htmlFor="title">O que precisa ser feito *</Label>
-            <Input
-              id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ex: comprar sal mineral"
-            />
-          </div>
-          <div>
-            <Label htmlFor="due_date">Data *</Label>
-            <Input id="due_date" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              id="remind"
-              type="checkbox"
-              checked={remind}
-              onChange={(e) => setRemind(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300"
-            />
-            <Label htmlFor="remind" className="!mb-0">
-              Me avisar no dia
-            </Label>
-          </div>
+      <Field label="Data" required id="due_date" error={err.erros.due_date}>
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            type="date"
+            value={dueDate}
+            onChange={(e) => {
+              setDueDate(e.target.value);
+              err.limparCampo("due_date");
+            }}
+          />
+        )}
+      </Field>
 
-          {error && <p className="text-sm text-red-700">{error}</p>}
-
-          <Button onClick={submit} disabled={loading} className="w-full">
-            {loading ? "Salvando..." : "Criar"}
-          </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
+      <div className="flex items-center gap-2">
+        <input
+          id="remind"
+          type="checkbox"
+          checked={remind}
+          onChange={(e) => setRemind(e.target.checked)}
+          className="h-4 w-4 rounded border-borda-campo"
+        />
+        <Label htmlFor="remind" className="!mb-0">
+          Me avisar no dia
+        </Label>
+      </div>
+    </FormSheet>
   );
 }

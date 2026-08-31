@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiOk, apiError } from "@/lib/api";
+import { apiOk, apiError, apiErroDeZod } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { updateUserRoleAction } from "@/lib/actions/users";
 import { withApi } from "@/lib/route";
@@ -17,7 +17,7 @@ async function PATCHHandler(request: Request, props: { params: Promise<{ id: str
 
   const parsed = schema.safeParse(body.json);
   if (!parsed.success) {
-    return apiError("VALIDATION_ERROR", parsed.error.issues[0].message, 422);
+    return apiErroDeZod(parsed.error);
   }
   if (parsed.data.role === "OWNER" && g.user.role !== "OWNER") {
     return apiError("FORBIDDEN", "Apenas o Owner pode promover outro usuário a Owner", 403);
