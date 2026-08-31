@@ -89,6 +89,7 @@ const PARES: Array<[string, string, string, number]> = [
   ["borda de campo sobre cartao", "borda-campo", "superficie", 3],
   ["borda de campo sobre pagina", "borda-campo", "superficie-afundada", 3],
   ["anel de foco sobre pagina", "primaria-tinta", "superficie-afundada", 3],
+  ["bloco de codigo, /docs", "codigo-texto", "codigo-fundo", 4.5],
 ];
 
 export function conferirContraste(
