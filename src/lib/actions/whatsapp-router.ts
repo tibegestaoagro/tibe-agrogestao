@@ -44,6 +44,12 @@ import {
   registrarAlimentacaoConfinamento,
   encerrarConfinamento,
 } from "@/lib/actions/whatsapp-handlers/confinamento";
+import {
+  registrarProducaoLeite,
+  definirVacasEmLactacao,
+  registrarEntradaLactacao,
+  registrarSaidaLactacao,
+} from "@/lib/actions/whatsapp-handlers/leite";
 import { loadPendingNegotiation } from "@/lib/actions/negotiation-pending";
 import {
   loadPendingStock,
@@ -123,6 +129,10 @@ const HANDLERS: Record<Exclude<Intent, "ambigua">, Handler> = {
   registrar_envio_boitel: registrarEnvioBoitel,
   registrar_alimentacao_confinamento: registrarAlimentacaoConfinamento,
   encerrar_confinamento: encerrarConfinamento,
+  registrar_producao_leite: registrarProducaoLeite,
+  definir_vacas_em_lactacao: definirVacasEmLactacao,
+  registrar_entrada_lactacao: registrarEntradaLactacao,
+  registrar_saida_lactacao: registrarSaidaLactacao,
   consultar_cliente: consultarCliente,
   gerar_relatorio: gerarRelatorio,
   registrar_lancamento_financeiro: registrarLancamentoFinanceiro,

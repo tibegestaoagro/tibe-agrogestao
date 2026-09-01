@@ -45,6 +45,11 @@ export function buildNavItems({
         // cliente: "o animal continua pertencendo ao produtor"). Fica ao
         // lado de Rebanho pelo mesmo motivo que Negociações fica perto dele.
         { href: "/confinamento", label: "Confinamento", show: hasFazenda },
+        // Módulo 32, fase 1: a Área Leite. Fica ao lado de Rebanho porque as
+        // vacas em lactação SÃO o rebanho, só que numa condição (§37.2 do
+        // documento do cliente): a área não altera o total do rebanho, e a
+        // vizinhança na navegação é o que diz isso antes de qualquer texto.
+        { href: "/leite", label: "Leite", show: hasFazenda },
         // Módulo 31: "Negociações" substitui a nomenclatura "Compra e Venda"
         // (§1), porque as relações comerciais da fazenda não se limitam a
         // comprar e vender. Fica ao lado de Rebanho porque é de lá que sai a

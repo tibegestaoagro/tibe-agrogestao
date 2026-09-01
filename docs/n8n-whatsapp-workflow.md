@@ -491,6 +491,46 @@ preocupar com isso):
   propriedade e nenhuma especificada): o Tibé já devolve a pergunta pronta em
   `reply_text`, incluindo as opções em `auxiliary_data` quando aplicável.
 
+### 4.3. Intenções prontas no Tibé que o classificador ainda NÃO emite
+
+⚠️ **Nada desta seção está no prompt do LLM hoje**, e a tabela da seção 4 é a
+que vale para o que está no ar. O classificador está congelado por decisão do
+usuário até o sistema estar revisado.
+
+Elas ficam registradas aqui pelo motivo que o Módulo 31 já pagou: enquanto
+`pasto` não estava listado no contrato de `registrar_negocio_gado`, o campo só
+chegava ao handler **por acaso**, herdado do contrato de outra intenção, e
+ninguém sabia que era acaso. Contrato escrito junto com o handler é o que
+impede isso.
+
+**Área Leite (Módulo 32, fase 1, §36).** Handlers em
+`src/lib/actions/whatsapp-handlers/leite.ts`, testados por `npm run test:m52`.
+
+| Intenção | Parâmetros esperados |
+|---|---|
+| `registrar_producao_leite` | `litros` OU `manha`/`tarde`/`noite` (litros de cada ordenha). Opcionais: `fazenda`, `lote`, `data`. §9 do documento. Turno informado MANDA: com `manha` presente, `litros` é ignorado e não somado, porque as duas formas são alternativas, não parcelas. **Sempre** exige confirmação. |
+| `definir_vacas_em_lactacao` | `quantidade` (o total que EXISTE agora, nunca a diferença). Opcionais: `fazenda`, `lote`, `data`. §4. Aceita zero: "não tenho mais nenhuma vaca em lactação" é uma afirmação legítima. |
+| `registrar_entrada_lactacao` | `quantidade` (quantas ENTRARAM). Opcionais: `fazenda`, `lote`, `data`. §7. |
+| `registrar_saida_lactacao` | `quantidade` (quantas SECARAM). Opcionais: `fazenda`, `lote`, `data`. §7. Saída maior que a contagem é recusada com a frase dizendo quantas existem. |
+
+⚠️ **A escolha entre as três de lactação é o verbo, não o número.** "Entraram 4
+vacas", "sequei 4 vacas" e "estou com 4 vacas" carregam o mesmo `4` e significam
+três coisas diferentes. Confundir "entraram" com "estou com" troca a contagem
+inteira da fazenda pelo número da frase; confundir "entraram" com "sequei" erra
+por oito cabeças, no sentido errado. Foi por isso que não viraram uma intenção
+só com o tipo em `parameters`.
+
+⚠️ **Nenhuma delas mexe no rebanho.** Registrar leite não altera a quantidade
+de animais, e entrar ou sair da lactação também não (§37.1 e §37.4): "em
+lactação" é uma condição, não uma categoria.
+
+**No mesmo estado, e pelo mesmo motivo:** `registrar_remessa_evento` e
+`encerrar_remessa_evento` (`whatsapp-handlers/evento.ts`), `registrar_permuta`
+(`whatsapp-handlers/permuta.ts`) e as quatro do confinamento
+(`whatsapp-handlers/confinamento.ts`). Os parâmetros de cada uma estão no
+cabeçalho do próprio handler, que é o que o classificador precisará ler quando
+o descongelamento acontecer.
+
 ---
 
 ## 5. Suporte a mídia (áudio e recibo por foto/PDF): spec 2026-07-28

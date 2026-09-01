@@ -56,6 +56,21 @@ export const INTENTS = [
   "registrar_envio_boitel",
   "registrar_alimentacao_confinamento",
   "encerrar_confinamento",
+  // Modulo 32, fase 1 (Area Leite, §36): producao e vacas em lactacao.
+  //
+  // QUATRO intencoes, e nao uma so com tipo em parameters. A spec previa tres
+  // (com "ajustar" carregando entrada e saida), e implementar mostrou que o
+  // discriminador seria justo a parte que o classificador erra: "entraram 4
+  // vacas" e "sequei 4 vacas" carregam o mesmo numero e diferem so no verbo.
+  // Errar isso troca a contagem da fazenda em oito cabecas, no sentido errado.
+  // Mesmo argumento que separou as quatro do confinamento.
+  //
+  // O classificador do n8n ainda NAO emite estas quatro: elas ficam roteadas e
+  // testadas, esperando a rodada em que o agente for atualizado.
+  "registrar_producao_leite",
+  "definir_vacas_em_lactacao",
+  "registrar_entrada_lactacao",
+  "registrar_saida_lactacao",
   "consultar_cliente",
   "gerar_relatorio",
   "registrar_lancamento_financeiro",
@@ -122,6 +137,13 @@ export const INTENT_ACCESS: Record<
   registrar_envio_boitel: { module: "rebanho", action: "write", profile: "fazenda" },
   registrar_alimentacao_confinamento: { module: "rebanho", action: "write", profile: "fazenda" },
   encerrar_confinamento: { module: "rebanho", action: "write", profile: "fazenda" },
+  // Área Leite (Módulo 32): reusa o módulo "rebanho" da matriz do PRD §5.2,
+  // pelo mesmo motivo das rotas: não existe linha "leite", e inventar uma
+  // seria decidir permissão sem o cliente.
+  registrar_producao_leite: { module: "rebanho", action: "write", profile: "fazenda" },
+  definir_vacas_em_lactacao: { module: "rebanho", action: "write", profile: "fazenda" },
+  registrar_entrada_lactacao: { module: "rebanho", action: "write", profile: "fazenda" },
+  registrar_saida_lactacao: { module: "rebanho", action: "write", profile: "fazenda" },
   consultar_cliente: { module: "prestador", action: "read", profile: "prestador" },
   gerar_relatorio: { module: null, action: "read" }, // módulo varia por parameters.tipo
   registrar_lancamento_financeiro: { module: "financeiro", action: "write" },

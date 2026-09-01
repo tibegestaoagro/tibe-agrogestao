@@ -364,9 +364,17 @@ Intenções da Fase 1, com os parâmetros que o handler lê:
 
 | intenção | parâmetros | §36 |
 |---|---|---|
-| `registrar_producao_leite` | `litros`, `data`, `turno`, `lote`, `vacas_em_lactacao` | "tirei 480 litros hoje" |
-| `definir_vacas_em_lactacao` | `quantidade`, `data` | "estou com 32 vacas dando leite" |
-| `ajustar_vacas_em_lactacao` | `quantidade`, `sentido`, `data` | "entraram mais 4", "sequei 3" |
+| `registrar_producao_leite` | `litros` ou `manha`/`tarde`/`noite`, `data`, `lote`, `fazenda` | "tirei 480 litros hoje" |
+| `definir_vacas_em_lactacao` | `quantidade`, `data`, `lote`, `fazenda` | "estou com 32 vacas dando leite" |
+| `registrar_entrada_lactacao` | `quantidade`, `data`, `lote`, `fazenda` | "entraram mais 4 vacas" |
+| `registrar_saida_lactacao` | `quantidade`, `data`, `lote`, `fazenda` | "sequei 3 vacas" |
+
+⚠️ **São QUATRO, e não as três que esta seção previa.** A versão anterior tinha
+um `ajustar_vacas_em_lactacao` com o sentido em `parameters`, e implementar
+mostrou que o sentido seria justo a parte que o classificador erra: "entraram 4
+vacas" e "sequei 4 vacas" carregam o mesmo número e diferem só no verbo, e
+confundir os dois erra a contagem em oito cabeças, no sentido errado. Mesmo
+argumento que separou as quatro do confinamento.
 
 O §36 mostra o TIBÉ confirmando antes de gravar em todos os casos, e a lição do
 estoque vale aqui: **"não, deixa pra lá" não pode gravar**. O contrato vai para
