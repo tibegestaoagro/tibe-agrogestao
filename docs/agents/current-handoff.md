@@ -48,10 +48,25 @@ apareceu no mesmo dia do deploy. Vale para toda frente que criar item ali.
 chamadas em poucos minutos já dispararam a proteção anti-bot da Vercel neste
 projeto.
 
-**Dois olhares de navegador ainda não feitos no Confinamento**, os dois sobre o
-que só existe depois do JavaScript: a frase da `ORIGEM_AMBIGUA` embaixo do campo
-"Pasto de origem" em `/confinamento`, e o painel "Encerrar" do `/rebanho` com os
-três destinos. A cadeia inteira está provada; falta o pixel.
+⚠️ **Aba em segundo plano finge defeito de interface.** Se a aba perde a
+visibilidade, o Chrome congela layout e entrada sem erro nenhum: todo
+`getBoundingClientRect()` volta zero e o `Escape` não fecha painel, então um
+`Sheet` saudável parece quebrado. O `js()` continua respondendo, o que torna a
+armadilha convincente. Confira `document.visibilityState` antes de reportar, e
+conserte com `cdp("Page.bringToFront")`.
+
+**Os dois olhares de navegador do Confinamento foram feitos em 02/09**, e os
+dois passaram. A `ORIGEM_AMBIGUA` aparece em vermelho embaixo do campo, com o
+foco nele: "O saldo desta categoria está espalhado em mais de um pasto (sem
+pasto informado, Pasto da Baixada, Pasto da Sede). Informe de qual pasto os
+animais saem." E o painel "Encerrar" da estadia de confinamento próprio abre com
+os três destinos e com a palavra certa: **"Voltaram para o pasto"**, não "para a
+fazenda", que é o texto do boitel. Conferidos os dois cartões, lado a lado.
+
+⚠️ **`/rebanho` filtra pela propriedade ativa e `/leite` não.** O olhar do
+"Encerrar" começou dando zero cabeças porque a propriedade ativa era outra. Não
+é defeito de nenhuma das duas telas, mas é a mesma incoerência da decisão de
+produto nº 2, que está pendente: reforça, não substitui.
 
 ### Escopo que ficou de fora, de propósito
 
@@ -328,8 +343,8 @@ delas defeito:
 **Com o Módulo 32 fechado**, o que resta do Leite é o classificador do n8n
 aprender as intenções, quando o agente for descongelado.
 
-**Continuam devidos dois olhares de navegador no Confinamento**, listados na
-primeira seção deste arquivo.
+**Os dois olhares de navegador do Confinamento foram quitados em 02/09**, com o
+que a tela mostrou registrado na primeira seção deste arquivo.
 
 ### Depois do Leite
 
