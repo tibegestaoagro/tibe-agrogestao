@@ -95,20 +95,20 @@ no ano: 120 L, média diária 0,49 L". Correto pela definição da spec (seção
 e mesmo assim lê mal. A média POR VACA já diz "6 de 31 dias entraram na conta";
 a média diária não diz nada equivalente.
 
-### A FASE 2 DO LEITE ESTÁ PRONTA na branch, NÃO empurrada
+### A FASE 2 DO LEITE ESTÁ NA `main` E NO AR
 
-Branch **`area-leite-fase-2`**, três commits, saindo de `main` em `67cda5e`.
+Empurrada em 2026-09-02 (`6d1bb55`, quatro commits), **depois** da migração,
+como manda o invariante 3. O Neon está nas **40** e up to date; quem aplicou foi
+o usuário, no terminal. Deploy confirmado: `/docs/api` em produção lista
+`milk/sites`, `milk/storage` e `milk/charges`.
+
 Spec na seção 12 de `docs/specs/module-32-area-leite.md`.
 
-Verde: `tsc` 0, `lint` 0 erros, `npm run check` **15/15**, `test:isolation`,
-`test:docs-api`, `npm run test:m53` (47 asserções, 10 seções) e `npm run build`
-limpo com as **treze** rotas de leite e a tela. As suítes `m33`, `m35`, `m37`,
-`m47`, `m51` e `m52` também rodaram verdes, porque esta rodada tocou três
-arquivos de produção fora do leite.
-
-⚠️ **A migração `20260902180000_area_leite_fase_2` está aplicada SÓ no Docker
-local.** O push depende de ela ir ao Neon antes (invariante 3), e quem roda é o
-usuário.
+Verde antes do push: `tsc` 0, `lint` 0 erros, `npm run check` **15/15**,
+`test:isolation`, `test:docs-api`, `npm run test:m53` (47 asserções, 10 seções)
+e `npm run build` limpo com as **treze** rotas de leite e a tela. As suítes
+`m33`, `m35`, `m37`, `m47`, `m51` e `m52` também rodaram verdes, porque esta
+rodada tocou três arquivos de produção fora do leite.
 
 **O que entrou:** três models (`MilkSite`, `MilkMovement`, `MilkCharge`),
 quatro enums, `leite` no `RelatedModule`, nove rotas novas, e a tela `/leite`
@@ -140,7 +140,7 @@ client que existia quando subiu, e o sintoma é `Cannot read properties of
 undefined (reading 'findMany')` com a suíte verde. Nota nova no cofre:
 `dev-server-servido-com-client-prisma-velho`.
 
-### A validação ao vivo da fase 2, e o que ela NÃO alcançou
+### A validação ao vivo da fase 2, na rota E no navegador
 
 Feita contra `next dev` com o banco local e o cenário de
 `scripts/_cenario-leite-fase-2.ts` (idempotente), que monta o exemplo do §20.
@@ -158,16 +158,32 @@ Feita contra `next dev` com o banco local e o cenário de
 | §22 | cobrança criou `income` de 250, `paid`, sob `related_module=leite` |
 | cancelamento | o lançamento virou `cancelled`, e NÃO foi apagado |
 
-⚠️ **O NAVEGADOR NÃO FOI ALCANÇADO nesta fase.** O Turbopack não consegue criar
-processo nesta máquina agora (`exit code 0xc0000142`, com 1,4 GB livres de 8 e o
-Chrome em 2,4 GB): as rotas de API compilam, a PÁGINA não. `next start` foi
-tentado e o Edge Middleware não reconhece a sessão, que é a armadilha já
-documentada no `CLAUDE.md`.
+**E o NAVEGADOR foi alcançado**, na mesma rodada, pelo `browser-harness`:
 
-**Falta olhar, quando a máquina permitir:** o painel "Onde o leite está" com os
-três donos no mesmo tanque; a retirada pré-preenchida com o saldo de cada um; e
-a recusa de saldo aparecendo EMBAIXO do campo. A cadeia inteira está provada
-pela rota; falta o pixel.
+| olhar | o que a tela mostrou |
+|---|---|
+| §20 na tela | Tanque Principal com os três donos listados e 800 L de 2.000 L |
+| §34 | os quatro cartões: 300 / 600 / 500 / 1.400 |
+| retirada | abriu pré-preenchida: Próprio 300 de 300, João 250 de 250, Carlos 250 de 250, "Total informado: 800 L" |
+| destino `venda` | a dica apareceu: "Registrar a saída não registra a venda" |
+| recusa | "Carlos Pereira tem 250 L no local, e você informou 250.999 L", em vermelho **embaixo do campo** |
+| retirada válida | gravou TRÊS linhas (uma por dono) e o painel recalculou para 150 / 0 / 150 / 750 |
+| posição zerada | Próprio e João **sumiram** da lista do tanque ao chegar a zero |
+| rótulos | "Recebido de terceiro", "Entrada da produção", "Enviado ao ponto de coleta", "Retirada": zero enum cru |
+
+⚠️ **Achado que só a tela deu, e é decisão de produto:** o cabeçalho da página
+diz o nome da fazenda ativa ("Leite / Sitio Sem Contagem"), mas o bloco de
+armazenamento é GLOBAL, e mostrou o "Tanque Principal", que é da Fazenda Boa
+Vista. É deliberado (um ponto de coleta de terceiros não pertence a fazenda
+nenhuma, §16), e mesmo assim a tela lê como se tudo fosse da fazenda escolhida.
+Ou o bloco ganha um rótulo próprio, ou ele passa a filtrar e o ponto de coleta
+vira exceção explícita.
+
+⚠️ **Como o navegador foi alcançado, porque não foi óbvio:** o `next dev` padrão
+não compila a PÁGINA nesta máquina (`exit code 0xc0000142` no worker de CSS do
+Turbopack, com pouca RAM livre e o Chrome ocupando o resto). **`next dev
+--webpack` compila normalmente**, e foi assim que a validação rodou. As rotas de
+API compilam nos dois.
 
 
 ### 🔴 SEGURANÇA: o repositório está PÚBLICO e o `.env.enc` vazou
@@ -229,23 +245,22 @@ descrita na pendência como feita em 25/08, **não existe mais** neste
 repositório. `git config --local user.name` volta vazio, e os commits saem como
 `dilton-pleno`.
 
-### ⏭️ PRÓXIMO PASSO: as três de segurança, e a decisão sobre a Fase 2
+### ⏭️ PRÓXIMO PASSO: as três de segurança, depois a Fase 3
 
 **Segurança primeiro**, e ela é do usuário: rotacionar as 22 variáveis, fechar o
 repositório (exige a conta `tibegestaoagro`) e pedir a coleta ao Suporte do
 GitHub. Enquanto o repositório estiver aberto, todo commit é leitura pública.
 
-**A Fase 2 espera decisão.** Ela está pronta e verde na branch
-`area-leite-fase-2`, e para subir precisa, nesta ordem: o usuário aplicar
-`20260902180000_area_leite_fase_2` no Neon, conferir `migrate status`, e então
-autorizar merge e push (a autorização vale por vez).
+**Duas decisões de produto esperando você**, as duas achadas na tela e nenhuma
+delas defeito: a "média diária" dividindo por dias corridos (seção da Fase 1), e
+o cabeçalho da página dizendo uma fazenda enquanto o bloco de armazenamento
+mostra todas (seção da validação da Fase 2).
 
-**Antes disso, o que vale olhar no navegador quando a máquina permitir:** os
-três olhares listados na seção da validação da fase 2, mais os dois que o
-Confinamento ainda deve.
+**Depois, a Fase 3** (§23 a §30: venda, comprador, fechamento por período e
+Financeiro), com a análise estrutural na **seção 13 da spec**.
 
-**Depois da Fase 2, a Fase 3** (§23 a §30: venda, comprador, fechamento por
-período e Financeiro), com a análise estrutural na **seção 13 da spec**.
+**Continuam devidos dois olhares de navegador no Confinamento**, listados na
+primeira seção deste arquivo.
 
 ### Depois do Leite
 
@@ -271,8 +286,8 @@ período e Financeiro), com a análise estrutural na **seção 13 da spec**.
 
 ---
 
-- **2026-09-02:** Fase 2 da Área Leite pronta na branch `area-leite-fase-2`,
-  não empurrada. O leite ganhou lugar e dono, e o §20 do documento (tanque com
+- **2026-09-02:** Fase 2 da Área Leite **no ar na `main`** (`6d1bb55`), com a
+  migração aplicada no Neon antes do push. O leite ganhou lugar e dono, e o §20 do documento (tanque com
   próprio 400, João 300, Carlos 250, físico 950) caiu de graça da posição
   `local x dono`. Quatro decisões levadas ao usuário antes do código: um
   `MilkSite` com tipo espelhando o `ConfinementSite`; a retirada informa a
