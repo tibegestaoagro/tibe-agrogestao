@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import type { NegotiationType } from "@/generated/prisma/client";
 import { getSessionUser, getActiveProfiles, getTenantDb } from "@/lib/tenant-context";
 import { canWrite } from "@/lib/permissions";
 import { getActivePropertyId } from "@/lib/active-property";
@@ -35,13 +36,22 @@ import { descreverQuantidade } from "@/lib/stock/units";
  * banco não sustenta.
  */
 
-const TIPO_LABEL: Record<string, string> = {
+/**
+ * `Record<NegotiationType, string>` e NÃO `Record<string, string>`.
+ *
+ * Era `Record<string, ...>` até 2026-09-02, e o tipo novo `venda_leite` teria
+ * aparecido CRU na tela sem o `tsc` reclamar: é a armadilha registrada em
+ * docs/conhecimento/record-string-e-onde-o-enum-cresce-sem-avisar.md, que já
+ * custou três defeitos de tela no confinamento.
+ */
+const TIPO_LABEL: Record<NegotiationType, string> = {
   compra_gado: "Comprei gado",
   venda_gado: "Vendi gado",
   compra_produto: "Comprei produtos",
   venda_produto: "Vendi produtos",
   permuta: "Permuta",
   evento: "Remessa para evento",
+  venda_leite: "Vendi leite",
 };
 
 

@@ -1699,6 +1699,11 @@ enum ContactType {
   cooperativa
   loja_fornecedor
   prestador_servico
+  /// §24 do Módulo 32: os tipos de comprador de leite que faltavam.
+  /// `cooperativa` e `particular` a lista já tinha.
+  laticinio
+  queijaria
+  mercado
   outro
 }
 
@@ -1728,6 +1733,7 @@ model Contact {
   /// "Joao" partiriam o leite de um produtor em dois saldos.
   milk_from    MilkMovement[] @relation("MilkMovementFromOwner")
   milk_to      MilkMovement[] @relation("MilkMovementToOwner")
+  milk_bought  MilkMovement[] @relation("MilkMovementBuyer")
   milk_charges MilkCharge[]
 
   @@index([tenant_id])
@@ -1742,6 +1748,10 @@ enum NegotiationType {
   /// Remessa para leilão, feira ou evento (§8). Não é venda: o §17.8 é
   /// explícito que o envio não pode gerar receita antes da confirmação.
   evento
+  /// Fase 3 do Módulo 32 (§23 a §29): a venda de leite. Herda parcelas
+  /// (§27, recebimento futuro), custos adicionais (o desconto do laticínio) e
+  /// cancelamento com estorno, tudo já validado em produção.
+  venda_leite
 }
 
 /// O envelope comercial. NÃO tem campo de situação: o §16 (em aberto,
@@ -1792,6 +1802,10 @@ model Negotiation {
   canceled_by       User?            @relation("NegotiationCanceledBy", fields: [canceled_by_user_id], references: [id], onDelete: SetNull)
   movements         HerdMovement[]
   stock_movements   StockMovement[]
+  /// Fase 3 do Módulo 32: as movimentações de leite desta venda ou deste
+  /// fechamento. `cancelNegotiation` percorre esta lista, e o que ela faz com
+  /// cada linha depende de `created_by_sale`.
+  milk_movements    MilkMovement[]
   entries           FinancialEntry[]
   herd_stays        HerdStay[]
   machines_acquired Machine[]        @relation("MachineAcquired")
@@ -1989,6 +2003,9 @@ enum MilkDestination {
   alimentacao_bezerros
   consumo
   descarte
+  /// §30: leite produzido e não vendido. Os outros seis destinos daquela
+  /// seção já existiam na fase 2; este faltava.
+  doacao
   outro
 }
 
@@ -2068,17 +2085,39 @@ model MilkMovement {
   /// ordenha da manhã, e não de um ajuste.
   production_id String?
 
+  /// §28: para quem a entrega foi, quando ela ainda não virou venda. É este
+  /// campo que permite o fechamento por período somar as entregas de UM
+  /// comprador sem inventar um model de "entrega" ao lado do livro-razão.
+  buyer_id String?
+
+  /// A venda (§23) ou o fechamento (§28) a que esta movimentação pertence.
+  /// Nulo numa entrega que ainda não foi liquidada, e é assim que o
+  /// fechamento seguinte sabe o que ainda não cobrou: liquidar duas vezes o
+  /// mesmo período cobraria o laticínio duas vezes pelo mesmo leite.
+  negotiation_id String?
+
+  /// TRUE quando a movimentação NASCEU da venda, e por isso o cancelamento da
+  /// venda deve CANCELAR esta linha: aquele leite nunca saiu.
+  ///
+  /// FALSE quando ela é uma entrega que já existia e só foi liquidada por um
+  /// fechamento: aí o cancelamento remove a marca (`negotiation_id`) e a linha
+  /// FICA, porque o leite saiu de verdade, só não foi pago. Sem esta
+  /// distinção, cancelar um fechamento apagaria entregas que aconteceram.
+  created_by_sale Boolean @default(false)
+
   notes               String?
   canceled_at         DateTime?
   recorded_by_user_id String?
   created_at          DateTime  @default(now())
 
-  tenant     Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  from_site  MilkSite?       @relation("MilkMovementFromSite", fields: [from_site_id], references: [id], onDelete: Restrict)
-  to_site    MilkSite?       @relation("MilkMovementToSite", fields: [to_site_id], references: [id], onDelete: Restrict)
-  from_owner Contact?        @relation("MilkMovementFromOwner", fields: [from_owner_id], references: [id], onDelete: Restrict)
-  to_owner   Contact?        @relation("MilkMovementToOwner", fields: [to_owner_id], references: [id], onDelete: Restrict)
-  production MilkProduction? @relation(fields: [production_id], references: [id], onDelete: SetNull)
+  tenant      Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  from_site   MilkSite?       @relation("MilkMovementFromSite", fields: [from_site_id], references: [id], onDelete: Restrict)
+  to_site     MilkSite?       @relation("MilkMovementToSite", fields: [to_site_id], references: [id], onDelete: Restrict)
+  buyer       Contact?        @relation("MilkMovementBuyer", fields: [buyer_id], references: [id], onDelete: Restrict)
+  negotiation Negotiation?    @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
+  from_owner  Contact?        @relation("MilkMovementFromOwner", fields: [from_owner_id], references: [id], onDelete: Restrict)
+  to_owner    Contact?        @relation("MilkMovementToOwner", fields: [to_owner_id], references: [id], onDelete: Restrict)
+  production  MilkProduction? @relation(fields: [production_id], references: [id], onDelete: SetNull)
 
   @@index([tenant_id])
   @@index([from_site_id])

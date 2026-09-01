@@ -36,6 +36,7 @@ export const DESTINO_LABEL: Record<MilkDestination, string> = {
   alimentacao_bezerros: "Alimentação de bezerros",
   consumo: "Consumo",
   descarte: "Descarte",
+  doacao: "Doação",
   outro: "Outro",
 };
 
@@ -58,6 +59,7 @@ export const DESTINOS: MilkDestination[] = [
   "alimentacao_bezerros",
   "consumo",
   "descarte",
+  "doacao",
   "outro",
 ];
 

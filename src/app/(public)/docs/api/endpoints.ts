@@ -816,6 +816,35 @@ export const GROUPS: Group[] = [
         response: `200
 { "data": { "id": "cl...", "canceled": true, "financial_entry_id": "cl..." }, "meta": {} }`,
       },
+      {
+        method: "POST",
+        path: "/api/v1/milk/sales",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "A venda avulsa de leite (§23 a §27). **Vender JÁ RETIRA o leite**: os litros saem do local e a venda nasce na mesma transação, porque é assim que o produtor fala e o §23 lista a quantidade vendida como obrigatória. Vende sempre o leite PRÓPRIO: vender o de terceiro guardado no seu tanque seria vender o que não é seu (§19). O §25 aceita `amount` OU `price_per_liter`, nunca os dois (422 `VALOR_DUPLICADO`), e grava sempre o total, com o preço por litro derivado na leitura. A venda vira uma `Negotiation` de tipo `venda_leite` e herda parcelas (§27), custos adicionais (o desconto do laticínio) e estorno. Sem saldo próprio no local, 422 `SALDO_INSUFICIENTE` no campo `liters`. ⚠️ **Cancelar NÃO tem rota aqui**: é `POST /api/v1/negotiations/:id/cancel`, que passou a desfazer o leite junto.",
+        request: `{ "site_id": "cl...", "property_id": "cl...", "liters": 500, "price_per_liter": 2.40, "buyer_id": "cl...", "pago": true }
+
+// a prazo (§27), com parcelas
+{ "site_id": "cl...", "property_id": "cl...", "liters": 1000, "amount": 2400, "parcelas": [{ "due_date": "2026-10-10", "amount": 1200 }, { "due_date": "2026-11-10", "amount": 1200 }] }`,
+        response: `201
+{ "data": { "negotiation_id": "cl...", "liters": 500, "amount": 1200, "price_per_liter": 2.4 }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/milk/sales/close",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "O fechamento por período (§28 e §29). **Não move leite**: cobra o que já saiu. Soma as retiradas daquele `buyer_id` no período que ainda não foram liquidadas, aplica o preço e cria a venda. Cada entrega recebe o `negotiation_id` do fechamento, e é isso que impede cobrar o mesmo leite duas vezes: a segunda chamada não encontra nada em aberto e devolve 422 `SEM_ENTREGAS`. O exemplo do §29 sai daqui: 15 dias, 7.200 litros a R$ 2,35, R$ 16.920,00 em Contas a Receber.",
+        request: `{ "buyer_id": "cl...", "property_id": "cl...", "de": "2026-09-01", "ate": "2026-09-15", "price_per_liter": 2.35, "period_label": "1a quinzena de setembro" }`,
+        response: `201
+{ "data": { "negotiation_id": "cl...", "liters": 7200, "amount": 16920, "price_per_liter": 2.35, "entregas": 15 }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/milk/sales/pending",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description: "As entregas que saíram para um comprador e ainda NÃO foram cobradas (§28), agrupadas por comprador. \"Não cobradas\" é `negotiation_id: null` na movimentação, e a marca é posta no fechamento: por isso a lista some sozinha depois que o período fecha. Filtros: `buyer_id`, `de`, `ate` (AAAA-MM-DD).",
+        response: `200
+{ "data": [{ "buyer_id": "cl...", "liters": 1380, "entregas": 3, "primeira": "2026-09-01T15:00:00.000Z", "ultima": "2026-09-03T15:00:00.000Z" }], "meta": { "total": 1, "total_litros": 1380 } }`,
+      },
     ],
   },
   {

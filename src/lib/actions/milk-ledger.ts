@@ -114,6 +114,12 @@ export type RecordMilkMovementInput = {
   to?: MilkPositionKey | null;
   destination?: MilkDestination | null;
   production_id?: string | null;
+  /**
+   * §28: para quem a entrega foi. Fica no movimento, e não numa tabela de
+   * entrega ao lado, porque a entrega diária JA e uma retirada: o que faltava
+   * era dizer para quem (decisao 13.3 da spec).
+   */
+  buyer_id?: string | null;
   notes?: string | null;
   recorded_by_user_id?: string | null;
 };
@@ -212,6 +218,7 @@ export async function recordMilkMovementInTx(
       to_owner_id: input.to?.owner_id ?? null,
       destination: input.destination ?? null,
       production_id: input.production_id ?? null,
+      buyer_id: input.buyer_id ?? null,
       notes: input.notes?.trim() || null,
       recorded_by_user_id: input.recorded_by_user_id ?? null,
     }),

@@ -174,6 +174,13 @@ export type WithdrawInput = {
   site_id: string;
   destination: MilkDestination;
   itens: WithdrawalItem[];
+  /**
+   * §28: quando a retirada e uma ENTREGA para um comprador, dizer quem ele e
+   * transforma a linha em algo que o fechamento por periodo consegue somar. Sem
+   * isso a entrega diaria existiria no livro-razao sem dono do outro lado, e o
+   * §28 precisaria de um model proprio.
+   */
+  buyer_id?: string | null;
   occurred_at?: Date | null;
   notes?: string | null;
   recorded_by_user_id?: string | null;
@@ -240,6 +247,7 @@ export async function withdrawFromSite(
         occurred_at: input.occurred_at,
         from: { site_id: input.site_id, owner_id: item.owner_id },
         destination: input.destination,
+        buyer_id: input.buyer_id ?? null,
         notes: input.notes,
         recorded_by_user_id: input.recorded_by_user_id,
       });
