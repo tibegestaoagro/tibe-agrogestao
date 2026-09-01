@@ -77,9 +77,10 @@ terminar, e um deles alcançou escrever no working tree. A onda foi refeita pela
 sessão principal, tarefa por tarefa. Lição registrada: **conferir o working tree
 depois de agente que morre**, porque o que ele deixou não está verificado.
 
-**O cofre tem 23 notas.** As desta rodada:
-`media-de-periodo-precisa-dividir-dia-a-dia` e
-`dev-server-servido-com-client-prisma-velho`.
+**O cofre tem 24 notas.** As desta rodada:
+`media-de-periodo-precisa-dividir-dia-a-dia`,
+`dev-server-servido-com-client-prisma-velho` e
+`lista-de-tipos-escrita-a-mao-inverte-o-sinal`.
 
 ### A Fase 1 do Leite está no ar, e o que dela ainda vale saber
 
@@ -186,6 +187,68 @@ Turbopack, com pouca RAM livre e o Chrome ocupando o resto). **`next dev
 API compilam nos dois.
 
 
+### A FASE 3 DO LEITE ESTÁ PRONTA na branch, NÃO empurrada
+
+Branch **`area-leite-fase-3`**, três commits, saindo de `main` em `a098e96`.
+Spec na seção 13 de `docs/specs/module-32-area-leite.md`. **O Módulo 32 fecha
+aqui:** as três fases entregues.
+
+⚠️ **A migração `20260902200000_area_leite_fase_3` está aplicada SÓ no Docker
+local.** O push depende de ela ir ao Neon antes (invariante 3), e quem roda é o
+usuário. Ela é toda aditiva: `venda_leite` no `NegotiationType`, `doacao` no
+`MilkDestination`, os três tipos de comprador do §24 no `ContactType`, e três
+colunas em `MilkMovement`.
+
+Verde: `tsc` 0, `lint` 0 erros, `npm run check` **15/15**, `npm run test:m54`
+(37 asserções), e `m35`, `m36`, `m48`, `m49` e `m53`, que são as suítes do
+módulo de Negociações que esta rodada tocou. Build limpo.
+
+**Quatro decisões de 02/09, com o motivo na spec:** vender JÁ retira o leite; o
+fechamento do §28 soma as RETIRADAS daquele comprador; cancelar a venda devolve
+o leite; e a venda herda a `Negotiation` inteira.
+
+⚠️ **O cancelamento NÃO ganhou função própria.** Ele vive dentro de
+`cancelNegotiation`, porque a tela de Negociações já tem um botão que chama
+aquela função direto: uma segunda porta deixaria o leite para trás justamente
+por onde o produtor mais cancela. E as duas origens se desfazem diferente: o
+que NASCEU da venda é cancelado; a entrega liquidada por um fechamento só perde
+a marca e fica, porque o leite saiu de verdade. Quem distingue é
+`created_by_sale`.
+
+### O defeito que a validação ao vivo da fase 3 achou
+
+Uma venda de R$ 1.200,00, gravada corretamente, lia na tela de Negociações:
+
+```
+VALOR: sem dinheiro        SITUAÇÃO: Sem venda
+```
+
+`ehVenda` decidia o lado do dinheiro com uma cadeia de `===`, e `venda_leite`
+caiu no `false` sem o `tsc` reclamar. **É a terceira vez que este ponto inverte
+o sinal** (leilão e permuta, as duas em 28/08). Virou
+`DINHEIRO_ENTRA_POR_TIPO`, um `Record<NegotiationType, boolean>`: o próximo
+tipo não compila sem alguém decidir. Nota nova:
+`lista-de-tipos-escrita-a-mao-inverte-o-sinal`.
+
+⚠️ **A suíte não pegava porque provava a ESCRITA, não a leitura.** A asserção
+sobre o que a tela lê existe agora na `m54`, e foi escrita depois do defeito.
+
+### O que a tela da fase 3 mostrou
+
+| olhar | resultado |
+|---|---|
+| §25 ao vivo | 500 L a R$ 2,40 fez a dica dizer "Total da venda: R$ 1.200,00" antes do envio |
+| venda retira | tanque de 1.770 para 1.270 L, com a linha "Retirada / Venda" nova |
+| §33 | a venda aparece em Negociações como "Vendi leite / R$ 1.200,00 / Recebida" |
+| fechamento | "3 entregas em aberto, somando 1.380 L", período pré-preenchido, "Total do fechamento: R$ 3.243,00" |
+| §28 | fechar NÃO moveu leite: o tanque ficou em 1.270 L, e o bloco de entregas sumiu |
+| §29 | "Ainda tenho a receber: R$ 3.243,00" |
+
+⚠️ **Decisão de produto pendente, achada na tela:** o fechamento sem data
+prevista nasce **"Vencida"**, porque o vencimento cai em `occurred_at`, que é o
+FIM DO PERÍODO, já passado. O produtor não errou nada. Ou o padrão vira hoje,
+ou a data passa a ser obrigatória no fechamento.
+
 ### 🔴 SEGURANÇA: o repositório está PÚBLICO e o `.env.enc` vazou
 
 Descoberto em 2026-09-02, ao instalar o `gh`. `CLAUDE.md` dizia (e foi
@@ -245,19 +308,25 @@ descrita na pendência como feita em 25/08, **não existe mais** neste
 repositório. `git config --local user.name` volta vazio, e os commits saem como
 `dilton-pleno`.
 
-### ⏭️ PRÓXIMO PASSO: as três de segurança, depois a Fase 3
+### ⏭️ PRÓXIMO PASSO: segurança, o push da Fase 3, e três decisões
 
 **Segurança primeiro**, e ela é do usuário: rotacionar as 22 variáveis, fechar o
 repositório (exige a conta `tibegestaoagro`) e pedir a coleta ao Suporte do
 GitHub. Enquanto o repositório estiver aberto, todo commit é leitura pública.
 
-**Duas decisões de produto esperando você**, as duas achadas na tela e nenhuma
-delas defeito: a "média diária" dividindo por dias corridos (seção da Fase 1), e
-o cabeçalho da página dizendo uma fazenda enquanto o bloco de armazenamento
-mostra todas (seção da validação da Fase 2).
+**A Fase 3 espera** o usuário aplicar `20260902200000_area_leite_fase_3` no
+Neon, conferir `migrate status`, e então autorizar merge e push.
 
-**Depois, a Fase 3** (§23 a §30: venda, comprador, fechamento por período e
-Financeiro), com a análise estrutural na **seção 13 da spec**.
+**TRÊS decisões de produto esperando você**, as três achadas na tela e nenhuma
+delas defeito:
+
+1. a "média diária" dividindo por dias corridos (seção da Fase 1);
+2. o cabeçalho dizendo uma fazenda enquanto o armazenamento mostra todas
+   (validação da Fase 2);
+3. o fechamento sem data prevista nascendo "Vencida" (seção da Fase 3).
+
+**Com o Módulo 32 fechado**, o que resta do Leite é o classificador do n8n
+aprender as intenções, quando o agente for descongelado.
 
 **Continuam devidos dois olhares de navegador no Confinamento**, listados na
 primeira seção deste arquivo.
@@ -285,6 +354,18 @@ primeira seção deste arquivo.
 `ponytail-subagent` propaga para os agentes despachados.
 
 ---
+
+- **2026-09-02:** Fase 3 da Área Leite pronta na branch `area-leite-fase-3`,
+  não empurrada, e com ela o **Módulo 32 fecha**: venda, fechamento por período
+  e o dinheiro no Financeiro. Quatro decisões levadas ao usuário antes do
+  código: vender já retira o leite; o fechamento soma as retiradas daquele
+  comprador; cancelar devolve o leite; e a venda herda a `Negotiation` inteira.
+  O cancelamento não ganhou função própria, e vive dentro de
+  `cancelNegotiation`, porque a tela de Negociações já chama aquela função
+  direto. A validação ao vivo achou o defeito da rodada: uma venda de
+  R$ 1.200,00 lia "sem dinheiro" e "Sem venda", porque `ehVenda` era uma cadeia
+  de `===` e o tipo novo caiu no `false` sem o `tsc` reclamar. Terceira vez que
+  este ponto inverte o sinal, e virou `Record` exaustivo.
 
 - **2026-09-02:** Fase 2 da Área Leite **no ar na `main`** (`6d1bb55`), com a
   migração aplicada no Neon antes do push. O leite ganhou lugar e dono, e o §20 do documento (tanque com
@@ -338,13 +419,6 @@ primeira seção deste arquivo.
   quebra o `tsc` quando o enum cresce. Conferência 15 nova, e o handoff
   arquivado depois de 487 linhas.
 
-- **2026-08-31:** time de agentes, fase 1, na branch `time-de-agentes` (3
-  commits). O achado que orientou o desenho: este projeto já tinha inventado
-  metade do protocolo (agentes A1/A2/A3 com "Escopo exclusivo" e "Proibido
-  tocar", em `docs/arquitetura/onda-1-briefings.md`, e o juiz subagente com
-  rubrica) e perdeu tudo junto com o Codex em 04/08. Voltou com as duas peças
-  que faltavam: committer único e formação de onda por regra. De quebra, a
-  stack passou a dizer Next 16, que é a versão real desde sempre.
 
 O detalhe de tudo isso, na íntegra e sem reescrita, está em
 [historico/2026-08.md](historico/2026-08.md), que também guarda as 358 linhas
