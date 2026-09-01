@@ -77,41 +77,98 @@ terminar, e um deles alcançou escrever no working tree. A onda foi refeita pela
 sessão principal, tarefa por tarefa. Lição registrada: **conferir o working tree
 depois de agente que morre**, porque o que ele deixou não está verificado.
 
-**O cofre tem 22 notas.** A desta rodada:
-`media-de-periodo-precisa-dividir-dia-a-dia`.
+**O cofre tem 23 notas.** As desta rodada:
+`media-de-periodo-precisa-dividir-dia-a-dia` e
+`dev-server-servido-com-client-prisma-velho`.
 
-### A FASE 1 DO LEITE ESTÁ NA `main`, e a migração no Neon
+### A Fase 1 do Leite está no ar, e o que dela ainda vale saber
 
-Empurrada em 2026-09-02 com autorização do usuário, **depois** da migração,
-como manda o invariante 3. O Neon está nas **39** e up to date; quem aplicou foi
-o usuário, no terminal.
-
-Verde antes do push: `tsc` 0, `lint` 0 erros, `npm run check` **15/15**,
-`test:isolation`, `test:docs-api`, `npm run test:m52` (78 asserções) e `npm run
-build`. Spec em `docs/specs/module-32-area-leite.md`.
-
-**O que entrou:** três models (`MilkGroup`, `LactationEntry`,
-`MilkProduction`), dois enums, dez rotas em `/api/v1/milk/*`, a tela `/leite`
-dentro de "Operação", e quatro intenções de WhatsApp roteadas e testadas mas
-**não emitidas** pelo classificador, que segue congelado.
-
-⚠️ **São QUATRO intenções, não as três que a spec previa.** O
-`ajustar_vacas_em_lactacao` virou `registrar_entrada_lactacao` e
-`registrar_saida_lactacao`: "entraram 4" e "sequei 4" carregam o mesmo número e
-diferem só no verbo. A spec foi corrigida junto, e o guia do n8n ganhou a seção
-4.3, que lista o que existe e não é emitido.
-
-**A validação ao vivo foi com NAVEGADOR de verdade** (extensão do Chrome), a
-primeira deste projeto: a recusa apareceu embaixo do campo, registrar duas
-ordenhas mudou o painel de 480 para 780, cancelar devolveu 680 e recalculou a
-média, e a fazenda sem contagem mostrou traço. O cenário está em
-`scripts/_cenario-leite.ts` (idempotente).
+Empurrada em 2026-09-02 (`e1a1af1`), depois da migração, com o Neon nas **39**.
+Três models, dez rotas, a tela `/leite` e quatro intenções de WhatsApp
+roteadas e testadas mas **não emitidas** (o classificador segue congelado). A
+validação foi com navegador de verdade, a primeira deste projeto. O detalhe
+está nas mensagens dos commits e na spec; o que sobrevive aqui:
 
 ⚠️ **Decisão de produto pendente, achada na tela:** a "média diária" divide
 pelos dias corridos da janela, então uma fazenda com um registro lê "Acumulado
 no ano: 120 L, média diária 0,49 L". Correto pela definição da spec (seção 6.4)
 e mesmo assim lê mal. A média POR VACA já diz "6 de 31 dias entraram na conta";
 a média diária não diz nada equivalente.
+
+### A FASE 2 DO LEITE ESTÁ PRONTA na branch, NÃO empurrada
+
+Branch **`area-leite-fase-2`**, três commits, saindo de `main` em `67cda5e`.
+Spec na seção 12 de `docs/specs/module-32-area-leite.md`.
+
+Verde: `tsc` 0, `lint` 0 erros, `npm run check` **15/15**, `test:isolation`,
+`test:docs-api`, `npm run test:m53` (47 asserções, 10 seções) e `npm run build`
+limpo com as **treze** rotas de leite e a tela. As suítes `m33`, `m35`, `m37`,
+`m47`, `m51` e `m52` também rodaram verdes, porque esta rodada tocou três
+arquivos de produção fora do leite.
+
+⚠️ **A migração `20260902180000_area_leite_fase_2` está aplicada SÓ no Docker
+local.** O push depende de ela ir ao Neon antes (invariante 3), e quem roda é o
+usuário.
+
+**O que entrou:** três models (`MilkSite`, `MilkMovement`, `MilkCharge`),
+quatro enums, `leite` no `RelatedModule`, nove rotas novas, e a tela `/leite`
+com armazenamento, posições por dono, movimentações e cobrança.
+
+**Quatro decisões de 02/09, com o motivo na spec:** um `MilkSite` com tipo
+espelhando o `ConfinementSite`; a retirada informa a composição e nunca rateia;
+a receita do §22 é digitada e nunca calculada; e o dono terceiro vem de uma
+lista, não digitado, porque aqui o nome é a chave de um saldo.
+
+### Três coisas desta rodada que valem para o projeto inteiro
+
+⚠️ **Dois espelhos de enum viraram import.** `financial.ts` e `alerts.ts`
+mantinham `type RelatedModule = "rebanho" | ...` copiado do Prisma, e os dois já
+tinham ficado para trás uma vez (confinamento, 31/08). Ficaram de novo agora.
+Agora importam de `@/generated/prisma/enums`, e não podem mais envelhecer.
+
+⚠️ **`src/lib/prisma-delegates.ts` nasceu de um LIMITE DO COMPILADOR.** Ao
+acrescentar os três models, o `tsc` passou a reprovar oito chamadas em quatro
+arquivos, três deles intocados (`contacts`, `herd-ledger`, `stock-ledger`): as
+funções aceitam `client escopado OU tx`, e resolver essa união de duas delegates
+gigantes passou do orçamento de instanciação. `delegates()` estreita a união
+para uma ponta, e a conversão é **só de tipo**: a extensão de isolamento
+continua injetando `tenant_id`, porque ela vive no objeto. O invariante 1 não
+afrouxa. **Não use o helper para alargar o que uma função aceita.**
+
+⚠️ **Reiniciar o `next dev` depois de `prisma generate`.** O servidor serve o
+client que existia quando subiu, e o sintoma é `Cannot read properties of
+undefined (reading 'findMany')` com a suíte verde. Nota nova no cofre:
+`dev-server-servido-com-client-prisma-velho`.
+
+### A validação ao vivo da fase 2, e o que ela NÃO alcançou
+
+Feita contra `next dev` com o banco local e o cenário de
+`scripts/_cenario-leite-fase-2.ts` (idempotente), que monta o exemplo do §20.
+**Pela rota real, com sessão de verdade:**
+
+| caso | resultado real |
+|---|---|
+| §20 | Tanque Principal com 950 L físicos: próprio 400, João 300, Carlos 250 |
+| §17 | Ponto São José com 600 L ainda NOSSOS (dono nulo) |
+| §34 | resumo 400 / 600 / 550 / 1550 |
+| §21 | retirada de 100 + 50 gravou duas linhas, e os saldos foram a 300 / 600 / 500 |
+| saldo insuficiente | 422 `SALDO_INSUFICIENTE`, `field: liters`, dizendo "o saldo é de 400 litros" |
+| dono repetido | 422 `DONO_REPETIDO`, `field: itens` |
+| local errado | 422 `TIPO_DE_LOCAL_ERRADO`, `field: site_id`, nomeando o local |
+| §22 | cobrança criou `income` de 250, `paid`, sob `related_module=leite` |
+| cancelamento | o lançamento virou `cancelled`, e NÃO foi apagado |
+
+⚠️ **O NAVEGADOR NÃO FOI ALCANÇADO nesta fase.** O Turbopack não consegue criar
+processo nesta máquina agora (`exit code 0xc0000142`, com 1,4 GB livres de 8 e o
+Chrome em 2,4 GB): as rotas de API compilam, a PÁGINA não. `next start` foi
+tentado e o Edge Middleware não reconhece a sessão, que é a armadilha já
+documentada no `CLAUDE.md`.
+
+**Falta olhar, quando a máquina permitir:** o painel "Onde o leite está" com os
+três donos no mesmo tanque; a retirada pré-preenchida com o saldo de cada um; e
+a recusa de saldo aparecendo EMBAIXO do campo. A cadeia inteira está provada
+pela rota; falta o pixel.
+
 
 ### 🔴 SEGURANÇA: o repositório está PÚBLICO e o `.env.enc` vazou
 
@@ -172,16 +229,23 @@ descrita na pendência como feita em 25/08, **não existe mais** neste
 repositório. `git config --local user.name` volta vazio, e os commits saem como
 `dilton-pleno`.
 
-### ⏭️ PRÓXIMO PASSO: a segurança primeiro, depois a Fase 2
+### ⏭️ PRÓXIMO PASSO: as três de segurança, e a decisão sobre a Fase 2
 
-As três tarefas de segurança da seção acima (rotacionar, fechar o repositório,
-pedir a coleta ao Suporte) vêm antes de qualquer código novo: enquanto o
-repositório estiver aberto, todo commit é leitura pública.
+**Segurança primeiro**, e ela é do usuário: rotacionar as 22 variáveis, fechar o
+repositório (exige a conta `tibegestaoagro`) e pedir a coleta ao Suporte do
+GitHub. Enquanto o repositório estiver aberto, todo commit é leitura pública.
 
-Depois delas, a **Fase 2** do Leite (§12 a §22: tanque, ponto de coleta, leite
-de terceiros), cuja análise estrutural está na **seção 12 da spec**. O ponto sem
-paralelo continua sendo o §20: saldo por PROPRIETÁRIO dentro do mesmo tanque.
+**A Fase 2 espera decisão.** Ela está pronta e verde na branch
+`area-leite-fase-2`, e para subir precisa, nesta ordem: o usuário aplicar
+`20260902180000_area_leite_fase_2` no Neon, conferir `migrate status`, e então
+autorizar merge e push (a autorização vale por vez).
 
+**Antes disso, o que vale olhar no navegador quando a máquina permitir:** os
+três olhares listados na seção da validação da fase 2, mais os dois que o
+Confinamento ainda deve.
+
+**Depois da Fase 2, a Fase 3** (§23 a §30: venda, comprador, fechamento por
+período e Financeiro), com a análise estrutural na **seção 13 da spec**.
 
 ### Depois do Leite
 
@@ -206,6 +270,22 @@ paralelo continua sendo o §20: saldo por PROPRIETÁRIO dentro do mesmo tanque.
 `ponytail-subagent` propaga para os agentes despachados.
 
 ---
+
+- **2026-09-02:** Fase 2 da Área Leite pronta na branch `area-leite-fase-2`,
+  não empurrada. O leite ganhou lugar e dono, e o §20 do documento (tanque com
+  próprio 400, João 300, Carlos 250, físico 950) caiu de graça da posição
+  `local x dono`. Quatro decisões levadas ao usuário antes do código: um
+  `MilkSite` com tipo espelhando o `ConfinementSite`; a retirada informa a
+  composição e nunca rateia; a receita do §22 é digitada e nunca calculada; e o
+  dono terceiro vem de lista, porque aqui o nome é a chave de um saldo.
+  Descobertas de fora do leite: dois espelhos de enum escritos à mão viraram
+  import depois de ficarem para trás pela segunda vez, e acrescentar três models
+  estourou o orçamento de instanciação do `tsc` em quatro arquivos, três deles
+  intocados, resolvido por `prisma-delegates.ts` com conversão só de tipo. A
+  validação ao vivo passou pela rota real (§20, §21, as três recusas com `field`
+  e a cobrança cancelando o lançamento junto), mas **não alcançou o navegador**:
+  o Turbopack não cria processo nesta máquina, e o `next start` esbarra no Edge
+  Middleware.
 
 - **2026-09-02:** Fase 1 da Área Leite **no ar na `main`**, com a migração
   aplicada no Neon antes do push. Quatro decisões que o documento do
@@ -250,13 +330,6 @@ paralelo continua sendo o §20: saldo por PROPRIETÁRIO dentro do mesmo tanque.
   rubrica) e perdeu tudo junto com o Codex em 04/08. Voltou com as duas peças
   que faltavam: committer único e formação de onda por regra. De quebra, a
   stack passou a dizer Next 16, que é a versão real desde sempre.
-- **2026-08-31:** frente 5 (rollout do design system) pronta na branch
-  `frente-5-design-system`. O painel inteiro no kit e em token semântico, com
-  duas travas novas no `check` (recusa engolida, painel fora do kit) e uma
-  terceira depois da validação (recusa do Zod crua). A validação ao vivo achou
-  o Zod falando inglês em 71 rotas, a recusa caindo no rodapé em vez do campo,
-  o `seed:demo` quebrado desde o Módulo 30 e a pílula invisível do
-  `bg-tibe-light`. Nenhum deles aparecia em suíte.
 
 O detalhe de tudo isso, na íntegra e sem reescrita, está em
 [historico/2026-08.md](historico/2026-08.md), que também guarda as 358 linhas
