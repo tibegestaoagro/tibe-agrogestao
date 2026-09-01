@@ -256,7 +256,14 @@ aparece no `package.json`. Cloudflare R2 segue no PRD mas nunca foi necessário.
 ## Deploy, infra e as armadilhas do ambiente
 
 - **App:** https://tibe-agrogestao.vercel.app (Vercel, deploy automático em push
-  na `main`). **Repo:** `tibegestaoagro/tibe-agrogestao`, privado.
+  na `main`). **Repo:** `tibegestaoagro/tibe-agrogestao`.
+
+⚠️ **O repositório está PÚBLICO** (conferido pela API em 2026-09-02; esta linha
+dizia "privado" e estava errada). Fechar exige a conta dona `tibegestaoagro`: o
+`dilton-pleno` tem `push` mas não `admin`. Enquanto estiver aberto, **todo
+commit é leitura pública**, e um segredo commitado por engano é vazamento no
+mesmo instante, não um risco futuro. O que já vazou por esse caminho e o que
+falta fazer estão no handoff.
 - **Banco de produção:** Neon. **Dev local:** Postgres 17 em Docker, container
   `tibe-pg`, porta `55432` (`docker start tibe-pg`).
 

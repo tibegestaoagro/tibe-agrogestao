@@ -80,62 +80,108 @@ depois de agente que morre**, porque o que ele deixou não está verificado.
 **O cofre tem 22 notas.** A desta rodada:
 `media-de-periodo-precisa-dividir-dia-a-dia`.
 
-### A FASE 1 DO LEITE ESTÁ PRONTA na branch, validada ao vivo
+### A FASE 1 DO LEITE ESTÁ NA `main`, e a migração no Neon
 
-Branch **`area-leite-fase-1`**, cinco commits (`cc8a2e4..`), **não empurrada**.
-Spec em `docs/specs/module-32-area-leite.md`.
+Empurrada em 2026-09-02 com autorização do usuário, **depois** da migração,
+como manda o invariante 3. O Neon está nas **39** e up to date; quem aplicou foi
+o usuário, no terminal.
 
-Verde: `tsc` 0, `lint` 0 erros, `npm run check` **15/15**, `test:isolation`,
-`test:docs-api` e `npm run test:m52` (78 asserções, 11 seções), e `npm run
-build` limpo com as sete rotas e a tela.
+Verde antes do push: `tsc` 0, `lint` 0 erros, `npm run check` **15/15**,
+`test:isolation`, `test:docs-api`, `npm run test:m52` (78 asserções) e `npm run
+build`. Spec em `docs/specs/module-32-area-leite.md`.
 
-**O que entrou:** três models (`MilkGroup`, `LactationEntry`, `MilkProduction`),
-dois enums, a migração `20260902120000_area_leite_fase_1` (aplicada **só no
-Docker local**), dez rotas em `/api/v1/milk/*`, a tela `/leite` dentro de
-"Operação", e quatro intenções de WhatsApp roteadas e testadas.
+**O que entrou:** três models (`MilkGroup`, `LactationEntry`,
+`MilkProduction`), dois enums, dez rotas em `/api/v1/milk/*`, a tela `/leite`
+dentro de "Operação", e quatro intenções de WhatsApp roteadas e testadas mas
+**não emitidas** pelo classificador, que segue congelado.
 
-⚠️ **A migração NÃO foi aplicada no Neon**, e o push depende disso primeiro
-(invariante 3). Quem roda é o usuário, no terminal: o classificador de
-permissões recusa `db:deploy` contra produção.
-
-**Quatro decisões de 02/09, todas com o motivo na spec:** lote leiteiro é model
-novo e não `AnimalBatch`; contagem por fazenda, lote é rótulo; uma linha por
-registro de produção, com turno; cancela, não edita.
-
-⚠️ **São QUATRO intenções de WhatsApp, não as três da spec.** O
+⚠️ **São QUATRO intenções, não as três que a spec previa.** O
 `ajustar_vacas_em_lactacao` virou `registrar_entrada_lactacao` e
 `registrar_saida_lactacao`: "entraram 4" e "sequei 4" carregam o mesmo número e
-diferem só no verbo. A spec foi corrigida junto. O classificador do n8n **não
-foi tocado**; o guia ganhou a seção 4.3, que lista o que existe e não é emitido.
+diferem só no verbo. A spec foi corrigida junto, e o guia do n8n ganhou a seção
+4.3, que lista o que existe e não é emitido.
 
-**A validação ao vivo aconteceu**, contra `next dev` com o banco local, o cookie
-de `scripts/_sessao-local.ts` e o cenário de `scripts/_cenario-leite.ts`
-(idempotente). Desta vez **com navegador de verdade**, pela extensão do Chrome:
+**A validação ao vivo foi com NAVEGADOR de verdade** (extensão do Chrome), a
+primeira deste projeto: a recusa apareceu embaixo do campo, registrar duas
+ordenhas mudou o painel de 480 para 780, cancelar devolveu 680 e recalculou a
+média, e a fazenda sem contagem mostrou traço. O cenário está em
+`scripts/_cenario-leite.ts` (idempotente).
 
-| caso | resultado real |
-|---|---|
-| painel | 32 vacas, 480 L, 15 L/vaca, com os seis períodos |
-| média por vaca de ontem | 14,72 L/vaca/dia, ou seja, dividiu por 36 (a contagem DAQUELE dia), não por 32 |
-| secar 500 de 32 | recusa **embaixo do campo**, em vermelho, com o foco nele |
-| ordenha vazia | "Informe pelo menos uma ordenha" embaixo de "Manhã" |
-| registrar 200 + 100 | duas linhas, 480 vira 780, média vira 24,38 |
-| cancelar 100 L | 780 vira 680, média vira 21,25, linha marcada "Cancelado" |
-| fazenda sem contagem | traço nos dois cartões, e a frase explicando |
+⚠️ **Decisão de produto pendente, achada na tela:** a "média diária" divide
+pelos dias corridos da janela, então uma fazenda com um registro lê "Acumulado
+no ano: 120 L, média diária 0,49 L". Correto pela definição da spec (seção 6.4)
+e mesmo assim lê mal. A média POR VACA já diz "6 de 31 dias entraram na conta";
+a média diária não diz nada equivalente.
 
-⚠️ **Uma coisa que só a tela mostrou, e é decisão de produto, não defeito:** a
-"média diária" divide pelos dias corridos da janela, então "Acumulado no ano:
-120 L, média diária 0,49 L" numa fazenda com um registro. Está correto pela
-definição escrita na spec (seção 6.4), e mesmo assim lê mal. A média POR VACA já
-diz "6 de 31 dias entraram na conta"; a média diária não diz nada equivalente.
+### 🔴 SEGURANÇA: o repositório está PÚBLICO e o `.env.enc` vazou
 
-### ⏭️ PRÓXIMO PASSO: a decisão do usuário sobre a Fase 1
+Descoberto em 2026-09-02, ao instalar o `gh`. `CLAUDE.md` dizia (e foi
+corrigido) que o repositório era privado. Ele é **público**, e nada registrava
+essa mudança como deliberada.
 
-Nada é empurrado sem autorização. Quando ela vier, a ordem é: usuário aplica a
-migração no Neon, confere `migrate status`, e só então o push (invariante 3).
+**O que vazou:** o `.env.enc` commitado em 24/08 e removido da árvore em 27/08,
+2.048 bytes, AES-256-CBC com PBKDF2 e 600 mil iterações. A mensagem daquele
+commit descreve o conteúdo (as 22 variáveis, a `DATABASE_URL` de produção, a
+`CONFIG_ENCRYPTION_KEY`), o que é um mapa para quem atacar.
 
-Depois disso, a **Fase 2** (§12 a §22: tanque, ponto de coleta, leite de
-terceiros), cuja análise estrutural está na **seção 12 da spec**. O ponto sem
+**O que foi feito:** reescrita de histórico com `git filter-repo` e force-push
+em 02/09. Clone novo do GitHub não tem mais o arquivo, e os 471 commits foram
+preservados. **Os SHAs de TODA a história mudaram.**
+
+⚠️ **A reescrita NÃO removeu a exposição, e isso foi VERIFICADO, não assumido.**
+Depois do force-push, `GET /repos/.../commits/cbe4afba1cc...` e
+`GET /repos/.../git/blobs/9eb485a5d359...` continuam respondendo, o segundo com
+`size: 2048`. O GitHub guarda objetos inalcançáveis e serve por SHA. Com o
+repositório público, esses dois `GET` funcionam sem autenticação.
+
+**O que falta, e é do usuário:**
+
+1. **Rotacionar as 22 variáveis.** É o único caminho que funciona
+   independentemente de quem já copiou. Decidido pelo usuário em 02/09.
+2. **Fechar o repositório.** Exige a conta `tibegestaoagro`: o `dilton-pleno`
+   tem `push` mas não `admin`, e o `gh` devolve 404 na troca de visibilidade.
+3. **Pedir ao Suporte do GitHub** a coleta dos objetos órfãos. É o único jeito
+   de apagar do servidor deles.
+
+⚠️ **O espelho do histórico antigo está em
+`D:\tmp\tibe-backup-pre-rewrite.git`, e ele CONTÉM o `.env.enc`.** Apague
+quando a rotação terminar.
+
+⚠️ **O clone da outra máquina quebrou** com a reescrita. Lá, antes de tudo:
+`git fetch --all --prune`, depois `git checkout main && git reset --hard
+origin/main`. Trabalho não empurrado precisa virar patch antes.
+
+### O DEPLOY SAIU, e a pendência 1 da Vercel não mordeu desta vez
+
+Confirmado em 2026-09-02, com duas chamadas únicas (nunca `curl` em laço, que
+já disparou a proteção anti-bot neste projeto):
+
+- `/docs/api` lista `/api/v1/milk/*`;
+- as quatro rotas (`summary`, `groups`, `lactation`, `production`) devolvem
+  `401 UNAUTHORIZED` em **JSON**, não 404 nem HTML.
+
+⚠️ **Isso contradiz a pendência 1 de `pendencias-do-usuario.md`**, que diz que
+push de colaborador não vira deploy no plano gratuito. O push saiu pela
+credencial do `dilton-pleno` e o deploy aconteceu mesmo assim. Ou o plano subiu,
+ou a credencial do Windows mudou: **não foi investigado**, e a pendência
+continua escrita como estava. Não conte com nenhuma das duas leituras sem
+conferir.
+
+Registrado junto: a identidade local de git que apontava para `tibegestaoagro`,
+descrita na pendência como feita em 25/08, **não existe mais** neste
+repositório. `git config --local user.name` volta vazio, e os commits saem como
+`dilton-pleno`.
+
+### ⏭️ PRÓXIMO PASSO: a segurança primeiro, depois a Fase 2
+
+As três tarefas de segurança da seção acima (rotacionar, fechar o repositório,
+pedir a coleta ao Suporte) vêm antes de qualquer código novo: enquanto o
+repositório estiver aberto, todo commit é leitura pública.
+
+Depois delas, a **Fase 2** do Leite (§12 a §22: tanque, ponto de coleta, leite
+de terceiros), cuja análise estrutural está na **seção 12 da spec**. O ponto sem
 paralelo continua sendo o §20: saldo por PROPRIETÁRIO dentro do mesmo tanque.
+
 
 ### Depois do Leite
 
@@ -161,8 +207,8 @@ paralelo continua sendo o §20: saldo por PROPRIETÁRIO dentro do mesmo tanque.
 
 ---
 
-- **2026-09-02:** Fase 1 da Área Leite escrita e implementada, na branch
-  `area-leite-fase-1`, ainda não empurrada. Quatro decisões que o documento do
+- **2026-09-02:** Fase 1 da Área Leite **no ar na `main`**, com a migração
+  aplicada no Neon antes do push. Quatro decisões que o documento do
   cliente não resolvia foram levadas ao usuário ANTES da primeira linha de
   código: lote leiteiro é model novo e não `AnimalBatch`; contagem por fazenda,
   lote é rótulo; cada registro de produção é uma linha com turno; e nada é
