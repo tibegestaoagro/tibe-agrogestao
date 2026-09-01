@@ -55,40 +55,25 @@ causa disso.
 ### O rejulgamento deu 4/10, e a onda 7 fechou oito dos dez achados
 
 O juiz independente (por `general-purpose`, com o contrato embutido) leu o range
-inteiro sem o relato de quem implementou, e reprovou: **4/10**, com R3, R4 e R5
-empatados no fundo. Dez achados, todos com cenário concreto. Os cinco mais
-graves foram conferidos à mão antes de virar tarefa, e os cinco procedem.
+inteiro sem o relato de quem implementou e reprovou: **4/10**, dez achados, todos
+com cenário concreto. Os cinco mais graves foram conferidos à mão antes de virar
+tarefa, e os cinco procediam.
 
-**Onda 7, seis commits (`237d548..9523c45`), fechou:**
+**A onda 7 são seis commits, `237d548..9523c45`, e cada mensagem carrega o
+defeito, a correção e a prova nos dois sentidos.** O resumo: a conta a pagar do
+confinamento sobrevivia ao cancelamento (T20); a tela oferecia uma forma de
+cobrança que a rota recusava (T21); o `/rebanho` abria painel de encerramento
+sem nenhum campo (T22); oito campos engoliam a recusa do servidor por completo
+(T23); o "sim" do WhatsApp jogava a conversa fora (T24); e a **conferência 15**
+nasceu para pegar por campo o que a 10 só pergunta por arquivo (T25).
 
-- **T20:** `cancelStay` procurava a conta com `related_module: "rebanho"` fixo, e
-  a do confinamento nasce em `"confinamento"`: cancelar deixava a despesa
-  `pending` para sempre. A busca agora é por `related_id` sozinho. Junto, o §15
-  do cliente: boitel passou a `related_module: "confinamento"`, **só para
-  lançamento novo**, e a divisão histórica está em comentário.
-- **T21:** `HERD_CHARGE_TYPES` virou `Object.values(HerdChargeType)`, e a rota do
-  confinamento passou a importá-la em vez de escrever o enum à mão. O §16 do
-  cliente ("R$ 12,00 por cabeça/dia") era oferecido pela tela e recusado com 422.
-- **T22:** o `/rebanho` oferecia "Encerrar" num painel sem nenhum campo, e o
-  título "Fora da fazenda agora" mentia para dois dos seis tipos. Virou
-  "Estadias em aberto".
-- **T23:** oito campos em três formulários engoliam a recusa do servidor por
-  completo, incluindo a `ORIGEM_AMBIGUA` criada uma tarefa antes. E as colunas
-  "Saídas" e "Mortes" do §24 contavam as mesmas cabeças duas vezes.
-- **T24:** no WhatsApp, "sim" à pergunta do pasto jogava a conversa fora, e
-  alimentar lote em boitel era negado com uma frase falsa. Os quatro handlers do
-  Confinamento não tinham suíte nenhuma; agora têm a seção 15 da `m51`.
-- **T25:** **conferência 15** do `npm run check`, que pergunta campo por campo o
-  que a 10 pergunta por arquivo. Ela achou mais nove campos mudos fora do
-  Confinamento, corrigidos em vez de baselinados: a linha de base nasce vazia.
+⚠️ **A causa comum de três dos quatro defeitos de tela era a mesma:**
+`Record<string, ...>` em mapa cuja chave é valor de enum. Quando o enum cresce,
+o `tsc` não reclama. Ver
+`docs/conhecimento/record-string-e-onde-o-enum-cresce-sem-avisar.md`.
 
-**Cada trava e cada tipagem foi provada nos dois sentidos**, com a saída real nos
-commits.
-
-**Verde agora:** `tsc` 0, `lint` 0 erros, `npm run check` **15/15**, e
-**`npm run test:all` em 54/54**, com Postgres E Redis locais, em ~3 min. É a
-primeira vez nesta frente que a suíte inteira roda de uma vez, e não só as da
-área.
+**Verde no fim da onda:** `tsc` 0, `lint` 0 erros, `npm run check` **15/15**, e
+`npm run test:all` em **54/54** com Postgres E Redis locais, em ~3 min.
 
 ### A validação ao vivo ACONTECEU, e o que ela alcançou
 
@@ -121,38 +106,25 @@ Cada elo foi verificado; o conjunto não foi visto.
 `ORIGEM_AMBIGUA` embaixo do campo "Pasto de origem", e o painel "Encerrar" do
 `/rebanho` com os três destinos aparecendo.
 
-### O roteiro original, para quem for abrir o navegador
+### O que sobrou para o navegador, e duas armadilhas do painel
 
-O juiz foi explícito: os achados de tela ele derivou por leitura, **sem abrir
-navegador**. O roteiro abaixo nunca foi executado, e agora o código está no ar,
-então ele vale contra `https://tibe-agrogestao.vercel.app` tanto quanto contra o
-`next dev`.
+Só dois olhares, e os dois são sobre o que acontece DEPOIS do JavaScript:
 
-⚠️ **Confirmar o deploy é verificação de navegador**, nunca `curl` em laço: 28
+- `/confinamento`, "Registrar entrada": deixar "Pasto de origem" em branco com
+  saldo em dois pastos. A frase da `ORIGEM_AMBIGUA` precisa **aparecer embaixo
+  do campo**. A rota já devolve o `field` certo (provado); falta ver o pixel.
+- `/rebanho`: o botão "Encerrar" de um lote de confinamento abre painel **com**
+  os três destinos.
+
+⚠️ **"Confinamento" fica DENTRO do grupo "Operação"** (`src/lib/nav.ts`), que
+nasce fechado, e só aparece com `hasFazenda`. Um cliente que não expande o grupo
+não vê o módulo, e isso gerou a pergunta "cadê o Confinamento?" em 01/09. Vale
+para toda frente que criar item de menu dentro de grupo.
+
+⚠️ **Confirmar deploy é verificação de navegador**, nunca `curl` em laço: 28
 chamadas em poucos minutos já dispararam a proteção anti-bot da Vercel neste
 projeto. A impressão digital desta frente é `/docs/api` listando as rotas de
 `/api/v1/confinement/*`.
-
-⚠️ **No painel, "Confinamento" fica DENTRO do grupo "Operação"**
-(`src/lib/nav.ts`), que nasce fechado, e só aparece com `hasFazenda`. Um cliente
-que não expande o grupo não vê o módulo, e isso já gerou a pergunta "cadê o
-Confinamento?" em 01/09.
-
-**O que abrir no navegador** (`npm run dev`; `npx tsx scripts/_sessao-local.ts`
-emite o cookie do owner do seed, sem digitar senha):
-
-- `/confinamento`, "Registrar entrada": escolher **"Por cabeça/dia"** e salvar.
-  Antes devolvia 422 calado; precisa aceitar.
-- `/confinamento`, mesma tela: deixar "Pasto de origem" em branco com saldo em
-  dois pastos. A recusa `ORIGEM_AMBIGUA` precisa **aparecer embaixo do campo**.
-  Era o defeito mais grave: a tela ficava muda.
-- `/confinamento`: encerrar informando **menos** que o saldo (15 de 40). Salva,
-  diz que restam 25, o lote continua com os dias contando. Informar **mais**
-  continua bloqueado. Conferir "Saídas" e "Mortes" não somando as mesmas cabeças.
-- `/rebanho`: um lote de confinamento aparece sob **"Estadias em aberto"**, com
-  rótulo "Confinamento", e o botão "Encerrar" abre painel **com** campos.
-- `/financeiro`: cancelar uma estadia de confinamento com cobrança. A conta a
-  pagar precisa **sumir**. E o filtro "Módulo" mostra boitel em Confinamento.
 
 ### Escopo que ficou de fora, de propósito
 
@@ -184,14 +156,79 @@ depois de agente que morre**, porque o que ele deixou não está verificado.
 `record-string-e-onde-o-enum-cresce-sem-avisar`,
 `filtro-na-busca-esconde-o-defeito-que-o-teste-procura`.
 
-### O que vem depois
+### ⏭️ PRÓXIMO PASSO EXATO: a spec da FASE 1 da Área Leite
+
+O documento do cliente foi lido inteiro em 01/09 (40 seções, 30 critérios de
+aceite). Está em `docs/area-funcional-confinamento/`, no arquivo do leite (o
+nome dele tem travessão, por isso não é citado literal aqui; leia com
+`unzip -p "<caminho>" word/document.xml | sed -e 's/<[^>]*>/ /g'`).
+
+**Três decisões do usuário, tomadas em 01/09. Execute, não redecida:**
+
+1. **Três fases, com aprovação entre elas.** Fase 1: lactação, produção, média
+   por vaca e histórico (§4 a §11). Fase 2: tanque, ponto de coleta e leite de
+   terceiros (§12 a §22), que é o coração. Fase 3: venda, comprador, fechamento
+   por período e Financeiro (§23 a §30).
+2. **A venda de leite é uma `Negotiation` nova**, tipo novo no enum, de forma
+   aditiva, sem tocar nos quatro existentes. O fechamento por período do §28
+   segue o padrão da remessa de evento, que já acumula entregas e fecha com o
+   dinheiro. Reabre o Módulo 31 só por acréscimo.
+3. **Validar o Confinamento antes** (feito em 01/09), e a **onda 8 fica para
+   depois do Leite**.
+
+**A análise estrutural, para não ser refeita do zero:**
+
+O Leite é um **terceiro livro-razão**: volume nunca gravado, sempre soma das
+movimentações (invariante 2). A posição é `local × dono`.
+
+Os §16 a §21 são **exatamente o padrão `HerdStay`**, que já está em produção:
+leite próprio em ponto de coleta de terceiros é `pasto_terceiro`/`boitel`
+(coisa nossa em lugar dos outros); fazenda como ponto de coleta é
+`terceiro_na_fazenda` (coisa dos outros em lugar nosso), que **já gera receita
+com as seis formas de cobrança** que o §22 pede; e o §37.6 ("enviar ao ponto de
+coleta não é venda") é o §17.8 do leilão com outras palavras.
+
+O que já existe e reusa:
+
+- **`Contact`** já é o cadastro simplificado do §24 (nome, tipo, telefone,
+  município), e serve para comprador E para o produtor terceiro do §19. Falta
+  acrescentar `laticinio`, `queijaria` e `mercado` ao `ContactType`, que já tem
+  `cooperativa`.
+- **`createLinkedEntry`** + `RelatedModule` ganhando `leite` cobre o §32
+  inteiro, conta a receber do §27 incluída.
+- **`StockMovement`** já tem `stay_id` para o confinamento; o §31 pede o vínculo
+  análogo com o lote de leite.
+- **`ConfinementSite`** já tem exatamente os campos do tanque do §13,
+  `capacity` incluído.
+
+⚠️ **A única coisa sem paralelo aqui:** o §20 exige saldo POR PROPRIETÁRIO
+dentro do mesmo tanque (próprio 400, João 300, Carlos 250, físico 950). O eixo
+de dono do rebanho é só `proprio | terceiro`, sem nome. A posição do leite
+precisa apontar para um `Contact`. É onde vale gastar o desenho.
+
+Duas coisas já decididas e que **não devem ser reabertas**: lactação é contagem
+com data, desacoplada do livro-razão (§37.2 e §37.4 confirmam), e o
+classificador do n8n continua congelado, então os handlers do §36 nascem e são
+testados mas as intenções não são emitidas.
+
+### Depois do Leite
 
 1. **Onda 8:** os dois pedidos do cliente da `dividas.md` §2.8.
-2. **A Área Leite**, ainda sem spec. Documento em
-   `docs/area-funcional-confinamento/` (o do leite tem travessão no nome, por
-   isso não é citado literal). Decisão já tomada: **lactação será contagem com
-   data, desacoplada do livro-razão** (§37.2 e §4).
-3. **A correção do rebanho invisível**, adiada pelo usuário: `dividas.md` §2.9.
+2. **A correção do rebanho invisível**, adiada pelo usuário: `dividas.md` §2.9.
+
+### ⚠️ Para quem retomar em OUTRA MÁQUINA
+
+- **`.claude/settings.local.json` não vai para o git** (`.gitignore` linha 58).
+  O bloco `autoMode.allow` que destrava `npm run db:deploy` foi escrito no
+  desktop em 01/09 e **não existe no notebook**. Lá, migração em produção volta
+  a ser recusada pelo classificador, e o caminho é pedir ao usuário.
+- **`.env.example` está modificado e NÃO commitado no desktop**, desde antes de
+  31/08. A mudança REMOVE a documentação das duas variáveis do banco de provas
+  (`npm run wa`), escrita em 24/08 porque o código as lê. Ficou parada ali,
+  esperando decisão do usuário. Ela não viaja: é edição local do desktop.
+- **O desktop tem pouca memória para este projeto** (relato do usuário em
+  01/09), e o Turbopack morre lá quando outro projeto está rodando teste. Ver
+  `docs/conhecimento/turbopack-nao-cria-processo-quando-a-maquina-esta-cheia.md`.
 
 ⚠️ **`ponytail` está ativo** (modo `full`), com 3 hooks globais, e o
 `ponytail-subagent` propaga para os agentes despachados.
@@ -204,8 +241,11 @@ depois de agente que morre**, porque o que ele deixou não está verificado.
   divisão histórica que o T20 tinha deixado registrada. Descoberto no caminho:
   `npm run db:deploy` contra produção é recusado pelo classificador de
   permissões, e a marca `AUTORIZADO_PELO_USUARIO=1` não vale para ele; quem
-  rodou foi o usuário, no terminal. A validação ao vivo continua pendente, e
-  agora é contra produção.
+  rodou foi o usuário, no terminal. **A validação ao vivo foi feita no mesmo
+  dia**, contra `next dev` com cookie de sessão: os cinco casos do juiz passaram
+  no app de verdade, e o que só existe depois do JavaScript ficou provado por
+  cadeia, não por pixel (o `browser-harness` não está instalado). Documento da
+  Área Leite lido inteiro, com as três decisões de produto tomadas.
 
 - **2026-08-31:** Confinamento (fase 3 do Módulo 30) rejulgado e corrigido. O
   juiz independente deu **4/10** com dez achados, e a onda 7 fechou oito deles
