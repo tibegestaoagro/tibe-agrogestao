@@ -14,6 +14,7 @@ import { isValidCategory } from "@/lib/herd/categories";
 import { medirLeituraDeSaldo } from "@/lib/jobs/medir-saldo";
 import { decToNum, isoOrNull } from "@/lib/serialize";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
+import { delegates } from "@/lib/prisma-delegates";
 
 /**
  * O livro-razão do rebanho (Módulo 30, ver docs/specs/module-30-rebanho-livro-razao.md).
@@ -216,7 +217,7 @@ export async function getPositions(
   const to = toWhere(filter);
   const temFiltro = Object.keys(from).length > 0 || Object.keys(to).length > 0;
 
-  const rows = await db.herdMovement.findMany({
+  const rows = await delegates(db).herdMovement.findMany({
     where: {
       canceled_at: null,
       ...(temFiltro ? { OR: [from, to] } : {}),
@@ -346,7 +347,7 @@ export async function listMovements(
   const skip = Math.max(options.offset ?? 0, 0);
 
   const [rows, total] = await Promise.all([
-    db.herdMovement.findMany({
+    delegates(db).herdMovement.findMany({
       where,
       // created_at e id desempatam: sem eles, duas movimentações no mesmo dia
       // podem trocar de lugar entre uma página e outra e sumir da listagem.
@@ -355,7 +356,7 @@ export async function listMovements(
       skip,
       include: { recorded_by: { select: { id: true, name: true } } },
     }),
-    db.herdMovement.count({ where }),
+    delegates(db).herdMovement.count({ where }),
   ]);
 
   const items = rows.map((row) => ({

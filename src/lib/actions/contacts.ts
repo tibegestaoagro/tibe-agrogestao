@@ -1,6 +1,7 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, type ActionResult } from "@/lib/actions/types";
 import type { ContactType, Prisma } from "@/generated/prisma/client";
+import { delegates } from "@/lib/prisma-delegates";
 
 /**
  * O mínimo que esta action precisa do client. Aceita tanto o client escopado
@@ -128,11 +129,11 @@ export async function findOrCreateContact(
   nome: string,
 ): Promise<{ id: string; name: string; criado: boolean }> {
   const limpo = nome.trim();
-  const existente = await db.contact.findFirst({
+  const existente = await delegates(db).contact.findFirst({
     where: { archived_at: null, name: { equals: limpo, mode: "insensitive" } },
   });
   if (existente) return { id: existente.id, name: existente.name, criado: false };
 
-  const novo = await db.contact.create({ data: scoped({ name: limpo }) });
+  const novo = await delegates(db).contact.create({ data: scoped({ name: limpo }) });
   return { id: novo.id, name: novo.name, criado: true };
 }

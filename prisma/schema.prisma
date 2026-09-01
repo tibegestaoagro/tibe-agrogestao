@@ -246,6 +246,12 @@ enum RelatedModule {
   /// somável separado do resto do rebanho, e reaproveitar `rebanho` misturaria
   /// as duas somas.
   confinamento
+  /// Fase 2 do Módulo 32 (Área Leite). Nasce com a receita do §22 (cobrar pelo
+  /// serviço de ponto de coleta) e recebe a venda de leite na fase 3. Valor
+  /// próprio pelo mesmo motivo de `confinamento`: o dinheiro do leite precisa
+  /// ser somável separado do rebanho, e o §32 pede a área alimentando o
+  /// Financeiro como atividade distinta.
+  leite
 }
 
 enum FinancialEntryStatus {
@@ -375,6 +381,9 @@ model Tenant {
   milk_groups          MilkGroup[]
   lactation_entries    LactationEntry[]
   milk_productions     MilkProduction[]
+  milk_sites           MilkSite[]
+  milk_movements       MilkMovement[]
+  milk_charges         MilkCharge[]
 }
 
 // Equipe da Pleno Digital. NÃO carrega tenant_id: fora do isolamento (PRD 4 / 10.4).
@@ -595,6 +604,7 @@ model Property {
   milk_groups       MilkGroup[]
   lactation_entries LactationEntry[]
   milk_productions  MilkProduction[]
+  milk_sites        MilkSite[]
 
   @@index([tenant_id])
 }
@@ -1712,6 +1722,14 @@ model Contact {
   tenant       Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   negotiations Negotiation[]
 
+  /// Área Leite, fase 2 (§19): o contato é o DONO de um saldo de leite, não só
+  /// um rótulo de evento passado. É por isso que o painel escolhe de uma lista
+  /// em vez de criar pelo nome digitado, como a negociação faz: aqui "João" e
+  /// "Joao" partiriam o leite de um produtor em dois saldos.
+  milk_from    MilkMovement[] @relation("MilkMovementFromOwner")
+  milk_to      MilkMovement[] @relation("MilkMovementToOwner")
+  milk_charges MilkCharge[]
+
   @@index([tenant_id])
 }
 
@@ -1917,11 +1935,193 @@ model MilkProduction {
   recorded_by_user_id String?
   created_at          DateTime  @default(now())
 
-  tenant   Tenant     @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  property Property   @relation(fields: [property_id], references: [id], onDelete: Restrict)
-  group    MilkGroup? @relation(fields: [group_id], references: [id], onDelete: SetNull)
+  tenant    Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  property  Property       @relation(fields: [property_id], references: [id], onDelete: Restrict)
+  group     MilkGroup?     @relation(fields: [group_id], references: [id], onDelete: SetNull)
+  /// Fase 2: as movimentações que nasceram deste registro (§14, produção que
+  /// foi para o tanque). Campo em snake_case como o resto do projeto.
+  movements MilkMovement[]
 
   @@index([tenant_id])
   @@index([property_id, recorded_at])
   @@index([group_id])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Área Leite, fase 2 (Módulo 32, §12 a §22).
+// Ver docs/specs/module-32-area-leite.md, seção 12.
+//
+// Aqui o leite ganha LUGAR e DONO, e vira o terceiro livro-razão do sistema.
+// A posição é `local x dono`, e o volume de cada uma é a soma das
+// movimentações que apontam para ela (invariante 2). O §20 cai de graça: o
+// tanque com próprio 400, João 300 e Carlos 250 são três posições no mesmo
+// local, e o volume físico é a soma delas.
+//
+// `dono` nulo significa "meu", não "desconhecido": é a mesma escolha do
+// `HerdOwner.proprio`, com a diferença de que aqui o outro lado tem nome.
+// ─────────────────────────────────────────────────────────────
+
+enum MilkSiteType {
+  proprio
+  terceiro
+}
+
+enum MilkMovementType {
+  /// §14: a produção do dia entra no tanque.
+  entrada_producao
+  /// §19: recebemos leite de um terceiro.
+  entrada_terceiro
+  /// §16: leite nosso sai do tanque para um ponto de coleta de terceiros.
+  transferencia
+  /// §15 e §21: o leite sai, com destino declarado.
+  saida
+  /// Correção de contagem, para o saldo ser consertado sem apagar nada.
+  ajuste
+}
+
+/// §15: para onde o leite foi quando saiu.
+enum MilkDestination {
+  venda
+  laticinio
+  cooperativa
+  ponto_coleta
+  fabricacao_propria
+  alimentacao_bezerros
+  consumo
+  descarte
+  outro
+}
+
+/// §22: as seis formas de cobrar pelo serviço de ponto de coleta.
+enum MilkChargeType {
+  por_litro
+  por_produtor
+  por_coleta
+  mensal
+  fixo
+  outro
+}
+
+/// Onde o leite pode estar (§13 e §16). Espelha `ConfinementSite`, que já está
+/// em produção com `proprio | boitel`, porque é o mesmo conceito.
+///
+/// NÃO reusa o `ConfinementSite`: tanque de leite passaria a aparecer nas
+/// consultas de confinamento, e as duas áreas ficariam presas uma na outra por
+/// uma coincidência de campos, não por um conceito comum.
+model MilkSite {
+  id        String       @id @default(cuid())
+  tenant_id String
+  name      String
+  type      MilkSiteType
+
+  /// Fazenda, quando `type` é `proprio`. Opcional porque um ponto de coleta de
+  /// terceiros não é uma fazenda do tenant.
+  property_id String?
+
+  /// Dono do ponto de coleta, quando `type` é `terceiro`. Opcional pelo motivo
+  /// espelhado: o tanque próprio não tem contraparte.
+  counterparty_name String?
+  city              String?
+  /// §13: opcional. NÃO é limite: o saldo pode passar dela, e a tela avisa.
+  capacity          Int?
+  notes             String?
+
+  archived_at DateTime?
+  created_at  DateTime  @default(now())
+
+  tenant   Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  property Property? @relation(fields: [property_id], references: [id], onDelete: Restrict)
+
+  movements_from MilkMovement[] @relation("MilkMovementFromSite")
+  movements_to   MilkMovement[] @relation("MilkMovementToSite")
+  charges        MilkCharge[]
+
+  @@index([tenant_id])
+  @@index([property_id])
+}
+
+/// O livro-razão do leite. Espelha `HerdMovement`: cada linha declara de onde
+/// saiu e para onde foi, e o lado fica nulo quando o leite NASCE (produção) ou
+/// SOME (saída para venda, consumo, descarte).
+///
+/// O saldo de uma posição `(site, owner)` é a soma dos `to` menos a soma dos
+/// `from`. Não existe campo de saldo, e não pode existir (invariante 2).
+model MilkMovement {
+  id            String           @id @default(cuid())
+  tenant_id     String
+  movement_type MilkMovementType
+  liters        Decimal          @db.Decimal(12, 2)
+  occurred_at   DateTime
+
+  from_site_id  String?
+  /// Nulo = leite próprio. Preenchido = leite daquele produtor (§19, §20).
+  from_owner_id String?
+
+  to_site_id  String?
+  to_owner_id String?
+
+  /// Só em `saida` (§15). Nas outras o destino é o próprio local.
+  destination MilkDestination?
+
+  /// Quando a movimentação nasceu de um registro de produção (§14), aponta
+  /// para ele: é o que permite ver que aqueles litros do tanque vieram da
+  /// ordenha da manhã, e não de um ajuste.
+  production_id String?
+
+  notes               String?
+  canceled_at         DateTime?
+  recorded_by_user_id String?
+  created_at          DateTime  @default(now())
+
+  tenant     Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  from_site  MilkSite?       @relation("MilkMovementFromSite", fields: [from_site_id], references: [id], onDelete: Restrict)
+  to_site    MilkSite?       @relation("MilkMovementToSite", fields: [to_site_id], references: [id], onDelete: Restrict)
+  from_owner Contact?        @relation("MilkMovementFromOwner", fields: [from_owner_id], references: [id], onDelete: Restrict)
+  to_owner   Contact?        @relation("MilkMovementToOwner", fields: [to_owner_id], references: [id], onDelete: Restrict)
+  production MilkProduction? @relation(fields: [production_id], references: [id], onDelete: SetNull)
+
+  @@index([tenant_id])
+  @@index([from_site_id])
+  @@index([to_site_id])
+  @@index([occurred_at])
+  @@index([production_id])
+}
+
+/// §22: a receita de funcionar como ponto de coleta.
+///
+/// Gesto PRÓPRIO, e não um campo de cada recebimento: o §22 começa com "Caso a
+/// fazenda cobre", e formas como `mensal` e `por_produtor` não pertencem a um
+/// recebimento isolado.
+///
+/// O valor é o que o produtor digitou, NUNCA calculado, mesmo quando a forma é
+/// `por_litro`. O §22 dá o exemplo de R$ 0,05 sobre 5.000 litros mas não diz
+/// sobre qual PERÍODO somar esses litros: isso só aparece no §28, que é a fase
+/// 3. Mesma decisão da cobrança do confinamento, que está em produção.
+model MilkCharge {
+  id           String         @id @default(cuid())
+  tenant_id    String
+  /// De quem se está cobrando (§19, §22).
+  owner_id     String
+  site_id      String?
+  type         MilkChargeType
+  amount       Decimal        @db.Decimal(14, 2)
+  occurred_at  DateTime
+  /// Texto livre do período coberto ("agosto/2026", "coleta de 12/08"). Não é
+  /// intervalo de datas porque o §22 não define apuração, e um intervalo
+  /// sugeriria um fechamento que só existe na fase 3.
+  period_label String?
+
+  notes               String?
+  /// O lançamento gerado em `FinancialEntry`, para o cancelamento alcançá-lo.
+  financial_entry_id  String?
+  canceled_at         DateTime?
+  recorded_by_user_id String?
+  created_at          DateTime  @default(now())
+
+  tenant Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  owner  Contact   @relation(fields: [owner_id], references: [id], onDelete: Restrict)
+  site   MilkSite? @relation(fields: [site_id], references: [id], onDelete: Restrict)
+
+  @@index([tenant_id])
+  @@index([owner_id])
 }

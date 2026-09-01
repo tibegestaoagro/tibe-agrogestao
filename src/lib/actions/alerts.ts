@@ -41,11 +41,11 @@ function isoWeekKey(d: Date): string {
 }
 
 type AlertType = "vaccine_due" | "harvest_near" | "bill_due" | "low_balance" | "trial_ending" | "maintenance_due" | "task_reminder" | "low_stock";
-// Espelha o RelatedModule do Prisma. Alargado em 2026-08-31 (fase 3 do
-// Módulo 30, confinamento): um FinancialEntry de confinamento pendente
-// (bill_due) precisa gerar alerta com o related_module certo, como qualquer
-// outro módulo.
-type RelatedModule = "rebanho" | "lavoura" | "servico" | "maquinas" | "geral" | "confinamento";
+// O RelatedModule do Prisma, IMPORTADO, não espelhado à mão: ver o comentário
+// gêmeo no topo de `src/lib/financial.ts`. Espelho escrito à mão já ficou para
+// trás duas vezes neste projeto, e um alerta com o módulo errado é um lembrete
+// que aponta para a tela errada.
+import type { RelatedModule } from "@/generated/prisma/enums";
 type AlertEnsureClient = {
   alert: {
     findFirst(args: Prisma.AlertFindFirstArgs): Promise<{ id: string } | null>;

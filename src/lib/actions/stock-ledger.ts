@@ -6,6 +6,7 @@ import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { descreverQuantidade, recusaPorFracao, disponiveis } from "@/lib/stock/units";
 import { isValidCategory } from "@/lib/herd/categories";
 import { medirLeituraDeSaldo } from "@/lib/jobs/medir-saldo";
+import { delegates } from "@/lib/prisma-delegates";
 
 /**
  * O livro-razão do estoque (Módulo 31, §10).
@@ -85,7 +86,7 @@ export async function getStockBalance(
   if (filtro.product_id !== undefined) where.product_id = filtro.product_id;
   if (filtro.property_id !== undefined) where.property_id = filtro.property_id;
 
-  const linhas = await db.stockMovement.findMany({
+  const linhas = await delegates(db).stockMovement.findMany({
     where,
     select: {
       product_id: true,

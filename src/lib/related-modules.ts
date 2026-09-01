@@ -20,6 +20,7 @@ export const MODULE_LABEL: Record<RelatedModule, string> = {
   maquinas: "Máquinas",
   geral: "Geral",
   confinamento: "Confinamento",
+  leite: "Leite",
 };
 
 /**

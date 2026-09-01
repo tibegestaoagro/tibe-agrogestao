@@ -1,10 +1,15 @@
 import type { Prisma, NegotiationEntryRole } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 
-// Espelha o RelatedModule do Prisma. Alargado em 2026-08-31 (fase 3 do
-// Módulo 30, confinamento): `related_module: "confinamento"` precisa passar
-// por este mesmo helper, nunca um FinancialEntry criado à mão.
-type RelatedModule = "rebanho" | "lavoura" | "servico" | "maquinas" | "geral" | "confinamento";
+// O RelatedModule do Prisma, IMPORTADO, não espelhado à mão.
+//
+// Até 2026-09-02 esta linha era uma união escrita a mão, e ela já tinha sido
+// alargada uma vez (confinamento, 31/08). Na segunda vez que o enum cresceu
+// (leite), os dois espelhos deste projeto voltaram a ficar para trás juntos, e
+// o `tsc` só reclamou porque o valor novo foi usado no mesmo commit. Importar
+// é a versão que não pode envelhecer: é a mesma lição do
+// `Record<string, ...>` em `docs/conhecimento/`.
+import type { RelatedModule } from "@/generated/prisma/enums";
 type EntryType = "income" | "expense";
 type EntryStatus = "pending" | "paid" | "overdue";
 

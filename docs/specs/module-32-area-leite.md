@@ -428,41 +428,164 @@ Além do documento, e por serem os erros que este projeto já cometeu:
 
 ---
 
-## 12. O que já está analisado para as fases 2 e 3
+## 12. A Fase 2: o leite ganha lugar e dono (§12 a §22)
 
-Feito em 2026-09-01, sobre o documento inteiro. Está aqui para não ser refeito.
+**Decisões tomadas com o usuário em 2026-09-02**, por entrevista, antes de
+qualquer código. Aqui o leite deixa de ser um número por dia e vira o
+**terceiro livro-razão** do sistema.
 
-**O leite é o terceiro livro-razão.** Volume nunca gravado, sempre soma das
-movimentações. A posição é `local x dono`.
+### 12.1. A posição é `local x dono`
 
-**Os §16 a §21 são exatamente o padrão `HerdStay`**, que já está em produção:
+Volume nunca gravado, sempre soma das movimentações (invariante 2). A posição
+tem dois eixos, e não cinco como o rebanho, porque o leite não tem categoria,
+nem pasto, nem situação:
 
-| situação do leite | equivalente que já existe |
-|---|---|
-| leite próprio em ponto de coleta de terceiros | `pasto_terceiro` / `boitel` (coisa nossa em lugar dos outros) |
-| fazenda como ponto de coleta | `terceiro_na_fazenda` (coisa dos outros em lugar nosso) |
-| §22, cobrar pelo serviço | as seis formas de cobrança de `HerdChargeType`, que já geram receita |
-| §37.6, enviar não é venda | é o §17.8 do leilão com outras palavras |
+```
+local (MilkSite) x dono (Contact, ou nulo para o próprio)
+```
 
-O que já existe e reusa:
+E o §20 cai de graça. O tanque com próprio 400, João 300 e Carlos 250 são
+**três posições no mesmo local**, e o volume físico do tanque é a soma delas:
 
-- **`Contact`** já é o cadastro simplificado do §24 (nome, tipo, telefone,
-  município), e serve para comprador **e** para o produtor terceiro do §19.
-  Falta acrescentar `laticinio`, `queijaria` e `mercado` ao `ContactType`, que
-  já tem `cooperativa`.
-- **`createLinkedEntry`** mais `RelatedModule` ganhando `leite` cobre o §32
-  inteiro, conta a receber do §27 incluída.
-- **`StockMovement`** já tem `stay_id` para o confinamento; o §31 pede o vínculo
-  análogo com o lote de leite.
-- **`ConfinementSite`** já tem exatamente os campos do tanque do §13,
-  `capacity` incluído.
+| local | dono | litros |
+|---|---|---|
+| Tanque Principal | (próprio) | 400 |
+| Tanque Principal | João | 300 |
+| Tanque Principal | Carlos | 250 |
+| **físico no tanque** | | **950** |
+
+⚠️ **`dono` nulo significa "meu", e não "desconhecido".** É a mesma escolha que
+o rebanho fez com `HerdOwner.proprio`, com a diferença de que aqui o outro lado
+tem nome. Nulo é o caso comum e não gasta uma linha de `Contact` para dizer o
+óbvio.
+
+### 12.2. Um `MilkSite` com tipo, espelhando o `ConfinementSite`
+
+O §13 cadastra o tanque próprio; o §16 fala do ponto de coleta de terceiros,
+que não é nosso. São dois tipos do mesmo conceito ("onde meu leite pode
+estar"), e é exatamente a forma de `ConfinementSite`, que está em produção com
+`proprio | boitel`.
+
+Fica `MilkSite` com `type: proprio | terceiro`. Reusar o próprio
+`ConfinementSite` foi descartado: tanque de leite passaria a aparecer nas
+consultas de confinamento, e as duas áreas ficariam presas uma na outra por
+uma coincidência de campos, não por um conceito comum.
+
+### 12.3. A saída informa a composição, nunca rateia
+
+O §21 retira 950 de um tanque com 400 próprio, 300 do João e 250 do Carlos, e
+manda "dar baixa separadamente em cada volume". Quando a coleta é parcial, o
+documento não diz o que fazer.
+
+**O produtor informa quanto sai de cada dono.** A tela lista os donos com saldo
+e já vem preenchida com o saldo total de cada um, que é o exemplo do §21 na
+íntegra; coleta parcial é ajustar os campos.
+
+Rateio proporcional foi descartado porque transformaria o número de cada
+produtor numa conta que ninguém fez. Numa retirada de 500 em 950, o João
+"receberia" 157,9 litros de baixa, e nenhum documento autoriza isso.
+
+### 12.4. A receita do §22 é digitada, nunca calculada
+
+O §22 lista seis formas de cobrança (por litro, por produtor, por coleta,
+mensal, fixo, outro) e dá o exemplo de R$ 0,05 por litro sobre 5.000 litros.
+
+**A forma de cobrança é informação do acordo, e o valor lançado é o que o
+produtor digitou.** É a decisão 3 da spec do confinamento, que está em
+produção, e o motivo aqui é mais forte: o §22 não diz **sobre qual período**
+somar aqueles 5.000 litros. O documento só trata de fechamento por período no
+§28, que é Fase 3. Calcular exigiria inventar o período.
+
+A cobrança é um gesto **próprio**, e não um campo de cada recebimento: o §22
+começa com "Caso a fazenda cobre", e formas como "mensal" e "por produtor" não
+pertencem a um recebimento isolado.
+
+### 12.5. O dono terceiro é escolhido de uma lista
+
+O §19 pede o "nome do produtor", e aqui esse nome vira a **chave de um saldo**.
+O campo é uma busca nos `Contact` existentes, com cadastro no mesmo painel.
+
+Digitar o nome livre, como o Módulo 31 faz na negociação, foi descartado: lá o
+nome é rótulo de um evento passado, e um erro de digitação gera um contato
+duplicado feio mas inofensivo. Aqui "João" e "Joao" viram **dois donos com
+saldos separados**, e o leite de um produtor fica partido em dois sem que nada
+reclame.
+
+### 12.6. Modelo de dados
+
+```prisma
+enum MilkSiteType {
+  proprio
+  terceiro
+}
+
+enum MilkMovementType {
+  /// §14: a produção do dia entra no tanque.
+  entrada_producao
+  /// §19: recebemos leite de um terceiro.
+  entrada_terceiro
+  /// §16: leite nosso sai do tanque para um ponto de coleta de terceiros.
+  transferencia
+  /// §15 e §21: o leite sai, com destino declarado.
+  saida
+  /// Correção de contagem, para o saldo poder ser consertado sem apagar nada.
+  ajuste
+}
+
+/// §15: para onde o leite foi quando saiu.
+enum MilkDestination {
+  venda
+  laticinio
+  cooperativa
+  ponto_coleta
+  fabricacao_propria
+  alimentacao_bezerros
+  consumo
+  descarte
+  outro
+}
+
+/// §22: as seis formas de cobrar pelo serviço de ponto de coleta.
+enum MilkChargeType {
+  por_litro
+  por_produtor
+  por_coleta
+  mensal
+  fixo
+  outro
+}
+```
+
+`MilkSite` espelha `ConfinementSite`. `MilkMovement` espelha `HerdMovement`:
+`from_site_id`/`from_owner_id` e `to_site_id`/`to_owner_id`, com o lado nulo
+quando o leite nasce (produção) ou some (saída).
+
+### 12.7. O que a Fase 2 NÃO faz
+
+- Venda, comprador, preço por litro, conta a receber e fechamento por período
+  (§23 a §30): Fase 3.
+- A saída com destino `venda` **não gera dinheiro** nesta fase. Ela registra
+  que o leite saiu, e o §37.8 ("venda gera receita") é cumprido na Fase 3,
+  quando a venda existir como negócio. Registrado aqui para não ser lido como
+  esquecimento.
+- Integração com Estoque (§31).
+
+---
+
+## 13. O que já está analisado para a Fase 3
 
 **A venda de leite é uma `Negotiation` nova**, tipo novo no enum, de forma
 aditiva, sem tocar nos quatro existentes. O fechamento por período do §28 segue
 o padrão da remessa de evento, que já acumula entregas e fecha com o dinheiro.
 Reabre o Módulo 31 só por acréscimo.
 
-⚠️ **A única coisa sem paralelo:** o §20 exige saldo **por proprietário** dentro
-do mesmo tanque (próprio 400, João 300, Carlos 250, físico 950). O eixo de dono
-do rebanho é só `proprio | terceiro`, sem nome. A posição do leite precisa
-apontar para um `Contact`. É onde vale gastar o desenho da Fase 2.
+O que já existe e reusa:
+
+- **`Contact`** já é o cadastro simplificado do §24 (nome, tipo, telefone,
+  município). Falta acrescentar `laticinio`, `queijaria` e `mercado` ao
+  `ContactType`, que já tem `cooperativa`.
+- **`createLinkedEntry`** mais `RelatedModule.leite` cobre o §32 inteiro, conta
+  a receber do §27 incluída. O valor de `leite` entra já na Fase 2, por causa
+  da receita do §22.
+- **`StockMovement`** já tem `stay_id` para o confinamento; o §31 pede o vínculo
+  análogo com o lote de leite.
