@@ -728,6 +728,94 @@ export const GROUPS: Group[] = [
         response: `200
 { "data": { "property_id": "cl...", "hoje": { "dia": "2026-09-02", "vacas_em_lactacao": 32, "litros": 480, "media_por_vaca": 15 }, "periodos": [{ "chave": "hoje", "rotulo": "Hoje", "de": "2026-09-02", "ate": "2026-09-02", "litros": 480, "dias": 1, "media_diaria": 480, "media_por_vaca": 15, "dias_com_contagem": 1 }] }, "meta": {} }`,
       },
+      {
+        method: "GET",
+        path: "/api/v1/milk/sites",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description: "Tanques próprios e pontos de coleta de terceiros (§13 e §16). `liters` é o volume FÍSICO de cada local, ou seja, a soma de TODOS os donos (§20): é o número que responde \"cabe mais leite?\", e por isso ignora de quem é o leite. `acima_da_capacidade` avisa quando o físico passou da capacidade informada, que NÃO é limite: o §13 a chama de informação, e recusar por causa dela inventaria uma regra. Filtros: `type=proprio|terceiro`, `include_archived=true`.",
+        response: `200
+{ "data": [{ "id": "cl...", "name": "Tanque Principal", "type": "proprio", "property_id": "cl...", "counterparty_name": null, "capacity": 2000, "liters": 950, "acima_da_capacidade": false, "archived": false }], "meta": { "total": 1 } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/milk/sites",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "Cadastra tanque ou ponto de coleta (§13, §16). `type: proprio` exige `property_id` de fazenda não arquivada; `type: terceiro` exige `counterparty_name` (de quem é o ponto). `capacity`, `city` e `notes` são opcionais.",
+        request: `{ "name": "Tanque Principal", "type": "proprio", "property_id": "cl...", "capacity": 2000 }`,
+        response: `201
+{ "data": { "id": "cl...", "name": "Tanque Principal", "type": "proprio", "liters": 0, "archived": false }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/milk/sites/:id/archive",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "Arquiva ou desarquiva o local. NÃO exige saldo zero: tanque desativado com leite dentro é situação real, e recusar obrigaria a inventar uma retirada. O arquivamento tira o local dos destinos novos; o saldo continua aparecendo até a baixa de verdade.",
+        request: `{ "archived": true }`,
+        response: `200
+{ "data": { "id": "cl...", "archived": true, "archived_at": "2026-09-02T12:00:00.000Z" }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/milk/storage",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description: "O painel de armazenamento do §34: `posicoes` é o saldo por `local x dono` (o §20 na íntegra: dono `null` é o leite próprio), `resumo` traz próprio em tanque, próprio em ponto de coleta, de terceiros e o físico total, e `movimentos` são as últimas linhas do livro-razão. Filtros: `site_id`, `limit`. Posição com saldo zero NÃO aparece: oferecer um dono sem leite seria convidar a um lançamento que a rota recusa.",
+        response: `200
+{ "data": { "posicoes": [{ "site_id": "cl...", "owner_id": null, "liters": 400 }, { "site_id": "cl...", "owner_id": "cl...", "liters": 300 }], "resumo": { "proprio_em_tanque": 400, "proprio_em_ponto_de_coleta": 600, "de_terceiros": 550, "fisico_total": 1550 }, "movimentos": [] }, "meta": { "total_posicoes": 2 } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/milk/storage",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "As quatro conversas do §14 ao §21, escolhidas pelo campo `gesto`, com união discriminada (cada gesto tem seus obrigatórios). `armazenar` (§14): a produção entra num tanque PRÓPRIO, e não é venda (§37.5). `transferir` (§16): leite nosso sai do tanque para um ponto de coleta de TERCEIROS e continua nosso; **não gera receita** (§17 literal). `receber` (§19): leite de um `owner_id` entra no nosso tanque, aumenta o volume físico e NÃO aumenta a produção própria. `retirar` (§15 e §21): a composição por dono é INFORMADA, nunca rateada, e grava uma linha por dono, tudo ou nada. Origem sem saldo devolve 422 `SALDO_INSUFICIENTE` no campo `liters`; dono repetido na retirada devolve 422 `DONO_REPETIDO`. ⚠️ `destination: \"venda\"` NÃO gera dinheiro nesta fase: o §37.8 é cumprido na fase 3, quando a venda existir como negócio.",
+        request: `{ "gesto": "armazenar", "site_id": "cl...", "liters": 480 }
+
+// entrega em ponto de coleta (§16)
+{ "gesto": "transferir", "from_site_id": "cl...", "to_site_id": "cl...", "liters": 600 }
+
+// leite de terceiro (§19)
+{ "gesto": "receber", "site_id": "cl...", "owner_id": "cl...", "liters": 300 }
+
+// retirada com composição (§21)
+{ "gesto": "retirar", "site_id": "cl...", "destination": "laticinio", "itens": [{ "owner_id": null, "liters": 400 }, { "owner_id": "cl...", "liters": 300 }] }`,
+        response: `201
+{ "data": { "id": "cl...", "movement_type": "entrada_producao", "liters": 480 }, "meta": {} }
+
+// a retirada devolve uma LISTA, uma linha por dono
+{ "data": [{ "id": "cl...", "liters": 400 }, { "id": "cl...", "liters": 300 }], "meta": { "total_litros": 700 } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/milk/storage/:id/cancel",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "Cancela uma movimentação: sai dos saldos e fica no histórico, marcada (§37.11). Cancelar uma ENTRADA pode deixar saldo negativo quando o leite já saiu, e isso é aceito: recusar prenderia o produtor a um registro errado. ⚠️ A retirada do §21 grava uma linha POR DONO, então cancelar uma desfaz a baixa daquele dono, não a retirada inteira.",
+        response: `200
+{ "data": { "id": "cl...", "canceled": true }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/milk/charges",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description: "As cobranças por funcionar como ponto de coleta (§22). Filtros: `owner_id`, `limit`. `meta.total_valor` soma só as não canceladas.",
+        response: `200
+{ "data": [{ "id": "cl...", "owner_id": "cl...", "type": "por_litro", "amount": 250, "period_label": "agosto/2026", "financial_entry_id": "cl...", "canceled": false }], "meta": { "total": 1, "total_valor": 250 } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/milk/charges",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "Registra a receita do §22, com uma das seis formas de cobrança. O valor é o que o produtor DIGITOU, nunca calculado, mesmo em `por_litro`: o §22 dá o exemplo de R$ 0,05 sobre 5.000 litros mas não diz sobre qual PERÍODO somar, e isso só aparece no §28 (fase 3). Alimenta o Financeiro por `createLinkedEntry` com `related_module: \"leite\"`, e nasce PAGA: o §22 fala de cobrar pelo serviço prestado, não de faturar a prazo.",
+        request: `{ "owner_id": "cl...", "type": "por_litro", "amount": 250, "period_label": "agosto/2026" }`,
+        response: `201
+{ "data": { "id": "cl...", "amount": 250, "financial_entry_id": "cl..." }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/milk/charges/:id/cancel",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "Cancela a cobrança E o lançamento financeiro que ela gerou, os dois juntos. Foi exatamente aqui que o confinamento errou em 31/08, deixando a conta viva depois do cancelamento. O lançamento vira `cancelled` em vez de ser apagado, porque o DRE do mês em que ele existiu precisa continuar contando a história como ela aconteceu.",
+        response: `200
+{ "data": { "id": "cl...", "canceled": true, "financial_entry_id": "cl..." }, "meta": {} }`,
+      },
     ],
   },
   {
