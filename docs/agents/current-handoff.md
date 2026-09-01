@@ -156,60 +156,40 @@ depois de agente que morre**, porque o que ele deixou não está verificado.
 `record-string-e-onde-o-enum-cresce-sem-avisar`,
 `filtro-na-busca-esconde-o-defeito-que-o-teste-procura`.
 
-### ⏭️ PRÓXIMO PASSO EXATO: a spec da FASE 1 da Área Leite
+### A spec da Fase 1 do Leite ESTÁ ESCRITA, esperando aprovação
 
-O documento do cliente foi lido inteiro em 01/09 (40 seções, 30 critérios de
-aceite). Está em `docs/area-funcional-confinamento/`, no arquivo do leite (o
-nome dele tem travessão, por isso não é citado literal aqui; leia com
-`unzip -p "<caminho>" word/document.xml | sed -e 's/<[^>]*>/ /g'`).
+`docs/specs/module-32-area-leite.md`, na branch **`area-leite-fase-1`**
+(commit `cc8a2e4`, um arquivo, nenhum código). `npm run check` em 15/15.
 
-**Três decisões do usuário, tomadas em 01/09. Execute, não redecida:**
+A spec detalha a **Fase 1** (§4 a §11: lactação, produção, média por vaca,
+histórico) e guarda na seção 12 a análise das fases 2 e 3, que saiu deste
+handoff para não ser resumida destrutivamente a cada rodada.
 
-1. **Três fases, com aprovação entre elas.** Fase 1: lactação, produção, média
-   por vaca e histórico (§4 a §11). Fase 2: tanque, ponto de coleta e leite de
-   terceiros (§12 a §22), que é o coração. Fase 3: venda, comprador, fechamento
-   por período e Financeiro (§23 a §30).
-2. **A venda de leite é uma `Negotiation` nova**, tipo novo no enum, de forma
-   aditiva, sem tocar nos quatro existentes. O fechamento por período do §28
-   segue o padrão da remessa de evento, que já acumula entregas e fecha com o
-   dinheiro. Reabre o Módulo 31 só por acréscimo.
-3. **Validar o Confinamento antes** (feito em 01/09), e a **onda 8 fica para
-   depois do Leite**.
+**Quatro decisões novas, tomadas com o usuário em 02/09. Execute, não
+redecida:**
 
-**A análise estrutural, para não ser refeita do zero:**
+1. O lote leiteiro é um model novo e leve (`MilkGroup`), **não** o
+   `AnimalBatch`: o §37.3 mantém os animais nas categorias do Rebanho.
+2. A contagem de vacas em lactação é **por fazenda**; o lote é rótulo do
+   registro, sem saldo próprio.
+3. Cada registro de produção é **uma linha**, com turno (`dia`, `manha`,
+   `tarde`, `noite`). O total do dia é a soma.
+4. Nada é editado nem apagado: cancela e registra de novo (§37.11).
 
-O Leite é um **terceiro livro-razão**: volume nunca gravado, sempre soma das
-movimentações (invariante 2). A posição é `local × dono`.
+⚠️ **A Área Leite não escreve no livro-razão do rebanho.** Nenhuma
+`HerdMovement`, nenhum `AnimalBatch` tocado (§37.1, §37.2, §37.4). Se a
+implementação importar `herd-ledger`, parou no lugar errado.
 
-Os §16 a §21 são **exatamente o padrão `HerdStay`**, que já está em produção:
-leite próprio em ponto de coleta de terceiros é `pasto_terceiro`/`boitel`
-(coisa nossa em lugar dos outros); fazenda como ponto de coleta é
-`terceiro_na_fazenda` (coisa dos outros em lugar nosso), que **já gera receita
-com as seis formas de cobrança** que o §22 pede; e o §37.6 ("enviar ao ponto de
-coleta não é venda") é o §17.8 do leilão com outras palavras.
+⚠️ **O §8 pede "quantidade de vacas em lactação" no registro de produção, e
+o model NÃO tem esse campo, de propósito.** Ele vive no formulário e grava um
+`LactationEntry` na mesma transação: gravar ali criaria uma segunda fonte
+para o mesmo número.
 
-O que já existe e reusa:
-
-- **`Contact`** já é o cadastro simplificado do §24 (nome, tipo, telefone,
-  município), e serve para comprador E para o produtor terceiro do §19. Falta
-  acrescentar `laticinio`, `queijaria` e `mercado` ao `ContactType`, que já tem
-  `cooperativa`.
-- **`createLinkedEntry`** + `RelatedModule` ganhando `leite` cobre o §32
-  inteiro, conta a receber do §27 incluída.
-- **`StockMovement`** já tem `stay_id` para o confinamento; o §31 pede o vínculo
-  análogo com o lote de leite.
-- **`ConfinementSite`** já tem exatamente os campos do tanque do §13,
-  `capacity` incluído.
-
-⚠️ **A única coisa sem paralelo aqui:** o §20 exige saldo POR PROPRIETÁRIO
-dentro do mesmo tanque (próprio 400, João 300, Carlos 250, físico 950). O eixo
-de dono do rebanho é só `proprio | terceiro`, sem nome. A posição do leite
-precisa apontar para um `Contact`. É onde vale gastar o desenho.
-
-Duas coisas já decididas e que **não devem ser reabertas**: lactação é contagem
-com data, desacoplada do livro-razão (§37.2 e §37.4 confirmam), e o
-classificador do n8n continua congelado, então os handlers do §36 nascem e são
-testados mas as intenções não são emitidas.
+**Próximo passo:** com a aprovação do usuário, implementar a Fase 1 na ordem
+da spec, e na ordem do contrato (action, rota, tela). Três models novos, dois
+enums, uma migração, dez rotas em `/api/v1/milk/*`, a tela `/leite` dentro do
+grupo "Operação", e os três handlers do §36 nascendo sem o classificador
+emitir. Suíte nova: o próximo número livre é `m52`.
 
 ### Depois do Leite
 
@@ -234,6 +214,15 @@ testados mas as intenções não são emitidas.
 `ponytail-subagent` propaga para os agentes despachados.
 
 ---
+
+- **2026-09-02:** spec da Fase 1 da Área Leite escrita, na branch
+  `area-leite-fase-1` (`cc8a2e4`, nenhum código). Quatro decisões que o
+  documento do cliente não resolvia foram levadas ao usuário antes de
+  qualquer linha: o lote leiteiro é model novo e não o `AnimalBatch`; a
+  contagem de vacas é por fazenda e o lote é rótulo; cada registro de
+  produção é uma linha com turno; e nada é editado, cancela e registra de
+  novo. A análise estrutural das fases 2 e 3 saiu deste handoff e passou a
+  viver na seção 12 da spec.
 
 - **2026-09-01:** **Confinamento no ar** (`430a1db..1fe1ccf`, 31 commits), com
   as três migrações aplicadas no Neon ANTES do push. A terceira reclassifica o
@@ -271,16 +260,6 @@ testados mas as intenções não são emitidas.
   o Zod falando inglês em 71 rotas, a recusa caindo no rodapé em vez do campo,
   o `seed:demo` quebrado desde o Módulo 30 e a pílula invisível do
   `bg-tibe-light`. Nenhum deles aparecia em suíte.
-- **2026-08-28:** frente 4 (permuta) pronta na branch `modulo-31-permuta`, em
-  nove commits, com o Módulo 31 fechando as quatro missões. A validação ao vivo
-  achou `id` repetido no formulário de dois lados e o extrato do Rebanho
-  mostrando nome de enum desde a frente 2, os dois corrigidos, o segundo com
-  trava nova no `npm run check`.
-- **2026-08-28:** frente 3 (leilão, feira e evento) pronta na branch
-  `modulo-31-leilao`, em oito commits mais um de correções. A remessa é uma
-  `Negotiation(evento)` sem valor com uma `HerdStay(evento)` filha, e o envio
-  não gera lançamento nenhum. A validação no navegador achou quatro defeitos
-  que a suíte verde não pegava, todos de sinal invertido na tela.
 
 O detalhe de tudo isso, na íntegra e sem reescrita, está em
 [historico/2026-08.md](historico/2026-08.md), que também guarda as 358 linhas
