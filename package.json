@@ -32,6 +32,7 @@
     "test:m50": "tsx scripts/m50-site-publico-em-token.test.ts",
     "test:m51": "tsx scripts/m51-confinamento.test.ts",
     "test:m52": "tsx scripts/m52-leite.test.ts",
+    "test:m53": "tsx scripts/m53-leite-fase-2.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",
