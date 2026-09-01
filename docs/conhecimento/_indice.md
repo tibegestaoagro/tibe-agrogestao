@@ -57,6 +57,8 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [campo do ORDEM sem error engole a recusa](campo-no-ordem-sem-error-engole-a-recusa.md) | armadilha | a mensagem nao vai para o rodape: ela morre |
 | [Record<string> e onde o enum cresce sem avisar](record-string-e-onde-o-enum-cresce-sem-avisar.md) | armadilha | cinco mapas ficaram para tras sem o tsc reclamar |
 | [filtro na busca esconde o defeito que o teste procura](filtro-na-busca-esconde-o-defeito-que-o-teste-procura.md) | licao | busque largo, afirme estreito |
+| [next dev + cookie valida o servidor sem navegador](next-dev-mais-cookie-valida-o-servidor-sem-navegador.md) | referencia | o que da para provar por curl, e o que nao da |
+| [Turbopack nao cria processo com a maquina cheia](turbopack-nao-cria-processo-quando-a-maquina-esta-cheia.md) | armadilha | 0xc0000142 aponta o CSS e o problema e memoria |
 
 ⚠️ **`[[wikilink]]` para nota que não existe reprova o `npm run check`**
 (conferência 13). É o que impede esta pasta de virar um cemitério de links

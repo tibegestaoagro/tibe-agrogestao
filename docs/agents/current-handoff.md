@@ -90,7 +90,38 @@ commits.
 primeira vez nesta frente que a suíte inteira roda de uma vez, e não só as da
 área.
 
-### O passo que falta: validação ao vivo, agora em PRODUÇÃO
+### A validação ao vivo ACONTECEU, e o que ela alcançou
+
+Feita em 2026-09-01, contra `next dev` com o banco local e o cookie de
+`scripts/_sessao-local.ts`. O cenário está em `scripts/_cenario-confinamento.ts`
+(idempotente). **Os cinco casos do juiz passaram**, contra o app de verdade:
+
+| caso | resultado real |
+|---|---|
+| §16 "por cabeça/dia" | `POST /api/v1/confinement/stays` devolveu **201**; antes era 422 |
+| `ORIGEM_AMBIGUA` | **422** com `field: "pasture_id"` e a frase nomeando os dois pastos |
+| conta órfã | conta em `confinamento` antes, **zero em módulo nenhum** depois de cancelar |
+| saída parcial (§20) | 15 de 40: `encerrada: false`, `saldo_aberto: 25`. 30 recusado com `field: "quantity"` |
+| boitel na DRE (§15) | a conta de R$ 12.000 aparece sob `related_module=confinamento` |
+
+No HTML renderizado: **"Estadias em aberto"** (não mais "Fora da fazenda
+agora"), rótulo "Confinamento", `tipo: "confinamento"` chegando ao
+`StayCloseForm` com `saldoAberto: 40`, "Por cabeça/dia: R$ 12,00", e **zero**
+ocorrências de rótulo cru de enum.
+
+⚠️ **O que essa validação NÃO alcança:** o `browser-harness` não está instalado
+nesta máquina, então nada foi clicado. Tudo que só existe depois do JavaScript
+rodar (a recusa aparecendo embaixo do campo, foco, contraste) ficou provado
+**por cadeia**, não por pixel: a rota devolve o `field` certo, o
+`aplicarErroDoServidor` manda para `erros.<campo>`, a conferência 15 garante o
+`error=` em todo campo do `ORDEM`, e o `Field` renderiza `<p role="alert">`.
+Cada elo foi verificado; o conjunto não foi visto.
+
+**Se alguém abrir o navegador**, o que ainda vale olhar é só isso: a frase da
+`ORIGEM_AMBIGUA` embaixo do campo "Pasto de origem", e o painel "Encerrar" do
+`/rebanho` com os três destinos aparecendo.
+
+### O roteiro original, para quem for abrir o navegador
 
 O juiz foi explícito: os achados de tela ele derivou por leitura, **sem abrir
 navegador**. O roteiro abaixo nunca foi executado, e agora o código está no ar,
