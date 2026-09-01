@@ -187,13 +187,37 @@ export type NegotiationDetail = {
  * independente, não por teste. A missão 3 traz `evento` e a 4 traz `permuta`:
  * as duas passam por aqui, e a lista precisa ser um lugar só.
  */
+/**
+ * `Record<NegotiationType, boolean>` e NÃO uma lista de comparações.
+ *
+ * Era `tipo === "venda_gado" || ...` até 2026-09-02, e o tipo novo
+ * `venda_leite` caiu no `false` sem o `tsc` reclamar. O efeito apareceu na
+ * validação ao vivo: a venda de R$ 1.200,00 lia **"sem dinheiro"** e **"Sem
+ * venda"** na tela de Negociações, porque a situação procurava uma DESPESA num
+ * negócio cujo lançamento é receita.
+ *
+ * É a terceira vez que este ponto inverte o sinal na única coluna que o
+ * produtor lê de relance (leilão em 28/08, permuta em 28/08, leite agora).
+ * Com o `Record`, o próximo tipo não compila sem que alguém decida de que lado
+ * o dinheiro entra.
+ *
+ * `evento` é `true` porque uma remessa encerrada COM venda é dinheiro que
+ * entrou; uma remessa ainda aberta não é afetada, porque sem lançamento
+ * principal a situação é `sem_valor`.
+ */
+const DINHEIRO_ENTRA_POR_TIPO: Record<NegotiationType, boolean> = {
+  compra_gado: false,
+  compra_produto: false,
+  venda_gado: true,
+  venda_produto: true,
+  evento: true,
+  venda_leite: true,
+  // A permuta não sai do tipo: quem decide é o lançamento, em `dinheiroEntra`.
+  permuta: false,
+};
+
 export function ehVenda(tipo: NegotiationType): boolean {
-  // `evento` entra aqui: uma remessa encerrada COM venda é dinheiro que
-  // ENTROU, e sem isto a tela dizia "Quitada" e "mais R$ 3.000,00 de custos,
-  // total R$ 63.000,00" para uma venda de leilão, invertendo o sinal na única
-  // coluna que o produtor lê de relance. Uma remessa ainda aberta não é
-  // afetada: sem lançamento principal, a situação é `sem_valor`.
-  return tipo === "venda_gado" || tipo === "venda_produto" || tipo === "evento";
+  return DINHEIRO_ENTRA_POR_TIPO[tipo];
 }
 
 /**

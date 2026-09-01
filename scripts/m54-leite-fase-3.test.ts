@@ -80,7 +80,7 @@ async function comBanco() {
   const { recordMilkSale, closeMilkPeriod, listPendingDeliveries } = await import(
     "@/lib/actions/milk-sales"
   );
-  const { cancelNegotiation } = await import("@/lib/actions/negotiations");
+  const { cancelNegotiation, getNegotiation } = await import("@/lib/actions/negotiations");
 
   const stamp = Date.now();
   const tenant = await prisma.tenant.create({
@@ -142,6 +142,34 @@ async function comBanco() {
       Number(receita?.amount) === 1200 && receita?.status === "paid",
       `${receita?.amount}/${receita?.status}`,
     );
+
+    /**
+     * A LEITURA DA TELA, e não só a escrita.
+     *
+     * Achado pela validação ao vivo em 2026-09-02: `ehVenda` não conhecia
+     * `venda_leite`, então a situação procurava uma DESPESA num negócio cujo
+     * lançamento é receita, e a tela de Negociações lia "sem dinheiro" e "Sem
+     * venda" para uma venda de R$ 1.200,00 gravada certinho. O banco estava
+     * correto o tempo todo: quem estava errado era a leitura.
+     */
+    if (venda.ok) {
+      const detalhe = await getNegotiation(db, venda.data.negotiation_id);
+      check(
+        "a venda é lida como dinheiro que ENTRA",
+        detalhe?.recebe_dinheiro === true,
+        String(detalhe?.recebe_dinheiro),
+      );
+      check(
+        "e a situação é `paga`, não `sem_valor`",
+        detalhe?.situacao === "paga",
+        String(detalhe?.situacao),
+      );
+      check(
+        "com o principal de R$ 1.200,00",
+        detalhe?.totais.principal === 1200,
+        String(detalhe?.totais.principal),
+      );
+    }
 
     // ── 3. §27: a prazo ──────────────────────────────────────────────────
 
