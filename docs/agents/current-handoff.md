@@ -24,20 +24,33 @@ Se ele passar de umas 200, arquive antes de acrescentar.
 
 ## Estado atual
 
-- Atualizado em: 2026-08-31.
+- Atualizado em: 2026-09-01.
 
-### ⚠️ O Confinamento está pronto, rejulgado e NÃO empurrado
+### O Confinamento ESTÁ NA `main` E NO AR
 
-**`main` local está 29 commits à frente do `origin`** (`430a1db..HEAD`), tudo
-commitado, working tree limpo. **Nada foi mesclado nem empurrado.**
+**Empurrado em 2026-09-01** (`430a1db..1fe1ccf`, 31 commits), com autorização do
+usuário, e **depois** das migrações, como manda o invariante 3.
 
-⚠️ **DUAS MIGRAÇÕES ESPERAM O NEON, e o push não pode acontecer antes delas**
-(invariante 3). Nesta ordem, por timestamp:
+As **três** migrações estão aplicadas no Neon, que está nas **38** e up to date:
 
-1. `prisma/migrations/20260831140000_confinamento/`
-2. `prisma/migrations/20260831150000_formas_de_cobranca/`
+1. `20260831140000_confinamento`
+2. `20260831150000_formas_de_cobranca`
+3. `20260831160000_boitel_para_confinamento` (reclassifica o dinheiro de boitel
+   já gravado; predicado provado antes de aplicar, com três linhas plantadas no
+   banco de dev: a do boitel virou `confinamento`, a de pasto de terceiro e a
+   solta sem `related_id` não se mexeram)
 
-O banco local está nas **37** e up to date. Produção continua nas 35.
+⚠️ **`npm run db:deploy` contra o Neon é recusado pelo classificador de
+permissões**, inclusive com a marca `AUTORIZADO_PELO_USUARIO=1`, que só vale
+para o hook do repositório. Leitura (`npx prisma migrate status`) passa. O
+usuário pôs um bloco `autoMode.allow` em `.claude/settings.local.json` (local,
+fora do git) em 01/09, mas **a sessão que já estava aberta não recarregou**:
+quem rodou a migração foi o usuário, no terminal. Numa sessão nova a permissão
+deve valer; se não valer, o caminho é pedir para ele rodar.
+
+⚠️ **Isso torna o invariante 3 mais caro:** commit que mexe em schema agora
+depende de um passo manual do usuário antes do push. Não afrouxe a ordem por
+causa disso.
 
 ### O rejulgamento deu 4/10, e a onda 7 fechou oito dos dez achados
 
@@ -77,11 +90,22 @@ commits.
 primeira vez nesta frente que a suíte inteira roda de uma vez, e não só as da
 área.
 
-### Os dois passos que faltam
+### O passo que falta: validação ao vivo, agora em PRODUÇÃO
 
-1. **Validação ao vivo no navegador.** O juiz foi explícito: os achados de tela
-   ele derivou por leitura, sem abrir navegador. Roteiro abaixo.
-2. **Migrações no Neon, depois merge e push**, com autorização do usuário.
+O juiz foi explícito: os achados de tela ele derivou por leitura, **sem abrir
+navegador**. O roteiro abaixo nunca foi executado, e agora o código está no ar,
+então ele vale contra `https://tibe-agrogestao.vercel.app` tanto quanto contra o
+`next dev`.
+
+⚠️ **Confirmar o deploy é verificação de navegador**, nunca `curl` em laço: 28
+chamadas em poucos minutos já dispararam a proteção anti-bot da Vercel neste
+projeto. A impressão digital desta frente é `/docs/api` listando as rotas de
+`/api/v1/confinement/*`.
+
+⚠️ **No painel, "Confinamento" fica DENTRO do grupo "Operação"**
+(`src/lib/nav.ts`), que nasce fechado, e só aparece com `hasFazenda`. Um cliente
+que não expande o grupo não vê o módulo, e isso já gerou a pergunta "cadê o
+Confinamento?" em 01/09.
 
 **O que abrir no navegador** (`npm run dev`; `npx tsx scripts/_sessao-local.ts`
 emite o cookie do owner do seed, sem digitar senha):
@@ -142,6 +166,15 @@ depois de agente que morre**, porque o que ele deixou não está verificado.
 `ponytail-subagent` propaga para os agentes despachados.
 
 ---
+
+- **2026-09-01:** **Confinamento no ar** (`430a1db..1fe1ccf`, 31 commits), com
+  as três migrações aplicadas no Neon ANTES do push. A terceira reclassifica o
+  dinheiro de boitel já gravado de `rebanho` para `confinamento`, fechando a
+  divisão histórica que o T20 tinha deixado registrada. Descoberto no caminho:
+  `npm run db:deploy` contra produção é recusado pelo classificador de
+  permissões, e a marca `AUTORIZADO_PELO_USUARIO=1` não vale para ele; quem
+  rodou foi o usuário, no terminal. A validação ao vivo continua pendente, e
+  agora é contra produção.
 
 - **2026-08-31:** Confinamento (fase 3 do Módulo 30) rejulgado e corrigido. O
   juiz independente deu **4/10** com dez achados, e a onda 7 fechou oito deles
