@@ -47,6 +47,25 @@ O sintoma engana porque parece erro de lógica. Três sinais de que é isto:
 **Depois de `prisma generate`, reinicie o `next dev` antes de validar rota
 nova.** Vale para `db:deploy` também, quando ele vem junto de model novo.
 
+## ⚠️ Reiniciar nem sempre basta: o cache do Next também guarda
+
+Em 2026-09-02, na fase 3, o mesmo erro voltou com o servidor **recém-iniciado**,
+e desta vez o sintoma foi outro:
+
+```
+PrismaClientValidationError
+Invalid `prisma.milkMovement.findMany()` invocation:
+  negotiation_id: null
+  ~~~~~~~~~~~~~~
+```
+
+A coluna existia no schema, no banco e no client gerado (o `tsc` passava e o
+script `tsx` funcionava), e mesmo assim o servidor não a conhecia: o cache de
+compilação em `.next` guardava uma cópia antiga do client.
+
+**Apagar `.next` inteiro e subir de novo resolveu.** Quando o reinício não
+resolver, é este o passo seguinte, e não procurar erro na lógica.
+
 ## O que NÃO era
 
 Perdi tempo com duas hipóteses erradas antes de olhar o log, e as duas ficam

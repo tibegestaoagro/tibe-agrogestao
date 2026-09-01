@@ -187,13 +187,37 @@ export type NegotiationDetail = {
  * independente, não por teste. A missão 3 traz `evento` e a 4 traz `permuta`:
  * as duas passam por aqui, e a lista precisa ser um lugar só.
  */
+/**
+ * `Record<NegotiationType, boolean>` e NÃO uma lista de comparações.
+ *
+ * Era `tipo === "venda_gado" || ...` até 2026-09-02, e o tipo novo
+ * `venda_leite` caiu no `false` sem o `tsc` reclamar. O efeito apareceu na
+ * validação ao vivo: a venda de R$ 1.200,00 lia **"sem dinheiro"** e **"Sem
+ * venda"** na tela de Negociações, porque a situação procurava uma DESPESA num
+ * negócio cujo lançamento é receita.
+ *
+ * É a terceira vez que este ponto inverte o sinal na única coluna que o
+ * produtor lê de relance (leilão em 28/08, permuta em 28/08, leite agora).
+ * Com o `Record`, o próximo tipo não compila sem que alguém decida de que lado
+ * o dinheiro entra.
+ *
+ * `evento` é `true` porque uma remessa encerrada COM venda é dinheiro que
+ * entrou; uma remessa ainda aberta não é afetada, porque sem lançamento
+ * principal a situação é `sem_valor`.
+ */
+const DINHEIRO_ENTRA_POR_TIPO: Record<NegotiationType, boolean> = {
+  compra_gado: false,
+  compra_produto: false,
+  venda_gado: true,
+  venda_produto: true,
+  evento: true,
+  venda_leite: true,
+  // A permuta não sai do tipo: quem decide é o lançamento, em `dinheiroEntra`.
+  permuta: false,
+};
+
 export function ehVenda(tipo: NegotiationType): boolean {
-  // `evento` entra aqui: uma remessa encerrada COM venda é dinheiro que
-  // ENTROU, e sem isto a tela dizia "Quitada" e "mais R$ 3.000,00 de custos,
-  // total R$ 63.000,00" para uma venda de leilão, invertendo o sinal na única
-  // coluna que o produtor lê de relance. Uma remessa ainda aberta não é
-  // afetada: sem lançamento principal, a situação é `sem_valor`.
-  return tipo === "venda_gado" || tipo === "venda_produto" || tipo === "evento";
+  return DINHEIRO_ENTRA_POR_TIPO[tipo];
 }
 
 /**
@@ -224,8 +248,14 @@ function dinheiroEntra(
  * estava indo para `rebanho`: cancelar uma compra de adubo devolvia o dinheiro
  * dentro do módulo Rebanho. Valor e sinal estavam certos, a gaveta não.
  */
-function moduloDoEstorno(tipo: NegotiationType): "rebanho" | "geral" {
-  return tipo === "compra_gado" || tipo === "venda_gado" ? "rebanho" : "geral";
+function moduloDoEstorno(tipo: NegotiationType): "rebanho" | "geral" | "leite" {
+  if (tipo === "compra_gado" || tipo === "venda_gado") return "rebanho";
+  // Fase 3 do Módulo 32: o lançamento original da venda de leite nasce
+  // `leite`, e mandar o estorno para `geral` repetiria o mesmo erro que o
+  // comentário acima descreve, só que na outra área: o dinheiro voltaria numa
+  // gaveta onde ele nunca esteve, e a soma do leite no DRE ficaria torta.
+  if (tipo === "venda_leite") return "leite";
+  return "geral";
 }
 
 const CATEGORIA_FINANCEIRA: Record<"compra_gado" | "venda_gado", string> = {
@@ -770,7 +800,14 @@ export async function cancelNegotiation(
      */
     const negociacao = await tx.negotiation.findFirst({
       where: { id },
-      include: { movements: true, stock_movements: { include: { product: true } } },
+      include: {
+        movements: true,
+        stock_movements: { include: { product: true } },
+        // Fase 3 do Módulo 32: sem isto, o laço do leite lá embaixo não teria
+        // o que percorrer, e o cancelamento deixaria a venda desfeita com o
+        // leite fora do tanque.
+        milk_movements: true,
+      },
     });
     if (!negociacao) {
       throw new AbortarNegociacao({
@@ -1065,6 +1102,45 @@ export async function cancelNegotiation(
         where: { id: movimento.id },
         data: { canceled_at: new Date(), canceled_reason: reason },
       });
+    }
+
+    /**
+     * O LEITE (fase 3 do Módulo 32, decisão 13.4 da spec).
+     *
+     * Isto vive AQUI, e não numa função própria de leite, porque a tela de
+     * Negociações já tem um botão de cancelar que chama esta função direto:
+     * uma segunda porta deixaria o leite para trás justamente por onde o
+     * produtor mais cancela. É a mesma lição do confinamento em 31/08, em que
+     * a conta a pagar sobreviveu ao cancelamento da estadia.
+     *
+     * As duas origens se desfazem de formas DIFERENTES, porque não
+     * aconteceram da mesma forma:
+     *
+     * - `created_by_sale`: a movimentação nasceu da venda (§23), então aquele
+     *   leite nunca saiu. Ela é cancelada, e o saldo volta sozinho, porque o
+     *   saldo é a soma das movimentações não canceladas (invariante 2).
+     * - o resto: é uma entrega que já existia e só foi LIQUIDADA por um
+     *   fechamento (§28). O leite saiu de verdade; o que se desfaz é a
+     *   cobrança. A linha fica, e só perde a marca, voltando a ser uma entrega
+     *   em aberto que um fechamento futuro pode cobrar.
+     *
+     * Não há conferência de saldo: cancelar uma venda de leite só DEVOLVE ao
+     * local, e devolver nunca deixa saldo negativo. É o mesmo argumento que a
+     * venda de produto usa duas dúzias de linhas acima.
+     */
+    for (const movimento of negociacao.milk_movements) {
+      if (movimento.canceled_at) continue;
+      if (movimento.created_by_sale) {
+        await tx.milkMovement.update({
+          where: { id: movimento.id },
+          data: { canceled_at: new Date() },
+        });
+      } else {
+        await tx.milkMovement.update({
+          where: { id: movimento.id },
+          data: { negotiation_id: null },
+        });
+      }
     }
 
     // Só as contas em ABERTO. O que já foi pago foi tratado acima, conforme

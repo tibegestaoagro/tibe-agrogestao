@@ -572,20 +572,156 @@ quando o leite nasce (produção) ou some (saída).
 
 ---
 
-## 13. O que já está analisado para a Fase 3
+## 13. A Fase 3: a venda e o dinheiro (§23 a §30)
 
-**A venda de leite é uma `Negotiation` nova**, tipo novo no enum, de forma
-aditiva, sem tocar nos quatro existentes. O fechamento por período do §28 segue
-o padrão da remessa de evento, que já acumula entregas e fecha com o dinheiro.
-Reabre o Módulo 31 só por acréscimo.
+**Decisões tomadas com o usuário em 2026-09-02**, por entrevista, antes de
+qualquer código. Aqui o leite vira dinheiro, e o §32 ("a Área Leite deverá
+alimentar o Financeiro") se cumpre.
 
-O que já existe e reusa:
+### 13.1. A venda é uma `Negotiation`, e herda tudo
 
-- **`Contact`** já é o cadastro simplificado do §24 (nome, tipo, telefone,
-  município). Falta acrescentar `laticinio`, `queijaria` e `mercado` ao
-  `ContactType`, que já tem `cooperativa`.
-- **`createLinkedEntry`** mais `RelatedModule.leite` cobre o §32 inteiro, conta
-  a receber do §27 incluída. O valor de `leite` entra já na Fase 2, por causa
-  da receita do §22.
-- **`StockMovement`** já tem `stay_id` para o confinamento; o §31 pede o vínculo
-  análogo com o lote de leite.
+Tipo novo no enum, `venda_leite`, de forma aditiva, sem tocar nos cinco
+existentes. Ela herda a maquinaria inteira: parcelas, custos adicionais e
+cancelamento com estorno.
+
+Não é reuso por economia, é porque o documento pede exatamente isso: o §26
+(recebimento imediato) e o §27 (recebimento futuro com conta a receber) são
+`pago` e `parcelas`, que já existem e já foram validados; o desconto de frete
+que o laticínio faz é um custo adicional do §15 do Módulo 31; e o §33 manda a
+venda de leite aparecer no histórico de Negociações, então ela vai viver lá de
+qualquer forma.
+
+### 13.2. Vender JÁ retira o leite
+
+"Vendi 500 litros por R$ 2,40" tira os 500 do local **e** cria a venda, na
+mesma transação. É como o produtor fala, e o §23 lista a quantidade vendida
+como informação obrigatória.
+
+A retirada com `destination: venda` da fase 2 **continua existindo**, e agora
+tem um significado preciso: o leite saiu para ser vendido e o dinheiro ainda
+não foi acertado. Quem usa esse caminho fecha depois, pelo §28.
+
+### 13.3. O fechamento por período soma as RETIRADAS daquele comprador
+
+O §28 quer entregas diárias sem exigir uma venda por dia, e um fechamento no
+fim. A entrega diária **já é uma retirada** do livro-razão: o que faltava era
+dizer para quem.
+
+A retirada da fase 2 ganha um `buyer_id` opcional. O fechamento pega as
+retiradas daquele comprador no período que ainda não foram liquidadas, soma os
+litros, aplica o preço e cria a venda:
+
+```
+Dia 1  retirada 450 L -> Laticínio Boa Vida
+Dia 2  retirada 470 L -> Laticínio Boa Vida
+Dia 3  retirada 460 L -> Laticínio Boa Vida
+
+Fechamento: 1.380 L x R$ 2,35 = R$ 3.243,00
+```
+
+Nenhum model de "entrega" nasce. O leite continua com **um** lugar onde é
+contado, que é o invariante 2 aplicado à pergunta "quanto eu entreguei?".
+
+⚠️ **Uma entrega só pode ser liquidada uma vez.** Ao fechar, cada movimentação
+recebe o `negotiation_id` do fechamento, e o fechamento seguinte só enxerga as
+que ainda estão sem ele. Sem essa marca, fechar duas vezes o mesmo período
+cobraria o laticínio duas vezes pelo mesmo leite.
+
+### 13.4. Cancelar a venda desfaz as duas pontas
+
+Cancelar uma venda **cancela o dinheiro e devolve o leite**, na mesma
+transação. Foi deixar uma ponta viva que gerou o defeito do confinamento em
+31/08, com a conta a pagar sobrevivendo ao cancelamento da estadia.
+
+E as duas pontas se desfazem de formas diferentes, porque não aconteceram da
+mesma forma:
+
+| origem da movimentação | o que o cancelamento faz |
+|---|---|
+| nasceu da venda (§23) | a movimentação é **cancelada**: aquele leite nunca saiu |
+| entrega liquidada por um fechamento (§28) | a marca de liquidação **é removida**, e a movimentação FICA: o leite saiu de verdade, só não foi pago |
+
+É por isso que a movimentação carrega `created_by_sale`. Sem essa distinção, o
+cancelamento de um fechamento apagaria entregas que aconteceram.
+
+⚠️ **A regra vive dentro de `cancelNegotiation`**, e não numa função própria de
+leite. A tela de Negociações já tem um botão de cancelar que chama aquela
+função direto: uma segunda porta deixaria o leite para trás justamente por onde
+o produtor mais cancela.
+
+### 13.5. O §25 calcula, e o §22 não calculava
+
+O §25 é explícito: o produtor informa o valor total **ou** o valor por litro, e
+o TIBÉ calcula o outro. O exemplo não deixa dúvida (1.000 litros a R$ 2,40 dá
+R$ 2.400,00).
+
+Isso **contradiz em aparência** a decisão 12.4, que recusou calcular a receita
+do §22. Não contradiz: lá faltava o período (o §22 não diz sobre quais litros
+somar os R$ 0,05), e aqui os dois operandos estão na mesma tela, informados
+pelo produtor no mesmo gesto. Calcular o que está à vista é ajuda; calcular o
+que depende de um período que ninguém definiu é invenção.
+
+O valor gravado é sempre o **total**, e o preço por litro é derivado na leitura.
+Gravar os dois criaria duas fontes que divergem quando uma é editada.
+
+### 13.6. O §30 já estava quase pronto
+
+"Leite produzido e não vendido" (consumo, bezerros, queijo, derivados,
+descarte, doação) é a retirada da fase 2 com o destino certo. Dos sete que o
+§30 lista, seis já existem em `MilkDestination`. Falta **`doacao`**, que entra
+de forma aditiva.
+
+### 13.7. Modelo de dados
+
+```prisma
+enum NegotiationType {
+  // ... os cinco existentes
+  /// §23 a §29: a venda de leite. Herda parcelas, custos e estorno.
+  venda_leite
+}
+
+enum MilkDestination {
+  // ... os nove existentes
+  doacao
+}
+
+enum ContactType {
+  // ... os dez existentes, §24
+  laticinio
+  queijaria
+  mercado
+}
+
+model MilkMovement {
+  // ... o que a fase 2 já tem
+  /// §28: para quem a entrega foi, quando ela ainda não virou venda.
+  buyer_id String?
+  /// A venda ou o fechamento a que esta movimentação pertence.
+  negotiation_id String?
+  /// TRUE quando a movimentação NASCEU da venda (§23), e por isso o
+  /// cancelamento dela deve cancelar esta linha. FALSE quando ela é uma
+  /// entrega que existia antes e só foi liquidada por um fechamento (§28):
+  /// aí o cancelamento remove a marca e a linha fica, porque o leite saiu.
+  created_by_sale Boolean @default(false)
+}
+```
+
+### 13.8. Contrato de API
+
+| método | rota | o que faz |
+|---|---|---|
+| POST | `/api/v1/milk/sales` | venda avulsa (§23 a §27): retira e cobra, numa transação |
+| POST | `/api/v1/milk/sales/close` | fechamento por período (§28, §29) |
+| GET | `/api/v1/milk/sales/pending` | entregas por comprador ainda não liquidadas |
+
+O cancelamento **não ganha rota**: ele é
+`POST /api/v1/negotiations/:id/cancel`, que já existe e passou a desfazer o
+leite junto (decisão 13.4).
+
+### 13.9. O que a Fase 3 não faz
+
+- Não calcula preço sugerido, nem tabela de preço por comprador. O §25 calcula
+  o total a partir do que o produtor digitou, e nada mais.
+- Não concilia recebimento parcial fora do que as parcelas já fazem.
+- O classificador do n8n continua congelado: os handlers do §36 para venda
+  nascem e são testados, e as intenções não são emitidas.

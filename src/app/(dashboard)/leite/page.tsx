@@ -14,6 +14,8 @@ import WithdrawForm from "@/components/leite/withdraw-form";
 import SiteForm from "@/components/leite/site-form";
 import ChargeForm from "@/components/leite/charge-form";
 import ChargeList from "@/components/leite/charge-list";
+import SaleForm from "@/components/leite/sale-form";
+import ClosePeriodForm from "@/components/leite/close-period-form";
 import { litros } from "@/components/leite/labels";
 import { listMilkGroups } from "@/lib/actions/milk-groups";
 import { listLactationEntries } from "@/lib/actions/milk-lactation";
@@ -21,6 +23,7 @@ import { getResumoDoLeite, listMilkProduction } from "@/lib/actions/milk-product
 import { listMilkSites } from "@/lib/actions/milk-sites";
 import { getMilkPositions, getPhysicalVolumeBySite, listMilkMovements } from "@/lib/actions/milk-ledger";
 import { getMilkStorageSummary, listMilkCharges } from "@/lib/actions/milk-storage";
+import { listPendingDeliveries } from "@/lib/actions/milk-sales";
 import { listContacts } from "@/lib/actions/contacts";
 
 /**
@@ -94,6 +97,7 @@ export default async function LeitePage() {
     movimentos,
     armazenamento,
     cobrancas,
+    entregasEmAberto,
     contatos,
   ] = await Promise.all([
     getResumoDoLeite(db, propertyId),
@@ -108,6 +112,7 @@ export default async function LeitePage() {
     listMilkMovements(db, { limit: 20 }),
     getMilkStorageSummary(db),
     listMilkCharges(db, { limit: 20 }),
+    listPendingDeliveries(db),
     listContacts(db),
   ]);
 
@@ -145,6 +150,28 @@ export default async function LeitePage() {
 
   const sitesAtivos = sitesParaTela.filter((s) => !s.archived);
   const contatosParaTela = contatos.map((c) => ({ id: c.id, name: c.name }));
+
+  /**
+   * Fase 3: a venda só pode oferecer locais onde existe leite PRÓPRIO, e com
+   * quanto. Oferecer um local vazio seria convidar a uma recusa, e o número ao
+   * lado é o que evita o produtor descobrir o saldo errando.
+   */
+  const locaisComLeiteProprio = sitesAtivos
+    .map((s) => ({
+      id: s.id,
+      name: s.name,
+      liters: posicoesParaTela.find((p) => p.site_id === s.id && p.owner_id === null)?.liters ?? 0,
+    }))
+    .filter((s) => s.liters > 0);
+
+  const entregasParaTela = entregasEmAberto.map((e) => ({
+    buyer_id: e.buyer_id,
+    buyer_name: nomeDoContato.get(e.buyer_id) ?? "produtor removido",
+    liters: e.liters,
+    entregas: e.entregas,
+    primeira: e.primeira.toISOString(),
+    ultima: e.ultima.toISOString(),
+  }));
 
   const formProps = {
     properties,
@@ -238,11 +265,57 @@ export default async function LeitePage() {
                 {posicoesParaTela.length > 0 && (
                   <WithdrawForm sites={sitesAtivos} posicoesPorLocal={posicoesPorLocal} />
                 )}
+                {/* A venda só aparece quando há leite próprio para vender: sem
+                    isso o botão abriria um painel cujo primeiro campo já viria
+                    vazio, e a única saída seria fechar. */}
+                {locaisComLeiteProprio.length > 0 && (
+                  <SaleForm
+                    sites={locaisComLeiteProprio}
+                    buyers={contatosParaTela}
+                    properties={properties}
+                    defaultPropertyId={propertyId}
+                  />
+                )}
+                {/* E o fechamento só quando existe entrega em aberto: é o §28
+                    inteiro, e sem entrega ele não teria o que somar. */}
+                {entregasParaTela.length > 0 && (
+                  <ClosePeriodForm
+                    pendentes={entregasParaTela}
+                    properties={properties}
+                    defaultPropertyId={propertyId}
+                  />
+                )}
               </>
             )}
           </>
         }
       />
+
+      {/* §28: o que já foi entregue e ainda não foi cobrado. Existe porque
+          sem ele o botão "Fechar período" seria uma promessa sem contexto: o
+          produtor não saberia se há algo a fechar antes de abrir o painel. */}
+      {entregasParaTela.length > 0 && (
+        <div className="rounded-lg border border-borda bg-superficie">
+          <div className="border-b border-borda px-4 py-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-texto-secundario">
+              Entregue e ainda não cobrado
+            </h2>
+          </div>
+          <ul className="divide-y divide-borda">
+            {entregasParaTela.map((e) => (
+              <li key={e.buyer_id} className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-3">
+                <span className="font-medium text-texto">{e.buyer_name}</span>
+                <span className="text-sm text-texto-secundario">
+                  {e.entregas.toLocaleString("pt-BR")} entrega(s), de{" "}
+                  {new Date(e.primeira).toLocaleDateString("pt-BR")} a{" "}
+                  {new Date(e.ultima).toLocaleDateString("pt-BR")}
+                </span>
+                <span className="tabular-nums font-semibold text-texto">{litros(e.liters)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <ChargeList
         cobrancas={cobrancas.map((c) => ({
