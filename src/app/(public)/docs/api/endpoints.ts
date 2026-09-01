@@ -641,6 +641,96 @@ export const GROUPS: Group[] = [
     ],
   },
   {
+    title: "Leite (Módulo 32, fase 1)",
+    note: "Dois contadores, e nenhum dos dois é gravado: as vacas em lactação são o dobramento dos registros de lactação (a partir do último `definir`), e os litros de um período são a soma dos registros de produção. A área NÃO escreve no livro-razão do rebanho: \"em lactação\" é uma condição, não uma categoria, e entrar ou sair da lactação não altera o total do rebanho. Fases 2 (tanque, ponto de coleta, leite de terceiros) e 3 (venda, comprador, fechamento) ainda não existem.",
+    endpoints: [
+      {
+        method: "GET",
+        path: "/api/v1/milk/groups",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description: "Lista os lotes leiteiros (§6): agrupamento organizacional (\"vacas em maior produção\", \"recém-paridas\"), que NÃO conta cabeça e não aparece em soma nenhuma do Rebanho. Exclui arquivados por padrão; `?include_archived=true` inclui, `?property_id=` filtra.",
+        response: `200
+{ "data": [{ "id": "cl...", "property_id": "cl...", "name": "Recém-paridas", "notes": null, "archived": false, "archived_at": null }], "meta": { "total": 1 } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/milk/groups",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "Cadastra um lote leiteiro (§6). Devolve 422 `DUPLICATE_GROUP` quando já existe lote ativo com o mesmo nome na fazenda: dois \"Recém-paridas\" na lista tornariam a escolha um chute.",
+        request: `{ "property_id": "cl...", "name": "Recém-paridas" }`,
+        response: `201
+{ "data": { "id": "cl...", "property_id": "cl...", "name": "Recém-paridas", "archived": false }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/milk/groups/:id/archive",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "Arquiva ou desarquiva o lote. Aceita `{ \"archived\": false }` para desarquivar, diferente do confinamento: o lote leiteiro muda de estação, e cadastrar de novo perderia o histórico que aponta para o antigo.",
+        request: `{ "archived": true }`,
+        response: `200
+{ "data": { "id": "cl...", "archived": true, "archived_at": "2026-09-02T12:00:00.000Z" }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/milk/lactation",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description: "Histórico dos registros de lactação (§4, §7), do mais novo para o mais velho. Filtros: `property_id`, `group_id`, `de`, `ate` (AAAA-MM-DD), `limit`. A contagem vigente vem em `meta.vacas_em_lactacao`, e não como recurso próprio, porque ela é o dobramento das linhas listadas, não uma linha guardada. Sem `property_id` ela vem `null`: a contagem só existe por fazenda.",
+        response: `200
+{ "data": [{ "id": "cl...", "property_id": "cl...", "type": "entrada", "quantity": 4, "recorded_at": "2026-09-02T12:00:00.000Z", "pasture_id": null, "group_id": null, "notes": null, "cancelled": false, "cancelled_at": null }], "meta": { "total": 1, "vacas_em_lactacao": 36 } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/milk/lactation",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "Registra lactação: `definir` fixa o valor absoluto (\"estou com 32 vacas dando leite\"), `entrada` soma (\"entraram mais 4\"), `saida` subtrai (\"sequei 3\"). Uma `saida` maior que a contagem devolve 422 `SALDO_INSUFICIENTE` no campo `quantity`, e a conferência vale para a data do registro E para todas as seguintes: saída retroativa que deixa o presente negativo é o mesmo erro, só mais difícil de ver. `quantity: 0` só é aceito em `definir`, que é a afirmação legítima \"não tenho mais nenhuma\".",
+        request: `{ "property_id": "cl...", "type": "entrada", "quantity": 4, "recorded_at": "2026-09-02" }`,
+        response: `201
+{ "data": { "id": "cl...", "type": "entrada", "quantity": 4 }, "meta": { "vacas_em_lactacao": 36 } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/milk/lactation/:id/cancel",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "Cancela um registro de lactação: ele sai do dobramento e FICA na lista, marcado (§37.11). Devolve 422 `JA_CANCELADO` na segunda vez.",
+        response: `200
+{ "data": { "id": "cl...", "cancelled": true }, "meta": { "vacas_em_lactacao": 32 } }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/milk/production",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description: "Lista registros de produção (§8, §11). Filtros: `property_id`, `group_id`, `de`, `ate` (AAAA-MM-DD), `limit`. `meta.total_litros` soma só os não cancelados.",
+        response: `200
+{ "data": [{ "id": "cl...", "property_id": "cl...", "liters": 300, "shift": "manha", "recorded_at": "2026-09-02T12:00:00.000Z", "group_id": null, "notes": null, "cancelled": false, "cancelled_at": null }], "meta": { "total": 1, "total_litros": 300 } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/milk/production",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "Registra produção (§8, §9). Duas formas alternativas: `dia` (o dia inteiro num número só) OU `manha`/`tarde`/`noite`. Mandar as duas devolve 422 `FORMAS_MISTURADAS`, porque o §9 as apresenta como alternativas e somá-las faria 500 mais 300 virar 800 em silêncio. Devolve SEMPRE uma lista: cada turno é uma linha, e o total do dia é a soma delas, nunca um campo. `vacas_em_lactacao` é o atalho do §8: não vira campo do registro, e sim um `definir` de lactação na mesma data, na mesma transação.",
+        request: `{ "property_id": "cl...", "manha": 300, "tarde": 180, "recorded_at": "2026-09-02", "vacas_em_lactacao": 32 }`,
+        response: `201
+{ "data": [{ "id": "cl...", "liters": 300, "shift": "manha" }, { "id": "cl...", "liters": 180, "shift": "tarde" }], "meta": { "total_litros": 480 } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/milk/production/:id/cancel",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "Cancela um registro de produção: sai das somas e continua na lista, marcado (§37.11). Devolve 422 `JA_CANCELADO` na segunda vez.",
+        response: `200
+{ "data": { "id": "cl...", "cancelled": true }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/milk/summary",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description: "O painel do §34 e as seis janelas do §11 (hoje, ontem, últimos 7 dias, este mês, mês anterior, ano). `property_id` é obrigatório: a contagem de vacas e a média por vaca só existem por fazenda, e sem ele devolve 422 `FAZENDA_OBRIGATORIA`. `media_por_vaca` é litros por vaca/dia, com os dias sem contagem conhecida fora dos DOIS lados da divisão, e vem `null` quando nenhum dia da janela tem contagem: zero afirmaria uma produtividade que ninguém mediu. \"Semana\" são sete dias corridos, e as janelas em curso terminam hoje, não no fim do mês.",
+        response: `200
+{ "data": { "property_id": "cl...", "hoje": { "dia": "2026-09-02", "vacas_em_lactacao": 32, "litros": 480, "media_por_vaca": 15 }, "periodos": [{ "chave": "hoje", "rotulo": "Hoje", "de": "2026-09-02", "ate": "2026-09-02", "litros": 480, "dias": 1, "media_diaria": 480, "media_por_vaca": 15, "dias_com_contagem": 1 }] }, "meta": {} }`,
+      },
+    ],
+  },
+  {
     title: "Rebanho: Animais",
     endpoints: [
       {

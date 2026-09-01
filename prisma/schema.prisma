@@ -372,6 +372,9 @@ model Tenant {
   herd_stays           HerdStay[]
   confinement_sites    ConfinementSite[]
   subscription         Subscription?
+  milk_groups          MilkGroup[]
+  lactation_entries    LactationEntry[]
+  milk_productions     MilkProduction[]
 }
 
 // Equipe da Pleno Digital. NÃO carrega tenant_id: fora do isolamento (PRD 4 / 10.4).
@@ -587,6 +590,12 @@ model Property {
   /// motivo do resto deste modelo: propriedade é arquivada, nunca apagada.
   confinement_sites ConfinementSite[]
 
+  /// Área Leite, fase 1 (Módulo 32). `Restrict` no filho pelo mesmo motivo do
+  /// resto deste modelo: propriedade é arquivada, nunca apagada.
+  milk_groups       MilkGroup[]
+  lactation_entries LactationEntry[]
+  milk_productions  MilkProduction[]
+
   @@index([tenant_id])
 }
 
@@ -732,6 +741,10 @@ model Pasture {
 
   herd_movements_from HerdMovement[] @relation("HerdMovementFromPasture")
   herd_movements_to   HerdMovement[] @relation("HerdMovementToPasture")
+
+  /// Área Leite (Módulo 32): o pasto é informação OPCIONAL do registro de
+  /// lactação (§4), nunca eixo de saldo. Ver a decisão 4.2 da spec.
+  lactation_entries LactationEntry[]
 
   @@index([tenant_id])
   @@index([property_id])
@@ -1783,4 +1796,132 @@ enum NegotiationEntryRole {
   /// original: o dinheiro saiu num mês e voltou em outro, e o DRE dos dois
   /// meses precisa contar essa história como ela aconteceu.
   estorno
+}
+
+// ─────────────────────────────────────────────────────────────
+// Área Leite, fase 1 (Módulo 32).
+// Ver docs/specs/module-32-area-leite.md.
+//
+// Dois contadores, e NENHUM dos dois é gravado (invariante 2): as vacas em
+// lactação são o dobramento dos `LactationEntry`, e os litros de um período
+// são a soma dos `MilkProduction`.
+//
+// Esta área NÃO escreve no livro-razão do rebanho. Nenhuma `HerdMovement`,
+// nenhum `AnimalBatch` tocado: "em lactação" é uma CONDIÇÃO, não uma categoria
+// (§37.1, §37.2 e §37.4 do documento do cliente). Uma vaca em lactação
+// continua contada uma única vez, no lote da categoria dela.
+// ─────────────────────────────────────────────────────────────
+
+enum LactationEntryType {
+  /// "Estou com 32 vacas dando leite": define o valor absoluto (§4).
+  definir
+  /// "Entraram mais 4 vacas no leite": soma (§7).
+  entrada
+  /// "Sequei 3 vacas": subtrai (§7).
+  saida
+}
+
+enum MilkShift {
+  /// §9.1: o número é o dia inteiro, sem detalhar ordenha. NÃO é o mesmo que
+  /// turno não informado: ele afirma "isto é o dia todo".
+  dia
+  manha
+  tarde
+  noite
+}
+
+/// §6: agrupamento leiteiro ("vacas em maior produção", "recém-paridas").
+///
+/// Model próprio e NÃO o `AnimalBatch`, que é definido por categoria e
+/// quantidade. O §37.3 mantém os animais do lote leiteiro nas categorias já
+/// definidas no Rebanho, e reusar obrigaria o produtor a fatiar o rebanho por
+/// critério de produção, que é o controle complexo que o §1 recusa.
+///
+/// Não conta cabeça, não duplica animal, não entra em soma nenhuma do Rebanho.
+model MilkGroup {
+  id          String    @id @default(cuid())
+  tenant_id   String
+  property_id String
+  name        String
+  notes       String?
+  /// Desativar, nunca apagar: mesmo padrão de Property, Pasture e Contact.
+  archived_at DateTime?
+  created_at  DateTime  @default(now())
+
+  tenant      Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  property    Property         @relation(fields: [property_id], references: [id], onDelete: Restrict)
+  lactation   LactationEntry[]
+  productions MilkProduction[]
+
+  @@index([tenant_id])
+  @@index([property_id])
+}
+
+/// §4 e §7. A contagem vigente NUNCA é gravada: é o dobramento destas linhas
+/// (a partir do último `definir`, somando entradas e subtraindo saídas).
+///
+/// A chave do saldo é a FAZENDA, não o lote (decisão 4.2 da spec): o §34 e o
+/// §35 mostram um número só, e saldo por lote quebraria "estou com 32 vacas
+/// dando leite", que não diz lote nenhum.
+model LactationEntry {
+  id                  String             @id @default(cuid())
+  tenant_id           String
+  property_id         String
+  type                LactationEntryType
+  /// Sempre positivo. O sinal quem dá é o `type`.
+  quantity            Int
+  recorded_at         DateTime
+  notes               String?
+  /// §4: informação opcional do registro. Nem pasto nem lote são eixo de saldo.
+  pasture_id          String?
+  group_id            String?
+  /// §37.11: registro errado sai das somas e FICA na lista, marcado. Editar em
+  /// cima mudaria a média de um mês fechado sem deixar rastro.
+  cancelled_at        DateTime?
+  recorded_by_user_id String?
+  created_at          DateTime           @default(now())
+
+  tenant   Tenant     @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  property Property   @relation(fields: [property_id], references: [id], onDelete: Restrict)
+  pasture  Pasture?   @relation(fields: [pasture_id], references: [id], onDelete: SetNull)
+  group    MilkGroup? @relation(fields: [group_id], references: [id], onDelete: SetNull)
+
+  @@index([tenant_id])
+  @@index([property_id, recorded_at])
+  @@index([group_id])
+}
+
+/// §8 e §9. UMA LINHA POR REGISTRO, com turno. A produção do dia é a soma das
+/// linhas daquela data, nunca um campo gravado.
+///
+/// Linha por dia com três colunas foi descartada porque o caminho do WhatsApp
+/// chega em pedaços ("tirei 300 de manhã" às nove, "mais 180 à tarde" às
+/// cinco): ali o segundo registro viraria uma edição, e o handler passaria a
+/// depender de achar a linha certa antes de gravar.
+///
+/// NÃO tem campo de vacas em lactação, embora o §8 o liste como opcional. Ele
+/// vive no formulário e grava um `LactationEntry` do tipo `definir` na mesma
+/// transação: gravá-lo aqui criaria uma segunda fonte para o mesmo número, e
+/// as duas divergiriam.
+model MilkProduction {
+  id                  String    @id @default(cuid())
+  tenant_id           String
+  property_id         String
+  /// Litros. Decimal porque o produtor mede em litros com fração.
+  liters              Decimal   @db.Decimal(12, 2)
+  shift               MilkShift
+  recorded_at         DateTime
+  group_id            String?
+  notes               String?
+  cancelled_at        DateTime?
+  recorded_by_user_id String?
+  created_at          DateTime  @default(now())
+
+  tenant   Tenant     @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  property Property   @relation(fields: [property_id], references: [id], onDelete: Restrict)
+  group    MilkGroup? @relation(fields: [group_id], references: [id], onDelete: SetNull)
+
+  @@index([tenant_id])
+  @@index([property_id, recorded_at])
+  @@index([group_id])
 }
