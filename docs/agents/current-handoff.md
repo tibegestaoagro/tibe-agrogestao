@@ -202,17 +202,18 @@ Turbopack, com pouca RAM livre e o Chrome ocupando o resto). **`next dev
 API compilam nos dois.
 
 
-### A FASE 3 DO LEITE ESTÁ PRONTA na branch, NÃO empurrada
+### A FASE 3 DO LEITE ESTÁ NA `main` E NO AR, e o Módulo 32 fechou
 
-Branch **`area-leite-fase-3`**, três commits, saindo de `main` em `a098e96`.
-Spec na seção 13 de `docs/specs/module-32-area-leite.md`. **O Módulo 32 fecha
-aqui:** as três fases entregues.
+Empurrada em 2026-09-02 (`80f431f`, merge da `area-leite-fase-3` com cinco
+commits), **depois** da migração, como manda o invariante 3. O Neon está nas
+**41** e up to date; quem aplicou foi o usuário, no terminal. Deploy confirmado
+no navegador: `/docs/api` em produção lista `milk/sales`, `milk/sales/pending` e
+`milk/sales/close`. Spec na seção 13 de `docs/specs/module-32-area-leite.md`.
+**O Módulo 32 fecha aqui:** as três fases no ar.
 
-⚠️ **A migração `20260902200000_area_leite_fase_3` está aplicada SÓ no Docker
-local.** O push depende de ela ir ao Neon antes (invariante 3), e quem roda é o
-usuário. Ela é toda aditiva: `venda_leite` no `NegotiationType`, `doacao` no
-`MilkDestination`, os três tipos de comprador do §24 no `ContactType`, e três
-colunas em `MilkMovement`.
+A migração `20260902200000_area_leite_fase_3` é toda aditiva: `venda_leite` no
+`NegotiationType`, `doacao` no `MilkDestination`, os três tipos de comprador do
+§24 no `ContactType`, e três colunas em `MilkMovement`.
 
 Verde: `tsc` 0, `lint` 0 erros, `npm run check` **15/15**, `npm run test:m54`
 (37 asserções), e `m35`, `m36`, `m48`, `m49` e `m53`, que são as suítes do
@@ -370,8 +371,8 @@ que a tela mostrou registrado na primeira seção deste arquivo.
 
 ---
 
-- **2026-09-02:** Fase 3 da Área Leite pronta na branch `area-leite-fase-3`,
-  não empurrada, e com ela o **Módulo 32 fecha**: venda, fechamento por período
+- **2026-09-02:** Fase 3 da Área Leite **no ar na `main`** (`80f431f`), e com
+  ela o **Módulo 32 fecha**: venda, fechamento por período
   e o dinheiro no Financeiro. Quatro decisões levadas ao usuário antes do
   código: vender já retira o leite; o fechamento soma as retiradas daquele
   comprador; cancelar devolve o leite; e a venda herda a `Negotiation` inteira.
