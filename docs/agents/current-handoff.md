@@ -24,115 +24,41 @@ Se ele passar de umas 200, arquive antes de acrescentar.
 
 ## Estado atual
 
-- Atualizado em: 2026-09-01.
+- Atualizado em: 2026-09-02.
 
-### O Confinamento ESTÁ NA `main` E NO AR
+### O Confinamento está no ar, e o que dele ainda vale saber
 
-**Empurrado em 2026-09-01** (`430a1db..1fe1ccf`, 31 commits), com autorização do
-usuário, e **depois** das migrações, como manda o invariante 3.
-
-As **três** migrações estão aplicadas no Neon, que está nas **38** e up to date:
-
-1. `20260831140000_confinamento`
-2. `20260831150000_formas_de_cobranca`
-3. `20260831160000_boitel_para_confinamento` (reclassifica o dinheiro de boitel
-   já gravado; predicado provado antes de aplicar, com três linhas plantadas no
-   banco de dev: a do boitel virou `confinamento`, a de pasto de terceiro e a
-   solta sem `related_id` não se mexeram)
+Subiu em 2026-09-01 (`430a1db..1fe1ccf`, 31 commits), com as três migrações
+aplicadas no Neon antes do push, depois de um rejulgamento 4/10 e da onda 7 que
+fechou oito dos dez achados. O detalhe está nas mensagens dos commits e em
+`historico/2026-08.md`; o que sobrevive aqui é só o que ainda muda decisão:
 
 ⚠️ **`npm run db:deploy` contra o Neon é recusado pelo classificador de
-permissões**, inclusive com a marca `AUTORIZADO_PELO_USUARIO=1`, que só vale
-para o hook do repositório. Leitura (`npx prisma migrate status`) passa. O
-usuário pôs um bloco `autoMode.allow` em `.claude/settings.local.json` (local,
-fora do git) em 01/09, mas **a sessão que já estava aberta não recarregou**:
-quem rodou a migração foi o usuário, no terminal. Numa sessão nova a permissão
-deve valer; se não valer, o caminho é pedir para ele rodar.
+permissões**, inclusive com `AUTORIZADO_PELO_USUARIO=1`, que só vale para o hook
+do repositório. Leitura (`npx prisma migrate status`) passa. **Quem aplica
+migração em produção é o usuário, no terminal.** Isso torna o invariante 3 mais
+caro: commit que mexe em schema depende de um passo manual antes do push. Não
+afrouxe a ordem por causa disso.
 
-⚠️ **Isso torna o invariante 3 mais caro:** commit que mexe em schema agora
-depende de um passo manual do usuário antes do push. Não afrouxe a ordem por
-causa disso.
-
-### O rejulgamento deu 4/10, e a onda 7 fechou oito dos dez achados
-
-O juiz independente (por `general-purpose`, com o contrato embutido) leu o range
-inteiro sem o relato de quem implementou e reprovou: **4/10**, dez achados, todos
-com cenário concreto. Os cinco mais graves foram conferidos à mão antes de virar
-tarefa, e os cinco procediam.
-
-**A onda 7 são seis commits, `237d548..9523c45`, e cada mensagem carrega o
-defeito, a correção e a prova nos dois sentidos.** O resumo: a conta a pagar do
-confinamento sobrevivia ao cancelamento (T20); a tela oferecia uma forma de
-cobrança que a rota recusava (T21); o `/rebanho` abria painel de encerramento
-sem nenhum campo (T22); oito campos engoliam a recusa do servidor por completo
-(T23); o "sim" do WhatsApp jogava a conversa fora (T24); e a **conferência 15**
-nasceu para pegar por campo o que a 10 só pergunta por arquivo (T25).
-
-⚠️ **A causa comum de três dos quatro defeitos de tela era a mesma:**
-`Record<string, ...>` em mapa cuja chave é valor de enum. Quando o enum cresce,
-o `tsc` não reclama. Ver
-`docs/conhecimento/record-string-e-onde-o-enum-cresce-sem-avisar.md`.
-
-**Verde no fim da onda:** `tsc` 0, `lint` 0 erros, `npm run check` **15/15**, e
-`npm run test:all` em **54/54** com Postgres E Redis locais, em ~3 min.
-
-### A validação ao vivo ACONTECEU, e o que ela alcançou
-
-Feita em 2026-09-01, contra `next dev` com o banco local e o cookie de
-`scripts/_sessao-local.ts`. O cenário está em `scripts/_cenario-confinamento.ts`
-(idempotente). **Os cinco casos do juiz passaram**, contra o app de verdade:
-
-| caso | resultado real |
-|---|---|
-| §16 "por cabeça/dia" | `POST /api/v1/confinement/stays` devolveu **201**; antes era 422 |
-| `ORIGEM_AMBIGUA` | **422** com `field: "pasture_id"` e a frase nomeando os dois pastos |
-| conta órfã | conta em `confinamento` antes, **zero em módulo nenhum** depois de cancelar |
-| saída parcial (§20) | 15 de 40: `encerrada: false`, `saldo_aberto: 25`. 30 recusado com `field: "quantity"` |
-| boitel na DRE (§15) | a conta de R$ 12.000 aparece sob `related_module=confinamento` |
-
-No HTML renderizado: **"Estadias em aberto"** (não mais "Fora da fazenda
-agora"), rótulo "Confinamento", `tipo: "confinamento"` chegando ao
-`StayCloseForm` com `saldoAberto: 40`, "Por cabeça/dia: R$ 12,00", e **zero**
-ocorrências de rótulo cru de enum.
-
-⚠️ **O que essa validação NÃO alcança:** o `browser-harness` não está instalado
-nesta máquina, então nada foi clicado. Tudo que só existe depois do JavaScript
-rodar (a recusa aparecendo embaixo do campo, foco, contraste) ficou provado
-**por cadeia**, não por pixel: a rota devolve o `field` certo, o
-`aplicarErroDoServidor` manda para `erros.<campo>`, a conferência 15 garante o
-`error=` em todo campo do `ORDEM`, e o `Field` renderiza `<p role="alert">`.
-Cada elo foi verificado; o conjunto não foi visto.
-
-**Se alguém abrir o navegador**, o que ainda vale olhar é só isso: a frase da
-`ORIGEM_AMBIGUA` embaixo do campo "Pasto de origem", e o painel "Encerrar" do
-`/rebanho` com os três destinos aparecendo.
-
-### O que sobrou para o navegador, e duas armadilhas do painel
-
-Só dois olhares, e os dois são sobre o que acontece DEPOIS do JavaScript:
-
-- `/confinamento`, "Registrar entrada": deixar "Pasto de origem" em branco com
-  saldo em dois pastos. A frase da `ORIGEM_AMBIGUA` precisa **aparecer embaixo
-  do campo**. A rota já devolve o `field` certo (provado); falta ver o pixel.
-- `/rebanho`: o botão "Encerrar" de um lote de confinamento abre painel **com**
-  os três destinos.
-
-⚠️ **"Confinamento" fica DENTRO do grupo "Operação"** (`src/lib/nav.ts`), que
-nasce fechado, e só aparece com `hasFazenda`. Um cliente que não expande o grupo
-não vê o módulo, e isso gerou a pergunta "cadê o Confinamento?" em 01/09. Vale
-para toda frente que criar item de menu dentro de grupo.
+⚠️ **Item de menu dentro de grupo pode nascer invisível.** "Confinamento" fica
+no grupo "Operação" (`src/lib/nav.ts`), e a pergunta "cadê o Confinamento?"
+apareceu no mesmo dia do deploy. Vale para toda frente que criar item ali.
 
 ⚠️ **Confirmar deploy é verificação de navegador**, nunca `curl` em laço: 28
 chamadas em poucos minutos já dispararam a proteção anti-bot da Vercel neste
-projeto. A impressão digital desta frente é `/docs/api` listando as rotas de
-`/api/v1/confinement/*`.
+projeto.
+
+**Dois olhares de navegador ainda não feitos no Confinamento**, os dois sobre o
+que só existe depois do JavaScript: a frase da `ORIGEM_AMBIGUA` embaixo do campo
+"Pasto de origem" em `/confinamento`, e o painel "Encerrar" do `/rebanho` com os
+três destinos. A cadeia inteira está provada; falta o pixel.
 
 ### Escopo que ficou de fora, de propósito
 
-Dois pedidos do documento do cliente que a spec calou, achados pelo juiz: o §29
-(custos por lote não têm caminho no produto) e o §17 (sete destinos de saída,
-três na tela). **Não são defeito de implementação, são escopo.** Foram para
-`dividas.md` §2.8, e por decisão do usuário entram numa **onda 8 própria**, com
-as perguntas de produto trazidas junto da spec.
+Dois pedidos do documento do cliente que a spec do Confinamento calou, achados
+pelo juiz: o §29 (custos por lote) e o §17 (sete destinos de saída, três na
+tela). **Não são defeito, são escopo.** Estão em `dividas.md` §2.8, e por
+decisão do usuário entram numa **onda 8 própria**.
 
 ### O time de agentes tem DEZ, e está na `main` desde 31/08
 
@@ -151,45 +77,65 @@ terminar, e um deles alcançou escrever no working tree. A onda foi refeita pela
 sessão principal, tarefa por tarefa. Lição registrada: **conferir o working tree
 depois de agente que morre**, porque o que ele deixou não está verificado.
 
-**O cofre tem 18 notas.** As desta rodada:
-`campo-no-ordem-sem-error-engole-a-recusa`,
-`record-string-e-onde-o-enum-cresce-sem-avisar`,
-`filtro-na-busca-esconde-o-defeito-que-o-teste-procura`.
+**O cofre tem 22 notas.** A desta rodada:
+`media-de-periodo-precisa-dividir-dia-a-dia`.
 
-### A spec da Fase 1 do Leite ESTÁ ESCRITA, esperando aprovação
+### A FASE 1 DO LEITE ESTÁ PRONTA na branch, validada ao vivo
 
-`docs/specs/module-32-area-leite.md`, na branch **`area-leite-fase-1`**
-(commit `cc8a2e4`, um arquivo, nenhum código). `npm run check` em 15/15.
+Branch **`area-leite-fase-1`**, cinco commits (`cc8a2e4..`), **não empurrada**.
+Spec em `docs/specs/module-32-area-leite.md`.
 
-A spec detalha a **Fase 1** (§4 a §11: lactação, produção, média por vaca,
-histórico) e guarda na seção 12 a análise das fases 2 e 3, que saiu deste
-handoff para não ser resumida destrutivamente a cada rodada.
+Verde: `tsc` 0, `lint` 0 erros, `npm run check` **15/15**, `test:isolation`,
+`test:docs-api` e `npm run test:m52` (78 asserções, 11 seções), e `npm run
+build` limpo com as sete rotas e a tela.
 
-**Quatro decisões novas, tomadas com o usuário em 02/09. Execute, não
-redecida:**
+**O que entrou:** três models (`MilkGroup`, `LactationEntry`, `MilkProduction`),
+dois enums, a migração `20260902120000_area_leite_fase_1` (aplicada **só no
+Docker local**), dez rotas em `/api/v1/milk/*`, a tela `/leite` dentro de
+"Operação", e quatro intenções de WhatsApp roteadas e testadas.
 
-1. O lote leiteiro é um model novo e leve (`MilkGroup`), **não** o
-   `AnimalBatch`: o §37.3 mantém os animais nas categorias do Rebanho.
-2. A contagem de vacas em lactação é **por fazenda**; o lote é rótulo do
-   registro, sem saldo próprio.
-3. Cada registro de produção é **uma linha**, com turno (`dia`, `manha`,
-   `tarde`, `noite`). O total do dia é a soma.
-4. Nada é editado nem apagado: cancela e registra de novo (§37.11).
+⚠️ **A migração NÃO foi aplicada no Neon**, e o push depende disso primeiro
+(invariante 3). Quem roda é o usuário, no terminal: o classificador de
+permissões recusa `db:deploy` contra produção.
 
-⚠️ **A Área Leite não escreve no livro-razão do rebanho.** Nenhuma
-`HerdMovement`, nenhum `AnimalBatch` tocado (§37.1, §37.2, §37.4). Se a
-implementação importar `herd-ledger`, parou no lugar errado.
+**Quatro decisões de 02/09, todas com o motivo na spec:** lote leiteiro é model
+novo e não `AnimalBatch`; contagem por fazenda, lote é rótulo; uma linha por
+registro de produção, com turno; cancela, não edita.
 
-⚠️ **O §8 pede "quantidade de vacas em lactação" no registro de produção, e
-o model NÃO tem esse campo, de propósito.** Ele vive no formulário e grava um
-`LactationEntry` na mesma transação: gravar ali criaria uma segunda fonte
-para o mesmo número.
+⚠️ **São QUATRO intenções de WhatsApp, não as três da spec.** O
+`ajustar_vacas_em_lactacao` virou `registrar_entrada_lactacao` e
+`registrar_saida_lactacao`: "entraram 4" e "sequei 4" carregam o mesmo número e
+diferem só no verbo. A spec foi corrigida junto. O classificador do n8n **não
+foi tocado**; o guia ganhou a seção 4.3, que lista o que existe e não é emitido.
 
-**Próximo passo:** com a aprovação do usuário, implementar a Fase 1 na ordem
-da spec, e na ordem do contrato (action, rota, tela). Três models novos, dois
-enums, uma migração, dez rotas em `/api/v1/milk/*`, a tela `/leite` dentro do
-grupo "Operação", e os três handlers do §36 nascendo sem o classificador
-emitir. Suíte nova: o próximo número livre é `m52`.
+**A validação ao vivo aconteceu**, contra `next dev` com o banco local, o cookie
+de `scripts/_sessao-local.ts` e o cenário de `scripts/_cenario-leite.ts`
+(idempotente). Desta vez **com navegador de verdade**, pela extensão do Chrome:
+
+| caso | resultado real |
+|---|---|
+| painel | 32 vacas, 480 L, 15 L/vaca, com os seis períodos |
+| média por vaca de ontem | 14,72 L/vaca/dia, ou seja, dividiu por 36 (a contagem DAQUELE dia), não por 32 |
+| secar 500 de 32 | recusa **embaixo do campo**, em vermelho, com o foco nele |
+| ordenha vazia | "Informe pelo menos uma ordenha" embaixo de "Manhã" |
+| registrar 200 + 100 | duas linhas, 480 vira 780, média vira 24,38 |
+| cancelar 100 L | 780 vira 680, média vira 21,25, linha marcada "Cancelado" |
+| fazenda sem contagem | traço nos dois cartões, e a frase explicando |
+
+⚠️ **Uma coisa que só a tela mostrou, e é decisão de produto, não defeito:** a
+"média diária" divide pelos dias corridos da janela, então "Acumulado no ano:
+120 L, média diária 0,49 L" numa fazenda com um registro. Está correto pela
+definição escrita na spec (seção 6.4), e mesmo assim lê mal. A média POR VACA já
+diz "6 de 31 dias entraram na conta"; a média diária não diz nada equivalente.
+
+### ⏭️ PRÓXIMO PASSO: a decisão do usuário sobre a Fase 1
+
+Nada é empurrado sem autorização. Quando ela vier, a ordem é: usuário aplica a
+migração no Neon, confere `migrate status`, e só então o push (invariante 3).
+
+Depois disso, a **Fase 2** (§12 a §22: tanque, ponto de coleta, leite de
+terceiros), cuja análise estrutural está na **seção 12 da spec**. O ponto sem
+paralelo continua sendo o §20: saldo por PROPRIETÁRIO dentro do mesmo tanque.
 
 ### Depois do Leite
 
@@ -215,14 +161,19 @@ emitir. Suíte nova: o próximo número livre é `m52`.
 
 ---
 
-- **2026-09-02:** spec da Fase 1 da Área Leite escrita, na branch
-  `area-leite-fase-1` (`cc8a2e4`, nenhum código). Quatro decisões que o
-  documento do cliente não resolvia foram levadas ao usuário antes de
-  qualquer linha: o lote leiteiro é model novo e não o `AnimalBatch`; a
-  contagem de vacas é por fazenda e o lote é rótulo; cada registro de
-  produção é uma linha com turno; e nada é editado, cancela e registra de
-  novo. A análise estrutural das fases 2 e 3 saiu deste handoff e passou a
-  viver na seção 12 da spec.
+- **2026-09-02:** Fase 1 da Área Leite escrita e implementada, na branch
+  `area-leite-fase-1`, ainda não empurrada. Quatro decisões que o documento do
+  cliente não resolvia foram levadas ao usuário ANTES da primeira linha de
+  código: lote leiteiro é model novo e não `AnimalBatch`; contagem por fazenda,
+  lote é rótulo; cada registro de produção é uma linha com turno; e nada é
+  editado, cancela e registra de novo. Implementar mudou uma coisa da spec, e a
+  spec foi corrigida junto: são QUATRO intenções de WhatsApp, não três, porque
+  "entraram 4" e "sequei 4" só diferem no verbo. A validação ao vivo foi feita
+  com NAVEGADOR de verdade pela primeira vez neste projeto (extensão do Chrome),
+  e mostrou a recusa embaixo do campo, o registro de duas ordenhas mudando o
+  painel, o cancelamento recalculando a média, e o traço na fazenda sem
+  contagem. Achado que só a tela deu: a "média diária" divide pelos dias
+  corridos, e "0,49 L" no acumulado do ano está certo pela definição e lê mal.
 
 - **2026-09-01:** **Confinamento no ar** (`430a1db..1fe1ccf`, 31 commits), com
   as três migrações aplicadas no Neon ANTES do push. A terceira reclassifica o
