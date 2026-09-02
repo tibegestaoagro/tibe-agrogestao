@@ -80,6 +80,12 @@ export const INTENTS = [
   "registrar_trabalhador",
   "registrar_pagamento_trabalhador",
   "registrar_adiantamento",
+  // Serviço contratado (Módulo 33, fase 2, §32). As duas conversas do
+  // documento: a diária ("vieram 3 homens por 4 dias") e o empreito ("o Pedro
+  // fez a cerca por 6 mil"). Mesmo estado das de cima: roteadas e testadas,
+  // esperando o classificador ser atualizado.
+  "registrar_diaria",
+  "registrar_servico_contratado",
   "consultar_cliente",
   "gerar_relatorio",
   "registrar_lancamento_financeiro",
@@ -165,6 +171,13 @@ export const INTENT_ACCESS: Record<
     profile: "fazenda",
   },
   registrar_adiantamento: { module: "mao_de_obra", action: "write", profile: "fazenda" },
+  // ⚠️ Módulo `servicos`, e NÃO `mao_de_obra` como as três de cima: a diária de
+  // um serviço não tem a sensibilidade de um salário, e quem viu o trabalho
+  // acontecer é quem está no curral. Um OPERADOR registra "vieram 3 homens
+  // hoje" pelo WhatsApp, e continua recebendo recusa se disser "João ganha
+  // 2.500 por mês".
+  registrar_diaria: { module: "servicos", action: "write", profile: "fazenda" },
+  registrar_servico_contratado: { module: "servicos", action: "write", profile: "fazenda" },
   consultar_cliente: { module: "prestador", action: "read", profile: "prestador" },
   gerar_relatorio: { module: null, action: "read" }, // módulo varia por parameters.tipo
   registrar_lancamento_financeiro: { module: "financeiro", action: "write" },

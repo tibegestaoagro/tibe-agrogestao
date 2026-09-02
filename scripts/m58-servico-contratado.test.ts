@@ -24,6 +24,15 @@ exigirBancoLocal();
  *  13. §30: o gasto separado em fixa, eventual e terceirizados, sem sobrepor.
  *  14. A permissão de `servicos` é OPERACIONAL, e diferente da de salário.
  *  15. As oito rotas existem.
+ *  16. §32 pelo WhatsApp: a diária, com o total de DIÁRIAS na confirmação.
+ *  17. §32: o empreito, e "não, deixa pra lá" cancelando.
+ *  18. O "sim" executa o MOSTRADO, não o que o classificador remontou.
+ *  19. Prestador ambíguo PERGUNTA, nunca escolhe o primeiro.
+ *
+ * ⚠️ Os blocos 16 a 19 mandam, no segundo turno, APENAS o campo que faltava,
+ * porque é assim que o classificador do n8n se comporta: ele NÃO remonta o
+ * pedido. Uma suíte que reenvia o pacote inteiro fica verde com a conversa
+ * quebrada, e este projeto já pagou por isso.
  *
  * Roda: `npm run test:m58`.
  */
@@ -960,6 +969,199 @@ async function comBanco() {
     check("POST /workers/:id/logs", typeof rLogs.POST === "function");
     const rLog = await import("@/app/api/v1/workers/[id]/logs/[logId]/route");
     check("DELETE /workers/:id/logs/:logId", typeof rLog.DELETE === "function");
+
+    // ── 16 a 19: o WhatsApp (§32) ─────────────────────────────────────────
+
+    const { routeIntent } = await import("@/lib/actions/whatsapp-router");
+    const USER = "m58-user";
+
+    const falar = (
+      intent: string,
+      parameters: Record<string, unknown>,
+      extra: { confirmed?: boolean; explicitNo?: boolean } = {},
+    ) =>
+      routeIntent(db, {
+        intent: intent as never,
+        tenant_id: tenant.id,
+        role: "OWNER",
+        activeProfiles: ["fazenda"],
+        parameters,
+        confirmed: extra.confirmed ?? false,
+        explicitNo: extra.explicitNo ?? false,
+        user_id: USER,
+      });
+
+    console.log("\n16. §32 pelo WhatsApp: a diária dos três homens");
+    const d1 = await falar("registrar_diaria", { servico: "cerca" });
+    check("sem valor, pergunta a diária", d1.reply_text.toLowerCase().includes("diária"), d1.reply_text);
+
+    // O classificador manda SÓ o campo perguntado. Nada de reenviar o serviço.
+    const d2 = await falar("registrar_diaria", { valor: 150 });
+    check("com o valor, pergunta os dias", d2.reply_text.toLowerCase().includes("dias"), d2.reply_text);
+    const d3 = await falar("registrar_diaria", { quantidade: 4 });
+    check("com tudo, pede confirmação", d3.requires_confirmation === true);
+    check(
+      "e o SERVIÇO do primeiro turno sobreviveu",
+      d3.reply_text.includes("cerca"),
+      d3.reply_text,
+    );
+    /**
+     * ⚠️ SEM `pessoas`, o handler assume UMA, e a confirmação MOSTRA isso:
+     * "4 diárias, R$ 600,00". Assumir em silêncio seria errar por três no caso
+     * do §14, e o que impede o erro é o número aparecer antes do "sim".
+     *
+     * Perguntar "quantas pessoas?" sempre atrapalharia o caso comum, que é o
+     * §13: um trabalhador por diária.
+     */
+    check(
+      "sem `pessoas`, assume uma, e a confirmação MOSTRA (4 diárias, R$ 600)",
+      d3.reply_text.includes("4 diárias") && d3.reply_text.includes("600"),
+      d3.reply_text,
+    );
+
+    const jobsAntes = await db.serviceJob.count();
+    const d4 = await falar("registrar_diaria", {}, { confirmed: true });
+    check("o sim grava", d4.action_taken === "registrar_diaria:ok", d4.action_taken);
+    check("um serviço novo", (await db.serviceJob.count()) === jobsAntes + 1);
+    const gravado = await db.serviceJob.findFirst({ orderBy: { created_at: "desc" } });
+    check(
+      "com o valor MOSTRADO (150 a diária)",
+      Number(gravado?.unit_price) === 150,
+      String(gravado?.unit_price),
+    );
+
+    /**
+     * E AGORA O CAMINHO REAL DO §32, que é o que o classificador de verdade
+     * faz: a frase inteira ("vieram 3 homens trabalhar na cerca por 4 dias,
+     * 150 a diária") vira UM turno com todos os campos.
+     *
+     * ⚠️ O caminho incremental acima descarta campo extra de propósito: da
+     * mensagem seguinte entra APENAS o que foi perguntado, e é essa regra que
+     * impede o classificador de trocar o que já estava decidido. A consequência
+     * é que responder duas coisas de uma vez perde a segunda, e o preço disso é
+     * aceito: perder um campo faz o assistente perguntar de novo, enquanto
+     * aceitar tudo faz ele gravar o que ninguém confirmou.
+     */
+    const inteiro = await falar("registrar_diaria", {
+      servico: "cerca",
+      valor: 150,
+      quantidade: 4,
+      pessoas: 3,
+    });
+    check(
+      "a frase INTEIRA do §32 mostra 12 diárias e R$ 1.800",
+      inteiro.reply_text.includes("12 diárias") && inteiro.reply_text.includes("1.800"),
+      inteiro.reply_text,
+    );
+    await falar("registrar_diaria", {}, { confirmed: true });
+    const comTresHomens = await db.serviceJob.findFirst({ orderBy: { created_at: "desc" } });
+    check(
+      "e grava 3 pessoas",
+      comTresHomens?.worker_count === 3,
+      String(comTresHomens?.worker_count),
+    );
+    check(
+      "com a QUANTIDADE em 4 dias, não 12",
+      (
+        await db.serviceJobLog.findFirst({ where: { service_job_id: comTresHomens!.id } })
+      )?.quantity?.toString() === "4",
+    );
+
+    console.log("\n17. §32: o empreito, e o cancelamento");
+    const e1 = await falar("registrar_servico_contratado", {
+      servico: "cerca",
+      valor: 6000,
+      quem: "Pedro Pedreiro",
+    });
+    check("pede confirmação de uma vez", e1.requires_confirmation === true);
+    check(
+      "com a frase do §32",
+      e1.reply_text.includes("Pedro Pedreiro") && e1.reply_text.includes("6.000"),
+      e1.reply_text,
+    );
+
+    const jobsAntesDaRecusa = await db.serviceJob.count();
+    const recusado = await falar("registrar_servico_contratado", {}, { explicitNo: true });
+    check(
+      "\"não, deixa pra lá\" cancela",
+      recusado.action_taken === "registrar_servico_contratado:cancelado",
+      recusado.action_taken,
+    );
+    check(
+      "e NADA foi gravado",
+      (await db.serviceJob.count()) === jobsAntesDaRecusa,
+      String(await db.serviceJob.count()),
+    );
+
+    console.log("\n18. O \"sim\" executa o MOSTRADO, não o remontado");
+    const s1 = await falar("registrar_servico_contratado", {
+      servico: "curral",
+      valor: 6000,
+      quem: "Pedro Pedreiro",
+    });
+    check("pediu confirmação de 6.000", s1.reply_text.includes("6.000"), s1.reply_text);
+    // O classificador remonta ERRADO no turno do "sim" (leu 60000 na resposta).
+    const s2 = await falar("registrar_servico_contratado", { valor: 60000 }, { confirmed: true });
+    check("gravou", s2.action_taken === "registrar_servico_contratado:ok", s2.action_taken);
+    const currralGravado = await db.serviceJob.findFirst({
+      where: { description: "curral" },
+      orderBy: { created_at: "desc" },
+    });
+    check(
+      "no valor MOSTRADO (6.000), não no remontado (60.000)",
+      Number(currralGravado?.agreed_amount) === 6000,
+      String(currralGravado?.agreed_amount),
+    );
+
+    console.log("\n19. Prestador ambíguo PERGUNTA, nunca escolhe o primeiro");
+    await db.contact.create({ data: scoped({ name: "Pedro Tratorista" }) });
+    const ambiguoServ = await falar("registrar_servico_contratado", {
+      servico: "gradagem",
+      valor: 900,
+      quem: "Pedro",
+    });
+    check(
+      "pergunta qual dos dois",
+      ambiguoServ.reply_text.toLowerCase().includes("mais de um"),
+      ambiguoServ.reply_text,
+    );
+    check(
+      "e não gravou nada",
+      (await db.serviceJob.count({ where: { description: "gradagem" } })) === 0,
+    );
+
+    console.log("\n20. OPERADOR PASSA no serviço, e continua barrado no salário");
+    const servicoComoOperador = await routeIntent(db, {
+      intent: "registrar_diaria" as never,
+      tenant_id: tenant.id,
+      role: "OPERADOR",
+      activeProfiles: ["fazenda"],
+      parameters: { servico: "capina" },
+      confirmed: false,
+      explicitNo: false,
+      user_id: "operador-user",
+    });
+    check(
+      "OPERADOR passa pelo roteador de serviço",
+      !servicoComoOperador.action_taken.includes("FORBIDDEN") &&
+        servicoComoOperador.action_taken !== "erro",
+      servicoComoOperador.action_taken,
+    );
+    const salarioComoOperador = await routeIntent(db, {
+      intent: "registrar_trabalhador" as never,
+      tenant_id: tenant.id,
+      role: "OPERADOR",
+      activeProfiles: ["fazenda"],
+      parameters: { nome: "X", funcao: "Y", valor: 1, frequencia: "mes" },
+      confirmed: true,
+      explicitNo: false,
+      user_id: "operador-user",
+    });
+    check(
+      "e continua BARRADO no cadastro de trabalhador",
+      !salarioComoOperador.action_taken.endsWith(":ok"),
+      salarioComoOperador.action_taken,
+    );
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });
     await prisma.$disconnect();
