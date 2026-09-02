@@ -140,6 +140,49 @@ aquele `confinement_stay_id`. Os dois lados enxergam.
 antes e depois, e o teste precisa provar que o custo do lote passa a incluir o
 serviço, com um caso que reprove se a segunda consulta sumir.
 
+## 3.2 As quatro decisões da fase 34.1
+
+Tomadas com o usuário em 02/09, com a fase 33.2 já na `main`. Nenhuma estava
+resolvida acima, e duas mudam schema.
+
+**13. O local do serviço prestado: fazenda de ORIGEM, mais o local em texto.**
+O §10 diz que o serviço pode acontecer "em fazenda de terceiro", e
+`ServiceJob.property_id` é obrigatório e aponta para uma fazenda do produtor.
+Gradear 20 hectares na fazenda do João não tinha onde ser registrado.
+
+A saída: `property_id` **continua obrigatório** e passa a significar **de qual
+fazenda a máquina saiu**, que é informação real e útil; um campo novo
+`client_location` (texto) guarda onde o serviço aconteceu, com o nome da
+fazenda e o município que o §10 lista como opcionais.
+
+⚠️ **A alternativa descartada era tornar `property_id` anulável**, e ela custava
+caro: a coluna viraria anulável para TODOS os serviços, e as consultas que
+filtram por fazenda (a tela, o §30) ganhariam um caso que ninguém lembra de
+tratar. A outra, cadastrar a fazenda do cliente como `Property`, poluiria Minha
+Fazenda com fazendas que não são do produtor, e ofereceria ao rebanho, ao
+confinamento e ao leite um destino que não existe.
+
+**14. O operador do §8: uma FK e um texto, não três colunas.**
+`operator_worker_id` aponta para `Worker`, cobrindo funcionário fixo e diarista,
+que é o "reutilizar o mesmo cadastro" que o §8 pede em letra e o §36 repete.
+`operator_note` (texto) cobre "próprio produtor", "outro" e o avulso.
+
+Três colunas (worker, contact e texto) foram descartadas: toda leitura teria que
+checar as três na ordem certa, e o prestador terceirizado que OPERA a máquina é
+caso raro, porque normalmente ele é o dono do serviço e não o operador.
+
+**15. O §37 é atendido na ficha do CONTATO, não em `/negociacoes`.**
+"A prestação de serviço deverá aparecer no histórico de Negociações" é atendido
+mostrando os serviços na tela de contato, que desde a fase 0 já lista as
+negociações daquela pessoa. É onde a pergunta do produtor nasce ("o que já fiz
+com o João?"), e não toca a tela de um módulo fechado. Coerente com a decisão 4.
+
+**16. O guard de `prestado` é o mesmo `servicos`, operacional.**
+OPERADOR registra o serviço prestado também: é quem estava na máquina, e o mesmo
+critério já vale para venda de gado, que passa pela matriz `rebanho` e é dinheiro
+muito maior. Duas permissões na mesma tela, uma por direção, fariam o OPERADOR
+ver metade da lista sem entender por quê.
+
 ## 4. O modelo de dados
 
 Quatro modelos novos. **Nenhum valor pago, devido ou acumulado é gravado em

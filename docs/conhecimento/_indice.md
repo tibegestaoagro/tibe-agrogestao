@@ -38,8 +38,9 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 
 | nota | tipo | sobre |
 |---|---|---|
-| [validação ao vivo acha o que a suíte verde não acha](validacao-viva-acha-o-que-a-suite-verde-nao-acha.md) | licao | os seis defeitos que passaram por tsc, lint e suíte |
+| [validação ao vivo acha o que a suíte verde não acha](validacao-viva-acha-o-que-a-suite-verde-nao-acha.md) | licao | os defeitos que passaram por tsc, lint e suíte |
 | [a pílula invisível](pilula-invisivel-o-portao-compara-token-nao-uso.md) | armadilha | o portão compara par de token, nunca o uso |
+| [o Decimal do Prisma no Client Component](decimal-do-prisma-so-quebra-no-console-do-navegador.md) | armadilha | tsc aprova, a tela renderiza, e só o console acusa |
 | [o Zod em inglês nas 71 rotas](zod-em-ingles-nas-71-rotas.md) | licao | infraestrutura pronta e não ligada |
 | [trava só vale depois de vista falhar](trava-so-vale-depois-de-voce-a-ver-falhar.md) | licao | prove nos dois sentidos |
 | [cópia repetida não quer dizer cópia idêntica](copia-repetida-nao-quer-dizer-copia-identica.md) | licao | cinco dos sete stores aceitavam número, dois não |

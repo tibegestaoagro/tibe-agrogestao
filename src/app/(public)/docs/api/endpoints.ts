@@ -1049,6 +1049,15 @@ export const GROUPS: Group[] = [
         response: `201
 { "data": { "id": "cl..." }, "meta": {} }`,
       },
+      {
+        method: "GET",
+        path: "/api/v1/machines/:id/services",
+        auth: "Sessão · maquinas:read · perfil fazenda",
+        description:
+          "O histórico de serviços PRESTADOS com esta máquina (§32 do documento de Máquinas): quantos serviços, quanto foi faturado e a lista de cada um com cliente e quantidade. ⚠️ `quantidade_por_unidade` é um MAPA, nunca um número só: um trator que fez 12 horas de gradagem e 25 hectares de roçada não trabalhou 37 de nada. Serviços cancelados ficam de fora. Guard `maquinas`, e não `servicos`: quem pode ver a máquina pode ver o que ela fez.",
+        response: `200
+{ "data": { "machine_id": "cl...", "servicos": 2, "quantidade_por_unidade": { "hora": 12, "hectare": 25 }, "faturado": 6300, "linhas": [{ "description": "Gradagem", "quantidade": 12, "pricing": "hora", "contact_name": "Cliente João", "total": 1800 }] }, "meta": { "total": 2 } }`,
+      },
     ],
   },
   {
@@ -1106,8 +1115,8 @@ export const GROUPS: Group[] = [
     ],
   },
   {
-    title: "Serviços contratados (Módulo 33, fase 2)",
-    note: "O serviço de terceiro: a diária do §13, o empreito do §15 e o serviço por unidade do §16. ⚠️ Permissão `servicos`, OPERACIONAL e diferente da de `mao_de_obra`: OPERADOR registra serviço e continua sem enxergar salário. Nenhum saldo é gravado: o total combinado é derivado dos logs, o pago e o restante são somas de `FinancialEntry`, e os três podem divergir se o produtor editar um lançamento em `/financeiro`, que é onde o dinheiro de verdade mora. Manutenção de máquina NÃO entra aqui: é `MachineMaintenance`, na ficha da própria máquina.",
+    title: "Serviços contratados e prestados (Módulos 33 e 34)",
+    note: "As duas direções na mesma tabela: o serviço que a fazenda CONTRATA de terceiro (a diária do §13, o empreito do §15, o serviço por unidade do §16) e o que ela PRESTA com máquina própria (`direction: prestado`), que gera RECEITA em vez de despesa. ⚠️ Permissão `servicos`, OPERACIONAL e diferente da de `mao_de_obra`: OPERADOR registra serviço e continua sem enxergar salário. Nenhum saldo é gravado: o total combinado é derivado dos logs, o pago e o restante são somas de `FinancialEntry`, e os três podem divergir se o produtor editar um lançamento em `/financeiro`, que é onde o dinheiro de verdade mora. Manutenção de máquina NÃO entra aqui: é `MachineMaintenance`, na ficha da própria máquina.",
     endpoints: [
       {
         method: "GET",
@@ -1123,7 +1132,7 @@ export const GROUPS: Group[] = [
         path: "/api/v1/service-jobs",
         auth: "Sessão · servicos:write · perfil fazenda",
         description:
-          "Registra um serviço contratado. `pricing: fechado` exige `agreed_amount` e ignora quantidade (é o empreito do §15); qualquer outra forma exige `unit_price`, e `quantity` vira o primeiro lançamento de quantidade. `worker_count` multiplica o VALOR e nunca a quantidade: o §14 diz que 3 homens por 4 dias são 12 diárias, mas o serviço durou 4 dias. `contact_name` sem `contact_id` cria o contato pelo nome dito. `pago: true` gera lançamento já quitado; sem ele nasce uma conta a pagar pelo total. ⚠️ `pago: true` com `due_date` é recusado: o §21 lista à vista e futuro como caminhos diferentes. ⚠️ `machine_id` é recusado nesta fase, apontando para Máquinas. Data no futuro cria também um compromisso no Meu Dia (§24); no passado, não.",
+          "Registra um serviço. `direction` ausente vale `contratado`. `pricing: fechado` exige `agreed_amount` e ignora quantidade (é o empreito do §15); qualquer outra forma exige `unit_price`, e `quantity` vira o primeiro lançamento de quantidade. `worker_count` multiplica o VALOR e nunca a quantidade: o §14 diz que 3 homens por 4 dias são 12 diárias, mas o serviço durou 4 dias. `contact_name` sem `contact_id` cria o contato pelo nome dito. `pago: true` gera lançamento já quitado; sem ele nasce uma conta pelo total (a pagar no contratado, a RECEBER no prestado). ⚠️ `pago: true` com `due_date` é recusado: o §21 lista à vista e futuro como caminhos diferentes. ⚠️ No `prestado`, `machine_id` e o cliente são obrigatórios (§17); no `contratado`, `machine_id` é RECUSADO, apontando para Máquinas, porque manutenção e máquina de terceiro são `MachineMaintenance`. Os campos `client_location`, `implement`, `operator_worker_id` e `operator_note` são do prestado. O status vem da DATA: no futuro nasce `agendado` e entra na agenda do §39; no passado nasce `concluido`.",
         request: `{ "property_id": "cl...", "occurred_at": "2026-09-01T12:00:00.000Z", "description": "Reforma de cerca", "pricing": "dia", "unit_price": 150, "quantity": 4, "worker_count": 3, "contact_name": "Turma da cerca" }`,
         response: `201
 { "data": { "id": "cl...", "quantidade": 4, "total": 1800, "restante": 1800 }, "meta": {} }`,
@@ -1142,7 +1151,7 @@ export const GROUPS: Group[] = [
         path: "/api/v1/service-jobs/:id/payments",
         auth: "Sessão · servicos:write · perfil fazenda",
         description:
-          "Registra um pagamento (§21, §22). Cria um lançamento quitado e ENCOLHE a conta a pagar; quando ela zera, é apagada, porque conta a pagar de R$ 0,00 seria ruído no Financeiro. ⚠️ Pagar mais que o restante devolve 422 no campo `amount` dizendo quanto falta: sem essa recusa, um dedo pesado transforma R$ 700 em R$ 7.000 e os R$ 6.300 a mais viram despesa fantasma. Serviço já quitado ou cancelado devolve 409.",
+          "Registra um pagamento, ou um RECEBIMENTO se o serviço for `prestado` (§21, §22, §26, §27). Cria um lançamento quitado e ENCOLHE a conta em aberto; quando ela zera, é apagada, porque conta de R$ 0,00 seria ruído no Financeiro. ⚠️ O sinal do lançamento vem da direção DO SERVIÇO, nunca do corpo: um recebimento gravado como despesa mostraria \"recebido R$ 3.000\" na tela e uma despesa de R$ 3.000 no DRE, com o saldo batendo. ⚠️ Pagar mais que o restante devolve 422 no campo `amount` dizendo quanto falta: sem essa recusa, um dedo pesado transforma R$ 700 em R$ 7.000 e os R$ 6.300 a mais viram lançamento fantasma. Serviço já quitado ou cancelado devolve 409.",
         request: `{ "amount": 3000 }`,
         response: `201
 { "data": { "pago": 3000, "restante": 7000 }, "meta": {} }`,

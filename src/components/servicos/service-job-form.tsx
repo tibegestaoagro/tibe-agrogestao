@@ -20,10 +20,18 @@ import {
   PRICING_LABELS,
   PRICING_UNIDADE,
   SERVICOS_SUGERIDOS,
+  SERVICOS_MECANIZADOS,
 } from "@/components/servicos/labels";
 
 /**
- * Registra um serviço contratado (§13 a §21 do Módulo 33).
+ * Registra um serviço: o contratado de fora (§13 a §21 do Módulo 33) ou o
+ * prestado com máquina própria (§13 a §18 do Módulo 34).
+ *
+ * A DIREÇÃO é a primeira pergunta porque ela comanda o resto da tela: no
+ * prestado a máquina e o cliente passam a ser obrigatórios, aparecem implemento,
+ * operador e o local do cliente, e somem pasto, lote e ponto de leite (o serviço
+ * aconteceu na terra do OUTRO). O dinheiro também troca de sinal, e por isso
+ * "Já pagou?" vira "Já recebeu?".
  *
  * ⚠️ **Campo que some da tela não pode ser cobrado.** `unit_price` e
  * `quantity` desaparecem quando a cobrança é `fechado`, e `agreed_amount`
@@ -41,6 +49,8 @@ type Property = { id: string; name: string };
 type Pasture = { id: string; name: string; property_id: string };
 type Lote = { id: string; rotulo: string };
 type PontoDeLeite = { id: string; name: string };
+type Maquina = { id: string; name: string; property_id: string | null };
+type Operador = { id: string; name: string };
 
 const ORDEM = [
   "description",
@@ -52,6 +62,11 @@ const ORDEM = [
   "occurred_at",
   "contact_name",
   "property_id",
+  "machine_id",
+  "implement",
+  "operator_worker_id",
+  "operator_note",
+  "client_location",
   "pasture_id",
   "confinement_stay_id",
   "milk_site_id",
@@ -67,11 +82,15 @@ export default function ServiceJobForm({
   pastures,
   lotes,
   pontosDeLeite,
+  maquinas,
+  operadores,
 }: {
   properties: Property[];
   pastures: Pasture[];
   lotes: Lote[];
   pontosDeLeite: PontoDeLeite[];
+  maquinas: Maquina[];
+  operadores: Operador[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -80,6 +99,12 @@ export default function ServiceJobForm({
 
   const hoje = new Date().toISOString().slice(0, 10);
 
+  const [direction, setDirection] = useState("contratado");
+  const [machineId, setMachineId] = useState(NENHUM);
+  const [implement, setImplement] = useState("");
+  const [operatorWorkerId, setOperatorWorkerId] = useState(NENHUM);
+  const [operatorNote, setOperatorNote] = useState("");
+  const [clientLocation, setClientLocation] = useState("");
   const [description, setDescription] = useState("");
   const [pricing, setPricing] = useState("dia");
   const [unitPrice, setUnitPrice] = useState("");
@@ -97,9 +122,25 @@ export default function ServiceJobForm({
   const [notes, setNotes] = useState("");
 
   const fechado = pricing === "fechado";
+  const prestado = direction === "prestado";
   const pastosDaFazenda = pastures.filter((p) => p.property_id === propertyId);
+  /**
+   * Máquina sem fazenda entra na lista de qualquer uma: `Machine.property_id`
+   * é opcional, e esconder a máquina do produtor por causa de um campo em
+   * branco deixaria o formulário impossível de enviar, já que a máquina é
+   * obrigatória no prestado.
+   */
+  const maquinasDaFazenda = maquinas.filter(
+    (m) => m.property_id === null || m.property_id === propertyId,
+  );
 
   function limpar() {
+    setDirection("contratado");
+    setMachineId(NENHUM);
+    setImplement("");
+    setOperatorWorkerId(NENHUM);
+    setOperatorNote("");
+    setClientLocation("");
     setDescription("");
     setPricing("dia");
     setUnitPrice("");
@@ -141,10 +182,18 @@ export default function ServiceJobForm({
         novos.quantity = "A quantidade precisa ser maior que zero.";
       }
     }
-    if (pessoas !== null && (!Number.isInteger(pessoas) || pessoas <= 0)) {
+    // `worker_count` só está na tela no contratado sem valor fechado: cobrar
+    // fora disso apontaria para um campo que não está no DOM.
+    if (!prestado && !fechado && pessoas !== null && (!Number.isInteger(pessoas) || pessoas <= 0)) {
       novos.worker_count = "Informe quantas pessoas trabalharam.";
     }
     if (!occurredAt) novos.occurred_at = "Informe a data.";
+
+    // As duas exigências do §17, e só quando os campos estão visíveis.
+    if (prestado) {
+      if (machineId === NENHUM) novos.machine_id = "Escolha a máquina que fez o serviço.";
+      if (!contactName.trim()) novos.contact_name = "Informe para quem o serviço foi feito.";
+    }
 
     if (Object.keys(novos).length > 0) {
       err.setGlobal(null);
@@ -155,6 +204,7 @@ export default function ServiceJobForm({
     err.limparTudo();
     setLoading(true);
     const res = await apiPost("/api/v1/service-jobs", {
+      direction,
       property_id: propertyId,
       occurred_at: new Date(`${occurredAt}T12:00:00.000Z`).toISOString(),
       description: description.trim(),
@@ -162,11 +212,19 @@ export default function ServiceJobForm({
       unit_price: fechado ? null : preco,
       agreed_amount: fechado ? combinado : null,
       quantity: fechado ? null : qtd,
-      worker_count: pessoas ?? 1,
+      // No prestado quem trabalha é a máquina, e o campo nem está na tela:
+      // mandar o valor antigo multiplicaria o serviço por um número que o
+      // produtor não viu.
+      worker_count: prestado ? 1 : (pessoas ?? 1),
       contact_name: contactName.trim() || null,
-      pasture_id: pastureId === NENHUM ? null : pastureId,
-      confinement_stay_id: loteId === NENHUM ? null : loteId,
-      milk_site_id: milkSiteId === NENHUM ? null : milkSiteId,
+      machine_id: prestado && machineId !== NENHUM ? machineId : null,
+      implement: prestado ? implement.trim() || null : null,
+      operator_worker_id: prestado && operatorWorkerId !== NENHUM ? operatorWorkerId : null,
+      operator_note: prestado ? operatorNote.trim() || null : null,
+      client_location: prestado ? clientLocation.trim() || null : null,
+      pasture_id: prestado || pastureId === NENHUM ? null : pastureId,
+      confinement_stay_id: prestado || loteId === NENHUM ? null : loteId,
+      milk_site_id: prestado || milkSiteId === NENHUM ? null : milkSiteId,
       notes: notes.trim() || null,
       pago,
       due_date: pago || !dueDate ? null : new Date(`${dueDate}T12:00:00.000Z`).toISOString(),
@@ -186,8 +244,12 @@ export default function ServiceJobForm({
   return (
     <FormSheet
       trigger={<Button>+ Novo serviço</Button>}
-      title="Registrar serviço contratado"
-      description="Diária, empreito ou serviço por unidade. O que você contratou de fora."
+      title={prestado ? "Registrar serviço prestado" : "Registrar serviço contratado"}
+      description={
+        prestado
+          ? "O serviço que você fez para outra pessoa com uma máquina sua. Gera conta a receber."
+          : "Diária, empreito ou serviço por unidade. O que você contratou de fora."
+      }
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
@@ -201,6 +263,25 @@ export default function ServiceJobForm({
       focarCampoId={err.focarCampoId}
       tentativa={err.tentativa}
     >
+      <Field
+        label="Quem fez o serviço"
+        required
+        hint="Isto muda o resto do formulário: o serviço prestado gera dinheiro a receber."
+        id="direction"
+      >
+        {({ id, ...aria }) => (
+          <Select value={direction} onValueChange={setDirection}>
+            <SelectTrigger id={id} {...aria}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="contratado">Contratei de fora</SelectItem>
+              <SelectItem value="prestado">Prestei com minha máquina</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+      </Field>
+
       <Field
         label="Serviço"
         required
@@ -222,7 +303,7 @@ export default function ServiceJobForm({
               list={`${id}-sugestoes`}
             />
             <datalist id={`${id}-sugestoes`}>
-              {SERVICOS_SUGERIDOS.map((s) => (
+              {(prestado ? SERVICOS_MECANIZADOS : SERVICOS_SUGERIDOS).map((s) => (
                 <option key={s} value={s} />
               ))}
             </datalist>
@@ -321,7 +402,7 @@ export default function ServiceJobForm({
         </Field>
       )}
 
-      {!fechado && (
+      {!prestado && !fechado && (
         <Field
           label="Quantas pessoas"
           hint="Multiplica o valor, não a quantidade. 3 homens por 4 dias são 12 diárias."
@@ -360,8 +441,13 @@ export default function ServiceJobForm({
       </Field>
 
       <Field
-        label="Quem fez"
-        hint="Opcional. Se o nome for novo, o contato é criado sozinho."
+        label={prestado ? "Para quem" : "Quem fez"}
+        required={prestado}
+        hint={
+          prestado
+            ? "Sem cliente a conta a receber fica sem dono. Nome novo cria o contato sozinho."
+            : "Opcional. Se o nome for novo, o contato é criado sozinho."
+        }
         id={err.idDe("contact_name")}
         error={err.erros.contact_name}
       >
@@ -374,7 +460,7 @@ export default function ServiceJobForm({
               setContactName(e.target.value);
               err.limparCampo("contact_name");
             }}
-            placeholder="Ex: Pedro Cercador"
+            placeholder={prestado ? "Ex: João Vizinho" : "Ex: Pedro Cercador"}
           />
         )}
       </Field>
@@ -403,6 +489,135 @@ export default function ServiceJobForm({
         )}
       </Field>
 
+      {prestado && (
+        <Field
+          label="Máquina"
+          required
+          hint="A que fez o serviço. É ela que ganha o histórico do §32."
+          id={err.idDe("machine_id")}
+          error={err.erros.machine_id}
+        >
+          {({ id, ...aria }) => (
+            <Select
+              value={machineId}
+              onValueChange={(v) => {
+                setMachineId(v);
+                err.limparCampo("machine_id");
+              }}
+            >
+              <SelectTrigger id={id} {...aria}>
+                <SelectValue placeholder="Escolha a máquina" />
+              </SelectTrigger>
+              <SelectContent>
+                {maquinasDaFazenda.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </Field>
+      )}
+
+      {prestado && (
+        <Field
+          label="Implemento"
+          hint="Opcional. Grade, plantadeira, roçadeira: o que estava acoplado."
+          id={err.idDe("implement")}
+          error={err.erros.implement}
+        >
+          {({ id, ...aria }) => (
+            <Input
+              id={id}
+              {...aria}
+              value={implement}
+              onChange={(e) => {
+                setImplement(e.target.value);
+                err.limparCampo("implement");
+              }}
+              placeholder="Ex: Grade aradora"
+            />
+          )}
+        </Field>
+      )}
+
+      {prestado && (
+        <Field
+          label="Local do cliente"
+          hint="Opcional. A fazenda ou o lugar onde o serviço foi feito."
+          id={err.idDe("client_location")}
+          error={err.erros.client_location}
+        >
+          {({ id, ...aria }) => (
+            <Input
+              id={id}
+              {...aria}
+              value={clientLocation}
+              onChange={(e) => {
+                setClientLocation(e.target.value);
+                err.limparCampo("client_location");
+              }}
+              placeholder="Ex: Fazenda do João, Unaí"
+            />
+          )}
+        </Field>
+      )}
+
+      {prestado && operadores.length > 0 && (
+        <Field
+          label="Operador"
+          hint="Opcional. Quem dirigiu, se for alguém da sua equipe."
+          id={err.idDe("operator_worker_id")}
+          error={err.erros.operator_worker_id}
+        >
+          {({ id, ...aria }) => (
+            <Select
+              value={operatorWorkerId}
+              onValueChange={(v) => {
+                setOperatorWorkerId(v);
+                err.limparCampo("operator_worker_id");
+              }}
+            >
+              <SelectTrigger id={id} {...aria}>
+                <SelectValue placeholder="Nenhum" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NENHUM}>Nenhum</SelectItem>
+                {operadores.map((o) => (
+                  <SelectItem key={o.id} value={o.id}>
+                    {o.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </Field>
+      )}
+
+      {prestado && (
+        <Field
+          label="Quem operou, por escrito"
+          hint="Opcional. Para quando quem dirigiu não é trabalhador cadastrado."
+          id={err.idDe("operator_note")}
+          error={err.erros.operator_note}
+        >
+          {({ id, ...aria }) => (
+            <Input
+              id={id}
+              {...aria}
+              value={operatorNote}
+              onChange={(e) => {
+                setOperatorNote(e.target.value);
+                err.limparCampo("operator_note");
+              }}
+              placeholder="Ex: eu mesmo"
+            />
+          )}
+        </Field>
+      )}
+
+      {!prestado && (
       <Field
         label="Pasto"
         hint="Opcional. Onde exatamente o serviço aconteceu."
@@ -431,8 +646,9 @@ export default function ServiceJobForm({
           </Select>
         )}
       </Field>
+      )}
 
-      {lotes.length > 0 && (
+      {!prestado && lotes.length > 0 && (
         <Field
           label="Lote de confinamento"
           hint="Opcional. Amarrar aqui faz o custo entrar na conta do lote."
@@ -463,7 +679,7 @@ export default function ServiceJobForm({
         </Field>
       )}
 
-      {pontosDeLeite.length > 0 && (
+      {!prestado && pontosDeLeite.length > 0 && (
         <Field
           label="Ponto de leite"
           hint="Opcional. Para o serviço ligado à atividade leiteira."
@@ -494,7 +710,7 @@ export default function ServiceJobForm({
         </Field>
       )}
 
-      <Field label="Já pagou?" id="pago">
+      <Field label={prestado ? "Já recebeu?" : "Já pagou?"} id="pago">
         {({ id }) => (
           <label className="flex items-center gap-2 text-sm text-texto" htmlFor={id}>
             <input
@@ -507,7 +723,7 @@ export default function ServiceJobForm({
               }}
               className="size-4 rounded border-borda-campo"
             />
-            Sim, paguei à vista
+            {prestado ? "Sim, recebi à vista" : "Sim, paguei à vista"}
           </label>
         )}
       </Field>

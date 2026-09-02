@@ -66,9 +66,59 @@ export const SERVICOS_SUGERIDOS = [
   "Outros",
 ] as const;
 
-const CATEGORIA = "Serviço terceirizado";
+/**
+ * Os 21 serviços mecanizados do §5 de Máquinas, oferecidos no `prestado`.
+ *
+ * ⚠️ NÃO é a lista do §20 da Mão de Obra (`SERVICOS_SUGERIDOS`, acima). Aquela
+ * tem "serviço veterinário" e "eletricista", que nenhuma máquina faz; esta tem
+ * "subsolagem" e "terraplanagem", que nenhuma diária faz. A tela oferece uma ou
+ * outra conforme a direção, e as duas são só sugestão: `description` continua
+ * texto livre nas duas pontas, porque as duas listas terminam em "Outro".
+ */
+export const SERVICOS_MECANIZADOS = [
+  "Gradagem",
+  "Aração",
+  "Subsolagem",
+  "Nivelamento",
+  "Plantio",
+  "Semeadura",
+  "Roçada",
+  "Pulverização",
+  "Adubação",
+  "Aplicação de calcário",
+  "Distribuição de fertilizante",
+  "Colheita",
+  "Ensilagem",
+  "Corte de forragem",
+  "Transporte",
+  "Limpeza de área",
+  "Abertura de estrada",
+  "Manutenção de estrada",
+  "Escavação",
+  "Terraplanagem",
+  "Outro",
+] as const;
+
+/**
+ * A categoria do lançamento, por direção.
+ *
+ * Era uma constante até a fase 34.1, quando `prestado` chegou: "Serviço
+ * terceirizado" numa RECEITA diria o contrário do que aconteceu, e a categoria
+ * é o que o produtor lê no Financeiro.
+ */
+const categoriaDe = (d: ServiceDirection) =>
+  d === "prestado" ? "Serviço prestado" : "Serviço terceirizado";
+
+/**
+ * O sinal do dinheiro, por direção. O §28 é literal: serviço prestado gera
+ * receita, serviço contratado gera despesa.
+ */
+const sinalDe = (d: ServiceDirection): "income" | "expense" =>
+  d === "prestado" ? "income" : "expense";
 
 export type ServiceJobInput = {
+  /** Padrão `contratado`, que é o que a fase 33.2 entregou. */
+  direction?: ServiceDirection;
   property_id: string;
   occurred_at: Date;
   description: string;
@@ -86,6 +136,14 @@ export type ServiceJobInput = {
   confinement_stay_id?: string | null;
   milk_site_id?: string | null;
   machine_id?: string | null;
+  /** §10: onde o serviço aconteceu, quando foi na fazenda do cliente. */
+  client_location?: string | null;
+  /** §7: grade, arado, plantadeira. Texto livre. */
+  implement?: string | null;
+  /** §8: o operador cadastrado em Mão de Obra. */
+  operator_worker_id?: string | null;
+  /** §8: "próprio produtor", "outro", ou o avulso. */
+  operator_note?: string | null;
   notes?: string | null;
   /** §21 à vista: o lançamento nasce quitado. */
   pago?: boolean;
@@ -107,6 +165,20 @@ export type ServiceJobView = {
   total: number;
   pago: number;
   restante: number;
+  /**
+   * Apelidos de `pago` e `restante`, para a tela do prestado não dizer "pago"
+   * quando o dinheiro ENTROU. É a mesma soma, derivada uma vez só: o que muda
+   * é de quem é o dinheiro, não a conta.
+   */
+  recebido: number;
+  a_receber: number;
+  machine_id: string | null;
+  machine_name: string | null;
+  client_location: string | null;
+  implement: string | null;
+  operator_worker_id: string | null;
+  operator_name: string | null;
+  operator_note: string | null;
   contact_id: string | null;
   contact_name: string | null;
   worker_id: string | null;
@@ -141,6 +213,8 @@ type LinhaDeServico = Prisma.ServiceJobGetPayload<{
     logs: true;
     contact: { select: { name: true } };
     worker: { select: { name: true } };
+    machine: { select: { name: true } };
+    operator: { select: { name: true } };
   };
 }>;
 
@@ -173,6 +247,9 @@ function serializar(job: LinhaDeServico, entries: LinhaDeLancamento[]): ServiceJ
       .filter((e) => e.status === status)
       .reduce((s, e) => s + (decToNum(e.amount) ?? 0), 0);
 
+  const pago = soma("paid");
+  const restante = soma("pending") + soma("overdue");
+
   return {
     id: job.id,
     direction: job.direction,
@@ -185,8 +262,18 @@ function serializar(job: LinhaDeServico, entries: LinhaDeLancamento[]): ServiceJ
     worker_count: job.worker_count,
     quantidade: quantidadeTrabalhada(logs),
     total,
-    pago: soma("paid"),
-    restante: soma("pending") + soma("overdue"),
+    pago,
+    restante,
+    // Os mesmos dois números, com o nome que a tela do prestado usa.
+    recebido: pago,
+    a_receber: restante,
+    machine_id: job.machine_id,
+    machine_name: job.machine?.name ?? null,
+    client_location: job.client_location,
+    implement: job.implement,
+    operator_worker_id: job.operator_worker_id,
+    operator_name: job.operator?.name ?? null,
+    operator_note: job.operator_note,
     contact_id: job.contact_id,
     contact_name: job.contact?.name ?? null,
     worker_id: job.worker_id,
@@ -204,6 +291,8 @@ const INCLUDE = {
   logs: true,
   contact: { select: { name: true } },
   worker: { select: { name: true } },
+  machine: { select: { name: true } },
+  operator: { select: { name: true } },
 } as const;
 
 /**
@@ -217,10 +306,38 @@ function validar(input: ServiceJobInput): ActionResult<null> {
     return fail("VALIDATION_ERROR", "Informe qual serviço foi feito.", 422, "description");
   }
 
-  if (input.machine_id) {
+  const direction = input.direction ?? "contratado";
+
+  if (direction === "prestado") {
+    // §17: a máquina é obrigatória no serviço prestado, e o §32 depende dela
+    // para o histórico ("Trator Massey: 12 horas de gradagem").
+    if (!input.machine_id) {
+      return fail("VALIDATION_ERROR", "Escolha a máquina que fez o serviço.", 422, "machine_id");
+    }
+    /**
+     * §17 lista o CLIENTE como obrigatório no prestado, e faz sentido: sem ele
+     * não há a quem cobrar, e a conta a receber ficaria sem dono.
+     *
+     * ⚠️ No `contratado` ele continua OPCIONAL, e a mesma coluna com duas
+     * exigências é deliberado: o §14 da Mão de Obra descreve "vieram 3 homens
+     * trabalhar na cerca" sem nome nenhum, e exigir nos dois quebraria o caso
+     * mais comum da fase anterior.
+     */
+    if (!input.contact_id && !(input.contact_name ?? "").trim()) {
+      return fail(
+        "VALIDATION_ERROR",
+        "Informe para quem o serviço foi feito.",
+        422,
+        "contact_name",
+      );
+    }
+  } else if (input.machine_id) {
+    // A decisão 10 continua valendo para o contratado: manutenção de máquina é
+    // `MachineMaintenance`, e a máquina de um terceiro nem está na tabela
+    // `Machine` deste produtor, então não poderia ser FK.
     return fail(
       "VALIDATION_ERROR",
-      "Manutenção e serviço com máquina são registrados em Máquinas, na ficha da própria máquina, onde já existe custo e histórico.",
+      "Manutenção e serviço com máquina de terceiro são registrados em Máquinas, na ficha da própria máquina, onde já existe custo e histórico.",
       422,
       "machine_id",
     );
@@ -312,8 +429,21 @@ export async function createServiceJob(
   const recusa = validar(input);
   if (!recusa.ok) return recusa;
 
+  const direction = input.direction ?? "contratado";
+
   const property = await db.property.findUnique({ where: { id: input.property_id } });
   if (!property) return fail("NOT_FOUND", "Fazenda não encontrada.", 404, "property_id");
+
+  if (input.machine_id) {
+    const machine = await db.machine.findUnique({ where: { id: input.machine_id } });
+    if (!machine) return fail("NOT_FOUND", "Máquina não encontrada.", 404, "machine_id");
+  }
+  if (input.operator_worker_id) {
+    const operador = await db.worker.findUnique({ where: { id: input.operator_worker_id } });
+    if (!operador) {
+      return fail("NOT_FOUND", "Operador não encontrado.", 404, "operator_worker_id");
+    }
+  }
 
   const fechado = input.pricing === "fechado";
   const quantidade = fechado ? null : (input.quantity ?? null);
@@ -333,8 +463,19 @@ export async function createServiceJob(
     const job = await tx.serviceJob.create({
       data: scoped({
         property_id: input.property_id,
-        direction: "contratado" as ServiceDirection,
-        status: "concluido" as ServiceJobStatus,
+        direction,
+        /**
+         * O status vem da DATA.
+         *
+         * Até a fase 33.2 tudo nascia `concluido`, e estava certo quando só
+         * existia o `contratado`, que se registra depois do fato. No
+         * `prestado` o produtor MARCA antes ("amanhã vou gradear pro João"), e
+         * é isso que a agenda do §39 lista. A regra vale para as duas direções:
+         * um serviço contratado para a semana que vem também está agendado.
+         */
+        status: (input.occurred_at.getTime() > Date.now()
+          ? "agendado"
+          : "concluido") as ServiceJobStatus,
         occurred_at: input.occurred_at,
         description: input.description.trim(),
         pricing: input.pricing,
@@ -346,6 +487,11 @@ export async function createServiceJob(
         pasture_id: input.pasture_id ?? null,
         confinement_stay_id: input.confinement_stay_id ?? null,
         milk_site_id: input.milk_site_id ?? null,
+        machine_id: input.machine_id ?? null,
+        client_location: input.client_location?.trim() || null,
+        implement: input.implement?.trim() || null,
+        operator_worker_id: input.operator_worker_id ?? null,
+        operator_note: input.operator_note?.trim() || null,
         notes: input.notes?.trim() || null,
       }),
     });
@@ -372,8 +518,8 @@ export async function createServiceJob(
 
     if (total > 0) {
       await createLinkedEntry(tx as never, {
-        entry_type: "expense",
-        category: CATEGORIA,
+        entry_type: sinalDe(direction),
+        category: categoriaDe(direction),
         amount: total,
         related_module: "servico",
         related_id: job.id,
@@ -480,8 +626,16 @@ export async function recordServiceJobPayment(
 
   await runSerializableTenantTransaction(db, async (tx) => {
     await createLinkedEntry(tx as never, {
-      entry_type: "expense",
-      category: CATEGORIA,
+      /**
+       * ⚠️ A direção é LIDA DO JOB, nunca recebida por parâmetro.
+       *
+       * Se o chamador pudesse informá-la, um erro dele trocaria o sinal do
+       * dinheiro: o serviço mostraria "recebido R$ 3.000" na tela E o DRE
+       * registraria uma DESPESA de R$ 3.000. O saldo bateria, e só o
+       * demonstrativo estaria errado, que é onde ninguém olha até o fim do ano.
+       */
+      entry_type: sinalDe(job.direction),
+      category: categoriaDe(job.direction),
       amount: input.amount,
       related_module: "servico",
       related_id: job.id,

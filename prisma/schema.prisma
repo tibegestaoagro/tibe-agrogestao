@@ -2311,6 +2311,11 @@ model Worker {
   service_jobs ServiceJob[]
   logs         WorkerLog[]
 
+  /// Fase 34.1: os serviços que ele OPEROU (§8), que são outra coisa de
+  /// `service_jobs`. Um tratorista pode operar a máquina num serviço prestado
+  /// ao vizinho sem ser a contraparte dele: a contraparte ali é o cliente.
+  service_jobs_operated ServiceJob[] @relation("ServiceJobOperator")
+
   @@index([tenant_id])
   /// A listagem principal (§38, "Minha equipe") filtra por situação.
   @@index([tenant_id, status])
@@ -2404,11 +2409,42 @@ model ServiceJob {
   confinement_stay_id String?
   milk_site_id        String?
 
-  /// §29 de Máquinas. Nulo em toda a fase 33.2: só a 34.1 preenche.
-  /// ⚠️ Manutenção de máquina NÃO entra aqui: é `MachineMaintenance`, que já
-  /// tem data, descrição e custo, e já gera lançamento financeiro. Dois
-  /// lugares para a mesma coisa é o que a decisão 3 da spec evita.
+  /// A máquina que fez o serviço. OBRIGATÓRIA no `prestado` (§17), e o §32
+  /// depende dela para o histórico. RECUSADA no `contratado`: a máquina de um
+  /// terceiro nem está nesta tabela, e manutenção de máquina é
+  /// `MachineMaintenance`, que já tem data, descrição e custo, e já gera
+  /// lançamento (decisão 10 da spec).
   machine_id String?
+
+  /// §10: ONDE o serviço aconteceu, quando foi fora daqui.
+  ///
+  /// `property_id` continua obrigatório e significa DE QUAL FAZENDA A MÁQUINA
+  /// SAIU, que é informação real e útil. Este campo guarda o nome da fazenda e
+  /// o município do cliente, que o §10 lista como opcionais.
+  ///
+  /// ⚠️ NÃO é uma `Property`: cadastrar a fazenda do vizinho poluiria Minha
+  /// Fazenda e ofereceria ao rebanho, ao confinamento e ao leite um destino que
+  /// não existe. E `property_id` não virou anulável de propósito: a coluna
+  /// ficaria anulável para TODOS os serviços, e o filtro por fazenda ganharia
+  /// um caso que ninguém lembra de tratar. Ver a decisão 13 da spec.
+  client_location String?
+
+  /// §7 de Máquinas: grade, arado, plantadeira. Texto livre e opcional, porque
+  /// o documento diz "o preenchimento será opcional" e a lista termina em
+  /// "Outro". Implemento não é modelo próprio: ele não tem histórico, custo nem
+  /// manutenção separada da máquina que o puxa.
+  implement String?
+
+  /// §8: quem operou a máquina.
+  ///
+  /// A FK cobre funcionário fixo e diarista, que é o "reutilizar o mesmo
+  /// cadastro" que o §8 pede em letra e o §36 repete. O texto cobre "próprio
+  /// produtor", "outro" e o avulso. Três colunas (worker, contact e texto)
+  /// foram descartadas: toda leitura checaria as três na ordem certa, e o
+  /// prestador que OPERA a máquina é caso raro, porque normalmente ele é o dono
+  /// do serviço. Ver a decisão 14 da spec.
+  operator_worker_id String?
+  operator_note      String?
 
   notes String?
 
@@ -2427,6 +2463,7 @@ model ServiceJob {
   confinement_stay HerdStay?       @relation(fields: [confinement_stay_id], references: [id], onDelete: SetNull)
   milk_site        MilkSite?       @relation(fields: [milk_site_id], references: [id], onDelete: SetNull)
   machine          Machine?        @relation(fields: [machine_id], references: [id], onDelete: SetNull)
+  operator         Worker?         @relation("ServiceJobOperator", fields: [operator_worker_id], references: [id], onDelete: SetNull)
   recorded_by      User?           @relation("ServiceJobRecordedBy", fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
   canceled_by      User?           @relation("ServiceJobCanceledBy", fields: [canceled_by_user_id], references: [id], onDelete: SetNull)
   logs             ServiceJobLog[]
@@ -2438,6 +2475,9 @@ model ServiceJob {
   @@index([confinement_stay_id])
   @@index([contact_id])
   @@index([worker_id])
+  /// O histórico da máquina (§32) e o operador (§8) são consultados por aqui.
+  @@index([machine_id])
+  @@index([operator_worker_id])
 }
 
 /// A quantidade trabalhada, que é SEMPRE soma.

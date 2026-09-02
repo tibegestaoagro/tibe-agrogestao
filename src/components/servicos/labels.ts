@@ -1,4 +1,5 @@
 import type {
+  ServiceDirection,
   ServiceJobStatus,
   ServicePricing,
   WorkerLogKind,
@@ -38,6 +39,18 @@ export const PRICING_UNIDADE: Record<ServicePricing, string> = {
   fechado: "",
 };
 
+/**
+ * A direção, do ponto de vista do produtor que lê a tela.
+ *
+ * "Contratei" e "Prestei", não "contratado" e "prestado": na ficha de um
+ * contato as duas linhas aparecem lado a lado, e o particípio sozinho não diz
+ * de quem foi a máquina. O verbo diz.
+ */
+export const SERVICE_DIRECTION_LABELS: Record<ServiceDirection, string> = {
+  contratado: "Contratei",
+  prestado: "Prestei",
+};
+
 export const SERVICE_STATUS_LABELS: Record<ServiceJobStatus, string> = {
   agendado: "Agendado",
   em_andamento: "Em andamento",
@@ -74,6 +87,44 @@ export const SERVICOS_SUGERIDOS = [
   "Eletricista",
   "Limpeza",
   "Outros",
+];
+
+/**
+ * Os 21 serviços mecanizados do §5 do documento de Máquinas, sugeridos quando
+ * a direção é `prestado`.
+ *
+ * Lista PRÓPRIA, e não a de cima: "Reforma de cerca" e "Serviço veterinário"
+ * não se fazem com trator, e "Terraplanagem" e "Ensilagem" não estão entre os
+ * 19 do §20. Oferecer a lista errada faria o produtor digitar tudo à mão
+ * justamente na tela nova.
+ *
+ * ⚠️ Cópia deliberada do `SERVICOS_MECANIZADOS` de `actions/service-jobs.ts`:
+ * aquele arquivo importa o Prisma, e importá-lo daqui arrastaria o client do
+ * banco para dentro do bundle do navegador. É o mesmo motivo de
+ * `SERVICOS_SUGERIDOS` já viver duplicado aqui.
+ */
+export const SERVICOS_MECANIZADOS = [
+  "Gradagem",
+  "Aração",
+  "Subsolagem",
+  "Nivelamento",
+  "Plantio",
+  "Semeadura",
+  "Roçada",
+  "Pulverização",
+  "Adubação",
+  "Aplicação de calcário",
+  "Distribuição de fertilizante",
+  "Colheita",
+  "Ensilagem",
+  "Corte de forragem",
+  "Transporte",
+  "Limpeza de área",
+  "Abertura de estrada",
+  "Manutenção de estrada",
+  "Escavação",
+  "Terraplanagem",
+  "Outro",
 ];
 
 export const moeda = (v: number) =>

@@ -12,6 +12,9 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import MaintenanceForm from "@/components/maquinas/maintenance-form";
+import { getMachineServices } from "@/lib/actions/machine-services";
+import { PRICING_UNIDADE } from "@/components/servicos/labels";
+import type { ServicePricing } from "@/generated/prisma/client";
 import { decToNum } from "@/lib/serialize";
 
 const STATUS: Record<string, { label: string; variant: "green" | "amber" | "gray" | "red" }> = {
@@ -52,6 +55,9 @@ export default async function MachineDetail(props: { params: Promise<{ id: strin
   });
   if (!machine) notFound();
 
+  // O §32 do documento de Máquinas: o que esta máquina já fez para os outros.
+  const servicos = await getMachineServices(db, machine.id);
+
   const st = STATUS[machine.status] ?? { label: machine.status, variant: "gray" as const };
   const acquisitionCost = decToNum(machine.acquisition_cost);
   const hourMeter = decToNum(machine.hour_meter);
@@ -85,6 +91,69 @@ export default async function MachineDetail(props: { params: Promise<{ id: strin
           label="Próxima manutenção"
           value={machine.next_maintenance_at ? machine.next_maintenance_at.toLocaleDateString("pt-BR") : "sem previsão"}
         />
+      </div>
+
+      <div className="rounded-lg border border-borda bg-superficie">
+        <h2 className="border-b px-5 py-3 text-sm font-medium text-texto-secundario">
+          Serviços prestados com esta máquina
+        </h2>
+        {servicos.servicos === 0 ? (
+          <p className="px-5 py-4 text-sm text-texto-discreto">
+            Nenhum serviço prestado com ela ainda. Quando você registrar um serviço em Serviços
+            escolhendo &quot;Prestei com minha máquina&quot;, ele aparece aqui.
+          </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-4 px-5 py-4 sm:grid-cols-3">
+              <Stat label="Serviços" value={String(servicos.servicos)} />
+              <Stat label="Faturado" value={brl(servicos.faturado)} />
+              {/*
+                Uma linha POR UNIDADE, e nunca um total só: 12 horas mais 25
+                hectares não são 37 de coisa nenhuma.
+              */}
+              <Stat
+                label="Trabalhado"
+                value={
+                  Object.entries(servicos.quantidade_por_unidade)
+                    .map(([unidade, qtd]) => `${qtd} ${PRICING_UNIDADE[unidade as ServicePricing]}`)
+                    .join(" · ") || "não informado"
+                }
+              />
+            </div>
+            <div className="p-2">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Serviço</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Quantidade</TableHead>
+                    <TableHead>Valor</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {servicos.linhas.map((l) => (
+                    <TableRow key={l.id}>
+                      <TableCell>{new Date(l.occurred_at).toLocaleDateString("pt-BR")}</TableCell>
+                      <TableCell>
+                        <Link href={`/servicos/${l.id}`} className="underline">
+                          {l.description}
+                        </Link>
+                      </TableCell>
+                      <TableCell>{l.contact_name ?? "não informado"}</TableCell>
+                      <TableCell>
+                        {l.pricing === "fechado"
+                          ? "empreito"
+                          : `${l.quantidade} ${PRICING_UNIDADE[l.pricing]}`}
+                      </TableCell>
+                      <TableCell>{brl(l.total)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="rounded-lg border border-borda bg-superficie">

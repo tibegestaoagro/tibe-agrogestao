@@ -279,10 +279,24 @@ despesa, e um tenant raramente tem os dois perfis).
 lançado pelo painel aparece como
 `02/09/2026 | Despesa | Serviço terceirizado | Prestador | R$ 500,00 | Pago`.
 
+⚠️ **A fase 34.1 PIOROU esta dívida**, e é preciso registrar isso: agora existe
+RECEITA sob o mesmo rótulo. Na mesma tela, no mesmo dia:
+
+```
+02/09/2026 | Receita | Serviço prestado     | Prestador | R$ 360.000,00 | Pendente
+02/09/2026 | Despesa | Serviço terceirizado | Prestador | R$ 500,00     | Pago
+```
+
+Ou seja, "Prestador" passou a nomear três coisas diferentes: o item de menu, a
+despesa de quem a fazenda contratou, e a receita do que a fazenda prestou.
+
 **Por que importa:** "Prestador" também é um item do menu lateral, e ele é
 **outra coisa**: o perfil prestador, do Módulo 2, que um tenant de fazenda nem
 usa. O produtor que contrata um pedreiro e vê a despesa marcada como
-"Prestador" pode procurá-la na área errada.
+"Prestador" pode procurá-la na área errada. Com a receita do 34.1 no mesmo
+rótulo, ele também não consegue separar o que entrou do que saiu olhando a
+coluna do módulo: só a coluna de categoria distingue, e ela é a segunda que se
+lê.
 
 **Custo de fechar:** trocar o rótulo de `servico` para "Serviço", que serve às
 duas origens e para de colidir com o nome do menu. É uma linha, mas muda o que

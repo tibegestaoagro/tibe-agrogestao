@@ -9,7 +9,9 @@ origem: docs/agents/current-handoff.md
 
 ## O que aconteceu
 
-Seis defeitos graves, todos achados em uso real e nenhum em suíte:
+Os defeitos graves deste projeto, todos achados em uso real e nenhum em suíte.
+A lista CRESCE: ela nasceu com seis linhas em 31/08 e ganhou a sétima em 02/09,
+na rodada seguinte.
 
 | defeito | como apareceu |
 |---|---|
@@ -19,6 +21,7 @@ Seis defeitos graves, todos achados em uso real e nenhum em suíte:
 | "não, deixa pra lá" gravava a compra recusada | o classificador do n8n não remonta os parâmetros literalmente |
 | 71 rotas devolviam a recusa do Zod em inglês | ver [[zod-em-ingles-nas-71-rotas]] |
 | pílula invisível | ver [[pilula-invisivel-o-portao-compara-token-nao-uso]] |
+| `Decimal` do Prisma passado a Client Component (02/09) | ver [[decimal-do-prisma-so-quebra-no-console-do-navegador]] |
 
 ## Por que importa
 

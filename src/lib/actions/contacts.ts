@@ -2,6 +2,8 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import type { ContactType, Prisma } from "@/generated/prisma/client";
 import { delegates } from "@/lib/prisma-delegates";
+import { totalDoServico } from "@/lib/mao-de-obra/total-do-servico";
+import { decToNum } from "@/lib/serialize";
 
 /**
  * O mínimo que esta action precisa do client. Aceita tanto o client escopado
@@ -110,6 +112,22 @@ export async function listContacts(
 export type ContactDetailView = ContactView & {
   archived: boolean;
   negotiations: { id: string; type: string; occurred_at: string; amount: number | null }[];
+  /**
+   * Os serviços do §37 do documento de Máquinas: "o que já fiz com o João"
+   * passa a ter uma resposta só.
+   *
+   * As DUAS direções na mesma lista, porque a ficha é sobre a PESSOA. O mesmo
+   * vizinho pode ter roçado o pasto da fazenda num mês e contratado a
+   * colheitadeira no outro, e separar isso em duas listas obrigaria o produtor
+   * a lembrar de qual lado o dinheiro correu para achar o serviço.
+   */
+  services: {
+    id: string;
+    occurred_at: string;
+    description: string;
+    direction: string;
+    total: number;
+  }[];
 };
 
 export async function createContact(
@@ -184,11 +202,16 @@ export async function setContactArchived(
 }
 
 /**
- * O contato mais o histórico dele: por ora, as negociações não canceladas.
+ * O contato mais o histórico dele: as negociações e os serviços, os dois sem os
+ * cancelados.
  *
- * As canceladas ficam de fora porque o §17.10 do Módulo 31 mantém a linha no
- * histórico DA NEGOCIAÇÃO, que é onde o cancelamento é legível. Aqui elas só
+ * Os cancelados ficam de fora porque o §17.10 do Módulo 31 mantém a linha no
+ * histórico DA NEGOCIAÇÃO, que é onde o cancelamento é legível. Aqui eles só
  * inflariam a conta de "quanto já negociei com o João" com negócios desfeitos.
+ *
+ * ⚠️ As duas listas são independentes, e cada uma pode vir vazia. O contato mais
+ * comum dos Módulos 33 e 34 é o pedreiro, que tem serviço e NENHUMA negociação:
+ * uma tela que assuma negócio para mostrar a ficha perde justamente ele.
  */
 export async function getContactDetail(
   db: TenantPrismaClient,
@@ -203,6 +226,12 @@ export async function getContactDetail(
         take: 50,
         select: { id: true, type: true, occurred_at: true, amount: true },
       },
+      service_jobs: {
+        where: { canceled_at: null },
+        orderBy: { occurred_at: "desc" },
+        take: 50,
+        include: { logs: true },
+      },
     },
   });
   if (!contato) return fail("NOT_FOUND", "Contato não encontrado.", 404);
@@ -215,6 +244,23 @@ export async function getContactDetail(
       type: n.type,
       occurred_at: n.occurred_at.toISOString(),
       amount: n.amount === null ? null : Number(n.amount),
+    })),
+    services: contato.service_jobs.map((s) => ({
+      id: s.id,
+      occurred_at: s.occurred_at.toISOString(),
+      description: s.description,
+      direction: s.direction,
+      // O total é DERIVADO aqui pela mesma função da listagem de serviços, e
+      // não relido do banco: o `ServiceJob` não guarda total nenhum.
+      total: totalDoServico(
+        {
+          pricing: s.pricing,
+          unit_price: decToNum(s.unit_price),
+          agreed_amount: decToNum(s.agreed_amount),
+          worker_count: s.worker_count,
+        },
+        s.logs.map((l) => ({ quantity: decToNum(l.quantity) ?? 0, canceled_at: l.canceled_at })),
+      ),
     })),
   });
 }

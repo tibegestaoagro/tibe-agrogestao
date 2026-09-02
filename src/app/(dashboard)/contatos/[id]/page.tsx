@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import type { ContactType } from "@/generated/prisma/client";
+import type { ContactType, ServiceDirection } from "@/generated/prisma/client";
 import { getSessionUser, getActiveProfiles, getTenantDb } from "@/lib/tenant-context";
 import { canWrite } from "@/lib/permissions";
 import {
@@ -20,14 +20,18 @@ import {
   CONTACT_TYPE_LABELS,
   NEGOTIATION_TYPE_LABELS,
 } from "@/components/contatos/contact-labels";
+import { SERVICE_DIRECTION_LABELS } from "@/components/servicos/labels";
 
 /**
- * O contato e o histórico dele.
+ * O contato e o histórico dele: os negócios e os serviços.
  *
- * O histórico é só de Negociações porque é o único vínculo que existe hoje. As
- * fases 33.2 e 34 acrescentam os serviços contratados e prestados, e é aqui que
- * eles entram: o §37 do Módulo 33 pede "serviços realizados, valores,
- * pagamentos, fazendas atendidas" na ficha do prestador.
+ * Os serviços entraram na fase 34.1, e são o §37 atendido ("o que já fiz com o
+ * João" tem uma resposta só). As DUAS direções na mesma lista, porque a ficha é
+ * sobre a pessoa: o mesmo vizinho pode ter contratado a colheitadeira num mês e
+ * roçado o pasto da fazenda no outro.
+ *
+ * ⚠️ As duas seções são independentes. Um pedreiro tem serviço e nenhum
+ * negócio, e é o contato mais comum dos Módulos 33 e 34.
  */
 
 const moeda = (v: number) =>
@@ -51,6 +55,7 @@ export default async function ContatoPage({ params }: { params: Promise<{ id: st
 
   const contato = res.data;
   const total = contato.negotiations.reduce((soma, n) => soma + (n.amount ?? 0), 0);
+  const totalDeServicos = contato.services.reduce((soma, s) => soma + s.total, 0);
 
   return (
     <div className="space-y-6">
@@ -159,6 +164,55 @@ export default async function ContatoPage({ params }: { params: Promise<{ id: st
           Negócios cancelados não aparecem aqui: eles continuam no histórico da própria
           negociação, onde o cancelamento é legível.
         </p>
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-sm font-semibold text-texto">Serviços</h2>
+          {contato.services.length > 0 && (
+            <p className="text-sm text-texto-secundario">
+              {contato.services.length}{" "}
+              {contato.services.length === 1 ? "serviço" : "serviços"}, somando{" "}
+              <span className="font-medium text-texto">{moeda(totalDeServicos)}</span>
+            </p>
+          )}
+        </div>
+
+        {contato.services.length === 0 ? (
+          <EmptyState titulo="Nenhum serviço com este contato" compacto>
+            Serviços que você contratar desta pessoa, ou prestar para ela com uma máquina
+            sua, aparecem aqui.
+          </EmptyState>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Data</TableHead>
+                <TableHead>Serviço</TableHead>
+                <TableHead>Direção</TableHead>
+                <TableHead>Valor</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {contato.services.map((s) => (
+                <TableRow key={s.id}>
+                  <TableCell>{dataCurta(s.occurred_at)}</TableCell>
+                  <TableCell>
+                    <Link href={`/servicos/${s.id}`} className="underline">
+                      {s.description}
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={s.direction === "prestado" ? "green" : "gray"}>
+                      {SERVICE_DIRECTION_LABELS[s.direction as ServiceDirection] ?? s.direction}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{moeda(s.total)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </section>
     </div>
   );

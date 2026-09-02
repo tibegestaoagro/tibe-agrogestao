@@ -86,6 +86,10 @@ export const INTENTS = [
   // esperando o classificador ser atualizado.
   "registrar_diaria",
   "registrar_servico_contratado",
+  // §42 do documento de Máquinas: o serviço PRESTADO com máquina própria, que
+  // gera RECEITA. Mesmo estado das de cima: roteada e testada, esperando o
+  // classificador ser atualizado.
+  "registrar_servico_prestado",
   "consultar_cliente",
   "gerar_relatorio",
   "registrar_lancamento_financeiro",
@@ -178,6 +182,7 @@ export const INTENT_ACCESS: Record<
   // 2.500 por mês".
   registrar_diaria: { module: "servicos", action: "write", profile: "fazenda" },
   registrar_servico_contratado: { module: "servicos", action: "write", profile: "fazenda" },
+  registrar_servico_prestado: { module: "servicos", action: "write", profile: "fazenda" },
   consultar_cliente: { module: "prestador", action: "read", profile: "prestador" },
   gerar_relatorio: { module: null, action: "read" }, // módulo varia por parameters.tipo
   registrar_lancamento_financeiro: { module: "financeiro", action: "write" },
