@@ -1,5 +1,5 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
-import { ok, type ActionResult } from "@/lib/actions/types";
+import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import type { ContactType, Prisma } from "@/generated/prisma/client";
 import { delegates } from "@/lib/prisma-delegates";
 
@@ -31,18 +31,38 @@ export type ContactClient = Pick<TenantPrismaClient, "contact"> | Prisma.Transac
  * compartilhavam a regra: era exatamente a divergência que ele dizia evitar.
  */
 
-export const CONTACT_TYPES = [
-  "particular",
-  "fazendeiro",
-  "comerciante_gado",
-  "frigorifico",
-  "leilao",
-  "feira_evento",
-  "cooperativa",
-  "loja_fornecedor",
-  "prestador_servico",
-  "outro",
-] as const satisfies readonly ContactType[];
+/**
+ * Os tipos oferecidos na API e na tela.
+ *
+ * ⚠️ Precisa cobrir o enum INTEIRO. Até 02/09 esta lista tinha 10 dos 13
+ * valores: `laticinio`, `queijaria` e `mercado` entraram no schema pelo §24 do
+ * Módulo 32 e nunca chegaram aqui, então `POST /api/v1/contacts` recusava um
+ * contato de laticínio e `GET ?type=laticinio` ignorava o filtro em silêncio.
+ *
+ * `satisfies readonly ContactType[]`, que era como isto estava escrito, NÃO
+ * pega essa falta: ele confere que cada valor listado é válido, nunca que a
+ * lista é completa. O `Record` abaixo pega, porque um valor novo no enum quebra
+ * a compilação até ser listado aqui.
+ *
+ * A ORDEM é a do enum, e é a que a tela usa nos seletores.
+ */
+const TIPOS_COMPLETOS: Record<ContactType, true> = {
+  particular: true,
+  fazendeiro: true,
+  comerciante_gado: true,
+  frigorifico: true,
+  leilao: true,
+  feira_evento: true,
+  cooperativa: true,
+  loja_fornecedor: true,
+  prestador_servico: true,
+  laticinio: true,
+  queijaria: true,
+  mercado: true,
+  outro: true,
+};
+
+export const CONTACT_TYPES = Object.keys(TIPOS_COMPLETOS) as readonly ContactType[];
 
 export type ContactInput = {
   name: string;
@@ -87,6 +107,11 @@ export async function listContacts(
   return contatos.map(serializar);
 }
 
+export type ContactDetailView = ContactView & {
+  archived: boolean;
+  negotiations: { id: string; type: string; occurred_at: string; amount: number | null }[];
+};
+
 export async function createContact(
   db: TenantPrismaClient,
   input: ContactInput,
@@ -101,6 +126,97 @@ export async function createContact(
     }),
   });
   return ok(serializar(contato));
+}
+
+/**
+ * Edita um contato. Só os campos do §5: nada de documento, endereço nem dado
+ * bancário, que o Módulo 31 já decidiu deixar fora.
+ *
+ * Existe desde a fase 0 dos Módulos 33 e 34. Até 02/09 o contato criado pela
+ * conversa (`findOrCreateContact`, que grava só o nome dito no WhatsApp) não
+ * tinha como ganhar telefone, tipo nem município depois: nenhuma tela e nenhuma
+ * rota escreviam num contato existente.
+ */
+export async function updateContact(
+  db: TenantPrismaClient,
+  id: string,
+  input: ContactInput,
+): Promise<ActionResult<ContactView>> {
+  const nome = (input.name ?? "").trim();
+  if (!nome) return fail("VALIDATION_ERROR", "Informe o nome do contato.", 422, "name");
+
+  const atual = await db.contact.findUnique({ where: { id } });
+  if (!atual) return fail("NOT_FOUND", "Contato não encontrado.", 404);
+
+  const contato = await db.contact.update({
+    where: { id },
+    data: {
+      name: nome,
+      type: input.type ?? null,
+      phone: input.phone ?? null,
+      city: input.city ?? null,
+      notes: input.notes ?? null,
+    },
+  });
+  return ok(serializar(contato));
+}
+
+/**
+ * Arquiva ou desarquiva.
+ *
+ * Desativar, nunca apagar, como em Property e Pasture. Apagar levaria junto o
+ * nome de quem está numa negociação antiga: `Negotiation.contact_id` é
+ * `onDelete: SetNull`, então o histórico ficaria anônimo sem nenhum aviso.
+ */
+export async function setContactArchived(
+  db: TenantPrismaClient,
+  id: string,
+  arquivado: boolean,
+): Promise<ActionResult<ContactView>> {
+  const atual = await db.contact.findUnique({ where: { id } });
+  if (!atual) return fail("NOT_FOUND", "Contato não encontrado.", 404);
+
+  const contato = await db.contact.update({
+    where: { id },
+    data: { archived_at: arquivado ? new Date() : null },
+  });
+  return ok(serializar(contato));
+}
+
+/**
+ * O contato mais o histórico dele: por ora, as negociações não canceladas.
+ *
+ * As canceladas ficam de fora porque o §17.10 do Módulo 31 mantém a linha no
+ * histórico DA NEGOCIAÇÃO, que é onde o cancelamento é legível. Aqui elas só
+ * inflariam a conta de "quanto já negociei com o João" com negócios desfeitos.
+ */
+export async function getContactDetail(
+  db: TenantPrismaClient,
+  id: string,
+): Promise<ActionResult<ContactDetailView>> {
+  const contato = await db.contact.findUnique({
+    where: { id },
+    include: {
+      negotiations: {
+        where: { canceled_at: null },
+        orderBy: { occurred_at: "desc" },
+        take: 50,
+        select: { id: true, type: true, occurred_at: true, amount: true },
+      },
+    },
+  });
+  if (!contato) return fail("NOT_FOUND", "Contato não encontrado.", 404);
+
+  return ok({
+    ...serializar(contato),
+    archived: contato.archived_at !== null,
+    negotiations: contato.negotiations.map((n) => ({
+      id: n.id,
+      type: n.type,
+      occurred_at: n.occurred_at.toISOString(),
+      amount: n.amount === null ? null : Number(n.amount),
+    })),
+  });
 }
 
 /**
