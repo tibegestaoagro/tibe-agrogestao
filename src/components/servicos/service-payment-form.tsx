@@ -27,10 +27,17 @@ export default function ServicePaymentForm({
   serviceJobId,
   descricao,
   restante,
+  prestado = false,
 }: {
   serviceJobId: string;
   descricao: string;
   restante: number;
+  /**
+   * Só troca as PALAVRAS. O sinal do lançamento é decidido no servidor, a
+   * partir da direção do próprio serviço: se viesse daqui, um `prestado`
+   * aberto pela tela errada geraria despesa com o rótulo de recebimento.
+   */
+  prestado?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -84,9 +91,11 @@ export default function ServicePaymentForm({
 
   return (
     <FormSheet
-      trigger={<Button>Registrar pagamento</Button>}
-      title={`Pagamento de ${descricao}`}
-      description={`Faltam ${moeda(restante)}. Você pode pagar tudo ou uma parte.`}
+      trigger={<Button>{prestado ? "Registrar recebimento" : "Registrar pagamento"}</Button>}
+      title={`${prestado ? "Recebimento" : "Pagamento"} de ${descricao}`}
+      description={`Faltam ${moeda(restante)}. Você pode ${
+        prestado ? "receber" : "pagar"
+      } tudo ou uma parte.`}
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
@@ -101,7 +110,7 @@ export default function ServicePaymentForm({
       tentativa={err.tentativa}
     >
       <Field
-        label="Valor pago"
+        label={prestado ? "Valor recebido" : "Valor pago"}
         required
         hint={`No máximo ${moeda(restante)}.`}
         id={err.idDe("amount")}
