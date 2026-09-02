@@ -363,6 +363,34 @@ export const GROUPS: Group[] = [
       },
       {
         method: "GET",
+        path: "/api/v1/contacts/:id",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description:
+          "O contato mais o histórico dele: as negociações NÃO canceladas, da mais recente para a mais antiga (máx. 50). As canceladas ficam de fora porque o §17.10 mantém a linha no histórico da própria negociação, e aqui elas só inflariam a conta de quanto já se negociou com aquela pessoa.",
+        response: `200
+{ "data": { "id": "cl...", "name": "João da Ponte", "type": "fazendeiro", "archived": false, "negotiations": [{ "id": "cl...", "type": "venda_gado", "occurred_at": "2026-08-01T00:00:00.000Z", "amount": 15000 }] }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/contacts/:id",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "Edita o contato. Existe porque o contato criado pela conversa do WhatsApp nasce só com o nome dito (`findOrCreateContact`), e até esta rota não havia como acrescentar telefone, tipo ou município depois. Os campos são os mesmos do POST: o §5 continua proibindo CPF, endereço e dados bancários.",
+        request: `{ "name": "João da Ponte", "type": "fazendeiro", "phone": "38999990000", "city": "Unaí" }`,
+        response: `200
+{ "data": { "id": "cl...", "name": "João da Ponte", "type": "fazendeiro", "phone": "38999990000", "city": "Unaí" }, "meta": {} }`,
+      },
+      {
+        method: "DELETE",
+        path: "/api/v1/contacts/:id",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "ARQUIVA o contato, nunca apaga, como em Fazenda e Pasto. Apagar de verdade deixaria o histórico anônimo em silêncio, porque `Negotiation.contact_id` é `onDelete: SetNull`. O arquivado some da listagem e deixa de ser reaproveitado pela conversa: um negócio novo com o mesmo nome cria um contato novo.",
+        response: `200
+{ "data": { "id": "cl...", "name": "João da Ponte" }, "meta": {} }`,
+      },
+      {
+        method: "GET",
         path: "/api/v1/negotiations",
         auth: "Sessão · rebanho:read · perfil fazenda",
         description:

@@ -139,6 +139,11 @@ async function comBanco() {
       detalhe.ok && detalhe.data.negotiations[0]?.amount === 15000,
       detalhe.ok ? String(detalhe.data.negotiations[0]?.amount) : "recusado",
     );
+    console.log("\n8. As rotas de /contacts/:id existem");
+    const rota = await import("@/app/api/v1/contacts/[id]/route");
+    check("GET existe", typeof rota.GET === "function");
+    check("PATCH existe", typeof rota.PATCH === "function");
+    check("DELETE existe", typeof rota.DELETE === "function");
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });
     await prisma.$disconnect();
