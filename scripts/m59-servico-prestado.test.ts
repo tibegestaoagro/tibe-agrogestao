@@ -12,6 +12,7 @@ exigirBancoLocal();
  *      contratado.
  *   3. §18: o status vem da DATA, e não é mais sempre `concluido`.
  *   4. §17: as recusas do prestado, e o que continua opcional no contratado.
+ *   5. §26 e §27: o recebimento parcial, com o SINAL certo nos dois lançamentos.
  *
  * ⚠️ A `m58` (145 conferências sobre o CONTRATADO) é a prova de que esta fase
  * não quebrou a anterior: ela cobre o mesmo arquivo, e tem que continuar verde.
@@ -32,7 +33,7 @@ console.log("🚜 M59: serviço prestado (Módulo 34, fase 1)\n");
 
 async function main() {
   const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
-  const { createServiceJob, getServiceJobDetail, SERVICOS_MECANIZADOS } = await import(
+  const { createServiceJob, getServiceJobDetail, recordServiceJobPayment, SERVICOS_MECANIZADOS } = await import(
     "@/lib/actions/service-jobs"
   );
 
@@ -290,6 +291,119 @@ async function main() {
     check(
       "com a receita no lançamento",
       detalhe.ok && detalhe.data.entries.every((e) => e.amount === 4500),
+    );
+
+    // ── 5. §26 e §27: o recebimento parcial ──────────────────────────────
+
+    console.log("\n5. §27: o exemplo literal (8.000, recebe 3.000, ficam 5.000)");
+    const oitomil = await createServiceJob(db, {
+      direction: "prestado",
+      property_id: fazenda.id,
+      occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+      description: "Ensilagem",
+      pricing: "fechado",
+      agreed_amount: 8000,
+      machine_id: trator.id,
+      contact_name: "Cliente do §27",
+    });
+    if (!oitomil.ok) throw new Error("createServiceJob falhou");
+
+    const parcial = await recordServiceJobPayment(db, {
+      service_job_id: oitomil.data.id,
+      amount: 3000,
+    });
+    check("recebimento parcial aceito", parcial.ok, parcial.ok ? "" : parcial.message);
+    check("recebido 3.000", parcial.ok && parcial.data.pago === 3000, parcial.ok ? String(parcial.data.pago) : "");
+    check(
+      "a receber 5.000",
+      parcial.ok && parcial.data.restante === 5000,
+      parcial.ok ? String(parcial.data.restante) : "",
+    );
+
+    /**
+     * ⚠️ O CASO QUE DISCRIMINA, e que a versão fraca perderia.
+     *
+     * Se `recordServiceJobPayment` criar `expense`, o serviço mostra "recebido
+     * 3.000" na tela E o DRE registra uma DESPESA de R$ 3.000. O saldo bateria;
+     * só o sinal do dinheiro estaria trocado, que é onde ninguém olha até o fim
+     * do ano. Por isso o teste cobra o `entry_type` dos DOIS lançamentos, e não
+     * só a soma.
+     */
+    const entries = await db.financialEntry.findMany({
+      where: { related_module: "servico", related_id: oitomil.data.id },
+    });
+    check("são dois lançamentos", entries.length === 2, String(entries.length));
+    check(
+      "e os DOIS são RECEITA, incluindo o do recebimento",
+      entries.every((e) => e.entry_type === "income"),
+      entries.map((e) => e.entry_type).join(","),
+    );
+    check(
+      "com a categoria do prestado nos dois",
+      entries.every((e) => e.category === "Serviço prestado"),
+      entries.map((e) => e.category).join(","),
+    );
+
+    const viewDoOitomil = await getServiceJobDetail(db, oitomil.data.id);
+    check(
+      "e a leitura usa o vocabulário do prestado",
+      viewDoOitomil.ok &&
+        viewDoOitomil.data.recebido === 3000 &&
+        viewDoOitomil.data.a_receber === 5000,
+      viewDoOitomil.ok
+        ? `${viewDoOitomil.data.recebido} / ${viewDoOitomil.data.a_receber}`
+        : "recusado",
+    );
+
+    console.log("   e receber MAIS que o restante continua recusado");
+    const demais = await recordServiceJobPayment(db, {
+      service_job_id: oitomil.data.id,
+      amount: 9000,
+    });
+    check("recusado", !demais.ok);
+    check(
+      "no campo amount, dizendo quanto falta",
+      !demais.ok && demais.field === "amount" && demais.message.includes("5.000"),
+      !demais.ok ? demais.message : "aceitou",
+    );
+
+    console.log("   e quitar não deixa conta a receber de R$ 0,00");
+    const quitou = await recordServiceJobPayment(db, {
+      service_job_id: oitomil.data.id,
+      amount: 5000,
+    });
+    check("quitação aceita", quitou.ok);
+    check("a receber zerou", quitou.ok && quitou.data.restante === 0);
+    check(
+      "e nenhum lançamento pendente sobrou",
+      (await db.financialEntry.count({
+        where: { related_module: "servico", related_id: oitomil.data.id, status: "pending" },
+      })) === 0,
+    );
+    /**
+     * Dois, não três: a conta a receber que zerou é APAGADA, e o que sobra são
+     * os dois recebimentos (3.000 e 5.000). Conta a receber de R$ 0,00 seria
+     * ruído no Financeiro do produtor.
+     */
+    check(
+      "e os dois recebimentos ficam como RECEITA paga",
+      (await db.financialEntry.count({
+        where: {
+          related_module: "servico",
+          related_id: oitomil.data.id,
+          entry_type: "income",
+          status: "paid",
+        },
+      })) === 2,
+    );
+    check(
+      "somando os 8.000 do §27",
+      (
+        await db.financialEntry.findMany({
+          where: { related_module: "servico", related_id: oitomil.data.id },
+          select: { amount: true },
+        })
+      ).reduce((s, e) => s + Number(e.amount), 0) === 8000,
     );
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });
