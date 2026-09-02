@@ -13,6 +13,11 @@ exigirBancoLocal();
  *   4. §5: fixo sem valor ou sem frequência é recusado NO CAMPO.
  *   5. §40.8: inativar cancela a previsão pendente e preserva o histórico.
  *   6. A previsão é idempotente: chamar duas vezes não cria duas contas.
+ *   7. §8: confirmar o pagamento quita a previsão e cria a PRÓXIMA.
+ *   8. §40.3: sem previsão pendente, confirmar é recusado, nunca inventado.
+ *   9. §9: o adiantamento é lançamento SEPARADO, e não mexe na previsão.
+ *  10. §10 e §11: gratificação e benefício, cada um com o seu tipo.
+ *  11. Valor zero ou negativo é recusado no campo, nos três caminhos.
  *
  * Roda: `npm run test:m57`.
  */
@@ -113,8 +118,16 @@ async function main() {
 
 async function comBanco() {
   const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
-  const { createWorker, listWorkers, setWorkerStatus, getWorkerDetail, FUNCOES_SUGERIDAS } =
-    await import("@/lib/actions/workers");
+  const {
+    createWorker,
+    listWorkers,
+    setWorkerStatus,
+    getWorkerDetail,
+    confirmWorkerPayment,
+    recordWorkerAdvance,
+    recordWorkerExtra,
+    FUNCOES_SUGERIDAS,
+  } = await import("@/lib/actions/workers");
 
   const stamp = Date.now();
   const tenant = await prisma.tenant.create({
@@ -290,6 +303,164 @@ async function comBanco() {
     check(
       "trabalhador inexistente devolve 404",
       !(await getWorkerDetail(db, "clnaoexiste000000000000")).ok,
+    );
+
+    // ── 7. Confirmar o pagamento (§8) ─────────────────────────────────────
+
+    console.log("\n7. Confirmar o pagamento quita a previsão e cria a PRÓXIMA (§8)");
+    const antes = (await previsoesDe(joao.data.id))[0]!;
+    const pago = await confirmWorkerPayment(db, { worker_id: joao.data.id });
+    check("confirmação devolve ok", pago.ok, pago.ok ? "" : pago.message);
+    check("pagou o valor previsto", pago.ok && pago.data.pago === 2500);
+
+    const quitada = await db.financialEntry.findUnique({ where: { id: antes.id } });
+    check("a previsão virou paga", quitada?.status === "paid", String(quitada?.status));
+    check("com paid_at preenchido", quitada?.paid_at !== null);
+
+    const depois = await previsoesDe(joao.data.id);
+    check("nasceu a próxima, e só ela", depois.length === 1, String(depois.length));
+    check(
+      "com vencimento em mês DIFERENTE da que foi paga",
+      depois[0]!.due_date!.toISOString().slice(0, 7) !== antes.due_date!.toISOString().slice(0, 7),
+      `${antes.due_date?.toISOString().slice(0, 10)} -> ${depois[0]!.due_date?.toISOString().slice(0, 10)}`,
+    );
+
+    check(
+      "e o ciclo é ancorado no VENCIMENTO, não em quando o dinheiro saiu",
+      depois[0]!.due_date!.toISOString().slice(0, 10) === "2026-10-05",
+      depois[0]!.due_date!.toISOString().slice(0, 10),
+    );
+
+    console.log("   e pagar ATRASADO não pula um mês do ciclo");
+    // A previsão pendente vence em 05/10. Pagando em 20/10 (quinze dias
+    // atrasado), a próxima tem que ser 05/11, não 05/12: o ciclo é do
+    // vencimento, e o atraso do produtor não pode comer um mês de salário.
+    const atrasado = await confirmWorkerPayment(db, {
+      worker_id: joao.data.id,
+      paid_at: new Date("2026-10-20T12:00:00.000Z"),
+    });
+    check("confirmação atrasada devolve ok", atrasado.ok);
+    check(
+      "a próxima é 05/11, não 05/12",
+      (await previsoesDe(joao.data.id))[0]!.due_date!.toISOString().slice(0, 10) === "2026-11-05",
+      (await previsoesDe(joao.data.id))[0]!.due_date!.toISOString().slice(0, 10),
+    );
+
+    console.log("   e o valor pago pode ser diferente do previsto");
+    // Relê a pendente AGORA: os dois pagamentos acima já consumiram as
+    // anteriores, e apontar para uma delas leria um lançamento já quitado.
+    const aPagarComDesconto = (await previsoesDe(joao.data.id))[0]!;
+    const diferente = await confirmWorkerPayment(db, { worker_id: joao.data.id, amount: 2300 });
+    check("aceita valor diferente", diferente.ok && diferente.data.pago === 2300);
+    const quitadaMenor = await db.financialEntry.findUnique({
+      where: { id: aPagarComDesconto.id },
+    });
+    check(
+      "e grava o valor REAL, não o previsto",
+      Number(quitadaMenor?.amount) === 2300,
+      String(quitadaMenor?.amount),
+    );
+
+    // ── 8. Sem previsão pendente, não inventa (§40.3) ─────────────────────
+
+    console.log("\n8. Sem previsão pendente, confirmar é RECUSADO, nunca inventado");
+    await db.financialEntry.deleteMany({
+      where: { related_module: "mao_de_obra", related_id: joao.data.id, status: "pending" },
+    });
+    const semPrevisao = await confirmWorkerPayment(db, { worker_id: joao.data.id });
+    check("recusado", !semPrevisao.ok);
+    check("com 404", !semPrevisao.ok && semPrevisao.status === 404);
+    check(
+      "e NADA foi gravado",
+      (await db.financialEntry.count({
+        where: { related_id: joao.data.id, status: "pending" },
+      })) === 0,
+    );
+    check(
+      "confirmar para trabalhador inexistente também é recusado",
+      !(await confirmWorkerPayment(db, { worker_id: "clnaoexiste000000000000" })).ok,
+    );
+
+    // ── 9. Adiantamento é lançamento separado (§9) ────────────────────────
+
+    console.log("\n9. Adiantamento é lançamento SEPARADO (§9)");
+    await setWorkerStatus(db, joao.data.id, "ativo");
+    const previsaoDoMes = (await previsoesDe(joao.data.id))[0]!;
+
+    const adiant = await recordWorkerAdvance(db, { worker_id: joao.data.id, amount: 500 });
+    check("adiantamento devolve ok", adiant.ok, adiant.ok ? "" : adiant.message);
+
+    const lancAdiant = await db.financialEntry.findFirst({
+      where: { related_id: joao.data.id, worker_entry_kind: "adiantamento" },
+    });
+    check("gravado com o tipo adiantamento", lancAdiant !== null);
+    check("já pago (o dinheiro saiu)", lancAdiant?.status === "paid");
+    check("no valor certo", Number(lancAdiant?.amount) === 500);
+    check("e é um lançamento OUTRO, não a previsão do mês", lancAdiant?.id !== previsaoDoMes.id);
+
+    const previsaoIntacta = await db.financialEntry.findUnique({
+      where: { id: previsaoDoMes.id },
+    });
+    check(
+      "a previsão do mês continua pendente e no valor cheio",
+      previsaoIntacta?.status === "pending" && Number(previsaoIntacta?.amount) === 2500,
+      `${previsaoIntacta?.status} / ${previsaoIntacta?.amount}`,
+    );
+
+    // ── 10. Gratificação e benefício (§10, §11) ───────────────────────────
+
+    console.log("\n10. Gratificação e benefício, cada um com o seu tipo (§10, §11)");
+    const grat = await recordWorkerExtra(db, {
+      worker_id: joao.data.id,
+      kind: "gratificacao",
+      amount: 300,
+      category: "Gratificação",
+    });
+    check("gratificação devolve ok", grat.ok, grat.ok ? "" : grat.message);
+    const benef = await recordWorkerExtra(db, {
+      worker_id: joao.data.id,
+      kind: "beneficio",
+      amount: 180,
+      category: "Alimentação",
+    });
+    check("benefício devolve ok", benef.ok, benef.ok ? "" : benef.message);
+
+    const porTipo = await db.financialEntry.groupBy({
+      by: ["worker_entry_kind"],
+      where: { related_id: joao.data.id },
+      _count: { _all: true },
+    });
+    const conta = (k: string) =>
+      porTipo.find((g) => g.worker_entry_kind === k)?._count._all ?? 0;
+    check("um adiantamento", conta("adiantamento") === 1, String(conta("adiantamento")));
+    check("uma gratificação", conta("gratificacao") === 1, String(conta("gratificacao")));
+    check("um benefício", conta("beneficio") === 1, String(conta("beneficio")));
+    check(
+      "e o histórico separa os quatro tipos sem depender de `category`",
+      porTipo.length === 4,
+      String(porTipo.length),
+    );
+
+    // ── 11. Valor inválido é recusado no campo ────────────────────────────
+
+    console.log("\n11. Valor zero ou negativo é recusado NO CAMPO, nos três caminhos");
+    const zero = await recordWorkerAdvance(db, { worker_id: joao.data.id, amount: 0 });
+    check("adiantamento zero recusado", !zero.ok && zero.field === "amount");
+    const negativo = await recordWorkerExtra(db, {
+      worker_id: joao.data.id,
+      kind: "outro",
+      amount: -5,
+      category: "X",
+    });
+    check("extra negativo recusado", !negativo.ok && negativo.field === "amount");
+    const pagamentoNegativo = await confirmWorkerPayment(db, {
+      worker_id: joao.data.id,
+      amount: -1,
+    });
+    check(
+      "pagamento negativo recusado",
+      !pagamentoNegativo.ok && pagamentoNegativo.field === "amount",
+      !pagamentoNegativo.ok ? String(pagamentoNegativo.field) : "aceitou",
     );
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });

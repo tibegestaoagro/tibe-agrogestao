@@ -377,6 +377,164 @@ export async function setWorkerStatus(
   return ok(serializar(atualizado, previsao));
 }
 
+/** Recusa comum aos três caminhos de dinheiro. */
+function validarValor(amount: number | null | undefined): ActionResult<null> {
+  if (amount === null || amount === undefined || !Number.isFinite(amount) || amount <= 0) {
+    return fail("VALIDATION_ERROR", "Informe um valor maior que zero.", 422, "amount");
+  }
+  return ok(null);
+}
+
+/**
+ * Confirma o pagamento previsto (§8).
+ *
+ * NUNCA INVENTA UM VALOR. Se não houver previsão pendente, recusa: o §40.3 diz
+ * que o sistema PREVÊ e o produtor CONFIRMA, e criar um lançamento do nada aqui
+ * seria o sistema decidindo que alguém foi pago. Um "paguei o João" sem
+ * previsão é conversa a ser esclarecida, não dinheiro a ser gravado.
+ *
+ * `amount` opcional sobrescreve o previsto, porque o produtor às vezes paga
+ * diferente (adiantou parte, descontou uma falta), e o lançamento tem que
+ * guardar o valor REAL, não o combinado.
+ *
+ * A próxima previsão nasce NA MESMA TRANSAÇÃO. Fora dela, um erro entre as duas
+ * escritas deixaria o trabalhador sem próxima previsão, e a regra "existe
+ * sempre uma" morreria em silêncio até alguém reparar meses depois.
+ */
+export async function confirmWorkerPayment(
+  db: TenantPrismaClient,
+  input: { worker_id: string; amount?: number | null; paid_at?: Date; notes?: string | null },
+): Promise<ActionResult<{ pago: number; proxima_previsao: string | null }>> {
+  if (input.amount !== undefined && input.amount !== null) {
+    const recusa = validarValor(input.amount);
+    if (!recusa.ok) return recusa;
+  }
+
+  const worker = await db.worker.findUnique({ where: { id: input.worker_id } });
+  if (!worker) return fail("NOT_FOUND", "Trabalhador não encontrado.", 404);
+
+  const previsao = await db.financialEntry.findFirst({
+    where: { related_module: "mao_de_obra", related_id: worker.id, status: "pending" },
+    orderBy: { due_date: "asc" },
+  });
+  if (!previsao) {
+    return fail(
+      "NOT_FOUND",
+      `Não há pagamento previsto para ${worker.name}. Registre um adiantamento ou um pagamento avulso, ou confira se o cadastro tem valor e frequência.`,
+      404,
+    );
+  }
+
+  const quando = input.paid_at ?? new Date();
+  const valor = input.amount ?? decToNum(previsao.amount) ?? 0;
+
+  /**
+   * A próxima previsão é ancorada no VENCIMENTO da que acabou de ser paga, não
+   * na data em que o produtor pagou.
+   *
+   * Ancorar em "hoje" parece natural e está errado nos dois sentidos, e o teste
+   * pegou o primeiro: quem paga no dia 2 a parcela que vencia no dia 5 recebia
+   * outra parcela para o MESMO dia 5, porque `proximaDataDePagamento` a partir
+   * do dia 2 devolve o dia 5. No sentido oposto, quem paga com 20 dias de
+   * atraso pularia um mês inteiro do ciclo.
+   *
+   * O ciclo de salário é ancorado em vencimento, não em quando o dinheiro saiu.
+   */
+  const ancora = previsao.due_date ?? quando;
+
+  await runSerializableTenantTransaction(db, async (tx) => {
+    await tx.financialEntry.update({
+      where: { id: previsao.id },
+      data: {
+        amount: valor,
+        status: "paid",
+        paid_at: quando,
+        ...(input.notes ? { notes: input.notes } : {}),
+      },
+    });
+    await garantirPrevisao(tx as unknown as ClientDePrevisao, worker, ancora);
+  });
+
+  const proxima = await db.financialEntry.findFirst({
+    where: { related_module: "mao_de_obra", related_id: worker.id, status: "pending" },
+    orderBy: { due_date: "asc" },
+    select: { due_date: true },
+  });
+
+  return ok({ pago: valor, proxima_previsao: isoOrNull(proxima?.due_date ?? null) });
+}
+
+/**
+ * Adiantamento (§9): valor pago ANTES da data normal.
+ *
+ * Lançamento próprio, já quitado, e NÃO mexe na previsão do mês. O §9 pede o
+ * adiantamento "mostrado separado do pagamento normal", e abater da previsão
+ * faria a conta a pagar do mês encolher sem que ninguém tivesse decidido isso.
+ * Quanto o produtor vai descontar no dia 5 é escolha dele, e ele a exerce
+ * passando `amount` na confirmação.
+ */
+export async function recordWorkerAdvance(
+  db: TenantPrismaClient,
+  input: { worker_id: string; amount: number; occurred_at?: Date; notes?: string | null },
+): Promise<ActionResult<{ id: string; amount: number }>> {
+  const recusa = validarValor(input.amount);
+  if (!recusa.ok) return recusa;
+
+  const worker = await db.worker.findUnique({ where: { id: input.worker_id } });
+  if (!worker) return fail("NOT_FOUND", "Trabalhador não encontrado.", 404);
+
+  const quando = input.occurred_at ?? new Date();
+  const criado = await createLinkedEntry(db as never, {
+    entry_type: "expense",
+    category: "Adiantamento",
+    amount: input.amount,
+    related_module: "mao_de_obra",
+    related_id: worker.id,
+    occurred_at: quando,
+    status: "paid",
+    worker_entry_kind: "adiantamento",
+  });
+  return ok({ id: criado.id, amount: input.amount });
+}
+
+/**
+ * Os outros pagamentos do §10 (gratificação, bonificação, hora extra) e os
+ * gastos relacionados do §11 (alimentação, moradia, transporte).
+ *
+ * Registra o valor, e SÓ. O §10 é explícito: "o objetivo será apenas registrar
+ * o valor, sem realizar cálculos trabalhistas automáticos".
+ */
+export async function recordWorkerExtra(
+  db: TenantPrismaClient,
+  input: {
+    worker_id: string;
+    kind: "gratificacao" | "beneficio" | "outro";
+    amount: number;
+    category: string;
+    occurred_at?: Date;
+    notes?: string | null;
+  },
+): Promise<ActionResult<{ id: string; amount: number }>> {
+  const recusa = validarValor(input.amount);
+  if (!recusa.ok) return recusa;
+
+  const worker = await db.worker.findUnique({ where: { id: input.worker_id } });
+  if (!worker) return fail("NOT_FOUND", "Trabalhador não encontrado.", 404);
+
+  const quando = input.occurred_at ?? new Date();
+  const criado = await createLinkedEntry(db as never, {
+    entry_type: "expense",
+    category: input.category.trim() || "Mão de obra",
+    amount: input.amount,
+    related_module: "mao_de_obra",
+    related_id: worker.id,
+    occurred_at: quando,
+    status: "paid",
+    worker_entry_kind: input.kind,
+  });
+  return ok({ id: criado.id, amount: input.amount });
+}
+
 /**
  * O trabalhador e o histórico dele (§37).
  *
