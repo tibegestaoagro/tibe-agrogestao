@@ -11,6 +11,12 @@ andamento vive no [current-handoff.md](current-handoff.md).
 **Regra de manutenção:** ao fechar um item, apague-o daqui e registre no commit.
 Lista de dívida que só cresce vira lista que ninguém lê.
 
+⚠️ **A numeração tem buracos, e isso é de propósito.** O item apagado não é
+renumerado: o handoff, as specs de `docs/superpowers/` e o comentário da
+conferência 8 em `scripts/check-repo.ts` citam a dívida pelo número (`§2.5`,
+`§2.8`, `§2.9`), e renumerar transformaria cada citação numa referência para o
+item errado. Item novo entra com o próximo número livre da seção.
+
 ---
 
 ## 1. Validação que nunca aconteceu
@@ -57,58 +63,6 @@ assinatura, webhook de pagamento, webhook de atraso).
 
 ## 2. Escopo desenhado e adiado
 
-### 2.1 Módulo 31: FECHADO em 2026-08-28
-
-As quatro missões entregues e mescladas. A missão 4 (permuta) tem um lado
-entregue e um recebido, cada um
-gravado por quem já sabe gravá-lo (rebanho, estoque, cadastro de Máquinas), e o
-lado sem área no Tibé vira texto com aviso na tela. O valor da negociação é
-**só a diferença em dinheiro**; os valores estimados do §12.4 ficaram fora da
-v1, por decisão do usuário.
-
-⚠️ **O que continua fora**, e não é esquecimento: peso, arroba e valor por
-cabeça (§6.2, adiado desde a revisão de 2026-08-14), formas de pagamento do
-§13, os nove filtros do §19, e o classificador do n8n, congelado por decisão do
-usuário. Os handlers de WhatsApp das missões 3 e 4 existem e são testados, mas
-**o agente ainda não emite** `registrar_remessa_evento`,
-`encerrar_remessa_evento` nem `registrar_permuta`.
-
-Próximo número livre de suíte: `m50`.
-
-### 2.1.1 Missão 3, leilão e eventos: FEITA em 2026-08-28
-
-Mesclada e em produção desde 2026-08-28. A remessa é uma
-`Negotiation(evento)` sem valor com uma `HerdStay(evento)` filha, e **o envio
-não gera lançamento financeiro nenhum** (§17.8). O encerramento exige a soma
-dos três destinos bater com o enviado, e só aí nasce a receita, com comissão e
-taxa como lançamentos filhos.
-
-⚠️ **`HerdStay(evento)` deixou de ser criável direto**: quem abre remessa é
-Negociações, e o Rebanho manda o produtor encerrar lá. Encerrar pelo Rebanho
-moveria as cabeças sem registrar a venda.
-
-O handler de WhatsApp existe e é testado, mas **o classificador do n8n ainda
-não emite as duas intenções novas** (`registrar_remessa_evento`,
-`encerrar_remessa_evento`): congelado por decisão do usuário.
-
-Suíte `m48`. Spec e plano em `docs/superpowers/`.
-
-### 2.2 Módulo 30, fase 2: FEITA em 2026-08-28
-
-Mesclada e em produção desde 2026-08-28. Entregou pasto de
-terceiros, boitel, animais de terceiros na fazenda e desaparecimento, com
-identidade por `HerdStay`, encerramento que exige a soma bater, e os cinco
-números separando propriedade de localização.
-
-⚠️ **Duas correções ao que este arquivo dizia.** Ela não era "sem dinheiro":
-o documento do cliente manda gerar despesa em pasto de terceiro e boitel, e
-receita em animais de terceiros, e isso foi implementado. E o **confinamento
-próprio não virou fluxo**: o documento pede que ele seja um local interno,
-parecido com um pasto, então é `transferencia_pasto` para um pasto que
-represente o confinamento, sem estadia nenhuma.
-
-Spec e plano em `docs/superpowers/`.
-
 ### 2.3 Itens do documento do cliente registrados como adiados
 
 `docs/specs/module-31-negociacoes.md` seção 7, decididos na revisão de
@@ -119,6 +73,8 @@ Spec e plano em `docs/superpowers/`.
 | §19, os nove filtros da tela de Negociações | a action já aceita filtro; a tela só herda o seletor de propriedade |
 | §13, formas de pagamento (dinheiro, pix, boleto) | não implementado; o parcelamento, que é o que mexe no financeiro, existe |
 | §6.2 e §7.2, pasto de origem e destino | o WhatsApp lê, a tela web não oferece |
+| §6.2, peso, arroba e valor por cabeça | adiado desde a revisão de 2026-08-14 |
+| §12.4, os valores estimados da permuta | fora da v1; o valor da negociação é só a diferença em dinheiro |
 | histórico do aceite 23 | não implementado |
 | tela de contatos | a v1 é o nome digitado no formulário |
 
@@ -304,27 +260,6 @@ para cá em 31/08 para não sumir no próximo arquivamento.
 ---
 
 ## 3. Rede de segurança com furo
-
-### 3.1 `scripts/m23-token-auth.test.ts` não compila: RESOLVIDO
-
-⚠️ **Fechado em algum momento antes de 2026-08-31, e este registro não
-acompanhou.** Conferido nessa data: `npx tsc --noEmit` sai com **0** e não
-acusa nada em `m23`. O texto abaixo fica pelo histórico, e a lição é que
-dívida fechada precisa ser apagada daqui, como o protocolo deste arquivo já
-manda. Uma dívida que mente para mais é tão cara quanto uma que mente para
-menos: ela faz alguém reservar rodada para trabalho que não existe.
-
-
-
-`npx tsc --noEmit` acusa erros de tipo neste arquivo, e só nele. São
-pré-existentes e não quebram o build (a Vercel não compila `scripts/`), mas
-significam que **o comando de type-check nunca fica limpo**, e um erro novo se
-esconde no meio do ruído.
-
-O erro é de retorno: o teste atribui a resposta de uma rota de rebanho a uma
-variável tipada como resposta de token.
-
-**Custo:** pequeno, uma sessão curta. O ganho é `tsc` voltar a ser um sinal.
 
 ### 3.2 SEIS cópias do store de pendência do WhatsApp
 
