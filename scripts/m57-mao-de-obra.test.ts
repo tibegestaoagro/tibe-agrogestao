@@ -20,6 +20,15 @@ exigirBancoLocal();
  *  11. Valor zero ou negativo é recusado no campo, nos três caminhos.
  *  12. A permissão morde: OPERADOR e VISUALIZADOR não enxergam salário.
  *  13. As três rotas existem.
+ *  14. §32, WhatsApp: cadastro, pagamento e adiantamento pela conversa.
+ *  15. "não, deixa pra lá" CANCELA e não grava nada.
+ *  16. O "sim" executa o que foi MOSTRADO, não o que o classificador remontou.
+ *  17. Nome ambíguo PERGUNTA, nunca escolhe o primeiro.
+ *
+ * ⚠️ Os blocos 14 a 17 mandam, no segundo turno, APENAS o campo que faltava,
+ * porque é assim que o classificador do n8n se comporta: ele NÃO remonta o
+ * pedido. Uma suíte que reenvia o pacote inteiro fica verde com a conversa
+ * quebrada, e este projeto já pagou por isso.
  *
  * Roda: `npm run test:m57`.
  */
@@ -503,6 +512,143 @@ async function comBanco() {
     check("PATCH /workers/:id", typeof rotaItem.PATCH === "function");
     const rotaPgto = await import("@/app/api/v1/workers/[id]/payments/route");
     check("POST /workers/:id/payments", typeof rotaPgto.POST === "function");
+
+    // ── 14 a 17: o WhatsApp (§32) ─────────────────────────────────────────
+
+    const { routeIntent } = await import("@/lib/actions/whatsapp-router");
+    const USER = "m57-user";
+
+    const falar = (
+      intent: string,
+      parameters: Record<string, unknown>,
+      extra: { confirmed?: boolean; explicitNo?: boolean } = {},
+    ) =>
+      routeIntent(db, {
+        intent: intent as never,
+        tenant_id: tenant.id,
+        role: "OWNER",
+        activeProfiles: ["fazenda"],
+        parameters,
+        confirmed: extra.confirmed ?? false,
+        explicitNo: extra.explicitNo ?? false,
+        user_id: USER,
+      });
+
+    console.log("\n14. §32 pelo WhatsApp: o cadastro do fixo");
+    const t1 = await falar("registrar_trabalhador", { nome: "Pedro Campeiro" });
+    check("sem função, pergunta a função", t1.reply_text.toLowerCase().includes("faz na fazenda"));
+    check("e não grava", (await db.worker.count({ where: { name: "Pedro Campeiro" } })) === 0);
+
+    // O classificador manda SÓ o campo perguntado. Nada de reenviar o nome.
+    const t2 = await falar("registrar_trabalhador", { funcao: "Campeiro" });
+    check("com a função, pergunta o valor", t2.reply_text.toLowerCase().includes("quanto"));
+    const t3 = await falar("registrar_trabalhador", { valor: 1800 });
+    check(
+      "com o valor, pergunta a frequência",
+      t3.reply_text.toLowerCase().includes("por mês"),
+      t3.reply_text,
+    );
+    const t4 = await falar("registrar_trabalhador", { frequencia: "mês" });
+    check("com tudo, pede confirmação", t4.requires_confirmation === true);
+    check(
+      "e a confirmação mostra o que foi entendido, com o NOME do primeiro turno",
+      t4.reply_text.includes("Pedro Campeiro") &&
+        t4.reply_text.includes("Campeiro") &&
+        t4.reply_text.includes("1.800"),
+      t4.reply_text,
+    );
+    check("e ainda não gravou", (await db.worker.count({ where: { name: "Pedro Campeiro" } })) === 0);
+
+    const t5 = await falar("registrar_trabalhador", {}, { confirmed: true });
+    check("o sim grava", t5.action_taken === "registrar_trabalhador:ok", t5.action_taken);
+    const pedro = await db.worker.findFirst({ where: { name: "Pedro Campeiro" } });
+    check("com os valores MOSTRADOS", pedro !== null && Number(pedro.pay_amount) === 1800);
+    check("e a função do segundo turno", pedro?.role === "Campeiro", String(pedro?.role));
+    check(
+      "e nasceu a previsão junto",
+      (await db.financialEntry.count({
+        where: { related_module: "mao_de_obra", related_id: pedro!.id, status: "pending" },
+      })) === 1,
+    );
+
+    console.log("\n15. \"não, deixa pra lá\" CANCELA e não grava nada");
+    await falar("registrar_adiantamento", { nome: "Pedro", valor: 300 });
+    const recusa = await falar("registrar_adiantamento", {}, { explicitNo: true });
+    check("cancelou", recusa.action_taken === "registrar_adiantamento:cancelado", recusa.action_taken);
+    check(
+      "e NADA de adiantamento foi gravado",
+      (await db.financialEntry.count({
+        where: { related_id: pedro!.id, worker_entry_kind: "adiantamento" },
+      })) === 0,
+    );
+
+    console.log("\n16. O \"sim\" executa o MOSTRADO, não o que o classificador remontou");
+    const a1 = await falar("registrar_adiantamento", { nome: "Pedro", valor: 300 });
+    check("pediu confirmação de 300", a1.reply_text.includes("300"), a1.reply_text);
+    // O classificador remonta ERRADO no turno do "sim" (leu 3000 na resposta).
+    // O pedido guardado tem que vencer.
+    const a2 = await falar("registrar_adiantamento", { valor: 3000 }, { confirmed: true });
+    check("gravou", a2.action_taken === "registrar_adiantamento:ok", a2.action_taken);
+    const adiantado = await db.financialEntry.findFirst({
+      where: { related_id: pedro!.id, worker_entry_kind: "adiantamento" },
+    });
+    check(
+      "no valor MOSTRADO (300), não no remontado (3000)",
+      Number(adiantado?.amount) === 300,
+      String(adiantado?.amount),
+    );
+
+    console.log("\n17. Nome ambíguo PERGUNTA, nunca escolhe o primeiro");
+    await createWorker(db, { name: "Pedro Tratorista", role: "Tratorista", type: "eventual" });
+    const ambiguo = await falar("registrar_adiantamento", { nome: "Pedro", valor: 100 });
+    check(
+      "pergunta qual dos dois",
+      ambiguo.reply_text.toLowerCase().includes("mais de um"),
+      ambiguo.reply_text,
+    );
+    check(
+      "e não gravou nada",
+      (await db.financialEntry.count({
+        where: { related_id: pedro!.id, worker_entry_kind: "adiantamento" },
+      })) === 1,
+    );
+
+    console.log("\n18. O pagamento pelo WhatsApp (§8)");
+    const p1 = await falar("registrar_pagamento_trabalhador", { nome: "Pedro Campeiro" });
+    check(
+      "oferece o valor PREVISTO sem o produtor dizer",
+      p1.requires_confirmation && p1.reply_text.includes("1.800"),
+      p1.reply_text,
+    );
+    const p2 = await falar("registrar_pagamento_trabalhador", {}, { confirmed: true });
+    check("gravou", p2.action_taken === "registrar_pagamento_trabalhador:ok", p2.action_taken);
+    check(
+      "a previsão virou paga e nasceu a próxima",
+      (await db.financialEntry.count({
+        where: { related_id: pedro!.id, worker_entry_kind: "pagamento", status: "paid" },
+      })) === 1 &&
+        (await db.financialEntry.count({
+          where: { related_id: pedro!.id, status: "pending" },
+        })) === 1,
+    );
+
+    console.log("\n19. OPERADOR não passa pelo roteador (a permissão vale no WhatsApp)");
+    const comoOperador = await routeIntent(db, {
+      intent: "registrar_trabalhador" as never,
+      tenant_id: tenant.id,
+      role: "OPERADOR",
+      activeProfiles: ["fazenda"],
+      parameters: { nome: "X", funcao: "Y", valor: 1, frequencia: "mes" },
+      confirmed: true,
+      explicitNo: false,
+      user_id: "outro-user",
+    });
+    check(
+      "recusado por permissão",
+      !comoOperador.action_taken.endsWith(":ok"),
+      comoOperador.action_taken,
+    );
+    check("e não gravou", (await db.worker.count({ where: { name: "X" } })) === 0);
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });
     await prisma.$disconnect();

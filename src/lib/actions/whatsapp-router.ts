@@ -50,6 +50,11 @@ import {
   registrarEntradaLactacao,
   registrarSaidaLactacao,
 } from "@/lib/actions/whatsapp-handlers/leite";
+import {
+  registrarTrabalhador,
+  registrarPagamentoTrabalhador,
+  registrarAdiantamento,
+} from "@/lib/actions/whatsapp-handlers/mao-de-obra";
 import { loadPendingNegotiation } from "@/lib/actions/negotiation-pending";
 import {
   loadPendingStock,
@@ -133,6 +138,9 @@ const HANDLERS: Record<Exclude<Intent, "ambigua">, Handler> = {
   definir_vacas_em_lactacao: definirVacasEmLactacao,
   registrar_entrada_lactacao: registrarEntradaLactacao,
   registrar_saida_lactacao: registrarSaidaLactacao,
+  registrar_trabalhador: registrarTrabalhador,
+  registrar_pagamento_trabalhador: registrarPagamentoTrabalhador,
+  registrar_adiantamento: registrarAdiantamento,
   consultar_cliente: consultarCliente,
   gerar_relatorio: gerarRelatorio,
   registrar_lancamento_financeiro: registrarLancamentoFinanceiro,

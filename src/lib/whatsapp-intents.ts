@@ -71,6 +71,15 @@ export const INTENTS = [
   "definir_vacas_em_lactacao",
   "registrar_entrada_lactacao",
   "registrar_saida_lactacao",
+  // Mão de obra (Módulo 33, §32). As três conversas do documento: cadastrar o
+  // trabalhador fixo, confirmar o pagamento e registrar adiantamento.
+  //
+  // O classificador do n8n ainda NAO emite estas três: elas ficam roteadas e
+  // testadas, esperando a rodada em que o agente for atualizado. Mesmo estado
+  // das quatro do leite e das quatro do confinamento.
+  "registrar_trabalhador",
+  "registrar_pagamento_trabalhador",
+  "registrar_adiantamento",
   "consultar_cliente",
   "gerar_relatorio",
   "registrar_lancamento_financeiro",
@@ -144,6 +153,18 @@ export const INTENT_ACCESS: Record<
   definir_vacas_em_lactacao: { module: "rebanho", action: "write", profile: "fazenda" },
   registrar_entrada_lactacao: { module: "rebanho", action: "write", profile: "fazenda" },
   registrar_saida_lactacao: { module: "rebanho", action: "write", profile: "fazenda" },
+  // ⚠️ Módulo `mao_de_obra`, e não `rebanho` como as vizinhas: a matriz dele é
+  // mais fechada (só OWNER e ADMIN), porque isto guarda SALÁRIO. Um OPERADOR
+  // que mandar "João ganha 2.500" recebe recusa de permissão em vez de um
+  // cadastro, e é o comportamento certo: o autor de uma mensagem de WhatsApp é
+  // só um número de telefone.
+  registrar_trabalhador: { module: "mao_de_obra", action: "write", profile: "fazenda" },
+  registrar_pagamento_trabalhador: {
+    module: "mao_de_obra",
+    action: "write",
+    profile: "fazenda",
+  },
+  registrar_adiantamento: { module: "mao_de_obra", action: "write", profile: "fazenda" },
   consultar_cliente: { module: "prestador", action: "read", profile: "prestador" },
   gerar_relatorio: { module: null, action: "read" }, // módulo varia por parameters.tipo
   registrar_lancamento_financeiro: { module: "financeiro", action: "write" },
