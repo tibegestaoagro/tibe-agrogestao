@@ -13,6 +13,8 @@ exigirBancoLocal();
  *   3. §18: o status vem da DATA, e não é mais sempre `concluido`.
  *   4. §17: as recusas do prestado, e o que continua opcional no contratado.
  *   5. §26 e §27: o recebimento parcial, com o SINAL certo nos dois lançamentos.
+ *   6. §32: o histórico da máquina, somado POR UNIDADE.
+ *   7. §39: a agenda de hoje e dos próximos.
  *
  * ⚠️ A `m58` (145 conferências sobre o CONTRATADO) é a prova de que esta fase
  * não quebrou a anterior: ela cobre o mesmo arquivo, e tem que continuar verde.
@@ -33,7 +35,13 @@ console.log("🚜 M59: serviço prestado (Módulo 34, fase 1)\n");
 
 async function main() {
   const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
-  const { createServiceJob, getServiceJobDetail, recordServiceJobPayment, SERVICOS_MECANIZADOS } = await import(
+  const {
+    createServiceJob,
+    getServiceJobDetail,
+    recordServiceJobPayment,
+    cancelServiceJob,
+    SERVICOS_MECANIZADOS,
+  } = await import(
     "@/lib/actions/service-jobs"
   );
 
@@ -404,6 +412,185 @@ async function main() {
           select: { amount: true },
         })
       ).reduce((s, e) => s + Number(e.amount), 0) === 8000,
+    );
+    // ── 6. §32: o histórico da máquina ───────────────────────────────────
+
+    console.log("\n6. §32: o histórico da máquina, somado POR UNIDADE");
+    const { getMachineServices, getServiceAgenda } = await import(
+      "@/lib/actions/machine-services"
+    );
+
+    // Máquina nova, para os números do §32 não se misturarem com os serviços
+    // dos blocos anteriores.
+    const massey = await db.machine.create({
+      data: scoped({ property_id: fazenda.id, name: "Trator Massey §32", type: "Trator" }),
+    });
+    const colheitadeira = await db.machine.create({
+      data: scoped({ property_id: fazenda.id, name: "Colheitadeira", type: "Colheitadeira" }),
+    });
+
+    const gradagem = await createServiceJob(db, {
+      direction: "prestado",
+      property_id: fazenda.id,
+      occurred_at: new Date("2026-08-20T12:00:00.000Z"),
+      description: "Gradagem",
+      pricing: "hora",
+      unit_price: 150,
+      quantity: 12,
+      machine_id: massey.id,
+      contact_name: "Cliente João",
+    });
+    const rocadaDoMassey = await createServiceJob(db, {
+      direction: "prestado",
+      property_id: fazenda.id,
+      occurred_at: new Date("2026-08-22T12:00:00.000Z"),
+      description: "Roçada",
+      pricing: "hectare",
+      unit_price: 180,
+      quantity: 25,
+      machine_id: massey.id,
+      contact_name: "Cliente Maria",
+    });
+    await createServiceJob(db, {
+      direction: "prestado",
+      property_id: fazenda.id,
+      occurred_at: new Date("2026-08-23T12:00:00.000Z"),
+      description: "Colheita",
+      pricing: "hectare",
+      unit_price: 300,
+      quantity: 40,
+      machine_id: colheitadeira.id,
+      contact_name: "Cliente Pedro",
+    });
+    check("os três serviços do bloco 6 entraram", gradagem.ok && rocadaDoMassey.ok);
+
+    const hist = await getMachineServices(db, massey.id);
+    check("dois serviços na ficha do Massey", hist.servicos === 2, String(hist.servicos));
+    check(
+      "e o da colheitadeira NÃO entrou",
+      !hist.linhas.some((l) => l.description === "Colheita"),
+    );
+    check("faturado 6.300 (1.800 + 4.500)", hist.faturado === 6300, String(hist.faturado));
+
+    /**
+     * ⚠️ O CASO QUE DISCRIMINA. Um trator que fez 12 horas de gradagem e 25
+     * hectares de roçada NÃO trabalhou 37 de nada. Se a soma virar um número
+     * só, a ficha da máquina passa a exibir uma unidade que não existe, e o
+     * produtor lê "37" achando que é hora. Por isso o mapa, e por isso o teste
+     * cobra as DUAS chaves separadas.
+     */
+    check(
+      "12 horas, no mapa por unidade",
+      hist.quantidade_por_unidade.hora === 12,
+      JSON.stringify(hist.quantidade_por_unidade),
+    );
+    check(
+      "e 25 hectares, sem virar 37",
+      hist.quantidade_por_unidade.hectare === 25,
+      JSON.stringify(hist.quantidade_por_unidade),
+    );
+    check(
+      "duas unidades, não uma soma",
+      Object.keys(hist.quantidade_por_unidade).length === 2,
+      JSON.stringify(hist.quantidade_por_unidade),
+    );
+    check(
+      "e a linha traz o cliente, como no §32",
+      hist.linhas.some((l) => l.contact_name === "Cliente João" && l.quantidade === 12),
+    );
+
+    // ── 7. §39: a agenda ─────────────────────────────────────────────────
+
+    console.log("\n7. §39: a agenda de hoje e dos próximos");
+    const meioDiaDeHoje = new Date();
+    meioDiaDeHoje.setUTCHours(12, 0, 0, 0);
+    const daquiATres = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+    const ontem = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const deHoje = await createServiceJob(db, {
+      direction: "prestado",
+      property_id: fazenda.id,
+      occurred_at: meioDiaDeHoje,
+      description: "Aração de hoje",
+      pricing: "hora",
+      unit_price: 150,
+      quantity: 4,
+      machine_id: massey.id,
+      contact_name: "Cliente de hoje",
+    });
+    const deOntem = await createServiceJob(db, {
+      direction: "prestado",
+      property_id: fazenda.id,
+      occurred_at: ontem,
+      description: "Aração de ontem",
+      pricing: "hora",
+      unit_price: 150,
+      quantity: 4,
+      machine_id: massey.id,
+      contact_name: "Cliente de ontem",
+    });
+    const daqui3 = await createServiceJob(db, {
+      direction: "prestado",
+      property_id: fazenda.id,
+      occurred_at: daquiATres,
+      description: "Subsolagem",
+      pricing: "hora",
+      unit_price: 150,
+      quantity: 4,
+      machine_id: massey.id,
+      contact_name: "Cliente de depois",
+    });
+    const cancelado = await createServiceJob(db, {
+      direction: "prestado",
+      property_id: fazenda.id,
+      occurred_at: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+      description: "Serviço que caiu",
+      pricing: "hora",
+      unit_price: 150,
+      quantity: 4,
+      machine_id: massey.id,
+      contact_name: "Cliente que desistiu",
+    });
+    if (!deHoje.ok || !deOntem.ok || !daqui3.ok || !cancelado.ok) {
+      throw new Error("createServiceJob do bloco 7 falhou");
+    }
+    await cancelServiceJob(db, { service_job_id: cancelado.data.id });
+
+    /**
+     * O de hoje e o de ontem nascem `concluido` (a data já passou, §18), e a
+     * agenda é sobre o que AINDA vai acontecer. Marcá-los como `agendado` é o
+     * caso realista ("o produtor agendou para hoje de manhã e ainda não marcou
+     * como feito") e, principalmente, é o que faz o teste discriminar pela
+     * DATA: com os dois no mesmo status, o de ontem só pode ficar de fora se o
+     * corte por dia funcionar.
+     */
+    await db.serviceJob.updateMany({
+      where: { id: { in: [deHoje.data.id, deOntem.data.id] } },
+      data: { status: "agendado" },
+    });
+
+    const agenda = await getServiceAgenda(db);
+    const idsHoje = agenda.hoje.map((l) => l.id);
+    const idsProximos = agenda.proximos.map((l) => l.id);
+    check("o de hoje aparece em `hoje`", idsHoje.includes(deHoje.data.id));
+    check("o de daqui a três dias aparece em `proximos`", idsProximos.includes(daqui3.data.id));
+    check(
+      "o de ONTEM não aparece em nenhum dos dois",
+      !idsHoje.includes(deOntem.data.id) && !idsProximos.includes(deOntem.data.id),
+    );
+    check(
+      "o cancelado some da agenda",
+      !idsHoje.includes(cancelado.data.id) && !idsProximos.includes(cancelado.data.id),
+    );
+    check(
+      "e a linha da agenda diz a máquina e o cliente",
+      agenda.hoje.some(
+        (l) => l.id === deHoje.data.id && l.machine_name === "Trator Massey §32" && l.contact_name === "Cliente de hoje",
+      ),
+    );
+    check(
+      "um serviço já concluído não entra na agenda",
+      !idsHoje.includes(rocadaDoMassey.ok ? rocadaDoMassey.data.id : ""),
     );
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });
