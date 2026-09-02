@@ -13,6 +13,7 @@ export type ModuleKey =
   | "tarefas"
   | "prestador"
   | "mao_de_obra"
+  | "servicos"
   | "financeiro"
   | "alertas"
   | "usuarios"
@@ -42,6 +43,14 @@ const ACCESS_MATRIX: Record<ModuleKey, Record<AppUserRole, AccessLevel>> = {
   // salário não deve entrar por um canal onde o autor é só um número de
   // telefone.
   mao_de_obra: { OWNER: W, ADMIN: W, OPERADOR: N, VISUALIZADOR: N },
+  // Fase 33.2. Matriz OPERACIONAL, ao contrário da de `mao_de_obra` logo
+  // acima, e a diferença entre as duas é o ponto: a diária de um serviço não
+  // tem a sensibilidade de um salário, e quem viu o trabalho acontecer é quem
+  // está no curral.
+  //
+  // O corte fica: OPERADOR registra "vieram 3 homens hoje" e continua sem
+  // enxergar quanto o vaqueiro ganha por mês. Decisão do usuário em 02/09.
+  servicos: { OWNER: W, ADMIN: W, OPERADOR: W, VISUALIZADOR: R },
   financeiro: { OWNER: W, ADMIN: W, OPERADOR: W, VISUALIZADOR: R },
   alertas: { OWNER: W, ADMIN: W, OPERADOR: R, VISUALIZADOR: R },
   usuarios: { OWNER: W, ADMIN: W, OPERADOR: N, VISUALIZADOR: N },

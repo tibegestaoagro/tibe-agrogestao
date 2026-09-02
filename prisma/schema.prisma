@@ -391,6 +391,8 @@ model Tenant {
   milk_movements       MilkMovement[]
   milk_charges         MilkCharge[]
   workers              Worker[]
+  service_jobs         ServiceJob[]
+  worker_logs          WorkerLog[]
 }
 
 // Equipe da Pleno Digital. NÃO carrega tenant_id: fora do isolamento (PRD 4 / 10.4).
@@ -447,6 +449,8 @@ model User {
   financial_entries_created FinancialEntry[]    @relation("FinancialEntryCreatedBy")
   financial_entries_updated FinancialEntry[]    @relation("FinancialEntryUpdatedBy")
   workers_recorded          Worker[]            @relation("WorkerRecordedBy")
+  service_jobs_recorded     ServiceJob[]        @relation("ServiceJobRecordedBy")
+  service_jobs_canceled     ServiceJob[]        @relation("ServiceJobCanceledBy")
 
   @@index([tenant_id])
 }
@@ -614,6 +618,8 @@ model Property {
   milk_productions  MilkProduction[]
   milk_sites        MilkSite[]
   workers           Worker[]
+  service_jobs      ServiceJob[]
+  worker_logs       WorkerLog[]
 
   @@index([tenant_id])
 }
@@ -764,6 +770,8 @@ model Pasture {
   /// Área Leite (Módulo 32): o pasto é informação OPCIONAL do registro de
   /// lactação (§4), nunca eixo de saldo. Ver a decisão 4.2 da spec.
   lactation_entries LactationEntry[]
+  service_jobs      ServiceJob[]
+  worker_logs       WorkerLog[]
 
   @@index([tenant_id])
   @@index([property_id])
@@ -959,6 +967,10 @@ model Machine {
   acquired_negotiation Negotiation? @relation("MachineAcquired", fields: [acquired_negotiation_id], references: [id], onDelete: SetNull)
   disposed_negotiation Negotiation? @relation("MachineDisposed", fields: [disposed_negotiation_id], references: [id], onDelete: SetNull)
 
+  /// Fase 34.1: os serviços prestados com esta máquina. Vazio na fase 33.2,
+  /// que não aceita `machine_id`.
+  service_jobs ServiceJob[]
+
   @@index([tenant_id])
   @@index([property_id])
   @@index([acquired_negotiation_id])
@@ -977,10 +989,22 @@ model MachineMaintenance {
   next_due_at  DateTime?
   created_at   DateTime  @default(now())
 
-  machine Machine @relation(fields: [machine_id], references: [id], onDelete: Cascade)
+  /// §29 do Módulo 33: quem prestou a manutenção (o mecânico, a oficina).
+  ///
+  /// O serviço em si continua sendo `MachineMaintenance`, e NÃO um
+  /// `ServiceJob`: este model já tem data, descrição e custo, e já gera
+  /// lançamento financeiro com `related_module: maquinas`. "Mecânico gastou
+  /// R$ 800 para consertar o trator" é isto aqui. Dois lugares para a mesma
+  /// coisa é o que a decisão 3 da spec existe para evitar, e a decisão 10
+  /// aplica de novo.
+  contact_id String?
+
+  machine Machine  @relation(fields: [machine_id], references: [id], onDelete: Cascade)
+  contact Contact? @relation(fields: [contact_id], references: [id], onDelete: SetNull)
 
   @@index([tenant_id])
   @@index([machine_id])
+  @@index([contact_id])
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1683,6 +1707,11 @@ model HerdStay {
   movements        HerdMovement[]
   stock_movements  StockMovement[]
 
+  /// Fase 33.2: os serviços amarrados a este lote (§27). O custo do lote soma
+  /// por aqui, e não por `related_id`, porque o lançamento aponta para o
+  /// serviço (decisão 12 da spec).
+  service_jobs ServiceJob[]
+
   @@index([tenant_id, type])
   @@index([tenant_id, started_at])
   @@index([negotiation_id])
@@ -1754,6 +1783,11 @@ model Contact {
   milk_to      MilkMovement[] @relation("MilkMovementToOwner")
   milk_bought  MilkMovement[] @relation("MilkMovementBuyer")
   milk_charges MilkCharge[]
+
+  /// Fase 33.2: o prestador de um serviço contratado (§19), e o mecânico de
+  /// uma manutenção de máquina (§29).
+  service_jobs         ServiceJob[]
+  machine_maintenances MachineMaintenance[]
 
   @@index([tenant_id])
 }
@@ -2071,6 +2105,7 @@ model MilkSite {
   movements_from MilkMovement[] @relation("MilkMovementFromSite")
   movements_to   MilkMovement[] @relation("MilkMovementToSite")
   charges        MilkCharge[]
+  service_jobs   ServiceJob[]
 
   @@index([tenant_id])
   @@index([property_id])
@@ -2272,8 +2307,184 @@ model Worker {
   property    Property? @relation(fields: [property_id], references: [id], onDelete: Restrict)
   recorded_by User?     @relation("WorkerRecordedBy", fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
 
+  /// Fase 33.2: as diárias em que ele entrou, e as anotações do §12 e §34.
+  service_jobs ServiceJob[]
+  logs         WorkerLog[]
+
   @@index([tenant_id])
   /// A listagem principal (§38, "Minha equipe") filtra por situação.
   @@index([tenant_id, status])
   @@index([property_id])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Módulo 33, fase 2: o serviço contratado de terceiro.
+// Ver docs/superpowers/specs/2026-09-02-mao-de-obra-e-servicos-com-maquinas-design.md
+//
+// NENHUM SALDO MORA AQUI (invariante 2). `unit_price` e `agreed_amount` são o
+// COMBINADO, dado de entrada, não soma: mesma razão de `Negotiation.amount` e
+// de `Worker.pay_amount`. A quantidade é soma de `ServiceJobLog`, o total é
+// derivado dela, e o pago e o restante são somas de `FinancialEntry`.
+//
+// ⚠️ Os três podem divergir, e isso é informação, não defeito: o produtor pode
+// editar um lançamento em `/financeiro`, e é ali que o dinheiro de verdade
+// mora. A tela mostra os três lado a lado para a divergência aparecer.
+// ─────────────────────────────────────────────────────────────
+
+enum ServiceDirection {
+  /// A fazenda CONTRATA (§15 a §18 da Mão de Obra, §29 de Máquinas). Despesa.
+  contratado
+  /// A fazenda PRESTA com máquina própria (§3.1 de Máquinas). Receita.
+  /// Só a fase 34.1 escreve este valor; ele nasce aqui para o enum não crescer
+  /// depois, o que exigiria migração numa tabela já cheia.
+  prestado
+}
+
+/// As nove formas de cobrança: a união do §16 da Mão de Obra com o §11 de
+/// Máquinas. `fechado` é o empreito do §15, e é o único em que `unit_price`
+/// não se aplica.
+enum ServicePricing {
+  hora
+  hectare
+  dia
+  viagem
+  tonelada
+  metro
+  quilometro
+  cabeca
+  fechado
+}
+
+enum ServiceJobStatus {
+  agendado
+  em_andamento
+  concluido
+  cancelado
+}
+
+/// §12 (atividade realizada) e §34 (falta, folga, férias, afastamento) num
+/// modelo só. Os dois são "uma anotação com data sobre um trabalhador", e o
+/// documento é explícito que nenhum dos dois calcula nada.
+enum WorkerLogKind {
+  atividade
+  falta
+  folga
+  ferias
+  afastamento
+}
+
+model ServiceJob {
+  id          String           @id @default(cuid())
+  tenant_id   String
+  property_id String
+  direction   ServiceDirection @default(contratado)
+  status      ServiceJobStatus @default(agendado)
+  occurred_at DateTime
+  /// O que foi feito: "Reforma de cerca", "Roçada". Texto livre, com as 19
+  /// sugestões do §20 oferecidas na tela, pelo mesmo motivo de `Worker.role`.
+  description String
+
+  pricing       ServicePricing
+  /// Nulo quando `pricing` é `fechado`.
+  unit_price    Decimal?       @db.Decimal(14, 2)
+  /// Só quando `pricing` é `fechado`: o valor combinado do empreito (§15).
+  agreed_amount Decimal?       @db.Decimal(14, 2)
+
+  /// §14: "vieram 3 homens". Multiplica o VALOR, nunca a quantidade: o §14 diz
+  /// que 3 homens por 4 dias são "12 diárias", mas o serviço durou 4 dias, e
+  /// somar 12 na quantidade faria a tela dizer que a cerca levou doze dias.
+  worker_count Int @default(1)
+
+  /// A contraparte. Os dois nulos no caso dos três homens sem nome do §14.
+  contact_id String?
+  worker_id  String?
+
+  /// §25, §26, §27 e §28: onde o trabalho aconteceu, e a que ele pertence.
+  pasture_id          String?
+  confinement_stay_id String?
+  milk_site_id        String?
+
+  /// §29 de Máquinas. Nulo em toda a fase 33.2: só a 34.1 preenche.
+  /// ⚠️ Manutenção de máquina NÃO entra aqui: é `MachineMaintenance`, que já
+  /// tem data, descrição e custo, e já gera lançamento financeiro. Dois
+  /// lugares para a mesma coisa é o que a decisão 3 da spec evita.
+  machine_id String?
+
+  notes String?
+
+  canceled_at         DateTime?
+  canceled_reason     String?
+  canceled_by_user_id String?
+  recorded_by_user_id String?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+
+  tenant           Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  property         Property        @relation(fields: [property_id], references: [id], onDelete: Restrict)
+  contact          Contact?        @relation(fields: [contact_id], references: [id], onDelete: SetNull)
+  worker           Worker?         @relation(fields: [worker_id], references: [id], onDelete: SetNull)
+  pasture          Pasture?        @relation(fields: [pasture_id], references: [id], onDelete: SetNull)
+  confinement_stay HerdStay?       @relation(fields: [confinement_stay_id], references: [id], onDelete: SetNull)
+  milk_site        MilkSite?       @relation(fields: [milk_site_id], references: [id], onDelete: SetNull)
+  machine          Machine?        @relation(fields: [machine_id], references: [id], onDelete: SetNull)
+  recorded_by      User?           @relation("ServiceJobRecordedBy", fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
+  canceled_by      User?           @relation("ServiceJobCanceledBy", fields: [canceled_by_user_id], references: [id], onDelete: SetNull)
+  logs             ServiceJobLog[]
+
+  @@index([tenant_id])
+  @@index([tenant_id, status])
+  @@index([tenant_id, occurred_at])
+  /// A junção que o custo do lote de confinamento usa (decisão 12 da spec).
+  @@index([confinement_stay_id])
+  @@index([contact_id])
+  @@index([worker_id])
+}
+
+/// A quantidade trabalhada, que é SEMPRE soma.
+///
+/// Um serviço de tiro único cria uma linha só. O §19 permite vários dias e o
+/// §20 permite acrescentar "fiz 8 hectares hoje" ao serviço em andamento, e a
+/// tela disso chega na fase 34.2; o modelo nasce agora para não haver migração
+/// de dado de produção depois.
+model ServiceJobLog {
+  id             String    @id @default(cuid())
+  tenant_id      String
+  service_job_id String
+  occurred_at    DateTime
+  quantity       Decimal   @db.Decimal(14, 3)
+  notes          String?
+  /// Cancelar não apaga: para de contar e mantém a linha, como em HerdMovement.
+  canceled_at    DateTime?
+  created_at     DateTime  @default(now())
+
+  service_job ServiceJob @relation(fields: [service_job_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id])
+  @@index([service_job_id])
+}
+
+/// A anotação simples do §12 e do §34.
+///
+/// O §12 diz "o objetivo não será controlar cada minuto do trabalhador" e o §34
+/// diz que o TIBÉ "não deverá calcular automaticamente consequências
+/// trabalhistas". Nada aqui alimenta cálculo nenhum: é data, tipo e descrição.
+/// Em particular, uma falta NÃO gera desconto.
+model WorkerLog {
+  id          String        @id @default(cuid())
+  tenant_id   String
+  worker_id   String
+  kind        WorkerLogKind
+  occurred_at DateTime
+  description String?
+  property_id String?
+  pasture_id  String?
+  created_at  DateTime      @default(now())
+
+  tenant   Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  worker   Worker    @relation(fields: [worker_id], references: [id], onDelete: Cascade)
+  property Property? @relation(fields: [property_id], references: [id], onDelete: SetNull)
+  pasture  Pasture?  @relation(fields: [pasture_id], references: [id], onDelete: SetNull)
+
+  @@index([tenant_id])
+  @@index([worker_id])
 }
