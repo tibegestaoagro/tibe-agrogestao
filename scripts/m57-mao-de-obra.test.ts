@@ -8,6 +8,11 @@ exigirBancoLocal();
  *
  * Prova, por seção do documento do cliente:
  *   1. §5 e §7: a data do próximo pagamento, incluindo o dia 31 em fevereiro.
+ *   2. §7 e §40.2: cadastrar fixo cria UMA previsão pendente, e só uma.
+ *   3. §13: o eventual NÃO gera previsão (quem paga é a diária).
+ *   4. §5: fixo sem valor ou sem frequência é recusado NO CAMPO.
+ *   5. §40.8: inativar cancela a previsão pendente e preserva o histórico.
+ *   6. A previsão é idempotente: chamar duas vezes não cria duas contas.
  *
  * Roda: `npm run test:m57`.
  */
@@ -102,6 +107,194 @@ async function main() {
     "o resultado é sempre ESTRITAMENTE depois da data base",
     proximaDataDePagamento("mensal", 5, d("2026-09-05")).getTime() > d("2026-09-05").getTime(),
   );
+
+  await comBanco();
+}
+
+async function comBanco() {
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+  const { createWorker, listWorkers, setWorkerStatus, getWorkerDetail, FUNCOES_SUGERIDAS } =
+    await import("@/lib/actions/workers");
+
+  const stamp = Date.now();
+  const tenant = await prisma.tenant.create({
+    data: { name: `M57 ${stamp}`, document: `M57${stamp}`.slice(0, 14), plan: "fazenda" },
+  });
+  const db = prismaForTenant(tenant.id);
+
+  const previsoesDe = (workerId: string) =>
+    db.financialEntry.findMany({
+      where: { related_module: "mao_de_obra", related_id: workerId, status: "pending" },
+    });
+
+  try {
+    const fazenda = await db.property.create({ data: scoped({ name: "Fazenda M57" }) });
+
+    // ── 2. O cadastro do fixo cria UMA previsão (§7, §40.2) ────────────────
+
+    console.log("\n2. Cadastro de trabalhador fixo cria UMA previsão (§7, §40.2)");
+    check(
+      "as dez funções do §6 estão sugeridas",
+      FUNCOES_SUGERIDAS.length === 10 && FUNCOES_SUGERIDAS.includes("Vaqueiro"),
+      String(FUNCOES_SUGERIDAS.length),
+    );
+
+    const joao = await createWorker(db, {
+      name: "João",
+      role: "Vaqueiro",
+      type: "fixo",
+      pay_frequency: "mensal",
+      pay_amount: 2500,
+      pay_day: 5,
+      property_id: fazenda.id,
+    });
+    check("cadastro devolve ok", joao.ok, joao.ok ? "" : joao.message);
+    if (!joao.ok) throw new Error("createWorker falhou");
+
+    const previsoes = await previsoesDe(joao.data.id);
+    check("nasceu exatamente UMA previsão", previsoes.length === 1, String(previsoes.length));
+    check("no valor combinado", Number(previsoes[0]?.amount) === 2500);
+    check("como DESPESA", previsoes[0]?.entry_type === "expense");
+    check("pendente, nunca paga sozinha (§40.3)", previsoes[0]?.status === "pending");
+    check(
+      "marcada como pagamento, não como adiantamento",
+      previsoes[0]?.worker_entry_kind === "pagamento",
+      String(previsoes[0]?.worker_entry_kind),
+    );
+    check(
+      "com vencimento no dia habitual",
+      previsoes[0]?.due_date?.getUTCDate() === 5,
+      String(previsoes[0]?.due_date?.toISOString()),
+    );
+    check(
+      "a listagem já traz o próximo pagamento (§38)",
+      (await listWorkers(db)).find((w) => w.id === joao.data.id)?.proximo_pagamento?.amount === 2500,
+    );
+
+    // ── 3. O eventual não gera previsão (§13) ──────────────────────────────
+
+    console.log("\n3. O eventual NÃO gera previsão (§13: quem paga é a diária)");
+    const ze = await createWorker(db, { name: "Zé", role: "Serviços gerais", type: "eventual" });
+    check("cadastro do eventual devolve ok", ze.ok, ze.ok ? "" : ze.message);
+    if (!ze.ok) throw new Error("createWorker falhou");
+    const semNada = await db.financialEntry.count({
+      where: { related_module: "mao_de_obra", related_id: ze.data.id },
+    });
+    check("nenhum lançamento para o eventual", semNada === 0, String(semNada));
+
+    // ── 4. Recusa NO CAMPO (§5) ────────────────────────────────────────────
+
+    console.log("\n4. Fixo sem valor ou sem frequência é recusado NO CAMPO");
+    const semValor = await createWorker(db, {
+      name: "X",
+      role: "Caseiro",
+      type: "fixo",
+      pay_frequency: "mensal",
+    });
+    check("sem valor é recusado", !semValor.ok);
+    check(
+      "no campo pay_amount",
+      !semValor.ok && semValor.field === "pay_amount",
+      !semValor.ok ? String(semValor.field) : "aceitou",
+    );
+
+    const semFreq = await createWorker(db, {
+      name: "Y",
+      role: "Caseiro",
+      type: "fixo",
+      pay_amount: 1000,
+    });
+    check("sem frequência é recusado", !semFreq.ok);
+    check(
+      "no campo pay_frequency",
+      !semFreq.ok && semFreq.field === "pay_frequency",
+      !semFreq.ok ? String(semFreq.field) : "aceitou",
+    );
+
+    const semNome = await createWorker(db, { name: "  ", role: "Caseiro", type: "eventual" });
+    check("nome vazio é recusado no campo name", !semNome.ok && semNome.field === "name");
+
+    const diaImpossivel = await createWorker(db, {
+      name: "Z",
+      role: "Caseiro",
+      type: "fixo",
+      pay_frequency: "mensal",
+      pay_amount: 1000,
+      pay_day: 45,
+    });
+    check(
+      "dia 45 é recusado no campo pay_day",
+      !diaImpossivel.ok && diaImpossivel.field === "pay_day",
+      !diaImpossivel.ok ? String(diaImpossivel.field) : "aceitou",
+    );
+
+    check(
+      "nada disso deixou trabalhador órfão no banco",
+      (await db.worker.count()) === 2,
+      String(await db.worker.count()),
+    );
+
+    // ── 5. Inativar cancela a previsão, e preserva o histórico (§40.8) ─────
+
+    console.log("\n5. Inativar cancela a previsão pendente, e preserva o pago");
+    await db.financialEntry.create({
+      data: scoped({
+        entry_type: "expense",
+        category: "Mão de obra fixa",
+        amount: 2500,
+        related_module: "mao_de_obra",
+        related_id: joao.data.id,
+        status: "paid",
+        paid_at: new Date("2026-08-05"),
+        due_date: new Date("2026-08-05"),
+        worker_entry_kind: "pagamento",
+      }),
+    });
+
+    const inativado = await setWorkerStatus(db, joao.data.id, "inativo");
+    check("inativar devolve ok", inativado.ok);
+    check("nenhuma previsão pendente sobrou", (await previsoesDe(joao.data.id)).length === 0);
+    check(
+      "e o pagamento JÁ FEITO continua no histórico",
+      (await db.financialEntry.count({
+        where: { related_id: joao.data.id, status: "paid" },
+      })) === 1,
+    );
+
+    const reativado = await setWorkerStatus(db, joao.data.id, "ativo");
+    check("reativar devolve ok", reativado.ok);
+    check(
+      "e recria a previsão, uma só",
+      (await previsoesDe(joao.data.id)).length === 1,
+      String((await previsoesDe(joao.data.id)).length),
+    );
+
+    // ── 6. A previsão é idempotente ───────────────────────────────────────
+
+    console.log("\n6. A previsão é idempotente (clique duplo não cria duas contas)");
+    await setWorkerStatus(db, joao.data.id, "ativo");
+    await setWorkerStatus(db, joao.data.id, "ativo");
+    check(
+      "continua UMA depois de três reativações",
+      (await previsoesDe(joao.data.id)).length === 1,
+      String((await previsoesDe(joao.data.id)).length),
+    );
+
+    const detalhe = await getWorkerDetail(db, joao.data.id);
+    check("o detalhe devolve ok", detalhe.ok);
+    check(
+      "com os dois lançamentos (o pago e o previsto)",
+      detalhe.ok && detalhe.data.entries.length === 2,
+      detalhe.ok ? String(detalhe.data.entries.length) : "recusado",
+    );
+    check(
+      "trabalhador inexistente devolve 404",
+      !(await getWorkerDetail(db, "clnaoexiste000000000000")).ok,
+    );
+  } finally {
+    await prisma.tenant.delete({ where: { id: tenant.id } });
+    await prisma.$disconnect();
+  }
 }
 
 main().then(() => {

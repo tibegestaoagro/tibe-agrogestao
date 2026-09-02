@@ -1,4 +1,4 @@
-import type { Prisma, NegotiationEntryRole } from "@/generated/prisma/client";
+import type { Prisma, NegotiationEntryRole, WorkerEntryKind } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 
 // O RelatedModule do Prisma, IMPORTADO, não espelhado à mão.
@@ -79,6 +79,13 @@ export async function createLinkedEntry(
      */
     negotiation_id?: string | null;
     negotiation_role?: NegotiationEntryRole | null;
+    /**
+     * Módulo 33: que tipo de pagamento de mão de obra é este (§9, §10, §11).
+     * Entra aqui pela mesma razão de `negotiation_role`: sem o campo no helper,
+     * a Mão de Obra teria que criar `FinancialEntry` por fora dele, que é o que
+     * o CLAUDE.md proíbe.
+     */
+    worker_entry_kind?: WorkerEntryKind | null;
   },
 ) {
   const status = params.status ?? "paid";
@@ -94,6 +101,7 @@ export async function createLinkedEntry(
       status,
       negotiation_id: params.negotiation_id ?? null,
       negotiation_role: params.negotiation_role ?? null,
+      worker_entry_kind: params.worker_entry_kind ?? null,
     }),
   });
 }
