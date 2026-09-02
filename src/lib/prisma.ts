@@ -71,6 +71,7 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   "MilkSite",
   "MilkMovement",
   "MilkCharge",
+  "Worker",
 ]);
 
 function createBaseClient(): PrismaClient {

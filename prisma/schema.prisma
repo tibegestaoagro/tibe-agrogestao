@@ -252,6 +252,12 @@ enum RelatedModule {
   /// ser somável separado do rebanho, e o §32 pede a área alimentando o
   /// Financeiro como atividade distinta.
   leite
+  /// Fase 33.1 (Mão de Obra). Valor próprio pelo mesmo motivo dos dois acima:
+  /// o §30 do documento do cliente pede o gasto com equipe somável em separado
+  /// ("Mão de obra fixa / Mão de obra eventual / Serviços terceirizados"), e
+  /// reaproveitar `geral` misturaria o salário com todo o resto que não tem
+  /// módulo.
+  mao_de_obra
 }
 
 enum FinancialEntryStatus {
@@ -384,6 +390,7 @@ model Tenant {
   milk_sites           MilkSite[]
   milk_movements       MilkMovement[]
   milk_charges         MilkCharge[]
+  workers              Worker[]
 }
 
 // Equipe da Pleno Digital. NÃO carrega tenant_id: fora do isolamento (PRD 4 / 10.4).
@@ -439,6 +446,7 @@ model User {
   push_subscriptions        PushSubscription[]
   financial_entries_created FinancialEntry[]    @relation("FinancialEntryCreatedBy")
   financial_entries_updated FinancialEntry[]    @relation("FinancialEntryUpdatedBy")
+  workers_recorded          Worker[]            @relation("WorkerRecordedBy")
 
   @@index([tenant_id])
 }
@@ -605,6 +613,7 @@ model Property {
   lactation_entries LactationEntry[]
   milk_productions  MilkProduction[]
   milk_sites        MilkSite[]
+  workers           Worker[]
 
   @@index([tenant_id])
 }
@@ -1142,6 +1151,16 @@ model FinancialEntry {
   /// existia e em lançamento manual, que continua funcionando igual.
   negotiation_id   String?
   negotiation_role NegotiationEntryRole?
+
+  /// Módulo 33: que TIPO de pagamento de mão de obra é este. Nulo em tudo que
+  /// não vem de um `Worker`.
+  ///
+  /// Coluna própria, e não `category`, pela mesma razão que fez
+  /// `negotiation_role` existir: `category` é texto livre que o produtor
+  /// renomeia no painel (é a fonte de sugestão do `FinancialCategory`, não uma
+  /// FK), e o §9 pede o adiantamento mostrado SEPARADO do pagamento normal. Um
+  /// histórico agrupado por string quebraria na primeira renomeação.
+  worker_entry_kind WorkerEntryKind?
 
   /// Auditoria (2026-08-20). Este é o modelo onde o dinheiro é registrado e
   /// editado, e até aqui não dava para responder "quem mudou este lançamento,
@@ -2163,4 +2182,98 @@ model MilkCharge {
 
   @@index([tenant_id])
   @@index([owner_id])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Módulo 33: Mão de Obra, fase 1 (o trabalhador fixo).
+// Ver docs/superpowers/specs/2026-09-02-mao-de-obra-e-servicos-com-maquinas-design.md
+//
+// NÃO é folha de pagamento. Os §35 e §41 do documento do cliente excluem
+// eSocial, FGTS, INSS, férias, 13º, rescisão, ponto e banco de horas, e essa
+// exclusão é deliberada, não escopo adiado: o §4 diz que o produtor "não deverá
+// precisar cadastrar informações trabalhistas complexas para registrar uma
+// pessoa".
+//
+// NENHUM valor pago ou devido mora aqui (invariante 2). O que foi pago é
+// `FinancialEntry` com `related_module: mao_de_obra` e `related_id` do
+// trabalhador; o que falta pagar é a entrada pendente. `pay_amount` é a única
+// exceção aparente, e não é: ele é o valor COMBINADO, dado de ENTRADA, não
+// soma. É a mesma razão pela qual `Negotiation.amount` é gravado.
+// ─────────────────────────────────────────────────────────────
+
+enum WorkerType {
+  /// Relação contínua com a fazenda (§3.1): vaqueiro, tratorista, caseiro.
+  fixo
+  /// Trabalha por períodos curtos ou diárias (§3.2). Cadastrado aqui quando é
+  /// alguém que volta; o diarista de uma vez só não precisa de cadastro, e vira
+  /// `worker_count` no `ServiceJob` da fase 33.2.
+  eventual
+}
+
+enum PayFrequency {
+  mensal
+  quinzenal
+  semanal
+  diaria
+  outra
+}
+
+enum WorkerStatus {
+  ativo
+  inativo
+}
+
+/// Distingue os pagamentos do §9 (adiantamento), §10 (gratificação, hora extra)
+/// e §11 (benefícios) do pagamento normal do §7.
+enum WorkerEntryKind {
+  pagamento
+  adiantamento
+  gratificacao
+  beneficio
+  outro
+}
+
+model Worker {
+  id          String       @id @default(cuid())
+  tenant_id   String
+  /// Opcional porque o §25 diz que relacionar à propriedade só importa "caso o
+  /// produtor possua mais de uma fazenda".
+  property_id String?
+  name        String
+  /// Texto livre, com as dez sugestões do §6 oferecidas na tela. Não é enum
+  /// porque a lista do §6 termina em "Outro", e o documento não pede lista
+  /// fechada: um "campeiro de apoio" não pode ser recusado pelo cadastro.
+  role        String
+  type        WorkerType
+  status      WorkerStatus @default(ativo)
+
+  /// Nulos no `eventual`: quem trabalha por diária não tem frequência de
+  /// pagamento, e o §13 trata a diária como um SERVIÇO, não como salário.
+  pay_frequency PayFrequency?
+  pay_amount    Decimal?      @db.Decimal(14, 2)
+  /// Dia habitual de pagamento (§5). 1 a 31; a previsão cai no último dia do
+  /// mês quando o mês não tem o dia escolhido, porque quem escreveu 31 quis
+  /// dizer "no fim do mês", não 3 de março.
+  pay_day       Int?
+
+  phone      String?
+  started_at DateTime?
+  notes      String?
+
+  /// Desativar, nunca apagar: mesmo padrão de Property, Pasture e Contact. Um
+  /// trabalhador apagado levaria junto a leitura dos pagamentos dele, e o
+  /// §40.8 exige histórico.
+  archived_at         DateTime?
+  recorded_by_user_id String?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+
+  tenant      Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  property    Property? @relation(fields: [property_id], references: [id], onDelete: Restrict)
+  recorded_by User?     @relation("WorkerRecordedBy", fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
+
+  @@index([tenant_id])
+  /// A listagem principal (§38, "Minha equipe") filtra por situação.
+  @@index([tenant_id, status])
+  @@index([property_id])
 }
