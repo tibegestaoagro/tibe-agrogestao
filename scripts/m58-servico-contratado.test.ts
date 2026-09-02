@@ -22,6 +22,8 @@ exigirBancoLocal();
  *      única desta fase que toca código de outro módulo em produção.
  *  12. §12 e §34: a anotação de atividade e ausência, que NÃO calcula nada.
  *  13. §30: o gasto separado em fixa, eventual e terceirizados, sem sobrepor.
+ *  14. A permissão de `servicos` é OPERACIONAL, e diferente da de salário.
+ *  15. As oito rotas existem.
  *
  * Roda: `npm run test:m58`.
  */
@@ -918,6 +920,46 @@ async function comBanco() {
     } finally {
       await prisma.tenant.delete({ where: { id: t2.id } });
     }
+
+    // ── 14. A permissão, e a diferença que ela protege ────────────────────
+
+    console.log("\n14. A permissão de `servicos` é operacional, e a de salário não");
+    const { canWrite, canAccess } = await import("@/lib/permissions");
+    check("OWNER escreve serviço", canWrite("OWNER", "servicos"));
+    check("ADMIN escreve serviço", canWrite("ADMIN", "servicos"));
+    check(
+      "OPERADOR ESCREVE serviço (viu o trabalho, registra o trabalho)",
+      canWrite("OPERADOR", "servicos"),
+      String(canWrite("OPERADOR", "servicos")),
+    );
+    check(
+      "mas NÃO escreve mão de obra (salário não é para ele)",
+      !canWrite("OPERADOR", "mao_de_obra"),
+      String(canWrite("OPERADOR", "mao_de_obra")),
+    );
+    check("VISUALIZADOR LÊ serviço", canAccess("VISUALIZADOR", "servicos"));
+    check(
+      "mas NÃO lê mão de obra",
+      !canAccess("VISUALIZADOR", "mao_de_obra"),
+      String(canAccess("VISUALIZADOR", "mao_de_obra")),
+    );
+
+    // ── 15. As rotas ──────────────────────────────────────────────────────
+
+    console.log("\n15. As oito rotas existem");
+    const rLista = await import("@/app/api/v1/service-jobs/route");
+    check("GET /service-jobs", typeof rLista.GET === "function");
+    check("POST /service-jobs", typeof rLista.POST === "function");
+    const rItem = await import("@/app/api/v1/service-jobs/[id]/route");
+    check("GET /service-jobs/:id", typeof rItem.GET === "function");
+    check("DELETE /service-jobs/:id", typeof rItem.DELETE === "function");
+    const rPgto = await import("@/app/api/v1/service-jobs/[id]/payments/route");
+    check("POST /service-jobs/:id/payments", typeof rPgto.POST === "function");
+    const rLogs = await import("@/app/api/v1/workers/[id]/logs/route");
+    check("GET /workers/:id/logs", typeof rLogs.GET === "function");
+    check("POST /workers/:id/logs", typeof rLogs.POST === "function");
+    const rLog = await import("@/app/api/v1/workers/[id]/logs/[logId]/route");
+    check("DELETE /workers/:id/logs/:logId", typeof rLog.DELETE === "function");
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });
     await prisma.$disconnect();

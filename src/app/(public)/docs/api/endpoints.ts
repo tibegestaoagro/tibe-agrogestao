@@ -1106,6 +1106,88 @@ export const GROUPS: Group[] = [
     ],
   },
   {
+    title: "Serviços contratados (Módulo 33, fase 2)",
+    note: "O serviço de terceiro: a diária do §13, o empreito do §15 e o serviço por unidade do §16. ⚠️ Permissão `servicos`, OPERACIONAL e diferente da de `mao_de_obra`: OPERADOR registra serviço e continua sem enxergar salário. Nenhum saldo é gravado: o total combinado é derivado dos logs, o pago e o restante são somas de `FinancialEntry`, e os três podem divergir se o produtor editar um lançamento em `/financeiro`, que é onde o dinheiro de verdade mora. Manutenção de máquina NÃO entra aqui: é `MachineMaintenance`, na ficha da própria máquina.",
+    endpoints: [
+      {
+        method: "GET",
+        path: "/api/v1/service-jobs",
+        auth: "Sessão · servicos:read · perfil fazenda",
+        description:
+          "Lista os serviços, do mais recente para o mais antigo, cada um já com os quatro números do §22 (quantidade trabalhada, total combinado, pago, restante). Cancelados ficam de fora por padrão; use `incluir_cancelados=true`. Filtros: `status`, `property_id`, `contact_id`. O `meta` traz `servicos_sugeridos`, os 19 do §20 que a tela oferece; a descrição em si é texto livre.",
+        response: `200
+{ "data": [{ "id": "cl...", "description": "Reforma de cerca", "pricing": "dia", "unit_price": 150, "worker_count": 3, "quantidade": 4, "total": 1800, "pago": 0, "restante": 1800, "contact_name": "Turma da cerca" }], "meta": { "total": 1, "servicos_sugeridos": ["Construção de cerca", "..."] } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/service-jobs",
+        auth: "Sessão · servicos:write · perfil fazenda",
+        description:
+          "Registra um serviço contratado. `pricing: fechado` exige `agreed_amount` e ignora quantidade (é o empreito do §15); qualquer outra forma exige `unit_price`, e `quantity` vira o primeiro lançamento de quantidade. `worker_count` multiplica o VALOR e nunca a quantidade: o §14 diz que 3 homens por 4 dias são 12 diárias, mas o serviço durou 4 dias. `contact_name` sem `contact_id` cria o contato pelo nome dito. `pago: true` gera lançamento já quitado; sem ele nasce uma conta a pagar pelo total. ⚠️ `pago: true` com `due_date` é recusado: o §21 lista à vista e futuro como caminhos diferentes. ⚠️ `machine_id` é recusado nesta fase, apontando para Máquinas. Data no futuro cria também um compromisso no Meu Dia (§24); no passado, não.",
+        request: `{ "property_id": "cl...", "occurred_at": "2026-09-01T12:00:00.000Z", "description": "Reforma de cerca", "pricing": "dia", "unit_price": 150, "quantity": 4, "worker_count": 3, "contact_name": "Turma da cerca" }`,
+        response: `201
+{ "data": { "id": "cl...", "quantidade": 4, "total": 1800, "restante": 1800 }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/service-jobs/:id",
+        auth: "Sessão · servicos:read · perfil fazenda",
+        description:
+          "O serviço, os lançamentos de quantidade (`logs`) e os lançamentos financeiros (`entries`). É o que a tela do §22 usa para mostrar valor total, valor já pago, valor restante e próximo vencimento.",
+        response: `200
+{ "data": { "id": "cl...", "total": 10000, "pago": 3000, "restante": 7000, "logs": [], "entries": [{ "amount": 3000, "status": "paid" }, { "amount": 7000, "status": "pending" }] }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/service-jobs/:id/payments",
+        auth: "Sessão · servicos:write · perfil fazenda",
+        description:
+          "Registra um pagamento (§21, §22). Cria um lançamento quitado e ENCOLHE a conta a pagar; quando ela zera, é apagada, porque conta a pagar de R$ 0,00 seria ruído no Financeiro. ⚠️ Pagar mais que o restante devolve 422 no campo `amount` dizendo quanto falta: sem essa recusa, um dedo pesado transforma R$ 700 em R$ 7.000 e os R$ 6.300 a mais viram despesa fantasma. Serviço já quitado ou cancelado devolve 409.",
+        request: `{ "amount": 3000 }`,
+        response: `201
+{ "data": { "pago": 3000, "restante": 7000 }, "meta": {} }`,
+      },
+      {
+        method: "DELETE",
+        path: "/api/v1/service-jobs/:id",
+        auth: "Sessão · servicos:write · perfil fazenda",
+        description:
+          "CANCELA o serviço, não apaga. Remove as contas a pagar PENDENTES (um serviço que não aconteceu não pode seguir gerando despesa no DRE dos meses seguintes) e preserva os lançamentos PAGOS, porque aquele dinheiro saiu de verdade. Os lançamentos de quantidade também ficam: o §40.8 exige histórico. Aceita `reason` opcional no corpo.",
+        request: `{ "reason": "O tratorista não voltou" }`,
+        response: `200
+{ "data": { "id": "cl..." }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/workers/:id/logs",
+        auth: "Sessão · mao_de_obra:read · perfil fazenda",
+        description:
+          "As anotações do trabalhador: atividade (§12) e ausência (§34), da mais recente para a mais antiga. ⚠️ Guard `mao_de_obra`, e não `servicos`: quem não pode ver o salário de alguém não pode ver as faltas dele.",
+        response: `200
+{ "data": [{ "id": "cl...", "kind": "falta", "occurred_at": "2026-09-02T12:00:00.000Z", "description": null }], "meta": { "total": 1 } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/workers/:id/logs",
+        auth: "Sessão · mao_de_obra:write · perfil fazenda",
+        description:
+          "Registra atividade ou ausência. ⚠️ NADA aqui calcula nada, e isso é o requisito: o §34 diz que o Tibé não deve calcular consequências trabalhistas, então uma FALTA não gera desconto e não toca na previsão de pagamento. Férias, 13º, FGTS, INSS e rescisão continuam com o contador (§35). `atividade` exige descrição; as ausências dispensam, porque o tipo já é a informação inteira.",
+        request: `{ "kind": "falta", "occurred_at": "2026-09-02T12:00:00.000Z" }`,
+        response: `201
+{ "data": { "id": "cl...", "kind": "falta" }, "meta": {} }`,
+      },
+      {
+        method: "DELETE",
+        path: "/api/v1/workers/:id/logs/:logId",
+        auth: "Sessão · mao_de_obra:write · perfil fazenda",
+        description:
+          "Apaga uma anotação. ⚠️ Aqui apagar é apagar mesmo, e é a única exceção do módulo ao 'desativar, nunca apagar' que vale para Fazenda, Pasto, Contato e Trabalhador: uma anotação errada não é histórico de dinheiro, e registrar 'folga' no dia errado sem poder corrigir seria pior que perder a linha.",
+        response: `200
+{ "data": { "id": "cl..." }, "meta": {} }`,
+      },
+    ],
+  },
+  {
     title: "Meu Dia (tarefas)",
     note: "Módulo 27. Tarefas são compartilhadas dentro do tenant (visíveis a todo mundo, não privadas por usuário). Concluir/cancelar só pelo painel: o agente WhatsApp só cria.",
     endpoints: [
