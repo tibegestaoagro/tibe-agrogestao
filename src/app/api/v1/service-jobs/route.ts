@@ -9,8 +9,8 @@ import {
 import { withApi } from "@/lib/route";
 
 /**
- * GET  /api/v1/service-jobs   lista os serviços contratados (§38)
- * POST /api/v1/service-jobs   registra um serviço (§13 a §18)
+ * GET  /api/v1/service-jobs   lista os serviços (§38)
+ * POST /api/v1/service-jobs   registra um serviço, contratado ou prestado
  *
  * Wrapper fino: a regra vive em `src/lib/actions/service-jobs.ts`.
  *
@@ -34,6 +34,12 @@ const PRICINGS = [
 ] as const;
 
 const createSchema = z.object({
+  /**
+   * Ausente = `contratado`, que é o que as telas e o agente já mandavam antes
+   * da fase 34.1. O default fica na action, e não aqui, para o caminho do
+   * WhatsApp (que não passa por este schema) herdar o mesmo.
+   */
+  direction: z.enum(["contratado", "prestado"]).nullish(),
   property_id: z.string().trim().min(1, "Escolha a fazenda"),
   occurred_at: z.string().datetime("Informe uma data válida"),
   description: z.string().trim().min(1, "Informe qual serviço foi feito"),
@@ -49,6 +55,10 @@ const createSchema = z.object({
   confinement_stay_id: z.string().trim().min(1).nullish(),
   milk_site_id: z.string().trim().min(1).nullish(),
   machine_id: z.string().trim().min(1).nullish(),
+  client_location: z.string().trim().max(200).nullish(),
+  implement: z.string().trim().max(120).nullish(),
+  operator_worker_id: z.string().trim().min(1).nullish(),
+  operator_note: z.string().trim().max(200).nullish(),
   notes: z.string().trim().max(1000).nullish(),
   pago: z.boolean().nullish(),
   due_date: z.string().datetime("Informe uma data válida").nullish(),
@@ -84,6 +94,7 @@ async function POSTHandler(request: Request) {
   const d = parsed.data;
 
   const res = await createServiceJob(g.db, {
+    direction: d.direction ?? undefined,
     property_id: d.property_id,
     occurred_at: new Date(d.occurred_at),
     description: d.description,
@@ -99,6 +110,10 @@ async function POSTHandler(request: Request) {
     confinement_stay_id: d.confinement_stay_id ?? null,
     milk_site_id: d.milk_site_id ?? null,
     machine_id: d.machine_id ?? null,
+    client_location: d.client_location ?? null,
+    implement: d.implement ?? null,
+    operator_worker_id: d.operator_worker_id ?? null,
+    operator_note: d.operator_note ?? null,
     notes: d.notes ?? null,
     pago: d.pago ?? false,
     due_date: d.due_date ? new Date(d.due_date) : null,
