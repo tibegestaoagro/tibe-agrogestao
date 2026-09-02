@@ -1,0 +1,303 @@
+import "dotenv/config";
+import { exigirBancoLocal } from "./_banco-local";
+
+exigirBancoLocal();
+
+/**
+ * Módulo 34, fase 1: o serviço PRESTADO com máquina própria.
+ *
+ * Prova, por seção do documento de Máquinas:
+ *   1. §13 e §28: o serviço prestado gera RECEITA, não despesa.
+ *   2. §17 e a decisão 10: `machine_id` aceito no prestado, RECUSADO no
+ *      contratado.
+ *   3. §18: o status vem da DATA, e não é mais sempre `concluido`.
+ *   4. §17: as recusas do prestado, e o que continua opcional no contratado.
+ *
+ * ⚠️ A `m58` (145 conferências sobre o CONTRATADO) é a prova de que esta fase
+ * não quebrou a anterior: ela cobre o mesmo arquivo, e tem que continuar verde.
+ *
+ * Roda: `npm run test:m59`.
+ */
+
+let falhas = 0;
+function check(nome: string, cond: boolean, detalhe?: string) {
+  if (cond) console.log(`  ✅ ${nome}`);
+  else {
+    falhas += 1;
+    console.log(`  ❌ ${nome}${detalhe ? ` -> ${detalhe}` : ""}`);
+  }
+}
+
+console.log("🚜 M59: serviço prestado (Módulo 34, fase 1)\n");
+
+async function main() {
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+  const { createServiceJob, getServiceJobDetail, SERVICOS_MECANIZADOS } = await import(
+    "@/lib/actions/service-jobs"
+  );
+
+  const stamp = Date.now();
+  const tenant = await prisma.tenant.create({
+    data: { name: `M59 ${stamp}`, document: `M59${stamp}`.slice(0, 14), plan: "fazenda" },
+  });
+  const db = prismaForTenant(tenant.id);
+
+  try {
+    const fazenda = await db.property.create({ data: scoped({ name: "Fazenda M59" }) });
+    // A máquina é obrigatória no prestado, então ela vem antes de tudo.
+    const trator = await db.machine.create({
+      data: scoped({ property_id: fazenda.id, name: "Trator Massey", type: "Trator" }),
+    });
+
+    // ── 1. §13 e §28: o prestado gera RECEITA ─────────────────────────────
+
+    console.log("1. §13 e §28: o serviço prestado gera RECEITA");
+    check(
+      "os 21 serviços mecanizados do §5 estão sugeridos",
+      SERVICOS_MECANIZADOS.length === 21 && SERVICOS_MECANIZADOS.includes("Terraplanagem"),
+      String(SERVICOS_MECANIZADOS.length),
+    );
+
+    const rocada = await createServiceJob(db, {
+      direction: "prestado",
+      property_id: fazenda.id,
+      occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+      description: "Roçada",
+      pricing: "hectare",
+      unit_price: 180,
+      quantity: 25,
+      machine_id: trator.id,
+      contact_name: "João Vizinho",
+      client_location: "Fazenda do João, Unaí",
+    });
+    check("cadastro devolve ok", rocada.ok, rocada.ok ? "" : rocada.message);
+    if (!rocada.ok) throw new Error("createServiceJob falhou");
+
+    check("total 4.500", rocada.data.total === 4500, String(rocada.data.total));
+    check("a receber 4.500", rocada.data.a_receber === 4500, String(rocada.data.a_receber));
+    check("recebido 0", rocada.data.recebido === 0);
+
+    const lanc = await db.financialEntry.findFirst({
+      where: { related_module: "servico", related_id: rocada.data.id },
+    });
+    check(
+      "o lançamento é RECEITA, não despesa",
+      lanc?.entry_type === "income",
+      String(lanc?.entry_type),
+    );
+    check("pendente (conta a receber)", lanc?.status === "pending");
+    check(
+      "com a categoria do prestado, não a do terceirizado",
+      lanc?.category === "Serviço prestado",
+      String(lanc?.category),
+    );
+    check(
+      "e o local do cliente ficou gravado",
+      rocada.data.client_location === "Fazenda do João, Unaí",
+      String(rocada.data.client_location),
+    );
+
+    // ── 2. `machine_id`: aceito no prestado, RECUSADO no contratado ───────
+
+    console.log("\n2. `machine_id`: aceito no prestado, RECUSADO no contratado");
+    check("no prestado, gravou a máquina", rocada.data.machine_id === trator.id);
+    check("e a listagem traz o nome dela", rocada.data.machine_name === "Trator Massey");
+
+    const contratadoComMaquina = await createServiceJob(db, {
+      direction: "contratado",
+      property_id: fazenda.id,
+      occurred_at: new Date(),
+      description: "Manutenção do trator",
+      pricing: "fechado",
+      agreed_amount: 800,
+      machine_id: trator.id,
+    });
+    check("no contratado, recusado", !contratadoComMaquina.ok);
+    check(
+      "no campo machine_id, apontando para Máquinas",
+      !contratadoComMaquina.ok && contratadoComMaquina.field === "machine_id",
+      !contratadoComMaquina.ok ? String(contratadoComMaquina.field) : "aceitou",
+    );
+
+    // ── 3. §18: o status vem da DATA ─────────────────────────────────────
+
+    console.log("\n3. §18: o status vem da DATA, e não é mais sempre `concluido`");
+    check("serviço com data passada nasce concluído", rocada.data.status === "concluido");
+
+    const amanha = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+    const futuro = await createServiceJob(db, {
+      direction: "prestado",
+      property_id: fazenda.id,
+      occurred_at: amanha,
+      description: "Gradagem",
+      pricing: "hectare",
+      unit_price: 200,
+      quantity: 20,
+      machine_id: trator.id,
+      contact_name: "João Vizinho",
+    });
+    check(
+      "serviço marcado para o futuro nasce AGENDADO",
+      futuro.ok && futuro.data.status === "agendado",
+      futuro.ok ? futuro.data.status : "recusado",
+    );
+    check(
+      "e o CONTRATADO segue a mesma regra",
+      (
+        await createServiceJob(db, {
+          direction: "contratado",
+          property_id: fazenda.id,
+          occurred_at: amanha,
+          description: "Roçada contratada",
+          pricing: "fechado",
+          agreed_amount: 500,
+        })
+      ).ok,
+    );
+
+    // ── 4. §17: as recusas do prestado ───────────────────────────────────
+
+    console.log("\n4. §17: as recusas do prestado, e o que segue opcional no contratado");
+    const antes = await db.serviceJob.count();
+
+    const semMaquina = await createServiceJob(db, {
+      direction: "prestado",
+      property_id: fazenda.id,
+      occurred_at: new Date(),
+      description: "Roçada",
+      pricing: "hectare",
+      unit_price: 180,
+      quantity: 10,
+      contact_name: "João Vizinho",
+    });
+    check(
+      "prestado SEM máquina é recusado no campo machine_id",
+      !semMaquina.ok && semMaquina.field === "machine_id",
+      !semMaquina.ok ? String(semMaquina.field) : "aceitou",
+    );
+
+    const semCliente = await createServiceJob(db, {
+      direction: "prestado",
+      property_id: fazenda.id,
+      occurred_at: new Date(),
+      description: "Roçada",
+      pricing: "hectare",
+      unit_price: 180,
+      quantity: 10,
+      machine_id: trator.id,
+    });
+    check(
+      "prestado SEM cliente é recusado no campo contact_name (§17)",
+      !semCliente.ok && semCliente.field === "contact_name",
+      !semCliente.ok ? String(semCliente.field) : "aceitou",
+    );
+
+    /**
+     * ⚠️ A MESMA coluna, duas exigências. No contratado o cliente continua
+     * OPCIONAL, porque o §14 da Mão de Obra descreve "vieram 3 homens
+     * trabalhar na cerca" sem nome nenhum. Exigir nos dois quebraria o caso
+     * mais comum da fase anterior.
+     */
+    const contratadoSemCliente = await createServiceJob(db, {
+      direction: "contratado",
+      property_id: fazenda.id,
+      occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+      description: "Reforma de cerca",
+      pricing: "dia",
+      unit_price: 150,
+      quantity: 4,
+      worker_count: 3,
+    });
+    check(
+      "mas o CONTRATADO sem cliente continua aceito (§14)",
+      contratadoSemCliente.ok,
+      contratadoSemCliente.ok ? "" : contratadoSemCliente.message,
+    );
+
+    const maquinaFantasma = await createServiceJob(db, {
+      direction: "prestado",
+      property_id: fazenda.id,
+      occurred_at: new Date(),
+      description: "Roçada",
+      pricing: "hectare",
+      unit_price: 180,
+      quantity: 10,
+      machine_id: "clnaoexiste000000000000",
+      contact_name: "João Vizinho",
+    });
+    check("máquina inexistente devolve 404", !maquinaFantasma.ok && maquinaFantasma.status === 404);
+    check(
+      "no campo machine_id",
+      !maquinaFantasma.ok && maquinaFantasma.field === "machine_id",
+      !maquinaFantasma.ok ? String(maquinaFantasma.field) : "aceitou",
+    );
+
+    const operadorFantasma = await createServiceJob(db, {
+      direction: "prestado",
+      property_id: fazenda.id,
+      occurred_at: new Date(),
+      description: "Roçada",
+      pricing: "hectare",
+      unit_price: 180,
+      quantity: 10,
+      machine_id: trator.id,
+      contact_name: "João Vizinho",
+      operator_worker_id: "clnaoexiste000000000000",
+    });
+    check(
+      "operador inexistente devolve 404 no campo operator_worker_id",
+      !operadorFantasma.ok && operadorFantasma.field === "operator_worker_id",
+      !operadorFantasma.ok ? String(operadorFantasma.field) : "aceitou",
+    );
+
+    check(
+      "e as recusas só deixaram passar o contratado sem cliente",
+      (await db.serviceJob.count()) === antes + 1,
+      `${antes} -> ${await db.serviceJob.count()}`,
+    );
+
+    // O operador de verdade, com vínculo.
+    const { createWorker } = await import("@/lib/actions/workers");
+    const tratorista = await createWorker(db, {
+      name: "Zé Tratorista",
+      role: "Tratorista",
+      type: "eventual",
+    });
+    if (!tratorista.ok) throw new Error("createWorker falhou");
+    const comOperador = await createServiceJob(db, {
+      direction: "prestado",
+      property_id: fazenda.id,
+      occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+      description: "Aração",
+      pricing: "hora",
+      unit_price: 250,
+      quantity: 8,
+      machine_id: trator.id,
+      contact_name: "João Vizinho",
+      operator_worker_id: tratorista.data.id,
+      implement: "Arado",
+    });
+    check("com operador cadastrado, aceito", comOperador.ok, comOperador.ok ? "" : comOperador.message);
+    check(
+      "e o nome dele volta na leitura (§8: reutilizar o cadastro)",
+      comOperador.ok && comOperador.data.operator_name === "Zé Tratorista",
+      comOperador.ok ? String(comOperador.data.operator_name) : "recusado",
+    );
+    check("e o implemento também", comOperador.ok && comOperador.data.implement === "Arado");
+
+    const detalhe = await getServiceJobDetail(db, rocada.data.id);
+    check("o detalhe devolve ok", detalhe.ok);
+    check(
+      "com a receita no lançamento",
+      detalhe.ok && detalhe.data.entries.every((e) => e.amount === 4500),
+    );
+  } finally {
+    await prisma.tenant.delete({ where: { id: tenant.id } });
+    await prisma.$disconnect();
+  }
+}
+
+main().then(() => {
+  console.log(falhas === 0 ? "\n✅ M59 verde" : `\n❌ M59: ${falhas} falha(s)`);
+  process.exit(falhas === 0 ? 0 : 1);
+});
