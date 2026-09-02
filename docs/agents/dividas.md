@@ -220,14 +220,25 @@ Achados pelo juiz em 2026-08-31, no rejulgamento da frente. Não são defeito de
 implementação: são **escopo do documento do cliente que a spec estreitou sem
 dizer**, e por isso a tabela "o que falta" dela não os menciona.
 
-**§29, "registrar custos básicos": não existe caminho.** O `financial_cost` do
-lote é `financialEntry.findMany({ where: { related_id: stayId } })`, e a única
-coisa que nasce com `related_id = stay.id` é a cobrança do próprio `openStay`.
-O produtor compra R$ 3.000 de ração e lança em `/financeiro`: o
-`createManualEntryAction` grava `related_module: "geral"` sem `related_id`, e a
-coluna "Custo acumulado" do lote fica em R$ 0,00 para sempre. O §13/§14 lista
-nove tipos de custo que nunca chegam lá, e a decisão 6 da spec promete o
-contrário ("mão de obra, combustível e frete entram se o produtor lançar").
+**§29, "registrar custos básicos": METADE resolvida em 02/09.**
+
+✅ **O que passou a funcionar:** um serviço contratado amarrado ao lote (o
+tratorista do trato, a limpeza, a manutenção) chega ao "Custo acumulado". A
+fase 33.2 acrescentou `ServiceJob.confinement_stay_id`, e
+`getConfinementLotSummary` passou a somar por JUNÇÃO, porque `related_id`
+aponta para uma coisa só e o §22 do Módulo 33 exige que o serviço saiba quanto
+dele já foi pago. Está provado nos dois sentidos pelo bloco 11 da `m58`.
+
+⚠️ **O que continua faltando, e é o caso mais comum:** a despesa avulsa. O
+produtor compra R$ 3.000 de ração e lança em `/financeiro`; o
+`createManualEntryAction` grava `related_module: "geral"` **sem `related_id`**,
+e aquele dinheiro continua não chegando ao lote. O §13/§14 lista nove tipos de
+custo, e só os que passam por um `ServiceJob` chegam hoje.
+
+**Custo de fechar o resto:** o lançamento manual precisa poder apontar para um
+lote, o que significa um campo a mais no formulário de `/financeiro` e a
+decisão de produto que a nota original já pedia (como o produtor amarra uma
+despesa a um lote sem transformar o lançamento rápido num formulário longo).
 
 **§17 pede sete destinos de saída, e a tela oferece três.** `stay-rules.ts` tem
 `encerramentos: ["retorno_estadia", "venda", "morte"]` para `confinamento`. O
@@ -237,10 +248,10 @@ não tem como ser registrado: "Voltaram para o pasto" grava a posição na fazen
 **de origem**, porque `closeStay` monta o destino com o `property_id` da
 abertura.
 
-⚠️ **Os dois exigem decisão de produto antes de virar tarefa** (como o produtor
-amarra uma despesa ao lote; quais dos sete destinos viram movimento novo no
-livro-razão). Decisão do usuário em 31/08: entram numa onda própria, depois da
-onda de correção, com as perguntas trazidas junto da spec.
+⚠️ **Os dois ainda exigem decisão de produto antes de virar tarefa** (como o
+produtor amarra uma despesa AVULSA ao lote; quais dos sete destinos viram
+movimento novo no livro-razão). Decisão do usuário em 31/08: entram numa onda
+própria, com as perguntas trazidas junto da spec.
 
 ### 2.9 O rebanho invisível do cadastro assistido
 
@@ -255,6 +266,28 @@ por decisão dele em 31/08, para o Confinamento entrar primeiro sem conflito.
 
 Estava registrada só no `current-handoff.md`, que é volátil por desenho: veio
 para cá em 31/08 para não sumir no próximo arquivamento.
+
+### 2.10 O rótulo "Prestador" no Financeiro colide com o item de menu
+
+**O que é:** a despesa de um serviço contratado aparece em `/financeiro` sob o
+módulo **"Prestador"**. É o rótulo de `RelatedModule.servico` em
+`src/lib/related-modules.ts`, herdado do Módulo 2, e a fase 33.2 reusou aquele
+valor de propósito (decisão 8 da spec: `entry_type` já separa receita de
+despesa, e um tenant raramente tem os dois perfis).
+
+**Evidência:** validação ao vivo de 02/09. Um serviço de "Reforma de cerca"
+lançado pelo painel aparece como
+`02/09/2026 | Despesa | Serviço terceirizado | Prestador | R$ 500,00 | Pago`.
+
+**Por que importa:** "Prestador" também é um item do menu lateral, e ele é
+**outra coisa**: o perfil prestador, do Módulo 2, que um tenant de fazenda nem
+usa. O produtor que contrata um pedreiro e vê a despesa marcada como
+"Prestador" pode procurá-la na área errada.
+
+**Custo de fechar:** trocar o rótulo de `servico` para "Serviço", que serve às
+duas origens e para de colidir com o nome do menu. É uma linha, mas muda o que
+um módulo em produção exibe (as ordens de serviço do perfil prestador passariam
+a se chamar "Serviço" no Financeiro), então é decisão de produto, não faxina.
 
 ---
 

@@ -27,92 +27,74 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 ## Estado atual
 
 - Atualizado em: 2026-09-02.
-- Branch de trabalho: **`mao-de-obra-fase-1`**, 11 commits à frente da `main`.
-- **Nada foi mesclado nem empurrado.** A `main` está intocada.
+- Branch de trabalho: **`mao-de-obra-fase-2`**, 12 commits à frente da `main`.
+- **Nada desta fase foi mesclado nem empurrado.** A fase 33.1 já está na `main`.
 
-### Os Módulos 33 e 34 foram desenhados, e a fase 0 mais a 33.1 estão prontas
+### A fase 33.1 ESTÁ NA `main` E NO AR; a 33.2 está pronta na branch
 
-Os dois documentos do cliente (`docs/modulo-area-mao-de-obra/` e
-`docs/modulo-servico-com-maquinas/`, renomeados porque o nome tinha travessão)
-foram lidos por inteiro e viraram design e plano:
+**Na `main` e em produção desde 02/09** (`7e30c0c..cc535eb`, 18 commits): a tela
+de contatos, a dívida 3.2 paga, e a mão de obra fixa inteira. Migração aplicada
+no Neon antes do push, e o deploy confirmado por duas chamadas únicas ao
+`/docs/api`. O detalhe está em `historico/2026-09.md`.
 
-- `docs/superpowers/specs/2026-09-02-mao-de-obra-e-servicos-com-maquinas-design.md`
-- `docs/superpowers/plans/2026-09-02-fase-0-contatos-e-fase-33-1-mao-de-obra-fixa.md`
+**Pronta na branch `mao-de-obra-fase-2`**, 12 commits, nada mesclado: o serviço
+contratado (§13 a §32 do Módulo 33).
 
-**Oito decisões foram tomadas com o usuário antes de qualquer código.** As que
-mudam o desenho das próximas fases:
+### O que a fase 33.2 entregou
 
-1. **Serviço contratado de terceiro é UM modelo** (`ServiceJob`), não dois. Os
-   dois documentos descrevem o mesmo objeto por lados diferentes, e dois modelos
-   fariam o produtor escolher a tela pela presença de máquina.
-2. **A quantidade trabalhada nunca será campo**: será soma de `ServiceJobLog`,
-   pelo mesmo motivo que o saldo do rebanho é soma. Por isso o log nasce na fase
-   33.2, embora a tela de lançamento diário só chegue na 34.2.
-3. **Não reabrir o Módulo 31.** O §37 de Máquinas ("a prestação de serviço será
-   uma negociação") é atendido por consulta, sem `NegotiationType` novo.
-4. **`mao_de_obra` tem matriz de permissão PRÓPRIA**: OWNER e ADMIN escrevem,
-   OPERADOR e VISUALIZADOR não veem, porque guarda salário. Vale também no
-   WhatsApp.
+`ServiceJob` cobre a diária (§13), o empreito (§15) e o serviço por unidade
+(§16), nas nove formas de cobrança. Mais `ServiceJobLog`, `WorkerLog` (as
+anotações do §12 e §34), o resumo do §30, oito rotas, duas telas e dois
+handlers de WhatsApp.
 
-### O que foi entregue nesta rodada (12 tarefas, todas fechadas)
+**Quatro decisões novas**, tomadas com o usuário antes do código:
 
-**Fase 0, a tela de contatos** (fecha a linha "tela de contatos" da
-`dividas.md` §2.3): `updateContact`, `setContactArchived`, `getContactDetail`,
-as rotas `/contacts/[id]` e `/contacts/[id]/archive`, e as telas `/contatos` e
-`/contatos/[id]`.
+1. **`servicos` é `ModuleKey` próprio, com matriz OPERACIONAL.** O corte:
+   OPERADOR registra "vieram 3 homens hoje" e continua sem enxergar quanto o
+   vaqueiro ganha por mês. Vale no painel E no WhatsApp.
+2. **O §29 (manutenção de máquina) NÃO é `ServiceJob`.** `MachineMaintenance`
+   já tem data, descrição e custo, e já gera lançamento. A action **recusa**
+   `machine_id` apontando para Máquinas.
+3. **O §22 é saldo aberto, não o parcelamento do Módulo 31.** Uma conta a pagar
+   pelo total, cada pagamento encolhendo-a, saldo derivado. As parcelas de lá
+   recusariam o exemplo literal do documento.
+4. **O dinheiro do serviço aponta para o SERVIÇO**, e o lote de confinamento
+   soma por junção. `related_id` aponta para uma coisa só, e o §22 exige que o
+   serviço saiba quanto dele já foi pago.
 
-⚠️ **Um defeito de produção foi achado e corrigido de passagem:**
-`CONTACT_TYPES` listava 10 dos 13 valores de `ContactType`. `laticinio`,
-`queijaria` e `mercado` entraram pelo §24 do Módulo 32 e nunca chegaram na
-constante, então **`POST /api/v1/contacts` recusava um laticínio** e
-`GET ?type=laticinio` ignorava o filtro em silêncio. O `satisfies readonly
-ContactType[]` não pegava: ele confere que cada valor listado é válido, nunca
-que a lista é completa. Virou `Record<ContactType, true>`.
+### Três coisas que o teste achou antes do código sair da branch
 
-**Dívida 3.2 PAGA:** as sete cópias do store de pendência viraram
-`pending-store.ts`. 1.307 linhas viraram 1.048, e o mecanismo existe uma vez.
-Os sete prefixos de chave foram conferidos contra o git, um a um, **idênticos**:
-um prefixo trocado deixaria órfã toda conversa pendente em produção.
+1. **O filtro `canceled_at: null` na junção do confinamento mentia para menos.**
+   Cancelar um serviço fazia sumir do custo do lote o dinheiro que JÁ TINHA
+   SIDO PAGO. Um tratorista que recebeu R$ 400 e não voltou custou R$ 400 ao
+   lote. Só apareceu porque o teste cobrava um número específico (400), não
+   "mudou".
+2. **Pagar mais que o restante não produz saldo negativo: produz DESPESA
+   FANTASMA.** Sem a recusa, R$ 7.000 num serviço de R$ 700 é aceito inteiro, o
+   pendente é apagado, e os R$ 6.300 a mais viram despesa com o restante em
+   zero.
+3. **Responder duas coisas quando uma foi perguntada perde a segunda.** É a
+   âncora do pendente funcionando (só o campo perguntado entra), e o preço é
+   aceito: perder um campo faz o assistente perguntar de novo, enquanto aceitar
+   tudo faz ele gravar o que ninguém confirmou. O teste cobre os dois caminhos.
 
-⚠️ **Uma diferença de comportamento foi PRESERVADA, não uniformizada:** `herd` e
-`stock` recusam número como resposta, os outros cinco aceitam. Virou a opção
-`aceitaNumero`. Uniformizar é decisão sobre o caminho do WhatsApp, com banco de
-provas, não faxina de refatoração.
+### O que foi validado no navegador
 
-**Fase 33.1, a mão de obra fixa:** model `Worker`, quatro enums,
-`RelatedModule.mao_de_obra`, `FinancialEntry.worker_entry_kind`, as actions, as
-três rotas, as duas telas e os três handlers de WhatsApp.
+O §14 sai exato: "3 homens por 4 dias a 150" mostra **4 diárias** e
+**R$ 1.800,00**, com a ficha explicando "4 diárias a R$ 150,00 · 3 pessoas". O
+§22 também: pagando R$ 500, os quatro números ficam 1.800 / 500 / 1.300 /
+02-09, e os dois lançamentos aparecem em `/financeiro`.
 
-**Trava nova:** `exigirRedisLocal()`, irmã da `exigirBancoLocal()`. Faltava, e a
-falta era do mesmo tamanho: o `.env` aponta para o Redis de PRODUÇÃO, e uma
-suíte que só usa Redis passaria inteira pela trava antiga.
+⚠️ **Uma coisa que a tela mostrou e virou dívida 2.10:** o lançamento aparece
+sob o módulo **"Prestador"**, que também é um item do menu e é outra coisa. A
+correção é um rótulo, mas muda o que o Módulo 2 exibe, então é decisão sua.
 
-### Três defeitos que os testes não teriam pego
+### Metade da dívida 2.8 §29 fechou
 
-1. **A previsão rolante nascia ancorada em HOJE**, não no vencimento da parcela
-   quitada. Quem pagasse no dia 2 a parcela do dia 5 recebia outra para o mesmo
-   dia 5. Achado porque o teste comparava o MÊS das duas datas, não só "nasceu
-   uma".
-2. **`db.worker` chegava `undefined` no `next dev`.** A suíte passava (roda em
-   processo novo); o servidor estava com o client Prisma antigo em memória,
-   porque o singleton fica em `globalThis` e os clients escopados são cacheados
-   por tenant. **Vale para toda frente que acrescentar model com o dev de pé:
-   reinicie o servidor.**
-3. **Todas as rotas davam 404, inclusive `/login`**, por cache podre do
-   `.next`. O `curl` distinguiu (`/contatos` dava 307, `/login` dava 404), e
-   apagar `.next` mais restart resolveu.
+Serviço amarrado a lote chega ao "Custo acumulado" do confinamento. **Continua
+faltando** a despesa avulsa lançada em `/financeiro`, que nasce sem
+`related_id`: reescrito na `dividas.md`, não apagado.
 
-### O que foi validado no navegador, não deduzido
-
-O exemplo do §7 saiu literal: cadastrar "João, vaqueiro, R$ 2.500 por mês, dia
-5" faz a listagem mostrar "R$ 2.500,00 em 05/09/2026". Confirmar quitou a de
-05/09 e criou a de 05/10. O adiantamento de R$ 500 entrou separado, e a previsão
-seguiu em R$ 2.500,00.
-
-Os três lançamentos aparecem em `/financeiro` sob o módulo "Mão de Obra", com
-"Marcar como pago / Adiar / Cancelar" de graça. E `bill_due` foi **conferido no
-código**: lê `financialEntry` só por status pendente e `due_date`, sem filtrar
-módulo, então a previsão gera alerta sozinha.
 
 ### 🔴 SEGURANÇA: o repositório está PÚBLICO e o `.env.enc` vazou
 
@@ -152,38 +134,45 @@ quando a rotação terminar.
 `git fetch --all --prune`, depois `git checkout main && git reset --hard
 origin/main`. Trabalho não empurrado precisa virar patch antes.
 
+
 ### ⏭️ PRÓXIMO PASSO
 
 **1. Segurança, que é do usuário e vem antes de tudo:** rotacionar as 22
-variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Enquanto
-estiver aberto, todo commit é leitura pública.
+variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
+avançou nesta rodada, e cada commit que sobe é leitura pública.
 
 **2. A migração no Neon, também do usuário.**
-`20260903100000_mao_de_obra_fase_1` está aplicada só no Docker local. O
-invariante 3 vale: ela precisa ir para o Neon ANTES de qualquer push, porque a
-Vercel faz deploy automático e o build não roda migração. `npm run db:deploy`
-contra produção é recusado pelo classificador de permissões mesmo com a marca de
-autorização, então quem aplica é você, no terminal.
+`20260904100000_servico_contratado` está aplicada só no Docker local. O
+invariante 3 vale: ela vai ANTES de qualquer push, porque a Vercel faz deploy
+automático e o build não roda migração. `npm run db:deploy` contra produção é
+recusado pelo classificador de permissões mesmo com a marca de autorização,
+então quem aplica é você, no terminal.
 
-⚠️ **É UMA migração, não duas.** Este arquivo chegou a afirmar que a da Fase 3
-do Leite (`20260902200000_area_leite_fase_3`) também estava pendente. Conferido
-contra o Neon em 02/09 com `npx prisma migrate status` (leitura, que passa):
-das 42 migrações, a única não aplicada é a da mão de obra. A do Leite já subiu.
+O `DATABASE_URL` do `.env` é a URL **Direct** (sem `-pooler`), então
+`npm run db:deploy` roda sem passar URL inline. Confira depois com
+`npx prisma migrate status`, que é leitura e passa.
 
-O `DATABASE_URL` do `.env` é a URL **Direct** (sem `-pooler`), que é a certa
-para migração, então `npm run db:deploy` roda sem passar URL inline.
+⚠️ **A migração é ADITIVA e não tem nenhum `DROP`**, de nenhum tipo: quatro
+tipos novos, uma coluna anulável em `MachineMaintenance`, e três tabelas novas.
+Nenhuma linha existente é tocada.
 
-**3. Só então** merge e push da `mao-de-obra-fase-1`, com autorização explícita.
+**3. Só então** merge e push da `mao-de-obra-fase-2`, com autorização explícita.
 
-**4. Depois:** a fase 33.2 (o `ServiceJob` contratado), com a spec de design já
-escrita. Ela vai precisar de uma decisão nova sobre o guard: a diária de um
-serviço não tem a sensibilidade de um salário, e travar o OPERADOR fora dela
-impediria quem está no curral de registrar o trabalho do dia.
+**4. Duas decisões pequenas que a rodada levantou:**
 
-**Continuam esperando, de rodadas anteriores:** os dois pedidos do cliente do
-Confinamento (`dividas.md` §2.8), a correção do rebanho invisível (§2.9), e três
-decisões de produto do Leite (média diária por dias corridos; cabeçalho de uma
-fazenda com armazenamento de todas; fechamento sem data nascendo "Vencida").
+- o rótulo "Prestador" no Financeiro (`dividas.md` §2.10);
+- o guard da fase 34.1, quando ela chegar: `prestado` é receita, e a matriz
+  pode não ser a mesma de `contratado`.
+
+**Continuam esperando, de rodadas anteriores:** a outra metade da `dividas.md`
+§2.8 (a despesa avulsa e os sete destinos de saída), a correção do rebanho
+invisível (§2.9), e três decisões de produto do Leite (média diária por dias
+corridos; cabeçalho de uma fazenda com armazenamento de todas; fechamento sem
+data nascendo "Vencida").
+
+**Depois:** a fase 34.1 (o serviço PRESTADO com máquina própria, que gera
+receita) e a 34.2 (lançamento diário, combustível baixando estoque, horímetro).
+A spec de design das duas já está escrita e mesclada.
 
 ### ⚠️ Para quem retomar em OUTRA MÁQUINA
 
