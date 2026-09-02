@@ -8,7 +8,7 @@ import { criarStoreDePendencia, type PedidoBase } from "@/lib/actions/pending-st
  * outras sete cópias, e seria a NONA.
  */
 
-export type GestoServico = "diaria" | "empreito";
+export type GestoServico = "diaria" | "empreito" | "prestado";
 
 /** O campo que o assistente perguntou e está esperando. */
 export type CampoServico =
@@ -17,6 +17,9 @@ export type CampoServico =
   | "quantidade"
   | "pessoas"
   | "quem"
+  /** Os dois do prestado (§42 do documento de Máquinas). */
+  | "maquina"
+  | "unidade"
   /** Não é campo: é o serviço inteiro esperando um "sim". */
   | "confirmacao";
 
@@ -38,6 +41,8 @@ const store = criarStoreDePendencia<CampoServico, ServicoPendente>({
     if (campo === "quantidade") return "quantity";
     if (campo === "pessoas") return "worker_count";
     if (campo === "quem") return "contact_name";
+    if (campo === "maquina") return "machine";
+    if (campo === "unidade") return "pricing";
     return campo;
   },
 });

@@ -1,7 +1,15 @@
 import "dotenv/config";
-import { exigirBancoLocal } from "./_banco-local";
+import { exigirBancoLocal, exigirRedisLocal } from "./_banco-local";
 
 exigirBancoLocal();
+/**
+ * Os blocos 16 e 17 conversam com o handler, e o handler guarda a pendência no
+ * Redis. Esta trava chegou na fase 34.1: até então a suíte escrevia chave no
+ * Redis de PRODUÇÃO toda vez que rodava, porque é para lá que o `.env` aponta
+ * e nada aqui conferia. As chaves expiram sozinhas, mas escrever em produção
+ * para testar não é aceitável.
+ */
+exigirRedisLocal();
 
 /**
  * Módulo 33, fase 2: o serviço contratado de terceiro.

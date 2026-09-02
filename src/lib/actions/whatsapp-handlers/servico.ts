@@ -1,3 +1,4 @@
+import type { ServicePricing } from "@/generated/prisma/client";
 import type { TenantPrismaClient } from "@/lib/prisma";
 import { createServiceJob } from "@/lib/actions/service-jobs";
 import { listContacts } from "@/lib/actions/contacts";
@@ -13,12 +14,15 @@ import { ask, failReply, str, type Handler, type RouterResult } from "./shared";
 import { lerNumeroBr } from "./parsers";
 
 /**
- * Serviço contratado pelo WhatsApp (Módulo 33, §32 do documento do cliente).
- *
- * Duas conversas, as duas do §32:
+ * Serviço pelo WhatsApp: as duas conversas do §32 do Módulo 33 e a do §42 do
+ * documento de Máquinas.
  *
  *   "Vieram 3 homens trabalhar na cerca por 4 dias, 150 a diária."
  *   "O Pedro fez a cerca por 6 mil."
+ *   "Amanhã vou gradear 20 hectares para o João a 180 reais o hectare."
+ *
+ * A terceira é a que INVERTE o sinal do dinheiro: ela gera conta a receber, e
+ * exige a máquina.
  *
  * O CLASSIFICADOR DO N8N NÃO FOI TOCADO (decisão do usuário: o agente fica
  * congelado até o sistema estar revisado). As duas intenções existem, são
@@ -83,6 +87,55 @@ async function resolverPrestador(
   // Um achado: usa o nome exato do cadastro, para não criar duplicata de
   // grafia. Nenhum: usa o que o produtor disse, e o contato nasce junto.
   return { ok: true, nomeFinal: achados[0]?.name ?? nome };
+}
+
+/**
+ * Acha a máquina citada, e NUNCA a inventa.
+ *
+ * ⚠️ A diferença para `resolverPrestador` é o caso "nenhum achado". Um contato
+ * novo nasce do nome dito (`createServiceJob` faz isso com `contact_name`), mas
+ * uma máquina não: ela tem tipo, horímetro, custo de aquisição e manutenção, e
+ * criar uma casca a partir de "Massey" encheria a tela de Máquinas de fantasmas
+ * que ninguém cadastrou. Então aqui NÃO ACHAR é pergunta, não criação.
+ *
+ * ⚠️ E ambiguidade também pergunta. Duas máquinas com "Trator" no nome fariam o
+ * histórico do §32 ir para a errada, em silêncio: a ficha da outra mostraria
+ * horas que ela nunca rodou.
+ */
+async function resolverMaquina(
+  db: TenantPrismaClient,
+  nome: string,
+): Promise<{ ok: true; id: string; nome: string } | { ok: false; resposta: RouterResult }> {
+  const maquinas = await db.machine.findMany({
+    where: { status: { in: ["active", "maintenance"] } },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+
+  if (maquinas.length === 0) {
+    return {
+      ok: false,
+      resposta: ask(
+        "Você ainda não tem máquina cadastrada, e o serviço prestado precisa de uma. " +
+          "Cadastre em Máquinas, no painel.",
+      ),
+    };
+  }
+
+  const alvo = normalizar(nome);
+  const achados = maquinas.filter((m) => normalizar(m.name).includes(alvo));
+
+  if (achados.length === 1) return { ok: true, id: achados[0].id, nome: achados[0].name };
+
+  const lista = (achados.length > 1 ? achados : maquinas).map((m) => `- ${m.name}`).join("\n");
+  return {
+    ok: false,
+    resposta: ask(
+      achados.length > 1
+        ? `Tenho mais de uma máquina com esse nome. Qual delas?\n${lista}`
+        : `Não achei essa máquina. Qual você usou?\n${lista}`,
+    ),
+  };
 }
 
 async function cancelar(
@@ -334,6 +387,162 @@ export const registrarServicoContratado: Handler = async (ctx) => {
     reply_text:
       `✅ Serviço de ${servico} por ${quem} registrado, ${moeda(res.data.total)}.` +
       "\nFicou como conta a pagar. Me avise quando pagar.",
+    requires_confirmation: false,
+    auxiliary_data: { service_job_id: res.data.id },
+    report_url: null,
+    action_taken: `${intent}:ok`,
+  };
+};
+
+// ── §42: o serviço PRESTADO com máquina própria ──────────────────────────
+
+/**
+ * As unidades que o produtor fala, mapeadas para o `pricing` do banco.
+ *
+ * Aceita singular e plural porque a frase do §42 diz "20 hectares" e "180 o
+ * hectare" na MESMA frase, e o classificador manda o que ouviu. `Record`
+ * completo do lado do enum não cabe aqui: o mapa é de fala para valor, e a fala
+ * tem mais entradas que o enum.
+ */
+const UNIDADES: Record<string, ServicePricing> = {
+  hora: "hora",
+  horas: "hora",
+  hectare: "hectare",
+  hectares: "hectare",
+  ha: "hectare",
+  dia: "dia",
+  dias: "dia",
+  diaria: "dia",
+  diarias: "dia",
+  viagem: "viagem",
+  viagens: "viagem",
+  tonelada: "tonelada",
+  toneladas: "tonelada",
+  metro: "metro",
+  metros: "metro",
+  quilometro: "quilometro",
+  quilometros: "quilometro",
+  km: "quilometro",
+  cabeca: "cabeca",
+  cabecas: "cabeca",
+  fechado: "fechado",
+  empreito: "fechado",
+};
+
+/**
+ * "Amanhã vou gradear 20 hectares para o João a 180 reais o hectare." (§42)
+ *
+ * A confirmação mostra o TOTAL PREVISTO, que é o número que o §42 pede em
+ * letra: "total previsto de R$ 3.600". E fala em RECEBER, nunca em pagar: o
+ * dinheiro entra.
+ *
+ * ⚠️ A máquina é obrigatória (§17), então ela é perguntada como qualquer outro
+ * campo que falte, e resolvida por `resolverMaquina`, que não inventa nem
+ * escolhe sozinho.
+ */
+export const registrarServicoPrestado: Handler = async (ctx) => {
+  const intent = "registrar_servico_prestado";
+  if (ctx.explicitNo) return cancelar(intent, ctx.tenant_id, ctx.user_id);
+
+  const aberta = await abrirConversa("prestado", ctx);
+  if ("parar" in aberta) return aberta.parar;
+  const { parameters, guardar, limpar } = aberta;
+
+  const servico = str(parameters.servico) ?? str(parameters.description);
+  if (!servico) {
+    await guardar("servico");
+    return ask("Qual serviço você fez? (gradagem, roçada, colheita...)");
+  }
+
+  const maquinaDita = str(parameters.maquina) ?? str(parameters.machine);
+  if (!maquinaDita) {
+    await guardar("maquina");
+    return ask(`Qual máquina você usou na ${servico.toLowerCase()}?`);
+  }
+  const maquina = await resolverMaquina(ctx.db, maquinaDita);
+  if (!maquina.ok) {
+    // A pergunta volta ao mesmo campo: a resposta é o nome da máquina de novo,
+    // e sem isto o pedido ficaria esperando um campo que ninguém perguntou.
+    await guardar("maquina");
+    return maquina.resposta;
+  }
+
+  const unidadeDita = str(parameters.unidade) ?? str(parameters.pricing);
+  const pricing = unidadeDita ? UNIDADES[normalizar(unidadeDita)] : undefined;
+  if (!pricing) {
+    await guardar("unidade");
+    return ask("Cobrou por hora, por hectare, por diária, ou foi valor fechado?");
+  }
+
+  const valor = lerNumeroBr(parameters.valor ?? parameters.amount);
+  if (valor === null || valor <= 0) {
+    await guardar("valor");
+    return ask(
+      pricing === "fechado"
+        ? `Quanto ficou o serviço de ${servico}?`
+        : `Quanto você cobrou por ${pricing}?`,
+    );
+  }
+
+  // No empreito não se pergunta quantidade: o §16 diz que o sistema não deve
+  // exigir cálculo por hora ou hectare quando o valor é fechado.
+  let quantidade: number | null = null;
+  if (pricing !== "fechado") {
+    quantidade = lerNumeroBr(parameters.quantidade ?? parameters.quantity);
+    if (quantidade === null || quantidade <= 0) {
+      await guardar("quantidade");
+      return ask(`Quantos ${pricing === "hora" ? "horas" : pricing + "s"} foram?`);
+    }
+  }
+
+  const quemDito = str(parameters.quem) ?? str(parameters.contact_name);
+  if (!quemDito) {
+    await guardar("quem");
+    return ask(`Para quem você fez a ${servico.toLowerCase()}?`);
+  }
+  const cliente = await resolverPrestador(ctx.db, quemDito);
+  if (!cliente.ok) {
+    await guardar("quem");
+    return cliente.resposta;
+  }
+
+  const total = pricing === "fechado" ? valor : valor * (quantidade ?? 0);
+
+  if (!ctx.confirmed) {
+    await guardar("confirmacao");
+    return {
+      reply_text:
+        `Deseja registrar ${servico} para ${cliente.nomeFinal} com o ${maquina.nome}, ` +
+        `total previsto de ${moeda(total)}?`,
+      requires_confirmation: true,
+      auxiliary_data: { servico, pricing, valor, quantidade, quem: cliente.nomeFinal, total },
+      report_url: null,
+      action_taken: `${intent}:aguardando_confirmacao`,
+    };
+  }
+
+  const fazenda = await fazendaPadrao(ctx.db);
+  if (!fazenda.ok) return fazenda.resposta;
+
+  const res = await createServiceJob(ctx.db, {
+    direction: "prestado",
+    property_id: fazenda.id,
+    occurred_at: new Date(),
+    description: servico,
+    pricing,
+    unit_price: pricing === "fechado" ? null : valor,
+    agreed_amount: pricing === "fechado" ? valor : null,
+    quantity: quantidade,
+    machine_id: maquina.id,
+    contact_name: cliente.nomeFinal,
+  });
+  await limpar();
+  if (!res.ok) return failReply(intent, res);
+
+  return {
+    reply_text:
+      `✅ ${servico} para ${cliente.nomeFinal} registrada, ${moeda(res.data.total)}.` +
+      "\nFicou como conta a receber. Me avise quando receber.",
     requires_confirmation: false,
     auxiliary_data: { service_job_id: res.data.id },
     report_url: null,

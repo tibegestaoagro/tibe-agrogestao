@@ -1,7 +1,13 @@
 import "dotenv/config";
-import { exigirBancoLocal } from "./_banco-local";
+import { exigirBancoLocal, exigirRedisLocal } from "./_banco-local";
 
 exigirBancoLocal();
+/**
+ * O bloco 9 conversa com o handler, e o handler guarda a pendência no Redis.
+ * Sem esta trava a suíte escreveria chave no Redis de PRODUÇÃO, que é para
+ * onde o `.env` aponta.
+ */
+exigirRedisLocal();
 
 /**
  * Módulo 34, fase 1: o serviço PRESTADO com máquina própria.
@@ -16,6 +22,7 @@ exigirBancoLocal();
  *   6. §32: o histórico da máquina, somado POR UNIDADE.
  *   7. §39: a agenda de hoje e dos próximos.
  *   8. §37: os serviços na ficha do contato, nas duas direções.
+ *   9. §42: a conversa do serviço prestado no WhatsApp, e as duas travas.
  *
  * ⚠️ A `m58` (145 conferências sobre o CONTRATADO) é a prova de que esta fase
  * não quebrou a anterior: ela cobre o mesmo arquivo, e tem que continuar verde.
@@ -683,6 +690,150 @@ async function main() {
       fichaDepois.ok && fichaDepois.data.services.length === 1,
       fichaDepois.ok ? String(fichaDepois.data.services.length) : "",
     );
+    // ── 9. §42: o serviço prestado pelo WhatsApp ─────────────────────────
+
+    console.log("\n9. §42: a conversa do serviço prestado");
+    const { routeIntent } = await import("@/lib/actions/whatsapp-router");
+    const { clearPendingService } = await import("@/lib/actions/service-pending");
+    const USER = "m59-user";
+    const falar = (
+      parameters: Record<string, unknown>,
+      extra: { confirmed?: boolean; explicitNo?: boolean } = {},
+    ) =>
+      routeIntent(db, {
+        intent: "registrar_servico_prestado" as never,
+        tenant_id: tenant.id,
+        role: "OWNER",
+        activeProfiles: ["fazenda"],
+        parameters,
+        confirmed: extra.confirmed ?? false,
+        explicitNo: extra.explicitNo ?? false,
+        user_id: USER,
+      });
+
+    /**
+     * O CAMINHO REAL: a frase do §42 inteira, em UM turno, porque é assim que
+     * o classificador manda. "Amanhã vou gradear 20 hectares para o João a 180
+     * reais o hectare" tem que mostrar o total previsto de R$ 3.600.
+     */
+    const frase = await falar({
+      servico: "Gradagem",
+      unidade: "hectare",
+      valor: 180,
+      quantidade: 20,
+      quem: "João Vizinho",
+      maquina: "Massey §32",
+    });
+    check("pede confirmação", frase.requires_confirmation === true, frase.action_taken);
+    check(
+      "mostrando o total previsto de R$ 3.600 (§42)",
+      frase.reply_text.includes("3.600"),
+      frase.reply_text,
+    );
+    check(
+      "e dizendo a máquina, que é o que diferencia do contratado",
+      frase.reply_text.includes("Massey"),
+      frase.reply_text,
+    );
+
+    const antesDoSim = await db.serviceJob.count({ where: { direction: "prestado" } });
+    const sim = await falar({}, { confirmed: true });
+    check("o sim grava", sim.action_taken === "registrar_servico_prestado:ok", sim.action_taken);
+    check(
+      "e a resposta fala de RECEBER, não de pagar",
+      sim.reply_text.toLowerCase().includes("receber"),
+      sim.reply_text,
+    );
+    const gravado = await db.serviceJob.findFirst({
+      where: { direction: "prestado" },
+      orderBy: { created_at: "desc" },
+      include: { machine: { select: { name: true } } },
+    });
+    check("um serviço prestado a mais", (await db.serviceJob.count({ where: { direction: "prestado" } })) === antesDoSim + 1);
+    check("com a máquina amarrada", gravado?.machine?.name === "Trator Massey §32", String(gravado?.machine?.name));
+    check(
+      "e o lançamento é RECEITA",
+      (
+        await db.financialEntry.findFirst({
+          where: { related_module: "servico", related_id: gravado!.id },
+        })
+      )?.entry_type === "income",
+    );
+
+    /**
+     * ⚠️ TRAVA 1: "não" cancela, e NADA é gravado. É o defeito de 2026-08-18 no
+     * estoque, onde "não, deixa pra lá" gravou a compra de R$ 1.200.
+     */
+    console.log("   a recusa");
+    await falar({ servico: "Aração", unidade: "hora", valor: 200, quantidade: 5, quem: "João Vizinho", maquina: "Massey §32" });
+    const antesDaRecusa = await db.serviceJob.count({ where: { direction: "prestado" } });
+    const recusado = await falar({}, { explicitNo: true });
+    check(
+      "cancela",
+      recusado.action_taken === "registrar_servico_prestado:cancelado",
+      recusado.action_taken,
+    );
+    check(
+      "e não grava nada",
+      (await db.serviceJob.count({ where: { direction: "prestado" } })) === antesDaRecusa,
+    );
+
+    /**
+     * ⚠️ TRAVA 2: ambiguidade PERGUNTA. Duas máquinas com "Trator" no nome não
+     * podem cair na primeira em silêncio: o histórico do §32 iria para a
+     * máquina errada, e ninguém descobriria.
+     */
+    console.log("   a ambiguidade de máquina");
+    await db.machine.create({
+      data: scoped({ property_id: fazenda.id, name: "Trator John Deere", type: "Trator" }),
+    });
+    const ambiguo = await falar({
+      servico: "Roçada",
+      unidade: "hectare",
+      valor: 100,
+      quantidade: 3,
+      quem: "João Vizinho",
+      maquina: "Trator",
+    });
+    check(
+      "pergunta qual máquina, em vez de escolher",
+      !ambiguo.requires_confirmation && ambiguo.reply_text.includes("John Deere"),
+      ambiguo.reply_text,
+    );
+
+    console.log("   e a máquina que não existe");
+    await clearPendingService(tenant.id, USER);
+    const inexistente = await falar({
+      servico: "Roçada",
+      unidade: "hectare",
+      valor: 100,
+      quantidade: 3,
+      quem: "João Vizinho",
+      maquina: "Colheitadeira New Holland",
+    });
+    check(
+      "não inventa a máquina: pergunta qual é",
+      !inexistente.requires_confirmation,
+      inexistente.reply_text,
+    );
+
+    console.log("   e o turno a turno, com o classificador mandando UM campo");
+    await clearPendingService(tenant.id, USER);
+    const t1 = await falar({ servico: "Ensilagem" });
+    check("sem máquina, pergunta a máquina", t1.reply_text.toLowerCase().includes("máquina"), t1.reply_text);
+    const t2 = await falar({ maquina: "John Deere" });
+    check("com a máquina, pergunta a cobrança", !t2.requires_confirmation, t2.reply_text);
+    const t3 = await falar({ unidade: "hora" });
+    const t4 = await falar({ valor: 250 });
+    const t5 = await falar({ quantidade: 8 });
+    const t6 = await falar({ quem: "João Vizinho" });
+    check(
+      "e no fim confirma com o SERVIÇO do primeiro turno vivo",
+      t6.requires_confirmation === true && t6.reply_text.includes("Ensilagem"),
+      `${t3.action_taken} / ${t4.action_taken} / ${t5.action_taken} / ${t6.reply_text}`,
+    );
+    check("com o total de 8 x 250 = 2.000", t6.reply_text.includes("2.000"), t6.reply_text);
+    await clearPendingService(tenant.id, USER);
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });
     await prisma.$disconnect();

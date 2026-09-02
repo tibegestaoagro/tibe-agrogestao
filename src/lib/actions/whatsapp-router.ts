@@ -58,6 +58,7 @@ import {
 import {
   registrarDiaria,
   registrarServicoContratado,
+  registrarServicoPrestado,
 } from "@/lib/actions/whatsapp-handlers/servico";
 import { loadPendingNegotiation } from "@/lib/actions/negotiation-pending";
 import {
@@ -147,6 +148,7 @@ const HANDLERS: Record<Exclude<Intent, "ambigua">, Handler> = {
   registrar_adiantamento: registrarAdiantamento,
   registrar_diaria: registrarDiaria,
   registrar_servico_contratado: registrarServicoContratado,
+  registrar_servico_prestado: registrarServicoPrestado,
   consultar_cliente: consultarCliente,
   gerar_relatorio: gerarRelatorio,
   registrar_lancamento_financeiro: registrarLancamentoFinanceiro,
