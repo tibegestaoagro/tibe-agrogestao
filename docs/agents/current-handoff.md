@@ -165,8 +165,13 @@ Vercel faz deploy automático e o build não roda migração. `npm run db:deploy
 contra produção é recusado pelo classificador de permissões mesmo com a marca de
 autorização, então quem aplica é você, no terminal.
 
-⚠️ **Falta também a migração da Fase 3 do Leite**
-(`20260902200000_area_leite_fase_3`), pendente desde a rodada anterior.
+⚠️ **É UMA migração, não duas.** Este arquivo chegou a afirmar que a da Fase 3
+do Leite (`20260902200000_area_leite_fase_3`) também estava pendente. Conferido
+contra o Neon em 02/09 com `npx prisma migrate status` (leitura, que passa):
+das 42 migrações, a única não aplicada é a da mão de obra. A do Leite já subiu.
+
+O `DATABASE_URL` do `.env` é a URL **Direct** (sem `-pooler`), que é a certa
+para migração, então `npm run db:deploy` roda sem passar URL inline.
 
 **3. Só então** merge e push da `mao-de-obra-fase-1`, com autorização explícita.
 
