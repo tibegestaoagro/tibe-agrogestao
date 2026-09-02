@@ -422,10 +422,21 @@ export type ConfinementLotSummary = {
   /** Quantidades usadas por produto (StockMovement com este stay_id). */
   feeding: ConfinementFeedingLine[];
   /**
-   * Soma das despesas ligadas a esta estadia (FinancialEntry por
-   * `related_id`), a cobrança do site incluída quando existir. NUNCA soma o
-   * valor do estoque em R$: nem `Product` nem `StockMovement` têm preço no
-   * schema atual, e "nunca estimativa" (decisão 3 da spec) proíbe inventar um.
+   * Soma das despesas ligadas a esta estadia, de DUAS origens:
+   *
+   * 1. As que apontam direto para ela (`FinancialEntry.related_id = stayId`),
+   *    a cobrança do site incluída quando existir;
+   * 2. **desde a fase 33.2**, as dos `ServiceJob` com `confinement_stay_id`
+   *    deste lote (§27 do Módulo 33), somadas por junção porque o lançamento
+   *    de um serviço aponta para o serviço, não para a estadia.
+   *
+   * NUNCA soma o valor do estoque em R$: nem `Product` nem `StockMovement` têm
+   * preço no schema atual, e "nunca estimativa" (decisão 3 da spec do Módulo
+   * 30) proíbe inventar um.
+   *
+   * ⚠️ Conta o gasto, pago ou a pagar, e não só o desembolsado. É o critério
+   * que este campo já usava antes da fase 33.2, mantido de propósito: o custo
+   * do lote é o que ele consumiu, não o que já saiu do caixa.
    */
   financial_cost: number;
   canceled_at: Date | null;
@@ -438,7 +449,7 @@ export async function getConfinementLotSummary(
   const stay = await db.herdStay.findFirst({ where: { id: stayId } });
   if (!stay) return fail("NOT_FOUND", "Estadia não encontrada.", 404);
 
-  const [movimentos, alimentacao, custos] = await Promise.all([
+  const [movimentos, alimentacao, custos, servicos] = await Promise.all([
     db.herdMovement.findMany({
       where: { stay_id: stayId, canceled_at: null },
       select: {
@@ -454,6 +465,28 @@ export async function getConfinementLotSummary(
       include: { product: { select: { name: true, unit: true } } },
     }),
     db.financialEntry.findMany({ where: { related_id: stayId, entry_type: "expense" } }),
+    /**
+     * Os serviços amarrados a este lote (§27 do Módulo 33, fase 2).
+     *
+     * O lançamento de um serviço aponta para o SERVIÇO, e não para a estadia,
+     * porque o §22 do mesmo documento exige que o serviço saiba quanto dele já
+     * foi pago e quanto falta. `related_id` aponta para uma coisa só, então o
+     * lote soma por JUNÇÃO em vez de por `related_id` direto.
+     *
+     * Ver a decisão 12 em
+     * docs/superpowers/specs/2026-09-02-mao-de-obra-e-servicos-com-maquinas-design.md
+     *
+     * ⚠️ **Inclui os CANCELADOS de propósito**, e a primeira versão disto os
+     * excluía. Cancelar um serviço apaga os lançamentos pendentes e preserva os
+     * pagos, porque aquele dinheiro saiu de verdade: um tratorista que recebeu
+     * R$ 400 e não voltou custou R$ 400 ao lote. Filtrar por `canceled_at`
+     * aqui fazia esse dinheiro sumir do custo, e a soma passava a mentir para
+     * menos. Os pendentes não precisam de filtro: o cancelamento já os apagou.
+     */
+    db.serviceJob.findMany({
+      where: { confinement_stay_id: stayId },
+      select: { id: true },
+    }),
   ]);
 
   const situacao = situacaoDaEstadia(stay.type);
@@ -472,7 +505,23 @@ export async function getConfinementLotSummary(
     feedingByProduct.set(m.product_id, atual);
   }
 
-  const financial_cost = custos.reduce((soma, c) => soma + (decToNum(c.amount) ?? 0), 0);
+  // As despesas dos serviços do §27, somadas às que apontam direto para a
+  // estadia. Consulta separada, e não um `OR` no `findMany` acima, porque a
+  // lista de ids só existe depois de a primeira responder.
+  const custosDeServico =
+    servicos.length === 0
+      ? []
+      : await db.financialEntry.findMany({
+          where: {
+            related_module: "servico",
+            related_id: { in: servicos.map((s) => s.id) },
+            entry_type: "expense",
+          },
+        });
+
+  const financial_cost =
+    custos.reduce((soma, c) => soma + (decToNum(c.amount) ?? 0), 0) +
+    custosDeServico.reduce((soma, c) => soma + (decToNum(c.amount) ?? 0), 0);
   const days_confined = diasDeCalendario(stay.started_at, new Date());
 
   return ok({

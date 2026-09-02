@@ -17,6 +17,9 @@ exigirBancoLocal();
  *   8. O fechamento: quitar zera o restante e não deixa pendente sobrando.
  *   9. Pagar MAIS que o restante é recusado, e o saldo nunca fica negativo.
  *  10. Cancelar apaga o pendente, preserva o pago, e mantém os logs.
+ *  11. §27: o custo do lote de confinamento passa a somar os serviços dele,
+ *      SEM o serviço perder o próprio dinheiro. É a decisão 12 da spec, e a
+ *      única desta fase que toca código de outro módulo em produção.
  *
  * Roda: `npm run test:m58`.
  */
@@ -585,6 +588,122 @@ async function comBanco() {
     check(
       "pagar num serviço cancelado é recusado",
       !(await recordServiceJobPayment(db, { service_job_id: paraCancelar.data.id, amount: 10 })).ok,
+    );
+
+    // ── 11. §27: o custo do lote de confinamento ──────────────────────────
+    //
+    // A decisão 12 da spec: `related_id` aponta para UMA coisa. O lançamento
+    // aponta para o SERVIÇO (senão o §22 quebraria justo no serviço amarrado a
+    // lote), e o lote soma por JUNÇÃO. Os dois lados precisam enxergar.
+
+    console.log("\n11. §27: o custo do lote passa a somar os serviços dele");
+    const { createConfinementSite, openConfinementStay, getConfinementLotSummary } =
+      await import("@/lib/actions/confinement");
+    const { recordMovement } = await import("@/lib/actions/herd-ledger");
+
+    const pasto = await db.pasture.create({
+      data: scoped({ property_id: fazenda.id, name: "Pasto M58", area_hectares: 40 }),
+    });
+    // Base para haver de onde tirar as cabeças, no molde da m51.
+    await recordMovement(db, {
+      movement_type: "saldo_inicial",
+      quantity: 100,
+      to: {
+        category_id: "macho_25_36",
+        property_id: fazenda.id,
+        pasture_id: pasto.id,
+        situation: "presente",
+        owner: "proprio",
+      },
+    });
+
+    const site = await createConfinementSite(db, {
+      name: "Curral M58",
+      type: "proprio",
+      property_id: fazenda.id,
+    });
+    if (!site.ok) throw new Error(`createConfinementSite falhou: ${site.message}`);
+
+    const aberto = await openConfinementStay(db, {
+      confinement_site_id: site.data.id,
+      category_id: "macho_25_36",
+      quantity: 20,
+      property_id: fazenda.id,
+      pasture_id: pasto.id,
+      started_at: new Date("2026-08-01T12:00:00.000Z"),
+    });
+    if (!aberto.ok) throw new Error(`openConfinementStay falhou: ${aberto.message}`);
+    const lote = aberto.data;
+
+    const custoAntes = await getConfinementLotSummary(db, lote.id);
+    check(
+      "o lote começa sem custo de serviço",
+      custoAntes.ok && custoAntes.data.financial_cost === 0,
+      custoAntes.ok ? String(custoAntes.data.financial_cost) : "recusado",
+    );
+
+    const tratorista = await createServiceJob(db, {
+      property_id: fazenda.id,
+      occurred_at: new Date("2026-08-15T12:00:00.000Z"),
+      description: "Trato do confinamento",
+      pricing: "dia",
+      unit_price: 200,
+      quantity: 5,
+      confinement_stay_id: lote.id,
+      contact_name: "Tratorista do lote",
+    });
+    check("o serviço amarrado ao lote é criado", tratorista.ok, tratorista.ok ? "" : tratorista.message);
+    if (!tratorista.ok) throw new Error("createServiceJob falhou");
+    check("e custa R$ 1.000", tratorista.data.total === 1000, String(tratorista.data.total));
+
+    const custoDepois = await getConfinementLotSummary(db, lote.id);
+    check(
+      "o CUSTO DO LOTE passou a incluí-lo (fecha metade da dívida 2.8 §29)",
+      custoDepois.ok && custoDepois.data.financial_cost === 1000,
+      custoDepois.ok ? String(custoDepois.data.financial_cost) : "recusado",
+    );
+
+    // A outra ponta, que é o que a decisão 12 protege: o serviço não pode
+    // perder o próprio dinheiro por estar amarrado a um lote.
+    const detalheDoTratorista = await getServiceJobDetail(db, tratorista.data.id);
+    check(
+      "e o SERVIÇO continua achando o próprio lançamento (§22 intacto)",
+      detalheDoTratorista.ok && detalheDoTratorista.data.restante === 1000,
+      detalheDoTratorista.ok ? String(detalheDoTratorista.data.restante) : "recusado",
+    );
+
+    // Pagar o serviço não muda o custo do lote: o custo é o que foi gasto,
+    // pago ou a pagar. É o mesmo critério que o confinamento já usava.
+    await recordServiceJobPayment(db, { service_job_id: tratorista.data.id, amount: 400 });
+    const custoAposPagar = await getConfinementLotSummary(db, lote.id);
+    check(
+      "pagar parte não muda o custo do lote",
+      custoAposPagar.ok && custoAposPagar.data.financial_cost === 1000,
+      custoAposPagar.ok ? String(custoAposPagar.data.financial_cost) : "recusado",
+    );
+
+    await cancelServiceJob(db, { service_job_id: tratorista.data.id });
+    const custoAposCancelar = await getConfinementLotSummary(db, lote.id);
+    check(
+      "cancelar o serviço deixa no lote só o que já tinha sido pago",
+      custoAposCancelar.ok && custoAposCancelar.data.financial_cost === 400,
+      custoAposCancelar.ok ? String(custoAposCancelar.data.financial_cost) : "recusado",
+    );
+
+    // Um serviço SEM lote não pode aparecer no custo de lote nenhum.
+    const semLote = await createServiceJob(db, {
+      property_id: fazenda.id,
+      occurred_at: new Date("2026-08-16T12:00:00.000Z"),
+      description: "Roçada longe do curral",
+      pricing: "fechado",
+      agreed_amount: 5000,
+    });
+    if (!semLote.ok) throw new Error("createServiceJob falhou");
+    const custoFinal = await getConfinementLotSummary(db, lote.id);
+    check(
+      "serviço SEM lote não entra no custo do lote",
+      custoFinal.ok && custoFinal.data.financial_cost === 400,
+      custoFinal.ok ? String(custoFinal.data.financial_cost) : "recusado",
     );
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });
