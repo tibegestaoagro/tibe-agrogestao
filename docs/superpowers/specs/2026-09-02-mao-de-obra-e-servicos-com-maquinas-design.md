@@ -93,6 +93,53 @@ O dinheiro do `ServiceJob` reusa o `servico` que já existe, porque `entry_type`
 já separa a receita do serviço prestado da despesa do contratado, e um tenant
 raramente tem os dois perfis.
 
+## 3.1 As quatro decisões da fase 33.2
+
+Tomadas com o usuário em 02/09, quando a fase 33.1 já estava em produção e o
+`ServiceJob` foi olhado de perto. Nenhuma delas estava resolvida acima.
+
+**9. `servicos` é um `ModuleKey` próprio, com matriz operacional.**
+`OWNER: W, ADMIN: W, OPERADOR: W, VISUALIZADOR: R`, a mesma de rebanho, estoque
+e máquinas. Não reusa `mao_de_obra`, que é fechado a OPERADOR: a diária de um
+serviço não tem a sensibilidade de um salário, e quem viu o trabalho acontecer é
+quem está no curral. O corte fica: **OPERADOR registra "vieram 3 homens hoje" e
+continua sem enxergar quanto o vaqueiro ganha por mês.**
+
+**10. O §29 (manutenção de máquina) já tem dono, e não é o `ServiceJob`.**
+`MachineMaintenance` existe desde o Módulo 26 com `performed_at`, `description`
+e `cost`, **e já gera lançamento financeiro** com `related_module: maquinas`.
+"Mecânico gastou R$ 800 para consertar o trator" é aquilo. O `ServiceJob` NÃO
+aceita manutenção de máquina, e o §29 ganha no máximo um `contact_id` em
+`MachineMaintenance` para guardar quem foi o mecânico. É a decisão 3 aplicada de
+novo: um lugar só para o produtor lançar.
+
+**11. O §22 é saldo em aberto, NÃO o parcelamento do Módulo 31.**
+O documento descreve R$ 10.000 combinados, R$ 3.000 adiantados e R$ 7.000 em
+aberto **sem data**. A regra do §14 do Módulo 31 exige que a soma das parcelas
+bata exatamente com o valor, então reusá-la recusaria o exemplo literal e
+obrigaria o produtor a saber de antemão em quantas vezes vai pagar.
+
+O desenho: o `ServiceJob` gera UMA conta a pagar pelo valor total, e cada
+pagamento a abate. **O saldo é derivado** (total menos pago), como todo saldo
+deste projeto. É o que responde os quatro números que o §22 pede: valor total,
+valor já pago, valor restante, próximo vencimento quando houver.
+
+**12. O dinheiro do serviço aponta para o SERVIÇO, e o lote soma por junção.**
+
+⚠️ Este é um conflito que só apareceu ao olhar o código: `getConfinementLotSummary`
+lê `financialEntry.findMany({ where: { related_id: stayId } })`, e `related_id`
+aponta para uma coisa só. Ou o lançamento aponta para o lote (e aí o serviço não
+acha o próprio dinheiro, quebrando o §22 justamente no serviço amarrado a lote),
+ou aponta para o serviço (e aí o lote não vê o custo, que é a `dividas.md` §2.8).
+
+A saída escolhida: o lançamento aponta para o **serviço**, e
+`getConfinementLotSummary` ganha uma segunda consulta pelos `ServiceJob` com
+aquele `confinement_stay_id`. Os dois lados enxergam.
+
+⚠️ **Isso TOCA `confinement.ts`, que está em produção.** A suíte `m51` roda
+antes e depois, e o teste precisa provar que o custo do lote passa a incluir o
+serviço, com um caso que reprove se a segunda consulta sumir.
+
 ## 4. O modelo de dados
 
 Quatro modelos novos. **Nenhum valor pago, devido ou acumulado é gravado em
