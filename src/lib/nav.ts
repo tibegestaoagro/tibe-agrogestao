@@ -1,4 +1,4 @@
-import { hasMinRole } from "@/lib/permissions";
+import { hasMinRole, canAccess } from "@/lib/permissions";
 import type { NavItem } from "@/components/layout/sidebar";
 import type { AppUserRole } from "@/types/next-auth";
 
@@ -61,6 +61,18 @@ export function buildNavItems({
         // WhatsApp), e esta é a primeira tela que permite editar e arquivar o
         // que aquele caminho criou sozinho.
         { href: "/contatos", label: "Contatos", show: hasFazenda },
+        // Módulo 33: quem trabalha na fazenda. Fica depois de Contatos porque é
+        // a mesma pergunta ("quem"), separada pelo §36 do documento: aqui mora
+        // quem recebe salário ou diária, e em Contatos quem entrega serviço.
+        //
+        // ⚠️ `show` inclui a permissão, e é o único item deste menu que o faz:
+        // `mao_de_obra` guarda salário e é fechado a OPERADOR e VISUALIZADOR.
+        // Sem esta checagem, os dois veriam um link que só leva a um redirect.
+        {
+          href: "/mao-de-obra",
+          label: "Mão de Obra",
+          show: hasFazenda && canAccess(role, "mao_de_obra"),
+        },
         // Módulo 31, §9 e §10: o estoque de insumos. Fica depois de
         // Negociações porque é de lá que a maior parte do que entra vem: uma
         // compra de produto abastece o estoque, e o uso é a outra ponta.
