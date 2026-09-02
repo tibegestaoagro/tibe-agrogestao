@@ -20,6 +20,8 @@ exigirBancoLocal();
  *  11. §27: o custo do lote de confinamento passa a somar os serviços dele,
  *      SEM o serviço perder o próprio dinheiro. É a decisão 12 da spec, e a
  *      única desta fase que toca código de outro módulo em produção.
+ *  12. §12 e §34: a anotação de atividade e ausência, que NÃO calcula nada.
+ *  13. §30: o gasto separado em fixa, eventual e terceirizados, sem sobrepor.
  *
  * Roda: `npm run test:m58`.
  */
@@ -705,6 +707,217 @@ async function comBanco() {
       custoFinal.ok && custoFinal.data.financial_cost === 400,
       custoFinal.ok ? String(custoFinal.data.financial_cost) : "recusado",
     );
+
+    // ── 12. §12 e §34: a anotação que não calcula nada ────────────────────
+
+    console.log("\n12. §12 e §34: a anotação de atividade e ausência");
+    const { createWorkerLog, listWorkerLogs, deleteWorkerLog } = await import(
+      "@/lib/actions/worker-logs"
+    );
+    const { createWorker } = await import("@/lib/actions/workers");
+
+    const joao = await createWorker(db, {
+      name: "João do §12",
+      role: "Vaqueiro",
+      type: "fixo",
+      pay_frequency: "mensal",
+      pay_amount: 2000,
+    });
+    if (!joao.ok) throw new Error("createWorker falhou");
+
+    const atividade = await createWorkerLog(db, {
+      worker_id: joao.data.id,
+      kind: "atividade",
+      occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+      description: "Conserto de cerca",
+    });
+    check("atividade devolve ok", atividade.ok, atividade.ok ? "" : atividade.message);
+
+    // O dinheiro do trabalhador ANTES da falta, para comparar depois.
+    const dinheiroAntes = await db.financialEntry.count({
+      where: { related_module: "mao_de_obra", related_id: joao.data.id },
+    });
+
+    const falta = await createWorkerLog(db, {
+      worker_id: joao.data.id,
+      kind: "falta",
+      occurred_at: new Date("2026-09-02T12:00:00.000Z"),
+    });
+    check("falta devolve ok", falta.ok, falta.ok ? "" : falta.message);
+
+    /**
+     * O caso que prova a decisão do documento, e é o que mais importa aqui.
+     *
+     * O §34 diz que o TIBÉ "não deverá calcular automaticamente consequências
+     * trabalhistas". Desconto por falta é exatamente o que apareceria sem
+     * decisão de produto, e este teste impede que apareça.
+     */
+    check(
+      "⚠️ a FALTA não gerou lançamento financeiro nenhum (§34)",
+      (await db.financialEntry.count({
+        where: { related_module: "mao_de_obra", related_id: joao.data.id },
+      })) === dinheiroAntes,
+      String(
+        await db.financialEntry.count({
+          where: { related_module: "mao_de_obra", related_id: joao.data.id },
+        }),
+      ),
+    );
+    check(
+      "e a previsão de pagamento continua no valor cheio",
+      (
+        await db.financialEntry.findFirst({
+          where: { related_module: "mao_de_obra", related_id: joao.data.id, status: "pending" },
+        })
+      )?.amount?.toString() === "2000",
+    );
+
+    const anotacoes = await listWorkerLogs(db, joao.data.id);
+    check("a listagem traz as duas", anotacoes.length === 2, String(anotacoes.length));
+    check(
+      "da mais recente para a mais antiga",
+      anotacoes[0]?.kind === "falta" && anotacoes[1]?.kind === "atividade",
+      `${anotacoes[0]?.kind}, ${anotacoes[1]?.kind}`,
+    );
+
+    check(
+      "trabalhador inexistente devolve 404",
+      !(
+        await createWorkerLog(db, {
+          worker_id: "clnaoexiste000000000000",
+          kind: "atividade",
+          occurred_at: new Date(),
+        })
+      ).ok,
+    );
+
+    // Apagar é apagar, e é a exceção deliberada do módulo: uma anotação errada
+    // não é histórico de dinheiro.
+    if (!atividade.ok) throw new Error("createWorkerLog falhou");
+    const apagada = await deleteWorkerLog(db, atividade.data.id);
+    check("apagar devolve ok", apagada.ok);
+    check("e a anotação sumiu", (await listWorkerLogs(db, joao.data.id)).length === 1);
+    check("apagar de novo devolve 404", !(await deleteWorkerLog(db, atividade.data.id)).ok);
+
+    // ── 13. §30: o gasto separado em três ─────────────────────────────────
+    //
+    // A regra de classificação NÃO é óbvia, e é por isso que ela tem teste:
+    //
+    //   fixa          = FinancialEntry pagos com related_module `mao_de_obra`
+    //   eventual      = pagos de ServiceJob COM worker_id, ou SEM contraparte
+    //                   nenhuma (os três homens sem nome do §14)
+    //   terceirizados = pagos de ServiceJob COM contact_id
+    //
+    // O que as três não podem fazer é contar o mesmo dinheiro duas vezes.
+
+    console.log("\n13. §30: o gasto separado em fixa, eventual e terceirizados");
+    const { getLaborSummary } = await import("@/lib/actions/labor-summary");
+    const { confirmWorkerPayment, createWorker: novoTrabalhador } = await import(
+      "@/lib/actions/workers"
+    );
+
+    // Um tenant limpo só para este bloco: os outros doze já sujaram o dinheiro.
+    const t2 = await prisma.tenant.create({
+      data: { name: `M58b ${stamp}`, document: `M58b${stamp}`.slice(0, 14), plan: "fazenda" },
+    });
+    const db2 = prismaForTenant(t2.id);
+    try {
+      const f2 = await db2.property.create({ data: scoped({ name: "Fazenda M58b" }) });
+
+      // FIXA: um trabalhador mensal, pago.
+      const vaqueiro = await novoTrabalhador(db2, {
+        name: "Vaqueiro do §30",
+        role: "Vaqueiro",
+        type: "fixo",
+        pay_frequency: "mensal",
+        pay_amount: 2500,
+      });
+      if (!vaqueiro.ok) throw new Error("createWorker falhou");
+      await confirmWorkerPayment(db2, { worker_id: vaqueiro.data.id });
+
+      // EVENTUAL: um diarista cadastrado, e os três homens sem nome.
+      const diarista = await novoTrabalhador(db2, {
+        name: "Zé Diarista",
+        role: "Serviços gerais",
+        type: "eventual",
+      });
+      if (!diarista.ok) throw new Error("createWorker falhou");
+      await createServiceJob(db2, {
+        property_id: f2.id,
+        occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+        description: "Capina",
+        pricing: "dia",
+        unit_price: 150,
+        quantity: 2,
+        worker_id: diarista.data.id,
+        pago: true,
+      });
+      await createServiceJob(db2, {
+        property_id: f2.id,
+        occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+        description: "Reforma de cerca",
+        pricing: "dia",
+        unit_price: 150,
+        quantity: 4,
+        worker_count: 3,
+        pago: true,
+      });
+
+      // TERCEIRIZADO: um prestador com contato.
+      await createServiceJob(db2, {
+        property_id: f2.id,
+        occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+        description: "Construção de curral",
+        pricing: "fechado",
+        agreed_amount: 4700,
+        contact_name: "Pedreiro do §30",
+        pago: true,
+      });
+
+      // E uma conta a pagar NÃO paga, que não pode entrar em nenhuma coluna.
+      await createServiceJob(db2, {
+        property_id: f2.id,
+        occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+        description: "Gradagem futura",
+        pricing: "fechado",
+        agreed_amount: 9999,
+        contact_name: "Ainda não pago",
+      });
+
+      const resumo = await getLaborSummary(db2, {
+        de: new Date("2026-09-01T00:00:00.000Z"),
+        ate: new Date("2026-09-30T23:59:59.000Z"),
+      });
+
+      check("fixa: R$ 2.500", resumo.fixa === 2500, String(resumo.fixa));
+      check(
+        "eventual: R$ 2.100 (300 do diarista + 1.800 dos três homens)",
+        resumo.eventual === 2100,
+        String(resumo.eventual),
+      );
+      check("terceirizados: R$ 4.700", resumo.terceirizados === 4700, String(resumo.terceirizados));
+      check(
+        "total: R$ 9.300, e as três colunas somam exatamente ele",
+        resumo.total === 9300 && resumo.fixa + resumo.eventual + resumo.terceirizados === resumo.total,
+        String(resumo.total),
+      );
+      check(
+        "⚠️ a conta A PAGAR de R$ 9.999 NÃO entra: o §30 pergunta quanto está GASTANDO",
+        resumo.total === 9300,
+      );
+
+      const outroMes = await getLaborSummary(db2, {
+        de: new Date("2026-10-01T00:00:00.000Z"),
+        ate: new Date("2026-10-31T23:59:59.000Z"),
+      });
+      check(
+        "e o período filtra: outubro está zerado",
+        outroMes.total === 0,
+        String(outroMes.total),
+      );
+    } finally {
+      await prisma.tenant.delete({ where: { id: t2.id } });
+    }
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });
     await prisma.$disconnect();
