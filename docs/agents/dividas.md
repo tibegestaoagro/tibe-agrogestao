@@ -76,7 +76,6 @@ assinatura, webhook de pagamento, webhook de atraso).
 | §6.2, peso, arroba e valor por cabeça | adiado desde a revisão de 2026-08-14 |
 | §12.4, os valores estimados da permuta | fora da v1; o valor da negociação é só a diferença em dinheiro |
 | histórico do aceite 23 | não implementado |
-| tela de contatos | a v1 é o nome digitado no formulário |
 
 O raciocínio registrado para os filtros continua válido: **filtro sem volume de
 dado é enfeite**, e o primeiro cliente com 200 negócios é quem define quais
@@ -261,27 +260,6 @@ para cá em 31/08 para não sumir no próximo arquivamento.
 
 ## 3. Rede de segurança com furo
 
-### 3.2 SEIS cópias do store de pendência do WhatsApp
-
-⚠️ **Eram cinco em 2026-08-18. São seis desde 31/08**, quando o Confinamento
-acrescentou `confinamento-pending.ts`, modelado linha a linha em
-`event-pending.ts`. A dívida foi paga com juros justamente na frente que a
-citava, e isso é o que acontece quando a extração fica para "a próxima".
-
-`herd-pending.ts`, `negotiation-pending.ts`, `stock-pending.ts`,
-`event-pending.ts`, `barter-pending.ts` e `confinamento-pending.ts` são o mesmo
-mecanismo com prefixo de chave diferente: cerca de 90 linhas de Redis repetidas
-seis vezes. O comentário de `negotiation-pending.ts` previa extrair um store
-genérico "quando o terceiro domínio precisar disto"; chegamos ao sexto.
-
-Extrair é seguro (nenhum tem lógica própria além do mapa de atalhos de campo),
-mas toca quatro módulos que estão em produção, e por isso **não** foi feito no
-meio da missão 4: é exatamente o risco que a nota original alertava.
-
-**Custo:** uma rodada própria, com `m24`, `m36`, `m37`, `m48`, `m49` e `m51`
-rodando antes e depois. O ganho é uma correção de bug de pendência valer para os
-seis domínios de uma vez, em vez de precisar ser aplicada seis vezes.
-
 ### 3.3 `resolverPasto` não distingue ambiguidade: pega o primeiro
 
 **O que é:** a função que traduz o pasto citado no WhatsApp (`resolverPasto`,
@@ -307,6 +285,13 @@ achados e, com mais de um, devolver a mesma pergunta que já existe para "não
 achei". O caro é conferir os handlers que a chamam, porque cada um precisa saber
 guardar o pedido e reperguntar. Uma rodada, com `m34`, `m36`, `m38` e `m51`
 antes e depois.
+
+✅ **Já existe implementação de referência**, escrita em 02/09:
+`resolverTrabalhador`, em `src/lib/actions/whatsapp-handlers/mao-de-obra.ts`.
+Ela faz exatamente o que falta aqui (conta os achados, e com mais de um devolve
+a lista perguntando qual), e o bloco 17 da `m57` prova nos dois sentidos:
+desligando a checagem, "adiantei 100 pro Pedro" com dois Pedros na equipe grava
+no Pedro errado em silêncio. Copiar a forma de lá encurta esta rodada.
 
 ---
 

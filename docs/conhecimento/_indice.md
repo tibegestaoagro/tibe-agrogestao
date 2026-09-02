@@ -42,6 +42,7 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [a pílula invisível](pilula-invisivel-o-portao-compara-token-nao-uso.md) | armadilha | o portão compara par de token, nunca o uso |
 | [o Zod em inglês nas 71 rotas](zod-em-ingles-nas-71-rotas.md) | licao | infraestrutura pronta e não ligada |
 | [trava só vale depois de vista falhar](trava-so-vale-depois-de-voce-a-ver-falhar.md) | licao | prove nos dois sentidos |
+| [cópia repetida não quer dizer cópia idêntica](copia-repetida-nao-quer-dizer-copia-identica.md) | licao | cinco dos sete stores aceitavam número, dois não |
 | [teste que passa antes E depois](teste-que-passa-antes-e-depois-da-correcao-nao-prova-nada.md) | licao | o caso que discrimina é o da ponta que falta |
 | [fixture de rebanho precisa de situação e dono](fixture-de-rebanho-precisa-de-situacao-e-dono.md) | armadilha | `getPositions` agrupa por quatro campos |
 | [o portão mede a relação que lhe deram](portao-mede-a-relacao-que-lhe-deram.md) | licao | três incidentes, o mesmo defeito de categoria |

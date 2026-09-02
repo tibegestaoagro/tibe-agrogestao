@@ -9,7 +9,7 @@ outra. Leia depois do `CLAUDE.md`.
 - Atualize ao encerrar cada rodada significativa.
 - Só fatos verificados, nunca plano tratado como concluído.
 - Registre: estado, escopo entregue, validações, commit, deploy, pendências e
-  próximo passo autorizado.
+  próximo passo.
 - **Substitua a seção "Estado atual" a cada rodada.** No histórico, mantenha
   cinco linhas, uma por rodada. O que passar disso vai para
   `docs/agents/historico/`.
@@ -19,251 +19,100 @@ outra. Leia depois do `CLAUDE.md`.
   usuário, a cada vez. Desde 2026-08-18 isso é uma trava de verdade
   (`.claude/hooks/guarda-bash.mjs`), não só uma frase aqui.
 
-⚠️ **Este arquivo já chegou a 1.316 linhas violando o próprio protocolo acima.**
-Se ele passar de umas 200, arquive antes de acrescentar.
+⚠️ **Este arquivo já chegou a 1.316 linhas violando o próprio protocolo acima**,
+e voltou a 442 em 02/09. Se ele passar de umas 200, arquive antes de
+acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
+`historico/2026-09.md`.
 
 ## Estado atual
 
 - Atualizado em: 2026-09-02.
+- Branch de trabalho: **`mao-de-obra-fase-1`**, 11 commits à frente da `main`.
+- **Nada foi mesclado nem empurrado.** A `main` está intocada.
 
-### O Confinamento está no ar, e o que dele ainda vale saber
+### Os Módulos 33 e 34 foram desenhados, e a fase 0 mais a 33.1 estão prontas
 
-Subiu em 2026-09-01 (`430a1db..1fe1ccf`, 31 commits), com as três migrações
-aplicadas no Neon antes do push, depois de um rejulgamento 4/10 e da onda 7 que
-fechou oito dos dez achados. O detalhe está nas mensagens dos commits e em
-`historico/2026-08.md`; o que sobrevive aqui é só o que ainda muda decisão:
+Os dois documentos do cliente (`docs/modulo-area-mao-de-obra/` e
+`docs/modulo-servico-com-maquinas/`, renomeados porque o nome tinha travessão)
+foram lidos por inteiro e viraram design e plano:
 
-⚠️ **`npm run db:deploy` contra o Neon é recusado pelo classificador de
-permissões**, inclusive com `AUTORIZADO_PELO_USUARIO=1`, que só vale para o hook
-do repositório. Leitura (`npx prisma migrate status`) passa. **Quem aplica
-migração em produção é o usuário, no terminal.** Isso torna o invariante 3 mais
-caro: commit que mexe em schema depende de um passo manual antes do push. Não
-afrouxe a ordem por causa disso.
+- `docs/superpowers/specs/2026-09-02-mao-de-obra-e-servicos-com-maquinas-design.md`
+- `docs/superpowers/plans/2026-09-02-fase-0-contatos-e-fase-33-1-mao-de-obra-fixa.md`
 
-⚠️ **Item de menu dentro de grupo pode nascer invisível.** "Confinamento" fica
-no grupo "Operação" (`src/lib/nav.ts`), e a pergunta "cadê o Confinamento?"
-apareceu no mesmo dia do deploy. Vale para toda frente que criar item ali.
+**Oito decisões foram tomadas com o usuário antes de qualquer código.** As que
+mudam o desenho das próximas fases:
 
-⚠️ **Confirmar deploy é verificação de navegador**, nunca `curl` em laço: 28
-chamadas em poucos minutos já dispararam a proteção anti-bot da Vercel neste
-projeto.
+1. **Serviço contratado de terceiro é UM modelo** (`ServiceJob`), não dois. Os
+   dois documentos descrevem o mesmo objeto por lados diferentes, e dois modelos
+   fariam o produtor escolher a tela pela presença de máquina.
+2. **A quantidade trabalhada nunca será campo**: será soma de `ServiceJobLog`,
+   pelo mesmo motivo que o saldo do rebanho é soma. Por isso o log nasce na fase
+   33.2, embora a tela de lançamento diário só chegue na 34.2.
+3. **Não reabrir o Módulo 31.** O §37 de Máquinas ("a prestação de serviço será
+   uma negociação") é atendido por consulta, sem `NegotiationType` novo.
+4. **`mao_de_obra` tem matriz de permissão PRÓPRIA**: OWNER e ADMIN escrevem,
+   OPERADOR e VISUALIZADOR não veem, porque guarda salário. Vale também no
+   WhatsApp.
 
-⚠️ **Aba em segundo plano finge defeito de interface.** Se a aba perde a
-visibilidade, o Chrome congela layout e entrada sem erro nenhum: todo
-`getBoundingClientRect()` volta zero e o `Escape` não fecha painel, então um
-`Sheet` saudável parece quebrado. O `js()` continua respondendo, o que torna a
-armadilha convincente. Confira `document.visibilityState` antes de reportar, e
-conserte com `cdp("Page.bringToFront")`.
+### O que foi entregue nesta rodada (12 tarefas, todas fechadas)
 
-**Os dois olhares de navegador do Confinamento foram feitos em 02/09**, e os
-dois passaram. A `ORIGEM_AMBIGUA` aparece em vermelho embaixo do campo, com o
-foco nele: "O saldo desta categoria está espalhado em mais de um pasto (sem
-pasto informado, Pasto da Baixada, Pasto da Sede). Informe de qual pasto os
-animais saem." E o painel "Encerrar" da estadia de confinamento próprio abre com
-os três destinos e com a palavra certa: **"Voltaram para o pasto"**, não "para a
-fazenda", que é o texto do boitel. Conferidos os dois cartões, lado a lado.
+**Fase 0, a tela de contatos** (fecha a linha "tela de contatos" da
+`dividas.md` §2.3): `updateContact`, `setContactArchived`, `getContactDetail`,
+as rotas `/contacts/[id]` e `/contacts/[id]/archive`, e as telas `/contatos` e
+`/contatos/[id]`.
 
-⚠️ **`/rebanho` filtra pela propriedade ativa e `/leite` não.** O olhar do
-"Encerrar" começou dando zero cabeças porque a propriedade ativa era outra. Não
-é defeito de nenhuma das duas telas, mas é a mesma incoerência da decisão de
-produto nº 2, que está pendente: reforça, não substitui.
+⚠️ **Um defeito de produção foi achado e corrigido de passagem:**
+`CONTACT_TYPES` listava 10 dos 13 valores de `ContactType`. `laticinio`,
+`queijaria` e `mercado` entraram pelo §24 do Módulo 32 e nunca chegaram na
+constante, então **`POST /api/v1/contacts` recusava um laticínio** e
+`GET ?type=laticinio` ignorava o filtro em silêncio. O `satisfies readonly
+ContactType[]` não pegava: ele confere que cada valor listado é válido, nunca
+que a lista é completa. Virou `Record<ContactType, true>`.
 
-### Escopo que ficou de fora, de propósito
+**Dívida 3.2 PAGA:** as sete cópias do store de pendência viraram
+`pending-store.ts`. 1.307 linhas viraram 1.048, e o mecanismo existe uma vez.
+Os sete prefixos de chave foram conferidos contra o git, um a um, **idênticos**:
+um prefixo trocado deixaria órfã toda conversa pendente em produção.
 
-Dois pedidos do documento do cliente que a spec do Confinamento calou, achados
-pelo juiz: o §29 (custos por lote) e o §17 (sete destinos de saída, três na
-tela). **Não são defeito, são escopo.** Estão em `dividas.md` §2.8, e por
-decisão do usuário entram numa **onda 8 própria**.
+⚠️ **Uma diferença de comportamento foi PRESERVADA, não uniformizada:** `herd` e
+`stock` recusam número como resposta, os outros cinco aceitam. Virou a opção
+`aceitaNumero`. Uniformizar é decisão sobre o caminho do WhatsApp, com banco de
+provas, não faxina de refatoração.
 
-### O time de agentes tem DEZ, e está na `main` desde 31/08
+**Fase 33.1, a mão de obra fixa:** model `Worker`, quatro enums,
+`RelatedModule.mao_de_obra`, `FinancialEntry.worker_entry_kind`, as actions, as
+três rotas, as duas telas e os três handlers de WhatsApp.
 
-`servidor-acao`, `servidor-dados`, `servidor-agente`, `tela-pagina`, `tela-kit`,
-`prova-suite`, `prova-juiz`, `prova-viva`, `n8n-fluxo`, `explorador`. Mais as
-skills `orquestrar-ondas` e `memoria-cofre`, os comandos `/onda`, `/juiz` e
-`/lembrar`, e o manual em [como-orquestrar.md](como-orquestrar.md).
+**Trava nova:** `exigirRedisLocal()`, irmã da `exigirBancoLocal()`. Faltava, e a
+falta era do mesmo tamanho: o `.env` aponta para o Redis de PRODUÇÃO, e uma
+suíte que só usa Redis passaria inteira pela trava antiga.
 
-⚠️ **`prova-juiz` e `explorador` não registram** (ver
-`docs/conhecimento/agente-com-modelo-nao-padrao-pode-nao-registrar.md`). Os três
-julgamentos rodaram por `general-purpose` com o contrato do juiz embutido no
-prompt, conferidos por `git status` de que não escreveram nada.
+### Três defeitos que os testes não teriam pego
 
-⚠️ **Os seis agentes da onda 7 morreram todos no limite de sessão** antes de
-terminar, e um deles alcançou escrever no working tree. A onda foi refeita pela
-sessão principal, tarefa por tarefa. Lição registrada: **conferir o working tree
-depois de agente que morre**, porque o que ele deixou não está verificado.
+1. **A previsão rolante nascia ancorada em HOJE**, não no vencimento da parcela
+   quitada. Quem pagasse no dia 2 a parcela do dia 5 recebia outra para o mesmo
+   dia 5. Achado porque o teste comparava o MÊS das duas datas, não só "nasceu
+   uma".
+2. **`db.worker` chegava `undefined` no `next dev`.** A suíte passava (roda em
+   processo novo); o servidor estava com o client Prisma antigo em memória,
+   porque o singleton fica em `globalThis` e os clients escopados são cacheados
+   por tenant. **Vale para toda frente que acrescentar model com o dev de pé:
+   reinicie o servidor.**
+3. **Todas as rotas davam 404, inclusive `/login`**, por cache podre do
+   `.next`. O `curl` distinguiu (`/contatos` dava 307, `/login` dava 404), e
+   apagar `.next` mais restart resolveu.
 
-**O cofre tem 24 notas.** As desta rodada:
-`media-de-periodo-precisa-dividir-dia-a-dia`,
-`dev-server-servido-com-client-prisma-velho` e
-`lista-de-tipos-escrita-a-mao-inverte-o-sinal`.
+### O que foi validado no navegador, não deduzido
 
-### A Fase 1 do Leite está no ar, e o que dela ainda vale saber
+O exemplo do §7 saiu literal: cadastrar "João, vaqueiro, R$ 2.500 por mês, dia
+5" faz a listagem mostrar "R$ 2.500,00 em 05/09/2026". Confirmar quitou a de
+05/09 e criou a de 05/10. O adiantamento de R$ 500 entrou separado, e a previsão
+seguiu em R$ 2.500,00.
 
-Empurrada em 2026-09-02 (`e1a1af1`), depois da migração, com o Neon nas **39**.
-Três models, dez rotas, a tela `/leite` e quatro intenções de WhatsApp
-roteadas e testadas mas **não emitidas** (o classificador segue congelado). A
-validação foi com navegador de verdade, a primeira deste projeto. O detalhe
-está nas mensagens dos commits e na spec; o que sobrevive aqui:
-
-⚠️ **Decisão de produto pendente, achada na tela:** a "média diária" divide
-pelos dias corridos da janela, então uma fazenda com um registro lê "Acumulado
-no ano: 120 L, média diária 0,49 L". Correto pela definição da spec (seção 6.4)
-e mesmo assim lê mal. A média POR VACA já diz "6 de 31 dias entraram na conta";
-a média diária não diz nada equivalente.
-
-### A FASE 2 DO LEITE ESTÁ NA `main` E NO AR
-
-Empurrada em 2026-09-02 (`6d1bb55`, quatro commits), **depois** da migração,
-como manda o invariante 3. O Neon está nas **40** e up to date; quem aplicou foi
-o usuário, no terminal. Deploy confirmado: `/docs/api` em produção lista
-`milk/sites`, `milk/storage` e `milk/charges`.
-
-Spec na seção 12 de `docs/specs/module-32-area-leite.md`.
-
-Verde antes do push: `tsc` 0, `lint` 0 erros, `npm run check` **15/15**,
-`test:isolation`, `test:docs-api`, `npm run test:m53` (47 asserções, 10 seções)
-e `npm run build` limpo com as **treze** rotas de leite e a tela. As suítes
-`m33`, `m35`, `m37`, `m47`, `m51` e `m52` também rodaram verdes, porque esta
-rodada tocou três arquivos de produção fora do leite.
-
-**O que entrou:** três models (`MilkSite`, `MilkMovement`, `MilkCharge`),
-quatro enums, `leite` no `RelatedModule`, nove rotas novas, e a tela `/leite`
-com armazenamento, posições por dono, movimentações e cobrança.
-
-**Quatro decisões de 02/09, com o motivo na spec:** um `MilkSite` com tipo
-espelhando o `ConfinementSite`; a retirada informa a composição e nunca rateia;
-a receita do §22 é digitada e nunca calculada; e o dono terceiro vem de uma
-lista, não digitado, porque aqui o nome é a chave de um saldo.
-
-### Três coisas desta rodada que valem para o projeto inteiro
-
-⚠️ **Dois espelhos de enum viraram import.** `financial.ts` e `alerts.ts`
-mantinham `type RelatedModule = "rebanho" | ...` copiado do Prisma, e os dois já
-tinham ficado para trás uma vez (confinamento, 31/08). Ficaram de novo agora.
-Agora importam de `@/generated/prisma/enums`, e não podem mais envelhecer.
-
-⚠️ **`src/lib/prisma-delegates.ts` nasceu de um LIMITE DO COMPILADOR.** Ao
-acrescentar os três models, o `tsc` passou a reprovar oito chamadas em quatro
-arquivos, três deles intocados (`contacts`, `herd-ledger`, `stock-ledger`): as
-funções aceitam `client escopado OU tx`, e resolver essa união de duas delegates
-gigantes passou do orçamento de instanciação. `delegates()` estreita a união
-para uma ponta, e a conversão é **só de tipo**: a extensão de isolamento
-continua injetando `tenant_id`, porque ela vive no objeto. O invariante 1 não
-afrouxa. **Não use o helper para alargar o que uma função aceita.**
-
-⚠️ **Reiniciar o `next dev` depois de `prisma generate`.** O servidor serve o
-client que existia quando subiu, e o sintoma é `Cannot read properties of
-undefined (reading 'findMany')` com a suíte verde. Nota nova no cofre:
-`dev-server-servido-com-client-prisma-velho`.
-
-### A validação ao vivo da fase 2, na rota E no navegador
-
-Feita contra `next dev` com o banco local e o cenário de
-`scripts/_cenario-leite-fase-2.ts` (idempotente), que monta o exemplo do §20.
-**Pela rota real, com sessão de verdade:**
-
-| caso | resultado real |
-|---|---|
-| §20 | Tanque Principal com 950 L físicos: próprio 400, João 300, Carlos 250 |
-| §17 | Ponto São José com 600 L ainda NOSSOS (dono nulo) |
-| §34 | resumo 400 / 600 / 550 / 1550 |
-| §21 | retirada de 100 + 50 gravou duas linhas, e os saldos foram a 300 / 600 / 500 |
-| saldo insuficiente | 422 `SALDO_INSUFICIENTE`, `field: liters`, dizendo "o saldo é de 400 litros" |
-| dono repetido | 422 `DONO_REPETIDO`, `field: itens` |
-| local errado | 422 `TIPO_DE_LOCAL_ERRADO`, `field: site_id`, nomeando o local |
-| §22 | cobrança criou `income` de 250, `paid`, sob `related_module=leite` |
-| cancelamento | o lançamento virou `cancelled`, e NÃO foi apagado |
-
-**E o NAVEGADOR foi alcançado**, na mesma rodada, pelo `browser-harness`:
-
-| olhar | o que a tela mostrou |
-|---|---|
-| §20 na tela | Tanque Principal com os três donos listados e 800 L de 2.000 L |
-| §34 | os quatro cartões: 300 / 600 / 500 / 1.400 |
-| retirada | abriu pré-preenchida: Próprio 300 de 300, João 250 de 250, Carlos 250 de 250, "Total informado: 800 L" |
-| destino `venda` | a dica apareceu: "Registrar a saída não registra a venda" |
-| recusa | "Carlos Pereira tem 250 L no local, e você informou 250.999 L", em vermelho **embaixo do campo** |
-| retirada válida | gravou TRÊS linhas (uma por dono) e o painel recalculou para 150 / 0 / 150 / 750 |
-| posição zerada | Próprio e João **sumiram** da lista do tanque ao chegar a zero |
-| rótulos | "Recebido de terceiro", "Entrada da produção", "Enviado ao ponto de coleta", "Retirada": zero enum cru |
-
-⚠️ **Achado que só a tela deu, e é decisão de produto:** o cabeçalho da página
-diz o nome da fazenda ativa ("Leite / Sitio Sem Contagem"), mas o bloco de
-armazenamento é GLOBAL, e mostrou o "Tanque Principal", que é da Fazenda Boa
-Vista. É deliberado (um ponto de coleta de terceiros não pertence a fazenda
-nenhuma, §16), e mesmo assim a tela lê como se tudo fosse da fazenda escolhida.
-Ou o bloco ganha um rótulo próprio, ou ele passa a filtrar e o ponto de coleta
-vira exceção explícita.
-
-⚠️ **Como o navegador foi alcançado, porque não foi óbvio:** o `next dev` padrão
-não compila a PÁGINA nesta máquina (`exit code 0xc0000142` no worker de CSS do
-Turbopack, com pouca RAM livre e o Chrome ocupando o resto). **`next dev
---webpack` compila normalmente**, e foi assim que a validação rodou. As rotas de
-API compilam nos dois.
-
-
-### A FASE 3 DO LEITE ESTÁ NA `main` E NO AR, e o Módulo 32 fechou
-
-Empurrada em 2026-09-02 (`80f431f`, merge da `area-leite-fase-3` com cinco
-commits), **depois** da migração, como manda o invariante 3. O Neon está nas
-**41** e up to date; quem aplicou foi o usuário, no terminal. Deploy confirmado
-no navegador: `/docs/api` em produção lista `milk/sales`, `milk/sales/pending` e
-`milk/sales/close`. Spec na seção 13 de `docs/specs/module-32-area-leite.md`.
-**O Módulo 32 fecha aqui:** as três fases no ar.
-
-A migração `20260902200000_area_leite_fase_3` é toda aditiva: `venda_leite` no
-`NegotiationType`, `doacao` no `MilkDestination`, os três tipos de comprador do
-§24 no `ContactType`, e três colunas em `MilkMovement`.
-
-Verde: `tsc` 0, `lint` 0 erros, `npm run check` **15/15**, `npm run test:m54`
-(37 asserções), e `m35`, `m36`, `m48`, `m49` e `m53`, que são as suítes do
-módulo de Negociações que esta rodada tocou. Build limpo.
-
-**Quatro decisões de 02/09, com o motivo na spec:** vender JÁ retira o leite; o
-fechamento do §28 soma as RETIRADAS daquele comprador; cancelar a venda devolve
-o leite; e a venda herda a `Negotiation` inteira.
-
-⚠️ **O cancelamento NÃO ganhou função própria.** Ele vive dentro de
-`cancelNegotiation`, porque a tela de Negociações já tem um botão que chama
-aquela função direto: uma segunda porta deixaria o leite para trás justamente
-por onde o produtor mais cancela. E as duas origens se desfazem diferente: o
-que NASCEU da venda é cancelado; a entrega liquidada por um fechamento só perde
-a marca e fica, porque o leite saiu de verdade. Quem distingue é
-`created_by_sale`.
-
-### O defeito que a validação ao vivo da fase 3 achou
-
-Uma venda de R$ 1.200,00, gravada corretamente, lia na tela de Negociações:
-
-```
-VALOR: sem dinheiro        SITUAÇÃO: Sem venda
-```
-
-`ehVenda` decidia o lado do dinheiro com uma cadeia de `===`, e `venda_leite`
-caiu no `false` sem o `tsc` reclamar. **É a terceira vez que este ponto inverte
-o sinal** (leilão e permuta, as duas em 28/08). Virou
-`DINHEIRO_ENTRA_POR_TIPO`, um `Record<NegotiationType, boolean>`: o próximo
-tipo não compila sem alguém decidir. Nota nova:
-`lista-de-tipos-escrita-a-mao-inverte-o-sinal`.
-
-⚠️ **A suíte não pegava porque provava a ESCRITA, não a leitura.** A asserção
-sobre o que a tela lê existe agora na `m54`, e foi escrita depois do defeito.
-
-### O que a tela da fase 3 mostrou
-
-| olhar | resultado |
-|---|---|
-| §25 ao vivo | 500 L a R$ 2,40 fez a dica dizer "Total da venda: R$ 1.200,00" antes do envio |
-| venda retira | tanque de 1.770 para 1.270 L, com a linha "Retirada / Venda" nova |
-| §33 | a venda aparece em Negociações como "Vendi leite / R$ 1.200,00 / Recebida" |
-| fechamento | "3 entregas em aberto, somando 1.380 L", período pré-preenchido, "Total do fechamento: R$ 3.243,00" |
-| §28 | fechar NÃO moveu leite: o tanque ficou em 1.270 L, e o bloco de entregas sumiu |
-| §29 | "Ainda tenho a receber: R$ 3.243,00" |
-
-⚠️ **Decisão de produto pendente, achada na tela:** o fechamento sem data
-prevista nasce **"Vencida"**, porque o vencimento cai em `occurred_at`, que é o
-FIM DO PERÍODO, já passado. O produtor não errou nada. Ou o padrão vira hoje,
-ou a data passa a ser obrigatória no fechamento.
+Os três lançamentos aparecem em `/financeiro` sob o módulo "Mão de Obra", com
+"Marcar como pago / Adiar / Cancelar" de graça. E `bill_due` foi **conferido no
+código**: lê `financialEntry` só por status pendente e `due_date`, sem filtrar
+módulo, então a previsão gera alerta sozinha.
 
 ### 🔴 SEGURANÇA: o repositório está PÚBLICO e o `.env.enc` vazou
 
@@ -303,54 +152,33 @@ quando a rotação terminar.
 `git fetch --all --prune`, depois `git checkout main && git reset --hard
 origin/main`. Trabalho não empurrado precisa virar patch antes.
 
-### O DEPLOY SAIU, e a pendência 1 da Vercel não mordeu desta vez
+### ⏭️ PRÓXIMO PASSO
 
-Confirmado em 2026-09-02, com duas chamadas únicas (nunca `curl` em laço, que
-já disparou a proteção anti-bot neste projeto):
+**1. Segurança, que é do usuário e vem antes de tudo:** rotacionar as 22
+variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Enquanto
+estiver aberto, todo commit é leitura pública.
 
-- `/docs/api` lista `/api/v1/milk/*`;
-- as quatro rotas (`summary`, `groups`, `lactation`, `production`) devolvem
-  `401 UNAUTHORIZED` em **JSON**, não 404 nem HTML.
+**2. A migração no Neon, também do usuário.**
+`20260903100000_mao_de_obra_fase_1` está aplicada só no Docker local. O
+invariante 3 vale: ela precisa ir para o Neon ANTES de qualquer push, porque a
+Vercel faz deploy automático e o build não roda migração. `npm run db:deploy`
+contra produção é recusado pelo classificador de permissões mesmo com a marca de
+autorização, então quem aplica é você, no terminal.
 
-⚠️ **Isso contradiz a pendência 1 de `pendencias-do-usuario.md`**, que diz que
-push de colaborador não vira deploy no plano gratuito. O push saiu pela
-credencial do `dilton-pleno` e o deploy aconteceu mesmo assim. Ou o plano subiu,
-ou a credencial do Windows mudou: **não foi investigado**, e a pendência
-continua escrita como estava. Não conte com nenhuma das duas leituras sem
-conferir.
+⚠️ **Falta também a migração da Fase 3 do Leite**
+(`20260902200000_area_leite_fase_3`), pendente desde a rodada anterior.
 
-Registrado junto: a identidade local de git que apontava para `tibegestaoagro`,
-descrita na pendência como feita em 25/08, **não existe mais** neste
-repositório. `git config --local user.name` volta vazio, e os commits saem como
-`dilton-pleno`.
+**3. Só então** merge e push da `mao-de-obra-fase-1`, com autorização explícita.
 
-### ⏭️ PRÓXIMO PASSO: segurança, o push da Fase 3, e três decisões
+**4. Depois:** a fase 33.2 (o `ServiceJob` contratado), com a spec de design já
+escrita. Ela vai precisar de uma decisão nova sobre o guard: a diária de um
+serviço não tem a sensibilidade de um salário, e travar o OPERADOR fora dela
+impediria quem está no curral de registrar o trabalho do dia.
 
-**Segurança primeiro**, e ela é do usuário: rotacionar as 22 variáveis, fechar o
-repositório (exige a conta `tibegestaoagro`) e pedir a coleta ao Suporte do
-GitHub. Enquanto o repositório estiver aberto, todo commit é leitura pública.
-
-**A Fase 3 espera** o usuário aplicar `20260902200000_area_leite_fase_3` no
-Neon, conferir `migrate status`, e então autorizar merge e push.
-
-**TRÊS decisões de produto esperando você**, as três achadas na tela e nenhuma
-delas defeito:
-
-1. a "média diária" dividindo por dias corridos (seção da Fase 1);
-2. o cabeçalho dizendo uma fazenda enquanto o armazenamento mostra todas
-   (validação da Fase 2);
-3. o fechamento sem data prevista nascendo "Vencida" (seção da Fase 3).
-
-**Com o Módulo 32 fechado**, o que resta do Leite é o classificador do n8n
-aprender as intenções, quando o agente for descongelado.
-
-**Os dois olhares de navegador do Confinamento foram quitados em 02/09**, com o
-que a tela mostrou registrado na primeira seção deste arquivo.
-
-### Depois do Leite
-
-1. **Onda 8:** os dois pedidos do cliente da `dividas.md` §2.8.
-2. **A correção do rebanho invisível**, adiada pelo usuário: `dividas.md` §2.9.
+**Continuam esperando, de rodadas anteriores:** os dois pedidos do cliente do
+Confinamento (`dividas.md` §2.8), a correção do rebanho invisível (§2.9), e três
+decisões de produto do Leite (média diária por dias corridos; cabeçalho de uma
+fazenda com armazenamento de todas; fechamento sem data nascendo "Vencida").
 
 ### ⚠️ Para quem retomar em OUTRA MÁQUINA
 
@@ -358,85 +186,6 @@ que a tela mostrou registrado na primeira seção deste arquivo.
   O bloco `autoMode.allow` que destrava `npm run db:deploy` foi escrito no
   desktop em 01/09 e **não existe no notebook**. Lá, migração em produção volta
   a ser recusada pelo classificador, e o caminho é pedir ao usuário.
-- **`.env.example` está modificado e NÃO commitado no desktop**, desde antes de
-  31/08. A mudança REMOVE a documentação das duas variáveis do banco de provas
-  (`npm run wa`), escrita em 24/08 porque o código as lê. Ficou parada ali,
-  esperando decisão do usuário. Ela não viaja: é edição local do desktop.
-- **O desktop tem pouca memória para este projeto** (relato do usuário em
-  01/09), e o Turbopack morre lá quando outro projeto está rodando teste. Ver
-  `docs/conhecimento/turbopack-nao-cria-processo-quando-a-maquina-esta-cheia.md`.
-
-⚠️ **`ponytail` está ativo** (modo `full`), com 3 hooks globais, e o
-`ponytail-subagent` propaga para os agentes despachados.
-
----
-
-- **2026-09-02:** Fase 3 da Área Leite **no ar na `main`** (`80f431f`), e com
-  ela o **Módulo 32 fecha**: venda, fechamento por período
-  e o dinheiro no Financeiro. Quatro decisões levadas ao usuário antes do
-  código: vender já retira o leite; o fechamento soma as retiradas daquele
-  comprador; cancelar devolve o leite; e a venda herda a `Negotiation` inteira.
-  O cancelamento não ganhou função própria, e vive dentro de
-  `cancelNegotiation`, porque a tela de Negociações já chama aquela função
-  direto. A validação ao vivo achou o defeito da rodada: uma venda de
-  R$ 1.200,00 lia "sem dinheiro" e "Sem venda", porque `ehVenda` era uma cadeia
-  de `===` e o tipo novo caiu no `false` sem o `tsc` reclamar. Terceira vez que
-  este ponto inverte o sinal, e virou `Record` exaustivo.
-
-- **2026-09-02:** Fase 2 da Área Leite **no ar na `main`** (`6d1bb55`), com a
-  migração aplicada no Neon antes do push. O leite ganhou lugar e dono, e o §20 do documento (tanque com
-  próprio 400, João 300, Carlos 250, físico 950) caiu de graça da posição
-  `local x dono`. Quatro decisões levadas ao usuário antes do código: um
-  `MilkSite` com tipo espelhando o `ConfinementSite`; a retirada informa a
-  composição e nunca rateia; a receita do §22 é digitada e nunca calculada; e o
-  dono terceiro vem de lista, porque aqui o nome é a chave de um saldo.
-  Descobertas de fora do leite: dois espelhos de enum escritos à mão viraram
-  import depois de ficarem para trás pela segunda vez, e acrescentar três models
-  estourou o orçamento de instanciação do `tsc` em quatro arquivos, três deles
-  intocados, resolvido por `prisma-delegates.ts` com conversão só de tipo. A
-  validação ao vivo passou pela rota real (§20, §21, as três recusas com `field`
-  e a cobrança cancelando o lançamento junto), mas **não alcançou o navegador**:
-  o Turbopack não cria processo nesta máquina, e o `next start` esbarra no Edge
-  Middleware.
-
-- **2026-09-02:** Fase 1 da Área Leite **no ar na `main`**, com a migração
-  aplicada no Neon antes do push. Quatro decisões que o documento do
-  cliente não resolvia foram levadas ao usuário ANTES da primeira linha de
-  código: lote leiteiro é model novo e não `AnimalBatch`; contagem por fazenda,
-  lote é rótulo; cada registro de produção é uma linha com turno; e nada é
-  editado, cancela e registra de novo. Implementar mudou uma coisa da spec, e a
-  spec foi corrigida junto: são QUATRO intenções de WhatsApp, não três, porque
-  "entraram 4" e "sequei 4" só diferem no verbo. A validação ao vivo foi feita
-  com NAVEGADOR de verdade pela primeira vez neste projeto (extensão do Chrome),
-  e mostrou a recusa embaixo do campo, o registro de duas ordenhas mudando o
-  painel, o cancelamento recalculando a média, e o traço na fazenda sem
-  contagem. Achado que só a tela deu: a "média diária" divide pelos dias
-  corridos, e "0,49 L" no acumulado do ano está certo pela definição e lê mal.
-
-- **2026-09-01:** **Confinamento no ar** (`430a1db..1fe1ccf`, 31 commits), com
-  as três migrações aplicadas no Neon ANTES do push. A terceira reclassifica o
-  dinheiro de boitel já gravado de `rebanho` para `confinamento`, fechando a
-  divisão histórica que o T20 tinha deixado registrada. Descoberto no caminho:
-  `npm run db:deploy` contra produção é recusado pelo classificador de
-  permissões, e a marca `AUTORIZADO_PELO_USUARIO=1` não vale para ele; quem
-  rodou foi o usuário, no terminal. **A validação ao vivo foi feita no mesmo
-  dia**, contra `next dev` com cookie de sessão: os cinco casos do juiz passaram
-  no app de verdade, e o que só existe depois do JavaScript ficou provado por
-  cadeia, não por pixel (o `browser-harness` não está instalado). Documento da
-  Área Leite lido inteiro, com as três decisões de produto tomadas.
-
-- **2026-08-31:** Confinamento (fase 3 do Módulo 30) rejulgado e corrigido. O
-  juiz independente deu **4/10** com dez achados, e a onda 7 fechou oito deles
-  em seis commits. Os quatro que importam: a conta a pagar do confinamento
-  sobrevivia ao cancelamento; a tela oferecia uma forma de cobrança que a rota
-  recusava; o `/rebanho` abria um painel de encerramento sem nenhum campo; e
-  oito campos engoliam a recusa do servidor por completo. A causa comum dos
-  três últimos era `Record<string, ...>` em mapa com chave de enum, que não
-  quebra o `tsc` quando o enum cresce. Conferência 15 nova, e o handoff
-  arquivado depois de 487 linhas.
-
-
-O detalhe de tudo isso, na íntegra e sem reescrita, está em
-[historico/2026-08.md](historico/2026-08.md), que também guarda as 358 linhas
-arquivadas deste arquivo em 31/08.
-
+- **O Redis local desta máquina é `tibe-redis-local` na porta `6390`**, não a
+  `56379` que o `CLAUDE.md` documenta. Confira com `docker ps` antes de copiar
+  o comando de lá.
