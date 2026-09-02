@@ -15,6 +15,7 @@ exigirBancoLocal();
  *   5. §26 e §27: o recebimento parcial, com o SINAL certo nos dois lançamentos.
  *   6. §32: o histórico da máquina, somado POR UNIDADE.
  *   7. §39: a agenda de hoje e dos próximos.
+ *   8. §37: os serviços na ficha do contato, nas duas direções.
  *
  * ⚠️ A `m58` (145 conferências sobre o CONTRATADO) é a prova de que esta fase
  * não quebrou a anterior: ela cobre o mesmo arquivo, e tem que continuar verde.
@@ -591,6 +592,96 @@ async function main() {
     check(
       "um serviço já concluído não entra na agenda",
       !idsHoje.includes(rocadaDoMassey.ok ? rocadaDoMassey.data.id : ""),
+    );
+    // ── 8. §37: os serviços na ficha do contato ──────────────────────────
+
+    console.log("\n8. §37: os serviços aparecem na ficha do contato");
+    const { getContactDetail } = await import("@/lib/actions/contacts");
+
+    const pedreiro = await db.contact.create({
+      data: scoped({ name: "Pedreiro Zé", type: "prestador_servico" }),
+    });
+    const outroContato = await db.contact.create({
+      data: scoped({ name: "Nada a ver", type: "particular" }),
+    });
+
+    // As DUAS direções no mesmo contato: o Zé presta serviço para a fazenda e
+    // a fazenda também roçou o pasto dele. A ficha é sobre a PESSOA, não sobre
+    // quem pagou quem.
+    const zeContratado = await createServiceJob(db, {
+      direction: "contratado",
+      property_id: fazenda.id,
+      occurred_at: new Date("2026-07-10T12:00:00.000Z"),
+      description: "Reforma de curral",
+      pricing: "fechado",
+      agreed_amount: 1200,
+      contact_id: pedreiro.id,
+    });
+    const zePrestado = await createServiceJob(db, {
+      direction: "prestado",
+      property_id: fazenda.id,
+      occurred_at: new Date("2026-08-15T12:00:00.000Z"),
+      description: "Roçada no sítio do Zé",
+      pricing: "hectare",
+      unit_price: 200,
+      quantity: 5,
+      machine_id: massey.id,
+      contact_id: pedreiro.id,
+    });
+    await createServiceJob(db, {
+      direction: "contratado",
+      property_id: fazenda.id,
+      occurred_at: new Date("2026-08-16T12:00:00.000Z"),
+      description: "Serviço de outra pessoa",
+      pricing: "fechado",
+      agreed_amount: 999,
+      contact_id: outroContato.id,
+    });
+    check("os dois serviços do Zé entraram", zeContratado.ok && zePrestado.ok);
+
+    const ficha = await getContactDetail(db, pedreiro.id);
+    check("a ficha devolve ok", ficha.ok, ficha.ok ? "" : ficha.message);
+    check("com os dois serviços", ficha.ok && ficha.data.services.length === 2, ficha.ok ? String(ficha.data.services.length) : "");
+    check(
+      "as DUAS direções, não só a despesa",
+      ficha.ok &&
+        ficha.data.services.some((s) => s.direction === "contratado") &&
+        ficha.data.services.some((s) => s.direction === "prestado"),
+    );
+    check(
+      "do mais recente para o mais antigo",
+      ficha.ok && ficha.data.services[0]?.description === "Roçada no sítio do Zé",
+      ficha.ok ? String(ficha.data.services[0]?.description) : "",
+    );
+    check(
+      "com o total de cada um",
+      ficha.ok &&
+        ficha.data.services.find((s) => s.direction === "contratado")?.total === 1200 &&
+        ficha.data.services.find((s) => s.direction === "prestado")?.total === 1000,
+      ficha.ok ? ficha.data.services.map((s) => s.total).join(",") : "",
+    );
+    check(
+      "e o serviço de OUTRO contato não aparece",
+      ficha.ok && !ficha.data.services.some((s) => s.description === "Serviço de outra pessoa"),
+    );
+
+    /**
+     * ⚠️ O caso que uma implementação apressada quebraria: o Zé não tem
+     * NEGOCIAÇÃO nenhuma. Se a ficha assumir que quem tem serviço tem negócio,
+     * o pedreiro (que é o contato mais comum deste módulo) some da tela.
+     */
+    check(
+      "e um contato só com serviço, sem negócio, continua abrindo",
+      ficha.ok && ficha.data.negotiations.length === 0,
+    );
+
+    const cancelDoZe = await cancelServiceJob(db, { service_job_id: zePrestado.ok ? zePrestado.data.id : "" });
+    check("serviço cancelado do Zé", cancelDoZe.ok);
+    const fichaDepois = await getContactDetail(db, pedreiro.id);
+    check(
+      "e o cancelado sai da ficha",
+      fichaDepois.ok && fichaDepois.data.services.length === 1,
+      fichaDepois.ok ? String(fichaDepois.data.services.length) : "",
     );
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });

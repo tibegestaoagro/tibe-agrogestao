@@ -1,4 +1,5 @@
 import type {
+  ServiceDirection,
   ServiceJobStatus,
   ServicePricing,
   WorkerLogKind,
@@ -36,6 +37,18 @@ export const PRICING_UNIDADE: Record<ServicePricing, string> = {
   quilometro: "quilômetros",
   cabeca: "cabeças",
   fechado: "",
+};
+
+/**
+ * A direção, do ponto de vista do produtor que lê a tela.
+ *
+ * "Contratei" e "Prestei", não "contratado" e "prestado": na ficha de um
+ * contato as duas linhas aparecem lado a lado, e o particípio sozinho não diz
+ * de quem foi a máquina. O verbo diz.
+ */
+export const SERVICE_DIRECTION_LABELS: Record<ServiceDirection, string> = {
+  contratado: "Contratei",
+  prestado: "Prestei",
 };
 
 export const SERVICE_STATUS_LABELS: Record<ServiceJobStatus, string> = {
