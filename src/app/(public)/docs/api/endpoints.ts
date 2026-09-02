@@ -381,11 +381,12 @@ export const GROUPS: Group[] = [
 { "data": { "id": "cl...", "name": "João da Ponte", "type": "fazendeiro", "phone": "38999990000", "city": "Unaí" }, "meta": {} }`,
       },
       {
-        method: "DELETE",
-        path: "/api/v1/contacts/:id",
+        method: "PATCH",
+        path: "/api/v1/contacts/:id/archive",
         auth: "Sessão · rebanho:write · perfil fazenda",
         description:
-          "ARQUIVA o contato, nunca apaga, como em Fazenda e Pasto. Apagar de verdade deixaria o histórico anônimo em silêncio, porque `Negotiation.contact_id` é `onDelete: SetNull`. O arquivado some da listagem e deixa de ser reaproveitado pela conversa: um negócio novo com o mesmo nome cria um contato novo.",
+          "Arquiva ou desarquiva, conforme `archived`. Nunca apaga, como em Fazenda e Pasto: apagar deixaria o histórico anônimo em silêncio, porque `Negotiation.contact_id` é `onDelete: SetNull`. Um `PATCH` com booleano em vez de `DELETE` porque `DELETE` cobriria só um dos dois sentidos e deixaria o desarquivamento sem porta. O arquivado some da listagem E deixa de ser reaproveitado pela conversa, então um negócio novo com o mesmo nome cria um contato novo.",
+        request: `{ "archived": true }`,
         response: `200
 { "data": { "id": "cl...", "name": "João da Ponte" }, "meta": {} }`,
       },

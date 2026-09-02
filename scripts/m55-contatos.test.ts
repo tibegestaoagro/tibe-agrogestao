@@ -143,7 +143,8 @@ async function comBanco() {
     const rota = await import("@/app/api/v1/contacts/[id]/route");
     check("GET existe", typeof rota.GET === "function");
     check("PATCH existe", typeof rota.PATCH === "function");
-    check("DELETE existe", typeof rota.DELETE === "function");
+    const rotaArquivo = await import("@/app/api/v1/contacts/[id]/archive/route");
+    check("PATCH de /archive existe", typeof rotaArquivo.PATCH === "function");
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });
     await prisma.$disconnect();

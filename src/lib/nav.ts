@@ -55,6 +55,12 @@ export function buildNavItems({
         // comprar e vender. Fica ao lado de Rebanho porque é de lá que sai a
         // maior parte do que se negocia.
         { href: "/negociacoes", label: "Negociações", show: hasFazenda },
+        // Fase 0 dos Módulos 33 e 34: a agenda de pessoas. Fica logo depois de
+        // Negociações porque é de lá que a maior parte dos contatos nasce
+        // (`findOrCreateContact`, a partir do nome dito na conversa do
+        // WhatsApp), e esta é a primeira tela que permite editar e arquivar o
+        // que aquele caminho criou sozinho.
+        { href: "/contatos", label: "Contatos", show: hasFazenda },
         // Módulo 31, §9 e §10: o estoque de insumos. Fica depois de
         // Negociações porque é de lá que a maior parte do que entra vem: uma
         // compra de produto abastece o estoque, e o uso é a outra ponta.
