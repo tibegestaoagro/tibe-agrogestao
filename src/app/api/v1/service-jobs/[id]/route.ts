@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiOk, apiError, apiErroDeZod } from "@/lib/api";
+import { apiOk, apiError } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { getServiceJobDetail, cancelServiceJob } from "@/lib/actions/service-jobs";
 import { withApi } from "@/lib/route";

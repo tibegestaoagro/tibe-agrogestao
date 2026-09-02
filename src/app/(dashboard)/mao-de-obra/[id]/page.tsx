@@ -14,9 +14,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getWorkerDetail } from "@/lib/actions/workers";
+import { listWorkerLogs } from "@/lib/actions/worker-logs";
+import { listServiceJobs } from "@/lib/actions/service-jobs";
 import WorkerForm from "@/components/mao-de-obra/worker-form";
 import PaymentForm from "@/components/mao-de-obra/payment-form";
 import WorkerStatusButton from "@/components/mao-de-obra/worker-status-button";
+import WorkerLogForm from "@/components/mao-de-obra/worker-log-form";
+import { WORKER_LOG_KIND_LABELS } from "@/components/servicos/labels";
 import {
   WORKER_ENTRY_KIND_LABELS,
   PAY_FREQUENCY_FRASE,
@@ -51,10 +55,13 @@ export default async function TrabalhadorPage({
   if (!res.ok) notFound();
   const w = res.data;
 
-  const properties = await db.property.findMany({
-    where: { archived_at: null },
-    orderBy: { name: "asc" },
-  });
+  const [properties, anotacoes, servicos] = await Promise.all([
+    db.property.findMany({ where: { archived_at: null }, orderBy: { name: "asc" } }),
+    listWorkerLogs(db, id),
+    // Os serviços em que ele entrou como diarista (§13). O `worker_id` do
+    // `ServiceJob` é o que liga os dois.
+    listServiceJobs(db, { }).then((todos) => todos.filter((s) => s.worker_id === id)),
+  ]);
 
   const pagos = w.entries.filter((e) => e.status === "paid");
   const totalPago = pagos.reduce((soma, e) => soma + e.amount, 0);
@@ -208,6 +215,72 @@ export default async function TrabalhadorPage({
           Isso continua com o seu contador.
         </p>
       </section>
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-texto">Anotações</h2>
+          {writable && <WorkerLogForm workerId={w.id} workerName={w.name} />}
+        </div>
+        {anotacoes.length === 0 ? (
+          <EmptyState titulo="Nenhuma anotação" compacto>
+            Atividades que ele fez e ausências. É opcional: o Tibé não controla ponto, e nada
+            aqui vira desconto.
+          </EmptyState>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Data</TableHead>
+                <TableHead>O que foi</TableHead>
+                <TableHead>Descrição</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {anotacoes.map((a) => (
+                <TableRow key={a.id}>
+                  <TableCell>{dataCurta(a.occurred_at)}</TableCell>
+                  <TableCell>
+                    <Badge variant={a.kind === "atividade" ? "gray" : "amber"}>
+                      {WORKER_LOG_KIND_LABELS[a.kind] ?? a.kind}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {a.description ?? <span className="text-texto-discreto">-</span>}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </section>
+
+      {servicos.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-texto">Serviços em que ele entrou</h2>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Data</TableHead>
+                <TableHead>Serviço</TableHead>
+                <TableHead>Valor</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {servicos.map((s) => (
+                <TableRow key={s.id}>
+                  <TableCell>{dataCurta(s.occurred_at)}</TableCell>
+                  <TableCell>
+                    <Link href={`/servicos/${s.id}`} className="text-texto underline">
+                      {s.description}
+                    </Link>
+                  </TableCell>
+                  <TableCell>{moeda(s.total)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </section>
+      )}
     </div>
   );
 }

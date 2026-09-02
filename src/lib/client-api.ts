@@ -38,3 +38,12 @@ export const apiPut = <T>(url: string, body?: unknown) =>
 export const apiPatch = <T>(url: string, body?: unknown) =>
   request<T>("PATCH", url, body);
 export const apiGet = <T>(url: string) => request<T>("GET", url);
+/**
+ * Acrescentado na fase 33.2, quando o cancelamento de serviço precisou dele.
+ *
+ * Aceita corpo porque `DELETE /api/v1/service-jobs/:id` recebe um `reason`
+ * opcional. As rotas de `DELETE` deste projeto arquivam ou cancelam pelo id da
+ * URL, e nenhuma delas depende do corpo para saber o que fazer.
+ */
+export const apiDelete = <T>(url: string, body?: unknown) =>
+  request<T>("DELETE", url, body);

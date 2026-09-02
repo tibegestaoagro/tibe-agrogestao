@@ -73,6 +73,16 @@ export function buildNavItems({
           label: "Mão de Obra",
           show: hasFazenda && canAccess(role, "mao_de_obra"),
         },
+        // Fase 33.2: o serviço contratado. Fica ao lado de Mão de Obra porque é
+        // a outra metade da mesma pergunta do §36 (quem trabalha x quem entrega
+        // serviço), e separado dela porque a PERMISSÃO é outra: OPERADOR
+        // registra serviço e não vê salário. É por isso que os dois itens têm
+        // `canAccess` diferente, e não é descuido.
+        {
+          href: "/servicos",
+          label: "Serviços",
+          show: hasFazenda && canAccess(role, "servicos"),
+        },
         // Módulo 31, §9 e §10: o estoque de insumos. Fica depois de
         // Negociações porque é de lá que a maior parte do que entra vem: uma
         // compra de produto abastece o estoque, e o uso é a outra ponta.

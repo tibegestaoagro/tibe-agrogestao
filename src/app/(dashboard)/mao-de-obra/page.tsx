@@ -81,6 +81,9 @@ export default async function MaoDeObraPage() {
               Compromisso mensal com a equipe fixa
             </p>
             <p className="mt-1 text-xl font-semibold text-texto">{moeda(compromissoMensal)}</p>
+            <p className="text-sm text-texto-secundario">
+              O que está combinado, não o que já foi pago.
+            </p>
           </div>
           <div className="rounded-[var(--curva)] border border-borda bg-superficie p-4">
             <p className="text-xs uppercase tracking-wide text-texto-discreto">
