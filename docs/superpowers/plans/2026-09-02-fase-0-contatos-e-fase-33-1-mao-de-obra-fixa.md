@@ -46,12 +46,30 @@ Valem para toda tarefa, sem repetição em cada uma.
   `main` exigem autorização explícita do usuário, a cada vez.
 - **Branch de trabalho:** `mao-de-obra-fase-1`, criada a partir da `main`.
 
-⚠️ **Uma decisão que precisa do seu aval antes da tarefa 7.** O PRD §5.2 não
-define módulo de permissão para mão de obra. Este plano reusa o guard
-`financeiro`, porque pagar trabalhador é ato financeiro e as matrizes de
-`financeiro` e `rebanho` são idênticas hoje. **A consequência é que OPERADOR
-enxerga salário.** Se isso não for aceitável, a saída é um `ModuleKey` novo com
-matriz própria, e é meia hora de trabalho a mais na tarefa 7.
+## O guard: um `ModuleKey` próprio
+
+Decidido pelo usuário em 02/09. O PRD §5.2 não define módulo de permissão para
+mão de obra, e reusar `financeiro` ou `rebanho` faria **OPERADOR enxergar
+salário**, porque as duas matrizes dão escrita a ele.
+
+`mao_de_obra` nasce com matriz própria, espelhando `usuarios`, que é o outro
+módulo que guarda dado pessoal:
+
+```ts
+  mao_de_obra: { OWNER: W, ADMIN: W, OPERADOR: N, VISUALIZADOR: N },
+```
+
+Duas consequências, para ninguém se surpreender depois:
+
+1. **O agente WhatsApp aplica a mesma regra.** `canWrite` recebe a role direta,
+   então um OPERADOR que mandar "João é meu vaqueiro e ganha 2.500" recebe
+   recusa de permissão, e não um cadastro. É o comportamento certo: o salário
+   não deve entrar por um canal onde o autor é só um número de telefone.
+2. **A fase 33.2 vai precisar decidir de novo.** A diária de um serviço não tem
+   a sensibilidade de um salário, e travar o OPERADOR fora dela impediria quem
+   está no curral de registrar o trabalho do dia. Quando o `ServiceJob` chegar,
+   ele provavelmente usa outro guard, e essa escolha é da spec daquela fase, não
+   desta.
 
 ---
 
@@ -1395,43 +1413,68 @@ git commit -m "Mao de obra: confirmar pagamento, adiantamento e extras"
 - Criar: `src/app/api/v1/workers/route.ts`
 - Criar: `src/app/api/v1/workers/[id]/route.ts`
 - Criar: `src/app/api/v1/workers/[id]/payments/route.ts`
+- Modificar: `src/lib/permissions.ts`
 - Modificar: `src/app/(public)/docs/api/endpoints.ts`
 
 **Interfaces:**
 - Consome: as actions das Tasks 7 e 8.
-- Produz: `GET`/`POST` em `/workers`; `GET`/`PATCH` em `/workers/[id]`;
-  `POST` em `/workers/[id]/payments` com `kind` no corpo escolhendo entre
-  confirmar pagamento, adiantamento e extra.
+- Produz: `ModuleKey` ganha `"mao_de_obra"`; `GET`/`POST` em `/workers`;
+  `GET`/`PATCH` em `/workers/[id]`; `POST` em `/workers/[id]/payments` com
+  `kind` no corpo escolhendo entre confirmar pagamento, adiantamento e extra.
 
-- [ ] **Passo 1: escrever as rotas**
+- [ ] **Passo 1: o módulo de permissão**
+
+Em `src/lib/permissions.ts`, acrescentar `"mao_de_obra"` à união `ModuleKey` e a
+linha à `ACCESS_MATRIX`:
+
+```ts
+  // Módulo 33. Não reusa `financeiro` nem `rebanho` porque as duas dão escrita
+  // a OPERADOR, e isto guarda SALÁRIO. Espelha `usuarios`, que é o outro
+  // módulo com dado pessoal. Decisão do usuário em 02/09; o raciocínio e as
+  // consequências estão na seção "O guard" do plano desta fase.
+  mao_de_obra: { OWNER: W, ADMIN: W, OPERADOR: N, VISUALIZADOR: N },
+```
+
+⚠️ **`ACCESS_MATRIX` é `Record<ModuleKey, ...>`**, então acrescentar à união sem
+acrescentar a linha quebra a compilação. Isso é bom: é a trava funcionando.
+Confirme com `npx tsc --noEmit` que ela quebra antes de você escrever a linha.
+
+- [ ] **Passo 2: escrever as rotas**
 
 Copie a estrutura inteira do arquivo escrito na **Task 2, passo 3**
 (`src/app/api/v1/contacts/[id]/route.ts`): ele já tem a forma exata que estas
 três precisam. Trocam o guard, o schema e as actions chamadas, e nada mais.
 
-Todas com `guard("financeiro", "read" | "write", { profile: "fazenda" })` (ver o
-aviso das Restrições globais), `withApi`, `apiErroDeZod` na recusa de schema e
+Todas com `guard("mao_de_obra", "read" | "write", { profile: "fazenda" })` (ver
+a seção "O guard" no topo), `withApi`, `apiErroDeZod` na recusa de schema e
 `apiError(res.code, res.message, res.status, res.field)` na recusa da action.
 
 ⚠️ **A recusa do Zod precisa sair em português e dizer o campo** (conferência
 12). Use `apiErroDeZod`, nunca `error.message` cru: 71 rotas já devolveram "Too
 small: expected number to be >=0" no rodapé do painel por causa disso.
 
-- [ ] **Passo 2: registrar em `/docs/api` e rodar**
+- [ ] **Passo 3: registrar em `/docs/api` e rodar**
 
 ```
 npm run test:docs-api && npm run check && npx tsc --noEmit
 ```
 
-- [ ] **Passo 3: provar a recusa em português**
+- [ ] **Passo 4: provar que a permissão morde**
+
+Rode `npm run test:isolation` e acrescente à suíte `m57` um bloco que confirme
+`canWrite("OPERADOR", "mao_de_obra") === false` e
+`canAccess("VISUALIZADOR", "mao_de_obra") === false`. Depois troque o `N` por
+`W` na matriz e veja o bloco ficar vermelho. Devolva.
+
+- [ ] **Passo 5: provar a recusa em português**
 
 Com `next dev` de pé, mande `POST /api/v1/workers` com `pay_amount: -5` e
 confirme que a mensagem é uma frase em português citando o campo.
 
-- [ ] **Passo 4: commit**
+- [ ] **Passo 6: commit**
 
 ```
-git add src/app/api/v1/workers "src/app/(public)/docs/api/endpoints.ts"
+git add src/app/api/v1/workers src/lib/permissions.ts "src/app/(public)/docs/api/endpoints.ts"
 git commit -m "Mao de obra: as rotas do trabalhador e dos pagamentos"
 ```
 
