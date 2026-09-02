@@ -417,6 +417,150 @@ export async function createServiceJob(
   return ok(serializar(completo, entries));
 }
 
+/**
+ * Registra um pagamento do serviço (§21 e §22).
+ *
+ * O DESENHO DO §22, e por que não são as parcelas do Módulo 31: o documento
+ * descreve R$ 10.000 combinados, R$ 3.000 adiantados e R$ 7.000 em aberto
+ * **sem data**. A regra do §14 do Módulo 31 exige que a soma das parcelas bata
+ * exatamente com o valor, então reusá-la recusaria o exemplo literal e
+ * obrigaria o produtor a saber de antemão em quantas vezes vai pagar.
+ *
+ * Aqui: existe UMA conta a pagar, e cada pagamento cria um lançamento quitado e
+ * ENCOLHE a pendente pelo mesmo valor. Quando ela chega a zero, é APAGADA: uma
+ * conta a pagar de R$ 0,00 na tela do Financeiro seria ruído, e o histórico do
+ * que foi pago está nos lançamentos pagos.
+ *
+ * ⚠️ Pagar mais que o restante é RECUSADO, com a mensagem dizendo quanto falta.
+ * Sem isso, um dedo pesado transforma R$ 700 em R$ 7.000 e o serviço fica com
+ * saldo negativo, que nenhuma tela deste projeto sabe mostrar.
+ */
+export async function recordServiceJobPayment(
+  db: TenantPrismaClient,
+  input: {
+    service_job_id: string;
+    amount: number;
+    paid_at?: Date;
+    notes?: string | null;
+  },
+): Promise<ActionResult<{ pago: number; restante: number }>> {
+  if (!Number.isFinite(input.amount) || input.amount <= 0) {
+    return fail("VALIDATION_ERROR", "Informe um valor maior que zero.", 422, "amount");
+  }
+
+  const job = await db.serviceJob.findUnique({ where: { id: input.service_job_id } });
+  if (!job) return fail("NOT_FOUND", "Serviço não encontrado.", 404);
+  if (job.canceled_at) {
+    return fail("CONFLICT", "Este serviço foi cancelado, então não há o que pagar.", 409);
+  }
+
+  const pendentes = await db.financialEntry.findMany({
+    where: {
+      related_module: "servico",
+      related_id: job.id,
+      status: { in: ["pending", "overdue"] },
+    },
+    orderBy: { due_date: "asc" },
+  });
+
+  const restante = pendentes.reduce((s, e) => s + (decToNum(e.amount) ?? 0), 0);
+  if (restante <= 0) {
+    return fail("CONFLICT", "Este serviço já está pago por inteiro.", 409);
+  }
+  if (input.amount > restante) {
+    return fail(
+      "VALIDATION_ERROR",
+      `Faltam ${moeda(restante)} neste serviço, e você informou ${moeda(input.amount)}.`,
+      422,
+      "amount",
+    );
+  }
+
+  const quando = input.paid_at ?? new Date();
+
+  await runSerializableTenantTransaction(db, async (tx) => {
+    await createLinkedEntry(tx as never, {
+      entry_type: "expense",
+      category: CATEGORIA,
+      amount: input.amount,
+      related_module: "servico",
+      related_id: job.id,
+      occurred_at: quando,
+      status: "paid",
+    });
+
+    // Encolhe a conta a pagar, da mais próxima para a mais distante. Quando uma
+    // zera, ela é apagada: conta a pagar de R$ 0,00 é ruído no Financeiro.
+    let aAbater = input.amount;
+    for (const pendente of pendentes) {
+      if (aAbater <= 0) break;
+      const valor = decToNum(pendente.amount) ?? 0;
+      if (aAbater >= valor) {
+        await tx.financialEntry.delete({ where: { id: pendente.id } });
+        aAbater -= valor;
+      } else {
+        await tx.financialEntry.update({
+          where: { id: pendente.id },
+          data: { amount: valor - aAbater },
+        });
+        aAbater = 0;
+      }
+    }
+  });
+
+  const depois = await db.financialEntry.findMany({
+    where: { related_module: "servico", related_id: job.id },
+    select: { amount: true, status: true },
+  });
+  const soma = (status: string[]) =>
+    depois.filter((e) => status.includes(e.status)).reduce((s, e) => s + (decToNum(e.amount) ?? 0), 0);
+
+  return ok({ pago: soma(["paid"]), restante: soma(["pending", "overdue"]) });
+}
+
+/**
+ * Cancela o serviço (§17.9 do Módulo 31, aplicado aqui).
+ *
+ * Apaga os lançamentos PENDENTES, porque um serviço que não aconteceu não pode
+ * seguir gerando conta a pagar no DRE dos meses seguintes. E nunca toca nos
+ * PAGOS: o dinheiro saiu de verdade, e o §40.8 exige que pagamentos permaneçam
+ * registrados. Os logs também ficam: "por que este serviço tinha 20 hectares"
+ * precisa ter resposta depois do cancelamento.
+ */
+export async function cancelServiceJob(
+  db: TenantPrismaClient,
+  input: { service_job_id: string; reason?: string | null; user_id?: string | null },
+): Promise<ActionResult<{ id: string }>> {
+  const job = await db.serviceJob.findUnique({ where: { id: input.service_job_id } });
+  if (!job) return fail("NOT_FOUND", "Serviço não encontrado.", 404);
+  if (job.canceled_at) return fail("CONFLICT", "Este serviço já foi cancelado.", 409);
+
+  await runSerializableTenantTransaction(db, async (tx) => {
+    await tx.financialEntry.deleteMany({
+      where: {
+        related_module: "servico",
+        related_id: job.id,
+        status: { in: ["pending", "overdue"] },
+      },
+    });
+    await tx.serviceJob.update({
+      where: { id: job.id },
+      data: {
+        canceled_at: new Date(),
+        canceled_reason: input.reason?.trim() || null,
+        canceled_by_user_id: input.user_id ?? null,
+        status: "cancelado",
+      },
+    });
+  });
+
+  return ok({ id: job.id });
+}
+
+function moeda(v: number): string {
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
 export async function getServiceJobDetail(
   db: TenantPrismaClient,
   id: string,

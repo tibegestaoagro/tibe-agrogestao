@@ -13,6 +13,10 @@ exigirBancoLocal();
  *   4. §21: à vista, futuro, e a contradição entre os dois.
  *   5. As recusas, todas com `field`, e nenhuma deixando órfão.
  *   6. §24: serviço no futuro vira compromisso no Meu Dia; no passado, não.
+ *   7. §22: o exemplo literal (10.000, adianta 3.000, sobram 7.000).
+ *   8. O fechamento: quitar zera o restante e não deixa pendente sobrando.
+ *   9. Pagar MAIS que o restante é recusado, e o saldo nunca fica negativo.
+ *  10. Cancelar apaga o pendente, preserva o pago, e mantém os logs.
  *
  * Roda: `npm run test:m58`.
  */
@@ -157,8 +161,14 @@ async function main() {
 
 async function comBanco() {
   const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
-  const { createServiceJob, listServiceJobs, getServiceJobDetail, SERVICOS_SUGERIDOS } =
-    await import("@/lib/actions/service-jobs");
+  const {
+    createServiceJob,
+    listServiceJobs,
+    getServiceJobDetail,
+    recordServiceJobPayment,
+    cancelServiceJob,
+    SERVICOS_SUGERIDOS,
+  } = await import("@/lib/actions/service-jobs");
 
   const stamp = Date.now();
   const tenant = await prisma.tenant.create({
@@ -403,6 +413,179 @@ async function comBanco() {
     check("com o log", detalhe.ok && detalhe.data.logs.length === 1);
     check("e o lançamento", detalhe.ok && detalhe.data.entries.length === 1);
     check("serviço inexistente devolve 404", !(await getServiceJobDetail(db, "clnaoexiste000000000000")).ok);
+
+    // ── 7. §22: o exemplo literal do documento ────────────────────────────
+
+    console.log("\n7. §22: o exemplo literal (10.000, adianta 3.000, sobram 7.000)");
+    const empreito = await createServiceJob(db, {
+      property_id: fazenda.id,
+      occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+      description: "Construção de curral",
+      pricing: "fechado",
+      agreed_amount: 10000,
+      contact_name: "Pedreiro do §22",
+    });
+    if (!empreito.ok) throw new Error("createServiceJob falhou");
+    check("total 10.000", empreito.data.total === 10000);
+    check("pago 0", empreito.data.pago === 0);
+    check("restante 10.000", empreito.data.restante === 10000);
+
+    const parcial = await recordServiceJobPayment(db, {
+      service_job_id: empreito.data.id,
+      amount: 3000,
+    });
+    check("o pagamento parcial é aceito", parcial.ok, parcial.ok ? "" : parcial.message);
+    check("pago vira 3.000", parcial.ok && parcial.data.pago === 3000, parcial.ok ? String(parcial.data.pago) : "");
+    check(
+      "restante vira 7.000",
+      parcial.ok && parcial.data.restante === 7000,
+      parcial.ok ? String(parcial.data.restante) : "",
+    );
+
+    const depoisDoParcial = await getServiceJobDetail(db, empreito.data.id);
+    check(
+      "e o serviço tem DOIS lançamentos: um pago e um pendente",
+      depoisDoParcial.ok && depoisDoParcial.data.entries.length === 2,
+      depoisDoParcial.ok ? String(depoisDoParcial.data.entries.length) : "recusado",
+    );
+    check(
+      "o total COMBINADO não mudou",
+      depoisDoParcial.ok && depoisDoParcial.data.total === 10000,
+      depoisDoParcial.ok ? String(depoisDoParcial.data.total) : "recusado",
+    );
+    check(
+      "o pendente encolheu para 7.000",
+      depoisDoParcial.ok &&
+        depoisDoParcial.data.entries.some((e) => e.status === "pending" && e.amount === 7000),
+    );
+    check(
+      "e existe um pago de 3.000",
+      depoisDoParcial.ok &&
+        depoisDoParcial.data.entries.some((e) => e.status === "paid" && e.amount === 3000),
+    );
+
+    // ── 8. O fechamento ───────────────────────────────────────────────────
+
+    console.log("\n8. Quitar zera o restante e não deixa pendente sobrando");
+    const quitacao = await recordServiceJobPayment(db, {
+      service_job_id: empreito.data.id,
+      amount: 7000,
+    });
+    check("quitação aceita", quitacao.ok, quitacao.ok ? "" : quitacao.message);
+    check("pago 10.000", quitacao.ok && quitacao.data.pago === 10000);
+    check("restante 0", quitacao.ok && quitacao.data.restante === 0);
+    check(
+      "NENHUM lançamento pendente sobrou (nada de conta a pagar de R$ 0,00)",
+      (await db.financialEntry.count({
+        where: { related_module: "servico", related_id: empreito.data.id, status: "pending" },
+      })) === 0,
+    );
+    check(
+      "e os dois pagos continuam lá",
+      (await db.financialEntry.count({
+        where: { related_module: "servico", related_id: empreito.data.id, status: "paid" },
+      })) === 2,
+    );
+
+    const jaQuitado = await recordServiceJobPayment(db, {
+      service_job_id: empreito.data.id,
+      amount: 100,
+    });
+    check("pagar de novo é recusado", !jaQuitado.ok);
+    check("com 409", !jaQuitado.ok && jaQuitado.status === 409, !jaQuitado.ok ? String(jaQuitado.status) : "");
+
+    // ── 9. Pagar mais que o restante ──────────────────────────────────────
+
+    console.log("\n9. Pagar MAIS que o restante é recusado: o saldo nunca fica negativo");
+    const outro = await createServiceJob(db, {
+      property_id: fazenda.id,
+      occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+      description: "Roçada de beira",
+      pricing: "fechado",
+      agreed_amount: 700,
+      contact_name: "Roçador",
+    });
+    if (!outro.ok) throw new Error("createServiceJob falhou");
+
+    // O dedo pesado: 700 vira 7000.
+    const dedoPesado = await recordServiceJobPayment(db, {
+      service_job_id: outro.data.id,
+      amount: 7000,
+    });
+    check("recusado", !dedoPesado.ok);
+    check(
+      "no campo amount",
+      !dedoPesado.ok && dedoPesado.field === "amount",
+      !dedoPesado.ok ? String(dedoPesado.field) : "aceitou",
+    );
+    check(
+      "e a mensagem diz quanto falta",
+      !dedoPesado.ok && dedoPesado.message.includes("700"),
+      !dedoPesado.ok ? dedoPesado.message : "",
+    );
+    const aindaIntacto = await getServiceJobDetail(db, outro.data.id);
+    check(
+      "o restante continua 700, nunca negativo",
+      aindaIntacto.ok && aindaIntacto.data.restante === 700,
+      aindaIntacto.ok ? String(aindaIntacto.data.restante) : "recusado",
+    );
+    check("valor zero também é recusado no campo amount", !(await recordServiceJobPayment(db, { service_job_id: outro.data.id, amount: 0 })).ok);
+
+    // ── 10. Cancelar ──────────────────────────────────────────────────────
+
+    console.log("\n10. Cancelar apaga o pendente, preserva o pago, e mantém os logs");
+    const paraCancelar = await createServiceJob(db, {
+      property_id: fazenda.id,
+      occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+      description: "Gradagem cancelada",
+      pricing: "hectare",
+      unit_price: 100,
+      quantity: 20,
+      contact_name: "Tratorista sumido",
+    });
+    if (!paraCancelar.ok) throw new Error("createServiceJob falhou");
+    await recordServiceJobPayment(db, { service_job_id: paraCancelar.data.id, amount: 500 });
+
+    const cancelado = await cancelServiceJob(db, {
+      service_job_id: paraCancelar.data.id,
+      reason: "O tratorista não voltou",
+    });
+    check("cancelamento devolve ok", cancelado.ok, cancelado.ok ? "" : cancelado.message);
+    check(
+      "nenhum pendente sobrou",
+      (await db.financialEntry.count({
+        where: { related_module: "servico", related_id: paraCancelar.data.id, status: "pending" },
+      })) === 0,
+    );
+    check(
+      "o que JÁ FOI PAGO continua no financeiro",
+      (await db.financialEntry.count({
+        where: { related_module: "servico", related_id: paraCancelar.data.id, status: "paid" },
+      })) === 1,
+    );
+    check(
+      "os logs continuam lá (§40.8 exige histórico)",
+      (await db.serviceJobLog.count({ where: { service_job_id: paraCancelar.data.id } })) === 1,
+    );
+    check(
+      "some da listagem padrão",
+      !(await listServiceJobs(db, {})).some((j) => j.id === paraCancelar.data.id),
+    );
+    check(
+      "mas aparece com incluir_cancelados",
+      (await listServiceJobs(db, { incluir_cancelados: true })).some(
+        (j) => j.id === paraCancelar.data.id,
+      ),
+    );
+    check(
+      "e o motivo ficou registrado",
+      (await db.serviceJob.findUnique({ where: { id: paraCancelar.data.id } }))?.canceled_reason ===
+        "O tratorista não voltou",
+    );
+    check(
+      "pagar num serviço cancelado é recusado",
+      !(await recordServiceJobPayment(db, { service_job_id: paraCancelar.data.id, amount: 10 })).ok,
+    );
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });
     await prisma.$disconnect();
