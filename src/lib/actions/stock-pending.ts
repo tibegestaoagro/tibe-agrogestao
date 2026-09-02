@@ -1,4 +1,7 @@
 import { getRedisConnection } from "@/lib/redis";
+import { criarStoreDePendencia, type PedidoBase } from "@/lib/actions/pending-store";
+import { chaveDoNegocio } from "@/lib/actions/negotiation-pending";
+import { chaveDoRebanho } from "@/lib/actions/herd-pending";
 
 /**
  * O pedido de estoque que ficou esperando resposta (Módulo 31, §9 e §10).
@@ -51,22 +54,12 @@ export type CampoEstoque =
   /** Não é campo: é o pedido inteiro esperando um "sim". */
   | "confirmacao";
 
-export type PedidoEstoquePendente = {
+export type PedidoEstoquePendente = PedidoBase<CampoEstoque> & {
   /** Qual das quatro conversas está aberta. */
   intent:
     | "registrar_negocio_produto"
     | "registrar_uso_estoque"
     | "ajustar_estoque";
-  parameters: Record<string, unknown>;
-  aguardando: CampoEstoque;
-  /** Quantas vezes o MESMO campo já foi perguntado: trava de laço. */
-  tentativas?: number;
-  /**
-   * Quando este pedido foi guardado. É o desempate entre os três domínios de
-   * conversa; ausente (pedido gravado por uma versão anterior) conta como o
-   * mais antigo de todos.
-   */
-  salvo_em?: number;
 };
 
 export const MAX_TENTATIVAS = 3;
@@ -222,21 +215,18 @@ export function mudaOPedido(
   return false;
 }
 
-function chave(tenantId: string, userId: string): string {
-  return `tibe:estoque-pending:${tenantId}:${userId}`;
-}
-
 /**
  * As chaves das outras duas conversas, só para LER a data delas.
  *
- * Nunca para apagar: ver o comentário do topo. Ficam escritas aqui porque os
- * dois módulos donos foram validados em produção e não vale reabri-los; se
- * alguma dessas chaves mudar lá, esta lista precisa acompanhar.
+ * Nunca para apagar: ver o comentário do topo.
+ *
+ * ✅ Até 02/09 estas duas chaves eram montadas aqui por string literal, com o
+ * aviso "se alguma dessas chaves mudar lá, esta lista precisa acompanhar", que
+ * é o tipo de pedido que documentação não consegue cumprir. Agora vêm dos
+ * próprios donos: mudar o prefixo de um domínio muda esta lista junto, sem
+ * ninguém precisar lembrar.
  */
-const CHAVES_DE_OUTROS_DOMINIOS = [
-  (t: string, u: string) => `tibe:negocio-pending:${t}:${u}`,
-  (t: string, u: string) => `tibe:herd-pending:${t}:${u}`,
-];
+const CHAVES_DE_OUTROS_DOMINIOS = [chaveDoNegocio, chaveDoRebanho];
 
 /**
  * Quando a conversa mais recente de OUTRO domínio foi guardada.
@@ -319,48 +309,22 @@ export async function quandoExecutouPorUltimo(
   }
 }
 
-export async function savePendingStock(
-  tenantId: string,
-  userId: string,
-  pedido: PedidoEstoquePendente,
-): Promise<void> {
-  try {
-    const redis = getRedisConnection();
-    await redis.set(
-      chave(tenantId, userId),
-      JSON.stringify({ ...pedido, salvo_em: pedido.salvo_em ?? Date.now() }),
-      "EX",
-      TTL_SEGUNDOS,
-    );
-  } catch {
-    // Redis fora do ar não pode derrubar o registro: sem o pendente o
-    // assistente volta a depender do histórico, que é o comportamento antigo.
-  }
-}
+/**
+ * Só as quatro operações de Redis vêm do store genérico.
+ *
+ * `aplicarRespostaEstoque` NÃO vem: ela tem apelido múltiplo por campo
+ * (`quantidade` aceita `quantity`, `qtd` e `saldo`) e regras de contradição
+ * próprias (responder "já paguei" limpa "vou parcelar"). Generalizar isso seria
+ * inventar abstração para um caso só, que é o que as convenções deste projeto
+ * proíbem.
+ */
+const store = criarStoreDePendencia<CampoEstoque, PedidoEstoquePendente>({
+  prefixo: "estoque-pending",
+});
 
-export async function loadPendingStock(
-  tenantId: string,
-  userId: string,
-): Promise<PedidoEstoquePendente | null> {
-  try {
-    const redis = getRedisConnection();
-    const bruto = await redis.get(chave(tenantId, userId));
-    if (!bruto) return null;
-    const pedido = JSON.parse(bruto) as PedidoEstoquePendente;
-    if (!pedido || typeof pedido !== "object" || !pedido.parameters) return null;
-    return pedido;
-  } catch {
-    return null;
-  }
-}
-
-export async function clearPendingStock(tenantId: string, userId: string): Promise<void> {
-  try {
-    await getRedisConnection().del(chave(tenantId, userId));
-  } catch {
-    // idem
-  }
-}
+export const savePendingStock = store.salvar;
+export const loadPendingStock = store.carregar;
+export const clearPendingStock = store.limpar;
 
 /**
  * Junta a resposta nova ao pedido guardado.

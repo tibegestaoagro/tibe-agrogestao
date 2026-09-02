@@ -1,4 +1,4 @@
-import { getRedisConnection } from "@/lib/redis";
+import { criarStoreDePendencia, type PedidoBase } from "@/lib/actions/pending-store";
 
 /**
  * O pedido de confinamento que ficou esperando uma resposta (Módulo 30, fase
@@ -12,16 +12,15 @@ import { getRedisConnection } from "@/lib/redis";
  * mostrado.
  *
  * Chave ÚNICA por pessoa, como em `event-pending.ts`: quatro gestos possíveis
- * (entrada em confinamento, envio a boitel, alimentação, saída), e cada
- * handler confere `gesto` antes de usar o que está guardado, para o "sim" de
- * uma conversa não executar a de outra.
+ * (entrada em confinamento, envio a boitel, alimentação, saída), e cada handler
+ * confere `gesto` antes de usar o que está guardado, para o "sim" de uma
+ * conversa não executar a de outra.
  *
- * DUPLICAÇÃO DELIBERADA, pelo mesmo argumento escrito em `event-pending.ts`:
- * unificar os stores de pendência exigiria mexer em módulos já validados em
- * produção no meio de outra missão.
+ * ✅ Este arquivo foi a SÉTIMA cópia do mecanismo, modelada linha a linha em
+ * `event-pending.ts`, e é a que fez a dívida ser paga: quando o Confinamento
+ * chegou, a nota que pedia extração no TERCEIRO caso já tinha sido ignorada
+ * quatro vezes. O Redis mora em `pending-store.ts` desde 02/09.
  */
-
-const TTL_SEGUNDOS = 15 * 60;
 
 export type GestoConfinamento = "entrada_confinamento" | "entrada_boitel" | "alimentacao" | "saida";
 
@@ -38,9 +37,7 @@ export type CampoConfinamento =
   /** Não é campo: é o pedido inteiro esperando um "sim". */
   | "confirmacao";
 
-export type ConfinamentoPendente = {
-  parameters: Record<string, unknown>;
-  aguardando: CampoConfinamento;
+export type ConfinamentoPendente = PedidoBase<CampoConfinamento> & {
   /** Qual das quatro conversas está aberta. */
   gesto: GestoConfinamento;
   /**
@@ -57,88 +54,28 @@ export type ConfinamentoPendente = {
    * caminho de quem digitou o nome.
    */
   sugestao_pasto?: string | null;
-  salvo_em?: number;
 };
 
-function chave(tenantId: string, userId: string): string {
-  return `tibe:confinamento-pending:${tenantId}:${userId}`;
-}
+const store = criarStoreDePendencia<CampoConfinamento, ConfinamentoPendente>({
+  prefixo: "confinamento-pending",
+  /**
+   * O nome alternativo que o classificador usa para o mesmo campo: ele não
+   * carrega de volta qual era a pergunta, então responde com o nome mais
+   * natural.
+   */
+  atalho: (campo) => {
+    if (campo === "categoria") return "category";
+    if (campo === "fazenda") return "property";
+    if (campo === "quantidade") return "quantity";
+    if (campo === "produto") return "product";
+    if (campo === "pasto") return "pasture";
+    if (campo === "data") return "date";
+    if (campo === "valor") return "amount";
+    return campo;
+  },
+});
 
-export async function savePendingConfinement(
-  tenantId: string,
-  userId: string,
-  pedido: ConfinamentoPendente,
-): Promise<void> {
-  try {
-    const redis = getRedisConnection();
-    await redis.set(
-      chave(tenantId, userId),
-      JSON.stringify({ ...pedido, salvo_em: pedido.salvo_em ?? Date.now() }),
-      "EX",
-      TTL_SEGUNDOS,
-    );
-  } catch {
-    // Redis fora do ar não pode derrubar o registro: sem o pendente o
-    // assistente volta a depender do histórico, que é o comportamento antigo.
-  }
-}
-
-export async function loadPendingConfinement(
-  tenantId: string,
-  userId: string,
-): Promise<ConfinamentoPendente | null> {
-  try {
-    const redis = getRedisConnection();
-    const bruto = await redis.get(chave(tenantId, userId));
-    if (!bruto) return null;
-    const pedido = JSON.parse(bruto) as ConfinamentoPendente;
-    if (!pedido || typeof pedido !== "object" || !pedido.parameters) return null;
-    return pedido;
-  } catch {
-    return null;
-  }
-}
-
-export async function clearPendingConfinement(tenantId: string, userId: string): Promise<void> {
-  try {
-    const redis = getRedisConnection();
-    await redis.del(chave(tenantId, userId));
-  } catch {
-    // idem
-  }
-}
-
-/**
- * Junta a resposta ao pedido guardado: da mensagem nova entra APENAS o campo
- * que estava sendo perguntado. Devolve `null` quando a mensagem não responde
- * ao que foi perguntado, porque aí é assunto novo, não resposta.
- */
-export function aplicarRespostaConfinamento(
-  pendente: ConfinamentoPendente,
-  novos: Record<string, unknown>,
-): Record<string, unknown> | null {
-  const bruto = novos[pendente.aguardando] ?? novos[atalho(pendente.aguardando)];
-
-  if (typeof bruto === "number" && Number.isFinite(bruto)) {
-    return { ...pendente.parameters, [pendente.aguardando]: bruto };
-  }
-  if (typeof bruto === "string" && bruto.trim() !== "") {
-    return { ...pendente.parameters, [pendente.aguardando]: bruto.trim() };
-  }
-  return null;
-}
-
-/**
- * O nome alternativo que o classificador usa para o mesmo campo: ele não
- * carrega de volta qual era a pergunta, então responde com o nome mais natural.
- */
-function atalho(campo: CampoConfinamento): string {
-  if (campo === "categoria") return "category";
-  if (campo === "fazenda") return "property";
-  if (campo === "quantidade") return "quantity";
-  if (campo === "produto") return "product";
-  if (campo === "pasto") return "pasture";
-  if (campo === "data") return "date";
-  if (campo === "valor") return "amount";
-  return campo;
-}
+export const savePendingConfinement = store.salvar;
+export const loadPendingConfinement = store.carregar;
+export const clearPendingConfinement = store.limpar;
+export const aplicarRespostaConfinamento = store.aplicarResposta;
