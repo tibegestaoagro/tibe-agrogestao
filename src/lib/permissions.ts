@@ -12,6 +12,7 @@ export type ModuleKey =
   | "maquinas"
   | "tarefas"
   | "prestador"
+  | "mao_de_obra"
   | "financeiro"
   | "alertas"
   | "usuarios"
@@ -30,6 +31,17 @@ const ACCESS_MATRIX: Record<ModuleKey, Record<AppUserRole, AccessLevel>> = {
   maquinas: { OWNER: W, ADMIN: W, OPERADOR: W, VISUALIZADOR: R },
   tarefas: { OWNER: W, ADMIN: W, OPERADOR: W, VISUALIZADOR: R },
   prestador: { OWNER: W, ADMIN: W, OPERADOR: W, VISUALIZADOR: R },
+  // Módulo 33. NÃO reusa `financeiro` nem `rebanho`, que era o caminho óbvio:
+  // as duas matrizes dão escrita a OPERADOR, e isto guarda SALÁRIO. Espelha
+  // `usuarios`, que é o outro módulo com dado pessoal. Decisão do usuário em
+  // 02/09.
+  //
+  // Vale também para o agente do WhatsApp: `canWrite` recebe a role direta, e
+  // um OPERADOR que mandar "João é meu vaqueiro e ganha 2.500" recebe recusa
+  // de permissão em vez de um cadastro. É o comportamento certo, porque o
+  // salário não deve entrar por um canal onde o autor é só um número de
+  // telefone.
+  mao_de_obra: { OWNER: W, ADMIN: W, OPERADOR: N, VISUALIZADOR: N },
   financeiro: { OWNER: W, ADMIN: W, OPERADOR: W, VISUALIZADOR: R },
   alertas: { OWNER: W, ADMIN: W, OPERADOR: R, VISUALIZADOR: R },
   usuarios: { OWNER: W, ADMIN: W, OPERADOR: N, VISUALIZADOR: N },

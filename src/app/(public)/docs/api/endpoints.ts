@@ -1052,6 +1052,60 @@ export const GROUPS: Group[] = [
     ],
   },
   {
+    title: "Mão de Obra (Módulo 33, fase 1)",
+    note: "O trabalhador fixo e o dinheiro dele. NÃO é folha de pagamento: os §35 e §41 do documento do cliente excluem eSocial, FGTS, INSS, férias, 13º, rescisão e ponto. Nenhum valor pago ou devido é gravado no trabalhador: tudo é `FinancialEntry` com `related_module: mao_de_obra` e `related_id` do trabalhador, o que faz conta a pagar, alerta de vencimento e DRE funcionarem sem nada novo. ⚠️ Permissão PRÓPRIA, mais fechada que a do financeiro: só OWNER e ADMIN, porque isto guarda salário.",
+    endpoints: [
+      {
+        method: "GET",
+        path: "/api/v1/workers",
+        auth: "Sessão · mao_de_obra:read · perfil fazenda",
+        description:
+          "Lista a equipe (§38, \"Minha equipe\"), com o PRÓXIMO PAGAMENTO já junto de cada um. Filtros: `status` (ativo/inativo) e `property_id`. O `meta` traz `funcoes_sugeridas`, as dez funções do §6 que a tela oferece; a função em si é texto livre, porque a lista do documento termina em \"Outro\".",
+        response: `200
+{ "data": [{ "id": "cl...", "name": "João", "role": "Vaqueiro", "type": "fixo", "status": "ativo", "pay_frequency": "mensal", "pay_amount": 2500, "pay_day": 5, "proximo_pagamento": { "id": "cl...", "amount": 2500, "due_date": "2026-10-05T12:00:00.000Z" } }], "meta": { "total": 1, "funcoes_sugeridas": ["Vaqueiro", "..."] } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/workers",
+        auth: "Sessão · mao_de_obra:write · perfil fazenda",
+        description:
+          "Cadastra um trabalhador (§5). No `fixo`, `pay_frequency` e `pay_amount` são obrigatórios e o cadastro JÁ CRIA a primeira previsão de pagamento (uma `FinancialEntry` pendente, §7 e §40.2). No `eventual` não: quem paga o diarista é a diária do §13, e frequência e valor nem são gravados.",
+        request: `{ "name": "João", "role": "Vaqueiro", "type": "fixo", "pay_frequency": "mensal", "pay_amount": 2500, "pay_day": 5 }`,
+        response: `201
+{ "data": { "id": "cl...", "name": "João", "proximo_pagamento": { "amount": 2500, "due_date": "2026-09-05T12:00:00.000Z" } }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/workers/:id",
+        auth: "Sessão · mao_de_obra:read · perfil fazenda",
+        description:
+          "O trabalhador e o histórico dele (§37): pagamentos, adiantamentos, gratificações e benefícios, pagos e pendentes. Quem separa um do outro é `kind` (`worker_entry_kind`), não a categoria, que é texto que o produtor renomeia no painel.",
+        response: `200
+{ "data": { "id": "cl...", "name": "João", "entries": [{ "id": "cl...", "kind": "adiantamento", "amount": 500, "status": "paid", "paid_at": "2026-09-02T00:00:00.000Z" }] }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/workers/:id",
+        auth: "Sessão · mao_de_obra:write · perfil fazenda",
+        description:
+          "Edita o cadastro, ou muda a situação (§39). `{ \"status\": \"inativo\" }` sozinho muda só ela, e NÃO é inócuo: inativar apaga as previsões PENDENTES (um trabalhador que saiu não pode gerar conta a pagar nos meses seguintes) e preserva as pagas, que o §40.8 exige no histórico. Reativar recria a previsão, uma só.",
+        request: `{ "pay_amount": 2800 }`,
+        response: `200
+{ "data": { "id": "cl...", "pay_amount": 2800 }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/workers/:id/payments",
+        auth: "Sessão · mao_de_obra:write · perfil fazenda",
+        description:
+          "Registra dinheiro pago, com `kind` escolhendo o gesto. ⚠️ `pagamento` é o único que NÃO cria lançamento novo: ele QUITA a previsão pendente e faz a PRÓXIMA nascer, ancorada no vencimento da que foi paga (não na data em que o dinheiro saiu, senão pagar adiantado repetiria o mesmo mês e pagar atrasado pularia um). Sem previsão pendente ele devolve 404 em vez de inventar um valor, porque o §40.3 diz que o sistema prevê e o produtor confirma. `amount` opcional sobrescreve o previsto. Os outros três (`adiantamento`, `gratificacao`, `beneficio`, `outro`) criam lançamento já pago e NÃO abatem da previsão do mês: o §9 pede o adiantamento mostrado separado.",
+        request: `{ "kind": "adiantamento", "amount": 500 }`,
+        response: `201
+{ "data": { "id": "cl...", "amount": 500 }, "meta": {} }`,
+      },
+    ],
+  },
+  {
     title: "Meu Dia (tarefas)",
     note: "Módulo 27. Tarefas são compartilhadas dentro do tenant (visíveis a todo mundo, não privadas por usuário). Concluir/cancelar só pelo painel: o agente WhatsApp só cria.",
     endpoints: [

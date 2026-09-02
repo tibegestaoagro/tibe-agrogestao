@@ -18,6 +18,8 @@ exigirBancoLocal();
  *   9. §9: o adiantamento é lançamento SEPARADO, e não mexe na previsão.
  *  10. §10 e §11: gratificação e benefício, cada um com o seu tipo.
  *  11. Valor zero ou negativo é recusado no campo, nos três caminhos.
+ *  12. A permissão morde: OPERADOR e VISUALIZADOR não enxergam salário.
+ *  13. As três rotas existem.
  *
  * Roda: `npm run test:m57`.
  */
@@ -462,6 +464,45 @@ async function comBanco() {
       !pagamentoNegativo.ok && pagamentoNegativo.field === "amount",
       !pagamentoNegativo.ok ? String(pagamentoNegativo.field) : "aceitou",
     );
+
+    // ── 12. A permissão morde ─────────────────────────────────────────────
+    //
+    // Decisão do usuário em 02/09: `mao_de_obra` tem matriz PRÓPRIA, e não a de
+    // `financeiro` ou `rebanho`, porque as duas dão escrita a OPERADOR e isto
+    // guarda salário. Vale também no WhatsApp, onde `canWrite` recebe a role
+    // direta e o autor é só um número de telefone.
+
+    console.log("\n12. A permissão morde: salário não é para OPERADOR");
+    const { canWrite, canAccess } = await import("@/lib/permissions");
+    check("OWNER escreve", canWrite("OWNER", "mao_de_obra"));
+    check("ADMIN escreve", canWrite("ADMIN", "mao_de_obra"));
+    check(
+      "OPERADOR NÃO escreve",
+      !canWrite("OPERADOR", "mao_de_obra"),
+      String(canWrite("OPERADOR", "mao_de_obra")),
+    );
+    check(
+      "OPERADOR NÃO lê",
+      !canAccess("OPERADOR", "mao_de_obra"),
+      String(canAccess("OPERADOR", "mao_de_obra")),
+    );
+    check("VISUALIZADOR NÃO lê", !canAccess("VISUALIZADOR", "mao_de_obra"));
+    check(
+      "e isso é DIFERENTE de financeiro, onde OPERADOR escreve",
+      canWrite("OPERADOR", "financeiro"),
+    );
+
+    // ── 13. As rotas existem ──────────────────────────────────────────────
+
+    console.log("\n13. As rotas de /workers existem");
+    const rotaLista = await import("@/app/api/v1/workers/route");
+    check("GET /workers", typeof rotaLista.GET === "function");
+    check("POST /workers", typeof rotaLista.POST === "function");
+    const rotaItem = await import("@/app/api/v1/workers/[id]/route");
+    check("GET /workers/:id", typeof rotaItem.GET === "function");
+    check("PATCH /workers/:id", typeof rotaItem.PATCH === "function");
+    const rotaPgto = await import("@/app/api/v1/workers/[id]/payments/route");
+    check("POST /workers/:id/payments", typeof rotaPgto.POST === "function");
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });
     await prisma.$disconnect();
