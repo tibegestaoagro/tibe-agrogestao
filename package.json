@@ -37,6 +37,7 @@
     "test:m55": "tsx scripts/m55-contatos.test.ts",
     "test:m56": "tsx scripts/m56-pending-store.test.ts",
     "test:m57": "tsx scripts/m57-mao-de-obra.test.ts",
+    "test:m58": "tsx scripts/m58-servico-contratado.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",
