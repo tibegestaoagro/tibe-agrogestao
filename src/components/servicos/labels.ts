@@ -1,4 +1,5 @@
 import type {
+  ServiceCostKind,
   ServiceDirection,
   ServiceJobStatus,
   ServicePricing,
@@ -56,6 +57,24 @@ export const SERVICE_STATUS_LABELS: Record<ServiceJobStatus, string> = {
   em_andamento: "Em andamento",
   concluido: "Concluído",
   cancelado: "Cancelado",
+};
+
+/**
+ * As dez naturezas de custo do §21 a §24 (Módulo 34, fase 2). `Record`
+ * completo de propósito: valor novo no enum quebra a compilação até ganhar
+ * rótulo, a mesma trava que pegou `laticinio` em `contact-labels.ts`.
+ */
+export const SERVICE_COST_KIND_LABELS: Record<ServiceCostKind, string> = {
+  combustivel: "Combustível",
+  mao_de_obra: "Mão de obra",
+  pedagio: "Pedágio",
+  alimentacao: "Alimentação",
+  transporte: "Transporte",
+  manutencao: "Manutenção",
+  pecas: "Peças",
+  lubrificantes: "Lubrificantes",
+  comissao: "Comissão",
+  outro: "Outros",
 };
 
 export const WORKER_LOG_KIND_LABELS: Record<WorkerLogKind, string> = {

@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import type { ServiceDirection, ServicePricing } from "@/generated/prisma/client";
+import type {
+  ServiceCostKind,
+  ServiceDirection,
+  ServicePricing,
+} from "@/generated/prisma/client";
 import { getSessionUser, getActiveProfiles, getTenantDb } from "@/lib/tenant-context";
 import { canWrite, canAccess } from "@/lib/permissions";
 import {
@@ -16,10 +20,14 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { getServiceJobDetail } from "@/lib/actions/service-jobs";
 import ServicePaymentForm from "@/components/servicos/service-payment-form";
 import ServiceCancelButton from "@/components/servicos/service-cancel-button";
+import ServiceLogForm from "@/components/servicos/service-log-form";
+import ServiceCostForm from "@/components/servicos/service-cost-form";
+import ServiceStatusButtons from "@/components/servicos/service-status-buttons";
 import {
   PRICING_LABELS,
   PRICING_UNIDADE,
   SERVICE_DIRECTION_LABELS,
+  SERVICE_COST_KIND_LABELS,
   moeda,
   dataCurta,
   quantidadeBr,
@@ -50,6 +58,17 @@ export default async function ServicoPage({ params }: { params: Promise<{ id: st
   const res = await getServiceJobDetail(db, id);
   if (!res.ok) notFound();
   const j = res.data;
+
+  /**
+   * ⚠️ `select`, e não a linha inteira: `Product` tem campos `Decimal`, e o
+   * React 19 recusa passar um Decimal de Server para Client Component. O erro
+   * só aparece no console do navegador, com `tsc`/`lint`/testes verdes.
+   */
+  const produtos = await db.product.findMany({
+    where: { archived_at: null },
+    select: { id: true, name: true, unit: true },
+    orderBy: { name: "asc" },
+  });
 
   const proximoVencimento = j.entries
     .filter((e) => e.status !== "paid" && e.due_date)
@@ -98,6 +117,9 @@ export default async function ServicoPage({ params }: { params: Promise<{ id: st
                 j.implement,
                 j.client_location,
                 j.operator_name ?? j.operator_note,
+                j.hour_meter_start !== null && j.hour_meter_end !== null
+                  ? `horímetro ${quantidadeBr(j.hour_meter_start)} → ${quantidadeBr(j.hour_meter_end)} (${quantidadeBr(j.hour_meter_end - j.hour_meter_start)} horas)`
+                  : null,
               ]
                 .filter(Boolean)
                 .join(" · ")}
@@ -106,6 +128,13 @@ export default async function ServicoPage({ params }: { params: Promise<{ id: st
         </div>
         {writable && !j.canceled_at && (
           <div className="flex flex-wrap items-start gap-2">
+            <ServiceStatusButtons serviceJobId={j.id} status={j.status} />
+            {j.pricing !== "fechado" && (
+              <ServiceLogForm
+                serviceJobId={j.id}
+                unidade={PRICING_UNIDADE[j.pricing as ServicePricing]}
+              />
+            )}
             {j.restante > 0 && (
               <ServicePaymentForm
                 serviceJobId={j.id}
@@ -157,6 +186,35 @@ export default async function ServicoPage({ params }: { params: Promise<{ id: st
             )}
           </p>
         </div>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="text-sm font-semibold text-texto">Resultado do serviço (§25)</h2>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="rounded-[var(--curva)] border border-borda bg-superficie p-4">
+            <p className="text-xs uppercase tracking-wide text-texto-discreto">
+              {prestado ? "Receita" : "Total combinado"}
+            </p>
+            <p className="mt-1 text-xl font-semibold text-texto">{moeda(j.total)}</p>
+          </div>
+          <div className="rounded-[var(--curva)] border border-borda bg-superficie p-4">
+            <p className="text-xs uppercase tracking-wide text-texto-discreto">Custo registrado</p>
+            <p className="mt-1 text-xl font-semibold text-texto">{moeda(j.custo_total)}</p>
+          </div>
+          <div className="rounded-[var(--curva)] border border-borda bg-superficie p-4">
+            <p className="text-xs uppercase tracking-wide text-texto-discreto">Resultado</p>
+            <p
+              className={`mt-1 text-xl font-semibold ${
+                j.resultado >= 0 ? "text-sucesso-tinta" : "text-perigo-tinta"
+              }`}
+            >
+              {moeda(j.resultado)}
+            </p>
+          </div>
+        </div>
+        <p className="text-xs text-texto-discreto">
+          Cálculo gerencial, não contábil (§25): {prestado ? "receita menos custo" : "o total combinado com o terceiro somado ao custo registrado"}.
+        </p>
       </section>
 
       {diverge && (
@@ -239,6 +297,70 @@ export default async function ServicoPage({ params }: { params: Promise<{ id: st
           </Table>
         </section>
       )}
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-texto">Custos</h2>
+          {writable && !j.canceled_at && (
+            <ServiceCostForm serviceJobId={j.id} produtos={produtos} />
+          )}
+        </div>
+        {j.costs.length === 0 ? (
+          <EmptyState titulo="Nenhum custo registrado" compacto>
+            Combustível, mão de obra, pedágio: registre aqui para ver o resultado do §25.
+          </EmptyState>
+        ) : (
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Natureza</TableHead>
+                  <TableHead>Descrição</TableHead>
+                  <TableHead>Valor</TableHead>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Situação</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {j.costs.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell>{SERVICE_COST_KIND_LABELS[c.kind]}</TableCell>
+                    <TableCell>
+                      {c.description}
+                      {c.canceled_at && (
+                        <span className="text-texto-discreto"> (cancelado)</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {c.amount !== null ? (
+                        moeda(c.amount)
+                      ) : (
+                        <span className="text-texto-discreto">Sem valor</span>
+                      )}
+                    </TableCell>
+                    <TableCell>{dataCurta(c.occurred_at)}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {c.gerou_lancamento && <Badge variant="blue">Gerou lançamento</Badge>}
+                        {c.baixou_estoque && <Badge variant="gray">Baixou estoque</Badge>}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            {Object.keys(j.custo_por_natureza).length > 0 && (
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-texto-secundario">
+                {Object.entries(j.custo_por_natureza).map(([kind, valor]) => (
+                  <span key={kind}>
+                    {SERVICE_COST_KIND_LABELS[kind as ServiceCostKind]}: {moeda(valor as number)}
+                  </span>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </section>
     </div>
   );
 }

@@ -18,7 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { listServiceJobs } from "@/lib/actions/service-jobs";
-import { getServiceAgenda } from "@/lib/actions/machine-services";
+import { getServiceAgenda, getServicesSummary } from "@/lib/actions/machine-services";
 import { getLaborSummary } from "@/lib/actions/labor-summary";
 import { listConfinementLots } from "@/lib/actions/confinement";
 import { listMilkSites } from "@/lib/actions/milk-sites";
@@ -62,10 +62,11 @@ export default async function ServicosPage() {
     Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth() + 1, 0, 23, 59, 59),
   );
 
-  const [jobs, resumo, properties, pastures, lotes, pontos, maquinas, operadores, agenda] =
+  const [jobs, resumo, resumoMaquinas, properties, pastures, lotes, pontos, maquinas, operadores, agenda] =
     await Promise.all([
       listServiceJobs(db, {}),
       getLaborSummary(db, { de: inicioDoMes, ate: fimDoMes }),
+      getServicesSummary(db, { de: inicioDoMes, ate: fimDoMes }),
       /**
        * ⚠️ `select`, e não a linha inteira: as duas tabelas têm
        * `area_hectares` como `Decimal`, e o React 19 recusa passar um Decimal
@@ -120,6 +121,8 @@ export default async function ServicosPage() {
     .filter((l) => l.aberta)
     .map((l) => ({ id: l.id, rotulo: `${l.location_name ?? "Confinamento"} (${l.quantity} cab.)` }));
 
+  const mesPorExtenso = agora.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
@@ -168,6 +171,48 @@ export default async function ServicosPage() {
         aparece à parte. O que você tem a receber fica separado do que tem a pagar: os dois não se
         abatem.
       </p>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold text-texto">Serviços com máquinas: {mesPorExtenso}</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+          <div className="rounded-[var(--curva)] border border-borda bg-superficie p-4">
+            <p className="text-xs uppercase tracking-wide text-texto-discreto">
+              Serviços realizados
+            </p>
+            <p className="mt-1 text-lg font-semibold text-texto">{resumoMaquinas.servicos}</p>
+          </div>
+          <div className="rounded-[var(--curva)] border border-borda bg-superficie p-4">
+            <p className="text-xs uppercase tracking-wide text-texto-discreto">
+              Horas trabalhadas
+            </p>
+            <p className="mt-1 text-lg font-semibold text-texto">
+              {quantidadeBr(resumoMaquinas.quantidade_por_unidade.hora ?? 0)}
+            </p>
+          </div>
+          <div className="rounded-[var(--curva)] border border-borda bg-superficie p-4">
+            <p className="text-xs uppercase tracking-wide text-texto-discreto">Área atendida</p>
+            <p className="mt-1 text-lg font-semibold text-texto">
+              {quantidadeBr(resumoMaquinas.quantidade_por_unidade.hectare ?? 0)} ha
+            </p>
+          </div>
+          <div className="rounded-[var(--curva)] border border-borda bg-superficie p-4">
+            <p className="text-xs uppercase tracking-wide text-texto-discreto">Valor</p>
+            <p className="mt-1 text-lg font-semibold text-texto">{moeda(resumoMaquinas.valor)}</p>
+          </div>
+          <div className="rounded-[var(--curva)] border border-borda bg-superficie p-4">
+            <p className="text-xs uppercase tracking-wide text-texto-discreto">Recebido</p>
+            <p className="mt-1 text-lg font-semibold text-sucesso-tinta">
+              {moeda(resumoMaquinas.recebido)}
+            </p>
+          </div>
+          <div className="rounded-[var(--curva)] border border-borda bg-superficie p-4">
+            <p className="text-xs uppercase tracking-wide text-texto-discreto">A receber</p>
+            <p className="mt-1 text-lg font-semibold text-texto">
+              {moeda(resumoMaquinas.a_receber)}
+            </p>
+          </div>
+        </div>
+      </section>
 
       {(agenda.hoje.length > 0 || agenda.proximos.length > 0) && (
         <section className="space-y-3">

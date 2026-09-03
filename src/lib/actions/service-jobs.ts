@@ -176,6 +176,9 @@ export type ServiceJobView = {
   a_receber: number;
   machine_id: string | null;
   machine_name: string | null;
+  /** §33: o horímetro no começo e no fim da última leitura registrada. */
+  hour_meter_start: number | null;
+  hour_meter_end: number | null;
   client_location: string | null;
   implement: string | null;
   operator_worker_id: string | null;
@@ -281,6 +284,8 @@ function serializar(job: LinhaDeServico, entries: LinhaDeLancamento[]): ServiceJ
     a_receber: restante,
     machine_id: job.machine_id,
     machine_name: job.machine?.name ?? null,
+    hour_meter_start: decToNum(job.hour_meter_start),
+    hour_meter_end: decToNum(job.hour_meter_end),
     client_location: job.client_location,
     implement: job.implement,
     operator_worker_id: job.operator_worker_id,
