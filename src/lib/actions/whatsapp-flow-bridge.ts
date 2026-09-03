@@ -11,6 +11,9 @@ import {
   FLOWS,
 } from "@/lib/actions/agent-flows";
 import { listActiveProperties } from "@/lib/actions/properties";
+import { createBatchAction } from "@/lib/actions/animal-batches";
+import { findCategory } from "@/lib/herd/categories";
+import { log } from "@/lib/log";
 
 /**
  * Ponte entre o roteador de intenções e o cadastro assistido (2026-07-30).
@@ -120,6 +123,7 @@ export async function maybeStartAnimalFlow(
 ): Promise<RouterResult | null> {
   const def = FLOWS.cadastrar_animal;
   const faltando = def.fields.some((f) => {
+    if (f.triggersFlow === false) return false;
     const v = parameters[f.name];
     return typeof v !== "string" || v.trim().length === 0;
   });
@@ -140,9 +144,32 @@ export async function maybeStartAnimalFlow(
 }
 
 /**
+ * Encontra (ou cria) a linha de `AnimalCategory` cujo NOME é o rótulo exato
+ * de uma das 12 categorias do livro-razão (`src/lib/herd/categories.ts`).
+ *
+ * `createBatchAction` só aceita `category_id` da tabela antiga, e por dentro
+ * traduz o NOME dela de volta para as 12 via `resolveCategoryTerm`. Usar o
+ * rótulo exato como nome garante que essa tradução sempre resolve `exact`,
+ * porque é comparação literal (`mesmaFrase`), não achismo: aqui não há
+ * ambiguidade para resolver de novo, porque a pergunta do fluxo já resolveu.
+ */
+async function categoriaDoLivroRazao(db: TenantPrismaClient, herdCategoryId: string) {
+  const rotulo = findCategory(herdCategoryId)?.label ?? "Não classificado";
+  return (
+    (await db.animalCategory.findFirst({ where: { name: rotulo } })) ??
+    (await db.animalCategory.create({ data: scoped({ name: rotulo }) }))
+  );
+}
+
+/**
  * Grava os animais coletados. Erro num item não derruba os outros: quem passou
  * 5 animais no funil não pode perder os 5 porque o terceiro tinha brinco
  * repetido.
+ *
+ * ⚠️ Chama `createBatchAction` (invariante 6: regra de negócio vive na
+ * action), e não `db.animalBatch.create()` direto. É o que faz o lote ENTRAR
+ * no saldo: a action grava o `HerdMovement` sozinha, a partir da categoria
+ * que a pergunta nova do fluxo já resolveu (`dividas.md` §2.9).
  */
 async function commitAnimals(
   db: TenantPrismaClient,
@@ -152,32 +179,30 @@ async function commitAnimals(
   const propertyId = props[0]?.id;
   if (!propertyId) return { ok: 0, failed: items.length };
 
-  // Categoria padrão: o cadastro assistido pergunta brinco, raça e sexo, não
-  // categoria. "Não classificado" é a mesma que a migração usou.
-  const category =
-    (await db.animalCategory.findFirst({ where: { name: "Não classificado" } })) ??
-    (await db.animalCategory.create({ data: scoped({ name: "Não classificado" }) }));
-  const categoryId = category.id;
-
   let ok = 0;
   let failed = 0;
   for (const item of items) {
-    try {
-      // Modelo único (2026-08-04): cada animal identificado do cadastro
-      // assistido vira um lote de 1 cabeça, na categoria padrão.
-      await db.animalBatch.create({
-        data: scoped({
-          ear_tag: item.ear_tag,
-          breed: item.breed,
-          sex: item.sex as "male" | "female",
-          property_id: propertyId,
-          category_id: categoryId,
-          quantity: 1,
-        }),
-      });
+    const category = await categoriaDoLivroRazao(db, item.category);
+    const res = await createBatchAction(db, {
+      category_id: category.id,
+      property_id: propertyId,
+      quantity: 1,
+      ear_tag: item.ear_tag,
+      breed: item.breed,
+      sex: item.sex as "male" | "female",
+    });
+    if (res.ok) {
       ok++;
-    } catch {
+    } else {
       failed++;
+      // Motivo estruturado, não engolido: quem perde gado do cadastro precisa
+      // de rastro (`dividas.md` §2.9, decisão 4). Sem o brinco nem a mensagem
+      // no log: são dado do produtor, e a regra de privacidade do log
+      // estruturado não abre exceção para o cadastro assistido.
+      log.warn("cadastro assistido: item nao gravado", {
+        intent: "cadastro_assistido",
+        code: res.code,
+      });
     }
   }
   return { ok, failed };

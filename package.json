@@ -40,6 +40,7 @@
     "test:m58": "tsx scripts/m58-servico-contratado.test.ts",
     "test:m59": "tsx scripts/m59-servico-prestado.test.ts",
     "test:m60": "tsx scripts/m60-custeio-do-servico.test.ts",
+    "test:m61": "tsx scripts/m61-rebanho-invisivel-cadastro-assistido.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",

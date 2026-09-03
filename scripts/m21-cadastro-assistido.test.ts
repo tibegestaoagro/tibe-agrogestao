@@ -101,12 +101,19 @@ async function main() {
     assert(rSexoRuim.kind === "question" && rSexoRuim.reply.includes("macho"), "sexo inválido repete a pergunta");
 
     const r4 = await applyAnswer(dbA, uA.id, "macho");
-    assert(r4.kind === "question", "com 2 animais, o primeiro não fecha o fluxo");
-    assert(r4.kind === "question" && r4.reply.includes("Brinco 042"), "confirma o animal recém-fechado numa linha");
-    assert(r4.kind === "question" && r4.reply.includes("Faltam 1"), "avisa quantos faltam");
+    assert(r4.kind === "question", "sexo não fecha mais o item: falta a categoria (§2.9)");
     assert(
-      r4.kind === "question" && r4.reply.includes("raça") && r4.reply.includes("sexo"),
-      "abertura do próximo animal também pede os 3 campos de uma vez, não só o brinco",
+      r4.kind === "question" && r4.reply.toLowerCase().includes("categoria"),
+      "depois do sexo pergunta a categoria",
+    );
+
+    const r4b = await applyAnswer(dbA, uA.id, "bezerro");
+    assert(r4b.kind === "question", "com 2 animais, o primeiro não fecha o fluxo");
+    assert(r4b.kind === "question" && r4b.reply.includes("Brinco 042"), "confirma o animal recém-fechado numa linha");
+    assert(r4b.kind === "question" && r4b.reply.includes("Faltam 1"), "avisa quantos faltam");
+    assert(
+      r4b.kind === "question" && r4b.reply.includes("raça") && r4b.reply.includes("sexo"),
+      "abertura do próximo animal também pede os 4 campos de uma vez, não só o brinco",
     );
 
     assert(
@@ -117,7 +124,8 @@ async function main() {
     // ── segundo animal fecha com o resumo ─────────────────────────────
     await applyAnswer(dbA, uA.id, "043");
     await applyAnswer(dbA, uA.id, "Angus");
-    const fim = await applyAnswer(dbA, uA.id, "femea");
+    await applyAnswer(dbA, uA.id, "femea");
+    const fim = await applyAnswer(dbA, uA.id, "vaca");
     assert(fim.kind === "summary", "o último animal produz o resumo");
     if (fim.kind === "summary") {
       assert(fim.items.length === 2, "o resumo traz os 2 animais coletados");
@@ -131,49 +139,78 @@ async function main() {
     await startFlow(dbA, uA.id, "cadastrar_animal", 1);
     await applyAnswer(dbA, uA.id, "081");
     await applyAnswer(dbA, uA.id, "Nelori");
-    const audio = await applyAnswer(dbA, uA.id, "Macho.");
+    await applyAnswer(dbA, uA.id, "Macho.");
+    const audio = await applyAnswer(dbA, uA.id, "bezerro");
     assert(audio.kind === "summary", "'Macho.' com ponto final (transcricao de audio) e aceito");
     if (audio.kind === "summary") {
       assert(audio.items[0].sex === "male", "'Macho.' vira male");
+      assert(audio.items[0].category === "bezerro_0_7", "categoria resolvida por bezerro");
     }
 
     await finishFlow(dbA, uA.id);
     await startFlow(dbA, uA.id, "cadastrar_animal", 1);
     await applyAnswer(dbA, uA.id, "082");
     await applyAnswer(dbA, uA.id, "Nelore");
-    const frase = await applyAnswer(dbA, uA.id, "É macho, sim.");
+    await applyAnswer(dbA, uA.id, "É macho, sim.");
+    const frase = await applyAnswer(dbA, uA.id, "bezerro");
     assert(frase.kind === "summary", "frase falada ('E macho, sim.') e entendida");
 
     await finishFlow(dbA, uA.id);
     await startFlow(dbA, uA.id, "cadastrar_animal", 1);
     await applyAnswer(dbA, uA.id, "083");
     await applyAnswer(dbA, uA.id, "Gir");
-    const femeaAudio = await applyAnswer(dbA, uA.id, "Fêmea!");
+    await applyAnswer(dbA, uA.id, "Fêmea!");
+    const femeaAudio = await applyAnswer(dbA, uA.id, "bezerra");
     assert(femeaAudio.kind === "summary", "'Fêmea!' com acento e exclamacao e aceito");
     if (femeaAudio.kind === "summary") {
       assert(femeaAudio.items[0].sex === "female", "'Fêmea!' vira female");
     }
 
-    // ── REGRESSAO 2026-07-30: os 3 campos numa mensagem so ────────────
+    // ── §2.9: categoria ambígua ou desconhecida repergunta, não chuta ──
     await finishFlow(dbA, uA.id);
     await startFlow(dbA, uA.id, "cadastrar_animal", 1);
-    const tudoJunto = await applyAnswer(dbA, uA.id, "082, nelori, macho");
-    assert(tudoJunto.kind === "summary", "os 3 campos numa mensagem so completam o animal");
+    await applyAnswer(dbA, uA.id, "090");
+    await applyAnswer(dbA, uA.id, "Nelore");
+    await applyAnswer(dbA, uA.id, "macho");
+    const ambigua = await applyAnswer(dbA, uA.id, "novilho");
+    assert(
+      ambigua.kind === "question" && ambigua.reply.toLowerCase().includes("categoria"),
+      "'novilho' serve para 3 faixas: o fluxo repergunta em vez de escolher uma",
+    );
+    const desconhecida = await applyAnswer(dbA, uA.id, "sei lá o que é");
+    assert(
+      desconhecida.kind === "question" && desconhecida.reply.toLowerCase().includes("categoria"),
+      "categoria que não existe também repergunta",
+    );
+    assert((await dbA.animalBatch.count()) === 0, "nada foi gravado enquanto a categoria não resolveu");
+    const resolvida = await applyAnswer(dbA, uA.id, "macho de 13 a 24 meses");
+    assert(resolvida.kind === "summary", "com o termo específico, a categoria resolve e o item fecha");
+    if (resolvida.kind === "summary") {
+      assert(resolvida.items[0].category === "macho_13_24", "resolveu para a faixa certa, sem ambiguidade");
+    }
+
+    // ── REGRESSAO 2026-07-30: os 4 campos numa mensagem so ────────────
+    await finishFlow(dbA, uA.id);
+    await startFlow(dbA, uA.id, "cadastrar_animal", 1);
+    const tudoJunto = await applyAnswer(dbA, uA.id, "082, nelori, macho, bezerro");
+    assert(tudoJunto.kind === "summary", "os 4 campos numa mensagem so completam o animal");
     if (tudoJunto.kind === "summary") {
       assert(tudoJunto.items[0].ear_tag === "082", `brinco fica so '082' (obtido: '${tudoJunto.items[0].ear_tag}')`);
       assert(tudoJunto.items[0].breed === "nelori", "raca fica separada do brinco");
       assert(tudoJunto.items[0].sex === "male", "sexo fica separado do brinco");
+      assert(tudoJunto.items[0].category === "bezerro_0_7", "categoria fica separada tambem");
     }
 
-    // ── os 3 campos respondidos um por linha (a abertura oferece as 2 formas) ──
+    // ── os 4 campos respondidos um por linha (a abertura oferece as 2 formas) ──
     await finishFlow(dbA, uA.id);
     await startFlow(dbA, uA.id, "cadastrar_animal", 1);
-    const porLinha = await applyAnswer(dbA, uA.id, "085\nNelore\nfemea");
-    assert(porLinha.kind === "summary", "os 3 campos separados por linha também completam o animal numa mensagem só");
+    const porLinha = await applyAnswer(dbA, uA.id, "085\nNelore\nfemea\nvaca");
+    assert(porLinha.kind === "summary", "os 4 campos separados por linha também completam o animal numa mensagem só");
     if (porLinha.kind === "summary") {
       assert(porLinha.items[0].ear_tag === "085", "brinco correto quando os campos vêm um por linha");
       assert(porLinha.items[0].breed === "Nelore", "raça correta quando os campos vêm um por linha");
       assert(porLinha.items[0].sex === "female", "sexo correto quando os campos vêm um por linha");
+      assert(porLinha.items[0].category === "femea_36_mais", "categoria correta quando os campos vêm um por linha");
     }
 
     // ── REGRESSAO: 3 campos colados sem separador NAO pode virar brinco ──
@@ -194,13 +231,13 @@ async function main() {
       stColado?.pending_field === "ear_tag" && Object.keys(stColado.current_item).length === 0,
       "a resposta colada e rejeitada não avança nem preenche nenhum campo",
     );
-    const recuperado = await applyAnswer(dbA, uA.id, "086, nelore, macho");
+    const recuperado = await applyAnswer(dbA, uA.id, "086, nelore, macho, bezerro");
     assert(recuperado.kind === "summary", "com separador de verdade, a mesma informação completa o animal normalmente");
 
     await finishFlow(dbA, uA.id);
     await startFlow(dbA, uA.id, "cadastrar_animal", 1);
     const frasePart = await applyAnswer(dbA, uA.id, "084 e Angus");
-    assert(frasePart.kind === "question", "2 de 3 campos avanca para o campo que falta");
+    assert(frasePart.kind === "question", "2 de 4 campos avanca para o campo que falta");
     if (frasePart.kind === "question") {
       assert(frasePart.reply.includes("macho"), "pergunta so o que ainda falta (sexo)");
     }
@@ -210,9 +247,11 @@ async function main() {
     await applyAnswer(dbA, uA.id, "042");
     await applyAnswer(dbA, uA.id, "Nelore");
     await applyAnswer(dbA, uA.id, "macho");
+    await applyAnswer(dbA, uA.id, "bezerro");
     await applyAnswer(dbA, uA.id, "043");
     await applyAnswer(dbA, uA.id, "Angus");
     await applyAnswer(dbA, uA.id, "femea");
+    await applyAnswer(dbA, uA.id, "bezerra");
 
     // ── retomada depois de interrupção ────────────────────────────────
     const stResumo = await getActiveFlow(dbA, uA.id);

@@ -57,18 +57,19 @@ async function main() {
       `pedido sem campos abre o modo assistido pedindo os 3 campos de uma vez (resposta: "${abre.slice(0, 80)}")`,
     );
 
-    // Caminho feliz (2026-08-01): abertura consolidada + os 3 campos numa
-    // mensagem so + confirmacao = 2 perguntas do agente antes de salvar, em
-    // vez das 4 de antes (brinco, raca, sexo, confirmacao). Era o BUG 2
-    // relatado (a frase inteira virava o brinco); agora e o caminho normal.
-    const tudo = await say(t.id, u.id, "ambigua", "082, nelori, macho");
-    assert(tudo.includes("Confere antes de eu salvar"), "3 campos numa mensagem so chegam direto ao resumo (2a e ultima pergunta do agente)");
-    // O resumo formata como "Brinco 082, nelori, macho.", entao procurar a
-    // substring "082, nelori" daria falso positivo: a prova de que os campos
-    // foram separados e o resumo trazer os TRES, e o brinco no banco (abaixo).
+    // Caminho feliz (2026-08-01, e a categoria do §2.9 desde 03/09): abertura
+    // consolidada + os 4 campos numa mensagem so + confirmacao = 2 perguntas
+    // do agente antes de salvar. Era o BUG 2 relatado (a frase inteira virava
+    // o brinco); agora e o caminho normal.
+    const tudo = await say(t.id, u.id, "ambigua", "082, nelori, macho, boi");
+    assert(tudo.includes("Confere antes de eu salvar"), "4 campos numa mensagem so chegam direto ao resumo (2a e ultima pergunta do agente)");
+    // O resumo formata como "Brinco 082, nelori, macho, Macho - acima de 36
+    // meses.", entao procurar a substring "082, nelori" daria falso positivo:
+    // a prova de que os campos foram separados e o resumo trazer todos, e o
+    // brinco no banco (abaixo).
     assert(
       tudo.includes("Brinco 082") && tudo.includes("nelori") && tudo.includes("macho"),
-      "o resumo traz os 3 campos separados, nao a frase crua no brinco",
+      "o resumo traz os campos separados, nao a frase crua no brinco",
     );
 
     assert((await db.animalBatch.count()) === 0, "nada gravado antes da confirmacao");
@@ -89,7 +90,8 @@ async function main() {
     );
     await say(t.id, u.id, "ambigua", "090");
     await say(t.id, u.id, "ambigua", "Angus");
-    const audio = await say(t.id, u.id, "ambigua", "Macho.");
+    await say(t.id, u.id, "ambigua", "Macho.");
+    const audio = await say(t.id, u.id, "ambigua", "boi");
     assert(audio.includes("Confere antes de eu salvar"), "'Macho.' vindo de audio e aceito pela rota real");
 
     // interrupcao no meio nao perde o formulario

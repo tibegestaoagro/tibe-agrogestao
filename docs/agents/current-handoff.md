@@ -27,57 +27,68 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 ## Estado atual
 
 - Atualizado em: 2026-09-03.
-- Branch de trabalho: **`custeio-do-servico-fase-2`**, 11 commits à frente da
-  `main`. **As dez tarefas do plano da fase 34.2 estão implementadas e
-  commitadas.** `npm run test:all` (63/63), `npm run check` (15/15), `npx tsc
-  --noEmit` e `npm run lint` todos limpos nesta rodada, com o estado final da
-  branch.
-- **A fase 34.1 (serviço prestado com máquina própria) está NA `main` E EM
-  PRODUÇÃO.** Merge `3e31d13..d398dbb`, migração `20260905100000_servico_prestado`
-  aplicada no Neon, deploy confirmado por sondagem única ao `/docs/api`.
-  Detalhe completo em `historico/2026-09.md`.
+- **A fase 34.2 (custeio do serviço) está NA `main` E EM PRODUÇÃO.** Merge
+  `d398dbb..37ccc3b` (as dez tarefas do plano, `02a6b5d`..`eed8c8e`), migração
+  `20260906100000_custeio_do_servico` aplicada no Neon antes do push (invariante
+  3), deploy confirmado por sondagem única ao `/docs/api` (as três rotas novas
+  aparecem). Detalhe completo da fase em `historico/2026-09.md` na próxima
+  arquivada.
+  ⚠️ **A validação visual no navegador continua pendente**: `browser-harness` e
+  `claude-in-chrome` não conseguem conectar nesta máquina
+  (`chrome://inspect/#remote-debugging` pede um clique humano que ainda não
+  aconteceu). O contrato de dados foi provado por `curl` real contra `next dev`
+  local; o visual (toggle quantidade/horímetro, `Select`, cores, contador de
+  issues do overlay do Next) não foi olhado por ninguém ainda.
+- Branch de trabalho: **`rebanho-invisivel-cadastro-assistido`**, ainda não
+  commitada nesta rodada (ver abaixo). Não confundir com a antiga
+  `custeio-do-servico-fase-2`, já mesclada e descartável (`git branch -d`).
 
-### A fase 34.2 (custeio do serviço): implementada, falta migrar em produção e olhar no navegador
+### Dívida `dividas.md` §2.9 (rebanho invisível do cadastro assistido): implementada, aguardando commit
 
-Plano em `docs/superpowers/plans/2026-09-02-fase-34-2-custeio-do-servico.md`.
-As dez tarefas, uma por commit (`02a6b5d` a `eed8c8e`): schema e migração
-(`ServiceJobCost`, `Machine.hour_meter_*`, `StockMovement.service_job_id`);
-produção diária do §19/§20 e horímetro do §33; iniciar/encerrar (§42, que a
-34.1 tinha prometido e não entregou); o custo do §23/§24 com a trava central
-(o lançamento do custo aponta para o CUSTO, nunca para o serviço); o
-combustível do §21 baixando o estoque sem duplicar despesa; o resultado do
-§25 e o resumo mensal do §41; as três rotas (`POST .../logs`,
-`GET`/`POST .../costs`, `PATCH .../status`); as três telas (produção diária,
-custo, começar/encerrar) mais a seção de custos e o resumo na listagem; as
-cinco conversas do §42 pelo WhatsApp. Suíte `m60`, 8 blocos, todos verdes.
+Spec: `docs/superpowers/specs/2026-08-31-rebanho-invisivel-do-cadastro-assistido.md`.
+O defeito: quem cadastra animal pelo assistente do WhatsApp (`commitAnimals` em
+`whatsapp-flow-bridge.ts`) tinha o lote criado, mas SEM `HerdMovement`, porque a
+categoria caía sempre em "Não classificado", que `resolveCategoryTerm` nunca
+traduz para as 12 do livro-razão. Sem erro, sem aviso, o animal não aparecia no
+saldo.
 
-As três decisões tomadas com o usuário em 02/09 (custo aponta para o custo,
-nunca para o serviço; valor do combustível é digitado, não derivado; horímetro
-só anda para a frente) já estão na spec de design, seção **3.3** de
-`docs/superpowers/specs/2026-09-02-mao-de-obra-e-servicos-com-maquinas-design.md`,
-como decisões 17 a 19.
+**A correção:** o fluxo assistido ganhou uma 4ª pergunta, categoria (as 12 do
+livro-razão, resolvida por `resolveCategoryTerm`; ambíguo ou desconhecido
+repergunta, nunca chuta). `commitAnimals` passou a chamar `createBatchAction`
+(a mesma action da rota web, invariante 6) em vez de `db.animalBatch.create()`
+direto, com a categoria resolvida traduzida para uma linha de `AnimalCategory`
+com o rótulo exato, o que faz `createBatchAction` gravar o `HerdMovement`
+sozinho. Falha por item (ex.: brinco repetido) grava o motivo em log
+estruturado e não derruba os outros itens do lote.
 
-**Duas tarefas foram despachadas em paralelo** (telas via `tela-pagina`,
-WhatsApp via `servidor-agente`, arquivos disjuntos), cada uma revisada e
-commitada separadamente pela sessão principal antes da próxima.
+⚠️ **Achado que não estava no plano da spec:** o campo categoria, por viver na
+mesma lista `FLOWS.cadastrar_animal.fields` usada por `maybeStartAnimalFlow`
+para decidir se abre o modo assistido, estava fazendo TODO cadastro completo
+(brinco+raça+sexo, sem categoria, que é sempre o caso hoje porque o
+classificador não pergunta isso) cair no modo assistido em vez do caminho
+direto de uma mensagem só. Corrigido com um novo campo `triggersFlow: false`
+em `FlowField`, que separa "campo que o fluxo pergunta" de "campo cuja
+ausência sozinha abre o fluxo". Pego pela suíte `m3` (regressão real, não
+hipotética) antes do commit.
 
-⚠️ **Validação no navegador NÃO aconteceu.** Nem o `browser-harness` nem o
-`claude-in-chrome` conseguiram conectar: `chrome://inspect/#remote-debugging`
-exige um clique humano nesta máquina, e ninguém clicou nesta rodada. O que
-existe no lugar: as 8 blocos da `m60` verdes, e uma bateria de chamadas `curl`
-reais contra `next dev` local (autenticado via `_sessao-local.ts`) cobrindo
-cada rota nova e a recusa de cada uma, mais o HTML devolvido pelo servidor
-conferido por grep (os números aparecem, nenhum "Application error"). Isso
-prova o contrato de dados; **não prova o visual**: o toggle
-quantidade/horímetro, o `Select` de natureza/produto, a cor do cartão de
-resultado, e principalmente o contador de issues do overlay do Next (único
-jeito de pegar um `Decimal` vazando para o cliente) continuam sem olho humano.
-Antes de considerar a fase pronta para o usuário validar, abra `/servicos` e a
-ficha de um serviço prestado no navegador.
+**Suítes:** `m21` (máquina de estados) e `m22` (rota `execute-action` real)
+atualizadas para o 4º campo, ambas verdes. `m61`, nova, prova pela ponte
+(`whatsapp-flow-bridge.ts`) as quatro coisas que a spec pede: `AnimalBatch` E
+`HerdMovement` nascem juntos; `getPositions` enxerga o saldo; categoria
+ambígua/desconhecida repergunta sem gravar; falha num item não derruba o
+lote. A trava central (fazer `categoriaDoLivroRazao` sempre devolver "Não
+classificado") foi quebrada de propósito e reproduziu o defeito original
+exato ("lote criado sem entrar no saldo"); devolvida. `npm run test:all`:
+64/64. `npm run check`, `tsc`, `lint`: limpos.
 
-⚠️ **Migração `20260906100000_custeio_do_servico` só foi aplicada no Docker
-local.** Falta subir no Neon (produção), que é autorização do usuário a cada
-vez (invariante 3 e 7).
+⚠️ **`npm run wa` (banco de provas contra produção) ainda NÃO rodou**, porque
+o fluxo em produção hoje é o código ANTIGO: só faz sentido depois do merge e
+deploy. Rodar depois de subir, com um cadastro assistido real.
+
+**Fora desta rodada, por decisão da própria spec (adiado, não descartado):**
+escolher a propriedade quando há mais de uma ativa; migrar os lotes já criados
+invisíveis (levantamento próprio); unificar `AnimalCategory` com as 12
+constantes.
 
 ### 🔴 SEGURANÇA: o repositório está PÚBLICO e o `.env.enc` vazou
 
@@ -124,46 +135,41 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou nesta rodada, e cada commit que sobe é leitura pública.
 
-**2. Validar a fase 34.2 no navegador, autenticado, antes de considerá-la
-pronta.** `next dev` contra o banco local (`DATABASE_URL` do Docker,
-`REDIS_URL` porta local), cookie de `npx tsx scripts/_sessao-local.ts`. Abrir
-`/servicos` e a ficha de um serviço `prestado`: os dois modos do painel de
-produção diária, o painel de custo (natureza, o ramo do combustível), os
+**2. Commitar e fechar a rodada da §2.9** na branch
+`rebanho-invisivel-cadastro-assistido`: `git add` dos seis arquivos tocados
+(`agent-flows.ts`, `whatsapp-flow-bridge.ts`, `m21`, `m22`, `m61` novo,
+`package.json`) mais `docs/agents/dividas.md` (item removido) e este handoff.
+Depois, merge/push para a `main` quando o usuário autorizar (não toca em
+schema, então não há migração antes desta vez).
+
+**3. Depois do deploy, rodar `npm run wa`** com um cadastro assistido real
+(brinco, raça, sexo, categoria, "sim"), e conferir por programa que o animal
+aparece no saldo. É a prova que falta: hoje só a suíte provou.
+
+**4. Validar a fase 34.2 no navegador**, ainda pendente da rodada anterior:
+`next dev` contra o banco local, cookie de `npx tsx scripts/_sessao-local.ts`.
+Abrir `/servicos` e a ficha de um serviço `prestado`: os dois modos do painel
+de produção diária, o painel de custo (natureza, o ramo do combustível), os
 botões de começar/encerrar, a seção de custos com os badges, o cartão do §25,
-o resumo do §41 na listagem, e o contador de issues do overlay do Next. É o
-único passo do plano que não foi cumprido.
+o resumo do §41 na listagem, e o contador de issues do overlay do Next.
 
-**3. Migrar `20260906100000_custeio_do_servico` no Neon**, quando o usuário
-autorizar (invariantes 3 e 7). Só depois disso a fase pode ir para a `main`.
+**5. Duas decisões pequenas que continuam esperando:**
 
-**4. Os critérios de aceite da fase 34.2 (seção 10 da spec de design)**, pelo
-que a suíte e a validação por `curl` já provam: lançar produção dia a dia num
-serviço em andamento (§19/§20, `m60` bloco 1), registrar combustível e ver o
-estoque baixar (§21/§35, `m60` bloco 5), informar horímetro inicial e final e
-ver as horas na máquina (§33, `m60` bloco 2), ver o resultado simples do
-serviço (§25, `m60` bloco 6). As intenções da fase respondem pelo handler, com
-suíte (`m60` bloco 8), mesmo com o classificador congelado. Falta só a
-confirmação visual do passo 2 acima.
-
-**5. Duas decisões pequenas que continuam esperando** (a §2.10 e a §3.3 da
-`dividas.md` ganharam nota nova nesta rodada, registrando que a 34.2 tornou as
-duas mais visíveis, sem fechar nenhuma):
-
-- o rótulo "Prestador" no Financeiro (`dividas.md` §2.10): agora com uma
-  TERCEIRA origem sob o mesmo nome (o custo do serviço que gera despesa);
-- a dívida 3.3 (`resolverPasto` devolve o primeiro achado em silêncio): o
-  contraste com `resolverServicoEmAndamento` (que resolve o mesmo tipo de
-  ambiguidade do jeito certo) ficou mais gritante.
+- o rótulo "Prestador" no Financeiro (`dividas.md` §2.10): três origens
+  diferentes sob o mesmo nome (despesa do contratado, receita do prestado,
+  despesa do custo do serviço);
+- a dívida 3.3 (`resolverPasto` devolve o primeiro achado em silêncio): agora
+  com DUAS implementações de referência no próprio repositório
+  (`resolverTrabalhador` em `mao-de-obra.ts`, `resolverServicoEmAndamento` em
+  `whatsapp-handlers/servico.ts`) fazendo o mesmo tipo de ambiguidade do jeito
+  certo. O padrão está provado; falta só aplicar em `resolverPasto`.
 
 **Continuam esperando, de rodadas anteriores:** a outra metade da `dividas.md`
-§2.8 (a despesa avulsa e os sete destinos de saída), a correção do rebanho
-invisível (§2.9), e três decisões de produto do Leite (média diária por dias
-corridos; cabeçalho de uma fazenda com armazenamento de todas; fechamento sem
-data nascendo "Vencida").
+§2.8 (a despesa avulsa e os sete destinos de saída), e três decisões de
+produto do Leite (média diária por dias corridos; cabeçalho de uma fazenda com
+armazenamento de todas; fechamento sem data nascendo "Vencida").
 
-**Depois da 34.2 (e da validação no navegador):** pela tabela da spec de
-design, ela fecha o par de módulos 33 (Mão de Obra) e 34 (Serviços com
-Máquinas). Não avance sem aprovação explícita.
+Não avance para outro módulo sem aprovação explícita.
 
 ### ⚠️ Para quem retomar em OUTRA MÁQUINA
 
