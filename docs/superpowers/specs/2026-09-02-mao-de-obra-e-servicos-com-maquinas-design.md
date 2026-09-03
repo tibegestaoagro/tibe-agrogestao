@@ -183,6 +183,36 @@ critério já vale para venda de gado, que passa pela matriz `rebanho` e é dinh
 muito maior. Duas permissões na mesma tela, uma por direção, fariam o OPERADOR
 ver metade da lista sem entender por quê.
 
+## 3.3 As três decisões da fase 34.2
+
+Tomadas com o usuário em 02/09, junto das quatro da fase 34.1.
+
+**17. O custo mora em `ServiceJobCost`, e ele NÃO é dinheiro por si só.**
+O §25 diz que o cálculo "será gerencial, não contábil". O combustível que sai do
+estoque já virou despesa quando foi comprado: lançá-lo de novo faria o diesel
+aparecer duas vezes no DRE do mês. Então o custo é uma linha própria, e cada
+linha tem uma opção "isso saiu do caixa agora" que gera o `FinancialEntry`
+(pedágio, alimentação, o operador pago por fora).
+
+⚠️ **E quando gera, o lançamento aponta para o CUSTO, não para o serviço.** Se
+apontasse para o serviço, `serializar` em `service-jobs.ts` somaria o valor do
+custo dentro de `pago`, e a ficha diria "recebido" num serviço em que ninguém
+pagou nada. É o mesmo raciocínio da decisão 12 (o lote de confinamento soma por
+junção porque `related_id` aponta para uma coisa só).
+
+**18. O valor do combustível é digitado, não derivado.**
+`StockMovement` não guarda custo unitário, e o Módulo 31 está fechado. O §22
+diz "quando o valor estiver disponível", que é exatamente um campo opcional no
+próprio lançamento. Sem valor informado, o combustível baixa do estoque e não
+soma no §25.
+
+**19. O horímetro final atualiza `Machine.hour_meter`, e só anda para a
+frente.** O campo já existe. As horas calculadas (`final - inicial`) viram o
+lançamento de quantidade quando a cobrança é por hora. Uma leitura fora de
+ordem não pode fazer a máquina voltar, porque o §34 vai comparar esse número
+com a próxima manutenção prevista; o alerta em si continua fora (o documento
+diz "futuramente", e ele pertence à frente do alertário, ver seção 8).
+
 ## 4. O modelo de dados
 
 Quatro modelos novos. **Nenhum valor pago, devido ou acumulado é gravado em
@@ -273,7 +303,7 @@ Cada fase entrega **action, depois rota, depois tela**, na ordem do protocolo, e
 | **33.1 Fixa** | `Worker`, funções padrão, previsão rolante, pagamento com confirmação, adiantamento, outros pagamentos e benefícios | MO §5 a §11, §33, §35 a §37, §40 | `m56` |
 | **33.2 Contratado** | `ServiceJob` contratado, `ServiceJobLog`, as nove formas de cobrança, conta a pagar e pagamento parcial, vínculo com fazenda, pasto, máquina, confinamento e leite, `WorkerLog`, o resumo do §30 | MO §12 a §32, §34, e metade da `dividas.md` §2.8 | `m57` |
 | **34.1 Prestado** | direção prestada: máquina, implemento, operador, receita, conta a receber, recebimento parcial, agenda de serviços | MQ §5 a §18, §26 a §31, §39, §40 | `m58` |
-| **34.2 Custeio** | lançamento diário, combustível baixando estoque, horímetro alimentando a máquina, custo total do serviço | MQ §19 a §25, §32 a §35, §41 | `m59` |
+| **34.2 Custeio** | lançamento diário, combustível baixando estoque, horímetro alimentando a máquina, custo total do serviço | MQ §19 a §25, §32 a §35, §41 | `m60` |
 
 Intenções de WhatsApp por fase: 33.1 traz `registrar_trabalhador`,
 `registrar_pagamento_trabalhador` e `registrar_adiantamento`; 33.2 traz
