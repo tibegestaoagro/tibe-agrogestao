@@ -365,6 +365,91 @@ async function main() {
       "mas continua no histórico, marcado",
       depoisDoCancel.linhas.some((l) => l.canceled_at !== null),
     );
+
+    console.log("\n5. §21, §22 e §35: 80 litros de diesel a R$ 6,00");
+    const { recordServiceFuel } = await import("@/lib/actions/service-costs");
+    const { getStockBalance, recordStockMovement } = await import("@/lib/actions/stock-ledger");
+
+    const categoria = await db.productCategory.create({
+      data: scoped({ name: "Combustíveis" }),
+    });
+    const diesel = await db.product.create({
+      data: scoped({ category_id: categoria.id, name: "Diesel S10", unit: "litro" }),
+    });
+    await recordStockMovement(db, {
+      product_id: diesel.id,
+      property_id: fazenda.id,
+      movement_type: "compra",
+      quantity: 500,
+    });
+    const saldoAntes = (await getStockBalance(db, { product_id: diesel.id }))[0];
+    check("500 litros no estoque", Number(saldoAntes?.quantity) === 500, String(saldoAntes?.quantity));
+
+    const combustivel = await recordServiceFuel(db, {
+      service_job_id: comCusto.data.id,
+      product_id: diesel.id,
+      quantity: 80,
+      unit_price: 6,
+    });
+    check("aceito", combustivel.ok, combustivel.ok ? "" : combustivel.message);
+    check(
+      "custo de R$ 480, o número literal do §22",
+      combustivel.ok && combustivel.data.amount === 480,
+      combustivel.ok ? String(combustivel.data.amount) : "recusado",
+    );
+    check(
+      "o estoque caiu para 420 litros (§35)",
+      combustivel.ok && combustivel.data.saldo_do_produto === 420,
+      combustivel.ok ? String(combustivel.data.saldo_do_produto) : "recusado",
+    );
+    check(
+      "e a movimentação aponta para o serviço",
+      (await db.stockMovement.count({
+        where: { service_job_id: comCusto.data.id, movement_type: "utilizacao" },
+      })) === 1,
+    );
+
+    /**
+     * ⚠️ E o combustível NÃO gera despesa, que é a decisão 17 em ação. O
+     * diesel virou despesa quando foi COMPRADO: um lançamento aqui faria o
+     * mesmo dinheiro aparecer duas vezes no DRE do mês, e o produtor veria
+     * R$ 3.480 de diesel num mês em que saíram R$ 3.000.
+     */
+    check(
+      "e NÃO gerou lançamento financeiro",
+      combustivel.ok && !combustivel.data.gerou_lancamento,
+    );
+
+    console.log("   e o §21 literal: 'SE o diesel existir no estoque'");
+    const semEstoque = await recordServiceFuel(db, {
+      service_job_id: comCusto.data.id,
+      description: "Diesel comprado no posto",
+      quantity: 40,
+      unit: "litro",
+      unit_price: 6.5,
+    });
+    check("sem produto cadastrado, o custo entra assim mesmo", semEstoque.ok,
+      semEstoque.ok ? "" : semEstoque.message);
+    check(
+      "com o valor calculado, e sem baixa de estoque",
+      semEstoque.ok && semEstoque.data.amount === 260 && !semEstoque.data.baixou_estoque,
+      semEstoque.ok ? `${semEstoque.data.amount} / ${semEstoque.data.baixou_estoque}` : "recusado",
+    );
+
+    console.log("   e o §22 é OPCIONAL: sem valor, só a quantidade");
+    const semValor = await recordServiceFuel(db, {
+      service_job_id: comCusto.data.id,
+      product_id: diesel.id,
+      quantity: 20,
+    });
+    check("aceito sem valor", semValor.ok, semValor.ok ? "" : semValor.message);
+    check("custo nulo, não zero", semValor.ok && semValor.data.amount === null,
+      semValor.ok ? String(semValor.data.amount) : "recusado");
+    check(
+      "mas o estoque caiu do mesmo jeito, para 400",
+      semValor.ok && semValor.data.saldo_do_produto === 400,
+      semValor.ok ? String(semValor.data.saldo_do_produto) : "recusado",
+    );
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });
     await prisma.$disconnect();

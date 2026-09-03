@@ -237,6 +237,11 @@ export type StockMovementInput = {
    * confinamento.
    */
   stay_id?: string | null;
+  /**
+   * §21 e §35 do documento de Máquinas: qual serviço consumiu o produto.
+   * Opcional, exatamente como `stay_id`.
+   */
+  service_job_id?: string | null;
 };
 
 /**
@@ -318,6 +323,11 @@ export async function recordStockMovementInTx(
     if (!estadia) return fail("INVALID_STAY", "Estadia inválida", 422);
   }
 
+  if (input.service_job_id) {
+    const servico = await tx.serviceJob.findFirst({ where: { id: input.service_job_id } });
+    if (!servico) return fail("INVALID_SERVICE_JOB", "Serviço inválido", 422, "service_job_id");
+  }
+
   /**
    * §10.4: para qual grupo de animais o insumo foi usado.
    *
@@ -386,6 +396,7 @@ export async function recordStockMovementInTx(
       negotiation_id: input.negotiation_id ?? null,
       recorded_by_user_id: input.recorded_by_user_id ?? null,
       stay_id: input.stay_id ?? null,
+      service_job_id: input.service_job_id ?? null,
     }),
   });
 
