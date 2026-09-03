@@ -711,6 +711,181 @@ export async function cancelServiceJob(
   return ok({ id: job.id });
 }
 
+/**
+ * Acrescenta produção a um serviço em andamento (§19 e §20).
+ *
+ * A CONTA EM ABERTO ACOMPANHA. O §22 mostra o total ao lado do que já foi
+ * pago, e um serviço que cresceu de 5 para 16 horas com a conta parada em
+ * R$ 750 mostraria "faltam 750" quando faltam 2.400. Por isso o lançamento
+ * pendente é ajustado aqui, e não só a quantidade.
+ *
+ * ⚠️ O `fechado` NÃO aceita log de quantidade: o §16 diz que o valor fechado
+ * não exige cálculo por hora ou hectare, e uma quantidade ali não muda o total
+ * nem significa nada. Recusar é mais honesto que aceitar e ignorar.
+ */
+export async function addServiceJobLog(
+  db: TenantPrismaClient,
+  input: {
+    service_job_id: string;
+    quantity?: number | null;
+    occurred_at?: Date | null;
+    notes?: string | null;
+    hour_meter_start?: number | null;
+    hour_meter_end?: number | null;
+  },
+): Promise<ActionResult<{ id: string; quantidade: number; total: number; horas: number | null }>> {
+  const job = await db.serviceJob.findUnique({
+    where: { id: input.service_job_id },
+    include: INCLUDE,
+  });
+  if (!job) return fail("NOT_FOUND", "Serviço não encontrado.", 404);
+  if (job.canceled_at) {
+    return fail("CONFLICT", "Este serviço foi cancelado, então não há o que lançar.", 409);
+  }
+  if (job.pricing === "fechado") {
+    return fail(
+      "CONFLICT",
+      "Este serviço foi combinado por valor fechado, então não tem quantidade para lançar.",
+      409,
+      "quantity",
+    );
+  }
+
+  /**
+   * §33: com o horímetro, a quantidade sai da diferença, e o produtor não
+   * precisa fazer a conta. Digitar os dois E a quantidade é contradição, e o
+   * silêncio aqui esconderia qual dos dois valeu.
+   */
+  let horas: number | null = null;
+  const inicial = input.hour_meter_start;
+  const final = input.hour_meter_end;
+  if (inicial !== null && inicial !== undefined && final !== null && final !== undefined) {
+    if (!Number.isFinite(inicial) || !Number.isFinite(final)) {
+      return fail("VALIDATION_ERROR", "Informe o horímetro com números.", 422, "hour_meter_end");
+    }
+    if (final <= inicial) {
+      return fail(
+        "VALIDATION_ERROR",
+        "O horímetro final precisa ser maior que o inicial.",
+        422,
+        "hour_meter_end",
+      );
+    }
+    horas = Math.round((final - inicial) * 10) / 10;
+    if (input.quantity !== null && input.quantity !== undefined) {
+      return fail(
+        "VALIDATION_ERROR",
+        "Informe o horímetro OU a quantidade, não os dois: com o horímetro a conta é automática.",
+        422,
+        "quantity",
+      );
+    }
+  }
+
+  const quantidade = horas ?? input.quantity ?? null;
+  if (quantidade === null || !Number.isFinite(quantidade) || quantidade <= 0) {
+    return fail("VALIDATION_ERROR", "Informe quanto foi feito.", 422, "quantity");
+  }
+
+  const quando = input.occurred_at ?? new Date();
+
+  await runSerializableTenantTransaction(db, async (tx) => {
+    await tx.serviceJobLog.create({
+      data: scoped({
+        service_job_id: job.id,
+        occurred_at: quando,
+        quantity: quantidade,
+        notes: input.notes?.trim() || null,
+      }),
+    });
+
+    if (horas !== null) {
+      await tx.serviceJob.update({
+        where: { id: job.id },
+        data: { hour_meter_start: inicial, hour_meter_end: final },
+      });
+      /**
+       * Decisão 19: o horímetro final é o número da máquina agora. Ele só
+       * ANDA PARA A FRENTE: um serviço lançado fora de ordem não pode fazer o
+       * horímetro da máquina voltar, porque o §34 vai comparar esse número com
+       * a próxima manutenção prevista.
+       */
+      if (job.machine_id) {
+        const maquina = await tx.machine.findFirst({ where: { id: job.machine_id } });
+        const atual = decToNum(maquina?.hour_meter) ?? 0;
+        if (final > atual) {
+          await tx.machine.update({ where: { id: job.machine_id }, data: { hour_meter: final } });
+        }
+      }
+    }
+
+    // A conta em aberto acompanha o total novo.
+    const logs = [
+      ...job.logs.map((l) => ({
+        quantity: decToNum(l.quantity) ?? 0,
+        canceled_at: l.canceled_at,
+      })),
+      { quantity: quantidade, canceled_at: null as Date | null },
+    ];
+    const total = totalDoServico(
+      {
+        pricing: job.pricing,
+        unit_price: decToNum(job.unit_price),
+        agreed_amount: decToNum(job.agreed_amount),
+        worker_count: job.worker_count,
+      },
+      logs,
+    );
+
+    const pendentes = await tx.financialEntry.findMany({
+      where: {
+        related_module: "servico",
+        related_id: job.id,
+        status: { in: ["pending", "overdue"] },
+      },
+      orderBy: { due_date: "asc" },
+    });
+    const jaPago = (
+      await tx.financialEntry.findMany({
+        where: { related_module: "servico", related_id: job.id, status: "paid" },
+        select: { amount: true },
+      })
+    ).reduce((s, e) => s + (decToNum(e.amount) ?? 0), 0);
+
+    const emAberto = Math.round((total - jaPago) * 100) / 100;
+    if (pendentes.length > 0) {
+      // Ajusta a primeira e apaga as outras: o §22 é saldo aberto, não
+      // parcelamento (decisão 3 da fase 33.2).
+      await tx.financialEntry.update({
+        where: { id: pendentes[0].id },
+        data: { amount: emAberto },
+      });
+      for (const extra of pendentes.slice(1)) {
+        await tx.financialEntry.delete({ where: { id: extra.id } });
+      }
+    } else if (emAberto > 0) {
+      await createLinkedEntry(tx as never, {
+        entry_type: sinalDe(job.direction),
+        category: categoriaDe(job.direction),
+        amount: emAberto,
+        related_module: "servico",
+        related_id: job.id,
+        occurred_at: quando,
+        status: "pending",
+      });
+    }
+  });
+
+  const depois = await getServiceJobDetail(db, job.id);
+  if (!depois.ok) return depois;
+  return ok({
+    id: job.id,
+    quantidade: depois.data.quantidade,
+    total: depois.data.total,
+    horas,
+  });
+}
+
 function moeda(v: number): string {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }

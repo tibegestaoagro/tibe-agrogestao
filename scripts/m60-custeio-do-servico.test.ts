@@ -1,0 +1,214 @@
+import "dotenv/config";
+import { exigirBancoLocal, exigirRedisLocal } from "./_banco-local";
+
+exigirBancoLocal();
+exigirRedisLocal();
+
+/**
+ * Módulo 34, fase 2: o custeio do serviço com máquinas.
+ *
+ * Prova, por seção do documento de Máquinas:
+ *   1. §19 e §20: o serviço que dura vários dias, e a produção acrescentada.
+ *
+ * ⚠️ A `m58` e a `m59` cobrem o mesmo arquivo e têm que continuar verdes.
+ *
+ * Roda: `npm run test:m60`.
+ */
+
+let falhas = 0;
+function check(nome: string, cond: boolean, detalhe?: string) {
+  if (cond) console.log(`  ✅ ${nome}`);
+  else {
+    falhas += 1;
+    console.log(`  ❌ ${nome}${detalhe ? ` -> ${detalhe}` : ""}`);
+  }
+}
+
+console.log("🔧 M60: custeio do serviço (Módulo 34, fase 2)\n");
+
+async function main() {
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+  const { createServiceJob, addServiceJobLog, getServiceJobDetail } = await import(
+    "@/lib/actions/service-jobs"
+  );
+
+  const stamp = Date.now();
+  const tenant = await prisma.tenant.create({
+    data: { name: `M60 ${stamp}`, document: `M60${stamp}`.slice(0, 14), plan: "fazenda" },
+  });
+  const db = prismaForTenant(tenant.id);
+
+  try {
+    const fazenda = await db.property.create({ data: scoped({ name: "Fazenda M60" }) });
+    const trator = await db.machine.create({
+      data: scoped({
+        property_id: fazenda.id,
+        name: "Trator Massey",
+        type: "Trator",
+        hour_meter: 1250,
+      }),
+    });
+
+    console.log("1. §19: o serviço de três dias, 5 + 7 + 4 = 16 horas");
+    const servico = await createServiceJob(db, {
+      direction: "prestado",
+      property_id: fazenda.id,
+      occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+      description: "Gradagem",
+      pricing: "hora",
+      unit_price: 150,
+      quantity: 5,
+      machine_id: trator.id,
+      contact_name: "João Vizinho",
+    });
+    if (!servico.ok) throw new Error("createServiceJob falhou");
+    check("dia 1: 5 horas", servico.data.quantidade === 5, String(servico.data.quantidade));
+
+    const dia2 = await addServiceJobLog(db, {
+      service_job_id: servico.data.id,
+      quantity: 7,
+      occurred_at: new Date("2026-09-02T12:00:00.000Z"),
+    });
+    check("dia 2 aceito", dia2.ok, dia2.ok ? "" : dia2.message);
+    const dia3 = await addServiceJobLog(db, {
+      service_job_id: servico.data.id,
+      quantity: 4,
+      occurred_at: new Date("2026-09-03T12:00:00.000Z"),
+    });
+    check("dia 3 aceito", dia3.ok, dia3.ok ? "" : dia3.message);
+
+    check(
+      "total trabalhado: 16 horas, o número literal do §19",
+      dia3.ok && dia3.data.quantidade === 16,
+      dia3.ok ? String(dia3.data.quantidade) : "recusado",
+    );
+    check(
+      "e o total em dinheiro acompanha: 16 x 150 = 2.400",
+      dia3.ok && dia3.data.total === 2400,
+      dia3.ok ? String(dia3.data.total) : "recusado",
+    );
+
+    /**
+     * ⚠️ O CASO QUE DISCRIMINA: o §19 diz em letra que "o produtor não deverá
+     * criar três serviços diferentes". Uma implementação que criasse um serviço
+     * por dia daria os mesmos 16 na soma de uma listagem, e a ficha do §22
+     * mostraria três contas a receber de 750, 1.050 e 600 em vez de uma de
+     * 2.400. Por isso o teste cobra UM serviço e TRÊS logs.
+     */
+    check(
+      "um serviço só, com três lançamentos de quantidade",
+      (await db.serviceJob.count()) === 1 &&
+        (await db.serviceJobLog.count({ where: { service_job_id: servico.data.id } })) === 3,
+      `${await db.serviceJob.count()} serviços`,
+    );
+
+    const detalhe = await getServiceJobDetail(db, servico.data.id);
+    check(
+      "e a conta a receber acompanhou o total",
+      detalhe.ok && detalhe.data.a_receber === 2400,
+      detalhe.ok ? String(detalhe.data.a_receber) : "recusado",
+    );
+
+    console.log("\n2. §33: o horímetro calcula as horas, e alimenta a máquina");
+    const comHorimetro = await createServiceJob(db, {
+      direction: "prestado",
+      property_id: fazenda.id,
+      occurred_at: new Date("2026-09-04T12:00:00.000Z"),
+      description: "Aração",
+      pricing: "hora",
+      unit_price: 200,
+      quantity: 1,
+      machine_id: trator.id,
+      contact_name: "João Vizinho",
+    });
+    if (!comHorimetro.ok) throw new Error("createServiceJob falhou");
+
+    const leitura = await addServiceJobLog(db, {
+      service_job_id: comHorimetro.data.id,
+      hour_meter_start: 1250,
+      hour_meter_end: 1258,
+    });
+    check("aceito", leitura.ok, leitura.ok ? "" : leitura.message);
+    check(
+      "1.250 para 1.258 dá 8 horas, o exemplo literal do §33",
+      leitura.ok && leitura.data.horas === 8,
+      leitura.ok ? String(leitura.data.horas) : "recusado",
+    );
+    check(
+      "e as 8 horas viraram quantidade (1 do cadastro + 8)",
+      leitura.ok && leitura.data.quantidade === 9,
+      leitura.ok ? String(leitura.data.quantidade) : "recusado",
+    );
+    check(
+      "o horímetro da MÁQUINA foi para 1.258 (decisão 19)",
+      Number((await db.machine.findUnique({ where: { id: trator.id } }))?.hour_meter) === 1258,
+      String((await db.machine.findUnique({ where: { id: trator.id } }))?.hour_meter),
+    );
+
+    console.log("   e as três recusas do horímetro");
+    const invertido = await addServiceJobLog(db, {
+      service_job_id: comHorimetro.data.id,
+      hour_meter_start: 1300,
+      hour_meter_end: 1290,
+    });
+    check(
+      "final menor que o inicial é recusado no campo",
+      !invertido.ok && invertido.field === "hour_meter_end",
+      !invertido.ok ? String(invertido.field) : "aceitou",
+    );
+
+    const ambos = await addServiceJobLog(db, {
+      service_job_id: comHorimetro.data.id,
+      hour_meter_start: 1258,
+      hour_meter_end: 1262,
+      quantity: 99,
+    });
+    check(
+      "horímetro E quantidade juntos é recusado",
+      !ambos.ok && ambos.field === "quantity",
+      !ambos.ok ? String(ambos.field) : "aceitou",
+    );
+
+    /**
+     * ⚠️ O horímetro NÃO ANDA PARA TRÁS. Um serviço lançado fora de ordem
+     * (a leitura de ontem digitada hoje) faria a máquina voltar de 1.258 para
+     * 1.254, e o §34 passaria a dizer que faltam mais horas para a manutenção
+     * do que realmente faltam.
+     */
+    await addServiceJobLog(db, {
+      service_job_id: comHorimetro.data.id,
+      hour_meter_start: 1250,
+      hour_meter_end: 1254,
+    });
+    check(
+      "e uma leitura antiga não faz a máquina voltar",
+      Number((await db.machine.findUnique({ where: { id: trator.id } }))?.hour_meter) === 1258,
+      String((await db.machine.findUnique({ where: { id: trator.id } }))?.hour_meter),
+    );
+
+    console.log("   e o valor fechado recusa quantidade");
+    const empreito = await createServiceJob(db, {
+      direction: "prestado",
+      property_id: fazenda.id,
+      occurred_at: new Date("2026-09-05T12:00:00.000Z"),
+      description: "Terraplanagem",
+      pricing: "fechado",
+      agreed_amount: 9000,
+      machine_id: trator.id,
+      contact_name: "João Vizinho",
+    });
+    const noEmpreito = await addServiceJobLog(db, {
+      service_job_id: empreito.ok ? empreito.data.id : "",
+      quantity: 3,
+    });
+    check("recusado no empreito (§16)", !noEmpreito.ok, "aceitou");
+  } finally {
+    await prisma.tenant.delete({ where: { id: tenant.id } });
+    await prisma.$disconnect();
+  }
+}
+
+main().then(() => {
+  console.log(falhas === 0 ? "\n✅ M60 verde" : `\n❌ M60: ${falhas} falha(s)`);
+  process.exit(falhas === 0 ? 0 : 1);
+});
