@@ -393,6 +393,7 @@ model Tenant {
   workers              Worker[]
   service_jobs         ServiceJob[]
   worker_logs          WorkerLog[]
+  service_job_costs    ServiceJobCost[]
 }
 
 // Equipe da Pleno Digital. NÃO carrega tenant_id: fora do isolamento (PRD 4 / 10.4).
@@ -451,6 +452,7 @@ model User {
   workers_recorded          Worker[]            @relation("WorkerRecordedBy")
   service_jobs_recorded     ServiceJob[]        @relation("ServiceJobRecordedBy")
   service_jobs_canceled     ServiceJob[]        @relation("ServiceJobCanceledBy")
+  service_costs_recorded    ServiceJobCost[]    @relation("ServiceCostRecordedBy")
 
   @@index([tenant_id])
 }
@@ -729,6 +731,11 @@ model StockMovement {
   /// ligado, nunca estimativa.
   stay_id String?
 
+  /// §21 e §35 do documento de Máquinas: qual serviço consumiu o produto.
+  /// Opcional, como `stay_id`: nem toda saída de estoque é combustível de
+  /// serviço.
+  service_job_id String?
+
   canceled_at     DateTime?
   canceled_reason String?
   created_at      DateTime  @default(now())
@@ -740,12 +747,14 @@ model StockMovement {
   negotiation Negotiation? @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
   recorded_by User?        @relation("StockRecordedBy", fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
   stay        HerdStay?    @relation(fields: [stay_id], references: [id], onDelete: SetNull)
+  service_job ServiceJob?  @relation(fields: [service_job_id], references: [id], onDelete: SetNull)
 
   @@index([tenant_id])
   @@index([tenant_id, product_id, property_id])
   @@index([product_id])
   @@index([negotiation_id])
   @@index([stay_id])
+  @@index([service_job_id])
   /// Mesmo motivo do índice equivalente em `HerdMovement`: `getStockBalance`
   /// sempre filtra por movimentação não cancelada.
   @@index([tenant_id, canceled_at])
@@ -2367,6 +2376,24 @@ enum ServiceJobStatus {
   cancelado
 }
 
+/// As naturezas de custo do §21 (combustível), §23 (mão de obra) e §24 (a
+/// lista literal do documento). Enum, e não texto livre, porque o §25 soma por
+/// natureza e `category` do financeiro é texto que o produtor renomeia no
+/// painel: agrupar por string faria a soma mudar quando alguém corrigisse um
+/// acento. Mesmo motivo de `worker_entry_kind` existir.
+enum ServiceCostKind {
+  combustivel
+  mao_de_obra
+  pedagio
+  alimentacao
+  transporte
+  manutencao
+  pecas
+  lubrificantes
+  comissao
+  outro
+}
+
 /// §12 (atividade realizada) e §34 (falta, folga, férias, afastamento) num
 /// modelo só. Os dois são "uma anotação com data sobre um trabalhador", e o
 /// documento é explícito que nenhum dos dois calcula nada.
@@ -2448,6 +2475,11 @@ model ServiceJob {
 
   notes String?
 
+  /// §33: o horímetro no começo e no fim, opcional. As horas trabalhadas saem
+  /// da diferença, e o final atualiza `Machine.hour_meter` (decisão 19).
+  hour_meter_start Decimal? @db.Decimal(10, 1)
+  hour_meter_end   Decimal? @db.Decimal(10, 1)
+
   canceled_at         DateTime?
   canceled_reason     String?
   canceled_by_user_id String?
@@ -2455,18 +2487,20 @@ model ServiceJob {
   created_at          DateTime  @default(now())
   updated_at          DateTime  @updatedAt
 
-  tenant           Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  property         Property        @relation(fields: [property_id], references: [id], onDelete: Restrict)
-  contact          Contact?        @relation(fields: [contact_id], references: [id], onDelete: SetNull)
-  worker           Worker?         @relation(fields: [worker_id], references: [id], onDelete: SetNull)
-  pasture          Pasture?        @relation(fields: [pasture_id], references: [id], onDelete: SetNull)
-  confinement_stay HerdStay?       @relation(fields: [confinement_stay_id], references: [id], onDelete: SetNull)
-  milk_site        MilkSite?       @relation(fields: [milk_site_id], references: [id], onDelete: SetNull)
-  machine          Machine?        @relation(fields: [machine_id], references: [id], onDelete: SetNull)
-  operator         Worker?         @relation("ServiceJobOperator", fields: [operator_worker_id], references: [id], onDelete: SetNull)
-  recorded_by      User?           @relation("ServiceJobRecordedBy", fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
-  canceled_by      User?           @relation("ServiceJobCanceledBy", fields: [canceled_by_user_id], references: [id], onDelete: SetNull)
+  tenant           Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  property         Property         @relation(fields: [property_id], references: [id], onDelete: Restrict)
+  contact          Contact?         @relation(fields: [contact_id], references: [id], onDelete: SetNull)
+  worker           Worker?          @relation(fields: [worker_id], references: [id], onDelete: SetNull)
+  pasture          Pasture?         @relation(fields: [pasture_id], references: [id], onDelete: SetNull)
+  confinement_stay HerdStay?        @relation(fields: [confinement_stay_id], references: [id], onDelete: SetNull)
+  milk_site        MilkSite?        @relation(fields: [milk_site_id], references: [id], onDelete: SetNull)
+  machine          Machine?         @relation(fields: [machine_id], references: [id], onDelete: SetNull)
+  operator         Worker?          @relation("ServiceJobOperator", fields: [operator_worker_id], references: [id], onDelete: SetNull)
+  recorded_by      User?            @relation("ServiceJobRecordedBy", fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
+  canceled_by      User?            @relation("ServiceJobCanceledBy", fields: [canceled_by_user_id], references: [id], onDelete: SetNull)
   logs             ServiceJobLog[]
+  costs            ServiceJobCost[]
+  stock_movements  StockMovement[]
 
   @@index([tenant_id])
   @@index([tenant_id, status])
@@ -2501,6 +2535,57 @@ model ServiceJobLog {
 
   @@index([tenant_id])
   @@index([service_job_id])
+}
+
+/// Um custo de um serviço (§21 a §25 do documento de Máquinas).
+///
+/// ⚠️ NÃO é dinheiro por si só. O §25 diz que o cálculo é "gerencial, não
+/// contábil", e o combustível que sai do estoque já virou despesa quando foi
+/// comprado: lançá-lo de novo faria o diesel aparecer duas vezes no DRE.
+/// Quando o produtor marca que o dinheiro saiu agora, o `FinancialEntry`
+/// nasce apontando para ESTE registro, nunca para o serviço (decisão 17).
+model ServiceJobCost {
+  id             String          @id @default(cuid())
+  tenant_id      String
+  service_job_id String
+  kind           ServiceCostKind
+  description    String
+
+  /// Nulo quando o produtor não sabe o valor. O §22 é explícito: o custo só é
+  /// calculado "quando o valor estiver disponível". Um zero no lugar do nulo
+  /// faria o §25 somar um custo que ninguém informou.
+  amount Decimal? @db.Decimal(14, 2)
+
+  /// Quantidade e unidade do §21, só para o combustível e afins. Ficam aqui, e
+  /// não só no `StockMovement`, porque o produto pode não existir no estoque:
+  /// o §21 diz "SE o diesel existir no estoque", então o registro precisa
+  /// sobreviver sem ele.
+  quantity Decimal? @db.Decimal(14, 3)
+  unit     String?
+
+  occurred_at DateTime
+
+  /// A baixa de estoque que este custo gerou, quando gerou. Nulo quando o
+  /// produto não estava no estoque, ou quando o custo não é de produto.
+  stock_movement_id String? @unique
+
+  /// O lançamento financeiro, quando o produtor disse que o dinheiro saiu
+  /// agora. Nulo é o caso comum do combustível.
+  financial_entry_id String? @unique
+
+  notes               String?
+  recorded_by_user_id String?
+  canceled_at         DateTime?
+  canceled_reason     String?
+  created_at          DateTime  @default(now())
+
+  tenant      Tenant     @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  service_job ServiceJob @relation(fields: [service_job_id], references: [id], onDelete: Cascade)
+  recorded_by User?      @relation("ServiceCostRecordedBy", fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
+
+  @@index([tenant_id])
+  @@index([service_job_id])
+  @@index([tenant_id, canceled_at])
 }
 
 /// A anotação simples do §12 e do §34.
