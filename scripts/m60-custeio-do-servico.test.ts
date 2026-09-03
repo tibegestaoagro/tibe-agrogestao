@@ -28,9 +28,13 @@ console.log("🔧 M60: custeio do serviço (Módulo 34, fase 2)\n");
 
 async function main() {
   const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
-  const { createServiceJob, addServiceJobLog, getServiceJobDetail } = await import(
-    "@/lib/actions/service-jobs"
-  );
+  const {
+    createServiceJob,
+    addServiceJobLog,
+    getServiceJobDetail,
+    setServiceJobStatus,
+    cancelServiceJob,
+  } = await import("@/lib/actions/service-jobs");
 
   const stamp = Date.now();
   const tenant = await prisma.tenant.create({
@@ -202,6 +206,76 @@ async function main() {
       quantity: 3,
     });
     check("recusado no empreito (§16)", !noEmpreito.ok, "aceitou");
+
+    console.log("\n3. §42: começar e terminar o serviço");
+    const doFluxo = await createServiceJob(db, {
+      direction: "prestado",
+      property_id: fazenda.id,
+      occurred_at: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+      description: "Subsolagem",
+      pricing: "hectare",
+      unit_price: 300,
+      quantity: 10,
+      machine_id: trator.id,
+      contact_name: "João Vizinho",
+    });
+    if (!doFluxo.ok) throw new Error("createServiceJob falhou");
+    check("marcado para depois de amanhã, nasce agendado", doFluxo.data.status === "agendado");
+
+    const comecou = await setServiceJobStatus(db, {
+      service_job_id: doFluxo.data.id,
+      status: "em_andamento",
+    });
+    check("'comecei hoje' põe em andamento", comecou.ok && comecou.data.status === "em_andamento",
+      comecou.ok ? comecou.data.status : "recusado");
+
+    const terminou = await setServiceJobStatus(db, {
+      service_job_id: doFluxo.data.id,
+      status: "concluido",
+    });
+    check("'terminei' conclui", terminou.ok && terminou.data.status === "concluido",
+      terminou.ok ? terminou.data.status : "recusado");
+    check(
+      "e devolve o que o §42 manda mostrar: quantidade, total e o que falta receber",
+      terminou.ok &&
+        terminou.data.quantidade === 10 &&
+        terminou.data.total === 3000 &&
+        terminou.data.a_receber === 3000,
+      terminou.ok
+        ? `${terminou.data.quantidade} / ${terminou.data.total} / ${terminou.data.a_receber}`
+        : "recusado",
+    );
+
+    /**
+     * ⚠️ Concluir NÃO mexe no dinheiro. O §42 pergunta "o João já pagou?"
+     * DEPOIS de mostrar o resumo, e a resposta é outro passo. Um `concluido`
+     * que quitasse sozinho inventaria um recebimento que não aconteceu, e o
+     * produtor descobriria no fim do mês, com a conta a receber zerada.
+     */
+    check(
+      "e a conta a receber continua aberta",
+      (await db.financialEntry.count({
+        where: { related_module: "servico", related_id: doFluxo.data.id, status: "pending" },
+      })) === 1,
+    );
+
+    const cancelado = await createServiceJob(db, {
+      direction: "prestado",
+      property_id: fazenda.id,
+      occurred_at: new Date(),
+      description: "Roçada",
+      pricing: "hectare",
+      unit_price: 100,
+      quantity: 2,
+      machine_id: trator.id,
+      contact_name: "João Vizinho",
+    });
+    await cancelServiceJob(db, { service_job_id: cancelado.ok ? cancelado.data.id : "" });
+    const reabrir = await setServiceJobStatus(db, {
+      service_job_id: cancelado.ok ? cancelado.data.id : "",
+      status: "em_andamento",
+    });
+    check("serviço cancelado não volta a andar", !reabrir.ok, "aceitou");
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });
     await prisma.$disconnect();

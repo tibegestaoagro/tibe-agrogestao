@@ -886,6 +886,26 @@ export async function addServiceJobLog(
   });
 }
 
+/**
+ * "Comecei a gradagem do João hoje" e "Terminei o serviço do João" (§42).
+ *
+ * Só o status muda. Concluir NÃO quita nada: o §42 pergunta se o cliente já
+ * pagou DEPOIS de mostrar o resumo, e responder por ele inventaria um
+ * recebimento.
+ */
+export async function setServiceJobStatus(
+  db: TenantPrismaClient,
+  input: { service_job_id: string; status: "em_andamento" | "concluido" },
+): Promise<ActionResult<ServiceJobDetailView>> {
+  const job = await db.serviceJob.findUnique({ where: { id: input.service_job_id } });
+  if (!job) return fail("NOT_FOUND", "Serviço não encontrado.", 404);
+  if (job.canceled_at) {
+    return fail("CONFLICT", "Este serviço foi cancelado.", 409);
+  }
+  await db.serviceJob.update({ where: { id: job.id }, data: { status: input.status } });
+  return getServiceJobDetail(db, job.id);
+}
+
 function moeda(v: number): string {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
