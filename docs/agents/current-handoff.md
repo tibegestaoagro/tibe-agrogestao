@@ -26,63 +26,50 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 ## Estado atual
 
-- Atualizado em: 2026-09-02.
-- Branch de trabalho: **`servico-prestado-fase-1`**, 8 commits à frente da
-  `main`.
-- **Nada desta fase foi mesclado nem empurrado.** As fases 33.1 e 33.2 já estão
-  na `main` e em produção; o detalhe delas foi para `historico/2026-09.md`.
+- Atualizado em: 2026-09-03.
+- Branch de trabalho: **`custeio-do-servico-fase-2`**, 1 commit à frente da
+  `main` (só o plano; **zero código escrito ainda**).
+- **A fase 34.1 (serviço prestado com máquina própria) está NA `main` E EM
+  PRODUÇÃO.** Merge `3e31d13..d398dbb` (11 commits), migração
+  `20260905100000_servico_prestado` aplicada no Neon, deploy confirmado por
+  sondagem única ao `/docs/api`. Detalhe completo em `historico/2026-09.md`.
+- **Branches limpas em 02/09:** 13 branches locais já mescladas apagadas
+  (`git branch -d`, nenhuma forçada), mais `origin/area-leite-fase-1` apagada
+  no remoto (zero commits exclusivos, conferido antes). Sobrou só
+  `app-mobile-fundacao` (3 commits não mesclados, fora do escopo desta
+  sequência).
 
-### A fase 34.1 está pronta na branch, e não subiu
+### A fase 34.2 (custeio do serviço) tem PLANO ESCRITO, zero código
 
-O serviço **PRESTADO** com máquina própria: a fazenda faz o serviço para outra
-pessoa e o dinheiro ENTRA. Escopo entregue, do §13 ao §42 do documento de
-Máquinas.
+O plano completo está em
+`docs/superpowers/plans/2026-09-02-fase-34-2-custeio-do-servico.md`, commitado
+(`4bbd6ba`) na branch `custeio-do-servico-fase-2`. **Nenhuma tarefa foi
+executada.** Ao retomar, comece pela Task 1 (schema e migração).
 
-**Quatro bifurcações abertas em `service-jobs.ts`**, todas lidas da `direction`
-e nunca recebidas por parâmetro:
+O que a fase entrega: o serviço deixa de ser evento de tiro único. Produção
+diária (§19, §20), combustível baixando do estoque (§21, §22, §35), custo do
+serviço (§23, §24), resultado gerencial (§25), horímetro alimentando a máquina
+(§32, §33), começar/encerrar pelo WhatsApp (§42, prometido pela spec de design
+já na 34.1 e não entregue lá) e o resumo mensal (§41).
 
-| o que muda | `contratado` | `prestado` |
-|---|---|---|
-| sinal do lançamento | `expense` | `income` |
-| categoria | Serviço terceirizado | Serviço prestado |
-| `machine_id` | RECUSADO (é `MachineMaintenance`) | OBRIGATÓRIO (§17) |
-| cliente | opcional (§14: "vieram 3 homens") | obrigatório (§17) |
+**Três decisões tomadas com o usuário em 02/09** (registradas no plano, ainda
+não passadas para a spec de design; é o passo 3 da Task 10):
 
-Mais: o `status` passou a vir da DATA (§18), então serviço marcado para o futuro
-nasce `agendado` e entra na agenda do §39. Isso vale para as DUAS direções.
+1. **O custo mora em `ServiceJobCost`, e o lançamento financeiro dele aponta
+   para o CUSTO, nunca para o serviço.** Se apontasse para o serviço, a soma de
+   `pago` na ficha incluiria o custo, e a tela diria "recebido R$ 600" num
+   serviço em que o cliente não pagou nada. É a trava central da fase (Task 4).
+2. **O valor do combustível é digitado, não derivado do estoque**
+   (`StockMovement` não guarda custo unitário, e o Módulo 31 está fechado).
+3. **O horímetro final atualiza `Machine.hour_meter`, e só anda para a
+   frente**: uma leitura fora de ordem não pode fazer a máquina "voltar".
 
-**O que entrou junto:** o histórico da máquina (§32, somado **por unidade**), a
-agenda (§39), os serviços na ficha do contato (§37, nas duas direções), duas
-rotas, as telas, e a intenção `registrar_servico_prestado` no WhatsApp.
+A suíte é a **`m60`** (não `m59`, que já é da 34.1; a spec de design erra o
+número porque o contador de suítes descolou do módulo há muito tempo).
 
-⚠️ **O classificador do n8n continua congelado** e não emite a intenção nova.
-Ela é roteada e testada, como as outras nove que esperam a mesma coisa.
-
-### Três coisas que só a validação viva achou
-
-1. **A tela `/servicos` passava `Decimal` para um Client Component** desde a
-   fase 33.2. `tsc`, `lint`, `check` e as suítes verdes; a página renderizava; o
-   único sinal era o contador de issues do overlay do Next. Corrigido com
-   `select`. Virou [[decimal-do-prisma-so-quebra-no-console-do-navegador]] no
-   cofre.
-2. **A `m58` escrevia no Redis de PRODUÇÃO toda vez que rodava.** Ela conversa
-   com o handler, o handler guarda a pendência no Redis, e nada conferia o
-   alvo. Ganhou `exigirRedisLocal()`, a mesma trava da `m56`.
-3. **A dívida 2.10 PIOROU**, e está reescrita: agora existe RECEITA sob o rótulo
-   "Prestador", ao lado da despesa. O mesmo nome cobre três coisas diferentes.
-
-### O que foi conferido no navegador
-
-Com `next dev` contra o Docker local, tudo pelo caminho real (rota e
-formulário): o §13 (25 hectares a 180 dá **R$ 4.500**), o §27 (recebe 3.000 de
-8.000, ficam **5.000**), o §18 (serviço de daqui a 3 dias nasce **Agendado** e
-aparece em "Próximos"), o §32 (a ficha da máquina diz **"4 horas · 20 diárias ·
-25 hectares"**, sem somar tudo), o §37 (um contato com serviço e NENHUM negócio
-abre normalmente) e o §28 (as cinco linhas em `/financeiro` são **Receita**, e o
-DRE do mês mostra `servico` com receita 13.100 e despesa 1.800 lado a lado).
-
-As três recusas do formulário aparecem sob os campos certos, e o foco vai para
-o primeiro do `ORDEM`.
+⚠️ **A Task 5 do plano mexe em `stock-ledger.ts`, módulo fechado e em
+produção.** Rodar `m37` e `m38` depois dela não é opcional, e o plano tem um
+passo só para isso.
 
 ### 🔴 SEGURANÇA: o repositório está PÚBLICO e o `.env.enc` vazou
 
@@ -129,32 +116,26 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou nesta rodada, e cada commit que sobe é leitura pública.
 
-**2. A migração no Neon, também do usuário.**
-`20260905100000_servico_prestado` está aplicada só no Docker local. O
-invariante 3 vale: ela vai ANTES de qualquer push, porque a Vercel faz deploy
-automático e o build não roda migração. `npm run db:deploy` contra produção é
-recusado pelo classificador de permissões mesmo com a marca de autorização,
-então quem aplica é você, no terminal.
+**2. Executar o plano da fase 34.2, tarefa por tarefa, a partir da Task 1.**
+`docs/superpowers/plans/2026-09-02-fase-34-2-custeio-do-servico.md`, na branch
+`custeio-do-servico-fase-2`. Dez tarefas (schema e migração; produção diária e
+horímetro; iniciar/encerrar; custo do serviço; combustível do estoque;
+resultado e resumo; rotas; telas; WhatsApp; fechar a rodada), cada uma com
+teste antes do código e, na maioria, uma trava para quebrar de propósito antes
+de confiar nela. Commit ao fim de cada tarefa, como sempre.
 
-O `DATABASE_URL` do `.env` é a URL **Direct** (sem `-pooler`), então
-`npm run db:deploy` roda sem passar URL inline. Confira depois com
-`npx prisma migrate status`, que é leitura e passa.
+A Task 1 gera uma migração nova (`ServiceJobCost`, `Machine.hour_meter_*` no
+`ServiceJob`, `StockMovement.service_job_id`): aplique primeiro no Docker
+local, como sempre, e só no Neon quando a fase inteira estiver pronta.
 
-⚠️ **A migração é ADITIVA e não tem nenhum `DROP`**, de nenhum tipo: quatro
-colunas anuláveis em `ServiceJob`, dois índices e uma chave estrangeira.
-Nenhuma linha existente é tocada, e nenhum serviço já registrado muda de
-comportamento.
+**3. Duas decisões pequenas que continuam esperando:**
 
-**3. Só então** merge e push da `servico-prestado-fase-1`, com autorização
-explícita.
-
-**4. Uma decisão pequena, agora mais urgente:** o rótulo "Prestador" no
-Financeiro (`dividas.md` §2.10). A 34.1 pôs RECEITA sob ele, então o mesmo
-nome cobre o item de menu, a despesa e a receita.
-
-O guard da 34.1 deixou de ser dúvida: `prestado` e `contratado` usam a MESMA
-matriz `servicos`. Quem registra o serviço vê o valor dele nas duas direções, e
-separar viraria uma tela que mostra metade das linhas.
+- o rótulo "Prestador" no Financeiro (`dividas.md` §2.10), que a 34.1 piorou:
+  agora há receita e despesa sob o mesmo nome que já é item de menu;
+- a dívida 3.3 (`resolverPasto` devolve o primeiro achado em silêncio) fica
+  mais visível depois da Task 9 da 34.2, que cria mais um handler de WhatsApp
+  resolvendo ambiguidade do jeito CERTO (pergunta, nunca escolhe). Vale
+  reavaliar se ela entra no escopo da 34.2 ou fica para depois.
 
 **Continuam esperando, de rodadas anteriores:** a outra metade da `dividas.md`
 §2.8 (a despesa avulsa e os sete destinos de saída), a correção do rebanho
@@ -162,8 +143,9 @@ invisível (§2.9), e três decisões de produto do Leite (média diária por di
 corridos; cabeçalho de uma fazenda com armazenamento de todas; fechamento sem
 data nascendo "Vencida").
 
-**Depois:** a fase 34.2 (lançamento diário de trabalho, combustível baixando o
-estoque, horímetro). A spec de design dela já está escrita e mesclada.
+**Depois da 34.2:** pela tabela da spec de design, ela fecha o par de módulos
+33 (Mão de Obra) e 34 (Serviços com Máquinas). Não avance sem aprovação
+explícita.
 
 ### ⚠️ Para quem retomar em OUTRA MÁQUINA
 
