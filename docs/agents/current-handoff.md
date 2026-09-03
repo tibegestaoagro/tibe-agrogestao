@@ -27,23 +27,54 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 ## Estado atual
 
 - Atualizado em: 2026-09-03.
-- **A fase 34.2 (custeio do serviço) está NA `main` E EM PRODUÇÃO.** Merge
-  `d398dbb..37ccc3b` (as dez tarefas do plano, `02a6b5d`..`eed8c8e`), migração
-  `20260906100000_custeio_do_servico` aplicada no Neon antes do push (invariante
-  3), deploy confirmado por sondagem única ao `/docs/api` (as três rotas novas
-  aparecem). Detalhe completo da fase em `historico/2026-09.md` na próxima
-  arquivada.
-  ⚠️ **A validação visual no navegador continua pendente**: `browser-harness` e
-  `claude-in-chrome` não conseguem conectar nesta máquina
-  (`chrome://inspect/#remote-debugging` pede um clique humano que ainda não
-  aconteceu). O contrato de dados foi provado por `curl` real contra `next dev`
-  local; o visual (toggle quantidade/horímetro, `Select`, cores, contador de
-  issues do overlay do Next) não foi olhado por ninguém ainda.
-- Branch de trabalho: **`rebanho-invisivel-cadastro-assistido`**, ainda não
-  commitada nesta rodada (ver abaixo). Não confundir com a antiga
-  `custeio-do-servico-fase-2`, já mesclada e descartável (`git branch -d`).
+- **A fase 34.2 (custeio do serviço) está NA `main` E EM PRODUÇÃO**, e a
+  **validação visual no navegador aconteceu nesta rodada e passou.** Merge
+  `d398dbb..37ccc3b`, migração `20260906100000_custeio_do_servico` aplicada no
+  Neon antes do push, deploy confirmado por sondagem única ao `/docs/api`.
+  Detalhe completo da fase em `historico/2026-09.md` na próxima arquivada.
+  ⚠️ O `browser-harness` só conseguiu conectar depois de repetidas tentativas
+  (o daemon relatava `FAIL` no `--doctor`, mas um `new_tab` explícito
+  funcionou); e a primeira conexão caiu numa aba de OUTRO site
+  (`hub.asimov.academy`), a armadilha do navegador compartilhado já registrada
+  na memória. Confirmar a URL/título depois de conectar continua obrigatório.
+- **A dívida `dividas.md` §2.9 (rebanho invisível do cadastro assistido) está
+  NA `main` E EM PRODUÇÃO.** Merge `37ccc3b..72ac4fc`, sem migração (não toca
+  schema). ⚠️ **`npm run wa` contra produção ainda não rodou** (a prova que
+  falta: hoje só a suíte `m61` provou o caminho).
+- Nenhuma branch de trabalho aberta agora. `custeio-do-servico-fase-2` e
+  `rebanho-invisivel-cadastro-assistido` já foram apagadas (`git branch -d`,
+  ambas mescladas).
 
-### Dívida `dividas.md` §2.9 (rebanho invisível do cadastro assistido): implementada, aguardando commit
+### O que a validação visual da fase 34.2 confirmou (`/servicos`, autenticado, dados reais)
+
+Sessão completa no serviço "Subsolagem" (prestado, por hora):
+
+- **Listagem:** o bloco "Serviços com máquinas: setembro de 2026" com os seis
+  números do §41, recalculando em tempo real conforme o teste avançava.
+- **Ficha do serviço:** a linha de subtítulo com o horímetro
+  (`100 → 108 (8 horas)`, depois atualizando a cada lançamento); o cartão
+  "Resultado do serviço (§25)" com receita/custo/resultado.
+- **Produção diária, os DOIS modos:** quantidade (3 horas lançadas, total
+  2.400→2.250 recalculado) e horímetro (108→115, depois 115→120, cada um
+  virando `X horas` na tabela e atualizando o subtítulo e o total). `MoneyInput`
+  ecoando a unidade nos dois.
+- **Custo do serviço:** o `Select` de natureza com as 10 categorias; o ramo
+  combustível (Produto, Quantidade, Valor por unidade, SEM "saiu do caixa");
+  o ramo comum (Mão de obra, com "saiu do caixa" marcado) submetido de
+  verdade, gerando o lançamento (badge "Gerou lançamento") e o custo
+  aparecendo no cartão do §25.
+- **Botão "Encerrar serviço":** clicado de verdade (`PATCH .../status`, 200),
+  o botão sumiu depois (o componente corretamente não mostra nada para
+  `concluido`).
+- **Zero erro de console e zero issue no overlay do Next**, confirmado com o
+  domínio `Runtime`/`Log` do CDP habilitado e um teste positivo (um
+  `console.error` manual apareceu no overlay, provando que a captura
+  funciona). Três `Runtime.exceptionThrown` apareceram uma vez, não
+  reproduziram numa ação idêntica em seguida, e vieram acompanhados de um log
+  de PWA (`beforeinstallpromptevent`) alheio ao código: artefato do
+  navegador/captura de tela cheia, não defeito.
+
+### Dívida `dividas.md` §2.9 (rebanho invisível do cadastro assistido): na `main`, em produção
 
 Spec: `docs/superpowers/specs/2026-08-31-rebanho-invisivel-do-cadastro-assistido.md`.
 O defeito: quem cadastra animal pelo assistente do WhatsApp (`commitAnimals` em
@@ -135,25 +166,13 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou nesta rodada, e cada commit que sobe é leitura pública.
 
-**2. Commitar e fechar a rodada da §2.9** na branch
-`rebanho-invisivel-cadastro-assistido`: `git add` dos seis arquivos tocados
-(`agent-flows.ts`, `whatsapp-flow-bridge.ts`, `m21`, `m22`, `m61` novo,
-`package.json`) mais `docs/agents/dividas.md` (item removido) e este handoff.
-Depois, merge/push para a `main` quando o usuário autorizar (não toca em
-schema, então não há migração antes desta vez).
+**2. Rodar `npm run wa`** com um cadastro assistido real (brinco, raça, sexo,
+categoria, "sim") contra o agente de produção, e conferir por programa que o
+animal aparece no saldo. É a última prova que falta da §2.9: hoje só a suíte
+`m61` provou o caminho. A fase 34.2 e a §2.9 já estão as duas em produção e já
+tiveram validação no navegador/`curl`.
 
-**3. Depois do deploy, rodar `npm run wa`** com um cadastro assistido real
-(brinco, raça, sexo, categoria, "sim"), e conferir por programa que o animal
-aparece no saldo. É a prova que falta: hoje só a suíte provou.
-
-**4. Validar a fase 34.2 no navegador**, ainda pendente da rodada anterior:
-`next dev` contra o banco local, cookie de `npx tsx scripts/_sessao-local.ts`.
-Abrir `/servicos` e a ficha de um serviço `prestado`: os dois modos do painel
-de produção diária, o painel de custo (natureza, o ramo do combustível), os
-botões de começar/encerrar, a seção de custos com os badges, o cartão do §25,
-o resumo do §41 na listagem, e o contador de issues do overlay do Next.
-
-**5. Duas decisões pequenas que continuam esperando:**
+**3. Duas decisões pequenas que continuam esperando:**
 
 - o rótulo "Prestador" no Financeiro (`dividas.md` §2.10): três origens
   diferentes sob o mesmo nome (despesa do contratado, receita do prestado,
