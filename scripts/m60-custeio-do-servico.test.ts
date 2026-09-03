@@ -9,6 +9,9 @@ exigirRedisLocal();
  *
  * Prova, por seção do documento de Máquinas:
  *   1. §19 e §20: o serviço que dura vários dias, e a produção acrescentada.
+ *   8. §42 pelo WhatsApp: as quatro conversas novas (iniciar, produção,
+ *      combustível, encerrar), com o serviço que nunca é escolhido em
+ *      silêncio quando há mais de um em andamento.
  *
  * ⚠️ A `m58` e a `m59` cobrem o mesmo arquivo e têm que continuar verdes.
  *
@@ -561,6 +564,269 @@ async function main() {
       "e o contratado NÃO entra na conta",
       resumo.servicos === soPrestado,
       `${resumo.servicos} no resumo, ${soPrestado} prestados`,
+    );
+
+    console.log("\n8. §42 pelo WhatsApp: as quatro conversas novas");
+    const { routeIntent } = await import("@/lib/actions/whatsapp-router");
+    // Usuário de VERDADE, não uma string qualquer: `registrar_combustivel_servico`
+    // grava `recorded_by_user_id` no `StockMovement`, que é FK para `User`.
+    const usuarioBloco8 = await prisma.user.create({
+      data: {
+        tenant_id: tenant.id,
+        name: "Produtor M60",
+        email: `m60-bloco8-${stamp}@teste.local`,
+        password_hash: "x",
+        role: "OWNER",
+      },
+    });
+    const USER = usuarioBloco8.id;
+
+    /**
+     * ESTADO LIMPO PRIMEIRO. Os blocos 1 a 7 deixaram vários serviços PRESTADOS
+     * "agendado" (as datas fixas do fixture, 2026-09-04 a 09-07, caem no futuro
+     * em relação à data de hoje quando este arquivo roda perto do começo do
+     * mês). `resolverServicoEmAndamento` enxerga QUALQUER prestado agendado ou
+     * em andamento, e sem esta limpeza os testes de "exatamente um" e
+     * "exatamente dois" deste bloco ficariam reféns da data em que a suíte
+     * roda. Concluir não mexe em dinheiro (nenhum destes tem pagamento
+     * pendente afetado por isso).
+     */
+    const abertosAntesDoBloco8 = await db.serviceJob.findMany({
+      where: { direction: "prestado", canceled_at: null, status: { in: ["agendado", "em_andamento"] } },
+      select: { id: true },
+    });
+    for (const j of abertosAntesDoBloco8) {
+      await setServiceJobStatus(db, { service_job_id: j.id, status: "concluido" });
+    }
+
+    const falar = (
+      intent: string,
+      parameters: Record<string, unknown>,
+      extra: { confirmed?: boolean; explicitNo?: boolean } = {},
+    ) =>
+      routeIntent(db, {
+        intent: intent as never,
+        tenant_id: tenant.id,
+        role: "OWNER",
+        activeProfiles: ["fazenda"],
+        parameters,
+        confirmed: extra.confirmed ?? false,
+        explicitNo: extra.explicitNo ?? false,
+        user_id: USER,
+      });
+
+    // UM serviço prestado em andamento, para os casos 1, 3 e 4.
+    const servicoA = await createServiceJob(db, {
+      direction: "prestado",
+      property_id: fazenda.id,
+      occurred_at: new Date("2026-09-08T12:00:00.000Z"),
+      description: "Gradagem",
+      pricing: "hectare",
+      unit_price: 300,
+      quantity: 5,
+      machine_id: trator.id,
+      contact_name: "João Vizinho",
+    });
+    if (!servicoA.ok) throw new Error("createServiceJob falhou");
+    await setServiceJobStatus(db, { service_job_id: servicoA.data.id, status: "em_andamento" });
+
+    console.log("\n   4. \"não\" cancela nos quatro, e NADA é gravado (a regra 1 do arquivo)");
+    const logsAntesDoCancel = await db.serviceJobLog.count();
+    const custosAntesDoCancel = await db.serviceJobCost.count();
+    for (const intentName of [
+      "iniciar_servico",
+      "registrar_producao_servico",
+      "registrar_combustivel_servico",
+      "encerrar_servico",
+    ]) {
+      const recusado = await falar(intentName, {}, { explicitNo: true });
+      check(
+        `"${intentName}" cancela`,
+        recusado.action_taken === `${intentName}:cancelado`,
+        recusado.action_taken,
+      );
+    }
+    check(
+      "e nada foi gravado, nem o status mudou",
+      (await db.serviceJobLog.count()) === logsAntesDoCancel &&
+        (await db.serviceJobCost.count()) === custosAntesDoCancel &&
+        (await db.serviceJob.findUnique({ where: { id: servicoA.data.id } }))?.status ===
+          "em_andamento",
+    );
+
+    console.log("\n   1. \"Fiz 8 hectares hoje\" com UM serviço em andamento");
+    const p1 = await falar("registrar_producao_servico", {});
+    check(
+      "sem quantidade, pergunta quanto foi feito",
+      p1.action_taken === "clarification_requested",
+      p1.action_taken,
+    );
+
+    const p2 = await falar("registrar_producao_servico", { quantidade: 8 });
+    check(
+      "confirma mostrando 'acrescentar 8 hectares ao serviço de gradagem de João Vizinho'",
+      p2.requires_confirmation === true &&
+        p2.reply_text.includes("8 hectares") &&
+        p2.reply_text.toLowerCase().includes("gradagem de joão vizinho"),
+      p2.reply_text,
+    );
+
+    const p3 = await falar("registrar_producao_servico", {}, { confirmed: true });
+    check(
+      "o sim soma via addServiceJobLog",
+      p3.action_taken === "registrar_producao_servico:ok",
+      p3.action_taken,
+    );
+    check(
+      "dois logs agora (o da criação + o novo)",
+      (await db.serviceJobLog.count({ where: { service_job_id: servicoA.data.id } })) === 2,
+    );
+    const servicoADepois = await getServiceJobDetail(db, servicoA.data.id);
+    check(
+      "13 hectares (5 + 8), 3.900",
+      servicoADepois.ok && servicoADepois.data.quantidade === 13 && servicoADepois.data.total === 3900,
+      servicoADepois.ok ? `${servicoADepois.data.quantidade} / ${servicoADepois.data.total}` : "recusado",
+    );
+
+    console.log(
+      "\n   2. DOIS serviços em andamento e NENHUM nome: PERGUNTA (o caso que discrimina a tarefa)",
+    );
+    const servicoB = await createServiceJob(db, {
+      direction: "prestado",
+      property_id: fazenda.id,
+      occurred_at: new Date("2026-09-08T12:00:00.000Z"),
+      description: "Aração",
+      pricing: "hora",
+      unit_price: 100,
+      quantity: 2,
+      machine_id: trator.id,
+      contact_name: "Maria Fazendeira",
+    });
+    if (!servicoB.ok) throw new Error("createServiceJob falhou");
+    await setServiceJobStatus(db, { service_job_id: servicoB.data.id, status: "em_andamento" });
+
+    const ambiguo = await falar("registrar_producao_servico", { quantidade: 3 });
+    check(
+      "pergunta, listando os dois, e NÃO escolhe o primeiro em silêncio",
+      ambiguo.action_taken === "clarification_requested" &&
+        ambiguo.reply_text.includes("Gradagem") &&
+        ambiguo.reply_text.includes("Aração"),
+      ambiguo.reply_text,
+    );
+    check(
+      // `createServiceJob` já grava o PRIMEIRO log (a quantidade do cadastro).
+      // O que este teste cobra é que a pergunta ambígua não acrescente um
+      // segundo, silenciosamente, no serviço errado.
+      "e não gravou um segundo log no serviço B",
+      (await db.serviceJobLog.count({ where: { service_job_id: servicoB.data.id } })) === 1,
+    );
+    check(
+      "nem mexeu de novo no A",
+      (await db.serviceJobLog.count({ where: { service_job_id: servicoA.data.id } })) === 2,
+    );
+
+    console.log("\n   3. \"Gastei 60 litros de diesel\": confirma, e o sim baixa o estoque");
+    const categoriaBloco8 = await db.productCategory.create({
+      data: scoped({ name: "Combustíveis do bloco 8" }),
+    });
+    const dieselBloco8 = await db.product.create({
+      data: scoped({ category_id: categoriaBloco8.id, name: "Diesel Comum", unit: "litro" }),
+    });
+    await recordStockMovement(db, {
+      product_id: dieselBloco8.id,
+      property_id: fazenda.id,
+      movement_type: "compra",
+      quantity: 200,
+    });
+
+    const f1 = await falar("registrar_combustivel_servico", { quem: "João Vizinho" });
+    check(
+      "sem produto, pergunta o combustível",
+      f1.reply_text.toLowerCase().includes("combust"),
+      f1.reply_text,
+    );
+
+    const f2 = await falar("registrar_combustivel_servico", { produto: "Diesel Comum" });
+    check("com o produto, pergunta a quantidade", f2.reply_text.toLowerCase().includes("gasto"), f2.reply_text);
+
+    const f3 = await falar("registrar_combustivel_servico", { quantidade: 60 });
+    check(
+      "confirma mostrando o combustível e o serviço",
+      f3.requires_confirmation === true &&
+        f3.reply_text.includes("60") &&
+        f3.reply_text.toLowerCase().includes("diesel comum"),
+      f3.reply_text,
+    );
+
+    const saldoAntesBloco8 = (await getStockBalance(db, { product_id: dieselBloco8.id }))[0];
+    check(
+      "200 litros no estoque antes do sim",
+      Number(saldoAntesBloco8?.quantity) === 200,
+      String(saldoAntesBloco8?.quantity),
+    );
+
+    const f4 = await falar("registrar_combustivel_servico", {}, { confirmed: true });
+    check("o sim grava", f4.action_taken === "registrar_combustivel_servico:ok", f4.action_taken);
+    const saldoDepoisBloco8 = (await getStockBalance(db, { product_id: dieselBloco8.id }))[0];
+    check(
+      "e o estoque caiu para 140 litros",
+      Number(saldoDepoisBloco8?.quantity) === 140,
+      String(saldoDepoisBloco8?.quantity),
+    );
+    check(
+      "e o custo aponta para o serviço do João",
+      (await db.serviceJobCost.count({
+        where: { service_job_id: servicoA.data.id, kind: "combustivel" },
+      })) === 1,
+    );
+
+    console.log("\n   5. \"Terminei o serviço do João\": quantidade, total e situação do pagamento");
+    const e1 = await falar("encerrar_servico", { quem: "João Vizinho" });
+    check(
+      "confirma antes de concluir",
+      e1.requires_confirmation === true && e1.reply_text.toLowerCase().includes("concluído"),
+      e1.reply_text,
+    );
+    const e2 = await falar("encerrar_servico", {}, { confirmed: true });
+    check("o sim conclui", e2.action_taken === "encerrar_servico:ok", e2.action_taken);
+    check(
+      "e devolve quantidade, total e situação do pagamento, os três itens do §42",
+      e2.reply_text.includes("13") &&
+        e2.reply_text.includes("3.900") &&
+        e2.reply_text.toLowerCase().includes("a receber"),
+      e2.reply_text,
+    );
+    const servicoAFinal = await db.serviceJob.findUnique({ where: { id: servicoA.data.id } });
+    check("e o status foi para concluido", servicoAFinal?.status === "concluido", servicoAFinal?.status);
+
+    console.log("\n   iniciar_servico: 'Comecei a roçada do Pedro hoje' (fora do mínimo, cobertura à parte)");
+    const servicoC = await createServiceJob(db, {
+      direction: "prestado",
+      property_id: fazenda.id,
+      occurred_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      description: "Roçada",
+      pricing: "hectare",
+      unit_price: 120,
+      quantity: 3,
+      machine_id: trator.id,
+      contact_name: "Pedro Lavrador",
+    });
+    if (!servicoC.ok) throw new Error("createServiceJob falhou");
+    check("nasce agendado", servicoC.data.status === "agendado", servicoC.data.status);
+
+    const i1 = await falar("iniciar_servico", { quem: "Pedro Lavrador" });
+    check(
+      "confirma antes de iniciar",
+      i1.requires_confirmation === true && i1.reply_text.toLowerCase().includes("iniciado"),
+      i1.reply_text,
+    );
+    const i2 = await falar("iniciar_servico", {}, { confirmed: true });
+    check("o sim inicia", i2.action_taken === "iniciar_servico:ok", i2.action_taken);
+    const servicoCDepois = await db.serviceJob.findUnique({ where: { id: servicoC.data.id } });
+    check(
+      "e o status foi para em_andamento",
+      servicoCDepois?.status === "em_andamento",
+      servicoCDepois?.status,
     );
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });
