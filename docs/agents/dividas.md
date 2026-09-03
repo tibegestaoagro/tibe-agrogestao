@@ -303,6 +303,15 @@ duas origens e para de colidir com o nome do menu. É uma linha, mas muda o que
 um módulo em produção exibe (as ordens de serviço do perfil prestador passariam
 a se chamar "Serviço" no Financeiro), então é decisão de produto, não faxina.
 
+⚠️ **A fase 34.2 (custeio do serviço) acrescenta uma TERCEIRA origem sob o
+mesmo rótulo.** `recordServiceCost` (`src/lib/actions/service-costs.ts`) usa
+`related_module: "servico"` para o custo que "saiu do caixa agora" (mão de
+obra do operador, pedágio, alimentação), então agora `/financeiro` pode
+mostrar, no mesmo dia e sob "Prestador": a despesa do contratado, a receita do
+prestado, **e** a despesa do custo de um serviço prestado. A categoria (ex.
+"Mão de obra do serviço", "Pedágio") continua sendo o único jeito de
+distinguir, e a dívida não fechou nesta fase.
+
 ---
 
 ## 3. Rede de segurança com furo
@@ -332,6 +341,16 @@ achados e, com mais de um, devolver a mesma pergunta que já existe para "não
 achei". O caro é conferir os handlers que a chamam, porque cada um precisa saber
 guardar o pedido e reperguntar. Uma rodada, com `m34`, `m36`, `m38` e `m51`
 antes e depois.
+
+⚠️ **O contraste ficou mais gritante na fase 34.2.** `resolverServicoEmAndamento`
+(`src/lib/actions/whatsapp-handlers/servico.ts`), escrito para as cinco
+conversas do §42, resolve exatamente o mesmo tipo de ambiguidade (qual dos
+vários "em andamento" a frase quer dizer) do jeito CERTO: dois achados sem nome
+dito é pergunta, listando os candidatos, nunca o primeiro em silêncio (provado
+com suíte quebrando de propósito, `m60` bloco 8, caso 2). `resolverPasto`
+continua sem essa checagem no mesmo arquivo de módulo. Não fecha a dívida, só
+prova que o custo de fechar é menor do que parece: o padrão já existe, só falta
+aplicar.
 
 ✅ **Já existe implementação de referência**, escrita em 02/09:
 `resolverTrabalhador`, em `src/lib/actions/whatsapp-handlers/mao-de-obra.ts`.

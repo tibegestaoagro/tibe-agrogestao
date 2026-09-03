@@ -8,7 +8,21 @@ import { criarStoreDePendencia, type PedidoBase } from "@/lib/actions/pending-st
  * outras sete cópias, e seria a NONA.
  */
 
-export type GestoServico = "diaria" | "empreito" | "prestado";
+/**
+ * ⚠️ Os quatro novos (`iniciar`, `producao`, `combustivel_servico`,
+ * `encerrar`) são as conversas do §42 que faltavam na 34.1: começar, acrescentar
+ * produção, lançar combustível e encerrar. O classificador do n8n ainda NÃO
+ * emite as intenções que abrem estes gestos; eles ficam roteados e testados,
+ * esperando a rodada em que o agente for atualizado.
+ */
+export type GestoServico =
+  | "diaria"
+  | "empreito"
+  | "prestado"
+  | "iniciar"
+  | "producao"
+  | "combustivel_servico"
+  | "encerrar";
 
 /** O campo que o assistente perguntou e está esperando. */
 export type CampoServico =
@@ -20,6 +34,8 @@ export type CampoServico =
   /** Os dois do prestado (§42 do documento de Máquinas). */
   | "maquina"
   | "unidade"
+  /** O combustível do §42: qual produto foi gasto. */
+  | "produto"
   /** Não é campo: é o serviço inteiro esperando um "sim". */
   | "confirmacao";
 
@@ -43,6 +59,7 @@ const store = criarStoreDePendencia<CampoServico, ServicoPendente>({
     if (campo === "quem") return "contact_name";
     if (campo === "maquina") return "machine";
     if (campo === "unidade") return "pricing";
+    if (campo === "produto") return "product";
     return campo;
   },
 });

@@ -26,63 +26,58 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 ## Estado atual
 
-- Atualizado em: 2026-09-02.
-- Branch de trabalho: **`servico-prestado-fase-1`**, 8 commits à frente da
-  `main`.
-- **Nada desta fase foi mesclado nem empurrado.** As fases 33.1 e 33.2 já estão
-  na `main` e em produção; o detalhe delas foi para `historico/2026-09.md`.
+- Atualizado em: 2026-09-03.
+- Branch de trabalho: **`custeio-do-servico-fase-2`**, 11 commits à frente da
+  `main`. **As dez tarefas do plano da fase 34.2 estão implementadas e
+  commitadas.** `npm run test:all` (63/63), `npm run check` (15/15), `npx tsc
+  --noEmit` e `npm run lint` todos limpos nesta rodada, com o estado final da
+  branch.
+- **A fase 34.1 (serviço prestado com máquina própria) está NA `main` E EM
+  PRODUÇÃO.** Merge `3e31d13..d398dbb`, migração `20260905100000_servico_prestado`
+  aplicada no Neon, deploy confirmado por sondagem única ao `/docs/api`.
+  Detalhe completo em `historico/2026-09.md`.
 
-### A fase 34.1 está pronta na branch, e não subiu
+### A fase 34.2 (custeio do serviço): implementada, falta migrar em produção e olhar no navegador
 
-O serviço **PRESTADO** com máquina própria: a fazenda faz o serviço para outra
-pessoa e o dinheiro ENTRA. Escopo entregue, do §13 ao §42 do documento de
-Máquinas.
+Plano em `docs/superpowers/plans/2026-09-02-fase-34-2-custeio-do-servico.md`.
+As dez tarefas, uma por commit (`02a6b5d` a `eed8c8e`): schema e migração
+(`ServiceJobCost`, `Machine.hour_meter_*`, `StockMovement.service_job_id`);
+produção diária do §19/§20 e horímetro do §33; iniciar/encerrar (§42, que a
+34.1 tinha prometido e não entregou); o custo do §23/§24 com a trava central
+(o lançamento do custo aponta para o CUSTO, nunca para o serviço); o
+combustível do §21 baixando o estoque sem duplicar despesa; o resultado do
+§25 e o resumo mensal do §41; as três rotas (`POST .../logs`,
+`GET`/`POST .../costs`, `PATCH .../status`); as três telas (produção diária,
+custo, começar/encerrar) mais a seção de custos e o resumo na listagem; as
+cinco conversas do §42 pelo WhatsApp. Suíte `m60`, 8 blocos, todos verdes.
 
-**Quatro bifurcações abertas em `service-jobs.ts`**, todas lidas da `direction`
-e nunca recebidas por parâmetro:
+As três decisões tomadas com o usuário em 02/09 (custo aponta para o custo,
+nunca para o serviço; valor do combustível é digitado, não derivado; horímetro
+só anda para a frente) já estão na spec de design, seção **3.3** de
+`docs/superpowers/specs/2026-09-02-mao-de-obra-e-servicos-com-maquinas-design.md`,
+como decisões 17 a 19.
 
-| o que muda | `contratado` | `prestado` |
-|---|---|---|
-| sinal do lançamento | `expense` | `income` |
-| categoria | Serviço terceirizado | Serviço prestado |
-| `machine_id` | RECUSADO (é `MachineMaintenance`) | OBRIGATÓRIO (§17) |
-| cliente | opcional (§14: "vieram 3 homens") | obrigatório (§17) |
+**Duas tarefas foram despachadas em paralelo** (telas via `tela-pagina`,
+WhatsApp via `servidor-agente`, arquivos disjuntos), cada uma revisada e
+commitada separadamente pela sessão principal antes da próxima.
 
-Mais: o `status` passou a vir da DATA (§18), então serviço marcado para o futuro
-nasce `agendado` e entra na agenda do §39. Isso vale para as DUAS direções.
+⚠️ **Validação no navegador NÃO aconteceu.** Nem o `browser-harness` nem o
+`claude-in-chrome` conseguiram conectar: `chrome://inspect/#remote-debugging`
+exige um clique humano nesta máquina, e ninguém clicou nesta rodada. O que
+existe no lugar: as 8 blocos da `m60` verdes, e uma bateria de chamadas `curl`
+reais contra `next dev` local (autenticado via `_sessao-local.ts`) cobrindo
+cada rota nova e a recusa de cada uma, mais o HTML devolvido pelo servidor
+conferido por grep (os números aparecem, nenhum "Application error"). Isso
+prova o contrato de dados; **não prova o visual**: o toggle
+quantidade/horímetro, o `Select` de natureza/produto, a cor do cartão de
+resultado, e principalmente o contador de issues do overlay do Next (único
+jeito de pegar um `Decimal` vazando para o cliente) continuam sem olho humano.
+Antes de considerar a fase pronta para o usuário validar, abra `/servicos` e a
+ficha de um serviço prestado no navegador.
 
-**O que entrou junto:** o histórico da máquina (§32, somado **por unidade**), a
-agenda (§39), os serviços na ficha do contato (§37, nas duas direções), duas
-rotas, as telas, e a intenção `registrar_servico_prestado` no WhatsApp.
-
-⚠️ **O classificador do n8n continua congelado** e não emite a intenção nova.
-Ela é roteada e testada, como as outras nove que esperam a mesma coisa.
-
-### Três coisas que só a validação viva achou
-
-1. **A tela `/servicos` passava `Decimal` para um Client Component** desde a
-   fase 33.2. `tsc`, `lint`, `check` e as suítes verdes; a página renderizava; o
-   único sinal era o contador de issues do overlay do Next. Corrigido com
-   `select`. Virou [[decimal-do-prisma-so-quebra-no-console-do-navegador]] no
-   cofre.
-2. **A `m58` escrevia no Redis de PRODUÇÃO toda vez que rodava.** Ela conversa
-   com o handler, o handler guarda a pendência no Redis, e nada conferia o
-   alvo. Ganhou `exigirRedisLocal()`, a mesma trava da `m56`.
-3. **A dívida 2.10 PIOROU**, e está reescrita: agora existe RECEITA sob o rótulo
-   "Prestador", ao lado da despesa. O mesmo nome cobre três coisas diferentes.
-
-### O que foi conferido no navegador
-
-Com `next dev` contra o Docker local, tudo pelo caminho real (rota e
-formulário): o §13 (25 hectares a 180 dá **R$ 4.500**), o §27 (recebe 3.000 de
-8.000, ficam **5.000**), o §18 (serviço de daqui a 3 dias nasce **Agendado** e
-aparece em "Próximos"), o §32 (a ficha da máquina diz **"4 horas · 20 diárias ·
-25 hectares"**, sem somar tudo), o §37 (um contato com serviço e NENHUM negócio
-abre normalmente) e o §28 (as cinco linhas em `/financeiro` são **Receita**, e o
-DRE do mês mostra `servico` com receita 13.100 e despesa 1.800 lado a lado).
-
-As três recusas do formulário aparecem sob os campos certos, e o foco vai para
-o primeiro do `ORDEM`.
+⚠️ **Migração `20260906100000_custeio_do_servico` só foi aplicada no Docker
+local.** Falta subir no Neon (produção), que é autorização do usuário a cada
+vez (invariante 3 e 7).
 
 ### 🔴 SEGURANÇA: o repositório está PÚBLICO e o `.env.enc` vazou
 
@@ -129,32 +124,36 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou nesta rodada, e cada commit que sobe é leitura pública.
 
-**2. A migração no Neon, também do usuário.**
-`20260905100000_servico_prestado` está aplicada só no Docker local. O
-invariante 3 vale: ela vai ANTES de qualquer push, porque a Vercel faz deploy
-automático e o build não roda migração. `npm run db:deploy` contra produção é
-recusado pelo classificador de permissões mesmo com a marca de autorização,
-então quem aplica é você, no terminal.
+**2. Validar a fase 34.2 no navegador, autenticado, antes de considerá-la
+pronta.** `next dev` contra o banco local (`DATABASE_URL` do Docker,
+`REDIS_URL` porta local), cookie de `npx tsx scripts/_sessao-local.ts`. Abrir
+`/servicos` e a ficha de um serviço `prestado`: os dois modos do painel de
+produção diária, o painel de custo (natureza, o ramo do combustível), os
+botões de começar/encerrar, a seção de custos com os badges, o cartão do §25,
+o resumo do §41 na listagem, e o contador de issues do overlay do Next. É o
+único passo do plano que não foi cumprido.
 
-O `DATABASE_URL` do `.env` é a URL **Direct** (sem `-pooler`), então
-`npm run db:deploy` roda sem passar URL inline. Confira depois com
-`npx prisma migrate status`, que é leitura e passa.
+**3. Migrar `20260906100000_custeio_do_servico` no Neon**, quando o usuário
+autorizar (invariantes 3 e 7). Só depois disso a fase pode ir para a `main`.
 
-⚠️ **A migração é ADITIVA e não tem nenhum `DROP`**, de nenhum tipo: quatro
-colunas anuláveis em `ServiceJob`, dois índices e uma chave estrangeira.
-Nenhuma linha existente é tocada, e nenhum serviço já registrado muda de
-comportamento.
+**4. Os critérios de aceite da fase 34.2 (seção 10 da spec de design)**, pelo
+que a suíte e a validação por `curl` já provam: lançar produção dia a dia num
+serviço em andamento (§19/§20, `m60` bloco 1), registrar combustível e ver o
+estoque baixar (§21/§35, `m60` bloco 5), informar horímetro inicial e final e
+ver as horas na máquina (§33, `m60` bloco 2), ver o resultado simples do
+serviço (§25, `m60` bloco 6). As intenções da fase respondem pelo handler, com
+suíte (`m60` bloco 8), mesmo com o classificador congelado. Falta só a
+confirmação visual do passo 2 acima.
 
-**3. Só então** merge e push da `servico-prestado-fase-1`, com autorização
-explícita.
+**5. Duas decisões pequenas que continuam esperando** (a §2.10 e a §3.3 da
+`dividas.md` ganharam nota nova nesta rodada, registrando que a 34.2 tornou as
+duas mais visíveis, sem fechar nenhuma):
 
-**4. Uma decisão pequena, agora mais urgente:** o rótulo "Prestador" no
-Financeiro (`dividas.md` §2.10). A 34.1 pôs RECEITA sob ele, então o mesmo
-nome cobre o item de menu, a despesa e a receita.
-
-O guard da 34.1 deixou de ser dúvida: `prestado` e `contratado` usam a MESMA
-matriz `servicos`. Quem registra o serviço vê o valor dele nas duas direções, e
-separar viraria uma tela que mostra metade das linhas.
+- o rótulo "Prestador" no Financeiro (`dividas.md` §2.10): agora com uma
+  TERCEIRA origem sob o mesmo nome (o custo do serviço que gera despesa);
+- a dívida 3.3 (`resolverPasto` devolve o primeiro achado em silêncio): o
+  contraste com `resolverServicoEmAndamento` (que resolve o mesmo tipo de
+  ambiguidade do jeito certo) ficou mais gritante.
 
 **Continuam esperando, de rodadas anteriores:** a outra metade da `dividas.md`
 §2.8 (a despesa avulsa e os sete destinos de saída), a correção do rebanho
@@ -162,8 +161,9 @@ invisível (§2.9), e três decisões de produto do Leite (média diária por di
 corridos; cabeçalho de uma fazenda com armazenamento de todas; fechamento sem
 data nascendo "Vencida").
 
-**Depois:** a fase 34.2 (lançamento diário de trabalho, combustível baixando o
-estoque, horímetro). A spec de design dela já está escrita e mesclada.
+**Depois da 34.2 (e da validação no navegador):** pela tabela da spec de
+design, ela fecha o par de módulos 33 (Mão de Obra) e 34 (Serviços com
+Máquinas). Não avance sem aprovação explícita.
 
 ### ⚠️ Para quem retomar em OUTRA MÁQUINA
 

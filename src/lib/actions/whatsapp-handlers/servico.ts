@@ -1,6 +1,12 @@
 import type { ServicePricing } from "@/generated/prisma/client";
 import type { TenantPrismaClient } from "@/lib/prisma";
-import { createServiceJob } from "@/lib/actions/service-jobs";
+import {
+  createServiceJob,
+  setServiceJobStatus,
+  addServiceJobLog,
+  getServiceJobDetail,
+} from "@/lib/actions/service-jobs";
+import { recordServiceFuel } from "@/lib/actions/service-costs";
 import { listContacts } from "@/lib/actions/contacts";
 import {
   savePendingService,
@@ -14,21 +20,27 @@ import { ask, failReply, str, type Handler, type RouterResult } from "./shared";
 import { lerNumeroBr } from "./parsers";
 
 /**
- * Serviço pelo WhatsApp: as duas conversas do §32 do Módulo 33 e a do §42 do
- * documento de Máquinas.
+ * Serviço pelo WhatsApp: as duas conversas do §32 do Módulo 33 e as cinco do
+ * §42 do documento de Máquinas.
  *
  *   "Vieram 3 homens trabalhar na cerca por 4 dias, 150 a diária."
  *   "O Pedro fez a cerca por 6 mil."
  *   "Amanhã vou gradear 20 hectares para o João a 180 reais o hectare."
+ *   "Comecei a gradagem do João hoje."
+ *   "Fiz 8 hectares hoje."
+ *   "Gastei 60 litros de diesel hoje nesse serviço."
+ *   "Terminei o serviço do João."
  *
- * A terceira é a que INVERTE o sinal do dinheiro: ela gera conta a receber, e
- * exige a máquina.
+ * A terceira do §32 é a que INVERTE o sinal do dinheiro: ela gera conta a
+ * receber, e exige a máquina. As quatro últimas não criam serviço nenhum:
+ * elas ACHAM um serviço `prestado` já em andamento e o atualizam, e é aí que
+ * mora o risco novo: o produtor diz "o serviço do João", não um id.
  *
  * O CLASSIFICADOR DO N8N NÃO FOI TOCADO (decisão do usuário: o agente fica
- * congelado até o sistema estar revisado). As duas intenções existem, são
- * roteadas e são testadas, e ficam esperando o dia em que o classificador
- * aprender a emiti-las. Mesmo estado das três da mão de obra fixa, das quatro
- * do leite e das quatro do confinamento.
+ * congelado até o sistema estar revisado). As sete intenções deste arquivo
+ * existem, são roteadas e são testadas, e ficam esperando o dia em que o
+ * classificador aprender a emiti-las. Mesmo estado das três da mão de obra
+ * fixa, das quatro do leite e das quatro do confinamento.
  *
  * AS TRÊS REGRAS QUE NÃO PODEM AFROUXAR, todas herdadas de defeitos reais:
  *
@@ -38,7 +50,9 @@ import { lerNumeroBr } from "./parsers";
  *    que o classificador remontou da própria resposta do assistente.
  * 3. **Ambiguidade PERGUNTA**, nunca escolhe o primeiro. É o defeito que
  *    `resolverPasto` ainda tem (`dividas.md` §3.3), e este caminho nasce sem
- *    ele, como o de `mao-de-obra.ts`.
+ *    ele, como o de `mao-de-obra.ts` e, agora, o de
+ *    `resolverServicoEmAndamento` abaixo: dois serviços em andamento e nenhum
+ *    nome dito é PERGUNTA, listando os dois, nunca o primeiro em silêncio.
  */
 
 function moeda(v: number): string {
@@ -136,6 +150,135 @@ async function resolverMaquina(
         : `Não achei essa máquina. Qual você usou?\n${lista}`,
     ),
   };
+}
+
+/**
+ * Acha o serviço PRESTADO já em andamento a que a frase se refere, sem
+ * inventar (§42: "comecei", "fiz X hoje", "gastei", "terminei").
+ *
+ * Procura entre os NÃO CONCLUÍDOS (`agendado` ou `em_andamento`, sem
+ * cancelamento): "fiz 8 hectares hoje" é sobre algo em curso, não sobre um
+ * serviço já fechado. Com o nome do cliente dito, filtra por ele; sem nome,
+ * só resolve sozinho se houver exatamente UM serviço nesse estado.
+ *
+ * ⚠️ DOIS EM ANDAMENTO E NENHUM NOME É PERGUNTA, listando os dois, nunca o
+ * primeiro escolhido em silêncio. É o defeito que `resolverPasto` ainda tem
+ * (`dividas.md` §3.3): um "fiz 8 hectares hoje" que caísse no primeiro
+ * serviço poria a produção no cliente errado, e o horímetro do §32 iria para
+ * a máquina errada junto.
+ */
+async function resolverServicoEmAndamento(
+  db: TenantPrismaClient,
+  cliente: string | null,
+): Promise<
+  | { ok: true; job: { id: string; description: string } }
+  | { ok: false; resposta: RouterResult }
+> {
+  const jobs = await db.serviceJob.findMany({
+    where: {
+      direction: "prestado",
+      canceled_at: null,
+      status: { in: ["agendado", "em_andamento"] },
+    },
+    include: { contact: { select: { name: true } } },
+    orderBy: { occurred_at: "desc" },
+  });
+
+  const listar = (lista: typeof jobs) =>
+    lista.map((j) => `- ${j.description}${j.contact ? ` para ${j.contact.name}` : ""}`).join("\n");
+
+  if (jobs.length === 0) {
+    return {
+      ok: false,
+      resposta: ask("Não encontrei nenhum serviço em andamento para atualizar."),
+    };
+  }
+
+  if (cliente) {
+    const alvo = normalizar(cliente);
+    const achados = jobs.filter((j) => j.contact && normalizar(j.contact.name).includes(alvo));
+    if (achados.length === 1) {
+      return { ok: true, job: { id: achados[0].id, description: achados[0].description } };
+    }
+    if (achados.length > 1) {
+      return {
+        ok: false,
+        resposta: ask(
+          `Tenho mais de um serviço em andamento para esse cliente. Qual deles?\n${listar(achados)}`,
+        ),
+      };
+    }
+    return {
+      ok: false,
+      resposta: ask(
+        `Não achei serviço em andamento para esse cliente. Qual destes é?\n${listar(jobs)}`,
+      ),
+    };
+  }
+
+  if (jobs.length === 1) {
+    return { ok: true, job: { id: jobs[0].id, description: jobs[0].description } };
+  }
+
+  return {
+    ok: false,
+    resposta: ask(`Tenho mais de um serviço em andamento. Qual deles?\n${listar(jobs)}`),
+  };
+}
+
+/**
+ * Acha o produto do combustível no estoque, quando existir (§21).
+ *
+ * ⚠️ Diferença de propósito para `resolverMaquina`: NÃO ACHAR não é pergunta.
+ * O §21 é literal, "SE o diesel existir no estoque", e o custo entra do mesmo
+ * jeito, sem baixar nada. Ambiguidade CONTINUA pergunta: escolher entre dois
+ * produtos em silêncio arriscaria baixar o estoque errado.
+ */
+async function resolverProdutoOpcional(
+  db: TenantPrismaClient,
+  nome: string,
+): Promise<{ id: string; unit: string | null } | { pergunta: RouterResult } | null> {
+  const produtos = await db.product.findMany({
+    where: { archived_at: null },
+    select: { id: true, name: true, unit: true },
+  });
+  const alvo = normalizar(nome);
+  const achados = produtos.filter((p) => normalizar(p.name).includes(alvo));
+
+  if (achados.length === 1) return { id: achados[0].id, unit: achados[0].unit };
+  if (achados.length > 1) {
+    const lista = achados.map((p) => `- ${p.name}`).join("\n");
+    return {
+      pergunta: ask(`Tenho mais de um produto parecido no estoque. Qual deles é?\n${lista}`),
+    };
+  }
+  return null;
+}
+
+/**
+ * A unidade falada, por `pricing`.
+ *
+ * ⚠️ Cópia deliberada do `PRICING_UNIDADE` de `components/servicos/labels.ts`:
+ * aquele arquivo é da tela e importar dali arrastaria o kit de componentes
+ * para dentro do agente, que é servidor puro. Mesmo motivo de
+ * `SERVICOS_MECANIZADOS` já viver duplicado entre os dois arquivos.
+ */
+const UNIDADE_FALADA: Record<ServicePricing, string> = {
+  hora: "horas",
+  hectare: "hectares",
+  dia: "diárias",
+  viagem: "viagens",
+  tonelada: "toneladas",
+  metro: "metros",
+  quilometro: "quilômetros",
+  cabeca: "cabeças",
+  fechado: "unidades",
+};
+
+/** "gradagem de João Vizinho", ou só "gradagem" quando não há cliente. */
+function comCliente(descricao: string, cliente: string | null): string {
+  const base = descricao.toLowerCase();
+  return cliente ? `${base} de ${cliente}` : base;
 }
 
 async function cancelar(
@@ -545,6 +688,262 @@ export const registrarServicoPrestado: Handler = async (ctx) => {
       "\nFicou como conta a receber. Me avise quando receber.",
     requires_confirmation: false,
     auxiliary_data: { service_job_id: res.data.id },
+    report_url: null,
+    action_taken: `${intent}:ok`,
+  };
+};
+
+// ── §42: começar, acrescentar produção, lançar combustível, encerrar ────
+
+/**
+ * "Comecei a gradagem do João hoje." (§42)
+ */
+export const iniciarServico: Handler = async (ctx) => {
+  const intent = "iniciar_servico";
+  if (ctx.explicitNo) return cancelar(intent, ctx.tenant_id, ctx.user_id);
+
+  const aberta = await abrirConversa("iniciar", ctx);
+  if ("parar" in aberta) return aberta.parar;
+  const { parameters, guardar, limpar } = aberta;
+
+  const clienteDito = str(parameters.quem) ?? str(parameters.contact_name);
+  const achado = await resolverServicoEmAndamento(ctx.db, clienteDito);
+  if (!achado.ok) {
+    await guardar("quem");
+    return achado.resposta;
+  }
+
+  const detalhe = await getServiceJobDetail(ctx.db, achado.job.id);
+  if (!detalhe.ok) return failReply(intent, detalhe);
+  const alvo = comCliente(detalhe.data.description, detalhe.data.contact_name);
+
+  if (!ctx.confirmed) {
+    await guardar("confirmacao");
+    return {
+      reply_text: `Vou marcar o serviço de ${alvo} como iniciado. Confirma?`,
+      requires_confirmation: true,
+      auxiliary_data: { service_job_id: achado.job.id },
+      report_url: null,
+      action_taken: `${intent}:aguardando_confirmacao`,
+    };
+  }
+
+  const res = await setServiceJobStatus(ctx.db, {
+    service_job_id: achado.job.id,
+    status: "em_andamento",
+  });
+  await limpar();
+  if (!res.ok) return failReply(intent, res);
+
+  return {
+    reply_text: `✅ Serviço de ${comCliente(res.data.description, res.data.contact_name)} iniciado.`,
+    requires_confirmation: false,
+    auxiliary_data: { service_job_id: achado.job.id },
+    report_url: null,
+    action_taken: `${intent}:ok`,
+  };
+};
+
+/**
+ * "Fiz 8 hectares hoje." (§42, §19 e §20)
+ *
+ * A confirmação mostra "acrescentar X <unidade> ao serviço de <descrição>",
+ * com a unidade do `pricing` do serviço resolvido (hectares, horas...), não um
+ * genérico "unidades".
+ */
+export const registrarProducaoServico: Handler = async (ctx) => {
+  const intent = "registrar_producao_servico";
+  if (ctx.explicitNo) return cancelar(intent, ctx.tenant_id, ctx.user_id);
+
+  const aberta = await abrirConversa("producao", ctx);
+  if ("parar" in aberta) return aberta.parar;
+  const { parameters, guardar, limpar } = aberta;
+
+  const clienteDito = str(parameters.quem) ?? str(parameters.contact_name);
+  const achado = await resolverServicoEmAndamento(ctx.db, clienteDito);
+  if (!achado.ok) {
+    await guardar("quem");
+    return achado.resposta;
+  }
+
+  const detalhe = await getServiceJobDetail(ctx.db, achado.job.id);
+  if (!detalhe.ok) return failReply(intent, detalhe);
+  const alvo = comCliente(detalhe.data.description, detalhe.data.contact_name);
+  const unidade = UNIDADE_FALADA[detalhe.data.pricing] ?? "unidades";
+
+  const quantidade = lerNumeroBr(parameters.quantidade ?? parameters.quantity);
+  if (quantidade === null || quantidade <= 0) {
+    await guardar("quantidade");
+    return ask(`Quanto foi feito no serviço de ${alvo}?`);
+  }
+
+  if (!ctx.confirmed) {
+    await guardar("confirmacao");
+    return {
+      reply_text: `Deseja acrescentar ${quantidade} ${unidade} ao serviço de ${alvo}?`,
+      requires_confirmation: true,
+      auxiliary_data: { service_job_id: achado.job.id, quantidade },
+      report_url: null,
+      action_taken: `${intent}:aguardando_confirmacao`,
+    };
+  }
+
+  const res = await addServiceJobLog(ctx.db, {
+    service_job_id: achado.job.id,
+    quantity: quantidade,
+  });
+  await limpar();
+  if (!res.ok) return failReply(intent, res);
+
+  return {
+    reply_text:
+      `✅ Produção registrada. Total do serviço agora: ${res.data.quantidade} ${unidade}, ` +
+      `${moeda(res.data.total)}.`,
+    requires_confirmation: false,
+    auxiliary_data: { service_job_id: achado.job.id },
+    report_url: null,
+    action_taken: `${intent}:ok`,
+  };
+};
+
+/**
+ * "Gastei 60 litros de diesel hoje nesse serviço." (§42, §21 e §22)
+ *
+ * O produto é OPCIONAL (§21: "SE existir no estoque"): sem achar, o custo
+ * entra do mesmo jeito, sem baixar nada. `recordServiceFuel` é quem decide.
+ */
+export const registrarCombustivelServico: Handler = async (ctx) => {
+  const intent = "registrar_combustivel_servico";
+  if (ctx.explicitNo) return cancelar(intent, ctx.tenant_id, ctx.user_id);
+
+  const aberta = await abrirConversa("combustivel_servico", ctx);
+  if ("parar" in aberta) return aberta.parar;
+  const { parameters, guardar, limpar } = aberta;
+
+  const clienteDito = str(parameters.quem) ?? str(parameters.contact_name);
+  const achado = await resolverServicoEmAndamento(ctx.db, clienteDito);
+  if (!achado.ok) {
+    await guardar("quem");
+    return achado.resposta;
+  }
+
+  const detalhe = await getServiceJobDetail(ctx.db, achado.job.id);
+  if (!detalhe.ok) return failReply(intent, detalhe);
+  const alvo = comCliente(detalhe.data.description, detalhe.data.contact_name);
+
+  const produtoDito = str(parameters.produto) ?? str(parameters.product);
+  if (!produtoDito) {
+    await guardar("produto");
+    return ask(`Qual combustível ou produto foi usado no serviço de ${alvo}?`);
+  }
+
+  const quantidade = lerNumeroBr(parameters.quantidade ?? parameters.quantity);
+  if (quantidade === null || quantidade <= 0) {
+    await guardar("quantidade");
+    return ask(`Quanto de ${produtoDito.toLowerCase()} foi gasto?`);
+  }
+
+  const produto = await resolverProdutoOpcional(ctx.db, produtoDito);
+  if (produto && "pergunta" in produto) {
+    await guardar("produto");
+    return produto.pergunta;
+  }
+
+  const valor = lerNumeroBr(parameters.valor ?? parameters.amount);
+
+  if (!ctx.confirmed) {
+    await guardar("confirmacao");
+    const unidadeTexto = produto?.unit ? `${produto.unit} de ` : "";
+    return {
+      reply_text:
+        `Deseja registrar ${quantidade} ${unidadeTexto}${produtoDito.toLowerCase()} ` +
+        `no serviço de ${alvo}${valor !== null ? `, ${moeda(valor)}` : ""}?`,
+      requires_confirmation: true,
+      auxiliary_data: { service_job_id: achado.job.id, produto: produtoDito, quantidade, valor },
+      report_url: null,
+      action_taken: `${intent}:aguardando_confirmacao`,
+    };
+  }
+
+  const res = await recordServiceFuel(ctx.db, {
+    service_job_id: achado.job.id,
+    product_id: produto?.id ?? null,
+    description: produto ? null : produtoDito,
+    quantity: quantidade,
+    unit: produto?.unit ?? null,
+    amount: valor,
+    user_id: ctx.user_id,
+  });
+  await limpar();
+  if (!res.ok) return failReply(intent, res);
+
+  return {
+    reply_text:
+      `✅ ${quantidade} de ${produtoDito.toLowerCase()} registrado no serviço de ${alvo}.` +
+      (res.data.baixou_estoque ? " Baixei do estoque." : ""),
+    requires_confirmation: false,
+    auxiliary_data: { service_job_id: achado.job.id },
+    report_url: null,
+    action_taken: `${intent}:ok`,
+  };
+};
+
+/**
+ * "Terminei o serviço do João." (§42)
+ *
+ * A resposta traz os três itens que o §42 pede em letra: quantidade, valor
+ * total e situação do pagamento. Concluir NÃO mexe no dinheiro: quitar aqui
+ * inventaria um recebimento que ninguém confirmou.
+ */
+export const encerrarServico: Handler = async (ctx) => {
+  const intent = "encerrar_servico";
+  if (ctx.explicitNo) return cancelar(intent, ctx.tenant_id, ctx.user_id);
+
+  const aberta = await abrirConversa("encerrar", ctx);
+  if ("parar" in aberta) return aberta.parar;
+  const { parameters, guardar, limpar } = aberta;
+
+  const clienteDito = str(parameters.quem) ?? str(parameters.contact_name);
+  const achado = await resolverServicoEmAndamento(ctx.db, clienteDito);
+  if (!achado.ok) {
+    await guardar("quem");
+    return achado.resposta;
+  }
+
+  const detalhe = await getServiceJobDetail(ctx.db, achado.job.id);
+  if (!detalhe.ok) return failReply(intent, detalhe);
+  const alvo = comCliente(detalhe.data.description, detalhe.data.contact_name);
+
+  if (!ctx.confirmed) {
+    await guardar("confirmacao");
+    return {
+      reply_text: `Vou marcar o serviço de ${alvo} como concluído. Confirma?`,
+      requires_confirmation: true,
+      auxiliary_data: { service_job_id: achado.job.id },
+      report_url: null,
+      action_taken: `${intent}:aguardando_confirmacao`,
+    };
+  }
+
+  const res = await setServiceJobStatus(ctx.db, {
+    service_job_id: achado.job.id,
+    status: "concluido",
+  });
+  await limpar();
+  if (!res.ok) return failReply(intent, res);
+
+  const unidade = UNIDADE_FALADA[res.data.pricing] ?? "unidades";
+  const situacao =
+    res.data.a_receber > 0
+      ? `faltam ${moeda(res.data.a_receber)} a receber`
+      : "já está tudo recebido";
+
+  return {
+    reply_text:
+      `✅ Serviço de ${comCliente(res.data.description, res.data.contact_name)} concluído. ` +
+      `Total: ${res.data.quantidade} ${unidade}, ${moeda(res.data.total)}. ${situacao}.`,
+    requires_confirmation: false,
+    auxiliary_data: { service_job_id: achado.job.id },
     report_url: null,
     action_taken: `${intent}:ok`,
   };

@@ -90,6 +90,15 @@ export const INTENTS = [
   // gera RECEITA. Mesmo estado das de cima: roteada e testada, esperando o
   // classificador ser atualizado.
   "registrar_servico_prestado",
+  // §42 do documento de Máquinas, as três conversas que faltavam: começar,
+  // acrescentar produção e lançar combustível, mais o encerrar. O pagamento já
+  // é outra intenção (registrar_diaria/registrar_servico_prestado cobrem o
+  // dinheiro; aqui é só o andamento do serviço). Mesmo estado das de cima:
+  // roteadas e testadas, esperando o classificador ser atualizado.
+  "iniciar_servico",
+  "registrar_producao_servico",
+  "registrar_combustivel_servico",
+  "encerrar_servico",
   "consultar_cliente",
   "gerar_relatorio",
   "registrar_lancamento_financeiro",
@@ -183,6 +192,13 @@ export const INTENT_ACCESS: Record<
   registrar_diaria: { module: "servicos", action: "write", profile: "fazenda" },
   registrar_servico_contratado: { module: "servicos", action: "write", profile: "fazenda" },
   registrar_servico_prestado: { module: "servicos", action: "write", profile: "fazenda" },
+  // As quatro conversas do §42 que faltavam: mesmo módulo e perfil do
+  // registrar_servico_prestado vizinho, porque são o mesmo serviço, só em
+  // momentos diferentes (começar, produção, combustível, encerrar).
+  iniciar_servico: { module: "servicos", action: "write", profile: "fazenda" },
+  registrar_producao_servico: { module: "servicos", action: "write", profile: "fazenda" },
+  registrar_combustivel_servico: { module: "servicos", action: "write", profile: "fazenda" },
+  encerrar_servico: { module: "servicos", action: "write", profile: "fazenda" },
   consultar_cliente: { module: "prestador", action: "read", profile: "prestador" },
   gerar_relatorio: { module: null, action: "read" }, // módulo varia por parameters.tipo
   registrar_lancamento_financeiro: { module: "financeiro", action: "write" },

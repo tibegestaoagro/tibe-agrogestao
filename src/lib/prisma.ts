@@ -75,6 +75,7 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   "ServiceJob",
   "ServiceJobLog",
   "WorkerLog",
+  "ServiceJobCost",
 ]);
 
 function createBaseClient(): PrismaClient {

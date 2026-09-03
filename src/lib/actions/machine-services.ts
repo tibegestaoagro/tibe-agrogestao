@@ -105,6 +105,75 @@ export async function getMachineServices(
   };
 }
 
+export type ServicesSummary = {
+  servicos: number;
+  quantidade_por_unidade: Partial<Record<ServicePricing, number>>;
+  valor: number;
+  recebido: number;
+  a_receber: number;
+};
+
+/**
+ * O resumo do §41: só o PRESTADO. "Recebido" não significa nada num serviço
+ * que a fazenda contratou (ali o dinheiro sai), e misturar as duas direções
+ * faria a despesa de um contratado aparecer como faturamento do mês.
+ */
+export async function getServicesSummary(
+  db: TenantPrismaClient,
+  periodo: { de: Date; ate: Date },
+): Promise<ServicesSummary> {
+  const jobs = await db.serviceJob.findMany({
+    where: {
+      direction: "prestado",
+      canceled_at: null,
+      occurred_at: { gte: periodo.de, lte: periodo.ate },
+    },
+    include: { logs: true },
+  });
+
+  const quantidade_por_unidade: Partial<Record<ServicePricing, number>> = {};
+  let valor = 0;
+  for (const job of jobs) {
+    const logs = job.logs.map((l) => ({
+      quantity: decToNum(l.quantity) ?? 0,
+      canceled_at: l.canceled_at,
+    }));
+    const quantidade = quantidadeTrabalhada(logs);
+    valor += totalDoServico(
+      {
+        pricing: job.pricing,
+        unit_price: decToNum(job.unit_price),
+        agreed_amount: decToNum(job.agreed_amount),
+        worker_count: job.worker_count,
+      },
+      logs,
+    );
+    if (job.pricing !== "fechado" && quantidade > 0) {
+      quantidade_por_unidade[job.pricing] = (quantidade_por_unidade[job.pricing] ?? 0) + quantidade;
+    }
+  }
+
+  // Uma consulta só para os lançamentos de todos os serviços do período, não
+  // uma por linha, exatamente como `listServiceJobs` faz.
+  const entries =
+    jobs.length === 0
+      ? []
+      : await db.financialEntry.findMany({
+          where: { related_module: "servico", related_id: { in: jobs.map((j) => j.id) } },
+          select: { amount: true, status: true },
+        });
+  const soma = (status: string) =>
+    entries.filter((e) => e.status === status).reduce((s, e) => s + (decToNum(e.amount) ?? 0), 0);
+
+  return {
+    servicos: jobs.length,
+    quantidade_por_unidade,
+    valor: Math.round(valor * 100) / 100,
+    recebido: Math.round(soma("paid") * 100) / 100,
+    a_receber: Math.round((soma("pending") + soma("overdue")) * 100) / 100,
+  };
+}
+
 export type AgendaLine = {
   id: string;
   occurred_at: string;

@@ -1167,6 +1167,45 @@ export const GROUPS: Group[] = [
 { "data": { "id": "cl..." }, "meta": {} }`,
       },
       {
+        method: "POST",
+        path: "/api/v1/service-jobs/:id/logs",
+        auth: "Sessão · servicos:write · perfil fazenda",
+        description:
+          "Acrescenta produção a um serviço que dura vários dias, sem criar um serviço novo (§19, §20). A conta em aberto acompanha o total novo. §33: informe `hour_meter_start` e `hour_meter_end` no lugar de `quantity`, e as horas saem da diferença; os dois juntos com `quantity` é recusado. O horímetro final atualiza `Machine.hour_meter`, e SÓ ANDA PARA A FRENTE (um lançamento fora de ordem não faz a máquina voltar). Serviço `fechado` (empreito) recusa quantidade: o §16 não calcula por hora ou hectare.",
+        request: `{ "quantity": 7, "occurred_at": "2026-09-02T12:00:00.000Z" }`,
+        response: `201
+{ "data": { "id": "cl...", "quantidade": 16, "total": 2400, "horas": null }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/service-jobs/:id/costs",
+        auth: "Sessão · servicos:read · perfil fazenda",
+        description:
+          "Os custos do serviço (§21 a §25): a lista, o total e a soma por natureza. Cancelados ficam no histórico e saem da soma.",
+        response: `200
+{ "data": { "linhas": [], "total": 800, "por_natureza": { "mao_de_obra": 600, "pedagio": 200 } }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/service-jobs/:id/costs",
+        auth: "Sessão · servicos:write · perfil fazenda",
+        description:
+          "Registra um custo. Com `kind: \"combustivel\"` ou `product_id`, é o combustível do §21: SE o produto existir no estoque, baixa a quantidade informada (§35); sem produto cadastrado, o custo entra do mesmo jeito, sem baixa. `amount` e `unit_price` são as duas formas do §22 de dizer o valor (o total informado vence); sem nenhum dos dois, o custo fica com valor nulo. ⚠️ O combustível NUNCA gera lançamento financeiro: o diesel já virou despesa quando foi comprado (decisão 17). Nas outras naturezas, `saiu_do_caixa: true` gera a despesa no Financeiro, apontando para o CUSTO, nunca para o serviço, para o dinheiro que saiu não aparecer como se o cliente tivesse pagado.",
+        request: `{ "kind": "combustivel", "product_id": "cl...", "quantity": 80, "unit_price": 6 }`,
+        response: `201
+{ "data": { "id": "cl...", "kind": "combustivel", "amount": 480, "gerou_lancamento": false, "baixou_estoque": true }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/service-jobs/:id/status",
+        auth: "Sessão · servicos:write · perfil fazenda",
+        description:
+          "Começa ou encerra o serviço (§42): `status: \"em_andamento\"` ou `\"concluido\"`. Concluir NÃO quita nada: o §42 pergunta se o cliente já pagou DEPOIS de mostrar quantidade, total e o que falta receber, e a resposta é outro passo (`POST .../payments`). Serviço cancelado devolve 409.",
+        request: `{ "status": "concluido" }`,
+        response: `200
+{ "data": { "id": "cl...", "status": "concluido", "quantidade": 10, "total": 3000, "a_receber": 3000 }, "meta": {} }`,
+      },
+      {
         method: "GET",
         path: "/api/v1/workers/:id/logs",
         auth: "Sessão · mao_de_obra:read · perfil fazenda",
