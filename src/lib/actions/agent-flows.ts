@@ -1,4 +1,5 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
+import { resolveCategoryTerm, findCategory } from "@/lib/herd/categories";
 
 /**
  * Cadastro assistido pelo WhatsApp (2026-07-30, abertura consolidada desde
@@ -39,6 +40,19 @@ export type FlowField = {
   /** Normaliza a resposta crua; devolve null quando não serve. */
   parse: (raw: string) => string | null;
   invalid: string;
+  /**
+   * Se AUSENTE deste campo sozinho já deve abrir o modo assistido
+   * (`maybeStartAnimalFlow`). Default `true`.
+   *
+   * `false` é para campo que a fase 34.2/§2.9 acrescentou depois: o
+   * classificador nunca manda categoria, então se ela contasse aqui, TODO
+   * cadastro completo (brinco, raça, sexo, sem categoria) cairia no modo
+   * assistido, e o caminho direto de uma mensagem só (`cadastrarAnimal` em
+   * `whatsapp-handlers/rebanho.ts`) deixaria de ser alcançado. O campo
+   * continua sendo PERGUNTADO normalmente dentro do fluxo, uma vez que ele já
+   * abriu por outro motivo: isto só afeta a decisão de abrir.
+   */
+  triggersFlow?: boolean;
 };
 
 export type FlowDef = {
@@ -124,10 +138,39 @@ export const FLOWS: Record<string, FlowDef> = {
         },
         invalid: "Não entendi. Responda macho ou fêmea.",
       },
+      /**
+       * §2.9 da `dividas.md`: sem esta pergunta, o lote nascia na categoria
+       * "Não classificado", que `resolveCategoryTerm` nunca traduz para as 12
+       * do livro-razão, e o animal ficava fora do saldo, sem erro nem aviso.
+       *
+       * `parse` devolve o ID da categoria do livro-razão (`HerdCategory.id`),
+       * nunca o texto cru: é o que garante que `commitAnimals` sabe
+       * exatamente qual das 12 gravar, sem reinterpretar a fala do produtor
+       * uma segunda vez. Ambíguo ou desconhecido devolve `null`, e o fluxo
+       * repergunta: adivinhar aqui é lançar o animal na faixa etária errada,
+       * que a regra do módulo proíbe.
+       */
+      {
+        name: "category",
+        question: "Qual a categoria? (ex: bezerro, novilha de 13 a 24 meses, vaca, boi, garrote, touro)",
+        parse: (raw) => {
+          const resolvido = resolveCategoryTerm(raw);
+          return resolvido.kind === "exact" ? resolvido.category.id : null;
+        },
+        invalid:
+          "Não entendi a categoria, ou ela serve para mais de uma faixa. Pode ser mais específico? " +
+          "Ex: bezerro, bezerra, novilha de 13 a 24 meses, vaca, boi, garrote reprodutor, touro.",
+        // Ausente sozinho NÃO abre o modo assistido: ver o comentário de
+        // `triggersFlow` em `FlowField`.
+        triggersFlow: false,
+      },
     ],
-    openingQuestion: "Me diga o brinco, a raça e o sexo, um por linha ou separados por vírgula.",
+    openingQuestion:
+      "Me diga o brinco, a raça, o sexo e a categoria (ex: bezerro, novilha, vaca...), um por linha ou separados por vírgula.",
     summarizeItem: (i) =>
-      `Brinco ${i.ear_tag}, ${i.breed}, ${i.sex === "male" ? "macho" : "fêmea"}.`,
+      `Brinco ${i.ear_tag}, ${i.breed}, ${i.sex === "male" ? "macho" : "fêmea"}, ${
+        findCategory(i.category)?.label ?? i.category
+      }.`,
   },
 };
 

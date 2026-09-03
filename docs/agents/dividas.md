@@ -253,20 +253,6 @@ produtor amarra uma despesa AVULSA ao lote; quais dos sete destinos viram
 movimento novo no livro-razão). Decisão do usuário em 31/08: entram numa onda
 própria, com as perguntas trazidas junto da spec.
 
-### 2.9 O rebanho invisível do cadastro assistido
-
-`whatsapp-flow-bridge.ts` e `POST /api/v1/animals` criam lote em "Não
-classificado", e o saldo do rebanho lê `HerdMovement`: quem cadastra pelo
-assistente **não vê o animal no rebanho**.
-
-Spec pronta em
-`../superpowers/specs/2026-08-31-rebanho-invisivel-do-cadastro-assistido.md`,
-com as duas perguntas em aberto **já respondidas "sim"** pelo usuário. Adiada
-por decisão dele em 31/08, para o Confinamento entrar primeiro sem conflito.
-
-Estava registrada só no `current-handoff.md`, que é volátil por desenho: veio
-para cá em 31/08 para não sumir no próximo arquivamento.
-
 ### 2.10 O rótulo "Prestador" no Financeiro colide com o item de menu
 
 **O que é:** a despesa de um serviço contratado aparece em `/financeiro` sob o
