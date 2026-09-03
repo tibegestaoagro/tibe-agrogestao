@@ -1,5 +1,6 @@
 import type {
   Prisma,
+  ServiceCostKind,
   ServiceDirection,
   ServiceJobStatus,
   ServicePricing,
@@ -8,6 +9,7 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
 import { findOrCreateContact } from "@/lib/actions/contacts";
+import { getServiceCosts, type ServiceCostView } from "@/lib/actions/service-costs";
 import { totalDoServico, quantidadeTrabalhada } from "@/lib/mao-de-obra/total-do-servico";
 import { decToNum, isoOrNull } from "@/lib/serialize";
 
@@ -206,6 +208,16 @@ export type ServiceJobDetailView = ServiceJobView & {
     due_date: string | null;
     paid_at: string | null;
   }[];
+  /** §25: os custos registrados, para a tabela da ficha. */
+  costs: ServiceCostView[];
+  custo_total: number;
+  custo_por_natureza: Partial<Record<ServiceCostKind, number>>;
+  /**
+   * §25: "gerencial, não contábil". `prestado`: total - custo. `contratado`:
+   * NEGATIVO, porque o total já é despesa (o valor combinado com o terceiro)
+   * e o custo se soma a ela, nunca se subtrai.
+   */
+  resultado: number;
 };
 
 type LinhaDeServico = Prisma.ServiceJobGetPayload<{
@@ -810,7 +822,7 @@ export async function addServiceJobLog(
        * horímetro da máquina voltar, porque o §34 vai comparar esse número com
        * a próxima manutenção prevista.
        */
-      if (job.machine_id) {
+      if (job.machine_id && final !== null && final !== undefined) {
         const maquina = await tx.machine.findFirst({ where: { id: job.machine_id } });
         const atual = decToNum(maquina?.hour_meter) ?? 0;
         if (final > atual) {
@@ -923,8 +935,20 @@ export async function getServiceJobDetail(
     select: { id: true, amount: true, status: true, due_date: true, paid_at: true },
   });
 
+  const view = serializar(job, entries);
+  const custos = await getServiceCosts(db, id);
+
+  /**
+   * §25: "gerencial, não contábil". No `prestado`, o resultado é receita menos
+   * custo. No `contratado` NÃO HÁ RECEITA: o `total` já É a despesa combinada
+   * com o terceiro, e o custo se SOMA a ela, nunca subtrai. Uma fórmula só
+   * (`total - custo`) faria o contratado mostrar um "lucro" que não existe.
+   */
+  const resultado =
+    job.direction === "prestado" ? view.total - custos.total : -(view.total + custos.total);
+
   return ok({
-    ...serializar(job, entries),
+    ...view,
     logs: job.logs
       .slice()
       .sort((a, b) => b.occurred_at.getTime() - a.occurred_at.getTime())
@@ -942,5 +966,9 @@ export async function getServiceJobDetail(
       due_date: isoOrNull(e.due_date),
       paid_at: isoOrNull(e.paid_at),
     })),
+    costs: custos.linhas,
+    custo_total: custos.total,
+    custo_por_natureza: custos.por_natureza,
+    resultado: Math.round(resultado * 100) / 100,
   });
 }

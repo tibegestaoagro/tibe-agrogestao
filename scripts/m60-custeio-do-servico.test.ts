@@ -450,6 +450,118 @@ async function main() {
       semValor.ok && semValor.data.saldo_do_produto === 400,
       semValor.ok ? String(semValor.data.saldo_do_produto) : "recusado",
     );
+
+    console.log("\n6. §25: receita 4.500, custo 1.600, resultado 2.900");
+    const paraOResultado = await createServiceJob(db, {
+      direction: "prestado",
+      property_id: fazenda.id,
+      occurred_at: new Date("2026-09-07T12:00:00.000Z"),
+      description: "Ensilagem do §25",
+      pricing: "hectare",
+      unit_price: 300,
+      quantity: 15,
+      machine_id: trator.id,
+      contact_name: "João Vizinho",
+    });
+    if (!paraOResultado.ok) throw new Error("createServiceJob falhou");
+
+    await recordServiceCost(db, {
+      service_job_id: paraOResultado.data.id,
+      kind: "combustivel",
+      description: "Diesel",
+      amount: 800,
+    });
+    await recordServiceCost(db, {
+      service_job_id: paraOResultado.data.id,
+      kind: "mao_de_obra",
+      description: "Operador",
+      amount: 600,
+    });
+    await recordServiceCost(db, {
+      service_job_id: paraOResultado.data.id,
+      kind: "outro",
+      description: "Outros",
+      amount: 200,
+    });
+
+    const comResultado = await getServiceJobDetail(db, paraOResultado.data.id);
+    check("receita 4.500", comResultado.ok && comResultado.data.total === 4500,
+      comResultado.ok ? String(comResultado.data.total) : "recusado");
+    check("custo registrado 1.600", comResultado.ok && comResultado.data.custo_total === 1600,
+      comResultado.ok ? String(comResultado.data.custo_total) : "recusado");
+    check("resultado simples 2.900", comResultado.ok && comResultado.data.resultado === 2900,
+      comResultado.ok ? String(comResultado.data.resultado) : "recusado");
+
+    /**
+     * ⚠️ O resultado é do SERVIÇO, e o serviço contratado também tem um: ele é
+     * NEGATIVO, porque um serviço que a fazenda contratou não tem receita. Uma
+     * implementação que só calculasse para o prestado deixaria a ficha do
+     * contratado com um campo em branco no lugar de um número verdadeiro.
+     */
+    const contratadoComCusto = await createServiceJob(db, {
+      direction: "contratado",
+      property_id: fazenda.id,
+      occurred_at: new Date("2026-09-07T12:00:00.000Z"),
+      description: "Roçada contratada",
+      pricing: "fechado",
+      agreed_amount: 1000,
+    });
+    await recordServiceCost(db, {
+      service_job_id: contratadoComCusto.ok ? contratadoComCusto.data.id : "",
+      kind: "pedagio",
+      description: "Pedágio",
+      amount: 50,
+    });
+    const fichaContratado = await getServiceJobDetail(
+      db,
+      contratadoComCusto.ok ? contratadoComCusto.data.id : "",
+    );
+    check(
+      "no contratado o resultado é negativo: 1.000 de custo mais 50",
+      fichaContratado.ok && fichaContratado.data.resultado === -1050,
+      fichaContratado.ok ? String(fichaContratado.data.resultado) : "recusado",
+    );
+
+    console.log("\n7. §41: o resumo do mês");
+    const { getServicesSummary } = await import("@/lib/actions/machine-services");
+    const resumo = await getServicesSummary(db, {
+      de: new Date("2026-09-01T00:00:00.000Z"),
+      ate: new Date("2026-09-30T23:59:59.999Z"),
+    });
+    check("conta os serviços do período", resumo.servicos > 0, String(resumo.servicos));
+    check(
+      "soma as horas e os hectares SEPARADOS, como o §32",
+      typeof resumo.quantidade_por_unidade.hora === "number" &&
+        typeof resumo.quantidade_por_unidade.hectare === "number",
+      JSON.stringify(resumo.quantidade_por_unidade),
+    );
+    check(
+      "e os três números do dinheiro fecham: valor = recebido + a receber",
+      Math.abs(resumo.valor - (resumo.recebido + resumo.a_receber)) < 0.01,
+      `${resumo.valor} = ${resumo.recebido} + ${resumo.a_receber}`,
+    );
+
+    /**
+     * ⚠️ O resumo é do PRESTADO. O §41 diz "Valor dos serviços / Recebido / A
+     * receber", e "recebido" não significa nada num serviço que a fazenda
+     * contratou: ali o dinheiro sai. Misturar as duas direções faria a despesa
+     * de um serviço contratado aparecer como faturamento do mês.
+     */
+    const soPrestado = await db.serviceJob.count({
+      where: {
+        direction: "prestado",
+        canceled_at: null,
+        occurred_at: {
+          gte: new Date("2026-09-01T00:00:00.000Z"),
+          lte: new Date("2026-09-30T23:59:59.999Z"),
+        },
+      },
+    });
+    check(
+      "e o contratado NÃO entra na conta",
+      resumo.servicos === soPrestado,
+      `${resumo.servicos} no resumo, ${soPrestado} prestados`,
+    );
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });
     await prisma.$disconnect();
