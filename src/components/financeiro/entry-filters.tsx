@@ -44,12 +44,18 @@ export default function EntryFilters() {
         </SelectContent>
       </Select>
       <Select value={sp.get("status") ?? ALL} onValueChange={(v) => setParam("status", v)}>
-        <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
+        <SelectTrigger className="w-40"><SelectValue placeholder="Situação" /></SelectTrigger>
         <SelectContent>
-          <SelectItem value={ALL}>Todos os status</SelectItem>
-          <SelectItem value="pending">Pendente</SelectItem>
-          <SelectItem value="paid">Pago</SelectItem>
-          <SelectItem value="overdue">Vencido</SelectItem>
+          <SelectItem value={ALL}>Todas as situações</SelectItem>
+          <SelectItem value="pending">Em aberto</SelectItem>
+          <SelectItem value="paid">Paga ou recebida</SelectItem>
+          {/*
+            "Vencida" não é status gravado: `overdue` está no enum e nunca é
+            escrito. A página traduz este valor para pendente com vencimento
+            no passado, que é o que o produtor quer ver.
+          */}
+          <SelectItem value="overdue">Vencida</SelectItem>
+          <SelectItem value="cancelled">Cancelada</SelectItem>
         </SelectContent>
       </Select>
     </div>
