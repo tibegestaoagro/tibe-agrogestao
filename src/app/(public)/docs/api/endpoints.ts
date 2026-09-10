@@ -1463,10 +1463,39 @@ export const GROUPS: Group[] = [
         method: "PATCH",
         path: "/api/v1/financial-entries/:id/pay",
         auth: "Sessão · financeiro:write",
-        description: "Marca como pago, registrando paid_at (default: agora).",
+        description:
+          "Quita a conta de uma vez. Desde o Módulo 35 isso registra um pagamento do SALDO restante: uma conta de R$ 10.000 com R$ 4.000 já pagos é quitada com um pagamento de R$ 6.000.",
         request: `{ "paid_at": "2026-07-10T00:00:00.000Z" }`,
         response: `200
 { "data": { "id": "cl...", "status": "paid", "paid_at": "..." } }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/financial-entries/:id/payments",
+        auth: "Sessão · financeiro:read",
+        description:
+          "Os pagamentos da conta, do mais recente para o mais antigo. `meta` traz o derivado: valor, pago, saldo e situacao (em_aberto, parcialmente_paga, paga, cancelada). O valor pago é sempre a SOMA dos pagamentos, nunca um campo gravado.",
+        response: `200
+{ "data": [{ "id": "cl...", "amount": 4000, "paid_at": "...", "method": "pix" }], "meta": { "total": 1, "valor": 10000, "pago": 4000, "saldo": 6000, "situacao": "parcialmente_paga" } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/financial-entries/:id/payments",
+        auth: "Sessão · financeiro:write",
+        description:
+          "Registra um pagamento (ou recebimento) parcial, §13 e §14. Recusa com 422 e `field: \"amount\"` quando o valor estoura o saldo, e com ENTRY_CANCELLED quando a conta está cancelada. `method` é opcional: quem paga metade no PIX e metade em dinheiro registra dois pagamentos.",
+        request: `{ "amount": 4000, "paid_at": "2026-09-10T00:00:00.000Z", "method": "pix", "notes": "primeira parcela" }`,
+        response: `201
+{ "data": { "id": "cl..." }, "meta": { "valor": 10000, "pago": 4000, "saldo": 6000, "situacao": "parcialmente_paga" } }`,
+      },
+      {
+        method: "DELETE",
+        path: "/api/v1/financial-entries/:id/payments/:paymentId",
+        auth: "Sessão · financeiro:write",
+        description:
+          "Desfaz um pagamento registrado por engano. A linha é apagada, e a conta volta a dever o que voltou a faltar: sai de 'paga' se deixar de estar coberta. O histórico do LANÇAMENTO continua intacto.",
+        response: `200
+{ "data": { "entry_id": "cl..." }, "meta": { "valor": 10000, "pago": 0, "saldo": 10000, "situacao": "em_aberto" } }`,
       },
       {
         method: "PATCH",

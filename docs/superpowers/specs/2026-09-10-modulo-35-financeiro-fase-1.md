@@ -188,10 +188,25 @@ lançamento passa a devolver `pago`, `saldo`, `situacao` e a lista de pagamentos
 ⚠️ Recusa com `field` preenchido, senão a mensagem cai no rodapé em vez de
 embaixo do campo. `apiErroDeZod` para o Zod.
 
-### T05: `createLinkedEntry` e as 15 origens
+### T05: `createLinkedEntry`, as 15 origens, e o apagar em cascata
 
 Os dois parâmetros novos, e as 13 origens que têm o dado passam a preencher.
 Nenhuma query nova: se o valor não está à mão, fica nulo.
+
+⚠️ **Risco achado na T03, e é aqui que ele se resolve.** `herd-ledger.ts:808`,
+`herd-stays.ts:592` e `service-jobs.ts` (três pontos) **apagam**
+`FinancialEntry` pendente direto no banco quando a operação de origem é
+cancelada. Com `onDelete: Cascade` no `entry_id`, isso passa a apagar junto os
+`FinancialPayment` daquela conta.
+
+Numa conta pendente **parcialmente paga**, o registro do dinheiro que já saiu
+sumiria sem aviso. O caso concreto: cancelar um confinamento cujo boitel foi
+meio pago.
+
+Decisão do usuário em 10/09: tratar junto desta tarefa. O caminho é a mesma
+guarda da `cancelEntryAction`, que já recusa cancelar conta com pagamento:
+esses três pontos precisam recusar antes de apagar, em vez de apagar em
+silêncio.
 
 ### T06: as 26 categorias
 
