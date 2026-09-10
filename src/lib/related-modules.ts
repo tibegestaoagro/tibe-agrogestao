@@ -16,7 +16,15 @@ import { RelatedModule } from "@/generated/prisma/enums";
 export const MODULE_LABEL: Record<RelatedModule, string> = {
   rebanho: "Rebanho",
   lavoura: "Lavoura",
-  servico: "Prestador",
+  /**
+   * "Serviço", e não "Prestador" (decisão do usuário em 10/09/2026, dívida
+   * 2.10). O rótulo antigo nomeava três coisas ao mesmo tempo: o item do menu
+   * lateral (que é o PERFIL prestador, do Módulo 2), a despesa do serviço que
+   * a fazenda contratou, e a receita do serviço que a fazenda prestou. Quem
+   * contratava um pedreiro via a despesa marcada como "Prestador" e podia
+   * procurá-la na área errada.
+   */
+  servico: "Serviço",
   maquinas: "Máquinas",
   geral: "Geral",
   confinamento: "Confinamento",

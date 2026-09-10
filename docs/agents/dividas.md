@@ -253,51 +253,6 @@ produtor amarra uma despesa AVULSA ao lote; quais dos sete destinos viram
 movimento novo no livro-razão). Decisão do usuário em 31/08: entram numa onda
 própria, com as perguntas trazidas junto da spec.
 
-### 2.10 O rótulo "Prestador" no Financeiro colide com o item de menu
-
-**O que é:** a despesa de um serviço contratado aparece em `/financeiro` sob o
-módulo **"Prestador"**. É o rótulo de `RelatedModule.servico` em
-`src/lib/related-modules.ts`, herdado do Módulo 2, e a fase 33.2 reusou aquele
-valor de propósito (decisão 8 da spec: `entry_type` já separa receita de
-despesa, e um tenant raramente tem os dois perfis).
-
-**Evidência:** validação ao vivo de 02/09. Um serviço de "Reforma de cerca"
-lançado pelo painel aparece como
-`02/09/2026 | Despesa | Serviço terceirizado | Prestador | R$ 500,00 | Pago`.
-
-⚠️ **A fase 34.1 PIOROU esta dívida**, e é preciso registrar isso: agora existe
-RECEITA sob o mesmo rótulo. Na mesma tela, no mesmo dia:
-
-```
-02/09/2026 | Receita | Serviço prestado     | Prestador | R$ 360.000,00 | Pendente
-02/09/2026 | Despesa | Serviço terceirizado | Prestador | R$ 500,00     | Pago
-```
-
-Ou seja, "Prestador" passou a nomear três coisas diferentes: o item de menu, a
-despesa de quem a fazenda contratou, e a receita do que a fazenda prestou.
-
-**Por que importa:** "Prestador" também é um item do menu lateral, e ele é
-**outra coisa**: o perfil prestador, do Módulo 2, que um tenant de fazenda nem
-usa. O produtor que contrata um pedreiro e vê a despesa marcada como
-"Prestador" pode procurá-la na área errada. Com a receita do 34.1 no mesmo
-rótulo, ele também não consegue separar o que entrou do que saiu olhando a
-coluna do módulo: só a coluna de categoria distingue, e ela é a segunda que se
-lê.
-
-**Custo de fechar:** trocar o rótulo de `servico` para "Serviço", que serve às
-duas origens e para de colidir com o nome do menu. É uma linha, mas muda o que
-um módulo em produção exibe (as ordens de serviço do perfil prestador passariam
-a se chamar "Serviço" no Financeiro), então é decisão de produto, não faxina.
-
-⚠️ **A fase 34.2 (custeio do serviço) acrescenta uma TERCEIRA origem sob o
-mesmo rótulo.** `recordServiceCost` (`src/lib/actions/service-costs.ts`) usa
-`related_module: "servico"` para o custo que "saiu do caixa agora" (mão de
-obra do operador, pedágio, alimentação), então agora `/financeiro` pode
-mostrar, no mesmo dia e sob "Prestador": a despesa do contratado, a receita do
-prestado, **e** a despesa do custo de um serviço prestado. A categoria (ex.
-"Mão de obra do serviço", "Pedágio") continua sendo o único jeito de
-distinguir, e a dívida não fechou nesta fase.
-
 ### 2.11 O histórico financeiro não tem fazenda, e some do filtro por fazenda
 
 **O que é:** `FinancialEntry.property_id` nasceu na fase 35.1 (10/09/2026) e
@@ -332,48 +287,11 @@ foi adiado uma vez.
 
 ## 3. Rede de segurança com furo
 
-### 3.3 `resolverPasto` não distingue ambiguidade: pega o primeiro
-
-**O que é:** a função que traduz o pasto citado no WhatsApp (`resolverPasto`,
-usada por `herd.ts` e por todos os handlers que aceitam pasto) faz `contains`
-sem acento e **devolve o primeiro achado**. Não há tratamento de ambiguidade.
-
-**Evidência:** achado em 2026-08-31 pelo `servidor-agente`, ao implementar o
-pasto de retorno do Confinamento. O briefing pedia que o handler perguntasse
-quando o pasto fosse ambíguo; ele foi implementar, descobriu que a função
-compartilhada não distingue, **não mexeu no comportamento de outros módulos** e
-relatou.
-
-**Por que importa:** uma fazenda com "Pasto da Sede" e "Pasto da Sede Nova" faz
-"sede" cair no primeiro, em silêncio. É a classe de defeito que este produto
-menos pode ter: **dado errado gravado sem aviso**, no caminho em que o produtor
-menos confere (uma conversa de WhatsApp no curral).
-
-⚠️ Vale para **todo** o caminho de pasto do WhatsApp, não só o Confinamento, e
-é anterior a esta frente.
-
-**Custo de fechar:** a função é uma só, então a correção é local: contar os
-achados e, com mais de um, devolver a mesma pergunta que já existe para "não
-achei". O caro é conferir os handlers que a chamam, porque cada um precisa saber
-guardar o pedido e reperguntar. Uma rodada, com `m34`, `m36`, `m38` e `m51`
-antes e depois.
-
-⚠️ **O contraste ficou mais gritante na fase 34.2.** `resolverServicoEmAndamento`
-(`src/lib/actions/whatsapp-handlers/servico.ts`), escrito para as cinco
-conversas do §42, resolve exatamente o mesmo tipo de ambiguidade (qual dos
-vários "em andamento" a frase quer dizer) do jeito CERTO: dois achados sem nome
-dito é pergunta, listando os candidatos, nunca o primeiro em silêncio (provado
-com suíte quebrando de propósito, `m60` bloco 8, caso 2). `resolverPasto`
-continua sem essa checagem no mesmo arquivo de módulo. Não fecha a dívida, só
-prova que o custo de fechar é menor do que parece: o padrão já existe, só falta
-aplicar.
-
-✅ **Já existe implementação de referência**, escrita em 02/09:
-`resolverTrabalhador`, em `src/lib/actions/whatsapp-handlers/mao-de-obra.ts`.
-Ela faz exatamente o que falta aqui (conta os achados, e com mais de um devolve
-a lista perguntando qual), e o bloco 17 da `m57` prova nos dois sentidos:
-desligando a checagem, "adiantei 100 pro Pedro" com dois Pedros na equipe grava
-no Pedro errado em silêncio. Copiar a forma de lá encurta esta rodada.
+Vazia hoje. O único item que morava aqui era o `resolverPasto`, que escolhia o
+primeiro pasto parecido em silêncio, e ele foi fechado em 10/09/2026: agora
+conta os achados e pergunta quando há mais de um, com o bloco 18 da `m34`
+provando nos dois sentidos. A seção fica de pé porque a numeração não é
+reaproveitada.
 
 ---
 

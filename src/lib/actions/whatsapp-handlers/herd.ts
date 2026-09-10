@@ -20,7 +20,15 @@ import {
   MAX_TENTATIVAS,
   type CampoPendente,
 } from "@/lib/actions/herd-pending";
-import { ask, failReply, str, confirmFlow, type Handler, type RouterResult } from "./shared";
+import {
+  ask,
+  failReply,
+  str,
+  confirmFlow,
+  normalizarTermo,
+  type Handler,
+  type RouterResult,
+} from "./shared";
 import { lerData, lerDinheiro, lerNumeroBr } from "./parsers";
 
 /**
@@ -160,13 +168,47 @@ export async function resolverPasto(
   nome: string | null,
 ): Promise<{ ok: true; id: string | null; nome: string | null } | { ok: false; resposta: RouterResult }> {
   if (!nome) return { ok: true, id: null, nome: null };
-  const pasto = await db.pasture.findFirst({
-    where: { property_id: propertyId, archived_at: null, name: { contains: nome, mode: "insensitive" } },
+
+  /*
+   * ⚠️ Ambiguidade PERGUNTA, nunca escolhe o primeiro (dívida 3.3, fechada em
+   * 10/09/2026). Até aqui esta função fazia `findFirst` com `contains`: numa
+   * fazenda com "Pasto da Sede" e "Pasto da Sede Nova", dizer "sede" no
+   * WhatsApp gravava a movimentação no primeiro, em silêncio. É a pior classe
+   * de defeito deste produto, dado errado sem aviso, no caminho em que o
+   * produtor menos confere.
+   *
+   * A forma é a mesma de `resolverTrabalhador` (`mao-de-obra.ts`) e de
+   * `resolverServicoEmAndamento` (`servico.ts`): conta os achados, e com mais
+   * de um devolve a lista perguntando qual.
+   *
+   * A comparação é em memória porque o `contains` do banco não ignora acento,
+   * e o produtor dita "baixada" para "Pasto da Baixada". São poucas dezenas de
+   * pastos por propriedade.
+   */
+  const pastos = await db.pasture.findMany({
+    where: { property_id: propertyId, archived_at: null },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
   });
-  if (!pasto) {
+  const alvo = normalizarTermo(nome);
+  const achados = pastos.filter((p) => normalizarTermo(p.name).includes(alvo));
+
+  if (achados.length === 0) {
     return { ok: false, resposta: ask(`Não encontrei o pasto "${nome}" nessa fazenda.`) };
   }
-  return { ok: true, id: pasto.id, nome: pasto.name };
+  if (achados.length > 1) {
+    // Nome dito por inteiro vence a lista: quem tem "Pasto da Sede" e "Pasto
+    // da Sede Nova" e diz o primeiro por extenso não precisa escolher de novo.
+    const exato = achados.find((p) => normalizarTermo(p.name) === alvo);
+    if (exato) return { ok: true, id: exato.id, nome: exato.name };
+
+    const lista = achados.map((p) => `- ${p.name}`).join("\n");
+    return {
+      ok: false,
+      resposta: ask(`Tenho mais de um pasto com esse nome. Qual deles?\n${lista}`),
+    };
+  }
+  return { ok: true, id: achados[0].id, nome: achados[0].name };
 }
 
 /**
