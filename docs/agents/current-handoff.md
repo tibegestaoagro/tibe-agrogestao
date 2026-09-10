@@ -28,16 +28,54 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-09-10.
 
-### A branch `financeiro-fase-1` está aberta, com quatro commits
+### A branch `financeiro-fase-1` está aberta, com DEZ commits, e T01 a T05 feitas
 
-Nada dela foi para a `main` ainda. Não tem migração até agora.
+**Nada foi para a `main`.** Suíte **64/64**, `tsc`, `lint`, `check` e
+`test:drift` limpos no fim da T05.
+
+⚠️ **DUAS migrações aplicadas SÓ no banco local**, nunca no Neon:
+`20260910120000_pagamento_parcial_e_vinculos` (schema) e
+`20260910130000_backfill_pagamento_dos_quitados`. O invariante 3 exige
+autorização do usuário antes do push, e o `.claude/settings.local.json` desta
+máquina libera o `db:deploy` contra o Neon quando ela vier.
 
 | commit | o que |
 |---|---|
 | `75287a5` | os quatro documentos do cliente, que estavam fora do git |
 | `9d71212` | a sequência das quatro áreas e a spec da fase 35.1 |
-| `2ead877` | correção: a tarefa de hoje parou de nascer "Atrasada" |
+| `2ead877` | a tarefa de hoje parou de nascer "Atrasada" |
 | `e5e0be9` | `m57`: a suíte parou de apodrecer, e a asserção passou a discriminar |
+| `aa6fe9a` | handoff e cofre |
+| `4d105b8` | **T01** schema: `FinancialPayment`, `PaymentMethod`, os dois vínculos |
+| `9b101c6` | **T02** backfill, com o predicado provado nos três casos |
+| `68d92c9` | **T03** actions do parcial, e duas guardas que a spec não previa |
+| `079153e` | **T04** as três rotas, e o `/docs/api` junto |
+| `cc25d3e` | **T05** as 24 origens, e o apagar que deixou de levar dinheiro |
+
+**Faltam T06 a T10**, todas na spec: as 26 categorias do §21, a tela, a suíte
+`m62` escrita da spec, os encaixes de dívida (§2.10 e §3.3) e a validação ao
+vivo.
+
+### O que a fase 35.1 já decidiu no código, e não deve ser redecidido
+
+- **Valor pago é a SOMA dos `FinancialPayment`**, nunca um campo. "Parcialmente
+  paga" nasce derivada em `situacaoDe`. O `status` continua gravado porque é
+  máquina de estados, não saldo.
+- **Comparação em CENTAVOS**, nunca em float: o dinheiro é `Decimal(14,2)` e
+  somar em ponto flutuante erra justo onde a recusa "excede o saldo" decide.
+- **`markEntryPaidAction` virou pagamento do SALDO restante.** A assinatura e o
+  contrato da rota `/pay` continuam iguais de propósito.
+- **`cancelEntryAction` recusa conta que já tem pagamento** (`ENTRY_HAS_PAYMENTS`).
+- **Desfazer pagamento APAGA a linha**, em vez de `canceled_at`. O lançamento é
+  o compromisso que existiu e nunca some; o pagamento desfeito é quase sempre
+  digitação errada. Se um dia precisar de rastro, é `canceled_at` mais filtro em
+  toda soma, e é decisão do usuário.
+- ⚠️ **`createLinkedEntry` cria o pagamento junto quando nasce `paid`.** Sem
+  isso, toda venda e compra nova teria `status: paid` e pago ZERO. Não foi
+  previsto na spec, apareceu na T05.
+- **Conta pendente PARCIALMENTE paga não é apagada** no cancelamento de
+  movimentação, estadia e serviço: vai para o ramo de estorno. Dois pontos de
+  `service-jobs.ts` ficaram fora de propósito (ver spec).
 
 **As quatro áreas novas foram decididas em 10/09**, num interrogatório de seis
 rodadas: 34 decisões, todas em
@@ -238,13 +276,16 @@ avançou, e cada commit que sobe é leitura pública.
 **2. A fase 35.1 do Financeiro**, que é o trabalho da branch aberta. Spec com
 as dez tarefas em
 [../superpowers/specs/2026-09-10-modulo-35-financeiro-fase-1.md](../superpowers/specs/2026-09-10-modulo-35-financeiro-fase-1.md).
-A próxima é a **T01, o schema**: `FinancialPayment`, `PaymentMethod`,
-`property_id` e `contact_id`.
+**T01 a T05 estão feitas.** A próxima é a **T06, as 26 categorias do §21**:
+acrescentar ao provisionamento, sem apagar nem renomear o que o produtor criou.
 
-⚠️ **Esta fase tem DUAS migrações** (o schema e o backfill), então o
-invariante 3 vale: aplicar no Neon antes do push. O
-`.claude/settings.local.json` desta máquina libera `npm run db:deploy` contra
-o Neon, mas a autorização do usuário continua sendo por instância.
+Depois: **T07** a tela (fazenda, contato, filtro por propriedade, painel de
+pagamento parcial, rótulos do §30, e o ramo morto do `overdue` apagado),
+**T08** a suíte `m62` escrita da spec, **T09** os encaixes de dívida §2.10 e
+§3.3, e **T10** a validação ao vivo no navegador.
+
+⚠️ **As duas migrações já existem e estão aplicadas no LOCAL.** Antes do push,
+aplicar no Neon com autorização do usuário na hora.
 
 **As duas dívidas pequenas entram DENTRO da 35.1** (T09), porque os arquivos já
 serão abertos: o rótulo "Prestador" (`dividas.md` §2.10) e o `resolverPasto`
