@@ -114,10 +114,18 @@ export async function registrarPagamentoAction(
   // ⚠️ Recusa COM `field`, senão a mensagem cai no rodapé do painel em vez de
   // embaixo do campo do valor, que é onde o produtor está olhando.
   if (centavos(input.amount) > centavos(saldo)) {
+    /*
+     * "receber" numa receita, "pagar" numa despesa. A frase única dizia "Falta
+     * pagar apenas R$ 12.000,00" para quem estava RECEBENDO de um comprador,
+     * defeito achado na validação ao vivo de 10/09: o texto do servidor é o
+     * que o produtor lê embaixo do campo, e ele não tem como saber que a
+     * função serve aos dois sentidos.
+     */
+    const verbo = entry.entry_type === "income" ? "receber" : "pagar";
     return fail(
       "PAGAMENTO_EXCEDE_SALDO",
       saldo > 0
-        ? `Falta pagar apenas ${saldo.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} desta conta.`
+        ? `Falta ${verbo} apenas ${saldo.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} desta conta.`
         : "Esta conta já está quitada.",
       422,
       "amount",

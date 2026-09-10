@@ -196,6 +196,44 @@ async function main() {
       res.status === 422 && json.error?.code === "PAGAMENTO_EXCEDE_SALDO",
       `status=${res.status} error=${JSON.stringify(json.error)}`,
     );
+    /*
+     * A frase muda com o sentido do lançamento. Até 10/09 era uma só, e dizia
+     * "Falta pagar apenas R$ 12.000,00" para quem estava RECEBENDO de um
+     * comprador. Achado ao vivo, contra a tela, não pela suíte.
+     */
+    check(
+      "numa DESPESA, a recusa fala em pagar",
+      typeof json.error?.message === "string" && json.error.message.includes("Falta pagar"),
+      json.error?.message,
+    );
+
+    const receitaParaFrase = await A.db.financialEntry.create({
+      data: scoped({
+        entry_type: "income",
+        category: "M62 Venda para a frase",
+        amount: 20000,
+        related_module: "geral",
+        due_date: new Date(),
+        status: "pending",
+      }),
+    });
+    await withBearer(A.token, () =>
+      paymentsRoute.POST(reqJson("POST", urlPayments(receitaParaFrase.id), { amount: 8000 }), {
+        params: Promise.resolve({ id: receitaParaFrase.id }),
+      }),
+    );
+    const estouroDaReceita = await withBearer(A.token, () =>
+      paymentsRoute.POST(reqJson("POST", urlPayments(receitaParaFrase.id), { amount: 12000.01 }), {
+        params: Promise.resolve({ id: receitaParaFrase.id }),
+      }),
+    );
+    const jsonReceita = await body(estouroDaReceita);
+    check(
+      "numa RECEITA, a mesma recusa fala em receber",
+      typeof jsonReceita.error?.message === "string" &&
+        jsonReceita.error.message.includes("Falta receber"),
+      jsonReceita.error?.message,
+    );
     check(
       "recusa de estouro de saldo nomeia o campo amount",
       json.error?.field === "amount",
