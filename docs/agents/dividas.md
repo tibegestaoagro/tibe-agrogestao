@@ -298,6 +298,36 @@ prestado, **e** a despesa do custo de um serviço prestado. A categoria (ex.
 "Mão de obra do serviço", "Pedágio") continua sendo o único jeito de
 distinguir, e a dívida não fechou nesta fase.
 
+### 2.11 O histórico financeiro não tem fazenda, e some do filtro por fazenda
+
+**O que é:** `FinancialEntry.property_id` nasceu na fase 35.1 (10/09/2026) e
+**não teve backfill**, por decisão da spec: preencher o que já existia exigiria
+adivinhar pela `related_id` de sete módulos diferentes. As origens que sabem a
+fazenda passaram a preencher; tudo o que é anterior está nulo.
+
+**Evidência:** a tela `/financeiro` filtra pela propriedade ativa desde a T07.
+Com uma fazenda escolhida, todo lançamento anterior a 10/09 desaparece da
+tabela, dos cards e do gráfico. A tela conta quantos ficaram de fora e diz para
+escolher "todas as fazendas", então nada some em silêncio, mas o produtor com
+duas fazendas não consegue ver o passado de uma delas.
+
+**Por que importa:** o §32 do documento do cliente pede o Financeiro por
+fazenda, e o §33 pede a visão consolidada. Hoje só a consolidada mostra o
+histórico completo. Quanto mais tempo passa, menor a dívida fica sozinha: cada
+lançamento novo já nasce com a fazenda.
+
+**Custo de fechar:** o usuário autorizou o backfill em 10/09/2026, e ele é uma
+migração de dados por origem, não uma só. O caminho que parece certo: para cada
+`related_module`, seguir a `related_id` até o registro de origem e ler a
+propriedade dele (movimentação de rebanho, estadia, ordem de serviço, máquina,
+talhão). Onde a origem não souber, deixar nulo em vez de chutar.
+
+⚠️ **Provar o predicado antes de aplicar**, como foi feito no backfill de
+pagamento da T02: plantar no banco de dev um caso por origem, rodar, e conferir
+que nenhum lançamento recebeu a fazenda errada. Adivinhação em dinheiro de
+cliente é a pior classe de migração, e é exatamente por isso que este backfill
+foi adiado uma vez.
+
 ---
 
 ## 3. Rede de segurança com furo
