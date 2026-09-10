@@ -28,14 +28,15 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-09-10.
 
-### A branch `financeiro-fase-1` está aberta, com DEZ commits, e T01 a T05 feitas
+### A branch `financeiro-fase-1` está aberta, com TREZE commits, e T01 a T06 feitas
 
 **Nada foi para a `main`.** Suíte **64/64**, `tsc`, `lint`, `check` e
-`test:drift` limpos no fim da T05.
+`test:drift` limpos no fim da T06.
 
-⚠️ **DUAS migrações aplicadas SÓ no banco local**, nunca no Neon:
-`20260910120000_pagamento_parcial_e_vinculos` (schema) e
-`20260910130000_backfill_pagamento_dos_quitados`. O invariante 3 exige
+⚠️ **TRÊS migrações aplicadas SÓ no banco local**, nunca no Neon:
+`20260910120000_pagamento_parcial_e_vinculos` (schema),
+`20260910130000_backfill_pagamento_dos_quitados` e
+`20260910140000_desativar_categorias_antigas_sem_uso`. O invariante 3 exige
 autorização do usuário antes do push, e o `.claude/settings.local.json` desta
 máquina libera o `db:deploy` contra o Neon quando ela vier.
 
@@ -51,10 +52,12 @@ máquina libera o `db:deploy` contra o Neon quando ela vier.
 | `68d92c9` | **T03** actions do parcial, e duas guardas que a spec não previa |
 | `079153e` | **T04** as três rotas, e o `/docs/api` junto |
 | `cc25d3e` | **T05** as 24 origens, e o apagar que deixou de levar dinheiro |
+| `00750dc` | pitstop de memória antes do resumo de contexto |
+| `9137ba3` | **T06** as 26 categorias, e o tenant antigo passou a recebê-las |
+| `88b0663` | **T06** a categoria vem do banco no painel e no WhatsApp |
 
-**Faltam T06 a T10**, todas na spec: as 26 categorias do §21, a tela, a suíte
-`m62` escrita da spec, os encaixes de dívida (§2.10 e §3.3) e a validação ao
-vivo.
+**Faltam T07 a T10**, todas na spec: a tela, a suíte `m62` escrita da spec, os
+encaixes de dívida (§2.10 e §3.3) e a validação ao vivo.
 
 ### O que a fase 35.1 já decidiu no código, e não deve ser redecidido
 
@@ -76,6 +79,16 @@ vivo.
 - **Conta pendente PARCIALMENTE paga não é apagada** no cancelamento de
   movimentação, estadia e serviço: vai para o ramo de estorno. Dois pontos de
   `service-jobs.ts` ficaram fora de propósito (ver spec).
+- **A lista de categorias vem do BANCO**, no painel e no WhatsApp (decisão do
+  usuário na T06). `category-suggestions.ts` deixou de ser lista e virou só o
+  palpite por palavra-chave, que o chamador descarta se o nome não existir no
+  tenant. Não volte a comparar contra constante: era assim que a categoria
+  criada pelo produtor virava "Outros".
+- **O provisionamento roda em TODA listagem** e acrescenta o que falta. É o que
+  faz tenant antigo receber categoria nova sem migração de dados.
+- **Desativar as antigas sem uso é MIGRAÇÃO, não provisionamento** (decisão do
+  usuário na T06). No provisionamento, ela desfaria a cada leitura a reativação
+  que o produtor tivesse feito na tela de Configurações.
 
 **As quatro áreas novas foram decididas em 10/09**, num interrogatório de seis
 rodadas: 34 decisões, todas em
@@ -276,15 +289,14 @@ avançou, e cada commit que sobe é leitura pública.
 **2. A fase 35.1 do Financeiro**, que é o trabalho da branch aberta. Spec com
 as dez tarefas em
 [../superpowers/specs/2026-09-10-modulo-35-financeiro-fase-1.md](../superpowers/specs/2026-09-10-modulo-35-financeiro-fase-1.md).
-**T01 a T05 estão feitas.** A próxima é a **T06, as 26 categorias do §21**:
-acrescentar ao provisionamento, sem apagar nem renomear o que o produtor criou.
+**T01 a T06 estão feitas.** A próxima é a **T07, a tela**: coluna de fazenda e
+de contato, filtro por propriedade, painel de pagamento parcial com o saldo
+visível, rótulos do §30, e o ramo morto do `overdue` apagado.
 
-Depois: **T07** a tela (fazenda, contato, filtro por propriedade, painel de
-pagamento parcial, rótulos do §30, e o ramo morto do `overdue` apagado),
-**T08** a suíte `m62` escrita da spec, **T09** os encaixes de dívida §2.10 e
-§3.3, e **T10** a validação ao vivo no navegador.
+Depois: **T08** a suíte `m62` escrita da spec, **T09** os encaixes de dívida
+§2.10 e §3.3, e **T10** a validação ao vivo no navegador.
 
-⚠️ **As duas migrações já existem e estão aplicadas no LOCAL.** Antes do push,
+⚠️ **As três migrações já existem e estão aplicadas no LOCAL.** Antes do push,
 aplicar no Neon com autorização do usuário na hora.
 
 **As duas dívidas pequenas entram DENTRO da 35.1** (T09), porque os arquivos já
