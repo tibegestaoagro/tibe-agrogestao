@@ -45,6 +45,7 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [trava só vale depois de vista falhar](trava-so-vale-depois-de-voce-a-ver-falhar.md) | licao | prove nos dois sentidos |
 | [cópia repetida não quer dizer cópia idêntica](copia-repetida-nao-quer-dizer-copia-identica.md) | licao | cinco dos sete stores aceitavam número, dois não |
 | [teste que passa antes E depois](teste-que-passa-antes-e-depois-da-correcao-nao-prova-nada.md) | licao | o caso que discrimina é o da ponta que falta |
+| [a asserção pode passar com o defeito plantado](assercao-pode-passar-com-o-defeito-plantado.md) | armadilha | quinze dias de atraso davam a mesma data nas duas âncoras |
 | [fixture de rebanho precisa de situação e dono](fixture-de-rebanho-precisa-de-situacao-e-dono.md) | armadilha | `getPositions` agrupa por quatro campos |
 | [o portão mede a relação que lhe deram](portao-mede-a-relacao-que-lhe-deram.md) | licao | três incidentes, o mesmo defeito de categoria |
 | [a suíte cega cobra o que o briefing esqueceu](suite-cega-cobra-mais-do-que-o-briefing-mandou.md) | licao | divergência entre duas leituras do contrato |

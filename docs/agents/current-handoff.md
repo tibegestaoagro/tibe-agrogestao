@@ -26,7 +26,76 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 ## Estado atual
 
-- Atualizado em: 2026-09-03.
+- Atualizado em: 2026-09-10.
+
+### A branch `financeiro-fase-1` está aberta, com quatro commits
+
+Nada dela foi para a `main` ainda. Não tem migração até agora.
+
+| commit | o que |
+|---|---|
+| `75287a5` | os quatro documentos do cliente, que estavam fora do git |
+| `9d71212` | a sequência das quatro áreas e a spec da fase 35.1 |
+| `2ead877` | correção: a tarefa de hoje parou de nascer "Atrasada" |
+| `e5e0be9` | `m57`: a suíte parou de apodrecer, e a asserção passou a discriminar |
+
+**As quatro áreas novas foram decididas em 10/09**, num interrogatório de seis
+rodadas: 34 decisões, todas em
+[../superpowers/specs/2026-09-10-sequencia-das-quatro-areas.md](../superpowers/specs/2026-09-10-sequencia-das-quatro-areas.md).
+Ordem: **Financeiro, Lista de Compra, Calculadora, Meu Dia**. Só a Lista é
+módulo novo; as outras três são fases de módulos existentes.
+
+⚠️ **Não redecida o que está lá.** Se uma decisão estiver errada, a conversa é
+com o usuário.
+
+### Duas dívidas fechadas e um defeito corrigido nesta rodada
+
+**A §2.9 está PROVADA contra o agente de produção.** `npm run wa` rodou a
+conversa inteira pelo webhook real do n8n, no tenant "BANCO DE PROVAS
+(automacao Tibe)" (conferido antes de disparar que não é de cliente). O agente
+perguntou a categoria, resolveu "bezerro" para "Bezerro - 0 a 7 meses", e o
+`HerdMovement` nasceu junto (`saldo_inicial 1 -> bezerro_0_7
+presente/proprio`), com o saldo subindo para 41. Era exatamente isso que
+faltava. **A dívida pode sair do `dividas.md`.**
+
+Comportamento real observado, que não é defeito: o agente **recusa** os quatro
+dados numa mensagem só e conduz campo a campo. O caminho de mensagem única não
+passa hoje.
+
+**O defeito da tarefa que nascia "Atrasada" está corrigido** (`2ead877`). A
+comparação era por instante; virou por dia, em `src/lib/dia-calendario.ts`.
+⚠️ **A comparação é assimétrica de propósito**: o prazo é lido em UTC, o agora
+no fuso da fazenda. `due_date` é data de calendário, não instante; converter os
+dois lados traz o defeito de volta por outro caminho, e a primeira tentativa
+fez exatamente isso.
+
+**A `m57` tinha DOIS defeitos, e nenhum era do produto** (`e5e0be9`). O
+primeiro: datas absolutas num teste cuja previsão nasce de `new Date()`,
+escrito entre 1 e 4 de setembro e podre desde o dia 5. O segundo, achado só
+porque plantei o defeito de propósito: com quinze dias de atraso as duas
+âncoras caem no mesmo dia 5, então **a asserção nunca discriminou nada**.
+Passou para quarenta dias.
+
+⚠️ **Isso vale para a 35.2 e para o Meu Dia**, que vão reusar aquele padrão
+rolante por decisão do usuário (decisões 22 e 25). A ancoragem no vencimento
+está certa e agora tem prova de verdade.
+
+### Ambiente, conferido em 10/09
+
+Os containers `tibe-pg` e `tibe-redis` estavam **parados havia sete dias**, o
+banco local estava duas migrações atrás e o Prisma Client gerado era anterior
+ao último sincronismo (o que fazia o `tsc` acusar cinco erros que não eram do
+código). Os três resolvidos.
+
+**Neon está up to date com as 46.** Suíte: **64/64**.
+
+⚠️ **A armadilha do backfill da 35.1 NÃO existe.** A spec manda conferir se há
+lançamento `paid` sem `paid_at` antes de migrar. Conferido nos dois bancos:
+**zero** no local (260 pagos) e **zero** em produção (7 lançamentos, 0 pagos).
+A migração do T02 é segura e não precisa de decisão do usuário.
+
+### O que estava aqui antes desta rodada
+
 - **A fase 34.2 (custeio do serviço) está NA `main` E EM PRODUÇÃO**, e a
   **validação visual no navegador aconteceu nesta rodada e passou.** Merge
   `d398dbb..37ccc3b`, migração `20260906100000_custeio_do_servico` aplicada no
@@ -164,29 +233,28 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 **1. Segurança, que é do usuário e vem antes de tudo:** rotacionar as 22
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
-avançou nesta rodada, e cada commit que sobe é leitura pública.
+avançou, e cada commit que sobe é leitura pública.
 
-**2. Rodar `npm run wa`** com um cadastro assistido real (brinco, raça, sexo,
-categoria, "sim") contra o agente de produção, e conferir por programa que o
-animal aparece no saldo. É a última prova que falta da §2.9: hoje só a suíte
-`m61` provou o caminho. A fase 34.2 e a §2.9 já estão as duas em produção e já
-tiveram validação no navegador/`curl`.
+**2. A fase 35.1 do Financeiro**, que é o trabalho da branch aberta. Spec com
+as dez tarefas em
+[../superpowers/specs/2026-09-10-modulo-35-financeiro-fase-1.md](../superpowers/specs/2026-09-10-modulo-35-financeiro-fase-1.md).
+A próxima é a **T01, o schema**: `FinancialPayment`, `PaymentMethod`,
+`property_id` e `contact_id`.
 
-**3. Duas decisões pequenas que continuam esperando:**
+⚠️ **Esta fase tem DUAS migrações** (o schema e o backfill), então o
+invariante 3 vale: aplicar no Neon antes do push. O
+`.claude/settings.local.json` desta máquina libera `npm run db:deploy` contra
+o Neon, mas a autorização do usuário continua sendo por instância.
 
-- o rótulo "Prestador" no Financeiro (`dividas.md` §2.10): três origens
-  diferentes sob o mesmo nome (despesa do contratado, receita do prestado,
-  despesa do custo do serviço);
-- a dívida 3.3 (`resolverPasto` devolve o primeiro achado em silêncio): agora
-  com DUAS implementações de referência no próprio repositório
-  (`resolverTrabalhador` em `mao-de-obra.ts`, `resolverServicoEmAndamento` em
-  `whatsapp-handlers/servico.ts`) fazendo o mesmo tipo de ambiguidade do jeito
-  certo. O padrão está provado; falta só aplicar em `resolverPasto`.
+**As duas dívidas pequenas entram DENTRO da 35.1** (T09), porque os arquivos já
+serão abertos: o rótulo "Prestador" (`dividas.md` §2.10) e o `resolverPasto`
+ambíguo (§3.3, que já tem duas implementações de referência no repositório,
+`resolverTrabalhador` e `resolverServicoEmAndamento`).
 
-**Continuam esperando, de rodadas anteriores:** a outra metade da `dividas.md`
-§2.8 (a despesa avulsa e os sete destinos de saída), e três decisões de
-produto do Leite (média diária por dias corridos; cabeçalho de uma fazenda com
-armazenamento de todas; fechamento sem data nascendo "Vencida").
+**Continuam esperando, para depois das quatro áreas:** a outra metade da
+`dividas.md` §2.8 (a despesa avulsa e os sete destinos de saída), e três
+decisões de produto do Leite (média diária por dias corridos; cabeçalho de uma
+fazenda com armazenamento de todas; fechamento sem data nascendo "Vencida").
 
 Não avance para outro módulo sem aprovação explícita.
 
