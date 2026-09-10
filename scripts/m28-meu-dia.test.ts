@@ -126,6 +126,27 @@ async function main() {
       assert(ser.effective_status === "overdue", "effective_status calculado como 'overdue'");
     }
 
+    // ⚠️ O caso que faltava, e que deixou o defeito passar por dois meses: a
+    // tarefa criada PARA HOJE. O formulário grava `new Date("2026-09-10")`, que
+    // é meia-noite UTC, e a comparação por INSTANTE marcava como atrasada
+    // qualquer hora depois disso. Quem anotava algo para hoje via "Atrasada"
+    // no mesmo segundo. O teste antigo usava meio-dia, e por isso passava.
+    const hojeMeiaNoite = new Date();
+    hojeMeiaNoite.setUTCHours(0, 0, 0, 0);
+    const paraHoje = await createTaskAction(dbA, {
+      title: "Tarefa para hoje",
+      due_date: hojeMeiaNoite,
+    });
+    assert(paraHoje.ok, "cria tarefa para hoje");
+    if (paraHoje.ok) {
+      const row = await dbA.task.findFirst({ where: { id: paraHoje.data.id } });
+      const ser = serializeTask(row!);
+      assert(
+        ser.effective_status === "pending",
+        "tarefa criada PARA HOJE nao nasce 'Atrasada' (comparacao por dia, nao por instante)",
+      );
+    }
+
     // ── Tarefa compartilhada (não privada por usuário) ─────────────────────
     const bothSee = await listTasksAction(dbA);
     assert(
