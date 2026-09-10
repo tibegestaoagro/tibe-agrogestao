@@ -699,6 +699,8 @@ export async function recordMovementInTx(
     let financial_entry_id: string | null = null;
     const financialCategory = FINANCIAL_CATEGORY[input.movement_type];
     if (input.value != null && input.value > 0 && financialCategory) {
+      // Compra é ENTRY_ONLY (só `to`) e venda é EXIT_ONLY (só `from`): a
+      // fazenda do negócio é sempre o lado que existe.
       const entry = await createLinkedEntry(tx, {
         entry_type: input.movement_type === "venda" ? "income" : "expense",
         category: financialCategory,
@@ -706,6 +708,7 @@ export async function recordMovementInTx(
         related_module: "rebanho",
         related_id: movement.id,
         occurred_at,
+        property_id: to?.property_id ?? from?.property_id ?? null,
       });
       financial_entry_id = entry.id;
       await tx.herdMovement.update({ where: { id: movement.id }, data: { financial_entry_id } });
@@ -802,7 +805,24 @@ export async function cancelMovement(
     let clearFinancialLink = false;
     if (movement.financial_entry_id) {
       const entry = await tx.financialEntry.findFirst({ where: { id: movement.financial_entry_id } });
-      if (entry && entry.status === "pending") {
+      /**
+       * ⚠️ Pendente NÃO quer dizer intocado desde a fase 35.1: uma conta
+       * PARCIALMENTE paga também tem `status: "pending"`, e apagá-la levaria
+       * junto os `FinancialPayment` dela (a chave é `onDelete: Cascade`),
+       * fazendo sumir sem aviso o registro de dinheiro que já saiu de verdade.
+       *
+       * Quem já recebeu pagamento cai no ramo de estorno abaixo, que é onde
+       * este caso sempre pertenceu.
+       */
+      const jaPago = entry
+        ? ((
+            await tx.financialPayment.aggregate({
+              where: { entry_id: entry.id },
+              _sum: { amount: true },
+            })
+          )._sum.amount ?? 0)
+        : 0;
+      if (entry && entry.status === "pending" && Number(jaPago) === 0) {
         // Ainda não virou dinheiro: apagar não perde nada, e evita deixar uma
         // conta a pagar de uma compra que não existe mais.
         await tx.financialEntry.delete({ where: { id: entry.id } });
@@ -817,6 +837,7 @@ export async function cancelMovement(
           // O estorno é datado no dia do cancelamento, não no da compra: é
           // quando o dinheiro voltou, e é isso que o fluxo de caixa precisa ver.
           occurred_at: new Date(),
+          property_id: movement.to_property_id ?? movement.from_property_id ?? null,
         });
       }
     }

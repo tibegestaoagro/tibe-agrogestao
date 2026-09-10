@@ -369,6 +369,9 @@ export async function recordMilkCharge(
       related_module: "leite",
       related_id: cobranca.id,
       occurred_at: quando,
+      // property_id fica nulo: o `MilkSite` tem `property_id`, mas buscá-lo
+      // seria uma query nova, e a regra desta tarefa proíbe isso.
+      contact_id: dono.id,
     });
 
     await tx.milkCharge.update({

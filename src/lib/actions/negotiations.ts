@@ -486,6 +486,8 @@ export async function createCattleNegotiation(
         status: input.pago ? "paid" : "pending",
         negotiation_id: negociacao.id,
         negotiation_role: "principal",
+        property_id: input.property_id,
+        contact_id: contactId,
       });
     }
 
@@ -509,6 +511,8 @@ export async function createCattleNegotiation(
         status: input.pago ? "paid" : "pending",
         negotiation_id: negociacao.id,
         negotiation_role: "custo_adicional",
+        property_id: input.property_id,
+        contact_id: contactId,
       });
     }
 

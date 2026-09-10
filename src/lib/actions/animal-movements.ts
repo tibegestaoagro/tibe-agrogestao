@@ -89,6 +89,7 @@ export async function addMovementAction(
         related_module: "rebanho",
         related_id: input.batch_id,
         occurred_at: occurred,
+        property_id: batch.property_id,
       });
     } else if (input.movement_type === "purchase") {
       await createLinkedEntry(db, {
@@ -98,6 +99,7 @@ export async function addMovementAction(
         related_module: "rebanho",
         related_id: input.batch_id,
         occurred_at: occurred,
+        property_id: batch.property_id,
       });
     }
   }

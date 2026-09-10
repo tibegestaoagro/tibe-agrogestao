@@ -346,6 +346,8 @@ export async function createBarter(
             status: input.pago ? "paid" : "pending",
             negotiation_id: negociacao.id,
             negotiation_role: "principal",
+            property_id: input.property_id,
+            contact_id: contactId,
           });
         }
       }

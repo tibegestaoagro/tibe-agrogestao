@@ -18,6 +18,13 @@ export type FinancialEntryCreateClient = {
   financialEntry: {
     create(args: Prisma.FinancialEntryCreateArgs): Promise<{ id: string }>;
   };
+  /**
+   * Módulo 35, fase 1: quem cria lançamento já pago precisa saber criar o
+   * pagamento junto, senão ele nasce com pago zero. Ver `createLinkedEntry`.
+   */
+  financialPayment: {
+    create(args: Prisma.FinancialPaymentCreateArgs): Promise<{ id: string }>;
+  };
 };
 
 function isSerializableConflict(error: unknown): boolean {
@@ -86,10 +93,21 @@ export async function createLinkedEntry(
      * o CLAUDE.md proíbe.
      */
     worker_entry_kind?: WorkerEntryKind | null;
+    /**
+     * Módulo 35, fase 1: de qual fazenda é este dinheiro (§32) e com quem foi
+     * o negócio (§9, §10). Os dois OPCIONAIS: quem sabe, passa; quem não sabe,
+     * deixa nulo, e o lançamento aparece em "todas as fazendas".
+     *
+     * Não existe query nova em lugar nenhum por causa destes dois campos. Treze
+     * das quinze origens já tinham o `property_id` em mãos quando chamam este
+     * helper, e seis já tinham o contato.
+     */
+    property_id?: string | null;
+    contact_id?: string | null;
   },
 ) {
   const status = params.status ?? "paid";
-  return db.financialEntry.create({
+  const entry = await db.financialEntry.create({
     data: scoped({
       entry_type: params.entry_type,
       category: params.category,
@@ -102,6 +120,32 @@ export async function createLinkedEntry(
       negotiation_id: params.negotiation_id ?? null,
       negotiation_role: params.negotiation_role ?? null,
       worker_entry_kind: params.worker_entry_kind ?? null,
+      property_id: params.property_id ?? null,
+      contact_id: params.contact_id ?? null,
     }),
   });
+
+  /**
+   * ⚠️ Lançamento que nasce PAGO precisa nascer com o pagamento junto.
+   *
+   * Desde a fase 35.1 o valor pago é a soma dos `FinancialPayment`. Sem esta
+   * linha, toda venda, compra, insumo e diária que nasce quitada teria
+   * `status: paid` e pago ZERO, e a tela mostraria "falta pagar tudo" numa
+   * conta que já foi paga. O backfill do T02 arrumou o passado; isto é o que
+   * impede o problema de voltar a cada lançamento novo.
+   *
+   * O valor é o total, porque `createLinkedEntry` só cria conta quitada de uma
+   * vez: pagamento parcial nasce pela action, nunca por aqui.
+   */
+  if (status === "paid") {
+    await db.financialPayment.create({
+      data: scoped({
+        entry_id: entry.id,
+        amount: params.amount,
+        paid_at: params.occurred_at,
+      }),
+    });
+  }
+
+  return entry;
 }

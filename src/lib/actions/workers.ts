@@ -237,6 +237,7 @@ async function garantirPrevisao(
     pay_frequency: PayFrequency | null;
     pay_amount: Prisma.Decimal | null;
     pay_day: number | null;
+    property_id: string | null;
   },
   apartirDe: Date,
 ): Promise<void> {
@@ -260,6 +261,7 @@ async function garantirPrevisao(
     status: "pending",
     due_date: proximaDataDePagamento(worker.pay_frequency, worker.pay_day, apartirDe),
     worker_entry_kind: "pagamento",
+    property_id: worker.property_id,
   });
 }
 
@@ -493,6 +495,7 @@ export async function recordWorkerAdvance(
     occurred_at: quando,
     status: "paid",
     worker_entry_kind: "adiantamento",
+    property_id: worker.property_id,
   });
   return ok({ id: criado.id, amount: input.amount });
 }
@@ -531,6 +534,7 @@ export async function recordWorkerExtra(
     occurred_at: quando,
     status: "paid",
     worker_entry_kind: input.kind,
+    property_id: worker.property_id,
   });
   return ok({ id: criado.id, amount: input.amount });
 }

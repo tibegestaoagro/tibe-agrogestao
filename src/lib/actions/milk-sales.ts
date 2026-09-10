@@ -202,6 +202,8 @@ export async function recordMilkSale(
       parcelas: input.parcelas ?? [],
       custos: input.custos ?? [],
       descricao: "Venda de leite",
+      property_id: input.property_id,
+      contact_id: input.buyer_id ?? null,
     });
 
     return negociacao.id;
@@ -245,6 +247,8 @@ async function lancarDinheiro(
     parcelas: ParcelaInput[];
     custos: CustoInput[];
     descricao: string;
+    property_id: string;
+    contact_id: string | null;
   },
 ): Promise<void> {
   const comum = {
@@ -254,6 +258,8 @@ async function lancarDinheiro(
     negotiation_id: p.negotiation_id,
     negotiation_role: "principal" as const,
     occurred_at: p.occurred_at,
+    property_id: p.property_id,
+    contact_id: p.contact_id,
   };
 
   if (p.parcelas.length > 0) {
@@ -299,6 +305,8 @@ async function lancarDinheiro(
       negotiation_role: "custo_adicional",
       occurred_at: p.occurred_at,
       status: "paid",
+      property_id: p.property_id,
+      contact_id: p.contact_id,
     });
   }
 }
@@ -481,6 +489,8 @@ export async function closeMilkPeriod(
       parcelas: input.parcelas ?? [],
       custos: input.custos ?? [],
       descricao: `Fechamento de leite: ${comprador.name}`,
+      property_id: input.property_id,
+      contact_id: input.buyer_id,
     });
 
     return negociacao.id;

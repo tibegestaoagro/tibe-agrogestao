@@ -108,7 +108,13 @@ fica nulo com comentário dizendo por quê.
 | milk-sales, service-jobs | sim | sim |
 | herd-ledger, herd-stays, animal-movements, animal-batches, animal-vaccinations | sim | não se aplica |
 | machines, workers, service-costs | sim | não se aplica |
-| milk-storage | **não** | não |
+| milk-storage | **não** | **sim** |
+
+⚠️ **A linha do `milk-storage` estava errada nesta tabela**, e foi corrigida em
+10/09. Ela nasceu de um `grep` por "contact" no arquivo, que deu zero: a
+variável se chama `dono`, e `recordMilkCharge` já busca e valida o `Contact`
+antes de criar o lançamento. Lição pequena e cara: tabela feita por grep mede o
+nome da variável, não o que está disponível.
 
 ### Forma de pagamento
 
@@ -203,10 +209,21 @@ Numa conta pendente **parcialmente paga**, o registro do dinheiro que já saiu
 sumiria sem aviso. O caso concreto: cancelar um confinamento cujo boitel foi
 meio pago.
 
-Decisão do usuário em 10/09: tratar junto desta tarefa. O caminho é a mesma
-guarda da `cancelEntryAction`, que já recusa cancelar conta com pagamento:
-esses três pontos precisam recusar antes de apagar, em vez de apagar em
-silêncio.
+Decisão do usuário em 10/09: tratar junto desta tarefa.
+
+**Resolvido assim**, e melhor do que a guarda que eu tinha imaginado: os dois
+primeiros pontos já têm um ramo `else` que cria **estorno** em vez de apagar, e
+a conta com pagamento passou a cair nele. O dinheiro que saiu continua
+registrado, e some apenas a conta que ninguém tocou. No `deleteMany` do
+cancelamento de serviço, o filtro virou `payments: { none: {} }`.
+
+⚠️ **Dois pontos de `service-jobs.ts` ficaram FORA, e de propósito**
+(`recordServiceJobPayment`, no abatimento, e o ajuste de valor que apaga
+parcelas extras). Lá o apagar faz parte de um recálculo do saldo do serviço, e
+mudar a semântica exige entender a fase 34.2 inteira. O risco concreto é
+estreito: exige que a conta do serviço tenha sido paga **pela tela do
+Financeiro**, e não pelo fluxo do próprio serviço. Registrado aqui para não
+virar surpresa.
 
 ### T06: as 26 categorias
 
