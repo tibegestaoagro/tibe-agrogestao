@@ -28,10 +28,14 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-09-10.
 
-### A branch `financeiro-fase-1` está aberta, com DEZESSEIS commits, e T01 a T08 feitas
+### A branch `financeiro-fase-1` está pronta: T01 a T10 feitas, DEZOITO commits
 
 **Nada foi para a `main`.** Suíte **65/65** (a `m62` entrou), `tsc`, `lint`,
-`check` e `test:drift` limpos no fim da T08.
+`check` e `test:drift` limpos no fim da T10.
+
+⚠️ **A fase está pronta para revisão e merge, e nada disso foi pedido ainda.**
+O que falta antes do push: as três migrações no Neon e a autorização explícita
+do usuário (invariante 7), nessa ordem.
 
 ⚠️ **TRÊS migrações aplicadas SÓ no banco local**, nunca no Neon:
 `20260910120000_pagamento_parcial_e_vinculos` (schema),
@@ -60,9 +64,12 @@ máquina libera o `db:deploy` contra o Neon quando ela vier.
 | `21b71df` | handoff da T07 |
 | `f10dd2c` | dívida 2.11: o backfill de `property_id`, autorizado pelo usuário |
 | `49d7651` | **T08** a suíte `m62`, escrita da spec sem ler a implementação |
+| `99899b3` | handoff e cofre da T08 |
+| `7023699` | **T09** as duas dívidas encaixadas: rótulo "Serviço" e pasto ambíguo |
+| `c6e3865` | **T10** validação ao vivo, e a frase que falava em pagar para quem recebe |
 
-**Faltam T09 e T10**: os encaixes de dívida (§2.10 e §3.3) e a validação ao
-vivo.
+**As dez tarefas estão feitas.** O que o navegador ainda precisa provar está em
+[roteiro-tela-financeiro-35.md](roteiro-tela-financeiro-35.md), dez passos.
 
 ### O que a fase 35.1 já decidiu no código, e não deve ser redecidido
 
@@ -303,16 +310,22 @@ avançou, e cada commit que sobe é leitura pública.
 **2. A fase 35.1 do Financeiro**, que é o trabalho da branch aberta. Spec com
 as dez tarefas em
 [../superpowers/specs/2026-09-10-modulo-35-financeiro-fase-1.md](../superpowers/specs/2026-09-10-modulo-35-financeiro-fase-1.md).
-**T01 a T08 estão feitas.** A próxima é a **T09, os encaixes de dívida**: o
-rótulo "Prestador" (`dividas.md` §2.10, que é decisão de produto e precisa do
-usuário) e o `resolverPasto` ambíguo (§3.3).
+**As dez tarefas estão feitas.** O próximo passo é do usuário, em duas partes
+que não podem trocar de ordem:
 
-Depois: **T10**, a validação ao vivo no navegador, que é onde a tela nova da
-T07 precisa ser aberta de verdade. A fase não fecha sem ela (invariante 8).
+1. **Rodar o roteiro de tela** ([roteiro-tela-financeiro-35.md](roteiro-tela-financeiro-35.md)),
+   que é o que a validação por requisição não alcança: o painel de pagamento, o
+   foco no campo da recusa, o seletor de categoria por tipo e a largura de
+   celular.
+2. **Autorizar o merge**, e antes dele as **três migrações no Neon**. O
+   invariante 7 exige a autorização na conversa, a cada vez.
 
 ⚠️ **O backfill de `property_id` está autorizado** e virou a dívida 2.11. Ele
 NÃO faz parte da fase 35.1: é migração por origem, e o usuário pediu para
 registrá-lo e seguir.
+
+Depois da 35.1, a sequência das quatro áreas continua: **Lista de Compra**
+(módulo novo), **Calculadora** e **Meu Dia**.
 
 ⚠️ **As três migrações já existem e estão aplicadas no LOCAL.** Antes do push,
 aplicar no Neon com autorização do usuário na hora.
