@@ -371,6 +371,7 @@ model Tenant {
   services             Service[]
   service_orders       ServiceOrder[]
   financial_entries    FinancialEntry[]
+  financial_payments   FinancialPayment[]
   whatsapp_contacts    WhatsAppContact[]
   conversation_logs    AgentConversationLog[]
   agent_requests       AgentRequest[]
@@ -449,6 +450,7 @@ model User {
   push_subscriptions        PushSubscription[]
   financial_entries_created FinancialEntry[]    @relation("FinancialEntryCreatedBy")
   financial_entries_updated FinancialEntry[]    @relation("FinancialEntryUpdatedBy")
+  financial_payments_created FinancialPayment[] @relation("FinancialPaymentCreatedBy")
   workers_recorded          Worker[]            @relation("WorkerRecordedBy")
   service_jobs_recorded     ServiceJob[]        @relation("ServiceJobRecordedBy")
   service_jobs_canceled     ServiceJob[]        @relation("ServiceJobCanceledBy")
@@ -619,6 +621,7 @@ model Property {
   lactation_entries LactationEntry[]
   milk_productions  MilkProduction[]
   milk_sites        MilkSite[]
+  financial_entries FinancialEntry[]
   workers           Worker[]
   service_jobs      ServiceJob[]
   worker_logs       WorkerLog[]
@@ -1207,13 +1210,41 @@ model FinancialEntry {
   created_by_user_id String?
   updated_by_user_id String?
 
+  /// Módulo 35, fase 1. §32 do documento do cliente pede o Financeiro por
+  /// fazenda, e §9/§10 pedem o cliente ou fornecedor do lançamento. Nenhum dos
+  /// dois existia: a tela `/financeiro` era a única do painel que não filtrava
+  /// por propriedade.
+  ///
+  /// Os dois ANULÁVEIS e sem backfill retroativo, decisão do usuário em
+  /// 10/09. Preencher o que já existe exigiria adivinhar pela `related_id` de
+  /// sete módulos diferentes, e adivinhação em dinheiro de cliente é a pior
+  /// classe de migração. As origens que sabem passam a preencher (13 dos 15
+  /// arquivos que chamam `createLinkedEntry` já têm o valor em mãos); o que
+  /// nasceu antes fica nulo e aparece em "todas as fazendas".
+  ///
+  /// `SetNull` nos dois, e não `Restrict`: arquivar uma propriedade ou um
+  /// contato não pode travar o histórico financeiro, que é justamente o que
+  /// precisa sobreviver.
+  property_id String?
+  contact_id  String?
+
+  /// A forma COMBINADA da operação. Cada pagamento tem a sua própria em
+  /// `FinancialPayment.method`, porque quem paga metade no PIX e metade em
+  /// dinheiro precisa das duas.
+  payment_method PaymentMethod?
+
   tenant      Tenant       @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   negotiation Negotiation? @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
   created_by  User?        @relation("FinancialEntryCreatedBy", fields: [created_by_user_id], references: [id], onDelete: SetNull)
   updated_by  User?        @relation("FinancialEntryUpdatedBy", fields: [updated_by_user_id], references: [id], onDelete: SetNull)
+  property    Property?    @relation(fields: [property_id], references: [id], onDelete: SetNull)
+  contact     Contact?     @relation(fields: [contact_id], references: [id], onDelete: SetNull)
 
   /// O livro-razão do rebanho aponta para cá (`HerdMovement.financial_entry_id`).
   herd_movements HerdMovement[]
+
+  /// Os pagamentos parciais. O valor pago é a SOMA deles, nunca um campo.
+  payments FinancialPayment[]
 
   @@index([tenant_id])
   @@index([negotiation_id])
@@ -1222,6 +1253,69 @@ model FinancialEntry {
   /// três colunas aparecia em índice nenhum.
   @@index([tenant_id, status, paid_at])
   @@index([tenant_id, due_date, status])
+  @@index([tenant_id, property_id])
+  @@index([contact_id])
+}
+
+/// Um pagamento (ou recebimento) feito contra um lançamento.
+///
+/// Módulo 35, fase 1. Existe porque §13 e §14 do documento do cliente pedem
+/// pagamento e recebimento PARCIAL, e não havia onde gravar: `markEntryPaid`
+/// quitava a conta inteira e o modelo não tinha valor pago.
+///
+/// **O valor pago é a soma destas linhas, nunca um campo em `FinancialEntry`.**
+/// É o invariante 2 do projeto aplicado ao dinheiro, e o mesmo desenho do
+/// livro-razão do rebanho e do estoque. Um campo `paid_amount` sobrescreveria
+/// e perderia o rastro que o §47 pede; partir o lançamento em dois destruiria
+/// a identidade da conta e toda referência a ela.
+///
+/// Um model só serve receita e despesa: o sentido vem do `entry_type` do pai.
+/// "Recebi 8 mil dos 20 mil" e "paguei 4 mil dos 10 mil" são a mesma operação
+/// com o sinal do lançamento.
+///
+/// O ADIANTAMENTO do §38 não precisa de conceito próprio: é um pagamento feito
+/// antes do vencimento, e "recebido 3.000, a receber 7.000" cai de graça.
+model FinancialPayment {
+  id        String   @id @default(cuid())
+  tenant_id String
+  entry_id  String
+
+  /// Sempre > 0, e a soma nunca pode passar do `amount` do lançamento. As duas
+  /// regras vivem na action, que é quem sabe recusar com o campo nomeado.
+  amount  Decimal        @db.Decimal(14, 2)
+  paid_at DateTime
+  method  PaymentMethod?
+  notes   String?
+
+  created_at         DateTime @default(now())
+  created_by_user_id String?
+
+  tenant     Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  entry      FinancialEntry @relation(fields: [entry_id], references: [id], onDelete: Cascade)
+  created_by User?          @relation("FinancialPaymentCreatedBy", fields: [created_by_user_id], references: [id], onDelete: SetNull)
+
+  @@index([tenant_id])
+  /// Toda leitura do valor pago soma os pagamentos de um lançamento.
+  @@index([entry_id])
+  @@index([tenant_id, paid_at])
+}
+
+/// §16 do documento do cliente, menos duas.
+///
+/// ⚠️ "Parcelamento" e "compensação em permuta" estão na lista do §16 e ficam
+/// FORA daqui de propósito, decisão do usuário em 10/09: não são forma de
+/// pagamento, são estrutura da operação. Parcelamento já é N lançamentos com o
+/// mesmo `negotiation_id`, e permuta sem dinheiro já não gera lançamento
+/// nenhum desde a frente 4. Colocá-los no enum criaria dois caminhos para a
+/// mesma coisa, e o segundo caminho é o que diverge.
+enum PaymentMethod {
+  dinheiro
+  pix
+  transferencia
+  boleto
+  cheque
+  cartao
+  outro
 }
 
 // Módulo 28, 2026-08-04. `category` de FinancialEntry continua texto livre
@@ -1789,6 +1883,7 @@ model Contact {
   /// em vez de criar pelo nome digitado, como a negociação faz: aqui "João" e
   /// "Joao" partiriam o leite de um produtor em dois saldos.
   milk_from    MilkMovement[] @relation("MilkMovementFromOwner")
+  financial_entries FinancialEntry[]
   milk_to      MilkMovement[] @relation("MilkMovementToOwner")
   milk_bought  MilkMovement[] @relation("MilkMovementBuyer")
   milk_charges MilkCharge[]
