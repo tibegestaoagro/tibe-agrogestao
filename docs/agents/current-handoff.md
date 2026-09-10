@@ -28,10 +28,10 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-09-10.
 
-### A branch `financeiro-fase-1` está aberta, com TREZE commits, e T01 a T06 feitas
+### A branch `financeiro-fase-1` está aberta, com CATORZE commits, e T01 a T07 feitas
 
 **Nada foi para a `main`.** Suíte **64/64**, `tsc`, `lint`, `check` e
-`test:drift` limpos no fim da T06.
+`test:drift` limpos no fim da T07.
 
 ⚠️ **TRÊS migrações aplicadas SÓ no banco local**, nunca no Neon:
 `20260910120000_pagamento_parcial_e_vinculos` (schema),
@@ -55,9 +55,11 @@ máquina libera o `db:deploy` contra o Neon quando ela vier.
 | `00750dc` | pitstop de memória antes do resumo de contexto |
 | `9137ba3` | **T06** as 26 categorias, e o tenant antigo passou a recebê-las |
 | `88b0663` | **T06** a categoria vem do banco no painel e no WhatsApp |
+| `36a3ccd` | handoff da T06 |
+| `591729b` | **T07** a tela: fazenda, contato, pagamento parcial, rótulos do §30 |
 
-**Faltam T07 a T10**, todas na spec: a tela, a suíte `m62` escrita da spec, os
-encaixes de dívida (§2.10 e §3.3) e a validação ao vivo.
+**Faltam T08 a T10**, todas na spec: a suíte `m62` escrita da spec, os encaixes
+de dívida (§2.10 e §3.3) e a validação ao vivo.
 
 ### O que a fase 35.1 já decidiu no código, e não deve ser redecidido
 
@@ -89,6 +91,15 @@ encaixes de dívida (§2.10 e §3.3) e a validação ao vivo.
 - **Desativar as antigas sem uso é MIGRAÇÃO, não provisionamento** (decisão do
   usuário na T06). No provisionamento, ela desfaria a cada leitura a reativação
   que o produtor tivesse feito na tela de Configurações.
+- ⚠️ **O fluxo de caixa soma os `FinancialPayment`, não os lançamentos pagos**
+  (T07). Com pagamento parcial os dois deixaram de ser a mesma coisa, e a
+  leitura antiga escondia o dinheiro que já entrou até a última parcela. Não
+  volte a filtrar por `status: "paid"` ali.
+- **A tela do Financeiro filtra pela propriedade ATIVA do seletor do topo**,
+  como as outras. Lançamento sem fazenda some com o filtro ligado, porque
+  `property_id` não teve backfill: a tela conta quantos ficaram de fora e diz
+  onde vê-los. Se o produtor reclamar disso, a conversa é sobre backfill, não
+  sobre afrouxar o filtro.
 
 **As quatro áreas novas foram decididas em 10/09**, num interrogatório de seis
 rodadas: 34 decisões, todas em
@@ -289,12 +300,11 @@ avançou, e cada commit que sobe é leitura pública.
 **2. A fase 35.1 do Financeiro**, que é o trabalho da branch aberta. Spec com
 as dez tarefas em
 [../superpowers/specs/2026-09-10-modulo-35-financeiro-fase-1.md](../superpowers/specs/2026-09-10-modulo-35-financeiro-fase-1.md).
-**T01 a T06 estão feitas.** A próxima é a **T07, a tela**: coluna de fazenda e
-de contato, filtro por propriedade, painel de pagamento parcial com o saldo
-visível, rótulos do §30, e o ramo morto do `overdue` apagado.
+**T01 a T07 estão feitas.** A próxima é a **T08, a suíte `m62`**, escrita da
+spec e **sem ler a implementação** (é trabalho do agente `prova-suite`).
 
-Depois: **T08** a suíte `m62` escrita da spec, **T09** os encaixes de dívida
-§2.10 e §3.3, e **T10** a validação ao vivo no navegador.
+Depois: **T09** os encaixes de dívida §2.10 e §3.3, e **T10** a validação ao
+vivo no navegador, que é onde a tela nova da T07 precisa ser aberta de verdade.
 
 ⚠️ **As três migrações já existem e estão aplicadas no LOCAL.** Antes do push,
 aplicar no Neon com autorização do usuário na hora.
