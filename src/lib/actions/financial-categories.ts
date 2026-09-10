@@ -71,7 +71,12 @@ async function provisionDefaults(db: TenantPrismaClient): Promise<void> {
   ].filter((c) => !jaTem.has(CHAVE(c.name, c.entry_type)));
 
   if (faltando.length === 0) return;
-  await db.financialCategory.createMany({ data: faltando.map((c) => scoped(c)) });
+  // skipDuplicates por causa de duas leituras simultâneas na primeira visita:
+  // a unique (tenant_id, entry_type, name) recusaria a segunda com P2002.
+  await db.financialCategory.createMany({
+    data: faltando.map((c) => scoped(c)),
+    skipDuplicates: true,
+  });
 }
 
 /** Lista as categorias do tenant, acrescentando as padrão que ainda faltarem. */

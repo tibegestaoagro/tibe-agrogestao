@@ -5,7 +5,8 @@ import { getBalanceAction } from "@/lib/actions/financial-summary";
 import { resolvePeriod } from "@/lib/actions/financial-reports";
 import { buildReportLink } from "@/lib/reports/report-link";
 import { createManualEntryAction } from "@/lib/actions/financial-entries";
-import { FINANCIAL_CATEGORIES } from "@/lib/category-suggestions";
+import { suggestCategory } from "@/lib/category-suggestions";
+import { listFinancialCategoriesAction } from "@/lib/actions/financial-categories";
 import { ask, failReply, str, confirmFlow, type Handler } from "./shared";
 import { lerDinheiro } from "./parsers";
 
@@ -99,9 +100,23 @@ export const registrarLancamentoFinanceiro: Handler = async ({ db, parameters, c
     return ask("Não consegui identificar o valor do lançamento. Pode informar quanto foi?");
   }
 
-  const category = (FINANCIAL_CATEGORIES as readonly string[]).includes(categoryRaw ?? "")
-    ? (categoryRaw as string)
-    : "Outros";
+  /*
+   * A categoria vem do banco, não de uma lista fixa: o que o produtor criou no
+   * painel vale aqui também. Três tentativas, em ordem: o nome que o
+   * classificador mandou, o palpite por palavra-chave sobre o texto todo, e
+   * "Outras despesas" como último caso. As duas primeiras só valem se o nome
+   * existir entre as categorias ativas do tenant.
+   */
+  const categorias = await listFinancialCategoriesAction(db, {
+    entry_type: "expense",
+    activeOnly: true,
+  });
+  const porNome = new Map(categorias.map((c) => [c.name.toLowerCase(), c.name]));
+  const palpite = suggestCategory([categoryRaw, vendor, description].filter(Boolean).join(" "), "expense");
+  const category =
+    porNome.get((categoryRaw ?? "").trim().toLowerCase()) ??
+    (palpite ? porNome.get(palpite.toLowerCase()) : undefined) ??
+    "Outras despesas";
 
   const gate = confirmFlow({
     intent: "registrar_lancamento_financeiro",

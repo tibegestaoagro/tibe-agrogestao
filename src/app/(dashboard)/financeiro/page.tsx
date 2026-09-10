@@ -4,6 +4,7 @@ import { canWrite } from "@/lib/permissions";
 import { decToNum } from "@/lib/serialize";
 import { getDre, getCashFlow, getUpcoming, resolvePeriod } from "@/lib/actions/financial-reports";
 import { MODULE_LABEL } from "@/lib/related-modules";
+import { listFinancialCategoriesAction } from "@/lib/actions/financial-categories";
 import {
   Table,
   TableHeader,
@@ -59,7 +60,7 @@ export default async function FinanceiroPage(
   const db = await getTenantDb();
   const { start, end } = resolvePeriod(null, null); // mês atual
 
-  const [dre, cashFlow, upcoming, pendingIncome, pendingExpense, entries] = await Promise.all([
+  const [dre, cashFlow, upcoming, pendingIncome, pendingExpense, entries, categorias] = await Promise.all([
     getDre(db, { start, end }),
     getCashFlow(db, { start, end, groupBy: "day" }),
     getUpcoming(db, 7),
@@ -90,6 +91,8 @@ export default async function FinanceiroPage(
       orderBy: { due_date: "desc" },
       take: 100,
     }),
+    // O seletor do formulário lista as categorias do tenant, não uma lista fixa.
+    listFinancialCategoriesAction(db, { activeOnly: true }),
   ]);
 
   return (
@@ -98,7 +101,11 @@ export default async function FinanceiroPage(
         <h1 className="text-xl font-semibold text-texto">Financeiro</h1>
         <div className="flex gap-2">
           <ExportReportButton />
-          {writable && <EntryForm />}
+          {writable && (
+            <EntryForm
+              categorias={categorias.map((c) => ({ name: c.name, entry_type: c.entry_type }))}
+            />
+          )}
         </div>
       </div>
 
