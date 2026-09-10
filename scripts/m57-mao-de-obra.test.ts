@@ -336,25 +336,48 @@ async function comBanco() {
       `${antes.due_date?.toISOString().slice(0, 10)} -> ${depois[0]!.due_date?.toISOString().slice(0, 10)}`,
     );
 
+    // ⚠️ Esperado RELATIVO ao vencimento anterior, nunca data absoluta. Este
+    // bloco já esteve escrito com "2026-10-05" e "2026-11-05" na mão, e
+    // apodreceu no dia 5 de setembro: a previsão nasce de `new Date()`, então
+    // a partir daquele dia tudo deslocou um mês e a suíte acusou defeito de
+    // produto que não existia. O ciclo é mensal no dia 5; o que se prova aqui
+    // é a ÂNCORA, não o calendário.
+    const mesSeguinteNoMesmoDia = (vencimento: Date) =>
+      new Date(
+        Date.UTC(
+          vencimento.getUTCFullYear(),
+          vencimento.getUTCMonth() + 1,
+          vencimento.getUTCDate(),
+          12,
+        ),
+      )
+        .toISOString()
+        .slice(0, 10);
+
     check(
       "e o ciclo é ancorado no VENCIMENTO, não em quando o dinheiro saiu",
-      depois[0]!.due_date!.toISOString().slice(0, 10) === "2026-10-05",
-      depois[0]!.due_date!.toISOString().slice(0, 10),
+      depois[0]!.due_date!.toISOString().slice(0, 10) === mesSeguinteNoMesmoDia(antes.due_date!),
+      `${antes.due_date!.toISOString().slice(0, 10)} -> ${depois[0]!.due_date!.toISOString().slice(0, 10)}`,
     );
 
     console.log("   e pagar ATRASADO não pula um mês do ciclo");
-    // A previsão pendente vence em 05/10. Pagando em 20/10 (quinze dias
-    // atrasado), a próxima tem que ser 05/11, não 05/12: o ciclo é do
-    // vencimento, e o atraso do produtor não pode comer um mês de salário.
+    // ⚠️ QUARENTA dias de atraso, e o número não é enfeite: com quinze dias,
+    // que era o que este teste usava, as duas âncoras (vencimento e data do
+    // pagamento) caem no MESMO dia 5, e a asserção passa mesmo com o defeito
+    // plantado. Provado quebrando `const ancora` de propósito em 2026-09-10.
+    // Só um atraso que ultrapassa o vencimento seguinte separa os dois casos.
+    const venceAgora = depois[0]!.due_date!;
+    const bemAtrasado = new Date(venceAgora.getTime() + 40 * 24 * 60 * 60 * 1000);
     const atrasado = await confirmWorkerPayment(db, {
       worker_id: joao.data.id,
-      paid_at: new Date("2026-10-20T12:00:00.000Z"),
+      paid_at: bemAtrasado,
     });
     check("confirmação atrasada devolve ok", atrasado.ok);
+    const depoisDoAtraso = (await previsoesDe(joao.data.id))[0]!.due_date!;
     check(
-      "a próxima é 05/11, não 05/12",
-      (await previsoesDe(joao.data.id))[0]!.due_date!.toISOString().slice(0, 10) === "2026-11-05",
-      (await previsoesDe(joao.data.id))[0]!.due_date!.toISOString().slice(0, 10),
+      "a próxima parte do vencimento, não do dia em que pagou",
+      depoisDoAtraso.toISOString().slice(0, 10) === mesSeguinteNoMesmoDia(venceAgora),
+      `venceu ${venceAgora.toISOString().slice(0, 10)}, pagou ${bemAtrasado.toISOString().slice(0, 10)}, proxima ${depoisDoAtraso.toISOString().slice(0, 10)}`,
     );
 
     console.log("   e o valor pago pode ser diferente do previsto");
