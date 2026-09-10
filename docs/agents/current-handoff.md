@@ -28,10 +28,10 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-09-10.
 
-### A branch `financeiro-fase-1` está aberta, com CATORZE commits, e T01 a T07 feitas
+### A branch `financeiro-fase-1` está aberta, com DEZESSEIS commits, e T01 a T08 feitas
 
-**Nada foi para a `main`.** Suíte **64/64**, `tsc`, `lint`, `check` e
-`test:drift` limpos no fim da T07.
+**Nada foi para a `main`.** Suíte **65/65** (a `m62` entrou), `tsc`, `lint`,
+`check` e `test:drift` limpos no fim da T08.
 
 ⚠️ **TRÊS migrações aplicadas SÓ no banco local**, nunca no Neon:
 `20260910120000_pagamento_parcial_e_vinculos` (schema),
@@ -57,9 +57,12 @@ máquina libera o `db:deploy` contra o Neon quando ela vier.
 | `88b0663` | **T06** a categoria vem do banco no painel e no WhatsApp |
 | `36a3ccd` | handoff da T06 |
 | `591729b` | **T07** a tela: fazenda, contato, pagamento parcial, rótulos do §30 |
+| `21b71df` | handoff da T07 |
+| `f10dd2c` | dívida 2.11: o backfill de `property_id`, autorizado pelo usuário |
+| `49d7651` | **T08** a suíte `m62`, escrita da spec sem ler a implementação |
 
-**Faltam T08 a T10**, todas na spec: a suíte `m62` escrita da spec, os encaixes
-de dívida (§2.10 e §3.3) e a validação ao vivo.
+**Faltam T09 e T10**: os encaixes de dívida (§2.10 e §3.3) e a validação ao
+vivo.
 
 ### O que a fase 35.1 já decidiu no código, e não deve ser redecidido
 
@@ -300,11 +303,16 @@ avançou, e cada commit que sobe é leitura pública.
 **2. A fase 35.1 do Financeiro**, que é o trabalho da branch aberta. Spec com
 as dez tarefas em
 [../superpowers/specs/2026-09-10-modulo-35-financeiro-fase-1.md](../superpowers/specs/2026-09-10-modulo-35-financeiro-fase-1.md).
-**T01 a T07 estão feitas.** A próxima é a **T08, a suíte `m62`**, escrita da
-spec e **sem ler a implementação** (é trabalho do agente `prova-suite`).
+**T01 a T08 estão feitas.** A próxima é a **T09, os encaixes de dívida**: o
+rótulo "Prestador" (`dividas.md` §2.10, que é decisão de produto e precisa do
+usuário) e o `resolverPasto` ambíguo (§3.3).
 
-Depois: **T09** os encaixes de dívida §2.10 e §3.3, e **T10** a validação ao
-vivo no navegador, que é onde a tela nova da T07 precisa ser aberta de verdade.
+Depois: **T10**, a validação ao vivo no navegador, que é onde a tela nova da
+T07 precisa ser aberta de verdade. A fase não fecha sem ela (invariante 8).
+
+⚠️ **O backfill de `property_id` está autorizado** e virou a dívida 2.11. Ele
+NÃO faz parte da fase 35.1: é migração por origem, e o usuário pediu para
+registrá-lo e seguir.
 
 ⚠️ **As três migrações já existem e estão aplicadas no LOCAL.** Antes do push,
 aplicar no Neon com autorização do usuário na hora.

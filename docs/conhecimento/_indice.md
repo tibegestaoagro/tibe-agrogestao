@@ -64,6 +64,7 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [filtro na busca esconde o defeito que o teste procura](filtro-na-busca-esconde-o-defeito-que-o-teste-procura.md) | licao | busque largo, afirme estreito |
 | [next dev + cookie valida o servidor sem navegador](next-dev-mais-cookie-valida-o-servidor-sem-navegador.md) | referencia | o que da para provar por curl, e o que nao da |
 | [Turbopack nao cria processo com a maquina cheia](turbopack-nao-cria-processo-quando-a-maquina-esta-cheia.md) | armadilha | 0xc0000142 aponta o CSS e o problema e memoria |
+| [a guarda da action atrás do schema não é a recusa que sai](guarda-da-action-atras-do-schema-nao-e-a-recusa-que-sai.md) | armadilha | o `code` que o cliente lê é o do Zod, não o do `fail` |
 
 ⚠️ **`[[wikilink]]` para nota que não existe reprova o `npm run check`**
 (conferência 13). É o que impede esta pasta de virar um cemitério de links
