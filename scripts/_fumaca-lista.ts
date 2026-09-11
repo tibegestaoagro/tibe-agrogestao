@@ -124,6 +124,32 @@ async function main() {
       check("a linha continua no banco (§19.6)", aindaExiste === 1);
     }
 
+    // Isolamento pelo model. A camada HTTP fica para a suite da T10.
+    const outro = await prisma.tenant.create({
+      data: { name: "Fumaca Lista B", document: `FUMB-${Date.now()}`, plan: "fazenda" },
+    });
+    const dbB = prismaForTenant(outro.id);
+    try {
+      const doB = await criarItemAction(dbB, { description: "Item que so B enxerga" });
+      check("tenant B cria o proprio item", doB.ok);
+      const listaDeA = await listarItensAction(db);
+      check(
+        "tenant A nao ve o item de B",
+        !listaDeA.some((i) => i.description === "Item que so B enxerga"),
+      );
+      if (doB.ok) {
+        const cruzado = await concluirItemAction(db, doB.data.id);
+        check(
+          "e A nao consegue concluir item de B",
+          !cruzado.ok && cruzado.code === "NOT_FOUND",
+          JSON.stringify(cruzado),
+        );
+      }
+    } finally {
+      await prisma.shoppingItem.deleteMany({ where: { tenant_id: outro.id } });
+      await prisma.tenant.delete({ where: { id: outro.id } });
+    }
+
     const lancamentos = await db.financialEntry.count();
     const movimentos = await db.stockMovement.count();
     check(

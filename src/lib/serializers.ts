@@ -215,3 +215,35 @@ export function serializeInput(i: any) {
     created_at: i.created_at.toISOString(),
   };
 }
+
+/**
+ * Um item da Lista de Compra (Módulo 36).
+ *
+ * `product_name` e `property_name` viajam junto porque a lista é lida muito
+ * mais do que escrita, e sem eles toda tela e todo handler do WhatsApp
+ * precisaria de uma segunda consulta só para dizer "10 sacas de sal mineral da
+ * Fazenda Santa Helena".
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function serializeShoppingItem(i: any) {
+  return {
+    id: i.id,
+    description: i.description,
+    product_id: i.product_id ?? null,
+    product_name: i.product?.name ?? null,
+    quantity: decToNum(i.quantity),
+    unit: i.unit ?? null,
+    property_id: i.property_id ?? null,
+    property_name: i.property?.name ?? null,
+    category_id: i.category_id ?? null,
+    category_name: i.category?.name ?? null,
+    purpose: i.purpose ?? null,
+    priority: i.priority,
+    place: i.place ?? null,
+    notes: i.notes ?? null,
+    status: i.status,
+    negotiation_id: i.negotiation_id ?? null,
+    resolved_at: isoOrNull(i.resolved_at),
+    created_at: i.created_at.toISOString(),
+  };
+}

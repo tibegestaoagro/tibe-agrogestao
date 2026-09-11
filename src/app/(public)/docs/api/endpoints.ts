@@ -1600,6 +1600,50 @@ export const GROUPS: Group[] = [
     ],
   },
   {
+    title: "Minha Lista de Compra (Módulo 36)",
+    note: "Anotar um item NÃO é uma compra: nada aqui mexe em estoque ou financeiro. A compra só acontece por /purchase, que passa por Negociações.",
+    endpoints: [
+      {
+        method: "GET",
+        path: "/api/v1/shopping-items",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description:
+          "A lista. Sem ?status=, devolve os PENDENTES, urgentes primeiro. Filtros: status=pendente|comprado|removido, property_id, priority, place, purpose. meta.units traz as unidades para o seletor.",
+        response: `200
+{ "data": [{ "id": "cl...", "description": "Sal mineral", "quantity": 10, "unit": "saca", "priority": "urgente", "status": "pendente" }], "meta": { "total": 1, "units": [] } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/shopping-items",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "Anota um item. Só description é obrigatória. Item parecido já pendente é recusado com ITEM_JA_NA_LISTA (409) para que a pergunta do §19.7 possa ser feita; repetir com permitir_duplicata: true adiciona assim mesmo.",
+        request: `{ "description": "Sal mineral", "quantity": 10, "unit": "saca", "priority": "urgente" }`,
+        response: `201
+{ "data": { "id": "cl...", "description": "Sal mineral", "status": "pendente", "priority": "urgente" }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/shopping-items/:id",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "Sem acao, edita os campos que vierem (a quantidade pode chegar depois). acao=concluir tira da lista sem gerar nada. acao=repetir cria um item novo igual, sem tocar no antigo. Item que já saiu da lista não é editável (NOT_EDITABLE).",
+        request: `{ "acao": "concluir" }`,
+        response: `200
+{ "data": { "id": "cl...", "description": "Sal mineral", "status": "comprado", "priority": "urgente" }, "meta": {} }`,
+      },
+      {
+        method: "DELETE",
+        path: "/api/v1/shopping-items/:id",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "Remove da lista. NÃO apaga a linha: o item vira status removido e continua no histórico.",
+        response: `200
+{ "data": { "id": "cl...", "description": "Sal mineral", "status": "removido", "priority": "normal" }, "meta": {} }`,
+      },
+    ],
+  },
+  {
     title: "Alertas",
     endpoints: [
       {
