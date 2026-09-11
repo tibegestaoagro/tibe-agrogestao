@@ -109,3 +109,82 @@ export function calcularCompraVendaGado(input: {
     },
   };
 }
+
+/**
+ * A pergunta INVERSA, do §25 e do §26: "estou pagando quanto por arroba nisto
+ * aqui?".
+ *
+ * A funcao acima parte do preco da arroba para chegar ao valor do animal. Esta
+ * parte do valor que o comprador ofereceu (total ou por cabeca) e do peso, e
+ * devolve o preco de arroba embutido nele. E a conta que o produtor faz de
+ * cabeca no curral quando alguem chega com uma proposta fechada, e errar nela
+ * custa dinheiro na hora.
+ *
+ * ⚠️ **O §26 e explicito: simular venda NAO gera venda.** Nada aqui escreve.
+ *
+ * Confianca: ALTA. Aritmetica pura sobre numeros do proprio negocio, com a
+ * arroba de carcaca de 15 kg.
+ */
+export function calcularValorPorArroba(input: {
+  numeroAnimais: number;
+  pesoMedioKg: number;
+  rendimentoCarcacaPercent: number;
+  /** Informe um dos dois: o valor fechado do lote, ou o valor de cada cabeca. */
+  valorTotal?: number;
+  valorPorCabeca?: number;
+}): CalcResult<{
+  valorTotal: number;
+  valorPorCabeca: number;
+  pesoTotalKg: number;
+  arrobasPorAnimal: number;
+  arrobasTotais: number;
+  valorPorArroba: number;
+}> {
+  const { numeroAnimais, pesoMedioKg, rendimentoCarcacaPercent, valorTotal, valorPorCabeca } =
+    input;
+
+  if (!isPositiveNumber(numeroAnimais)) {
+    return { ok: false, error: "Numero de animais deve ser maior que zero." };
+  }
+  if (!isPositiveNumber(pesoMedioKg)) {
+    return { ok: false, error: "Peso medio deve ser maior que zero." };
+  }
+  if (
+    !Number.isFinite(rendimentoCarcacaPercent) ||
+    rendimentoCarcacaPercent <= 0 ||
+    rendimentoCarcacaPercent > 100
+  ) {
+    return { ok: false, error: "Rendimento de carcaca deve estar entre 0 e 100%." };
+  }
+  if (valorTotal === undefined && valorPorCabeca === undefined) {
+    return { ok: false, error: "Informe o valor total do lote ou o valor por cabeca." };
+  }
+  if (valorTotal !== undefined && !isPositiveNumber(valorTotal)) {
+    return { ok: false, error: "Valor total deve ser maior que zero." };
+  }
+  if (valorPorCabeca !== undefined && !isPositiveNumber(valorPorCabeca)) {
+    return { ok: false, error: "Valor por cabeca deve ser maior que zero." };
+  }
+
+  /*
+   * Com os dois informados, o TOTAL vence: e o numero que foi de fato
+   * negociado, e o por cabeca costuma ser o arredondamento que alguem fez de
+   * cabeca.
+   */
+  const total = valorTotal ?? valorPorCabeca! * numeroAnimais;
+  const arrobasPorAnimal =
+    (pesoMedioKg * (rendimentoCarcacaPercent / 100)) / KG_POR_ARROBA_CARCACA;
+  const arrobasTotais = arrobasPorAnimal * numeroAnimais;
+
+  return {
+    ok: true,
+    data: {
+      valorTotal: round(total, 2),
+      valorPorCabeca: round(total / numeroAnimais, 2),
+      pesoTotalKg: round(pesoMedioKg * numeroAnimais, 1),
+      arrobasPorAnimal: round(arrobasPorAnimal, 2),
+      arrobasTotais: round(arrobasTotais, 2),
+      valorPorArroba: round(total / arrobasTotais, 2),
+    },
+  };
+}

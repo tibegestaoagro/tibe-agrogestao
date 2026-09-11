@@ -1,4 +1,4 @@
-import { type CalcResult, isPositiveNumber, round } from "./shared";
+import { type CalcResult, emSacasECusto, isPositiveNumber, round } from "./shared";
 
 /**
  * Sementes para formacao ou reforma de pastagem (§8 do documento do cliente).
@@ -69,26 +69,12 @@ export function calcularSementes(input: {
   }
 
   const totalKg = round(areaHectares * taxaKgPorHectare, 2);
-
-  let sacas: number | null = null;
-  let sobraKg: number | null = null;
-  if (pesoEmbalagemKg !== undefined) {
-    sacas = Math.ceil(totalKg / pesoEmbalagemKg);
-    sobraKg = round(sacas * pesoEmbalagemKg - totalKg, 2);
-  }
-
-  /*
-   * O preco por saca so vale quando se sabe quantas sacas serao COMPRADAS, e
-   * ai o custo e o da compra inteira, com a sobra dentro. O preco por quilo
-   * cobra exatamente o que vai ao solo. Os dois estao certos; o produtor
-   * escolhe qual informa.
-   */
-  let custoTotal: number | null = null;
-  if (precoPorSaca !== undefined && sacas !== null && isPositiveNumber(precoPorSaca)) {
-    custoTotal = round(sacas * precoPorSaca, 2);
-  } else if (precoPorKg !== undefined && isPositiveNumber(precoPorKg)) {
-    custoTotal = round(totalKg * precoPorKg, 2);
-  }
+  const { sacas, sobraKg, custoTotal } = emSacasECusto({
+    quantidadeKg: totalKg,
+    pesoSacaKg: pesoEmbalagemKg,
+    precoPorKg,
+    precoPorSaca,
+  });
 
   return { ok: true, data: { totalKg, sacas, sobraKg, custoTotal } };
 }

@@ -36,12 +36,25 @@ export function calcularCalagem(input: {
   saturacaoDesejadaPercent: number;
   prntPercent: number;
   areaHectares?: number;
+  /** §11: os dois opcionais que transformam tonelada em compra. */
+  precoPorTonelada?: number;
+  capacidadeCaminhaoToneladas?: number;
 }): CalcResult<{
   necessidadeCalagemTHa: number;
   doseCorrigidaTHa: number;
   toneladasTotais: number | null;
+  cargas: number | null;
+  custoTotal: number | null;
 }> {
-  const { ctc, saturacaoAtualPercent, saturacaoDesejadaPercent, prntPercent, areaHectares } = input;
+  const {
+    ctc,
+    saturacaoAtualPercent,
+    saturacaoDesejadaPercent,
+    prntPercent,
+    areaHectares,
+    precoPorTonelada,
+    capacidadeCaminhaoToneladas,
+  } = input;
 
   if (!isPositiveNumber(ctc)) {
     return { ok: false, error: "CTC deve ser maior que zero." };
@@ -77,12 +90,31 @@ export function calcularCalagem(input: {
     toneladasTotais = round(doseCorrigidaTHa * areaHectares, 2);
   }
 
+  /*
+   * §11: calcario chega de caminhao, nao de saca. A carga arredonda para CIMA
+   * pelo mesmo motivo da saca: voltar para buscar meia carga custa outro
+   * frete. O custo e por TONELADA, que e como o calcario e vendido.
+   */
+  const cargas =
+    toneladasTotais !== null &&
+    capacidadeCaminhaoToneladas !== undefined &&
+    isPositiveNumber(capacidadeCaminhaoToneladas)
+      ? Math.ceil(toneladasTotais / capacidadeCaminhaoToneladas)
+      : null;
+
   return {
     ok: true,
     data: {
       necessidadeCalagemTHa: round(necessidadeCalagemTHa, 2),
       doseCorrigidaTHa: round(doseCorrigidaTHa, 2),
       toneladasTotais,
+      cargas,
+      custoTotal:
+        toneladasTotais !== null &&
+        precoPorTonelada !== undefined &&
+        isPositiveNumber(precoPorTonelada)
+          ? round(toneladasTotais * precoPorTonelada, 2)
+          : null,
     },
   };
 }
