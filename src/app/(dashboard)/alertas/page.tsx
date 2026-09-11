@@ -13,6 +13,7 @@ import type { AlertType, AlertStatus } from "@/generated/prisma/client";
 import { Badge } from "@/components/ui/badge";
 import AlertFilters from "@/components/alertas/alert-filters";
 import AlertDismissButton from "@/components/alertas/alert-dismiss-button";
+import AlertToShoppingButton from "@/components/alertas/alert-to-shopping-button";
 
 /**
  * Precisa listar TODOS os tipos do enum.
@@ -108,7 +109,11 @@ export default async function AlertasPage(
                   <TableCell>{a.created_at.toLocaleDateString("pt-BR")}</TableCell>
                   <TableCell className="text-right">
                     {writable && a.status !== "dismissed" && (
-                      <AlertDismissButton alertId={a.id} />
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {/* §13 do Modulo 36: so o alerta de estoque baixo sabe qual produto comprar. */}
+                        {a.alert_type === "low_stock" && <AlertToShoppingButton alertId={a.id} />}
+                        <AlertDismissButton alertId={a.id} />
+                      </div>
                     )}
                   </TableCell>
                 </TableRow>

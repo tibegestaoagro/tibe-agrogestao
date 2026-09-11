@@ -267,6 +267,33 @@ falta fazer estão no handoff.
 - **Banco de produção:** Neon. **Dev local:** Postgres 17 em Docker, container
   `tibe-pg`, porta `55432` (`docker start tibe-pg`).
 
+### As skills da Neon: leitura livre, escrita só autorizada
+
+Instaladas em 2026-09-11 (`npx neon@latest skills --global -s neon -s
+neon-postgres`), **no perfil da máquina, fora do repositório**: a credencial é
+da máquina, e este repositório é público. No notebook, instalar de novo.
+
+⚠️ **A primeira tentativa instalou no PROJETO** (o default do comando é "this
+directory", e o `-y` aceita sem perguntar), criando `.claude/skills/neon*`,
+`.agents/` e `skills-lock.json`. Foi desfeito. Use `--global`.
+
+Elas falam direto com o Neon, **por fora** do `.env`, do `exigirBancoLocal()` e
+de tudo o que protege este projeto de confundir dev com produção. Por isso a
+regra, decidida pelo usuário na instalação:
+
+| o que | precisa de autorização? |
+|---|---|
+| ler produção (contar, dimensionar, conferir antes de migrar) | **não** |
+| escrever, migrar, criar ou apagar branch de banco | **sim, na conversa, a cada vez** |
+
+O invariante 7 já diz isso para merge, push e deploy; aqui vale o mesmo
+princípio para o banco. Uma ferramenta nova não afrouxa uma regra existente.
+
+**O ganho que motivou instalar** é o branch de banco: uma cópia dos dados reais
+onde a migração pode ser aplicada e conferida **antes** de encostar em
+produção. Hoje o SQL só encontra dado de verdade no dia do deploy, porque o
+Docker local tem dados de seed.
+
 ⚠️ **O Docker Desktop cai sozinho neste ambiente**, e o sintoma é
 `DatabaseNotReachable` numa tela que funcionava. Suba
 (`Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"`), espere
@@ -297,10 +324,19 @@ suítes nesse caso, mas a trava só existe porque o acidente já aconteceu.
 ⚠️ **`prisma migrate dev` é interativo e falha em automação.** O fluxo daqui:
 
 ```
-npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script
+DATABASE_URL="postgresql://tibe:tibe@127.0.0.1:55432/tibe_dev?schema=public" npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script
 # salvar o SQL em prisma/migrations/<timestamp>_nome/migration.sql
-npm run db:deploy
+DATABASE_URL="postgresql://tibe:tibe@127.0.0.1:55432/tibe_dev?schema=public" npm run db:deploy
 ```
+
+⚠️ **A URL inline no `migrate diff` não é enfeite.** Sem ela, o `--from-config-datasource`
+lê o `.env`, que é **produção**: o SQL sai comparado com o banco errado, e
+quando o local está à frente ele vem incompleto ou com drop indevido. O
+`dotenv` não sobrescreve variável já definida no ambiente, então a inline vence.
+
+⚠️ **`--from-url` e `--to-schema-datamodel` não existem mais** no Prisma 7 (o
+CLI manda usar `--[from/to]-config-datasource`), e `--from-migrations` exige uma
+`shadowDatabaseUrl` no `prisma.config.ts`, que este projeto não tem.
 
 Aplique primeiro no Docker local, rode os testes, e só então no Neon (URL
 **Direct**, sem `-pooler`; a Pooled é a de runtime).

@@ -85,9 +85,9 @@ async function main() {
     check("tenant novo começa sem categoria", (await listProductCategories(db)).length === 0);
 
     const criadas = await ensureProductCategories(db);
-    check("a primeira abertura cria 15", criadas === 15, String(criadas));
+    check("a primeira abertura cria as 25 padrao", criadas === 25, String(criadas));
     const categorias = await listProductCategories(db);
-    check("e elas ficam listáveis", categorias.length === 15, String(categorias.length));
+    check("e elas ficam listáveis", categorias.length === 25, String(categorias.length));
     check(
       "com os nomes do documento",
       categorias.some((c) => c.name === "Sal mineral") &&
@@ -96,7 +96,7 @@ async function main() {
     );
 
     const denovo = await ensureProductCategories(db);
-    check("abrir de novo NÃO duplica", denovo === 0 && (await listProductCategories(db)).length === 15);
+    check("abrir de novo NÃO duplica", denovo === 0 && (await listProductCategories(db)).length === 25);
 
     // Quem apagou uma categoria apagou querendo: não se repõe uma a uma.
     const paraArquivar = categorias.find((c) => c.name === "Lubrificantes")!;
@@ -107,9 +107,57 @@ async function main() {
     await ensureProductCategories(db);
     check(
       "e não ressuscita a categoria que o produtor arquivou",
-      (await listProductCategories(db)).length === 14,
+      (await listProductCategories(db)).length === 24,
       String((await listProductCategories(db)).length),
     );
+
+    /*
+     * Módulo 36: a lista padrão CRESCEU, e tenant que já existia precisa
+     * receber o que chegou depois. Até 11/09 o provisionamento só semeava com
+     * a lista vazia, então as 10 categorias do §6 da Lista de Compra nunca
+     * chegariam a quem já tinha as 15 do Estoque.
+     */
+    const soAsQuinze = await prisma.tenant.create({
+      data: { name: "M37 Tenant Antigo", document: `M37C-${Date.now()}`, plan: "fazenda" },
+    });
+    const dbAntigo = prismaForTenant(soAsQuinze.id);
+    try {
+      await dbAntigo.productCategory.createMany({
+        data: [
+          "Sal mineral",
+          "Ração",
+          "Suplementos",
+          "Sementes",
+          "Medicamentos",
+          "Vacinas",
+          "Adubos",
+          "Calcário",
+          "Combustível",
+          "Lubrificantes",
+          "Materiais para cerca",
+          "Ferramentas",
+          "Peças",
+          "Produtos veterinários",
+          "Outros",
+        ].map((name) => scoped({ name })),
+      });
+      const acrescentadas = await ensureProductCategories(dbAntigo);
+      check(
+        "tenant que já tinha as 15 recebe as 10 que chegaram depois",
+        acrescentadas === 10,
+        String(acrescentadas),
+      );
+      const nomes = (await listProductCategories(dbAntigo)).map((c) => c.name);
+      check(
+        "entre elas as do §6 da Lista de Compra",
+        nomes.includes("Alimentação animal") && nomes.includes("Uso doméstico da fazenda"),
+        nomes.join(", "),
+      );
+      check("e as 15 antigas continuam lá", nomes.includes("Sal mineral") && nomes.length === 25);
+    } finally {
+      await prisma.productCategory.deleteMany({ where: { tenant_id: soAsQuinze.id } });
+      await prisma.tenant.delete({ where: { id: soAsQuinze.id } });
+    }
 
     const salMineral = categorias.find((c) => c.name === "Sal mineral")!;
     const ferramentas = categorias.find((c) => c.name === "Ferramentas")!;

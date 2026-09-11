@@ -395,6 +395,7 @@ model Tenant {
   service_jobs         ServiceJob[]
   worker_logs          WorkerLog[]
   service_job_costs    ServiceJobCost[]
+  shopping_items       ShoppingItem[]
 }
 
 // Equipe da Pleno Digital. NÃO carrega tenant_id: fora do isolamento (PRD 4 / 10.4).
@@ -437,24 +438,25 @@ model User {
   active               Boolean  @default(true)
   must_change_password Boolean  @default(false)
 
-  tenant                    Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  whatsapp_contacts         WhatsAppContact[]
-  password_resets           PasswordResetCode[]
-  agent_flows               AgentFlowState[]
-  refresh_tokens            RefreshToken[]
-  herd_movements            HerdMovement[]
-  herd_stays                HerdStay[]
-  negotiations              Negotiation[]       @relation("NegotiationRecordedBy")
-  negotiations_canceled     Negotiation[]       @relation("NegotiationCanceledBy")
-  stock_movements           StockMovement[]     @relation("StockRecordedBy")
-  push_subscriptions        PushSubscription[]
-  financial_entries_created FinancialEntry[]    @relation("FinancialEntryCreatedBy")
-  financial_entries_updated FinancialEntry[]    @relation("FinancialEntryUpdatedBy")
-  financial_payments_created FinancialPayment[] @relation("FinancialPaymentCreatedBy")
-  workers_recorded          Worker[]            @relation("WorkerRecordedBy")
-  service_jobs_recorded     ServiceJob[]        @relation("ServiceJobRecordedBy")
-  service_jobs_canceled     ServiceJob[]        @relation("ServiceJobCanceledBy")
-  service_costs_recorded    ServiceJobCost[]    @relation("ServiceCostRecordedBy")
+  tenant                     Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  whatsapp_contacts          WhatsAppContact[]
+  password_resets            PasswordResetCode[]
+  agent_flows                AgentFlowState[]
+  refresh_tokens             RefreshToken[]
+  herd_movements             HerdMovement[]
+  herd_stays                 HerdStay[]
+  negotiations               Negotiation[]       @relation("NegotiationRecordedBy")
+  negotiations_canceled      Negotiation[]       @relation("NegotiationCanceledBy")
+  stock_movements            StockMovement[]     @relation("StockRecordedBy")
+  push_subscriptions         PushSubscription[]
+  financial_entries_created  FinancialEntry[]    @relation("FinancialEntryCreatedBy")
+  financial_entries_updated  FinancialEntry[]    @relation("FinancialEntryUpdatedBy")
+  financial_payments_created FinancialPayment[]  @relation("FinancialPaymentCreatedBy")
+  workers_recorded           Worker[]            @relation("WorkerRecordedBy")
+  service_jobs_recorded      ServiceJob[]        @relation("ServiceJobRecordedBy")
+  service_jobs_canceled      ServiceJob[]        @relation("ServiceJobCanceledBy")
+  service_costs_recorded     ServiceJobCost[]    @relation("ServiceCostRecordedBy")
+  shopping_items_created     ShoppingItem[]      @relation("ShoppingItemCreatedBy")
 
   @@index([tenant_id])
 }
@@ -625,6 +627,7 @@ model Property {
   workers           Worker[]
   service_jobs      ServiceJob[]
   worker_logs       WorkerLog[]
+  shopping_items    ShoppingItem[]
 
   @@index([tenant_id])
 }
@@ -654,8 +657,9 @@ model ProductCategory {
   archived_at DateTime?
   created_at  DateTime  @default(now())
 
-  tenant   Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  products Product[]
+  tenant         Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  products       Product[]
+  shopping_items ShoppingItem[]
 
   @@unique([tenant_id, name])
   @@index([tenant_id])
@@ -682,9 +686,10 @@ model Product {
   created_at       DateTime  @default(now())
   updated_at       DateTime  @updatedAt
 
-  tenant    Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  category  ProductCategory @relation(fields: [category_id], references: [id], onDelete: Restrict)
-  movements StockMovement[]
+  tenant         Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  category       ProductCategory @relation(fields: [category_id], references: [id], onDelete: Restrict)
+  movements      StockMovement[]
+  shopping_items ShoppingItem[]
 
   @@unique([tenant_id, name])
   @@index([tenant_id])
@@ -1276,7 +1281,7 @@ model FinancialEntry {
 /// O ADIANTAMENTO do §38 não precisa de conceito próprio: é um pagamento feito
 /// antes do vencimento, e "recebido 3.000, a receber 7.000" cai de graça.
 model FinancialPayment {
-  id        String   @id @default(cuid())
+  id        String @id @default(cuid())
   tenant_id String
   entry_id  String
 
@@ -1882,11 +1887,11 @@ model Contact {
   /// um rótulo de evento passado. É por isso que o painel escolhe de uma lista
   /// em vez de criar pelo nome digitado, como a negociação faz: aqui "João" e
   /// "Joao" partiriam o leite de um produtor em dois saldos.
-  milk_from    MilkMovement[] @relation("MilkMovementFromOwner")
+  milk_from         MilkMovement[]   @relation("MilkMovementFromOwner")
   financial_entries FinancialEntry[]
-  milk_to      MilkMovement[] @relation("MilkMovementToOwner")
-  milk_bought  MilkMovement[] @relation("MilkMovementBuyer")
-  milk_charges MilkCharge[]
+  milk_to           MilkMovement[]   @relation("MilkMovementToOwner")
+  milk_bought       MilkMovement[]   @relation("MilkMovementBuyer")
+  milk_charges      MilkCharge[]
 
   /// Fase 33.2: o prestador de um serviço contratado (§19), e o mecânico de
   /// uma manutenção de máquina (§29).
@@ -1967,6 +1972,8 @@ model Negotiation {
   herd_stays        HerdStay[]
   machines_acquired Machine[]        @relation("MachineAcquired")
   machines_disposed Machine[]        @relation("MachineDisposed")
+  /// Módulo 36 (§12): os itens da Lista de Compra que viraram esta compra.
+  shopping_items    ShoppingItem[]
 
   @@index([tenant_id])
   @@index([tenant_id, occurred_at])
@@ -2707,4 +2714,109 @@ model WorkerLog {
 
   @@index([tenant_id])
   @@index([worker_id])
+}
+
+/// ============================================================================
+/// Módulo 36: Minha Lista de Compra
+/// ============================================================================
+
+/// O que o produtor precisa comprar (§4).
+///
+/// ⚠️ **Anotar um item NÃO é uma compra** (§3). Nada aqui mexe em estoque
+/// (§19.2) nem em financeiro (§19.1): é a necessidade escrita no papel que
+/// este módulo veio substituir. O dinheiro só entra quando o produtor
+/// confirma que comprou, e aí quem registra é Negociações (§12), pela mesma
+/// porta de sempre.
+///
+/// **Não existe entidade "lista"** (decisão 15 do grill de 10/09): "a lista" é
+/// a consulta dos pendentes deste tenant, e o agrupamento que o §16 pede é o
+/// campo `place`. Uma tabela de listas traria a pergunta que o documento nunca
+/// faz: quantas listas existem, e o que acontece quando uma é fechada.
+model ShoppingItem {
+  id        String @id @default(cuid())
+  tenant_id String
+
+  /// §4: a ÚNICA informação obrigatória. "Comprar arame" é item válido, e o
+  /// §5 é explícito que a quantidade pode não existir no momento da anotação.
+  description String
+
+  /// Decisão 11, item híbrido. Com produto, a compra do §12 reaproveita tudo e
+  /// a sugestão por estoque baixo do §13 tem onde apontar; sem produto, sobra
+  /// a descrição, e está certo assim.
+  product_id String?
+
+  quantity Decimal? @db.Decimal(14, 3)
+  /// Vocabulário de `src/lib/stock/units.ts`, o mesmo do estoque.
+  unit     String?
+
+  property_id String?
+  /// Decisão 32: a categoria é a MESMA do produto (`ProductCategory`), não uma
+  /// segunda lista. O que o produto é pertence a um vocabulário só.
+  category_id String?
+
+  /// §8: para onde o produto vai. É outra pergunta que a categoria: o mesmo
+  /// sal mineral pode ir para o rebanho ou para o confinamento.
+  purpose  ShoppingPurpose?
+  priority ShoppingPriority @default(normal)
+
+  /// §16: onde o produtor pretende comprar. Texto livre, e não um cadastro de
+  /// fornecedor: o §21 tira "gestão de fornecedores" da primeira versão.
+  place String?
+  notes String?
+
+  status ShoppingItemStatus @default(pendente)
+
+  /// §12: a negociação que nasceu deste item. Nulo quando o produtor apenas
+  /// concluiu o item (§11, opção 1), sem registrar compra.
+  negotiation_id String?
+
+  created_by_user_id String?
+  /// §19.8: quando o item saiu da lista, por compra ou por remoção.
+  resolved_at        DateTime?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime? @updatedAt
+
+  tenant      Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  /// `SetNull` em todos: arquivar um produto, uma fazenda ou uma categoria não
+  /// pode travar nem apagar a lista de compras do produtor.
+  product     Product?         @relation(fields: [product_id], references: [id], onDelete: SetNull)
+  property    Property?        @relation(fields: [property_id], references: [id], onDelete: SetNull)
+  category    ProductCategory? @relation(fields: [category_id], references: [id], onDelete: SetNull)
+  negotiation Negotiation?     @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
+  created_by  User?            @relation("ShoppingItemCreatedBy", fields: [created_by_user_id], references: [id], onDelete: SetNull)
+
+  @@index([tenant_id])
+  /// A consulta que a tela e o WhatsApp fazem o tempo todo: os pendentes deste
+  /// tenant, urgentes primeiro.
+  @@index([tenant_id, status])
+  @@index([product_id])
+}
+
+/// §18. Item concluído NÃO é apagado (§19.6): ele sai dos pendentes e vira
+/// histórico.
+enum ShoppingItemStatus {
+  pendente
+  comprado
+  removido
+}
+
+/// §7. Duas opções bastam na primeira versão, e o documento diz isso com todas
+/// as letras.
+enum ShoppingPriority {
+  normal
+  urgente
+}
+
+/// §8. ⚠️ **Compartilhado com a Calculadora** (Módulo 37, decisão 32): mesmo
+/// conceito, mesmo vocabulário. Dois enums idênticos divergem no dia em que
+/// alguém acrescentar um valor num só.
+enum ShoppingPurpose {
+  rebanho
+  pasto
+  confinamento
+  leite
+  maquina
+  cerca
+  fazenda_geral
+  outro
 }

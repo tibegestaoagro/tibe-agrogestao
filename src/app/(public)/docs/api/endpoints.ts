@@ -1600,6 +1600,60 @@ export const GROUPS: Group[] = [
     ],
   },
   {
+    title: "Minha Lista de Compra (Módulo 36)",
+    note: "Anotar um item NÃO é uma compra: nada aqui mexe em estoque ou financeiro. A compra só acontece por /purchase, que passa por Negociações.",
+    endpoints: [
+      {
+        method: "GET",
+        path: "/api/v1/shopping-items",
+        auth: "Sessão · rebanho:read · perfil fazenda",
+        description:
+          "A lista. Sem ?status=, devolve os PENDENTES, urgentes primeiro. Filtros: status=pendente|comprado|removido, property_id, priority, place, purpose. meta.units traz as unidades para o seletor.",
+        response: `200
+{ "data": [{ "id": "cl...", "description": "Sal mineral", "quantity": 10, "unit": "saca", "priority": "urgente", "status": "pendente" }], "meta": { "total": 1, "units": [] } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/shopping-items",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "Anota um item. Só description é obrigatória. Item parecido já pendente é recusado com ITEM_JA_NA_LISTA (409) para que a pergunta do §19.7 possa ser feita; repetir com permitir_duplicata: true adiciona assim mesmo.",
+        request: `{ "description": "Sal mineral", "quantity": 10, "unit": "saca", "priority": "urgente" }`,
+        response: `201
+{ "data": { "id": "cl...", "description": "Sal mineral", "quantity": 10, "unit": "saca", "priority": "urgente", "status": "pendente", "negotiation_id": null }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/shopping-items/:id",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "Sem acao, edita os campos que vierem (a quantidade pode chegar depois). acao=concluir tira da lista sem gerar nada. acao=repetir cria um item novo igual, sem tocar no antigo. Item que já saiu da lista não é editável (NOT_EDITABLE).",
+        request: `{ "acao": "concluir" }`,
+        response: `200
+{ "data": { "id": "cl...", "description": "Sal mineral", "status": "comprado", "priority": "urgente" }, "meta": {} }`,
+      },
+      {
+        method: "DELETE",
+        path: "/api/v1/shopping-items/:id",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "Remove da lista. NÃO apaga a linha: o item vira status removido e continua no histórico.",
+        response: `200
+{ "data": { "id": "cl...", "description": "Sal mineral", "status": "removido", "priority": "normal" }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/shopping-items/:id/purchase",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "O item vira compra de verdade: despesa, conta a pagar quando não foi à vista, e entrada no estoque, tudo por Negociações (type: compra_produto). Produto, quantidade e fazenda saem do item quando já estiverem lá. Item sem produto é recusado com PRODUTO_NECESSARIO no campo product_id: repita com product_id de um produto existente, ou com novo_produto para cadastrar na hora. A conclusão do item entra na MESMA transação da compra.",
+        request: `{ "amount": 1800, "pago": true, "novo_produto": { "unit": "saca", "category_id": "cl..." } }`,
+        response: `201
+{ "data": { "item_id": "cl...", "negotiation_id": "cl...", "product_id": "cl..." }, "meta": {} }`,
+      },
+    ],
+  },
+  {
     title: "Alertas",
     endpoints: [
       {
@@ -1609,6 +1663,16 @@ export const GROUPS: Group[] = [
         description: "Lista alertas. Filtros: type, status.",
         response: `200
 { "data": [{ "id": "cl...", "alert_type": "vaccine_due", "message": "🐄 Atenção: a vacina de aftosa do animal 1234 vence em 3 dias", "status": "pending" }], "meta": { "total": 1 } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/alerts/:id/shopping-item",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "Manda o produto de um alerta low_stock para a Lista de Compra (Módulo 36, §13), com unidade e categoria já preenchidas, e dispensa o alerta. Nunca roda sozinho: o sistema não adiciona sem confirmação. Produto já pendente na lista devolve ITEM_JA_NA_LISTA (409); repita com permitir_duplicata: true.",
+        request: `{ "permitir_duplicata": false }`,
+        response: `201
+{ "data": { "id": "cl...", "description": "Sal mineral", "status": "pendente", "priority": "normal" }, "meta": {} }`,
       },
       {
         method: "PATCH",

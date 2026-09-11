@@ -26,33 +26,44 @@ export type ProductView = {
 };
 
 /**
- * Garante as 15 categorias do §9.1.
+ * Garante as categorias padrão de produto (§9.1 do Estoque e §6 da Lista de
+ * Compra).
  *
- * Chamada toda vez que a tela de Estoque abre, e é barata: um `count` quando
- * já existem. Decisão do usuário (2026-08-14) contra semear na migração:
+ * Chamada toda vez que a tela de Estoque abre, e é barata: uma leitura de
+ * nomes, sem escrita nenhuma quando nada falta. Decisão do usuário
+ * (2026-08-14) contra semear na migração:
  * funciona igual para tenant novo e antigo, não mexe em dado de produção, e um
  * tenant que apagar todas não fica travado sem nenhuma.
  *
- * Idempotente por construção: só cria quando NÃO existe nenhuma. Não recria a
- * que o produtor arquivou de propósito, e não repõe uma a uma, porque quem
- * apagou "Lubrificantes" apagou querendo.
+ * **Acrescenta o que falta, e nunca recria o que o produtor tirou.** Até
+ * 11/09/2026 ela só semeava com a lista VAZIA, e isso bastava enquanto a lista
+ * padrão nunca mudava. O Módulo 36 acrescentou as 10 categorias do §6 da Lista
+ * de Compra, e com a regra antiga nenhum tenant existente as receberia: o
+ * provisionamento não rodava mais para eles.
+ *
+ * ⚠️ **A comparação inclui as ARQUIVADAS**, e é isso que preserva a decisão
+ * anterior: quem arquivou "Lubrificantes" arquivou querendo, e ela não volta.
+ * Só entra nome que nunca existiu neste tenant.
  */
 export async function ensureProductCategories(db: TenantPrismaClient): Promise<number> {
-  const quantas = await db.productCategory.count();
-  if (quantas > 0) return 0;
+  // Sem filtro de `archived_at`: arquivada CONTA como existente.
+  const existentes = await db.productCategory.findMany({ select: { name: true } });
+  const jaTem = new Set(existentes.map((c) => c.name.trim().toLowerCase()));
+  const faltando = CATEGORIAS_INICIAIS.filter((name) => !jaTem.has(name.toLowerCase()));
+  if (faltando.length === 0) return 0;
 
   /**
-   * `skipDuplicates` não é detalhe: entre o `count` e o `createMany` cabe outra
+   * `skipDuplicates` não é detalhe: entre a leitura e o `createMany` cabe outra
    * requisição. Duas abas abertas, ou a página e o app ao mesmo tempo, num
    * tenant novo, faziam a segunda estourar P2002 contra o
    * `@@unique([tenant_id, name])` e a tela de Estoque respondia 500 na
    * primeira visita da vida do cliente.
    */
   await db.productCategory.createMany({
-    data: CATEGORIAS_INICIAIS.map((name) => scoped({ name })),
+    data: faltando.map((name) => scoped({ name })),
     skipDuplicates: true,
   });
-  return CATEGORIAS_INICIAIS.length;
+  return faltando.length;
 }
 
 export async function listProductCategories(db: TenantPrismaClient) {

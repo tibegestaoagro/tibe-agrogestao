@@ -27,6 +27,40 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-09-11.
 
+### O Módulo 36 (Lista de Compra) está PRONTO na branch `lista-de-compra`
+
+Doze commits, as **onze tarefas da spec feitas**, suíte **63/63** (a `m63`
+entrou), `tsc`, `lint`, `check` e `test:drift` limpos. Spec em
+[../superpowers/specs/2026-09-11-modulo-36-lista-de-compra.md](../superpowers/specs/2026-09-11-modulo-36-lista-de-compra.md).
+
+⚠️ **UMA migração aplicada só no banco local**, nunca no Neon:
+`20260911100000_lista_de_compra` (cria `ShoppingItem` e três enums, tudo
+aditivo). O invariante 3 exige que ela vá ao Neon **antes** do push.
+
+O que o módulo faz: o produtor anota o que precisa comprar, pelo painel ou pelo
+WhatsApp, e **anotar não é comprar** (§3): nada mexe em estoque nem em
+financeiro até ele confirmar a compra, e aí quem registra é Negociações.
+
+**Decisões que não devem ser redecididas:**
+
+- **Não existe entidade "lista"**: a lista é a consulta dos pendentes.
+- **Item sem produto não vira compra sozinho.** A negociação exige um `Product`
+  porque é ele que tem saldo e unidade; "comprar arame" é anotação legítima e
+  vira compra quando o produtor disser qual produto é. Vale no painel e no
+  WhatsApp.
+- **Concluir o item entra na MESMA transação da compra**, por um gancho
+  opcional em `createProductNegotiation`. Fora dela existiria a janela em que a
+  compra já entrou e o item continua na lista, e o produtor compra de novo.
+- **A duplicata AVISA, nunca recusa de verdade** (§19.7), e a comparação é
+  larga de propósito.
+- **As categorias são as de PRODUTO**, agora 25: as 15 do Estoque mais as 10 do
+  §6. O provisionamento acrescenta o que falta e **nunca ressuscita arquivada**.
+- ⚠️ **O classificador do n8n NÃO emite as quatro intenções da lista**, como as
+  do evento e da permuta desde o Módulo 31.
+- ⚠️ **Unidade de produto fora do vocabulário não pode barrar o item.** Achado
+  ao vivo: um produto com `kg` em vez de `quilograma` fazia o botão do alerta
+  recusar calado.
+
 ### A fase 35.1 do Financeiro está EM PRODUÇÃO
 
 Merge e push em 11/09 (`310d707..799096c`, 23 commits), com as **três migrações
@@ -135,14 +169,16 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou, e cada commit que sobe é leitura pública.
 
-**2. O Módulo 36, Lista de Compra**, que é a segunda das quatro áreas. As seis
-decisões do grill estão em
-[../superpowers/specs/2026-09-10-sequencia-das-quatro-areas.md](../superpowers/specs/2026-09-10-sequencia-das-quatro-areas.md),
-e o documento do cliente em `docs/modulo-lista-de-compras/`. A spec ainda não
-foi escrita.
+**2. Subir o Módulo 36**, que está pronto e mesclado na `main` local. Falta,
+nesta ordem: a migração `20260911100000_lista_de_compra` no Neon, e o push
+autorizado na conversa.
 
 **3. Duas provas que ficaram devendo da 35.1**, e agora são possíveis: o
 roteiro de tela no navegador e o `npm run wa` contra o agente de produção.
+
+**4. Depois, a Calculadora (Módulo 37)**, terceira das quatro áreas, seguida do
+Meu Dia (38). O `ShoppingPurpose` já nasceu compartilhado com a Calculadora,
+como a decisão 32 pede.
 
 ⚠️ **O backfill de `property_id` está autorizado** e é a dívida 2.11. Migração
 por origem, fora da 35.1.
