@@ -194,9 +194,6 @@ porque é camada de leitura e consome as outras três.
 ⚠️ **O backfill de `property_id` está autorizado** e é a dívida 2.11. Migração
 por origem, fora da 35.1.
 
-Depois da Lista de Compra: **Calculadora** (Módulo 37) e **Meu Dia** (38), nessa
-ordem. O Meu Dia é por último porque é camada de leitura e consome os outros.
-
 **Continuam esperando, para depois das quatro áreas:** a outra metade da
 `dividas.md` §2.8 (a despesa avulsa e os sete destinos de saída), e três
 decisões de produto do Leite (média diária por dias corridos; cabeçalho de uma
