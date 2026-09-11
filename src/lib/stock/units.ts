@@ -141,13 +141,22 @@ export function concordar(
 }
 
 /**
- * As 15 categorias iniciais do §9.1.
+ * As categorias padrão de produto: as 15 do §9.1 do Estoque mais as 10 do §6
+ * da Lista de Compra (Módulo 36), acrescentadas em 11/09/2026.
  *
  * Nascem na primeira vez que o tenant abre o Estoque (decisão do usuário,
  * 2026-08-14): sem migração de dado, funciona igual para tenant novo e antigo,
  * e um tenant que apagar todas não fica travado sem nenhuma.
+ *
+ * ⚠️ **Esta lista é compartilhada por dois módulos**, e é de propósito
+ * (decisão 32 do grill de 10/09): o que um produto É pertence a um vocabulário
+ * só. Por isso ela tem pares parecidos ("Ração" e "Alimentação animal",
+ * "Peças" e "Máquinas e peças"): os dois documentos nomearam a mesma prateleira
+ * de formas diferentes, e renomear o que já está em produção mexeria no
+ * cadastro de quem já usa. Consequência aceita pelo usuário na spec do 36.
  */
 export const CATEGORIAS_INICIAIS = [
+  // §9.1, Estoque
   "Sal mineral",
   "Ração",
   "Suplementos",
@@ -163,4 +172,15 @@ export const CATEGORIAS_INICIAIS = [
   "Peças",
   "Produtos veterinários",
   "Outros",
+  // §6, Lista de Compra
+  "Alimentação animal",
+  "Sal e suplementos",
+  "Medicamentos e vacinas",
+  "Adubos e corretivos",
+  "Combustíveis",
+  "Máquinas e peças",
+  "Produtos para leite",
+  "Produtos para confinamento",
+  "Material de construção",
+  "Uso doméstico da fazenda",
 ] as const;
