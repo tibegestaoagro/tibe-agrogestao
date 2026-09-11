@@ -9,6 +9,7 @@ import {
   removerItemAction,
   repetirItemAction,
   registrarCompraDoItemAction,
+  adicionarItemDoAlertaAction,
 } from "@/lib/actions/shopping-items";
 
 /**
@@ -232,6 +233,42 @@ async function main() {
         );
       }
     }
+
+    // ── §13: o alerta de estoque baixo vira item ─────────────────────────
+    const produtoDoAlerta = await db.product.create({
+      data: scoped({
+        name: "Vacina contra clostridiose",
+        category_id: categoria.id,
+        unit: "saca",
+        minimum_stock: 3,
+      }),
+    });
+    const alerta = await db.alert.create({
+      data: scoped({
+        alert_type: "low_stock",
+        related_module: "geral",
+        related_id: `${produtoDoAlerta.id}:2026-W37`,
+        dedup_key: `low_stock:geral:${produtoDoAlerta.id}:2026-W37`,
+        message: "📦 Vacina contra clostridiose está acabando.",
+      }),
+    });
+
+    const doAlerta = await adicionarItemDoAlertaAction(db, alerta.id);
+    check("o alerta de estoque baixo vira item da lista", doAlerta.ok, JSON.stringify(doAlerta));
+    if (doAlerta.ok) {
+      const item = await db.shoppingItem.findFirst({ where: { id: doAlerta.data.id } });
+      check("com o produto ja vinculado", item?.product_id === produtoDoAlerta.id);
+      check("e a unidade e a categoria vindas do cadastro", item?.unit === "saca" && item?.category_id === categoria.id);
+      const alertaDepois = await db.alert.findFirst({ where: { id: alerta.id } });
+      check("e o alerta foi dispensado junto", alertaDepois?.status === "dismissed");
+    }
+
+    const deNovoDoAlerta = await adicionarItemDoAlertaAction(db, alerta.id);
+    check(
+      "pedir de novo avisa que o produto ja esta na lista",
+      !deNovoDoAlerta.ok && deNovoDoAlerta.code === "ITEM_JA_NA_LISTA",
+      JSON.stringify(deNovoDoAlerta),
+    );
 
     const lancamentos = await db.financialEntry.count({ where: { negotiation_id: null } });
     const movimentos = await db.stockMovement.count({ where: { negotiation_id: null } });

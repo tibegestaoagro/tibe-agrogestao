@@ -1665,6 +1665,16 @@ export const GROUPS: Group[] = [
 { "data": [{ "id": "cl...", "alert_type": "vaccine_due", "message": "🐄 Atenção: a vacina de aftosa do animal 1234 vence em 3 dias", "status": "pending" }], "meta": { "total": 1 } }`,
       },
       {
+        method: "POST",
+        path: "/api/v1/alerts/:id/shopping-item",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "Manda o produto de um alerta low_stock para a Lista de Compra (Módulo 36, §13), com unidade e categoria já preenchidas, e dispensa o alerta. Nunca roda sozinho: o sistema não adiciona sem confirmação. Produto já pendente na lista devolve ITEM_JA_NA_LISTA (409); repita com permitir_duplicata: true.",
+        request: `{ "permitir_duplicata": false }`,
+        response: `201
+{ "data": { "id": "cl...", "description": "Sal mineral", "status": "pendente", "priority": "normal" }, "meta": {} }`,
+      },
+      {
         method: "PATCH",
         path: "/api/v1/alerts/:id/dismiss",
         auth: "Sessão · alertas:write",

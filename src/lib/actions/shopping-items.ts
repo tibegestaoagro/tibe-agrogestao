@@ -118,6 +118,12 @@ function conferirQuantidade(
  * Casa por produto quando os dois têm produto, e por descrição normalizada
  * quando não têm. A comparação é sem acento e sem caixa, porque o produtor
  * dita "sal" hoje e "Sal" amanhã.
+ *
+ * ⚠️ **O `includes` nos dois sentidos é largo de propósito.** "Sal mineral"
+ * casa com "Sal mineral do alerta", e é isso que se quer: o produtor escreveu
+ * a mesma coisa de dois jeitos. O preço é algum falso parecido, e ele é barato
+ * porque isto AVISA, não recusa: quem quiser mesmo duas linhas responde que
+ * sim. Estreitar para igualdade exata deixaria passar justamente o caso comum.
  */
 export async function pendentesParecidos(
   db: TenantPrismaClient,
@@ -509,4 +515,62 @@ export async function registrarCompraDoItemAction(
   }
 
   return ok({ item_id: itemId, negotiation_id: negociacao.data.id, product_id });
+}
+
+/**
+ * §13: o alerta de estoque baixo vira item da lista.
+ *
+ * O alerta `low_stock` já sabe qual produto acabou, e o `related_id` dele é
+ * `<product_id>:<semana ISO>`. Daqui sai tudo o que o item precisa: o produto,
+ * a unidade e a categoria vêm do próprio cadastro.
+ *
+ * ⚠️ **Nunca adiciona sozinho** (§13, explícito: "o sistema não deverá
+ * adicionar automaticamente sem confirmação"). Esta função só roda quando o
+ * produtor clica, e é por isso que ela não vive dentro da geração de alertas.
+ *
+ * ⚠️ **O alerta compara o TOTAL do tenant, não o saldo por fazenda** (decisão
+ * 27 do grill). Um produto zerado na Fazenda A com 50 sacas na B não avisa, e
+ * o item que nasce daqui também não escolhe fazenda: quem souber para onde vai
+ * preenche depois.
+ *
+ * Dispensa o alerta junto, porque a decisão foi tomada. Se o saldo continuar
+ * baixo, o cron avisa de novo na semana seguinte: a chave de deduplicação
+ * inclui a semana.
+ */
+export async function adicionarItemDoAlertaAction(
+  db: TenantPrismaClient,
+  alertId: string,
+  opts?: { created_by_user_id?: string | null; permitirDuplicata?: boolean },
+): Promise<ActionResult<ItemGravado>> {
+  const alerta = await db.alert.findFirst({ where: { id: alertId } });
+  if (!alerta) return fail("NOT_FOUND", "Alerta não encontrado", 404);
+  if (alerta.alert_type !== "low_stock") {
+    return fail("ALERTA_SEM_PRODUTO", "Este alerta não é de estoque baixo", 422);
+  }
+
+  const productId = (alerta.related_id ?? "").split(":")[0];
+  const produto = productId
+    ? await db.product.findFirst({
+        where: { id: productId, archived_at: null },
+        select: { id: true, name: true, unit: true, category_id: true },
+      })
+    : null;
+  if (!produto) {
+    return fail("NOT_FOUND", "O produto deste alerta não existe mais", 404, "product_id");
+  }
+
+  const criado = await criarItemAction(
+    db,
+    {
+      description: produto.name,
+      product_id: produto.id,
+      unit: produto.unit,
+      category_id: produto.category_id,
+    },
+    opts,
+  );
+  if (!criado.ok) return criado;
+
+  await db.alert.update({ where: { id: alertId }, data: { status: "dismissed" } });
+  return criado;
 }
