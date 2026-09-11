@@ -18,6 +18,7 @@ import {
 } from "@/lib/actions/service-pending";
 import { ask, failReply, str, type Handler, type RouterResult } from "./shared";
 import { lerNumeroBr } from "./parsers";
+import { reaisBr as moeda } from "@/lib/numero-br";
 
 /**
  * Serviço pelo WhatsApp: as duas conversas do §32 do Módulo 33 e as cinco do
@@ -55,9 +56,6 @@ import { lerNumeroBr } from "./parsers";
  *    nome dito é PERGUNTA, listando os dois, nunca o primeiro em silêncio.
  */
 
-function moeda(v: number): string {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 function normalizar(termo: string): string {
   // Filtro por código numérico, não regex de caractere combinante: o próprio

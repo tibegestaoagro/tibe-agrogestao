@@ -42,6 +42,7 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [a pílula invisível](pilula-invisivel-o-portao-compara-token-nao-uso.md) | armadilha | o portão compara par de token, nunca o uso |
 | [o Decimal do Prisma no Client Component](decimal-do-prisma-so-quebra-no-console-do-navegador.md) | armadilha | tsc aprova, a tela renderiza, e só o console acusa |
 | [o Zod em inglês nas 71 rotas](zod-em-ingles-nas-71-rotas.md) | licao | infraestrutura pronta e não ligada |
+| [o valor certo escrito em outro idioma](o-valor-certo-escrito-em-outro-idioma.md) | licao | "R$ 500.00" com a suíte inteira verde |
 | [trava só vale depois de vista falhar](trava-so-vale-depois-de-voce-a-ver-falhar.md) | licao | prove nos dois sentidos |
 | [cópia repetida não quer dizer cópia idêntica](copia-repetida-nao-quer-dizer-copia-identica.md) | licao | cinco dos sete stores aceitavam número, dois não |
 | [teste que passa antes E depois](teste-que-passa-antes-e-depois-da-correcao-nao-prova-nada.md) | licao | o caso que discrimina é o da ponta que falta |

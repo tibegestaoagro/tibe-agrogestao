@@ -1,7 +1,7 @@
 "use client";
 
 import CalcPage, { type CalcField, type CalcOutcome } from "../_components/calc-page";
-import { lerNumeroBr } from "@/lib/numero-br";
+import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
 import { calcularCompraVendaGado } from "@/lib/calculadoras/compra-venda-gado";
 
 const FIELDS: CalcField[] = [
@@ -41,12 +41,12 @@ function compute(values: Record<string, string | boolean>): CalcOutcome {
     ok: true,
     rows: [
       { label: "Arrobas na compra", value: `${r.data.arrobasCompraPorAnimal} @/animal` },
-      { label: "Valor na compra", value: `R$ ${r.data.valorCompraPorAnimal.toFixed(2)}/animal` },
+      { label: "Valor na compra", value: `${reaisBr(r.data.valorCompraPorAnimal)}/animal` },
       { label: "Arrobas na venda", value: `${r.data.arrobasVendaPorAnimal} @/animal` },
-      { label: "Valor na venda", value: `R$ ${r.data.valorVendaPorAnimal.toFixed(2)}/animal` },
-      { label: "Margem bruta por animal", value: `R$ ${r.data.margemBrutaPorAnimal.toFixed(2)}`, highlight: true },
+      { label: "Valor na venda", value: `${reaisBr(r.data.valorVendaPorAnimal)}/animal` },
+      { label: "Margem bruta por animal", value: reaisBr(r.data.margemBrutaPorAnimal), highlight: true },
       ...(r.data.margemBrutaTotal !== null
-        ? [{ label: "Margem bruta total", value: `R$ ${r.data.margemBrutaTotal.toFixed(2)}`, highlight: true }]
+        ? [{ label: "Margem bruta total", value: reaisBr(r.data.margemBrutaTotal), highlight: true }]
         : []),
     ],
   };

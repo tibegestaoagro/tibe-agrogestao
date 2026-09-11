@@ -29,6 +29,7 @@ import {
 import { resolverProduto } from "./estoque";
 import { ask, failReply, str, type Handler, type RouterResult } from "./shared";
 import { lerData, lerDinheiro, lerNumeroBr, interpretarSim } from "./parsers";
+import { reaisBr as reais } from "@/lib/numero-br";
 
 /**
  * Confinamento pelo WhatsApp (Módulo 30, fase 3, §26 do documento do
@@ -58,10 +59,6 @@ import { lerData, lerDinheiro, lerNumeroBr, interpretarSim } from "./parsers";
  *    Nenhuma tem tamanho pequeno o bastante para dispensar a pergunta, e o
  *    §26 do documento pede "Deseja registrar" nas quatro.
  */
-
-function reais(v: number): string {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 async function cancelar(
   intent: string,

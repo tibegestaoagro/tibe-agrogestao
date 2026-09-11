@@ -54,3 +54,21 @@ export function lerNumeroBr(bruto: unknown): number | null {
   const n = Number(normalizado);
   return Number.isFinite(n) ? n * multiplicador : null;
 }
+
+/**
+ * O dinheiro como o brasileiro LÊ: "R$ 60.000,50", nunca "R$ 60000.50".
+ *
+ * É a volta do caminho que `lerNumeroBr` faz na ida, e nasceu do mesmo tipo de
+ * achado: contra o agente de produção, "anota uma despesa de 500 reais com
+ * diesel" respondia "Entendi: R$ 500.00". Ponto decimal e sem separador de
+ * milhar é o formato de OUTRO país, e em valor grande ("R$ 60000.00") o
+ * produtor precisa contar os zeros com o dedo para saber quanto é.
+ *
+ * Cinco handlers já tinham esta função copiada, palavra por palavra, cada um
+ * com o seu `reais()` privado, enquanto outros quinze pontos seguiam com
+ * `toFixed(2)`. Aqui é o mesmo motivo do arquivo inteiro: enquanto a função
+ * certa mora dentro de um módulo, quem está fora não a usa.
+ */
+export function reaisBr(valor: number): string {
+  return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}

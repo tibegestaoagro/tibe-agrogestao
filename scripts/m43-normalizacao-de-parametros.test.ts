@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { lerDinheiro, lerData, lerNumeroBr } from "@/lib/actions/whatsapp-handlers/parsers";
 import { itensDosParametros } from "@/lib/actions/whatsapp-handlers/herd";
+import { reaisBr } from "@/lib/numero-br";
 
 /**
  * Todo handler le numero e data do MESMO jeito.
@@ -124,6 +125,32 @@ function main() {
   {
     for (const entrada of ["", "  ", null, undefined, "abc"]) {
       assert(lerNumeroBr(entrada) === null, `${JSON.stringify(entrada)} devolve null`);
+    }
+  }
+
+  /*
+   * A volta do caminho. O agente CALCULA certo e ESCREVE em outro idioma:
+   * "Entendi: R$ 500.00" foi o que o banco de provas leu de producao em
+   * 2026-09-11. Ponto decimal e milhar sem ponto sao formato de outro pais, e
+   * em valor grande o produtor precisa contar zero com o dedo.
+   *
+   * O caso que discrimina e o de mil para cima: `toFixed(2)` e `reaisBr`
+   * concordam em "500" mudando so a virgula, e discordam de verdade em
+   * "60000", onde falta o separador de milhar inteiro.
+   */
+  console.log("\n7. reaisBr escreve dinheiro como o brasileiro le");
+  {
+    const casos: [number, string][] = [
+      [500, "R$ 500,00"],
+      [60000, "R$ 60.000,00"],
+      [60000.5, "R$ 60.000,50"],
+      [0, "R$ 0,00"],
+      [-1234.5, "-R$ 1.234,50"],
+    ];
+    for (const [valor, esperado] of casos) {
+      // O Node escreve o espaco depois de "R$" como NBSP (U+00A0).
+      const escrito = reaisBr(valor).replace(/ /g, " ");
+      assert(escrito === esperado, `${valor} vira ${esperado} (veio ${escrito})`);
     }
   }
 

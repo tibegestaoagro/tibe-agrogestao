@@ -27,6 +27,42 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-09-11.
 
+### As duas provas que faltavam da 35.1 foram feitas, e acharam um defeito
+
+Rodada de 11/09, na branch `formato-do-dinheiro`, ainda **não empurrada**.
+
+**Roteiro de tela, dez passos, todos passam** (navegador real, `next dev` contra
+o Docker local, cenário de `scripts/_cenario-financeiro-35.ts`). O painel de
+recebimento pré-preenche o saldo, a recusa de valor maior aparece embaixo do
+campo com o foco nele, o registro parcial e o desfazer atualizam o saldo sem
+fechar, o seletor do topo filtra tabela, cartões e gráfico juntos, e avisa que
+274 lançamentos sem fazenda ficaram de fora. Em 400px a tabela rola no
+container sem estourar a página.
+
+**Banco de provas contra o agente de produção:** a categoria vem do banco
+("anota uma despesa de 500 reais com diesel do trator" cai em "Combustíveis"),
+o pasto ambíguo pergunta em vez de escolher, e **a recusa não grava nada**
+(conferido no banco: zero lançamentos criados depois de "não, deixa pra lá").
+
+⚠️ **"comprei 500 reais de diesel" NÃO é despesa para o classificador**: cai em
+compra de estoque, e ele responde que não achou o produto. Quem quiser provar o
+financeiro precisa dizer "anota uma despesa".
+
+**O defeito que só a prova ao vivo acharia:** o agente respondia
+**"R$ 500.00"**, ponto decimal e sem separador de milhar. Estavam assim 25
+pontos (handlers, alertas, resumo diário, as duas calculadoras), e cinco
+handlers já tinham a função certa copiada, cada um com o seu `reais()` privado.
+Agora é `reaisBr()`, em `src/lib/numero-br.ts`, junto do `lerNumeroBr` que faz
+o caminho de ida. A **conferência 16** do `npm run check` impede a volta, e foi
+vista falhar. A `m43` fixa o formato, e as asserções da `m12` e da `m17`
+passaram a compor o valor com o helper, porque o espaço depois do "R$" é NBSP
+e literal digitado nunca casa. Lição no cofre:
+[o valor certo escrito em outro idioma](../conhecimento/o-valor-certo-escrito-em-outro-idioma.md).
+
+**Para provar cenário de pasto**, o tenant de provas ganhou "Pasto da Sede" e
+"Pasto da Sede Nova". Nome dito por inteiro vence a lista; só o termo parcial
+("sede") dispara a pergunta.
+
 ### O Módulo 36 (Lista de Compra) está EM PRODUÇÃO
 
 Merge e push em 11/09 (`bd579e2..89cd10c`, 14 commits), com a migração
@@ -70,11 +106,9 @@ Pagamento parcial como soma, os vínculos de fazenda e contato, forma de
 pagamento, as 26 categorias do §21, a tela do §30 e do §32, a suíte `m62`, e as
 dívidas 2.10 e 3.3 fechadas. Relato por tarefa em `historico/2026-09.md`.
 
-⚠️ **Duas provas ficaram devendo, e as duas são possíveis agora.** O roteiro de
-tela ([roteiro-tela-financeiro-35.md](roteiro-tela-financeiro-35.md), dez
-passos, cenário em `scripts/_cenario-financeiro-35.ts`), e o `npm run wa`
-contra o agente de produção, onde vale provar a categoria vinda do banco
-("comprei diesel" deve cair em "Combustíveis") e o pasto ambíguo perguntando.
+✅ **As duas provas que faltavam foram feitas em 11/09**, e estão relatadas na
+seção do topo. O roteiro é
+[roteiro-tela-financeiro-35.md](roteiro-tela-financeiro-35.md).
 
 ### O que a fase 35.1 decidiu no código, e não deve ser redecidido
 
@@ -175,9 +209,9 @@ avançou, e cada commit que sobe é leitura pública.
 decisão 32 pede. A spec ainda não foi escrita, e o documento do cliente está em
 `docs/modulo-calculadora/`.
 
-**3. Duas provas que ficaram devendo da 35.1**, e agora são possíveis: o
-roteiro de tela no navegador e o `npm run wa` contra o agente de produção. Com o
-36 no ar, vale provar também a categoria vinda do banco e o pasto ambíguo.
+**3. A branch `formato-do-dinheiro` está pronta e não foi empurrada.** Ela não
+tem migração, só texto de resposta, então o push não depende do Neon. Falta a
+autorização do usuário para merge e push.
 
 ⚠️ **O backfill de `property_id` está autorizado** e é a dívida 2.11. Migração
 por origem, fora da 35.1.

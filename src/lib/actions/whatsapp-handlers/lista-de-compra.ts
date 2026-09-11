@@ -9,6 +9,7 @@ import {
   pendentesParecidos,
 } from "@/lib/actions/shopping-items";
 import { lerDinheiro } from "./parsers";
+import { reaisBr } from "@/lib/numero-br";
 import {
   savePendingLista,
   loadPendingLista,
@@ -448,7 +449,7 @@ export const compreiItemLista: Handler = async ({ db, user_id, parameters }) => 
 
   return {
     reply_text:
-      `Registrei a compra de ${descreverItem(item)} por R$ ${valor.toFixed(2)}` +
+      `Registrei a compra de ${descreverItem(item)} por ${reaisBr(valor)}` +
       `${pago ? "" : ", como conta a pagar"}, e risquei da sua lista.`,
     requires_confirmation: false,
     auxiliary_data: { item_id: item.id, negotiation_id: compra.data.negotiation_id },

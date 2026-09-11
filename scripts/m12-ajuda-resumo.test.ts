@@ -3,6 +3,14 @@ import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { createTestAnimal , deleteTestTenants } from "./helpers/herd";
 import { POST as executeAction } from "@/app/api/internal/whatsapp/execute-action/route";
+/*
+ * O valor esperado e composto por `reaisBr`, nao escrito a mao, porque o
+ * formato brasileiro separa "R$" do numero com espaco NAO separavel (U+00A0):
+ * literal digitado no teclado nunca casa, e o diff nao mostra a diferenca.
+ * Quem fixa o formato em si e a `m43`, com literais; aqui o que se verifica e
+ * a frase montada em volta dele.
+ */
+import { reaisBr } from "@/lib/numero-br";
 
 exigirBancoLocal();
 
@@ -237,13 +245,13 @@ async function main() {
       parameters: { scope: "contas_a_receber" },
     });
     assert(
-      resumoContas.body.data.reply_text.includes("Serviço faturado M12: R$ 180.75") &&
+      resumoContas.body.data.reply_text.includes(`Serviço faturado M12: ${reaisBr(180.75)}`) &&
         resumoContas.body.data.reply_text.includes(
           `vence ${new Intl.DateTimeFormat("pt-BR", {
             timeZone: "UTC",
           }).format(receivableDueAt)}`,
         ) &&
-        resumoContas.body.data.reply_text.includes("Total a receber no período: R$ 180.75"),
+        resumoContas.body.data.reply_text.includes(`Total a receber no período: ${reaisBr(180.75)}`),
       "resumo contas_a_receber lista receita pendente com data e valor",
     );
 
@@ -258,7 +266,7 @@ async function main() {
       resumoAgendamentos.body.data.reply_text.includes(
         `Diária M12 para Cliente M12 dia ${new Intl.DateTimeFormat("pt-BR", {
           timeZone: "UTC",
-        }).format(scheduledAt)}, R$ 100.00`,
+        }).format(scheduledAt)}, ${reaisBr(100)}`,
       ),
       "resumo agendamentos lista a ordem scheduled com data e valor",
     );

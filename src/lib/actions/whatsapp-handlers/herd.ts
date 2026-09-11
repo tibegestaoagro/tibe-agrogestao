@@ -30,6 +30,7 @@ import {
   type RouterResult,
 } from "./shared";
 import { lerData, lerDinheiro, lerNumeroBr } from "./parsers";
+import { reaisBr } from "@/lib/numero-br";
 
 /**
  * O rebanho pelo WhatsApp (Módulo 30, §13 e §14).
@@ -648,7 +649,7 @@ export const registrarMovimentacaoRebanho: Handler = async ({
     pergunta = `Deseja transferir ${origem.quantidade} animais da categoria ${origem.categoria.label} ${destinoTexto}?`;
   } else {
     const verbo = VERBO[tipo] ?? "registrar";
-    const complemento = valor != null ? ` no valor de R$ ${valor.toLocaleString("pt-BR")}` : "";
+    const complemento = valor != null ? ` no valor de ${reaisBr(valor)}` : "";
     pergunta = `Deseja ${verbo} ${descreverItens(itens)} ${descreverData(quando)} ${lugar}${complemento}?`;
   }
 

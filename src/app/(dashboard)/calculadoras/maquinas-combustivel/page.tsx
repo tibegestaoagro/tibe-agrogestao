@@ -1,7 +1,7 @@
 "use client";
 
 import CalcPage, { type CalcField, type CalcOutcome } from "../_components/calc-page";
-import { lerNumeroBr } from "@/lib/numero-br";
+import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
 import { calcularCombustivel, MODOS_CONSUMO, type ModoConsumo } from "@/lib/calculadoras/maquinas-combustivel";
 
 const FIELDS: CalcField[] = [
@@ -37,7 +37,7 @@ function compute(values: Record<string, string | boolean>): CalcOutcome {
     ok: true,
     rows: [
       { label: "Combustivel total", value: `${r.data.litrosTotais} L`, highlight: true },
-      ...(r.data.custoTotal !== null ? [{ label: "Custo total", value: `R$ ${r.data.custoTotal.toFixed(2)}` }] : []),
+      ...(r.data.custoTotal !== null ? [{ label: "Custo total", value: reaisBr(r.data.custoTotal) }] : []),
     ],
   };
 }

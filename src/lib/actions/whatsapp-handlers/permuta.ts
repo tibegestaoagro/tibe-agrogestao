@@ -15,6 +15,7 @@ import {
 } from "./herd";
 import { ask, failReply, str, type Handler } from "./shared";
 import { lerDinheiro } from "./parsers";
+import { reaisBr as reais } from "@/lib/numero-br";
 
 /**
  * Permuta pelo WhatsApp (Módulo 31, missão 4, §18.5).
@@ -47,9 +48,6 @@ import { lerDinheiro } from "./parsers";
  * para o painel, em vez de chutar.
  */
 
-function reais(v: number): string {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 /**
  * Lê um lado da frase. Devolve o lado montado, ou a razão de não conseguir.
