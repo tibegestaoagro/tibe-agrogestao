@@ -27,6 +27,46 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-09-11.
 
+### O Módulo 37 (Calculadora) está PRONTO, na branch `calculadora`
+
+Treze tarefas, sete commits, **ainda não empurrado**. Sem model novo e sem
+migração: calculadora continua função pura, e salvar cálculo segue fora
+(decisão 6). Suíte **64/64** (a `m64` entrou), `tsc`, `lint` e `check` limpos.
+Spec em
+[../superpowers/specs/2026-09-11-modulo-37-calculadora.md](../superpowers/specs/2026-09-11-modulo-37-calculadora.md).
+
+⚠️ **A auditoria do delta, prometida na decisão 1 de 10/09, nunca tinha sido
+feita.** O plano previa "sete calculadoras novas" e tratava as 12 no ar como
+prontas. Não estavam: faltava a de SEMENTES inteira (§8), a de mão de obra
+responde "quantos funcionários" e o §29 pergunta "quanto custa", e sete
+ferramentas não calculavam custo nem sacas. São 22 ferramentas agora.
+
+**As três decisões do usuário em 11/09:** o delta entra junto com as sete
+novas; a ponte com a Lista de Compra e a comparação com estoque (§37, §39)
+entram nesta fase; e os handlers do WhatsApp ficam prontos com o classificador
+congelado.
+
+**Decisões que não devem ser redecididas:**
+
+- **A função de cálculo continua pura e sem saber que a Lista existe.** Quem
+  traduz resultado em material é a TELA, que já traduzia resultado em linha.
+- **O saldo só é lido quando o produtor ABRE o painel.** É a quebra mínima da
+  premissa de que a calculadora não fala com a rede.
+- **Material casa com produto por ESCOLHA, nunca por nome parecido.** "Arame
+  liso 500m" e "arame" são a mesma coisa para uma pessoa e dois produtos para o
+  estoque.
+- **Saca arredonda para CIMA, com a sobra dita junto**, em `emSacasECusto`
+  (`src/lib/calculadoras/shared.ts`). Ninguém compra 4,8 sacas.
+- **Custo só sai quando TODO ingrediente tem preço.** Com um faltando, o total
+  sairia menor que o real e passaria por completo.
+- **O alqueire nunca tem default:** paulista 24.200 m², mineiro 48.400.
+- ⚠️ **O classificador do n8n NÃO emite as quatro intenções da calculadora**,
+  como as da Lista, do evento e da permuta.
+
+⚠️ **O defeito de unidade do Módulo 36 voltou, na ponte nova**: produto gravado
+com `kg` em vez de `quilograma` fazia a criação do item ser recusada. É a
+segunda vez que ele aparece; a guarda é `isStockUnit` antes de mandar a unidade.
+
 ### As duas provas que faltavam da 35.1 foram feitas, e acharam um defeito
 
 Rodada de 11/09. Merge e push em `0df64d8..9c971a2`, dois commits, sem
@@ -144,16 +184,15 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou, e cada commit que sobe é leitura pública.
 
-**2. A Calculadora (Módulo 37)**, terceira das quatro áreas, seguida do Meu Dia
-(38). O `ShoppingPurpose` já nasceu compartilhado com a Calculadora, como a
-decisão 32 pede. A spec ainda não foi escrita, e o documento do cliente está em
-`docs/modulo-calculadora/`.
+**2. Merge e push do Módulo 37**, que está pronto e validado na branch
+`calculadora`. Sem migração, então o push não depende do Neon. Falta a
+autorização do usuário.
+
+**3. O Meu Dia (Módulo 38)**, última das quatro áreas, e a que fica por último
+porque é camada de leitura e consome as outras três.
 
 ⚠️ **O backfill de `property_id` está autorizado** e é a dívida 2.11. Migração
 por origem, fora da 35.1.
-
-Depois da Lista de Compra: **Calculadora** (Módulo 37) e **Meu Dia** (38), nessa
-ordem. O Meu Dia é por último porque é camada de leitura e consome os outros.
 
 **Continuam esperando, para depois das quatro áreas:** a outra metade da
 `dividas.md` §2.8 (a despesa avulsa e os sete destinos de saída), e três

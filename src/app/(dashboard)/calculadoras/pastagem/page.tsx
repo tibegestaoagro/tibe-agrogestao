@@ -1,6 +1,6 @@
 "use client";
 
-import CalcPage, { type CalcField, type CalcOutcome } from "../_components/calc-page";
+import CalcPage, { type CalcField, type CalcOutcome, type ValorDeCampo } from "../_components/calc-page";
 import { lerNumeroBr } from "@/lib/numero-br";
 import { calcularCapacidadeSuportePastagem } from "@/lib/calculadoras/pastagem";
 
@@ -29,7 +29,7 @@ const FIELDS: CalcField[] = [
   { key: "pesoMedioKg", label: "Peso vivo medio por animal (opcional)", kind: "number", suffix: "kg" },
 ];
 
-function compute(values: Record<string, string | boolean>): CalcOutcome {
+function compute(values: Record<string, ValorDeCampo>): CalcOutcome {
   const areaHectares = lerNumeroBr(values.areaHectares) ?? undefined;
   const numeroAnimaisRebanho = lerNumeroBr(values.numeroAnimaisRebanho) ?? undefined;
   const pesoMedioKg = lerNumeroBr(values.pesoMedioKg) ?? undefined;

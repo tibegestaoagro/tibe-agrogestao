@@ -1,4 +1,4 @@
-import { type CalcResult, isPositiveNumber, round } from "./shared";
+import { type CalcResult, emSacasECusto, isPositiveNumber, round } from "./shared";
 
 /**
  * Adubacao: conversao de uma recomendacao de adubacao (kg/ha de um
@@ -31,12 +31,24 @@ export function calcularAdubacao(input: {
   teorNutrientePercent: number;
   areaHectares: number;
   pesoSacoKg?: number;
+  /** §10: o valor e opcional, e o custo so aparece quando ele vem. */
+  precoPorKg?: number;
+  precoPorSaca?: number;
 }): CalcResult<{
   kgProdutoPorHectare: number;
   kgProdutoTotal: number;
   numeroSacos: number | null;
+  sobraKg: number | null;
+  custoTotal: number | null;
 }> {
-  const { doseNutrienteKgHa, teorNutrientePercent, areaHectares, pesoSacoKg } = input;
+  const {
+    doseNutrienteKgHa,
+    teorNutrientePercent,
+    areaHectares,
+    pesoSacoKg,
+    precoPorKg,
+    precoPorSaca,
+  } = input;
 
   if (!isPositiveNumber(doseNutrienteKgHa)) {
     return { ok: false, error: "Dose recomendada do nutriente deve ser maior que zero." };
@@ -50,15 +62,21 @@ export function calcularAdubacao(input: {
 
   const kgProdutoPorHectare = doseNutrienteKgHa / (teorNutrientePercent / 100);
   const kgProdutoTotal = kgProdutoPorHectare * areaHectares;
-  const numeroSacos =
-    pesoSacoKg !== undefined && isPositiveNumber(pesoSacoKg) ? Math.ceil(kgProdutoTotal / pesoSacoKg) : null;
+  const { sacas, sobraKg, custoTotal } = emSacasECusto({
+    quantidadeKg: round(kgProdutoTotal, 1),
+    pesoSacaKg: pesoSacoKg,
+    precoPorKg,
+    precoPorSaca,
+  });
 
   return {
     ok: true,
     data: {
       kgProdutoPorHectare: round(kgProdutoPorHectare, 1),
       kgProdutoTotal: round(kgProdutoTotal, 1),
-      numeroSacos,
+      numeroSacos: sacas,
+      sobraKg,
+      custoTotal,
     },
   };
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import CalcPage, { type CalcField, type CalcOutcome } from "../_components/calc-page";
-import { lerNumeroBr } from "@/lib/numero-br";
+import CalcPage, { type CalcField, type CalcOutcome, type ValorDeCampo } from "../_components/calc-page";
+import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
 import { calcularAdubacao } from "@/lib/calculadoras/adubacao";
 
 const FIELDS: CalcField[] = [
@@ -21,24 +21,35 @@ const FIELDS: CalcField[] = [
     suffix: "kg",
     help: "Preencha para saber quantos sacos comprar (comum: 50 kg).",
   },
+  { key: "precoPorSaca", label: "Preco da saca (opcional)", kind: "number", suffix: "R$" },
+  { key: "precoPorKg", label: "Preco por quilo (opcional)", kind: "number", suffix: "R$" },
 ];
 
-function compute(values: Record<string, string | boolean>): CalcOutcome {
+function compute(values: Record<string, ValorDeCampo>): CalcOutcome {
   const pesoSacoKg = lerNumeroBr(values.pesoSacoKg) ?? undefined;
   const r = calcularAdubacao({
     doseNutrienteKgHa: lerNumeroBr(values.doseNutrienteKgHa) ?? NaN,
     teorNutrientePercent: lerNumeroBr(values.teorNutrientePercent) ?? NaN,
     areaHectares: lerNumeroBr(values.areaHectares) ?? NaN,
     pesoSacoKg,
+    precoPorSaca: lerNumeroBr(values.precoPorSaca) ?? undefined,
+    precoPorKg: lerNumeroBr(values.precoPorKg) ?? undefined,
   });
   if (!r.ok) return { ok: false, error: r.error };
 
   return {
     ok: true,
+    materiais: [{ descricao: "Adubo", quantidade: r.data.kgProdutoTotal, unidade: "quilograma" }],
     rows: [
       { label: "Produto por hectare", value: `${r.data.kgProdutoPorHectare} kg/ha` },
       { label: "Produto total", value: `${r.data.kgProdutoTotal} kg`, highlight: true },
       ...(r.data.numeroSacos !== null ? [{ label: "Sacos necessarios", value: `${r.data.numeroSacos} un` }] : []),
+      ...(r.data.sobraKg !== null && r.data.sobraKg > 0
+        ? [{ label: "Sobra", value: `${r.data.sobraKg} kg` }]
+        : []),
+      ...(r.data.custoTotal !== null
+        ? [{ label: "Custo estimado", value: reaisBr(r.data.custoTotal) }]
+        : []),
     ],
   };
 }

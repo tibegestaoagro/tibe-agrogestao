@@ -27,17 +27,39 @@ const CM_ACESSO_POR_CABECA_POR_LADO = 5;
 export function calcularCocho(input: {
   numeroAnimais: number;
   acessoDoisLados: boolean;
+  /** §24: quando o produtor sabe o tamanho da peca que vai comprar ou fazer. */
+  comprimentoDeCadaCochoMetros?: number;
 }): CalcResult<{
   comprimentoCochoMetros: number;
+  quantidadeDeCochos: number | null;
 }> {
-  const { numeroAnimais, acessoDoisLados } = input;
+  const { numeroAnimais, acessoDoisLados, comprimentoDeCadaCochoMetros } = input;
 
   if (!isPositiveNumber(numeroAnimais)) {
     return { ok: false, error: "Numero de animais deve ser maior que zero." };
+  }
+  if (
+    comprimentoDeCadaCochoMetros !== undefined &&
+    !isPositiveNumber(comprimentoDeCadaCochoMetros)
+  ) {
+    return { ok: false, error: "Comprimento de cada cocho deve ser maior que zero." };
   }
 
   const acessoTotalCm = numeroAnimais * CM_ACESSO_POR_CABECA_POR_LADO;
   const comprimentoCochoMetros = (acessoDoisLados ? acessoTotalCm / 2 : acessoTotalCm) / 100;
 
-  return { ok: true, data: { comprimentoCochoMetros: round(comprimentoCochoMetros, 2) } };
+  return {
+    ok: true,
+    data: {
+      comprimentoCochoMetros: round(comprimentoCochoMetros, 2),
+      /*
+       * Para CIMA: meio cocho nao existe, e o que falta de espaco vira disputa
+       * no cocho, que e justamente o que a conta quer evitar.
+       */
+      quantidadeDeCochos:
+        comprimentoDeCadaCochoMetros !== undefined
+          ? Math.ceil(comprimentoCochoMetros / comprimentoDeCadaCochoMetros)
+          : null,
+    },
+  };
 }

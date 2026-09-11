@@ -1,4 +1,4 @@
-import { type CalcResult, isPositiveNumber, round } from "./shared";
+import { type CalcResult, emSacasECusto, isPositiveNumber, round } from "./shared";
 
 const CONSUMO_MIN_G_POR_100KG = 20;
 const CONSUMO_MAX_G_POR_100KG = 30;
@@ -27,6 +27,15 @@ export function calcularSalMineral(input: {
   pesoMedioKg: number;
   numeroAnimais: number;
   diasPeriodo: number;
+  /**
+   * §15: quando o produtor sabe o consumo que pratica (o rotulo do produto
+   * traz), ele vence a faixa estimada por peso. E a diferenca entre calcular e
+   * recomendar, do §46.
+   */
+  consumoGDiaPorAnimal?: number;
+  pesoSacaKg?: number;
+  precoPorKg?: number;
+  precoPorSaca?: number;
 }): CalcResult<{
   consumoMinGDiaPorAnimal: number;
   consumoMaxGDiaPorAnimal: number;
@@ -34,8 +43,22 @@ export function calcularSalMineral(input: {
   consumoMaxKgDiaRebanho: number;
   consumoMinKgPeriodoRebanho: number;
   consumoMaxKgPeriodoRebanho: number;
+  /** §16: o numero que o produtor leva para a loja. */
+  sacas: number | null;
+  sobraKg: number | null;
+  custoTotal: number | null;
+  /** Verdadeiro quando o consumo veio do produtor, nao da faixa por peso. */
+  consumoInformado: boolean;
 }> {
-  const { pesoMedioKg, numeroAnimais, diasPeriodo } = input;
+  const {
+    pesoMedioKg,
+    numeroAnimais,
+    diasPeriodo,
+    consumoGDiaPorAnimal,
+    pesoSacaKg,
+    precoPorKg,
+    precoPorSaca,
+  } = input;
 
   if (!isPositiveNumber(pesoMedioKg)) {
     return { ok: false, error: "Peso medio deve ser maior que zero." };
@@ -47,10 +70,33 @@ export function calcularSalMineral(input: {
     return { ok: false, error: "Numero de dias deve ser maior que zero." };
   }
 
-  const consumoMinGDiaPorAnimal = (pesoMedioKg / 100) * CONSUMO_MIN_G_POR_100KG;
-  const consumoMaxGDiaPorAnimal = (pesoMedioKg / 100) * CONSUMO_MAX_G_POR_100KG;
+  if (consumoGDiaPorAnimal !== undefined && !isPositiveNumber(consumoGDiaPorAnimal)) {
+    return { ok: false, error: "Consumo por animal deve ser maior que zero." };
+  }
+
+  const consumoInformado = consumoGDiaPorAnimal !== undefined;
+  const consumoMinGDiaPorAnimal = consumoInformado
+    ? consumoGDiaPorAnimal
+    : (pesoMedioKg / 100) * CONSUMO_MIN_G_POR_100KG;
+  const consumoMaxGDiaPorAnimal = consumoInformado
+    ? consumoGDiaPorAnimal
+    : (pesoMedioKg / 100) * CONSUMO_MAX_G_POR_100KG;
   const consumoMinKgDiaRebanho = (consumoMinGDiaPorAnimal * numeroAnimais) / 1000;
   const consumoMaxKgDiaRebanho = (consumoMaxGDiaPorAnimal * numeroAnimais) / 1000;
+  const consumoMaxKgPeriodoRebanho = round(consumoMaxKgDiaRebanho * diasPeriodo, 2);
+
+  /*
+   * A compra dimensiona pelo TETO da faixa, nunca pelo piso: quem comprar pelo
+   * consumo minimo fica sem sal antes de o periodo acabar, e cocho vazio custa
+   * mais que sobra de saca. Com consumo informado os dois extremos sao iguais,
+   * e a questao nem se coloca.
+   */
+  const { sacas, sobraKg, custoTotal } = emSacasECusto({
+    quantidadeKg: consumoMaxKgPeriodoRebanho,
+    pesoSacaKg,
+    precoPorKg,
+    precoPorSaca,
+  });
 
   return {
     ok: true,
@@ -60,7 +106,11 @@ export function calcularSalMineral(input: {
       consumoMinKgDiaRebanho: round(consumoMinKgDiaRebanho, 2),
       consumoMaxKgDiaRebanho: round(consumoMaxKgDiaRebanho, 2),
       consumoMinKgPeriodoRebanho: round(consumoMinKgDiaRebanho * diasPeriodo, 2),
-      consumoMaxKgPeriodoRebanho: round(consumoMaxKgDiaRebanho * diasPeriodo, 2),
+      consumoMaxKgPeriodoRebanho,
+      sacas,
+      sobraKg,
+      custoTotal,
+      consumoInformado,
     },
   };
 }

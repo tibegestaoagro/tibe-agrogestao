@@ -1,4 +1,4 @@
-import { type CalcResult, isPositiveNumber, round } from "./shared";
+import { type CalcResult, emSacasECusto, isPositiveNumber, round } from "./shared";
 
 const CONSUMO_MS_PERCENT_PV = 0.025;
 
@@ -49,13 +49,30 @@ export function calcularRacao(input: {
   pesoMedioKg: number;
   numeroAnimais: number;
   tipoAlimento: TipoAlimento;
+  /** §17: quantos dias o lote vai comer isto. */
+  diasPeriodo?: number;
+  pesoSacaKg?: number;
+  precoPorKg?: number;
+  precoPorSaca?: number;
 }): CalcResult<{
   materiaSecaKgDiaPorAnimal: number;
   materiaSecaKgDiaRebanho: number;
   alimentoNaturalKgDiaPorAnimal: number;
   alimentoNaturalKgDiaRebanho: number;
+  alimentoNaturalKgPeriodoRebanho: number | null;
+  sacas: number | null;
+  sobraKg: number | null;
+  custoTotal: number | null;
 }> {
-  const { pesoMedioKg, numeroAnimais, tipoAlimento } = input;
+  const {
+    pesoMedioKg,
+    numeroAnimais,
+    tipoAlimento,
+    diasPeriodo,
+    pesoSacaKg,
+    precoPorKg,
+    precoPorSaca,
+  } = input;
 
   if (!isPositiveNumber(pesoMedioKg)) {
     return { ok: false, error: "Peso medio deve ser maior que zero." };
@@ -68,8 +85,31 @@ export function calcularRacao(input: {
     return { ok: false, error: "Tipo de alimento invalido." };
   }
 
+  if (diasPeriodo !== undefined && !isPositiveNumber(diasPeriodo)) {
+    return { ok: false, error: "Numero de dias deve ser maior que zero." };
+  }
+
   const materiaSecaKgDiaPorAnimal = pesoMedioKg * CONSUMO_MS_PERCENT_PV;
   const alimentoNaturalKgDiaPorAnimal = materiaSecaKgDiaPorAnimal / teorMs;
+  const alimentoNaturalKgDiaRebanho = alimentoNaturalKgDiaPorAnimal * numeroAnimais;
+
+  const alimentoNaturalKgPeriodoRebanho =
+    diasPeriodo !== undefined ? round(alimentoNaturalKgDiaRebanho * diasPeriodo, 1) : null;
+
+  /*
+   * Saca e custo so fazem sentido sobre o TOTAL do periodo: ninguem compra
+   * racao por dia. Sem o periodo, a ferramenta continua respondendo o consumo
+   * diario, que ja era o que ela fazia.
+   */
+  const { sacas, sobraKg, custoTotal } =
+    alimentoNaturalKgPeriodoRebanho !== null
+      ? emSacasECusto({
+          quantidadeKg: alimentoNaturalKgPeriodoRebanho,
+          pesoSacaKg,
+          precoPorKg,
+          precoPorSaca,
+        })
+      : { sacas: null, sobraKg: null, custoTotal: null };
 
   return {
     ok: true,
@@ -77,7 +117,11 @@ export function calcularRacao(input: {
       materiaSecaKgDiaPorAnimal: round(materiaSecaKgDiaPorAnimal, 2),
       materiaSecaKgDiaRebanho: round(materiaSecaKgDiaPorAnimal * numeroAnimais, 1),
       alimentoNaturalKgDiaPorAnimal: round(alimentoNaturalKgDiaPorAnimal, 2),
-      alimentoNaturalKgDiaRebanho: round(alimentoNaturalKgDiaPorAnimal * numeroAnimais, 1),
+      alimentoNaturalKgDiaRebanho: round(alimentoNaturalKgDiaRebanho, 1),
+      alimentoNaturalKgPeriodoRebanho,
+      sacas,
+      sobraKg,
+      custoTotal,
     },
   };
 }
