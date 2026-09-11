@@ -87,6 +87,10 @@ export function buildNavItems({
         // Negociações porque é de lá que a maior parte do que entra vem: uma
         // compra de produto abastece o estoque, e o uso é a outra ponta.
         { href: "/estoque", label: "Estoque", show: hasFazenda },
+        // Módulo 36: fica colado no Estoque porque é a outra ponta dele. O que
+        // está acabando vira item da lista, e o item comprado volta como
+        // entrada de estoque.
+        { href: "/lista-de-compra", label: "Lista de Compra", show: hasFazenda },
         { href: "/maquinas", label: "Máquinas", show: hasFazenda },
         { href: "/lavoura", label: "Lavoura", show: hasFazenda },
         { href: "/prestador", label: "Prestador", show: hasPrestador },
