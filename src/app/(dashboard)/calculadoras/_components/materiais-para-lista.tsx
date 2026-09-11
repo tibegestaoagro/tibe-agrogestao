@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { useAviso } from "@/components/ui/toast";
 import { apiGet, apiPost } from "@/lib/client-api";
+import { isStockUnit } from "@/lib/stock/units";
 
 /**
  * §37 e §39: depois do calculo, o produtor pode mandar o material para a
@@ -121,11 +122,22 @@ export default function MateriaisParaLista({ materiais }: { materiais: Material[
       const produto = produtos?.find((p) => p.id === escolhas[i].product_id);
       const descricao = produto ? produto.name : material.descricao;
 
+      /*
+       * ⚠️ **A unidade so vai quando esta no vocabulario do estoque.** Achado
+       * ao vivo em 11/09, e pela SEGUNDA vez: um produto gravado com "kg" em
+       * vez de "quilograma" (cadastro herdado, e nada impede) fazia a criacao
+       * ser recusada com "Unidade desconhecida". O mesmo defeito ja tinha
+       * custado o botao do alerta de estoque baixo, no Modulo 36. A unidade
+       * veio do CADASTRO, nao do produtor: recusar o item por causa dela e
+       * punir quem nao digitou nada. Sem unidade, o item nasce igual.
+       */
+      const unidade = produto ? produto.unit : material.unidade;
+
       const r = await apiPost<{ id: string }>("/api/v1/shopping-items", {
         description: descricao,
         product_id: produto ? produto.id : undefined,
         quantity: Number(falta.toFixed(3)),
-        unit: produto ? produto.unit : undefined,
+        unit: isStockUnit(unidade) ? unidade : undefined,
         permitir_duplicata: insistindo,
       });
 
@@ -177,7 +189,10 @@ export default function MateriaisParaLista({ materiais }: { materiais: Material[
       }}
       onSubmit={() => enviar(false)}
       submitLabel="Adicionar à lista"
-      submitPendingLabel="Adicionando..."
+      // O rotulo diz QUAL espera esta acontecendo: com um so, o botao
+      // anunciava "Adicionando..." enquanto ainda estava lendo o estoque, e o
+      // produtor achava que ja tinha clicado.
+      submitPendingLabel={enviando ? "Adicionando..." : "Lendo o seu estoque..."}
       pending={enviando || produtos === null}
       error={err.global}
       focarCampoId={err.focarCampoId}
