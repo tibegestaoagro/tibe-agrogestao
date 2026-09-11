@@ -8,6 +8,7 @@ import { listPendingEntries } from "@/lib/actions/financial-reports";
 import { getBalanceAction } from "@/lib/actions/financial-summary";
 import { decToNum } from "@/lib/serialize";
 import { str, type Handler } from "./shared";
+import { reaisBr } from "@/lib/numero-br";
 
 const RESUMO_TOP_LEVEL: { scope: string; label: string; profile?: ProfileType }[] = [
   { scope: "rebanho", label: "Rebanho", profile: "fazenda" },
@@ -24,9 +25,6 @@ function formatCivilDate(date: Date): string {
   return civilDateFormatter.format(date);
 }
 
-function formatAmount(value: number): string {
-  return value.toFixed(2);
-}
 
 export const resumo: Handler = async ({ db, parameters, activeProfiles }) => {
   const scope = str(parameters.scope);
@@ -72,7 +70,7 @@ export const resumo: Handler = async ({ db, parameters, activeProfiles }) => {
       const relatedId = `${vaccination.batch_id}:${vaccination.vaccine_id}`;
       const prevision = previsionByRelatedId.get(relatedId);
       return prevision !== undefined
-        ? `${vaccineName} (brinco ${earTag}) dia ${date}, previsão R$ ${formatAmount(prevision)}`
+        ? `${vaccineName} (brinco ${earTag}) dia ${date}, previsão ${reaisBr(prevision)}`
         : `${vaccineName} (brinco ${earTag}) dia ${date}, sem previsão de gasto`;
     });
     const vaccineText = vaccineLines.length
@@ -132,7 +130,7 @@ export const resumo: Handler = async ({ db, parameters, activeProfiles }) => {
       getBalanceAction(db, null),
       db.alert.count({ where: { status: "pending" } }),
     ]);
-    const balanceText = balance.ok ? `R$ ${balance.data.balance.toFixed(2)}` : "indisponível";
+    const balanceText = balance.ok ? reaisBr(balance.data.balance) : "indisponível";
     return {
       reply_text: `💰 Financeiro: saldo do mês ${balanceText}. ${alerts} alerta(s) pendente(s).`,
       requires_confirmation: false,
@@ -199,7 +197,7 @@ export const resumo: Handler = async ({ db, parameters, activeProfiles }) => {
           ? formatCivilDate(order.performed_at)
           : "sem data";
         const amount = decToNum(order.total_value) ?? 0;
-        return `${order.service.name} para ${order.service_client.name} dia ${date}, R$ ${formatAmount(amount)}`;
+        return `${order.service.name} para ${order.service_client.name} dia ${date}, ${reaisBr(amount)}`;
       });
       if (count > 5) {
         lines.push(`e mais ${count - 5} agendamento(s)`);
@@ -218,7 +216,7 @@ export const resumo: Handler = async ({ db, parameters, activeProfiles }) => {
     ]);
     const total = decToNum(agg._sum.total_value) ?? 0;
     return {
-      reply_text: `💵 Você tem ${count} ordem(ns) concluída(s) aguardando fatura, totalizando R$ ${total.toFixed(2)}.`,
+      reply_text: `💵 Você tem ${count} ordem(ns) concluída(s) aguardando fatura, totalizando ${reaisBr(total)}.`,
       requires_confirmation: false,
       auxiliary_data: null,
       report_url: null,
@@ -244,18 +242,18 @@ export const resumo: Handler = async ({ db, parameters, activeProfiles }) => {
 
     const lines = entries.slice(0, 5).map((entry) => {
       const category = entry.category ?? "Sem categoria";
-      const amount = formatAmount(entry.amount ?? 0);
+      const amount = reaisBr(entry.amount ?? 0);
       const dueDate = formatCivilDate(entry.due_date);
       if (entry.days_overdue !== null) {
-        return `⚠️ VENCIDA há ${entry.days_overdue} dias: ${category}, R$ ${amount} (venceu ${dueDate})`;
+        return `⚠️ VENCIDA há ${entry.days_overdue} dias: ${category}, ${amount} (venceu ${dueDate})`;
       }
-      return `${category}: R$ ${amount}, vence ${dueDate}`;
+      return `${category}: ${amount}, vence ${dueDate}`;
     });
     if (entries.length > 5) {
       lines.push(`e mais ${entries.length - 5} conta(s)`);
     }
     const total = entries.reduce((sum, entry) => sum + (entry.amount ?? 0), 0);
-    lines.push(`Total a ${direction} no período: R$ ${formatAmount(total)}`);
+    lines.push(`Total a ${direction} no período: ${reaisBr(total)}`);
 
     return {
       reply_text: lines.join("\n"),

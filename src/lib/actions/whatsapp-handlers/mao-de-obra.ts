@@ -17,6 +17,7 @@ import {
 } from "@/lib/actions/worker-pending";
 import { ask, failReply, str, type Handler, type RouterResult } from "./shared";
 import { lerNumeroBr } from "./parsers";
+import { reaisBr as moeda } from "@/lib/numero-br";
 
 /**
  * Mão de obra pelo WhatsApp (Módulo 33, §32 do documento do cliente).
@@ -68,9 +69,6 @@ const FRASE_DA_FREQUENCIA: Record<PayFrequency, string> = {
   outra: "por período",
 };
 
-function moeda(v: number): string {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 function normalizar(termo: string): string {
   // Filtro por código numérico, não regex de caractere combinante: o próprio

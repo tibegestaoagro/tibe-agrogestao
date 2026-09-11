@@ -9,6 +9,7 @@ import {
 import { resolverCategoria, resolverFazenda, nomeDaCategoria } from "./herd";
 import { ask, failReply, str, num, type Handler, type RouterResult } from "./shared";
 import { lerDinheiro } from "./parsers";
+import { reaisBr as reais } from "@/lib/numero-br";
 
 /**
  * Leilão, feira e evento pelo WhatsApp (Módulo 31, missão 3, §19).
@@ -39,9 +40,6 @@ import { lerDinheiro } from "./parsers";
  *    pequeno o bastante para dispensar a pergunta.
  */
 
-function reais(v: number): string {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 /** A resposta comum aos dois gestos quando o produtor recusa. */
 async function cancelar(

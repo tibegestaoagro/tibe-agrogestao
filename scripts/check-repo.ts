@@ -1207,6 +1207,46 @@ function camposSemErro(fonte: string, campos: Set<string>): string[] {
     .sort();
 }
 
+// ------------------------------------------------- 16. dinheiro em portugues
+/**
+ * 16. Dinheiro escrito como o brasileiro le.
+ *
+ * `R$ ${valor.toFixed(2)}` produz "R$ 500.00" e "R$ 60000.00": ponto decimal e
+ * sem separador de milhar, que e o formato de OUTRO pais. Achado ao vivo em
+ * 2026-09-11, contra o agente de producao: "anota uma despesa de 500 reais com
+ * diesel" respondia "Entendi: R$ 500.00". Estava em 25 pontos, e nenhuma suite
+ * reclamava, porque suite le numero, nao frase.
+ *
+ * Mesma familia da recusa do Zod em ingles (conferencia 12): o calculo estava
+ * certo, a leitura e que era de outro idioma.
+ *
+ * Sem linha de base: os 25 foram corrigidos de uma vez, entao aqui a catraca ja
+ * nasce no zero. `reaisBr()` mora em `src/lib/numero-br.ts`, modulo puro, junto
+ * com o `lerNumeroBr` que faz o caminho de ida.
+ */
+function conferirDinheiroEmPortugues() {
+  console.log("\n16. Dinheiro escrito em portugues");
+
+  const ofensores: string[] = [];
+  for (const rel of versionados()) {
+    if (!rel.startsWith("src/") || !/\.tsx?$/.test(rel)) continue;
+    const full = join(RAIZ, rel);
+    if (!existsSync(full)) continue;
+    const fonte = readFileSync(full, "utf8");
+    fonte.split("\n").forEach((linha, i) => {
+      if (/R\$ *\$\{[^}]*toFixed\(/.test(linha)) ofensores.push(`${rel}:${i + 1}`);
+    });
+  }
+
+  check(
+    "nenhum valor em reais sai com ponto decimal",
+    ofensores.length === 0,
+    ofensores.length > 0
+      ? `use reaisBr() de @/lib/numero-br, que escreve "R$ 60.000,50":\n       ${ofensores.join("\n       ")}`
+      : undefined,
+  );
+}
+
 function main() {
   console.log("🔎 Conferencia estatica do repositorio (sem banco)");
   conferirCaminhos();
@@ -1225,6 +1265,7 @@ function main() {
   conferirCofreDeConhecimento();
   conferirElementoQueSome();
   conferirCampoMudo();
+  conferirDinheiroEmPortugues();
 
   console.log("");
   if (falhas === 0) console.log("✅ Repositorio consistente: 0 falhas.");

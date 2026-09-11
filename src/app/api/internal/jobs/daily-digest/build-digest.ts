@@ -3,6 +3,7 @@ import type { ProfileType } from "@/lib/tenant-context";
 import { listUpcomingVaccinations } from "@/lib/actions/animal-vaccinations";
 import { listPendingEntries } from "@/lib/actions/financial-reports";
 import { getBalanceAction } from "@/lib/actions/financial-summary";
+import { reaisBr } from "@/lib/numero-br";
 
 export type DigestContent = {
   pushTitle: string;
@@ -34,7 +35,7 @@ export async function buildDailyDigest(
   const parts: string[] = [];
 
   if (balance.ok) {
-    parts.push(`saldo do mês R$ ${balance.data.balance.toFixed(2)}`);
+    parts.push(`saldo do mês ${reaisBr(balance.data.balance)}`);
   }
 
   const overduePayable = payable.filter((e) => e.days_overdue !== null).length;

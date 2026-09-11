@@ -8,6 +8,7 @@ import { resolvePendingEntriesCalendar } from "@/lib/actions/financial-reports";
 import { upsertVaccinationForecastAction } from "@/lib/actions/vaccination-forecast";
 import { CONFIRMATION_THRESHOLD } from "@/lib/whatsapp-intents";
 import { ask, failReply, str, num, confirmFlow, type Handler } from "./shared";
+import { reaisBr } from "@/lib/numero-br";
 // Módulo 25: registrar_lote_animal (rebanho por categoria e quantidade).
 import { findActiveCategoryByName } from "@/lib/actions/animal-categories";
 import { createBatchAction, sellFromCategoryAction } from "@/lib/actions/animal-batches";
@@ -170,9 +171,9 @@ export const registrarVacina: Handler = async ({ db, parameters }) => {
   });
   if (!result.ok) return failReply("registrar_vacina", result);
   const reconciliationText = result.data.reconciled
-    ? ` Previsão de R$ ${result.data.reconciled.previous_amount.toFixed(2)} conciliada com o custo real de R$ ${result.data.reconciled.new_amount.toFixed(2)} e marcada como paga.`
+    ? ` Previsão de ${reaisBr(result.data.reconciled.previous_amount)} conciliada com o custo real de ${reaisBr(result.data.reconciled.new_amount)} e marcada como paga.`
     : result.data.pending_prevision_amount !== undefined
-      ? ` Você tem uma previsão de R$ ${result.data.pending_prevision_amount.toFixed(2)} pendente para essa vacina; me diga o valor real quando quiser que eu quite.`
+      ? ` Você tem uma previsão de ${reaisBr(result.data.pending_prevision_amount)} pendente para essa vacina; me diga o valor real quando quiser que eu quite.`
       : "";
   return {
     reply_text: `Vacina ${result.data.vaccine_name} registrada para o brinco ${ear_tag}.${
@@ -258,7 +259,7 @@ export const registrarPrevisaoVacina: Handler = async ({ db, parameters }) => {
     ? "Previsão atualizada"
     : "Previsão registrada";
   return {
-    reply_text: `${statusText}: Vacinação ${vaccine.name} (brinco ${animal.ear_tag}), R$ ${cost.toFixed(2)}, vencimento ${formatUtcCivilDate(dueDate)}.${reminder}`,
+    reply_text: `${statusText}: Vacinação ${vaccine.name} (brinco ${animal.ear_tag}), ${reaisBr(cost)}, vencimento ${formatUtcCivilDate(dueDate)}.${reminder}`,
     requires_confirmation: false,
     auxiliary_data: null,
     report_url: null,
@@ -305,7 +306,7 @@ export const registrarMovimento: Handler = async ({ db, parameters, confirmed, e
       intent: "registrar_movimento",
       explicitNo,
       confirmed,
-      question: `Confirma a ${verb} do animal ${ear_tag} por R$ ${value.toFixed(2)}? Responda "sim" para confirmar.`,
+      question: `Confirma a ${verb} do animal ${ear_tag} por ${reaisBr(value)}? Responda "sim" para confirmar.`,
       auxiliary: { ear_tag, movement_type, value },
     });
     if (gate) return gate;
@@ -320,7 +321,7 @@ export const registrarMovimento: Handler = async ({ db, parameters, confirmed, e
   if (!result.ok) return failReply("registrar_movimento", result);
   return {
     reply_text: `${MOVEMENT_LABEL[movement_type]} registrada para o brinco ${ear_tag}${
-      value != null ? ` (R$ ${value.toFixed(2)})` : ""
+      value != null ? ` (${reaisBr(value)})` : ""
     }.`,
     requires_confirmation: false,
     auxiliary_data: null,
@@ -421,7 +422,7 @@ export const registrarLoteAnimal: Handler = async ({ db, parameters, confirmed, 
       confirmed,
       cancelledText: "Venda cancelada.",
       question: `Confirma a venda de ${quantity} ${category.name}(s)${
-        value != null ? ` por R$ ${value.toFixed(2)}` : ""
+        value != null ? ` por ${reaisBr(value)}` : ""
       }?`,
       auxiliary: { category_id: category.id, category: category.name, quantity, value, operation },
     });
@@ -431,7 +432,7 @@ export const registrarLoteAnimal: Handler = async ({ db, parameters, confirmed, 
     if (!result.ok) return failReply("registrar_lote_animal", result);
     return {
       reply_text: `Venda registrada: ${quantity} ${category.name}(s)${
-        value != null ? ` por R$ ${value.toFixed(2)}` : ""
+        value != null ? ` por ${reaisBr(value)}` : ""
       }.`,
       requires_confirmation: false,
       auxiliary_data: null,
@@ -474,7 +475,7 @@ export const registrarLoteAnimal: Handler = async ({ db, parameters, confirmed, 
     confirmed,
     cancelledText: "Registro de lote cancelado.",
     question: `Confirma o registro de ${quantity} ${category.name}(s)${
-      value != null ? ` por R$ ${value.toFixed(2)}` : ", sem custo informado"
+      value != null ? ` por ${reaisBr(value)}` : ", sem custo informado"
     }?`,
     auxiliary: {
       category_id: category.id,

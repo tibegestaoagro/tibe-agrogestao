@@ -17,6 +17,7 @@ import {
   nomeDaCategoria,
 } from "./herd";
 import { ask, failReply, str, num, type Handler, type RouterResult } from "./shared";
+import { reaisBr as reais } from "@/lib/numero-br";
 import {
   custosDosParametros,
   lerData,
@@ -59,9 +60,6 @@ const TIPOS: Record<string, "compra_gado" | "venda_gado"> = {
   vendi: "venda_gado",
 };
 
-function reais(v: number): string {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 /**
  * O nome da categoria dentro de frase.

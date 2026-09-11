@@ -3,6 +3,7 @@ import { getClientSummaryAction } from "@/lib/actions/service-clients";
 import { decToNum } from "@/lib/serialize";
 import { CONFIRMATION_THRESHOLD } from "@/lib/whatsapp-intents";
 import { ask, failReply, str, num, confirmFlow, type Handler } from "./shared";
+import { reaisBr } from "@/lib/numero-br";
 
 export const cadastrarServicoOrdem: Handler = async ({ db, parameters, confirmed, explicitNo }) => {
   const clientName = str(parameters.client_name);
@@ -36,7 +37,7 @@ export const cadastrarServicoOrdem: Handler = async ({ db, parameters, confirmed
       intent: "cadastrar_servico_ordem",
       explicitNo,
       confirmed,
-      question: `Confirma a ordem de serviço "${service.name}" para ${client.name} no valor de R$ ${total_value.toFixed(2)}? Responda "sim" para confirmar.`,
+      question: `Confirma a ordem de serviço "${service.name}" para ${client.name} no valor de ${reaisBr(total_value)}? Responda "sim" para confirmar.`,
       auxiliary: { client_id: client.id, service_id: service.id, quantity: effectiveQty },
     });
     if (gate) return gate;
@@ -50,7 +51,7 @@ export const cadastrarServicoOrdem: Handler = async ({ db, parameters, confirmed
   });
   if (!result.ok) return failReply("cadastrar_servico_ordem", result);
   return {
-    reply_text: `Ordem de serviço registrada para ${client.name}: ${service.name}, total R$ ${result.data.total_value.toFixed(2)}.`,
+    reply_text: `Ordem de serviço registrada para ${client.name}: ${service.name}, total ${reaisBr(result.data.total_value)}.`,
     requires_confirmation: false,
     auxiliary_data: null,
     report_url: null,
@@ -73,7 +74,7 @@ export const consultarCliente: Handler = async ({ db, parameters }) => {
   if (!result.ok) return failReply("consultar_cliente", result);
   const s = result.data;
   return {
-    reply_text: `${s.client_name}: faturado R$ ${s.total_invoiced.toFixed(2)}, pendente R$ ${s.total_pending.toFixed(2)} (${s.orders_count} ordens registradas).`,
+    reply_text: `${s.client_name}: faturado ${reaisBr(s.total_invoiced)}, pendente ${reaisBr(s.total_pending)} (${s.orders_count} ordens registradas).`,
     requires_confirmation: false,
     auxiliary_data: s,
     report_url: null,

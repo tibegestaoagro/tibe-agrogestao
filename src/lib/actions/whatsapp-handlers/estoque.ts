@@ -25,6 +25,7 @@ import {
 import { loadPendingNegotiation } from "@/lib/actions/negotiation-pending";
 import { resolverFazenda } from "./herd";
 import { ask, failReply, str, type Handler, type RouterResult } from "./shared";
+import { reaisBr as reais } from "@/lib/numero-br";
 import {
   custosDosParametros,
   lerData,
@@ -149,9 +150,6 @@ function normalizar(termo: string): string {
     .trim();
 }
 
-function reais(v: number): string {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 /**
  * A quantidade dita, conferida contra a unidade do produto.

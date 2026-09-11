@@ -11,6 +11,13 @@ import {
   generateAlertsForTenant,
 } from "@/lib/actions/alerts";
 import { routeIntent } from "@/lib/actions/whatsapp-router";
+/*
+ * Valor esperado composto por `reaisBr`, nunca escrito a mao: o formato
+ * brasileiro usa espaco NAO separavel (U+00A0) depois do "R$", e um literal
+ * digitado no teclado nao casa nem aparece diferente no diff. O formato em si
+ * e fixado pela `m43`, com literais.
+ */
+import { reaisBr } from "@/lib/numero-br";
 import { supportsThreeDayReminder } from "@/lib/actions/whatsapp-handlers/rebanho";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { createTestAnimal , deleteTestTenants } from "./helpers/herd";
@@ -329,7 +336,7 @@ async function main() {
     );
     assert(
       appointments.reply_text.includes(
-        "Pulverização M17 para Cliente Agenda M17 dia 15/08/2026, R$ 100.00",
+        `Pulverização M17 para Cliente Agenda M17 dia 15/08/2026, ${reaisBr(100)}`,
       ),
       "agendamentos mostra serviço, cliente, data civil UTC conhecida e valor real",
     );
@@ -442,13 +449,13 @@ async function main() {
     });
     const billsToPay = await callResumo(dbA, tenantA.id, ["fazenda"], "contas_a_pagar");
     assert(
-      billsToPay.reply_text.includes("⚠️ VENCIDA há 31 dias: Conta vencida, R$ 123.45") &&
+      billsToPay.reply_text.includes(`⚠️ VENCIDA há 31 dias: Conta vencida, ${reaisBr(123.45)}`) &&
         billsToPay.reply_text.includes("venceu") &&
         billsToPay.reply_text.includes("e mais 1 conta(s)"),
       "contas_a_pagar marca vencida de mês anterior e limita a lista a 5",
     );
     assert(
-      billsToPay.reply_text.includes("Total a pagar no período: R$ 683.55"),
+      billsToPay.reply_text.includes(`Total a pagar no período: ${reaisBr(683.55)}`),
       "contas_a_pagar totaliza todos os 6 lançamentos do período",
     );
     assert(
@@ -472,8 +479,8 @@ async function main() {
       "contas_a_receber",
     );
     assert(
-      billsToReceive.reply_text.includes("Receita pendente: R$ 450.75") &&
-        billsToReceive.reply_text.includes("Total a receber no período: R$ 450.75"),
+      billsToReceive.reply_text.includes(`Receita pendente: ${reaisBr(450.75)}`) &&
+        billsToReceive.reply_text.includes(`Total a receber no período: ${reaisBr(450.75)}`),
       "contas_a_receber usa receitas pendentes de FinancialEntry",
     );
     assert(
@@ -577,7 +584,7 @@ async function main() {
     assert(
       herdAgenda.reply_text.includes("3 animal(is) ativo(s)") &&
         herdAgenda.reply_text.includes(
-          `Aftosa M17 (brinco M17-101) dia ${formatUtcCivilDate(vaccinationDates[0]!)}, previsão R$ 175.50`,
+          `Aftosa M17 (brinco M17-101) dia ${formatUtcCivilDate(vaccinationDates[0]!)}, previsão ${reaisBr(175.5)}`,
         ),
       "rebanho mantém a contagem e mostra vacina com previsão",
     );
@@ -736,7 +743,7 @@ async function main() {
     );
     assert(
       createdPrevisionReply.reply_text.includes("Previsão registrada") &&
-        createdPrevisionReply.reply_text.includes("R$ 210.75") &&
+        createdPrevisionReply.reply_text.includes(reaisBr(210.75)) &&
         createdPrevisionReply.reply_text.includes(formatUtcCivilDate(fallbackDueDate)) &&
         createdPrevisionReply.requires_confirmation === false,
       "registrar_previsao_vacina ecoa valor e data sem confirmação sim ou não",
@@ -768,7 +775,7 @@ async function main() {
     );
     assert(
       updatedPrevisionReply.reply_text.includes("Previsão atualizada") &&
-        updatedPrevisionReply.reply_text.includes("R$ 275.25") &&
+        updatedPrevisionReply.reply_text.includes(reaisBr(275.25)) &&
         updatedPrevisionReply.reply_text.includes(formatUtcCivilDate(updatedDueDate)),
       "segunda previsão informa de forma observável que foi atualizada",
     );
@@ -930,7 +937,7 @@ async function main() {
     });
     assert(
       reconciliationReply.reply_text.includes(
-        "Previsão de R$ 100.00 conciliada com o custo real de R$ 150.00 e marcada como paga.",
+        `Previsão de ${reaisBr(100)} conciliada com o custo real de ${reaisBr(150)} e marcada como paga.`,
       ),
       "registrar_vacina torna a conciliação visível no texto do agente",
     );
@@ -949,7 +956,7 @@ async function main() {
     });
     assert(
       pendingPrevisionReply.reply_text.includes(
-        "Você tem uma previsão de R$ 88.40 pendente para essa vacina; me diga o valor real quando quiser que eu quite.",
+        `Você tem uma previsão de ${reaisBr(88.4)} pendente para essa vacina; me diga o valor real quando quiser que eu quite.`,
       ),
       "registrar_vacina avisa sobre previsão pendente quando o custo real não foi informado",
     );
@@ -1323,7 +1330,7 @@ async function main() {
     assert(
       pendingAfterAmountOnly !== undefined &&
         pendingAfterAmountOnly.message.startsWith(
-          "💰 Conta a pagar: Vacinação prevista - Vacina Sem Data M17 (brinco M17-SEM-DATA) de R$ 61.50 vence em ",
+          `💰 Conta a pagar: Vacinação prevista - Vacina Sem Data M17 (brinco M17-SEM-DATA) de ${reaisBr(61.5)} vence em `,
         ) &&
         sentAfterAmountOnly?.message ===
           "Alerta já enviado antes do reagendamento M17" &&
@@ -1491,7 +1498,7 @@ async function main() {
     });
     assert(
       raceFreshAlert?.status === "pending" &&
-        raceFreshAlert.message.includes("R$ 84.00"),
+        raceFreshAlert.message.includes(reaisBr(84)),
       "nova data na janela cria bill_due correto após corrida serializada",
     );
 

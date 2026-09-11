@@ -9,6 +9,7 @@ import { suggestCategory } from "@/lib/category-suggestions";
 import { listFinancialCategoriesAction } from "@/lib/actions/financial-categories";
 import { ask, failReply, str, confirmFlow, type Handler } from "./shared";
 import { lerDinheiro } from "./parsers";
+import { reaisBr } from "@/lib/numero-br";
 
 const REPORT_TYPE_MODULE: Record<string, ModuleKey> = {
   financeiro: "financeiro",
@@ -22,7 +23,7 @@ export const consultarSaldo: Handler = async ({ db, parameters }) => {
   const result = await getBalanceAction(db, period);
   if (!result.ok) return failReply("consultar_saldo", result);
   return {
-    reply_text: `Saldo de ${result.data.period_label}: receita R$ ${result.data.income.toFixed(2)}, despesa R$ ${result.data.expense.toFixed(2)}, saldo R$ ${result.data.balance.toFixed(2)}.`,
+    reply_text: `Saldo de ${result.data.period_label}: receita ${reaisBr(result.data.income)}, despesa ${reaisBr(result.data.expense)}, saldo ${reaisBr(result.data.balance)}.`,
     requires_confirmation: false,
     auxiliary_data: result.data,
     report_url: null,
@@ -123,7 +124,7 @@ export const registrarLancamentoFinanceiro: Handler = async ({ db, parameters, c
     explicitNo,
     confirmed,
     cancelledText: "Lançamento cancelado.",
-    question: `Entendi: R$ ${amount.toFixed(2)}, categoria ${category}${vendor ? `, ${vendor}` : ""}. Confirma o lançamento?`,
+    question: `Entendi: ${reaisBr(amount)}, categoria ${category}${vendor ? `, ${vendor}` : ""}. Confirma o lançamento?`,
     auxiliary: { amount, category, vendor, description },
   });
   if (gate) return gate;
@@ -137,7 +138,7 @@ export const registrarLancamentoFinanceiro: Handler = async ({ db, parameters, c
   });
   if (!result.ok) return failReply("registrar_lancamento_financeiro", result);
   return {
-    reply_text: `Lançamento registrado: R$ ${amount.toFixed(2)}, ${category}${vendor ? `, ${vendor}` : ""}.`,
+    reply_text: `Lançamento registrado: ${reaisBr(amount)}, ${category}${vendor ? `, ${vendor}` : ""}.`,
     requires_confirmation: false,
     auxiliary_data: null,
     report_url: null,

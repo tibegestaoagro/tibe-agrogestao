@@ -7,6 +7,7 @@ import { runSerializableTenantTransaction } from "@/lib/financial";
 import { isAlertTypeEnabled } from "@/lib/actions/alert-preferences";
 import { getStockBalance } from "@/lib/actions/stock-ledger";
 import { descreverQuantidade } from "@/lib/stock/units";
+import { reaisBr } from "@/lib/numero-br";
 
 /**
  * Geração de alertas (spec 4.9/4.10). Idempotência por
@@ -64,7 +65,7 @@ export function buildBillDueMessage(params: {
     (params.due_date.getTime() - params.now.getTime()) / 86_400_000,
   );
   const kind = params.entry_type === "income" ? "receber" : "pagar";
-  return `💰 Conta a ${kind}: ${params.category ?? "lançamento"} de R$ ${params.amount.toFixed(2)} vence em ${days} dia(s).`;
+  return `💰 Conta a ${kind}: ${params.category ?? "lançamento"} de ${reaisBr(params.amount)} vence em ${days} dia(s).`;
 }
 
 /**
@@ -232,7 +233,7 @@ export async function generateAlertsForTenant(tenantId: string): Promise<{ creat
         alert_type: "low_balance",
         related_module: "geral",
         related_id: isoWeekKey(now),
-        message: `⚠️ Saldo do mês está negativo: R$ ${balance.data.balance.toFixed(2)}.`,
+        message: `⚠️ Saldo do mês está negativo: ${reaisBr(balance.data.balance)}.`,
       });
       if (didCreate) created++;
     }
