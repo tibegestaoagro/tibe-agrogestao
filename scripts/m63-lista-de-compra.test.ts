@@ -758,6 +758,55 @@ async function main() {
     const alertaDepois = await A.db.alert.findFirst({ where: { id: alerta.id } });
     check("o alerta fica dismissed", alertaDepois?.status === "dismissed", String(alertaDepois?.status));
 
+    /*
+     * Produto com unidade FORA do vocabulário (um "kg" herdado de cadastro
+     * antigo, em vez de "quilograma"). Achado na validação ao vivo de 11/09:
+     * o botão do alerta recusava com "Unidade desconhecida" e o produtor
+     * clicava sem nada acontecer. A unidade veio do cadastro, não dele.
+     */
+    const produtoTorto = await A.db.product.create({
+      data: scoped({
+        name: `M63 Produto com unidade torta ${stamp}`,
+        category_id: combustivelCat.id,
+        unit: "kg",
+      }),
+    });
+    const relatedTorto = `${produtoTorto.id}:2026-W37`;
+    const alertaTorto = await A.db.alert.create({
+      data: scoped({
+        alert_type: "low_stock",
+        related_module: "geral",
+        related_id: relatedTorto,
+        message: `📦 ${produtoTorto.name} está acabando.`,
+        status: "pending",
+        dedup_key: alertDedupKey({
+          alert_type: "low_stock",
+          related_module: "geral",
+          related_id: relatedTorto,
+          dia: new Date(),
+        }),
+      }),
+    });
+    const resTorto = await withBearer(A.token, () =>
+      alertShoppingRoute.POST(reqJson("POST", urlAlertShopping(alertaTorto.id), {}), {
+        params: Promise.resolve({ id: alertaTorto.id }),
+      }),
+    );
+    const jTorto = await body(resTorto);
+    check(
+      "produto com unidade fora do vocabulário AINDA vira item da lista",
+      resTorto.status === 200 || resTorto.status === 201,
+      `status=${resTorto.status} body=${JSON.stringify(jTorto)}`,
+    );
+    const itemTorto = await A.db.shoppingItem.findFirst({
+      where: { id: (jTorto.data as Item)?.id },
+    });
+    check(
+      "e ele nasce SEM unidade, em vez de não nascer",
+      itemTorto?.unit === null && itemTorto?.product_id === produtoTorto.id,
+      `unit=${itemTorto?.unit} product_id=${itemTorto?.product_id}`,
+    );
+
     // ------------------------------------------------------------------
     console.log("\n14. Isolamento entre tenants\n");
     // ------------------------------------------------------------------

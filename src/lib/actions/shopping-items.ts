@@ -594,7 +594,16 @@ export async function adicionarItemDoAlertaAction(
     {
       description: produto.name,
       product_id: produto.id,
-      unit: produto.unit,
+      /*
+       * ⚠️ **Só passa a unidade quando ela está no vocabulário.** Achado na
+       * validação ao vivo de 11/09: um produto gravado com "kg" em vez de
+       * "quilograma" (script antigo, e nada impede um cadastro herdado assim)
+       * fazia o botão do alerta recusar com "Unidade desconhecida", e o
+       * produtor clicava sem nada acontecer. A unidade veio do CADASTRO, não
+       * do produtor: recusar o item por causa dela é punir quem não digitou
+       * nada. Sem unidade, o item nasce igual e funciona.
+       */
+      unit: isStockUnit(produto.unit) ? produto.unit : null,
       category_id: produto.category_id,
     },
     opts,
