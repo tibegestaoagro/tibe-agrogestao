@@ -1620,7 +1620,7 @@ export const GROUPS: Group[] = [
           "Anota um item. Só description é obrigatória. Item parecido já pendente é recusado com ITEM_JA_NA_LISTA (409) para que a pergunta do §19.7 possa ser feita; repetir com permitir_duplicata: true adiciona assim mesmo.",
         request: `{ "description": "Sal mineral", "quantity": 10, "unit": "saca", "priority": "urgente" }`,
         response: `201
-{ "data": { "id": "cl...", "description": "Sal mineral", "status": "pendente", "priority": "urgente" }, "meta": {} }`,
+{ "data": { "id": "cl...", "description": "Sal mineral", "quantity": 10, "unit": "saca", "priority": "urgente", "status": "pendente", "negotiation_id": null }, "meta": {} }`,
       },
       {
         method: "PATCH",

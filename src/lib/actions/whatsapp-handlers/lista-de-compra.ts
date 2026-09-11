@@ -9,6 +9,11 @@ import {
   pendentesParecidos,
 } from "@/lib/actions/shopping-items";
 import { lerDinheiro } from "./parsers";
+import {
+  savePendingLista,
+  loadPendingLista,
+  clearPendingLista,
+} from "@/lib/actions/shopping-pending";
 import { ask, failReply, str, num, confirmFlow, normalizarTermo, type Handler } from "./shared";
 
 /**
@@ -133,7 +138,55 @@ async function acharItem(
  * §17: "Coloca 10 sacas de sal na minha lista", e também "preciso comprar
  * arame", sem quantidade nenhuma.
  */
-export const adicionarItemLista: Handler = async ({ db, user_id, parameters, confirmed, explicitNo }) => {
+export const adicionarItemLista: Handler = async ({
+  db,
+  tenant_id,
+  user_id,
+  parameters,
+  confirmed,
+  explicitNo,
+}) => {
+  /*
+   * A resposta a "já existe sal na sua lista, quer anotar mais?". O item vem
+   * do pedido guardado, e não da remontagem do classificador, pelo mesmo
+   * motivo do `removerItemLista` logo abaixo.
+   */
+  const guardado = user_id ? await loadPendingLista(tenant_id, user_id) : null;
+  if (guardado?.aguardando === "confirmacao_duplicata") {
+    if (user_id) await clearPendingLista(tenant_id, user_id);
+    if (explicitNo) {
+      return {
+        reply_text: "Tudo bem, não anotei de novo.",
+        requires_confirmation: false,
+        auxiliary_data: null,
+        report_url: null,
+        action_taken: "adicionar_item_lista:cancelado",
+      };
+    }
+    if (confirmed) {
+      const descricao = str(guardado.parameters.descricao);
+      if (descricao) {
+        const resultado = await criarItemAction(
+          db,
+          {
+            description: descricao,
+            quantity: num(guardado.parameters.quantidade),
+            unit: str(guardado.parameters.unidade),
+          },
+          { created_by_user_id: user_id ?? null, permitirDuplicata: true },
+        );
+        if (!resultado.ok) return failReply("adicionar_item_lista", resultado);
+        return {
+          reply_text: `Anotei ${descricao} na sua Lista de Compra.`,
+          requires_confirmation: false,
+          auxiliary_data: { anotados: [descricao] },
+          report_url: null,
+          action_taken: "adicionar_item_lista",
+        };
+      }
+    }
+  }
+
   const itens = lerItens(parameters);
   if (itens.length === 0) {
     return ask("O que você quer colocar na lista?");
@@ -159,6 +212,16 @@ export const adicionarItemLista: Handler = async ({ db, user_id, parameters, con
         };
       }
       if (!confirmed) {
+        if (user_id) {
+          await savePendingLista(tenant_id, user_id, {
+            parameters: {
+              descricao: itens[0].descricao,
+              quantidade: itens[0].quantidade ?? null,
+              unidade: itens[0].unidade ?? null,
+            },
+            aguardando: "confirmacao_duplicata",
+          });
+        }
         const lista = parecidos.map(descreverItem).join(", ");
         return ask(`Você já tem ${lista} na sua lista. Quer anotar mais assim mesmo?`, {
           descricao: itens[0].descricao,
@@ -233,7 +296,52 @@ export const consultarListaCompra: Handler = async ({ db }) => {
 };
 
 /** §17: "Tira o arame da lista." */
-export const removerItemLista: Handler = async ({ db, parameters, confirmed, explicitNo }) => {
+export const removerItemLista: Handler = async ({
+  db,
+  tenant_id,
+  user_id,
+  parameters,
+  confirmed,
+  explicitNo,
+}) => {
+  /*
+   * ⚠️ **O pedido guardado manda sobre o que o classificador remontou.**
+   * "Tira o arame da lista" e depois "sim": na segunda volta o classificador
+   * não repete a descrição, e sem a pendência o assistente perguntava "o que
+   * você quer tirar?" a um produtor que acabou de responder. Foi a `m63`,
+   * escrita às cegas, que pegou isso.
+   */
+  const guardado = user_id ? await loadPendingLista(tenant_id, user_id) : null;
+  const alvoGuardado =
+    guardado?.aguardando === "confirmacao_remocao" ? str(guardado.parameters.item_id) : null;
+
+  if (alvoGuardado) {
+    if (explicitNo) {
+      if (user_id) await clearPendingLista(tenant_id, user_id);
+      return {
+        reply_text: "Tudo bem, continua na lista.",
+        requires_confirmation: false,
+        auxiliary_data: null,
+        report_url: null,
+        action_taken: "remover_item_lista:cancelado",
+      };
+    }
+    if (confirmed) {
+      if (user_id) await clearPendingLista(tenant_id, user_id);
+      const item = await db.shoppingItem.findFirst({ where: { id: alvoGuardado } });
+      if (!item) return ask("Esse item não está mais na sua lista.");
+      const resultado = await removerItemAction(db, alvoGuardado);
+      if (!resultado.ok) return failReply("remover_item_lista", resultado);
+      return {
+        reply_text: `Tirei ${descreverItem(item)} da sua lista.`,
+        requires_confirmation: false,
+        auxiliary_data: null,
+        report_url: null,
+        action_taken: `remover_item_lista:${alvoGuardado}`,
+      };
+    }
+  }
+
   const termo = str(parameters.descricao) ?? str(parameters.description) ?? str(parameters.item);
   if (!termo) return ask("O que você quer tirar da lista?");
 
@@ -248,7 +356,16 @@ export const removerItemLista: Handler = async ({ db, parameters, confirmed, exp
     question: `Quer tirar ${descreverItem(achado.item)} da sua Lista de Compra?`,
     auxiliary: { item_id: achado.item.id },
   });
-  if (gate) return gate;
+  if (gate) {
+    // Guarda o alvo antes de perguntar: é o que a próxima volta vai usar.
+    if (gate.requires_confirmation && user_id) {
+      await savePendingLista(tenant_id, user_id, {
+        parameters: { item_id: achado.item.id },
+        aguardando: "confirmacao_remocao",
+      });
+    }
+    return gate;
+  }
 
   const resultado = await removerItemAction(db, achado.item.id);
   if (!resultado.ok) return failReply("remover_item_lista", resultado);

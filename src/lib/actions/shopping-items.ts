@@ -35,12 +35,62 @@ export type ItemInput = {
   notes?: string | null;
 };
 
+/**
+ * O que as actions de escrita devolvem.
+ *
+ * ⚠️ **É o item INTEIRO, e não uma projeção com quatro campos.** A `m63`,
+ * escrita às cegas, mostrou a assimetria: o GET devolvia o recurso completo e
+ * o POST devolvia `id`, `description`, `status` e `priority`, obrigando quem
+ * consome a buscar de novo para saber a quantidade que acabou de gravar.
+ */
 type ItemGravado = {
   id: string;
   description: string;
-  status: string;
+  product_id: string | null;
+  quantity: number | null;
+  unit: string | null;
+  property_id: string | null;
+  category_id: string | null;
+  purpose: string | null;
   priority: string;
+  place: string | null;
+  notes: string | null;
+  status: string;
+  negotiation_id: string | null;
 };
+
+/** Um lugar só para montar a resposta, em vez de repetir os treze campos. */
+function comoItemGravado(item: {
+  id: string;
+  description: string;
+  product_id: string | null;
+  quantity: unknown;
+  unit: string | null;
+  property_id: string | null;
+  category_id: string | null;
+  purpose: string | null;
+  priority: string;
+  place: string | null;
+  notes: string | null;
+  status: string;
+  negotiation_id: string | null;
+}): ItemGravado {
+  return {
+    id: item.id,
+    description: item.description,
+    product_id: item.product_id,
+    quantity: decToNum(item.quantity),
+    unit: item.unit,
+    property_id: item.property_id,
+    category_id: item.category_id,
+    purpose: item.purpose,
+    priority: item.priority,
+    place: item.place,
+    notes: item.notes,
+    status: item.status,
+    negotiation_id: item.negotiation_id,
+  };
+}
 
 function limpar(texto: string | null | undefined): string | null {
   const t = (texto ?? "").trim();
@@ -211,12 +261,7 @@ export async function criarItemAction(
     }),
   });
 
-  return ok({
-    id: criado.id,
-    description: criado.description,
-    status: criado.status,
-    priority: criado.priority,
-  });
+  return ok(comoItemGravado(criado));
 }
 
 /**
@@ -310,12 +355,7 @@ export async function atualizarItemAction(
     },
   });
 
-  return ok({
-    id: atualizado.id,
-    description: atualizado.description,
-    status: atualizado.status,
-    priority: atualizado.priority,
-  });
+  return ok(comoItemGravado(atualizado));
 }
 
 /**
@@ -344,12 +384,7 @@ async function sairDaLista(
     data: { status, resolved_at: new Date() },
   });
 
-  return ok({
-    id: atualizado.id,
-    description: atualizado.description,
-    status: atualizado.status,
-    priority: atualizado.priority,
-  });
+  return ok(comoItemGravado(atualizado));
 }
 
 export const concluirItemAction = (db: TenantPrismaClient, id: string) =>
@@ -393,12 +428,7 @@ export async function repetirItemAction(
     }),
   });
 
-  return ok({
-    id: novo.id,
-    description: novo.description,
-    status: novo.status,
-    priority: novo.priority,
-  });
+  return ok(comoItemGravado(novo));
 }
 
 /**
