@@ -324,10 +324,19 @@ suítes nesse caso, mas a trava só existe porque o acidente já aconteceu.
 ⚠️ **`prisma migrate dev` é interativo e falha em automação.** O fluxo daqui:
 
 ```
-npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script
+DATABASE_URL="postgresql://tibe:tibe@127.0.0.1:55432/tibe_dev?schema=public" npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script
 # salvar o SQL em prisma/migrations/<timestamp>_nome/migration.sql
-npm run db:deploy
+DATABASE_URL="postgresql://tibe:tibe@127.0.0.1:55432/tibe_dev?schema=public" npm run db:deploy
 ```
+
+⚠️ **A URL inline no `migrate diff` não é enfeite.** Sem ela, o `--from-config-datasource`
+lê o `.env`, que é **produção**: o SQL sai comparado com o banco errado, e
+quando o local está à frente ele vem incompleto ou com drop indevido. O
+`dotenv` não sobrescreve variável já definida no ambiente, então a inline vence.
+
+⚠️ **`--from-url` e `--to-schema-datamodel` não existem mais** no Prisma 7 (o
+CLI manda usar `--[from/to]-config-datasource`), e `--from-migrations` exige uma
+`shadowDatabaseUrl` no `prisma.config.ts`, que este projeto não tem.
 
 Aplique primeiro no Docker local, rode os testes, e só então no Neon (URL
 **Direct**, sem `-pooler`; a Pooled é a de runtime).
