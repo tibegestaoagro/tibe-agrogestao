@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { exigirBancoLocal } from "./_banco-local";
-import { prisma, prismaForTenant } from "@/lib/prisma";
+import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import {
   criarItemAction,
   listarItensAction,
@@ -8,6 +8,7 @@ import {
   concluirItemAction,
   removerItemAction,
   repetirItemAction,
+  registrarCompraDoItemAction,
 } from "@/lib/actions/shopping-items";
 
 /**
@@ -150,10 +151,92 @@ async function main() {
       await prisma.tenant.delete({ where: { id: outro.id } });
     }
 
-    const lancamentos = await db.financialEntry.count();
-    const movimentos = await db.stockMovement.count();
+    // ── §12: o item vira compra, e quem registra e Negociacoes ───────────
+    const fazenda = await db.property.create({ data: scoped({ name: "Fazenda da Fumaca" }) });
+    const categoria = await db.productCategory.create({ data: scoped({ name: "Sal mineral" }) });
+
+    const semProduto = await criarItemAction(
+      db,
+      { description: "Arame liso", quantity: 2, unit: "rolo", property_id: fazenda.id },
+      { permitirDuplicata: true },
+    );
+    check("item para comprar foi criado", semProduto.ok);
+
+    if (semProduto.ok) {
+      const semDizerQual = await registrarCompraDoItemAction(db, semProduto.data.id, {
+        amount: 300,
+      });
+      check(
+        "item SEM produto nao vira compra sozinho",
+        !semDizerQual.ok && semDizerQual.code === "PRODUTO_NECESSARIO",
+        JSON.stringify(semDizerQual),
+      );
+      check(
+        "e a recusa aponta o campo do produto",
+        !semDizerQual.ok && semDizerQual.field === "product_id",
+      );
+      check(
+        "nada foi gravado na tentativa recusada",
+        (await db.negotiation.count()) === 0 && (await db.financialEntry.count()) === 0,
+      );
+
+      const compra = await registrarCompraDoItemAction(db, semProduto.data.id, {
+        amount: 300,
+        pago: true,
+        novo_produto: { unit: "rolo", category_id: categoria.id },
+      });
+      check("com o produto cadastrado na hora, a compra entra", compra.ok, JSON.stringify(compra));
+
+      if (compra.ok) {
+        const item = await db.shoppingItem.findFirst({ where: { id: semProduto.data.id } });
+        check("o item saiu da lista", item?.status === "comprado");
+        check("e guardou de qual negociacao veio", item?.negotiation_id === compra.data.negotiation_id);
+
+        const despesas = await db.financialEntry.count({ where: { entry_type: "expense" } });
+        check("a compra criou a despesa (§12)", despesas === 1, String(despesas));
+        const entradas = await db.stockMovement.count({ where: { movement_type: "compra" } });
+        check("e a entrada no estoque", entradas === 1, String(entradas));
+
+        const produto = await db.product.findFirst({ where: { id: compra.data.product_id } });
+        check("o produto novo herdou o nome do item", produto?.name === "Arame liso", produto?.name);
+
+        const deNovo = await registrarCompraDoItemAction(db, semProduto.data.id, { amount: 300 });
+        check(
+          "comprar duas vezes o mesmo item e recusado",
+          !deNovo.ok && deNovo.code === "ITEM_JA_RESOLVIDO",
+        );
+      }
+
+      /*
+       * Atomicidade: compra que falha NAO tira o item da lista. O produto
+       * inexistente derruba a transacao la dentro, depois da negociacao ja ter
+       * sido criada, e e o rollback que precisa apagar as duas coisas.
+       */
+      const outroItem = await criarItemAction(
+        db,
+        { description: "Item da compra que vai falhar", property_id: fazenda.id, quantity: 1 },
+        { permitirDuplicata: true },
+      );
+      if (outroItem.ok) {
+        const negociacoesAntes = await db.negotiation.count();
+        const falhou = await registrarCompraDoItemAction(db, outroItem.data.id, {
+          amount: 100,
+          product_id: "produto-que-nao-existe",
+        });
+        check("compra com produto inexistente e recusada", !falhou.ok, JSON.stringify(falhou));
+        const aindaNaLista = await db.shoppingItem.findFirst({ where: { id: outroItem.data.id } });
+        check("e o item CONTINUA na lista", aindaNaLista?.status === "pendente");
+        check(
+          "e nenhuma negociacao sobrou pela metade",
+          (await db.negotiation.count()) === negociacoesAntes,
+        );
+      }
+    }
+
+    const lancamentos = await db.financialEntry.count({ where: { negotiation_id: null } });
+    const movimentos = await db.stockMovement.count({ where: { negotiation_id: null } });
     check(
-      "NADA disso criou lancamento financeiro ou movimento de estoque (§19.1, §19.2)",
+      "anotar, editar, concluir e remover nao criaram NADA no financeiro nem no estoque (§19.1, §19.2)",
       lancamentos === 0 && movimentos === 0,
       `lancamentos=${lancamentos} movimentos=${movimentos}`,
     );

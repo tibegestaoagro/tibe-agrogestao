@@ -3,6 +3,8 @@ import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum } from "@/lib/serialize";
 import { isStockUnit, descreverQuantidade, recusaPorFracao } from "@/lib/stock/units";
 import { normalizarTermo } from "@/lib/actions/whatsapp-handlers/shared";
+import { createProduct } from "@/lib/actions/products";
+import { createProductNegotiation } from "@/lib/actions/product-negotiations";
 import type { ShoppingItemStatus, ShoppingPriority, ShoppingPurpose } from "@/generated/prisma/enums";
 
 /**
@@ -391,4 +393,120 @@ export async function repetirItemAction(
     status: novo.status,
     priority: novo.priority,
   });
+}
+
+/**
+ * §11 opção 2 e §12: o item vira COMPRA.
+ *
+ * ⚠️ **Este é o único ponto do módulo que mexe em dinheiro e estoque**, e ele
+ * não faz isso sozinho: delega inteiro para Negociações, a mesma porta que o
+ * painel e o WhatsApp já usam (decisão 12). Um caminho próprio aqui criaria
+ * uma segunda forma de criar despesa e movimentar estoque, que é como nasce o
+ * lançamento duplicado.
+ *
+ * **O que já se sabe não se pergunta de novo** (§12): produto, quantidade,
+ * unidade e fazenda saem do item; falta o valor, e a forma de pagamento.
+ *
+ * ⚠️ **Item sem produto não vira compra sozinho.** A negociação exige um
+ * `Product`, porque é ele que tem saldo, unidade e catálogo. "Comprar arame"
+ * é uma anotação legítima (§5) e vira compra assim que o produtor disser QUAL
+ * produto é: escolhendo um existente, ou criando na hora com `novo_produto`.
+ * Isto não é burocracia, é a fronteira entre a folha de papel e o estoque.
+ */
+export async function registrarCompraDoItemAction(
+  db: TenantPrismaClient,
+  itemId: string,
+  input: {
+    amount: number;
+    product_id?: string | null;
+    novo_produto?: { name?: string | null; unit: string; category_id: string } | null;
+    quantity?: number | null;
+    property_id?: string | null;
+    contact_id?: string | null;
+    contact_name?: string | null;
+    occurred_at?: Date | null;
+    pago?: boolean;
+    due_date?: Date | null;
+    notes?: string | null;
+    recorded_by_user_id?: string | null;
+  },
+): Promise<ActionResult<{ item_id: string; negotiation_id: string; product_id: string }>> {
+  const item = await db.shoppingItem.findFirst({ where: { id: itemId } });
+  if (!item) return fail("NOT_FOUND", "Item não encontrado", 404);
+  if (item.status !== "pendente") {
+    return fail("ITEM_JA_RESOLVIDO", "Este item já saiu da lista", 422);
+  }
+
+  if (!(input.amount > 0)) {
+    return fail("VALIDATION_ERROR", "Informe quanto você pagou", 422, "amount");
+  }
+
+  const property_id = input.property_id ?? item.property_id;
+  if (!property_id) {
+    return fail("FAZENDA_NECESSARIA", "Diga para qual fazenda foi a compra", 422, "property_id");
+  }
+
+  const quantidade = input.quantity ?? decToNum(item.quantity);
+  if (quantidade == null || !(quantidade > 0)) {
+    return fail("QUANTIDADE_NECESSARIA", "Quanto você comprou?", 422, "quantity");
+  }
+
+  let product_id = input.product_id ?? item.product_id;
+  if (!product_id) {
+    if (!input.novo_produto) {
+      return fail(
+        "PRODUTO_NECESSARIO",
+        `Para registrar a compra eu preciso saber qual produto é "${item.description}". Escolha um do seu estoque ou cadastre este.`,
+        422,
+        "product_id",
+      );
+    }
+    const criado = await createProduct(db, {
+      name: limpar(input.novo_produto.name) ?? item.description,
+      unit: input.novo_produto.unit,
+      category_id: input.novo_produto.category_id,
+    });
+    if (!criado.ok) return fail(criado.code, criado.message, criado.status, criado.field);
+    product_id = criado.data.id;
+  }
+
+  const negociacao = await createProductNegotiation(
+    db,
+    {
+      type: "compra_produto",
+      property_id,
+      itens: [{ product_id, quantity: quantidade }],
+      amount: input.amount,
+      contact_id: input.contact_id ?? null,
+      contact_name: input.contact_name ?? null,
+      occurred_at: input.occurred_at ?? null,
+      pago: input.pago,
+      due_date: input.due_date ?? null,
+      notes: input.notes ?? null,
+      recorded_by_user_id: input.recorded_by_user_id ?? null,
+    },
+    {
+      // Dentro da MESMA transação: ou a compra entra e o item sai da lista, ou
+      // nenhum dos dois. Concluir depois deixaria a janela em que o produtor vê
+      // na lista algo que ele já comprou.
+      aposCriar: async (tx, negotiationId) => {
+        await tx.shoppingItem.update({
+          where: { id: itemId },
+          data: {
+            status: "comprado",
+            resolved_at: new Date(),
+            negotiation_id: negotiationId,
+            product_id,
+            quantity: quantidade,
+            property_id,
+          },
+        });
+      },
+    },
+  );
+  if (!negociacao.ok) {
+    return fail(negociacao.code, negociacao.message, negociacao.status, negociacao.field);
+  }
+
+  return ok({ item_id: itemId, negotiation_id: negociacao.data.id, product_id });
 }

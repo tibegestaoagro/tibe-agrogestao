@@ -1641,6 +1641,16 @@ export const GROUPS: Group[] = [
         response: `200
 { "data": { "id": "cl...", "description": "Sal mineral", "status": "removido", "priority": "normal" }, "meta": {} }`,
       },
+      {
+        method: "POST",
+        path: "/api/v1/shopping-items/:id/purchase",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description:
+          "O item vira compra de verdade: despesa, conta a pagar quando não foi à vista, e entrada no estoque, tudo por Negociações (type: compra_produto). Produto, quantidade e fazenda saem do item quando já estiverem lá. Item sem produto é recusado com PRODUTO_NECESSARIO no campo product_id: repita com product_id de um produto existente, ou com novo_produto para cadastrar na hora. A conclusão do item entra na MESMA transação da compra.",
+        request: `{ "amount": 1800, "pago": true, "novo_produto": { "unit": "saca", "category_id": "cl..." } }`,
+        response: `201
+{ "data": { "item_id": "cl...", "negotiation_id": "cl...", "product_id": "cl..." }, "meta": {} }`,
+      },
     ],
   },
   {

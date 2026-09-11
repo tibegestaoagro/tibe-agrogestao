@@ -1,5 +1,9 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
-import { runSerializableTenantTransaction, createLinkedEntry } from "@/lib/financial";
+import {
+  runSerializableTenantTransaction,
+  createLinkedEntry,
+  type TenantTransactionClient,
+} from "@/lib/financial";
 import { recordStockMovementInTx } from "@/lib/actions/stock-ledger";
 import { findOrCreateContact } from "@/lib/actions/contacts";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
@@ -131,6 +135,15 @@ function validar(input: NegociacaoProdutoInput): { code: string; message: string
 export async function createProductNegotiation(
   db: TenantPrismaClient,
   input: NegociacaoProdutoInput,
+  /**
+   * Módulo 36 (§12): o que precisa entrar na MESMA transação da compra.
+   *
+   * A Lista de Compra conclui o item aqui dentro. Se a negociação entrasse e o
+   * item continuasse pendente, o produtor veria na lista algo que ele já
+   * comprou e registrou, e compraria de novo. Rodar depois, fora da
+   * transação, deixa exatamente essa janela aberta.
+   */
+  opts?: { aposCriar?: (tx: TenantTransactionClient, negotiationId: string) => Promise<void> },
 ): Promise<ActionResult<{ id: string }>> {
   const erro = validar(input);
   if (erro) return fail(erro.code, erro.message, 422);
@@ -232,6 +245,8 @@ export async function createProductNegotiation(
           contact_id: contactId,
         });
       }
+
+      if (opts?.aposCriar) await opts.aposCriar(tx, negociacao.id);
 
       return ok({ id: negociacao.id });
     }),
