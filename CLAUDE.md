@@ -267,6 +267,33 @@ falta fazer estão no handoff.
 - **Banco de produção:** Neon. **Dev local:** Postgres 17 em Docker, container
   `tibe-pg`, porta `55432` (`docker start tibe-pg`).
 
+### As skills da Neon: leitura livre, escrita só autorizada
+
+Instaladas em 2026-09-11 (`npx neon@latest skills --global -s neon -s
+neon-postgres`), **no perfil da máquina, fora do repositório**: a credencial é
+da máquina, e este repositório é público. No notebook, instalar de novo.
+
+⚠️ **A primeira tentativa instalou no PROJETO** (o default do comando é "this
+directory", e o `-y` aceita sem perguntar), criando `.claude/skills/neon*`,
+`.agents/` e `skills-lock.json`. Foi desfeito. Use `--global`.
+
+Elas falam direto com o Neon, **por fora** do `.env`, do `exigirBancoLocal()` e
+de tudo o que protege este projeto de confundir dev com produção. Por isso a
+regra, decidida pelo usuário na instalação:
+
+| o que | precisa de autorização? |
+|---|---|
+| ler produção (contar, dimensionar, conferir antes de migrar) | **não** |
+| escrever, migrar, criar ou apagar branch de banco | **sim, na conversa, a cada vez** |
+
+O invariante 7 já diz isso para merge, push e deploy; aqui vale o mesmo
+princípio para o banco. Uma ferramenta nova não afrouxa uma regra existente.
+
+**O ganho que motivou instalar** é o branch de banco: uma cópia dos dados reais
+onde a migração pode ser aplicada e conferida **antes** de encostar em
+produção. Hoje o SQL só encontra dado de verdade no dia do deploy, porque o
+Docker local tem dados de seed.
+
 ⚠️ **O Docker Desktop cai sozinho neste ambiente**, e o sintoma é
 `DatabaseNotReachable` numa tela que funcionava. Suba
 (`Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"`), espere
