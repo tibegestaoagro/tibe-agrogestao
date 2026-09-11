@@ -66,25 +66,15 @@ aplicadas no Neon antes do push** e o deploy confirmado pelas duas rotas de
 pagamento aparecendo no `/docs/api` público. A branch `financeiro-fase-1` foi
 apagada. Suíte **65/65**, `tsc`, `lint` e `check` limpos.
 
-O que subiu: pagamento e recebimento parcial como soma de `FinancialPayment`,
-os vínculos de fazenda e contato no lançamento, forma de pagamento, as 26
-categorias do §21 vindas do banco no painel e no WhatsApp, a tela com o
-vocabulário do §30 e o filtro por fazenda do §32, a suíte `m62` escrita da spec,
-e as dívidas 2.10 (rótulo "Serviço") e 3.3 (pasto ambíguo) fechadas. O relato
-por tarefa está em `historico/2026-09.md` e nas mensagens dos commits.
+Pagamento parcial como soma, os vínculos de fazenda e contato, forma de
+pagamento, as 26 categorias do §21, a tela do §30 e do §32, a suíte `m62`, e as
+dívidas 2.10 e 3.3 fechadas. Relato por tarefa em `historico/2026-09.md`.
 
-⚠️ **O roteiro de tela NÃO foi rodado.** O servidor foi validado por requisição
-autenticada, mas o que vive no JavaScript do painel (o painel de pagamento, o
-foco no campo da recusa, o seletor de categoria por tipo, a largura de celular)
-segue sem prova. Dez passos em
-[roteiro-tela-financeiro-35.md](roteiro-tela-financeiro-35.md), com o cenário
-montado por `scripts/_cenario-financeiro-35.ts`. O usuário autorizou o merge
-sabendo disso.
-
-⚠️ **`npm run wa` contra o agente de produção também não rodou.** Agora faz
-sentido: o código está no ar. O que vale provar é a categoria vinda do banco
-("comprei diesel" deve cair em "Combustíveis", não em "Outros") e o pasto
-ambíguo perguntando em vez de escolher o primeiro.
+⚠️ **Duas provas ficaram devendo, e as duas são possíveis agora.** O roteiro de
+tela ([roteiro-tela-financeiro-35.md](roteiro-tela-financeiro-35.md), dez
+passos, cenário em `scripts/_cenario-financeiro-35.ts`), e o `npm run wa`
+contra o agente de produção, onde vale provar a categoria vinda do banco
+("comprei diesel" deve cair em "Combustíveis") e o pasto ambíguo perguntando.
 
 ### O que a fase 35.1 decidiu no código, e não deve ser redecidido
 
@@ -119,8 +109,21 @@ eles estavam parados e só os do `pleno-crm` de pé.
 
 ⚠️ **`npx prisma migrate deploy` é recusado pelo classificador de auto mode**
 nesta máquina quando o alvo é o Neon, mesmo com autorização do usuário na
-conversa. Em 11/09 a segunda tentativa passou. Se bloquear de novo, o caminho é
-o usuário rodar o comando no terminal dele.
+conversa. Em 11/09 uma segunda tentativa passou e, na outra vez, quem rodou foi
+o usuário. Tente uma vez; se bloquear, dê a ele o comando e o diretório, e
+confira com `migrate status` antes do push.
+
+✅ **A validação visual com navegador FUNCIONA nesta máquina** (`browser-harness`),
+e foi assim que o Módulo 36 foi validado. Três atritos conhecidos: a primeira
+conexão exige `new_tab(url)` explícito (e o Chrome pode pedir permissão ao
+usuário); clique por coordenada não dispara o botão no rodapé do `FormSheet`
+(use `b.click()` por `js`); e os ids da árvore de acessibilidade mudam a cada
+render, então resolva tudo na mesma chamada.
+
+⚠️ **Monte cenário de tela com script `tsx`, nunca com `curl`.** O Git Bash
+daqui manda acento em Windows-1252, o dado entra torto no banco, e o sintoma
+parece defeito de renderização. Modelos prontos: `scripts/_cenario-lista.ts` e
+`scripts/_cenario-financeiro-35.ts`.
 
 ### 🔴 SEGURANÇA: o repositório está PÚBLICO e o `.env.enc` vazou
 
