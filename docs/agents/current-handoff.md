@@ -27,15 +27,13 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-09-11.
 
-### O Módulo 36 (Lista de Compra) está PRONTO na branch `lista-de-compra`
+### O Módulo 36 (Lista de Compra) está EM PRODUÇÃO
 
-Doze commits, as **onze tarefas da spec feitas**, suíte **63/63** (a `m63`
-entrou), `tsc`, `lint`, `check` e `test:drift` limpos. Spec em
+Merge e push em 11/09 (`bd579e2..89cd10c`, 14 commits), com a migração
+`20260911100000_lista_de_compra` aplicada no Neon antes do push. A branch
+`lista-de-compra` foi apagada. As **onze tarefas da spec** estão feitas, suíte
+**63/63** (a `m63` entrou), `tsc`, `lint` e `check` limpos. Spec em
 [../superpowers/specs/2026-09-11-modulo-36-lista-de-compra.md](../superpowers/specs/2026-09-11-modulo-36-lista-de-compra.md).
-
-⚠️ **UMA migração aplicada só no banco local**, nunca no Neon:
-`20260911100000_lista_de_compra` (cria `ShoppingItem` e três enums, tudo
-aditivo). O invariante 3 exige que ela vá ao Neon **antes** do push.
 
 O que o módulo faz: o produtor anota o que precisa comprar, pelo painel ou pelo
 WhatsApp, e **anotar não é comprar** (§3): nada mexe em estoque nem em
@@ -169,16 +167,14 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou, e cada commit que sobe é leitura pública.
 
-**2. Subir o Módulo 36**, que está pronto e mesclado na `main` local. Falta,
-nesta ordem: a migração `20260911100000_lista_de_compra` no Neon, e o push
-autorizado na conversa.
+**2. A Calculadora (Módulo 37)**, terceira das quatro áreas, seguida do Meu Dia
+(38). O `ShoppingPurpose` já nasceu compartilhado com a Calculadora, como a
+decisão 32 pede. A spec ainda não foi escrita, e o documento do cliente está em
+`docs/modulo-calculadora/`.
 
 **3. Duas provas que ficaram devendo da 35.1**, e agora são possíveis: o
-roteiro de tela no navegador e o `npm run wa` contra o agente de produção.
-
-**4. Depois, a Calculadora (Módulo 37)**, terceira das quatro áreas, seguida do
-Meu Dia (38). O `ShoppingPurpose` já nasceu compartilhado com a Calculadora,
-como a decisão 32 pede.
+roteiro de tela no navegador e o `npm run wa` contra o agente de produção. Com o
+36 no ar, vale provar também a categoria vinda do banco e o pasto ambíguo.
 
 ⚠️ **O backfill de `property_id` está autorizado** e é a dívida 2.11. Migração
 por origem, fora da 35.1.
