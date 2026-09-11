@@ -27,11 +27,17 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-09-11.
 
-### O Módulo 37 (Calculadora) está PRONTO, na branch `calculadora`
+### O Módulo 37 (Calculadora) está EM PRODUÇÃO
 
-Treze tarefas, sete commits, **ainda não empurrado**. Sem model novo e sem
-migração: calculadora continua função pura, e salvar cálculo segue fora
-(decisão 6). Suíte **64/64** (a `m64` entrou), `tsc`, `lint` e `check` limpos.
+Merge e push em 11/09 (`2819e47..5210ca7`, oito commits), sem migração. A
+branch `calculadora` foi apagada. Treze tarefas, sem model novo: calculadora
+continua função pura, e salvar cálculo segue fora (decisão 6). Suíte **64/64**
+(a `m64` entrou), `tsc`, `lint` e `check` limpos.
+
+**Deploy confirmado pelo handler novo respondendo em produção.** Numa frente
+que não cria rota de API, o `/docs/api` não serve de impressão digital: a
+intenção `calcular_cerca` na rota interna serve, porque antes do deploy ela não
+existia. "1.000 metros com 5 fios" devolveu os 251 mourões.
 Spec em
 [../superpowers/specs/2026-09-11-modulo-37-calculadora.md](../superpowers/specs/2026-09-11-modulo-37-calculadora.md).
 
@@ -184,12 +190,13 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou, e cada commit que sobe é leitura pública.
 
-**2. Merge e push do Módulo 37**, que está pronto e validado na branch
-`calculadora`. Sem migração, então o push não depende do Neon. Falta a
-autorização do usuário.
+**2. O backfill de `property_id`** (dívida 2.11), que o usuário já autorizou. É
+curto, tem migração, e conserta algo que o produtor sente hoje: 274 lançamentos
+somem quando ele filtra por fazenda.
 
 **3. O Meu Dia (Módulo 38)**, última das quatro áreas, e a que fica por último
-porque é camada de leitura e consome as outras três.
+porque é camada de leitura e consome as outras três, agora todas no ar. A spec
+ainda não existe; o documento do cliente está em `docs/modulo-meu-dia/`.
 
 ⚠️ **O backfill de `property_id` está autorizado** e é a dívida 2.11. Migração
 por origem, fora da 35.1.
