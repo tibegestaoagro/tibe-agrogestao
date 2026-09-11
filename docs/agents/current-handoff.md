@@ -29,7 +29,14 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 ### As duas provas que faltavam da 35.1 foram feitas, e acharam um defeito
 
-Rodada de 11/09, na branch `formato-do-dinheiro`, ainda **não empurrada**.
+Rodada de 11/09. Merge e push em `0df64d8..9c971a2`, dois commits, sem
+migração. A branch `formato-do-dinheiro` foi apagada. Suíte **63/63**, `tsc`,
+`lint` e `check` limpos.
+
+**Deploy confirmado contra o agente de produção**, e não por `/docs/api`: numa
+frente que não cria rota, a impressão digital é a própria frase. "anota uma
+despesa de 60 mil reais com diesel do trator" respondia "R$ 60000.00" antes do
+push e responde **"R$ 60.000,00"** depois. Levou cerca de dois minutos.
 
 **Roteiro de tela, dez passos, todos passam** (navegador real, `next dev` contra
 o Docker local, cenário de `scripts/_cenario-financeiro-35.ts`). O painel de
@@ -63,77 +70,10 @@ e literal digitado nunca casa. Lição no cofre:
 "Pasto da Sede Nova". Nome dito por inteiro vence a lista; só o termo parcial
 ("sede") dispara a pergunta.
 
-### O Módulo 36 (Lista de Compra) está EM PRODUÇÃO
-
-Merge e push em 11/09 (`bd579e2..89cd10c`, 14 commits), com a migração
-`20260911100000_lista_de_compra` aplicada no Neon antes do push. A branch
-`lista-de-compra` foi apagada. As **onze tarefas da spec** estão feitas, suíte
-**63/63** (a `m63` entrou), `tsc`, `lint` e `check` limpos. Spec em
-[../superpowers/specs/2026-09-11-modulo-36-lista-de-compra.md](../superpowers/specs/2026-09-11-modulo-36-lista-de-compra.md).
-
-O que o módulo faz: o produtor anota o que precisa comprar, pelo painel ou pelo
-WhatsApp, e **anotar não é comprar** (§3): nada mexe em estoque nem em
-financeiro até ele confirmar a compra, e aí quem registra é Negociações.
-
-**Decisões que não devem ser redecididas:**
-
-- **Não existe entidade "lista"**: a lista é a consulta dos pendentes.
-- **Item sem produto não vira compra sozinho.** A negociação exige um `Product`
-  porque é ele que tem saldo e unidade; "comprar arame" é anotação legítima e
-  vira compra quando o produtor disser qual produto é. Vale no painel e no
-  WhatsApp.
-- **Concluir o item entra na MESMA transação da compra**, por um gancho
-  opcional em `createProductNegotiation`. Fora dela existiria a janela em que a
-  compra já entrou e o item continua na lista, e o produtor compra de novo.
-- **A duplicata AVISA, nunca recusa de verdade** (§19.7), e a comparação é
-  larga de propósito.
-- **As categorias são as de PRODUTO**, agora 25: as 15 do Estoque mais as 10 do
-  §6. O provisionamento acrescenta o que falta e **nunca ressuscita arquivada**.
-- ⚠️ **O classificador do n8n NÃO emite as quatro intenções da lista**, como as
-  do evento e da permuta desde o Módulo 31.
-- ⚠️ **Unidade de produto fora do vocabulário não pode barrar o item.** Achado
-  ao vivo: um produto com `kg` em vez de `quilograma` fazia o botão do alerta
-  recusar calado.
-
-### A fase 35.1 do Financeiro está EM PRODUÇÃO
-
-Merge e push em 11/09 (`310d707..799096c`, 23 commits), com as **três migrações
-aplicadas no Neon antes do push** e o deploy confirmado pelas duas rotas de
-pagamento aparecendo no `/docs/api` público. A branch `financeiro-fase-1` foi
-apagada. Suíte **65/65**, `tsc`, `lint` e `check` limpos.
-
-Pagamento parcial como soma, os vínculos de fazenda e contato, forma de
-pagamento, as 26 categorias do §21, a tela do §30 e do §32, a suíte `m62`, e as
-dívidas 2.10 e 3.3 fechadas. Relato por tarefa em `historico/2026-09.md`.
-
-✅ **As duas provas que faltavam foram feitas em 11/09**, e estão relatadas na
-seção do topo. O roteiro é
-[roteiro-tela-financeiro-35.md](roteiro-tela-financeiro-35.md).
-
-### O que a fase 35.1 decidiu no código, e não deve ser redecidido
-
-- **Valor pago é a SOMA dos `FinancialPayment`**, nunca um campo. "Parcialmente
-  paga" nasce derivada em `situacaoDe`. O `status` continua gravado porque é
-  máquina de estados, não saldo.
-- **Comparação em CENTAVOS**, nunca em float.
-- **`markEntryPaidAction` é pagamento do SALDO restante**, e o contrato da rota
-  `/pay` continua igual de propósito.
-- **`cancelEntryAction` recusa conta que já tem pagamento** (`ENTRY_HAS_PAYMENTS`),
-  e **desfazer pagamento APAGA a linha**, em vez de marcar cancelado.
-- ⚠️ **`createLinkedEntry` cria o pagamento junto quando nasce `paid`.** Sem
-  isso, toda venda e compra nova teria `status: paid` e pago ZERO.
-- **Conta pendente PARCIALMENTE paga não é apagada** no cancelamento de
-  movimentação, estadia e serviço: vai para o ramo de estorno.
-- **A lista de categorias vem do BANCO**, no painel e no WhatsApp.
-  `category-suggestions.ts` é só o palpite por palavra-chave, descartado quando
-  o nome não existe no tenant. O provisionamento roda em TODA listagem e
-  acrescenta o que falta; desativar as antigas sem uso foi MIGRAÇÃO, não
-  provisionamento.
-- ⚠️ **O fluxo de caixa soma os `FinancialPayment`, não os lançamentos pagos.**
-  Não volte a filtrar por `status: "paid"` ali.
-- **A tela do Financeiro filtra pela propriedade ATIVA do seletor do topo.**
-  Lançamento sem fazenda some com o filtro ligado, porque `property_id` não teve
-  backfill: a tela conta quantos ficaram de fora. Isso é a dívida 2.11.
+O **Módulo 36** e a **fase 35.1**, os dois em produção desde 11/09, saíram
+deste arquivo quando ele passou de 200 linhas outra vez. O texto inteiro, com
+as decisões que não devem ser redecididas, está em
+[historico/2026-09.md](historico/2026-09.md).
 
 ### Ambiente
 
@@ -208,10 +148,6 @@ avançou, e cada commit que sobe é leitura pública.
 (38). O `ShoppingPurpose` já nasceu compartilhado com a Calculadora, como a
 decisão 32 pede. A spec ainda não foi escrita, e o documento do cliente está em
 `docs/modulo-calculadora/`.
-
-**3. A branch `formato-do-dinheiro` está pronta e não foi empurrada.** Ela não
-tem migração, só texto de resposta, então o push não depende do Neon. Falta a
-autorização do usuário para merge e push.
 
 ⚠️ **O backfill de `property_id` está autorizado** e é a dívida 2.11. Migração
 por origem, fora da 35.1.
