@@ -7,6 +7,7 @@ import {
   markEntryPaidAction,
 } from "@/lib/actions/financial-entries";
 import { getDre, getCashFlow, getUpcoming } from "@/lib/actions/financial-reports";
+import { registrarPagamentoAction } from "@/lib/actions/financial-payments";
 import { RELATED_MODULES } from "@/lib/related-modules";
 import { createLinkedEntry } from "@/lib/financial";
 import { generateAllAlerts } from "@/lib/actions/alerts";
@@ -116,6 +117,25 @@ async function main() {
     assert(totalCashIncome === 0, "fluxo de caixa NÃO inclui a venda (income) ainda pendente/não paga");
     const totalCashExpense = cashFlow.reduce((s, p) => s + p.expense, 0);
     assert(totalCashExpense === 350, `fluxo de caixa inclui a despesa PAGA de 350 (obtido: ${totalCashExpense})`);
+
+    /*
+     * Recebimento PARCIAL entra no caixa pelo que entrou, e não espera a conta
+     * fechar. Até a fase 35.1 o fluxo somava lançamentos com `status: "paid"`,
+     * então 3.000 recebidos de uma venda de 8.000 apareciam como zero, e no dia
+     * da última parcela apareceriam como 8.000 de uma vez.
+     */
+    await registrarPagamentoAction(dbA, autoEntry.id, { amount: 3000 });
+    const cashFlowParcial = await getCashFlow(dbA, { start: monthStart, end: monthEnd, groupBy: "month" });
+    const incomeParcial = cashFlowParcial.reduce((s, p) => s + p.income, 0);
+    assert(
+      incomeParcial === 3000,
+      `fluxo de caixa conta os 3000 recebidos de uma venda de 8000 ainda em aberto (obtido: ${incomeParcial})`,
+    );
+    const aindaPendente = await dbA.financialEntry.findFirst({ where: { id: autoEntry.id } });
+    assert(
+      aindaPendente?.status === "pending",
+      "e a conta continua pendente, porque o recebimento parcial não a quita",
+    );
 
     // ── Upcoming (contas a vencer em 7 dias) ─────────────────────
     await createManualEntryAction(dbA, {

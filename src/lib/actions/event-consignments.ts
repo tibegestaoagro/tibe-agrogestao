@@ -468,6 +468,8 @@ export async function closeEventConsignment(
             status: input.pago ? "paid" : "pending",
             negotiation_id: negotiationId,
             negotiation_role: "principal",
+            property_id: negociacao.property_id,
+            contact_id: negociacao.contact_id,
           });
         }
       }
@@ -488,6 +490,8 @@ export async function closeEventConsignment(
           status: input.pago ? "paid" : "pending",
           negotiation_id: negotiationId,
           negotiation_role: "custo_adicional",
+          property_id: negociacao.property_id,
+          contact_id: negociacao.contact_id,
         });
       }
 

@@ -179,6 +179,25 @@ export function serializeFinancialEntry(e: any) {
     status: e.status,
     notes: e.notes ?? null,
     created_at: e.created_at.toISOString(),
+    // Módulo 35, fase 1. Extensão aditiva: quem já consumia este contrato não
+    // quebra, e quem precisa do parcial passa a ter.
+    property_id: e.property_id ?? null,
+    contact_id: e.contact_id ?? null,
+    payment_method: e.payment_method ?? null,
+  };
+}
+
+/** Um pagamento contra um lançamento (Módulo 35, fase 1). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function serializeFinancialPayment(p: any) {
+  return {
+    id: p.id,
+    entry_id: p.entry_id,
+    amount: decToNum(p.amount),
+    paid_at: p.paid_at.toISOString(),
+    method: p.method ?? null,
+    notes: p.notes ?? null,
+    created_at: p.created_at.toISOString(),
   };
 }
 

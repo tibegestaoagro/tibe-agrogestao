@@ -671,6 +671,16 @@ async function main() {
       // recordMovement nasce `paid` (o evento já ocorreu). Forçamos `pending`
       // aqui para exercitar o outro ramo da régua, que passa a rodar sozinho
       // se um dia a compra a prazo entrar no contrato.
+      //
+      // ⚠️ O pagamento sai JUNTO, e isso não é detalhe de montagem. Desde a
+      // fase 35.1 um lançamento pago nasce com um `FinancialPayment`, e
+      // deixá-lo aqui montaria um estado que a aplicação nunca produz: conta
+      // pendente com dinheiro já registrado. O que este bloco simula é a conta
+      // que NUNCA virou dinheiro, que é exatamente o que a asserção lá embaixo
+      // afirma.
+      await db.financialPayment.deleteMany({
+        where: { entry_id: compraAPrazo.data.financial_entry_id },
+      });
       await db.financialEntry.update({
         where: { id: compraAPrazo.data.financial_entry_id },
         data: { status: "pending", paid_at: null },
@@ -689,6 +699,60 @@ async function main() {
         where: { related_module: "rebanho", related_id: compraAPrazo.data.id },
       });
       assert(semEstorno.length === 0, "nada de estorno para o que nunca virou dinheiro");
+    }
+
+    // ── Pendente PARCIALMENTE paga não é apagada (fase 35.1) ──────────────
+    // "Pendente" deixou de significar "intocada": uma conta com pagamento
+    // parcial também é `pending`, e apagá-la levaria junto os
+    // `FinancialPayment` dela por cascata, sumindo com o registro de dinheiro
+    // que já saiu de verdade. Ela tem que ir para o ESTORNO.
+    const compraMeioPaga = await recordMovement(db, {
+      movement_type: "compra",
+      quantity: 2,
+      to: {
+        category_id: "femea_36_mais",
+        property_id: propB.id,
+        pasture_id: null,
+        situation: "presente",
+        owner: "proprio",
+      },
+      value: 10000,
+    });
+    assert(compraMeioPaga.ok, "compra para o caso do pagamento parcial");
+    if (compraMeioPaga.ok && compraMeioPaga.data.financial_entry_id) {
+      const contaId = compraMeioPaga.data.financial_entry_id;
+      // Deixa a conta pendente devendo 6.000 dos 10.000: o pagamento de 4.000
+      // fica, e é ele que não pode sumir.
+      await db.financialPayment.deleteMany({ where: { entry_id: contaId } });
+      await db.financialPayment.create({
+        data: scoped({ entry_id: contaId, amount: 4000, paid_at: new Date() }),
+      });
+      await db.financialEntry.update({
+        where: { id: contaId },
+        data: { status: "pending", paid_at: null },
+      });
+
+      const cancelaMeioPaga = await cancelMovement(db, compraMeioPaga.data.id, "desistiu");
+      assert(cancelaMeioPaga.ok, "cancelar movimentação com conta parcialmente paga");
+
+      const contaSobreviveu = await db.financialEntry.findFirst({ where: { id: contaId } });
+      assert(!!contaSobreviveu, "conta PARCIALMENTE paga nao e apagada no cancelamento");
+
+      const pagamentoSobreviveu = await db.financialPayment.findFirst({
+        where: { entry_id: contaId },
+      });
+      assert(
+        !!pagamentoSobreviveu,
+        "o pagamento de 4.000 continua registrado (nao sumiu por cascata)",
+      );
+
+      const estornos = await db.financialEntry.findMany({
+        where: { related_module: "rebanho", related_id: compraMeioPaga.data.id },
+      });
+      assert(
+        estornos.length > 0,
+        "e nasceu estorno, que e o ramo a que a conta com dinheiro pertence",
+      );
     }
 
     console.log("\n21. getPeriodTotals: as 4 linhas de 'Movimentações do mês' (§12)");

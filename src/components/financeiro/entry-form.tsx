@@ -16,11 +16,14 @@ import { FormSheet } from "@/components/ui/form-sheet";
 import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
 import { useAviso } from "@/components/ui/toast";
 import { apiPost } from "@/lib/client-api";
-import { FINANCIAL_CATEGORIES, suggestCategory } from "@/lib/category-suggestions";
+import { suggestCategory } from "@/lib/category-suggestions";
 
 type Erros = Partial<Record<"entryType" | "category" | "amount" | "dueDate", string>>;
 
-export default function EntryForm() {
+/** O que o seletor precisa saber de cada categoria do tenant. */
+export type CategoriaDoTenant = { name: string; entry_type: string };
+
+export default function EntryForm({ categorias }: { categorias: CategoriaDoTenant[] }) {
   const router = useRouter();
   const aviso = useAviso();
   const [open, setOpen] = useState(false);
@@ -35,14 +38,30 @@ export default function EntryForm() {
   const [dueDate, setDueDate] = useState("");
   const [notes, setNotes] = useState("");
 
-  const suggested = useMemo(() => (notes ? suggestCategory(notes) : null), [notes]);
+  /*
+   * A lista é a do tenant, filtrada pelo tipo escolhido: categoria de receita
+   * não aparece numa despesa, e o que o produtor criou no painel aparece aqui.
+   */
+  const doTipo = useMemo(
+    () => (entryType ? categorias.filter((c) => c.entry_type === entryType) : []),
+    [categorias, entryType],
+  );
+
+  /** A sugestão só vale se o tenant tiver mesmo essa categoria. */
+  const palpite = useMemo(() => {
+    if (!notes || !entryType) return null;
+    const s = suggestCategory(notes, entryType);
+    return s && doTipo.some((c) => c.name === s) ? s : null;
+  }, [notes, entryType, doTipo]);
+
+  const suggested = palpite;
 
   function handleNotesChange(value: string) {
     setNotes(value);
     // Pré-preenche a categoria com a sugestão, mas nunca sobrescreve uma escolha manual.
-    if (!categoryTouched) {
-      const s = suggestCategory(value);
-      setCategory(value ? s : "");
+    if (!categoryTouched && entryType) {
+      const s = suggestCategory(value, entryType);
+      setCategory(s && doTipo.some((c) => c.name === s) ? s : "");
     }
   }
 
@@ -106,7 +125,12 @@ export default function EntryForm() {
         {({ id, ...aria }) => (
           <Select
             value={entryType}
-            onValueChange={(v) => setEntryType(v as "income" | "expense")}
+            onValueChange={(v) => {
+              setEntryType(v as "income" | "expense");
+              // Categoria de receita não sobrevive à troca para despesa.
+              setCategory("");
+              setCategoryTouched(false);
+            }}
           >
             <SelectTrigger id={id} {...aria}>
               <SelectValue placeholder="Selecione" />
@@ -149,14 +173,15 @@ export default function EntryForm() {
               setCategory(v);
               setCategoryTouched(true);
             }}
+            disabled={!entryType}
           >
             <SelectTrigger id={id} {...aria}>
-              <SelectValue placeholder="Selecione" />
+              <SelectValue placeholder={entryType ? "Selecione" : "Escolha o tipo primeiro"} />
             </SelectTrigger>
             <SelectContent>
-              {FINANCIAL_CATEGORIES.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
+              {doTipo.map((c) => (
+                <SelectItem key={c.name} value={c.name}>
+                  {c.name}
                 </SelectItem>
               ))}
             </SelectContent>

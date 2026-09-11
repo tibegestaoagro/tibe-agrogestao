@@ -543,6 +543,8 @@ export async function createServiceJob(
         occurred_at: input.occurred_at,
         status: input.pago ? "paid" : "pending",
         due_date: input.pago ? null : (input.due_date ?? input.occurred_at),
+        property_id: input.property_id,
+        contact_id: contactId,
       });
     }
 
@@ -658,6 +660,8 @@ export async function recordServiceJobPayment(
       related_id: job.id,
       occurred_at: quando,
       status: "paid",
+      property_id: job.property_id,
+      contact_id: job.contact_id,
     });
 
     // Encolhe a conta a pagar, da mais próxima para a mais distante. Quando uma
@@ -707,11 +711,20 @@ export async function cancelServiceJob(
   if (job.canceled_at) return fail("CONFLICT", "Este serviço já foi cancelado.", 409);
 
   await runSerializableTenantTransaction(db, async (tx) => {
+    // ⚠️ `payments: { none: {} }` desde a fase 35.1: conta PARCIALMENTE paga
+    // também é `pending`, e apagá-la levaria junto os `FinancialPayment` dela
+    // por cascata, sumindo com o registro de dinheiro que já saiu. Uma conta
+    // do serviço pode ter sido paga pela tela do Financeiro, que não passa
+    // pelo fluxo de pagamento daqui.
+    //
+    // O que tem pagamento SOBREVIVE ao cancelamento, e fica visível para o
+    // produtor resolver. Some sem aviso seria pior.
     await tx.financialEntry.deleteMany({
       where: {
         related_module: "servico",
         related_id: job.id,
         status: { in: ["pending", "overdue"] },
+        payments: { none: {} },
       },
     });
     await tx.serviceJob.update({
@@ -889,6 +902,8 @@ export async function addServiceJobLog(
         related_id: job.id,
         occurred_at: quando,
         status: "pending",
+        property_id: job.property_id,
+        contact_id: job.contact_id,
       });
     }
   });

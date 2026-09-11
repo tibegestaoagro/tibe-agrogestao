@@ -1,6 +1,11 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import type { FinancialEntryCreateClient } from "@/lib/financial";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
+import {
+  registrarPagamentoAction,
+  resumoDePagamento,
+  somaPagaDe,
+} from "@/lib/actions/financial-payments";
 
 /**
  * Lançamentos financeiros manuais (spec 4.2). Sempre `related_module: geral`,
@@ -74,7 +79,19 @@ export async function updateManualEntryAction(
   return ok({ id });
 }
 
-/** Marca como pago: permitido para qualquer lançamento, independente da origem. */
+/**
+ * Quita o lançamento de uma vez: permitido para qualquer um, independente da
+ * origem.
+ *
+ * Desde a fase 35.1 isso é **um pagamento do saldo restante**, não uma troca
+ * de status. O botão "Pagar" da tela continua sendo o caminho comum, e agora
+ * uma conta de R$ 10.000 com R$ 4.000 já pagos é quitada com um pagamento de
+ * R$ 6.000, não de R$ 10.000.
+ *
+ * A rota `PATCH /api/v1/financial-entries/[id]/pay` continua existindo com o
+ * mesmo contrato de propósito: quebrar essa assinatura quebraria a tela e o
+ * agente do WhatsApp sem devolver nada.
+ */
 export async function markEntryPaidAction(
   db: TenantPrismaClient,
   id: string,
@@ -87,10 +104,17 @@ export async function markEntryPaidAction(
   }
 
   const paid_at = paidAt ?? new Date();
-  await db.financialEntry.update({
-    where: { id },
-    data: { status: "paid", paid_at },
-  });
+  const { saldo } = await resumoDePagamento(db, existing);
+
+  // Saldo zero num lançamento não pago só acontece se o valor for zero: nesse
+  // caso não há pagamento a registrar, e só o status precisa fechar.
+  if (saldo > 0) {
+    const pagamento = await registrarPagamentoAction(db, id, { amount: saldo, paid_at });
+    if (!pagamento.ok) return pagamento;
+  } else {
+    await db.financialEntry.update({ where: { id }, data: { status: "paid", paid_at } });
+  }
+
   return ok({ id, paid_at });
 }
 
@@ -127,6 +151,21 @@ export async function cancelEntryAction(
   if (!existing) return fail("NOT_FOUND", "Lançamento não encontrado", 404);
   if (existing.status === "cancelled") {
     return fail("ALREADY_CANCELLED", "Este lançamento já está cancelado", 409);
+  }
+
+  // ⚠️ Guarda que a fase 35.1 tornou necessária: cancelar uma conta que já
+  // recebeu pagamento deixaria as linhas de `FinancialPayment` somando contra
+  // um lançamento cancelado, isto é, dinheiro que entrou ou saiu de verdade
+  // pendurado num compromisso que o produtor diz não existir. Desfazer os
+  // pagamentos primeiro é uma decisão dele, não uma consequência silenciosa de
+  // clicar em cancelar.
+  const pago = await somaPagaDe(db, id);
+  if (pago > 0) {
+    return fail(
+      "ENTRY_HAS_PAYMENTS",
+      "Esta conta já tem pagamento registrado. Desfaça os pagamentos antes de cancelar.",
+      422,
+    );
   }
 
   await db.financialEntry.update({ where: { id }, data: { status: "cancelled" } });

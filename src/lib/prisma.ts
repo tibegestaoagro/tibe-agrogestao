@@ -55,6 +55,7 @@ export const TENANT_SCOPED_MODELS = new Set<string>([
   "Service",
   "ServiceOrder",
   "FinancialEntry",
+  "FinancialPayment",
   "WhatsAppContact",
   "AgentConversationLog",
   "AgentRequest",

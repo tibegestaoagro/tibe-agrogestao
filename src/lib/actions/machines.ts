@@ -115,6 +115,7 @@ export async function createMachineAction(
       related_module: "maquinas",
       related_id: machine.id,
       occurred_at: acquiredAt,
+      property_id: input.property_id,
     });
   }
 
@@ -211,6 +212,7 @@ export async function registerMaintenanceAction(
       related_module: "maquinas",
       related_id: maintenance.id,
       occurred_at: performedAt,
+      property_id: machine.property_id,
     });
   }
 

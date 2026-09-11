@@ -11,47 +11,80 @@ import { ok, fail, type ActionResult } from "@/lib/actions/types";
 
 type EntryTypeInput = "income" | "expense";
 
+/**
+ * As 26 categorias do §21 do documento da Área Financeiro (9 receita, 17
+ * despesa), literais como o cliente escreveu. Até a fase 35.1 eram 11, e as
+ * antigas que não têm equivalente aqui (Ração, Insumos, Veterinário e afins)
+ * continuam existindo nos tenants que já as receberam: o provisionamento
+ * ACRESCENTA o que falta e nunca apaga nem renomeia o que já está lá, porque
+ * do lado de fora não há como distinguir uma padrão antiga de uma que o
+ * produtor renomeou.
+ */
 export const DEFAULT_EXPENSE_CATEGORIES = [
-  "Ração",
-  "Combustível",
+  "Compra de animais",
+  "Alimentação animal",
+  "Sal e suplementos",
+  "Sementes",
+  "Adubos e corretivos",
+  "Medicamentos e vacinas",
+  "Combustíveis",
+  "Máquinas e manutenção",
   "Mão de obra",
-  "Manutenção",
-  "Insumos",
-  "Veterinário",
-  "Outros",
+  "Serviços terceirizados",
+  "Confinamento/Boitel",
+  "Cercas",
+  "Energia",
+  "Fretes e transportes",
+  "Arrendamento",
+  "Administração",
+  "Outras despesas",
 ] as const;
 
 export const DEFAULT_INCOME_CATEGORIES = [
-  "Venda de animal",
-  "Venda de lote",
-  "Faturamento de serviço",
-  "Outros",
+  "Venda de animais",
+  "Venda de leite",
+  "Venda de produtos",
+  "Serviços com máquinas",
+  "Outros serviços",
+  "Pastagem para terceiros",
+  "Arrendamento recebido",
+  "Venda de máquinas e equipamentos",
+  "Outras receitas",
 ] as const;
 
+const CHAVE = (name: string, entryType: string) => `${entryType}:${name.trim().toLowerCase()}`;
+
+/**
+ * Cria as padrão que faltam. Roda em TODA listagem, não só na primeira: é
+ * assim que tenant antigo recebe categoria nova sem migração de dados. O
+ * custo é uma query a mais, e nenhuma escrita quando nada falta.
+ */
 async function provisionDefaults(db: TenantPrismaClient): Promise<void> {
-  for (const name of DEFAULT_EXPENSE_CATEGORIES) {
-    const exists = await db.financialCategory.findFirst({ where: { name, entry_type: "expense" } });
-    if (!exists) {
-      await db.financialCategory.create({ data: scoped({ name, entry_type: "expense" }) });
-    }
-  }
-  for (const name of DEFAULT_INCOME_CATEGORIES) {
-    const exists = await db.financialCategory.findFirst({ where: { name, entry_type: "income" } });
-    if (!exists) {
-      await db.financialCategory.create({ data: scoped({ name, entry_type: "income" }) });
-    }
-  }
+  const existentes = await db.financialCategory.findMany({
+    select: { name: true, entry_type: true },
+  });
+  const jaTem = new Set(existentes.map((c) => CHAVE(c.name, c.entry_type)));
+
+  const faltando = [
+    ...DEFAULT_INCOME_CATEGORIES.map((name) => ({ name, entry_type: "income" as const })),
+    ...DEFAULT_EXPENSE_CATEGORIES.map((name) => ({ name, entry_type: "expense" as const })),
+  ].filter((c) => !jaTem.has(CHAVE(c.name, c.entry_type)));
+
+  if (faltando.length === 0) return;
+  // skipDuplicates por causa de duas leituras simultâneas na primeira visita:
+  // a unique (tenant_id, entry_type, name) recusaria a segunda com P2002.
+  await db.financialCategory.createMany({
+    data: faltando.map((c) => scoped(c)),
+    skipDuplicates: true,
+  });
 }
 
-/** Lista as categorias do tenant, provisionando a lista padrão na primeira leitura. */
+/** Lista as categorias do tenant, acrescentando as padrão que ainda faltarem. */
 export async function listFinancialCategoriesAction(
   db: TenantPrismaClient,
   opts?: { entry_type?: EntryTypeInput; activeOnly?: boolean },
 ) {
-  const count = await db.financialCategory.count();
-  if (count === 0) {
-    await provisionDefaults(db);
-  }
+  await provisionDefaults(db);
   return db.financialCategory.findMany({
     where: {
       ...(opts?.entry_type ? { entry_type: opts.entry_type } : {}),

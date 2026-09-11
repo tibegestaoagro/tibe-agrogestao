@@ -101,6 +101,7 @@ export async function addVaccinationAction(
           related_module: "rebanho",
           related_id: input.batch_id,
           occurred_at: appliedDate,
+          property_id: animal.property_id,
         });
       }
 

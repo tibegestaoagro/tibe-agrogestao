@@ -111,6 +111,7 @@ export async function createBatchAction(
       related_module: "rebanho",
       related_id: batch.id,
       occurred_at: acquiredAt,
+      property_id: input.property_id,
     });
   }
 
@@ -251,6 +252,8 @@ export async function sellFromCategoryAction(
       }
 
       if (entryValue != null && entryValue > 0) {
+        // `batches` já foi lido para montar o plano FIFO: reusa, sem query nova.
+        const propertyId = batches.find((b) => b.id === item.batch_id)?.property_id ?? null;
         await createLinkedEntry(tx, {
           entry_type: "income",
           category: `Venda de lote - ${category.name}`,
@@ -258,6 +261,7 @@ export async function sellFromCategoryAction(
           related_module: "rebanho",
           related_id: item.batch_id,
           occurred_at: occurredAt,
+          property_id: propertyId,
         });
       }
 

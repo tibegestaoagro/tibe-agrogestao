@@ -203,6 +203,7 @@ export async function openStay(
         occurred_at: started_at,
         status: "pending",
         due_date: input.due_date ?? input.expected_end_at ?? started_at,
+        property_id: input.property_id,
       });
       financial_entry_id = entry.id;
     }
@@ -588,7 +589,19 @@ export async function cancelStay(
       where: { related_id: stayId },
     });
     for (const conta of contas) {
-      if (conta.status === "pending") {
+      // ⚠️ Pendente não quer dizer intocada desde a fase 35.1: conta
+      // PARCIALMENTE paga também é `pending`, e apagá-la levaria junto os
+      // pagamentos dela por cascata, sumindo com o registro de dinheiro que
+      // já saiu. Quem tem pagamento vai para o estorno, abaixo.
+      const jaPago = Number(
+        (
+          await tx.financialPayment.aggregate({
+            where: { entry_id: conta.id },
+            _sum: { amount: true },
+          })
+        )._sum.amount ?? 0,
+      );
+      if (conta.status === "pending" && jaPago === 0) {
         await tx.financialEntry.delete({ where: { id: conta.id } });
       } else {
         await createLinkedEntry(tx, {
@@ -598,6 +611,7 @@ export async function cancelStay(
           related_module: conta.related_module,
           related_id: stayId,
           occurred_at: agora,
+          property_id: stay.property_id,
         });
       }
     }

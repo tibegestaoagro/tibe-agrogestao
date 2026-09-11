@@ -81,8 +81,8 @@ async function main() {
     });
     assert(eAsk.body.data.requires_confirmation === true, "pede confirmação mesmo com valor baixo (sempre confirma)");
     assert(
-      /450[,.]50/.test(eAsk.body.data.reply_text) && /Combustível/.test(eAsk.body.data.reply_text),
-      "resumo de confirmação mostra valor e categoria",
+      /450[,.]50/.test(eAsk.body.data.reply_text) && /Combustíveis/.test(eAsk.body.data.reply_text),
+      "resumo de confirmação mostra o valor e a categoria REAL do tenant, não a que o classificador mandou",
     );
     const countBeforeConfirm = await db.financialEntry.count();
     assert(countBeforeConfirm === 0, "nenhum lançamento criado antes de confirmar");
@@ -111,14 +111,19 @@ async function main() {
       eConfirm.body.data.requires_confirmation === false && /registrado/i.test(eConfirm.body.data.reply_text),
       "'sim' confirma e a resposta indica sucesso",
     );
-    const entry = await db.financialEntry.findFirst({ where: { related_module: "geral", category: "Combustível" } });
-    assert(!!entry, "FinancialEntry foi criado");
+    /*
+     * "Combustível" é o nome ANTIGO, e o classificador manda o que quiser. A
+     * categoria do tenant é "Combustíveis", e é nela que o lançamento cai, por
+     * palavra-chave. A lista deixou de ser fixa na fase 35.1: vem do banco.
+     */
+    const entry = await db.financialEntry.findFirst({ where: { related_module: "geral", category: "Combustíveis" } });
+    assert(!!entry, "FinancialEntry foi criado, na categoria que o tenant tem");
     assert(entry?.entry_type === "expense", "entry_type é despesa");
     assert(Number(entry?.amount) === 450.5, "amount gravado corretamente");
     assert(entry?.notes === "Posto XX", "vendor vai pro campo notes");
     assert(entry?.status === "pending", "nasce pending, igual qualquer lançamento manual");
 
-    // ── categoria fora da lista fixa cai em "Outros" ─────────────────
+    // ── categoria que o tenant não tem cai em "Outras despesas" ──────
     await callExecute({
       tenant_id: tenant.id,
       user_id: owner.id,
@@ -127,7 +132,24 @@ async function main() {
       message_text: "sim",
     });
     const entryOutros = await db.financialEntry.findFirst({ where: { related_module: "geral", amount: 100 } });
-    assert(entryOutros?.category === "Outros", "categoria fora da lista fixa vira 'Outros'");
+    assert(entryOutros?.category === "Outras despesas", "categoria que o tenant não tem vira 'Outras despesas'");
+
+    // ── categoria criada pelo produtor no painel vale no WhatsApp ────
+    // É este o ponto da mudança: antes o handler comparava com uma lista de
+    // sete nomes no código, e o que o produtor criasse era jogado em "Outros".
+    await db.financialCategory.create({ data: scoped({ name: "Curral novo", entry_type: "expense" }) });
+    await callExecute({
+      tenant_id: tenant.id,
+      user_id: owner.id,
+      intent: "registrar_lancamento_financeiro",
+      parameters: { amount: 77, category: "curral novo" },
+      message_text: "sim",
+    });
+    const entryPropria = await db.financialEntry.findFirst({ where: { related_module: "geral", amount: 77 } });
+    assert(
+      entryPropria?.category === "Curral novo",
+      "categoria criada pelo produtor é aceita, e gravada com a grafia do cadastro",
+    );
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } }).catch(() => {});
   }

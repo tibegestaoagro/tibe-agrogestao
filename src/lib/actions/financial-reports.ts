@@ -78,25 +78,40 @@ export async function getCashFlow(
     end: Date;
     groupBy?: "day" | "month";
     related_module?: (typeof RELATED_MODULES)[number];
+    property_id?: string;
   },
 ) {
   const groupBy = params.groupBy ?? "day";
-  const entries = await db.financialEntry.findMany({
+  /*
+   * Fase 35.1: o caixa passou a ser a soma dos PAGAMENTOS, e não mais dos
+   * lançamentos com `status: "paid"`. Com pagamento parcial, os dois deixaram
+   * de ser a mesma coisa: quem recebeu 8 mil de uma venda de 20 mil viu o
+   * dinheiro entrar, e o lançamento continua pendente. Pela leitura antiga,
+   * esses 8 mil só apareceriam no dia da última parcela, e no valor cheio.
+   *
+   * Conta cancelada fica de fora, como antes. Ela não chega a ter pagamento
+   * (`cancelEntryAction` recusa quando existe algum), mas o filtro é barato e
+   * torna a regra explícita.
+   */
+  const pagamentos = await db.financialPayment.findMany({
     where: {
-      status: "paid",
       paid_at: { gte: params.start, lte: params.end },
-      ...(params.related_module ? { related_module: params.related_module } : {}),
+      entry: {
+        status: { not: "cancelled" },
+        ...(params.related_module ? { related_module: params.related_module } : {}),
+        ...(params.property_id ? { property_id: params.property_id } : {}),
+      },
     },
-    select: { entry_type: true, amount: true, paid_at: true },
+    select: { amount: true, paid_at: true, entry: { select: { entry_type: true } } },
     orderBy: { paid_at: "asc" },
   });
 
   const buckets = new Map<string, { income: number; expense: number }>();
-  for (const e of entries) {
-    const key = groupBy === "month" ? monthKey(e.paid_at!) : dayKey(e.paid_at!);
+  for (const p of pagamentos) {
+    const key = groupBy === "month" ? monthKey(p.paid_at) : dayKey(p.paid_at);
     const bucket = buckets.get(key) ?? { income: 0, expense: 0 };
-    const v = decToNum(e.amount) ?? 0;
-    if (e.entry_type === "income") bucket.income += v;
+    const v = decToNum(p.amount) ?? 0;
+    if (p.entry.entry_type === "income") bucket.income += v;
     else bucket.expense += v;
     buckets.set(key, bucket);
   }
@@ -111,7 +126,10 @@ export async function getCashFlow(
     }));
 }
 
-export async function getDre(db: TenantPrismaClient, params: { start: Date; end: Date }) {
+export async function getDre(
+  db: TenantPrismaClient,
+  params: { start: Date; end: Date; property_id?: string },
+) {
   const entries = await db.financialEntry.findMany({
     /**
      * Cancelado NÃO entra no resultado.
@@ -130,6 +148,8 @@ export async function getDre(db: TenantPrismaClient, params: { start: Date; end:
     where: {
       due_date: { gte: params.start, lte: params.end },
       status: { not: "cancelled" },
+      // §32: o resultado de uma fazenda só, quando o produtor escolhe uma.
+      ...(params.property_id ? { property_id: params.property_id } : {}),
     },
     select: { entry_type: true, amount: true, related_module: true },
   });
@@ -167,11 +187,15 @@ export async function getDre(db: TenantPrismaClient, params: { start: Date; end:
   };
 }
 
-export async function getUpcoming(db: TenantPrismaClient, days: number) {
+export async function getUpcoming(db: TenantPrismaClient, days: number, property_id?: string) {
   const now = new Date();
   const limit = new Date(now.getTime() + days * 86_400_000);
   const entries = await db.financialEntry.findMany({
-    where: { status: "pending", due_date: { gte: now, lte: limit } },
+    where: {
+      status: "pending",
+      due_date: { gte: now, lte: limit },
+      ...(property_id ? { property_id } : {}),
+    },
     orderBy: { due_date: "asc" },
   });
   return entries.map((e) => ({

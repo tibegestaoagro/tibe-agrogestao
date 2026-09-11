@@ -26,7 +26,148 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 ## Estado atual
 
-- Atualizado em: 2026-09-03.
+- Atualizado em: 2026-09-10.
+
+### A branch `financeiro-fase-1` está pronta: T01 a T10 feitas, DEZOITO commits
+
+**Nada foi para a `main`.** Suíte **65/65** (a `m62` entrou), `tsc`, `lint`,
+`check` e `test:drift` limpos no fim da T10.
+
+⚠️ **A fase está pronta para revisão e merge, e nada disso foi pedido ainda.**
+O que falta antes do push: as três migrações no Neon e a autorização explícita
+do usuário (invariante 7), nessa ordem.
+
+⚠️ **TRÊS migrações aplicadas SÓ no banco local**, nunca no Neon:
+`20260910120000_pagamento_parcial_e_vinculos` (schema),
+`20260910130000_backfill_pagamento_dos_quitados` e
+`20260910140000_desativar_categorias_antigas_sem_uso`. O invariante 3 exige
+autorização do usuário antes do push, e o `.claude/settings.local.json` desta
+máquina libera o `db:deploy` contra o Neon quando ela vier.
+
+| commit | o que |
+|---|---|
+| `75287a5` | os quatro documentos do cliente, que estavam fora do git |
+| `9d71212` | a sequência das quatro áreas e a spec da fase 35.1 |
+| `2ead877` | a tarefa de hoje parou de nascer "Atrasada" |
+| `e5e0be9` | `m57`: a suíte parou de apodrecer, e a asserção passou a discriminar |
+| `aa6fe9a` | handoff e cofre |
+| `4d105b8` | **T01** schema: `FinancialPayment`, `PaymentMethod`, os dois vínculos |
+| `9b101c6` | **T02** backfill, com o predicado provado nos três casos |
+| `68d92c9` | **T03** actions do parcial, e duas guardas que a spec não previa |
+| `079153e` | **T04** as três rotas, e o `/docs/api` junto |
+| `cc25d3e` | **T05** as 24 origens, e o apagar que deixou de levar dinheiro |
+| `00750dc` | pitstop de memória antes do resumo de contexto |
+| `9137ba3` | **T06** as 26 categorias, e o tenant antigo passou a recebê-las |
+| `88b0663` | **T06** a categoria vem do banco no painel e no WhatsApp |
+| `36a3ccd` | handoff da T06 |
+| `591729b` | **T07** a tela: fazenda, contato, pagamento parcial, rótulos do §30 |
+| `21b71df` | handoff da T07 |
+| `f10dd2c` | dívida 2.11: o backfill de `property_id`, autorizado pelo usuário |
+| `49d7651` | **T08** a suíte `m62`, escrita da spec sem ler a implementação |
+| `99899b3` | handoff e cofre da T08 |
+| `7023699` | **T09** as duas dívidas encaixadas: rótulo "Serviço" e pasto ambíguo |
+| `c6e3865` | **T10** validação ao vivo, e a frase que falava em pagar para quem recebe |
+
+**As dez tarefas estão feitas.** O que o navegador ainda precisa provar está em
+[roteiro-tela-financeiro-35.md](roteiro-tela-financeiro-35.md), dez passos.
+
+### O que a fase 35.1 já decidiu no código, e não deve ser redecidido
+
+- **Valor pago é a SOMA dos `FinancialPayment`**, nunca um campo. "Parcialmente
+  paga" nasce derivada em `situacaoDe`. O `status` continua gravado porque é
+  máquina de estados, não saldo.
+- **Comparação em CENTAVOS**, nunca em float: o dinheiro é `Decimal(14,2)` e
+  somar em ponto flutuante erra justo onde a recusa "excede o saldo" decide.
+- **`markEntryPaidAction` virou pagamento do SALDO restante.** A assinatura e o
+  contrato da rota `/pay` continuam iguais de propósito.
+- **`cancelEntryAction` recusa conta que já tem pagamento** (`ENTRY_HAS_PAYMENTS`).
+- **Desfazer pagamento APAGA a linha**, em vez de `canceled_at`. O lançamento é
+  o compromisso que existiu e nunca some; o pagamento desfeito é quase sempre
+  digitação errada. Se um dia precisar de rastro, é `canceled_at` mais filtro em
+  toda soma, e é decisão do usuário.
+- ⚠️ **`createLinkedEntry` cria o pagamento junto quando nasce `paid`.** Sem
+  isso, toda venda e compra nova teria `status: paid` e pago ZERO. Não foi
+  previsto na spec, apareceu na T05.
+- **Conta pendente PARCIALMENTE paga não é apagada** no cancelamento de
+  movimentação, estadia e serviço: vai para o ramo de estorno. Dois pontos de
+  `service-jobs.ts` ficaram fora de propósito (ver spec).
+- **A lista de categorias vem do BANCO**, no painel e no WhatsApp (decisão do
+  usuário na T06). `category-suggestions.ts` deixou de ser lista e virou só o
+  palpite por palavra-chave, que o chamador descarta se o nome não existir no
+  tenant. Não volte a comparar contra constante: era assim que a categoria
+  criada pelo produtor virava "Outros".
+- **O provisionamento roda em TODA listagem** e acrescenta o que falta. É o que
+  faz tenant antigo receber categoria nova sem migração de dados.
+- **Desativar as antigas sem uso é MIGRAÇÃO, não provisionamento** (decisão do
+  usuário na T06). No provisionamento, ela desfaria a cada leitura a reativação
+  que o produtor tivesse feito na tela de Configurações.
+- ⚠️ **O fluxo de caixa soma os `FinancialPayment`, não os lançamentos pagos**
+  (T07). Com pagamento parcial os dois deixaram de ser a mesma coisa, e a
+  leitura antiga escondia o dinheiro que já entrou até a última parcela. Não
+  volte a filtrar por `status: "paid"` ali.
+- **A tela do Financeiro filtra pela propriedade ATIVA do seletor do topo**,
+  como as outras. Lançamento sem fazenda some com o filtro ligado, porque
+  `property_id` não teve backfill: a tela conta quantos ficaram de fora e diz
+  onde vê-los. Se o produtor reclamar disso, a conversa é sobre backfill, não
+  sobre afrouxar o filtro.
+
+**As quatro áreas novas foram decididas em 10/09**, num interrogatório de seis
+rodadas: 34 decisões, todas em
+[../superpowers/specs/2026-09-10-sequencia-das-quatro-areas.md](../superpowers/specs/2026-09-10-sequencia-das-quatro-areas.md).
+Ordem: **Financeiro, Lista de Compra, Calculadora, Meu Dia**. Só a Lista é
+módulo novo; as outras três são fases de módulos existentes.
+
+⚠️ **Não redecida o que está lá.** Se uma decisão estiver errada, a conversa é
+com o usuário.
+
+### Duas dívidas fechadas e um defeito corrigido nesta rodada
+
+**A §2.9 está PROVADA contra o agente de produção.** `npm run wa` rodou a
+conversa inteira pelo webhook real do n8n, no tenant "BANCO DE PROVAS
+(automacao Tibe)" (conferido antes de disparar que não é de cliente). O agente
+perguntou a categoria, resolveu "bezerro" para "Bezerro - 0 a 7 meses", e o
+`HerdMovement` nasceu junto (`saldo_inicial 1 -> bezerro_0_7
+presente/proprio`), com o saldo subindo para 41. Era exatamente isso que
+faltava. **A dívida pode sair do `dividas.md`.**
+
+Comportamento real observado, que não é defeito: o agente **recusa** os quatro
+dados numa mensagem só e conduz campo a campo. O caminho de mensagem única não
+passa hoje.
+
+**O defeito da tarefa que nascia "Atrasada" está corrigido** (`2ead877`). A
+comparação era por instante; virou por dia, em `src/lib/dia-calendario.ts`.
+⚠️ **A comparação é assimétrica de propósito**: o prazo é lido em UTC, o agora
+no fuso da fazenda. `due_date` é data de calendário, não instante; converter os
+dois lados traz o defeito de volta por outro caminho, e a primeira tentativa
+fez exatamente isso.
+
+**A `m57` tinha DOIS defeitos, e nenhum era do produto** (`e5e0be9`). O
+primeiro: datas absolutas num teste cuja previsão nasce de `new Date()`,
+escrito entre 1 e 4 de setembro e podre desde o dia 5. O segundo, achado só
+porque plantei o defeito de propósito: com quinze dias de atraso as duas
+âncoras caem no mesmo dia 5, então **a asserção nunca discriminou nada**.
+Passou para quarenta dias.
+
+⚠️ **Isso vale para a 35.2 e para o Meu Dia**, que vão reusar aquele padrão
+rolante por decisão do usuário (decisões 22 e 25). A ancoragem no vencimento
+está certa e agora tem prova de verdade.
+
+### Ambiente, conferido em 10/09
+
+Os containers `tibe-pg` e `tibe-redis` estavam **parados havia sete dias**, o
+banco local estava duas migrações atrás e o Prisma Client gerado era anterior
+ao último sincronismo (o que fazia o `tsc` acusar cinco erros que não eram do
+código). Os três resolvidos.
+
+**Neon está up to date com as 46.** Suíte: **64/64**.
+
+⚠️ **A armadilha do backfill da 35.1 NÃO existe.** A spec manda conferir se há
+lançamento `paid` sem `paid_at` antes de migrar. Conferido nos dois bancos:
+**zero** no local (260 pagos) e **zero** em produção (7 lançamentos, 0 pagos).
+A migração do T02 é segura e não precisa de decisão do usuário.
+
+### O que estava aqui antes desta rodada
+
 - **A fase 34.2 (custeio do serviço) está NA `main` E EM PRODUÇÃO**, e a
   **validação visual no navegador aconteceu nesta rodada e passou.** Merge
   `d398dbb..37ccc3b`, migração `20260906100000_custeio_do_servico` aplicada no
@@ -164,29 +305,40 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 **1. Segurança, que é do usuário e vem antes de tudo:** rotacionar as 22
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
-avançou nesta rodada, e cada commit que sobe é leitura pública.
+avançou, e cada commit que sobe é leitura pública.
 
-**2. Rodar `npm run wa`** com um cadastro assistido real (brinco, raça, sexo,
-categoria, "sim") contra o agente de produção, e conferir por programa que o
-animal aparece no saldo. É a última prova que falta da §2.9: hoje só a suíte
-`m61` provou o caminho. A fase 34.2 e a §2.9 já estão as duas em produção e já
-tiveram validação no navegador/`curl`.
+**2. A fase 35.1 do Financeiro**, que é o trabalho da branch aberta. Spec com
+as dez tarefas em
+[../superpowers/specs/2026-09-10-modulo-35-financeiro-fase-1.md](../superpowers/specs/2026-09-10-modulo-35-financeiro-fase-1.md).
+**As dez tarefas estão feitas.** O próximo passo é do usuário, em duas partes
+que não podem trocar de ordem:
 
-**3. Duas decisões pequenas que continuam esperando:**
+1. **Rodar o roteiro de tela** ([roteiro-tela-financeiro-35.md](roteiro-tela-financeiro-35.md)),
+   que é o que a validação por requisição não alcança: o painel de pagamento, o
+   foco no campo da recusa, o seletor de categoria por tipo e a largura de
+   celular.
+2. **Autorizar o merge**, e antes dele as **três migrações no Neon**. O
+   invariante 7 exige a autorização na conversa, a cada vez.
 
-- o rótulo "Prestador" no Financeiro (`dividas.md` §2.10): três origens
-  diferentes sob o mesmo nome (despesa do contratado, receita do prestado,
-  despesa do custo do serviço);
-- a dívida 3.3 (`resolverPasto` devolve o primeiro achado em silêncio): agora
-  com DUAS implementações de referência no próprio repositório
-  (`resolverTrabalhador` em `mao-de-obra.ts`, `resolverServicoEmAndamento` em
-  `whatsapp-handlers/servico.ts`) fazendo o mesmo tipo de ambiguidade do jeito
-  certo. O padrão está provado; falta só aplicar em `resolverPasto`.
+⚠️ **O backfill de `property_id` está autorizado** e virou a dívida 2.11. Ele
+NÃO faz parte da fase 35.1: é migração por origem, e o usuário pediu para
+registrá-lo e seguir.
 
-**Continuam esperando, de rodadas anteriores:** a outra metade da `dividas.md`
-§2.8 (a despesa avulsa e os sete destinos de saída), e três decisões de
-produto do Leite (média diária por dias corridos; cabeçalho de uma fazenda com
-armazenamento de todas; fechamento sem data nascendo "Vencida").
+Depois da 35.1, a sequência das quatro áreas continua: **Lista de Compra**
+(módulo novo), **Calculadora** e **Meu Dia**.
+
+⚠️ **As três migrações já existem e estão aplicadas no LOCAL.** Antes do push,
+aplicar no Neon com autorização do usuário na hora.
+
+**As duas dívidas pequenas entram DENTRO da 35.1** (T09), porque os arquivos já
+serão abertos: o rótulo "Prestador" (`dividas.md` §2.10) e o `resolverPasto`
+ambíguo (§3.3, que já tem duas implementações de referência no repositório,
+`resolverTrabalhador` e `resolverServicoEmAndamento`).
+
+**Continuam esperando, para depois das quatro áreas:** a outra metade da
+`dividas.md` §2.8 (a despesa avulsa e os sete destinos de saída), e três
+decisões de produto do Leite (média diária por dias corridos; cabeçalho de uma
+fazenda com armazenamento de todas; fechamento sem data nascendo "Vencida").
 
 Não avance para outro módulo sem aprovação explícita.
 

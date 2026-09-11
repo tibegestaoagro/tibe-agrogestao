@@ -140,6 +140,7 @@ export async function recordServiceCost(
         related_id: custo.id,
         occurred_at: quando,
         status: "paid",
+        property_id: job.property_id,
       });
       await tx.serviceJobCost.update({
         where: { id: custo.id },

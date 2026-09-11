@@ -1,19 +1,25 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
+import { prazoVencido } from "@/lib/dia-calendario";
 
 /**
  * Lógica de negócio de Task (Módulo 27, Meu Dia). Compartilhada dentro do
  * tenant: nenhuma função aqui filtra por usuário, de propósito (spec §2.4).
  * "Atrasada" nunca é gravada: computada em `effectiveStatus()` a partir de
- * `status: "pending"` + `due_date` no passado.
+ * `status: "pending"` + `due_date` cujo DIA já passou.
  */
 
 const TASK_STATUSES = ["pending", "completed", "cancelled"] as const;
 export type TaskStatusInput = (typeof TASK_STATUSES)[number];
 export type EffectiveStatus = TaskStatusInput | "overdue";
 
+/**
+ * ⚠️ Compara por DIA, nunca por instante. Comparar `getTime()` marcava como
+ * atrasada toda tarefa criada para hoje, porque o formulário grava meia-noite.
+ * O porquê inteiro está em `dia-calendario.ts`.
+ */
 function effectiveStatus(task: { status: TaskStatusInput; due_date: Date }, now = new Date()): EffectiveStatus {
-  if (task.status === "pending" && task.due_date.getTime() < now.getTime()) return "overdue";
+  if (task.status === "pending" && prazoVencido(task.due_date, now)) return "overdue";
   return task.status;
 }
 

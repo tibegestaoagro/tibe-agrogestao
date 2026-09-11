@@ -109,3 +109,25 @@ export function confirmFlow(params: {
   }
   return null;
 }
+
+/**
+ * Minúsculas, sem acento e sem espaço repetido, para comparar o que o produtor
+ * ditou com o que está cadastrado.
+ *
+ * ⚠️ Existem cinco cópias locais disto (`confinamento`, `estoque`, `leite`,
+ * `mao-de-obra`, `servico`). Esta é a versão compartilhada, e as outras devem
+ * migrar para cá **quando o arquivo delas for aberto por outro motivo**: mexer
+ * em cinco handlers estáveis só para unificar um helper é risco sem retorno.
+ */
+export function normalizarTermo(termo: string): string {
+  // Filtro por código numérico, não regex de caractere combinante: o próprio
+  // caractere é invisível no editor e some numa cópia distraída (armadilha que
+  // este projeto já pagou para aprender).
+  const semAcento = Array.from(termo.toLowerCase().normalize("NFD"))
+    .filter((ch) => {
+      const code = ch.codePointAt(0) ?? 0;
+      return code < 0x0300 || code > 0x036f;
+    })
+    .join("");
+  return semAcento.replace(/\s+/g, " ").trim();
+}

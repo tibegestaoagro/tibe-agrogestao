@@ -190,6 +190,32 @@ async function main() {
       const crossTenant = await dbA.financialCategory.findFirst({ where: { id: catB.data.id } });
       assert(crossTenant === null, "findFirst de A pelo id de uma categoria de B retorna null");
     }
+
+    // ── Tenant antigo recebe as padrão novas sem perder as que já tinha ──
+    // Até a fase 35.1 o provisionamento só rodava com a lista VAZIA, então
+    // tenant existente nunca veria categoria nova. B entra aqui com três
+    // linhas do jeito antigo, incluindo uma renomeada pelo produtor.
+    for (const [name, entry_type] of [
+      ["Ração", "expense"],
+      ["Veterinário", "expense"],
+      ["Comida dos bois", "expense"],
+    ] as const) {
+      await dbB.financialCategory.create({ data: scoped({ name, entry_type }) });
+    }
+    const listB = await listFinancialCategoriesAction(dbB);
+    const nomesB = listB.map((c) => c.name);
+    assert(
+      DEFAULT_EXPENSE_CATEGORIES.every((n) => nomesB.includes(n)) &&
+        DEFAULT_INCOME_CATEGORIES.every((n) => nomesB.includes(n)),
+      "tenant que já tinha categorias recebe TODAS as padrão novas",
+    );
+    assert(
+      nomesB.includes("Ração") && nomesB.includes("Veterinário") && nomesB.includes("Comida dos bois"),
+      "as categorias antigas e a renomeada pelo produtor continuam na lista",
+    );
+    const antesDaSegunda = listB.length;
+    const listB2 = await listFinancialCategoriesAction(dbB);
+    assert(listB2.length === antesDaSegunda, "listar de novo não duplica nenhuma categoria");
   } finally {
     await prisma.alert.deleteMany({ where: { tenant_id: { in: [tenantA.id, tenantB.id] } } });
     await prisma.alertPreference.deleteMany({ where: { tenant_id: { in: [tenantA.id, tenantB.id] } } });

@@ -645,6 +645,74 @@ async function main() {
       qualFazenda.reply_text.startsWith("Em qual fazenda?"),
       qualFazenda.reply_text,
     );
+
+    console.log("\n18. Pasto ambíguo PERGUNTA, nunca escolhe o primeiro (dívida 3.3)");
+    // "Pasto da Sede" já existe. Com "Pasto da Sede Nova" ao lado, dizer só
+    // "sede" deixa de ter resposta única.
+    await db.pasture.create({
+      data: scoped({ property_id: santaHelena.id, name: "Pasto da Sede Nova", area_hectares: 8 }),
+    });
+    await db.pasture.create({
+      data: scoped({ property_id: santaHelena.id, name: "Pasto do Açude", area_hectares: 5 }),
+    });
+
+    const antesDoAmbiguo = await db.herdMovement.count();
+    const pastoAmbiguo = await registrarMovimentacaoRebanho(
+      ctx(db, tenant.id, {
+        movement_type: "morte",
+        categoria: "Fêmea - 8 a 12 meses",
+        quantidade: 1,
+        fazenda: "Santa Helena",
+        pasto: "sede",
+      }),
+    );
+    check(
+      "com dois pastos possíveis, pergunta qual",
+      pastoAmbiguo.reply_text.includes("mais de um pasto"),
+      pastoAmbiguo.reply_text,
+    );
+    check(
+      "e lista os dois candidatos pelo nome",
+      pastoAmbiguo.reply_text.includes("Pasto da Sede") &&
+        pastoAmbiguo.reply_text.includes("Pasto da Sede Nova"),
+      pastoAmbiguo.reply_text,
+    );
+    check(
+      "não grava nada enquanto a dúvida existe",
+      (await db.herdMovement.count()) === antesDoAmbiguo,
+    );
+
+    const pastoExato = await registrarMovimentacaoRebanho(
+      ctx(db, tenant.id, {
+        movement_type: "morte",
+        categoria: "Fêmea - 8 a 12 meses",
+        quantidade: 1,
+        fazenda: "Santa Helena",
+        pasto: "Pasto da Sede",
+      }),
+    );
+    check(
+      "o nome dito por inteiro resolve sozinho, sem perguntar de novo",
+      !pastoExato.reply_text.includes("mais de um pasto"),
+      pastoExato.reply_text,
+    );
+
+    // Acento: o produtor dita "acude", o cadastro tem "Açude". A comparação é
+    // feita sem acento, coisa que o `contains` do banco não fazia.
+    const semAcento = await registrarMovimentacaoRebanho(
+      ctx(db, tenant.id, {
+        movement_type: "morte",
+        categoria: "Fêmea - 8 a 12 meses",
+        quantidade: 1,
+        fazenda: "Santa Helena",
+        pasto: "acude",
+      }),
+    );
+    check(
+      "pasto ditado sem acento acha o cadastrado com acento",
+      !semAcento.reply_text.includes("Não encontrei o pasto"),
+      semAcento.reply_text,
+    );
   } finally {
     await prisma.herdMovement.deleteMany({ where: { tenant_id: tenant.id } });
     await prisma.financialEntry.deleteMany({ where: { tenant_id: tenant.id } });
