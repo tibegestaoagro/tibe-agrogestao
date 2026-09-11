@@ -45,6 +45,12 @@ import {
   compreiItemLista,
 } from "@/lib/actions/whatsapp-handlers/lista-de-compra";
 import {
+  calcularCercaWhatsapp,
+  calcularSementesWhatsapp,
+  calcularSalWhatsapp,
+  calcularRacaoWhatsapp,
+} from "@/lib/actions/whatsapp-handlers/calculadora";
+import {
   registrarEntradaConfinamento,
   registrarEnvioBoitel,
   registrarAlimentacaoConfinamento,
@@ -170,6 +176,10 @@ const HANDLERS: Record<Exclude<Intent, "ambigua">, Handler> = {
   consultar_lista_compra: consultarListaCompra,
   remover_item_lista: removerItemLista,
   comprei_item_lista: compreiItemLista,
+  calcular_cerca: calcularCercaWhatsapp,
+  calcular_sementes: calcularSementesWhatsapp,
+  calcular_sal: calcularSalWhatsapp,
+  calcular_racao: calcularRacaoWhatsapp,
   criar_tarefa: criarTarefa,
   ajuda,
   resumo,

@@ -116,6 +116,15 @@ export const INTENTS = [
   "consultar_lista_compra",
   "remover_item_lista",
   "comprei_item_lista",
+  // Modulo 37, §40: as quatro conversas de calculadora que o documento
+  // escreve. Nenhuma delas grava nada, e por isso nenhuma pede confirmacao:
+  // calcular e simulacao (§4).
+  //
+  // O classificador do n8n tambem NAO emite estas quatro.
+  "calcular_cerca",
+  "calcular_sementes",
+  "calcular_sal",
+  "calcular_racao",
   "criar_tarefa",
   "ajuda",
   "resumo",
@@ -225,6 +234,15 @@ export const INTENT_ACCESS: Record<
   consultar_lista_compra: { module: "rebanho", action: "read", profile: "fazenda" },
   remover_item_lista: { module: "rebanho", action: "write", profile: "fazenda" },
   comprei_item_lista: { module: "rebanho", action: "write", profile: "fazenda" },
+  /*
+   * Modulo 37: calcular e LEITURA. Nao escreve em lugar nenhum, e por isso
+   * quem tem perfil de visualizador tambem pode usar: negar seria esconder uma
+   * conta de regra de tres de quem ja ve o rebanho inteiro.
+   */
+  calcular_cerca: { module: "rebanho", action: "read", profile: "fazenda" },
+  calcular_sementes: { module: "rebanho", action: "read", profile: "fazenda" },
+  calcular_sal: { module: "rebanho", action: "read", profile: "fazenda" },
+  calcular_racao: { module: "rebanho", action: "read", profile: "fazenda" },
   criar_tarefa: { module: "tarefas", action: "write" },
   ajuda: { module: null, action: "read" },
   resumo: { module: null, action: "read" },
