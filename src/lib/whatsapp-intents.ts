@@ -102,6 +102,20 @@ export const INTENTS = [
   "consultar_cliente",
   "gerar_relatorio",
   "registrar_lancamento_financeiro",
+  // Modulo 36 (§17): Minha Lista de Compra. Quatro gestos, porque sao quatro
+  // momentos diferentes: anotar, consultar antes de ir a cidade, desistir de
+  // um item, e dizer que comprou.
+  //
+  // "comprei" e uma intencao PROPRIA, e nao um caso de registrar_negocio_produto,
+  // porque a frase do produtor ("comprei o sal") cita o item da LISTA e nao um
+  // produto do catalogo: e a lista que sabe traduzir um pelo outro.
+  //
+  // O classificador do n8n ainda NAO emite estas quatro: elas ficam roteadas e
+  // testadas, esperando a rodada em que o agente for atualizado.
+  "adicionar_item_lista",
+  "consultar_lista_compra",
+  "remover_item_lista",
+  "comprei_item_lista",
   "criar_tarefa",
   "ajuda",
   "resumo",
@@ -204,6 +218,13 @@ export const INTENT_ACCESS: Record<
   registrar_lancamento_financeiro: { module: "financeiro", action: "write" },
   // Módulo 27: "me lembra de comprar sal na quinta". Sem perfil exigido
   // (tarefa não é exclusiva do perfil fazenda, diferente de rebanho).
+  // Módulo 36: a Lista de Compra reusa "rebanho" com perfil fazenda, o mesmo
+  // do Estoque, porque a categoria do item é a categoria de produto e comprar
+  // insumo é mexer no estoque. Não existe ModuleKey de estoque neste projeto.
+  adicionar_item_lista: { module: "rebanho", action: "write", profile: "fazenda" },
+  consultar_lista_compra: { module: "rebanho", action: "read", profile: "fazenda" },
+  remover_item_lista: { module: "rebanho", action: "write", profile: "fazenda" },
+  comprei_item_lista: { module: "rebanho", action: "write", profile: "fazenda" },
   criar_tarefa: { module: "tarefas", action: "write" },
   ajuda: { module: null, action: "read" },
   resumo: { module: null, action: "read" },

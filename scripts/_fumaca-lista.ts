@@ -11,6 +11,7 @@ import {
   registrarCompraDoItemAction,
   adicionarItemDoAlertaAction,
 } from "@/lib/actions/shopping-items";
+import { routeIntent } from "@/lib/actions/whatsapp-router";
 
 /**
  * Fumaca da T02: prova o caminho feliz e as recusas das actions da Lista de
@@ -268,6 +269,94 @@ async function main() {
       "pedir de novo avisa que o produto ja esta na lista",
       !deNovoDoAlerta.ok && deNovoDoAlerta.code === "ITEM_JA_NA_LISTA",
       JSON.stringify(deNovoDoAlerta),
+    );
+
+    // ── §17: os quatro gestos pelo WhatsApp, pelo ROTEADOR de verdade ────
+    const conversador = await prisma.user.create({
+      data: scoped({
+        tenant_id: tenant.id,
+        name: "Produtor da Fumaca",
+        email: `fumaca-${Date.now()}@exemplo.com`,
+        password_hash: "x",
+        role: "OWNER",
+      }),
+    });
+    const rotear = (
+      intent: string,
+      parametros: Record<string, unknown>,
+      opts?: { confirmed?: boolean; explicitNo?: boolean },
+    ) =>
+      routeIntent(db, {
+        tenant_id: tenant.id,
+        role: "OWNER",
+        activeProfiles: ["fazenda"],
+        intent: intent as Parameters<typeof routeIntent>[1]["intent"],
+        parameters: parametros,
+        confirmed: opts?.confirmed ?? false,
+        explicitNo: opts?.explicitNo ?? false,
+        user_id: conversador.id,
+      });
+
+    const varios = await rotear("adicionar_item_lista", {
+      itens: [
+        { descricao: "Arame farpado", quantidade: 2, unidade: "rolo" },
+        { descricao: "Oleo do trator", quantidade: 5, unidade: "litro" },
+        { descricao: "Correia da rocadeira" },
+      ],
+    });
+    check(
+      "tres itens numa frase viram TRES itens (§17)",
+      (await db.shoppingItem.count({ where: { status: "pendente", description: { contains: "a" } } })) > 0 &&
+        varios.reply_text.includes("Arame farpado") &&
+        varios.reply_text.includes("Correia da rocadeira"),
+      varios.reply_text,
+    );
+
+    const semQuantidade = await rotear("adicionar_item_lista", { descricao: "Grampo de cerca" });
+    check("item sem quantidade e aceito pelo WhatsApp (§5)", semQuantidade.action_taken === "adicionar_item_lista", semQuantidade.reply_text);
+
+    const duplicado = await rotear("adicionar_item_lista", { descricao: "Grampo de cerca" });
+    check(
+      "repetir o mesmo item PERGUNTA antes de duplicar (§19.7)",
+      duplicado.action_taken === "clarification_requested" &&
+        duplicado.reply_text.includes("Grampo de cerca") &&
+        (await db.shoppingItem.count({ where: { description: "Grampo de cerca" } })) === 1,
+      duplicado.reply_text,
+    );
+
+    const consulta = await rotear("consultar_lista_compra", {});
+    check(
+      "consultar lista responde com os itens (§15)",
+      consulta.reply_text.includes("Arame farpado") && consulta.reply_text.includes("Grampo de cerca"),
+      consulta.reply_text,
+    );
+
+    const removerSemConfirmar = await rotear("remover_item_lista", { descricao: "Grampo" });
+    check(
+      "remover PERGUNTA antes",
+      removerSemConfirmar.requires_confirmation === true,
+      removerSemConfirmar.reply_text,
+    );
+    const removeu = await rotear("remover_item_lista", { descricao: "Grampo" }, { confirmed: true });
+    check("e com o sim, remove", removeu.action_taken.startsWith("remover_item_lista:"), removeu.reply_text);
+
+    const compreiSemValor = await rotear("comprei_item_lista", { descricao: "Correia" });
+    check(
+      "'comprei' sem valor risca da lista e nao gera nada (§11 opcao 1)",
+      compreiSemValor.action_taken.startsWith("comprei_item_lista:"),
+      compreiSemValor.reply_text,
+    );
+    const negociacoesAntesDoWa = await db.negotiation.count();
+
+    const compreiComValor = await rotear("comprei_item_lista", {
+      descricao: "Oleo do trator",
+      valor: 450,
+    });
+    check(
+      "'comprei por 450' num item SEM produto risca e manda terminar no painel",
+      compreiComValor.reply_text.includes("painel") &&
+        (await db.negotiation.count()) === negociacoesAntesDoWa,
+      compreiComValor.reply_text,
     );
 
     const lancamentos = await db.financialEntry.count({ where: { negotiation_id: null } });

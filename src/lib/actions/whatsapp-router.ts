@@ -39,6 +39,12 @@ import {
 } from "@/lib/actions/whatsapp-handlers/evento";
 import { registrarPermuta } from "@/lib/actions/whatsapp-handlers/permuta";
 import {
+  adicionarItemLista,
+  consultarListaCompra,
+  removerItemLista,
+  compreiItemLista,
+} from "@/lib/actions/whatsapp-handlers/lista-de-compra";
+import {
   registrarEntradaConfinamento,
   registrarEnvioBoitel,
   registrarAlimentacaoConfinamento,
@@ -160,6 +166,10 @@ const HANDLERS: Record<Exclude<Intent, "ambigua">, Handler> = {
   consultar_cliente: consultarCliente,
   gerar_relatorio: gerarRelatorio,
   registrar_lancamento_financeiro: registrarLancamentoFinanceiro,
+  adicionar_item_lista: adicionarItemLista,
+  consultar_lista_compra: consultarListaCompra,
+  remover_item_lista: removerItemLista,
+  comprei_item_lista: compreiItemLista,
   criar_tarefa: criarTarefa,
   ajuda,
   resumo,
