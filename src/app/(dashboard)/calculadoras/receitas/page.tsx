@@ -56,6 +56,13 @@ function compute(values: Record<string, ValorDeCampo>): CalcOutcome {
 
   return {
     ok: true,
+    /* Um material por INGREDIENTE: o que se compra e milho e farelo, nao
+       "mistura pronta". */
+    materiais: r.data.ingredientes.map((i) => ({
+      descricao: i.nome,
+      quantidade: i.quantidadeKg,
+      unidade: "quilograma",
+    })),
     rows: [
       ...r.data.ingredientes.map((i) => ({
         label: `${i.nome} (${i.percentual}%)`,

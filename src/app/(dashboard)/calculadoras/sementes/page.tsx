@@ -47,6 +47,13 @@ function compute(values: Record<string, ValorDeCampo>): CalcOutcome {
 
   return {
     ok: true,
+    materiais: [
+      {
+        descricao: String(values.variedade ? "Semente" : "Semente de pastagem"),
+        quantidade: r.data.totalKg,
+        unidade: "quilograma",
+      },
+    ],
     rows: [
       { label: "Semente necessaria", value: `${r.data.totalKg} kg`, highlight: true },
       ...(r.data.sacas !== null

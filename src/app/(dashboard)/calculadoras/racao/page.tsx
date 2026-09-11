@@ -34,6 +34,17 @@ function compute(values: Record<string, ValorDeCampo>): CalcOutcome {
 
   return {
     ok: true,
+    /* So com o periodo informado: ninguem compra racao por dia. */
+    materiais:
+      r.data.alimentoNaturalKgPeriodoRebanho !== null
+        ? [
+            {
+              descricao: "Alimento do rebanho",
+              quantidade: r.data.alimentoNaturalKgPeriodoRebanho,
+              unidade: "quilograma",
+            },
+          ]
+        : [],
     rows: [
       { label: "Materia seca (MS) por animal/dia", value: `${r.data.materiaSecaKgDiaPorAnimal} kg` },
       { label: "Materia seca (MS) do rebanho/dia", value: `${r.data.materiaSecaKgDiaRebanho} kg` },

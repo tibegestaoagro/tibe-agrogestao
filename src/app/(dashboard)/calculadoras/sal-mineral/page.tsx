@@ -34,6 +34,15 @@ function compute(values: Record<string, ValorDeCampo>): CalcOutcome {
 
   return {
     ok: true,
+    /* Pelo TETO da faixa, como a propria conta dimensiona: cocho vazio no
+       meio do periodo custa mais que sobra de saca. */
+    materiais: [
+      {
+        descricao: "Sal mineral",
+        quantidade: r.data.consumoMaxKgPeriodoRebanho,
+        unidade: "quilograma",
+      },
+    ],
     rows: [
       {
         label: "Consumo por animal/dia",

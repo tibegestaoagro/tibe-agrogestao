@@ -39,6 +39,7 @@ function compute(values: Record<string, ValorDeCampo>): CalcOutcome {
 
   return {
     ok: true,
+    materiais: [{ descricao: "Adubo", quantidade: r.data.kgProdutoTotal, unidade: "quilograma" }],
     rows: [
       { label: "Produto por hectare", value: `${r.data.kgProdutoPorHectare} kg/ha` },
       { label: "Produto total", value: `${r.data.kgProdutoTotal} kg`, highlight: true },

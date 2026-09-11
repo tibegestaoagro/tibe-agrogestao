@@ -58,6 +58,22 @@ function compute(values: Record<string, ValorDeCampo>): CalcOutcome {
 
   return {
     ok: true,
+    /* §37: o que vai para a Lista de Compra. Rolo quando o tamanho dele
+       foi informado, metro corrido quando nao foi: comprar arame em metro
+       o produtor entende, em 'rolos indefinidos' nao. */
+    materiais: [
+      { descricao: "Mourao", quantidade: r.data.mouroesNecessarios, unidade: "unidade" },
+      r.data.rolosDeArameNecessarios !== null
+        ? { descricao: "Rolo de arame", quantidade: r.data.rolosDeArameNecessarios, unidade: "unidade" }
+        : { descricao: "Arame", quantidade: r.data.metrosDeArameNecessarios, unidade: "metro" },
+      { descricao: "Grampo", quantidade: r.data.gramposKg, unidade: "quilograma" },
+      ...(r.data.estacasNecessarias !== null && r.data.estacasNecessarias > 0
+        ? [{ descricao: "Estaca", quantidade: r.data.estacasNecessarias, unidade: "unidade" }]
+        : []),
+      ...(r.data.porteiras > 0
+        ? [{ descricao: "Porteira", quantidade: r.data.porteiras, unidade: "unidade" }]
+        : []),
+    ],
     rows: [
       { label: "Mouroes necessarios", value: `${r.data.mouroesNecessarios} un`, highlight: true },
       { label: "Arame necessario", value: `${r.data.metrosDeArameNecessarios} m` },

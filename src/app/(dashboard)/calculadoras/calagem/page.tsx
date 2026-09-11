@@ -41,6 +41,10 @@ function compute(values: Record<string, ValorDeCampo>): CalcOutcome {
 
   return {
     ok: true,
+    materiais:
+      r.data.toneladasTotais !== null
+        ? [{ descricao: "Calcario", quantidade: r.data.toneladasTotais, unidade: "tonelada" }]
+        : [],
     rows: [
       { label: "Necessidade de calagem (100% PRNT)", value: `${r.data.necessidadeCalagemTHa} t/ha` },
       { label: "Dose corrigida pelo PRNT informado", value: `${r.data.doseCorrigidaTHa} t/ha`, highlight: true },

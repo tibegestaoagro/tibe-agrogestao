@@ -6,6 +6,7 @@ import { MoneyInput } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import MateriaisParaLista, { type Material } from "./materiais-para-lista";
 import {
   Select,
   SelectContent,
@@ -84,7 +85,17 @@ export type ValorDeCampo = string | boolean | LinhaDeIngrediente[];
 
 export type ResultRow = { label: string; value: string; highlight?: boolean };
 
-export type CalcOutcome = { ok: true; rows: ResultRow[] } | { ok: false; error: string };
+/**
+ * §37: o que o calculo diz que o produtor precisa COMPRAR.
+ *
+ * Sai do `compute` da tela, e nao das funcoes de `src/lib/calculadoras/**`,
+ * porque elas continuam puras e sem saber que a Lista de Compra existe. A tela
+ * ja traduz o resultado em linhas; traduzir tambem em material e o mesmo
+ * trabalho, no mesmo lugar.
+ */
+export type CalcOutcome =
+  | { ok: true; rows: ResultRow[]; materiais?: Material[] }
+  | { ok: false; error: string };
 
 type Confidence = "alta" | "media" | "baixa";
 
@@ -357,6 +368,17 @@ export default function CalcPage({
             ))}
           </dl>
         </div>
+      )}
+
+      {/* A `key` derivada do proprio material remonta o painel quando o
+          produtor recalcula. As escolhas dele (produto, incluir ou nao) sao
+          por POSICAO, e sem isso a marca de "nao incluir" o segundo item
+          sobreviveria a um calculo em que o segundo item e outra coisa. */}
+      {result && result.ok && result.materiais && result.materiais.length > 0 && (
+        <MateriaisParaLista
+          key={result.materiais.map((m) => `${m.descricao}:${m.quantidade}`).join("|")}
+          materiais={result.materiais}
+        />
       )}
 
       <p className="text-xs leading-relaxed text-texto-discreto">{sourceNote}</p>
