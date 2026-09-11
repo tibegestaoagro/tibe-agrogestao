@@ -1,7 +1,7 @@
 "use client";
 
-import CalcPage, { type CalcField, type CalcOutcome } from "../_components/calc-page";
-import { lerNumeroBr } from "@/lib/numero-br";
+import CalcPage, { type CalcField, type CalcOutcome, type ValorDeCampo } from "../_components/calc-page";
+import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
 import { calcularCalagem } from "@/lib/calculadoras/calagem";
 
 const FIELDS: CalcField[] = [
@@ -16,9 +16,17 @@ const FIELDS: CalcField[] = [
   },
   { key: "prntPercent", label: "PRNT do calcario", kind: "number", suffix: "%", help: "Vem do rotulo do calcario." },
   { key: "areaHectares", label: "Area a corrigir (opcional)", kind: "number", suffix: "ha" },
+  { key: "precoPorTonelada", label: "Preco por tonelada (opcional)", kind: "number", suffix: "R$" },
+  {
+    key: "capacidadeCaminhaoToneladas",
+    label: "Capacidade do caminhao (opcional)",
+    kind: "number",
+    suffix: "t",
+    help: "Para saber quantas cargas serao necessarias.",
+  },
 ];
 
-function compute(values: Record<string, string | boolean>): CalcOutcome {
+function compute(values: Record<string, ValorDeCampo>): CalcOutcome {
   const areaHectares = lerNumeroBr(values.areaHectares) ?? undefined;
   const r = calcularCalagem({
     ctc: lerNumeroBr(values.ctc) ?? NaN,
@@ -26,6 +34,8 @@ function compute(values: Record<string, string | boolean>): CalcOutcome {
     saturacaoDesejadaPercent: lerNumeroBr(values.saturacaoDesejadaPercent) ?? NaN,
     prntPercent: lerNumeroBr(values.prntPercent) ?? NaN,
     areaHectares,
+    precoPorTonelada: lerNumeroBr(values.precoPorTonelada) ?? undefined,
+    capacidadeCaminhaoToneladas: lerNumeroBr(values.capacidadeCaminhaoToneladas) ?? undefined,
   });
   if (!r.ok) return { ok: false, error: r.error };
 
@@ -36,6 +46,12 @@ function compute(values: Record<string, string | boolean>): CalcOutcome {
       { label: "Dose corrigida pelo PRNT informado", value: `${r.data.doseCorrigidaTHa} t/ha`, highlight: true },
       ...(r.data.toneladasTotais !== null
         ? [{ label: "Toneladas totais para a area", value: `${r.data.toneladasTotais} t` }]
+        : []),
+      ...(r.data.cargas !== null
+        ? [{ label: "Cargas de caminhao", value: `${r.data.cargas}` }]
+        : []),
+      ...(r.data.custoTotal !== null
+        ? [{ label: "Custo estimado", value: reaisBr(r.data.custoTotal) }]
         : []),
     ],
   };

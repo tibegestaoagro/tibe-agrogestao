@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { MoneyInput } from "@/components/ui/money-input";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -14,8 +15,8 @@ import {
 } from "@/components/ui/select";
 
 /**
- * Casca compartilhada por todas as 12 telas de calculadora (Onda 3, agente
- * C2): renderiza um formulario generico a partir de uma lista de campos,
+ * Casca compartilhada pelas 22 telas de calculadora: renderiza um formulario
+ * generico a partir de uma lista de campos,
  * chama a funcao de calculo pura de `src/lib/calculadoras/**` no submit, e
  * mostra o resultado. Nenhuma chamada de rede, nenhuma escrita no banco:
  * tudo roda no client, na hora.
@@ -49,7 +50,37 @@ export type CalcCheckboxField = {
   help?: string;
 };
 
-export type CalcField = CalcNumberField | CalcSelectField | CalcCheckboxField;
+/**
+ * Lista de ingredientes com nome, porcentagem e preco opcional, que cresce e
+ * encolhe (§18 do documento do cliente).
+ *
+ * ⚠️ Existe por causa de UMA ferramenta, a de receitas, e isso foi pesado: a
+ * alternativa era tela propria, e ela duplicaria a casca inteira (cabecalho,
+ * pilula de confianca, bloco de resultado, nota de fonte) para ganhar um
+ * campo. Um quarto membro numa uniao que ja tinha tres sai mais barato que a
+ * segunda copia de tudo o mais.
+ */
+export type CalcIngredientesField = {
+  key: string;
+  label: string;
+  kind: "ingredientes";
+  help?: string;
+  /** Receitas prontas que preenchem a lista de uma vez. */
+  presets?: { nome: string; ingredientes: { nome: string; percentual: number }[] }[];
+  /** Quando falso, a coluna de preco nao aparece. */
+  comPreco?: boolean;
+};
+
+export type LinhaDeIngrediente = { nome: string; percentual: string; preco: string };
+
+export type CalcField =
+  | CalcNumberField
+  | CalcSelectField
+  | CalcCheckboxField
+  | CalcIngredientesField;
+
+/** O valor de um campo de ingredientes, dentro do mapa de valores do formulario. */
+export type ValorDeCampo = string | boolean | LinhaDeIngrediente[];
 
 export type ResultRow = { label: string; value: string; highlight?: boolean };
 
@@ -75,10 +106,13 @@ const CONFIDENCE_CLASS: Record<Confidence, string> = {
   baixa: "bg-perigo-suave text-perigo-tinta border-perigo-tinta/30",
 };
 
-function initialValues(fields: CalcField[]): Record<string, string | boolean> {
-  const init: Record<string, string | boolean> = {};
+const LINHA_VAZIA: LinhaDeIngrediente = { nome: "", percentual: "", preco: "" };
+
+function initialValues(fields: CalcField[]): Record<string, ValorDeCampo> {
+  const init: Record<string, ValorDeCampo> = {};
   for (const f of fields) {
     if (f.kind === "checkbox") init[f.key] = f.defaultValue ?? false;
+    else if (f.kind === "ingredientes") init[f.key] = [{ ...LINHA_VAZIA }, { ...LINHA_VAZIA }];
     else init[f.key] = f.defaultValue !== undefined ? String(f.defaultValue) : "";
   }
   return init;
@@ -97,9 +131,9 @@ export default function CalcPage({
   confidence: Confidence;
   sourceNote: string;
   fields: CalcField[];
-  compute: (values: Record<string, string | boolean>) => CalcOutcome;
+  compute: (values: Record<string, ValorDeCampo>) => CalcOutcome;
 }) {
-  const [values, setValues] = useState<Record<string, string | boolean>>(() => initialValues(fields));
+  const [values, setValues] = useState<Record<string, ValorDeCampo>>(() => initialValues(fields));
   const [result, setResult] = useState<CalcOutcome | null>(null);
 
   function handleSubmit(e: React.FormEvent) {
@@ -181,6 +215,119 @@ export default function CalcPage({
                 />
                 {f.label}
               </label>
+            )}
+
+            {f.kind === "ingredientes" && (
+              <div className="space-y-2">
+                {f.presets && f.presets.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {f.presets.map((preset) => (
+                      <button
+                        key={preset.nome}
+                        type="button"
+                        onClick={() =>
+                          setValues((v) => ({
+                            ...v,
+                            [f.key]: preset.ingredientes.map((i) => ({
+                              nome: i.nome,
+                              percentual: String(i.percentual).replace(".", ","),
+                              preco: "",
+                            })),
+                          }))
+                        }
+                        className="rounded-full border border-borda px-3 py-1 text-xs text-texto-secundario hover:border-tibe-primary hover:text-tibe-dark"
+                      >
+                        {preset.nome}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {(values[f.key] as LinhaDeIngrediente[]).map((linha, indice) => (
+                  <div key={indice} className="flex flex-wrap items-start gap-2">
+                    <Input
+                      aria-label={`Ingrediente ${indice + 1}`}
+                      placeholder="Ingrediente"
+                      value={linha.nome}
+                      onChange={(e) =>
+                        setValues((v) => ({
+                          ...v,
+                          [f.key]: (v[f.key] as LinhaDeIngrediente[]).map((l, i) =>
+                            i === indice ? { ...l, nome: e.target.value } : l,
+                          ),
+                        }))
+                      }
+                      className="min-w-[8rem] flex-1"
+                    />
+                    <div className="w-24">
+                      <MoneyInput
+                        kind="quantidade"
+                        aria-label={`Porcentagem do ingrediente ${indice + 1}`}
+                        placeholder="%"
+                        value={linha.percentual}
+                        onValueChange={(valor) =>
+                          setValues((v) => ({
+                            ...v,
+                            [f.key]: (v[f.key] as LinhaDeIngrediente[]).map((l, i) =>
+                              i === indice ? { ...l, percentual: valor } : l,
+                            ),
+                          }))
+                        }
+                      />
+                    </div>
+                    {f.comPreco !== false && (
+                      <div className="w-28">
+                        <MoneyInput
+                          kind="quantidade"
+                          aria-label={`Preco por quilo do ingrediente ${indice + 1}`}
+                          placeholder="R$/kg"
+                          value={linha.preco}
+                          onValueChange={(valor) =>
+                            setValues((v) => ({
+                              ...v,
+                              [f.key]: (v[f.key] as LinhaDeIngrediente[]).map((l, i) =>
+                                i === indice ? { ...l, preco: valor } : l,
+                              ),
+                            }))
+                          }
+                        />
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      aria-label={`Remover ingrediente ${indice + 1}`}
+                      onClick={() =>
+                        setValues((v) => {
+                          const atual = v[f.key] as LinhaDeIngrediente[];
+                          /* Some com a linha, mas a lista nunca fica vazia:
+                             formulario sem nenhum campo nao tem como voltar. */
+                          const restante = atual.filter((_, i) => i !== indice);
+                          return {
+                            ...v,
+                            [f.key]: restante.length > 0 ? restante : [{ ...LINHA_VAZIA }],
+                          };
+                        })
+                      }
+                      className="mt-2 text-sm text-texto-discreto hover:text-perigo-tinta"
+                    >
+                      remover
+                    </button>
+                  </div>
+                ))}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    setValues((v) => ({
+                      ...v,
+                      [f.key]: [...(v[f.key] as LinhaDeIngrediente[]), { ...LINHA_VAZIA }],
+                    }))
+                  }
+                >
+                  Adicionar ingrediente
+                </Button>
+              </div>
             )}
 
             {f.help && <p className="text-xs text-texto-discreto">{f.help}</p>}

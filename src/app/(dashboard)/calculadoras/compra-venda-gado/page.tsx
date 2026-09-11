@@ -1,6 +1,6 @@
 "use client";
 
-import CalcPage, { type CalcField, type CalcOutcome } from "../_components/calc-page";
+import CalcPage, { type CalcField, type CalcOutcome, type ValorDeCampo } from "../_components/calc-page";
 import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
 import { calcularCompraVendaGado } from "@/lib/calculadoras/compra-venda-gado";
 
@@ -21,7 +21,7 @@ const FIELDS: CalcField[] = [
   },
 ];
 
-function compute(values: Record<string, string | boolean>): CalcOutcome {
+function compute(values: Record<string, ValorDeCampo>): CalcOutcome {
   const numeroAnimais = lerNumeroBr(values.numeroAnimais) ?? undefined;
   const custosAdicionais = lerNumeroBr(values.custosAdicionais) ?? undefined;
 

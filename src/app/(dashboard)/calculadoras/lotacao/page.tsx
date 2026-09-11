@@ -1,6 +1,6 @@
 "use client";
 
-import CalcPage, { type CalcField, type CalcOutcome } from "../_components/calc-page";
+import CalcPage, { type CalcField, type CalcOutcome, type ValorDeCampo } from "../_components/calc-page";
 import { lerNumeroBr } from "@/lib/numero-br";
 import { calcularTaxaLotacao } from "@/lib/calculadoras/lotacao";
 
@@ -10,7 +10,7 @@ const FIELDS: CalcField[] = [
   { key: "areaHectares", label: "Area da pastagem", kind: "number", suffix: "ha" },
 ];
 
-function compute(values: Record<string, string | boolean>): CalcOutcome {
+function compute(values: Record<string, ValorDeCampo>): CalcOutcome {
   const r = calcularTaxaLotacao({
     numeroAnimais: lerNumeroBr(values.numeroAnimais) ?? NaN,
     pesoMedioKg: lerNumeroBr(values.pesoMedioKg) ?? NaN,

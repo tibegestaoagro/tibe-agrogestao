@@ -1,6 +1,6 @@
 "use client";
 
-import CalcPage, { type CalcField, type CalcOutcome } from "../_components/calc-page";
+import CalcPage, { type CalcField, type CalcOutcome, type ValorDeCampo } from "../_components/calc-page";
 import { lerNumeroBr } from "@/lib/numero-br";
 import { calcularMaoDeObra } from "@/lib/calculadoras/mao-de-obra";
 
@@ -17,7 +17,7 @@ const FIELDS: CalcField[] = [
   },
 ];
 
-function compute(values: Record<string, string | boolean>): CalcOutcome {
+function compute(values: Record<string, ValorDeCampo>): CalcOutcome {
   const r = calcularMaoDeObra({
     numeroAnimais: lerNumeroBr(values.numeroAnimais) ?? NaN,
     capacidadePorFuncionario: lerNumeroBr(values.capacidadePorFuncionario) ?? NaN,

@@ -1,7 +1,7 @@
 "use client";
 
-import CalcPage, { type CalcField, type CalcOutcome } from "../_components/calc-page";
-import { lerNumeroBr } from "@/lib/numero-br";
+import CalcPage, { type CalcField, type CalcOutcome, type ValorDeCampo } from "../_components/calc-page";
+import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
 import { calcularRacao, TIPOS_ALIMENTO, type TipoAlimento } from "@/lib/calculadoras/racao";
 
 const FIELDS: CalcField[] = [
@@ -14,13 +14,21 @@ const FIELDS: CalcField[] = [
     defaultValue: "materia_seca",
     options: TIPOS_ALIMENTO.map((t) => ({ value: t.value, label: t.label })),
   },
+  { key: "diasPeriodo", label: "Periodo a suprir (opcional)", kind: "number", suffix: "dias" },
+  { key: "pesoSacaKg", label: "Peso da saca (opcional)", kind: "number", suffix: "kg" },
+  { key: "precoPorSaca", label: "Preco da saca (opcional)", kind: "number", suffix: "R$" },
+  { key: "precoPorKg", label: "Preco por quilo (opcional)", kind: "number", suffix: "R$" },
 ];
 
-function compute(values: Record<string, string | boolean>): CalcOutcome {
+function compute(values: Record<string, ValorDeCampo>): CalcOutcome {
   const r = calcularRacao({
     pesoMedioKg: lerNumeroBr(values.pesoMedioKg) ?? NaN,
     numeroAnimais: lerNumeroBr(values.numeroAnimais) ?? NaN,
     tipoAlimento: values.tipoAlimento as TipoAlimento,
+    diasPeriodo: lerNumeroBr(values.diasPeriodo) ?? undefined,
+    pesoSacaKg: lerNumeroBr(values.pesoSacaKg) ?? undefined,
+    precoPorSaca: lerNumeroBr(values.precoPorSaca) ?? undefined,
+    precoPorKg: lerNumeroBr(values.precoPorKg) ?? undefined,
   });
   if (!r.ok) return { ok: false, error: r.error };
 
@@ -35,6 +43,18 @@ function compute(values: Record<string, string | boolean>): CalcOutcome {
         highlight: true,
       },
       { label: "Alimento in natura do rebanho/dia", value: `${r.data.alimentoNaturalKgDiaRebanho} kg`, highlight: true },
+      ...(r.data.alimentoNaturalKgPeriodoRebanho !== null
+        ? [{ label: "Alimento no periodo", value: `${r.data.alimentoNaturalKgPeriodoRebanho} kg`, highlight: true }]
+        : []),
+      ...(r.data.sacas !== null
+        ? [{ label: "Sacas a comprar", value: `${r.data.sacas}`, highlight: true }]
+        : []),
+      ...(r.data.sobraKg !== null && r.data.sobraKg > 0
+        ? [{ label: "Sobra", value: `${r.data.sobraKg} kg` }]
+        : []),
+      ...(r.data.custoTotal !== null
+        ? [{ label: "Custo estimado", value: reaisBr(r.data.custoTotal) }]
+        : []),
     ],
   };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import CalcPage, { type CalcField, type CalcOutcome } from "../_components/calc-page";
+import CalcPage, { type CalcField, type CalcOutcome, type ValorDeCampo } from "../_components/calc-page";
 import { lerNumeroBr } from "@/lib/numero-br";
 import { calcularCocho } from "@/lib/calculadoras/cocho";
 
@@ -13,18 +13,31 @@ const FIELDS: CalcField[] = [
     defaultValue: true,
     help: "Desmarque se o cocho ficar encostado numa cerca/parede (acesso so por 1 lado).",
   },
+  {
+    key: "comprimentoDeCadaCochoMetros",
+    label: "Comprimento de cada cocho (opcional)",
+    kind: "number",
+    suffix: "m",
+    help: "Para saber quantas pecas construir ou comprar.",
+  },
 ];
 
-function compute(values: Record<string, string | boolean>): CalcOutcome {
+function compute(values: Record<string, ValorDeCampo>): CalcOutcome {
   const r = calcularCocho({
     numeroAnimais: lerNumeroBr(values.numeroAnimais) ?? NaN,
     acessoDoisLados: Boolean(values.acessoDoisLados),
+    comprimentoDeCadaCochoMetros: lerNumeroBr(values.comprimentoDeCadaCochoMetros) ?? undefined,
   });
   if (!r.ok) return { ok: false, error: r.error };
 
   return {
     ok: true,
-    rows: [{ label: "Comprimento de cocho necessario", value: `${r.data.comprimentoCochoMetros} m`, highlight: true }],
+    rows: [
+      { label: "Comprimento de cocho necessario", value: `${r.data.comprimentoCochoMetros} m`, highlight: true },
+      ...(r.data.quantidadeDeCochos !== null
+        ? [{ label: "Cochos a construir", value: `${r.data.quantidadeDeCochos}` }]
+        : []),
+    ],
   };
 }
 
