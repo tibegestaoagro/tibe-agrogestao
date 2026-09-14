@@ -221,13 +221,27 @@ export async function getActiveFlow(
   return row ? asState(row) : null;
 }
 
+/**
+ * Chaves de `current_item` que são METADADO (a fazenda escolhida), não
+ * resposta do produtor a um campo do animal: não contam como "tem algo pra
+ * descartar" (fix round 1, achado b do review). Sem isto, `cancelFlow`
+ * contava um item em andamento mesmo quando o produtor só tinha respondido a
+ * pergunta da fazenda e nenhum campo do animal ainda, porque `property_id`
+ * já preenchia `current_item` desde a abertura.
+ */
+const CHAVES_DE_METADADO = new Set(["property_id"]);
+
+function temRespostaDeCampo(item: Record<string, string>): boolean {
+  return Object.keys(item).some((k) => !CHAVES_DE_METADADO.has(k));
+}
+
 export async function cancelFlow(
   db: TenantPrismaClient,
   userId: string,
 ): Promise<{ discarded: number } | null> {
   const state = await getActiveFlow(db, userId);
   if (!state) return null;
-  const discarded = state.completed_items.length + (Object.keys(state.current_item).length > 0 ? 1 : 0);
+  const discarded = state.completed_items.length + (temRespostaDeCampo(state.current_item) ? 1 : 0);
   await db.agentFlowState.deleteMany({ where: { user_id: userId } });
   return { discarded };
 }

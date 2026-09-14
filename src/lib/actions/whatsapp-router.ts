@@ -492,6 +492,7 @@ export async function routeIntent(
       messageText: ctx.message_text ?? null,
       confirmed,
       explicitNo,
+      parameters,
     });
     if (flowResult) return flowResult;
   }

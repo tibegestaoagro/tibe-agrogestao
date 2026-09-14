@@ -458,28 +458,111 @@ async function main() {
       await db.property.create({ data: scoped({ name: "Fazenda B M67" }) });
       const abre = await acao("cadastrar_animal", { count: 1 }, "quero cadastrar um boi");
       check("com duas fazendas, pergunta qual", /qual fazenda|em qual/i.test(abre.data.reply_text), abre.data.reply_text);
+
+      /*
+       * Fix round 1 (achado Importante): a asserção antiga só provava a
+       * AUSÊNCIA de palavras de campo, o que passaria mesmo com um
+       * `interrompe()` quebrado que respondesse "Não encontrei a
+       * propriedade...". Marcador POSITIVO: `action_taken` é o intent de
+       * verdade que rodou (meu-dia.ts, `responder(..., "consultar_meu_dia")`),
+       * e a resposta não pode falar de fazenda (senão é a pergunta pendente
+       * vazando, não o roteamento normal).
+       */
       const outro = await acao("consultar_meu_dia", {}, "o que tenho pra hoje");
       check(
-        "assunto novo com gesto próprio não vira resposta de campo",
-        !/brinco|raça|macho ou fêmea/i.test(outro.data.reply_text),
-        outro.data.reply_text,
-      );
-      /*
-       * A pergunta da fazenda continua guardada (não foi apagada pela
-       * interrupção acima): a resposta agora precisa ser USÁVEL, abrindo o
-       * formulário de campos do animal, não repetindo a pergunta da fazenda
-       * nem caindo no primeiro item da lista.
-       */
-      const respostaFazenda = await acao(
-        "cadastrar_animal",
-        { count: 1, property_name: "Fazenda B M67" },
-        "Fazenda B M67",
+        "assunto novo com gesto próprio é roteado de verdade (marcador positivo)",
+        outro.data.action_taken === "consultar_meu_dia",
+        outro.data.action_taken,
       );
       check(
-        "a resposta da fazenda abre o formulário de campos, não repete a pergunta",
+        "e a resposta não é a pergunta da fazenda vazando",
+        !/fazenda|propriedade/i.test(outro.data.reply_text),
+        outro.data.reply_text,
+      );
+
+      /*
+       * "Fazenda" bate em "Fazenda M67" E "Fazenda B M67" ao mesmo tempo
+       * (contém as duas): antes do fix round 1, `findActivePropertyByName`
+       * (contains + findFirst) escolhia a PRIMEIRA batida do banco em vez de
+       * perguntar de novo. Ambíguo tem que perguntar, nunca escolher.
+       */
+      const ambigua = await acao("cadastrar_animal", {}, "Fazenda");
+      check(
+        "resposta ambígua ('Fazenda' bate nas duas) pergunta de novo, não escolhe",
+        /^em qual fazenda\?/i.test(ambigua.data.reply_text),
+        ambigua.data.reply_text,
+      );
+
+      /*
+       * Frase natural ("na fazenda b m67"): o `contains` antigo verificava se
+       * o NOME CADASTRADO continha o texto digitado (nunca o contrário), e
+       * "Fazenda B M67" não contém "na fazenda b m67". Precisa casar pelo
+       * texto CONTENDO o nome da fazenda, não o oposto.
+       */
+      const respostaFazenda = await acao("cadastrar_animal", {}, "na fazenda b m67");
+      check(
+        "a resposta natural da fazenda abre o formulário de campos, não repete a pergunta",
         /brinco/i.test(respostaFazenda.data.reply_text),
         respostaFazenda.data.reply_text,
       );
+
+      /*
+       * Interrupção a nível de CAMPO, não só na pergunta da fazenda: o
+       * formulário já está perguntando a raça (brinco acabou de ser
+       * respondido). Precisa ser uma intenção FORA da antiga lista fixa
+       * (`consultar_meu_dia` nunca esteve em `INTERRUPTING`) para provar a
+       * regra nova, e o estado precisa sobreviver (não é cancelamento).
+       */
+      await acao("cadastrar_animal", {}, "1234"); // responde o brinco, fica perguntando a raça
+      const interrompeCampo = await acao("consultar_meu_dia", {}, "o que tenho pra hoje");
+      check(
+        "intenção de outro assunto no meio de um CAMPO também é roteada (marcador positivo)",
+        interrompeCampo.data.action_taken === "consultar_meu_dia",
+        interrompeCampo.data.action_taken,
+      );
+      const estadoAposInterrupcao = await db.agentFlowState.findFirst({ where: { user_id: owner.id } });
+      check(
+        "o formulário continua guardado depois da interrupção (ainda perguntando a raça)",
+        estadoAposInterrupcao?.pending_field === "breed",
+        JSON.stringify(estadoAposInterrupcao),
+      );
+
+      await db.agentFlowState.deleteMany({ where: { user_id: owner.id } });
+
+      /*
+       * Lote de 2, na fazenda escolhida: prova ponta a ponta que a fazenda
+       * resolvida na pergunta viaja com CADA item do lote (não só o
+       * primeiro) e é ela que `commitAnimals` grava, nunca `props[0]`.
+       */
+      const fazendaB = await db.property.findFirstOrThrow({ where: { name: "Fazenda B M67" } });
+      const abreLote = await acao("cadastrar_animal", { count: 2 }, "quero cadastrar 2 bois");
+      check(
+        "lote de 2 também pergunta a fazenda antes de abrir",
+        /^em qual fazenda\?/i.test(abreLote.data.reply_text),
+        abreLote.data.reply_text,
+      );
+      await acao("cadastrar_animal", {}, "na fazenda b m67");
+      await acao("cadastrar_animal", {}, "2001");
+      await acao("cadastrar_animal", {}, "Nelore");
+      await acao("cadastrar_animal", {}, "macho");
+      const primeiroItem = await acao("cadastrar_animal", {}, "boi");
+      check("primeiro item completo, pede o segundo", /faltam 1/i.test(primeiroItem.data.reply_text), primeiroItem.data.reply_text);
+      await acao("cadastrar_animal", {}, "2002");
+      await acao("cadastrar_animal", {}, "Nelore");
+      await acao("cadastrar_animal", {}, "fêmea");
+      const resumoLote = await acao("cadastrar_animal", {}, "vaca");
+      check("os dois completos, pede confirmação do resumo", /posso cadastrar/i.test(resumoLote.data.reply_text), resumoLote.data.reply_text);
+      const confirmado = await acao("cadastrar_animal", {}, "sim", { confirmed: true });
+      check("confirma e cadastra os 2", /2 animal/i.test(confirmado.data.reply_text), confirmado.data.reply_text);
+
+      const lote = await db.animalBatch.findMany({ where: { ear_tag: { in: ["2001", "2002"] } } });
+      check("os dois lotes foram criados", lote.length === 2, String(lote.length));
+      check(
+        "os dois foram gravados na fazenda ESCOLHIDA (Fazenda B), nunca em props[0]",
+        lote.every((l) => l.property_id === fazendaB.id),
+        JSON.stringify(lote.map((l) => l.property_id)),
+      );
+
       await db.agentFlowState.deleteMany({ where: { user_id: owner.id } });
     }
 

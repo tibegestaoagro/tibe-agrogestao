@@ -13,7 +13,7 @@ import {
   FLOWS,
   PROPERTY_PENDING_FIELD,
 } from "@/lib/actions/agent-flows";
-import { listActiveProperties, findActivePropertyByName } from "@/lib/actions/properties";
+import { listActiveProperties } from "@/lib/actions/properties";
 import { createBatchAction } from "@/lib/actions/animal-batches";
 import { findCategory } from "@/lib/herd/categories";
 import { log } from "@/lib/log";
@@ -69,38 +69,82 @@ function interrompe(intent: Intent): boolean {
 }
 
 /**
+ * Sem acento, minúsculo, sem espaço nas pontas: pra casar o nome dito pelo
+ * produtor com o cadastrado sem depender de acento, caixa ou uma frase
+ * natural em volta ("na Fazenda B", "é a fazenda b mesmo").
+ */
+function normalizarNomeFazenda(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+/**
+ * Casa um texto (resposta livre, ou `property_name`/`property` vindo dos
+ * parâmetros) com a lista de fazendas JÁ CARREGADA. Nunca consulta o banco de
+ * novo por "contains" (achado Importante do review, fix round 1): aquele
+ * caminho devolvia a PRIMEIRA batida em `findFirst` quando o texto casava com
+ * mais de uma fazenda ("A" batia em "Fazenda A" E "Fazenda B" ao mesmo tempo,
+ * e vencia por ordem arbitrária do banco, exatamente o que esta task existe
+ * para evitar), e não reconhecia frase natural como "na Fazenda B" (o
+ * `contains` verificava se o NOME cadastrado continha o texto digitado, nunca
+ * o contrário).
+ *
+ * Exato primeiro; "contém" (nos dois sentidos) só quando sobra EXATAMENTE uma
+ * fazenda. Zero ou duas-ou-mais batidas não decide sozinha.
+ */
+function casarFazenda(props: { id: string; name: string }[], texto: string): { id: string } | null {
+  const alvo = normalizarNomeFazenda(texto);
+  if (!alvo) return null;
+
+  const exato = props.filter((p) => normalizarNomeFazenda(p.name) === alvo);
+  if (exato.length === 1) return { id: exato[0].id };
+  if (exato.length > 1) return null;
+
+  const parcial = props.filter((p) => {
+    const nome = normalizarNomeFazenda(p.name);
+    return alvo.includes(nome) || nome.includes(alvo);
+  });
+  return parcial.length === 1 ? { id: parcial[0].id } : null;
+}
+
+function perguntaFazenda(props: { id: string; name: string }[]): string {
+  return `Em qual fazenda? Opções: ${props.map((p) => p.name).join(", ")}.`;
+}
+
+/**
  * Resolve a fazenda do cadastro assistido a partir do que se tem: um
- * `property_id`/`property_name` explícito, ou (achado no roteador) o texto
- * puro digitado em resposta à pergunta "Em qual fazenda?". Nunca escolhe
- * sozinha entre duas fazendas: só decide quando não há ambiguidade, e pede
- * para o chamador perguntar nos outros casos.
+ * `property_id`/`property_name` explícito nos parâmetros, ou o texto puro
+ * digitado em resposta à pergunta "Em qual fazenda?". Nunca escolhe sozinha
+ * entre duas fazendas: só decide quando não há ambiguidade, e pede para o
+ * chamador perguntar (de novo, sempre com a MESMA pergunta) nos outros casos.
  */
 type ResolucaoDeFazenda = { kind: "resolved"; id: string } | { kind: "ask"; message: string };
 
-async function resolverFazenda(
-  db: TenantPrismaClient,
+function resolverFazenda(
   props: { id: string; name: string }[],
   parameters: Record<string, unknown>,
-): Promise<ResolucaoDeFazenda> {
+): ResolucaoDeFazenda {
   const id = str(parameters.property_id);
-  if (id) return { kind: "resolved", id };
+  if (id) {
+    // Nunca confia cego (achado Minor b do review): property_id só vale se
+    // for uma das fazendas ATIVAS já carregadas.
+    if (props.some((p) => p.id === id)) return { kind: "resolved", id };
+    return { kind: "ask", message: perguntaFazenda(props) };
+  }
 
-  const name = str(parameters.property_name) ?? str(parameters.property);
-  if (name) {
-    const found = await findActivePropertyByName(db, name);
-    if (found) return { kind: "resolved", id: found.id };
-    return {
-      kind: "ask",
-      message: `Não encontrei a propriedade '${name}'. Em qual fazenda? Opções: ${props.map((p) => p.name).join(", ")}.`,
-    };
+  const nome = str(parameters.property_name) ?? str(parameters.property);
+  if (nome) {
+    const achada = casarFazenda(props, nome);
+    if (achada) return { kind: "resolved", id: achada.id };
+    return { kind: "ask", message: perguntaFazenda(props) };
   }
 
   if (props.length === 1) return { kind: "resolved", id: props[0].id };
 
-  return {
-    kind: "ask",
-    message: `Você tem mais de uma propriedade. Em qual devo cadastrar? Opções: ${props.map((p) => p.name).join(", ")}.`,
-  };
+  return { kind: "ask", message: perguntaFazenda(props) };
 }
 
 export async function handleActiveFlow(params: {
@@ -110,8 +154,15 @@ export async function handleActiveFlow(params: {
   messageText: string | null;
   confirmed: boolean;
   explicitNo: boolean;
+  /**
+   * Os parâmetros da intenção (fix round 1): quando o classificador reemite
+   * `cadastrar_animal` com `property_name`/`property_id` já preenchido (em
+   * vez de só texto livre), é isto que a resposta da fazenda usa PRIMEIRO,
+   * antes do texto puro. Opcional para não quebrar chamador que não passa.
+   */
+  parameters?: Record<string, unknown>;
 }): Promise<RouterResult | null> {
-  const { db, userId, intent, messageText, confirmed, explicitNo } = params;
+  const { db, userId, intent, messageText, confirmed, explicitNo, parameters = {} } = params;
   const state = await getActiveFlow(db, userId);
   if (!state) return null;
 
@@ -154,7 +205,12 @@ export async function handleActiveFlow(params: {
   // uma intenção com assunto próprio já voltou null antes deste ponto.
   if (state.pending_field === PROPERTY_PENDING_FIELD) {
     const props = await listActiveProperties(db);
-    const fazenda = await resolverFazenda(db, props, { property_name: text });
+    // O classificador pode reemitir `cadastrar_animal` com property_id/name
+    // já preenchido (fix round 1, achado Importante): isso vale MAIS que o
+    // texto puro. Só cai pro texto livre quando os parâmetros não trazem
+    // nada disso.
+    const temParametroDeFazenda = str(parameters.property_id) ?? str(parameters.property_name) ?? str(parameters.property);
+    const fazenda = resolverFazenda(props, temParametroDeFazenda ? parameters : { property_name: text });
     if (fazenda.kind === "ask") {
       return reply(fazenda.message, "cadastro_assistido:fazenda_nao_encontrada");
     }
@@ -198,7 +254,7 @@ export async function maybeStartAnimalFlow(
   // o formulário, em vez de cair no primeiro item da lista (Task 10): quem
   // cadastra pela Fazenda B não pode ver o animal nascer na Fazenda A porque
   // ela é a primeira em ordem alfabética.
-  const fazenda = await resolverFazenda(db, props, parameters);
+  const fazenda = resolverFazenda(props, parameters);
   if (fazenda.kind === "ask") {
     await startPropertyQuestion(db, userId, count);
     return reply(fazenda.message, "cadastro_assistido:pergunta_fazenda");
