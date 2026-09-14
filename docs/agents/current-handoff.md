@@ -25,22 +25,41 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 `historico/2026-09.md`.
 ## Estado atual
 
-- Atualizado em: 2026-09-11.
+- Atualizado em: 2026-09-14.
 
-### O Módulo 38 (Meu Dia) tem SPEC, na branch `meu-dia`
+### O Módulo 38 (Meu Dia) está PRONTO, na branch `meu-dia`, com MIGRAÇÃO
 
-Spec escrita e commitada em 11/09 (`1f355dc`), **sem código ainda**. Onze
-tarefas, e esta tem MIGRAÇÃO, diferente da Calculadora. Spec em
+As onze tarefas da spec, dez commits (`575c771..330b461`), **ainda não
+empurrado**. Suíte **65/65** (a `m65` entrou), `tsc`, `lint`, `check`,
+`test:drift` e `test:isolation` limpos. Spec em
 [../superpowers/specs/2026-09-11-modulo-38-meu-dia.md](../superpowers/specs/2026-09-11-modulo-38-meu-dia.md).
 
-**O que a auditoria achou:** o `/meu-dia` de hoje é uma tabela de tarefas com
-dois campos, e `Task.due_date` é **obrigatório**, o que torna impossível a
-tarefa sem data do §19. Não existem as três seções, nem adiar, nem responsável,
-nem prioridade, nem recorrência.
+⚠️ **Tem migração, `20260914100000_meu_dia_tarefa`, aplicada SÓ no Docker.**
+Antes do push: aplicar no Neon e conferir com `migrate status` (invariante 3).
+Ela torna `Task.due_date` opcional e não tem reversão trivial.
 
-⚠️ **Parte do §49 já existe, no lugar errado:** o `/dashboard` tem a saudação,
-as contas do dia, os recebimentos e a próxima vacina. A fase MOVE isso, não
-reescreve, e o dashboard fica com o que o §52 proíbe no Meu Dia.
+**O que a fase entregou:** a tela em Atenção, Hoje, Próximos dias e Sem data,
+na ordem do §50; tarefa com data opcional, horário, responsável, prioridade,
+fazenda, observação e recorrência rolante; adiar, editar e excluir; o histórico
+do dia; o resumo da fazenda; a prévia do `/dashboard` lendo a mesma consulta; e
+`consultar_meu_dia`, `consultar_amanha` e `consultar_semana` pelo WhatsApp.
+
+**Os defeitos que só a validação achou, todos corrigidos:**
+
+- a primeira tarefa sem data **estouraria** a listagem e derrubaria a página;
+- "Atenção" saía com **110 itens**, 83 vacinas atrasadas, porque a consulta
+  desobedecia a spec e porque a reaplicação de vacina não apaga a próxima dose
+  antiga (12 já tinham sido reaplicadas);
+- a ordem desempatava por horário antes da data;
+- sem contato, a conta aparecia como "Pagar Outros".
+
+⚠️ **Um clique em "Amanhã" respondeu 200 sem gravar**, na primeira compilação da
+rota no `next dev`. Não reproduziu: a mesma rota pelo `fetch` da sessão real e
+pelo botão, já compilada, gravaram. Registrado sem causa, porque não achei uma.
+
+**Três limitações medidas e aceitas**, em `dividas.md` §2.12 a §2.14: o
+dashboard conta o rebanho por campo gravado, sua saudação usa a hora UTC, e a
+recorrência mensal nos dias 29 a 31 deriva.
 
 **As três decisões do usuário em 11/09:**
 
@@ -135,12 +154,14 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou, e cada commit que sobe é leitura pública.
 
-**2. O backfill de `property_id`** (dívida 2.11), que o usuário já autorizou. É
+**2. Levar o Módulo 38 para produção**, nesta ordem e com autorização do
+usuário: aplicar a migração `20260914100000_meu_dia_tarefa` no Neon, conferir
+com `migrate status`, e só então merge e push. Com as quatro áreas no ar, a
+rodada seguinte decide se o Meu Dia vira a porta de entrada (decisão 38.2).
+
+**3. O backfill de `property_id`** (dívida 2.11), que o usuário já autorizou. É
 curto, tem migração, e conserta algo que o produtor sente hoje: 274 lançamentos
 somem quando ele filtra por fazenda.
-
-**3. Implementar o Módulo 38**, começando pela T01 (schema e migração). A spec
-está aprovada e a branch `meu-dia` existe, com o commit da spec e mais nada.
 
 **Continuam esperando, para depois das quatro áreas:** a outra metade da
 `dividas.md` §2.8 (a despesa avulsa e os sete destinos de saída), e três
