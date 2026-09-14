@@ -628,6 +628,8 @@ model Property {
   service_jobs      ServiceJob[]
   worker_logs       WorkerLog[]
   shopping_items    ShoppingItem[]
+  /// Módulo 38, decisão 31: a fazenda de uma tarefa do Meu Dia.
+  tasks             Task[]
 
   @@index([tenant_id])
 }
@@ -1040,7 +1042,39 @@ model Task {
   id          String     @id @default(cuid())
   tenant_id   String
   title       String
-  due_date    DateTime
+
+  /// Módulo 38, §19 e decisão 19: a data passou a ser OPCIONAL. "Preciso
+  /// consertar a porteira" é tarefa legítima e não pode sumir por não ter dia.
+  ///
+  /// ⚠️ Três consequências já decididas: tarefa sem data vai para seção
+  /// própria, nunca misturada com "Hoje"; não gera lembrete, porque não há dia
+  /// para lembrar; e NUNCA é "Atrasada", porque não há prazo a estourar. A
+  /// terceira vive em `effectiveStatus`, e é a fácil de esquecer.
+  due_date    DateTime?
+
+  /// §21: horário opcional, "HH:MM". Texto e não DateTime porque só significa
+  /// alguma coisa junto de `due_date`, e guardar dois instantes para o mesmo
+  /// dia abriria a pergunta de qual deles vale.
+  due_time    String?
+
+  /// §22, decisão 20: o responsável aponta para `Worker`, o mesmo cadastro da
+  /// Mão de Obra, com texto livre de reserva para quem não está lá. Tarefa sem
+  /// nenhum dos dois é de quem anotou, e "Eu" não precisa de campo.
+  worker_id   String?
+  assignee    String?
+
+  /// §23, decisão 28: o MESMO enum da Lista de Compra. Dois enums idênticos
+  /// divergem no dia em que alguém acrescentar "alta" num só.
+  priority    ShoppingPriority @default(normal)
+
+  /// Decisão 31: fazenda e observação entram; PASTO fica fora.
+  property_id String?
+  notes       String?
+
+  /// §24, decisão 25: recorrência pelo padrão ROLANTE. Concluir a de hoje faz
+  /// nascer a próxima; nunca se criam as 52 segundas do ano de uma vez.
+  recurrence  TaskRecurrence?
+
   remind      Boolean    @default(true)
   status      TaskStatus @default(pending)
   created_by  String?
@@ -1048,10 +1082,22 @@ model Task {
   created_at  DateTime   @default(now())
   updated_at  DateTime   @updatedAt
 
-  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  tenant   Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  /// SetNull nos dois: arquivar um trabalhador ou uma fazenda não pode travar
+  /// a lista de tarefas de ninguém.
+  worker   Worker?   @relation(fields: [worker_id], references: [id], onDelete: SetNull)
+  property Property? @relation(fields: [property_id], references: [id], onDelete: SetNull)
 
   @@index([tenant_id])
   @@index([due_date])
+}
+
+/// §24: "recorrências básicas", e o documento pede que não se criem
+/// configurações complexas. Três, e nenhuma com intervalo configurável.
+enum TaskRecurrence {
+  diaria
+  semanal
+  mensal
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -2421,6 +2467,9 @@ model Worker {
   /// Fase 33.2: as diárias em que ele entrou, e as anotações do §12 e §34.
   service_jobs ServiceJob[]
   logs         WorkerLog[]
+
+  /// Módulo 38, §22: as tarefas do Meu Dia de que ele é o responsável.
+  tasks        Task[]
 
   /// Fase 34.1: os serviços que ele OPEROU (§8), que são outra coisa de
   /// `service_jobs`. Um tratorista pode operar a máquina num serviço prestado

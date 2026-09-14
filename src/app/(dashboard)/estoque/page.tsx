@@ -4,6 +4,7 @@ import { getSessionUser, getActiveProfiles, getTenantDb } from "@/lib/tenant-con
 import { canWrite } from "@/lib/permissions";
 import { getActivePropertyId } from "@/lib/active-property";
 import { getBillingAccess } from "@/lib/billing-access";
+import { ROTULO_ESTOQUE } from "@/lib/rotulos-de-movimento";
 import {
   Table,
   TableHeader,
@@ -35,14 +36,10 @@ import { descreverQuantidade } from "@/lib/stock/units";
  * sistema contábil, então a coluna é "Tem hoje", não "Saldo atual".
  */
 
-const TIPO_LABEL: Record<string, string> = {
-  compra: "Comprei",
-  venda: "Vendi",
-  utilizacao: "Usei",
-  ajuste: "Corrigi",
-  permuta_entrada: "Entrou por permuta",
-  permuta_saida: "Saiu por permuta",
-};
+/* O mapa mora em `src/lib/rotulos-de-movimento.ts` desde o Módulo 38, com a
+   chave tipada pelo enum: antes era `Record<string>`, e um tipo novo passaria
+   pelo `tsc` e apareceria na tela com o nome cru. */
+const TIPO_LABEL: Record<string, string> = ROTULO_ESTOQUE;
 
 export default async function EstoquePage(
   props: {

@@ -283,6 +283,43 @@ que nenhum lançamento recebeu a fazenda errada. Adivinhação em dinheiro de
 cliente é a pior classe de migração, e é exatamente por isso que este backfill
 foi adiado uma vez.
 
+### 2.12 O `/dashboard` e o resumo do WhatsApp contam o rebanho por campo gravado
+
+**O que é:** `countActiveAnimals` (`src/lib/actions/animals.ts`) soma
+`AnimalBatch.quantity`, que é campo. O invariante 2 diz que o saldo do rebanho
+nunca é gravado, e desde o Módulo 30 a fonte é o livro-razão
+(`getPositions` + `summarizePositions`). O `/dashboard` e o `resumo` do WhatsApp
+ainda usam o campo.
+
+**Evidência:** achado no Módulo 38 (14/09/2026), ao montar o "Sua fazenda" do
+Meu Dia. O Meu Dia usa o livro-razão; o `/dashboard` na mesma sessão pode
+mostrar outro número para o mesmo rebanho.
+
+**Custo de fechar:** trocar as duas chamadas e conferir contra a tela do
+Rebanho. Pequeno, mas mexe no número mais visto do painel, então precisa de
+validação na tela e não só de `tsc`.
+
+### 2.13 A saudação do `/dashboard` usa a hora do servidor
+
+**O que é:** `greeting()` em `src/app/(dashboard)/dashboard/page.tsx` usa
+`new Date().getHours()`, que na Vercel é UTC. Às 9h na fazenda o servidor marca
+meio-dia, e o produtor lê "Boa tarde" antes do café.
+
+**Custo de fechar:** trocar por `saudacaoEmSaoPaulo`, de `dia-calendario.ts`,
+que o Meu Dia já usa. Uma linha.
+
+### 2.14 Recorrência mensal nos dias 29 a 31 deriva, e tarefa não tem `completed_at`
+
+**O que é:** duas limitações medidas e aceitas no Módulo 38, as duas marcadas
+como `ponytail:` em código. "Todo dia 31" vira 28/02 e depois 28/03, e nunca
+volta ao 31, porque não há onde guardar o dia original. E o histórico do dia lê
+a conclusão pelo `updated_at`, então editar uma tarefa concluída hoje a faria
+aparecer como concluída hoje.
+
+**Custo de fechar:** uma coluna cada (`recurrence_day`, `completed_at`), com
+migração. A `m65` fixa a deriva como comportamento atual e reprova quando alguém
+a corrigir, para o comentário não ficar mentindo.
+
 ---
 
 ## 3. Rede de segurança com furo

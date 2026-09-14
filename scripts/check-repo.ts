@@ -551,17 +551,17 @@ function conferirRotulosDeMovimento() {
     .map((l) => l.replace(/\/\/\/.*/, "").trim())
     .filter((l) => l.length > 0 && /^[a-z_]+$/.test(l));
 
-  const pagina = readFileSync(
-    join(RAIZ, "src", "app", "(dashboard)", "rebanho", "page.tsx"),
-    "utf8",
-  );
+  // Módulo 38: o mapa saiu da tela de Rebanho para um módulo compartilhado,
+  // porque o histórico do Meu Dia usa os mesmos rótulos e uma página do Next
+  // não pode exportar constante. A conferência seguiu o mapa.
+  const arquivo = readFileSync(join(RAIZ, "src", "lib", "rotulos-de-movimento.ts"), "utf8");
   // A chave do Record não é fixada aqui de propósito: ela ERA `string`, e
   // passou a ser `HerdMovementType` justamente para o `tsc` acusar chave
   // faltando. Prender a regex à forma antiga faria esta conferência reprovar
   // a correção que ela mesma pede.
-  const mapa = pagina.match(/const TIPO_LABEL: Record<[^,>]+, string> = \{([\s\S]*?)\n\};/);
+  const mapa = arquivo.match(/export const ROTULO_REBANHO: Record<[^,>]+, string> = \{([\s\S]*?)\n\};/);
   if (!mapa) {
-    check("TIPO_LABEL encontrado na tela de Rebanho", false);
+    check("ROTULO_REBANHO encontrado em rotulos-de-movimento.ts", false);
     return;
   }
 
@@ -570,7 +570,7 @@ function conferirRotulosDeMovimento() {
     `os ${tipos.length} tipos de movimentacao tem rotulo em portugues`,
     semRotulo.length === 0,
     semRotulo.length > 0
-      ? `sem rotulo em TIPO_LABEL (o extrato mostraria o nome do enum): ${semRotulo.join(", ")}`
+      ? `sem rotulo em ROTULO_REBANHO (o extrato mostraria o nome do enum): ${semRotulo.join(", ")}`
       : undefined,
   );
 }

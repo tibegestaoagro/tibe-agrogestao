@@ -66,3 +66,32 @@ function diaUtc(data: Date): number {
 export function prazoVencido(prazo: Date, agora = new Date()): boolean {
   return diaUtc(prazo) < inicioDoDiaEmSaoPaulo(agora).getTime();
 }
+
+/**
+ * Quantos dias de calendário faltam até `prazo`: negativo quando já passou,
+ * zero quando é hoje, positivo quando vem pela frente.
+ *
+ * Módulo 38: o Meu Dia separa "Atenção" (negativo), "Hoje" (zero) e "Próximos
+ * dias" (de 1 a 7) com este número só, e a mesma assimetria de `prazoVencido`
+ * vale aqui pelo mesmo motivo: o prazo é data de calendário, o agora é
+ * instante.
+ */
+/**
+ * "Bom dia", "Boa tarde", "Boa noite" pela hora de SÃO PAULO.
+ *
+ * `new Date().getHours()` no servidor devolve a hora do servidor, que na
+ * Vercel é UTC: às 9h na fazenda ela marca meio-dia, e o produtor lê "Boa
+ * tarde" antes do café. O `/dashboard` ainda faz assim.
+ */
+export function saudacaoEmSaoPaulo(agora = new Date()): string {
+  const hora = Number(
+    new Intl.DateTimeFormat("en-US", { timeZone: FUSO_DA_FAZENDA, hour: "numeric", hour12: false }).format(agora),
+  );
+  if (hora < 12) return "Bom dia";
+  if (hora < 18) return "Boa tarde";
+  return "Boa noite";
+}
+
+export function diasAte(prazo: Date, agora = new Date()): number {
+  return Math.round((diaUtc(prazo) - inicioDoDiaEmSaoPaulo(agora).getTime()) / 86_400_000);
+}

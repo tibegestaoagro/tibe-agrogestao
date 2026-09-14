@@ -1251,8 +1251,9 @@ export const GROUPS: Group[] = [
         method: "POST",
         path: "/api/v1/tasks",
         auth: "Sessão · tarefas:write",
-        description: "Cria uma tarefa.",
-        request: `{ "title": "Comprar sal mineral", "due_date": "2026-09-11T00:00:00.000Z", "remind": true }`,
+        description:
+          "Cria uma tarefa. Só o título é obrigatório: data, horário, responsável, prioridade, fazenda, observação e recorrência são opcionais. Horário e recorrência sem data são recusados.",
+        request: `{ "title": "Vacinar os bezerros", "due_date": "2026-09-18T00:00:00.000Z", "due_time": "14:00", "priority": "urgente", "recurrence": "semanal" }`,
         response: `201
 { "data": { "id": "cl..." }, "meta": {} }`,
       },
@@ -1260,10 +1261,37 @@ export const GROUPS: Group[] = [
         method: "PATCH",
         path: "/api/v1/tasks/:id",
         auth: "Sessão · tarefas:write",
-        description: "Conclui ou cancela uma tarefa.",
+        description:
+          "Conclui, cancela ou edita uma tarefa. Concluir uma recorrente cria a próxima e devolve o id dela em `next_task_id`. Cancelar mantém o histórico.",
         request: `{ "status": "completed" }`,
         response: `200
+{ "data": { "id": "cl...", "next_task_id": "cl..." }, "meta": {} }`,
+      },
+      {
+        method: "DELETE",
+        path: "/api/v1/tasks/:id",
+        auth: "Sessão · tarefas:write",
+        description: "Apaga uma tarefa de vez. Para manter o histórico, use o PATCH com status cancelled.",
+        response: `200
 { "data": { "id": "cl..." }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/tasks/:id/postpone",
+        auth: "Sessão · tarefas:write",
+        description: "Adia uma tarefa pendente para outra data. Tarefa concluída ou cancelada é recusada.",
+        request: `{ "due_date": "2026-09-19T00:00:00.000Z" }`,
+        response: `200
+{ "data": { "id": "cl..." }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/meu-dia",
+        auth: "Sessão · tarefas:read",
+        description:
+          "As seções do Meu Dia (atenção, hoje, próximos dias e sem data), já na ordem de importância. Lê ao vivo tarefas, contas, vacinas, serviços agendados, estadias e estoque baixo. `?property_id=` filtra por fazenda; item sem fazenda aparece em todas.",
+        response: `200
+{ "data": { "atencao": [...], "hoje": [{ "origem": "pagar", "titulo": "Pagar João", "valor": 2500, "dias": 0, "...": "..." }], "proximos": [...], "sem_data": [...] }, "meta": { "total": 12 } }`,
       },
     ],
   },
