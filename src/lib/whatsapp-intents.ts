@@ -125,6 +125,12 @@ export const INTENTS = [
   "calcular_sementes",
   "calcular_sal",
   "calcular_racao",
+  // Modulo 38, §38 a §40: "o que tenho hoje?", "e amanha?", "essa semana?".
+  // Consultam; concluir e alterar tarefa por frase ficam FORA (decisao 38.3).
+  // O classificador do n8n tambem NAO emite estas tres.
+  "consultar_meu_dia",
+  "consultar_amanha",
+  "consultar_semana",
   "criar_tarefa",
   "ajuda",
   "resumo",
@@ -243,6 +249,11 @@ export const INTENT_ACCESS: Record<
   calcular_sementes: { module: "rebanho", action: "read", profile: "fazenda" },
   calcular_sal: { module: "rebanho", action: "read", profile: "fazenda" },
   calcular_racao: { module: "rebanho", action: "read", profile: "fazenda" },
+  /* Módulo 38: o mesmo módulo de permissão da tela do Meu Dia, sem perfil,
+     porque o prestador também tem dia. */
+  consultar_meu_dia: { module: "tarefas", action: "read" },
+  consultar_amanha: { module: "tarefas", action: "read" },
+  consultar_semana: { module: "tarefas", action: "read" },
   criar_tarefa: { module: "tarefas", action: "write" },
   ajuda: { module: null, action: "read" },
   resumo: { module: null, action: "read" },

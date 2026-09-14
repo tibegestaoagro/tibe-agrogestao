@@ -14,6 +14,7 @@ import {
   type ItemDoDia,
 } from "@/lib/actions/meu-dia";
 import { reaisBr } from "@/lib/numero-br";
+import { saudacaoEmSaoPaulo } from "@/lib/dia-calendario";
 
 /**
  * Meu Dia (Módulo 38): "o produtor não procura o que precisa fazer; o TIBÉ
@@ -24,22 +25,6 @@ import { reaisBr } from "@/lib/numero-br";
  * de virar o feed do §51 ou o painel de ERP do §52: sem gráfico, sem
  * indicador técnico, sem tabela extensa. Gráfico mora no `/dashboard`.
  */
-
-/**
- * A saudação pela hora de SÃO PAULO, e não a do servidor.
- *
- * O `/dashboard` usa `new Date().getHours()`, que na Vercel é UTC: às 9h da
- * manhã na fazenda o servidor marca meio-dia, e o produtor lê "Boa tarde"
- * antes do café. Aqui a hora vem do fuso da fazenda.
- */
-function saudacao(agora = new Date()): string {
-  const hora = Number(
-    new Intl.DateTimeFormat("en-US", { timeZone: "America/Sao_Paulo", hour: "numeric", hour12: false }).format(agora),
-  );
-  if (hora < 12) return "Bom dia";
-  if (hora < 18) return "Boa tarde";
-  return "Boa noite";
-}
 
 const DIA_DA_SEMANA = new Intl.DateTimeFormat("pt-BR", { weekday: "long", timeZone: "UTC" });
 const DATA_CURTA = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" });
@@ -147,7 +132,7 @@ export default async function MeuDiaPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-texto">
-          {saudacao()}
+          {saudacaoEmSaoPaulo()}
           {primeiroNome ? `, ${primeiroNome}` : ""}.
         </h1>
         {podeEscrever && <TaskForm workers={workers} properties={properties} />}

@@ -51,6 +51,11 @@ import {
   calcularRacaoWhatsapp,
 } from "@/lib/actions/whatsapp-handlers/calculadora";
 import {
+  consultarMeuDia,
+  consultarAmanha,
+  consultarSemana,
+} from "@/lib/actions/whatsapp-handlers/meu-dia";
+import {
   registrarEntradaConfinamento,
   registrarEnvioBoitel,
   registrarAlimentacaoConfinamento,
@@ -180,6 +185,9 @@ const HANDLERS: Record<Exclude<Intent, "ambigua">, Handler> = {
   calcular_sementes: calcularSementesWhatsapp,
   calcular_sal: calcularSalWhatsapp,
   calcular_racao: calcularRacaoWhatsapp,
+  consultar_meu_dia: consultarMeuDia,
+  consultar_amanha: consultarAmanha,
+  consultar_semana: consultarSemana,
   criar_tarefa: criarTarefa,
   ajuda,
   resumo,
