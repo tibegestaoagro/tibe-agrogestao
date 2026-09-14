@@ -27,6 +27,29 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-09-14.
 
+### Dívida 2.14 fechada na branch `divida-2-14-recorrencia`, esperando o Neon
+
+Migração `20260914180000_tarefa_ancora_e_conclusao`: `Task.recurrence_anchor` e
+`Task.completed_at`, com backfill (`completed_at` pelo `updated_at` das
+concluídas; âncora pela `due_date` das recorrentes). **Precisa ir ao Neon ANTES
+do push.**
+
+- **A série segue a âncora.** Além do "dia 31 que ficava no 28", a leitura do
+  código achou uma deriva que a dívida não registrava: **adiar deslocava a
+  série** ("toda segunda" adiada para terça virava "toda terça").
+- **Decisão do usuário (14/09):** editar a data no formulário redefine a série;
+  adiar ("Amanhã" e WhatsApp) é pontual e mantém a âncora.
+- **Histórico do dia lê `completed_at`**; reabrir a tarefa apaga o campo.
+- A próxima ocorrência nascia à meia-noite UTC, fora da convenção de data de
+  calendário; agora nasce ao meio-dia UTC.
+
+**Validado:** `m65` com os casos novos, que reprovam (8) com o comportamento
+antigo; suíte 65/65; no navegador, "Amanhã" numa mensal de 14/09 manteve a
+âncora e "Feito" gerou a próxima em **14/10** (antes seria 15/10).
+
+⚠️ **`next dev` aberto antes de uma migração dá 500 no Meu Dia**: o client do
+Prisma fica o antigo em memória. Reinicie o servidor depois do `prisma generate`.
+
 ### O Meu Dia virou a porta de entrada, e as dívidas 2.11 a 2.13 fecharam
 
 **Tudo de 14/09, na ordem que o usuário autorizou ("todos autorizados"):**
@@ -146,8 +169,8 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou, e cada commit que sobe é leitura pública.
 
-**2. A dívida 2.14** (recorrência mensal nos dias 29 a 31 e `completed_at`),
-uma coluna cada, com migração. Só quando o usuário pedir.
+**2. Levar a dívida 2.14 a produção:** o usuário roda a migração no Neon,
+depois merge e push da branch `divida-2-14-recorrencia`.
 
 **Continuam esperando:** a outra metade da
 `dividas.md` §2.8 (a despesa avulsa e os sete destinos de saída), e três

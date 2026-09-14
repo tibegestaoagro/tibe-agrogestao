@@ -310,10 +310,8 @@ export type RegistroDoDia = {
  * contrário do `due_date` da tarefa, que é data de calendário. O Brasil não
  * tem horário de verão desde 2019, e o fuso fica fixo em três horas.
  *
- * ponytail: tarefa concluída entra pelo `updated_at`, porque `Task` não tem
- * `completed_at`. Editar o título de uma tarefa concluída hoje a faria aparecer
- * como concluída hoje. Coluna própria quando alguém confiar no histórico para
- * auditar.
+ * Tarefa concluída entra pelo `completed_at` desde 14/09/2026. Antes era o
+ * `updated_at`, e editar o título de uma concluída a punha no histórico de hoje.
  */
 export async function historicoDoDia(
   db: TenantPrismaClient,
@@ -371,10 +369,10 @@ export async function historicoDoDia(
     db.task.findMany({
       where: {
         status: "completed",
-        updated_at: periodo,
+        completed_at: periodo,
         ...(fazenda ? { OR: [{ property_id: fazenda }, { property_id: null }] } : {}),
       },
-      select: { id: true, title: true, updated_at: true },
+      select: { id: true, title: true, completed_at: true },
     }),
   ]);
 
@@ -415,7 +413,7 @@ export async function historicoDoDia(
     })),
     ...tarefas.map((t) => ({
       chave: `concluida:${t.id}`,
-      quando: t.updated_at,
+      quando: t.completed_at!,
       texto: `Concluída: ${t.title}`,
       href: "/meu-dia",
     })),

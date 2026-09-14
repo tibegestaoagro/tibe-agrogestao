@@ -253,18 +253,6 @@ produtor amarra uma despesa AVULSA ao lote; quais dos sete destinos viram
 movimento novo no livro-razão). Decisão do usuário em 31/08: entram numa onda
 própria, com as perguntas trazidas junto da spec.
 
-### 2.14 Recorrência mensal nos dias 29 a 31 deriva, e tarefa não tem `completed_at`
-
-**O que é:** duas limitações medidas e aceitas no Módulo 38, as duas marcadas
-como `ponytail:` em código. "Todo dia 31" vira 28/02 e depois 28/03, e nunca
-volta ao 31, porque não há onde guardar o dia original. E o histórico do dia lê
-a conclusão pelo `updated_at`, então editar uma tarefa concluída hoje a faria
-aparecer como concluída hoje.
-
-**Custo de fechar:** uma coluna cada (`recurrence_day`, `completed_at`), com
-migração. A `m65` fixa a deriva como comportamento atual e reprova quando alguém
-a corrigir, para o comentário não ficar mentindo.
-
 ---
 
 ## 3. Rede de segurança com furo

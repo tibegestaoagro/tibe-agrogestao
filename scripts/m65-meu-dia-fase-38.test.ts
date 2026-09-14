@@ -11,6 +11,7 @@ import {
 } from "@/lib/actions/tasks";
 import {
   classificar,
+  historicoDoDia,
   lerItensDoDia,
   ordenarPorImportancia,
   type ItemDoDia,
@@ -136,14 +137,25 @@ async function main() {
     );
 
     /*
-     * A deriva do fim de mês, MEDIDA e aceita (ponytail em tasks.ts). Este teste
-     * fixa o comportamento atual: se alguém corrigir com uma coluna nova, ele
-     * reprova e obriga a atualizar o comentário que documenta o teto.
+     * Dívida 2.14: a série segue a âncora. Até 14/09/2026 a cadeia 31/01,
+     * 28/02 ficava no 28 para sempre; sem a âncora este teste reprova.
      */
-    const fev = proximaOcorrencia(new Date("2026-01-31T12:00:00Z"), "mensal", new Date("2026-02-05T15:00:00Z"));
-    const mar = proximaOcorrencia(fev, "mensal", new Date("2026-03-05T15:00:00Z"));
+    const jan31 = new Date("2026-01-31T12:00:00Z");
+    const fev = proximaOcorrencia(jan31, "mensal", new Date("2026-02-05T15:00:00Z"), jan31);
+    const mar = proximaOcorrencia(fev, "mensal", new Date("2026-03-05T15:00:00Z"), jan31);
+    const abr = proximaOcorrencia(mar, "mensal", new Date("2026-04-05T15:00:00Z"), jan31);
     assert(fev.toISOString().slice(0, 10) === "2026-02-28", "dia 31 em fevereiro cai no 28, e não em 3 de março");
-    assert(mar.toISOString().slice(0, 10) === "2026-03-28", "a cadeia real deriva para o 28 (teto documentado)");
+    assert(mar.toISOString().slice(0, 10) === "2026-03-31", "e em março VOLTA ao 31");
+    assert(abr.toISOString().slice(0, 10) === "2026-04-30", "e em abril cai no 30");
+
+    /* "Todo dia 31" adiado para 02/02 e concluído lá: a de fevereiro ainda vem. */
+    const adiadaJan = proximaOcorrencia(new Date("2026-02-02T12:00:00Z"), "mensal", new Date("2026-02-02T15:00:00Z"), jan31);
+    assert(adiadaJan.toISOString().slice(0, 10) === "2026-02-28", "a de janeiro adiada para 02/02 gera a de 28/02, e não 02/03");
+
+    /* "Toda segunda" adiada para terça e concluída na terça: volta à segunda. */
+    const terca = new Date("2026-09-08T12:00:00Z");
+    const daTerca = proximaOcorrencia(terca, "semanal", new Date("2026-09-08T15:00:00Z"), segunda);
+    assert(daTerca.toISOString().slice(0, 10) === "2026-09-14", "semanal adiada para terça volta à segunda seguinte");
   }
 
   const tenantA = await prisma.tenant.create({
@@ -226,6 +238,49 @@ async function main() {
       await updateTaskStatusAction(dbA, t.data.id, "completed");
       const adiarConcluida = await postponeTaskAction(dbA, t.data.id, dia(2));
       assert(!adiarConcluida.ok, "adiar tarefa concluída é recusado");
+    }
+
+    console.log("\n7b. Dívida 2.14: adiar mantém a série, editar a redefine");
+    {
+      const serie = await createTaskAction(dbA, { title: "Pagar arrendamento", due_date: dia(0), recurrence: "mensal" });
+      if (!serie.ok) throw new Error("série não criada");
+      const ancoraDe = async () =>
+        (await dbA.task.findFirst({ where: { id: serie.data.id } }))?.recurrence_anchor?.getTime() ?? null;
+
+      assert((await ancoraDe()) === dia(0).getTime(), "criar a recorrente ancora na data da primeira vez");
+
+      await postponeTaskAction(dbA, serie.data.id, dia(1));
+      assert((await ancoraDe()) === dia(0).getTime(), "adiar NÃO muda a âncora");
+
+      await updateTaskAction(dbA, serie.data.id, { title: "Pagar o arrendamento", due_date: dia(1) });
+      assert((await ancoraDe()) === dia(0).getTime(), "editar só o título, reenviando a MESMA data, não muda a âncora");
+
+      await updateTaskAction(dbA, serie.data.id, { due_date: dia(3) });
+      assert((await ancoraDe()) === dia(3).getTime(), "editar a data no formulário redefine a âncora");
+
+      await updateTaskAction(dbA, serie.data.id, { recurrence: null });
+      assert((await ancoraDe()) === null, "tirar a recorrência apaga a âncora");
+    }
+
+    console.log("\n7c. Dívida 2.14: o histórico lê a conclusão, e não a última edição");
+    {
+      const t = await createTaskAction(dbA, { title: "Tarefa concluida ontem", due_date: dia(-1) });
+      if (!t.ok) throw new Error("tarefa não criada");
+      await updateTaskStatusAction(dbA, t.data.id, "completed");
+      const concluida = await dbA.task.findFirst({ where: { id: t.data.id } });
+      assert(concluida?.completed_at instanceof Date, "concluir grava completed_at");
+
+      /* Recua a conclusão para ontem e edita o título hoje: não pode entrar no dia. */
+      await dbA.task.update({ where: { id: t.data.id }, data: { completed_at: dia(-1) } });
+      await updateTaskAction(dbA, t.data.id, { title: "Tarefa concluida ontem, corrigida" });
+      const hoje = await historicoDoDia(dbA);
+      assert(!hoje.some((r) => r.chave === `concluida:${t.data.id}`), "editar uma concluída ontem NÃO a põe no histórico de hoje");
+      const ontem = await historicoDoDia(dbA, { dia: dia(-1) });
+      assert(ontem.some((r) => r.chave === `concluida:${t.data.id}`), "e ela aparece no histórico de ontem");
+
+      await updateTaskStatusAction(dbA, t.data.id, "pending");
+      const reaberta = await dbA.task.findFirst({ where: { id: t.data.id } });
+      assert(reaberta?.completed_at === null, "reabrir apaga completed_at");
     }
 
     console.log("\n8. Item sem fazenda aparece com o filtro ligado");

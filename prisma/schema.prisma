@@ -1075,8 +1075,17 @@ model Task {
   /// nascer a próxima; nunca se criam as 52 segundas do ano de uma vez.
   recurrence  TaskRecurrence?
 
+  /// Dívida 2.14: o dia que define a série ("todo dia 31", "toda segunda").
+  /// Sem ele a próxima partia da data da atual, e fevereiro puxava o 31 para o
+  /// 28 para sempre; adiar para terça virava "toda terça". Editar a data no
+  /// formulário redefine a âncora; adiar não (decisão do usuário, 14/09/2026).
+  recurrence_anchor DateTime?
+
   remind      Boolean    @default(true)
   status      TaskStatus @default(pending)
+  /// Dívida 2.14: o histórico do dia lia a conclusão pelo `updated_at`, e
+  /// editar o título de uma concluída a punha no histórico de hoje.
+  completed_at DateTime?
   created_by  String?
   reminded_at DateTime?
   created_at  DateTime   @default(now())
