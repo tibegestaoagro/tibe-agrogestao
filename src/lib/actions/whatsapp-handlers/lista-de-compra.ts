@@ -380,6 +380,9 @@ export const removerItemLista: Handler = async ({
   };
 };
 
+/** O que fica guardado enquanto o "comprou X por Y?" espera resposta. */
+type CompraResolvida = { item_id: string; valor: number; pago: boolean };
+
 /**
  * §17: "Comprei o sal."
  *
@@ -388,7 +391,12 @@ export const removerItemLista: Handler = async ({
  * 1. **Sem valor na frase**, risca da lista e não gera nada. É a opção 1 do
  *    §11, e o caso comum de quem só quer o papel em dia.
  * 2. **Com valor**, registra a compra de verdade: despesa, conta a pagar e
- *    entrada no estoque, por Negociações.
+ *    entrada no estoque, por Negociações. Isso é dinheiro saindo, então pede
+ *    confirmação primeiro (§19.3), no mesmo padrão de
+ *    `registrar_lancamento_financeiro`: o "sim" executa o que foi GUARDADO,
+ *    nunca o que o classificador remontou (`.claude/rules/whatsapp.md`), e
+ *    sem pendente guardado nenhum caminho grava, mesmo com `confirmed: true`
+ *    e parâmetros cheios chegando na mensagem.
  *
  * ⚠️ **Pelo WhatsApp, registrar exige que o item já tenha produto e fazenda.**
  * Sem isso a compra precisaria de um interrogatório de quatro perguntas (qual
@@ -397,7 +405,52 @@ export const removerItemLista: Handler = async ({
  * lista e diz onde terminar. A fronteira é a mesma da T06, e vale nos dois
  * canais.
  */
-export const compreiItemLista: Handler = async ({ db, user_id, parameters }) => {
+export const compreiItemLista: Handler = async ({
+  db,
+  tenant_id,
+  user_id,
+  parameters,
+  confirmed,
+  explicitNo,
+}) => {
+  const intent = "comprei_item_lista";
+  const temMemoria = !!user_id;
+  const pendente = temMemoria ? await loadPendingLista(tenant_id, user_id!) : null;
+  const aguardandoCompra = pendente?.aguardando === "confirmacao_compra" ? pendente : null;
+
+  if (explicitNo && aguardandoCompra) {
+    await clearPendingLista(tenant_id, user_id!);
+    return {
+      reply_text: "Tudo bem, não lancei a compra.",
+      requires_confirmation: false,
+      auxiliary_data: null,
+      report_url: null,
+      action_taken: `${intent}:cancelado`,
+    };
+  }
+
+  if (confirmed && aguardandoCompra) {
+    const p = aguardandoCompra.parameters as unknown as CompraResolvida;
+    await clearPendingLista(tenant_id, user_id!);
+    const item = await db.shoppingItem.findFirst({ where: { id: p.item_id } });
+    if (!item) return ask("Esse item não está mais na sua lista.");
+    const compra = await registrarCompraDoItemAction(db, item.id, {
+      amount: p.valor,
+      pago: p.pago,
+      recorded_by_user_id: user_id ?? null,
+    });
+    if (!compra.ok) return failReply(intent, compra);
+    return {
+      reply_text:
+        `Registrei a compra de ${descreverItem(item)} por ${reaisBr(p.valor)}` +
+        `${p.pago ? "" : ", como conta a pagar"}, e risquei da sua lista.`,
+      requires_confirmation: false,
+      auxiliary_data: { item_id: item.id, negotiation_id: compra.data.negotiation_id },
+      report_url: null,
+      action_taken: `${intent}:${item.id}`,
+    };
+  }
+
   const termo = str(parameters.descricao) ?? str(parameters.description) ?? str(parameters.item);
   if (!termo) return ask("O que você comprou?");
 
@@ -409,7 +462,7 @@ export const compreiItemLista: Handler = async ({ db, user_id, parameters }) => 
 
   if (valor == null) {
     const resultado = await concluirItemAction(db, item.id);
-    if (!resultado.ok) return failReply("comprei_item_lista", resultado);
+    if (!resultado.ok) return failReply(intent, resultado);
     return {
       reply_text:
         `Riscei ${descreverItem(item)} da sua lista. ` +
@@ -417,13 +470,13 @@ export const compreiItemLista: Handler = async ({ db, user_id, parameters }) => 
       requires_confirmation: false,
       auxiliary_data: { item_id: item.id, registrou_compra: false },
       report_url: null,
-      action_taken: `comprei_item_lista:${item.id}`,
+      action_taken: `${intent}:${item.id}`,
     };
   }
 
   if (!item.product_id || !item.property_id) {
     const resultado = await concluirItemAction(db, item.id);
-    if (!resultado.ok) return failReply("comprei_item_lista", resultado);
+    if (!resultado.ok) return failReply(intent, resultado);
     return {
       reply_text:
         `Riscei ${descreverItem(item)} da sua lista. ` +
@@ -432,7 +485,7 @@ export const compreiItemLista: Handler = async ({ db, user_id, parameters }) => 
       requires_confirmation: false,
       auxiliary_data: { item_id: item.id, registrou_compra: false },
       report_url: null,
-      action_taken: `comprei_item_lista:${item.id}`,
+      action_taken: `${intent}:${item.id}`,
     };
   }
 
@@ -440,20 +493,25 @@ export const compreiItemLista: Handler = async ({ db, user_id, parameters }) => 
   // fala ("comprei o sal por 1800"). Quem comprou a prazo diz, e o
   // classificador manda `pago: false` ou `pagamento: "prazo"`.
   const pago = parameters.pago !== false && str(parameters.pagamento) !== "prazo";
-  const compra = await registrarCompraDoItemAction(db, item.id, {
-    amount: valor,
-    pago,
-    recorded_by_user_id: user_id ?? null,
-  });
-  if (!compra.ok) return failReply("comprei_item_lista", compra);
 
+  /*
+   * Chegou aqui sem pendente para executar (sem `user_id`, TTL vencido, ou
+   * assunto novo): NUNCA grava direto do que esta mensagem trouxe. Resolve de
+   * novo, guarda um pendente novo e pergunta, exatamente como
+   * `registrar_lancamento_financeiro`.
+   */
+  const resolvido: CompraResolvida = { item_id: item.id, valor, pago };
+  if (temMemoria) {
+    await savePendingLista(tenant_id, user_id!, {
+      parameters: resolvido,
+      aguardando: "confirmacao_compra",
+    });
+  }
   return {
-    reply_text:
-      `Registrei a compra de ${descreverItem(item)} por ${reaisBr(valor)}` +
-      `${pago ? "" : ", como conta a pagar"}, e risquei da sua lista.`,
-    requires_confirmation: false,
-    auxiliary_data: { item_id: item.id, negotiation_id: compra.data.negotiation_id },
+    reply_text: `Comprou ${descreverItem(item)} por ${reaisBr(valor)}? Vou lançar a despesa e tirar da lista.`,
+    requires_confirmation: true,
+    auxiliary_data: { item_id: item.id, valor },
     report_url: null,
-    action_taken: `comprei_item_lista:${item.id}`,
+    action_taken: `${intent}:aguardando_confirmacao`,
   };
 };

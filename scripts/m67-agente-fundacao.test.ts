@@ -566,6 +566,91 @@ async function main() {
       await db.agentFlowState.deleteMany({ where: { user_id: owner.id } });
     }
 
+    console.log("\n10. Comprei item da lista");
+    {
+      /*
+       * Seções anteriores usam o mesmo `owner`: limpa qualquer pendente de
+       * Lista de Compra que possa ter sobrado (nenhuma seção usou esta
+       * intenção antes, mas o pendente é por usuário, não por seção, e uma
+       * corrida futura não pode virar falso positivo aqui).
+       */
+      const { clearPendingLista } = await import("@/lib/actions/shopping-pending");
+      await clearPendingLista(tenant.id, owner.id);
+
+      await acao("adicionar_item_lista", { item: "Arame M67", quantidade: 2, unidade: "rolo" }, "anota 2 rolos de arame");
+      await acao("adicionar_item_lista", { item: "Arame M67", quantidade: 2, unidade: "rolo" }, "sim", { confirmed: true });
+
+      /*
+       * `comprei_item_lista` só registra a compra de verdade quando o item já
+       * tem produto e fazenda (T06 §1), e nada no gesto de adicionar pelo
+       * WhatsApp preenche isso. Simula o que a tela faria: liga o item ao
+       * catálogo antes de "comprar".
+       */
+      const categoriaArame = await db.productCategory.create({ data: scoped({ name: "Arame M67" }) });
+      const produtoArame = await db.product.create({
+        data: scoped({ category_id: categoriaArame.id, name: "Arame M67", unit: "rolo" }),
+      });
+      await db.shoppingItem.updateMany({
+        where: { description: "Arame M67", status: "pendente" },
+        data: { product_id: produtoArame.id, property_id: fazenda.id },
+      });
+
+      const r = await acao("comprei_item_lista", { item: "Arame M67", valor: 380 }, "comprei o arame por 380");
+      check("pergunta antes de gravar a compra com valor", r.data.requires_confirmation === true, r.data.reply_text);
+      const lanc = await db.financialEntry.count({ where: { amount: 380 } });
+      check("e não lançou ainda", lanc === 0, String(lanc));
+
+      // §19.7 pode ter deixado DOIS itens "Arame M67" na lista (o segundo
+      // `adicionar_item_lista` acima confirma a duplicata direto): o alvo da
+      // compra é o `item_id` que o próprio pedido guardou, não a descrição.
+      const itemId = String((r.data.auxiliary_data as { item_id?: string })?.item_id);
+
+      /*
+       * O "sim" executa o GUARDADO, não o que esta mensagem trouxe: parâmetros
+       * vazios de propósito, igual ao achado de `registrar_lancamento_financeiro`.
+       */
+      const confirmado = await acao("comprei_item_lista", {}, "sim", { confirmed: true });
+      check(
+        "confirmação com parâmetros vazios executa o pendente guardado",
+        confirmado.data.requires_confirmation === false,
+        confirmado.data.reply_text,
+      );
+      const lancDepois = await db.financialEntry.count({ where: { amount: 380 } });
+      check("lançou a despesa de 380 ao confirmar", lancDepois === 1, String(lancDepois));
+      const itemComprado = await db.shoppingItem.findFirst({ where: { id: itemId } });
+      check("o item saiu da lista (não está mais pendente)", itemComprado?.status !== "pendente", String(itemComprado?.status));
+
+      /*
+       * `confirmed: true` chegando com parâmetros cheios, mas SEM pendente
+       * guardado para este item (o de Arame já foi resolvido e limpo acima):
+       * precisa resolver de novo, guardar e perguntar, NUNCA gravar direto do
+       * que esta mensagem trouxe. Item novo, também já ligado ao catálogo.
+       */
+      const categoriaCorreia = await db.productCategory.create({ data: scoped({ name: "Correia M67" }) });
+      const produtoCorreia = await db.product.create({
+        data: scoped({ category_id: categoriaCorreia.id, name: "Correia M67", unit: "unidade" }),
+      });
+      await acao("adicionar_item_lista", { item: "Correia M67" }, "preciso de uma correia");
+      await db.shoppingItem.updateMany({
+        where: { description: "Correia M67", status: "pendente" },
+        data: { product_id: produtoCorreia.id, property_id: fazenda.id },
+      });
+
+      const simSemPedido = await acao(
+        "comprei_item_lista",
+        { item: "Correia M67", valor: 222 },
+        "sim",
+        { confirmed: true },
+      );
+      check(
+        "confirmado sem pendente guardado não grava, pergunta de novo",
+        simSemPedido.data.requires_confirmation === true,
+        JSON.stringify(simSemPedido.data),
+      );
+      const lancSemPedido = await db.financialEntry.count({ where: { amount: 222 } });
+      check("nada gravado com valor 222 sem pendente", lancSemPedido === 0, String(lancSemPedido));
+    }
+
     void fazenda;
     void pasto;
   } finally {
