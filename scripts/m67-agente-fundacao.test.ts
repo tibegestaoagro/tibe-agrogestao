@@ -152,6 +152,24 @@ async function main() {
 
     console.log("\n5. Serviço prestado agendado e depois iniciado");
     {
+      // Fix round 2: statusInicialDoServico é pura, por DIA de calendário em
+      // São Paulo, não por instante. Datas FIXAS, não Date.now(): o teste não
+      // pode depender da hora em que a suíte roda.
+      const { statusInicialDoServico } = await import("@/lib/actions/service-jobs");
+      console.log("   statusInicialDoServico: por DIA em São Paulo, não por instante");
+      check(
+        "08h em SP, serviço no mesmo dia (09h SP): concluido",
+        statusInicialDoServico(new Date("2026-09-14T12:00:00Z"), new Date("2026-09-14T11:00:00Z")) === "concluido",
+      );
+      check(
+        "08h em SP, serviço no dia seguinte: agendado",
+        statusInicialDoServico(new Date("2026-09-15T12:00:00Z"), new Date("2026-09-14T11:00:00Z")) === "agendado",
+      );
+      check(
+        "20h30 em SP (quase virando o dia em UTC), serviço no dia seguinte: agendado",
+        statusInicialDoServico(new Date("2026-09-15T12:00:00Z"), new Date("2026-09-14T23:30:00Z")) === "agendado",
+      );
+
       await db.machine.create({ data: scoped({ name: "Trator M67", property_id: fazenda.id, type: "Trator" }) });
 
       // Fix round 1: nunca se inventa data. O agendado do teste precisa dizer
@@ -254,6 +272,70 @@ async function main() {
         jobTerminei?.status === "concluido",
         String(jobTerminei?.status),
       );
+
+      /**
+       * Achado (Importante, novo) do re-review: `concluido` negativo com data
+       * de HOJE ("ainda não fiz, faço hoje") tinha que nascer `agendado`, e
+       * o handler DIZIA isso, mas `createServiceJob` recalculava o status por
+       * INSTANTE por conta própria e gravava `concluido`: órfão de produção,
+       * sem conta a receber, resposta mentindo, e invisível para
+       * `iniciar_servico`. Fix round 2: o handler decide `agendado` UMA vez
+       * (incorporando o `concluido` explícito) e manda `status` pronto.
+       */
+      console.log('   concluido:false com data:"hoje": agendado hoje, não concluido');
+      const pHojeNegativo = {
+        servico: "colheita",
+        maquina: "Trator M67",
+        quem: "Carla M67",
+        valor: 900,
+        quantidade: 5,
+        unidade: "hectare",
+        concluido: false,
+        data: "hoje",
+      };
+      await acao("registrar_servico_prestado", pHojeNegativo, "ainda não fiz a colheita da Carla, faço hoje");
+      await acao("registrar_servico_prestado", pHojeNegativo, "sim", { confirmed: true });
+      const jobHojeNegativo = await db.serviceJob.findFirst({ where: { description: { contains: "colheita" } } });
+      check(
+        "concluido:false com hoje nasce agendado, não concluido",
+        jobHojeNegativo?.status === "agendado",
+        String(jobHojeNegativo?.status),
+      );
+      const logsHojeNegativo = await db.serviceJobLog.count({
+        where: { service_job_id: jobHojeNegativo?.id },
+      });
+      check("e sem log de produção", logsHojeNegativo === 0, String(logsHojeNegativo));
+      const financeiroHojeNegativo = await db.financialEntry.count({
+        where: { related_module: "servico", related_id: jobHojeNegativo?.id },
+      });
+      check("e sem conta a receber ainda", financeiroHojeNegativo === 0, String(financeiroHojeNegativo));
+
+      console.log("   concluido:false com data PASSADA: pergunta de novo, não cria (contraditório)");
+      const dezDiasAtras = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+      const dataPassada =
+        `${String(dezDiasAtras.getDate()).padStart(2, "0")}/` +
+        `${String(dezDiasAtras.getMonth() + 1).padStart(2, "0")}/${dezDiasAtras.getFullYear()}`;
+      const antesDaPassada = await db.serviceJob.count();
+      const passada = await acao(
+        "registrar_servico_prestado",
+        {
+          servico: "adubação",
+          maquina: "Trator M67",
+          quem: "Bruno M67",
+          valor: 600,
+          quantidade: 6,
+          unidade: "hectare",
+          concluido: false,
+          data: dataPassada,
+        },
+        "ainda não fiz a adubação do Bruno",
+      );
+      check(
+        "concluido:false com data passada pergunta de novo, não inventa",
+        passada.data.reply_text === "Para quando ficou marcado?",
+        passada.data.reply_text,
+      );
+      check("e não cria nada", (await db.serviceJob.count()) === antesDaPassada);
     }
 
     void fazenda;

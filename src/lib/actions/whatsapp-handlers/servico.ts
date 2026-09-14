@@ -666,10 +666,21 @@ export const registrarServicoPrestado: Handler = async (ctx) => {
   }
 
   /**
-   * Fix round 1 da revisão do Task 6: `concluido` só vira `false` diante de
-   * um NEGATIVO explícito (`concluidoExplicito`); sem isso, quem decide é a
-   * data. NUNCA inventamos data: sem `concluido` negativo, ou com ele mas
-   * SEM data dita, a pergunta volta ao produtor, em vez de chutar "amanhã".
+   * Fix round 1: `concluido` só vira `false` diante de um NEGATIVO explícito
+   * (`concluidoExplicito`); sem isso, quem decide é a data. NUNCA inventamos
+   * data: sem `concluido` negativo, ou com ele mas SEM data dita, a pergunta
+   * volta ao produtor, em vez de chutar "amanhã".
+   *
+   * Fix round 2: um negativo explícito com data PASSADA também não cria
+   * nada ("ainda não fiz" com uma data que já passou é contraditório) e
+   * pergunta de novo; com HOJE ou futuro, agenda para aquela data. `status`
+   * vai EXPLÍCITO para `createServiceJob`, porque a decisão daqui (que
+   * enxerga `concluido`) pode divergir da que `statusInicialDoServico`
+   * tiraria sozinha só da data (um negativo explícito com data de HOJE é
+   * `agendado` aqui, mas `statusInicialDoServico(hoje)` sozinho diria
+   * `concluido`): sem o `status` explícito, o serviço nascia com a resposta
+   * dizendo "agendado" e o banco gravando `concluido`, órfão de produção e
+   * de conta a receber.
    */
   const concluidoDito = concluidoExplicito(parameters.concluido);
   const dataLida = lerData(parameters, "data", "date");
@@ -677,21 +688,26 @@ export const registrarServicoPrestado: Handler = async (ctx) => {
     await guardar("data");
     return ask(`Não entendi a data "${dataLida.bruto}". Diga por exemplo "hoje" ou "05/08/2026".`);
   }
-  if (concluidoDito === false && dataLida.tipo === "vazio") {
-    await guardar("data");
-    return ask("Para quando ficou marcado?");
-  }
 
   const agora = new Date();
   /**
-   * "Futura" é DIA de calendário em São Paulo, não instante: comparar por
-   * instante fazia "hoje" (meio-dia) virar futuro toda manhã, antes do
-   * meio-dia UTC (09h em São Paulo), perdendo a produção e a conta a
-   * receber de um serviço que já tinha acabado de acontecer.
+   * "Futura"/"passada" é DIA de calendário em São Paulo, não instante:
+   * comparar por instante fazia "hoje" (meio-dia) virar futuro toda manhã,
+   * antes do meio-dia UTC (09h em São Paulo), perdendo a produção e a conta
+   * a receber de um serviço que já tinha acabado de acontecer.
    */
   const dataFutura =
     dataLida.tipo === "ok" &&
     inicioDoDiaEmSaoPaulo(dataLida.data).getTime() > inicioDoDiaEmSaoPaulo(agora).getTime();
+  const dataPassada =
+    dataLida.tipo === "ok" &&
+    inicioDoDiaEmSaoPaulo(dataLida.data).getTime() < inicioDoDiaEmSaoPaulo(agora).getTime();
+
+  if (concluidoDito === false && (dataLida.tipo === "vazio" || dataPassada)) {
+    await guardar("data");
+    return ask("Para quando ficou marcado?");
+  }
+
   const agendado = concluidoDito === false || (concluidoDito === null && dataFutura);
   const occurredAt = dataLida.tipo === "ok" && (agendado || !dataFutura) ? dataLida.data : agora;
   const dataFormatada = dataLida.tipo === "ok" ? dataLida.data.toLocaleDateString("pt-BR") : null;
@@ -720,6 +736,9 @@ export const registrarServicoPrestado: Handler = async (ctx) => {
     direction: "prestado",
     property_id: fazenda.id,
     occurred_at: occurredAt,
+    // Explícito: ver o comentário acima sobre `concluido` negativo com data
+    // de HOJE divergindo do que `statusInicialDoServico` derivaria sozinho.
+    status: agendado ? "agendado" : "concluido",
     description: servico,
     pricing,
     unit_price: pricing === "fechado" ? null : valor,
