@@ -17,6 +17,19 @@ import type {
   HerdStayType,
 } from "@/generated/prisma/enums";
 
+/** Os exemplos do §13, na ordem do documento. "Boitel" fica fora: nasce da cobrança da estadia. */
+export const CATEGORIAS_DE_CUSTO_DO_LOTE = [
+  "Ração",
+  "Silagem",
+  "Suplementação",
+  "Medicamentos",
+  "Mão de obra",
+  "Combustível",
+  "Serviços",
+  "Frete",
+  "Outros",
+] as const;
+
 export const TIPO_SITE_LABEL: Record<ConfinementSiteType, string> = {
   proprio: "Confinamento próprio",
   boitel: "Boitel",
@@ -59,7 +72,10 @@ export const CHARGE_LABEL: Record<HerdChargeType, string> = {
 export const MOVIMENTO_LABEL: Partial<Record<HerdMovementType, string>> = {
   envio_confinamento: "Entrada no confinamento",
   envio_boitel: "Entrada no boitel",
-  retorno_estadia: "Retorno para o pasto",
+  // Desde 14/09/2026 o retorno também leva para outra fazenda, outro
+  // confinamento ou leilão (dívida 2.8): "para o pasto" deixou de ser verdade.
+  retorno_estadia: "Saída do confinamento",
   venda: "Venda direto do confinamento",
   morte: "Morte",
+  ajuste: "Outro destino",
 };

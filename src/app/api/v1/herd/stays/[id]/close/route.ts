@@ -26,6 +26,21 @@ const closeSchema = z.object({
         quantity: z.number().int().positive("A quantidade deve ser maior que zero"),
         value: z.number().nonnegative().nullish(),
         pasture_id: z.string().nullish(),
+        // Dívida 2.8 (§17 e §19 do Confinamento), todos aditivos.
+        property_id: z.string().nullish(),
+        reason: z.string().trim().max(500).nullish(),
+        contact_id: z.string().nullish(),
+        contact_name: z.string().trim().max(200).nullish(),
+        pago: z.boolean().optional(),
+        due_date: z.string().datetime({ message: "Data inválida" }).nullish(),
+        confinement_site_id: z.string().nullish(),
+        evento: z
+          .object({
+            event_name: z.string().trim().min(1, "Informe o nome do leilão ou da feira").max(200),
+            event_type: z.string().trim().max(100).nullish(),
+            organizer_name: z.string().trim().max(200).nullish(),
+          })
+          .nullish(),
       }),
     )
     .min(1, "Informe ao menos um destino"),
@@ -51,6 +66,14 @@ async function POSTHandler(request: Request, context: { params: Promise<{ id: st
       quantity: d.quantity,
       value: d.value ?? null,
       pasture_id: d.pasture_id ?? null,
+      property_id: d.property_id ?? null,
+      reason: d.reason ?? null,
+      contact_id: d.contact_id ?? null,
+      contact_name: d.contact_name ?? null,
+      pago: d.pago ?? false,
+      due_date: d.due_date ? new Date(d.due_date) : null,
+      confinement_site_id: d.confinement_site_id ?? null,
+      evento: d.evento ?? null,
     })),
     occurred_at: parsed.data.occurred_at ? new Date(parsed.data.occurred_at) : null,
     recorded_by_user_id: g.user.id,

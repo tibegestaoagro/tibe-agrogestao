@@ -52,7 +52,9 @@ const REGRAS: Record<HerdStayType, RegraDaEstadia> = {
     situacao: "boitel",
     dono: "proprio",
     envio: "envio_boitel",
-    encerramentos: ["retorno_estadia", "venda", "morte"],
+    // `ajuste` é o "outro destino" do §17 do Confinamento, com motivo
+    // obrigatório (dívida 2.8, decisão do usuário em 14/09/2026).
+    encerramentos: ["retorno_estadia", "venda", "morte", "ajuste"],
   },
 
   /**
@@ -106,7 +108,9 @@ const REGRAS: Record<HerdStayType, RegraDaEstadia> = {
     situacao: "confinamento",
     dono: "proprio",
     envio: "envio_confinamento",
-    encerramentos: ["retorno_estadia", "venda", "morte"],
+    // §17: os outros destinos são `retorno_estadia` com fazenda, confinamento
+    // ou leilão, e venda para frigorífico; `ajuste` é o "outro destino".
+    encerramentos: ["retorno_estadia", "venda", "morte", "ajuste"],
   },
 };
 

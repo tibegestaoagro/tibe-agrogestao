@@ -1,6 +1,6 @@
 import type { HerdStayType } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
-import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
+import { createLinkedEntry, runSerializableTenantTransaction, type TenantTransactionClient } from "@/lib/financial";
 import { recordMovementInTx, type HerdPositionKey } from "@/lib/actions/herd-ledger";
 import { isValidCategory } from "@/lib/herd/categories";
 import { findOrCreateContact } from "@/lib/actions/contacts";
@@ -75,84 +75,96 @@ export async function openEventConsignment(
     if (!contato) return fail("INVALID_CONTACT", "Contato inválido.", 422, "contact_id");
   }
 
-  const occurred_at = input.occurred_at ?? new Date();
-
   return comRollback(() =>
-    runSerializableTenantTransaction(db, async (tx) => {
-      // O contato nasce dentro da transação: se o saldo recusar adiante, a
-      // leiloeira não fica cadastrada por um negócio que não existiu.
-      let contactId = input.contact_id ?? null;
-      if (!contactId && input.organizer_name?.trim()) {
-        contactId = (await findOrCreateContact(tx, input.organizer_name)).id;
-      }
-
-      const negociacao = await tx.negotiation.create({
-        data: scoped({
-          type: "evento",
-          occurred_at,
-          property_id: input.property_id,
-          contact_id: contactId,
-          // SEM valor: quanto o leilão rendeu só se sabe no encerramento, e
-          // preencher aqui seria a receita que o §17.8 proíbe.
-          amount: null,
-          notes: input.notes ?? null,
-          recorded_by_user_id: input.recorded_by_user_id ?? null,
-        }),
-      });
-
-      const estadia = await tx.herdStay.create({
-        data: scoped({
-          type: "evento",
-          property_id: input.property_id,
-          negotiation_id: negociacao.id,
-          event_type: input.event_type?.trim() || null,
-          location_name: input.event_name.trim(),
-          counterparty_name: input.organizer_name?.trim() || null,
-          city: input.city ?? null,
-          started_at: occurred_at,
-          expected_end_at: input.expected_end_at ?? null,
-          notes: input.notes ?? null,
-          recorded_by_user_id: input.recorded_by_user_id ?? null,
-        }),
-      });
-
-      const naFazenda: HerdPositionKey = {
-        category_id: input.category_id,
-        property_id: input.property_id,
-        pasture_id: input.pasture_id ?? null,
-        situation: "presente",
-        owner: "proprio",
-      };
-      const noEvento: HerdPositionKey = {
-        category_id: input.category_id,
-        property_id: input.property_id,
-        // Quem foi para o leilão não ocupa pasto nosso.
-        pasture_id: null,
-        situation: situacaoDaEstadia("evento"),
-        owner: donoDaEstadia("evento"),
-      };
-
-      const movimento = await recordMovementInTx(db, tx, {
-        movement_type: tipoDeEnvio("evento"),
-        quantity: input.quantity,
-        from: naFazenda,
-        to: noEvento,
-        // Sem valor: o livro-razão não é quem cria dinheiro aqui, e aqui não
-        // nasce dinheiro nenhum.
-        value: null,
-        occurred_at,
-        notes: input.notes ?? null,
-        recorded_by_user_id: input.recorded_by_user_id ?? null,
-        negotiation_id: negociacao.id,
-        stay_id: estadia.id,
-      });
-      // throw, não return: devolver de dentro do `$transaction` CONFIRMA a
-      // transação, e a negociação ficaria gravada apontando para nada.
-      if (!movimento.ok) throw new AbortarNegociacao(movimento);
-
-      return ok({ id: negociacao.id, stay_id: estadia.id });
-    }),
+    runSerializableTenantTransaction(db, (tx) => abrirRemessaNaTransacao(db, tx, input)),
   );
+}
+
+/**
+ * O corpo de `openEventConsignment`, para quem já está numa transação: o
+ * encerramento de um lote de confinamento que manda as cabeças direto para o
+ * leilão (dívida 2.8) abre a remessa na MESMA transação em que as tira do lote.
+ * Recusa lançando `AbortarNegociacao`; as validações de entrada ficam com
+ * `openEventConsignment`, e quem chama por aqui responde por elas.
+ */
+export async function abrirRemessaNaTransacao(
+  db: TenantPrismaClient,
+  tx: TenantTransactionClient,
+  input: OpenEventConsignmentInput,
+): Promise<ActionResult<{ id: string; stay_id: string }>> {
+  const occurred_at = input.occurred_at ?? new Date();
+  // O contato nasce dentro da transação: se o saldo recusar adiante, a
+  // leiloeira não fica cadastrada por um negócio que não existiu.
+  let contactId = input.contact_id ?? null;
+  if (!contactId && input.organizer_name?.trim()) {
+    contactId = (await findOrCreateContact(tx, input.organizer_name)).id;
+  }
+
+  const negociacao = await tx.negotiation.create({
+    data: scoped({
+      type: "evento",
+      occurred_at,
+      property_id: input.property_id,
+      contact_id: contactId,
+      // SEM valor: quanto o leilão rendeu só se sabe no encerramento, e
+      // preencher aqui seria a receita que o §17.8 proíbe.
+      amount: null,
+      notes: input.notes ?? null,
+      recorded_by_user_id: input.recorded_by_user_id ?? null,
+    }),
+  });
+
+  const estadia = await tx.herdStay.create({
+    data: scoped({
+      type: "evento",
+      property_id: input.property_id,
+      negotiation_id: negociacao.id,
+      event_type: input.event_type?.trim() || null,
+      location_name: input.event_name.trim(),
+      counterparty_name: input.organizer_name?.trim() || null,
+      city: input.city ?? null,
+      started_at: occurred_at,
+      expected_end_at: input.expected_end_at ?? null,
+      notes: input.notes ?? null,
+      recorded_by_user_id: input.recorded_by_user_id ?? null,
+    }),
+  });
+
+  const naFazenda: HerdPositionKey = {
+    category_id: input.category_id,
+    property_id: input.property_id,
+    pasture_id: input.pasture_id ?? null,
+    situation: "presente",
+    owner: "proprio",
+  };
+  const noEvento: HerdPositionKey = {
+    category_id: input.category_id,
+    property_id: input.property_id,
+    // Quem foi para o leilão não ocupa pasto nosso.
+    pasture_id: null,
+    situation: situacaoDaEstadia("evento"),
+    owner: donoDaEstadia("evento"),
+  };
+
+  const movimento = await recordMovementInTx(db, tx, {
+    movement_type: tipoDeEnvio("evento"),
+    quantity: input.quantity,
+    from: naFazenda,
+    to: noEvento,
+    // Sem valor: o livro-razão não é quem cria dinheiro aqui, e aqui não
+    // nasce dinheiro nenhum.
+    value: null,
+    occurred_at,
+    notes: input.notes ?? null,
+    recorded_by_user_id: input.recorded_by_user_id ?? null,
+    negotiation_id: negociacao.id,
+    stay_id: estadia.id,
+  });
+  // throw, não return: devolver de dentro do `$transaction` CONFIRMA a
+  // transação, e a negociação ficaria gravada apontando para nada.
+  if (!movimento.ok) throw new AbortarNegociacao(movimento);
+
+  return ok({ id: negociacao.id, stay_id: estadia.id });
 }
 
 /**

@@ -587,8 +587,8 @@ export const GROUPS: Group[] = [
         path: "/api/v1/herd/stays/:id/close",
         auth: "Sessão · rebanho:write · perfil fazenda",
         description:
-          "Encerra a estadia. A soma dos destinos precisa ser IGUAL ao que está na estadia, e o servidor devolve 422 `DESTINOS_NAO_BATEM` com `field: quantity` quando não bate. Os destinos vêm como lista por tipo de movimento (`retorno_estadia`, `venda`, `morte`, `perda_confirmada`, `saida_terceiro`), e cada tipo de estadia aceita só alguns: desaparecimento não aceita `venda`, e devolve 422 `ENCERRAMENTO_NAO_PERMITIDO`. `value` numa venda gera a receita dos vendidos.",
-        request: `{ "destinos": [{ "movement_type": "venda", "quantity": 12, "value": 60000 }, { "movement_type": "retorno_estadia", "quantity": 8 }] }`,
+          "Encerra a estadia, total ou parcialmente: a soma dos destinos pode ser MENOR que o que está na estadia (o resto continua nela), e maior devolve 422 `DESTINOS_NAO_BATEM` com `field: quantity`. Os destinos vêm como lista por tipo de movimento (`retorno_estadia`, `venda`, `morte`, `perda_confirmada`, `saida_terceiro`, `ajuste`), e cada tipo de estadia aceita só alguns (422 `ENCERRAMENTO_NAO_PERMITIDO`). Numa `venda`, cria a negociação de gado com `contact_id` ou `contact_name` opcionais, e `value` vira a receita (`pago`, `due_date`). Num `retorno_estadia`, `property_id` manda para outra fazenda, `confinement_site_id` abre lote novo noutro confinamento, e `evento` (`event_name`, `event_type`, `organizer_name`) abre a remessa para leilão ou feira. `ajuste` (confinamento e boitel) exige `reason`, e as cabeças saem do rebanho.",
+        request: `{ "destinos": [{ "movement_type": "venda", "quantity": 12, "value": 60000, "contact_name": "Frigorífico Boa Carne" }, { "movement_type": "retorno_estadia", "quantity": 8, "confinement_site_id": "cl..." }] }`,
         response: `200
 { "data": { "id": "cl...", "encerrada": true, "saldo_aberto": 0 }, "meta": {} }`,
       },
@@ -666,6 +666,15 @@ export const GROUPS: Group[] = [
         request: `{ "product_id": "cl...", "quantity": 180, "notes": "trato da manhã" }`,
         response: `201
 { "data": { "stay_id": "cl...", "registered_in_stock": true, "stock_movement_id": "cl..." }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/confinement/stays/:id/costs",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "Custo avulso do lote (§13, §14): ração comprada, remédio, frete. Vira despesa no Financeiro ligada ao lote (`related_module: confinamento`), e entra no `financial_cost` do resumo. `pago: true` nasce quitada; a prazo, `due_date` é obrigatória, senão 422 `VENCIMENTO_OBRIGATORIO`.",
+        request: `{ "category": "Ração", "amount": 3000, "pago": false, "due_date": "2026-10-10T12:00:00.000Z" }`,
+        response: `201
+{ "data": { "id": "cl..." }, "meta": {} }`,
       },
     ],
   },

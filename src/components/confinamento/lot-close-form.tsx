@@ -10,6 +10,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
 import { Field } from "@/components/ui/field";
 import { FormSheet } from "@/components/ui/form-sheet";
@@ -18,93 +19,174 @@ import { useAviso } from "@/components/ui/toast";
 import { apiPost } from "@/lib/client-api";
 
 /**
- * Encerrar um lote de confinamento, total ou parcial (§17 a §20 da spec).
+ * Encerrar um lote de confinamento, total ou parcial (§17 a §21 do documento
+ * do cliente).
  *
- * Reusa a mesma rota de encerramento de estadia do Módulo 30 fase 2
- * (`POST /api/v1/herd/stays/:id/close`), mas com formulário próprio: o painel
- * de Rebanho (`stay-close-form.tsx`) não conhece o tipo `confinamento`, e esta
- * tela abre um card por lote, então cada um precisa de um `id` de campo
- * isolado que aquele componente não tem motivo para carregar.
+ * Reusa a rota de encerramento de estadia (`POST /api/v1/herd/stays/:id/close`)
+ * com formulário próprio: esta tela abre um painel por lote, e cada um precisa
+ * de ids de campo isolados.
  *
- * Os destinos são os mesmos para `confinamento` e `boitel`
- * (`src/lib/herd/stay-rules.ts`): retorno ao pasto, venda direta, morte.
+ * Os destinos têm CHAVE própria, e não o tipo de movimento, porque desde
+ * 14/09/2026 (dívida 2.8) três deles são `retorno_estadia` com complementos
+ * diferentes: pasto, outra fazenda, outro confinamento e leilão. "Frigorífico"
+ * não é destino à parte: é a venda, com o frigorífico como comprador.
  */
 
-const DESTINOS: { movement_type: string; rotulo: string }[] = [
-  { movement_type: "retorno_estadia", rotulo: "Voltaram para o pasto" },
-  { movement_type: "venda", rotulo: "Vendidos direto do confinamento" },
-  { movement_type: "morte", rotulo: "Morreram" },
+type ChaveDestino = "pasto" | "outra_fazenda" | "outro_confinamento" | "leilao" | "venda" | "morte" | "outro";
+
+const DESTINOS: { chave: ChaveDestino; rotulo: string }[] = [
+  { chave: "pasto", rotulo: "Voltaram para o pasto" },
+  { chave: "outra_fazenda", rotulo: "Foram para outra fazenda" },
+  { chave: "outro_confinamento", rotulo: "Foram para outro confinamento" },
+  { chave: "leilao", rotulo: "Foram para leilão ou feira" },
+  { chave: "venda", rotulo: "Vendidos (inclusive para frigorífico)" },
+  { chave: "morte", rotulo: "Morreram" },
+  { chave: "outro", rotulo: "Outro destino" },
 ];
 
-type Pasture = { id: string; name: string };
+// Os complementos usam o nome do campo NA API, que é o que a recusa do
+// servidor traz em `field`. `pasture_outra` é só da tela: a lista de pastos
+// dela já vem filtrada pela fazenda escolhida, e o servidor não tem como
+// recusar pasto por ela.
+const ORDEM = [
+  ...DESTINOS.map((d) => d.chave),
+  "quantity",
+  "pasture_id",
+  "property_id",
+  "pasture_outra",
+  "confinement_site_id",
+  "event_name",
+  "value",
+  "contact_name",
+  "organizer_name",
+  "due_date",
+  "reason",
+] as const;
+type Campo = (typeof ORDEM)[number];
+
+type Opcao = { id: string; name: string };
 
 export default function LotCloseForm({
   stayId,
   saldoAberto,
   descricao,
+  propertyId,
+  properties,
   pastures,
+  sites,
 }: {
   stayId: string;
   saldoAberto: number;
   descricao: string;
-  /** Pastos da fazenda deste lote, já filtrados pela página (§18). */
-  pastures: Pasture[];
+  /** Fazenda deste lote: os pastos de "voltaram para o pasto" são dela (§18). */
+  propertyId: string;
+  properties: Opcao[];
+  pastures: (Opcao & { property_id: string })[];
+  /** Confinamentos ativos, sem o deste lote. */
+  sites: Opcao[];
 }) {
   const router = useRouter();
   const aviso = useAviso();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const err = useErrosDeFormulario(
-    DESTINOS.map((d) => d.movement_type).concat("quantity", "value", "pasture_id"),
-    `encerrar-${stayId}`,
-  );
+  const err = useErrosDeFormulario(ORDEM, `encerrar-${stayId}`);
 
-  const [valores, setValores] = useState<Record<string, string>>({});
-  const [valorVenda, setValorVenda] = useState("");
+  const [valores, setValores] = useState<Partial<Record<ChaveDestino, string>>>({});
   const [pastureId, setPastureId] = useState("");
+  const [outraFazenda, setOutraFazenda] = useState("");
+  const [pastoOutra, setPastoOutra] = useState("");
+  const [siteId, setSiteId] = useState("");
+  const [evento, setEvento] = useState("");
+  const [organizador, setOrganizador] = useState("");
+  const [valorVenda, setValorVenda] = useState("");
+  const [comprador, setComprador] = useState("");
+  const [recebido, setRecebido] = useState(false);
+  const [vencimento, setVencimento] = useState("");
+  const [motivo, setMotivo] = useState("");
 
+  const qtd = (chave: ChaveDestino) => lerValorDoCampo(valores[chave] ?? "") ?? 0;
   const informado = useMemo(
-    () =>
-      DESTINOS.reduce((soma, d) => soma + (lerValorDoCampo(valores[d.movement_type] ?? "") ?? 0), 0),
+    () => DESTINOS.reduce((soma, d) => soma + (lerValorDoCampo(valores[d.chave] ?? "") ?? 0), 0),
     [valores],
   );
   const falta = saldoAberto - informado;
-  const vendeuAlgo = (lerValorDoCampo(valores.venda ?? "") ?? 0) > 0;
-  const voltouParaPasto = (lerValorDoCampo(valores.retorno_estadia ?? "") ?? 0) > 0;
+  const outrasFazendas = properties.filter((p) => p.id !== propertyId);
+  const destinosVisiveis = DESTINOS.filter(
+    (d) =>
+      (d.chave !== "outra_fazenda" || outrasFazendas.length > 0) &&
+      (d.chave !== "outro_confinamento" || sites.length > 0),
+  );
 
   function limpar() {
     setValores({});
-    setValorVenda("");
     setPastureId("");
+    setOutraFazenda("");
+    setPastoOutra("");
+    setSiteId("");
+    setEvento("");
+    setOrganizador("");
+    setValorVenda("");
+    setComprador("");
+    setRecebido(false);
+    setVencimento("");
+    setMotivo("");
     err.limparTudo();
   }
 
   async function submit() {
-    // Somar mais do que está no lote continua recusado (pelo servidor
-    // também); somar menos passa a ser válido desde 31/08 e deixa o lote
-    // aberto com o restante (§20).
+    const novos: Partial<Record<Campo, string>> = {};
+    // Somar mais do que está no lote é recusado (pelo servidor também); somar
+    // menos deixa o lote aberto com o restante (§20).
     if (falta < 0) {
+      novos.quantity = `Você informou ${Math.abs(falta).toLocaleString("pt-BR")} a mais do que as ${saldoAberto.toLocaleString("pt-BR")} que estão no lote.`;
+    }
+    // Cada complemento só é cobrado quando o destino dele tem cabeças: campo
+    // que não está na tela não pode receber o foco da recusa.
+    if (qtd("outra_fazenda") > 0 && !outraFazenda) novos.property_id = "Escolha a fazenda.";
+    if (qtd("outro_confinamento") > 0 && !siteId) novos.confinement_site_id = "Escolha o confinamento.";
+    if (qtd("leilao") > 0 && !evento.trim()) novos.event_name = "Informe o nome do leilão ou da feira.";
+    const valor = lerValorDoCampo(valorVenda);
+    if (qtd("venda") > 0 && valor != null && valor > 0 && !recebido && !vencimento) {
+      novos.due_date = "Informe quando vai receber.";
+    }
+    if (qtd("outro") > 0 && !motivo.trim()) novos.reason = "Diga para onde os animais foram.";
+    if (Object.keys(novos).length > 0) {
       err.setGlobal(null);
-      err.reprovar({
-        quantity: `Você informou ${Math.abs(falta).toLocaleString("pt-BR")} a mais do que as ${saldoAberto.toLocaleString("pt-BR")} que estão no lote.`,
-      });
+      err.reprovar(novos);
       return;
     }
+
+    const destinos = [
+      { movement_type: "retorno_estadia", quantity: qtd("pasto"), pasture_id: pastureId || null },
+      {
+        movement_type: "retorno_estadia",
+        quantity: qtd("outra_fazenda"),
+        property_id: outraFazenda || null,
+        pasture_id: pastoOutra || null,
+      },
+      { movement_type: "retorno_estadia", quantity: qtd("outro_confinamento"), confinement_site_id: siteId || null },
+      {
+        movement_type: "retorno_estadia",
+        quantity: qtd("leilao"),
+        evento: { event_name: evento.trim(), organizer_name: organizador.trim() || null },
+      },
+      {
+        movement_type: "venda",
+        quantity: qtd("venda"),
+        value: valor,
+        contact_name: comprador.trim() || null,
+        pago: recebido,
+        due_date: !recebido && vencimento ? new Date(`${vencimento}T12:00:00`).toISOString() : null,
+      },
+      { movement_type: "morte", quantity: qtd("morte") },
+      { movement_type: "ajuste", quantity: qtd("outro"), reason: motivo.trim() || null },
+    ].filter((d) => d.quantity > 0);
 
     err.limparTudo();
     setLoading(true);
     const res = await apiPost<{ id: string; encerrada: boolean; saldo_aberto: number }>(
       `/api/v1/herd/stays/${stayId}/close`,
-      {
-        destinos: DESTINOS.map((d) => ({
-          movement_type: d.movement_type,
-          quantity: lerValorDoCampo(valores[d.movement_type] ?? "") ?? 0,
-          value: d.movement_type === "venda" ? lerValorDoCampo(valorVenda) : null,
-          // Pasto de destino é só para quem volta ao pasto (§18): venda e
-          // morte não têm posição de destino nenhuma para o pasto pousar.
-          ...(d.movement_type === "retorno_estadia" ? { pasture_id: pastureId || null } : {}),
-        })).filter((d) => d.quantity > 0),
-      },
+      { destinos },
     );
     setLoading(false);
 
@@ -122,6 +204,61 @@ export default function LotCloseForm({
     limpar();
     router.refresh();
   }
+
+  const selecao = (
+    campo: Campo,
+    label: string,
+    valor: string,
+    mudar: (v: string) => void,
+    opcoes: Opcao[],
+    placeholder: string,
+    opts: { required?: boolean; hint?: string } = {},
+  ) => (
+    <Field label={label} required={opts.required} hint={opts.hint} id={err.idDe(campo)} error={err.erros[campo]}>
+      {({ id, ...aria }) => (
+        <Select
+          value={valor}
+          onValueChange={(v) => {
+            mudar(v);
+            err.limparCampo(campo);
+          }}
+        >
+          <SelectTrigger id={id} {...aria}>
+            <SelectValue placeholder={placeholder} />
+          </SelectTrigger>
+          <SelectContent>
+            {opcoes.map((o) => (
+              <SelectItem key={o.id} value={o.id}>
+                {o.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </Field>
+  );
+
+  const texto = (
+    campo: Campo,
+    label: string,
+    valor: string,
+    mudar: (v: string) => void,
+    opts: { required?: boolean; hint?: string } = {},
+  ) => (
+    <Field label={label} required={opts.required} hint={opts.hint} id={err.idDe(campo)} error={err.erros[campo]}>
+      {({ id, ...aria }) => (
+        <Input
+          id={id}
+          {...aria}
+          value={valor}
+          onChange={(e) => {
+            mudar(e.target.value);
+            err.limparCampo(campo);
+          }}
+        />
+      )}
+    </Field>
+  );
 
   return (
     <FormSheet
@@ -147,76 +284,157 @@ export default function LotCloseForm({
     >
       <p className="rounded-md bg-superficie-afundada px-3 py-2 text-sm text-texto-secundario">
         Estão no lote{" "}
-        <span className="tabular-nums font-medium text-texto">
-          {saldoAberto.toLocaleString("pt-BR")}
-        </span>{" "}
+        <span className="tabular-nums font-medium text-texto">{saldoAberto.toLocaleString("pt-BR")}</span>{" "}
         {saldoAberto === 1 ? "cabeça" : "cabeças"}. Diga para onde cada uma foi.
       </p>
 
-      {DESTINOS.map((destino, indice) => (
-        // A recusa de quantidade do `closeStay` vem com `field: "quantity"`,
-        // que não é o id de nenhum destino: sem o `error=` no primeiro campo,
-        // "Cada destino precisa de uma quantidade inteira" era gravada em
-        // `erros.quantity` e nunca renderizada. O primeiro destino carrega a
-        // mensagem porque é onde o produtor está olhando quando ela acontece.
-        <Field
-          key={destino.movement_type}
-          label={destino.rotulo}
-          id={err.idDe(destino.movement_type)}
-          error={err.erros[destino.movement_type] ?? (indice === 0 ? err.erros.quantity : undefined)}
-        >
-          {({ id, ...aria }) => (
-            <MoneyInput
-              id={id}
-              {...aria}
-              kind="quantidade"
-              unit="cabeças"
-              value={valores[destino.movement_type] ?? ""}
-              onValueChange={(v) => {
-                setValores((atuais) => ({ ...atuais, [destino.movement_type]: v }));
-                err.limparCampo("quantity");
-              }}
-            />
+      {destinosVisiveis.map((destino, indice) => (
+        <div key={destino.chave} className="space-y-3">
+          {/* A recusa de quantidade do `closeStay` vem com `field: "quantity"`,
+              que não é o id de nenhum destino: o primeiro campo a carrega. */}
+          <Field
+            label={destino.rotulo}
+            id={err.idDe(destino.chave)}
+            error={err.erros[destino.chave] ?? (indice === 0 ? err.erros.quantity : undefined)}
+          >
+            {({ id, ...aria }) => (
+              <MoneyInput
+                id={id}
+                {...aria}
+                kind="quantidade"
+                unit="cabeças"
+                value={valores[destino.chave] ?? ""}
+                onValueChange={(v) => {
+                  setValores((atuais) => ({ ...atuais, [destino.chave]: v }));
+                  err.limparCampo("quantity");
+                }}
+              />
+            )}
+          </Field>
+
+          {destino.chave === "pasto" && qtd("pasto") > 0 &&
+            selecao(
+              "pasture_id",
+              "Pasto de destino",
+              pastureId,
+              setPastureId,
+              pastures.filter((p) => p.property_id === propertyId),
+              "Sem pasto informado",
+              { hint: "Opcional." },
+            )}
+
+          {destino.chave === "outra_fazenda" && qtd("outra_fazenda") > 0 && (
+            <>
+              {selecao(
+                "property_id",
+                "Fazenda de destino",
+                outraFazenda,
+                (v) => {
+                  setOutraFazenda(v);
+                  setPastoOutra("");
+                },
+                outrasFazendas,
+                "Escolha a fazenda",
+                { required: true },
+              )}
+              {outraFazenda &&
+                selecao(
+                  "pasture_outra",
+                  "Pasto na fazenda de destino",
+                  pastoOutra,
+                  setPastoOutra,
+                  pastures.filter((p) => p.property_id === outraFazenda),
+                  "Sem pasto informado",
+                  { hint: "Opcional." },
+                )}
+            </>
           )}
-        </Field>
+
+          {destino.chave === "outro_confinamento" && qtd("outro_confinamento") > 0 &&
+            selecao("confinement_site_id", "Confinamento de destino", siteId, setSiteId, sites, "Escolha o confinamento", {
+              required: true,
+              hint: "Um lote novo abre lá, e a contagem de dias recomeça.",
+            })}
+
+          {destino.chave === "leilao" && qtd("leilao") > 0 && (
+            <>
+              {texto("event_name", "Nome do leilão ou da feira", evento, setEvento, { required: true })}
+              {texto("organizer_name", "Leiloeira ou organizador", organizador, setOrganizador, {
+                hint: "Opcional. A venda só vira receita quando você encerrar a remessa em Negociações.",
+              })}
+            </>
+          )}
+
+          {destino.chave === "venda" && qtd("venda") > 0 && (
+            <>
+              <Field label="Valor da venda" hint="Vira a receita da negociação." id={err.idDe("value")} error={err.erros.value}>
+                {({ id, ...aria }) => (
+                  <MoneyInput
+                    id={id}
+                    {...aria}
+                    value={valorVenda}
+                    onValueChange={(v) => {
+                      setValorVenda(v);
+                      err.limparCampo("value");
+                    }}
+                  />
+                )}
+              </Field>
+              {texto("contact_name", "Comprador", comprador, setComprador, {
+                hint: "Opcional. O frigorífico ou quem comprou.",
+              })}
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-texto">Você já recebeu?</p>
+                <div className="flex gap-2">
+                  {(
+                    [
+                      [false, "Vou receber"],
+                      [true, "Recebi"],
+                    ] as const
+                  ).map(([v, rotulo]) => (
+                    <Button
+                      key={String(v)}
+                      type="button"
+                      variant={recebido === v ? "default" : "outline"}
+                      onClick={() => {
+                        setRecebido(v);
+                        if (v) {
+                          setVencimento("");
+                          err.limparCampo("due_date");
+                        }
+                      }}
+                    >
+                      {rotulo}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              {!recebido && (
+                <Field label="Data prevista de recebimento" id={err.idDe("due_date")} error={err.erros.due_date}>
+                  {({ id, ...aria }) => (
+                    <Input
+                      id={id}
+                      {...aria}
+                      type="date"
+                      value={vencimento}
+                      onChange={(e) => {
+                        setVencimento(e.target.value);
+                        err.limparCampo("due_date");
+                      }}
+                    />
+                  )}
+                </Field>
+              )}
+            </>
+          )}
+
+          {destino.chave === "outro" && qtd("outro") > 0 &&
+            texto("reason", "Para onde foram", motivo, setMotivo, {
+              required: true,
+              hint: "Saem do rebanho. Exemplo: doados ao vizinho.",
+            })}
+        </div>
       ))}
-
-      {voltouParaPasto && pastures.length > 0 && (
-        <Field
-          label="Pasto de destino"
-          hint="Opcional. Para onde os que voltaram foram."
-          id={err.idDe("pasture_id")}
-          error={err.erros.pasture_id}
-        >
-          {({ id, ...aria }) => (
-            <Select value={pastureId} onValueChange={setPastureId}>
-              <SelectTrigger id={id} {...aria}>
-                <SelectValue placeholder="Sem pasto informado" />
-              </SelectTrigger>
-              <SelectContent>
-                {pastures.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        </Field>
-      )}
-
-      {vendeuAlgo && (
-        <Field
-          label="Valor recebido pelos vendidos, em R$"
-          hint="Opcional. Gera a receita no Financeiro."
-          id={err.idDe("value")}
-          error={err.erros.value}
-        >
-          {({ id, ...aria }) => (
-            <MoneyInput id={id} {...aria} value={valorVenda} onValueChange={setValorVenda} />
-          )}
-        </Field>
-      )}
 
       <p
         className={
@@ -233,11 +451,6 @@ export default function LotCloseForm({
             ? `Encerramento parcial: ${falta.toLocaleString("pt-BR")} cabeças continuam no lote depois de salvar.`
             : `Você informou ${Math.abs(falta).toLocaleString("pt-BR")} a mais do que há no lote.`}
       </p>
-      {err.erros.quantity && (
-        <p role="alert" className="text-sm text-perigo-tinta">
-          {err.erros.quantity}
-        </p>
-      )}
     </FormSheet>
   );
 }

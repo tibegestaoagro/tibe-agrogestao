@@ -45,6 +45,7 @@
     "test:m63": "tsx scripts/m63-lista-de-compra.test.ts",
     "test:m64": "tsx scripts/m64-calculadora.test.ts",
     "test:m65": "tsx scripts/m65-meu-dia-fase-38.test.ts",
+    "test:m66": "tsx scripts/m66-confinamento-saidas.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",

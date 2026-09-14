@@ -82,6 +82,7 @@ export const HERD_CLOSE_TYPES = [
   "morte",
   "perda_confirmada",
   "saida_terceiro",
+  "ajuste",
 ] as const satisfies readonly HerdMovementType[];
 
 /**

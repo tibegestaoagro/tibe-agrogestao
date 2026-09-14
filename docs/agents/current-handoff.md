@@ -27,6 +27,30 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-09-14.
 
+### Dívida 2.8 (Confinamento) fechada na branch `confinamento-custos-e-saidas`
+
+Spec: [../superpowers/specs/2026-09-14-confinamento-custos-e-saidas.md](../superpowers/specs/2026-09-14-confinamento-custos-e-saidas.md).
+Sem migração. Decisões do usuário em 14/09 na spec.
+
+- **"Registrar custo" no lote**: despesa no Financeiro ligada ao lote, que entra
+  no custo acumulado (`POST /api/v1/confinement/stays/:id/costs`).
+- **Encerramento com sete destinos**: pasto, outra fazenda, outro confinamento
+  (abre lote novo lá), leilão ou feira (abre a remessa do Módulo 31), venda,
+  morte e outro destino (`ajuste` com motivo). Tudo numa transação.
+- ⚠️ **A venda de QUALQUER estadia passou a criar negociação** (§19), com
+  comprador opcional, e a receita sai dela, não do livro-razão. Achado da
+  auditoria: antes a venda do lote não aparecia em Negociações.
+
+**Validado:** `m66` nova (7 seções, provada falhando com o caminho antigo),
+`m51` ajustada; suíte inteira; no navegador, custo de R$ 450 levou o lote de
+R$ 12 a R$ 462, e um encerramento de 10 cabeças gravou lote novo no Boitel,
+remessa de leilão, venda "Frigorifico Teste" em Negociações e o ajuste com
+motivo, com o lote em 15.
+
+⚠️ O agente do WhatsApp não ganhou os destinos novos (o classificador segue
+congelado); a venda dele continua funcionando, agora como negociação sem
+comprador.
+
 ### As três decisões pendentes do Leite, na branch `leite-decisoes-pendentes`
 
 Decididas pelo usuário em 14/09 (as três recomendadas), sem migração:
@@ -190,11 +214,10 @@ variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou, e cada commit que sobe é leitura pública.
 
 **2. Pedido do usuário em 14/09:** resolver o que resta ANTES de rotacionar as
-credenciais. O que resta depende de decisão de produto; trazer as perguntas.
-
-**Continuam esperando:** a outra metade da
-`dividas.md` §2.8 (a despesa avulsa e os sete destinos de saída), que é o
-próximo depois do merge do Leite.
+credenciais. Depois do merge da dívida 2.8, o que sobra em `dividas.md` é de
+outra natureza: validação em aparelho (1.1, 1.2), sandbox do Asaas (1.3, precisa
+de chave), itens adiados por volume de dado (2.3), conversa com o cliente
+(2.4), tokens de cor fora do painel (2.5 a 2.7) e contratos do app (4.1).
 
 Não avance para outro módulo sem aprovação explícita.
 

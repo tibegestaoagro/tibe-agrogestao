@@ -1,6 +1,6 @@
 import type { NegotiationType, Prisma, FinancialEntryStatus } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
-import { runSerializableTenantTransaction, createLinkedEntry } from "@/lib/financial";
+import { runSerializableTenantTransaction, createLinkedEntry, type TenantTransactionClient } from "@/lib/financial";
 import { recordMovementInTx, getPositions, type HerdPositionKey } from "@/lib/actions/herd-ledger";
 import { decToNum, isoOrNull } from "@/lib/serialize";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
@@ -389,6 +389,93 @@ export function validarPagamento(input: {
   }
 
   return null;
+}
+
+/**
+ * A venda de cabeças que saem de uma ESTADIA (confinamento, boitel, pasto de
+ * terceiro), dentro da transação do encerramento (dívida 2.8, §19 do
+ * Confinamento: "a venda deverá ser registrada em Negociações").
+ *
+ * Existe à parte de `createCattleNegotiation` porque aquela tira sempre de
+ * `presente`, abre a própria transação e aceita vários itens, parcelas e
+ * custos; o encerramento de lote tem uma posição de origem só e já está numa
+ * transação. O dinheiro segue a mesma regra: o lançamento é da negociação, e o
+ * livro-razão recebe `value: null` para não criar uma segunda receita.
+ *
+ * Sem valor, nasce a negociação sem lançamento ("sem valor"), como a remessa
+ * de evento: o WhatsApp e a tela sempre mandam valor, mas a rota não o exige.
+ *
+ * Lança `AbortarNegociacao` para derrubar a transação de quem chamou.
+ */
+export async function venderDaEstadiaNaTransacao(
+  db: TenantPrismaClient,
+  tx: TenantTransactionClient,
+  input: {
+    from: HerdPositionKey;
+    quantity: number;
+    stay_id: string;
+    amount: number | null;
+    contact_id?: string | null;
+    contact_name?: string | null;
+    pago?: boolean;
+    due_date?: Date | null;
+    occurred_at: Date;
+    recorded_by_user_id?: string | null;
+  },
+): Promise<string> {
+  let contactId = input.contact_id ?? null;
+  if (contactId) {
+    const contato = await tx.contact.findFirst({ where: { id: contactId } });
+    if (!contato) {
+      throw new AbortarNegociacao({ ok: false, code: "INVALID_CONTACT", message: "Comprador inválido.", status: 422, field: "contact_id" });
+    }
+  } else if (input.contact_name?.trim()) {
+    contactId = (await findOrCreateContact(tx, input.contact_name)).id;
+  }
+
+  const negociacao = await tx.negotiation.create({
+    data: scoped({
+      type: "venda_gado",
+      occurred_at: input.occurred_at,
+      property_id: input.from.property_id,
+      contact_id: contactId,
+      amount: input.amount,
+      recorded_by_user_id: input.recorded_by_user_id ?? null,
+    }),
+  });
+
+  const movimento = await recordMovementInTx(db, tx, {
+    movement_type: "venda",
+    quantity: input.quantity,
+    from: input.from,
+    to: null,
+    value: null,
+    occurred_at: input.occurred_at,
+    recorded_by_user_id: input.recorded_by_user_id ?? null,
+    negotiation_id: negociacao.id,
+    stay_id: input.stay_id,
+  });
+  if (!movimento.ok) throw new AbortarNegociacao(movimento);
+
+  if (input.amount != null && input.amount > 0) {
+    await createLinkedEntry(tx, {
+      entry_type: "income",
+      category: CATEGORIA_FINANCEIRA.venda_gado,
+      amount: input.amount,
+      related_module: "rebanho",
+      related_id: negociacao.id,
+      occurred_at: input.occurred_at,
+      // Mesma regra de `createCattleNegotiation`: sem vencimento, vence HOJE.
+      due_date: input.pago ? input.occurred_at : (input.due_date ?? new Date()),
+      status: input.pago ? "paid" : "pending",
+      negotiation_id: negociacao.id,
+      negotiation_role: "principal",
+      property_id: input.from.property_id,
+      contact_id: contactId,
+    });
+  }
+
+  return negociacao.id;
 }
 
 export async function createCattleNegotiation(

@@ -9,6 +9,7 @@ import { getPositions } from "@/lib/actions/herd-ledger";
 import { situacaoDaEstadia, donoDaEstadia } from "@/lib/herd/stay-rules";
 import { recordStockMovement } from "@/lib/actions/stock-ledger";
 import { decToNum } from "@/lib/serialize";
+import { createLinkedEntry } from "@/lib/financial";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 
 /**
@@ -393,6 +394,64 @@ export async function recordConfinementFeeding(
   if (!movimento.ok) return movimento;
 
   return ok({ stay_id: stay.id, registered_in_stock: true, stock_movement_id: movimento.data.id });
+}
+
+// ─────────────────────────────────────────────────────────────
+// Custo avulso do lote (§13, §14)
+// ─────────────────────────────────────────────────────────────
+
+export type ConfinementCostInput = {
+  stay_id: string;
+  category: string;
+  amount: number;
+  pago?: boolean;
+  due_date?: Date | null;
+};
+
+/**
+ * A despesa avulsa do lote: a ração comprada, o remédio, o frete (dívida 2.8).
+ *
+ * O resumo do lote já somava toda despesa com `related_id` do lote, mas nenhuma
+ * tela gravava essa ligação: a ração lançada no Financeiro nunca chegava ao
+ * "Custo acumulado". Decisão do usuário em 14/09/2026: o lançamento nasce no
+ * lote, e o formulário rápido do Financeiro não ganha campo.
+ */
+export async function recordConfinementCost(
+  db: TenantPrismaClient,
+  input: ConfinementCostInput,
+): Promise<ActionResult<{ id: string }>> {
+  const stay = await db.herdStay.findFirst({ where: { id: input.stay_id } });
+  if (!stay || (stay.type !== "confinamento" && stay.type !== "boitel")) {
+    return fail("NOT_FOUND", "Lote de confinamento não encontrado.", 404);
+  }
+  if (stay.canceled_at) {
+    return fail("ESTADIA_CANCELADA", "Este lote foi cancelado.", 422);
+  }
+
+  const category = input.category.trim();
+  if (!category) return fail("VALIDATION_ERROR", "Escolha o tipo de custo.", 422, "category");
+  if (!Number.isFinite(input.amount) || input.amount <= 0) {
+    return fail("VALIDATION_ERROR", "Informe o valor do custo.", 422, "amount");
+  }
+  // Mesma regra do fechamento do leite: a prazo sem data, a conta nasceria
+  // vencendo hoje por padrão, que não é o que o produtor combinou.
+  if (!input.pago && !input.due_date) {
+    return fail("VENCIMENTO_OBRIGATORIO", "Informe quando vai pagar.", 422, "due_date");
+  }
+
+  const agora = new Date();
+  const entry = await createLinkedEntry(db, {
+    entry_type: "expense",
+    category,
+    amount: Math.round(input.amount * 100) / 100,
+    related_module: "confinamento",
+    related_id: stay.id,
+    occurred_at: agora,
+    status: input.pago ? "paid" : "pending",
+    due_date: input.pago ? agora : input.due_date,
+    property_id: stay.property_id,
+  });
+  return ok({ id: entry.id });
 }
 
 // ─────────────────────────────────────────────────────────────

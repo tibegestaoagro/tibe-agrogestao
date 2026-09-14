@@ -16,6 +16,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import SiteList from "@/components/confinamento/site-list";
 import StayOpenForm from "@/components/confinamento/stay-open-form";
 import LotFeedingForm from "@/components/confinamento/lot-feeding-form";
+import LotCostForm from "@/components/confinamento/lot-cost-form";
 import LotCloseForm from "@/components/confinamento/lot-close-form";
 import { TIPO_ESTADIA_LABEL, CHARGE_LABEL, MOVIMENTO_LABEL } from "@/components/confinamento/labels";
 import {
@@ -97,17 +98,17 @@ export default async function ConfinamentoPage() {
       : [],
     // Os contadores do §24 ("quantidade de saídas", "mortes") precisam de
     // TODOS os movimentos de saída de cada lote, não só os 30 mais recentes do
-    // feed acima (que é de todos os lotes somados). `LotCloseForm` só oferece
-    // três destinos de encerramento (`retorno_estadia`, `venda`, `morte`).
-    // Os dois primeiros viram "saídas"; `morte` vira a coluna própria, sem
-    // entrar nas saídas (ver o laço que monta os dois mapas, abaixo).
+    // feed acima (que é de todos os lotes somados). `LotCloseForm` grava
+    // quatro tipos de movimento (`retorno_estadia`, `venda`, `ajuste`,
+    // `morte`). Os três primeiros viram "saídas"; `morte` vira a coluna
+    // própria, sem entrar nas saídas (ver o laço que monta os dois mapas).
     lotIds.length > 0
       ? db.herdMovement.groupBy({
           by: ["stay_id", "movement_type"],
           where: {
             stay_id: { in: lotIds },
             canceled_at: null,
-            movement_type: { in: ["retorno_estadia", "venda", "morte"] },
+            movement_type: { in: ["retorno_estadia", "venda", "ajuste", "morte"] },
           },
           _sum: { quantity: true },
         })
@@ -363,6 +364,7 @@ export default async function ConfinamentoPage() {
                     {writable && (
                       <TableCell className="text-right">
                         <div className="flex flex-wrap justify-end gap-2">
+                          <LotCostForm stayId={lote.id} />
                           <LotFeedingForm
                             stayId={lote.id}
                             propertyId={lote.property_id}
@@ -374,9 +376,12 @@ export default async function ConfinamentoPage() {
                             descricao={`${TIPO_ESTADIA_LABEL[lote.type] ?? lote.type} em ${
                               lote.location_name ?? "local não informado"
                             }, desde ${lote.started_at.toLocaleDateString("pt-BR")}.`}
-                            pastures={pastures
-                              .filter((p) => p.property_id === lote.property_id)
-                              .map((p) => ({ id: p.id, name: p.name }))}
+                            propertyId={lote.property_id}
+                            properties={properties.map((p) => ({ id: p.id, name: p.name }))}
+                            pastures={pastures.map((p) => ({ id: p.id, name: p.name, property_id: p.property_id }))}
+                            sites={sites
+                              .filter((s) => s.archived_at === null && s.id !== lote.confinement_site_id)
+                              .map((s) => ({ id: s.id, name: s.name }))}
                           />
                         </div>
                       </TableCell>
