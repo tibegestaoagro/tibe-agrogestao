@@ -2,6 +2,8 @@ import type { TenantPrismaClient } from "@/lib/prisma";
 import { decToNum } from "@/lib/serialize";
 import { diasAte, inicioDoDiaEmSaoPaulo } from "@/lib/dia-calendario";
 import { listStays } from "@/lib/actions/herd-stays";
+import { getPositions } from "@/lib/actions/herd-ledger";
+import { summarizePositions } from "@/lib/herd/summary";
 
 /**
  * Módulo 38, Meu Dia: as três seções (§30 a §32), lidas AO VIVO.
@@ -275,6 +277,97 @@ export async function lerItensDoDia(
  * O alerta de estoque baixo não tem data e vai para "Atenção" por natureza: o
  * §31 lista "estoque crítico" entre os exemplos.
  */
+export type ResumoDaFazenda = {
+  rebanhoProprio: number | null;
+  aReceber: number;
+  aPagar: number;
+  listaDeCompra: number;
+  comprasUrgentes: number;
+  /** §47: só existe para quem produz leite. */
+  leiteHoje: number | null;
+  /** §47: só existe para quem usa confinamento. */
+  confinados: number | null;
+};
+
+/**
+ * O "Sua fazenda" do §46: poucos números, só os úteis.
+ *
+ * ⚠️ **O rebanho vem do LIVRO-RAZÃO, e não de `countActiveAnimals`.** O
+ * invariante 2 diz que o saldo do rebanho nunca é gravado, e
+ * `countActiveAnimals` soma `AnimalBatch.quantity`, que é campo. O `/dashboard`
+ * e o resumo do WhatsApp ainda usam o campo; o Meu Dia não repete o engano.
+ *
+ * ⚠️ **"A receber" e "a pagar" são SALDO, com os pagamentos parciais
+ * descontados** (fase 35.1). Somar o valor original diria ao produtor que ele
+ * ainda deve o que já pagou pela metade.
+ *
+ * §47 e §60: leite e confinamento só aparecem para quem tem. O critério é
+ * EXISTIR o dado, e não um perfil: `ProfileType` só conhece fazenda e
+ * prestador, e um produtor de leite não se declara em lugar nenhum.
+ */
+export async function resumoDaFazenda(
+  db: TenantPrismaClient,
+  opts: { property_id?: string | null; temFazenda: boolean; agora?: Date },
+): Promise<ResumoDaFazenda> {
+  const agora = opts.agora ?? new Date();
+  const hoje = inicioDoDiaEmSaoPaulo(agora);
+  const amanha = new Date(hoje.getTime() + 86_400_000);
+  const porFazenda = opts.property_id
+    ? { OR: [{ property_id: opts.property_id }, { property_id: null }] }
+    : {};
+
+  const [posicoes, contas, itens, urgentes, leite, estadias, temLeite] = await Promise.all([
+    opts.temFazenda
+      ? getPositions(db, opts.property_id ? { property_id: opts.property_id } : {})
+      : Promise.resolve(null),
+    db.financialEntry.findMany({
+      where: { status: "pending", ...porFazenda },
+      select: { entry_type: true, amount: true, payments: { select: { amount: true } } },
+    }),
+    db.shoppingItem.count({ where: { status: "pendente" } }),
+    db.shoppingItem.count({ where: { status: "pendente", priority: "urgente" } }),
+    opts.temFazenda
+      ? db.milkProduction.aggregate({
+          where: {
+            recorded_at: { gte: hoje, lt: amanha },
+            ...(opts.property_id ? { property_id: opts.property_id } : {}),
+          },
+          _sum: { liters: true },
+        })
+      : Promise.resolve(null),
+    opts.temFazenda
+      ? listStays(db, {
+          type: "confinamento",
+          apenas_abertas: true,
+          ...(opts.property_id ? { property_id: opts.property_id } : {}),
+        })
+      : Promise.resolve(null),
+    opts.temFazenda ? db.milkProduction.count({ take: 1 }) : Promise.resolve(0),
+  ]);
+
+  let aReceber = 0;
+  let aPagar = 0;
+  for (const c of contas) {
+    const valor = decToNum(c.amount) ?? 0;
+    const pago = c.payments.reduce((soma, p) => soma + (decToNum(p.amount) ?? 0), 0);
+    const saldo = Math.max(0, valor - pago);
+    if (c.entry_type === "income") aReceber += saldo;
+    else aPagar += saldo;
+  }
+
+  const confinadas = estadias && estadias.ok ? estadias.data : [];
+
+  return {
+    rebanhoProprio: posicoes ? summarizePositions(posicoes).total : null,
+    aReceber: Math.round(aReceber * 100) / 100,
+    aPagar: Math.round(aPagar * 100) / 100,
+    listaDeCompra: itens,
+    comprasUrgentes: urgentes,
+    leiteHoje: temLeite > 0 ? (decToNum(leite?._sum.liters) ?? 0) : null,
+    confinados: confinadas.length > 0 ? confinadas.reduce((soma, e) => soma + e.saldo_aberto, 0) : null,
+  };
+}
+
 /**
  * A ordem de importância do §50. Não é cronológica, e é a parte que o produtor
  * sente: "o Meu Dia não deverá simplesmente ordenar tudo cronologicamente".
