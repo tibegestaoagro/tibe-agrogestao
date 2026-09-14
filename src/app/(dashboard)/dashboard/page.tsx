@@ -10,6 +10,7 @@ import { countActivePlots } from "@/lib/actions/plots";
 import { countServiceClients } from "@/lib/actions/service-clients";
 import { countCompletedUnbilledOrders } from "@/lib/actions/service-orders";
 import { getActivePropertyId } from "@/lib/active-property";
+import { classificar, lerItensDoDia } from "@/lib/actions/meu-dia";
 import { decToNum } from "@/lib/serialize";
 import KpiCard from "@/components/dashboard/kpi-card";
 import HerdEvolutionChart from "@/components/dashboard/herd-evolution-chart";
@@ -44,13 +45,12 @@ export default async function DashboardHome() {
   const hasFazenda = profiles.includes("fazenda");
   const hasPrestador = profiles.includes("prestador");
   // Seletor de propriedade no topo (briefing de layout, seção 12): filtra
-  // os KPIs de fazenda. Financeiro não tem property_id no schema (nunca
-  // teve), então fica de fora do filtro: não há o que filtrar ali.
+  // os KPIs de fazenda. Os KPIs financeiros daqui continuam sem o filtro,
+  // embora `FinancialEntry.property_id` exista desde a fase 35.1: o histórico
+  // anterior está nulo (dívida 2.11), e filtrar esconderia quase tudo.
   const activePropertyId = hasFazenda ? await getActivePropertyId(db) : null;
 
   const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const todayEnd = new Date(todayStart.getTime() + 86_400_000 - 1);
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
   const maintenanceLimit = new Date(now.getTime() + 15 * 86_400_000);
   const taskLimit = new Date(now.getTime() + 7 * 86_400_000);
@@ -73,9 +73,7 @@ export default async function DashboardHome() {
     recentEntries,
     receivables,
     payables,
-    todayPayables,
-    todayReceivables,
-    dueTodayTasksCount,
+    itensDoDia,
     calendarTasks,
     calendarEntries,
     calendarVaccinations,
@@ -114,17 +112,13 @@ export default async function DashboardHome() {
       _sum: { amount: true },
       _count: true,
     }),
-    db.financialEntry.aggregate({
-      where: { entry_type: "expense", status: "pending", due_date: { gte: todayStart, lte: todayEnd } },
-      _sum: { amount: true },
-      _count: true,
-    }),
-    db.financialEntry.aggregate({
-      where: { entry_type: "income", status: "pending", due_date: { gte: todayStart, lte: todayEnd } },
-      _sum: { amount: true },
-      _count: true,
-    }),
-    db.task.count({ where: { status: "pending", due_date: { lte: todayEnd } } }),
+    /*
+     * Módulo 38 (T07): a prévia do Meu Dia lê a MESMA consulta da tela, e não
+     * três contagens próprias. Antes eram duas listas do mesmo dia montadas
+     * por regras diferentes, e a contagem de tarefas daqui somava as atrasadas
+     * como "de hoje".
+     */
+    lerItensDoDia(db, { property_id: activePropertyId }),
     db.task.findMany({
       where: { status: "pending", due_date: { gte: eventWindowStart, lte: eventWindowEnd } },
       select: { due_date: true },
@@ -163,31 +157,10 @@ export default async function DashboardHome() {
   for (const e of calendarEntries) if (e.due_date) eventDates.add(dateKey(e.due_date));
   for (const v of calendarVaccinations) if (v.next_due_at) eventDates.add(dateKey(v.next_due_at));
 
-  const meuDiaItems: { label: string; sub?: string; href: string }[] = [];
-  if ((todayPayables._count ?? 0) > 0) {
-    meuDiaItems.push({
-      label: `${todayPayables._count} conta${todayPayables._count > 1 ? "s" : ""} para pagar hoje`,
-      sub: brl(decToNum(todayPayables._sum.amount) ?? 0),
-      href: "/financeiro",
-    });
-  }
-  if ((todayReceivables._count ?? 0) > 0) {
-    meuDiaItems.push({
-      label: `${todayReceivables._count} recebimento${todayReceivables._count > 1 ? "s" : ""} previsto`,
-      sub: brl(decToNum(todayReceivables._sum.amount) ?? 0),
-      href: "/financeiro",
-    });
-  }
-  if (dueTodayTasksCount > 0) {
-    meuDiaItems.push({ label: `${dueTodayTasksCount} tarefa${dueTodayTasksCount > 1 ? "s" : ""} pendente${dueTodayTasksCount > 1 ? "s" : ""}`, href: "/meu-dia" });
-  }
-  if (nextVaccine) {
-    meuDiaItems.push({
-      label: `Vacinação: ${nextVaccine.ear_tag ?? "?"} · ${nextVaccine.vaccine_name ?? ""}`,
-      sub: `${nextVaccine.days_remaining}d`,
-      href: "/rebanho",
-    });
-  }
+  /* Só a prévia: o que precisa de atenção e o começo de hoje, já na ordem do
+     §50. A lista inteira é do Meu Dia. */
+  const diaResumido = classificar(itensDoDia);
+  const previaDoDia = [...diaResumido.atencao, ...diaResumido.hoje].slice(0, 5);
 
   return (
     <div className="space-y-6">
@@ -281,16 +254,20 @@ export default async function DashboardHome() {
               Ver tudo →
             </Link>
           </div>
-          {meuDiaItems.length === 0 ? (
+          {previaDoDia.length === 0 ? (
             <p className="text-sm text-texto-discreto">Nada previsto para hoje.</p>
           ) : (
-            <ul className="divide-y divide-gray-100">
-              {meuDiaItems.map((item, i) => (
-                <li key={i}>
-                  <Link href={item.href} className="flex min-h-11 items-center justify-between py-2.5 text-sm hover:text-primaria-tinta sm:min-h-0">
-                    <span className="text-texto-secundario">{item.label}</span>
-                    <span className="flex items-center gap-2 text-texto-discreto">
-                      {item.sub}
+            <ul className="divide-y divide-borda">
+              {previaDoDia.map((item) => (
+                <li key={item.chave}>
+                  <Link href="/meu-dia" className="flex min-h-11 items-center justify-between gap-3 py-2.5 text-sm hover:text-primaria-tinta sm:min-h-0">
+                    <span className="min-w-0 truncate text-texto-secundario">{item.titulo}</span>
+                    <span className="flex shrink-0 items-center gap-2 text-texto-discreto">
+                      {item.dias !== null && item.dias < 0
+                        ? "atrasado"
+                        : item.valor !== null
+                          ? brl(item.valor)
+                          : item.horario}
                       <ChevronRight className="h-4 w-4 text-texto-discreto" />
                     </span>
                   </Link>

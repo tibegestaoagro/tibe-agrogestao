@@ -151,12 +151,22 @@ export async function lerItensDoDia(
     const valor = decToNum(c.amount) ?? 0;
     const pago = c.payments.reduce((soma, p) => soma + (decToNum(p.amount) ?? 0), 0);
     const saldo = Math.max(0, Math.round((valor - pago) * 100) / 100);
-    const quem = c.contact?.name ?? c.category ?? "lançamento";
     const receber = c.entry_type === "income";
+    /*
+     * Com contato, a frase é a do §4: "Pagar João", "Receber de Pedro". SEM
+     * contato, a categoria não pode ocupar o lugar da pessoa: a primeira
+     * versão escrevia "Pagar Outros" e "Receber de Serviço - Transporte de
+     * carga", lidos na tela em 14/09. Aí a conta se apresenta pelo que é.
+     */
+    const titulo = c.contact?.name
+      ? receber
+        ? `Receber de ${c.contact.name}`
+        : `Pagar ${c.contact.name}`
+      : `${receber ? "A receber" : "Conta a pagar"}: ${c.category ?? "sem categoria"}`;
     itens.push({
       chave: `${receber ? "receber" : "pagar"}:${c.id}`,
       origem: receber ? "receber" : "pagar",
-      titulo: receber ? `Receber de ${quem}` : `Pagar ${quem}`,
+      titulo,
       data: c.due_date,
       horario: null,
       valor: saldo,
