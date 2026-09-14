@@ -10,6 +10,7 @@ import {
   classificar,
   lerItensDoDia,
   resumoDaFazenda,
+  historicoDoDia,
   type ItemDoDia,
 } from "@/lib/actions/meu-dia";
 import { reaisBr } from "@/lib/numero-br";
@@ -131,9 +132,10 @@ export default async function MeuDiaPage() {
   const temFazenda = profiles.includes("fazenda");
   const propertyId = temFazenda ? await getActivePropertyId(db) : null;
 
-  const [itens, resumo, workers, properties] = await Promise.all([
+  const [itens, resumo, historico, workers, properties] = await Promise.all([
     lerItensDoDia(db, { property_id: propertyId }),
     resumoDaFazenda(db, { property_id: propertyId, temFazenda }),
+    historicoDoDia(db, { property_id: propertyId }),
     db.worker.findMany({ where: { status: "ativo" }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     db.property.findMany({ where: { archived_at: null }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
   ]);
@@ -192,7 +194,8 @@ export default async function MeuDiaPage() {
           )}
         </dl>
 
-        {/* §14: a Lista de Compra NÃO aparece inteira, só o acesso a ela. */}
+        {/* §14: a Lista de Compra NÃO aparece inteira, só o acesso a ela.
+            A seção do histórico fica logo abaixo, fora desta. */}
         {resumo.listaDeCompra > 0 && (
           <Link
             href="/lista-de-compra"
@@ -204,6 +207,34 @@ export default async function MeuDiaPage() {
           </Link>
         )}
       </section>
+
+      {/* §53: "consultar", e não ver o tempo todo. Recolhido por padrão, com o
+          <details> do navegador, que já é acessível e não pede JavaScript. */}
+      <details className="rounded-lg border border-borda bg-superficie p-4">
+        <summary className="cursor-pointer text-sm font-semibold uppercase tracking-wide text-texto-secundario">
+          O que aconteceu hoje ({historico.length})
+        </summary>
+        {historico.length === 0 ? (
+          <p className="mt-2 text-sm text-texto-discreto">Nenhum registro hoje ainda.</p>
+        ) : (
+          <ul className="mt-2 divide-y divide-borda">
+            {historico.map((r) => (
+              <li key={r.chave} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <Link href={r.href} className="min-w-0 text-texto hover:underline">
+                  {r.texto}
+                </Link>
+                <span className="shrink-0 text-texto-discreto">
+                  {r.quando.toLocaleTimeString("pt-BR", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    timeZone: "America/Sao_Paulo",
+                  })}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </details>
     </div>
   );
 }

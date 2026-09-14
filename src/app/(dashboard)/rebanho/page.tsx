@@ -23,7 +23,8 @@ import { getPeriodTotals, getPositions, listMovements } from "@/lib/actions/herd
 import { listStays } from "@/lib/actions/herd-stays";
 import { summarizePositions } from "@/lib/herd/summary";
 import { findCategory } from "@/lib/herd/categories";
-import type { HerdMovementType, HerdStayType } from "@/generated/prisma/enums";
+import type { HerdStayType } from "@/generated/prisma/enums";
+import { ROTULO_REBANHO } from "@/lib/rotulos-de-movimento";
 
 /**
  * Rebanho como livro-razão (Módulo 30, §11 e §12).
@@ -40,37 +41,11 @@ import type { HerdMovementType, HerdStayType } from "@/generated/prisma/enums";
  */
 
 /**
- * Como cada movimentação aparece no extrato, na língua do produtor.
- *
- * ⚠️ TODO valor de `HerdMovementType` precisa estar aqui. Sem a chave, o
- * extrato mostra o nome cru do enum (`envio_boitel`, `permuta_saida`), que é
- * pior do que a "linguagem de sistema contábil" que o §2 do documento proíbe:
- * é nome de coluna de banco na tela do produtor. As oito linhas das fases 2 e
- * 3 ficaram faltando desde que nasceram, e só apareceram na validação ao vivo
- * da missão 4. O `npm run check` passou a reprovar a ausência.
+ * Como cada movimentação aparece no extrato. O mapa mora em
+ * `src/lib/rotulos-de-movimento.ts` desde o Módulo 38, porque o histórico do
+ * Meu Dia usa os mesmos rótulos.
  */
-const TIPO_LABEL: Record<HerdMovementType, string> = {
-  saldo_inicial: "Saldo inicial",
-  nascimento: "Nascimento",
-  compra: "Compra",
-  venda: "Venda",
-  morte: "Morte",
-  transferencia_pasto: "Mudança de pasto",
-  transferencia_fazenda: "Mudança de fazenda",
-  mudanca_categoria: "Mudança de categoria",
-  ajuste: "Ajuste",
-  envio_evento: "Envio para leilão ou feira",
-  envio_pasto_terceiro: "Envio para pasto de terceiro",
-  envio_boitel: "Envio para boitel",
-  envio_confinamento: "Envio para confinamento",
-  retorno_estadia: "Retorno para a fazenda",
-  entrada_terceiro: "Entrada de animal de terceiro",
-  saida_terceiro: "Devolução ao dono",
-  desaparecimento: "Desaparecimento",
-  perda_confirmada: "Perda confirmada",
-  permuta_saida: "Permuta (entregue)",
-  permuta_entrada: "Permuta (recebido)",
-};
+const TIPO_LABEL = ROTULO_REBANHO;
 
 /**
  * Como cada tipo de estadia aparece para o produtor, na língua dele.

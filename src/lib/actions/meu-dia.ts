@@ -4,6 +4,8 @@ import { diasAte, inicioDoDiaEmSaoPaulo } from "@/lib/dia-calendario";
 import { listStays } from "@/lib/actions/herd-stays";
 import { getPositions } from "@/lib/actions/herd-ledger";
 import { summarizePositions } from "@/lib/herd/summary";
+import { reaisBr } from "@/lib/numero-br";
+import { ROTULO_ESTOQUE, ROTULO_LEITE, ROTULO_REBANHO } from "@/lib/rotulos-de-movimento";
 
 /**
  * Módulo 38, Meu Dia: as três seções (§30 a §32), lidas AO VIVO.
@@ -287,6 +289,142 @@ export async function lerItensDoDia(
  * O alerta de estoque baixo não tem data e vai para "Atenção" por natureza: o
  * §31 lista "estoque crítico" entre os exemplos.
  */
+export type RegistroDoDia = {
+  chave: string;
+  quando: Date;
+  texto: string;
+  href: string;
+};
+
+/**
+ * "O que aconteceu hoje?" (§53), lido das movimentações que as áreas JÁ
+ * registraram.
+ *
+ * Decisão 26: união por data, sem tabela de log. Uma tabela traria a pergunta
+ * sem boa resposta: o que acontece com a linha quando a movimentação de origem
+ * é cancelada. Aqui a resposta é automática, porque a linha cancelada
+ * simplesmente não é lida.
+ *
+ * ⚠️ **A janela é o dia de SÃO PAULO em instantes, e não o dia UTC.** Estas
+ * datas são instantes de verdade (a hora em que o produtor registrou), ao
+ * contrário do `due_date` da tarefa, que é data de calendário. O Brasil não
+ * tem horário de verão desde 2019, e o fuso fica fixo em três horas.
+ *
+ * ponytail: tarefa concluída entra pelo `updated_at`, porque `Task` não tem
+ * `completed_at`. Editar o título de uma tarefa concluída hoje a faria aparecer
+ * como concluída hoje. Coluna própria quando alguém confiar no histórico para
+ * auditar.
+ */
+export async function historicoDoDia(
+  db: TenantPrismaClient,
+  opts: { dia?: Date; property_id?: string | null } = {},
+): Promise<RegistroDoDia[]> {
+  const TRES_HORAS = 3 * 3_600_000;
+  const inicio = new Date(inicioDoDiaEmSaoPaulo(opts.dia ?? new Date()).getTime() + TRES_HORAS);
+  const fim = new Date(inicio.getTime() + 86_400_000);
+  const periodo = { gte: inicio, lt: fim };
+  const fazenda = opts.property_id ?? null;
+
+  const [rebanho, estoque, pagamentos, leite, servicos, tarefas] = await Promise.all([
+    db.herdMovement.findMany({
+      where: {
+        canceled_at: null,
+        occurred_at: periodo,
+        ...(fazenda ? { OR: [{ from_property_id: fazenda }, { to_property_id: fazenda }] } : {}),
+      },
+      select: { id: true, movement_type: true, quantity: true, occurred_at: true },
+    }),
+    db.stockMovement.findMany({
+      where: { canceled_at: null, occurred_at: periodo, ...(fazenda ? { property_id: fazenda } : {}) },
+      select: {
+        id: true,
+        movement_type: true,
+        quantity: true,
+        occurred_at: true,
+        product: { select: { name: true, unit: true } },
+      },
+    }),
+    db.financialPayment.findMany({
+      where: {
+        paid_at: periodo,
+        ...(fazenda ? { entry: { OR: [{ property_id: fazenda }, { property_id: null }] } } : {}),
+      },
+      select: {
+        id: true,
+        amount: true,
+        paid_at: true,
+        entry: { select: { entry_type: true, category: true, contact: { select: { name: true } } } },
+      },
+    }),
+    db.milkMovement.findMany({
+      where: { canceled_at: null, occurred_at: periodo },
+      select: { id: true, movement_type: true, liters: true, occurred_at: true },
+    }),
+    db.serviceJobLog.findMany({
+      where: {
+        canceled_at: null,
+        occurred_at: periodo,
+        ...(fazenda ? { service_job: { property_id: fazenda } } : {}),
+      },
+      select: { id: true, occurred_at: true, service_job: { select: { description: true } } },
+    }),
+    db.task.findMany({
+      where: {
+        status: "completed",
+        updated_at: periodo,
+        ...(fazenda ? { OR: [{ property_id: fazenda }, { property_id: null }] } : {}),
+      },
+      select: { id: true, title: true, updated_at: true },
+    }),
+  ]);
+
+  const registros: RegistroDoDia[] = [
+    ...rebanho.map((m) => ({
+      chave: `rebanho:${m.id}`,
+      quando: m.occurred_at,
+      texto: `${ROTULO_REBANHO[m.movement_type]}: ${m.quantity} ${m.quantity === 1 ? "animal" : "animais"}`,
+      href: "/rebanho",
+    })),
+    ...estoque.map((m) => ({
+      chave: `estoque:${m.id}`,
+      quando: m.occurred_at,
+      texto: `${ROTULO_ESTOQUE[m.movement_type]} ${Math.abs(decToNum(m.quantity) ?? 0).toLocaleString("pt-BR")} ${m.product.unit} de ${m.product.name}`,
+      href: "/estoque",
+    })),
+    ...pagamentos.map((p) => {
+      const receber = p.entry.entry_type === "income";
+      const quem = p.entry.contact?.name ?? p.entry.category ?? "sem categoria";
+      return {
+        chave: `pagamento:${p.id}`,
+        quando: p.paid_at,
+        texto: `${receber ? "Recebido" : "Pago"}: ${reaisBr(decToNum(p.amount) ?? 0)}, ${quem}`,
+        href: "/financeiro",
+      };
+    }),
+    ...leite.map((m) => ({
+      chave: `leite:${m.id}`,
+      quando: m.occurred_at,
+      texto: `${ROTULO_LEITE[m.movement_type]}: ${(decToNum(m.liters) ?? 0).toLocaleString("pt-BR")} litros`,
+      href: "/leite",
+    })),
+    ...servicos.map((s) => ({
+      chave: `servico:${s.id}`,
+      quando: s.occurred_at,
+      texto: `Serviço registrado: ${s.service_job.description}`,
+      href: "/servicos",
+    })),
+    ...tarefas.map((t) => ({
+      chave: `concluida:${t.id}`,
+      quando: t.updated_at,
+      texto: `Concluída: ${t.title}`,
+      href: "/meu-dia",
+    })),
+  ];
+
+  /* Do mais recente para o mais antigo: "o que aconteceu" se lê de cima. */
+  return registros.sort((a, b) => b.quando.getTime() - a.quando.getTime());
+}
+
 export type ResumoDaFazenda = {
   rebanhoProprio: number | null;
   aReceber: number;
