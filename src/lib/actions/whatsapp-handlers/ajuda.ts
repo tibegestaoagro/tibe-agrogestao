@@ -44,8 +44,8 @@ const HELP_TEXT: Record<string, { text: string; label: string }> = {
     text: "Posso te mandar o relatório financeiro em PDF, é só pedir. (Relatórios de rebanho, lavoura e prestador ainda não estão disponíveis por aqui.)",
   },
   registrar_lancamento_financeiro: {
-    label: "lançar despesas (inclusive por foto de recibo)",
-    text: "Pra lançar uma despesa, me conta o valor e do que se trata: ou, mais fácil, me manda uma foto ou PDF da nota que eu leio pra você.",
+    label: "lançar receita ou despesa (inclusive por foto de recibo)",
+    text: "Pra lançar uma receita ou despesa, me conta se foi receita ou despesa, o valor e do que se trata: ou, mais fácil, me manda uma foto ou PDF da nota que eu leio pra você (aí eu registro como despesa).",
   },
   registrar_uso_estoque: {
     label: "uso de produtos do estoque",

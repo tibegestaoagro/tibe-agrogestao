@@ -7,7 +7,7 @@ import { buildReportLink } from "@/lib/reports/report-link";
 import { createManualEntryAction } from "@/lib/actions/financial-entries";
 import { suggestCategory } from "@/lib/category-suggestions";
 import { listFinancialCategoriesAction } from "@/lib/actions/financial-categories";
-import { ask, failReply, str, confirmFlow, type Handler } from "./shared";
+import { ask, failReply, str, confirmFlow, normalizarTermo, type Handler } from "./shared";
 import { lerDinheiro } from "./parsers";
 import { reaisBr } from "@/lib/numero-br";
 
@@ -102,35 +102,45 @@ export const registrarLancamentoFinanceiro: Handler = async ({ db, parameters, c
   }
 
   /*
+   * `tipo` distingue receita de despesa. Sem ele, continua despesa: é o
+   * caminho do recibo por foto (§ visão), que nunca manda esse campo e
+   * precisa se comportar exatamente como antes.
+   */
+  const tipoNormalizado = str(parameters.tipo) ? normalizarTermo(str(parameters.tipo)!) : null;
+  const entryType: "income" | "expense" =
+    tipoNormalizado && ["receita", "recebi", "income"].includes(tipoNormalizado) ? "income" : "expense";
+  const outrasPadrao = entryType === "income" ? "Outras receitas" : "Outras despesas";
+
+  /*
    * A categoria vem do banco, não de uma lista fixa: o que o produtor criou no
    * painel vale aqui também. Três tentativas, em ordem: o nome que o
    * classificador mandou, o palpite por palavra-chave sobre o texto todo, e
-   * "Outras despesas" como último caso. As duas primeiras só valem se o nome
-   * existir entre as categorias ativas do tenant.
+   * a categoria "outras" do tipo certo como último caso. As duas primeiras só
+   * valem se o nome existir entre as categorias ativas do tenant.
    */
   const categorias = await listFinancialCategoriesAction(db, {
-    entry_type: "expense",
+    entry_type: entryType,
     activeOnly: true,
   });
   const porNome = new Map(categorias.map((c) => [c.name.toLowerCase(), c.name]));
-  const palpite = suggestCategory([categoryRaw, vendor, description].filter(Boolean).join(" "), "expense");
+  const palpite = suggestCategory([categoryRaw, vendor, description].filter(Boolean).join(" "), entryType);
   const category =
     porNome.get((categoryRaw ?? "").trim().toLowerCase()) ??
     (palpite ? porNome.get(palpite.toLowerCase()) : undefined) ??
-    "Outras despesas";
+    outrasPadrao;
 
   const gate = confirmFlow({
     intent: "registrar_lancamento_financeiro",
     explicitNo,
     confirmed,
     cancelledText: "Lançamento cancelado.",
-    question: `Entendi: ${reaisBr(amount)}, categoria ${category}${vendor ? `, ${vendor}` : ""}. Confirma o lançamento?`,
-    auxiliary: { amount, category, vendor, description },
+    question: `Entendi: ${entryType === "income" ? "receita" : "despesa"} de ${reaisBr(amount)}, categoria ${category}${vendor ? `, ${vendor}` : ""}. Confirma o lançamento?`,
+    auxiliary: { amount, category, vendor, description, tipo: entryType },
   });
   if (gate) return gate;
 
   const result = await createManualEntryAction(db, {
-    entry_type: "expense",
+    entry_type: entryType,
     category,
     amount,
     due_date: new Date(),

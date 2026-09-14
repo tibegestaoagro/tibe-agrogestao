@@ -104,6 +104,25 @@ async function main() {
       check("sem sentido, pergunta se aumenta ou diminui", /aumenta ou diminui/i.test(semSentido.data.reply_text), semSentido.data.reply_text);
     }
 
+    console.log("\n4. Receita pelo WhatsApp");
+    {
+      const p = { amount: 1500, category: "Aluguel", tipo: "receita", description: "aluguel do pasto" };
+      const pergunta = await acao("registrar_lancamento_financeiro", p, "recebi 1500 de aluguel do pasto");
+      check("a confirmação diz que é receita", /receita|receber|recebi/i.test(pergunta.data.reply_text), pergunta.data.reply_text);
+      await acao("registrar_lancamento_financeiro", p, "sim", { confirmed: true });
+      /*
+       * Só por `amount`, não por `category`: "Aluguel" não é nome de nenhuma
+       * categoria padrão de receita (nem palpite por palavra-chave bate com
+       * "aluguel do pasto", que difere de "aluguel de pasto" no dicionário de
+       * `category-suggestions.ts`), então cai no fallback "Outras receitas",
+       * mesmo comportamento já coberto por `m11` para categoria desconhecida
+       * ("categoria-inventada" -> "Outras despesas"). O que esta seção prova é
+       * a distinção receita/despesa (Task 5), não a resolução de categoria.
+       */
+      const entrada = await db.financialEntry.findFirst({ where: { amount: 1500 } });
+      check("grava como receita", entrada?.entry_type === "income", String(entrada?.entry_type));
+    }
+
     void fazenda;
     void pasto;
   } finally {
