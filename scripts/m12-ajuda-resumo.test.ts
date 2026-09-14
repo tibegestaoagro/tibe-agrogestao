@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
-import { createTestAnimal , deleteTestTenants } from "./helpers/herd";
+import { createTestAnimal , deleteTestTenants, registrarNoLivro } from "./helpers/herd";
 import { POST as executeAction } from "@/app/api/internal/whatsapp/execute-action/route";
 /*
  * O valor esperado e composto por `reaisBr`, nao escrito a mao, porque o
@@ -77,6 +77,8 @@ async function main() {
     const animal = await createTestAnimal(dbA, tenantA.id, {
       ear_tag: "M12-1", breed: "Nelore", sex: "male", property_id: propA.id,
     });
+    // O rebanho contado vem do livro-razão desde 14/09/2026, e não do lote.
+    await registrarNoLivro(dbA, { property_id: propA.id, quantity: 1 });
     const vaccine = await dbA.vaccine.create({ data: scoped({ name: "Aftosa M12" }) });
     const vaccineDueAt = new Date(Date.now() + 5 * 86_400_000);
     await dbA.animalVaccination.create({

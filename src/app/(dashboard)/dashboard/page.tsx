@@ -11,6 +11,7 @@ import { countServiceClients } from "@/lib/actions/service-clients";
 import { countCompletedUnbilledOrders } from "@/lib/actions/service-orders";
 import { getActivePropertyId } from "@/lib/active-property";
 import { classificar, lerItensDoDia } from "@/lib/actions/meu-dia";
+import { saudacaoEmSaoPaulo } from "@/lib/dia-calendario";
 import { decToNum } from "@/lib/serialize";
 import KpiCard from "@/components/dashboard/kpi-card";
 import HerdEvolutionChart from "@/components/dashboard/herd-evolution-chart";
@@ -20,13 +21,6 @@ import CalculadoraGrid from "@/components/dashboard/calculadora-grid";
 
 const brl = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-
-function greeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Bom dia";
-  if (hour < 18) return "Boa tarde";
-  return "Boa noite";
-}
 
 function dateKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -46,8 +40,9 @@ export default async function DashboardHome() {
   const hasPrestador = profiles.includes("prestador");
   // Seletor de propriedade no topo (briefing de layout, seção 12): filtra
   // os KPIs de fazenda. Os KPIs financeiros daqui continuam sem o filtro,
-  // embora `FinancialEntry.property_id` exista desde a fase 35.1: o histórico
-  // anterior está nulo (dívida 2.11), e filtrar esconderia quase tudo.
+  // embora `FinancialEntry.property_id` exista desde a fase 35.1: o backfill de
+  // 14/09/2026 só preencheu onde a origem sabe a fazenda, e o lançamento avulso
+  // antigo segue nulo. Filtrar aqui esconderia esses em silêncio.
   const activePropertyId = hasFazenda ? await getActivePropertyId(db) : null;
 
   const now = new Date();
@@ -131,7 +126,15 @@ export default async function DashboardHome() {
       ? db.animalVaccination.findMany({
           where: {
             next_due_at: { gte: eventWindowStart, lte: eventWindowEnd },
-            ...(activePropertyId ? { animal: { property_id: activePropertyId } } : {}),
+            /*
+             * ⚠️ `batch`, e não `animal`. Este filtro foi escrito em 03/08 com a
+             * relação `animal`, que o schema unificado do rebanho renomeou no dia
+             * seguinte. O `tsc` não acusa nome errado dentro de um espalhamento
+             * condicional, e por isso o `/dashboard` respondeu 500 a todo
+             * produtor com fazenda escolhida no seletor por mais de um mês.
+             * Achado em 14/09 validando o Meu Dia no navegador.
+             */
+            ...(activePropertyId ? { batch: { property_id: activePropertyId } } : {}),
           },
           select: { next_due_at: true },
         })
@@ -166,7 +169,7 @@ export default async function DashboardHome() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-texto">
-          {greeting()}, {firstName}! 👋
+          {saudacaoEmSaoPaulo()}, {firstName}! 👋
         </h1>
         <p className="mt-1 text-sm text-texto-discreto">
           Perfis ativos: {profiles.map((p) => (p === "fazenda" ? "Fazenda" : "Prestador")).join(" + ")}

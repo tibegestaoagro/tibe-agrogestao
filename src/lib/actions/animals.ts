@@ -2,6 +2,8 @@ import type { TenantPrismaClient } from "@/lib/prisma";
 import { decToNum } from "@/lib/serialize";
 import { computeGmd } from "@/lib/livestock";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
+import { getPositions } from "@/lib/actions/herd-ledger";
+import { summarizePositions } from "@/lib/herd/summary";
 
 /**
  * Lógica de negócio do Rebanho, extraída das rotas HTTP (M1) para ser reusada
@@ -26,16 +28,22 @@ export async function findBatchByEarTag(db: TenantPrismaClient, ear_tag: string)
 }
 
 /**
- * Total de CABEÇAS no rebanho, não de lotes: um lote vale `quantity` cabeças.
- * Contar linhas daria um número silenciosamente errado depois da unificação
- * de 2026-08-04 (um lote de 20 valeria 1).
+ * Total de cabeças do rebanho PRÓPRIO, lido do livro-razão.
+ *
+ * ⚠️ **Até 14/09/2026 esta função somava `AnimalBatch.quantity`, que é campo
+ * gravado**, e o invariante 2 diz que o saldo do rebanho nunca é gravado: desde
+ * o Módulo 30 ele é a soma de `HerdMovement`. O campo parou de acompanhar o
+ * rebanho real, e ninguém viu porque os dois números só divergem em produção.
+ * Medido em 14/09: o Painel da Da Mata mostrava 2 cabeças, e o livro-razão
+ * tinha 21. Os dois chamadores, o `/dashboard` e o `resumo` do WhatsApp,
+ * ficaram certos com a troca aqui, num lugar só.
+ *
+ * Rebanho próprio, como o "Sua fazenda" do Meu Dia: animal de terceiro no pasto
+ * não é do produtor (`summarizePositions`).
  */
 export async function countActiveAnimals(db: TenantPrismaClient, propertyId?: string | null) {
-  const agg = await db.animalBatch.aggregate({
-    where: { quantity: { gt: 0 }, ...(propertyId ? { property_id: propertyId } : {}) },
-    _sum: { quantity: true },
-  });
-  return agg._sum.quantity ?? 0;
+  const posicoes = await getPositions(db, propertyId ? { property_id: propertyId } : {});
+  return summarizePositions(posicoes).total;
 }
 
 export async function getBatchSummaryAction(

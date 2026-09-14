@@ -88,9 +88,39 @@ export async function createTestBatch(
  * dependendo da ordem em que o Postgres processa a cascata, deixando
  * tenant órfão que quebra a execução seguinte com documento duplicado.
  */
+/**
+ * Põe cabeças no rebanho pelo LIVRO-RAZÃO, com um `saldo_inicial`.
+ *
+ * Existe desde 14/09/2026, quando `countActiveAnimals` passou a ler o livro em
+ * vez de `AnimalBatch.quantity` (invariante 2). `createTestAnimal` e
+ * `createTestBatch` só criam o lote, que é o cadastro; o rebanho que o sistema
+ * conta é a soma das movimentações. Suíte que cobra "N animais ativos" precisa
+ * chamar este helper, senão cobra um número que produção não tem mais.
+ */
+export async function registrarNoLivro(
+  db: TenantPrismaClient,
+  input: { property_id: string; quantity: number; category_id?: string },
+) {
+  const { recordMovement } = await import("@/lib/actions/herd-ledger");
+  const r = await recordMovement(db, {
+    movement_type: "saldo_inicial",
+    quantity: input.quantity,
+    to: {
+      category_id: input.category_id ?? "bezerro_0_7",
+      property_id: input.property_id,
+      pasture_id: null,
+      situation: "presente",
+      owner: "proprio",
+    },
+  });
+  if (!r.ok) throw new Error(`registrarNoLivro: ${r.message}`);
+  return r.data;
+}
+
 export async function deleteTestTenants(tenantIds: string[]) {
   const { prisma } = await import("@/lib/prisma");
   for (const tenant_id of tenantIds) {
+    await prisma.herdMovement.deleteMany({ where: { tenant_id } });
     await prisma.animalWeightLog.deleteMany({ where: { tenant_id } });
     await prisma.animalVaccination.deleteMany({ where: { tenant_id } });
     await prisma.animalMovement.deleteMany({ where: { tenant_id } });

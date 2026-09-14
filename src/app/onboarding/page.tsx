@@ -5,7 +5,7 @@ import OnboardingForm from "./onboarding-form";
 
 /**
  * Onboarding bifurcado (spec task 0.5). Exibido apenas quando o tenant ainda não
- * tem nenhum TenantProfile ativo. Se já tem, redireciona ao dashboard.
+ * tem nenhum TenantProfile ativo. Se já tem, redireciona ao Meu Dia.
  */
 export default async function OnboardingPage() {
   const user = await getSessionUser();
@@ -14,7 +14,7 @@ export default async function OnboardingPage() {
   await redirectIfGatePassed(user, "profile");
 
   const profiles = await getActiveProfiles();
-  if (profiles.length > 0) redirect("/dashboard");
+  if (profiles.length > 0) redirect("/meu-dia");
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-tibe-light px-4">

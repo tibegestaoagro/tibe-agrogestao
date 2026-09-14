@@ -25,7 +25,14 @@ export function buildNavItems({
   hasPrestador: boolean;
 }): NavItem[] {
   return [
-    { kind: "link", href: "/dashboard", label: "Início", icon: "home", show: true },
+    /*
+     * Módulo 38, §4: o Meu Dia é a porta de entrada, e por isso vem PRIMEIRO,
+     * com o ícone de casa. O `/dashboard` continua existindo como "Painel",
+     * com os gráficos e indicadores que o §52 proíbe no Meu Dia. Decisão do
+     * usuário em 14/09/2026, com as quatro áreas no ar.
+     */
+    { kind: "link", href: "/meu-dia", label: "Meu Dia", icon: "home", show: true },
+    { kind: "link", href: "/dashboard", label: "Painel", icon: "painel", show: true },
     // "Minha Fazenda" (Módulo 29): tela própria de cadastro da fazenda +
     // pastos, ponto de partida do sistema (docs/Minha Fazenda —
     // Especificação Funcional.doc). Antes deste módulo, "Minha Fazenda" era
@@ -98,7 +105,6 @@ export function buildNavItems({
         { href: "/alertas", label: "Alertas", show: true },
       ],
     },
-    { kind: "link", href: "/meu-dia", label: "Meu Dia", icon: "meu-dia", show: true },
     { kind: "link", href: "/calculadoras", label: "Calculadora Pecuária", icon: "calculadora", show: true },
     // "Fazenda em Números" (Fase 2): esclarecido pelo usuário como área de
     // inteligência que centraliza os relatórios (DRE, evolução do rebanho,

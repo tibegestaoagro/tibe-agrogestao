@@ -8,7 +8,7 @@ import {
   Home,
   Warehouse,
   Layers,
-  CalendarCheck,
+  LayoutDashboard,
   Calculator,
   BarChart3,
   MessageCircle,
@@ -24,7 +24,7 @@ export type IconKey =
   | "home"
   | "fazenda"
   | "operacao"
-  | "meu-dia"
+  | "painel"
   | "calculadora"
   | "numeros"
   | "whatsapp"
@@ -41,7 +41,7 @@ const ICONS: Record<IconKey, LucideIcon> = {
   home: Home,
   fazenda: Warehouse,
   operacao: Layers,
-  "meu-dia": CalendarCheck,
+  painel: LayoutDashboard,
   calculadora: Calculator,
   numeros: BarChart3,
   whatsapp: MessageCircle,

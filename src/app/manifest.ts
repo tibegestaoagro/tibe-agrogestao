@@ -6,10 +6,13 @@ import type { MetadataRoute } from "next";
  * Convencao de arquivo do Next: este modulo e servido em /manifest.webmanifest
  * e o proprio Next injeta o <link rel="manifest"> no HTML.
  *
- * `start_url` aponta para /dashboard, nao para a home publica: o objetivo da
- * onda e tornar o PAINEL instalavel, e um aplicativo que abre no site de
- * marketing seria o comportamento errado. Quem nao tem sessao cai no /login
- * pelo middleware, que ja e o fluxo normal do painel.
+ * `start_url` aponta para /meu-dia, nao para a home publica: um aplicativo que
+ * abre no site de marketing seria o comportamento errado. Quem nao tem sessao
+ * cai no /login pelo middleware, que ja e o fluxo normal do painel.
+ *
+ * Era /dashboard ate 14/09/2026, quando o Meu Dia virou a porta de entrada
+ * (Modulo 38, §4). O `id` fixo logo abaixo e o que faz a troca atualizar o
+ * aplicativo ja instalado, em vez de criar um segundo.
  *
  * Icones sao PROVISORIOS (gerados por scripts/pwa-icons.mjs a partir das cores
  * de marca de tailwind.config.ts). A arte definitiva vem na Onda 3, junto com a
@@ -28,7 +31,7 @@ export default function manifest(): MetadataRoute.Manifest {
       "Gestão agropecuária: rebanho, lavoura, prestação de serviço e financeiro.",
     lang: "pt-BR",
     dir: "ltr",
-    start_url: "/dashboard",
+    start_url: "/meu-dia",
     scope: "/",
     display: "standalone",
     background_color: "#FFFFFF",

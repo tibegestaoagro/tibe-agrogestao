@@ -31,8 +31,9 @@ export default function LoginPage() {
       return;
     }
 
-    // Pós-login: vai ao dashboard; o layout decide se redireciona ao onboarding.
-    router.push("/dashboard");
+    // Pós-login: vai ao Meu Dia, a porta de entrada desde o Módulo 38 (§4); o
+    // layout decide se redireciona ao onboarding.
+    router.push("/meu-dia");
     router.refresh();
   }
 

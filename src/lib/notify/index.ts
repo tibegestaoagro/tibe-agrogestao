@@ -41,7 +41,7 @@ export async function notify(
   const pushPayload: PushPayload = {
     title: content.pushTitle,
     body: content.pushBody,
-    url: content.pushUrl ?? "/dashboard",
+    url: content.pushUrl ?? "/meu-dia",
   };
   const push = await sendPushToTenant(recipient.tenant_id, pushPayload);
 
