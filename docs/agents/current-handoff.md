@@ -27,16 +27,17 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-09-14.
 
-### O Módulo 38 (Meu Dia) está PRONTO, na branch `meu-dia`, com MIGRAÇÃO
+### O Módulo 38 (Meu Dia) está EM PRODUÇÃO: as quatro áreas estão no ar
 
-As onze tarefas da spec, dez commits (`575c771..330b461`), **ainda não
-empurrado**. Suíte **65/65** (a `m65` entrou), `tsc`, `lint`, `check`,
-`test:drift` e `test:isolation` limpos. Spec em
+Merge e push em 14/09 (`6ab68c5..418c145`). A migração
+`20260914100000_meu_dia_tarefa` foi aplicada no Neon ANTES do push e conferida
+com `migrate status`. Deploy confirmado pelas rotas `/api/v1/meu-dia` e
+`/api/v1/tasks/:id/postpone` aparecendo no `/docs/api` de produção, lido no
+navegador. A branch `meu-dia` foi apagada, local e remota. Suíte **65/65** (a
+`m65` entrou). Spec em
 [../superpowers/specs/2026-09-11-modulo-38-meu-dia.md](../superpowers/specs/2026-09-11-modulo-38-meu-dia.md).
 
-⚠️ **Tem migração, `20260914100000_meu_dia_tarefa`, aplicada SÓ no Docker.**
-Antes do push: aplicar no Neon e conferir com `migrate status` (invariante 3).
-Ela torna `Task.due_date` opcional e não tem reversão trivial.
+⚠️ A migração torna `Task.due_date` opcional e não tem reversão trivial.
 
 **O que a fase entregou:** a tela em Atenção, Hoje, Próximos dias e Sem data,
 na ordem do §50; tarefa com data opcional, horário, responsável, prioridade,
@@ -154,16 +155,18 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou, e cada commit que sobe é leitura pública.
 
-**2. Levar o Módulo 38 para produção**, nesta ordem e com autorização do
-usuário: aplicar a migração `20260914100000_meu_dia_tarefa` no Neon, conferir
-com `migrate status`, e só então merge e push. Com as quatro áreas no ar, a
-rodada seguinte decide se o Meu Dia vira a porta de entrada (decisão 38.2).
-
-**3. O backfill de `property_id`** (dívida 2.11), que o usuário já autorizou. É
+**2. O backfill de `property_id`** (dívida 2.11), que o usuário já autorizou. É
 curto, tem migração, e conserta algo que o produtor sente hoje: 274 lançamentos
 somem quando ele filtra por fazenda.
 
-**Continuam esperando, para depois das quatro áreas:** a outra metade da
+**3. Decidir se o Meu Dia vira a porta de entrada** (decisão 38.2), depois de o
+usuário usá-lo alguns dias. É decisão de produto, e a troca é uma rodada curta.
+
+**4. As três dívidas pequenas que o Módulo 38 deixou à vista** (`dividas.md`
+§2.12 e §2.13): o `/dashboard` contando o rebanho por campo gravado, e a
+saudação dele pela hora UTC. A segunda é uma linha.
+
+**As quatro áreas estão no ar. Continuam esperando:** a outra metade da
 `dividas.md` §2.8 (a despesa avulsa e os sete destinos de saída), e três
 decisões de produto do Leite (média diária por dias corridos; cabeçalho de uma
 fazenda com armazenamento de todas; fechamento sem data nascendo "Vencida").
