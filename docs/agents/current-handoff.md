@@ -27,10 +27,13 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-09-14.
 
-### Dívida 2.8 (Confinamento) fechada na branch `confinamento-custos-e-saidas`
+### Dívida 2.8 (Confinamento) fechada e EM PRODUÇÃO
 
 Spec: [../superpowers/specs/2026-09-14-confinamento-custos-e-saidas.md](../superpowers/specs/2026-09-14-confinamento-custos-e-saidas.md).
-Sem migração. Decisões do usuário em 14/09 na spec.
+Sem migração. Decisões do usuário em 14/09 na spec. Merge e push em 14/09
+(`fa9f948`); deploy confirmado pelo status da Vercel e pela rota de custo
+listada no `/docs/api` de produção. Branch apagada. As três decisões do Leite
+também estão no ar (`7138926`).
 
 - **"Registrar custo" no lote**: despesa no Financeiro ligada ao lote, que entra
   no custo acumulado (`POST /api/v1/confinement/stays/:id/costs`).
@@ -51,7 +54,7 @@ motivo, com o lote em 15.
 congelado); a venda dele continua funcionando, agora como negociação sem
 comprador.
 
-### As três decisões pendentes do Leite, na branch `leite-decisoes-pendentes`
+### As três decisões pendentes do Leite, EM PRODUÇÃO (`7138926`)
 
 Decididas pelo usuário em 14/09 (as três recomendadas), sem migração:
 
@@ -214,7 +217,7 @@ variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou, e cada commit que sobe é leitura pública.
 
 **2. Pedido do usuário em 14/09:** resolver o que resta ANTES de rotacionar as
-credenciais. Depois do merge da dívida 2.8, o que sobra em `dividas.md` é de
+credenciais. Com a dívida 2.8 no ar, o que sobra em `dividas.md` é de
 outra natureza: validação em aparelho (1.1, 1.2), sandbox do Asaas (1.3, precisa
 de chave), itens adiados por volume de dado (2.3), conversa com o cliente
 (2.4), tokens de cor fora do painel (2.5 a 2.7) e contratos do app (4.1).
