@@ -667,6 +667,15 @@ export const GROUPS: Group[] = [
         response: `201
 { "data": { "stay_id": "cl...", "registered_in_stock": true, "stock_movement_id": "cl..." }, "meta": {} }`,
       },
+      {
+        method: "POST",
+        path: "/api/v1/confinement/stays/:id/costs",
+        auth: "Sessão · rebanho:write · perfil fazenda",
+        description: "Custo avulso do lote (§13, §14): ração comprada, remédio, frete. Vira despesa no Financeiro ligada ao lote (`related_module: confinamento`), e entra no `financial_cost` do resumo. `pago: true` nasce quitada; a prazo, `due_date` é obrigatória, senão 422 `VENCIMENTO_OBRIGATORIO`.",
+        request: `{ "category": "Ração", "amount": 3000, "pago": false, "due_date": "2026-10-10T12:00:00.000Z" }`,
+        response: `201
+{ "data": { "id": "cl..." }, "meta": {} }`,
+      },
     ],
   },
   {

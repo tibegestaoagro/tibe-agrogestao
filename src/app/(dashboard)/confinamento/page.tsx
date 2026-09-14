@@ -16,6 +16,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import SiteList from "@/components/confinamento/site-list";
 import StayOpenForm from "@/components/confinamento/stay-open-form";
 import LotFeedingForm from "@/components/confinamento/lot-feeding-form";
+import LotCostForm from "@/components/confinamento/lot-cost-form";
 import LotCloseForm from "@/components/confinamento/lot-close-form";
 import { TIPO_ESTADIA_LABEL, CHARGE_LABEL, MOVIMENTO_LABEL } from "@/components/confinamento/labels";
 import {
@@ -363,6 +364,7 @@ export default async function ConfinamentoPage() {
                     {writable && (
                       <TableCell className="text-right">
                         <div className="flex flex-wrap justify-end gap-2">
+                          <LotCostForm stayId={lote.id} />
                           <LotFeedingForm
                             stayId={lote.id}
                             propertyId={lote.property_id}

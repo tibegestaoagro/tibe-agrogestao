@@ -17,6 +17,19 @@ import type {
   HerdStayType,
 } from "@/generated/prisma/enums";
 
+/** Os exemplos do §13, na ordem do documento. "Boitel" fica fora: nasce da cobrança da estadia. */
+export const CATEGORIAS_DE_CUSTO_DO_LOTE = [
+  "Ração",
+  "Silagem",
+  "Suplementação",
+  "Medicamentos",
+  "Mão de obra",
+  "Combustível",
+  "Serviços",
+  "Frete",
+  "Outros",
+] as const;
+
 export const TIPO_SITE_LABEL: Record<ConfinementSiteType, string> = {
   proprio: "Confinamento próprio",
   boitel: "Boitel",
