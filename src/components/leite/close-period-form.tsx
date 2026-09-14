@@ -123,6 +123,7 @@ export default function ClosePeriodForm({
     if (!ate) novos.ate = "Informe o fim do período.";
     if (de && ate && de > ate) novos.de = "O início é depois do fim.";
     if (precoLido <= 0) novos.price_per_liter = "Informe o preço por litro.";
+    if (!pago && !vencimento) novos.due_date = "Informe quando o comprador vai pagar.";
 
     if (Object.keys(novos).length > 0) {
       err.setGlobal(null);
@@ -304,6 +305,7 @@ export default function ClosePeriodForm({
       {!pago && (
         <Field
           label="Data prevista de recebimento"
+          required
           id="fecho-due_date"
           error={err.erros.due_date}
           hint="Vira uma conta a receber no Financeiro."

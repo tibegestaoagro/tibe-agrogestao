@@ -415,6 +415,16 @@ export async function closeMilkPeriod(
     return fail("PERIODO_INVERTIDO", "A data inicial é depois da final.", 422, "de");
   }
 
+  /*
+   * A prazo, a data de recebimento é obrigatória (decisão do usuário,
+   * 14/09/2026). Sem ela o vencimento caía no fim do período, que já passou, e
+   * o fechamento nascia "Vencido" sem o produtor ter errado nada. Um padrão
+   * "hoje" só adiaria o mesmo problema em um dia.
+   */
+  if (!input.pago && !input.due_date && !input.parcelas?.length) {
+    return fail("VENCIMENTO_OBRIGATORIO", "Informe quando o comprador vai pagar.", 422, "due_date");
+  }
+
   const pendentes = await listPendingDeliveries(db, {
     buyer_id: input.buyer_id,
     de: input.de,

@@ -129,6 +129,7 @@ export default async function LeitePage() {
     name: s.name,
     type: s.type,
     counterparty_name: s.counterparty_name,
+    property_name: s.property_id ? (properties.find((p) => p.id === s.property_id)?.name ?? null) : null,
     capacity: s.capacity,
     liters: fisicoPorSite.get(s.id) ?? 0,
     acima_da_capacidade: s.capacity != null && (fisicoPorSite.get(s.id) ?? 0) > s.capacity,
@@ -224,7 +225,14 @@ export default async function LeitePage() {
 
       {/* §34, bloco "Armazenamento": os quatro números que o documento pede,
           separando o que é meu do que é dos outros (§18). O físico total é a
-          soma, e existe porque é ele que responde "cabe mais leite?". */}
+          soma, e existe porque é ele que responde "cabe mais leite?".
+          ⚠️ É de TODAS as fazendas, e o título diz isso (decisão do usuário,
+          14/09/2026): sob o nome da fazenda escolhida, o tanque de outra lia
+          como se fosse dela. Filtrar não fecha a conta, porque o saldo no ponto
+          de coleta não guarda de que fazenda o leite saiu. */}
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-texto-secundario">
+        Armazenamento de todas as fazendas
+      </h2>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {(
           [
@@ -362,6 +370,12 @@ export default async function LeitePage() {
               <p className="mt-1 text-xs text-texto-secundario">
                 Média diária: {litros(p.media_diaria)}
               </p>
+              {/* Sem registro nenhum, "0 de 7" só repete o "0 L" de cima. */}
+              {p.dias_com_registro > 0 && p.dias_com_registro < p.dias && (
+                <p className="text-xs text-texto-discreto">
+                  {p.dias_com_registro} de {p.dias} dias com registro
+                </p>
+              )}
               <p className="text-xs text-texto-secundario">
                 Por vaca:{" "}
                 {p.media_por_vaca === null

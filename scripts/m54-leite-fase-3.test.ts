@@ -254,12 +254,29 @@ async function comBanco() {
     );
 
     const saldoAntesDoFecho = await getMilkBalance(db, { site_id: tanque, owner_id: null });
+
+    // Decisão de 14/09/2026: a prazo sem data nascia "Vencida", porque o
+    // vencimento caía no fim do período, já passado.
+    const semVencimento = await closeMilkPeriod(db, {
+      buyer_id: laticinio.id,
+      property_id: fazenda.id,
+      de: dia(10),
+      ate: dia(15),
+      price_per_liter: 2.35,
+    });
+    check(
+      "fechamento a prazo SEM data de recebimento é recusado no campo due_date",
+      !semVencimento.ok && semVencimento.code === "VENCIMENTO_OBRIGATORIO" && semVencimento.field === "due_date",
+      semVencimento.ok ? "aceitou" : `${semVencimento.code} ${semVencimento.field}`,
+    );
+
     const fecho = await closeMilkPeriod(db, {
       buyer_id: laticinio.id,
       property_id: fazenda.id,
       de: dia(10),
       ate: dia(15),
       price_per_liter: 2.35,
+      due_date: dia(25),
       period_label: "1a quinzena",
     });
     check("o fechamento é aceito", fecho.ok, fecho.ok ? "" : fecho.message);
@@ -287,6 +304,7 @@ async function comBanco() {
       de: dia(10),
       ate: dia(15),
       price_per_liter: 2.35,
+      due_date: dia(25),
     });
     check("o segundo fechamento é recusado", !denovo.ok);
     check(

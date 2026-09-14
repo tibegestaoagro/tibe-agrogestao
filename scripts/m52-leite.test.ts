@@ -488,6 +488,13 @@ async function comBanco() {
       semana.dias_com_contagem === 2 && semana.dias === 7,
       `${semana.dias_com_contagem} de ${semana.dias}`,
     );
+    // Decisão de 14/09/2026: a média diária divide pelos dias COM REGISTRO.
+    // Pelos sete dias corridos daria 192,86, que ninguém produziu em dia nenhum.
+    check(
+      "a média diária é 675: 1350 litros em 2 dias com registro, e não em 7 corridos",
+      semana.media_diaria === 675 && semana.dias_com_registro === 2,
+      `${semana.media_diaria} em ${semana.dias_com_registro}`,
+    );
 
     // Produção num dia ANTERIOR ao primeiro `definir`: sem contagem conhecida,
     // aquele dia sai dos dois lados da divisão. Se entrasse só no numerador, a

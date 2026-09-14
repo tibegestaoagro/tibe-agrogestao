@@ -282,6 +282,11 @@ mostra traço, que é o campo vazio da convenção de UI, e não zero.
 Hoje, ontem, semana, mês, mês anterior e acumulado no ano. Cada uma devolve
 **total produzido, média diária e média por vaca**.
 
+**A média diária divide pelos dias COM REGISTRO de produção**, e não pelos dias
+corridos da janela (decisão do usuário, 14/09/2026): uma fazenda com um só
+registro de 120 L lia "média diária 0,49 L" no ano. A tela mostra "N de M dias
+com registro" quando faltam dias, como a média por vaca já fazia.
+
 Os limites de dia são calculados em `America/Sao_Paulo`, como já fazem
 `src/lib/actions/confinement.ts` e `src/lib/actions/financial-reports.ts`. O
 servidor da Vercel roda em UTC, e "produção de hoje" calculada em UTC muda de
