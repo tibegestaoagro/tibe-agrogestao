@@ -28,9 +28,10 @@ const NO_WORDS = [
   "melhor nao", "melhor não", "nao quero", "não quero",
 ];
 /** Palavra de recusa em QUALQUER posição: desempata "pode cancelar" e "isso aí não é". */
-const NEGACAO_SOLTA = new Set(["não", "nao", "cancela", "cancelar", "errado", "esquece"]);
+const NEGACAO_SOLTA = new Set([
+  "não", "nao", "cancela", "cancelar", "cancelado", "errado", "negativo", "esquece",
+]);
 const MAX_PALAVRAS_SIM = 5;
-const MAX_PALAVRAS_NAO = 6;
 
 /**
  * A PONTUAÇÃO É TIRADA ANTES DE COMPARAR.
@@ -50,9 +51,14 @@ const MAX_PALAVRAS_NAO = 6;
  * qualquer prefixo, então "pode lançar 500 de diesel" virava "yes" (começa com
  * "pode") e "para o João" virava "no" (começava com "para"). Nas duas, o texto
  * não era confirmação nenhuma: era o produtor descrevendo outra coisa. Agora
- * "sim" só vale para mensagem curta, sem dígito e sem negação solta, e "não"
- * só vale para mensagem curta que começa por recusa; fora disso o handler
- * pergunta de novo em vez de adivinhar.
+ * "sim" só vale para mensagem curta, sem dígito e sem negação solta.
+ *
+ * A REGRA É ASSIMÉTRICA DE PROPÓSITO (correção 2026-09-14, achado do revisor):
+ * "não" vence sempre que a mensagem COMEÇA por recusa, não importa o tamanho
+ * nem se tem dígito ("não, foram 30 e não 20" cancela igual). Dígito e limite
+ * de palavras só restringem "sim". `estoque.ts` (linhas ~294-309) documenta o
+ * porquê: deixar de cancelar GRAVA dado errado; cancelar por engano só repete
+ * a pergunta. Entre os dois defeitos, o segundo é o barato.
  */
 export function detectConfirmation(text?: string | null): "yes" | "no" | null {
   if (!text) return null;
@@ -68,7 +74,7 @@ export function detectConfirmation(text?: string | null): "yes" | "no" | null {
   const temDigito = /\d/.test(t);
   const temNegacao = palavras.some((p) => NEGACAO_SOLTA.has(p));
 
-  if (comeca(NO_WORDS) && palavras.length <= MAX_PALAVRAS_NAO && !temDigito) return "no";
+  if (comeca(NO_WORDS)) return "no";
   if (comeca(YES_WORDS) && !temNegacao && !temDigito && palavras.length <= MAX_PALAVRAS_SIM) return "yes";
   return null;
 }

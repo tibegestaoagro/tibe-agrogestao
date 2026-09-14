@@ -32,7 +32,9 @@ async function main() {
     ["confirmo a venda", "yes"], ["não", "no"], ["Não, deixa pra lá", "no"], ["cancela", "no"], ["esquece isso", "no"],
     ["pode lançar 500 de diesel", null], ["ok, anota 500 de diesel", null], ["para o João", null],
     ["para amanhã me lembra de vacinar", null], ["pode cancelar", null], ["isso aí não é boi", null],
-    ["sim mas foram 30 e não 20", null], ["não sei quanto foi, uns 20", null],
+    ["sim mas foram 30 e não 20", null], ["não sei quanto foi, uns 20", "no"],
+    ["não, foram 30 e não 20", "no"], ["não, deixa pra lá, depois eu vejo isso", "no"],
+    ["pode, mas cancelado", null],
   ];
   for (const [frase, resp] of esperado) {
     const r = detectConfirmation(frase);
