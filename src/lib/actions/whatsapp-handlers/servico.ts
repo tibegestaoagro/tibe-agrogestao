@@ -17,8 +17,9 @@ import {
   type GestoServico,
 } from "@/lib/actions/service-pending";
 import { ask, failReply, str, type Handler, type RouterResult } from "./shared";
-import { lerNumeroBr, lerData, interpretarSim, aoMeioDia } from "./parsers";
+import { lerNumeroBr, lerData, interpretarSim } from "./parsers";
 import { reaisBr as moeda } from "@/lib/numero-br";
+import { inicioDoDiaEmSaoPaulo } from "@/lib/dia-calendario";
 
 /**
  * Serviço pelo WhatsApp: as duas conversas do §32 do Módulo 33 e as cinco do
@@ -571,6 +572,23 @@ const UNIDADES: Record<string, ServicePricing> = {
 };
 
 /**
+ * Task 6 (fix round 1 da revisão): só um NEGATIVO explícito marca o serviço
+ * como ainda não feito. Um "terminei"/"feito"/"já fiz", que `interpretarSim`
+ * não reconhece como afirmativo, não pode virar "ainda não fiz" por default:
+ * some caso contrário `concluido === false` engolia qualquer string que a
+ * lista de afirmativos de `interpretarSim` não cobrisse, agendando um
+ * serviço que o produtor tinha acabado de dizer que fez.
+ */
+function concluidoExplicito(bruto: unknown): boolean | null {
+  if (bruto === false) return false;
+  if (bruto === true) return true;
+  if (typeof bruto !== "string") return null;
+  const texto = normalizar(bruto);
+  if (["nao", "ainda nao", "nao fiz", "vou fazer"].includes(texto)) return false;
+  return interpretarSim(bruto) ? true : null;
+}
+
+/**
  * "Amanhã vou gradear 20 hectares para o João a 180 reais o hectare." (§42)
  *
  * A confirmação mostra o TOTAL PREVISTO, que é o número que o §42 pede em
@@ -648,42 +666,46 @@ export const registrarServicoPrestado: Handler = async (ctx) => {
   }
 
   /**
-   * Task 6: "vou fazer" (§42) ainda não aconteceu. `concluido`, quando dito
-   * explicitamente, manda; sem ele, decide a data: futura é agendado, passada
-   * ou ausente é hoje, como sempre foi. `concluido` chega como booleano puro
-   * quando o classificador colabora, daí `interpretarSim` em vez de `str()`.
+   * Fix round 1 da revisão do Task 6: `concluido` só vira `false` diante de
+   * um NEGATIVO explícito (`concluidoExplicito`); sem isso, quem decide é a
+   * data. NUNCA inventamos data: sem `concluido` negativo, ou com ele mas
+   * SEM data dita, a pergunta volta ao produtor, em vez de chutar "amanhã".
    */
-  const concluidoDito =
-    parameters.concluido !== undefined ? interpretarSim(parameters.concluido) : null;
+  const concluidoDito = concluidoExplicito(parameters.concluido);
   const dataLida = lerData(parameters, "data", "date");
   if (dataLida.tipo === "invalida") {
     await guardar("data");
     return ask(`Não entendi a data "${dataLida.bruto}". Diga por exemplo "hoje" ou "05/08/2026".`);
   }
+  if (concluidoDito === false && dataLida.tipo === "vazio") {
+    await guardar("data");
+    return ask("Para quando ficou marcado?");
+  }
+
   const agora = new Date();
-  const dataDita = dataLida.tipo === "ok" ? dataLida.data : null;
-  const dataFutura = dataDita !== null && dataDita.getTime() > agora.getTime();
-  const agendado = concluidoDito === false || (concluidoDito === null && dataFutura);
-  /*
-   * ponytail: sem data futura dita, "amanhã" só empurra `occurred_at` para
-   * `createServiceJob` (que deriva o status dela, decisão da fase 34.1)
-   * nascer `agendado`; não é a data real do serviço. Um status explícito na
-   * action resolveria isso de vez, mas está fora do escopo desta tarefa (só
-   * o handler do WhatsApp).
+  /**
+   * "Futura" é DIA de calendário em São Paulo, não instante: comparar por
+   * instante fazia "hoje" (meio-dia) virar futuro toda manhã, antes do
+   * meio-dia UTC (09h em São Paulo), perdendo a produção e a conta a
+   * receber de um serviço que já tinha acabado de acontecer.
    */
-  const amanha = aoMeioDia(agora.getFullYear(), agora.getMonth(), agora.getDate() + 1);
-  const occurredAt = agendado
-    ? (dataFutura ? (dataDita as Date) : amanha)
-    : (dataDita && !dataFutura ? dataDita : agora);
+  const dataFutura =
+    dataLida.tipo === "ok" &&
+    inicioDoDiaEmSaoPaulo(dataLida.data).getTime() > inicioDoDiaEmSaoPaulo(agora).getTime();
+  const agendado = concluidoDito === false || (concluidoDito === null && dataFutura);
+  const occurredAt = dataLida.tipo === "ok" && (agendado || !dataFutura) ? dataLida.data : agora;
+  const dataFormatada = dataLida.tipo === "ok" ? dataLida.data.toLocaleDateString("pt-BR") : null;
 
   const total = pricing === "fechado" ? valor : valor * (quantidade ?? 0);
 
   if (!ctx.confirmed) {
     await guardar("confirmacao");
     return {
-      reply_text:
-        `Deseja registrar ${servico} para ${cliente.nomeFinal} com o ${maquina.nome}, ` +
-        `total previsto de ${moeda(total)}?`,
+      reply_text: agendado
+        ? `Deseja agendar ${servico} para ${cliente.nomeFinal} em ${dataFormatada}, ` +
+          `total previsto de ${moeda(total)}?`
+        : `Deseja registrar ${servico} para ${cliente.nomeFinal} com o ${maquina.nome}, ` +
+          `total previsto de ${moeda(total)}?`,
       requires_confirmation: true,
       auxiliary_data: { servico, pricing, valor, quantidade, quem: cliente.nomeFinal, total },
       report_url: null,
@@ -722,7 +744,7 @@ export const registrarServicoPrestado: Handler = async (ctx) => {
 
   return {
     reply_text: agendado
-      ? `✅ ${servico} para ${cliente.nomeFinal} com o ${maquina.nome} ficou agendado, ` +
+      ? `✅ ${servico} para ${cliente.nomeFinal} agendado para ${dataFormatada}, ` +
         `total previsto de ${moeda(total)}.`
       : `✅ ${servico} para ${cliente.nomeFinal} registrada, ${moeda(res.data.total)}.` +
         "\nFicou como conta a receber. Me avise quando receber.",

@@ -153,16 +153,107 @@ async function main() {
     console.log("\n5. Serviço prestado agendado e depois iniciado");
     {
       await db.machine.create({ data: scoped({ name: "Trator M67", property_id: fazenda.id, type: "Trator" }) });
-      const p = { servico: "gradagem", maquina: "Trator M67", quem: "Joao M67", valor: 2000, quantidade: 8, unidade: "hectare", concluido: false };
+
+      // Fix round 1: nunca se inventa data. O agendado do teste precisa dizer
+      // UMA data futura de verdade, não mais "concluido: false" sozinho.
+      const daqui10 = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+      const dataAgendada =
+        `${String(daqui10.getDate()).padStart(2, "0")}/` +
+        `${String(daqui10.getMonth() + 1).padStart(2, "0")}/${daqui10.getFullYear()}`;
+
+      const p = {
+        servico: "gradagem",
+        maquina: "Trator M67",
+        quem: "Joao M67",
+        valor: 2000,
+        quantidade: 8,
+        unidade: "hectare",
+        concluido: false,
+        data: dataAgendada,
+      };
       await acao("registrar_servico_prestado", p, "vou fazer gradagem de 8 hectares pro Joao por 2 mil");
       await acao("registrar_servico_prestado", p, "sim", { confirmed: true });
       const job = await db.serviceJob.findFirst({ where: { description: { contains: "gradagem" } } });
       check("nasce agendado", job?.status === "agendado", String(job?.status));
-      check("sem produção lançada (quantidade prevista, não realizada)", job?.notes?.includes("8") ?? false, String(job?.notes));
+      check("quantidade prevista na observação", job?.notes?.includes("8") ?? false, String(job?.notes));
       const logs = await db.serviceJobLog.count({ where: { service_job_id: job?.id } });
       check("nenhum log de produção", logs === 0, String(logs));
+      const financeiro = await db.financialEntry.count({
+        where: { related_module: "servico", related_id: job?.id },
+      });
+      check("nenhuma conta a receber ainda", financeiro === 0, String(financeiro));
+
+      // Continua achável por iniciar_servico: base do que a Task 7 reusa.
       const inicio = await acao("iniciar_servico", { quem: "Joao M67" }, "comecei a gradagem do Joao");
-      check("iniciar_servico o encontra", !/não achei|não encontrei|nenhum/i.test(inicio.data.reply_text), inicio.data.reply_text);
+      check(
+        "iniciar_servico acha o serviço do Joao (match positivo, não só ausência de recusa)",
+        inicio.data.reply_text.includes("Joao M67"),
+        inicio.data.reply_text,
+      );
+
+      console.log("   concluido:false sem nenhuma data: pergunta, não inventa");
+      const antesDaPergunta = await db.serviceJob.count();
+      const semData = await acao(
+        "registrar_servico_prestado",
+        {
+          servico: "roçada",
+          maquina: "Trator M67",
+          quem: "Maria M67",
+          valor: 1000,
+          quantidade: 3,
+          unidade: "hectare",
+          concluido: false,
+        },
+        "vou fazer uma roçada pra Maria",
+      );
+      check(
+        "pergunta exatamente para quando ficou marcado",
+        semData.data.reply_text === "Para quando ficou marcado?",
+        semData.data.reply_text,
+      );
+      check("e não cria nenhum serviço novo", (await db.serviceJob.count()) === antesDaPergunta);
+
+      // A pergunta acima deixou um pendente "aguardando: data" no Redis. Sem
+      // limpar, o PRÓXIMO registrar_servico_prestado (mesmo user_id) tomaria
+      // essa resposta como resposta À PERGUNTA DA MARIA (mesma chave para
+      // todo gesto de serviço), e o caso do Pedro abaixo gravaria "roçada
+      // para Maria" em vez de "aração para Pedro".
+      const { clearPendingService } = await import("@/lib/actions/service-pending");
+      await clearPendingService(tenant.id, owner.id);
+
+      console.log("   data: hoje nunca é futuro: nasce feito, não agendado");
+      const pHoje = {
+        servico: "aração",
+        maquina: "Trator M67",
+        quem: "Pedro M67",
+        valor: 500,
+        quantidade: 2,
+        unidade: "hectare",
+        data: "hoje",
+      };
+      await acao("registrar_servico_prestado", pHoje, "fiz aração hoje pro Pedro");
+      await acao("registrar_servico_prestado", pHoje, "sim", { confirmed: true });
+      const jobHoje = await db.serviceJob.findFirst({ where: { description: { contains: "ração" } } });
+      check("hoje não vira agendado", jobHoje?.status === "concluido", String(jobHoje?.status));
+
+      console.log('   concluido: "terminei" não é negativo reconhecido: nasce feito');
+      const pTerminei = {
+        servico: "plantio",
+        maquina: "Trator M67",
+        quem: "Ana M67",
+        valor: 700,
+        quantidade: 4,
+        unidade: "hectare",
+        concluido: "terminei",
+      };
+      await acao("registrar_servico_prestado", pTerminei, "terminei o plantio da Ana");
+      await acao("registrar_servico_prestado", pTerminei, "sim", { confirmed: true });
+      const jobTerminei = await db.serviceJob.findFirst({ where: { description: { contains: "plantio" } } });
+      check(
+        '"terminei" não é o negativo explícito: nasce feito, não agendado',
+        jobTerminei?.status === "concluido",
+        String(jobTerminei?.status),
+      );
     }
 
     void fazenda;
