@@ -124,6 +124,23 @@ export type StoreDePendencia<C extends string, P extends PedidoBase<C>> = {
   ): Record<string, unknown> | null;
 };
 
+/**
+ * Todo store criado se registra aqui, pelo prefixo.
+ *
+ * É de onde `stock-pending.ts` tira a lista de domínios para o desempate por
+ * data. A lista feita à mão parou em dois domínios enquanto o projeto chegava
+ * a onze, e um "sim" dado a uma contagem de lactação gravava uma compra de sal
+ * mais antiga. Um store só entra aqui quando o arquivo dele é carregado, por
+ * isso `stock-pending.ts` importa todos, e `test:m67` (seção 8) reprova o
+ * `*-pending.ts` que ficar de fora.
+ */
+const CHAVES_POR_PREFIXO = new Map<string, (tenantId: string, userId: string) => string>();
+
+/** As chaves de todos os domínios registrados. */
+export function chavesDePendencia(): ((tenantId: string, userId: string) => string)[] {
+  return [...CHAVES_POR_PREFIXO.values()];
+}
+
 export function criarStoreDePendencia<
   C extends string,
   P extends PedidoBase<C> = PedidoBase<C>,
@@ -134,6 +151,7 @@ export function criarStoreDePendencia<
 
   const chave = (tenantId: string, userId: string) =>
     `tibe:${config.prefixo}:${tenantId}:${userId}`;
+  CHAVES_POR_PREFIXO.set(config.prefixo, chave);
 
   return {
     chave,

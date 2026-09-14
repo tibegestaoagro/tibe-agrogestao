@@ -390,6 +390,69 @@ async function main() {
       );
     }
 
+    console.log("\n8. O sim pertence ao pedido mais recente");
+    {
+      // Seções anteriores deixam pendências mais ANTIGAS que as deste caso
+      // (serviço aguardando data, por exemplo). Por serem anteriores, não
+      // mudam o desempate, mas limpar deixa o caso sem ambiguidade.
+      const { clearPendingService } = await import("@/lib/actions/service-pending");
+      const { clearPendingStock, loadPendingStock } = await import("@/lib/actions/stock-pending");
+      const { clearPendingMilk } = await import("@/lib/actions/leite-pending");
+      await clearPendingService(tenant.id, owner.id);
+      await clearPendingStock(tenant.id, owner.id);
+      await clearPendingMilk(tenant.id, owner.id);
+
+      const categoriaSal = await db.productCategory.create({ data: scoped({ name: "Sal M67" }) });
+      await db.product.create({ data: scoped({ category_id: categoriaSal.id, name: "Sal M67", unit: "saca" }) });
+      const compra = await acao(
+        "registrar_negocio_produto",
+        { tipo: "compra", produto: "Sal M67", quantidade: 10, valor: 1200 },
+        "comprei 10 sacas de sal por 1200",
+      );
+      check("a compra de sal ficou esperando confirmação", compra.data.requires_confirmation === true, compra.data.reply_text);
+      await new Promise((r) => setTimeout(r, 20));
+      const lactacao = await acao(
+        "definir_vacas_em_lactacao",
+        { quantidade: 32, fazenda: "Fazenda M67" },
+        "estou com 32 vacas dando leite",
+      );
+      check("a contagem de lactação ficou esperando confirmação", lactacao.data.requires_confirmation === true, lactacao.data.reply_text);
+      const sim = await acao("registrar_entrada_lactacao", {}, "sim", { confirmed: true });
+      const compras = await db.stockMovement.count({ where: { movement_type: "compra" } });
+      check("o sim NÃO gravou a compra de sal, que era mais antiga", compras === 0, `${compras}: ${sim.data.reply_text}`);
+      const entradas = await db.lactationEntry.count({ where: { type: "entrada" } });
+      check("nem uma ENTRADA de lactação onde se perguntou a contagem", entradas === 0, String(entradas));
+      /*
+       * O handler de estoque também recusa pedido que não é o mais recente, e
+       * sozinho já impediria a gravação. Mas ali ele APAGA a compra e responde
+       * pelo estoque. O roteador tem de nem desviar: o "sim" fica com o leite,
+       * e a compra continua viva para quando for a vez dela.
+       */
+      check("a compra de sal continua pendente, não foi destruída", (await loadPendingStock(tenant.id, owner.id)) !== null);
+
+      /*
+       * O desempate por data lê o registro de `pending-store.ts`, e um store
+       * só se registra quando o arquivo dele é carregado. `stock-pending.ts`
+       * importa todos para não depender de quem mais foi carregado antes.
+       * Conferência estática, porque neste processo a rota já carregou todos
+       * os handlers e o registro estaria completo de qualquer jeito: um
+       * `*-pending.ts` novo sem o import reprova aqui.
+       */
+      const { readdirSync, readFileSync } = await import("node:fs");
+      const { join } = await import("node:path");
+      const pasta = join(process.cwd(), "src", "lib", "actions");
+      const fonteDoEstoque = readFileSync(join(pasta, "stock-pending.ts"), "utf8");
+      const semImport = readdirSync(pasta)
+        .filter((f) => f.endsWith("-pending.ts") && f !== "stock-pending.ts")
+        .filter((f) => readFileSync(join(pasta, f), "utf8").includes("criarStoreDePendencia<"))
+        .filter((f) => !fonteDoEstoque.includes(`import "@/lib/actions/${f.replace(/\.ts$/, "")}";`));
+      check(
+        "todo store de pendência em disco entra no desempate por data",
+        semImport.length === 0,
+        `sem import em stock-pending.ts: ${semImport.join(", ")}`,
+      );
+    }
+
     void fazenda;
     void pasto;
   } finally {

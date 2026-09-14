@@ -1,7 +1,21 @@
 import { getRedisConnection } from "@/lib/redis";
-import { criarStoreDePendencia, type PedidoBase } from "@/lib/actions/pending-store";
-import { chaveDoNegocio } from "@/lib/actions/negotiation-pending";
-import { chaveDoRebanho } from "@/lib/actions/herd-pending";
+import {
+  chavesDePendencia,
+  criarStoreDePendencia,
+  type PedidoBase,
+} from "@/lib/actions/pending-store";
+// Importados só para registrarem o próprio store em `pending-store.ts`: é de
+// lá que sai a lista do desempate por data. `test:m67` reprova o que faltar.
+import "@/lib/actions/barter-pending";
+import "@/lib/actions/confinamento-pending";
+import "@/lib/actions/event-pending";
+import "@/lib/actions/finance-pending";
+import "@/lib/actions/herd-pending";
+import "@/lib/actions/leite-pending";
+import "@/lib/actions/negotiation-pending";
+import "@/lib/actions/service-pending";
+import "@/lib/actions/shopping-pending";
+import "@/lib/actions/worker-pending";
 
 /**
  * O pedido de estoque que ficou esperando resposta (Módulo 31, §9 e §10).
@@ -216,17 +230,16 @@ export function mudaOPedido(
 }
 
 /**
- * As chaves das outras duas conversas, só para LER a data delas.
+ * As chaves de TODAS as outras conversas, só para LER a data delas.
  *
  * Nunca para apagar: ver o comentário do topo.
  *
- * ✅ Até 02/09 estas duas chaves eram montadas aqui por string literal, com o
- * aviso "se alguma dessas chaves mudar lá, esta lista precisa acompanhar", que
- * é o tipo de pedido que documentação não consegue cumprir. Agora vêm dos
- * próprios donos: mudar o prefixo de um domínio muda esta lista junto, sem
- * ninguém precisar lembrar.
+ * Até 14/09 eram só gado e rebanho, importados um a um, e a lista envelheceu
+ * enquanto nasciam leite, financeiro, serviço e mais seis: um "sim" dado a uma
+ * contagem de lactação gravava uma compra de sal mais antiga. Agora vem do
+ * registro de `pending-store.ts`, lida na chamada (não no carregamento).
  */
-const CHAVES_DE_OUTROS_DOMINIOS = [chaveDoNegocio, chaveDoRebanho];
+const chavesDeOutrosDominios = () => chavesDePendencia().filter((chave) => chave !== store.chave);
 
 /**
  * Quando a conversa mais recente de OUTRO domínio foi guardada.
@@ -242,7 +255,7 @@ export async function quandoOutroDominioFalou(
   try {
     const redis = getRedisConnection();
     const brutos = await Promise.all(
-      CHAVES_DE_OUTROS_DOMINIOS.map((montar) => redis.get(montar(tenantId, userId))),
+      chavesDeOutrosDominios().map((montar) => redis.get(montar(tenantId, userId))),
     );
     let maisRecente = 0;
     for (const bruto of brutos) {

@@ -69,9 +69,6 @@ const store = criarStoreDePendencia<CampoPendente>({
   },
 });
 
-/** A chave deste domínio. Lida por `stock-pending.ts` para desempatar por data. */
-export const chaveDoRebanho = store.chave;
-
 export const savePendingHerd = store.salvar;
 export const loadPendingHerd = store.carregar;
 export const clearPendingHerd = store.limpar;

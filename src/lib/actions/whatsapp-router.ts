@@ -432,7 +432,8 @@ export async function routeIntent(
     const esperandoSim = await loadPendingStock(tenant_id, ctx.user_id);
     if (esperandoSim?.aguardando === "confirmacao") {
       /**
-       * DUAS CONDIÇÕES, e as duas nasceram do defeito oposto.
+       * TRÊS CONDIÇÕES, e todas nasceram do defeito oposto (a terceira está
+       * logo abaixo, junto do código).
        *
        * 1. A mensagem não pode carregar gesto PRÓPRIO. "ok, usei 3 sacas de sal
        *    no curral" tem um "ok" que o interpretador marca como confirmação, e
@@ -443,7 +444,7 @@ export async function routeIntent(
        *    abandonou a compra, abriu um cadastro de animal e leu "Responda sim
        *    para confirmar" está confirmando o ANIMAL: a troca cega gravava a
        *    compra e ele via o sucesso do que nem estava na tela. Mesma regra de
-       *    recência que já decide entre os três domínios de conversa.
+       *    recência que já decide entre os domínios de conversa.
        */
       /**
        * ECO DO PEDIDO NÃO É GESTO PRÓPRIO.
@@ -465,8 +466,20 @@ export async function routeIntent(
       });
       const formularioMaisRecente =
         formulario != null && formulario.updated_at.getTime() > (esperandoSim.salvo_em ?? 0);
+      /**
+       * 3. Um pedido MAIS RECENTE de qualquer outro domínio também tem a vez.
+       *    Quando a lista de domínios parava em gado e rebanho, "estou com 32
+       *    vacas dando leite" seguido de "sim" gravava a compra de sal de
+       *    antes. Com a lista completa, o handler de estoque recusaria, mas
+       *    APAGANDO a compra e respondendo pelo estoque: o "sim" tem de nem
+       *    ser desviado.
+       */
+      const outroDominioMaisRecente =
+        (await quandoOutroDominioFalou(tenant_id, ctx.user_id)) >= (esperandoSim.salvo_em ?? 0);
 
-      if (!temGestoProprio && !formularioMaisRecente) intent = esperandoSim.intent;
+      if (!temGestoProprio && !formularioMaisRecente && !outroDominioMaisRecente) {
+        intent = esperandoSim.intent;
+      }
     }
   }
 
