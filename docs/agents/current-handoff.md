@@ -27,99 +27,34 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-09-11.
 
-### O Módulo 37 (Calculadora) está EM PRODUÇÃO
+### O Módulo 38 (Meu Dia) tem SPEC, na branch `meu-dia`
 
-Merge e push em 11/09 (`2819e47..5210ca7`, oito commits), sem migração. A
-branch `calculadora` foi apagada. Treze tarefas, sem model novo: calculadora
-continua função pura, e salvar cálculo segue fora (decisão 6). Suíte **64/64**
-(a `m64` entrou), `tsc`, `lint` e `check` limpos.
+Spec escrita e commitada em 11/09 (`1f355dc`), **sem código ainda**. Onze
+tarefas, e esta tem MIGRAÇÃO, diferente da Calculadora. Spec em
+[../superpowers/specs/2026-09-11-modulo-38-meu-dia.md](../superpowers/specs/2026-09-11-modulo-38-meu-dia.md).
 
-**Deploy confirmado pelo handler novo respondendo em produção.** Numa frente
-que não cria rota de API, o `/docs/api` não serve de impressão digital: a
-intenção `calcular_cerca` na rota interna serve, porque antes do deploy ela não
-existia. "1.000 metros com 5 fios" devolveu os 251 mourões.
-Spec em
-[../superpowers/specs/2026-09-11-modulo-37-calculadora.md](../superpowers/specs/2026-09-11-modulo-37-calculadora.md).
+**O que a auditoria achou:** o `/meu-dia` de hoje é uma tabela de tarefas com
+dois campos, e `Task.due_date` é **obrigatório**, o que torna impossível a
+tarefa sem data do §19. Não existem as três seções, nem adiar, nem responsável,
+nem prioridade, nem recorrência.
 
-⚠️ **A auditoria do delta, prometida na decisão 1 de 10/09, nunca tinha sido
-feita.** O plano previa "sete calculadoras novas" e tratava as 12 no ar como
-prontas. Não estavam: faltava a de SEMENTES inteira (§8), a de mão de obra
-responde "quantos funcionários" e o §29 pergunta "quanto custa", e sete
-ferramentas não calculavam custo nem sacas. São 22 ferramentas agora.
+⚠️ **Parte do §49 já existe, no lugar errado:** o `/dashboard` tem a saudação,
+as contas do dia, os recebimentos e a próxima vacina. A fase MOVE isso, não
+reescreve, e o dashboard fica com o que o §52 proíbe no Meu Dia.
 
-**As três decisões do usuário em 11/09:** o delta entra junto com as sete
-novas; a ponte com a Lista de Compra e a comparação com estoque (§37, §39)
-entram nesta fase; e os handlers do WhatsApp ficam prontos com o classificador
-congelado.
+**As três decisões do usuário em 11/09:**
 
-**Decisões que não devem ser redecididas:**
+- **Só as fontes que já guardam data no banco** (financeiro, tarefas, vacinas,
+  serviços agendados, estadias de confinamento, alerta de estoque baixo). As
+  outras seis áreas do documento não têm campo de data, e criá-los para encher
+  uma tela é a cauda balançando o cachorro.
+- **A porta de entrada troca em rodada própria**, depois de a tela ser usada.
+- **O WhatsApp consulta e cria, mas não conclui por frase.** Casar texto com
+  tarefa erra calado, e o pasto ambíguo já mostrou o preço.
 
-- **A função de cálculo continua pura e sem saber que a Lista existe.** Quem
-  traduz resultado em material é a TELA, que já traduzia resultado em linha.
-- **O saldo só é lido quando o produtor ABRE o painel.** É a quebra mínima da
-  premissa de que a calculadora não fala com a rede.
-- **Material casa com produto por ESCOLHA, nunca por nome parecido.** "Arame
-  liso 500m" e "arame" são a mesma coisa para uma pessoa e dois produtos para o
-  estoque.
-- **Saca arredonda para CIMA, com a sobra dita junto**, em `emSacasECusto`
-  (`src/lib/calculadoras/shared.ts`). Ninguém compra 4,8 sacas.
-- **Custo só sai quando TODO ingrediente tem preço.** Com um faltando, o total
-  sairia menor que o real e passaria por completo.
-- **O alqueire nunca tem default:** paulista 24.200 m², mineiro 48.400.
-- ⚠️ **O classificador do n8n NÃO emite as quatro intenções da calculadora**,
-  como as da Lista, do evento e da permuta.
-
-⚠️ **O defeito de unidade do Módulo 36 voltou, na ponte nova**: produto gravado
-com `kg` em vez de `quilograma` fazia a criação do item ser recusada. É a
-segunda vez que ele aparece; a guarda é `isStockUnit` antes de mandar a unidade.
-
-### As duas provas que faltavam da 35.1 foram feitas, e acharam um defeito
-
-Rodada de 11/09. Merge e push em `0df64d8..9c971a2`, dois commits, sem
-migração. A branch `formato-do-dinheiro` foi apagada. Suíte **63/63**, `tsc`,
-`lint` e `check` limpos.
-
-**Deploy confirmado contra o agente de produção**, e não por `/docs/api`: numa
-frente que não cria rota, a impressão digital é a própria frase. "anota uma
-despesa de 60 mil reais com diesel do trator" respondia "R$ 60000.00" antes do
-push e responde **"R$ 60.000,00"** depois. Levou cerca de dois minutos.
-
-**Roteiro de tela, dez passos, todos passam** (navegador real, `next dev` contra
-o Docker local, cenário de `scripts/_cenario-financeiro-35.ts`). O painel de
-recebimento pré-preenche o saldo, a recusa de valor maior aparece embaixo do
-campo com o foco nele, o registro parcial e o desfazer atualizam o saldo sem
-fechar, o seletor do topo filtra tabela, cartões e gráfico juntos, e avisa que
-274 lançamentos sem fazenda ficaram de fora. Em 400px a tabela rola no
-container sem estourar a página.
-
-**Banco de provas contra o agente de produção:** a categoria vem do banco
-("anota uma despesa de 500 reais com diesel do trator" cai em "Combustíveis"),
-o pasto ambíguo pergunta em vez de escolher, e **a recusa não grava nada**
-(conferido no banco: zero lançamentos criados depois de "não, deixa pra lá").
-
-⚠️ **"comprei 500 reais de diesel" NÃO é despesa para o classificador**: cai em
-compra de estoque, e ele responde que não achou o produto. Quem quiser provar o
-financeiro precisa dizer "anota uma despesa".
-
-**O defeito que só a prova ao vivo acharia:** o agente respondia
-**"R$ 500.00"**, ponto decimal e sem separador de milhar. Estavam assim 25
-pontos (handlers, alertas, resumo diário, as duas calculadoras), e cinco
-handlers já tinham a função certa copiada, cada um com o seu `reais()` privado.
-Agora é `reaisBr()`, em `src/lib/numero-br.ts`, junto do `lerNumeroBr` que faz
-o caminho de ida. A **conferência 16** do `npm run check` impede a volta, e foi
-vista falhar. A `m43` fixa o formato, e as asserções da `m12` e da `m17`
-passaram a compor o valor com o helper, porque o espaço depois do "R$" é NBSP
-e literal digitado nunca casa. Lição no cofre:
-[o valor certo escrito em outro idioma](../conhecimento/o-valor-certo-escrito-em-outro-idioma.md).
-
-**Para provar cenário de pasto**, o tenant de provas ganhou "Pasto da Sede" e
-"Pasto da Sede Nova". Nome dito por inteiro vence a lista; só o termo parcial
-("sede") dispara a pergunta.
-
-O **Módulo 36** e a **fase 35.1**, os dois em produção desde 11/09, saíram
-deste arquivo quando ele passou de 200 linhas outra vez. O texto inteiro, com
-as decisões que não devem ser redecididas, está em
-[historico/2026-09.md](historico/2026-09.md).
+⚠️ **A armadilha da T01, que quebra em produção e não no `tsc`:** tornar
+`due_date` opcional exige mudar `effectiveStatus` junto. Sem isso, toda tarefa
+sem data vira "Atrasada" no dia seguinte.
 
 ### Ambiente
 
@@ -134,11 +69,20 @@ o usuário. Tente uma vez; se bloquear, dê a ele o comando e o diretório, e
 confira com `migrate status` antes do push.
 
 ✅ **A validação visual com navegador FUNCIONA nesta máquina** (`browser-harness`),
-e foi assim que o Módulo 36 foi validado. Três atritos conhecidos: a primeira
-conexão exige `new_tab(url)` explícito (e o Chrome pode pedir permissão ao
-usuário); clique por coordenada não dispara o botão no rodapé do `FormSheet`
-(use `b.click()` por `js`); e os ids da árvore de acessibilidade mudam a cada
-render, então resolva tudo na mesma chamada.
+e foi assim que os Módulos 36 e 37 foram validados. Seis atritos conhecidos:
+
+1. a primeira conexão exige `new_tab(url)` explícito;
+2. clique por coordenada não dispara o botão no rodapé do `FormSheet` (use
+   `b.click()` por `js`, e no `FormSheet` ache por `button[type=submit]`, porque
+   o texto com acento não casa);
+3. os ids da árvore de acessibilidade mudam a cada render;
+4. ⚠️ **aba em segundo plano PAUSA a animação e imita defeito**: o painel fica
+   com `data-state="closed"` sem desmontar e a sobreposição engole todo clique.
+   `activate_tab(current_tab())` resolve. Custou duas investigações em 11/09;
+5. ⚠️ **o texto passado ao `js(...)` chega com acento corrompido**: case por
+   prefixo sem acento, ou monte o caractere com `String.fromCharCode`;
+6. a primeira visita a uma rota ainda não compilada estoura o tempo do controle.
+   Não é queda: espere e leia de novo, sem renavegar.
 
 ⚠️ **Monte cenário de tela com script `tsx`, nunca com `curl`.** O Git Bash
 daqui manda acento em Windows-1252, o dado entra torto no banco, e o sintoma
@@ -194,12 +138,8 @@ avançou, e cada commit que sobe é leitura pública.
 curto, tem migração, e conserta algo que o produtor sente hoje: 274 lançamentos
 somem quando ele filtra por fazenda.
 
-**3. O Meu Dia (Módulo 38)**, última das quatro áreas, e a que fica por último
-porque é camada de leitura e consome as outras três, agora todas no ar. A spec
-ainda não existe; o documento do cliente está em `docs/modulo-meu-dia/`.
-
-⚠️ **O backfill de `property_id` está autorizado** e é a dívida 2.11. Migração
-por origem, fora da 35.1.
+**3. Implementar o Módulo 38**, começando pela T01 (schema e migração). A spec
+está aprovada e a branch `meu-dia` existe, com o commit da spec e mais nada.
 
 **Continuam esperando, para depois das quatro áreas:** a outra metade da
 `dividas.md` §2.8 (a despesa avulsa e os sete destinos de saída), e três
@@ -214,6 +154,7 @@ Não avance para outro módulo sem aprovação explícita.
   O bloco `autoMode.allow` que destrava `npm run db:deploy` foi escrito no
   desktop em 01/09 e **não existe no notebook**. Lá, migração em produção volta
   a ser recusada pelo classificador, e o caminho é pedir ao usuário.
-- **O Redis local desta máquina é `tibe-redis-local` na porta `6390`**, não a
-  `56379` que o `CLAUDE.md` documenta. Confira com `docker ps` antes de copiar
-  o comando de lá.
+- ⚠️ **A linha que dizia que o Redis local desta máquina era `tibe-redis-local`
+  na porta `6390` estava ERRADA**, conferido em 11/09: o container é
+  `tibe-redis` na `56379`, como o `CLAUDE.md` documenta. Confira com `docker ps`
+  antes de copiar comando de qualquer um dos dois.
