@@ -352,6 +352,44 @@ async function main() {
       check("a frase fala de saldo", /saldo|estoque|tem só|não tem/i.test(r.data.reply_text ?? ""), r.data.reply_text);
     }
 
+    console.log("\n7. Pagamento sem valor previsto");
+    {
+      const { createWorker } = await import("@/lib/actions/workers");
+      const pedro = await createWorker(db, {
+        name: "Pedro M67",
+        role: "vaqueiro",
+        type: "fixo",
+        pay_frequency: "mensal",
+        pay_amount: 1800,
+      });
+      if (!pedro.ok) throw new Error(`setup Pedro M67 falhou: ${pedro.message}`);
+      /*
+       * O cadastro cria a previsão automaticamente (previsão rolante). Zera a
+       * data de vencimento dela para chegar no estado que o handler realmente
+       * lê como "sem previsto" (`worker.proximo_pagamento`, que exige
+       * `due_date`), sem deixar de existir uma previsão pendente de verdade
+       * para a confirmação atualizar.
+       */
+      await db.financialEntry.updateMany({
+        where: { related_module: "mao_de_obra", related_id: pedro.data.id, status: "pending" },
+        data: { due_date: null },
+      });
+
+      const pergunta = await acao("registrar_pagamento_trabalhador", { nome: "Pedro M67" }, "paguei o Pedro");
+      check("pergunta o valor", /valor|quanto/i.test(pergunta.data.reply_text), pergunta.data.reply_text);
+      const resposta = await acao("registrar_pagamento_trabalhador", { valor: 2500 }, "2500");
+      check("a resposta só com o valor lembra do Pedro", /Pedro/.test(resposta.data.reply_text), resposta.data.reply_text);
+      const confirmado = await acao("registrar_pagamento_trabalhador", {}, "sim", { confirmed: true });
+      const pagamento = await db.financialEntry.findFirst({
+        where: { related_module: "mao_de_obra", related_id: pedro.data.id, status: "paid", amount: 2500 },
+      });
+      check(
+        'o "sim" vazio executa o pendente guardado: paga Pedro M67 em 2500',
+        pagamento !== null,
+        confirmado.data.reply_text,
+      );
+    }
+
     void fazenda;
     void pasto;
   } finally {
