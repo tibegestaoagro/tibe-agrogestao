@@ -6,7 +6,7 @@ import type {
   HerdStayType,
 } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
-import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
+import { createLinkedEntry, runSerializableTenantTransaction, type TenantTransactionClient } from "@/lib/financial";
 import { recordMovementInTx, type HerdPositionKey } from "@/lib/actions/herd-ledger";
 import { isValidCategory } from "@/lib/herd/categories";
 import { decToNum } from "@/lib/serialize";
@@ -128,101 +128,114 @@ export async function openStay(
     );
   }
 
+  return runSerializableTenantTransaction(db, (tx) => abrirEstadiaNaTransacao(db, tx, input)).catch(
+    (erro: unknown) => {
+      if (erro instanceof EstadiaRecusada) {
+        return fail(erro.code, erro.message, 422, erro.field);
+      }
+      throw erro;
+    },
+  );
+}
+
+/**
+ * O corpo de `openStay`, para quem já está numa transação: tirar cabeças de um
+ * lote e pô-las noutro confinamento (dívida 2.8) precisa ser uma escrita só.
+ * Recusa lançando `EstadiaRecusada`; as validações de entrada ficam com
+ * `openStay`.
+ */
+async function abrirEstadiaNaTransacao(
+  db: TenantPrismaClient,
+  tx: TenantTransactionClient,
+  input: OpenStayInput,
+): Promise<ActionResult<HerdStayRecord>> {
   const situacao = situacaoDaEstadia(input.type);
   const dono = donoDaEstadia(input.type);
   const started_at = input.started_at ?? new Date();
-
-  return runSerializableTenantTransaction(db, async (tx) => {
-    const stay = await tx.herdStay.create({
-      data: scoped({
-        type: input.type,
-        property_id: input.property_id,
-        counterparty_name: input.counterparty_name ?? null,
-        location_name: input.location_name ?? null,
-        city: input.city ?? null,
-        started_at,
-        expected_end_at: input.expected_end_at ?? null,
-        charge_type: input.charge_type ?? null,
-        charge_value: input.charge_value ?? null,
-        reason: input.reason ?? null,
-        notes: input.notes ?? null,
-        recorded_by_user_id: input.recorded_by_user_id ?? null,
-        confinement_site_id: input.confinement_site_id ?? null,
-      }),
-    });
-
-    // A posição de onde as cabeças saem, e a de onde elas passam a estar.
-    // Animal de terceiro é ENTRADA: não sai de lugar nenhum, porque não estava
-    // aqui. Nos outros, ele sai de `presente`/`proprio`, que é onde estava.
-    const daFazenda: HerdPositionKey = {
-      category_id: input.category_id,
+  const stay = await tx.herdStay.create({
+    data: scoped({
+      type: input.type,
       property_id: input.property_id,
-      pasture_id: input.pasture_id ?? null,
-      situation: "presente",
-      owner: "proprio",
-    };
-    const naEstadia: HerdPositionKey = {
-      category_id: input.category_id,
-      property_id: input.property_id,
-      // Quem está em pasto de terceiro, boitel ou evento não ocupa pasto NOSSO,
-      // e quem desapareceu saiu da quantidade disponível do pasto. O animal de
-      // terceiro é o único que fica num pasto daqui.
-      pasture_id: input.type === "terceiro_na_fazenda" ? input.pasture_id ?? null : null,
-      situation: situacao,
-      owner: dono,
-    };
-
-    const ehEntrada = input.type === "terceiro_na_fazenda";
-    const movimento = await recordMovementInTx(db, tx, {
-      movement_type: tipoDeEnvio(input.type),
-      quantity: input.quantity,
-      from: ehEntrada ? null : daFazenda,
-      to: naEstadia,
+      counterparty_name: input.counterparty_name ?? null,
+      location_name: input.location_name ?? null,
+      city: input.city ?? null,
+      started_at,
+      expected_end_at: input.expected_end_at ?? null,
+      charge_type: input.charge_type ?? null,
+      charge_value: input.charge_value ?? null,
       reason: input.reason ?? null,
       notes: input.notes ?? null,
-      occurred_at: started_at,
       recorded_by_user_id: input.recorded_by_user_id ?? null,
-      stay_id: stay.id,
+      confinement_site_id: input.confinement_site_id ?? null,
+    }),
+  });
+
+  // A posição de onde as cabeças saem, e a de onde elas passam a estar.
+  // Animal de terceiro é ENTRADA: não sai de lugar nenhum, porque não estava
+  // aqui. Nos outros, ele sai de `presente`/`proprio`, que é onde estava.
+  const daFazenda: HerdPositionKey = {
+    category_id: input.category_id,
+    property_id: input.property_id,
+    pasture_id: input.pasture_id ?? null,
+    situation: "presente",
+    owner: "proprio",
+  };
+  const naEstadia: HerdPositionKey = {
+    category_id: input.category_id,
+    property_id: input.property_id,
+    // Quem está em pasto de terceiro, boitel ou evento não ocupa pasto NOSSO,
+    // e quem desapareceu saiu da quantidade disponível do pasto. O animal de
+    // terceiro é o único que fica num pasto daqui.
+    pasture_id: input.type === "terceiro_na_fazenda" ? input.pasture_id ?? null : null,
+    situation: situacao,
+    owner: dono,
+  };
+
+  const ehEntrada = input.type === "terceiro_na_fazenda";
+  const movimento = await recordMovementInTx(db, tx, {
+    movement_type: tipoDeEnvio(input.type),
+    quantity: input.quantity,
+    from: ehEntrada ? null : daFazenda,
+    to: naEstadia,
+    reason: input.reason ?? null,
+    notes: input.notes ?? null,
+    occurred_at: started_at,
+    recorded_by_user_id: input.recorded_by_user_id ?? null,
+    stay_id: stay.id,
+  });
+
+  // A recusa do movimento (saldo insuficiente, propriedade inexistente) tem
+  // que derrubar a estadia junto: estadia sem movimento é saldo mentindo.
+  // Devolver o erro AQUI não desfaz a transação sozinho, então o `throw` é
+  // deliberado, e o `catch` de fora traduz de volta.
+  if (!movimento.ok) throw new EstadiaRecusada(movimento.code, movimento.message, movimento.field);
+
+  const cobranca = COBRANCA[input.type];
+  let financial_entry_id: string | null = null;
+  if (cobranca && input.charge_value != null) {
+    const entry = await createLinkedEntry(tx, {
+      entry_type: cobranca.entry_type,
+      category: cobranca.category,
+      amount: input.charge_value,
+      related_module: cobranca.related_module,
+      related_id: stay.id,
+      occurred_at: started_at,
+      status: "pending",
+      due_date: input.due_date ?? input.expected_end_at ?? started_at,
+      property_id: input.property_id,
     });
+    financial_entry_id = entry.id;
+  }
 
-    // A recusa do movimento (saldo insuficiente, propriedade inexistente) tem
-    // que derrubar a estadia junto: estadia sem movimento é saldo mentindo.
-    // Devolver o erro AQUI não desfaz a transação sozinho, então o `throw` é
-    // deliberado, e o `catch` de fora traduz de volta.
-    if (!movimento.ok) throw new EstadiaRecusada(movimento.code, movimento.message, movimento.field);
-
-    const cobranca = COBRANCA[input.type];
-    let financial_entry_id: string | null = null;
-    if (cobranca && input.charge_value != null) {
-      const entry = await createLinkedEntry(tx, {
-        entry_type: cobranca.entry_type,
-        category: cobranca.category,
-        amount: input.charge_value,
-        related_module: cobranca.related_module,
-        related_id: stay.id,
-        occurred_at: started_at,
-        status: "pending",
-        due_date: input.due_date ?? input.expected_end_at ?? started_at,
-        property_id: input.property_id,
-      });
-      financial_entry_id = entry.id;
-    }
-
-    return ok({
-      id: stay.id,
-      type: stay.type,
-      property_id: stay.property_id,
-      counterparty_name: stay.counterparty_name,
-      started_at: stay.started_at,
-      quantity: input.quantity,
-      financial_entry_id,
-      confinement_site_id: stay.confinement_site_id,
-    });
-  }).catch((erro: unknown) => {
-    if (erro instanceof EstadiaRecusada) {
-      return fail(erro.code, erro.message, 422, erro.field);
-    }
-    throw erro;
+  return ok({
+    id: stay.id,
+    type: stay.type,
+    property_id: stay.property_id,
+    counterparty_name: stay.counterparty_name,
+    started_at: stay.started_at,
+    quantity: input.quantity,
+    financial_entry_id,
+    confinement_site_id: stay.confinement_site_id,
   });
 }
 
@@ -239,6 +252,26 @@ export type DestinoDeEncerramento = {
    * comportamento possível até 31/08.
    */
   pasture_id?: string | null;
+  /**
+   * Só para `retorno_estadia`: a fazenda para onde as cabeças voltam (§17,
+   * "transferência para outra fazenda"). Ausente, vale a fazenda da abertura,
+   * que era o único destino possível até 14/09/2026.
+   */
+  property_id?: string | null;
+  /** Só para `ajuste` ("outro destino"): para onde foram. Obrigatório. */
+  reason?: string | null;
+  /** Só para `venda`: o comprador (§19), por id ou pelo nome dito. */
+  contact_id?: string | null;
+  contact_name?: string | null;
+  pago?: boolean;
+  due_date?: Date | null;
+  /**
+   * Só para `retorno_estadia`: as cabeças seguem para OUTRO confinamento, e um
+   * lote novo abre lá na mesma transação. A contagem de dias recomeça.
+   */
+  confinement_site_id?: string | null;
+  /** Só para `retorno_estadia`: as cabeças seguem para leilão ou feira (remessa do Módulo 31). */
+  evento?: { event_name: string; event_type?: string | null; organizer_name?: string | null } | null;
 };
 
 export type CloseStayInput = {
@@ -343,7 +376,31 @@ export async function closeStay(
     }
   }
 
+  for (const destino of destinos) {
+    if (destino.movement_type === "ajuste" && !destino.reason?.trim()) {
+      return fail("VALIDATION_ERROR", "Diga para onde os animais foram.", 422, "reason");
+    }
+    // Recusa em vez de ignorar: "mandei para o leilão" gravado como volta ao
+    // pasto seria o produtor achando que anotou uma coisa e tendo anotado outra.
+    if (
+      destino.movement_type !== "retorno_estadia" &&
+      (destino.property_id || destino.confinement_site_id || destino.evento)
+    ) {
+      return fail("VALIDATION_ERROR", "Fazenda, confinamento e leilão de destino só valem para quem sai vivo do lote.", 422, "movement_type");
+    }
+    if (destino.confinement_site_id && destino.evento) {
+      return fail("VALIDATION_ERROR", "Escolha um destino só para este grupo de animais.", 422, "movement_type");
+    }
+    if (destino.evento && !destino.evento.event_name?.trim()) {
+      return fail("VALIDATION_ERROR", "Informe o nome do leilão ou da feira.", 422, "event_name");
+    }
+  }
+
   const occurred_at = input.occurred_at ?? new Date();
+  // Import dinâmico: `negotiations.ts` e `event-consignments.ts` já importam
+  // este arquivo, e o import estático fecharia o ciclo.
+  const { venderDaEstadiaNaTransacao, AbortarNegociacao } = await import("@/lib/actions/negotiations");
+  const { abrirRemessaNaTransacao } = await import("@/lib/actions/event-consignments");
 
   return runSerializableTenantTransaction(db, async (tx) => {
     const movimentos = await tx.herdMovement.findMany({
@@ -408,13 +465,63 @@ export async function closeStay(
        * validação aqui seria a mesma regra em dois lugares, divergindo na
        * primeira vez que uma delas mudasse.
        */
+      /*
+       * Outro confinamento (dívida 2.8): as cabeças voltam à fazenda DELE e
+       * entram num lote novo lá, na mesma transação. Passar por `presente` é o
+       * que mantém cada lote com o próprio saldo e o próprio custo; o instante
+       * é o mesmo, então nenhum relatório as vê fora do confinamento.
+       */
+      const siteDestino = destino.confinement_site_id
+        ? await tx.confinementSite.findFirst({ where: { id: destino.confinement_site_id } })
+        : null;
+      if (destino.confinement_site_id) {
+        if (!siteDestino || siteDestino.archived_at) {
+          throw new EstadiaRecusada("INVALID_CONFINEMENT_SITE", "Confinamento de destino inválido.", "confinement_site_id");
+        }
+        if (siteDestino.id === stay.confinement_site_id) {
+          throw new EstadiaRecusada(
+            "MESMO_CONFINAMENTO",
+            "Os animais já estão neste confinamento. Escolha outro.",
+            "confinement_site_id",
+          );
+        }
+      }
+      const seguem = siteDestino !== null || destino.evento != null;
+
       const naFazenda: HerdPositionKey = {
         category_id,
-        property_id,
-        pasture_id: destino.pasture_id ?? null,
+        // §17, "transferência para outra fazenda". `validatePosition` recusa a
+        // fazenda inexistente e o pasto de outra fazenda.
+        property_id: siteDestino?.property_id ?? destino.property_id ?? property_id,
+        // Quem só passa pela fazenda a caminho de outro lugar não ocupa pasto.
+        pasture_id: seguem ? null : (destino.pasture_id ?? null),
         situation: "presente",
         owner: dono === "terceiro" ? "terceiro" : "proprio",
       };
+
+      if (destino.movement_type === "venda") {
+        // §19: a venda é registrada em Negociações, com comprador e receita.
+        try {
+          await venderDaEstadiaNaTransacao(db, tx, {
+            from: naEstadia,
+            quantity: destino.quantity,
+            stay_id: stayId,
+            amount: destino.value ?? null,
+            contact_id: destino.contact_id ?? null,
+            contact_name: destino.contact_name ?? null,
+            pago: destino.pago ?? false,
+            due_date: destino.due_date ?? null,
+            occurred_at,
+            recorded_by_user_id: input.recorded_by_user_id ?? null,
+          });
+        } catch (erro) {
+          if (erro instanceof AbortarNegociacao) {
+            throw new EstadiaRecusada(erro.falha.code, erro.falha.message, erro.falha.field);
+          }
+          throw erro;
+        }
+        continue;
+      }
 
       const volta = destino.movement_type === "retorno_estadia";
       const movimento = await recordMovementInTx(db, tx, {
@@ -423,12 +530,50 @@ export async function closeStay(
         from: naEstadia,
         to: volta ? naFazenda : null,
         value: destino.value ?? null,
+        reason: destino.movement_type === "ajuste" ? destino.reason!.trim() : null,
         occurred_at,
         recorded_by_user_id: input.recorded_by_user_id ?? null,
         stay_id: stayId,
       });
       if (!movimento.ok) {
         throw new EstadiaRecusada(movimento.code, movimento.message, movimento.field);
+      }
+      if (!volta) continue;
+
+      if (siteDestino) {
+        const novo = await abrirEstadiaNaTransacao(db, tx, {
+          type: siteDestino.type === "boitel" ? "boitel" : "confinamento",
+          property_id: naFazenda.property_id,
+          category_id,
+          quantity: destino.quantity,
+          pasture_id: null,
+          counterparty_name: siteDestino.type === "boitel" ? siteDestino.counterparty_name : null,
+          location_name: siteDestino.name,
+          city: siteDestino.city,
+          started_at: occurred_at,
+          recorded_by_user_id: input.recorded_by_user_id ?? null,
+          confinement_site_id: siteDestino.id,
+        });
+        if (!novo.ok) throw new EstadiaRecusada(novo.code, novo.message, novo.field);
+      } else if (destino.evento) {
+        try {
+          await abrirRemessaNaTransacao(db, tx, {
+            property_id: naFazenda.property_id,
+            category_id,
+            quantity: destino.quantity,
+            pasture_id: null,
+            event_name: destino.evento.event_name.trim(),
+            event_type: destino.evento.event_type ?? null,
+            organizer_name: destino.evento.organizer_name ?? null,
+            occurred_at,
+            recorded_by_user_id: input.recorded_by_user_id ?? null,
+          });
+        } catch (erro) {
+          if (erro instanceof AbortarNegociacao) {
+            throw new EstadiaRecusada(erro.falha.code, erro.falha.message, erro.falha.field);
+          }
+          throw erro;
+        }
       }
     }
 

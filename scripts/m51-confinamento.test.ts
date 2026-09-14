@@ -85,7 +85,9 @@ check("o envio é `envio_confinamento`, e não empresta o do boitel", tipoDeEnvi
   check("permite retorno ao pasto", permitidos.includes("retorno_estadia"));
   check("permite venda direta (§19)", permitidos.includes("venda"));
   check("permite morte (§21)", permitidos.includes("morte"));
-  check("e só esses três, como o boitel", permitidos.length === 3, permitidos.join(","));
+  // Dívida 2.8 (14/09/2026): `ajuste` é o "outro destino" do §17, com motivo.
+  check("permite o outro destino, como ajuste", permitidos.includes("ajuste"));
+  check("e só esses quatro, como o boitel", permitidos.length === 4, permitidos.join(","));
 }
 check(
   "não é confinamento de terceiro: saida_terceiro não é encerramento válido",
