@@ -7,9 +7,10 @@ import { buildReportLink } from "@/lib/reports/report-link";
 import { createManualEntryAction } from "@/lib/actions/financial-entries";
 import { suggestCategory } from "@/lib/category-suggestions";
 import { listFinancialCategoriesAction } from "@/lib/actions/financial-categories";
-import { ask, failReply, str, confirmFlow, normalizarTermo, type Handler } from "./shared";
+import { ask, failReply, str, normalizarTermo, type Handler } from "./shared";
 import { lerDinheiro } from "./parsers";
 import { reaisBr } from "@/lib/numero-br";
+import { savePendingFinance, loadPendingFinance, clearPendingFinance } from "@/lib/actions/finance-pending";
 
 const REPORT_TYPE_MODULE: Record<string, ModuleKey> = {
   financeiro: "financeiro",
@@ -80,7 +81,72 @@ export const gerarRelatorio: Handler = async ({ tenant_id, role, activeProfiles,
   };
 };
 
-export const registrarLancamentoFinanceiro: Handler = async ({ db, parameters, confirmed, explicitNo }) => {
+type LancamentoResolvido = {
+  entry_type: "income" | "expense";
+  amount: number;
+  category: string;
+  vendor: string | null;
+  description: string | null;
+};
+
+export const registrarLancamentoFinanceiro: Handler = async ({
+  db,
+  parameters,
+  confirmed,
+  explicitNo,
+  tenant_id,
+  user_id,
+}) => {
+  const intent = "registrar_lancamento_financeiro";
+  const temMemoria = !!user_id;
+
+  /*
+   * "não"/"cancela" é a PRIMEIRA coisa checada, antes de qualquer resolução:
+   * mesma regra de `mao-de-obra.ts` e do defeito de 2026-08-18 no estoque
+   * ("não, deixa pra lá" gravou a compra recusada).
+   */
+  if (explicitNo) {
+    if (temMemoria) await clearPendingFinance(tenant_id, user_id!);
+    return {
+      reply_text: "Lançamento cancelado.",
+      requires_confirmation: false,
+      auxiliary_data: null,
+      report_url: null,
+      action_taken: `${intent}:cancelado`,
+    };
+  }
+
+  /*
+   * O "sim" executa o que foi GUARDADO, nunca o que o classificador remontou
+   * da própria confirmação impressa (achado da revisão do Task 5: o n8n não
+   * remanda os parâmetros literalmente, `.claude/rules/whatsapp.md`, e um
+   * "tipo" perdido na volta reescrevia receita como despesa em silêncio).
+   * Havendo pendente, ele manda: os parâmetros que chegaram nesta mensagem
+   * são ignorados por completo. Sem pendente (sem memória, expirou, ou foi
+   * cancelado antes), o comportamento é o de hoje, mais abaixo: resolve dos
+   * parâmetros desta própria mensagem e, confirmado, grava.
+   */
+  const pendente = temMemoria ? await loadPendingFinance(tenant_id, user_id!) : null;
+  if (confirmed && pendente?.aguardando === "confirmacao") {
+    const p = pendente.parameters as unknown as LancamentoResolvido;
+    await clearPendingFinance(tenant_id, user_id!);
+    const result = await createManualEntryAction(db, {
+      entry_type: p.entry_type,
+      category: p.category,
+      amount: p.amount,
+      due_date: new Date(),
+      notes: p.vendor ?? p.description ?? null,
+    });
+    if (!result.ok) return failReply(intent, result);
+    return {
+      reply_text: `${p.entry_type === "income" ? "Receita" : "Despesa"} registrada: ${reaisBr(p.amount)}, ${p.category}${p.vendor ? `, ${p.vendor}` : ""}.`,
+      requires_confirmation: false,
+      auxiliary_data: null,
+      report_url: null,
+      action_taken: `${intent}:${result.data.id}`,
+    };
+  }
+
   /**
    * `lerDinheiro`, e não `num`.
    *
@@ -129,29 +195,43 @@ export const registrarLancamentoFinanceiro: Handler = async ({ db, parameters, c
     (palpite ? porNome.get(palpite.toLowerCase()) : undefined) ??
     outrasPadrao;
 
-  const gate = confirmFlow({
-    intent: "registrar_lancamento_financeiro",
-    explicitNo,
-    confirmed,
-    cancelledText: "Lançamento cancelado.",
-    question: `Entendi: ${entryType === "income" ? "receita" : "despesa"} de ${reaisBr(amount)}, categoria ${category}${vendor ? `, ${vendor}` : ""}. Confirma o lançamento?`,
-    auxiliary: { amount, category, vendor, description, tipo: entryType },
-  });
-  if (gate) return gate;
+  /*
+   * `confirmed` chegou aqui sem pendente correspondente (sem memória, TTL
+   * vencido, ou um "não" cancelou o pendente antes desta mensagem): mantém o
+   * comportamento de hoje, grava direto do que ESTA mensagem trouxe, porque é
+   * só o que existe para confiar. É o caminho do recibo por foto (nunca tem
+   * `user_id` de conversa contínua) e o de reenvio completo de parâmetros.
+   */
+  if (confirmed) {
+    const result = await createManualEntryAction(db, {
+      entry_type: entryType,
+      category,
+      amount,
+      due_date: new Date(),
+      notes: vendor ?? description ?? null,
+    });
+    if (!result.ok) return failReply(intent, result);
+    return {
+      reply_text: `Lançamento registrado: ${reaisBr(amount)}, ${category}${vendor ? `, ${vendor}` : ""}.`,
+      requires_confirmation: false,
+      auxiliary_data: null,
+      report_url: null,
+      action_taken: `${intent}:${result.data.id}`,
+    };
+  }
 
-  const result = await createManualEntryAction(db, {
-    entry_type: entryType,
-    category,
-    amount,
-    due_date: new Date(),
-    notes: vendor ?? description ?? null,
-  });
-  if (!result.ok) return failReply("registrar_lancamento_financeiro", result);
+  const resolvido: LancamentoResolvido = { entry_type: entryType, amount, category, vendor, description };
+  if (temMemoria) {
+    await savePendingFinance(tenant_id, user_id!, {
+      parameters: resolvido,
+      aguardando: "confirmacao",
+    });
+  }
   return {
-    reply_text: `Lançamento registrado: ${reaisBr(amount)}, ${category}${vendor ? `, ${vendor}` : ""}.`,
-    requires_confirmation: false,
-    auxiliary_data: null,
+    reply_text: `Entendi: ${entryType === "income" ? "receita" : "despesa"} de ${reaisBr(amount)}, categoria ${category}${vendor ? `, ${vendor}` : ""}. Confirma o lançamento?`,
+    requires_confirmation: true,
+    auxiliary_data: { amount, category, vendor, description, tipo: entryType },
     report_url: null,
-    action_taken: `registrar_lancamento_financeiro:${result.data.id}`,
+    action_taken: `${intent}:aguardando_confirmacao`,
   };
 };

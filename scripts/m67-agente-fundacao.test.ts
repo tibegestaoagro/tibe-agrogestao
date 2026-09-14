@@ -109,7 +109,15 @@ async function main() {
       const p = { amount: 1500, category: "Aluguel", tipo: "receita", description: "aluguel do pasto" };
       const pergunta = await acao("registrar_lancamento_financeiro", p, "recebi 1500 de aluguel do pasto");
       check("a confirmação diz que é receita", /receita|receber|recebi/i.test(pergunta.data.reply_text), pergunta.data.reply_text);
-      await acao("registrar_lancamento_financeiro", p, "sim", { confirmed: true });
+      /*
+       * Parâmetros VAZIOS na confirmação: o classificador do n8n não remonta
+       * os parâmetros literalmente (`.claude/rules/whatsapp.md`), então quem
+       * executa é o pendente guardado no "sim" anterior, nunca o que chega
+       * agora. Sem o pendente (handler antigo), um "sim" sem `tipo` cairia no
+       * default despesa em silêncio: é exatamente o achado da revisão.
+       */
+      const confirmacao = await acao("registrar_lancamento_financeiro", {}, "sim", { confirmed: true });
+      check("a resposta final também diz Receita", /Receita/.test(confirmacao.data.reply_text), confirmacao.data.reply_text);
       /*
        * Só por `amount`, não por `category`: "Aluguel" não é nome de nenhuma
        * categoria padrão de receita (nem palpite por palavra-chave bate com
