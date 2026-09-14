@@ -99,7 +99,29 @@ async function main() {
     const countAfterNo = await db.financialEntry.count();
     assert(countAfterNo === 0, "nenhum lançamento criado após cancelar");
 
-    // ── confirma: cria o FinancialEntry ──────────────────────────────
+    /*
+     * Re-revisão (achado Crítico): "sim" SEM pendente guardado (o "não"
+     * acima acabou de limpar o que existia) NUNCA grava, mesmo reenviando os
+     * parâmetros completos. O caminho seguro é resolver de novo e perguntar
+     * de novo, exatamente como a primeira vez: sem isto, "não" seguido do
+     * classificador reenviando a mesma intenção com "sim" gravava o
+     * lançamento que tinha acabado de ser recusado.
+     */
+    const eSimSemPendente = await callExecute({
+      tenant_id: tenant.id,
+      user_id: owner.id,
+      intent: "registrar_lancamento_financeiro",
+      parameters: { amount: 450.5, category: "Combustível", vendor: "Posto XX" },
+      message_text: "sim",
+    });
+    assert(
+      eSimSemPendente.body.data.requires_confirmation === true,
+      "'sim' sem pendente guardado NÃO grava, pergunta de novo",
+    );
+    const countAfterSimSemPendente = await db.financialEntry.count();
+    assert(countAfterSimSemPendente === 0, "nenhum lançamento criado pelo 'sim' sem pendente");
+
+    // ── agora existe pendente (a pergunta acima acabou de guardar um): confirma de verdade ──
     const eConfirm = await callExecute({
       tenant_id: tenant.id,
       user_id: owner.id,
@@ -108,8 +130,8 @@ async function main() {
       message_text: "sim",
     });
     assert(
-      eConfirm.body.data.requires_confirmation === false && /registrado/i.test(eConfirm.body.data.reply_text),
-      "'sim' confirma e a resposta indica sucesso",
+      eConfirm.body.data.requires_confirmation === false && /despesa registrada/i.test(eConfirm.body.data.reply_text),
+      "'sim' com pendente guardado confirma, e a resposta diz Despesa registrada",
     );
     /*
      * "Combustível" é o nome ANTIGO, e o classificador manda o que quiser. A
@@ -124,6 +146,14 @@ async function main() {
     assert(entry?.status === "pending", "nasce pending, igual qualquer lançamento manual");
 
     // ── categoria que o tenant não tem cai em "Outras despesas" ──────
+    // Pergunta primeiro (guarda o pendente), depois confirma: o "sim" sozinho
+    // não grava mais nada.
+    await callExecute({
+      tenant_id: tenant.id,
+      user_id: owner.id,
+      intent: "registrar_lancamento_financeiro",
+      parameters: { amount: 100, category: "categoria-inventada" },
+    });
     await callExecute({
       tenant_id: tenant.id,
       user_id: owner.id,
@@ -137,7 +167,14 @@ async function main() {
     // ── categoria criada pelo produtor no painel vale no WhatsApp ────
     // É este o ponto da mudança: antes o handler comparava com uma lista de
     // sete nomes no código, e o que o produtor criasse era jogado em "Outros".
+    // Pergunta primeiro (guarda o pendente), depois confirma.
     await db.financialCategory.create({ data: scoped({ name: "Curral novo", entry_type: "expense" }) });
+    await callExecute({
+      tenant_id: tenant.id,
+      user_id: owner.id,
+      intent: "registrar_lancamento_financeiro",
+      parameters: { amount: 77, category: "curral novo" },
+    });
     await callExecute({
       tenant_id: tenant.id,
       user_id: owner.id,

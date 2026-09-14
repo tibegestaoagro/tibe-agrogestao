@@ -129,6 +129,25 @@ async function main() {
        */
       const entrada = await db.financialEntry.findFirst({ where: { amount: 1500 } });
       check("grava como receita", entrada?.entry_type === "income", String(entrada?.entry_type));
+
+      /*
+       * Re-revisão (achado Crítico): "sim" com `confirmed: true` e parâmetros
+       * cheios, mas SEM nenhuma pergunta anterior (nenhum pendente guardado
+       * para este usuário), NUNCA grava. Sem esta guarda, um TTL vencido ou
+       * um "sim" fora de contexto gravava direto do que o classificador
+       * reconstruiu, podendo trocar receita por despesa em silêncio: é o
+       * mesmo risco do achado original, só que sem depender de um "não" no
+       * meio do caminho.
+       */
+      const semPedidoAnterior = { amount: 2750, category: "Diesel", tipo: "receita", description: "diesel vendido" };
+      const simSemPedido = await acao("registrar_lancamento_financeiro", semPedidoAnterior, "sim", { confirmed: true });
+      check(
+        "sim sem pergunta anterior nao grava, pergunta de novo",
+        simSemPedido.data.requires_confirmation === true,
+        JSON.stringify(simSemPedido.data),
+      );
+      const entradaSemPedido = await db.financialEntry.findFirst({ where: { amount: 2750 } });
+      check("nada gravado com amount 2750", entradaSemPedido === null, String(entradaSemPedido));
     }
 
     void fazenda;

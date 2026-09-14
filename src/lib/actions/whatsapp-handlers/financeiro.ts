@@ -122,9 +122,13 @@ export const registrarLancamentoFinanceiro: Handler = async ({
    * remanda os parâmetros literalmente, `.claude/rules/whatsapp.md`, e um
    * "tipo" perdido na volta reescrevia receita como despesa em silêncio).
    * Havendo pendente, ele manda: os parâmetros que chegaram nesta mensagem
-   * são ignorados por completo. Sem pendente (sem memória, expirou, ou foi
-   * cancelado antes), o comportamento é o de hoje, mais abaixo: resolve dos
-   * parâmetros desta própria mensagem e, confirmado, grava.
+   * são ignorados por completo. Sem pendente (sem memória, TTL vencido, ou
+   * cancelado por um "não" antes desta mensagem), NÃO EXISTE caminho que
+   * grave: cai no fluxo abaixo, que só resolve e pergunta de novo (achado da
+   * re-revisão, 2ª rodada: um "sim" sem pendente válido gravava direto do que
+   * esta própria mensagem trazia, e por esse caminho "não" seguido do
+   * classificador reenviando a mesma intenção com "sim" gravava o lançamento
+   * recusado).
    */
   const pendente = temMemoria ? await loadPendingFinance(tenant_id, user_id!) : null;
   if (confirmed && pendente?.aguardando === "confirmacao") {
@@ -196,30 +200,16 @@ export const registrarLancamentoFinanceiro: Handler = async ({
     outrasPadrao;
 
   /*
-   * `confirmed` chegou aqui sem pendente correspondente (sem memória, TTL
-   * vencido, ou um "não" cancelou o pendente antes desta mensagem): mantém o
-   * comportamento de hoje, grava direto do que ESTA mensagem trouxe, porque é
-   * só o que existe para confiar. É o caminho do recibo por foto (nunca tem
-   * `user_id` de conversa contínua) e o de reenvio completo de parâmetros.
+   * Chegou aqui sem pendente correspondente para executar (sem `user_id`,
+   * TTL vencido, ou um "não" cancelou antes desta mensagem): NUNCA grava
+   * direto do que esta mensagem trouxe, `confirmed` ou não. Reachable de
+   * verdade (achado da re-revisão): "não" cancela, o classificador reenvia a
+   * MESMA intenção com "sim", e sem esta guarda isso gravaria o lançamento
+   * recusado; ou o TTL vence e um "sim" grava o que o classificador
+   * reconstruiu, podendo trocar receita por despesa em silêncio. O caminho
+   * seguro é sempre o mesmo: resolve de novo, guarda um pendente novo, e
+   * pergunta de novo, exatamente como na primeira mensagem.
    */
-  if (confirmed) {
-    const result = await createManualEntryAction(db, {
-      entry_type: entryType,
-      category,
-      amount,
-      due_date: new Date(),
-      notes: vendor ?? description ?? null,
-    });
-    if (!result.ok) return failReply(intent, result);
-    return {
-      reply_text: `Lançamento registrado: ${reaisBr(amount)}, ${category}${vendor ? `, ${vendor}` : ""}.`,
-      requires_confirmation: false,
-      auxiliary_data: null,
-      report_url: null,
-      action_taken: `${intent}:${result.data.id}`,
-    };
-  }
-
   const resolvido: LancamentoResolvido = { entry_type: entryType, amount, category, vendor, description };
   if (temMemoria) {
     await savePendingFinance(tenant_id, user_id!, {
