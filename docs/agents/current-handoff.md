@@ -27,12 +27,14 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-09-14.
 
-### Dívida 2.14 fechada na branch `divida-2-14-recorrencia`, esperando o Neon
+### Dívida 2.14 fechada e EM PRODUÇÃO
 
 Migração `20260914180000_tarefa_ancora_e_conclusao`: `Task.recurrence_anchor` e
 `Task.completed_at`, com backfill (`completed_at` pelo `updated_at` das
-concluídas; âncora pela `due_date` das recorrentes). **Precisa ir ao Neon ANTES
-do push.**
+concluídas; âncora pela `due_date` das recorrentes). Aplicada no Neon pelo
+usuário antes do push; merge e push em 14/09 (`4a0fc0f`). Deploy confirmado
+pelo status da Vercel no commit (`success`) e pelo app respondendo no navegador.
+Branch apagada. Não validado em produção com sessão (o agente não digita senha).
 
 - **A série segue a âncora.** Além do "dia 31 que ficava no 28", a leitura do
   código achou uma deriva que a dívida não registrava: **adiar deslocava a
@@ -169,8 +171,8 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou, e cada commit que sobe é leitura pública.
 
-**2. Levar a dívida 2.14 a produção:** o usuário roda a migração no Neon,
-depois merge e push da branch `divida-2-14-recorrencia`.
+**2. Pedido do usuário em 14/09:** resolver o que resta ANTES de rotacionar as
+credenciais. O que resta depende de decisão de produto; trazer as perguntas.
 
 **Continuam esperando:** a outra metade da
 `dividas.md` §2.8 (a despesa avulsa e os sete destinos de saída), e três
