@@ -46,6 +46,14 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
    **21**.
 4. **A saudação do `/dashboard` usa a hora de São Paulo** (dívida 2.13).
 
+**Em produção:** merge e push em 14/09 (`2f383d2..e9b3c35`), sem migração.
+Deploy confirmado no navegador pelo `start_url` do manifest de produção, que
+passou de `/dashboard` para `/meu-dia`. Suíte **65/65**, `tsc`, `lint` e `check`
+limpos. A tela autenticada foi validada no `next dev` (menu, Painel de volta a
+200 com fazenda escolhida); em produção não, porque o navegador desta máquina
+não tem sessão e o agente não digita senha. **Vale o usuário abrir o Painel com
+uma fazenda escolhida e conferir o número de cabeças.**
+
 ⚠️ **Defeito achado na validação, corrigido junto:** o `/dashboard` dava **500
 com uma fazenda escolhida no seletor**, desde 08/04. O filtro de vacina usava a
 relação `animal`, que não existe mais em `AnimalVaccination`; o certo é `batch`.
