@@ -36,6 +36,8 @@ export type CampoServico =
   | "unidade"
   /** O combustível do §42: qual produto foi gasto. */
   | "produto"
+  /** Task 6: a data dita ("amanhã vou gradear"), quando não deu para entender. */
+  | "data"
   /** Não é campo: é o serviço inteiro esperando um "sim". */
   | "confirmacao";
 
@@ -60,6 +62,7 @@ const store = criarStoreDePendencia<CampoServico, ServicoPendente>({
     if (campo === "maquina") return "machine";
     if (campo === "unidade") return "pricing";
     if (campo === "produto") return "product";
+    if (campo === "data") return "date";
     return campo;
   },
 });

@@ -17,7 +17,7 @@ import {
   type GestoServico,
 } from "@/lib/actions/service-pending";
 import { ask, failReply, str, type Handler, type RouterResult } from "./shared";
-import { lerNumeroBr } from "./parsers";
+import { lerNumeroBr, lerData, interpretarSim, aoMeioDia } from "./parsers";
 import { reaisBr as moeda } from "@/lib/numero-br";
 
 /**
@@ -647,6 +647,35 @@ export const registrarServicoPrestado: Handler = async (ctx) => {
     return cliente.resposta;
   }
 
+  /**
+   * Task 6: "vou fazer" (§42) ainda não aconteceu. `concluido`, quando dito
+   * explicitamente, manda; sem ele, decide a data: futura é agendado, passada
+   * ou ausente é hoje, como sempre foi. `concluido` chega como booleano puro
+   * quando o classificador colabora, daí `interpretarSim` em vez de `str()`.
+   */
+  const concluidoDito =
+    parameters.concluido !== undefined ? interpretarSim(parameters.concluido) : null;
+  const dataLida = lerData(parameters, "data", "date");
+  if (dataLida.tipo === "invalida") {
+    await guardar("data");
+    return ask(`Não entendi a data "${dataLida.bruto}". Diga por exemplo "hoje" ou "05/08/2026".`);
+  }
+  const agora = new Date();
+  const dataDita = dataLida.tipo === "ok" ? dataLida.data : null;
+  const dataFutura = dataDita !== null && dataDita.getTime() > agora.getTime();
+  const agendado = concluidoDito === false || (concluidoDito === null && dataFutura);
+  /*
+   * ponytail: sem data futura dita, "amanhã" só empurra `occurred_at` para
+   * `createServiceJob` (que deriva o status dela, decisão da fase 34.1)
+   * nascer `agendado`; não é a data real do serviço. Um status explícito na
+   * action resolveria isso de vez, mas está fora do escopo desta tarefa (só
+   * o handler do WhatsApp).
+   */
+  const amanha = aoMeioDia(agora.getFullYear(), agora.getMonth(), agora.getDate() + 1);
+  const occurredAt = agendado
+    ? (dataFutura ? (dataDita as Date) : amanha)
+    : (dataDita && !dataFutura ? dataDita : agora);
+
   const total = pricing === "fechado" ? valor : valor * (quantidade ?? 0);
 
   if (!ctx.confirmed) {
@@ -668,12 +697,23 @@ export const registrarServicoPrestado: Handler = async (ctx) => {
   const res = await createServiceJob(ctx.db, {
     direction: "prestado",
     property_id: fazenda.id,
-    occurred_at: new Date(),
+    occurred_at: occurredAt,
     description: servico,
     pricing,
     unit_price: pricing === "fechado" ? null : valor,
     agreed_amount: pricing === "fechado" ? valor : null,
-    quantity: quantidade,
+    /*
+     * Agendado: a quantidade dita é PREVISTA, não produção realizada.
+     * `quantity: null` evita que `createServiceJob` grave um `ServiceJobLog`
+     * (produção) e uma conta a receber que ainda não existem; sem campo
+     * próprio de quantidade prevista no schema (nenhuma migração nesta
+     * fase), o número vai para `notes`.
+     */
+    quantity: agendado ? null : quantidade,
+    notes:
+      agendado && quantidade !== null
+        ? `Quantidade prevista: ${quantidade} ${UNIDADE_FALADA[pricing]}.`
+        : null,
     machine_id: maquina.id,
     contact_name: cliente.nomeFinal,
   });
@@ -681,9 +721,11 @@ export const registrarServicoPrestado: Handler = async (ctx) => {
   if (!res.ok) return failReply(intent, res);
 
   return {
-    reply_text:
-      `✅ ${servico} para ${cliente.nomeFinal} registrada, ${moeda(res.data.total)}.` +
-      "\nFicou como conta a receber. Me avise quando receber.",
+    reply_text: agendado
+      ? `✅ ${servico} para ${cliente.nomeFinal} com o ${maquina.nome} ficou agendado, ` +
+        `total previsto de ${moeda(total)}.`
+      : `✅ ${servico} para ${cliente.nomeFinal} registrada, ${moeda(res.data.total)}.` +
+        "\nFicou como conta a receber. Me avise quando receber.",
     requires_confirmation: false,
     auxiliary_data: { service_job_id: res.data.id },
     report_url: null,

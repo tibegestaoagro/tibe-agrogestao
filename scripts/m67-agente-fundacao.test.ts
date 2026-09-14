@@ -150,6 +150,21 @@ async function main() {
       check("nada gravado com amount 2750", entradaSemPedido === null, String(entradaSemPedido));
     }
 
+    console.log("\n5. Serviço prestado agendado e depois iniciado");
+    {
+      await db.machine.create({ data: scoped({ name: "Trator M67", property_id: fazenda.id, type: "Trator" }) });
+      const p = { servico: "gradagem", maquina: "Trator M67", quem: "Joao M67", valor: 2000, quantidade: 8, unidade: "hectare", concluido: false };
+      await acao("registrar_servico_prestado", p, "vou fazer gradagem de 8 hectares pro Joao por 2 mil");
+      await acao("registrar_servico_prestado", p, "sim", { confirmed: true });
+      const job = await db.serviceJob.findFirst({ where: { description: { contains: "gradagem" } } });
+      check("nasce agendado", job?.status === "agendado", String(job?.status));
+      check("sem produção lançada (quantidade prevista, não realizada)", job?.notes?.includes("8") ?? false, String(job?.notes));
+      const logs = await db.serviceJobLog.count({ where: { service_job_id: job?.id } });
+      check("nenhum log de produção", logs === 0, String(logs));
+      const inicio = await acao("iniciar_servico", { quem: "Joao M67" }, "comecei a gradagem do Joao");
+      check("iniciar_servico o encontra", !/não achei|não encontrei|nenhum/i.test(inicio.data.reply_text), inicio.data.reply_text);
+    }
+
     void fazenda;
     void pasto;
   } finally {
