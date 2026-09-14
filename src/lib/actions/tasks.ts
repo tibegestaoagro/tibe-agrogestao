@@ -90,16 +90,12 @@ export function serializeTask(t: {
  * fica com UMA pendência, não três. Para tarefa de rotina isso está certo, e o
  * contrário entulharia a tela com o que já não adianta fazer.
  *
- * ⚠️ **O mensal nos dias 29, 30 e 31 DERIVA, e isso foi medido, não suposto.**
- * "Todo dia 31" em fevereiro cai no dia 28, que está certo: não vira 3 de
- * março, que é o que `setUTCMonth` faria sozinho. Mas a tarefa de fevereiro
- * nasce com dia 28, e a de março parte DELA: a cadeia real 31/01, 28/02, 28/03
- * nunca volta ao 31. Provado em 14/09 encadeando duas conclusões.
- *
- * ponytail: deriva do fim de mês na recorrência mensal, porque não há onde
- * guardar o dia original. Corrigir exige uma coluna `recurrence_day`, e vale
- * quando alguém pedir "todo dia 31". "Todo dia 5 pagar João", que é o exemplo
- * do §24, não é afetado.
+ * A série segue a ÂNCORA (`recurrence_anchor`), e não a data da ocorrência
+ * atual. Até 14/09/2026 seguia a atual, e derivava de dois jeitos medidos:
+ * "todo dia 31" passava por 28/02 e ficava no 28 para sempre, e "toda segunda"
+ * adiada para terça virava "toda terça". Agora a próxima é o primeiro dia que
+ * casa com a âncora (mesmo dia do mês, com teto no último dia; mesmo dia da
+ * semana) depois da data atual e depois de hoje.
  *
  * Exportada para a suíte: a deriva só se prova com data fixa.
  */
@@ -107,27 +103,27 @@ export function proximaOcorrencia(
   dataAtual: Date,
   recorrencia: TaskRecurrenceInput,
   agora = new Date(),
+  ancora: Date = dataAtual,
 ): Date {
-  const hoje = inicioDoDiaEmSaoPaulo(agora).getTime();
-  const diaDeReferencia = dataAtual.getUTCDate();
+  const ano = dataAtual.getUTCFullYear();
+  const mes = dataAtual.getUTCMonth();
+  const dia = dataAtual.getUTCDate();
+  const piso = Math.max(Date.UTC(ano, mes, dia), inicioDoDiaEmSaoPaulo(agora).getTime());
 
-  let passo = 0;
-  let proxima = new Date(dataAtual.getTime());
-  do {
-    passo += 1;
+  for (let passo = recorrencia === "mensal" ? 0 : 1; ; passo++) {
+    let proxima: Date;
     if (recorrencia === "diaria") {
-      proxima = new Date(Date.UTC(dataAtual.getUTCFullYear(), dataAtual.getUTCMonth(), dataAtual.getUTCDate() + passo));
+      proxima = new Date(Date.UTC(ano, mes, dia + passo));
     } else if (recorrencia === "semanal") {
-      proxima = new Date(Date.UTC(dataAtual.getUTCFullYear(), dataAtual.getUTCMonth(), dataAtual.getUTCDate() + 7 * passo));
+      proxima = new Date(Date.UTC(ano, mes, dia + passo));
+      if (proxima.getUTCDay() !== ancora.getUTCDay()) continue;
     } else {
-      const ano = dataAtual.getUTCFullYear();
-      const mes = dataAtual.getUTCMonth() + passo;
-      const ultimoDiaDoMes = new Date(Date.UTC(ano, mes + 1, 0)).getUTCDate();
-      proxima = new Date(Date.UTC(ano, mes, Math.min(diaDeReferencia, ultimoDiaDoMes)));
+      const ultimoDiaDoMes = new Date(Date.UTC(ano, mes + passo + 1, 0)).getUTCDate();
+      proxima = new Date(Date.UTC(ano, mes + passo, Math.min(ancora.getUTCDate(), ultimoDiaDoMes)));
     }
-  } while (proxima.getTime() <= hoje);
-
-  return proxima;
+    /* Compara o DIA, e devolve ao meio-dia UTC, a convenção de data de calendário. */
+    if (proxima.getTime() > piso) return new Date(proxima.getTime() + 12 * 3_600_000);
+  }
 }
 
 const HORARIO = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -216,6 +212,7 @@ export async function createTaskAction(
       property_id: input.property_id ?? null,
       notes: limpar(input.notes),
       recurrence: dataFinal ? (input.recurrence ?? null) : null,
+      recurrence_anchor: dataFinal && input.recurrence ? dataFinal : null,
       /* Sem data não há dia para lembrar (decisão 19). */
       remind: dataFinal ? (input.remind ?? true) : false,
       created_by: input.created_by ?? null,
@@ -260,9 +257,25 @@ export async function updateTaskAction(
   );
   if (problema) return fail(problema.code, problema.message, problema.status, problema.field);
 
+  /*
+   * Editar é redefinir a série: trocar o dia no formulário muda a âncora, e
+   * pôr ou trocar a recorrência também. O formulário manda a data sempre, por
+   * isso a comparação, e não só a presença do campo. Adiar NÃO passa por aqui
+   * (`postponeTaskAction`).
+   */
+  const recorrenciaFinal = input.recurrence !== undefined ? input.recurrence : existing.recurrence;
+  const mudouData = input.due_date !== undefined && (input.due_date?.getTime() ?? null) !== (existing.due_date?.getTime() ?? null);
+  const mudouRecorrencia = recorrenciaFinal !== existing.recurrence;
+  const ancora = !recorrenciaFinal || !dataFinal
+    ? null
+    : mudouData || mudouRecorrencia || !existing.recurrence_anchor
+      ? dataFinal
+      : existing.recurrence_anchor;
+
   await db.task.update({
     where: { id: taskId },
     data: {
+      recurrence_anchor: ancora,
       ...(input.title !== undefined ? { title: limpar(input.title)! } : {}),
       ...(input.due_date !== undefined ? { due_date: input.due_date } : {}),
       ...(input.due_time !== undefined ? { due_time: limpar(input.due_time) } : {}),
@@ -304,7 +317,14 @@ export async function postponeTaskAction(
   if (existing.status !== "pending") {
     return fail("TAREFA_ENCERRADA", "Só dá para adiar tarefa que ainda está pendente", 422, "due_date");
   }
-  return updateTaskAction(db, taskId, { due_date: novaData });
+  /*
+   * Direto, e não por `updateTaskAction`: adiar é pontual e mantém a âncora da
+   * série (decisão do usuário, 14/09/2026). "Todo dia 5" adiado para o 6 volta
+   * ao 5 no mês seguinte. Só a data muda, então nenhuma regra de coerência de
+   * `conferir` se aplica. O lembrete do novo dia volta a valer, como na edição.
+   */
+  await db.task.update({ where: { id: taskId }, data: { due_date: novaData, reminded_at: null } });
+  return ok({ id: taskId });
 }
 
 export async function updateTaskStatusAction(
@@ -333,13 +353,22 @@ export async function updateTaskStatusAction(
     existing.due_date !== null;
 
   const nextTaskId = await db.$transaction(async (tx) => {
-    await tx.task.update({ where: { id: taskId }, data: { status } });
+    await tx.task.update({
+      where: { id: taskId },
+      data: {
+        status,
+        /* Reconcluir preserva a hora da primeira conclusão. */
+        completed_at: status === "completed" ? (existing.completed_at ?? new Date()) : null,
+      },
+    });
     if (!gerarProxima) return null;
 
+    const ancora = existing.recurrence_anchor ?? existing.due_date!;
     const proxima = await tx.task.create({
       data: scoped({
         title: existing.title,
-        due_date: proximaOcorrencia(existing.due_date!, existing.recurrence as TaskRecurrenceInput),
+        due_date: proximaOcorrencia(existing.due_date!, existing.recurrence as TaskRecurrenceInput, new Date(), ancora),
+        recurrence_anchor: ancora,
         due_time: existing.due_time,
         worker_id: existing.worker_id,
         assignee: existing.assignee,
