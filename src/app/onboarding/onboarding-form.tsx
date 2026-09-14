@@ -40,7 +40,7 @@ export default function OnboardingForm() {
       } else {
         await createProfile(selected);
       }
-      router.push("/dashboard");
+      router.push("/meu-dia");
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro inesperado");

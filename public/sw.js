@@ -205,7 +205,7 @@ async function trim(cache) {
 }
 
 /** Notificação padrão quando o payload do push não é o esperado (não deveria acontecer, mas uma notificação genérica é melhor que nenhuma). */
-const DEFAULT_PUSH = { title: "Tibé", body: "Você tem uma novidade no painel.", url: "/dashboard" };
+const DEFAULT_PUSH = { title: "Tibé", body: "Você tem uma novidade no painel.", url: "/meu-dia" };
 
 /**
  * Push (Onda 2): o corpo já vem pronto (title/body/url) do servidor via
@@ -238,7 +238,7 @@ self.addEventListener("push", (event) => {
  */
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = event.notification.data && event.notification.data.url ? event.notification.data.url : "/dashboard";
+  const url = event.notification.data && event.notification.data.url ? event.notification.data.url : "/meu-dia";
 
   event.waitUntil(
     (async () => {

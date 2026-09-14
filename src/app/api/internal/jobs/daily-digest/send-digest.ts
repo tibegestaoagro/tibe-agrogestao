@@ -31,7 +31,8 @@ export async function sendDailyDigestForTenant(tenantId: string): Promise<boolea
     {
       pushTitle: content.pushTitle,
       pushBody: content.pushBody,
-      pushUrl: "/dashboard",
+      /* O resumo do dia abre o dia: o Meu Dia é a porta de entrada (Módulo 38). */
+      pushUrl: "/meu-dia",
       whatsappText: content.whatsappText,
       // Sem `email`: urgency "digest" nunca usa o canal de email de qualquer
       // forma (política dentro de notify()), então nem monta o conteúdo aqui.

@@ -20,7 +20,7 @@ import { routeIntent } from "@/lib/actions/whatsapp-router";
 import { reaisBr } from "@/lib/numero-br";
 import { supportsThreeDayReminder } from "@/lib/actions/whatsapp-handlers/rebanho";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
-import { createTestAnimal , deleteTestTenants } from "./helpers/herd";
+import { createTestAnimal , deleteTestTenants, registrarNoLivro } from "./helpers/herd";
 
 exigirBancoLocal();
 
@@ -533,6 +533,8 @@ async function main() {
             sex: "female" }),
       ),
     );
+    // O rebanho contado vem do livro-razão desde 14/09/2026, e não do lote.
+    await registrarNoLivro(dbA, { property_id: propertyA.id, quantity: animals.length });
     const vaccines = await Promise.all(
       ["Aftosa M17", "Brucelose M17", "Clostridial M17"].map((name) =>
         dbA.vaccine.create({ data: scoped({ name }) }),
