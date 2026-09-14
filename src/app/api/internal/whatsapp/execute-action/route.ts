@@ -105,9 +105,16 @@ async function POSTHandler(request: Request) {
    * mensagem nova e não deve engordar o histórico da conversa.
    */
   const providerMessageId = parsed.data.provider_message_id ?? null;
-  if (providerMessageId) {
+  /**
+   * A chave inclui a intenção: uma mensagem com dois pedidos ("quantos animais
+   * e o que tenho a pagar") chega em duas chamadas com o MESMO wamid, uma por
+   * intenção. Chavear só pelo wamid fazia a segunda intenção ser tratada como
+   * replay da primeira e devolver a resposta errada, sem executar nada.
+   */
+  const chaveIdempotencia = providerMessageId ? `${providerMessageId}#${intent}` : null;
+  if (chaveIdempotencia) {
     const anterior = await db.agentRequest.findFirst({
-      where: { provider_message_id: providerMessageId },
+      where: { provider_message_id: chaveIdempotencia },
     });
     if (anterior) {
       log.info("execute-action: replay respondido pelo registro anterior", {
@@ -191,7 +198,7 @@ async function POSTHandler(request: Request) {
     action_taken: result.action_taken,
   };
 
-  if (providerMessageId) {
+  if (chaveIdempotencia) {
     // Grava DEPOIS de executar, para que uma execução que falhou no meio possa
     // ser tentada de novo. E a colisão é ignorada de propósito: se duas
     // chamadas idênticas correram juntas, as duas fizeram o mesmo trabalho e a
@@ -199,7 +206,7 @@ async function POSTHandler(request: Request) {
     try {
       await db.agentRequest.create({
         data: scoped({
-          provider_message_id: providerMessageId,
+          provider_message_id: chaveIdempotencia,
           intent,
           // `auxiliary_data` é `Record<string, unknown>`, e `unknown` não casa
           // com o tipo de entrada de coluna Json. O valor É serializável (é o

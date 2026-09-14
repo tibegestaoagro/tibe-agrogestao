@@ -127,7 +127,10 @@ async function main() {
         "replay devolve exatamente a resposta da primeira vez",
       );
 
-      const registros = await A.db.agentRequest.count({ where: { provider_message_id: wamid } });
+      // A chave gravada agora inclui a intencao (`${wamid}#${intent}`, task 3
+      // do M67): as duas chamadas usam a mesma intencao ("ajuda"), entao
+      // continuam colidindo na MESMA chave e gerando UM registro.
+      const registros = await A.db.agentRequest.count({ where: { provider_message_id: { startsWith: wamid } } });
       assert(registros === 1, `a mensagem gerou UM registro de execucao (gerou ${registros})`);
 
       // O ponto que mais importa: replay nao pode engordar o historico da

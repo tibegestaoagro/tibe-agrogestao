@@ -79,8 +79,19 @@ async function main() {
     };
 
     console.log("🤖 M67: agente do WhatsApp, fundacao\n");
-    // As secoes das tarefas seguintes entram aqui, em ordem.
-    void acao;
+
+    console.log("\n2. Idempotência por intenção");
+    {
+      const wamid = `WAMID-${stamp}`;
+      const a = await acao("consultar_rebanho", {}, "quantos animais e o que tenho a pagar", { provider_message_id: wamid });
+      const b = await acao("resumo", { scope: "contas_a_pagar" }, "quantos animais e o que tenho a pagar", { provider_message_id: wamid });
+      check("a segunda intenção da mesma mensagem EXECUTA", b.data.action_taken !== a.data.action_taken, `${a.data.action_taken} / ${b.data.action_taken}`);
+      const c = await acao("consultar_rebanho", {}, "quantos animais e o que tenho a pagar", { provider_message_id: wamid });
+      check("a mesma intenção repetida devolve a resposta anterior", c.data.reply_text === a.data.reply_text);
+      const gravados = await db.agentRequest.count({ where: { provider_message_id: { startsWith: wamid } } });
+      check("duas chaves gravadas, uma por intenção", gravados === 2, String(gravados));
+    }
+
     void fazenda;
     void pasto;
   } finally {
