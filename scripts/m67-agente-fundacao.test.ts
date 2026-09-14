@@ -453,6 +453,36 @@ async function main() {
       );
     }
 
+    console.log("\n9. Cadastro assistido");
+    {
+      await db.property.create({ data: scoped({ name: "Fazenda B M67" }) });
+      const abre = await acao("cadastrar_animal", { count: 1 }, "quero cadastrar um boi");
+      check("com duas fazendas, pergunta qual", /qual fazenda|em qual/i.test(abre.data.reply_text), abre.data.reply_text);
+      const outro = await acao("consultar_meu_dia", {}, "o que tenho pra hoje");
+      check(
+        "assunto novo com gesto próprio não vira resposta de campo",
+        !/brinco|raça|macho ou fêmea/i.test(outro.data.reply_text),
+        outro.data.reply_text,
+      );
+      /*
+       * A pergunta da fazenda continua guardada (não foi apagada pela
+       * interrupção acima): a resposta agora precisa ser USÁVEL, abrindo o
+       * formulário de campos do animal, não repetindo a pergunta da fazenda
+       * nem caindo no primeiro item da lista.
+       */
+      const respostaFazenda = await acao(
+        "cadastrar_animal",
+        { count: 1, property_name: "Fazenda B M67" },
+        "Fazenda B M67",
+      );
+      check(
+        "a resposta da fazenda abre o formulário de campos, não repete a pergunta",
+        /brinco/i.test(respostaFazenda.data.reply_text),
+        respostaFazenda.data.reply_text,
+      );
+      await db.agentFlowState.deleteMany({ where: { user_id: owner.id } });
+    }
+
     void fazenda;
     void pasto;
   } finally {

@@ -1,5 +1,6 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import type { RouterResult } from "@/lib/actions/whatsapp-handlers/shared";
+import { str } from "@/lib/actions/whatsapp-handlers/shared";
 import type { Intent } from "@/lib/whatsapp-intents";
 import {
   getActiveFlow,
@@ -7,10 +8,12 @@ import {
   cancelFlow,
   finishFlow,
   startFlow,
+  startPropertyQuestion,
   resumeHint,
   FLOWS,
+  PROPERTY_PENDING_FIELD,
 } from "@/lib/actions/agent-flows";
-import { listActiveProperties } from "@/lib/actions/properties";
+import { listActiveProperties, findActivePropertyByName } from "@/lib/actions/properties";
 import { createBatchAction } from "@/lib/actions/animal-batches";
 import { findCategory } from "@/lib/herd/categories";
 import { log } from "@/lib/log";
@@ -46,23 +49,59 @@ function isYes(text: string): boolean {
 }
 
 /**
- * Intenções que interrompem o formulário para serem respondidas. Qualquer coisa
- * fora dessa lista (inclusive `ambigua`, que é como o LLM classifica um "Nelore"
- * solto) é tratada como resposta de campo.
+ * Toda intenção diferente de `ambigua` (resposta curta, sem assunto próprio,
+ * que o LLM devolve para algo como "Nelore" solto) e de `cadastrar_animal`
+ * (a própria intenção do formulário, inclusive quando ela chega de novo com
+ * um campo preenchido) INTERROMPE o formulário: é assunto novo, o roteador
+ * responde por fora e o cadastro continua guardado, sem perder o que já foi
+ * coletado (Task 10, 2026-09-14).
+ *
+ * Antes desta regra havia uma lista fixa de intenções "que interrompem", e
+ * toda intenção NOVA nascia de fora dela por padrão: cada módulo que chegou
+ * precisou lembrar de somar sua própria intenção lá (foi o caso do Estoque,
+ * Módulo 31). A lista fixa também tinha o defeito oposto: qualquer intenção
+ * que ela não citasse era ENGOLIDA como resposta de campo, e foi assim que
+ * "o que tenho pra hoje", dito no meio de um cadastro de animal, quase virou
+ * uma tentativa de responder "qual a raça?".
  */
-const INTERRUPTING: ReadonlySet<string> = new Set([
-  "consultar_saldo", "consultar_animal", "consultar_cliente",
-  "gerar_relatorio", "resumo", "ajuda",
-  /**
-   * Estoque (Módulo 31). As quatro entraram aqui porque ficar de fora tem
-   * consequência dupla: "usei 2 sacas de sal hoje", dito no meio de um cadastro
-   * de animal, era tratado como RESPOSTA DE CAMPO. A saída de estoque sumia sem
-   * aviso e o animal ficava com raça "usei 2 sacas de sal hoje". `consultar_*`
-   * já estava aqui por esse motivo; faltava o estoque.
-   */
-  "consultar_estoque", "registrar_uso_estoque", "ajustar_estoque",
-  "registrar_negocio_produto",
-]);
+function interrompe(intent: Intent): boolean {
+  return intent !== "ambigua" && intent !== "cadastrar_animal";
+}
+
+/**
+ * Resolve a fazenda do cadastro assistido a partir do que se tem: um
+ * `property_id`/`property_name` explícito, ou (achado no roteador) o texto
+ * puro digitado em resposta à pergunta "Em qual fazenda?". Nunca escolhe
+ * sozinha entre duas fazendas: só decide quando não há ambiguidade, e pede
+ * para o chamador perguntar nos outros casos.
+ */
+type ResolucaoDeFazenda = { kind: "resolved"; id: string } | { kind: "ask"; message: string };
+
+async function resolverFazenda(
+  db: TenantPrismaClient,
+  props: { id: string; name: string }[],
+  parameters: Record<string, unknown>,
+): Promise<ResolucaoDeFazenda> {
+  const id = str(parameters.property_id);
+  if (id) return { kind: "resolved", id };
+
+  const name = str(parameters.property_name) ?? str(parameters.property);
+  if (name) {
+    const found = await findActivePropertyByName(db, name);
+    if (found) return { kind: "resolved", id: found.id };
+    return {
+      kind: "ask",
+      message: `Não encontrei a propriedade '${name}'. Em qual fazenda? Opções: ${props.map((p) => p.name).join(", ")}.`,
+    };
+  }
+
+  if (props.length === 1) return { kind: "resolved", id: props[0].id };
+
+  return {
+    kind: "ask",
+    message: `Você tem mais de uma propriedade. Em qual devo cadastrar? Opções: ${props.map((p) => p.name).join(", ")}.`,
+  };
+}
 
 export async function handleActiveFlow(params: {
   db: TenantPrismaClient;
@@ -100,15 +139,30 @@ export async function handleActiveFlow(params: {
         "cadastro_assistido:concluido",
       );
     }
-    if (INTERRUPTING.has(intent)) return null; // responde a dúvida e o roteador segue
+    if (interrompe(intent)) return null; // responde a dúvida e o roteador segue
     return reply(resumeHint(state) ?? "Posso cadastrar os animais do resumo?", "cadastro_assistido:aguardando_confirmacao");
   }
 
   // Pergunta de outro assunto no meio do formulário: deixa o roteador
   // responder. O texto de retomada volta na mensagem seguinte do agente.
-  if (INTERRUPTING.has(intent) && text.length > 0) return null;
+  if (interrompe(intent) && text.length > 0) return null;
 
   if (text.length === 0) return null;
+
+  // Ainda não escolheu a fazenda (Task 10): a resposta é o NOME dela, não um
+  // campo do animal. Só chega aqui depois do desvio de interrupção acima, então
+  // uma intenção com assunto próprio já voltou null antes deste ponto.
+  if (state.pending_field === PROPERTY_PENDING_FIELD) {
+    const props = await listActiveProperties(db);
+    const fazenda = await resolverFazenda(db, props, { property_name: text });
+    if (fazenda.kind === "ask") {
+      return reply(fazenda.message, "cadastro_assistido:fazenda_nao_encontrada");
+    }
+    const { reply: texto } = await startFlow(db, userId, "cadastrar_animal", state.target_count, {
+      property_id: fazenda.id,
+    });
+    return reply(texto, "cadastro_assistido:iniciado");
+  }
 
   const res = await applyAnswer(db, userId, text);
   if (res.kind === "none") return null;
@@ -139,7 +193,20 @@ export async function maybeStartAnimalFlow(
 
   const raw = parameters.count ?? parameters.quantidade ?? parameters.quantity;
   const count = typeof raw === "number" ? raw : Number.parseInt(String(raw ?? "1"), 10) || 1;
-  const { reply: texto } = await startFlow(db, userId, "cadastrar_animal", count);
+
+  // Com mais de uma fazenda ativa e nenhuma indicada, pergunta ANTES de abrir
+  // o formulário, em vez de cair no primeiro item da lista (Task 10): quem
+  // cadastra pela Fazenda B não pode ver o animal nascer na Fazenda A porque
+  // ela é a primeira em ordem alfabética.
+  const fazenda = await resolverFazenda(db, props, parameters);
+  if (fazenda.kind === "ask") {
+    await startPropertyQuestion(db, userId, count);
+    return reply(fazenda.message, "cadastro_assistido:pergunta_fazenda");
+  }
+
+  const { reply: texto } = await startFlow(db, userId, "cadastrar_animal", count, {
+    property_id: fazenda.id,
+  });
   return reply(texto, "cadastro_assistido:iniciado");
 }
 
@@ -170,18 +237,30 @@ async function categoriaDoLivroRazao(db: TenantPrismaClient, herdCategoryId: str
  * action), e não `db.animalBatch.create()` direto. É o que faz o lote ENTRAR
  * no saldo: a action grava o `HerdMovement` sozinha, a partir da categoria
  * que a pergunta nova do fluxo já resolveu (`dividas.md` §2.9).
+ *
+ * A fazenda vem do PRÓPRIO item (`item.property_id`, gravado quando o fluxo
+ * abriu: ver `resolverFazenda`/`startPropertyQuestion` acima). Task 10: antes,
+ * este ponto sempre gravava em `props[0]`, a primeira em ordem alfabética,
+ * mesmo quando o produtor tinha escolhido outra. O fallback só serve para uma
+ * linha que já estivesse em voo antes desta mudança, e só quando não há
+ * ambiguidade: nunca escolhe entre duas fazendas aqui.
  */
 async function commitAnimals(
   db: TenantPrismaClient,
   items: Record<string, string>[],
 ): Promise<{ ok: number; failed: number }> {
   const props = await listActiveProperties(db);
-  const propertyId = props[0]?.id;
-  if (!propertyId) return { ok: 0, failed: items.length };
+  const fallbackPropertyId = props.length === 1 ? props[0].id : null;
 
   let ok = 0;
   let failed = 0;
   for (const item of items) {
+    const propertyId = item.property_id ?? fallbackPropertyId;
+    if (!propertyId) {
+      failed++;
+      log.warn("cadastro assistido: item sem fazenda resolvida", { intent: "cadastro_assistido" });
+      continue;
+    }
     const category = await categoriaDoLivroRazao(db, item.category);
     const res = await createBatchAction(db, {
       category_id: category.id,

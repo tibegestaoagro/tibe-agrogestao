@@ -422,8 +422,9 @@ export async function routeIntent(
    * curta), e `handleActiveFlow` trata `ambigua` como resposta de campo. Com um
    * cadastro de animal aberto e uma compra esperando confirmação, o "sim" era
    * consumido pelo formulário ("Qual a raça?") e a compra de R$ 1.200 ficava
-   * pendurada para sempre. As quatro intenções de estoque já estavam em
-   * `INTERRUPTING` justamente para isso, mas o "sim" não é uma delas.
+   * pendurada para sempre. As quatro intenções de estoque já interrompiam o
+   * formulário por conta própria (`interrompe()`, `whatsapp-flow-bridge.ts`),
+   * mas o "sim" não é uma delas.
    *
    * ESTREITA: só quando o pedido está em "confirmacao". Uma pergunta de CAMPO
    * do estoque não tem prioridade sobre o formulário.
