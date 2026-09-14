@@ -338,6 +338,20 @@ async function main() {
       check("e não cria nada", (await db.serviceJob.count()) === antesDaPassada);
     }
 
+    console.log("\n6. Diesel sem saldo");
+    {
+      const categoriaDiesel = await db.productCategory.create({ data: scoped({ name: "Combustíveis M67" }) });
+      await db.product.create({
+        data: scoped({ category_id: categoriaDiesel.id, name: "Diesel M67", unit: "litro" }),
+      });
+      const p = { quem: "Joao M67", produto: "Diesel M67", quantidade: 50 };
+      await acao("iniciar_servico", { quem: "Joao M67" }, "sim", { confirmed: true });
+      await acao("registrar_combustivel_servico", p, "gastei 50 litros de diesel na gradagem");
+      const r = await acao("registrar_combustivel_servico", p, "sim", { confirmed: true });
+      check("responde 200 com frase, não 500", r.status === 200 && typeof r.data.reply_text === "string", `${r.status}`);
+      check("a frase fala de saldo", /saldo|estoque|tem só|não tem/i.test(r.data.reply_text ?? ""), r.data.reply_text);
+    }
+
     void fazenda;
     void pasto;
   } finally {
