@@ -92,6 +92,18 @@ async function main() {
       check("duas chaves gravadas, uma por intenção", gravados === 2, String(gravados));
     }
 
+    console.log("\n3. Ajuste de rebanho");
+    {
+      const antes = (await db.herdMovement.count({ where: { movement_type: "ajuste" } }));
+      const p = { movement_type: "ajuste", itens: [{ categoria: "macho_25_36", quantidade: 2 }], pasto: "Pasto M67", sentido: "saida" };
+      await acao("registrar_movimentacao_rebanho", p, "tinha 2 bois a menos na contagem");
+      const r = await acao("registrar_movimentacao_rebanho", p, "sim", { confirmed: true });
+      const depois = await db.herdMovement.count({ where: { movement_type: "ajuste" } });
+      check("o ajuste confirmado grava", depois === antes + 1, `${r.data.action_taken}: ${r.data.reply_text}`);
+      const semSentido = await acao("registrar_movimentacao_rebanho", { movement_type: "ajuste", itens: [{ categoria: "macho_25_36", quantidade: 1 }] }, "ajusta 1 boi");
+      check("sem sentido, pergunta se aumenta ou diminui", /aumenta ou diminui/i.test(semSentido.data.reply_text), semSentido.data.reply_text);
+    }
+
     void fazenda;
     void pasto;
   } finally {

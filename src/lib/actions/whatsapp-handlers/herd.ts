@@ -371,7 +371,12 @@ const VERBO: Record<string, string> = {
   compra: "registrar a compra de",
   venda: "registrar a venda de",
   morte: "registrar a morte de",
+  ajuste: "registrar o ajuste de",
 };
+
+/** §8.7: como o produtor diz que um ajuste soma ou tira do rebanho. */
+const AJUSTE_ENTRADA = new Set(["entrada", "entrou", "a mais"]);
+const AJUSTE_SAIDA = new Set(["saida", "saiu", "a menos"]);
 
 /** Como o cliente escreve nos §13.4 e §13.5: "4 bezerros e 3 bezerras". */
 function descreverItens(itens: { categoria: HerdCategory; quantidade: number }[]): string {
@@ -563,6 +568,23 @@ export const registrarMovimentacaoRebanho: Handler = async ({
     itens.push({ categoria: resolvida.categoria, quantidade: item.quantidade });
   }
 
+  /**
+   * §8.7: um ajuste corrige UMA posição por vez, pra cima ou pra baixo, e o
+   * livro-razão (`herd-ledger.ts`) recusa a movimentação se vier com origem E
+   * destino ao mesmo tempo. Sem o sentido não dá pra saber qual dos dois
+   * montar, então perguntamos antes de seguir, do mesmo jeito que qualquer
+   * outro campo pendente deste handler.
+   */
+  let ajusteEntrada = false;
+  let ajusteSaida = false;
+  if (tipo === "ajuste") {
+    const bruto = str(parameters.sentido) ?? str(parameters.direcao);
+    const termo = bruto ? normalizarTermo(bruto) : null;
+    if (termo && AJUSTE_ENTRADA.has(termo)) ajusteEntrada = true;
+    else if (termo && AJUSTE_SAIDA.has(termo)) ajusteSaida = true;
+    else return perguntar(ask("Esse ajuste aumenta ou diminui o rebanho?"), "sentido");
+  }
+
   const fazenda = await resolverFazenda(db, str(parameters.fazenda) ?? str(parameters.property));
   if (!fazenda.ok) return perguntar(fazenda.resposta, "fazenda");
 
@@ -605,7 +627,7 @@ export const registrarMovimentacaoRebanho: Handler = async ({
   // Só quem TIRA de algum lugar precisa desta conferência: entrada não tem
   // origem. Roda antes da confirmação, para não pedir "sim" a uma coisa que
   // já se sabe que vai falhar.
-  if (!ENTRADAS.has(tipo)) {
+  if (!ENTRADAS.has(tipo) && !ajusteEntrada) {
     for (const item of itens) {
       const aviso = await conferirOndeEstaOSaldo(
         db,
@@ -707,8 +729,8 @@ export const registrarMovimentacaoRebanho: Handler = async ({
     const resultado = await recordMovement(db, {
       movement_type: tipo as (typeof HERD_MOVEMENT_TYPES)[number],
       quantity: item.quantidade,
-      from: ENTRADAS.has(tipo) ? null : origem,
-      to: SAIDAS.has(tipo) ? null : destino,
+      from: ENTRADAS.has(tipo) || ajusteEntrada ? null : origem,
+      to: SAIDAS.has(tipo) || ajusteSaida ? null : destino,
       value: valor ?? null,
       occurred_at: quando,
       notes: "Registrado pelo assistente no WhatsApp",
