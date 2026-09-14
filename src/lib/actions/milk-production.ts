@@ -264,8 +264,14 @@ export type ResumoDePeriodo = {
   de: string;
   ate: string;
   litros: number;
-  /** Dias corridos da janela. Divisor da média diária. */
+  /** Dias corridos da janela. */
   dias: number;
+  /**
+   * Dias da janela com produção registrada, e o divisor da média diária
+   * (decisão do usuário, 14/09/2026). Pelos dias corridos, uma fazenda com um
+   * registro de 120 L lia "média diária 0,49 L" no ano.
+   */
+  dias_com_registro: number;
   media_diaria: number;
   /**
    * Litros por vaca/dia (§10). `null` quando nenhum dia da janela tem contagem
@@ -366,6 +372,7 @@ export async function getResumoDoLeite(
     const dias = diasEntre(janela.de, janela.ate);
     const total = dias.reduce((soma, dia) => soma + (litros.get(dia) ?? 0), 0);
     const { media, dias_com_contagem } = mediaPorVaca(dias, litros, contagens);
+    const diasComRegistro = dias.filter((dia) => litros.has(dia)).length;
     return {
       chave: janela.chave,
       rotulo: janela.rotulo,
@@ -373,7 +380,8 @@ export async function getResumoDoLeite(
       ate: janela.ate,
       litros: Math.round(total * 100) / 100,
       dias: dias.length,
-      media_diaria: Math.round((total / Math.max(dias.length, 1)) * 100) / 100,
+      dias_com_registro: diasComRegistro,
+      media_diaria: Math.round((total / Math.max(diasComRegistro, 1)) * 100) / 100,
       media_por_vaca: media,
       dias_com_contagem,
     };

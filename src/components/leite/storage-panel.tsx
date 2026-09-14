@@ -36,6 +36,8 @@ type Site = {
   name: string;
   type: MilkSiteType;
   counterparty_name: string | null;
+  /** Fazenda do tanque próprio: a lista é de todas as fazendas. */
+  property_name: string | null;
   capacity: number | null;
   liters: number;
   acima_da_capacidade: boolean;
@@ -138,6 +140,9 @@ export default function StoragePanel({
                         <span className="text-xs text-texto-discreto">
                           de {site.counterparty_name}
                         </span>
+                      )}
+                      {site.property_name && (
+                        <span className="text-xs text-texto-discreto">{site.property_name}</span>
                       )}
                     </div>
                     <div className="flex items-center gap-3">

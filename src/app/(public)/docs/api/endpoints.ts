@@ -755,7 +755,7 @@ export const GROUPS: Group[] = [
         auth: "Sessão · rebanho:read · perfil fazenda",
         description: "O painel do §34 e as seis janelas do §11 (hoje, ontem, últimos 7 dias, este mês, mês anterior, ano). `property_id` é obrigatório: a contagem de vacas e a média por vaca só existem por fazenda, e sem ele devolve 422 `FAZENDA_OBRIGATORIA`. `media_por_vaca` é litros por vaca/dia, com os dias sem contagem conhecida fora dos DOIS lados da divisão, e vem `null` quando nenhum dia da janela tem contagem: zero afirmaria uma produtividade que ninguém mediu. \"Semana\" são sete dias corridos, e as janelas em curso terminam hoje, não no fim do mês.",
         response: `200
-{ "data": { "property_id": "cl...", "hoje": { "dia": "2026-09-02", "vacas_em_lactacao": 32, "litros": 480, "media_por_vaca": 15 }, "periodos": [{ "chave": "hoje", "rotulo": "Hoje", "de": "2026-09-02", "ate": "2026-09-02", "litros": 480, "dias": 1, "media_diaria": 480, "media_por_vaca": 15, "dias_com_contagem": 1 }] }, "meta": {} }`,
+{ "data": { "property_id": "cl...", "hoje": { "dia": "2026-09-02", "vacas_em_lactacao": 32, "litros": 480, "media_por_vaca": 15 }, "periodos": [{ "chave": "hoje", "rotulo": "Hoje", "de": "2026-09-02", "ate": "2026-09-02", "litros": 480, "dias": 1, "dias_com_registro": 1, "media_diaria": 480, "media_por_vaca": 15, "dias_com_contagem": 1 }] }, "meta": {} }`,
       },
       {
         method: "GET",
@@ -861,8 +861,8 @@ export const GROUPS: Group[] = [
         method: "POST",
         path: "/api/v1/milk/sales/close",
         auth: "Sessão · rebanho:write · perfil fazenda",
-        description: "O fechamento por período (§28 e §29). **Não move leite**: cobra o que já saiu. Soma as retiradas daquele `buyer_id` no período que ainda não foram liquidadas, aplica o preço e cria a venda. Cada entrega recebe o `negotiation_id` do fechamento, e é isso que impede cobrar o mesmo leite duas vezes: a segunda chamada não encontra nada em aberto e devolve 422 `SEM_ENTREGAS`. O exemplo do §29 sai daqui: 15 dias, 7.200 litros a R$ 2,35, R$ 16.920,00 em Contas a Receber.",
-        request: `{ "buyer_id": "cl...", "property_id": "cl...", "de": "2026-09-01", "ate": "2026-09-15", "price_per_liter": 2.35, "period_label": "1a quinzena de setembro" }`,
+        description: "O fechamento por período (§28 e §29). **Não move leite**: cobra o que já saiu. Soma as retiradas daquele `buyer_id` no período que ainda não foram liquidadas, aplica o preço e cria a venda. Cada entrega recebe o `negotiation_id` do fechamento, e é isso que impede cobrar o mesmo leite duas vezes: a segunda chamada não encontra nada em aberto e devolve 422 `SEM_ENTREGAS`. A prazo (`pago` falso, sem `parcelas`), `due_date` é obrigatória: sem ela, 422 `VENCIMENTO_OBRIGATORIO`. O exemplo do §29 sai daqui: 15 dias, 7.200 litros a R$ 2,35, R$ 16.920,00 em Contas a Receber.",
+        request: `{ "buyer_id": "cl...", "property_id": "cl...", "de": "2026-09-01", "ate": "2026-09-15", "price_per_liter": 2.35, "due_date": "2026-09-25", "period_label": "1a quinzena de setembro" }`,
         response: `201
 { "data": { "negotiation_id": "cl...", "liters": 7200, "amount": 16920, "price_per_liter": 2.35, "entregas": 15 }, "meta": {} }`,
       },

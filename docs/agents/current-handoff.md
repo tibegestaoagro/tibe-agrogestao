@@ -27,6 +27,24 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-09-14.
 
+### As três decisões pendentes do Leite, na branch `leite-decisoes-pendentes`
+
+Decididas pelo usuário em 14/09 (as três recomendadas), sem migração:
+
+- **Média diária divide pelos dias COM REGISTRO**, com "N de M dias com
+  registro" na tela (campo aditivo `dias_com_registro` no resumo). No banco de
+  dev, o acumulado do ano passou de 13,35 para 490 L/dia, "7 de 257 dias".
+  Registrado na spec do Módulo 32, §6.4.
+- **Bloco de armazenamento com título "Armazenamento de todas as fazendas"**, e
+  cada tanque próprio mostra a fazenda dele. Não filtra: o saldo no ponto de
+  coleta não guarda de que fazenda o leite saiu.
+- **Fechamento a prazo exige data de recebimento** (`VENCIMENTO_OBRIGATORIO`,
+  no campo `due_date`), na action e no formulário.
+
+**Validado:** `m52` e `m54` com asserções novas, que reprovam com as regras
+antigas; suíte 65/65; na tela, os três pontos lidos no navegador, e a recusa
+aparece embaixo do campo.
+
 ### Dívida 2.14 fechada e EM PRODUÇÃO
 
 Migração `20260914180000_tarefa_ancora_e_conclusao`: `Task.recurrence_anchor` e
@@ -175,9 +193,8 @@ avançou, e cada commit que sobe é leitura pública.
 credenciais. O que resta depende de decisão de produto; trazer as perguntas.
 
 **Continuam esperando:** a outra metade da
-`dividas.md` §2.8 (a despesa avulsa e os sete destinos de saída), e três
-decisões de produto do Leite (média diária por dias corridos; cabeçalho de uma
-fazenda com armazenamento de todas; fechamento sem data nascendo "Vencida").
+`dividas.md` §2.8 (a despesa avulsa e os sete destinos de saída), que é o
+próximo depois do merge do Leite.
 
 Não avance para outro módulo sem aprovação explícita.
 
