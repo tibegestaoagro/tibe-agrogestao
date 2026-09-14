@@ -55,6 +55,27 @@ para trás.
 Isso é a defesa da regra do `CLAUDE.md` que proíbe criar `FinancialEntry` sem
 passar por `createLinkedEntry`: ela existe para o dia em que o desenho muda.
 
+## 2026-09-14: a terceira ponta é quem ainda LÊ o campo antigo
+
+No rebanho, a troca aconteceu no Módulo 30: o saldo passou a ser a soma de
+`HerdMovement`. Passado e futuro foram cuidados. Mas `countActiveAnimals`, que
+alimenta o `/dashboard` e o `resumo` do WhatsApp, **continuou somando
+`AnimalBatch.quantity`**, o campo aposentado. Medido em produção em
+2026-09-14: o Painel da Da Mata dizia **2 cabeças**, e o livro-razão tinha
+**21**. O Meu Dia, na mesma sessão, mostrava o número certo.
+
+Ninguém viu por meses porque as suítes criavam o lote com `quantity` e **não
+passavam pelo livro-razão**: nelas os dois números coincidiam. Trocar a leitura
+fez `m12` e `m17` reprovarem, e elas precisaram do helper `registrarNoLivro`
+(`scripts/helpers/herd.ts`) para lançar as cabeças como movimentação.
+
+| ponta | pergunta | onde se resolve |
+|---|---|---|
+| leitores | quem ainda soma o campo aposentado? | `grep` pelo nome do campo em toda leitura, não só em escrita |
+
+Fixture que grava o campo antigo direto esconde exatamente esta ponta: ela faz
+o campo e a soma concordarem, o que produção nunca garante.
+
 Ver [[fixture-de-rebanho-precisa-de-situacao-e-dono]], que é a mesma família:
 um registro que nasce sem o campo que a soma precisa não dá erro, só some da
 conta.

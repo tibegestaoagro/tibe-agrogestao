@@ -68,6 +68,10 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [a guarda da action atrás do schema não é a recusa que sai](guarda-da-action-atras-do-schema-nao-e-a-recusa-que-sai.md) | armadilha | o `code` que o cliente lê é o do Zod, não o do `fail` |
 | [quem pergunta precisa guardar o pedido](quem-pergunta-precisa-guardar-o-pedido.md) | licao | o defeito mora ENTRE duas voltas da conversa |
 | [dado herdado inválido trava o caminho novo](dado-herdado-invalido-trava-o-caminho-novo.md) | armadilha | a suíte não vê porque ela cria dado bom |
+| [spread condicional no where escapa do tsc](spread-condicional-no-where-escapa-do-tsc.md) | armadilha | relação renomeada deu 500 só com o filtro ligado |
+| [a dívida descreve o sintoma, a auditoria acha o irmão](a-divida-descreve-o-sintoma-e-a-auditoria-acha-o-irmao.md) | licao | adiar deslocava a série; a venda do lote não virava negociação |
+| [vencimento padrão na data do fato nasce vencido](vencimento-padrao-na-data-do-fato-nasce-vencido.md) | licao | o terceiro módulo a repetir `due_date ?? occurred_at` |
+| [confirmar deploy pelo status do commit](confirmar-deploy-pelo-status-do-commit.md) | referencia | esperar a Vercel sem sondar produção |
 
 ⚠️ **`[[wikilink]]` para nota que não existe reprova o `npm run check`**
 (conferência 13). É o que impede esta pasta de virar um cemitério de links

@@ -77,5 +77,18 @@ registradas para ninguém repetir:
 - Não era o número de relações do schema: tirar cinco relações e regerar
   manteve o erro idêntico.
 
+## 2026-09-14: voltou com colunas novas, e o sintoma foi a página inteira
+
+Duas colunas acrescentadas a `Task` (`recurrence_anchor`, `completed_at`),
+`db:deploy` e `prisma generate` rodados, suíte verde. O `/meu-dia` no `next dev`
+que já estava no ar respondeu **500 com a tela genérica "This page couldn't
+load"**, sem apontar Prisma em lugar nenhum da página. Reiniciar o servidor
+resolveu na primeira tentativa.
+
+A regra desta nota já existia, e a sessão só a lembrou depois do 500: é o caso
+de [[escrever-a-licao-nao-impede-repeti-la]]. Vale como terceiro sinal de
+reconhecimento: **500 genérico em página que usa o model migrado, logo depois de
+migração, é reinício de servidor antes de ser defeito.**
+
 Relacionado: [[validacao-viva-acha-o-que-a-suite-verde-nao-acha]],
 [[turbopack-nao-cria-processo-quando-a-maquina-esta-cheia]].
