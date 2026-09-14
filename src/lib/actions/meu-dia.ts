@@ -275,6 +275,53 @@ export async function lerItensDoDia(
  * O alerta de estoque baixo não tem data e vai para "Atenção" por natureza: o
  * §31 lista "estoque crítico" entre os exemplos.
  */
+/**
+ * A ordem de importância do §50. Não é cronológica, e é a parte que o produtor
+ * sente: "o Meu Dia não deverá simplesmente ordenar tudo cronologicamente".
+ *
+ * As seis faixas do documento, na ordem dele:
+ *
+ * 1. vencido ou atrasado;
+ * 2. compromisso de hoje COM horário;
+ * 3. pagamento e recebimento de hoje;
+ * 4. tarefa urgente;
+ * 5. demais tarefas de hoje;
+ * 6. próximos compromissos.
+ *
+ * ⚠️ **O caso que discrimina é a faixa 2 contra a 4.** Tarefa urgente sem
+ * horário perde para o veterinário comum das 14h, porque o documento põe
+ * "compromissos de hoje com horário" antes de "tarefas urgentes". A intuição
+ * diria o contrário, e é exatamente por isso que a regra mora numa função pura
+ * com teste, e não numa ordenação escrita na consulta.
+ *
+ * Dentro da mesma faixa, desempata pela DATA e só depois pelo horário. A ordem
+ * importa: horário primeiro poria "daqui a cinco dias às 8h" acima de "amanhã,
+ * sem hora" em Próximos dias. Em Hoje todo item tem a mesma data, e aí o
+ * horário decide sozinho; em Atenção, o mais atrasado sobe.
+ */
+export function faixaDeImportancia(item: ItemDoDia): number {
+  if (item.origem === "estoque") return 1;
+  if (item.dias !== null && item.dias < 0) return 1;
+  if (item.dias === 0 && item.horario) return 2;
+  if (item.dias === 0 && (item.origem === "pagar" || item.origem === "receber")) return 3;
+  if (item.urgente && (item.dias === null || item.dias <= 0)) return 4;
+  if (item.dias === 0) return 5;
+  return 6;
+}
+
+export function ordenarPorImportancia(itens: ItemDoDia[]): ItemDoDia[] {
+  return [...itens].sort((a, b) => {
+    const faixa = faixaDeImportancia(a) - faixaDeImportancia(b);
+    if (faixa !== 0) return faixa;
+
+    /* Sem data vai por último dentro da faixa: o que tem prazo espera menos. */
+    const dias = (a.dias ?? Number.MAX_SAFE_INTEGER) - (b.dias ?? Number.MAX_SAFE_INTEGER);
+    if (dias !== 0) return dias;
+
+    return (a.horario ?? "99:99").localeCompare(b.horario ?? "99:99");
+  });
+}
+
 export function classificar(itens: ItemDoDia[]): MeuDia {
   const dia: MeuDia = { atencao: [], hoje: [], proximos: [], semData: [] };
 
@@ -292,5 +339,11 @@ export function classificar(itens: ItemDoDia[]): MeuDia {
     }
   }
 
-  return dia;
+  /* Cada seção sai já na ordem do §50: a tela e o WhatsApp leem a mesma. */
+  return {
+    atencao: ordenarPorImportancia(dia.atencao),
+    hoje: ordenarPorImportancia(dia.hoje),
+    proximos: ordenarPorImportancia(dia.proximos),
+    semData: ordenarPorImportancia(dia.semData),
+  };
 }
