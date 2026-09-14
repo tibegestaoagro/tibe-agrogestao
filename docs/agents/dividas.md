@@ -214,47 +214,6 @@ estreito e monoespaçado.
 
 ---
 
-### 2.8 Confinamento: dois pedidos do cliente que a spec calou
-
-Achados pelo juiz em 2026-08-31, no rejulgamento da frente. Não são defeito de
-implementação: são **escopo do documento do cliente que a spec estreitou sem
-dizer**, e por isso a tabela "o que falta" dela não os menciona.
-
-**§29, "registrar custos básicos": METADE resolvida em 02/09.**
-
-✅ **O que passou a funcionar:** um serviço contratado amarrado ao lote (o
-tratorista do trato, a limpeza, a manutenção) chega ao "Custo acumulado". A
-fase 33.2 acrescentou `ServiceJob.confinement_stay_id`, e
-`getConfinementLotSummary` passou a somar por JUNÇÃO, porque `related_id`
-aponta para uma coisa só e o §22 do Módulo 33 exige que o serviço saiba quanto
-dele já foi pago. Está provado nos dois sentidos pelo bloco 11 da `m58`.
-
-⚠️ **O que continua faltando, e é o caso mais comum:** a despesa avulsa. O
-produtor compra R$ 3.000 de ração e lança em `/financeiro`; o
-`createManualEntryAction` grava `related_module: "geral"` **sem `related_id`**,
-e aquele dinheiro continua não chegando ao lote. O §13/§14 lista nove tipos de
-custo, e só os que passam por um `ServiceJob` chegam hoje.
-
-**Custo de fechar o resto:** o lançamento manual precisa poder apontar para um
-lote, o que significa um campo a mais no formulário de `/financeiro` e a
-decisão de produto que a nota original já pedia (como o produtor amarra uma
-despesa a um lote sem transformar o lançamento rápido num formulário longo).
-
-**§17 pede sete destinos de saída, e a tela oferece três.** `stay-rules.ts` tem
-`encerramentos: ["retorno_estadia", "venda", "morte"]` para `confinamento`. O
-documento pede também transferência para outra fazenda, leilão ou feira,
-frigorífico e outro confinamento. Tirar 20 cabeças e mandar para a Fazenda B
-não tem como ser registrado: "Voltaram para o pasto" grava a posição na fazenda
-**de origem**, porque `closeStay` monta o destino com o `property_id` da
-abertura.
-
-⚠️ **Os dois ainda exigem decisão de produto antes de virar tarefa** (como o
-produtor amarra uma despesa AVULSA ao lote; quais dos sete destinos viram
-movimento novo no livro-razão). Decisão do usuário em 31/08: entram numa onda
-própria, com as perguntas trazidas junto da spec.
-
----
-
 ## 3. Rede de segurança com furo
 
 Vazia hoje. O único item que morava aqui era o `resolverPasto`, que escolhia o

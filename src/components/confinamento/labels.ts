@@ -72,7 +72,10 @@ export const CHARGE_LABEL: Record<HerdChargeType, string> = {
 export const MOVIMENTO_LABEL: Partial<Record<HerdMovementType, string>> = {
   envio_confinamento: "Entrada no confinamento",
   envio_boitel: "Entrada no boitel",
-  retorno_estadia: "Retorno para o pasto",
+  // Desde 14/09/2026 o retorno também leva para outra fazenda, outro
+  // confinamento ou leilão (dívida 2.8): "para o pasto" deixou de ser verdade.
+  retorno_estadia: "Saída do confinamento",
   venda: "Venda direto do confinamento",
   morte: "Morte",
+  ajuste: "Outro destino",
 };
