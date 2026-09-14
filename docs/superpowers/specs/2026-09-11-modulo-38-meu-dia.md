@@ -240,8 +240,10 @@ no SQL que a migração não tem reversão trivial.
 | `excluirTarefaAction` | o §27 quer cancelar mantendo histórico; excluir de vez é para quem digitou errado |
 
 ⚠️ **`effectiveStatus` passa a receber `Date | null`** e responde `pending` para
-tarefa sem data (decisão 19). Sem isso, toda tarefa sem data vira "Atrasada" no
-dia seguinte.
+tarefa sem data (decisão 19). **Feito já na T01**, no mesmo commit da migração:
+provado em 14/09 que sem a guarda a primeira tarefa sem data faz a listagem
+estourar, e a página inteira do Meu Dia cai. A previsão desta spec, de que ela
+só "viraria Atrasada", subestimava o estrago.
 
 ### T03: a consulta das três seções
 

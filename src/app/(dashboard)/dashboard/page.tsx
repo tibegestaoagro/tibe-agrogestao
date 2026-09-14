@@ -157,7 +157,9 @@ export default async function DashboardHome() {
   })();
 
   const eventDates = new Set<string>();
-  for (const t of calendarTasks) eventDates.add(dateKey(t.due_date));
+  // A consulta filtra por intervalo e já exclui tarefa sem data; o `if` é o
+  // tipo pedindo a mesma garantia que o SQL já dá.
+  for (const t of calendarTasks) if (t.due_date) eventDates.add(dateKey(t.due_date));
   for (const e of calendarEntries) if (e.due_date) eventDates.add(dateKey(e.due_date));
   for (const v of calendarVaccinations) if (v.next_due_at) eventDates.add(dateKey(v.next_due_at));
 

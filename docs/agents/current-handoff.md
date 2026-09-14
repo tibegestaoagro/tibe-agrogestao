@@ -52,9 +52,10 @@ reescreve, e o dashboard fica com o que o §52 proíbe no Meu Dia.
 - **O WhatsApp consulta e cria, mas não conclui por frase.** Casar texto com
   tarefa erra calado, e o pasto ambíguo já mostrou o preço.
 
-⚠️ **A armadilha da T01, que quebra em produção e não no `tsc`:** tornar
-`due_date` opcional exige mudar `effectiveStatus` junto. Sem isso, toda tarefa
-sem data vira "Atrasada" no dia seguinte.
+⚠️ **A armadilha da T01, já resolvida na própria T01:** tornar `due_date`
+opcional exige mudar `effectiveStatus` junto. Provado em 14/09 removendo a
+guarda: sem ela a primeira tarefa sem data faz a listagem ESTOURAR e derruba a
+página inteira do Meu Dia, pior do que a spec previa.
 
 ### Ambiente
 

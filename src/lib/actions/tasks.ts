@@ -18,15 +18,30 @@ export type EffectiveStatus = TaskStatusInput | "overdue";
  * atrasada toda tarefa criada para hoje, porque o formulário grava meia-noite.
  * O porquê inteiro está em `dia-calendario.ts`.
  */
-function effectiveStatus(task: { status: TaskStatusInput; due_date: Date }, now = new Date()): EffectiveStatus {
-  if (task.status === "pending" && prazoVencido(task.due_date, now)) return "overdue";
+/*
+ * ⚠️ Módulo 38, decisão 19: tarefa SEM DATA nunca é "Atrasada", porque não há
+ * prazo a estourar. Esta checagem entrou no mesmo commit da migração que
+ * tornou `due_date` opcional, e não depois.
+ *
+ * Provado em 14/09 removendo a guarda: `prazoVencido` recebe nulo e ESTOURA
+ * ("Cannot read properties of null"). Como `serializeTask` roda para cada
+ * linha da listagem, uma única tarefa sem data derrubaria a página inteira do
+ * Meu Dia, e não só a linha dela.
+ */
+function effectiveStatus(
+  task: { status: TaskStatusInput; due_date: Date | null },
+  now = new Date(),
+): EffectiveStatus {
+  if (task.status === "pending" && task.due_date !== null && prazoVencido(task.due_date, now)) {
+    return "overdue";
+  }
   return task.status;
 }
 
 export function serializeTask(t: {
   id: string;
   title: string;
-  due_date: Date;
+  due_date: Date | null;
   remind: boolean;
   status: string;
   created_by: string | null;
@@ -35,7 +50,7 @@ export function serializeTask(t: {
   return {
     id: t.id,
     title: t.title,
-    due_date: t.due_date.toISOString(),
+    due_date: t.due_date?.toISOString() ?? null,
     remind: t.remind,
     status: t.status,
     effective_status: effectiveStatus({ status: t.status as TaskStatusInput, due_date: t.due_date }),

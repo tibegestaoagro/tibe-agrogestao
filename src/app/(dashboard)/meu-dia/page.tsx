@@ -63,7 +63,9 @@ export default async function MeuDiaPage() {
               return (
                 <TableRow key={t.id}>
                   <TableCell className="font-medium">{t.title}</TableCell>
-                  <TableCell>{new Date(t.due_date).toLocaleDateString("pt-BR")}</TableCell>
+                  <TableCell>
+                    {t.due_date ? new Date(t.due_date).toLocaleDateString("pt-BR") : "Sem data"}
+                  </TableCell>
                   <TableCell>{t.remind ? "Sim" : "Não"}</TableCell>
                   <TableCell>
                     <Badge variant={st.variant}>{st.label}</Badge>
