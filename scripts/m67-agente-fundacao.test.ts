@@ -25,6 +25,20 @@ async function main() {
   const { POST } = await import("@/app/api/internal/whatsapp/execute-action/route");
   const { recordMovement } = await import("@/lib/actions/herd-ledger");
 
+  const { detectConfirmation } = await import("@/lib/actions/confirmation");
+  console.log("1. Confirmação estrita");
+  const esperado: [string, "yes" | "no" | null][] = [
+    ["sim", "yes"], ["Sim, pode", "yes"], ["pode sim", "yes"], ["ok", "yes"], ["isso mesmo", "yes"],
+    ["confirmo a venda", "yes"], ["não", "no"], ["Não, deixa pra lá", "no"], ["cancela", "no"], ["esquece isso", "no"],
+    ["pode lançar 500 de diesel", null], ["ok, anota 500 de diesel", null], ["para o João", null],
+    ["para amanhã me lembra de vacinar", null], ["pode cancelar", null], ["isso aí não é boi", null],
+    ["sim mas foram 30 e não 20", null], ["não sei quanto foi, uns 20", null],
+  ];
+  for (const [frase, resp] of esperado) {
+    const r = detectConfirmation(frase);
+    check(`"${frase}" -> ${resp}`, r === resp, String(r));
+  }
+
   const stamp = Date.now();
   const tenant = await prisma.tenant.create({
     data: { name: `M67 ${stamp}`, document: `M67${stamp}`.slice(0, 14), plan: "fazenda" },

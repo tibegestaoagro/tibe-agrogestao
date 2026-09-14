@@ -6,7 +6,7 @@
  */
 const YES_WORDS = [
   "sim", "s", "confirmo", "confirmado", "confirma", "isso mesmo", "isso",
-  "correto", "pode", "ok", "beleza", "positivo",
+  "correto", "pode", "ok", "beleza", "positivo", "certo",
 ];
 /**
  * As formas de recusar que o produtor usa de verdade.
@@ -17,12 +17,20 @@ const YES_WORDS = [
  * Não cancelava: a confirmação voltava igual, e a saída que sobrava era dizer
  * "ok", que executava. Duas listas para a mesma intenção divergem, e foi o que
  * aconteceu.
+ *
+ * "para" e "parar" saíram da lista: são preposição no português do produtor
+ * ("para o João", "para amanhã"), não recusa, e estavam classificando frase
+ * nova como "não" sem o usuário nunca ter recusado nada.
  */
 const NO_WORDS = [
   "não", "nao", "n", "cancela", "cancelar", "cancelado", "errado", "negativo",
   "deixa pra la", "deixa pra lá", "deixa quieto", "esquece", "esquecer",
-  "melhor nao", "melhor não", "nao quero", "não quero", "para", "parar",
+  "melhor nao", "melhor não", "nao quero", "não quero",
 ];
+/** Palavra de recusa em QUALQUER posição: desempata "pode cancelar" e "isso aí não é". */
+const NEGACAO_SOLTA = new Set(["não", "nao", "cancela", "cancelar", "errado", "esquece"]);
+const MAX_PALAVRAS_SIM = 5;
+const MAX_PALAVRAS_NAO = 6;
 
 /**
  * A PONTUAÇÃO É TIRADA ANTES DE COMPARAR.
@@ -37,6 +45,14 @@ const NO_WORDS = [
  * primeiro, porque é o primeiro módulo com um gesto que escreve SEM
  * confirmação (o uso, §10.3): ali um "não" perdido custa uma gravação, não
  * apenas uma pergunta repetida.
+ *
+ * REGRA ESTRITA (2026-09-14): a versão anterior casava a lista inteira contra
+ * qualquer prefixo, então "pode lançar 500 de diesel" virava "yes" (começa com
+ * "pode") e "para o João" virava "no" (começava com "para"). Nas duas, o texto
+ * não era confirmação nenhuma: era o produtor descrevendo outra coisa. Agora
+ * "sim" só vale para mensagem curta, sem dígito e sem negação solta, e "não"
+ * só vale para mensagem curta que começa por recusa; fora disso o handler
+ * pergunta de novo em vez de adivinhar.
  */
 export function detectConfirmation(text?: string | null): "yes" | "no" | null {
   if (!text) return null;
@@ -46,7 +62,13 @@ export function detectConfirmation(text?: string | null): "yes" | "no" | null {
     .replace(/[.,;:!?…]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  if (YES_WORDS.some((w) => t === w || t.startsWith(`${w} `))) return "yes";
-  if (NO_WORDS.some((w) => t === w || t.startsWith(`${w} `))) return "no";
+  if (!t) return null;
+  const palavras = t.split(" ");
+  const comeca = (lista: string[]) => lista.some((w) => t === w || t.startsWith(`${w} `));
+  const temDigito = /\d/.test(t);
+  const temNegacao = palavras.some((p) => NEGACAO_SOLTA.has(p));
+
+  if (comeca(NO_WORDS) && palavras.length <= MAX_PALAVRAS_NAO && !temDigito) return "no";
+  if (comeca(YES_WORDS) && !temNegacao && !temDigito && palavras.length <= MAX_PALAVRAS_SIM) return "yes";
   return null;
 }
