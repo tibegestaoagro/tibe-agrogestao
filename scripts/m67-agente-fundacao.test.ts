@@ -162,6 +162,14 @@ async function main() {
       );
       const entradaSemPedido = await db.financialEntry.findFirst({ where: { amount: 2750 } });
       check("nada gravado com amount 2750", entradaSemPedido === null, String(entradaSemPedido));
+
+      // Com texto, `confirmed: true` do n8n não vale sozinho: a frase decide.
+      await acao("registrar_lancamento_financeiro", { amount: 777, category: "Diesel", tipo: "despesa" }, "gastei 777 de diesel");
+      const okAnota = await acao("registrar_lancamento_financeiro", { amount: 500, category: "Diesel" }, "ok, anota 500 de diesel", { confirmed: true });
+      check("'ok, anota 500 de diesel' com confirmed:true não executa o pendente", (await db.financialEntry.count({ where: { amount: 777 } })) === 0, `${okAnota.data.action_taken}: ${okAnota.data.reply_text}`);
+      check("e pergunta antes de lançar os 500", okAnota.data.requires_confirmation === true && (await db.financialEntry.count({ where: { amount: 500 } })) === 0, okAnota.data.reply_text);
+      const { clearPendingFinance } = await import("@/lib/actions/finance-pending");
+      await clearPendingFinance(tenant.id, owner.id);
     }
 
     console.log("\n5. Serviço prestado agendado e depois iniciado");

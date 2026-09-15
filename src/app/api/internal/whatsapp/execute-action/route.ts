@@ -18,10 +18,10 @@ import { withApi } from "@/lib/route";
  *
  * Campos aditivos ao contrato da spec (documentados no plano do Módulo 3):
  * - message_text (opcional): texto bruto da mensagem, usado para log fiel em
- *   AgentConversationLog e como fallback de interpretação de confirmação
- *   ("sim"/"não") independente do LLM.
- * - confirmed (opcional): quando o N8N já resolveu que o usuário confirmou a
- *   ação pendente, reenviando a MESMA intenção+parâmetros originais.
+ *   AgentConversationLog e, quando presente, como a ÚNICA fonte de
+ *   confirmação e recusa ("sim"/"não", leitura estrita de `detectConfirmation`).
+ * - confirmed (opcional): só vale quando a chamada vem SEM `message_text`;
+ *   com texto, é ignorado (ver o cálculo de `confirmed` abaixo).
  */
 
 const schema = z.object({
@@ -151,7 +151,19 @@ async function POSTHandler(request: Request) {
   }
 
   const confirmationSignal = detectConfirmation(message_text);
-  const confirmed = parsed.data.confirmed === true || confirmationSignal === "yes";
+  /**
+   * Com texto, o TEXTO decide a confirmação; `confirmed` do n8n só vale quando
+   * a chamada vem sem `message_text`.
+   *
+   * O classificador marca `confirmed: true` em frases como "ok, anota 500 de
+   * diesel", que a leitura estrita de `detectConfirmation` não aceita como
+   * "sim": com o OU antigo, a flag furava a regra e a frase executava o
+   * pendente guardado (a despesa de antes), jogando fora o pedido novo.
+   */
+  const temTexto = !!message_text?.trim();
+  const confirmed =
+    confirmationSignal !== "no" &&
+    (temTexto ? confirmationSignal === "yes" : parsed.data.confirmed === true);
   /**
    * Recusa vem do TEXTO, não de `confirmed: false`.
    *
