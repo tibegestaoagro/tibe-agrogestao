@@ -157,7 +157,11 @@ export async function pedidosAbertos(
   try {
     const redis = getRedisConnection();
     const entradas = [...CHAVES_POR_PREFIXO.entries()];
-    const brutos = await Promise.all(entradas.map(([, chave]) => redis.get(chave(tenantId, userId))));
+    if (entradas.length === 0) return abertos;
+    // Uma ida só ao Redis para os onze domínios, em vez de onze: mesma ideia
+    // de `quandoOutroDominioFalou` em `stock-pending.ts`, só que ali o cliente
+    // ainda não tinha `pedidosAbertos` para reaproveitar.
+    const brutos = await redis.mget(...entradas.map(([, chave]) => chave(tenantId, userId)));
     entradas.forEach(([prefixo], i) => {
       const bruto = brutos[i];
       if (!bruto) return;
@@ -167,7 +171,11 @@ export async function pedidosAbertos(
         abertos.push({
           prefixo,
           aguardando: pedido.aguardando,
-          salvo_em: typeof pedido.salvo_em === "number" ? pedido.salvo_em : 0,
+          // Pedido antigo, gravado antes de `salvo_em` existir, conta como
+          // muito antigo (1), não como inexistente (0): mesmo critério de
+          // `quandoOutroDominioFalou`, para os dois nunca discordarem sobre o
+          // que é "mais antigo que tudo" vs. "não existe".
+          salvo_em: typeof pedido.salvo_em === "number" ? pedido.salvo_em : 1,
         });
       } catch {
         // JSON quebrado não conta como pedido aberto.

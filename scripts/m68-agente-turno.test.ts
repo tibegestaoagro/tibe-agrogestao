@@ -306,9 +306,9 @@ async function main() {
     const { createConfinementSite, openConfinementStay } = await import("@/lib/actions/confinement");
     const { deleteTestTenants } = await import("./helpers/herd");
     const { executarIntencao } = await import("@/lib/actions/executar-intencao");
-    const { carregarCursor, limparCursor } = await import("@/lib/agente/cursor");
+    const { atualizarCursor, carregarCursor, limparCursor } = await import("@/lib/agente/cursor");
     const { clearPendingHerd } = await import("@/lib/actions/herd-pending");
-    const { clearPendingConfinement } = await import("@/lib/actions/confinamento-pending");
+    const { clearPendingConfinement, loadPendingConfinement } = await import("@/lib/actions/confinamento-pending");
 
     const stamp = Date.now();
     const tenant = await prisma.tenant.create({
@@ -357,12 +357,11 @@ async function main() {
         cursorDoNegocio?.intent === "encerrar_confinamento" && cursorDoNegocio?.aguardando === "confirmacao",
         JSON.stringify(cursorDoNegocio),
       );
-      // Limpa o negócio do confinamento (ainda pendente, sem "sim") agora que
-      // (c) já foi conferido: senão ele continua "aberto em outro lugar" e,
-      // pela regra, o cursor do rebanho abaixo nunca seria apagado. A venda
-      // que cita o confinamento é roteada para o handler de Confinamento, e o
-      // pendente fica em `confinamento-pending`, não em `negocio-pending`.
-      await clearPendingConfinement(tenant.id, owner.id);
+      // Este negócio de confinamento FICA aberto de propósito (não limpa
+      // aqui): é o "outro domínio, sem relação nenhuma" do ponto 2 abaixo. A
+      // venda que cita o confinamento é roteada para o handler de
+      // Confinamento, e o pendente fica em `confinamento-pending`, não em
+      // `negocio-pending`.
 
       // (a) Termo ambíguo com item presente: o handler pergunta a faixa E
       // guarda o pedido (diferente de mandar sem item nenhum, que só pergunta).
@@ -385,14 +384,150 @@ async function main() {
 
       const simSolto = await executarIntencao({ db, tenant_id: tenant.id, user: { id: owner.id, role: owner.role }, contato_id: null, activeProfiles: ["fazenda"], intent: "registrar_movimentacao_rebanho", parameters: {}, message_text: "sim", confirmed_do_corpo: null, provider_message_id: "W4", registrar_entrada: false });
       check("o 'sim' executa a morte guardada", simSolto.action_taken === "registrar_movimentacao_rebanho:morte", simSolto.reply_text);
-      check("e apaga o cursor, sem pedido nenhum aberto", (await carregarCursor(tenant.id, owner.id)) === null);
+
+      // Ponto 2 (rodada de correção 1): o negócio do confinamento (passo c),
+      // sem relação nenhuma com o rebanho, continua aberto, e MESMO ASSIM o
+      // cursor apaga: ele aponta para o PRÓPRIO pedido (herd-pending), que
+      // acabou de ser executado e limpo, não para "sobra alguma coisa aberta
+      // em algum lugar". Antes desta correção, o confinamento aberto mantinha
+      // o cursor preso na pergunta do rebanho que o "sim" já tinha resolvido.
+      const confinamentoAindaAberto = await loadPendingConfinement(tenant.id, owner.id);
+      check("o negócio do confinamento continua aberto, sem relação com o rebanho", confinamentoAindaAberto !== null);
+      check(
+        "e mesmo assim o cursor apaga, porque o PRÓPRIO pedido dele sumiu",
+        (await carregarCursor(tenant.id, owner.id)) === null,
+      );
+
+      // Ponto 4: (d) precisa começar com um cursor PRÉ-EXISTENTE para provar
+      // que a chamada realmente apaga, e não que já estava vazio por acaso.
+      // Uma pergunta descartável de rebanho planta o cursor; limpamos o
+      // pendente por fora (sem passar pelo roteador de novo) para simular um
+      // domínio que expirou ou foi resolvido de outro jeito, deixando o
+      // cursor bandeira, apontando pra um prefixo que não existe mais.
+      const plantaCursor = await executarIntencao({ db, tenant_id: tenant.id, user: { id: owner.id, role: owner.role }, contato_id: null, activeProfiles: ["fazenda"], intent: "registrar_movimentacao_rebanho", parameters: { movement_type: "morte", categoria: "novilha", quantidade: 1, pasto: "Pasto M68" }, message_text: "morreu 1 novilha", confirmed_do_corpo: null, provider_message_id: "W5", registrar_entrada: false });
+      check("planta um cursor novo (fixture do próximo caso)", plantaCursor.reply_text.includes("Qual é a idade aproximada?"), plantaCursor.reply_text);
+      const cursorPlantado = await carregarCursor(tenant.id, owner.id);
+      check("cursor plantado de fato", cursorPlantado?.prefixo === "herd-pending", JSON.stringify(cursorPlantado));
+      await clearPendingHerd(tenant.id, owner.id);
+      await clearPendingConfinement(tenant.id, owner.id);
 
       const s = await executarIntencao({ db, tenant_id: tenant.id, user: { id: owner.id, role: owner.role }, contato_id: null, activeProfiles: ["fazenda"], intent: "consultar_rebanho", parameters: {}, message_text: "quantos animais", confirmed_do_corpo: null, provider_message_id: "W1", registrar_entrada: false });
       const replay = await executarIntencao({ db, tenant_id: tenant.id, user: { id: owner.id, role: owner.role }, contato_id: null, activeProfiles: ["fazenda"], intent: "consultar_rebanho", parameters: {}, message_text: "quantos animais", confirmed_do_corpo: null, provider_message_id: "W1", registrar_entrada: false });
       check("replay pelo núcleo", replay.replay === true && replay.reply_text === s.reply_text);
 
-      // (d) Consulta, sem pedido aberto em lugar nenhum: não grava cursor.
-      check("consulta sem pedido aberto não grava cursor", (await carregarCursor(tenant.id, owner.id)) === null);
+      // (d) Consulta, sem pedido aberto em lugar nenhum: APAGA o cursor
+      // plantado (nada aqui seria verdade se `atualizarCursor` não fizesse
+      // nada, porque o cursor JÁ havia sido gravado no passo anterior).
+      check("consulta sem pedido aberto apaga o cursor plantado", (await carregarCursor(tenant.id, owner.id)) === null);
+
+      console.log("\n5b. Cursor nunca trava a resposta nem impede o AgentRequest");
+      {
+        // Fake mínimo: `atualizarCursorSemLimite` só chama
+        // `db.agentFlowState.findFirst`, nunca mais nada em `db`. Travar só
+        // ISSO (em vez de proxyar o `db` de verdade) evita travar também o
+        // `handleActiveFlow` que `routeIntent` roda com o MESMO `db`, o que
+        // travaria o teste inteiro em vez de só o cursor.
+        const dbSoParaFlowTravado = {
+          agentFlowState: { findFirst: () => new Promise(() => {}) },
+        } as unknown as typeof db;
+        const cursorComFlowTravado: typeof atualizarCursor = (input) =>
+          atualizarCursor({ ...input, db: dbSoParaFlowTravado });
+
+        const avisos: string[] = [];
+        const warnOriginal = console.warn;
+        console.warn = (msg?: unknown) => {
+          avisos.push(String(msg));
+        };
+
+        const t0 = Date.now();
+        let resiliente: Awaited<ReturnType<typeof executarIntencao>>;
+        try {
+          resiliente = await executarIntencao({
+            db,
+            tenant_id: tenant.id,
+            user: { id: owner.id, role: owner.role },
+            contato_id: null,
+            activeProfiles: ["fazenda"],
+            intent: "consultar_rebanho",
+            parameters: {},
+            message_text: "quantos animais eu tenho",
+            confirmed_do_corpo: null,
+            provider_message_id: "W6",
+            registrar_entrada: false,
+            _atualizarCursorParaTeste: cursorComFlowTravado,
+          });
+        } finally {
+          console.warn = warnOriginal;
+        }
+        const duracao = Date.now() - t0;
+
+        check(
+          "responde mesmo com o cursor travado, sem esperar os 500ms virarem 504 na rota",
+          duracao < 2000,
+          `${duracao}ms`,
+        );
+        check(
+          "loga o tempo esgotado do cursor, não silencia e não quebra a resposta",
+          avisos.some((a) => a.includes("cursor da conversa: tempo esgotado")),
+        );
+        const registroGravado = await prisma.agentRequest.findFirst({
+          where: { provider_message_id: "W6#consultar_rebanho" },
+        });
+        check("o AgentRequest foi gravado mesmo com o cursor travado", registroGravado !== null, resiliente!.reply_text);
+      }
+
+      console.log("\n5c. Cursor entende o cadastro assistido (AgentFlowState)");
+      {
+        const assistido = await prisma.user.create({
+          data: {
+            tenant_id: tenant.id,
+            name: "Assistido M68",
+            email: `m68-assistido-${stamp}@teste.local`,
+            password_hash: "x",
+            role: "OWNER",
+            active: true,
+          },
+        });
+        const base = {
+          db,
+          tenant_id: tenant.id,
+          user: { id: assistido.id, role: assistido.role },
+          contato_id: null,
+          activeProfiles: ["fazenda"] as ("fazenda" | "prestador")[],
+          confirmed_do_corpo: null,
+          registrar_entrada: false,
+        };
+
+        const abre = await executarIntencao({ ...base, intent: "cadastrar_animal", parameters: {}, message_text: "quero cadastrar um animal", provider_message_id: "A1" });
+        check("abre o cadastro assistido, perguntando o primeiro campo", abre.reply_text.includes("brinco"), abre.reply_text);
+        const cursorDoCampo = await carregarCursor(tenant.id, assistido.id);
+        check(
+          "flow fresco em campo: prefixo 'flow', aguardando o campo, intent forçado a cadastrar_animal",
+          cursorDoCampo?.prefixo === "flow" &&
+            cursorDoCampo?.aguardando === "ear_tag" &&
+            cursorDoCampo?.intent === "cadastrar_animal",
+          JSON.stringify(cursorDoCampo),
+        );
+
+        await executarIntencao({ ...base, intent: "cadastrar_animal", parameters: {}, message_text: "099", provider_message_id: "A2" });
+        await executarIntencao({ ...base, intent: "cadastrar_animal", parameters: {}, message_text: "Nelore", provider_message_id: "A3" });
+        await executarIntencao({ ...base, intent: "cadastrar_animal", parameters: {}, message_text: "macho", provider_message_id: "A4" });
+        const ultimoCampo = await executarIntencao({ ...base, intent: "cadastrar_animal", parameters: {}, message_text: "Macho - 25 a 36 meses", provider_message_id: "A5" });
+        check("o último campo fecha o item e abre o resumo", ultimoCampo.reply_text.includes("Confere antes de eu salvar"), ultimoCampo.reply_text);
+
+        const cursorDoResumo = await carregarCursor(tenant.id, assistido.id);
+        check(
+          "flow no resumo: prefixo 'flow', aguardando 'confirmacao', intent forçado a cadastrar_animal",
+          cursorDoResumo?.prefixo === "flow" &&
+            cursorDoResumo?.aguardando === "confirmacao" &&
+            cursorDoResumo?.intent === "cadastrar_animal",
+          JSON.stringify(cursorDoResumo),
+        );
+
+        // Descarta sem confirmar: não faz parte deste teste gravar o animal de verdade.
+        await db.agentFlowState.deleteMany({ where: { user_id: assistido.id } });
+        await limparCursor(tenant.id, assistido.id);
+      }
     } finally {
       if (ownerId) {
         await clearPendingHerd(tenant.id, ownerId);

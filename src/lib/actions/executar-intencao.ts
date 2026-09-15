@@ -33,6 +33,17 @@ export type EntradaDaIntencao = {
   provider_message_id: string | null;
   /** O turno registra a entrada uma vez só, antes de executar os pedidos. */
   registrar_entrada: boolean;
+  /**
+   * Só para teste (rodada de correção 1): substitui a chamada real ao cursor
+   * da conversa por outra implementação, nunca preenchido por chamador de
+   * produção (a rota e o turno futuro). Existe porque provar que uma falha no
+   * cursor não derruba `executarIntencao` exige travar SÓ a consulta que o
+   * cursor faz (`db.agentFlowState.findFirst`), sem travar a mesma consulta
+   * que `routeIntent` já faz por conta própria (`handleActiveFlow`) com o
+   * MESMO `db`: travar o `db` inteiro travaria o teste inteiro, não só o
+   * cursor.
+   */
+  _atualizarCursorParaTeste?: typeof atualizarCursor;
 };
 
 export type SaidaDaIntencao = {
@@ -58,6 +69,7 @@ export async function executarIntencao(e: EntradaDaIntencao): Promise<SaidaDaInt
     confirmed_do_corpo,
     provider_message_id,
     registrar_entrada,
+    _atualizarCursorParaTeste,
   } = e;
 
   /**
@@ -162,21 +174,6 @@ export async function executarIntencao(e: EntradaDaIntencao): Promise<SaidaDaInt
     });
   }
 
-  /**
-   * O cursor só é atualizado AQUI, no caminho que executou de verdade (nunca
-   * no replay, que devolve antes de chegar neste ponto): o turno (tarefa
-   * futura) lê o cursor mas não grava, senão duas leituras da mesma resposta
-   * atualizariam o relógio duas vezes.
-   */
-  await atualizarCursor({
-    tenantId: tenant_id,
-    userId: user.id,
-    intentFinal: result.intent_final ?? intent,
-    resposta: result.reply_text,
-    inicio,
-    db,
-  });
-
   const resposta = {
     reply_text: result.reply_text,
     requires_confirmation: result.requires_confirmation,
@@ -210,6 +207,28 @@ export async function executarIntencao(e: EntradaDaIntencao): Promise<SaidaDaInt
       if ((err as { code?: unknown })?.code !== "P2002") throw err;
     }
   }
+
+  /**
+   * O cursor só é atualizado AQUI, depois do `AgentRequest` estar gravado, e
+   * só no caminho que executou de verdade (nunca no replay, que devolve antes
+   * de chegar neste ponto: o turno lê o cursor mas não grava, senão duas
+   * leituras da mesma resposta atualizariam o relógio duas vezes).
+   *
+   * A ORDEM importa (rodada de correção 1): antes disto, o cursor rodava ANTES
+   * do `agentRequest.create`, e uma falha de Redis ali (sem limite de tempo,
+   * ver `cursor.ts`) atrasava ou impedia a gravação que já tinha acontecido de
+   * ser registrada, arriscando um retry do n8n regravar o mesmo negócio. O
+   * cursor é só um atalho de conversa: não pode ficar no caminho crítico.
+   */
+  const atualizarCursorEfetivo = _atualizarCursorParaTeste ?? atualizarCursor;
+  await atualizarCursorEfetivo({
+    tenantId: tenant_id,
+    userId: user.id,
+    intentFinal: result.intent_final ?? intent,
+    resposta: result.reply_text,
+    inicio,
+    db,
+  });
 
   return { ...resposta, intent_final: result.intent_final ?? intent, replay: false };
 }
