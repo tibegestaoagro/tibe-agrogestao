@@ -455,7 +455,7 @@ async function main() {
 
     console.log("\n9. Cadastro assistido");
     {
-      await db.property.create({ data: scoped({ name: "Fazenda B M67" }) });
+      await db.property.create({ data: scoped({ name: "Fazenda Z M67" }) });
       const abre = await acao("cadastrar_animal", { count: 1 }, "quero cadastrar um boi");
       check("com duas fazendas, pergunta qual", /qual fazenda|em qual/i.test(abre.data.reply_text), abre.data.reply_text);
 
@@ -481,7 +481,7 @@ async function main() {
       );
 
       /*
-       * "Fazenda" bate em "Fazenda M67" E "Fazenda B M67" ao mesmo tempo
+       * "Fazenda" bate em "Fazenda M67" E "Fazenda Z M67" ao mesmo tempo
        * (contém as duas): antes do fix round 1, `findActivePropertyByName`
        * (contains + findFirst) escolhia a PRIMEIRA batida do banco em vez de
        * perguntar de novo. Ambíguo tem que perguntar, nunca escolher.
@@ -494,12 +494,12 @@ async function main() {
       );
 
       /*
-       * Frase natural ("na fazenda b m67"): o `contains` antigo verificava se
+       * Frase natural ("na fazenda z m67"): o `contains` antigo verificava se
        * o NOME CADASTRADO continha o texto digitado (nunca o contrário), e
-       * "Fazenda B M67" não contém "na fazenda b m67". Precisa casar pelo
+       * "Fazenda Z M67" não contém "na fazenda z m67". Precisa casar pelo
        * texto CONTENDO o nome da fazenda, não o oposto.
        */
-      const respostaFazenda = await acao("cadastrar_animal", {}, "na fazenda b m67");
+      const respostaFazenda = await acao("cadastrar_animal", {}, "na fazenda z m67");
       check(
         "a resposta natural da fazenda abre o formulário de campos, não repete a pergunta",
         /brinco/i.test(respostaFazenda.data.reply_text),
@@ -534,7 +534,7 @@ async function main() {
        * resolvida na pergunta viaja com CADA item do lote (não só o
        * primeiro) e é ela que `commitAnimals` grava, nunca `props[0]`.
        */
-      const fazendaB = await db.property.findFirstOrThrow({ where: { name: "Fazenda B M67" } });
+      const fazendaZ = await db.property.findFirstOrThrow({ where: { name: "Fazenda Z M67" } });
       const abreLote = await acao("cadastrar_animal", { count: 2 }, "quero cadastrar 2 bois");
       check(
         "lote de 2 também pergunta a fazenda antes de abrir",
@@ -542,8 +542,8 @@ async function main() {
         abreLote.data.reply_text,
       );
       // "para" é preposição, não recusa: escolhe a fazenda e não cancela.
-      const paraFazenda = await acao("cadastrar_animal", {}, "para a Fazenda B M67");
-      check("'para a Fazenda B M67' escolhe a fazenda e não cancela", /brinco/i.test(paraFazenda.data.reply_text), `${paraFazenda.data.action_taken}: ${paraFazenda.data.reply_text}`);
+      const paraFazenda = await acao("cadastrar_animal", {}, "para a Fazenda Z M67");
+      check("'para a Fazenda Z M67' escolhe a fazenda e não cancela", /brinco/i.test(paraFazenda.data.reply_text), `${paraFazenda.data.action_taken}: ${paraFazenda.data.reply_text}`);
       await acao("cadastrar_animal", {}, "2001");
       await acao("cadastrar_animal", {}, "Nelore");
       await acao("cadastrar_animal", {}, "macho");
@@ -560,8 +560,8 @@ async function main() {
       const lote = await db.animalBatch.findMany({ where: { ear_tag: { in: ["2001", "2002"] } } });
       check("os dois lotes foram criados", lote.length === 2, String(lote.length));
       check(
-        "os dois foram gravados na fazenda ESCOLHIDA (Fazenda B), nunca em props[0]",
-        lote.every((l) => l.property_id === fazendaB.id),
+        "os dois foram gravados na fazenda ESCOLHIDA (Fazenda Z), nunca em props[0]",
+        lote.every((l) => l.property_id === fazendaZ.id),
         JSON.stringify(lote.map((l) => l.property_id)),
       );
 
