@@ -111,6 +111,19 @@ export type FazendaMontada = {
   limpar(): Promise<void>;
 };
 
+/**
+ * Dígitos determinísticos derivados de `sufixo`, para dar a duas montagens no
+ * MESMO milissegundo (`Promise.all` de duas conversas, o caso da próxima
+ * tarefa) uma diferença que `Date.now()` sozinho não dá: até o primeiro
+ * `await`, duas chamadas de `montarFazenda` rodam de forma síncrona, e
+ * `Date.now()` tem resolução de 1 ms.
+ */
+function digitosDoSufixo(sufixo: string, quantidade: number): string {
+  let n = 0;
+  for (const ch of sufixo) n = (n * 31 + ch.charCodeAt(0)) % 10 ** quantidade;
+  return String(n).padStart(quantidade, "0");
+}
+
 function exigirOk<T>(r: { ok: true; data: T } | { ok: false; message: string }): T {
   if (!r.ok) throw new Error(`fixture da avaliação: ${r.message}`);
   return r.data;
@@ -146,10 +159,15 @@ function criarLimpar(tenantId: string, db: TenantPrismaClient): () => Promise<vo
 
 export async function montarFazenda(sufixo: string): Promise<FazendaMontada> {
   const stamp = Date.now();
-  const telefone = `31${String(stamp).slice(-9)}`;
+  // `.slice(-N)`, sempre a partir do FIM do timestamp: é a parte que muda a
+  // cada milissegundo. Cortar do começo (como `\`AV${stamp}\`.slice(0, 14)`
+  // fazia) descarta justamente os dígitos que diferenciam duas montagens
+  // próximas, e `document` é `@unique` em `Tenant`.
+  const telefone = `31${String(stamp).slice(-7)}${digitosDoSufixo(sufixo, 2)}`;
+  const documento = `AV${String(stamp).slice(-8)}${digitosDoSufixo(sufixo, 4)}`;
 
   const tenant = await prisma.tenant.create({
-    data: { name: `Avaliação ${sufixo}`, document: `AV${stamp}`.slice(0, 14), plan: "fazenda" },
+    data: { name: `Avaliação ${sufixo}`, document: documento, plan: "fazenda" },
   });
   const db = prismaForTenant(tenant.id);
   const limpar = criarLimpar(tenant.id, db);
@@ -162,7 +180,8 @@ export async function montarFazenda(sufixo: string): Promise<FazendaMontada> {
       data: {
         tenant_id: tenant.id,
         name: "Dono da Avaliação",
-        email: `avaliacao-${stamp}@teste.local`,
+        // Mesmo motivo de `documento` acima: `email` é `@unique` em `User`.
+        email: `avaliacao-${stamp}-${digitosDoSufixo(sufixo, 6)}@teste.local`,
         password_hash: "x",
         role: "OWNER",
         active: true,

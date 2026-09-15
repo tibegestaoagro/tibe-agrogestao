@@ -134,6 +134,17 @@ async function main() {
     } finally {
       await fazenda.limpar();
     }
+
+    // A próxima tarefa monta uma fazenda por conversa: duas montagens na
+    // mesma janela de milissegundo não podem colidir em nenhum campo único
+    // (Tenant.document, User.email).
+    const [fazendaA, fazendaB] = await Promise.all([montarFazenda("dupla-a"), montarFazenda("dupla-b")]);
+    try {
+      check("duas montagens simultâneas não colidem", fazendaA.tenantId !== fazendaB.tenantId);
+      check("cada uma tem sua própria fazenda", (await fazendaA.db.property.count()) === 2 && (await fazendaB.db.property.count()) === 2);
+    } finally {
+      await Promise.all([fazendaA.limpar(), fazendaB.limpar()]);
+    }
   }
 
   if (falhas === 0) console.log("\n✅ Todos os testes passaram");
