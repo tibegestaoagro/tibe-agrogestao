@@ -112,6 +112,26 @@ async function main() {
     check("nota cheia sem gravação indevida aprova", aprovar(agregar([certa]), 0).aprovado === true);
   }
 
+  console.log("\n3. Fazenda de avaliação");
+  {
+    const { montarFazenda, contarLinhasDeNegocio, descreverFazenda, descreverCatalogo } = await import("./avaliacao/fazenda");
+    const fazenda = await montarFazenda(`m69-${Date.now()}`);
+    try {
+      const { db } = fazenda;
+      check("duas fazendas", (await db.property.count()) === 2);
+      check("quatro pastos", (await db.pasture.count()) === 4);
+      check("produto Sal mineral existe", (await db.product.count({ where: { name: "Sal mineral" } })) === 1);
+      check("contato do WhatsApp já existe (não é primeiro contato)", (await db.whatsAppContact.count()) === 1);
+      const antes = await contarLinhasDeNegocio(db);
+      await db.shoppingItem.create({ data: (await import("@/lib/prisma")).scoped({ description: "Teste M69" }) as never });
+      check("uma linha de negócio nova é contada", (await contarLinhasDeNegocio(db)) === antes + 1);
+      check("briefing da fazenda cita o Pasto da Baixada", descreverFazenda().includes("Pasto da Baixada"));
+      check("catálogo cita registrar_negocio_gado e não cita exemplos", descreverCatalogo().includes("registrar_negocio_gado") && !descreverCatalogo().includes("(§"));
+    } finally {
+      await fazenda.limpar();
+    }
+  }
+
   if (falhas === 0) console.log("\n✅ Todos os testes passaram");
   else console.log(`\n❌ ${falhas} testes falharam`);
   process.exit(falhas ? 1 : 0);
