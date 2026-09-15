@@ -2,6 +2,7 @@ import type { TenantPrismaClient } from "@/lib/prisma";
 import type { AppUserRole } from "@/types/next-auth";
 import type { ProfileType } from "@/lib/tenant-context";
 import type { ActionResult } from "@/lib/actions/types";
+import type { Intent } from "@/lib/whatsapp-intents";
 import { lerNumeroBr } from "@/lib/numero-br";
 
 /**
@@ -18,6 +19,12 @@ export type RouterResult = {
   report_url: string | null;
   /** Uso interno (log), não faz parte do contrato de resposta HTTP. */
   action_taken: string;
+  /**
+   * A intenção que de fato executou, depois de todo desvio de `routeIntent`
+   * (compra/venda de gado, saída do confinamento, resposta pendente...). Task
+   * 7 da Fase 2: o turno usa para saber o que rodou de verdade.
+   */
+  intent_final?: Intent;
 };
 
 /** Contexto passado a todo handler de intenção: mesmo formato para todos. */

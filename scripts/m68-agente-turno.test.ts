@@ -298,6 +298,47 @@ async function main() {
 
     definirTransporteDoModelo(null);
   }
+
+  console.log("\n4. Núcleo e intenção final");
+  {
+    const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+    const { recordMovement } = await import("@/lib/actions/herd-ledger");
+    const { createConfinementSite, openConfinementStay } = await import("@/lib/actions/confinement");
+    const { deleteTestTenants } = await import("./helpers/herd");
+    const { executarIntencao } = await import("@/lib/actions/executar-intencao");
+
+    const stamp = Date.now();
+    const tenant = await prisma.tenant.create({
+      data: { name: `M68 ${stamp}`, document: `M68${stamp}`.slice(0, 14), plan: "fazenda" },
+    });
+    const db = prismaForTenant(tenant.id);
+    try {
+      await prisma.tenantProfile.create({ data: { tenant_id: tenant.id, profile_type: "fazenda", active: true } });
+      const owner = await prisma.user.create({
+        data: { tenant_id: tenant.id, name: "Dono M68", email: `m68-${stamp}@teste.local`, password_hash: "x", role: "OWNER", active: true },
+      });
+      const fazenda = await db.property.create({ data: scoped({ name: "Fazenda M68" }) });
+      const pasto = await db.pasture.create({ data: scoped({ property_id: fazenda.id, name: "Pasto M68", area_hectares: 10 }) });
+      await recordMovement(db, {
+        movement_type: "saldo_inicial",
+        quantity: 20,
+        to: { category_id: "macho_25_36", property_id: fazenda.id, pasture_id: pasto.id, situation: "presente", owner: "proprio" },
+      });
+      const site = await createConfinementSite(db, { name: "Conf M68", type: "proprio", property_id: fazenda.id });
+      if (site.ok) {
+        await openConfinementStay(db, { confinement_site_id: site.data.id, category_id: "macho_25_36", quantity: 5, pasture_id: pasto.id });
+      }
+
+      const r = await executarIntencao({ db, tenant_id: tenant.id, user: { id: owner.id, role: owner.role }, contato_id: null, activeProfiles: ["fazenda"], intent: "registrar_negocio_gado", parameters: { tipo: "venda", categoria: "boi", quantidade: 2, valor: 9000 }, message_text: "vendi 2 bois do confinamento por 9 mil", confirmed_do_corpo: null, provider_message_id: null, registrar_entrada: false });
+      check("a venda que cita o confinamento sai com intent_final encerrar_confinamento", r.intent_final === "encerrar_confinamento", r.intent_final);
+      const s = await executarIntencao({ db, tenant_id: tenant.id, user: { id: owner.id, role: owner.role }, contato_id: null, activeProfiles: ["fazenda"], intent: "consultar_rebanho", parameters: {}, message_text: "quantos animais", confirmed_do_corpo: null, provider_message_id: "W1", registrar_entrada: false });
+      const replay = await executarIntencao({ db, tenant_id: tenant.id, user: { id: owner.id, role: owner.role }, contato_id: null, activeProfiles: ["fazenda"], intent: "consultar_rebanho", parameters: {}, message_text: "quantos animais", confirmed_do_corpo: null, provider_message_id: "W1", registrar_entrada: false });
+      check("replay pelo núcleo", replay.replay === true && replay.reply_text === s.reply_text);
+    } finally {
+      await prisma.user.deleteMany({ where: { tenant_id: tenant.id } });
+      await deleteTestTenants([tenant.id]);
+    }
+  }
 }
 
 /**

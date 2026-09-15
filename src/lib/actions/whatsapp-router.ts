@@ -364,6 +364,13 @@ export async function routeIntent(
   // O desempate vem antes de qualquer checagem: a permissão e o handler têm
   // que ser os da intenção que vai de fato executar.
   let intent = desempatarIntencao(ctx.intent, parameters);
+  /**
+   * `intent_final` (Task 7 da Fase 2) é a intenção do PONTO DO RETORNO, depois
+   * de todo desvio acima dele. Como `intent` é `let` e os desvios seguem
+   * reatribuindo, `comIntencao` fecha sobre a variável, não sobre um valor
+   * copiado: cada `return comIntencao(r)` lê o `intent` que vale ali.
+   */
+  const comIntencao = (r: RouterResult): RouterResult => ({ ...r, intent_final: intent });
 
   /**
    * A RESPOSTA a uma pergunta pendente volta para quem perguntou.
@@ -601,7 +608,7 @@ export async function routeIntent(
       explicitNo,
       parameters,
     });
-    if (flowResult) return flowResult;
+    if (flowResult) return comIntencao(flowResult);
   }
 
   /**
@@ -674,43 +681,43 @@ export async function routeIntent(
       const allowed =
         rule.action === "write" ? canWrite(role, rule.module) : canAccess(role, rule.module);
       if (!allowed) {
-        return {
+        return comIntencao({
           reply_text: "Você não tem permissão para executar essa ação.",
           requires_confirmation: false,
           auxiliary_data: null,
           report_url: null,
           action_taken: `${intent}:sem_permissao`,
-        };
+        });
       }
     }
     if (rule.profile && !activeProfiles.includes(rule.profile)) {
       const label = rule.profile === "fazenda" ? "Fazenda" : "Prestador de Serviço";
-      return {
+      return comIntencao({
         reply_text: `Esse recurso requer o perfil "${label}" ativo, que não está habilitado para sua empresa.`,
         requires_confirmation: false,
         auxiliary_data: null,
         report_url: null,
         action_taken: `${intent}:perfil_inativo`,
-      };
+      });
     }
   }
 
   if (intent === "ambigua") {
-    return {
+    return comIntencao({
       reply_text:
         "Não entendi. Posso cadastrar novas informações ou te contar o que já está cadastrado: me diga o que você precisa, ou pergunte 'o que você faz?' que eu te mostro as opções.",
       requires_confirmation: false,
       auxiliary_data: null,
       report_url: null,
       action_taken: "ambigua",
-    };
+    });
   }
 
   // "quero cadastrar bois, me ajuda": sem os campos, abre o modo assistido em
   // vez de despejar a lista inteira de campos numa mensagem só.
   if (intent === "cadastrar_animal" && ctx.user_id) {
     const started = await maybeStartAnimalFlow(db, ctx.user_id, parameters);
-    if (started) return started;
+    if (started) return comIntencao(started);
   }
 
   // `user_id` chega aos handlers para o estado de conversa por usuário (o
@@ -749,5 +756,5 @@ export async function routeIntent(
     await marcarExecucao(tenant_id, ctx.user_id);
   }
 
-  return resultado;
+  return comIntencao(resultado);
 }
