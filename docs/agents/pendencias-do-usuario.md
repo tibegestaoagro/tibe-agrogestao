@@ -272,7 +272,7 @@ log da Vercel.
 3. **Na rotação de credenciais:** se a chave da instância da Evolution mudar, o
    nó `Guarda da Entrada` precisa receber a chave nova no mesmo momento. Sem
    isso, o agente fica mudo (a guarda descarta tudo) sem erro visível.
-4. **`OPENAI_API_KEY` nas variáveis da Vercel** (Fase 2, 15/09). A rota de turno
+4. **`OPENAI_API_KEY` nas variáveis da Vercel** (Fase 2, 15/09). **Feito em 15/09** (Vercel e `.env` local, com redeploy). A rota de turno
    (`POST /api/internal/whatsapp/turno`) classifica a mensagem dentro do Tibé e
    precisa dessa chave; `AGENTE_MODELO` é opcional (padrão `gpt-4o-mini`). Sem
    a chave, a rota responde a frase de falha. Nada em produção a chama ainda: o

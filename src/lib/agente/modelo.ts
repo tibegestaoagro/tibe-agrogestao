@@ -24,7 +24,7 @@ export function definirTransporteDoModelo(t: Transporte | null) {
   transporte = t;
 }
 
-async function viaFetch(corpo: Record<string, unknown>) {
+export async function transporteHttp(corpo: Record<string, unknown>) {
   const controle = new AbortController();
   const timer = setTimeout(() => controle.abort(), TEMPO_LIMITE_MS);
   try {
@@ -43,9 +43,9 @@ async function viaFetch(corpo: Record<string, unknown>) {
   }
 }
 
-/** Modelos de raciocínio recusam `temperature` (pesquisa de 14/09). */
-function aceitaTemperatura(modelo: string) {
-  return !/^(gpt-5|o\d)/.test(modelo);
+/** Modelos de raciocínio recusam `temperature` (pesquisa de 14/09) e aceitam `reasoning_effort`. */
+function ehModeloDeRaciocinio(modelo: string) {
+  return /^(gpt-5|o\d)/.test(modelo);
 }
 
 export async function chamarModelo<T>(pedido: PedidoAoModelo): Promise<T> {
@@ -57,9 +57,13 @@ export async function chamarModelo<T>(pedido: PedidoAoModelo): Promise<T> {
       { role: "user", content: pedido.usuario },
     ],
     response_format: { type: "json_schema", json_schema: { name: pedido.nomeDoSchema, strict: true, schema: pedido.schema } },
-    ...(aceitaTemperatura(modelo) ? { temperature: 0 } : {}),
+    ...(ehModeloDeRaciocinio(modelo)
+      ? process.env.AGENTE_ESFORCO
+        ? { reasoning_effort: process.env.AGENTE_ESFORCO }
+        : {}
+      : { temperature: 0 }),
   };
-  const enviar = transporte ?? viaFetch;
+  const enviar = transporte ?? transporteHttp;
   // Uma segunda tentativa para 5xx, 429 e falha de rede; tempo esgotado não,
   // porque seriam mais 15 s com o produtor esperando.
   const tentar = () =>

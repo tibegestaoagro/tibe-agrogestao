@@ -84,6 +84,17 @@ async function main() {
     await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"], additionalProperties: false } });
     check("gpt-5 não recebe temperature", !("temperature" in (corpoVisto as unknown as object)));
 
+    process.env.AGENTE_MODELO = "gpt-5-mini";
+    process.env.AGENTE_ESFORCO = "low";
+    await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"], additionalProperties: false } });
+    check("modelo de raciocínio recebe reasoning_effort de AGENTE_ESFORCO", (corpoVisto as unknown as { reasoning_effort?: string }).reasoning_effort === "low");
+    process.env.AGENTE_MODELO = "gpt-4o-mini";
+    await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"], additionalProperties: false } });
+    check("gpt-4o-mini nunca recebe reasoning_effort", !("reasoning_effort" in (corpoVisto as unknown as object)));
+    delete process.env.AGENTE_ESFORCO;
+    const { transporteHttp } = await import("@/lib/agente/modelo");
+    check("transporte HTTP exportado para o medidor da avaliação", typeof transporteHttp === "function");
+
     chamadas = 0;
     definirTransporteDoModelo(async () => {
       chamadas += 1;
