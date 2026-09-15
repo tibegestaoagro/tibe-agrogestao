@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { validarCasos, particao, coberturaPorIntencao } from "./casos";
+import { validarCasos, particaoDoCaso, coberturaPorIntencao } from "./casos";
 import type { Caso } from "./tipos";
 
 /**
@@ -41,8 +41,8 @@ function main() {
   }
 
   const total = coberturaPorIntencao(todosCasos);
-  const ajuste = coberturaPorIntencao(todosCasos.filter((c) => particao(c.id) === "ajuste"));
-  const final = coberturaPorIntencao(todosCasos.filter((c) => particao(c.id) === "final"));
+  const ajuste = coberturaPorIntencao(todosCasos.filter((c) => particaoDoCaso(c) === "ajuste"));
+  const final = coberturaPorIntencao(todosCasos.filter((c) => particaoDoCaso(c) === "final"));
 
   if (total.size > 0) {
     console.log("\nCobertura por intenção:");

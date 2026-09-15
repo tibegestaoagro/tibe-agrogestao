@@ -2,6 +2,7 @@ import { buscarIntencao, type CampoDef } from "@/lib/agente/intencoes";
 import { lerNumeroBr } from "@/lib/numero-br";
 import { interpretarData } from "@/lib/actions/whatsapp-handlers/parsers";
 import { normalizarTermo } from "@/lib/actions/whatsapp-handlers/shared";
+import { conferirTrechoLiteral } from "@/lib/agente/trecho-literal";
 import type { CasoMensagem, ValorEsperado } from "./tipos";
 
 export type PedidoObtido = { intent: string; parameters: Record<string, unknown> };
@@ -30,16 +31,46 @@ function paraBool(v: unknown): boolean | null {
   return null;
 }
 
+/**
+ * Quando nenhum dos dois lados é legível por `interpretarData` ("quinta" x
+ * "quinta-feira"), cai em inclusão de texto em vez de igualdade exata: um
+ * dos dois costuma ser a forma mais completa da mesma fala. Quando só um
+ * lado é legível ("dia 20" x "quinta"), os dois falam de coisas diferentes
+ * até prova em contrário, e o campo erra.
+ */
 function mesmoDiaCivil(hoje: Date, esperado: unknown, obtido: unknown): boolean {
   const dEsperado = interpretarData(String(esperado), hoje);
-  if (!dEsperado) return normalizarTermo(String(esperado)) === normalizarTermo(String(obtido));
   const dObtido = interpretarData(String(obtido), hoje);
-  if (!dObtido) return false;
+  if (!dEsperado && !dObtido) {
+    const a = normalizarTermo(String(esperado));
+    if (a === "") return false;
+    const b = normalizarTermo(String(obtido));
+    return a.includes(b) || b.includes(a);
+  }
+  if (!dEsperado || !dObtido) return false;
   return (
     dEsperado.getFullYear() === dObtido.getFullYear() &&
     dEsperado.getMonth() === dObtido.getMonth() &&
     dEsperado.getDate() === dObtido.getDate()
   );
+}
+
+/**
+ * Plural simples de uma palavra normalizada (>= 4 letras): "es" depois de
+ * r/z/l vira o singular sem o "es" ("professores" -> "professor"); "s" no
+ * fim vira o singular sem o "s" ("bezerros" -> "bezerro"). Existe porque a
+ * inclusão de texto só casa plural no FIM da frase por acaso (substring); no
+ * meio ("fêmeas de 13 a 24 meses" x "fêmea de 13 a 24 meses") não casava.
+ */
+function singularizarPalavra(palavra: string): string {
+  if (palavra.length < 4) return palavra;
+  if (/[rzl]es$/.test(palavra)) return palavra.slice(0, -2);
+  if (palavra.endsWith("s")) return palavra.slice(0, -1);
+  return palavra;
+}
+
+function normalizarParaTexto(valor: unknown): string {
+  return normalizarTermo(String(valor)).split(" ").filter(Boolean).map(singularizarPalavra).join(" ");
 }
 
 export function compararCampo(campo: CampoDef, esperado: ValorEsperado, obtido: unknown, hoje: Date): boolean {
@@ -70,9 +101,9 @@ export function compararCampo(campo: CampoDef, esperado: ValorEsperado, obtido: 
     }
     case "texto":
     default: {
-      const a = normalizarTermo(String(esperado));
+      const a = normalizarParaTexto(esperado);
       if (a === "") return false;
-      const b = normalizarTermo(String(obtido));
+      const b = normalizarParaTexto(obtido);
       return a.includes(b) || b.includes(a);
     }
   }
@@ -99,21 +130,42 @@ export function pontuarMensagem(caso: CasoMensagem, obtidos: PedidoObtido[], hoj
 
     const camposEsperados = esperado.campos ?? {};
     const parametros = obtido.parameters ?? {};
+    // Número extra só é "inventado" quando não aparece de fato na mensagem (dígito ou por
+    // extenso de um a vinte); um número dito e não pedido no gabarito não é erro do modelo.
+    const { removidos: numerosSemLastro } = conferirTrechoLiteral(parametros, caso.texto, def.campos);
+    const inventado = new Set(numerosSemLastro);
 
     for (const nome of Object.keys(camposEsperados)) {
       const campoDef = def.campos.find((c) => c.nome === nome);
       if (!campoDef) continue;
       campos_total += 1;
       if (compararCampo(campoDef, camposEsperados[nome], parametros[nome], hoje)) campos_certos += 1;
+
+      if (campoDef.tipo === "lista" && campoDef.itens && Array.isArray(parametros[nome])) {
+        const itensEsperados = Array.isArray(camposEsperados[nome]) ? (camposEsperados[nome] as Record<string, ValorEsperado>[]) : [];
+        const itensObtidos = parametros[nome] as Record<string, unknown>[];
+        for (let j = 0; j < itensObtidos.length; j++) {
+          const itemEsperado = itensEsperados[j] ?? {};
+          for (const subNome of Object.keys(itensObtidos[j] ?? {})) {
+            if (subNome in itemEsperado) continue;
+            const subDef = campoDef.itens.find((s) => s.nome === subNome);
+            if (subDef?.tipo !== "numero") continue;
+            const caminho = `${nome}.${subNome}`;
+            if (!inventado.has(caminho)) continue;
+            campos_total += 1;
+            erros.push(`número inventado: ${caminho}`);
+          }
+        }
+      }
     }
 
     for (const nome of Object.keys(parametros)) {
       if (nome in camposEsperados) continue;
       const campoDef = def.campos.find((c) => c.nome === nome);
-      if (campoDef?.tipo === "numero") {
-        campos_total += 1;
-        erros.push(`número inventado: ${nome}`);
-      }
+      if (campoDef?.tipo !== "numero") continue;
+      if (!inventado.has(nome)) continue;
+      campos_total += 1;
+      erros.push(`número inventado: ${nome}`);
     }
   }
 
@@ -166,11 +218,18 @@ export function agregar(notas: NotaDeMensagem[]): Metricas {
   };
 }
 
-/** `falhas`: passos de conversa que responderam com a frase de falha; sem isso, falhar em tudo passaria pelo eliminatório de gravação. */
+/**
+ * `falhas`: passos de conversa que responderam com a frase de falha; sem isso, falhar em tudo
+ * passaria pelo eliminatório de gravação. `porIntencaoParaLimite`: base do limite de 85% por
+ * intenção, default `m.por_intencao`; o relatório passa a base de TODAS as partições, porque a
+ * partição final sozinha deixa intenção com poucos casos (o gate de "total >= 5" some, ou vira
+ * sorte de amostra pequena).
+ */
 export function aprovar(
   m: Metricas,
   gravacoesIndevidas: number,
   falhas?: { falhas: number; passos: number },
+  porIntencaoParaLimite?: Metricas["por_intencao"],
 ): { aprovado: boolean; motivos: string[] } {
   const motivos: string[] = [];
   if (falhas && falhas.passos > 0 && falhas.falhas / falhas.passos > 0.02) {
@@ -179,7 +238,7 @@ export function aprovar(
   if (m.mensagens === 0) motivos.push("sem mensagens");
   if (gravacoesIndevidas > 0) motivos.push(`gravações indevidas: ${gravacoesIndevidas}`);
   if (m.intencao_geral < 0.95) motivos.push(`intenção geral ${Math.round(m.intencao_geral * 100)}% < 95%`);
-  for (const [intent, { certos, total }] of Object.entries(m.por_intencao)) {
+  for (const [intent, { certos, total }] of Object.entries(porIntencaoParaLimite ?? m.por_intencao)) {
     if (total >= 5 && certos / total < 0.85) {
       motivos.push(`${intent} ${Math.round((certos / total) * 100)}% < 85% (${total} casos)`);
     }

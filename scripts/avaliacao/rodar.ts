@@ -21,7 +21,7 @@ function argumento(nome: string): string | undefined {
 async function main() {
   // Depois das travas: nada que abre banco ou Redis é carregado antes delas.
   const { PRECOS, TETO_USD, criarMedidor, OrcamentoEsgotado } = await import("./medidor");
-  const { carregarCasos, particao: particaoDoCaso } = await import("./casos");
+  const { carregarCasos, particaoDoCaso } = await import("./casos");
   const { avaliarModelo } = await import("./executor");
   const { classificarMensagem } = await import("@/lib/agente/classificar");
   const { definirTransporteDoModelo, FalhaDoModelo } = await import("@/lib/agente/modelo");
@@ -49,7 +49,7 @@ async function main() {
   }
 
   let casos = carregarCasos();
-  if (particao !== "todas") casos = casos.filter((c) => particaoDoCaso(c.id) === particao);
+  if (particao !== "todas") casos = casos.filter((c) => particaoDoCaso(c) === particao);
   casos = casos.slice(0, limite);
   if (casos.length === 0) {
     console.error("nenhum caso para rodar");

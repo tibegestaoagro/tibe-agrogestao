@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { particao as particaoDoCaso } from "./casos";
+import { carregarCasos, particaoDoCaso } from "./casos";
 import type { ResultadoDoModelo } from "./executor";
 import { agregar, aprovar } from "./pontuar";
 
@@ -8,9 +8,19 @@ import { agregar, aprovar } from "./pontuar";
  * CLI: gera o relatório em markdown de uma rodada a partir de
  * `resultados/<rodada>/*.json`. A partição filtra TODA lista de casos (notas,
  * erros, gravações indevidas) e as métricas são recalculadas sobre o filtro:
- * na rodada de ajuste, caso da partição final nunca aparece.
+ * na rodada de ajuste, caso da partição final nunca aparece. A partição de
+ * cada id vem dos casos ATUAIS em `casos/*.json` (o resultado gravado só tem
+ * o id), então um caso marcado `coincide_com_exemplo` depois da rodada já
+ * sai do relatório como "ajuste".
  * Roda: `npm run avaliacao:relatorio -- --rodada <nome> [--particao ajuste|final|todas]` (sem --particao, a do resultado).
  */
+
+/** id -> partição, calculada uma vez sobre os casos atuais em disco. */
+function construirMapaDeParticao(): Map<string, "ajuste" | "final"> {
+  const mapa = new Map<string, "ajuste" | "final">();
+  for (const caso of carregarCasos()) mapa.set(caso.id, particaoDoCaso(caso));
+  return mapa;
+}
 
 function argumento(nome: string): string | undefined {
   const i = process.argv.indexOf(`--${nome}`);
@@ -38,6 +48,9 @@ function main() {
     process.exit(1);
   }
 
+  const particaoPorId = construirMapaDeParticao();
+  const coincideComExemploPorId = new Map(carregarCasos().map((c) => [c.id, c.coincide_com_exemplo !== undefined]));
+
   const particoes = new Set<string>();
   const pulados: { modelo: string; pulado: string }[] = [];
   const linhas = [];
@@ -49,10 +62,15 @@ function main() {
     }
     const particao = particaoPedida ?? bruto.particao;
     particoes.add(particao);
-    const noFiltro = (id: string) => particao === "todas" || particaoDoCaso(id) === particao;
+    const noFiltro = (id: string) => particao === "todas" || particaoPorId.get(id) === particao;
     const notas = bruto.notas.filter((n) => noFiltro(n.id));
     const conversas = bruto.conversas.filter((c) => noFiltro(c.id));
     const metricas = agregar(notas);
+    // Poucos casos por intenção numa partição só (a "final" em especial): o limite de 85% olha
+    // TODAS as notas do resultado gravado, não o filtro de partição acima do relatório.
+    const metricasParaLimite = agregar(bruto.notas);
+    const metricasSemExemplo = agregar(notas.filter((n) => !coincideComExemploPorId.get(n.id)));
+    const metricasComExemplo = agregar(notas.filter((n) => coincideComExemploPorId.get(n.id)));
     const passos = conversas.flatMap((c) => c.passos);
     const falhas = { mensagens: notas.filter((n) => n.falha).length, passos: passos.filter((p) => p.falha_do_modelo).length };
     const confirmacoesQueNaoGravaram = passos.filter((p) => p.faltou).length;
@@ -61,22 +79,34 @@ function main() {
       .filter(([, v]) => v.total >= 5)
       .map(([intent, v]) => ({ intent, taxa: v.certos / v.total, total: v.total }))
       .sort((a, b) => a.taxa - b.taxa)[0];
-    const aprovacao = aprovar(metricas, indevidas.length, { falhas: falhas.passos, passos: passos.length });
+    const aprovacao = aprovar(metricas, indevidas.length, { falhas: falhas.passos, passos: passos.length }, metricasParaLimite.por_intencao);
     // Resultado parcial nunca aprova: os casos que faltaram podiam reprovar.
     if (bruto.interrompido) aprovacao.motivos.push(`interrompido: ${bruto.interrompido}`);
-    linhas.push({ r: bruto, notas, metricas, indevidas, pior, falhas, confirmacoesQueNaoGravaram, aprovacao: { aprovado: aprovacao.motivos.length === 0, motivos: aprovacao.motivos } });
+    linhas.push({ r: bruto, notas, metricas, metricasSemExemplo, metricasComExemplo, indevidas, pior, falhas, confirmacoesQueNaoGravaram, aprovacao: { aprovado: aprovacao.motivos.length === 0, motivos: aprovacao.motivos } });
   }
 
-  const md: string[] = [`# Avaliação de modelos do agente, Fase 3: rodada ${rodada}`, "", `Partição: ${[...particoes].join(", ") || "nenhuma"}. Gerado em ${new Date().toISOString().slice(0, 10)}.`, ""];
+  const md: string[] = [
+    `# Avaliação de modelos do agente, Fase 3: rodada ${rodada}`,
+    "",
+    `Partição: ${[...particoes].join(", ") || "nenhuma"}. Gerado em ${new Date().toISOString().slice(0, 10)}.`,
+    "",
+    "O limite de 85% por intenção usa todas as notas do resultado gravado, não o filtro de partição acima: gravações indevidas, intenção geral e campos seguem a partição pedida.",
+    "",
+  ];
 
-  md.push("## Modelos", "", "| modelo | aprovado | gravações indevidas | confirmações que não gravaram | falhas do modelo (mensagens / passos) | intenção geral | pior intenção (5+ casos) | campos | US$ por 1.000 mensagens | p50 | p95 |", "|---|---|---|---|---|---|---|---|---|---|---|");
+  md.push(
+    "## Modelos",
+    "",
+    "| modelo | aprovado | gravações indevidas | confirmações que não gravaram | falhas do modelo (mensagens / passos) | intenção geral | intenção (sem exemplo) | intenção (exemplo) | pior intenção (5+ casos) | campos | campos (sem exemplo) | campos (exemplo) | US$ por 1.000 mensagens | p50 | p95 |",
+    "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+  );
   for (const l of linhas) {
     const nome = `${l.r.modelo}${l.r.esforco ? ` (${l.r.esforco})` : ""}${l.r.interrompido ? `, interrompido: ${l.r.interrompido}` : ""}`;
     md.push(
-      `| ${celula(nome)} | ${l.aprovacao.aprovado ? "sim" : "não"} | ${l.indevidas.length} | ${l.confirmacoesQueNaoGravaram} | ${l.falhas.mensagens} / ${l.falhas.passos} | ${pct(l.metricas.intencao_geral)} | ${l.pior ? `${l.pior.intent} ${pct(l.pior.taxa)} (${l.pior.total})` : "nenhuma"} | ${pct(l.metricas.campos)} | ${l.r.custo_por_mil_mensagens.toFixed(4)} | ${l.r.latencia_p50_ms} ms | ${l.r.latencia_p95_ms} ms |`,
+      `| ${celula(nome)} | ${l.aprovacao.aprovado ? "sim" : "não"} | ${l.indevidas.length} | ${l.confirmacoesQueNaoGravaram} | ${l.falhas.mensagens} / ${l.falhas.passos} | ${pct(l.metricas.intencao_geral)} | ${pct(l.metricasSemExemplo.intencao_geral)} (${l.metricasSemExemplo.mensagens}) | ${pct(l.metricasComExemplo.intencao_geral)} (${l.metricasComExemplo.mensagens}) | ${l.pior ? `${l.pior.intent} ${pct(l.pior.taxa)} (${l.pior.total})` : "nenhuma"} | ${pct(l.metricas.campos)} | ${pct(l.metricasSemExemplo.campos)} | ${pct(l.metricasComExemplo.campos)} | ${l.r.custo_por_mil_mensagens.toFixed(4)} | ${l.r.latencia_p50_ms} ms | ${l.r.latencia_p95_ms} ms |`,
     );
   }
-  for (const p of pulados) md.push(`| ${celula(p.modelo)} | pulado: ${celula(p.pulado)} | | | | | | | | | |`);
+  for (const p of pulados) md.push(`| ${celula(p.modelo)} | pulado: ${celula(p.pulado)} | | | | | | | | | | | | | |`);
 
   md.push("", "## Gravações indevidas", "");
   const todasIndevidas = linhas.flatMap((l) => l.indevidas.map((p) => ({ modelo: l.r.modelo, ...p })));

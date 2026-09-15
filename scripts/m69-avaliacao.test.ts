@@ -70,7 +70,7 @@ async function main() {
 
   console.log("\n2. Casos, partição e pontuação");
   {
-    const { validarCasos, particao } = await import("./avaliacao/casos");
+    const { validarCasos, particao, particaoDoCaso } = await import("./avaliacao/casos");
     const { pontuarMensagem, agregar, aprovar, compararCampo } = await import("./avaliacao/pontuar");
     const { buscarIntencao } = await import("@/lib/agente/intencoes");
     const hoje = new Date(2026, 8, 15, 12);
@@ -84,10 +84,27 @@ async function main() {
       { id: "p-5", autor: "produtor", tipo: "mensagem", texto: "b", esperado: [{ intent: "ajuda" }] },
     ]).length === 1);
     check("conversa com grava inválido é recusada", validarCasos([{ id: "c-1", autor: "conversa", tipo: "conversa", passos: [{ texto: "a", grava: "talvez" }, { texto: "b", grava: "nao" }] }]).length === 1);
+    check("coincide_com_exemplo literal e molde são aceitos", validarCasos([
+      { id: "p-6", autor: "produtor", tipo: "mensagem", texto: "x", esperado: [{ intent: "ajuda" }], coincide_com_exemplo: "literal" },
+      { id: "p-7", autor: "produtor", tipo: "mensagem", texto: "x", esperado: [{ intent: "ajuda" }], coincide_com_exemplo: "molde" },
+    ]).length === 0);
+    check("coincide_com_exemplo com outro valor é recusado", validarCasos([
+      { id: "p-8", autor: "produtor", tipo: "mensagem", texto: "x", esperado: [{ intent: "ajuda" }], coincide_com_exemplo: "parecido" },
+    ]).length === 1);
     check("partição é estável", particao("p-1") === particao("p-1"));
     const ids = Array.from({ length: 1000 }, (_, i) => `caso-${i}`);
     const noAjuste = ids.filter((id) => particao(id) === "ajuste").length;
     check("partição fica perto de 70/30", noAjuste > 640 && noAjuste < 760, String(noAjuste));
+
+    const idDeFinal = ids.find((id) => particao(id) === "final")!;
+    check(
+      "caso com coincide_com_exemplo é sempre ajuste, mesmo com hash de final",
+      particaoDoCaso({ id: idDeFinal, autor: "produtor", tipo: "mensagem", texto: "x", esperado: [{ intent: "ajuda" }], coincide_com_exemplo: "literal" }) === "ajuste",
+    );
+    check(
+      "caso sem coincide_com_exemplo segue o hash de particao",
+      particaoDoCaso({ id: idDeFinal, autor: "produtor", tipo: "mensagem", texto: "x", esperado: [{ intent: "ajuda" }] }) === particao(idDeFinal),
+    );
 
     const negocio = buscarIntencao("registrar_negocio_gado")!;
     const campo = (nome: string) => negocio.campos.find((c) => c.nome === nome)!;
@@ -97,6 +114,12 @@ async function main() {
     check("itens comparados item a item", compararCampo(campo("itens"), [{ categoria: "bezerro", quantidade: 20 }], [{ categoria: "bezerros", quantidade: "20" }], hoje));
     check("numero ilegivel dos dois lados nao e acerto", compararCampo(campo("valor"), "abc", "xyz", hoje) === false);
     check("texto esperado vazio nunca acerta", compararCampo(campo("contato"), "", "João", hoje) === false);
+    check("quinta casa com quinta-feira: nenhum lado e legivel por interpretarData", compararCampo(campo("vencimento"), "quinta", "quinta-feira", hoje));
+    check("dia 20 nao casa com quinta: so um lado e legivel", compararCampo(campo("vencimento"), "dia 20", "quinta", hoje) === false);
+    const categoriaDoItem = campo("itens").itens!.find((c) => c.nome === "categoria")!;
+    check("plural no meio da frase casa depois de tirar o s de cada palavra", compararCampo(categoriaDoItem, "fêmeas de 13 a 24 meses", "fêmea de 13 a 24 meses", hoje));
+    check("bezerro casa com bezerros, continua", compararCampo(categoriaDoItem, "bezerro", "bezerros", hoje));
+    check("sal casa com salsicha por inclusao, nao e regressao", compararCampo(categoriaDoItem, "sal", "salsicha", hoje));
 
     const caso = { id: "p-9", autor: "produtor" as const, tipo: "mensagem" as const, texto: "comprei 20 bezerros do João por 60 mil, pago dia 10", esperado: [{ intent: "registrar_negocio_gado", campos: { tipo: "compra", valor: 60000, vencimento: "dia 10" } }] };
     const certa = pontuarMensagem(caso, [{ intent: "registrar_negocio_gado", parameters: { tipo: "compra", valor: "60 mil", vencimento: "dia 10" } }], hoje);
@@ -109,6 +132,28 @@ async function main() {
     const inventada = pontuarMensagem(caso, [{ intent: "registrar_negocio_gado", parameters: { tipo: "compra", valor: 60000, vencimento: "dia 10", parcelas: 3 } }], hoje);
     check("número inventado conta como campo errado", inventada.campos_total === 4 && inventada.campos_certos === 3 && inventada.erros.includes("número inventado: parcelas"), JSON.stringify(inventada));
 
+    const casoDiaria = { id: "p-15", autor: "produtor" as const, tipo: "mensagem" as const, texto: "fiz uma diaria", esperado: [{ intent: "registrar_diaria", campos: { servico: "diaria" } }] };
+    const numeroDito = pontuarMensagem(casoDiaria, [{ intent: "registrar_diaria", parameters: { servico: "diaria", quantidade: 1 } }], hoje);
+    check(
+      "numero extra dito na mensagem nao e numero inventado",
+      numeroDito.erros.length === 0 && numeroDito.campos_total === 1,
+      JSON.stringify(numeroDito),
+    );
+
+    const casoBezerros = {
+      id: "p-16",
+      autor: "produtor" as const,
+      tipo: "mensagem" as const,
+      texto: "comprei uns bezerros do Joao",
+      esperado: [{ intent: "registrar_negocio_gado", campos: { itens: [{ categoria: "bezerros" }] } }],
+    };
+    const subcampoInventado = pontuarMensagem(casoBezerros, [{ intent: "registrar_negocio_gado", parameters: { itens: [{ categoria: "bezerros", quantidade: 20 }] } }], hoje);
+    check(
+      "subcampo numerico de lista nao esperado e nao dito na mensagem e numero inventado",
+      subcampoInventado.erros.includes("número inventado: itens.quantidade"),
+      JSON.stringify(subcampoInventado),
+    );
+
     const m = agregar([certa, cortada]);
     check("agrega intenção geral", Math.abs(m.intencao_geral - 2 / 3) < 1e-9, String(m.intencao_geral));
     check("gravação indevida reprova mesmo com nota cheia", aprovar(agregar([certa]), 1).aprovado === false);
@@ -118,6 +163,18 @@ async function main() {
     check("sem falha do modelo nos passos aprova", aprovar(agregar([certa]), 0, { falhas: 0, passos: 10 }).aprovado === true);
     check("agregar sem mensagens nao gera NaN", agregar([]).intencao_geral === 0 && agregar([]).campos === 1);
     check("sem mensagens reprova", aprovar(agregar([]), 0).aprovado === false);
+
+    // O relatório passa a base de TODAS as partições pro limite de 85%: a partição filtrada
+    // sozinha pode ter poucos casos por intenção (o gate de "total >= 5" nem entra em jogo).
+    const metricasFiltradas = { intencao_geral: 1, por_intencao: { consultar_estoque: { certos: 1, total: 3 } }, campos: 1, mensagens: 3 };
+    const porIntencaoTodas = { consultar_estoque: { certos: 5, total: 10 } };
+    check("sem a base de todas as particoes, poucos casos escapam do limite de 85%", aprovar(metricasFiltradas, 0).aprovado === true);
+    const comBaseDeTodas = aprovar(metricasFiltradas, 0, undefined, porIntencaoTodas);
+    check(
+      "com a base de todas as particoes, o limite de 85% pega o caso que a filtrada escondia",
+      comBaseDeTodas.aprovado === false && comBaseDeTodas.motivos.some((m) => m.startsWith("consultar_estoque 50%")),
+      JSON.stringify(comBaseDeTodas),
+    );
   }
 
   console.log("\n3. Fazenda de avaliação");

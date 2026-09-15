@@ -10,6 +10,14 @@ export type ValorEsperado = string | number | boolean | Record<string, string | 
 
 export type PedidoEsperado = { intent: string; campos?: Record<string, ValorEsperado> };
 
+/**
+ * "literal": a frase do caso é (quase) a mesma do exemplo do registro de
+ * intenções; "molde": segue o mesmo molde com nome ou número trocado. Um caso
+ * marcado nunca entra na partição "final": mediria o modelo decorando o
+ * próprio prompt, não generalização.
+ */
+export type CoincideComExemplo = "literal" | "molde";
+
 export type CasoMensagem = {
   id: string;
   autor: Autor;
@@ -17,6 +25,7 @@ export type CasoMensagem = {
   texto: string;
   esperado: PedidoEsperado[];
   nota?: string;
+  coincide_com_exemplo?: CoincideComExemplo;
 };
 
 /**
@@ -28,6 +37,13 @@ export type Gravacao = "nao" | "pode" | "deve";
 
 export type PassoDeConversa = { texto: string; grava: Gravacao; nota?: string };
 
-export type CasoConversa = { id: string; autor: Autor; tipo: "conversa"; passos: PassoDeConversa[]; nota?: string };
+export type CasoConversa = {
+  id: string;
+  autor: Autor;
+  tipo: "conversa";
+  passos: PassoDeConversa[];
+  nota?: string;
+  coincide_com_exemplo?: CoincideComExemplo;
+};
 
 export type Caso = CasoMensagem | CasoConversa;

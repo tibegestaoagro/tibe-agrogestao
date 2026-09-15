@@ -1,7 +1,7 @@
 import { classificarMensagem } from "@/lib/agente/classificar";
 import { definirTransporteDoModelo, FalhaDoModelo, type Transporte } from "@/lib/agente/modelo";
 import { executarTurno, FRASE_DE_FALHA, FRASE_DE_FALHA_PARCIAL } from "@/lib/actions/turno";
-import { particao as particaoDoCaso } from "./casos";
+import { particaoDoCaso } from "./casos";
 import { montarFazenda, contarLinhasDeNegocio } from "./fazenda";
 import { custoDaChamada, OrcamentoEsgotado, type Uso } from "./medidor";
 import { agregar, aprovar, pontuarMensagem, type Metricas, type NotaDeMensagem, type PedidoObtido } from "./pontuar";
@@ -92,7 +92,7 @@ export async function avaliarModelo(opcoes: {
   /** O turno engole o erro do transporte: numa conversa, é por aqui que o executor sabe que a verba acabou. */
   orcamentoEsgotado?: () => boolean;
 }): Promise<ResultadoDoModelo> {
-  const casos = opcoes.particao === "todas" ? opcoes.casos : opcoes.casos.filter((c) => particaoDoCaso(c.id) === opcoes.particao);
+  const casos = opcoes.particao === "todas" ? opcoes.casos : opcoes.casos.filter((c) => particaoDoCaso(c) === opcoes.particao);
   const mensagens = casos.filter((c): c is CasoMensagem => c.tipo === "mensagem");
   const conversasDoCaso = casos.filter((c): c is CasoConversa => c.tipo === "conversa");
   const esgotado = opcoes.orcamentoEsgotado ?? (() => false);

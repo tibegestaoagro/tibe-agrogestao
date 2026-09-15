@@ -2,9 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { buscarIntencao, INTENCOES_FORA_DO_CLASSIFICADOR, type CampoDef } from "@/lib/agente/intencoes";
-import { AUTORES, type Autor, type Caso, type Gravacao } from "./tipos";
+import { AUTORES, type Autor, type Caso, type CoincideComExemplo, type Gravacao } from "./tipos";
 
 const GRAVACOES: readonly Gravacao[] = ["nao", "pode", "deve"];
+const COINCIDENCIAS: readonly CoincideComExemplo[] = ["literal", "molde"];
 
 function comoRegistro(x: unknown): Record<string, unknown> | null {
   return x !== null && typeof x === "object" ? (x as Record<string, unknown>) : null;
@@ -80,6 +81,10 @@ export function validarCasos(casos: unknown[]): string[] {
       erros.push(`${rotulo}: autor inválido: ${String(c.autor)}`);
     }
 
+    if (c.coincide_com_exemplo !== undefined && !COINCIDENCIAS.includes(c.coincide_com_exemplo as CoincideComExemplo)) {
+      erros.push(`${rotulo}: coincide_com_exemplo inválido: ${String(c.coincide_com_exemplo)}`);
+    }
+
     if (c.tipo === "mensagem") {
       if (typeof c.texto !== "string" || c.texto === "") erros.push(`${rotulo}: mensagem sem texto`);
       if (!Array.isArray(c.esperado) || c.esperado.length === 0) {
@@ -128,6 +133,15 @@ export function carregarCasos(pasta: string = PASTA_PADRAO): Caso[] {
 export function particao(id: string): "ajuste" | "final" {
   const primeiroByte = createHash("sha1").update(id).digest()[0];
   return primeiroByte < 179 ? "ajuste" : "final";
+}
+
+/**
+ * Partição de um caso: quem coincide com exemplo do registro nunca entra na
+ * "final" (mediria o modelo decorando o próprio prompt), então fica sempre em
+ * "ajuste"; os demais seguem o hash de `particao`.
+ */
+export function particaoDoCaso(caso: Caso): "ajuste" | "final" {
+  return caso.coincide_com_exemplo ? "ajuste" : particao(caso.id);
 }
 
 export function coberturaPorIntencao(casos: Caso[]): Map<string, number> {
