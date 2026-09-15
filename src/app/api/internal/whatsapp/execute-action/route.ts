@@ -99,6 +99,9 @@ async function POSTHandler(request: Request) {
   const db = prismaForTenant(tenant_id);
 
   // user_id é sempre revalidado no banco: nunca confiamos na role vinda do caller.
+  // Desde a Fase 2 isto roda ANTES da idempotência (que mora no núcleo): um
+  // retry de usuário desativado entre as duas chamadas recebe 404, e não a
+  // resposta guardada. Divergência aceita: desativado não recebe mais nada.
   const user = await db.user.findFirst({ where: { id: user_id, active: true } });
   if (!user) {
     return apiError("INVALID_USER", "Usuário não encontrado ou inativo neste tenant", 404);

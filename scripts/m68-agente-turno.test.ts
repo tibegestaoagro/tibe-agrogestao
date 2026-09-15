@@ -325,8 +325,10 @@ async function main() {
         to: { category_id: "macho_25_36", property_id: fazenda.id, pasture_id: pasto.id, situation: "presente", owner: "proprio" },
       });
       const site = await createConfinementSite(db, { name: "Conf M68", type: "proprio", property_id: fazenda.id });
+      check("fixture: confinamento criado", site.ok);
       if (site.ok) {
-        await openConfinementStay(db, { confinement_site_id: site.data.id, category_id: "macho_25_36", quantity: 5, pasture_id: pasto.id });
+        const estadia = await openConfinementStay(db, { confinement_site_id: site.data.id, category_id: "macho_25_36", quantity: 5, pasture_id: pasto.id });
+        check("fixture: lote de 5 aberto no confinamento", estadia.ok);
       }
 
       const r = await executarIntencao({ db, tenant_id: tenant.id, user: { id: owner.id, role: owner.role }, contato_id: null, activeProfiles: ["fazenda"], intent: "registrar_negocio_gado", parameters: { tipo: "venda", categoria: "boi", quantidade: 2, valor: 9000 }, message_text: "vendi 2 bois do confinamento por 9 mil", confirmed_do_corpo: null, provider_message_id: null, registrar_entrada: false });
