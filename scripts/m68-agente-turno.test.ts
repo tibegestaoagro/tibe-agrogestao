@@ -554,10 +554,163 @@ async function main() {
           segunda.identificado === true && segunda.primeiro_contato === false,
         );
       }
+
+      console.log("\n7. Turno no Tibé");
+      {
+        const { executarTurno } = await import("@/lib/actions/turno");
+        const { definirTransporteDoModelo } = await import("@/lib/agente/modelo");
+        const { VERSAO_DO_PROMPT } = await import("@/lib/agente/prompts");
+
+        // Responde pelo nome do schema; uma lista responde uma chamada por item, na ordem.
+        const chamadas: string[] = [];
+        let respostas: Record<string, unknown> = {};
+        let statusDoModelo = 200;
+        definirTransporteDoModelo(async (corpo) => {
+          const nome = (corpo.response_format as { json_schema: { name: string } }).json_schema.name;
+          chamadas.push(nome);
+          if (statusDoModelo !== 200) return { status: statusDoModelo, json: {} };
+          const r = respostas[nome];
+          const conteudo = Array.isArray(r) ? r.shift() : r;
+          return { status: 200, json: { choices: [{ message: { content: JSON.stringify(conteudo) } }] } };
+        });
+        const prepara = (r: Record<string, unknown>) => {
+          respostas = r;
+          chamadas.length = 0;
+        };
+        const turno = (texto: string, provider_message_id: string | null, extra: Partial<Parameters<typeof executarTurno>[0]> = {}) =>
+          executarTurno({ telefone: phoneDono, texto, provider_message_id, ...extra });
+        const FRASE_DE_FALHA = "Não consegui entender agora. Pode mandar de novo daqui a pouco?";
+
+        try {
+          // (a) duas perguntas numa mensagem: duas respostas, na ordem.
+          prepara({
+            dominio: { pedidos: [{ dominio: "rebanho", trecho: "quantos animais eu tenho" }, { dominio: "conversa", trecho: "o que tenho a pagar" }] },
+            extracao_rebanho: { intent: "consultar_rebanho", parametros: {} },
+            extracao_conversa: { intent: "resumo", parametros: { scope: "contas_a_pagar" } },
+          });
+          const textoA = "quantos animais eu tenho e o que tenho a pagar";
+          const a = await turno(textoA, "T7a");
+          check("(a) duas mensagens", a.mensagens.length === 2 && a.replay === false, JSON.stringify(a));
+          check("(a) a primeira é o total do rebanho", a.mensagens[0]?.texto === s.reply_text, a.mensagens[0]?.texto);
+          check("(a) total com número não pode ser humanizado", a.mensagens[0]?.pode_humanizar === false);
+          check("(a) a segunda responde as contas a pagar, sem número, e pode ser humanizada", !!a.mensagens[1]?.texto.includes("pagar") && a.mensagens[1]?.pode_humanizar === true, JSON.stringify(a.mensagens[1]));
+
+          // (g) log de entrada uma vez, com a versão do prompt.
+          const entradas = await db.agentConversationLog.findMany({ where: { direction: "in", content: textoA } });
+          check("(g) log de entrada gravado uma vez só", entradas.length === 1, String(entradas.length));
+          check("(g) log de entrada com prompt_version", entradas[0]?.prompt_version === VERSAO_DO_PROMPT, entradas[0]?.prompt_version ?? "null");
+
+          // (d) reenvio do mesmo wamid: as mesmas mensagens, sem modelo.
+          prepara({});
+          const d = await turno(textoA, "T7a");
+          check("(d) replay devolve as mesmas mensagens", d.replay === true && d.mensagens.length === a.mensagens.length && d.mensagens.every((m, i) => m.texto === a.mensagens[i].texto && m.pode_humanizar === a.mensagens[i].pode_humanizar && m.report_url === a.mensagens[i].report_url), JSON.stringify(d));
+          check("(d) replay não chama o modelo", chamadas.length === 0, chamadas.join());
+
+          // Dois pedidos da mesma intenção não colidem na chave do núcleo.
+          prepara({
+            dominio: { pedidos: [{ dominio: "rebanho", trecho: "quantos animais eu tenho" }, { dominio: "rebanho", trecho: "quantas fêmeas de 13 a 24 meses" }] },
+            extracao_rebanho: [
+              { intent: "consultar_rebanho", parametros: {} },
+              { intent: "consultar_rebanho", parametros: { categoria: "fêmeas de 13 a 24 meses" } },
+            ],
+          });
+          const dup = await turno("quantos animais eu tenho e quantas fêmeas de 13 a 24 meses", "T7dup");
+          check(
+            "dois pedidos da mesma intenção devolvem duas respostas diferentes, não replay da primeira",
+            dup.mensagens.length === 2 && dup.mensagens[0].texto === s.reply_text && dup.mensagens[1].texto.startsWith("Você possui"),
+            JSON.stringify(dup.mensagens),
+          );
+
+          // (b) pergunta da faixa, resposta curta pelo cursor, "não" sem modelo.
+          const morteAmbigua = {
+            dominio: { pedidos: [{ dominio: "rebanho", trecho: "morreram 2 novilhas no Pasto M68" }] },
+            extracao_rebanho: { intent: "registrar_movimentacao_rebanho", parametros: { movement_type: "morte", itens: [{ categoria: "novilha", quantidade: 2 }], pasto_origem: "Pasto M68" } },
+          };
+          prepara(morteAmbigua);
+          const b1 = await turno("morreram 2 novilhas no Pasto M68", "T7b1");
+          check("(b) pergunta a faixa", !!b1.mensagens[0]?.texto.includes("Qual é a idade aproximada?"), JSON.stringify(b1.mensagens));
+          check("(b) a pergunta não pode ser humanizada", b1.mensagens.length === 1 && b1.mensagens[0].pode_humanizar === false);
+
+          prepara({ resposta: { tipo: "responde" } });
+          const b2 = await turno("Fêmea - 13 a 24 meses", "T7b2");
+          const cursorB2 = await carregarCursor(tenant.id, owner.id);
+          check("(b) a resposta da faixa chega à confirmação", cursorB2?.aguardando === "confirmacao" && b2.mensagens[0]?.pode_humanizar === false, JSON.stringify({ b2, cursorB2 }));
+          check("(b) sem chamar a etapa de domínio", chamadas.join() === "resposta", chamadas.join());
+
+          prepara({});
+          const b3 = await turno("não", "T7b3");
+          check("(b) o 'não' cancela", b3.mensagens.length === 1 && (await carregarCursor(tenant.id, owner.id)) === null, JSON.stringify(b3));
+          check("(b) o 'não' não chama o modelo", chamadas.length === 0, chamadas.join());
+
+          // (c) cursor aberto, outro assunto: classifica de novo.
+          prepara(morteAmbigua);
+          await turno("morreram 2 novilhas no Pasto M68", "T7c1");
+          prepara({
+            resposta: { tipo: "outro_assunto" },
+            dominio: { pedidos: [{ dominio: "estoque", trecho: "quanto tenho de sal?" }] },
+            extracao_estoque: { intent: "consultar_estoque", parametros: { produto: "sal" } },
+          });
+          const c = await turno("quanto tenho de sal?", "T7c2");
+          check("(c) outro assunto passa pela resposta e classifica de novo", chamadas.join() === "resposta,dominio,extracao_estoque", chamadas.join());
+          check("(c) responde o estoque", c.mensagens.length === 1 && c.mensagens[0].texto.includes("estoque"), JSON.stringify(c.mensagens));
+          await clearPendingHerd(tenant.id, owner.id);
+          await limparCursor(tenant.id, owner.id);
+
+          // (e) modelo fora do ar: frase de falha, sem gravar o turno, e o reenvio tenta de novo.
+          prepara({});
+          statusDoModelo = 503;
+          const e = await turno("quantos animais eu tenho", "T7e");
+          statusDoModelo = 200;
+          check("(e) devolve a frase de falha", e.mensagens.length === 1 && e.mensagens[0].texto === FRASE_DE_FALHA && e.mensagens[0].pode_humanizar === false, JSON.stringify(e));
+          check("(e) tentou o modelo duas vezes", chamadas.length === 2, chamadas.join());
+          check("(e) não grava o AgentRequest do turno", (await db.agentRequest.findFirst({ where: { provider_message_id: "T7e#turno" } })) === null);
+          const saidaDaFalha = await db.agentConversationLog.findFirst({ where: { direction: "out", content: FRASE_DE_FALHA } });
+          check("(e) log de saída com o motivo", saidaDaFalha?.action_taken === "turno:falha_do_modelo:http", saidaDaFalha?.action_taken ?? "null");
+          prepara({ dominio: { pedidos: [{ dominio: "rebanho", trecho: "quantos animais eu tenho" }] }, extracao_rebanho: { intent: "consultar_rebanho", parametros: {} } });
+          const eDeNovo = await turno("quantos animais eu tenho", "T7e");
+          check("(e) o reenvio depois da falha processa de verdade", eDeNovo.replay === false && eDeNovo.mensagens[0]?.texto === s.reply_text, JSON.stringify(eDeNovo));
+
+          // (f) recibo: direto para a confirmação do lançamento, sem modelo.
+          prepara({});
+          const f = await turno("", "T7f", { recibo: { amount: 150, category: null, vendor: "Posto M68", description: null } });
+          const cursorF = await carregarCursor(tenant.id, owner.id);
+          check("(f) recibo vai para a confirmação do lançamento", cursorF?.intent === "registrar_lancamento_financeiro" && cursorF?.aguardando === "confirmacao" && f.mensagens[0]?.pode_humanizar === false, JSON.stringify({ f, cursorF }));
+          check("(f) recibo não chama o modelo", chamadas.length === 0, chamadas.join());
+
+          // Cursor esperando confirmação e texto que não é sim nem não: classifica direto, sem a etapa de resposta.
+          prepara({
+            dominio: { pedidos: [{ dominio: "estoque", trecho: "quanto tenho de sal?" }] },
+            extracao_estoque: { intent: "consultar_estoque", parametros: { produto: "sal" } },
+          });
+          await turno("quanto tenho de sal?", "T7f2");
+          check("confirmação aberta e outro texto não chama a etapa de resposta", chamadas.join() === "dominio,extracao_estoque", chamadas.join());
+          prepara({});
+          const fNao = await turno("não", "T7f3");
+          check("o 'não' seguinte cancela o lançamento, sem modelo", fNao.mensagens[0]?.texto === "Lançamento cancelado." && chamadas.length === 0, JSON.stringify(fNao));
+
+          // Primeiro contato: saudação, gravada para o reenvio repetir a saudação.
+          const phoneNovo = `12${String(stamp).slice(-9)}`;
+          await prisma.user.create({
+            data: { tenant_id: tenant.id, name: "Novo M68", email: `m68-novo-${stamp}@teste.local`, password_hash: "x", role: "OPERADOR", active: true, phone: phoneNovo },
+          });
+          prepara({});
+          const oi = await executarTurno({ telefone: phoneNovo, texto: "oi", provider_message_id: "T7p" });
+          check("primeiro contato devolve a saudação", oi.mensagens.length === 1 && oi.mensagens[0].texto.includes("Bem-vindo"), JSON.stringify(oi));
+          const oiDeNovo = await executarTurno({ telefone: phoneNovo, texto: "oi", provider_message_id: "T7p" });
+          check("reenvio do primeiro contato repete a saudação, sem modelo", oiDeNovo.replay === true && oiDeNovo.mensagens[0]?.texto === oi.mensagens[0].texto && chamadas.length === 0, JSON.stringify(oiDeNovo));
+
+          const estranho = await executarTurno({ telefone: `19${String(stamp).slice(-9)}`, texto: "oi", provider_message_id: "T7x" });
+          check("número não cadastrado recebe uma mensagem", estranho.mensagens.length === 1 && estranho.mensagens[0].texto.includes("não está cadastrado"), JSON.stringify(estranho));
+        } finally {
+          definirTransporteDoModelo(null);
+        }
+      }
     } finally {
       if (ownerId) {
         await clearPendingHerd(tenant.id, ownerId);
         await clearPendingConfinement(tenant.id, ownerId);
+        const { clearPendingFinance } = await import("@/lib/actions/finance-pending");
+        await clearPendingFinance(tenant.id, ownerId);
         await limparCursor(tenant.id, ownerId);
       }
       // WhatsAppContact criado na seção 6 não precisa de limpeza própria: a
