@@ -374,9 +374,13 @@ const VERBO: Record<string, string> = {
   ajuste: "registrar o ajuste de",
 };
 
-/** §8.7: como o produtor diz que um ajuste soma ou tira do rebanho. */
-const AJUSTE_ENTRADA = new Set(["entrada", "entrou", "a mais"]);
-const AJUSTE_SAIDA = new Set(["saida", "saiu", "a menos"]);
+/**
+ * §8.7: como o produtor diz que um ajuste soma ou tira do rebanho. Inclui as
+ * palavras da própria pergunta ("aumenta ou diminui?"): sem elas, a resposta
+ * natural repetia a pergunta até a trava de laço.
+ */
+const AJUSTE_ENTRADA = new Set(["entrada", "entrou", "a mais", "aumenta", "aumentou", "mais"]);
+const AJUSTE_SAIDA = new Set(["saida", "saiu", "a menos", "diminui", "diminuiu", "menos"]);
 
 /** Como o cliente escreve nos §13.4 e §13.5: "4 bezerros e 3 bezerras". */
 function descreverItens(itens: { categoria: HerdCategory; quantidade: number }[]): string {

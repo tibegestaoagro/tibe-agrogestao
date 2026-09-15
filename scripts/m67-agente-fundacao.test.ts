@@ -102,6 +102,20 @@ async function main() {
       check("o ajuste confirmado grava", depois === antes + 1, `${r.data.action_taken}: ${r.data.reply_text}`);
       const semSentido = await acao("registrar_movimentacao_rebanho", { movement_type: "ajuste", itens: [{ categoria: "macho_25_36", quantidade: 1 }] }, "ajusta 1 boi");
       check("sem sentido, pergunta se aumenta ou diminui", /aumenta ou diminui/i.test(semSentido.data.reply_text), semSentido.data.reply_text);
+
+      // A resposta com as palavras da própria pergunta ("diminui", "aumenta") vale.
+      const { clearPendingHerd } = await import("@/lib/actions/herd-pending");
+      for (const [resposta, sentido] of [["diminui", "saida"], ["aumenta", "entrada"]] as const) {
+        await clearPendingHerd(tenant.id, owner.id);
+        await acao("registrar_movimentacao_rebanho", { movement_type: "ajuste", itens: [{ categoria: "macho_25_36", quantidade: 1 }], pasto: "Pasto M67" }, "ajusta 1 boi no Pasto M67");
+        const pergunta = await acao("registrar_movimentacao_rebanho", { sentido: resposta }, resposta);
+        check(`'${resposta}' responde o sentido e pede confirmação`, pergunta.data.requires_confirmation === true, pergunta.data.reply_text);
+        const antesAjuste = await db.herdMovement.count({ where: { movement_type: "ajuste" } });
+        await acao("registrar_movimentacao_rebanho", {}, "sim", { confirmed: true });
+        const ultimo = await db.herdMovement.findFirst({ where: { movement_type: "ajuste" }, orderBy: { created_at: "desc" } });
+        const certo = sentido === "saida" ? !!ultimo?.from_pasture_id && !ultimo.to_pasture_id : !ultimo?.from_pasture_id && !!ultimo?.to_pasture_id;
+        check(`depois do sim, grava o ajuste de ${sentido}`, (await db.herdMovement.count({ where: { movement_type: "ajuste" } })) === antesAjuste + 1 && certo, JSON.stringify(ultimo));
+      }
     }
 
     console.log("\n4. Receita pelo WhatsApp");
