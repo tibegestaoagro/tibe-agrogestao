@@ -142,6 +142,16 @@ function criarLimpar(tenantId: string, db: TenantPrismaClient): () => Promise<vo
   return async function limpar() {
     await db.herdMovement.deleteMany({});
     await db.stockMovement.deleteMany({});
+    // O que os handlers gravam numa conversa e aponta com Restrict para fazenda, contato ou catálogo.
+    await db.milkMovement.deleteMany({});
+    await db.milkCharge.deleteMany({});
+    await db.milkProduction.deleteMany({});
+    await db.lactationEntry.deleteMany({});
+    await db.serviceJob.deleteMany({});
+    await db.serviceOrder.deleteMany({});
+    await db.milkSite.deleteMany({});
+    await db.worker.deleteMany({});
+    await db.plot.deleteMany({});
     await db.animalVaccination.deleteMany({});
     await db.animalMovement.deleteMany({});
     await db.animalWeightLog.deleteMany({});

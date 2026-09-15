@@ -7,7 +7,7 @@ import { exigirBancoLocal, exigirRedisLocal } from "../_banco-local";
  * CLI da rodada real (Fase 3): roda cada modelo sobre os casos, com um medidor
  * de custo único para a rodada, e grava `resultados/<rodada>/<modelo>.json`.
  * Roda: `npm run avaliacao:rodar -- --rodada <nome> [--modelos a,b] [--particao ajuste|final|todas] [--limite N]`.
- * Sai com código 2 quando o orçamento acaba.
+ * Sai com código 2 quando o orçamento acaba; 1 quando algum modelo foi pulado ou interrompido por outro motivo.
  */
 
 exigirBancoLocal();
@@ -63,6 +63,7 @@ async function main() {
   console.log(`Rodada ${rodada}: ${casos.length} casos, partição ${particao}, gasto acumulado US$ ${medidor.gastoTotal().toFixed(4)} de US$ ${TETO_USD}`);
 
   let outraInterrupcao = false;
+  let algumPulado = false;
   for (const modelo of modelos) {
     let esforco: string | null = /^gpt-5/.test(modelo) ? "low" : null;
 
@@ -91,25 +92,42 @@ async function main() {
       esforco = null;
       falha = await sondar();
     }
+    // Tempo ou rede numa única sondagem não pode tirar um modelo inteiro da comparação.
+    if (falha instanceof FalhaDoModelo && (falha.motivo === "tempo" || falha.motivo === "http")) {
+      console.log(`${modelo}: sondagem falhou (${falha.message}), tentando de novo`);
+      falha = await sondar();
+    }
     if (falha) {
       const motivo = `${falha.name}: ${falha.message}`;
       console.log(`${modelo}: pulado (${motivo})`);
       gravar(modelo, { modelo, pulado: motivo });
+      algumPulado = true;
       continue;
     }
 
-    const resultado = await avaliarModelo({
-      modelo,
-      esforco,
-      casos,
-      particao,
-      transporte: medidor.transporte,
-      prefixo: `${rodada}-${modelo}`,
-      orcamentoEsgotado: () => medidor.gastoTotal() >= TETO_USD,
-    });
+    let resultado: Awaited<ReturnType<typeof avaliarModelo>>;
+    try {
+      resultado = await avaliarModelo({
+        modelo,
+        esforco,
+        casos,
+        particao,
+        transporte: medidor.transporte,
+        prefixo: `${rodada}-${modelo}`,
+        orcamentoEsgotado: () => medidor.gastoTotal() >= TETO_USD,
+      });
+    } catch (e) {
+      // Erro inesperado num modelo não derruba os seguintes, e fica registrado no lugar do resultado.
+      const motivo = `erro inesperado: ${e instanceof Error ? `${e.name}: ${e.message.split("\n")[0]}` : String(e)}`;
+      console.log(`${modelo}: pulado (${motivo})`);
+      gravar(modelo, { modelo, pulado: motivo });
+      algumPulado = true;
+      continue;
+    }
     gravar(modelo, resultado);
 
     const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
+    const falhasNasMensagens = resultado.notas.filter((n) => n.falha).length;
     console.log(
       `${modelo}${esforco ? ` (${esforco})` : ""}: ` +
       [
@@ -117,6 +135,8 @@ async function main() {
         `intenção ${pct(resultado.metricas.intencao_geral)}`,
         `campos ${pct(resultado.metricas.campos)}`,
         `gravações indevidas ${resultado.gravacoes_indevidas}`,
+        `confirmações que não gravaram ${resultado.confirmacoes_que_nao_gravaram}`,
+        `falhas do modelo ${falhasNasMensagens} em mensagens, ${resultado.falhas_do_modelo} em passos`,
         `custo US$ ${resultado.custo_usd.toFixed(4)}`,
         `gasto acumulado US$ ${medidor.gastoTotal().toFixed(4)}`,
         resultado.interrompido ? `INTERROMPIDO (${resultado.interrompido})` : "",
@@ -128,7 +148,7 @@ async function main() {
     if (resultado.interrompido === "orçamento") process.exit(2);
     if (resultado.interrompido) outraInterrupcao = true;
   }
-  process.exit(outraInterrupcao ? 1 : 0);
+  process.exit(outraInterrupcao || algumPulado ? 1 : 0);
 }
 
 main().catch((e) => {

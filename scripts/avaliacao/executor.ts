@@ -5,7 +5,7 @@ import { particao as particaoDoCaso } from "./casos";
 import { montarFazenda, contarLinhasDeNegocio } from "./fazenda";
 import { custoDaChamada, OrcamentoEsgotado, type Uso } from "./medidor";
 import { agregar, aprovar, pontuarMensagem, type Metricas, type NotaDeMensagem, type PedidoObtido } from "./pontuar";
-import type { Caso, CasoConversa, CasoMensagem, Gravacao } from "./tipos";
+import type { Caso, CasoConversa, CasoMensagem, Gravacao, PassoDeConversa } from "./tipos";
 
 /**
  * Roda um modelo sobre os casos da avaliação (Fase 3): mensagem pela
@@ -13,7 +13,8 @@ import type { Caso, CasoConversa, CasoMensagem, Gravacao } from "./tipos";
  * contagem de linhas de negócio antes e depois de cada passo.
  */
 
-export type PassoAvaliado = { texto: string; grava: Gravacao; linhas_novas: number; indevida: boolean; faltou: boolean; respostas: string[]; ms: number };
+/** `falha_do_modelo`: a resposta foi a frase de falha do turno. */
+export type PassoAvaliado = { texto: string; grava: Gravacao; linhas_novas: number; indevida: boolean; faltou: boolean; falha_do_modelo: boolean; respostas: string[]; ms: number };
 export type ConversaAvaliada = { id: string; passos: PassoAvaliado[] };
 export type Particao = "ajuste" | "final" | "todas";
 export type NotaAvaliada = NotaDeMensagem & { texto: string; obtidos: PedidoObtido[]; ms: number; falha?: string };
@@ -52,6 +53,34 @@ function motivoDaInterrupcao(e: unknown): string {
   return e instanceof OrcamentoEsgotado ? "orçamento" : e instanceof Error ? `${e.name}: ${e.message}` : String(e);
 }
 
+/**
+ * Decide o que um passo de conversa conta. A frase de falha com a verba no teto é o sinal de que o
+ * turno engoliu `OrcamentoEsgotado`: interrompe, e o passo sai da lista porque não foi avaliado,
+ * MENOS quando gravou linha, porque gravação indevida nunca some. Verba no teto com resposta normal
+ * não interrompe: o modelo que termina a última conversa exatamente no teto terminou.
+ */
+export function avaliarPasso(
+  passo: PassoDeConversa,
+  linhas_novas: number,
+  respostas: string[],
+  ms: number,
+  orcamentoEsgotado: () => boolean,
+): { passo: PassoAvaliado | null; interromper: boolean } {
+  const falhou = respostas.some((t) => FRASES_DE_FALHA.has(t));
+  const avaliado: PassoAvaliado = {
+    texto: passo.texto,
+    grava: passo.grava,
+    linhas_novas,
+    indevida: passo.grava === "nao" && linhas_novas > 0,
+    faltou: passo.grava === "deve" && linhas_novas === 0,
+    falha_do_modelo: falhou,
+    respostas,
+    ms,
+  };
+  if (falhou && orcamentoEsgotado()) return { passo: linhas_novas > 0 ? avaliado : null, interromper: true };
+  return { passo: avaliado, interromper: false };
+}
+
 export async function avaliarModelo(opcoes: {
   modelo: string;
   esforco: string | null;
@@ -87,7 +116,6 @@ export async function avaliarModelo(opcoes: {
   const notasPorIndice: (NotaAvaliada | undefined)[] = [];
   const conversas: ConversaAvaliada[] = [];
   let interrompido: string | null = null;
-  let falhasDoModelo = 0;
 
   try {
     let proxima = 0;
@@ -124,30 +152,22 @@ export async function avaliarModelo(opcoes: {
           const saida = await executarTurno({ telefone: fazenda.telefone, texto: passo.texto, provider_message_id: `${opcoes.prefixo}-${caso.id}-${i}` });
           const ms = Date.now() - inicio;
           const linhas_novas = (await contarLinhasDeNegocio(fazenda.db)) - antes;
-          const respostas = saida.mensagens.map((m) => m.texto);
-          const falhou = respostas.some((t) => FRASES_DE_FALHA.has(t));
-          const avaliado: PassoAvaliado = {
-            texto: passo.texto,
-            grava: passo.grava,
-            linhas_novas,
-            indevida: passo.grava === "nao" && linhas_novas > 0,
-            faltou: passo.grava === "deve" && linhas_novas === 0,
-            respostas,
-            ms,
-          };
-          if (esgotado()) {
-            // O passo que falhou por falta de verba não foi avaliado; um que respondeu antes de a verba acabar foi.
-            if (!falhou) avaliada.passos.push(avaliado);
+          const r = avaliarPasso(passo, linhas_novas, saida.mensagens.map((m) => m.texto), ms, esgotado);
+          if (r.passo) avaliada.passos.push(r.passo);
+          if (r.interromper) {
             interrompido = "orçamento";
             break;
           }
-          if (falhou) falhasDoModelo += 1;
-          avaliada.passos.push(avaliado);
         }
       } catch (e) {
         interrompido = motivoDaInterrupcao(e);
       } finally {
-        if (fazenda) await fazenda.limpar();
+        // Limpeza que quebra não pode jogar fora o resultado já pago do modelo.
+        if (fazenda) {
+          await fazenda.limpar().catch((e: unknown) => {
+            console.warn(`avaliação: limpeza da fazenda ${caso.id} falhou: ${e instanceof Error ? e.message.split("\n")[0] : String(e)}`);
+          });
+        }
       }
     }
   } finally {
@@ -177,7 +197,7 @@ export async function avaliarModelo(opcoes: {
     metricas,
     gravacoes_indevidas,
     confirmacoes_que_nao_gravaram: passos.filter((p) => p.faltou).length,
-    falhas_do_modelo: falhasDoModelo,
+    falhas_do_modelo: passos.filter((p) => p.falha_do_modelo).length,
     aprovacao: { aprovado: motivos.length === 0, motivos },
     custo_usd: custo,
     custo_por_mil_mensagens: avaliados === 0 ? 0 : (custo / avaliados) * 1000,

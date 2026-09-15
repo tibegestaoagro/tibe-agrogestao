@@ -146,6 +146,33 @@ async function main() {
     } finally {
       await Promise.all([fazendaA.limpar(), fazendaB.limpar()]);
     }
+
+    // O que um handler grava numa conversa e aponta com Restrict para fazenda ou catálogo: sem apagar antes, o tenant não sai.
+    {
+      const { scoped, prisma } = await import("@/lib/prisma");
+      const gravada = await montarFazenda(`m69-restrict-${Date.now()}`);
+      const { db } = gravada;
+      const propriedade = (await db.property.findFirst())!;
+      const cliente = (await db.serviceClient.findFirst())!;
+      const servico = (await db.service.findFirst())!;
+      await db.milkProduction.create({ data: scoped({ property_id: propriedade.id, liters: 120, shift: "dia", recorded_at: new Date() }) as never });
+      await db.lactationEntry.create({ data: scoped({ property_id: propriedade.id, type: "entrada", quantity: 3, recorded_at: new Date() }) as never });
+      await db.serviceOrder.create({ data: scoped({ service_client_id: cliente.id, service_id: servico.id }) as never });
+      await db.serviceJob.create({ data: scoped({ property_id: propriedade.id, occurred_at: new Date(), description: "Gradagem", pricing: "hectare" }) as never });
+      const tanque = await db.milkSite.create({ data: scoped({ name: "Tanque", type: "proprio", property_id: propriedade.id }) as never });
+      const comprador = (await db.contact.findFirst())!;
+      await db.milkMovement.create({ data: scoped({ movement_type: "saida", liters: 50, occurred_at: new Date(), from_site_id: (tanque as { id: string }).id, buyer_id: comprador.id }) as never });
+      await db.milkCharge.create({ data: scoped({ owner_id: comprador.id, type: "fixo", amount: 10, occurred_at: new Date(), site_id: (tanque as { id: string }).id }) as never });
+      await db.worker.create({ data: scoped({ name: "Tonho", role: "Vaqueiro", type: "fixo", property_id: propriedade.id }) as never });
+      await db.plot.create({ data: scoped({ property_id: propriedade.id, name: "Talhão 1" }) as never });
+      let erro: unknown = null;
+      try {
+        await gravada.limpar();
+      } catch (e) {
+        erro = e;
+      }
+      check("limpar remove o tenant com leite, lactação, ordem e serviço gravados", erro === null && (await prisma.tenant.count({ where: { id: gravada.tenantId } })) === 0, String(erro));
+    }
   }
 
   console.log("\n4. Executor");
@@ -234,6 +261,19 @@ async function main() {
       semOrcamentoNaConversa.interrompido === "orçamento" && (semOrcamentoNaConversa.conversas[0]?.passos.length ?? 0) === 0 && semOrcamentoNaConversa.falhas_do_modelo === 0,
       JSON.stringify(semOrcamentoNaConversa.conversas),
     );
+
+    // Verba exatamente no teto depois de uma conversa que respondeu normalmente: o modelo terminou.
+    const noTeto = await avaliarModelo({ modelo: "gpt-4o-mini", esforco: null, casos: [casos[2]], particao: "todas", transporte: falso, prefixo: `m69-teto-${Date.now()}`, orcamentoEsgotado: () => true });
+    check("modelo que termina a conversa no teto não sai interrompido", noTeto.interrompido === null && noTeto.conversas[0]?.passos.length === 3, `${noTeto.interrompido} ${noTeto.conversas[0]?.passos.length}`);
+
+    const { avaliarPasso } = await import("./avaliacao/executor");
+    const { FRASE_DE_FALHA_PARCIAL, FRASE_DE_FALHA } = await import("@/lib/actions/turno");
+    const gravouEFalhou = avaliarPasso({ texto: "usei sal e vendi gado", grava: "nao" }, 1, ["✅ Anotei o sal.", FRASE_DE_FALHA_PARCIAL], 10, () => true);
+    check("passo com frase de falha que gravou continua gravação indevida, mesmo no teto", gravouEFalhou.passo?.indevida === true && gravouEFalhou.interromper === true, JSON.stringify(gravouEFalhou));
+    const falhouSemGravar = avaliarPasso({ texto: "quantos animais", grava: "nao" }, 0, [FRASE_DE_FALHA], 10, () => true);
+    check("passo que falhou no teto sem gravar sai da lista e interrompe", falhouSemGravar.passo === null && falhouSemGravar.interromper === true);
+    const falhouComVerba = avaliarPasso({ texto: "quantos animais", grava: "nao" }, 0, [FRASE_DE_FALHA], 10, () => false);
+    check("frase de falha com verba é falha do modelo e não interrompe", falhouComVerba.passo?.falha_do_modelo === true && !falhouComVerba.interromper);
 
     const soAjuste = await avaliarModelo({ modelo: "gpt-4o-mini", esforco: null, casos: [casos[0], casos[1]], particao: "ajuste", transporte: falso, prefixo: `m69-part-${Date.now()}` });
     const { particao } = await import("./avaliacao/casos");
