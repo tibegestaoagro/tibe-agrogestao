@@ -96,6 +96,29 @@ async function main() {
     erro = null;
     try { await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: {} }); } catch (e) { erro = e; }
     check("conteúdo que não é JSON vira FalhaDoModelo de formato", erro instanceof FalhaDoModelo && (erro as InstanceType<typeof FalhaDoModelo>).motivo === "formato");
+
+    definirTransporteDoModelo(async () => ({ status: 200, json: null }));
+    erro = null;
+    try { await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: {} }); } catch (e) { erro = e; }
+    check("200 sem corpo vira FalhaDoModelo, não TypeError", erro instanceof FalhaDoModelo, String(erro));
+
+    chamadas = 0;
+    definirTransporteDoModelo(async () => {
+      chamadas += 1;
+      if (chamadas === 1) throw new FalhaDoModelo("http", "rede");
+      return { status: 200, json: { choices: [{ message: { content: JSON.stringify({ ok: true }) } }] } };
+    });
+    const depoisDaRede = await chamarModelo<{ ok: boolean }>({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: {} }).catch(() => null);
+    check("falha de rede tenta de novo uma vez", chamadas === 2 && depoisDaRede?.ok === true);
+
+    chamadas = 0;
+    definirTransporteDoModelo(async () => {
+      chamadas += 1;
+      throw new FalhaDoModelo("tempo", "tempo");
+    });
+    erro = null;
+    try { await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: {} }); } catch (e) { erro = e; }
+    check("tempo esgotado não tenta de novo", chamadas === 1 && (erro as InstanceType<typeof FalhaDoModelo>)?.motivo === "tempo");
     definirTransporteDoModelo(null);
     process.env.AGENTE_MODELO = "gpt-4o-mini";
   }

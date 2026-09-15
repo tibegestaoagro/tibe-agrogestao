@@ -60,10 +60,17 @@ export async function chamarModelo<T>(pedido: PedidoAoModelo): Promise<T> {
     ...(aceitaTemperatura(modelo) ? { temperature: 0 } : {}),
   };
   const enviar = transporte ?? viaFetch;
-  let resposta = await enviar(corpo);
-  if (resposta.status >= 500 || resposta.status === 429) resposta = await enviar(corpo);
+  // Uma segunda tentativa para 5xx, 429 e falha de rede; tempo esgotado não,
+  // porque seriam mais 15 s com o produtor esperando.
+  const tentar = () =>
+    enviar(corpo).catch((e: unknown) => {
+      if (e instanceof FalhaDoModelo && e.motivo === "http") return null;
+      throw e;
+    });
+  let resposta = await tentar();
+  if (!resposta || resposta.status >= 500 || resposta.status === 429) resposta = await enviar(corpo);
   if (resposta.status !== 200) throw new FalhaDoModelo("http", `o modelo respondeu HTTP ${resposta.status}`);
-  const conteudo = (resposta.json as { choices?: { message?: { content?: string } }[] }).choices?.[0]?.message?.content;
+  const conteudo = (resposta.json as { choices?: { message?: { content?: string } }[] } | null)?.choices?.[0]?.message?.content;
   try {
     return JSON.parse(conteudo ?? "") as T;
   } catch {
