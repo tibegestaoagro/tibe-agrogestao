@@ -184,7 +184,8 @@ export async function avaliarModelo(opcoes: {
   const gravacoes_indevidas = passos.filter((p) => p.indevida).length;
   const latencias = [...notas.map((n) => n.ms), ...passos.map((p) => p.ms)];
   const avaliados = notas.length + passos.length;
-  const { motivos } = aprovar(metricas, gravacoes_indevidas);
+  const falhas_do_modelo = passos.filter((p) => p.falha_do_modelo).length;
+  const { motivos } = aprovar(metricas, gravacoes_indevidas, { falhas: falhas_do_modelo, passos: passos.length });
   // Resultado parcial nunca aprova: os casos que faltaram podiam reprovar.
   if (interrompido !== null) motivos.push(`interrompido: ${interrompido}`);
 
@@ -197,7 +198,7 @@ export async function avaliarModelo(opcoes: {
     metricas,
     gravacoes_indevidas,
     confirmacoes_que_nao_gravaram: passos.filter((p) => p.faltou).length,
-    falhas_do_modelo: passos.filter((p) => p.falha_do_modelo).length,
+    falhas_do_modelo,
     aprovacao: { aprovado: motivos.length === 0, motivos },
     custo_usd: custo,
     custo_por_mil_mensagens: avaliados === 0 ? 0 : (custo / avaliados) * 1000,

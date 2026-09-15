@@ -92,8 +92,8 @@ async function main() {
       esforco = null;
       falha = await sondar();
     }
-    // Tempo ou rede numa única sondagem não pode tirar um modelo inteiro da comparação.
-    if (falha instanceof FalhaDoModelo && (falha.motivo === "tempo" || falha.motivo === "http")) {
+    // Tempo, rede, 429 ou 5xx numa única sondagem não pode tirar um modelo inteiro da comparação; 400 não muda tentando de novo.
+    if (falha instanceof FalhaDoModelo && (falha.motivo === "tempo" || (falha.motivo === "http" && !/HTTP 400/.test(falha.message)))) {
       console.log(`${modelo}: sondagem falhou (${falha.message}), tentando de novo`);
       falha = await sondar();
     }

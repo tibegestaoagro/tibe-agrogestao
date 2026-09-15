@@ -166,8 +166,16 @@ export function agregar(notas: NotaDeMensagem[]): Metricas {
   };
 }
 
-export function aprovar(m: Metricas, gravacoesIndevidas: number): { aprovado: boolean; motivos: string[] } {
+/** `falhas`: passos de conversa que responderam com a frase de falha; sem isso, falhar em tudo passaria pelo eliminatório de gravação. */
+export function aprovar(
+  m: Metricas,
+  gravacoesIndevidas: number,
+  falhas?: { falhas: number; passos: number },
+): { aprovado: boolean; motivos: string[] } {
   const motivos: string[] = [];
+  if (falhas && falhas.passos > 0 && falhas.falhas / falhas.passos > 0.02) {
+    motivos.push(`falhas do modelo ${((falhas.falhas / falhas.passos) * 100).toFixed(1)}% > 2%`);
+  }
   if (m.mensagens === 0) motivos.push("sem mensagens");
   if (gravacoesIndevidas > 0) motivos.push(`gravações indevidas: ${gravacoesIndevidas}`);
   if (m.intencao_geral < 0.95) motivos.push(`intenção geral ${Math.round(m.intencao_geral * 100)}% < 95%`);

@@ -113,6 +113,9 @@ async function main() {
     check("agrega intenção geral", Math.abs(m.intencao_geral - 2 / 3) < 1e-9, String(m.intencao_geral));
     check("gravação indevida reprova mesmo com nota cheia", aprovar(agregar([certa]), 1).aprovado === false);
     check("nota cheia sem gravação indevida aprova", aprovar(agregar([certa]), 0).aprovado === true);
+    const comFalhas = aprovar(agregar([certa]), 0, { falhas: 3, passos: 10 });
+    check("falha do modelo em 30% dos passos reprova", comFalhas.aprovado === false && comFalhas.motivos.includes("falhas do modelo 30.0% > 2%"), JSON.stringify(comFalhas));
+    check("sem falha do modelo nos passos aprova", aprovar(agregar([certa]), 0, { falhas: 0, passos: 10 }).aprovado === true);
     check("agregar sem mensagens nao gera NaN", agregar([]).intencao_geral === 0 && agregar([]).campos === 1);
     check("sem mensagens reprova", aprovar(agregar([]), 0).aprovado === false);
   }
