@@ -27,7 +27,7 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-09-15.
 
-### Agente do WhatsApp: Fase 1 (fundação) pronta na branch `agente-whatsapp-fase-1`
+### Agente do WhatsApp: Fase 1 (fundação) EM PRODUÇÃO
 
 Programa novo, decidido com o usuário em 14/09 (todas as opções recomendadas):
 spec [../superpowers/specs/2026-09-14-agente-whatsapp-55-intencoes-design.md](../superpowers/specs/2026-09-14-agente-whatsapp-55-intencoes-design.md),
@@ -65,9 +65,18 @@ independente; revisão final da branch reprovou (1 crítico, 6 importantes),
 onda única corrigiu, re-revisão aprovou. `test:all -- --sem-redis` 66/67: a
 `m17` falha entre 00h e 03h UTC por defeito antigo do próprio teste (dívida 5).
 
-⚠️ **O código da branch ainda não roda em produção**: o `npm run wa` conversa com
-a `main`. O roteiro ponta a ponta da Fase 1 (recusa, "pode lançar 500 de
-diesel", mensagem com dois pedidos) só vale depois do merge e deploy.
+**Merge e push em 15/09 (`df74e40`), sem migração; deploy confirmado pelo status
+da Vercel.** Branch apagada. Roteiro ponta a ponta pelo `npm run wa` depois do
+deploy: "não, deixa pra lá" não gravou, e o "sim" seguinte respondeu "Não tenho
+nada esperando confirmação"; a mensagem com dois pedidos (animais e contas a
+pagar) teve as duas respostas. "pode lançar 500 de diesel" não gravou, mas NÃO
+discrimina: o classificador antigo leu o diesel como uso de estoque, e o banco de
+provas não tem diesel, então não havia pedido guardado. A regra está provada na
+`m67`. Até as 08h30 de 15/09 nenhuma mensagem real tinha chegado ao workflow
+(nem barrada nem aceita).
+
+⚠️ **Achado do roteiro para a Fase 2:** "gastei 500 de diesel no trator" vira uso
+de estoque no classificador atual, não despesa nem combustível de serviço.
 
 **Fica para a Fase 2** (sem gravação indevida hoje): sim rotulado `ambigua` não
 alcança pendente de outro domínio; textos de lactação sob outro gesto; resposta
@@ -154,11 +163,10 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou, e cada commit que sobe é leitura pública.
 
-**2. Agente do WhatsApp, Fase 1:** conferir as primeiras execuções reais do
-workflow depois da guarda; pedir ao usuário merge e push da branch
-`agente-whatsapp-fase-1`; depois do deploy, rodar o roteiro ponta a ponta pelo
-`npm run wa`; então escrever o plano da Fase 2 (turno no Tibé, pendente
-unificado, registro de intenções, classificação em duas etapas, templates).
+**2. Agente do WhatsApp:** conferir as primeiras execuções reais do workflow
+depois da guarda (execução de 2 nós sem "Normalizar e Filtrar" é mensagem
+barrada); então escrever o plano da Fase 2 (turno no Tibé, pendente unificado,
+registro de intenções, classificação em duas etapas, templates).
 
 Não avance para outro módulo sem aprovação explícita.
 
