@@ -791,6 +791,47 @@ async function main() {
       await clearPendingNegotiation(tenant.id, owner.id);
     }
 
+    console.log("\n13. O formulário não toma o sim/não de um pedido mais novo");
+    {
+      const { clearPendingFinance, loadPendingFinance } = await import("@/lib/actions/finance-pending");
+      const { chavesDePendencia } = await import("@/lib/actions/pending-store");
+      const { getRedisConnection } = await import("@/lib/redis");
+      const limparTudo = async () => {
+        for (const chave of chavesDePendencia()) await getRedisConnection().del(chave(tenant.id, owner.id));
+      };
+      await limparTudo();
+      await db.agentFlowState.deleteMany({ where: { user_id: owner.id } });
+
+      // Formulário parado no resumo, depois um lançamento financeiro pedido.
+      const abreResumo = async () => {
+        await acao("cadastrar_animal", { ear_tag: "M67-C1", breed: "Nelore", sex: "male", property_name: "Fazenda M67" }, "cadastra o boi M67-C1");
+        const resumo = await acao("cadastrar_animal", { category: "boi" }, "boi");
+        check("o formulário chegou ao resumo", /Confere antes de eu salvar/.test(resumo.data.reply_text), resumo.data.reply_text);
+        await new Promise((r) => setTimeout(r, 20));
+      };
+
+      await abreResumo();
+      const pedido = await acao("registrar_lancamento_financeiro", { amount: 431, category: "Diesel", tipo: "despesa" }, "gastei 431 de diesel");
+      check("o lançamento ficou esperando confirmação", pedido.data.requires_confirmation === true, pedido.data.reply_text);
+      const nao = await acao("registrar_lancamento_financeiro", {}, "não");
+      check("o não cancela o lançamento, que é o pedido mais recente", /cancelado/i.test(nao.data.reply_text), `${nao.data.action_taken}: ${nao.data.reply_text}`);
+      check("nada gravado com 431", (await db.financialEntry.count({ where: { amount: 431 } })) === 0);
+      check("o pendente financeiro foi limpo", (await loadPendingFinance(tenant.id, owner.id)) === null);
+      const formDepoisDoNao = await db.agentFlowState.findFirst({ where: { user_id: owner.id } });
+      check("o formulário continua no resumo", formDepoisDoNao?.awaiting_summary === true, JSON.stringify(formDepoisDoNao));
+
+      await db.agentFlowState.deleteMany({ where: { user_id: owner.id } });
+      await clearPendingFinance(tenant.id, owner.id);
+      await abreResumo();
+      await acao("registrar_lancamento_financeiro", { amount: 432, category: "Diesel", tipo: "despesa" }, "gastei 432 de diesel");
+      const sim = await acao("registrar_lancamento_financeiro", {}, "sim", { confirmed: true });
+      check("o sim grava o lançamento", (await db.financialEntry.count({ where: { amount: 432 } })) === 1, `${sim.data.action_taken}: ${sim.data.reply_text}`);
+      check("e nenhum animal", (await db.animalBatch.count({ where: { ear_tag: "M67-C1" } })) === 0);
+
+      await db.agentFlowState.deleteMany({ where: { user_id: owner.id } });
+      await limparTudo();
+    }
+
     void fazenda;
     void pasto;
   } finally {

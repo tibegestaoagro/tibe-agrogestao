@@ -561,7 +561,36 @@ export async function routeIntent(
     }
   }
 
-  if (ctx.user_id && !EH_ESTOQUE.has(intent)) {
+  /**
+   * O "SIM" E O "NÃO" DE UM PEDIDO MAIS NOVO não pertencem ao formulário.
+   *
+   * `handleActiveFlow` cancela o cadastro com qualquer recusa e grava o resumo
+   * com qualquer confirmação, sem olhar de quem é a vez. Com um formulário
+   * parado no resumo e um lançamento financeiro perguntado depois, o "não"
+   * cancelava o CADASTRO e deixava o lançamento confirmável, e o "sim"
+   * seguinte gravava a despesa recusada. Mesma regra de recência das guardas
+   * acima: o pedido guardado depois da última mudança do formulário tem a vez.
+   *
+   * `cadastrar_animal` fica de fora: ali o formulário É o handler da intenção,
+   * e pular para `maybeStartAnimalFlow` reabriria o cadastro do zero.
+   */
+  let pedidoMaisNovoQueOFormulario = false;
+  if (ctx.user_id && (confirmed || explicitNo) && intent !== "cadastrar_animal") {
+    const formulario = await db.agentFlowState.findFirst({
+      where: { user_id: ctx.user_id, expires_at: { gt: new Date() } },
+      select: { updated_at: true },
+    });
+    if (formulario) {
+      const estoque = await loadPendingStock(tenant_id, ctx.user_id);
+      const maisRecente = Math.max(
+        await quandoOutroDominioFalou(tenant_id, ctx.user_id),
+        estoque ? (estoque.salvo_em ?? 1) : 0,
+      );
+      pedidoMaisNovoQueOFormulario = maisRecente > formulario.updated_at.getTime();
+    }
+  }
+
+  if (ctx.user_id && !EH_ESTOQUE.has(intent) && !pedidoMaisNovoQueOFormulario) {
     const flowResult = await handleActiveFlow({
       db,
       userId: ctx.user_id,
