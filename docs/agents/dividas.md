@@ -216,11 +216,21 @@ estreito e monoespaçado.
 
 ## 3. Rede de segurança com furo
 
-Vazia hoje. O único item que morava aqui era o `resolverPasto`, que escolhia o
-primeiro pasto parecido em silêncio, e ele foi fechado em 10/09/2026: agora
-conta os achados e pergunta quando há mais de um, com o bloco 18 da `m34`
-provando nos dois sentidos. A seção fica de pé porque a numeração não é
-reaproveitada.
+O item que morava aqui era o `resolverPasto`, que escolhia o primeiro pasto
+parecido em silêncio, fechado em 10/09/2026 (bloco 18 da `m34`).
+
+### 3.1 Redis fora do ar pendura quem espera por ele
+
+Achado em 2026-09-15, na Fase 2 do agente. `getRedisConnection()`
+(`src/lib/redis.ts`) cria o cliente com `maxRetriesPerRequest: null`: com o
+servidor inacessível, o comando fica na fila e tenta para sempre, e o `await`
+nunca resolve nem rejeita. Nenhum `try/catch` pega isso. Valia antes da Fase 2
+para os pendentes dos handlers (`pending-store.ts`); o cursor da conversa ganhou
+um limite de 500 ms (`src/lib/agente/cursor.ts`), mas os pendentes não. Na
+Vercel, o sintoma seria a rota estourar o tempo e o n8n reenviar. O BullMQ exige
+`null` na conexão do worker, então a correção provável é uma segunda conexão,
+com limite, para leitura e escrita curtas. Custo: pequeno, mas mexe no Redis de
+produção inteiro.
 
 ---
 
