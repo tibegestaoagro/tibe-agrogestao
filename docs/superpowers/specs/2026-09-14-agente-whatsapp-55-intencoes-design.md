@@ -130,6 +130,33 @@ Cada fase tem plano próprio em `docs/superpowers/plans/`, escrito quando a
 anterior fecha: a Fase 3 muda o que a 4 testa, e decidir tudo agora seria
 chutar.
 
+## Fase 2: decisões de 15/09/2026
+
+| tema | decisão |
+|---|---|
+| pedido aberto | **cursor da conversa**: um registro por usuário com a intenção, o campo esperado e o texto mostrado, gravado depois de cada roteamento a partir dos guardadores que já existem. Resposta curta, sim e não vão direto a essa intenção. Os 11 guardadores por área continuam |
+| entrada | **rota nova `POST /api/internal/whatsapp/turno`**. O `execute-action` continua igual até a Fase 7 |
+| provedor | **OpenAI**, modelo em variável de ambiente (`AGENTE_MODELO`). A Fase 3 compara modelos e só acrescenta outro provedor se ele ganhar. Pendência do usuário: `OPENAI_API_KEY` nas variáveis da Vercel |
+
+Domínios da etapa 1 e suas intenções (legado `registrar_lote_animal` e
+`registrar_movimento` fora):
+
+| domínio | intenções |
+|---|---|
+| rebanho | consultar_rebanho, consultar_animal, registrar_movimentacao_rebanho, registrar_negocio_gado, cadastrar_animal, registrar_peso, registrar_vacina, registrar_previsao_vacina |
+| confinamento | registrar_entrada_confinamento, registrar_envio_boitel, registrar_alimentacao_confinamento, encerrar_confinamento |
+| eventos_e_permuta | registrar_remessa_evento, encerrar_remessa_evento, registrar_permuta |
+| estoque | registrar_negocio_produto, registrar_uso_estoque, ajustar_estoque, consultar_estoque |
+| lista_de_compra | adicionar_item_lista, consultar_lista_compra, remover_item_lista, comprei_item_lista |
+| leite | registrar_producao_leite, definir_vacas_em_lactacao, registrar_entrada_lactacao, registrar_saida_lactacao |
+| mao_de_obra | registrar_trabalhador, registrar_pagamento_trabalhador, registrar_adiantamento |
+| servicos | registrar_diaria, registrar_servico_contratado, registrar_servico_prestado, iniciar_servico, registrar_producao_servico, registrar_combustivel_servico, encerrar_servico |
+| financeiro | registrar_lancamento_financeiro, consultar_saldo, gerar_relatorio |
+| dia | consultar_meu_dia, consultar_amanha, consultar_semana, criar_tarefa |
+| calculadoras | calcular_cerca, calcular_sementes, calcular_sal, calcular_racao |
+| prestador | cadastrar_servico_ordem, consultar_cliente |
+| conversa | ajuda, resumo (e `ambigua` como saída quando nada casa) |
+
 ## Critérios de aceite do programa
 
 - Zero gravação indevida no conjunto de avaliação e nos blocos de homologação
