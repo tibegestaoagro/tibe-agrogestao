@@ -36,13 +36,6 @@ function reply(text: string, action: string): RouterResult {
   };
 }
 
-const CANCEL_WORDS = ["cancelar", "cancela", "parar", "para", "esquece", "esquecer", "deixa pra la", "deixa pra lá"];
-
-function isCancel(text: string): boolean {
-  const t = text.trim().toLowerCase();
-  return CANCEL_WORDS.some((w) => t === w || t.startsWith(w + " "));
-}
-
 function isYes(text: string): boolean {
   const t = text.trim().toLowerCase();
   return ["sim", "s", "isso", "confirmo", "pode", "pode sim", "ok", "correto"].includes(t);
@@ -168,7 +161,9 @@ export async function handleActiveFlow(params: {
 
   const text = (messageText ?? "").trim();
 
-  if (isCancel(text) || explicitNo) {
+  // Recusa só pelo `explicitNo` (`detectConfirmation`): a lista própria que
+  // vivia aqui tinha "para", e "para a Fazenda B" cancelava o cadastro.
+  if (explicitNo) {
     const res = await cancelFlow(db, userId);
     const n = res?.discarded ?? 0;
     return reply(

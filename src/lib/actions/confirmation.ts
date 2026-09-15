@@ -12,7 +12,8 @@ const YES_WORDS = [
  * As formas de recusar que o produtor usa de verdade.
  *
  * "deixa pra lá" e "esquece" não estavam aqui, embora o cadastro assistido já
- * as reconhecesse na sua própria lista (`whatsapp-flow-bridge.CANCEL_WORDS`) e
+ * as reconhecesse na sua própria lista (`CANCEL_WORDS`, removida em 14/09: o cadastro
+ * assistido passou a usar esta função) e
  * embora dois comentários deste módulo AFIRMASSEM que "deixa pra lá" cancelava.
  * Não cancelava: a confirmação voltava igual, e a saída que sobrava era dizer
  * "ok", que executava. Duas listas para a mesma intenção divergem, e foi o que

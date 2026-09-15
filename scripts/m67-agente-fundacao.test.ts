@@ -541,7 +541,9 @@ async function main() {
         /^em qual fazenda\?/i.test(abreLote.data.reply_text),
         abreLote.data.reply_text,
       );
-      await acao("cadastrar_animal", {}, "na fazenda b m67");
+      // "para" é preposição, não recusa: escolhe a fazenda e não cancela.
+      const paraFazenda = await acao("cadastrar_animal", {}, "para a Fazenda B M67");
+      check("'para a Fazenda B M67' escolhe a fazenda e não cancela", /brinco/i.test(paraFazenda.data.reply_text), `${paraFazenda.data.action_taken}: ${paraFazenda.data.reply_text}`);
       await acao("cadastrar_animal", {}, "2001");
       await acao("cadastrar_animal", {}, "Nelore");
       await acao("cadastrar_animal", {}, "macho");
