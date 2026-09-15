@@ -128,7 +128,7 @@ async function main() {
     const { definirTransporteDoModelo } = await import("@/lib/agente/modelo");
     const { classificarMensagem, classificarResposta } = await import("@/lib/agente/classificar");
     const { conferirTrechoLiteral } = await import("@/lib/agente/trecho-literal");
-    const { VERSAO_DO_PROMPT, promptDeExtracao } = await import("@/lib/agente/prompts");
+    const { VERSAO_DO_PROMPT, promptDeExtracao, promptDeResposta } = await import("@/lib/agente/prompts");
 
     const vistos: { etapa: string; sistema: string; usuario: string }[] = [];
     definirTransporteDoModelo(async (corpo) => {
@@ -146,7 +146,7 @@ async function main() {
         // pertencer também à intenção escolhida, tem que sobreviver mesmo sendo compartilhado.
         conteudo = { intent: "consultar_saldo", parametros: { period: "agosto", category: "sal" } };
       } else {
-        conteudo = { tipo: "responde" };
+        conteudo = { tipo: "responde", valor: "Pasto da Sede" };
       }
       return { status: 200, json: { choices: [{ message: { content: JSON.stringify(conteudo) } }] } };
     });
@@ -211,6 +211,13 @@ async function main() {
 
     const r = await classificarResposta({ texto: "Pasto da Sede", pergunta: "De qual pasto?", intent: "registrar_movimentacao_rebanho", campo: "pasto" });
     check("resposta ao campo aberto", r.tipo === "responde");
+    check("a leitura da resposta traz o valor do campo", r.valor === "Pasto da Sede", JSON.stringify(r));
+    const schemaDaResposta = promptDeResposta().schema as { required: string[]; properties: Record<string, { type: unknown }> };
+    check(
+      "o schema da resposta exige valor, string ou null",
+      schemaDaResposta.required.includes("valor") && JSON.stringify(schemaDaResposta.properties.valor?.type) === JSON.stringify(["string", "null"]),
+      JSON.stringify(schemaDaResposta),
+    );
     definirTransporteDoModelo(null);
   }
 
@@ -560,6 +567,8 @@ async function main() {
         const { executarTurno } = await import("@/lib/actions/turno");
         const { definirTransporteDoModelo } = await import("@/lib/agente/modelo");
         const { VERSAO_DO_PROMPT } = await import("@/lib/agente/prompts");
+        const { ensureProductCategories, listProductCategories, createProduct } = await import("@/lib/actions/products");
+        const { adjustStock } = await import("@/lib/actions/stock-ledger");
 
         // Responde pelo nome do schema; uma lista responde uma chamada por item, na ordem.
         const chamadas: string[] = [];
@@ -631,22 +640,24 @@ async function main() {
           check("(b) pergunta a faixa", !!b1.mensagens[0]?.texto.includes("Qual é a idade aproximada?"), JSON.stringify(b1.mensagens));
           check("(b) a pergunta não pode ser humanizada", b1.mensagens.length === 1 && b1.mensagens[0].pode_humanizar === false);
 
-          prepara({ resposta: { tipo: "responde" } });
+          prepara({ resposta: { tipo: "responde", valor: "Fêmea - 13 a 24 meses" } });
           const b2 = await turno("Fêmea - 13 a 24 meses", "T7b2");
           const cursorB2 = await carregarCursor(tenant.id, owner.id);
           check("(b) a resposta da faixa chega à confirmação", cursorB2?.aguardando === "confirmacao" && b2.mensagens[0]?.pode_humanizar === false, JSON.stringify({ b2, cursorB2 }));
           check("(b) sem chamar a etapa de domínio", chamadas.join() === "resposta", chamadas.join());
 
           prepara({});
+          const movimentosAntesDoNao = await db.herdMovement.count();
           const b3 = await turno("não", "T7b3");
-          check("(b) o 'não' cancela", b3.mensagens.length === 1 && (await carregarCursor(tenant.id, owner.id)) === null, JSON.stringify(b3));
+          check("(b) o 'não' cancela", b3.mensagens.length === 1 && b3.mensagens[0].texto === "Tudo bem, não registrei nada." && (await carregarCursor(tenant.id, owner.id)) === null, JSON.stringify(b3));
+          check("(b) o 'não' não grava movimentação", (await db.herdMovement.count()) === movimentosAntesDoNao);
           check("(b) o 'não' não chama o modelo", chamadas.length === 0, chamadas.join());
 
           // (c) cursor aberto, outro assunto: classifica de novo.
           prepara(morteAmbigua);
           await turno("morreram 2 novilhas no Pasto M68", "T7c1");
           prepara({
-            resposta: { tipo: "outro_assunto" },
+            resposta: { tipo: "outro_assunto", valor: null },
             dominio: { pedidos: [{ dominio: "estoque", trecho: "quanto tenho de sal?" }] },
             extracao_estoque: { intent: "consultar_estoque", parametros: { produto: "sal" } },
           });
@@ -654,6 +665,77 @@ async function main() {
           check("(c) outro assunto passa pela resposta e classifica de novo", chamadas.join() === "resposta,dominio,extracao_estoque", chamadas.join());
           check("(c) responde o estoque", c.mensagens.length === 1 && c.mensagens[0].texto.includes("estoque"), JSON.stringify(c.mensagens));
           await clearPendingHerd(tenant.id, owner.id);
+          await limparCursor(tenant.id, owner.id);
+
+          // Estoque com dois produtos: "usei 2 sacas" sem produto pergunta "Qual produto?", sem dígito.
+          await ensureProductCategories(db);
+          const [categoriaDeProduto] = await listProductCategories(db);
+          for (const nome of ["Sal", "Ração"]) {
+            const criado = await createProduct(db, { name: nome, category_id: categoriaDeProduto.id, unit: "saca" });
+            check(`fixture: produto ${nome}`, criado.ok);
+            if (criado.ok) {
+              await adjustStock(db, { product_id: criado.data.id, property_id: fazenda.id, corrected_balance: 20, reason: "fixture M68", recorded_by_user_id: owner.id });
+            }
+          }
+          const usoSemProduto = {
+            dominio: { pedidos: [{ dominio: "estoque", trecho: "usei 2 sacas" }] },
+            extracao_estoque: { intent: "registrar_uso_estoque", parametros: { quantidade: 2 } },
+          };
+          prepara(usoSemProduto);
+          const qualProduto = await turno("usei 2 sacas", "T7u1");
+          const cursorDoProduto = await carregarCursor(tenant.id, owner.id);
+          check(
+            "fixture: o uso sem produto pergunta o produto e abre o cursor",
+            !!qualProduto.mensagens[0]?.texto.startsWith("Qual produto?") && cursorDoProduto?.aguardando === "produto",
+            JSON.stringify({ qualProduto, cursorDoProduto }),
+          );
+          check("pergunta de campo sem dígito não pode ser humanizada", qualProduto.mensagens[0]?.pode_humanizar === false, JSON.stringify(qualProduto.mensagens[0]));
+
+          const movimentosDeEstoque = await db.stockMovement.count();
+          prepara({
+            resposta: { tipo: "responde", valor: "quanto tenho de sal?" },
+            dominio: { pedidos: [{ dominio: "estoque", trecho: "quanto tenho de sal?" }] },
+            extracao_estoque: { intent: "consultar_estoque", parametros: { produto: "sal" } },
+          });
+          const perguntaNoMeio = await turno("quanto tenho de sal?", "T7u2");
+          check("pergunta lida por engano como resposta não grava o uso", (await db.stockMovement.count()) === movimentosDeEstoque, JSON.stringify(perguntaNoMeio));
+          check("e segue para a classificação", chamadas.join() === "resposta,dominio,extracao_estoque", chamadas.join());
+
+          prepara({
+            resposta: { tipo: "responde", valor: "Sal" },
+            dominio: { pedidos: [{ dominio: "nenhum", trecho: "o de sempre" }] },
+          });
+          await turno("o de sempre", "T7u3");
+          check("valor que não é recorte da mensagem não grava o uso", (await db.stockMovement.count()) === movimentosDeEstoque);
+          check("e segue para a classificação", chamadas.join() === "resposta,dominio", chamadas.join());
+
+          prepara({ resposta: { tipo: "responde", valor: "sal" } });
+          const respostaDeVerdade = await turno("é o Sal", "T7u4");
+          check(
+            "resposta literal ao campo preenche o produto e grava o uso",
+            (await db.stockMovement.count()) === movimentosDeEstoque + 1 && chamadas.join() === "resposta",
+            JSON.stringify(respostaDeVerdade),
+          );
+          await limparCursor(tenant.id, owner.id);
+
+          // Erro inesperado no segundo pedido: a primeira resposta não some, e o turno não é gravado.
+          // O byte nulo na data volta no texto da pergunta, e o Postgres recusa gravar o log de saída.
+          prepara({
+            dominio: { pedidos: [{ dominio: "rebanho", trecho: "quantos animais eu tenho" }, { dominio: "estoque", trecho: "usei 2 sacas de sal" }] },
+            extracao_rebanho: { intent: "consultar_rebanho", parametros: {} },
+            extracao_estoque: { intent: "registrar_uso_estoque", parametros: { produto: "Sal", quantidade: 2, data: "ontem " } },
+          });
+          const quebraNoMeio = await turno("quantos animais eu tenho e usei 2 sacas de sal", "T7i");
+          check(
+            "falha interna depois de um pedido devolve o que já foi feito, seguido da frase de falha",
+            quebraNoMeio.mensagens.length === 2 && quebraNoMeio.mensagens[0].texto === s.reply_text && quebraNoMeio.mensagens[1].texto === FRASE_DE_FALHA,
+            JSON.stringify(quebraNoMeio),
+          );
+          check("falha interna não grava o AgentRequest do turno", (await db.agentRequest.findFirst({ where: { provider_message_id: "T7i#turno" } })) === null);
+          const saidaInterna = await db.agentConversationLog.findFirst({ where: { direction: "out", action_taken: "turno:falha_interna" } });
+          check("falha interna vai para o log de saída", saidaInterna?.content === FRASE_DE_FALHA);
+          const { clearPendingStock } = await import("@/lib/actions/stock-pending");
+          await clearPendingStock(tenant.id, owner.id);
           await limparCursor(tenant.id, owner.id);
 
           // (e) modelo fora do ar: frase de falha, sem gravar o turno, e o reenvio tenta de novo.
@@ -664,7 +746,7 @@ async function main() {
           check("(e) devolve a frase de falha", e.mensagens.length === 1 && e.mensagens[0].texto === FRASE_DE_FALHA && e.mensagens[0].pode_humanizar === false, JSON.stringify(e));
           check("(e) tentou o modelo duas vezes", chamadas.length === 2, chamadas.join());
           check("(e) não grava o AgentRequest do turno", (await db.agentRequest.findFirst({ where: { provider_message_id: "T7e#turno" } })) === null);
-          const saidaDaFalha = await db.agentConversationLog.findFirst({ where: { direction: "out", content: FRASE_DE_FALHA } });
+          const saidaDaFalha = await db.agentConversationLog.findFirst({ where: { direction: "out", content: FRASE_DE_FALHA }, orderBy: { created_at: "desc" } });
           check("(e) log de saída com o motivo", saidaDaFalha?.action_taken === "turno:falha_do_modelo:http", saidaDaFalha?.action_taken ?? "null");
           prepara({ dominio: { pedidos: [{ dominio: "rebanho", trecho: "quantos animais eu tenho" }] }, extracao_rebanho: { intent: "consultar_rebanho", parametros: {} } });
           const eDeNovo = await turno("quantos animais eu tenho", "T7e");
@@ -676,6 +758,13 @@ async function main() {
           const cursorF = await carregarCursor(tenant.id, owner.id);
           check("(f) recibo vai para a confirmação do lançamento", cursorF?.intent === "registrar_lancamento_financeiro" && cursorF?.aguardando === "confirmacao" && f.mensagens[0]?.pode_humanizar === false, JSON.stringify({ f, cursorF }));
           check("(f) recibo não chama o modelo", chamadas.length === 0, chamadas.join());
+          const lancamentosAntes = await db.financialEntry.count();
+          const legendaSim = await turno("sim", "T7f1", { recibo: { amount: 90 } });
+          check(
+            "recibo com legenda 'sim' não confirma o lançamento anterior",
+            (await db.financialEntry.count()) === lancamentosAntes && legendaSim.mensagens[0]?.pode_humanizar === false,
+            JSON.stringify(legendaSim),
+          );
 
           // Cursor esperando confirmação e texto que não é sim nem não: classifica direto, sem a etapa de resposta.
           prepara({
@@ -698,6 +787,18 @@ async function main() {
           check("primeiro contato devolve a saudação", oi.mensagens.length === 1 && oi.mensagens[0].texto.includes("Bem-vindo"), JSON.stringify(oi));
           const oiDeNovo = await executarTurno({ telefone: phoneNovo, texto: "oi", provider_message_id: "T7p" });
           check("reenvio do primeiro contato repete a saudação, sem modelo", oiDeNovo.replay === true && oiDeNovo.mensagens[0]?.texto === oi.mensagens[0].texto && chamadas.length === 0, JSON.stringify(oiDeNovo));
+
+          process.env.INTERNAL_API_SECRET = process.env.INTERNAL_API_SECRET || "segredo-m68";
+          const { POST } = await import("@/app/api/internal/whatsapp/turno/route");
+          const semTexto = await POST(
+            new Request("http://localhost/api/internal/whatsapp/turno", {
+              method: "POST",
+              headers: { "content-type": "application/json", "x-internal-secret": process.env.INTERNAL_API_SECRET },
+              body: JSON.stringify({ telefone: phoneDono, texto: "   ", provider_message_id: "T7r" }),
+            }),
+          );
+          const corpoSemTexto = (await semTexto.json()) as { error?: { message?: string } };
+          check("rota recusa texto vazio sem recibo, em português", semTexto.status === 422 && corpoSemTexto.error?.message === "Mande o texto da mensagem ou um recibo.", JSON.stringify(corpoSemTexto));
 
           const estranho = await executarTurno({ telefone: `19${String(stamp).slice(-9)}`, texto: "oi", provider_message_id: "T7x" });
           check("número não cadastrado recebe uma mensagem", estranho.mensagens.length === 1 && estranho.mensagens[0].texto.includes("não está cadastrado"), JSON.stringify(estranho));

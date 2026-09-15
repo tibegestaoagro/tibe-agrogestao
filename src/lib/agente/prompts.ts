@@ -129,8 +129,13 @@ export function promptDeResposta(): { sistema: string; schema: Record<string, un
     '"responde": a MENSAGEM INTEIRA é a resposta ao campo esperado, nada mais.',
     '"outro_assunto": a mensagem traz qualquer pedido novo, mesmo que também responda à pergunta junto.',
     "Confirmação (sim ou não) não se decide aqui: isso é outra etapa.",
+    "",
+    '"valor": só o trecho da mensagem que responde ao campo esperado, copiado literalmente, sem corrigir nem completar; null quando é "outro_assunto".',
   ].join("\n");
-  const schema = objetoFechado({ tipo: { type: "string", enum: ["responde", "outro_assunto"] } });
+  const schema = objetoFechado({
+    tipo: { type: "string", enum: ["responde", "outro_assunto"] },
+    valor: { type: ["string", "null"] },
+  });
   return { sistema, schema };
 }
 

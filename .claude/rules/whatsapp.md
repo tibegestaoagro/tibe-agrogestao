@@ -14,8 +14,9 @@ Arquitetura (PRD §7): **Meta → N8N → Tibé → N8N → Meta**. O Tibé nunc
 direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
 
 - **Não existe** `/api/webhooks/whatsapp` no Tibé: seria código morto.
-- A classificação de intenção por LLM acontece **dentro do N8N** (a chave de
-  API do provedor de LLM fica nas credenciais do N8N, não no `.env` do Tibé).
+- Pelo `execute-action` (produção até a Fase 7), a classificação de intenção
+  por LLM acontece **dentro do N8N**, com a chave nas credenciais do N8N. Pela
+  rota de turno, acontece no Tibé, com a chave em `OPENAI_API_KEY`.
 - `POST /api/internal/whatsapp/resolve-contact`: identifica tenant/usuário
   pelo telefone (único lookup cross-tenant legítimo do sistema). Devolve,
   além do contrato da spec, `meta.first_contact`, `meta.suggested_reply` e
@@ -97,7 +98,8 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
      manual cria execução nova, e a chave mudaria junto sem impedir nada. A
      intenção entra porque uma mensagem com dois pedidos chega em duas
      chamadas com o mesmo `wamid`, e só pelo `wamid` a segunda era tratada
-     como replay da primeira.
+     como replay da primeira. Pela rota de turno, cada pedido usa
+     `wamid#índice#intenção` no núcleo, e o turno inteiro `wamid#turno`.
 - **Rota de turno (Fase 2 do agente).** `POST /api/internal/whatsapp/turno`
   (`src/lib/actions/turno.ts`) recebe a mensagem consolidada e faz o turno
   inteiro no Tibé: identifica o contato, lê o cursor da conversa, classifica

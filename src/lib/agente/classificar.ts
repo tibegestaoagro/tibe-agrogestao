@@ -47,7 +47,7 @@ function limparParametros(parametros: Record<string, unknown>): Record<string, u
   return limpo;
 }
 
-function normalizarParaComparar(s: string): string {
+export function normalizarParaComparar(s: string): string {
   return s.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
@@ -103,7 +103,8 @@ export async function classificarMensagem(input: { texto: string; hoje: string; 
   return pedidos;
 }
 
-export type LeituraDaResposta = { tipo: "responde" | "outro_assunto" };
+/** `valor`: o trecho literal da mensagem que responde ao campo, ou null. */
+export type LeituraDaResposta = { tipo: "responde" | "outro_assunto"; valor: string | null };
 
 export async function classificarResposta(input: {
   texto: string;

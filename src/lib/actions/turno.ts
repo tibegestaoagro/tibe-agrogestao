@@ -8,7 +8,7 @@ import { logInbound, logOutbound } from "@/lib/actions/conversation-log";
 import { executarIntencao } from "@/lib/actions/executar-intencao";
 import { identificarContato, type ContatoIdentificado } from "@/lib/actions/whatsapp-contato";
 import { carregarCursor } from "@/lib/agente/cursor";
-import { classificarMensagem, classificarResposta } from "@/lib/agente/classificar";
+import { classificarMensagem, classificarResposta, normalizarParaComparar } from "@/lib/agente/classificar";
 import { FalhaDoModelo } from "@/lib/agente/modelo";
 import { VERSAO_DO_PROMPT } from "@/lib/agente/prompts";
 
@@ -34,6 +34,7 @@ const FRASE_DE_FALHA = "Não consegui entender agora. Pode mandar de novo daqui 
 /** Mesma frase de `identificarContato` para número desconhecido: aqui cobre o contato sem usuário ativo, que vem sem sugestão. */
 const NUMERO_NAO_CADASTRADO =
   "Este número não está cadastrado no Tibé. Peça para o administrador da sua empresa cadastrar seu telefone no sistema.";
+const BOAS_VINDAS = "Olá! Bem-vindo(a) ao Tibé. É só me mandar uma mensagem com o que precisa.";
 
 /** Texto fixo do próprio turno: nunca vai ao humanizador. */
 function fixa(texto: string): MensagemDoTurno {
@@ -50,15 +51,26 @@ async function entenderPedidos(e: EntradaDoTurno, contato: Identificado, agora: 
   if (cursor) {
     // Sim e não pertencem ao pedido aberto; o núcleo lê a confirmação do próprio texto.
     if (detectConfirmation(e.texto)) return [{ intent: cursor.intent, parameters: {} }];
-    // Esperando só confirmação, não há campo para a resposta preencher: é assunto novo.
-    if (cursor.aguardando !== "confirmacao") {
+    // Esperando só confirmação (`confirmacao`, `confirmacao_remocao`...), não há campo para a resposta preencher: é assunto novo.
+    if (!cursor.aguardando.startsWith("confirmacao")) {
       const leitura = await classificarResposta({
         texto: e.texto,
         pergunta: cursor.pergunta,
         intent: cursor.intent,
         campo: cursor.aguardando,
       });
-      if (leitura.tipo === "responde") return [{ intent: cursor.intent, parameters: { [cursor.aguardando]: e.texto } }];
+      const valor = leitura.valor?.trim();
+      /**
+       * `responde` só vale com um valor que É recorte da mensagem, e nunca numa pergunta.
+       * O campo recebe um texto que o handler resolve por aproximação: "quanto tenho de sal?"
+       * lido como resposta ao produto casava "Sal" por substring e gravava o uso sem confirmar.
+       */
+      const respostaLiteral =
+        leitura.tipo === "responde" &&
+        !!valor &&
+        !e.texto.includes("?") &&
+        normalizarParaComparar(e.texto).includes(normalizarParaComparar(valor));
+      if (respostaLiteral) return [{ intent: cursor.intent, parameters: { [cursor.aguardando]: valor } }];
     }
   }
 
@@ -88,6 +100,7 @@ export async function executarTurno(e: EntradaDoTurno): Promise<SaidaDoTurno> {
   const chaveDoTurno = wamid ? `${wamid}#turno` : null;
   let db: TenantPrismaClient | null = null;
   let contatoId: string | null = null;
+  const mensagens: MensagemDoTurno[] = [];
 
   try {
     // Antes do replay: o AgentRequest é escopado por tenant, e sem contato não há tenant.
@@ -99,7 +112,7 @@ export async function executarTurno(e: EntradaDoTurno): Promise<SaidaDoTurno> {
     contatoId = contato.contato_id;
 
     if (contato.primeiro_contato) {
-      const saudacao = fixa(contato.resposta_sugerida ?? "");
+      const saudacao = fixa(contato.resposta_sugerida || BOAS_VINDAS);
       await logOutbound(db, {
         whatsapp_contact_id: contatoId,
         content: saudacao.texto,
@@ -126,7 +139,6 @@ export async function executarTurno(e: EntradaDoTurno): Promise<SaidaDoTurno> {
 
     const pedidos = await entenderPedidos(e, contato, agora);
 
-    const mensagens: MensagemDoTurno[] = [];
     for (const [indice, pedido] of pedidos.entries()) {
       const r = await executarIntencao({
         db,
@@ -136,7 +148,8 @@ export async function executarTurno(e: EntradaDoTurno): Promise<SaidaDoTurno> {
         activeProfiles: contato.activeProfiles,
         intent: pedido.intent,
         parameters: pedido.parameters,
-        message_text: e.texto || null,
+        // Com recibo, a legenda nunca é confirmação: um "ok" confirmaria o pendente financeiro ANTERIOR.
+        message_text: e.recibo ? null : e.texto || null,
         confirmed_do_corpo: null,
         // Índice na chave: dois pedidos da mesma intenção colidiriam em `wamid#intent`.
         provider_message_id: wamid ? `${wamid}#${indice}` : null,
@@ -144,7 +157,11 @@ export async function executarTurno(e: EntradaDoTurno): Promise<SaidaDoTurno> {
       });
       mensagens.push({
         texto: r.reply_text,
-        pode_humanizar: !/\d/.test(r.reply_text) && !r.requires_confirmation && !r.action_taken.includes("aguardando"),
+        pode_humanizar:
+          !/\d/.test(r.reply_text) &&
+          !r.requires_confirmation &&
+          !r.action_taken.includes("aguardando") &&
+          r.action_taken !== "clarification_requested",
         report_url: r.report_url,
       });
     }
@@ -152,7 +169,13 @@ export async function executarTurno(e: EntradaDoTurno): Promise<SaidaDoTurno> {
     await gravarTurno(db, chaveDoTurno, mensagens);
     return { mensagens, replay: false };
   } catch (err) {
-    // Sem gravar o turno: o reenvio precisa poder tentar de novo.
+    /**
+     * Sem gravar o turno: o reenvio com o mesmo wamid tenta de novo, e os pedidos que já rodaram
+     * voltam por replay do núcleo (chave com índice). As respostas já produzidas saem antes da
+     * frase: esconder um uso de estoque já gravado faria o produtor mandar de novo com outro wamid
+     * e gravar duas vezes. `FalhaDoModelo` só acontece antes do primeiro pedido (a classificação
+     * termina antes de executar), então para ela a lista está sempre vazia.
+     */
     const action_taken = err instanceof FalhaDoModelo ? `turno:falha_do_modelo:${err.motivo}` : "turno:falha_interna";
     if (!(err instanceof FalhaDoModelo)) {
       log.error("turno do agente: erro inesperado", { route: "/api/internal/whatsapp/turno", code: resumirErro(err).name });
@@ -164,6 +187,6 @@ export async function executarTurno(e: EntradaDoTurno): Promise<SaidaDoTurno> {
         () => undefined,
       );
     }
-    return { mensagens: [fixa(FRASE_DE_FALHA)], replay: false };
+    return { mensagens: [...mensagens, fixa(FRASE_DE_FALHA)], replay: false };
   }
 }

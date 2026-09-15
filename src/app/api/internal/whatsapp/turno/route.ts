@@ -24,6 +24,9 @@ const schema = z.object({
       description: z.string().nullish(),
     })
     .nullish(),
+}).refine((corpo) => !!corpo.recibo || corpo.texto.trim().length > 0, {
+  message: "Mande o texto da mensagem ou um recibo.",
+  path: ["texto"],
 });
 
 async function POSTHandler(request: Request) {
