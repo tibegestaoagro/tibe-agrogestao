@@ -1,0 +1,123 @@
+import fs from "node:fs";
+import path from "node:path";
+import { particao as particaoDoCaso } from "./casos";
+import type { ResultadoDoModelo } from "./executor";
+import { agregar, aprovar } from "./pontuar";
+
+/**
+ * CLI: gera o relatório em markdown de uma rodada a partir de
+ * `resultados/<rodada>/*.json`. A partição filtra TODA lista de casos (notas,
+ * erros, gravações indevidas) e as métricas são recalculadas sobre o filtro:
+ * na rodada de ajuste, caso da partição final nunca aparece.
+ * Roda: `npm run avaliacao:relatorio -- --rodada <nome> [--particao ajuste|final|todas]`.
+ */
+
+function argumento(nome: string): string | undefined {
+  const i = process.argv.indexOf(`--${nome}`);
+  return i >= 0 ? process.argv[i + 1] : undefined;
+}
+
+/** Texto seguro dentro de célula de tabela. */
+function celula(s: string): string {
+  return s.replace(/\r?\n/g, " / ").replace(/\|/g, "\\|");
+}
+
+const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
+
+function main() {
+  const rodada = argumento("rodada");
+  const particao = (argumento("particao") ?? "todas") as "ajuste" | "final" | "todas";
+  if (!rodada || !["ajuste", "final", "todas"].includes(particao)) {
+    console.error("Uso: npm run avaliacao:relatorio -- --rodada <nome> [--particao ajuste|final|todas]");
+    process.exit(1);
+  }
+  const pasta = path.join(__dirname, "resultados", rodada);
+  if (!fs.existsSync(pasta)) {
+    console.error(`rodada sem resultados: ${rodada}`);
+    process.exit(1);
+  }
+
+  const noFiltro = (id: string) => particao === "todas" || particaoDoCaso(id) === particao;
+  const pulados: { modelo: string; pulado: string }[] = [];
+  const linhas = [];
+  for (const arquivo of fs.readdirSync(pasta).filter((f) => f.endsWith(".json"))) {
+    const bruto = JSON.parse(fs.readFileSync(path.join(pasta, arquivo), "utf8")) as ResultadoDoModelo | { modelo: string; pulado: string };
+    if ("pulado" in bruto) {
+      pulados.push(bruto);
+      continue;
+    }
+    const notas = bruto.notas.filter((n) => noFiltro(n.id));
+    const conversas = bruto.conversas.filter((c) => noFiltro(c.id));
+    const metricas = agregar(notas);
+    const indevidas = conversas.flatMap((c) => c.passos.map((p, i) => ({ caso: c.id, passo: i + 1, ...p }))).filter((p) => p.indevida);
+    const pior = Object.entries(metricas.por_intencao)
+      .filter(([, v]) => v.total >= 5)
+      .map(([intent, v]) => ({ intent, taxa: v.certos / v.total, total: v.total }))
+      .sort((a, b) => a.taxa - b.taxa)[0];
+    const aprovacao = aprovar(metricas, indevidas.length);
+    // Resultado parcial nunca aprova: os casos que faltaram podiam reprovar.
+    if (bruto.interrompido) aprovacao.motivos.push(`interrompido: ${bruto.interrompido}`);
+    linhas.push({ r: bruto, notas, metricas, indevidas, pior, aprovacao: { aprovado: aprovacao.motivos.length === 0, motivos: aprovacao.motivos } });
+  }
+
+  const md: string[] = [`# Avaliação de modelos do agente, Fase 3: rodada ${rodada}`, "", `Partição: ${particao}. Gerado em ${new Date().toISOString().slice(0, 10)}.`, ""];
+
+  md.push("## Modelos", "", "| modelo | aprovado | gravações indevidas | intenção geral | pior intenção (5+ casos) | campos | US$ por 1.000 mensagens | p50 | p95 |", "|---|---|---|---|---|---|---|---|---|");
+  for (const l of linhas) {
+    const nome = `${l.r.modelo}${l.r.esforco ? ` (${l.r.esforco})` : ""}${l.r.interrompido ? `, interrompido: ${l.r.interrompido}` : ""}`;
+    md.push(
+      `| ${celula(nome)} | ${l.aprovacao.aprovado ? "sim" : "não"} | ${l.indevidas.length} | ${pct(l.metricas.intencao_geral)} | ${l.pior ? `${l.pior.intent} ${pct(l.pior.taxa)} (${l.pior.total})` : "nenhuma"} | ${pct(l.metricas.campos)} | ${l.r.custo_por_mil_mensagens.toFixed(4)} | ${l.r.latencia_p50_ms} ms | ${l.r.latencia_p95_ms} ms |`,
+    );
+  }
+  for (const p of pulados) md.push(`| ${celula(p.modelo)} | pulado: ${celula(p.pulado)} | | | | | | | |`);
+
+  md.push("", "## Gravações indevidas", "");
+  const todasIndevidas = linhas.flatMap((l) => l.indevidas.map((p) => ({ modelo: l.r.modelo, ...p })));
+  if (todasIndevidas.length === 0) md.push("Nenhuma.");
+  else {
+    md.push("| modelo | caso | passo | texto | linhas novas | respostas |", "|---|---|---|---|---|---|");
+    for (const p of todasIndevidas) {
+      md.push(`| ${p.modelo} | ${p.caso} | ${p.passo} | ${celula(p.texto)} | ${p.linhas_novas} | ${celula(p.respostas.join(" // "))} |`);
+    }
+  }
+
+  md.push("", "## Erros de intenção mais frequentes", "");
+  const erros = new Map<string, { texto: string; esperado: string; obtido: string; vezes: number; modelos: Set<string> }>();
+  for (const l of linhas) {
+    const contar = (texto: string, esperado: string, obtido: string) => {
+      const chave = JSON.stringify([texto, esperado, obtido]);
+      const atual = erros.get(chave) ?? { texto, esperado, obtido, vezes: 0, modelos: new Set<string>() };
+      atual.vezes += 1;
+      atual.modelos.add(l.r.modelo);
+      erros.set(chave, atual);
+    };
+    for (const n of l.notas) {
+      n.por_intencao.forEach((pi, i) => {
+        if (!pi.certo) contar(n.texto, pi.intent, n.falha ? `falha: ${n.falha}` : (n.obtidos[i]?.intent ?? "(nenhum)"));
+      });
+      // Pedido a mais (a ação cortada em dois) também derruba a intenção geral.
+      for (const extra of n.obtidos.slice(n.por_intencao.length)) contar(n.texto, "(nenhum: pedido a mais)", extra.intent);
+    }
+  }
+  const maisFrequentes = [...erros.values()].sort((a, b) => b.vezes - a.vezes).slice(0, 25);
+  if (maisFrequentes.length === 0) md.push("Nenhum.");
+  else {
+    md.push("| texto | esperado | obtido | vezes | modelos |", "|---|---|---|---|---|");
+    for (const e of maisFrequentes) md.push(`| ${celula(e.texto)} | ${e.esperado} | ${celula(e.obtido)} | ${e.vezes} | ${[...e.modelos].join(", ")} |`);
+  }
+
+  md.push("", "## Ordem de preferência", "", "Aprovados por custo por 1.000 mensagens, depois p95; os não aprovados vêm depois, com o motivo.", "");
+  const aprovados = linhas.filter((l) => l.aprovacao.aprovado).sort((a, b) => a.r.custo_por_mil_mensagens - b.r.custo_por_mil_mensagens || a.r.latencia_p95_ms - b.r.latencia_p95_ms);
+  const reprovados = linhas.filter((l) => !l.aprovacao.aprovado);
+  [...aprovados, ...reprovados].forEach((l, i) => {
+    md.push(`${i + 1}. ${l.r.modelo}${l.aprovacao.aprovado ? "" : `: não aprovado (${l.aprovacao.motivos.join("; ")})`}`);
+  });
+  md.push("");
+
+  const destino = path.join(__dirname, "..", "..", "docs", "agents", "agente-whatsapp", `avaliacao-fase-3-${rodada}.md`);
+  fs.mkdirSync(path.dirname(destino), { recursive: true });
+  fs.writeFileSync(destino, md.join("\n"));
+  console.log(`Relatório: ${path.relative(process.cwd(), destino)}`);
+}
+
+main();

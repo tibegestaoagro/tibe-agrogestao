@@ -1,8 +1,9 @@
 import "dotenv/config";
 import fs from "node:fs";
-import { exigirBancoLocal } from "./_banco-local";
+import { exigirBancoLocal, exigirRedisLocal } from "./_banco-local";
 
 exigirBancoLocal();
+exigirRedisLocal();
 
 /**
  * Avaliação do agente, Fase 3 (Módulo do agente WhatsApp).
@@ -145,6 +146,98 @@ async function main() {
     } finally {
       await Promise.all([fazendaA.limpar(), fazendaB.limpar()]);
     }
+  }
+
+  console.log("\n4. Executor");
+  {
+    const { avaliarModelo } = await import("./avaliacao/executor");
+    const { OrcamentoEsgotado } = await import("./avaliacao/medidor");
+    type Corpo = Record<string, unknown>;
+
+    // O transporte responde pelo nome do schema e pela mensagem do produtor (última linha, depois de "mensagem: ").
+    const ler = (corpo: Corpo) => {
+      const nome = (corpo.response_format as { json_schema: { name: string } }).json_schema.name;
+      const usuario = (corpo.messages as { content: string }[])[1].content;
+      const texto = usuario.split("\n").pop()!.replace(/^mensagem( do produtor)?: /, "");
+      return { nome, texto };
+    };
+    const responder = (conteudo: unknown) => ({ status: 200, json: { choices: [{ message: { content: JSON.stringify(conteudo) } }] } });
+    const falso = async (corpo: Corpo) => {
+      const { nome, texto } = ler(corpo);
+      if (texto === "quebra o modelo") return { status: 400, json: {} };
+      if (nome === "resposta") return responder({ tipo: "outro_assunto", valor: null });
+      if (nome === "dominio") {
+        const dominio = texto.startsWith("quantos") || texto.startsWith("comprei") ? "rebanho" : texto.startsWith("usei") ? "estoque" : "nenhum";
+        return responder({ pedidos: [{ dominio, trecho: texto }] });
+      }
+      if (texto.startsWith("quantos")) return responder({ intent: "consultar_rebanho", parametros: {} });
+      if (texto.startsWith("comprei")) return responder({ intent: "registrar_negocio_gado", parametros: { valor: null } });
+      if (texto.startsWith("usei")) return responder({ intent: "registrar_uso_estoque", parametros: { produto: "Sal mineral", quantidade: 2, fazenda: "Fazenda Boa Vista" } });
+      return responder({ intent: "ambigua", parametros: {} });
+    };
+
+    const casos = [
+      { id: "m69-msg-1", autor: "produtor" as const, tipo: "mensagem" as const, texto: "quantos animais eu tenho", esperado: [{ intent: "consultar_rebanho" }] },
+      { id: "m69-msg-2", autor: "produtor" as const, tipo: "mensagem" as const, texto: "comprei 20 bezerros do João por 60 mil", esperado: [{ intent: "registrar_negocio_gado", campos: { valor: 60000 } }] },
+      {
+        id: "m69-conv-1",
+        autor: "conversa" as const,
+        tipo: "conversa" as const,
+        passos: [
+          // Com a fazenda na frase: a de avaliação tem duas, e sem ela o handler pergunta em vez de gravar.
+          { texto: "usei 2 sacas de sal mineral na Fazenda Boa Vista", grava: "nao" as const },
+          { texto: "quantos animais eu tenho", grava: "nao" as const },
+          { texto: "sim", grava: "deve" as const },
+        ],
+      },
+    ];
+
+    const r = await avaliarModelo({ modelo: "gpt-4o-mini", esforco: null, casos, particao: "todas", transporte: falso, prefixo: `m69-${Date.now()}` });
+    check("intenção geral 100% nas duas mensagens", r.metricas.intencao_geral === 1, JSON.stringify(r.metricas));
+    check("valor que faltou derruba os campos", r.metricas.campos < 1, JSON.stringify(r.metricas));
+    check("conversa com três passos avaliados", r.conversas.length === 1 && r.conversas[0].passos.length === 3, JSON.stringify(r.conversas));
+    check("uso de estoque gravado num passo que não podia gravar é gravação indevida", r.gravacoes_indevidas === 1 && r.conversas[0]?.passos[0]?.indevida === true, JSON.stringify(r.conversas));
+    check("pergunta não grava", r.conversas[0]?.passos[1]?.linhas_novas === 0);
+    check("sim sem nada pendente é confirmação que não gravou", r.confirmacoes_que_nao_gravaram === 1 && r.conversas[0]?.passos[2]?.faltou === true);
+    check("gravação indevida reprova", r.aprovacao.aprovado === false && r.aprovacao.motivos.some((m) => m.startsWith("gravações indevidas")), JSON.stringify(r.aprovacao));
+    check("rodada completa não fica interrompida", r.interrompido === null && r.falhas_do_modelo === 0, String(r.interrompido));
+    check("latência medida", r.latencia_p95_ms >= r.latencia_p50_ms && r.latencia_p50_ms >= 0);
+
+    const comFalha = await avaliarModelo({
+      modelo: "gpt-4o-mini",
+      esforco: null,
+      casos: [casos[0], { id: "m69-msg-3", autor: "produtor", tipo: "mensagem", texto: "quebra o modelo", esperado: [{ intent: "consultar_rebanho" }] }],
+      particao: "todas",
+      transporte: falso,
+      prefixo: `m69-falha-${Date.now()}`,
+    });
+    const notaQuebrada = comFalha.notas.find((n) => n.id === "m69-msg-3");
+    check("falha do modelo vira nota errada sem interromper", comFalha.interrompido === null && comFalha.notas.length === 2 && notaQuebrada?.falha === "http" && notaQuebrada.pedidos_certos === 0, JSON.stringify(comFalha.notas));
+
+    let lancou = false;
+    const semVerba = async () => {
+      lancou = true;
+      throw new OrcamentoEsgotado(30, 30);
+    };
+    let escapou: unknown = null;
+    const semOrcamento = await avaliarModelo({ modelo: "gpt-4o-mini", esforco: null, casos, particao: "todas", transporte: semVerba, prefixo: `m69-orc-${Date.now()}`, orcamentoEsgotado: () => lancou }).catch((e) => {
+      escapou = e;
+      return null;
+    });
+    check("orçamento esgotado nas mensagens interrompe sem exceção", escapou === null && semOrcamento?.interrompido === "orçamento" && semOrcamento.conversas.length === 0, String(escapou ?? semOrcamento?.interrompido));
+
+    // Na conversa o turno engole o erro e devolve a frase de falha: quem avisa é orcamentoEsgotado().
+    lancou = false;
+    const semOrcamentoNaConversa = await avaliarModelo({ modelo: "gpt-4o-mini", esforco: null, casos: [casos[2]], particao: "todas", transporte: semVerba, prefixo: `m69-orc2-${Date.now()}`, orcamentoEsgotado: () => lancou });
+    check(
+      "orçamento esgotado no meio da conversa interrompe e não conta o passo",
+      semOrcamentoNaConversa.interrompido === "orçamento" && (semOrcamentoNaConversa.conversas[0]?.passos.length ?? 0) === 0 && semOrcamentoNaConversa.falhas_do_modelo === 0,
+      JSON.stringify(semOrcamentoNaConversa.conversas),
+    );
+
+    const soAjuste = await avaliarModelo({ modelo: "gpt-4o-mini", esforco: null, casos: [casos[0], casos[1]], particao: "ajuste", transporte: falso, prefixo: `m69-part-${Date.now()}` });
+    const { particao } = await import("./avaliacao/casos");
+    check("partição filtra os casos", soAjuste.notas.every((n) => particao(n.id) === "ajuste") && soAjuste.notas.length === [casos[0], casos[1]].filter((c) => particao(c.id) === "ajuste").length);
   }
 
   if (falhas === 0) console.log("\n✅ Todos os testes passaram");

@@ -30,9 +30,9 @@ export type EntradaDoTurno = {
 export type MensagemDoTurno = { texto: string; pode_humanizar: boolean; report_url: string | null };
 export type SaidaDoTurno = { mensagens: MensagemDoTurno[]; replay: boolean };
 
-const FRASE_DE_FALHA = "Não consegui entender agora. Pode mandar de novo daqui a pouco?";
+export const FRASE_DE_FALHA = "Não consegui entender agora. Pode mandar de novo daqui a pouco?";
 /** Falha depois de algum pedido já ter ido ao núcleo: mandar tudo de novo pode gravar duas vezes. */
-const FRASE_DE_FALHA_PARCIAL =
+export const FRASE_DE_FALHA_PARCIAL =
   "Não consegui terminar. Parte do que você pediu pode já ter sido registrada: confira antes de mandar de novo.";
 /** Primeira palavra de pergunta: áudio transcrito chega sem "?", e a pergunta não pode virar resposta de campo. */
 const INTERROGATIVAS = new Set(["quanto", "quanta", "quantos", "quantas", "qual", "quais", "onde", "cade", "como", "quando", "tem", "existe"]);
