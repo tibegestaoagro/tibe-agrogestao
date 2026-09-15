@@ -52,7 +52,7 @@ export function normalizarParaComparar(s: string): string {
 }
 
 /** O trecho às vezes não é um recorte real da mensagem (o modelo alucina); nesse caso a conferência usa a mensagem inteira, não o trecho torto. */
-function trechoOuMensagemInteira(trecho: string, mensagemOriginal: string): string {
+export function trechoOuMensagemInteira(trecho: string, mensagemOriginal: string): string {
   return normalizarParaComparar(mensagemOriginal).includes(normalizarParaComparar(trecho)) ? trecho : mensagemOriginal;
 }
 

@@ -16,9 +16,10 @@ import { atualizarCursor } from "@/lib/agente/cursor";
  * Extraído de POST /api/internal/whatsapp/execute-action (spec 3.5) para ser
  * reusado pelo turno, que executa vários pedidos de uma mesma mensagem: cada
  * pedido chama `executarIntencao` uma vez. Idempotência por
- * `wamid#intenção`, log de entrada, `detectConfirmation`, `routeIntent`, log
- * de saída e gravação do `AgentRequest`, tudo o que a rota fazia depois de
- * achar o usuário, sem mudar comportamento.
+ * `wamid#intenção`, log de entrada, `detectConfirmation`, `routeIntent`,
+ * gravação do `AgentRequest` e log de saída, tudo o que a rota fazia depois de
+ * achar o usuário, com a mesma resposta. Desde a onda final da Fase 2 os dois
+ * logs não são fatais e o de saída vem depois do `AgentRequest`.
  */
 export type EntradaDaIntencao = {
   db: TenantPrismaClient;
@@ -36,7 +37,7 @@ export type EntradaDaIntencao = {
   /**
    * Só para teste (rodada de correção 1): substitui a chamada real ao cursor
    * da conversa por outra implementação, nunca preenchido por chamador de
-   * produção (a rota e o turno futuro). Existe porque provar que uma falha no
+   * produção (a rota `execute-action` e o turno). Existe porque provar que uma falha no
    * cursor não derruba `executarIntencao` exige travar SÓ a consulta que o
    * cursor faz (`db.agentFlowState.findFirst`), sem travar a mesma consulta
    * que `routeIntent` já faz por conta própria (`handleActiveFlow`) com o
@@ -55,6 +56,14 @@ export type SaidaDaIntencao = {
   intent_final: Intent;
   replay: boolean;
 };
+
+function avisarLogPerdido(direcao: "entrada" | "saida", intent: Intent, err: unknown) {
+  log.warn(`execute-action: log de ${direcao} da conversa falhou, execucao segue`, {
+    route: "/api/internal/whatsapp/execute-action",
+    intent,
+    code: (err as { name?: string })?.name,
+  });
+}
 
 export async function executarIntencao(e: EntradaDaIntencao): Promise<SaidaDaIntencao> {
   const {
@@ -118,11 +127,15 @@ export async function executarIntencao(e: EntradaDaIntencao): Promise<SaidaDaInt
   }
 
   if (registrar_entrada && contato_id) {
-    await logInbound(db, {
-      whatsapp_contact_id: contato_id,
-      content: message_text ?? `[${intent}] ${JSON.stringify(parameters)}`,
-      intent,
-    });
+    try {
+      await logInbound(db, {
+        whatsapp_contact_id: contato_id,
+        content: message_text ?? `[${intent}] ${JSON.stringify(parameters)}`,
+        intent,
+      });
+    } catch (err) {
+      avisarLogPerdido("entrada", intent, err);
+    }
   }
 
   const confirmationSignal = detectConfirmation(message_text);
@@ -165,15 +178,6 @@ export async function executarIntencao(e: EntradaDaIntencao): Promise<SaidaDaInt
     explicitNo,
   });
 
-  if (contato_id) {
-    await logOutbound(db, {
-      whatsapp_contact_id: contato_id,
-      content: result.reply_text,
-      intent,
-      action_taken: result.action_taken,
-    });
-  }
-
   const resposta = {
     reply_text: result.reply_text,
     requires_confirmation: result.requires_confirmation,
@@ -205,6 +209,24 @@ export async function executarIntencao(e: EntradaDaIntencao): Promise<SaidaDaInt
       });
     } catch (err) {
       if ((err as { code?: unknown })?.code !== "P2002") throw err;
+    }
+  }
+
+  /**
+   * O log de saída vem DEPOIS do `AgentRequest` e não é fatal: o handler já
+   * gravou, e um log que falha antes da idempotência deixava o retry do n8n
+   * gravar de novo, com a exceção escondendo a gravação do produtor.
+   */
+  if (contato_id) {
+    try {
+      await logOutbound(db, {
+        whatsapp_contact_id: contato_id,
+        content: result.reply_text,
+        intent,
+        action_taken: result.action_taken,
+      });
+    } catch (err) {
+      avisarLogPerdido("saida", intent, err);
     }
   }
 

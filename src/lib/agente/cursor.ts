@@ -48,7 +48,28 @@ function chave(tenantId: string, userId: string): string {
   return `tibe:cursor:${tenantId}:${userId}`;
 }
 
+/** Corre a promessa contra `LIMITE_MS`; devolve `"tempo"` quando o limite chega antes. */
+async function dentroDoLimite<T>(promessa: Promise<T>): Promise<T | "tempo"> {
+  let limite: NodeJS.Timeout | undefined;
+  try {
+    const tempoEsgotado = new Promise<"tempo">((resolve) => {
+      limite = setTimeout(() => resolve("tempo"), LIMITE_MS);
+    });
+    return await Promise.race([promessa, tempoEsgotado]);
+  } finally {
+    clearTimeout(limite);
+  }
+}
+
+/** Lida pelo turno a cada mensagem: com o mesmo limite de `atualizarCursor`, Redis pendurado vira "sem cursor", nunca turno pendurado. */
 export async function carregarCursor(tenantId: string, userId: string): Promise<Cursor | null> {
+  const resultado = await dentroDoLimite(carregarCursorSemLimite(tenantId, userId));
+  if (resultado !== "tempo") return resultado;
+  log.warn("cursor da conversa: tempo esgotado na leitura, turno segue sem cursor", { tenant_id: tenantId, user_id: userId });
+  return null;
+}
+
+async function carregarCursorSemLimite(tenantId: string, userId: string): Promise<Cursor | null> {
   try {
     const redis = getRedisConnection();
     const bruto = await redis.get(chave(tenantId, userId));
@@ -116,7 +137,7 @@ async function atualizarCursorSemLimite(input: {
 
   if (frescos.length > 0) {
     // Empate por `salvo_em` (mesmo milissegundo): fica o ÚLTIMO da lista
-    // (`reduce` só troca quando o próximo é estritamente maior ou igual).
+    // (`reduce` troca sempre que o próximo é maior ou igual).
     // Não há hoje um caso real de dois pedidos nascerem no mesmo milissegundo,
     // então a escolha do lado do empate não muda o comportamento observável.
     const maisRecente = frescos.reduce((a, b) => (b.salvo_em >= a.salvo_em ? b : a));
@@ -143,7 +164,7 @@ async function atualizarCursorSemLimite(input: {
    * um pendente de estoque de longa data mantinha vivo o cursor de uma
    * pergunta do rebanho que o "sim" já tinha resolvido e apagado).
    */
-  const cursorAtual = await carregarCursor(tenantId, userId);
+  const cursorAtual = await carregarCursorSemLimite(tenantId, userId);
   if (!cursorAtual) return;
 
   const cursorAindaAberto = todosAbertos.some((p) => p.prefixo === cursorAtual.prefixo);
@@ -171,15 +192,8 @@ export async function atualizarCursor(input: {
   inicio: number;
   db: TenantPrismaClient;
 }): Promise<void> {
-  let limite: NodeJS.Timeout | undefined;
   try {
-    const tempoEsgotado = new Promise<"tempo">((resolve) => {
-      limite = setTimeout(() => resolve("tempo"), LIMITE_MS);
-    });
-    const resultado = await Promise.race([
-      atualizarCursorSemLimite(input).then(() => "ok" as const),
-      tempoEsgotado,
-    ]);
+    const resultado = await dentroDoLimite(atualizarCursorSemLimite(input));
     if (resultado === "tempo") {
       log.warn("cursor da conversa: tempo esgotado, resposta segue sem atualizar", {
         tenant_id: input.tenantId,
@@ -194,7 +208,5 @@ export async function atualizarCursor(input: {
       intent: input.intentFinal,
       code: (err as { name?: string })?.name,
     });
-  } finally {
-    clearTimeout(limite);
   }
 }

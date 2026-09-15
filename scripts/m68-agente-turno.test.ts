@@ -53,6 +53,7 @@ async function main() {
   check('num("1.500") é 1500, não 1,5', num("1.500") === 1500, String(num("1.500")));
   check('num("60 mil") é 60000', num("60 mil") === 60000, String(num("60 mil")));
   check('num("2,5") é 2,5', num("2,5") === 2.5, String(num("2,5")));
+  check('num("0.125") é 0,125: parte inteira zero com ponto é decimal, não milhar', num("0.125") === 0.125, String(num("0.125")));
   check("num(12) segue 12", num(12) === 12);
   check('num("3x") segue null (parcelas caem no extrator)', num("3x") === null, String(num("3x")));
   const { lerDataPrevista } = await import("@/lib/actions/whatsapp-handlers/rebanho");
@@ -186,6 +187,20 @@ async function main() {
       "2000 continua removido em \"20 bois por 60 mil\" (caso já coberto, sem regressão)",
       conferirTrechoLiteral({ comissao: 2000 }, "20 bois por 60 mil", [numero("comissao")]).removidos.join() === "comissao",
     );
+
+    // O registro manda o modelo converter por extenso ("duas vira 2"): a conferência precisa ler a palavra.
+    const itensDeMorte = [{ nome: "itens", tipo: "lista" as const, descricao: "", itens: [{ nome: "categoria", tipo: "texto" as const, descricao: "" }, numero("quantidade")] }];
+    const duasVacas = conferirTrechoLiteral({ itens: [{ categoria: "vaca", quantidade: 2 }] }, "Morreram duas vacas no Pasto da Baixada", itensDeMorte);
+    check(
+      '"Morreram duas vacas" mantém a quantidade 2 do item',
+      duasVacas.removidos.length === 0 && (duasVacas.parameters.itens as Record<string, unknown>[])[0]?.quantidade === 2,
+      JSON.stringify(duasVacas),
+    );
+    check('"usei uma saca de sal" mantém a quantidade 1', conferirTrechoLiteral({ quantidade: 1 }, "usei uma saca de sal", [numero("quantidade")]).removidos.length === 0);
+    check('"comprei três" mantém a quantidade 3', conferirTrechoLiteral({ quantidade: 3 }, "comprei três", [numero("quantidade")]).removidos.length === 0);
+    check('"meia dúzia" mantém 6', conferirTrechoLiteral({ quantidade: 6 }, "comprei meia dúzia de frascos", [numero("quantidade")]).removidos.length === 0);
+    check('"meia dúzia" não vale 12', conferirTrechoLiteral({ quantidade: 12 }, "comprei meia dúzia de frascos", [numero("quantidade")]).removidos.join() === "quantidade");
+    check('"morreram duas" com 3 remove', conferirTrechoLiteral({ quantidade: 3 }, "morreram duas", [numero("quantidade")]).removidos.join() === "quantidade");
 
     const comLista = conferirTrechoLiteral(
       { itens: [{ categoria: "bezerro", quantidade: 20 }, { categoria: "vaca", quantidade: 999 }] },
@@ -486,6 +501,27 @@ async function main() {
         check("o AgentRequest foi gravado mesmo com o cursor travado", registroGravado !== null, resiliente!.reply_text);
       }
 
+      console.log("\n5b2. Log de conversa que falha não derruba o núcleo nem a idempotência");
+      {
+        // Contato inexistente: os dois logs batem na chave estrangeira, o AgentRequest não depende dela.
+        let semLog: Awaited<ReturnType<typeof executarIntencao>> | null = null;
+        let erroDoLog: unknown = null;
+        const warnOriginal = console.warn;
+        console.warn = () => undefined;
+        try {
+          semLog = await executarIntencao({ db, tenant_id: tenant.id, user: { id: owner.id, role: owner.role }, contato_id: "contato-inexistente-m68", activeProfiles: ["fazenda"], intent: "consultar_rebanho", parameters: {}, message_text: "quantos animais", confirmed_do_corpo: null, provider_message_id: "W7", registrar_entrada: true });
+        } catch (err) {
+          erroDoLog = err;
+        } finally {
+          console.warn = warnOriginal;
+        }
+        check("log que falha não derruba a resposta", semLog?.reply_text === s.reply_text, String(erroDoLog));
+        check(
+          "e o AgentRequest fica gravado",
+          (await prisma.agentRequest.findFirst({ where: { provider_message_id: "W7#consultar_rebanho" } })) !== null,
+        );
+      }
+
       console.log("\n5c. Cursor entende o cadastro assistido (AgentFlowState)");
       {
         const assistido = await prisma.user.create({
@@ -589,6 +625,7 @@ async function main() {
         const turno = (texto: string, provider_message_id: string | null, extra: Partial<Parameters<typeof executarTurno>[0]> = {}) =>
           executarTurno({ telefone: phoneDono, texto, provider_message_id, ...extra });
         const FRASE_DE_FALHA = "Não consegui entender agora. Pode mandar de novo daqui a pouco?";
+        const FRASE_PARCIAL = "Não consegui terminar. Parte do que você pediu pode já ter sido registrada: confira antes de mandar de novo.";
 
         try {
           // (a) duas perguntas numa mensagem: duas respostas, na ordem.
@@ -701,6 +738,16 @@ async function main() {
           check("pergunta lida por engano como resposta não grava o uso", (await db.stockMovement.count()) === movimentosDeEstoque, JSON.stringify(perguntaNoMeio));
           check("e segue para a classificação", chamadas.join() === "resposta,dominio,extracao_estoque", chamadas.join());
 
+          // Áudio transcrito não tem "?": a primeira palavra interrogativa basta.
+          prepara({
+            resposta: { tipo: "responde", valor: "sal" },
+            dominio: { pedidos: [{ dominio: "estoque", trecho: "quanto tenho de sal" }] },
+            extracao_estoque: { intent: "consultar_estoque", parametros: { produto: "sal" } },
+          });
+          const perguntaSemInterrogacao = await turno("quanto tenho de sal", "T7u2b");
+          check("pergunta sem \"?\" lida como resposta não grava o uso", (await db.stockMovement.count()) === movimentosDeEstoque, JSON.stringify(perguntaSemInterrogacao));
+          check("e segue para a classificação, mesmo sem \"?\"", chamadas.join() === "resposta,dominio,extracao_estoque", chamadas.join());
+
           prepara({
             resposta: { tipo: "responde", valor: "Sal" },
             dominio: { pedidos: [{ dominio: "nenhum", trecho: "o de sempre" }] },
@@ -719,21 +766,22 @@ async function main() {
           await limparCursor(tenant.id, owner.id);
 
           // Erro inesperado no segundo pedido: a primeira resposta não some, e o turno não é gravado.
-          // O byte nulo na data volta no texto da pergunta, e o Postgres recusa gravar o log de saída.
+          // O byte nulo na data volta no texto da pergunta: o log de saída falha sem derrubar nada, mas o
+          // Postgres recusa o byte nulo também no jsonb do AgentRequest, e essa falha sobe.
           prepara({
             dominio: { pedidos: [{ dominio: "rebanho", trecho: "quantos animais eu tenho" }, { dominio: "estoque", trecho: "usei 2 sacas de sal" }] },
             extracao_rebanho: { intent: "consultar_rebanho", parametros: {} },
-            extracao_estoque: { intent: "registrar_uso_estoque", parametros: { produto: "Sal", quantidade: 2, data: "ontem " } },
+            extracao_estoque: { intent: "registrar_uso_estoque", parametros: { produto: "Sal", quantidade: 2, data: "ontem\u0000" } },
           });
           const quebraNoMeio = await turno("quantos animais eu tenho e usei 2 sacas de sal", "T7i");
           check(
-            "falha interna depois de um pedido devolve o que já foi feito, seguido da frase de falha",
-            quebraNoMeio.mensagens.length === 2 && quebraNoMeio.mensagens[0].texto === s.reply_text && quebraNoMeio.mensagens[1].texto === FRASE_DE_FALHA,
+            "falha depois de começar a executar devolve o que já foi feito, seguido da frase que manda conferir antes de repetir",
+            quebraNoMeio.mensagens.length === 2 && quebraNoMeio.mensagens[0].texto === s.reply_text && quebraNoMeio.mensagens[1].texto === FRASE_PARCIAL,
             JSON.stringify(quebraNoMeio),
           );
           check("falha interna não grava o AgentRequest do turno", (await db.agentRequest.findFirst({ where: { provider_message_id: "T7i#turno" } })) === null);
           const saidaInterna = await db.agentConversationLog.findFirst({ where: { direction: "out", action_taken: "turno:falha_interna" } });
-          check("falha interna vai para o log de saída", saidaInterna?.content === FRASE_DE_FALHA);
+          check("falha interna vai para o log de saída", saidaInterna?.content === FRASE_PARCIAL, saidaInterna?.content ?? "null");
           const { clearPendingStock } = await import("@/lib/actions/stock-pending");
           await clearPendingStock(tenant.id, owner.id);
           await limparCursor(tenant.id, owner.id);
@@ -777,6 +825,54 @@ async function main() {
           const fNao = await turno("não", "T7f3");
           check("o 'não' seguinte cancela o lançamento, sem modelo", fNao.mensagens[0]?.texto === "Lançamento cancelado." && chamadas.length === 0, JSON.stringify(fNao));
 
+          // Pergunta do cadastro assistido guia uma máquina de estados: nunca humanizada.
+          prepara({
+            dominio: { pedidos: [{ dominio: "rebanho", trecho: "quero cadastrar um animal" }] },
+            extracao_rebanho: { intent: "cadastrar_animal", parametros: {} },
+          });
+          const cadastro = await turno("quero cadastrar um animal", "T7ca");
+          check(
+            "pergunta do cadastro assistido não pode ser humanizada",
+            cadastro.mensagens.length === 1 && cadastro.mensagens[0].texto.includes("brinco") && cadastro.mensagens[0].pode_humanizar === false,
+            JSON.stringify(cadastro),
+          );
+          await db.agentFlowState.deleteMany({ where: { user_id: owner.id } });
+          await limparCursor(tenant.id, owner.id);
+
+          // Cada pedido lê o PRÓPRIO trecho: a venda não vira saída do confinamento pela palavra do outro pedido.
+          const { loadPendingNegotiation, clearPendingNegotiation } = await import("@/lib/actions/negotiation-pending");
+          prepara({
+            dominio: { pedidos: [{ dominio: "rebanho", trecho: "vendi 2 bois por 9 mil" }, { dominio: "nenhum", trecho: "e o confinamento?" }] },
+            extracao_rebanho: { intent: "registrar_negocio_gado", parametros: { tipo: "venda", categoria: "boi", quantidade: 2, valor: "9 mil" } },
+          });
+          const vendaEConfinamento = await turno("vendi 2 bois por 9 mil e o confinamento?", "T7m2");
+          check(
+            "a venda de um pedido não é desviada para o confinamento pelo trecho do outro",
+            (await loadPendingNegotiation(tenant.id, owner.id)) !== null && (await loadPendingConfinement(tenant.id, owner.id)) === null,
+            JSON.stringify(vendaEConfinamento),
+          );
+          await clearPendingNegotiation(tenant.id, owner.id);
+          await limparCursor(tenant.id, owner.id);
+
+          // Trecho que confirma sozinho, numa mensagem que inteira não confirma: a confirmação segue a mensagem inteira.
+          prepara({
+            dominio: { pedidos: [{ dominio: "estoque", trecho: "comprei 1 saca de sal por 50" }] },
+            extracao_estoque: { intent: "registrar_negocio_produto", parametros: { tipo: "compra", produto: "Sal", quantidade: 1, valor: 50, pago: "sim" } },
+          });
+          const compraDeSal = await turno("comprei 1 saca de sal por 50", "T7ok1");
+          const cursorDaCompra = await carregarCursor(tenant.id, owner.id);
+          check("fixture: a compra de sal espera confirmação", cursorDaCompra?.aguardando === "confirmacao", JSON.stringify({ compraDeSal, cursorDaCompra }));
+          const movimentosAntesDoOk = await db.stockMovement.count();
+          prepara({
+            dominio: { pedidos: [{ dominio: "nenhum", trecho: "ok" }, { dominio: "estoque", trecho: "quanto tenho de ração" }] },
+            extracao_estoque: { intent: "consultar_estoque", parametros: { produto: "ração" } },
+          });
+          const okSolto = await turno("ok, e quanto tenho de ração", "T7ok2");
+          check("o \"ok\" recortado de uma mensagem que não é confirmação não grava a compra", (await db.stockMovement.count()) === movimentosAntesDoOk, JSON.stringify(okSolto));
+          const { clearPendingStock: limparEstoque } = await import("@/lib/actions/stock-pending");
+          await limparEstoque(tenant.id, owner.id);
+          await limparCursor(tenant.id, owner.id);
+
           // Primeiro contato: saudação, gravada para o reenvio repetir a saudação.
           const phoneNovo = `12${String(stamp).slice(-9)}`;
           await prisma.user.create({
@@ -805,6 +901,41 @@ async function main() {
         } finally {
           definirTransporteDoModelo(null);
         }
+      }
+
+      console.log("\n8. O \"sim\" do rebanho não executa um negócio de gado mais antigo");
+      {
+        // Depois da seção 7: aqui uma morte é gravada de verdade, e as seções anteriores comparam o total do rebanho.
+        const { loadPendingNegotiation, clearPendingNegotiation } = await import("@/lib/actions/negotiation-pending");
+        const { loadPendingHerd } = await import("@/lib/actions/herd-pending");
+        const base = { db, tenant_id: tenant.id, user: { id: owner.id, role: owner.role }, contato_id: null, activeProfiles: ["fazenda"] as ("fazenda" | "prestador")[], confirmed_do_corpo: null, registrar_entrada: false };
+        const morte = { movement_type: "morte", categoria: "Fêmea - 13 a 24 meses", quantidade: 1, pasto: "Pasto M68" };
+        await clearPendingNegotiation(tenant.id, owner.id);
+        await clearPendingHerd(tenant.id, owner.id);
+
+        const venda = await executarIntencao({ ...base, intent: "registrar_negocio_gado", parameters: { tipo: "venda", categoria: "macho_25_36", quantidade: 2, valor: 60000, pasto: "Pasto M68" }, message_text: "vendi 2 bois por 60 mil", provider_message_id: "C1a" });
+        check("fixture: a venda espera confirmação", venda.requires_confirmation === true, venda.reply_text);
+        const morteNova = await executarIntencao({ ...base, intent: "registrar_movimentacao_rebanho", parameters: morte, message_text: "morreu 1 novilha no Pasto M68", provider_message_id: "C1b" });
+        check("fixture: a morte, mais nova, espera confirmação", morteNova.requires_confirmation === true, morteNova.reply_text);
+
+        const negociosAntes = await db.negotiation.count();
+        const sim = await executarIntencao({ ...base, intent: "registrar_movimentacao_rebanho", parameters: {}, message_text: "sim", provider_message_id: "C1c" });
+        check("o \"sim\" grava a MORTE", sim.action_taken === "registrar_movimentacao_rebanho:morte", `${sim.action_taken}: ${sim.reply_text}`);
+        check("e nenhuma Negotiation", (await db.negotiation.count()) === negociosAntes);
+        check("o negócio segue guardado", (await loadPendingNegotiation(tenant.id, owner.id)) !== null);
+
+        await executarIntencao({ ...base, intent: "registrar_movimentacao_rebanho", parameters: morte, message_text: "morreu 1 novilha no Pasto M68", provider_message_id: "C1d" });
+        const nao = await executarIntencao({ ...base, intent: "registrar_movimentacao_rebanho", parameters: {}, message_text: "não", provider_message_id: "C1e" });
+        check(
+          "o \"não\" cancela o rebanho, e o negócio segue guardado",
+          (await loadPendingHerd(tenant.id, owner.id)) === null && (await loadPendingNegotiation(tenant.id, owner.id)) !== null,
+          nao.reply_text,
+        );
+
+        // Sem pendente de rebanho, a resposta curta segue indo para o negócio (a guarda de antes).
+        const naoDoNegocio = await executarIntencao({ ...base, intent: "registrar_movimentacao_rebanho", parameters: {}, message_text: "não", provider_message_id: "C1f" });
+        check("sem rebanho pendente, o \"não\" volta para o negócio e o cancela", (await loadPendingNegotiation(tenant.id, owner.id)) === null, naoDoNegocio.reply_text);
+        await clearPendingNegotiation(tenant.id, owner.id);
       }
     } finally {
       if (ownerId) {
