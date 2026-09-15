@@ -14,6 +14,8 @@ import type { CampoDef } from "./intencoes";
 /**
  * O registro manda o modelo converter por extenso ("duas vira 2"), então a palavra também é número do texto.
  * ponytail: só de um a vinte, dúzia e meia dúzia; "trinta", "cem" e "vinte mil" por extenso ficam de fora (o valor é removido e o handler pergunta). Ampliar a tabela quando aparecer em conversa real.
+ * Limite conhecido: "um"/"uma" também é artigo, então um 1 inventado passa em "usei uma parte do sal". Mantido porque
+ * "usei uma saca de sal" é o exemplo do documento do cliente (§18.4); o conjunto de avaliação da Fase 3 mede o caso.
  */
 const POR_EXTENSO: Record<string, number> = {
   um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10,

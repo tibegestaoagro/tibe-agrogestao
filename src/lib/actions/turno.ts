@@ -37,8 +37,12 @@ const FRASE_DE_FALHA_PARCIAL =
 /** Primeira palavra de pergunta: áudio transcrito chega sem "?", e a pergunta não pode virar resposta de campo. */
 const INTERROGATIVAS = new Set(["quanto", "quanta", "quantos", "quantas", "qual", "quais", "onde", "cade", "como", "quando", "tem", "existe"]);
 
+/** "e quanto tenho de sal": o conectivo na frente não pode esconder a pergunta. */
+const CONECTIVOS = new Set(["e", "mas", "ai", "entao", "tipo"]);
+
 function comecaComPergunta(texto: string): boolean {
-  const primeira = texto.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().match(/[a-z]+/)?.[0];
+  const palavras = texto.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().match(/[a-z]+/g) ?? [];
+  const primeira = palavras.find((p) => !CONECTIVOS.has(p));
   return !!primeira && INTERROGATIVAS.has(primeira);
 }
 /** Mesma frase de `identificarContato` para número desconhecido: aqui cobre o contato sem usuário ativo, que vem sem sugestão. */

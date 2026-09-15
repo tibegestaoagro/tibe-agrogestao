@@ -749,6 +749,14 @@ async function main() {
           check("e segue para a classificação, mesmo sem \"?\"", chamadas.join() === "resposta,dominio,extracao_estoque", chamadas.join());
 
           prepara({
+            resposta: { tipo: "responde", valor: "sal" },
+            dominio: { pedidos: [{ dominio: "estoque", trecho: "e quanto tenho de sal" }] },
+            extracao_estoque: { intent: "consultar_estoque", parametros: { produto: "sal" } },
+          });
+          const perguntaComConectivo = await turno("e quanto tenho de sal", "T7u2c");
+          check("pergunta falada depois de \"e\" não grava o uso", (await db.stockMovement.count()) === movimentosDeEstoque, JSON.stringify(perguntaComConectivo));
+
+          prepara({
             resposta: { tipo: "responde", valor: "Sal" },
             dominio: { pedidos: [{ dominio: "nenhum", trecho: "o de sempre" }] },
           });
@@ -766,8 +774,8 @@ async function main() {
           await limparCursor(tenant.id, owner.id);
 
           // Erro inesperado no segundo pedido: a primeira resposta não some, e o turno não é gravado.
-          // O byte nulo na data volta no texto da pergunta: o log de saída falha sem derrubar nada, mas o
-          // Postgres recusa o byte nulo também no jsonb do AgentRequest, e essa falha sobe.
+          // O byte nulo na data volta no texto da pergunta, e o Postgres recusa o byte nulo no jsonb do
+          // AgentRequest, que é gravado antes do log de saída: essa falha sobe.
           prepara({
             dominio: { pedidos: [{ dominio: "rebanho", trecho: "quantos animais eu tenho" }, { dominio: "estoque", trecho: "usei 2 sacas de sal" }] },
             extracao_rebanho: { intent: "consultar_rebanho", parametros: {} },
