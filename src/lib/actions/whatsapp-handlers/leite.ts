@@ -321,7 +321,9 @@ function fabricarLactacao(tipo: LactationEntryType, intent: string): Handler {
   return async ({ db, tenant_id, user_id, parameters: parametrosDaMensagem, confirmed, explicitNo }) => {
     if (explicitNo) return cancelar(intent, tenant_id, user_id);
 
-    const aberta = await abrirConversa("lactacao", intent, {
+    // O gesto é o `tipo`, não a família: um "sim" dado a outro gesto de
+    // lactação não consome este pedido (ver `GestoLeite`).
+    const aberta = await abrirConversa(tipo, intent, {
       tenant_id,
       user_id,
       parameters: parametrosDaMensagem,

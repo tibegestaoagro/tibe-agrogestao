@@ -251,6 +251,12 @@ em todo domínio não coberto.
 - **A numeração de suíte descolou da de módulo** por volta do `m25` e não tem
   volta (renumerar colide). Já está documentado no `CLAUDE.md` e o
   `npm run check` reprova suíte órfã, então é convivência, não dívida.
+- **`test:m17` falha entre 00h e 03h UTC.** Achado em 2026-09-15 na revisão
+  final da Fase 1 do agente. `scripts/m17-agenda-custo.test.ts` (~1643) monta a
+  data "daqui a 2 dias" pelo dia UTC, e `supportsThreeDayReminder`
+  (`whatsapp-handlers/rebanho.ts`) conta pelo dia de São Paulo: nessas três horas
+  a distância vira 3 dias e a promessa de lembrete aparece. É o teste, não o
+  código. Custo: montar a data pelo dia de São Paulo (`inicioDoDiaEmSaoPaulo`).
 
 ---
 

@@ -11,7 +11,7 @@ import {
   resolveCategoryTerm,
   type HerdCategory,
 } from "@/lib/herd/categories";
-import { findActivePropertyByName, listActiveProperties } from "@/lib/actions/properties";
+import { casarFazenda, listActiveProperties } from "@/lib/actions/properties";
 import {
   aplicarResposta,
   clearPendingHerd,
@@ -133,23 +133,15 @@ type FazendaResolvida =
   | { ok: false; resposta: RouterResult };
 
 /**
- * Resolve a fazenda pelo nome. Sem nome informado: usa a única fazenda quando
- * só existe uma, e PERGUNTA quando existe mais de uma. Adivinhar a fazenda tem
+ * Resolve a fazenda pelo nome, pela regra de `casarFazenda`. Sem nome: usa a
+ * única fazenda quando só existe uma. Nome que não casa, nome que casa duas, ou
+ * nenhum nome com duas fazendas: PERGUNTA, com a lista. Adivinhar a fazenda tem
  * o mesmo defeito de adivinhar a categoria, o saldo vai parar no lugar errado.
  */
 export async function resolverFazenda(
   db: TenantPrismaClient,
   nome: string | null,
 ): Promise<FazendaResolvida> {
-  if (nome) {
-    const encontrada = await findActivePropertyByName(db, nome);
-    if (encontrada) return { ok: true, id: encontrada.id, nome: encontrada.name };
-    return {
-      ok: false,
-      resposta: ask(`Não encontrei a fazenda "${nome}". Confira o nome e tente de novo.`),
-    };
-  }
-
   const fazendas = await listActiveProperties(db);
   if (fazendas.length === 0) {
     return {
@@ -157,7 +149,9 @@ export async function resolverFazenda(
       resposta: ask("Você ainda não tem fazenda cadastrada. Cadastre uma no painel, em Minha Fazenda."),
     };
   }
-  if (fazendas.length === 1) return { ok: true, id: fazendas[0].id, nome: fazendas[0].name };
+
+  const encontrada = nome ? casarFazenda(fazendas, nome) : fazendas.length === 1 ? fazendas[0] : null;
+  if (encontrada) return { ok: true, id: encontrada.id, nome: encontrada.name };
 
   const nomes = fazendas.map((f) => `- ${f.name}`).join("\n");
   return { ok: false, resposta: ask(`Em qual fazenda?\n${nomes}`) };
@@ -371,7 +365,16 @@ const VERBO: Record<string, string> = {
   compra: "registrar a compra de",
   venda: "registrar a venda de",
   morte: "registrar a morte de",
+  ajuste: "registrar o ajuste de",
 };
+
+/**
+ * §8.7: como o produtor diz que um ajuste soma ou tira do rebanho. Inclui as
+ * palavras da própria pergunta ("aumenta ou diminui?"): sem elas, a resposta
+ * natural repetia a pergunta até a trava de laço.
+ */
+const AJUSTE_ENTRADA = new Set(["entrada", "entrou", "a mais", "aumenta", "aumentou", "mais"]);
+const AJUSTE_SAIDA = new Set(["saida", "saiu", "a menos", "diminui", "diminuiu", "menos"]);
 
 /** Como o cliente escreve nos §13.4 e §13.5: "4 bezerros e 3 bezerras". */
 function descreverItens(itens: { categoria: HerdCategory; quantidade: number }[]): string {
@@ -563,6 +566,23 @@ export const registrarMovimentacaoRebanho: Handler = async ({
     itens.push({ categoria: resolvida.categoria, quantidade: item.quantidade });
   }
 
+  /**
+   * §8.7: um ajuste corrige UMA posição por vez, pra cima ou pra baixo, e o
+   * livro-razão (`herd-ledger.ts`) recusa a movimentação se vier com origem E
+   * destino ao mesmo tempo. Sem o sentido não dá pra saber qual dos dois
+   * montar, então perguntamos antes de seguir, do mesmo jeito que qualquer
+   * outro campo pendente deste handler.
+   */
+  let ajusteEntrada = false;
+  let ajusteSaida = false;
+  if (tipo === "ajuste") {
+    const bruto = str(parameters.sentido) ?? str(parameters.direcao);
+    const termo = bruto ? normalizarTermo(bruto) : null;
+    if (termo && AJUSTE_ENTRADA.has(termo)) ajusteEntrada = true;
+    else if (termo && AJUSTE_SAIDA.has(termo)) ajusteSaida = true;
+    else return perguntar(ask("Esse ajuste aumenta ou diminui o rebanho?"), "sentido");
+  }
+
   const fazenda = await resolverFazenda(db, str(parameters.fazenda) ?? str(parameters.property));
   if (!fazenda.ok) return perguntar(fazenda.resposta, "fazenda");
 
@@ -605,7 +625,7 @@ export const registrarMovimentacaoRebanho: Handler = async ({
   // Só quem TIRA de algum lugar precisa desta conferência: entrada não tem
   // origem. Roda antes da confirmação, para não pedir "sim" a uma coisa que
   // já se sabe que vai falhar.
-  if (!ENTRADAS.has(tipo)) {
+  if (!ENTRADAS.has(tipo) && !ajusteEntrada) {
     for (const item of itens) {
       const aviso = await conferirOndeEstaOSaldo(
         db,
@@ -707,8 +727,8 @@ export const registrarMovimentacaoRebanho: Handler = async ({
     const resultado = await recordMovement(db, {
       movement_type: tipo as (typeof HERD_MOVEMENT_TYPES)[number],
       quantity: item.quantidade,
-      from: ENTRADAS.has(tipo) ? null : origem,
-      to: SAIDAS.has(tipo) ? null : destino,
+      from: ENTRADAS.has(tipo) || ajusteEntrada ? null : origem,
+      to: SAIDAS.has(tipo) || ajusteSaida ? null : destino,
       value: valor ?? null,
       occurred_at: quando,
       notes: "Registrado pelo assistente no WhatsApp",

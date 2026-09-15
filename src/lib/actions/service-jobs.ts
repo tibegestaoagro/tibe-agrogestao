@@ -12,6 +12,31 @@ import { findOrCreateContact } from "@/lib/actions/contacts";
 import { getServiceCosts, type ServiceCostView } from "@/lib/actions/service-costs";
 import { totalDoServico, quantidadeTrabalhada } from "@/lib/mao-de-obra/total-do-servico";
 import { decToNum, isoOrNull } from "@/lib/serialize";
+import { inicioDoDiaEmSaoPaulo } from "@/lib/dia-calendario";
+
+/**
+ * O status inicial de um `ServiceJob`, por DIA de calendário em São Paulo
+ * (fix round 2 do Task 6, fase 1 do agente WhatsApp): um dia depois de hoje é
+ * `agendado`, hoje ou um dia passado é `concluido`. Comparar por INSTANTE
+ * (`occurred_at.getTime() > Date.now()`, a regra antiga) tratava a manhã de
+ * "hoje" como futuro sempre que a chamada acontecesse antes do meio-dia UTC
+ * (9h em São Paulo, quando o `occurred_at` do meio-dia local ainda não tinha
+ * passado do instante `Date.now()`), perdendo produção e conta a receber de
+ * um serviço que já tinha acontecido.
+ *
+ * Exportada e pura para `registrarServicoPrestado` decidir `agendado` com a
+ * MESMA regra que `createServiceJob` usa para persistir, e para o teste
+ * (`m67`, seção 5) provar a comparação por dia com datas fixas, sem depender
+ * do relógio de quando a suíte roda.
+ */
+export function statusInicialDoServico(
+  occurredAt: Date,
+  agora: Date = new Date(),
+): "agendado" | "concluido" {
+  return inicioDoDiaEmSaoPaulo(occurredAt).getTime() > inicioDoDiaEmSaoPaulo(agora).getTime()
+    ? "agendado"
+    : "concluido";
+}
 
 /**
  * O serviço contratado de terceiro (Módulo 33, fase 2: §13 a §31 e §34).
@@ -151,6 +176,13 @@ export type ServiceJobInput = {
   pago?: boolean;
   /** §21 futuro: o vencimento da conta a pagar. */
   due_date?: Date | null;
+  /**
+   * Fix round 2 do Task 6: quando o CHAMADOR já decidiu o status (o handler
+   * do WhatsApp sabe de um sinal que a data sozinha não tem: um "concluido"
+   * explícito), este campo VENCE sobre `statusInicialDoServico(occurred_at)`.
+   * Ausente, é a data que decide, como sempre foi.
+   */
+  status?: "agendado" | "concluido";
 };
 
 export type ServiceJobView = {
@@ -464,6 +496,7 @@ export async function createServiceJob(
 
   const fechado = input.pricing === "fechado";
   const quantidade = fechado ? null : (input.quantity ?? null);
+  const status = input.status ?? statusInicialDoServico(input.occurred_at);
 
   // TUDO NUMA TRANSAÇÃO: o serviço, o contato criado pelo nome dito, o primeiro
   // log, o lançamento e o compromisso do §24. Uma recusa no meio não pode
@@ -482,7 +515,10 @@ export async function createServiceJob(
         property_id: input.property_id,
         direction,
         /**
-         * O status vem da DATA.
+         * O status vem da DATA, por padrão (`statusInicialDoServico`, dia de
+         * calendário em São Paulo), ou do que o CHAMADOR decidiu (`status`
+         * em `input`, fix round 2 do Task 6): o handler do WhatsApp sabe de
+         * um "ainda não fiz" que a data sozinha não sabe.
          *
          * Até a fase 33.2 tudo nascia `concluido`, e estava certo quando só
          * existia o `contratado`, que se registra depois do fato. No
@@ -490,9 +526,7 @@ export async function createServiceJob(
          * é isso que a agenda do §39 lista. A regra vale para as duas direções:
          * um serviço contratado para a semana que vem também está agendado.
          */
-        status: (input.occurred_at.getTime() > Date.now()
-          ? "agendado"
-          : "concluido") as ServiceJobStatus,
+        status: status as ServiceJobStatus,
         occurred_at: input.occurred_at,
         description: input.description.trim(),
         pricing: input.pricing,
@@ -549,17 +583,25 @@ export async function createServiceJob(
     }
 
     /**
-     * §24: serviço marcado para o FUTURO vira compromisso no Meu Dia.
+     * §24: serviço AGENDADO vira compromisso no Meu Dia.
      *
-     * Só o futuro. A maioria dos serviços é registrada depois do fato, e criar
-     * tarefa para todos encheria o Meu Dia de lembretes do que já aconteceu.
+     * Só o agendado. A maioria dos serviços é registrada depois do fato, e
+     * criar tarefa para todos encheria o Meu Dia de lembretes do que já
+     * aconteceu.
+     *
+     * ⚠️ Usa o `status` JÁ DECIDIDO acima, não um segundo re-cálculo por
+     * instante: até o fix round 2 do Task 6 este `if` comparava
+     * `input.occurred_at.getTime() > Date.now()` de novo, por conta própria,
+     * e podia divergir do `status` gravado (um `concluido: false` explícito com
+     * data de HOJE, por exemplo, é `agendado` pela decisão do chamador mas não é
+     * "futuro" por instante nem por dia).
      *
      * ⚠️ `Task` não tem `related_id`, então o vínculo é só o texto do título.
      * É limitação conhecida do Módulo 27, não descuido: ligar os dois exigiria
      * mexer naquele model, e o §24 pede que o compromisso "apareça", não que
      * seja navegável.
      */
-    if (input.occurred_at.getTime() > Date.now()) {
+    if (status === "agendado") {
       const quem = contactName ?? input.contact_name?.trim() ?? "serviço contratado";
       await tx.task.create({
         data: scoped({

@@ -17,8 +17,10 @@ import {
   type GestoServico,
 } from "@/lib/actions/service-pending";
 import { ask, failReply, str, type Handler, type RouterResult } from "./shared";
-import { lerNumeroBr } from "./parsers";
+import { resolverFazenda } from "./herd";
+import { lerNumeroBr, lerData, interpretarSim } from "./parsers";
 import { reaisBr as moeda } from "@/lib/numero-br";
+import { inicioDoDiaEmSaoPaulo } from "@/lib/dia-calendario";
 
 /**
  * Serviço pelo WhatsApp: as duas conversas do §32 do Módulo 33 e as cinco do
@@ -294,16 +296,17 @@ async function cancelar(
   };
 }
 
-/** A fazenda onde registrar. Sem nenhuma cadastrada, não há o que fazer. */
+/**
+ * A fazenda onde registrar: a dita, ou a única. Com duas ou mais e nenhuma
+ * dita (ou dita de um jeito que casa duas), PERGUNTA pela regra de
+ * `resolverFazenda`: até 14/09 devolvia a primeira em ordem alfabética.
+ * Resolvida ANTES da confirmação, para a resposta entrar no pedido guardado.
+ */
 async function fazendaPadrao(
   db: TenantPrismaClient,
+  parameters: Record<string, unknown>,
 ): Promise<{ ok: true; id: string } | { ok: false; resposta: RouterResult }> {
-  const properties = await db.property.findMany({
-    where: { archived_at: null },
-    orderBy: { name: "asc" },
-    take: 2,
-  });
-  if (properties.length === 0) {
+  if ((await db.property.count({ where: { archived_at: null } })) === 0) {
     return {
       ok: false,
       resposta: ask(
@@ -312,7 +315,7 @@ async function fazendaPadrao(
       ),
     };
   }
-  return { ok: true, id: properties[0].id };
+  return resolverFazenda(db, str(parameters.fazenda) ?? str(parameters.property));
 }
 
 async function abrirConversa(
@@ -410,6 +413,12 @@ export const registrarDiaria: Handler = async (ctx) => {
   const total = dias * valor * pessoas;
   const diarias = dias * pessoas;
 
+  const fazenda = await fazendaPadrao(ctx.db, parameters);
+  if (!fazenda.ok) {
+    await guardar("fazenda");
+    return fazenda.resposta;
+  }
+
   if (!ctx.confirmed) {
     await guardar("confirmacao");
     return {
@@ -422,9 +431,6 @@ export const registrarDiaria: Handler = async (ctx) => {
       action_taken: `${intent}:aguardando_confirmacao`,
     };
   }
-
-  const fazenda = await fazendaPadrao(ctx.db);
-  if (!fazenda.ok) return fazenda.resposta;
 
   const quemDito = str(parameters.quem) ?? str(parameters.contact_name);
   let quem: string | null = null;
@@ -497,6 +503,12 @@ export const registrarServicoContratado: Handler = async (ctx) => {
   if (!achado.ok) return achado.resposta;
   const quem = achado.nomeFinal;
 
+  const fazenda = await fazendaPadrao(ctx.db, parameters);
+  if (!fazenda.ok) {
+    await guardar("fazenda");
+    return fazenda.resposta;
+  }
+
   if (!ctx.confirmed) {
     await guardar("confirmacao");
     return {
@@ -509,9 +521,6 @@ export const registrarServicoContratado: Handler = async (ctx) => {
       action_taken: `${intent}:aguardando_confirmacao`,
     };
   }
-
-  const fazenda = await fazendaPadrao(ctx.db);
-  if (!fazenda.ok) return fazenda.resposta;
 
   const res = await createServiceJob(ctx.db, {
     property_id: fazenda.id,
@@ -569,6 +578,23 @@ const UNIDADES: Record<string, ServicePricing> = {
   fechado: "fechado",
   empreito: "fechado",
 };
+
+/**
+ * Task 6 (fix round 1 da revisão): só um NEGATIVO explícito marca o serviço
+ * como ainda não feito. Um "terminei"/"feito"/"já fiz", que `interpretarSim`
+ * não reconhece como afirmativo, não pode virar "ainda não fiz" por default:
+ * some caso contrário `concluido === false` engolia qualquer string que a
+ * lista de afirmativos de `interpretarSim` não cobrisse, agendando um
+ * serviço que o produtor tinha acabado de dizer que fez.
+ */
+function concluidoExplicito(bruto: unknown): boolean | null {
+  if (bruto === false) return false;
+  if (bruto === true) return true;
+  if (typeof bruto !== "string") return null;
+  const texto = normalizar(bruto);
+  if (["nao", "ainda nao", "nao fiz", "vou fazer"].includes(texto)) return false;
+  return interpretarSim(bruto) ? true : null;
+}
 
 /**
  * "Amanhã vou gradear 20 hectares para o João a 180 reais o hectare." (§42)
@@ -647,14 +673,69 @@ export const registrarServicoPrestado: Handler = async (ctx) => {
     return cliente.resposta;
   }
 
+  /**
+   * Fix round 1: `concluido` só vira `false` diante de um NEGATIVO explícito
+   * (`concluidoExplicito`); sem isso, quem decide é a data. NUNCA inventamos
+   * data: sem `concluido` negativo, ou com ele mas SEM data dita, a pergunta
+   * volta ao produtor, em vez de chutar "amanhã".
+   *
+   * Fix round 2: um negativo explícito com data PASSADA também não cria
+   * nada ("ainda não fiz" com uma data que já passou é contraditório) e
+   * pergunta de novo; com HOJE ou futuro, agenda para aquela data. `status`
+   * vai EXPLÍCITO para `createServiceJob`, porque a decisão daqui (que
+   * enxerga `concluido`) pode divergir da que `statusInicialDoServico`
+   * tiraria sozinha só da data (um negativo explícito com data de HOJE é
+   * `agendado` aqui, mas `statusInicialDoServico(hoje)` sozinho diria
+   * `concluido`): sem o `status` explícito, o serviço nascia com a resposta
+   * dizendo "agendado" e o banco gravando `concluido`, órfão de produção e
+   * de conta a receber.
+   */
+  const concluidoDito = concluidoExplicito(parameters.concluido);
+  const dataLida = lerData(parameters, "data", "date");
+  if (dataLida.tipo === "invalida") {
+    await guardar("data");
+    return ask(`Não entendi a data "${dataLida.bruto}". Diga por exemplo "hoje" ou "05/08/2026".`);
+  }
+
+  const agora = new Date();
+  /**
+   * "Futura"/"passada" é DIA de calendário em São Paulo, não instante:
+   * comparar por instante fazia "hoje" (meio-dia) virar futuro toda manhã,
+   * antes do meio-dia UTC (09h em São Paulo), perdendo a produção e a conta
+   * a receber de um serviço que já tinha acabado de acontecer.
+   */
+  const dataFutura =
+    dataLida.tipo === "ok" &&
+    inicioDoDiaEmSaoPaulo(dataLida.data).getTime() > inicioDoDiaEmSaoPaulo(agora).getTime();
+  const dataPassada =
+    dataLida.tipo === "ok" &&
+    inicioDoDiaEmSaoPaulo(dataLida.data).getTime() < inicioDoDiaEmSaoPaulo(agora).getTime();
+
+  if (concluidoDito === false && (dataLida.tipo === "vazio" || dataPassada)) {
+    await guardar("data");
+    return ask("Para quando ficou marcado?");
+  }
+
+  const agendado = concluidoDito === false || (concluidoDito === null && dataFutura);
+  const occurredAt = dataLida.tipo === "ok" && (agendado || !dataFutura) ? dataLida.data : agora;
+  const dataFormatada = dataLida.tipo === "ok" ? dataLida.data.toLocaleDateString("pt-BR") : null;
+
   const total = pricing === "fechado" ? valor : valor * (quantidade ?? 0);
+
+  const fazenda = await fazendaPadrao(ctx.db, parameters);
+  if (!fazenda.ok) {
+    await guardar("fazenda");
+    return fazenda.resposta;
+  }
 
   if (!ctx.confirmed) {
     await guardar("confirmacao");
     return {
-      reply_text:
-        `Deseja registrar ${servico} para ${cliente.nomeFinal} com o ${maquina.nome}, ` +
-        `total previsto de ${moeda(total)}?`,
+      reply_text: agendado
+        ? `Deseja agendar ${servico} para ${cliente.nomeFinal} em ${dataFormatada}, ` +
+          `total previsto de ${moeda(total)}?`
+        : `Deseja registrar ${servico} para ${cliente.nomeFinal} com o ${maquina.nome}, ` +
+          `total previsto de ${moeda(total)}?`,
       requires_confirmation: true,
       auxiliary_data: { servico, pricing, valor, quantidade, quem: cliente.nomeFinal, total },
       report_url: null,
@@ -662,18 +743,31 @@ export const registrarServicoPrestado: Handler = async (ctx) => {
     };
   }
 
-  const fazenda = await fazendaPadrao(ctx.db);
-  if (!fazenda.ok) return fazenda.resposta;
-
   const res = await createServiceJob(ctx.db, {
     direction: "prestado",
     property_id: fazenda.id,
-    occurred_at: new Date(),
+    occurred_at: occurredAt,
+    // Explícito: ver o comentário acima sobre `concluido` negativo com data
+    // de HOJE divergindo do que `statusInicialDoServico` derivaria sozinho.
+    status: agendado ? "agendado" : "concluido",
     description: servico,
     pricing,
     unit_price: pricing === "fechado" ? null : valor,
     agreed_amount: pricing === "fechado" ? valor : null,
-    quantity: quantidade,
+    /*
+     * Agendado: a quantidade dita é PREVISTA, não produção realizada.
+     * `quantity: null` evita que `createServiceJob` grave um `ServiceJobLog`
+     * (produção) e, nas cobranças por hora, hectare, dia ou viagem, a conta a
+     * receber que ainda não existe. No `fechado` NÃO evita: o total vem de
+     * `agreed_amount`, e a conta a receber nasce mesmo agendado (conhecido e
+     * estacionado). Sem campo próprio de quantidade prevista no schema
+     * (nenhuma migração nesta fase), o número vai para `notes`.
+     */
+    quantity: agendado ? null : quantidade,
+    notes:
+      agendado && quantidade !== null
+        ? `Quantidade prevista: ${quantidade} ${UNIDADE_FALADA[pricing]}.`
+        : null,
     machine_id: maquina.id,
     contact_name: cliente.nomeFinal,
   });
@@ -681,9 +775,11 @@ export const registrarServicoPrestado: Handler = async (ctx) => {
   if (!res.ok) return failReply(intent, res);
 
   return {
-    reply_text:
-      `✅ ${servico} para ${cliente.nomeFinal} registrada, ${moeda(res.data.total)}.` +
-      "\nFicou como conta a receber. Me avise quando receber.",
+    reply_text: agendado
+      ? `✅ ${servico} para ${cliente.nomeFinal} agendado para ${dataFormatada}, ` +
+        `total previsto de ${moeda(total)}.`
+      : `✅ ${servico} para ${cliente.nomeFinal} registrada, ${moeda(res.data.total)}.` +
+        "\nFicou como conta a receber. Me avise quando receber.",
     requires_confirmation: false,
     auxiliary_data: { service_job_id: res.data.id },
     report_url: null,

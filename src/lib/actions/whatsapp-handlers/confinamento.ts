@@ -1,5 +1,6 @@
 import type { ConfinementSiteType } from "@/generated/prisma/client";
 import type { TenantPrismaClient } from "@/lib/prisma";
+import { findCategory } from "@/lib/herd/categories";
 import {
   openConfinementStay,
   recordConfinementFeeding,
@@ -598,12 +599,27 @@ export const encerrarConfinamento: Handler = async ({
   }
   const nomeDoDestino = pasto.nome ?? destino;
 
+  // O lote e a categoria das cabeças que saem vão escritos na pergunta e na
+  // resposta: "5 animais do confinamento" deixava "vendi 5 bois" confirmar a
+  // saída de 5 vacas de outro lote sem o produtor perceber. A categoria é a
+  // da abertura da estadia, a mesma que `closeStay` usa.
+  const abertura = await db.herdMovement.findFirst({
+    where: { stay_id: lote.id, canceled_at: null, to_category_id: { not: null } },
+    orderBy: { created_at: "asc" },
+    select: { to_category_id: true },
+  });
+  const categoriaDoLote = abertura?.to_category_id ? findCategory(abertura.to_category_id) : null;
+  const cabecas = categoriaDoLote ? `${quantidade} ${nomeDaCategoria(categoriaDoLote, quantidade)}` : `${quantidade} animais`;
+  const local = `${lote.type === "boitel" ? "boitel" : "confinamento"}${lote.location_name ? ` ${lote.location_name}` : ""}`;
+  const doLote = `do ${local}`;
+  const noLote = `no ${local}`;
+
   const pergunta =
     movementType === "morte"
-      ? `Deseja registrar a morte de ${quantidade} animais no confinamento?`
+      ? `Deseja registrar a morte de ${cabecas} ${noLote}?`
       : movementType === "venda"
-        ? `Deseja registrar a venda de ${quantidade} animais do confinamento por ${reais(valor as number)}?`
-        : `Deseja registrar a saída de ${quantidade} animais do confinamento${nomeDoDestino ? ` para ${nomeDoDestino}` : ""}?`;
+        ? `Deseja registrar a venda de ${cabecas} ${doLote} por ${reais(valor as number)}?`
+        : `Deseja registrar a saída de ${cabecas} ${doLote}${nomeDoDestino ? ` para ${nomeDoDestino}` : ""}?`;
 
   if (!confirmed) {
     await guardar("confirmacao");
@@ -632,10 +648,10 @@ export const encerrarConfinamento: Handler = async ({
 
   const respostaFinal =
     movementType === "morte"
-      ? `Registrado. ${quantidade} morte(s) no confinamento.`
+      ? `Registrado. Morte de ${cabecas} ${noLote}.`
       : movementType === "venda"
-        ? `Registrado. Venda de ${quantidade} animais do confinamento por ${reais(valor as number)}.`
-        : `Registrado. ${quantidade} animais saíram do confinamento${nomeDoDestino ? ` para ${nomeDoDestino}` : ""}.`;
+        ? `Registrado. Venda de ${cabecas} ${doLote} por ${reais(valor as number)}.`
+        : `Registrado. Saída de ${cabecas} ${doLote}${nomeDoDestino ? ` para ${nomeDoDestino}` : ""}.`;
 
   return {
     reply_text: respostaFinal,

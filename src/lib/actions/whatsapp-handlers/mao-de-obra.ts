@@ -323,6 +323,7 @@ export const registrarPagamentoTrabalhador: Handler = async (ctx) => {
   const valor = informado ?? previsto;
 
   if (valor === null) {
+    await guardar("valor");
     return ask(
       `Não tenho pagamento previsto para ${worker.name}, e você não me disse o valor. ` +
         "Quanto você pagou?",

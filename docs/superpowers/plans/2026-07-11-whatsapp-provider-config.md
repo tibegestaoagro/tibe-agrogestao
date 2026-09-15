@@ -842,7 +842,7 @@ const PROVIDER_LABEL: Record<Provider, string> = {
 
 const FIELDS: Record<Provider, { key: string; label: string; type?: string }[]> = {
   evolution: [
-    { key: "base_url", label: "URL base (ex: https://evo.up.railway.app)" },
+    { key: "base_url", label: "URL base (ex: https://evolution.exemplo.com)" },
     { key: "api_key", label: "API key", type: "password" },
     { key: "instance", label: "Nome da instância" },
   ],
@@ -1174,7 +1174,7 @@ Criar grupo novo "Painel da plataforma: WhatsApp" (ou adicionar ao grupo de rota
         path: "/api/platform/whatsapp-config",
         auth: "Sessão de plataforma · master_admin",
         description: "Cria/atualiza as credenciais de um provider (criptografadas em repouso). Não altera qual está ativo.",
-        request: `{ "provider": "evolution", "credentials": { "base_url": "https://evo.up.railway.app", "api_key": "...", "instance": "tibe" } }`,
+        request: `{ "provider": "evolution", "credentials": { "base_url": "https://evolution.exemplo.com", "api_key": "...", "instance": "tibe" } }`,
         response: `200
 { "data": { "provider": "evolution" }, "meta": {} }`,
       },

@@ -15,7 +15,7 @@ import {
   loadPendingLista,
   clearPendingLista,
 } from "@/lib/actions/shopping-pending";
-import { ask, failReply, str, num, confirmFlow, normalizarTermo, type Handler } from "./shared";
+import { ask, failReply, str, num, normalizarTermo, type Handler, type RouterResult } from "./shared";
 
 /**
  * Minha Lista de Compra pelo WhatsApp (Módulo 36, §17).
@@ -136,6 +136,28 @@ async function acharItem(
 }
 
 /**
+ * "Não" vence nos três gestos que gravam, e vem ANTES de tudo: sem isto, "não
+ * comprei o arame ainda" chegava a `concluirItemAction` e riscava o item, e
+ * "não anota arame" criava o item. O pendente da lista é um só por pessoa, e
+ * a recusa o limpa.
+ */
+async function recusar(
+  tenantId: string,
+  userId: string | undefined,
+  intent: string,
+  texto: string,
+): Promise<RouterResult> {
+  if (userId) await clearPendingLista(tenantId, userId);
+  return {
+    reply_text: texto,
+    requires_confirmation: false,
+    auxiliary_data: null,
+    report_url: null,
+    action_taken: `${intent}:cancelado`,
+  };
+}
+
+/**
  * §17: "Coloca 10 sacas de sal na minha lista", e também "preciso comprar
  * arame", sem quantidade nenhuma.
  */
@@ -147,6 +169,8 @@ export const adicionarItemLista: Handler = async ({
   confirmed,
   explicitNo,
 }) => {
+  if (explicitNo) return recusar(tenant_id, user_id, "adicionar_item_lista", "Tudo bem, não anotei.");
+
   /*
    * A resposta a "já existe sal na sua lista, quer anotar mais?". O item vem
    * do pedido guardado, e não da remontagem do classificador, pelo mesmo
@@ -155,15 +179,6 @@ export const adicionarItemLista: Handler = async ({
   const guardado = user_id ? await loadPendingLista(tenant_id, user_id) : null;
   if (guardado?.aguardando === "confirmacao_duplicata") {
     if (user_id) await clearPendingLista(tenant_id, user_id);
-    if (explicitNo) {
-      return {
-        reply_text: "Tudo bem, não anotei de novo.",
-        requires_confirmation: false,
-        auxiliary_data: null,
-        report_url: null,
-        action_taken: "adicionar_item_lista:cancelado",
-      };
-    }
     if (confirmed) {
       const descricao = str(guardado.parameters.descricao);
       if (descricao) {
@@ -194,8 +209,10 @@ export const adicionarItemLista: Handler = async ({
   }
 
   /*
-   * §19.7: item parecido já pendente PERGUNTA antes de duplicar. O "sim" chega
-   * na volta como confirmação, e aí anota mesmo assim.
+   * §19.7: item parecido já pendente PERGUNTA antes de duplicar, e só o "sim"
+   * a um pedido GUARDADO (acima) anota mesmo assim. `confirmed` sem esse
+   * pendente pergunta de novo: é o classificador remontando o item, não o
+   * produtor respondendo a pergunta.
    *
    * Só vale para o item único: numa frase com três itens, perguntar por cada
    * um viraria interrogatório, e o produtor acabou de dizer o que quer.
@@ -203,31 +220,20 @@ export const adicionarItemLista: Handler = async ({
   if (itens.length === 1) {
     const parecidos = await pendentesParecidos(db, { description: itens[0].descricao });
     if (parecidos.length > 0) {
-      if (explicitNo) {
-        return {
-          reply_text: "Tudo bem, não anotei de novo.",
-          requires_confirmation: false,
-          auxiliary_data: null,
-          report_url: null,
-          action_taken: "adicionar_item_lista:cancelado",
-        };
-      }
-      if (!confirmed) {
-        if (user_id) {
-          await savePendingLista(tenant_id, user_id, {
-            parameters: {
-              descricao: itens[0].descricao,
-              quantidade: itens[0].quantidade ?? null,
-              unidade: itens[0].unidade ?? null,
-            },
-            aguardando: "confirmacao_duplicata",
-          });
-        }
-        const lista = parecidos.map(descreverItem).join(", ");
-        return ask(`Você já tem ${lista} na sua lista. Quer anotar mais assim mesmo?`, {
-          descricao: itens[0].descricao,
+      if (user_id) {
+        await savePendingLista(tenant_id, user_id, {
+          parameters: {
+            descricao: itens[0].descricao,
+            quantidade: itens[0].quantidade ?? null,
+            unidade: itens[0].unidade ?? null,
+          },
+          aguardando: "confirmacao_duplicata",
         });
       }
+      const lista = parecidos.map(descreverItem).join(", ");
+      return ask(`Você já tem ${lista} na sua lista. Quer anotar mais assim mesmo?`, {
+        descricao: itens[0].descricao,
+      });
     }
   }
 
@@ -312,21 +318,13 @@ export const removerItemLista: Handler = async ({
    * você quer tirar?" a um produtor que acabou de responder. Foi a `m63`,
    * escrita às cegas, que pegou isso.
    */
+  if (explicitNo) return recusar(tenant_id, user_id, "remover_item_lista", "Tudo bem, continua na lista.");
+
   const guardado = user_id ? await loadPendingLista(tenant_id, user_id) : null;
   const alvoGuardado =
     guardado?.aguardando === "confirmacao_remocao" ? str(guardado.parameters.item_id) : null;
 
   if (alvoGuardado) {
-    if (explicitNo) {
-      if (user_id) await clearPendingLista(tenant_id, user_id);
-      return {
-        reply_text: "Tudo bem, continua na lista.",
-        requires_confirmation: false,
-        auxiliary_data: null,
-        report_url: null,
-        action_taken: "remover_item_lista:cancelado",
-      };
-    }
     if (confirmed) {
       if (user_id) await clearPendingLista(tenant_id, user_id);
       const item = await db.shoppingItem.findFirst({ where: { id: alvoGuardado } });
@@ -349,36 +347,28 @@ export const removerItemLista: Handler = async ({
   const achado = await acharItem(db, termo);
   if (!achado.ok) return achado.resposta;
 
-  const gate = confirmFlow({
-    intent: "remover_item_lista",
-    explicitNo,
-    confirmed,
-    cancelledText: "Tudo bem, continua na lista.",
-    question: `Quer tirar ${descreverItem(achado.item)} da sua Lista de Compra?`,
-    auxiliary: { item_id: achado.item.id },
-  });
-  if (gate) {
-    // Guarda o alvo antes de perguntar: é o que a próxima volta vai usar.
-    if (gate.requires_confirmation && user_id) {
-      await savePendingLista(tenant_id, user_id, {
-        parameters: { item_id: achado.item.id },
-        aguardando: "confirmacao_remocao",
-      });
-    }
-    return gate;
+  /*
+   * Sem pendente guardado, SEMPRE pergunta, mesmo com `confirmed`: só o "sim"
+   * a um alvo guardado (acima) remove. Guarda o alvo antes de perguntar: é o
+   * que a próxima volta vai usar.
+   */
+  if (user_id) {
+    await savePendingLista(tenant_id, user_id, {
+      parameters: { item_id: achado.item.id },
+      aguardando: "confirmacao_remocao",
+    });
   }
-
-  const resultado = await removerItemAction(db, achado.item.id);
-  if (!resultado.ok) return failReply("remover_item_lista", resultado);
-
   return {
-    reply_text: `Tirei ${descreverItem(achado.item)} da sua lista.`,
-    requires_confirmation: false,
-    auxiliary_data: null,
+    reply_text: `Quer tirar ${descreverItem(achado.item)} da sua Lista de Compra?`,
+    requires_confirmation: true,
+    auxiliary_data: { item_id: achado.item.id },
     report_url: null,
-    action_taken: `remover_item_lista:${achado.item.id}`,
+    action_taken: "remover_item_lista:aguardando_confirmacao",
   };
 };
+
+/** O que fica guardado enquanto o "comprou X por Y?" espera resposta. */
+type CompraResolvida = { item_id: string; valor: number; pago: boolean };
 
 /**
  * §17: "Comprei o sal."
@@ -388,7 +378,12 @@ export const removerItemLista: Handler = async ({
  * 1. **Sem valor na frase**, risca da lista e não gera nada. É a opção 1 do
  *    §11, e o caso comum de quem só quer o papel em dia.
  * 2. **Com valor**, registra a compra de verdade: despesa, conta a pagar e
- *    entrada no estoque, por Negociações.
+ *    entrada no estoque, por Negociações. Isso é dinheiro saindo, então pede
+ *    confirmação primeiro (§19.3), no mesmo padrão de
+ *    `registrar_lancamento_financeiro`: o "sim" executa o que foi GUARDADO,
+ *    nunca o que o classificador remontou (`.claude/rules/whatsapp.md`), e
+ *    sem pendente guardado nenhum caminho grava, mesmo com `confirmed: true`
+ *    e parâmetros cheios chegando na mensagem.
  *
  * ⚠️ **Pelo WhatsApp, registrar exige que o item já tenha produto e fazenda.**
  * Sem isso a compra precisaria de um interrogatório de quatro perguntas (qual
@@ -397,7 +392,43 @@ export const removerItemLista: Handler = async ({
  * lista e diz onde terminar. A fronteira é a mesma da T06, e vale nos dois
  * canais.
  */
-export const compreiItemLista: Handler = async ({ db, user_id, parameters }) => {
+export const compreiItemLista: Handler = async ({
+  db,
+  tenant_id,
+  user_id,
+  parameters,
+  confirmed,
+  explicitNo,
+}) => {
+  const intent = "comprei_item_lista";
+  if (explicitNo) return recusar(tenant_id, user_id, intent, "Tudo bem, não mexi na sua lista.");
+
+  const temMemoria = !!user_id;
+  const pendente = temMemoria ? await loadPendingLista(tenant_id, user_id!) : null;
+  const aguardandoCompra = pendente?.aguardando === "confirmacao_compra" ? pendente : null;
+
+  if (confirmed && aguardandoCompra) {
+    const p = aguardandoCompra.parameters as unknown as CompraResolvida;
+    await clearPendingLista(tenant_id, user_id!);
+    const item = await db.shoppingItem.findFirst({ where: { id: p.item_id } });
+    if (!item) return ask("Esse item não está mais na sua lista.");
+    const compra = await registrarCompraDoItemAction(db, item.id, {
+      amount: p.valor,
+      pago: p.pago,
+      recorded_by_user_id: user_id ?? null,
+    });
+    if (!compra.ok) return failReply(intent, compra);
+    return {
+      reply_text:
+        `Registrei a compra de ${descreverItem(item)} por ${reaisBr(p.valor)}` +
+        `${p.pago ? "" : ", como conta a pagar"}, e risquei da sua lista.`,
+      requires_confirmation: false,
+      auxiliary_data: { item_id: item.id, negotiation_id: compra.data.negotiation_id },
+      report_url: null,
+      action_taken: `${intent}:${item.id}`,
+    };
+  }
+
   const termo = str(parameters.descricao) ?? str(parameters.description) ?? str(parameters.item);
   if (!termo) return ask("O que você comprou?");
 
@@ -409,7 +440,7 @@ export const compreiItemLista: Handler = async ({ db, user_id, parameters }) => 
 
   if (valor == null) {
     const resultado = await concluirItemAction(db, item.id);
-    if (!resultado.ok) return failReply("comprei_item_lista", resultado);
+    if (!resultado.ok) return failReply(intent, resultado);
     return {
       reply_text:
         `Riscei ${descreverItem(item)} da sua lista. ` +
@@ -417,13 +448,13 @@ export const compreiItemLista: Handler = async ({ db, user_id, parameters }) => 
       requires_confirmation: false,
       auxiliary_data: { item_id: item.id, registrou_compra: false },
       report_url: null,
-      action_taken: `comprei_item_lista:${item.id}`,
+      action_taken: `${intent}:${item.id}`,
     };
   }
 
   if (!item.product_id || !item.property_id) {
     const resultado = await concluirItemAction(db, item.id);
-    if (!resultado.ok) return failReply("comprei_item_lista", resultado);
+    if (!resultado.ok) return failReply(intent, resultado);
     return {
       reply_text:
         `Riscei ${descreverItem(item)} da sua lista. ` +
@@ -432,7 +463,7 @@ export const compreiItemLista: Handler = async ({ db, user_id, parameters }) => 
       requires_confirmation: false,
       auxiliary_data: { item_id: item.id, registrou_compra: false },
       report_url: null,
-      action_taken: `comprei_item_lista:${item.id}`,
+      action_taken: `${intent}:${item.id}`,
     };
   }
 
@@ -440,20 +471,25 @@ export const compreiItemLista: Handler = async ({ db, user_id, parameters }) => 
   // fala ("comprei o sal por 1800"). Quem comprou a prazo diz, e o
   // classificador manda `pago: false` ou `pagamento: "prazo"`.
   const pago = parameters.pago !== false && str(parameters.pagamento) !== "prazo";
-  const compra = await registrarCompraDoItemAction(db, item.id, {
-    amount: valor,
-    pago,
-    recorded_by_user_id: user_id ?? null,
-  });
-  if (!compra.ok) return failReply("comprei_item_lista", compra);
 
+  /*
+   * Chegou aqui sem pendente para executar (sem `user_id`, TTL vencido, ou
+   * assunto novo): NUNCA grava direto do que esta mensagem trouxe. Resolve de
+   * novo, guarda um pendente novo e pergunta, exatamente como
+   * `registrar_lancamento_financeiro`.
+   */
+  const resolvido: CompraResolvida = { item_id: item.id, valor, pago };
+  if (temMemoria) {
+    await savePendingLista(tenant_id, user_id!, {
+      parameters: resolvido,
+      aguardando: "confirmacao_compra",
+    });
+  }
   return {
-    reply_text:
-      `Registrei a compra de ${descreverItem(item)} por ${reaisBr(valor)}` +
-      `${pago ? "" : ", como conta a pagar"}, e risquei da sua lista.`,
-    requires_confirmation: false,
-    auxiliary_data: { item_id: item.id, negotiation_id: compra.data.negotiation_id },
+    reply_text: `Comprou ${descreverItem(item)} por ${reaisBr(valor)}? Vou lançar a despesa e tirar da lista.`,
+    requires_confirmation: true,
+    auxiliary_data: { item_id: item.id, valor },
     report_url: null,
-    action_taken: `comprei_item_lista:${item.id}`,
+    action_taken: `${intent}:aguardando_confirmacao`,
   };
 };

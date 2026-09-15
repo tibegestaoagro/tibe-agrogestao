@@ -25,77 +25,56 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 `historico/2026-09.md`.
 ## Estado atual
 
-- Atualizado em: 2026-09-14.
+- Atualizado em: 2026-09-15.
 
-### Dívida 2.8 (Confinamento) fechada e EM PRODUÇÃO
+### Agente do WhatsApp: Fase 1 (fundação) pronta na branch `agente-whatsapp-fase-1`
 
-Spec: [../superpowers/specs/2026-09-14-confinamento-custos-e-saidas.md](../superpowers/specs/2026-09-14-confinamento-custos-e-saidas.md).
-Sem migração. Decisões do usuário em 14/09 na spec. Merge e push em 14/09
-(`fa9f948`); deploy confirmado pelo status da Vercel e pela rota de custo
-listada no `/docs/api` de produção. Branch apagada. As três decisões do Leite
-também estão no ar (`7138926`).
+Programa novo, decidido com o usuário em 14/09 (todas as opções recomendadas):
+spec [../superpowers/specs/2026-09-14-agente-whatsapp-55-intencoes-design.md](../superpowers/specs/2026-09-14-agente-whatsapp-55-intencoes-design.md),
+plano da Fase 1 [../superpowers/plans/2026-09-14-agente-whatsapp-fase-1-fundacao.md](../superpowers/plans/2026-09-14-agente-whatsapp-fase-1-fundacao.md),
+pesquisa, catálogos por intenção e auditoria do n8n em
+[agente-whatsapp/](agente-whatsapp/). O Tibé aceita 55 intenções e o
+classificador descrevia 23; a arquitetura muda para estado no Tibé e
+classificação em duas etapas dentro do Tibé, com o n8n só transportando.
 
-- **"Registrar custo" no lote**: despesa no Financeiro ligada ao lote, que entra
-  no custo acumulado (`POST /api/v1/confinement/stays/:id/costs`).
-- **Encerramento com sete destinos**: pasto, outra fazenda, outro confinamento
-  (abre lote novo lá), leilão ou feira (abre a remessa do Módulo 31), venda,
-  morte e outro destino (`ajuste` com motivo). Tudo numa transação.
-- ⚠️ **A venda de QUALQUER estadia passou a criar negociação** (§19), com
-  comprador opcional, e a receita sai dela, não do livro-razão. Achado da
-  auditoria: antes a venda do lote não aparecia em Negociações.
+**Em produção (15/09, com aprovação):** nó `Guarda da Entrada` no workflow
+`UAAA96aJFiiFsQCL`, que descarta corpo sem a instância e a chave da Evolution e
+todo grupo ou `status@broadcast`. Provado: chamada sem chave parou na guarda
+(execução 4923); `npm run wa` respondeu (4924). O `npm run wa` lê instância e
+chave na hora, do próprio nó, pela `N8N_API_KEY`. A cópia de homologação
+`ctGOlY9OXZWfjeby` foi DESATIVADA. Backup do workflow anterior no scratchpad da
+sessão (fora do repositório).
 
-**Validado:** `m66` nova (7 seções, provada falhando com o caminho antigo),
-`m51` ajustada; suíte inteira; no navegador, custo de R$ 450 levou o lote de
-R$ 12 a R$ 462, e um encerramento de 10 cabeças gravou lote novo no Boitel,
-remessa de leilão, venda "Frigorifico Teste" em Negociações e o ajuste com
-motivo, com o lote em 15.
+⚠️ **Nenhuma mensagem real tinha passado pela guarda até o fim da sessão.** A
+evidência de que o tráfego real passa é que as 15 execuções reais de 14/09
+traziam a mesma instância e chave. Conferir as primeiras execuções reais de 15/09
+pela API do n8n; se pararem na guarda, restaurar o workflow do backup.
 
-⚠️ O agente do WhatsApp não ganhou os destinos novos (o classificador segue
-congelado); a venda dele continua funcionando, agora como negociação sem
-comprador.
+**Na branch, sem merge (28+ commits, suíte `m67` nova):** confirmação estrita
+(sim curto, sem dígito e sem negação; recusa vence sempre; com texto, a flag
+`confirmed` do n8n não confirma sozinha); idempotência por `wamid#intenção`;
+nenhum handler grava sem pendente GUARDADO, e o sim executa o guardado; sim e
+resposta curta vão ao pendente mais recente de qualquer domínio (os stores se
+registram em `pending-store.ts`); cadastro assistido não toma sim de pedido mais
+novo e nunca escolhe fazenda; os 12 defeitos de handler da spec corrigidos
+(ajuste de rebanho, receita, serviço agendado sem data inventada e status por dia
+de calendário, diesel sem saldo, pagamento sem valor, lactação sem troca de
+gesto, compra da lista confirma, mês falado no saldo e relatório, cadastro pede
+categoria, venda do confinamento sai do lote). Cada tarefa com revisão
+independente; revisão final da branch reprovou (1 crítico, 6 importantes),
+onda única corrigiu, re-revisão aprovou. `test:all -- --sem-redis` 66/67: a
+`m17` falha entre 00h e 03h UTC por defeito antigo do próprio teste (dívida 5).
 
-### As três decisões pendentes do Leite, EM PRODUÇÃO (`7138926`)
+⚠️ **O código da branch ainda não roda em produção**: o `npm run wa` conversa com
+a `main`. O roteiro ponta a ponta da Fase 1 (recusa, "pode lançar 500 de
+diesel", mensagem com dois pedidos) só vale depois do merge e deploy.
 
-Decididas pelo usuário em 14/09 (as três recomendadas), sem migração:
-
-- **Média diária divide pelos dias COM REGISTRO**, com "N de M dias com
-  registro" na tela (campo aditivo `dias_com_registro` no resumo). No banco de
-  dev, o acumulado do ano passou de 13,35 para 490 L/dia, "7 de 257 dias".
-  Registrado na spec do Módulo 32, §6.4.
-- **Bloco de armazenamento com título "Armazenamento de todas as fazendas"**, e
-  cada tanque próprio mostra a fazenda dele. Não filtra: o saldo no ponto de
-  coleta não guarda de que fazenda o leite saiu.
-- **Fechamento a prazo exige data de recebimento** (`VENCIMENTO_OBRIGATORIO`,
-  no campo `due_date`), na action e no formulário.
-
-**Validado:** `m52` e `m54` com asserções novas, que reprovam com as regras
-antigas; suíte 65/65; na tela, os três pontos lidos no navegador, e a recusa
-aparece embaixo do campo.
-
-### Dívida 2.14 fechada e EM PRODUÇÃO
-
-Migração `20260914180000_tarefa_ancora_e_conclusao`: `Task.recurrence_anchor` e
-`Task.completed_at`, com backfill (`completed_at` pelo `updated_at` das
-concluídas; âncora pela `due_date` das recorrentes). Aplicada no Neon pelo
-usuário antes do push; merge e push em 14/09 (`4a0fc0f`). Deploy confirmado
-pelo status da Vercel no commit (`success`) e pelo app respondendo no navegador.
-Branch apagada. Não validado em produção com sessão (o agente não digita senha).
-
-- **A série segue a âncora.** Além do "dia 31 que ficava no 28", a leitura do
-  código achou uma deriva que a dívida não registrava: **adiar deslocava a
-  série** ("toda segunda" adiada para terça virava "toda terça").
-- **Decisão do usuário (14/09):** editar a data no formulário redefine a série;
-  adiar ("Amanhã" e WhatsApp) é pontual e mantém a âncora.
-- **Histórico do dia lê `completed_at`**; reabrir a tarefa apaga o campo.
-- A próxima ocorrência nascia à meia-noite UTC, fora da convenção de data de
-  calendário; agora nasce ao meio-dia UTC.
-
-**Validado:** `m65` com os casos novos, que reprovam (8) com o comportamento
-antigo; suíte 65/65; no navegador, "Amanhã" numa mensal de 14/09 manteve a
-âncora e "Feito" gerou a próxima em **14/10** (antes seria 15/10).
-
-⚠️ **`next dev` aberto antes de uma migração dá 500 no Meu Dia**: o client do
-Prisma fica o antigo em memória. Reinicie o servidor depois do `prisma generate`.
+**Fica para a Fase 2** (sem gravação indevida hoje): sim rotulado `ambigua` não
+alcança pendente de outro domínio; textos de lactação sob outro gesto; resposta
+curta que sai do formulário; merge de pendente de serviço com frase nova;
+confirmação inconsistente de `cadastrarAnimal`; `quandoExecutouPorUltimo` fora
+do estoque; serviço de valor fechado agendado já cria conta a receber
+(estacionado, igual ao painel).
 
 ### Ambiente
 
@@ -175,11 +154,11 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou, e cada commit que sobe é leitura pública.
 
-**2. Pedido do usuário em 14/09:** resolver o que resta ANTES de rotacionar as
-credenciais. Com a dívida 2.8 no ar, o que sobra em `dividas.md` é de
-outra natureza: validação em aparelho (1.1, 1.2), sandbox do Asaas (1.3, precisa
-de chave), itens adiados por volume de dado (2.3), conversa com o cliente
-(2.4), tokens de cor fora do painel (2.5 a 2.7) e contratos do app (4.1).
+**2. Agente do WhatsApp, Fase 1:** conferir as primeiras execuções reais do
+workflow depois da guarda; pedir ao usuário merge e push da branch
+`agente-whatsapp-fase-1`; depois do deploy, rodar o roteiro ponta a ponta pelo
+`npm run wa`; então escrever o plano da Fase 2 (turno no Tibé, pendente
+unificado, registro de intenções, classificação em duas etapas, templates).
 
 Não avance para outro módulo sem aprovação explícita.
 

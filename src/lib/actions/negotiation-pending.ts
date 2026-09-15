@@ -69,9 +69,6 @@ const store = criarStoreDePendencia<CampoNegocio>({
   },
 });
 
-/** A chave deste domínio. Lida por `stock-pending.ts` para desempatar por data. */
-export const chaveDoNegocio = store.chave;
-
 export const savePendingNegotiation = store.salvar;
 export const loadPendingNegotiation = store.carregar;
 export const clearPendingNegotiation = store.limpar;

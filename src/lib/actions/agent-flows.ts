@@ -37,8 +37,11 @@ const BUSINESS_HOUR_END = 18;
 export type FlowField = {
   name: string;
   question: string;
-  /** Normaliza a resposta crua; devolve null quando não serve. */
-  parse: (raw: string) => string | null;
+  /**
+   * Normaliza a resposta crua; devolve null quando não serve. `item` é o que o
+   * produtor já respondeu neste animal (a categoria usa o sexo para desempatar).
+   */
+  parse: (raw: string, item?: Record<string, string>) => string | null;
   invalid: string;
   /**
    * Se AUSENTE deste campo sozinho já deve abrir o modo assistido
@@ -146,16 +149,25 @@ export const FLOWS: Record<string, FlowDef> = {
        * `parse` devolve o ID da categoria do livro-razão (`HerdCategory.id`),
        * nunca o texto cru: é o que garante que `commitAnimals` sabe
        * exatamente qual das 12 gravar, sem reinterpretar a fala do produtor
-       * uma segunda vez. Ambíguo ou desconhecido devolve `null`, e o fluxo
+       * uma segunda vez. Desconhecido, ou ambíguo que o sexo já dito não
+       * desempata, devolve `null`, e o fluxo
        * repergunta: adivinhar aqui é lançar o animal na faixa etária errada,
        * que a regra do módulo proíbe.
        */
       {
         name: "category",
         question: "Qual a categoria? (ex: bezerro, novilha de 13 a 24 meses, vaca, boi, garrote, touro)",
-        parse: (raw) => {
+        parse: (raw, item) => {
           const resolvido = resolveCategoryTerm(raw);
-          return resolvido.kind === "exact" ? resolvido.category.id : null;
+          if (resolvido.kind === "exact") return resolvido.category.id;
+          // "13 a 24 meses" serve a macho e fêmea; o sexo que o produtor já
+          // disse neste animal desempata sem adivinhar nada.
+          if (resolvido.kind === "ambiguous" && item?.sex) {
+            const sexo = item.sex === "male" ? "macho" : "femea";
+            const doSexo = resolvido.candidates.filter((c) => c.sex === sexo);
+            if (doSexo.length === 1) return doSexo[0].id;
+          }
+          return null;
         },
         invalid:
           "Não entendi a categoria, ou ela serve para mais de uma faixa. Pode ser mais específico? " +
@@ -173,6 +185,15 @@ export const FLOWS: Record<string, FlowDef> = {
       }.`,
   },
 };
+
+/**
+ * `pending_field` sentinela: o produtor ainda não escolheu a fazenda, e o
+ * cadastro em si nem começou (nenhum campo de `FLOWS[flow].fields` foi
+ * perguntado ainda). Nunca casa com `def.fields.find(...)` de propósito,
+ * porque a pergunta da fazenda não é um campo do fluxo, é uma decisão de
+ * ANTES dele abrir (Task 10, `whatsapp-flow-bridge.ts`).
+ */
+export const PROPERTY_PENDING_FIELD = "__property__";
 
 export type FlowState = {
   id: string;
@@ -212,13 +233,27 @@ export async function getActiveFlow(
   return row ? asState(row) : null;
 }
 
+/**
+ * Chaves de `current_item` que são METADADO (a fazenda escolhida), não
+ * resposta do produtor a um campo do animal: não contam como "tem algo pra
+ * descartar" (fix round 1, achado b do review). Sem isto, `cancelFlow`
+ * contava um item em andamento mesmo quando o produtor só tinha respondido a
+ * pergunta da fazenda e nenhum campo do animal ainda, porque `property_id`
+ * já preenchia `current_item` desde a abertura.
+ */
+const CHAVES_DE_METADADO = new Set(["property_id"]);
+
+function temRespostaDeCampo(item: Record<string, string>): boolean {
+  return Object.keys(item).some((k) => !CHAVES_DE_METADADO.has(k));
+}
+
 export async function cancelFlow(
   db: TenantPrismaClient,
   userId: string,
 ): Promise<{ discarded: number } | null> {
   const state = await getActiveFlow(db, userId);
   if (!state) return null;
-  const discarded = state.completed_items.length + (Object.keys(state.current_item).length > 0 ? 1 : 0);
+  const discarded = state.completed_items.length + (temRespostaDeCampo(state.current_item) ? 1 : 0);
   await db.agentFlowState.deleteMany({ where: { user_id: userId } });
   return { discarded };
 }
@@ -227,12 +262,26 @@ function expiry(): Date {
   return new Date(Date.now() + FLOW_TTL_HOURS * 3600_000);
 }
 
-/** Abre (ou reabre) um cadastro assistido e devolve a primeira pergunta. */
+/**
+ * Abre (ou reabre) um cadastro assistido e devolve a primeira pergunta.
+ *
+ * `initialItem` carrega metadado do ITEM que não é perguntado ao produtor
+ * (hoje só `property_id`, resolvido antes de abrir): entra no `current_item`
+ * desde o primeiro animal e sobrevive aos resets entre um animal e o
+ * próximo (ver `manterMetadados` abaixo).
+ *
+ * `pendingField` abre já esperando um campo que não é o primeiro: o caminho
+ * direto de `cadastrarAnimal` recebeu brinco, raça e sexo (que vão em
+ * `initialItem`) e só falta a categoria. Nesse caso quem abriu faz a
+ * pergunta, e o `reply` devolvido (a abertura) não serve.
+ */
 export async function startFlow(
   db: TenantPrismaClient,
   userId: string,
   flow: string,
   targetCount: number,
+  initialItem: Record<string, string> = {},
+  pendingField?: string,
 ): Promise<{ reply: string }> {
   const def = FLOWS[flow];
   if (!def) return { reply: "Esse cadastro ainda não tem modo assistido." };
@@ -247,8 +296,8 @@ export async function startFlow(
       flow,
       target_count: count,
       completed_items: [],
-      current_item: {},
-      pending_field: def.fields[0].name,
+      current_item: initialItem,
+      pending_field: pendingField ?? def.fields[0].name,
       awaiting_summary: false,
       expires_at: expiry(),
     }),
@@ -259,6 +308,47 @@ export async function startFlow(
     : "";
   const quantos = count > 1 ? `Vamos cadastrar ${count} animais, um de cada vez. ` : "";
   return { reply: `${aviso}${quantos}${def.openingQuestion}` };
+}
+
+/**
+ * Estado mínimo: só a pergunta da fazenda, guardado na MESMA tabela e com o
+ * mesmo TTL do cadastro de verdade (Task 10). Existe porque a resposta do
+ * produtor a "Em qual fazenda?" é curta e sem assunto próprio, então o
+ * classificador quase sempre devolve `ambigua`, e uma intenção diferente no
+ * meio (`consultar_meu_dia`, por exemplo) precisa interromper sem perder essa
+ * pergunta: `handleActiveFlow` (`whatsapp-flow-bridge.ts`) deixa o roteador
+ * responder e a linha continua guardada, sem repetir a pergunta; a próxima
+ * resposta curta ainda cai nela, e o lembrete usa `resumeHint`.
+ */
+export async function startPropertyQuestion(
+  db: TenantPrismaClient,
+  userId: string,
+  targetCount: number,
+): Promise<void> {
+  const count = Math.min(Math.max(Math.trunc(targetCount) || 1, 1), MAX_ITEMS);
+  await db.agentFlowState.deleteMany({ where: { user_id: userId } });
+  await db.agentFlowState.create({
+    data: scoped({
+      user_id: userId,
+      flow: "cadastrar_animal",
+      target_count: count,
+      completed_items: [],
+      current_item: {},
+      pending_field: PROPERTY_PENDING_FIELD,
+      awaiting_summary: false,
+      expires_at: expiry(),
+    }),
+  });
+}
+
+/**
+ * `property_id` não é campo do fluxo (nunca é perguntado ao produtor): é
+ * metadado da fazenda já resolvida, e precisa sobreviver ao reset de
+ * `current_item` entre um animal e o próximo do mesmo cadastro (senão o 2o
+ * animal de um lote de 3 voltaria a depender de `props[0]` no commit).
+ */
+function manterMetadados(item: Record<string, string>): Record<string, string> {
+  return item.property_id ? { property_id: item.property_id } : {};
 }
 
 export type AnswerResult =
@@ -297,7 +387,7 @@ export async function applyAnswer(
     const coletado: Record<string, string> = {};
     let todasValidas = true;
     for (let i = 0; i < usar; i++) {
-      const v = restantes[i].parse(partes[i]);
+      const v = restantes[i].parse(partes[i], { ...state.current_item, ...coletado });
       if (v === null) { todasValidas = false; break; }
       coletado[restantes[i].name] = v;
     }
@@ -306,7 +396,7 @@ export async function applyAnswer(
     }
   }
 
-  const value = field.parse(raw);
+  const value = field.parse(raw, state.current_item);
   if (value === null) {
     // Repete a MESMA pergunta: avançar com valor inválido produziria um
     // cadastro errado que só apareceria no resumo.
@@ -335,7 +425,7 @@ export async function applyAnswer(
       where: { user_id: userId },
       data: {
         completed_items: completed,
-        current_item: {},
+        current_item: manterMetadados(item),
         pending_field: def.fields[0].name,
         expires_at: expiry(),
       },
@@ -374,6 +464,9 @@ export async function finishFlow(db: TenantPrismaClient, userId: string): Promis
 export function resumeHint(state: FlowState): string | null {
   const def = FLOWS[state.flow];
   if (!def) return null;
+  if (state.pending_field === PROPERTY_PENDING_FIELD) {
+    return "Voltando: em qual fazenda você quer cadastrar?";
+  }
   if (state.awaiting_summary) return "Voltando: posso cadastrar os animais do resumo?";
   // pending_field só volta a ser o 1o campo quando o item atual está vazio
   // (abertura, seja do 1o animal ou de um seguinte): repete a pergunta
@@ -477,7 +570,7 @@ async function applyManyValues(
       where: { user_id: userId },
       data: {
         completed_items: completed,
-        current_item: {},
+        current_item: manterMetadados(item),
         pending_field: def.fields[0].name,
         expires_at: expiry(),
       },

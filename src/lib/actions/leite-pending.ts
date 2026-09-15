@@ -17,7 +17,12 @@ import { criarStoreDePendencia, type PedidoBase } from "@/lib/actions/pending-st
  * para `pending-store.ts`. Aqui ficou o vocabulário deste domínio.
  */
 
-export type GestoLeite = "producao" | "lactacao";
+/**
+ * A lactação guarda o gesto EXATO (definir, entrada, saída), não a família.
+ * Com um "lactacao" só, o "sim" à pergunta "atualizar para 32 vacas?" chegando
+ * como `registrar_entrada_lactacao` gravava uma ENTRADA de 32 vacas.
+ */
+export type GestoLeite = "producao" | "definir" | "entrada" | "saida";
 
 /** O campo que o assistente perguntou e está esperando. */
 export type CampoLeite =
@@ -30,7 +35,7 @@ export type CampoLeite =
   | "confirmacao";
 
 export type LeitePendente = PedidoBase<CampoLeite> & {
-  /** Qual das duas conversas está aberta. */
+  /** Qual das quatro conversas está aberta. */
   gesto: GestoLeite;
 };
 

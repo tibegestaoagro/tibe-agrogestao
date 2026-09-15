@@ -23,6 +23,8 @@ export type CampoPendente =
   | "categoria_destino"
   | "fazenda"
   | "pasto"
+  /** Só existe para `ajuste`: se a correção soma ou tira do rebanho. */
+  | "sentido"
   /**
    * Não é um campo: é o pedido inteiro esperando um "sim". Guardado pelo mesmo
    * mecanismo porque o problema é o mesmo. Em 2026-08-10 um "sim" gravou 18
@@ -62,12 +64,10 @@ const store = criarStoreDePendencia<CampoPendente>({
     if (campo === "fazenda") return "property";
     if (campo === "pasto") return "pasto_origem";
     if (campo === "movement_type") return "tipo";
+    if (campo === "sentido") return "direcao";
     return campo;
   },
 });
-
-/** A chave deste domínio. Lida por `stock-pending.ts` para desempatar por data. */
-export const chaveDoRebanho = store.chave;
 
 export const savePendingHerd = store.salvar;
 export const loadPendingHerd = store.carregar;

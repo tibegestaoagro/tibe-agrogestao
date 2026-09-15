@@ -82,6 +82,8 @@ import {
   encerrarServico,
 } from "@/lib/actions/whatsapp-handlers/servico";
 import { loadPendingNegotiation } from "@/lib/actions/negotiation-pending";
+import { listConfinementLots } from "@/lib/actions/confinement";
+import { loadPendingConfinement } from "@/lib/actions/confinamento-pending";
 import {
   loadPendingStock,
   quandoOutroDominioFalou,
@@ -310,6 +312,37 @@ async function pareceNegocioDeProduto(
   return resolvido.ok;
 }
 
+/**
+ * VENDA DE GADO QUE SAI DO CONFINAMENTO.
+ *
+ * "Vendi 5 bois do confinamento por 25 mil" chega como
+ * `registrar_negocio_gado`, e o negócio tira as cabeças do PASTO: o lote
+ * confinado seguia com as 5 contadas e o pasto perdia 5 que nunca saíram
+ * dele. A saída do lote é `encerrar_confinamento`, que chama `closeStay` (e
+ * `closeStay` já transforma a venda em negociação de gado).
+ *
+ * Mora aqui, e não em `desempatarIntencao`, porque precisa do banco: sem lote
+ * aberto no tenant, a frase não tem lote de onde sair e segue como negócio.
+ * O texto que decide é o que o produtor DIGITOU (`message_text`), nunca um
+ * campo remontado pelo classificador.
+ *
+ * Os nomes de quantidade e valor (`quantidade`/`quantity`, `valor`/`amount`)
+ * já são os que `encerrarConfinamento` lê; só o tipo precisa ir como `tipo`,
+ * porque o handler não lê `movement_type`.
+ */
+async function vendaDoConfinamento(
+  db: TenantPrismaClient,
+  parameters: Record<string, unknown>,
+  messageText: string | null | undefined,
+): Promise<boolean> {
+  const tipo = str(parameters.tipo) ?? str(parameters.movement_type);
+  if ((tipo !== "venda" && tipo !== "sale") || !messageText) return false;
+  const texto = messageText.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  if (!/confinamento|boitel/.test(texto)) return false;
+  const lotes = await listConfinementLots(db, { apenas_abertas: true });
+  return lotes.length > 0;
+}
+
 export async function routeIntent(
   db: TenantPrismaClient,
   ctx: {
@@ -409,12 +442,57 @@ export async function routeIntent(
     intent = "registrar_negocio_produto";
   }
 
+  // Ver `vendaDoConfinamento`. Depois da guarda de produto: "vendi 10 sacas de
+  // sal do confinamento" é estoque, não saída do lote.
+  if (intent === "registrar_negocio_gado" && (await vendaDoConfinamento(db, parameters, ctx.message_text))) {
+    intent = "encerrar_confinamento";
+    parameters.tipo = "venda";
+  }
+
+  /**
+   * O "SIM", O "NÃO" E A RESPOSTA CURTA a uma saída do confinamento voltam
+   * para o confinamento.
+   *
+   * Gêmea das guardas de estoque logo abaixo, e pelo mesmo motivo: a venda
+   * que citou o confinamento foi desviada acima pela FRASE, e a volta seguinte
+   * não tem frase. O classificador reemite `registrar_negocio_gado` (é o
+   * gesto que ele viu), e sem isto o pedido guardado nunca era confirmado
+   * ("Não tenho nenhum negócio esperando confirmação"); com um negócio de
+   * gado mais antigo esperando, o "sim" executava ESSE negócio, tirando do
+   * pasto cabeças que ninguém mandou vender; e o "não" apagava só o pendente
+   * de gado, deixando a saída recusada confirmável. Achado da revisão da
+   * Task 13.
+   *
+   * ESTREITA POR DUAS CONDIÇÕES:
+   *
+   * 1. Só quando a saída guardada é MAIS RECENTE que o negócio de gado (sem
+   *    negócio guardado, ele conta como mais antigo; sem `salvo_em`, a saída
+   *    conta como a mais antiga). Um negócio começado depois tem a vez.
+   * 2. Só confirmação, recusa, ou resposta SEM tipo próprio. Uma mensagem com
+   *    `tipo`/`movement_type`/`negotiation_type` é assunto novo, igual às guardas de rebanho e de
+   *    estoque: "vendi 3 bois do pasto" dito no meio da saída não é engolido.
+   *    A venda nova que cita o confinamento já passou pelo desvio acima.
+   */
+  if (ctx.user_id && intent === "registrar_negocio_gado") {
+    const semTipoProprio =
+      !str(parameters.tipo) && !str(parameters.movement_type) && !str(parameters.negotiation_type);
+    if (confirmed || explicitNo || semTipoProprio) {
+      const saida = await loadPendingConfinement(tenant_id, ctx.user_id);
+      if (saida?.gesto === "saida") {
+        const negocio = await loadPendingNegotiation(tenant_id, ctx.user_id);
+        const quandoSaida = saida.salvo_em ?? 0;
+        const quandoNegocio = negocio ? (negocio.salvo_em ?? 0) : -1;
+        if (quandoSaida > quandoNegocio) intent = "encerrar_confinamento";
+      }
+    }
+  }
+
 
   // Cadastro assistido tem prioridade sobre o roteamento normal: se existe um
   // formulário em andamento, a mensagem é primeiro oferecida a ele. O bridge
   // devolve null quando a mensagem claramente não é resposta de campo, e aí o
-  // fluxo segue normalmente (a interrupção é respondida e o formulário retomado
-  // logo em seguida).
+  // fluxo segue normalmente (a interrupção é respondida e o formulário fica
+  // guardado para a próxima resposta de campo).
   /**
    * Uma CONFIRMAÇÃO pendente vem antes do formulário de cadastro.
    *
@@ -422,8 +500,9 @@ export async function routeIntent(
    * curta), e `handleActiveFlow` trata `ambigua` como resposta de campo. Com um
    * cadastro de animal aberto e uma compra esperando confirmação, o "sim" era
    * consumido pelo formulário ("Qual a raça?") e a compra de R$ 1.200 ficava
-   * pendurada para sempre. As quatro intenções de estoque já estavam em
-   * `INTERRUPTING` justamente para isso, mas o "sim" não é uma delas.
+   * pendurada para sempre. As quatro intenções de estoque já interrompiam o
+   * formulário por conta própria (`interrompe()`, `whatsapp-flow-bridge.ts`),
+   * mas o "sim" não é uma delas.
    *
    * ESTREITA: só quando o pedido está em "confirmacao". Uma pergunta de CAMPO
    * do estoque não tem prioridade sobre o formulário.
@@ -432,7 +511,8 @@ export async function routeIntent(
     const esperandoSim = await loadPendingStock(tenant_id, ctx.user_id);
     if (esperandoSim?.aguardando === "confirmacao") {
       /**
-       * DUAS CONDIÇÕES, e as duas nasceram do defeito oposto.
+       * TRÊS CONDIÇÕES, e todas nasceram do defeito oposto (a terceira está
+       * logo abaixo, junto do código).
        *
        * 1. A mensagem não pode carregar gesto PRÓPRIO. "ok, usei 3 sacas de sal
        *    no curral" tem um "ok" que o interpretador marca como confirmação, e
@@ -443,7 +523,7 @@ export async function routeIntent(
        *    abandonou a compra, abriu um cadastro de animal e leu "Responda sim
        *    para confirmar" está confirmando o ANIMAL: a troca cega gravava a
        *    compra e ele via o sucesso do que nem estava na tela. Mesma regra de
-       *    recência que já decide entre os três domínios de conversa.
+       *    recência que já decide entre os domínios de conversa.
        */
       /**
        * ECO DO PEDIDO NÃO É GESTO PRÓPRIO.
@@ -465,12 +545,53 @@ export async function routeIntent(
       });
       const formularioMaisRecente =
         formulario != null && formulario.updated_at.getTime() > (esperandoSim.salvo_em ?? 0);
+      /**
+       * 3. Um pedido MAIS RECENTE de qualquer outro domínio também tem a vez.
+       *    Quando a lista de domínios parava em gado e rebanho, "estou com 32
+       *    vacas dando leite" seguido de "sim" gravava a compra de sal de
+       *    antes. Com a lista completa, o handler de estoque recusaria, mas
+       *    APAGANDO a compra e respondendo pelo estoque: o "sim" tem de nem
+       *    ser desviado.
+       */
+      const outroDominioMaisRecente =
+        (await quandoOutroDominioFalou(tenant_id, ctx.user_id)) >= (esperandoSim.salvo_em ?? 0);
 
-      if (!temGestoProprio && !formularioMaisRecente) intent = esperandoSim.intent;
+      if (!temGestoProprio && !formularioMaisRecente && !outroDominioMaisRecente) {
+        intent = esperandoSim.intent;
+      }
     }
   }
 
-  if (ctx.user_id && !EH_ESTOQUE.has(intent)) {
+  /**
+   * O "SIM" E O "NÃO" DE UM PEDIDO MAIS NOVO não pertencem ao formulário.
+   *
+   * `handleActiveFlow` cancela o cadastro com qualquer recusa e grava o resumo
+   * com qualquer confirmação, sem olhar de quem é a vez. Com um formulário
+   * parado no resumo e um lançamento financeiro perguntado depois, o "não"
+   * cancelava o CADASTRO e deixava o lançamento confirmável, e o "sim"
+   * seguinte gravava a despesa recusada. Mesma regra de recência das guardas
+   * acima: o pedido guardado depois da última mudança do formulário tem a vez.
+   *
+   * `cadastrar_animal` fica de fora: ali o formulário É o handler da intenção,
+   * e pular para `maybeStartAnimalFlow` reabriria o cadastro do zero.
+   */
+  let pedidoMaisNovoQueOFormulario = false;
+  if (ctx.user_id && (confirmed || explicitNo) && intent !== "cadastrar_animal") {
+    const formulario = await db.agentFlowState.findFirst({
+      where: { user_id: ctx.user_id, expires_at: { gt: new Date() } },
+      select: { updated_at: true },
+    });
+    if (formulario) {
+      const estoque = await loadPendingStock(tenant_id, ctx.user_id);
+      const maisRecente = Math.max(
+        await quandoOutroDominioFalou(tenant_id, ctx.user_id),
+        estoque ? (estoque.salvo_em ?? 1) : 0,
+      );
+      pedidoMaisNovoQueOFormulario = maisRecente > formulario.updated_at.getTime();
+    }
+  }
+
+  if (ctx.user_id && !EH_ESTOQUE.has(intent) && !pedidoMaisNovoQueOFormulario) {
     const flowResult = await handleActiveFlow({
       db,
       userId: ctx.user_id,
@@ -478,6 +599,7 @@ export async function routeIntent(
       messageText: ctx.message_text ?? null,
       confirmed,
       explicitNo,
+      parameters,
     });
     if (flowResult) return flowResult;
   }
@@ -500,9 +622,10 @@ export async function routeIntent(
    *    você faz?" viravam "Quantas sacas de sal?", e a tarefa nunca era criada.
    * 2. Só depois do cadastro assistido ter tido a chance de responder, senão a
    *    resposta de um campo do formulário de animal era desviada para cá.
-   * 3. Só quando o pedido de estoque é MAIS RECENTE que o de gado ou rebanho.
-   *    Sem isso o estoque roubava a resposta de uma conversa de gado começada
-   *    depois dele, e gravava a compra errada.
+   * 3. Só quando o pedido de estoque é MAIS RECENTE que o de qualquer outro
+   *    domínio (`quandoOutroDominioFalou`). Sem isso o estoque roubava a
+   *    resposta de uma conversa de gado começada depois dele, e gravava a
+   *    compra errada.
    */
   if (ctx.user_id && !EH_ESTOQUE.has(intent) && REMONTAVEIS.has(intent)) {
     /**

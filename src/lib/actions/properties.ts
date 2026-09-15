@@ -1,5 +1,6 @@
 import type { TenantPrismaClient } from "@/lib/prisma";
 import { decToNum } from "@/lib/serialize";
+import { normalizarTermo } from "@/lib/actions/whatsapp-handlers/shared";
 
 /** Propriedades ativas (não arquivadas) do tenant. */
 export async function listActiveProperties(db: TenantPrismaClient) {
@@ -30,13 +31,30 @@ export async function getPastureAreaSummary(db: TenantPrismaClient, propertyId: 
   };
 }
 
-/** Busca propriedade ativa por nome (exato, senão contém), case-insensitive. */
+/**
+ * Casa um nome dito (resposta livre ou parâmetro) com uma lista de fazendas já
+ * carregada, sem acento nem caixa. Exato primeiro; "contém" (nos dois
+ * sentidos, para aceitar "na Fazenda B") só quando sobra EXATAMENTE uma.
+ *
+ * Zero ou duas-ou-mais batidas devolvem `null`: nunca escolhe entre duas. O
+ * `contains` + `findFirst` antigo devolvia a primeira do banco quando "Fazenda"
+ * casava "Fazenda A" e "Fazenda B" ao mesmo tempo.
+ */
+export function casarFazenda<T extends { name: string }>(props: T[], texto: string): T | null {
+  const alvo = normalizarTermo(texto);
+  if (!alvo) return null;
+
+  const exato = props.filter((p) => normalizarTermo(p.name) === alvo);
+  if (exato.length > 0) return exato.length === 1 ? exato[0] : null;
+
+  const parcial = props.filter((p) => {
+    const nome = normalizarTermo(p.name);
+    return alvo.includes(nome) || nome.includes(alvo);
+  });
+  return parcial.length === 1 ? parcial[0] : null;
+}
+
+/** Propriedade ativa pelo nome, pela regra de `casarFazenda`. `null` se nenhuma ou ambígua. */
 export async function findActivePropertyByName(db: TenantPrismaClient, name: string) {
-  const exact = await db.property.findFirst({
-    where: { archived_at: null, name: { equals: name, mode: "insensitive" } },
-  });
-  if (exact) return exact;
-  return db.property.findFirst({
-    where: { archived_at: null, name: { contains: name, mode: "insensitive" } },
-  });
+  return casarFazenda(await listActiveProperties(db), name);
 }

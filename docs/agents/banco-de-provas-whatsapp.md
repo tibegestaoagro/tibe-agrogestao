@@ -51,6 +51,16 @@ chegam. A chave é por telefone, não por tenant, porque quem escreve
 continua sendo `AgentConversationLog`, no Postgres, esse sim escopado por
 tenant.
 
+**Por que o script manda as credenciais da instância.** Desde 2026-09-15 o
+fluxo tem um nó `Guarda da Entrada` logo depois do Webhook, que descarta todo
+corpo cujo `instance` e `apikey` não sejam os da instância da Evolution (e todo
+grupo ou `status@broadcast`). Sem as duas, o banco de provas ficaria mudo. O
+script lê os valores **na hora**, do próprio nó da guarda, pela API do n8n
+(`N8N_API_KEY` no `.env`), e nunca os imprime nem os guarda no repositório. Não
+lê do `WhatsAppProviderConfig` do Tibé porque a credencial ali está cifrada com
+a chave da Vercel, diferente da local, e porque a guarda é quem define o que
+passa. Sem o nó (fluxo restaurado de backup), o corpo sai como antes.
+
 A gravação **não bloqueia** o envio: diagnóstico não pode atrasar a resposta a
 um produtor de verdade. O histórico de verdade continua em
 `AgentConversationLog`, no Postgres.

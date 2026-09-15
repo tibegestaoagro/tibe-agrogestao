@@ -931,6 +931,13 @@ async function main() {
     );
 
     // A borda contraria: uma RESPOSTA curta continua voltando para o estoque.
+    // A despesa acima deixa, desde a Fase 1 do agente, um pedido financeiro
+    // esperando confirmação, MAIS RECENTE que a pergunta de sal. Pela regra
+    // de recência (que desde 14/09 compara todos os domínios), a resposta
+    // curta não é mais do estoque enquanto ele existir. Limpar recoloca o
+    // estoque como a conversa mais recente, que é o que este caso prova.
+    const { clearPendingFinance } = await import("@/lib/actions/finance-pending");
+    await clearPendingFinance(tenant.id, conversador.id);
     const respostaCurta = await rotear("ambigua", { quantidade: 1 });
     check(
       "mas uma resposta curta ainda volta para a pergunta do estoque",

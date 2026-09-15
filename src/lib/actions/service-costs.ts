@@ -230,6 +230,15 @@ export async function cancelServiceCost(
  * a despesa usa `recordServiceCost` com `saiu_do_caixa`. Um caminho só para
  * criar dinheiro é o que impede a duplicata.
  */
+/**
+ * Recusa lançando esta classe, nunca `return fail()` de dentro da transação:
+ * devolver `fail()` de dentro do `$transaction` CONFIRMA a transação (mesma
+ * armadilha documentada em `EstadiaRecusada`, `herd-stays.ts`). Só existe
+ * para a recusa de saldo (`INSUFFICIENT_STOCK`) virar resposta em vez de
+ * subir como 500; qualquer outro erro do estoque continua subindo cru.
+ */
+class SemSaldoParaCombustivel extends Error {}
+
 export async function recordServiceFuel(
   db: TenantPrismaClient,
   input: {
@@ -285,41 +294,51 @@ export async function recordServiceFuel(
 
   const quando = input.occurred_at ?? new Date();
 
-  const criado = await runSerializableTenantTransaction(db, async (tx) => {
-    let movimentoId: string | null = null;
-    if (produto) {
-      const mov = await recordStockMovementInTx(db, tx, {
-        product_id: produto.id,
-        property_id: job.property_id,
-        movement_type: "utilizacao",
-        quantity: input.quantity,
-        occurred_at: quando,
-        service_job_id: job.id,
-        purpose: `Serviço: ${job.description}`,
-        recorded_by_user_id: input.user_id ?? null,
+  try {
+    const criado = await runSerializableTenantTransaction(db, async (tx) => {
+      let movimentoId: string | null = null;
+      if (produto) {
+        const mov = await recordStockMovementInTx(db, tx, {
+          product_id: produto.id,
+          property_id: job.property_id,
+          movement_type: "utilizacao",
+          quantity: input.quantity,
+          occurred_at: quando,
+          service_job_id: job.id,
+          purpose: `Serviço: ${job.description}`,
+          recorded_by_user_id: input.user_id ?? null,
+        });
+        if (!mov.ok) {
+          if (mov.code === "INSUFFICIENT_STOCK") throw new SemSaldoParaCombustivel(mov.message);
+          throw new Error(mov.message);
+        }
+        movimentoId = mov.data.id;
+      }
+
+      return tx.serviceJobCost.create({
+        data: scoped({
+          service_job_id: job.id,
+          kind: "combustivel",
+          description: descricao,
+          amount: valor,
+          quantity: input.quantity,
+          unit: produto?.unit ?? input.unit ?? null,
+          occurred_at: quando,
+          stock_movement_id: movimentoId,
+          recorded_by_user_id: input.user_id ?? null,
+        }),
       });
-      if (!mov.ok) throw new Error(mov.message);
-      movimentoId = mov.data.id;
-    }
-
-    return tx.serviceJobCost.create({
-      data: scoped({
-        service_job_id: job.id,
-        kind: "combustivel",
-        description: descricao,
-        amount: valor,
-        quantity: input.quantity,
-        unit: produto?.unit ?? input.unit ?? null,
-        occurred_at: quando,
-        stock_movement_id: movimentoId,
-        recorded_by_user_id: input.user_id ?? null,
-      }),
     });
-  });
 
-  const saldo = produto
-    ? ((await getStockBalance(db, { product_id: produto.id }))[0]?.quantity ?? 0)
-    : null;
+    const saldo = produto
+      ? ((await getStockBalance(db, { product_id: produto.id }))[0]?.quantity ?? 0)
+      : null;
 
-  return ok({ ...serializar(criado as never), saldo_do_produto: saldo });
+    return ok({ ...serializar(criado as never), saldo_do_produto: saldo });
+  } catch (erro) {
+    if (erro instanceof SemSaldoParaCombustivel) {
+      return fail("INSUFFICIENT_STOCK", `Estoque insuficiente: ${erro.message}`, 422);
+    }
+    throw erro;
+  }
 }

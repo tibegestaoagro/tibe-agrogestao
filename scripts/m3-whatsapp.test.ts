@@ -133,7 +133,9 @@ async function main() {
       tenant_id: tenantA.id,
       user_id: ownerA.id,
       intent: "cadastrar_animal",
-      parameters: { ear_tag: "A100", breed: "Nelore", sex: "male" },
+      // Categoria obrigatória desde a Fase 1 do agente (2026-09-14): sem ela, o
+      // handler pergunta em vez de gravar "Não classificado" fora do saldo.
+      parameters: { ear_tag: "A100", breed: "Nelore", sex: "male", category: "boi" },
     });
     assert(
       /cadastrado com sucesso/.test(eCreate.body.data.reply_text),

@@ -1,4 +1,3 @@
-import { scoped } from "@/lib/prisma";
 import { addMovementAction } from "@/lib/actions/animal-movements";
 import { addVaccinationAction, findVaccineByName } from "@/lib/actions/animal-vaccinations";
 import { addWeightLogAction } from "@/lib/actions/animal-weights";
@@ -8,6 +7,9 @@ import { resolvePendingEntriesCalendar } from "@/lib/actions/financial-reports";
 import { upsertVaccinationForecastAction } from "@/lib/actions/vaccination-forecast";
 import { CONFIRMATION_THRESHOLD } from "@/lib/whatsapp-intents";
 import { ask, failReply, str, num, confirmFlow, type Handler } from "./shared";
+import { resolverCategoria } from "./herd";
+import { categoriaDoLivroRazao } from "@/lib/actions/whatsapp-flow-bridge";
+import { startFlow } from "@/lib/actions/agent-flows";
 import { reaisBr } from "@/lib/numero-br";
 // Módulo 25: registrar_lote_animal (rebanho por categoria e quantidade).
 import { findActiveCategoryByName } from "@/lib/actions/animal-categories";
@@ -53,7 +55,7 @@ export function supportsThreeDayReminder(dueDate: Date, now = new Date()): boole
   return utcCivilDay(dueDate) - utcCivilDay(today) >= 3 * 86_400_000;
 }
 
-export const cadastrarAnimal: Handler = async ({ db, parameters }) => {
+export const cadastrarAnimal: Handler = async ({ db, parameters, user_id }) => {
   const ear_tag = str(parameters.ear_tag);
   const breed = str(parameters.breed);
   const sexRaw = parameters.sex;
@@ -90,19 +92,27 @@ export const cadastrarAnimal: Handler = async ({ db, parameters }) => {
   }
 
   // Modelo único (2026-08-04): um animal com brinco é um lote de 1 cabeça.
-  // A categoria passou a ser obrigatória; quando o produtor não diz qual,
-  // cai em "Não classificado" (a mesma categoria que a migração usou) em vez
-  // de travar o cadastro por um dado que ele não tem em mente na hora.
+  // A categoria precisa ser uma das 12 do livro-razão: "Não classificado"
+  // criava o lote FORA do saldo, sem erro nem aviso (`dividas.md` §2.9).
+  // Sem categoria, pergunta (a mesma pergunta do cadastro assistido);
+  // ambígua ou desconhecida, a pergunta do §14.
+  //
+  // A pergunta abre o cadastro assistido JÁ PREENCHIDO com brinco, raça, sexo
+  // e fazenda, esperando só a categoria. Sem esse estado, a resposta "boi"
+  // chegava sozinha e o fluxo reperguntava tudo o que o produtor já tinha
+  // dito. Nada é gravado antes do "sim" do resumo do fluxo.
   const categoryName = str(parameters.category) ?? str(parameters.category_name);
-  let category = categoryName ? await findActiveCategoryByName(db, categoryName) : null;
-  if (categoryName && !category) {
-    return ask(`Não encontrei a categoria '${categoryName}'. Pode confirmar o nome?`);
+  const resolvida = categoryName ? resolverCategoria(categoryName) : null;
+  if (!resolvida?.ok) {
+    const pergunta = resolvida
+      ? resolvida.resposta
+      : ask("Qual a categoria? (ex: bezerro, novilha de 13 a 24 meses, vaca, boi, garrote, touro)");
+    if (user_id) {
+      await startFlow(db, user_id, "cadastrar_animal", 1, { property_id: propertyId, ear_tag, breed, sex }, "category");
+    }
+    return pergunta;
   }
-  if (!category) {
-    category =
-      (await db.animalCategory.findFirst({ where: { name: "Não classificado" } })) ??
-      (await db.animalCategory.create({ data: scoped({ name: "Não classificado" }) }));
-  }
+  const category = await categoriaDoLivroRazao(db, resolvida.categoria.id);
 
   const result = await createBatchAction(db, {
     category_id: category.id,
