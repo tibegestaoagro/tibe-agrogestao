@@ -11,9 +11,33 @@ import type { CampoDef } from "./intencoes";
  * conferir e é sempre mantido.
  */
 
-/** Todo número que aparece no texto, lido como o produtor escreve (BR): "1.200" é 1200, "12,00" é 12, "60 mil" é 60000 (e 60 também entra, sem o multiplicador). */
-function numerosDoTexto(texto: string): number[] {
+/**
+ * O registro manda o modelo converter por extenso ("duas vira 2"), então a palavra também é número do texto.
+ * ponytail: só de um a vinte, dúzia e meia dúzia; "trinta", "cem" e "vinte mil" por extenso ficam de fora (o valor é removido e o handler pergunta). Ampliar a tabela quando aparecer em conversa real.
+ */
+const POR_EXTENSO: Record<string, number> = {
+  um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10,
+  onze: 11, doze: 12, treze: 13, catorze: 14, quatorze: 14, quinze: 15, dezesseis: 16, dezessete: 17, dezoito: 18,
+  dezenove: 19, vinte: 20, duzia: 12,
+};
+
+function numerosPorExtenso(texto: string): number[] {
+  const palavras = texto.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().split(/[^a-z]+/);
   const resultados: number[] = [];
+  for (let i = 0; i < palavras.length; i++) {
+    if (palavras[i] === "meia" && palavras[i + 1] === "duzia") {
+      resultados.push(6);
+      i++;
+    } else if (Object.hasOwn(POR_EXTENSO, palavras[i])) {
+      resultados.push(POR_EXTENSO[palavras[i]]);
+    }
+  }
+  return resultados;
+}
+
+/** Todo número que aparece no texto, lido como o produtor escreve (BR): "1.200" é 1200, "12,00" é 12, "60 mil" é 60000 (e 60 também entra, sem o multiplicador), "duas" é 2. */
+function numerosDoTexto(texto: string): number[] {
+  const resultados: number[] = numerosPorExtenso(texto);
   const tokenNumerico = /\d+(?:[.,]\d+)*/g;
   let m: RegExpExecArray | null;
   while ((m = tokenNumerico.exec(texto))) {
