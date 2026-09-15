@@ -61,6 +61,44 @@ async function main() {
   check('previsão "20/10/2026" vira o mesmo dia', lerDataPrevista("20/10/2026")?.toISOString() === outubro20, lerDataPrevista("20/10/2026")?.toISOString());
   check('previsão "dia 20" vira o dia 20 do mês corrente', lerDataPrevista("dia 20", new Date(2026, 9, 5, 12))?.toISOString() === outubro20);
   check("previsão ilegível devolve null para perguntar", lerDataPrevista("quando der") === null);
+
+  console.log("\n2. Cliente do modelo");
+  {
+    const { chamarModelo, definirTransporteDoModelo, FalhaDoModelo } = await import("@/lib/agente/modelo");
+    let corpoVisto: Record<string, unknown> | null = null;
+    let chamadas = 0;
+    definirTransporteDoModelo(async (corpo) => {
+      corpoVisto = corpo;
+      chamadas += 1;
+      return { status: 200, json: { choices: [{ message: { content: JSON.stringify({ ok: true }) } }] } };
+    });
+    process.env.AGENTE_MODELO = "gpt-4o-mini";
+    const r = await chamarModelo<{ ok: boolean }>({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"], additionalProperties: false } });
+    check("devolve o JSON do conteúdo", r.ok === true);
+    const rf = (corpoVisto as unknown as { response_format: { type: string; json_schema: { strict: boolean } } }).response_format;
+    check("pede json_schema estrito", rf.type === "json_schema" && rf.json_schema.strict === true);
+    check("gpt-4o-mini recebe temperature 0", (corpoVisto as unknown as { temperature?: number }).temperature === 0);
+
+    process.env.AGENTE_MODELO = "gpt-5.6-luna";
+    await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"], additionalProperties: false } });
+    check("gpt-5 não recebe temperature", !("temperature" in (corpoVisto as unknown as object)));
+
+    chamadas = 0;
+    definirTransporteDoModelo(async () => {
+      chamadas += 1;
+      return { status: 503, json: {} };
+    });
+    let erro: unknown = null;
+    try { await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: {} }); } catch (e) { erro = e; }
+    check("503 tenta de novo uma vez e desiste", chamadas === 2 && erro instanceof FalhaDoModelo);
+
+    definirTransporteDoModelo(async () => ({ status: 200, json: { choices: [{ message: { content: "não é json" } }] } }));
+    erro = null;
+    try { await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: {} }); } catch (e) { erro = e; }
+    check("conteúdo que não é JSON vira FalhaDoModelo de formato", erro instanceof FalhaDoModelo && (erro as InstanceType<typeof FalhaDoModelo>).motivo === "formato");
+    definirTransporteDoModelo(null);
+    process.env.AGENTE_MODELO = "gpt-4o-mini";
+  }
 }
 
 /**
