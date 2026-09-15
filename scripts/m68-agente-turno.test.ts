@@ -99,6 +99,62 @@ async function main() {
     definirTransporteDoModelo(null);
     process.env.AGENTE_MODELO = "gpt-4o-mini";
   }
+
+  console.log("\n3. Classificação em duas etapas");
+  {
+    const { definirTransporteDoModelo } = await import("@/lib/agente/modelo");
+    const { classificarMensagem, classificarResposta } = await import("@/lib/agente/classificar");
+    const { conferirTrechoLiteral } = await import("@/lib/agente/trecho-literal");
+    const { VERSAO_DO_PROMPT, promptDeExtracao } = await import("@/lib/agente/prompts");
+
+    const vistos: { etapa: string; sistema: string; usuario: string }[] = [];
+    definirTransporteDoModelo(async (corpo) => {
+      const msgs = corpo.messages as { role: string; content: string }[];
+      const nome = (corpo.response_format as { json_schema: { name: string } }).json_schema.name;
+      vistos.push({ etapa: nome, sistema: msgs[0].content, usuario: msgs[1].content });
+      let conteudo: unknown;
+      if (nome === "dominio") {
+        conteudo = { pedidos: [{ dominio: "rebanho", trecho: "quantos animais eu tenho" }, { dominio: "financeiro", trecho: "o que tenho a pagar" }] };
+      } else if (nome.startsWith("extracao_rebanho")) {
+        conteudo = { intent: "consultar_rebanho", parametros: { categoria: null, fazenda: null } };
+      } else if (nome.startsWith("extracao_financeiro")) {
+        conteudo = { intent: "consultar_saldo", parametros: { period: null, amount: 999 } };
+      } else {
+        conteudo = { tipo: "responde" };
+      }
+      return { status: 200, json: { choices: [{ message: { content: JSON.stringify(conteudo) } }] } };
+    });
+
+    const pedidos = await classificarMensagem({ texto: "quantos animais eu tenho e o que tenho a pagar", hoje: "2026-09-15", perfis: ["fazenda"] });
+    check("dois pedidos, na ordem", pedidos.length === 2 && pedidos[0].intent === "consultar_rebanho" && pedidos[1].intent === "consultar_saldo");
+    check("campo de outra intenção não vaza para o pedido", !("amount" in pedidos[1].parameters));
+    check("nulls não viram parâmetro", Object.keys(pedidos[0].parameters).length === 0);
+    check("a extração do rebanho só lista intenções do rebanho", vistos.some((v) => v.etapa.startsWith("extracao_rebanho") && v.sistema.includes("registrar_negocio_gado") && !v.sistema.includes("registrar_producao_leite")));
+    check("o prompt de extração não oferece as intenções legadas", !promptDeExtracao("rebanho").sistema.includes("registrar_lote_animal"));
+    check("versão do prompt tem 12 caracteres", VERSAO_DO_PROMPT.length === 12);
+
+    const limpo = conferirTrechoLiteral({ valor: "60 mil", quantidade: 20, comissao: 2000 }, "comprei 20 bezerros por 60 mil", [
+      { nome: "valor", tipo: "numero", descricao: "" }, { nome: "quantidade", tipo: "numero", descricao: "" }, { nome: "comissao", tipo: "numero", descricao: "" },
+    ]);
+    check("número que não está na mensagem é removido", limpo.removidos.join() === "comissao" && limpo.parameters.valor === "60 mil" && limpo.parameters.quantidade === 20);
+    check("1.200 casa com 1200", conferirTrechoLiteral({ valor: 1200 }, "paguei 1.200 no sal", [{ nome: "valor", tipo: "numero", descricao: "" }]).removidos.length === 0);
+
+    const comLista = conferirTrechoLiteral(
+      { itens: [{ categoria: "bezerro", quantidade: 20 }, { categoria: "vaca", quantidade: 999 }] },
+      "comprei 20 bezerros e algumas vacas",
+      [{ nome: "itens", tipo: "lista", descricao: "", itens: [{ nome: "categoria", tipo: "texto", descricao: "" }, { nome: "quantidade", tipo: "numero", descricao: "" }] }],
+    );
+    check(
+      "quantidade inventada dentro de um item da lista some, o item continua",
+      comLista.removidos.join() === "itens.quantidade" &&
+        (comLista.parameters.itens as Record<string, unknown>[]).length === 2 &&
+        !("quantidade" in (comLista.parameters.itens as Record<string, unknown>[])[1]),
+    );
+
+    const r = await classificarResposta({ texto: "Pasto da Sede", pergunta: "De qual pasto?", intent: "registrar_movimentacao_rebanho", campo: "pasto" });
+    check("resposta ao campo aberto", r.tipo === "responde");
+    definirTransporteDoModelo(null);
+  }
 }
 
 /**
