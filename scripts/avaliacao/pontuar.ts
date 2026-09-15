@@ -46,8 +46,11 @@ export function compararCampo(campo: CampoDef, esperado: ValorEsperado, obtido: 
   if (obtido === undefined || obtido === null) return false;
 
   switch (campo.tipo) {
-    case "numero":
-      return lerNumeroBr(esperado) === lerNumeroBr(obtido);
+    case "numero": {
+      const nEsperado = lerNumeroBr(esperado);
+      const nObtido = lerNumeroBr(obtido);
+      return nEsperado !== null && nObtido !== null && nEsperado === nObtido;
+    }
     case "data":
       return mesmoDiaCivil(hoje, esperado, obtido);
     case "sim_nao":
@@ -68,6 +71,7 @@ export function compararCampo(campo: CampoDef, esperado: ValorEsperado, obtido: 
     case "texto":
     default: {
       const a = normalizarTermo(String(esperado));
+      if (a === "") return false;
       const b = normalizarTermo(String(obtido));
       return a.includes(b) || b.includes(a);
     }
@@ -155,7 +159,7 @@ export function agregar(notas: NotaDeMensagem[]): Metricas {
   }
 
   return {
-    intencao_geral: pedidosCertos / pedidosTotal,
+    intencao_geral: pedidosTotal === 0 ? 0 : pedidosCertos / pedidosTotal,
     por_intencao: porIntencao,
     campos: camposTotal === 0 ? 1 : camposCertos / camposTotal,
     mensagens: notas.length,
@@ -164,6 +168,7 @@ export function agregar(notas: NotaDeMensagem[]): Metricas {
 
 export function aprovar(m: Metricas, gravacoesIndevidas: number): { aprovado: boolean; motivos: string[] } {
   const motivos: string[] = [];
+  if (m.mensagens === 0) motivos.push("sem mensagens");
   if (gravacoesIndevidas > 0) motivos.push(`gravações indevidas: ${gravacoesIndevidas}`);
   if (m.intencao_geral < 0.95) motivos.push(`intenção geral ${Math.round(m.intencao_geral * 100)}% < 95%`);
   for (const [intent, { certos, total }] of Object.entries(m.por_intencao)) {

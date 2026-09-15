@@ -113,7 +113,12 @@ export function carregarCasos(pasta: string = PASTA_PADRAO): Caso[] {
   if (!fs.existsSync(pasta)) return [];
   const casos: Caso[] = [];
   for (const arquivo of fs.readdirSync(pasta).filter((f) => f.endsWith(".json"))) {
-    const conteudo = JSON.parse(fs.readFileSync(path.join(pasta, arquivo), "utf8"));
+    let conteudo: unknown;
+    try {
+      conteudo = JSON.parse(fs.readFileSync(path.join(pasta, arquivo), "utf8"));
+    } catch (e) {
+      throw new Error(`${arquivo}: JSON inválido (${e instanceof Error ? e.message : String(e)})`);
+    }
     if (Array.isArray(conteudo)) casos.push(...(conteudo as Caso[]));
   }
   return casos;

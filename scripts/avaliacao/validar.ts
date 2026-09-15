@@ -22,7 +22,14 @@ function main() {
   const todosCasos: Caso[] = [];
 
   for (const arquivo of arquivos) {
-    const conteudo = JSON.parse(fs.readFileSync(path.join(PASTA, arquivo), "utf8"));
+    let conteudo: unknown;
+    try {
+      conteudo = JSON.parse(fs.readFileSync(path.join(PASTA, arquivo), "utf8"));
+    } catch (e) {
+      console.log(`${arquivo}: JSON inválido (${e instanceof Error ? e.message : String(e)})`);
+      totalErros += 1;
+      continue;
+    }
     const casos: unknown[] = Array.isArray(conteudo) ? conteudo : [];
     for (const erro of validarCasos(casos)) {
       console.log(`${arquivo}: ${erro}`);

@@ -94,6 +94,8 @@ async function main() {
     check("texto com preposição casa", compararCampo(campo("contato"), "João", "do João", hoje));
     check("dia 10 casa com 10/09/2026", compararCampo(campo("vencimento"), "dia 10", "10/09/2026", hoje));
     check("itens comparados item a item", compararCampo(campo("itens"), [{ categoria: "bezerro", quantidade: 20 }], [{ categoria: "bezerros", quantidade: "20" }], hoje));
+    check("numero ilegivel dos dois lados nao e acerto", compararCampo(campo("valor"), "abc", "xyz", hoje) === false);
+    check("texto esperado vazio nunca acerta", compararCampo(campo("contato"), "", "João", hoje) === false);
 
     const caso = { id: "p-9", autor: "produtor" as const, tipo: "mensagem" as const, texto: "comprei 20 bezerros do João por 60 mil, pago dia 10", esperado: [{ intent: "registrar_negocio_gado", campos: { tipo: "compra", valor: 60000, vencimento: "dia 10" } }] };
     const certa = pontuarMensagem(caso, [{ intent: "registrar_negocio_gado", parameters: { tipo: "compra", valor: "60 mil", vencimento: "dia 10" } }], hoje);
@@ -110,6 +112,8 @@ async function main() {
     check("agrega intenção geral", Math.abs(m.intencao_geral - 2 / 3) < 1e-9, String(m.intencao_geral));
     check("gravação indevida reprova mesmo com nota cheia", aprovar(agregar([certa]), 1).aprovado === false);
     check("nota cheia sem gravação indevida aprova", aprovar(agregar([certa]), 0).aprovado === true);
+    check("agregar sem mensagens nao gera NaN", agregar([]).intencao_geral === 0 && agregar([]).campos === 1);
+    check("sem mensagens reprova", aprovar(agregar([]), 0).aprovado === false);
   }
 
   console.log("\n3. Fazenda de avaliação");
