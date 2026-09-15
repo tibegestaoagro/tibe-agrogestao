@@ -1,0 +1,603 @@
+[
+  {
+    "id": "cli-001",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "comprei 20 bezerros por 60 mil",
+    "esperado": [
+      {
+        "intent": "registrar_negocio_gado",
+        "campos": {
+          "tipo": "compra",
+          "itens": [{ "categoria": "bezerros", "quantidade": 20 }],
+          "valor": 60000
+        }
+      }
+    ],
+    "nota": "docs/cliente/01-entendimento-do-produto.md secao 6 (comprei 20 bezerros por R$ 60.000)",
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "cli-002",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "Comprei 20 bezerros por 60 mil pra pagar dia 10 de setembro",
+    "esperado": [
+      {
+        "intent": "registrar_negocio_gado",
+        "campos": {
+          "tipo": "compra",
+          "itens": [{ "categoria": "bezerros", "quantidade": 20 }],
+          "valor": 60000,
+          "vencimento": "dia 10"
+        }
+      }
+    ],
+    "nota": "docs/cliente/02-plano-de-acao.md, Fase 1, item 5",
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "cli-003",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "vendi 5 bezerros por 8 mil",
+    "esperado": [
+      {
+        "intent": "registrar_negocio_gado",
+        "campos": {
+          "tipo": "venda",
+          "itens": [{ "categoria": "bezerros", "quantidade": 5 }],
+          "valor": 8000
+        }
+      }
+    ],
+    "nota": "docs/specs/module-25-rebanho-por-categoria.md secao 4 (mensagem tipo vendi 5 bezerros por R$ 8.000)"
+  },
+  {
+    "id": "cli-004",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "comprei 12 garrotes do Joao do Leilao por 30 mil",
+    "esperado": [
+      {
+        "intent": "registrar_negocio_gado",
+        "campos": {
+          "tipo": "compra",
+          "itens": [{ "categoria": "garrotes", "quantidade": 12 }],
+          "valor": 30000,
+          "contato": "João do Leilão"
+        }
+      }
+    ],
+    "nota": "padrao de docs/specs/module-25-rebanho-por-categoria.md secao 4 (comprei N categoria por valor), contato adaptado para a fazenda de avaliacao"
+  },
+  {
+    "id": "cli-005",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "vendi 20 novilhas pro Frigorifico Bom Boi por 45 mil",
+    "esperado": [
+      {
+        "intent": "registrar_negocio_gado",
+        "campos": {
+          "tipo": "venda",
+          "itens": [{ "categoria": "novilhas", "quantidade": 20 }],
+          "valor": 45000,
+          "contato": "Frigorífico Bom Boi"
+        }
+      }
+    ],
+    "nota": "padrao de docs/specs/module-25-rebanho-por-categoria.md secao 4 (venda de gado), contato adaptado para a fazenda de avaliacao"
+  },
+  {
+    "id": "cli-006",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "nasceram 2 bezerros e 1 bezerra no Pasto da Sede",
+    "esperado": [
+      {
+        "intent": "registrar_movimentacao_rebanho",
+        "campos": {
+          "movement_type": "nascimento",
+          "itens": [
+            { "categoria": "bezerros", "quantidade": 2 },
+            { "categoria": "bezerra", "quantidade": 1 }
+          ],
+          "pasto_origem": "Pasto da Sede"
+        }
+      }
+    ],
+    "nota": "docs/specs/module-30-rebanho-livro-razao.md secao 8, aceite 5 (registrar nascimento: machos em Bezerro, femeas em Bezerra), pasto adaptado"
+  },
+  {
+    "id": "cli-007",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "morreram 3 vacas no Pasto da Baixada",
+    "esperado": [
+      {
+        "intent": "registrar_movimentacao_rebanho",
+        "campos": {
+          "movement_type": "morte",
+          "itens": [{ "categoria": "vacas", "quantidade": 3 }],
+          "pasto_origem": "Pasto da Baixada"
+        }
+      }
+    ],
+    "nota": "docs/specs/module-30-rebanho-livro-razao.md secao 8, aceite 8 (registrar morte), pasto adaptado",
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "cli-008",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "passei 10 novilhas do Pasto da Sede pro Pasto da Baixada",
+    "esperado": [
+      {
+        "intent": "registrar_movimentacao_rebanho",
+        "campos": {
+          "movement_type": "transferencia_pasto",
+          "itens": [{ "categoria": "novilhas", "quantidade": 10 }],
+          "pasto_origem": "Pasto da Sede",
+          "pasto_destino": "Pasto da Baixada"
+        }
+      }
+    ],
+    "nota": "docs/specs/module-30-rebanho-livro-razao.md secao 8, aceite 9 (transferir entre pastos), pastos adaptados",
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "cli-009",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "mandei 8 garrotes da Fazenda Boa Vista pro Sitio Sao Jose",
+    "esperado": [
+      {
+        "intent": "registrar_movimentacao_rebanho",
+        "campos": {
+          "movement_type": "transferencia_fazenda",
+          "itens": [{ "categoria": "garrotes", "quantidade": 8 }],
+          "fazenda": "Fazenda Boa Vista",
+          "fazenda_destino": "Sítio São José"
+        }
+      }
+    ],
+    "nota": "docs/specs/module-30-rebanho-livro-razao.md secao 8, aceite 10 (transferir entre fazendas), fazendas adaptadas"
+  },
+  {
+    "id": "cli-010",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "os 20 machos de 25 a 36 meses passaram pra categoria de boi",
+    "esperado": [
+      {
+        "intent": "registrar_movimentacao_rebanho",
+        "campos": {
+          "movement_type": "mudanca_categoria",
+          "itens": [{ "categoria": "machos de 25 a 36 meses", "quantidade": 20 }],
+          "categoria_destino": "boi"
+        }
+      }
+    ],
+    "nota": "docs/specs/module-30-rebanho-livro-razao.md secao 8, aceite 11 (mudar de categoria), quantidade adaptada da fazenda de avaliacao"
+  },
+  {
+    "id": "cli-011",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "contei o rebanho de novo e ta faltando 3 vacas",
+    "esperado": [
+      {
+        "intent": "registrar_movimentacao_rebanho",
+        "campos": {
+          "movement_type": "ajuste",
+          "sentido": "saida",
+          "itens": [{ "categoria": "vacas", "quantidade": 3 }]
+        }
+      }
+    ],
+    "nota": "docs/specs/module-30-rebanho-livro-razao.md secao 8, aceite 12 (ajuste de saldo) e docs/cliente/04-decisoes-pendentes.md linha 124 (por que tenho 47 e nao 50)"
+  },
+  {
+    "id": "cli-012",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "quantos animais eu tenho no total",
+    "esperado": [
+      {
+        "intent": "consultar_rebanho",
+        "campos": {}
+      }
+    ],
+    "nota": "docs/specs/module-30-rebanho-livro-razao.md secao 8, aceite 2 (ver total geral)",
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "cli-013",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "quantas vacas eu tenho na Fazenda Boa Vista",
+    "esperado": [
+      {
+        "intent": "consultar_rebanho",
+        "campos": {
+          "categoria": "vacas",
+          "fazenda": "Fazenda Boa Vista"
+        }
+      }
+    ],
+    "nota": "docs/specs/module-30-rebanho-livro-razao.md secao 8, aceite 3 (ver quantidade por categoria), fazenda adaptada"
+  },
+  {
+    "id": "cli-014",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "me manda os dados do brinco 1234",
+    "esperado": [
+      {
+        "intent": "consultar_animal",
+        "campos": {
+          "ear_tag": "1234"
+        }
+      }
+    ],
+    "nota": "brinco existente em fazenda.md (Animal individual), padrao de consulta por brinco de docs/specs/module-03-agente-whatsapp.md"
+  },
+  {
+    "id": "cli-015",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "cadastra o boi 481, nelore, macho",
+    "esperado": [
+      {
+        "intent": "cadastrar_animal",
+        "campos": {
+          "ear_tag": "481",
+          "breed": "Nelore",
+          "sex": "male",
+          "category": "boi"
+        }
+      }
+    ],
+    "nota": "docs/specs/module-03-agente-whatsapp.md linha 159 (cadastra o boi 1234, nelore, macho), brinco trocado para nao colidir com o brinco 1234 ja cadastrado na fazenda de avaliacao",
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "cli-016",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "o brinco 1234 ta pesando 480",
+    "esperado": [
+      {
+        "intent": "registrar_peso",
+        "campos": {
+          "ear_tag": "1234",
+          "weight": 480
+        }
+      }
+    ],
+    "nota": "docs/tibe-prd.md secao 4 (AnimalWeightLog), brinco existente em fazenda.md"
+  },
+  {
+    "id": "cli-017",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "vacinei o brinco 1234 de aftosa, custou 35",
+    "esperado": [
+      {
+        "intent": "registrar_vacina",
+        "campos": {
+          "ear_tag": "1234",
+          "vaccine_name": "aftosa",
+          "cost": 35
+        }
+      }
+    ],
+    "nota": "docs/tibe-prd.md secao 4 (AnimalVaccination) e fazenda.md (vacina Aftosa cadastrada)",
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "cli-018",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "vou vacinar o brinco 1234 de brucelose dia 20, vai custar 40",
+    "esperado": [
+      {
+        "intent": "registrar_previsao_vacina",
+        "campos": {
+          "ear_tag": "1234",
+          "vaccine_name": "brucelose",
+          "cost": 40,
+          "due_date": "dia 20"
+        }
+      }
+    ],
+    "nota": "docs/tibe-prd.md secao 4 (AnimalVaccination.next_due_at) e fazenda.md (vacina Brucelose cadastrada)"
+  },
+  {
+    "id": "cli-019",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "produzi 500 litros hoje",
+    "esperado": [
+      {
+        "intent": "registrar_producao_leite",
+        "campos": {
+          "litros": 500,
+          "data": "hoje"
+        }
+      }
+    ],
+    "nota": "docs/specs/module-32-area-leite.md linha 123 (o paragrafo 9 aceita produzi 500 litros hoje)"
+  },
+  {
+    "id": "cli-020",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "tirei 480 litros hoje",
+    "esperado": [
+      {
+        "intent": "registrar_producao_leite",
+        "campos": {
+          "litros": 480,
+          "data": "hoje"
+        }
+      }
+    ],
+    "nota": "docs/specs/module-32-area-leite.md linha 372 (tabela de intencoes de leite)",
+    "coincide_com_exemplo": "literal"
+  },
+  {
+    "id": "cli-023",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "entraram mais 4 vacas no leite",
+    "esperado": [
+      {
+        "intent": "registrar_entrada_lactacao",
+        "campos": {
+          "quantidade": 4
+        }
+      }
+    ],
+    "nota": "docs/specs/module-32-area-leite.md linha 374 (tabela de intencoes de leite)"
+  },
+  {
+    "id": "cli-024",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "sequei 3 vacas",
+    "esperado": [
+      {
+        "intent": "registrar_saida_lactacao",
+        "campos": {
+          "quantidade": 3
+        }
+      }
+    ],
+    "nota": "docs/specs/module-32-area-leite.md linha 375 (tabela de intencoes de leite)",
+    "coincide_com_exemplo": "literal"
+  },
+  {
+    "id": "cli-025",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "tenho 25 vacas em lactacao e produzi 420 litros hoje",
+    "esperado": [
+      {
+        "intent": "definir_vacas_em_lactacao",
+        "campos": {
+          "quantidade": 25
+        }
+      },
+      {
+        "intent": "registrar_producao_leite",
+        "campos": {
+          "litros": 420,
+          "data": "hoje"
+        }
+      }
+    ],
+    "nota": "docs/specs/module-32-area-leite.md linha 29 (o produtor diz tenho 25 vacas em lactacao e produzi 420 litros hoje)"
+  },
+  {
+    "id": "cli-026",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "me lembra de comprar sal na quinta",
+    "esperado": [
+      {
+        "intent": "criar_tarefa",
+        "campos": {
+          "title": "comprar sal",
+          "due_date": "quinta"
+        }
+      }
+    ],
+    "nota": "docs/cliente/02-plano-de-acao.md, Fase 2, item 2.1 e docs/specs/module-27-meu-dia.md linha 15",
+    "coincide_com_exemplo": "literal"
+  },
+  {
+    "id": "cli-027",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "me lembra de pagar a conta de energia dia 20",
+    "esperado": [
+      {
+        "intent": "criar_tarefa",
+        "campos": {
+          "title": "pagar a conta de energia",
+          "due_date": "dia 20"
+        }
+      }
+    ],
+    "nota": "mesmo padrao de docs/cliente/02-plano-de-acao.md item 2.1 (me lembra de X), conta de Energia e vencimento adaptados de fazenda.md"
+  },
+  {
+    "id": "cli-028",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "preciso saber quanto eu tenho pra pagar",
+    "esperado": [
+      {
+        "intent": "resumo",
+        "campos": {
+          "scope": "contas_a_pagar"
+        }
+      }
+    ],
+    "nota": "docs/cliente/01-entendimento-do-produto.md secao 1 (preciso saber quanto tenho para pagar)"
+  },
+  {
+    "id": "cli-029",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "me da a relacao de contas a pagar desse mes",
+    "esperado": [
+      {
+        "intent": "resumo",
+        "campos": {
+          "scope": "contas_a_pagar"
+        }
+      }
+    ],
+    "nota": "docs/specs/module-17-agenda-com-custo.md linha 21 (quer poder pedir me de a relacao de contas a pagar deste mes)"
+  },
+  {
+    "id": "cli-030",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "gastei 300 com combustivel",
+    "esperado": [
+      {
+        "intent": "registrar_lancamento_financeiro",
+        "campos": {
+          "amount": 300
+        }
+      }
+    ],
+    "nota": "docs/specs/module-04-financeiro-alertas.md linha 32 (categorias comuns do agro: combustivel)"
+  },
+  {
+    "id": "cli-032",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "fiz uma gradagem pra Agropecuaria Santa Fe com o New Holland",
+    "esperado": [
+      {
+        "intent": "registrar_servico_prestado",
+        "campos": {
+          "servico": "gradagem",
+          "maquina": "New Holland",
+          "quem": "Agropecuária Santa Fé",
+          "concluido": true
+        }
+      }
+    ],
+    "nota": "docs/specs/module-02-prestador.md linha 37 (registrar servico prestado); cliente, servico e maquina do Prestador em fazenda.md"
+  },
+  {
+    "id": "cli-033",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "comprei 10 sacas de racao de engorda por 800",
+    "esperado": [
+      {
+        "intent": "registrar_negocio_produto",
+        "campos": {
+          "tipo": "compra",
+          "produto": "ração de engorda",
+          "quantidade": 10,
+          "valor": 800
+        }
+      }
+    ],
+    "nota": "docs/specs/module-31-negociacoes.md secao 2, decisao 2 (estoque como livro-razao, entrada); produto e quantidade de fazenda.md"
+  },
+  {
+    "id": "cli-034",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "usei 2 sacas de sal mineral na Fazenda Boa Vista",
+    "esperado": [
+      {
+        "intent": "registrar_uso_estoque",
+        "campos": {
+          "produto": "sal mineral",
+          "quantidade": 2,
+          "fazenda": "Fazenda Boa Vista"
+        }
+      }
+    ],
+    "nota": "docs/specs/module-31-negociacoes.md secao 2, decisao 2 (estoque como livro-razao, saida); produto e fazenda de fazenda.md",
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "cli-035",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "contei o diesel e tem 350 litros",
+    "esperado": [
+      {
+        "intent": "ajustar_estoque",
+        "campos": {
+          "produto": "diesel",
+          "saldo": 350
+        }
+      }
+    ],
+    "nota": "docs/specs/module-31-negociacoes.md secao 2, decisao 2 (estoque como livro-razao, ajuste); produto de fazenda.md"
+  },
+  {
+    "id": "cli-037",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "mandei 15 bois pro leilao da cooperativa",
+    "esperado": [
+      {
+        "intent": "registrar_remessa_evento",
+        "campos": {
+          "evento": "leilão da cooperativa",
+          "categoria": "bois",
+          "quantidade": 15
+        }
+      }
+    ],
+    "nota": "docs/specs/module-31-negociacoes.md secao 2, decisao 5 (leilao e feira migram para Negociacoes)"
+  },
+  {
+    "id": "cli-038",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "do leilão da cooperativa venderam 12 e voltaram 8",
+    "esperado": [
+      {
+        "intent": "encerrar_remessa_evento",
+        "campos": {
+          "evento": "leilão da cooperativa",
+          "vendidos": 12,
+          "retornados": 8
+        }
+      }
+    ],
+    "nota": "docs/specs/module-30-rebanho-livro-razao.md linha 170 (nos encerramentos parciais, 12 vendidos, 8 retornados)"
+  },
+  {
+    "id": "cli-039",
+    "autor": "cliente",
+    "tipo": "mensagem",
+    "texto": "troquei 10 novilhas por um trator, paguei 20 mil de diferenca",
+    "esperado": [
+      {
+        "intent": "registrar_permuta",
+        "campos": {
+          "entregue": "10 novilhas",
+          "recebido": "um trator",
+          "diferenca_paga": 20000
+        }
+      }
+    ],
+    "nota": "docs/specs/module-31-negociacoes.md secao 2, decisao 7 (permuta aceita animais, produtos, maquina e dinheiro)",
+    "coincide_com_exemplo": "molde"
+  }
+]

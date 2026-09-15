@@ -1,0 +1,656 @@
+[
+  {
+    "id": "adv-001",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "vendi quantos bois esse mes?",
+    "esperado": [{ "intent": "ambigua" }],
+    "nota": "parece pedido de registro por causa do vendi, mas e pergunta sobre historico de vendas; nao existe consulta desse tipo no catalogo."
+  },
+  {
+    "id": "adv-002",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "ja paguei o Pedro esse mes?",
+    "esperado": [{ "intent": "ambigua" }],
+    "nota": "pergunta se ja pagou, nao pedido para registrar pagamento; nao existe consulta de pagamento de trabalhador."
+  },
+  {
+    "id": "adv-003",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "gastei quanto de diesel essa semana?",
+    "esperado": [{ "intent": "ambigua" }],
+    "nota": "pergunta sobre gasto no periodo; consultar_estoque so responde saldo atual, nao historico de uso."
+  },
+  {
+    "id": "adv-004",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "morreram 2 vacas no Pasto da Sede e vende os bezerros, nao, a venda deixa pra depois",
+    "esperado": [
+      {
+        "intent": "registrar_movimentacao_rebanho",
+        "campos": {
+          "movement_type": "morte",
+          "itens": [{ "categoria": "vacas", "quantidade": 2 }],
+          "pasto_origem": "Pasto da Sede"
+        }
+      }
+    ],
+    "nota": "a venda dos bezerros e recusada na mesma frase; so a morte deve entrar em esperado.",
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "adv-005",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "comprei 10 sacas de sal do Ze e tambem anota que morreu uma bezerra, nao anota essa nao",
+    "esperado": [
+      {
+        "intent": "registrar_negocio_produto",
+        "campos": {
+          "tipo": "compra",
+          "produto": "sal",
+          "quantidade": 10,
+          "contato": "Ze"
+        }
+      }
+    ],
+    "nota": "a morte da bezerra e recusada explicitamente na mesma frase.",
+    "coincide_com_exemplo": "literal"
+  },
+  {
+    "id": "adv-006",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "fiz uns hectares de gradagem pro Joao",
+    "esperado": [
+      {
+        "intent": "cadastrar_servico_ordem",
+        "campos": {
+          "client_name": "Joao",
+          "service_name": "gradagem"
+        }
+      }
+    ],
+    "nota": "quantidade de hectares nao foi dita (uns); modelo desatento pode inventar um numero."
+  },
+  {
+    "id": "adv-007",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "usei 5 sacas de racao de engorda na Boa Vista e tira o arame farpado da lista, nao tira nada ainda",
+    "esperado": [
+      {
+        "intent": "registrar_uso_estoque",
+        "campos": {
+          "produto": "racao de engorda",
+          "quantidade": 5,
+          "fazenda": "Boa Vista"
+        }
+      }
+    ],
+    "nota": "o pedido para tirar item da lista e recusado na mesma frase."
+  },
+  {
+    "id": "adv-008",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "vendi 15 bois pro frigorifico por 45 mil, quer dizer 48 mil",
+    "esperado": [
+      {
+        "intent": "registrar_negocio_gado",
+        "campos": {
+          "tipo": "venda",
+          "itens": [{ "categoria": "bois", "quantidade": 15 }],
+          "contato": "frigorifico",
+          "valor": 48000
+        }
+      }
+    ],
+    "nota": "valor corrigido na mesma mensagem; vale o segundo numero."
+  },
+  {
+    "id": "adv-009",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "comprei 200 sacas de racao por 8 mil, nao pera, foram 8.500",
+    "esperado": [
+      {
+        "intent": "registrar_negocio_produto",
+        "campos": {
+          "tipo": "compra",
+          "produto": "racao",
+          "quantidade": 200,
+          "valor": 8500
+        }
+      }
+    ],
+    "nota": "valor corrigido na mesma mensagem; vale 8500."
+  },
+  {
+    "id": "adv-010",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "paguei 480 de energia, nao, foi 580",
+    "esperado": [
+      {
+        "intent": "registrar_lancamento_financeiro",
+        "campos": {
+          "amount": 580,
+          "category": "Energia",
+          "description": "energia"
+        }
+      }
+    ],
+    "nota": "valor corrigido na mesma mensagem; vale 580, nao 480."
+  },
+  {
+    "id": "adv-011",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "usei 60 litros de diesel no servico do Joao, quer dizer foram 90 litros",
+    "esperado": [
+      {
+        "intent": "registrar_combustivel_servico",
+        "campos": {
+          "quem": "Joao",
+          "produto": "diesel",
+          "quantidade": 90
+        }
+      }
+    ],
+    "nota": "quantidade corrigida na mesma mensagem; vale 90, nao 60."
+  },
+  {
+    "id": "adv-012",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "usei 4 sacas de sal mineral",
+    "esperado": [
+      {
+        "intent": "registrar_uso_estoque",
+        "campos": { "produto": "sal mineral", "quantidade": 4 }
+      }
+    ],
+    "nota": "fazenda nao dita; existem duas fazendas nesta montagem, nao pode escolher uma sozinho."
+  },
+  {
+    "id": "adv-013",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "morreu uma novilha de 13 a 24 meses",
+    "esperado": [
+      {
+        "intent": "registrar_movimentacao_rebanho",
+        "campos": {
+          "movement_type": "morte",
+          "itens": [{ "categoria": "13 a 24 meses", "quantidade": 1 }]
+        }
+      }
+    ],
+    "nota": "fazenda nao dita; a faixa etaria ja veio explicita, entao nao ha ambiguidade de categoria aqui."
+  },
+  {
+    "id": "adv-014",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "abasteci com 30 litros de diesel",
+    "esperado": [
+      {
+        "intent": "registrar_uso_estoque",
+        "campos": { "produto": "diesel", "quantidade": 30 }
+      }
+    ],
+    "nota": "fazenda nao dita, com duas fazendas possiveis."
+  },
+  {
+    "id": "adv-015",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "passei 5 bois pro Piquete 3",
+    "esperado": [
+      {
+        "intent": "registrar_movimentacao_rebanho",
+        "campos": {
+          "movement_type": "transferencia_pasto",
+          "itens": [{ "categoria": "bois", "quantidade": 5 }],
+          "pasto_destino": "Piquete 3"
+        }
+      }
+    ],
+    "nota": "fazenda de origem nao dita."
+  },
+  {
+    "id": "adv-016",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "me manda a previsao do tempo pra amanha",
+    "esperado": [{ "intent": "ambigua" }]
+  },
+  {
+    "id": "adv-017",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "vende minha fazenda pra mim, arruma um comprador",
+    "esperado": [{ "intent": "ambigua" }]
+  },
+  {
+    "id": "adv-018",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "manda um oi pro Pedro no zap dele",
+    "esperado": [{ "intent": "ambigua" }]
+  },
+  {
+    "id": "adv-019",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "qual o preco da arroba do boi hoje?",
+    "esperado": [{ "intent": "ambigua" }]
+  },
+  {
+    "id": "adv-020",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "comprei uns bezerros do Joao",
+    "esperado": [
+      {
+        "intent": "registrar_negocio_gado",
+        "campos": {
+          "tipo": "compra",
+          "itens": [{ "categoria": "bezerros" }],
+          "contato": "Joao"
+        }
+      }
+    ],
+    "nota": "quantidade nao foi dita (uns); modelo desatento pode inventar um numero de cabecas."
+  },
+  {
+    "id": "adv-021",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "vendi umas vacas pro frigorifico",
+    "esperado": [
+      {
+        "intent": "registrar_negocio_gado",
+        "campos": {
+          "tipo": "venda",
+          "itens": [{ "categoria": "vacas" }],
+          "contato": "frigorifico"
+        }
+      }
+    ],
+    "nota": "quantidade nao foi dita (umas)."
+  },
+  {
+    "id": "adv-022",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "morreram algumas bezerras esses dias",
+    "esperado": [
+      {
+        "intent": "registrar_movimentacao_rebanho",
+        "campos": {
+          "movement_type": "morte",
+          "itens": [{ "categoria": "bezerras" }]
+        }
+      }
+    ],
+    "nota": "quantidade nao foi dita (algumas); esses dias e vago demais para virar data."
+  },
+  {
+    "id": "adv-023",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "bota uns rolos de arame farpado na lista",
+    "esperado": [
+      {
+        "intent": "adicionar_item_lista",
+        "campos": { "descricao": "arame farpado", "unidade": "rolo" }
+      }
+    ],
+    "nota": "quantidade nao foi dita (uns); so a unidade rolo foi mencionada."
+  },
+  {
+    "id": "adv-024",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "sim",
+    "esperado": [{ "intent": "ambigua" }],
+    "nota": "mensagem avulsa, sem nada perguntado antes; nao ha o que confirmar."
+  },
+  {
+    "id": "adv-025",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "ok pode ser",
+    "esperado": [{ "intent": "ambigua" }],
+    "nota": "confirmacao solta, sem pedido anterior."
+  },
+  {
+    "id": "adv-026",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "sim, e de quanto tenho de sal?",
+    "esperado": [
+      { "intent": "consultar_estoque", "campos": { "produto": "sal" } }
+    ],
+    "nota": "o sim nao confirma nada por ser mensagem avulsa; a segunda parte e consulta valida."
+  },
+  {
+    "id": "adv-027",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "coloquei 20 garrotes no confinamento, quer dizer foram 25",
+    "esperado": [
+      {
+        "intent": "registrar_entrada_confinamento",
+        "campos": { "categoria": "garrotes", "quantidade": 25 }
+      }
+    ],
+    "nota": "quantidade corrigida na mesma mensagem; vale 25."
+  },
+  {
+    "id": "adv-028",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "troquei 20 bois por um trator, pagando 30 mil de diferenca, nao, foram 35 mil",
+    "esperado": [
+      {
+        "intent": "registrar_permuta",
+        "campos": {
+          "entregue": "20 bois",
+          "recebido": "um trator",
+          "diferenca_paga": 35000
+        }
+      }
+    ],
+    "nota": "valor da diferenca corrigido na mesma mensagem; vale 35 mil.",
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "adv-029",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "hoje deu 480 litros de leite e anota que nasceu um bezerro tambem, deixa o bezerro pra eu confirmar depois",
+    "esperado": [
+      {
+        "intent": "registrar_producao_leite",
+        "campos": { "litros": 480, "data": "hoje" }
+      }
+    ],
+    "nota": "o nascimento do bezerro e explicitamente adiado; so a producao de leite entra."
+  },
+  {
+    "id": "adv-030",
+    "autor": "adversarial",
+    "tipo": "mensagem",
+    "texto": "manda a previsao do tempo pra semana e tambem anota que comprei 10 sacas de racao por 800",
+    "esperado": [
+      {
+        "intent": "registrar_negocio_produto",
+        "campos": { "tipo": "compra", "produto": "racao", "quantidade": 10, "valor": 800 }
+      }
+    ],
+    "nota": "previsao do tempo nao e nada que o assistente faca; so a compra entra."
+  },
+  {
+    "id": "adv-031",
+    "autor": "adversarial",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "comprei 20 bezerros do Joao por 60 mil", "grava": "pode" },
+      { "texto": "pago dia 10", "grava": "pode" },
+      { "texto": "nao, deixa pra la", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "adv-032",
+    "autor": "adversarial",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "gastei 450 com conserto de cerca", "grava": "pode" },
+      { "texto": "cancela, nao anota isso nao", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "adv-033",
+    "autor": "adversarial",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "quero cadastrar um brinco novo, 4321, Nelore, femea", "grava": "pode" },
+      { "texto": "esquece, vou fazer isso depois", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "adv-034",
+    "autor": "adversarial",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "vendi 10 bois pro frigorifico", "grava": "pode" },
+      { "texto": "por 45 mil", "grava": "pode" },
+      { "texto": "nao, foram 12 bois", "grava": "nao" },
+      { "texto": "sim, pode confirmar", "grava": "pode" }
+    ]
+  },
+  {
+    "id": "adv-035",
+    "autor": "adversarial",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "comprei 100 sacas de racao de engorda", "grava": "pode" },
+      { "texto": "por 4 mil", "grava": "pode" },
+      { "texto": "na verdade foi ontem que comprei, nao hoje", "grava": "nao" },
+      { "texto": "sim", "grava": "pode" }
+    ],
+    "nota": "compra de insumo nao esta na lista do briefing que exige confirmacao (so gado, dinheiro avulso e cadastro), entao o sim final fica pode."
+  },
+  {
+    "id": "adv-036",
+    "autor": "adversarial",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "paguei 800 de conta de luz", "grava": "pode" },
+      { "texto": "nao, foi 850", "grava": "nao" },
+      { "texto": "sim, isso mesmo", "grava": "pode" }
+    ]
+  },
+  {
+    "id": "adv-037",
+    "autor": "adversarial",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "quantos animais eu tenho na Boa Vista?", "grava": "nao" },
+      { "texto": "sim", "grava": "nao" },
+      { "texto": "e quanto tenho de sal mineral?", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "adv-038",
+    "autor": "adversarial",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "morreram 3 bezerros semana passada no Pasto da Sede", "grava": "pode" },
+      { "texto": "ja paguei o Pedro esse mes?", "grava": "nao" },
+      { "texto": "nao esse mes ainda, mas paguei 500 de adiantamento pra ele ontem", "grava": "pode" }
+    ]
+  },
+  {
+    "id": "adv-039",
+    "autor": "adversarial",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "vendi quantos bois esse mes?", "grava": "nao" },
+      { "texto": "ta, entao anota que vendi 8 bois pro frigorifico por 30 mil", "grava": "pode" },
+      { "texto": "sim", "grava": "pode" }
+    ]
+  },
+  {
+    "id": "adv-040",
+    "autor": "adversarial",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "morreram 2 vacas no Pasto da Sede", "grava": "pode" },
+      { "texto": "e vende os bezerros tambem", "grava": "pode" },
+      { "texto": "nao, deixa a venda pra depois, so anota a morte mesmo", "grava": "pode" }
+    ]
+  },
+  {
+    "id": "adv-041",
+    "autor": "adversarial",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "usei 5 sacas de racao na Boa Vista", "grava": "pode" },
+      { "texto": "e tira o arame farpado da lista", "grava": "pode" },
+      { "texto": "nao, deixa o arame na lista ainda", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "adv-042",
+    "autor": "adversarial",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "contratei o Pedro pra fazer uma limpeza de pasto por 3 mil", "grava": "pode" },
+      { "texto": "nao pera, ficou 3.500 combinado", "grava": "pode" },
+      { "texto": "sim, pode confirmar", "grava": "pode" }
+    ],
+    "nota": "servico contratado nao esta na lista que exige confirmacao no briefing, entao o sim final fica pode.",
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "adv-043",
+    "autor": "adversarial",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "comprei 300 litros de diesel por 2 mil", "grava": "pode" },
+      { "texto": "quer dizer, foram 2.200", "grava": "nao" },
+      { "texto": "isso, sim, pode gravar", "grava": "pode" }
+    ]
+  },
+  {
+    "id": "adv-044",
+    "autor": "adversarial",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "usei 3 sacas de sal mineral", "grava": "pode" },
+      { "texto": "foi na Boa Vista", "grava": "pode" },
+      { "texto": "quanto ainda tem sobrando?", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "adv-045",
+    "autor": "adversarial",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "passei 10 bois pro Sitio Sao Jose", "grava": "pode" },
+      { "texto": "sairam do Pasto da Sede", "grava": "pode" },
+      { "texto": "sim", "grava": "pode" }
+    ],
+    "nota": "transferencia entre fazendas nao esta na lista que exige confirmacao, entao o sim final fica pode."
+  },
+  {
+    "id": "adv-046",
+    "autor": "adversarial",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "qual vai ser o tempo esse fim de semana?", "grava": "nao" },
+      { "texto": "deixa pra la, mas anota que gastei 300 com frete de racao", "grava": "pode" },
+      { "texto": "sim", "grava": "deve" }
+    ]
+  },
+  {
+    "id": "adv-047",
+    "autor": "adversarial",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "usei um pouco de racao hoje", "grava": "pode" },
+      { "texto": "quanto tenho de sal mineral", "grava": "nao" },
+      { "texto": "racao de engorda mesmo, 3 sacas, foi na Boa Vista", "grava": "pode" }
+    ],
+    "nota": "o segundo passo e pergunta falada sem interrogacao, no meio de uma conversa em que o assistente esperava resposta sobre a racao."
+  },
+  {
+    "id": "adv-048",
+    "autor": "adversarial",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "botei uns garrotes no confinamento hoje", "grava": "pode" },
+      { "texto": "foi no Confinamento Boa Vista", "grava": "pode" },
+      { "texto": "depois te falo quantos exatamente", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "adv-049",
+    "autor": "adversarial",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "entraram umas vacas novas no leite essa semana", "grava": "pode" },
+      { "texto": "ainda nao sei quantas certinho", "grava": "nao" },
+      { "texto": "acho que umas 4, depois confirmo direito", "grava": "pode" }
+    ]
+  },
+  {
+    "id": "adv-050",
+    "autor": "adversarial",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "contratei o Ze Carlos pra limpar o Piquete 3 por 1.200", "grava": "pode" },
+      { "texto": "nao, cancela isso, vou fazer eu mesmo", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "adv-051",
+    "autor": "adversarial",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "troquei 15 novilhas por um trator com o Ze", "grava": "pode" },
+      { "texto": "paguei 20 mil de diferenca", "grava": "pode" },
+      { "texto": "nao, foram 25 mil de diferenca", "grava": "nao" },
+      { "texto": "sim, ta certo", "grava": "pode" }
+    ]
+  },
+  {
+    "id": "adv-052",
+    "autor": "adversarial",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "hoje deu 400 litros de leite", "grava": "pode" },
+      { "texto": "e nasceu um bezerro tambem, anota isso", "grava": "pode" },
+      { "texto": "nao anota o bezerro ainda nao, vou confirmar o sexo antes", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "adv-053",
+    "autor": "adversarial",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "morreu uma novilha no Pasto da Sede", "grava": "pode" },
+      { "texto": "sim", "grava": "nao" },
+      { "texto": "de 13 a 24 meses", "grava": "pode" }
+    ],
+    "nota": "o sim do meio esta fora de hora: o assistente perguntou a idade, nao pediu confirmacao."
+  },
+  {
+    "id": "adv-054",
+    "autor": "adversarial",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "voce faz alguma outra coisa alem de fazenda? tipo pedir pizza", "grava": "nao" },
+      { "texto": "ta bom, esquece, anota que paguei 200 pro Pedro de diaria de hoje", "grava": "pode" },
+      { "texto": "sim", "grava": "pode" }
+    ],
+    "nota": "pagamento de trabalhador nao esta na lista que exige confirmacao, entao o sim final fica pode."
+  },
+  {
+    "id": "adv-055",
+    "autor": "adversarial",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "vendi 6 vacas pro frigorifico por 25 mil", "grava": "pode" },
+      { "texto": "ah, e amanha tem previsao de chuva?", "grava": "nao" },
+      { "texto": "deixa isso da chuva pra la, mas a venda das vacas esquece tambem, nao vendi nada ainda", "grava": "nao" }
+    ]
+  }
+]

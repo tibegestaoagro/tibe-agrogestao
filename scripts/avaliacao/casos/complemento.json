@@ -1,0 +1,630 @@
+[
+  {
+    "id": "prod-101",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "oi tibe, o que você consegue fazer por aqui",
+    "esperado": [
+      { "intent": "ajuda" }
+    ]
+  },
+  {
+    "id": "prod-102",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "ei quero saber como que eu faço pra registrar uma vacina no bicho nao sei mexer nisso ainda",
+    "esperado": [
+      { "intent": "ajuda", "campos": { "topic": "registrar_vacina" } }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "prod-103",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "como funciona esse negócio de calcular sal mineral aqui no zap",
+    "esperado": [
+      { "intent": "ajuda", "campos": { "topic": "calcular_sal" } }
+    ]
+  },
+  {
+    "id": "prod-105",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "bota no sistema o brinco 4521, é uma novilha nelore fêmea",
+    "esperado": [
+      { "intent": "cadastrar_animal", "campos": { "ear_tag": "4521", "breed": "Nelore", "sex": "female", "category": "novilha" } }
+    ]
+  },
+  {
+    "id": "prod-107",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "hoje rodei duas diaria de trator pro joao la da fazenda dele",
+    "esperado": [
+      { "intent": "cadastrar_servico_ordem", "campos": { "client_name": "joao", "service_name": "diaria de trator", "quantity": 2 } }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "prod-109",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "quero saber quanto material precisa pra uma cerca de mil e duzentos metros com cinco fios rolo de quinhentos metros",
+    "esperado": [
+      { "intent": "calcular_cerca", "campos": { "comprimento": 1200, "fios": 5, "metros_por_rolo": 500 } }
+    ]
+  },
+  {
+    "id": "prod-111",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "kero misturar mil quilo de racao sendo sessenta por cento de milho vinte de soja e vinte de nucleo",
+    "esperado": [
+      { "intent": "calcular_racao", "campos": { "ingredientes": [ { "nome": "milho", "percentual": 60 }, { "nome": "soja", "percentual": 20 }, { "nome": "nucleo", "percentual": 20 } ], "quantidade": 1000 } }
+    ]
+  },
+  {
+    "id": "prod-112",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "quanto entra de cada coisa numa mistura de 200kg com 70% milho e 30% núcleo",
+    "esperado": [
+      { "intent": "calcular_racao", "campos": { "ingredientes": [ { "nome": "milho", "percentual": 70 }, { "nome": "núcleo", "percentual": 30 } ], "quantidade": 200 } }
+    ]
+  },
+  {
+    "id": "prod-114",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "quero saber quanto de sal da pra duzentos animais num mes de trezentos gramas por dia peso medio de quatrocentos e cinquenta quilo",
+    "esperado": [
+      { "intent": "calcular_sal", "campos": { "animais": 200, "dias": 30, "consumo": 300, "peso": 450 } }
+    ]
+  },
+  {
+    "id": "prod-115",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "quanta semente de mombaça preciso pra plantar 20 hectares",
+    "esperado": [
+      { "intent": "calcular_sementes", "campos": { "area": 20, "variedade": "mombaça" } }
+    ],
+    "coincide_com_exemplo": "literal"
+  },
+  {
+    "id": "prod-116",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "quero saber quanto de semente marandu pra 15 ha com taxa de 12 quilo por hectare",
+    "esperado": [
+      { "intent": "calcular_sementes", "campos": { "area": 15, "variedade": "marandu", "taxa": 12 } }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "prod-117",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "quanto de semente massai precisa pra trinta hectares saca de dez quilo",
+    "esperado": [
+      { "intent": "calcular_sementes", "campos": { "area": 30, "variedade": "massai", "peso_saca": 10 } }
+    ]
+  },
+  {
+    "id": "prod-118",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "comprei o arame farpado, foi 1800",
+    "esperado": [
+      { "intent": "comprei_item_lista", "campos": { "descricao": "Arame farpado", "valor": 1800 } }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "prod-119",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "ja comprei o arame la mas foi fiado",
+    "esperado": [
+      { "intent": "comprei_item_lista", "campos": { "descricao": "arame", "pago": false } }
+    ]
+  },
+  {
+    "id": "prod-120",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o que eu tenho pra amanhã e nessa semana",
+    "esperado": [
+      { "intent": "consultar_amanha" },
+      { "intent": "consultar_semana" }
+    ]
+  },
+  {
+    "id": "prod-122",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "e amanha tem alguma coisa marcada pra mim",
+    "esperado": [
+      { "intent": "consultar_amanha" }
+    ]
+  },
+  {
+    "id": "prod-126",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o que que eu tinha colocado pra comprar la na lista",
+    "esperado": [
+      { "intent": "consultar_lista_compra" }
+    ]
+  },
+  {
+    "id": "prod-129",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "e hoje o que que tem pra fazer tem conta vencendo",
+    "esperado": [
+      { "intent": "consultar_meu_dia" }
+    ]
+  },
+  {
+    "id": "prod-130",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "quanto entrou e saiu esse mês",
+    "esperado": [
+      { "intent": "consultar_saldo" }
+    ]
+  },
+  {
+    "id": "prod-134",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "gastei 40 litros de diesel no serviço do João e já terminei",
+    "esperado": [
+      { "intent": "registrar_combustivel_servico", "campos": { "quem": "João", "produto": "diesel", "quantidade": 40 } },
+      { "intent": "encerrar_servico", "campos": { "quem": "João" } }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "prod-135",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "terminei o serviço do Zé",
+    "esperado": [
+      { "intent": "encerrar_servico", "campos": { "quem": "Zé" } }
+    ]
+  },
+  {
+    "id": "prod-137",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "comecei o serviço do João, já fiz 8 hectares",
+    "esperado": [
+      { "intent": "iniciar_servico", "campos": { "quem": "João" } },
+      { "intent": "registrar_producao_servico", "campos": { "quem": "João", "quantidade": 8 } }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "prod-139",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "to comecando agora o servico pro marcos",
+    "esperado": [
+      { "intent": "iniciar_servico", "campos": { "quem": "marcos" } }
+    ]
+  },
+  {
+    "id": "prod-140",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "adiantei 500 pro Zé Carlos pra resolver uma coisa",
+    "esperado": [
+      { "intent": "registrar_adiantamento", "campos": { "nome": "Zé Carlos", "valor": 500 } }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "prod-141",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "adiantei 300 pro Zé Carlos esse mês e paguei o resto do salário dele hoje",
+    "esperado": [
+      { "intent": "registrar_adiantamento", "campos": { "nome": "Zé Carlos", "valor": 300 } },
+      { "intent": "registrar_pagamento_trabalhador", "campos": { "nome": "Zé Carlos" } }
+    ]
+  },
+  {
+    "id": "prod-143",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "dei mais 8 sacas de silagem pro confinamento",
+    "esperado": [
+      { "intent": "registrar_alimentacao_confinamento", "campos": { "produto": "silagem", "quantidade": 8 } }
+    ]
+  },
+  {
+    "id": "prod-144",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "botei 30 garrotes no Confinamento Boa Vista e já dei ração pra eles",
+    "esperado": [
+      { "intent": "registrar_entrada_confinamento", "campos": { "categoria": "garrotes", "quantidade": 30, "confinamento": "Confinamento Boa Vista" } },
+      { "intent": "registrar_alimentacao_confinamento", "campos": { "produto": "ração" } }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "prod-145",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "entraram 4 vacas no leite e secaram 3",
+    "esperado": [
+      { "intent": "registrar_entrada_lactacao", "campos": { "quantidade": 4 } },
+      { "intent": "registrar_saida_lactacao", "campos": { "quantidade": 3 } }
+    ]
+  },
+  {
+    "id": "prod-146",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "mais 5 vacas começaram a dar leite",
+    "esperado": [
+      { "intent": "registrar_entrada_lactacao", "campos": { "quantidade": 5 } }
+    ]
+  },
+  {
+    "id": "prod-147",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "mandei 40 garrotes pro Boitel Boa Engorda",
+    "esperado": [
+      { "intent": "registrar_envio_boitel", "campos": { "categoria": "garrotes", "quantidade": 40, "confinamento": "Boitel Boa Engorda" } }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "prod-148",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "hoje foi vinte cabeça de boi pro boitel do joao",
+    "esperado": [
+      { "intent": "registrar_envio_boitel", "campos": { "categoria": "boi", "quantidade": 20, "confinamento": "boitel do joao", "data": "hoje" } }
+    ]
+  },
+  {
+    "id": "prod-150",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "a vacina de brucelose do brinco 1234 vai custar quarenta e cinco dia vinte",
+    "esperado": [
+      { "intent": "registrar_previsao_vacina", "campos": { "ear_tag": "1234", "vaccine_name": "brucelose", "cost": 45, "due_date": "dia 20" } }
+    ]
+  },
+  {
+    "id": "prod-152",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "fechei um servico de limpeza de pasto com o antonio por quatro mil e quinhentos",
+    "esperado": [
+      { "intent": "registrar_servico_contratado", "campos": { "servico": "limpeza de pasto", "valor": 4500, "quem": "antonio" } }
+    ]
+  },
+  {
+    "id": "prod-154",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o antonio vai ficar aqui fixo ganhando dois mil e duzentos por mes",
+    "esperado": [
+      { "intent": "registrar_trabalhador", "campos": { "nome": "antonio", "valor": 2200, "frequencia": "mensal" } }
+    ]
+  },
+  {
+    "id": "prod-156",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "tira o arame farpado da lista, já resolvi de outro jeito",
+    "esperado": [
+      { "intent": "remover_item_lista", "campos": { "descricao": "Arame farpado" } }
+    ]
+  },
+  {
+    "id": "prod-158",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o Pedro trabalhou 3 dias fazendo cerca, diária de 150",
+    "esperado": [
+      { "intent": "registrar_diaria", "campos": { "servico": "cerca", "valor": 150, "quantidade": 3, "quem": "Pedro" } }
+    ]
+  },
+  {
+    "id": "prod-159",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "tres pessoa trabalhou quatro dia na rocada diaria de cento e oitenta reais",
+    "esperado": [
+      { "intent": "registrar_diaria", "campos": { "servico": "rocada", "valor": 180, "quantidade": 4, "pessoas": 3 } }
+    ]
+  },
+  {
+    "id": "prod-160",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "já fiz mais 10 hectares no serviço da Agropecuária Santa Fé",
+    "esperado": [
+      { "intent": "registrar_producao_servico", "campos": { "quem": "Agropecuária Santa Fé", "quantidade": 10 } }
+    ]
+  },
+  {
+    "id": "prod-161",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "fui conferir o tanque de diesel agora de manha e sobrou 610 litro",
+    "esperado": [
+      { "intent": "ajustar_estoque", "campos": { "produto": "diesel", "saldo": 610 } }
+    ]
+  },
+  {
+    "id": "prod-162",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "rodei uma colheita pro pessoal do Sítio Alegre",
+    "esperado": [
+      { "intent": "cadastrar_servico_ordem", "campos": { "client_name": "Sítio Alegre", "service_name": "colheita" } }
+    ]
+  },
+  {
+    "id": "prod-163",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "vou fechar 350 metro de cerca com 3 fio, quanto de arame precisa?",
+    "esperado": [
+      { "intent": "calcular_cerca", "campos": { "comprimento": 350, "fios": 3 } }
+    ]
+  },
+  {
+    "id": "prod-164",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "com rolo de 250 metro, quanto arame vai numa cerca de 700 metro com 6 fio?",
+    "esperado": [
+      { "intent": "calcular_cerca", "campos": { "comprimento": 700, "fios": 6, "metros_por_rolo": 250 } }
+    ]
+  },
+  {
+    "id": "prod-165",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "vou misturar 300 quilo de ração com 50% de milho e 50% de farelo",
+    "esperado": [
+      { "intent": "calcular_racao", "campos": { "ingredientes": [ { "nome": "milho", "percentual": 50 }, { "nome": "farelo", "percentual": 50 } ], "quantidade": 300 } }
+    ]
+  },
+  {
+    "id": "prod-166",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "quanto de sal precisa pra 80 cabeça em 15 dia?",
+    "esperado": [
+      { "intent": "calcular_sal", "campos": { "animais": 80, "dias": 15 } }
+    ]
+  },
+  {
+    "id": "prod-167",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "tem algum compromisso marcado pra amanhã?",
+    "esperado": [
+      { "intent": "consultar_amanha", "campos": {} }
+    ]
+  },
+  {
+    "id": "prod-168",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "manda os dados do brinco 87",
+    "esperado": [
+      { "intent": "consultar_animal", "campos": { "ear_tag": "87" } }
+    ]
+  },
+  {
+    "id": "prod-169",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o Sítio Alegre ainda deve alguma coisa?",
+    "esperado": [
+      { "intent": "consultar_cliente", "campos": { "client_name": "Sítio Alegre" } }
+    ]
+  },
+  {
+    "id": "prod-170",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o Zé do Rio já pagou tudo o que devia?",
+    "esperado": [
+      { "intent": "consultar_cliente", "campos": { "client_name": "Zé do Rio" } }
+    ]
+  },
+  {
+    "id": "prod-171",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "a Transportes Rio Verde já acertou comigo?",
+    "esperado": [
+      { "intent": "consultar_cliente", "campos": { "client_name": "Transportes Rio Verde" } }
+    ]
+  },
+  {
+    "id": "prod-172",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "deixa eu ver o que falta comprar",
+    "esperado": [
+      { "intent": "consultar_lista_compra", "campos": {} }
+    ]
+  },
+  {
+    "id": "prod-173",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o que ainda falta na lista de compras?",
+    "esperado": [
+      { "intent": "consultar_lista_compra", "campos": {} }
+    ]
+  },
+  {
+    "id": "prod-174",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "tem alguma coisa pendente pra hoje?",
+    "esperado": [
+      { "intent": "consultar_meu_dia", "campos": {} }
+    ]
+  },
+  {
+    "id": "prod-175",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "como fechou o caixa desse mes?",
+    "esperado": [
+      { "intent": "consultar_saldo", "campos": {} }
+    ]
+  },
+  {
+    "id": "prod-176",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o que tá previsto pra essa semana?",
+    "esperado": [
+      { "intent": "consultar_semana", "campos": {} }
+    ]
+  },
+  {
+    "id": "prod-177",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "agora só 18 vaca tão dando leite",
+    "esperado": [
+      { "intent": "definir_vacas_em_lactacao", "campos": { "quantidade": 18 } }
+    ]
+  },
+  {
+    "id": "prod-178",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "da feira agropecuária de dourados venderam 6 e voltaram 4",
+    "esperado": [
+      { "intent": "encerrar_remessa_evento", "campos": { "evento": "feira agropecuária de dourados", "vendidos": 6, "retornados": 4 } }
+    ]
+  },
+  {
+    "id": "prod-179",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "do leilão da fazenda vizinha não vendeu nenhuma cabeça, voltou tudo",
+    "esperado": [
+      { "intent": "encerrar_remessa_evento", "campos": { "evento": "leilão da fazenda vizinha", "vendidos": 0 } }
+    ]
+  },
+  {
+    "id": "prod-180",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "manda o relatório da lavoura",
+    "esperado": [
+      { "intent": "gerar_relatorio", "campos": { "tipo": "lavoura" } }
+    ]
+  },
+  {
+    "id": "prod-181",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "quero o relatório do prestador em pdf",
+    "esperado": [
+      { "intent": "gerar_relatorio", "campos": { "tipo": "prestador" } }
+    ]
+  },
+  {
+    "id": "prod-182",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "comecei agora o serviço do Sítio Alegre",
+    "esperado": [
+      { "intent": "iniciar_servico", "campos": { "quem": "Sítio Alegre" } }
+    ]
+  },
+  {
+    "id": "prod-183",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "acabei de pagar o Zé Carlos, 2200",
+    "esperado": [
+      { "intent": "registrar_pagamento_trabalhador", "campos": { "nome": "Zé Carlos", "valor": 2200 } }
+    ]
+  },
+  {
+    "id": "prod-184",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "pesamos o brinco 87 agora, deu 210",
+    "esperado": [
+      { "intent": "registrar_peso", "campos": { "ear_tag": "87", "weight": 210 } }
+    ]
+  },
+  {
+    "id": "prod-185",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "fechei com o Antônio a limpeza do curral por 1500",
+    "esperado": [
+      { "intent": "registrar_servico_contratado", "campos": { "servico": "limpeza do curral", "valor": 1500, "quem": "Antônio" } }
+    ]
+  },
+  {
+    "id": "prod-186",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "vou fazer uma colheita fechada pro Sítio Alegre, 4 mil, ainda não terminei",
+    "esperado": [
+      { "intent": "registrar_servico_prestado", "campos": { "servico": "colheita", "unidade": "fechado", "valor": 4000, "quem": "Sítio Alegre", "concluido": false } }
+    ]
+  },
+  {
+    "id": "prod-187",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "fiz 12 hora de roçada pro Zé do Rio com a Massey, 90 a hora",
+    "esperado": [
+      { "intent": "registrar_servico_prestado", "campos": { "servico": "roçada", "maquina": "Massey", "unidade": "hora", "valor": 90, "quantidade": 12, "quem": "Zé do Rio" } }
+    ]
+  },
+  {
+    "id": "prod-188",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "vacinamos o brinco 87 de raiva, saiu por 28",
+    "esperado": [
+      { "intent": "registrar_vacina", "campos": { "ear_tag": "87", "vaccine_name": "raiva", "cost": 28 } }
+    ]
+  },
+  {
+    "id": "prod-189",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "risca a ureia da lista, resolvi de outro jeito",
+    "esperado": [
+      { "intent": "remover_item_lista", "campos": { "descricao": "ureia" } }
+    ]
+  },
+  {
+    "id": "prod-190",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "esquece a fita isolante que tava na lista, não preciso mais",
+    "esperado": [
+      { "intent": "remover_item_lista", "campos": { "descricao": "fita isolante" } }
+    ]
+  }
+]
