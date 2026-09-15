@@ -15,7 +15,7 @@ export const INTENCOES_PRESTADOR: IntencaoDef[] = [
     campos: [
       { nome: "client_name", tipo: "texto", descricao: "o nome do cliente, como ele falou (João)" },
       { nome: "service_name", tipo: "texto", descricao: "o serviço do catálogo, como ele falou (diária de trator, gradagem)" },
-      { nome: "quantity", tipo: "numero", descricao: "quantas unidades, só o número em algarismos e sem ponto de milhar (2); vazio conta 1" },
+      { nome: "quantity", tipo: "numero", descricao: "quantas unidades, só o número, como o produtor falou (2); vazio conta 1" },
     ],
     exemplos: ["fiz uma diária de trator pro cliente João", "fiz 3 horas de gradagem para o Pedro"],
     vizinhas:

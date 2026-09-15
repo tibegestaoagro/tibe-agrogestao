@@ -2,6 +2,7 @@ import type { TenantPrismaClient } from "@/lib/prisma";
 import type { AppUserRole } from "@/types/next-auth";
 import type { ProfileType } from "@/lib/tenant-context";
 import type { ActionResult } from "@/lib/actions/types";
+import { lerNumeroBr } from "@/lib/numero-br";
 
 /**
  * Tipos e helpers compartilhados pelos handlers de intenção do agente
@@ -45,10 +46,12 @@ export function str(v: unknown): string | null {
   return null;
 }
 
+/**
+ * Era `Number()` cru, e "1.500" virava 1,5 no peso, na vacina, na remessa de
+ * evento e na lista. O classificador repassa o número como o produtor falou.
+ */
 export function num(v: unknown): number | null {
-  if (typeof v === "number" && Number.isFinite(v)) return v;
-  if (typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v))) return Number(v);
-  return null;
+  return lerNumeroBr(v);
 }
 
 export function ask(text: string, auxiliary: Record<string, unknown> | null = null): RouterResult {

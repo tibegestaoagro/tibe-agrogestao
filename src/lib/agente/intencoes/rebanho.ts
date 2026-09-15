@@ -149,7 +149,7 @@ export const INTENCOES_REBANHO: IntencaoDef[] = [
     descricao: "o produtor informa o peso de um animal pelo brinco",
     campos: [
       { nome: "ear_tag", tipo: "texto", descricao: "o número ou código do brinco" },
-      { nome: "weight", tipo: "numero", descricao: "só o número em kg, em algarismos e sem unidade (480; 480.5 com ponto)" },
+      { nome: "weight", tipo: "numero", descricao: "só o número em kg, como o produtor falou, sem a unidade (480; 480,5)" },
     ],
     exemplos: ["o brinco 1234 pesou 480 kg", "pesei o 0457, deu 320 quilos"],
     vizinhas: "consultar_animal quando pergunta o peso em vez de informar",
@@ -161,7 +161,7 @@ export const INTENCOES_REBANHO: IntencaoDef[] = [
     campos: [
       { nome: "ear_tag", tipo: "texto", descricao: "o número ou código do brinco" },
       { nome: "vaccine_name", tipo: "texto", descricao: "o nome da vacina (aftosa, brucelose, raiva)" },
-      { nome: "cost", tipo: "numero", descricao: "o custo, só o número em algarismos (35; 35.50 com ponto); vazio se não disse" },
+      { nome: "cost", tipo: "numero", descricao: "o custo, só o número, como o produtor falou (35; 35,50); vazio se não disse" },
     ],
     exemplos: ["vacinei o brinco 1234 contra aftosa", "apliquei brucelose no 0457, custou 35 reais"],
     vizinhas: "registrar_previsao_vacina quando a vacina é FUTURA e ele informa quanto vai custar",
@@ -173,11 +173,11 @@ export const INTENCOES_REBANHO: IntencaoDef[] = [
     campos: [
       { nome: "ear_tag", tipo: "texto", descricao: "o número ou código do brinco" },
       { nome: "vaccine_name", tipo: "texto", descricao: "o nome da vacina" },
-      { nome: "cost", tipo: "numero", descricao: "o valor previsto, só o número em algarismos (80; 80.50 com ponto)" },
+      { nome: "cost", tipo: "numero", descricao: "o valor previsto, só o número, como o produtor falou (80; 80,50)" },
       {
         nome: "due_date",
         tipo: "data",
-        descricao: "a data prevista no formato AAAA-MM-DD, só quando ele disse a data; vazio usa o próximo vencimento calculado",
+        descricao: "a data prevista como o produtor falou (dia 20, 20/10), só quando ele disse a data; vazio usa o próximo vencimento calculado",
       },
     ],
     exemplos: ["a próxima aftosa do brinco 1234 vai custar 80 reais", "previsão de brucelose do 0457, 45 reais, em 2026-10-20"],

@@ -237,8 +237,9 @@ export function lerMes(v: unknown, agora = new Date()): { ano: number; mes: numb
 /**
  * Dinheiro dito na conversa.
  *
- * `num("60.000")` devolve 60, porque em JavaScript o ponto é separador
- * decimal: uma compra de sessenta mil viraria sessenta reais. O que salvava
+ * `num("60.000")` devolvia 60, porque em JavaScript o ponto é separador
+ * decimal: uma compra de sessenta mil viraria sessenta reais (hoje `num` também
+ * passa por `lerNumeroBr`). O que salvava
  * até aqui era a confirmação obrigatória imprimindo o valor antes de gravar,
  * mas depender de o produtor conferir não é trava.
  *

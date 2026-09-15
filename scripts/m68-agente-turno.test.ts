@@ -46,6 +46,21 @@ async function main() {
     }
     check(`${def.intent}: tem ao menos 2 exemplos`, def.exemplos.length >= 2);
   }
+
+  // O classificador repassa o número e a data como o produtor falou (regra da spec).
+  console.log("1b. Handlers leem número e data como o produtor fala");
+  const { num } = await import("@/lib/actions/whatsapp-handlers/shared");
+  check('num("1.500") é 1500, não 1,5', num("1.500") === 1500, String(num("1.500")));
+  check('num("60 mil") é 60000', num("60 mil") === 60000, String(num("60 mil")));
+  check('num("2,5") é 2,5', num("2,5") === 2.5, String(num("2,5")));
+  check("num(12) segue 12", num(12) === 12);
+  check('num("3x") segue null (parcelas caem no extrator)', num("3x") === null, String(num("3x")));
+  const { lerDataPrevista } = await import("@/lib/actions/whatsapp-handlers/rebanho");
+  const outubro20 = "2026-10-20T00:00:00.000Z";
+  check("previsão ISO segue meia-noite UTC", lerDataPrevista("2026-10-20")?.toISOString() === outubro20);
+  check('previsão "20/10/2026" vira o mesmo dia', lerDataPrevista("20/10/2026")?.toISOString() === outubro20, lerDataPrevista("20/10/2026")?.toISOString());
+  check('previsão "dia 20" vira o dia 20 do mês corrente', lerDataPrevista("dia 20", new Date(2026, 9, 5, 12))?.toISOString() === outubro20);
+  check("previsão ilegível devolve null para perguntar", lerDataPrevista("quando der") === null);
 }
 
 /**

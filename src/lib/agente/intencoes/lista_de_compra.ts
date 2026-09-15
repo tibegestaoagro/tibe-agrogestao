@@ -20,7 +20,7 @@ export const INTENCOES_LISTA_DE_COMPRA: IntencaoDef[] = [
     descricao: "o produtor pede para anotar na Lista de Compra algo que precisa comprar",
     campos: [
       { nome: "descricao", tipo: "texto", descricao: "com UM item só: o que comprar, sem a quantidade (sal, arame)" },
-      { nome: "quantidade", tipo: "numero", descricao: "com UM item só: só o número, em algarismos e sem ponto de milhar (10, 2000); vazio se não disse" },
+      { nome: "quantidade", tipo: "numero", descricao: "com UM item só: só o número, como o produtor falou (10, 2.000); vazio se não disse" },
       { nome: "unidade", tipo: "texto", descricao: `com UM item só: ${UNIDADE}` },
       { nome: "urgente", tipo: "sim_nao", descricao: "com UM item só: sim quando ele diz que é urgente; vazio se não disse" },
       {
@@ -29,7 +29,7 @@ export const INTENCOES_LISTA_DE_COMPRA: IntencaoDef[] = [
         descricao: "só quando ele cita DOIS ou mais itens, um por coisa; com um item só, deixe vazio e use os campos acima",
         itens: [
           { nome: "descricao", tipo: "texto", descricao: "o que comprar, sem a quantidade" },
-          { nome: "quantidade", tipo: "numero", descricao: "só o número, em algarismos e sem ponto de milhar (2; uma vira 1)" },
+          { nome: "quantidade", tipo: "numero", descricao: "só o número, como o produtor falou (2; uma vira 1)" },
           { nome: "unidade", tipo: "texto", descricao: UNIDADE },
         ],
       },
