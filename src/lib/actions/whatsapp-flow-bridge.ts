@@ -13,7 +13,7 @@ import {
   FLOWS,
   PROPERTY_PENDING_FIELD,
 } from "@/lib/actions/agent-flows";
-import { listActiveProperties } from "@/lib/actions/properties";
+import { casarFazenda, listActiveProperties } from "@/lib/actions/properties";
 import { createBatchAction } from "@/lib/actions/animal-batches";
 import { findCategory } from "@/lib/herd/categories";
 import { log } from "@/lib/log";
@@ -59,48 +59,6 @@ function isYes(text: string): boolean {
  */
 function interrompe(intent: Intent): boolean {
   return intent !== "ambigua" && intent !== "cadastrar_animal";
-}
-
-/**
- * Sem acento, minúsculo, sem espaço nas pontas: pra casar o nome dito pelo
- * produtor com o cadastrado sem depender de acento, caixa ou uma frase
- * natural em volta ("na Fazenda B", "é a fazenda b mesmo").
- */
-function normalizarNomeFazenda(s: string): string {
-  return s
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .trim();
-}
-
-/**
- * Casa um texto (resposta livre, ou `property_name`/`property` vindo dos
- * parâmetros) com a lista de fazendas JÁ CARREGADA. Nunca consulta o banco de
- * novo por "contains" (achado Importante do review, fix round 1): aquele
- * caminho devolvia a PRIMEIRA batida em `findFirst` quando o texto casava com
- * mais de uma fazenda ("A" batia em "Fazenda A" E "Fazenda B" ao mesmo tempo,
- * e vencia por ordem arbitrária do banco, exatamente o que esta task existe
- * para evitar), e não reconhecia frase natural como "na Fazenda B" (o
- * `contains` verificava se o NOME cadastrado continha o texto digitado, nunca
- * o contrário).
- *
- * Exato primeiro; "contém" (nos dois sentidos) só quando sobra EXATAMENTE uma
- * fazenda. Zero ou duas-ou-mais batidas não decide sozinha.
- */
-function casarFazenda(props: { id: string; name: string }[], texto: string): { id: string } | null {
-  const alvo = normalizarNomeFazenda(texto);
-  if (!alvo) return null;
-
-  const exato = props.filter((p) => normalizarNomeFazenda(p.name) === alvo);
-  if (exato.length === 1) return { id: exato[0].id };
-  if (exato.length > 1) return null;
-
-  const parcial = props.filter((p) => {
-    const nome = normalizarNomeFazenda(p.name);
-    return alvo.includes(nome) || nome.includes(alvo);
-  });
-  return parcial.length === 1 ? { id: parcial[0].id } : null;
 }
 
 function perguntaFazenda(props: { id: string; name: string }[]): string {

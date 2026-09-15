@@ -38,6 +38,8 @@ export type CampoServico =
   | "produto"
   /** Task 6: a data dita ("amanhã vou gradear"), quando não deu para entender. */
   | "data"
+  /** Só com duas ou mais fazendas e nenhuma dita (ou dita de um jeito ambíguo). */
+  | "fazenda"
   /** Não é campo: é o serviço inteiro esperando um "sim". */
   | "confirmacao";
 
@@ -63,6 +65,7 @@ const store = criarStoreDePendencia<CampoServico, ServicoPendente>({
     if (campo === "unidade") return "pricing";
     if (campo === "produto") return "product";
     if (campo === "data") return "date";
+    if (campo === "fazenda") return "property";
     return campo;
   },
 });

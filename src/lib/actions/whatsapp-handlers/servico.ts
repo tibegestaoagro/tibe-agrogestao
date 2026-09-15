@@ -17,6 +17,7 @@ import {
   type GestoServico,
 } from "@/lib/actions/service-pending";
 import { ask, failReply, str, type Handler, type RouterResult } from "./shared";
+import { resolverFazenda } from "./herd";
 import { lerNumeroBr, lerData, interpretarSim } from "./parsers";
 import { reaisBr as moeda } from "@/lib/numero-br";
 import { inicioDoDiaEmSaoPaulo } from "@/lib/dia-calendario";
@@ -295,16 +296,17 @@ async function cancelar(
   };
 }
 
-/** A fazenda onde registrar. Sem nenhuma cadastrada, não há o que fazer. */
+/**
+ * A fazenda onde registrar: a dita, ou a única. Com duas ou mais e nenhuma
+ * dita (ou dita de um jeito que casa duas), PERGUNTA pela regra de
+ * `resolverFazenda`: até 14/09 devolvia a primeira em ordem alfabética.
+ * Resolvida ANTES da confirmação, para a resposta entrar no pedido guardado.
+ */
 async function fazendaPadrao(
   db: TenantPrismaClient,
+  parameters: Record<string, unknown>,
 ): Promise<{ ok: true; id: string } | { ok: false; resposta: RouterResult }> {
-  const properties = await db.property.findMany({
-    where: { archived_at: null },
-    orderBy: { name: "asc" },
-    take: 2,
-  });
-  if (properties.length === 0) {
+  if ((await db.property.count({ where: { archived_at: null } })) === 0) {
     return {
       ok: false,
       resposta: ask(
@@ -313,7 +315,7 @@ async function fazendaPadrao(
       ),
     };
   }
-  return { ok: true, id: properties[0].id };
+  return resolverFazenda(db, str(parameters.fazenda) ?? str(parameters.property));
 }
 
 async function abrirConversa(
@@ -411,6 +413,12 @@ export const registrarDiaria: Handler = async (ctx) => {
   const total = dias * valor * pessoas;
   const diarias = dias * pessoas;
 
+  const fazenda = await fazendaPadrao(ctx.db, parameters);
+  if (!fazenda.ok) {
+    await guardar("fazenda");
+    return fazenda.resposta;
+  }
+
   if (!ctx.confirmed) {
     await guardar("confirmacao");
     return {
@@ -423,9 +431,6 @@ export const registrarDiaria: Handler = async (ctx) => {
       action_taken: `${intent}:aguardando_confirmacao`,
     };
   }
-
-  const fazenda = await fazendaPadrao(ctx.db);
-  if (!fazenda.ok) return fazenda.resposta;
 
   const quemDito = str(parameters.quem) ?? str(parameters.contact_name);
   let quem: string | null = null;
@@ -498,6 +503,12 @@ export const registrarServicoContratado: Handler = async (ctx) => {
   if (!achado.ok) return achado.resposta;
   const quem = achado.nomeFinal;
 
+  const fazenda = await fazendaPadrao(ctx.db, parameters);
+  if (!fazenda.ok) {
+    await guardar("fazenda");
+    return fazenda.resposta;
+  }
+
   if (!ctx.confirmed) {
     await guardar("confirmacao");
     return {
@@ -510,9 +521,6 @@ export const registrarServicoContratado: Handler = async (ctx) => {
       action_taken: `${intent}:aguardando_confirmacao`,
     };
   }
-
-  const fazenda = await fazendaPadrao(ctx.db);
-  if (!fazenda.ok) return fazenda.resposta;
 
   const res = await createServiceJob(ctx.db, {
     property_id: fazenda.id,
@@ -714,6 +722,12 @@ export const registrarServicoPrestado: Handler = async (ctx) => {
 
   const total = pricing === "fechado" ? valor : valor * (quantidade ?? 0);
 
+  const fazenda = await fazendaPadrao(ctx.db, parameters);
+  if (!fazenda.ok) {
+    await guardar("fazenda");
+    return fazenda.resposta;
+  }
+
   if (!ctx.confirmed) {
     await guardar("confirmacao");
     return {
@@ -728,9 +742,6 @@ export const registrarServicoPrestado: Handler = async (ctx) => {
       action_taken: `${intent}:aguardando_confirmacao`,
     };
   }
-
-  const fazenda = await fazendaPadrao(ctx.db);
-  if (!fazenda.ok) return fazenda.resposta;
 
   const res = await createServiceJob(ctx.db, {
     direction: "prestado",

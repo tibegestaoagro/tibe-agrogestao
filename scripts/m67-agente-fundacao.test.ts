@@ -588,6 +588,25 @@ async function main() {
       );
 
       await db.agentFlowState.deleteMany({ where: { user_id: owner.id } });
+
+      // Com duas fazendas, os handlers também perguntam em vez de escolher.
+      const { clearPendingHerd } = await import("@/lib/actions/herd-pending");
+      const { clearPendingService } = await import("@/lib/actions/service-pending");
+      await clearPendingHerd(tenant.id, owner.id);
+      const nomeQueCasaDuas = await acao(
+        "registrar_movimentacao_rebanho",
+        { movement_type: "morte", itens: [{ categoria: "macho_25_36", quantidade: 1 }], fazenda: "Fazenda" },
+        "morreu 1 boi na fazenda",
+      );
+      check("rebanho com 'Fazenda' (casa duas) pergunta em qual fazenda", /^Em qual fazenda\?/.test(nomeQueCasaDuas.data.reply_text), nomeQueCasaDuas.data.reply_text);
+      await clearPendingHerd(tenant.id, owner.id);
+
+      await clearPendingService(tenant.id, owner.id);
+      const diaria = await acao("registrar_diaria", { servico: "cerca", valor: 150, quantidade: 2 }, "2 diárias de cerca a 150");
+      check("serviço sem fazenda dita, com duas, pergunta em qual fazenda", /^Em qual fazenda\?/.test(diaria.data.reply_text), diaria.data.reply_text);
+      const respostaDiaria = await acao("registrar_diaria", { fazenda: "Fazenda M67" }, "na Fazenda M67");
+      check("a fazenda respondida entra no pedido e segue para a confirmação", respostaDiaria.data.requires_confirmation === true, respostaDiaria.data.reply_text);
+      await clearPendingService(tenant.id, owner.id);
     }
 
     console.log("\n10. Comprei item da lista");

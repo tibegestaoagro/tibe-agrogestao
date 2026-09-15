@@ -11,7 +11,7 @@ import {
   resolveCategoryTerm,
   type HerdCategory,
 } from "@/lib/herd/categories";
-import { findActivePropertyByName, listActiveProperties } from "@/lib/actions/properties";
+import { casarFazenda, listActiveProperties } from "@/lib/actions/properties";
 import {
   aplicarResposta,
   clearPendingHerd,
@@ -133,23 +133,15 @@ type FazendaResolvida =
   | { ok: false; resposta: RouterResult };
 
 /**
- * Resolve a fazenda pelo nome. Sem nome informado: usa a única fazenda quando
- * só existe uma, e PERGUNTA quando existe mais de uma. Adivinhar a fazenda tem
+ * Resolve a fazenda pelo nome, pela regra de `casarFazenda`. Sem nome: usa a
+ * única fazenda quando só existe uma. Nome que não casa, nome que casa duas, ou
+ * nenhum nome com duas fazendas: PERGUNTA, com a lista. Adivinhar a fazenda tem
  * o mesmo defeito de adivinhar a categoria, o saldo vai parar no lugar errado.
  */
 export async function resolverFazenda(
   db: TenantPrismaClient,
   nome: string | null,
 ): Promise<FazendaResolvida> {
-  if (nome) {
-    const encontrada = await findActivePropertyByName(db, nome);
-    if (encontrada) return { ok: true, id: encontrada.id, nome: encontrada.name };
-    return {
-      ok: false,
-      resposta: ask(`Não encontrei a fazenda "${nome}". Confira o nome e tente de novo.`),
-    };
-  }
-
   const fazendas = await listActiveProperties(db);
   if (fazendas.length === 0) {
     return {
@@ -157,7 +149,9 @@ export async function resolverFazenda(
       resposta: ask("Você ainda não tem fazenda cadastrada. Cadastre uma no painel, em Minha Fazenda."),
     };
   }
-  if (fazendas.length === 1) return { ok: true, id: fazendas[0].id, nome: fazendas[0].name };
+
+  const encontrada = nome ? casarFazenda(fazendas, nome) : fazendas.length === 1 ? fazendas[0] : null;
+  if (encontrada) return { ok: true, id: encontrada.id, nome: encontrada.name };
 
   const nomes = fazendas.map((f) => `- ${f.name}`).join("\n");
   return { ok: false, resposta: ask(`Em qual fazenda?\n${nomes}`) };
