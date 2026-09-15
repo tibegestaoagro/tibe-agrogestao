@@ -47,6 +47,7 @@
     "test:m65": "tsx scripts/m65-meu-dia-fase-38.test.ts",
     "test:m66": "tsx scripts/m66-confinamento-saidas.test.ts",
     "test:m67": "tsx scripts/m67-agente-fundacao.test.ts",
+    "test:m68": "tsx scripts/m68-agente-turno.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",
