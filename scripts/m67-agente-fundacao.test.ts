@@ -602,9 +602,9 @@ async function main() {
       const lanc = await db.financialEntry.count({ where: { amount: 380 } });
       check("e não lançou ainda", lanc === 0, String(lanc));
 
-      // §19.7 pode ter deixado DOIS itens "Arame M67" na lista (o segundo
-      // `adicionar_item_lista` acima confirma a duplicata direto): o alvo da
-      // compra é o `item_id` que o próprio pedido guardou, não a descrição.
+      // O alvo da compra é o `item_id` que o próprio pedido guardou, não a
+      // descrição (o segundo `adicionar_item_lista` acima só pergunta pela
+      // duplicata, sem pendente guardado não anota).
       const itemId = String((r.data.auxiliary_data as { item_id?: string })?.item_id);
 
       /*
@@ -651,6 +651,25 @@ async function main() {
       );
       const lancSemPedido = await db.financialEntry.count({ where: { amount: 222 } });
       check("nada gravado com valor 222 sem pendente", lancSemPedido === 0, String(lancSemPedido));
+
+      // Recusa vence nos três gestos da lista, e "sim" sem pendente não grava.
+      await clearPendingLista(tenant.id, owner.id);
+      await acao("adicionar_item_lista", { item: "Prego M67" }, "anota prego");
+      await acao("comprei_item_lista", { item: "Prego M67" }, "não comprei o prego ainda");
+      const prego = await db.shoppingItem.findFirst({ where: { description: "Prego M67" } });
+      check("'não comprei o prego ainda' não marca comprado", prego?.status === "pendente", String(prego?.status));
+
+      await acao("adicionar_item_lista", { item: "Grampo M67" }, "não anota grampo");
+      check("'não anota grampo' não cria o item", (await db.shoppingItem.count({ where: { description: "Grampo M67" } })) === 0);
+
+      await acao("adicionar_item_lista", { item: "Prego M67" }, "sim", { confirmed: true });
+      check("'sim' sem pendente de duplicata não duplica o prego", (await db.shoppingItem.count({ where: { description: "Prego M67" } })) === 1);
+
+      await clearPendingLista(tenant.id, owner.id);
+      await acao("remover_item_lista", { item: "Prego M67" }, "sim", { confirmed: true });
+      const pregoDepois = await db.shoppingItem.findFirst({ where: { description: "Prego M67" } });
+      check("'sim' sem pendente de remoção não remove", pregoDepois?.status === "pendente", String(pregoDepois?.status));
+      await clearPendingLista(tenant.id, owner.id);
     }
 
     console.log("\n11. Período");
