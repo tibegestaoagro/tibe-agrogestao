@@ -21,7 +21,7 @@ export function custoDaChamada(modelo: string, uso: Uso): number {
   const preco = PRECOS[modelo];
   if (!preco) throw new Error(`modelo sem preço na tabela da avaliação: ${modelo}`);
   const cache = uso.prompt_tokens_details?.cached_tokens ?? 0;
-  const entrada = (uso.prompt_tokens ?? 0) - cache;
+  const entrada = Math.max(0, (uso.prompt_tokens ?? 0) - cache);
   // Tokens de raciocínio vêm dentro de completion_tokens e são cobrados como saída.
   return (entrada * preco.entrada + cache * preco.cache + (uso.completion_tokens ?? 0) * preco.saida) / 1_000_000;
 }
@@ -49,11 +49,13 @@ export function criarMedidor(opcoes: { arquivo: string; teto?: number; enviar?: 
   return {
     transporte: async (corpo) => {
       if (total >= teto) throw new OrcamentoEsgotado(total, teto);
+      const modelo = String(corpo.model);
+      if (!PRECOS[modelo]) throw new Error(`modelo sem preço na tabela da avaliação: ${modelo}`);
       const resposta = await enviar(corpo);
       chamadas += 1;
       const uso = (resposta.json as { usage?: Uso } | null)?.usage;
       if (uso) {
-        total += custoDaChamada(String(corpo.model), uso);
+        total += custoDaChamada(modelo, uso);
         gravar();
       }
       return resposta;
