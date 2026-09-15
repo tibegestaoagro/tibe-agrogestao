@@ -148,7 +148,9 @@ export async function handleActiveFlow(params: {
   }
 
   // Pergunta de outro assunto no meio do formulário: deixa o roteador
-  // responder. O texto de retomada volta na mensagem seguinte do agente.
+  // responder. O formulário fica guardado e nada é repetido na hora: a
+  // pergunta pendente só volta quando o produtor responde de novo ao cadastro,
+  // ou no lembrete de `collectPendingReminders` (`resumeHint`).
   if (interrompe(intent) && text.length > 0) return null;
 
   if (text.length === 0) return null;

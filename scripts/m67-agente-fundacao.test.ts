@@ -86,6 +86,12 @@ async function main() {
       const a = await acao("consultar_rebanho", {}, "quantos animais e o que tenho a pagar", { provider_message_id: wamid });
       const b = await acao("resumo", { scope: "contas_a_pagar" }, "quantos animais e o que tenho a pagar", { provider_message_id: wamid });
       check("a segunda intenção da mesma mensagem EXECUTA", b.data.action_taken !== a.data.action_taken, `${a.data.action_taken} / ${b.data.action_taken}`);
+      // Muda o rebanho entre as duas: reexecutar responderia 101, o replay responde 100.
+      await recordMovement(db, {
+        movement_type: "saldo_inicial",
+        quantity: 1,
+        to: { category_id: "macho_25_36", property_id: fazenda.id, pasture_id: pasto.id, situation: "presente", owner: "proprio" },
+      });
       const c = await acao("consultar_rebanho", {}, "quantos animais e o que tenho a pagar", { provider_message_id: wamid });
       check("a mesma intenção repetida devolve a resposta anterior", c.data.reply_text === a.data.reply_text);
       const gravados = await db.agentRequest.count({ where: { provider_message_id: { startsWith: wamid } } });
@@ -367,7 +373,6 @@ async function main() {
         data: scoped({ category_id: categoriaDiesel.id, name: "Diesel M67", unit: "litro" }),
       });
       const p = { quem: "Joao M67", produto: "Diesel M67", quantidade: 50 };
-      await acao("iniciar_servico", { quem: "Joao M67" }, "sim", { confirmed: true });
       await acao("registrar_combustivel_servico", p, "gastei 50 litros de diesel na gradagem");
       const r = await acao("registrar_combustivel_servico", p, "sim", { confirmed: true });
       check("responde 200 com frase, não 500", r.status === 200 && typeof r.data.reply_text === "string", `${r.status}`);
@@ -466,7 +471,7 @@ async function main() {
       const fonteDoEstoque = readFileSync(join(pasta, "stock-pending.ts"), "utf8");
       const semImport = readdirSync(pasta)
         .filter((f) => f.endsWith("-pending.ts") && f !== "stock-pending.ts")
-        .filter((f) => readFileSync(join(pasta, f), "utf8").includes("criarStoreDePendencia<"))
+        .filter((f) => /criarStoreDePendencia\s*[<(]/.test(readFileSync(join(pasta, f), "utf8")))
         .filter((f) => !fonteDoEstoque.includes(`import "@/lib/actions/${f.replace(/\.ts$/, "")}";`));
       check(
         "todo store de pendência em disco entra no desempate por data",
@@ -763,11 +768,13 @@ async function main() {
       }
 
       const comCat = await acao("cadastrar_animal", { ear_tag: "M67-3", breed: "Nelore", sex: "male", property_name: "Fazenda M67", category: "boi" }, "cadastra o boi M67-3");
-      const noLivro = await getPositions(db, { category_id: "macho_36_mais", property_id: fazenda.id });
+      // Pelo lote do brinco, não pela posição: a posição soma o que outras seções gravaram.
+      const loteM673 = await db.animalBatch.findFirst({ where: { ear_tag: "M67-3" } });
+      const movM673 = loteM673 ? await db.herdMovement.findMany({ where: { batch_id: loteM673.id } }) : [];
       check(
         "com categoria, o animal entra no livro-razão",
-        noLivro.reduce((s, p) => s + p.quantity, 0) === 1,
-        `${comCat.data.action_taken}: ${JSON.stringify(noLivro)}`,
+        movM673.length === 1 && movM673[0].quantity === 1 && movM673[0].to_category_id === "macho_36_mais" && movM673[0].to_property_id === fazenda.id,
+        `${comCat.data.action_taken}: ${JSON.stringify(movM673)}`,
       );
 
       /*
@@ -821,8 +828,9 @@ async function main() {
       check("a pergunta nomeia o lote e a categoria", /Conf M67/.test(r.data.reply_text) && /machos de 25 a 36 meses/.test(r.data.reply_text), r.data.reply_text);
       check("nada saiu do lote antes do sim", (await soma("confinamento")) === loteAntes);
 
-      // (i) O "sim" chega reemitido como gado, com a frase remontada.
-      const sim = await acao("registrar_negocio_gado", { tipo: "venda", categoria: "boi", quantidade: 5, valor: 25000 }, "sim", { confirmed: true });
+      // (i) O "sim" chega reemitido como gado, com a frase remontada (e a
+      // quantidade trocada: o guardado, de 5, é que vale).
+      const sim = await acao("registrar_negocio_gado", { tipo: "venda", categoria: "boi", quantidade: 7, valor: 25000 }, "sim", { confirmed: true });
       const loteDepois = await soma("confinamento");
       const pastoDepois = await soma("presente", pasto.id);
       check("o sim reemitido como gado tira 5 cabeças do lote", loteDepois === loteAntes - 5, `${loteAntes} -> ${loteDepois}: ${sim.data.action_taken}: ${sim.data.reply_text}`);
@@ -838,7 +846,7 @@ async function main() {
       await acao("registrar_negocio_gado", { tipo: "venda", categoria: "boi", quantidade: 2, valor: 8000 }, "vendi 2 bois do confinamento por 8 mil");
       const lote2Antes = await soma("confinamento");
       const pasto2Antes = await soma("presente", pasto.id);
-      const sim2 = await acao("registrar_negocio_gado", { tipo: "venda", categoria: "boi", quantidade: 2, valor: 8000 }, "sim", { confirmed: true });
+      const sim2 = await acao("registrar_negocio_gado", { tipo: "venda", categoria: "boi", quantidade: 4, valor: 8000 }, "sim", { confirmed: true });
       check("o sim vai à venda do lote, a mais recente", (await soma("confinamento")) === lote2Antes - 2, `${sim2.data.action_taken}: ${sim2.data.reply_text}`);
       check("e o negócio antigo do pasto não executa", (await soma("presente", pasto.id)) === pasto2Antes);
       check("nenhuma negociação de 9999 criada", (await db.negotiation.count({ where: { amount: 9999 } })) === 0);
@@ -851,6 +859,13 @@ async function main() {
       check("o não reemitido como gado cancela a saída do lote", (await soma("confinamento")) === lote3Antes, `${nao.data.action_taken} / ${simDepoisDoNao.data.reply_text}`);
       check("e o sim seguinte não tem o que confirmar", /Não tenho nenhuma saída/.test(simDepoisDoNao.data.reply_text), simDepoisDoNao.data.reply_text);
       await clearPendingNegotiation(tenant.id, owner.id);
+
+      // (iv) Com uma saída guardada, `negotiation_type` também é tipo próprio: assunto novo.
+      await acao("registrar_negocio_gado", { tipo: "venda", categoria: "boi", quantidade: 1, valor: 4000 }, "vendi 1 boi do confinamento por 4 mil");
+      const compraNova = await acao("registrar_negocio_gado", { negotiation_type: "compra", categoria: "boi", quantidade: 3, valor: 9000 }, "comprei 3 bois por 9 mil");
+      check("negócio com negotiation_type não é engolido pela saída do lote", !compraNova.data.action_taken?.startsWith("encerrar_confinamento"), `${compraNova.data.action_taken}: ${compraNova.data.reply_text}`);
+      await clearPendingNegotiation(tenant.id, owner.id);
+      await clearPendingConfinement(tenant.id, owner.id);
     }
 
     console.log("\n13. O formulário não toma o sim/não de um pedido mais novo");

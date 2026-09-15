@@ -35,7 +35,7 @@ export type CampoLeite =
   | "confirmacao";
 
 export type LeitePendente = PedidoBase<CampoLeite> & {
-  /** Qual das duas conversas está aberta. */
+  /** Qual das quatro conversas está aberta. */
   gesto: GestoLeite;
 };
 

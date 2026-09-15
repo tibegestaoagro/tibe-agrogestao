@@ -235,7 +235,7 @@ export function mudaOPedido(
  * Nunca para apagar: ver o comentário do topo.
  *
  * Até 14/09 eram só gado e rebanho, importados um a um, e a lista envelheceu
- * enquanto nasciam leite, financeiro, serviço e mais seis: um "sim" dado a uma
+ * enquanto nasciam leite, financeiro, serviço e mais cinco: um "sim" dado a uma
  * contagem de lactação gravava uma compra de sal mais antiga. Agora vem do
  * registro de `pending-store.ts`, lida na chamada (não no carregamento).
  */

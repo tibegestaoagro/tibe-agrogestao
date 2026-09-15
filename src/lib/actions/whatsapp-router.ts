@@ -469,12 +469,13 @@ export async function routeIntent(
    *    negócio guardado, ele conta como mais antigo; sem `salvo_em`, a saída
    *    conta como a mais antiga). Um negócio começado depois tem a vez.
    * 2. Só confirmação, recusa, ou resposta SEM tipo próprio. Uma mensagem com
-   *    `tipo`/`movement_type` é assunto novo, igual às guardas de rebanho e de
+   *    `tipo`/`movement_type`/`negotiation_type` é assunto novo, igual às guardas de rebanho e de
    *    estoque: "vendi 3 bois do pasto" dito no meio da saída não é engolido.
    *    A venda nova que cita o confinamento já passou pelo desvio acima.
    */
   if (ctx.user_id && intent === "registrar_negocio_gado") {
-    const semTipoProprio = !str(parameters.tipo) && !str(parameters.movement_type);
+    const semTipoProprio =
+      !str(parameters.tipo) && !str(parameters.movement_type) && !str(parameters.negotiation_type);
     if (confirmed || explicitNo || semTipoProprio) {
       const saida = await loadPendingConfinement(tenant_id, ctx.user_id);
       if (saida?.gesto === "saida") {
@@ -490,8 +491,8 @@ export async function routeIntent(
   // Cadastro assistido tem prioridade sobre o roteamento normal: se existe um
   // formulário em andamento, a mensagem é primeiro oferecida a ele. O bridge
   // devolve null quando a mensagem claramente não é resposta de campo, e aí o
-  // fluxo segue normalmente (a interrupção é respondida e o formulário retomado
-  // logo em seguida).
+  // fluxo segue normalmente (a interrupção é respondida e o formulário fica
+  // guardado para a próxima resposta de campo).
   /**
    * Uma CONFIRMAÇÃO pendente vem antes do formulário de cadastro.
    *
@@ -621,9 +622,10 @@ export async function routeIntent(
    *    você faz?" viravam "Quantas sacas de sal?", e a tarefa nunca era criada.
    * 2. Só depois do cadastro assistido ter tido a chance de responder, senão a
    *    resposta de um campo do formulário de animal era desviada para cá.
-   * 3. Só quando o pedido de estoque é MAIS RECENTE que o de gado ou rebanho.
-   *    Sem isso o estoque roubava a resposta de uma conversa de gado começada
-   *    depois dele, e gravava a compra errada.
+   * 3. Só quando o pedido de estoque é MAIS RECENTE que o de qualquer outro
+   *    domínio (`quandoOutroDominioFalou`). Sem isso o estoque roubava a
+   *    resposta de uma conversa de gado começada depois dele, e gravava a
+   *    compra errada.
    */
   if (ctx.user_id && !EH_ESTOQUE.has(intent) && REMONTAVEIS.has(intent)) {
     /**

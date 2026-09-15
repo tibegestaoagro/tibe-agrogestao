@@ -386,7 +386,8 @@ async function comMemoria(
        */
       const ultimaExecucao = await quandoExecutouPorUltimo(ctx.tenant_id, ctx.user_id);
       /**
-       * ...e precisa ser o MAIS RECENTE entre os três domínios de conversa.
+       * ...e precisa ser o MAIS RECENTE entre todos os domínios de conversa
+       * (`quandoOutroDominioFalou` lê o registro de `pending-store.ts`).
        *
        * O desempate por data existia só no roteador, e lá ele nunca rodava
        * quando o palpite do classificador já era uma intenção de estoque. Um

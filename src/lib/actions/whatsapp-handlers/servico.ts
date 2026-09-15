@@ -757,9 +757,11 @@ export const registrarServicoPrestado: Handler = async (ctx) => {
     /*
      * Agendado: a quantidade dita é PREVISTA, não produção realizada.
      * `quantity: null` evita que `createServiceJob` grave um `ServiceJobLog`
-     * (produção) e uma conta a receber que ainda não existem; sem campo
-     * próprio de quantidade prevista no schema (nenhuma migração nesta
-     * fase), o número vai para `notes`.
+     * (produção) e, nas cobranças por hora, hectare, dia ou viagem, a conta a
+     * receber que ainda não existe. No `fechado` NÃO evita: o total vem de
+     * `agreed_amount`, e a conta a receber nasce mesmo agendado (conhecido e
+     * estacionado). Sem campo próprio de quantidade prevista no schema
+     * (nenhuma migração nesta fase), o número vai para `notes`.
      */
     quantity: agendado ? null : quantidade,
     notes:

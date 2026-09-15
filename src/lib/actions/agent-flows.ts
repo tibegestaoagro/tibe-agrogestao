@@ -316,8 +316,9 @@ export async function startFlow(
  * produtor a "Em qual fazenda?" é curta e sem assunto próprio, então o
  * classificador quase sempre devolve `ambigua`, e uma intenção diferente no
  * meio (`consultar_meu_dia`, por exemplo) precisa interromper sem perder essa
- * pergunta: ela some do `handleActiveFlow` (`whatsapp-flow-bridge.ts`) e só
- * volta na resposta seguinte.
+ * pergunta: `handleActiveFlow` (`whatsapp-flow-bridge.ts`) deixa o roteador
+ * responder e a linha continua guardada, sem repetir a pergunta; a próxima
+ * resposta curta ainda cai nela, e o lembrete usa `resumeHint`.
  */
 export async function startPropertyQuestion(
   db: TenantPrismaClient,

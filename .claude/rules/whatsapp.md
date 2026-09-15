@@ -34,10 +34,14 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
   nota fiscal/recibo (extração por visão, também no N8N, vira a intenção
   `registrar_lancamento_financeiro`). Essa intenção **sempre** pede
   confirmação, independente do valor (não usa `CONFIRMATION_THRESHOLD`: a
-  leitura de imagem erra mais que digitação manual). Categoria fora da lista
-  fixa de `src/lib/category-suggestions.ts` cai em `"Outros"`. Handler em
-  `src/lib/actions/whatsapp-router.ts`, chama `createManualEntryAction`
-  (mesma action de `POST /api/v1/financial-entries`). Nó a nó no N8N:
+  leitura de imagem erra mais que digitação manual). A categoria é resolvida
+  entre as categorias ATIVAS do tenant (nome dito, depois o palpite de
+  `src/lib/category-suggestions.ts`), e o que não casa cai em
+  `"Outras despesas"` ou `"Outras receitas"`, conforme o `tipo`. O "sim"
+  executa o pedido guardado em `finance-pending.ts`. Handler em
+  `src/lib/actions/whatsapp-handlers/financeiro.ts`, chama
+  `createManualEntryAction` (mesma action de `POST /api/v1/financial-entries`).
+  Nó a nó no N8N:
   [docs/n8n-whatsapp-workflow.md](docs/n8n-whatsapp-workflow.md) §5.
   **`webhookBase64: true` não é confiável pra áudio/imagem na Evolution em
   produção** (descoberto testando com áudio real: o campo simplesmente não
@@ -89,8 +93,11 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
      antes, sem reexecutar e sem duplicar a conversa. **O n8n ainda não manda
      esse campo**, e enquanto não mandar o log avisa a cada chamada. Passar
      adiante é edição de um nó.
-  3. A chave é o `wamid`, **nunca** o id de execução do n8n: retry manual cria
-     execução nova, e a chave mudaria junto sem impedir nada.
+  3. A chave é `wamid#intenção`, **nunca** o id de execução do n8n: retry
+     manual cria execução nova, e a chave mudaria junto sem impedir nada. A
+     intenção entra porque uma mensagem com dois pedidos chega em duas
+     chamadas com o mesmo `wamid`, e só pelo `wamid` a segunda era tratada
+     como replay da primeira.
 - **Número e data se leem com os parsers, nunca com `Number()` ou `new Date()`**
   (`parsers.ts`, `numero-br.ts`). O classificador manda o mesmo campo ora como
   número, ora como texto: `1200` e `"1200"`, `"dia 10"` e `"10/08/2026"`. E

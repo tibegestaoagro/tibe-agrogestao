@@ -592,8 +592,8 @@ export async function createServiceJob(
      * ⚠️ Usa o `status` JÁ DECIDIDO acima, não um segundo re-cálculo por
      * instante: até o fix round 2 do Task 6 este `if` comparava
      * `input.occurred_at.getTime() > Date.now()` de novo, por conta própria,
-     * e podia divergir do `status` gravado (um `concluido` explícito com data
-     * de HOJE, por exemplo, é `agendado` pela decisão do chamador mas não é
+     * e podia divergir do `status` gravado (um `concluido: false` explícito com
+     * data de HOJE, por exemplo, é `agendado` pela decisão do chamador mas não é
      * "futuro" por instante nem por dia).
      *
      * ⚠️ `Task` não tem `related_id`, então o vínculo é só o texto do título.
