@@ -311,6 +311,9 @@ async function main() {
     const { clearPendingConfinement, loadPendingConfinement } = await import("@/lib/actions/confinamento-pending");
 
     const stamp = Date.now();
+    // Telefone único por execução: a busca de identificarContato é
+    // cross-tenant, e o banco de dev tem outros tenants com outros telefones.
+    const phoneDono = `11${String(stamp).slice(-9)}`;
     const tenant = await prisma.tenant.create({
       data: { name: `M68 ${stamp}`, document: `M68${stamp}`.slice(0, 14), plan: "fazenda" },
     });
@@ -319,7 +322,7 @@ async function main() {
     try {
       await prisma.tenantProfile.create({ data: { tenant_id: tenant.id, profile_type: "fazenda", active: true } });
       const owner = await prisma.user.create({
-        data: { tenant_id: tenant.id, name: "Dono M68", email: `m68-${stamp}@teste.local`, password_hash: "x", role: "OWNER", active: true },
+        data: { tenant_id: tenant.id, name: "Dono M68", email: `m68-${stamp}@teste.local`, password_hash: "x", role: "OWNER", active: true, phone: phoneDono },
       });
       ownerId = owner.id;
       const fazenda = await db.property.create({ data: scoped({ name: "Fazenda M68" }) });
@@ -528,12 +531,38 @@ async function main() {
         await db.agentFlowState.deleteMany({ where: { user_id: assistido.id } });
         await limparCursor(tenant.id, assistido.id);
       }
+
+      console.log("\n6. Identificação do contato extraída para action");
+      {
+        const { identificarContato } = await import("@/lib/actions/whatsapp-contato");
+
+        const primeira = await identificarContato(phoneDono);
+        check("primeira chamada identifica o dono", primeira.identificado === true, JSON.stringify(primeira));
+        check(
+          "primeira chamada é o primeiro contato",
+          primeira.identificado === true && primeira.primeiro_contato === true,
+        );
+        check(
+          "primeira chamada devolve o tenant e o usuário certos",
+          primeira.identificado === true && primeira.tenant_id === tenant.id && primeira.user.id === owner.id,
+        );
+
+        const segunda = await identificarContato(phoneDono);
+        check("segunda chamada continua identificando o dono", segunda.identificado === true);
+        check(
+          "segunda chamada não é mais primeiro contato",
+          segunda.identificado === true && segunda.primeiro_contato === false,
+        );
+      }
     } finally {
       if (ownerId) {
         await clearPendingHerd(tenant.id, ownerId);
         await clearPendingConfinement(tenant.id, ownerId);
         await limparCursor(tenant.id, ownerId);
       }
+      // WhatsAppContact criado na seção 6 não precisa de limpeza própria: a
+      // relação com Tenant é onDelete: Cascade (schema.prisma), então
+      // deleteTestTenants (abaixo) já leva o contato junto.
       await prisma.user.deleteMany({ where: { tenant_id: tenant.id } });
       await deleteTestTenants([tenant.id]);
     }
