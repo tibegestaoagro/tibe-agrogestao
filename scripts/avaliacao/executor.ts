@@ -17,7 +17,7 @@ import type { Caso, CasoConversa, CasoMensagem, Gravacao, PassoDeConversa } from
 export type PassoAvaliado = { texto: string; grava: Gravacao; linhas_novas: number; indevida: boolean; faltou: boolean; falha_do_modelo: boolean; respostas: string[]; ms: number };
 export type ConversaAvaliada = { id: string; passos: PassoAvaliado[] };
 export type Particao = "ajuste" | "final" | "todas";
-export type NotaAvaliada = NotaDeMensagem & { texto: string; obtidos: PedidoObtido[]; ms: number; falha?: string };
+export type NotaAvaliada = NotaDeMensagem & { texto: string; obtidos: PedidoObtido[]; ms: number; falha?: string; falha_detalhe?: string };
 export type ResultadoDoModelo = {
   modelo: string;
   esforco: string | null;
@@ -133,11 +133,11 @@ export async function avaliarModelo(opcoes: {
             interrompido ??= motivoDaInterrupcao(e);
             return;
           }
-          notasPorIndice[indice] = { ...pontuarMensagem(caso, [], HOJE), texto: caso.texto, obtidos: [], ms: Date.now() - inicio, falha: e.motivo };
+          notasPorIndice[indice] = { ...pontuarMensagem(caso, [], HOJE), texto: caso.texto, obtidos: [], ms: Date.now() - inicio, falha: e.motivo, falha_detalhe: e.message };
         }
       }
     };
-    await Promise.all(Array.from({ length: Math.max(1, opcoes.concorrencia ?? 4) }, trabalhador));
+    await Promise.all(Array.from({ length: Math.max(1, opcoes.concorrencia ?? 2) }, trabalhador));
 
     for (const caso of conversasDoCaso) {
       if (interrompido !== null) break;

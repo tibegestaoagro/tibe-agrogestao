@@ -6,7 +6,7 @@ import { exigirBancoLocal, exigirRedisLocal } from "../_banco-local";
 /**
  * CLI da rodada real (Fase 3): roda cada modelo sobre os casos, com um medidor
  * de custo único para a rodada, e grava `resultados/<rodada>/<modelo>.json`.
- * Roda: `npm run avaliacao:rodar -- --rodada <nome> [--modelos a,b] [--particao ajuste|final|todas] [--limite N]`.
+ * Roda: `npm run avaliacao:rodar -- --rodada <nome> [--modelos a,b] [--particao ajuste|final|todas] [--limite N] [--concorrencia N]`.
  * Sai com código 2 quando o orçamento acaba; 1 quando algum modelo foi pulado ou interrompido por outro motivo.
  */
 
@@ -23,12 +23,13 @@ async function main() {
   const { PRECOS, TETO_USD, criarMedidor, OrcamentoEsgotado } = await import("./medidor");
   const { carregarCasos, particaoDoCaso } = await import("./casos");
   const { avaliarModelo } = await import("./executor");
+  const { comEsperaEmLimite } = await import("./limite");
   const { classificarMensagem } = await import("@/lib/agente/classificar");
-  const { definirTransporteDoModelo, FalhaDoModelo } = await import("@/lib/agente/modelo");
+  const { definirTransporteDoModelo, FalhaDoModelo, transporteHttp } = await import("@/lib/agente/modelo");
 
   const rodada = argumento("rodada");
   if (!rodada || !/^[a-z0-9-]+$/.test(rodada)) {
-    console.error("Uso: npm run avaliacao:rodar -- --rodada <nome> [--modelos a,b] [--particao ajuste|final|todas] [--limite N]");
+    console.error("Uso: npm run avaliacao:rodar -- --rodada <nome> [--modelos a,b] [--particao ajuste|final|todas] [--limite N] [--concorrencia N]");
     process.exit(1);
   }
   const particao = (argumento("particao") ?? "todas") as "ajuste" | "final" | "todas";
@@ -47,6 +48,11 @@ async function main() {
     console.error("--limite precisa ser um número positivo");
     process.exit(1);
   }
+  const concorrencia = argumento("concorrencia") === undefined ? 2 : Number(argumento("concorrencia"));
+  if (!(concorrencia > 0)) {
+    console.error("--concorrencia precisa ser um número positivo");
+    process.exit(1);
+  }
 
   let casos = carregarCasos();
   if (particao !== "todas") casos = casos.filter((c) => particaoDoCaso(c) === particao);
@@ -56,7 +62,15 @@ async function main() {
     process.exit(1);
   }
 
-  const medidor = criarMedidor({ arquivo: path.join(__dirname, "resultados", "gasto.json") });
+  // No máximo uma linha a cada 10 s: com concorrência, várias mensagens esperam ao mesmo tempo.
+  let ultimoAviso = 0;
+  const aoEsperar = (ms: number) => {
+    const agora = Date.now();
+    if (agora - ultimoAviso < 10_000) return;
+    ultimoAviso = agora;
+    console.log(`limite da conta: esperando ${(ms / 1000).toFixed(1)} s`);
+  };
+  const medidor = criarMedidor({ arquivo: path.join(__dirname, "resultados", "gasto.json"), enviar: comEsperaEmLimite(transporteHttp, { aoEsperar }) });
   const pasta = path.join(__dirname, "resultados", rodada);
   fs.mkdirSync(pasta, { recursive: true });
   const gravar = (modelo: string, dados: unknown) => fs.writeFileSync(path.join(pasta, `${modelo}.json`), JSON.stringify(dados, null, 2));
@@ -113,6 +127,7 @@ async function main() {
         casos,
         particao,
         transporte: medidor.transporte,
+        concorrencia,
         prefixo: `${rodada}-${modelo}`,
         orcamentoEsgotado: () => medidor.gastoTotal() >= TETO_USD,
       });

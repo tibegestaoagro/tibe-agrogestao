@@ -108,6 +108,22 @@ function main() {
   }
   for (const p of pulados) md.push(`| ${celula(p.modelo)} | pulado: ${celula(p.pulado)} | | | | | | | | | | | | | |`);
 
+  md.push("", "## Falhas do modelo por detalhe", "");
+  const comFalha = linhas.filter((l) => l.notas.some((n) => n.falha));
+  if (comFalha.length === 0) md.push("Nenhuma.");
+  else {
+    for (const l of comFalha) {
+      const porDetalhe = new Map<string, number>();
+      for (const n of l.notas) {
+        if (!n.falha) continue;
+        const chave = n.falha_detalhe ?? n.falha;
+        porDetalhe.set(chave, (porDetalhe.get(chave) ?? 0) + 1);
+      }
+      const detalhe = [...porDetalhe.entries()].map(([d, vezes]) => `${celula(d)} (${vezes})`).join(", ");
+      md.push(`- ${l.r.modelo}: ${detalhe}`);
+    }
+  }
+
   md.push("", "## Gravações indevidas", "");
   const todasIndevidas = linhas.flatMap((l) => l.indevidas.map((p) => ({ modelo: l.r.modelo, ...p })));
   if (todasIndevidas.length === 0) md.push("Nenhuma.");

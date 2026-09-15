@@ -340,6 +340,69 @@ async function main() {
     check("partição filtra os casos", soAjuste.notas.every((n) => particao(n.id) === "ajuste") && soAjuste.notas.length === [casos[0], casos[1]].filter((c) => particao(c.id) === "ajuste").length);
   }
 
+  console.log("\n5. Espera no limite da conta");
+  {
+    const { comEsperaEmLimite } = await import("./avaliacao/limite");
+    type Corpo = Record<string, unknown>;
+    const resposta429 = (mensagem?: string) => ({ status: 429, json: mensagem ? { error: { message: mensagem } } : {} });
+    const resposta200 = { status: 200, json: { ok: true } };
+
+    // (a) duas respostas 429 com "Please try again in 1.5s" e depois 200.
+    {
+      let chamadas = 0;
+      const enviar = async (_corpo: Corpo) => {
+        chamadas += 1;
+        return chamadas < 3 ? resposta429("Please try again in 1.5s") : resposta200;
+      };
+      const esperas: number[] = [];
+      const transporte = comEsperaEmLimite(enviar, { esperar: async (ms) => { esperas.push(ms); } });
+      const r = await transporte({});
+      check("429 com tempo na mensagem devolve o 200 depois de esperar", r.status === 200 && chamadas === 3, JSON.stringify({ status: r.status, chamadas }));
+      check("espera o tempo dito mais 250 ms, duas vezes", esperas.length === 2 && esperas.every((e) => e === 1750), JSON.stringify(esperas));
+    }
+
+    // (b) 429 sem tempo na mensagem: espera exponencial.
+    {
+      let chamadas = 0;
+      const enviar = async (_corpo: Corpo) => {
+        chamadas += 1;
+        return chamadas < 3 ? resposta429() : resposta200;
+      };
+      const esperas: number[] = [];
+      const transporte = comEsperaEmLimite(enviar, { esperar: async (ms) => { esperas.push(ms); } });
+      const r = await transporte({});
+      check("429 sem tempo na mensagem também devolve o 200", r.status === 200);
+      check("espera exponencial 1s, depois 2s", esperas.length === 2 && esperas[0] === 1000 && esperas[1] === 2000, JSON.stringify(esperas));
+    }
+
+    // (c) 429 sempre, com tentativas: 3: devolve 429 depois de 3 esperas.
+    {
+      let chamadas = 0;
+      const enviar = async (_corpo: Corpo) => {
+        chamadas += 1;
+        return resposta429();
+      };
+      const esperas: number[] = [];
+      const transporte = comEsperaEmLimite(enviar, { tentativas: 3, esperar: async (ms) => { esperas.push(ms); } });
+      const r = await transporte({});
+      check("tentativas esgotadas devolve a última 429", r.status === 429);
+      check("esperou exatamente 3 vezes", esperas.length === 3, JSON.stringify(esperas));
+    }
+
+    // (d) status 500 passa direto, sem esperar.
+    {
+      let chamadas = 0;
+      const enviar = async (_corpo: Corpo) => {
+        chamadas += 1;
+        return { status: 500, json: {} };
+      };
+      let esperou = false;
+      const transporte = comEsperaEmLimite(enviar, { esperar: async () => { esperou = true; } });
+      const r = await transporte({});
+      check("500 não é 429: passa direto sem esperar", r.status === 500 && chamadas === 1 && !esperou);
+    }
+  }
+
   if (falhas === 0) console.log("\n✅ Todos os testes passaram");
   else console.log(`\n❌ ${falhas} testes falharam`);
   process.exit(falhas ? 1 : 0);
