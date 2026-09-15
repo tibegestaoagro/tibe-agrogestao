@@ -157,6 +157,20 @@ Domínios da etapa 1 e suas intenções (legado `registrar_lote_animal` e
 | prestador | cadastrar_servico_ordem, consultar_cliente |
 | conversa | ajuda, resumo (e `ambigua` como saída quando nada casa) |
 
+## Fase 3: decisões de 15/09/2026
+
+Chamada real de fumaça antes das decisões (`gpt-4o-mini`): os 13 schemas de
+extração foram aceitos no modo estrito; "comprei 20 bezerros do João por 60 mil,
+pago dia 10" perdeu valor e vencimento (a etapa de domínio cortou uma ação em
+duas); "o que tenho a pagar?" saiu `ambigua`; 4 a 5,5 s por mensagem.
+
+| tema | decisão |
+|---|---|
+| modelos | **cinco baratos e um teto**: `gpt-4o-mini`, `gpt-4.1-mini`, `gpt-5-nano`, `gpt-5-mini`, `gpt-5.6-luna`, e `gpt-5.6-terra` como referência do quanto o dinheiro compra |
+| conjunto | **~300 casos de 5 autores sem contexto do código** (produtor comum, adversarial, áudio transcrito, conversa de várias mensagens, frases do documento do cliente), gabarito revisado por um juiz separado; 70% para ajuste de prompt e 30% guardados só para a nota final |
+| aprovação | **zero gravação indevida** (eliminatório), intenção certa em **95%** no geral e **85%** em cada intenção com pelo menos 5 casos, campos certos em **90%**; entre os aprovados, custo e depois tempo |
+| orçamento | **até US$ 30** somando todas as rodadas; o executor para sozinho no teto |
+
 ## Critérios de aceite do programa
 
 - Zero gravação indevida no conjunto de avaliação e nos blocos de homologação
