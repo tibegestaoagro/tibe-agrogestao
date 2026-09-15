@@ -668,7 +668,7 @@ Move a lógica inteira da rota (normalização do telefone, criação do `WhatsA
 - Modify: `src/app/(public)/docs/api/endpoints.ts` (entrada da rota nova), `.claude/rules/whatsapp.md` (parágrafo curto do turno)
 
 **Interfaces:**
-- Consumes: `identificarContato` (Task 9), `carregarCursor` e `atualizarCursor` (Task 8), `executarIntencao` (Task 7), `classificarMensagem`, `classificarResposta` (Task 6), `VERSAO_DO_PROMPT`, `FalhaDoModelo` (Task 5), `detectConfirmation`.
+- Consumes: `identificarContato` (Task 9), `carregarCursor` (Task 8), `executarIntencao` (Task 7), `classificarMensagem`, `classificarResposta` (Task 6), `VERSAO_DO_PROMPT`, `FalhaDoModelo` (Task 5), `detectConfirmation`.
 - Produces:
 
 ```ts
@@ -694,7 +694,7 @@ Fluxo, nesta ordem:
    - `detectConfirmation(texto)` é `"yes"` ou `"no"`: um pedido na `intent` do cursor com `parameters: {}` (a confirmação e a recusa saem do texto no núcleo).
    - Senão, `classificarResposta`; `responde`: um pedido na `intent` do cursor com `parameters: { [cursor.aguardando]: texto }`; `outro_assunto`: segue para o passo 6.
 6. `classificarMensagem`: os pedidos, na ordem.
-7. Cada pedido vai para `executarIntencao` com `registrar_entrada: false`; depois de cada um, `atualizarCursor`.
+7. Cada pedido vai para `executarIntencao` com `registrar_entrada: false` (o núcleo já atualiza o cursor depois de rotear; o turno não chama `atualizarCursor` de novo).
 8. Cada resposta vira `MensagemDoTurno` com `pode_humanizar = !/\d/.test(texto) && !requires_confirmation && !action_taken.includes("aguardando")`.
 9. Grava o `AgentRequest` `` `${wamid}#turno` `` com as mensagens e devolve.
 10. `FalhaDoModelo` em qualquer ponto: uma mensagem `Não consegui entender agora. Pode mandar de novo daqui a pouco?` com `pode_humanizar: false`, log de saída com `action_taken: "turno:falha_do_modelo:<motivo>"`, sem gravar `AgentRequest` (para o reenvio poder tentar de novo).
