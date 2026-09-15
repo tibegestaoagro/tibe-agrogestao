@@ -158,7 +158,7 @@ export const registrarLancamentoFinanceiro: Handler = async ({
   /**
    * `lerDinheiro`, e não `num`.
    *
-   * `num()` é `Number()` cru: "1.200,00" vira NaN e "60 mil" também. O
+   * `num()` era `Number()` cru: "1.200,00" virava NaN e "60 mil" também. O
    * produtor fala assim, e o classificador repassa a fala. Este projeto já
    * pagou o mesmo defeito duas vezes em outros handlers ("60 mil e como o
    * produtor fala, e o codigo nao sabia ler", e o frete de R$ 2.000 que virava

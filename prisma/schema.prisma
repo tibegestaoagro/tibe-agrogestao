@@ -1456,6 +1456,8 @@ model AgentConversationLog {
   content             String?
   intent_detected     String?
   action_taken        String?
+  /// Fase 2 do agente: qual versão do prompt gerou esta leitura. Nula no caminho antigo (execute-action).
+  prompt_version      String?
   created_at          DateTime         @default(now())
 
   tenant           Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Cascade)

@@ -50,40 +50,52 @@ evidência de que o tráfego real passa é que as 15 execuções reais de 14/09
 traziam a mesma instância e chave. Conferir as primeiras execuções reais de 15/09
 pela API do n8n; se pararem na guarda, restaurar o workflow do backup.
 
-**Na branch, sem merge (28+ commits, suíte `m67` nova):** confirmação estrita
-(sim curto, sem dígito e sem negação; recusa vence sempre; com texto, a flag
-`confirmed` do n8n não confirma sozinha); idempotência por `wamid#intenção`;
-nenhum handler grava sem pendente GUARDADO, e o sim executa o guardado; sim e
-resposta curta vão ao pendente mais recente de qualquer domínio (os stores se
-registram em `pending-store.ts`); cadastro assistido não toma sim de pedido mais
-novo e nunca escolhe fazenda; os 12 defeitos de handler da spec corrigidos
-(ajuste de rebanho, receita, serviço agendado sem data inventada e status por dia
-de calendário, diesel sem saldo, pagamento sem valor, lactação sem troca de
-gesto, compra da lista confirma, mês falado no saldo e relatório, cadastro pede
-categoria, venda do confinamento sai do lote). Cada tarefa com revisão
-independente; revisão final da branch reprovou (1 crítico, 6 importantes),
-onda única corrigiu, re-revisão aprovou. `test:all -- --sem-redis` 66/67: a
-`m17` falha entre 00h e 03h UTC por defeito antigo do próprio teste (dívida 5).
+**Fase 1 em produção desde 15/09 (`df74e40`, sem migração):** confirmação
+estrita, idempotência por `wamid#intenção`, nenhum handler grava sem pendente
+guardado, sim e resposta curta vão ao pendente mais recente, os 12 defeitos de
+handler da spec. Suíte `m67`. Detalhe no plano da Fase 1.
 
-**Merge e push em 15/09 (`df74e40`), sem migração; deploy confirmado pelo status
-da Vercel.** Branch apagada. Roteiro ponta a ponta pelo `npm run wa` depois do
-deploy: "não, deixa pra lá" não gravou, e o "sim" seguinte respondeu "Não tenho
-nada esperando confirmação"; a mensagem com dois pedidos (animais e contas a
-pagar) teve as duas respostas. "pode lançar 500 de diesel" não gravou, mas NÃO
-discrimina: o classificador antigo leu o diesel como uso de estoque, e o banco de
-provas não tem diesel, então não havia pedido guardado. A regra está provada na
-`m67`. Até as 08h30 de 15/09 nenhuma mensagem real tinha chegado ao workflow
-(nem barrada nem aceita).
+### Agente do WhatsApp: Fase 2 (turno no Tibé) PRONTA NA BRANCH, sem merge
 
-⚠️ **Achado do roteiro para a Fase 2:** "gastei 500 de diesel no trator" vira uso
-de estoque no classificador atual, não despesa nem combustível de serviço.
+Branch `agente-whatsapp-fase-2` (26 commits sobre `4c4ca07`), plano
+[../superpowers/plans/2026-09-15-agente-whatsapp-fase-2-turno.md](../superpowers/plans/2026-09-15-agente-whatsapp-fase-2-turno.md).
+Decisões de 15/09 na spec (cursor da conversa, rota nova de turno, OpenAI com
+modelo em `AGENTE_MODELO`). Entregue:
 
-**Fica para a Fase 2** (sem gravação indevida hoje): sim rotulado `ambigua` não
-alcança pendente de outro domínio; textos de lactação sob outro gesto; resposta
-curta que sai do formulário; merge de pendente de serviço com frase nova;
-confirmação inconsistente de `cadastrarAnimal`; `quandoExecutouPorUltimo` fora
-do estoque; serviço de valor fechado agendado já cria conta a receber
-(estacionado, igual ao painel).
+- registro das 52 intenções por domínio (`src/lib/agente/intencoes/`), com trava
+  de cobertura na `m68`;
+- cliente do modelo com JSON Schema estrito (`modelo.ts`), prompts gerados do
+  registro com versão (`prompts.ts`), classificação em duas etapas
+  (`classificar.ts`) e conferência do trecho literal (número inventado sai);
+- núcleo `executarIntencao` extraído do `execute-action` (mesma resposta), cursor
+  da conversa no Redis (`cursor.ts`, limite de 500 ms), `identificarContato`
+  extraído do `resolve-contact` (mesma resposta);
+- rota `POST /api/internal/whatsapp/turno` (`src/lib/actions/turno.ts`), que
+  ninguém chama ainda: o n8n passa a usá-la na Fase 4;
+- defeitos de handler achados no caminho: `num()` lia "1.500" como 1,5 (agora
+  lê número brasileiro em todos os handlers); previsão de vacina só aceitava
+  ISO; resposta da faixa não resolvia item ambíguo em `itens`; e um **"sim" de
+  movimentação de rebanho executava um negócio de gado mais antigo** (existia
+  na `main`, pelo n8n; corrigido no roteador).
+
+Cada tarefa teve revisão independente; a revisão final da branch achou 1
+crítico e 3 importantes, a onda única corrigiu, a re-revisão aprovou. Travas
+quebradas de propósito (cursor sem gravar, trecho literal sem remover): a `m68`
+falhou nas duas. `test:all -- --sem-redis` 68/68, `tsc`, `check`, `lint` sem
+aviso novo.
+
+⚠️ **Migração nova, `20260915120000_log_versao_do_prompt`** (`ADD COLUMN`
+nulável em `AgentConversationLog`): **precisa ir ao Neon ANTES do push**, porque
+o código novo grava a coluna nas duas rotas de produção.
+
+**Fica para a Fase 3** (conjunto de avaliação): chamada real com o schema de
+extração logo no início (tipo múltiplo no modo estrito); "ok, quanto de sal"
+numa confirmação; "um/uma" como artigo validando quantidade 1; dois reenvios
+simultâneos executam em dobro antes da chave (anterior à Fase 2). Redis que
+pendura os pendentes: dívida 3.1.
+
+⚠️ **Achado da Fase 1 ainda aberto:** "gastei 500 de diesel no trator" vira uso
+de estoque no classificador do n8n; o registro novo desempata, a Fase 3 mede.
 
 ### Ambiente
 
@@ -163,10 +175,14 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou, e cada commit que sobe é leitura pública.
 
-**2. Agente do WhatsApp:** conferir as primeiras execuções reais do workflow
-depois da guarda (execução de 2 nós sem "Normalizar e Filtrar" é mensagem
-barrada); então escrever o plano da Fase 2 (turno no Tibé, pendente unificado,
-registro de intenções, classificação em duas etapas, templates).
+**2. Agente do WhatsApp, Fase 2:** o usuário roda a migração
+`20260915120000_log_versao_do_prompt` no Neon (`npx prisma migrate status`,
+depois `npm run db:deploy`, com a URL Direct); conferir com `migrate status`;
+com aprovação, merge e push da branch `agente-whatsapp-fase-2`; confirmar o
+deploy pela rota nova em `/docs/api`. Depois: `OPENAI_API_KEY` na Vercel
+(pendências, item 11.4) e o plano da Fase 3 (avaliação e escolha do modelo).
+Ainda vale conferir as primeiras execuções reais do workflow depois da guarda
+(execução de 2 nós sem "Normalizar e Filtrar" é mensagem barrada).
 
 Não avance para outro módulo sem aprovação explícita.
 

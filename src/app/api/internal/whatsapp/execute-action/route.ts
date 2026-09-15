@@ -1,13 +1,10 @@
 import { z } from "zod";
 import { apiOk, apiError } from "@/lib/api";
 import { requireInternalSecret } from "@/lib/internal-guard";
-import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
+import { prisma, prismaForTenant } from "@/lib/prisma";
 import { log } from "@/lib/log";
-import type { Prisma } from "@/generated/prisma/client";
 import { isIntent } from "@/lib/whatsapp-intents";
-import { detectConfirmation } from "@/lib/actions/confirmation";
-import { logInbound, logOutbound } from "@/lib/actions/conversation-log";
-import { routeIntent } from "@/lib/actions/whatsapp-router";
+import { executarIntencao } from "@/lib/actions/executar-intencao";
 import { withApi } from "@/lib/route";
 
 /**
@@ -21,7 +18,13 @@ import { withApi } from "@/lib/route";
  *   AgentConversationLog e, quando presente, como a ÚNICA fonte de
  *   confirmação e recusa ("sim"/"não", leitura estrita de `detectConfirmation`).
  * - confirmed (opcional): só vale quando a chamada vem SEM `message_text`;
- *   com texto, é ignorado (ver o cálculo de `confirmed` abaixo).
+ *   com texto, é ignorado (ver o cálculo de `confirmed` em `executarIntencao`).
+ *
+ * Idempotência por `wamid#intenção`, log de conversa, `detectConfirmation` e
+ * `routeIntent` vivem no núcleo `executarIntencao`
+ * (src/lib/actions/executar-intencao.ts, Task 7 da Fase 2), reusado pelo
+ * turno que executa vários pedidos de uma mensagem. Esta rota só autentica,
+ * valida o corpo, confere tenant x usuário e resolve usuário/contato/perfis.
  */
 
 const schema = z.object({
@@ -95,44 +98,10 @@ async function POSTHandler(request: Request) {
 
   const db = prismaForTenant(tenant_id);
 
-  /**
-   * Replay da MESMA mensagem devolve a resposta da primeira vez, sem executar
-   * nada de novo.
-   *
-   * Sem isto, um retry do n8n gravava a mesma venda de gado, o mesmo
-   * lançamento e a mesma saída de estoque outra vez. A checagem vem antes de
-   * qualquer escrita, inclusive antes do log de entrada, porque replay não é
-   * mensagem nova e não deve engordar o histórico da conversa.
-   */
-  const providerMessageId = parsed.data.provider_message_id ?? null;
-  /**
-   * A chave inclui a intenção: uma mensagem com dois pedidos ("quantos animais
-   * e o que tenho a pagar") chega em duas chamadas com o MESMO wamid, uma por
-   * intenção. Chavear só pelo wamid fazia a segunda intenção ser tratada como
-   * replay da primeira e devolver a resposta errada, sem executar nada.
-   */
-  const chaveIdempotencia = providerMessageId ? `${providerMessageId}#${intent}` : null;
-  if (chaveIdempotencia) {
-    const anterior = await db.agentRequest.findFirst({
-      where: { provider_message_id: chaveIdempotencia },
-    });
-    if (anterior) {
-      log.info("execute-action: replay respondido pelo registro anterior", {
-        route: "/api/internal/whatsapp/execute-action",
-        intent: anterior.intent,
-        code: "REPLAY",
-      });
-      return apiOk(anterior.response as Record<string, unknown>);
-    }
-  } else {
-    log.warn("execute-action sem provider_message_id: sem protecao contra reprocessamento", {
-      route: "/api/internal/whatsapp/execute-action",
-      intent,
-      code: "SEM_CHAVE_DE_IDEMPOTENCIA",
-    });
-  }
-
   // user_id é sempre revalidado no banco: nunca confiamos na role vinda do caller.
+  // Desde a Fase 2 isto roda ANTES da idempotência (que mora no núcleo): um
+  // retry de usuário desativado entre as duas chamadas recebe 404, e não a
+  // resposta guardada. Divergência aceita: desativado não recebe mais nada.
   const user = await db.user.findFirst({ where: { id: user_id, active: true } });
   if (!user) {
     return apiError("INVALID_USER", "Usuário não encontrado ou inativo neste tenant", 404);
@@ -142,95 +111,31 @@ async function POSTHandler(request: Request) {
   const profiles = await db.tenantProfile.findMany({ where: { active: true } });
   const activeProfiles = profiles.map((p) => p.profile_type);
 
-  if (contact) {
-    await logInbound(db, {
-      whatsapp_contact_id: contact.id,
-      content: message_text ?? `[${intent}] ${JSON.stringify(parameters)}`,
-      intent,
-    });
-  }
-
-  const confirmationSignal = detectConfirmation(message_text);
-  /**
-   * Com texto, o TEXTO decide a confirmação; `confirmed` do n8n só vale quando
-   * a chamada vem sem `message_text`.
-   *
-   * O classificador marca `confirmed: true` em frases como "ok, anota 500 de
-   * diesel", que a leitura estrita de `detectConfirmation` não aceita como
-   * "sim": com o OU antigo, a flag furava a regra e a frase executava o
-   * pendente guardado (a despesa de antes), jogando fora o pedido novo.
-   */
-  const temTexto = !!message_text?.trim();
-  const confirmed =
-    confirmationSignal !== "no" &&
-    (temTexto ? confirmationSignal === "yes" : parsed.data.confirmed === true);
-  /**
-   * Recusa vem do TEXTO, não de `confirmed: false`.
-   *
-   * `confirmed` significa "o produtor confirmou": `false` é a AUSÊNCIA de
-   * confirmação, não uma negativa. Tratar os dois como a mesma coisa era um
-   * erro de leitura com consequência real, porque o guia do n8n manda o
-   * classificador emitir o campo em TODA mensagem: um `false` de rotina em
-   * "usei 2 sacas de sal no curral" cancelava o registro. Antes doía menos
-   * (virava pergunta repetida); com a regra de que "não" cancela sempre,
-   * passou a custar o gesto inteiro.
-   */
-  const explicitNo = confirmationSignal === "no";
-
-  const result = await routeIntent(db, {
+  const resultado = await executarIntencao({
+    db,
     tenant_id,
-    role: user.role,
+    user: { id: user.id, role: user.role },
+    contato_id: contact?.id ?? null,
     activeProfiles,
     intent,
     parameters,
-    user_id: user.id,
     message_text: message_text ?? null,
-    confirmed,
-    explicitNo,
+    confirmed_do_corpo: parsed.data.confirmed ?? null,
+    provider_message_id: parsed.data.provider_message_id ?? null,
+    registrar_entrada: true,
   });
 
-  if (contact) {
-    await logOutbound(db, {
-      whatsapp_contact_id: contact.id,
-      content: result.reply_text,
-      intent,
-      action_taken: result.action_taken,
-    });
-  }
-
   const resposta = {
-    reply_text: result.reply_text,
-    requires_confirmation: result.requires_confirmation,
-    auxiliary_data: result.auxiliary_data,
-    report_url: result.report_url,
+    reply_text: resultado.reply_text,
+    requires_confirmation: resultado.requires_confirmation,
+    auxiliary_data: resultado.auxiliary_data,
+    report_url: resultado.report_url,
     // Extensão aditiva (2026-07-30): o N8N usa isso para decidir o que NÃO
     // reescrever no humanizador. Pergunta de formulário e pedido de
     // esclarecimento são textos precisos que guiam uma máquina de estados:
     // mudar a redação deles muda o gatilho da conversa.
-    action_taken: result.action_taken,
+    action_taken: resultado.action_taken,
   };
-
-  if (chaveIdempotencia) {
-    // Grava DEPOIS de executar, para que uma execução que falhou no meio possa
-    // ser tentada de novo. E a colisão é ignorada de propósito: se duas
-    // chamadas idênticas correram juntas, as duas fizeram o mesmo trabalho e a
-    // segunda só perdeu a corrida de registrar.
-    try {
-      await db.agentRequest.create({
-        data: scoped({
-          provider_message_id: chaveIdempotencia,
-          intent,
-          // `auxiliary_data` é `Record<string, unknown>`, e `unknown` não casa
-          // com o tipo de entrada de coluna Json. O valor É serializável (é o
-          // mesmo objeto que sai na resposta HTTP), então o que falta é dizer
-          // isso ao compilador, não mudar o dado.
-          response: resposta as unknown as Prisma.InputJsonValue,
-        }),
-      });
-    } catch (e) {
-      if ((e as { code?: unknown })?.code !== "P2002") throw e;
-    }
-  }
 
   return apiOk(resposta);
 }

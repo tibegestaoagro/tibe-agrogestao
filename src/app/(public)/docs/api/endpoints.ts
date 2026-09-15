@@ -1841,10 +1841,20 @@ export const GROUPS: Group[] = [
         method: "POST",
         path: "/api/internal/whatsapp/execute-action",
         auth: "Header x-internal-secret",
-        description: "Executa a intenção já classificada pelo LLM, roteando para as mesmas lib/actions/* usadas pelo painel web. Loga a interação em AgentConversationLog.",
+        description: "Executa a intenção já classificada pelo LLM, roteando para as mesmas lib/actions/* usadas pelo painel web. Loga a interação em AgentConversationLog. Desde a Fase 2 do agente, com a mesma resposta: por dentro grava o cursor da conversa e confere o usuário (ativo, no tenant) antes do replay.",
         request: `{ "tenant_id": "cl...", "user_id": "cl...", "intent": "registrar_peso", "parameters": { "ear_tag": "1234", "weight": 382 }, "message_text": "o boi 1234 pesou 382" }`,
         response: `200
 { "data": { "reply_text": "Peso de 382 kg registrado para o animal 1234. GMD: 0.65 kg/dia.", "requires_confirmation": false, "auxiliary_data": {}, "report_url": null } }`,
+      },
+      {
+        method: "POST",
+        path: "/api/internal/whatsapp/turno",
+        auth: "Header x-internal-secret",
+        description:
+          "Turno inteiro do agente (Fase 2): recebe a mensagem consolidada, identifica o contato pelo telefone, entende a mensagem no Tibé (cursor da conversa quando há pergunta aberta, senão classificação em duas etapas por LLM), executa cada pedido pelo mesmo núcleo do execute-action e devolve as mensagens a enviar. `pode_humanizar` só é true para texto sem número, sem confirmação pendente e sem pergunta. `texto` só pode vir vazio com `recibo` (lido por imagem no n8n), que vai direto ao lançamento financeiro, sem classificar. Idempotente por `provider_message_id`: o reenvio devolve as mesmas mensagens com `replay: true`. Falha do modelo ou erro interno devolve as respostas já produzidas seguidas de uma frase fixa, sem registrar o turno: antes de executar qualquer pedido, a frase pede para mandar de novo; depois, avisa que parte pode já ter sido registrada e pede para conferir antes.",
+        request: `{ "telefone": "5522999990000", "texto": "quantos animais eu tenho e o que tenho a pagar", "provider_message_id": "wamid.HBgM...", "recibo": null }`,
+        response: `200
+{ "data": { "mensagens": [{ "texto": "Seu rebanho possui atualmente 23 animais.\\nFêmeas: 3 | Machos: 20", "pode_humanizar": false, "report_url": null }, { "texto": "Nenhuma conta a pagar no período.", "pode_humanizar": true, "report_url": null }], "replay": false }, "meta": {} }`,
       },
       {
         method: "POST",

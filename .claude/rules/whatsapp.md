@@ -14,8 +14,9 @@ Arquitetura (PRD §7): **Meta → N8N → Tibé → N8N → Meta**. O Tibé nunc
 direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
 
 - **Não existe** `/api/webhooks/whatsapp` no Tibé: seria código morto.
-- A classificação de intenção por LLM acontece **dentro do N8N** (a chave de
-  API do provedor de LLM fica nas credenciais do N8N, não no `.env` do Tibé).
+- Pelo `execute-action` (produção até a Fase 7), a classificação de intenção
+  por LLM acontece **dentro do N8N**, com a chave nas credenciais do N8N. Pela
+  rota de turno, acontece no Tibé, com a chave em `OPENAI_API_KEY`.
 - `POST /api/internal/whatsapp/resolve-contact`: identifica tenant/usuário
   pelo telefone (único lookup cross-tenant legítimo do sistema). Devolve,
   além do contrato da spec, `meta.first_contact`, `meta.suggested_reply` e
@@ -97,7 +98,17 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
      manual cria execução nova, e a chave mudaria junto sem impedir nada. A
      intenção entra porque uma mensagem com dois pedidos chega em duas
      chamadas com o mesmo `wamid`, e só pelo `wamid` a segunda era tratada
-     como replay da primeira.
+     como replay da primeira. Pela rota de turno, cada pedido usa
+     `wamid#índice#intenção` no núcleo, e o turno inteiro `wamid#turno`.
+- **Rota de turno (Fase 2 do agente).** `POST /api/internal/whatsapp/turno`
+  (`src/lib/actions/turno.ts`) recebe a mensagem consolidada e faz o turno
+  inteiro no Tibé: identifica o contato, lê o cursor da conversa, classifica
+  por LLM em duas etapas (`src/lib/agente/`, modelo em `AGENTE_MODELO`, chave
+  em `OPENAI_API_KEY`) e executa cada pedido pelo mesmo núcleo do
+  `execute-action` (`executarIntencao`). Com ela, a classificação passa a
+  acontecer no Tibé, e não mais no n8n; o `execute-action` segue em produção,
+  com a mesma resposta, até a Fase 7. Por dentro ele agora grava o cursor da
+  conversa e confere o usuário (ativo, no tenant) antes do replay.
 - **Número e data se leem com os parsers, nunca com `Number()` ou `new Date()`**
   (`parsers.ts`, `numero-br.ts`). O classificador manda o mesmo campo ora como
   número, ora como texto: `1200` e `"1200"`, `"dia 10"` e `"10/08/2026"`. E

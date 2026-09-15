@@ -6,7 +6,7 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
  */
 export async function logInbound(
   db: TenantPrismaClient,
-  params: { whatsapp_contact_id: string; content: string | null; intent?: string | null },
+  params: { whatsapp_contact_id: string; content: string | null; intent?: string | null; prompt_version?: string | null },
 ) {
   return db.agentConversationLog.create({
     data: scoped({
@@ -15,6 +15,7 @@ export async function logInbound(
       message_type: "text",
       content: params.content,
       intent_detected: params.intent ?? null,
+      prompt_version: params.prompt_version ?? null,
     }),
   });
 }
@@ -26,6 +27,7 @@ export async function logOutbound(
     content: string;
     intent?: string | null;
     action_taken?: string | null;
+    prompt_version?: string | null;
   },
 ) {
   return db.agentConversationLog.create({
@@ -36,6 +38,7 @@ export async function logOutbound(
       content: params.content,
       intent_detected: params.intent ?? null,
       action_taken: params.action_taken ?? null,
+      prompt_version: params.prompt_version ?? null,
     }),
   });
 }

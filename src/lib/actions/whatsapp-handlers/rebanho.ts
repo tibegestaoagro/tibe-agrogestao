@@ -11,6 +11,7 @@ import { resolverCategoria } from "./herd";
 import { categoriaDoLivroRazao } from "@/lib/actions/whatsapp-flow-bridge";
 import { startFlow } from "@/lib/actions/agent-flows";
 import { reaisBr } from "@/lib/numero-br";
+import { interpretarData } from "./parsers";
 // Módulo 25: registrar_lote_animal (rebanho por categoria e quantidade).
 import { findActiveCategoryByName } from "@/lib/actions/animal-categories";
 import { createBatchAction, sellFromCategoryAction } from "@/lib/actions/animal-batches";
@@ -26,9 +27,17 @@ function formatUtcCivilDate(date: Date): string {
   return date.toLocaleDateString("pt-BR", { timeZone: "UTC" });
 }
 
-function parseDueDate(value: string): Date | null {
+/**
+ * Só aceitava ISO, e pedia ao modelo que convertesse "dia 20" sozinho, o que é
+ * inventar data. Fora do ISO, lê como `interpretarData` e guarda a meia-noite
+ * UTC do mesmo dia civil, igual ao ramo ISO.
+ */
+export function lerDataPrevista(value: string, hoje = new Date()): Date | null {
   const civilMatch = /^(\d{4})-(\d{2})-(\d{2})(?:T|$)/.exec(value);
-  if (!civilMatch) return null;
+  if (!civilMatch) {
+    const dita = interpretarData(value, hoje);
+    return dita ? new Date(Date.UTC(dita.getFullYear(), dita.getMonth(), dita.getDate())) : null;
+  }
 
   const year = Number(civilMatch[1]);
   const month = Number(civilMatch[2]);
@@ -235,7 +244,7 @@ export const registrarPrevisaoVacina: Handler = async ({ db, parameters }) => {
   let dueDate: Date | null = null;
   const dueDateRaw = str(parameters.due_date);
   if (dueDateRaw) {
-    dueDate = parseDueDate(dueDateRaw);
+    dueDate = lerDataPrevista(dueDateRaw);
   } else {
     const latestVaccination = await db.animalVaccination.findFirst({
       where: { batch_id: animal.id, vaccine_id: vaccine.id },

@@ -260,7 +260,7 @@ log da Vercel.
 
 ---
 
-## 11. Agente do WhatsApp: três coisas que só você faz
+## 11. Agente do WhatsApp: quatro coisas que só você faz
 
 1. **Tirar o dado de teste fixado no Webhook do atendimento.** No editor do
    n8n, workflow `Tibe - Atendimento WhatsApp (Evolution)`: abrir o nó
@@ -272,6 +272,12 @@ log da Vercel.
 3. **Na rotação de credenciais:** se a chave da instância da Evolution mudar, o
    nó `Guarda da Entrada` precisa receber a chave nova no mesmo momento. Sem
    isso, o agente fica mudo (a guarda descarta tudo) sem erro visível.
+4. **`OPENAI_API_KEY` nas variáveis da Vercel** (Fase 2, 15/09). A rota de turno
+   (`POST /api/internal/whatsapp/turno`) classifica a mensagem dentro do Tibé e
+   precisa dessa chave; `AGENTE_MODELO` é opcional (padrão `gpt-4o-mini`). Sem
+   a chave, a rota responde a frase de falha. Nada em produção a chama ainda: o
+   n8n só passa a usá-la na Fase 4, e a Fase 3 (avaliação de modelos) já
+   precisa dela.
 
 ## O que NÃO depende de você
 

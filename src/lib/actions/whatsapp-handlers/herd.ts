@@ -482,6 +482,20 @@ export const registrarMovimentacaoRebanho: Handler = async ({
   if (pendente && pendente.aguardando !== "confirmacao") {
     const juntado = aplicarResposta(pendente, parametrosDaMensagem);
     if (juntado) parameters = juntado;
+    // A resposta da faixa chega plana, mas o pedido guardado pode ter `itens`,
+    // que `itensDosParametros` prefere: sem isto o item ambíguo nunca mudava e
+    // a mesma pergunta se repetia. A resposta vai para o primeiro que não resolve.
+    const respostaDaCategoria = str(parametrosDaMensagem.categoria) ?? str(parametrosDaMensagem.category);
+    if (juntado && pendente.aguardando === "categoria" && respostaDaCategoria && Array.isArray(juntado.itens)) {
+      const nascimento = (str(juntado.movement_type) ?? str(juntado.tipo)) === "nascimento";
+      const itens = juntado.itens.map((item) => ({ ...(item as Record<string, unknown>) }));
+      const ambiguo = itens.find((item) => !resolverCategoria(str(item.categoria) ?? str(item.category) ?? "", nascimento).ok);
+      if (ambiguo) {
+        ambiguo.categoria = respostaDaCategoria;
+        delete ambiguo.category;
+        parameters = { ...juntado, itens };
+      }
+    }
     // Quando não é resposta, o pendente NÃO é apagado: apagar zerava o contador
     // de tentativas e a trava de laço nunca chegava a disparar (visto em teste
     // real, a mesma pergunta repetiu sem parar). Ele morre por TTL, por

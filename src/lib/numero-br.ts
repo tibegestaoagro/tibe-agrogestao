@@ -41,10 +41,11 @@ export function lerNumeroBr(bruto: unknown): number | null {
     multiplicador === 1 ? texto : texto.replace(/milh(ao|ão|oes|ões)|\bmil\b/, "").trim();
 
   // Vírgula presente: formato brasileiro, ponto é milhar.
-  // Sem vírgula: ponto SÓ é decimal quando sobram 1 ou 2 casas no fim.
+  // Sem vírgula: ponto SÓ é decimal quando sobram 1 ou 2 casas no fim, ou
+  // quando a parte inteira é zero ou vazia ("0.125" nunca é cento e vinte e cinco).
   const normalizado = semPalavra.includes(",")
     ? semPalavra.replace(/\./g, "").replace(",", ".")
-    : /\.\d{1,2}$/.test(semPalavra)
+    : /\.\d{1,2}$/.test(semPalavra) || /^0?\./.test(semPalavra)
       ? semPalavra
       : semPalavra.replace(/\./g, "");
 

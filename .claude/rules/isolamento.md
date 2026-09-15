@@ -40,7 +40,9 @@ o tenant da sessão e chama `prismaForTenant`.
 - O client **base** (`prisma`, sem escopo) só deve ser usado em: login
   (`auth.ts`, lookup de email global), `prisma/seed.ts`, scripts internos, o
   lookup cross-tenant de `POST /api/internal/whatsapp/resolve-contact`
-  (precisa achar a qual tenant um telefone pertence, antes de saber o tenant),
+  (precisa achar a qual tenant um telefone pertence, antes de saber o tenant;
+  a lógica mora em `identificarContato`, `src/lib/actions/whatsapp-contato.ts`,
+  usada também pela rota de turno),
   o job diário de alertas (`generateAllAlerts`/`deliverAllPendingAlerts` em
   `src/lib/actions/alerts.ts` e `alert-delivery.ts`): que precisa **listar
   todos os tenants ativos** antes de escopar por tenant a cada iteração, e

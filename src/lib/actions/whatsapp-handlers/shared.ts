@@ -2,6 +2,8 @@ import type { TenantPrismaClient } from "@/lib/prisma";
 import type { AppUserRole } from "@/types/next-auth";
 import type { ProfileType } from "@/lib/tenant-context";
 import type { ActionResult } from "@/lib/actions/types";
+import type { Intent } from "@/lib/whatsapp-intents";
+import { lerNumeroBr } from "@/lib/numero-br";
 
 /**
  * Tipos e helpers compartilhados pelos handlers de intenção do agente
@@ -17,6 +19,12 @@ export type RouterResult = {
   report_url: string | null;
   /** Uso interno (log), não faz parte do contrato de resposta HTTP. */
   action_taken: string;
+  /**
+   * A intenção depois dos desvios de `routeIntent` (venda do confinamento,
+   * pendente de estoque...). Quando um fluxo ativo (cadastro assistido)
+   * consome a mensagem, continua sendo a intenção da mensagem, não a do fluxo.
+   */
+  intent_final?: Intent;
 };
 
 /** Contexto passado a todo handler de intenção: mesmo formato para todos. */
@@ -45,10 +53,12 @@ export function str(v: unknown): string | null {
   return null;
 }
 
+/**
+ * Era `Number()` cru, e "1.500" virava 1,5 no peso, na vacina, na remessa de
+ * evento e na lista. O classificador repassa o número como o produtor falou.
+ */
 export function num(v: unknown): number | null {
-  if (typeof v === "number" && Number.isFinite(v)) return v;
-  if (typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v))) return Number(v);
-  return null;
+  return lerNumeroBr(v);
 }
 
 export function ask(text: string, auxiliary: Record<string, unknown> | null = null): RouterResult {
