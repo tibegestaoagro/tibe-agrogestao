@@ -1,7 +1,7 @@
 import type { Intent } from "@/lib/whatsapp-intents";
 import { buscarIntencao, type Dominio } from "./intencoes";
 import { chamarModelo } from "./modelo";
-import { camposDoDominio, promptDeDominio, promptDeExtracao, promptDeResposta } from "./prompts";
+import { camposDoDominio, MOLDE_CURRENT_DATE, MOLDE_PERFIS_ATIVOS, promptDeDominio, promptDeExtracao, promptDeResposta } from "./prompts";
 import { conferirTrechoLiteral } from "./trecho-literal";
 
 /**
@@ -47,9 +47,18 @@ function limparParametros(parametros: Record<string, unknown>): Record<string, u
   return limpo;
 }
 
-async function extrairPedido(dominio: Dominio, trecho: string, hoje: string): Promise<PedidoClassificado> {
+function normalizarParaComparar(s: string): string {
+  return s.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/** O trecho às vezes não é um recorte real da mensagem (o modelo alucina); nesse caso a conferência usa a mensagem inteira, não o trecho torto. */
+function trechoOuMensagemInteira(trecho: string, mensagemOriginal: string): string {
+  return normalizarParaComparar(mensagemOriginal).includes(normalizarParaComparar(trecho)) ? trecho : mensagemOriginal;
+}
+
+async function extrairPedido(dominio: Dominio, trecho: string, hoje: string, mensagemOriginal: string): Promise<PedidoClassificado> {
   const { sistema, schema } = promptDeExtracao(dominio);
-  const usuario = `current_date: ${hoje}\nmensagem: ${trecho}`;
+  const usuario = `${MOLDE_CURRENT_DATE}${hoje}\nmensagem: ${trecho}`;
   const resposta = await chamarModelo<RespostaExtracao>({
     etapa: "extracao",
     sistema,
@@ -61,7 +70,8 @@ async function extrairPedido(dominio: Dominio, trecho: string, hoje: string): Pr
   if (resposta.intent === "ambigua") return { intent: "ambigua", parameters: {}, trecho };
 
   const limpo = limparParametros(resposta.parametros);
-  const { parameters } = conferirTrechoLiteral(limpo, trecho, camposDoDominio(dominio));
+  const textoParaConferencia = trechoOuMensagemInteira(trecho, mensagemOriginal);
+  const { parameters } = conferirTrechoLiteral(limpo, textoParaConferencia, camposDoDominio(dominio));
 
   const intencao = buscarIntencao(resposta.intent);
   const finais: Record<string, unknown> = {};
@@ -76,8 +86,11 @@ async function extrairPedido(dominio: Dominio, trecho: string, hoje: string): Pr
 
 export async function classificarMensagem(input: { texto: string; hoje: string; perfis: string[] }): Promise<PedidoClassificado[]> {
   const { sistema, schema } = promptDeDominio();
-  const usuario = `perfis ativos: ${input.perfis.join(", ")}\nmensagem: ${input.texto}`;
+  const usuario = `${MOLDE_PERFIS_ATIVOS}${input.perfis.join(", ")}\nmensagem: ${input.texto}`;
   const resposta = await chamarModelo<RespostaDominio>({ etapa: "dominio", sistema, usuario, nomeDoSchema: "dominio", schema });
+
+  // Sem pedido nenhum é ambígua, nunca lista vazia: quem chama sempre tem algo para responder ao produtor.
+  if (resposta.pedidos.length === 0) return [{ intent: "ambigua", parameters: {}, trecho: input.texto }];
 
   const pedidos: PedidoClassificado[] = [];
   for (const pedido of resposta.pedidos) {
@@ -85,7 +98,7 @@ export async function classificarMensagem(input: { texto: string; hoje: string; 
       pedidos.push({ intent: "ambigua", parameters: {}, trecho: pedido.trecho });
       continue;
     }
-    pedidos.push(await extrairPedido(pedido.dominio, pedido.trecho, input.hoje));
+    pedidos.push(await extrairPedido(pedido.dominio, pedido.trecho, input.hoje, input.texto));
   }
   return pedidos;
 }

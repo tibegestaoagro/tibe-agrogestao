@@ -141,7 +141,10 @@ async function main() {
       } else if (nome.startsWith("extracao_rebanho")) {
         conteudo = { intent: "consultar_rebanho", parametros: { categoria: null, fazenda: null } };
       } else if (nome.startsWith("extracao_financeiro")) {
-        conteudo = { intent: "consultar_saldo", parametros: { period: null, amount: 999 } };
+        // "category" é campo de registrar_lancamento_financeiro, não de consultar_saldo: não pode vazar.
+        // "period" é declarado por consultar_saldo E por gerar_relatorio (mesmo objeto PERIODO); por
+        // pertencer também à intenção escolhida, tem que sobreviver mesmo sendo compartilhado.
+        conteudo = { intent: "consultar_saldo", parametros: { period: "agosto", category: "sal" } };
       } else {
         conteudo = { tipo: "responde" };
       }
@@ -150,22 +153,44 @@ async function main() {
 
     const pedidos = await classificarMensagem({ texto: "quantos animais eu tenho e o que tenho a pagar", hoje: "2026-09-15", perfis: ["fazenda"] });
     check("dois pedidos, na ordem", pedidos.length === 2 && pedidos[0].intent === "consultar_rebanho" && pedidos[1].intent === "consultar_saldo");
-    check("campo de outra intenção não vaza para o pedido", !("amount" in pedidos[1].parameters));
+    check("campo de outra intenção do domínio não vaza para o pedido", !("category" in pedidos[1].parameters));
+    check("campo compartilhado com outra intenção do domínio sobrevive, por pertencer à escolhida", pedidos[1].parameters.period === "agosto");
     check("nulls não viram parâmetro", Object.keys(pedidos[0].parameters).length === 0);
     check("a extração do rebanho só lista intenções do rebanho", vistos.some((v) => v.etapa.startsWith("extracao_rebanho") && v.sistema.includes("registrar_negocio_gado") && !v.sistema.includes("registrar_producao_leite")));
     check("o prompt de extração não oferece as intenções legadas", !promptDeExtracao("rebanho").sistema.includes("registrar_lote_animal"));
     check("versão do prompt tem 12 caracteres", VERSAO_DO_PROMPT.length === 12);
 
+    const numero = (nome: string) => ({ nome, tipo: "numero" as const, descricao: "" });
+
     const limpo = conferirTrechoLiteral({ valor: "60 mil", quantidade: 20, comissao: 2000 }, "comprei 20 bezerros por 60 mil", [
-      { nome: "valor", tipo: "numero", descricao: "" }, { nome: "quantidade", tipo: "numero", descricao: "" }, { nome: "comissao", tipo: "numero", descricao: "" },
+      numero("valor"), numero("quantidade"), numero("comissao"),
     ]);
     check("número que não está na mensagem é removido", limpo.removidos.join() === "comissao" && limpo.parameters.valor === "60 mil" && limpo.parameters.quantidade === 20);
-    check("1.200 casa com 1200", conferirTrechoLiteral({ valor: 1200 }, "paguei 1.200 no sal", [{ nome: "valor", tipo: "numero", descricao: "" }]).removidos.length === 0);
+    check("1.200 casa com 1200", conferirTrechoLiteral({ valor: 1200 }, "paguei 1.200 no sal", [numero("valor")]).removidos.length === 0);
+    check("1.200,50 casa com 1200.5", conferirTrechoLiteral({ valor: 1200.5 }, "paguei 1.200,50", [numero("valor")]).removidos.length === 0);
+    check('"60 mil" casa com "por 60 mil"', conferirTrechoLiteral({ valor: "60 mil" }, "por 60 mil", [numero("valor")]).removidos.length === 0);
+    check("60000 casa com o \"mil\" de \"por 60 mil\"", conferirTrechoLiteral({ valor: 60000 }, "por 60 mil", [numero("valor")]).removidos.length === 0);
+    check(
+      "200 NÃO casa com o 1200 de \"comprei 1200 kg de sal\" (substring não vale)",
+      conferirTrechoLiteral({ valor: 200 }, "comprei 1200 kg de sal", [numero("valor")]).removidos.join() === "valor",
+    );
+    check(
+      "1200 NÃO casa com o 12,00 de \"paguei 12,00 no sal\" (cem vezes a mais)",
+      conferirTrechoLiteral({ valor: 1200 }, "paguei 12,00 no sal", [numero("valor")]).removidos.join() === "valor",
+    );
+    check(
+      "1 NÃO casa com o 15 de \"vacinei dia 15\" (dia não é o valor)",
+      conferirTrechoLiteral({ valor: 1 }, "vacinei dia 15", [numero("valor")]).removidos.join() === "valor",
+    );
+    check(
+      "2000 continua removido em \"20 bois por 60 mil\" (caso já coberto, sem regressão)",
+      conferirTrechoLiteral({ comissao: 2000 }, "20 bois por 60 mil", [numero("comissao")]).removidos.join() === "comissao",
+    );
 
     const comLista = conferirTrechoLiteral(
       { itens: [{ categoria: "bezerro", quantidade: 20 }, { categoria: "vaca", quantidade: 999 }] },
       "comprei 20 bezerros e algumas vacas",
-      [{ nome: "itens", tipo: "lista", descricao: "", itens: [{ nome: "categoria", tipo: "texto", descricao: "" }, { nome: "quantidade", tipo: "numero", descricao: "" }] }],
+      [{ nome: "itens", tipo: "lista", descricao: "", itens: [{ nome: "categoria", tipo: "texto", descricao: "" }, numero("quantidade")] }],
     );
     check(
       "quantidade inventada dentro de um item da lista some, o item continua",
@@ -174,8 +199,103 @@ async function main() {
         !("quantidade" in (comLista.parameters.itens as Record<string, unknown>[])[1]),
     );
 
+    const listaToda = conferirTrechoLiteral(
+      { itens: [{ quantidade: 999 }] },
+      "só uma pergunta qualquer",
+      [{ nome: "itens", tipo: "lista", descricao: "", itens: [numero("quantidade")] }],
+    );
+    check(
+      "item que fica vazio sai da lista, e lista vazia sai de parameters",
+      listaToda.removidos.join() === "itens.quantidade" && !("itens" in listaToda.parameters),
+    );
+
     const r = await classificarResposta({ texto: "Pasto da Sede", pergunta: "De qual pasto?", intent: "registrar_movimentacao_rebanho", campo: "pasto" });
     check("resposta ao campo aberto", r.tipo === "responde");
+    definirTransporteDoModelo(null);
+  }
+
+  console.log("\n3b. Classificador nunca perde o pedido");
+  {
+    const { definirTransporteDoModelo } = await import("@/lib/agente/modelo");
+    const { classificarMensagem } = await import("@/lib/agente/classificar");
+
+    let chamadas = 0;
+    definirTransporteDoModelo(async () => {
+      chamadas += 1;
+      return { status: 200, json: { choices: [{ message: { content: JSON.stringify({ pedidos: [{ dominio: "nenhum", trecho: "sei lá o que você quis dizer" }] }) } }] } };
+    });
+    const nenhum = await classificarMensagem({ texto: "sei lá o que você quis dizer", hoje: "2026-09-15", perfis: [] });
+    check(
+      "domínio nenhum vira ambígua sem chamar extração",
+      chamadas === 1 && nenhum.length === 1 && nenhum[0].intent === "ambigua" && Object.keys(nenhum[0].parameters).length === 0,
+    );
+
+    chamadas = 0;
+    definirTransporteDoModelo(async () => {
+      chamadas += 1;
+      return { status: 200, json: { choices: [{ message: { content: JSON.stringify({ pedidos: [] }) } }] } };
+    });
+    const semPedido = await classificarMensagem({ texto: "oi", hoje: "2026-09-15", perfis: [] });
+    check("pedidos vazio vira ambígua, nunca lista vazia", semPedido.length === 1 && semPedido[0].intent === "ambigua" && semPedido[0].trecho === "oi");
+
+    definirTransporteDoModelo(async (corpo) => {
+      const nome = (corpo.response_format as { json_schema: { name: string } }).json_schema.name;
+      const conteudo =
+        nome === "dominio"
+          ? { pedidos: [{ dominio: "rebanho", trecho: "isso aqui não é nada que eu conheça" }] }
+          : { intent: "ambigua", parametros: { categoria: "boi" } };
+      return { status: 200, json: { choices: [{ message: { content: JSON.stringify(conteudo) } }] } };
+    });
+    const extracaoAmbigua = await classificarMensagem({ texto: "isso aqui não é nada que eu conheça", hoje: "2026-09-15", perfis: [] });
+    check(
+      "extração que devolve ambigua não carrega parâmetro nenhum",
+      extracaoAmbigua.length === 1 && extracaoAmbigua[0].intent === "ambigua" && Object.keys(extracaoAmbigua[0].parameters).length === 0,
+    );
+
+    // Limpeza: string vazia (ou só espaço), item de lista que fica vazio some, e a lista sobrevive com o item que restou.
+    definirTransporteDoModelo(async (corpo) => {
+      const nome = (corpo.response_format as { json_schema: { name: string } }).json_schema.name;
+      const conteudo =
+        nome === "dominio"
+          ? { pedidos: [{ dominio: "rebanho", trecho: "nasceram 4 bezerros" }] }
+          : {
+              intent: "registrar_movimentacao_rebanho",
+              parametros: {
+                movement_type: "nascimento",
+                itens: [{ categoria: "   ", quantidade: null }, { categoria: "bezerro", quantidade: 4 }],
+                sentido: "",
+                fazenda: null,
+              },
+            };
+      return { status: 200, json: { choices: [{ message: { content: JSON.stringify(conteudo) } }] } };
+    });
+    const limpeza = await classificarMensagem({ texto: "nasceram 4 bezerros", hoje: "2026-09-15", perfis: [] });
+    const itensLimpos = limpeza[0].parameters.itens as Record<string, unknown>[];
+    check(
+      "string vazia e item vazio somem, o item com dado real sobrevive",
+      !("sentido" in limpeza[0].parameters) &&
+        !("fazenda" in limpeza[0].parameters) &&
+        itensLimpos.length === 1 &&
+        itensLimpos[0].categoria === "bezerro" &&
+        itensLimpos[0].quantidade === 4,
+    );
+
+    // Trecho que o modelo devolveu não é recorte da mensagem: a conferência cai para a mensagem inteira.
+    const mensagemDoNegocio = "vendi 10 bois por 500 a vista";
+    definirTransporteDoModelo(async (corpo) => {
+      const nome = (corpo.response_format as { json_schema: { name: string } }).json_schema.name;
+      const conteudo =
+        nome === "dominio"
+          ? { pedidos: [{ dominio: "rebanho", trecho: "um recorte que o modelo inventou e não existe na mensagem" }] }
+          : { intent: "registrar_negocio_gado", parametros: { tipo: "venda", valor: 500 } };
+      return { status: 200, json: { choices: [{ message: { content: JSON.stringify(conteudo) } }] } };
+    });
+    const comTrechoTorto = await classificarMensagem({ texto: mensagemDoNegocio, hoje: "2026-09-15", perfis: [] });
+    check(
+      "trecho alucinado não derruba o número: a conferência usa a mensagem inteira",
+      comTrechoTorto[0].parameters.valor === 500,
+    );
+
     definirTransporteDoModelo(null);
   }
 }

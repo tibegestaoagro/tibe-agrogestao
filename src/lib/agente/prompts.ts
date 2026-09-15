@@ -8,6 +8,14 @@ import { DESCRICAO_DOS_DOMINIOS, DOMINIOS, intencoesDoDominio, type CampoDef, ty
  * não conversam com o produtor.
  */
 
+/**
+ * Moldes do texto do usuário nas chamadas de domínio e extração
+ * (`classificar.ts` monta o texto final com eles). Entram na
+ * `VERSAO_DO_PROMPT` porque mudar o molde também muda o que o modelo lê.
+ */
+export const MOLDE_PERFIS_ATIVOS = "perfis ativos: ";
+export const MOLDE_CURRENT_DATE = "current_date: ";
+
 /** Campos de todas as intenções de um domínio, sem repetir nome (o classificador extrai todos de uma vez). */
 export function camposDoDominio(dominio: Dominio): CampoDef[] {
   const vistos = new Map<string, CampoDef>();
@@ -70,7 +78,8 @@ export function promptDeDominio(): { sistema: string; schema: Record<string, unk
     .map(([dominio, descricao]) => `- ${dominio}: ${descricao}`)
     .join("\n");
   const sistema = [
-    "Você separa a mensagem do produtor em pedidos, um por assunto, na ordem em que aparecem na mensagem.",
+    "Você separa a mensagem do produtor em pedidos: um pedido por AÇÃO pedida, mesmo quando duas ações são do mesmo domínio, na ordem em que aparecem na mensagem.",
+    'Exemplo com duas ações do mesmo domínio: "vendi 10 bois e morreram 2 vacas" são DOIS pedidos de rebanho, não um.',
     "",
     "Domínios possíveis:",
     listaDeDominios,
@@ -99,8 +108,8 @@ export function promptDeExtracao(dominio: Dominio): { sistema: string; schema: R
     "",
     "Regras:",
     "- Extraia só o que o produtor disse; nunca invente brinco, cliente ou valor.",
-    '- Repasse número e data exatamente como o produtor falou, sem converter ("60 mil" continua "60 mil"; "dia 10" continua "dia 10").',
-    '- current_date é contexto para expressões relativas ("hoje", "ontem"); não preencha um campo que o produtor não informou só por causa dele.',
+    '- Repasse número e data exatamente como o produtor falou, sem converter ("60 mil" continua "60 mil"; "dia 10", "hoje" e "ontem" continuam do jeito que ele falou, nunca viram uma data calculada).',
+    '- current_date é só contexto para você entender expressões relativas; nunca use current_date para preencher ou converter um campo de data.',
     "- Use \"ambigua\" quando o pedido não corresponde a nenhuma intenção listada.",
   ].join("\n");
   const campos = camposDoDominio(dominio);
@@ -117,15 +126,16 @@ export function promptDeResposta(): { sistema: string; schema: Record<string, un
   const sistema = [
     "Você decide se a mensagem do produtor responde à pergunta em aberto ou muda de assunto.",
     "",
-    '"responde": a mensagem é a resposta ao campo esperado.',
-    '"outro_assunto": a mensagem é um pedido novo e não responde à pergunta.',
+    '"responde": a MENSAGEM INTEIRA é a resposta ao campo esperado, nada mais.',
+    '"outro_assunto": a mensagem traz qualquer pedido novo, mesmo que também responda à pergunta junto.',
+    "Confirmação (sim ou não) não se decide aqui: isso é outra etapa.",
   ].join("\n");
   const schema = objetoFechado({ tipo: { type: "string", enum: ["responde", "outro_assunto"] } });
   return { sistema, schema };
 }
 
 function calcularVersaoDoPrompt(): string {
-  const partes: string[] = [];
+  const partes: string[] = [MOLDE_PERFIS_ATIVOS, MOLDE_CURRENT_DATE];
   const dominio = promptDeDominio();
   partes.push(dominio.sistema, JSON.stringify(dominio.schema));
   const resposta = promptDeResposta();
