@@ -82,6 +82,7 @@ import {
   encerrarServico,
 } from "@/lib/actions/whatsapp-handlers/servico";
 import { loadPendingNegotiation } from "@/lib/actions/negotiation-pending";
+import { loadPendingHerd } from "@/lib/actions/herd-pending";
 import { listConfinementLots } from "@/lib/actions/confinement";
 import { loadPendingConfinement } from "@/lib/actions/confinamento-pending";
 import {
@@ -418,8 +419,21 @@ export async function routeIntent(
        * seguia guardado por 15 minutos: o defeito oposto ao que esta guarda
        * corrige, no mesmo trecho.
        */
+      /**
+       * Só quando o negócio é MAIS RECENTE que o pendente de rebanho (sem
+       * pendente de rebanho, ele conta como mais antigo; sem `salvo_em`, conta
+       * como o mais antigo), igual às guardas de confinamento e estoque abaixo.
+       * Sem isto, "vendi 20 bois por 60 mil" seguido de "morreram 2 vacas" e
+       * "sim" gravava a VENDA de R$ 60.000 e deixava a morte pendente; o "não"
+       * cancelava o negócio errado.
+       */
       const negocioEsperando = await loadPendingNegotiation(tenant_id, ctx.user_id);
-      if (negocioEsperando) intent = "registrar_negocio_gado";
+      if (negocioEsperando) {
+        const rebanhoEsperando = await loadPendingHerd(tenant_id, ctx.user_id);
+        const quandoNegocio = negocioEsperando.salvo_em ?? 0;
+        const quandoRebanho = rebanhoEsperando ? (rebanhoEsperando.salvo_em ?? 0) : -1;
+        if (quandoNegocio > quandoRebanho) intent = "registrar_negocio_gado";
+      }
     }
   }
 
