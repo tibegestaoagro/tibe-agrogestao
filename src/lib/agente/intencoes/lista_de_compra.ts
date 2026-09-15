@@ -6,7 +6,7 @@ import type { IntencaoDef } from "./tipos";
  * documento do cliente (docs/modulo-lista-de-compras/, §17), citados no
  * catálogo docs/agents/agente-whatsapp/catalogo-estoque-dia.md.
  *
- * A quantidade da lista é lida com `num` (Number cru): "2.000" vira 2. A
+ * A quantidade da lista é lida com `num`, que lê o número brasileiro ("2.000" é 2000). A
  * unidade só vale se for um id de STOCK_UNITS; outra coisa é descartada.
  */
 

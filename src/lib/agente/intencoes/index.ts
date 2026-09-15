@@ -1,5 +1,5 @@
 import type { Intent } from "@/lib/whatsapp-intents";
-import { DOMINIOS, type Dominio, type IntencaoDef } from "./tipos";
+import type { Dominio, IntencaoDef } from "./tipos";
 import { INTENCOES_REBANHO } from "./rebanho";
 import { INTENCOES_CONFINAMENTO } from "./confinamento";
 import { INTENCOES_EVENTOS_E_PERMUTA } from "./eventos_e_permuta";
@@ -57,7 +57,10 @@ export function buscarIntencao(intent: string): IntencaoDef | null {
   return INTENCOES.find((i) => i.intent === intent) ?? null;
 }
 
-/** As duas legadas que o agente não emite mais (decisão 8 da spec). */
+/**
+ * Fora do registro: as duas legadas que o agente não emite mais (decisão 8 da spec) e `ambigua`, que
+ * não tem extração (sai pronta da etapa de domínio).
+ */
 export const INTENCOES_FORA_DO_CLASSIFICADOR: readonly Intent[] = [
   "registrar_lote_animal",
   "registrar_movimento",

@@ -7,8 +7,8 @@ import type { ProfileType } from "@/lib/tenant-context";
  * Lógica de `POST /api/internal/whatsapp/resolve-contact` (spec 3.2), extraída
  * da rota (task 9, fase 2 do agente).
  *
- * `identificarContato` é o ÚNICO lugar do sistema, além da própria rota que a
- * chama, autorizado a usar o client Prisma base (`prisma`, sem escopo):
+ * `identificarContato` é quem usa o client Prisma base (`prisma`, sem escopo)
+ * para este lookup; as rotas `resolve-contact` e `turno` só a chamam:
  * ainda não se sabe a qual tenant o telefone pertence, então as duas
  * primeiras buscas (WhatsAppContact e depois User) são cross-tenant por
  * necessidade. Ver .claude/rules/isolamento.md. Toda query seguinte, já com

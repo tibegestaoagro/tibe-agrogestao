@@ -107,7 +107,8 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
   em `OPENAI_API_KEY`) e executa cada pedido pelo mesmo núcleo do
   `execute-action` (`executarIntencao`). Com ela, a classificação passa a
   acontecer no Tibé, e não mais no n8n; o `execute-action` segue em produção,
-  sem mudança, até a Fase 7.
+  com a mesma resposta, até a Fase 7. Por dentro ele agora grava o cursor da
+  conversa e confere o usuário (ativo, no tenant) antes do replay.
 - **Número e data se leem com os parsers, nunca com `Number()` ou `new Date()`**
   (`parsers.ts`, `numero-br.ts`). O classificador manda o mesmo campo ora como
   número, ora como texto: `1200` e `"1200"`, `"dia 10"` e `"10/08/2026"`. E

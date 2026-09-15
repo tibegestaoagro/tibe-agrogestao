@@ -4,7 +4,7 @@ import type { IntencaoDef } from "./tipos";
  * Prestador de serviço (Módulo 2): ordem de serviço no catálogo de serviços e
  * clientes, e consulta do que o cliente deve. Handler:
  * whatsapp-handlers/prestador.ts. Cliente e serviço precisam existir no
- * cadastro; a quantidade é lida com `num` (Number cru, "1.500" vira 1,5).
+ * cadastro; a quantidade é lida com `num`, que lê o número brasileiro ("1.500" é 1500).
  */
 
 export const INTENCOES_PRESTADOR: IntencaoDef[] = [
