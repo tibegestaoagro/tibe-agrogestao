@@ -37,8 +37,11 @@ const BUSINESS_HOUR_END = 18;
 export type FlowField = {
   name: string;
   question: string;
-  /** Normaliza a resposta crua; devolve null quando não serve. */
-  parse: (raw: string) => string | null;
+  /**
+   * Normaliza a resposta crua; devolve null quando não serve. `item` é o que o
+   * produtor já respondeu neste animal (a categoria usa o sexo para desempatar).
+   */
+  parse: (raw: string, item?: Record<string, string>) => string | null;
   invalid: string;
   /**
    * Se AUSENTE deste campo sozinho já deve abrir o modo assistido
@@ -146,16 +149,25 @@ export const FLOWS: Record<string, FlowDef> = {
        * `parse` devolve o ID da categoria do livro-razão (`HerdCategory.id`),
        * nunca o texto cru: é o que garante que `commitAnimals` sabe
        * exatamente qual das 12 gravar, sem reinterpretar a fala do produtor
-       * uma segunda vez. Ambíguo ou desconhecido devolve `null`, e o fluxo
+       * uma segunda vez. Desconhecido, ou ambíguo que o sexo já dito não
+       * desempata, devolve `null`, e o fluxo
        * repergunta: adivinhar aqui é lançar o animal na faixa etária errada,
        * que a regra do módulo proíbe.
        */
       {
         name: "category",
         question: "Qual a categoria? (ex: bezerro, novilha de 13 a 24 meses, vaca, boi, garrote, touro)",
-        parse: (raw) => {
+        parse: (raw, item) => {
           const resolvido = resolveCategoryTerm(raw);
-          return resolvido.kind === "exact" ? resolvido.category.id : null;
+          if (resolvido.kind === "exact") return resolvido.category.id;
+          // "13 a 24 meses" serve a macho e fêmea; o sexo que o produtor já
+          // disse neste animal desempata sem adivinhar nada.
+          if (resolvido.kind === "ambiguous" && item?.sex) {
+            const sexo = item.sex === "male" ? "macho" : "femea";
+            const doSexo = resolvido.candidates.filter((c) => c.sex === sexo);
+            if (doSexo.length === 1) return doSexo[0].id;
+          }
+          return null;
         },
         invalid:
           "Não entendi a categoria, ou ela serve para mais de uma faixa. Pode ser mais específico? " +
@@ -257,6 +269,11 @@ function expiry(): Date {
  * (hoje só `property_id`, resolvido antes de abrir): entra no `current_item`
  * desde o primeiro animal e sobrevive aos resets entre um animal e o
  * próximo (ver `manterMetadados` abaixo).
+ *
+ * `pendingField` abre já esperando um campo que não é o primeiro: o caminho
+ * direto de `cadastrarAnimal` recebeu brinco, raça e sexo (que vão em
+ * `initialItem`) e só falta a categoria. Nesse caso quem abriu faz a
+ * pergunta, e o `reply` devolvido (a abertura) não serve.
  */
 export async function startFlow(
   db: TenantPrismaClient,
@@ -264,6 +281,7 @@ export async function startFlow(
   flow: string,
   targetCount: number,
   initialItem: Record<string, string> = {},
+  pendingField?: string,
 ): Promise<{ reply: string }> {
   const def = FLOWS[flow];
   if (!def) return { reply: "Esse cadastro ainda não tem modo assistido." };
@@ -279,7 +297,7 @@ export async function startFlow(
       target_count: count,
       completed_items: [],
       current_item: initialItem,
-      pending_field: def.fields[0].name,
+      pending_field: pendingField ?? def.fields[0].name,
       awaiting_summary: false,
       expires_at: expiry(),
     }),
@@ -368,7 +386,7 @@ export async function applyAnswer(
     const coletado: Record<string, string> = {};
     let todasValidas = true;
     for (let i = 0; i < usar; i++) {
-      const v = restantes[i].parse(partes[i]);
+      const v = restantes[i].parse(partes[i], { ...state.current_item, ...coletado });
       if (v === null) { todasValidas = false; break; }
       coletado[restantes[i].name] = v;
     }
@@ -377,7 +395,7 @@ export async function applyAnswer(
     }
   }
 
-  const value = field.parse(raw);
+  const value = field.parse(raw, state.current_item);
   if (value === null) {
     // Repete a MESMA pergunta: avançar com valor inválido produziria um
     // cadastro errado que só apareceria no resumo.

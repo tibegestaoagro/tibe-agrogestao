@@ -700,15 +700,6 @@ async function main() {
         await limpar(tenant.id, owner.id);
       }
 
-      const semCat = await acao("cadastrar_animal", { ear_tag: "M67-1", breed: "Nelore", sex: "male", property_name: "Fazenda M67" }, "cadastra o boi M67-1 nelore macho");
-      check("sem categoria, pergunta a categoria", semCat.data.reply_text === "Qual a categoria? (ex: bezerro, novilha de 13 a 24 meses, vaca, boi, garrote, touro)", semCat.data.reply_text);
-      const loteSemCat = await db.animalBatch.count({ where: { ear_tag: "M67-1" } });
-      check("sem categoria, não cria o lote", loteSemCat === 0, String(loteSemCat));
-
-      const ambigua = await acao("cadastrar_animal", { ear_tag: "M67-2", breed: "Nelore", sex: "female", property_name: "Fazenda M67", category: "novilha" }, "cadastra a novilha M67-2");
-      check("categoria ambígua pergunta a faixa", /mais de uma categoria/i.test(ambigua.data.reply_text), ambigua.data.reply_text);
-      check("categoria ambígua não cria o lote", (await db.animalBatch.count({ where: { ear_tag: "M67-2" } })) === 0);
-
       const comCat = await acao("cadastrar_animal", { ear_tag: "M67-3", breed: "Nelore", sex: "male", property_name: "Fazenda M67", category: "boi" }, "cadastra o boi M67-3");
       const noLivro = await getPositions(db, { category_id: "macho_36_mais", property_id: fazenda.id });
       check(
@@ -716,6 +707,37 @@ async function main() {
         noLivro.reduce((s, p) => s + p.quantity, 0) === 1,
         `${comCat.data.action_taken}: ${JSON.stringify(noLivro)}`,
       );
+
+      /*
+       * Ambígua: o formulário abre com brinco, raça, sexo e fazenda já
+       * preenchidos, e a resposta só com a faixa fecha o item (o sexo que o
+       * produtor já disse desempata "13 a 24 meses").
+       */
+      const ambigua = await acao("cadastrar_animal", { ear_tag: "M67-2", breed: "Nelore", sex: "female", property_name: "Fazenda M67", category: "novilha" }, "cadastra a novilha M67-2");
+      check("categoria ambígua pergunta a faixa", /mais de uma categoria/i.test(ambigua.data.reply_text), ambigua.data.reply_text);
+      check("categoria ambígua não cria o lote", (await db.animalBatch.count({ where: { ear_tag: "M67-2" } })) === 0);
+      const faixa = await acao("ambigua", {}, "de 13 a 24 meses");
+      check("a faixa respondida fecha o item no resumo", /Confere antes de eu salvar/.test(faixa.data.reply_text) && /M67-2/.test(faixa.data.reply_text) && /13 a 24/.test(faixa.data.reply_text), faixa.data.reply_text);
+      await db.agentFlowState.deleteMany({ where: { user_id: owner.id } });
+
+      const semCat = await acao("cadastrar_animal", { ear_tag: "M67-1", breed: "Nelore", sex: "male", property_name: "Fazenda M67" }, "cadastra o boi M67-1 nelore macho");
+      check("sem categoria, pergunta a categoria", semCat.data.reply_text === "Qual a categoria? (ex: bezerro, novilha de 13 a 24 meses, vaca, boi, garrote, touro)", semCat.data.reply_text);
+      const loteSemCat = await db.animalBatch.count({ where: { ear_tag: "M67-1" } });
+      check("sem categoria, não cria o lote", loteSemCat === 0, String(loteSemCat));
+
+      const respostaCat = await acao("cadastrar_animal", { category: "boi" }, "boi");
+      check(
+        "a categoria respondida vai direto ao resumo, sem repetir brinco, raça e sexo",
+        /Confere antes de eu salvar/.test(respostaCat.data.reply_text) && /M67-1/.test(respostaCat.data.reply_text),
+        respostaCat.data.reply_text,
+      );
+      check("nada gravado antes do sim do resumo", (await db.animalBatch.count({ where: { ear_tag: "M67-1" } })) === 0);
+      const simCadastro = await acao("cadastrar_animal", {}, "sim", { confirmed: true });
+      const loteM671 = await db.animalBatch.findFirst({ where: { ear_tag: "M67-1" } });
+      const movM671 = loteM671 ? await db.herdMovement.count({ where: { batch_id: loteM671.id } }) : 0;
+      check("depois do sim, o lote M67-1 existe e entrou no livro-razão", !!loteM671 && movM671 > 0, `${simCadastro.data.reply_text} / mov ${movM671}`);
+      // Um formulário que sobrasse aberto engoliria o "não" da venda abaixo.
+      await db.agentFlowState.deleteMany({ where: { user_id: owner.id } });
 
       const semLote = await acao("registrar_negocio_gado", { tipo: "venda", categoria: "boi", quantidade: 5, valor: 25000 }, "vendi 5 bois do confinamento por 25 mil");
       check("sem lote aberto, a venda segue como negócio", !/confinamento/i.test(semLote.data.reply_text),`${semLote.data.action_taken}: ${semLote.data.reply_text}`);
@@ -734,13 +756,39 @@ async function main() {
       const r = await acao("registrar_negocio_gado", { tipo: "venda", categoria: "boi", quantidade: 5, valor: 25000 }, "vendi 5 bois do confinamento por 25 mil");
       check("a venda que cita o confinamento vira saída do lote", /confinamento/i.test(r.data.reply_text) && r.data.action_taken?.startsWith("encerrar_confinamento"), `${r.data.action_taken}: ${r.data.reply_text}`);
       check("e pergunta antes de gravar", r.data.requires_confirmation === true, r.data.reply_text);
+      check("a pergunta nomeia o lote e a categoria", /Conf M67/.test(r.data.reply_text) && /machos de 25 a 36 meses/.test(r.data.reply_text), r.data.reply_text);
       check("nada saiu do lote antes do sim", (await soma("confinamento")) === loteAntes);
 
-      const sim = await acao("encerrar_confinamento", {}, "sim", { confirmed: true });
+      // (i) O "sim" chega reemitido como gado, com a frase remontada.
+      const sim = await acao("registrar_negocio_gado", { tipo: "venda", categoria: "boi", quantidade: 5, valor: 25000 }, "sim", { confirmed: true });
       const loteDepois = await soma("confinamento");
       const pastoDepois = await soma("presente", pasto.id);
-      check("o sim tira 5 cabeças do lote", loteDepois === loteAntes - 5, `${loteAntes} -> ${loteDepois}: ${sim.data.reply_text}`);
+      check("o sim reemitido como gado tira 5 cabeças do lote", loteDepois === loteAntes - 5, `${loteAntes} -> ${loteDepois}: ${sim.data.action_taken}: ${sim.data.reply_text}`);
       check("e o pasto não muda", pastoDepois === pastoAntes, `${pastoAntes} -> ${pastoDepois}`);
+
+      // (ii) Negócio de gado MAIS ANTIGO esperando, depois a venda do lote, e o "sim".
+      const velho = await acao(
+        "registrar_negocio_gado",
+        { tipo: "venda", categoria: "macho_25_36", quantidade: 3, valor: 9999, fazenda: "Fazenda M67", pasto: "Pasto M67" },
+        "vendi 3 machos do pasto por 9999",
+      );
+      check("o negócio antigo ficou esperando", velho.data.action_taken?.startsWith("registrar_negocio_gado"), `${velho.data.action_taken}: ${velho.data.reply_text}`);
+      await acao("registrar_negocio_gado", { tipo: "venda", categoria: "boi", quantidade: 2, valor: 8000 }, "vendi 2 bois do confinamento por 8 mil");
+      const lote2Antes = await soma("confinamento");
+      const pasto2Antes = await soma("presente", pasto.id);
+      const sim2 = await acao("registrar_negocio_gado", { tipo: "venda", categoria: "boi", quantidade: 2, valor: 8000 }, "sim", { confirmed: true });
+      check("o sim vai à venda do lote, a mais recente", (await soma("confinamento")) === lote2Antes - 2, `${sim2.data.action_taken}: ${sim2.data.reply_text}`);
+      check("e o negócio antigo do pasto não executa", (await soma("presente", pasto.id)) === pasto2Antes);
+      check("nenhuma negociação de 9999 criada", (await db.negotiation.count({ where: { amount: 9999 } })) === 0);
+
+      // (iii) "não" reemitido como gado cancela a venda do lote.
+      await acao("registrar_negocio_gado", { tipo: "venda", categoria: "boi", quantidade: 1, valor: 4000 }, "vendi 1 boi do confinamento por 4 mil");
+      const lote3Antes = await soma("confinamento");
+      const nao = await acao("registrar_negocio_gado", { tipo: "venda", categoria: "boi", quantidade: 1, valor: 4000 }, "não");
+      const simDepoisDoNao = await acao("encerrar_confinamento", {}, "sim", { confirmed: true });
+      check("o não reemitido como gado cancela a saída do lote", (await soma("confinamento")) === lote3Antes, `${nao.data.action_taken} / ${simDepoisDoNao.data.reply_text}`);
+      check("e o sim seguinte não tem o que confirmar", /Não tenho nenhuma saída/.test(simDepoisDoNao.data.reply_text), simDepoisDoNao.data.reply_text);
+      await clearPendingNegotiation(tenant.id, owner.id);
     }
 
     void fazenda;

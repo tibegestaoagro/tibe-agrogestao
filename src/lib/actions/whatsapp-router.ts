@@ -83,6 +83,7 @@ import {
 } from "@/lib/actions/whatsapp-handlers/servico";
 import { loadPendingNegotiation } from "@/lib/actions/negotiation-pending";
 import { listConfinementLots } from "@/lib/actions/confinement";
+import { loadPendingConfinement } from "@/lib/actions/confinamento-pending";
 import {
   loadPendingStock,
   quandoOutroDominioFalou,
@@ -335,13 +336,11 @@ async function vendaDoConfinamento(
   messageText: string | null | undefined,
 ): Promise<boolean> {
   const tipo = str(parameters.tipo) ?? str(parameters.movement_type);
-  if (tipo !== "venda" || !messageText) return false;
+  if ((tipo !== "venda" && tipo !== "sale") || !messageText) return false;
   const texto = messageText.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
   if (!/confinamento|boitel/.test(texto)) return false;
   const lotes = await listConfinementLots(db, { apenas_abertas: true });
-  if (lotes.length === 0) return false;
-  parameters.tipo = "venda";
-  return true;
+  return lotes.length > 0;
 }
 
 export async function routeIntent(
@@ -447,6 +446,44 @@ export async function routeIntent(
   // sal do confinamento" é estoque, não saída do lote.
   if (intent === "registrar_negocio_gado" && (await vendaDoConfinamento(db, parameters, ctx.message_text))) {
     intent = "encerrar_confinamento";
+    parameters.tipo = "venda";
+  }
+
+  /**
+   * O "SIM", O "NÃO" E A RESPOSTA CURTA a uma saída do confinamento voltam
+   * para o confinamento.
+   *
+   * Gêmea das guardas de estoque logo abaixo, e pelo mesmo motivo: a venda
+   * que citou o confinamento foi desviada acima pela FRASE, e a volta seguinte
+   * não tem frase. O classificador reemite `registrar_negocio_gado` (é o
+   * gesto que ele viu), e sem isto o pedido guardado nunca era confirmado
+   * ("Não tenho nenhum negócio esperando confirmação"); com um negócio de
+   * gado mais antigo esperando, o "sim" executava ESSE negócio, tirando do
+   * pasto cabeças que ninguém mandou vender; e o "não" apagava só o pendente
+   * de gado, deixando a saída recusada confirmável. Achado da revisão da
+   * Task 13.
+   *
+   * ESTREITA POR DUAS CONDIÇÕES:
+   *
+   * 1. Só quando a saída guardada é MAIS RECENTE que o negócio de gado (sem
+   *    negócio guardado, ele conta como mais antigo; sem `salvo_em`, a saída
+   *    conta como a mais antiga). Um negócio começado depois tem a vez.
+   * 2. Só confirmação, recusa, ou resposta SEM tipo próprio. Uma mensagem com
+   *    `tipo`/`movement_type` é assunto novo, igual às guardas de rebanho e de
+   *    estoque: "vendi 3 bois do pasto" dito no meio da saída não é engolido.
+   *    A venda nova que cita o confinamento já passou pelo desvio acima.
+   */
+  if (ctx.user_id && intent === "registrar_negocio_gado") {
+    const semTipoProprio = !str(parameters.tipo) && !str(parameters.movement_type);
+    if (confirmed || explicitNo || semTipoProprio) {
+      const saida = await loadPendingConfinement(tenant_id, ctx.user_id);
+      if (saida?.gesto === "saida") {
+        const negocio = await loadPendingNegotiation(tenant_id, ctx.user_id);
+        const quandoSaida = saida.salvo_em ?? 0;
+        const quandoNegocio = negocio ? (negocio.salvo_em ?? 0) : -1;
+        if (quandoSaida > quandoNegocio) intent = "encerrar_confinamento";
+      }
+    }
   }
 
 
