@@ -306,23 +306,36 @@ async function main() {
     const { createConfinementSite, openConfinementStay } = await import("@/lib/actions/confinement");
     const { deleteTestTenants } = await import("./helpers/herd");
     const { executarIntencao } = await import("@/lib/actions/executar-intencao");
+    const { carregarCursor, limparCursor } = await import("@/lib/agente/cursor");
+    const { clearPendingHerd } = await import("@/lib/actions/herd-pending");
+    const { clearPendingConfinement } = await import("@/lib/actions/confinamento-pending");
 
     const stamp = Date.now();
     const tenant = await prisma.tenant.create({
       data: { name: `M68 ${stamp}`, document: `M68${stamp}`.slice(0, 14), plan: "fazenda" },
     });
     const db = prismaForTenant(tenant.id);
+    let ownerId: string | null = null;
     try {
       await prisma.tenantProfile.create({ data: { tenant_id: tenant.id, profile_type: "fazenda", active: true } });
       const owner = await prisma.user.create({
         data: { tenant_id: tenant.id, name: "Dono M68", email: `m68-${stamp}@teste.local`, password_hash: "x", role: "OWNER", active: true },
       });
+      ownerId = owner.id;
       const fazenda = await db.property.create({ data: scoped({ name: "Fazenda M68" }) });
       const pasto = await db.pasture.create({ data: scoped({ property_id: fazenda.id, name: "Pasto M68", area_hectares: 10 }) });
       await recordMovement(db, {
         movement_type: "saldo_inicial",
         quantity: 20,
         to: { category_id: "macho_25_36", property_id: fazenda.id, pasture_id: pasto.id, situation: "presente", owner: "proprio" },
+      });
+      // Saldo da seção 5 (cursor): a morte ambígua resolve para "Fêmea - 13 a
+      // 24 meses", e sem saldo aqui a confirmação vira INSUFFICIENT_BALANCE em
+      // vez de executar, o que impediria o "sim" de apagar o cursor.
+      await recordMovement(db, {
+        movement_type: "saldo_inicial",
+        quantity: 5,
+        to: { category_id: "femea_13_24", property_id: fazenda.id, pasture_id: pasto.id, situation: "presente", owner: "proprio" },
       });
       const site = await createConfinementSite(db, { name: "Conf M68", type: "proprio", property_id: fazenda.id });
       check("fixture: confinamento criado", site.ok);
@@ -333,10 +346,59 @@ async function main() {
 
       const r = await executarIntencao({ db, tenant_id: tenant.id, user: { id: owner.id, role: owner.role }, contato_id: null, activeProfiles: ["fazenda"], intent: "registrar_negocio_gado", parameters: { tipo: "venda", categoria: "boi", quantidade: 2, valor: 9000 }, message_text: "vendi 2 bois do confinamento por 9 mil", confirmed_do_corpo: null, provider_message_id: null, registrar_entrada: false });
       check("a venda que cita o confinamento sai com intent_final encerrar_confinamento", r.intent_final === "encerrar_confinamento", r.intent_final);
+
+      console.log("\n5. Cursor da conversa");
+      // (c) O negócio de confinamento ainda não confirmado deixa o cursor
+      // apontando para a intenção final (encerrar_confinamento), não para
+      // registrar_negocio_gado: é o que o "sim" solto do produtor precisa achar.
+      const cursorDoNegocio = await carregarCursor(tenant.id, owner.id);
+      check(
+        "venda do confinamento grava cursor com a intenção final",
+        cursorDoNegocio?.intent === "encerrar_confinamento" && cursorDoNegocio?.aguardando === "confirmacao",
+        JSON.stringify(cursorDoNegocio),
+      );
+      // Limpa o negócio do confinamento (ainda pendente, sem "sim") agora que
+      // (c) já foi conferido: senão ele continua "aberto em outro lugar" e,
+      // pela regra, o cursor do rebanho abaixo nunca seria apagado. A venda
+      // que cita o confinamento é roteada para o handler de Confinamento, e o
+      // pendente fica em `confinamento-pending`, não em `negocio-pending`.
+      await clearPendingConfinement(tenant.id, owner.id);
+
+      // (a) Termo ambíguo com item presente: o handler pergunta a faixa E
+      // guarda o pedido (diferente de mandar sem item nenhum, que só pergunta).
+      const morteAmbigua = await executarIntencao({ db, tenant_id: tenant.id, user: { id: owner.id, role: owner.role }, contato_id: null, activeProfiles: ["fazenda"], intent: "registrar_movimentacao_rebanho", parameters: { movement_type: "morte", categoria: "novilha", quantidade: 2, pasto: "Pasto M68" }, message_text: "morreram 2 novilhas", confirmed_do_corpo: null, provider_message_id: "W2", registrar_entrada: false });
+      check("morte ambígua pergunta a faixa", morteAmbigua.reply_text.includes("Qual é a idade aproximada?"), morteAmbigua.reply_text);
+      const cursorDaCategoria = await carregarCursor(tenant.id, owner.id);
+      check(
+        "termo ambíguo com item guarda o pedido e move o cursor para 'categoria'",
+        cursorDaCategoria?.aguardando === "categoria" && cursorDaCategoria?.intent === "registrar_movimentacao_rebanho",
+        JSON.stringify(cursorDaCategoria),
+      );
+
+      // (b) A resposta ao campo pendente avança para a confirmação, e o "sim"
+      // (sem nada no corpo: a mesma forma que o turno vai usar) executa e
+      // apaga o cursor, porque não sobra pedido nenhum aberto.
+      const respondeCategoria = await executarIntencao({ db, tenant_id: tenant.id, user: { id: owner.id, role: owner.role }, contato_id: null, activeProfiles: ["fazenda"], intent: "registrar_movimentacao_rebanho", parameters: { categoria: "Fêmea - 13 a 24 meses" }, message_text: "Fêmea - 13 a 24 meses", confirmed_do_corpo: null, provider_message_id: "W3", registrar_entrada: false });
+      check("resposta à categoria leva à confirmação", respondeCategoria.requires_confirmation === true, respondeCategoria.reply_text);
+      const cursorDaConfirmacao = await carregarCursor(tenant.id, owner.id);
+      check("cursor acompanha para 'confirmacao'", cursorDaConfirmacao?.aguardando === "confirmacao", JSON.stringify(cursorDaConfirmacao));
+
+      const simSolto = await executarIntencao({ db, tenant_id: tenant.id, user: { id: owner.id, role: owner.role }, contato_id: null, activeProfiles: ["fazenda"], intent: "registrar_movimentacao_rebanho", parameters: {}, message_text: "sim", confirmed_do_corpo: null, provider_message_id: "W4", registrar_entrada: false });
+      check("o 'sim' executa a morte guardada", simSolto.action_taken === "registrar_movimentacao_rebanho:morte", simSolto.reply_text);
+      check("e apaga o cursor, sem pedido nenhum aberto", (await carregarCursor(tenant.id, owner.id)) === null);
+
       const s = await executarIntencao({ db, tenant_id: tenant.id, user: { id: owner.id, role: owner.role }, contato_id: null, activeProfiles: ["fazenda"], intent: "consultar_rebanho", parameters: {}, message_text: "quantos animais", confirmed_do_corpo: null, provider_message_id: "W1", registrar_entrada: false });
       const replay = await executarIntencao({ db, tenant_id: tenant.id, user: { id: owner.id, role: owner.role }, contato_id: null, activeProfiles: ["fazenda"], intent: "consultar_rebanho", parameters: {}, message_text: "quantos animais", confirmed_do_corpo: null, provider_message_id: "W1", registrar_entrada: false });
       check("replay pelo núcleo", replay.replay === true && replay.reply_text === s.reply_text);
+
+      // (d) Consulta, sem pedido aberto em lugar nenhum: não grava cursor.
+      check("consulta sem pedido aberto não grava cursor", (await carregarCursor(tenant.id, owner.id)) === null);
     } finally {
+      if (ownerId) {
+        await clearPendingHerd(tenant.id, ownerId);
+        await clearPendingConfinement(tenant.id, ownerId);
+        await limparCursor(tenant.id, ownerId);
+      }
       await prisma.user.deleteMany({ where: { tenant_id: tenant.id } });
       await deleteTestTenants([tenant.id]);
     }

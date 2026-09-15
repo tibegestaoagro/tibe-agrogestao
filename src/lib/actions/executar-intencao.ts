@@ -8,6 +8,7 @@ import { log } from "@/lib/log";
 import { detectConfirmation } from "@/lib/actions/confirmation";
 import { logInbound, logOutbound } from "@/lib/actions/conversation-log";
 import { routeIntent } from "@/lib/actions/whatsapp-router";
+import { atualizarCursor } from "@/lib/agente/cursor";
 
 /**
  * Núcleo de execução de uma intenção do agente WhatsApp (Task 7 da Fase 2).
@@ -139,6 +140,7 @@ export async function executarIntencao(e: EntradaDaIntencao): Promise<SaidaDaInt
    */
   const explicitNo = confirmationSignal === "no";
 
+  const inicio = Date.now();
   const result = await routeIntent(db, {
     tenant_id,
     role: user.role,
@@ -159,6 +161,21 @@ export async function executarIntencao(e: EntradaDaIntencao): Promise<SaidaDaInt
       action_taken: result.action_taken,
     });
   }
+
+  /**
+   * O cursor só é atualizado AQUI, no caminho que executou de verdade (nunca
+   * no replay, que devolve antes de chegar neste ponto): o turno (tarefa
+   * futura) lê o cursor mas não grava, senão duas leituras da mesma resposta
+   * atualizariam o relógio duas vezes.
+   */
+  await atualizarCursor({
+    tenantId: tenant_id,
+    userId: user.id,
+    intentFinal: result.intent_final ?? intent,
+    resposta: result.reply_text,
+    inicio,
+    db,
+  });
 
   const resposta = {
     reply_text: result.reply_text,

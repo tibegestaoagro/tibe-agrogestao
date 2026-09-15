@@ -176,4 +176,17 @@ async function main() {
   }
 }
 
-main();
+/**
+ * `process.exit()` explícito, como as outras suítes: sem ele, o processo
+ * nunca terminava sozinho depois da Task 8 (cursor da conversa), porque
+ * `executarIntencao` passou a abrir uma conexão Redis (`pedidosAbertos`) em
+ * TODA intenção, inclusive `ajuda`, que antes não tocava Redis nenhum. A
+ * suíte sempre dependeu do processo encerrar sozinho por falta de handle
+ * aberto; a conexão nova quebrou essa suposição.
+ */
+main()
+  .then(() => process.exit(failures === 0 ? 0 : 1))
+  .catch((e) => {
+    console.error("\n❌ M42 quebrou:", e);
+    process.exit(1);
+  });

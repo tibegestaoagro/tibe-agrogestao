@@ -141,6 +141,44 @@ export function chavesDePendencia(): ((tenantId: string, userId: string) => stri
   return [...CHAVES_POR_PREFIXO.values()];
 }
 
+/**
+ * Todo pedido pendente aberto agora, de qualquer domínio, para este usuário.
+ *
+ * Usado pelo cursor da conversa (Task 8): ele precisa, numa leitura só, saber
+ * qual pergunta está aberta em qualquer um dos onze domínios, sem que o
+ * chamador conheça o prefixo de cada um. A lista vem do MESMO registro que
+ * `chavesDePendencia()` usa para o desempate por data em `stock-pending.ts`.
+ */
+export async function pedidosAbertos(
+  tenantId: string,
+  userId: string,
+): Promise<{ prefixo: string; aguardando: string; salvo_em: number }[]> {
+  const abertos: { prefixo: string; aguardando: string; salvo_em: number }[] = [];
+  try {
+    const redis = getRedisConnection();
+    const entradas = [...CHAVES_POR_PREFIXO.entries()];
+    const brutos = await Promise.all(entradas.map(([, chave]) => redis.get(chave(tenantId, userId))));
+    entradas.forEach(([prefixo], i) => {
+      const bruto = brutos[i];
+      if (!bruto) return;
+      try {
+        const pedido = JSON.parse(bruto) as { aguardando?: unknown; salvo_em?: number };
+        if (typeof pedido?.aguardando !== "string") return;
+        abertos.push({
+          prefixo,
+          aguardando: pedido.aguardando,
+          salvo_em: typeof pedido.salvo_em === "number" ? pedido.salvo_em : 0,
+        });
+      } catch {
+        // JSON quebrado não conta como pedido aberto.
+      }
+    });
+  } catch {
+    // Redis fora do ar: mesma política do resto do arquivo, não quebra.
+  }
+  return abertos;
+}
+
 export function criarStoreDePendencia<
   C extends string,
   P extends PedidoBase<C> = PedidoBase<C>,
