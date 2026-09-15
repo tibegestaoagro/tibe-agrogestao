@@ -329,6 +329,56 @@ async function main() {
       comTrechoTorto[0].parameters.valor === 500,
     );
 
+    // Extrações em paralelo: três domínios, cada um demorando 300ms, deve terminar em ~300ms (paralelo) não ~900ms (sequencial)
+    let chamadaDeExtracao = 0;
+    const inicio = Date.now();
+    definirTransporteDoModelo(async (corpo) => {
+      const nome = (corpo.response_format as { json_schema: { name: string } }).json_schema.name;
+      if (nome === "dominio") {
+        return {
+          status: 200,
+          json: {
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    pedidos: [
+                      { dominio: "rebanho", trecho: "quantos animais tenho" },
+                      { dominio: "estoque", trecho: "quanto estoque tem" },
+                      { dominio: "financeiro", trecho: "qual meu saldo" },
+                    ],
+                  }),
+                },
+              },
+            ],
+          },
+        };
+      }
+      // Extrações demoram 300ms cada
+      chamadaDeExtracao += 1;
+      await new Promise((r) => setTimeout(r, 300));
+      if (nome.startsWith("extracao_rebanho")) {
+        return { status: 200, json: { choices: [{ message: { content: JSON.stringify({ intent: "consultar_rebanho", parametros: { categoria: null, fazenda: null } }) } }] } };
+      } else if (nome.startsWith("extracao_estoque")) {
+        return { status: 200, json: { choices: [{ message: { content: JSON.stringify({ intent: "consultar_estoque", parametros: { categoria: null, produto: null } }) } }] } };
+      } else if (nome.startsWith("extracao_financeiro")) {
+        return { status: 200, json: { choices: [{ message: { content: JSON.stringify({ intent: "consultar_saldo", parametros: { period: null, category: null } }) } }] } };
+      }
+      return { status: 200, json: { choices: [{ message: { content: JSON.stringify({ intent: "ambigua", parametros: {} }) } }] } };
+    });
+    const tresTomios = await classificarMensagem({ texto: "quantos animais tenho e quanto estoque tem e qual meu saldo", hoje: "2026-09-15", perfis: [] });
+    const tempo = Date.now() - inicio;
+    check(
+      "três extrações em paralelo termina em ~300ms não ~900ms",
+      tresTomios.length === 3 &&
+        tresTomios[0].intent === "consultar_rebanho" &&
+        tresTomios[1].intent === "consultar_estoque" &&
+        tresTomios[2].intent === "consultar_saldo" &&
+        tempo < 700 &&
+        chamadaDeExtracao === 3,
+      `tempo: ${tempo}ms, chamadas: ${chamadaDeExtracao}`,
+    );
+
     definirTransporteDoModelo(null);
   }
 
