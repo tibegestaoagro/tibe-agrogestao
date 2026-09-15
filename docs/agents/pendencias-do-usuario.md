@@ -99,6 +99,12 @@ requisição, como sempre fez.
 
 ## 4. O n8n passar `provider_message_id`
 
+> **Atualização de 2026-09-15:** isto deixou de ser seu. O agente agora lê e
+> publica o workflow pela API do n8n (com sua aprovação para produção), e o
+> campo entra no fluxo novo da Fase 4 do plano do agente. O Tibé já grava a
+> chave como `wamid#intenção`, para uma mensagem com dois pedidos executar os
+> dois.
+
 **Por quê.** `execute-action` ganhou idempotência: a mesma mensagem não escreve
 duas vezes. Um retry do n8n, ou uma reexecução manual no painel dele, regravava
 a mesma venda de gado, o mesmo lançamento e a mesma saída de estoque. A chave é
@@ -253,6 +259,19 @@ de oito caracteres que apareceu na mensagem do usuário e procurar por ele no
 log da Vercel.
 
 ---
+
+## 11. Agente do WhatsApp: três coisas que só você faz
+
+1. **Tirar o dado de teste fixado no Webhook do atendimento.** No editor do
+   n8n, workflow `Tibe - Atendimento WhatsApp (Evolution)`: abrir o nó
+   `Webhook`, clicar em **Unpin** e salvar. O dado fixado guarda a chave da
+   instância da Evolution e um telefone real, e a API pública do n8n recusa
+   apagá-lo.
+2. **Um segundo chip conectado à Evolution**, para o fluxo de homologação da
+   Fase 4 do agente.
+3. **Na rotação de credenciais:** se a chave da instância da Evolution mudar, o
+   nó `Guarda da Entrada` precisa receber a chave nova no mesmo momento. Sem
+   isso, o agente fica mudo (a guarda descarta tudo) sem erro visível.
 
 ## O que NÃO depende de você
 
