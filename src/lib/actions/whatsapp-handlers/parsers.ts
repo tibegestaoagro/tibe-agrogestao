@@ -1,5 +1,6 @@
-import { str } from "./shared";
+import { str, normalizarTermo } from "./shared";
 import { lerNumeroBr } from "@/lib/numero-br";
+import { inicioDoDiaEmSaoPaulo } from "@/lib/dia-calendario";
 
 /**
  * Reexportado para quem ja importava daqui. A funcao mora em `@/lib/numero-br`,
@@ -164,6 +165,70 @@ export function interpretarData(bruto: string, hoje = new Date()): Date | null {
     if (dia < 1 || dia > 31) return null;
     const d = aoMeioDia(hoje.getFullYear(), hoje.getMonth(), dia);
     return d.getDate() === dia ? d : null;
+  }
+
+  return null;
+}
+
+const MESES = [
+  ["janeiro", "jan"],
+  ["fevereiro", "fev"],
+  ["marco", "mar"],
+  ["abril", "abr"],
+  ["maio", "mai"],
+  ["junho", "jun"],
+  ["julho", "jul"],
+  ["agosto", "ago"],
+  ["setembro", "set"],
+  ["outubro", "out"],
+  ["novembro", "nov"],
+  ["dezembro", "dez"],
+];
+
+/**
+ * O mês dito na conversa (Task 12): `"2026-08"`, `"08/2026"`, `"agosto"`,
+ * `"agosto de 2025"`, `"setembro/2026"`, `"mes passado"`, `"este mes"`. Usado
+ * por `consultar_saldo` e `gerar_relatorio` (spec 3.4), que antes só liam
+ * `"YYYY-MM"` ou ignoravam o período por completo.
+ *
+ * Sem texto nenhum, devolve o mês ATUAL: é o default de sempre para quem não
+ * disse nada. Com texto presente que não dá para entender, devolve `null`,
+ * e o chamador PERGUNTA em vez de cair no mês atual calado, mesma escolha de
+ * `lerData`.
+ */
+export function lerMes(v: unknown, agora = new Date()): { ano: number; mes: number } | null {
+  const hoje = inicioDoDiaEmSaoPaulo(agora);
+  const mesAtual = { ano: hoje.getUTCFullYear(), mes: hoje.getUTCMonth() + 1 };
+
+  const bruto = str(v);
+  if (!bruto) return mesAtual;
+  const texto = normalizarTermo(bruto);
+
+  if (texto === "este mes") return mesAtual;
+  if (texto === "mes passado") {
+    const anterior = new Date(Date.UTC(hoje.getUTCFullYear(), hoje.getUTCMonth() - 1, 1));
+    return { ano: anterior.getUTCFullYear(), mes: anterior.getUTCMonth() + 1 };
+  }
+
+  const iso = texto.match(/^(\d{4})-(\d{1,2})$/);
+  if (iso) {
+    const mes = Number(iso[2]);
+    return mes >= 1 && mes <= 12 ? { ano: Number(iso[1]), mes } : null;
+  }
+
+  const br = texto.match(/^(\d{1,2})\/(\d{4})$/);
+  if (br) {
+    const mes = Number(br[1]);
+    return mes >= 1 && mes <= 12 ? { ano: Number(br[2]), mes } : null;
+  }
+
+  const nome = texto.match(/^([a-z]+)(?:\s+de\s+(\d{4})|\/(\d{4}))?$/);
+  if (nome) {
+    const idx = MESES.findIndex((nomes) => nomes.includes(nome[1]));
+    if (idx !== -1) {
+      const anoDito = nome[2] ?? nome[3];
+      return { ano: anoDito ? Number(anoDito) : mesAtual.ano, mes: idx + 1 };
+    }
   }
 
   return null;

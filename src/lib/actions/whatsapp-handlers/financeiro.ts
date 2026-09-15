@@ -2,13 +2,12 @@ import type { ModuleKey } from "@/lib/permissions";
 import { canAccess } from "@/lib/permissions";
 import type { ProfileType } from "@/lib/tenant-context";
 import { getBalanceAction } from "@/lib/actions/financial-summary";
-import { resolvePeriod } from "@/lib/actions/financial-reports";
 import { buildReportLink } from "@/lib/reports/report-link";
 import { createManualEntryAction } from "@/lib/actions/financial-entries";
 import { suggestCategory } from "@/lib/category-suggestions";
 import { listFinancialCategoriesAction } from "@/lib/actions/financial-categories";
 import { ask, failReply, str, normalizarTermo, type Handler } from "./shared";
-import { lerDinheiro } from "./parsers";
+import { lerDinheiro, lerMes } from "./parsers";
 import { reaisBr } from "@/lib/numero-br";
 import { savePendingFinance, loadPendingFinance, clearPendingFinance } from "@/lib/actions/finance-pending";
 
@@ -20,7 +19,9 @@ const REPORT_TYPE_MODULE: Record<string, ModuleKey> = {
 };
 
 export const consultarSaldo: Handler = async ({ db, parameters }) => {
-  const period = str(parameters.period);
+  const mesLido = lerMes(parameters.period);
+  if (mesLido === null) return ask("De qual mês?");
+  const period = `${mesLido.ano}-${String(mesLido.mes).padStart(2, "0")}`;
   const result = await getBalanceAction(db, period);
   if (!result.ok) return failReply("consultar_saldo", result);
   return {
@@ -70,7 +71,10 @@ export const gerarRelatorio: Handler = async ({ tenant_id, role, activeProfiles,
     };
   }
 
-  const { start, end } = resolvePeriod(str(parameters.period), null);
+  const mesLido = lerMes(parameters.period);
+  if (mesLido === null) return ask("De qual mês?");
+  const start = new Date(mesLido.ano, mesLido.mes - 1, 1);
+  const end = new Date(mesLido.ano, mesLido.mes, 1);
   const report_url = buildReportLink(tenant_id, start, end);
   return {
     reply_text: `Aqui está o relatório financeiro de ${start.toLocaleDateString("pt-BR")} a ${end.toLocaleDateString("pt-BR")}: ${report_url}`,

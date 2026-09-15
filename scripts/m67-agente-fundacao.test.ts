@@ -651,6 +651,39 @@ async function main() {
       check("nada gravado com valor 222 sem pendente", lancSemPedido === 0, String(lancSemPedido));
     }
 
+    console.log("\n11. Período");
+    {
+      const { lerMes } = await import("@/lib/actions/whatsapp-handlers/parsers");
+      const ref = new Date("2026-09-14T15:00:00Z");
+      const casos: [string, string | null][] = [
+        ["2026-08", "2026-8"], ["08/2026", "2026-8"], ["agosto", "2026-8"], ["agosto de 2025", "2025-8"],
+        ["mes passado", "2026-8"], ["este mês", "2026-9"], ["qualquer coisa", null],
+      ];
+      for (const [t, e] of casos) {
+        const r = lerMes(t, ref);
+        check(`lerMes("${t}")`, (r ? `${r.ano}-${r.mes}` : null) === e, JSON.stringify(r));
+      }
+
+      // Nível de rota: mesmas checagens contra o handler de verdade, com o
+      // relógio real (sem `ref`), igual ao que `consultarSaldo` chama.
+      const mesPassado = lerMes("mes passado")!;
+      const nomeMesPassado = new Date(mesPassado.ano, mesPassado.mes - 1, 1)
+        .toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+      const saldoMesPassado = await acao("consultar_saldo", { period: "mes passado" }, "quanto sobrou mes passado");
+      check(
+        "consultar_saldo com 'mes passado' responde sobre o mês anterior",
+        saldoMesPassado.data.reply_text.toLowerCase().includes(nomeMesPassado.toLowerCase()),
+        saldoMesPassado.data.reply_text,
+      );
+
+      const saldoAmbiguo = await acao("consultar_saldo", { period: "qualquer coisa" }, "saldo de qualquer coisa");
+      check(
+        "consultar_saldo com mês ilegível pergunta de qual mês",
+        /de qual m[eê]s/i.test(saldoAmbiguo.data.reply_text),
+        saldoAmbiguo.data.reply_text,
+      );
+    }
+
     void fazenda;
     void pasto;
   } finally {
