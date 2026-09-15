@@ -12,7 +12,7 @@ código do Tibé: os endpoints já estão prontos e documentados abaixo.
 
 ## 0. Estado atual (auditado em 2026-07-30)
 
-- Instância n8n: Railway, `https://n8n-production-3d80.up.railway.app`.
+- Instância n8n: Railway; a URL fica no `.env` como `URL_N8N`.
 - Workflow **"Tibe - Atendimento WhatsApp (Evolution)"**, id `UAAA96aJFiiFsQCL`,
   **ativo**, 27 nós, apontando para `https://tibe-agrogestao.vercel.app`.
 - Webhook de produção: `/webhook/atendimento` (POST), com a Evolution

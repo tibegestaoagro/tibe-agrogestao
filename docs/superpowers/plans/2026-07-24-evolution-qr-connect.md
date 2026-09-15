@@ -15,7 +15,7 @@
 - Comentários e mensagens de erro em português.
 - `WhatsAppProviderConfig` client base é permitido (config de plataforma, exceção já documentada).
 - Testes contra Docker local: `DATABASE_URL="postgresql://tibe:tibe@localhost:55432/tibe_dev?schema=public"`.
-- Instância Evolution real de produção já existe (`Atendimento`, `evolution-api-production-7c41.up.railway.app`): pode ser usada para teste live de verificação, mas **NÃO force reconexão/desconexão de um número já pareado em uso real**: os testes de `connect`/`create` contra ela devem ser só leitura de status (`connectionState`), nunca disparar um novo QR nela.
+- Instância Evolution real de produção já existe (`Atendimento`, URL base no `WhatsAppProviderConfig` ativo, fora do repositório): pode ser usada para teste live de verificação, mas **NÃO force reconexão/desconexão de um número já pareado em uso real**: os testes de `connect`/`create` contra ela devem ser só leitura de status (`connectionState`), nunca disparar um novo QR nela.
 - Commits: português, footer `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>` (heredoc).
 - `npx tsc --noEmit` e `npm run build` limpos ao final.
 
@@ -461,7 +461,7 @@ nem `create` nela.
 ```bash
 DATABASE_URL="postgresql://tibe:tibe@localhost:55432/tibe_dev?schema=public" npx tsx -e "
 import { getInstanceStatus } from './src/lib/evolution-client';
-getInstanceStatus({ base_url: 'https://evolution-api-production-7c41.up.railway.app', api_key: 'PEDIR_AO_USUARIO_SE_NAO_TIVER', instance: 'Atendimento' }).then(r => console.log(r));
+getInstanceStatus({ base_url: '<URL base da Evolution, do provider ativo>', api_key: 'PEDIR_AO_USUARIO_SE_NAO_TIVER', instance: 'Atendimento' }).then(r => console.log(r));
 "
 ```
 

@@ -31,7 +31,11 @@ import { getRedisConnection } from "@/lib/redis";
  * Configuração (.env):
  *   WA_TEST_PHONE   telefone do usuário de teste (só dígitos, com DDI)
  *   URL_N8N         base do n8n; o webhook é <base>/webhook/atendimento
+ *   N8N_API_KEY     chave da API do n8n, para ler a guarda da entrada (abaixo)
  */
+
+const WORKFLOW_ATENDIMENTO = "UAAA96aJFiiFsQCL";
+const NO_GUARDA = "Guarda da Entrada";
 
 const TELEFONE = (process.env.WA_TEST_PHONE ?? "").replace(/\D/g, "");
 
@@ -84,16 +88,51 @@ async function dormir(ms: number) {
   await new Promise((r) => setTimeout(r, ms));
 }
 
+type CredenciaisInstancia = { instance: string; apikey: string } | null;
+
+/**
+ * Lê, na hora, a instância e a apikey que o nó "Guarda da Entrada" do fluxo
+ * exige, pela API do n8n. A guarda descarta todo webhook que não traga as duas.
+ *
+ * Os valores nunca moram no repositório (ele é público) e nunca são impressos.
+ * Por que não o `WhatsAppProviderConfig` do Tibé: a credencial está cifrada com
+ * a CONFIG_ENCRYPTION_KEY da Vercel, que não é a do `.env` local, e a apikey do
+ * webhook não é necessariamente a mesma do envio. A guarda é a fonte da verdade
+ * do que ela confere. Sem o nó (fluxo restaurado de backup), devolve null e o
+ * corpo sai como antes; nó presente e ilegível é erro, não silêncio.
+ */
+async function credenciaisDaGuarda(): Promise<CredenciaisInstancia> {
+  const chave = process.env.N8N_API_KEY;
+  if (!chave) throw new Error("N8N_API_KEY não definida no .env: sem ela não dá para passar pela guarda da entrada.");
+  const origem = new URL(webhookUrl()).origin;
+  const res = await fetch(`${origem}/api/v1/workflows/${WORKFLOW_ATENDIMENTO}`, {
+    headers: { "X-N8N-API-KEY": chave, accept: "application/json" },
+  });
+  if (!res.ok) throw new Error(`API do n8n respondeu ${res.status} ao ler o workflow de atendimento`);
+  const wf = (await res.json()) as { nodes: { name: string; parameters?: { jsCode?: string } }[] };
+  const codigo = wf.nodes.find((n) => n.name === NO_GUARDA)?.parameters?.jsCode;
+  if (codigo === undefined) return null;
+  const literal = (campo: string) => {
+    const m = codigo.match(new RegExp(`body\\.${campo} !== ("(?:[^"\\\\]|\\\\.)*")`));
+    return m ? (JSON.parse(m[1]) as string) : null;
+  };
+  const instance = literal("instance");
+  const apikey = literal("apikey");
+  if (!instance || !apikey) throw new Error(`Não consegui ler instance/apikey do nó "${NO_GUARDA}": o formato do código mudou.`);
+  return { instance, apikey };
+}
+
 /**
  * Monta o payload no formato que a Evolution manda e que o nó "Normalizar e
  * Filtrar" do fluxo espera. Se o fluxo mudar esse formato, este script para
  * de funcionar em vez de testar a coisa errada em silêncio, que é o
  * comportamento desejado.
  */
-function payloadEvolution(phone: string, texto: string, seq: number) {
+function payloadEvolution(phone: string, texto: string, seq: number, cred: CredenciaisInstancia) {
   return {
     event: "messages.upsert",
-    instance: "banco-de-provas",
+    instance: cred?.instance ?? "banco-de-provas",
+    ...(cred ? { apikey: cred.apikey } : {}),
     data: {
       key: {
         remoteJid: `${phone}@s.whatsapp.net`,
@@ -114,7 +153,7 @@ async function diga(texto: string, seq = 0): Promise<string[]> {
   const res = await fetch(webhookUrl(), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payloadEvolution(phone, texto, seq)),
+    body: JSON.stringify(payloadEvolution(phone, texto, seq, await credenciaisDaGuarda())),
   });
   if (!res.ok) {
     const corpo = await res.text().catch(() => "");
