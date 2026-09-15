@@ -7,6 +7,7 @@ import {
   registrarMovimentacaoRebanho,
 } from "@/lib/actions/whatsapp-handlers/herd";
 import type { HandlerCtx } from "@/lib/actions/whatsapp-handlers/shared";
+import { clearPendingHerd } from "@/lib/actions/herd-pending";
 
 exigirBancoLocal();
 
@@ -527,6 +528,29 @@ async function main() {
       semPendenteAgora.reply_text.startsWith("Deseja registrar a morte de 1"),
       `${semPendenteAgora.action_taken} | ${semPendenteAgora.reply_text}`,
     );
+
+    // Fase 2 do agente: o classificador novo manda `itens`, e a resposta da
+    // faixa chega plana. Antes, `itensDosParametros` preferia a lista, o item
+    // ambíguo nunca mudava e a mesma pergunta se repetia.
+    const quemListou = `user-pendente-itens-${stamp}`;
+    const perguntaDaLista = await registrarMovimentacaoRebanho(
+      ctx(
+        db,
+        tenant.id,
+        { movement_type: "saldo_inicial", itens: [{ categoria: "novilhas", quantidade: 3 }], fazenda: "Santa Helena" },
+        { userId: quemListou },
+      ),
+    );
+    check("com itens, pergunta a faixa", perguntaDaLista.reply_text.includes("Qual é a idade aproximada?"), perguntaDaLista.reply_text);
+    const respostaDaLista = await registrarMovimentacaoRebanho(
+      ctx(db, tenant.id, { categoria: "Fêmea - 13 a 24 meses" }, { userId: quemListou }),
+    );
+    check(
+      "a resposta plana resolve o item ambíguo da lista",
+      respostaDaLista.reply_text.startsWith("Deseja registrar 3 fêmeas de 13 a 24 meses"),
+      respostaDaLista.reply_text,
+    );
+    await clearPendingHerd(tenant.id, quemListou);
 
     console.log("\n14b. 'sim' sem nada pendente NÃO grava (gravação fantasma)");
     // O pior defeito do teste real de 2026-08-10: o produtor mandou VENDER
