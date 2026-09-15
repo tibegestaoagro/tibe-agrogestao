@@ -276,7 +276,7 @@ export async function maybeStartAnimalFlow(
  * porque é comparação literal (`mesmaFrase`), não achismo: aqui não há
  * ambiguidade para resolver de novo, porque a pergunta do fluxo já resolveu.
  */
-async function categoriaDoLivroRazao(db: TenantPrismaClient, herdCategoryId: string) {
+export async function categoriaDoLivroRazao(db: TenantPrismaClient, herdCategoryId: string) {
   const rotulo = findCategory(herdCategoryId)?.label ?? "Não classificado";
   return (
     (await db.animalCategory.findFirst({ where: { name: rotulo } })) ??

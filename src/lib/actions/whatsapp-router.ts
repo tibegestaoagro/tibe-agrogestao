@@ -82,6 +82,7 @@ import {
   encerrarServico,
 } from "@/lib/actions/whatsapp-handlers/servico";
 import { loadPendingNegotiation } from "@/lib/actions/negotiation-pending";
+import { listConfinementLots } from "@/lib/actions/confinement";
 import {
   loadPendingStock,
   quandoOutroDominioFalou,
@@ -310,6 +311,39 @@ async function pareceNegocioDeProduto(
   return resolvido.ok;
 }
 
+/**
+ * VENDA DE GADO QUE SAI DO CONFINAMENTO.
+ *
+ * "Vendi 5 bois do confinamento por 25 mil" chega como
+ * `registrar_negocio_gado`, e o negócio tira as cabeças do PASTO: o lote
+ * confinado seguia com as 5 contadas e o pasto perdia 5 que nunca saíram
+ * dele. A saída do lote é `encerrar_confinamento`, que chama `closeStay` (e
+ * `closeStay` já transforma a venda em negociação de gado).
+ *
+ * Mora aqui, e não em `desempatarIntencao`, porque precisa do banco: sem lote
+ * aberto no tenant, a frase não tem lote de onde sair e segue como negócio.
+ * O texto que decide é o que o produtor DIGITOU (`message_text`), nunca um
+ * campo remontado pelo classificador.
+ *
+ * Os nomes de quantidade e valor (`quantidade`/`quantity`, `valor`/`amount`)
+ * já são os que `encerrarConfinamento` lê; só o tipo precisa ir como `tipo`,
+ * porque o handler não lê `movement_type`.
+ */
+async function vendaDoConfinamento(
+  db: TenantPrismaClient,
+  parameters: Record<string, unknown>,
+  messageText: string | null | undefined,
+): Promise<boolean> {
+  const tipo = str(parameters.tipo) ?? str(parameters.movement_type);
+  if (tipo !== "venda" || !messageText) return false;
+  const texto = messageText.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  if (!/confinamento|boitel/.test(texto)) return false;
+  const lotes = await listConfinementLots(db, { apenas_abertas: true });
+  if (lotes.length === 0) return false;
+  parameters.tipo = "venda";
+  return true;
+}
+
 export async function routeIntent(
   db: TenantPrismaClient,
   ctx: {
@@ -407,6 +441,12 @@ export async function routeIntent(
    */
   if (intent === "registrar_negocio_gado" && (await pareceNegocioDeProduto(db, parameters))) {
     intent = "registrar_negocio_produto";
+  }
+
+  // Ver `vendaDoConfinamento`. Depois da guarda de produto: "vendi 10 sacas de
+  // sal do confinamento" é estoque, não saída do lote.
+  if (intent === "registrar_negocio_gado" && (await vendaDoConfinamento(db, parameters, ctx.message_text))) {
+    intent = "encerrar_confinamento";
   }
 
 

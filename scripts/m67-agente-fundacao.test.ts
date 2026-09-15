@@ -23,7 +23,7 @@ process.env.INTERNAL_API_SECRET = process.env.INTERNAL_API_SECRET ?? "m67-segred
 async function main() {
   const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
   const { POST } = await import("@/app/api/internal/whatsapp/execute-action/route");
-  const { recordMovement } = await import("@/lib/actions/herd-ledger");
+  const { recordMovement, getPositions } = await import("@/lib/actions/herd-ledger");
 
   const { detectConfirmation } = await import("@/lib/actions/confirmation");
   console.log("1. Confirmação estrita");
@@ -682,6 +682,65 @@ async function main() {
         /de qual m[eê]s/i.test(saldoAmbiguo.data.reply_text),
         saldoAmbiguo.data.reply_text,
       );
+    }
+
+    console.log("\n12. Livro-razão e confinamento");
+    {
+      /*
+       * Seções anteriores usam o mesmo `owner`: limpa os pendentes que um "sim"
+       * desta seção poderia confirmar no lugar do pedido de confinamento (gado,
+       * estoque, rebanho, lista e o próprio confinamento).
+       */
+      const { clearPendingNegotiation } = await import("@/lib/actions/negotiation-pending");
+      const { clearPendingStock } = await import("@/lib/actions/stock-pending");
+      const { clearPendingHerd } = await import("@/lib/actions/herd-pending");
+      const { clearPendingLista } = await import("@/lib/actions/shopping-pending");
+      const { clearPendingConfinement } = await import("@/lib/actions/confinamento-pending");
+      for (const limpar of [clearPendingNegotiation, clearPendingStock, clearPendingHerd, clearPendingLista, clearPendingConfinement]) {
+        await limpar(tenant.id, owner.id);
+      }
+
+      const semCat = await acao("cadastrar_animal", { ear_tag: "M67-1", breed: "Nelore", sex: "male", property_name: "Fazenda M67" }, "cadastra o boi M67-1 nelore macho");
+      check("sem categoria, pergunta a categoria", semCat.data.reply_text === "Qual a categoria? (ex: bezerro, novilha de 13 a 24 meses, vaca, boi, garrote, touro)", semCat.data.reply_text);
+      const loteSemCat = await db.animalBatch.count({ where: { ear_tag: "M67-1" } });
+      check("sem categoria, não cria o lote", loteSemCat === 0, String(loteSemCat));
+
+      const ambigua = await acao("cadastrar_animal", { ear_tag: "M67-2", breed: "Nelore", sex: "female", property_name: "Fazenda M67", category: "novilha" }, "cadastra a novilha M67-2");
+      check("categoria ambígua pergunta a faixa", /mais de uma categoria/i.test(ambigua.data.reply_text), ambigua.data.reply_text);
+      check("categoria ambígua não cria o lote", (await db.animalBatch.count({ where: { ear_tag: "M67-2" } })) === 0);
+
+      const comCat = await acao("cadastrar_animal", { ear_tag: "M67-3", breed: "Nelore", sex: "male", property_name: "Fazenda M67", category: "boi" }, "cadastra o boi M67-3");
+      const noLivro = await getPositions(db, { category_id: "macho_36_mais", property_id: fazenda.id });
+      check(
+        "com categoria, o animal entra no livro-razão",
+        noLivro.reduce((s, p) => s + p.quantity, 0) === 1,
+        `${comCat.data.action_taken}: ${JSON.stringify(noLivro)}`,
+      );
+
+      const semLote = await acao("registrar_negocio_gado", { tipo: "venda", categoria: "boi", quantidade: 5, valor: 25000 }, "vendi 5 bois do confinamento por 25 mil");
+      check("sem lote aberto, a venda segue como negócio", !/confinamento/i.test(semLote.data.reply_text),`${semLote.data.action_taken}: ${semLote.data.reply_text}`);
+      await clearPendingNegotiation(tenant.id, owner.id);
+
+      const { createConfinementSite, openConfinementStay } = await import("@/lib/actions/confinement");
+      const site = await createConfinementSite(db, { name: "Conf M67", type: "proprio", property_id: fazenda.id });
+      if (site.ok) await openConfinementStay(db, { confinement_site_id: site.data.id, category_id: "macho_25_36", quantity: 10, pasture_id: pasto.id });
+
+      const soma = async (situation: "presente" | "confinamento", pasture_id?: string) =>
+        (await getPositions(db, { category_id: "macho_25_36", situation, ...(pasture_id ? { pasture_id } : {}) }))
+          .reduce((s, p) => s + p.quantity, 0);
+      const loteAntes = await soma("confinamento");
+      const pastoAntes = await soma("presente", pasto.id);
+
+      const r = await acao("registrar_negocio_gado", { tipo: "venda", categoria: "boi", quantidade: 5, valor: 25000 }, "vendi 5 bois do confinamento por 25 mil");
+      check("a venda que cita o confinamento vira saída do lote", /confinamento/i.test(r.data.reply_text) && r.data.action_taken?.startsWith("encerrar_confinamento"), `${r.data.action_taken}: ${r.data.reply_text}`);
+      check("e pergunta antes de gravar", r.data.requires_confirmation === true, r.data.reply_text);
+      check("nada saiu do lote antes do sim", (await soma("confinamento")) === loteAntes);
+
+      const sim = await acao("encerrar_confinamento", {}, "sim", { confirmed: true });
+      const loteDepois = await soma("confinamento");
+      const pastoDepois = await soma("presente", pasto.id);
+      check("o sim tira 5 cabeças do lote", loteDepois === loteAntes - 5, `${loteAntes} -> ${loteDepois}: ${sim.data.reply_text}`);
+      check("e o pasto não muda", pastoDepois === pastoAntes, `${pastoAntes} -> ${pastoDepois}`);
     }
 
     void fazenda;
