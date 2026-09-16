@@ -276,7 +276,7 @@ log da Vercel.
    (`POST /api/internal/whatsapp/turno`) classifica a mensagem dentro do Tibé e
    precisa dessa chave. Sem ela, a rota responde a frase de falha. Nada em
    produção a chama ainda: o n8n só passa a usá-la na Fase 4.
-5. **`AGENTE_MODELO=gpt-5.6-terra` e `AGENTE_ESFORCO=low` nas variáveis da
+5. **`AGENTE_MODELO=gpt-5.6-luna` e `AGENTE_ESFORCO=low` nas variáveis da
    Vercel** (Fase 3, 16/09), com redeploy. É o modelo escolhido pela avaliação,
    o único que passou no critério (relatório
    [agente-whatsapp/avaliacao-fase-3-final.md](agente-whatsapp/avaliacao-fase-3-final.md)).
