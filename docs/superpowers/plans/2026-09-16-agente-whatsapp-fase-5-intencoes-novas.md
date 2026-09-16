@@ -104,6 +104,15 @@ Tomadas com o usuário depois da auditoria, as três na opção recomendada:
 
 Nos três arquivos acima, com os campos literais do bloco anterior.
 
+⚠️ **CORRIGIDO EM EXECUÇÃO (16/09):** esta task NÃO commita sozinha, e não é
+mais uma task própria. `HANDLERS` (`src/lib/actions/whatsapp-router.ts`) é
+`Record<Exclude<Intent, "ambigua">, Handler>`, **exaustivo por construção**:
+declarar intenção sem handler quebra o `tsc` com TS2739, e nenhum commit pode
+deixar o repositório assim. O implementador da Task 1 achou isso e parou, em vez
+de afrouxar o `Record` para caber no plano. A declaração de cada intenção passa
+a pousar no mesmo commit do handler dela: as duas do financeiro com a Task 3, a
+de mão de obra com a Task 4. É o que o `git log` mostra em toda fase anterior.
+
 - [ ] **Step 2: rodar a suíte e ver FALHAR**
 
 ```
