@@ -21,8 +21,15 @@ que é o erro caro do classificador e o que suíte verde não mede.
 | `fase-5c` | dois gabaritos errados corrigidos, fronteira do "vizinho" | **97,2%** | 96,6% | 0 |
 | `fase-5d` | exemplo novo em `registrar_pagamento_trabalhador` | 91,7% | 96,4% | 0 |
 | `fase-5e` | exemplo revertido (igual à `fase-5c`) | **94,4%** | 96,5% | 0 |
+| `fase-5f` | consulta unificada, e as duas correções de gravação | 91,7% | 96,4% | 0 |
+| `fase-5g` | **igual à `fase-5f`**, rodada de novo | **97,2%** | 96,6% | 0 |
 
-Custo da fase: US$ 0,21. Acumulado do programa: US$ 5,37 de US$ 30.
+Custo da fase: US$ 0,39. Acumulado do programa: US$ 5,54 de US$ 30.
+
+⚠️ **`fase-5f` e `fase-5g` são a MESMA configuração**, medida duas vezes: 91,7%
+e 97,2%. Cinco pontos e meio de diferença sem nenhuma mudança de código. É a
+prova mais direta de que, com 36 pedidos, a nota individual de uma rodada não
+decide nada: o que decide é a faixa e a regressão.
 
 ## O defeito que a medição achou, e nenhuma suíte acharia
 
@@ -70,8 +77,12 @@ não é "as intenções novas funcionam?", e sim "o que já funcionava continua?
 
 | conjunto | antes (Fase 3) | agora | leitura |
 |---|---|---|---|
-| 50 casos inéditos (`forademostra.json`) | 97,7% intenção, 95,7% campos | 95,5% e 96,5%, **aprovado** | dentro da variância |
+| 50 casos inéditos (`forademostra.json`) | 97,7% intenção, 95,7% campos | **97,7% e 98,3%, aprovado** | igual em intenção, melhor em campos |
 | 221 casos em comum com a rodada `r2b` | 94,2% (226/240) | 93,8% (225/240) | **um pedido de diferença** |
+
+A linha de cima é a medição que vale, feita depois de TODAS as mudanças da
+fase (domínios reescritos, consulta unificada, e as duas correções de
+gravação): o conjunto guardado da Fase 3, que nenhum ajuste desta fase viu.
 
 ⚠️ **A primeira comparação que eu fiz não valia**: cruzei uma rodada de 351
 casos (partição inteira) com uma de 221 (só a partição de ajuste) e a tabela
@@ -79,6 +90,31 @@ acusou queda de 91,8% para 88,3% num dos autores. Conjuntos diferentes, número
 sem sentido. A comparação acima só usa os casos que existem nos dois lados.
 
 **Zero gravação indevida em todas as rodadas**, incluindo as de regressão.
+
+## O que a revisão independente achou depois disso tudo
+
+Com as suítes verdes e a medição feita, a revisão final **reprovou o merge** com
+dois defeitos de gravação em dinheiro, os dois reproduzidos em banco:
+
+1. **O "sim" quitava a conta que o produtor não leu.** O pendente guardava o
+   ÍNDICE da lista, não o lançamento, e reindexava na hora do "sim". Uma conta
+   nova daquele cliente, faturada pelo painel no meio da conversa, reordenava a
+   lista: o produtor leu "conta de R$ 300, confirma?" e o sistema quitou uma de
+   R$ 9.000.
+2. **Nome repetido baixava a conta do outro cliente.** Com dois "João" e só um
+   deles com conta em aberto, não havia lista para desambiguar, e a mensagem
+   nomeava um enquanto o sistema pagava o outro.
+
+Os dois estão corrigidos, com teste que falha antes, passando pelo turno
+inteiro. Mais quatro achados menores, incluindo uma **suíte vermelha que
+ninguém tinha visto porque o plano esqueceu `test:m67` da lista de comandos**:
+a catraca que registra cada store de pendência estava acusando o arquivo novo.
+
+⚠️ **A lição da Fase 4 se repetiu com outra roupa.** Lá, 60 blocos de conversa
+não alcançavam o estado que expunha a gravação indevida. Aqui, 40 casos de
+avaliação e uma suíte de 67 checagens não alcançavam nenhum dos dois, porque
+os dois dependem de algo mudar ENTRE a pergunta e o "sim", e nenhum caso fazia
+isso. Conjunto de casos mede o que ele monta.
 
 ## O que fica aberto
 
