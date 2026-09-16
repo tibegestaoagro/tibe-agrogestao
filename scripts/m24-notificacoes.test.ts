@@ -334,6 +334,29 @@ async function main() {
     assert(digestWithDeadPush.email.attempted === false, "digest nunca tenta email");
     assert(digestWithDeadPush.delivered === false, "sem nenhum canal ter entregado de fato, delivered=false");
 
+    // ── 5b. VAPID incompleta: canal que não pode entregar é inexistente, não "tentado e falhou" ──
+    // O defeito armado: A já tem inscrição viva (seção 3) e VAPID some do
+    // ambiente. Antes da correção, nem push nem WhatsApp eram tentados e o
+    // resumo diário sumia sem erro.
+    const savedVapidSubject = process.env.VAPID_SUBJECT;
+    delete process.env.VAPID_SUBJECT;
+    try {
+      assert(getVapidPublicKey() === null, "sem VAPID_SUBJECT a chave pública não é servida (convite não aparece)");
+
+      const digestVapidIncompleta = await notify(
+        { tenant_id: A.tenant.id, user_id: A.owner.id, phone: A.owner.phone, email: A.owner.email },
+        { pushTitle: "Resumo", pushBody: "resumo de teste", whatsappText: "Resumo de teste M24 (VAPID incompleta)" },
+        "digest",
+      );
+      assert(digestVapidIncompleta.push.configurado === false, "push.configurado=false quando VAPID está incompleta");
+      assert(
+        digestVapidIncompleta.whatsapp.attempted === true && digestVapidIncompleta.delivered === true,
+        "inscrição viva + VAPID incompleta cai para WhatsApp em vez de sumir sem entregar",
+      );
+    } finally {
+      process.env.VAPID_SUBJECT = savedVapidSubject;
+    }
+
     // ── 6. sendDailyDigestForTenant / sendAllDailyDigests ──────────────────
     const sentB = await sendDailyDigestForTenant(B.tenant.id);
     assert(sentB === true, "sendDailyDigestForTenant(B) entrega (fallback WhatsApp, sem inscrição de push)");

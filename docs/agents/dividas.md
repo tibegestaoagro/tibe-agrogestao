@@ -278,6 +278,18 @@ Baixada"), então é a extração que não está aparando. Não afeta o que é g
 só o texto que o produtor lê. Custo: aparar preposição inicial ao normalizar o
 contato, com cuidado para não comer nome que comece com "Do" de verdade.
 
+### 5.0e A doc da rota de chave VAPID promete um 503 que nunca existiu
+
+`src/app/(public)/docs/api/endpoints.ts` diz que
+`GET /api/v1/notifications/public-key` responde **503** quando o VAPID não
+está configurado. A rota sempre devolveu **200 com `vapid_public_key: null`**.
+Achado na Fase 6 (16/09), ao mexer nessa função.
+
+`test:docs-api` não pegou porque ela confere se a rota EXISTE, não o corpo da
+resposta. Custo: uma linha, escolhendo qual dos dois lados está certo. O 200
+com `null` é defensável (o cliente trata ausência sem tratar erro), então o
+mais provável é a doc estar errada, não a rota.
+
 ### 5.0 Casar nome sem acento carrega a tabela inteira em memória
 
 Achado pela revisão da Fase 5 (16/09). `ILIKE` do Postgres não dobra acento, e

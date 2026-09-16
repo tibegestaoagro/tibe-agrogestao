@@ -31,9 +31,18 @@ function configureVapid(): boolean {
   return true;
 }
 
-/** Chave pública VAPID, servida ao cliente para `pushManager.subscribe()`. Não é segredo: é a metade "pública" do par. */
+/**
+ * Chave pública VAPID, servida ao cliente para `pushManager.subscribe()`. Não
+ * é segredo: é a metade "pública" do par. Só devolve a chave quando as TRÊS
+ * variáveis existem (mesma condição de `configureVapid`): convidar e enviar
+ * precisam concordar, senão o convite aparece para um canal que não consegue
+ * entregar nada.
+ */
 export function getVapidPublicKey(): string | null {
-  return process.env.VAPID_PUBLIC_KEY || null;
+  if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY || !process.env.VAPID_SUBJECT) {
+    return null;
+  }
+  return process.env.VAPID_PUBLIC_KEY;
 }
 
 /**
@@ -52,10 +61,10 @@ export async function sendPushToTenant(
     const subscriptions = await db.pushSubscription.findMany();
 
     if (!configureVapid()) {
-      return { attempted: false, ok: false, subscriptions: subscriptions.length, sent: 0, failed: 0 };
+      return { attempted: false, ok: false, subscriptions: subscriptions.length, sent: 0, failed: 0, configurado: false };
     }
     if (subscriptions.length === 0) {
-      return { attempted: false, ok: false, subscriptions: 0, sent: 0, failed: 0 };
+      return { attempted: false, ok: false, subscriptions: 0, sent: 0, failed: 0, configurado: true };
     }
 
     const body = JSON.stringify(payload);
@@ -86,10 +95,10 @@ export async function sendPushToTenant(
         .catch(() => {});
     }
 
-    return { attempted: true, ok: sent > 0, subscriptions: subscriptions.length, sent, failed };
+    return { attempted: true, ok: sent > 0, subscriptions: subscriptions.length, sent, failed, configurado: true };
   } catch {
     // Melhor esforço: erro inesperado (ex: banco indisponível) não pode
     // derrubar o job de alerta/resumo por causa do canal de push.
-    return { attempted: false, ok: false, subscriptions: 0, sent: 0, failed: 0 };
+    return { attempted: false, ok: false, subscriptions: 0, sent: 0, failed: 0, configurado: false };
   }
 }

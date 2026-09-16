@@ -63,8 +63,12 @@ export async function notify(
   }
 
   // digest: ver comentário acima sobre existência vs. sucesso de entrega.
+  // Canal que não pode entregar (VAPID incompleto) conta como INEXISTENTE,
+  // nunca como "tentado e falhou": por isso `!push.configurado` cai para
+  // WhatsApp do mesmo jeito que "sem inscrição" cai. Regra válida para
+  // qualquer canal novo que este seam ganhar no futuro.
   const whatsapp =
-    push.subscriptions === 0
+    !push.configurado || push.subscriptions === 0
       ? await sendWhatsappChannel(recipient.phone, content.whatsappText)
       : NOT_ATTEMPTED;
 

@@ -55,6 +55,13 @@ export type NotifyPushResult = NotifyChannelResult & {
   subscriptions: number;
   sent: number;
   failed: number;
+  /**
+   * false quando o par VAPID está incompleto (faltam variáveis de ambiente):
+   * o canal não pode entregar NADA, independente de haver inscrição. Um
+   * canal que não pode entregar conta como INEXISTENTE, nunca como "tentado
+   * e falhou": é essa distinção que decide o fallback em notify().
+   */
+  configurado: boolean;
 };
 
 export type NotifyResult = {
