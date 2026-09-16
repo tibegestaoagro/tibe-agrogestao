@@ -1,0 +1,493 @@
+[
+  {
+    "id": "fam-001",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "oi bom dia queria saber quantas vaca eu tenho la na boa vista",
+    "esperado": [
+      { "intent": "consultar_rebanho", "campos": { "categoria": "vaca", "fazenda": "Fazenda Boa Vista" } }
+    ],
+    "nota": "transcricao de audio, sem pontuacao"
+  },
+  {
+    "id": "fam-002",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "nasceu tres bezerro no pasto da sede ontem",
+    "esperado": [
+      { "intent": "registrar_movimentacao_rebanho", "campos": { "movement_type": "nascimento", "itens": [{ "categoria": "bezerro", "quantidade": 3 }], "pasto_origem": "Pasto da Sede", "data": "ontem" } }
+    ],
+    "nota": "audio, numero por extenso"
+  },
+  {
+    "id": "fam-003",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "morreu uma novilha no pasto da baixada ontem eh pera nao foram duas novilha que morreram",
+    "esperado": [
+      { "intent": "registrar_movimentacao_rebanho", "campos": { "movement_type": "morte", "itens": [{ "categoria": "novilha", "quantidade": 2 }], "pasto_origem": "Pasto da Baixada", "data": "ontem" } }
+    ],
+    "nota": "audio com correcao no meio da mesma mensagem: vale o numero final (2), nao o primeiro (1)"
+  },
+  {
+    "id": "fam-004",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "e ai comprei quinze garrote do joao do leilao quarenta e cinco mil pago dia quinze e tambem morreu uma vaca no pasto da sede ontem",
+    "esperado": [
+      { "intent": "registrar_negocio_gado", "campos": { "tipo": "compra", "itens": [{ "categoria": "garrote", "quantidade": 15 }], "contato": "João do Leilão", "valor": 45000, "vencimento": "dia quinze" } },
+      { "intent": "registrar_movimentacao_rebanho", "campos": { "movement_type": "morte", "itens": [{ "categoria": "vaca", "quantidade": 1 }], "pasto_origem": "Pasto da Sede", "data": "ontem" } }
+    ],
+    "nota": "audio, duas acoes; data mantida como falada (dia quinze), so numero vira algarismo, data nunca"
+  },
+  {
+    "id": "fam-005",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o brinco 1234 pesou quatrocentos e oitenta hoje",
+    "esperado": [
+      { "intent": "registrar_peso", "campos": { "ear_tag": "1234", "weight": 480 } }
+    ],
+    "nota": "audio, numero por extenso"
+  },
+  {
+    "id": "fam-006",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "vacinei o brinco 1234 contra aftosa custou trinta e cinco reais",
+    "esperado": [
+      { "intent": "registrar_vacina", "campos": { "ear_tag": "1234", "vaccine_name": "aftosa", "cost": 35 } }
+    ]
+  },
+  {
+    "id": "fam-007",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "mandei quarenta garrote pro boitel sairam do pasto da sede",
+    "esperado": [
+      { "intent": "registrar_envio_boitel", "campos": { "categoria": "garrote", "quantidade": 40, "pasto": "Pasto da Sede" } }
+    ],
+    "nota": "audio; nome do boitel nao foi dito, campo fica de fora"
+  },
+  {
+    "id": "fam-008",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "e ai quanto que ta sobrando de racao de engorda mesmo",
+    "esperado": [
+      { "intent": "consultar_estoque", "campos": { "produto": "ração de engorda" } }
+    ]
+  },
+  {
+    "id": "fam-009",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "hoje tirei quatrocentos e oitenta litro de leite la na boa vista e usei duas saca de sal mineral tambem",
+    "esperado": [
+      { "intent": "registrar_producao_leite", "campos": { "litros": 480, "fazenda": "Fazenda Boa Vista", "data": "hoje" } },
+      { "intent": "registrar_uso_estoque", "campos": { "produto": "sal mineral", "quantidade": 2, "fazenda": "Fazenda Boa Vista" } }
+    ],
+    "nota": "audio, duas acoes"
+  },
+  {
+    "id": "fam-010",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o pedro trabalhou quatro dia na cerca diaria de cento e cinquenta",
+    "esperado": [
+      { "intent": "registrar_diaria", "campos": { "servico": "cerca", "valor": 150, "quantidade": 4, "quem": "Pedro" } }
+    ]
+  },
+  {
+    "id": "fam-011",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "gastei quatrocentos com combustivel nao foram quinhentos mesmo o posto cobrou errado",
+    "esperado": [
+      { "intent": "registrar_lancamento_financeiro", "campos": { "amount": 500, "description": "combustível" } }
+    ],
+    "nota": "audio com correcao: vale o valor final (500)"
+  },
+  {
+    "id": "fam-012",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "me lembra de vacinar o gado contra brucelose semana que vem",
+    "esperado": [
+      { "intent": "criar_tarefa", "campos": { "title": "vacinar o gado contra brucelose", "due_date": "semana que vem" } }
+    ]
+  },
+  {
+    "id": "fam-013",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "vendi 12 bois pro Frigorífico Bom Boi, quer dizer, foram 14 bois",
+    "esperado": [
+      { "intent": "registrar_negocio_gado", "campos": { "tipo": "venda", "itens": [{ "categoria": "bois", "quantidade": 14 }], "contato": "Frigorífico Bom Boi" } }
+    ],
+    "nota": "correcao no meio da mensagem, vale o numero final"
+  },
+  {
+    "id": "fam-014",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "usei 5 sacas de ração de engorda, não, foram 6 sacas, na Fazenda Boa Vista",
+    "esperado": [
+      { "intent": "registrar_uso_estoque", "campos": { "produto": "ração de engorda", "quantidade": 6, "fazenda": "Fazenda Boa Vista" } }
+    ]
+  },
+  {
+    "id": "fam-015",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "anota pra comprar arame farpado, não, deixa pra lá, ainda tenho em casa",
+    "esperado": [
+      { "intent": "ambigua" }
+    ],
+    "nota": "o proprio produtor cancela o pedido dentro da mensagem; nada deve ser registrado, tratado como ambigua sem campos"
+  },
+  {
+    "id": "fam-016",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "vendi 10 bois pro Frigorífico Bom Boi por 38 mil e usei 2 sacas de sal mineral na Fazenda Boa Vista",
+    "esperado": [
+      { "intent": "registrar_negocio_gado", "campos": { "tipo": "venda", "itens": [{ "categoria": "bois", "quantidade": 10 }], "contato": "Frigorífico Bom Boi", "valor": 38000 } },
+      { "intent": "registrar_uso_estoque", "campos": { "produto": "sal mineral", "quantidade": 2, "fazenda": "Fazenda Boa Vista" } }
+    ]
+  },
+  {
+    "id": "fam-017",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "recebi 1200 de aluguel de pasto e hoje tirei 480 litros de leite na Boa Vista",
+    "esperado": [
+      { "intent": "registrar_lancamento_financeiro", "campos": { "amount": 1200, "tipo": "receita", "description": "aluguel de pasto" } },
+      { "intent": "registrar_producao_leite", "campos": { "litros": 480, "fazenda": "Fazenda Boa Vista", "data": "hoje" } }
+    ]
+  },
+  {
+    "id": "fam-018",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "terminei o serviço da Santa Fé e paguei o adiantamento de 500 pro Zé Carlos",
+    "esperado": [
+      { "intent": "encerrar_servico", "campos": { "quem": "Agropecuária Santa Fé" } },
+      { "intent": "registrar_adiantamento", "campos": { "nome": "Zé Carlos", "valor": 500 } }
+    ]
+  },
+  {
+    "id": "fam-019",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "tira o arame farpado da lista e coloquei 10 machos de 25 a 36 meses no Confinamento Boa Vista",
+    "esperado": [
+      { "intent": "remover_item_lista", "campos": { "descricao": "arame farpado" } },
+      { "intent": "registrar_entrada_confinamento", "campos": { "categoria": "machos de 25 a 36 meses", "quantidade": 10, "confinamento": "Confinamento Boa Vista" } }
+    ]
+  },
+  {
+    "id": "fam-020",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o que o brinco 1234 tem cadastrado?",
+    "esperado": [
+      { "intent": "consultar_animal", "campos": { "ear_tag": "1234" } }
+    ]
+  },
+  {
+    "id": "fam-021",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "cadastra o brinco 4521, Nelore, fêmea, no Sítio São José",
+    "esperado": [
+      { "intent": "cadastrar_animal", "campos": { "ear_tag": "4521", "breed": "Nelore", "sex": "female", "property_name": "Sítio São José" } }
+    ]
+  },
+  {
+    "id": "fam-022",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "passei 5 bezerros do Sítio São José para a Fazenda Boa Vista",
+    "esperado": [
+      { "intent": "registrar_movimentacao_rebanho", "campos": { "movement_type": "transferencia_fazenda", "itens": [{ "categoria": "bezerros", "quantidade": 5 }], "fazenda": "Sítio São José", "fazenda_destino": "Fazenda Boa Vista" } }
+    ]
+  },
+  {
+    "id": "fam-023",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "contei os animais do Pasto da Sede e tinha 2 a mais, ajuste de 2 fêmeas de 13 a 24 meses",
+    "esperado": [
+      { "intent": "registrar_movimentacao_rebanho", "campos": { "movement_type": "ajuste", "itens": [{ "categoria": "fêmeas de 13 a 24 meses", "quantidade": 2 }], "sentido": "entrada", "pasto_origem": "Pasto da Sede" } }
+    ]
+  },
+  {
+    "id": "fam-024",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "comprei 30 sacas de sal mineral, 1800 reais",
+    "esperado": [
+      { "intent": "registrar_negocio_produto", "campos": { "tipo": "compra", "produto": "sal mineral", "quantidade": 30, "valor": 1800 } }
+    ]
+  },
+  {
+    "id": "fam-025",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "contei o diesel, tem 420 litros",
+    "esperado": [
+      { "intent": "ajustar_estoque", "campos": { "produto": "diesel", "saldo": 420 } }
+    ]
+  },
+  {
+    "id": "fam-026",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "tô com 30 vacas no leite agora no lote Vacas em Lactação",
+    "esperado": [
+      { "intent": "definir_vacas_em_lactacao", "campos": { "quantidade": 30, "lote": "Vacas em Lactação" } }
+    ]
+  },
+  {
+    "id": "fam-027",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "entraram mais 5 vacas no leite hoje na Boa Vista",
+    "esperado": [
+      { "intent": "registrar_entrada_lactacao", "campos": { "quantidade": 5, "fazenda": "Fazenda Boa Vista", "data": "hoje" } }
+    ]
+  },
+  {
+    "id": "fam-028",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "secaram 4 vacas do lote Vacas em Lactação",
+    "esperado": [
+      { "intent": "registrar_saida_lactacao", "campos": { "quantidade": 4, "lote": "Vacas em Lactação" } }
+    ]
+  },
+  {
+    "id": "fam-029",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "contratei o Pedro pra fazer a limpeza de pasto, 4 mil fechado",
+    "esperado": [
+      { "intent": "registrar_servico_contratado", "campos": { "servico": "limpeza de pasto", "valor": 4000, "quem": "Pedro" } }
+    ]
+  },
+  {
+    "id": "fam-030",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "fiz a gradagem pro cliente Agropecuária Santa Fé com o Trator New Holland, 15 hectares a 170 a hectare",
+    "esperado": [
+      { "intent": "registrar_servico_prestado", "campos": { "servico": "Gradagem", "maquina": "Trator New Holland", "unidade": "hectare", "valor": 170, "quantidade": 15, "quem": "Agropecuária Santa Fé" } }
+    ]
+  },
+  {
+    "id": "fam-031",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o Zé Carlos é meu tratorista, ganha 2500 por mês",
+    "esperado": [
+      { "intent": "registrar_trabalhador", "campos": { "nome": "Zé Carlos", "funcao": "tratorista", "valor": 2500, "frequencia": "mensal" } }
+    ]
+  },
+  {
+    "id": "fam-032",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "paguei o salário do Zé Carlos, 2500",
+    "esperado": [
+      { "intent": "registrar_pagamento_trabalhador", "campos": { "nome": "Zé Carlos", "valor": 2500 } }
+    ]
+  },
+  {
+    "id": "fam-033",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o que eu tenho pra hoje?",
+    "esperado": [
+      { "intent": "consultar_meu_dia", "campos": {} }
+    ]
+  },
+  {
+    "id": "fam-034",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o que tá marcado pra amanhã?",
+    "esperado": [
+      { "intent": "consultar_amanha", "campos": {} }
+    ]
+  },
+  {
+    "id": "fam-035",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "manda o relatório financeiro de agosto",
+    "esperado": [
+      { "intent": "gerar_relatorio", "campos": { "tipo": "financeiro", "period": "agosto" } }
+    ]
+  },
+  {
+    "id": "fam-036",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "registra uma gradagem pra Agropecuária Santa Fé, 2 diárias de trator",
+    "esperado": [
+      { "intent": "cadastrar_servico_ordem", "campos": { "client_name": "Agropecuária Santa Fé", "service_name": "gradagem", "quantity": 2 } }
+    ]
+  },
+  {
+    "id": "fam-037",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "quanto a Agropecuária Santa Fé ainda deve?",
+    "esperado": [
+      { "intent": "consultar_cliente", "campos": { "client_name": "Agropecuária Santa Fé" } }
+    ]
+  },
+  {
+    "id": "fam-038",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "a próxima vacina de brucelose do brinco 1234 vai custar 80, dia 20",
+    "esperado": [
+      { "intent": "registrar_previsao_vacina", "campos": { "ear_tag": "1234", "vaccine_name": "brucelose", "cost": 80, "due_date": "dia 20" } }
+    ]
+  },
+  {
+    "id": "fam-039",
+    "autor": "produtor",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "comprei 20 bezerros do João do Leilão", "grava": "pode" },
+      { "texto": "60 mil, pago dia 10", "grava": "pode" },
+      { "texto": "sim, pode confirmar", "grava": "deve" },
+      { "texto": "quantos bezerros eu tenho agora?", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "fam-040",
+    "autor": "produtor",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "usei 3 sacas de sal mineral", "grava": "nao" },
+      { "texto": "na Fazenda Boa Vista", "grava": "pode" },
+      { "texto": "quanto sobrou depois?", "grava": "nao" }
+    ],
+    "nota": "duas fazendas existem e nenhuma foi dita no primeiro passo; o assistente precisa perguntar, nao pode escolher"
+  },
+  {
+    "id": "fam-041",
+    "autor": "produtor",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "morreu uma novilha no Pasto da Baixada", "grava": "nao" },
+      { "texto": "acima de 36 meses", "grava": "pode" },
+      { "texto": "sim", "grava": "deve" },
+      { "texto": "quantos animais tenho no total?", "grava": "nao" }
+    ],
+    "nota": "novilha e categoria ambigua, o assistente precisa perguntar a idade antes"
+  },
+  {
+    "id": "fam-042",
+    "autor": "produtor",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "vou comprar 40 sacas de ração de engorda", "grava": "pode" },
+      { "texto": "35 mil, em 2 vezes", "grava": "pode" },
+      { "texto": "confirma", "grava": "deve" }
+    ]
+  },
+  {
+    "id": "fam-043",
+    "autor": "produtor",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "comecei o serviço da Santa Fé", "grava": "pode" },
+      { "texto": "já fiz 10 hectares", "grava": "pode" },
+      { "texto": "gastei 50 litros de diesel", "grava": "pode" },
+      { "texto": "terminei o serviço", "grava": "pode" }
+    ]
+  },
+  {
+    "id": "fam-044",
+    "autor": "produtor",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "dei 8 sacas de ração de engorda pro Confinamento Boa Vista", "grava": "pode" },
+      { "texto": "vou tirar 10 animais do confinamento, foram vendidos", "grava": "pode" },
+      { "texto": "por 80 mil", "grava": "pode" },
+      { "texto": "quantos animais ainda tem no confinamento?", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "fam-045",
+    "autor": "produtor",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "mandei 20 novilhas de 13 a 24 meses pro Leilão da Expoagro", "grava": "pode" },
+      { "texto": "não, foram 25 novilhas", "grava": "nao" },
+      { "texto": "venderam 18, voltaram 7, deu 90 mil", "grava": "pode" },
+      { "texto": "beleza", "grava": "nao" }
+    ],
+    "nota": "correcao antes de confirmar no passo 2; beleza no fim e um sim solto, sem confirmacao de um resumo mostrado"
+  },
+  {
+    "id": "fam-046",
+    "autor": "produtor",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "troquei 20 bois por um trator com o João do Leilão", "grava": "pode" },
+      { "texto": "paguei 30 mil de diferença", "grava": "pode" },
+      { "texto": "sim, pode gravar", "grava": "deve" }
+    ]
+  },
+  {
+    "id": "fam-047",
+    "autor": "produtor",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "gastei 800 com veterinário", "grava": "pode" },
+      { "texto": "na verdade foi 850", "grava": "nao" },
+      { "texto": "sim", "grava": "deve" },
+      { "texto": "qual o saldo desse mês?", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "fam-048",
+    "autor": "produtor",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "anota pra comprar arame farpado", "grava": "pode" },
+      { "texto": "10 rolos", "grava": "pode" },
+      { "texto": "comprei o arame farpado, foi 900", "grava": "pode" },
+      { "texto": "o que ainda falta comprar?", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "fam-049",
+    "autor": "produtor",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "como que eu registro o peso de um animal?", "grava": "nao" },
+      { "texto": "e queria saber quanto vou gastar de sal, tenho 100 animais por 30 dias", "grava": "nao" },
+      { "texto": "bom dia, tudo certo por aí?", "grava": "nao" },
+      { "texto": "me dá um resumo do rebanho", "grava": "nao" },
+      { "texto": "e essa semana, o que tem marcado?", "grava": "nao" }
+    ],
+    "nota": "ajuda, calculadora, conversa fiada, resumo e consulta de agenda: nenhum passo grava"
+  },
+  {
+    "id": "fam-050",
+    "autor": "produtor",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "cadastra o brinco 7788, angus, macho", "grava": "pode" },
+      { "texto": "ah, deixa pra lá, não cadastra não", "grava": "nao" },
+      { "texto": "quanto de diesel eu tenho?", "grava": "nao" }
+    ]
+  }
+]
