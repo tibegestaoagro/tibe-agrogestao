@@ -24,7 +24,7 @@ import {
 } from "@/lib/actions/stock-pending";
 import { loadPendingNegotiation } from "@/lib/actions/negotiation-pending";
 import { resolverFazenda } from "./herd";
-import { ask, failReply, str, type Handler, type RouterResult } from "./shared";
+import { ask, failReply, str, INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR, type Handler, type RouterResult } from "./shared";
 import { reaisBr as reais } from "@/lib/numero-br";
 import {
   custosDosParametros,
@@ -362,7 +362,7 @@ async function comMemoria(
    * mais uma regra copiada do handler de gado, onde ela é coerente porque lá
    * TODO registro confirma.
    */
-  const gestoConfirma = intent !== "registrar_uso_estoque";
+  const gestoConfirma = !INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR.includes(intent);
 
   if (ctx.confirmed && gestoConfirma) {
     if (!ctx.user_id) {

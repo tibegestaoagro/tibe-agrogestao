@@ -278,6 +278,21 @@ Baixada"), então é a extração que não está aparando. Não afeta o que é g
 só o texto que o produtor lê. Custo: aparar preposição inicial ao normalizar o
 contato, com cuidado para não comer nome que comece com "Do" de verdade.
 
+### 5.0b Duas perdas silenciosas no negócio de gado
+
+As duas achadas pela revisão final da Fase 4, as duas de gravidade baixa porque
+aparecem no resumo que o produtor confirma antes de qualquer escrita:
+
+- **`negociacao.ts`, `primeiroItemBruto` lê só `itens[0]`.** "vendi uns bezerro
+  e umas novilha" (duas categorias, nenhuma quantidade) descarta a novilha em
+  silêncio. Antes da Fase 4 a conversa travava na pergunta composta até
+  desistir, então não é regressão, mas é perda silenciosa num arquivo cujo
+  cabeçalho diz combater exatamente isso.
+- **`_categoria_candidatos` nunca é limpo do pendente.** Se uma SEGUNDA
+  ambiguidade de categoria surgir na mesma negociação, a interseção usa a lista
+  velha e pode fechar sozinha numa categoria que o produtor não escolheu.
+  Caminho estreito, e o rótulo escolhido aparece na confirmação.
+
 ### 5.1 Categoria ambígua sem memória de candidata, em dois outros pontos
 
 Achado em 2026-09-16, na Fase 4 do agente, enquanto a memória de candidata era

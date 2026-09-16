@@ -7,6 +7,7 @@ import { detectConfirmation } from "@/lib/actions/confirmation";
 import { logInbound, logOutbound } from "@/lib/actions/conversation-log";
 import { executarIntencao } from "@/lib/actions/executar-intencao";
 import { identificarContato, type ContatoIdentificado } from "@/lib/actions/whatsapp-contato";
+import { INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR } from "@/lib/actions/whatsapp-handlers/shared";
 import { carregarCursor } from "@/lib/agente/cursor";
 import { classificarMensagem, classificarResposta, normalizarParaComparar, trechoOuMensagemInteira } from "@/lib/agente/classificar";
 import { FalhaDoModelo } from "@/lib/agente/modelo";
@@ -105,13 +106,30 @@ async function entenderPedidos(e: EntradaDoTurno, contato: Identificado, agora: 
    * caía aqui porque também trazia a categoria e o valor, além da
    * quantidade.
    *
-   * Mesmas duas guardas do "responde" acima, reaproveitadas: nunca numa
-   * pergunta ("?", `comecaComPergunta`), e "sim"/"não" já saíram por
-   * `detectConfirmation` antes daqui, então não chegam a este ponto.
+   * ⚠️ **Esta porta é MAIS FRACA que a de cima, e por isso ela não pode
+   * alcançar quem grava sem confirmar.** O caminho de `respostaLiteral` exige
+   * quatro coisas; aqui só duas sobrevivem (nunca numa pergunta, e "sim"/"não"
+   * já saíram por `detectConfirmation` na linha 68). As duas que faltam são
+   * justamente as de segurança de escrita: o modelo ter dito "isto é
+   * resposta", e o valor ser recorte da mensagem. Sem elas, a mensagem INTEIRA
+   * entra no campo.
+   *
+   * A revisão da Fase 4 reproduziu o estrago em banco: com "usei 2 sacas" /
+   * "Qual produto?" pendente, a frase "nem precisei do sal afinal" casava
+   * "Sal" por substring em `resolverProduto` e GRAVAVA o uso, que é a única
+   * intenção que não pede "sim" (§10.3). O produtor dizia que não usou, e o
+   * uso era registrado.
+   *
+   * Por isso a lista `INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR` fica fora daqui, e
+   * o cadastro assistido (`prefixo: "flow"`) também: lá a mensagem viraria
+   * valor de campo de formulário ("kkkk" como brinco), sujando o resumo que o
+   * produtor vai confirmar.
    */
   if (
     cursor &&
     !cursor.aguardando.startsWith("confirmacao") &&
+    !INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR.includes(cursor.intent) &&
+    cursor.prefixo !== "flow" &&
     pedidos.length === 1 &&
     pedidos[0].intent === "ambigua" &&
     !e.texto.includes("?") &&

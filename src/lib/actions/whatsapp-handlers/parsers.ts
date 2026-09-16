@@ -34,6 +34,14 @@ export { lerNumeroBr };
  * completava, prendendo a conversa na mesma pergunta até desistir. Só
  * resolve quando o texto tem UM número só: mais de um é ambíguo e quem
  * pergunta decide o que fazer com null.
+ *
+ * ⚠️ **Herda o limite conhecido de "um"/"uma"**, documentado em
+ * `trecho-literal.ts`: as duas palavras também são artigo, então "morreu uma
+ * parte do lote", respondendo "Quantos animais?", lê 1 em vez de reperguntar.
+ * Os dois chamadores de hoje (`registrar_movimentacao_rebanho` e
+ * `registrar_negocio_gado`) confirmam antes de gravar, então isso vira número
+ * errado na tela de confirmação, que o produtor recusa, e não escrita
+ * silenciosa. Chamador novo que grave sem confirmar precisa reavaliar isto.
  */
 export function lerNumeroFalado(bruto: unknown): number | null {
   const direto = lerNumeroBr(bruto);

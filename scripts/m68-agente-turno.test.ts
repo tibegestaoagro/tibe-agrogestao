@@ -899,6 +899,42 @@ async function main() {
           check("valor que não é recorte da mensagem não grava o uso", (await db.stockMovement.count()) === movimentosDeEstoque);
           check("e segue para a classificação", chamadas.join() === "resposta,dominio", chamadas.join());
 
+          /**
+           * A porta de "ambigua com cursor vivo" (`turno.ts`) NÃO pode alcançar
+           * quem grava sem confirmar. Achado pela revisão final da Fase 4, que
+           * reproduziu a escrita em banco: com "usei 2 sacas" / "Qual produto?"
+           * aberto, a frase "nem precisei do sal afinal" casava "Sal" por
+           * substring em `resolverProduto` e gravava o uso. O produtor dizia
+           * que NÃO usou, e o uso era registrado.
+           *
+           * O uso de estoque é a única intenção que não pede "sim" (§10.3), e
+           * é por isso que ele é o caso que discrimina: em qualquer outra a
+           * mensagem duvidosa pararia na confirmação.
+           */
+          prepara(usoSemProduto);
+          await turno("usei 2 sacas", "T7u4a");
+          const cursorAntesDaAmbigua = await carregarCursor(tenant.id, owner.id);
+          check(
+            "fixture: o cursor do uso de estoque está aberto de novo",
+            cursorAntesDaAmbigua?.aguardando === "produto" && cursorAntesDaAmbigua?.intent === "registrar_uso_estoque",
+            JSON.stringify(cursorAntesDaAmbigua),
+          );
+          const antesDaAmbigua = await db.stockMovement.count();
+          prepara({
+            resposta: { tipo: "outro_assunto", valor: null },
+            dominio: { pedidos: [{ dominio: "nenhum", trecho: "nem precisei do sal afinal" }] },
+          });
+          const recusaAmbigua = await turno("nem precisei do sal afinal", "T7u4b");
+          check(
+            "mensagem ambígua com cursor de USO DE ESTOQUE aberto não grava o uso",
+            (await db.stockMovement.count()) === antesDaAmbigua,
+            JSON.stringify(recusaAmbigua),
+          );
+          // O caso seguinte precisa do mesmo pendente de volta: a ambígua acima
+          // deixou o cursor onde estava, mas consumiu o pedido guardado.
+          prepara(usoSemProduto);
+          await turno("usei 2 sacas", "T7u4c");
+
           prepara({ resposta: { tipo: "responde", valor: "sal" } });
           const respostaDeVerdade = await turno("é o Sal", "T7u4");
           check(
