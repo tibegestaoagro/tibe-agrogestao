@@ -27,61 +27,55 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-09-16.
 
-### Agente do WhatsApp: Fase 1 (fundação) EM PRODUÇÃO
+### Agente do WhatsApp: Fases 1 a 4 EM PRODUÇÃO
 
-Programa novo, decidido com o usuário em 14/09 (todas as opções recomendadas):
-spec [../superpowers/specs/2026-09-14-agente-whatsapp-55-intencoes-design.md](../superpowers/specs/2026-09-14-agente-whatsapp-55-intencoes-design.md),
-plano da Fase 1 [../superpowers/plans/2026-09-14-agente-whatsapp-fase-1-fundacao.md](../superpowers/plans/2026-09-14-agente-whatsapp-fase-1-fundacao.md),
-pesquisa, catálogos por intenção e auditoria do n8n em
+Programa decidido com o usuário em 14/09. Spec
+[../superpowers/specs/2026-09-14-agente-whatsapp-55-intencoes-design.md](../superpowers/specs/2026-09-14-agente-whatsapp-55-intencoes-design.md),
+planos por fase em `docs/superpowers/plans/`, material de apoio em
 [agente-whatsapp/](agente-whatsapp/). O Tibé aceita 55 intenções e o
-classificador descrevia 23; a arquitetura muda para estado no Tibé e
+classificador do n8n descrevia 23; a arquitetura mudou para estado no Tibé e
 classificação em duas etapas dentro do Tibé, com o n8n só transportando.
 
-**Em produção (15/09, com aprovação):** nó `Guarda da Entrada` no workflow
-`UAAA96aJFiiFsQCL`, que descarta corpo sem a instância e a chave da Evolution e
-todo grupo ou `status@broadcast`. Provado: chamada sem chave parou na guarda
-(execução 4923); `npm run wa` respondeu (4924). O `npm run wa` lê instância e
-chave na hora, do próprio nó, pela `N8N_API_KEY`. A cópia de homologação
-`ctGOlY9OXZWfjeby` foi DESATIVADA. Backup do workflow anterior no scratchpad da
-sessão (fora do repositório).
+Fase 1 (fundação, `df74e40`), Fase 2 (turno, `f3da082`), Fase 3 (avaliação,
+`23b8f57`) e Fase 4 (homologação, `d785e6b`), todas com deploy confirmado. O
+detalhe de cada uma foi para [historico/2026-09.md](historico/2026-09.md) e
+para os relatórios em [agente-whatsapp/](agente-whatsapp/).
 
-⚠️ **Nenhuma mensagem real tinha passado pela guarda até o fim da sessão.** A
-evidência de que o tráfego real passa é que as 15 execuções reais de 14/09
-traziam a mesma instância e chave. Conferir as primeiras execuções reais de 15/09
-pela API do n8n; se pararem na guarda, restaurar o workflow do backup.
+⚠️ **O fluxo de PRODUÇÃO ainda é o `execute-action`.** A rota de turno está
+pronta e provada de ponta a ponta, mas só entra em produção na Fase 7. Por
+isso as intenções novas ficam INERTES: hoje são nove nesse estado.
 
-**Fase 1 (fundação) e Fase 2 (turno no Tibé) EM PRODUÇÃO desde 15/09**
-(`df74e40` e `f3da082`, com a migração `20260915120000_log_versao_do_prompt`
-aplicada no Neon). Confirmação estrita, idempotência por `wamid#intenção`,
-handler que nunca grava sem pendente guardado, cursor da conversa, rota
-`POST /api/internal/whatsapp/turno` (ainda sem chamador: o n8n passa a usá-la
-na Fase 4) e o núcleo `executarIntencao` compartilhado com o `execute-action`.
-Suítes `m67` e `m68`. O detalhe das duas fases foi para
-[historico/2026-09.md](historico/2026-09.md), e os planos seguem em
-`docs/superpowers/plans/`.
+⚠️ **Nenhuma mensagem real tinha passado pela guarda da entrada até o fim da
+sessão de 15/09.** Conferir as primeiras execuções reais pela API do n8n; se
+pararem na guarda, restaurar o workflow do backup.
+
+**Modelo em uso: `gpt-5.6-luna`, esforço `low`**, escolhido pela medição fora
+da amostra da Fase 3 (97,7% de intenção, zero gravação indevida, US$ 0,29 por
+mil mensagens). O aparato de avaliação vive em `scripts/avaliacao/` e é
+reutilizado a cada fase. Gasto do programa: US$ 5,37 de US$ 30.
 
 ⚠️ **Achado da Fase 1 ainda aberto:** "gastei 500 de diesel no trator" vira uso
-de estoque no classificador do n8n. O registro de intenções novo desempata, e a
-Fase 4 mede isso em conversa real.
+de estoque no classificador do n8n. O registro de intenções novo desempata, e
+isso só se mede em conversa real, na Fase 7.
 
-### Agente do WhatsApp: Fase 3 (avaliação) EM PRODUÇÃO desde 16/09
+### Agente do WhatsApp: Fase 5 (intenções novas) NA BRANCH, sem merge
 
-Merge `23b8f57`, sem migração, deploy confirmado. Aparato de avaliação em
-`scripts/avaliacao/` (medidor com teto, espera no 429, fazenda no Postgres
-local, partição 70/30, relatório), suíte `m69`, e 337 casos de cinco autores
-sem contexto do código.
+Branch `fase-5-intencoes-novas`, plano
+[../superpowers/plans/2026-09-16-agente-whatsapp-fase-5-intencoes-novas.md](../superpowers/plans/2026-09-16-agente-whatsapp-fase-5-intencoes-novas.md).
+Três intenções novas: dar baixa no que o cliente pagou (inclusive parcial),
+consultar quem ainda deve, e agendar pagamento futuro da equipe. Suíte `m70`.
 
-**Modelo escolhido: `gpt-5.6-luna`, esforço `low`**, pela medição fora da
-amostra: 97,7% de intenção, 95,7% de campos, zero gravação indevida, p95 de
-5,0 s, US$ 0,29 por mil mensagens. O `gpt-5.6-terra` também passou e custa dez
-vezes mais.
+**A auditoria encolheu a fase pela metade:** "recebi 1.500 de aluguel" já
+funcionava, e o pagamento futuro já tinha 80% pronto no Módulo 33. O que
+faltava de verdade eram a baixa e a consulta.
 
-⚠️ **A primeira nota não valia, e o erro foi de condução:** a rodada 1 rodou
-sem separar a partição guardada, e os três ajustes de prompt foram escritos com
-esses casos à vista. Corrigido com 50 casos inéditos, e o relatório agora
-carimba resultado que contenha a partição guardada. O relato inteiro está na
-spec e em [agente-whatsapp/avaliacao-fase-3-final.md](agente-whatsapp/avaliacao-fase-3-final.md);
-as lições técnicas estão no cofre (`docs/conhecimento/`, tag `avaliacao`).
+⚠️ **As três nasceram com 44,4% de acerto de intenção**, porque as descrições de
+DOMÍNIO diziam outra coisa (`prestador` reivindicava "quanto um cliente deve ou
+já pagou"; `financeiro` dizia receita "avulsa"). Corrigidas as quatro
+descrições: 44,4% para 94-97%, zero gravação indevida, e sem regressão nos casos
+antigos (um pedido de diferença em 221). É a MESMA classe de defeito da Fase 3,
+que já tinha nota no cofre. Relatório em
+[agente-whatsapp/avaliacao-fase-5.md](agente-whatsapp/avaliacao-fase-5.md).
 
 ### Ambiente
 
@@ -210,12 +204,14 @@ antes do "sim". Ainda vale conferir as primeiras execuções reais do workflow d
 produção depois da guarda (execução de 2 nós sem "Normalizar e Filtrar" é
 mensagem barrada).
 
-**3. Fase 5 ou Fase 7, quando o usuário decidir.** A Fase 5 (intenções novas:
-receita, recebimento de serviço, pagamento futuro de mão de obra) depende só da
-Fase 2 e pode começar já. A Fase 7 (trocar o fluxo de produção para a rota de
-turno) depende da 4 e da 5, e o que falta dela hoje é a rodada no aparelho:
-segundo chip conectado, com o roteiro já escrito em
-[agente-whatsapp/roteiro-do-chip.md](agente-whatsapp/roteiro-do-chip.md).
+**3. Fase 5: falta só o merge.** A branch `fase-5-intencoes-novas` está pronta,
+com suíte `m70`, medição e regressão feitas; espera autorização.
+
+**4. Depois dela, a Fase 6 ou a Fase 7.** A Fase 6 (alertas: push primeiro nos
+críticos) não depende de nada e pode começar quando o usuário quiser. A Fase 7
+(trocar o fluxo de produção para a rota de turno) depende da 4 e da 5, e o que
+falta dela é a rodada no aparelho: segundo chip conectado, com o roteiro já
+escrito em [agente-whatsapp/roteiro-do-chip.md](agente-whatsapp/roteiro-do-chip.md).
 
 **Do usuário, quando quiser:** `AGENTE_MODELO=gpt-5.6-luna` e
 `AGENTE_ESFORCO=low` na Vercel **já foram feitos em 16/09**. Fica só o chip.
