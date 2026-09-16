@@ -268,6 +268,28 @@ em todo domínio não coberto.
   a distância vira 3 dias e a promessa de lembrete aparece. É o teste, não o
   código. Custo: montar a data pelo dia de São Paulo (`inicioDoDiaEmSaoPaulo`).
 
+### 5.1 Categoria ambígua sem memória de candidata, em dois outros pontos
+
+Achado em 2026-09-16, na Fase 4 do agente, enquanto a memória de candidata era
+ligada no negócio de gado (commit `b6bbfe7`). A correção de lá cruza a resposta
+do produtor com as opções que o agente acabou de mostrar, para "novilha" mais
+"13 a 24" fechar em fêmea de 13 a 24 meses. **Dois caminhos irmãos continuam
+sem essa memória**, e nenhum roteiro os exercitou ainda:
+
+1. `whatsapp-handlers/negociacao.ts` (~295), a segunda resolução, que roda
+   quando os itens já vêm completos numa mensagem só ("comprei 20 novilhas do
+   João"). Ali existe um problema DIFERENTE e pior: se a rodada seguinte trouxer
+   só a categoria (`{categoria: "13 a 24"}`), ela é descartada em silêncio,
+   porque `itensDosParametros` dá preferência ao array `itens` com o termo
+   antigo.
+2. `whatsapp-handlers/herd.ts` (~555), `registrarMovimentacaoRebanho`, o fluxo
+   de rebanho puro, com a mesma pergunta de faixa e o mesmo esquecimento.
+
+Custo: passar `candidatosAnteriores` nos dois, como já se faz no negócio, e
+decidir o que fazer quando o array `itens` e o campo achatado discordam. Não
+grava nada errado: trava a conversa numa pergunta repetida, que é o modo caro
+mas seguro de falhar.
+
 ---
 
 ## O que NÃO é dívida, e por quê
