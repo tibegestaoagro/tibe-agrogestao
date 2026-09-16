@@ -352,6 +352,17 @@ decidir o que fazer quando o array `itens` e o campo achatado discordam. Não
 grava nada errado: trava a conversa numa pergunta repetida, que é o modo caro
 mas seguro de falhar.
 
+### 5.2 `contas-do-contato.ts` não usa `FinancialEntry.contact_id`
+
+Achado na correção de G1/G2/G5/G6 (rodada do juiz, 2026-09-16). O cabeçalho de
+`contas-do-contato.ts` afirmava que `FinancialEntry` não tem FK de cliente, e
+isso é falso para `Contact`: `FinancialEntry.contact_id` existe desde o
+Módulo 35. A busca continua pelo vínculo indireto (`negotiation_id` da
+`Negotiation`, casada por `Contact`), porque trocar o caminho é decisão de
+produto sobre qual vínculo é a fonte de verdade quando os dois existirem ao
+mesmo tempo, não algo para decidir em silêncio numa correção de bug. O
+comentário só foi corrigido para não mentir; a busca não mudou.
+
 ---
 
 ## O que NÃO é dívida, e por quê

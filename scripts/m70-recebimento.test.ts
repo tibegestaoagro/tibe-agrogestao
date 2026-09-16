@@ -42,22 +42,26 @@ async function main() {
 
     // ── 1. Contato inexistente devolve null ──────────────────────────────
 
-    console.log("1. Contato inexistente devolve null");
+    console.log("1. Contato inexistente devolve nao_encontrado");
     check(
       "ninguém com esse nome",
-      (await contasEmAbertoDoContato(db, "Fulano Que Não Existe")) === null,
+      (await contasEmAbertoDoContato(db, "Fulano Que Não Existe")).estado === "nao_encontrado",
     );
 
     // ── 2. Cliente de serviço sem conta pendente devolve lista vazia ──────
 
-    console.log("\n2. Cliente de serviço sem conta pendente devolve lista vazia, não null");
+    console.log("\n2. Cliente de serviço sem conta pendente devolve lista vazia, não nao_encontrado");
     const clienteZero = await db.serviceClient.create({
       data: scoped({ name: "Cliente Sem Pendencia" }),
     });
     const r2 = await contasEmAbertoDoContato(db, "Cliente Sem Pendencia");
-    check("não é null", r2 !== null);
-    check("lista vazia", r2?.contas.length === 0, String(r2?.contas.length));
-    check("nome do contato preservado", r2?.contato === clienteZero.name, r2?.contato);
+    check("estado ok", r2.estado === "ok", r2.estado);
+    check("lista vazia", r2.estado === "ok" && r2.contas.length === 0, r2.estado === "ok" ? String(r2.contas.length) : "");
+    check(
+      "nome do contato preservado",
+      r2.estado === "ok" && r2.contato === clienteZero.name,
+      r2.estado === "ok" ? r2.contato : "",
+    );
 
     // ── 3, 4, 5, 6: ordens de serviço do mesmo cliente ─────────────────────
 
@@ -91,11 +95,23 @@ async function main() {
 
     console.log("\n3. Ordem faturada e não paga aparece com saldo igual ao valor");
     const r3 = await contasEmAbertoDoContato(db, "Maria da Roçada");
-    check("não é null", r3 !== null);
-    check("uma conta", r3?.contas.length === 1, String(r3?.contas.length));
-    check("amount 1000", r3?.contas[0]?.amount === 1000, String(r3?.contas[0]?.amount));
-    check("saldo 1000 (nada pago ainda)", r3?.contas[0]?.saldo === 1000, String(r3?.contas[0]?.saldo));
-    check("origem servico", r3?.contas[0]?.origem === "servico", r3?.contas[0]?.origem);
+    check("estado ok", r3.estado === "ok", r3.estado);
+    check("uma conta", r3.estado === "ok" && r3.contas.length === 1, r3.estado === "ok" ? String(r3.contas.length) : "");
+    check(
+      "amount 1000",
+      r3.estado === "ok" && r3.contas[0]?.amount === 1000,
+      r3.estado === "ok" ? String(r3.contas[0]?.amount) : "",
+    );
+    check(
+      "saldo 1000 (nada pago ainda)",
+      r3.estado === "ok" && r3.contas[0]?.saldo === 1000,
+      r3.estado === "ok" ? String(r3.contas[0]?.saldo) : "",
+    );
+    check(
+      "origem servico",
+      r3.estado === "ok" && r3.contas[0]?.origem === "servico",
+      r3.estado === "ok" ? r3.contas[0]?.origem : "",
+    );
 
     console.log("\n4. Pagamento parcial de 40% deixa saldo de 60%");
     const pgto = await registrarPagamentoAction(db, entryAberta.id, { amount: 400 });
@@ -103,8 +119,8 @@ async function main() {
     const r4 = await contasEmAbertoDoContato(db, "Maria da Roçada");
     check(
       "saldo agora é 600",
-      r4?.contas.find((c) => c.id === entryAberta.id)?.saldo === 600,
-      String(r4?.contas.find((c) => c.id === entryAberta.id)?.saldo),
+      r4.estado === "ok" && r4.contas.find((c) => c.id === entryAberta.id)?.saldo === 600,
+      r4.estado === "ok" ? String(r4.contas.find((c) => c.id === entryAberta.id)?.saldo) : "",
     );
 
     console.log("\n5. Conta já paga NÃO aparece");
@@ -133,8 +149,8 @@ async function main() {
     const r5 = await contasEmAbertoDoContato(db, "Maria da Roçada");
     check(
       "continua só a conta em aberto",
-      r5?.contas.length === 1 && r5.contas[0]?.id === entryAberta.id,
-      String(r5?.contas.map((c) => c.id)),
+      r5.estado === "ok" && r5.contas.length === 1 && r5.contas[0]?.id === entryAberta.id,
+      r5.estado === "ok" ? String(r5.contas.map((c) => c.id)) : "",
     );
 
     console.log("\n6. Despesa do mesmo contato NÃO aparece (isto é contas a RECEBER)");
@@ -152,8 +168,8 @@ async function main() {
     const r6 = await contasEmAbertoDoContato(db, "Maria da Roçada");
     check(
       "a despesa não entrou na lista",
-      r6?.contas.length === 1 && r6.contas[0]?.id === entryAberta.id,
-      String(r6?.contas.map((c) => c.id)),
+      r6.estado === "ok" && r6.contas.length === 1 && r6.contas[0]?.id === entryAberta.id,
+      r6.estado === "ok" ? String(r6.contas.map((c) => c.id)) : "",
     );
 
     // ── 7. Duas contas em aberto, por negociação, ordenadas por vencimento ─
@@ -201,16 +217,16 @@ async function main() {
       }),
     });
     const r7 = await contasEmAbertoDoContato(db, "João Comprador");
-    check("não é null", r7 !== null);
-    check("duas contas", r7?.contas.length === 2, String(r7?.contas.length));
+    check("estado ok", r7.estado === "ok", r7.estado);
+    check("duas contas", r7.estado === "ok" && r7.contas.length === 2, r7.estado === "ok" ? String(r7.contas.length) : "");
     check(
       "ordenadas por vencimento, a mais cedo primeiro",
-      r7?.contas[0]?.id === entryCedo.id && r7.contas[1]?.id === entryTarde.id,
-      String(r7?.contas.map((c) => c.id)),
+      r7.estado === "ok" && r7.contas[0]?.id === entryCedo.id && r7.contas[1]?.id === entryTarde.id,
+      r7.estado === "ok" ? String(r7.contas.map((c) => c.id)) : "",
     );
     check(
       "origem negocio nas duas",
-      r7?.contas.every((c) => c.origem === "negocio") ?? false,
+      r7.estado === "ok" && r7.contas.every((c) => c.origem === "negocio"),
     );
 
     // ── 8. Turno no Tibé: o roteiro de conversa do recebimento (Fase 5, Task 3) ─
@@ -425,8 +441,8 @@ async function main() {
       const pagoAposL4 = await contasEmAbertoDoContato(db, "Marli");
       check(
         "saldo cai para 600 depois do pagamento parcial de 400",
-        pagoAposL4?.contas.find((c) => c.id === entryMarli.id)?.saldo === 600,
-        String(pagoAposL4?.contas.find((c) => c.id === entryMarli.id)?.saldo),
+        pagoAposL4.estado === "ok" && pagoAposL4.contas.find((c) => c.id === entryMarli.id)?.saldo === 600,
+        pagoAposL4.estado === "ok" ? String(pagoAposL4.contas.find((c) => c.id === entryMarli.id)?.saldo) : "",
       );
 
       // Linha 5: valor dito MAIOR que o saldo (agora 600): nunca aceita, recusa e pergunta de novo.
@@ -460,8 +476,8 @@ async function main() {
       const pagoAposL5 = await contasEmAbertoDoContato(db, "Marli");
       check(
         "saldo cai para 100 depois do segundo pagamento parcial",
-        pagoAposL5?.contas.find((c) => c.id === entryMarli.id)?.saldo === 100,
-        String(pagoAposL5?.contas.find((c) => c.id === entryMarli.id)?.saldo),
+        pagoAposL5.estado === "ok" && pagoAposL5.contas.find((c) => c.id === entryMarli.id)?.saldo === 100,
+        pagoAposL5.estado === "ok" ? String(pagoAposL5.contas.find((c) => c.id === entryMarli.id)?.saldo) : "",
       );
 
       // Linha 6: duas contas em aberto: lista numerada, pergunta qual.
@@ -514,6 +530,230 @@ async function main() {
         "e a conta consultada continua pendente",
         (await db.financialEntry.findUniqueOrThrow({ where: { id: entryZe.id } })).status === "pending",
       );
+
+      // ── 8.9 (G1): o "sim" tem de executar o ENTRY_ID mostrado, nunca ──────
+      // reindexar a lista de contas em aberto.
+      //
+      // Reproduzido pelo juiz: a lista mostrou "1. R$300 vence 20/09, 2. R$500
+      // vence 05/10"; o produtor escolheu "1"; entre a pergunta e o "sim", uma
+      // ordem de R$9.000 vencendo 18/09 foi faturada pelo painel (vencimento
+      // mais cedo, entra na FRENTE da lista ordenada); o "sim" tem que quitar a
+      // conta de R$300 que foi MOSTRADA, nunca a de R$9.000 que passaria a
+      // ocupar a posição 1 se a lista fosse reconsultada.
+      console.log("\n8.9. G1: o 'sim' não pode reindexar a lista entre a pergunta e a confirmação");
+      {
+        const marcos = await db.contact.create({ data: scoped({ name: "Marcos Dois Boletos M70" }) });
+        const negA = await db.negotiation.create({
+          data: scoped({
+            type: "venda_gado",
+            occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+            property_id: fazenda.id,
+            contact_id: marcos.id,
+            amount: 300,
+          }),
+        });
+        const entryA = await db.financialEntry.create({
+          data: scoped({
+            entry_type: "income",
+            category: "Venda de animal",
+            amount: 300,
+            negotiation_id: negA.id,
+            status: "pending",
+            due_date: new Date("2026-09-20T12:00:00.000Z"),
+          }),
+        });
+        const negB = await db.negotiation.create({
+          data: scoped({
+            type: "venda_gado",
+            occurred_at: new Date("2026-09-02T12:00:00.000Z"),
+            property_id: fazenda.id,
+            contact_id: marcos.id,
+            amount: 500,
+          }),
+        });
+        const entryB = await db.financialEntry.create({
+          data: scoped({
+            entry_type: "income",
+            category: "Venda de animal",
+            amount: 500,
+            negotiation_id: negB.id,
+            status: "pending",
+            due_date: new Date("2026-10-05T12:00:00.000Z"),
+          }),
+        });
+
+        prepara({
+          dominio: { pedidos: [{ dominio: "financeiro", trecho: "o Marcos Dois Boletos M70 me pagou" }] },
+          extracao_financeiro: {
+            intent: "registrar_recebimento",
+            parametros: { contato: "Marcos Dois Boletos M70" },
+          },
+        });
+        const g1a = await turno("o Marcos Dois Boletos M70 me pagou", "G1_a");
+        check(
+          "lista as duas contas, 300 antes de 500",
+          g1a.mensagens[0]?.texto.includes(reaisBr(300)) && g1a.mensagens[0].texto.includes(reaisBr(500)),
+          JSON.stringify(g1a),
+        );
+
+        prepara({ resposta: { tipo: "responde", valor: "1" } });
+        const g1b = await turno("1", "G1_b");
+        check(
+          "escolheu a conta de 300, pergunta se quita tudo",
+          g1b.mensagens[0]?.texto.includes("Confirma que quitou tudo?") &&
+            g1b.mensagens[0].texto.includes(reaisBr(300)),
+          JSON.stringify(g1b),
+        );
+
+        // Entre a pergunta e o "sim": uma ordem nova é faturada pelo painel,
+        // com vencimento mais cedo que as outras duas.
+        const negC = await db.negotiation.create({
+          data: scoped({
+            type: "venda_gado",
+            occurred_at: new Date("2026-09-10T12:00:00.000Z"),
+            property_id: fazenda.id,
+            contact_id: marcos.id,
+            amount: 9000,
+          }),
+        });
+        const entryC = await db.financialEntry.create({
+          data: scoped({
+            entry_type: "income",
+            category: "Venda de animal",
+            amount: 9000,
+            negotiation_id: negC.id,
+            status: "pending",
+            due_date: new Date("2026-09-18T12:00:00.000Z"),
+          }),
+        });
+
+        prepara({});
+        const g1sim = await turno("sim", "G1_sim");
+        check(
+          "o 'sim' registrou o recebimento",
+          g1sim.mensagens[0]?.texto.includes("registrado"),
+          JSON.stringify(g1sim),
+        );
+
+        const entryADepois = await db.financialEntry.findUniqueOrThrow({ where: { id: entryA.id } });
+        const entryBDepois = await db.financialEntry.findUniqueOrThrow({ where: { id: entryB.id } });
+        const entryCDepois = await db.financialEntry.findUniqueOrThrow({ where: { id: entryC.id } });
+        check(
+          "quitou a conta MOSTRADA (300), não a que entrou depois da pergunta",
+          entryADepois.status === "paid",
+          entryADepois.status,
+        );
+        check("a de 500 continua pendente", entryBDepois.status === "pending", entryBDepois.status);
+        check(
+          "a de 9.000, que só existiu DEPOIS da pergunta, não foi tocada",
+          entryCDepois.status === "pending",
+          entryCDepois.status,
+        );
+      }
+
+      // ── 8.10 (G2): homônimo pergunta qual, nunca escolhe o primeiro em ────
+      // silêncio.
+      //
+      // Reproduzido pelo juiz: a pergunta nomeava "Joao Pereira", mas o "sim"
+      // pagava a conta do "Joao Silva", porque `contato` era sempre o primeiro
+      // em ordem alfabética entre os que casaram o nome, enquanto as contas
+      // eram a UNIÃO de todos eles.
+      console.log("\n8.10. G2: dois contatos com nome parecido, sem escolher o primeiro em silêncio");
+      {
+        const semConta = await db.contact.create({ data: scoped({ name: "Beltrano Pereira M70" }) });
+        const comConta = await db.contact.create({ data: scoped({ name: "Beltrano Silva M70" }) });
+        const negBeltrano = await db.negotiation.create({
+          data: scoped({
+            type: "venda_gado",
+            occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+            property_id: fazenda.id,
+            contact_id: comConta.id,
+            amount: 1000,
+          }),
+        });
+        const entryBeltrano = await db.financialEntry.create({
+          data: scoped({
+            entry_type: "income",
+            category: "Venda de animal",
+            amount: 1000,
+            negotiation_id: negBeltrano.id,
+            status: "pending",
+            due_date: new Date("2026-09-25T12:00:00.000Z"),
+          }),
+        });
+
+        prepara({
+          dominio: { pedidos: [{ dominio: "financeiro", trecho: "o Beltrano me pagou" }] },
+          extracao_financeiro: { intent: "registrar_recebimento", parametros: { contato: "Beltrano" } },
+        });
+        const g2a = await turno("o Beltrano me pagou", "G2_a");
+        check(
+          "pergunta qual dos dois, sem escolher em silêncio",
+          g2a.mensagens[0]?.texto.includes(semConta.name) &&
+            g2a.mensagens[0].texto.includes(comConta.name) &&
+            g2a.mensagens[0].texto.includes("Qual deles?"),
+          JSON.stringify(g2a),
+        );
+
+        prepara({ resposta: { tipo: "responde", valor: "2" } });
+        const g2b = await turno("2", "G2_b");
+        check(
+          "escolhido o Beltrano Silva, pergunta pela conta dele, com o nome CERTO",
+          g2b.mensagens[0]?.texto.includes(comConta.name) &&
+            g2b.mensagens[0].texto.includes(reaisBr(1000)) &&
+            !g2b.mensagens[0].texto.includes(semConta.name),
+          JSON.stringify(g2b),
+        );
+
+        prepara({});
+        await turno("sim", "G2_sim");
+        const entryBeltranoDepois = await db.financialEntry.findUniqueOrThrow({ where: { id: entryBeltrano.id } });
+        check(
+          "a conta do Beltrano Silva (o escolhido) foi quitada",
+          entryBeltranoDepois.status === "paid",
+          entryBeltranoDepois.status,
+        );
+      }
+
+      // ── 8.11 (G5): nome com acento no cadastro casa com a mensagem sem ────
+      // acento.
+      console.log("\n8.11. G5: fixture acentuado, mensagem sem acento");
+      {
+        const zeCardoso = await db.contact.create({ data: scoped({ name: "Zé Cardoso M70" }) });
+        const negZeCardoso = await db.negotiation.create({
+          data: scoped({
+            type: "venda_gado",
+            occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+            property_id: fazenda.id,
+            contact_id: zeCardoso.id,
+            amount: 700,
+          }),
+        });
+        await db.financialEntry.create({
+          data: scoped({
+            entry_type: "income",
+            category: "Venda de animal",
+            amount: 700,
+            negotiation_id: negZeCardoso.id,
+            status: "pending",
+            due_date: new Date("2026-09-30T12:00:00.000Z"),
+          }),
+        });
+
+        prepara({
+          dominio: { pedidos: [{ dominio: "financeiro", trecho: "recebi do Ze Cardoso M70" }] },
+          extracao_financeiro: {
+            intent: "consultar_recebimento",
+            parametros: { contato: "Ze Cardoso M70" },
+          },
+        });
+        const g5 = await turno("recebi do Ze Cardoso M70", "G5_a");
+        check(
+          "achou o contato mesmo sem o acento na mensagem",
+          g5.mensagens[0]?.texto.includes(reaisBr(700)),
+          JSON.stringify(g5),
+        );
+      }
     }
 
     // ── 9. O pagamento futuro da equipe (Fase 5, Task 4) ───────────────────

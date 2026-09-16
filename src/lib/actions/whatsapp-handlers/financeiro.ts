@@ -1,11 +1,17 @@
 import type { ModuleKey } from "@/lib/permissions";
 import { canAccess } from "@/lib/permissions";
 import type { ProfileType } from "@/lib/tenant-context";
+import type { TenantPrismaClient } from "@/lib/prisma";
 import { getBalanceAction } from "@/lib/actions/financial-summary";
 import { buildReportLink } from "@/lib/reports/report-link";
 import { createManualEntryAction, markEntryPaidAction } from "@/lib/actions/financial-entries";
-import { registrarPagamentoAction } from "@/lib/actions/financial-payments";
-import { contasEmAbertoDoContato, type ContaEmAberto } from "@/lib/actions/contas-do-contato";
+import { registrarPagamentoAction, resumoDePagamento } from "@/lib/actions/financial-payments";
+import {
+  contasEmAbertoDoContato,
+  contasDaPessoa,
+  type ContaEmAberto,
+  type PessoaCandidata,
+} from "@/lib/actions/contas-do-contato";
 import { suggestCategory } from "@/lib/category-suggestions";
 import { listFinancialCategoriesAction } from "@/lib/actions/financial-categories";
 import { ask, failReply, str, num, normalizarTermo, type Handler, type RouterResult } from "./shared";
@@ -258,14 +264,14 @@ export const registrarLancamentoFinanceiro: Handler = async ({
  * 3. Confirmação SEMPRE, qualquer valor: é dinheiro saindo do painel de
  *    contas a receber, e por isso a intenção não entra em
  *    `INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR`.
+ * 4. **O "sim" executa o `entry_id` guardado, nunca uma releitura da lista de
+ *    contas em aberto** (G1, achado do juiz de 2026-09-16). Ver o comentário
+ *    de `perguntarOuExecutarRecebimento` abaixo.
  *
- * ⚠️ `contasEmAbertoDoContato` NÃO desambigua homônimo: dois clientes
- * chamados "João" entram somados na mesma lista, sob o nome do primeiro
- * (decisão registrada no cabeçalho de `contas-do-contato.ts`). Esta rodada
- * aceita a limitação em vez de duplicar `resolverTrabalhador`
- * (`mao-de-obra.ts`), que desambigua mas não sabe juntar conta de serviço com
- * conta de negócio: ensinar isso ao agente é trabalho de uma rodada própria,
- * não deste handler.
+ * `contasEmAbertoDoContato` desambigua homônimo (G2, mesma rodada): quando o
+ * nome casa mais de um cliente ou contato, pergunta qual, no mesmo espírito de
+ * `resolverTrabalhador` (`mao-de-obra.ts`) e `consultarCliente`
+ * (`prestador.ts`). Nunca escolhe o primeiro em silêncio.
  */
 
 async function cancelarRecebimento(
@@ -338,74 +344,73 @@ function listaDeContas(contas: ContaEmAberto[]): string {
   return contas
     .map((c, i) => {
       const venc = c.due_date ? `, vence ${c.due_date.toLocaleDateString("pt-BR", { timeZone: "UTC" })}` : "";
-      // A descrição entra porque `contasEmAbertoDoContato` NÃO desambigua
-      // homônimo: dois clientes chamados "João" somam as contas na mesma
-      // lista. Sem ela, as duas linhas seriam só valor e data, e o produtor
-      // escolheria no escuro qual João está pagando.
       return `${i + 1}. ${reaisBr(c.saldo)}${venc} (${c.descricao})`;
     })
     .join("\n");
 }
 
-export const registrarRecebimento: Handler = async (ctx) => {
-  const intent = "registrar_recebimento";
-  if (ctx.explicitNo) return cancelarRecebimento(intent, ctx.tenant_id, ctx.user_id);
+/** G2: a lista numerada de homônimos, para o produtor escolher qual. */
+function listaDePessoas(candidatos: PessoaCandidata[]): string {
+  return candidatos.map((p, i) => `${i + 1}. ${p.name}`).join("\n");
+}
 
-  const aberta = await abrirConversaRecebimento(ctx);
-  if ("parar" in aberta) return aberta.parar;
-  const { parameters, guardar, limpar } = aberta;
-
-  const nomeDito = str(parameters.contato) ?? str(parameters.nome);
-  if (!nomeDito) {
-    await guardar("contato");
-    return ask("Quem pagou?");
-  }
-
-  const achado = await contasEmAbertoDoContato(ctx.db, nomeDito);
-  if (!achado) {
+/**
+ * Pergunta a confirmação (primeira vez que a conta é conhecida) ou executa a
+ * baixa (turnos seguintes: correção de valor, ou o "sim").
+ *
+ * G1 (achado do juiz, 2026-09-16): o `entryId` é sempre o que já foi
+ * RESOLVIDO e MOSTRADO ao produtor, nunca uma releitura de
+ * `contasEmAbertoDoContato`. A cada chamada, a conta é relida do banco PELO
+ * ID, e se ela não estiver mais em aberto (foi paga, cancelada, ou nem existe
+ * mais), a conversa é encerrada com um aviso em vez de gravar qualquer coisa.
+ * É a garantia que faltava: o comentário do topo do arquivo diz "o 'sim'
+ * executa o que foi MOSTRADO", e antes disto isso só valia para os
+ * parâmetros, não para QUAL conta.
+ */
+async function perguntarOuExecutarRecebimento(
+  db: TenantPrismaClient,
+  confirmed: boolean,
+  parameters: Record<string, unknown>,
+  contatoNome: string,
+  entryId: string,
+  guardar: (aguardando: CampoRecebimento) => Promise<void>,
+  limpar: () => Promise<void>,
+  intent: string,
+): Promise<RouterResult> {
+  const entryAtual = await db.financialEntry.findFirst({ where: { id: entryId, status: "pending" } });
+  if (!entryAtual) {
     await limpar();
-    return ask("Não achei nenhum cliente com esse nome. Como ele está cadastrado?");
+    return ask(
+      "Essa conta mudou desde a última vez (foi paga, cancelada, ou não existe mais). " +
+        "Me conte de novo o que você quer registrar.",
+    );
   }
-  if (achado.contas.length === 0) {
-    await limpar();
-    return ask(`${achado.contato} não tem nenhuma conta em aberto comigo.`);
-  }
-
-  // Mais de uma conta: pergunta qual, numerada, antes de olhar valor. A
-  // escolha entra pelo mesmo mecanismo de campo pendente que o nome usou.
-  let conta = achado.contas[0];
-  if (achado.contas.length > 1) {
-    const escolha = num(parameters.escolha);
-    if (escolha == null || escolha < 1 || escolha > achado.contas.length) {
-      await guardar("escolha");
-      return ask(
-        `${achado.contato} tem ${achado.contas.length} contas em aberto:\n${listaDeContas(achado.contas)}\nQual delas?`,
-      );
-    }
-    conta = achado.contas[escolha - 1];
-  }
-
+  const { valor, saldo } = await resumoDePagamento(db, entryAtual);
   const informado = lerDinheiro(parameters, "valor", "amount");
 
-  // Nunca aceita pagamento acima do saldo: recusa e pergunta de novo, sem
-  // requires_confirmation (não é uma confirmação, é uma correção).
-  if (informado != null && informado > conta.saldo) {
+  // Nunca aceita pagamento acima do saldo ATUAL: recusa e pergunta de novo,
+  // sem requires_confirmation (não é uma confirmação, é uma correção).
+  if (informado != null && informado > saldo) {
+    parameters.entry_id = entryId;
+    parameters.contato_resolvido = contatoNome;
     await guardar("valor");
     return ask(
-      `O valor de ${reaisBr(informado)} é maior que o saldo desta conta, que é ${reaisBr(conta.saldo)}. Quanto você quer registrar?`,
+      `O valor de ${reaisBr(informado)} é maior que o saldo desta conta, que é ${reaisBr(saldo)}. Quanto você quer registrar?`,
     );
   }
 
-  if (!ctx.confirmed) {
+  if (!confirmed) {
+    parameters.entry_id = entryId;
+    parameters.contato_resolvido = contatoNome;
     await guardar("confirmacao");
     const pergunta =
       informado == null
-        ? `${achado.contato} tem uma conta de ${reaisBr(conta.amount)}, saldo ${reaisBr(conta.saldo)}. Confirma que quitou tudo?`
-        : `O saldo da conta de ${achado.contato} é ${reaisBr(conta.saldo)}. Confirma o pagamento de ${reaisBr(informado)}?`;
+        ? `${contatoNome} tem uma conta de ${reaisBr(valor)}, saldo ${reaisBr(saldo)}. Confirma que quitou tudo?`
+        : `O saldo da conta de ${contatoNome} é ${reaisBr(saldo)}. Confirma o pagamento de ${reaisBr(informado)}?`;
     return {
       reply_text: pergunta,
       requires_confirmation: true,
-      auxiliary_data: { contato: achado.contato, entry_id: conta.id, saldo: conta.saldo, valor: informado },
+      auxiliary_data: { contato: contatoNome, entry_id: entryId, saldo, valor: informado },
       report_url: null,
       action_taken: `${intent}:aguardando_confirmacao`,
     };
@@ -419,23 +424,117 @@ export const registrarRecebimento: Handler = async (ctx) => {
   // (registrarPagamentoAction, mesma action da tela de Financeiro).
   const resultado =
     informado == null
-      ? await markEntryPaidAction(ctx.db, conta.id, paidAt)
-      : await registrarPagamentoAction(ctx.db, conta.id, { amount: informado, paid_at: paidAt });
+      ? await markEntryPaidAction(db, entryAtual.id, paidAt)
+      : await registrarPagamentoAction(db, entryAtual.id, { amount: informado, paid_at: paidAt });
   await limpar();
   if (!resultado.ok) return failReply(intent, resultado);
 
   return {
-    reply_text: `✅ Recebimento de ${reaisBr(informado ?? conta.saldo)} de ${achado.contato} registrado.`,
+    reply_text: `✅ Recebimento de ${reaisBr(informado ?? saldo)} de ${contatoNome} registrado.`,
     requires_confirmation: false,
-    auxiliary_data: { entry_id: conta.id },
+    auxiliary_data: { entry_id: entryAtual.id },
     report_url: null,
     action_taken: `${intent}:ok`,
   };
+}
+
+export const registrarRecebimento: Handler = async (ctx) => {
+  const intent = "registrar_recebimento";
+  if (ctx.explicitNo) return cancelarRecebimento(intent, ctx.tenant_id, ctx.user_id);
+
+  const aberta = await abrirConversaRecebimento(ctx);
+  if ("parar" in aberta) return aberta.parar;
+  const { parameters, guardar, limpar } = aberta;
+
+  // G1: a conta já foi resolvida e mostrada numa volta anterior (estamos
+  // corrigindo o valor, ou confirmando com "sim"). Nunca mais reconsulta a
+  // lista de contas em aberto a partir daqui: ver `perguntarOuExecutarRecebimento`.
+  const entryIdGuardado = str(parameters.entry_id);
+  const contatoJaResolvido = str(parameters.contato_resolvido);
+  if (entryIdGuardado && contatoJaResolvido) {
+    return perguntarOuExecutarRecebimento(
+      ctx.db,
+      ctx.confirmed,
+      parameters,
+      contatoJaResolvido,
+      entryIdGuardado,
+      guardar,
+      limpar,
+      intent,
+    );
+  }
+
+  const nomeDito = str(parameters.contato) ?? str(parameters.nome);
+  if (!nomeDito) {
+    await guardar("contato");
+    return ask("Quem pagou?");
+  }
+
+  let contatoNome: string;
+  let contas: ContaEmAberto[];
+
+  // G2: o nome já casou mais de uma pessoa numa volta anterior, e o produtor
+  // acabou de escolher qual. Nunca casa o nome de novo: usa a pessoa
+  // escolhida da lista que já foi mostrada.
+  const candidatosGuardados = parameters.candidatos as PessoaCandidata[] | undefined;
+  if (Array.isArray(candidatosGuardados) && candidatosGuardados.length > 0) {
+    const escolhaPessoa = num(parameters.quem);
+    if (escolhaPessoa == null || escolhaPessoa < 1 || escolhaPessoa > candidatosGuardados.length) {
+      await guardar("quem");
+      return ask(`Encontrei mais de um "${nomeDito}":\n${listaDePessoas(candidatosGuardados)}\nQual deles?`);
+    }
+    const pessoaEscolhida = candidatosGuardados[escolhaPessoa - 1];
+    contatoNome = pessoaEscolhida.name;
+    contas = await contasDaPessoa(ctx.db, pessoaEscolhida);
+  } else {
+    const achado = await contasEmAbertoDoContato(ctx.db, nomeDito);
+    if (achado.estado === "nao_encontrado") {
+      await limpar();
+      return ask("Não achei nenhum cliente com esse nome. Como ele está cadastrado?");
+    }
+    if (achado.estado === "ambiguo") {
+      parameters.candidatos = achado.candidatos;
+      await guardar("quem");
+      return ask(`Encontrei mais de um "${nomeDito}":\n${listaDePessoas(achado.candidatos)}\nQual deles?`);
+    }
+    contatoNome = achado.contato;
+    contas = achado.contas;
+  }
+
+  if (contas.length === 0) {
+    await limpar();
+    return ask(`${contatoNome} não tem nenhuma conta em aberto comigo.`);
+  }
+
+  // Mais de uma conta: pergunta qual, numerada, antes de olhar valor. A
+  // escolha entra pelo mesmo mecanismo de campo pendente que o nome usou.
+  let conta = contas[0];
+  if (contas.length > 1) {
+    const escolha = num(parameters.escolha);
+    if (escolha == null || escolha < 1 || escolha > contas.length) {
+      await guardar("escolha");
+      return ask(`${contatoNome} tem ${contas.length} contas em aberto:\n${listaDeContas(contas)}\nQual delas?`);
+    }
+    conta = contas[escolha - 1];
+  }
+
+  return perguntarOuExecutarRecebimento(
+    ctx.db,
+    ctx.confirmed,
+    parameters,
+    contatoNome,
+    conta.id,
+    guardar,
+    limpar,
+    intent,
+  );
 };
 
 /**
  * "O João já pagou?" / "quanto o Zé Carlos ainda me deve": nunca grava, só lê
- * `contasEmAbertoDoContato`.
+ * `contasEmAbertoDoContato`. Sem memória de conversa (é consulta, não
+ * escrita): homônimo é resolvido pedindo um nome mais específico na próxima
+ * mensagem, mesmo padrão de `consultarCliente` (`prestador.ts`).
  */
 export const consultarRecebimento: Handler = async (ctx) => {
   const intent = "consultar_recebimento";
@@ -443,13 +542,22 @@ export const consultarRecebimento: Handler = async (ctx) => {
   if (!nome) return ask("De quem você quer saber?");
 
   const achado = await contasEmAbertoDoContato(ctx.db, nome);
-  if (!achado) {
+  if (achado.estado === "nao_encontrado") {
     return {
       reply_text: "Não achei nenhum cliente com esse nome. Como ele está cadastrado?",
       requires_confirmation: false,
       auxiliary_data: null,
       report_url: null,
       action_taken: `${intent}:nao_encontrado`,
+    };
+  }
+  if (achado.estado === "ambiguo") {
+    return {
+      reply_text: `Encontrei mais de um "${nome}": ${achado.candidatos.map((p) => p.name).join(", ")}. Qual deles?`,
+      requires_confirmation: false,
+      auxiliary_data: { candidatos: achado.candidatos },
+      report_url: null,
+      action_taken: `${intent}:ambiguo`,
     };
   }
   if (achado.contas.length === 0) {

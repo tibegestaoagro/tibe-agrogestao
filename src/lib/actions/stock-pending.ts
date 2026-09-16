@@ -13,6 +13,7 @@ import "@/lib/actions/finance-pending";
 import "@/lib/actions/herd-pending";
 import "@/lib/actions/leite-pending";
 import "@/lib/actions/negotiation-pending";
+import "@/lib/actions/recebimento-pending";
 import "@/lib/actions/service-pending";
 import "@/lib/actions/shopping-pending";
 import "@/lib/actions/worker-pending";
