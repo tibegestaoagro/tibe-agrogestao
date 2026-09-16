@@ -13,8 +13,14 @@ import { lerNumeroBr } from "@/lib/numero-br";
  */
 
 /**
- * As intenções que GRAVAM sem pedir "sim". Hoje é uma só: o uso de estoque
- * (§10.3, o gesto mais frequente e que não mexe em dinheiro).
+ * As intenções que GRAVAM sem pedir "sim": o uso de estoque (§10.3, o gesto
+ * mais frequente e que não mexe em dinheiro) e os quatro registros de rebanho
+ * que só descrevem um fato do animal (cadastro, peso, vacina e a previsão
+ * dela). Nenhum dos cinco recebe `confirmed` no handler.
+ *
+ * ⚠️ **A lista nasceu com o uso de estoque só, e a catraca da seção 1c da
+ * `m68` achou os outros quatro no mesmo dia.** A versão incompleta fazia a
+ * guarda do turno parecer mais forte do que era.
  *
  * Existe como lista exportada, e não como comparação solta dentro de cada
  * arquivo, porque DOIS lugares distantes precisam concordar sobre ela: o
@@ -26,7 +32,13 @@ import { lerNumeroBr } from "@/lib/numero-br";
  * uso. Handler novo que não confirmar entra AQUI, e as duas pontas andam
  * juntas.
  */
-export const INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR: readonly Intent[] = ["registrar_uso_estoque"];
+export const INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR: readonly Intent[] = [
+  "registrar_uso_estoque",
+  "cadastrar_animal",
+  "registrar_peso",
+  "registrar_vacina",
+  "registrar_previsao_vacina",
+];
 
 export type RouterResult = {
   reply_text: string;

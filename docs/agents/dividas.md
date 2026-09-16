@@ -293,6 +293,31 @@ aparecem no resumo que o produtor confirma antes de qualquer escrita:
   velha e pode fechar sozinha numa categoria que o produtor não escolheu.
   Caminho estreito, e o rótulo escolhido aparece na confirmação.
 
+### 5.0c O formulário do cadastro assistido engole mensagem ambígua
+
+Anterior à Fase 4, reproduzido em banco pela revisão final dela: com um cadastro
+assistido aberto, "kkkkk" vira o brinco do animal. `handleActiveFlow`
+(`whatsapp-router.ts`) consome a mensagem antes de qualquer outra decisão, e
+`interrompe()` (`whatsapp-flow-bridge.ts`) trata `ambigua` e `cadastrar_animal`
+do mesmo lado, então nenhuma etiqueta de intenção muda o resultado. **Não
+grava**: o animal só nasce no resumo confirmado, e o produtor vê o lixo antes de
+dizer "sim". Custo: `interrompe()` recusar `ambigua` quando o campo esperado
+tem forma conhecida (brinco, data, número).
+
+### 5.0d A lista de quem grava sem confirmar precisa de catraca
+
+`INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR` (`whatsapp-handlers/shared.ts`) hoje tem
+uma intenção só, e duas pontas distantes dependem dela: o handler do estoque e
+a porta de mensagem ambígua do turno. A lista é lida pelas duas, então editar
+uma ponta mostra a outra; **mas nada obriga quem escrever um handler NOVO que
+grave sem confirmar a se declarar nela**, e esse esquecimento reabre o caminho
+de gravação indevida que a Fase 4 fechou.
+
+Fechado em 2026-09-16 pela catraca da seção 1c de `scripts/m68-agente-turno.test.ts`,
+no mesmo molde da seção 8 de `m67`: toda intenção de escrita ou está na lista,
+ou o arquivo do handler dela contém `"confirmacao"`. Fica aqui o registro do
+porquê, que a suíte não tem como contar.
+
 ### 5.1 Categoria ambígua sem memória de candidata, em dois outros pontos
 
 Achado em 2026-09-16, na Fase 4 do agente, enquanto a memória de candidata era

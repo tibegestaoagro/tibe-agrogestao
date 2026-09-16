@@ -120,10 +120,17 @@ async function entenderPedidos(e: EntradaDoTurno, contato: Identificado, agora: 
    * intenção que não pede "sim" (§10.3). O produtor dizia que não usou, e o
    * uso era registrado.
    *
-   * Por isso a lista `INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR` fica fora daqui, e
-   * o cadastro assistido (`prefixo: "flow"`) também: lá a mensagem viraria
-   * valor de campo de formulário ("kkkk" como brinco), sujando o resumo que o
-   * produtor vai confirmar.
+   * Por isso a lista `INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR` fica fora daqui.
+   *
+   * O cadastro assistido (`prefixo: "flow"`) também está fora, mas seja honesto
+   * sobre o que isso compra: **quase nada**. O formulário é consumido antes,
+   * em `handleActiveFlow` (`whatsapp-router.ts`), e `interrompe()` trata
+   * `ambigua` e `cadastrar_animal` do mesmo jeito, então com formulário aberto
+   * a mensagem vira valor de campo COM ou SEM esta guarda. A revisão da Fase 4
+   * reproduziu "kkkkk" virando brinco com a guarda ativa. Ela fica porque a
+   * etiqueta certa da intenção importa para o log e para o cursor, não porque
+   * proteja o formulário. Formulário engolindo mensagem ambígua é dívida
+   * anterior a esta fase: `docs/agents/dividas.md`, item 5.0c.
    */
   if (
     cursor &&

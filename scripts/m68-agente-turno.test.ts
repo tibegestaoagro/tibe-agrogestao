@@ -47,6 +47,56 @@ async function main() {
     check(`${def.intent}: tem ao menos 2 exemplos`, def.exemplos.length >= 2);
   }
 
+  /**
+   * 1c. Catraca: quem grava sem pedir "sim" tem que estar DECLARADO.
+   *
+   * `INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR` é lida por dois lugares distantes: o
+   * handler do estoque, que decide se `confirmed` quer dizer algo, e a porta de
+   * mensagem ambígua do turno, que decide se pode empurrar texto duvidoso para
+   * dentro de um campo pendente. Quando as duas pontas duplicavam a regra, o
+   * turno abriu um caminho de gravação sem confirmação que a revisão da Fase 4
+   * reproduziu em banco.
+   *
+   * Ler a mesma constante resolve para quem EDITA as duas pontas; não resolve
+   * para quem escreve um handler NOVO que não confirma e nunca ouviu falar da
+   * lista. Esta catraca resolve: intenção de escrita ou está na lista, ou a
+   * FUNÇÃO dela chama `confirmFlow`. Mesmo molde da seção 8 da `m67`, que
+   * varre os `*-pending.ts` do disco.
+   *
+   * O corte é por função, não por arquivo: `rebanho.ts` tem `confirmFlow` três
+   * vezes (movimentação, lote, venda) e mesmo assim `cadastrarAnimal`,
+   * `registrarPeso`, `registrarVacina` e `registrarPrevisaoVacina` gravam
+   * direto. Um corte por arquivo aprovaria os quatro, que foi exatamente o que
+   * a primeira versão desta catraca fez.
+   */
+  console.log("\n1c. Toda intenção que grava sem confirmar está declarada");
+  {
+    const { INTENT_ACCESS } = await import("@/lib/whatsapp-intents");
+    const { INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR } = await import("@/lib/actions/whatsapp-handlers/shared");
+    let semDeclarar = 0;
+    for (const def of INTENCOES) {
+      const acesso = INTENT_ACCESS[def.intent];
+      if (acesso?.action !== "write") continue;
+      if ((INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR as readonly string[]).includes(def.intent)) continue;
+      const handler = localizarHandler(router, def.intent);
+      if (!handler) continue;
+      // Três portões possíveis: o helper compartilhado, o `confirmed` do ctx
+      // (quem tem pendente próprio, como negócio e confinamento), ou a resposta
+      // que declara que espera confirmação.
+      const corpo = corpoDoHandler(router, handler, def.intent);
+      const confirma = /confirmFlow\(|\bconfirmed\b|requires_confirmation:\s*true/.test(corpo);
+      if (!confirma) {
+        semDeclarar += 1;
+        check(
+          `${def.intent} grava sem nenhum portão de confirmação: declare em INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR`,
+          false,
+          handler,
+        );
+      }
+    }
+    check("nenhuma intenção de escrita grava sem confirmar por descuido", semDeclarar === 0);
+  }
+
   // O classificador repassa o número e a data como o produtor falou (regra da spec).
   console.log("1b. Handlers leem número e data como o produtor fala");
   const { num } = await import("@/lib/actions/whatsapp-handlers/shared");
@@ -1323,6 +1373,32 @@ async function main() {
  * `ajuda` e `resumo`). Sem a segunda forma, as duas intenções desta tarefa
  * não seriam localizadas.
  */
+/**
+ * O corpo da função que atende a intenção, do `export const <funcao>` até o
+ * próximo `export const`. Existe para a catraca 1c cortar por FUNÇÃO: um
+ * arquivo com vários handlers mistura quem confirma com quem não confirma.
+ */
+function corpoDoHandler(router: string, arquivo: string, intent: string): string {
+  const linhaDaTabela = router.split("\n").find((l) => new RegExp(`^\\s*${intent}\\s*[,:]`).test(l));
+  const funcao = linhaDaTabela?.match(/:\s*([A-Za-z0-9_]+)/)?.[1] ?? intent;
+  const fonte = fs.readFileSync(arquivo, "utf8");
+  const corpo = trechoDe(fonte, `export const ${funcao}`);
+  // Handler feito por fábrica (`export const x = fabricarEntrada(...)`): o
+  // portão de confirmação mora na fábrica, não na linha exportada. Confinamento
+  // e leite são assim, e sem isto a catraca 1c os acusaria por engano.
+  const fabrica = corpo.match(/=\s*(fabricar[A-Za-z0-9_]*)\s*\(/)?.[1];
+  return fabrica ? `${corpo}\n${trechoDe(fonte, `function ${fabrica}`)}` : corpo;
+}
+
+/** Do primeiro `marca` até o próximo `export const` ou `function` de topo. */
+function trechoDe(fonte: string, marca: string): string {
+  const inicio = fonte.indexOf(marca);
+  if (inicio < 0) return "";
+  const resto = fonte.slice(inicio + marca.length);
+  const fim = resto.search(/\n(export const |function )/);
+  return fim < 0 ? fonte.slice(inicio) : fonte.slice(inicio, inicio + marca.length + fim);
+}
+
 function localizarHandler(router: string, intent: string): string | null {
   const linhaDaTabela = router.split("\n").find((l) => new RegExp(`^\\s*${intent}\\s*[,:]`).test(l));
   if (!linhaDaTabela) return null;
