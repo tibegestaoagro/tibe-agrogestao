@@ -212,6 +212,309 @@ async function main() {
       "origem negocio nas duas",
       r7?.contas.every((c) => c.origem === "negocio") ?? false,
     );
+
+    // ── 8. Turno no Tibé: o roteiro de conversa do recebimento (Fase 5, Task 3) ─
+    //
+    // Um caso por linha da tabela do task-3-brief.md, passando pelo turno
+    // inteiro (`executarTurno`), com o transporte do modelo substituído, no
+    // mesmo molde da seção 7 da `m68`. Nenhuma chamada à OpenAI de verdade.
+
+    console.log("\n8. Turno no Tibé: o roteiro de conversa do recebimento");
+    {
+      const { executarTurno } = await import("@/lib/actions/turno");
+      const { definirTransporteDoModelo } = await import("@/lib/agente/modelo");
+      const { reaisBr } = await import("@/lib/numero-br");
+
+      await prisma.tenantProfile.create({ data: { tenant_id: tenant.id, profile_type: "fazenda", active: true } });
+      const phoneT8 = `11${String(stamp).slice(-9)}`;
+      await prisma.user.create({
+        data: {
+          tenant_id: tenant.id,
+          name: "Dono M70",
+          email: `m70-${stamp}@teste.local`,
+          password_hash: "x",
+          role: "OWNER",
+          active: true,
+          phone: phoneT8,
+        },
+      });
+
+      const chamadas: string[] = [];
+      let respostas: Record<string, unknown> = {};
+      definirTransporteDoModelo(async (corpo) => {
+        const nome = (corpo.response_format as { json_schema: { name: string } }).json_schema.name;
+        chamadas.push(nome);
+        const r = respostas[nome];
+        const conteudo = Array.isArray(r) ? r.shift() : r;
+        return { status: 200, json: { choices: [{ message: { content: JSON.stringify(conteudo) } }] } };
+      });
+      const prepara = (r: Record<string, unknown>) => {
+        respostas = r;
+        chamadas.length = 0;
+      };
+      const turno = (texto: string, wamid: string) =>
+        executarTurno({ telefone: phoneT8, texto, provider_message_id: wamid });
+
+      // Fixtures: um contato por linha da tabela, contas por negociação (mesmo
+      // molde da seção 7 acima), para não misturar estado entre casos.
+      const duda = await db.contact.create({ data: scoped({ name: "Duda Sem Pendencia" }) });
+      const marli = await db.contact.create({ data: scoped({ name: "Marli" }) });
+      const negMarli = await db.negotiation.create({
+        data: scoped({
+          type: "venda_gado",
+          occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+          property_id: fazenda.id,
+          contact_id: marli.id,
+          amount: 1000,
+        }),
+      });
+      const entryMarli = await db.financialEntry.create({
+        data: scoped({
+          entry_type: "income",
+          category: "Venda de animal",
+          amount: 1000,
+          negotiation_id: negMarli.id,
+          status: "pending",
+          due_date: new Date("2026-10-01T12:00:00.000Z"),
+        }),
+      });
+
+      const duplo = await db.contact.create({ data: scoped({ name: "Duplo" }) });
+      const negDuploCedo = await db.negotiation.create({
+        data: scoped({
+          type: "venda_gado",
+          occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+          property_id: fazenda.id,
+          contact_id: duplo.id,
+          amount: 300,
+        }),
+      });
+      const entryDuploCedo = await db.financialEntry.create({
+        data: scoped({
+          entry_type: "income",
+          category: "Venda de animal",
+          amount: 300,
+          negotiation_id: negDuploCedo.id,
+          status: "pending",
+          due_date: new Date("2026-09-20T12:00:00.000Z"),
+        }),
+      });
+      const negDuploTarde = await db.negotiation.create({
+        data: scoped({
+          type: "venda_gado",
+          occurred_at: new Date("2026-09-05T12:00:00.000Z"),
+          property_id: fazenda.id,
+          contact_id: duplo.id,
+          amount: 500,
+        }),
+      });
+      const entryDuploTarde = await db.financialEntry.create({
+        data: scoped({
+          entry_type: "income",
+          category: "Venda de animal",
+          amount: 500,
+          negotiation_id: negDuploTarde.id,
+          status: "pending",
+          due_date: new Date("2026-10-05T12:00:00.000Z"),
+        }),
+      });
+
+      const zeCarlos = await db.contact.create({ data: scoped({ name: "Zé Carlos" }) });
+      const negZe = await db.negotiation.create({
+        data: scoped({
+          type: "venda_gado",
+          occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+          property_id: fazenda.id,
+          contact_id: zeCarlos.id,
+          amount: 2000,
+        }),
+      });
+      const entryZe = await db.financialEntry.create({
+        data: scoped({
+          entry_type: "income",
+          category: "Venda de animal",
+          amount: 2000,
+          negotiation_id: negZe.id,
+          status: "pending",
+          due_date: new Date("2026-11-01T12:00:00.000Z"),
+        }),
+      });
+
+      // Primeiro contato deste telefone: a saudação, não a classificação.
+      // Sem isto a linha 1 cai na boas-vindas em vez do roteiro.
+      prepara({});
+      await turno("oi", "T8_oi");
+
+      // Linha 1: nome não casa com ninguém.
+      prepara({
+        dominio: { pedidos: [{ dominio: "financeiro", trecho: "o Zeca me pagou" }] },
+        extracao_financeiro: { intent: "registrar_recebimento", parametros: { contato: "Zeca" } },
+      });
+      const l1 = await turno("o Zeca me pagou", "T8L1");
+      check(
+        "linha 1: nome que não casa com ninguém",
+        l1.mensagens[0]?.texto === "Não achei nenhum cliente com esse nome. Como ele está cadastrado?",
+        JSON.stringify(l1),
+      );
+
+      // Linha 2: contato existe, sem conta em aberto.
+      prepara({
+        dominio: { pedidos: [{ dominio: "financeiro", trecho: "a Duda Sem Pendencia me pagou" }] },
+        extracao_financeiro: { intent: "registrar_recebimento", parametros: { contato: "Duda Sem Pendencia" } },
+      });
+      const l2 = await turno("a Duda Sem Pendencia me pagou", "T8L2");
+      check(
+        "linha 2: contato sem conta em aberto",
+        l2.mensagens[0]?.texto === `${duda.name} não tem nenhuma conta em aberto comigo.`,
+        JSON.stringify(l2),
+      );
+
+      // Linha 3: uma conta, valor não dito, pergunta se quita tudo.
+      prepara({
+        dominio: { pedidos: [{ dominio: "financeiro", trecho: "a Marli me pagou" }] },
+        extracao_financeiro: { intent: "registrar_recebimento", parametros: { contato: "Marli" } },
+      });
+      const l3 = await turno("a Marli me pagou", "T8L3");
+      check(
+        "linha 3: uma conta, sem valor, pergunta se quita tudo",
+        l3.mensagens[0]?.texto.includes("Confirma que quitou tudo?") &&
+          l3.mensagens[0].texto.includes(reaisBr(1000)) &&
+          l3.mensagens[0].pode_humanizar === false,
+        JSON.stringify(l3),
+      );
+
+      // O defeito clássico deste projeto: "não" depois da confirmação NÃO
+      // pode dar baixa em nada (2026-08-18, "não, deixa pra lá" gravou a
+      // compra recusada no estoque).
+      prepara({});
+      const l3nao = await turno("não, deixa pra lá", "T8L3nao");
+      check(
+        "linha 3 + 'não': cancela sem gravar",
+        l3nao.mensagens[0]?.texto === "Tudo bem, não registrei nada." && chamadas.length === 0,
+        JSON.stringify(l3nao),
+      );
+      check(
+        "o 'não' não criou nenhum pagamento",
+        (await db.financialPayment.count({ where: { entry_id: entryMarli.id } })) === 0,
+      );
+      check(
+        "e a conta continua pendente",
+        (await db.financialEntry.findUniqueOrThrow({ where: { id: entryMarli.id } })).status === "pending",
+      );
+
+      // Linha 4: uma conta, valor dito MENOR que o saldo, pagamento parcial.
+      prepara({
+        dominio: { pedidos: [{ dominio: "financeiro", trecho: "a Marli me pagou 400" }] },
+        extracao_financeiro: { intent: "registrar_recebimento", parametros: { contato: "Marli", valor: 400 } },
+      });
+      const l4 = await turno("a Marli me pagou 400", "T8L4");
+      check(
+        "linha 4: valor menor que o saldo pergunta o pagamento parcial",
+        l4.mensagens[0]?.texto.includes(reaisBr(400)) &&
+          l4.mensagens[0].texto.includes(reaisBr(1000)) &&
+          l4.mensagens[0].texto.includes("Confirma o pagamento"),
+        JSON.stringify(l4),
+      );
+      prepara({});
+      const l4sim = await turno("sim", "T8L4sim");
+      check(
+        "linha 4 + 'sim': registra o pagamento parcial",
+        l4sim.mensagens[0]?.texto.includes("registrado") && chamadas.length === 0,
+        JSON.stringify(l4sim),
+      );
+      const pagoAposL4 = await contasEmAbertoDoContato(db, "Marli");
+      check(
+        "saldo cai para 600 depois do pagamento parcial de 400",
+        pagoAposL4?.contas.find((c) => c.id === entryMarli.id)?.saldo === 600,
+        String(pagoAposL4?.contas.find((c) => c.id === entryMarli.id)?.saldo),
+      );
+
+      // Linha 5: valor dito MAIOR que o saldo (agora 600): nunca aceita, recusa e pergunta de novo.
+      prepara({
+        dominio: { pedidos: [{ dominio: "financeiro", trecho: "a Marli me pagou 900" }] },
+        extracao_financeiro: { intent: "registrar_recebimento", parametros: { contato: "Marli", valor: 900 } },
+      });
+      const l5 = await turno("a Marli me pagou 900", "T8L5");
+      check(
+        "linha 5: valor maior que o saldo é recusado, não confirmado",
+        l5.mensagens[0]?.texto.includes("maior que o saldo") &&
+          l5.mensagens[0].texto.includes(reaisBr(600)) &&
+          l5.mensagens[0].texto.includes("Quanto você quer registrar?"),
+        JSON.stringify(l5),
+      );
+      check(
+        "a tentativa acima do saldo não criou pagamento nenhum",
+        (await db.financialPayment.count({ where: { entry_id: entryMarli.id, amount: 900 } })) === 0,
+      );
+
+      // Corrige com um valor válido: a resposta curta volta ao campo pendente.
+      prepara({ resposta: { tipo: "responde", valor: "500" } });
+      const l5corrige = await turno("500", "T8L5b");
+      check(
+        "correção com valor dentro do saldo abre a confirmação do parcial",
+        l5corrige.mensagens[0]?.texto.includes(reaisBr(500)) && chamadas.join() === "resposta",
+        JSON.stringify({ l5corrige, chamadas }),
+      );
+      prepara({});
+      await turno("sim", "T8L5sim");
+      const pagoAposL5 = await contasEmAbertoDoContato(db, "Marli");
+      check(
+        "saldo cai para 100 depois do segundo pagamento parcial",
+        pagoAposL5?.contas.find((c) => c.id === entryMarli.id)?.saldo === 100,
+        String(pagoAposL5?.contas.find((c) => c.id === entryMarli.id)?.saldo),
+      );
+
+      // Linha 6: duas contas em aberto: lista numerada, pergunta qual.
+      prepara({
+        dominio: { pedidos: [{ dominio: "financeiro", trecho: "o Duplo me pagou" }] },
+        extracao_financeiro: { intent: "registrar_recebimento", parametros: { contato: "Duplo" } },
+      });
+      const l6 = await turno("o Duplo me pagou", "T8L6");
+      check(
+        "linha 6: duas contas lista numerada e pergunta qual",
+        l6.mensagens[0]?.texto.includes("1.") &&
+          l6.mensagens[0].texto.includes("2.") &&
+          l6.mensagens[0].texto.includes(reaisBr(300)) &&
+          l6.mensagens[0].texto.includes(reaisBr(500)) &&
+          l6.mensagens[0].texto.includes("Qual delas?"),
+        JSON.stringify(l6),
+      );
+      prepara({ resposta: { tipo: "responde", valor: "1" } });
+      const l6escolhe = await turno("1", "T8L6b");
+      check(
+        "a escolha da primeira conta pergunta se quita tudo",
+        l6escolhe.mensagens[0]?.texto.includes("Confirma que quitou tudo?") && chamadas.join() === "resposta",
+        JSON.stringify(l6escolhe),
+      );
+      prepara({});
+      await turno("sim", "T8L6sim");
+      const duploCedoDepois = await db.financialEntry.findUniqueOrThrow({ where: { id: entryDuploCedo.id } });
+      const duploTardeDepois = await db.financialEntry.findUniqueOrThrow({ where: { id: entryDuploTarde.id } });
+      check("a conta escolhida (a mais cedo) foi quitada", duploCedoDepois.status === "paid");
+      check("a outra conta do mesmo contato continua pendente", duploTardeDepois.status === "pending");
+
+      // Linha 7: consulta. Nunca grava.
+      prepara({
+        dominio: { pedidos: [{ dominio: "financeiro", trecho: "quanto o Zé Carlos ainda me deve" }] },
+        extracao_financeiro: { intent: "consultar_recebimento", parametros: { contato: "Zé Carlos" } },
+      });
+      const l7 = await turno("quanto o Zé Carlos ainda me deve", "T8L7");
+      check(
+        "linha 7: consulta responde saldo e vencimento, sem gravar",
+        l7.mensagens[0]?.texto.includes(reaisBr(2000)) &&
+          l7.mensagens[0].texto.includes("01/11/2026") &&
+          l7.mensagens[0].pode_humanizar === false,
+        JSON.stringify(l7),
+      );
+      check(
+        "a consulta não criou pagamento nenhum",
+        (await db.financialPayment.count({ where: { entry_id: entryZe.id } })) === 0,
+      );
+      check(
+        "e a conta consultada continua pendente",
+        (await db.financialEntry.findUniqueOrThrow({ where: { id: entryZe.id } })).status === "pending",
+      );
+    }
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });
     await prisma.$disconnect();

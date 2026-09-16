@@ -18,6 +18,8 @@ import {
   consultarSaldo,
   gerarRelatorio,
   registrarLancamentoFinanceiro,
+  registrarRecebimento,
+  consultarRecebimento,
 } from "@/lib/actions/whatsapp-handlers/financeiro";
 import { criarTarefa } from "@/lib/actions/whatsapp-handlers/tarefas";
 import {
@@ -180,6 +182,8 @@ const HANDLERS: Record<Exclude<Intent, "ambigua">, Handler> = {
   consultar_cliente: consultarCliente,
   gerar_relatorio: gerarRelatorio,
   registrar_lancamento_financeiro: registrarLancamentoFinanceiro,
+  registrar_recebimento: registrarRecebimento,
+  consultar_recebimento: consultarRecebimento,
   adicionar_item_lista: adicionarItemLista,
   consultar_lista_compra: consultarListaCompra,
   remover_item_lista: removerItemLista,

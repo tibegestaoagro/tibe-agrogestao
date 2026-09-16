@@ -80,6 +80,13 @@ export const INTENTS = [
   "registrar_trabalhador",
   "registrar_pagamento_trabalhador",
   "registrar_adiantamento",
+  // Fase 5 (dinheiro que entra): dar baixa no que o cliente pagou, consultar
+  // quem ainda deve, e agendar pagamento futuro da equipe. O classificador do
+  // n8n ainda NAO emite estas tres: ficam roteadas e testadas, esperando a
+  // rodada em que o agente for atualizado.
+  "registrar_recebimento",
+  "consultar_recebimento",
+  "agendar_pagamento_trabalhador",
   // Serviço contratado (Módulo 33, fase 2, §32). As duas conversas do
   // documento: a diária ("vieram 3 homens por 4 dias") e o empreito ("o Pedro
   // fez a cerca por 6 mil"). Mesmo estado das de cima: roteadas e testadas,
@@ -213,6 +220,10 @@ export const INTENT_ACCESS: Record<
     profile: "fazenda",
   },
   registrar_adiantamento: { module: "mao_de_obra", action: "write", profile: "fazenda" },
+  // Fase 5 (dinheiro que entra): mesmo motivo das tres de cima (guarda
+  // salario). O classificador do n8n ainda NAO emite esta intencao; fica
+  // roteada e testada, esperando a rodada em que o agente for atualizado.
+  agendar_pagamento_trabalhador: { module: "mao_de_obra", action: "write", profile: "fazenda" },
   // ⚠️ Módulo `servicos`, e NÃO `mao_de_obra` como as três de cima: a diária de
   // um serviço não tem a sensibilidade de um salário, e quem viu o trabalho
   // acontecer é quem está no curral. Um OPERADOR registra "vieram 3 homens
@@ -231,6 +242,11 @@ export const INTENT_ACCESS: Record<
   consultar_cliente: { module: "prestador", action: "read", profile: "prestador" },
   gerar_relatorio: { module: null, action: "read" }, // módulo varia por parameters.tipo
   registrar_lancamento_financeiro: { module: "financeiro", action: "write" },
+  // Fase 5 (dinheiro que entra): o classificador do n8n ainda NAO emite estas
+  // duas; elas ficam roteadas e testadas, esperando a rodada em que o agente
+  // for atualizado. Mesmo estado das intencoes das fases anteriores.
+  registrar_recebimento: { module: "financeiro", action: "write" },
+  consultar_recebimento: { module: "financeiro", action: "read" },
   // Módulo 27: "me lembra de comprar sal na quinta". Sem perfil exigido
   // (tarefa não é exclusiva do perfil fazenda, diferente de rebanho).
   // Módulo 36: a Lista de Compra reusa "rebanho" com perfil fazenda, o mesmo

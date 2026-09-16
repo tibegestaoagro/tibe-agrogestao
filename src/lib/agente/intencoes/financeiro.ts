@@ -54,4 +54,28 @@ export const INTENCOES_FINANCEIRO: IntencaoDef[] = [
     ],
     vizinhas: "resumo quando quer ver na conversa, sem PDF; consultar_saldo quando quer só o saldo",
   },
+  {
+    intent: "registrar_recebimento",
+    dominio: "financeiro",
+    descricao: "o produtor conta que um cliente PAGOU algo que devia a ele, no todo ou em parte",
+    campos: [
+      { nome: "contato", tipo: "texto", descricao: "quem pagou, o nome como o produtor falou (João, Fazenda Boa Vista)" },
+      { nome: "valor", tipo: "numero", descricao: "quanto recebeu, só o número; vazio quando ele não disse (aí é a conta inteira)" },
+      { nome: "data", tipo: "data", descricao: "quando recebeu, como ele falou (hoje, ontem, dia 10); vazio é hoje" },
+    ],
+    exemplos: ["o João me pagou", "a Fazenda Boa Vista pagou 500 dos 1500", "recebi do Ze Carlos ontem"],
+    vizinhas:
+      "registrar_lancamento_financeiro quando é dinheiro avulso que entrou e não quita uma conta de alguém (aluguel, venda de sucata); consultar_recebimento quando ele PERGUNTA se alguém pagou",
+  },
+  {
+    intent: "consultar_recebimento",
+    dominio: "financeiro",
+    descricao: "o produtor PERGUNTA se um cliente já pagou, ou quanto ele ainda deve",
+    campos: [
+      { nome: "contato", tipo: "texto", descricao: "de quem ele quer saber, o nome como falou" },
+    ],
+    exemplos: ["o João já pagou?", "quanto o Ze Carlos ainda me deve"],
+    vizinhas:
+      "registrar_recebimento quando ele AFIRMA que recebeu; consultar_saldo quando pergunta o saldo do mês; resumo quando pergunta as contas a receber em geral, sem nome",
+  },
 ];

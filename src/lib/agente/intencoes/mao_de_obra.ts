@@ -47,4 +47,17 @@ export const INTENCOES_MAO_DE_OBRA: IntencaoDef[] = [
     exemplos: ["Dei 500 reais adiantado para o João. (Área Mão de Obra §32)", "o Zé pegou um vale de 200"],
     vizinhas: "registrar_pagamento_trabalhador quando é o pagamento do mês, sem ser adiantado",
   },
+  {
+    intent: "agendar_pagamento_trabalhador",
+    dominio: "mao_de_obra",
+    descricao: "o produtor diz que VAI pagar alguém da equipe numa data futura, sem ter pago ainda",
+    campos: [
+      NOME_DA_EQUIPE,
+      { nome: "data", tipo: "data", descricao: "quando vai pagar, como ele falou (dia 10, sexta, 20/10)" },
+      { nome: "valor", tipo: "numero", descricao: "quanto vai pagar, só o número; vazio usa o valor previsto do trabalhador" },
+    ],
+    exemplos: ["vou pagar o Pedro dia 10", "o pagamento do João fica pra sexta"],
+    vizinhas:
+      "registrar_pagamento_trabalhador quando ele JÁ pagou; registrar_adiantamento quando é vale ou adiantado",
+  },
 ];
