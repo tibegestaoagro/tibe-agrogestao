@@ -187,10 +187,15 @@ avançou, e cada commit que sobe é leitura pública.
 
 **2. Agente do WhatsApp, Fase 4:** o plano existe
 ([../superpowers/plans/2026-09-16-agente-whatsapp-fase-4-homologacao.md](../superpowers/plans/2026-09-16-agente-whatsapp-fase-4-homologacao.md))
-e cinco das seis tasks estão feitas, na branch `fase-4-homologacao` (ainda NÃO
-mergeada). Falta a rodada de ponta a ponta pelo n8n, que **depende de o usuário
-autorizar ativar a cópia de homologação**: enquanto ela estiver inativa, o
-webhook devolve 404.
+e as seis tasks estão feitas, na branch `fase-4-homologacao`, que **ainda NÃO
+foi mergeada**: falta só a autorização. A rodada de ponta a ponta pelo n8n foi
+feita em 16/09, com autorização: a cópia foi ativada, exercitada e desativada na
+mesma sessão, e a produção ficou intocada (conferida antes e depois).
+
+Provado de ponta a ponta pelo webhook: confirmação vindo da rota de turno,
+recusa sem gravar, "sim" fora de hora sem gravar, três pedaços em ~3 s virando
+um pedido só, e **idempotência de escrita** (o "sim" que grava, repetido com o
+mesmo `message_id`: negociações 2 para 3, nunca 4).
 
 Entregue: workflow fino aplicado em `ctGOlY9OXZWfjeby` (25 nós, inativo, webhook
 `/webhook/homologacao`, chamando a rota de turno; produção intocada, conferida);
@@ -205,6 +210,16 @@ para exercitar a cópia; e o roteiro do dia do chip
 passos com frase de desistência foram de 41 para 39 de 145. O relatório explica
 onde estão (nove são comportamento certo, dez são artefato do aparato, que mede
 o turno sem o buffer do n8n).
+
+⚠️ **A revisão final achou uma GRAVAÇÃO INDEVIDA que a medição não podia
+achar**, aberta pela terceira correção: com o uso de estoque esperando o
+produto, "nem precisei do sal afinal" casava "Sal" por substring e gravava o uso
+que o produtor tinha acabado de negar. Corrigida em `5106091` (a regra de quem
+grava sem confirmar virou uma constante única, lida pelo handler e pelo turno),
+com o caso que faltava virando teste. A catraca escrita para a lista não
+envelhecer (seção 1c da `m68`, `9382361`) achou **mais quatro** intenções que
+gravam sem confirmar e não estavam declaradas. Rodadas 6 e 7: zero gravação
+indevida. Gasto do programa: US$ 5,12 de US$ 30.
 
 A Fase 4 foi feita SEM o segundo chip, por decisão do usuário em 16/09. Ela
 herda três defeitos de conversa da Fase 3, todos abertos: permuta com diferença

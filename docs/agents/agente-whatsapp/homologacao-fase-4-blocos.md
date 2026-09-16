@@ -23,9 +23,10 @@ eliminatório.
 | `homologacao-4` (interseção de candidatas) | 0 | 19 | 43 de 145 | US$ 0,027 |
 | `homologacao-5` (ambígua com pergunta aberta) | 0 | 19 | 39 de 145 | US$ 0,026 |
 | `homologacao-6` (porta fechada para quem grava) | 0 | 19 | 39 de 145 | US$ 0,030 |
+| `homologacao-7` (lista completa pela catraca) | 0 | 19 | 39 de 145 | US$ 0,026 |
 
-Total gasto na fase: US$ 0,17. O acumulado do programa foi de US$ 4,93 para
-US$ 5,10, de um teto de US$ 30.
+Total gasto na fase: US$ 0,20. O acumulado do programa foi de US$ 4,93 para
+US$ 5,12, de um teto de US$ 30.
 
 ## As duas "gravações indevidas" da primeira rodada eram do medidor, não do agente
 
@@ -194,6 +195,13 @@ dois sentidos: sem a correção ele reprova com a frase literal do estrago.
 
 **A lição:** zero gravação indevida em cinco rodadas seguidas não é prova de
 que não existe gravação indevida. Prova que o conjunto não a alcança.
+
+E teve uma segunda camada. A lista corrigida nasceu com UMA intenção, e a
+catraca escrita para protegê-la (seção 1c da `m68`) achou **mais quatro** que
+gravam sem confirmar e não estavam declaradas: cadastro de animal, peso, vacina
+e previsão de vacina. A guarda parecia mais forte do que era, e quem contou não
+foi a medição nem a revisão: foi a catraca, no mesmo dia em que nasceu. Ela
+também foi provada nos dois sentidos, comentando uma intenção da lista.
 
 ## O que ficou de fora, e por quê
 
