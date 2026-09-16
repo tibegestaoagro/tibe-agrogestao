@@ -72,6 +72,12 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [a dívida descreve o sintoma, a auditoria acha o irmão](a-divida-descreve-o-sintoma-e-a-auditoria-acha-o-irmao.md) | licao | adiar deslocava a série; a venda do lote não virava negociação |
 | [vencimento padrão na data do fato nasce vencido](vencimento-padrao-na-data-do-fato-nasce-vencido.md) | licao | o terceiro módulo a repetir `due_date ?? occurred_at` |
 | [confirmar deploy pelo status do commit](confirmar-deploy-pelo-status-do-commit.md) | referencia | esperar a Vercel sem sondar produção |
+| [ajustar prompt olhando o relatório inteiro contamina a nota](ajustar-prompt-olhando-o-relatorio-inteiro-contamina-a-nota.md) | licao | a partição guardada vazou, e o modelo saiu de 84,8% para 96,8% nos mesmos casos |
+| [prompt antes de modelo](prompt-antes-de-modelo-o-barato-passa-o-caro-erra-igual.md) | licao | os seis modelos erravam igual; ajustar a instrução comprou mais que trocar de modelo |
+| [a etapa de domínio decide o que a extração pode responder](a-etapa-de-dominio-decide-o-que-a-extracao-pode-responder.md) | armadilha | domínio errado vira "não entendi", e a culpa parece da intenção |
+| [campo homônimo herda a descrição da primeira intenção](campo-homonimo-no-dominio-herda-a-descricao-da-primeira-intencao.md) | armadilha | o relatório voltava sem área em 6 de 6 medições |
+| [a trava de número por extenso precisa da regra de composição](trava-de-numero-por-extenso-precisa-da-regra-de-composicao.md) | armadilha | "cento e vinte, cinquenta de frete" virava 170 |
+| [o limite da conta reprova o modelo se você não esperar](limite-da-conta-reprova-o-modelo-se-voce-nao-esperar.md) | armadilha | 99 mensagens em erro de 1 segundo eram 429, não o modelo |
 
 ⚠️ **`[[wikilink]]` para nota que não existe reprova o `npm run check`**
 (conferência 13). É o que impede esta pasta de virar um cemitério de links

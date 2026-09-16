@@ -25,7 +25,7 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 `historico/2026-09.md`.
 ## Estado atual
 
-- Atualizado em: 2026-09-15.
+- Atualizado em: 2026-09-16.
 
 ### Agente do WhatsApp: Fase 1 (fundação) EM PRODUÇÃO
 
@@ -50,56 +50,23 @@ evidência de que o tráfego real passa é que as 15 execuções reais de 14/09
 traziam a mesma instância e chave. Conferir as primeiras execuções reais de 15/09
 pela API do n8n; se pararem na guarda, restaurar o workflow do backup.
 
-**Fase 1 em produção desde 15/09 (`df74e40`, sem migração):** confirmação
-estrita, idempotência por `wamid#intenção`, nenhum handler grava sem pendente
-guardado, sim e resposta curta vão ao pendente mais recente, os 12 defeitos de
-handler da spec. Suíte `m67`. Detalhe no plano da Fase 1.
-
-### Agente do WhatsApp: Fase 2 (turno no Tibé) PRONTA NA BRANCH, sem merge
-
-Branch `agente-whatsapp-fase-2` (26 commits sobre `4c4ca07`), plano
-[../superpowers/plans/2026-09-15-agente-whatsapp-fase-2-turno.md](../superpowers/plans/2026-09-15-agente-whatsapp-fase-2-turno.md).
-Decisões de 15/09 na spec (cursor da conversa, rota nova de turno, OpenAI com
-modelo em `AGENTE_MODELO`). Entregue:
-
-- registro das 52 intenções por domínio (`src/lib/agente/intencoes/`), com trava
-  de cobertura na `m68`;
-- cliente do modelo com JSON Schema estrito (`modelo.ts`), prompts gerados do
-  registro com versão (`prompts.ts`), classificação em duas etapas
-  (`classificar.ts`) e conferência do trecho literal (número inventado sai);
-- núcleo `executarIntencao` extraído do `execute-action` (mesma resposta), cursor
-  da conversa no Redis (`cursor.ts`, limite de 500 ms), `identificarContato`
-  extraído do `resolve-contact` (mesma resposta);
-- rota `POST /api/internal/whatsapp/turno` (`src/lib/actions/turno.ts`), que
-  ninguém chama ainda: o n8n passa a usá-la na Fase 4;
-- defeitos de handler achados no caminho: `num()` lia "1.500" como 1,5 (agora
-  lê número brasileiro em todos os handlers); previsão de vacina só aceitava
-  ISO; resposta da faixa não resolvia item ambíguo em `itens`; e um **"sim" de
-  movimentação de rebanho executava um negócio de gado mais antigo** (existia
-  na `main`, pelo n8n; corrigido no roteador).
-
-Cada tarefa teve revisão independente; a revisão final da branch achou 1
-crítico e 3 importantes, a onda única corrigiu, a re-revisão aprovou. Travas
-quebradas de propósito (cursor sem gravar, trecho literal sem remover): a `m68`
-falhou nas duas. `test:all -- --sem-redis` 68/68, `tsc`, `check`, `lint` sem
-aviso novo.
-
-⚠️ **Migração nova, `20260915120000_log_versao_do_prompt`** (`ADD COLUMN`
-nulável em `AgentConversationLog`): **precisa ir ao Neon ANTES do push**, porque
-o código novo grava a coluna nas duas rotas de produção.
-
-**Fica para a Fase 3** (conjunto de avaliação): chamada real com o schema de
-extração logo no início (tipo múltiplo no modo estrito); "ok, quanto de sal"
-numa confirmação; "um/uma" como artigo validando quantidade 1; dois reenvios
-simultâneos executam em dobro antes da chave (anterior à Fase 2). Redis que
-pendura os pendentes: dívida 3.1.
+**Fase 1 (fundação) e Fase 2 (turno no Tibé) EM PRODUÇÃO desde 15/09**
+(`df74e40` e `f3da082`, com a migração `20260915120000_log_versao_do_prompt`
+aplicada no Neon). Confirmação estrita, idempotência por `wamid#intenção`,
+handler que nunca grava sem pendente guardado, cursor da conversa, rota
+`POST /api/internal/whatsapp/turno` (ainda sem chamador: o n8n passa a usá-la
+na Fase 4) e o núcleo `executarIntencao` compartilhado com o `execute-action`.
+Suítes `m67` e `m68`. O detalhe das duas fases foi para
+[historico/2026-09.md](historico/2026-09.md), e os planos seguem em
+`docs/superpowers/plans/`.
 
 ⚠️ **Achado da Fase 1 ainda aberto:** "gastei 500 de diesel no trator" vira uso
-de estoque no classificador do n8n; o registro novo desempata, a Fase 3 mede.
+de estoque no classificador do n8n. O registro de intenções novo desempata, e a
+Fase 4 mede isso em conversa real.
 
-### Agente do WhatsApp: Fase 3 (avaliação) PRONTA NA BRANCH, sem merge
+### Agente do WhatsApp: Fase 3 (avaliação) EM PRODUÇÃO desde 16/09
 
-Branch `agente-whatsapp-fase-3`, plano
+Merge `23b8f57`, sem migração, deploy confirmado pelo status da Vercel. Plano
 [../superpowers/plans/2026-09-15-agente-whatsapp-fase-3-avaliacao.md](../superpowers/plans/2026-09-15-agente-whatsapp-fase-3-avaliacao.md).
 Entregue: executor de avaliação em `scripts/avaliacao/` (medidor de custo com
 teto de US$ 30, espera no 429 da conta, fazenda de avaliação no Postgres local,
@@ -218,13 +185,21 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou, e cada commit que sobe é leitura pública.
 
-**2. Agente do WhatsApp, Fase 3:** com aprovação, merge e push da branch
-`agente-whatsapp-fase-3` (não tem migração). Depois:
-`AGENTE_MODELO=gpt-5.6-luna` e `AGENTE_ESFORCO=low` na Vercel, com redeploy
-(pendências, item 11.5); então o plano da Fase 4 (workflow fino no n8n chamando
-o turno, segundo chip, blocos de conversa em homologação). Ainda vale conferir
-as primeiras execuções reais do workflow depois da guarda (execução de 2 nós
-sem "Normalizar e Filtrar" é mensagem barrada).
+**2. Agente do WhatsApp, Fase 4:** escrever o plano (workflow fino no n8n
+chamando `POST /api/internal/whatsapp/turno`, segundo chip, blocos de conversa
+em homologação pelo tenant de provas) e decidir com o usuário o que a
+homologação precisa provar antes de promover. A Fase 4 **depende do segundo
+chip**, que continua pendente. Ela herda três defeitos de conversa que a
+avaliação achou e que nenhuma mensagem solta mostra: permuta com diferença em
+dinheiro não é entendida; a resposta de parcelamento ("35 mil, em 2 vezes")
+esgota as tentativas; e a correção de valor antes do "sim" é ignorada, gravando
+o valor antigo (esta última é decisão antiga do projeto, e a Fase 4 pode
+reabrir). Ainda vale conferir as primeiras execuções reais do workflow depois da
+guarda (execução de 2 nós sem "Normalizar e Filtrar" é mensagem barrada).
+
+**3. Do usuário, quando quiser:** `AGENTE_MODELO=gpt-5.6-luna` e
+`AGENTE_ESFORCO=low` na Vercel, com redeploy (pendências, item 11.5). O código
+já usa esse par como padrão.
 
 Não avance para outro módulo sem aprovação explícita.
 
