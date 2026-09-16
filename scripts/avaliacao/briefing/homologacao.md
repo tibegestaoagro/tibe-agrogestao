@@ -32,7 +32,7 @@ cada passo, você diz se aquele passo pode gravar algo no sistema.
   "autor": "conversa",
   "tipo": "conversa",
   "passos": [
-    { "texto": "comprei 20 bezerro do joao por 60 mil", "grava": "pode" },
+    { "texto": "paguei 800 de conserto da bomba pro Ze", "grava": "pode" },
     { "texto": "nao, deixa pra la", "grava": "nao", "nota": "recusa depois da pergunta de confirmacao: nada pode ser gravado" }
   ],
   "nota": "opcional: por que o bloco existe"
@@ -58,14 +58,29 @@ quando tiver.
 
 ## Como o assistente se comporta (o que você precisa saber para acertar o `grava`)
 
-- Compra e venda de gado, lançamento de dinheiro e cadastro pedem confirmação
-  ("sim") antes de gravar.
+Conferido no código em 16/09, depois de a primeira leva de blocos ter errado
+justamente estes pontos:
+
+- Compra e venda de gado, lançamento de dinheiro e **movimentação de rebanho**
+  (nasceu, morreu, mudou de pasto) pedem confirmação ("sim") antes de gravar.
+- **Cadastro de animal NÃO pede confirmação**: grava direto. O que às vezes
+  segura o cadastro é pergunta de campo que faltou, não confirmação.
+- **Item de lista de compra que já está na lista** faz ele perguntar se é para
+  anotar assim mesmo, e aí o "sim" GRAVA. Item novo grava direto, sem pergunta.
 - Uso de estoque ("usei 2 sacas de sal") pode gravar direto, **mas só se a
   fazenda for dita**: são duas fazendas, e sem isso ele pergunta qual.
 - Categoria ambígua ("novilha" pode ser de várias idades) faz ele perguntar a
   idade antes.
 - Consulta ("quanto tenho de sal?") nunca grava, nem quando a frase se parece
   com um registro.
+
+⚠️ **Um "nao" no meio de uma correção cancela o pedido inteiro.** Escrever
+"nao dia 10, foi dia 15" derruba o que estava pendente, e o bloco se
+autodestrói antes do passo que você queria testar. Corrija sem a palavra
+"não": "mudou pra dia 15".
+
+⚠️ **Não reaproveite as frases de exemplo deste briefing.** Elas são ilustração
+de formato; caso escrito em cima de exemplo mede o modelo recitando exemplo.
 
 ## As sete categorias, e o que cada uma tem que atacar
 
@@ -82,8 +97,8 @@ Seu lote é uma ou duas destas. **No mínimo 5 blocos por categoria.**
    diferentes na mesma frase, e pelo menos dois blocos onde um dos dois é
    pergunta e o outro é registro.
 4. **mensagem picada** (`hom-picada-NNN`): um pedido quebrado em 2 ou 3 passos
-   curtos que só fazem sentido juntos ("comprei 20 bezerro" / "do joao" /
-   "por 60 mil"). Inclua um caso em que o último pedaço muda o sentido.
+   curtos que só fazem sentido juntos ("paguei o conserto da bomba" / "foi 800"
+   / "pro Ze"). Inclua um caso em que o último pedaço muda o sentido.
 5. **áudio transcrito** (`hom-audio-NNN`): texto corrido, sem pontuação e sem
    acento, com muleta de fala ("é... então... ó", "deixa eu ver"), número por
    extenso, e a pessoa se repetindo.
