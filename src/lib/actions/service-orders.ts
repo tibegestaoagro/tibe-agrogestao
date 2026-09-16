@@ -62,12 +62,37 @@ export async function createServiceOrderAction(
   return ok({ id: order.id, total_value, status: order.status });
 }
 
-/** Busca clientes por nome (contém, case-insensitive). */
+/**
+ * Minúsculas, sem acento e sem espaço repetido. Cópia local do helper de
+ * `whatsapp-handlers/shared.ts` (mesmo padrão das outras cópias do projeto):
+ * uma action de negócio não deveria importar de um handler do agente.
+ */
+function semAcento(termo: string): string {
+  const limpo = Array.from(termo.toLowerCase().normalize("NFD"))
+    .filter((ch) => {
+      const code = ch.codePointAt(0) ?? 0;
+      return code < 0x0300 || code > 0x036f;
+    })
+    .join("");
+  return limpo.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Busca clientes por nome (contém, sem acento, case-insensitive).
+ *
+ * Fase 5, rodada de correção (A1, 2026-09-16): era `contains` + `mode:
+ * "insensitive"`, que vira `ILIKE` no Postgres, e `ILIKE` não dobra acento.
+ * Contra um `ServiceClient` "Zé Carlos", a mensagem "recebi do Ze Carlos" (o
+ * próprio exemplo da intenção) devolvia "não achei". Pior: um `ServiceClient`
+ * "Márcia Lima" e um `Contact` "Márcia Lima" (que já é achado sem acento, ver
+ * `pessoasQueCasam` em `contas-do-contato.ts`) casavam de jeitos diferentes
+ * conforme a mensagem trazia o acento ou não, e a diferença decidia qual dos
+ * dois tomava a baixa. As duas fontes agora casam pela MESMA regra.
+ */
 export async function findClientsByName(db: TenantPrismaClient, name: string) {
-  return db.serviceClient.findMany({
-    where: { name: { contains: name, mode: "insensitive" } },
-    orderBy: { name: "asc" },
-  });
+  const alvo = semAcento(name);
+  const todos = await db.serviceClient.findMany({ orderBy: { name: "asc" } });
+  return todos.filter((c) => semAcento(c.name).includes(alvo));
 }
 
 /** Busca serviço por nome (exato, senão contém), case-insensitive. */

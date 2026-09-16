@@ -341,6 +341,18 @@ async function abrirConversaRecebimento(ctx: {
   };
 }
 
+/**
+ * A3 (correção da mesma rodada): reconstrói o `due_date` depois da ida e
+ * volta pelo Redis. `parameters.contas` é gravado como JSON
+ * (`pending-store.ts`), e `JSON.stringify` já vira o `Date` em string ISO
+ * sozinho; `JSON.parse` devolve essa string, nunca um `Date`. Sem isto,
+ * `listaDeContas` quebraria em `c.due_date.toLocaleDateString` na segunda
+ * exibição da lista (escolha inválida, por exemplo).
+ */
+function normalizarConta(c: ContaEmAberto): ContaEmAberto {
+  return { ...c, due_date: c.due_date ? new Date(c.due_date) : null };
+}
+
 function listaDeContas(contas: ContaEmAberto[]): string {
   return contas
     .map((c, i) => {
@@ -350,9 +362,17 @@ function listaDeContas(contas: ContaEmAberto[]): string {
     .join("\n");
 }
 
-/** G2: a lista numerada de homônimos, para o produtor escolher qual. */
+/**
+ * G2: a lista numerada de homônimos, para o produtor escolher qual.
+ *
+ * A2 (correção da mesma rodada): mostra o que diferencia cada um, `p.tipo`
+ * ("cliente" ou "contato"), porque dois nomes idênticos (um `ServiceClient` e
+ * um `Contact`, por exemplo) imprimiam a mesma linha duas vezes e o produtor
+ * não tinha como escolher. Mesmo espírito de `resolverTrabalhador`
+ * (`mao-de-obra.ts`), que já imprime `- ${w.name} (${w.role})` por isso.
+ */
 function listaDePessoas(candidatos: PessoaCandidata[]): string {
-  return candidatos.map((p, i) => `${i + 1}. ${p.name}`).join("\n");
+  return candidatos.map((p, i) => `${i + 1}. ${p.name} (${p.tipo})`).join("\n");
 }
 
 /**
@@ -465,41 +485,54 @@ export const registrarRecebimento: Handler = async (ctx) => {
     );
   }
 
-  const nomeDito = str(parameters.contato) ?? str(parameters.nome);
-  if (!nomeDito) {
-    await guardar("contato");
-    return ask("Quem pagou?");
-  }
-
   let contatoNome: string;
   let contas: ContaEmAberto[];
 
-  // G2: o nome já casou mais de uma pessoa numa volta anterior, e o produtor
-  // acabou de escolher qual. Nunca casa o nome de novo: usa a pessoa
-  // escolhida da lista que já foi mostrada.
-  const candidatosGuardados = parameters.candidatos as PessoaCandidata[] | undefined;
-  if (Array.isArray(candidatosGuardados) && candidatosGuardados.length > 0) {
-    const escolhaPessoa = num(parameters.quem);
-    if (escolhaPessoa == null || escolhaPessoa < 1 || escolhaPessoa > candidatosGuardados.length) {
-      await guardar("quem");
-      return ask(`Encontrei mais de um "${nomeDito}":\n${listaDePessoas(candidatosGuardados)}\nQual deles?`);
-    }
-    const pessoaEscolhida = candidatosGuardados[escolhaPessoa - 1];
-    contatoNome = pessoaEscolhida.name;
-    contas = await contasDaPessoa(ctx.db, pessoaEscolhida);
+  // A3 (achado do juiz, 2026-09-16): a lista de contas já foi mostrada numa
+  // volta anterior (mais de uma em aberto, aguardando "escolha"). Nunca
+  // reconsulta `contasEmAbertoDoContato` a partir daqui: uma conta nova do
+  // mesmo contato, nascida ENTRE a lista e a escolha, deslocaria o índice
+  // exatamente como o G1 deslocava o `entry_id`. `parameters.contas` é a
+  // lista PINADA no momento em que foi mostrada; ver `guardar("escolha")`
+  // abaixo, e `normalizarConta` para o porquê do `due_date`.
+  const contasPinadas = parameters.contas as ContaEmAberto[] | undefined;
+  if (contatoJaResolvido && Array.isArray(contasPinadas) && contasPinadas.length > 0) {
+    contatoNome = contatoJaResolvido;
+    contas = contasPinadas.map(normalizarConta);
   } else {
-    const achado = await contasEmAbertoDoContato(ctx.db, nomeDito);
-    if (achado.estado === "nao_encontrado") {
-      await limpar();
-      return ask("Não achei nenhum cliente com esse nome. Como ele está cadastrado?");
+    const nomeDito = str(parameters.contato) ?? str(parameters.nome);
+    if (!nomeDito) {
+      await guardar("contato");
+      return ask("Quem pagou?");
     }
-    if (achado.estado === "ambiguo") {
-      parameters.candidatos = achado.candidatos;
-      await guardar("quem");
-      return ask(`Encontrei mais de um "${nomeDito}":\n${listaDePessoas(achado.candidatos)}\nQual deles?`);
+
+    // G2: o nome já casou mais de uma pessoa numa volta anterior, e o
+    // produtor acabou de escolher qual. Nunca casa o nome de novo: usa a
+    // pessoa escolhida da lista que já foi mostrada.
+    const candidatosGuardados = parameters.candidatos as PessoaCandidata[] | undefined;
+    if (Array.isArray(candidatosGuardados) && candidatosGuardados.length > 0) {
+      const escolhaPessoa = num(parameters.quem);
+      if (escolhaPessoa == null || escolhaPessoa < 1 || escolhaPessoa > candidatosGuardados.length) {
+        await guardar("quem");
+        return ask(`Encontrei mais de um "${nomeDito}":\n${listaDePessoas(candidatosGuardados)}\nQual deles?`);
+      }
+      const pessoaEscolhida = candidatosGuardados[escolhaPessoa - 1];
+      contatoNome = pessoaEscolhida.name;
+      contas = await contasDaPessoa(ctx.db, pessoaEscolhida);
+    } else {
+      const achado = await contasEmAbertoDoContato(ctx.db, nomeDito);
+      if (achado.estado === "nao_encontrado") {
+        await limpar();
+        return ask("Não achei nenhum cliente com esse nome. Como ele está cadastrado?");
+      }
+      if (achado.estado === "ambiguo") {
+        parameters.candidatos = achado.candidatos;
+        await guardar("quem");
+        return ask(`Encontrei mais de um "${nomeDito}":\n${listaDePessoas(achado.candidatos)}\nQual deles?`);
+      }
+      contatoNome = achado.contato;
+      contas = achado.contas;
     }
-    contatoNome = achado.contato;
-    contas = achado.contas;
   }
 
   if (contas.length === 0) {
@@ -513,6 +546,10 @@ export const registrarRecebimento: Handler = async (ctx) => {
   if (contas.length > 1) {
     const escolha = num(parameters.escolha);
     if (escolha == null || escolha < 1 || escolha > contas.length) {
+      // A3: pina o contato E a lista mostrada, para a próxima volta (a
+      // escolha, válida ou não) nunca mais reconsultar o banco.
+      parameters.contato_resolvido = contatoNome;
+      parameters.contas = contas;
       await guardar("escolha");
       return ask(`${contatoNome} tem ${contas.length} contas em aberto:\n${listaDeContas(contas)}\nQual delas?`);
     }

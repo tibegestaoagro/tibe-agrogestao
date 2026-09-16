@@ -1033,6 +1033,280 @@ async function main() {
         (await db.financialEntry.findUniqueOrThrow({ where: { id: entryFaturada.id } })).status === "pending",
       );
     }
+    // ── 11. A1: ServiceClient e Contact casam pelo MESMO acento ────────────
+    //
+    // Re-revisão final da Fase 5 (16/09). `findClientsByName` (`ServiceClient`)
+    // ficara de fora da normalização de acento que `Contact` já tinha (G5):
+    // contra um `ServiceClient` acentuado, a mensagem sem acento (o próprio
+    // exemplo da intenção) devolvia "não achei", e um homônimo entre as duas
+    // fontes virava ambíguo COM acento e um só CONTATO em silêncio SEM acento.
+
+    console.log("\n11. A1: ServiceClient e Contact casam pela MESMA regra de acento");
+    {
+      const zeCarlosCliente = await db.serviceClient.create({ data: scoped({ name: "Zé Carlos M70" }) });
+      const servicoZe = await db.service.create({
+        data: scoped({ name: "Diária Zé M70", pricing_type: "fixed", unit_price: 100 }),
+      });
+      const ordemZe = await db.serviceOrder.create({
+        data: scoped({
+          service_client_id: zeCarlosCliente.id,
+          service_id: servicoZe.id,
+          total_value: 100,
+          performed_at: new Date("2026-09-01T12:00:00.000Z"),
+          status: "invoiced",
+        }),
+      });
+      await db.financialEntry.create({
+        data: scoped({
+          entry_type: "income",
+          category: "Serviço",
+          amount: 100,
+          related_module: "servico",
+          related_id: ordemZe.id,
+          status: "pending",
+          due_date: new Date("2026-09-20T12:00:00.000Z"),
+        }),
+      });
+
+      const r11a = await contasEmAbertoDoContato(db, "Ze Carlos M70");
+      check(
+        "11.1 ServiceClient acentuado casa com a busca SEM acento (o exemplo da intenção)",
+        r11a.estado === "ok" && r11a.contas.length === 1,
+        JSON.stringify(r11a),
+      );
+
+      const marciaCliente = await db.serviceClient.create({ data: scoped({ name: "Márcia Lima M70" }) });
+      const servicoMarcia = await db.service.create({
+        data: scoped({ name: "Diária Márcia M70", pricing_type: "fixed", unit_price: 2000 }),
+      });
+      const ordemMarcia = await db.serviceOrder.create({
+        data: scoped({
+          service_client_id: marciaCliente.id,
+          service_id: servicoMarcia.id,
+          total_value: 2000,
+          performed_at: new Date("2026-09-01T12:00:00.000Z"),
+          status: "invoiced",
+        }),
+      });
+      await db.financialEntry.create({
+        data: scoped({
+          entry_type: "income",
+          category: "Serviço",
+          amount: 2000,
+          related_module: "servico",
+          related_id: ordemMarcia.id,
+          status: "pending",
+          due_date: new Date("2026-09-25T12:00:00.000Z"),
+        }),
+      });
+
+      const marciaContato = await db.contact.create({ data: scoped({ name: "Márcia Lima M70" }) });
+      const negMarciaContato = await db.negotiation.create({
+        data: scoped({
+          type: "venda_gado",
+          occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+          property_id: fazenda.id,
+          contact_id: marciaContato.id,
+          amount: 500,
+        }),
+      });
+      await db.financialEntry.create({
+        data: scoped({
+          entry_type: "income",
+          category: "Venda de animal",
+          amount: 500,
+          negotiation_id: negMarciaContato.id,
+          status: "pending",
+          due_date: new Date("2026-10-01T12:00:00.000Z"),
+        }),
+      });
+
+      const semAcento = await contasEmAbertoDoContato(db, "Marcia Lima M70");
+      check(
+        "11.2 SEM acento acha os DOIS homônimos (ambíguo), não só o Contact em silêncio",
+        semAcento.estado === "ambiguo" && semAcento.candidatos.length === 2,
+        JSON.stringify(semAcento),
+      );
+
+      const comAcento = await contasEmAbertoDoContato(db, "Márcia Lima M70");
+      check(
+        "11.3 COM acento também acha os dois: as duas fontes casam pela mesma regra",
+        comAcento.estado === "ambiguo" && comAcento.candidatos.length === 2,
+        JSON.stringify(comAcento),
+      );
+    }
+
+    // ── 12. A2: a lista de homônimos mostra o que diferencia (tipo) ────────
+
+    console.log("\n12. A2: lista de homônimos mostra cliente/contato, não a mesma linha duas vezes");
+    {
+      const { routeIntent } = await import("@/lib/actions/whatsapp-router");
+      const { reaisBr } = await import("@/lib/numero-br");
+
+      const r12a = await routeIntent(db, {
+        intent: "registrar_recebimento" as never,
+        tenant_id: tenant.id,
+        role: "OWNER",
+        activeProfiles: ["fazenda"],
+        parameters: { contato: "Marcia Lima M70" },
+        confirmed: false,
+        explicitNo: false,
+        user_id: "m70-user-12",
+      });
+      check(
+        "12.1 a pergunta diferencia as duas linhas por tipo",
+        r12a.reply_text.includes("(cliente)") && r12a.reply_text.includes("(contato)"),
+        r12a.reply_text,
+      );
+
+      const r12b = await routeIntent(db, {
+        intent: "registrar_recebimento" as never,
+        tenant_id: tenant.id,
+        role: "OWNER",
+        activeProfiles: ["fazenda"],
+        parameters: { quem: 1 },
+        confirmed: false,
+        explicitNo: false,
+        user_id: "m70-user-12",
+      });
+      check(
+        "12.2 escolhendo o 1 (cliente), pergunta pela conta de 2.000 (a do ServiceClient)",
+        r12b.reply_text.includes(reaisBr(2000)),
+        r12b.reply_text,
+      );
+    }
+
+    // ── 13. A3: a lista de CONTAS também é pinada, não só a de pessoas ─────
+    //
+    // Mesmo defeito do G1 (seção 8.9), por outra porta: a correção do G1 pinou
+    // o `entry_id` só depois de a conta já estar identificada (uma conta só,
+    // ou a escolha já respondida). Com mais de uma conta, o handler guardava
+    // apenas `escolha` como NÚMERO, e a volta seguinte relia e reordenava as
+    // contas antes de indexar: uma conta nova do mesmo contato, nascida ENTRE
+    // a lista e a escolha, deslocava o índice.
+
+    console.log("\n13. A3: a lista de contas é pinada entre a lista e a escolha");
+    {
+      const { routeIntent } = await import("@/lib/actions/whatsapp-router");
+      const { reaisBr } = await import("@/lib/numero-br");
+
+      const pinado = await db.contact.create({ data: scoped({ name: "Pinado Contas M70" }) });
+      const negPin1 = await db.negotiation.create({
+        data: scoped({
+          type: "venda_gado",
+          occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+          property_id: fazenda.id,
+          contact_id: pinado.id,
+          amount: 300,
+        }),
+      });
+      const entryPin1 = await db.financialEntry.create({
+        data: scoped({
+          entry_type: "income",
+          category: "Venda de animal",
+          amount: 300,
+          negotiation_id: negPin1.id,
+          status: "pending",
+          due_date: new Date("2026-09-20T12:00:00.000Z"),
+        }),
+      });
+      const negPin2 = await db.negotiation.create({
+        data: scoped({
+          type: "venda_gado",
+          occurred_at: new Date("2026-09-02T12:00:00.000Z"),
+          property_id: fazenda.id,
+          contact_id: pinado.id,
+          amount: 500,
+        }),
+      });
+      const entryPin2 = await db.financialEntry.create({
+        data: scoped({
+          entry_type: "income",
+          category: "Venda de animal",
+          amount: 500,
+          negotiation_id: negPin2.id,
+          status: "pending",
+          due_date: new Date("2026-10-05T12:00:00.000Z"),
+        }),
+      });
+
+      const r13a = await routeIntent(db, {
+        intent: "registrar_recebimento" as never,
+        tenant_id: tenant.id,
+        role: "OWNER",
+        activeProfiles: ["fazenda"],
+        parameters: { contato: "Pinado Contas M70" },
+        confirmed: false,
+        explicitNo: false,
+        user_id: "m70-user-13",
+      });
+      check(
+        "13.1 lista as duas contas, 300 antes de 500",
+        r13a.reply_text.includes(reaisBr(300)) && r13a.reply_text.includes(reaisBr(500)),
+        r13a.reply_text,
+      );
+
+      // Entre a lista e a escolha: uma conta nova do MESMO contato, com
+      // vencimento mais cedo que as outras duas, é faturada pelo painel.
+      const negPin3 = await db.negotiation.create({
+        data: scoped({
+          type: "venda_gado",
+          occurred_at: new Date("2026-09-10T12:00:00.000Z"),
+          property_id: fazenda.id,
+          contact_id: pinado.id,
+          amount: 9000,
+        }),
+      });
+      const entryPin3 = await db.financialEntry.create({
+        data: scoped({
+          entry_type: "income",
+          category: "Venda de animal",
+          amount: 9000,
+          negotiation_id: negPin3.id,
+          status: "pending",
+          due_date: new Date("2026-09-18T12:00:00.000Z"),
+        }),
+      });
+
+      const r13b = await routeIntent(db, {
+        intent: "registrar_recebimento" as never,
+        tenant_id: tenant.id,
+        role: "OWNER",
+        activeProfiles: ["fazenda"],
+        parameters: { escolha: 1 },
+        confirmed: false,
+        explicitNo: false,
+        user_id: "m70-user-13",
+      });
+      check(
+        "13.2 escolheu a conta MOSTRADA (300), não a de 9.000 que passaria a ocupar a posição 1",
+        r13b.reply_text.includes("Confirma que quitou tudo?") && r13b.reply_text.includes(reaisBr(300)),
+        r13b.reply_text,
+      );
+
+      const r13c = await routeIntent(db, {
+        intent: "registrar_recebimento" as never,
+        tenant_id: tenant.id,
+        role: "OWNER",
+        activeProfiles: ["fazenda"],
+        parameters: {},
+        confirmed: true,
+        explicitNo: false,
+        user_id: "m70-user-13",
+      });
+      check("13.3 o 'sim' registrou o recebimento", r13c.reply_text.includes("registrado"), r13c.reply_text);
+
+      const entryPin1Depois = await db.financialEntry.findUniqueOrThrow({ where: { id: entryPin1.id } });
+      const entryPin2Depois = await db.financialEntry.findUniqueOrThrow({ where: { id: entryPin2.id } });
+      const entryPin3Depois = await db.financialEntry.findUniqueOrThrow({ where: { id: entryPin3.id } });
+      check("13.4 quitou a conta MOSTRADA (300)", entryPin1Depois.status === "paid", entryPin1Depois.status);
+      check("13.5 a de 500 continua pendente", entryPin2Depois.status === "pending", entryPin2Depois.status);
+      check(
+        "13.6 a de 9.000, nascida DEPOIS da lista, não foi tocada",
+        entryPin3Depois.status === "pending",
+        entryPin3Depois.status,
+      );
+    }
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });
     await prisma.$disconnect();

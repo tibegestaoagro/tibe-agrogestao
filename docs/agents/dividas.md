@@ -278,6 +278,23 @@ Baixada"), então é a extração que não está aparando. Não afeta o que é g
 só o texto que o produtor lê. Custo: aparar preposição inicial ao normalizar o
 contato, com cuidado para não comer nome que comece com "Do" de verdade.
 
+### 5.0 Casar nome sem acento carrega a tabela inteira em memória
+
+Achado pela revisão da Fase 5 (16/09). `ILIKE` do Postgres não dobra acento, e
+"Ze Carlos" não casava "Zé Carlos". A correção foi comparar em memória, sem
+acento, tanto em `pessoasQueCasam` (`contas-do-contato.ts`) quanto em
+`findClientsByName` (`service-orders.ts`): as duas passaram a ler a tabela toda
+e filtrar em JS.
+
+`resolverTrabalhador` já fazia assim, mas `Worker` é a equipe fixa, com poucas
+linhas. `Contact` e `ServiceClient` guardam **todo comprador, vendedor,
+fornecedor e cliente que o tenant já cadastrou**, e são duas leituras por
+conversa de recebimento. Barato hoje, cresce sozinho.
+
+Custo: coluna normalizada sem acento com índice, ou `unaccent` no Postgres
+(extensão, precisa entrar na migração). Não é urgente; é o tipo de coisa que só
+dói quando um cliente grande chega, e aí dói em silêncio.
+
 ### 5.0a "Acabei de pagar o Zé" sai ambígua em parte das rodadas
 
 Achado na avaliação da Fase 5 (16/09). Pagamento de trabalhador **sem valor** e

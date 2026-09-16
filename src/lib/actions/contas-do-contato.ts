@@ -149,6 +149,17 @@ function ordenarPorVencimento(a: ContaEmAberto, b: ContaEmAberto): number {
  * sem acento) devolvia "não achei ninguém". Mesmo filtro de
  * `resolverTrabalhador` (`mao-de-obra.ts`), que já resolve isso para a mão de
  * obra.
+ *
+ * A1 (correção da mesma rodada): `findClientsByName` (`service-orders.ts`)
+ * tinha ficado de fora e continuava só no `contains`/`ILIKE`, então um
+ * `ServiceClient` acentuado só casava com a grafia acentuada, enquanto o
+ * `Contact` já casava dos dois jeitos. Além de "recebi do Ze Carlos" falhar
+ * contra um `ServiceClient`, dois homônimos (um `ServiceClient`, um
+ * `Contact`) com o mesmo nome escrito COM acento entravam como ambíguo (os
+ * dois casavam) e SEM acento silenciosamente viravam um só (só o `Contact`
+ * casava): a mesma pessoa, escolhida ou não por causa da ortografia da
+ * mensagem. `findClientsByName` agora normaliza acento internamente, e as
+ * duas fontes casam pela MESMA regra.
  */
 async function pessoasQueCasam(db: TenantPrismaClient, nome: string): Promise<PessoaCandidata[]> {
   const clientes = await findClientsByName(db, nome);
