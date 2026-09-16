@@ -85,7 +85,7 @@ export const INTENCOES_REBANHO: IntencaoDef[] = [
       "Passe 20 novilhas do Pasto da Sede para o Pasto da Baixada. (§13.7)",
     ],
     vizinhas:
-      "registrar_negocio_gado sempre que houver compra ou venda, com ou sem valor; registrar_entrada_confinamento e registrar_envio_boitel quando os animais vão para confinamento ou boitel",
+      "registrar_negocio_gado sempre que houver compra ou venda, com ou sem valor; registrar_entrada_confinamento e registrar_envio_boitel quando os animais vão para confinamento ou boitel, e nesse caso o pasto ou a fazenda de onde saíram é campo daquela entrada, nunca uma transferência à parte",
   },
   {
     intent: "registrar_negocio_gado",
@@ -157,7 +157,7 @@ export const INTENCOES_REBANHO: IntencaoDef[] = [
   {
     intent: "registrar_vacina",
     dominio: "rebanho",
-    descricao: "o produtor conta que vacinou um animal, pelo brinco",
+    descricao: "o produtor conta que JÁ vacinou um animal, pelo brinco; o custo que ele disser é campo desta intenção, não um gasto à parte",
     campos: [
       { nome: "ear_tag", tipo: "texto", descricao: "o número ou código do brinco" },
       { nome: "vaccine_name", tipo: "texto", descricao: "o nome da vacina (aftosa, brucelose, raiva)" },
@@ -169,7 +169,8 @@ export const INTENCOES_REBANHO: IntencaoDef[] = [
   {
     intent: "registrar_previsao_vacina",
     dominio: "rebanho",
-    descricao: "o produtor informa quanto vai custar uma vacina que ainda vai ser aplicada num animal",
+    descricao:
+      'o produtor informa quanto uma vacina AINDA não aplicada vai custar num animal ("vai custar", "vai ficar uns", "deve ficar em"), com ou sem o dia marcado',
     campos: [
       { nome: "ear_tag", tipo: "texto", descricao: "o número ou código do brinco" },
       { nome: "vaccine_name", tipo: "texto", descricao: "o nome da vacina" },
@@ -181,6 +182,6 @@ export const INTENCOES_REBANHO: IntencaoDef[] = [
       },
     ],
     exemplos: ["a próxima aftosa do brinco 1234 vai custar 80 reais", "previsão de brucelose do 0457, 45 reais, em 2026-10-20"],
-    vizinhas: "registrar_vacina quando a vacina JÁ foi aplicada",
+    vizinhas: "registrar_vacina quando a vacina JÁ foi aplicada; o dia marcado para ela é o campo due_date, nunca uma tarefa à parte",
   },
 ];

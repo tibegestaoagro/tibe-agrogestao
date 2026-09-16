@@ -92,14 +92,14 @@ export async function classificarMensagem(input: { texto: string; hoje: string; 
   // Sem pedido nenhum é ambígua, nunca lista vazia: quem chama sempre tem algo para responder ao produtor.
   if (resposta.pedidos.length === 0) return [{ intent: "ambigua", parameters: {}, trecho: input.texto }];
 
-  const pedidos: PedidoClassificado[] = [];
-  for (const pedido of resposta.pedidos) {
-    if (pedido.dominio === "nenhum") {
-      pedidos.push({ intent: "ambigua", parameters: {}, trecho: pedido.trecho });
-      continue;
-    }
-    pedidos.push(await extrairPedido(pedido.dominio, pedido.trecho, input.hoje, input.texto));
-  }
+  const pedidos: PedidoClassificado[] = await Promise.all(
+    resposta.pedidos.map((pedido): Promise<PedidoClassificado> => {
+      if (pedido.dominio === "nenhum") {
+        return Promise.resolve({ intent: "ambigua", parameters: {}, trecho: pedido.trecho });
+      }
+      return extrairPedido(pedido.dominio, pedido.trecho, input.hoje, input.texto);
+    })
+  );
   return pedidos;
 }
 

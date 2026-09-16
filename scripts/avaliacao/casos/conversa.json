@@ -1,0 +1,379 @@
+[
+  {
+    "id": "conv-001",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "morreram 2 vacas no Pasto da Sede", "grava": "pode" },
+      { "texto": "nasceram 3 bezerros tambem, mesma fazenda", "grava": "pode" },
+      { "texto": "quantas femeas de 13 a 24 meses eu tenho?", "grava": "nao" },
+      { "texto": "blz vlw", "grava": "nao" }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "conv-002",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "separei 8 novilhas pro Pasto da Baixada", "grava": "pode" },
+      { "texto": "de 13 a 24, tavam no Pasto da Sede", "grava": "pode" },
+      { "texto": "ah deixa isso, so queria saber quanto de racao de engorda eu tenho", "grava": "nao" },
+      { "texto": "voltando as novilhas, pode confirmar", "grava": "pode", "nota": "nao e um sim solto: retoma um pedido especifico deixado no ar, mas movimentacao nao exige confirmacao, entao nao da pra ter certeza de que houve resumo antes" },
+      { "texto": "quantos animais tem na Boa Vista agora?", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "conv-003",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "vendi 15 bois pro Frigorifico Bom Boi", "grava": "pode" },
+      { "texto": "35 mil, a vista", "grava": "pode" },
+      { "texto": "nao, foram 12 bois, nao 15", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "conv-004",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "quero cadastrar um brinco novo", "grava": "pode" },
+      { "texto": "1235, Nelore, macho", "grava": "pode" },
+      { "texto": "sim, confirma", "grava": "pode" },
+      { "texto": "e o peso dele e 210", "grava": "pode" }
+    ]
+  },
+  {
+    "id": "conv-005",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "os garrotes da Sede viraram boi agora", "grava": "pode" },
+      { "texto": "20", "grava": "pode" },
+      { "texto": "nao, sao 18", "grava": "pode" }
+    ]
+  },
+  {
+    "id": "conv-006",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "quanto vale hoje minhas femeas acima de 36 meses, so pra saber quantas tenho", "grava": "nao" },
+      { "texto": "comprei 10 bezerros do Joao do Leilao", "grava": "pode" },
+      { "texto": "pra Boa Vista, 18 mil", "grava": "pode" },
+      { "texto": "deixa pra la, vou fechar so semana que vem", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "conv-007",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "coloquei 15 garrotes no Confinamento Boa Vista", "grava": "pode" },
+      { "texto": "botei 5 sacos de racao de engorda pra eles", "grava": "pode" },
+      { "texto": "quantos animais tem la agora no confinamento?", "grava": "nao" },
+      { "texto": "valeu", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "conv-008",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "mandei 10 boi pro Boitel Boa Engorda", "grava": "pode" },
+      { "texto": "sairam do Pasto da Sede, la na Boa Vista", "grava": "pode" },
+      { "texto": "nao, cancela isso, ainda nao fechei com eles", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "conv-009",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "tirei 6 machos do Confinamento Boa Vista", "grava": "pode" },
+      { "texto": "vendi eles, 42 mil", "grava": "pode" },
+      { "texto": "isso mesmo, pode lancar", "grava": "pode", "nota": "encerrar_confinamento nao esta na lista dos tres que exigem sim, entao nao dá pra marcar deve com certeza" },
+      { "texto": "e o resto voltou pro Pasto da Sede", "grava": "pode" }
+    ]
+  },
+  {
+    "id": "conv-010",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "usei 8 sacas de sal mineral no confinamento", "grava": "pode" },
+      { "texto": "nao, foram 6 sacas", "grava": "pode" },
+      { "texto": "e quanto de racao ainda tem no estoque?", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "conv-011",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "usei 3 sacas de racao de engorda", "grava": "pode" },
+      { "texto": "na Boa Vista", "grava": "pode" },
+      { "texto": "quanto ainda tem de racao?", "grava": "nao" },
+      { "texto": "e de sal mineral?", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "conv-012",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "comprei diesel, 300 litros", "grava": "pode" },
+      { "texto": "2400 reais, em 3x", "grava": "pode" },
+      { "texto": "nao, foi tudo a vista mesmo, esquece o parcelamento", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "conv-013",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "contei o estoque de ivermectina, tem 7 frascos", "grava": "pode" },
+      { "texto": "e o que mais ta acabando?", "grava": "nao" },
+      { "texto": "so isso mesmo, valeu", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "conv-014",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "vendi 100 litros de diesel pro vizinho", "grava": "pode" },
+      { "texto": "por 650", "grava": "pode" },
+      { "texto": "ah, anota tbm que preciso comprar arame farpado", "grava": "pode" },
+      { "texto": "sim, confirma a venda do diesel", "grava": "pode", "nota": "venda de insumo nao esta na lista dos tres que exigem confirmacao, so gado, dinheiro e cadastro" },
+      { "texto": "e quantos itens tem na lista de compra agora?", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "conv-015",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "bota grampo na lista", "grava": "pode" },
+      { "texto": "uns 500 metros, urgente", "grava": "pode" },
+      { "texto": "tira da lista, nao precisa mais", "grava": "pode" },
+      { "texto": "perai, deixa ele la mesmo, esquece o que eu disse", "grava": "pode" }
+    ]
+  },
+  {
+    "id": "conv-016",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "o que ta na lista de compra?", "grava": "nao" },
+      { "texto": "comprei o arame farpado, 800 reais", "grava": "pode" },
+      { "texto": "foi a prazo", "grava": "pode" },
+      { "texto": "beleza", "grava": "pode" }
+    ]
+  },
+  {
+    "id": "conv-017",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "preciso comprar sal e tambem um rolo de arame", "grava": "pode" },
+      { "texto": "o sal e uns 10 sacos, urgente; o arame e 1 rolo mesmo", "grava": "pode" },
+      { "texto": "isso, pode anotar", "grava": "pode", "nota": "lista de compra nao esta na lista dos tres que exigem confirmacao" },
+      { "texto": "ah e cade aquele orcamento da racao que eu pedi ontem?", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "conv-018",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "tirei 300 de manha e 180 de tarde", "grava": "pode" },
+      { "texto": "isso foi da Boa Vista, lote Vacas em Lactacao", "grava": "pode" },
+      { "texto": "e mais 4 vacas entraram no leite essa semana", "grava": "pode" },
+      { "texto": "nao, deixa isso pra depois, te falo o dia certo", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "conv-019",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "hoje tenho 32 vacas no leite", "grava": "pode" },
+      { "texto": "quantos litros deu ontem?", "grava": "nao" },
+      { "texto": "beleza, obrigado", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "conv-020",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "secaram 5 vacas essa semana", "grava": "pode" },
+      { "texto": "nao espera, foram 3, me confundi", "grava": "pode" },
+      { "texto": "isso, 3 mesmo, na Boa Vista", "grava": "pode" }
+    ]
+  },
+  {
+    "id": "conv-021",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "tenho um novo funcionario fixo, o Marcos, ele e vaqueiro", "grava": "pode" },
+      { "texto": "recebe 1800 por mes", "grava": "pode" },
+      { "texto": "nao, pensando bem vou contratar ele so como diarista, esquece", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "conv-022",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "paguei o salario do Ze Carlos", "grava": "pode" },
+      { "texto": "e adiantei 200 pro Pedro tambem", "grava": "pode" },
+      { "texto": "sim, pode confirmar os dois", "grava": "pode", "nota": "pagamento e adiantamento de mao de obra nao estao na lista dos tres que exigem confirmacao" },
+      { "texto": "quanto eu ja paguei de equipe esse mes?", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "conv-023",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "adiantei 500 pro Pedro", "grava": "pode" },
+      { "texto": "nao, foi 300", "grava": "pode" },
+      { "texto": "isso, 300 mesmo", "grava": "pode" }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "conv-024",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "vou gradear pra Agropecuaria Santa Fe", "grava": "pode" },
+      { "texto": "com o trator New Holland, por hectare, 180 cada", "grava": "pode" },
+      { "texto": "ainda vou comecar amanha", "grava": "pode" },
+      { "texto": "muda de assunto, quanto de diesel tenho no tanque?", "grava": "nao" },
+      { "texto": "voltando o servico, pode confirmar", "grava": "pode", "nota": "servico prestado nao esta na lista dos tres que exigem confirmacao" }
+    ]
+  },
+  {
+    "id": "conv-025",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "contratei 3 pessoas pra cerca, 150 a diaria", "grava": "pode" },
+      { "texto": "trabalharam 4 dias", "grava": "pode" },
+      { "texto": "nao, foram so 2 dias mesmo, me enganei", "grava": "pode" }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "conv-026",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "fechei um servico de limpeza de pasto com o Pedro, por 6 mil", "grava": "pode" },
+      { "texto": "quanto tenho de diesel?", "grava": "nao" },
+      { "texto": "quanto ja rendeu esse servico?", "grava": "nao" },
+      { "texto": "valeu", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "conv-027",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "coincide_com_exemplo": "literal",
+    "passos": [
+      { "texto": "iniciei o servico da Agropecuaria Santa Fe", "grava": "pode" },
+      { "texto": "fiz 8 hectares hoje", "grava": "pode" },
+      { "texto": "e gastei 40 de diesel", "grava": "pode" },
+      { "texto": "nao, ainda nao terminei, nao encerra nao", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "conv-028",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "gastei 450 com combustivel no posto XX", "grava": "pode" },
+      { "texto": "sim, pode lancar", "grava": "deve", "nota": "lancamento financeiro esta na lista que exige confirmacao, e o passo anterior ja trouxe valor, categoria e fornecedor" },
+      { "texto": "quanto ja gastei esse mes?", "grava": "nao" },
+      { "texto": "valeu", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "conv-029",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "recebi 2 mil de um bico extra", "grava": "pode" },
+      { "texto": "foi de um frete que fiz", "grava": "pode" },
+      { "texto": "nao, deixa quieto, vou lancar isso depois direitinho", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "conv-030",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "tenho que pagar o veterinario, 350, dia 25", "grava": "pode" },
+      { "texto": "sim, confirma", "grava": "pode" },
+      { "texto": "me manda um relatorio financeiro do mes passado", "grava": "nao" },
+      { "texto": "obrigado", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "conv-031",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "paguei 1200 de aluguel", "grava": "pode" },
+      { "texto": "nao espera, foi 1250", "grava": "pode" },
+      { "texto": "isso, 1250, sim pode lancar", "grava": "pode" }
+    ]
+  },
+  {
+    "id": "conv-032",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "me lembra de vacinar o gado dia 25", "grava": "pode" },
+      { "texto": "o que eu tenho marcado pra amanha?", "grava": "nao" },
+      { "texto": "e pra semana toda?", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "conv-033",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "o que tenho pra hoje?", "grava": "nao" },
+      { "texto": "ah, anota que preciso comprar remedio pro curral", "grava": "pode" },
+      { "texto": "nao, esquece, nao precisa anotar isso", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "conv-034",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "cria uma tarefa pra revisar a cerca do Piquete 3", "grava": "pode" },
+      { "texto": "pode ser semana que vem, quinta", "grava": "pode" },
+      { "texto": "e o que ficou atrasado?", "grava": "nao" },
+      { "texto": "valeu, e so isso", "grava": "nao" }
+    ]
+  },
+  {
+    "id": "conv-035",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "mandei 20 novilhas pro Leilao da Expoagro", "grava": "pode" },
+      { "texto": "de 13 a 24 meses, sairam da Boa Vista", "grava": "pode" },
+      { "texto": "venderam 15, por 45 mil, o resto voltou", "grava": "pode" },
+      { "texto": "nao, corrige, venderam 14, nao 15", "grava": "pode" }
+    ]
+  }
+]

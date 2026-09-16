@@ -28,7 +28,7 @@ export const INTENCOES_FINANCEIRO: IntencaoDef[] = [
     ],
     exemplos: ["gastei 50 reais com ração", "anota uma despesa de 500 reais com diesel", "Recebi 1.500 de aluguel. (Área Financeiro §42)"],
     vizinhas:
-      "registrar_negocio_produto quando é insumo do estoque com quantidade; registrar_combustivel_servico quando o diesel é de um serviço para cliente em andamento; registrar_pagamento_trabalhador quando pagou alguém da equipe; consultar_saldo quando pergunta",
+      "registrar_negocio_produto quando é insumo do estoque com quantidade; registrar_combustivel_servico quando o diesel é de um serviço para cliente em andamento; registrar_pagamento_trabalhador quando pagou alguém da equipe; consultar_saldo quando pergunta. O frete, a comissão, a diferença de troca ou o custo de uma vacina ditos junto com um negócio ou uma ação já contada são campos DAQUELA ação, nunca um lançamento à parte",
   },
   {
     intent: "consultar_saldo",
@@ -42,12 +42,16 @@ export const INTENCOES_FINANCEIRO: IntencaoDef[] = [
   {
     intent: "gerar_relatorio",
     dominio: "financeiro",
-    descricao: "o produtor pede um relatório em PDF",
+    descricao: "o produtor pede um relatório em PDF de uma área, que não precisa ser a financeira",
     campos: [
-      { nome: "tipo", tipo: "texto", descricao: "financeiro, rebanho, lavoura ou prestador" },
+      { nome: "tipo", tipo: "texto", descricao: "financeiro, rebanho, lavoura ou prestador, conforme a área que ele pediu" },
       PERIODO,
     ],
-    exemplos: ["me manda o relatório financeiro", "quero o relatório financeiro de agosto em PDF"],
+    exemplos: [
+      "me manda o relatório financeiro",
+      "quero o relatório financeiro de agosto em PDF",
+      "preciso do relatório do rebanho em PDF pro banco",
+    ],
     vizinhas: "resumo quando quer ver na conversa, sem PDF; consultar_saldo quando quer só o saldo",
   },
 ];

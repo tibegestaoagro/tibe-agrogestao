@@ -260,7 +260,7 @@ log da Vercel.
 
 ---
 
-## 11. Agente do WhatsApp: quatro coisas que só você faz
+## 11. Agente do WhatsApp: cinco coisas que só você faz
 
 1. **Tirar o dado de teste fixado no Webhook do atendimento.** No editor do
    n8n, workflow `Tibe - Atendimento WhatsApp (Evolution)`: abrir o nó
@@ -272,12 +272,16 @@ log da Vercel.
 3. **Na rotação de credenciais:** se a chave da instância da Evolution mudar, o
    nó `Guarda da Entrada` precisa receber a chave nova no mesmo momento. Sem
    isso, o agente fica mudo (a guarda descarta tudo) sem erro visível.
-4. **`OPENAI_API_KEY` nas variáveis da Vercel** (Fase 2, 15/09). A rota de turno
+4. **`OPENAI_API_KEY` nas variáveis da Vercel** (Fase 2, 15/09). **Feito em 15/09** (Vercel e `.env` local, com redeploy). A rota de turno
    (`POST /api/internal/whatsapp/turno`) classifica a mensagem dentro do Tibé e
-   precisa dessa chave; `AGENTE_MODELO` é opcional (padrão `gpt-4o-mini`). Sem
-   a chave, a rota responde a frase de falha. Nada em produção a chama ainda: o
-   n8n só passa a usá-la na Fase 4, e a Fase 3 (avaliação de modelos) já
-   precisa dela.
+   precisa dessa chave. Sem ela, a rota responde a frase de falha. Nada em
+   produção a chama ainda: o n8n só passa a usá-la na Fase 4.
+5. **`AGENTE_MODELO=gpt-5.6-luna` e `AGENTE_ESFORCO=low` nas variáveis da
+   Vercel** (Fase 3, 16/09), com redeploy. É o modelo escolhido pela avaliação,
+   o único que passou no critério (relatório
+   [agente-whatsapp/avaliacao-fase-3-final.md](agente-whatsapp/avaliacao-fase-3-final.md)).
+   O código já usa esse par como padrão quando as variáveis faltam, então isto
+   é só para deixar a escolha explícita e permitir trocar sem deploy novo.
 
 ## O que NÃO depende de você
 

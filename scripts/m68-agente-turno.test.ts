@@ -66,6 +66,9 @@ async function main() {
   console.log("\n2. Cliente do modelo");
   {
     const { chamarModelo, definirTransporteDoModelo, FalhaDoModelo } = await import("@/lib/agente/modelo");
+    const AGENTE_MODELO_ORIGINAL = process.env.AGENTE_MODELO;
+    const AGENTE_ESFORCO_ORIGINAL = process.env.AGENTE_ESFORCO;
+    const schemaOk = { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"], additionalProperties: false };
     let corpoVisto: Record<string, unknown> | null = null;
     let chamadas = 0;
     definirTransporteDoModelo(async (corpo) => {
@@ -74,15 +77,41 @@ async function main() {
       return { status: 200, json: { choices: [{ message: { content: JSON.stringify({ ok: true }) } }] } };
     });
     process.env.AGENTE_MODELO = "gpt-4o-mini";
-    const r = await chamarModelo<{ ok: boolean }>({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"], additionalProperties: false } });
+    const r = await chamarModelo<{ ok: boolean }>({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: schemaOk });
     check("devolve o JSON do conteúdo", r.ok === true);
     const rf = (corpoVisto as unknown as { response_format: { type: string; json_schema: { strict: boolean } } }).response_format;
     check("pede json_schema estrito", rf.type === "json_schema" && rf.json_schema.strict === true);
     check("gpt-4o-mini recebe temperature 0", (corpoVisto as unknown as { temperature?: number }).temperature === 0);
+    check("gpt-4o-mini nunca recebe reasoning_effort", !("reasoning_effort" in (corpoVisto as unknown as object)));
 
     process.env.AGENTE_MODELO = "gpt-5.6-luna";
-    await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"], additionalProperties: false } });
+    await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: schemaOk });
     check("gpt-5 não recebe temperature", !("temperature" in (corpoVisto as unknown as object)));
+
+    process.env.AGENTE_MODELO = "gpt-5-mini";
+    process.env.AGENTE_ESFORCO = "low";
+    await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: schemaOk });
+    check("modelo de raciocínio recebe reasoning_effort de AGENTE_ESFORCO", (corpoVisto as unknown as { reasoning_effort?: string }).reasoning_effort === "low");
+
+    process.env.AGENTE_MODELO = "gpt-5-mini";
+    process.env.AGENTE_ESFORCO = "minimal";
+    await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: schemaOk });
+    check("AGENTE_ESFORCO=minimal em modelo de raciocínio vira reasoning_effort minimal", (corpoVisto as unknown as { reasoning_effort?: string }).reasoning_effort === "minimal");
+
+    delete process.env.AGENTE_MODELO;
+    delete process.env.AGENTE_ESFORCO;
+    await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: schemaOk });
+    check("sem AGENTE_MODELO, o padrão é gpt-5.6-luna", (corpoVisto as unknown as { model?: string }).model === "gpt-5.6-luna");
+    check("sem AGENTE_ESFORCO, o padrão do modelo de raciocínio é reasoning_effort low", (corpoVisto as unknown as { reasoning_effort?: string }).reasoning_effort === "low");
+    check("modelo padrão nunca recebe temperature", !("temperature" in (corpoVisto as unknown as object)));
+
+    process.env.AGENTE_MODELO = "gpt-4o-mini";
+    delete process.env.AGENTE_ESFORCO;
+    await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: schemaOk });
+    check("AGENTE_MODELO=gpt-4o-mini sai com temperature 0 e sem reasoning_effort", (corpoVisto as unknown as { temperature?: number; reasoning_effort?: string }).temperature === 0 && !("reasoning_effort" in (corpoVisto as unknown as object)));
+
+    const { transporteHttp } = await import("@/lib/agente/modelo");
+    check("transporte HTTP exportado para o medidor da avaliação", typeof transporteHttp === "function");
 
     chamadas = 0;
     definirTransporteDoModelo(async () => {
@@ -121,7 +150,8 @@ async function main() {
     try { await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: {} }); } catch (e) { erro = e; }
     check("tempo esgotado não tenta de novo", chamadas === 1 && (erro as InstanceType<typeof FalhaDoModelo>)?.motivo === "tempo");
     definirTransporteDoModelo(null);
-    process.env.AGENTE_MODELO = "gpt-4o-mini";
+    if (AGENTE_MODELO_ORIGINAL === undefined) delete process.env.AGENTE_MODELO; else process.env.AGENTE_MODELO = AGENTE_MODELO_ORIGINAL;
+    if (AGENTE_ESFORCO_ORIGINAL === undefined) delete process.env.AGENTE_ESFORCO; else process.env.AGENTE_ESFORCO = AGENTE_ESFORCO_ORIGINAL;
   }
 
   console.log("\n3. Classificação em duas etapas");
@@ -201,6 +231,61 @@ async function main() {
     check('"meia dúzia" mantém 6', conferirTrechoLiteral({ quantidade: 6 }, "comprei meia dúzia de frascos", [numero("quantidade")]).removidos.length === 0);
     check('"meia dúzia" não vale 12', conferirTrechoLiteral({ quantidade: 12 }, "comprei meia dúzia de frascos", [numero("quantidade")]).removidos.join() === "quantidade");
     check('"morreram duas" com 3 remove', conferirTrechoLiteral({ quantidade: 3 }, "morreram duas", [numero("quantidade")]).removidos.join() === "quantidade");
+
+    // Número por extenso composto: o classificador manda converter, e o produtor fala assim o tempo todo em áudio.
+    check(
+      '"comprei vinte bois por sessenta mil" mantém 60000',
+      conferirTrechoLiteral({ valor: 60000 }, "comprei vinte bois por sessenta mil", [numero("valor")]).removidos.length === 0,
+    );
+    check(
+      '"vinte e duas cabeça de bezerro" mantém 22',
+      conferirTrechoLiteral({ quantidade: 22 }, "vinte e duas cabeça de bezerro", [numero("quantidade")]).removidos.length === 0,
+    );
+    check(
+      '"cento e trinta mil" mantém 130000',
+      conferirTrechoLiteral({ valor: 130000 }, "cento e trinta mil", [numero("valor")]).removidos.length === 0,
+    );
+    check(
+      '"dois mil e quinhentos" mantém 2500',
+      conferirTrechoLiteral({ valor: 2500 }, "dois mil e quinhentos", [numero("valor")]).removidos.length === 0,
+    );
+    check(
+      '"mil e quinhentos reais" mantém 1500',
+      conferirTrechoLiteral({ valor: 1500 }, "mil e quinhentos reais", [numero("valor")]).removidos.length === 0,
+    );
+    check(
+      '"quarenta litros de diesel" mantém 40',
+      conferirTrechoLiteral({ quantidade: 40 }, "quarenta litros de diesel", [numero("quantidade")]).removidos.length === 0,
+    );
+    check(
+      '"vinte bois" NÃO mantém 21 (o texto não diz 21)',
+      conferirTrechoLiteral({ quantidade: 21 }, "vinte bois", [numero("quantidade")]).removidos.join() === "quantidade",
+    );
+    check(
+      '"sessenta mil" NÃO mantém 60: o pedaço intermediário da composição não é número dito',
+      conferirTrechoLiteral({ valor: 60 }, "sessenta mil", [numero("valor")]).removidos.join() === "valor",
+    );
+
+    // A pontuação separa dois números vizinhos, e o "e" só liga parte maior com parte menor.
+    const frete = "paguei cento e vinte, cinquenta de frete";
+    check(
+      '"cento e vinte, cinquenta" NÃO mantém 170: a vírgula separa os dois números',
+      conferirTrechoLiteral({ valor: 170 }, frete, [numero("valor")]).removidos.join() === "valor",
+    );
+    check('"cento e vinte, cinquenta" mantém 120', conferirTrechoLiteral({ valor: 120 }, frete, [numero("valor")]).removidos.length === 0);
+    check('"cento e vinte, cinquenta" mantém 50', conferirTrechoLiteral({ valor: 50 }, frete, [numero("valor")]).removidos.length === 0);
+    check(
+      '"entre sete e oito da manha" NÃO mantém 15: unidade com unidade não soma',
+      conferirTrechoLiteral({ quantidade: 15 }, "chego entre sete e oito da manha, leva duas vacas", [numero("quantidade")]).removidos.join() === "quantidade",
+    );
+    check(
+      '"um milhao e duzentos mil" mantém 1200000',
+      conferirTrechoLiteral({ valor: 1_200_000 }, "vendi o lote por um milhao e duzentos mil", [numero("valor")]).removidos.length === 0,
+    );
+    check(
+      '"um milhao e duzentos mil" NÃO mantém 200: pedaço de composição não é número dito',
+      conferirTrechoLiteral({ valor: 200 }, "vendi o lote por um milhao e duzentos mil", [numero("valor")]).removidos.join() === "valor",
+    );
 
     const comLista = conferirTrechoLiteral(
       { itens: [{ categoria: "bezerro", quantidade: 20 }, { categoria: "vaca", quantidade: 999 }] },
@@ -316,6 +401,56 @@ async function main() {
     check(
       "trecho alucinado não derruba o número: a conferência usa a mensagem inteira",
       comTrechoTorto[0].parameters.valor === 500,
+    );
+
+    // Extrações em paralelo: três domínios, cada um demorando 300ms, deve terminar em ~300ms (paralelo) não ~900ms (sequencial)
+    let chamadaDeExtracao = 0;
+    const inicio = Date.now();
+    definirTransporteDoModelo(async (corpo) => {
+      const nome = (corpo.response_format as { json_schema: { name: string } }).json_schema.name;
+      if (nome === "dominio") {
+        return {
+          status: 200,
+          json: {
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    pedidos: [
+                      { dominio: "rebanho", trecho: "quantos animais tenho" },
+                      { dominio: "estoque", trecho: "quanto estoque tem" },
+                      { dominio: "financeiro", trecho: "qual meu saldo" },
+                    ],
+                  }),
+                },
+              },
+            ],
+          },
+        };
+      }
+      // Extrações demoram 300ms cada
+      chamadaDeExtracao += 1;
+      await new Promise((r) => setTimeout(r, 300));
+      if (nome.startsWith("extracao_rebanho")) {
+        return { status: 200, json: { choices: [{ message: { content: JSON.stringify({ intent: "consultar_rebanho", parametros: { categoria: null, fazenda: null } }) } }] } };
+      } else if (nome.startsWith("extracao_estoque")) {
+        return { status: 200, json: { choices: [{ message: { content: JSON.stringify({ intent: "consultar_estoque", parametros: { categoria: null, produto: null } }) } }] } };
+      } else if (nome.startsWith("extracao_financeiro")) {
+        return { status: 200, json: { choices: [{ message: { content: JSON.stringify({ intent: "consultar_saldo", parametros: { period: null, category: null } }) } }] } };
+      }
+      return { status: 200, json: { choices: [{ message: { content: JSON.stringify({ intent: "ambigua", parametros: {} }) } }] } };
+    });
+    const tresDominios = await classificarMensagem({ texto: "quantos animais tenho e quanto estoque tem e qual meu saldo", hoje: "2026-09-15", perfis: [] });
+    const tempo = Date.now() - inicio;
+    check(
+      "três extrações em paralelo termina em ~300ms não ~900ms",
+      tresDominios.length === 3 &&
+        tresDominios[0].intent === "consultar_rebanho" &&
+        tresDominios[1].intent === "consultar_estoque" &&
+        tresDominios[2].intent === "consultar_saldo" &&
+        tempo < 900 &&
+        chamadaDeExtracao === 3,
+      `tempo: ${tempo}ms, chamadas: ${chamadaDeExtracao}`,
     );
 
     definirTransporteDoModelo(null);

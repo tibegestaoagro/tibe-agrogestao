@@ -64,3 +64,6 @@ next-env.d.ts
 # plugin pode gravar segredo em .obsidian/plugins/*/data.json sem avisar.
 # O cofre em si (docs/conhecimento/) e versionado; a configuracao do app nao.
 /docs/.obsidian/
+
+# Resultados brutos da avaliacao de modelos (Fase 3 do agente)
+/scripts/avaliacao/resultados/

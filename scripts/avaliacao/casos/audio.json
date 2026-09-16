@@ -1,0 +1,821 @@
+[
+  {
+    "id": "aud-001",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "e ai... morreram tres nao peraí foi duas vacas mesmo la no pasto da sede",
+    "esperado": [
+      {
+        "intent": "registrar_movimentacao_rebanho",
+        "campos": {
+          "movement_type": "morte",
+          "itens": [{ "categoria": "vacas", "quantidade": 2 }],
+          "pasto_origem": "Pasto da Sede"
+        }
+      }
+    ],
+    "nota": "autocorreção no meio da frase, vale o valor final (duas, não três)",
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "aud-002",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "oi bom dia quantas cabeça de gado eu tenho hoje la na boa vista",
+    "esperado": [
+      { "intent": "consultar_rebanho", "campos": { "fazenda": "Boa Vista" } }
+    ]
+  },
+  {
+    "id": "aud-003",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "nasceu um bezerro ali... deixa eu ver... no piquete tres",
+    "esperado": [
+      {
+        "intent": "registrar_movimentacao_rebanho",
+        "campos": {
+          "movement_type": "nascimento",
+          "itens": [{ "categoria": "bezerro", "quantidade": 1 }],
+          "pasto_origem": "Piquete 3"
+        }
+      }
+    ]
+  },
+  {
+    "id": "aud-004",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "entao eu fui la no leilao e comprei vinte e duas cabeça de bezerro do joao do leilao por sessenta mil pra pagar dia dez",
+    "esperado": [
+      {
+        "intent": "registrar_negocio_gado",
+        "campos": {
+          "tipo": "compra",
+          "itens": [{ "categoria": "bezerro", "quantidade": 22 }],
+          "contato": "João do Leilão",
+          "valor": 60000,
+          "vencimento": "dia 10"
+        }
+      }
+    ],
+    "nota": "número por extenso e frase longa juntando contexto e pedido",
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "aud-005",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "vendi treze boi pro frigorifico bom boi ali por cento e trinta mil e ainda paguei dois mil de frete",
+    "esperado": [
+      {
+        "intent": "registrar_negocio_gado",
+        "campos": {
+          "tipo": "venda",
+          "itens": [{ "categoria": "boi", "quantidade": 13 }],
+          "contato": "Frigorífico Bom Boi",
+          "valor": 130000,
+          "custos": [{ "descricao": "Frete", "valor": 2000 }]
+        }
+      }
+    ]
+  },
+  {
+    "id": "aud-006",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "passei vinte novilha do pasto da sede pro pasto da baixada hoje",
+    "esperado": [
+      {
+        "intent": "registrar_movimentacao_rebanho",
+        "campos": {
+          "movement_type": "transferencia_pasto",
+          "itens": [{ "categoria": "novilha", "quantidade": 20 }],
+          "pasto_origem": "Pasto da Sede",
+          "pasto_destino": "Pasto da Baixada",
+          "data": "hoje"
+        }
+      }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "aud-007",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "mandei dez boi da boa vista pro sitio sao jose essa semana",
+    "esperado": [
+      {
+        "intent": "registrar_movimentacao_rebanho",
+        "campos": {
+          "movement_type": "transferencia_fazenda",
+          "itens": [{ "categoria": "boi", "quantidade": 10 }],
+          "fazenda": "Boa Vista",
+          "fazenda_destino": "São José"
+        }
+      }
+    ]
+  },
+  {
+    "id": "aud-008",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "trinta bezerra que tavam no pasto da sede, tipo assim, agora passa pra categoria de oito a doze meses",
+    "esperado": [
+      {
+        "intent": "registrar_movimentacao_rebanho",
+        "campos": {
+          "movement_type": "mudanca_categoria",
+          "itens": [{ "categoria": "bezerra", "quantidade": 30 }],
+          "pasto_origem": "Pasto da Sede",
+          "categoria_destino": "8 a 12 meses"
+        }
+      }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "aud-009",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "e... tipo assim, contei o gado de novo aqui e faltam quatro femea, foi ajuste de saida",
+    "esperado": [
+      {
+        "intent": "registrar_movimentacao_rebanho",
+        "campos": {
+          "movement_type": "ajuste",
+          "itens": [{ "categoria": "femea", "quantidade": 4 }],
+          "sentido": "saida"
+        }
+      }
+    ],
+    "nota": "hesitação com \"tipo assim\""
+  },
+  {
+    "id": "aud-010",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "quero cadastrar um brinco mil duzentos e trinta e cinco que é uma novilha nelore la na boa vista",
+    "esperado": [
+      {
+        "intent": "cadastrar_animal",
+        "campos": {
+          "ear_tag": "1235",
+          "breed": "Nelore",
+          "category": "novilha",
+          "property_name": "Boa Vista"
+        }
+      }
+    ]
+  },
+  {
+    "id": "aud-011",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "o brinco mil duzentos e trinta e quatro pesou quatrocentos e oitenta quilo hoje",
+    "esperado": [
+      {
+        "intent": "registrar_peso",
+        "campos": {
+          "ear_tag": "1234",
+          "weight": 480
+        }
+      }
+    ]
+  },
+  {
+    "id": "aud-012",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "vacinei o brinco mil duzentos e trinta e quatro de aftosa hoje custou trinta e cinco reais",
+    "esperado": [
+      {
+        "intent": "registrar_vacina",
+        "campos": {
+          "ear_tag": "1234",
+          "vaccine_name": "aftosa",
+          "cost": 35
+        }
+      }
+    ]
+  },
+  {
+    "id": "aud-013",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "olha a brucelose do brinco mil duzentos e trinta e quatro vai custar oitenta reais quando fizer dia vinte",
+    "esperado": [
+      {
+        "intent": "registrar_previsao_vacina",
+        "campos": {
+          "ear_tag": "1234",
+          "vaccine_name": "brucelose",
+          "cost": 80,
+          "due_date": "dia 20"
+        }
+      }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "aud-014",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "me fala os dado do brinco mil duzentos e trinta e quatro",
+    "esperado": [
+      {
+        "intent": "consultar_animal",
+        "campos": { "ear_tag": "1234" }
+      }
+    ]
+  },
+  {
+    "id": "aud-015",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "coloquei quinze garrote no confinamento boa vista hoje eles sairam do pasto da sede",
+    "esperado": [
+      {
+        "intent": "registrar_entrada_confinamento",
+        "campos": {
+          "categoria": "garrote",
+          "quantidade": 15,
+          "confinamento": "Confinamento Boa Vista",
+          "pasto": "Pasto da Sede",
+          "data": "hoje"
+        }
+      }
+    ]
+  },
+  {
+    "id": "aud-016",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "mandei vinte e cinco boi pro boitel boa engorda saindo da boa vista",
+    "esperado": [
+      {
+        "intent": "registrar_envio_boitel",
+        "campos": {
+          "categoria": "boi",
+          "quantidade": 25,
+          "confinamento": "Boitel Boa Engorda",
+          "fazenda": "Boa Vista"
+        }
+      }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "aud-017",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "dei cinco saca de racao pro lote do confinamento boa vista hoje de manha",
+    "esperado": [
+      {
+        "intent": "registrar_alimentacao_confinamento",
+        "campos": {
+          "produto": "ração",
+          "quantidade": 5,
+          "confinamento": "Confinamento Boa Vista"
+        }
+      }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "aud-018",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "tirei dez boi do confinamento boa vista e voltaram pra baixada",
+    "esperado": [
+      {
+        "intent": "encerrar_confinamento",
+        "campos": {
+          "confinamento": "Confinamento Boa Vista",
+          "quantidade": 10,
+          "destino": "Baixada"
+        }
+      }
+    ],
+    "nota": "nome de lugar dito de jeito solto",
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "aud-019",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "vendi doze boi que tava no confinamento boa vista por cento e vinte mil",
+    "esperado": [
+      {
+        "intent": "encerrar_confinamento",
+        "campos": {
+          "confinamento": "Confinamento Boa Vista",
+          "quantidade": 12,
+          "tipo": "venda",
+          "valor": 120000
+        }
+      }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "aud-020",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "morreu um boi la no confinamento boa vista hoje de manha",
+    "esperado": [
+      {
+        "intent": "encerrar_confinamento",
+        "campos": {
+          "confinamento": "Confinamento Boa Vista",
+          "quantidade": 1,
+          "tipo": "morte"
+        }
+      }
+    ]
+  },
+  {
+    "id": "aud-021",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "mandei vinte boi pro leilao da expoagro saindo da boa vista",
+    "esperado": [
+      {
+        "intent": "registrar_remessa_evento",
+        "campos": {
+          "evento": "Leilão da Expoagro",
+          "categoria": "boi",
+          "quantidade": 20,
+          "fazenda": "Boa Vista"
+        }
+      }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "aud-023",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "troquei vinte boi por um trator novo e paguei trinta mil de diferenca",
+    "esperado": [
+      {
+        "intent": "registrar_permuta",
+        "campos": {
+          "entregue": "20 bois",
+          "recebido": "um trator",
+          "diferenca_paga": 30000
+        }
+      }
+    ],
+    "coincide_com_exemplo": "literal"
+  },
+  {
+    "id": "aud-024",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "troquei quinze novilha por vinte bezerro com o ze do meio",
+    "esperado": [
+      {
+        "intent": "registrar_permuta",
+        "campos": {
+          "entregue": "15 novilhas",
+          "recebido": "20 bezerros",
+          "contato": "Zé"
+        }
+      }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "aud-025",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "mandei oito novilha pra feira do municipio de barretos essa semana",
+    "esperado": [
+      {
+        "intent": "registrar_remessa_evento",
+        "campos": {
+          "categoria": "novilha",
+          "quantidade": 8,
+          "tipo_evento": "feira",
+          "municipio": "Barretos"
+        }
+      }
+    ]
+  },
+  {
+    "id": "aud-026",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "comprei dez saca de sal mineral por mil e duzentos reais pago em duas vez",
+    "esperado": [
+      {
+        "intent": "registrar_negocio_produto",
+        "campos": {
+          "tipo": "compra",
+          "produto": "sal mineral",
+          "quantidade": 10,
+          "valor": 1200,
+          "parcelas": 2
+        }
+      }
+    ]
+  },
+  {
+    "id": "aud-027",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "vendi cem litro de diesel pro vizinho por quinhentos reais a vista",
+    "esperado": [
+      {
+        "intent": "registrar_negocio_produto",
+        "campos": {
+          "tipo": "venda",
+          "produto": "diesel",
+          "quantidade": 100,
+          "valor": 500,
+          "pago": true,
+          "contato": "vizinho"
+        }
+      }
+    ]
+  },
+  {
+    "id": "aud-028",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "usei meia saca de sal mineral hoje la na boa vista pro gado do curral",
+    "esperado": [
+      {
+        "intent": "registrar_uso_estoque",
+        "campos": {
+          "produto": "sal mineral",
+          "quantidade": 0.5,
+          "fazenda": "Boa Vista",
+          "data": "hoje",
+          "finalidade": "gado do curral"
+        }
+      }
+    ],
+    "nota": "meia saca vira 0.5"
+  },
+  {
+    "id": "aud-029",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "contei o sal mineral aqui hoje, so tem oito saca, entao anota ai pra comprar mais sal",
+    "esperado": [
+      {
+        "intent": "ajustar_estoque",
+        "campos": { "produto": "sal mineral", "saldo": 8 }
+      },
+      {
+        "intent": "adicionar_item_lista",
+        "campos": { "descricao": "sal" }
+      }
+    ],
+    "nota": "duas ações na mesma fala: ajuste de estoque e item na lista"
+  },
+  {
+    "id": "aud-030",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "quanto que ainda tem de racao de engorda ai",
+    "esperado": [
+      {
+        "intent": "consultar_estoque",
+        "campos": { "produto": "ração de engorda" }
+      }
+    ]
+  },
+  {
+    "id": "aud-031",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "me fala o que ta acabando no estoque",
+    "esperado": [{ "intent": "consultar_estoque", "campos": {} }],
+    "coincide_com_exemplo": "literal"
+  },
+  {
+    "id": "aud-032",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "usei sessenta litro de diesel ontem",
+    "esperado": [
+      {
+        "intent": "registrar_uso_estoque",
+        "campos": { "produto": "diesel", "quantidade": 60, "data": "ontem" }
+      }
+    ]
+  },
+  {
+    "id": "aud-033",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "anota ai que precisa comprar dez rolo de arame farpado e é urgente",
+    "esperado": [
+      {
+        "intent": "adicionar_item_lista",
+        "campos": {
+          "descricao": "arame farpado",
+          "quantidade": 10,
+          "unidade": "rolo",
+          "urgente": true
+        }
+      }
+    ]
+  },
+  {
+    "id": "aud-034",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "poe na lista sal e tambem duas caixa de ivermectina",
+    "esperado": [
+      {
+        "intent": "adicionar_item_lista",
+        "campos": {
+          "itens": [
+            { "descricao": "sal" },
+            { "descricao": "ivermectina", "quantidade": 2, "unidade": "caixa" }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "aud-036",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "comprei o sal que tava na lista paguei oitocentos reais",
+    "esperado": [
+      {
+        "intent": "comprei_item_lista",
+        "campos": { "descricao": "sal", "valor": 800 }
+      }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "aud-037",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "hoje tirou quatrocentos e oitenta litro de leite la na boa vista",
+    "esperado": [
+      {
+        "intent": "registrar_producao_leite",
+        "campos": { "litros": 480, "fazenda": "Boa Vista", "data": "hoje" }
+      }
+    ]
+  },
+  {
+    "id": "aud-039",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "hoje ta trinta e duas vaca dando leite la na boa vista",
+    "esperado": [
+      {
+        "intent": "definir_vacas_em_lactacao",
+        "campos": { "quantidade": 32, "fazenda": "Boa Vista", "data": "hoje" }
+      }
+    ]
+  },
+  {
+    "id": "aud-040",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "secaram tres vaca do lote vacas em lactacao essa semana",
+    "esperado": [
+      {
+        "intent": "registrar_saida_lactacao",
+        "campos": {
+          "quantidade": 3,
+          "lote": "Vacas em Lactação"
+        }
+      }
+    ]
+  },
+  {
+    "id": "aud-041",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "o ze carlos aqui é mensalista trabalha de vaqueiro e ganha dois mil e quinhentos",
+    "esperado": [
+      {
+        "intent": "registrar_trabalhador",
+        "campos": {
+          "nome": "Zé Carlos",
+          "funcao": "vaqueiro",
+          "valor": 2500,
+          "frequencia": "mensal"
+        }
+      }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "aud-042",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "hoje eu paguei duzentos e cinquenta pro pedro e tambem adiantei quinhentos pro ze carlos",
+    "esperado": [
+      {
+        "intent": "registrar_pagamento_trabalhador",
+        "campos": { "nome": "Pedro", "valor": 250 }
+      },
+      {
+        "intent": "registrar_adiantamento",
+        "campos": { "nome": "Zé Carlos", "valor": 500 }
+      }
+    ],
+    "nota": "duas ações na mesma fala: pagamento e adiantamento"
+  },
+  {
+    "id": "aud-043",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "gastei sessenta litro de diesel no servico do joao deu trezentos reais",
+    "esperado": [
+      {
+        "intent": "registrar_combustivel_servico",
+        "campos": {
+          "quem": "João",
+          "produto": "diesel",
+          "quantidade": 60,
+          "valor": 300
+        }
+      }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "aud-044",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "o pedro e diarista aqui recebe cento e cinquenta por dia",
+    "esperado": [
+      {
+        "intent": "registrar_trabalhador",
+        "campos": { "nome": "Pedro", "valor": 150, "frequencia": "diaria" }
+      }
+    ]
+  },
+  {
+    "id": "aud-045",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "o pedro e mais dois trabalhou quatro dia na rocada cada diaria foi cento e cinquenta",
+    "esperado": [
+      {
+        "intent": "registrar_diaria",
+        "campos": {
+          "servico": "roçada",
+          "valor": 150,
+          "quantidade": 4,
+          "pessoas": 3,
+          "quem": "Pedro"
+        }
+      }
+    ]
+  },
+  {
+    "id": "aud-046",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "contratei o pedro pra fazer uma cerca fechado por seis mil",
+    "esperado": [
+      {
+        "intent": "registrar_servico_contratado",
+        "campos": { "servico": "cerca", "valor": 6000, "quem": "Pedro" }
+      }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "aud-048",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "hoje avancei mais oito hectare la no servico do joao",
+    "esperado": [
+      {
+        "intent": "registrar_producao_servico",
+        "campos": { "quem": "João", "quantidade": 8 }
+      }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "aud-049",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "terminei o servico do joao hoje",
+    "esperado": [
+      { "intent": "encerrar_servico", "campos": { "quem": "João" } }
+    ],
+    "coincide_com_exemplo": "literal"
+  },
+  {
+    "id": "aud-050",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "gastei duzentos reais de diesel la no posto ipiranga",
+    "esperado": [
+      {
+        "intent": "registrar_lancamento_financeiro",
+        "campos": {
+          "amount": 200,
+          "vendor": "Posto Ipiranga",
+          "description": "diesel"
+        }
+      }
+    ]
+  },
+  {
+    "id": "aud-051",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "recebi mil e quinhentos reais de um aluguel de pasto esse mes",
+    "esperado": [
+      {
+        "intent": "registrar_lancamento_financeiro",
+        "campos": {
+          "amount": 1500,
+          "tipo": "receita",
+          "description": "aluguel de pasto"
+        }
+      }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "aud-052",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "como que ta o saldo do mes passado",
+    "esperado": [
+      { "intent": "consultar_saldo", "campos": { "period": "mês passado" } }
+    ]
+  },
+  {
+    "id": "aud-053",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "me manda o relatorio financeiro de agosto",
+    "esperado": [
+      {
+        "intent": "gerar_relatorio",
+        "campos": { "tipo": "financeiro", "period": "agosto" }
+      }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "aud-054",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "me lembra de comprar vacina pra quinta feira",
+    "esperado": [
+      {
+        "intent": "criar_tarefa",
+        "campos": { "title": "comprar vacina", "due_date": "quinta" }
+      }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "aud-055",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "o que que tem pra hoje",
+    "esperado": [{ "intent": "consultar_meu_dia", "campos": {} }]
+  },
+  {
+    "id": "aud-056",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "o que tem marcado pra essa semana ai",
+    "esperado": [{ "intent": "consultar_semana", "campos": {} }],
+    "coincide_com_exemplo": "literal"
+  },
+  {
+    "id": "aud-058",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "quanto de sal vai precisar pra cem animal em trinta dia",
+    "esperado": [
+      {
+        "intent": "calcular_sal",
+        "campos": { "animais": 100, "dias": 30 }
+      }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "aud-060",
+    "autor": "audio",
+    "tipo": "mensagem",
+    "texto": "me da um resumo geral do rebanho ai",
+    "esperado": [
+      { "intent": "resumo", "campos": { "scope": "rebanho" } }
+    ]
+  }
+]

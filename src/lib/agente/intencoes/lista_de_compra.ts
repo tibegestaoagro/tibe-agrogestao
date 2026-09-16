@@ -61,14 +61,15 @@ export const INTENCOES_LISTA_DE_COMPRA: IntencaoDef[] = [
   {
     intent: "comprei_item_lista",
     dominio: "lista_de_compra",
-    descricao: "o produtor conta que comprou um item que estava na Lista de Compra",
+    descricao:
+      "o produtor conta que comprou um item que estava anotado na Lista de Compra: ele cita o item com artigo e SEM quantidade (\"comprei o arame\"), com ou sem o valor",
     campos: [
       { nome: "descricao", tipo: "texto", descricao: "o item da lista que ele comprou, como falou (sal)" },
       { nome: "valor", tipo: "numero", descricao: "quanto pagou no total, só o número, como o produtor falou (1800); vazio se não disse" },
-      { nome: "pago", tipo: "sim_nao", descricao: "não quando ele comprou a prazo; vazio se não disse" },
+      { nome: "pago", tipo: "sim_nao", descricao: "não quando ele comprou a prazo ou fiado; vazio se não disse" },
     ],
-    exemplos: ["Comprei o sal.", "comprei o sal por 1800"],
+    exemplos: ["Comprei o sal.", "comprei o sal por 1800", "já comprei o vermífugo, saiu por 240 e ficou fiado"],
     vizinhas:
-      'registrar_negocio_produto quando a compra traz produto com quantidade e não fala da lista ("comprei 10 sacas de sal do Zé por 1200")',
+      'registrar_negocio_produto só quando a compra traz QUANTIDADE do produto ("comprei 10 sacas de sal do Zé por 1200"); o valor sozinho não tira a compra da lista',
   },
 ];

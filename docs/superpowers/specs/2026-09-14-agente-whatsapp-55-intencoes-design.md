@@ -157,6 +157,35 @@ Domínios da etapa 1 e suas intenções (legado `registrar_lote_animal` e
 | prestador | cadastrar_servico_ordem, consultar_cliente |
 | conversa | ajuda, resumo (e `ambigua` como saída quando nada casa) |
 
+## Fase 3: decisões de 15/09/2026
+
+Chamada real de fumaça antes das decisões (`gpt-4o-mini`): os 13 schemas de
+extração foram aceitos no modo estrito; "comprei 20 bezerros do João por 60 mil,
+pago dia 10" perdeu valor e vencimento (a etapa de domínio cortou uma ação em
+duas); "o que tenho a pagar?" saiu `ambigua`; 4 a 5,5 s por mensagem.
+
+| tema | decisão |
+|---|---|
+| modelos | **cinco baratos e um teto**: `gpt-4o-mini`, `gpt-4.1-mini`, `gpt-5-nano`, `gpt-5-mini`, `gpt-5.6-luna`, e `gpt-5.6-terra` como referência do quanto o dinheiro compra |
+| conjunto | **~300 casos de 5 autores sem contexto do código** (produtor comum, adversarial, áudio transcrito, conversa de várias mensagens, frases do documento do cliente), gabarito revisado por um juiz separado; 70% para ajuste de prompt e 30% guardados só para a nota final |
+| aprovação | **zero gravação indevida** (eliminatório), intenção certa em **95%** no geral e **85%** em cada intenção com pelo menos 5 casos, campos certos em **90%**; entre os aprovados, custo e depois tempo |
+| orçamento | **até US$ 30** somando todas as rodadas; o executor para sozinho no teto |
+| modelo escolhido (16/09) | **`gpt-5.6-luna`, esforço `low`**, decidido pela medição fora da amostra: 97,7% de intenção, 95,7% de campos, zero gravação indevida, p95 de 5,0 s, US$ 0,29 por mil mensagens. O `gpt-5.6-terra` também passou (95,5% e 96,4%) e custa dez vezes mais. Gasto total da avaliação: US$ 4,93. Relatórios em `docs/agents/agente-whatsapp/avaliacao-fase-3-*.md` |
+
+⚠️ **A primeira nota desta fase não valia, e o erro foi de condução.** A rodada 1
+rodou e foi relatada sem separar a partição guardada, e as três iterações de
+ajuste de prompt foram escritas com esses casos à vista. Medido pela revisão
+final: nos mesmos casos da partição final, o `gpt-5.6-terra` saiu de **84,8%
+antes do ajuste para 96,8% depois**, ou seja, parte do ganho era o prompt
+acertando caso conhecido. O que se sustentava era o RANKING, que já era o mesmo
+na rodada 1 sem ajuste nenhum. A correção foi medir de novo com **50 casos
+inéditos** (`scripts/avaliacao/casos/forademostra.json`), escritos por um autor
+sem acesso ao prompt ajustado, ao código e aos casos antigos: é dessa rodada que
+saem os números da linha acima. O relatório agora carimba qualquer resultado que
+contenha a partição guardada, para o erro não se repetir.
+
+O ajuste de prompt subiu o `gpt-5.6-luna` de 73,4% para 93,4% de intenção e de 81,7% para 96,9% de campos na partição de ajuste, em três iterações. Os ganhos vieram de três defeitos reais, não de texto melhor: a etapa de domínio decide quais intenções a extração sequer vê (domínio errado vira `ambigua`); campo de mesmo nome em duas intenções do mesmo domínio herdava a descrição da primeira; e a trava anti-alucinação só lia número por extenso até vinte, apagando "sessenta mil" (`trecho-literal.ts`). Os três valem para qualquer modelo.
+
 ## Critérios de aceite do programa
 
 - Zero gravação indevida no conjunto de avaliação e nos blocos de homologação
