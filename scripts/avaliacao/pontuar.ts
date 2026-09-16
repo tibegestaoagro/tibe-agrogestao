@@ -267,9 +267,15 @@ export function aprovar(
   if (falhas && falhas.passos > 0 && falhas.falhas / falhas.passos > 0.02) {
     motivos.push(`falhas do modelo ${((falhas.falhas / falhas.passos) * 100).toFixed(1)}% > 2%`);
   }
-  if (m.mensagens === 0) motivos.push("sem mensagens");
+  // Rodada só de conversa (Fase 4, `--arquivo homologacao.json`): intenção e
+  // campo não foram MEDIDOS, porque não existe caso de mensagem. Reprovar por
+  // 0% ali seria reprovar por métrica que ninguém coletou. Sem mensagem E sem
+  // passo, aí sim a rodada não mediu nada e continua reprovando.
+  const soConversa = m.mensagens === 0 && (falhas?.passos ?? 0) > 0;
+
+  if (m.mensagens === 0 && !soConversa) motivos.push("sem mensagens");
   if (gravacoesIndevidas > 0) motivos.push(`gravações indevidas: ${gravacoesIndevidas}`);
-  if (m.intencao_geral < 0.95) motivos.push(`intenção geral ${Math.round(m.intencao_geral * 100)}% < 95%`);
+  if (!soConversa && m.intencao_geral < 0.95) motivos.push(`intenção geral ${Math.round(m.intencao_geral * 100)}% < 95%`);
   for (const [intent, { certos, total }] of Object.entries(porIntencaoParaLimite ?? m.por_intencao)) {
     if (total >= 5 && certos / total < 0.85) {
       motivos.push(`${intent} ${Math.round((certos / total) * 100)}% < 85% (${total} casos)`);

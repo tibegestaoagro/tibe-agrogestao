@@ -17,6 +17,7 @@ import { createMachineAction } from "@/lib/actions/machines";
 import { createMilkGroup } from "@/lib/actions/milk-groups";
 import { criarItemAction } from "@/lib/actions/shopping-items";
 import { createManualEntryAction } from "@/lib/actions/financial-entries";
+import { listFinancialCategoriesAction } from "@/lib/actions/financial-categories";
 import { findCategory } from "@/lib/herd/categories";
 import { findUnit } from "@/lib/stock/units";
 import type { ContactType } from "@/generated/prisma/client";
@@ -204,6 +205,14 @@ export async function montarFazenda(sufixo: string): Promise<FazendaMontada> {
     await db.whatsAppContact.create({
       data: scoped({ phone: normalizePhone(telefone), user_id: owner.id, last_interaction_at: new Date() }),
     });
+
+    // As 26 categorias financeiras padrão, semeadas AQUI de propósito.
+    // `provisionDefaults` as cria na primeira listagem, e quem lista primeiro é
+    // o handler do financeiro: sem isto, a primeira despesa de uma conversa
+    // conta 26 linhas novas e vira "gravação indevida" num passo que só
+    // perguntou "confirma o lançamento?". Aconteceu na rodada `homologacao-1`
+    // da Fase 4, em dois blocos. Categoria é catálogo, não fato da fazenda.
+    await listFinancialCategoriesAction(db);
 
     // Fazendas e pastos.
     const propriedades = new Map<string, { id: string }>();

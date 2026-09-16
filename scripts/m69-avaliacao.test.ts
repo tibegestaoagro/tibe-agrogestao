@@ -204,6 +204,17 @@ async function main() {
     check("agregar sem mensagens nao gera NaN", agregar([]).intencao_geral === 0 && agregar([]).campos === 1);
     check("sem mensagens reprova", aprovar(agregar([]), 0).aprovado === false);
 
+    // Rodada só de conversa (Fase 4): não existe caso de mensagem, então
+    // intenção e campo não foram MEDIDOS. Reprovar por 0% ali seria reprovar o
+    // modelo por uma métrica que ninguém coletou; o que vale é a gravação
+    // indevida, que é medida passo a passo.
+    const soConversa = aprovar(agregar([]), 0, { falhas: 0, passos: 12, passosQueDevem: 4 });
+    check("rodada so de conversa nao reprova por falta de mensagem", soConversa.aprovado === true);
+    check(
+      "rodada so de conversa ainda reprova por gravacao indevida",
+      aprovar(agregar([]), 1, { falhas: 0, passos: 12, passosQueDevem: 4 }).aprovado === false,
+    );
+
     // O relatório passa a base de TODAS as partições pro limite de 85%: a partição filtrada
     // sozinha pode ter poucos casos por intenção (o gate de "total >= 5" nem entra em jogo).
     const metricasFiltradas = { intencao_geral: 1, por_intencao: { consultar_estoque: { certos: 1, total: 3 } }, campos: 1, campos_absoluto: 1, mensagens: 3 };
