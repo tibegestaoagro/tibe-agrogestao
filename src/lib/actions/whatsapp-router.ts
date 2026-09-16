@@ -73,6 +73,7 @@ import {
   registrarTrabalhador,
   registrarPagamentoTrabalhador,
   registrarAdiantamento,
+  agendarPagamentoTrabalhador,
 } from "@/lib/actions/whatsapp-handlers/mao-de-obra";
 import {
   registrarDiaria,
@@ -172,6 +173,7 @@ const HANDLERS: Record<Exclude<Intent, "ambigua">, Handler> = {
   registrar_trabalhador: registrarTrabalhador,
   registrar_pagamento_trabalhador: registrarPagamentoTrabalhador,
   registrar_adiantamento: registrarAdiantamento,
+  agendar_pagamento_trabalhador: agendarPagamentoTrabalhador,
   registrar_diaria: registrarDiaria,
   registrar_servico_contratado: registrarServicoContratado,
   registrar_servico_prestado: registrarServicoPrestado,

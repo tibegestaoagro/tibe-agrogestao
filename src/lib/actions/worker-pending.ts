@@ -9,7 +9,7 @@ import { criarStoreDePendencia, type PedidoBase } from "@/lib/actions/pending-st
  * só o vocabulário deste domínio.
  */
 
-export type GestoMaoDeObra = "cadastro" | "pagamento" | "adiantamento";
+export type GestoMaoDeObra = "cadastro" | "pagamento" | "adiantamento" | "agendamento";
 
 /** O campo que o assistente perguntou e está esperando. */
 export type CampoMaoDeObra =
@@ -17,6 +17,8 @@ export type CampoMaoDeObra =
   | "funcao"
   | "valor"
   | "frequencia"
+  /** Fase 5: a data do pagamento agendado ("vou pagar o Pedro dia 10"). */
+  | "data"
   /** Não é campo: é o pedido inteiro esperando um "sim". */
   | "confirmacao";
 
@@ -37,6 +39,7 @@ const store = criarStoreDePendencia<CampoMaoDeObra, MaoDeObraPendente>({
     if (campo === "funcao") return "role";
     if (campo === "valor") return "amount";
     if (campo === "frequencia") return "pay_frequency";
+    if (campo === "data") return "due_date";
     return campo;
   },
 });

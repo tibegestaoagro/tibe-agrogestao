@@ -5,6 +5,7 @@ import {
   createWorker,
   confirmWorkerPayment,
   recordWorkerAdvance,
+  scheduleWorkerPayment,
   type WorkerView,
 } from "@/lib/actions/workers";
 import {
@@ -16,8 +17,9 @@ import {
   type GestoMaoDeObra,
 } from "@/lib/actions/worker-pending";
 import { ask, failReply, str, type Handler, type RouterResult } from "./shared";
-import { lerNumeroBr } from "./parsers";
+import { lerNumeroBr, lerData } from "./parsers";
 import { reaisBr as moeda } from "@/lib/numero-br";
+import { prazoVencido } from "@/lib/dia-calendario";
 
 /**
  * Mão de obra pelo WhatsApp (Módulo 33, §32 do documento do cliente).
@@ -419,6 +421,93 @@ export const registrarAdiantamento: Handler = async (ctx) => {
         ? `\nO pagamento previsto continua ${moeda(worker.proximo_pagamento.amount)}: ` +
           "o adiantamento fica separado, e você desconta na hora de pagar se quiser."
         : ""),
+    requires_confirmation: false,
+    auxiliary_data: { worker_id: worker.id },
+    report_url: null,
+    action_taken: `${intent}:ok`,
+  };
+};
+
+// ── Fase 5: pagamento agendado ───────────────────────────────────────────
+
+/**
+ * "Vou pagar o Pedro dia 10."
+ *
+ * NÃO cria despesa nova quando já existe previsão pendente: muda o
+ * vencimento dela (e o valor, se dito). Sem previsão, cria uma. Mesmo desenho
+ * de `upsertVaccinationForecastAction` (Módulo 17); a action que faz isso é
+ * `scheduleWorkerPayment`.
+ *
+ * A data é sempre FUTURA: "vou pagar" descreve uma intenção, não um fato já
+ * acontecido, e diferente de `lerData` (que devolve "dia 10" vencido de
+ * propósito, para o financeiro mostrar atraso), aqui uma data que já passou é
+ * RECUSADA: o produtor quis dizer outra coisa, e agendar uma conta pendente
+ * no passado nasceria "atrasada" sem nunca ter sido uma promessa de verdade.
+ */
+export const agendarPagamentoTrabalhador: Handler = async (ctx) => {
+  const intent = "agendar_pagamento_trabalhador";
+  if (ctx.explicitNo) return cancelar(intent, ctx.tenant_id, ctx.user_id);
+
+  const aberta = await abrirConversa("agendamento", ctx);
+  if ("parar" in aberta) return aberta.parar;
+  const { parameters, guardar, limpar } = aberta;
+
+  const nome = str(parameters.nome) ?? str(parameters.name);
+  if (!nome) {
+    await guardar("nome");
+    return ask("Quem você vai pagar?");
+  }
+
+  const achado = await resolverTrabalhador(ctx.db, nome);
+  if (!achado.ok) return achado.resposta;
+  const worker = achado.worker;
+
+  const lida = lerData(parameters, "data", "due_date");
+  if (lida.tipo === "invalida") {
+    await guardar("data");
+    return ask(`Não entendi a data "${lida.bruto}". Para quando você vai pagar ${worker.name}?`);
+  }
+  if (lida.tipo === "vazio") {
+    await guardar("data");
+    return ask(`Para quando você vai pagar ${worker.name}?`);
+  }
+  if (prazoVencido(lida.data)) {
+    await guardar("data");
+    return ask(`Essa data já passou. Para quando você vai pagar ${worker.name}?`);
+  }
+
+  const informado = lerNumeroBr(parameters.valor ?? parameters.amount);
+  const previsto = worker.proximo_pagamento?.amount ?? worker.pay_amount ?? null;
+  const valor = informado ?? previsto;
+
+  if (valor === null) {
+    await guardar("valor");
+    return ask(`Não tenho valor cadastrado para ${worker.name}. Quanto você vai pagar?`);
+  }
+
+  const dataFormatada = lida.data.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+
+  if (!ctx.confirmed) {
+    await guardar("confirmacao");
+    return {
+      reply_text: `Deseja agendar o pagamento de ${moeda(valor)} para ${worker.name} em ${dataFormatada}?`,
+      requires_confirmation: true,
+      auxiliary_data: { worker_id: worker.id, valor, data: lida.data.toISOString() },
+      report_url: null,
+      action_taken: `${intent}:aguardando_confirmacao`,
+    };
+  }
+
+  const res = await scheduleWorkerPayment(ctx.db, {
+    worker_id: worker.id,
+    due_date: lida.data,
+    amount: informado,
+  });
+  await limpar();
+  if (!res.ok) return failReply(intent, res);
+
+  return {
+    reply_text: `✅ Pagamento de ${moeda(res.data.amount)} para ${worker.name} agendado para ${dataFormatada}.`,
     requires_confirmation: false,
     auxiliary_data: { worker_id: worker.id },
     report_url: null,

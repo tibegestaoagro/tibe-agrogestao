@@ -515,6 +515,182 @@ async function main() {
         (await db.financialEntry.findUniqueOrThrow({ where: { id: entryZe.id } })).status === "pending",
       );
     }
+
+    // ── 9. O pagamento futuro da equipe (Fase 5, Task 4) ───────────────────
+    //
+    // Os cinco casos do task-4-brief.md, literais: "vou pagar o Pedro dia 10"
+    // não cria despesa nova quando já existe previsão pendente (muda o
+    // vencimento dela, e o valor se dito); sem previsão, cria uma; a
+    // conciliação do Módulo 33 (m57) continua valendo depois; data no
+    // passado é recusada.
+
+    console.log("\n9. O pagamento futuro da equipe (agendar_pagamento_trabalhador)");
+    {
+      const { routeIntent } = await import("@/lib/actions/whatsapp-router");
+      const { createWorker } = await import("@/lib/actions/workers");
+      const USER9 = "m70-user-9";
+
+      const falar = (
+        intent: string,
+        parameters: Record<string, unknown>,
+        extra: { confirmed?: boolean; explicitNo?: boolean } = {},
+      ) =>
+        routeIntent(db, {
+          intent: intent as never,
+          tenant_id: tenant.id,
+          role: "OWNER",
+          activeProfiles: ["fazenda"],
+          parameters,
+          confirmed: extra.confirmed ?? false,
+          explicitNo: extra.explicitNo ?? false,
+          user_id: USER9,
+        });
+
+      const joao = await createWorker(db, {
+        name: "João Vaqueiro M70",
+        role: "Vaqueiro",
+        type: "fixo",
+        pay_frequency: "mensal",
+        pay_amount: 2000,
+      });
+      if (!joao.ok) throw new Error("setup do worker falhou: " + joao.message);
+      const previsaoInicial = await db.financialEntry.findFirstOrThrow({
+        where: { related_module: "mao_de_obra", related_id: joao.data.id, status: "pending" },
+      });
+
+      console.log("\n9.1. Trabalhador com previsão: a data muda, e continua UMA linha pendente");
+      const c1 = await falar("agendar_pagamento_trabalhador", {
+        nome: "João Vaqueiro M70",
+        data: "10/12/2026",
+      });
+      check("pede confirmação", c1.requires_confirmation === true, c1.reply_text);
+      check("mostra a data pedida", c1.reply_text.includes("10/12/2026"), c1.reply_text);
+      const c1sim = await falar("agendar_pagamento_trabalhador", {}, { confirmed: true });
+      check("gravou", c1sim.action_taken === "agendar_pagamento_trabalhador:ok", c1sim.action_taken);
+      const previsoesJoao1 = await db.financialEntry.count({
+        where: { related_module: "mao_de_obra", related_id: joao.data.id, status: "pending" },
+      });
+      check("continua UMA previsão pendente", previsoesJoao1 === 1, String(previsoesJoao1));
+      const previsaoAtualizada = await db.financialEntry.findFirstOrThrow({
+        where: { related_module: "mao_de_obra", related_id: joao.data.id, status: "pending" },
+      });
+      check("é a MESMA linha, só com a data nova", previsaoAtualizada.id === previsaoInicial.id);
+      check(
+        "com o vencimento de 10/12/2026",
+        previsaoAtualizada.due_date?.toISOString().startsWith("2026-12-10") ?? false,
+        String(previsaoAtualizada.due_date),
+      );
+      check("e o valor PRESERVADO (não dito)", Number(previsaoAtualizada.amount) === 2000);
+
+      console.log("\n9.2. Trabalhador SEM previsão: nasce uma, com o vencimento dito");
+      const ze = await createWorker(db, {
+        name: "Zé Tratorista M70",
+        role: "Tratorista",
+        type: "fixo",
+        pay_frequency: "mensal",
+        pay_amount: 1500,
+      });
+      if (!ze.ok) throw new Error("setup do worker falhou: " + ze.message);
+      await db.financialEntry.deleteMany({
+        where: { related_module: "mao_de_obra", related_id: ze.data.id },
+      });
+      check(
+        "de fato ficou sem previsão",
+        (await db.financialEntry.count({ where: { related_id: ze.data.id } })) === 0,
+      );
+      const c2 = await falar("agendar_pagamento_trabalhador", {
+        nome: "Zé Tratorista M70",
+        data: "12/12/2026",
+      });
+      check(
+        "pede confirmação, com o valor do cadastro (não dito)",
+        c2.reply_text.includes("1.500"),
+        c2.reply_text,
+      );
+      const c2sim = await falar("agendar_pagamento_trabalhador", {}, { confirmed: true });
+      check("gravou", c2sim.action_taken === "agendar_pagamento_trabalhador:ok", c2sim.action_taken);
+      const previsaoZe = await db.financialEntry.findFirstOrThrow({
+        where: { related_module: "mao_de_obra", related_id: ze.data.id, status: "pending" },
+      });
+      check(
+        "nasceu com o vencimento dito",
+        previsaoZe.due_date?.toISOString().startsWith("2026-12-12") ?? false,
+        String(previsaoZe.due_date),
+      );
+      check("e o valor do cadastro (não dito)", Number(previsaoZe.amount) === 1500);
+
+      console.log("\n9.3. Valor dito muda o valor; valor não dito preserva o previsto");
+      const c3 = await falar("agendar_pagamento_trabalhador", {
+        nome: "João Vaqueiro M70",
+        data: "15/12/2026",
+        valor: 2200,
+      });
+      check("pede confirmação com o valor dito", c3.reply_text.includes("2.200"), c3.reply_text);
+      await falar("agendar_pagamento_trabalhador", {}, { confirmed: true });
+      const previsaoComValor = await db.financialEntry.findFirstOrThrow({
+        where: { related_module: "mao_de_obra", related_id: joao.data.id, status: "pending" },
+      });
+      check("valor mudou para 2.200", Number(previsaoComValor.amount) === 2200);
+
+      const c3b = await falar("agendar_pagamento_trabalhador", {
+        nome: "João Vaqueiro M70",
+        data: "20/12/2026",
+      });
+      check("sem valor dito, oferece o previsto (2.200)", c3b.reply_text.includes("2.200"), c3b.reply_text);
+      await falar("agendar_pagamento_trabalhador", {}, { confirmed: true });
+      const previsaoValorPreservado = await db.financialEntry.findFirstOrThrow({
+        where: { related_module: "mao_de_obra", related_id: joao.data.id, status: "pending" },
+      });
+      check("valor PRESERVADO em 2.200", Number(previsaoValorPreservado.amount) === 2200);
+      check(
+        "continua UMA previsão pendente para o João",
+        (await db.financialEntry.count({
+          where: { related_module: "mao_de_obra", related_id: joao.data.id, status: "pending" },
+        })) === 1,
+      );
+
+      console.log(
+        '\n9.4. Depois de agendar, "paguei o João" quita a MESMA previsão (conciliação do Módulo 33)',
+      );
+      const p1 = await falar("registrar_pagamento_trabalhador", { nome: "João Vaqueiro M70" });
+      check("oferece o valor agendado (2.200)", p1.reply_text.includes("2.200"), p1.reply_text);
+      const p2 = await falar("registrar_pagamento_trabalhador", {}, { confirmed: true });
+      check(
+        "gravou",
+        p2.action_taken === "registrar_pagamento_trabalhador:ok",
+        p2.action_taken,
+      );
+      const pagas = await db.financialEntry.count({
+        where: { related_module: "mao_de_obra", related_id: joao.data.id, status: "paid" },
+      });
+      const pendentes = await db.financialEntry.count({
+        where: { related_module: "mao_de_obra", related_id: joao.data.id, status: "pending" },
+      });
+      check("a previsão agendada virou PAGA (não uma linha nova)", pagas === 1, String(pagas));
+      check(
+        "a quitada é a MESMA linha da agendada",
+        (await db.financialEntry.findUniqueOrThrow({ where: { id: previsaoInicial.id } })).status ===
+          "paid",
+      );
+      check("e nasceu a PRÓXIMA previsão, só uma", pendentes === 1, String(pendentes));
+
+      console.log('\n9.5. Data no passado: recusa e pergunta, porque "vou pagar" é futuro');
+      const c5 = await falar("agendar_pagamento_trabalhador", {
+        nome: "Zé Tratorista M70",
+        data: "10/01/2026",
+      });
+      check(
+        "recusa e pergunta, sem pedir confirmação",
+        c5.requires_confirmation === false && c5.reply_text.toLowerCase().includes("já passou"),
+        c5.reply_text,
+      );
+      const zeDepois = await db.financialEntry.findUniqueOrThrow({ where: { id: previsaoZe.id } });
+      check(
+        "e não mexeu na previsão do Zé",
+        zeDepois.due_date?.toISOString().startsWith("2026-12-12") ?? false,
+        String(zeDepois.due_date),
+      );
+    }
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });
     await prisma.$disconnect();
