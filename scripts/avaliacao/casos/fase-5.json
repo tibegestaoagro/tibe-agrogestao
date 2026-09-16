@@ -1,0 +1,489 @@
+[
+  {
+    "id": "f5-001",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o João do Leilão pagou os 8 mil que devia",
+    "esperado": [
+      {
+        "intent": "registrar_recebimento",
+        "campos": { "contato": "João do Leilão", "valor": 8000 }
+      }
+    ]
+  },
+  {
+    "id": "f5-002",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "a Agropecuaria Santa Fe pagou 800 da gradagem",
+    "esperado": [
+      {
+        "intent": "registrar_recebimento",
+        "campos": { "contato": "Agropecuária Santa Fé", "valor": 800 }
+      }
+    ]
+  },
+  {
+    "id": "f5-003",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "recebi o pagamento do Frigorifico Bom Boi, 15 mil",
+    "esperado": [
+      {
+        "intent": "registrar_recebimento",
+        "campos": { "contato": "Frigorífico Bom Boi", "valor": 15000 }
+      }
+    ]
+  },
+  {
+    "id": "f5-004",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "a Agropecuaria Santa Fe quitou tudo hoje",
+    "esperado": [
+      {
+        "intent": "registrar_recebimento",
+        "campos": { "contato": "Agropecuária Santa Fé", "data": "hoje" }
+      }
+    ]
+  },
+  {
+    "id": "f5-005",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o Frigorifico Bom Boi pagou 500 dos 1500 que devia",
+    "esperado": [
+      {
+        "intent": "registrar_recebimento",
+        "campos": { "contato": "Frigorífico Bom Boi", "valor": 500 }
+      }
+    ],
+    "nota": "pagamento parcial; so o valor pago entra, o catalogo nao tem campo pra dívida total"
+  },
+  {
+    "id": "f5-006",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "recebi 2 mil do Joao do Leilao, pagamento da venda dos bezerros",
+    "esperado": [
+      {
+        "intent": "registrar_recebimento",
+        "campos": { "contato": "João do Leilão", "valor": 2000 }
+      }
+    ]
+  },
+  {
+    "id": "f5-007",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o Joao do Leilao ja pagou?",
+    "esperado": [
+      {
+        "intent": "consultar_recebimento",
+        "campos": { "contato": "João do Leilão" }
+      }
+    ]
+  },
+  {
+    "id": "f5-008",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "quanto a Agropecuaria Santa Fe ainda deve?",
+    "esperado": [
+      {
+        "intent": "consultar_recebimento",
+        "campos": { "contato": "Agropecuária Santa Fé" }
+      }
+    ]
+  },
+  {
+    "id": "f5-009",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "quem ainda ta devendo pra mim?",
+    "esperado": [
+      {
+        "intent": "consultar_recebimento",
+        "campos": {}
+      }
+    ]
+  },
+  {
+    "id": "f5-010",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o Frigorifico Bom Boi quitou a conta?",
+    "esperado": [
+      {
+        "intent": "consultar_recebimento",
+        "campos": { "contato": "Frigorífico Bom Boi" }
+      }
+    ]
+  },
+  {
+    "id": "f5-011",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "tem alguem me devendo ainda?",
+    "esperado": [
+      {
+        "intent": "consultar_recebimento",
+        "campos": {}
+      }
+    ]
+  },
+  {
+    "id": "f5-012",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "quanto falta o Joao do Leilao pagar da venda?",
+    "esperado": [
+      {
+        "intent": "consultar_recebimento",
+        "campos": { "contato": "João do Leilão" }
+      }
+    ]
+  },
+  {
+    "id": "f5-013",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "vou pagar o Pedro dia 10",
+    "esperado": [
+      {
+        "intent": "agendar_pagamento_trabalhador",
+        "campos": { "nome": "Pedro", "data": "dia 10" }
+      }
+    ]
+  },
+  {
+    "id": "f5-014",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "semana que vem pago o Ze Carlos",
+    "esperado": [
+      {
+        "intent": "agendar_pagamento_trabalhador",
+        "campos": { "nome": "Zé Carlos", "data": "semana que vem" }
+      }
+    ]
+  },
+  {
+    "id": "f5-015",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "vou pagar 2500 pro Ze Carlos sexta",
+    "esperado": [
+      {
+        "intent": "agendar_pagamento_trabalhador",
+        "campos": { "nome": "Zé Carlos", "valor": 2500, "data": "sexta" }
+      }
+    ]
+  },
+  {
+    "id": "f5-016",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "marca ai, pagamento do Pedro pra dia 15",
+    "esperado": [
+      {
+        "intent": "agendar_pagamento_trabalhador",
+        "campos": { "nome": "Pedro", "data": "dia 15" }
+      }
+    ]
+  },
+  {
+    "id": "f5-017",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "preciso pagar o Ze Carlos amanha",
+    "esperado": [
+      {
+        "intent": "agendar_pagamento_trabalhador",
+        "campos": { "nome": "Zé Carlos", "data": "amanha" }
+      }
+    ]
+  },
+  {
+    "id": "f5-018",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o pagamento do Pedro fica pra dia 30",
+    "esperado": [
+      {
+        "intent": "agendar_pagamento_trabalhador",
+        "campos": { "nome": "Pedro", "data": "dia 30" }
+      }
+    ]
+  },
+  {
+    "id": "f5-019",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "recebi 1500 de aluguel",
+    "esperado": [
+      {
+        "intent": "registrar_lancamento_financeiro",
+        "campos": { "amount": 1500, "tipo": "receita", "category": "Aluguel" }
+      }
+    ],
+    "nota": "aluguel nao quita conta de cliente, entao nao e registrar_recebimento"
+  },
+  {
+    "id": "f5-020",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o vizinho me pagou de volta os 500 que tinha me emprestado",
+    "esperado": [
+      {
+        "intent": "registrar_lancamento_financeiro",
+        "campos": { "amount": 500, "tipo": "receita", "description": "empréstimo do vizinho" }
+      }
+    ],
+    "nota": "tem a palavra pagou e devia, mas vizinho nao e conta de cliente do negocio"
+  },
+  {
+    "id": "f5-021",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "recebi 2 mil de comissao de uma venda que ajudei um amigo",
+    "esperado": [
+      {
+        "intent": "registrar_lancamento_financeiro",
+        "campos": { "amount": 2000, "tipo": "receita", "description": "comissão de venda" }
+      }
+    ]
+  },
+  {
+    "id": "f5-022",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "entrou 800 do aluguel do galpao esse mes",
+    "esperado": [
+      {
+        "intent": "registrar_lancamento_financeiro",
+        "campos": { "amount": 800, "tipo": "receita", "category": "Aluguel" }
+      }
+    ]
+  },
+  {
+    "id": "f5-023",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "quanto entrou esse mes?",
+    "esperado": [
+      {
+        "intent": "consultar_saldo",
+        "campos": {}
+      }
+    ],
+    "nota": "pergunta o saldo do mes sem citar pessoa, nao e consultar_recebimento"
+  },
+  {
+    "id": "f5-024",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "quanto eu gastei em agosto?",
+    "esperado": [
+      {
+        "intent": "consultar_saldo",
+        "campos": { "period": "agosto" }
+      }
+    ]
+  },
+  {
+    "id": "f5-025",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "como ta meu saldo do mes passado?",
+    "esperado": [
+      {
+        "intent": "consultar_saldo",
+        "campos": { "period": "mes passado" }
+      }
+    ]
+  },
+  {
+    "id": "f5-026",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "quanto ficou de saldo agora?",
+    "esperado": [
+      {
+        "intent": "consultar_saldo",
+        "campos": {}
+      }
+    ]
+  },
+  {
+    "id": "f5-027",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "paguei o Pedro hoje, 200",
+    "esperado": [
+      {
+        "intent": "registrar_pagamento_trabalhador",
+        "campos": { "nome": "Pedro", "valor": 200 }
+      }
+    ],
+    "nota": "ja pagou, tempo passado, nao e pra agendar"
+  },
+  {
+    "id": "f5-028",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "acabei de pagar o Ze Carlos",
+    "esperado": [
+      {
+        "intent": "registrar_pagamento_trabalhador",
+        "campos": { "nome": "Zé Carlos" }
+      }
+    ]
+  },
+  {
+    "id": "f5-029",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "paguei 2500 pro Ze Carlos",
+    "esperado": [
+      {
+        "intent": "registrar_pagamento_trabalhador",
+        "campos": { "nome": "Zé Carlos", "valor": 2500 }
+      }
+    ]
+  },
+  {
+    "id": "f5-030",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "ja paguei o Pedro essa semana",
+    "esperado": [
+      {
+        "intent": "registrar_pagamento_trabalhador",
+        "campos": { "nome": "Pedro" }
+      }
+    ]
+  },
+  {
+    "id": "f5-031",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "vou pagar o Pedro",
+    "esperado": [
+      {
+        "intent": "agendar_pagamento_trabalhador",
+        "campos": { "nome": "Pedro" }
+      }
+    ],
+    "nota": "fronteira com f5-032: vou pagar (futuro) x paguei (passado)"
+  },
+  {
+    "id": "f5-032",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "paguei o Pedro",
+    "esperado": [
+      {
+        "intent": "registrar_pagamento_trabalhador",
+        "campos": { "nome": "Pedro" }
+      }
+    ],
+    "nota": "fronteira com f5-031: paguei (passado) x vou pagar (futuro)"
+  },
+  {
+    "id": "f5-033",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o Joao do Leilao pagou?",
+    "esperado": [
+      {
+        "intent": "consultar_recebimento",
+        "campos": { "contato": "João do Leilão" }
+      }
+    ],
+    "nota": "fronteira com f5-034: pergunta (com ?) x afirmacao"
+  },
+  {
+    "id": "f5-034",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o Joao do Leilao pagou",
+    "esperado": [
+      {
+        "intent": "registrar_recebimento",
+        "campos": { "contato": "João do Leilão" }
+      }
+    ],
+    "nota": "fronteira com f5-033: afirmacao x pergunta (com ?)"
+  },
+  {
+    "id": "f5-035",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o Ze Carlos vai receber 800 dia 5",
+    "esperado": [
+      {
+        "intent": "agendar_pagamento_trabalhador",
+        "campos": { "nome": "Zé Carlos", "valor": 800, "data": "dia 5" }
+      }
+    ],
+    "nota": "fronteira com f5-036: vai receber (futuro) x recebeu (passado)"
+  },
+  {
+    "id": "f5-036",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o Ze Carlos recebeu 800",
+    "esperado": [
+      {
+        "intent": "registrar_pagamento_trabalhador",
+        "campos": { "nome": "Zé Carlos", "valor": 800 }
+      }
+    ],
+    "nota": "fronteira com f5-035: recebeu (passado) x vai receber (futuro)"
+  },
+  {
+    "id": "f5-037",
+    "autor": "produtor",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "o Frigorifico Bom Boi pagou 3 mil da venda", "grava": "pode" },
+      { "texto": "nao, foram 3500", "grava": "nao" },
+      { "texto": "sim, 3500 mesmo", "grava": "deve" }
+    ],
+    "nota": "correcao antes de confirmar, depois confirma o valor certo"
+  },
+  {
+    "id": "f5-038",
+    "autor": "produtor",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "vou pagar o Pedro dia 10", "grava": "pode" },
+      { "texto": "nao, deixa pra la", "grava": "nao" }
+    ],
+    "nota": "recusa logo depois da pergunta de confirmacao"
+  },
+  {
+    "id": "f5-039",
+    "autor": "produtor",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "quem ainda ta devendo pra mim?", "grava": "nao" },
+      { "texto": "2", "grava": "nao" },
+      { "texto": "ele pagou 800 agora", "grava": "pode" },
+      { "texto": "sim", "grava": "deve" }
+    ],
+    "nota": "resposta curta (numero) escolhendo item da lista que o assistente mostrou"
+  },
+  {
+    "id": "f5-040",
+    "autor": "produtor",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "recebi 1500 de aluguel", "grava": "pode" },
+      { "texto": "sim", "grava": "deve" },
+      { "texto": "ah e vou pagar o Ze Carlos semana que vem", "grava": "pode" }
+    ],
+    "nota": "outro assunto no meio: lancamento financeiro, depois agendamento de pagamento"
+  }
+]
