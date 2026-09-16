@@ -169,7 +169,7 @@ function main() {
   const todasIndevidas = linhas.flatMap((l) => l.indevidas.map((p) => ({ modelo: l.r.modelo, ...p })));
   if (todasIndevidas.length === 0) md.push("Nenhuma.");
   else {
-    md.push("| modelo | caso | passo | texto | linhas novas | respostas |", "|---|---|---|---|---|---|");
+    md.push("| modelo | caso | passo | texto | linhas novas (0 = alteração ou remoção) | respostas |", "|---|---|---|---|---|---|");
     for (const p of todasIndevidas) {
       md.push(`| ${p.modelo} | ${p.caso} | ${p.passo} | ${celula(p.texto)} | ${p.linhas_novas} | ${celula(p.respostas.join(" // "))} |`);
     }

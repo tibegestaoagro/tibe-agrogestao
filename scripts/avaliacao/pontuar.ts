@@ -226,7 +226,8 @@ export function agregar(notas: NotaDeMensagem[]): Metricas {
     pedidosTotal += nota.pedidos_total;
     camposCertos += nota.campos_certos;
     camposTotal += nota.campos_total;
-    camposTotalAbsoluto += nota.campos_total_absoluto;
+    // `?? nota.campos_total`: resultado gravado antes desta base (sem o campo no JSON) não pode virar NaN no agregado.
+    camposTotalAbsoluto += nota.campos_total_absoluto ?? nota.campos_total;
     for (const { intent, certo } of nota.por_intencao) {
       const atual = porIntencao[intent] ?? { certos: 0, total: 0 };
       atual.total += 1;
@@ -246,11 +247,13 @@ export function agregar(notas: NotaDeMensagem[]): Metricas {
 
 /**
  * `falhas`: passos de conversa que responderam com a frase de falha; sem isso, falhar em tudo
- * passaria pelo eliminatório de gravação. `confirmacoesSemGravar` e `passosQueDevem` continuam
- * recebidos (o relatório mostra a porcentagem), mas não reprovam mais: a medição da Fase 3 achou
- * que o gabarito de "deve" não é confiável, porque quem escreveu os casos não sabe quais intenções
- * pedem confirmação, e o agente às vezes pergunta a fazenda em vez de gravar, o que é o
- * comportamento certo. `porIntencaoParaLimite`: base do limite de 85% por intenção, default
+ * passaria pelo eliminatório de gravação. `confirmacoesSemGravar` e `passosQueDevem` ficam no tipo
+ * mas a função não os lê mais: a medição da Fase 3 achou que o gabarito de "deve" não é confiável,
+ * porque quem escreveu os casos não sabe quais intenções pedem confirmação, e o agente às vezes
+ * pergunta a fazenda em vez de gravar, o que é o comportamento certo. O dado virou só informativo,
+ * calculado e mostrado por quem chama (executor.ts, relatorio.ts) com contagem própria; os dois
+ * campos continuam aceitos aqui para não quebrar essas chamadas. `porIntencaoParaLimite`: base do
+ * limite de 85% por intenção, default
  * `m.por_intencao`; o relatório passa a base de TODAS as partições, porque a partição final sozinha
  * deixa intenção com poucos casos (o gate de "total >= 5" some, ou vira sorte de amostra pequena).
  */

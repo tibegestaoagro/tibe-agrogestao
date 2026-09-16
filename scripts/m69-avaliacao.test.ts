@@ -166,6 +166,16 @@ async function main() {
     );
     check("agregar sem mensagens não gera NaN no absoluto", agregar([]).campos_absoluto === 1);
 
+    // Resultado gravado antes desta base não tem `campos_total_absoluto` no JSON (campo novo).
+    const notaSemAbsoluto = JSON.parse(JSON.stringify({ ...certa, campos_total_absoluto: undefined }));
+    check("nota antiga (sem campos_total_absoluto) não vira campo ausente por acaso", !("campos_total_absoluto" in notaSemAbsoluto));
+    const agregadoComNotaAntiga = agregar([certa, notaSemAbsoluto]);
+    check(
+      "nota gravada antes da base absoluta não vira NaN no agregado",
+      Number.isFinite(agregadoComNotaAntiga.campos_absoluto),
+      JSON.stringify(agregadoComNotaAntiga),
+    );
+
     const m = agregar([certa, cortada]);
     check("agrega intenção geral", Math.abs(m.intencao_geral - 2 / 3) < 1e-9, String(m.intencao_geral));
     check("gravação indevida reprova mesmo com nota cheia", aprovar(agregar([certa]), 1).aprovado === false);

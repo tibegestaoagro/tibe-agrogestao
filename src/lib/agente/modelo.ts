@@ -48,11 +48,11 @@ function ehModeloDeRaciocinio(modelo: string) {
   return /^(gpt-5|o\d)/.test(modelo);
 }
 
-// Padrão: modelo aprovado na avaliação da Fase 3 (96,8% de intenção, 97,7% de
-// campos, zero gravação indevida). Detalhe em
-// docs/agents/agente-whatsapp/avaliacao-fase-3-final.md.
+// Padrão: modelo aprovado na medição fora da amostra da Fase 3 (97,7% de
+// intenção, 95,7% de campos, zero gravação indevida). Detalhe em
+// docs/agents/agente-whatsapp/avaliacao-fase-3-foradaamostra.md.
 export async function chamarModelo<T>(pedido: PedidoAoModelo): Promise<T> {
-  const modelo = process.env.AGENTE_MODELO || "gpt-5.6-terra";
+  const modelo = process.env.AGENTE_MODELO || "gpt-5.6-luna";
   const corpo: Record<string, unknown> = {
     model: modelo,
     messages: [

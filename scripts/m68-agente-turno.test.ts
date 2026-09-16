@@ -101,7 +101,7 @@ async function main() {
     delete process.env.AGENTE_MODELO;
     delete process.env.AGENTE_ESFORCO;
     await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: schemaOk });
-    check("sem AGENTE_MODELO, o padrão é gpt-5.6-terra", (corpoVisto as unknown as { model?: string }).model === "gpt-5.6-terra");
+    check("sem AGENTE_MODELO, o padrão é gpt-5.6-luna", (corpoVisto as unknown as { model?: string }).model === "gpt-5.6-luna");
     check("sem AGENTE_ESFORCO, o padrão do modelo de raciocínio é reasoning_effort low", (corpoVisto as unknown as { reasoning_effort?: string }).reasoning_effort === "low");
     check("modelo padrão nunca recebe temperature", !("temperature" in (corpoVisto as unknown as object)));
 
