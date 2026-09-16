@@ -186,6 +186,15 @@ contenha a partição guardada, para o erro não se repetir.
 
 O ajuste de prompt subiu o `gpt-5.6-luna` de 73,4% para 93,4% de intenção e de 81,7% para 96,9% de campos na partição de ajuste, em três iterações. Os ganhos vieram de três defeitos reais, não de texto melhor: a etapa de domínio decide quais intenções a extração sequer vê (domínio errado vira `ambigua`); campo de mesmo nome em duas intenções do mesmo domínio herdava a descrição da primeira; e a trava anti-alucinação só lia número por extenso até vinte, apagando "sessenta mil" (`trecho-literal.ts`). Os três valem para qualquer modelo.
 
+## Fase 4: decisões de 16/09/2026
+
+| tema | decisão |
+|---|---|
+| chip | **ainda não existe.** A Fase 4 entrega o workflow fino e os blocos de conversa medidos contra a rota de turno; o gate no aparelho fica engatilhado, com roteiro escrito em `docs/agents/agente-whatsapp/roteiro-do-chip.md`, para o dia em que o chip conectar |
+| onde o workflow fino entra | **só na cópia de homologação** (`ctGOlY9OXZWfjeby`), com webhook próprio (`/webhook/homologacao`) e inativa. O fluxo de produção fica intocado até a Fase 7 |
+
+Plano: [../plans/2026-09-16-agente-whatsapp-fase-4-homologacao.md](../plans/2026-09-16-agente-whatsapp-fase-4-homologacao.md).
+
 ## Critérios de aceite do programa
 
 - Zero gravação indevida no conjunto de avaliação e nos blocos de homologação
