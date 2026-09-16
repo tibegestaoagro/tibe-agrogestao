@@ -27,14 +27,33 @@ import { getRedisConnection } from "@/lib/redis";
  *   npx tsx scripts/whatsapp-e2e.ts limpa
  *   npx tsx scripts/whatsapp-e2e.ts estado
  *   npx tsx scripts/whatsapp-e2e.ts roteiro caminho/do/roteiro.txt
+ *   npx tsx scripts/whatsapp-e2e.ts --homologacao diga "..."   (copia da Fase 4)
+ *
+ * Sem `--homologacao`, o alvo é o fluxo de PRODUÇÃO, como sempre foi. A flag
+ * troca o webhook e o workflow de onde a guarda é lida; o resto é idêntico, de
+ * propósito: um segundo script seria uma cópia do fluxo, e cópia de fluxo é o
+ * falso positivo que este arquivo existe para evitar.
  *
  * Configuração (.env):
  *   WA_TEST_PHONE   telefone do usuário de teste (só dígitos, com DDI)
- *   URL_N8N         base do n8n; o webhook é <base>/webhook/atendimento
+ *   URL_N8N         base do n8n; o webhook é <base>/webhook/<alvo>
  *   N8N_API_KEY     chave da API do n8n, para ler a guarda da entrada (abaixo)
  */
 
-const WORKFLOW_ATENDIMENTO = "UAAA96aJFiiFsQCL";
+/**
+ * Os dois alvos possiveis. O padrao continua sendo PRODUCAO: quem ja usa o
+ * comando nao pode mudar de fluxo por acidente. `--homologacao` manda para a
+ * copia da Fase 4, que chama a rota de turno em vez do execute-action.
+ */
+const ALVOS = {
+  producao: { workflow: "UAAA96aJFiiFsQCL", caminho: "atendimento" },
+  homologacao: { workflow: "ctGOlY9OXZWfjeby", caminho: "homologacao" },
+} as const;
+
+function alvo(): (typeof ALVOS)[keyof typeof ALVOS] {
+  return process.argv.includes("--homologacao") ? ALVOS.homologacao : ALVOS.producao;
+}
+
 const NO_GUARDA = "Guarda da Entrada";
 
 const TELEFONE = (process.env.WA_TEST_PHONE ?? "").replace(/\D/g, "");
@@ -49,7 +68,7 @@ function webhookUrl(): string {
   const bruta = process.env.URL_N8N ?? "";
   const base = bruta.replace(/\/home\/workflows\/?$/, "").replace(/\/+$/, "");
   if (!base) throw new Error("URL_N8N não definida no .env");
-  return `${base}/webhook/atendimento`;
+  return `${base}/webhook/${alvo().caminho}`;
 }
 
 function exigirTelefone(): string {
@@ -105,10 +124,10 @@ async function credenciaisDaGuarda(): Promise<CredenciaisInstancia> {
   const chave = process.env.N8N_API_KEY;
   if (!chave) throw new Error("N8N_API_KEY não definida no .env: sem ela não dá para passar pela guarda da entrada.");
   const origem = new URL(webhookUrl()).origin;
-  const res = await fetch(`${origem}/api/v1/workflows/${WORKFLOW_ATENDIMENTO}`, {
+  const res = await fetch(`${origem}/api/v1/workflows/${alvo().workflow}`, {
     headers: { "X-N8N-API-KEY": chave, accept: "application/json" },
   });
-  if (!res.ok) throw new Error(`API do n8n respondeu ${res.status} ao ler o workflow de atendimento`);
+  if (!res.ok) throw new Error(`API do n8n respondeu ${res.status} ao ler o workflow ${alvo().workflow}`);
   const wf = (await res.json()) as { nodes: { name: string; parameters?: { jsCode?: string } }[] };
   const codigo = wf.nodes.find((n) => n.name === NO_GUARDA)?.parameters?.jsCode;
   if (codigo === undefined) return null;
@@ -262,7 +281,13 @@ async function roteiro(caminho: string) {
 }
 
 async function main() {
-  const [comando, ...resto] = process.argv.slice(2);
+  // A flag de alvo sai daqui: sem isso ela viraria parte da mensagem enviada.
+  const [comando, ...resto] = process.argv.slice(2).filter((a) => a !== "--homologacao");
+
+  // Primeira linha da saida, sempre: uma rodada lida depois precisa dizer
+  // contra o que rodou. Na Fase 3 uma nota inteira se perdeu por falta disso.
+  const nome = alvo() === ALVOS.homologacao ? "homologacao" : "producao";
+  console.log(`alvo: ${nome} (/webhook/${alvo().caminho}, workflow ${alvo().workflow})`);
 
   // Antes de qualquer comando, inclusive `estado`: descobrir tarde que o
   // telefone e de um cliente ja seria tarde demais para o `limpa`.
