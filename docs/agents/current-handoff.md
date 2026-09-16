@@ -185,17 +185,33 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou, e cada commit que sobe é leitura pública.
 
-**2. Agente do WhatsApp, Fase 4:** escrever o plano (workflow fino no n8n
-chamando `POST /api/internal/whatsapp/turno`, segundo chip, blocos de conversa
-em homologação pelo tenant de provas) e decidir com o usuário o que a
-homologação precisa provar antes de promover. A Fase 4 **depende do segundo
-chip**, que continua pendente. Ela herda três defeitos de conversa que a
-avaliação achou e que nenhuma mensagem solta mostra: permuta com diferença em
-dinheiro não é entendida; a resposta de parcelamento ("35 mil, em 2 vezes")
-esgota as tentativas; e a correção de valor antes do "sim" é ignorada, gravando
-o valor antigo (esta última é decisão antiga do projeto, e a Fase 4 pode
-reabrir). Ainda vale conferir as primeiras execuções reais do workflow depois da
-guarda (execução de 2 nós sem "Normalizar e Filtrar" é mensagem barrada).
+**2. Agente do WhatsApp, Fase 4:** o plano existe
+([../superpowers/plans/2026-09-16-agente-whatsapp-fase-4-homologacao.md](../superpowers/plans/2026-09-16-agente-whatsapp-fase-4-homologacao.md))
+e cinco das seis tasks estão feitas, na branch `fase-4-homologacao` (ainda NÃO
+mergeada). Falta a rodada de ponta a ponta pelo n8n, que **depende de o usuário
+autorizar ativar a cópia de homologação**: enquanto ela estiver inativa, o
+webhook devolve 404.
+
+Entregue: workflow fino aplicado em `ctGOlY9OXZWfjeby` (25 nós, inativo, webhook
+`/webhook/homologacao`, chamando a rota de turno; produção intocada, conferida);
+60 blocos de conversa de cinco testadores sem contexto, revisados por juiz
+([agente-whatsapp/homologacao-fase-4-blocos.md](agente-whatsapp/homologacao-fase-4-blocos.md));
+cinco rodadas de medição com **zero gravação indevida**; três defeitos de
+conversa corrigidos com teste que falhou antes; `npm run wa -- --homologacao`
+para exercitar a cópia; e o roteiro do dia do chip
+([agente-whatsapp/roteiro-do-chip.md](agente-whatsapp/roteiro-do-chip.md)).
+
+⚠️ **As três correções destravaram conversas específicas, não a média:** os
+passos com frase de desistência foram de 41 para 39 de 145. O relatório explica
+onde estão (nove são comportamento certo, dez são artefato do aparato, que mede
+o turno sem o buffer do n8n).
+
+A Fase 4 foi feita SEM o segundo chip, por decisão do usuário em 16/09. Ela
+herda três defeitos de conversa da Fase 3, todos abertos: permuta com diferença
+em dinheiro, resposta de parcelamento ("35 mil, em 2 vezes") e correção de valor
+antes do "sim". Ainda vale conferir as primeiras execuções reais do workflow de
+produção depois da guarda (execução de 2 nós sem "Normalizar e Filtrar" é
+mensagem barrada).
 
 **3. Do usuário, quando quiser:** `AGENTE_MODELO=gpt-5.6-luna` e
 `AGENTE_ESFORCO=low` na Vercel, com redeploy (pendências, item 11.5). O código
