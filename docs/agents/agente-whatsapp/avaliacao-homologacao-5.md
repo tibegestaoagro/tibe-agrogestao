@@ -1,4 +1,4 @@
-# Avaliação do agente: rodada homologacao-2
+# Avaliação do agente: rodada homologacao-5
 
 **Atenção: este resultado inclui casos da partição guardada (`final`). Ele serve para medir, nunca para ajustar prompt.**
 
@@ -14,7 +14,7 @@ O limite de 85% por intenção usa todas as notas do resultado gravado, não o f
 
 | modelo | aprovado | gravações indevidas | confirmações que não gravaram (informativo) | falhas do modelo (mensagens / passos) | intenção geral | intenção (sem exemplo) | intenção (exemplo) | pior intenção (5+ casos) | campos | campos absoluto | campos (sem exemplo) | campos (exemplo) | US$ por 1.000 mensagens | p50 | p95 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| gpt-5.6-luna (low) | sim | 0 | 19 / 27 (70.4%) | 0 / 0 | 0.0% | 0.0% (0) | 0.0% (0) | nenhuma | 100.0% | 100.0% | 100.0% | 100.0% | 0.1796 | 2325 ms | 4542 ms |
+| gpt-5.6-luna (low) | sim | 0 | 19 / 27 (70.4%) | 0 / 0 | 0.0% | 0.0% (0) | 0.0% (0) | nenhuma | 100.0% | 100.0% | 100.0% | 100.0% | 0.1814 | 2710 ms | 4899 ms |
 
 ## Falhas do modelo por detalhe
 

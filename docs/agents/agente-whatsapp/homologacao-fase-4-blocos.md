@@ -1,7 +1,7 @@
 # Homologação da Fase 4: os blocos de conversa
 
 Data: 2026-09-16. Modelo: `gpt-5.6-luna`, esforço `low` (o escolhido na Fase 3).
-Números brutos em [avaliacao-homologacao-2.md](avaliacao-homologacao-2.md).
+Números brutos em [avaliacao-homologacao-5.md](avaliacao-homologacao-5.md).
 
 ## O que foi medido
 
@@ -15,10 +15,16 @@ Cada passo conta as linhas de negócio do tenant antes e depois. Passo marcado
 `grava: "nao"` que muda qualquer contagem é **gravação indevida**, e é
 eliminatório.
 
-| rodada | gravações indevidas | confirmações que não gravaram | falhas do modelo | custo |
+| rodada | gravações indevidas | confirmações que não gravaram | passos com frase de desistência | custo |
 |---|---|---|---|---|
-| `homologacao-1` | 2 (falso positivo, ver abaixo) | 19 | 0 | US$ 0,029 |
-| `homologacao-2` | **0** | 19 | 0 | US$ 0,026 |
+| `homologacao-1` | 2 (falso positivo, ver abaixo) | 19 | não medido | US$ 0,029 |
+| `homologacao-2` | **0** | 19 | 41 de 145 | US$ 0,026 |
+| `homologacao-3` (pergunta atômica) | 0 | 19 | 45 de 145 | US$ 0,029 |
+| `homologacao-4` (interseção de candidatas) | 0 | 19 | 43 de 145 | US$ 0,027 |
+| `homologacao-5` (ambígua com pergunta aberta) | 0 | 19 | 39 de 145 | US$ 0,026 |
+
+Total gasto na fase: US$ 0,14. O acumulado do programa foi de US$ 4,93 para
+US$ 5,07, de um teto de US$ 30.
 
 ## As duas "gravações indevidas" da primeira rodada eram do medidor, não do agente
 
@@ -82,6 +88,54 @@ Na terceira volta, a trava de laço desiste.
 
 No segundo caso o prejuízo é maior: a resposta trazia a quantidade (25) e o
 valor (75 mil), e os dois se perderam no mesmo funil de um campo.
+
+## As três correções, e o que elas NÃO moveram
+
+Três defeitos foram achados e corrigidos nesta fase, cada um com teste que
+falhou antes (`scripts/m68-agente-turno.test.ts`, seção 7b):
+
+1. **A pergunta composta** (`2fde4c6`): "Quantos animais e de qual categoria?"
+   contra um cursor que guarda um campo só. Virou uma pergunta de cada vez, e
+   número por extenso passou a ser lido também na resposta a um campo pendente.
+2. **A memória de candidata** (`b6bbfe7`): a lista de opções que o agente
+   acabava de mostrar era escrita na metadata do `ask` e **nunca lida em lugar
+   nenhum do repositório**. Agora a resposta cruza com as opções oferecidas, e
+   "novilha" mais "13 a 24" fecha em fêmea de 13 a 24 meses. De brinde, o
+   pendente passou a guardar o rótulo resolvido, não o termo ambíguo.
+3. **Ambígua com pergunta em aberto** (`afb6e1f`): a classificação normal não
+   sabe que existe uma pergunta pendente, então uma resposta que trouxesse mais
+   do que o campo pedido saía `ambigua` e o produtor ouvia "não entendi" logo
+   depois de ter respondido certo.
+
+⚠️ **E ainda assim a taxa de desistência quase não se mexeu: 41 de 145 passos
+antes, 39 depois**, e ela subiu no meio do caminho. As três correções
+destravaram conversas específicas (as duas reproduções fecham agora), não a
+média. Reportar só as correções, sem este número, seria contar meia verdade.
+
+Onde as 39 estão, por categoria de bloco:
+
+| categoria | passos com frase de desistência |
+|---|---|
+| "sim" fora de hora | 9 de 17 |
+| mensagem picada | 10 de 26 |
+| correção no meio | 7 de 24 |
+| duas coisas numa mensagem | 5 de 20 |
+| áudio transcrito | 5 de 20 |
+| recusa | 3 de 21 |
+| resposta curta | 0 de 17 |
+
+**Nove delas são o comportamento CERTO:** em "sim" fora de hora, recusar é o
+que se espera, e a frase genérica é a recusa.
+
+**Dez são artefato da medição, não do agente:** os blocos de mensagem picada
+mandam cada pedaço como um turno separado, e o agente vê "foi no posto"
+sozinho. Em produção isso não acontece: o buffer de 12 segundos do n8n junta os
+pedaços ANTES de chamar a rota de turno (nó `Consolidar Mensagem`, antes de
+`Chamar Turno`). O aparato mede o turno, não o buffer, e por isso mede o pior
+caso. Medir o caminho real é a rodada de ponta a ponta pelo webhook.
+
+As vinte restantes espalham-se por correção, duplo e áudio, sem um padrão único
+que valha uma quarta volta de correção nesta fase.
 
 ## O que ficou de fora, e por quê
 
