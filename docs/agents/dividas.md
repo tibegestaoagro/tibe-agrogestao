@@ -268,6 +268,78 @@ em todo domínio não coberto.
   a distância vira 3 dias e a promessa de lembrete aparece. É o teste, não o
   código. Custo: montar a data pelo dia de São Paulo (`inicioDoDiaEmSaoPaulo`).
 
+### 5.0 O nome do vendedor sai com a preposição colada
+
+Achado em 2026-09-16, na rodada de ponta a ponta da Fase 4: "comprei 15
+bezerros do Ze Carlos" vira "Vendedor: **do** Ze Carlos" no resumo da
+confirmação. O campo `contato` guarda o trecho literal, e o briefing dos
+autores já pede o nome sem preposição ("Pasto da Baixada", não "no Pasto da
+Baixada"), então é a extração que não está aparando. Não afeta o que é gravado,
+só o texto que o produtor lê. Custo: aparar preposição inicial ao normalizar o
+contato, com cuidado para não comer nome que comece com "Do" de verdade.
+
+### 5.0b Duas perdas silenciosas no negócio de gado
+
+As duas achadas pela revisão final da Fase 4, as duas de gravidade baixa porque
+aparecem no resumo que o produtor confirma antes de qualquer escrita:
+
+- **`negociacao.ts`, `primeiroItemBruto` lê só `itens[0]`.** "vendi uns bezerro
+  e umas novilha" (duas categorias, nenhuma quantidade) descarta a novilha em
+  silêncio. Antes da Fase 4 a conversa travava na pergunta composta até
+  desistir, então não é regressão, mas é perda silenciosa num arquivo cujo
+  cabeçalho diz combater exatamente isso.
+- **`_categoria_candidatos` nunca é limpo do pendente.** Se uma SEGUNDA
+  ambiguidade de categoria surgir na mesma negociação, a interseção usa a lista
+  velha e pode fechar sozinha numa categoria que o produtor não escolheu.
+  Caminho estreito, e o rótulo escolhido aparece na confirmação.
+
+### 5.0c O formulário do cadastro assistido engole mensagem ambígua
+
+Anterior à Fase 4, reproduzido em banco pela revisão final dela: com um cadastro
+assistido aberto, "kkkkk" vira o brinco do animal. `handleActiveFlow`
+(`whatsapp-router.ts`) consome a mensagem antes de qualquer outra decisão, e
+`interrompe()` (`whatsapp-flow-bridge.ts`) trata `ambigua` e `cadastrar_animal`
+do mesmo lado, então nenhuma etiqueta de intenção muda o resultado. **Não
+grava**: o animal só nasce no resumo confirmado, e o produtor vê o lixo antes de
+dizer "sim". Custo: `interrompe()` recusar `ambigua` quando o campo esperado
+tem forma conhecida (brinco, data, número).
+
+### 5.0d A lista de quem grava sem confirmar precisa de catraca
+
+`INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR` (`whatsapp-handlers/shared.ts`) hoje tem
+uma intenção só, e duas pontas distantes dependem dela: o handler do estoque e
+a porta de mensagem ambígua do turno. A lista é lida pelas duas, então editar
+uma ponta mostra a outra; **mas nada obriga quem escrever um handler NOVO que
+grave sem confirmar a se declarar nela**, e esse esquecimento reabre o caminho
+de gravação indevida que a Fase 4 fechou.
+
+Fechado em 2026-09-16 pela catraca da seção 1c de `scripts/m68-agente-turno.test.ts`,
+no mesmo molde da seção 8 de `m67`: toda intenção de escrita ou está na lista,
+ou o arquivo do handler dela contém `"confirmacao"`. Fica aqui o registro do
+porquê, que a suíte não tem como contar.
+
+### 5.1 Categoria ambígua sem memória de candidata, em dois outros pontos
+
+Achado em 2026-09-16, na Fase 4 do agente, enquanto a memória de candidata era
+ligada no negócio de gado (commit `b6bbfe7`). A correção de lá cruza a resposta
+do produtor com as opções que o agente acabou de mostrar, para "novilha" mais
+"13 a 24" fechar em fêmea de 13 a 24 meses. **Dois caminhos irmãos continuam
+sem essa memória**, e nenhum roteiro os exercitou ainda:
+
+1. `whatsapp-handlers/negociacao.ts` (~295), a segunda resolução, que roda
+   quando os itens já vêm completos numa mensagem só ("comprei 20 novilhas do
+   João"). Ali existe um problema DIFERENTE e pior: se a rodada seguinte trouxer
+   só a categoria (`{categoria: "13 a 24"}`), ela é descartada em silêncio,
+   porque `itensDosParametros` dá preferência ao array `itens` com o termo
+   antigo.
+2. `whatsapp-handlers/herd.ts` (~555), `registrarMovimentacaoRebanho`, o fluxo
+   de rebanho puro, com a mesma pergunta de faixa e o mesmo esquecimento.
+
+Custo: passar `candidatosAnteriores` nos dois, como já se faz no negócio, e
+decidir o que fazer quando o array `itens` e o campo achatado discordam. Não
+grava nada errado: trava a conversa numa pergunta repetida, que é o modo caro
+mas seguro de falhar.
+
 ---
 
 ## O que NÃO é dívida, e por quê

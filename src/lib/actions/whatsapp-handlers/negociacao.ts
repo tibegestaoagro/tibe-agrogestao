@@ -22,6 +22,7 @@ import {
   custosDosParametros,
   lerData,
   lerDinheiro,
+  lerNumeroFalado,
   extrairNumeroDeParcelas,
   interpretarSim,
   montarParcelas,
@@ -75,6 +76,35 @@ const TIPOS: Record<string, "compra_gado" | "venda_gado"> = {
  */
 function descreverItens(itens: { categoria: HerdCategory; quantidade: number }[]): string {
   return itens.map((i) => `${i.quantidade} ${nomeDaCategoria(i.categoria, i.quantidade)}`).join(" e ");
+}
+
+/**
+ * O primeiro item bruto dentro de `itens`, quando existe: a categoria pode
+ * ter sido dita ("uns bezerro") sem quantidade nenhuma, e `itensDosParametros`
+ * descarta o item inteiro nesse caso (precisa das duas partes juntas). Aqui a
+ * gente ainda quer enxergar a categoria já dita, para não perguntar de novo
+ * o que o produtor já contou.
+ */
+function primeiroItemBruto(parameters: Record<string, unknown>): { categoria: string | null; quantidade: unknown } | null {
+  const itens = parameters.itens;
+  if (!Array.isArray(itens) || itens.length === 0) return null;
+  const registro = itens[0];
+  if (typeof registro !== "object" || registro === null) return null;
+  const r = registro as Record<string, unknown>;
+  return { categoria: str(r.categoria) ?? str(r.category), quantidade: r.quantidade ?? r.quantity };
+}
+
+/**
+ * Os ids das categorias que a última pergunta de faixa ofereceu, guardados
+ * dentro do próprio `parameters` do pendente (o mesmo caminho que `tipo`,
+ * `contato` e `valor` já usam para sobreviver de uma rodada para a outra).
+ * `resolverCategoria` cruza por aqui em vez de resolver do zero (homologacao-3).
+ */
+function candidatosDeCategoria(parameters: Record<string, unknown>): string[] | undefined {
+  const bruto = parameters._categoria_candidatos;
+  if (!Array.isArray(bruto)) return undefined;
+  const ids = bruto.filter((v): v is string => typeof v === "string");
+  return ids.length > 0 ? ids : undefined;
 }
 
 export const registrarNegocioGado: Handler = async ({
@@ -228,9 +258,56 @@ export const registrarNegocioGado: Handler = async ({
   }
   const compra = type === "compra_gado";
 
-  const itensBrutos = itensDosParametros(parameters);
+  let itensBrutos = itensDosParametros(parameters);
   if (itensBrutos.length === 0) {
-    return perguntar(ask("Quantos animais e de qual categoria?"), "categoria");
+    /**
+     * A pergunta pedia DUAS coisas de uma vez ("Quantos animais e de qual
+     * categoria?"), mas o cursor da conversa (`turno.ts`) só guarda UM campo
+     * em `aguardando`. A resposta que trouxesse só metade ("13 a 24", uma
+     * idade; "vinte e cinco bezerro", só a quantidade) entrava inteira nesse
+     * campo único, `itensDosParametros` continuava sem achar item nenhum, e a
+     * MESMA pergunta voltava até a trava de laço desistir. Achado real,
+     * homologacao-2, duas reproduções (`docs/agents/agente-whatsapp/`).
+     *
+     * A correção é perguntar uma coisa de cada vez. A categoria vem primeiro
+     * porque é o que o produtor tende a responder primeiro quando ela já foi
+     * dita mas ficou ambígua ("novilha" pede a idade): perguntar a
+     * quantidade nesse momento faria a resposta sobre idade cair no campo
+     * errado de novo.
+     */
+    const primeiroItem = primeiroItemBruto(parameters);
+    const categoriaBruta = str(parameters.categoria) ?? str(parameters.category) ?? primeiroItem?.categoria ?? null;
+    if (!categoriaBruta) {
+      return perguntar(ask("De qual categoria?"), "categoria");
+    }
+    /**
+     * Cruza com as candidatas da ÚLTIMA pergunta de faixa, em vez de resolver
+     * "13 a 24" do zero: sozinho ele bate em fêmea E macho da mesma idade, e
+     * sem a memória a segunda pergunta esquecia que "novilha" já tinha
+     * fixado o sexo (homologacao-3).
+     */
+    const categoriaResolvida = resolverCategoria(categoriaBruta, false, candidatosDeCategoria(parameters));
+    if (!categoriaResolvida.ok) {
+      parameters = { ...parameters, _categoria_candidatos: categoriaResolvida.candidatosOferecidos };
+      return perguntar(categoriaResolvida.resposta, "categoria");
+    }
+
+    const quantidadeSolta =
+      lerNumeroFalado(parameters.quantidade) ??
+      lerNumeroFalado(parameters.quantity) ??
+      lerNumeroFalado(primeiroItem?.quantidade);
+    // A categoria já fechou: grava o RÓTULO EXATO, nunca o termo ambíguo que só
+    // resolveu cruzando com as candidatas anteriores. Guardar o termo ambíguo
+    // faria a segunda resolução (linha abaixo, sem memória de candidata) reabrir
+    // a mesma pergunta do zero.
+    parameters = { ...parameters, categoria: categoriaResolvida.categoria.label };
+    if (quantidadeSolta == null) {
+      return perguntar(ask("Quantos animais?"), "quantidade");
+    }
+
+    // As duas partes já resolvidas: achata para o formato que `itensDosParametros` lê.
+    parameters = { ...parameters, quantidade: quantidadeSolta };
+    itensBrutos = itensDosParametros(parameters);
   }
   for (const item of itensBrutos) {
     if (!Number.isInteger(item.quantidade) || item.quantidade <= 0) {

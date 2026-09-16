@@ -119,7 +119,7 @@ function main() {
 
   const aviso = avisoDeParticaoGuardada(rodada, idsMedidos, particaoPorId);
   const md: string[] = [
-    `# Avaliação de modelos do agente, Fase 3: rodada ${rodada}`,
+    `# Avaliação do agente: rodada ${rodada}`,
     "",
     ...(aviso ? [aviso, ""] : []),
     `Partição: ${[...particoes].join(", ") || "nenhuma"}.` +
@@ -220,7 +220,7 @@ function main() {
   for (const p of pulados) md.push(`- ${p.modelo}: pulado (${p.pulado})`);
   md.push("");
 
-  const destino = path.join(__dirname, "..", "..", "docs", "agents", "agente-whatsapp", `avaliacao-fase-3-${rodada}.md`);
+  const destino = path.join(__dirname, "..", "..", "docs", "agents", "agente-whatsapp", `avaliacao-${rodada}.md`);
   fs.mkdirSync(path.dirname(destino), { recursive: true });
   fs.writeFileSync(destino, md.join("\n"));
   console.log(`Relatório: ${path.relative(process.cwd(), destino)}`);

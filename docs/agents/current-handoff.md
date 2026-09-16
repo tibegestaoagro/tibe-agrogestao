@@ -66,46 +66,22 @@ Fase 4 mede isso em conversa real.
 
 ### Agente do WhatsApp: Fase 3 (avaliação) EM PRODUÇÃO desde 16/09
 
-Merge `23b8f57`, sem migração, deploy confirmado pelo status da Vercel. Plano
-[../superpowers/plans/2026-09-15-agente-whatsapp-fase-3-avaliacao.md](../superpowers/plans/2026-09-15-agente-whatsapp-fase-3-avaliacao.md).
-Entregue: executor de avaliação em `scripts/avaliacao/` (medidor de custo com
-teto de US$ 30, espera no 429 da conta, fazenda de avaliação no Postgres local,
-pontuação por intenção e campo, partição 70/30, relatório em markdown), suíte
-`m69`, e **337 casos escritos por cinco autores sem contexto do código** com o
-gabarito revisado por um juiz (`scripts/avaliacao/casos/`).
+Merge `23b8f57`, sem migração, deploy confirmado. Aparato de avaliação em
+`scripts/avaliacao/` (medidor com teto, espera no 429, fazenda no Postgres
+local, partição 70/30, relatório), suíte `m69`, e 337 casos de cinco autores
+sem contexto do código.
 
-**Modelo escolhido pelo usuário em 16/09: `gpt-5.6-luna`, esforço `low`**, pela
-medição fora da amostra: 97,7% de intenção, 95,7% de campos, zero gravação
-indevida, p95 5,0 s, US$ 0,29 por mil mensagens. O `gpt-5.6-terra` também
-passou (95,5% e 96,4%) e custa dez vezes mais. **Nenhuma linha de negócio nova
-indevida em nenhum modelo e em nenhuma rodada** (desde a onda final a contagem
-também pega alteração e remoção). Gasto total: US$ 4,93.
+**Modelo escolhido: `gpt-5.6-luna`, esforço `low`**, pela medição fora da
+amostra: 97,7% de intenção, 95,7% de campos, zero gravação indevida, p95 de
+5,0 s, US$ 0,29 por mil mensagens. O `gpt-5.6-terra` também passou e custa dez
+vezes mais.
 
-⚠️ **A primeira nota não valia, e o erro foi de condução.** A rodada 1 rodou e
-foi relatada sem separar a partição guardada, e os três ajustes de prompt foram
-escritos com esses casos à vista: nos mesmos casos, o `gpt-5.6-terra` saiu de
-84,8% antes do ajuste para 96,8% depois. Corrigido com 50 casos inéditos
-(`scripts/avaliacao/casos/forademostra.json`), escritos por autor sem acesso ao
-prompt ajustado; é dessa rodada que saem os números acima. O relatório agora
-carimba resultado que contenha a partição guardada.
-
-⚠️ **O ajuste de prompt achou três defeitos que valem para qualquer modelo**, e
-os três estão corrigidos: a etapa de domínio decide quais intenções a extração
-sequer vê (domínio errado vira `ambigua`, e era a causa da maioria dos erros);
-campo de mesmo nome em duas intenções do mesmo domínio herdava a descrição da
-primeira (o tipo do relatório voltava vazio em 6 de 6 medições); e a trava
-anti-alucinação só lia número por extenso até vinte, apagando "sessenta mil"
-(`src/lib/agente/trecho-literal.ts`, agora lê composto).
-
-**Pendência do usuário:** `AGENTE_MODELO=gpt-5.6-luna` e `AGENTE_ESFORCO=low`
-na Vercel, com redeploy (item 11.5 das pendências). O código já usa esse par
-como padrão, então a falta da variável não derruba nada.
-
-**Fica para a Fase 4:** o workflow fino no n8n chamando `POST /api/internal/whatsapp/turno`,
-o segundo chip de homologação, e a medição em conversa real. Casos conhecidos e
-não resolvidos, todos na partição de ajuste: "duas diária de trator pro João" é
-indecidível sem o catálogo do cliente; pergunta sobre período passado
-("vendi quantos bois esse mês?") ainda vira consulta em alguns modelos.
+⚠️ **A primeira nota não valia, e o erro foi de condução:** a rodada 1 rodou
+sem separar a partição guardada, e os três ajustes de prompt foram escritos com
+esses casos à vista. Corrigido com 50 casos inéditos, e o relatório agora
+carimba resultado que contenha a partição guardada. O relato inteiro está na
+spec e em [agente-whatsapp/avaliacao-fase-3-final.md](agente-whatsapp/avaliacao-fase-3-final.md);
+as lições técnicas estão no cofre (`docs/conhecimento/`, tag `avaliacao`).
 
 ### Ambiente
 
@@ -185,17 +161,48 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou, e cada commit que sobe é leitura pública.
 
-**2. Agente do WhatsApp, Fase 4:** escrever o plano (workflow fino no n8n
-chamando `POST /api/internal/whatsapp/turno`, segundo chip, blocos de conversa
-em homologação pelo tenant de provas) e decidir com o usuário o que a
-homologação precisa provar antes de promover. A Fase 4 **depende do segundo
-chip**, que continua pendente. Ela herda três defeitos de conversa que a
-avaliação achou e que nenhuma mensagem solta mostra: permuta com diferença em
-dinheiro não é entendida; a resposta de parcelamento ("35 mil, em 2 vezes")
-esgota as tentativas; e a correção de valor antes do "sim" é ignorada, gravando
-o valor antigo (esta última é decisão antiga do projeto, e a Fase 4 pode
-reabrir). Ainda vale conferir as primeiras execuções reais do workflow depois da
-guarda (execução de 2 nós sem "Normalizar e Filtrar" é mensagem barrada).
+**2. Agente do WhatsApp, Fase 4:** o plano existe
+([../superpowers/plans/2026-09-16-agente-whatsapp-fase-4-homologacao.md](../superpowers/plans/2026-09-16-agente-whatsapp-fase-4-homologacao.md))
+e as seis tasks estão feitas, na branch `fase-4-homologacao`, que **ainda NÃO
+foi mergeada**: falta só a autorização. A rodada de ponta a ponta pelo n8n foi
+feita em 16/09, com autorização: a cópia foi ativada, exercitada e desativada na
+mesma sessão, e a produção ficou intocada (conferida antes e depois).
+
+Provado de ponta a ponta pelo webhook: confirmação vindo da rota de turno,
+recusa sem gravar, "sim" fora de hora sem gravar, três pedaços em ~3 s virando
+um pedido só, e **idempotência de escrita** (o "sim" que grava, repetido com o
+mesmo `message_id`: negociações 2 para 3, nunca 4).
+
+Entregue: workflow fino aplicado em `ctGOlY9OXZWfjeby` (25 nós, inativo, webhook
+`/webhook/homologacao`, chamando a rota de turno; produção intocada, conferida);
+60 blocos de conversa de cinco testadores sem contexto, revisados por juiz
+([agente-whatsapp/homologacao-fase-4-blocos.md](agente-whatsapp/homologacao-fase-4-blocos.md));
+cinco rodadas de medição com **zero gravação indevida**; três defeitos de
+conversa corrigidos com teste que falhou antes; `npm run wa -- --homologacao`
+para exercitar a cópia; e o roteiro do dia do chip
+([agente-whatsapp/roteiro-do-chip.md](agente-whatsapp/roteiro-do-chip.md)).
+
+⚠️ **As três correções destravaram conversas específicas, não a média:** os
+passos com frase de desistência foram de 41 para 39 de 145. O relatório explica
+onde estão (nove são comportamento certo, dez são artefato do aparato, que mede
+o turno sem o buffer do n8n).
+
+⚠️ **A revisão final achou uma GRAVAÇÃO INDEVIDA que a medição não podia
+achar**, aberta pela terceira correção: com o uso de estoque esperando o
+produto, "nem precisei do sal afinal" casava "Sal" por substring e gravava o uso
+que o produtor tinha acabado de negar. Corrigida em `5106091` (a regra de quem
+grava sem confirmar virou uma constante única, lida pelo handler e pelo turno),
+com o caso que faltava virando teste. A catraca escrita para a lista não
+envelhecer (seção 1c da `m68`, `9382361`) achou **mais quatro** intenções que
+gravam sem confirmar e não estavam declaradas. Rodadas 6 e 7: zero gravação
+indevida. Gasto do programa: US$ 5,12 de US$ 30.
+
+A Fase 4 foi feita SEM o segundo chip, por decisão do usuário em 16/09. Ela
+herda três defeitos de conversa da Fase 3, todos abertos: permuta com diferença
+em dinheiro, resposta de parcelamento ("35 mil, em 2 vezes") e correção de valor
+antes do "sim". Ainda vale conferir as primeiras execuções reais do workflow de
+produção depois da guarda (execução de 2 nós sem "Normalizar e Filtrar" é
+mensagem barrada).
 
 **3. Do usuário, quando quiser:** `AGENTE_MODELO=gpt-5.6-luna` e
 `AGENTE_ESFORCO=low` na Vercel, com redeploy (pendências, item 11.5). O código

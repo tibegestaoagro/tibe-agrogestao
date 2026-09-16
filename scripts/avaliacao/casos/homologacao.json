@@ -1,0 +1,627 @@
+[
+  {
+    "id": "hom-recusa-001",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "fechei a compra de 14 vaca com o joao do leilao, 70 mil", "grava": "pode" },
+      { "texto": "não", "grava": "nao", "nota": "recusa simples, com acento, logo apos o pedido de compra de gado: a compra pede confirmacao, entao nada pode ser gravado" }
+    ],
+    "nota": "forma mais direta de recusa ('não' com acento), dominio rebanho/compra"
+  },
+  {
+    "id": "hom-recusa-002",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "vendi 15 boi pro Frigorifico Bom Boi por 45 mil", "grava": "pode" },
+      { "texto": "nao", "grava": "nao", "nota": "recusa escrita sem acento: precisa ser reconhecida igual a 'não'" }
+    ],
+    "nota": "forma 'nao' sem acento, dominio rebanho/venda"
+  },
+  {
+    "id": "hom-recusa-003",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "comprei 6 saca de sal mineral por 1200", "grava": "pode", "nota": "sem fazenda dita, a compra de insumo ainda pergunta a fazenda antes de qualquer confirmacao" },
+      { "texto": "deixa pra la", "grava": "nao", "nota": "recusa em forma de expressao coloquial, nao a palavra 'nao' isolada" }
+    ],
+    "nota": "forma 'deixa pra la', dominio estoque"
+  },
+  {
+    "id": "hom-recusa-004",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "gastei 480 com o conserto do trator", "grava": "pode" },
+      { "texto": "esquece, nem foi isso", "grava": "nao", "nota": "recusa com 'esquece' mais justificativa solta: continua sem gravar nada" }
+    ],
+    "nota": "forma 'esquece', dominio financeiro (lancamento avulso)"
+  },
+  {
+    "id": "hom-recusa-005",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "adianta 800 pro Ze Carlos", "grava": "pode" },
+      { "texto": "cancela", "grava": "nao", "nota": "recusa com 'cancela': o adiantamento nao pode ser gravado" }
+    ],
+    "nota": "forma 'cancela', dominio mao de obra (adiantamento ao mensalista)"
+  },
+  {
+    "id": "hom-recusa-006",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "contratei o Pedro pra fazer uma cerca por 6 mil", "grava": "pode" },
+      { "texto": "era brincadeira, esquece", "grava": "nao", "nota": "recusa combinando 'era brincadeira' com 'esquece' na mesma frase" }
+    ],
+    "nota": "forma 'era brincadeira', dominio servicos (servico contratado)"
+  },
+  {
+    "id": "hom-recusa-007",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "cadastra um brinco novo, 4321, nelore, macho", "grava": "pode" },
+      { "texto": "pera, melhor nao", "grava": "nao", "nota": "recusa hesitante ('pera, melhor nao'), depois de pedido de cadastro" }
+    ],
+    "nota": "forma 'perai, melhor nao', dominio rebanho (cadastro de animal)"
+  },
+  {
+    "id": "hom-recusa-008",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "vendi 8 novilha pro Joao do Leilao por 20 mil", "grava": "pode" },
+      { "texto": "nao, deixa isso pra la, mas comprei 5 saca de sal mineral do Joao do Leilao", "grava": "nao", "nota": "recusa a venda anterior E emenda outro pedido (compra de insumo) na mesma mensagem; a compra tambem pede confirmacao antes de gravar, entao nada grava ainda neste passo" }
+    ],
+    "nota": "recusa com pedido novo emendado na mesma mensagem, cruzando rebanho (recusado) e estoque (pendente)"
+  },
+  {
+    "id": "hom-recusa-009",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "troquei 10 boi por um trator com o Joao do Leilao", "grava": "pode" },
+      { "texto": "ah nao quero mais nao, esquece essa troca", "grava": "nao", "nota": "recusa duplicada ('nao... nao') de uma permuta: nada grava" }
+    ],
+    "nota": "recusa com negacao repetida na frase, dominio eventos e permuta"
+  },
+  {
+    "id": "hom-recusa-010",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "vendi uns boi do confinamento Boa Vista", "grava": "pode", "nota": "pedido de registro incompleto (sem quantidade nem valor): pedir antes de gravar esta certo" },
+      { "texto": "10 por 35 mil", "grava": "pode", "nota": "responde a pergunta pendente do assistente com quantidade e valor da venda do confinamento" },
+      { "texto": "nao, pera", "grava": "nao", "nota": "recusa depois de completar os dados, antes da confirmacao final: nada pode ser gravado" }
+    ],
+    "nota": "bloco de 3 passos: pedido incompleto, complemento, e so entao a recusa; dominio confinamento (encerramento com venda)"
+  },
+  {
+    "id": "hom-correcao-001",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "comprei 30 bezerro no joao do leilao, 90 mil... nao pera, foram 35", "grava": "nao", "nota": "corrige a quantidade dentro da mesma mensagem, antes de qualquer confirmacao" },
+      { "texto": "isso, 35 mesmo, pode confirmar", "grava": "deve" }
+    ],
+    "nota": "correcao de numero no mesmo passo, negocio de gado"
+  },
+  {
+    "id": "hom-correcao-002",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "vendi 9 novilha pro frigorifico bom boi", "grava": "pode", "nota": "categoria ambigua: o assistente ainda pergunta a idade" },
+      { "texto": "opa, foram 12 na real", "grava": "nao", "nota": "corrige a quantidade em passo separado, ainda sem confirmar" },
+      { "texto": "confirma", "grava": "deve" }
+    ],
+    "nota": "correcao de numero em passos separados, venda de gado"
+  },
+  {
+    "id": "hom-correcao-003",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "comprei 10 saca de racao de engorda do ze... quer dizer, foi do joao do leilao mesmo", "grava": "nao", "nota": "corrige o nome de quem vendeu, no mesmo passo" },
+      { "texto": "sim, pode lancar", "grava": "deve" }
+    ],
+    "nota": "correcao de nome de pessoa no mesmo passo, compra de insumo"
+  },
+  {
+    "id": "hom-correcao-004",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "vou contratar um peao novo pra vaqueiro, 2500 por mes, o nome e antonio", "grava": "pode" },
+      { "texto": "corrige, e antoniel o nome dele", "grava": "nao", "nota": "corrige o nome do trabalhador em passo separado, antes de confirmar" },
+      { "texto": "isso, antoniel, confirma ai", "grava": "deve" }
+    ],
+    "nota": "correcao de nome de pessoa em passos separados, cadastro de trabalhador novo"
+  },
+  {
+    "id": "hom-correcao-005",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "vendi 8 boi que tava no piquete 3... ah nao, era do pasto da sede", "grava": "nao", "nota": "corrige o pasto de origem no mesmo passo" },
+      { "texto": "e isso, pode confirmar", "grava": "deve" }
+    ],
+    "nota": "correcao de pasto no mesmo passo, venda de gado"
+  },
+  {
+    "id": "hom-correcao-006",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "comprei 16 boi pra colocar no pasto da sede", "grava": "pode" },
+      { "texto": "muda ai, vai pro pasto da baixada", "grava": "nao", "nota": "corrige o pasto de destino em passo separado, antes de confirmar" },
+      { "texto": "confirma", "grava": "deve" }
+    ],
+    "nota": "correcao de pasto em passos separados, compra de gado"
+  },
+  {
+    "id": "hom-correcao-007",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "paguei a conta de energia, 480 reais, dia 20... nao espera, foi dia 18", "grava": "nao", "nota": "corrige a data dentro da mesma mensagem" },
+      { "texto": "isso, dia 18, pode gravar", "grava": "deve" }
+    ],
+    "nota": "correcao de data no mesmo passo, lancamento financeiro"
+  },
+  {
+    "id": "hom-correcao-008",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "comprei 500 litro de diesel na boa vista, pra pagar dia 10", "grava": "pode" },
+      { "texto": "corrige, o vencimento e dia 15", "grava": "nao", "nota": "corrige a data de vencimento em passo separado, antes de confirmar" },
+      { "texto": "isso mesmo, pode confirmar", "grava": "deve" }
+    ],
+    "nota": "correcao de data em passos separados, compra de insumo"
+  },
+  {
+    "id": "hom-correcao-009",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "comprei o arame que tava na lista, paguei 850", "grava": "pode" },
+      { "texto": "corrige, foi 950 o arame", "grava": "nao", "nota": "primeira correcao, do valor" },
+      { "texto": "e foi fiado, nao paguei a vista nao", "grava": "nao", "nota": "segunda correcao, da condicao de pagamento, ainda sem confirmar" },
+      { "texto": "isso, pode confirmar", "grava": "pode" }
+    ],
+    "nota": "duas correcoes em sequencia, antes de confirmar, item da lista de compra"
+  },
+  {
+    "id": "hom-duplo-001",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "vendi 8 boi pro frigorifico bom boi e usei 5 saca de sal mineral aqui na boa vista", "grava": "pode", "nota": "negocio de gado (pede confirmacao) e uso de estoque com fazenda dita (pode gravar direto) na mesma frase" },
+      { "texto": "sim", "grava": "deve", "nota": "a venda ficou pendente de confirmacao no passo anterior" }
+    ],
+    "nota": "duas areas diferentes (rebanho e estoque) numa so mensagem, com regras de confirmacao diferentes entre si"
+  },
+  {
+    "id": "hom-duplo-002",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "quanto tenho de diesel e recebi 1500 de um frete que fiz", "grava": "pode", "nota": "uma parte e consulta de estoque (nunca grava), a outra e lancamento financeiro (registro)" },
+      { "texto": "sim", "grava": "deve", "nota": "o lancamento financeiro ficou pendente de confirmacao" }
+    ],
+    "nota": "pergunta e registro juntos, em areas diferentes (estoque e financeiro)"
+  },
+  {
+    "id": "hom-duplo-003",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "quantos bezerro eu tenho na Boa Vista e paguei 2500 pro Ze Carlos", "grava": "pode", "nota": "pergunta de rebanho e registro de pagamento de mao de obra na mesma frase" },
+      { "texto": "sim", "grava": "deve", "nota": "o pagamento do trabalhador ficou pendente de confirmacao" }
+    ],
+    "nota": "pergunta e registro juntos, em areas diferentes (rebanho e mao de obra)"
+  },
+  {
+    "id": "hom-duplo-004",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "anota arame farpado na lista de compra e o brinco 1234 pesou 480", "grava": "pode", "nota": "dois registros de areas diferentes; o peso grava direto e o arame ja esta na lista, entao o assistente pergunta se e pra anotar de novo" },
+      { "texto": "sim", "grava": "deve", "nota": "responde a pergunta de item repetido que o assistente mostrou" }
+    ],
+    "nota": "duas coisas para gravar, sem nenhuma pergunta do produtor, em areas diferentes"
+  },
+  {
+    "id": "hom-duplo-005",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "qual o saldo desse mes e anota vermifugo urgente na lista de compra", "grava": "pode", "nota": "pergunta de saldo financeiro e registro de item novo na lista de compra, que grava direto" },
+      { "texto": "sim", "grava": "pode", "nota": "nao ha certeza de que sobrou algo pendente: o item novo grava sozinho e a consulta nao pergunta nada" }
+    ],
+    "nota": "pergunta e registro juntos, em areas diferentes (financeiro e lista de compra)"
+  },
+  {
+    "id": "hom-duplo-006",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "tirei 480 litros de leite hoje e paguei 480 de energia", "grava": "pode", "nota": "producao de leite e lancamento financeiro (mesmo valor numerico em areas diferentes, de proposito, pra ver se ele mistura)" },
+      { "texto": "sim", "grava": "deve" }
+    ],
+    "nota": "duas coisas para gravar, em areas diferentes (leite e financeiro), com numeros iguais para testar se ele confunde os dois valores"
+  },
+  {
+    "id": "hom-duplo-007",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "fiz uma gradagem de 20 hectare pra santa fe com o trator new holland e usei 40 litro de diesel aqui na boa vista", "grava": "pode", "nota": "servico prestado a cliente (pede confirmacao) e uso de estoque com fazenda dita (grava direto) na mesma frase" },
+      { "texto": "sim", "grava": "deve" }
+    ],
+    "nota": "duas coisas para gravar, em areas diferentes (servico prestado e estoque)"
+  },
+  {
+    "id": "hom-duplo-008",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "quantos boi eu tenho na Boa Vista e quanto sal ainda tem", "grava": "nao", "nota": "as duas partes da frase sao consulta (rebanho e estoque): nenhuma pode gravar" },
+      { "texto": "entao anota que usei 2 saca desse sal aqui mesmo na boa vista", "grava": "pode", "nota": "depois da dupla consulta, um pedido novo de uso de estoque com fazenda dita, que pode gravar direto" }
+    ],
+    "nota": "primeiro passo e duas perguntas juntas (nada grava), segundo passo vira um registro que pode gravar sem confirmar"
+  },
+  {
+    "id": "hom-duplo-009",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "coloquei 10 garrote no confinamento boa vista e quantas femea eu tenho na Boa Vista", "grava": "pode", "nota": "registro de entrada no confinamento e pergunta de consulta de rebanho na mesma frase" },
+      { "texto": "sim", "grava": "deve" }
+    ],
+    "nota": "registro e pergunta juntos, em areas diferentes (confinamento e rebanho)"
+  },
+  {
+    "id": "hom-duplo-010",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "me lembra de comprar remedio quinta e paguei 150 de diaria pro pedro, foram 2 dias", "grava": "pode", "nota": "lembrete de tarefa (grava direto) e diaria de trabalhador contratado (pede confirmacao) na mesma frase" },
+      { "texto": "sim", "grava": "deve" }
+    ],
+    "nota": "duas coisas para gravar, em areas diferentes (agenda e servicos/diaria)"
+  },
+  {
+    "id": "hom-picada-001",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "comprei 12 garrote", "grava": "pode" },
+      { "texto": "do joao do leilao", "grava": "pode" },
+      { "texto": "por 36 mil", "grava": "pode" },
+      { "texto": "sim, pode confirmar", "grava": "deve", "nota": "sim logo depois de o assistente mostrar o resumo da compra" }
+    ],
+    "nota": "compra de gado picada em 3 pedacos que so fazem sentido juntos, mais a confirmacao"
+  },
+  {
+    "id": "hom-picada-002",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "usei sal mineral", "grava": "pode" },
+      { "texto": "foram 2 sacas", "grava": "pode" },
+      { "texto": "la na fazenda boa vista", "grava": "pode", "nota": "so com a fazenda dita o uso de estoque fica completo o bastante pra gravar direto" }
+    ],
+    "nota": "uso de estoque picado; a fazenda so chega no terceiro pedaco"
+  },
+  {
+    "id": "hom-picada-003",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "vou mandar 15 boi", "grava": "pode", "nota": "sozinho parece so uma movimentacao comum" },
+      { "texto": "pro leilao da expoagro", "grava": "pode", "nota": "pedaco final muda o sentido: e remessa a evento, nao transferencia de pasto nem venda" }
+    ],
+    "nota": "o ultimo pedaco muda de intencao inteira (movimentacao vira remessa de evento)"
+  },
+  {
+    "id": "hom-picada-004",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "gastei 450", "grava": "pode" },
+      { "texto": "foi no posto", "grava": "pode" },
+      { "texto": "de diesel", "grava": "pode" },
+      { "texto": "sim", "grava": "deve", "nota": "sim depois do resumo do lancamento financeiro" }
+    ],
+    "nota": "despesa avulsa picada em valor, fornecedor e descricao, mais confirmacao"
+  },
+  {
+    "id": "hom-picada-005",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "vou cadastrar um bicho novo", "grava": "pode" },
+      { "texto": "brinco 1235", "grava": "pode" },
+      { "texto": "nelore, femea", "grava": "pode" },
+      { "texto": "confirma", "grava": "deve", "nota": "confirma depois do resumo do cadastro" }
+    ],
+    "nota": "cadastro de animal picado em brinco e raca/sexo, mais confirmacao"
+  },
+  {
+    "id": "hom-picada-006",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "nasceu um bezerro", "grava": "pode" },
+      { "texto": "la no pasto da sede", "grava": "pode" },
+      { "texto": "foi ontem", "grava": "pode" }
+    ],
+    "nota": "nascimento picado em local e data; cada pedaco pode virar pergunta ou o resumo de confirmacao, e qualquer um dos tres pode gravar"
+  },
+  {
+    "id": "hom-picada-007",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "paguei a diaria do pessoal", "grava": "pode" },
+      { "texto": "foram 3 pessoas", "grava": "pode" },
+      { "texto": "150 cada, 2 dias", "grava": "pode" }
+    ],
+    "nota": "diaria de gente contratada picada em pessoas, valor e dias; dominio fora do rebanho"
+  },
+  {
+    "id": "hom-picada-008",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "o sal mineral ta acabando", "grava": "nao", "nota": "sozinho soa aviso ou consulta, nao pedido de registro; nada pode gravar aqui" },
+      { "texto": "comprei 10 sacas hoje", "grava": "pode", "nota": "pedaco seguinte revela que e negocio de produto, nao so um aviso" },
+      { "texto": "foi 350", "grava": "pode" }
+    ],
+    "nota": "o primeiro pedaco parece consulta ou aviso; so o segundo revela que e uma compra"
+  },
+  {
+    "id": "hom-audio-001",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "e ai entao o joao do leilao me vendeu uns bezerro", "grava": "pode", "nota": "compra dita do ponto de vista do vendedor" },
+      { "texto": "o foram vinte e cinco bezerro por setenta e cinco mil", "grava": "pode", "nota": "numero por extenso" },
+      { "texto": "isso mesmo pode confirmar", "grava": "deve" }
+    ],
+    "nota": "compra de gado por audio, com muleta de fala, numero por extenso e a frase invertida"
+  },
+  {
+    "id": "hom-audio-002",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "oi bom dia", "grava": "nao" },
+      { "texto": "eh queria saber quanto ta o saldo desse mes", "grava": "nao" }
+    ],
+    "nota": "consulta de saldo por audio, sem pontuacao e sem acento; consulta nunca grava"
+  },
+  {
+    "id": "hom-audio-003",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "usei eh deixa eu ver usei racao de engorda", "grava": "pode" },
+      { "texto": "usei cinco saca cinco saca mesmo", "grava": "pode", "nota": "pessoa se repetindo, numero por extenso" },
+      { "texto": "la na fazenda boa vista", "grava": "pode" }
+    ],
+    "nota": "uso de estoque por audio com repeticao"
+  },
+  {
+    "id": "hom-audio-004",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "o brinco mil duzentos e trinta e quatro", "grava": "pode", "nota": "numero do brinco por extenso" },
+      { "texto": "pesou quatrocentos e oitenta quilo", "grava": "pode" }
+    ],
+    "nota": "peso de animal por audio, brinco e peso por extenso"
+  },
+  {
+    "id": "hom-audio-005",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "e ai gastei eh deixa eu ver gastei quatrocentos e oitenta reais", "grava": "pode" },
+      { "texto": "foi com energia", "grava": "pode" },
+      { "texto": "isso mesmo confirma ai", "grava": "deve" }
+    ],
+    "nota": "despesa avulsa por audio, com muleta de fala e confirmacao"
+  },
+  {
+    "id": "hom-audio-006",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "hoje tirei foi quatrocentos e oitenta litros de leite", "grava": "pode" },
+      { "texto": "isso foi so de manha", "grava": "pode" },
+      { "texto": "quatrocentos e oitenta mesmo quatrocentos e oitenta", "grava": "pode", "nota": "repeticao do numero" }
+    ],
+    "nota": "producao de leite por audio, com repeticao do numero por extenso"
+  },
+  {
+    "id": "hom-audio-007",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "eh o ze carlos pediu um adiantamento", "grava": "pode" },
+      { "texto": "quinhentos reais", "grava": "pode", "nota": "numero por extenso" }
+    ],
+    "nota": "adiantamento de trabalhador fixo por audio, dominio de mao de obra"
+  },
+  {
+    "id": "hom-audio-008",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "quero saber eh deixa eu ver os dados do brinco mil duzentos e trinta e quatro", "grava": "nao" },
+      { "texto": "isso o brinco mil duzentos e trinta e quatro mesmo", "grava": "nao", "nota": "repeticao ainda dentro da mesma consulta" }
+    ],
+    "nota": "consulta de animal por audio, com repeticao; consulta nunca grava mesmo repetida"
+  },
+  {
+    "id": "hom-curta-001",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "vendi uns novilha pro joao do leilao por 12 mil", "grava": "nao", "nota": "categoria ambigua: o assistente pergunta a idade antes de mais nada, e a venda ainda pediria confirmacao depois" },
+      { "texto": "13 a 24", "grava": "nao", "nota": "responde a idade, mas a venda ainda pede confirmacao" },
+      { "texto": "sim", "grava": "deve", "nota": "duas perguntas seguidas do assistente (idade, depois confirmacao), as duas respondidas curto" }
+    ],
+    "nota": "cobre o bloco obrigatorio de duas perguntas seguidas"
+  },
+  {
+    "id": "hom-curta-002",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "paguei 450 de energia", "grava": "nao", "nota": "lancamento financeiro sempre pede confirmacao antes de gravar" },
+      { "texto": "s", "grava": "deve" }
+    ],
+    "nota": "resposta curta de uma letra a uma confirmacao de lancamento financeiro"
+  },
+  {
+    "id": "hom-curta-003",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "mandei 12 boi pro confinamento boa vista", "grava": "nao", "nota": "entrada no confinamento pede confirmacao antes de gravar" },
+      { "texto": "isso", "grava": "deve" }
+    ],
+    "nota": "resposta curta 'isso' a uma confirmacao de entrada no confinamento"
+  },
+  {
+    "id": "hom-curta-004",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "morreu uma novilha la no pasto da sede", "grava": "nao", "nota": "categoria ambigua: o assistente pergunta a idade antes de qualquer coisa" },
+      { "texto": "de 13 a 24", "grava": "pode", "nota": "com a faixa respondida a movimentacao fica completa e pode seguir (perguntar a confirmacao tambem esta certo)" }
+    ],
+    "nota": "resposta curta de faixa de idade numa movimentacao de rebanho"
+  },
+  {
+    "id": "hom-curta-005",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "pedro fez uns dias de diaria na cerca, 150 o dia", "grava": "nao", "nota": "falta a quantidade de dias" },
+      { "texto": "3", "grava": "pode" }
+    ],
+    "nota": "resposta curta so com o numero, respondendo quantos dias"
+  },
+  {
+    "id": "hom-curta-006",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "passa 5 boi pro outro pasto", "grava": "nao", "nota": "falta o pasto de destino, e a Boa Vista tem tres" },
+      { "texto": "o segundo", "grava": "pode", "nota": "resposta posicional a uma pergunta de pasto; se o assistente nao tiver mostrado uma lista, perguntar de novo tambem esta certo" }
+    ],
+    "nota": "resposta curta posicional ('o segundo') a uma pergunta de transferencia de pasto"
+  },
+  {
+    "id": "hom-curta-007",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "fiz uma gradagem de 20 hectare pra agropecuaria santa fe com o trator new holland, 180 o hectare", "grava": "nao", "nota": "servico prestado pede confirmacao antes de gravar" },
+      { "texto": "aham", "grava": "pode" }
+    ],
+    "nota": "resposta curta informal ('aham') a uma confirmacao de servico prestado"
+  },
+  {
+    "id": "hom-curta-008",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "comprei 4 frasco de ivermectina pra boa vista, 600", "grava": "nao", "nota": "compra de insumo pede confirmacao" },
+      { "texto": "pode ser", "grava": "deve" }
+    ],
+    "nota": "resposta curta 'pode ser' a uma confirmacao de compra de insumo"
+  },
+  {
+    "id": "hom-simsolto-001",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "bom dia", "grava": "nao", "nota": "conversa fiada" },
+      { "texto": "sim", "grava": "nao", "nota": "sim solto, sem nada pendente" }
+    ],
+    "nota": "sim depois de conversa fiada"
+  },
+  {
+    "id": "hom-simsolto-002",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "quanto tenho de sal mineral?", "grava": "nao", "nota": "consulta nunca grava" },
+      { "texto": "sim", "grava": "nao", "nota": "a consulta nao fez pergunta nenhuma, sim fora de hora" }
+    ],
+    "nota": "sim depois de consulta de estoque"
+  },
+  {
+    "id": "hom-simsolto-003",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "vendi 10 boi pro frigorifico bom boi por 30 mil", "grava": "nao", "nota": "venda pede confirmacao" },
+      { "texto": "sim", "grava": "deve", "nota": "confirma e grava" },
+      { "texto": "sim", "grava": "nao", "nota": "ja confirmou a mesma coisa, nao ha mais nada pendente" }
+    ],
+    "nota": "sim repetido depois de a venda ja ter sido gravada"
+  },
+  {
+    "id": "hom-simsolto-004",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "tirei 320 litro de leite hoje na boa vista", "grava": "nao", "nota": "producao de leite pede confirmacao" },
+      { "texto": "nao, deixa pra la", "grava": "nao", "nota": "recusa antes de confirmar" },
+      { "texto": "sim", "grava": "nao", "nota": "sim depois de uma recusa, nada ficou pendente pra confirmar" }
+    ],
+    "nota": "sim depois de uma recusa, dominio leite"
+  },
+  {
+    "id": "hom-simsolto-005",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "qual o saldo desse mes?", "grava": "nao", "nota": "consulta" },
+      { "texto": "sim", "grava": "nao", "nota": "consulta de saldo nao pergunta nada, sim fora de hora" }
+    ],
+    "nota": "sim depois de consulta financeira"
+  },
+  {
+    "id": "hom-simsolto-006",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "anota 10 saca de sal mineral na lista de compra", "grava": "pode", "nota": "item novo e unico na lista, grava direto sem confirmacao" },
+      { "texto": "sim", "grava": "nao", "nota": "ja gravou sozinho, nada ficou pendente pra confirmar" }
+    ],
+    "nota": "sim depois de um registro que grava sozinho"
+  },
+  {
+    "id": "hom-simsolto-007",
+    "autor": "conversa",
+    "tipo": "conversa",
+    "passos": [
+      { "texto": "nasceram 3 bezerro no pasto da sede", "grava": "nao", "nota": "movimentacao de rebanho pede confirmacao antes de gravar" },
+      { "texto": "sim", "grava": "deve", "nota": "confirma e grava o nascimento" },
+      { "texto": "sim", "grava": "nao", "nota": "ja confirmou o mesmo nascimento, sim fora de hora" }
+    ],
+    "nota": "sim repetido depois de uma movimentacao de rebanho ja gravada"
+  }
+]

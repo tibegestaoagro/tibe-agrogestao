@@ -29,7 +29,7 @@ import {
   type Handler,
   type RouterResult,
 } from "./shared";
-import { lerData, lerDinheiro, lerNumeroBr } from "./parsers";
+import { lerData, lerDinheiro, lerNumeroFalado } from "./parsers";
 import { reaisBr } from "@/lib/numero-br";
 
 /**
@@ -72,17 +72,20 @@ export function itensDosParametros(parameters: Record<string, unknown>): Item[] 
       if (typeof bruto !== "object" || bruto === null) continue;
       const registro = bruto as Record<string, unknown>;
       const categoria = str(registro.categoria) ?? str(registro.category);
-      // `lerNumeroBr`, e não `num`: o handler de estoque já aprendeu isso
+      // `lerNumeroFalado`, e não `num`: o handler de estoque já aprendeu isso
       // ("comprei 2.000 kg de racao" virava 2 quilos), e a mesma frase com
-      // cabeças de gado tinha o mesmo destino aqui.
-      const quantidade = lerNumeroBr(registro.quantidade) ?? lerNumeroBr(registro.quantity);
+      // cabeças de gado tinha o mesmo destino aqui. E não só `lerNumeroBr`:
+      // a resposta a um campo pendente chega em texto literal, às vezes por
+      // extenso ("vinte e cinco"), sem conversão nenhuma (achado real,
+      // homologacao-2).
+      const quantidade = lerNumeroFalado(registro.quantidade) ?? lerNumeroFalado(registro.quantity);
       if (categoria && quantidade != null) lista.push({ categoria, quantidade });
     }
     if (lista.length > 0) return lista;
   }
   // Forma plana, para o caso de um item só (a maioria das mensagens).
   const categoria = str(parameters.categoria) ?? str(parameters.category);
-  const quantidade = lerNumeroBr(parameters.quantidade) ?? lerNumeroBr(parameters.quantity);
+  const quantidade = lerNumeroFalado(parameters.quantidade) ?? lerNumeroFalado(parameters.quantity);
   if (categoria && quantidade != null) return [{ categoria, quantidade }];
   return [];
 }
@@ -110,21 +113,46 @@ function perguntaDeFaixa(termo: string, candidatas: HerdCategory[]): RouterResul
 
 type CategoriaResolvida =
   | { ok: true; categoria: HerdCategory }
-  | { ok: false; resposta: RouterResult };
+  | { ok: false; resposta: RouterResult; candidatosOferecidos: string[] };
 
-export function resolverCategoria(termo: string, nascimento = false): CategoriaResolvida {
+/**
+ * `candidatosAnteriores`: os ids das categorias já oferecidas numa pergunta de
+ * faixa anterior, para a resposta seguinte CRUZAR em vez de resolver do zero.
+ *
+ * Sem isto, "novilha" pergunta a idade (3 candidatas fêmeas), o produtor
+ * responde "13 a 24" (que sozinho bate em fêmea E macho da mesma idade,
+ * porque `resolveCategoryTerm` busca a faixa em TODAS as categorias), e a
+ * segunda pergunta ("são machos ou fêmeas?") esquece que "novilha" já tinha
+ * fixado o sexo: o produtor lê isso como o assistente "esquecendo" a própria
+ * pergunta. Juntar os termos em texto não funciona (`resolveCategoryTerm`
+ * devolve "unknown" para "novilha 13 a 24"): a interseção tem que ser por id.
+ * Achado real, homologacao-3.
+ */
+export function resolverCategoria(termo: string, nascimento = false, candidatosAnteriores?: string[]): CategoriaResolvida {
   // Num nascimento, o sexo sozinho já basta: recém-nascido é 0 a 7 meses.
   // É o que o §13.4 espera de "nasceram 4 machos e 3 fêmeas".
   const resolucao = nascimento ? resolveBirthCategoryTerm(termo) : resolveCategoryTerm(termo);
   if (resolucao.kind === "exact") return { ok: true, categoria: resolucao.category };
   if (resolucao.kind === "ambiguous") {
-    return { ok: false, resposta: perguntaDeFaixa(termo, resolucao.candidates) };
+    const cruzadas = candidatosAnteriores
+      ? resolucao.candidates.filter((c) => candidatosAnteriores.includes(c.id))
+      : [];
+    // Interseção vazia: o termo não refina nada do que já foi oferecido (ou
+    // não havia oferta anterior), então resolve do zero com a lista cheia.
+    const candidatas = cruzadas.length > 0 ? cruzadas : resolucao.candidates;
+    if (candidatas.length === 1) return { ok: true, categoria: candidatas[0] };
+    return {
+      ok: false,
+      resposta: perguntaDeFaixa(termo, candidatas),
+      candidatosOferecidos: candidatas.map((c) => c.id),
+    };
   }
   return {
     ok: false,
     resposta: ask(
       `Não reconheci a categoria "${termo}". Diga o sexo e a idade aproximada, por exemplo "fêmeas de 13 a 24 meses".`,
     ),
+    candidatosOferecidos: [],
   };
 }
 

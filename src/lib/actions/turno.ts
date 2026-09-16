@@ -7,6 +7,7 @@ import { detectConfirmation } from "@/lib/actions/confirmation";
 import { logInbound, logOutbound } from "@/lib/actions/conversation-log";
 import { executarIntencao } from "@/lib/actions/executar-intencao";
 import { identificarContato, type ContatoIdentificado } from "@/lib/actions/whatsapp-contato";
+import { INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR } from "@/lib/actions/whatsapp-handlers/shared";
 import { carregarCursor } from "@/lib/agente/cursor";
 import { classificarMensagem, classificarResposta, normalizarParaComparar, trechoOuMensagemInteira } from "@/lib/agente/classificar";
 import { FalhaDoModelo } from "@/lib/agente/modelo";
@@ -92,7 +93,59 @@ async function entenderPedidos(e: EntradaDoTurno, contato: Identificado, agora: 
   }
 
   const hoje = inicioDoDiaEmSaoPaulo(agora).toISOString().slice(0, 10);
-  return classificarMensagem({ texto: e.texto, hoje, perfis: contato.activeProfiles });
+  const pedidos = await classificarMensagem({ texto: e.texto, hoje, perfis: contato.activeProfiles });
+
+  /**
+   * A classificação normal nunca recebe `cursor.pergunta`: ela não sabe que
+   * existe uma pergunta em aberto. Uma resposta que claramente respondia ao
+   * campo pendente, mas que a etapa de resposta acima recusou (a mensagem
+   * trazia mais do que "só o campo", ou a leitura não voltou "responde"),
+   * virava "ambigua" sozinha, e o produtor que tinha acabado de responder
+   * certo ouvia "não entendi". Achado real, homologacao-4: "o foram vinte e
+   * cinco bezerro por setenta e cinco mil", respondendo "Quantos animais?",
+   * caía aqui porque também trazia a categoria e o valor, além da
+   * quantidade.
+   *
+   * ⚠️ **Esta porta é MAIS FRACA que a de cima, e por isso ela não pode
+   * alcançar quem grava sem confirmar.** O caminho de `respostaLiteral` exige
+   * quatro coisas; aqui só duas sobrevivem (nunca numa pergunta, e "sim"/"não"
+   * já saíram por `detectConfirmation` na linha 68). As duas que faltam são
+   * justamente as de segurança de escrita: o modelo ter dito "isto é
+   * resposta", e o valor ser recorte da mensagem. Sem elas, a mensagem INTEIRA
+   * entra no campo.
+   *
+   * A revisão da Fase 4 reproduziu o estrago em banco: com "usei 2 sacas" /
+   * "Qual produto?" pendente, a frase "nem precisei do sal afinal" casava
+   * "Sal" por substring em `resolverProduto` e GRAVAVA o uso, que é a única
+   * intenção que não pede "sim" (§10.3). O produtor dizia que não usou, e o
+   * uso era registrado.
+   *
+   * Por isso a lista `INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR` fica fora daqui.
+   *
+   * O cadastro assistido (`prefixo: "flow"`) também está fora, mas seja honesto
+   * sobre o que isso compra: **quase nada**. O formulário é consumido antes,
+   * em `handleActiveFlow` (`whatsapp-router.ts`), e `interrompe()` trata
+   * `ambigua` e `cadastrar_animal` do mesmo jeito, então com formulário aberto
+   * a mensagem vira valor de campo COM ou SEM esta guarda. A revisão da Fase 4
+   * reproduziu "kkkkk" virando brinco com a guarda ativa. Ela fica porque a
+   * etiqueta certa da intenção importa para o log e para o cursor, não porque
+   * proteja o formulário. Formulário engolindo mensagem ambígua é dívida
+   * anterior a esta fase: `docs/agents/dividas.md`, item 5.0c.
+   */
+  if (
+    cursor &&
+    !cursor.aguardando.startsWith("confirmacao") &&
+    !INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR.includes(cursor.intent) &&
+    cursor.prefixo !== "flow" &&
+    pedidos.length === 1 &&
+    pedidos[0].intent === "ambigua" &&
+    !e.texto.includes("?") &&
+    !comecaComPergunta(e.texto)
+  ) {
+    return [{ intent: cursor.intent, parameters: { [cursor.aguardando]: e.texto } }];
+  }
+
+  return pedidos;
 }
 
 /**

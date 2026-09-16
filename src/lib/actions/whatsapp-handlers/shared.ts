@@ -12,6 +12,34 @@ import { lerNumeroBr } from "@/lib/numero-br";
  * whatsapp-router.ts, só checa permissão/perfil e despacha.
  */
 
+/**
+ * As intenções que GRAVAM sem pedir "sim": o uso de estoque (§10.3, o gesto
+ * mais frequente e que não mexe em dinheiro) e os quatro registros de rebanho
+ * que só descrevem um fato do animal (cadastro, peso, vacina e a previsão
+ * dela). Nenhum dos cinco recebe `confirmed` no handler.
+ *
+ * ⚠️ **A lista nasceu com o uso de estoque só, e a catraca da seção 1c da
+ * `m68` achou os outros quatro no mesmo dia.** A versão incompleta fazia a
+ * guarda do turno parecer mais forte do que era.
+ *
+ * Existe como lista exportada, e não como comparação solta dentro de cada
+ * arquivo, porque DOIS lugares distantes precisam concordar sobre ela: o
+ * handler do estoque, que decide se `confirmed` quer dizer alguma coisa, e o
+ * turno, que decide se pode empurrar uma mensagem duvidosa para dentro de um
+ * campo pendente. Quando os dois duplicavam a regra, o turno abriu um caminho
+ * de gravação sem confirmação que a revisão da Fase 4 reproduziu em banco:
+ * "usei 2 sacas" / "Qual produto?" / "nem precisei do sal afinal" gravava o
+ * uso. Handler novo que não confirmar entra AQUI, e as duas pontas andam
+ * juntas.
+ */
+export const INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR: readonly Intent[] = [
+  "registrar_uso_estoque",
+  "cadastrar_animal",
+  "registrar_peso",
+  "registrar_vacina",
+  "registrar_previsao_vacina",
+];
+
 export type RouterResult = {
   reply_text: string;
   requires_confirmation: boolean;

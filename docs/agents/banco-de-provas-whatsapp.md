@@ -105,6 +105,26 @@ npm run wa diga "Comprei 20 bezerros"      # manda e espera a resposta (ate 120s
 npm run wa roteiro docs/agents/roteiros/negociacao.txt
 ```
 
+### O alvo: produção ou a cópia de homologação
+
+Sem flag, o alvo é o fluxo de **produção**, como sempre foi. Com
+`--homologacao`, o mesmo script manda para a cópia da Fase 4
+(`ctGOlY9OXZWfjeby`, webhook `/webhook/homologacao`), que é o workflow fino:
+ele chama `POST /api/internal/whatsapp/turno` em vez do `execute-action`.
+
+```powershell
+npm run wa -- --homologacao estado
+npm run wa -- --homologacao diga "comprei 20 bezerros do Joao por 60 mil"
+```
+
+A primeira linha da saída sempre diz o alvo. Ela existe porque uma rodada lida
+depois precisa dizer contra o que rodou, e na Fase 3 uma medição inteira se
+perdeu por não registrar isso.
+
+⚠️ **A cópia fica desativada.** Ativar workflow no n8n é efeito fora do
+repositório e depende de autorização do usuário na hora; sem isso, o webhook da
+cópia devolve 404.
+
 `limpa` entre casos de teste não é opcional: o funil de perguntas do agente
 reconstrói onde parou a partir do `recent_history`, então um caso que enxerga a
 conversa do anterior deixa de ser reproduzível.

@@ -47,6 +47,56 @@ async function main() {
     check(`${def.intent}: tem ao menos 2 exemplos`, def.exemplos.length >= 2);
   }
 
+  /**
+   * 1c. Catraca: quem grava sem pedir "sim" tem que estar DECLARADO.
+   *
+   * `INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR` é lida por dois lugares distantes: o
+   * handler do estoque, que decide se `confirmed` quer dizer algo, e a porta de
+   * mensagem ambígua do turno, que decide se pode empurrar texto duvidoso para
+   * dentro de um campo pendente. Quando as duas pontas duplicavam a regra, o
+   * turno abriu um caminho de gravação sem confirmação que a revisão da Fase 4
+   * reproduziu em banco.
+   *
+   * Ler a mesma constante resolve para quem EDITA as duas pontas; não resolve
+   * para quem escreve um handler NOVO que não confirma e nunca ouviu falar da
+   * lista. Esta catraca resolve: intenção de escrita ou está na lista, ou a
+   * FUNÇÃO dela chama `confirmFlow`. Mesmo molde da seção 8 da `m67`, que
+   * varre os `*-pending.ts` do disco.
+   *
+   * O corte é por função, não por arquivo: `rebanho.ts` tem `confirmFlow` três
+   * vezes (movimentação, lote, venda) e mesmo assim `cadastrarAnimal`,
+   * `registrarPeso`, `registrarVacina` e `registrarPrevisaoVacina` gravam
+   * direto. Um corte por arquivo aprovaria os quatro, que foi exatamente o que
+   * a primeira versão desta catraca fez.
+   */
+  console.log("\n1c. Toda intenção que grava sem confirmar está declarada");
+  {
+    const { INTENT_ACCESS } = await import("@/lib/whatsapp-intents");
+    const { INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR } = await import("@/lib/actions/whatsapp-handlers/shared");
+    let semDeclarar = 0;
+    for (const def of INTENCOES) {
+      const acesso = INTENT_ACCESS[def.intent];
+      if (acesso?.action !== "write") continue;
+      if ((INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR as readonly string[]).includes(def.intent)) continue;
+      const handler = localizarHandler(router, def.intent);
+      if (!handler) continue;
+      // Três portões possíveis: o helper compartilhado, o `confirmed` do ctx
+      // (quem tem pendente próprio, como negócio e confinamento), ou a resposta
+      // que declara que espera confirmação.
+      const corpo = corpoDoHandler(router, handler, def.intent);
+      const confirma = /confirmFlow\(|\bconfirmed\b|requires_confirmation:\s*true/.test(corpo);
+      if (!confirma) {
+        semDeclarar += 1;
+        check(
+          `${def.intent} grava sem nenhum portão de confirmação: declare em INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR`,
+          false,
+          handler,
+        );
+      }
+    }
+    check("nenhuma intenção de escrita grava sem confirmar por descuido", semDeclarar === 0);
+  }
+
   // O classificador repassa o número e a data como o produtor falou (regra da spec).
   console.log("1b. Handlers leem número e data como o produtor fala");
   const { num } = await import("@/lib/actions/whatsapp-handlers/shared");
@@ -899,6 +949,42 @@ async function main() {
           check("valor que não é recorte da mensagem não grava o uso", (await db.stockMovement.count()) === movimentosDeEstoque);
           check("e segue para a classificação", chamadas.join() === "resposta,dominio", chamadas.join());
 
+          /**
+           * A porta de "ambigua com cursor vivo" (`turno.ts`) NÃO pode alcançar
+           * quem grava sem confirmar. Achado pela revisão final da Fase 4, que
+           * reproduziu a escrita em banco: com "usei 2 sacas" / "Qual produto?"
+           * aberto, a frase "nem precisei do sal afinal" casava "Sal" por
+           * substring em `resolverProduto` e gravava o uso. O produtor dizia
+           * que NÃO usou, e o uso era registrado.
+           *
+           * O uso de estoque é a única intenção que não pede "sim" (§10.3), e
+           * é por isso que ele é o caso que discrimina: em qualquer outra a
+           * mensagem duvidosa pararia na confirmação.
+           */
+          prepara(usoSemProduto);
+          await turno("usei 2 sacas", "T7u4a");
+          const cursorAntesDaAmbigua = await carregarCursor(tenant.id, owner.id);
+          check(
+            "fixture: o cursor do uso de estoque está aberto de novo",
+            cursorAntesDaAmbigua?.aguardando === "produto" && cursorAntesDaAmbigua?.intent === "registrar_uso_estoque",
+            JSON.stringify(cursorAntesDaAmbigua),
+          );
+          const antesDaAmbigua = await db.stockMovement.count();
+          prepara({
+            resposta: { tipo: "outro_assunto", valor: null },
+            dominio: { pedidos: [{ dominio: "nenhum", trecho: "nem precisei do sal afinal" }] },
+          });
+          const recusaAmbigua = await turno("nem precisei do sal afinal", "T7u4b");
+          check(
+            "mensagem ambígua com cursor de USO DE ESTOQUE aberto não grava o uso",
+            (await db.stockMovement.count()) === antesDaAmbigua,
+            JSON.stringify(recusaAmbigua),
+          );
+          // O caso seguinte precisa do mesmo pendente de volta: a ambígua acima
+          // deixou o cursor onde estava, mas consumiu o pedido guardado.
+          prepara(usoSemProduto);
+          await turno("usei 2 sacas", "T7u4c");
+
           prepara({ resposta: { tipo: "responde", valor: "sal" } });
           const respostaDeVerdade = await turno("é o Sal", "T7u4");
           check(
@@ -1041,6 +1127,186 @@ async function main() {
 
           const estranho = await executarTurno({ telefone: `19${String(stamp).slice(-9)}`, texto: "oi", provider_message_id: "T7x" });
           check("número não cadastrado recebe uma mensagem", estranho.mensagens.length === 1 && estranho.mensagens[0].texto.includes("não está cadastrado"), JSON.stringify(estranho));
+
+          console.log("\n7b. Negócio de gado: pergunta composta não repete (homologacao-2)");
+          {
+            const { loadPendingNegotiation, clearPendingNegotiation } = await import("@/lib/actions/negotiation-pending");
+            const { lerNumeroFalado } = await import("@/lib/actions/whatsapp-handlers/parsers");
+            await clearPendingNegotiation(tenant.id, owner.id);
+            await limparCursor(tenant.id, owner.id);
+
+            // Reprodução 1: a categoria foi dita mas ficou ambígua ("novilha"), e a
+            // quantidade nunca chegou. Antes da correção, "13 a 24" entrava inteiro
+            // no único campo que o cursor guardava ("categoria"), a quantidade
+            // continuava sem valor nenhum, e a MESMA pergunta voltava até desistir.
+            prepara({
+              dominio: { pedidos: [{ dominio: "rebanho", trecho: "vendi uns novilha pro joao do leilao por 12 mil" }] },
+              extracao_rebanho: {
+                intent: "registrar_negocio_gado",
+                parametros: { tipo: "venda", contato: "joao", valor: "12 mil", itens: [{ categoria: "novilha", quantidade: null }] },
+              },
+            });
+            const rep1a = await turno("vendi uns novilha pro joao do leilao por 12 mil", "T9a1");
+            check(
+              "(rep1) categoria ambígua sem quantidade pergunta, sem desistir de cara",
+              rep1a.mensagens.length === 1 && !rep1a.mensagens[0].texto.includes("Não estou conseguindo entender"),
+              JSON.stringify(rep1a),
+            );
+
+            prepara({ resposta: { tipo: "responde", valor: "13 a 24" } });
+            const rep1b = await turno("13 a 24", "T9a2");
+            check(
+              "(rep1) resposta parcial NÃO repete a pergunta anterior (bug: repetia até desistir)",
+              rep1b.mensagens[0]?.texto !== rep1a.mensagens[0]?.texto,
+              JSON.stringify({ rep1a: rep1a.mensagens[0]?.texto, rep1b: rep1b.mensagens[0]?.texto }),
+            );
+            check("(rep1) segue sem desistir", !rep1b.mensagens[0]?.texto.includes("Não estou conseguindo entender"), rep1b.mensagens[0]?.texto);
+            check("(rep1) o negócio segue guardado, nada se perdeu", (await loadPendingNegotiation(tenant.id, owner.id)) !== null);
+
+            /**
+             * homologacao-3: "13 a 24" sozinho bate em fêmea E macho da mesma
+             * idade (`resolveCategoryTerm` busca a faixa em TODAS as
+             * categorias). Sem cruzar com as 3 candidatas que "novilha" já
+             * tinha oferecido (todas fêmeas), a segunda pergunta reabria a
+             * ambiguidade do zero ("São machos ou fêmeas?"), esquecendo que
+             * "novilha" já tinha fixado o sexo, e a conversa nunca fechava.
+             */
+            check(
+              "(rep1) a interseção com as candidatas já mostradas fecha a ambiguidade numa volta (homologacao-3)",
+              !rep1b.mensagens[0]?.texto.includes("pode ser mais de uma categoria"),
+              rep1b.mensagens[0]?.texto,
+            );
+            const cursorRep1b = await carregarCursor(tenant.id, owner.id);
+            check(
+              "(rep1) categoria fechada, o cursor avança para a quantidade (não repete 'categoria')",
+              cursorRep1b?.aguardando === "quantidade",
+              JSON.stringify(cursorRep1b),
+            );
+
+            prepara({ resposta: { tipo: "responde", valor: "3" } });
+            const rep1c = await turno("3", "T9a3");
+            check(
+              "(rep1) a quantidade fecha o item, sem repetir a pergunta de categoria nem desistir",
+              rep1c.mensagens[0]?.texto !== rep1b.mensagens[0]?.texto &&
+                !rep1c.mensagens[0]?.texto.includes("Não estou conseguindo entender") &&
+                !rep1c.mensagens[0]?.texto.includes("pode ser mais de uma categoria"),
+              rep1c.mensagens[0]?.texto,
+            );
+            const pendenteRep1 = await loadPendingNegotiation(tenant.id, owner.id);
+            check(
+              "(rep1) a categoria gravada é o rótulo exato (Fêmea - 13 a 24 meses), não o termo ambíguo",
+              pendenteRep1 !== null && (pendenteRep1.parameters as Record<string, unknown>).categoria === "Fêmea - 13 a 24 meses",
+              JSON.stringify(pendenteRep1),
+            );
+
+            await clearPendingNegotiation(tenant.id, owner.id);
+            await limparCursor(tenant.id, owner.id);
+
+            // Reprodução 2: a categoria já veio exata ("bezerro"), só falta a
+            // quantidade, dita por extenso na resposta seguinte ("vinte e cinco").
+            // Antes, a resposta inteira ia para o campo "categoria" (o único que o
+            // cursor guardava), a quantidade nunca era lida, e a pergunta composta
+            // voltava, perdendo a quantidade e o valor citados.
+            prepara({
+              dominio: { pedidos: [{ dominio: "rebanho", trecho: "e ai entao o joao do leilao me vendeu uns bezerro" }] },
+              extracao_rebanho: {
+                intent: "registrar_negocio_gado",
+                parametros: { tipo: "compra", contato: "joao", itens: [{ categoria: "bezerro", quantidade: null }] },
+              },
+            });
+            const rep2a = await turno("e ai entao o joao do leilao me vendeu uns bezerro", "T9b1");
+            check(
+              "(rep2) categoria exata sem quantidade pergunta, sem desistir de cara",
+              rep2a.mensagens.length === 1 && !rep2a.mensagens[0].texto.includes("Não estou conseguindo entender"),
+              JSON.stringify(rep2a),
+            );
+
+            prepara({ resposta: { tipo: "responde", valor: "o foram vinte e cinco bezerro" } });
+            const rep2b = await turno("o foram vinte e cinco bezerro por setenta e cinco mil", "T9b2");
+            check(
+              "(rep2) resposta por extenso NÃO repete a pergunta anterior",
+              rep2b.mensagens[0]?.texto !== rep2a.mensagens[0]?.texto,
+              JSON.stringify({ rep2a: rep2a.mensagens[0]?.texto, rep2b: rep2b.mensagens[0]?.texto }),
+            );
+            check("(rep2) segue sem desistir", !rep2b.mensagens[0]?.texto.includes("Não estou conseguindo entender"), rep2b.mensagens[0]?.texto);
+            const pendenteRep2 = await loadPendingNegotiation(tenant.id, owner.id);
+            check(
+              "(rep2) a quantidade dita por extenso (25) foi lida, não perdida",
+              pendenteRep2 !== null && lerNumeroFalado((pendenteRep2.parameters as Record<string, unknown>).quantidade) === 25,
+              JSON.stringify(pendenteRep2),
+            );
+
+            await clearPendingNegotiation(tenant.id, owner.id);
+            await limparCursor(tenant.id, owner.id);
+
+            /**
+             * homologacao-4: o mesmo início da reprodução 2, mas agora com a
+             * etapa de resposta recusando (a mensagem traz mais do que só a
+             * quantidade: também a categoria e o valor), o que já acontecia
+             * antes. A diferença é o que vem DEPOIS: a classificação normal,
+             * sem o contexto da pergunta, não acha nada na frase sozinha e
+             * volta "ambigua". Sem a correção desta rodada, isso virava
+             * "Não entendi..." mesmo o produtor tendo acabado de responder.
+             */
+            prepara({
+              dominio: { pedidos: [{ dominio: "rebanho", trecho: "e ai entao o joao do leilao me vendeu uns bezerro" }] },
+              extracao_rebanho: {
+                intent: "registrar_negocio_gado",
+                parametros: { tipo: "compra", contato: "joao", itens: [{ categoria: "bezerro", quantidade: null }] },
+              },
+            });
+            const rep3a = await turno("e ai entao o joao do leilao me vendeu uns bezerro", "T9c1");
+            check(
+              "(rep3) fixture: pergunta a quantidade",
+              !!rep3a.mensagens[0]?.texto.includes("Quantos animais"),
+              rep3a.mensagens[0]?.texto,
+            );
+
+            prepara({
+              resposta: { tipo: "outro_assunto", valor: null },
+              dominio: { pedidos: [{ dominio: "nenhum", trecho: "o foram vinte e cinco bezerro por setenta e cinco mil" }] },
+            });
+            const rep3b = await turno("o foram vinte e cinco bezerro por setenta e cinco mil", "T9c2");
+            check(
+              "(rep3) cursor vivo: a leitura recusando NÃO vira 'Não entendi' (homologacao-4)",
+              !rep3b.mensagens[0]?.texto.includes("Não entendi"),
+              rep3b.mensagens[0]?.texto,
+            );
+            check(
+              "(rep3) segue tentando o campo pendente, não desiste de cara",
+              !rep3b.mensagens[0]?.texto.includes("Não estou conseguindo entender"),
+              rep3b.mensagens[0]?.texto,
+            );
+            const cursorRep3b = await carregarCursor(tenant.id, owner.id);
+            check(
+              "(rep3) o cursor segue vivo, aguardando a mesma quantidade (nada foi perdido)",
+              cursorRep3b?.aguardando === "quantidade",
+              JSON.stringify(cursorRep3b),
+            );
+            const pendenteRep3b = await loadPendingNegotiation(tenant.id, owner.id);
+            const categoriaRep3b = pendenteRep3b ? (pendenteRep3b.parameters as Record<string, unknown>).categoria : null;
+            check(
+              "(rep3) a categoria (bezerro) segue guardada, a resposta não apagou o que já tinha",
+              typeof categoriaRep3b === "string" && categoriaRep3b.trim().length > 0,
+              JSON.stringify(pendenteRep3b),
+            );
+
+            // Duas casas na mesma frase ("vinte e cinco" e "setenta e cinco mil")
+            // não dá para separar sem contexto: uma resposta limpa na rodada
+            // seguinte fecha a quantidade e a conversa segue adiante.
+            prepara({ resposta: { tipo: "responde", valor: "25" } });
+            const rep3c = await turno("25", "T9c3");
+            check(
+              "(rep3) uma resposta limpa fecha a quantidade e avança (não repete, não desiste)",
+              rep3c.mensagens[0]?.texto !== rep3b.mensagens[0]?.texto &&
+                !rep3c.mensagens[0]?.texto.includes("Não entendi") &&
+                !rep3c.mensagens[0]?.texto.includes("Não estou conseguindo entender"),
+              rep3c.mensagens[0]?.texto,
+            );
+
+            await clearPendingNegotiation(tenant.id, owner.id);
+            await limparCursor(tenant.id, owner.id);
+          }
         } finally {
           definirTransporteDoModelo(null);
         }
@@ -1107,6 +1373,32 @@ async function main() {
  * `ajuda` e `resumo`). Sem a segunda forma, as duas intenções desta tarefa
  * não seriam localizadas.
  */
+/**
+ * O corpo da função que atende a intenção, do `export const <funcao>` até o
+ * próximo `export const`. Existe para a catraca 1c cortar por FUNÇÃO: um
+ * arquivo com vários handlers mistura quem confirma com quem não confirma.
+ */
+function corpoDoHandler(router: string, arquivo: string, intent: string): string {
+  const linhaDaTabela = router.split("\n").find((l) => new RegExp(`^\\s*${intent}\\s*[,:]`).test(l));
+  const funcao = linhaDaTabela?.match(/:\s*([A-Za-z0-9_]+)/)?.[1] ?? intent;
+  const fonte = fs.readFileSync(arquivo, "utf8");
+  const corpo = trechoDe(fonte, `export const ${funcao}`);
+  // Handler feito por fábrica (`export const x = fabricarEntrada(...)`): o
+  // portão de confirmação mora na fábrica, não na linha exportada. Confinamento
+  // e leite são assim, e sem isto a catraca 1c os acusaria por engano.
+  const fabrica = corpo.match(/=\s*(fabricar[A-Za-z0-9_]*)\s*\(/)?.[1];
+  return fabrica ? `${corpo}\n${trechoDe(fonte, `function ${fabrica}`)}` : corpo;
+}
+
+/** Do primeiro `marca` até o próximo `export const` ou `function` de topo. */
+function trechoDe(fonte: string, marca: string): string {
+  const inicio = fonte.indexOf(marca);
+  if (inicio < 0) return "";
+  const resto = fonte.slice(inicio + marca.length);
+  const fim = resto.search(/\n(export const |function )/);
+  return fim < 0 ? fonte.slice(inicio) : fonte.slice(inicio, inicio + marca.length + fim);
+}
+
 function localizarHandler(router: string, intent: string): string | null {
   const linhaDaTabela = router.split("\n").find((l) => new RegExp(`^\\s*${intent}\\s*[,:]`).test(l));
   if (!linhaDaTabela) return null;

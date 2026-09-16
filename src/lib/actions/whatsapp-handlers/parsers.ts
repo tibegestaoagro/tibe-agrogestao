@@ -1,6 +1,7 @@
 import { str, normalizarTermo } from "./shared";
 import { lerNumeroBr } from "@/lib/numero-br";
 import { inicioDoDiaEmSaoPaulo } from "@/lib/dia-calendario";
+import { numerosPorExtenso } from "@/lib/agente/trecho-literal";
 
 /**
  * Reexportado para quem ja importava daqui. A funcao mora em `@/lib/numero-br`,
@@ -23,6 +24,32 @@ export { lerNumeroBr };
  * qual. Nao simplifique nenhuma sem ler o motivo.
  */
 
+
+/**
+ * Número dito ao responder um campo pendente (Módulo 31, homologacao-2).
+ *
+ * `classificarResposta` copia o texto LITERAL, sem converter por extenso
+ * (diferente da extração normal, que já converte "vinte e cinco" em 25):
+ * `lerNumeroBr` sozinho devolve null para esse texto, e o campo nunca
+ * completava, prendendo a conversa na mesma pergunta até desistir. Só
+ * resolve quando o texto tem UM número só: mais de um é ambíguo e quem
+ * pergunta decide o que fazer com null.
+ *
+ * ⚠️ **Herda o limite conhecido de "um"/"uma"**, documentado em
+ * `trecho-literal.ts`: as duas palavras também são artigo, então "morreu uma
+ * parte do lote", respondendo "Quantos animais?", lê 1 em vez de reperguntar.
+ * Os dois chamadores de hoje (`registrar_movimentacao_rebanho` e
+ * `registrar_negocio_gado`) confirmam antes de gravar, então isso vira número
+ * errado na tela de confirmação, que o produtor recusa, e não escrita
+ * silenciosa. Chamador novo que grave sem confirmar precisa reavaliar isto.
+ */
+export function lerNumeroFalado(bruto: unknown): number | null {
+  const direto = lerNumeroBr(bruto);
+  if (direto != null) return direto;
+  if (typeof bruto !== "string") return null;
+  const achados = numerosPorExtenso(bruto);
+  return achados.length === 1 ? achados[0] : null;
+}
 
 export type CustoLido = { descricao: string; valor: number };
 

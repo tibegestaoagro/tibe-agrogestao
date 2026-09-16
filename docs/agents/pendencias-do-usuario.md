@@ -268,7 +268,12 @@ log da Vercel.
    instância da Evolution e um telefone real, e a API pública do n8n recusa
    apagá-lo.
 2. **Um segundo chip conectado à Evolution**, para o fluxo de homologação da
-   Fase 4 do agente.
+   Fase 4 do agente. O passo a passo do dia, escrito para você, está em
+   [agente-whatsapp/roteiro-do-chip.md](agente-whatsapp/roteiro-do-chip.md):
+   conectar a instância nova, as dez mensagens do roteiro e o critério de
+   reprovação. A Fase 4 foi feita sem depender dele; o que sobra para o
+   aparelho é a entrega no celular, o áudio de verdade, a foto de recibo e a
+   mensagem picada com tempo real de digitação.
 3. **Na rotação de credenciais:** se a chave da instância da Evolution mudar, o
    nó `Guarda da Entrada` precisa receber a chave nova no mesmo momento. Sem
    isso, o agente fica mudo (a guarda descarta tudo) sem erro visível.
@@ -277,7 +282,7 @@ log da Vercel.
    precisa dessa chave. Sem ela, a rota responde a frase de falha. Nada em
    produção a chama ainda: o n8n só passa a usá-la na Fase 4.
 5. **`AGENTE_MODELO=gpt-5.6-luna` e `AGENTE_ESFORCO=low` nas variáveis da
-   Vercel** (Fase 3, 16/09), com redeploy. É o modelo escolhido pela avaliação,
+   Vercel** (Fase 3, 16/09), com redeploy. **Feito em 16/09.** É o modelo escolhido pela avaliação,
    o único que passou no critério (relatório
    [agente-whatsapp/avaliacao-fase-3-final.md](agente-whatsapp/avaliacao-fase-3-final.md)).
    O código já usa esse par como padrão quando as variáveis faltam, então isto
