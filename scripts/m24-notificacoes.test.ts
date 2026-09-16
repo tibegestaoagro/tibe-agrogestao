@@ -56,12 +56,29 @@ async function body(res: Response): Promise<Json> {
   return (await res.json()) as Json;
 }
 
-/** Servidor HTTP local fingindo a API da Evolution: dá ao canal WhatsApp um caminho de SUCESSO real, sem depender de rede externa (mesmo espírito do "porta fechada" em m7, só que aqui a porta responde). */
-function startFakeEvolutionServer(): Promise<{ server: http.Server; baseUrl: string }> {
+/**
+ * Servidor HTTP local fingindo a API da Evolution: dá ao canal WhatsApp um
+ * caminho de SUCESSO real, sem depender de rede externa (mesmo espírito do
+ * "porta fechada" em m7, só que aqui a porta responde). `requests` acumula o
+ * `number` de cada chamada recebida, para o teste da rota de pending-flows
+ * conferir QUEM foi de fato contactado por WhatsApp (e quem não foi, porque
+ * caiu no push).
+ */
+function startFakeEvolutionServer(): Promise<{ server: http.Server; baseUrl: string; requests: string[] }> {
   return new Promise((resolve) => {
+    const requests: string[] = [];
     const server = http.createServer((req, res) => {
-      req.on("data", () => {});
+      let raw = "";
+      req.on("data", (chunk) => {
+        raw += chunk;
+      });
       req.on("end", () => {
+        try {
+          const parsed = JSON.parse(raw) as { number?: string };
+          if (parsed.number) requests.push(parsed.number);
+        } catch {
+          // corpo não-JSON não interessa a este fake
+        }
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ key: { id: "fake-evolution-message-id" } }));
       });
@@ -69,9 +86,40 @@ function startFakeEvolutionServer(): Promise<{ server: http.Server; baseUrl: str
     server.listen(0, "127.0.0.1", () => {
       const address = server.address();
       const port = typeof address === "object" && address ? address.port : 0;
-      resolve({ server, baseUrl: `http://127.0.0.1:${port}` });
+      resolve({ server, baseUrl: `http://127.0.0.1:${port}`, requests });
     });
   });
+}
+
+/**
+ * Roda `fn()` com o relógio global fixo em `fixed`: a rota de pending-flows
+ * usa `new Date()` internamente (o cron real roda a qualquer hora do dia), e
+ * o teste precisa cair dentro do horário comercial (8h-18h) de forma
+ * determinística, sem depender da hora real da máquina que roda a suíte.
+ *
+ * ⚠️ Só o `new Date()` SEM argumento vira `fixed`: `new Date(x)` continua
+ * construindo a data real de `x`, via `Reflect.construct` (evita o problema
+ * de espalhar argumentos num `super()` de aridade variável, que o TypeScript
+ * não aceita por `Date` ter construtores sobrecarregados). Sem essa
+ * distinção, toda desserialização de timestamp do Prisma (que também passa
+ * por `new Date(...)`) devolveria o relógio fixo em vez do valor de verdade
+ * gravado no banco, e o teste que lê `updated_at` de volta veria a hora fixa
+ * em vez da data que ele mesmo gravou.
+ */
+async function withFixedNow<T>(fixed: Date, fn: () => Promise<T>): Promise<T> {
+  const RealDate = Date;
+  function FixedDate(...args: unknown[]): Date {
+    if (args.length === 0) return new RealDate(fixed.getTime());
+    return Reflect.construct(RealDate, args) as Date;
+  }
+  FixedDate.now = () => fixed.getTime();
+  FixedDate.prototype = RealDate.prototype;
+  (globalThis as { Date: unknown }).Date = FixedDate;
+  try {
+    return await fn();
+  } finally {
+    (globalThis as { Date: unknown }).Date = RealDate;
+  }
 }
 
 function fakePushKeys() {
@@ -135,7 +183,7 @@ async function main() {
   }
 
   await prisma.whatsAppProviderConfig.deleteMany({});
-  const { server: evolutionServer, baseUrl } = await startFakeEvolutionServer();
+  const { server: evolutionServer, baseUrl, requests: evolutionRequests } = await startFakeEvolutionServer();
 
   const A = await makeTenant("A");
   const B = await makeTenant("B");
@@ -145,6 +193,7 @@ async function main() {
     data: { name: "M24 Tenant C", document: `M24C${stamp}`.slice(0, 14), plan: "fazenda" },
   });
   const C = { tenant: tenantC };
+  let extraTenantIds: string[] = [];
 
   try {
     // ── 0. Configura o provider WhatsApp ativo apontando para o servidor fake ──
@@ -385,10 +434,92 @@ async function main() {
 
     const today = new Date().toISOString().slice(0, 10);
     await getRedisConnection().del(`tibe:digest:generated:${today}`);
+
+    // ── 8. POST /api/internal/whatsapp/pending-flows passa pelo seam notify() ──
+    // Achado da Fase 6 (Task 4): a rota chamava sendWhatsAppMessage direto.
+    // 1ª correção usou urgência "digest" (push quando existe, WhatsApp quando
+    // não), mas o texto do lembrete ("...responda cancelar") pede resposta
+    // dentro do fio de WhatsApp já aberto: uma notificação do sistema não
+    // tem como responder. Urgência certa é "conversa": WhatsApp SEMPRE, push
+    // NUNCA (nem tentado), independente de o tenant ter inscrição ativa.
+    const { startFlow } = await import("@/lib/actions/agent-flows");
+    const { POST: pendingFlowsRoute } = await import(
+      "@/app/api/internal/whatsapp/pending-flows/route"
+    );
+
+    const D = await makeTenant("D"); // tem inscrição de push ativa
+    const E = await makeTenant("E"); // sem nenhuma inscrição de push
+    extraTenantIds = [D.tenant.id, E.tenant.id];
+    const phoneD = `551190${stamp.toString().slice(-6)}1`;
+    const phoneE = `551190${stamp.toString().slice(-6)}2`;
+    await D.db.user.update({ where: { id: D.owner.id }, data: { phone: phoneD } });
+    await E.db.user.update({ where: { id: E.owner.id }, data: { phone: phoneE } });
+
+    const pushD = fakePushKeys();
+    await saveSubscription({
+      tenant_id: D.tenant.id,
+      user_id: D.owner.id,
+      endpoint: pushD.endpoint,
+      p256dh: pushD.p256dh,
+      auth: pushD.auth,
+    });
+
+    // notify() direto, urgência "conversa": push nunca é sequer tentado,
+    // mesmo com inscrição ativa (diferente de "digest", onde a existência da
+    // inscrição barra o WhatsApp). WhatsApp é o único canal, sempre.
+    evolutionRequests.length = 0;
+    const conversaResult = await notify(
+      { tenant_id: D.tenant.id, user_id: D.owner.id, phone: phoneD, email: D.owner.email },
+      { pushTitle: "Teste", pushBody: "corpo de teste", whatsappText: "mensagem de teste conversa" },
+      "conversa",
+    );
+    assert(conversaResult.push.attempted === false, "urgência 'conversa' nunca tenta push, mesmo com inscrição ativa");
+    assert(
+      conversaResult.whatsapp.attempted === true && conversaResult.whatsapp.ok === true,
+      "urgência 'conversa' sempre tenta WhatsApp, e funciona (servidor fake local)",
+    );
+    assert(conversaResult.email.attempted === false, "urgência 'conversa' nunca tenta email");
+    assert(conversaResult.delivered === true, "delivered = resultado do WhatsApp (único canal tentado)");
+
+    // Cadastro de animal abandonado nos dois tenants (mesma origem do
+    // lembrete: ver agent-flows.ts / m21).
+    await startFlow(D.db, D.owner.id, "cadastrar_animal", 1);
+    await startFlow(E.db, E.owner.id, "cadastrar_animal", 1);
+    const agoraLembrete = new Date();
+    agoraLembrete.setHours(10, 0, 0, 0);
+    const antigoLembrete = new Date(agoraLembrete.getTime() - 45 * 60_000);
+    await D.db.agentFlowState.updateMany({
+      where: { user_id: D.owner.id },
+      data: { updated_at: antigoLembrete },
+    });
+    await E.db.agentFlowState.updateMany({
+      where: { user_id: E.owner.id },
+      data: { updated_at: antigoLembrete },
+    });
+
+    evolutionRequests.length = 0;
+    const pendingFlowsRes = await withFixedNow(agoraLembrete, () =>
+      pendingFlowsRoute(
+        new Request("http://localhost/api/internal/whatsapp/pending-flows", {
+          method: "POST",
+          headers: { "x-internal-secret": INTERNAL_SECRET },
+        }),
+      ),
+    );
+    assert(pendingFlowsRes.status === 200, "POST /pending-flows responde 200");
+
+    assert(
+      evolutionRequests.includes(phoneD),
+      "tenant COM inscrição de push ativa recebe o lembrete por WhatsApp mesmo assim (urgência 'conversa')",
+    );
+    assert(
+      evolutionRequests.includes(phoneE),
+      "tenant sem inscrição de push também recebe o lembrete por WhatsApp",
+    );
   } finally {
     evolutionServer.close();
     await prisma.whatsAppProviderConfig.deleteMany({});
-    await prisma.tenant.deleteMany({ where: { id: { in: [A.tenant.id, B.tenant.id, C.tenant.id] } } });
+    await prisma.tenant.deleteMany({ where: { id: { in: [A.tenant.id, B.tenant.id, C.tenant.id, ...extraTenantIds] } } });
   }
 
   console.log("");

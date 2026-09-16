@@ -504,12 +504,12 @@ export async function purgeExpiredFlows(db: TenantPrismaClient): Promise<{ delet
 export async function collectPendingReminders(
   db: TenantPrismaClient,
   now = new Date(),
-): Promise<{ user_id: string; phone: string; message: string }[]> {
+): Promise<{ user_id: string; phone: string; email: string; message: string }[]> {
   const rows = await db.agentFlowState.findMany({
     where: { reminded_at: null, expires_at: { gt: now } },
   });
 
-  const out: { user_id: string; phone: string; message: string }[] = [];
+  const out: { user_id: string; phone: string; email: string; message: string }[] = [];
   for (const row of rows) {
     if (!shouldRemind({ updated_at: row.updated_at, reminded_at: row.reminded_at }, now)) continue;
 
@@ -533,6 +533,7 @@ export async function collectPendingReminders(
     out.push({
       user_id: row.user_id,
       phone: user.phone,
+      email: user.email,
       message: `Oi! Vi que seu cadastro ficou pela metade.${progresso} ${hint} Se preferir, responda "cancelar".`,
     });
   }

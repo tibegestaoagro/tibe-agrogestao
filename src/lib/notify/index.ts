@@ -1,7 +1,14 @@
 import { sendPushToTenant, type PushPayload } from "./push";
 import { sendWhatsappChannel } from "./whatsapp-channel";
 import { sendEmailChannel } from "./email-channel";
-import type { NotifyUrgency, NotifyRecipient, NotifyContent, NotifyResult, NotifyChannelResult } from "./types";
+import type {
+  NotifyUrgency,
+  NotifyRecipient,
+  NotifyContent,
+  NotifyResult,
+  NotifyChannelResult,
+  NotifyPushResult,
+} from "./types";
 
 export type {
   NotifyUrgency,
@@ -15,6 +22,14 @@ export { saveSubscription, removeSubscription, type SaveSubscriptionInput } from
 export { getVapidPublicKey } from "./push";
 
 const NOT_ATTEMPTED: NotifyChannelResult = { attempted: false, ok: false };
+const PUSH_NOT_ATTEMPTED: NotifyPushResult = {
+  attempted: false,
+  ok: false,
+  subscriptions: 0,
+  sent: 0,
+  failed: 0,
+  configurado: false,
+};
 
 /**
  * Seam único de entrega de notificação (Onda 2, plano de arquitetura seção
@@ -32,12 +47,28 @@ const NOT_ATTEMPTED: NotifyChannelResult = { attempted: false, ok: false };
  *   inscrição presente cuja entrega falhou não cai para WhatsApp). Nunca
  *   tenta email: resumo diário todo dia por email é ruído, diferente de um
  *   alerta pontual que precisa de comprovação.
+ * - "conversa": WhatsApp sempre, push nunca, email nunca. O critério que
+ *   separa esta urgência das outras (2026-09-16, achado de auditoria: a rota
+ *   de lembrete de cadastro tinha ido para "digest" antes de alguém reler o
+ *   texto da mensagem): **`conversa` é mensagem que espera resposta e
+ *   pertence a um fio já aberto no WhatsApp** (ex.: "responda cancelar" de um
+ *   cadastro assistido pela metade). Notificação do sistema não tem como
+ *   responder, então push não é sequer tentado aqui, diferente do "digest"
+ *   (onde push é o canal preferido e WhatsApp é o fallback). Antes de trocar
+ *   uma chamada `conversa` por `digest` de novo, confira se o texto enviado
+ *   pede uma resposta: se pedir, o push desta urgência entregaria a mensagem
+ *   num lugar sem como responder.
  */
 export async function notify(
   recipient: NotifyRecipient,
   content: NotifyContent,
   urgency: NotifyUrgency,
 ): Promise<NotifyResult> {
+  if (urgency === "conversa") {
+    const whatsapp = await sendWhatsappChannel(recipient.phone, content.whatsappText);
+    return { delivered: whatsapp.ok, push: PUSH_NOT_ATTEMPTED, whatsapp, email: NOT_ATTEMPTED };
+  }
+
   const pushPayload: PushPayload = {
     title: content.pushTitle,
     body: content.pushBody,
