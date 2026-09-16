@@ -12,7 +12,7 @@ export const INTENCOES_PRESTADOR: IntencaoDef[] = [
     intent: "cadastrar_servico_ordem",
     dominio: "prestador",
     descricao:
-      "o prestador NOMEIA um serviço do seu catálogo que fez para um cliente cadastrado, sem citar máquina nem preço; quantos hectares, horas ou diárias foram continua sendo esta",
+      "o prestador NOMEIA um serviço do seu catálogo que fez para um cliente cadastrado, sem citar máquina nem preço e sem contar o avanço de um serviço em andamento; quantos hectares, horas ou diárias foram continua sendo esta",
     campos: [
       { nome: "client_name", tipo: "texto", descricao: "o nome do cliente, como ele falou (João)" },
       { nome: "service_name", tipo: "texto", descricao: "o serviço do catálogo, como ele falou (diária de trator, gradagem)" },
@@ -20,7 +20,7 @@ export const INTENCOES_PRESTADOR: IntencaoDef[] = [
     ],
     exemplos: ["fiz duas aplicações de herbicida pra Chácara Bela Vista", "rodei uma subsolagem pra Granja Aurora"],
     vizinhas:
-      "registrar_servico_prestado quando ele cita a máquina ou o preço; registrar_producao_servico quando ele diz que avançou MAIS tanto; iniciar_servico e encerrar_servico quando ele só começou ou terminou um serviço já registrado; consultar_cliente quando pergunta o que o cliente deve",
+      "registrar_servico_prestado quando ele cita a máquina ou o preço; registrar_producao_servico quando ele só diz o quanto avançou num serviço em andamento, sem nomear o serviço; iniciar_servico e encerrar_servico quando ele só começou ou terminou um serviço já registrado; consultar_cliente quando pergunta o que o cliente deve",
   },
   {
     intent: "consultar_cliente",

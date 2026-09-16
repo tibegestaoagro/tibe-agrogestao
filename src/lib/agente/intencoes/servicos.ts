@@ -96,14 +96,15 @@ export const INTENCOES_SERVICOS: IntencaoDef[] = [
   {
     intent: "registrar_producao_servico",
     dominio: "servicos",
-    descricao: 'o produtor conta que avançou MAIS tanto ("fiz mais", "avancei mais") num serviço para cliente em andamento',
+    descricao:
+      'o produtor conta QUANTO avançou num serviço para cliente já em andamento ("fiz mais tanto", "avancei", "já fiz tanto hoje", "rendeu tanto"), sem nomear o serviço de novo',
     campos: [
       CLIENTE_DO_SERVICO,
       { nome: "quantidade", tipo: "numero", descricao: "quanto foi feito, só o número, como o produtor falou (8)" },
     ],
     exemplos: ["Fiz 8 hectares hoje. (Serviços com Máquinas §42)", "hoje rendeu 5 horas no serviço do João"],
     vizinhas:
-      "registrar_producao_leite quando são litros de leite; registrar_combustivel_servico quando é consumo; registrar_servico_prestado quando traz preço de serviço novo; cadastrar_servico_ordem quando ele NOMEIA o serviço feito para o cliente em vez de dizer que avançou mais tanto",
+      "registrar_producao_leite quando são litros de leite; registrar_combustivel_servico quando é consumo, e os dois na mesma frase são DOIS pedidos daqui; registrar_servico_prestado quando traz preço de serviço novo; cadastrar_servico_ordem quando ele NOMEIA o serviço do catálogo feito para o cliente, em vez de só dizer o quanto",
   },
   {
     intent: "registrar_combustivel_servico",

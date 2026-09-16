@@ -46,7 +46,8 @@ export const INTENCOES_CONFINAMENTO: IntencaoDef[] = [
   {
     intent: "registrar_alimentacao_confinamento",
     dominio: "confinamento",
-    descricao: "o produtor conta que usou ração ou outro insumo para tratar o lote do confinamento ou do boitel",
+    descricao:
+      'o produtor conta que deu ração, sal, silagem ou outro trato ao lote do confinamento ou do boitel; é esta também quando ele só diz para quem o trato foi ("pra eles", "pro lote"), logo depois de falar dos animais',
     campos: [
       { nome: "produto", tipo: "texto", descricao: "o insumo, do jeito que o produtor falou (ração, sal mineral, silagem)" },
       { nome: "quantidade", tipo: "numero", descricao: "só o número, como o produtor falou (5, 1.200); a unidade fica fora" },

@@ -42,12 +42,12 @@ export const INTENCOES_ESTOQUE: IntencaoDef[] = [
       "comprei 10 sacas de sal do Zé por 1200, para pagar dia 10",
     ],
     vizinhas:
-      'registrar_negocio_gado quando o que foi negociado é animal; comprei_item_lista quando ele cita o item com artigo e SEM quantidade ("comprei o arame, deu 800"), mesmo dizendo o valor; registrar_lancamento_financeiro quando é gasto em dinheiro sem quantidade de insumo',
+      'registrar_negocio_gado quando o que foi negociado é animal; comprei_item_lista quando ele cita o item com artigo e SEM quantidade ("comprei o arame, deu 800"), mesmo dizendo o valor; registrar_uso_estoque quando ele não diz que comprou, porque abastecer, usar ou gastar tira do que já tem; registrar_lancamento_financeiro quando é gasto em dinheiro sem quantidade de insumo',
   },
   {
     intent: "registrar_uso_estoque",
     dominio: "estoque",
-    descricao: "o produtor conta que usou ou gastou uma quantidade de um insumo do estoque na fazenda",
+    descricao: "o produtor conta que usou, gastou ou abasteceu com uma quantidade de um insumo do estoque na fazenda",
     campos: [
       { nome: "produto", tipo: "texto", descricao: PRODUTO },
       { nome: "quantidade", tipo: "numero", descricao: "só o número, como o produtor falou (2, 2,5; uma vira 1); a unidade fica fora" },

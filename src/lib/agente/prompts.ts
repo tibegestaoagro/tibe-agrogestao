@@ -105,15 +105,16 @@ export function promptDeDominio(): { sistema: string; schema: Record<string, unk
     "- valor, custo, frete, comissão, diferença de troca, desconto, prazo ou data de pagamento ditos junto com a ação.",
     '- a mesma ação sobre várias coisas ("anota sal e dois vermífugos na lista", "nasceram 4 machos e 3 fêmeas"): é UM pedido só.',
     "- consulta sobre o mesmo dia ou período, mesmo citando assuntos diferentes (tarefa, conta, vacina): é UM pedido só; períodos diferentes são pedidos diferentes.",
-    "- de onde os animais saíram, para onde foram e o que houve com eles (venderam, morreram, voltaram ao pasto), com o valor: é UMA movimentação só.",
-    '- pedido que ele desfaz ou adia na mesma mensagem ("não, deixa pra lá", "deixa pra eu confirmar depois"): não vira pedido nenhum.',
+    "- de onde os animais saíram, para onde foram e o que houve com eles (venderam, morreram, voltaram ao pasto), com o valor: é UMA movimentação só. Sair do LEITE é a exceção: vaca que parou de dar leite é um pedido, e o lugar para onde ela foi é outro.",
+    '- pedido que ele desfaz ou adia na mesma mensagem ("não, deixa pra lá", "deixa pra eu confirmar depois"): não vira pedido nenhum, mesmo quando ele acabou de mandar anotar; o resto da mensagem continua valendo.',
+    '- corrigir o número, o nome ou a data logo depois de falar ("foram 30, quer dizer 40") NÃO desfaz nada: é o mesmo pedido, com o último valor que ele falou.',
     "",
     "Domínios possíveis:",
     listaDeDominios,
     "",
     "Para cada pedido, informe o domínio e o trecho literal da mensagem que corresponde a ele. O trecho é sempre um recorte literal da mensagem do produtor, nunca um resumo.",
     'Parte que o Tibé não faz (previsão do tempo, achar comprador, conselho): ignore quando a mensagem tem outro pedido válido. Só quando NADA na mensagem é pedido do Tibé devolva um pedido único, com domínio "nenhum".',
-    'Pergunta sobre o que ele já fez num período ("quantos nasceram no ano passado", "quanto de adubo saiu em julho", "será que já acertei com o veterinário"): as consultas do Tibé só dizem como as coisas estão HOJE, então ela vai com domínio "nenhum". Saldo ou caixa do mês e relatório são a exceção: esses existem.',
+    'Pergunta sobre o que ele já fez num período ("quantos nasceram no ano passado", "quanto de adubo saiu em julho", "será que já acertei com o veterinário"): as consultas do Tibé só dizem como as coisas estão HOJE, então ela vai com domínio "nenhum". Saldo ou caixa do mês, relatório, e quanto um CLIENTE dele deve ou já pagou são a exceção: esses existem.',
   ].join("\n");
   const schema = objetoFechado({
     pedidos: {
