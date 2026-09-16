@@ -81,6 +81,8 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [zero defeito em cinco rodadas pode ser cegueira do conjunto](zero-defeito-na-suite-pode-ser-cegueira-da-suite.md) | licao | 60 blocos nunca montavam o estado que expunha a gravação indevida |
 | [a porta fraca não pode alcançar quem grava sem confirmar](a-porta-fraca-nao-pode-alcancar-quem-grava-sem-confirmar.md) | armadilha | "nem precisei do sal afinal" gravou 2 sacas de sal |
 | [a catraca acha no dia em que nasce](catraca-acha-no-dia-em-que-nasce.md) | licao | escrita para o futuro, achou quatro defeitos na primeira execução |
+| [índice de lista não sobrevive a dois turnos](indice-de-lista-nao-sobrevive-a-dois-turnos.md) | armadilha | o "1" apontou para outra conta, e o sim quitou R$ 9.000 |
+| [declarar a intenção não a torna alcançável](declarar-a-intencao-nao-a-torna-alcancavel.md) | licao | três intenções novas com 44,4%, porque o domínio não as reivindicava |
 
 ⚠️ **`[[wikilink]]` para nota que não existe reprova o `npm run check`**
 (conferência 13). É o que impede esta pasta de virar um cemitério de links
