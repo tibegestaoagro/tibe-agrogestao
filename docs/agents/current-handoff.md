@@ -72,9 +72,21 @@ faltava de verdade eram a baixa e a consulta.
 ⚠️ **As três nasceram com 44,4% de acerto de intenção**, porque as descrições de
 DOMÍNIO diziam outra coisa (`prestador` reivindicava "quanto um cliente deve ou
 já pagou"; `financeiro` dizia receita "avulsa"). Corrigidas as quatro
-descrições: 44,4% para 94-97%, zero gravação indevida, e sem regressão nos casos
-antigos (um pedido de diferença em 221). É a MESMA classe de defeito da Fase 3,
-que já tinha nota no cofre. Relatório em
+descrições: 44,4% para 94-97%. É a MESMA classe de defeito da Fase 3, que já
+tinha nota no cofre.
+
+⚠️ **A revisão independente reprovou o merge duas vezes**, e as duas com razão.
+Na primeira, dois defeitos de gravação em dinheiro reproduzidos em banco: o
+"sim" quitava a conta que o produtor NÃO leu (o pendente guardava o índice da
+lista, não o lançamento), e nome repetido baixava a conta do outro cliente. Na
+segunda, a correção de acento tinha sido feita só para `Contact` e não para
+`ServiceClient`, o que devolvia o defeito do homônimo em silêncio. Tudo
+corrigido, cada um com teste que falha antes.
+
+**Estado final:** regressão contra os 50 casos guardados da Fase 3 (que nenhum
+ajuste desta fase viu) **aprovada, 97,7% de intenção, 97,4% de campos, zero
+gravação indevida**. Suítes `m70`, `m67`, `m68`, `m57`, `m29`, `isolation` e
+`docs-api` verdes. Relatório em
 [agente-whatsapp/avaliacao-fase-5.md](agente-whatsapp/avaliacao-fase-5.md).
 
 ### Ambiente
