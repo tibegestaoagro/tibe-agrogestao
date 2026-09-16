@@ -137,6 +137,30 @@ caso. Medir o caminho real é a rodada de ponta a ponta pelo webhook.
 As vinte restantes espalham-se por correção, duplo e áudio, sem um padrão único
 que valha uma quarta volta de correção nesta fase.
 
+## Ponta a ponta pelo n8n (16/09, com autorização do usuário)
+
+A cópia `ctGOlY9OXZWfjeby` foi ativada, exercitada e desativada na mesma
+sessão. O caminho é o real: webhook, guarda da entrada, normalização, buffer de
+12 segundos, consolidação, `POST /api/internal/whatsapp/turno` e envio pelo
+`send-message` do Tibé. Tudo no tenant de PROVAS, com o telefone de provas.
+
+| prova | resultado |
+|---|---|
+| mensagem que pede confirmação | "Comprar 20 bezerros por R$ 60.000,00?" (veio da rota de turno, não do `execute-action`) |
+| recusa ("nao, deixa pra la") | "Tudo bem, não registrei nada." Nada gravado |
+| "sim" fora de hora | frase genérica, **nada gravado** |
+| mensagem picada (3 pedaços em ~3 s) | os três viraram UM pedido: "Comprar 15 bezerros por R$ 45.000,00, vendedor Ze Carlos". Uma resposta só |
+| **idempotência**: "sim" que GRAVA, mandado duas vezes com o mesmo `message_id` | negociações **2 para 3**, nunca 4. Uma confirmação só chegou ao produtor |
+
+A prova de idempotência é a que mais importa, porque é a única do roteiro que
+passa pelo caminho de escrita: a mensagem repetida pelo provider não grava duas
+vezes, e o `message_id` do texto (que a produção descarta e a cópia preserva) é
+o que sustenta isso.
+
+⚠️ **Defeito cosmético achado aqui:** o resumo sai "Vendedor: do Ze Carlos",
+com a preposição colada ao nome. Não afeta o que é gravado. Registrado em
+`docs/agents/dividas.md`.
+
 ## O que ficou de fora, e por quê
 
 Três defeitos conhecidos seguem abertos, todos herdados da Fase 3 e registrados
