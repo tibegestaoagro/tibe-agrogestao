@@ -97,6 +97,41 @@ pendura os pendentes: dívida 3.1.
 ⚠️ **Achado da Fase 1 ainda aberto:** "gastei 500 de diesel no trator" vira uso
 de estoque no classificador do n8n; o registro novo desempata, a Fase 3 mede.
 
+### Agente do WhatsApp: Fase 3 (avaliação) PRONTA NA BRANCH, sem merge
+
+Branch `agente-whatsapp-fase-3`, plano
+[../superpowers/plans/2026-09-15-agente-whatsapp-fase-3-avaliacao.md](../superpowers/plans/2026-09-15-agente-whatsapp-fase-3-avaliacao.md).
+Entregue: executor de avaliação em `scripts/avaliacao/` (medidor de custo com
+teto de US$ 30, espera no 429 da conta, fazenda de avaliação no Postgres local,
+pontuação por intenção e campo, partição 70/30, relatório em markdown), suíte
+`m69`, e **337 casos escritos por cinco autores sem contexto do código** com o
+gabarito revisado por um juiz (`scripts/avaliacao/casos/`).
+
+**Modelo escolhido pelo usuário em 16/09: `gpt-5.6-terra`, esforço `low`.** Foi
+o único aprovado na partição guardada (intenção 96,8%, campos 97,7%, zero
+gravação indevida, p95 4,3 s, US$ 2,54 por mil mensagens). O segundo colocado,
+`gpt-5.6-luna`, custa dez vezes menos e ficou em 89,2%. **Zero gravação
+indevida em todos os modelos e em todas as rodadas.** Gasto total: US$ 4,65.
+Relatórios por rodada em `agente-whatsapp/avaliacao-fase-3-*.md`.
+
+⚠️ **O ajuste de prompt achou três defeitos que valem para qualquer modelo**, e
+os três estão corrigidos: a etapa de domínio decide quais intenções a extração
+sequer vê (domínio errado vira `ambigua`, e era a causa da maioria dos erros);
+campo de mesmo nome em duas intenções do mesmo domínio herdava a descrição da
+primeira (o tipo do relatório voltava vazio em 6 de 6 medições); e a trava
+anti-alucinação só lia número por extenso até vinte, apagando "sessenta mil"
+(`src/lib/agente/trecho-literal.ts`, agora lê composto).
+
+**Pendência do usuário:** `AGENTE_MODELO=gpt-5.6-terra` e `AGENTE_ESFORCO=low`
+na Vercel, com redeploy (item 11.5 das pendências). O código já usa esse par
+como padrão, então a falta da variável não derruba nada.
+
+**Fica para a Fase 4:** o workflow fino no n8n chamando `POST /api/internal/whatsapp/turno`,
+o segundo chip de homologação, e a medição em conversa real. Casos conhecidos e
+não resolvidos, todos na partição de ajuste: "duas diária de trator pro João" é
+indecidível sem o catálogo do cliente; pergunta sobre período passado
+("vendi quantos bois esse mês?") ainda vira consulta em alguns modelos.
+
 ### Ambiente
 
 ⚠️ **Os containers `tibe-pg` e `tibe-redis` caem sozinhos**, e o sintoma é uma
@@ -175,14 +210,13 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou, e cada commit que sobe é leitura pública.
 
-**2. Agente do WhatsApp, Fase 2:** o usuário roda a migração
-`20260915120000_log_versao_do_prompt` no Neon (`npx prisma migrate status`,
-depois `npm run db:deploy`, com a URL Direct); conferir com `migrate status`;
-com aprovação, merge e push da branch `agente-whatsapp-fase-2`; confirmar o
-deploy pela rota nova em `/docs/api`. Depois: `OPENAI_API_KEY` na Vercel
-(pendências, item 11.4) e o plano da Fase 3 (avaliação e escolha do modelo).
-Ainda vale conferir as primeiras execuções reais do workflow depois da guarda
-(execução de 2 nós sem "Normalizar e Filtrar" é mensagem barrada).
+**2. Agente do WhatsApp, Fase 3:** com aprovação, merge e push da branch
+`agente-whatsapp-fase-3` (não tem migração). Depois:
+`AGENTE_MODELO=gpt-5.6-terra` e `AGENTE_ESFORCO=low` na Vercel, com redeploy
+(pendências, item 11.5); então o plano da Fase 4 (workflow fino no n8n chamando
+o turno, segundo chip, blocos de conversa em homologação). Ainda vale conferir
+as primeiras execuções reais do workflow depois da guarda (execução de 2 nós
+sem "Normalizar e Filtrar" é mensagem barrada).
 
 Não avance para outro módulo sem aprovação explícita.
 

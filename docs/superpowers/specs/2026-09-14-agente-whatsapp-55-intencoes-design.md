@@ -170,6 +170,9 @@ duas); "o que tenho a pagar?" saiu `ambigua`; 4 a 5,5 s por mensagem.
 | conjunto | **~300 casos de 5 autores sem contexto do código** (produtor comum, adversarial, áudio transcrito, conversa de várias mensagens, frases do documento do cliente), gabarito revisado por um juiz separado; 70% para ajuste de prompt e 30% guardados só para a nota final |
 | aprovação | **zero gravação indevida** (eliminatório), intenção certa em **95%** no geral e **85%** em cada intenção com pelo menos 5 casos, campos certos em **90%**; entre os aprovados, custo e depois tempo |
 | orçamento | **até US$ 30** somando todas as rodadas; o executor para sozinho no teto |
+| modelo escolhido (16/09) | **`gpt-5.6-terra`, esforço `low`**, o único aprovado na partição guardada: intenção 96,8%, campos 97,7%, zero gravação indevida, p95 de 4,3 s, US$ 2,54 por mil mensagens. O segundo, `gpt-5.6-luna`, custa dez vezes menos e ficou em 89,2% de intenção; a decisão foi do usuário. Gasto total da avaliação: US$ 4,65. Relatórios em `docs/agents/agente-whatsapp/avaliacao-fase-3-*.md` |
+
+O ajuste de prompt subiu o `gpt-5.6-luna` de 73,4% para 93,4% de intenção e de 81,7% para 96,9% de campos na partição de ajuste, em três iterações. Os ganhos vieram de três defeitos reais, não de texto melhor: a etapa de domínio decide quais intenções a extração sequer vê (domínio errado vira `ambigua`); campo de mesmo nome em duas intenções do mesmo domínio herdava a descrição da primeira; e a trava anti-alucinação só lia número por extenso até vinte, apagando "sessenta mil" (`trecho-literal.ts`). Os três valem para qualquer modelo.
 
 ## Critérios de aceite do programa
 
