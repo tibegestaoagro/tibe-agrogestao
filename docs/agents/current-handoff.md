@@ -163,10 +163,15 @@ avançou, e cada commit que sobe é leitura pública.
 
 **2. Agente do WhatsApp, Fase 4:** o plano existe
 ([../superpowers/plans/2026-09-16-agente-whatsapp-fase-4-homologacao.md](../superpowers/plans/2026-09-16-agente-whatsapp-fase-4-homologacao.md))
-e as seis tasks estão feitas, na branch `fase-4-homologacao`, que **ainda NÃO
-foi mergeada**: falta só a autorização. A rodada de ponta a ponta pelo n8n foi
-feita em 16/09, com autorização: a cópia foi ativada, exercitada e desativada na
-mesma sessão, e a produção ficou intocada (conferida antes e depois).
+e as seis tasks estão feitas. **EM PRODUÇÃO desde 16/09**: merge `d785e6b`, sem
+migração, deploy confirmado pelo status da Vercel; branch e workspace apagados.
+A rodada de ponta a ponta pelo n8n foi feita com autorização: a cópia foi
+ativada, exercitada e desativada na mesma sessão, e a produção ficou intocada
+(conferida antes e depois).
+
+⚠️ **O fluxo de produção continua no `execute-action`.** A cópia de homologação
+está pronta e DESATIVADA; trocar o fluxo é a Fase 7, e ninguém em produção
+sentiu nada desta fase além das correções de conversa.
 
 Provado de ponta a ponta pelo webhook: confirmação vindo da rota de turno,
 recusa sem gravar, "sim" fora de hora sem gravar, três pedaços em ~3 s virando
@@ -177,8 +182,9 @@ Entregue: workflow fino aplicado em `ctGOlY9OXZWfjeby` (25 nós, inativo, webhoo
 `/webhook/homologacao`, chamando a rota de turno; produção intocada, conferida);
 60 blocos de conversa de cinco testadores sem contexto, revisados por juiz
 ([agente-whatsapp/homologacao-fase-4-blocos.md](agente-whatsapp/homologacao-fase-4-blocos.md));
-cinco rodadas de medição com **zero gravação indevida**; três defeitos de
-conversa corrigidos com teste que falhou antes; `npm run wa -- --homologacao`
+sete rodadas de medição, as últimas com **zero gravação indevida**; quatro
+defeitos de conversa corrigidos com teste que falhou antes;
+`npm run wa -- --homologacao`
 para exercitar a cópia; e o roteiro do dia do chip
 ([agente-whatsapp/roteiro-do-chip.md](agente-whatsapp/roteiro-do-chip.md)).
 
@@ -204,9 +210,15 @@ antes do "sim". Ainda vale conferir as primeiras execuções reais do workflow d
 produção depois da guarda (execução de 2 nós sem "Normalizar e Filtrar" é
 mensagem barrada).
 
-**3. Do usuário, quando quiser:** `AGENTE_MODELO=gpt-5.6-luna` e
-`AGENTE_ESFORCO=low` na Vercel, com redeploy (pendências, item 11.5). O código
-já usa esse par como padrão.
+**3. Fase 5 ou Fase 7, quando o usuário decidir.** A Fase 5 (intenções novas:
+receita, recebimento de serviço, pagamento futuro de mão de obra) depende só da
+Fase 2 e pode começar já. A Fase 7 (trocar o fluxo de produção para a rota de
+turno) depende da 4 e da 5, e o que falta dela hoje é a rodada no aparelho:
+segundo chip conectado, com o roteiro já escrito em
+[agente-whatsapp/roteiro-do-chip.md](agente-whatsapp/roteiro-do-chip.md).
+
+**Do usuário, quando quiser:** `AGENTE_MODELO=gpt-5.6-luna` e
+`AGENTE_ESFORCO=low` na Vercel **já foram feitos em 16/09**. Fica só o chip.
 
 Não avance para outro módulo sem aprovação explícita.
 
