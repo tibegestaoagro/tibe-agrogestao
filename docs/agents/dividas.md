@@ -278,6 +278,35 @@ Baixada"), então é a extração que não está aparando. Não afeta o que é g
 só o texto que o produtor lê. Custo: aparar preposição inicial ao normalizar o
 contato, com cuidado para não comer nome que comece com "Do" de verdade.
 
+### 5.0 Casar nome sem acento carrega a tabela inteira em memória
+
+Achado pela revisão da Fase 5 (16/09). `ILIKE` do Postgres não dobra acento, e
+"Ze Carlos" não casava "Zé Carlos". A correção foi comparar em memória, sem
+acento, tanto em `pessoasQueCasam` (`contas-do-contato.ts`) quanto em
+`findClientsByName` (`service-orders.ts`): as duas passaram a ler a tabela toda
+e filtrar em JS.
+
+`resolverTrabalhador` já fazia assim, mas `Worker` é a equipe fixa, com poucas
+linhas. `Contact` e `ServiceClient` guardam **todo comprador, vendedor,
+fornecedor e cliente que o tenant já cadastrou**, e são duas leituras por
+conversa de recebimento. Barato hoje, cresce sozinho.
+
+Custo: coluna normalizada sem acento com índice, ou `unaccent` no Postgres
+(extensão, precisa entrar na migração). Não é urgente; é o tipo de coisa que só
+dói quando um cliente grande chega, e aí dói em silêncio.
+
+### 5.0a "Acabei de pagar o Zé" sai ambígua em parte das rodadas
+
+Achado na avaliação da Fase 5 (16/09). Pagamento de trabalhador **sem valor** e
+com o verbo fora do passado simples ("acabei de pagar", "acertei com o Zé") cai
+em `ambigua` em algumas rodadas e acerta em outras. Tentei corrigir
+acrescentando um exemplo ao registro, e o conjunto inteiro **piorou** de 97,2%
+para 91,7%: revertido.
+
+Custo: uma rodada de ajuste com conjunto maior que 40 casos, porque neste
+tamanho um caso vale 2,8 pontos e o ajuste persegue ruído. Não grava nada
+errado: o agente responde que não entendeu.
+
 ### 5.0b Duas perdas silenciosas no negócio de gado
 
 As duas achadas pela revisão final da Fase 4, as duas de gravidade baixa porque
@@ -339,6 +368,17 @@ Custo: passar `candidatosAnteriores` nos dois, como já se faz no negócio, e
 decidir o que fazer quando o array `itens` e o campo achatado discordam. Não
 grava nada errado: trava a conversa numa pergunta repetida, que é o modo caro
 mas seguro de falhar.
+
+### 5.2 `contas-do-contato.ts` não usa `FinancialEntry.contact_id`
+
+Achado na correção de G1/G2/G5/G6 (rodada do juiz, 2026-09-16). O cabeçalho de
+`contas-do-contato.ts` afirmava que `FinancialEntry` não tem FK de cliente, e
+isso é falso para `Contact`: `FinancialEntry.contact_id` existe desde o
+Módulo 35. A busca continua pelo vínculo indireto (`negotiation_id` da
+`Negotiation`, casada por `Contact`), porque trocar o caminho é decisão de
+produto sobre qual vínculo é a fonte de verdade quando os dois existirem ao
+mesmo tempo, não algo para decidir em silêncio numa correção de bug. O
+comentário só foi corrigido para não mentir; a busca não mudou.
 
 ---
 

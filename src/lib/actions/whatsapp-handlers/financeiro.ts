@@ -1,15 +1,31 @@
 import type { ModuleKey } from "@/lib/permissions";
 import { canAccess } from "@/lib/permissions";
 import type { ProfileType } from "@/lib/tenant-context";
+import type { TenantPrismaClient } from "@/lib/prisma";
 import { getBalanceAction } from "@/lib/actions/financial-summary";
 import { buildReportLink } from "@/lib/reports/report-link";
-import { createManualEntryAction } from "@/lib/actions/financial-entries";
+import { createManualEntryAction, markEntryPaidAction } from "@/lib/actions/financial-entries";
+import { getClientSummaryAction } from "@/lib/actions/service-clients";
+import { registrarPagamentoAction, resumoDePagamento } from "@/lib/actions/financial-payments";
+import {
+  contasEmAbertoDoContato,
+  contasDaPessoa,
+  type ContaEmAberto,
+  type PessoaCandidata,
+} from "@/lib/actions/contas-do-contato";
 import { suggestCategory } from "@/lib/category-suggestions";
 import { listFinancialCategoriesAction } from "@/lib/actions/financial-categories";
-import { ask, failReply, str, normalizarTermo, type Handler } from "./shared";
-import { lerDinheiro, lerMes } from "./parsers";
+import { ask, failReply, str, num, normalizarTermo, type Handler, type RouterResult } from "./shared";
+import { lerDinheiro, lerMes, lerData } from "./parsers";
 import { reaisBr } from "@/lib/numero-br";
 import { savePendingFinance, loadPendingFinance, clearPendingFinance } from "@/lib/actions/finance-pending";
+import {
+  savePendingRecebimento,
+  loadPendingRecebimento,
+  clearPendingRecebimento,
+  aplicarRespostaRecebimento,
+  type CampoRecebimento,
+} from "@/lib/actions/recebimento-pending";
 
 const REPORT_TYPE_MODULE: Record<string, ModuleKey> = {
   financeiro: "financeiro",
@@ -227,5 +243,401 @@ export const registrarLancamentoFinanceiro: Handler = async ({
     auxiliary_data: { amount, category, vendor, description, tipo: entryType },
     report_url: null,
     action_taken: `${intent}:aguardando_confirmacao`,
+  };
+};
+
+// ── Fase 5 (dinheiro que entra): dar baixa e consultar ──────────────────────
+
+/**
+ * "O João me pagou" / "a Fazenda Boa Vista pagou 500 dos 1500" (Fase 5,
+ * Task 3, `task-3-brief.md`). O CLASSIFICADOR DO N8N NÃO FOI TOCADO (decisão
+ * do usuário: o agente fica congelado até o sistema estar revisado). A
+ * intenção existe, é roteada e é testada, e fica esperando o dia em que o
+ * classificador aprender a emiti-la. Mesmo estado de `mao-de-obra.ts` e
+ * `evento.ts`.
+ *
+ * AS MESMAS TRÊS REGRAS DE SEMPRE, herdadas de defeitos reais:
+ *
+ * 1. "não"/"cancela" cancela, e é a PRIMEIRA coisa checada (2026-08-18, no
+ *    estoque, "não, deixa pra lá" gravou a compra recusada).
+ * 2. O "sim" executa o que foi MOSTRADO, lido do pedido guardado, nunca o que
+ *    o classificador remontou da própria resposta do assistente.
+ * 3. Confirmação SEMPRE, qualquer valor: é dinheiro saindo do painel de
+ *    contas a receber, e por isso a intenção não entra em
+ *    `INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR`.
+ * 4. **O "sim" executa o `entry_id` guardado, nunca uma releitura da lista de
+ *    contas em aberto** (G1, achado do juiz de 2026-09-16). Ver o comentário
+ *    de `perguntarOuExecutarRecebimento` abaixo.
+ *
+ * `contasEmAbertoDoContato` desambigua homônimo (G2, mesma rodada): quando o
+ * nome casa mais de um cliente ou contato, pergunta qual, no mesmo espírito de
+ * `resolverTrabalhador` (`mao-de-obra.ts`) e `consultarCliente`
+ * (`prestador.ts`). Nunca escolhe o primeiro em silêncio.
+ */
+
+async function cancelarRecebimento(
+  intent: string,
+  tenantId: string,
+  userId: string | undefined,
+): Promise<RouterResult> {
+  if (userId) await clearPendingRecebimento(tenantId, userId);
+  return {
+    reply_text: "Tudo bem, não registrei nada.",
+    requires_confirmation: false,
+    auxiliary_data: null,
+    report_url: null,
+    action_taken: `${intent}:cancelado`,
+  };
+}
+
+/**
+ * Abre a conversa: aplica o "sim" (só do que foi guardado), junta a resposta
+ * ao campo pendente, ou segue com o que chegou nesta mensagem. Mesmo molde de
+ * `abrirConversa` em `mao-de-obra.ts`.
+ */
+async function abrirConversaRecebimento(ctx: {
+  tenant_id: string;
+  user_id?: string;
+  parameters: Record<string, unknown>;
+  confirmed: boolean;
+}): Promise<
+  | { parar: RouterResult }
+  | {
+      parameters: Record<string, unknown>;
+      guardar: (aguardando: CampoRecebimento) => Promise<void>;
+      limpar: () => Promise<void>;
+    }
+> {
+  const temMemoria = !!ctx.user_id;
+  const pendente = temMemoria ? await loadPendingRecebimento(ctx.tenant_id, ctx.user_id!) : null;
+  let parameters = ctx.parameters;
+
+  if (ctx.confirmed) {
+    if (!temMemoria) {
+      return {
+        parar: ask(
+          "Não consegui identificar quem está falando comigo, então não vou registrar nada. Me conte de novo o que você precisa.",
+        ),
+      };
+    }
+    if (pendente?.aguardando === "confirmacao") {
+      parameters = pendente.parameters;
+    } else {
+      return { parar: ask("Não tenho nenhum recebimento esperando confirmação. Me conte de novo.") };
+    }
+  } else if (pendente && pendente.aguardando !== "confirmacao") {
+    const juntos = aplicarRespostaRecebimento(pendente, ctx.parameters);
+    if (juntos) parameters = juntos;
+  }
+
+  return {
+    parameters,
+    guardar: async (aguardando) => {
+      if (temMemoria) await savePendingRecebimento(ctx.tenant_id, ctx.user_id!, { parameters, aguardando });
+    },
+    limpar: async () => {
+      if (temMemoria) await clearPendingRecebimento(ctx.tenant_id, ctx.user_id!);
+    },
+  };
+}
+
+/**
+ * A3 (correção da mesma rodada): reconstrói o `due_date` depois da ida e
+ * volta pelo Redis. `parameters.contas` é gravado como JSON
+ * (`pending-store.ts`), e `JSON.stringify` já vira o `Date` em string ISO
+ * sozinho; `JSON.parse` devolve essa string, nunca um `Date`. Sem isto,
+ * `listaDeContas` quebraria em `c.due_date.toLocaleDateString` na segunda
+ * exibição da lista (escolha inválida, por exemplo).
+ */
+function normalizarConta(c: ContaEmAberto): ContaEmAberto {
+  return { ...c, due_date: c.due_date ? new Date(c.due_date) : null };
+}
+
+function listaDeContas(contas: ContaEmAberto[]): string {
+  return contas
+    .map((c, i) => {
+      const venc = c.due_date ? `, vence ${c.due_date.toLocaleDateString("pt-BR", { timeZone: "UTC" })}` : "";
+      return `${i + 1}. ${reaisBr(c.saldo)}${venc} (${c.descricao})`;
+    })
+    .join("\n");
+}
+
+/**
+ * G2: a lista numerada de homônimos, para o produtor escolher qual.
+ *
+ * A2 (correção da mesma rodada): mostra o que diferencia cada um, `p.tipo`
+ * ("cliente" ou "contato"), porque dois nomes idênticos (um `ServiceClient` e
+ * um `Contact`, por exemplo) imprimiam a mesma linha duas vezes e o produtor
+ * não tinha como escolher. Mesmo espírito de `resolverTrabalhador`
+ * (`mao-de-obra.ts`), que já imprime `- ${w.name} (${w.role})` por isso.
+ */
+function listaDePessoas(candidatos: PessoaCandidata[]): string {
+  return candidatos.map((p, i) => `${i + 1}. ${p.name} (${p.tipo})`).join("\n");
+}
+
+/**
+ * Pergunta a confirmação (primeira vez que a conta é conhecida) ou executa a
+ * baixa (turnos seguintes: correção de valor, ou o "sim").
+ *
+ * G1 (achado do juiz, 2026-09-16): o `entryId` é sempre o que já foi
+ * RESOLVIDO e MOSTRADO ao produtor, nunca uma releitura de
+ * `contasEmAbertoDoContato`. A cada chamada, a conta é relida do banco PELO
+ * ID, e se ela não estiver mais em aberto (foi paga, cancelada, ou nem existe
+ * mais), a conversa é encerrada com um aviso em vez de gravar qualquer coisa.
+ * É a garantia que faltava: o comentário do topo do arquivo diz "o 'sim'
+ * executa o que foi MOSTRADO", e antes disto isso só valia para os
+ * parâmetros, não para QUAL conta.
+ */
+async function perguntarOuExecutarRecebimento(
+  db: TenantPrismaClient,
+  confirmed: boolean,
+  parameters: Record<string, unknown>,
+  contatoNome: string,
+  entryId: string,
+  guardar: (aguardando: CampoRecebimento) => Promise<void>,
+  limpar: () => Promise<void>,
+  intent: string,
+): Promise<RouterResult> {
+  const entryAtual = await db.financialEntry.findFirst({ where: { id: entryId, status: "pending" } });
+  if (!entryAtual) {
+    await limpar();
+    return ask(
+      "Essa conta mudou desde a última vez (foi paga, cancelada, ou não existe mais). " +
+        "Me conte de novo o que você quer registrar.",
+    );
+  }
+  const { valor, saldo } = await resumoDePagamento(db, entryAtual);
+  const informado = lerDinheiro(parameters, "valor", "amount");
+
+  // Nunca aceita pagamento acima do saldo ATUAL: recusa e pergunta de novo,
+  // sem requires_confirmation (não é uma confirmação, é uma correção).
+  if (informado != null && informado > saldo) {
+    parameters.entry_id = entryId;
+    parameters.contato_resolvido = contatoNome;
+    await guardar("valor");
+    return ask(
+      `O valor de ${reaisBr(informado)} é maior que o saldo desta conta, que é ${reaisBr(saldo)}. Quanto você quer registrar?`,
+    );
+  }
+
+  if (!confirmed) {
+    parameters.entry_id = entryId;
+    parameters.contato_resolvido = contatoNome;
+    await guardar("confirmacao");
+    const pergunta =
+      informado == null
+        ? `${contatoNome} tem uma conta de ${reaisBr(valor)}, saldo ${reaisBr(saldo)}. Confirma que quitou tudo?`
+        : `O saldo da conta de ${contatoNome} é ${reaisBr(saldo)}. Confirma o pagamento de ${reaisBr(informado)}?`;
+    return {
+      reply_text: pergunta,
+      requires_confirmation: true,
+      auxiliary_data: { contato: contatoNome, entry_id: entryId, saldo, valor: informado },
+      report_url: null,
+      action_taken: `${intent}:aguardando_confirmacao`,
+    };
+  }
+
+  const dataLida = lerData(parameters, "data", "date");
+  const paidAt = dataLida.tipo === "ok" ? dataLida.data : undefined;
+
+  // `informado === null` quita a conta inteira (markEntryPaidAction, mesma
+  // action do botão "Pagar" da tela); com valor, é pagamento parcial
+  // (registrarPagamentoAction, mesma action da tela de Financeiro).
+  const resultado =
+    informado == null
+      ? await markEntryPaidAction(db, entryAtual.id, paidAt)
+      : await registrarPagamentoAction(db, entryAtual.id, { amount: informado, paid_at: paidAt });
+  await limpar();
+  if (!resultado.ok) return failReply(intent, resultado);
+
+  return {
+    reply_text: `✅ Recebimento de ${reaisBr(informado ?? saldo)} de ${contatoNome} registrado.`,
+    requires_confirmation: false,
+    auxiliary_data: { entry_id: entryAtual.id },
+    report_url: null,
+    action_taken: `${intent}:ok`,
+  };
+}
+
+export const registrarRecebimento: Handler = async (ctx) => {
+  const intent = "registrar_recebimento";
+  if (ctx.explicitNo) return cancelarRecebimento(intent, ctx.tenant_id, ctx.user_id);
+
+  const aberta = await abrirConversaRecebimento(ctx);
+  if ("parar" in aberta) return aberta.parar;
+  const { parameters, guardar, limpar } = aberta;
+
+  // G1: a conta já foi resolvida e mostrada numa volta anterior (estamos
+  // corrigindo o valor, ou confirmando com "sim"). Nunca mais reconsulta a
+  // lista de contas em aberto a partir daqui: ver `perguntarOuExecutarRecebimento`.
+  const entryIdGuardado = str(parameters.entry_id);
+  const contatoJaResolvido = str(parameters.contato_resolvido);
+  if (entryIdGuardado && contatoJaResolvido) {
+    return perguntarOuExecutarRecebimento(
+      ctx.db,
+      ctx.confirmed,
+      parameters,
+      contatoJaResolvido,
+      entryIdGuardado,
+      guardar,
+      limpar,
+      intent,
+    );
+  }
+
+  let contatoNome: string;
+  let contas: ContaEmAberto[];
+
+  // A3 (achado do juiz, 2026-09-16): a lista de contas já foi mostrada numa
+  // volta anterior (mais de uma em aberto, aguardando "escolha"). Nunca
+  // reconsulta `contasEmAbertoDoContato` a partir daqui: uma conta nova do
+  // mesmo contato, nascida ENTRE a lista e a escolha, deslocaria o índice
+  // exatamente como o G1 deslocava o `entry_id`. `parameters.contas` é a
+  // lista PINADA no momento em que foi mostrada; ver `guardar("escolha")`
+  // abaixo, e `normalizarConta` para o porquê do `due_date`.
+  const contasPinadas = parameters.contas as ContaEmAberto[] | undefined;
+  if (contatoJaResolvido && Array.isArray(contasPinadas) && contasPinadas.length > 0) {
+    contatoNome = contatoJaResolvido;
+    contas = contasPinadas.map(normalizarConta);
+  } else {
+    const nomeDito = str(parameters.contato) ?? str(parameters.nome);
+    if (!nomeDito) {
+      await guardar("contato");
+      return ask("Quem pagou?");
+    }
+
+    // G2: o nome já casou mais de uma pessoa numa volta anterior, e o
+    // produtor acabou de escolher qual. Nunca casa o nome de novo: usa a
+    // pessoa escolhida da lista que já foi mostrada.
+    const candidatosGuardados = parameters.candidatos as PessoaCandidata[] | undefined;
+    if (Array.isArray(candidatosGuardados) && candidatosGuardados.length > 0) {
+      const escolhaPessoa = num(parameters.quem);
+      if (escolhaPessoa == null || escolhaPessoa < 1 || escolhaPessoa > candidatosGuardados.length) {
+        await guardar("quem");
+        return ask(`Encontrei mais de um "${nomeDito}":\n${listaDePessoas(candidatosGuardados)}\nQual deles?`);
+      }
+      const pessoaEscolhida = candidatosGuardados[escolhaPessoa - 1];
+      contatoNome = pessoaEscolhida.name;
+      contas = await contasDaPessoa(ctx.db, pessoaEscolhida);
+    } else {
+      const achado = await contasEmAbertoDoContato(ctx.db, nomeDito);
+      if (achado.estado === "nao_encontrado") {
+        await limpar();
+        return ask("Não achei nenhum cliente com esse nome. Como ele está cadastrado?");
+      }
+      if (achado.estado === "ambiguo") {
+        parameters.candidatos = achado.candidatos;
+        await guardar("quem");
+        return ask(`Encontrei mais de um "${nomeDito}":\n${listaDePessoas(achado.candidatos)}\nQual deles?`);
+      }
+      contatoNome = achado.contato;
+      contas = achado.contas;
+    }
+  }
+
+  if (contas.length === 0) {
+    await limpar();
+    return ask(`${contatoNome} não tem nenhuma conta em aberto comigo.`);
+  }
+
+  // Mais de uma conta: pergunta qual, numerada, antes de olhar valor. A
+  // escolha entra pelo mesmo mecanismo de campo pendente que o nome usou.
+  let conta = contas[0];
+  if (contas.length > 1) {
+    const escolha = num(parameters.escolha);
+    if (escolha == null || escolha < 1 || escolha > contas.length) {
+      // A3: pina o contato E a lista mostrada, para a próxima volta (a
+      // escolha, válida ou não) nunca mais reconsultar o banco.
+      parameters.contato_resolvido = contatoNome;
+      parameters.contas = contas;
+      await guardar("escolha");
+      return ask(`${contatoNome} tem ${contas.length} contas em aberto:\n${listaDeContas(contas)}\nQual delas?`);
+    }
+    conta = contas[escolha - 1];
+  }
+
+  return perguntarOuExecutarRecebimento(
+    ctx.db,
+    ctx.confirmed,
+    parameters,
+    contatoNome,
+    conta.id,
+    guardar,
+    limpar,
+    intent,
+  );
+};
+
+/**
+ * "O João já pagou?" / "quanto o Zé Carlos ainda me deve": nunca grava, só lê.
+ * Sem memória de conversa (é consulta, não escrita): homônimo é resolvido
+ * pedindo um nome mais específico na próxima mensagem, mesmo padrão que
+ * `consultarCliente` (`prestador.ts`) já usava.
+ *
+ * Decisão de produto de 16/09 (`consultar_cliente` saiu do classificador:
+ * as duas perguntas "o que o cliente me deve" viravam intenções diferentes, e
+ * o classificador errava entre elas): esta consulta responde as DUAS coisas
+ * que antes ficavam em handlers separados, porque são coisas diferentes para
+ * quem vai cobrar. `contasEmAbertoDoContato` dá o que já virou lançamento
+ * pendente; quando a pessoa é cliente de serviço (`ServiceClient`),
+ * `getClientSummaryAction` (mesma action de `consultarCliente`) dá o que já
+ * foi feito e ainda não foi faturado. Contato de negócio (`Contact`) não tem
+ * esse segundo número: só `ServiceClient` gera ordem de serviço.
+ */
+export const consultarRecebimento: Handler = async (ctx) => {
+  const intent = "consultar_recebimento";
+  const nome = str(ctx.parameters.contato) ?? str(ctx.parameters.nome);
+  if (!nome) return ask("De quem você quer saber?");
+
+  const achado = await contasEmAbertoDoContato(ctx.db, nome);
+  if (achado.estado === "nao_encontrado") {
+    return {
+      reply_text: "Não achei nenhum cliente com esse nome. Como ele está cadastrado?",
+      requires_confirmation: false,
+      auxiliary_data: null,
+      report_url: null,
+      action_taken: `${intent}:nao_encontrado`,
+    };
+  }
+  if (achado.estado === "ambiguo") {
+    return {
+      reply_text: `Encontrei mais de um "${nome}": ${achado.candidatos.map((p) => p.name).join(", ")}. Qual deles?`,
+      requires_confirmation: false,
+      auxiliary_data: { candidatos: achado.candidatos },
+      report_url: null,
+      action_taken: `${intent}:ambiguo`,
+    };
+  }
+
+  const naoFaturado =
+    achado.pessoa.tipo === "cliente"
+      ? await getClientSummaryAction(ctx.db, achado.pessoa.id)
+      : null;
+  const totalNaoFaturado = naoFaturado?.ok ? naoFaturado.data.total_pending : 0;
+
+  const partes: string[] = [];
+  if (achado.contas.length > 0) {
+    partes.push(`Em aberto:\n${listaDeContas(achado.contas)}`);
+  }
+  if (totalNaoFaturado > 0) {
+    partes.push(`Serviço já feito e ainda não faturado: ${reaisBr(totalNaoFaturado)}.`);
+  }
+
+  if (partes.length === 0) {
+    return {
+      reply_text: `${achado.contato} não tem nenhuma conta em aberto comigo.`,
+      requires_confirmation: false,
+      auxiliary_data: null,
+      report_url: null,
+      action_taken: `${intent}:sem_pendencia`,
+    };
+  }
+
+  return {
+    reply_text: `${achado.contato}:\n${partes.join("\n")}`,
+    requires_confirmation: false,
+    auxiliary_data: { contas: achado.contas, nao_faturado: totalNaoFaturado },
+    report_url: null,
+    action_taken: `${intent}:ok`,
   };
 };

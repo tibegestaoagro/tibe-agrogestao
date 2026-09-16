@@ -49,6 +49,7 @@
     "test:m67": "tsx scripts/m67-agente-fundacao.test.ts",
     "test:m68": "tsx scripts/m68-agente-turno.test.ts",
     "test:m69": "tsx scripts/m69-avaliacao.test.ts",
+    "test:m70": "tsx scripts/m70-recebimento.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",

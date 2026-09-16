@@ -467,6 +467,61 @@ export async function confirmWorkerPayment(
 }
 
 /**
+ * Agenda ou remarca o pagamento futuro (Fase 5): "vou pagar o Pedro dia 10".
+ *
+ * NÃO cria despesa nova quando já existe previsão pendente: muda o
+ * vencimento dela (e o valor, se dito). Sem previsão, cria uma, usando o
+ * salário cadastrado quando o produtor não disse o valor. Mesmo desenho de
+ * `upsertVaccinationForecastAction` (Módulo 17): é o que impede o mês de
+ * fechar com o valor dobrado, e mantém valendo a conciliação que
+ * `confirmWorkerPayment` já faz contra a previsão pendente mais antiga.
+ */
+export async function scheduleWorkerPayment(
+  db: TenantPrismaClient,
+  input: { worker_id: string; due_date: Date; amount?: number | null },
+): Promise<ActionResult<{ amount: number; due_date: string; updated: boolean }>> {
+  if (input.amount !== undefined && input.amount !== null) {
+    const recusa = validarValor(input.amount);
+    if (!recusa.ok) return recusa;
+  }
+
+  const worker = await db.worker.findUnique({ where: { id: input.worker_id } });
+  if (!worker) return fail("NOT_FOUND", "Trabalhador não encontrado.", 404);
+
+  const previsao = await db.financialEntry.findFirst({
+    where: { related_module: "mao_de_obra", related_id: worker.id, status: "pending" },
+    orderBy: { due_date: "asc" },
+  });
+
+  if (previsao) {
+    const valor = input.amount ?? decToNum(previsao.amount) ?? 0;
+    const atualizado = await db.financialEntry.update({
+      where: { id: previsao.id },
+      data: { due_date: input.due_date, amount: valor },
+    });
+    return ok({ amount: valor, due_date: isoOrNull(atualizado.due_date) ?? "", updated: true });
+  }
+
+  const valor = input.amount ?? decToNum(worker.pay_amount) ?? null;
+  if (valor === null) {
+    return fail("VALIDATION_ERROR", "Informe quanto vai pagar.", 422, "amount");
+  }
+  await createLinkedEntry(db as never, {
+    entry_type: "expense",
+    category: CATEGORIA_FIXA,
+    amount: valor,
+    related_module: "mao_de_obra",
+    related_id: worker.id,
+    occurred_at: input.due_date,
+    status: "pending",
+    due_date: input.due_date,
+    worker_entry_kind: "pagamento",
+    property_id: worker.property_id,
+  });
+  return ok({ amount: valor, due_date: isoOrNull(input.due_date) ?? "", updated: false });
+}
+
+/**
  * Adiantamento (§9): valor pago ANTES da data normal.
  *
  * Lançamento próprio, já quitado, e NÃO mexe na previsão do mês. O §9 pede o

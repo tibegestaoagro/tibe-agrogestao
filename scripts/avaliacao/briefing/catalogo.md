@@ -72,7 +72,7 @@ o produtor informa o peso de um animal pelo brinco
 
 ### registrar_vacina
 
-o produtor conta que vacinou um animal, pelo brinco
+o produtor conta que JÁ vacinou um animal, pelo brinco; o custo que ele disser é campo desta intenção, não um gasto à parte
 
 - ear_tag (texto): o número ou código do brinco
 - vaccine_name (texto): o nome da vacina (aftosa, brucelose, raiva)
@@ -80,7 +80,7 @@ o produtor conta que vacinou um animal, pelo brinco
 
 ### registrar_previsao_vacina
 
-o produtor informa quanto vai custar uma vacina que ainda vai ser aplicada num animal
+o produtor informa quanto uma vacina AINDA não aplicada vai custar num animal ("vai custar", "vai ficar uns", "deve ficar em"), com ou sem o dia marcado
 
 - ear_tag (texto): o número ou código do brinco
 - vaccine_name (texto): o nome da vacina
@@ -89,7 +89,7 @@ o produtor informa quanto vai custar uma vacina que ainda vai ser aplicada num a
 
 ## confinamento
 
-animais no confinamento ou no boitel: entrada, envio ao boitel, trato e ração do lote, saída, venda ou morte no confinamento
+animais no confinamento ou no boitel: entrada (inclusive contada pelo lugar de onde eles saíram: pasto, fazenda, lote do leite), envio ao boitel, saída, venda ou morte no confinamento, e todo trato (ração, sal, silagem) de lote que cite confinamento, boitel ou lote
 
 ### registrar_entrada_confinamento
 
@@ -115,7 +115,7 @@ o produtor conta que mandou animais para um boitel (confinamento de terceiro)
 
 ### registrar_alimentacao_confinamento
 
-o produtor conta que usou ração ou outro insumo para tratar o lote do confinamento ou do boitel
+o produtor conta que deu ração, sal, silagem ou outro trato ao lote do confinamento ou do boitel; é esta também quando ele só diz para quem o trato foi ("pra eles", "pro lote"), logo depois de falar dos animais
 
 - produto (texto): o insumo, do jeito que o produtor falou (ração, sal mineral, silagem)
 - quantidade (numero): só o número, como o produtor falou (5, 1.200); a unidade fica fora
@@ -172,7 +172,7 @@ o produtor conta que trocou alguma coisa com alguém (animais por outro bem), co
 
 ## estoque
 
-insumos e produtos (sal, ração, vermífugo, adubo, diesel): compra, venda, uso, contagem, quanto tem
+insumos e produtos (sal, ração, vermífugo, adubo, diesel): compra ou venda COM quantidade (sem quantidade, o item comprado é da lista de compra), uso na fazenda fora de confinamento e de serviço, contagem, quanto tem
 
 ### registrar_negocio_produto
 
@@ -194,7 +194,7 @@ o produtor conta que comprou ou vendeu um insumo do estoque, com ou sem o valor
 
 ### registrar_uso_estoque
 
-o produtor conta que usou ou gastou uma quantidade de um insumo do estoque na fazenda
+o produtor conta que usou, gastou ou abasteceu com uma quantidade de um insumo do estoque na fazenda
 
 - produto (texto): o insumo, do jeito que o produtor falou (sal, sal mineral 60 P, ração, vermífugo, diesel)
 - quantidade (numero): só o número, como o produtor falou (2, 2,5; uma vira 1); a unidade fica fora
@@ -219,7 +219,7 @@ o produtor pergunta quanto tem de um insumo, ou o que está acabando
 
 ## lista_de_compra
 
-lista do que precisa comprar: anotar, ver, tirar, marcar que comprou
+lista do que precisa comprar: anotar, ver, tirar, e contar que comprou um item que estava anotado (o item vem com artigo e sem quantidade: "comprei o arame", mesmo quando ele diz quanto pagou)
 
 ### adicionar_item_lista
 
@@ -247,11 +247,11 @@ o produtor pede para tirar um item da Lista de Compra sem ter comprado
 
 ### comprei_item_lista
 
-o produtor conta que comprou um item que estava na Lista de Compra
+o produtor conta que comprou um item que estava anotado na Lista de Compra: ele cita o item com artigo e SEM quantidade ("comprei o arame"), com ou sem o valor
 
 - descricao (texto): o item da lista que ele comprou, como falou (sal)
 - valor (numero): quanto pagou no total, só o número, como o produtor falou (1800); vazio se não disse
-- pago (sim_nao): não quando ele comprou a prazo; vazio se não disse
+- pago (sim_nao): não quando ele comprou a prazo ou fiado; vazio se não disse
 
 ## leite
 
@@ -298,7 +298,7 @@ o produtor conta que secou vacas, que pararam de dar leite
 
 ## mao_de_obra
 
-trabalhador fixo da fazenda: cadastro, pagamento, adiantamento
+trabalhador FIXO da fazenda, o que tem salário: cadastro, pagamento já feito, pagamento que ele AINDA VAI fazer numa data ("vou pagar o Pedro dia 10"), adiantamento; quem ele contratou para um serviço, por diária ou por valor fechado, não é daqui
 
 ### registrar_trabalhador
 
@@ -323,18 +323,26 @@ o produtor conta que adiantou dinheiro para alguém da equipe fixa, fora do paga
 - nome (texto): o nome do trabalhador, como o produtor falou (João)
 - valor (numero): quanto adiantou, só o número, como o produtor falou (500)
 
+### agendar_pagamento_trabalhador
+
+o produtor diz que VAI pagar alguém da equipe numa data futura, sem ter pago ainda
+
+- nome (texto): o nome do trabalhador, como o produtor falou (João)
+- data (data): quando vai pagar, como ele falou (dia 10, sexta, 20/10)
+- valor (numero): quanto vai pagar, só o número; vazio usa o valor previsto do trabalhador
+
 ## servicos
 
-serviço com máquina ou empreita: diária de gente contratada, serviço contratado, serviço prestado para cliente, começar, produção, combustível e terminar o serviço
+serviço com máquina ou empreita, e o andamento dele: gente de fora paga por diária; alguém que ele contratou por um valor fechado; serviço prestado a cliente citando a máquina ou o preço; e o que acontece num serviço já registrado (começou, terminou, gastou combustível nele, ou avançou: "fiz MAIS tanto", "avancei", "já fiz tanto hoje"), mesmo sem máquina e sem preço
 
 ### registrar_diaria
 
-o produtor conta que gente contratada trabalhou por dia num serviço, e quanto foi a diária
+o produtor conta que gente de FORA da equipe fixa trabalhou por dia num serviço, e quanto foi a diária
 
 - servico (texto): o serviço feito (cerca, roçada, capina)
 - valor (numero): o valor de UMA diária, só o número, como o produtor falou (150)
 - quantidade (numero): quantos DIAS trabalharam, só o número (4)
-- pessoas (numero): quantas pessoas trabalharam, só o número (3); vazio se não disse
+- pessoas (numero): quantas pessoas trabalharam ao todo, só o número (3); quem ele cita pelo nome conta junto ("fulano e mais 2" são 3); vazio se não disse
 - quem (texto): o nome de quem trabalhou, se ele disse
 - fazenda (texto): o nome da fazenda, se ele citou
 
@@ -349,7 +357,7 @@ o produtor conta que contratou alguém para um serviço por um valor fechado
 
 ### registrar_servico_prestado
 
-o produtor conta que fez ou vai fazer um serviço com máquina para um cliente, cobrando
+o produtor conta que fez ou vai fazer um serviço para um cliente citando a máquina ou o preço
 
 - servico (texto): o serviço (gradagem, roçada, colheita)
 - maquina (texto): a máquina usada, como ele falou (John Deere, Massey)
@@ -363,13 +371,13 @@ o produtor conta que fez ou vai fazer um serviço com máquina para um cliente, 
 
 ### iniciar_servico
 
-o produtor conta que começou um serviço para cliente que já estava registrado
+o produtor conta que COMEÇOU ("comecei", "iniciei", "to começando") um serviço para cliente que já estava registrado
 
 - quem (texto): o nome do cliente para quem o serviço é feito ("do João"); vazio se não disse
 
 ### registrar_producao_servico
 
-o produtor conta quanto avançou num serviço para cliente em andamento (hectares, horas)
+o produtor conta QUANTO avançou num serviço para cliente já em andamento ("fiz mais tanto", "avancei", "já fiz tanto hoje", "rendeu tanto"), sem nomear o serviço de novo
 
 - quem (texto): o nome do cliente para quem o serviço é feito ("do João"); vazio se não disse
 - quantidade (numero): quanto foi feito, só o número, como o produtor falou (8)
@@ -385,13 +393,13 @@ o produtor conta que gastou diesel ou outro produto num serviço para cliente em
 
 ### encerrar_servico
 
-o produtor conta que terminou um serviço para cliente em andamento
+o produtor conta que TERMINOU ("terminei", "acabei", "já terminei") um serviço para cliente em andamento
 
 - quem (texto): o nome do cliente para quem o serviço é feito ("do João"); vazio se não disse
 
 ## financeiro
 
-dinheiro solto: despesa ou receita avulsa, recibo, saldo do mês, relatório financeiro
+dinheiro: despesa ou receita avulsa, recibo, saldo do mês, relatório em PDF de QUALQUER área (financeiro, rebanho, lavoura, prestador), e também o dinheiro que um CLIENTE pagou ou ainda deve, quando ele cita a pessoa pelo nome ("o João me pagou", "o João já pagou?", "quanto a Santa Fe ainda deve"). O que ele PAGA a alguém da equipe fixa é mão de obra, mesmo dizendo o valor ("paguei 2.500 pro Zé")
 
 ### registrar_lancamento_financeiro
 
@@ -411,10 +419,24 @@ o produtor pergunta quanto entrou, quanto saiu ou qual o saldo de dinheiro de um
 
 ### gerar_relatorio
 
-o produtor pede um relatório em PDF
+o produtor pede um relatório em PDF de uma área, que não precisa ser a financeira
 
-- tipo (texto): financeiro, rebanho, lavoura ou prestador
+- tipo (texto): financeiro, rebanho, lavoura ou prestador, conforme a área que ele pediu
 - period (texto): o mês, como o produtor falou ("agosto", "mês passado", "08/2026"); vazio usa o mês atual
+
+### registrar_recebimento
+
+o produtor conta que um cliente PAGOU algo que devia a ele, no todo ou em parte
+
+- contato (texto): quem pagou, o nome como o produtor falou (João, Fazenda Boa Vista)
+- valor (numero): quanto recebeu, só o número; vazio quando ele não disse (aí é a conta inteira)
+- data (data): quando recebeu, como ele falou (hoje, ontem, dia 10); vazio é hoje
+
+### consultar_recebimento
+
+o produtor PERGUNTA se um cliente já pagou, ou quanto ele ainda deve
+
+- contato (texto): de quem ele quer saber, o nome como falou
 
 ## dia
 
@@ -429,7 +451,7 @@ o produtor pede um lembrete ou anota algo para fazer, com ou sem dia
 
 ### consultar_meu_dia
 
-o produtor pergunta o que tem para hoje: tarefas, contas, vacinas e o que está atrasado
+o produtor pergunta o que tem para hoje, ou o que está atrasado: uma pergunta só, mesmo que cite tarefa, conta vencendo e vacina juntas
 
 
 ### consultar_amanha
@@ -444,7 +466,7 @@ o produtor pergunta o que tem marcado para os próximos 7 dias
 
 ## calculadoras
 
-contas de planejamento sem gravar nada: cerca, sementes, sal mineral, ração
+contas de planejamento sem gravar nada: cerca, sementes, sal mineral, ração; perguntar COMO se pede uma dessas contas é conversa, não a conta
 
 ### calcular_cerca
 
@@ -485,25 +507,19 @@ o produtor quer saber quanto de cada ingrediente vai numa mistura de ração
 
 ## prestador
 
-para quem presta serviço: ordem de serviço para cliente e dados de cliente
+para quem presta serviço, duas coisas só: o serviço do catálogo que ele NOMEIA e fez para um cliente, sem citar máquina nem preço (quantos hectares, horas ou diárias, sozinho, continua aqui); e o CADASTRO de um cliente, quem ele é e o que já contratou. Dinheiro que o cliente pagou ou ainda deve é FINANCEIRO, não daqui. Começar, terminar ou avançar ("fiz MAIS tanto") num serviço já registrado não é daqui, nem o que ele PAGA a quem trabalhou para ele
 
 ### cadastrar_servico_ordem
 
-o prestador conta um serviço do seu catálogo que fez para um cliente cadastrado
+o prestador NOMEIA um serviço do seu catálogo que fez para um cliente cadastrado, sem citar máquina nem preço e sem contar o avanço de um serviço em andamento; quantos hectares, horas ou diárias foram continua sendo esta
 
 - client_name (texto): o nome do cliente, como ele falou (João)
 - service_name (texto): o serviço do catálogo, como ele falou (diária de trator, gradagem)
 - quantity (numero): quantas unidades, só o número, como o produtor falou (2); vazio conta 1
 
-### consultar_cliente
-
-o prestador pergunta quanto um cliente já pagou ou ainda deve
-
-- client_name (texto): o nome do cliente, como ele falou (João)
-
 ## conversa
 
-pergunta de como usar o Tibé ou pedido de ver o que já está cadastrado
+pergunta de como usar o Tibé, e pedido de visão geral de uma área (rebanho, lavoura, prestador, financeiro) ou da relação inteira de contas a pagar ou a receber, SEM citar pessoa. Assim que ele nomeia alguém ("o João já pagou?") ou pergunta quem está devendo, é financeiro
 
 ### ajuda
 
@@ -513,6 +529,6 @@ o produtor pergunta como usar um recurso do Tibé, ou o que o assistente faz
 
 ### resumo
 
-o produtor pede uma visão geral de uma área (rebanho, lavoura, prestador, financeiro)
+o produtor pede uma visão geral de uma área (rebanho, lavoura, prestador, financeiro) ou a relação do que tem a pagar ou a receber
 
 - scope (texto): a área ou o nível pedido (rebanho, lavoura, prestador, financeiro; ou clientes, agendamentos, ordens_a_faturar, contas_a_pagar, contas_a_receber); vazio pergunta qual área

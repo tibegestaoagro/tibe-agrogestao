@@ -641,7 +641,7 @@ O §42 pede também perguntar "O João já pagou?"; o handler **não pergunta** 
 
 | nome | aliases | tipo | interpretação |
 |---|---|---|---|
-| `client_name` | nenhum | string | `findClientsByName`: `contains` insensitive (com acento) |
+| `client_name` | nenhum | string | `findClientsByName`: contém, sem acento, case-insensitive (Fase 5, correção A1: era `contains`/`ILIKE`, que não dobra acento) |
 | `service_name` | nenhum | string | `findServiceByName`: igual insensitive, senão primeiro `contains` |
 | `quantity` | nenhum | número ou string | `num()` cru, padrão 1. `"1.500"` vira 1,5; `"2 horas"` vira 1 (padrão). Serviço `pricing_type: "fixed"` força 1. |
 
@@ -681,7 +681,7 @@ Sem aliases em português. Não lê data (usa agora), valor nem máquina.
 
 **1. Handler.** `prestador.ts`, `consultarCliente`. Lê por `getClientSummaryAction` (`src/lib/actions/service-clients.ts`).
 
-**2. Parâmetros.** `client_name` (string, `contains` insensitive). Sem aliases.
+**2. Parâmetros.** `client_name` (string, contém, sem acento, insensitive). Sem aliases.
 
 **3. Obrigatórios e perguntas.**
 - `Qual o nome do cliente que você quer consultar?`
