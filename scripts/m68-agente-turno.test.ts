@@ -1077,6 +1077,42 @@ async function main() {
             check("(rep1) segue sem desistir", !rep1b.mensagens[0]?.texto.includes("Não estou conseguindo entender"), rep1b.mensagens[0]?.texto);
             check("(rep1) o negócio segue guardado, nada se perdeu", (await loadPendingNegotiation(tenant.id, owner.id)) !== null);
 
+            /**
+             * homologacao-3: "13 a 24" sozinho bate em fêmea E macho da mesma
+             * idade (`resolveCategoryTerm` busca a faixa em TODAS as
+             * categorias). Sem cruzar com as 3 candidatas que "novilha" já
+             * tinha oferecido (todas fêmeas), a segunda pergunta reabria a
+             * ambiguidade do zero ("São machos ou fêmeas?"), esquecendo que
+             * "novilha" já tinha fixado o sexo, e a conversa nunca fechava.
+             */
+            check(
+              "(rep1) a interseção com as candidatas já mostradas fecha a ambiguidade numa volta (homologacao-3)",
+              !rep1b.mensagens[0]?.texto.includes("pode ser mais de uma categoria"),
+              rep1b.mensagens[0]?.texto,
+            );
+            const cursorRep1b = await carregarCursor(tenant.id, owner.id);
+            check(
+              "(rep1) categoria fechada, o cursor avança para a quantidade (não repete 'categoria')",
+              cursorRep1b?.aguardando === "quantidade",
+              JSON.stringify(cursorRep1b),
+            );
+
+            prepara({ resposta: { tipo: "responde", valor: "3" } });
+            const rep1c = await turno("3", "T9a3");
+            check(
+              "(rep1) a quantidade fecha o item, sem repetir a pergunta de categoria nem desistir",
+              rep1c.mensagens[0]?.texto !== rep1b.mensagens[0]?.texto &&
+                !rep1c.mensagens[0]?.texto.includes("Não estou conseguindo entender") &&
+                !rep1c.mensagens[0]?.texto.includes("pode ser mais de uma categoria"),
+              rep1c.mensagens[0]?.texto,
+            );
+            const pendenteRep1 = await loadPendingNegotiation(tenant.id, owner.id);
+            check(
+              "(rep1) a categoria gravada é o rótulo exato (Fêmea - 13 a 24 meses), não o termo ambíguo",
+              pendenteRep1 !== null && (pendenteRep1.parameters as Record<string, unknown>).categoria === "Fêmea - 13 a 24 meses",
+              JSON.stringify(pendenteRep1),
+            );
+
             await clearPendingNegotiation(tenant.id, owner.id);
             await limparCursor(tenant.id, owner.id);
 

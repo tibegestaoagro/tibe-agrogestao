@@ -94,6 +94,19 @@ function primeiroItemBruto(parameters: Record<string, unknown>): { categoria: st
   return { categoria: str(r.categoria) ?? str(r.category), quantidade: r.quantidade ?? r.quantity };
 }
 
+/**
+ * Os ids das categorias que a última pergunta de faixa ofereceu, guardados
+ * dentro do próprio `parameters` do pendente (o mesmo caminho que `tipo`,
+ * `contato` e `valor` já usam para sobreviver de uma rodada para a outra).
+ * `resolverCategoria` cruza por aqui em vez de resolver do zero (homologacao-3).
+ */
+function candidatosDeCategoria(parameters: Record<string, unknown>): string[] | undefined {
+  const bruto = parameters._categoria_candidatos;
+  if (!Array.isArray(bruto)) return undefined;
+  const ids = bruto.filter((v): v is string => typeof v === "string");
+  return ids.length > 0 ? ids : undefined;
+}
+
 export const registrarNegocioGado: Handler = async ({
   db,
   tenant_id,
@@ -267,19 +280,33 @@ export const registrarNegocioGado: Handler = async ({
     if (!categoriaBruta) {
       return perguntar(ask("De qual categoria?"), "categoria");
     }
-    const categoriaResolvida = resolverCategoria(categoriaBruta);
-    if (!categoriaResolvida.ok) return perguntar(categoriaResolvida.resposta, "categoria");
+    /**
+     * Cruza com as candidatas da ÚLTIMA pergunta de faixa, em vez de resolver
+     * "13 a 24" do zero: sozinho ele bate em fêmea E macho da mesma idade, e
+     * sem a memória a segunda pergunta esquecia que "novilha" já tinha
+     * fixado o sexo (homologacao-3).
+     */
+    const categoriaResolvida = resolverCategoria(categoriaBruta, false, candidatosDeCategoria(parameters));
+    if (!categoriaResolvida.ok) {
+      parameters = { ...parameters, _categoria_candidatos: categoriaResolvida.candidatosOferecidos };
+      return perguntar(categoriaResolvida.resposta, "categoria");
+    }
 
     const quantidadeSolta =
       lerNumeroFalado(parameters.quantidade) ??
       lerNumeroFalado(parameters.quantity) ??
       lerNumeroFalado(primeiroItem?.quantidade);
+    // A categoria já fechou: grava o RÓTULO EXATO, nunca o termo ambíguo que só
+    // resolveu cruzando com as candidatas anteriores. Guardar o termo ambíguo
+    // faria a segunda resolução (linha abaixo, sem memória de candidata) reabrir
+    // a mesma pergunta do zero.
+    parameters = { ...parameters, categoria: categoriaResolvida.categoria.label };
     if (quantidadeSolta == null) {
       return perguntar(ask("Quantos animais?"), "quantidade");
     }
 
     // As duas partes já resolvidas: achata para o formato que `itensDosParametros` lê.
-    parameters = { ...parameters, categoria: categoriaBruta, quantidade: quantidadeSolta };
+    parameters = { ...parameters, quantidade: quantidadeSolta };
     itensBrutos = itensDosParametros(parameters);
   }
   for (const item of itensBrutos) {
