@@ -66,6 +66,9 @@ async function main() {
   console.log("\n2. Cliente do modelo");
   {
     const { chamarModelo, definirTransporteDoModelo, FalhaDoModelo } = await import("@/lib/agente/modelo");
+    const AGENTE_MODELO_ORIGINAL = process.env.AGENTE_MODELO;
+    const AGENTE_ESFORCO_ORIGINAL = process.env.AGENTE_ESFORCO;
+    const schemaOk = { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"], additionalProperties: false };
     let corpoVisto: Record<string, unknown> | null = null;
     let chamadas = 0;
     definirTransporteDoModelo(async (corpo) => {
@@ -74,24 +77,39 @@ async function main() {
       return { status: 200, json: { choices: [{ message: { content: JSON.stringify({ ok: true }) } }] } };
     });
     process.env.AGENTE_MODELO = "gpt-4o-mini";
-    const r = await chamarModelo<{ ok: boolean }>({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"], additionalProperties: false } });
+    const r = await chamarModelo<{ ok: boolean }>({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: schemaOk });
     check("devolve o JSON do conteúdo", r.ok === true);
     const rf = (corpoVisto as unknown as { response_format: { type: string; json_schema: { strict: boolean } } }).response_format;
     check("pede json_schema estrito", rf.type === "json_schema" && rf.json_schema.strict === true);
     check("gpt-4o-mini recebe temperature 0", (corpoVisto as unknown as { temperature?: number }).temperature === 0);
+    check("gpt-4o-mini nunca recebe reasoning_effort", !("reasoning_effort" in (corpoVisto as unknown as object)));
 
     process.env.AGENTE_MODELO = "gpt-5.6-luna";
-    await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"], additionalProperties: false } });
+    await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: schemaOk });
     check("gpt-5 não recebe temperature", !("temperature" in (corpoVisto as unknown as object)));
 
     process.env.AGENTE_MODELO = "gpt-5-mini";
     process.env.AGENTE_ESFORCO = "low";
-    await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"], additionalProperties: false } });
+    await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: schemaOk });
     check("modelo de raciocínio recebe reasoning_effort de AGENTE_ESFORCO", (corpoVisto as unknown as { reasoning_effort?: string }).reasoning_effort === "low");
-    process.env.AGENTE_MODELO = "gpt-4o-mini";
-    await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"], additionalProperties: false } });
-    check("gpt-4o-mini nunca recebe reasoning_effort", !("reasoning_effort" in (corpoVisto as unknown as object)));
+
+    process.env.AGENTE_MODELO = "gpt-5-mini";
+    process.env.AGENTE_ESFORCO = "minimal";
+    await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: schemaOk });
+    check("AGENTE_ESFORCO=minimal em modelo de raciocínio vira reasoning_effort minimal", (corpoVisto as unknown as { reasoning_effort?: string }).reasoning_effort === "minimal");
+
+    delete process.env.AGENTE_MODELO;
     delete process.env.AGENTE_ESFORCO;
+    await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: schemaOk });
+    check("sem AGENTE_MODELO, o padrão é gpt-5.6-terra", (corpoVisto as unknown as { model?: string }).model === "gpt-5.6-terra");
+    check("sem AGENTE_ESFORCO, o padrão do modelo de raciocínio é reasoning_effort low", (corpoVisto as unknown as { reasoning_effort?: string }).reasoning_effort === "low");
+    check("modelo padrão nunca recebe temperature", !("temperature" in (corpoVisto as unknown as object)));
+
+    process.env.AGENTE_MODELO = "gpt-4o-mini";
+    delete process.env.AGENTE_ESFORCO;
+    await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: schemaOk });
+    check("AGENTE_MODELO=gpt-4o-mini sai com temperature 0 e sem reasoning_effort", (corpoVisto as unknown as { temperature?: number; reasoning_effort?: string }).temperature === 0 && !("reasoning_effort" in (corpoVisto as unknown as object)));
+
     const { transporteHttp } = await import("@/lib/agente/modelo");
     check("transporte HTTP exportado para o medidor da avaliação", typeof transporteHttp === "function");
 
@@ -132,7 +150,8 @@ async function main() {
     try { await chamarModelo({ etapa: "dominio", sistema: "s", usuario: "u", nomeDoSchema: "x", schema: {} }); } catch (e) { erro = e; }
     check("tempo esgotado não tenta de novo", chamadas === 1 && (erro as InstanceType<typeof FalhaDoModelo>)?.motivo === "tempo");
     definirTransporteDoModelo(null);
-    process.env.AGENTE_MODELO = "gpt-4o-mini";
+    if (AGENTE_MODELO_ORIGINAL === undefined) delete process.env.AGENTE_MODELO; else process.env.AGENTE_MODELO = AGENTE_MODELO_ORIGINAL;
+    if (AGENTE_ESFORCO_ORIGINAL === undefined) delete process.env.AGENTE_ESFORCO; else process.env.AGENTE_ESFORCO = AGENTE_ESFORCO_ORIGINAL;
   }
 
   console.log("\n3. Classificação em duas etapas");

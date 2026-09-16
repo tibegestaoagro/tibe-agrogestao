@@ -48,8 +48,11 @@ function ehModeloDeRaciocinio(modelo: string) {
   return /^(gpt-5|o\d)/.test(modelo);
 }
 
+// Padrão: modelo aprovado na avaliação da Fase 3 (96,8% de intenção, 97,7% de
+// campos, zero gravação indevida). Detalhe em
+// docs/agents/agente-whatsapp/avaliacao-fase-3-final.md.
 export async function chamarModelo<T>(pedido: PedidoAoModelo): Promise<T> {
-  const modelo = process.env.AGENTE_MODELO || "gpt-4o-mini";
+  const modelo = process.env.AGENTE_MODELO || "gpt-5.6-terra";
   const corpo: Record<string, unknown> = {
     model: modelo,
     messages: [
@@ -58,9 +61,7 @@ export async function chamarModelo<T>(pedido: PedidoAoModelo): Promise<T> {
     ],
     response_format: { type: "json_schema", json_schema: { name: pedido.nomeDoSchema, strict: true, schema: pedido.schema } },
     ...(ehModeloDeRaciocinio(modelo)
-      ? process.env.AGENTE_ESFORCO
-        ? { reasoning_effort: process.env.AGENTE_ESFORCO }
-        : {}
+      ? { reasoning_effort: process.env.AGENTE_ESFORCO || "low" }
       : { temperature: 0 }),
   };
   const enviar = transporte ?? transporteHttp;
