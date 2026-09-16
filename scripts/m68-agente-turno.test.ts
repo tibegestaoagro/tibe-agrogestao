@@ -262,8 +262,29 @@ async function main() {
       conferirTrechoLiteral({ quantidade: 21 }, "vinte bois", [numero("quantidade")]).removidos.join() === "quantidade",
     );
     check(
-      '"sessenta mil" mantém 60, a parte sem o multiplicador',
-      conferirTrechoLiteral({ valor: 60 }, "sessenta mil", [numero("valor")]).removidos.length === 0,
+      '"sessenta mil" NÃO mantém 60: o pedaço intermediário da composição não é número dito',
+      conferirTrechoLiteral({ valor: 60 }, "sessenta mil", [numero("valor")]).removidos.join() === "valor",
+    );
+
+    // A pontuação separa dois números vizinhos, e o "e" só liga parte maior com parte menor.
+    const frete = "paguei cento e vinte, cinquenta de frete";
+    check(
+      '"cento e vinte, cinquenta" NÃO mantém 170: a vírgula separa os dois números',
+      conferirTrechoLiteral({ valor: 170 }, frete, [numero("valor")]).removidos.join() === "valor",
+    );
+    check('"cento e vinte, cinquenta" mantém 120', conferirTrechoLiteral({ valor: 120 }, frete, [numero("valor")]).removidos.length === 0);
+    check('"cento e vinte, cinquenta" mantém 50', conferirTrechoLiteral({ valor: 50 }, frete, [numero("valor")]).removidos.length === 0);
+    check(
+      '"entre sete e oito da manha" NÃO mantém 15: unidade com unidade não soma',
+      conferirTrechoLiteral({ quantidade: 15 }, "chego entre sete e oito da manha, leva duas vacas", [numero("quantidade")]).removidos.join() === "quantidade",
+    );
+    check(
+      '"um milhao e duzentos mil" mantém 1200000',
+      conferirTrechoLiteral({ valor: 1_200_000 }, "vendi o lote por um milhao e duzentos mil", [numero("valor")]).removidos.length === 0,
+    );
+    check(
+      '"um milhao e duzentos mil" NÃO mantém 200: pedaço de composição não é número dito',
+      conferirTrechoLiteral({ valor: 200 }, "vendi o lote por um milhao e duzentos mil", [numero("valor")]).removidos.join() === "valor",
     );
 
     const comLista = conferirTrechoLiteral(

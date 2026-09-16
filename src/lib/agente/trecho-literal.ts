@@ -14,8 +14,11 @@ import type { CampoDef } from "./intencoes";
 /**
  * O registro manda o modelo converter por extenso ("duas vira 2"), então a palavra também é número do texto.
  * Lê composto ("vinte e dois", "cento e trinta mil", "dois mil e quinhentos", "um milhão e duzentos mil"),
- * unindo palavras vizinhas com "e" só quando as duas pontas são número; qualquer outra palavra no meio
- * ("vinte bois... sessenta mil") corta a sequência em dois números separados.
+ * e só isso: a composição vale quando cada parte é MENOR que a anterior ("cento" e depois "vinte"), ou quando
+ * a seguinte é uma escala que multiplica o que veio antes ("trinta" e depois "mil"). Duas partes da mesma
+ * magnitude não somam, com ou sem "e" ("sete e oito" é 7 e 8, nunca 15; "vinte e cinquenta" é 20 e 50).
+ * Pontuação (. , ; : ! ?) e qualquer outra palavra no meio ("vinte bois... sessenta mil") cortam a sequência
+ * em números separados, e só o valor INTEIRO de cada uma conta: "sessenta mil" é 60000, não 60 e 60000.
  * ponytail: sem fração ("meio quilo") e sem ordinal ("vigésimo"); o valor fica de fora e o handler pergunta.
  * Limite conhecido: "um"/"uma" também é artigo, então um 1 inventado passa em "usei uma parte do sal". Mantido porque
  * "usei uma saca de sal" é o exemplo do documento do cliente (§18.4); o conjunto de avaliação da Fase 3 mede o caso.
@@ -33,17 +36,21 @@ const CENTENAS: Record<string, number> = {
 };
 const ESCALAS: Record<string, number> = { mil: 1_000, milhao: 1_000_000, milhoes: 1_000_000 };
 
-function valorDaPalavra(palavra: string): { valor: number; escala?: number } | null {
-  if (Object.hasOwn(UNIDADES, palavra)) return { valor: UNIDADES[palavra] };
-  if (Object.hasOwn(DEZ_A_DEZENOVE, palavra)) return { valor: DEZ_A_DEZENOVE[palavra] };
-  if (Object.hasOwn(DEZENAS, palavra)) return { valor: DEZENAS[palavra] };
-  if (Object.hasOwn(CENTENAS, palavra)) return { valor: CENTENAS[palavra] };
-  if (Object.hasOwn(ESCALAS, palavra)) return { valor: 0, escala: ESCALAS[palavra] };
+/** `magnitude`: a ordem de grandeza da parte, que é o que diz se ela pode entrar depois da anterior. */
+type ParteDoNumero = { valor: number; escala?: number; magnitude: number };
+
+function valorDaPalavra(palavra: string): ParteDoNumero | null {
+  if (Object.hasOwn(UNIDADES, palavra)) return { valor: UNIDADES[palavra], magnitude: 1 };
+  if (Object.hasOwn(DEZ_A_DEZENOVE, palavra)) return { valor: DEZ_A_DEZENOVE[palavra], magnitude: 1 };
+  if (Object.hasOwn(DEZENAS, palavra)) return { valor: DEZENAS[palavra], magnitude: 10 };
+  if (Object.hasOwn(CENTENAS, palavra)) return { valor: CENTENAS[palavra], magnitude: 100 };
+  if (Object.hasOwn(ESCALAS, palavra)) return { valor: 0, escala: ESCALAS[palavra], magnitude: ESCALAS[palavra] };
   return null;
 }
 
 function numerosPorExtenso(texto: string): number[] {
-  const palavras = texto.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().split(/[^a-z]+/);
+  // A pontuação vira palavra própria: ela separa dois números vizinhos, como qualquer outra palavra faria.
+  const palavras = texto.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().match(/[a-z]+|[.,;:!?]/g) ?? [];
   const resultados: number[] = [];
   let i = 0;
   while (i < palavras.length) {
@@ -62,25 +69,29 @@ function numerosPorExtenso(texto: string): number[] {
       continue;
     }
 
-    // sequência composta: junta o que é número, e só atravessa um "e" quando os dois lados também são número.
+    // Sequência composta: cada parte precisa ser menor que a anterior, ou ser uma escala que multiplica o grupo.
+    // O "e" só é atravessado quando o que vem depois dele também cabe na composição.
     let j = i;
     let total = 0;
     let grupoAtual = 0;
+    let magnitudeAnterior = Infinity;
+    let escalaAnterior = Infinity;
     while (j < palavras.length) {
-      if (palavras[j] === "e") {
-        if (!valorDaPalavra(palavras[j + 1])) break;
-        j++;
-        continue;
-      }
-      const parte = valorDaPalavra(palavras[j]);
+      const parte = valorDaPalavra(palavras[j] === "e" ? palavras[j + 1] : palavras[j]);
       if (!parte) break;
+      // Escala multiplica o grupo que veio antes ("trinta mil"), então ela é a única parte que pode
+      // ser MAIOR que a anterior; o que ela não pode é repetir ou crescer sobre a escala já aplicada.
+      if (parte.escala ? parte.escala >= escalaAnterior : parte.magnitude >= magnitudeAnterior) break;
+      if (palavras[j] === "e") j++;
       if (parte.escala) {
-        if (grupoAtual > 0) resultados.push(grupoAtual); // "sessenta mil": 60 também é aceito, sem o multiplicador.
         grupoAtual = (grupoAtual === 0 ? 1 : grupoAtual) * parte.escala;
         total += grupoAtual;
         grupoAtual = 0;
+        escalaAnterior = parte.escala;
+        magnitudeAnterior = Infinity;
       } else {
         grupoAtual += parte.valor;
+        magnitudeAnterior = parte.magnitude;
       }
       j++;
     }
