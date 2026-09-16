@@ -78,6 +78,9 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [campo homônimo herda a descrição da primeira intenção](campo-homonimo-no-dominio-herda-a-descricao-da-primeira-intencao.md) | armadilha | o relatório voltava sem área em 6 de 6 medições |
 | [a trava de número por extenso precisa da regra de composição](trava-de-numero-por-extenso-precisa-da-regra-de-composicao.md) | armadilha | "cento e vinte, cinquenta de frete" virava 170 |
 | [o limite da conta reprova o modelo se você não esperar](limite-da-conta-reprova-o-modelo-se-voce-nao-esperar.md) | armadilha | 99 mensagens em erro de 1 segundo eram 429, não o modelo |
+| [zero defeito em cinco rodadas pode ser cegueira do conjunto](zero-defeito-na-suite-pode-ser-cegueira-da-suite.md) | licao | 60 blocos nunca montavam o estado que expunha a gravação indevida |
+| [a porta fraca não pode alcançar quem grava sem confirmar](a-porta-fraca-nao-pode-alcancar-quem-grava-sem-confirmar.md) | armadilha | "nem precisei do sal afinal" gravou 2 sacas de sal |
+| [a catraca acha no dia em que nasce](catraca-acha-no-dia-em-que-nasce.md) | licao | escrita para o futuro, achou quatro defeitos na primeira execução |
 
 ⚠️ **`[[wikilink]]` para nota que não existe reprova o `npm run check`**
 (conferência 13). É o que impede esta pasta de virar um cemitério de links
