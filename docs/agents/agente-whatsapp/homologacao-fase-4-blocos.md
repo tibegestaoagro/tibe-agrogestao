@@ -22,9 +22,10 @@ eliminatório.
 | `homologacao-3` (pergunta atômica) | 0 | 19 | 45 de 145 | US$ 0,029 |
 | `homologacao-4` (interseção de candidatas) | 0 | 19 | 43 de 145 | US$ 0,027 |
 | `homologacao-5` (ambígua com pergunta aberta) | 0 | 19 | 39 de 145 | US$ 0,026 |
+| `homologacao-6` (porta fechada para quem grava) | 0 | 19 | 39 de 145 | US$ 0,030 |
 
-Total gasto na fase: US$ 0,14. O acumulado do programa foi de US$ 4,93 para
-US$ 5,07, de um teto de US$ 30.
+Total gasto na fase: US$ 0,17. O acumulado do programa foi de US$ 4,93 para
+US$ 5,10, de um teto de US$ 30.
 
 ## As duas "gravações indevidas" da primeira rodada eram do medidor, não do agente
 
@@ -160,6 +161,39 @@ o que sustenta isso.
 ⚠️ **Defeito cosmético achado aqui:** o resumo sai "Vendedor: do Ze Carlos",
 com a preposição colada ao nome. Não afeta o que é gravado. Registrado em
 `docs/agents/dividas.md`.
+
+## A revisão final achou o que os 60 blocos não podiam achar
+
+⚠️ **A terceira correção desta fase abriu um caminho de gravação sem
+confirmação, e quem pegou foi a revisão independente, não a medição.** O juiz
+reproduziu em banco:
+
+```
+>> usei 2 sacas
+<< Qual produto? (- Ração / - Sal)        [cursor aguardando "produto"]
+>> nem precisei do sal afinal
+<< ✅ Anotei: 2 sacas de Sal usadas. Restam 18 sacas.
+```
+
+O produtor disse que **não** usou, e o uso foi gravado. O mecanismo: a porta
+nova jogava a mensagem inteira no campo pendente, `resolverProduto` casa por
+substring, achou "Sal", e `registrar_uso_estoque` é a única intenção que grava
+sem pedir "sim" (§10.3). A porta antiga (`respostaLiteral`) tem quatro guardas;
+a nova reaproveitava duas, e as duas que faltavam eram exatamente as de
+segurança de escrita.
+
+**Por que os 60 blocos não pegaram:** nenhum deles tem um passo `grava: "nao"`
+chegando com uma pergunta de campo do uso de estoque aberta. Dos 14 blocos que
+citam estoque, todos os passos são `pode`. A cobertura é **estruturalmente
+cega** a esse caso, e mais rodadas da mesma suíte nunca o encontrariam.
+
+Corrigido em `5106091`: a lista `INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR` passou a
+ser a mesma para o handler do estoque e para o turno, e a porta também não
+alcança mais o cadastro assistido. O caso que faltava virou teste, provado nos
+dois sentidos: sem a correção ele reprova com a frase literal do estrago.
+
+**A lição:** zero gravação indevida em cinco rodadas seguidas não é prova de
+que não existe gravação indevida. Prova que o conjunto não a alcança.
 
 ## O que ficou de fora, e por quê
 
