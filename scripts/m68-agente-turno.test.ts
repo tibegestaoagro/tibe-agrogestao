@@ -1041,6 +1041,82 @@ async function main() {
 
           const estranho = await executarTurno({ telefone: `19${String(stamp).slice(-9)}`, texto: "oi", provider_message_id: "T7x" });
           check("número não cadastrado recebe uma mensagem", estranho.mensagens.length === 1 && estranho.mensagens[0].texto.includes("não está cadastrado"), JSON.stringify(estranho));
+
+          console.log("\n7b. Negócio de gado: pergunta composta não repete (homologacao-2)");
+          {
+            const { loadPendingNegotiation, clearPendingNegotiation } = await import("@/lib/actions/negotiation-pending");
+            const { lerNumeroFalado } = await import("@/lib/actions/whatsapp-handlers/parsers");
+            await clearPendingNegotiation(tenant.id, owner.id);
+            await limparCursor(tenant.id, owner.id);
+
+            // Reprodução 1: a categoria foi dita mas ficou ambígua ("novilha"), e a
+            // quantidade nunca chegou. Antes da correção, "13 a 24" entrava inteiro
+            // no único campo que o cursor guardava ("categoria"), a quantidade
+            // continuava sem valor nenhum, e a MESMA pergunta voltava até desistir.
+            prepara({
+              dominio: { pedidos: [{ dominio: "rebanho", trecho: "vendi uns novilha pro joao do leilao por 12 mil" }] },
+              extracao_rebanho: {
+                intent: "registrar_negocio_gado",
+                parametros: { tipo: "venda", contato: "joao", valor: "12 mil", itens: [{ categoria: "novilha", quantidade: null }] },
+              },
+            });
+            const rep1a = await turno("vendi uns novilha pro joao do leilao por 12 mil", "T9a1");
+            check(
+              "(rep1) categoria ambígua sem quantidade pergunta, sem desistir de cara",
+              rep1a.mensagens.length === 1 && !rep1a.mensagens[0].texto.includes("Não estou conseguindo entender"),
+              JSON.stringify(rep1a),
+            );
+
+            prepara({ resposta: { tipo: "responde", valor: "13 a 24" } });
+            const rep1b = await turno("13 a 24", "T9a2");
+            check(
+              "(rep1) resposta parcial NÃO repete a pergunta anterior (bug: repetia até desistir)",
+              rep1b.mensagens[0]?.texto !== rep1a.mensagens[0]?.texto,
+              JSON.stringify({ rep1a: rep1a.mensagens[0]?.texto, rep1b: rep1b.mensagens[0]?.texto }),
+            );
+            check("(rep1) segue sem desistir", !rep1b.mensagens[0]?.texto.includes("Não estou conseguindo entender"), rep1b.mensagens[0]?.texto);
+            check("(rep1) o negócio segue guardado, nada se perdeu", (await loadPendingNegotiation(tenant.id, owner.id)) !== null);
+
+            await clearPendingNegotiation(tenant.id, owner.id);
+            await limparCursor(tenant.id, owner.id);
+
+            // Reprodução 2: a categoria já veio exata ("bezerro"), só falta a
+            // quantidade, dita por extenso na resposta seguinte ("vinte e cinco").
+            // Antes, a resposta inteira ia para o campo "categoria" (o único que o
+            // cursor guardava), a quantidade nunca era lida, e a pergunta composta
+            // voltava, perdendo a quantidade e o valor citados.
+            prepara({
+              dominio: { pedidos: [{ dominio: "rebanho", trecho: "e ai entao o joao do leilao me vendeu uns bezerro" }] },
+              extracao_rebanho: {
+                intent: "registrar_negocio_gado",
+                parametros: { tipo: "compra", contato: "joao", itens: [{ categoria: "bezerro", quantidade: null }] },
+              },
+            });
+            const rep2a = await turno("e ai entao o joao do leilao me vendeu uns bezerro", "T9b1");
+            check(
+              "(rep2) categoria exata sem quantidade pergunta, sem desistir de cara",
+              rep2a.mensagens.length === 1 && !rep2a.mensagens[0].texto.includes("Não estou conseguindo entender"),
+              JSON.stringify(rep2a),
+            );
+
+            prepara({ resposta: { tipo: "responde", valor: "o foram vinte e cinco bezerro" } });
+            const rep2b = await turno("o foram vinte e cinco bezerro por setenta e cinco mil", "T9b2");
+            check(
+              "(rep2) resposta por extenso NÃO repete a pergunta anterior",
+              rep2b.mensagens[0]?.texto !== rep2a.mensagens[0]?.texto,
+              JSON.stringify({ rep2a: rep2a.mensagens[0]?.texto, rep2b: rep2b.mensagens[0]?.texto }),
+            );
+            check("(rep2) segue sem desistir", !rep2b.mensagens[0]?.texto.includes("Não estou conseguindo entender"), rep2b.mensagens[0]?.texto);
+            const pendenteRep2 = await loadPendingNegotiation(tenant.id, owner.id);
+            check(
+              "(rep2) a quantidade dita por extenso (25) foi lida, não perdida",
+              pendenteRep2 !== null && lerNumeroFalado((pendenteRep2.parameters as Record<string, unknown>).quantidade) === 25,
+              JSON.stringify(pendenteRep2),
+            );
+
+            await clearPendingNegotiation(tenant.id, owner.id);
+            await limparCursor(tenant.id, owner.id);
+          }
         } finally {
           definirTransporteDoModelo(null);
         }

@@ -48,7 +48,13 @@ function valorDaPalavra(palavra: string): ParteDoNumero | null {
   return null;
 }
 
-function numerosPorExtenso(texto: string): number[] {
+/**
+ * Exportada para `lerNumeroFalado` (`whatsapp-handlers/parsers.ts`): a
+ * resposta a um campo pendente (`classificarResposta`) copia o texto
+ * literal, sem converter por extenso, diferente da extração normal. Reusa a
+ * mesma leitura em vez de duplicar a tabela de palavras-número.
+ */
+export function numerosPorExtenso(texto: string): number[] {
   // A pontuação vira palavra própria: ela separa dois números vizinhos, como qualquer outra palavra faria.
   const palavras = texto.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().match(/[a-z]+|[.,;:!?]/g) ?? [];
   const resultados: number[] = [];

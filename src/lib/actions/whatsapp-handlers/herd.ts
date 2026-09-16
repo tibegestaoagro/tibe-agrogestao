@@ -29,7 +29,7 @@ import {
   type Handler,
   type RouterResult,
 } from "./shared";
-import { lerData, lerDinheiro, lerNumeroBr } from "./parsers";
+import { lerData, lerDinheiro, lerNumeroFalado } from "./parsers";
 import { reaisBr } from "@/lib/numero-br";
 
 /**
@@ -72,17 +72,20 @@ export function itensDosParametros(parameters: Record<string, unknown>): Item[] 
       if (typeof bruto !== "object" || bruto === null) continue;
       const registro = bruto as Record<string, unknown>;
       const categoria = str(registro.categoria) ?? str(registro.category);
-      // `lerNumeroBr`, e não `num`: o handler de estoque já aprendeu isso
+      // `lerNumeroFalado`, e não `num`: o handler de estoque já aprendeu isso
       // ("comprei 2.000 kg de racao" virava 2 quilos), e a mesma frase com
-      // cabeças de gado tinha o mesmo destino aqui.
-      const quantidade = lerNumeroBr(registro.quantidade) ?? lerNumeroBr(registro.quantity);
+      // cabeças de gado tinha o mesmo destino aqui. E não só `lerNumeroBr`:
+      // a resposta a um campo pendente chega em texto literal, às vezes por
+      // extenso ("vinte e cinco"), sem conversão nenhuma (achado real,
+      // homologacao-2).
+      const quantidade = lerNumeroFalado(registro.quantidade) ?? lerNumeroFalado(registro.quantity);
       if (categoria && quantidade != null) lista.push({ categoria, quantidade });
     }
     if (lista.length > 0) return lista;
   }
   // Forma plana, para o caso de um item só (a maioria das mensagens).
   const categoria = str(parameters.categoria) ?? str(parameters.category);
-  const quantidade = lerNumeroBr(parameters.quantidade) ?? lerNumeroBr(parameters.quantity);
+  const quantidade = lerNumeroFalado(parameters.quantidade) ?? lerNumeroFalado(parameters.quantity);
   if (categoria && quantidade != null) return [{ categoria, quantidade }];
   return [];
 }
