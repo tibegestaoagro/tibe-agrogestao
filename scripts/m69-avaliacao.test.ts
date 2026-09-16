@@ -174,20 +174,22 @@ async function main() {
     check("falha do modelo em 30% dos passos reprova", comFalhas.aprovado === false && comFalhas.motivos.includes("falhas do modelo 30.0% > 2%"), JSON.stringify(comFalhas));
     check("sem falha do modelo nos passos aprova", aprovar(agregar([certa]), 0, { falhas: 0, passos: 10 }).aprovado === true);
 
-    // Confirmação que não gravou é o outro lado da gravação indevida: o modelo que nunca escreve também não serve.
-    const muitasConfirmacoes = aprovar(agregar([certa]), 0, { falhas: 0, passos: 20, confirmacoesSemGravar: 3, passosQueDevem: 10 });
+    // O gabarito de "deve" não é confiável (quem escreveu os casos não sabe quais intenções pedem
+    // confirmação, e o agente às vezes pergunta a fazenda em vez de gravar, o que é o comportamento
+    // certo): confirmação que não gravou fica só como dado informativo, nunca reprova mais.
+    const muitasConfirmacoes = aprovar(agregar([certa]), 0, { falhas: 0, passos: 20, confirmacoesSemGravar: 8, passosQueDevem: 10 });
     check(
-      "confirmação que não gravou em mais de 10% dos passos que deviam gravar reprova",
-      muitasConfirmacoes.aprovado === false && muitasConfirmacoes.motivos.some((m) => m.startsWith("confirmações que não gravaram")),
+      "confirmação que não gravou em quase todos os passos que deviam gravar não reprova mais",
+      muitasConfirmacoes.aprovado === true && !muitasConfirmacoes.motivos.some((m) => m.startsWith("confirmações que não gravaram")),
       JSON.stringify(muitasConfirmacoes),
-    );
-    check(
-      "no limite de 10% ainda aprova",
-      aprovar(agregar([certa]), 0, { falhas: 0, passos: 20, confirmacoesSemGravar: 1, passosQueDevem: 10 }).aprovado === true,
     );
     check(
       "sem o dado das confirmações, o comportamento é o de hoje",
       aprovar(agregar([certa]), 0, { falhas: 0, passos: 20 }).aprovado === true,
+    );
+    check(
+      "o limite de falhas do modelo continua eliminatório mesmo com confirmações que não gravaram",
+      aprovar(agregar([certa]), 0, { falhas: 3, passos: 10, confirmacoesSemGravar: 0, passosQueDevem: 10 }).aprovado === false,
     );
     check("agregar sem mensagens nao gera NaN", agregar([]).intencao_geral === 0 && agregar([]).campos === 1);
     check("sem mensagens reprova", aprovar(agregar([]), 0).aprovado === false);

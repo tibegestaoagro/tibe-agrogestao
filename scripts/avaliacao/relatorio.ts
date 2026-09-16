@@ -95,6 +95,7 @@ function main() {
     const passos = conversas.flatMap((c) => c.passos);
     const falhas = { mensagens: notas.filter((n) => n.falha).length, passos: passos.filter((p) => p.falha_do_modelo).length };
     const confirmacoesQueNaoGravaram = passos.filter((p) => p.faltou).length;
+    const passosQueDevem = passos.filter((p) => p.grava === "deve").length;
     const indevidas = conversas.flatMap((c) => c.passos.map((p, i) => ({ caso: c.id, passo: i + 1, ...p }))).filter((p) => p.indevida);
     const pior = Object.entries(metricas.por_intencao)
       .filter(([, v]) => v.total >= 5)
@@ -107,13 +108,13 @@ function main() {
         falhas: falhas.passos,
         passos: passos.length,
         confirmacoesSemGravar: confirmacoesQueNaoGravaram,
-        passosQueDevem: passos.filter((p) => p.grava === "deve").length,
+        passosQueDevem,
       },
       metricasParaLimite.por_intencao,
     );
     // Resultado parcial nunca aprova: os casos que faltaram podiam reprovar.
     if (bruto.interrompido) aprovacao.motivos.push(`interrompido: ${bruto.interrompido}`);
-    linhas.push({ r: bruto, notas, metricas, metricasSemExemplo, metricasComExemplo, indevidas, pior, falhas, confirmacoesQueNaoGravaram, aprovacao: { aprovado: aprovacao.motivos.length === 0, motivos: aprovacao.motivos } });
+    linhas.push({ r: bruto, notas, metricas, metricasSemExemplo, metricasComExemplo, indevidas, pior, falhas, confirmacoesQueNaoGravaram, passosQueDevem, aprovacao: { aprovado: aprovacao.motivos.length === 0, motivos: aprovacao.motivos } });
   }
 
   const aviso = avisoDeParticaoGuardada(rodada, idsMedidos, particaoPorId);
@@ -129,18 +130,21 @@ function main() {
     "",
     "`campos` é a coluna do limite de 90%: mede só os pedidos cuja intenção acertou. `campos absoluto` mede na base que inclui os campos perdidos junto com a intenção errada, e é a comparável entre modelos que erram intenção em ritmos diferentes.",
     "",
+    "`confirmações que não gravaram` é sinal de defeito de conversa (o gabarito de \"deve\" não é confiável, e o agente às vezes pergunta a fazenda em vez de gravar, o que é certo), não critério de aprovação: a porcentagem informa, mas não reprova.",
+    "",
   ];
 
   md.push(
     "## Modelos",
     "",
-    "| modelo | aprovado | gravações indevidas | confirmações que não gravaram | falhas do modelo (mensagens / passos) | intenção geral | intenção (sem exemplo) | intenção (exemplo) | pior intenção (5+ casos) | campos | campos absoluto | campos (sem exemplo) | campos (exemplo) | US$ por 1.000 mensagens | p50 | p95 |",
+    "| modelo | aprovado | gravações indevidas | confirmações que não gravaram (informativo) | falhas do modelo (mensagens / passos) | intenção geral | intenção (sem exemplo) | intenção (exemplo) | pior intenção (5+ casos) | campos | campos absoluto | campos (sem exemplo) | campos (exemplo) | US$ por 1.000 mensagens | p50 | p95 |",
     "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
   );
   for (const l of linhas) {
     const nome = `${l.r.modelo}${l.r.esforco ? ` (${l.r.esforco})` : ""}${l.r.interrompido ? `, interrompido: ${l.r.interrompido}` : ""}`;
+    const taxaConfirmacoes = l.passosQueDevem > 0 ? pct(l.confirmacoesQueNaoGravaram / l.passosQueDevem) : "-";
     md.push(
-      `| ${celula(nome)} | ${l.aprovacao.aprovado ? "sim" : "não"} | ${l.indevidas.length} | ${l.confirmacoesQueNaoGravaram} | ${l.falhas.mensagens} / ${l.falhas.passos} | ${pct(l.metricas.intencao_geral)} | ${pct(l.metricasSemExemplo.intencao_geral)} (${l.metricasSemExemplo.mensagens}) | ${pct(l.metricasComExemplo.intencao_geral)} (${l.metricasComExemplo.mensagens}) | ${l.pior ? `${l.pior.intent} ${pct(l.pior.taxa)} (${l.pior.total})` : "nenhuma"} | ${pct(l.metricas.campos)} | ${pct(l.metricas.campos_absoluto)} | ${pct(l.metricasSemExemplo.campos)} | ${pct(l.metricasComExemplo.campos)} | ${l.r.custo_por_mil_mensagens.toFixed(4)} | ${l.r.latencia_p50_ms} ms | ${l.r.latencia_p95_ms} ms |`,
+      `| ${celula(nome)} | ${l.aprovacao.aprovado ? "sim" : "não"} | ${l.indevidas.length} | ${l.confirmacoesQueNaoGravaram} / ${l.passosQueDevem} (${taxaConfirmacoes}) | ${l.falhas.mensagens} / ${l.falhas.passos} | ${pct(l.metricas.intencao_geral)} | ${pct(l.metricasSemExemplo.intencao_geral)} (${l.metricasSemExemplo.mensagens}) | ${pct(l.metricasComExemplo.intencao_geral)} (${l.metricasComExemplo.mensagens}) | ${l.pior ? `${l.pior.intent} ${pct(l.pior.taxa)} (${l.pior.total})` : "nenhuma"} | ${pct(l.metricas.campos)} | ${pct(l.metricas.campos_absoluto)} | ${pct(l.metricasSemExemplo.campos)} | ${pct(l.metricasComExemplo.campos)} | ${l.r.custo_por_mil_mensagens.toFixed(4)} | ${l.r.latencia_p50_ms} ms | ${l.r.latencia_p95_ms} ms |`,
     );
   }
   for (const p of pulados) md.push(`| ${celula(p.modelo)} | pulado: ${celula(p.pulado)} | | | | | | | | | | | | | | |`);
