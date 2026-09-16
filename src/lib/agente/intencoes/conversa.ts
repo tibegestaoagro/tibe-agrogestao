@@ -20,12 +20,14 @@ export const INTENCOES_CONVERSA: IntencaoDef[] = [
       },
     ],
     exemplos: ["o que você faz?", "como eu registro uma vacina?"],
-    vizinhas: "resumo quando o produtor quer VER o que já está cadastrado, não aprender a usar",
+    vizinhas:
+      "resumo quando o produtor quer VER o que já está cadastrado, não aprender a usar; consultar_meu_dia quando pergunta o que tem para fazer",
   },
   {
     intent: "resumo",
     dominio: "conversa",
-    descricao: "o produtor pede uma visão geral de uma área (rebanho, lavoura, prestador, financeiro)",
+    descricao:
+      "o produtor pede uma visão geral de uma área (rebanho, lavoura, prestador, financeiro) ou a relação do que tem a pagar ou a receber",
     campos: [
       {
         nome: "scope",
@@ -34,7 +36,8 @@ export const INTENCOES_CONVERSA: IntencaoDef[] = [
           "a área ou o nível pedido (rebanho, lavoura, prestador, financeiro; ou clientes, agendamentos, ordens_a_faturar, contas_a_pagar, contas_a_receber); vazio pergunta qual área",
       },
     ],
-    exemplos: ["como está o rebanho?", "quero ver o resumo financeiro"],
-    vizinhas: "consultar_saldo quando pede só o saldo do mês; ajuda quando pergunta como usar, não o que já está cadastrado",
+    exemplos: ["como está o rebanho?", "quero ver o resumo financeiro", "me lista o que está em aberto pra receber"],
+    vizinhas:
+      "consultar_saldo quando pede só o saldo do mês; consultar_meu_dia quando pergunta o que tem para fazer hoje; ajuda quando pergunta como usar, não o que já está cadastrado",
   },
 ];

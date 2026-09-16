@@ -81,10 +81,17 @@ export function promptDeDominio(): { sistema: string; schema: Record<string, unk
     "Você separa a mensagem do produtor em pedidos: um pedido por AÇÃO pedida, mesmo quando duas ações são do mesmo domínio, na ordem em que aparecem na mensagem.",
     'Exemplo com duas ações do mesmo domínio: "vendi 10 bois e morreram 2 vacas" são DOIS pedidos de rebanho, não um.',
     "",
+    "O que NÃO abre pedido novo, e por isso fica DENTRO do trecho da ação:",
+    "- valor, custo, frete, comissão, diferença de troca, desconto, prazo ou data de pagamento ditos junto com a ação.",
+    '- a mesma ação sobre várias coisas ("anota sal e dois vermífugos na lista", "nasceram 4 machos e 3 fêmeas"): é UM pedido só.',
+    "- consulta sobre o mesmo dia ou período, mesmo citando assuntos diferentes (tarefa, conta, vacina): é UM pedido só; períodos diferentes são pedidos diferentes.",
+    '- pedido que ele desfaz ou adia na mesma mensagem ("não, deixa pra lá", "deixa pra eu confirmar depois"): não vira pedido nenhum.',
+    "",
     "Domínios possíveis:",
     listaDeDominios,
     "",
-    'Para cada pedido, informe o domínio e o trecho literal da mensagem que corresponde a ele. Use "nenhum" quando o pedido não se encaixa em nenhum domínio. O trecho é sempre um recorte literal da mensagem do produtor, nunca um resumo.',
+    "Para cada pedido, informe o domínio e o trecho literal da mensagem que corresponde a ele. O trecho é sempre um recorte literal da mensagem do produtor, nunca um resumo.",
+    'Parte que o Tibé não faz (previsão do tempo, achar comprador, conselho): ignore quando a mensagem tem outro pedido válido. Só quando NADA na mensagem é pedido do Tibé devolva um pedido único, com domínio "nenhum".',
   ].join("\n");
   const schema = objetoFechado({
     pedidos: {

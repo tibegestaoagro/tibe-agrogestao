@@ -42,7 +42,7 @@ export const INTENCOES_ESTOQUE: IntencaoDef[] = [
       "comprei 10 sacas de sal do Zé por 1200, para pagar dia 10",
     ],
     vizinhas:
-      "registrar_negocio_gado quando o que foi negociado é animal; comprei_item_lista quando ele só risca um item da Lista de Compra; registrar_lancamento_financeiro quando é gasto em dinheiro sem quantidade de insumo",
+      'registrar_negocio_gado quando o que foi negociado é animal; comprei_item_lista quando ele cita o item com artigo e SEM quantidade ("comprei o arame, deu 800"), mesmo dizendo o valor; registrar_lancamento_financeiro quando é gasto em dinheiro sem quantidade de insumo',
   },
   {
     intent: "registrar_uso_estoque",
@@ -57,7 +57,7 @@ export const INTENCOES_ESTOQUE: IntencaoDef[] = [
     ],
     exemplos: ["Usei uma saca de sal. (Negociações §18.4)", "usei 2 sacas de sal mineral no lote do curral"],
     vizinhas:
-      '"gastei diesel no trator" é registrar_combustivel_servico quando há serviço em andamento e registrar_lancamento_financeiro quando é despesa solta; registrar_alimentacao_confinamento quando o uso cita confinamento ou boitel; ajustar_estoque quando ele diz quanto TEM, não quanto saiu',
+      'registrar_combustivel_servico quando o uso cita um serviço ou o cliente dele ("no serviço do João"); registrar_lancamento_financeiro quando é despesa solta em dinheiro; registrar_alimentacao_confinamento quando o uso cita confinamento, boitel ou lote; ajustar_estoque quando ele diz quanto TEM, não quanto saiu',
   },
   {
     intent: "ajustar_estoque",

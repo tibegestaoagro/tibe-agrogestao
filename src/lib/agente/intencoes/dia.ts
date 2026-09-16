@@ -17,15 +17,18 @@ export const INTENCOES_DIA: IntencaoDef[] = [
       { nome: "due_date", tipo: "data", descricao: "o dia, como o produtor falou (amanhã, quinta, dia 10); vazio se não disse" },
     ],
     exemplos: ["me lembra de comprar sal na quinta", "anota aí consertar a porteira"],
-    vizinhas: "adicionar_item_lista quando é algo para COMPRAR; consultar_meu_dia quando pergunta o que tem",
+    vizinhas:
+      "adicionar_item_lista quando é algo para COMPRAR; consultar_meu_dia quando pergunta o que tem; quando o dia só marca quando outra ação já contada vai acontecer, ele é campo dela e não vira tarefa",
   },
   {
     intent: "consultar_meu_dia",
     dominio: "dia",
-    descricao: "o produtor pergunta o que tem para hoje: tarefas, contas, vacinas e o que está atrasado",
+    descricao:
+      "o produtor pergunta o que tem para hoje, ou o que está atrasado: uma pergunta só, mesmo que cite tarefa, conta vencendo e vacina juntas",
     campos: [],
-    exemplos: ["o que tenho para hoje?", "bom dia, o que tenho hoje"],
-    vizinhas: "resumo (visão por área) e consultar_lista_compra (o que falta comprar) não olham a agenda do dia",
+    exemplos: ["o que tenho para hoje?", "bom dia, o que tenho hoje", "tem alguma coisa atrasada por aqui?"],
+    vizinhas:
+      "consultar_amanha e consultar_semana quando o período é outro; resumo (visão por área) e consultar_lista_compra (o que falta comprar) não olham a agenda do dia",
   },
   {
     intent: "consultar_amanha",
@@ -33,7 +36,8 @@ export const INTENCOES_DIA: IntencaoDef[] = [
     descricao: "o produtor pergunta o que tem marcado para amanhã",
     campos: [],
     exemplos: ["o que tenho amanhã?", "e amanhã?"],
-    vizinhas: "consultar_semana quando pergunta pelos próximos dias; criar_tarefa quando é um lembrete novo (\"me lembra amanhã de...\")",
+    vizinhas:
+      "consultar_meu_dia quando o período é hoje; consultar_semana quando pergunta pelos próximos dias; criar_tarefa quando é um lembrete novo (\"me lembra amanhã de...\")",
   },
   {
     intent: "consultar_semana",
@@ -41,6 +45,7 @@ export const INTENCOES_DIA: IntencaoDef[] = [
     descricao: "o produtor pergunta o que tem marcado para os próximos 7 dias",
     campos: [],
     exemplos: ["o que tenho essa semana?", "o que tenho para essa semana"],
-    vizinhas: "resumo com contas_a_pagar responde o vencimento do MÊS, não da semana",
+    vizinhas:
+      "consultar_meu_dia quando o período é hoje; consultar_amanha quando é só amanhã; resumo com contas_a_pagar responde o vencimento do MÊS, não da semana",
   },
 ];

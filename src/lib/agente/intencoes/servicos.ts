@@ -23,7 +23,7 @@ export const INTENCOES_SERVICOS: IntencaoDef[] = [
   {
     intent: "registrar_diaria",
     dominio: "servicos",
-    descricao: "o produtor conta que gente contratada trabalhou por dia num serviço, e quanto foi a diária",
+    descricao: "o produtor conta que gente de FORA da equipe fixa trabalhou por dia num serviço, e quanto foi a diária",
     campos: [
       { nome: "servico", tipo: "texto", descricao: "o serviço feito (cerca, roçada, capina)" },
       { nome: "valor", tipo: "numero", descricao: "o valor de UMA diária, só o número, como o produtor falou (150)" },
@@ -53,7 +53,8 @@ export const INTENCOES_SERVICOS: IntencaoDef[] = [
   {
     intent: "registrar_servico_prestado",
     dominio: "servicos",
-    descricao: "o produtor conta que fez ou vai fazer um serviço com máquina para um cliente, cobrando",
+    descricao:
+      "o produtor conta que fez ou vai fazer um serviço para um cliente citando a máquina, o preço ou a unidade de cobrança (hectare, hora, dia)",
     campos: [
       { nome: "servico", tipo: "texto", descricao: "o serviço (gradagem, roçada, colheita)" },
       { nome: "maquina", tipo: "texto", descricao: "a máquina usada, como ele falou (John Deere, Massey)" },
@@ -78,16 +79,16 @@ export const INTENCOES_SERVICOS: IntencaoDef[] = [
       "fiz 8 horas de ensilagem pro João Vizinho com a John Deere, a 250 a hora",
     ],
     vizinhas:
-      "iniciar_servico, registrar_producao_servico e encerrar_servico quando o serviço já está registrado; cadastrar_servico_ordem é o mesmo gesto no perfil prestador; criar_tarefa quando é só lembrete sem valor nem cliente",
+      "iniciar_servico, registrar_producao_servico e encerrar_servico quando o serviço já está registrado; cadastrar_servico_ordem quando ele conta o serviço feito para o cliente SEM máquina, preço nem unidade; criar_tarefa quando é só lembrete sem valor nem cliente",
   },
   {
     intent: "iniciar_servico",
     dominio: "servicos",
-    descricao: "o produtor conta que começou um serviço para cliente que já estava registrado",
+    descricao: 'o produtor conta que COMEÇOU ("comecei", "iniciei", "to começando") um serviço para cliente que já estava registrado',
     campos: [CLIENTE_DO_SERVICO],
     exemplos: ["Comecei a gradagem do João hoje. (Serviços com Máquinas §42)", "Comecei a roçada do Pedro hoje"],
     vizinhas:
-      "registrar_servico_prestado quando o serviço é novo, com valor; registrar_producao_servico quando já diz quanto fez",
+      "registrar_servico_prestado quando o serviço é novo, com valor; cadastrar_servico_ordem quando ele conta um serviço NOVO feito para cliente, sem falar em começar; registrar_producao_servico quando já diz quanto fez",
   },
   {
     intent: "registrar_producao_servico",
@@ -113,15 +114,15 @@ export const INTENCOES_SERVICOS: IntencaoDef[] = [
     ],
     exemplos: ["Gastei 60 litros de diesel hoje nesse serviço. (Serviços com Máquinas §42)", "botei 40 litros de diesel na gradagem do João"],
     vizinhas:
-      "registrar_uso_estoque quando o uso não é de um serviço para cliente; registrar_lancamento_financeiro quando é gasto em dinheiro solto",
+      "registrar_uso_estoque quando o uso não cita um serviço nem o cliente dele; registrar_lancamento_financeiro quando é gasto em dinheiro solto",
   },
   {
     intent: "encerrar_servico",
     dominio: "servicos",
-    descricao: "o produtor conta que terminou um serviço para cliente em andamento",
+    descricao: 'o produtor conta que TERMINOU ("terminei", "acabei", "já terminei") um serviço para cliente em andamento',
     campos: [CLIENTE_DO_SERVICO],
     exemplos: ["Terminei o serviço do João. (Serviços com Máquinas §42)", "acabei a roçada do Pedro"],
     vizinhas:
-      "registrar_producao_servico quando diz quanto fez; encerrar_confinamento e encerrar_remessa_evento encerram gado, não serviço",
+      "registrar_producao_servico quando diz quanto fez; cadastrar_servico_ordem quando ele conta um serviço NOVO feito para cliente, sem falar em terminar; encerrar_confinamento e encerrar_remessa_evento encerram gado, não serviço",
   },
 ];

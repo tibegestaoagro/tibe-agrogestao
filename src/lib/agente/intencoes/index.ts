@@ -18,18 +18,18 @@ export { DOMINIOS, type Dominio, type IntencaoDef, type CampoDef } from "./tipos
 
 export const DESCRICAO_DOS_DOMINIOS: Record<Dominio, string> = {
   rebanho: "animais da fazenda: quantos tem, nasceu, morreu, mudou de pasto ou de categoria, comprou ou vendeu gado, cadastro por brinco, peso, vacina",
-  confinamento: "animais no confinamento ou no boitel: entrada, envio ao boitel, trato e ração do lote, saída, venda ou morte no confinamento",
+  confinamento: "animais no confinamento ou no boitel: entrada, envio ao boitel, saída, venda ou morte no confinamento, e todo trato (ração, sal, silagem) de lote que cite confinamento, boitel ou lote",
   eventos_e_permuta: "gado mandado para leilão, feira ou evento e o resultado dele; troca de animais por outra coisa (permuta)",
-  estoque: "insumos e produtos (sal, ração, vermífugo, adubo, diesel): compra, venda, uso, contagem, quanto tem",
-  lista_de_compra: "lista do que precisa comprar: anotar, ver, tirar, marcar que comprou",
+  estoque: "insumos e produtos (sal, ração, vermífugo, adubo, diesel): compra ou venda COM quantidade, uso na fazenda fora de confinamento e de serviço, contagem, quanto tem",
+  lista_de_compra: "lista do que precisa comprar: anotar, ver, tirar, e contar que comprou um item que estava anotado (o item vem com artigo e sem quantidade: \"comprei o arame\")",
   leite: "produção de leite do dia e quantas vacas estão dando leite (entrou, secou, total)",
-  mao_de_obra: "trabalhador fixo da fazenda: cadastro, pagamento, adiantamento",
-  servicos: "serviço com máquina ou empreita: diária de gente contratada, serviço contratado, serviço prestado para cliente, começar, produção, combustível e terminar o serviço",
-  financeiro: "dinheiro solto: despesa ou receita avulsa, recibo, saldo do mês, relatório financeiro",
+  mao_de_obra: "trabalhador FIXO da fazenda, o que tem salário: cadastro, pagamento, adiantamento",
+  servicos: "serviço com máquina ou empreita: gente de fora paga por diária, serviço contratado por valor fechado, serviço prestado a cliente cobrando por máquina, hectare, hora, dia ou valor fechado, e o andamento dele (começar, produção, combustível gasto nele, terminar)",
+  financeiro: "dinheiro solto: despesa ou receita avulsa, recibo, saldo do mês, e relatório em PDF de QUALQUER área (financeiro, rebanho, lavoura, prestador)",
   dia: "agenda: o que tem para hoje, amanhã ou na semana, e criar lembrete ou tarefa",
   calculadoras: "contas de planejamento sem gravar nada: cerca, sementes, sal mineral, ração",
-  prestador: "para quem presta serviço: ordem de serviço para cliente e dados de cliente",
-  conversa: "pergunta de como usar o Tibé ou pedido de ver o que já está cadastrado",
+  prestador: "para quem presta serviço: serviço do catálogo que ele FEZ para um cliente, sem citar máquina, preço nem unidade de cobrança; e quanto um cliente deve ou já pagou",
+  conversa: "pergunta de como usar o Tibé, e pedido de visão geral de uma área (rebanho, lavoura, prestador, financeiro) ou da relação de contas a pagar ou a receber",
 };
 
 /** Todas as intenções, de todos os domínios, na ordem de `DOMINIOS`. */
