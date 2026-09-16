@@ -195,6 +195,27 @@ O ajuste de prompt subiu o `gpt-5.6-luna` de 73,4% para 93,4% de intenção e de
 
 Plano: [../plans/2026-09-16-agente-whatsapp-fase-4-homologacao.md](../plans/2026-09-16-agente-whatsapp-fase-4-homologacao.md).
 
+## Fase 5: decisões de 16/09/2026
+
+Tomadas depois de uma auditoria do que já existia, que encolheu a fase pela
+metade: **"recebi 1.500 de aluguel" já funcionava** (o campo `tipo` do
+lançamento financeiro), e o pagamento futuro da equipe já tinha 80% pronto no
+Módulo 33 (previsão com vencimento, e conciliação no pagamento real).
+
+| tema | decisão |
+|---|---|
+| como achar a conta do "o João me pagou" | **só serviço e negócio**, que têm a contraparte estruturada no banco. `FinancialEntry` não tem FK de cliente: o nome só existe de verdade via `ServiceOrder` ou `Negotiation`. Mais de uma conta: lista e pergunta qual. Lançamento manual fica fora, porque ali o nome é texto livre |
+| pagamento parcial | **entra**: a action já existe e é a mesma da tela |
+| "vou pagar o Pedro dia 10" | **remarca a previsão** que o Módulo 33 já cria, em vez de criar despesa nova. Agendar e depois pagar deixa UMA linha, provado por contagem |
+
+⚠️ **A etapa de domínio derrubou as três intenções novas para 44,4%** na
+primeira medição, e a causa era conflito de descrição entre `prestador`,
+`financeiro`, `conversa` e `mao_de_obra`, não o modelo. É a mesma classe de
+defeito da Fase 3. Corrigidas as quatro descrições: 44,4% para 94-97%, com zero
+gravação indevida e sem regressão nos casos antigos (um pedido de diferença em
+221). Relatório em
+[../../agents/agente-whatsapp/avaliacao-fase-5.md](../../agents/agente-whatsapp/avaliacao-fase-5.md).
+
 ## Critérios de aceite do programa
 
 - Zero gravação indevida no conjunto de avaliação e nos blocos de homologação

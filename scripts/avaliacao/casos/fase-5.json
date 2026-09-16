@@ -7,7 +7,10 @@
     "esperado": [
       {
         "intent": "registrar_recebimento",
-        "campos": { "contato": "João do Leilão", "valor": 8000 }
+        "campos": {
+          "contato": "João do Leilão",
+          "valor": 8000
+        }
       }
     ]
   },
@@ -19,7 +22,10 @@
     "esperado": [
       {
         "intent": "registrar_recebimento",
-        "campos": { "contato": "Agropecuária Santa Fé", "valor": 800 }
+        "campos": {
+          "contato": "Agropecuária Santa Fé",
+          "valor": 800
+        }
       }
     ]
   },
@@ -31,7 +37,10 @@
     "esperado": [
       {
         "intent": "registrar_recebimento",
-        "campos": { "contato": "Frigorífico Bom Boi", "valor": 15000 }
+        "campos": {
+          "contato": "Frigorífico Bom Boi",
+          "valor": 15000
+        }
       }
     ]
   },
@@ -43,7 +52,10 @@
     "esperado": [
       {
         "intent": "registrar_recebimento",
-        "campos": { "contato": "Agropecuária Santa Fé", "data": "hoje" }
+        "campos": {
+          "contato": "Agropecuária Santa Fé",
+          "data": "hoje"
+        }
       }
     ]
   },
@@ -55,7 +67,10 @@
     "esperado": [
       {
         "intent": "registrar_recebimento",
-        "campos": { "contato": "Frigorífico Bom Boi", "valor": 500 }
+        "campos": {
+          "contato": "Frigorífico Bom Boi",
+          "valor": 500
+        }
       }
     ],
     "nota": "pagamento parcial; so o valor pago entra, o catalogo nao tem campo pra dívida total"
@@ -68,7 +83,10 @@
     "esperado": [
       {
         "intent": "registrar_recebimento",
-        "campos": { "contato": "João do Leilão", "valor": 2000 }
+        "campos": {
+          "contato": "João do Leilão",
+          "valor": 2000
+        }
       }
     ]
   },
@@ -80,7 +98,9 @@
     "esperado": [
       {
         "intent": "consultar_recebimento",
-        "campos": { "contato": "João do Leilão" }
+        "campos": {
+          "contato": "João do Leilão"
+        }
       }
     ]
   },
@@ -92,7 +112,9 @@
     "esperado": [
       {
         "intent": "consultar_recebimento",
-        "campos": { "contato": "Agropecuária Santa Fé" }
+        "campos": {
+          "contato": "Agropecuária Santa Fé"
+        }
       }
     ]
   },
@@ -103,10 +125,13 @@
     "texto": "quem ainda ta devendo pra mim?",
     "esperado": [
       {
-        "intent": "consultar_recebimento",
-        "campos": {}
+        "intent": "resumo",
+        "campos": {
+          "scope": "contas_a_receber"
+        }
       }
-    ]
+    ],
+    "nota": "Sem citar pessoa, a relacao inteira de contas a receber e resumo, nao consultar_recebimento (que precisa de um contato). Gabarito corrigido em 16/09 depois da rodada fase-5b."
   },
   {
     "id": "f5-010",
@@ -116,7 +141,9 @@
     "esperado": [
       {
         "intent": "consultar_recebimento",
-        "campos": { "contato": "Frigorífico Bom Boi" }
+        "campos": {
+          "contato": "Frigorífico Bom Boi"
+        }
       }
     ]
   },
@@ -127,10 +154,13 @@
     "texto": "tem alguem me devendo ainda?",
     "esperado": [
       {
-        "intent": "consultar_recebimento",
-        "campos": {}
+        "intent": "resumo",
+        "campos": {
+          "scope": "contas_a_receber"
+        }
       }
-    ]
+    ],
+    "nota": "Sem citar pessoa, a relacao inteira de contas a receber e resumo, nao consultar_recebimento (que precisa de um contato). Gabarito corrigido em 16/09 depois da rodada fase-5b."
   },
   {
     "id": "f5-012",
@@ -140,7 +170,9 @@
     "esperado": [
       {
         "intent": "consultar_recebimento",
-        "campos": { "contato": "João do Leilão" }
+        "campos": {
+          "contato": "João do Leilão"
+        }
       }
     ]
   },
@@ -152,7 +184,10 @@
     "esperado": [
       {
         "intent": "agendar_pagamento_trabalhador",
-        "campos": { "nome": "Pedro", "data": "dia 10" }
+        "campos": {
+          "nome": "Pedro",
+          "data": "dia 10"
+        }
       }
     ]
   },
@@ -164,7 +199,10 @@
     "esperado": [
       {
         "intent": "agendar_pagamento_trabalhador",
-        "campos": { "nome": "Zé Carlos", "data": "semana que vem" }
+        "campos": {
+          "nome": "Zé Carlos",
+          "data": "semana que vem"
+        }
       }
     ]
   },
@@ -176,7 +214,11 @@
     "esperado": [
       {
         "intent": "agendar_pagamento_trabalhador",
-        "campos": { "nome": "Zé Carlos", "valor": 2500, "data": "sexta" }
+        "campos": {
+          "nome": "Zé Carlos",
+          "valor": 2500,
+          "data": "sexta"
+        }
       }
     ]
   },
@@ -188,7 +230,10 @@
     "esperado": [
       {
         "intent": "agendar_pagamento_trabalhador",
-        "campos": { "nome": "Pedro", "data": "dia 15" }
+        "campos": {
+          "nome": "Pedro",
+          "data": "dia 15"
+        }
       }
     ]
   },
@@ -200,7 +245,10 @@
     "esperado": [
       {
         "intent": "agendar_pagamento_trabalhador",
-        "campos": { "nome": "Zé Carlos", "data": "amanha" }
+        "campos": {
+          "nome": "Zé Carlos",
+          "data": "amanha"
+        }
       }
     ]
   },
@@ -212,7 +260,10 @@
     "esperado": [
       {
         "intent": "agendar_pagamento_trabalhador",
-        "campos": { "nome": "Pedro", "data": "dia 30" }
+        "campos": {
+          "nome": "Pedro",
+          "data": "dia 30"
+        }
       }
     ]
   },
@@ -224,7 +275,11 @@
     "esperado": [
       {
         "intent": "registrar_lancamento_financeiro",
-        "campos": { "amount": 1500, "tipo": "receita", "category": "Aluguel" }
+        "campos": {
+          "amount": 1500,
+          "tipo": "receita",
+          "category": "Aluguel"
+        }
       }
     ],
     "nota": "aluguel nao quita conta de cliente, entao nao e registrar_recebimento"
@@ -237,7 +292,11 @@
     "esperado": [
       {
         "intent": "registrar_lancamento_financeiro",
-        "campos": { "amount": 500, "tipo": "receita", "description": "empréstimo do vizinho" }
+        "campos": {
+          "amount": 500,
+          "tipo": "receita",
+          "description": "empréstimo do vizinho"
+        }
       }
     ],
     "nota": "tem a palavra pagou e devia, mas vizinho nao e conta de cliente do negocio"
@@ -250,7 +309,11 @@
     "esperado": [
       {
         "intent": "registrar_lancamento_financeiro",
-        "campos": { "amount": 2000, "tipo": "receita", "description": "comissão de venda" }
+        "campos": {
+          "amount": 2000,
+          "tipo": "receita",
+          "description": "comissão de venda"
+        }
       }
     ]
   },
@@ -262,7 +325,11 @@
     "esperado": [
       {
         "intent": "registrar_lancamento_financeiro",
-        "campos": { "amount": 800, "tipo": "receita", "category": "Aluguel" }
+        "campos": {
+          "amount": 800,
+          "tipo": "receita",
+          "category": "Aluguel"
+        }
       }
     ]
   },
@@ -287,7 +354,9 @@
     "esperado": [
       {
         "intent": "consultar_saldo",
-        "campos": { "period": "agosto" }
+        "campos": {
+          "period": "agosto"
+        }
       }
     ]
   },
@@ -299,7 +368,9 @@
     "esperado": [
       {
         "intent": "consultar_saldo",
-        "campos": { "period": "mes passado" }
+        "campos": {
+          "period": "mes passado"
+        }
       }
     ]
   },
@@ -323,7 +394,10 @@
     "esperado": [
       {
         "intent": "registrar_pagamento_trabalhador",
-        "campos": { "nome": "Pedro", "valor": 200 }
+        "campos": {
+          "nome": "Pedro",
+          "valor": 200
+        }
       }
     ],
     "nota": "ja pagou, tempo passado, nao e pra agendar"
@@ -336,7 +410,9 @@
     "esperado": [
       {
         "intent": "registrar_pagamento_trabalhador",
-        "campos": { "nome": "Zé Carlos" }
+        "campos": {
+          "nome": "Zé Carlos"
+        }
       }
     ]
   },
@@ -348,7 +424,10 @@
     "esperado": [
       {
         "intent": "registrar_pagamento_trabalhador",
-        "campos": { "nome": "Zé Carlos", "valor": 2500 }
+        "campos": {
+          "nome": "Zé Carlos",
+          "valor": 2500
+        }
       }
     ]
   },
@@ -360,7 +439,9 @@
     "esperado": [
       {
         "intent": "registrar_pagamento_trabalhador",
-        "campos": { "nome": "Pedro" }
+        "campos": {
+          "nome": "Pedro"
+        }
       }
     ]
   },
@@ -372,7 +453,9 @@
     "esperado": [
       {
         "intent": "agendar_pagamento_trabalhador",
-        "campos": { "nome": "Pedro" }
+        "campos": {
+          "nome": "Pedro"
+        }
       }
     ],
     "nota": "fronteira com f5-032: vou pagar (futuro) x paguei (passado)"
@@ -385,7 +468,9 @@
     "esperado": [
       {
         "intent": "registrar_pagamento_trabalhador",
-        "campos": { "nome": "Pedro" }
+        "campos": {
+          "nome": "Pedro"
+        }
       }
     ],
     "nota": "fronteira com f5-031: paguei (passado) x vou pagar (futuro)"
@@ -398,7 +483,9 @@
     "esperado": [
       {
         "intent": "consultar_recebimento",
-        "campos": { "contato": "João do Leilão" }
+        "campos": {
+          "contato": "João do Leilão"
+        }
       }
     ],
     "nota": "fronteira com f5-034: pergunta (com ?) x afirmacao"
@@ -411,7 +498,9 @@
     "esperado": [
       {
         "intent": "registrar_recebimento",
-        "campos": { "contato": "João do Leilão" }
+        "campos": {
+          "contato": "João do Leilão"
+        }
       }
     ],
     "nota": "fronteira com f5-033: afirmacao x pergunta (com ?)"
@@ -424,7 +513,11 @@
     "esperado": [
       {
         "intent": "agendar_pagamento_trabalhador",
-        "campos": { "nome": "Zé Carlos", "valor": 800, "data": "dia 5" }
+        "campos": {
+          "nome": "Zé Carlos",
+          "valor": 800,
+          "data": "dia 5"
+        }
       }
     ],
     "nota": "fronteira com f5-036: vai receber (futuro) x recebeu (passado)"
@@ -437,7 +530,10 @@
     "esperado": [
       {
         "intent": "registrar_pagamento_trabalhador",
-        "campos": { "nome": "Zé Carlos", "valor": 800 }
+        "campos": {
+          "nome": "Zé Carlos",
+          "valor": 800
+        }
       }
     ],
     "nota": "fronteira com f5-035: recebeu (passado) x vai receber (futuro)"
@@ -447,9 +543,18 @@
     "autor": "produtor",
     "tipo": "conversa",
     "passos": [
-      { "texto": "o Frigorifico Bom Boi pagou 3 mil da venda", "grava": "pode" },
-      { "texto": "nao, foram 3500", "grava": "nao" },
-      { "texto": "sim, 3500 mesmo", "grava": "deve" }
+      {
+        "texto": "o Frigorifico Bom Boi pagou 3 mil da venda",
+        "grava": "pode"
+      },
+      {
+        "texto": "nao, foram 3500",
+        "grava": "nao"
+      },
+      {
+        "texto": "sim, 3500 mesmo",
+        "grava": "deve"
+      }
     ],
     "nota": "correcao antes de confirmar, depois confirma o valor certo"
   },
@@ -458,8 +563,14 @@
     "autor": "produtor",
     "tipo": "conversa",
     "passos": [
-      { "texto": "vou pagar o Pedro dia 10", "grava": "pode" },
-      { "texto": "nao, deixa pra la", "grava": "nao" }
+      {
+        "texto": "vou pagar o Pedro dia 10",
+        "grava": "pode"
+      },
+      {
+        "texto": "nao, deixa pra la",
+        "grava": "nao"
+      }
     ],
     "nota": "recusa logo depois da pergunta de confirmacao"
   },
@@ -468,10 +579,22 @@
     "autor": "produtor",
     "tipo": "conversa",
     "passos": [
-      { "texto": "quem ainda ta devendo pra mim?", "grava": "nao" },
-      { "texto": "2", "grava": "nao" },
-      { "texto": "ele pagou 800 agora", "grava": "pode" },
-      { "texto": "sim", "grava": "deve" }
+      {
+        "texto": "quem ainda ta devendo pra mim?",
+        "grava": "nao"
+      },
+      {
+        "texto": "2",
+        "grava": "nao"
+      },
+      {
+        "texto": "ele pagou 800 agora",
+        "grava": "pode"
+      },
+      {
+        "texto": "sim",
+        "grava": "deve"
+      }
     ],
     "nota": "resposta curta (numero) escolhendo item da lista que o assistente mostrou"
   },
@@ -480,9 +603,18 @@
     "autor": "produtor",
     "tipo": "conversa",
     "passos": [
-      { "texto": "recebi 1500 de aluguel", "grava": "pode" },
-      { "texto": "sim", "grava": "deve" },
-      { "texto": "ah e vou pagar o Ze Carlos semana que vem", "grava": "pode" }
+      {
+        "texto": "recebi 1500 de aluguel",
+        "grava": "pode"
+      },
+      {
+        "texto": "sim",
+        "grava": "deve"
+      },
+      {
+        "texto": "ah e vou pagar o Ze Carlos semana que vem",
+        "grava": "pode"
+      }
     ],
     "nota": "outro assunto no meio: lancamento financeiro, depois agendamento de pagamento"
   }

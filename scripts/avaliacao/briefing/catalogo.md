@@ -298,7 +298,7 @@ o produtor conta que secou vacas, que pararam de dar leite
 
 ## mao_de_obra
 
-trabalhador FIXO da fazenda, o que tem salário: cadastro, pagamento, adiantamento; quem ele contratou para um serviço, por diária ou por valor fechado, não é daqui
+trabalhador FIXO da fazenda, o que tem salário: cadastro, pagamento já feito, pagamento que ele AINDA VAI fazer numa data ("vou pagar o Pedro dia 10"), adiantamento; quem ele contratou para um serviço, por diária ou por valor fechado, não é daqui
 
 ### registrar_trabalhador
 
@@ -399,7 +399,7 @@ o produtor conta que TERMINOU ("terminei", "acabei", "já terminei") um serviço
 
 ## financeiro
 
-dinheiro solto: despesa ou receita avulsa, recibo, saldo do mês, e relatório em PDF de QUALQUER área (financeiro, rebanho, lavoura, prestador)
+dinheiro: despesa ou receita avulsa, recibo, saldo do mês, relatório em PDF de QUALQUER área (financeiro, rebanho, lavoura, prestador), e também o dinheiro que um CLIENTE pagou ou ainda deve, quando ele cita a pessoa pelo nome ("o João me pagou", "o João já pagou?", "quanto a Santa Fe ainda deve"). O que ele PAGA a alguém da equipe fixa é mão de obra, mesmo dizendo o valor ("paguei 2.500 pro Zé")
 
 ### registrar_lancamento_financeiro
 
@@ -507,7 +507,7 @@ o produtor quer saber quanto de cada ingrediente vai numa mistura de ração
 
 ## prestador
 
-para quem presta serviço, duas coisas só: o serviço do catálogo que ele NOMEIA e fez para um cliente, sem citar máquina nem preço (quantos hectares, horas ou diárias, sozinho, continua aqui); e quanto um cliente deve ou já pagou. Começar, terminar ou avançar ("fiz MAIS tanto") num serviço já registrado não é daqui, nem o que ele PAGA a quem trabalhou para ele
+para quem presta serviço, duas coisas só: o serviço do catálogo que ele NOMEIA e fez para um cliente, sem citar máquina nem preço (quantos hectares, horas ou diárias, sozinho, continua aqui); e o CADASTRO de um cliente, quem ele é e o que já contratou. Dinheiro que o cliente pagou ou ainda deve é FINANCEIRO, não daqui. Começar, terminar ou avançar ("fiz MAIS tanto") num serviço já registrado não é daqui, nem o que ele PAGA a quem trabalhou para ele
 
 ### cadastrar_servico_ordem
 
@@ -525,7 +525,7 @@ o prestador pergunta quanto um cliente já pagou ou ainda deve
 
 ## conversa
 
-pergunta de como usar o Tibé, e pedido de visão geral de uma área (rebanho, lavoura, prestador, financeiro) ou da relação de contas a pagar ou a receber
+pergunta de como usar o Tibé, e pedido de visão geral de uma área (rebanho, lavoura, prestador, financeiro) ou da relação inteira de contas a pagar ou a receber, SEM citar pessoa. Assim que ele nomeia alguém ("o João já pagou?") ou pergunta quem está devendo, é financeiro
 
 ### ajuda
 

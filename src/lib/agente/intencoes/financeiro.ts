@@ -65,7 +65,7 @@ export const INTENCOES_FINANCEIRO: IntencaoDef[] = [
     ],
     exemplos: ["o João me pagou", "a Fazenda Boa Vista pagou 500 dos 1500", "recebi do Ze Carlos ontem"],
     vizinhas:
-      "registrar_lancamento_financeiro quando é dinheiro avulso que entrou e não quita uma conta de alguém (aluguel, venda de sucata); consultar_recebimento quando ele PERGUNTA se alguém pagou",
+      "registrar_lancamento_financeiro quando é dinheiro avulso que entrou e não quita conta de CLIENTE: aluguel, venda de sucata, empréstimo que um vizinho devolveu. Só é recebimento quando quem pagou é cliente do negócio, de um serviço prestado ou de uma venda; consultar_recebimento quando ele PERGUNTA se alguém pagou",
   },
   {
     intent: "consultar_recebimento",

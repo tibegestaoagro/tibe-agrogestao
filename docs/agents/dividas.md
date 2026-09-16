@@ -278,6 +278,18 @@ Baixada"), então é a extração que não está aparando. Não afeta o que é g
 só o texto que o produtor lê. Custo: aparar preposição inicial ao normalizar o
 contato, com cuidado para não comer nome que comece com "Do" de verdade.
 
+### 5.0a "Acabei de pagar o Zé" sai ambígua em parte das rodadas
+
+Achado na avaliação da Fase 5 (16/09). Pagamento de trabalhador **sem valor** e
+com o verbo fora do passado simples ("acabei de pagar", "acertei com o Zé") cai
+em `ambigua` em algumas rodadas e acerta em outras. Tentei corrigir
+acrescentando um exemplo ao registro, e o conjunto inteiro **piorou** de 97,2%
+para 91,7%: revertido.
+
+Custo: uma rodada de ajuste com conjunto maior que 40 casos, porque neste
+tamanho um caso vale 2,8 pontos e o ajuste persegue ruído. Não grava nada
+errado: o agente responde que não entendeu.
+
 ### 5.0b Duas perdas silenciosas no negócio de gado
 
 As duas achadas pela revisão final da Fase 4, as duas de gravidade baixa porque
