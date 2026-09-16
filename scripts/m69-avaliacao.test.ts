@@ -161,6 +161,22 @@ async function main() {
     const comFalhas = aprovar(agregar([certa]), 0, { falhas: 3, passos: 10 });
     check("falha do modelo em 30% dos passos reprova", comFalhas.aprovado === false && comFalhas.motivos.includes("falhas do modelo 30.0% > 2%"), JSON.stringify(comFalhas));
     check("sem falha do modelo nos passos aprova", aprovar(agregar([certa]), 0, { falhas: 0, passos: 10 }).aprovado === true);
+
+    // Confirmação que não gravou é o outro lado da gravação indevida: o modelo que nunca escreve também não serve.
+    const muitasConfirmacoes = aprovar(agregar([certa]), 0, { falhas: 0, passos: 20, confirmacoesSemGravar: 3, passosQueDevem: 10 });
+    check(
+      "confirmação que não gravou em mais de 10% dos passos que deviam gravar reprova",
+      muitasConfirmacoes.aprovado === false && muitasConfirmacoes.motivos.some((m) => m.startsWith("confirmações que não gravaram")),
+      JSON.stringify(muitasConfirmacoes),
+    );
+    check(
+      "no limite de 10% ainda aprova",
+      aprovar(agregar([certa]), 0, { falhas: 0, passos: 20, confirmacoesSemGravar: 1, passosQueDevem: 10 }).aprovado === true,
+    );
+    check(
+      "sem o dado das confirmações, o comportamento é o de hoje",
+      aprovar(agregar([certa]), 0, { falhas: 0, passos: 20 }).aprovado === true,
+    );
     check("agregar sem mensagens nao gera NaN", agregar([]).intencao_geral === 0 && agregar([]).campos === 1);
     check("sem mensagens reprova", aprovar(agregar([]), 0).aprovado === false);
 
@@ -187,9 +203,22 @@ async function main() {
       check("quatro pastos", (await db.pasture.count()) === 4);
       check("produto Sal mineral existe", (await db.product.count({ where: { name: "Sal mineral" } })) === 1);
       check("contato do WhatsApp já existe (não é primeiro contato)", (await db.whatsAppContact.count()) === 1);
-      const antes = await contarLinhasDeNegocio(db);
+      const marco = new Date();
+      const antes = await contarLinhasDeNegocio(db, marco);
       await db.shoppingItem.create({ data: (await import("@/lib/prisma")).scoped({ description: "Teste M69" }) as never });
-      check("uma linha de negócio nova é contada", (await contarLinhasDeNegocio(db)) === antes + 1);
+      const depois = await contarLinhasDeNegocio(db, marco);
+      check("uma linha de negócio nova é contada", depois.total === antes.total + 1 && depois.porModel.ShoppingItem === antes.porModel.ShoppingItem + 1);
+      const { algumaEscritaEntre } = await import("./avaliacao/fazenda");
+      check("a linha nova aparece como escrita", algumaEscritaEntre(antes, depois));
+      // Marco novo, como o executor faz a cada passo: o que interessa é linha alterada DEPOIS dele.
+      const item = (await db.shoppingItem.findFirst({ where: { description: "Teste M69" } }))!;
+      const marcoDoUpdate = new Date();
+      const antesDoUpdate = await contarLinhasDeNegocio(db, marcoDoUpdate);
+      await db.shoppingItem.update({ where: { id: item.id }, data: { status: "comprado", resolved_at: new Date() } });
+      const aposUpdate = await contarLinhasDeNegocio(db, marcoDoUpdate);
+      check("atualizar sem criar linha também é escrita", aposUpdate.total === antesDoUpdate.total && algumaEscritaEntre(antesDoUpdate, aposUpdate));
+      await db.shoppingItem.delete({ where: { id: item.id } });
+      check("apagar também é escrita", algumaEscritaEntre(aposUpdate, await contarLinhasDeNegocio(db, marcoDoUpdate)));
       check("briefing da fazenda cita o Pasto da Baixada", descreverFazenda().includes("Pasto da Baixada"));
       check("catálogo cita registrar_negocio_gado e não cita exemplos", descreverCatalogo().includes("registrar_negocio_gado") && !descreverCatalogo().includes("(§"));
     } finally {
@@ -328,12 +357,47 @@ async function main() {
 
     const { avaliarPasso } = await import("./avaliacao/executor");
     const { FRASE_DE_FALHA_PARCIAL, FRASE_DE_FALHA } = await import("@/lib/actions/turno");
-    const gravouEFalhou = avaliarPasso({ texto: "usei sal e vendi gado", grava: "nao" }, 1, ["✅ Anotei o sal.", FRASE_DE_FALHA_PARCIAL], 10, () => true);
+    const gravouEFalhou = avaliarPasso({ texto: "usei sal e vendi gado", grava: "nao" }, { linhas_novas: 1, escreveu: true }, ["✅ Anotei o sal.", FRASE_DE_FALHA_PARCIAL], 10, () => true);
     check("passo com frase de falha que gravou continua gravação indevida, mesmo no teto", gravouEFalhou.passo?.indevida === true && gravouEFalhou.interromper === true, JSON.stringify(gravouEFalhou));
-    const falhouSemGravar = avaliarPasso({ texto: "quantos animais", grava: "nao" }, 0, [FRASE_DE_FALHA], 10, () => true);
+    const falhouSemGravar = avaliarPasso({ texto: "quantos animais", grava: "nao" }, { linhas_novas: 0, escreveu: false }, [FRASE_DE_FALHA], 10, () => true);
     check("passo que falhou no teto sem gravar sai da lista e interrompe", falhouSemGravar.passo === null && falhouSemGravar.interromper === true);
-    const falhouComVerba = avaliarPasso({ texto: "quantos animais", grava: "nao" }, 0, [FRASE_DE_FALHA], 10, () => false);
+    const alterouEFalhou = avaliarPasso({ texto: "comprei o arame", grava: "nao" }, { linhas_novas: 0, escreveu: true }, [FRASE_DE_FALHA], 10, () => true);
+    check("passo que só ALTEROU linha no teto continua na lista, como gravação indevida", alterouEFalhou.passo?.indevida === true && alterouEFalhou.interromper === true);
+    const falhouComVerba = avaliarPasso({ texto: "quantos animais", grava: "nao" }, { linhas_novas: 0, escreveu: false }, [FRASE_DE_FALHA], 10, () => false);
     check("frase de falha com verba é falha do modelo e não interrompe", falhouComVerba.passo?.falha_do_modelo === true && !falhouComVerba.interromper);
+
+    // Escrita que ATUALIZA não cria linha nova: riscar um item que já estava na lista é gravação indevida do mesmo jeito.
+    const riscaDaLista = async (corpo: Corpo) => {
+      const { nome, texto } = ler(corpo);
+      if (nome === "resposta") return responder({ tipo: "outro_assunto", valor: null });
+      if (nome === "dominio") return responder({ pedidos: [{ dominio: texto.startsWith("comprei") ? "lista_de_compra" : "rebanho", trecho: texto }] });
+      if (texto.startsWith("comprei")) return responder({ intent: "comprei_item_lista", parametros: { descricao: "arame" } });
+      return responder({ intent: "consultar_rebanho", parametros: {} });
+    };
+    const comUpdate = await avaliarModelo({
+      modelo: "gpt-4o-mini",
+      esforco: null,
+      casos: [{
+        id: "m69-conv-2",
+        autor: "conversa" as const,
+        tipo: "conversa" as const,
+        passos: [
+          { texto: "comprei o arame", grava: "nao" as const },
+          { texto: "quantos animais eu tenho", grava: "nao" as const },
+        ],
+      }],
+      particao: "todas",
+      transporte: riscaDaLista,
+      prefixo: `m69-update-${Date.now()}`,
+    });
+    check(
+      "riscar item que já existia na lista é gravação indevida, mesmo sem linha nova",
+      comUpdate.gravacoes_indevidas === 1 &&
+        comUpdate.conversas[0]?.passos[0]?.indevida === true &&
+        comUpdate.conversas[0]?.passos[0]?.linhas_novas === 0 &&
+        comUpdate.conversas[0]?.passos[1]?.indevida === false,
+      JSON.stringify(comUpdate.conversas),
+    );
 
     const soAjuste = await avaliarModelo({ modelo: "gpt-4o-mini", esforco: null, casos: [casos[0], casos[1]], particao: "ajuste", transporte: falso, prefixo: `m69-part-${Date.now()}` });
     const { particao } = await import("./avaliacao/casos");

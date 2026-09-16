@@ -220,7 +220,9 @@ export function agregar(notas: NotaDeMensagem[]): Metricas {
 
 /**
  * `falhas`: passos de conversa que responderam com a frase de falha; sem isso, falhar em tudo
- * passaria pelo eliminatório de gravação. `porIntencaoParaLimite`: base do limite de 85% por
+ * passaria pelo eliminatório de gravação. `confirmacoesSemGravar` sobre `passosQueDevem` é o outro
+ * lado da gravação indevida: o modelo que nunca escreve não erra por excesso, mas também não serve;
+ * sem esses dois, o comportamento é o de antes. `porIntencaoParaLimite`: base do limite de 85% por
  * intenção, default `m.por_intencao`; o relatório passa a base de TODAS as partições, porque a
  * partição final sozinha deixa intenção com poucos casos (o gate de "total >= 5" some, ou vira
  * sorte de amostra pequena).
@@ -228,12 +230,16 @@ export function agregar(notas: NotaDeMensagem[]): Metricas {
 export function aprovar(
   m: Metricas,
   gravacoesIndevidas: number,
-  falhas?: { falhas: number; passos: number },
+  falhas?: { falhas: number; passos: number; confirmacoesSemGravar?: number; passosQueDevem?: number },
   porIntencaoParaLimite?: Metricas["por_intencao"],
 ): { aprovado: boolean; motivos: string[] } {
   const motivos: string[] = [];
   if (falhas && falhas.passos > 0 && falhas.falhas / falhas.passos > 0.02) {
     motivos.push(`falhas do modelo ${((falhas.falhas / falhas.passos) * 100).toFixed(1)}% > 2%`);
+  }
+  if (falhas?.confirmacoesSemGravar !== undefined && (falhas.passosQueDevem ?? 0) > 0) {
+    const taxa = falhas.confirmacoesSemGravar / falhas.passosQueDevem!;
+    if (taxa > 0.1) motivos.push(`confirmações que não gravaram ${(taxa * 100).toFixed(1)}% > 10%`);
   }
   if (m.mensagens === 0) motivos.push("sem mensagens");
   if (gravacoesIndevidas > 0) motivos.push(`gravações indevidas: ${gravacoesIndevidas}`);

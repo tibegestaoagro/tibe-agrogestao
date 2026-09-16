@@ -79,7 +79,17 @@ function main() {
       .filter(([, v]) => v.total >= 5)
       .map(([intent, v]) => ({ intent, taxa: v.certos / v.total, total: v.total }))
       .sort((a, b) => a.taxa - b.taxa)[0];
-    const aprovacao = aprovar(metricas, indevidas.length, { falhas: falhas.passos, passos: passos.length }, metricasParaLimite.por_intencao);
+    const aprovacao = aprovar(
+      metricas,
+      indevidas.length,
+      {
+        falhas: falhas.passos,
+        passos: passos.length,
+        confirmacoesSemGravar: confirmacoesQueNaoGravaram,
+        passosQueDevem: passos.filter((p) => p.grava === "deve").length,
+      },
+      metricasParaLimite.por_intencao,
+    );
     // Resultado parcial nunca aprova: os casos que faltaram podiam reprovar.
     if (bruto.interrompido) aprovacao.motivos.push(`interrompido: ${bruto.interrompido}`);
     linhas.push({ r: bruto, notas, metricas, metricasSemExemplo, metricasComExemplo, indevidas, pior, falhas, confirmacoesQueNaoGravaram, aprovacao: { aprovado: aprovacao.motivos.length === 0, motivos: aprovacao.motivos } });

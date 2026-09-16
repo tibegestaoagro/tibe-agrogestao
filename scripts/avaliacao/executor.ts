@@ -2,7 +2,7 @@ import { classificarMensagem } from "@/lib/agente/classificar";
 import { definirTransporteDoModelo, FalhaDoModelo, type Transporte } from "@/lib/agente/modelo";
 import { executarTurno, FRASE_DE_FALHA, FRASE_DE_FALHA_PARCIAL } from "@/lib/actions/turno";
 import { particaoDoCaso } from "./casos";
-import { montarFazenda, contarLinhasDeNegocio } from "./fazenda";
+import { montarFazenda, contarLinhasDeNegocio, algumaEscritaEntre } from "./fazenda";
 import { custoDaChamada, OrcamentoEsgotado, type Uso } from "./medidor";
 import { agregar, aprovar, pontuarMensagem, type Metricas, type NotaDeMensagem, type PedidoObtido } from "./pontuar";
 import type { Caso, CasoConversa, CasoMensagem, Gravacao, PassoDeConversa } from "./tipos";
@@ -13,8 +13,8 @@ import type { Caso, CasoConversa, CasoMensagem, Gravacao, PassoDeConversa } from
  * contagem de linhas de negócio antes e depois de cada passo.
  */
 
-/** `falha_do_modelo`: a resposta foi a frase de falha do turno. */
-export type PassoAvaliado = { texto: string; grava: Gravacao; linhas_novas: number; indevida: boolean; faltou: boolean; falha_do_modelo: boolean; respostas: string[]; ms: number };
+/** `falha_do_modelo`: a resposta foi a frase de falha do turno. `escreveu`: algum model mudou (linha nova, apagada ou alterada). */
+export type PassoAvaliado = { texto: string; grava: Gravacao; linhas_novas: number; escreveu: boolean; indevida: boolean; faltou: boolean; falha_do_modelo: boolean; respostas: string[]; ms: number };
 export type ConversaAvaliada = { id: string; passos: PassoAvaliado[] };
 export type Particao = "ajuste" | "final" | "todas";
 export type NotaAvaliada = NotaDeMensagem & { texto: string; obtidos: PedidoObtido[]; ms: number; falha?: string; falha_detalhe?: string };
@@ -61,7 +61,7 @@ function motivoDaInterrupcao(e: unknown): string {
  */
 export function avaliarPasso(
   passo: PassoDeConversa,
-  linhas_novas: number,
+  escrita: { linhas_novas: number; escreveu: boolean },
   respostas: string[],
   ms: number,
   orcamentoEsgotado: () => boolean,
@@ -70,14 +70,15 @@ export function avaliarPasso(
   const avaliado: PassoAvaliado = {
     texto: passo.texto,
     grava: passo.grava,
-    linhas_novas,
-    indevida: passo.grava === "nao" && linhas_novas > 0,
-    faltou: passo.grava === "deve" && linhas_novas === 0,
+    linhas_novas: escrita.linhas_novas,
+    escreveu: escrita.escreveu,
+    indevida: passo.grava === "nao" && escrita.escreveu,
+    faltou: passo.grava === "deve" && !escrita.escreveu,
     falha_do_modelo: falhou,
     respostas,
     ms,
   };
-  if (falhou && orcamentoEsgotado()) return { passo: linhas_novas > 0 ? avaliado : null, interromper: true };
+  if (falhou && orcamentoEsgotado()) return { passo: escrita.escreveu ? avaliado : null, interromper: true };
   return { passo: avaliado, interromper: false };
 }
 
@@ -147,12 +148,15 @@ export async function avaliarModelo(opcoes: {
       try {
         fazenda = await montarFazenda(`${opcoes.prefixo}-${caso.id}`);
         for (const [i, passo] of caso.passos.entries()) {
-          const antes = await contarLinhasDeNegocio(fazenda.db);
+          // O marco fica antes da primeira contagem: linha alterada durante o passo tem `updated_at` depois dele.
+          const marco = new Date();
+          const antes = await contarLinhasDeNegocio(fazenda.db, marco);
           const inicio = Date.now();
           const saida = await executarTurno({ telefone: fazenda.telefone, texto: passo.texto, provider_message_id: `${opcoes.prefixo}-${caso.id}-${i}` });
           const ms = Date.now() - inicio;
-          const linhas_novas = (await contarLinhasDeNegocio(fazenda.db)) - antes;
-          const r = avaliarPasso(passo, linhas_novas, saida.mensagens.map((m) => m.texto), ms, esgotado);
+          const depois = await contarLinhasDeNegocio(fazenda.db, marco);
+          const escrita = { linhas_novas: depois.total - antes.total, escreveu: algumaEscritaEntre(antes, depois) };
+          const r = avaliarPasso(passo, escrita, saida.mensagens.map((m) => m.texto), ms, esgotado);
           if (r.passo) avaliada.passos.push(r.passo);
           if (r.interromper) {
             interrompido = "orçamento";
@@ -185,7 +189,13 @@ export async function avaliarModelo(opcoes: {
   const latencias = [...notas.map((n) => n.ms), ...passos.map((p) => p.ms)];
   const avaliados = notas.length + passos.length;
   const falhas_do_modelo = passos.filter((p) => p.falha_do_modelo).length;
-  const { motivos } = aprovar(metricas, gravacoes_indevidas, { falhas: falhas_do_modelo, passos: passos.length });
+  const confirmacoes_que_nao_gravaram = passos.filter((p) => p.faltou).length;
+  const { motivos } = aprovar(metricas, gravacoes_indevidas, {
+    falhas: falhas_do_modelo,
+    passos: passos.length,
+    confirmacoesSemGravar: confirmacoes_que_nao_gravaram,
+    passosQueDevem: passos.filter((p) => p.grava === "deve").length,
+  });
   // Resultado parcial nunca aprova: os casos que faltaram podiam reprovar.
   if (interrompido !== null) motivos.push(`interrompido: ${interrompido}`);
 
@@ -197,7 +207,7 @@ export async function avaliarModelo(opcoes: {
     conversas,
     metricas,
     gravacoes_indevidas,
-    confirmacoes_que_nao_gravaram: passos.filter((p) => p.faltou).length,
+    confirmacoes_que_nao_gravaram,
     falhas_do_modelo,
     aprovacao: { aprovado: motivos.length === 0, motivos },
     custo_usd: custo,

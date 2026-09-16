@@ -345,9 +345,11 @@ export async function montarFazenda(sufixo: string): Promise<FazendaMontada> {
 }
 
 /**
- * Soma `count()` de todo model de negócio de `TENANT_SCOPED_MODELS`, para o
- * executor detectar gravação indevida (o eliminatório da avaliação): compara
- * o número antes e depois de rodar um caso, e uma pergunta que grava é falha.
+ * Conta `count()` de todo model de negócio de `TENANT_SCOPED_MODELS`, model a
+ * model, para o executor detectar gravação indevida (o eliminatório da
+ * avaliação): compara as contagens antes e depois de rodar um passo, e uma
+ * pergunta que escreve é falha. Model a model porque o total sozinho só enxerga
+ * linha NOVA: apagar uma e criar outra se anulam, e atualizar não mexe nele.
  * Fica de fora o que não é linha de negócio (perfil, usuário, contato,
  * histórico de conversa, alerta, cofre de sessão): a lista exata está na
  * brief da task 4.
@@ -370,15 +372,51 @@ const FORA_DA_CONTAGEM = new Set<string>([
 
 type ClienteComContagem = Record<string, { count(args?: unknown): Promise<number> }>;
 
-export async function contarLinhasDeNegocio(db: TenantPrismaClient): Promise<number> {
+/**
+ * Models de negócio que têm `updated_at`: neles, escrita indevida pode não criar
+ * linha nenhuma (riscar item da lista, encerrar serviço, quitar conta), e só a
+ * data de alteração denuncia. A lista sai do `schema.prisma`; model novo com
+ * `updated_at` entra aqui.
+ *
+ * ponytail: `ServiceOrder`, `HerdStay` e `MilkGroup` também mudam de estado, mas
+ * não têm `updated_at` no schema. As duas primeiras gravam a movimentação junto
+ * (linha nova, já contada) e a terceira só muda ao arquivar; se um dia isso
+ * mudar, o caminho é o campo no schema, não uma contagem especial aqui.
+ */
+const COM_DATA_DE_ALTERACAO = new Set<string>([
+  "AnimalBatch",
+  "Machine",
+  "Task",
+  "Product",
+  "FinancialEntry",
+  "Worker",
+  "ServiceJob",
+  "ShoppingItem",
+]);
+
+/** `porModel`: uma chave por model, mais `Model#alterado` quando `desde` é informada. */
+export type ContagemDeNegocio = { total: number; porModel: Record<string, number> };
+
+export async function contarLinhasDeNegocio(db: TenantPrismaClient, desde?: Date): Promise<ContagemDeNegocio> {
   const cliente = db as unknown as ClienteComContagem;
+  const porModel: Record<string, number> = {};
   let total = 0;
   for (const modelo of TENANT_SCOPED_MODELS) {
     if (FORA_DA_CONTAGEM.has(modelo)) continue;
     const delegate = modelo.charAt(0).toLowerCase() + modelo.slice(1);
-    total += await cliente[delegate].count();
+    const linhas = await cliente[delegate].count();
+    porModel[modelo] = linhas;
+    total += linhas;
+    if (desde && COM_DATA_DE_ALTERACAO.has(modelo)) {
+      porModel[`${modelo}#alterado`] = await cliente[delegate].count({ where: { updated_at: { gte: desde } } });
+    }
   }
-  return total;
+  return { total, porModel };
+}
+
+/** Qualquer model que mudou de contagem, para mais ou para menos, ou que teve linha alterada. */
+export function algumaEscritaEntre(antes: ContagemDeNegocio, depois: ContagemDeNegocio): boolean {
+  return Object.keys(depois.porModel).some((chave) => depois.porModel[chave] !== (antes.porModel[chave] ?? 0));
 }
 
 function reaisBr(valor: number): string {
