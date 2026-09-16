@@ -7,6 +7,11 @@ import type { CasoMensagem, ValorEsperado } from "./tipos";
 
 export type PedidoObtido = { intent: string; parameters: Record<string, unknown> };
 
+/**
+ * `campos_total_absoluto`: a mesma base de `campos_total` mais os campos esperados dos pedidos cuja
+ * INTENÇÃO errou (que hoje não são medidos em lugar nenhum). Sem ele, quem erra mais intenção é
+ * medido numa base menor, e a nota de campos sobe justamente por errar antes.
+ */
 export type NotaDeMensagem = {
   id: string;
   pedidos_certos: number;
@@ -14,6 +19,7 @@ export type NotaDeMensagem = {
   por_intencao: { intent: string; certo: boolean }[];
   campos_certos: number;
   campos_total: number;
+  campos_total_absoluto: number;
   erros: string[];
 };
 
@@ -61,6 +67,11 @@ function mesmoDiaCivil(hoje: Date, esperado: unknown, obtido: unknown): boolean 
  * fim vira o singular sem o "s" ("bezerros" -> "bezerro"). Existe porque a
  * inclusão de texto só casa plural no FIM da frase por acaso (substring); no
  * meio ("fêmeas de 13 a 24 meses" x "fêmea de 13 a 24 meses") não casava.
+ *
+ * ponytail: plural ingênuo, de propósito. Invariável ("lápis") perde o "s" e
+ * irregular ("animais" x "animal") não casa; nos termos que a avaliação usa
+ * (categoria de animal, produto, serviço) isso não aparece. Se aparecer, o
+ * caminho é uma lista de exceções, não um lematizador.
  */
 function singularizarPalavra(palavra: string): string {
   if (palavra.length < 4) return palavra;
@@ -116,6 +127,7 @@ export function pontuarMensagem(caso: CasoMensagem, obtidos: PedidoObtido[], hoj
   let pedidos_certos = 0;
   let campos_certos = 0;
   let campos_total = 0;
+  let campos_de_intencao_errada = 0;
 
   for (let i = 0; i < esperados.length; i++) {
     const esperado = esperados[i];
@@ -123,15 +135,23 @@ export function pontuarMensagem(caso: CasoMensagem, obtidos: PedidoObtido[], hoj
     const certo = obtido !== undefined && obtido.intent === esperado.intent;
     por_intencao.push({ intent: esperado.intent, certo });
     if (certo) pedidos_certos += 1;
-    if (!certo) continue;
+    if (!certo) {
+      // Intenção errada leva os campos dela junto: nenhum foi extraído certo, e a base absoluta conta isso.
+      campos_de_intencao_errada += Object.keys(esperado.campos ?? {}).length;
+      continue;
+    }
 
     const def = buscarIntencao(esperado.intent);
     if (!def) continue;
 
     const camposEsperados = esperado.campos ?? {};
     const parametros = obtido.parameters ?? {};
-    // Número extra só é "inventado" quando não aparece de fato na mensagem (dígito ou por
-    // extenso de um a vinte); um número dito e não pedido no gabarito não é erro do modelo.
+    // Número extra só é "inventado" quando não aparece de fato na mensagem, em dígito ou por
+    // extenso, inclusive composto ("cento e trinta mil"); um número dito e não pedido no
+    // gabarito não é erro do modelo.
+    // ponytail: a conferência lê a MENSAGEM INTEIRA, então número inventado que por acaso é
+    // igual a outro número dito na mesma mensagem passa batido. Pegar isso exigiria casar cada
+    // campo com o trecho dele, e o trecho que o modelo devolve nem sempre é literal.
     const { removidos: numerosSemLastro } = conferirTrechoLiteral(parametros, caso.texto, def.campos);
     const inventado = new Set(numerosSemLastro);
 
@@ -179,14 +199,17 @@ export function pontuarMensagem(caso: CasoMensagem, obtidos: PedidoObtido[], hoj
     por_intencao,
     campos_certos,
     campos_total,
+    campos_total_absoluto: campos_total + campos_de_intencao_errada,
     erros,
   };
 }
 
+/** `campos`: a nota que o limite de 90% usa, medida só nos pedidos com intenção certa. `campos_absoluto`: a mesma nota na base que inclui os campos perdidos junto com a intenção. */
 export type Metricas = {
   intencao_geral: number;
   por_intencao: Record<string, { certos: number; total: number }>;
   campos: number;
+  campos_absoluto: number;
   mensagens: number;
 };
 
@@ -195,6 +218,7 @@ export function agregar(notas: NotaDeMensagem[]): Metricas {
   let pedidosTotal = 0;
   let camposCertos = 0;
   let camposTotal = 0;
+  let camposTotalAbsoluto = 0;
   const porIntencao: Record<string, { certos: number; total: number }> = {};
 
   for (const nota of notas) {
@@ -202,6 +226,7 @@ export function agregar(notas: NotaDeMensagem[]): Metricas {
     pedidosTotal += nota.pedidos_total;
     camposCertos += nota.campos_certos;
     camposTotal += nota.campos_total;
+    camposTotalAbsoluto += nota.campos_total_absoluto;
     for (const { intent, certo } of nota.por_intencao) {
       const atual = porIntencao[intent] ?? { certos: 0, total: 0 };
       atual.total += 1;
@@ -214,6 +239,7 @@ export function agregar(notas: NotaDeMensagem[]): Metricas {
     intencao_geral: pedidosTotal === 0 ? 0 : pedidosCertos / pedidosTotal,
     por_intencao: porIntencao,
     campos: camposTotal === 0 ? 1 : camposCertos / camposTotal,
+    campos_absoluto: camposTotalAbsoluto === 0 ? 1 : camposCertos / camposTotalAbsoluto,
     mensagens: notas.length,
   };
 }

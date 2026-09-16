@@ -154,6 +154,18 @@ async function main() {
       JSON.stringify(subcampoInventado),
     );
 
+    // A nota de campos só olha pedido com intenção certa, então quem erra mais intenção é medido numa base menor.
+    const erradaComCampos = pontuarMensagem(caso, [{ intent: "ambigua", parameters: {} }], hoje);
+    check("intenção errada não entra na base de campos de hoje", erradaComCampos.campos_total === 0 && erradaComCampos.campos_certos === 0);
+    check("os campos esperados do pedido que errou a intenção entram na base absoluta", erradaComCampos.campos_total_absoluto === 3, JSON.stringify(erradaComCampos));
+    const absoluta = agregar([certa, erradaComCampos]);
+    check(
+      "campos absoluto mede na base maior, campos continua como está",
+      absoluta.campos === 1 && Math.abs(absoluta.campos_absoluto - 0.5) < 1e-9,
+      JSON.stringify(absoluta),
+    );
+    check("agregar sem mensagens não gera NaN no absoluto", agregar([]).campos_absoluto === 1);
+
     const m = agregar([certa, cortada]);
     check("agrega intenção geral", Math.abs(m.intencao_geral - 2 / 3) < 1e-9, String(m.intencao_geral));
     check("gravação indevida reprova mesmo com nota cheia", aprovar(agregar([certa]), 1).aprovado === false);
@@ -182,7 +194,7 @@ async function main() {
 
     // O relatório passa a base de TODAS as partições pro limite de 85%: a partição filtrada
     // sozinha pode ter poucos casos por intenção (o gate de "total >= 5" nem entra em jogo).
-    const metricasFiltradas = { intencao_geral: 1, por_intencao: { consultar_estoque: { certos: 1, total: 3 } }, campos: 1, mensagens: 3 };
+    const metricasFiltradas = { intencao_geral: 1, por_intencao: { consultar_estoque: { certos: 1, total: 3 } }, campos: 1, campos_absoluto: 1, mensagens: 3 };
     const porIntencaoTodas = { consultar_estoque: { certos: 5, total: 10 } };
     check("sem a base de todas as particoes, poucos casos escapam do limite de 85%", aprovar(metricasFiltradas, 0).aprovado === true);
     const comBaseDeTodas = aprovar(metricasFiltradas, 0, undefined, porIntencaoTodas);

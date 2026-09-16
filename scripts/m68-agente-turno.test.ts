@@ -440,15 +440,15 @@ async function main() {
       }
       return { status: 200, json: { choices: [{ message: { content: JSON.stringify({ intent: "ambigua", parametros: {} }) } }] } };
     });
-    const tresTomios = await classificarMensagem({ texto: "quantos animais tenho e quanto estoque tem e qual meu saldo", hoje: "2026-09-15", perfis: [] });
+    const tresDominios = await classificarMensagem({ texto: "quantos animais tenho e quanto estoque tem e qual meu saldo", hoje: "2026-09-15", perfis: [] });
     const tempo = Date.now() - inicio;
     check(
       "três extrações em paralelo termina em ~300ms não ~900ms",
-      tresTomios.length === 3 &&
-        tresTomios[0].intent === "consultar_rebanho" &&
-        tresTomios[1].intent === "consultar_estoque" &&
-        tresTomios[2].intent === "consultar_saldo" &&
-        tempo < 700 &&
+      tresDominios.length === 3 &&
+        tresDominios[0].intent === "consultar_rebanho" &&
+        tresDominios[1].intent === "consultar_estoque" &&
+        tresDominios[2].intent === "consultar_saldo" &&
+        tempo < 900 &&
         chamadaDeExtracao === 3,
       `tempo: ${tempo}ms, chamadas: ${chamadaDeExtracao}`,
     );

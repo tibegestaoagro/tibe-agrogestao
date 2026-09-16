@@ -102,21 +102,23 @@ function main() {
     "",
     "O limite de 85% por intenção usa todas as notas do resultado gravado, não o filtro de partição acima: gravações indevidas, intenção geral e campos seguem a partição pedida.",
     "",
+    "`campos` é a coluna do limite de 90%: mede só os pedidos cuja intenção acertou. `campos absoluto` mede na base que inclui os campos perdidos junto com a intenção errada, e é a comparável entre modelos que erram intenção em ritmos diferentes.",
+    "",
   ];
 
   md.push(
     "## Modelos",
     "",
-    "| modelo | aprovado | gravações indevidas | confirmações que não gravaram | falhas do modelo (mensagens / passos) | intenção geral | intenção (sem exemplo) | intenção (exemplo) | pior intenção (5+ casos) | campos | campos (sem exemplo) | campos (exemplo) | US$ por 1.000 mensagens | p50 | p95 |",
-    "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+    "| modelo | aprovado | gravações indevidas | confirmações que não gravaram | falhas do modelo (mensagens / passos) | intenção geral | intenção (sem exemplo) | intenção (exemplo) | pior intenção (5+ casos) | campos | campos absoluto | campos (sem exemplo) | campos (exemplo) | US$ por 1.000 mensagens | p50 | p95 |",
+    "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
   );
   for (const l of linhas) {
     const nome = `${l.r.modelo}${l.r.esforco ? ` (${l.r.esforco})` : ""}${l.r.interrompido ? `, interrompido: ${l.r.interrompido}` : ""}`;
     md.push(
-      `| ${celula(nome)} | ${l.aprovacao.aprovado ? "sim" : "não"} | ${l.indevidas.length} | ${l.confirmacoesQueNaoGravaram} | ${l.falhas.mensagens} / ${l.falhas.passos} | ${pct(l.metricas.intencao_geral)} | ${pct(l.metricasSemExemplo.intencao_geral)} (${l.metricasSemExemplo.mensagens}) | ${pct(l.metricasComExemplo.intencao_geral)} (${l.metricasComExemplo.mensagens}) | ${l.pior ? `${l.pior.intent} ${pct(l.pior.taxa)} (${l.pior.total})` : "nenhuma"} | ${pct(l.metricas.campos)} | ${pct(l.metricasSemExemplo.campos)} | ${pct(l.metricasComExemplo.campos)} | ${l.r.custo_por_mil_mensagens.toFixed(4)} | ${l.r.latencia_p50_ms} ms | ${l.r.latencia_p95_ms} ms |`,
+      `| ${celula(nome)} | ${l.aprovacao.aprovado ? "sim" : "não"} | ${l.indevidas.length} | ${l.confirmacoesQueNaoGravaram} | ${l.falhas.mensagens} / ${l.falhas.passos} | ${pct(l.metricas.intencao_geral)} | ${pct(l.metricasSemExemplo.intencao_geral)} (${l.metricasSemExemplo.mensagens}) | ${pct(l.metricasComExemplo.intencao_geral)} (${l.metricasComExemplo.mensagens}) | ${l.pior ? `${l.pior.intent} ${pct(l.pior.taxa)} (${l.pior.total})` : "nenhuma"} | ${pct(l.metricas.campos)} | ${pct(l.metricas.campos_absoluto)} | ${pct(l.metricasSemExemplo.campos)} | ${pct(l.metricasComExemplo.campos)} | ${l.r.custo_por_mil_mensagens.toFixed(4)} | ${l.r.latencia_p50_ms} ms | ${l.r.latencia_p95_ms} ms |`,
     );
   }
-  for (const p of pulados) md.push(`| ${celula(p.modelo)} | pulado: ${celula(p.pulado)} | | | | | | | | | | | | | |`);
+  for (const p of pulados) md.push(`| ${celula(p.modelo)} | pulado: ${celula(p.pulado)} | | | | | | | | | | | | | | |`);
 
   md.push("", "## Falhas do modelo por detalhe", "");
   const comFalha = linhas.filter((l) => l.notas.some((n) => n.falha));
@@ -155,6 +157,17 @@ function main() {
       erros.set(chave, atual);
     };
     for (const n of l.notas) {
+      // Mesmas intenções, outra ordem: a pontuação conta dois erros (a ordem da mensagem é regra do
+      // prompt), mas listar os dois soltos sugere duas confusões de intenção que não existem.
+      const esperadosDaNota = n.por_intencao.map((pi) => pi.intent);
+      const obtidosDaNota = n.obtidos.map((o) => o.intent);
+      const mesmasIntencoes =
+        esperadosDaNota.length === obtidosDaNota.length &&
+        [...esperadosDaNota].sort().join("|") === [...obtidosDaNota].sort().join("|");
+      if (mesmasIntencoes && esperadosDaNota.some((intent, i) => intent !== obtidosDaNota[i])) {
+        contar(n.texto, `ordem trocada: ${esperadosDaNota.join(" + ")}`, obtidosDaNota.join(" + "));
+        continue;
+      }
       n.por_intencao.forEach((pi, i) => {
         if (!pi.certo) contar(n.texto, pi.intent, n.falha ? `falha: ${n.falha}` : (n.obtidos[i]?.intent ?? "(nenhum)"));
       });

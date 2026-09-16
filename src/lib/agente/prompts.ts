@@ -140,7 +140,7 @@ export function promptDeExtracao(dominio: Dominio): { sistema: string; schema: R
     "Regras:",
     "- Extraia só o que o produtor disse; nunca invente brinco, cliente ou valor.",
     '- Repasse número e data como o produtor falou, sem calcular ("60 mil" continua "60 mil"; "dia 10", "hoje" e "ontem" continuam do jeito que ele falou, nunca viram uma data calculada).',
-    '- Só o que ele falou por extenso vira algarismo, com o mesmo valor e nada mais: "quinze" é 15, "mil e duzentos" é 1200, "dia dez" é "dia 10", e o brinco "mil duzentos e trinta e quatro" é 1234.',
+    '- Só o que ele falou por extenso vira algarismo, com o mesmo valor e nada mais: "quinze" é 15, "mil e duzentos" é 1200, "dia dez" é "dia 10", e o brinco "setenta e nove" é 79.',
     '- current_date é só contexto para você entender expressões relativas; nunca use current_date para preencher ou converter um campo de data.',
     "- Use \"ambigua\" quando o pedido não corresponde a nenhuma intenção listada.",
   ].join("\n");

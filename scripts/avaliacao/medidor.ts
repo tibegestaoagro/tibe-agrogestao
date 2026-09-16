@@ -35,6 +35,12 @@ export class OrcamentoEsgotado extends Error {
 
 export type Medidor = { transporte: Transporte; gastoTotal(): number; chamadas(): number };
 
+/**
+ * O acumulado vive em `resultados/gasto.json`, e `resultados/` está no
+ * `.gitignore`: o teto não viaja entre máquinas, e apagar a pasta zera o que
+ * já foi gasto. Antes de rodar, confira o valor impresso pelo `rodar.ts`.
+ */
+
 export function criarMedidor(opcoes: { arquivo: string; teto?: number; enviar?: Transporte }): Medidor {
   const teto = opcoes.teto ?? TETO_USD;
   const enviar = opcoes.enviar ?? transporteHttp;
