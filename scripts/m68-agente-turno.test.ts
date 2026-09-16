@@ -213,6 +213,40 @@ async function main() {
     check('"meia dúzia" não vale 12', conferirTrechoLiteral({ quantidade: 12 }, "comprei meia dúzia de frascos", [numero("quantidade")]).removidos.join() === "quantidade");
     check('"morreram duas" com 3 remove', conferirTrechoLiteral({ quantidade: 3 }, "morreram duas", [numero("quantidade")]).removidos.join() === "quantidade");
 
+    // Número por extenso composto: o classificador manda converter, e o produtor fala assim o tempo todo em áudio.
+    check(
+      '"comprei vinte bois por sessenta mil" mantém 60000',
+      conferirTrechoLiteral({ valor: 60000 }, "comprei vinte bois por sessenta mil", [numero("valor")]).removidos.length === 0,
+    );
+    check(
+      '"vinte e duas cabeça de bezerro" mantém 22',
+      conferirTrechoLiteral({ quantidade: 22 }, "vinte e duas cabeça de bezerro", [numero("quantidade")]).removidos.length === 0,
+    );
+    check(
+      '"cento e trinta mil" mantém 130000',
+      conferirTrechoLiteral({ valor: 130000 }, "cento e trinta mil", [numero("valor")]).removidos.length === 0,
+    );
+    check(
+      '"dois mil e quinhentos" mantém 2500',
+      conferirTrechoLiteral({ valor: 2500 }, "dois mil e quinhentos", [numero("valor")]).removidos.length === 0,
+    );
+    check(
+      '"mil e quinhentos reais" mantém 1500',
+      conferirTrechoLiteral({ valor: 1500 }, "mil e quinhentos reais", [numero("valor")]).removidos.length === 0,
+    );
+    check(
+      '"quarenta litros de diesel" mantém 40',
+      conferirTrechoLiteral({ quantidade: 40 }, "quarenta litros de diesel", [numero("quantidade")]).removidos.length === 0,
+    );
+    check(
+      '"vinte bois" NÃO mantém 21 (o texto não diz 21)',
+      conferirTrechoLiteral({ quantidade: 21 }, "vinte bois", [numero("quantidade")]).removidos.join() === "quantidade",
+    );
+    check(
+      '"sessenta mil" mantém 60, a parte sem o multiplicador',
+      conferirTrechoLiteral({ valor: 60 }, "sessenta mil", [numero("valor")]).removidos.length === 0,
+    );
+
     const comLista = conferirTrechoLiteral(
       { itens: [{ categoria: "bezerro", quantidade: 20 }, { categoria: "vaca", quantidade: 999 }] },
       "comprei 20 bezerros e algumas vacas",
