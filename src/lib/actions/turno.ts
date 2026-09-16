@@ -92,7 +92,35 @@ async function entenderPedidos(e: EntradaDoTurno, contato: Identificado, agora: 
   }
 
   const hoje = inicioDoDiaEmSaoPaulo(agora).toISOString().slice(0, 10);
-  return classificarMensagem({ texto: e.texto, hoje, perfis: contato.activeProfiles });
+  const pedidos = await classificarMensagem({ texto: e.texto, hoje, perfis: contato.activeProfiles });
+
+  /**
+   * A classificação normal nunca recebe `cursor.pergunta`: ela não sabe que
+   * existe uma pergunta em aberto. Uma resposta que claramente respondia ao
+   * campo pendente, mas que a etapa de resposta acima recusou (a mensagem
+   * trazia mais do que "só o campo", ou a leitura não voltou "responde"),
+   * virava "ambigua" sozinha, e o produtor que tinha acabado de responder
+   * certo ouvia "não entendi". Achado real, homologacao-4: "o foram vinte e
+   * cinco bezerro por setenta e cinco mil", respondendo "Quantos animais?",
+   * caía aqui porque também trazia a categoria e o valor, além da
+   * quantidade.
+   *
+   * Mesmas duas guardas do "responde" acima, reaproveitadas: nunca numa
+   * pergunta ("?", `comecaComPergunta`), e "sim"/"não" já saíram por
+   * `detectConfirmation` antes daqui, então não chegam a este ponto.
+   */
+  if (
+    cursor &&
+    !cursor.aguardando.startsWith("confirmacao") &&
+    pedidos.length === 1 &&
+    pedidos[0].intent === "ambigua" &&
+    !e.texto.includes("?") &&
+    !comecaComPergunta(e.texto)
+  ) {
+    return [{ intent: cursor.intent, parameters: { [cursor.aguardando]: e.texto } }];
+  }
+
+  return pedidos;
 }
 
 /**

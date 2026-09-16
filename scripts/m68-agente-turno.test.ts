@@ -1152,6 +1152,74 @@ async function main() {
 
             await clearPendingNegotiation(tenant.id, owner.id);
             await limparCursor(tenant.id, owner.id);
+
+            /**
+             * homologacao-4: o mesmo início da reprodução 2, mas agora com a
+             * etapa de resposta recusando (a mensagem traz mais do que só a
+             * quantidade: também a categoria e o valor), o que já acontecia
+             * antes. A diferença é o que vem DEPOIS: a classificação normal,
+             * sem o contexto da pergunta, não acha nada na frase sozinha e
+             * volta "ambigua". Sem a correção desta rodada, isso virava
+             * "Não entendi..." mesmo o produtor tendo acabado de responder.
+             */
+            prepara({
+              dominio: { pedidos: [{ dominio: "rebanho", trecho: "e ai entao o joao do leilao me vendeu uns bezerro" }] },
+              extracao_rebanho: {
+                intent: "registrar_negocio_gado",
+                parametros: { tipo: "compra", contato: "joao", itens: [{ categoria: "bezerro", quantidade: null }] },
+              },
+            });
+            const rep3a = await turno("e ai entao o joao do leilao me vendeu uns bezerro", "T9c1");
+            check(
+              "(rep3) fixture: pergunta a quantidade",
+              !!rep3a.mensagens[0]?.texto.includes("Quantos animais"),
+              rep3a.mensagens[0]?.texto,
+            );
+
+            prepara({
+              resposta: { tipo: "outro_assunto", valor: null },
+              dominio: { pedidos: [{ dominio: "nenhum", trecho: "o foram vinte e cinco bezerro por setenta e cinco mil" }] },
+            });
+            const rep3b = await turno("o foram vinte e cinco bezerro por setenta e cinco mil", "T9c2");
+            check(
+              "(rep3) cursor vivo: a leitura recusando NÃO vira 'Não entendi' (homologacao-4)",
+              !rep3b.mensagens[0]?.texto.includes("Não entendi"),
+              rep3b.mensagens[0]?.texto,
+            );
+            check(
+              "(rep3) segue tentando o campo pendente, não desiste de cara",
+              !rep3b.mensagens[0]?.texto.includes("Não estou conseguindo entender"),
+              rep3b.mensagens[0]?.texto,
+            );
+            const cursorRep3b = await carregarCursor(tenant.id, owner.id);
+            check(
+              "(rep3) o cursor segue vivo, aguardando a mesma quantidade (nada foi perdido)",
+              cursorRep3b?.aguardando === "quantidade",
+              JSON.stringify(cursorRep3b),
+            );
+            const pendenteRep3b = await loadPendingNegotiation(tenant.id, owner.id);
+            const categoriaRep3b = pendenteRep3b ? (pendenteRep3b.parameters as Record<string, unknown>).categoria : null;
+            check(
+              "(rep3) a categoria (bezerro) segue guardada, a resposta não apagou o que já tinha",
+              typeof categoriaRep3b === "string" && categoriaRep3b.trim().length > 0,
+              JSON.stringify(pendenteRep3b),
+            );
+
+            // Duas casas na mesma frase ("vinte e cinco" e "setenta e cinco mil")
+            // não dá para separar sem contexto: uma resposta limpa na rodada
+            // seguinte fecha a quantidade e a conversa segue adiante.
+            prepara({ resposta: { tipo: "responde", valor: "25" } });
+            const rep3c = await turno("25", "T9c3");
+            check(
+              "(rep3) uma resposta limpa fecha a quantidade e avança (não repete, não desiste)",
+              rep3c.mensagens[0]?.texto !== rep3b.mensagens[0]?.texto &&
+                !rep3c.mensagens[0]?.texto.includes("Não entendi") &&
+                !rep3c.mensagens[0]?.texto.includes("Não estou conseguindo entender"),
+              rep3c.mensagens[0]?.texto,
+            );
+
+            await clearPendingNegotiation(tenant.id, owner.id);
+            await limparCursor(tenant.id, owner.id);
           }
         } finally {
           definirTransporteDoModelo(null);
