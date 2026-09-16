@@ -28,7 +28,11 @@ export const INTENCOES_SERVICOS: IntencaoDef[] = [
       { nome: "servico", tipo: "texto", descricao: "o serviço feito (cerca, roçada, capina)" },
       { nome: "valor", tipo: "numero", descricao: "o valor de UMA diária, só o número, como o produtor falou (150)" },
       { nome: "quantidade", tipo: "numero", descricao: "quantos DIAS trabalharam, só o número (4)" },
-      { nome: "pessoas", tipo: "numero", descricao: "quantas pessoas trabalharam, só o número (3); vazio se não disse" },
+      {
+        nome: "pessoas",
+        tipo: "numero",
+        descricao: 'quantas pessoas trabalharam ao todo, só o número (3); quem ele cita pelo nome conta junto ("fulano e mais 2" são 3); vazio se não disse',
+      },
       { nome: "quem", tipo: "texto", descricao: "o nome de quem trabalhou, se ele disse" },
       FAZENDA,
     ],
@@ -53,8 +57,7 @@ export const INTENCOES_SERVICOS: IntencaoDef[] = [
   {
     intent: "registrar_servico_prestado",
     dominio: "servicos",
-    descricao:
-      "o produtor conta que fez ou vai fazer um serviço para um cliente citando a máquina, o preço ou a unidade de cobrança (hectare, hora, dia)",
+    descricao: "o produtor conta que fez ou vai fazer um serviço para um cliente citando a máquina ou o preço",
     campos: [
       { nome: "servico", tipo: "texto", descricao: "o serviço (gradagem, roçada, colheita)" },
       { nome: "maquina", tipo: "texto", descricao: "a máquina usada, como ele falou (John Deere, Massey)" },
@@ -79,7 +82,7 @@ export const INTENCOES_SERVICOS: IntencaoDef[] = [
       "fiz 8 horas de ensilagem pro João Vizinho com a John Deere, a 250 a hora",
     ],
     vizinhas:
-      "iniciar_servico, registrar_producao_servico e encerrar_servico quando o serviço já está registrado; cadastrar_servico_ordem quando ele conta o serviço feito para o cliente SEM máquina, preço nem unidade; criar_tarefa quando é só lembrete sem valor nem cliente",
+      "iniciar_servico, registrar_producao_servico e encerrar_servico quando o serviço já está registrado; cadastrar_servico_ordem quando ele conta o serviço feito para o cliente SEM máquina e SEM preço, mesmo dizendo quantos hectares, horas ou diárias foram; criar_tarefa quando é só lembrete sem valor nem cliente",
   },
   {
     intent: "iniciar_servico",
@@ -93,14 +96,14 @@ export const INTENCOES_SERVICOS: IntencaoDef[] = [
   {
     intent: "registrar_producao_servico",
     dominio: "servicos",
-    descricao: "o produtor conta quanto avançou num serviço para cliente em andamento (hectares, horas)",
+    descricao: 'o produtor conta que avançou MAIS tanto ("fiz mais", "avancei mais") num serviço para cliente em andamento',
     campos: [
       CLIENTE_DO_SERVICO,
       { nome: "quantidade", tipo: "numero", descricao: "quanto foi feito, só o número, como o produtor falou (8)" },
     ],
     exemplos: ["Fiz 8 hectares hoje. (Serviços com Máquinas §42)", "hoje rendeu 5 horas no serviço do João"],
     vizinhas:
-      "registrar_producao_leite quando são litros de leite; registrar_combustivel_servico quando é consumo; registrar_servico_prestado quando traz preço de serviço novo",
+      "registrar_producao_leite quando são litros de leite; registrar_combustivel_servico quando é consumo; registrar_servico_prestado quando traz preço de serviço novo; cadastrar_servico_ordem quando ele NOMEIA o serviço feito para o cliente em vez de dizer que avançou mais tanto",
   },
   {
     intent: "registrar_combustivel_servico",

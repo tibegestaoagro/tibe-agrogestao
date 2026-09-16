@@ -66,7 +66,7 @@ export const INTENCOES_LISTA_DE_COMPRA: IntencaoDef[] = [
     campos: [
       { nome: "descricao", tipo: "texto", descricao: "o item da lista que ele comprou, como falou (sal)" },
       { nome: "valor", tipo: "numero", descricao: "quanto pagou no total, só o número, como o produtor falou (1800); vazio se não disse" },
-      { nome: "pago", tipo: "sim_nao", descricao: "não quando ele comprou a prazo; vazio se não disse" },
+      { nome: "pago", tipo: "sim_nao", descricao: "não quando ele comprou a prazo ou fiado; vazio se não disse" },
     ],
     exemplos: ["Comprei o sal.", "comprei o sal por 1800", "já comprei o vermífugo, saiu por 240 e ficou fiado"],
     vizinhas:

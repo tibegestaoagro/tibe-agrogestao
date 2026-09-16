@@ -16,15 +16,35 @@ import { DESCRICAO_DOS_DOMINIOS, DOMINIOS, intencoesDoDominio, type CampoDef, ty
 export const MOLDE_PERFIS_ATIVOS = "perfis ativos: ";
 export const MOLDE_CURRENT_DATE = "current_date: ";
 
-/** Campos de todas as intenções de um domínio, sem repetir nome (o classificador extrai todos de uma vez). */
+/**
+ * Campos de todas as intenções de um domínio, sem repetir nome (o classificador extrai todos de uma vez).
+ *
+ * Quando o mesmo nome tem descrições diferentes em duas intenções, a descrição
+ * do schema junta as duas, cada uma marcada com a intenção a que pertence.
+ * Antes ficava só a PRIMEIRA, e ela chegava a contradizer a outra sem que se
+ * pudesse ver isso lendo o registro: em `financeiro`, `tipo` era "receita
+ * quando o dinheiro ENTROU, vazio quando é despesa", e `gerar_relatorio` saía
+ * sem a área pedida nas duas medições da Fase 3; em `servicos`, `quem` era "o
+ * nome de quem trabalhou", e as quatro intenções de andamento perdiam o
+ * cliente.
+ */
 export function camposDoDominio(dominio: Dominio): CampoDef[] {
-  const vistos = new Map<string, CampoDef>();
+  const porNome = new Map<string, { campo: CampoDef; porDescricao: Map<string, string[]> }>();
   for (const intencao of intencoesDoDominio(dominio)) {
     for (const campo of intencao.campos) {
-      if (!vistos.has(campo.nome)) vistos.set(campo.nome, campo);
+      const atual = porNome.get(campo.nome) ?? { campo, porDescricao: new Map<string, string[]>() };
+      atual.porDescricao.set(campo.descricao, [...(atual.porDescricao.get(campo.descricao) ?? []), intencao.intent]);
+      porNome.set(campo.nome, atual);
     }
   }
-  return [...vistos.values()];
+  return [...porNome.values()].map(({ campo, porDescricao }) =>
+    porDescricao.size === 1
+      ? campo
+      : {
+          ...campo,
+          descricao: [...porDescricao].map(([descricao, intents]) => `em ${intents.join(", ")}: ${descricao}`).join("; "),
+        },
+  );
 }
 
 function objetoFechado(properties: Record<string, unknown>): Record<string, unknown> {
@@ -85,6 +105,7 @@ export function promptDeDominio(): { sistema: string; schema: Record<string, unk
     "- valor, custo, frete, comissão, diferença de troca, desconto, prazo ou data de pagamento ditos junto com a ação.",
     '- a mesma ação sobre várias coisas ("anota sal e dois vermífugos na lista", "nasceram 4 machos e 3 fêmeas"): é UM pedido só.',
     "- consulta sobre o mesmo dia ou período, mesmo citando assuntos diferentes (tarefa, conta, vacina): é UM pedido só; períodos diferentes são pedidos diferentes.",
+    "- de onde os animais saíram, para onde foram e o que houve com eles (venderam, morreram, voltaram ao pasto), com o valor: é UMA movimentação só.",
     '- pedido que ele desfaz ou adia na mesma mensagem ("não, deixa pra lá", "deixa pra eu confirmar depois"): não vira pedido nenhum.',
     "",
     "Domínios possíveis:",
@@ -92,6 +113,7 @@ export function promptDeDominio(): { sistema: string; schema: Record<string, unk
     "",
     "Para cada pedido, informe o domínio e o trecho literal da mensagem que corresponde a ele. O trecho é sempre um recorte literal da mensagem do produtor, nunca um resumo.",
     'Parte que o Tibé não faz (previsão do tempo, achar comprador, conselho): ignore quando a mensagem tem outro pedido válido. Só quando NADA na mensagem é pedido do Tibé devolva um pedido único, com domínio "nenhum".',
+    'Pergunta sobre o que ele já fez num período ("quantos nasceram no ano passado", "quanto de adubo saiu em julho", "será que já acertei com o veterinário"): as consultas do Tibé só dizem como as coisas estão HOJE, então ela vai com domínio "nenhum". Saldo ou caixa do mês e relatório são a exceção: esses existem.',
   ].join("\n");
   const schema = objetoFechado({
     pedidos: {
@@ -115,7 +137,8 @@ export function promptDeExtracao(dominio: Dominio): { sistema: string; schema: R
     "",
     "Regras:",
     "- Extraia só o que o produtor disse; nunca invente brinco, cliente ou valor.",
-    '- Repasse número e data exatamente como o produtor falou, sem converter ("60 mil" continua "60 mil"; "dia 10", "hoje" e "ontem" continuam do jeito que ele falou, nunca viram uma data calculada).',
+    '- Repasse número e data como o produtor falou, sem calcular ("60 mil" continua "60 mil"; "dia 10", "hoje" e "ontem" continuam do jeito que ele falou, nunca viram uma data calculada).',
+    '- Só o que ele falou por extenso vira algarismo, com o mesmo valor e nada mais: "quinze" é 15, "mil e duzentos" é 1200, "dia dez" é "dia 10", e o brinco "mil duzentos e trinta e quatro" é 1234.',
     '- current_date é só contexto para você entender expressões relativas; nunca use current_date para preencher ou converter um campo de data.',
     "- Use \"ambigua\" quando o pedido não corresponde a nenhuma intenção listada.",
   ].join("\n");
