@@ -22,6 +22,8 @@ export type ResultadoDoModelo = {
   modelo: string;
   esforco: string | null;
   particao: Particao;
+  /** Arquivo de `casos/` a que a rodada foi restrita, quando foi; null é a pasta inteira. */
+  arquivo: string | null;
   notas: NotaAvaliada[];
   conversas: ConversaAvaliada[];
   metricas: Metricas;
@@ -87,6 +89,8 @@ export async function avaliarModelo(opcoes: {
   esforco: string | null;
   casos: Caso[];
   particao: Particao;
+  /** Só para o relatório dizer de onde vieram os casos; o filtro já foi feito na leitura. */
+  arquivo?: string | null;
   transporte: Transporte;
   concorrencia?: number;
   prefixo: string;
@@ -203,6 +207,7 @@ export async function avaliarModelo(opcoes: {
     modelo: opcoes.modelo,
     esforco: opcoes.esforco,
     particao: opcoes.particao,
+    arquivo: opcoes.arquivo ?? null,
     notas,
     conversas,
     metricas,

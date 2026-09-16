@@ -113,11 +113,11 @@ export function validarCasos(casos: unknown[]): string[] {
 
 const PASTA_PADRAO = path.join(__dirname, "casos");
 
-/** Lê todo `casos/*.json` (cada arquivo é um array de `Caso`). */
-export function carregarCasos(pasta: string = PASTA_PADRAO): Caso[] {
+/** Lê todo `casos/*.json` (cada arquivo é um array de `Caso`); com `soDoArquivo`, lê só aquele. */
+export function carregarCasos(pasta: string = PASTA_PADRAO, soDoArquivo?: string): Caso[] {
   if (!fs.existsSync(pasta)) return [];
   const casos: Caso[] = [];
-  for (const arquivo of fs.readdirSync(pasta).filter((f) => f.endsWith(".json"))) {
+  for (const arquivo of fs.readdirSync(pasta).filter((f) => f.endsWith(".json") && (soDoArquivo === undefined || f === soDoArquivo))) {
     let conteudo: unknown;
     try {
       conteudo = JSON.parse(fs.readFileSync(path.join(pasta, arquivo), "utf8"));

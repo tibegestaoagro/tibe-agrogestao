@@ -27,6 +27,22 @@ function argumento(nome: string): string | undefined {
   return i >= 0 ? process.argv[i + 1] : undefined;
 }
 
+/**
+ * Trava contra o erro que a revisão da Fase 3 achou: ajustar prompt olhando um
+ * resultado que já vinha com a partição guardada dentro. O relatório de uma
+ * rodada que não é a final (nem uma rodada `fora...`, de casos novos) avisa, no
+ * topo, quando os casos medidos incluem a partição `final`.
+ */
+export function avisoDeParticaoGuardada(
+  rodada: string,
+  ids: string[],
+  particaoPorId: Map<string, "ajuste" | "final">,
+): string | null {
+  if (rodada === "final" || rodada.startsWith("fora")) return null;
+  if (!ids.some((id) => particaoPorId.get(id) === "final")) return null;
+  return "**Atenção: este resultado inclui casos da partição guardada (`final`). Ele serve para medir, nunca para ajustar prompt.**";
+}
+
 /** Texto seguro dentro de célula de tabela. */
 function celula(s: string): string {
   return s.replace(/\r?\n/g, " / ").replace(/\|/g, "\\|");
@@ -52,6 +68,8 @@ function main() {
   const coincideComExemploPorId = new Map(carregarCasos().map((c) => [c.id, c.coincide_com_exemplo !== undefined]));
 
   const particoes = new Set<string>();
+  const arquivosDeCaso = new Set<string>();
+  const idsMedidos: string[] = [];
   const pulados: { modelo: string; pulado: string }[] = [];
   const linhas = [];
   for (const arquivo of fs.readdirSync(pasta).filter((f) => f.endsWith(".json"))) {
@@ -62,9 +80,12 @@ function main() {
     }
     const particao = particaoPedida ?? bruto.particao;
     particoes.add(particao);
+    if (bruto.arquivo) arquivosDeCaso.add(bruto.arquivo);
     const noFiltro = (id: string) => particao === "todas" || particaoPorId.get(id) === particao;
     const notas = bruto.notas.filter((n) => noFiltro(n.id));
     const conversas = bruto.conversas.filter((c) => noFiltro(c.id));
+    // Sem o filtro de partição de propósito: o que o carimbo denuncia é o ARQUIVO ter rodado a partição guardada.
+    idsMedidos.push(...bruto.notas.map((n) => n.id), ...bruto.conversas.map((c) => c.id));
     const metricas = agregar(notas);
     // Poucos casos por intenção numa partição só (a "final" em especial): o limite de 85% olha
     // TODAS as notas do resultado gravado, não o filtro de partição acima do relatório.
@@ -95,10 +116,14 @@ function main() {
     linhas.push({ r: bruto, notas, metricas, metricasSemExemplo, metricasComExemplo, indevidas, pior, falhas, confirmacoesQueNaoGravaram, aprovacao: { aprovado: aprovacao.motivos.length === 0, motivos: aprovacao.motivos } });
   }
 
+  const aviso = avisoDeParticaoGuardada(rodada, idsMedidos, particaoPorId);
   const md: string[] = [
     `# Avaliação de modelos do agente, Fase 3: rodada ${rodada}`,
     "",
-    `Partição: ${[...particoes].join(", ") || "nenhuma"}. Gerado em ${new Date().toISOString().slice(0, 10)}.`,
+    ...(aviso ? [aviso, ""] : []),
+    `Partição: ${[...particoes].join(", ") || "nenhuma"}.` +
+      `${arquivosDeCaso.size > 0 ? ` Casos de ${[...arquivosDeCaso].join(", ")}.` : ""}` +
+      ` Gerado em ${new Date().toISOString().slice(0, 10)}.`,
     "",
     "O limite de 85% por intenção usa todas as notas do resultado gravado, não o filtro de partição acima: gravações indevidas, intenção geral e campos seguem a partição pedida.",
     "",
@@ -197,4 +222,5 @@ function main() {
   console.log(`Relatório: ${path.relative(process.cwd(), destino)}`);
 }
 
-main();
+// Só como CLI: a m69 importa `avisoDeParticaoGuardada` daqui, e importar não pode gerar relatório.
+if (require.main === module) main();

@@ -6,7 +6,8 @@ import { exigirBancoLocal, exigirRedisLocal } from "../_banco-local";
 /**
  * CLI da rodada real (Fase 3): roda cada modelo sobre os casos, com um medidor
  * de custo único para a rodada, e grava `resultados/<rodada>/<modelo>.json`.
- * Roda: `npm run avaliacao:rodar -- --rodada <nome> [--modelos a,b] [--particao ajuste|final|todas] [--limite N] [--concorrencia N]`.
+ * Roda: `npm run avaliacao:rodar -- --rodada <nome> [--modelos a,b] [--particao ajuste|final|todas] [--arquivo casos.json] [--limite N] [--concorrencia N]`.
+ * `--arquivo` restringe a rodada aos casos daquele arquivo de `casos/` (a partição pedida continua valendo).
  * Sai com código 2 quando o orçamento acaba; 1 quando algum modelo foi pulado ou interrompido por outro motivo.
  */
 
@@ -29,7 +30,12 @@ async function main() {
 
   const rodada = argumento("rodada");
   if (!rodada || !/^[a-z0-9-]+$/.test(rodada)) {
-    console.error("Uso: npm run avaliacao:rodar -- --rodada <nome> [--modelos a,b] [--particao ajuste|final|todas] [--limite N] [--concorrencia N]");
+    console.error("Uso: npm run avaliacao:rodar -- --rodada <nome> [--modelos a,b] [--particao ajuste|final|todas] [--arquivo casos.json] [--limite N] [--concorrencia N]");
+    process.exit(1);
+  }
+  const arquivo = argumento("arquivo");
+  if (arquivo !== undefined && !/^[a-z0-9-]+\.json$/.test(arquivo)) {
+    console.error(`arquivo inválido: ${arquivo} (o nome de um .json de scripts/avaliacao/casos/)`);
     process.exit(1);
   }
   const particao = (argumento("particao") ?? "todas") as "ajuste" | "final" | "todas";
@@ -54,11 +60,11 @@ async function main() {
     process.exit(1);
   }
 
-  let casos = carregarCasos();
+  let casos = carregarCasos(undefined, arquivo);
   if (particao !== "todas") casos = casos.filter((c) => particaoDoCaso(c) === particao);
   casos = casos.slice(0, limite);
   if (casos.length === 0) {
-    console.error("nenhum caso para rodar");
+    console.error(arquivo ? `nenhum caso para rodar em ${arquivo}` : "nenhum caso para rodar");
     process.exit(1);
   }
 
@@ -74,7 +80,7 @@ async function main() {
   const pasta = path.join(__dirname, "resultados", rodada);
   fs.mkdirSync(pasta, { recursive: true });
   const gravar = (modelo: string, dados: unknown) => fs.writeFileSync(path.join(pasta, `${modelo}.json`), JSON.stringify(dados, null, 2));
-  console.log(`Rodada ${rodada}: ${casos.length} casos, partição ${particao}, gasto acumulado US$ ${medidor.gastoTotal().toFixed(4)} de US$ ${TETO_USD}`);
+  console.log(`Rodada ${rodada}: ${casos.length} casos${arquivo ? ` de ${arquivo}` : ""}, partição ${particao}, gasto acumulado US$ ${medidor.gastoTotal().toFixed(4)} de US$ ${TETO_USD}`);
 
   let outraInterrupcao = false;
   let algumPulado = false;
@@ -126,6 +132,7 @@ async function main() {
         esforco,
         casos,
         particao,
+        arquivo: arquivo ?? null,
         transporte: medidor.transporte,
         concorrencia,
         prefixo: `${rodada}-${modelo}`,

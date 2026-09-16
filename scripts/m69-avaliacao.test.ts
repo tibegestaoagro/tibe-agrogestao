@@ -416,7 +416,20 @@ async function main() {
     check("partição filtra os casos", soAjuste.notas.every((n) => particao(n.id) === "ajuste") && soAjuste.notas.length === [casos[0], casos[1]].filter((c) => particao(c.id) === "ajuste").length);
   }
 
-  console.log("\n5. Espera no limite da conta");
+  console.log("\n5. Carimbo da partição guardada no relatório");
+  {
+    const { avisoDeParticaoGuardada } = await import("./avaliacao/relatorio");
+    const particoes = new Map<string, "ajuste" | "final">([["c-ajuste", "ajuste"], ["c-final", "final"]]);
+
+    const carimbo = avisoDeParticaoGuardada("ajuste-3", ["c-ajuste", "c-final"], particoes);
+    check("rodada de ajuste com caso da partição final é carimbada", carimbo !== null && carimbo.startsWith("**") && carimbo.includes("final"), String(carimbo));
+    check("sem caso da partição final não carimba", avisoDeParticaoGuardada("ajuste-3", ["c-ajuste"], particoes) === null);
+    check("a rodada chamada final não carimba", avisoDeParticaoGuardada("final", ["c-ajuste", "c-final"], particoes) === null);
+    check("rodada fora da amostra não carimba", avisoDeParticaoGuardada("forademostra", ["c-ajuste", "c-final"], particoes) === null);
+    check("id que não está mais nos casos não carimba sozinho", avisoDeParticaoGuardada("ajuste-3", ["some-id"], particoes) === null);
+  }
+
+  console.log("\n6. Espera no limite da conta");
   {
     const { comEsperaEmLimite } = await import("./avaliacao/limite");
     type Corpo = Record<string, unknown>;
