@@ -435,8 +435,9 @@
     "tipo": "mensagem",
     "texto": "o Sítio Alegre ainda deve alguma coisa?",
     "esperado": [
-      { "intent": "consultar_cliente", "campos": { "client_name": "Sítio Alegre" } }
-    ]
+      { "intent": "consultar_recebimento", "campos": { "contato": "Sítio Alegre" } }
+    ],
+    "nota": "Gabarito mudou por decisão de produto de 16/09: consultar_cliente saiu do classificador, consultar_recebimento passou a responder as duas perguntas de 'quanto o cliente me deve'."
   },
   {
     "id": "prod-170",
@@ -444,8 +445,9 @@
     "tipo": "mensagem",
     "texto": "o Zé do Rio já pagou tudo o que devia?",
     "esperado": [
-      { "intent": "consultar_cliente", "campos": { "client_name": "Zé do Rio" } }
-    ]
+      { "intent": "consultar_recebimento", "campos": { "contato": "Zé do Rio" } }
+    ],
+    "nota": "Gabarito mudou por decisão de produto de 16/09: consultar_cliente saiu do classificador, consultar_recebimento passou a responder as duas perguntas de 'quanto o cliente me deve'."
   },
   {
     "id": "prod-171",
@@ -453,8 +455,9 @@
     "tipo": "mensagem",
     "texto": "a Transportes Rio Verde já acertou comigo?",
     "esperado": [
-      { "intent": "consultar_cliente", "campos": { "client_name": "Transportes Rio Verde" } }
-    ]
+      { "intent": "consultar_recebimento", "campos": { "contato": "Transportes Rio Verde" } }
+    ],
+    "nota": "Gabarito mudou por decisão de produto de 16/09: consultar_cliente saiu do classificador, consultar_recebimento passou a responder as duas perguntas de 'quanto o cliente me deve'."
   },
   {
     "id": "prod-172",

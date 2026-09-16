@@ -931,6 +931,108 @@ async function main() {
         String(zeDepois.due_date),
       );
     }
+
+    // ── 10. Unificação de 16/09: consultar_recebimento responde as duas ────
+    // coisas (`consultar_cliente` saiu do classificador). O caso que
+    // discrimina: um cliente de serviço com uma conta JÁ EM ABERTO (ordem
+    // faturada, lançamento pendente) E uma ordem CONCLUÍDA e ainda não
+    // faturada. Antes desta mudança, a segunda ficava invisível.
+
+    console.log("\n10. consultar_recebimento cita conta em aberto E serviço não faturado");
+    {
+      const { routeIntent } = await import("@/lib/actions/whatsapp-router");
+      const { reaisBr } = await import("@/lib/numero-br");
+
+      const clientePrestador = await db.serviceClient.create({
+        data: scoped({ name: "Fazenda Dois Números M70" }),
+      });
+      const servicoDois = await db.service.create({
+        data: scoped({ name: "Diária de trator", pricing_type: "fixed", unit_price: 800 }),
+      });
+
+      // Ordem faturada, com lançamento pendente: a conta EM ABERTO.
+      const ordemFaturada = await db.serviceOrder.create({
+        data: scoped({
+          service_client_id: clientePrestador.id,
+          service_id: servicoDois.id,
+          description: "diária faturada",
+          total_value: 800,
+          performed_at: new Date("2026-09-01T12:00:00.000Z"),
+          status: "invoiced",
+        }),
+      });
+      const entryFaturada = await db.financialEntry.create({
+        data: scoped({
+          entry_type: "income",
+          category: "Serviço - Diária de trator",
+          amount: 800,
+          related_module: "servico",
+          related_id: ordemFaturada.id,
+          status: "pending",
+          due_date: new Date("2026-09-15T12:00:00.000Z"),
+        }),
+      });
+
+      // Ordem CONCLUÍDA, sem faturar: nenhum FinancialEntry ligado a ela.
+      await db.serviceOrder.create({
+        data: scoped({
+          service_client_id: clientePrestador.id,
+          service_id: servicoDois.id,
+          description: "diária ainda não faturada",
+          total_value: 450,
+          performed_at: new Date("2026-09-10T12:00:00.000Z"),
+          status: "completed",
+        }),
+      });
+
+      const entriesAntes = await db.financialEntry.count();
+      const pagamentosAntes = await db.financialPayment.count();
+      const ordensAntes = await db.serviceOrder.count();
+
+      const r10 = await routeIntent(db, {
+        intent: "consultar_recebimento" as never,
+        tenant_id: tenant.id,
+        role: "OWNER",
+        activeProfiles: ["fazenda"],
+        parameters: { contato: "Fazenda Dois Números M70" },
+        confirmed: false,
+        explicitNo: false,
+        user_id: "m70-user-10",
+      });
+
+      check(
+        "cita a conta em aberto (o valor faturado e pendente)",
+        r10.reply_text.includes(reaisBr(800)),
+        r10.reply_text,
+      );
+      check(
+        "cita o serviço feito e ainda não faturado (o valor da ordem completed)",
+        r10.reply_text.includes(reaisBr(450)),
+        r10.reply_text,
+      );
+      check(
+        "distingue as duas coisas em vez de somar num único número",
+        !r10.reply_text.includes(reaisBr(1250)),
+        r10.reply_text,
+      );
+
+      check(
+        "consulta não grava: nenhum FinancialEntry novo",
+        (await db.financialEntry.count()) === entriesAntes,
+      );
+      check(
+        "consulta não grava: nenhum FinancialPayment novo",
+        (await db.financialPayment.count()) === pagamentosAntes,
+      );
+      check(
+        "consulta não grava: nenhuma ServiceOrder nova",
+        (await db.serviceOrder.count()) === ordensAntes,
+      );
+      check(
+        "a conta em aberto continua pending (não foi tocada pela consulta)",
+        (await db.financialEntry.findUniqueOrThrow({ where: { id: entryFaturada.id } })).status === "pending",
+      );
+    }
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });
     await prisma.$disconnect();

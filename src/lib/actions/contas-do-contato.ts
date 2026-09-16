@@ -47,7 +47,13 @@ export type ContasDoContatoResultado =
    * qual, com os candidatos aqui.
    */
   | { estado: "ambiguo"; candidatos: PessoaCandidata[] }
-  | { estado: "ok"; contato: string; contas: ContaEmAberto[] };
+  /**
+   * `pessoa` (Fase 5, unificação de 16/09): quem chamou sabe se quem casou é
+   * cliente de serviço ou contato de negócio, sem casar o nome de novo. É o
+   * que permite `consultarRecebimento` somar o trabalho feito e ainda não
+   * faturado (só existe para `ServiceClient`) às contas já lançadas.
+   */
+  | { estado: "ok"; contato: string; contas: ContaEmAberto[]; pessoa: PessoaCandidata };
 
 async function contasDeServico(
   db: TenantPrismaClient,
@@ -186,5 +192,5 @@ export async function contasEmAbertoDoContato(
   if (pessoas.length === 0) return { estado: "nao_encontrado" };
   if (pessoas.length > 1) return { estado: "ambiguo", candidatos: pessoas };
   const pessoa = pessoas[0];
-  return { estado: "ok", contato: pessoa.name, contas: await contasDaPessoa(db, pessoa) };
+  return { estado: "ok", contato: pessoa.name, contas: await contasDaPessoa(db, pessoa), pessoa };
 }

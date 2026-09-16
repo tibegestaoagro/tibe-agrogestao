@@ -5,6 +5,7 @@ import type { TenantPrismaClient } from "@/lib/prisma";
 import { getBalanceAction } from "@/lib/actions/financial-summary";
 import { buildReportLink } from "@/lib/reports/report-link";
 import { createManualEntryAction, markEntryPaidAction } from "@/lib/actions/financial-entries";
+import { getClientSummaryAction } from "@/lib/actions/service-clients";
 import { registrarPagamentoAction, resumoDePagamento } from "@/lib/actions/financial-payments";
 import {
   contasEmAbertoDoContato,
@@ -531,10 +532,20 @@ export const registrarRecebimento: Handler = async (ctx) => {
 };
 
 /**
- * "O João já pagou?" / "quanto o Zé Carlos ainda me deve": nunca grava, só lê
- * `contasEmAbertoDoContato`. Sem memória de conversa (é consulta, não
- * escrita): homônimo é resolvido pedindo um nome mais específico na próxima
- * mensagem, mesmo padrão de `consultarCliente` (`prestador.ts`).
+ * "O João já pagou?" / "quanto o Zé Carlos ainda me deve": nunca grava, só lê.
+ * Sem memória de conversa (é consulta, não escrita): homônimo é resolvido
+ * pedindo um nome mais específico na próxima mensagem, mesmo padrão que
+ * `consultarCliente` (`prestador.ts`) já usava.
+ *
+ * Decisão de produto de 16/09 (`consultar_cliente` saiu do classificador:
+ * as duas perguntas "o que o cliente me deve" viravam intenções diferentes, e
+ * o classificador errava entre elas): esta consulta responde as DUAS coisas
+ * que antes ficavam em handlers separados, porque são coisas diferentes para
+ * quem vai cobrar. `contasEmAbertoDoContato` dá o que já virou lançamento
+ * pendente; quando a pessoa é cliente de serviço (`ServiceClient`),
+ * `getClientSummaryAction` (mesma action de `consultarCliente`) dá o que já
+ * foi feito e ainda não foi faturado. Contato de negócio (`Contact`) não tem
+ * esse segundo número: só `ServiceClient` gera ordem de serviço.
  */
 export const consultarRecebimento: Handler = async (ctx) => {
   const intent = "consultar_recebimento";
@@ -560,7 +571,22 @@ export const consultarRecebimento: Handler = async (ctx) => {
       action_taken: `${intent}:ambiguo`,
     };
   }
-  if (achado.contas.length === 0) {
+
+  const naoFaturado =
+    achado.pessoa.tipo === "cliente"
+      ? await getClientSummaryAction(ctx.db, achado.pessoa.id)
+      : null;
+  const totalNaoFaturado = naoFaturado?.ok ? naoFaturado.data.total_pending : 0;
+
+  const partes: string[] = [];
+  if (achado.contas.length > 0) {
+    partes.push(`Em aberto:\n${listaDeContas(achado.contas)}`);
+  }
+  if (totalNaoFaturado > 0) {
+    partes.push(`Serviço já feito e ainda não faturado: ${reaisBr(totalNaoFaturado)}.`);
+  }
+
+  if (partes.length === 0) {
     return {
       reply_text: `${achado.contato} não tem nenhuma conta em aberto comigo.`,
       requires_confirmation: false,
@@ -571,9 +597,9 @@ export const consultarRecebimento: Handler = async (ctx) => {
   }
 
   return {
-    reply_text: `${achado.contato} deve:\n${listaDeContas(achado.contas)}`,
+    reply_text: `${achado.contato}:\n${partes.join("\n")}`,
     requires_confirmation: false,
-    auxiliary_data: { contas: achado.contas },
+    auxiliary_data: { contas: achado.contas, nao_faturado: totalNaoFaturado },
     report_url: null,
     action_taken: `${intent}:ok`,
   };

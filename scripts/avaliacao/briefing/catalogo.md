@@ -517,12 +517,6 @@ o prestador NOMEIA um serviço do seu catálogo que fez para um cliente cadastra
 - service_name (texto): o serviço do catálogo, como ele falou (diária de trator, gradagem)
 - quantity (numero): quantas unidades, só o número, como o produtor falou (2); vazio conta 1
 
-### consultar_cliente
-
-o prestador pergunta quanto um cliente já pagou ou ainda deve
-
-- client_name (texto): o nome do cliente, como ele falou (João)
-
 ## conversa
 
 pergunta de como usar o Tibé, e pedido de visão geral de uma área (rebanho, lavoura, prestador, financeiro) ou da relação inteira de contas a pagar ou a receber, SEM citar pessoa. Assim que ele nomeia alguém ("o João já pagou?") ou pergunta quem está devendo, é financeiro

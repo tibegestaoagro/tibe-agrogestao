@@ -345,8 +345,9 @@
     "tipo": "mensagem",
     "texto": "quanto a Agropecuária Santa Fé ainda deve?",
     "esperado": [
-      { "intent": "consultar_cliente", "campos": { "client_name": "Agropecuária Santa Fé" } }
-    ]
+      { "intent": "consultar_recebimento", "campos": { "contato": "Agropecuária Santa Fé" } }
+    ],
+    "nota": "Gabarito mudou por decisão de produto de 16/09: consultar_cliente saiu do classificador, consultar_recebimento passou a responder as duas perguntas de 'quanto o cliente me deve'."
   },
   {
     "id": "fam-038",

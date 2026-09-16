@@ -58,11 +58,16 @@ export function buscarIntencao(intent: string): IntencaoDef | null {
 }
 
 /**
- * Fora do registro: as duas legadas que o agente não emite mais (decisão 8 da spec) e `ambigua`, que
+ * Fora do registro: as duas legadas que o agente não emite mais (decisão 8 da
+ * spec), `consultar_cliente` (decisão de produto de 16/09: as duas perguntas
+ * de "quanto o cliente me deve" viravam intenções diferentes e o
+ * classificador errava entre elas; `consultar_recebimento` passou a responder
+ * as duas coisas, ver `whatsapp-handlers/financeiro.ts`), e `ambigua`, que
  * não tem extração (sai pronta da etapa de domínio).
  */
 export const INTENCOES_FORA_DO_CLASSIFICADOR: readonly Intent[] = [
   "registrar_lote_animal",
   "registrar_movimento",
+  "consultar_cliente",
   "ambigua",
 ];
