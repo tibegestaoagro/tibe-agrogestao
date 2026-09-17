@@ -3,6 +3,7 @@ import { getSessionUser, getTenantDb } from "@/lib/tenant-context";
 import { canWrite } from "@/lib/permissions";
 import { listAlertPreferencesAction } from "@/lib/actions/alert-preferences";
 import AlertPreferenceToggles from "./alert-preference-toggles";
+import PushToggle from "./push-toggle";
 
 const LABELS: Record<string, string> = {
   vaccine_due: "Vacina próxima do vencimento",
@@ -37,6 +38,7 @@ export default async function AlertasConfigPage() {
           não muda como os demais são entregues (push, WhatsApp ou email).
         </p>
       </div>
+      <PushToggle />
       <AlertPreferenceToggles
         preferences={prefs.map((p) => ({
           alert_type: p.alert_type,
