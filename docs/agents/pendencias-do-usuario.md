@@ -260,6 +260,20 @@ log da Vercel.
 
 ---
 
+## 10.9 `VAPID_SUBJECT` na Vercel, senão o push não sai de produção
+
+Achado em 17/09, na prova do push (`agente-whatsapp/prova-do-push-2026-09-17.md`).
+Produção tem `VAPID_PUBLIC_KEY` e `VAPID_PRIVATE_KEY`, mas **não tem a
+terceira**, e o protocolo VAPID exige as três: sem ela, `configureVapid()`
+devolve falso e **nenhum push é enviado**.
+
+O valor é um contato, não um segredo: `mailto:agencia@pleno.dev.br` serve, ou a
+URL do app. Defina na Vercel e faça redeploy.
+
+⚠️ Enquanto ela faltar, a inscrição criada em 17/09 existe e não recebe nada. A
+prova de entrega daquele dia foi disparada da máquina local, com a variável
+fornecida na hora.
+
 ## 11. Agente do WhatsApp: cinco coisas que só você faz
 
 1. **Tirar o dado de teste fixado no Webhook do atendimento.** No editor do
