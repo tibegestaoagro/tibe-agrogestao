@@ -278,6 +278,63 @@ Baixada"), então é a extração que não está aparando. Não afeta o que é g
 só o texto que o produtor lê. Custo: aparar preposição inicial ao normalizar o
 contato, com cuidado para não comer nome que comece com "Do" de verdade.
 
+### 5.0f O push é do TENANT, mas a decisão de canal é sobre UMA pessoa
+
+Achado pela revisão da Fase 6 (17/09), gravidade média-alta, deixado como dívida
+porque o conserto muda a forma de `sendPushToTenant`, não uma linha.
+
+`sendPushToTenant` envia para **todas** as inscrições do tenant e devolve
+`ok: sent > 0`. O alerta crítico usa esse `ok` para decidir se pula o WhatsApp
+**do destinatário**, que é uma pessoa só (`findAlertRecipient`: OWNER ativo,
+senão ADMIN).
+
+Cenário alcançável hoje, porque a rota de inscrição é liberada por leitura: a
+secretária (OPERADOR) liga push no notebook dela; o produtor (OWNER) não tem
+push. Chega `bill_due`: o push entrega no notebook, `push.ok` vira true, e o
+**WhatsApp do produtor não é tentado**. Ele passa a receber vencimento só por
+email, e o log diz `delivered: true`.
+
+Variante sem outra pessoa: dois aparelhos do próprio dono, um funcionando e o
+celular com inscrição morta. `sent: 1, failed: 1` dá `ok: true`, e quem está no
+campo não recebe.
+
+A decisão 5 da spec é "WhatsApp só para quem NÃO tem push ativo", **por
+pessoa**; o código lê "o tenant tem algum aparelho que recebeu". Custo: fazer o
+envio e o resultado serem por destinatário. A mesma confusão existe no `digest`
+via `subscriptions > 0`, e é anterior à Fase 6.
+
+### 5.0g Inscrição de push morta por 403 nunca é podada
+
+Achado pela revisão da Fase 6 (17/09). `sendPushToTenant` só remove a inscrição
+quando o serviço responde **404 ou 410**. Um erro persistente diferente (o caso
+clássico: **403 `InvalidCredentials` do FCM depois de trocar as chaves VAPID**)
+conta como falha e a linha fica lá para sempre.
+
+Aí o resumo diário vê `configurado: true` e `subscriptions: 1`, não cai para o
+WhatsApp (é a regra deliberada "existência, não entrega", certa para o resumo), e
+**para de sair em silêncio**, indefinidamente.
+
+É a mesma silhueta do defeito que a Task 1 desarmou, com outro gatilho. Fica mais
+provável agora: a pendência 10.9 vai fazer alguém mexer nas variáveis VAPID, e a
+inscrição criada em 17/09 nasceu contra a chave atual. Custo: podar por idade ou
+por contagem de falhas seguidas, além do 404/410.
+
+### 5.0h Desligar notificação pode deixar navegador e banco incoerentes
+
+Achado pela revisão da Fase 6 (17/09), gravidade baixa, três variantes:
+
+- o `DELETE` responde 200 e o `unsubscribe()` do navegador falha: o servidor já
+  não tem a linha e a tela continua dizendo "ativas neste navegador";
+- `removeSubscription` é escopado por tenant **e** usuário, e a rota devolve
+  sucesso mesmo apagando zero linhas: num aparelho compartilhado, a linha do
+  outro usuário fica no banco e barra o fallback do resumo até a primeira poda;
+- o controle decide "ativo" só pelo `PushManager` do navegador, sem perguntar ao
+  servidor: inscrição viva no navegador com linha já podada mostra "ativas" para
+  sempre, e nada chega.
+
+Custo: um `GET` no `/subscribe` para a tela conferir o servidor, e a rota
+devolver quantas linhas apagou.
+
 ### 5.0e A doc da rota de chave VAPID promete um 503 que nunca existiu
 
 `src/app/(public)/docs/api/endpoints.ts` diz que
