@@ -534,8 +534,33 @@ async function main() {
     }
 
     // ── 6. sendDailyDigestForTenant / sendAllDailyDigests ──────────────────
+    /**
+     * Dia sem NADA acionável não vira notificação. O saldo do mês entrava
+     * sempre, então `parts` nunca ficava vazio e o resumo saía todo santo dia,
+     * dizendo só "Saldo do mês R$ 0,00". Notificação diária que não pede ação
+     * é o que ensina a pessoa a ignorar o canal, e aí o alerta crítico chega
+     * num canal que ela já aprendeu a ignorar.
+     */
+    const antesDoVazio = evolutionRequests.length;
+    const sentVazio = await sendDailyDigestForTenant(B.tenant.id);
+    assert(sentVazio === false, "tenant sem nada acionável NÃO manda resumo (só saldo não é ação)");
+    assert(
+      evolutionRequests.length === antesDoVazio,
+      "e não manda WhatsApp nenhum: nada saiu pelo provider",
+    );
+
+    // Com algo acionável, o resumo volta a sair pelo caminho de sempre.
+    await B.db.financialEntry.create({
+      data: scoped({
+        entry_type: "expense",
+        category: "Ração",
+        amount: 500,
+        due_date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+        status: "pending",
+      }),
+    });
     const sentB = await sendDailyDigestForTenant(B.tenant.id);
-    assert(sentB === true, "sendDailyDigestForTenant(B) entrega (fallback WhatsApp, sem inscrição de push)");
+    assert(sentB === true, "com conta vencida, sendDailyDigestForTenant(B) entrega (fallback WhatsApp)");
 
     const sentC = await sendDailyDigestForTenant(C.tenant.id);
     assert(sentC === false, "tenant sem OWNER/ADMIN ativo: sendDailyDigestForTenant devolve false, sem lançar");
