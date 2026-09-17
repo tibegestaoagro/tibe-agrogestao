@@ -25,7 +25,7 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 `historico/2026-09.md`.
 ## Estado atual
 
-- Atualizado em: 2026-09-16.
+- Atualizado em: 2026-09-17.
 
 ### Agente do WhatsApp: Fases 1 a 4 EM PRODUÇÃO
 
@@ -52,7 +52,7 @@ pararem na guarda, restaurar o workflow do backup.
 **Modelo em uso: `gpt-5.6-luna`, esforço `low`**, escolhido pela medição fora
 da amostra da Fase 3 (97,7% de intenção, zero gravação indevida, US$ 0,29 por
 mil mensagens). O aparato de avaliação vive em `scripts/avaliacao/` e é
-reutilizado a cada fase. Gasto do programa: US$ 5,37 de US$ 30.
+reutilizado a cada fase. Gasto do programa: US$ 5,56 de US$ 30.
 
 ⚠️ **Achado da Fase 1 ainda aberto:** "gastei 500 de diesel no trator" vira uso
 de estoque no classificador do n8n. O registro de intenções novo desempata, e
@@ -84,34 +84,18 @@ envia push nenhum** hoje.
 
 ### Agente do WhatsApp: Fase 5 (intenções novas) EM PRODUÇÃO desde 16/09
 
-Merge `f3148f5`, deploy confirmado. Plano
-[../superpowers/plans/2026-09-16-agente-whatsapp-fase-5-intencoes-novas.md](../superpowers/plans/2026-09-16-agente-whatsapp-fase-5-intencoes-novas.md).
-Três intenções novas: dar baixa no que o cliente pagou (inclusive parcial),
-consultar quem ainda deve, e agendar pagamento futuro da equipe. Suíte `m70`.
-
-**A auditoria encolheu a fase pela metade:** "recebi 1.500 de aluguel" já
-funcionava, e o pagamento futuro já tinha 80% pronto no Módulo 33. O que
-faltava de verdade eram a baixa e a consulta.
-
-⚠️ **As três nasceram com 44,4% de acerto de intenção**, porque as descrições de
-DOMÍNIO diziam outra coisa (`prestador` reivindicava "quanto um cliente deve ou
-já pagou"; `financeiro` dizia receita "avulsa"). Corrigidas as quatro
-descrições: 44,4% para 94-97%. É a MESMA classe de defeito da Fase 3, que já
-tinha nota no cofre.
-
-⚠️ **A revisão independente reprovou o merge duas vezes**, e as duas com razão.
-Na primeira, dois defeitos de gravação em dinheiro reproduzidos em banco: o
-"sim" quitava a conta que o produtor NÃO leu (o pendente guardava o índice da
-lista, não o lançamento), e nome repetido baixava a conta do outro cliente. Na
-segunda, a correção de acento tinha sido feita só para `Contact` e não para
-`ServiceClient`, o que devolvia o defeito do homônimo em silêncio. Tudo
-corrigido, cada um com teste que falha antes.
-
-**Estado final:** regressão contra os 50 casos guardados da Fase 3 (que nenhum
-ajuste desta fase viu) **aprovada, 97,7% de intenção, 97,4% de campos, zero
-gravação indevida**. Suítes `m70`, `m67`, `m68`, `m57`, `m29`, `isolation` e
-`docs-api` verdes. Relatório em
+Merge `f3148f5`, deploy confirmado, sem migração. Dar baixa no que o cliente
+pagou (inclusive parcial), consultar quem ainda deve com o serviço feito e não
+faturado junto, e agendar pagamento futuro da equipe sem duplicar despesa.
+Suíte `m70`. Relatório em
 [agente-whatsapp/avaliacao-fase-5.md](agente-whatsapp/avaliacao-fase-5.md).
+
+⚠️ **Duas lições dessa fase estão no cofre**, e as duas custaram caro: as três
+intenções nasceram com 44,4% de acerto porque as descrições de DOMÍNIO não as
+reivindicavam (declarar não torna alcançável), e a revisão independente
+reprovou o merge duas vezes com defeitos de gravação em dinheiro que nem os 40
+casos de avaliação nem as 67 checagens da suíte alcançavam, porque dependiam de
+algo mudar ENTRE a pergunta e o "sim".
 
 ### Ambiente
 
