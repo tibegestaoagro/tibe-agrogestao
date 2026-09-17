@@ -163,6 +163,31 @@ async function main() {
     });
   }
 
+  /**
+   * Faz `webpush.sendNotification` responder sucesso durante `fn()`, sem
+   * chamada de rede real: só há um jeito de provar "push que ENTREGA pula o
+   * WhatsApp" (Fase 6 Task 3, revisão de 2026-09-17), já que o `.invalid` das
+   * outras inscrições fakes serve para o caminho contrário (falha garantida).
+   * Restaura a função original depois, mesmo em erro.
+   */
+  async function withSuccessfulPush<T>(fn: () => Promise<T>): Promise<T> {
+    // O namespace de um `import()` dinâmico de módulo CJS é não-extensível; o
+    // `.default` é o `module.exports` de verdade (mesmo objeto, cacheado por
+    // `require`, o que push.ts também importa): é nele que a mutação precisa
+    // acontecer para push.ts enxergar o stub.
+    const webpushModule = (await import("web-push")) as unknown as {
+      default: { sendNotification: (...args: unknown[]) => Promise<unknown> };
+    };
+    const target = webpushModule.default;
+    const original = target.sendNotification;
+    target.sendNotification = async () => ({ statusCode: 201 });
+    try {
+      return await fn();
+    } finally {
+      target.sendNotification = original;
+    }
+  }
+
   const stamp = Date.now();
 
   async function makeTenant(label: string) {
@@ -316,7 +341,12 @@ async function main() {
     assert(res.status === 200, "DELETE /notifications/subscribe responde 200");
     assert((await A.db.pushSubscription.findMany()).length === 0, "inscrição removida via rota HTTP");
 
-    // ── 3. notify() urgency "critical": push falha, WhatsApp funciona, email falha ──
+    // ── 3. notify() urgency "critical": push+email sempre, WhatsApp quando o push NÃO ENTREGOU ──
+    // Fase 6 Task 3, revisada em 2026-09-17: diferente do "digest" (onde
+    // EXISTÊNCIA de inscrição decide o fallback), no crítico quem decide é a
+    // ENTREGA. É uma tentativa só, sobre prazo e dinheiro: duplicar o aviso é
+    // mais barato que silenciar por causa de uma inscrição de push morta que
+    // ninguém ainda reportou.
     const fakeSub = fakePushKeys();
     await saveSubscription({
       tenant_id: A.tenant.id,
@@ -326,7 +356,11 @@ async function main() {
       auth: fakeSub.auth,
     });
 
-    const criticalResult = await notify(
+    // Caso 1 (discrimina a revisão): A tem push configurado E inscrito, mas a
+    // ENTREGA falha de verdade (endpoint .invalid, sent: 0, failed: 1).
+    // Diferente do "digest", isso NÃO basta para pular o WhatsApp: aqui quem
+    // decide é a entrega, não a existência da inscrição.
+    const criticalPushFalhouDeVerdade = await notify(
       { tenant_id: A.tenant.id, user_id: A.owner.id, phone: A.owner.phone, email: A.owner.email },
       {
         pushTitle: "Teste",
@@ -336,25 +370,118 @@ async function main() {
       },
       "critical",
     );
-    assert(criticalResult.push.attempted === true && criticalResult.push.ok === false, "push tentado e falhou (endpoint .invalid, sem push service real)");
-    assert(criticalResult.whatsapp.attempted === true && criticalResult.whatsapp.ok === true, "WhatsApp tentado e funcionou (servidor fake local)");
-    assert(criticalResult.email.attempted === true && criticalResult.email.ok === false, "email tentado e falhou (sem credencial Gmail/Resend configurada localmente)");
-    assert(criticalResult.delivered === true, "delivered=true: basta UM canal responder ok (aqui, o WhatsApp)");
+    assert(criticalPushFalhouDeVerdade.push.subscriptions === 1, "tenant A tem 1 inscrição de push ativa");
+    assert(
+      criticalPushFalhouDeVerdade.push.attempted === true &&
+        criticalPushFalhouDeVerdade.push.ok === false &&
+        criticalPushFalhouDeVerdade.push.sent === 0 &&
+        criticalPushFalhouDeVerdade.push.failed === 1,
+      "push tentado e a entrega falhou de verdade (endpoint .invalid, sent: 0, failed: 1)",
+    );
+    assert(
+      criticalPushFalhouDeVerdade.whatsapp.attempted === true && criticalPushFalhouDeVerdade.whatsapp.ok === true,
+      "inscrição existe mas a entrega FALHOU: alerta crítico tenta WhatsApp mesmo assim (diferente do digest)",
+    );
+    assert(criticalPushFalhouDeVerdade.email.attempted === true && criticalPushFalhouDeVerdade.email.ok === false, "email sempre tentado no crítico, mesmo com push existente; falha aqui por falta de credencial local");
+    assert(criticalPushFalhouDeVerdade.delivered === true, "delivered=true: o WhatsApp entregou");
 
     const emailLogs = await A.db.emailLog.findMany({ where: { type: "alert" } });
     assert(emailLogs.some((l) => l.status === "failed"), "tentativa de email falha grava EmailLog mesmo assim (rastro auditável)");
 
-    // ── 4. Alerta crítico real: deliverPendingAlertsForTenant marca "sent" mesmo com push falho ──
-    const alert = await A.db.alert.create({
+    // Caso 1b (confere que a razão original da mudança não se perdeu): push
+    // que ENTREGA de verdade (sent >= 1) segue pulando o WhatsApp.
+    await withSuccessfulPush(async () => {
+      const criticalPushEntregou = await notify(
+        { tenant_id: A.tenant.id, user_id: A.owner.id, phone: A.owner.phone, email: A.owner.email },
+        {
+          pushTitle: "Teste",
+          pushBody: "corpo de teste",
+          whatsappText: "mensagem de teste M24 (push entregou)",
+          email: { subject: "Teste M24", html: "<p>teste</p>" },
+        },
+        "critical",
+      );
+      assert(criticalPushEntregou.push.ok === true, "desta vez o push ENTREGA de verdade (sendNotification stubado com sucesso)");
+      assert(
+        criticalPushEntregou.whatsapp.attempted === false,
+        "push que entrega segue pulando o WhatsApp: essa era a razão original da Task 3, e não pode se perder",
+      );
+      assert(criticalPushEntregou.email.attempted === true, "email continua sempre tentado, mesmo com push entregando");
+      assert(criticalPushEntregou.delivered === true, "delivered=true: o push entregou");
+    });
+
+    // Caso 1c: nada entrega (push falha de verdade, sem telefone para
+    // WhatsApp, email sem credencial local) -> delivered=false.
+    const criticalNadaEntrega = await notify(
+      { tenant_id: A.tenant.id, user_id: A.owner.id, phone: null, email: A.owner.email },
+      {
+        pushTitle: "Teste",
+        pushBody: "corpo de teste",
+        whatsappText: "mensagem de teste M24 (nada entrega)",
+        email: { subject: "Teste M24", html: "<p>teste</p>" },
+      },
+      "critical",
+    );
+    assert(criticalNadaEntrega.push.ok === false, "push falha de verdade nesta chamada também");
+    assert(criticalNadaEntrega.whatsapp.attempted === false, "sem telefone, WhatsApp nem é tentado (mesmo com push falho)");
+    assert(criticalNadaEntrega.email.ok === false, "email falha por falta de credencial local");
+    assert(criticalNadaEntrega.delivered === false, "delivered=false: nenhum canal entregou de fato");
+
+    // Caso 2: B não tem NENHUMA inscrição de push. WhatsApp é tentado, como hoje.
+    const criticalSemPush = await notify(
+      { tenant_id: B.tenant.id, user_id: B.owner.id, phone: B.owner.phone, email: B.owner.email },
+      {
+        pushTitle: "Teste",
+        pushBody: "corpo de teste",
+        whatsappText: "mensagem de teste M24 (B, sem push)",
+        email: { subject: "Teste M24", html: "<p>teste</p>" },
+      },
+      "critical",
+    );
+    assert(criticalSemPush.push.subscriptions === 0, "tenant B não tem inscrição de push ativa");
+    assert(
+      criticalSemPush.whatsapp.attempted === true && criticalSemPush.whatsapp.ok === true,
+      "sem inscrição de push, alerta crítico tenta WhatsApp e entrega (servidor fake local)",
+    );
+    assert(criticalSemPush.email.attempted === true, "email sempre tentado no crítico, com ou sem push");
+    assert(criticalSemPush.delivered === true, "delivered=true: WhatsApp entregou");
+
+    // Caso 3: A tem inscrição, mas VAPID está incompleta. Canal que não pode
+    // entregar conta como inexistente: WhatsApp é tentado mesmo com inscrição.
+    const savedVapidSubjectCritical = process.env.VAPID_SUBJECT;
+    delete process.env.VAPID_SUBJECT;
+    try {
+      const criticalVapidIncompleta = await notify(
+        { tenant_id: A.tenant.id, user_id: A.owner.id, phone: A.owner.phone, email: A.owner.email },
+        {
+          pushTitle: "Teste",
+          pushBody: "corpo de teste",
+          whatsappText: "mensagem de teste M24 (VAPID incompleta)",
+          email: { subject: "Teste M24", html: "<p>teste</p>" },
+        },
+        "critical",
+      );
+      assert(criticalVapidIncompleta.push.configurado === false, "push.configurado=false quando VAPID está incompleta");
+      assert(
+        criticalVapidIncompleta.whatsapp.attempted === true && criticalVapidIncompleta.whatsapp.ok === true,
+        "inscrição viva + VAPID incompleta: alerta crítico cai para WhatsApp em vez de silenciar",
+      );
+      assert(criticalVapidIncompleta.delivered === true, "entregue via WhatsApp quando o push não pode ser configurado");
+    } finally {
+      process.env.VAPID_SUBJECT = savedVapidSubjectCritical;
+    }
+
+    // ── 4. Alerta crítico real: deliverPendingAlertsForTenant marca "sent" (tenant sem push, via WhatsApp) ──
+    const alert = await B.db.alert.create({
       data: scoped({ alert_type: "bill_due", message: "Conta de teste M24 vence hoje", status: "pending" }),
     });
-    const delivered = await deliverPendingAlertsForTenant(A.tenant.id);
+    const delivered = await deliverPendingAlertsForTenant(B.tenant.id);
     assert(delivered.sent === 1, "deliverPendingAlertsForTenant entrega 1 alerta");
-    const alertAfter = await A.db.alert.findFirst({ where: { id: alert.id } });
-    assert(alertAfter?.status === "sent" && alertAfter.sent_at !== null, "alerta passa para status 'sent' (WhatsApp entregou, mesmo com push falho)");
+    const alertAfter = await B.db.alert.findFirst({ where: { id: alert.id } });
+    assert(alertAfter?.status === "sent" && alertAfter.sent_at !== null, "alerta passa para status 'sent' (WhatsApp entregou, tenant sem push)");
 
-    const recipient = await findAlertRecipient(A.db);
-    assert(recipient?.id === A.owner.id, "findAlertRecipient (exportado) resolve o OWNER ativo");
+    const recipient = await findAlertRecipient(B.db);
+    assert(recipient?.id === B.owner.id, "findAlertRecipient (exportado) resolve o OWNER ativo");
 
     // ── 5. notify() urgency "digest": existência de inscrição decide o fallback, não sucesso ──
     // B não tem NENHUMA inscrição de push: cai para WhatsApp.

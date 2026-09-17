@@ -36,17 +36,28 @@ const PUSH_NOT_ATTEMPTED: NotifyPushResult = {
  * 2.4). Quem chama não escolhe canal: descreve o conteúdo e a urgência, e a
  * política de QUAIS canais tentar mora aqui dentro.
  *
- * - "critical" (os 5 AlertType existentes): tenta push, WhatsApp e email em
- *   PARALELO. `delivered` fica true assim que qualquer um dos três responder
- *   ok: exatamente a garantia que alert-delivery.ts já tinha para
- *   WhatsApp+email antes desta refatoração, com push como um terceiro canal
- *   aditivo (não substitui os outros dois; eles continuam obrigatórios).
+ * - "critical" (os 5 AlertType existentes): push e email SEMPRE. WhatsApp é
+ *   tentado sempre que o push NÃO ENTREGOU (Fase 6 Task 3, 2026-09-17,
+ *   revisado no mesmo dia): `!push.ok`, seja porque não está configurado,
+ *   porque não há inscrição, ou porque a inscrição existe mas a entrega
+ *   FALHOU de verdade (`push.attempted && !push.ok`, ex.: `sent: 0`). Só pula
+ *   o WhatsApp quando o push comprovadamente chegou a pelo menos um aparelho.
+ *   `delivered` fica true assim que qualquer canal TENTADO responder ok.
  * - "digest" (resumo diário, novo): tenta push primeiro. Só tenta WhatsApp
  *   se o tenant não tiver NENHUMA inscrição de push ativa: é a EXISTÊNCIA de
  *   inscrição que decide o fallback, não o sucesso da entrega (uma
  *   inscrição presente cuja entrega falhou não cai para WhatsApp). Nunca
  *   tenta email: resumo diário todo dia por email é ruído, diferente de um
  *   alerta pontual que precisa de comprovação.
+ *
+ *   **Por que "critical" e "digest" usam critérios diferentes** (existência
+ *   vs. entrega) para a MESMA decisão de fallback, e por que isso não deve
+ *   ser "uniformizado" depois: no digest, o que decide é a EXISTÊNCIA do
+ *   canal (falhou hoje, amanhã tem outro resumo, e duplicar todo dia por dois
+ *   canais é o ruído que a política existe para cortar). No crítico, o que
+ *   decide é a ENTREGA: é uma tentativa só, sobre prazo e dinheiro, e
+ *   duplicar o aviso é mais barato que silenciar um vencimento por causa de
+ *   uma inscrição de push morta que ninguém ainda reportou.
  * - "conversa": WhatsApp sempre, push nunca, email nunca. O critério que
  *   separa esta urgência das outras (2026-09-16, achado de auditoria: a rota
  *   de lembrete de cadastro tinha ido para "digest" antes de alguém reler o
@@ -77,8 +88,12 @@ export async function notify(
   const push = await sendPushToTenant(recipient.tenant_id, pushPayload);
 
   if (urgency === "critical") {
+    // Diferente do "digest": aqui o que decide é a ENTREGA (`push.ok`), não a
+    // existência da inscrição. Ver o porquê no comentário do topo da função.
     const [whatsapp, email] = await Promise.all([
-      sendWhatsappChannel(recipient.phone, content.whatsappText),
+      !push.ok
+        ? sendWhatsappChannel(recipient.phone, content.whatsappText)
+        : Promise.resolve(NOT_ATTEMPTED),
       content.email
         ? sendEmailChannel({
             tenant_id: recipient.tenant_id,
