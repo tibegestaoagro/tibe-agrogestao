@@ -83,6 +83,7 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [a catraca acha no dia em que nasce](catraca-acha-no-dia-em-que-nasce.md) | licao | escrita para o futuro, achou quatro defeitos na primeira execução |
 | [índice de lista não sobrevive a dois turnos](indice-de-lista-nao-sobrevive-a-dois-turnos.md) | armadilha | o "1" apontou para outra conta, e o sim quitou R$ 9.000 |
 | [declarar a intenção não a torna alcançável](declarar-a-intencao-nao-a-torna-alcancavel.md) | licao | três intenções novas com 44,4%, porque o domínio não as reivindicava |
+| [canal construído não é canal que entrega](canal-construido-nao-e-canal-que-entrega.md) | licao | o push existia há meses e tinha zero inscrições: a tela não deixava |
 
 ⚠️ **`[[wikilink]]` para nota que não existe reprova o `npm run check`**
 (conferência 13). É o que impede esta pasta de virar um cemitério de links
