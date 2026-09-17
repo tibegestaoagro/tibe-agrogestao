@@ -79,6 +79,12 @@ export default function PushToggle() {
         setEstado({ tipo: "negado" });
         return;
       }
+      if (resultado.reason === "indeciso") {
+        // Fechou a bolha sem decidir: a permissão segue "default", o
+        // navegador pergunta de novo na próxima tentativa. Não é bloqueio:
+        // o botão "Ativar" continua ali, sem mensagem de erro nenhuma.
+        return;
+      }
       aviso.erro(resultado.message);
       return;
     }

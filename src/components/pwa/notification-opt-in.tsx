@@ -129,9 +129,15 @@ export default function NotificationOptIn() {
         aviso.erro(resultado.message);
         return;
       }
-      // Permissão negada: nenhum navegador deixa pedir de novo, então
-      // insistir aqui seria um botão morto. Configurações > Alertas explica
-      // como liberar pelo cadeado da barra de endereço.
+      if (resultado.reason === "indeciso") {
+        // Fechou a bolha sem decidir: a permissão segue "default", não foi
+        // recusa nenhuma. Não grava dispensa, o cartão continua ali para
+        // tentar de novo quando quiser.
+        return;
+      }
+      // Permissão bloqueada (denied): definitivo, nenhum navegador deixa
+      // pedir de novo por aqui. Configurações > Alertas explica como liberar
+      // pelo cadeado da barra de endereço.
       rememberDismissal();
       setVisible(false);
       return;

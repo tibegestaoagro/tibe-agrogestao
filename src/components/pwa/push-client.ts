@@ -68,13 +68,23 @@ export async function getExistingSubscription(): Promise<PushSubscription | null
 export type SubscribeResult =
   | { ok: true }
   | { ok: false; reason: "negado" }
+  | { ok: false; reason: "indeciso" }
   | { ok: false; reason: "erro"; message: string };
 
 /** Pede permissão (se ainda não decidida), inscreve e registra no servidor. */
 export async function subscribeToPush(vapidPublicKey: string): Promise<SubscribeResult> {
   const permission = await Notification.requestPermission();
-  if (permission !== "granted") {
+  if (permission === "denied") {
+    // Definitivo: nenhum navegador deixa pedir de novo depois de um bloqueio
+    // explícito. Só sai daqui pelo cadeado da barra de endereço.
     return { ok: false, reason: "negado" };
+  }
+  if (permission !== "granted") {
+    // `requestPermission()` resolve com "default" quando a pessoa fecha a
+    // bolha sem decidir (X, swipe, clique fora). A permissão não mudou: o
+    // navegador pergunta de novo na próxima tentativa, então isto não é
+    // bloqueio e não deve ser tratado como "negado".
+    return { ok: false, reason: "indeciso" };
   }
   try {
     const registration = await navigator.serviceWorker.ready;
