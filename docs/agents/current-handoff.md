@@ -58,9 +58,33 @@ reutilizado a cada fase. Gasto do programa: US$ 5,37 de US$ 30.
 de estoque no classificador do n8n. O registro de intenções novo desempata, e
 isso só se mede em conversa real, na Fase 7.
 
-### Agente do WhatsApp: Fase 5 (intenções novas) NA BRANCH, sem merge
+### Agente do WhatsApp: Fase 6 (alertas e push) NA BRANCH, sem merge
 
-Branch `fase-5-intencoes-novas`, plano
+Branch `fase-6-alertas`, plano
+[../superpowers/plans/2026-09-16-agente-whatsapp-fase-6-alertas.md](../superpowers/plans/2026-09-16-agente-whatsapp-fase-6-alertas.md).
+
+⚠️ **O push nunca tinha entregado nada**: zero inscrições em produção para 5
+usuários, com o canal inteiro construído. A fase inverteu a ordem da spec
+(provar antes de mudar política) e a prova aconteceu em 17/09, com o usuário no
+navegador: **primeira inscrição e primeira notificação entregue do projeto**
+([agente-whatsapp/prova-do-push-2026-09-17.md](agente-whatsapp/prova-do-push-2026-09-17.md)).
+
+O que impedia era a TELA: o convite de instalar o PWA segurava o de notificação
+para sempre, e "Agora não" tirava o recurso sem volta, porque não existia
+caminho em Configurações. Os dois corrigidos, e agora dá para ligar e desligar
+em Configurações > Alertas.
+
+Entregue também: canal que não pode entregar conta como INEXISTENTE (o defeito
+armado que engolia o resumo diário), urgência `conversa` para mensagem que
+espera resposta, alerta crítico decidindo por ENTREGA e não por existência, e
+resumo diário que silencia quando não há nada acionável.
+
+**Pendência 10.9 do usuário:** produção não tem `VAPID_SUBJECT`, então **não
+envia push nenhum** hoje.
+
+### Agente do WhatsApp: Fase 5 (intenções novas) EM PRODUÇÃO desde 16/09
+
+Merge `f3148f5`, deploy confirmado. Plano
 [../superpowers/plans/2026-09-16-agente-whatsapp-fase-5-intencoes-novas.md](../superpowers/plans/2026-09-16-agente-whatsapp-fase-5-intencoes-novas.md).
 Três intenções novas: dar baixa no que o cliente pagou (inclusive parcial),
 consultar quem ainda deve, e agendar pagamento futuro da equipe. Suíte `m70`.
@@ -216,14 +240,18 @@ antes do "sim". Ainda vale conferir as primeiras execuções reais do workflow d
 produção depois da guarda (execução de 2 nós sem "Normalizar e Filtrar" é
 mensagem barrada).
 
-**3. Fase 5: falta só o merge.** A branch `fase-5-intencoes-novas` está pronta,
-com suíte `m70`, medição e regressão feitas; espera autorização.
+**3. Fase 6: falta só o merge.** A branch `fase-6-alertas` está pronta, com a
+prova de entrega feita e as suítes verdes; espera autorização. **Junto do merge,
+a `VAPID_SUBJECT` precisa entrar na Vercel** (pendência 10.9), senão o push
+continua sem enviar nada em produção.
 
-**4. Depois dela, a Fase 6 ou a Fase 7.** A Fase 6 (alertas: push primeiro nos
-críticos) não depende de nada e pode começar quando o usuário quiser. A Fase 7
-(trocar o fluxo de produção para a rota de turno) depende da 4 e da 5, e o que
-falta dela é a rodada no aparelho: segundo chip conectado, com o roteiro já
-escrito em [agente-whatsapp/roteiro-do-chip.md](agente-whatsapp/roteiro-do-chip.md).
+**4. Depois dela, a Fase 7.** Trocar o fluxo de produção para a rota de turno.
+Depende das Fases 4 e 5 (as duas em produção) e do que falta: a rodada no
+aparelho, com o segundo número, roteiro escrito em
+[agente-whatsapp/roteiro-do-chip.md](agente-whatsapp/roteiro-do-chip.md). O
+caminho combinado com o usuário em 16/09, se o número demorar: repontar o
+webhook da instância de produção para a cópia de homologação por uns minutos,
+num horário morto, e voltar em seguida.
 
 **Do usuário, quando quiser:** `AGENTE_MODELO=gpt-5.6-luna` e
 `AGENTE_ESFORCO=low` na Vercel **já foram feitos em 16/09**. Fica só o chip.

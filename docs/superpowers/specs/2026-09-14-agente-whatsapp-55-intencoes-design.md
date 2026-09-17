@@ -216,6 +216,34 @@ gravação indevida e sem regressão nos casos antigos (um pedido de diferença 
 221). Relatório em
 [../../agents/agente-whatsapp/avaliacao-fase-5.md](../../agents/agente-whatsapp/avaliacao-fase-5.md).
 
+## Fase 6: decisões de 16 e 17/09/2026
+
+A spec pedia "push primeiro nos críticos". A auditoria achou que **o push nunca
+tinha entregado nada**: zero inscrições em produção, para 5 usuários, com todo o
+canal construído (modelo, service worker, VAPID, opt-in no layout, seam por
+urgência). Trocar a política teria efeito zero, porque sem inscrição tudo cai no
+WhatsApp de qualquer jeito.
+
+| tema | decisão |
+|---|---|
+| ordem | **provar a entrega antes de mexer em política.** Feito em 17/09, com o usuário no navegador: primeira inscrição e primeira notificação entregue do projeto |
+| alerta crítico | **push e email sempre; WhatsApp quando o push NÃO entregou.** Note a diferença para o resumo: no crítico o que decide é a ENTREGA, no resumo é a EXISTÊNCIA do canal. Alerta crítico é uma tentativa só, sobre prazo e dinheiro: duplicar custa menos que silenciar |
+| lembrete de cadastro | urgência própria **`conversa`** (WhatsApp sempre): o texto pede resposta e pertence a um fio já aberto. Notificação do sistema não se responde |
+| resumo diário | **silencia quando não há nada acionável.** O saldo do mês entrava sempre e fazia o resumo sair todo dia sem pedir nada |
+
+⚠️ **O que impedia as inscrições era a TELA, não o servidor.** O convite de
+instalar o PWA segurava o de notificação para sempre (o navegador recaptura o
+prompt a cada carregamento, então a espera nunca terminava), e um clique em
+"Agora não" tirava o recurso sem volta, porque não existia caminho em
+Configurações. Os dois corrigidos; o relato completo, com o diagnóstico do
+console, está em
+[../../agents/agente-whatsapp/prova-do-push-2026-09-17.md](../../agents/agente-whatsapp/prova-do-push-2026-09-17.md).
+
+⚠️ **Produção não tem `VAPID_SUBJECT`**, e por isso não envia push nenhum
+(pendência 10.9 do usuário). O defeito que a fase desarmou estava armado de
+verdade: com uma inscrição viva e a variável faltando, o código anterior deixava
+de mandar push E resumo diário, em silêncio.
+
 ## Critérios de aceite do programa
 
 - Zero gravação indevida no conjunto de avaliação e nos blocos de homologação
