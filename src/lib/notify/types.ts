@@ -7,7 +7,7 @@ import type { EmailLogType } from "@/generated/prisma/enums";
  * dentro de src/lib/notify/index.ts.
  */
 
-export type NotifyUrgency = "critical" | "digest";
+export type NotifyUrgency = "critical" | "digest" | "conversa";
 
 /**
  * Quem recebe WhatsApp/email: canais de destinatário único. Push NÃO usa
@@ -36,8 +36,8 @@ export type NotifyContent = {
   /**
    * Assunto/HTML do email. Omitido = canal de email nunca é tentado, mesmo
    * em urgency "critical" (defensivo; hoje todo chamador crítico preenche).
-   * Em urgency "digest" este campo é sempre ignorado, mesmo se vier
-   * preenchido: resumo diário nunca sai por email (decisão de produto, não
+   * Em urgency "digest" e "conversa" este campo é sempre ignorado, mesmo se
+   * vier preenchido: nenhum dos dois sai por email (decisão de produto, não
    * um detalhe de implementação).
    */
   email?: { subject: string; html: string; type?: EmailLogType; related_id?: string | null };
@@ -55,6 +55,13 @@ export type NotifyPushResult = NotifyChannelResult & {
   subscriptions: number;
   sent: number;
   failed: number;
+  /**
+   * false quando o par VAPID está incompleto (faltam variáveis de ambiente):
+   * o canal não pode entregar NADA, independente de haver inscrição. Um
+   * canal que não pode entregar conta como INEXISTENTE, nunca como "tentado
+   * e falhou": é essa distinção que decide o fallback em notify().
+   */
+  configurado: boolean;
 };
 
 export type NotifyResult = {

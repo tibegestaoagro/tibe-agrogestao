@@ -20,6 +20,8 @@ export async function sendDailyDigestForTenant(tenantId: string): Promise<boolea
   const profiles = await db.tenantProfile.findMany({ where: { active: true } });
   const activeProfiles = profiles.map((p) => p.profile_type);
   const content = await buildDailyDigest(db, activeProfiles);
+  // Dia sem nada acionável não interrompe ninguém: ver o porquê em build-digest.
+  if (!content) return false;
 
   const result = await notify(
     {

@@ -2,7 +2,7 @@ import { apiOk } from "@/lib/api";
 import { requireInternalSecret } from "@/lib/internal-guard";
 import { prisma, prismaForTenant } from "@/lib/prisma";
 import { collectPendingReminders, purgeExpiredFlows } from "@/lib/actions/agent-flows";
-import { sendWhatsAppMessage } from "@/lib/whatsapp-send";
+import { notify } from "@/lib/notify";
 import { withApi } from "@/lib/route";
 
 /**
@@ -39,8 +39,22 @@ async function POSTHandler(request: Request) {
       purged += (await purgeExpiredFlows(db)).deleted;
       const pending = await collectPendingReminders(db);
       for (const p of pending) {
-        const res = await sendWhatsAppMessage(p.phone, p.message);
-        if (res.ok) sent++;
+        // Urgência "conversa", não "digest": o texto de `p.message` pede uma
+        // resposta ("responda cancelar") e pertence ao fio já aberto no
+        // WhatsApp onde o cadastro está guardado. Uma notificação do sistema
+        // (push) não tem como responder, então aqui o canal é sempre
+        // WhatsApp, nunca push (`pushTitle`/`pushBody` abaixo existem só
+        // porque o tipo exige, e `notify()` nem os usa nesta urgência).
+        const res = await notify(
+          { tenant_id: t.id, user_id: p.user_id, phone: p.phone, email: p.email },
+          {
+            pushTitle: "Cadastro pendente",
+            pushBody: "Seu cadastro no WhatsApp ficou pela metade.",
+            whatsappText: p.message,
+          },
+          "conversa",
+        );
+        if (res.delivered) sent++;
         else failed++;
       }
     } catch {

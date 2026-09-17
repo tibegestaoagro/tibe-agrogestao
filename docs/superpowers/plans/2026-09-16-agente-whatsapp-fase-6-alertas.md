@@ -136,6 +136,44 @@ Em `docs/agents/agente-whatsapp/`, com o que funcionou e o que não funcionou. *
 
 ---
 
+### Task 2b: dá para ligar notificação, e dá para desligar
+
+**ACRESCENTADA EM EXECUÇÃO (17/09),** depois que a prova da Task 2 mostrou que o
+canal funciona e que **a tela era o que impedia todo mundo**
+(`docs/agents/agente-whatsapp/prova-do-push-2026-09-17.md`).
+
+**Files:**
+- Modify: `src/components/pwa/notification-opt-in.tsx`
+- Modify: a página de Configurações do painel (achar qual, em `src/app/(dashboard)/configuracoes/`)
+- Create: rota que diz se o navegador atual está inscrito, se for preciso
+- Modify: `scripts/m24-notificacoes.test.ts`
+
+**Os dois defeitos, medidos no navegador do usuário:**
+
+1. **O convite de instalar o PWA segura o de notificação para sempre.**
+   `installInviteMightBeShowing()` esconde o convite enquanto o de instalar não
+   for dispensado E `window.__tibeInstallPrompt` existir. O navegador recaptura
+   esse prompt **a cada carregamento**, então a condição nunca muda sozinha.
+2. **"Agora não" é definitivo.** Um clique grava `tibe.push.convite-dispensado`
+   e o convite não volta nunca mais. E **não existe nenhum outro caminho** para
+   ligar notificação: quem dispensou perdeu o recurso sem saber.
+
+**O que fazer:**
+
+- **Configurações ganha um controle de notificação** (ligar, desligar, e dizer o
+  estado atual: neste navegador está ativo, não está, ou o navegador bloqueou).
+  Esse passa a ser o caminho de verdade; o cartão vira só um atalho.
+- O cartão **para de competir com o de instalar**: ou espera de fato (com um
+  limite de tempo, não para sempre), ou os dois deixam de disputar o mesmo canto.
+  Decida lendo os dois componentes, e escreva o porquê.
+- **Desligar precisa existir**: hoje `removeSubscription` existe no servidor e
+  nenhuma tela chama.
+
+⚠️ **Permissão negada no navegador não tem volta por código**: nenhum navegador
+deixa pedir de novo. Nesse estado, a tela precisa DIZER isso, e explicar onde o
+usuário libera (o cadeado da barra de endereço), em vez de mostrar um botão que
+não funciona.
+
 ### Task 3: alerta crítico passa a ser push + email, com WhatsApp só sem push
 
 **Files:**
