@@ -260,6 +260,17 @@ log da Vercel.
 
 ---
 
+## 10.8 Marcar as contas da equipe como internas
+
+Depois do merge de 18/09 (selo de conta interna). No painel da Plataforma, em
+**Tenants**, abrir cada conta da equipe e marcar **Conta interna**: Lucas
+Agromax, Laíza Agromax e Max Dias Agromax, e qualquer outra que seja de teste.
+Conta marcada deixa de vencer; cliente novo continua com os 14 dias de trial.
+
+Lucas e Max também estão sem perfil ativo, porque nunca chegaram ao primeiro
+login (o trial venceu antes). Isso se resolve sozinho: com o selo, eles entram,
+confirmam o plano, e o perfil nasce nessa hora.
+
 ## 10.9 `VAPID_SUBJECT` na Vercel, senão o push não sai de produção
 
 Achado em 17/09, na prova do push (`agente-whatsapp/prova-do-push-2026-09-17.md`).
