@@ -25,7 +25,7 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 `historico/2026-09.md`.
 ## Estado atual
 
-- Atualizado em: 2026-09-17.
+- Atualizado em: 2026-09-18.
 
 ### Agente do WhatsApp: Fases 1 a 4 EM PRODUÇÃO
 
@@ -58,10 +58,35 @@ reutilizado a cada fase. Gasto do programa: US$ 5,56 de US$ 30.
 de estoque no classificador do n8n. O registro de intenções novo desempata, e
 isso só se mede em conversa real, na Fase 7.
 
-### Agente do WhatsApp: Fase 6 (alertas e push) NA BRANCH, sem merge
+### Telefone com o nono dígito e selo de conta interna EM PRODUÇÃO desde 18/09
 
-Branch `fase-6-alertas`, plano
-[../superpowers/plans/2026-09-16-agente-whatsapp-fase-6-alertas.md](../superpowers/plans/2026-09-16-agente-whatsapp-fase-6-alertas.md).
+Merge `efb8c15`, deploy confirmado, migração `20260918120000_conta_interna`
+aplicada no Neon pelo usuário ANTES do merge (o classificador bloqueia
+`db:deploy` desta máquina).
+
+- **Nono dígito:** Lucas e Max Agromax não eram reconhecidos pelo agente porque
+  estavam cadastrados com 13 dígitos e o WhatsApp deles manda 12, sem o 9. O
+  reconhecimento (`identificarContato`) era o único ponto fora do funil
+  `toBrazilPhoneDigits`. Agora o 9 é completado ao gravar e ao reconhecer, e
+  **fixo nunca ganha o 9** (só completa quando o dígito depois do DDD é 6 a 9).
+  A conversão dos telefones já gravados rodou em leitura e deu **zero**
+  mudanças: o defeito era só do lado de quem lê. A Evolution resolve os dois
+  formatos para a mesma conta, então o envio de alerta não quebra. Suíte `m71`.
+- **Selo de conta interna:** `Tenant.conta_interna`, só a Plataforma liga, e ele
+  tira o vencimento do trial. Cliente novo continua com 14 dias. A rota do
+  próprio tenant não aceita o campo.
+
+**Falta do usuário (pendência 10.8):** marcar Lucas, Laíza e Max como conta
+interna na Plataforma.
+
+⚠️ **Achado à parte, dívida 3.2:** arquivar um tenant pela Plataforma NÃO tira o
+acesso dele. `Tenant.archived_at` não é lido em ponto nenhum do caminho de
+acesso.
+
+### Agente do WhatsApp: Fase 6 (alertas e push) EM PRODUÇÃO desde 17/09
+
+Merge `f370242`, deploy confirmado.
+
 
 ⚠️ **O push nunca tinha entregado nada**: zero inscrições em produção para 5
 usuários, com o canal inteiro construído. A fase inverteu a ordem da spec
@@ -224,12 +249,11 @@ antes do "sim". Ainda vale conferir as primeiras execuções reais do workflow d
 produção depois da guarda (execução de 2 nós sem "Normalizar e Filtrar" é
 mensagem barrada).
 
-**3. Fase 6: falta só o merge.** A branch `fase-6-alertas` está pronta, com a
-prova de entrega feita e as suítes verdes; espera autorização. **Junto do merge,
-a `VAPID_SUBJECT` precisa entrar na Vercel** (pendência 10.9), senão o push
-continua sem enviar nada em produção.
+**3. Do usuário, e desbloqueia coisa já pronta:** `VAPID_SUBJECT` na Vercel
+(pendência 10.9, sem ela o push não sai de produção) e marcar Lucas, Laíza e
+Max como conta interna na Plataforma (pendência 10.8).
 
-**4. Depois dela, a Fase 7.** Trocar o fluxo de produção para a rota de turno.
+**4. A Fase 7, a última do programa do agente.** Trocar o fluxo de produção para a rota de turno.
 Depende das Fases 4 e 5 (as duas em produção) e do que falta: a rodada no
 aparelho, com o segundo número, roteiro escrito em
 [agente-whatsapp/roteiro-do-chip.md](agente-whatsapp/roteiro-do-chip.md). O
