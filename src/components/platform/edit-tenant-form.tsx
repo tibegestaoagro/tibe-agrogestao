@@ -14,7 +14,14 @@ export default function EditTenantForm({
   initial,
 }: {
   tenantId: string;
-  initial: { name: string; document: string; phone: string | null; email: string | null; plan: Plan };
+  initial: {
+    name: string;
+    document: string;
+    phone: string | null;
+    email: string | null;
+    plan: Plan;
+    conta_interna: boolean;
+  };
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -23,6 +30,7 @@ export default function EditTenantForm({
   const [phone, setPhone] = useState(initial.phone ?? "");
   const [email, setEmail] = useState(initial.email ?? "");
   const [plan, setPlan] = useState<Plan>(initial.plan);
+  const [contaInterna, setContaInterna] = useState(initial.conta_interna);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,6 +44,7 @@ export default function EditTenantForm({
       phone: phone || null,
       email: email || null,
       plan,
+      conta_interna: contaInterna,
     });
     setLoading(false);
     if (!res.ok) return setError(res.message);
@@ -107,6 +116,18 @@ export default function EditTenantForm({
             <p className="mt-1 text-xs text-gray-500">
               Troca direta, sem passar pelo Asaas: o cliente não é cobrado automaticamente pela diferença.
             </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              id="conta_interna"
+              type="checkbox"
+              checked={contaInterna}
+              onChange={(e) => setContaInterna(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-700 bg-gray-950"
+            />
+            <label htmlFor="conta_interna" className="text-sm text-gray-300">
+              Conta interna (nunca vence trial nem é bloqueada por inadimplência)
+            </label>
           </div>
           {error && <p className="text-sm text-red-400">{error}</p>}
           <div className="flex gap-2">

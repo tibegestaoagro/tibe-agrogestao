@@ -278,6 +278,29 @@ Baixada"), então é a extração que não está aparando. Não afeta o que é g
 só o texto que o produtor lê. Custo: aparar preposição inicial ao normalizar o
 contato, com cuidado para não comer nome que comece com "Do" de verdade.
 
+### 3.2 Arquivar um tenant pela Plataforma não tira o acesso dele
+
+Achado em 18/09/2026, ao ligar o selo de conta interna em `getBillingAccess`.
+**`Tenant.archived_at` não é lido em lugar nenhum do caminho de acesso**: nem em
+`getBillingAccess` (`src/lib/billing-access.ts`), nem em `getTenantRecord`
+(`src/lib/tenant-record.ts`, que nem seleciona o campo), nem na autenticação
+(`auth.ts`, `auth.config.ts`, `proxy.ts`), nem nos guards de rota.
+
+`archiveTenantAction` (`platform-tenants.ts`) só grava a data. O painel mostra
+"Arquivado", e o tenant continua entrando com acesso total.
+
+⚠️ O `CLAUDE.md` lista exatamente este defeito ("`Tenant.archived_at` não fazia
+nada") entre os achados de validação ao vivo, o que dá a entender que foi
+consertado. **Para o arquivamento manual pela Plataforma, não foi.** O único
+caminho que usa o campo é o do cancelamento de assinatura, e ali ele é reflexo
+de uma fase calculada por data, não uma trava.
+
+O selo de conta interna não piora isto (tenant arquivado já tinha acesso
+total), mas os dois vão conviver: uma conta interna arquivada precisa decidir
+qual regra vence. Custo: `getTenantRecord` passa a selecionar `archived_at`, e
+`getBillingAccess` devolve bloqueado ou só leitura antes de qualquer outra
+regra, **inclusive antes do selo**.
+
 ### 5.0f O push é do TENANT, mas a decisão de canal é sobre UMA pessoa
 
 Achado pela revisão da Fase 6 (17/09), gravidade média-alta, deixado como dívida

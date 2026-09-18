@@ -46,6 +46,7 @@ export default async function PlatformTenantsPage(
     active_profiles: t.profiles.map((p) => p.profile_type),
     created_at: t.created_at,
     archived: !!t.archived_at,
+    conta_interna: t.conta_interna,
   }));
 
   const filtered = searchParams.status ? mapped.filter((t) => t.status === searchParams.status) : mapped;
@@ -119,6 +120,11 @@ export default async function PlatformTenantsPage(
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-1.5">
                     <StatusBadge status={t.status} />
+                    {t.conta_interna && (
+                      <span className="rounded-full bg-emerald-600/20 px-2.5 py-0.5 text-xs font-medium text-emerald-400">
+                        Conta interna
+                      </span>
+                    )}
                     {t.archived && (
                       <span className="rounded-full bg-gray-600/20 px-2.5 py-0.5 text-xs font-medium text-gray-400">
                         Arquivado

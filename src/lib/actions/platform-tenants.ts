@@ -123,6 +123,7 @@ export async function updateTenantAction(
     phone?: string | null;
     email?: string | null;
     plan?: TenantPlan;
+    conta_interna?: boolean;
   },
 ): Promise<ActionResult<{ id: string }>> {
   const existing = await prisma.tenant.findUnique({ where: { id: tenantId } });
@@ -146,6 +147,7 @@ export async function updateTenantAction(
       ...(params.phone !== undefined ? { phone } : {}),
       ...(params.email !== undefined ? { email: params.email } : {}),
       ...(params.plan !== undefined ? { plan: params.plan } : {}),
+      ...(params.conta_interna !== undefined ? { conta_interna: params.conta_interna } : {}),
     },
   });
 

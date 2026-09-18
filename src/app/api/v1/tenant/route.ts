@@ -17,7 +17,11 @@ import { withApi } from "@/lib/route";
  * sensível); só Owner/Admin pode editar, sem mudança na regra do PATCH.
  */
 
-const schema = z.object({
+// Exportado só para o teste de isolamento provar que o tenant não pode se
+// marcar como conta_interna sozinho (spec 2026-09-18): campo fora daqui é
+// descartado pelo comportamento padrão do Zod (strip), sem precisar de
+// .strict() nem checagem manual.
+export const schema = z.object({
   name: z.string().trim().min(1).optional(),
   document: z.string().trim().min(11).optional(),
   phone: z.string().trim().nullish(),

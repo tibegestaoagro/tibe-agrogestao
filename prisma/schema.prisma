@@ -341,6 +341,13 @@ model Tenant {
   // Arquivamento pelo painel da plataforma (spec 2026-07-27): nunca deleta,
   // mesmo padrão de Property.archived_at (M1). Idempotente.
   archived_at    DateTime?
+  // Selo de conta interna (spec 2026-09-18): tira o vencimento de trial e
+  // inadimplência (billing-access.ts curto-circuita para "full"). Só a
+  // Plataforma liga/desliga (PATCH /api/platform/tenants/:id); a rota do
+  // próprio tenant (PATCH /api/v1/tenant) não aceita este campo, senão um
+  // tenant se daria acesso grátis para sempre. Nasce false: cliente novo
+  // continua com os 14 dias de trial normais.
+  conta_interna  Boolean      @default(false)
 
   // Origem do lead (UTM), PRD seção 4 / v1.1
   lead_source_utm_source   String?

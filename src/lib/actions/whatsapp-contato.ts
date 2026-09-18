@@ -1,5 +1,5 @@
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
-import { normalizePhone } from "@/lib/phone";
+import { toBrazilPhoneDigits } from "@/lib/phone";
 import type { AppUserRole } from "@/types/next-auth";
 import type { ProfileType } from "@/lib/tenant-context";
 
@@ -37,7 +37,7 @@ export type ContatoIdentificado =
     };
 
 export async function identificarContato(telefone: string): Promise<ContatoIdentificado> {
-  const phone = normalizePhone(telefone);
+  const phone = toBrazilPhoneDigits(telefone);
 
   // 1. Busca cross-tenant: contato já vinculado a algum tenant?
   let contact = await prisma.whatsAppContact.findFirst({ where: { phone } });

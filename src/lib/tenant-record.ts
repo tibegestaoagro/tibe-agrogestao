@@ -23,7 +23,7 @@ import { prisma } from "@/lib/prisma";
 export const getTenantRecord = perRequestCache(async function getTenantRecord(tenantId: string) {
   return prisma.tenant.findUnique({
     where: { id: tenantId },
-    select: { name: true, plan_confirmed: true, status: true, trial_ends_at: true },
+    select: { name: true, plan_confirmed: true, status: true, trial_ends_at: true, conta_interna: true },
   });
 });
 

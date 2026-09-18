@@ -520,7 +520,13 @@ async function main() {
     const stamp = Date.now();
     // Telefone único por execução: a busca de identificarContato é
     // cross-tenant, e o banco de dev tem outros tenants com outros telefones.
-    const phoneDono = `11${String(stamp).slice(-9)}`;
+    //
+    // Já na forma CANÔNICA (55 + DDD + 9 + oito dígitos), de propósito. Desde
+    // que o reconhecimento passou a completar o nono dígito, um número cru de
+    // 11 dígitos cujo terceiro dígito calhasse de ser 9 ganhava o "55" na
+    // chegada e deixava de casar com o gravado: a suíte falhava em cerca de 1
+    // execução a cada 10, dependendo do relógio.
+    const phoneDono = `55119${String(stamp).slice(-8)}`;
     const tenant = await prisma.tenant.create({
       data: { name: `M68 ${stamp}`, document: `M68${stamp}`.slice(0, 14), plan: "fazenda" },
     });
