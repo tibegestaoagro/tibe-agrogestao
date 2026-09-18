@@ -76,8 +76,10 @@ aplicada no Neon pelo usuário ANTES do merge (o classificador bloqueia
   tira o vencimento do trial. Cliente novo continua com 14 dias. A rota do
   próprio tenant não aceita o campo.
 
-**Falta do usuário (pendência 10.8):** marcar Lucas, Laíza e Max como conta
-interna na Plataforma.
+**Feito em 18/09:** o usuário marcou Lucas, Laíza e Max como conta interna, e o
+banco confirma `conta_interna = true` nos três. Falta a prova viva: Lucas ou
+Max mandarem mensagem ao agente com o WhatsApp antigo deles, e o primeiro login
+de cada um (confirma o plano, e o perfil que falta nasce ali).
 
 ⚠️ **Achado à parte, dívida 3.2:** arquivar um tenant pela Plataforma NÃO tira o
 acesso dele. `Tenant.archived_at` não é lido em ponto nenhum do caminho de
@@ -176,8 +178,8 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou, e cada commit que sobe é leitura pública.
 
-**2. Do usuário, e desbloqueia coisa já pronta:** marcar Lucas, Laíza e Max
-como conta interna na Plataforma (pendência 10.8).
+**2. Prova viva do nono dígito:** Lucas ou Max mandarem uma mensagem ao agente.
+É o caso real que falhou; o teste passa, mas teste verde não é validação.
 
 **3. A Fase 7, a última do programa do agente.** Trocar o fluxo de produção para a rota de turno.
 Depende das Fases 4 e 5 (as duas em produção) e do que falta: a rodada no

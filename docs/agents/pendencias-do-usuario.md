@@ -260,7 +260,7 @@ log da Vercel.
 
 ---
 
-## 10.8 Marcar as contas da equipe como internas
+## 10.8 Marcar as contas da equipe como internas (FEITO em 18/09)
 
 Depois do merge de 18/09 (selo de conta interna). No painel da Plataforma, em
 **Tenants**, abrir cada conta da equipe e marcar **Conta interna**: Lucas
