@@ -106,6 +106,11 @@ export const getBillingAccess = perRequestCache(async function getBillingAccess(
   ]);
   if (!tenant) return "blocked";
 
+  // Selo de conta interna (spec 2026-09-18): equipe da Pleno Digital, marcada
+  // só pela Plataforma. Curto-circuita ANTES da régua de trial/inadimplência
+  // para não precisar prorrogar trial à mão a cada vencimento.
+  if (tenant.conta_interna) return "full";
+
   if (subscription) {
     if (subscription.status === "active") return "full";
     if (subscription.status === "canceled") {

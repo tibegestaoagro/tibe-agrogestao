@@ -63,6 +63,11 @@ export default async function PlatformTenantDetailPage(props: { params: Promise<
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <StatusBadge status={status} />
+          {tenant.conta_interna && (
+            <span className="rounded-full bg-emerald-600/20 px-2.5 py-0.5 text-xs font-medium text-emerald-400">
+              Conta interna
+            </span>
+          )}
           {tenant.archived_at && (
             <span className="rounded-full bg-gray-600/20 px-2.5 py-0.5 text-xs font-medium text-gray-400">
               Arquivado
@@ -88,6 +93,7 @@ export default async function PlatformTenantDetailPage(props: { params: Promise<
                   phone: tenant.phone,
                   email: tenant.email,
                   plan: tenant.plan,
+                  conta_interna: tenant.conta_interna,
                 }}
               />
             </div>

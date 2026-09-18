@@ -6,6 +6,8 @@ import { inviteUserAction, updateUserRoleAction, setUserActiveAction } from "@/l
 import { generateAllAlerts } from "@/lib/actions/alerts";
 import { POST as webhookAsaas } from "@/app/api/webhooks/asaas/route";
 import { createTenantWithOwner } from "@/lib/actions/tenants";
+import { updateTenantAction } from "@/lib/actions/platform-tenants";
+import { schema as tenantPatchSchema } from "@/app/api/v1/tenant/route";
 
 exigirBancoLocal();
 
@@ -60,6 +62,54 @@ async function main() {
 
     await prisma.tenant.update({ where: { id: tenantA.id }, data: { trial_ends_at: new Date(Date.now() - 20 * DAY) } });
     assert((await getBillingAccess(tenantA.id)) === "blocked", "trial vencido há 20 dias (>=15) -> blocked");
+
+    // ── selo de conta interna (spec 2026-09-18) ──────────────────────
+    // tenantA já está com trial vencido há 20 dias (blocked) neste ponto.
+    await prisma.tenant.update({ where: { id: tenantA.id }, data: { conta_interna: true } });
+    assert(
+      (await getBillingAccess(tenantA.id)) === "full",
+      "conta_interna + trial vencido há 20 dias -> full (o selo corta a régua)",
+    );
+    await prisma.tenant.update({ where: { id: tenantA.id }, data: { conta_interna: false } });
+    assert(
+      (await getBillingAccess(tenantA.id)) === "blocked",
+      "sem conta_interna, o mesmo trial vencido continua blocked como antes",
+    );
+
+    const tenantNovo = await createTenantWithOwner({
+      company_name: "M5 Conta Interna Novo",
+      document: "22233344456",
+      phone: "22988887777",
+      plan: "campo",
+      plan_confirmed: true,
+      owner_name: "Dono Novo",
+      owner_email: "m5-conta-interna-novo@test.local",
+      password: "senha12345",
+      must_change_password: false,
+    });
+    assert(tenantNovo.ok, "createTenantWithOwner cria a conta (conta_interna)");
+    if (tenantNovo.ok) createdTenantIds.push(tenantNovo.data.tenant_id);
+    const tenantNovoRow = tenantNovo.ok
+      ? await prisma.tenant.findUnique({ where: { id: tenantNovo.data.tenant_id } })
+      : null;
+    assert(tenantNovoRow?.conta_interna === false, "tenant novo nasce sem o selo (@default(false))");
+
+    if (tenantNovo.ok) {
+      const setInternal = await updateTenantAction(tenantNovo.data.tenant_id, { conta_interna: true });
+      assert(setInternal.ok, "a Plataforma consegue ligar o selo via updateTenantAction");
+      const afterSet = await prisma.tenant.findUnique({ where: { id: tenantNovo.data.tenant_id } });
+      assert(afterSet?.conta_interna === true, "o selo fica gravado depois de updateTenantAction");
+    }
+
+    // A rota do PRÓPRIO tenant (PATCH /api/v1/tenant) não conhece o campo:
+    // Zod descarta silenciosamente (comportamento padrão "strip"), então um
+    // tenant nunca consegue se marcar sozinho como conta interna.
+    const selfAttempt = tenantPatchSchema.safeParse({ name: "Nome Qualquer", conta_interna: true });
+    assert(selfAttempt.success, "o payload com conta_interna ainda é aceito (campo é só ignorado, não recusado)");
+    assert(
+      selfAttempt.success && !("conta_interna" in selfAttempt.data),
+      "conta_interna nunca chega em parsed.data de /api/v1/tenant: o tenant não pode se auto-marcar",
+    );
 
     // ── billing-access: com Subscription ───────────────────────────
     const sub = await dbA.subscription.create({

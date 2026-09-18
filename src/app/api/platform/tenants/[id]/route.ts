@@ -51,6 +51,7 @@ async function GETHandler(_request: Request, props: { params: Promise<{ id: stri
     email: tenant.email,
     plan: tenant.plan,
     plan_confirmed: tenant.plan_confirmed,
+    conta_interna: tenant.conta_interna,
     archived_at: isoOrNull(tenant.archived_at),
     status: tenant.subscription?.status ?? "trial",
     trial_ends_at: isoOrNull(tenant.trial_ends_at),
@@ -85,6 +86,7 @@ const patchSchema = z.object({
   phone: z.string().trim().nullish(),
   email: z.string().trim().email().nullish(),
   plan: z.enum(["campo", "fazenda", "grupo"]).optional(),
+  conta_interna: z.boolean().optional(),
 });
 
 /** PATCH /api/platform/tenants/:id (spec 2026-07-27): edita dados cadastrais e plano, só master_admin. */
