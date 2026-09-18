@@ -60,21 +60,29 @@ localStorage.setItem('tibe.pwa.convite-dispensado', '1');
 location.reload();
 ```
 
-## O que a prova achou de quebrado em PRODUÇÃO
+## ⚠️ CORREÇÃO de 18/09: produção TEM a `VAPID_SUBJECT`
 
-⚠️ **Produção não tem `VAPID_SUBJECT`**, e por isso **não consegue enviar push
-nenhum**. O envio desta prova saiu da máquina local, com a variável fornecida na
-hora; o `.env` local não a tem, e o usuário confirmou que o ambiente está
-replicado em produção.
+**A versão original desta seção afirmava que produção não tinha a
+`VAPID_SUBJECT` e por isso não enviava push. Era falso.** O usuário mostrou o
+painel da Vercel em 18/09: a variável existe desde 3 de agosto, em Production e
+Preview.
 
-Ou seja: sem essa variável, a inscrição que acabou de nascer não receberia nada,
-e (no código anterior à Task 1) o resumo diário daquele tenant teria parado de
-sair pelo WhatsApp também, em silêncio. É exatamente o defeito que a Task 1
-desarmou, e ele estava armado de verdade, não em tese.
+**De onde veio o erro:** o `.env` LOCAL não tem a variável, e o usuário tinha
+dito que "o env está replicado em produção". Daí deduzi que produção também não
+tinha, **sem conferir**. Deduzi um fato de produção a partir da máquina local.
 
-**Ação do usuário:** definir `VAPID_SUBJECT` na Vercel. É um `mailto:` ou uma
-URL de contato exigida pelo protocolo VAPID, não é segredo. Sem ela, nada de
-push em produção.
+O que continua verdade, e o que muda:
+
+- **O `.env` local não tem** a terceira variável. Por isso o envio desta prova
+  precisou dela fornecida na hora: o defeito da Task 1 estava armado **nesta
+  máquina**, não em produção.
+- **Em produção as três variáveis sempre existiram.** Então o canal de push
+  esteve pronto para entregar desde agosto, e o **único** motivo das zero
+  inscrições era a tela (as duas portas descritas acima). Isso deixa o
+  diagnóstico principal desta prova mais forte, não mais fraco.
+- **O defeito da Task 1 continua real no código**: qualquer ambiente com duas das
+  três variáveis caía nele, e o `.env.example` nem listava a terceira. Ele só
+  não estava armado em produção, como eu tinha afirmado.
 
 ## O que isso destrava
 

@@ -337,10 +337,11 @@ Aí o resumo diário vê `configurado: true` e `subscriptions: 1`, não cai para
 WhatsApp (é a regra deliberada "existência, não entrega", certa para o resumo), e
 **para de sair em silêncio**, indefinidamente.
 
-É a mesma silhueta do defeito que a Task 1 desarmou, com outro gatilho. Fica mais
-provável agora: a pendência 10.9 vai fazer alguém mexer nas variáveis VAPID, e a
-inscrição criada em 17/09 nasceu contra a chave atual. Custo: podar por idade ou
-por contagem de falhas seguidas, além do 404/410.
+É a mesma silhueta do defeito que a Task 1 desarmou, com outro gatilho. Ele
+acorda numa rotação das chaves VAPID (que está prevista na rotação de
+credenciais, item de segurança adiado): a inscrição criada em 17/09 nasceu
+contra a chave atual. Custo: podar por idade ou por contagem de falhas
+seguidas, além do 404/410.
 
 ### 5.0h Desligar notificação pode deixar navegador e banco incoerentes
 

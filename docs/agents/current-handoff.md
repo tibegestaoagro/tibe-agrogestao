@@ -104,8 +104,10 @@ armado que engolia o resumo diário), urgência `conversa` para mensagem que
 espera resposta, alerta crítico decidindo por ENTREGA e não por existência, e
 resumo diário que silencia quando não há nada acionável.
 
-**Pendência 10.9 do usuário:** produção não tem `VAPID_SUBJECT`, então **não
-envia push nenhum** hoje.
+⚠️ **Correção de 18/09:** esta seção afirmava que produção não tinha a
+`VAPID_SUBJECT` e não enviava push. **Era falso**: a variável existe na Vercel
+desde agosto. Quem não tem é o `.env` local, e o agente deduziu produção a
+partir dele. Ver `docs/conhecimento/deduzir-producao-pela-maquina-local.md`.
 
 ### Agente do WhatsApp: Fase 5 (intenções novas) EM PRODUÇÃO desde 16/09
 
@@ -249,9 +251,8 @@ antes do "sim". Ainda vale conferir as primeiras execuções reais do workflow d
 produção depois da guarda (execução de 2 nós sem "Normalizar e Filtrar" é
 mensagem barrada).
 
-**3. Do usuário, e desbloqueia coisa já pronta:** `VAPID_SUBJECT` na Vercel
-(pendência 10.9, sem ela o push não sai de produção) e marcar Lucas, Laíza e
-Max como conta interna na Plataforma (pendência 10.8).
+**3. Do usuário, e desbloqueia coisa já pronta:** marcar Lucas, Laíza e Max
+como conta interna na Plataforma (pendência 10.8).
 
 **4. A Fase 7, a última do programa do agente.** Trocar o fluxo de produção para a rota de turno.
 Depende das Fases 4 e 5 (as duas em produção) e do que falta: a rodada no

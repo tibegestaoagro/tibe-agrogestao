@@ -239,10 +239,12 @@ Configurações. Os dois corrigidos; o relato completo, com o diagnóstico do
 console, está em
 [../../agents/agente-whatsapp/prova-do-push-2026-09-17.md](../../agents/agente-whatsapp/prova-do-push-2026-09-17.md).
 
-⚠️ **Produção não tem `VAPID_SUBJECT`**, e por isso não envia push nenhum
-(pendência 10.9 do usuário). O defeito que a fase desarmou estava armado de
-verdade: com uma inscrição viva e a variável faltando, o código anterior deixava
-de mandar push E resumo diário, em silêncio.
+⚠️ **Correção de 18/09:** esta seção afirmava que produção não tinha a
+`VAPID_SUBJECT`. Era falso: a variável existe na Vercel desde 3 de agosto. O
+agente deduziu o estado de produção a partir do `.env` local, que é quem não
+tem. Em produção o canal sempre esteve configurado, então **a tela era o único
+motivo** das zero inscrições. O defeito que a fase desarmou é real no código (e
+estava armado no ambiente local), mas não em produção.
 
 ## Critérios de aceite do programa
 

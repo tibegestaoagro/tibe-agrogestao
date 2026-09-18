@@ -271,19 +271,17 @@ Lucas e Max também estão sem perfil ativo, porque nunca chegaram ao primeiro
 login (o trial venceu antes). Isso se resolve sozinho: com o selo, eles entram,
 confirmam o plano, e o perfil nasce nessa hora.
 
-## 10.9 `VAPID_SUBJECT` na Vercel, senão o push não sai de produção
+## 10.9 ~~`VAPID_SUBJECT` na Vercel~~: NÃO era pendência
 
-Achado em 17/09, na prova do push (`agente-whatsapp/prova-do-push-2026-09-17.md`).
-Produção tem `VAPID_PUBLIC_KEY` e `VAPID_PRIVATE_KEY`, mas **não tem a
-terceira**, e o protocolo VAPID exige as três: sem ela, `configureVapid()`
-devolve falso e **nenhum push é enviado**.
+Esta entrada foi aberta em 17/09 afirmando que produção não tinha a
+`VAPID_SUBJECT`. **Era falso**: o usuário mostrou em 18/09 que a variável existe
+na Vercel desde 3 de agosto, em Production e Preview. O erro foi do agente, que
+deduziu o estado de produção a partir do `.env` local, sem conferir. Correção
+registrada em `agente-whatsapp/prova-do-push-2026-09-17.md`.
 
-O valor é um contato, não um segredo: `mailto:agencia@pleno.dev.br` serve, ou a
-URL do app. Defina na Vercel e faça redeploy.
-
-⚠️ Enquanto ela faltar, a inscrição criada em 17/09 existe e não recebe nada. A
-prova de entrega daquele dia foi disparada da máquina local, com a variável
-fornecida na hora.
+**Nada a fazer na Vercel.** Quem não tem a variável é o `.env` LOCAL desta
+máquina, e é só isso que falta alinhar (não é segredo:
+`VAPID_SUBJECT=mailto:agencia@pleno.dev.br`).
 
 ## 11. Agente do WhatsApp: cinco coisas que só você faz
 

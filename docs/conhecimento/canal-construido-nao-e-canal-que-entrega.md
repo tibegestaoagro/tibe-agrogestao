@@ -55,9 +55,16 @@ push não era tentado e **o WhatsApp também não**, porque a política pergunta
 "existe inscrição?" em vez de "o canal consegue entregar?". O resumo diário
 daquele tenant parava de sair, sem erro e sem log.
 
-Produção estava nesse estado, faltando `VAPID_SUBJECT`. A primeira inscrição da
-história do projeto nasceu no dia da prova: o defeito estava a um clique de
-disparar.
+⚠️ **Correção de 18/09:** a primeira versão desta nota dizia que produção
+estava nesse estado, faltando `VAPID_SUBJECT`. **Era falso.** Produção tinha as
+três variáveis desde agosto; quem não tinha era o `.env` local, e eu deduzi o
+estado de produção a partir dele, sem conferir, só porque o usuário tinha dito
+que o ambiente estava "replicado". O defeito era real no código e estava armado
+na máquina de desenvolvimento, não no ar.
+
+E a correção deixa a lição desta nota mais forte: com o canal inteiro
+configurado em produção desde agosto, **a tela era o único motivo** das zero
+inscrições. Ver [[deduzir-producao-pela-maquina-local]].
 
 A regra que ficou no código, e vale para qualquer canal futuro:
 **canal que não pode entregar conta como INEXISTENTE**, nunca como "tentado e
