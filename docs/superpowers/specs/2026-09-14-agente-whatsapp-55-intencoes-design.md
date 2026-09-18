@@ -246,6 +246,33 @@ tem. Em produção o canal sempre esteve configurado, então **a tela era o úni
 motivo** das zero inscrições. O defeito que a fase desarmou é real no código (e
 estava armado no ambiente local), mas não em produção.
 
+## Fase 7: decisões de 18/09/2026
+
+| tema | decisão |
+|---|---|
+| como entra | **canário por telefone.** Um desvio (`Agente Novo?`) no fluxo de produção, logo depois de `Consolidar Mensagem`: telefone da lista vai para `Chamar Turno`, todo o resto segue para `Resolve Contact` e o caminho antigo, sem mudança. Voltar atrás é tirar o número da lista, ou reaplicar o fluxo de 15/09 |
+| quem entra primeiro | **o usuário e as três contas internas** (Lucas, Max e Laíza Agromax). A Da Mata entra só depois da semana observada limpa |
+| rodada do chip | **dispensada.** O roteiro de `roteiro-do-chip.md` é feito com o celular do usuário, já no canário: aparelho real, áudio real, foto real, e nenhum produtor no meio |
+
+Três cuidados da montagem, que a spec não pedia e o fluxo precisava:
+
+- O desvio compara na forma canônica do telefone (a mesma regra de
+  `toBrazilPhoneDigits`), porque a Evolution às vezes entrega o celular sem o
+  nono dígito. Um número da lista que chegasse sem o 9 cairia calado no
+  caminho antigo.
+- `Chamar Turno` tem saída de erro: se o Tibé falhar ou demorar, o produtor
+  recebe uma frase, nunca silêncio (critério de aceite abaixo). A frase não diz
+  "nada foi gravado", porque a falha pode ter vindo depois da gravação.
+- O `message_id` passa a atravessar o fluxo também no texto, como na cópia de
+  homologação. O caminho antigo ignora o campo.
+
+A semana observada se lê com `npx tsx scripts/observar-canario.ts`, que lista
+só leitura toda conversa com `prompt_version`, ou seja, só as do caminho novo.
+
+O JSON do fluxo não entra no repositório (carrega a chave da instância da
+Evolution); o script que o monta fica no scratchpad da sessão, e a fonte da
+verdade é o próprio n8n.
+
 ## Critérios de aceite do programa
 
 - Zero gravação indevida no conjunto de avaliação e nos blocos de homologação
