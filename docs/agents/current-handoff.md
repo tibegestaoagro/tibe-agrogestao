@@ -27,7 +27,7 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-09-18.
 
-### Agente do WhatsApp: Fases 1 a 4 EM PRODUÇÃO
+### Agente do WhatsApp: o programa (Fases 1 a 6 em produção)
 
 Programa decidido com o usuário em 14/09. Spec
 [../superpowers/specs/2026-09-14-agente-whatsapp-55-intencoes-design.md](../superpowers/specs/2026-09-14-agente-whatsapp-55-intencoes-design.md),
@@ -83,46 +83,20 @@ interna na Plataforma.
 acesso dele. `Tenant.archived_at` não é lido em ponto nenhum do caminho de
 acesso.
 
-### Agente do WhatsApp: Fase 6 (alertas e push) EM PRODUÇÃO desde 17/09
+### Agente do WhatsApp: Fases 4, 5 e 6 EM PRODUÇÃO
 
-Merge `f370242`, deploy confirmado.
+Fase 4 (homologação, `d785e6b`), Fase 5 (intenções novas do dinheiro que entra,
+`f3148f5`) e Fase 6 (alertas e push, `f370242`), todas com deploy confirmado. O
+detalhe foi para [historico/2026-09.md](historico/2026-09.md); os relatórios
+estão em [agente-whatsapp/](agente-whatsapp/) e as lições no cofre.
 
-
-⚠️ **O push nunca tinha entregado nada**: zero inscrições em produção para 5
-usuários, com o canal inteiro construído. A fase inverteu a ordem da spec
-(provar antes de mudar política) e a prova aconteceu em 17/09, com o usuário no
-navegador: **primeira inscrição e primeira notificação entregue do projeto**
-([agente-whatsapp/prova-do-push-2026-09-17.md](agente-whatsapp/prova-do-push-2026-09-17.md)).
-
-O que impedia era a TELA: o convite de instalar o PWA segurava o de notificação
-para sempre, e "Agora não" tirava o recurso sem volta, porque não existia
-caminho em Configurações. Os dois corrigidos, e agora dá para ligar e desligar
-em Configurações > Alertas.
-
-Entregue também: canal que não pode entregar conta como INEXISTENTE (o defeito
-armado que engolia o resumo diário), urgência `conversa` para mensagem que
-espera resposta, alerta crítico decidindo por ENTREGA e não por existência, e
-resumo diário que silencia quando não há nada acionável.
-
-⚠️ **Correção de 18/09:** esta seção afirmava que produção não tinha a
-`VAPID_SUBJECT` e não enviava push. **Era falso**: a variável existe na Vercel
-desde agosto. Quem não tem é o `.env` local, e o agente deduziu produção a
-partir dele. Ver `docs/conhecimento/deduzir-producao-pela-maquina-local.md`.
-
-### Agente do WhatsApp: Fase 5 (intenções novas) EM PRODUÇÃO desde 16/09
-
-Merge `f3148f5`, deploy confirmado, sem migração. Dar baixa no que o cliente
-pagou (inclusive parcial), consultar quem ainda deve com o serviço feito e não
-faturado junto, e agendar pagamento futuro da equipe sem duplicar despesa.
-Suíte `m70`. Relatório em
-[agente-whatsapp/avaliacao-fase-5.md](agente-whatsapp/avaliacao-fase-5.md).
-
-⚠️ **Duas lições dessa fase estão no cofre**, e as duas custaram caro: as três
-intenções nasceram com 44,4% de acerto porque as descrições de DOMÍNIO não as
-reivindicavam (declarar não torna alcançável), e a revisão independente
-reprovou o merge duas vezes com defeitos de gravação em dinheiro que nem os 40
-casos de avaliação nem as 67 checagens da suíte alcançavam, porque dependiam de
-algo mudar ENTRE a pergunta e o "sim".
+⚠️ **Três achados que valem para quem vier depois:** a revisão independente
+reprovou merge nas três fases, sempre com defeito que a suíte e a medição não
+alcançavam (gravação indevida de estoque, o "sim" quitando a conta errada, o
+controle de notificação inalcançável para OPERADOR). O push nunca tinha
+entregado nada até 17/09, e o motivo era a TELA, não o servidor. E produção
+TEM a `VAPID_SUBJECT` desde agosto: a afirmação contrária, escrita em 17/09,
+era falsa e foi corrigida em todo lugar.
 
 ### Ambiente
 
@@ -202,59 +176,10 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou, e cada commit que sobe é leitura pública.
 
-**2. Agente do WhatsApp, Fase 4:** o plano existe
-([../superpowers/plans/2026-09-16-agente-whatsapp-fase-4-homologacao.md](../superpowers/plans/2026-09-16-agente-whatsapp-fase-4-homologacao.md))
-e as seis tasks estão feitas. **EM PRODUÇÃO desde 16/09**: merge `d785e6b`, sem
-migração, deploy confirmado pelo status da Vercel; branch e workspace apagados.
-A rodada de ponta a ponta pelo n8n foi feita com autorização: a cópia foi
-ativada, exercitada e desativada na mesma sessão, e a produção ficou intocada
-(conferida antes e depois).
-
-⚠️ **O fluxo de produção continua no `execute-action`.** A cópia de homologação
-está pronta e DESATIVADA; trocar o fluxo é a Fase 7, e ninguém em produção
-sentiu nada desta fase além das correções de conversa.
-
-Provado de ponta a ponta pelo webhook: confirmação vindo da rota de turno,
-recusa sem gravar, "sim" fora de hora sem gravar, três pedaços em ~3 s virando
-um pedido só, e **idempotência de escrita** (o "sim" que grava, repetido com o
-mesmo `message_id`: negociações 2 para 3, nunca 4).
-
-Entregue: workflow fino aplicado em `ctGOlY9OXZWfjeby` (25 nós, inativo, webhook
-`/webhook/homologacao`, chamando a rota de turno; produção intocada, conferida);
-60 blocos de conversa de cinco testadores sem contexto, revisados por juiz
-([agente-whatsapp/homologacao-fase-4-blocos.md](agente-whatsapp/homologacao-fase-4-blocos.md));
-sete rodadas de medição, as últimas com **zero gravação indevida**; quatro
-defeitos de conversa corrigidos com teste que falhou antes;
-`npm run wa -- --homologacao`
-para exercitar a cópia; e o roteiro do dia do chip
-([agente-whatsapp/roteiro-do-chip.md](agente-whatsapp/roteiro-do-chip.md)).
-
-⚠️ **As três correções destravaram conversas específicas, não a média:** os
-passos com frase de desistência foram de 41 para 39 de 145. O relatório explica
-onde estão (nove são comportamento certo, dez são artefato do aparato, que mede
-o turno sem o buffer do n8n).
-
-⚠️ **A revisão final achou uma GRAVAÇÃO INDEVIDA que a medição não podia
-achar**, aberta pela terceira correção: com o uso de estoque esperando o
-produto, "nem precisei do sal afinal" casava "Sal" por substring e gravava o uso
-que o produtor tinha acabado de negar. Corrigida em `5106091` (a regra de quem
-grava sem confirmar virou uma constante única, lida pelo handler e pelo turno),
-com o caso que faltava virando teste. A catraca escrita para a lista não
-envelhecer (seção 1c da `m68`, `9382361`) achou **mais quatro** intenções que
-gravam sem confirmar e não estavam declaradas. Rodadas 6 e 7: zero gravação
-indevida. Gasto do programa: US$ 5,12 de US$ 30.
-
-A Fase 4 foi feita SEM o segundo chip, por decisão do usuário em 16/09. Ela
-herda três defeitos de conversa da Fase 3, todos abertos: permuta com diferença
-em dinheiro, resposta de parcelamento ("35 mil, em 2 vezes") e correção de valor
-antes do "sim". Ainda vale conferir as primeiras execuções reais do workflow de
-produção depois da guarda (execução de 2 nós sem "Normalizar e Filtrar" é
-mensagem barrada).
-
-**3. Do usuário, e desbloqueia coisa já pronta:** marcar Lucas, Laíza e Max
+**2. Do usuário, e desbloqueia coisa já pronta:** marcar Lucas, Laíza e Max
 como conta interna na Plataforma (pendência 10.8).
 
-**4. A Fase 7, a última do programa do agente.** Trocar o fluxo de produção para a rota de turno.
+**3. A Fase 7, a última do programa do agente.** Trocar o fluxo de produção para a rota de turno.
 Depende das Fases 4 e 5 (as duas em produção) e do que falta: a rodada no
 aparelho, com o segundo número, roteiro escrito em
 [agente-whatsapp/roteiro-do-chip.md](agente-whatsapp/roteiro-do-chip.md). O
