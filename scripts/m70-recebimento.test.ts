@@ -242,7 +242,9 @@ async function main() {
       const { reaisBr } = await import("@/lib/numero-br");
 
       await prisma.tenantProfile.create({ data: { tenant_id: tenant.id, profile_type: "fazenda", active: true } });
-      const phoneT8 = `11${String(stamp).slice(-9)}`;
+      // Forma canônica: número cru de 11 dígitos era intermitente depois do nono
+      // dígito (ver a mesma nota em m68-agente-turno.test.ts).
+      const phoneT8 = `55119${String(stamp).slice(-8)}`;
       await prisma.user.create({
         data: {
           tenant_id: tenant.id,
