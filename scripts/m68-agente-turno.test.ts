@@ -393,6 +393,19 @@ async function main() {
       return { status: 200, json: { choices: [{ message: { content: JSON.stringify({ pedidos: [] }) } }] } };
     });
     const semPedido = await classificarMensagem({ texto: "oi", hoje: "2026-09-15", perfis: [] });
+
+    // Dívida 5.3, visto contra o modelo real em 29/09: dois pedaços sem domínio
+    // viravam dois "Não entendi" seguidos para uma mensagem só.
+    definirTransporteDoModelo(async () => ({
+      status: 200,
+      json: { choices: [{ message: { content: JSON.stringify({ pedidos: [{ dominio: "nenhum", trecho: "estou com 19 fêmeas" }, { dominio: "nenhum", trecho: "quanto compro?" }] }) } }] },
+    }));
+    const doisNenhum = await classificarMensagem({ texto: "estou com 19 fêmeas, quanto compro?", hoje: "2026-09-15", perfis: [] });
+    check(
+      "dois pedaços sem domínio viram UMA ambígua, com a mensagem inteira",
+      doisNenhum.length === 1 && doisNenhum[0].intent === "ambigua" && doisNenhum[0].trecho === "estou com 19 fêmeas, quanto compro?",
+      JSON.stringify(doisNenhum),
+    );
     check("pedidos vazio vira ambígua, nunca lista vazia", semPedido.length === 1 && semPedido[0].intent === "ambigua" && semPedido[0].trecho === "oi");
 
     definirTransporteDoModelo(async (corpo) => {
@@ -898,6 +911,42 @@ async function main() {
           check("(c) responde o estoque", c.mensagens.length === 1 && c.mensagens[0].texto.includes("estoque"), JSON.stringify(c.mensagens));
           await clearPendingHerd(tenant.id, owner.id);
           await limparCursor(tenant.id, owner.id);
+
+          // (d) Dívida 5.3, canário de 19/09: a etapa de domínio separou um pedaço
+          // que não entendeu, e o produtor recebeu a resposta certa seguida de
+          // "Não entendi". Havendo pedido de verdade, o pedaço sem domínio cala.
+          prepara({
+            dominio: { pedidos: [{ dominio: "nenhum", trecho: "Estou com 19 fêmeas" }, { dominio: "rebanho", trecho: "quantos animais eu tenho" }, { dominio: "nenhum", trecho: "e agora?" }] },
+            extracao_rebanho: { intent: "consultar_rebanho", parametros: {} },
+          });
+          const pedacoMudo = await turno("Estou com 19 fêmeas, quantos animais eu tenho e agora?", "T7d1");
+          check("(d) pedido real com pedaço sem domínio: só a resposta real", pedacoMudo.mensagens.length === 1 && pedacoMudo.mensagens[0].texto.startsWith("Seu rebanho possui"), JSON.stringify(pedacoMudo.mensagens));
+
+          // (e) Mesma dívida, caso 3: catálogo vazio recusava e guardava pendente
+          // esperando "produto", que nunca pode chegar. O cursor ficava nele, e a
+          // resposta seguinte a OUTRA pergunta ("Fêmeas de 15 meses") virava nome
+          // de produto. Beco sem saída não abre pergunta.
+          check("fixture: tenant sem produto", (await db.product.count()) === 0);
+          prepara({
+            dominio: { pedidos: [{ dominio: "estoque", trecho: "usei 2 sacas de sal" }] },
+            extracao_estoque: { intent: "registrar_uso_estoque", parametros: { produto: "sal", quantidade: 2 } },
+          });
+          const semCatalogo = await turno("usei 2 sacas de sal", "T7e1");
+          check(
+            "(e) estoque sem catálogo recusa sem abrir cursor",
+            !!semCatalogo.mensagens[0]?.texto.includes("ainda não tem produto") && (await carregarCursor(tenant.id, owner.id)) === null,
+            JSON.stringify(semCatalogo.mensagens),
+          );
+          prepara({
+            dominio: { pedidos: [{ dominio: "confinamento", trecho: "tratei o lote com 8 kg de ração" }] },
+            extracao_confinamento: { intent: "registrar_alimentacao_confinamento", parametros: { produto: "ração", quantidade: 8 } },
+          });
+          const semCatalogoConf = await turno("tratei o lote com 8 kg de ração", "T7e2");
+          check(
+            "(e) confinamento sem catálogo recusa sem abrir cursor",
+            !!semCatalogoConf.mensagens[0]?.texto.includes("ainda não tem produto") && (await carregarCursor(tenant.id, owner.id)) === null,
+            JSON.stringify(semCatalogoConf.mensagens),
+          );
 
           // Estoque com dois produtos: "usei 2 sacas" sem produto pergunta "Qual produto?", sem dígito.
           await ensureProductCategories(db);

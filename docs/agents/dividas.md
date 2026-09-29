@@ -472,29 +472,18 @@ produto sobre qual vínculo é a fonte de verdade quando os dois existirem ao
 mesmo tempo, não algo para decidir em silêncio numa correção de bug. O
 comentário só foi corrigido para não mentir; a busca não mudou.
 
-### 5.3 Uma mensagem, duas respostas, a segunda dizendo "não entendi"
+### 5.7 A pergunta de categoria da CONSULTA do rebanho não tem memória
 
-Achado em 2026-09-29, lendo a conversa real do canário da Fase 7 (tenant de
-teste "Max Dias Agromax", 19 e 20/09). Em três momentos o produtor mandou UMA
-mensagem e recebeu DUAS, a primeira certa e a segunda a frase genérica de não
-entendimento. Os três, pelo log de conversa:
+Resíduo da antiga 5.3, fechada em 2026-09-29. `consultar_rebanho` responde
+"Não reconheci a categoria ... Diga o sexo e a idade aproximada" (via
+`resolverCategoria`, `whatsapp-handlers/herd.ts`), mas consulta não guarda
+pendente, então a resposta do produtor ("Fêmeas de 15 meses") não tem pergunta
+aberta a que se ligar e é classificada do zero, sem garantia de voltar à
+consulta. Antes da correção, ela caía no pendente velho de outro domínio; agora
+cai onde a classificação mandar.
 
-1. "Quantos animais tenho no pasto confinamento?" devolveu o rebanho inteiro
-   (`consultar_rebanho:geral`) e, em seguida, "Não entendi.".
-2. "Estou com 19 fêmeas no pasto confinamento, comendo rações, oito quilos de
-   rações por dia. Qual deve ser o meu volume de compra para os próximos 30
-   dias?" devolveu a recusa do confinamento e, em seguida, "Não entendi.".
-3. "Fêmeas de 15 meses", respondendo a uma pergunta do rebanho, foi parar em
-   `registrar_alimentacao_confinamento`.
-
-A suspeita é `entenderPedidos` (`src/lib/actions/turno.ts`) devolvendo dois
-pedidos para a mesma mensagem, o segundo `ambigua`, e o turno respondendo os
-dois. Nada é gravado errado: o produtor lê "não entendi" logo depois de uma
-resposta certa e conclui que o agente se perdeu.
-
-**Custo:** decidir a regra (quando há pedido de verdade na mesma mensagem, o
-`ambigua` não vira resposta) e provar com um caso de duas intenções, que já
-existe no conjunto de avaliação.
+Não grava nada. **Custo:** dar à consulta um pendente curto (só a categoria),
+ou trocar a frase por uma que não pareça pergunta.
 
 ### 5.4 Pergunta de pasto respondida com lavoura, e "bom dia" sem saudação
 

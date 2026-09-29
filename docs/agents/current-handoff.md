@@ -81,10 +81,18 @@ A compra de teste de 29/09 na Da Mata **não existe mais** (conferido em
 produção no mesmo dia: nada criado em 29/09 no tenant). O script de limpeza foi
 apagado.
 
-Dívidas abertas no caminho: **5.3** (uma mensagem, duas respostas), **5.4**
-(pasto respondido com lavoura), **5.5** (resposta de categoria descarta a
-quantidade nova), **5.6** (leilão e permuta ainda nascem vencendo hoje) e
-**3.2** (arquivar tenant não tira o acesso).
+**5.3 fechada em 29/09** (uma mensagem, duas respostas): a `ambigua` só
+responde quando é tudo o que sobrou, e uma vez só (`classificar.ts`); catálogo
+de produto vazio recusa sem abrir pendente (`resolverProduto`), que prendia o
+cursor e fazia a resposta a OUTRA pergunta virar nome de produto. Suíte `m68`
+com 4 casos novos, cada um provado falhando sem a correção. Ainda não
+exercitada em conversa real: depende do deploy e do celular.
+
+Dívidas abertas no caminho: **5.4** (pasto respondido com lavoura), **5.5**
+(resposta de categoria descarta a quantidade nova), **5.6** (leilão e permuta
+ainda nascem vencendo hoje), **5.7** (pergunta de categoria da consulta do
+rebanho sem memória, resíduo da 5.3) e **3.2** (arquivar tenant não tira o
+acesso).
 
 ### Ambiente
 
