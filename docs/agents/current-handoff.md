@@ -87,6 +87,15 @@ os quatro foram corrigidos e estão em produção (`ffcd053`, `51a8634`, `e1102b
 4. "bom dia" caía em "Não entendi". A regra da saudação foi escrita pelo
    usuário e virou resposta pela hora de Brasília com o primeiro nome.
 
+**A rodada do roteiro no celular do usuário (29/09) aprovou os passos 1 a 7**,
+com áudio real e mensagem picada provados pelo rastro do n8n, e achou mais dois
+defeitos, corrigidos e em produção (`58629fe`, `6213f5b`): compra sem prazo
+nascia vencendo HOJE (agora gado e insumo perguntam "já pagou, ou vai pagar
+depois?"), e o contato nascia "do João". Faltam os passos 9 e 10 (foto e o
+"não" final). ⚠️ Os dados de teste dessa rodada na Da Mata (20 bezerros,
+R$ 60 mil) só saem quando o USUÁRIO rodar `npx tsx scripts/_tmp-limpar.ts
+--apagar`: o classificador bloqueia escrita destrutiva em produção.
+
 ⚠️ **A correção da saudação falhou na primeira mensagem real** ("Oi, bom dia"),
 porque a primeira versão comparava a frase inteira contra uma lista fechada.
 Lição: lista de frase não cobre combinação.
