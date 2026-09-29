@@ -294,22 +294,38 @@ async function main() {
       parameters: {},
     });
     assert(
-      /cadastrado/i.test(ambigua.body.data.reply_text) && /o que você faz/i.test(ambigua.body.data.reply_text),
-      "ambigua convida a perguntar 'o que você faz?' em vez de só pedir pra reformular",
+      /Como posso ajudar/i.test(ambigua.body.data.reply_text) &&
+        /o que você faz/i.test(ambigua.body.data.reply_text) &&
+        !/Não entendi/i.test(ambigua.body.data.reply_text),
+      "mensagem sem demanda pergunta como pode ajudar, em vez de dizer que não entendeu",
     );
 
     // ── cumprimento: a primeira mensagem de todo mundo ───────────────────
     // Achado em uso real (29/09): "bom dia" respondia "Não entendi".
     // "Oi, bom dia" é o caso que derrubou a primeira versão desta guarda, em
     // produção, minutos depois do deploy: duas saudações numa frase só.
+    // As formas vieram do usuário, em 29/09, depois de ler a conversa real:
+    // "existem muitas formas de iniciar uma conversa".
     for (const texto of [
+      "oi",
+      "Oi, tudo bem",
+      "Oi Tibe",
+      "Tudo bem tibe",
       "Bom dia",
       "bom dia!!",
-      "Oi",
-      "Oi, bom dia",
+      "Bom dia Tibe",
+      "Oi Bom dia",
+      "Oi bom dia Tibe",
+      "Boa tarde",
+      "Boa noite",
+      "Tarde",
+      "Dia",
+      "Noite",
+      "Dia tibé",
+      "Fala ai",
+      "Fala",
+      "Tá ai",
       "opa, boa tarde",
-      "Boa tarde, tudo bem?",
-      "BOA NOITE",
       "e aí, tudo bem?",
       "olá, como vai você?",
     ]) {
@@ -322,11 +338,37 @@ async function main() {
       });
       assert(
         saudacao.body.data.action_taken === "ambigua:cumprimento" &&
-          /Olá/.test(saudacao.body.data.reply_text) &&
-          !/Não entendi/.test(saudacao.body.data.reply_text),
-        `cumprimento "${texto}" recebe saudação, não "não entendi"`,
+          /^(Bom dia|Boa tarde|Boa noite)/.test(saudacao.body.data.reply_text) &&
+          /Como posso ajudar\?$/.test(saudacao.body.data.reply_text),
+        `cumprimento "${texto}" recebe saudação da hora e pergunta como ajudar`,
       );
     }
+
+    // O nome: o do seed é rótulo de sistema e NÃO pode virar "Bom dia, Owner".
+    const comNome = await prisma.user.update({ where: { id: ownerA.id }, data: { name: "Max Dias" } });
+    const saudacaoComNome = await callExecute({
+      tenant_id: tenantA.id,
+      user_id: comNome.id,
+      intent: "ambigua",
+      parameters: {},
+      message_text: "bom dia",
+    });
+    assert(
+      /^(Bom dia|Boa tarde|Boa noite), Max! Como posso ajudar\?$/.test(saudacaoComNome.body.data.reply_text),
+      "a saudação chama a pessoa pelo primeiro nome",
+    );
+    await prisma.user.update({ where: { id: ownerA.id }, data: { name: "Owner M12" } });
+    const saudacaoSemNome = await callExecute({
+      tenant_id: tenantA.id,
+      user_id: ownerA.id,
+      intent: "ambigua",
+      parameters: {},
+      message_text: "bom dia",
+    });
+    assert(
+      !/Owner/.test(saudacaoSemNome.body.data.reply_text),
+      "nome de sistema não entra na saudação",
+    );
 
     // A ponta que importa: mensagem que só COMEÇA com cumprimento não pode
     // virar saudação, porque a saudação engoliria o pedido.
@@ -345,7 +387,8 @@ async function main() {
         message_text: texto,
       });
       assert(
-        comPedido.body.data.action_taken === "ambigua" && /Não entendi/.test(comPedido.body.data.reply_text),
+        comPedido.body.data.action_taken === "ambigua" &&
+          !/^(Bom dia|Boa tarde|Boa noite)/.test(comPedido.body.data.reply_text),
         `"${texto}" não vira saudação`,
       );
     }

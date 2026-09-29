@@ -4,6 +4,7 @@ import type { ProfileType } from "@/lib/tenant-context";
 import type { ActionResult } from "@/lib/actions/types";
 import type { Intent } from "@/lib/whatsapp-intents";
 import { lerNumeroBr } from "@/lib/numero-br";
+import { saudacaoEmSaoPaulo } from "@/lib/dia-calendario";
 
 /**
  * Tipos e helpers compartilhados pelos handlers de intenção do agente
@@ -157,8 +158,40 @@ export function confirmFlow(params: {
  * migrar para cá **quando o arquivo delas for aberto por outro motivo**: mexer
  * em cinco handlers estáveis só para unificar um helper é risco sem retorno.
  */
-export const SAUDACAO =
-  "Olá! Estou por aqui. Me diga o que você precisa registrar ou consultar, ou pergunte 'o que você faz?' que eu te mostro as opções.";
+/**
+ * A frase de quem não trouxe demanda nenhuma: pergunta o que a pessoa quer, em
+ * vez de dizer que não entendeu. Decisão do usuário em 29/09/2026, depois de
+ * ler a conversa real do canário: "se não for nada referente a alguma demanda,
+ * ele só deve perguntar como posso ajudar".
+ */
+export const COMO_POSSO_AJUDAR =
+  "Como posso ajudar? Posso cadastrar o que você precisar ou te contar o que já está cadastrado. Se quiser ver tudo o que eu faço, é só perguntar 'o que você faz?'.";
+
+/** Nome que não é nome de gente: saudar "Bom dia, Owner" é pior que não saudar. */
+const NOMES_GENERICOS = ["owner", "admin", "administrador", "usuario", "user", "proprietario", "dono", "teste", "test"];
+
+/**
+ * O primeiro nome, para a saudação. Devolve `null` quando não há nome, quando
+ * ele é rótulo de sistema ("Owner Da Mata", que é o que o seed cria) ou quando
+ * não parece nome (número, uma letra só).
+ */
+export function primeiroNome(nome: string | null | undefined): string | null {
+  const bruto = (nome ?? "").trim().split(/\s+/)[0] ?? "";
+  if (bruto.length < 2) return null;
+  if (!/^[\p{L}][\p{L}'-]*$/u.test(bruto)) return null;
+  if (NOMES_GENERICOS.includes(normalizarTermo(bruto))) return null;
+  return bruto.charAt(0).toUpperCase() + bruto.slice(1);
+}
+
+/**
+ * A resposta a um cumprimento: saudação pela hora de Brasília, o primeiro nome
+ * quando existe, e a pergunta. "Bom dia, Max! Como posso ajudar?"
+ */
+export function respostaDeCumprimento(nome: string | null | undefined, agora = new Date()): string {
+  const primeiro = primeiroNome(nome);
+  const saudacao = saudacaoEmSaoPaulo(agora);
+  return primeiro ? `${saudacao}, ${primeiro}! Como posso ajudar?` : `${saudacao}! Como posso ajudar?`;
+}
 
 /**
  * Cumprimento puro ("bom dia", "oi", "boa tarde tudo bem?").
@@ -194,7 +227,10 @@ const PALAVRAS_DE_CUMPRIMENTO: ReadonlySet<string> = new Set([
   "eai",
   "e",
   "ai",
+  "ae",
   "salve",
+  "fala",
+  "ta",
   "bom",
   "boa",
   "dia",
@@ -209,11 +245,20 @@ const PALAVRAS_DE_CUMPRIMENTO: ReadonlySet<string> = new Set([
   "vai",
   "voce",
   "vc",
+  // O nome do assistente: "Oi Tibe", "Dia tibé", "Tudo bem tibe" são a forma
+  // mais comum de chamar alguém pelo nome antes de pedir qualquer coisa.
+  "tibe",
 ]);
 
-/** Sem uma destas, a frase é só palavra solta ("bom", "tudo") e não cumprimenta ninguém. */
+/**
+ * Sem uma destas, a frase é só palavra solta ("bom", "tudo") e não cumprimenta
+ * ninguém. "dia", "tarde" e "noite" sozinhos entram porque é assim que muita
+ * gente abre a conversa; acompanhados de qualquer outra palavra ("dia 10",
+ * "tarde de ontem") eles caem fora pela regra do vocabulário, que é o que
+ * protege a resposta a uma pergunta de data.
+ */
 const NUCLEO_DE_CUMPRIMENTO =
-  /\b(oi|ola|opa|alo|ei|eai|e ai|salve|bom dia|boa tarde|boa noite|tudo bem|tudo bom|como vai)\b/;
+  /\b(oi|ola|opa|alo|ei|eai|e ai|salve|fala|ta ai|ta ae|dia|dias|tarde|noite|bom dia|boa tarde|boa noite|tudo bem|tudo bom|como vai)\b/;
 
 export function ehSoCumprimento(texto: string | null | undefined): boolean {
   if (!texto) return false;

@@ -4,7 +4,7 @@ import type { ProfileType } from "@/lib/tenant-context";
 import { canAccess, canWrite } from "@/lib/permissions";
 import { INTENT_ACCESS, type Intent } from "@/lib/whatsapp-intents";
 import type { RouterResult, HandlerCtx, Handler } from "@/lib/actions/whatsapp-handlers/shared";
-import { SAUDACAO, ehSoCumprimento } from "@/lib/actions/whatsapp-handlers/shared";
+import { COMO_POSSO_AJUDAR, ehSoCumprimento, respostaDeCumprimento } from "@/lib/actions/whatsapp-handlers/shared";
 import {
   cadastrarAnimal,
   registrarLoteAnimal,
@@ -725,8 +725,13 @@ export async function routeIntent(
 
   if (intent === "ambigua") {
     if (ehSoCumprimento(ctx.message_text)) {
+      // O nome é lido aqui, e não carregado no contexto de toda mensagem: só
+      // este ramo precisa dele, e é uma leitura por cumprimento, não por turno.
+      const quem = ctx.user_id
+        ? await db.user.findUnique({ where: { id: ctx.user_id }, select: { name: true } })
+        : null;
       return comIntencao({
-        reply_text: SAUDACAO,
+        reply_text: respostaDeCumprimento(quem?.name),
         requires_confirmation: false,
         auxiliary_data: null,
         report_url: null,
@@ -734,8 +739,7 @@ export async function routeIntent(
       });
     }
     return comIntencao({
-      reply_text:
-        "Não entendi. Posso cadastrar novas informações ou te contar o que já está cadastrado: me diga o que você precisa, ou pergunte 'o que você faz?' que eu te mostro as opções.",
+      reply_text: COMO_POSSO_AJUDAR,
       requires_confirmation: false,
       auxiliary_data: null,
       report_url: null,
