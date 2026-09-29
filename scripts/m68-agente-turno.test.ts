@@ -830,7 +830,11 @@ async function main() {
           check("(a) duas mensagens", a.mensagens.length === 2 && a.replay === false, JSON.stringify(a));
           check("(a) a primeira é o total do rebanho", a.mensagens[0]?.texto === s.reply_text, a.mensagens[0]?.texto);
           check("(a) total com número não pode ser humanizado", a.mensagens[0]?.pode_humanizar === false);
-          check("(a) a segunda responde as contas a pagar, sem número, e pode ser humanizada", !!a.mensagens[1]?.texto.includes("pagar") && a.mensagens[1]?.pode_humanizar === true, JSON.stringify(a.mensagens[1]));
+          // A frase das contas nomeia a data final desde 29/09 (defeito achado no canário: "no período"
+          // escondia o corte). Data tem dígito, então ela deixou de poder ser humanizada, que é a regra
+          // certa: texto com data sai de template e não é reescrito por modelo nenhum.
+          check("(a) a segunda responde as contas a pagar, nomeando até quando", !!a.mensagens[1]?.texto.includes("pagar até "), JSON.stringify(a.mensagens[1]));
+          check("(a) a frase com data não pode ser humanizada", a.mensagens[1]?.pode_humanizar === false, JSON.stringify(a.mensagens[1]));
 
           // (g) log de entrada uma vez, com a versão do prompt.
           const entradas = await db.agentConversationLog.findMany({ where: { direction: "in", content: textoA } });
