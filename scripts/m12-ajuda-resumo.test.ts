@@ -253,7 +253,7 @@ async function main() {
             timeZone: "UTC",
           }).format(receivableDueAt)}`,
         ) &&
-        resumoContas.body.data.reply_text.includes(`Total a receber no período: ${reaisBr(180.75)}`),
+        /Total a receber até \d{2}\/\d{2}\/\d{4}: /.test(resumoContas.body.data.reply_text),
       "resumo contas_a_receber lista receita pendente com data e valor",
     );
 

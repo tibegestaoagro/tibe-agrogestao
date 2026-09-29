@@ -4,10 +4,10 @@ import { countActiveAnimals } from "@/lib/actions/animals";
 import { countActivePlots } from "@/lib/actions/plots";
 import { countServiceClients } from "@/lib/actions/service-clients";
 import { countCompletedUnbilledOrders } from "@/lib/actions/service-orders";
-import { listPendingEntries } from "@/lib/actions/financial-reports";
+import { listPendingEntries, resolvePendingEntriesCalendar } from "@/lib/actions/financial-reports";
 import { getBalanceAction } from "@/lib/actions/financial-summary";
 import { decToNum } from "@/lib/serialize";
-import { str, type Handler } from "./shared";
+import { num, str, type Handler } from "./shared";
 import { reaisBr } from "@/lib/numero-br";
 
 const RESUMO_TOP_LEVEL: { scope: string; label: string; profile?: ProfileType }[] = [
@@ -25,6 +25,24 @@ function formatCivilDate(date: Date): string {
   return civilDateFormatter.format(date);
 }
 
+
+// Teto de 1 ano: cobre "o ano todo" sem deixar um valor absurdo do classificador
+// montar uma data fora do calendário. Acima disso a resposta usa o teto, e como
+// a frase NOMEIA a data final, o produtor vê até onde a lista realmente vai.
+const PERIODO_MAXIMO_DIAS = 366;
+
+/**
+ * Fim do período das contas: hoje (America/Sao_Paulo) mais `dias`, até o fim
+ * daquele dia. Sem dias válidos, cai no fim do mês, o comportamento de sempre.
+ */
+function fimDoPeriodo(dias: number | null): Date {
+  const { today, monthEnd } = resolvePendingEntriesCalendar(new Date());
+  if (dias === null || !Number.isFinite(dias) || dias < 1) return monthEnd;
+  const n = Math.min(Math.floor(dias), PERIODO_MAXIMO_DIAS);
+  return new Date(
+    Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + n, 23, 59, 59, 999),
+  );
+}
 
 export const resumo: Handler = async ({ db, parameters, activeProfiles }) => {
   const scope = str(parameters.scope);
@@ -226,13 +244,16 @@ export const resumo: Handler = async ({ db, parameters, activeProfiles }) => {
 
   if (scope === "contas_a_pagar" || scope === "contas_a_receber") {
     const isPayable = scope === "contas_a_pagar";
+    const end = fimDoPeriodo(num(parameters.period_days));
+    const ate = formatCivilDate(end);
     const entries = await listPendingEntries(db, {
       entry_type: isPayable ? "expense" : "income",
+      end,
     });
     const direction = isPayable ? "pagar" : "receber";
     if (entries.length === 0) {
       return {
-        reply_text: `Nenhuma conta a ${direction} no período.`,
+        reply_text: `Nenhuma conta a ${direction} até ${ate}.`,
         requires_confirmation: false,
         auxiliary_data: null,
         report_url: null,
@@ -253,7 +274,7 @@ export const resumo: Handler = async ({ db, parameters, activeProfiles }) => {
       lines.push(`e mais ${entries.length - 5} conta(s)`);
     }
     const total = entries.reduce((sum, entry) => sum + (entry.amount ?? 0), 0);
-    lines.push(`Total a ${direction} no período: ${reaisBr(total)}`);
+    lines.push(`Total a ${direction} até ${ate}: ${reaisBr(total)}`);
 
     return {
       reply_text: lines.join("\n"),
