@@ -89,7 +89,7 @@ function moeda(v: number): string {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-function validar(input: NegociacaoProdutoInput): { code: string; message: string } | null {
+function validar(input: NegociacaoProdutoInput): { code: string; message: string; field?: string } | null {
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
     return { code: "VALIDATION_ERROR", message: "Informe o valor total da compra." };
   }
@@ -129,6 +129,12 @@ function validar(input: NegociacaoProdutoInput): { code: string; message: string
     }
   }
 
+  // Dívida 5.6: mesma regra de `validarPagamento`, no gado. Sem vencimento, a
+  // conta nascia vencendo hoje; agora é recusada.
+  if (!input.pago && parcelas.length === 0 && !input.due_date) {
+    return { code: "VENCIMENTO_OBRIGATORIO", message: "Informe o vencimento, ou marque como já pago.", field: "due_date" };
+  }
+
   return null;
 }
 
@@ -146,7 +152,7 @@ export async function createProductNegotiation(
   opts?: { aposCriar?: (tx: TenantTransactionClient, negotiationId: string) => Promise<void> },
 ): Promise<ActionResult<{ id: string }>> {
   const erro = validar(input);
-  if (erro) return fail(erro.code, erro.message, 422);
+  if (erro) return fail(erro.code, erro.message, 422, erro.field);
 
   const property = await db.property.findFirst({ where: { id: input.property_id } });
   if (!property) return fail("INVALID_PROPERTY", "Fazenda inválida", 422);
@@ -198,11 +204,8 @@ export async function createProductNegotiation(
         input.pago || !input.parcelas || input.parcelas.length === 0
           ? [
               {
-                // Sem vencimento informado, a conta vence HOJE e não na data do
-                // negócio: num registro retroativo ela nasceria vencida e
-                // dispararia alerta de atraso na criação. Mesma regra da compra
-                // de gado, corrigida lá por um revisor.
-                due_date: input.pago ? occurred_at : (input.due_date ?? new Date()),
+                // Em aberto sem parcelas, `validar` já exigiu o vencimento.
+                due_date: input.pago ? occurred_at : input.due_date!,
                 amount: input.amount,
               },
             ]
@@ -237,7 +240,7 @@ export async function createProductNegotiation(
           related_module: "geral",
           related_id: negociacao.id,
           occurred_at,
-          due_date: input.pago ? occurred_at : (input.due_date ?? new Date()),
+          due_date: input.pago ? occurred_at : (input.due_date ?? parcelas[0].due_date),
           status: input.pago ? "paid" : "pending",
           negotiation_id: negociacao.id,
           negotiation_role: "custo_adicional",

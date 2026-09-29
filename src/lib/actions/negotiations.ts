@@ -321,7 +321,7 @@ function centavos(v: number): number {
   return Math.round(v * 100);
 }
 
-function validar(input: NegociacaoGadoInput): { code: string; message: string } | null {
+function validar(input: NegociacaoGadoInput): { code: string; message: string; field?: string } | null {
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
     return { code: "VALIDATION_ERROR", message: "Informe o valor total do negócio." };
   }
@@ -351,9 +351,10 @@ function validar(input: NegociacaoGadoInput): { code: string; message: string } 
 export function validarPagamento(input: {
   amount: number;
   pago?: boolean;
+  due_date?: Date | null;
   parcelas?: ParcelaInput[];
   custos?: CustoInput[];
-}): { code: string; message: string } | null {
+}): { code: string; message: string; field?: string } | null {
   for (const custo of input.custos ?? []) {
     if (!Number.isFinite(custo.amount) || custo.amount < 0) {
       return { code: "VALIDATION_ERROR", message: "Custo adicional não pode ser negativo." };
@@ -386,6 +387,13 @@ export function validarPagamento(input: {
     if (parcelas.some((p) => !Number.isFinite(p.amount) || p.amount <= 0)) {
       return { code: "VALIDATION_ERROR", message: "Cada parcela precisa de um valor maior que zero." };
     }
+  }
+
+  // Dívida 5.6: sem vencimento, a conta nascia vencendo HOJE e no dia seguinte
+  // aparecia vencida. Decisão do usuário (29/09): recusar em vez de inventar
+  // a data. A tela pede o campo, e o agente pergunta antes de chamar.
+  if (!input.pago && parcelas.length === 0 && !input.due_date) {
+    return { code: "VENCIMENTO_OBRIGATORIO", message: "Informe o vencimento, ou marque como já pago.", field: "due_date" };
   }
 
   return null;
@@ -465,7 +473,9 @@ export async function venderDaEstadiaNaTransacao(
       related_module: "rebanho",
       related_id: negociacao.id,
       occurred_at: input.occurred_at,
-      // Mesma regra de `createCattleNegotiation`: sem vencimento, vence HOJE.
+      // Sem vencimento, vence HOJE. `createCattleNegotiation` recusa esse caso
+      // desde 29/09 (dívida 5.6); aqui não, porque a tela de encerramento da
+      // estadia do rebanho não tem campo de pagamento. Resíduo na dívida 5.8.
       due_date: input.pago ? input.occurred_at : (input.due_date ?? new Date()),
       status: input.pago ? "paid" : "pending",
       negotiation_id: negociacao.id,
@@ -483,7 +493,7 @@ export async function createCattleNegotiation(
   input: NegociacaoGadoInput,
 ): Promise<ActionResult<{ id: string }>> {
   const erro = validar(input);
-  if (erro) return fail(erro.code, erro.message, 422);
+  if (erro) return fail(erro.code, erro.message, 422, erro.field);
 
   const property = await db.property.findFirst({ where: { id: input.property_id } });
   if (!property) return fail("INVALID_PROPERTY", "Fazenda inválida", 422);
@@ -550,12 +560,8 @@ export async function createCattleNegotiation(
       input.pago || !input.parcelas || input.parcelas.length === 0
         ? [
             {
-              // Sem vencimento informado, a conta vence HOJE, não na data do
-              // negócio: num registro retroativo ("comprei semana passada,
-              // ainda não paguei") ela nasceria vencida, disparando o alerta
-              // `bill_due` na criação e pintando a linha de vermelho. Mesma
-              // regra do custo adicional, abaixo, que já tinha sido corrigido.
-              due_date: input.pago ? occurred_at : (input.due_date ?? new Date()),
+              // Em aberto sem parcelas, `validarPagamento` já exigiu o vencimento.
+              due_date: input.pago ? occurred_at : input.due_date!,
               amount: input.amount,
             },
           ]
@@ -593,8 +599,8 @@ export async function createCattleNegotiation(
         // Um custo em aberto NÃO vence na data do negócio: num registro
         // retroativo ("comprei semana passada") ele nasceria vencido e marcaria
         // a negociação inteira como "Vencida" no instante da criação. Segue o
-        // vencimento combinado; sem ele, a data do próprio registro.
-        due_date: input.pago ? occurred_at : (input.due_date ?? new Date()),
+        // vencimento combinado; parcelado, o da primeira parcela.
+        due_date: input.pago ? occurred_at : (input.due_date ?? parcelas[0].due_date),
         status: input.pago ? "paid" : "pending",
         negotiation_id: negociacao.id,
         negotiation_role: "custo_adicional",

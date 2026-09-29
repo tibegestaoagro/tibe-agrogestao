@@ -539,8 +539,23 @@ async function comBanco() {
         recebido: { kind: "maquina", name: "Colheitadeira", type: "Colheitadeira" },
         diferenca: { direcao: "paguei", amount: 5000 },
         pago: false,
+        due_date: new Date(Date.now() + 30 * 86400000),
       });
       check("a permuta abre", r.ok, r.ok ? "" : r.message);
+
+      // Dívida 5.6: diferença em aberto sem vencimento recusa no campo.
+      const semVencimento = await createBarter(db, {
+        property_id: fazenda.id,
+        entregue: { kind: "animais", category_id: "macho_36_mais", quantity: 1, pasture_id: pasto.id },
+        recebido: { kind: "descricao", texto: "uma carroça" },
+        diferenca: { direcao: "paguei", amount: 500 },
+        pago: false,
+      });
+      check(
+        "diferença em aberto sem vencimento é recusada no campo due_date",
+        !semVencimento.ok && semVencimento.code === "VENCIMENTO_OBRIGATORIO" && semVencimento.field === "due_date",
+        semVencimento.ok ? "gravou" : `${semVencimento.code} ${semVencimento.field}`,
+      );
       const maquinaId = r.ok ? r.data.machine_id ?? "" : "";
 
       const c = await cancelNegotiation(db, r.ok ? r.data.id : "", "lancei errado");

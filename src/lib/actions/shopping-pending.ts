@@ -14,8 +14,10 @@ import { criarStoreDePendencia, type PedidoBase } from "@/lib/actions/pending-st
  * seguinte aproveitamos só a resposta, e o alvo vem daqui.
  */
 
-/** O que o assistente perguntou. Nos três casos, espera um sim ou não. */
+/** O que o assistente perguntou. Nos três primeiros casos, espera um sim ou não. */
 export type CampoLista =
+  /** Compra a prazo sem data: "Quando vence?" (dívida 5.6). Espera data ou "já paguei". */
+  | "vencimento"
   /** "Tenho certeza que é para tirar este item?" */
   | "confirmacao_remocao"
   /** §19.7: "esse item já está na sua lista, quer anotar mais assim mesmo?" */

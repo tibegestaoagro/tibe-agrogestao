@@ -30,7 +30,7 @@ import type { Opcao, UnidadeOpcao } from "./item-form";
  * papel fazia.
  */
 
-const ORDEM = ["amount", "quantity", "product_id", "property_id", "unit", "category_id"] as const;
+const ORDEM = ["amount", "quantity", "product_id", "property_id", "unit", "category_id", "due_date"] as const;
 type Campo = (typeof ORDEM)[number];
 
 const NOVO = "__novo__";
@@ -69,6 +69,8 @@ export default function ItemActions({
   const [productId, setProductId] = useState(item.product_id ?? "");
   const [propertyId, setPropertyId] = useState(item.property_id ?? "");
   const [pago, setPago] = useState(true);
+  // Dívida 5.6: a prazo sem data, a conta nascia vencendo hoje.
+  const [vencimento, setVencimento] = useState("");
   const [unit, setUnit] = useState(item.unit ?? "");
   const [categoryId, setCategoryId] = useState("");
 
@@ -111,6 +113,7 @@ export default function ItemActions({
       if (!unit) novos.unit = "Escolha a unidade do produto.";
       if (!categoryId) novos.category_id = "Escolha a categoria do produto.";
     }
+    if (!pago && !vencimento) novos.due_date = "Informe quando vence.";
 
     if (Object.keys(novos).length > 0) {
       err.setGlobal(null);
@@ -126,6 +129,7 @@ export default function ItemActions({
       product_id: precisaCadastrarProduto ? null : productId,
       novo_produto: precisaCadastrarProduto ? { unit, category_id: categoryId } : null,
       pago,
+      due_date: !pago && vencimento ? new Date(`${vencimento}T12:00:00`).toISOString() : null,
     });
     setLoading(false);
     if (!res.ok) return err.doServidor(res);
@@ -307,6 +311,23 @@ export default function ItemActions({
           />
           Já paguei
         </label>
+
+        {!pago && (
+          <Field label="Vence em" required id={err.idDe("due_date")} error={err.erros.due_date}>
+            {({ id, ...aria }) => (
+              <Input
+                id={id}
+                {...aria}
+                type="date"
+                value={vencimento}
+                onChange={(e) => {
+                  setVencimento(e.target.value);
+                  err.limparCampo("due_date");
+                }}
+              />
+            )}
+          </Field>
+        )}
       </FormSheet>
 
       <Button variant="ghost" size="sm" onClick={remover} disabled={loading}>

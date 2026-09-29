@@ -563,6 +563,7 @@ async function main() {
       quantity: 2,
       property_id: A.property.id,
       pago: false,
+      due_date: new Date(Date.now() + 30 * 86400000).toISOString(),
       contact_name: "Fornecedor M63 Teste",
       novo_produto: {
         name: `M63 Arame farpado ${stamp}`,
@@ -1045,6 +1046,45 @@ async function main() {
       movimentosDepoisDoComprei === movimentosAntesDoComprei,
       `${movimentosAntesDoComprei} -> ${movimentosDepoisDoComprei}`,
     );
+
+    // ------------------------------------------------------------------
+    console.log("\n19b. 'Comprei' a prazo pergunta o vencimento antes de gravar (dívida 5.6)\n");
+    // ------------------------------------------------------------------
+    {
+      const produtoPrazo = await createProduct(A.db, {
+        name: `Vermífugo M63 prazo ${stamp}`,
+        category_id: salMineralCat.id,
+        unit: "unidade",
+      });
+      if (!produtoPrazo.ok) throw new Error("faltou o produto do teste a prazo");
+      const descricaoPrazo = `M63 vermifugo prazo ${stamp}`;
+      const { res: rPrazo } = await criar(A.token, { description: descricaoPrazo, product_id: produtoPrazo.data.id, property_id: A.property.id, quantity: 2, unit: "unidade" });
+      check("fixture: item a prazo com produto e fazenda", rPrazo.status === 201);
+
+      const negociacoesAntes = await A.db.negotiation.count();
+      const pergunta = await rotear("comprei_item_lista", { descricao: descricaoPrazo, valor: 240, pago: false });
+      check("a prazo sem data pergunta o vencimento", pergunta.reply_text.startsWith("Quando vence?"), pergunta.reply_text);
+      check("e não grava nada ainda", (await A.db.negotiation.count()) === negociacoesAntes);
+
+      const confirmacao = await rotear("comprei_item_lista", { vencimento: "10/12/2099" });
+      check(
+        "a data dita leva à confirmação, mostrando o vencimento",
+        confirmacao.requires_confirmation && confirmacao.reply_text.includes("vencendo em 10/12/2099"),
+        confirmacao.reply_text,
+      );
+
+      const gravou = await rotear("comprei_item_lista", {}, { confirmed: true });
+      check("o sim registra a compra", gravou.reply_text.includes("como conta a pagar"), gravou.reply_text);
+      const conta = await A.db.financialEntry.findFirst({
+        where: { negotiation: { shopping_items: { some: { description: descricaoPrazo } } }, negotiation_role: "principal" },
+        select: { status: true, due_date: true },
+      });
+      check(
+        "a conta nasce pendente, vencendo na data dita",
+        conta?.status === "pending" && conta.due_date?.toISOString().slice(0, 10) === "2099-12-10",
+        JSON.stringify(conta),
+      );
+    }
 
     // ------------------------------------------------------------------
     console.log("\n20. Item ambíguo (dois pendentes parecidos) PERGUNTA em vez de escolher\n");

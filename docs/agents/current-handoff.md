@@ -90,11 +90,22 @@ conversa real** no celular do usuário (29/09, 17:50): "Quantos animais eu
 tenho? E me manda a previsão do tempo" teve uma resposta só, a do rebanho; a
 parte que o agente não faz é ignorada, sem "Não entendi".
 
+**5.6 fechada em 29/09** (conta sem prazo nascendo vencendo hoje). A premissa
+estava errada: pelo agente, leilão e permuta gravam sempre `pago: true`. O
+defeito real era a TELA da permuta e a API. Decisão do usuário: as quatro
+actions de negociação recusam em aberto sem vencimento e sem parcelas (422
+`VENCIMENTO_OBRIGATORIO` no campo `due_date`, mesmo código do leite e do custo
+de confinamento), e os chamadores foram adaptados: "Vence em" nas telas da
+permuta e da Lista de Compra, e `comprei_item_lista` a prazo PERGUNTA o
+vencimento antes de confirmar. `test:all` 74/74; as duas telas validadas no
+navegador (recusa sem data embaixo do campo com foco, e conta gravada pendente
+na data escolhida). O agente ainda não foi exercitado em conversa real.
+
 Dívidas abertas no caminho: **5.4** (pasto respondido com lavoura), **5.5**
-(resposta de categoria descarta a quantidade nova), **5.6** (leilão e permuta
-ainda nascem vencendo hoje), **5.7** (pergunta de categoria da consulta do
-rebanho sem memória, resíduo da 5.3) e **3.2** (arquivar tenant não tira o
-acesso).
+(resposta de categoria descarta a quantidade nova), **5.7** (pergunta de
+categoria da consulta do rebanho sem memória), **5.8** (venda saindo da
+estadia do rebanho e custo de remessa sem venda ainda caem em hoje) e **3.2**
+(arquivar tenant não tira o acesso).
 
 ### Ambiente
 
