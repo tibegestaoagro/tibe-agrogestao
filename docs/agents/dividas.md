@@ -440,27 +440,18 @@ no mesmo molde da seção 8 de `m67`: toda intenção de escrita ou está na lis
 ou o arquivo do handler dela contém `"confirmacao"`. Fica aqui o registro do
 porquê, que a suíte não tem como contar.
 
-### 5.1 Categoria ambígua sem memória de candidata, em dois outros pontos
+### 5.5 A resposta à pergunta de categoria descarta a quantidade nova
 
-Achado em 2026-09-16, na Fase 4 do agente, enquanto a memória de candidata era
-ligada no negócio de gado (commit `b6bbfe7`). A correção de lá cruza a resposta
-do produtor com as opções que o agente acabou de mostrar, para "novilha" mais
-"13 a 24" fechar em fêmea de 13 a 24 meses. **Dois caminhos irmãos continuam
-sem essa memória**, e nenhum roteiro os exercitou ainda:
+Resíduo conhecido da correção de 29/09 (commit `51a8634`, que fechou a antiga
+5.1). Com uma pergunta de categoria aberta, "comprei 10 fêmeas de 13 a 24
+meses" muda a categoria e MANTÉM a quantidade do pedido guardado (30), porque a
+resposta só preenche o campo perguntado. É deliberado: preencher mais de um
+campo a partir de uma frase que era resposta a outra pergunta é o caminho que
+já trouxe perda silenciosa neste arquivo.
 
-1. `whatsapp-handlers/negociacao.ts` (~295), a segunda resolução, que roda
-   quando os itens já vêm completos numa mensagem só ("comprei 20 novilhas do
-   João"). Ali existe um problema DIFERENTE e pior: se a rodada seguinte trouxer
-   só a categoria (`{categoria: "13 a 24"}`), ela é descartada em silêncio,
-   porque `itensDosParametros` dá preferência ao array `itens` com o termo
-   antigo.
-2. `whatsapp-handlers/herd.ts` (~555), `registrarMovimentacaoRebanho`, o fluxo
-   de rebanho puro, com a mesma pergunta de faixa e o mesmo esquecimento.
-
-Custo: passar `candidatosAnteriores` nos dois, como já se faz no negócio, e
-decidir o que fazer quando o array `itens` e o campo achatado discordam. Não
-grava nada errado: trava a conversa numa pergunta repetida, que é o modo caro
-mas seguro de falhar.
+Não grava errado: a confirmação mostra a quantidade e o produtor pode recusar.
+Custo de fechar: decidir quando uma resposta pode reabrir o pedido inteiro em
+vez de responder um campo, o que é desenho de conversa, não conserto.
 
 ### 5.2 `contas-do-contato.ts` não usa `FinancialEntry.contact_id`
 
@@ -472,6 +463,46 @@ Módulo 35. A busca continua pelo vínculo indireto (`negotiation_id` da
 produto sobre qual vínculo é a fonte de verdade quando os dois existirem ao
 mesmo tempo, não algo para decidir em silêncio numa correção de bug. O
 comentário só foi corrigido para não mentir; a busca não mudou.
+
+### 5.3 Uma mensagem, duas respostas, a segunda dizendo "não entendi"
+
+Achado em 2026-09-29, lendo a conversa real do canário da Fase 7 (tenant de
+teste "Max Dias Agromax", 19 e 20/09). Em três momentos o produtor mandou UMA
+mensagem e recebeu DUAS, a primeira certa e a segunda a frase genérica de não
+entendimento. Os três, pelo log de conversa:
+
+1. "Quantos animais tenho no pasto confinamento?" devolveu o rebanho inteiro
+   (`consultar_rebanho:geral`) e, em seguida, "Não entendi.".
+2. "Estou com 19 fêmeas no pasto confinamento, comendo rações, oito quilos de
+   rações por dia. Qual deve ser o meu volume de compra para os próximos 30
+   dias?" devolveu a recusa do confinamento e, em seguida, "Não entendi.".
+3. "Fêmeas de 15 meses", respondendo a uma pergunta do rebanho, foi parar em
+   `registrar_alimentacao_confinamento`.
+
+A suspeita é `entenderPedidos` (`src/lib/actions/turno.ts`) devolvendo dois
+pedidos para a mesma mensagem, o segundo `ambigua`, e o turno respondendo os
+dois. Nada é gravado errado: o produtor lê "não entendi" logo depois de uma
+resposta certa e conclui que o agente se perdeu.
+
+**Custo:** decidir a regra (quando há pedido de verdade na mesma mensagem, o
+`ambigua` não vira resposta) e provar com um caso de duas intenções, que já
+existe no conjunto de avaliação.
+
+### 5.4 Pergunta de pasto respondida com lavoura, e "bom dia" sem saudação
+
+Mesma leitura de 2026-09-29. Dois erros de roteamento, os dois sem gravação:
+
+- "Quantos pasto temos cadastrados" foi respondido com o resumo da LAVOURA
+  ("0 talhão(ões) com ciclo ativo"). Pasto é rebanho, e a resposta não tem
+  relação com a pergunta.
+- "bom dia" e "Boa tarde" caem na frase de não entendimento. O agente tem
+  saudação de primeiro contato, mas não trata cumprimento de quem já conversa
+  com ele.
+
+Os dois vivem no classificador dentro do Tibé (`src/lib/agente/intencoes/`), e
+mexer ali muda o prompt: pede rodada de avaliação, não correção solta.
+`docs/agents/agente-whatsapp/avaliacao-fase-5.md` registra por que uma mudança
+de prompt medida numa rodada só não vale nada.
 
 ---
 

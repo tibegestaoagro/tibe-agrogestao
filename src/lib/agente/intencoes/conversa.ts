@@ -35,8 +35,14 @@ export const INTENCOES_CONVERSA: IntencaoDef[] = [
         descricao:
           "a área ou o nível pedido (rebanho, lavoura, prestador, financeiro; ou clientes, agendamentos, ordens_a_faturar, contas_a_pagar, contas_a_receber); vazio pergunta qual área",
       },
+      {
+        nome: "period_days",
+        tipo: "numero",
+        descricao:
+          "só para contas_a_pagar e contas_a_receber: até quantos dias à frente, só o número (100 para 'nos próximos 100 dias', 30 para 'no próximo mês'); vazio se não disse período",
+      },
     ],
-    exemplos: ["como está o rebanho?", "quero ver o resumo financeiro", "me lista o que está em aberto pra receber"],
+    exemplos: ["como está o rebanho?", "quero ver o resumo financeiro", "me lista o que está em aberto pra receber", "quanto tenho a pagar nos próximos 100 dias?"],
     vizinhas:
       "consultar_saldo quando pede só o saldo do mês; consultar_meu_dia quando pergunta o que tem para fazer hoje; ajuda quando pergunta como usar, não o que já está cadastrado",
   },

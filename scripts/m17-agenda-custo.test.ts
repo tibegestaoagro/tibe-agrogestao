@@ -61,13 +61,14 @@ async function callResumo(
   tenantId: string,
   activeProfiles: ("fazenda" | "prestador")[],
   scope: string,
+  extra: Record<string, unknown> = {},
 ) {
   return routeIntent(db, {
     tenant_id: tenantId,
     role: "OWNER",
     activeProfiles,
     intent: "resumo",
-    parameters: { scope },
+    parameters: { scope, ...extra },
     confirmed: false,
     explicitNo: false,
   });
@@ -455,7 +456,7 @@ async function main() {
       "contas_a_pagar marca vencida de mês anterior e limita a lista a 5",
     );
     assert(
-      billsToPay.reply_text.includes(`Total a pagar no período: ${reaisBr(683.55)}`),
+      billsToPay.reply_text.includes(`Total a pagar até ${formatUtcCivilDate(currentCalendar.monthEnd)}: ${reaisBr(683.55)}`),
       "contas_a_pagar totaliza todos os 6 lançamentos do período",
     );
     assert(
@@ -480,7 +481,7 @@ async function main() {
     );
     assert(
       billsToReceive.reply_text.includes(`Receita pendente: ${reaisBr(450.75)}`) &&
-        billsToReceive.reply_text.includes(`Total a receber no período: ${reaisBr(450.75)}`),
+        billsToReceive.reply_text.includes(`Total a receber até ${formatUtcCivilDate(currentCalendar.monthEnd)}: ${reaisBr(450.75)}`),
       "contas_a_receber usa receitas pendentes de FinancialEntry",
     );
     assert(
@@ -503,14 +504,69 @@ async function main() {
       "contas_a_receber",
     );
     assert(
-      emptyPayables.reply_text === "Nenhuma conta a pagar no período." &&
+      emptyPayables.reply_text ===
+        `Nenhuma conta a pagar até ${formatUtcCivilDate(currentCalendar.monthEnd)}.` &&
         emptyPayables.action_taken === "resumo:contas_a_pagar",
       "contas_a_pagar funciona sem perfil prestador e responde vazio",
     );
     assert(
-      emptyReceivables.reply_text === "Nenhuma conta a receber no período." &&
+      emptyReceivables.reply_text ===
+        `Nenhuma conta a receber até ${formatUtcCivilDate(currentCalendar.monthEnd)}.` &&
         emptyReceivables.action_taken === "resumo:contas_a_receber",
       "contas_a_receber funciona sem perfil prestador e responde vazio",
+    );
+
+    // Período pedido (defeito de 29/09/2026: "próximos 100 dias" era ignorado e
+    // a resposta vazia não dizia até quando olhou). tenant B está sem lançamentos.
+    const diaMais = (n: number) =>
+      new Date(
+        Date.UTC(
+          dueToday.getUTCFullYear(),
+          dueToday.getUTCMonth(),
+          dueToday.getUTCDate() + n,
+        ),
+      );
+    const fimDoPeriodo = diaMais(100);
+    await dbB.financialEntry.createMany({
+      data: [
+        scoped({ entry_type: "expense", category: "Parcela no limite", amount: 100, due_date: fimDoPeriodo, status: "pending" }),
+        scoped({ entry_type: "expense", category: "Parcela um dia depois", amount: 7, due_date: diaMais(101), status: "pending" }),
+      ],
+    });
+    const semPeriodo = await callResumo(dbB, tenantB.id, ["fazenda"], "contas_a_pagar");
+    assert(
+      semPeriodo.reply_text ===
+        `Nenhuma conta a pagar até ${formatUtcCivilDate(currentCalendar.monthEnd)}.`,
+      "sem período: parcela de daqui a 100 dias continua fora (fim do mês)",
+    );
+    const com100 = await callResumo(dbB, tenantB.id, ["fazenda"], "contas_a_pagar", { period_days: 100 });
+    assert(
+      com100.reply_text.includes(`Parcela no limite: ${reaisBr(100)}, vence ${formatUtcCivilDate(fimDoPeriodo)}`) &&
+        !com100.reply_text.includes("Parcela um dia depois") &&
+        com100.reply_text.includes(`Total a pagar até ${formatUtcCivilDate(fimDoPeriodo)}: ${reaisBr(100)}`),
+      "period_days=100: parcela no último dia entra, a do dia seguinte não, e a frase nomeia a data",
+    );
+    const com101 = await callResumo(dbB, tenantB.id, ["fazenda"], "contas_a_pagar", { period_days: "101" });
+    assert(
+      com101.reply_text.includes("Parcela um dia depois") &&
+        com101.reply_text.includes(`Total a pagar até ${formatUtcCivilDate(diaMais(101))}: ${reaisBr(107)}`),
+      "period_days como texto ('101') é lido e inclui a parcela do dia 101",
+    );
+    const com99 = await callResumo(dbB, tenantB.id, ["fazenda"], "contas_a_pagar", { period_days: 99 });
+    assert(
+      com99.reply_text === `Nenhuma conta a pagar até ${formatUtcCivilDate(diaMais(99))}.`,
+      "period_days=99: nada entra e a frase vazia nomeia o período",
+    );
+    const invalido = await callResumo(dbB, tenantB.id, ["fazenda"], "contas_a_pagar", { period_days: "abc" });
+    const negativo = await callResumo(dbB, tenantB.id, ["fazenda"], "contas_a_pagar", { period_days: -5 });
+    assert(
+      invalido.reply_text === semPeriodo.reply_text && negativo.reply_text === semPeriodo.reply_text,
+      "period_days inválido ou negativo cai no fim do mês, sem quebrar",
+    );
+    const absurdo = await callResumo(dbB, tenantB.id, ["fazenda"], "contas_a_pagar", { period_days: 99999 });
+    assert(
+      absurdo.reply_text.includes(`Total a pagar até ${formatUtcCivilDate(diaMais(366))}: ${reaisBr(107)}`),
+      "period_days acima do teto usa 366 dias e diz a data final",
     );
 
     const financial = await callResumo(dbA, tenantA.id, ["fazenda"], "financeiro");

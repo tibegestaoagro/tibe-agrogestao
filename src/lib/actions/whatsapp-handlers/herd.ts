@@ -156,6 +156,42 @@ export function resolverCategoria(termo: string, nascimento = false, candidatosA
   };
 }
 
+/**
+ * Leva a resposta a "qual categoria?" para o ITEM que ficou sem resolver.
+ *
+ * `aplicarResposta` grava a resposta no campo PLANO (`categoria`), mas o pedido
+ * guardado por uma frase normal tem `itens`, que `itensDosParametros` prefere
+ * sobre a forma plana: a resposta ia para um campo que ninguém lia e o item
+ * velho continuava mandando. Em produção (29/09/2026) a pergunta ecoava o termo
+ * da mensagem ANTERIOR ("Não reconheci machos de 0 a 8 meses") mesmo com a
+ * seguinte trazendo "fêmeas de 13 a 24 meses". A resposta vai para o PRIMEIRO
+ * item que não resolve, e os demais ficam intactos ("20 bezerros e 10
+ * novilhas": só as novilhas mudam). Sem `itens`, a forma plana já vale.
+ *
+ * A resposta cruza com as candidatas que o item ambíguo tinha, para
+ * "novilha" + "13 a 24 meses" fechar em fêmea 13 a 24 em vez de reabrir o sexo.
+ * Fechando, grava o rótulo exato, nunca o termo ambíguo.
+ */
+export function aplicarCategoriaAosItens(
+  parameters: Record<string, unknown>,
+  resposta: string,
+  nascimento = false,
+): Record<string, unknown> {
+  if (!Array.isArray(parameters.itens)) return parameters;
+  const itens = parameters.itens.map((item) => ({ ...(item as Record<string, unknown>) }));
+  const resolucoes = itens.map((item) =>
+    resolverCategoria(str(item.categoria) ?? str(item.category) ?? "", nascimento),
+  );
+  const indice = resolucoes.findIndex((r) => !r.ok);
+  if (indice < 0) return parameters;
+  const anterior = resolucoes[indice];
+  const candidatas = anterior.ok ? undefined : anterior.candidatosOferecidos;
+  const nova = resolverCategoria(resposta, nascimento, candidatas);
+  itens[indice].categoria = nova.ok ? nova.categoria.label : resposta;
+  delete itens[indice].category;
+  return { ...parameters, itens };
+}
+
 type FazendaResolvida =
   | { ok: true; id: string; nome: string }
   | { ok: false; resposta: RouterResult };
@@ -510,19 +546,10 @@ export const registrarMovimentacaoRebanho: Handler = async ({
   if (pendente && pendente.aguardando !== "confirmacao") {
     const juntado = aplicarResposta(pendente, parametrosDaMensagem);
     if (juntado) parameters = juntado;
-    // A resposta da faixa chega plana, mas o pedido guardado pode ter `itens`,
-    // que `itensDosParametros` prefere: sem isto o item ambíguo nunca mudava e
-    // a mesma pergunta se repetia. A resposta vai para o primeiro que não resolve.
     const respostaDaCategoria = str(parametrosDaMensagem.categoria) ?? str(parametrosDaMensagem.category);
-    if (juntado && pendente.aguardando === "categoria" && respostaDaCategoria && Array.isArray(juntado.itens)) {
+    if (juntado && pendente.aguardando === "categoria" && respostaDaCategoria) {
       const nascimento = (str(juntado.movement_type) ?? str(juntado.tipo)) === "nascimento";
-      const itens = juntado.itens.map((item) => ({ ...(item as Record<string, unknown>) }));
-      const ambiguo = itens.find((item) => !resolverCategoria(str(item.categoria) ?? str(item.category) ?? "", nascimento).ok);
-      if (ambiguo) {
-        ambiguo.categoria = respostaDaCategoria;
-        delete ambiguo.category;
-        parameters = { ...juntado, itens };
-      }
+      parameters = aplicarCategoriaAosItens(juntado, respostaDaCategoria, nascimento);
     }
     // Quando não é resposta, o pendente NÃO é apagado: apagar zerava o contador
     // de tentativas e a trava de laço nunca chegava a disparar (visto em teste

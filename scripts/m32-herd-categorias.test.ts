@@ -380,6 +380,54 @@ check(
   ocupacao.by_pasture.reduce((s, p) => s + p.quantity, 0) === 60,
 );
 
+console.log("\nA idade dita manda (produção, 29/09/2026: 23 de 83 mensagens viraram pergunta)");
+
+function id(termo: string): string {
+  const r = resolveCategoryTerm(termo);
+  if (r.kind === "exact") return r.category.id;
+  if (r.kind === "ambiguous") return `?${r.candidates.map((c) => c.id).join("|")}`;
+  return "desconhecido";
+}
+const casos: [string, string][] = [
+  // as frases recusadas em produção
+  ["bezerros de 8 a 12 meses", "macho_8_12"],
+  ["machos de 0 a 8 meses", "bezerro_0_7"],
+  ["fêmeas de 25 meses", "femea_25_36"],
+  ["fêmeas de 24 a 36 meses", "femea_25_36"],
+  ["Machos de 8 a 24 meses", "?macho_8_12|macho_13_24"],
+  ["novilhas", "?femea_8_12|femea_13_24|femea_25_36"],
+  // pontas
+  ["bezerras de 13 a 24 meses", "femea_13_24"],
+  ["fêmeas de 8 a 12 meses", "femea_8_12"],
+  ["machos de 0 a 7 meses", "bezerro_0_7"],
+  ["bezerras até 7 meses", "bezerra_0_7"],
+  ["machos de até 8 meses", "bezerro_0_7"],
+  ["machos de 12 a 24 meses", "macho_13_24"],
+  ["fêmeas de 40 meses", "femea_36_mais"],
+  ["machos acima de 36 meses", "macho_36_mais"],
+  ["machos mais de 40 meses", "macho_36_mais"],
+  ["fêmeas acima de 24 meses", "?femea_25_36|femea_36_mais"],
+  ["fêmeas de 6 a 10 meses", "?bezerra_0_7|femea_8_12"],
+  ["fêmeas de 7 a 8 meses", "?bezerra_0_7|femea_8_12"],
+  ["machos de 0 a 12 meses", "?bezerro_0_7|macho_8_12"],
+  ["fêmea de 0 meses", "bezerra_0_7"],
+  // sem sexo, idade única: pergunta o sexo, não chuta
+  ["25 meses", "?femea_25_36|macho_25_36"],
+  ["24 a 36 meses", "?femea_25_36|macho_25_36"],
+  // não afrouxa o que estava certo
+  ["novilha", "?femea_8_12|femea_13_24|femea_25_36"],
+  ["garrote", "?macho_13_24|macho_25_36|garrote_reprodutor"],
+  ["13 a 24 meses", "?femea_13_24|macho_13_24"],
+  ["Fêmea - 13 a 24 meses", "femea_13_24"],
+  // lixo continua desconhecido
+  ["gatos de 8 a 12 meses", "desconhecido"],
+  ["machos de 30 a 20 meses", "desconhecido"],
+];
+for (const [termo, esperado] of casos) {
+  const obtido = id(termo);
+  check(`"${termo}" -> ${esperado}`, obtido === esperado, obtido);
+}
+
 console.log(
   falhas === 0
     ? `\n✅ Categorias e resumo do rebanho: 0 falhas.`

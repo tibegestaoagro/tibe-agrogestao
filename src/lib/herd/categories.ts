@@ -176,6 +176,80 @@ function faixaDoLabel(label: string): string | null {
   return partes.length === 2 ? partes[1] : null;
 }
 
+const SUBSTANTIVO_MACHO = ["macho", "bezerro", "novilho", "garrote", "boi", "touro", "tourinho", "masculino"];
+const SUBSTANTIVO_FEMEA = ["femea", "bezerra", "novilha", "vaca", "feminino"];
+
+function sexoDoSubstantivo(palavra: string): HerdSex | "sem" | null {
+  if (palavra === "") return "sem";
+  const singular = palavra.length > 3 && /s$/i.test(palavra) ? palavra.slice(0, -1) : palavra;
+  if (SUBSTANTIVO_MACHO.some((s) => mesmoTermo(s, singular))) return "macho";
+  if (SUBSTANTIVO_FEMEA.some((s) => mesmoTermo(s, singular))) return "femea";
+  return null;
+}
+
+/**
+ * "bezerros de 8 a 12 meses", "fêmeas de 25 meses", "machos de 0 a 8 meses":
+ * sexo (ou o substantivo que o implica) mais a idade dita. Achado em produção
+ * (29/09/2026): 23 de 83 mensagens de um produtor viraram pedido de
+ * esclarecimento porque só o rótulo exato do sistema era aceito, e ele levou
+ * oito tentativas para lançar um saldo inicial.
+ *
+ * A REGRA: a idade dita manda, mesmo que o substantivo sugira outra faixa
+ * ("bezerros de 8 a 12" é macho de 8 a 12, não bezerro de 0 a 7). O
+ * substantivo só entrega o SEXO.
+ *
+ * - Idade única cai na faixa que a contém ("25 meses" é 25 a 36).
+ * - Faixa dita que não bate com nenhuma exatamente ("24 a 36", "0 a 8"): tolera
+ *   1 mês de sobra em cada ponta e vê em quais faixas o resto cai. É a leitura
+ *   menos surpreendente: quem diz "0 a 8" quer dizer bezerro, e o 8 é o
+ *   arredondamento de "até 8 meses"; quem diz "24 a 36" quer dizer 25 a 36.
+ * - Se mesmo depois disso a faixa cruza duas categorias ("8 a 24" cobre 8 a 12
+ *   e 13 a 24 inteiras), NÃO escolhe: devolve as candidatas e a conversa
+ *   pergunta, como o §14 exige. Sem sexo dito, as candidatas vêm dos dois sexos.
+ * - "acima de N" e "mais de N" abrem a ponta de cima; "até N" vai de 0 a N.
+ *
+ * Só as faixas de idade entram: reprodutor não tem idade. Termo que sobrar
+ * fora desse formato devolve `null` (segue para os apelidos).
+ */
+function resolverPorIdadeDita(termo: string): AliasResolution | null {
+  const texto = termo.toLowerCase().replace(/[“”"']/g, "").replace(/\s+/g, " ").trim();
+  const partes = texto.match(/^(.*?)\s*(?:de |entre |com )?(acima de |mais de |a partir de |até |ate )?(\d+)(?:\s*(?:a|até|ate|-|e)\s*(\d+))?\s*mes(?:es)?$/);
+  if (!partes) return null;
+  const [, substantivo, prefixo, primeiro, segundo] = partes;
+  const sexo = sexoDoSubstantivo(substantivo.trim());
+  if (sexo === null) return null;
+
+  const n1 = Number(primeiro);
+  let inicio = n1;
+  let fim = segundo ? Number(segundo) : n1;
+  if (prefixo?.startsWith("até") || prefixo?.startsWith("ate")) {
+    inicio = 0;
+    fim = n1;
+  } else if (prefixo) {
+    inicio = n1 + 1;
+    fim = Infinity;
+  } else if (fim < inicio) {
+    return null;
+  }
+  // Tolerância de 1 mês em cada ponta, só quando sobra uma faixa válida.
+  if (inicio + 1 <= fim - 1) {
+    inicio += 1;
+    fim -= 1;
+  }
+
+  const candidatas = HERD_CATEGORIES.filter(
+    (c) =>
+      !c.reproductive &&
+      (sexo === "sem" || c.sex === sexo) &&
+      c.min_months !== null &&
+      c.min_months <= fim &&
+      (c.max_months === null || c.max_months >= inicio),
+  );
+  if (candidatas.length === 0) return null;
+  if (candidatas.length === 1) return { kind: "exact", category: candidatas[0] };
+  return { kind: "ambiguous", candidates: candidatas };
+}
+
 function tentarResolver(limpo: string): AliasResolution {
   const porId = HERD_CATEGORIES.find((c) => mesmoTermo(c.id, limpo));
   if (porId) return { kind: "exact", category: porId };
@@ -199,6 +273,9 @@ function tentarResolver(limpo: string): AliasResolution {
   });
   if (porFaixa.length === 1) return { kind: "exact", category: porFaixa[0] };
   if (porFaixa.length > 1) return { kind: "ambiguous", candidates: porFaixa };
+
+  const porIdadeDita = resolverPorIdadeDita(limpo);
+  if (porIdadeDita) return porIdadeDita;
 
   for (const [alias, ids] of Object.entries(CATEGORY_ALIASES)) {
     if (!mesmoTermo(alias, limpo)) continue;
