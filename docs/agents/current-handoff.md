@@ -44,11 +44,17 @@ intocado. As intenções novas só existem para quem está na lista.
 
 - **A lista mora na expressão do nó `Agente Novo?`**, no próprio n8n. É ali que
   se põe a Da Mata inteira, ou se esvazia para desligar o canário.
-- ⚠️ **Os scripts de aplicar e de voltar atrás SUMIRAM** com a limpeza do
-  scratchpad entre 18 e 29/09, junto com as cópias de segurança. O caminho de
-  volta hoje é o **histórico de versões do workflow no editor do n8n** (versão
-  de 15/09), ou **esvaziar a lista** do desvio. Lição no cofre:
-  `o-scratchpad-some-e-leva-o-voltar-atras`.
+- **Ler, guardar, aplicar e mexer na lista: `scripts/n8n-workflow.ts`**
+  (29/09, recriado no repositório depois que os de 18/09 sumiram com o
+  scratchpad; lição `o-scratchpad-some-e-leva-o-voltar-atras`). Toda escrita
+  mostra o que muda, só grava com `--confirmar`, e salva antes uma cópia em
+  `~/.tibe/n8n-copias/` (fora do repositório: o JSON tem a chave da Evolution).
+  Voltar atrás = `aplicar <cópia> --confirmar`, ou `canario --ninguem`.
+  Escrita e volta provadas na cópia de homologação (inativa); o passo de
+  **publicar** (n8n 2.x: salvar deixa em rascunho) só roda em fluxo ativo e
+  ainda não foi exercitado: o script confere e avisa se ficar rascunho. Não
+  existe cópia do fluxo de produção anterior a 18/09 (sumiu): antes da
+  primeira escrita, `salvar`.
 - ⚠️ **O classificador bloqueia escrita no n8n de produção e escrita
   destrutiva no banco de produção**, mesmo com autorização: quem roda é o
   usuário, como na migração do Neon. Leitura é livre.
@@ -159,15 +165,18 @@ variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou, e cada commit que sobe é leitura pública.
 
 **2. Do usuário, pequeno:** rodar a limpeza da Da Mata
-(`npx tsx scripts/_tmp-limpar.ts --apagar`), e trocar o nome do cadastro
+(`npx tsx scripts/_tmp-limpar.ts --apagar`; ⚠️ o script só acha negociação
+criada HOJE, então depois de 29/09 ele não lista nada e o filtro de data
+precisa mudar), e trocar o nome do cadastro
 "Owner Da Mata" em Ajustes, que é por isso que a saudação sai sem nome.
 
 **3. Fechar a Fase 7, quando o usuário quiser:** passos 9 e 10 do
 [roteiro](agente-whatsapp/roteiro-do-chip.md); depois decidir com ele quando a
 Da Mata inteira entra na lista; por fim a lista vira "todos" e o
-`execute-action` é desligado. Antes de mexer no fluxo, recriar no REPOSITÓRIO
-(sem o JSON) os scripts de ler e aplicar o workflow, para o caminho de volta
-não depender de pasta temporária de novo.
+`execute-action` é desligado. As duas trocas de lista são
+`npx tsx scripts/n8n-workflow.ts canario <telefones...> --confirmar` e
+`... canario --todos --confirmar`, rodadas pelo USUÁRIO (escrita no n8n de
+produção). Antes da primeira, `... salvar`.
 
 **4. Validar no celular as correções de 29/09** que ainda não foram exercitadas
 em conversa real: "comprei 10 sacas de sal do Zé por 200" tem que perguntar se
