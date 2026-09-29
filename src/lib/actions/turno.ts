@@ -7,7 +7,7 @@ import { detectConfirmation } from "@/lib/actions/confirmation";
 import { logInbound, logOutbound } from "@/lib/actions/conversation-log";
 import { executarIntencao } from "@/lib/actions/executar-intencao";
 import { identificarContato, type ContatoIdentificado } from "@/lib/actions/whatsapp-contato";
-import { INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR } from "@/lib/actions/whatsapp-handlers/shared";
+import { INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR, ehSoCumprimento } from "@/lib/actions/whatsapp-handlers/shared";
 import { carregarCursor } from "@/lib/agente/cursor";
 import { classificarMensagem, classificarResposta, normalizarParaComparar, trechoOuMensagemInteira } from "@/lib/agente/classificar";
 import { FalhaDoModelo } from "@/lib/agente/modelo";
@@ -140,6 +140,9 @@ async function entenderPedidos(e: EntradaDoTurno, contato: Identificado, agora: 
     pedidos.length === 1 &&
     pedidos[0].intent === "ambigua" &&
     !e.texto.includes("?") &&
+    // "bom dia" com uma pergunta aberta viraria a categoria do animal, o nome
+    // do produto ou o valor. Cumprimento nunca é resposta de campo (29/09).
+    !ehSoCumprimento(e.texto) &&
     !comecaComPergunta(e.texto)
   ) {
     return [{ intent: cursor.intent, parameters: { [cursor.aguardando]: e.texto } }];

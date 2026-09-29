@@ -157,6 +157,57 @@ export function confirmFlow(params: {
  * migrar para cá **quando o arquivo delas for aberto por outro motivo**: mexer
  * em cinco handlers estáveis só para unificar um helper é risco sem retorno.
  */
+export const SAUDACAO =
+  "Olá! Estou por aqui. Me diga o que você precisa registrar ou consultar, ou pergunte 'o que você faz?' que eu te mostro as opções.";
+
+/**
+ * Cumprimento puro ("bom dia", "oi", "boa tarde tudo bem?").
+ *
+ * Achado em uso real, 29/09/2026: a PRIMEIRA mensagem que qualquer pessoa manda
+ * caía em "Não entendi", e foi assim que o canário da Fase 7 começou, duas
+ * vezes, com produtores diferentes.
+ *
+ * Quem decide o texto é o roteador, no ramo `ambigua`, e NÃO o classificador:
+ * mexer no prompt desloca a distribuição inteira e pede rodada de avaliação
+ * (`docs/agents/agente-whatsapp/avaliacao-fase-5.md`), enquanto esta guarda só
+ * troca a frase de uma mensagem que o modelo já disse não ter assunto.
+ *
+ * O turno também consulta esta função para NÃO deixar um cumprimento virar
+ * resposta de campo pendente: "bom dia" nunca é a categoria do animal.
+ *
+ * A comparação é pelo texto INTEIRO, nunca por "contém": "bom dia, comprei 20
+ * bezerros" tem assunto, e uma saudação engoliria o pedido.
+ */
+const CUMPRIMENTOS: ReadonlySet<string> = new Set([
+  "oi",
+  "ola",
+  "opa",
+  "eai",
+  "e ai",
+  "salve",
+  "bom dia",
+  "boa tarde",
+  "boa noite",
+  "tudo bem",
+  "tudo bom",
+  "como vai",
+  "bom dia tudo bem",
+  "boa tarde tudo bem",
+  "boa noite tudo bem",
+  "oi tudo bem",
+  "ola tudo bem",
+]);
+
+export function ehSoCumprimento(texto: string | null | undefined): boolean {
+  if (!texto) return false;
+  // Pontuação e emoji fora: "bom dia!!" e "Bom dia 👋" são o mesmo cumprimento.
+  const limpo = normalizarTermo(texto)
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return CUMPRIMENTOS.has(limpo);
+}
+
 export function normalizarTermo(termo: string): string {
   // Filtro por código numérico, não regex de caractere combinante: o próprio
   // caractere é invisível no editor e some numa cópia distraída (armadilha que
