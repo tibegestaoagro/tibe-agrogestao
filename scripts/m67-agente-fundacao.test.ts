@@ -839,7 +839,7 @@ async function main() {
       // (ii) Negócio de gado MAIS ANTIGO esperando, depois a venda do lote, e o "sim".
       const velho = await acao(
         "registrar_negocio_gado",
-        { tipo: "venda", categoria: "macho_25_36", quantidade: 3, valor: 9999, fazenda: "Fazenda M67", pasto: "Pasto M67" },
+        { tipo: "venda", categoria: "macho_25_36", quantidade: 3, valor: 9999, fazenda: "Fazenda M67", pasto: "Pasto M67", pago: true },
         "vendi 3 machos do pasto por 9999",
       );
       check("o negócio antigo ficou esperando", velho.data.action_taken?.startsWith("registrar_negocio_gado"), `${velho.data.action_taken}: ${velho.data.reply_text}`);

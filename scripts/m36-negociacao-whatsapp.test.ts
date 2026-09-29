@@ -13,7 +13,7 @@ import {
 import { desempatarIntencao, routeIntent } from "@/lib/actions/whatsapp-router";
 import { getPositions, recordMovement } from "@/lib/actions/herd-ledger";
 import { POST as executeAction } from "@/app/api/internal/whatsapp/execute-action/route";
-import type { HandlerCtx } from "@/lib/actions/whatsapp-handlers/shared";
+import { semPreposicaoInicial, type HandlerCtx } from "@/lib/actions/whatsapp-handlers/shared";
 
 exigirBancoLocal();
 
@@ -159,7 +159,7 @@ async function main() {
     // ------------------------------------------------------------------
 
     const pergunta = await registrarNegocioGado(
-      ctx(db, tenant.id, { tipo: "compra", categoria: "bezerro", quantidade: 20, valor: 60000 }),
+      ctx(db, tenant.id, { tipo: "compra", categoria: "bezerro", quantidade: 20, valor: 60000, vencimento: "2026-12-10" }),
     );
     check("pede confirmação", pergunta.requires_confirmation === true, pergunta.reply_text);
     check(
@@ -181,7 +181,7 @@ async function main() {
     // Valor de R$ 500, bem abaixo do limite de R$ 5.000 do Módulo 3: ainda
     // assim confirma. Um negócio pequeno lançado errado suja o rebanho igual.
     const pequeno = await registrarNegocioGado(
-      ctx(db, tenant.id, { tipo: "compra", categoria: "bezerro", quantidade: 1, valor: 500 }),
+      ctx(db, tenant.id, { tipo: "compra", categoria: "bezerro", quantidade: 1, valor: 500, vencimento: "2026-12-10" }),
     );
     check(
       "valor abaixo do CONFIRMATION_THRESHOLD também confirma",
@@ -230,7 +230,7 @@ async function main() {
 
     await clearPendingNegotiation(tenant.id, USUARIO);
     const simSolto = await registrarNegocioGado(
-      ctx(db, tenant.id, { tipo: "compra", categoria: "bezerro", quantidade: 18, valor: 1000 }, {
+      ctx(db, tenant.id, { tipo: "compra", categoria: "bezerro", quantidade: 18, valor: 1000, vencimento: "2026-12-10" }, {
         confirmed: true,
         userId: USUARIO,
       }),
@@ -311,7 +311,7 @@ async function main() {
       ctx(
         db,
         tenant.id,
-        { tipo: "venda", categoria: "bezerro", quantidade: 5, valor: 20000 },
+        { tipo: "venda", categoria: "bezerro", quantidade: 5, valor: 20000, vencimento: "2026-12-10" },
         { userId: USUARIO },
       ),
     );
@@ -353,7 +353,7 @@ async function main() {
       ctx(
         db,
         tenant.id,
-        { tipo: "venda", categoria: "bezerro", quantidade: 9999, valor: 100 },
+        { tipo: "venda", categoria: "bezerro", quantidade: 9999, valor: 100, vencimento: "2026-12-10" },
         { userId: USUARIO },
       ),
     );
@@ -377,7 +377,7 @@ async function main() {
 
     await clearPendingNegotiation(tenant.id, USUARIO);
     const semTipo = await registrarNegocioGado(
-      ctx(db, tenant.id, { categoria: "bezerro", quantidade: 10 }, { userId: USUARIO }),
+      ctx(db, tenant.id, { categoria: "bezerro", quantidade: 10, pago: true }, { userId: USUARIO }),
     );
     check("sem tipo, pergunta compra ou venda", semTipo.reply_text.includes("compra ou uma venda"), semTipo.reply_text);
 
@@ -393,7 +393,7 @@ async function main() {
     );
 
     const respondeuValor = await registrarNegocioGado(
-      ctx(db, tenant.id, { valor: 25000 }, { userId: USUARIO }),
+      ctx(db, tenant.id, { valor: 25000, pago: true }, { userId: USUARIO }),
     );
     check(
       "com o valor, chega na confirmação com TUDO que foi dito ao longo da conversa",
@@ -472,7 +472,7 @@ async function main() {
       role: "OWNER",
       activeProfiles: ["fazenda"],
       intent: "registrar_movimentacao_rebanho",
-      parameters: { movement_type: "compra", categoria: "bezerro", quantidade: 20, valor: 60000 },
+      parameters: { movement_type: "compra", categoria: "bezerro", quantidade: 20, valor: 60000, pago: true },
       confirmed: false,
       explicitNo: false,
       user_id: USUARIO,
@@ -516,7 +516,7 @@ async function main() {
     // ------------------------------------------------------------------
     await clearPendingNegotiation(tenant.id, USUARIO);
     await registrarNegocioGado(
-      ctx(db, tenant.id, { tipo: "compra", categoria: "bezerro", quantidade: 7 }, { userId: USUARIO }),
+      ctx(db, tenant.id, { tipo: "compra", categoria: "bezerro", quantidade: 7, pago: true }, { userId: USUARIO }),
     );
     // O assistente perguntou o valor. O produtor responde com o VENDEDOR, que
     // não é o que foi perguntado. Antes, isso jogava fora os 7 bezerros e
@@ -530,7 +530,7 @@ async function main() {
       respostaFora.reply_text,
     );
     const comValorDepois = await registrarNegocioGado(
-      ctx(db, tenant.id, { valor: 14000 }, { userId: USUARIO }),
+      ctx(db, tenant.id, { valor: 14000, pago: true }, { userId: USUARIO }),
     );
     check(
       "e a confirmação traz os 7 bezerros E o vendedor, ditos em mensagens diferentes",
@@ -594,7 +594,7 @@ async function main() {
       ctx(
         db,
         tenant.id,
-        { tipo: "compra", categoria: "bezerro", quantidade: 1, valor: 900, vendedor: "joão" },
+        { tipo: "compra", categoria: "bezerro", quantidade: 1, valor: 900, vendedor: "joão", pago: true },
         { userId: USUARIO },
       ),
     );
@@ -610,7 +610,7 @@ async function main() {
     // ------------------------------------------------------------------
     await clearPendingNegotiation(tenant.id, USUARIO);
     const umaCabeca = await registrarNegocioGado(
-      ctx(db, tenant.id, { tipo: "compra", categoria: "bezerro", quantidade: 1, valor: 500 }),
+      ctx(db, tenant.id, { tipo: "compra", categoria: "bezerro", quantidade: 1, valor: 500, pago: true }),
     );
     check(
       'diz "1 bezerro", não "1 bezerros" nem o rótulo de tabela',
@@ -623,7 +623,7 @@ async function main() {
     // palavra flexiona, o resto é complemento de idade.
     await clearPendingNegotiation(tenant.id, USUARIO);
     const umaFemea = await registrarNegocioGado(
-      ctx(db, tenant.id, { tipo: "compra", categoria: "femea_8_12", quantidade: 1, valor: 900 }),
+      ctx(db, tenant.id, { tipo: "compra", categoria: "femea_8_12", quantidade: 1, valor: 900, pago: true }),
     );
     check(
       'e "1 fêmea de 8 a 12 meses", não "1 fêmeas de 8 a 12 meses"',
@@ -865,7 +865,7 @@ async function main() {
     // no formato do modelo.
     await clearPendingNegotiation(tenant.id, USUARIO);
     const valorBr = await registrarNegocioGado(
-      ctx(db, tenant.id, { tipo: "compra", categoria: "bezerro", quantidade: 20, valor: "60.000" }),
+      ctx(db, tenant.id, { tipo: "compra", categoria: "bezerro", quantidade: 20, valor: "60.000", pago: true }),
     );
     check(
       '"60.000" é sessenta mil, não sessenta',
@@ -873,7 +873,7 @@ async function main() {
       valorBr.reply_text,
     );
     const valorComCentavos = await registrarNegocioGado(
-      ctx(db, tenant.id, { tipo: "compra", categoria: "bezerro", quantidade: 1, valor: "1.234,56" }),
+      ctx(db, tenant.id, { tipo: "compra", categoria: "bezerro", quantidade: 1, valor: "1.234,56", pago: true }),
     );
     check(
       '"1.234,56" mantém os centavos',
@@ -888,7 +888,7 @@ async function main() {
     // PRODUÇÃO, minutos depois do deploy.
     await clearPendingNegotiation(tenant.id, USUARIO);
     const valorPorExtenso = await registrarNegocioGado(
-      ctx(db, tenant.id, { tipo: "compra", categoria: "bezerro", quantidade: 20, valor: "60 mil" }),
+      ctx(db, tenant.id, { tipo: "compra", categoria: "bezerro", quantidade: 20, valor: "60 mil", pago: true }),
     );
     check(
       '"60 mil" é sessenta mil',
@@ -896,7 +896,7 @@ async function main() {
       valorPorExtenso.reply_text,
     );
     const meioMilhao = await registrarNegocioGado(
-      ctx(db, tenant.id, { tipo: "venda", categoria: "bezerro", quantidade: 1, valor: "1,5 milhão" }),
+      ctx(db, tenant.id, { tipo: "venda", categoria: "bezerro", quantidade: 1, valor: "1,5 milhão", pago: true }),
     );
     check(
       '"1,5 milhão" é um milhão e meio',
@@ -914,7 +914,7 @@ async function main() {
     console.log("\n24. Singular das categorias com duas palavras");
     // ------------------------------------------------------------------
     const umGarrote = await registrarNegocioGado(
-      ctx(db, tenant.id, { tipo: "compra", categoria: "garrote_reprodutor", quantidade: 1, valor: 5000 }),
+      ctx(db, tenant.id, { tipo: "compra", categoria: "garrote_reprodutor", quantidade: 1, valor: 5000, pago: true }),
     );
     check(
       '"1 garrote reprodutor", não "1 garrote reprodutores"',
@@ -938,7 +938,7 @@ async function main() {
       role: "OWNER",
       activeProfiles: ["fazenda"],
       intent: "registrar_movimentacao_rebanho",
-      parameters: { movement_type: "compra", categoria: "novilha", quantidade: 10 },
+      parameters: { movement_type: "compra", categoria: "novilha", quantidade: 10, pago: true },
       confirmed: false,
       explicitNo: false,
       user_id: USUARIO,
@@ -1048,7 +1048,7 @@ async function main() {
       tenant_id: tenant.id,
       user_id: USUARIO,
       intent: "registrar_negocio_gado",
-      parameters: { tipo: "compra", categoria: "bezerro", quantidade: 6, valor: 12000 },
+      parameters: { tipo: "compra", categoria: "bezerro", quantidade: 6, valor: 12000, pago: true },
     });
     const dadosPergunta = rotaPergunta.body.data as Record<string, unknown> | undefined;
     check("a rota responde 200", rotaPergunta.status === 200, String(rotaPergunta.status));
@@ -1085,7 +1085,7 @@ async function main() {
       tenant_id: tenant.id,
       user_id: leitor.id,
       intent: "registrar_negocio_gado",
-      parameters: { tipo: "compra", categoria: "bezerro", quantidade: 5, valor: 9000 },
+      parameters: { tipo: "compra", categoria: "bezerro", quantidade: 5, valor: 9000, pago: true },
     });
     check(
       "VISUALIZADOR é barrado pela rota",
@@ -1126,7 +1126,7 @@ async function main() {
       ctx(
         db,
         tenant.id,
-        { tipo: "compra", categoria: "bezerro", quantidade: 3, valor: 7000, data: "ontem" },
+        { tipo: "compra", categoria: "bezerro", quantidade: 3, valor: 7000, data: "ontem", pago: true },
         { userId: USUARIO },
       ),
     );
@@ -1219,6 +1219,7 @@ async function main() {
         tipo: "compra",
         itens: [{ categoria: "coisa esquisita", quantidade: 30 }],
         valor: 90000,
+        pago: true,
       }, { userId: USUARIO }),
     );
     check("sanidade: termo desconhecido pergunta", primeira.reply_text.includes('"coisa esquisita"'), primeira.reply_text);
@@ -1246,6 +1247,7 @@ async function main() {
           { categoria: "novilha", quantidade: 10 },
         ],
         valor: 90000,
+        pago: true,
       }, { userId: USUARIO }),
     );
     const doisItens = await registrarNegocioGado(
@@ -1257,6 +1259,127 @@ async function main() {
         doisItens.reply_text.includes("20 bezerros") &&
         doisItens.reply_text.includes("10 fêmeas"),
       doisItens.reply_text,
+    );
+    await clearPendingNegotiation(tenant.id, USUARIO);
+
+    // ------------------------------------------------------------------
+    console.log("\n41. Compra sem forma de pagamento pergunta antes de gravar (produção, 29/09/2026)");
+    // ------------------------------------------------------------------
+    // "comprei 20 bezerros do João por 60 mil", sem prazo e sem dizer que pagou,
+    // gravava uma conta a pagar vencendo HOJE enquanto a confirmação dizia
+    // "ainda em aberto": no dia seguinte ela aparecia como vencida.
+    const base = { tipo: "compra", categoria: "bezerro", quantidade: 4, valor: 8000, vendedor: "Zé Prazo" };
+    const negociosAntes = await db.negotiation.count();
+    const semPrazo = await registrarNegocioGado(ctx(db, tenant.id, base, { userId: USUARIO }));
+    check("sem prazo, pergunta sobre pagar", semPrazo.reply_text.includes("já pagou, ou vai pagar depois"), semPrazo.reply_text);
+    check("e ainda não pede confirmação", semPrazo.requires_confirmation === false);
+    check("e não gravou nada", (await db.negotiation.count()) === negociosAntes);
+    check(
+      "o pedido fica guardado esperando o vencimento",
+      (await loadPendingNegotiation(tenant.id, USUARIO))?.aguardando === "vencimento",
+    );
+
+    const diaDez = await registrarNegocioGado(ctx(db, tenant.id, { vencimento: "dia 10" }, { userId: USUARIO }));
+    check(
+      "responder 'dia 10' chega na confirmação com o vencimento",
+      diaDez.requires_confirmation === true && diaDez.reply_text.includes("Pagamento previsto para"),
+      diaDez.reply_text,
+    );
+    await registrarNegocioGado(ctx(db, tenant.id, {}, { confirmed: true, userId: USUARIO }));
+    const contaDia10 = await db.financialEntry.findFirst({
+      where: { negotiation_role: "principal", negotiation: { contact: { name: "Zé Prazo" } } },
+    });
+    check(
+      "a conta vence dia 10, não hoje",
+      contaDia10?.due_date?.toISOString().slice(8, 10) === "10" && contaDia10.status === "pending",
+      String(contaDia10?.due_date),
+    );
+
+    // "Já paguei" grava QUITADA, sem conta em aberto.
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    await registrarNegocioGado(
+      ctx(db, tenant.id, { ...base, vendedor: "Ana Quitada" }, { userId: USUARIO }),
+    );
+    const jaPaguei = await registrarNegocioGado(
+      ctx(db, tenant.id, { vencimento: "já paguei" }, { userId: USUARIO }),
+    );
+    check("'já paguei' chega na confirmação como pago", jaPaguei.reply_text.includes("já foi feito"), jaPaguei.reply_text);
+    await registrarNegocioGado(ctx(db, tenant.id, {}, { confirmed: true, userId: USUARIO }));
+    const contasAna = await db.financialEntry.findMany({
+      where: { negotiation: { contact: { name: "Ana Quitada" } } },
+    });
+    check(
+      "a despesa fica QUITADA e não sobra conta em aberto",
+      contasAna.length > 0 && contasAna.every((c) => c.status === "paid"),
+      JSON.stringify(contasAna.map((c) => c.status)),
+    );
+
+    // Quem já falou a forma de pagamento não ganha pergunta a mais.
+    for (const [rotulo, extra] of [
+      ["em 3 vezes", { parcelas: 3 }],
+      ["para pagar dia 10", { vencimento: "dia 10" }],
+      ["já pago", { pago: true }],
+    ] as const) {
+      await clearPendingNegotiation(tenant.id, USUARIO);
+      const r = await registrarNegocioGado(ctx(db, tenant.id, { ...base, ...extra }, { userId: USUARIO }));
+      check(`"${rotulo}" vai direto à confirmação, sem pergunta nova`, r.requires_confirmation === true, r.reply_text);
+    }
+
+    // Venda: a pergunta é sobre RECEBER.
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    const vendaSemPrazo = await registrarNegocioGado(
+      ctx(db, tenant.id, { ...base, tipo: "venda", quantidade: 1 }, { userId: USUARIO }),
+    );
+    check(
+      "venda sem prazo pergunta sobre receber",
+      vendaSemPrazo.reply_text.includes("já recebeu, ou vai receber depois") &&
+        !vendaSemPrazo.reply_text.includes("pagou"),
+      vendaSemPrazo.reply_text,
+    );
+    const jaRecebi = await registrarNegocioGado(
+      ctx(db, tenant.id, { vencimento: "já recebi" }, { userId: USUARIO }),
+    );
+    check("'já recebi' vale como quitado", jaRecebi.reply_text.includes("já foi feito"), jaRecebi.reply_text);
+
+    // Resposta que não é data nem "já paguei": não inventa prazo, pergunta de
+    // novo e, na terceira, encerra dizendo que nada foi registrado.
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    const negociosAntesDaTrava = await db.negotiation.count();
+    await registrarNegocioGado(ctx(db, tenant.id, base, { userId: USUARIO }));
+    const naoSei1 = await registrarNegocioGado(ctx(db, tenant.id, { vencimento: "não sei" }, { userId: USUARIO }));
+    check("'não sei' não vira data: pergunta de novo", naoSei1.reply_text.includes("Não entendi o vencimento"), naoSei1.reply_text);
+    const naoSei3 = await registrarNegocioGado(ctx(db, tenant.id, { vencimento: "depois a gente vê" }, { userId: USUARIO }));
+    check("na terceira pergunta, a trava avisa que não registrou nada", naoSei3.reply_text.includes("não registrei nada"), naoSei3.reply_text);
+    check("e de fato não gravou", (await db.negotiation.count()) === negociosAntesDaTrava);
+
+    // ------------------------------------------------------------------
+    console.log('\n42. O contato nasce sem a preposição ("do João"), produção 29/09/2026');
+    // ------------------------------------------------------------------
+    const aparar: [string | null, string | null][] = [
+      ["do João", "João"],
+      ["da Maria Souza", "Maria Souza"],
+      ["no leilão", "leilão"],
+      ["para o Zé", "Zé"],
+      ["Dona Maria", "Dona Maria"],
+      ["Da Mata Sementes", "Da Mata Sementes"],
+      ["Do Carmo", "Do Carmo"],
+      ["João do Carmo", "João do Carmo"],
+      ["do", "do"],
+      ["  do João  ", "João"],
+      [null, null],
+    ];
+    for (const [entrada, esperado] of aparar) {
+      check(`"${entrada}" vira ${JSON.stringify(esperado)}`, semPreposicaoInicial(entrada) === esperado, String(semPreposicaoInicial(entrada)));
+    }
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    await registrarNegocioGado(
+      ctx(db, tenant.id, { ...base, vendedor: "do Fulano de Tal", pago: true }, { userId: USUARIO }),
+    );
+    await registrarNegocioGado(ctx(db, tenant.id, {}, { confirmed: true, userId: USUARIO }));
+    check(
+      "o Contact gravado é 'Fulano de Tal', sem preposição",
+      (await db.contact.findFirst({ where: { name: "Fulano de Tal" } })) !== null &&
+        (await db.contact.findFirst({ where: { name: { startsWith: "do " } } })) === null,
     );
     await clearPendingNegotiation(tenant.id, USUARIO);
   } finally {

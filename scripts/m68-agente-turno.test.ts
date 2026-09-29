@@ -1332,7 +1332,7 @@ async function main() {
         await clearPendingNegotiation(tenant.id, owner.id);
         await clearPendingHerd(tenant.id, owner.id);
 
-        const venda = await executarIntencao({ ...base, intent: "registrar_negocio_gado", parameters: { tipo: "venda", categoria: "macho_25_36", quantidade: 2, valor: 60000, pasto: "Pasto M68" }, message_text: "vendi 2 bois por 60 mil", provider_message_id: "C1a" });
+        const venda = await executarIntencao({ ...base, intent: "registrar_negocio_gado", parameters: { tipo: "venda", categoria: "macho_25_36", quantidade: 2, valor: 60000, pasto: "Pasto M68", pago: true }, message_text: "vendi 2 bois por 60 mil", provider_message_id: "C1a" });
         check("fixture: a venda espera confirmação", venda.requires_confirmation === true, venda.reply_text);
         const morteNova = await executarIntencao({ ...base, intent: "registrar_movimentacao_rebanho", parameters: morte, message_text: "morreu 1 novilha no Pasto M68", provider_message_id: "C1b" });
         check("fixture: a morte, mais nova, espera confirmação", morteNova.requires_confirmation === true, morteNova.reply_text);

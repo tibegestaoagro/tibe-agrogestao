@@ -13,7 +13,7 @@ import {
   conferirOndeEstaOSaldo,
   resolverPasto,
 } from "./herd";
-import { ask, failReply, str, type Handler } from "./shared";
+import { ask, failReply, semPreposicaoInicial, str, type Handler } from "./shared";
 import { lerDinheiro } from "./parsers";
 import { reaisBr as reais } from "@/lib/numero-br";
 
@@ -296,7 +296,7 @@ export const registrarPermuta: Handler = async ({
     recebido: recebidoLado,
     diferenca,
     pago: true,
-    contact_name: str(parameters.contato) ?? str(parameters.pessoa),
+    contact_name: semPreposicaoInicial(str(parameters.contato) ?? str(parameters.pessoa)),
     notes: str(parameters.observacao) ?? str(parameters.notes),
     recorded_by_user_id: user_id ?? null,
   });
