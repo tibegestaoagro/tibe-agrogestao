@@ -77,9 +77,9 @@ no cofre: `nove-dias-de-canario-acharam-o-que-a-suite-nao-achou` e
 com áudio real e mensagem picada provados pelo rastro do n8n. Faltam os passos
 9 e 10 (foto de recibo e o "não" final).
 
-⚠️ **Há dado de teste na Da Mata** (compra de 20 bezerros por R$ 60 mil, com o
-contato "do João", de 29/09 às 14:19). Sai quando o USUÁRIO rodar
-`npx tsx scripts/_tmp-limpar.ts --apagar` (arquivo não rastreado; apagar depois).
+A compra de teste de 29/09 na Da Mata **não existe mais** (conferido em
+produção no mesmo dia: nada criado em 29/09 no tenant). O script de limpeza foi
+apagado.
 
 Dívidas abertas no caminho: **5.3** (uma mensagem, duas respostas), **5.4**
 (pasto respondido com lavoura), **5.5** (resposta de categoria descarta a
@@ -164,16 +164,14 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou, e cada commit que sobe é leitura pública.
 
-**2. Do usuário, pequeno:** rodar a limpeza da Da Mata
-(`npx tsx scripts/_tmp-limpar.ts --apagar`; ⚠️ o script só acha negociação
-criada HOJE, então depois de 29/09 ele não lista nada e o filtro de data
-precisa mudar), e trocar o nome do cadastro
-"Owner Da Mata" em Ajustes, que é por isso que a saudação sai sem nome.
+**2. Do usuário, pequeno:** trocar o nome do cadastro "Owner Da Mata" em
+Ajustes, que é por isso que a saudação sai sem nome.
 
 **3. Fechar a Fase 7, quando o usuário quiser:** passos 9 e 10 do
-[roteiro](agente-whatsapp/roteiro-do-chip.md); depois decidir com ele quando a
-Da Mata inteira entra na lista; por fim a lista vira "todos" e o
-`execute-action` é desligado. As duas trocas de lista são
+[roteiro](agente-whatsapp/roteiro-do-chip.md). **Decidido em 29/09: o canário
+fica com os 4 telefones de hoje**; ampliar a lista não está no plano até o
+usuário reabrir o assunto. Quando reabrir: Da Mata inteira, depois "todos" e
+desligar o `execute-action`. As duas trocas de lista são
 `npx tsx scripts/n8n-workflow.ts canario <telefones...> --confirmar` e
 `... canario --todos --confirmar`, rodadas pelo USUÁRIO (escrita no n8n de
 produção). Antes da primeira, `... salvar`.
