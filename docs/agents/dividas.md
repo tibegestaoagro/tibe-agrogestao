@@ -268,23 +268,23 @@ em todo domínio não coberto.
   a distância vira 3 dias e a promessa de lembrete aparece. É o teste, não o
   código. Custo: montar a data pelo dia de São Paulo (`inicioDoDiaEmSaoPaulo`).
 
-### 5.6 Compra de INSUMO sem prazo também nasce vencendo hoje
+### 5.6 Leilão e permuta ainda nascem vencendo hoje quando não têm prazo
 
-Mesmo defeito que a compra de gado teve até 29/09/2026, no caminho irmão. A
-raiz é `due_date: input.pago ? occurred_at : (input.due_date ?? new Date())`,
-em três pontos de `src/lib/actions/negotiations.ts`: sem vencimento dito, a
-conta nasce vencendo hoje e no dia seguinte aparece como vencida.
+A compra de gado (29/09/2026) e a compra/venda de INSUMO (mesma data, decisão do
+usuário estendida ao estoque) deixaram de nascer vencendo hoje: o handler
+PERGUNTA antes de gravar ("Você já pagou, ou vai pagar depois?"). A raiz continua
+nas actions: `due_date: input.pago ? occurred_at : (input.due_date ?? new Date())`
+em `negotiations.ts`, `product-negotiations.ts`, `event-consignments.ts` e
+`barters.ts`. Sem vencimento dito, a conta vence hoje e no dia seguinte aparece
+como vencida.
 
-No gado isso deixou de acontecer porque o handler agora PERGUNTA antes de
-gravar ("Você já pagou, ou vai pagar depois?"). O handler de estoque
-(`registrar_negocio_produto`) não pergunta, então "comprei 10 sacas de sal do
-Zé por 200" continua criando conta vencida no dia seguinte.
-
-Não foi corrigido junto porque muda o fluxo de conversa do estoque e derruba
-blocos de `test:m38`, e porque a decisão do usuário foi tomada olhando a compra
-de gado. Custo: repetir a mesma pergunta no handler de estoque, com o texto de
-compra e de venda, e atualizar as suítes. O leilão e a permuta usam os mesmos
-três pontos e merecem a mesma conferência.
+Ficam abertos os handlers que ainda não perguntam: leilão/evento
+(`registrar_remessa_evento`, `encerrar_remessa_evento`) e permuta
+(`registrar_permuta`). Os três nem são emitidos pelo agente hoje (classificador
+congelado), então o defeito só aparece quando a intenção for ensinada ao n8n.
+Custo: repetir a mesma pergunta nesses handlers, reusando
+`respondeuQueJaPagou` (exportada por `negociacao.ts`) e o ramo de mesclagem de
+`comMemoria` em `estoque.ts` como modelo, e atualizar `test:m48` e `test:m49`.
 
 ### 3.2 Arquivar um tenant pela Plataforma não tira o acesso dele
 

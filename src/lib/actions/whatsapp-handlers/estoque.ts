@@ -24,6 +24,7 @@ import {
 } from "@/lib/actions/stock-pending";
 import { loadPendingNegotiation } from "@/lib/actions/negotiation-pending";
 import { resolverFazenda } from "./herd";
+import { respondeuQueJaPagou } from "./negociacao";
 import { ask, failReply, semPreposicaoInicial, str, INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR, type Handler, type RouterResult } from "./shared";
 import { reaisBr as reais } from "@/lib/numero-br";
 import {
@@ -425,6 +426,21 @@ async function comMemoria(
 
   if (!ctx.user_id || !meuPendente) {
     return { ok: true, parameters: { ...ctx.parameters }, executar: false, pendente, tentativas: 0 };
+  }
+
+  if (meuPendente.aguardando === "vencimento" && respondeuQueJaPagou(ctx.parameters)) {
+    /**
+     * A pergunta do vencimento aceita duas respostas: uma data, ou "já paguei"
+     * (numa venda, "já recebi"). Sem este ramo, "já paguei" caía em `lerData`
+     * como vencimento inválido e a pergunta voltava até a trava de laço. É o
+     * mesmo ramo do handler de gado, que também reusa `respondeuQueJaPagou`.
+     * `parcelas` sai junto: pago e parcelado não valem ao mesmo tempo.
+     */
+    const pago: Record<string, unknown> = { ...meuPendente.parameters, pago: true };
+    for (const campo of ["vencimento", "due_date", "data_pagamento", "parcelas", "installments", "parcelamento"]) {
+      delete pago[campo];
+    }
+    return { ok: true, parameters: pago, executar: false, pendente, tentativas: 0 };
   }
 
   const juntos = aplicarRespostaEstoque(meuPendente, ctx.parameters);
@@ -888,7 +904,10 @@ export const registrarNegocioProduto: Handler = async (ctx) => {
   // conta vencendo HOJE.
   const vencimento = lerData(parameters, "vencimento", "due_date", "data_pagamento");
   if (vencimento.tipo === "invalida") {
-    return guardar("vencimento", `Não entendi o vencimento "${vencimento.bruto}". Pode dizer 10/12?`);
+    return guardar(
+      "vencimento",
+      `Não entendi o vencimento "${vencimento.bruto}". Diga por exemplo "dia 10" ou "10/12/2026", ou diga que já foi ${compra ? "pago" : "recebido"}.`,
+    );
   }
 
   const pago = interpretarSim(parameters.pago ?? parameters.paid);
@@ -991,6 +1010,33 @@ export const registrarNegocioProduto: Handler = async (ctx) => {
           `em ${fazenda.nome}. Revise a quantidade informada.`,
       );
     }
+  }
+
+  /**
+   * Sem forma de pagamento nenhuma, a conta nascia vencendo HOJE, e no dia
+   * seguinte já aparecia como vencida (o mesmo defeito que a compra de gado
+   * teve até 29/09/2026, decisão do usuário estendida ao insumo). PERGUNTA
+   * antes de gravar, com o mesmo texto do gado. Só compra e venda de produto
+   * passam por aqui: uso, ajuste e cadastro são outros handlers, e o uso grava
+   * sem confirmar.
+   *
+   * Fica DEPOIS da conferência de saldo da venda, para não perguntar quando
+   * vai receber uma venda que será recusada por falta de estoque. "Já paguei"
+   * é tratado na mesclagem de `comMemoria`, porque aqui viraria vencimento
+   * inválido.
+   *
+   * Resposta que não é data nem "já paguei" ("não sei"): NÃO inventa prazo.
+   * Cai na mensagem de vencimento inválido e, na terceira volta, a trava de
+   * laço encerra dizendo que nada foi registrado. Gravar sem data reabriria o
+   * defeito; assumir "em aberto sem prazo" esconderia a dívida dos alertas.
+   */
+  if (!pago && !quantasParcelas && vencimento.tipo !== "ok") {
+    return guardar(
+      "vencimento",
+      compra
+        ? 'Você já pagou, ou vai pagar depois? Se for depois, me diga o vencimento, por exemplo "dia 10".'
+        : 'Você já recebeu, ou vai receber depois? Se for depois, me diga a data, por exemplo "dia 10".',
+    );
   }
 
   if (!memoria.executar) {
