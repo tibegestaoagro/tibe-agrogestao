@@ -27,101 +27,58 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-09-29.
 
-### Agente do WhatsApp: o programa (Fases 1 a 6 em produção)
+### Agente do WhatsApp: Fases 1 a 6 em produção, Fase 7 em CANÁRIO
 
-Programa decidido com o usuário em 14/09. Spec
-[../superpowers/specs/2026-09-14-agente-whatsapp-55-intencoes-design.md](../superpowers/specs/2026-09-14-agente-whatsapp-55-intencoes-design.md),
-planos por fase em `docs/superpowers/plans/`, material de apoio em
-[agente-whatsapp/](agente-whatsapp/). O Tibé aceita 55 intenções e o
-classificador do n8n descrevia 23; a arquitetura mudou para estado no Tibé e
-classificação em duas etapas dentro do Tibé, com o n8n só transportando.
+Spec
+[../superpowers/specs/2026-09-14-agente-whatsapp-55-intencoes-design.md](../superpowers/specs/2026-09-14-agente-whatsapp-55-intencoes-design.md)
+(uma seção de decisões por fase), planos em `docs/superpowers/plans/`,
+relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe das fases em
+[historico/2026-09.md](historico/2026-09.md). Modelo `gpt-5.6-luna`, esforço
+`low`; gasto do programa US$ 5,56 de US$ 30.
 
-Fase 1 (fundação, `df74e40`), Fase 2 (turno, `f3da082`), Fase 3 (avaliação,
-`23b8f57`) e Fase 4 (homologação, `d785e6b`), todas com deploy confirmado. O
-detalhe de cada uma foi para [historico/2026-09.md](historico/2026-09.md) e
-para os relatórios em [agente-whatsapp/](agente-whatsapp/).
+**O fluxo de produção do n8n é HÍBRIDO desde 18/09.** `UAAA96aJFiiFsQCL` (42
+nós) tem o desvio `Agente Novo?` logo depois de `Consolidar Mensagem`: quatro
+telefones (o usuário, que é o Owner da **Da Mata**, tenant real, e Lucas, Max e
+Laíza Agromax) vão para a rota de turno; todo o resto segue no `execute-action`,
+intocado. As intenções novas só existem para quem está na lista.
 
-⚠️ **O fluxo de produção é HÍBRIDO desde 18/09:** quem está na lista do canário
-fala com a rota de turno, e todo o resto continua no `execute-action`. As
-intenções novas só existem para quem está na lista.
-
-**Modelo em uso: `gpt-5.6-luna`, esforço `low`**, escolhido pela medição fora
-da amostra da Fase 3 (97,7% de intenção, zero gravação indevida, US$ 0,29 por
-mil mensagens). O aparato de avaliação vive em `scripts/avaliacao/` e é
-reutilizado a cada fase. Gasto do programa: US$ 5,56 de US$ 30.
-
-⚠️ **Achado da Fase 1 ainda aberto:** "gastei 500 de diesel no trator" vira uso
-de estoque no classificador do n8n. Quem está no canário já usa o registro de
-intenções novo, que desempata; falta a frase aparecer em conversa real.
-
-### Fase 7: o CANÁRIO ESTÁ NO AR desde 18/09
-
-O fluxo de produção do n8n (`UAAA96aJFiiFsQCL`, 42 nós) tem um desvio
-`Agente Novo?` logo depois de `Consolidar Mensagem`: quatro telefones (o
-usuário e as três contas Agromax) vão para a rota de turno, e todo o resto
-segue pelo caminho antigo, intocado. Decisões na spec, seção "Fase 7".
-
-- **Aplicar e voltar atrás** é o script `aplicar-canario.mjs`, no scratchpad da
-  sessão, que salva o fluxo publicado antes de escrever. **O classificador
-  bloqueia essa escrita mesmo com autorização**: quem roda é o usuário, como na
-  migração do Neon. Voltar atrás foi testado de verdade em 18/09.
-- **A semana observada se lê com `npx tsx scripts/observar-canario.ts`** (só
-  leitura, contra produção).
+- **A lista mora na expressão do nó `Agente Novo?`**, no próprio n8n. É ali que
+  se põe a Da Mata inteira, ou se esvazia para desligar o canário.
+- ⚠️ **Os scripts de aplicar e de voltar atrás SUMIRAM** com a limpeza do
+  scratchpad entre 18 e 29/09, junto com as cópias de segurança. O caminho de
+  volta hoje é o **histórico de versões do workflow no editor do n8n** (versão
+  de 15/09), ou **esvaziar a lista** do desvio. Lição no cofre:
+  `o-scratchpad-some-e-leva-o-voltar-atras`.
+- ⚠️ **O classificador bloqueia escrita no n8n de produção e escrita
+  destrutiva no banco de produção**, mesmo com autorização: quem roda é o
+  usuário, como na migração do Neon. Leitura é livre.
 - ⚠️ **O JSON do fluxo nunca entra no repositório**: carrega a chave da
-  instância da Evolution, e o repositório é público. A fonte da verdade é o
-  próprio n8n.
-- O telefone do usuário é o do Owner da **Da Mata**, que é tenant real: teste
-  feito por ele grava dado de verdade lá.
+  instância da Evolution.
+- **Ler o canário:** `npx tsx scripts/observar-canario.ts [dias]` (conversa
+  inteira, entrada e saída, só leitura, contra produção). Para ver quais nós
+  rodaram (áudio, buffer), a API de execuções do n8n; o script que fazia isso
+  morava no scratchpad.
 
-**Nove dias de uso real (19 a 29/09) acharam o que nenhuma suíte tinha pego**, e
-os quatro foram corrigidos e estão em produção (`ffcd053`, `51a8634`, `e1102b4`):
+**29/09: seis defeitos achados em uso real, todos corrigidos e em produção**
+(`02e5664`, `2d05a99`, `58629fe`, `6213f5b`): conta a pagar ignorando o período
+pedido, resposta ecoando a categoria anterior, vocabulário de categoria que
+recusava "bezerros de 8 a 12 meses", "bom dia" respondido com "Não entendi",
+compra sem prazo nascendo vencida, contato gravado "do João". Relato e lições
+no cofre: `nove-dias-de-canario-acharam-o-que-a-suite-nao-achou` e
+`a-data-dita-vence-a-palavra-que-quita`.
 
-1. "quanto temos a pagar nos próximos 100 dias" respondia "Nenhuma conta a
-   pagar no período" com R$ 90 mil vencendo dentro da janela: a consulta parava
-   sempre no fim do mês e a intenção nem tinha campo de período.
-2. A resposta ecoava a categoria da mensagem ANTERIOR. A causa estava escrita na
-   dívida 5.1 desde 16/09, sem nunca ter sido vista acontecer.
-3. O vocabulário de categoria recusava "bezerros de 8 a 12 meses": o produtor
-   levou oito tentativas para lançar um saldo inicial. Agora a idade dita manda,
-   e faixa que cruza duas categorias continua perguntando.
-4. "bom dia" caía em "Não entendi". A regra da saudação foi escrita pelo
-   usuário e virou resposta pela hora de Brasília com o primeiro nome.
+**Roteiro do aparelho (29/09): passos 1 a 7 APROVADOS** no celular do usuário,
+com áudio real e mensagem picada provados pelo rastro do n8n. Faltam os passos
+9 e 10 (foto de recibo e o "não" final).
 
-**A rodada do roteiro no celular do usuário (29/09) aprovou os passos 1 a 7**,
-com áudio real e mensagem picada provados pelo rastro do n8n, e achou mais dois
-defeitos, corrigidos e em produção (`58629fe`, `6213f5b`): compra sem prazo
-nascia vencendo HOJE (agora gado e insumo perguntam "já pagou, ou vai pagar
-depois?"), e o contato nascia "do João". Faltam os passos 9 e 10 (foto e o
-"não" final). ⚠️ Os dados de teste dessa rodada na Da Mata (20 bezerros,
-R$ 60 mil) só saem quando o USUÁRIO rodar `npx tsx scripts/_tmp-limpar.ts
---apagar`: o classificador bloqueia escrita destrutiva em produção.
+⚠️ **Há dado de teste na Da Mata** (compra de 20 bezerros por R$ 60 mil, com o
+contato "do João", de 29/09 às 14:19). Sai quando o USUÁRIO rodar
+`npx tsx scripts/_tmp-limpar.ts --apagar` (arquivo não rastreado; apagar depois).
 
-⚠️ **A correção da saudação falhou na primeira mensagem real** ("Oi, bom dia"),
-porque a primeira versão comparava a frase inteira contra uma lista fechada.
-Lição: lista de frase não cobre combinação.
-
-Dívidas abertas no caminho: **5.3** (uma mensagem, duas respostas) e **5.4**
-(pasto respondido com lavoura), as duas sem gravação errada e sem correção
-porque mexem no prompt, o que pede rodada de avaliação.
-
-⚠️ **Achado à parte, dívida 3.2:** arquivar um tenant pela Plataforma NÃO tira o
-acesso dele. `Tenant.archived_at` não é lido em ponto nenhum do caminho de
-acesso.
-
-### Agente do WhatsApp: Fases 4, 5 e 6 EM PRODUÇÃO
-
-Fase 4 (homologação, `d785e6b`), Fase 5 (intenções novas do dinheiro que entra,
-`f3148f5`) e Fase 6 (alertas e push, `f370242`), todas com deploy confirmado. O
-detalhe foi para [historico/2026-09.md](historico/2026-09.md); os relatórios
-estão em [agente-whatsapp/](agente-whatsapp/) e as lições no cofre.
-
-⚠️ **Três achados que valem para quem vier depois:** a revisão independente
-reprovou merge nas três fases, sempre com defeito que a suíte e a medição não
-alcançavam (gravação indevida de estoque, o "sim" quitando a conta errada, o
-controle de notificação inalcançável para OPERADOR). O push nunca tinha
-entregado nada até 17/09, e o motivo era a TELA, não o servidor. E produção
-TEM a `VAPID_SUBJECT` desde agosto: a afirmação contrária, escrita em 17/09,
-era falsa e foi corrigida em todo lugar.
+Dívidas abertas no caminho: **5.3** (uma mensagem, duas respostas), **5.4**
+(pasto respondido com lavoura), **5.5** (resposta de categoria descarta a
+quantidade nova), **5.6** (leilão e permuta ainda nascem vencendo hoje) e
+**3.2** (arquivar tenant não tira o acesso).
 
 ### Ambiente
 
@@ -201,18 +158,21 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou, e cada commit que sobe é leitura pública.
 
-**2. O roteiro do aparelho, que o usuário começou em 29/09 e não terminou:**
-[agente-whatsapp/roteiro-do-chip.md](agente-whatsapp/roteiro-do-chip.md), feito
-com o celular DELE pelo canário, sem chip novo. Os passos que reprovam a rodada
-são gravação nos passos 1, 2, 4, 7 e 10; o passo 6 grava de verdade na Da Mata.
-Ler o resultado com `observar-canario.ts` e conferir no banco.
+**2. Do usuário, pequeno:** rodar a limpeza da Da Mata
+(`npx tsx scripts/_tmp-limpar.ts --apagar`), e trocar o nome do cadastro
+"Owner Da Mata" em Ajustes, que é por isso que a saudação sai sem nome.
 
-**3. Fechar a Fase 7:** com a rodada aprovada e a semana observada limpa, a
-lista do desvio vira "todos" e o caminho antigo é desligado. Antes disso,
-decidir com o usuário quando a Da Mata inteira entra.
+**3. Fechar a Fase 7, quando o usuário quiser:** passos 9 e 10 do
+[roteiro](agente-whatsapp/roteiro-do-chip.md); depois decidir com ele quando a
+Da Mata inteira entra na lista; por fim a lista vira "todos" e o
+`execute-action` é desligado. Antes de mexer no fluxo, recriar no REPOSITÓRIO
+(sem o JSON) os scripts de ler e aplicar o workflow, para o caminho de volta
+não depender de pasta temporária de novo.
 
-**Do usuário, quando quiser:** o nome do cadastro dele é "Owner Da Mata", e por
-isso a saudação sai sem nome. Trocar em Ajustes faz o agente chamá-lo pelo nome.
+**4. Validar no celular as correções de 29/09** que ainda não foram exercitadas
+em conversa real: "comprei 10 sacas de sal do Zé por 200" tem que perguntar se
+já pagou; "quanto tenho a pagar nos próximos 100 dias" tem que dizer até que
+data olhou; "comprei 30 machos de 0 a 8 meses" tem que ir direto à confirmação.
 
 Não avance para outro módulo sem aprovação explícita.
 
