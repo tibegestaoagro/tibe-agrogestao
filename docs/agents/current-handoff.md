@@ -85,8 +85,10 @@ apagado.
 responde quando é tudo o que sobrou, e uma vez só (`classificar.ts`); catálogo
 de produto vazio recusa sem abrir pendente (`resolverProduto`), que prendia o
 cursor e fazia a resposta a OUTRA pergunta virar nome de produto. Suíte `m68`
-com 4 casos novos, cada um provado falhando sem a correção. Ainda não
-exercitada em conversa real: depende do deploy e do celular.
+com 4 casos novos, cada um provado falhando sem a correção. **Validada em
+conversa real** no celular do usuário (29/09, 17:50): "Quantos animais eu
+tenho? E me manda a previsão do tempo" teve uma resposta só, a do rebanho; a
+parte que o agente não faz é ignorada, sem "Não entendi".
 
 Dívidas abertas no caminho: **5.4** (pasto respondido com lavoura), **5.5**
 (resposta de categoria descarta a quantidade nova), **5.6** (leilão e permuta
