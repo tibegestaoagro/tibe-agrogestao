@@ -1206,6 +1206,59 @@ async function main() {
     );
 
     await clearPendingNegotiation(tenant.id, USUARIO);
+
+    // ------------------------------------------------------------------
+    console.log("\n40. A resposta da categoria corrige o item, não fica no campo plano (produção, 29/09/2026)");
+    // ------------------------------------------------------------------
+    // O classificador de resposta (`turno.ts`) entrega `{ categoria: valor }` PLANO,
+    // mas o pedido guardado tem `itens`, que `itensDosParametros` prefere. A
+    // resposta ia para um campo que ninguém lia e a pergunta ecoava o termo
+    // da mensagem ANTERIOR ("Não reconheci machos de 0 a 8 meses").
+    const primeira = await registrarNegocioGado(
+      ctx(db, tenant.id, {
+        tipo: "compra",
+        itens: [{ categoria: "coisa esquisita", quantidade: 30 }],
+        valor: 90000,
+      }, { userId: USUARIO }),
+    );
+    check("sanidade: termo desconhecido pergunta", primeira.reply_text.includes('"coisa esquisita"'), primeira.reply_text);
+    const segunda = await registrarNegocioGado(
+      ctx(db, tenant.id, { categoria: "fêmeas de 13 a 24 meses" }, { userId: USUARIO }),
+    );
+    check(
+      "a segunda resposta NÃO ecoa o termo da primeira",
+      !segunda.reply_text.includes("coisa esquisita"),
+      segunda.reply_text,
+    );
+    check(
+      "e segue para a confirmação com a categoria nova e a quantidade guardada",
+      segunda.requires_confirmation && segunda.reply_text.includes("30") && /f[êe]meas/i.test(segunda.reply_text),
+      segunda.reply_text,
+    );
+    await clearPendingNegotiation(tenant.id, USUARIO);
+
+    // Dois itens, só um ambíguo: a resposta corrige o certo e não apaga o outro.
+    await registrarNegocioGado(
+      ctx(db, tenant.id, {
+        tipo: "compra",
+        itens: [
+          { categoria: "bezerros", quantidade: 20 },
+          { categoria: "novilha", quantidade: 10 },
+        ],
+        valor: 90000,
+      }, { userId: USUARIO }),
+    );
+    const doisItens = await registrarNegocioGado(
+      ctx(db, tenant.id, { categoria: "fêmeas de 13 a 24 meses" }, { userId: USUARIO }),
+    );
+    check(
+      "dois itens: o ambíguo é corrigido e o outro continua lá",
+      doisItens.requires_confirmation &&
+        doisItens.reply_text.includes("20 bezerros") &&
+        doisItens.reply_text.includes("10 fêmeas"),
+      doisItens.reply_text,
+    );
+    await clearPendingNegotiation(tenant.id, USUARIO);
   } finally {
     await prisma.financialEntry.deleteMany({ where: { tenant_id: tenant.id } });
     await prisma.herdMovement.deleteMany({ where: { tenant_id: tenant.id } });

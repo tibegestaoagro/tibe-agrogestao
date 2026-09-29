@@ -9,6 +9,7 @@ import {
   type CampoNegocio,
 } from "@/lib/actions/negotiation-pending";
 import {
+  aplicarCategoriaAosItens,
   itensDosParametros,
   resolverCategoria,
   resolverFazenda,
@@ -204,7 +205,12 @@ export const registrarNegocioGado: Handler = async ({
   } else if (pendente && pendente.aguardando !== "confirmacao") {
     const juntado = aplicarRespostaNegocio(pendente, parametrosDaMensagem);
     if (juntado) {
-      parameters = juntado;
+      // Mesma causa do rebanho: a resposta chega plana e `itens` do pedido guardado manda.
+      const resposta = str(parametrosDaMensagem.categoria) ?? str(parametrosDaMensagem.category);
+      parameters =
+        pendente.aguardando === "categoria" && resposta
+          ? aplicarCategoriaAosItens(juntado, resposta)
+          : juntado;
     } else {
       /**
        * A mensagem não responde ao que foi perguntado, mas o que já foi
