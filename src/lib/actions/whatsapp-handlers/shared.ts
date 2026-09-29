@@ -175,28 +175,45 @@ export const SAUDACAO =
  * O turno também consulta esta função para NÃO deixar um cumprimento virar
  * resposta de campo pendente: "bom dia" nunca é a categoria do animal.
  *
- * A comparação é pelo texto INTEIRO, nunca por "contém": "bom dia, comprei 20
- * bezerros" tem assunto, e uma saudação engoliria o pedido.
+ * A leitura é do texto INTEIRO, nunca por "contém": "bom dia, comprei 20
+ * bezerros" tem assunto, e uma saudação engoliria o pedido. Por isso são duas
+ * condições, e as duas precisam valer: NENHUMA palavra de fora do vocabulário
+ * de cumprimento, e pelo menos uma saudação de verdade ali dentro.
+ *
+ * ⚠️ A primeira versão desta função comparava a frase inteira contra uma lista
+ * fechada, e "Oi, bom dia" (duas saudações numa) não estava nela: a correção
+ * falhou na primeira mensagem real, minutos depois do deploy. Lista fechada de
+ * frase não cobre combinação; vocabulário mais núcleo cobre.
  */
-const CUMPRIMENTOS: ReadonlySet<string> = new Set([
+const PALAVRAS_DE_CUMPRIMENTO: ReadonlySet<string> = new Set([
   "oi",
   "ola",
   "opa",
+  "alo",
+  "ei",
   "eai",
-  "e ai",
+  "e",
+  "ai",
   "salve",
-  "bom dia",
-  "boa tarde",
-  "boa noite",
-  "tudo bem",
-  "tudo bom",
-  "como vai",
-  "bom dia tudo bem",
-  "boa tarde tudo bem",
-  "boa noite tudo bem",
-  "oi tudo bem",
-  "ola tudo bem",
+  "bom",
+  "boa",
+  "dia",
+  "dias",
+  "tarde",
+  "noite",
+  "tudo",
+  "bem",
+  "beleza",
+  "blz",
+  "como",
+  "vai",
+  "voce",
+  "vc",
 ]);
+
+/** Sem uma destas, a frase é só palavra solta ("bom", "tudo") e não cumprimenta ninguém. */
+const NUCLEO_DE_CUMPRIMENTO =
+  /\b(oi|ola|opa|alo|ei|eai|e ai|salve|bom dia|boa tarde|boa noite|tudo bem|tudo bom|como vai)\b/;
 
 export function ehSoCumprimento(texto: string | null | undefined): boolean {
   if (!texto) return false;
@@ -205,7 +222,11 @@ export function ehSoCumprimento(texto: string | null | undefined): boolean {
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  return CUMPRIMENTOS.has(limpo);
+  if (!limpo || !NUCLEO_DE_CUMPRIMENTO.test(limpo)) return false;
+  // Teto de palavras: frase longa que começa com saudação tem assunto depois.
+  const palavras = limpo.split(" ");
+  if (palavras.length > 8) return false;
+  return palavras.every((p) => PALAVRAS_DE_CUMPRIMENTO.has(p));
 }
 
 export function normalizarTermo(termo: string): string {
