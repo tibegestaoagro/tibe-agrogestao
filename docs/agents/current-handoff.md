@@ -25,7 +25,7 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 `historico/2026-09.md`.
 ## Estado atual
 
-- Atualizado em: 2026-09-18.
+- Atualizado em: 2026-09-29.
 
 ### Agente do WhatsApp: o programa (Fases 1 a 6 em produção)
 
@@ -41,13 +41,9 @@ Fase 1 (fundação, `df74e40`), Fase 2 (turno, `f3da082`), Fase 3 (avaliação,
 detalhe de cada uma foi para [historico/2026-09.md](historico/2026-09.md) e
 para os relatórios em [agente-whatsapp/](agente-whatsapp/).
 
-⚠️ **O fluxo de PRODUÇÃO ainda é o `execute-action`.** A rota de turno está
-pronta e provada de ponta a ponta, mas só entra em produção na Fase 7. Por
-isso as intenções novas ficam INERTES: hoje são nove nesse estado.
-
-⚠️ **Nenhuma mensagem real tinha passado pela guarda da entrada até o fim da
-sessão de 15/09.** Conferir as primeiras execuções reais pela API do n8n; se
-pararem na guarda, restaurar o workflow do backup.
+⚠️ **O fluxo de produção é HÍBRIDO desde 18/09:** quem está na lista do canário
+fala com a rota de turno, e todo o resto continua no `execute-action`. As
+intenções novas só existem para quem está na lista.
 
 **Modelo em uso: `gpt-5.6-luna`, esforço `low`**, escolhido pela medição fora
 da amostra da Fase 3 (97,7% de intenção, zero gravação indevida, US$ 0,29 por
@@ -55,31 +51,49 @@ mil mensagens). O aparato de avaliação vive em `scripts/avaliacao/` e é
 reutilizado a cada fase. Gasto do programa: US$ 5,56 de US$ 30.
 
 ⚠️ **Achado da Fase 1 ainda aberto:** "gastei 500 de diesel no trator" vira uso
-de estoque no classificador do n8n. O registro de intenções novo desempata, e
-isso só se mede em conversa real, na Fase 7.
+de estoque no classificador do n8n. Quem está no canário já usa o registro de
+intenções novo, que desempata; falta a frase aparecer em conversa real.
 
-### Telefone com o nono dígito e selo de conta interna EM PRODUÇÃO desde 18/09
+### Fase 7: o CANÁRIO ESTÁ NO AR desde 18/09
 
-Merge `efb8c15`, deploy confirmado, migração `20260918120000_conta_interna`
-aplicada no Neon pelo usuário ANTES do merge (o classificador bloqueia
-`db:deploy` desta máquina).
+O fluxo de produção do n8n (`UAAA96aJFiiFsQCL`, 42 nós) tem um desvio
+`Agente Novo?` logo depois de `Consolidar Mensagem`: quatro telefones (o
+usuário e as três contas Agromax) vão para a rota de turno, e todo o resto
+segue pelo caminho antigo, intocado. Decisões na spec, seção "Fase 7".
 
-- **Nono dígito:** Lucas e Max Agromax não eram reconhecidos pelo agente porque
-  estavam cadastrados com 13 dígitos e o WhatsApp deles manda 12, sem o 9. O
-  reconhecimento (`identificarContato`) era o único ponto fora do funil
-  `toBrazilPhoneDigits`. Agora o 9 é completado ao gravar e ao reconhecer, e
-  **fixo nunca ganha o 9** (só completa quando o dígito depois do DDD é 6 a 9).
-  A conversão dos telefones já gravados rodou em leitura e deu **zero**
-  mudanças: o defeito era só do lado de quem lê. A Evolution resolve os dois
-  formatos para a mesma conta, então o envio de alerta não quebra. Suíte `m71`.
-- **Selo de conta interna:** `Tenant.conta_interna`, só a Plataforma liga, e ele
-  tira o vencimento do trial. Cliente novo continua com 14 dias. A rota do
-  próprio tenant não aceita o campo.
+- **Aplicar e voltar atrás** é o script `aplicar-canario.mjs`, no scratchpad da
+  sessão, que salva o fluxo publicado antes de escrever. **O classificador
+  bloqueia essa escrita mesmo com autorização**: quem roda é o usuário, como na
+  migração do Neon. Voltar atrás foi testado de verdade em 18/09.
+- **A semana observada se lê com `npx tsx scripts/observar-canario.ts`** (só
+  leitura, contra produção).
+- ⚠️ **O JSON do fluxo nunca entra no repositório**: carrega a chave da
+  instância da Evolution, e o repositório é público. A fonte da verdade é o
+  próprio n8n.
+- O telefone do usuário é o do Owner da **Da Mata**, que é tenant real: teste
+  feito por ele grava dado de verdade lá.
 
-**Feito em 18/09:** o usuário marcou Lucas, Laíza e Max como conta interna, e o
-banco confirma `conta_interna = true` nos três. Falta a prova viva: Lucas ou
-Max mandarem mensagem ao agente com o WhatsApp antigo deles, e o primeiro login
-de cada um (confirma o plano, e o perfil que falta nasce ali).
+**Nove dias de uso real (19 a 29/09) acharam o que nenhuma suíte tinha pego**, e
+os quatro foram corrigidos e estão em produção (`ffcd053`, `51a8634`, `e1102b4`):
+
+1. "quanto temos a pagar nos próximos 100 dias" respondia "Nenhuma conta a
+   pagar no período" com R$ 90 mil vencendo dentro da janela: a consulta parava
+   sempre no fim do mês e a intenção nem tinha campo de período.
+2. A resposta ecoava a categoria da mensagem ANTERIOR. A causa estava escrita na
+   dívida 5.1 desde 16/09, sem nunca ter sido vista acontecer.
+3. O vocabulário de categoria recusava "bezerros de 8 a 12 meses": o produtor
+   levou oito tentativas para lançar um saldo inicial. Agora a idade dita manda,
+   e faixa que cruza duas categorias continua perguntando.
+4. "bom dia" caía em "Não entendi". A regra da saudação foi escrita pelo
+   usuário e virou resposta pela hora de Brasília com o primeiro nome.
+
+⚠️ **A correção da saudação falhou na primeira mensagem real** ("Oi, bom dia"),
+porque a primeira versão comparava a frase inteira contra uma lista fechada.
+Lição: lista de frase não cobre combinação.
+
+Dívidas abertas no caminho: **5.3** (uma mensagem, duas respostas) e **5.4**
+(pasto respondido com lavoura), as duas sem gravação errada e sem correção
+porque mexem no prompt, o que pede rodada de avaliação.
 
 ⚠️ **Achado à parte, dívida 3.2:** arquivar um tenant pela Plataforma NÃO tira o
 acesso dele. `Tenant.archived_at` não é lido em ponto nenhum do caminho de
@@ -178,19 +192,18 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
 avançou, e cada commit que sobe é leitura pública.
 
-**2. Prova viva do nono dígito:** Lucas ou Max mandarem uma mensagem ao agente.
-É o caso real que falhou; o teste passa, mas teste verde não é validação.
+**2. O roteiro do aparelho, que o usuário começou em 29/09 e não terminou:**
+[agente-whatsapp/roteiro-do-chip.md](agente-whatsapp/roteiro-do-chip.md), feito
+com o celular DELE pelo canário, sem chip novo. Os passos que reprovam a rodada
+são gravação nos passos 1, 2, 4, 7 e 10; o passo 6 grava de verdade na Da Mata.
+Ler o resultado com `observar-canario.ts` e conferir no banco.
 
-**3. A Fase 7, a última do programa do agente.** Trocar o fluxo de produção para a rota de turno.
-Depende das Fases 4 e 5 (as duas em produção) e do que falta: a rodada no
-aparelho, com o segundo número, roteiro escrito em
-[agente-whatsapp/roteiro-do-chip.md](agente-whatsapp/roteiro-do-chip.md). O
-caminho combinado com o usuário em 16/09, se o número demorar: repontar o
-webhook da instância de produção para a cópia de homologação por uns minutos,
-num horário morto, e voltar em seguida.
+**3. Fechar a Fase 7:** com a rodada aprovada e a semana observada limpa, a
+lista do desvio vira "todos" e o caminho antigo é desligado. Antes disso,
+decidir com o usuário quando a Da Mata inteira entra.
 
-**Do usuário, quando quiser:** `AGENTE_MODELO=gpt-5.6-luna` e
-`AGENTE_ESFORCO=low` na Vercel **já foram feitos em 16/09**. Fica só o chip.
+**Do usuário, quando quiser:** o nome do cadastro dele é "Owner Da Mata", e por
+isso a saudação sai sem nome. Trocar em Ajustes faz o agente chamá-lo pelo nome.
 
 Não avance para outro módulo sem aprovação explícita.
 
