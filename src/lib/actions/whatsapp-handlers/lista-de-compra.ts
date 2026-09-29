@@ -8,7 +8,8 @@ import {
   registrarCompraDoItemAction,
   pendentesParecidos,
 } from "@/lib/actions/shopping-items";
-import { lerDinheiro } from "./parsers";
+import { lerData, lerDinheiro } from "./parsers";
+import { respondeuQueJaPagou } from "./negociacao";
 import { reaisBr } from "@/lib/numero-br";
 import {
   savePendingLista,
@@ -367,8 +368,27 @@ export const removerItemLista: Handler = async ({
   };
 };
 
-/** O que fica guardado enquanto o "comprou X por Y?" espera resposta. */
-type CompraResolvida = { item_id: string; valor: number; pago: boolean };
+/** O que fica guardado enquanto o "comprou X por Y?" espera resposta. `vencimento` em ISO: o pendente é JSON. */
+type CompraResolvida = { item_id: string; valor: number; pago: boolean; vencimento?: string };
+
+const PERGUNTA_DO_VENCIMENTO = 'Quando vence? Diga por exemplo "dia 10", ou diga que já pagou.';
+
+async function pedirConfirmacaoDaCompra(
+  tenant_id: string,
+  user_id: string | null | undefined,
+  item: Parameters<typeof descreverItem>[0] & { id: string },
+  resolvido: CompraResolvida,
+): Promise<RouterResult> {
+  if (user_id) await savePendingLista(tenant_id, user_id, { parameters: resolvido, aguardando: "confirmacao_compra" });
+  const vence = !resolvido.pago && resolvido.vencimento ? `, vencendo em ${new Date(resolvido.vencimento).toLocaleDateString("pt-BR")}` : "";
+  return {
+    reply_text: `Comprou ${descreverItem(item)} por ${reaisBr(resolvido.valor)}${vence}? Vou lançar a despesa e tirar da lista.`,
+    requires_confirmation: true,
+    auxiliary_data: { item_id: item.id, valor: resolvido.valor },
+    report_url: null,
+    action_taken: "comprei_item_lista:aguardando_confirmacao",
+  };
+}
 
 /**
  * §17: "Comprei o sal."
@@ -415,6 +435,7 @@ export const compreiItemLista: Handler = async ({
     const compra = await registrarCompraDoItemAction(db, item.id, {
       amount: p.valor,
       pago: p.pago,
+      due_date: p.vencimento ? new Date(p.vencimento) : null,
       recorded_by_user_id: user_id ?? null,
     });
     if (!compra.ok) return failReply(intent, compra);
@@ -427,6 +448,24 @@ export const compreiItemLista: Handler = async ({
       report_url: null,
       action_taken: `${intent}:${item.id}`,
     };
+  }
+
+  // A resposta a "Quando vence?": uma data, ou "já paguei". Sem nenhuma das
+  // duas, segue como assunto novo.
+  if (!confirmed && pendente?.aguardando === "vencimento") {
+    const p = pendente.parameters as unknown as CompraResolvida;
+    const item = await db.shoppingItem.findFirst({ where: { id: p.item_id } });
+    if (!item) {
+      await clearPendingLista(tenant_id, user_id!);
+      return ask("Esse item não está mais na sua lista.");
+    }
+    if (respondeuQueJaPagou(parameters)) return pedirConfirmacaoDaCompra(tenant_id, user_id, item, { ...p, pago: true });
+    const lida = lerData(parameters, "vencimento", "due_date", "data_pagamento");
+    if (lida.tipo === "ok") return pedirConfirmacaoDaCompra(tenant_id, user_id, item, { ...p, vencimento: lida.data.toISOString() });
+    if (lida.tipo === "invalida") {
+      await savePendingLista(tenant_id, user_id!, { parameters: p, aguardando: "vencimento" });
+      return ask(`Não entendi o vencimento "${lida.bruto}". ${PERGUNTA_DO_VENCIMENTO}`);
+    }
   }
 
   const termo = str(parameters.descricao) ?? str(parameters.description) ?? str(parameters.item);
@@ -479,17 +518,20 @@ export const compreiItemLista: Handler = async ({
    * `registrar_lancamento_financeiro`.
    */
   const resolvido: CompraResolvida = { item_id: item.id, valor, pago };
-  if (temMemoria) {
-    await savePendingLista(tenant_id, user_id!, {
-      parameters: resolvido,
-      aguardando: "confirmacao_compra",
-    });
+
+  /**
+   * Dívida 5.6: a prazo sem data, a conta nascia vencendo hoje; desde 29/09 a
+   * action recusa. Pergunta antes da confirmação, como gado e estoque.
+   */
+  if (!pago) {
+    const lida = lerData(parameters, "vencimento", "due_date", "data_pagamento");
+    if (lida.tipo === "ok") {
+      resolvido.vencimento = lida.data.toISOString();
+    } else {
+      if (temMemoria) await savePendingLista(tenant_id, user_id!, { parameters: resolvido, aguardando: "vencimento" });
+      return ask(PERGUNTA_DO_VENCIMENTO);
+    }
   }
-  return {
-    reply_text: `Comprou ${descreverItem(item)} por ${reaisBr(valor)}? Vou lançar a despesa e tirar da lista.`,
-    requires_confirmation: true,
-    auxiliary_data: { item_id: item.id, valor },
-    report_url: null,
-    action_taken: `${intent}:aguardando_confirmacao`,
-  };
+
+  return pedirConfirmacaoDaCompra(tenant_id, user_id, item, resolvido);
 };

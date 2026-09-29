@@ -268,23 +268,28 @@ em todo domínio não coberto.
   a distância vira 3 dias e a promessa de lembrete aparece. É o teste, não o
   código. Custo: montar a data pelo dia de São Paulo (`inicioDoDiaEmSaoPaulo`).
 
-### 5.6 Leilão e permuta ainda nascem vencendo hoje quando não têm prazo
+### 5.8 Dois caminhos ainda nascem vencendo hoje sem prazo
 
-A compra de gado (29/09/2026) e a compra/venda de INSUMO (mesma data, decisão do
-usuário estendida ao estoque) deixaram de nascer vencendo hoje: o handler
-PERGUNTA antes de gravar ("Você já pagou, ou vai pagar depois?"). A raiz continua
-nas actions: `due_date: input.pago ? occurred_at : (input.due_date ?? new Date())`
-em `negotiations.ts`, `product-negotiations.ts`, `event-consignments.ts` e
-`barters.ts`. Sem vencimento dito, a conta vence hoje e no dia seguinte aparece
-como vencida.
+Resíduo da 5.6, fechada em 29/09/2026: as quatro actions de negociação (gado,
+produto, encerramento de remessa, permuta) passaram a RECUSAR conta em aberto
+sem vencimento e sem parcelas (422 `VENCIMENTO_OBRIGATORIO`), e as telas da
+permuta e da Lista de Compra ganharam o campo "Vence em". Ficaram dois:
 
-Ficam abertos os handlers que ainda não perguntam: leilão/evento
-(`registrar_remessa_evento`, `encerrar_remessa_evento`) e permuta
-(`registrar_permuta`). Os três nem são emitidos pelo agente hoje (classificador
-congelado), então o defeito só aparece quando a intenção for ensinada ao n8n.
-Custo: repetir a mesma pergunta nesses handlers, reusando
-`respondeuQueJaPagou` (exportada por `negociacao.ts`) e o ramo de mesclagem de
-`comMemoria` em `estoque.ts` como modelo, e atualizar `test:m48` e `test:m49`.
+- **Venda que sai de uma estadia** (`venderDaEstadiaNaTransacao`, em
+  `negotiations.ts`): a tela de encerramento da estadia do REBANHO
+  (`stay-close-form.tsx`) não tem campo de pagamento nenhum, então recusar ali
+  quebraria a venda. A do confinamento (`lot-close-form.tsx`) já exige a data.
+- **Custo de remessa SEM venda** (`closeEventConsignment`): não passa por
+  `validarPagamento`, e o custo em aberto cai em hoje.
+
+Custo: dar à tela da estadia o par "já recebeu? / vence em" e então recusar em
+`venderDaEstadiaNaTransacao`; para a remessa, exigir `due_date` do custo quando
+não houver venda.
+
+Registro, não defeito: pelo AGENTE, leilão e permuta nunca nasciam vencendo
+hoje. `encerrar_remessa_evento` e `registrar_permuta` gravam sempre com
+`pago: true`. Se isso deve virar pergunta, é decisão de produto para quando o
+classificador for destravado.
 
 ### 3.2 Arquivar um tenant pela Plataforma não tira o acesso dele
 

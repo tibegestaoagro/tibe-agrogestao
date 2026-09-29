@@ -146,9 +146,10 @@ export async function createBarter(
     const erro = validarPagamento({
       amount: input.diferenca.amount,
       pago: input.pago,
+      due_date: input.due_date,
       parcelas: input.parcelas,
     });
-    if (erro) return fail(erro.code, erro.message, 422, "amount");
+    if (erro) return fail(erro.code, erro.message, 422, erro.field ?? "amount");
   }
 
   const property = await db.property.findFirst({ where: { id: input.property_id } });
@@ -325,7 +326,8 @@ export async function createBarter(
           input.pago || !input.parcelas || input.parcelas.length === 0
             ? [
                 {
-                  due_date: input.pago ? occurred_at : (input.due_date ?? new Date()),
+                  // Em aberto sem parcelas, `validarPagamento` já exigiu o vencimento.
+                  due_date: input.pago ? occurred_at : input.due_date!,
                   amount: input.diferenca.amount,
                 },
               ]

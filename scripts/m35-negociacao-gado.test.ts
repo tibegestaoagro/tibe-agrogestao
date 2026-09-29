@@ -242,6 +242,7 @@ async function main() {
       // Em aberto de propósito: este bloco testa a volta do rebanho. Negócio
       // já pago tem trava própria, exercitada no bloco 8.b.
       pago: false,
+      due_date: new Date(Date.now() + 30 * 86400000),
     });
     check(paraCancelar.ok, "compra a ser cancelada registrada");
     if (paraCancelar.ok) {
@@ -349,7 +350,16 @@ async function main() {
       property_id: fazenda.id,
       itens: [{ category_id: "bezerro_0_7", quantity: 5 }],
       amount: 10000,
+      pago: true,
     };
+
+    // Dívida 5.6: em aberto sem vencimento e sem parcelas, recusa no campo em
+    // vez de gravar a conta vencendo hoje.
+    const semVencimento = await createCattleNegotiation(db, { ...base, pago: false });
+    check(
+      !semVencimento.ok && semVencimento.code === "VENCIMENTO_OBRIGATORIO" && semVencimento.field === "due_date",
+      "em aberto sem vencimento é recusado no campo due_date",
+    );
 
     const semValor = await createCattleNegotiation(db, { ...base, amount: 0 });
     check(!semValor.ok && semValor.code === "VALIDATION_ERROR", "valor zero é recusado");

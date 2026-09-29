@@ -75,6 +75,7 @@ const ORDEM = [
   "name",
   "type",
   "amount",
+  "due_date",
 ] as const;
 type Campo = (typeof ORDEM)[number];
 
@@ -140,6 +141,8 @@ export default function BarterForm({
   const [direcao, setDirecao] = useState<"nao" | "paguei" | "recebi">("nao");
   const [valor, setValor] = useState("");
   const [pago, setPago] = useState(true);
+  // Dívida 5.6: em aberto sem data, a diferença nascia vencendo hoje.
+  const [vencimento, setVencimento] = useState("");
 
   const pastosDaFazenda = pastures.filter((p) => p.property_id === propertyId);
   const temDiferenca = direcao !== "nao";
@@ -167,6 +170,7 @@ export default function BarterForm({
     setDirecao("nao");
     setValor("");
     setPago(true);
+    setVencimento("");
     err.limparTudo();
   }
 
@@ -240,6 +244,7 @@ export default function BarterForm({
     if (temDiferenca && (lerValorDoCampo(valor) ?? 0) <= 0) {
       novos.amount = "Informe o valor da diferença.";
     }
+    if (temDiferenca && !pago && !vencimento) novos.due_date = "Informe quando vence.";
     if (Object.keys(novos).length > 0) {
       err.setGlobal(null);
       err.reprovar(novos);
@@ -258,6 +263,7 @@ export default function BarterForm({
       contact_name: contato.trim() || null,
       occurred_at: occurredAt ? new Date(`${occurredAt}T12:00:00`).toISOString() : null,
       pago: temDiferenca ? pago : false,
+      due_date: temDiferenca && !pago && vencimento ? new Date(`${vencimento}T12:00:00`).toISOString() : null,
       notes: notes.trim() || null,
     });
     setLoading(false);
@@ -665,6 +671,22 @@ export default function BarterForm({
                   </Select>
                 )}
               </Field>
+              {!pago && (
+                <Field label="Vence em" required id="due_date" error={err.erros.due_date}>
+                  {({ id, ...aria }) => (
+                    <Input
+                      id={id}
+                      {...aria}
+                      type="date"
+                      value={vencimento}
+                      onChange={(e) => {
+                        setVencimento(e.target.value);
+                        err.limparCampo("due_date");
+                      }}
+                    />
+                  )}
+                </Field>
+              )}
             </>
           )}
         </div>
