@@ -440,27 +440,18 @@ no mesmo molde da seção 8 de `m67`: toda intenção de escrita ou está na lis
 ou o arquivo do handler dela contém `"confirmacao"`. Fica aqui o registro do
 porquê, que a suíte não tem como contar.
 
-### 5.1 Categoria ambígua sem memória de candidata, em dois outros pontos
+### 5.5 A resposta à pergunta de categoria descarta a quantidade nova
 
-Achado em 2026-09-16, na Fase 4 do agente, enquanto a memória de candidata era
-ligada no negócio de gado (commit `b6bbfe7`). A correção de lá cruza a resposta
-do produtor com as opções que o agente acabou de mostrar, para "novilha" mais
-"13 a 24" fechar em fêmea de 13 a 24 meses. **Dois caminhos irmãos continuam
-sem essa memória**, e nenhum roteiro os exercitou ainda:
+Resíduo conhecido da correção de 29/09 (commit `51a8634`, que fechou a antiga
+5.1). Com uma pergunta de categoria aberta, "comprei 10 fêmeas de 13 a 24
+meses" muda a categoria e MANTÉM a quantidade do pedido guardado (30), porque a
+resposta só preenche o campo perguntado. É deliberado: preencher mais de um
+campo a partir de uma frase que era resposta a outra pergunta é o caminho que
+já trouxe perda silenciosa neste arquivo.
 
-1. `whatsapp-handlers/negociacao.ts` (~295), a segunda resolução, que roda
-   quando os itens já vêm completos numa mensagem só ("comprei 20 novilhas do
-   João"). Ali existe um problema DIFERENTE e pior: se a rodada seguinte trouxer
-   só a categoria (`{categoria: "13 a 24"}`), ela é descartada em silêncio,
-   porque `itensDosParametros` dá preferência ao array `itens` com o termo
-   antigo.
-2. `whatsapp-handlers/herd.ts` (~555), `registrarMovimentacaoRebanho`, o fluxo
-   de rebanho puro, com a mesma pergunta de faixa e o mesmo esquecimento.
-
-Custo: passar `candidatosAnteriores` nos dois, como já se faz no negócio, e
-decidir o que fazer quando o array `itens` e o campo achatado discordam. Não
-grava nada errado: trava a conversa numa pergunta repetida, que é o modo caro
-mas seguro de falhar.
+Não grava errado: a confirmação mostra a quantidade e o produtor pode recusar.
+Custo de fechar: decidir quando uma resposta pode reabrir o pedido inteiro em
+vez de responder um campo, o que é desenho de conversa, não conserto.
 
 ### 5.2 `contas-do-contato.ts` não usa `FinancialEntry.contact_id`
 
