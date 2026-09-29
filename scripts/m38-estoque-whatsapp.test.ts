@@ -466,7 +466,7 @@ async function main() {
       role: "OWNER",
       activeProfiles: ["fazenda"],
       intent: "registrar_negocio_gado",
-      parameters: { tipo: "compra", categoria: "bezerro", quantidade: 20, valor: 60000 },
+      parameters: { tipo: "compra", categoria: "bezerro", quantidade: 20, valor: 60000, pago: true },
       confirmed: false,
       explicitNo: false,
       user_id: usuario.id,
@@ -687,7 +687,7 @@ async function main() {
 
     // 9e. Um "sim" de estoque não pode executar um negócio de GADO pendente.
     await savePendingNegotiation(tenant.id, conversador.id, {
-      parameters: { tipo: "compra", categoria: "bezerro", quantidade: 20, valor: 60000 },
+      parameters: { tipo: "compra", categoria: "bezerro", quantidade: 20, valor: 60000, pago: true },
       aguardando: "confirmacao",
     });
     const negociosGadoAntes = await db.negotiation.count({ where: { type: "compra_gado" } });
@@ -955,7 +955,7 @@ async function main() {
     // Estoque primeiro, gado depois: o "sim" e do GADO.
     await registrarUsoEstoque(comoEle({ produto: "sal" }));
     await savePendingNegotiation(tenant.id, conversador.id, {
-      parameters: { tipo: "compra", categoria: "bezerro", quantidade: 20, valor: 60000 },
+      parameters: { tipo: "compra", categoria: "bezerro", quantidade: 20, valor: 60000, pago: true },
       aguardando: "confirmacao",
       salvo_em: Date.now() + 1000,
     });
@@ -1387,7 +1387,7 @@ async function main() {
       comoEle({ tipo: "compra", produto: "sal", quantidade: 10, valor: 600 }),
     );
     await savePendingNegotiation(tenant.id, conversador.id, {
-      parameters: { tipo: "compra", categoria: "bezerro", quantidade: 20, valor: 60000 },
+      parameters: { tipo: "compra", categoria: "bezerro", quantidade: 20, valor: 60000, pago: true },
       aguardando: "confirmacao",
       salvo_em: Date.now() + 5000,
     });
@@ -1579,7 +1579,7 @@ async function main() {
     // "deixa pra la" encerra o que estava aberto nos TRES dominios.
     await clearPendingStock(tenant.id, conversador.id);
     await savePendingNegotiation(tenant.id, conversador.id, {
-      parameters: { tipo: "compra", categoria: "bezerro", quantidade: 20, valor: 60000 },
+      parameters: { tipo: "compra", categoria: "bezerro", quantidade: 20, valor: 60000, pago: true },
       aguardando: "confirmacao",
     });
     await registrarUsoEstoque(comoEle({ produto: "sal" }));
@@ -1842,7 +1842,7 @@ async function main() {
     await clearPendingStock(tenant.id, conversador.id);
     await clearPendingNegotiation(tenant.id, conversador.id);
     await savePendingNegotiation(tenant.id, conversador.id, {
-      parameters: { tipo: "compra", categoria: "bezerro", quantidade: 20, valor: 60000 },
+      parameters: { tipo: "compra", categoria: "bezerro", quantidade: 20, valor: 60000, pago: true },
       aguardando: "confirmacao",
     });
     await registrarUsoEstoque(comoON8nManda({ produto: "Sal mineral 60 P" }));

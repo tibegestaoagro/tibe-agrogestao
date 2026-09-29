@@ -24,7 +24,7 @@ import {
 } from "@/lib/actions/stock-pending";
 import { loadPendingNegotiation } from "@/lib/actions/negotiation-pending";
 import { resolverFazenda } from "./herd";
-import { ask, failReply, str, INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR, type Handler, type RouterResult } from "./shared";
+import { ask, failReply, semPreposicaoInicial, str, INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR, type Handler, type RouterResult } from "./shared";
 import { reaisBr as reais } from "@/lib/numero-br";
 import {
   custosDosParametros,
@@ -920,14 +920,15 @@ export const registrarNegocioProduto: Handler = async (ctx) => {
    * o classificador emite ("comprei do Zé"). Lendo só `contato`, o fornecedor
    * dito na frase era descartado e o `Contact` nunca nascia.
    */
-  const contato =
+  const contato = semPreposicaoInicial(
     str(parameters.contato) ??
-    str(parameters.contact_name) ??
-    str(parameters.contact) ??
-    (compra ? str(parameters.vendedor) : str(parameters.comprador)) ??
-    str(parameters.vendedor) ??
-    str(parameters.comprador) ??
-    null;
+      str(parameters.contact_name) ??
+      str(parameters.contact) ??
+      (compra ? str(parameters.vendedor) : str(parameters.comprador)) ??
+      str(parameters.vendedor) ??
+      str(parameters.comprador) ??
+      null,
+  );
 
   // "Já paguei" e "vou parcelar em 3x" não podem valer ao mesmo tempo. A
   // action recusaria, mas a pergunta aqui é melhor que o erro depois da

@@ -17,7 +17,7 @@ import {
   conferirOndeEstaOSaldo,
   nomeDaCategoria,
 } from "./herd";
-import { ask, failReply, str, num, type Handler, type RouterResult } from "./shared";
+import { ask, failReply, semPreposicaoInicial, str, num, type Handler, type RouterResult } from "./shared";
 import { reaisBr as reais } from "@/lib/numero-br";
 import {
   custosDosParametros,
@@ -93,6 +93,17 @@ function primeiroItemBruto(parameters: Record<string, unknown>): { categoria: st
   if (typeof registro !== "object" || registro === null) return null;
   const r = registro as Record<string, unknown>;
   return { categoria: str(r.categoria) ?? str(r.category), quantidade: r.quantidade ?? r.quantity };
+}
+
+/**
+ * "Já paguei", respondendo à pergunta do vencimento. A resposta chega no campo
+ * que foi perguntado (`vencimento`) ou como `pago`, dependendo de o
+ * classificador ter reconhecido a frase.
+ */
+function respondeuQueJaPagou(novos: Record<string, unknown>): boolean {
+  if (interpretarSim(novos.pago)) return true;
+  const dito = (str(novos.vencimento) ?? str(novos.due_date) ?? str(novos.resposta) ?? "").toLowerCase();
+  return /pago|paguei|quitad|receb|vista/.test(dito);
 }
 
 /**
@@ -202,6 +213,16 @@ export const registrarNegocioGado: Handler = async ({
       // pergunta se repete até a trava de laço, que é o comportamento certo.
       parameters = { ...pendente.parameters, ...parametrosDaMensagem };
     }
+  } else if (pendente?.aguardando === "vencimento" && respondeuQueJaPagou(parametrosDaMensagem)) {
+    /**
+     * A pergunta do vencimento aceita as duas respostas possíveis: uma data, ou
+     * "já paguei". Sem este ramo, "já paguei" caía em `lerData` como vencimento
+     * inválido e a mesma pergunta voltava até a trava de laço.
+     */
+    parameters = { ...pendente.parameters, pago: true };
+    delete parameters.vencimento;
+    delete parameters.due_date;
+    delete parameters.data_pagamento;
   } else if (pendente && pendente.aguardando !== "confirmacao") {
     const juntado = aplicarRespostaNegocio(pendente, parametrosDaMensagem);
     if (juntado) {
@@ -235,7 +256,7 @@ export const registrarNegocioGado: Handler = async ({
     if (tentativas >= MAX_TENTATIVAS) {
       await clearPendingNegotiation(tenant_id, user_id!);
       return ask(
-        "Não estou conseguindo entender essa parte. Tente mandar tudo numa frase só, " +
+        "Não estou conseguindo entender essa parte, e não registrei nada. Tente mandar tudo numa frase só, " +
           'por exemplo: "comprei 20 bezerros do João por 60 mil em 3 vezes".',
       );
     }
@@ -401,12 +422,13 @@ export const registrarNegocioGado: Handler = async ({
    * "Vendedor: João". Sem isto, o nome que o produtor disse era descartado.
    * §4 permite criar com só o nome, sem classificar.
    */
-  const nomeContato =
+  const nomeContato = semPreposicaoInicial(
     str(parameters.contato) ??
-    str(parameters.contact) ??
-    (compra ? str(parameters.vendedor) : str(parameters.comprador)) ??
-    str(parameters.vendedor) ??
-    str(parameters.comprador);
+      str(parameters.contact) ??
+      (compra ? str(parameters.vendedor) : str(parameters.comprador)) ??
+      str(parameters.vendedor) ??
+      str(parameters.comprador),
+  );
   // NÃO cria aqui. Criar antes do "sim" gravava o contato "João" no banco assim
   // que o produtor descrevia o negócio, e ele ficava lá mesmo se a resposta
   // fosse "cancela". A promessa é que nada é gravado antes da confirmação, e
@@ -475,12 +497,41 @@ export const registrarNegocioGado: Handler = async ({
   if (vencimentoLido.tipo === "invalida") {
     return perguntar(
       ask(
-        `Não entendi o vencimento "${vencimentoLido.bruto}". Diga por exemplo "dia 10" ou "10/12/2026".`,
+        `Não entendi o vencimento "${vencimentoLido.bruto}". Diga por exemplo "dia 10" ou "10/12/2026", ou diga que já foi ${compra ? "pago" : "recebido"}.`,
       ),
       "vencimento",
     );
   }
   const vencimento = vencimentoLido.tipo === "ok" ? vencimentoLido.data : null;
+
+  /**
+   * Sem forma de pagamento nenhuma, a conta nascia vencendo HOJE, e no dia
+   * seguinte já aparecia como vencida: a confirmação dizia "Pagamento: ainda em
+   * aberto" e mesmo assim gravava uma data. Visto em 29/09/2026, na rodada do
+   * roteiro em produção. Decisão do usuário: perguntar antes de gravar.
+   *
+   * A pergunta aceita as duas respostas, e "já paguei" é tratado na mesclagem
+   * lá em cima, porque por aqui ele viraria vencimento inválido. Numa venda a
+   * pergunta é sobre RECEBER, e "já recebi" também casa lá em cima.
+   *
+   * E se a resposta não for data nem "já paguei" ("não sei", "depois a gente
+   * vê")? Decisão: NÃO inventa prazo. Cai na mensagem de vencimento inválido
+   * (que agora oferece as duas saídas) e, na terceira tentativa, a trava de
+   * laço encerra dizendo que NADA foi registrado. Não é perda silenciosa: quem
+   * foi avisado, sabe. Gravar sem data reabriria o defeito que esta pergunta
+   * fecha (conta vencendo hoje), e assumir "em aberto sem prazo" esconderia a
+   * dívida dos alertas.
+   */
+  if (!pago && !quantasParcelas && !vencimento) {
+    return perguntar(
+      ask(
+        compra
+          ? 'Você já pagou, ou vai pagar depois? Se for depois, me diga o vencimento, por exemplo "dia 10".'
+          : 'Você já recebeu, ou vai receber depois? Se for depois, me diga a data, por exemplo "dia 10".',
+      ),
+      "vencimento",
+    );
+  }
 
   // --- regra 2: confirmar sempre, mostrando o que vai ser escrito ----------
 

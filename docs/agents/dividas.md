@@ -268,15 +268,23 @@ em todo domínio não coberto.
   a distância vira 3 dias e a promessa de lembrete aparece. É o teste, não o
   código. Custo: montar a data pelo dia de São Paulo (`inicioDoDiaEmSaoPaulo`).
 
-### 5.0 O nome do vendedor sai com a preposição colada
+### 5.6 Compra de INSUMO sem prazo também nasce vencendo hoje
 
-Achado em 2026-09-16, na rodada de ponta a ponta da Fase 4: "comprei 15
-bezerros do Ze Carlos" vira "Vendedor: **do** Ze Carlos" no resumo da
-confirmação. O campo `contato` guarda o trecho literal, e o briefing dos
-autores já pede o nome sem preposição ("Pasto da Baixada", não "no Pasto da
-Baixada"), então é a extração que não está aparando. Não afeta o que é gravado,
-só o texto que o produtor lê. Custo: aparar preposição inicial ao normalizar o
-contato, com cuidado para não comer nome que comece com "Do" de verdade.
+Mesmo defeito que a compra de gado teve até 29/09/2026, no caminho irmão. A
+raiz é `due_date: input.pago ? occurred_at : (input.due_date ?? new Date())`,
+em três pontos de `src/lib/actions/negotiations.ts`: sem vencimento dito, a
+conta nasce vencendo hoje e no dia seguinte aparece como vencida.
+
+No gado isso deixou de acontecer porque o handler agora PERGUNTA antes de
+gravar ("Você já pagou, ou vai pagar depois?"). O handler de estoque
+(`registrar_negocio_produto`) não pergunta, então "comprei 10 sacas de sal do
+Zé por 200" continua criando conta vencida no dia seguinte.
+
+Não foi corrigido junto porque muda o fluxo de conversa do estoque e derruba
+blocos de `test:m38`, e porque a decisão do usuário foi tomada olhando a compra
+de gado. Custo: repetir a mesma pergunta no handler de estoque, com o texto de
+compra e de venda, e atualizar as suítes. O leilão e a permuta usam os mesmos
+três pontos e merecem a mesma conferência.
 
 ### 3.2 Arquivar um tenant pela Plataforma não tira o acesso dele
 

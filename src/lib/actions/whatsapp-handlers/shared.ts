@@ -274,6 +274,37 @@ export function ehSoCumprimento(texto: string | null | undefined): boolean {
   return palavras.every((p) => PALAVRAS_DE_CUMPRIMENTO.has(p));
 }
 
+/**
+ * Apara a preposição que o classificador traz colada no nome: "comprei 20
+ * bezerros DO João" devolvia o contato como "do João", e era assim que o nome
+ * ia para a confirmação E para o cadastro de contato.
+ *
+ * Achado em 16/09 (dívida 5.0, que dizia "não afeta o que é gravado") e visto
+ * gravado de verdade em 29/09, na rodada do roteiro: o `Contact` nasceu com o
+ * nome "do João".
+ *
+ * ⚠️ O critério é a CAIXA da primeira palavra: a preposição do classificador
+ * vem minúscula ("do João"), e nome próprio vem maiúsculo ("Da Mata Sementes",
+ * "Do Carmo", "Dona Maria"). Limite aceito: nome próprio digitado todo em
+ * minúsculas ("da mata sementes") é aparado, porque o erro contrário grava o
+ * contato como "do João", que é o defeito que motivou isto. Só apara quando
+ * sobra nome depois da preposição.
+ */
+const PREPOSICOES_INICIAIS = new Set(["do", "da", "de", "dos", "das", "no", "na", "nos", "nas", "ao", "pro", "pra", "para"]);
+const ARTIGOS = new Set(["o", "a", "os", "as"]);
+
+export function semPreposicaoInicial(nome: string | null): string | null {
+  if (!nome) return null;
+  const limpo = nome.trim();
+  const palavras = limpo.split(/\s+/);
+  if (!PREPOSICOES_INICIAIS.has(palavras[0])) return limpo;
+  // "para o João", "para a Maria": preposição + artigo.
+  const corte = palavras[0] === "para" && ARTIGOS.has(palavras[1] ?? "") ? 2 : 1;
+  const resto = palavras.slice(corte).join(" ");
+  // "do" sozinho devolve o que veio: aparar deixaria o contato sem nome.
+  return resto.length >= 2 ? resto : limpo;
+}
+
 export function normalizarTermo(termo: string): string {
   // Filtro por código numérico, não regex de caractere combinante: o próprio
   // caractere é invisível no editor e some numa cópia distraída (armadilha que
