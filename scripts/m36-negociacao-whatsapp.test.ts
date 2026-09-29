@@ -1295,6 +1295,33 @@ async function main() {
       String(contaDia10?.due_date),
     );
 
+    // ⚠️ A frase que tem a PALAVRA e a DATA: "vou receber dia 10" e "vou pagar
+    // dia 10" têm o pedaço "receb"/"pag" que marca quitação, e valem a data.
+    // Lido como quitado, o dinheiro entrava como recebido e ninguém cobraria o
+    // dia 10.
+    await clearPendingNegotiation(tenant.id, USUARIO);
+    await registrarNegocioGado(
+      ctx(db, tenant.id, { ...base, vendedor: "Rui Futuro" }, { userId: USUARIO }),
+    );
+    const antesDasFrasesComData = await db.negotiation.count();
+    for (const frase of ["vou pagar dia 10", "vou receber dia 10", "só recebo semana que vem"]) {
+      const comData = await registrarNegocioGado(
+        ctx(db, tenant.id, { vencimento: frase }, { userId: USUARIO }),
+      );
+      check(
+        `"${frase}" NUNCA vira quitação`,
+        !comData.reply_text.includes("já foi feito"),
+        comData.reply_text,
+      );
+    }
+    // Três respostas que o agente não lê acabam na trava de laço, que APAGA o
+    // pedido. O que não pode, em nenhuma delas, é nascer negócio.
+    check(
+      "e nada foi gravado em nenhuma das três",
+      (await db.negotiation.count()) === antesDasFrasesComData,
+    );
+    await clearPendingNegotiation(tenant.id, USUARIO);
+
     // "Já paguei" grava QUITADA, sem conta em aberto.
     await clearPendingNegotiation(tenant.id, USUARIO);
     await registrarNegocioGado(

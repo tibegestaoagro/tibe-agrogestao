@@ -99,10 +99,21 @@ function primeiroItemBruto(parameters: Record<string, unknown>): { categoria: st
  * "Já paguei", respondendo à pergunta do vencimento. A resposta chega no campo
  * que foi perguntado (`vencimento`) ou como `pago`, dependendo de o
  * classificador ter reconhecido a frase.
+ *
+ * ⚠️ **Data dita vence a palavra.** "vou receber dia 10" tem o pedaço "receb" e
+ * seria lido como "já recebi": a conta a receber viraria receita JÁ QUITADA, e
+ * ninguém iria cobrar o dia 10. Por isso, se dá para ler uma data no que veio,
+ * a resposta é a data, e esta função nem opina. O erro que ela evita é do tipo
+ * que este projeto já pagou caro duas vezes: dinheiro gravado num estado que o
+ * produtor não disse.
  */
-function respondeuQueJaPagou(novos: Record<string, unknown>): boolean {
-  if (interpretarSim(novos.pago)) return true;
+export function respondeuQueJaPagou(novos: Record<string, unknown>): boolean {
   const dito = (str(novos.vencimento) ?? str(novos.due_date) ?? str(novos.resposta) ?? "").toLowerCase();
+  // Data dita, mesmo que o parser não consiga lê-la na frase inteira: a
+  // resposta é sobre QUANDO, e quitar aqui seria inventar o estado do dinheiro.
+  if (lerData(novos, "vencimento", "due_date", "data_pagamento", "resposta").tipo === "ok") return false;
+  if (/\bdia\s*\d{1,2}\b|\d{1,2}\s*\/\s*\d{1,2}|\bamanh[ãa]\b|\bsemana que vem\b|\bm[êe]s que vem\b/.test(dito)) return false;
+  if (interpretarSim(novos.pago)) return true;
   return /pago|paguei|quitad|receb|vista/.test(dito);
 }
 

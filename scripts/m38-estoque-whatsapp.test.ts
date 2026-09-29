@@ -444,7 +444,7 @@ async function main() {
       role: "OWNER",
       activeProfiles: ["fazenda"],
       intent: "registrar_negocio_gado",
-      parameters: { tipo: "compra", produto: "sal", quantidade: 5, valor: 600 },
+      parameters: { tipo: "compra", produto: "sal", quantidade: 5, valor: 600, pago: true },
       confirmed: false,
       explicitNo: false,
       user_id: usuario.id,
@@ -513,6 +513,7 @@ async function main() {
       produto: "racao",
       quantidade: "2.000",
       valor: "4 mil",
+      pago: true,
     });
     check(
       '"2.000 kg" entra como 2000, não como 2',
@@ -661,7 +662,7 @@ async function main() {
     // 9d. O "sim" executa o que foi MOSTRADO, não o que o LLM remontar.
     const saldoAntesDaCompra = await saldoDe(sal.data.id);
     const mostrou = await registrarNegocioProduto(
-      comoEle({ tipo: "compra", produto: "sal", quantidade: 10, valor: 1200 }),
+      comoEle({ tipo: "compra", produto: "sal", quantidade: 10, valor: 1200, pago: true }),
     );
     check("a compra pediu confirmação", mostrou.requires_confirmation === true);
     check(
@@ -697,7 +698,7 @@ async function main() {
       role: "OWNER",
       activeProfiles: ["fazenda"],
       intent: "registrar_negocio_gado",
-      parameters: { tipo: "compra", produto: "sal", quantidade: 5, valor: 600 },
+      parameters: { tipo: "compra", produto: "sal", quantidade: 5, valor: 600, pago: true },
       confirmed: false,
       explicitNo: false,
       user_id: conversador.id,
@@ -837,7 +838,7 @@ async function main() {
     await clearPendingStock(tenant.id, conversador.id);
     const negociosAntesDaCorrecao = await db.negotiation.count();
     await registrarNegocioProduto(
-      comoEle({ tipo: "compra", produto: "sal", quantidade: 10, valor: 1200 }),
+      comoEle({ tipo: "compra", produto: "sal", quantidade: 10, valor: 1200, pago: true }),
     );
     const corrigindo = await registrarNegocioProduto(
       comoEle({ tipo: "compra", produto: "sal", quantidade: 50, valor: 6000 }),
@@ -1169,7 +1170,7 @@ async function main() {
 
     // P1. A mensagem nova entra POR CIMA do acumulado, nunca no lugar.
     await clearPendingStock(tenant.id, conversador.id);
-    await registrarNegocioProduto(comoEle({ tipo: "compra", produto: "sal", quantidade: 3 }));
+    await registrarNegocioProduto(comoEle({ tipo: "compra", produto: "sal", quantidade: 3, pago: true }));
     // "do Ze" nao e valor, entao nao casa com o campo perguntado. Nem por isso
     // pode ser jogado fora: o fornecedor foi dito.
     await registrarNegocioProduto(comoEle({ contato: "Ze da Esquina" }));
@@ -1209,7 +1210,7 @@ async function main() {
     // P3. `movement_type` e apelido de `tipo`: o campo que roteou ate aqui nao
     // pode ser jogado fora e virar "comprou ou vendeu?".
     const comMovementType = await registrarNegocioProduto(
-      comoEle({ movement_type: "compra", produto: "sal", quantidade: 2, valor: 200 }),
+      comoEle({ movement_type: "compra", produto: "sal", quantidade: 2, valor: 200, pago: true }),
     );
     check(
       "movement_type vale como tipo, sem reperguntar o que ja foi dito",
@@ -1261,7 +1262,7 @@ async function main() {
     // A ancora aguenta o classificador remontar o TIPO errado.
     await clearPendingStock(tenant.id, conversador.id);
     await registrarNegocioProduto(
-      comoEle({ tipo: "compra", produto: "sal", quantidade: 4, valor: 400 }),
+      comoEle({ tipo: "compra", produto: "sal", quantidade: 4, valor: 400, pago: true }),
     );
     await registrarNegocioProduto(
       comoEle({ tipo: "venda", produto: "sal", quantidade: 4, valor: 400 }, { confirmed: true }),
@@ -1452,7 +1453,7 @@ async function main() {
 
     // P5: "comprei do Ze" -- o §9.2 chama de vendedor, nao de contato.
     const comVendedor = await registrarNegocioProduto(
-      comoEle({ tipo: "compra", produto: "sal", quantidade: 2, valor: 200, vendedor: "Ze da Serra" }),
+      comoEle({ tipo: "compra", produto: "sal", quantidade: 2, valor: 200, vendedor: "Ze da Serra", pago: true }),
     );
     check(
       '"vendedor" vale como contato, e aparece na confirmacao',
@@ -1509,7 +1510,7 @@ async function main() {
     // A borda contraria: dentro do saldo, a venda segue para a confirmacao.
     await clearPendingStock(tenant.id, conversador.id);
     const vendaPossivel = await registrarNegocioProduto(
-      comoEle({ tipo: "venda", produto: "sal", quantidade: 1, valor: 140 }),
+      comoEle({ tipo: "venda", produto: "sal", quantidade: 1, valor: 140, pago: true }),
     );
     check(
       "e uma venda dentro do saldo continua pedindo confirmacao",
@@ -1519,7 +1520,7 @@ async function main() {
     // E a COMPRA nunca e barrada por saldo: ela acrescenta.
     await clearPendingStock(tenant.id, conversador.id);
     const compraGrande = await registrarNegocioProduto(
-      comoEle({ tipo: "compra", produto: "sal", quantidade: 99999, valor: 1000 }),
+      comoEle({ tipo: "compra", produto: "sal", quantidade: 99999, valor: 1000, pago: true }),
     );
     check(
       "compra de qualquer tamanho passa: comprar nao tem teto",
@@ -1542,7 +1543,7 @@ async function main() {
     // "nao e X, e Y" e a forma mais natural de corrigir em portugues, e o
     // assistente PERGUNTA de um jeito que convida exatamente isso.
     await registrarNegocioProduto(
-      comoEle({ tipo: "compra", produto: "sal", quantidade: 10, valor: 1200 }),
+      comoEle({ tipo: "compra", produto: "sal", quantidade: 10, valor: 1200, pago: true }),
     );
     const corrigiuComNao = await registrarNegocioProduto(
       comoEle({ quantidade: 50 }, { explicitNo: true }),
@@ -1612,7 +1613,7 @@ async function main() {
     // Duas correcoes seguidas nao podem virar "laco".
     await clearPendingStock(tenant.id, conversador.id);
     await registrarNegocioProduto(
-      comoEle({ tipo: "compra", produto: "sal", quantidade: 10, valor: 1200 }),
+      comoEle({ tipo: "compra", produto: "sal", quantidade: 10, valor: 1200, pago: true }),
     );
     await registrarNegocioProduto(comoEle({ quantidade: 50 }));
     const segundaCorrecao = await registrarNegocioProduto(comoEle({ valor: 5000 }));
@@ -1625,7 +1626,7 @@ async function main() {
     // A borda contraria: repetir a MESMA coisa ainda cansa e desiste.
     await clearPendingStock(tenant.id, conversador.id);
     await registrarNegocioProduto(
-      comoEle({ tipo: "compra", produto: "sal", quantidade: 4, valor: 400 }),
+      comoEle({ tipo: "compra", produto: "sal", quantidade: 4, valor: 400, pago: true }),
     );
     // Junta TODAS as respostas: depois de desistir, o pendente e apagado e a
     // volta seguinte ja recomeca do zero. Olhar so a ultima mediria a conversa
@@ -1648,7 +1649,7 @@ async function main() {
     await clearPendingStock(tenant.id, conversador.id);
     const negociosAntesDoOk = await db.negotiation.count();
     await registrarNegocioProduto(
-      comoEle({ tipo: "compra", produto: "sal", quantidade: 10, valor: 1200 }),
+      comoEle({ tipo: "compra", produto: "sal", quantidade: 10, valor: 1200, pago: true }),
     );
     const gestoProprioComOk = await routeIntent(db, {
       tenant_id: tenant.id,
@@ -1696,6 +1697,7 @@ async function main() {
       produto: "Sal mineral 60 P",
       quantidade: 10,
       valor: 1200,
+      pago: true,
     };
 
     // 25a. "nao" remontando o pedido inteiro CANCELA.
@@ -1891,6 +1893,104 @@ async function main() {
       "mas consulta, porque leitura é permitida para ele",
       !podeLer.action_taken.includes("sem_permissao"),
       podeLer.action_taken,
+    );
+
+    // ------------------------------------------------------------------
+    console.log("\n12. Compra e venda de produto sem prazo perguntam antes de gravar (29/09/2026)");
+    // ------------------------------------------------------------------
+    // Mesmo defeito do gado (m36, bloco 41): "comprei 10 sacas de sal do Ze por
+    // 200" gravava uma conta a pagar vencendo HOJE, vencida no dia seguinte.
+    await clearPendingStock(tenant.id, operador.id);
+    const baseSal = { tipo: "compra", produto: "sal", quantidade: 10, valor: 200, contato: "Ze Prazo" };
+    const negociosAntes12 = await db.negotiation.count();
+    const semPrazo = await registrarNegocioProduto(comOperador(baseSal));
+    check(
+      "sem prazo, pergunta sobre pagar",
+      semPrazo.reply_text.includes("Você já pagou, ou vai pagar depois?"),
+      semPrazo.reply_text,
+    );
+    check("e ainda não pede confirmação", semPrazo.requires_confirmation === false);
+    check("e não gravou nada", (await db.negotiation.count()) === negociosAntes12);
+    check(
+      "o pedido fica guardado esperando o vencimento",
+      (await loadPendingStock(tenant.id, operador.id))?.aguardando === "vencimento",
+    );
+
+    const diaDez = await registrarNegocioProduto(comOperador({ vencimento: "dia 10" }));
+    check(
+      "responder 'dia 10' chega na confirmação com o vencimento",
+      diaDez.requires_confirmation === true && diaDez.reply_text.includes("A pagar em"),
+      diaDez.reply_text,
+    );
+    await registrarNegocioProduto(comOperador({}, { confirmed: true }));
+    const contaDia10 = await db.financialEntry.findFirst({
+      where: { negotiation_role: "principal", negotiation: { contact: { name: "Ze Prazo" } } },
+    });
+    check(
+      "a conta vence dia 10, não hoje",
+      contaDia10?.due_date?.toISOString().slice(8, 10) === "10" && contaDia10.status === "pending",
+      String(contaDia10?.due_date),
+    );
+
+    // "Já paguei" grava QUITADA, sem conta em aberto.
+    await clearPendingStock(tenant.id, operador.id);
+    await registrarNegocioProduto(comOperador({ ...baseSal, contato: "Ana Quitada" }));
+    const jaPaguei = await registrarNegocioProduto(comOperador({ vencimento: "já paguei" }));
+    check("'já paguei' chega na confirmação como pago", jaPaguei.reply_text.includes("Já pago"), jaPaguei.reply_text);
+    await registrarNegocioProduto(comOperador({}, { confirmed: true }));
+    const contasAna = await db.financialEntry.findMany({
+      where: { negotiation: { contact: { name: "Ana Quitada" } } },
+    });
+    check(
+      "a despesa fica QUITADA e não sobra conta em aberto",
+      contasAna.length > 0 && contasAna.every((c) => c.status === "paid"),
+      JSON.stringify(contasAna.map((c) => c.status)),
+    );
+
+    // Quem já falou a forma de pagamento não ganha pergunta a mais.
+    for (const [rotulo, extra] of [
+      ["em 3 vezes", { parcelas: 3 }],
+      ["para pagar dia 10", { vencimento: "dia 10" }],
+      ["já pago", { pago: true }],
+    ] as const) {
+      await clearPendingStock(tenant.id, operador.id);
+      const r = await registrarNegocioProduto(comOperador({ ...baseSal, ...extra }));
+      check(`"${rotulo}" vai direto à confirmação, sem pergunta nova`, r.requires_confirmation === true, r.reply_text);
+    }
+
+    // Venda: a pergunta é sobre RECEBER.
+    await clearPendingStock(tenant.id, operador.id);
+    const vendaSemPrazo = await registrarNegocioProduto(
+      comOperador({ ...baseSal, tipo: "venda", quantidade: 1, contato: "Bia Receber" }),
+    );
+    check(
+      "venda sem prazo pergunta sobre receber",
+      vendaSemPrazo.reply_text.includes("Você já recebeu, ou vai receber depois?") &&
+        !vendaSemPrazo.reply_text.includes("pagou"),
+      vendaSemPrazo.reply_text,
+    );
+    const jaRecebi = await registrarNegocioProduto(comOperador({ vencimento: "já recebi" }));
+    check("'já recebi' vale como quitado", jaRecebi.reply_text.includes("Já pago"), jaRecebi.reply_text);
+
+    // Resposta que não é data nem "já paguei": não inventa prazo, e a terceira
+    // volta encerra dizendo que nada foi registrado.
+    await clearPendingStock(tenant.id, operador.id);
+    const negociosAntesDaTrava = await db.negotiation.count();
+    await registrarNegocioProduto(comOperador(baseSal));
+    const naoSei1 = await registrarNegocioProduto(comOperador({ vencimento: "não sei" }));
+    check("'não sei' não vira data: pergunta de novo", naoSei1.reply_text.includes("Não entendi o vencimento"), naoSei1.reply_text);
+    check("e não pede confirmação", naoSei1.requires_confirmation === false);
+    const naoSei2 = await registrarNegocioProduto(comOperador({ vencimento: "depois a gente vê" }));
+    check("na trava de laço, avisa que nada foi registrado", naoSei2.reply_text.includes("Não estou conseguindo"), naoSei2.reply_text);
+    check("e nada foi gravado", (await db.negotiation.count()) === negociosAntesDaTrava);
+
+    // O caminho que grava SEM confirmar não ganha pergunta nenhuma.
+    await clearPendingStock(tenant.id, operador.id);
+    const usoSemPergunta = await registrarUsoEstoque(comOperador({ produto: "sal", quantidade: 1 }));
+    check(
+      "o uso de estoque segue gravando direto, sem pergunta de pagamento",
+      usoSemPergunta.action_taken === "registrar_uso_estoque:ok",
+      usoSemPergunta.action_taken,
     );
   } finally {
     await prisma.alert.deleteMany({ where: { tenant_id: tenant.id } });

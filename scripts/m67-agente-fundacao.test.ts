@@ -433,8 +433,8 @@ async function main() {
       await db.product.create({ data: scoped({ category_id: categoriaSal.id, name: "Sal M67", unit: "saca" }) });
       const compra = await acao(
         "registrar_negocio_produto",
-        { tipo: "compra", produto: "Sal M67", quantidade: 10, valor: 1200 },
-        "comprei 10 sacas de sal por 1200",
+        { tipo: "compra", produto: "Sal M67", quantidade: 10, valor: 1200, pago: true },
+        "comprei 10 sacas de sal por 1200, já paguei",
       );
       check("a compra de sal ficou esperando confirmação", compra.data.requires_confirmation === true, compra.data.reply_text);
       await new Promise((r) => setTimeout(r, 20));
