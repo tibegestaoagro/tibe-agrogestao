@@ -4,6 +4,7 @@ import type { ProfileType } from "@/lib/tenant-context";
 import { canAccess, canWrite } from "@/lib/permissions";
 import { INTENT_ACCESS, type Intent } from "@/lib/whatsapp-intents";
 import type { RouterResult, HandlerCtx, Handler } from "@/lib/actions/whatsapp-handlers/shared";
+import { SAUDACAO, ehSoCumprimento } from "@/lib/actions/whatsapp-handlers/shared";
 import {
   cadastrarAnimal,
   registrarLoteAnimal,
@@ -723,6 +724,15 @@ export async function routeIntent(
   }
 
   if (intent === "ambigua") {
+    if (ehSoCumprimento(ctx.message_text)) {
+      return comIntencao({
+        reply_text: SAUDACAO,
+        requires_confirmation: false,
+        auxiliary_data: null,
+        report_url: null,
+        action_taken: "ambigua:cumprimento",
+      });
+    }
     return comIntencao({
       reply_text:
         "Não entendi. Posso cadastrar novas informações ou te contar o que já está cadastrado: me diga o que você precisa, ou pergunte 'o que você faz?' que eu te mostro as opções.",

@@ -35,6 +35,7 @@ async function callExecute(input: {
   user_id: string;
   intent: string;
   parameters?: Record<string, unknown>;
+  message_text?: string;
 }) {
   const req = new Request("http://localhost/api/internal/whatsapp/execute-action", {
     method: "POST",
@@ -295,6 +296,38 @@ async function main() {
     assert(
       /cadastrado/i.test(ambigua.body.data.reply_text) && /o que você faz/i.test(ambigua.body.data.reply_text),
       "ambigua convida a perguntar 'o que você faz?' em vez de só pedir pra reformular",
+    );
+
+    // ── cumprimento: a primeira mensagem de todo mundo ───────────────────
+    // Achado em uso real (29/09): "bom dia" respondia "Não entendi".
+    for (const texto of ["Bom dia", "bom dia!!", "Oi", "Boa tarde, tudo bem?", "BOA NOITE"]) {
+      const saudacao = await callExecute({
+        tenant_id: tenantA.id,
+        user_id: ownerA.id,
+        intent: "ambigua",
+        parameters: {},
+        message_text: texto,
+      });
+      assert(
+        saudacao.body.data.action_taken === "ambigua:cumprimento" &&
+          /Olá/.test(saudacao.body.data.reply_text) &&
+          !/Não entendi/.test(saudacao.body.data.reply_text),
+        `cumprimento "${texto}" recebe saudação, não "não entendi"`,
+      );
+    }
+
+    // A ponta que importa: mensagem que só COMEÇA com cumprimento não pode
+    // virar saudação, porque a saudação engoliria o pedido.
+    const comPedido = await callExecute({
+      tenant_id: tenantA.id,
+      user_id: ownerA.id,
+      intent: "ambigua",
+      parameters: {},
+      message_text: "bom dia, quanto tenho de sal mineral?",
+    });
+    assert(
+      comPedido.body.data.action_taken === "ambigua" && /Não entendi/.test(comPedido.body.data.reply_text),
+      "mensagem com assunto depois do cumprimento não vira saudação",
     );
   } finally {
     await deleteTestTenants([tenantA.id, tenantB.id]);
