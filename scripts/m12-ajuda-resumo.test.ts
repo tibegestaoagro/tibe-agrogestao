@@ -300,7 +300,19 @@ async function main() {
 
     // ── cumprimento: a primeira mensagem de todo mundo ───────────────────
     // Achado em uso real (29/09): "bom dia" respondia "Não entendi".
-    for (const texto of ["Bom dia", "bom dia!!", "Oi", "Boa tarde, tudo bem?", "BOA NOITE"]) {
+    // "Oi, bom dia" é o caso que derrubou a primeira versão desta guarda, em
+    // produção, minutos depois do deploy: duas saudações numa frase só.
+    for (const texto of [
+      "Bom dia",
+      "bom dia!!",
+      "Oi",
+      "Oi, bom dia",
+      "opa, boa tarde",
+      "Boa tarde, tudo bem?",
+      "BOA NOITE",
+      "e aí, tudo bem?",
+      "olá, como vai você?",
+    ]) {
       const saudacao = await callExecute({
         tenant_id: tenantA.id,
         user_id: ownerA.id,
@@ -318,17 +330,25 @@ async function main() {
 
     // A ponta que importa: mensagem que só COMEÇA com cumprimento não pode
     // virar saudação, porque a saudação engoliria o pedido.
-    const comPedido = await callExecute({
-      tenant_id: tenantA.id,
-      user_id: ownerA.id,
-      intent: "ambigua",
-      parameters: {},
-      message_text: "bom dia, quanto tenho de sal mineral?",
-    });
-    assert(
-      comPedido.body.data.action_taken === "ambigua" && /Não entendi/.test(comPedido.body.data.reply_text),
-      "mensagem com assunto depois do cumprimento não vira saudação",
-    );
+    for (const texto of [
+      "bom dia, quanto tenho de sal mineral?",
+      "oi, comprei 20 bezerros",
+      "bom",
+      "tudo",
+      "dia 10",
+    ]) {
+      const comPedido = await callExecute({
+        tenant_id: tenantA.id,
+        user_id: ownerA.id,
+        intent: "ambigua",
+        parameters: {},
+        message_text: texto,
+      });
+      assert(
+        comPedido.body.data.action_taken === "ambigua" && /Não entendi/.test(comPedido.body.data.reply_text),
+        `"${texto}" não vira saudação`,
+      );
+    }
   } finally {
     await deleteTestTenants([tenantA.id, tenantB.id]);
   }
