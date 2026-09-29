@@ -100,7 +100,12 @@ export async function classificarMensagem(input: { texto: string; hoje: string; 
       return extrairPedido(pedido.dominio, pedido.trecho, input.hoje, input.texto);
     })
   );
-  return pedidos;
+  // Dívida 5.3: com pedido de verdade na mensagem, o pedaço que ninguém entendeu
+  // virava um "Não entendi" logo depois da resposta certa, e o produtor lia que
+  // o agente se perdeu. Ambígua só responde quando é tudo o que sobrou, e uma
+  // vez só: dois pedaços sem domínio davam dois "Não entendi" seguidos.
+  const entendidos = pedidos.filter((p) => p.intent !== "ambigua");
+  return entendidos.length > 0 ? entendidos : [{ intent: "ambigua", parameters: {}, trecho: input.texto }];
 }
 
 /** `valor`: o trecho literal da mensagem que responde ao campo, ou null. */

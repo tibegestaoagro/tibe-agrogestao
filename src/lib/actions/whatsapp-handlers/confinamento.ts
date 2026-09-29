@@ -388,7 +388,7 @@ export const registrarAlimentacaoConfinamento: Handler = async ({
     str(parameters.produto) ?? str(parameters.product) ?? str(parameters.item),
   );
   if (!produtoResolvido.ok) {
-    await guardar("produto");
+    if (produtoResolvido.abrePergunta) await guardar("produto");
     return produtoResolvido.resposta;
   }
   const produto = produtoResolvido.produto;

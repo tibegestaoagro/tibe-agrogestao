@@ -92,7 +92,7 @@ type ProdutoDoCatalogo = {
 export async function resolverProduto(
   db: TenantPrismaClient,
   nome: string | null,
-): Promise<{ ok: true; produto: ProdutoDoCatalogo } | { ok: false; resposta: RouterResult }> {
+): Promise<{ ok: true; produto: ProdutoDoCatalogo } | { ok: false; resposta: RouterResult; abrePergunta: boolean }> {
   const produtos = await db.product.findMany({
     where: { archived_at: null },
     select: { id: true, name: true, unit: true },
@@ -105,6 +105,10 @@ export async function resolverProduto(
       resposta: ask(
         "Você ainda não tem produto cadastrado no estoque. Cadastre no painel, em Estoque, e depois me chame.",
       ),
+      // Beco sem saída: nenhuma resposta do produtor resolve isto pelo WhatsApp.
+      // Guardar pendente deixava o cursor preso aqui, e a resposta seguinte a
+      // OUTRA pergunta virava nome de produto (dívida 5.3, caso 3).
+      abrePergunta: false,
     };
   }
 
@@ -112,6 +116,7 @@ export async function resolverProduto(
     return {
       ok: false,
       resposta: ask(`Qual produto?\n${produtos.map((p) => `- ${p.name}`).join("\n")}`),
+      abrePergunta: true,
     };
   }
 
@@ -129,6 +134,7 @@ export async function resolverProduto(
       resposta: ask(
         `Tenho mais de um parecido com "${nome}". Qual deles?\n${parciais.map((p) => `- ${p.name}`).join("\n")}`,
       ),
+      abrePergunta: true,
     };
   }
 
@@ -137,6 +143,7 @@ export async function resolverProduto(
     resposta: ask(
       `Não achei "${nome}" no seu estoque. Você tem:\n${produtos.map((p) => `- ${p.name}`).join("\n")}\n\nSe for produto novo, cadastre no painel, em Estoque.`,
     ),
+    abrePergunta: true,
   };
 }
 
@@ -545,7 +552,7 @@ export const registrarUsoEstoque: Handler = async (ctx) => {
     db,
     str(parameters.produto) ?? str(parameters.product) ?? str(parameters.item),
   );
-  if (!produtoResolvido.ok) return guardar("produto", produtoResolvido.resposta.reply_text);
+  if (!produtoResolvido.ok) return produtoResolvido.abrePergunta ? guardar("produto", produtoResolvido.resposta.reply_text) : produtoResolvido.resposta;
   const produto = produtoResolvido.produto;
   parameters.produto = produto.name;
 
@@ -631,7 +638,7 @@ export const ajustarEstoque: Handler = async (ctx) => {
     db,
     str(parameters.produto) ?? str(parameters.product) ?? str(parameters.item),
   );
-  if (!produtoResolvido.ok) return guardar("produto", produtoResolvido.resposta.reply_text);
+  if (!produtoResolvido.ok) return produtoResolvido.abrePergunta ? guardar("produto", produtoResolvido.resposta.reply_text) : produtoResolvido.resposta;
   const produto = produtoResolvido.produto;
   parameters.produto = produto.name;
 
@@ -867,7 +874,7 @@ export const registrarNegocioProduto: Handler = async (ctx) => {
     db,
     str(parameters.produto) ?? str(parameters.product) ?? str(parameters.item),
   );
-  if (!produtoResolvido.ok) return guardar("produto", produtoResolvido.resposta.reply_text);
+  if (!produtoResolvido.ok) return produtoResolvido.abrePergunta ? guardar("produto", produtoResolvido.resposta.reply_text) : produtoResolvido.resposta;
   const produto = produtoResolvido.produto;
   parameters.produto = produto.name;
 
