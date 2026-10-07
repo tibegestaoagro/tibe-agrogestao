@@ -907,10 +907,24 @@ async function main() {
         "falta receber",
         "não foi pago",
         "vou ser pago",
+        "quando for pago",
+        "será pago",
+        "recebi só metade",
       ]) {
         check(`"${frase}" não é quitação`, respondeuQueJaPagou({ vencimento: frase }) === false);
       }
-      for (const frase of ["já recebi", "recebi", "já está pago", "à vista", "já paguei", "quitado", "já caiu na conta"]) {
+      for (const frase of [
+        "já recebi",
+        "recebi",
+        "já está pago",
+        "à vista",
+        "já paguei",
+        "quitado",
+        "já caiu na conta",
+        "paguei no pix",
+        "recebi em dinheiro",
+        "já recebi tudo no pix.",
+      ]) {
         check(`"${frase}" é quitação`, respondeuQueJaPagou({ vencimento: frase }) === true);
       }
 

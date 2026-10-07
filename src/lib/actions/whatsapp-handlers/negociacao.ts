@@ -113,16 +113,22 @@ export function respondeuQueJaPagou(novos: Record<string, unknown>): boolean {
   // resposta é sobre QUANDO, e quitar aqui seria inventar o estado do dinheiro.
   if (lerData(novos, "vencimento", "due_date", "data_pagamento", "resposta").tipo === "ok") return false;
   if (/\bdia\s*\d{1,2}\b|\d{1,2}\s*\/\s*\d{1,2}|\bamanh[ãa]\b|\bsemana que vem\b|\bm[êe]s que vem\b/.test(dito)) return false;
-  // Negação e futuro não quitam ("vou ser pago", "não foi pago").
-  if (/\b(n[ãa]o|nada|ainda|vou|vai|vamos|depois|fiado|falta|receberei|recebo|pagarei|pago depois)\b|\ba (receber|pagar)\b/.test(dito)) return false;
   if (interpretarSim(novos.pago)) return true;
-  // Só AFIRMAÇÃO no passado quita. A versão anterior aceitava qualquer
-  // "receb", e "vou receber depois", "receberei" e "falta receber" viravam
-  // receita JÁ RECEBIDA (revisão do Codex na dívida 5.8, 2026-10-07). Tudo
-  // que não está aqui cai na recusa de vencimento inválido, que pergunta de
-  // novo: errar para o lado de perguntar é o que não grava dinheiro errado.
-  return /\b(recebi|recebemos|recebid[oa]|paguei|pagamos|pag[oa]|quitad[oa]|quitei)\b|(^|\s)[àa] vista\b|(^|\s)j[áa] (caiu|entrou)\b/.test(dito);
+  // Só uma RESPOSTA COMPLETA de quitação vale, ancorada do começo ao fim.
+  // Procurar palavra solta não serve: "vou receber depois", "receberei",
+  // "quando for pago" e "recebi só metade" viravam receita JÁ RECEBIDA, uma
+  // de cada vez, em três rodadas de revisão do Codex (dívida 5.8, 2026-10-07).
+  // Tudo que não é exatamente isto cai na recusa de vencimento inválido, que
+  // pergunta de novo: errar para o lado de perguntar não grava dinheiro errado.
+  const resposta = dito.replace(/[.!,;]+/g, " ").replace(/\s+/g, " ").trim();
+  return QUITACAO.some((padrao) => padrao.test(resposta));
 }
+
+const QUITACAO = [
+  /^(sim )?(j[áa] )?(foi |est[áa] |t[áa] )?(recebi|recebemos|recebid[oa]|paguei|pagamos|pag[oa]|quitad[oa]|quitei)( tudo)?( (no|em|via|pelo) (pix|dinheiro|esp[ée]cie|cart[ãa]o|transfer[êe]ncia|banco))?( na hora)?$/,
+  /^(foi |j[áa] foi |pago |paguei )?[àa] vista$/,
+  /^j[áa] (caiu|entrou)( na conta)?$/,
+];
 
 /**
  * Os ids das categorias que a última pergunta de faixa ofereceu, guardados
