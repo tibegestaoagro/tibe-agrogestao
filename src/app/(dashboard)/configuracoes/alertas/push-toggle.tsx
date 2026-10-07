@@ -8,6 +8,7 @@ import {
   fetchVapidPublicKey,
   getExistingSubscription,
   isPushSupported,
+  servidorConheceInscricao,
   subscribeToPush,
   unsubscribeFromPush,
 } from "@/components/pwa/push-client";
@@ -30,16 +31,28 @@ type Estado =
   | { tipo: "inativo" };
 
 /**
- * Função pura (sem setState): calcula o estado a partir do navegador. Fica
- * fora do componente para o efeito de montagem poder chamá-la dentro de um
- * `.then()`, em vez de invocar direto um `useCallback` que faz `setState`,
- * padrão que o `react-hooks/set-state-in-effect` reprova.
+ * Função pura (sem setState): calcula o estado a partir do navegador E do
+ * servidor. Fica fora do componente para o efeito de montagem poder chamá-la
+ * dentro de um `.then()`, em vez de invocar direto um `useCallback` que faz
+ * `setState`, padrão que o `react-hooks/set-state-in-effect` reprova.
+ *
+ * Dívida 5.0h: só o navegador decidia "ativo". Inscrição viva aqui com a
+ * linha já podada no servidor (404/410, falhas seguidas, outro usuário que
+ * desligou) mostrava "ativas" para sempre, e nada chegava. Agora o servidor é
+ * consultado; sem resposta dele (sem rede), vale o que o navegador sabe.
  */
 async function determinarEstado(): Promise<Estado> {
   if (!isPushSupported()) return { tipo: "sem-suporte" };
   if (Notification.permission === "denied") return { tipo: "negado" };
   const subscription = await getExistingSubscription();
-  return subscription ? { tipo: "ativo", subscription } : { tipo: "inativo" };
+  if (!subscription) return { tipo: "inativo" };
+  if ((await servidorConheceInscricao(subscription)) === false) {
+    // Órfã: o servidor não manda nada para ela. Esquecer aqui deixa o
+    // "Ativar" criar uma inscrição nova que o servidor conheça.
+    await subscription.unsubscribe().catch(() => {});
+    return { tipo: "inativo" };
+  }
+  return { tipo: "ativo", subscription };
 }
 
 export default function PushToggle() {

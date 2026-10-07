@@ -47,7 +47,8 @@ export type NotifyChannelResult = { attempted: boolean; ok: boolean };
 
 export type NotifyPushResult = NotifyChannelResult & {
   /**
-   * Quantas inscrições de push ativas o tenant tinha ANTES deste envio.
+   * Quantas inscrições de push ativas o DESTINATÁRIO tinha antes deste envio
+   * (as dele, não as do tenant: dívida 5.0f).
    * É existência, não sucesso de entrega, o que decide o fallback para
    * WhatsApp em urgency "digest" (ver notify()): uma inscrição presente cuja
    * entrega falhou não cai para WhatsApp.

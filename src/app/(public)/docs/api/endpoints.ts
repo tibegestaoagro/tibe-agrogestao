@@ -1723,15 +1723,23 @@ export const GROUPS: Group[] = [
   },
   {
     title: "Notificações (push web)",
-    note: "Push é por INSCRIÇÃO, não por usuário: todo aparelho inscrito no tenant recebe. Por isso a inscrição guarda o endpoint do navegador, e não só o id de quem clicou.",
+    note: "Push é por PESSOA: um alerta vai para os aparelhos de quem o recebe, nunca para os de outra pessoa do mesmo tenant, e é o resultado DESSA pessoa que decide se o WhatsApp entra como reserva. A inscrição guarda o endpoint do navegador porque uma pessoa pode ter vários aparelhos. Inscrição que o serviço de push reporta morta (404/410) some na hora; três falhas seguidas de outro tipo também.",
     endpoints: [
       {
         method: "GET",
         path: "/api/v1/notifications/public-key",
         auth: "Sessão",
-        description: "Devolve a chave pública VAPID que o navegador precisa para criar a inscrição. Responde 503 quando o push não está configurado no ambiente (VAPID ausente).",
+        description: "Devolve a chave pública VAPID que o navegador precisa para criar a inscrição. Quando o push não está configurado no ambiente (VAPID ausente), responde 200 com `vapid_public_key: null`: ausência não é erro, e o cliente simplesmente não oferece o push.",
         response: `200
 { "data": { "vapid_public_key": "BEl62i..." }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/notifications/subscribe",
+        auth: "Sessão",
+        description: "Se o servidor conhece este aparelho (`?endpoint=`) para a pessoa da sessão. A tela de alertas usa para não dizer \"ativas neste navegador\" sobre uma inscrição que o servidor já podou.",
+        response: `200
+{ "data": { "subscribed": true }, "meta": {} }`,
       },
       {
         method: "POST",
@@ -1746,10 +1754,10 @@ export const GROUPS: Group[] = [
         method: "DELETE",
         path: "/api/v1/notifications/subscribe",
         auth: "Sessão",
-        description: "Cancela a inscrição daquele endpoint (o usuário desliga a notificação no aparelho).",
+        description: "Cancela a inscrição daquele endpoint (o usuário desliga a notificação no aparelho). `deleted` diz quantas linhas saíram: 0 quando o endpoint não é desta pessoa, e aí `unsubscribed` é false.",
         request: `{ "endpoint": "https://fcm.googleapis.com/fcm/send/..." }`,
         response: `200
-{ "data": { "unsubscribed": true }, "meta": {} }`,
+{ "data": { "unsubscribed": true, "deleted": 1 }, "meta": {} }`,
       },
     ],
   },

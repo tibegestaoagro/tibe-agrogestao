@@ -93,14 +93,34 @@ function isUniqueConstraintError(e: unknown): boolean {
  * de outro tenant respondem igual (nenhuma linha afetada), sem distinguir os
  * casos para quem chama (mesmo padrão de revokeRefreshToken em auth-token.ts).
  */
+/** Quantas linhas apagou: 0 quando o endpoint não era desta pessoa (dívida 5.0h). */
 export async function removeSubscription(params: {
+  tenant_id: string;
+  user_id: string;
+  endpoint: string;
+}): Promise<number> {
+  const db = prismaForTenant(params.tenant_id);
+  const deleted = await db.pushSubscription.deleteMany({
+    where: { endpoint: params.endpoint, user_id: params.user_id },
+  });
+  return deleted.count;
+}
+
+/**
+ * Se o servidor conhece este aparelho para esta pessoa (dívida 5.0h). A tela
+ * decidia "ativo" só pelo `PushManager` do navegador: inscrição viva no
+ * navegador com a linha já podada aqui mostrava "ativas" para sempre, e nada
+ * chegava.
+ */
+export async function isSubscribed(params: {
   tenant_id: string;
   user_id: string;
   endpoint: string;
 }): Promise<boolean> {
   const db = prismaForTenant(params.tenant_id);
-  const deleted = await db.pushSubscription.deleteMany({
+  const linha = await db.pushSubscription.findFirst({
     where: { endpoint: params.endpoint, user_id: params.user_id },
+    select: { id: true },
   });
-  return deleted.count > 0;
+  return linha !== null;
 }
