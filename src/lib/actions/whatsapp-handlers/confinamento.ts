@@ -527,7 +527,22 @@ export const encerrarConfinamento: Handler = async ({
     }
   } else if (pendente?.gesto === gesto && pendente.aguardando !== "confirmacao") {
     const juntos = aplicarRespostaConfinamento(pendente, parametrosDaMensagem);
-    if (juntos) parameters = juntos;
+    if (juntos) {
+      parameters = juntos;
+    } else if (pendente.aguardando === "vencimento") {
+      // A resposta ao prazo nem sempre volta no campo perguntado: "já recebi"
+      // chega como `pago: true`, e a data às vezes como `data_pagamento`. Sem
+      // isto, o pedido guardado era trocado pela mensagem solta e a conversa
+      // voltava a "Quantos animais saíram?" (revisão do Codex, dívida 5.8).
+      const dataDita = str(parametrosDaMensagem.data_pagamento) ?? str(parametrosDaMensagem.resposta);
+      if (dataDita) parameters = { ...pendente.parameters, vencimento: dataDita };
+      else if (respondeuQueJaPagou(parametrosDaMensagem)) {
+        // Sem o vencimento velho: "vou receber depois" guardado antes seria
+        // lido de novo e desfaria o "já recebi" (mesma limpeza de `negociacao.ts`).
+        const { vencimento: _v, due_date: _d, ...resto } = pendente.parameters;
+        parameters = { ...resto, pago: true };
+      } else parameters = pendente.parameters;
+    }
   }
 
   const guardar = async (aguardando: CampoConfinamento) => {

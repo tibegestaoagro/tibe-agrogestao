@@ -892,6 +892,28 @@ async function main() {
       const receitaPaga = await db.financialEntry.findFirst({ where: { amount: 3100, entry_type: "income" }, orderBy: { created_at: "desc" } });
       check("e a receita nasce quitada", receitaPaga?.status === "paid", String(receitaPaga?.status));
       await clearPendingConfinement(tenant.id, owner.id);
+
+      // Revisão do Codex (dívida 5.8): negação e futuro não são "já recebi",
+      // e a resposta que volta fora do campo perguntado não perde o pedido.
+      const { respondeuQueJaPagou } = await import("@/lib/actions/whatsapp-handlers/negociacao");
+      for (const frase of ["vou receber depois", "ainda não recebi", "não recebi", "vai pagar depois", "a receber"]) {
+        check(`"${frase}" não é quitação`, respondeuQueJaPagou({ vencimento: frase }) === false);
+      }
+      for (const frase of ["já recebi", "recebi", "já está pago", "à vista"]) {
+        check(`"${frase}" é quitação`, respondeuQueJaPagou({ vencimento: frase }) === true);
+      }
+
+      await acao("encerrar_confinamento", { quantidade: 1, valor: 3200, tipo: "venda" }, "vendi 1 boi do confinamento por 3200");
+      const depois = await acao("encerrar_confinamento", { vencimento: "vou receber depois" }, "vou receber depois");
+      check("\"vou receber depois\" pergunta a data em vez de quitar", !depois.data.requires_confirmation && /vencimento/.test(depois.data.reply_text), depois.data.reply_text);
+      const pagoSolto = await acao("encerrar_confinamento", { pago: true }, "já recebi");
+      check("pago:true fora do campo responde a pergunta sem perder o pedido", pagoSolto.data.requires_confirmation === true && /3\.200/.test(pagoSolto.data.reply_text) && /já recebida/.test(pagoSolto.data.reply_text), pagoSolto.data.reply_text);
+      await clearPendingConfinement(tenant.id, owner.id);
+
+      await acao("encerrar_confinamento", { quantidade: 1, valor: 3300, tipo: "venda" }, "vendi 1 boi do confinamento por 3300");
+      const dataSolta = await acao("encerrar_confinamento", { data_pagamento: "10/12/2099" }, "dia 10 de dezembro de 2099");
+      check("data_pagamento fora do campo vira o vencimento", dataSolta.data.requires_confirmation === true && /3\.300/.test(dataSolta.data.reply_text) && /a receber em 10\/12\/2099/.test(dataSolta.data.reply_text), dataSolta.data.reply_text);
+      await clearPendingConfinement(tenant.id, owner.id);
     }
 
     console.log("\n13. O formulário não toma o sim/não de um pedido mais novo");
