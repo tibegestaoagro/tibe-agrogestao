@@ -219,21 +219,6 @@ estreito e monoespaçado.
 O item que morava aqui era o `resolverPasto`, que escolhia o primeiro pasto
 parecido em silêncio, fechado em 10/09/2026 (bloco 18 da `m34`).
 
-### 3.1 Redis fora do ar pendura quem espera por ele
-
-Achado em 2026-09-15, na Fase 2 do agente. `getRedisConnection()`
-(`src/lib/redis.ts`) cria o cliente com `maxRetriesPerRequest: null`: com o
-servidor inacessível, o comando fica na fila e tenta para sempre, e o `await`
-nunca resolve nem rejeita. Nenhum `try/catch` pega isso. Valia antes da Fase 2
-para os pendentes dos handlers (`pending-store.ts`); o cursor da conversa ganhou
-um limite de 500 ms (`src/lib/agente/cursor.ts`), mas os pendentes não. Na
-Vercel, o sintoma seria a rota estourar o tempo e o n8n reenviar. O BullMQ exige
-`null` na conexão do worker, então a correção provável é uma segunda conexão,
-com limite, para leitura e escrita curtas. Custo: pequeno, mas mexe no Redis de
-produção inteiro.
-
----
-
 ## 4. Cobertura desigual
 
 ### 4.1 `packages/contracts` cobre 4 domínios de muitos
@@ -311,76 +296,6 @@ o pagamento tira a ferramenta do curral justo de quem precisa regularizar, e
 agente responde ao recusar uma escrita. **Custo:** depois da decisão, uma
 checagem em `executarIntencao` (o núcleo comum aos dois caminhos), com a
 classificação de leitura/escrita que `whatsapp-intents.ts` já tem.
-
-### 5.0f O push é do TENANT, mas a decisão de canal é sobre UMA pessoa
-
-Achado pela revisão da Fase 6 (17/09), gravidade média-alta, deixado como dívida
-porque o conserto muda a forma de `sendPushToTenant`, não uma linha.
-
-`sendPushToTenant` envia para **todas** as inscrições do tenant e devolve
-`ok: sent > 0`. O alerta crítico usa esse `ok` para decidir se pula o WhatsApp
-**do destinatário**, que é uma pessoa só (`findAlertRecipient`: OWNER ativo,
-senão ADMIN).
-
-Cenário alcançável hoje, porque a rota de inscrição é liberada por leitura: a
-secretária (OPERADOR) liga push no notebook dela; o produtor (OWNER) não tem
-push. Chega `bill_due`: o push entrega no notebook, `push.ok` vira true, e o
-**WhatsApp do produtor não é tentado**. Ele passa a receber vencimento só por
-email, e o log diz `delivered: true`.
-
-Variante sem outra pessoa: dois aparelhos do próprio dono, um funcionando e o
-celular com inscrição morta. `sent: 1, failed: 1` dá `ok: true`, e quem está no
-campo não recebe.
-
-A decisão 5 da spec é "WhatsApp só para quem NÃO tem push ativo", **por
-pessoa**; o código lê "o tenant tem algum aparelho que recebeu". Custo: fazer o
-envio e o resultado serem por destinatário. A mesma confusão existe no `digest`
-via `subscriptions > 0`, e é anterior à Fase 6.
-
-### 5.0g Inscrição de push morta por 403 nunca é podada
-
-Achado pela revisão da Fase 6 (17/09). `sendPushToTenant` só remove a inscrição
-quando o serviço responde **404 ou 410**. Um erro persistente diferente (o caso
-clássico: **403 `InvalidCredentials` do FCM depois de trocar as chaves VAPID**)
-conta como falha e a linha fica lá para sempre.
-
-Aí o resumo diário vê `configurado: true` e `subscriptions: 1`, não cai para o
-WhatsApp (é a regra deliberada "existência, não entrega", certa para o resumo), e
-**para de sair em silêncio**, indefinidamente.
-
-É a mesma silhueta do defeito que a Task 1 desarmou, com outro gatilho. Ele
-acorda numa rotação das chaves VAPID (que está prevista na rotação de
-credenciais, item de segurança adiado): a inscrição criada em 17/09 nasceu
-contra a chave atual. Custo: podar por idade ou por contagem de falhas
-seguidas, além do 404/410.
-
-### 5.0h Desligar notificação pode deixar navegador e banco incoerentes
-
-Achado pela revisão da Fase 6 (17/09), gravidade baixa, três variantes:
-
-- o `DELETE` responde 200 e o `unsubscribe()` do navegador falha: o servidor já
-  não tem a linha e a tela continua dizendo "ativas neste navegador";
-- `removeSubscription` é escopado por tenant **e** usuário, e a rota devolve
-  sucesso mesmo apagando zero linhas: num aparelho compartilhado, a linha do
-  outro usuário fica no banco e barra o fallback do resumo até a primeira poda;
-- o controle decide "ativo" só pelo `PushManager` do navegador, sem perguntar ao
-  servidor: inscrição viva no navegador com linha já podada mostra "ativas" para
-  sempre, e nada chega.
-
-Custo: um `GET` no `/subscribe` para a tela conferir o servidor, e a rota
-devolver quantas linhas apagou.
-
-### 5.0e A doc da rota de chave VAPID promete um 503 que nunca existiu
-
-`src/app/(public)/docs/api/endpoints.ts` diz que
-`GET /api/v1/notifications/public-key` responde **503** quando o VAPID não
-está configurado. A rota sempre devolveu **200 com `vapid_public_key: null`**.
-Achado na Fase 6 (16/09), ao mexer nessa função.
-
-`test:docs-api` não pegou porque ela confere se a rota EXISTE, não o corpo da
-resposta. Custo: uma linha, escolhendo qual dos dois lados está certo. O 200
-com `null` é defensável (o cliente trata ausência sem tratar erro), então o
-mais provável é a doc estar errada, não a rota.
 
 ### 5.0 Casar nome sem acento carrega a tabela inteira em memória
 
