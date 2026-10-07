@@ -27,6 +27,7 @@ function base(on: On, percent: () => number) {
   on("classic.UserPromptSubmit", () => ({}))
   on("classic.SessionStart", () => ({}))
   on("turn.complete", (_$, e) => ({ text: e.answer }))
+  on("turn.start", (_$, e) => ({ turnId: e.turnId }))
   on("ui.toast", () => ({ value: undefined }))
   on("session.usage", () => ({
     value: { startedAt: 0, context: { tokens: percent() * 10_000, window: 1_000_000, percent: percent() }, rateLimits: [] },
@@ -220,4 +221,75 @@ test('compactação que não baixa o contexto suspende o ciclo em vez de retomar
   await $.turn.complete({ ...fimDeTurno, turnId: 'turno-2' })
   await relogio.advance(1_500)
   expect(compactou.length).toBe(1)
+})
+
+// Segunda rodada do Codex (2026-10-07).
+
+function cenarioAgir(on: On, uso: () => number, aoCompactar: () => void = () => undefined) {
+  const relogio = mock.clock(on, { now: 1_000 })
+  base(on, uso)
+  on('fs.stat', () => ({ value: { kind: 'file', size: 10, mtimeMs: 2_000, isLink: false } }))
+  const compactou: number[] = []
+  on('session.compact', () => {
+    compactou.push(1)
+    aoCompactar()
+    return { messages: MENSAGEM }
+  })
+  const enviados: string[] = []
+  on('prompt.submit', (_$, e) => {
+    enviados.push(e.text)
+    return { text: e.text }
+  })
+  return { relogio, compactou, enviados }
+}
+
+test('pergunta seguida de texto ainda conta como espera pelo usuário', async ($, on) => {
+  const { relogio, compactou, enviados } = cenarioAgir(on, () => 91)
+  await $.classic.PostToolUse(ferramenta)
+  await $.turn.complete({ ...fimDeTurno, answer: 'Posso fazer o merge?\nAguardo sua confirmação.' })
+  await relogio.advance(2_000)
+  expect(compactou.length).toBe(0)
+  expect(enviados).toEqual([])
+})
+
+test('interrogação dentro de bloco de código não segura a compactação', async ($, on) => {
+  let uso = 91
+  const { relogio, compactou } = cenarioAgir(on, () => uso, () => {
+    uso = 20
+  })
+  await $.classic.PostToolUse(ferramenta)
+  await $.turn.complete({ ...fimDeTurno, answer: 'Feito.\n```\nconst x = a ? b : c\n```' })
+  await relogio.advance(1_500)
+  expect(compactou.length).toBe(1)
+})
+
+test('turno novo que termina em pergunta cancela a compactação já agendada', async ($, on) => {
+  const { relogio, compactou } = cenarioAgir(on, () => 91)
+  await $.classic.PostToolUse(ferramenta)
+  await $.turn.complete(fimDeTurno)
+  await $.turn.start({ text: 'espera', turnId: 'turno-2' })
+  await $.turn.complete({ ...fimDeTurno, turnId: 'turno-2', answer: 'Quer que eu pare?' })
+  await relogio.advance(2_000)
+  expect(compactou.length).toBe(0)
+})
+
+test('resumo feito por fora desfaz a suspensão', async ($, on) => {
+  let uso = 91
+  const { relogio, compactou } = cenarioAgir(on, () => uso)
+  on('fs.read', () => ({ value: '## Estado atual\n' }))
+  await $.classic.PostToolUse(ferramenta)
+  await $.turn.complete(fimDeTurno)
+  await relogio.advance(1_500)
+  expect(compactou.length).toBe(1)
+  // O SessionStart do próprio resumo (logo em seguida) não desfaz a suspensão.
+  await $.classic.SessionStart({ source: 'compact' })
+  const logoDepois = await $.classic.PostToolUse(ferramenta)
+  expect(logoDepois.additionalContext ?? []).toEqual([])
+  // Minutos depois, um /compact do usuário baixa para 80: o ciclo recomeça.
+  await relogio.advance(60_000)
+  uso = 80
+  await $.classic.SessionStart({ source: 'compact' })
+  uso = 92
+  const depois = await $.classic.PostToolUse(ferramenta)
+  expect((depois.additionalContext ?? []).join(' ')).toContain('Antes de qualquer outro passo')
 })

@@ -38,9 +38,16 @@ const marcas = {
   compactando: false,
   // Muda a cada ciclo: um timer agendado num ciclo anterior não age.
   geracao: 0,
-  // Compactou e o contexto não desceu: o ciclo automático para até descer.
+  // Compactou e o contexto não desceu: o ciclo automático para até descer,
+  // ou até um resumo feito por fora recomeçar o ciclo.
   suspenso: false,
+  // Quando a compactação do próprio mod terminou: o SessionStart que ela
+  // gera (antes ou logo depois de resolver) não desfaz a suspensão dela.
+  propriaTerminouEm: undefined as number | undefined,
 }
+
+// Janela em que um SessionStart de resumo é atribuído à compactação do mod.
+const JANELA_DA_PROPRIA_MS = 5000
 
 function zerar() {
   marcas.avisou = false
@@ -49,12 +56,15 @@ function zerar() {
   marcas.geracao += 1
 }
 
-// ponytail: "terminou em pergunta" é heurística pela última linha do texto.
-// Pergunta feita por AskUserQuestion não chega aqui (o turno não termina).
-function terminaEmPergunta(resposta: string): boolean {
-  const linhas = resposta.trim().split('\n').filter((l) => l.trim() !== '')
-  const ultima = (linhas[linhas.length - 1] ?? '').trim().replace(/[*_`)\]\s]+$/, '')
-  return ultima.endsWith('?')
+// ponytail: "o usuário deve uma resposta" é heurística: um "?" nas três
+// últimas linhas fora de bloco de código. Erra para o lado seguro: no pior
+// caso adia a compactação até a próxima resposta, e o resumo automático do
+// Claude Code continua de reserva. Pergunta feita por AskUserQuestion não
+// chega aqui (o turno não termina enquanto ela está aberta).
+function esperaResposta(resposta: string): boolean {
+  const semCodigo = resposta.replace(/```[\s\S]*?```/g, '')
+  const linhas = semCodigo.split('\n').filter((l) => l.trim() !== '')
+  return linhas.slice(-3).some((l) => l.includes('?'))
 }
 
 async function percentual($: EngineInterface): Promise<number> {
@@ -100,6 +110,7 @@ async function compactar($: EngineInterface, limiares: Limiares, geracao: number
   try {
     const resultado = await $.session.compact({ instructions: INSTRUCOES_DO_RESUMO })
     if ('skip' in resultado) return
+    marcas.propriaTerminouEm = await $.clock.now()
     zerar()
     const depois = await percentual($)
     if (depois >= limiares.agir) {
@@ -151,11 +162,22 @@ export const register: Register = (on, options) => {
     return { ...resultado, additionalContext: [...(resultado.additionalContext ?? []), texto] }
   })
 
+  // Um turno novo invalida a compactação agendada pelo anterior: quem decide
+  // de novo é o fim DESTE turno.
+  on('turn.start', ($, e, next) => {
+    marcas.geracao += 1
+    return next(e)
+  })
+
   on('turn.complete', async ($, e, next) => {
     const resultado = await next(e)
     if (e.agentId || e.reason !== 'answer' || marcas.pediuEm === undefined || marcas.suspenso) return resultado
-    // O usuário deve uma resposta: nada automático até ela chegar.
-    if (terminaEmPergunta(e.answer)) return resultado
+    // O usuário deve uma resposta: nada automático até ela chegar, nem o
+    // que já estava agendado.
+    if (esperaResposta(e.answer)) {
+      marcas.geracao += 1
+      return resultado
+    }
 
     if (await handoffAtualizadoDesde($, marcas.pediuEm)) {
       // O turno ainda está fechando; a compactação só é aceita entre turnos.
@@ -188,6 +210,11 @@ export const register: Register = (on, options) => {
     const resultado = await next(e)
     if (e.source !== 'compact') return resultado
     zerar()
+    const ehDaPropria =
+      marcas.compactando ||
+      (marcas.propriaTerminouEm !== undefined &&
+        (await $.clock.now()) - marcas.propriaTerminouEm < JANELA_DA_PROPRIA_MS)
+    if (!ehDaPropria) marcas.suspenso = false
     const texto = await reinjetarHandoff($)
     if (!texto) return resultado
     return { ...resultado, additionalContext: [...(resultado.additionalContext ?? []), texto] }
