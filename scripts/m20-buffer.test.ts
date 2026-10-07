@@ -71,6 +71,18 @@ async function main() {
     const retry = await flushBuffer(phone, t3.token);
     assert(retry.ready && retry.parts === 3 && retry.message_text === f3.message_text, "o retry do mesmo token recebe o mesmo texto, nada se perde");
 
+    // Terceira rodada do Codex: o contador precisa sobreviver ao consumo
+    // guardado, senão os tokens recomeçam do 1 enquanto o consumo do token 1
+    // antigo ainda responde. Forçamos o pior caso: contador quase vencendo.
+    const { getRedisConnection: redisDoTeste } = await import("@/lib/redis");
+    const chaveSeq = `tibe:wa-buffer-seq:${phone.replace(/\D/g, "")}`;
+    const tardio = await appendToBuffer(phone, "mensagem do flush atrasado");
+    await redisDoTeste().expire(chaveSeq, 5);
+    await flushBuffer(phone, tardio.token);
+    const prazoSeq = await redisDoTeste().ttl(chaveSeq);
+    const prazoConsumo = await redisDoTeste().ttl(`tibe:wa-buffer-consumido:${phone.replace(/\D/g, "")}:${tardio.token}`);
+    assert(prazoSeq > prazoConsumo, `o contador sobrevive ao consumo guardado (seq ${prazoSeq}s > consumo ${prazoConsumo}s)`);
+
     // ── e a conversa seguinte não herda o consumo da anterior ─────────
     const depois = await appendToBuffer(phone, "outra pergunta");
     assert(depois.token > t3.token, "o token da mensagem seguinte não se repete (seq não é zerado no consumo)");

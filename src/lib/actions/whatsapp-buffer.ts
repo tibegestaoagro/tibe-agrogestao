@@ -51,7 +51,11 @@ function keys(phone: string) {
  * sumia. Agora o retry com o mesmo token recebe o mesmo texto guardado.
  *
  * `seq` NÃO é apagado: é ele que impede um token de se repetir dentro da
- * janela do consumo guardado (ver `CONSUMO_TTL_SECONDS`).
+ * janela do consumo guardado. E o prazo dele é RENOVADO no mesmo passo
+ * (`TTL_SECONDS`, maior que `CONSUMO_TTL_SECONDS`): sem isso, um flush
+ * atrasado perto do fim do prazo do `seq` deixava o consumo sobreviver ao
+ * contador, e o token 1 de uma conversa nova devolvia o texto velho (terceira
+ * rodada do Codex).
  */
 const CONSUMIR = `
 local ja = redis.call("GET", KEYS[3])
@@ -61,6 +65,7 @@ if atual ~= tonumber(ARGV[1]) then return {0, ""} end
 local partes = redis.call("LRANGE", KEYS[2], 0, -1)
 local junto = cjson.encode(partes)
 redis.call("SET", KEYS[3], junto, "EX", ARGV[2])
+redis.call("EXPIRE", KEYS[1], ARGV[3])
 redis.call("DEL", KEYS[2])
 return {1, junto}
 `;
@@ -95,7 +100,16 @@ export async function flushBuffer(
   const redis = getRedisConnection();
   const k = keys(phone);
 
-  const [pronto, junto] = (await redis.eval(CONSUMIR, 3, k.seq, k.list, k.consumido(token), token, CONSUMO_TTL_SECONDS)) as [
+  const [pronto, junto] = (await redis.eval(
+    CONSUMIR,
+    3,
+    k.seq,
+    k.list,
+    k.consumido(token),
+    token,
+    CONSUMO_TTL_SECONDS,
+    TTL_SECONDS,
+  )) as [
     number,
     string,
   ];
