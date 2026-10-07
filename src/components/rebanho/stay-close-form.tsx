@@ -10,6 +10,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
 import { Field } from "@/components/ui/field";
 import { FormSheet } from "@/components/ui/form-sheet";
@@ -116,12 +117,16 @@ export default function StayCloseForm({
   const destinos = DESTINOS_POR_TIPO[tipo];
   const pastosDisponiveis = pastures ?? SEM_PASTOS;
   const err = useErrosDeFormulario(
-    destinos.map((d) => d.movement_type).concat("quantity", "value", "pasture_id"),
+    destinos.map((d) => d.movement_type).concat("quantity", "value", "due_date", "pasture_id"),
   );
 
   const [valores, setValores] = useState<Record<string, string>>({});
   const [valorVenda, setValorVenda] = useState("");
   const [pastureId, setPastureId] = useState("");
+  // Dívida 5.8: sem prazo, a venda nascia vencendo hoje. Mesmo par da tela de
+  // encerrar lote do confinamento.
+  const [recebido, setRecebido] = useState(false);
+  const [vencimento, setVencimento] = useState("");
 
   const informado = useMemo(
     () =>
@@ -136,6 +141,8 @@ export default function StayCloseForm({
     setValores({});
     setValorVenda("");
     setPastureId("");
+    setRecebido(false);
+    setVencimento("");
     err.limparTudo();
   }
 
@@ -150,6 +157,12 @@ export default function StayCloseForm({
       });
       return;
     }
+    const valor = lerValorDoCampo(valorVenda);
+    if (vendeuAlgo && valor != null && valor > 0 && !recebido && !vencimento) {
+      err.setGlobal(null);
+      err.reprovar({ due_date: "Informe quando vai receber." });
+      return;
+    }
 
     err.limparTudo();
     setLoading(true);
@@ -160,7 +173,13 @@ export default function StayCloseForm({
           .map((d) => ({
             movement_type: d.movement_type,
             quantity: lerValorDoCampo(valores[d.movement_type] ?? "") ?? 0,
-            value: d.movement_type === "venda" ? lerValorDoCampo(valorVenda) : null,
+            value: d.movement_type === "venda" ? valor : null,
+            ...(d.movement_type === "venda"
+              ? {
+                  pago: recebido,
+                  due_date: !recebido && vencimento ? new Date(`${vencimento}T12:00:00`).toISOString() : null,
+                }
+              : {}),
             // Pasto de destino é só para quem volta ao pasto (§18): venda,
             // morte e os demais destinos não têm posição de destino para o
             // pasto pousar.
@@ -263,16 +282,60 @@ export default function StayCloseForm({
       )}
 
       {vendeuAlgo && (
-        <Field
-          label="Valor recebido pelos vendidos, em R$"
-          hint="Opcional. Gera a receita no Financeiro."
-          id="value"
-          error={err.erros.value}
-        >
-          {({ id, ...aria }) => (
-            <MoneyInput id={id} {...aria} value={valorVenda} onValueChange={setValorVenda} />
+        <>
+          <Field
+            label="Valor da venda, em R$"
+            hint="Opcional. Gera a receita no Financeiro."
+            id="value"
+            error={err.erros.value}
+          >
+            {({ id, ...aria }) => (
+              <MoneyInput id={id} {...aria} value={valorVenda} onValueChange={setValorVenda} />
+            )}
+          </Field>
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-texto">Você já recebeu?</p>
+            <div className="flex gap-2">
+              {(
+                [
+                  [false, "Vou receber"],
+                  [true, "Recebi"],
+                ] as const
+              ).map(([v, rotulo]) => (
+                <Button
+                  key={String(v)}
+                  type="button"
+                  variant={recebido === v ? "default" : "outline"}
+                  onClick={() => {
+                    setRecebido(v);
+                    if (v) {
+                      setVencimento("");
+                      err.limparCampo("due_date");
+                    }
+                  }}
+                >
+                  {rotulo}
+                </Button>
+              ))}
+            </div>
+          </div>
+          {!recebido && (
+            <Field label="Data prevista de recebimento" id="due_date" error={err.erros.due_date}>
+              {({ id, ...aria }) => (
+                <Input
+                  id={id}
+                  {...aria}
+                  type="date"
+                  value={vencimento}
+                  onChange={(e) => {
+                    setVencimento(e.target.value);
+                    err.limparCampo("due_date");
+                  }}
+                />
+              )}
+            </Field>
           )}
-        </Field>
+        </>
       )}
 
       {/* O placar da soma: aparece enquanto se digita, para a recusa do

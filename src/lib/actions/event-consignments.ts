@@ -266,6 +266,21 @@ export async function closeEventConsignment(
     if (erro) return fail(erro.code, erro.message, 422, erro.field ?? "amount");
   }
 
+  // Dívida 5.8: custo de remessa SEM venda (o frete de quem voltou sem vender)
+  // também é dinheiro a pagar, e sem prazo nascia vencendo hoje.
+  const custoSemVenda =
+    input.amount == null ? (input.custos ?? []).reduce((s, c) => s + (Number.isFinite(c.amount) ? c.amount : 0), 0) : 0;
+  if (custoSemVenda > 0) {
+    const erro = validarPagamento({
+      amount: custoSemVenda,
+      pago: input.pago,
+      due_date: input.due_date,
+      parcelas: input.parcelas,
+      custos: input.custos,
+    });
+    if (erro) return fail(erro.code, erro.message, 422, erro.field ?? "due_date");
+  }
+
   // Animal do produtor não vira animal de terceiro por mudar de lugar. É o
   // único tipo de estadia que não pode receber cabeças vindas de um evento.
   if (input.outro_destino && donoDaEstadia(input.outro_destino.type) !== "proprio") {
@@ -500,9 +515,10 @@ export async function closeEventConsignment(
           related_module: "rebanho",
           related_id: negotiationId,
           occurred_at,
-          // Parcelado, o custo vence com a primeira parcela. Custo de remessa
-          // SEM venda não passa por `validarPagamento` e ainda cai em hoje.
-          due_date: input.pago ? occurred_at : (input.due_date ?? input.parcelas?.[0]?.due_date ?? new Date()),
+          // Parcelado, o custo vence com a primeira parcela. Com ou sem venda,
+          // `validarPagamento` lá em cima garantiu um dos dois; a data do
+          // encerramento só sobra para custo de valor zero.
+          due_date: input.pago ? occurred_at : (input.due_date ?? input.parcelas?.[0]?.due_date ?? occurred_at),
           status: input.pago ? "paid" : "pending",
           negotiation_id: negotiationId,
           negotiation_role: "custo_adicional",

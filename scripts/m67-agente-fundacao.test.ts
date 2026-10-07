@@ -822,7 +822,9 @@ async function main() {
       const loteAntes = await soma("confinamento");
       const pastoAntes = await soma("presente", pasto.id);
 
-      const r = await acao("registrar_negocio_gado", { tipo: "venda", categoria: "boi", quantidade: 5, valor: 25000 }, "vendi 5 bois do confinamento por 25 mil");
+      // `pago: true` ("já recebi"): este bloco prova o ROTEAMENTO para a saída
+      // do lote; a pergunta do prazo (dívida 5.8) tem cenário próprio abaixo.
+      const r = await acao("registrar_negocio_gado", { tipo: "venda", categoria: "boi", quantidade: 5, valor: 25000, pago: true }, "vendi 5 bois do confinamento por 25 mil, já recebi");
       check("a venda que cita o confinamento vira saída do lote", /confinamento/i.test(r.data.reply_text) && r.data.action_taken?.startsWith("encerrar_confinamento"), `${r.data.action_taken}: ${r.data.reply_text}`);
       check("e pergunta antes de gravar", r.data.requires_confirmation === true, r.data.reply_text);
       check("a pergunta nomeia o lote e a categoria", /Conf M67/.test(r.data.reply_text) && /machos de 25 a 36 meses/.test(r.data.reply_text), r.data.reply_text);
@@ -843,7 +845,7 @@ async function main() {
         "vendi 3 machos do pasto por 9999",
       );
       check("o negócio antigo ficou esperando", velho.data.action_taken?.startsWith("registrar_negocio_gado"), `${velho.data.action_taken}: ${velho.data.reply_text}`);
-      await acao("registrar_negocio_gado", { tipo: "venda", categoria: "boi", quantidade: 2, valor: 8000 }, "vendi 2 bois do confinamento por 8 mil");
+      await acao("registrar_negocio_gado", { tipo: "venda", categoria: "boi", quantidade: 2, valor: 8000, pago: true }, "vendi 2 bois do confinamento por 8 mil, já recebi");
       const lote2Antes = await soma("confinamento");
       const pasto2Antes = await soma("presente", pasto.id);
       const sim2 = await acao("registrar_negocio_gado", { tipo: "venda", categoria: "boi", quantidade: 4, valor: 8000 }, "sim", { confirmed: true });
@@ -852,7 +854,7 @@ async function main() {
       check("nenhuma negociação de 9999 criada", (await db.negotiation.count({ where: { amount: 9999 } })) === 0);
 
       // (iii) "não" reemitido como gado cancela a venda do lote.
-      await acao("registrar_negocio_gado", { tipo: "venda", categoria: "boi", quantidade: 1, valor: 4000 }, "vendi 1 boi do confinamento por 4 mil");
+      await acao("registrar_negocio_gado", { tipo: "venda", categoria: "boi", quantidade: 1, valor: 4000, pago: true }, "vendi 1 boi do confinamento por 4 mil, já recebi");
       const lote3Antes = await soma("confinamento");
       const nao = await acao("registrar_negocio_gado", { tipo: "venda", categoria: "boi", quantidade: 1, valor: 4000 }, "não");
       const simDepoisDoNao = await acao("encerrar_confinamento", {}, "sim", { confirmed: true });
@@ -861,10 +863,34 @@ async function main() {
       await clearPendingNegotiation(tenant.id, owner.id);
 
       // (iv) Com uma saída guardada, `negotiation_type` também é tipo próprio: assunto novo.
-      await acao("registrar_negocio_gado", { tipo: "venda", categoria: "boi", quantidade: 1, valor: 4000 }, "vendi 1 boi do confinamento por 4 mil");
+      await acao("registrar_negocio_gado", { tipo: "venda", categoria: "boi", quantidade: 1, valor: 4000, pago: true }, "vendi 1 boi do confinamento por 4 mil, já recebi");
       const compraNova = await acao("registrar_negocio_gado", { negotiation_type: "compra", categoria: "boi", quantidade: 3, valor: 9000 }, "comprei 3 bois por 9 mil");
       check("negócio com negotiation_type não é engolido pela saída do lote", !compraNova.data.action_taken?.startsWith("encerrar_confinamento"), `${compraNova.data.action_taken}: ${compraNova.data.reply_text}`);
       await clearPendingNegotiation(tenant.id, owner.id);
+      await clearPendingConfinement(tenant.id, owner.id);
+
+      // (v) Dívida 5.8: venda do lote sem prazo nascia vencendo HOJE. Agora
+      // pergunta, como o negócio de gado; a data dita vira o vencimento.
+      const semPrazo = await acao("encerrar_confinamento", { quantidade: 1, valor: 3000, tipo: "venda" }, "vendi 1 boi do confinamento por 3 mil");
+      check("venda do lote sem prazo pergunta se já recebeu", /já recebeu/.test(semPrazo.data.reply_text) && !semPrazo.data.requires_confirmation, semPrazo.data.reply_text);
+      const comData = await acao("encerrar_confinamento", { vencimento: "10/12/2099" }, "dia 10 de dezembro de 2099");
+      check("a confirmação mostra a data a receber", comData.data.requires_confirmation === true && /a receber em 10\/12\/2099/.test(comData.data.reply_text), comData.data.reply_text);
+      const loteAntesDoPrazo = await soma("confinamento");
+      await acao("encerrar_confinamento", {}, "sim", { confirmed: true });
+      check("o sim tira a cabeça do lote", (await soma("confinamento")) === loteAntesDoPrazo - 1);
+      const receitaAPrazo = await db.financialEntry.findFirst({ where: { amount: 3000, entry_type: "income" }, orderBy: { created_at: "desc" } });
+      check(
+        "a receita nasce pendente no dia dito, não hoje",
+        receitaAPrazo?.status === "pending" && receitaAPrazo.due_date?.getFullYear() === 2099 && receitaAPrazo.due_date?.getMonth() === 11,
+        `${receitaAPrazo?.status} ${receitaAPrazo?.due_date?.toISOString()}`,
+      );
+
+      await acao("encerrar_confinamento", { quantidade: 1, valor: 3100, tipo: "venda" }, "vendi 1 boi do confinamento por 3100");
+      const jaRecebi = await acao("encerrar_confinamento", { vencimento: "já recebi" }, "já recebi");
+      check("\"já recebi\" responde a pergunta do prazo", jaRecebi.data.requires_confirmation === true && /já recebida/.test(jaRecebi.data.reply_text), jaRecebi.data.reply_text);
+      await acao("encerrar_confinamento", {}, "sim", { confirmed: true });
+      const receitaPaga = await db.financialEntry.findFirst({ where: { amount: 3100, entry_type: "income" }, orderBy: { created_at: "desc" } });
+      check("e a receita nasce quitada", receitaPaga?.status === "paid", String(receitaPaga?.status));
       await clearPendingConfinement(tenant.id, owner.id);
     }
 

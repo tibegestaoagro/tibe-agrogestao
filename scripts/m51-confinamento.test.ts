@@ -402,7 +402,7 @@ async function comBanco() {
 
       const confinadosAntes = soma(await getPositions(db, { owner: "proprio", situation: "confinamento" }));
       const r = await closeStay(db, stayParcial, {
-        destinos: [{ movement_type: "venda", quantity: 10, value: 25000 }],
+        destinos: [{ movement_type: "venda", quantity: 10, value: 25000, pago: true }],
       });
       check("fechar só 10 de 30 é aceito (saída parcial)", r.ok, r.ok ? "" : `${r.code}: ${r.message}`);
       check("e a estadia CONTINUA aberta", r.ok && r.data.encerrada === false, r.ok ? String(r.data.encerrada) : "");
@@ -423,7 +423,7 @@ async function comBanco() {
     {
       const proprioAntes = soma(await getPositions(db, { owner: "proprio" }));
       const r = await closeStay(db, stayParcial, {
-        destinos: [{ movement_type: "venda", quantity: 20, value: 50000 }],
+        destinos: [{ movement_type: "venda", quantity: 20, value: 50000, pago: true }],
       });
       check("fecha o restante do lote com venda", r.ok, r.ok ? "" : `${r.code}: ${r.message}`);
       check("e a estadia agora está encerrada", r.ok && r.data.encerrada === true);

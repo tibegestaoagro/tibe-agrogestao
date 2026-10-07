@@ -346,9 +346,29 @@ async function comBanco() {
       const foraAntes12 = soma(await getPositions(db, { owner: "proprio", situation: "pasto_terceiro" }));
       const estadia = await abrirComVinte();
 
-      const r = await closeStay(db, estadia.id, {
+      // Dívida 5.8: venda a prazo sem data nascia vencendo HOJE. Agora recusa,
+      // e a recusa derruba o encerramento inteiro (nada se move).
+      const presenteNaRecusa = soma(await getPositions(db, { owner: "proprio", situation: "presente" }));
+      const semPrazo = await closeStay(db, estadia.id, {
         destinos: [
           { movement_type: "venda", quantity: 12, value: 60000 },
+          { movement_type: "retorno_estadia", quantity: 8 },
+        ],
+      });
+      check(
+        "venda sem prazo nem recebimento é recusada no campo due_date",
+        !semPrazo.ok && semPrazo.code === "VENCIMENTO_OBRIGATORIO" && semPrazo.field === "due_date",
+        semPrazo.ok ? "aceitou" : `${semPrazo.code} ${semPrazo.field}`,
+      );
+      check(
+        "e a recusa não moveu nenhuma cabeça",
+        soma(await getPositions(db, { owner: "proprio", situation: "presente" })) === presenteNaRecusa,
+      );
+
+      const vence = new Date(Date.now() + 10 * 86_400_000);
+      const r = await closeStay(db, estadia.id, {
+        destinos: [
+          { movement_type: "venda", quantity: 12, value: 60000, due_date: vence },
           { movement_type: "retorno_estadia", quantity: 8 },
         ],
       });
@@ -370,6 +390,11 @@ async function comBanco() {
         where: { related_module: "rebanho", entry_type: "income", amount: 60000 },
       });
       check("a receita nasce só para os vendidos", receita.length === 1, String(receita.length));
+      check(
+        "pendente, com o vencimento informado (não hoje)",
+        receita[0]?.status === "pending" && receita[0]?.due_date?.getTime() === vence.getTime(),
+        `${receita[0]?.status} ${receita[0]?.due_date?.toISOString()}`,
+      );
     }
 
     console.log("\n13. Encerramento parcial mantém a estadia aberta com o saldo certo");
@@ -391,7 +416,7 @@ async function comBanco() {
 
       const segunda = await closeStay(db, estadia.id, {
         destinos: [
-          { movement_type: "venda", quantity: 10, value: 50000 },
+          { movement_type: "venda", quantity: 10, value: 50000, pago: true },
           { movement_type: "retorno_estadia", quantity: 5 },
         ],
       });
@@ -520,7 +545,7 @@ async function comBanco() {
       const estadia = await abrirComVinte();
       await closeStay(db, estadia.id, {
         destinos: [
-          { movement_type: "venda", quantity: 10, value: 30000 },
+          { movement_type: "venda", quantity: 10, value: 30000, pago: true },
           { movement_type: "retorno_estadia", quantity: 10 },
         ],
       });

@@ -30,6 +30,7 @@ import {
 import { resolverProduto } from "./estoque";
 import { ask, failReply, str, type Handler, type RouterResult } from "./shared";
 import { lerData, lerDinheiro, lerNumeroBr, interpretarSim } from "./parsers";
+import { respondeuQueJaPagou } from "./negociacao";
 import { reaisBr as reais } from "@/lib/numero-br";
 
 /**
@@ -586,6 +587,34 @@ export const encerrarConfinamento: Handler = async ({
     return ask(`Por quanto os ${quantidade} foram vendidos?`);
   }
 
+  // Dívida 5.8: sem prazo, a venda nascia vencendo HOJE e no dia seguinte
+  // aparecia atrasada. Mesma pergunta do negócio de gado (`negociacao.ts`), e
+  // a mesma regra de lá: data dita vence a palavra ("vou receber dia 10" não é
+  // "já recebi"), e resposta que não é data nem quitação não inventa prazo.
+  let recebido = false;
+  let vencimento: Date | null = null;
+  if (movementType === "venda") {
+    const lido = lerData(parameters, "vencimento", "due_date", "data_pagamento");
+    if (lido.tipo === "ok") {
+      vencimento = lido.data;
+    } else if (respondeuQueJaPagou(parameters)) {
+      recebido = true;
+    } else if (lido.tipo === "invalida") {
+      await guardar("vencimento");
+      return ask(
+        `Não entendi o vencimento "${lido.bruto}". Diga por exemplo "dia 10" ou "10/12/2026", ou diga que já foi recebido.`,
+      );
+    } else {
+      await guardar("vencimento");
+      return ask('Você já recebeu, ou vai receber depois? Se for depois, me diga o vencimento, por exemplo "dia 10".');
+    }
+  }
+  const prazo = recebido
+    ? ", já recebida"
+    : vencimento
+      ? `, a receber em ${vencimento.toLocaleDateString("pt-BR")}`
+      : "";
+
   // §18: só o retorno ao pasto grava posição. Resolve o pasto citado do
   // mesmo jeito que o resto do arquivo (nunca adivinha): sem achar, pergunta.
   let pasto: { id: string | null; nome: string | null } = { id: null, nome: null };
@@ -618,7 +647,7 @@ export const encerrarConfinamento: Handler = async ({
     movementType === "morte"
       ? `Deseja registrar a morte de ${cabecas} ${noLote}?`
       : movementType === "venda"
-        ? `Deseja registrar a venda de ${cabecas} ${doLote} por ${reais(valor as number)}?`
+        ? `Deseja registrar a venda de ${cabecas} ${doLote} por ${reais(valor as number)}${prazo}?`
         : `Deseja registrar a saída de ${cabecas} ${doLote}${nomeDoDestino ? ` para ${nomeDoDestino}` : ""}?`;
 
   if (!confirmed) {
@@ -638,6 +667,8 @@ export const encerrarConfinamento: Handler = async ({
         movement_type: movementType,
         quantity: quantidade,
         value: movementType === "venda" ? valor : null,
+        pago: recebido,
+        due_date: vencimento,
         pasture_id: pasto.id,
       },
     ],
@@ -650,7 +681,7 @@ export const encerrarConfinamento: Handler = async ({
     movementType === "morte"
       ? `Registrado. Morte de ${cabecas} ${noLote}.`
       : movementType === "venda"
-        ? `Registrado. Venda de ${cabecas} ${doLote} por ${reais(valor as number)}.`
+        ? `Registrado. Venda de ${cabecas} ${doLote} por ${reais(valor as number)}${prazo}.`
         : `Registrado. Saída de ${cabecas} ${doLote}${nomeDoDestino ? ` para ${nomeDoDestino}` : ""}.`;
 
   return {
