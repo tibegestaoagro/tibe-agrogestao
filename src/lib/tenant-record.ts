@@ -29,7 +29,7 @@ export const getTenantRecord = perRequestCache(async function getTenantRecord(te
       status: true,
       trial_ends_at: true,
       conta_interna: true,
-      archived_at: true,
+      arquivado_pela_plataforma_em: true,
     },
   });
 });

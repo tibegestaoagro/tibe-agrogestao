@@ -284,14 +284,38 @@ async function testaArquivamentoManual() {
       (await getBillingAccess(tenant.id)) === "blocked",
     );
 
-    // Voltou a pagar com a marca ainda lá (o varredor só a apaga na rodada
-    // seguinte): quem decide é a cobrança, não a marca velha.
+    // Revisão do Codex: adivinhar o autor pela fase fazia o bloqueio manual
+    // sumir quando a janela de leitura começava. O tempo passa, a decisão fica.
+    await prisma.subscription.update({
+      where: { tenant_id: tenant.id },
+      data: { next_due_date: dias(-3), canceled_at: dias(-30) },
+    });
+    await prisma.tenant.update({ where: { id: tenant.id }, data: { conta_interna: true } });
+    check(
+      "arquivado à mão continua blocked quando a janela de leitura começa, mesmo com o selo",
+      (await getBillingAccess(tenant.id)) === "blocked",
+    );
+
+    // Um boleto antigo compensa e a assinatura volta a ativa: quem a
+    // Plataforma arquivou continua arquivado, e o varredor não o ressuscita.
     await prisma.subscription.update({
       where: { tenant_id: tenant.id },
       data: subscriptionStatusData("active"),
     });
+    await sweepCanceledSubscriptions();
+    const depois = await prisma.tenant.findUnique({ where: { id: tenant.id } });
     check(
-      "assinatura ativa com archived_at ainda gravado -> full",
+      "assinatura ativa não desfaz o arquivamento da Plataforma -> blocked",
+      (await getBillingAccess(tenant.id)) === "blocked",
+    );
+    check(
+      "o varredor não apaga a marca de quem a Plataforma arquivou",
+      depois?.archived_at != null && depois?.arquivado_pela_plataforma_em != null,
+    );
+
+    await setTenantArchivedAction(tenant.id, false);
+    check(
+      "só desarquivar pela Plataforma devolve o acesso -> full",
       (await getBillingAccess(tenant.id)) === "full",
     );
   } finally {

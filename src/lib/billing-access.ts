@@ -89,34 +89,18 @@ export function getCancellationWindow(sub: CancellationInput): CancellationWindo
   return { archive_starts_at: startsAt, archive_ends_at: endsAt, phase };
 }
 
-/**
- * Quando `Tenant.archived_at` preenchido corta o acesso. Ele tem dois
- * escritores, e só um deles é decisão de arquivar:
- *
- * - `setTenantArchivedAction` (botão da Plataforma): bloqueia;
- * - o varredor do cancelamento, que grava a data na janela de LEITURA de
- *   quem cancelou: ali a régua do cancelamento decide (leitura por 60 dias,
- *   direito do titular na LGPD), e a marca é só reflexo para o painel.
- *
- * Com assinatura ativa ou em atraso a marca também não decide: o varredor a
- * apaga na rodada seguinte (cliente que voltou a pagar), e bloquear até lá
- * cortaria quem acabou de pagar. Arquivar quem paga passa por cancelar.
- */
-function arquivamentoBloqueia(subscription: AssinaturaParaAcesso | null): boolean {
-  if (!subscription) return true;
-  if (subscription.status === "canceled") {
-    return getCancellationWindow(subscription).phase !== "archived";
-  }
-  return false;
-}
-
 type AssinaturaParaAcesso = CancellationInput & { status: string };
 
 /**
  * O acesso e o MOTIVO de um bloqueio por arquivamento. O motivo importa para
- * quem fala com o tenant: arquivado não é inadimplente, e oferecer "Assinar"
- * a quem a Plataforma arquivou deixaria o próprio tenant se desarquivar
- * pagando (o varredor apaga a marca de quem tem assinatura ativa).
+ * quem fala com o tenant: arquivado não é inadimplente, não tem o que
+ * regularizar pagando, e lê uma frase própria.
+ *
+ * Quem decide o arquivamento é `arquivado_pela_plataforma_em`, que só o botão
+ * da Plataforma escreve. `archived_at` NÃO decide: o varredor do cancelamento
+ * também o grava, como reflexo da janela de leitura (LGPD), e adivinhar o
+ * autor pela fase da assinatura fazia o bloqueio manual sumir sozinho quando
+ * a janela começava (revisão do Codex, 2026-10-07).
  *
  * Memoizado por `tenantId`, por request (ver o aviso em
  * per-request-cache.ts): o layout do dashboard chamava isto a cada render,
@@ -134,13 +118,11 @@ export const getBillingState = perRequestCache(async function getBillingState(
   ]);
   if (!tenant) return { access: "blocked", archived: false };
 
-  // Arquivado (dívida 3.2, decisão do usuário 2026-10-07): o arquivamento
-  // bloqueia, e vence o selo de conta interna. Até aqui `archived_at` não era
-  // lido em lugar nenhum do caminho de acesso, e o painel da plataforma
-  // mostrava "Arquivado" para um tenant que entrava com acesso total.
-  if (tenant.archived_at && arquivamentoBloqueia(subscription)) {
-    return { access: "blocked", archived: true };
-  }
+  // Arquivado pela Plataforma (dívida 3.2, decisão do usuário 2026-10-07):
+  // bloqueia, acima do selo de conta interna e de qualquer fase de assinatura.
+  // Até aqui o painel da plataforma mostrava "Arquivado" para um tenant que
+  // entrava com acesso total.
+  if (tenant.arquivado_pela_plataforma_em) return { access: "blocked", archived: true };
   return { access: acessoPorCobranca(tenant, subscription), archived: false };
 });
 

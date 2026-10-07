@@ -54,9 +54,12 @@ export async function sweepCanceledSubscriptions(): Promise<{
 
   // Reativou depois de cancelar: o arquivamento deixou de valer. Sem isto, um
   // cliente que voltou continuaria marcado como arquivado no painel.
+  // Quem a PLATAFORMA arquivou fica arquivado até ela desarquivar, mesmo que
+  // um boleto antigo compense depois (dívida 3.2).
   const revived = await prisma.tenant.updateMany({
     where: {
       archived_at: { not: null },
+      arquivado_pela_plataforma_em: null,
       subscription: { status: { in: ["active", "overdue"] } },
     },
     data: { archived_at: null },

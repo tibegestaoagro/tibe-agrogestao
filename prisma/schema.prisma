@@ -339,8 +339,15 @@ model Tenant {
   status         TenantStatus @default(trial)
   trial_ends_at  DateTime?
   // Arquivamento pelo painel da plataforma (spec 2026-07-27): nunca deleta,
-  // mesmo padrão de Property.archived_at (M1). Idempotente.
+  // mesmo padrão de Property.archived_at (M1). Idempotente. TAMBÉM é gravado
+  // pelo varredor do cancelamento como reflexo da janela de leitura, então
+  // sozinho não diz quem arquivou: não decide acesso.
   archived_at    DateTime?
+  // A decisão da Plataforma de arquivar (dívida 3.2, 2026-10-07). Só o botão
+  // da Plataforma escreve; o varredor nunca. Preenchido, bloqueia o tenant em
+  // tela, API e WhatsApp, acima do selo e de qualquer fase de assinatura,
+  // até a Plataforma desarquivar.
+  arquivado_pela_plataforma_em DateTime?
   // Selo de conta interna (spec 2026-09-18): tira o vencimento de trial e
   // inadimplência (billing-access.ts curto-circuita para "full"). Só a
   // Plataforma liga/desliga (PATCH /api/platform/tenants/:id); a rota do

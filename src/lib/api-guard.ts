@@ -42,6 +42,17 @@ import { requireSessionGateApi } from "@/lib/session-gate";
  * API com a sessão da senha temporária/plano não confirmado ainda
  * funcionava.
  */
+/**
+ * 403 `TENANT_ARCHIVED` para o tenant que a Plataforma arquivou, ou null.
+ * Para `guard()` e para as rotas que dispensam o guard de propósito (senha,
+ * perfil, confirmação de plano, link de relatório): nenhuma delas pode servir
+ * de porta para quem foi arquivado (revisão do Codex, 2026-10-07).
+ */
+export async function recusaSeArquivado(tenantId: string) {
+  const { archived } = await getBillingState(tenantId);
+  return archived ? apiError("TENANT_ARCHIVED", MENSAGEM_ARQUIVADO, 403) : null;
+}
+
 export async function guard(
   module: ModuleKey,
   action: "read" | "write",
@@ -77,12 +88,11 @@ export async function guard(
   }
 
   // Arquivado vale também nas rotas de cobrança (`skipBillingCheck`): elas
-  // existem para o inadimplente regularizar, e assinar desarquivaria por fora
-  // da Plataforma quem ela arquivou (dívida 3.2).
-  const { access, archived } = await getBillingState(user.tenant_id);
-  if (archived) {
-    return { error: apiError("TENANT_ARCHIVED", MENSAGEM_ARQUIVADO, 403) };
-  }
+  // existem para o inadimplente regularizar, e arquivado não regulariza
+  // pagando (dívida 3.2).
+  const recusa = await recusaSeArquivado(user.tenant_id);
+  if (recusa) return { error: recusa };
+  const { access } = await getBillingState(user.tenant_id);
 
   if (!opts?.skipBillingCheck) {
     if (access === "blocked") {

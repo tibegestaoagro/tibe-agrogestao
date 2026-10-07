@@ -3,6 +3,7 @@ import { apiOk, apiError, ApiErrors } from "@/lib/api";
 import { getSessionUser } from "@/lib/tenant-context";
 import { prisma } from "@/lib/prisma";
 import { withApi } from "@/lib/route";
+import { recusaSeArquivado } from "@/lib/api-guard";
 
 /**
  * POST /api/v1/tenant/plan (spec 2026-07-27): confirma o plano de um tenant
@@ -18,6 +19,8 @@ const schema = z.object({ plan: z.enum(["campo", "fazenda", "grupo"]) });
 async function POSTHandler(request: Request) {
   const user = await getSessionUser();
   if (!user) return apiError(...ApiErrors.UNAUTHORIZED);
+  const arquivado = await recusaSeArquivado(user.tenant_id);
+  if (arquivado) return arquivado;
 
   const json = await request.json().catch(() => null);
   const parsed = schema.safeParse(json);

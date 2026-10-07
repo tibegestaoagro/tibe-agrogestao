@@ -3,6 +3,7 @@ import { prisma, prismaForTenant } from "@/lib/prisma";
 import { verifyReportToken } from "@/lib/reports/report-token";
 import { generateFinancialPdf } from "@/lib/reports/generate-financial-pdf";
 import { withApi } from "@/lib/route";
+import { recusaSeArquivado } from "@/lib/api-guard";
 
 /**
  * GET /api/v1/financial/report?token=...
@@ -23,6 +24,9 @@ async function GETHandler(request: Request) {
 
   const tenant = await prisma.tenant.findUnique({ where: { id: payload.tenant_id } });
   if (!tenant) return apiError("NOT_FOUND", "Tenant não encontrado", 404);
+  // Link emitido antes do arquivamento não serve mais de porta (dívida 3.2).
+  const arquivado = await recusaSeArquivado(payload.tenant_id);
+  if (arquivado) return arquivado;
 
   const db = prismaForTenant(payload.tenant_id);
   const start = new Date(payload.start);
