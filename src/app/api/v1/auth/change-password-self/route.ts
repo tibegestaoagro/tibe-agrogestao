@@ -3,6 +3,7 @@ import { apiOk, apiError, ApiErrors, apiErroDeZod } from "@/lib/api";
 import { getSessionUser, getTenantDb } from "@/lib/tenant-context";
 import { changeOwnPasswordWithCurrentAction } from "@/lib/actions/auth-self";
 import { withApi } from "@/lib/route";
+import { recusaSeArquivado } from "@/lib/api-guard";
 
 /**
  * POST /api/v1/auth/change-password-self (Módulo 19): troca VOLUNTÁRIA, com
@@ -21,6 +22,8 @@ const schema = z.object({
 async function POSTHandler(request: Request) {
   const user = await getSessionUser();
   if (!user) return apiError(...ApiErrors.UNAUTHORIZED);
+  const arquivado = await recusaSeArquivado(user.tenant_id);
+  if (arquivado) return arquivado;
 
   const json = await request.json().catch(() => null);
   const parsed = schema.safeParse(json);

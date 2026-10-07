@@ -27,7 +27,21 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-10-07.
 
-### Programa de dívidas (desde 07/10): Etapa 0 na branch, aguardando merge
+### Programa de dívidas (desde 07/10): E0 em produção, E1 aguardando migração e merge
+
+**E1 (3.2, tenant arquivado), branch `divida-3-2`:** commits `4de8ca1`,
+`4b1e625`, `56e822c`. A decisão de arquivar mora em
+`Tenant.arquivado_pela_plataforma_em` (migração `20261007200000`, uma coluna;
+produção tinha 0 tenants arquivados). Bloqueia em tela, API (`403
+TENANT_ARCHIVED`, inclusive billing e as rotas sem guard) e WhatsApp
+(`identificarContato`). `m31` seção 4 com cada caso visto falhando; Codex: três
+rodadas, 4 achados corrigidos, aprovou na terceira. Validado no navegador
+(arquivado, só marca do varredor, desarquivado). **A migração NÃO está no Neon**
+(`migrate status`: 1 pendente): sem ela, toda rota autenticada dá 500 depois do
+deploy, porque `getTenantRecord` lê a coluna nova. Dívida nova registrada: 3.3
+(o agente ignora a régua de inadimplência, decisão de produto).
+
+E0 (`b4a5c77`) foi para a `main` em 07/10, autorizada pelo usuário.
 
 O usuário aprovou em 07/10 um programa para fechar as dívidas de
 [dividas.md](dividas.md) em etapas E0 a E11, uma branch por etapa, cada uma com
@@ -176,9 +190,10 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
 
-**0. Programa de dívidas:** pedir ao usuário o merge da E0
-(`mod-guarda-contexto`); depois E1 (3.2, tenant arquivado bloqueado) na branch
-`divida-3-2`, conforme o plano.
+**0. Programa de dívidas:** o usuário roda `npm run db:deploy` (Neon), o agente
+confere com `npx prisma migrate status`, e só então pede o merge da
+`divida-3-2`. Depois, E2 (5.8, estadia e remessa sem vencer hoje) na branch
+`divida-5-8`, conforme o plano.
 
 **1. Segurança, que é do usuário e vem antes de tudo:** rotacionar as 22
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não

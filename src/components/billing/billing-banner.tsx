@@ -1,8 +1,24 @@
 import Link from "next/link";
 import type { BillingAccess } from "@/lib/billing-access";
+import { MENSAGEM_ARQUIVADO } from "@/lib/mensagem-arquivado";
 
-export default function BillingBanner({ access }: { access: BillingAccess }) {
+export default function BillingBanner({
+  access,
+  archived = false,
+}: {
+  access: BillingAccess;
+  archived?: boolean;
+}) {
   if (access === "full") return null;
+
+  // Arquivado não é pendência de pagamento, e não tem o que regularizar aqui.
+  if (archived) {
+    return (
+      <div className="px-6 py-2.5 text-sm bg-perigo text-superficie">
+        <p className="font-medium">{MENSAGEM_ARQUIVADO}</p>
+      </div>
+    );
+  }
 
   const isBlocked = access === "blocked";
 

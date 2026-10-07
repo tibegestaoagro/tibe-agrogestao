@@ -3,6 +3,7 @@ import { apiOk, apiError, ApiErrors, apiErroDeZod } from "@/lib/api";
 import { getSessionUser, getTenantDb } from "@/lib/tenant-context";
 import { updateOwnNameAction } from "@/lib/actions/auth-self";
 import { withApi } from "@/lib/route";
+import { recusaSeArquivado } from "@/lib/api-guard";
 
 /**
  * PATCH /api/v1/auth/profile (briefing de layout, menu "Perfil" do topo):
@@ -14,6 +15,8 @@ const schema = z.object({ name: z.string().min(2, "Informe um nome com pelo meno
 async function PATCHHandler(request: Request) {
   const user = await getSessionUser();
   if (!user) return apiError(...ApiErrors.UNAUTHORIZED);
+  const arquivado = await recusaSeArquivado(user.tenant_id);
+  if (arquivado) return arquivado;
 
   const json = await request.json().catch(() => null);
   const parsed = schema.safeParse(json);

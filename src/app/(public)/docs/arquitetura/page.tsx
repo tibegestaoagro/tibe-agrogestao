@@ -147,8 +147,9 @@ apiOk / apiError        →  resposta no contrato { data, meta } | { error }`}
 Erro     → { "error": { "code": "STRING_CODE", "message": "legível para humanos" } }`}
         </pre>
         <p className="mt-2">
-          Códigos de status HTTP acompanham o tipo de erro: 401 sem sessão, 403 sem permissão, 402 conta
-          bloqueada/em atraso, 404 recurso não encontrado, 409 conflito (duplicidade), 422 validação.
+          Códigos de status HTTP acompanham o tipo de erro: 401 sem sessão, 403 sem permissão (ou conta
+          arquivada pela plataforma, código <code>TENANT_ARCHIVED</code>), 402 conta bloqueada/em atraso,
+          404 recurso não encontrado, 409 conflito (duplicidade), 422 validação.
         </p>
       </section>
 

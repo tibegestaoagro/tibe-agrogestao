@@ -291,28 +291,20 @@ hoje. `encerrar_remessa_evento` e `registrar_permuta` gravam sempre com
 `pago: true`. Se isso deve virar pergunta, é decisão de produto para quando o
 classificador for destravado.
 
-### 3.2 Arquivar um tenant pela Plataforma não tira o acesso dele
+### 3.3 O agente do WhatsApp ignora a régua de cobrança
 
-Achado em 18/09/2026, ao ligar o selo de conta interna em `getBillingAccess`.
-**`Tenant.archived_at` não é lido em lugar nenhum do caminho de acesso**: nem em
-`getBillingAccess` (`src/lib/billing-access.ts`), nem em `getTenantRecord`
-(`src/lib/tenant-record.ts`, que nem seleciona o campo), nem na autenticação
-(`auth.ts`, `auth.config.ts`, `proxy.ts`), nem nos guards de rota.
+Achado em 07/10/2026, fechando a 3.2. Nenhuma rota interna do agente
+(`turno`, `resolve-contact`, `execute-action`) lê `getBillingAccess`: um tenant
+inadimplente em `read_only` ou `blocked` no painel continua **gravando pelo
+WhatsApp** sem restrição. O ARQUIVADO já é recusado (3.2, em
+`identificarContato`); a inadimplência não.
 
-`archiveTenantAction` (`platform-tenants.ts`) só grava a data. O painel mostra
-"Arquivado", e o tenant continua entrando com acesso total.
-
-⚠️ O `CLAUDE.md` lista exatamente este defeito ("`Tenant.archived_at` não fazia
-nada") entre os achados de validação ao vivo, o que dá a entender que foi
-consertado. **Para o arquivamento manual pela Plataforma, não foi.** O único
-caminho que usa o campo é o do cancelamento de assinatura, e ali ele é reflexo
-de uma fase calculada por data, não uma trava.
-
-O selo de conta interna não piora isto (tenant arquivado já tinha acesso
-total), mas os dois vão conviver: uma conta interna arquivada precisa decidir
-qual regra vence. Custo: `getTenantRecord` passa a selecionar `archived_at`, e
-`getBillingAccess` devolve bloqueado ou só leitura antes de qualquer outra
-regra, **inclusive antes do selo**.
+Não é conserto mecânico, é decisão de produto: cortar o agente de quem atrasou
+o pagamento tira a ferramenta do curral justo de quem precisa regularizar, e
+`read_only` no WhatsApp pede definir o que é leitura (consultas) e o que o
+agente responde ao recusar uma escrita. **Custo:** depois da decisão, uma
+checagem em `executarIntencao` (o núcleo comum aos dois caminhos), com a
+classificação de leitura/escrita que `whatsapp-intents.ts` já tem.
 
 ### 5.0f O push é do TENANT, mas a decisão de canal é sobre UMA pessoa
 

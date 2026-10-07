@@ -68,13 +68,22 @@ export default async function PlatformTenantDetailPage(props: { params: Promise<
               Conta interna
             </span>
           )}
-          {tenant.archived_at && (
+          {/* Dois arquivamentos diferentes (dívida 3.2): o da Plataforma
+              bloqueia; o do varredor é só a janela de leitura de quem
+              cancelou. O botão segue a decisão da Plataforma. */}
+          {tenant.arquivado_pela_plataforma_em ? (
             <span className="rounded-full bg-gray-600/20 px-2.5 py-0.5 text-xs font-medium text-gray-400">
-              Arquivado
+              Arquivado (sem acesso)
             </span>
+          ) : (
+            tenant.archived_at && (
+              <span className="rounded-full bg-gray-600/20 px-2.5 py-0.5 text-xs font-medium text-gray-400">
+                Arquivado pelo cancelamento (só leitura)
+              </span>
+            )
           )}
           {isMasterAdmin(platformUser.role) && (
-            <ArchiveTenantButton tenantId={tenant.id} archived={!!tenant.archived_at} />
+            <ArchiveTenantButton tenantId={tenant.id} archived={!!tenant.arquivado_pela_plataforma_em} />
           )}
         </div>
       </div>

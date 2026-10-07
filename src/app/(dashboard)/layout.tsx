@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { getSessionUser, getTenantDb } from "@/lib/tenant-context";
 import { getTenantRecord } from "@/lib/tenant-record";
 import { requireSessionGateForPage } from "@/lib/session-gate";
-import { getBillingAccess, isBillingExemptPath } from "@/lib/billing-access";
+import { getBillingState, isBillingExemptPath } from "@/lib/billing-access";
 import { getActivePropertyId } from "@/lib/active-property";
 import { buildNavItems } from "@/lib/nav";
 import DashboardShell from "@/components/layout/dashboard-shell";
@@ -36,7 +36,7 @@ export default async function DashboardLayout({
   const { active_profiles: profiles } = await requireSessionGateForPage(user);
 
   const pathname = (await headers()).get("x-pathname") ?? "";
-  const billingAccess = await getBillingAccess(user.tenant_id);
+  const { access: billingAccess, archived } = await getBillingState(user.tenant_id);
   if (billingAccess === "blocked" && !isBillingExemptPath(pathname)) {
     redirect("/configuracoes/assinatura");
   }
@@ -81,6 +81,7 @@ export default async function DashboardLayout({
           userName={user.name ?? "Usuário"}
           roleLabel={ROLE_LABEL[user.role] ?? user.role}
           billingAccess={billingAccess}
+          archived={archived}
           properties={properties}
           activePropertyId={activePropertyId}
         >

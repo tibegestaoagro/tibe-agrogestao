@@ -203,6 +203,10 @@ export async function resendWelcomeMessageAction(tenantId: string): Promise<Acti
  * Arquiva/desarquiva um tenant pelo painel (spec 2026-07-27): só
  * master_admin. Nunca deleta (mesmo padrão de Property.archived_at, M1).
  * Idempotente nos dois sentidos.
+ *
+ * Grava a DECISÃO em `arquivado_pela_plataforma_em`, que é o que bloqueia o
+ * acesso (dívida 3.2), e o reflexo em `archived_at`, que o painel lê. O
+ * varredor do cancelamento só mexe no segundo.
  */
 export async function setTenantArchivedAction(
   tenantId: string,
@@ -211,11 +215,14 @@ export async function setTenantArchivedAction(
   const existing = await prisma.tenant.findUnique({ where: { id: tenantId } });
   if (!existing) return fail("NOT_FOUND", "Tenant não encontrado", 404);
 
-  const tenant = archived === !!existing.archived_at
+  const agora = new Date();
+  const tenant = archived === !!existing.arquivado_pela_plataforma_em
     ? existing
     : await prisma.tenant.update({
         where: { id: tenantId },
-        data: { archived_at: archived ? new Date() : null },
+        data: archived
+          ? { archived_at: existing.archived_at ?? agora, arquivado_pela_plataforma_em: agora }
+          : { archived_at: null, arquivado_pela_plataforma_em: null },
       });
 
   return ok({ id: tenant.id, archived_at: tenant.archived_at });

@@ -1,5 +1,7 @@
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { toBrazilPhoneDigits } from "@/lib/phone";
+import { getBillingState } from "@/lib/billing-access";
+import { MENSAGEM_ARQUIVADO } from "@/lib/mensagem-arquivado";
 import type { AppUserRole } from "@/types/next-auth";
 import type { ProfileType } from "@/lib/tenant-context";
 
@@ -44,6 +46,7 @@ export async function identificarContato(telefone: string): Promise<ContatoIdent
   let firstContact = false;
   let tenantId: string;
 
+  let novoUsuarioId: string | null = null;
   if (contact) {
     tenantId = contact.tenant_id;
   } else {
@@ -57,8 +60,19 @@ export async function identificarContato(telefone: string): Promise<ContatoIdent
       };
     }
     tenantId = user.tenant_id;
+    novoUsuarioId = user.id;
+  }
+
+  // Tenant arquivado pela Plataforma não conversa com o agente (dívida 3.2):
+  // é o ponto comum ao turno e ao caminho antigo (resolve-contact), antes de
+  // qualquer escrita, inclusive a do contato novo.
+  if ((await getBillingState(tenantId)).archived) {
+    return { identificado: false, resposta_sugerida: MENSAGEM_ARQUIVADO };
+  }
+
+  if (!contact) {
     contact = await prismaForTenant(tenantId).whatsAppContact.create({
-      data: scoped({ phone, user_id: user.id, last_interaction_at: new Date() }),
+      data: scoped({ phone, user_id: novoUsuarioId, last_interaction_at: new Date() }),
     });
     firstContact = true;
   }

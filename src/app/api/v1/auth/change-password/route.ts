@@ -3,6 +3,7 @@ import { apiOk, apiError, ApiErrors } from "@/lib/api";
 import { getSessionUser, getTenantDb } from "@/lib/tenant-context";
 import { changeOwnPasswordAction } from "@/lib/actions/auth-self";
 import { withApi } from "@/lib/route";
+import { recusaSeArquivado } from "@/lib/api-guard";
 
 /**
  * POST /api/v1/auth/change-password (spec 2026-07-24): só sessão, sem
@@ -14,6 +15,8 @@ const schema = z.object({ new_password: z.string().min(8) });
 async function POSTHandler(request: Request) {
   const user = await getSessionUser();
   if (!user) return apiError(...ApiErrors.UNAUTHORIZED);
+  const arquivado = await recusaSeArquivado(user.tenant_id);
+  if (arquivado) return arquivado;
 
   const json = await request.json().catch(() => null);
   const parsed = schema.safeParse(json);

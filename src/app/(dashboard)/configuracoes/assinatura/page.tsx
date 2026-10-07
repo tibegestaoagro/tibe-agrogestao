@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { getSessionUser, getTenantDb } from "@/lib/tenant-context";
 import { hasMinRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { getBillingAccess, ARCHIVE_WINDOW_DAYS } from "@/lib/billing-access";
+import { getBillingState, ARCHIVE_WINDOW_DAYS } from "@/lib/billing-access";
+import { MENSAGEM_ARQUIVADO } from "@/lib/mensagem-arquivado";
 import { listSubscriptionPayments, AsaasNotConfiguredError } from "@/lib/asaas";
 import SubscribeForm from "@/components/billing/subscribe-form";
 import CancelSubscription from "@/components/billing/cancel-subscription";
@@ -33,10 +34,10 @@ export default async function AssinaturaPage() {
   if (!hasMinRole(user.role, "OWNER")) redirect("/dashboard");
 
   const db = await getTenantDb();
-  const [tenant, subscription, access] = await Promise.all([
+  const [tenant, subscription, { access, archived }] = await Promise.all([
     prisma.tenant.findUnique({ where: { id: user.tenant_id } }),
     db.subscription.findFirst({}),
-    getBillingAccess(user.tenant_id),
+    getBillingState(user.tenant_id),
   ]);
 
   // `Date.now()` num Server Component roda uma vez por requisicao, nao a cada
@@ -98,14 +99,20 @@ export default async function AssinaturaPage() {
 
         {access !== "full" && (
           <p className="mt-3 rounded-md bg-perigo-suave px-3 py-2 text-sm text-perigo-tinta">
-            {access === "blocked"
-              ? "Acesso bloqueado por pendência de pagamento. Regularize abaixo."
-              : "Pagamento em atraso: regularize para recuperar acesso total de escrita."}
+            {archived
+              ? MENSAGEM_ARQUIVADO
+              : access === "blocked"
+                ? "Acesso bloqueado por pendência de pagamento. Regularize abaixo."
+                : "Pagamento em atraso: regularize para recuperar acesso total de escrita."}
           </p>
         )}
       </div>
 
-      <SubscribeForm currentPlan={(subscription?.plan as "campo" | "fazenda" | "grupo") ?? null} />
+      {/* Arquivado não assina por aqui: assinar desarquivaria por fora da
+          Plataforma quem ela arquivou (a API também recusa, dívida 3.2). */}
+      {!archived && (
+        <SubscribeForm currentPlan={(subscription?.plan as "campo" | "fazenda" | "grupo") ?? null} />
+      )}
 
       <div className="rounded-lg border border-borda bg-superficie p-5">
         <p className="text-sm font-medium text-texto-secundario">Histórico de cobranças</p>
@@ -131,7 +138,7 @@ export default async function AssinaturaPage() {
 
       {/* Só aparece quando existe assinatura ativa no Asaas para cancelar:
           em trial (sem Subscription) ou já cancelada, não há o que fazer. */}
-      {subscription?.asaas_subscription_id && subscription.status !== "canceled" && (
+      {!archived && subscription?.asaas_subscription_id && subscription.status !== "canceled" && (
         <CancelSubscription
           paidUntil={subscription?.next_due_date ?? null}
           archiveWindowDays={ARCHIVE_WINDOW_DAYS}

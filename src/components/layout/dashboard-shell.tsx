@@ -26,6 +26,7 @@ export default function DashboardShell({
   userName,
   roleLabel,
   billingAccess,
+  archived,
   properties,
   activePropertyId,
   children,
@@ -35,6 +36,7 @@ export default function DashboardShell({
   userName: string;
   roleLabel: string;
   billingAccess: BillingAccess;
+  archived: boolean;
   properties: PropertyOption[];
   activePropertyId: string | null;
   children: React.ReactNode;
@@ -62,7 +64,7 @@ export default function DashboardShell({
         onClose={() => setMobileOpen(false)}
       />
       <div className="flex min-w-0 flex-1 flex-col">
-        <BillingBanner access={billingAccess} />
+        <BillingBanner access={billingAccess} archived={archived} />
         <header className="flex items-center gap-3 border-b border-borda bg-superficie px-4 py-3 md:px-6">
           <button
             type="button"

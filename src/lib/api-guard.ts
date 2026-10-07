@@ -8,7 +8,8 @@ import {
 import { type TenantPrismaClient } from "@/lib/prisma";
 import { apiError, ApiErrors } from "@/lib/api";
 import { canAccess, canWrite, type ModuleKey } from "@/lib/permissions";
-import { getBillingAccess } from "@/lib/billing-access";
+import { getBillingState } from "@/lib/billing-access";
+import { MENSAGEM_ARQUIVADO } from "@/lib/mensagem-arquivado";
 import { requireSessionGateApi } from "@/lib/session-gate";
 
 /**
@@ -24,7 +25,9 @@ import { requireSessionGateApi } from "@/lib/session-gate";
  *
  * `skipBillingCheck: true` é só para as próprias rotas de billing
  * (`/api/v1/billing/*`): precisam continuar acessíveis mesmo com a conta
- * bloqueada, para o tenant conseguir regularizar.
+ * bloqueada, para o tenant conseguir regularizar. Tenant ARQUIVADO pela
+ * Plataforma não regulariza por aqui: recebe 403 `TENANT_ARCHIVED` em toda
+ * rota, inclusive essas.
  *
  * `must_change_password`/`plan_confirmed` (spec 2026-07-24/2026-07-27,
  * criação manual de tenant pelo painel) bloqueiam TODA ação aqui, sem
@@ -39,6 +42,17 @@ import { requireSessionGateApi } from "@/lib/session-gate";
  * API com a sessão da senha temporária/plano não confirmado ainda
  * funcionava.
  */
+/**
+ * 403 `TENANT_ARCHIVED` para o tenant que a Plataforma arquivou, ou null.
+ * Para `guard()` e para as rotas que dispensam o guard de propósito (senha,
+ * perfil, confirmação de plano, link de relatório): nenhuma delas pode servir
+ * de porta para quem foi arquivado (revisão do Codex, 2026-10-07).
+ */
+export async function recusaSeArquivado(tenantId: string) {
+  const { archived } = await getBillingState(tenantId);
+  return archived ? apiError("TENANT_ARCHIVED", MENSAGEM_ARQUIVADO, 403) : null;
+}
+
 export async function guard(
   module: ModuleKey,
   action: "read" | "write",
@@ -73,8 +87,14 @@ export async function guard(
     }
   }
 
+  // Arquivado vale também nas rotas de cobrança (`skipBillingCheck`): elas
+  // existem para o inadimplente regularizar, e arquivado não regulariza
+  // pagando (dívida 3.2).
+  const recusa = await recusaSeArquivado(user.tenant_id);
+  if (recusa) return { error: recusa };
+  const { access } = await getBillingState(user.tenant_id);
+
   if (!opts?.skipBillingCheck) {
-    const access = await getBillingAccess(user.tenant_id);
     if (access === "blocked") {
       return {
         error: apiError(
