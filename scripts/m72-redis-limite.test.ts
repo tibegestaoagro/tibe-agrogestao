@@ -77,6 +77,49 @@ async function main() {
   const pendente = await cronometrar(store.carregar("tenant-m72", "user-m72"));
   check(`o pendente do agente devolve null em menos de ${PRAZO_MS} ms`, pendente.valor === null && pendente.ms < PRAZO_MS, `${pendente.ms} ms`);
 
+  // 3. Revisão do Codex: o limite REJEITA a promessa, mas o comando executa
+  // quando o Redis volta. Quem escreve precisa ser seguro com o resultado
+  // incerto. `CLIENT PAUSE` reproduz isso de verdade: o Redis segura os
+  // comandos mais que o limite e os executa quando a pausa acaba.
+  console.log("\n3. Escrita que executa DEPOIS de o limite rejeitar");
+  esquecerConexao();
+  process.env.REDIS_URL = REDIS_LOCAL;
+  const { default: IORedis } = await import("ioredis");
+  const admin = new IORedis(REDIS_LOCAL);
+  const { adquirirLock } = await import("@/lib/redis");
+  const { checkLoginRateLimit } = await import("@/lib/rate-limit");
+  await getRedisConnection().ping();
+
+  const chaveLock = `tibe:m72:lock:${Date.now()}`;
+  const quem = `m72-${Date.now()}`;
+  await admin.call("CLIENT", "PAUSE", "3000", "ALL");
+  const [lock, tentativa] = await Promise.allSettled([
+    adquirirLock(chaveLock, 600),
+    checkLoginRateLimit("m72", quem, { windowSeconds: 600, maxAttempts: 5 }),
+  ]);
+  check("o lock rejeita enquanto o Redis está parado", lock.status === "rejected");
+  check("o rate limit rejeita enquanto o Redis está parado", tentativa.status === "rejected");
+  await new Promise((r) => setTimeout(r, 4000));
+
+  check(
+    "o SET do lock executou depois, e o 'apague se for meu' atrás dele não deixou o dia preso",
+    (await admin.exists(chaveLock)) === 0,
+    `exists=${await admin.exists(chaveLock)}`,
+  );
+  const chaveTentativa = `tibe:login-attempts:m72:${quem}`;
+  const prazo = await admin.ttl(chaveTentativa);
+  check(
+    "o INCR do rate limit executou depois, e a chave tem prazo (não bloqueia para sempre)",
+    prazo > 0,
+    `ttl=${prazo}, valor=${await admin.get(chaveTentativa)}`,
+  );
+
+  await admin.set(`${chaveTentativa}:sem-prazo`, "9");
+  await checkLoginRateLimit("m72", `${quem}:sem-prazo`, { windowSeconds: 600, maxAttempts: 5 });
+  check("chave que já estava sem prazo ganha prazo na próxima tentativa", (await admin.ttl(`${chaveTentativa}:sem-prazo`)) > 0);
+
+  await admin.del(chaveTentativa, `${chaveTentativa}:sem-prazo`);
+  admin.disconnect();
   esquecerConexao();
   console.log(falhas === 0 ? "\n✅ M72: 0 falhas." : `\n❌ M72: ${falhas} falha(s).`);
   process.exit(falhas === 0 ? 0 : 1);

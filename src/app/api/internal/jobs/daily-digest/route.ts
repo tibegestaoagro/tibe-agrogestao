@@ -1,5 +1,5 @@
 import { Queue } from "bullmq";
-import { getRedisConnection, getRedisConnectionOptions } from "@/lib/redis";
+import { adquirirLock, liberarLock, getRedisConnectionOptions } from "@/lib/redis";
 import { requireInternalSecret } from "@/lib/internal-guard";
 import { apiOk, apiError } from "@/lib/api";
 import { sendAllDailyDigests } from "./send-digest";
@@ -26,12 +26,18 @@ async function GETHandler(request: Request) {
   const auth = requireInternalSecret(request);
   if ("error" in auth) return auth.error;
 
-  const connection = getRedisConnection();
   const today = new Date().toISOString().slice(0, 10);
   const lockKey = `tibe:digest:generated:${today}`;
 
-  const acquired = await connection.set(lockKey, "1", "EX", 26 * 3600, "NX");
-  if (acquired !== "OK") {
+  // Lock com dono (dívida 3.1): sem Redis, responde 503 e o agendador tenta
+  // de novo, e uma aquisição que só executar depois não prende o dia.
+  let token: string | null;
+  try {
+    token = await adquirirLock(lockKey, 26 * 3600);
+  } catch {
+    return apiError("REDIS_INDISPONIVEL", "Redis indisponível: o resumo diário não rodou e pode ser tentado de novo.", 503);
+  }
+  if (!token) {
     return apiOk({ skipped: true, reason: "já executado hoje" }, { date: today });
   }
 
@@ -52,7 +58,7 @@ async function GETHandler(request: Request) {
     const result = await sendAllDailyDigests();
     return apiOk(result, { date: today });
   } catch (e) {
-    await connection.del(lockKey); // libera o lock para permitir nova tentativa
+    await liberarLock(lockKey, token); // libera o lock para permitir nova tentativa
     return apiError(
       "JOB_FAILED",
       e instanceof Error ? e.message : "Falha ao enviar o resumo diário",

@@ -93,7 +93,10 @@ export async function sendPushToUser(
             body,
           );
           sent++;
-          if (sub.failures > 0) voltaram.push(sub.id);
+          // Toda entrega zera, sem olhar a contagem lida antes do envio: um
+          // envio concorrente pode ter contado uma falha no meio (revisão do
+          // Codex). A condição `failures > 0` fica no banco, abaixo.
+          voltaram.push(sub.id);
         } catch (e) {
           failed++;
           if (e instanceof webpush.WebPushError && (e.statusCode === 404 || e.statusCode === 410)) {
@@ -107,10 +110,14 @@ export async function sendPushToUser(
 
     // Melhor esforço, como o resto deste canal: a contabilidade da poda nunca
     // derruba o envio que já aconteceu.
+    // ponytail: sem serialização por inscrição. Dois envios simultâneos à mesma
+    // pessoa podem aplicar os resultados fora de ordem. Hoje os envios são
+    // sequenciais (alertas em série, um resumo por dia); se um dia forem
+    // paralelos, a contagem precisa de fila ou de versão por inscrição.
     await Promise.all([
       mortas.length > 0 ? db.pushSubscription.deleteMany({ where: { id: { in: mortas } } }) : null,
       voltaram.length > 0
-        ? db.pushSubscription.updateMany({ where: { id: { in: voltaram } }, data: { failures: 0 } })
+        ? db.pushSubscription.updateMany({ where: { id: { in: voltaram }, failures: { gt: 0 } }, data: { failures: 0 } })
         : null,
       falharam.length > 0
         ? db.pushSubscription

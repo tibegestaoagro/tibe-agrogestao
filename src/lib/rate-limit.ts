@@ -28,14 +28,16 @@ export async function checkLoginRateLimit(
 ): Promise<boolean> {
   const windowSeconds = opts?.windowSeconds ?? DEFAULT_WINDOW_SECONDS;
   const maxAttempts = opts?.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
-  const redis = getRedisConnection();
   const key = keyFor(scope, identifier);
-  const count = await redis.incr(key);
-  if (count === 1) {
-    await redis.expire(key, windowSeconds);
-  }
+  // Num passo só (dívida 3.1, revisão do Codex): com o limite de tempo da
+  // conexão, o INCR podia executar e a promessa rejeitar, pulando o EXPIRE.
+  // A chave ficava sem prazo e bloqueava o login daquela pessoa para sempre.
+  // O script também devolve o prazo a uma chave que já esteja sem ele.
+  const count = Number(await getRedisConnection().eval(INCREMENTAR_COM_PRAZO, 1, key, windowSeconds));
   return count <= maxAttempts;
 }
+
+const INCREMENTAR_COM_PRAZO = `local c = redis.call("INCR", KEYS[1]) if redis.call("TTL", KEYS[1]) < 0 then redis.call("EXPIRE", KEYS[1], ARGV[1]) end return c`;
 
 /** Zera o contador após login bem-sucedido, para não penalizar tentativas válidas subsequentes. */
 export async function resetLoginRateLimit(scope: string, identifier: string): Promise<void> {

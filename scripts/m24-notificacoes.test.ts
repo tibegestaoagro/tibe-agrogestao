@@ -376,9 +376,10 @@ async function main() {
         subscribeRouteGet(new Request(`http://localhost/api/v1/notifications/subscribe?endpoint=${encodeURIComponent(endpoint)}`)),
       );
     res = await consulta(keysGet.endpoint);
-    assert(res.status === 200 && (await body(res)).data?.subscribed === true, "GET /subscribe conhece o aparelho inscrito");
+    const inscrito = (r: Response) => body(r).then((b) => (b.data as { subscribed?: boolean } | undefined)?.subscribed);
+    assert(res.status === 200 && (await inscrito(res)) === true, "GET /subscribe conhece o aparelho inscrito");
     res = await consulta("https://push.example.invalid/nunca-inscrito");
-    assert(res.status === 200 && (await body(res)).data?.subscribed === false, "GET /subscribe não conhece aparelho que não está no banco");
+    assert(res.status === 200 && (await inscrito(res)) === false, "GET /subscribe não conhece aparelho que não está no banco");
     res = await withBearer(tokenA, () =>
       unsubscribeRoute(post("http://localhost/api/v1/notifications/subscribe", { endpoint: keysGet.endpoint }, "DELETE")),
     );

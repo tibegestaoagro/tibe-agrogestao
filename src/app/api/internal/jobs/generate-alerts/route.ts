@@ -1,5 +1,5 @@
 import { Queue } from "bullmq";
-import { getRedisConnection, getRedisConnectionOptions } from "@/lib/redis";
+import { adquirirLock, liberarLock, getRedisConnectionOptions } from "@/lib/redis";
 import { requireCronSecret } from "@/lib/internal-guard";
 import { apiOk, apiError } from "@/lib/api";
 import { executarRotinaDiaria } from "@/lib/jobs/rotina-diaria";
@@ -35,12 +35,19 @@ async function GETHandler(request: Request) {
   const auth = requireCronSecret(request);
   if ("error" in auth) return auth.error;
 
-  const connection = getRedisConnection();
   const today = new Date().toISOString().slice(0, 10);
   const lockKey = `tibe:alerts:generated:${today}`;
 
-  const acquired = await connection.set(lockKey, "1", "EX", 26 * 3600, "NX");
-  if (acquired !== "OK") {
+  // Lock com dono (dívida 3.1): sem Redis, responde 503 e o agendador tenta
+  // de novo, e uma aquisição que só executar depois não prende o dia.
+  let token: string | null;
+  try {
+    token = await adquirirLock(lockKey, 26 * 3600);
+  } catch {
+    log.error("rotina diaria sem lock: Redis indisponivel", { code: "REDIS_INDISPONIVEL" });
+    return apiError("REDIS_INDISPONIVEL", "Redis indisponível: a rotina diária não rodou e pode ser tentada de novo.", 503);
+  }
+  if (!token) {
     return apiOk({ skipped: true, reason: "já executado hoje" }, { date: today });
   }
 
@@ -58,7 +65,7 @@ async function GETHandler(request: Request) {
     } catch (e) {
       // Enfileirar falhou e há worker configurado: liberar o lock é essencial,
       // senão o dia inteiro fica sem rotina e sem ninguém saber.
-      await connection.del(lockKey);
+      await liberarLock(lockKey, token);
       log.error("falha ao enfileirar a rotina diaria", { code: "ENFILEIRAR_FALHOU" });
       return apiError(
         "QUEUE_FAILED",
@@ -86,7 +93,7 @@ async function GETHandler(request: Request) {
     const resultado = await executarRotinaDiaria();
     return apiOk(resultado, { date: today });
   } catch (e) {
-    await connection.del(lockKey); // libera o lock para permitir nova tentativa
+    await liberarLock(lockKey, token); // libera o lock para permitir nova tentativa
     return apiError(
       "JOB_FAILED",
       e instanceof Error ? e.message : "Falha ao gerar alertas",
