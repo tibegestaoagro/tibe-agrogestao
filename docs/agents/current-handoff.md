@@ -171,10 +171,17 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
 
-**0. Programa de dívidas:** E4 (tokens de marca e cor crua: 2.6, 2.7, 2.5) na
-branch `design-tokens`, sem Codex (etapa visual), validada no navegador. O
-`next dev` foi morto por falta de memória no desktop em 07/10: na E4, fechar
-outros projetos ou ir para o notebook. Pendente do usuário: conferir a tela de
+**0. Programa de dívidas: E4 pronta na branch `design-tokens`** (commit
+`3a284f7`), sem Codex (etapa visual). 171 trocas de alias `tibe-*` e 64 de cor
+crua, todas para o token que aponta para a MESMA cor; `--texto-marca` novo;
+bloco `tibe` fora do `tailwind.config.ts`; conferência 17 nova; linha de base
+de cor crua a zero (os 15 da Plataforma ficam fora por desenho, decisão de
+31/08); contorno nos 106 chips de `/docs`. Provado sem navegador: o CSS
+compilado gera toda classe nova e tem zero `tibe-`. **Não validado no
+navegador:** o desktop estava com 1 GB livre e o `next dev` já tinha caído;
+validar no notebook, ou com outros programas fechados, antes do merge.
+Achado novo: dívida 2.8 (opacidade sobre token não gera CSS nenhum, a sidebar
+nunca teve os realces desenhados). Pendente do usuário: conferir a tela de
 push em produção, e decidir se monta o cenário de confinamento no tenant BANCO
 DE PROVAS para validar o agente da E2.
 
