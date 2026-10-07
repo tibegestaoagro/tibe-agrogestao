@@ -56,15 +56,14 @@ function zerar() {
   marcas.geracao += 1
 }
 
-// ponytail: "o usuário deve uma resposta" é heurística: um "?" nas três
-// últimas linhas fora de bloco de código. Erra para o lado seguro: no pior
-// caso adia a compactação até a próxima resposta, e o resumo automático do
-// Claude Code continua de reserva. Pergunta feita por AskUserQuestion não
-// chega aqui (o turno não termina enquanto ela está aberta).
+// ponytail: "o usuário deve uma resposta" é heurística: qualquer "?" na
+// resposta, fora de código. Erra de propósito para o lado seguro: no pior
+// caso adia a compactação até a próxima resposta sem pergunta, e o resumo
+// automático do Claude Code continua de reserva. Pergunta feita por
+// AskUserQuestion não chega aqui (o turno não termina enquanto ela está aberta).
 function esperaResposta(resposta: string): boolean {
-  const semCodigo = resposta.replace(/```[\s\S]*?```/g, '')
-  const linhas = semCodigo.split('\n').filter((l) => l.trim() !== '')
-  return linhas.slice(-3).some((l) => l.includes('?'))
+  const semCodigo = resposta.replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '')
+  return semCodigo.includes('?')
 }
 
 async function percentual($: EngineInterface): Promise<number> {
@@ -170,6 +169,9 @@ export const register: Register = (on, options) => {
   })
 
   on('turn.complete', async ($, e, next) => {
+    // Capturada na entrada: se outro turno começar durante os awaits abaixo,
+    // a decisão deste fica velha e não age.
+    const geracao = marcas.geracao
     const resultado = await next(e)
     if (e.agentId || e.reason !== 'answer' || marcas.pediuEm === undefined || marcas.suspenso) return resultado
     // O usuário deve uma resposta: nada automático até ela chegar, nem o
@@ -179,9 +181,10 @@ export const register: Register = (on, options) => {
       return resultado
     }
 
-    if (await handoffAtualizadoDesde($, marcas.pediuEm)) {
+    const atualizado = await handoffAtualizadoDesde($, marcas.pediuEm)
+    if (marcas.geracao !== geracao) return resultado
+    if (atualizado) {
       // O turno ainda está fechando; a compactação só é aceita entre turnos.
-      const geracao = marcas.geracao
       $.clock.after(1500, () => void compactar($, limiares, geracao))
     } else if (!marcas.cobrou) {
       marcas.cobrou = true

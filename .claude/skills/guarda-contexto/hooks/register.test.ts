@@ -252,6 +252,46 @@ test('pergunta seguida de texto ainda conta como espera pelo usuário', async ($
   expect(enviados).toEqual([])
 })
 
+test('pergunta seguida de lista e despedida ainda conta como espera', async ($, on) => {
+  const { relogio, compactou, enviados } = cenarioAgir(on, () => 91)
+  await $.classic.PostToolUse(ferramenta)
+  await $.turn.complete({
+    ...fimDeTurno,
+    answer: 'Posso fazer o merge?\n\nO que entra:\n- o mod\n- os testes\n\nAguardo sua resposta.',
+  })
+  await relogio.advance(2_000)
+  expect(compactou.length).toBe(0)
+  expect(enviados).toEqual([])
+})
+
+test('turno que termina em pergunta durante a leitura do handoff anula a decisão antiga', async ($, on) => {
+  const relogio = mock.clock(on, { now: 1_000 })
+  base(on, () => 91)
+  let liberar: (() => void) | undefined
+  on('fs.stat', () =>
+    new Promise((resolve) => {
+      liberar = () => resolve({ value: { kind: 'file', size: 10, mtimeMs: 2_000, isLink: false } })
+    }),
+  )
+  const compactou: number[] = []
+  on('session.compact', () => {
+    compactou.push(1)
+    return { messages: MENSAGEM }
+  })
+  on('prompt.submit', (_$, e) => ({ text: e.text }))
+
+  await $.classic.PostToolUse(ferramenta)
+  const antigo = $.turn.complete(fimDeTurno)
+  for (let i = 0; i < 200 && !liberar; i++) await relogio.advance(0)
+  expect(liberar).toBeDefined()
+  await $.turn.start({ text: 'espera', turnId: 'turno-2' })
+  await $.turn.complete({ ...fimDeTurno, turnId: 'turno-2', answer: 'Quer que eu pare?' })
+  liberar?.()
+  await antigo
+  await relogio.advance(2_000)
+  expect(compactou.length).toBe(0)
+})
+
 test('interrogação dentro de bloco de código não segura a compactação', async ($, on) => {
   let uso = 91
   const { relogio, compactou } = cenarioAgir(on, () => uso, () => {
