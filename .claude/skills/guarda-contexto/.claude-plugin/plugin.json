@@ -1,0 +1,19 @@
+{
+  "name": "guarda-contexto",
+  "version": "0.1.0",
+  "description": "Pede o handoff antes do resumo automatico: avisa num limiar, atualiza e compacta no seguinte, e reinjeta o handoff depois.",
+  "userConfig": {
+    "aviso": {
+      "type": "number",
+      "title": "Limiar de aviso (%)",
+      "description": "Uso de contexto em que o agente e lembrado de atualizar o handoff ao fechar a tarefa.",
+      "default": 75
+    },
+    "agir": {
+      "type": "number",
+      "title": "Limiar de agir (%)",
+      "description": "Uso de contexto em que o handoff e atualizado na hora e a conversa e compactada no fim do turno.",
+      "default": 90
+    }
+  }
+}

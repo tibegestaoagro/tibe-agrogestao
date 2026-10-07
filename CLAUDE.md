@@ -111,6 +111,18 @@ sobrevive é o que está em arquivo. Ao retomar, nesta ordem:
    handoff vence**, porque é atualizado a cada rodada.
 3. `git log --oneline -15` e a spec do módulo em `docs/specs/`.
 
+**O mod `guarda-contexto` (`.claude/skills/guarda-contexto/`, desde
+2026-10-07) faz o handoff ser escrito ANTES do resumo**, e não reconstruído
+depois. Aos 75% de contexto ele pede o handoff ao fim da tarefa; aos 90% pede
+na hora e, com o arquivo atualizado, compacta no fim do turno e manda retomar.
+Todo resumo (o dele, o automático e o `/compact`) recebe a instrução de apontar
+para o handoff e de não carregar autorização de merge adiante, e o trecho
+"Estado atual" volta ao contexto logo depois. Ele carrega sozinho por estar na
+pasta de skills do projeto: vale no notebook sem configurar nada. Limiares em
+`pluginConfigs["guarda-contexto@skills-dir"].options` (`aviso`, `agir`), no
+settings de USUÁRIO (o do projeto não é lido para isso). Teste:
+`claude plugin test .claude/skills/guarda-contexto`.
+
 Não confie na memória local do Claude Code para estado: ela é invisível para
 outras ferramentas e envelhece sem aviso. Ela serve para preferência do usuário
 e armadilha de ambiente, não para "onde o projeto está".
