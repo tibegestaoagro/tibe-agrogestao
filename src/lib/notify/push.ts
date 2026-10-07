@@ -45,20 +45,31 @@ export function getVapidPublicKey(): string | null {
   return process.env.VAPID_PUBLIC_KEY;
 }
 
+/** Falhas seguidas (fora 404/410) que apagam uma inscrição. Ver `failures` no schema. */
+export const FALHAS_PARA_PODAR = 3;
+
 /**
- * Envia `payload` para todas as inscrições de push ativas do tenant.
- * Inscrições que o próprio push service reporta como mortas (404/410, RFC
- * 8030: o navegador cancelou ou o endpoint expirou) são removidas na hora:
- * reenviar para elas para sempre não tem utilidade e só custa uma chamada de
- * rede a cada alerta/resumo.
+ * Envia `payload` para as inscrições de push de UMA pessoa.
+ *
+ * Dívida 5.0f: até 07/10 o envio ia para todas as inscrições do TENANT, e o
+ * resultado decidia o canal de quem recebia o alerta. A secretária com push no
+ * notebook fazia o WhatsApp do produtor não ser tentado: `push.ok` era dela.
+ * O canal é decisão sobre uma pessoa, e o envio agora também é.
+ *
+ * Poda (dívida 5.0g): 404/410 (RFC 8030: o navegador cancelou ou o endpoint
+ * expirou) apaga na hora. Qualquer outra falha conta: `FALHAS_PARA_PODAR`
+ * seguidas apagam, e uma entrega zera. O 403 de chave VAPID trocada entra
+ * aqui, e não na poda imediata, de propósito: um deploy com a chave errada
+ * devolveria 403 para TODAS as inscrições, e apagar na hora derrubaria o push
+ * de todo mundo por um engano de configuração.
  */
-export async function sendPushToTenant(
-  tenantId: string,
+export async function sendPushToUser(
+  recipient: { tenant_id: string; user_id: string },
   payload: PushPayload,
 ): Promise<NotifyPushResult> {
   try {
-    const db = prismaForTenant(tenantId);
-    const subscriptions = await db.pushSubscription.findMany();
+    const db = prismaForTenant(recipient.tenant_id);
+    const subscriptions = await db.pushSubscription.findMany({ where: { user_id: recipient.user_id } });
 
     if (!configureVapid()) {
       return { attempted: false, ok: false, subscriptions: subscriptions.length, sent: 0, failed: 0, configurado: false };
@@ -70,7 +81,9 @@ export async function sendPushToTenant(
     const body = JSON.stringify(payload);
     let sent = 0;
     let failed = 0;
-    const deadEndpoints: string[] = [];
+    const mortas: string[] = [];
+    const falharam: string[] = [];
+    const voltaram: string[] = [];
 
     await Promise.all(
       subscriptions.map(async (sub) => {
@@ -80,20 +93,42 @@ export async function sendPushToTenant(
             body,
           );
           sent++;
+          // Toda entrega zera, sem olhar a contagem lida antes do envio: um
+          // envio concorrente pode ter contado uma falha no meio (revisão do
+          // Codex). A condição `failures > 0` fica no banco, abaixo.
+          voltaram.push(sub.id);
         } catch (e) {
           failed++;
           if (e instanceof webpush.WebPushError && (e.statusCode === 404 || e.statusCode === 410)) {
-            deadEndpoints.push(sub.endpoint);
+            mortas.push(sub.id);
+          } else {
+            falharam.push(sub.id);
           }
         }
       }),
     );
 
-    if (deadEndpoints.length > 0) {
-      await db.pushSubscription
-        .deleteMany({ where: { endpoint: { in: deadEndpoints } } })
-        .catch(() => {});
-    }
+    // Melhor esforço, como o resto deste canal: a contabilidade da poda nunca
+    // derruba o envio que já aconteceu.
+    // ponytail: sem serialização por inscrição. Dois envios simultâneos à mesma
+    // pessoa podem aplicar os resultados fora de ordem. Hoje os envios são
+    // sequenciais (alertas em série, um resumo por dia); se um dia forem
+    // paralelos, a contagem precisa de fila ou de versão por inscrição.
+    await Promise.all([
+      mortas.length > 0 ? db.pushSubscription.deleteMany({ where: { id: { in: mortas } } }) : null,
+      voltaram.length > 0
+        ? db.pushSubscription.updateMany({ where: { id: { in: voltaram }, failures: { gt: 0 } }, data: { failures: 0 } })
+        : null,
+      falharam.length > 0
+        ? db.pushSubscription
+            .updateMany({ where: { id: { in: falharam } }, data: { failures: { increment: 1 } } })
+            .then(() =>
+              db.pushSubscription.deleteMany({
+                where: { id: { in: falharam }, failures: { gte: FALHAS_PARA_PODAR } },
+              }),
+            )
+        : null,
+    ]).catch(() => {});
 
     return { attempted: true, ok: sent > 0, subscriptions: subscriptions.length, sent, failed, configurado: true };
   } catch {

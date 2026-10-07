@@ -1574,6 +1574,11 @@ model PushSubscription {
   p256dh     String
   auth       String
   created_at DateTime @default(now())
+  // Falhas de entrega SEGUIDAS que não dizem "inscrição morta" (404/410):
+  // 403 de chave VAPID trocada, 5xx do serviço. Três seguidas apagam a linha,
+  // uma entrega com sucesso zera (dívida 5.0g). Sem isto, a inscrição morta por
+  // 403 ficava para sempre e o resumo diário parava de sair em silêncio.
+  failures   Int      @default(0)
 
   tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)

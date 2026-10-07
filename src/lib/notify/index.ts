@@ -1,4 +1,4 @@
-import { sendPushToTenant, type PushPayload } from "./push";
+import { sendPushToUser, type PushPayload } from "./push";
 import { sendWhatsappChannel } from "./whatsapp-channel";
 import { sendEmailChannel } from "./email-channel";
 import type {
@@ -18,7 +18,7 @@ export type {
   NotifyChannelResult,
   NotifyPushResult,
 } from "./types";
-export { saveSubscription, removeSubscription, type SaveSubscriptionInput } from "./push-subscriptions";
+export { saveSubscription, removeSubscription, isSubscribed, type SaveSubscriptionInput } from "./push-subscriptions";
 export { getVapidPublicKey } from "./push";
 
 const NOT_ATTEMPTED: NotifyChannelResult = { attempted: false, ok: false };
@@ -43,8 +43,10 @@ const PUSH_NOT_ATTEMPTED: NotifyPushResult = {
  *   FALHOU de verdade (`push.attempted && !push.ok`, ex.: `sent: 0`). Só pula
  *   o WhatsApp quando o push comprovadamente chegou a pelo menos um aparelho.
  *   `delivered` fica true assim que qualquer canal TENTADO responder ok.
+ * - Push vai só para as inscrições do DESTINATÁRIO, e o resultado é dele
+ *   (dívida 5.0f): o aparelho de outra pessoa do tenant não decide o canal.
  * - "digest" (resumo diário, novo): tenta push primeiro. Só tenta WhatsApp
- *   se o tenant não tiver NENHUMA inscrição de push ativa: é a EXISTÊNCIA de
+ *   se o destinatário não tiver NENHUMA inscrição de push ativa: é a EXISTÊNCIA de
  *   inscrição que decide o fallback, não o sucesso da entrega (uma
  *   inscrição presente cuja entrega falhou não cai para WhatsApp). Nunca
  *   tenta email: resumo diário todo dia por email é ruído, diferente de um
@@ -85,7 +87,7 @@ export async function notify(
     body: content.pushBody,
     url: content.pushUrl ?? "/meu-dia",
   };
-  const push = await sendPushToTenant(recipient.tenant_id, pushPayload);
+  const push = await sendPushToUser(recipient, pushPayload);
 
   if (urgency === "critical") {
     // Diferente do "digest": aqui o que decide é a ENTREGA (`push.ok`), não a

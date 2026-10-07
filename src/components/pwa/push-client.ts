@@ -121,6 +121,24 @@ export async function subscribeToPush(vapidPublicKey: string): Promise<Subscribe
   }
 }
 
+/**
+ * Se o SERVIDOR conhece esta inscrição para a pessoa logada (dívida 5.0h).
+ * `null` quando não deu para perguntar (sem rede): aí a tela fica com o que o
+ * navegador sabe, em vez de afirmar o contrário sem prova.
+ */
+export async function servidorConheceInscricao(subscription: PushSubscription): Promise<boolean | null> {
+  try {
+    const res = await fetch(
+      `/api/v1/notifications/subscribe?endpoint=${encodeURIComponent(subscription.endpoint)}`,
+    );
+    if (!res.ok) return null;
+    const body = await res.json().catch(() => null);
+    return typeof body?.data?.subscribed === "boolean" ? body.data.subscribed : null;
+  } catch {
+    return null;
+  }
+}
+
 export type UnsubscribeResult = { ok: true } | { ok: false; message: string };
 
 /**
@@ -140,7 +158,11 @@ export async function unsubscribeFromPush(subscription: PushSubscription): Promi
       const body = await res.json().catch(() => null);
       return { ok: false, message: body?.error?.message ?? "Não foi possível desligar as notificações." };
     }
-    await subscription.unsubscribe();
+    // Dívida 5.0h: o servidor já apagou, então nada mais é enviado para este
+    // aparelho. Se o navegador falhar ao esquecer a inscrição, ela fica órfã e
+    // muda, e a tela precisa dizer "desligado", que é a verdade. Antes, a falha
+    // daqui devolvia erro e a tela mostrava "ativas" para uma linha que não existia.
+    await subscription.unsubscribe().catch(() => {});
     return { ok: true };
   } catch {
     return { ok: false, message: "Não foi possível desligar as notificações." };

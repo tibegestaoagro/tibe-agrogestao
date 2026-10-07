@@ -144,7 +144,7 @@ async function main() {
     "@/app/api/internal/jobs/daily-digest/send-digest"
   );
   const { GET: dailyDigestRoute } = await import("@/app/api/internal/jobs/daily-digest/route");
-  const { POST: subscribeRoute, DELETE: unsubscribeRoute } = await import(
+  const { POST: subscribeRoute, DELETE: unsubscribeRoute, GET: subscribeRouteGet } = await import(
     "@/app/api/v1/notifications/subscribe/route"
   );
   const { GET: publicKeyRoute } = await import("@/app/api/v1/notifications/public-key/route");
@@ -170,6 +170,32 @@ async function main() {
    * outras inscrições fakes serve para o caminho contrário (falha garantida).
    * Restaura a função original depois, mesmo em erro.
    */
+  /**
+   * Faz `webpush.sendNotification` responder o status pedido durante `fn()`:
+   * `null` é entrega, um número é a falha que o serviço de push devolveria.
+   * Dívidas 5.0f e 5.0g: a poda e a decisão de canal dependem do status.
+   */
+  async function withPushStatus<T>(status: () => number | null, fn: () => Promise<T>): Promise<T> {
+    const webpushModule = (await import("web-push")) as unknown as {
+      default: {
+        sendNotification: (...args: unknown[]) => Promise<unknown>;
+        WebPushError: new (message: string, statusCode: number, headers: object, body: string, endpoint: string) => Error;
+      };
+    };
+    const target = webpushModule.default;
+    const original = target.sendNotification;
+    target.sendNotification = async () => {
+      const s = status();
+      if (s === null) return { statusCode: 201 };
+      throw new target.WebPushError("falha simulada M24", s, {}, "", "https://push.example.invalid");
+    };
+    try {
+      return await fn();
+    } finally {
+      target.sendNotification = original;
+    }
+  }
+
   async function withSuccessfulPush<T>(fn: () => Promise<T>): Promise<T> {
     // O namespace de um `import()` dinâmico de módulo CJS é não-extensível; o
     // `.default` é o `module.exports` de verdade (mesmo objeto, cacheado por
@@ -281,7 +307,7 @@ async function main() {
       user_id: B.owner.id,
       endpoint: keysA.endpoint,
     });
-    assert(removedByB === false, "tenant B não consegue remover a inscrição de A");
+    assert(removedByB === 0, "tenant B não consegue remover a inscrição de A");
     assert((await A.db.pushSubscription.findMany()).length === 1, "inscrição de A continua intacta após tentativa de B");
 
     const removedByOwner = await removeSubscription({
@@ -289,14 +315,14 @@ async function main() {
       user_id: A.owner.id,
       endpoint: keysA.endpoint,
     });
-    assert(removedByOwner === true, "o próprio dono remove a inscrição");
+    assert(removedByOwner === 1, "o próprio dono remove a inscrição");
     assert((await A.db.pushSubscription.findMany()).length === 0, "inscrição removida de fato");
     const removedAgain = await removeSubscription({
       tenant_id: A.tenant.id,
       user_id: A.owner.id,
       endpoint: keysA.endpoint,
     });
-    assert(removedAgain === false, "remover de novo é idempotente (nada a remover, sem erro)");
+    assert(removedAgain === 0, "remover de novo é idempotente (nada a remover, sem erro)");
 
     // ── 2. Rotas HTTP de inscrição (POST/DELETE /api/v1/notifications/subscribe) ──
     const tokenA = signAccessToken(A.owner.id);
@@ -340,6 +366,78 @@ async function main() {
     );
     assert(res.status === 200, "DELETE /notifications/subscribe responde 200");
     assert((await A.db.pushSubscription.findMany()).length === 0, "inscrição removida via rota HTTP");
+
+    // ── 2b. Dívidas 5.0f, 5.0g e 5.0h (2026-10-07) ─────────────────────────
+    // 5.0h: a rota diz se conhece o aparelho, e quantas linhas apagou.
+    const keysGet = fakePushKeys();
+    await saveSubscription({ tenant_id: A.tenant.id, user_id: A.owner.id, endpoint: keysGet.endpoint, p256dh: keysGet.p256dh, auth: keysGet.auth });
+    const consulta = (endpoint: string) =>
+      withBearer(tokenA, () =>
+        subscribeRouteGet(new Request(`http://localhost/api/v1/notifications/subscribe?endpoint=${encodeURIComponent(endpoint)}`)),
+      );
+    res = await consulta(keysGet.endpoint);
+    const inscrito = (r: Response) => body(r).then((b) => (b.data as { subscribed?: boolean } | undefined)?.subscribed);
+    assert(res.status === 200 && (await inscrito(res)) === true, "GET /subscribe conhece o aparelho inscrito");
+    res = await consulta("https://push.example.invalid/nunca-inscrito");
+    assert(res.status === 200 && (await inscrito(res)) === false, "GET /subscribe não conhece aparelho que não está no banco");
+    res = await withBearer(tokenA, () =>
+      unsubscribeRoute(post("http://localhost/api/v1/notifications/subscribe", { endpoint: keysGet.endpoint }, "DELETE")),
+    );
+    const removido = (await body(res)).data as { unsubscribed: boolean; deleted: number };
+    assert(removido.unsubscribed === true && removido.deleted === 1, "DELETE diz quantas linhas apagou (1)");
+    res = await withBearer(tokenA, () =>
+      unsubscribeRoute(post("http://localhost/api/v1/notifications/subscribe", { endpoint: keysGet.endpoint }, "DELETE")),
+    );
+    const deNovo = (await body(res)).data as { unsubscribed: boolean; deleted: number };
+    assert(deNovo.unsubscribed === false && deNovo.deleted === 0, "DELETE de linha que não existe diz deleted: 0, não 'desligado'");
+
+    // 5.0f: o push é da PESSOA. A secretária (OPERADOR) com push no notebook
+    // não pode fazer o WhatsApp do dono deixar de ser tentado.
+    const secretaria = await A.db.user.create({
+      data: scoped({ name: "M24 Secretaria", email: `m24-sec-${stamp}@teste.local`, password_hash: "x", role: "OPERADOR" }),
+    });
+    const keysSec = fakePushKeys();
+    await saveSubscription({ tenant_id: A.tenant.id, user_id: secretaria.id, endpoint: keysSec.endpoint, p256dh: keysSec.p256dh, auth: keysSec.auth });
+    await withPushStatus(() => null, async () => {
+      const aoDono = await notify(
+        { tenant_id: A.tenant.id, user_id: A.owner.id, phone: A.owner.phone, email: A.owner.email },
+        { pushTitle: "Teste", pushBody: "vencimento", whatsappText: "mensagem de teste M24 (5.0f)", email: { subject: "Teste", html: "<p>t</p>" } },
+        "critical",
+      );
+      assert(aoDono.push.subscriptions === 0, "o push do dono não conta o aparelho da secretária");
+      assert(aoDono.whatsapp.attempted === true, "alerta crítico ao dono sem push tenta o WhatsApp DELE, mesmo com a secretária inscrita");
+      const resumoDono = await notify(
+        { tenant_id: A.tenant.id, user_id: A.owner.id, phone: A.owner.phone, email: A.owner.email },
+        { pushTitle: "Resumo", pushBody: "resumo", whatsappText: "resumo de teste M24 (5.0f)" },
+        "digest",
+      );
+      assert(resumoDono.whatsapp.attempted === true, "o resumo do dono sem push cai no WhatsApp dele");
+    });
+
+    // 5.0g: 404/410 apaga na hora; outra falha conta, três seguidas apagam;
+    // entrega zera a contagem.
+    const linhaSec = () => A.db.pushSubscription.findFirst({ where: { endpoint: keysSec.endpoint } });
+    const aSecretaria = () =>
+      notify(
+        { tenant_id: A.tenant.id, user_id: secretaria.id, phone: null, email: secretaria.email },
+        { pushTitle: "Resumo", pushBody: "resumo", whatsappText: "resumo M24 (5.0g)" },
+        "digest",
+      );
+    await withPushStatus(() => 403, aSecretaria);
+    await withPushStatus(() => 403, aSecretaria);
+    assert((await linhaSec())?.failures === 2, "duas falhas 403 contam 2 e NÃO apagam (chave trocada por engano não derruba ninguém)");
+    await withPushStatus(() => null, aSecretaria);
+    assert((await linhaSec())?.failures === 0, "uma entrega zera a contagem");
+    await withPushStatus(() => 403, aSecretaria);
+    await withPushStatus(() => 500, aSecretaria);
+    await withPushStatus(() => 403, aSecretaria);
+    assert((await linhaSec()) === null, "três falhas SEGUIDAS apagam a inscrição");
+
+    const keys410 = fakePushKeys();
+    await saveSubscription({ tenant_id: A.tenant.id, user_id: secretaria.id, endpoint: keys410.endpoint, p256dh: keys410.p256dh, auth: keys410.auth });
+    await withPushStatus(() => 410, aSecretaria);
+    assert((await A.db.pushSubscription.findFirst({ where: { endpoint: keys410.endpoint } })) === null, "410 apaga na hora");
+    await A.db.user.delete({ where: { id: secretaria.id } });
 
     // ── 3. notify() urgency "critical": push+email sempre, WhatsApp quando o push NÃO ENTREGOU ──
     // Fase 6 Task 3, revisada em 2026-09-17: diferente do "digest" (onde

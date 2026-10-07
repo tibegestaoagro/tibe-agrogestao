@@ -27,25 +27,30 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-10-07.
 
-### Programa de dívidas (desde 07/10): E0 e E1 em produção, E2 aguardando merge
+### Programa de dívidas (desde 07/10): E0, E1 e E2 em produção, E3 aguardando migração e merge
 
-**E2 (5.8, prazo da venda da estadia e do custo de remessa), branch
-`divida-5-8`:** commits `5062515`, `27e0e66`, `747bb23`, `e2df613`.
-`venderDaEstadiaNaTransacao` e o custo de remessa sem venda passam por
-`validarPagamento`; a tela de encerrar estadia ganhou "Você já recebeu?" e a
-data; o agente (`encerrar_confinamento`) pergunta o prazo antes de confirmar.
-O Codex achou em três rodadas que o leitor de "já recebi"
-(`respondeuQueJaPagou`, compartilhado com o negócio de GADO) quitava "vou
-receber depois", "receberei" e "quando for pago": agora só resposta completa
-ancorada quita, o resto pergunta de novo. Aprovou na quarta. Tela validada no
-navegador (recusa no campo, gravação pendente na data). **O agente ainda não
-foi exercitado em conversa real**: depois do deploy, `npm run wa` até a
-pergunta e "não" (o canário é a Da Mata, tenant real). Resíduo registrado: 5.9.
+**E3 (3.1 Redis + 5.0e/f/g/h push), branch `divida-3-1-push`:** commits
+`750c3dd` a `e7f1985`. Conexão compartilhada do Redis com `commandTimeout`
+2 s (fila offline LIGADA de propósito, por causa da partida a frio). O Codex
+achou em cinco rodadas que o limite rejeita mas o comando executa depois, e
+isso pedia escritores seguros com resultado incerto: rate limit atômico em Lua
+(antes, a chave ficava sem prazo e bloqueava o login para sempre), lock dos
+jobs com dono, buffer de mensagens picadas com consumo atômico e recuperável
+(antes, o retry recebia texto vazio). Push por pessoa, poda por 3 falhas
+seguidas (403 não apaga na hora), `GET /notifications/subscribe` e `deleted`
+no DELETE. Suítes `m72` (nova, com `CLIENT PAUSE` para o atraso real), `m24` e
+`m20`, cada caso visto falhando. **Migração `20261007210000` (coluna
+`PushSubscription.failures`) NÃO está no Neon.** Validado: rotas de inscrição
+ao vivo. **Não validado:** a tela de push, porque o service worker só registra
+em produção (`register-service-worker.tsx`): conferir em produção, logado.
+Dívida nova: 5.10 (buffer sem idempotência por mensagem).
 
-**E1 (3.2) em produção** (`cafcb6a`, 07/10): migração no Neon rodada pelo
-usuário e conferida; deploy conferido em `/docs/arquitetura`. Dívida nova da
-etapa: 3.3 (o agente ignora a régua de inadimplência, decisão de produto).
-E0 (`b4a5c77`) também na `main`.
+**E2 (5.8) em produção** (`8a88b29`, 07/10), deploy conferido em `/docs/api`.
+**O agente da E2 não foi exercitado em conversa real:** o tenant BANCO DE
+PROVAS (telefone do `npm run wa`) não tem confinamento nem lote, e montar o
+cenário é escrita em produção, que precisa do usuário. Resíduo registrado: 5.9.
+
+E1 (`cafcb6a`) e E0 (`b4a5c77`) em produção. Dívida nova da E1: 3.3.
 
 O usuário aprovou em 07/10 um programa para fechar as dívidas de
 [dividas.md](dividas.md) em etapas E0 a E11, uma branch por etapa, cada uma com
@@ -165,9 +170,10 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
 
-**0. Programa de dívidas:** pedir o merge da `divida-5-8` (sem migração);
-depois do deploy, validar o agente pelo `npm run wa`. Em seguida, E3 (3.1 Redis
-e push: 5.0e, 5.0f, 5.0g, 5.0h) na branch `divida-3-1-push`, que TEM migração.
+**0. Programa de dívidas:** o usuário roda `npm run db:deploy` (Neon) para a
+migração da E3, o agente confere com `migrate status`, e só então pede o merge
+da `divida-3-1-push`. Depois, E4 (tokens de marca e cor crua: 2.6, 2.7, 2.5)
+na branch `design-tokens`.
 
 **1. Segurança, que é do usuário e vem antes de tudo:** rotacionar as 22
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não

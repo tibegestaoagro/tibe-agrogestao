@@ -62,9 +62,32 @@ async function main() {
     );
     assert(!f3.message_text.includes(".."), "não gera pontuação duplicada ao juntar");
 
-    // ── depois do flush, o buffer zera ────────────────────────────────
-    const vazio = await flushBuffer(phone, t3.token);
-    assert(!vazio.ready, "reprocessar o mesmo token depois do flush não responde de novo");
+    // ── retry do mesmo token depois do flush (dívida 3.1, revisão do Codex) ──
+    // Até 07/10 o segundo flush do mesmo token voltava vazio. Com o limite de
+    // tempo da conexão, um flush que estourasse depois de apagar a lista fazia
+    // o retry do n8n achar nada, e a mensagem do produtor sumia. Agora o retry
+    // recebe o MESMO texto; processar duas vezes é barrado pela idempotência
+    // por wamid do turno e do execute-action.
+    const retry = await flushBuffer(phone, t3.token);
+    assert(retry.ready && retry.parts === 3 && retry.message_text === f3.message_text, "o retry do mesmo token recebe o mesmo texto, nada se perde");
+
+    // Terceira rodada do Codex: o contador precisa sobreviver ao consumo
+    // guardado, senão os tokens recomeçam do 1 enquanto o consumo do token 1
+    // antigo ainda responde. Forçamos o pior caso: contador quase vencendo.
+    const { getRedisConnection: redisDoTeste } = await import("@/lib/redis");
+    const chaveSeq = `tibe:wa-buffer-seq:${phone.replace(/\D/g, "")}`;
+    const tardio = await appendToBuffer(phone, "mensagem do flush atrasado");
+    await redisDoTeste().expire(chaveSeq, 5);
+    await flushBuffer(phone, tardio.token);
+    const prazoSeq = await redisDoTeste().ttl(chaveSeq);
+    const prazoConsumo = await redisDoTeste().ttl(`tibe:wa-buffer-consumido:${phone.replace(/\D/g, "")}:${tardio.token}`);
+    assert(prazoSeq > prazoConsumo, `o contador sobrevive ao consumo guardado (seq ${prazoSeq}s > consumo ${prazoConsumo}s)`);
+
+    // ── e a conversa seguinte não herda o consumo da anterior ─────────
+    const depois = await appendToBuffer(phone, "outra pergunta");
+    assert(depois.token > t3.token, "o token da mensagem seguinte não se repete (seq não é zerado no consumo)");
+    const fDepois = await flushBuffer(phone, depois.token);
+    assert(fDepois.ready && fDepois.parts === 1 && fDepois.message_text === "outra pergunta", "a mensagem seguinte sai sozinha, sem os pedaços já consumidos");
 
     // ── mensagem única continua funcionando ───────────────────────────
     const s1 = await appendToBuffer(phone, "quantos animais eu tenho?");

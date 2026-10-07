@@ -25,30 +25,84 @@ export const BUFFER_WINDOW_SECONDS = 12;
 const TTL_SECONDS = 300; // folga sobre a janela: lixo de conversa abandonada expira sozinho
 const MAX_MESSAGES = 20; // trava contra flood: não acumula conversa inteira
 
+/**
+ * Quanto tempo o resultado de um consumo fica guardado para o retry do mesmo
+ * token. MENOR que `TTL_SECONDS` de propósito: o contador `seq` expira 300 s
+ * depois da última mensagem, e só quando ele expira os tokens recomeçam do 1.
+ * Com o consumo guardado por menos tempo que isso, um token novo nunca casa
+ * com o consumo de uma conversa anterior.
+ */
+const CONSUMO_TTL_SECONDS = 120;
+
 function keys(phone: string) {
   const digits = toBrazilPhoneDigits(phone);
   return {
     list: `tibe:wa-buffer:${digits}`,
     seq: `tibe:wa-buffer-seq:${digits}`,
+    consumido: (token: number) => `tibe:wa-buffer-consumido:${digits}:${token}`,
   };
 }
 
-/** Guarda a mensagem e devolve o token desta execução. */
+/**
+ * Confere o token, lê os pedaços, guarda o que consumiu e apaga a lista, num
+ * passo só (dívida 3.1, revisão do Codex). Em passos separados, um `DEL` que
+ * estourasse o limite de tempo da conexão ainda executava depois: a rota
+ * devolvia erro, o retry encontrava a lista vazia, e a mensagem do produtor
+ * sumia. Agora o retry com o mesmo token recebe o mesmo texto guardado.
+ *
+ * `seq` NÃO é apagado: é ele que impede um token de se repetir dentro da
+ * janela do consumo guardado. E o prazo dele é RENOVADO no mesmo passo
+ * (`TTL_SECONDS`, maior que `CONSUMO_TTL_SECONDS`): sem isso, um flush
+ * atrasado perto do fim do prazo do `seq` deixava o consumo sobreviver ao
+ * contador, e o token 1 de uma conversa nova devolvia o texto velho (terceira
+ * rodada do Codex).
+ */
+const CONSUMIR = `
+local ja = redis.call("GET", KEYS[3])
+if ja then return {1, ja} end
+local atual = tonumber(redis.call("GET", KEYS[1]) or "0")
+if atual ~= tonumber(ARGV[1]) then return {0, ""} end
+local partes = redis.call("LRANGE", KEYS[2], 0, -1)
+local junto = cjson.encode(partes)
+redis.call("SET", KEYS[3], junto, "EX", ARGV[2])
+redis.call("EXPIRE", KEYS[1], ARGV[3])
+redis.call("DEL", KEYS[2])
+return {1, junto}
+`;
+
+/**
+ * Contador, pedaço e prazos num passo só (dívida 3.1, quarta rodada do Codex).
+ * Em passos separados, um INCR que estourasse o limite de tempo abandonava o
+ * RPUSH: o contador avançava e o pedaço nunca entrava.
+ */
+const ACRESCENTAR = `
+local token = redis.call("INCR", KEYS[1])
+redis.call("EXPIRE", KEYS[1], ARGV[2])
+if ARGV[1] ~= "" then
+  redis.call("RPUSH", KEYS[2], ARGV[1])
+  redis.call("LTRIM", KEYS[2], -tonumber(ARGV[3]), -1)
+  redis.call("EXPIRE", KEYS[2], ARGV[2])
+end
+return token
+`;
+
+/**
+ * Guarda a mensagem e devolve o token desta execução.
+ *
+ * ponytail: não é idempotente por mensagem. Se o script atrasar além do limite
+ * de tempo e o n8n reenviar, o atrasado executa depois do retry, avança o
+ * contador, e o flush do retry sai `ready: false`. Fechar isso exige o id da
+ * mensagem no corpo (dívida 5.10, que depende de o n8n mandar o
+ * `provider_message_id`).
+ */
 export async function appendToBuffer(
   phone: string,
   messageText: string,
 ): Promise<{ token: number; window_seconds: number }> {
-  const redis = getRedisConnection();
   const k = keys(phone);
-
-  const token = await redis.incr(k.seq);
-  await redis.expire(k.seq, TTL_SECONDS);
-  if (messageText.trim().length > 0) {
-    await redis.rpush(k.list, messageText.trim());
-    await redis.ltrim(k.list, -MAX_MESSAGES, -1);
-    await redis.expire(k.list, TTL_SECONDS);
-  }
-
+  const token = Number(
+    await getRedisConnection().eval(ACRESCENTAR, 2, k.seq, k.list, messageText.trim(), TTL_SECONDS, MAX_MESSAGES),
+  );
   return { token, window_seconds: BUFFER_WINDOW_SECONDS };
 }
 
@@ -63,14 +117,25 @@ export async function flushBuffer(
   const redis = getRedisConnection();
   const k = keys(phone);
 
-  const current = Number((await redis.get(k.seq)) ?? 0);
-  if (current !== token) {
+  const [pronto, junto] = (await redis.eval(
+    CONSUMIR,
+    3,
+    k.seq,
+    k.list,
+    k.consumido(token),
+    token,
+    CONSUMO_TTL_SECONDS,
+    TTL_SECONDS,
+  )) as [
+    number,
+    string,
+  ];
+  if (pronto !== 1) {
     return { ready: false, message_text: "", parts: 0 };
   }
-
-  const parts = await redis.lrange(k.list, 0, -1);
-  await redis.del(k.list);
-  await redis.del(k.seq);
+  // `cjson` codifica a lista vazia como objeto (`{}`), não como `[]`.
+  const lido: unknown = JSON.parse(junto);
+  const parts = Array.isArray(lido) ? lido.map(String) : [];
 
   return {
     ready: true,
@@ -87,4 +152,8 @@ export async function clearBuffer(phone: string): Promise<void> {
   const k = keys(phone);
   await redis.del(k.list);
   await redis.del(k.seq);
+  // Zerar o `seq` faz os tokens recomeçarem do 1: o consumo guardado de um
+  // token antigo não pode responder pelo novo.
+  const consumidos = await redis.keys(`tibe:wa-buffer-consumido:${toBrazilPhoneDigits(phone)}:*`);
+  if (consumidos.length > 0) await redis.del(...consumidos);
 }
