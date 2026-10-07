@@ -8,7 +8,13 @@ const HANDOFF = 'docs/agents/current-handoff.md'
 // O additionalContext tem teto de ~10 mil caracteres por entrada.
 const TETO_REINJECAO = 9000
 
+// Marca o bloco do mod dentro das instruções do resumo: a deduplicação é por
+// ela, nunca pela simples menção ao handoff (uma instrução do usuário pode
+// citar o arquivo e não trazer a cláusula de autorização).
+const MARCA_DO_BLOCO = '[guarda-contexto]'
+
 const INSTRUCOES_DO_RESUMO = [
+  MARCA_DO_BLOCO,
   `O estado verificado do trabalho está em ${HANDOFF}: o resumo aponta para ele em vez de reconstruir o estado.`,
   'Preserve a branch atual, a etapa do plano em execução e o caminho do arquivo do plano.',
   'Preserve as decisões que o usuário tomou nesta sessão, com as palavras dele.',
@@ -30,22 +36,41 @@ const marcas = {
   pediuEm: undefined as number | undefined,
   cobrou: false,
   compactando: false,
+  // Muda a cada ciclo: um timer agendado num ciclo anterior não age.
+  geracao: 0,
+  // Compactou e o contexto não desceu: o ciclo automático para até descer.
+  suspenso: false,
 }
 
 function zerar() {
   marcas.avisou = false
   marcas.pediuEm = undefined
   marcas.cobrou = false
+  marcas.geracao += 1
+}
+
+// ponytail: "terminou em pergunta" é heurística pela última linha do texto.
+// Pergunta feita por AskUserQuestion não chega aqui (o turno não termina).
+function terminaEmPergunta(resposta: string): boolean {
+  const linhas = resposta.trim().split('\n').filter((l) => l.trim() !== '')
+  const ultima = (linhas[linhas.length - 1] ?? '').trim().replace(/[*_`)\]\s]+$/, '')
+  return ultima.endsWith('?')
+}
+
+async function percentual($: EngineInterface): Promise<number> {
+  const { context } = await $.session.usage()
+  return context.percent ?? 0
 }
 
 // Devolve o lembrete a anexar ao contexto, uma vez por limiar.
 async function lembrete($: EngineInterface, limiares: Limiares): Promise<string | undefined> {
-  const { context } = await $.session.usage()
-  const p = context.percent ?? 0
+  const p = await percentual($)
   if (p < limiares.aviso) {
-    zerar()
+    if (marcas.avisou || marcas.pediuEm !== undefined) zerar()
+    marcas.suspenso = false
     return undefined
   }
+  if (marcas.suspenso) return undefined
   if (p >= limiares.agir && marcas.pediuEm === undefined) {
     marcas.pediuEm = await $.clock.now()
     marcas.avisou = true
@@ -69,15 +94,21 @@ async function handoffAtualizadoDesde($: EngineInterface, desde: number): Promis
   }
 }
 
-async function compactar($: EngineInterface) {
-  if (marcas.compactando) return
+async function compactar($: EngineInterface, limiares: Limiares, geracao: number) {
+  if (marcas.compactando || marcas.geracao !== geracao) return
   marcas.compactando = true
   try {
     const resultado = await $.session.compact({ instructions: INSTRUCOES_DO_RESUMO })
-    if (!('skip' in resultado)) {
-      zerar()
-      $.prompt.submit({ text: PROMPT_DEPOIS_DO_RESUMO }).catch(() => undefined)
+    if ('skip' in resultado) return
+    zerar()
+    const depois = await percentual($)
+    if (depois >= limiares.agir) {
+      // Retomar aqui realimentaria o ciclo: para e avisa quem está olhando.
+      marcas.suspenso = true
+      $.ui.toast(`guarda-contexto: compactou e o contexto continua em ${depois}%. Ciclo automático suspenso.`)
+      return
     }
+    $.prompt.submit({ text: PROMPT_DEPOIS_DO_RESUMO }).catch(() => undefined)
   } catch {
     // Recusa enquanto um turno roda: o próximo turn.complete tenta de novo.
   } finally {
@@ -122,18 +153,23 @@ export const register: Register = (on, options) => {
 
   on('turn.complete', async ($, e, next) => {
     const resultado = await next(e)
-    if (e.agentId || e.reason !== 'answer' || marcas.pediuEm === undefined) return resultado
+    if (e.agentId || e.reason !== 'answer' || marcas.pediuEm === undefined || marcas.suspenso) return resultado
+    // O usuário deve uma resposta: nada automático até ela chegar.
+    if (terminaEmPergunta(e.answer)) return resultado
 
     if (await handoffAtualizadoDesde($, marcas.pediuEm)) {
       // O turno ainda está fechando; a compactação só é aceita entre turnos.
-      $.clock.after(1500, () => void compactar($))
+      const geracao = marcas.geracao
+      $.clock.after(1500, () => void compactar($, limiares, geracao))
     } else if (!marcas.cobrou) {
       marcas.cobrou = true
       $.prompt
         .submit({
           text: `O contexto passou de ${limiares.agir}% e ${HANDOFF} não foi atualizado. Atualize-o agora (estado, branch, commit, próximo passo) e responda só "handoff atualizado".`,
         })
-        .catch(() => undefined)
+        .catch(() => {
+          marcas.cobrou = false
+        })
     }
     return resultado
   })
@@ -141,16 +177,17 @@ export const register: Register = (on, options) => {
   // Vale também para o resumo automático do próprio Claude Code e para o /compact.
   on('session.compact', ($, e, next) => {
     if (e.agentId || e.trigger === 'precompute') return next(e)
-    const instructions = e.instructions?.includes(HANDOFF)
+    const instructions = e.instructions?.includes(MARCA_DO_BLOCO)
       ? e.instructions
       : [e.instructions, INSTRUCOES_DO_RESUMO].filter(Boolean).join('\n\n')
     return next({ ...e, instructions })
   })
 
-  // Depois de qualquer resumo, o handoff volta para o contexto.
+  // Depois de qualquer resumo, o ciclo recomeça e o handoff volta ao contexto.
   on('classic.SessionStart', async ($, e, next) => {
     const resultado = await next(e)
     if (e.source !== 'compact') return resultado
+    zerar()
     const texto = await reinjetarHandoff($)
     if (!texto) return resultado
     return { ...resultado, additionalContext: [...(resultado.additionalContext ?? []), texto] }

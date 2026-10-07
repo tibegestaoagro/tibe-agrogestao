@@ -55,11 +55,13 @@ test('lembrete também entra pela mensagem do usuário', async ($, on) => {
 
 test('no limiar de agir, com handoff atualizado, compacta e retoma', async ($, on) => {
   const relogio = mock.clock(on, { now: 1_000 })
-  base(on, () => 91)
+  let uso = 91
+  base(on, () => uso)
   on('fs.stat', () => ({ value: { kind: 'file', size: 10, mtimeMs: 2_000, isLink: false } }))
   const compactou: string[] = []
   on('session.compact', (_$, e) => {
     compactou.push(e.instructions ?? '')
+    uso = 20
     return { messages: MENSAGEM }
   })
   const enviados: string[] = []
@@ -128,4 +130,94 @@ test('sessão nova (não resumo) não recebe reinjeção', async ($, on) => {
   on('fs.read', () => ({ value: '## Estado atual\n' }))
   const r = await $.classic.SessionStart({ source: 'startup' })
   expect(r.additionalContext ?? []).toEqual([])
+})
+
+// Os casos abaixo nasceram da revisão adversarial do Codex (2026-10-07).
+
+test('turno que termina em pergunta ao usuário não compacta nem cobra', async ($, on) => {
+  const relogio = mock.clock(on, { now: 1_000 })
+  base(on, () => 91)
+  on('fs.stat', () => ({ value: { kind: 'file', size: 10, mtimeMs: 2_000, isLink: false } }))
+  const compactou: number[] = []
+  on('session.compact', () => {
+    compactou.push(1)
+    return { messages: MENSAGEM }
+  })
+  const enviados: string[] = []
+  on('prompt.submit', (_$, e) => {
+    enviados.push(e.text)
+    return { text: e.text }
+  })
+
+  await $.classic.PostToolUse(ferramenta)
+  await $.turn.complete({ ...fimDeTurno, answer: 'Etapa pronta.\n\nPosso fazer o merge?' })
+  await relogio.advance(2_000)
+  expect(compactou.length).toBe(0)
+  expect(enviados).toEqual([])
+})
+
+test('instrução que só cita o handoff ainda recebe a cláusula de autorização', async ($, on) => {
+  base(on, () => 10)
+  let recebida = ''
+  on('session.compact', (_$, e) => {
+    recebida = e.instructions ?? ''
+    return { messages: MENSAGEM }
+  })
+  await $.session.compact({ trigger: 'manual', instructions: `foque em ${HANDOFF}`, messages: MENSAGEM })
+  expect(recebida).toContain('NÃO vale')
+  expect(recebida).toContain(`foque em ${HANDOFF}`)
+})
+
+test('resumo feito por fora recomeça o ciclo de aviso', async ($, on) => {
+  base(on, () => 76)
+  on('fs.read', () => ({ value: '## Estado atual\n' }))
+  const antes = await $.classic.PostToolUse(ferramenta)
+  expect((antes.additionalContext ?? []).join(' ')).toContain('Ao fechar a tarefa atual')
+  await $.classic.SessionStart({ source: 'compact' })
+  const depois = await $.classic.PostToolUse(ferramenta)
+  expect((depois.additionalContext ?? []).join(' ')).toContain('Ao fechar a tarefa atual')
+})
+
+test('cobrança que falhou ao enviar é tentada de novo no turno seguinte', async ($, on) => {
+  mock.clock(on, { now: 5_000 })
+  base(on, () => 92)
+  on('fs.stat', () => ({ value: { kind: 'file', size: 10, mtimeMs: 1_000, isLink: false } }))
+  let tentativas = 0
+  on('prompt.submit', () => {
+    tentativas += 1
+    throw new Error('ocupado')
+  })
+
+  await $.classic.PostToolUse(ferramenta)
+  await $.turn.complete(fimDeTurno)
+  await $.turn.complete({ ...fimDeTurno, turnId: 'turno-2' })
+  expect(tentativas).toBe(2)
+})
+
+test('compactação que não baixa o contexto suspende o ciclo em vez de retomar', async ($, on) => {
+  const relogio = mock.clock(on, { now: 1_000 })
+  base(on, () => 91)
+  on('fs.stat', () => ({ value: { kind: 'file', size: 10, mtimeMs: 2_000, isLink: false } }))
+  const compactou: number[] = []
+  on('session.compact', () => {
+    compactou.push(1)
+    return { messages: MENSAGEM }
+  })
+  const enviados: string[] = []
+  on('prompt.submit', (_$, e) => {
+    enviados.push(e.text)
+    return { text: e.text }
+  })
+
+  await $.classic.PostToolUse(ferramenta)
+  await $.turn.complete(fimDeTurno)
+  await relogio.advance(1_500)
+  expect(compactou.length).toBe(1)
+  expect(enviados.join(' ')).not.toContain('acabou de ser compactada')
+
+  const depois = await $.classic.PostToolUse(ferramenta)
+  expect(depois.additionalContext ?? []).toEqual([])
+  await $.turn.complete({ ...fimDeTurno, turnId: 'turno-2' })
+  await relogio.advance(1_500)
+  expect(compactou.length).toBe(1)
 })
