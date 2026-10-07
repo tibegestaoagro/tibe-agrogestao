@@ -318,6 +318,21 @@ async function testaArquivamentoManual() {
       "só desarquivar pela Plataforma devolve o acesso -> full",
       (await getBillingAccess(tenant.id)) === "full",
     );
+
+    // Segunda rodada do Codex: tenant já marcado pelo varredor (archived_at
+    // sem decisão da Plataforma) precisa poder ser arquivado de verdade; a
+    // ação comparava com archived_at e respondia "já arquivado" sem gravar.
+    await prisma.tenant.update({ where: { id: tenant.id }, data: { archived_at: new Date() } });
+    check(
+      "a marca do varredor sozinha não bloqueia",
+      (await getBillingAccess(tenant.id)) === "full",
+    );
+    await setTenantArchivedAction(tenant.id, true);
+    check(
+      "arquivar por cima da marca do varredor bloqueia -> blocked",
+      (await getBillingAccess(tenant.id)) === "blocked",
+    );
+    await setTenantArchivedAction(tenant.id, false);
   } finally {
     await prisma.subscription.deleteMany({ where: { tenant_id: tenant.id } });
     await prisma.tenant.delete({ where: { id: tenant.id } });
