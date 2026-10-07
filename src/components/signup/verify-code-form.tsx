@@ -116,7 +116,7 @@ export default function VerifyCodeForm({
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-texto-secundario">
         Enviamos um código de 6 dígitos para o seu {label}{" "}
         <strong>{destinationMasked}</strong>.
         {!isWhatsapp && " Confira também a caixa de spam e o lixo eletrônico."}
@@ -139,10 +139,10 @@ export default function VerifyCodeForm({
         </div>
 
         {error && (
-          <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+          <p className="rounded-md bg-perigo-suave px-3 py-2 text-sm text-perigo-tinta">{error}</p>
         )}
         {notice && (
-          <p className="rounded-md bg-tibe-light px-3 py-2 text-sm text-tibe-dark">{notice}</p>
+          <p className="rounded-md bg-superficie-afundada px-3 py-2 text-sm text-texto-marca">{notice}</p>
         )}
 
         <Button type="submit" disabled={loading || code.length !== 6} className="w-full">
@@ -151,11 +151,11 @@ export default function VerifyCodeForm({
       </form>
 
       {secondsLeft > 0 ? (
-        <p className="text-center text-xs text-gray-500">
+        <p className="text-center text-xs text-texto-discreto">
           Não chegou? Você poderá corrigir o {label} em {secondsLeft}s.
         </p>
       ) : editing ? (
-        <div className="space-y-2 rounded-md border border-gray-200 p-3">
+        <div className="space-y-2 rounded-md border border-borda p-3">
           <Label htmlFor="destination">
             {isWhatsapp ? "Corrigir número do WhatsApp" : "Corrigir email"}
           </Label>

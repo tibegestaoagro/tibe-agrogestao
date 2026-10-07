@@ -138,14 +138,14 @@ function AvisoUnico({ aviso, aoFechar }: { aviso: Aviso; aoFechar: (id: number) 
     <div
       role={sucesso ? "status" : "alert"}
       className={cn(
-        "pointer-events-auto flex w-full max-w-md items-start gap-3 rounded-lg border p-3 shadow-lg shadow-black/10",
+        "pointer-events-auto flex w-full max-w-md items-start gap-3 rounded-lg border p-3 shadow-lg",
         "transition-all duration-200 ease-out motion-reduce:transition-none",
         entrou ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0",
         // O erro tinha DOIS tons de vermelho (700 e 900) para hierarquia
         // dentro do aviso, e o sistema tem um só (`perigo-tinta`). A
         // hierarquia passa a vir da opacidade, como o lado do sucesso já faz.
         sucesso
-          ? "border-tibe-primary/30 bg-superficie text-tibe-dark"
+          ? "border-primaria/30 bg-superficie text-texto-marca"
           : "border-perigo bg-superficie text-perigo-tinta",
       )}
     >
@@ -153,7 +153,7 @@ function AvisoUnico({ aviso, aoFechar }: { aviso: Aviso; aoFechar: (id: number) 
         aria-hidden="true"
         className={cn(
           "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
-          sucesso ? "bg-tibe-primary/15 text-primaria-tinta" : "bg-perigo-suave text-perigo-tinta",
+          sucesso ? "bg-primaria/15 text-primaria-tinta" : "bg-perigo-suave text-perigo-tinta",
         )}
       >
         <Icone className="h-4 w-4" />
@@ -169,9 +169,9 @@ function AvisoUnico({ aviso, aoFechar }: { aviso: Aviso; aoFechar: (id: number) 
           // 44px de alvo, com o ícone menor dentro: o alvo é o que o dedo
           // precisa acertar, não o desenho.
           "-m-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-md",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primaria",
           sucesso
-            ? "text-tibe-dark/50 hover:text-tibe-dark"
+            ? "text-texto-marca/50 hover:text-texto-marca"
             : "text-perigo-tinta/60 hover:text-perigo-tinta",
         )}
       >

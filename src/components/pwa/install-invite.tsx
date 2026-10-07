@@ -163,7 +163,7 @@ export default function InstallInvite() {
         />
 
         <div className="min-w-0 flex-1">
-          <p className="text-base font-semibold leading-tight text-tibe-dark">
+          <p className="text-base font-semibold leading-tight text-texto-marca">
             Instalar o Tibé
           </p>
 
@@ -177,7 +177,7 @@ export default function InstallInvite() {
                 <button
                   type="button"
                   onClick={install}
-                  className="min-h-11 rounded-lg bg-primaria px-4 py-2 text-sm font-semibold text-sobre-primaria transition-colors hover:bg-primaria-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tibe-primary disabled:opacity-60"
+                  className="min-h-11 rounded-lg bg-primaria px-4 py-2 text-sm font-semibold text-sobre-primaria transition-colors hover:bg-primaria-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primaria disabled:opacity-60"
                 >
                   Instalar
                 </button>

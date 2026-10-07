@@ -500,7 +500,11 @@ function conferirCorCrua() {
 
   for (const rel of versionados()) {
     if (!rel.startsWith("src/") || !rel.endsWith(".tsx")) continue;
-    if (rel.includes("plataforma")) continue;
+    // A casca escura da Plataforma (as páginas E os componentes dela) fica fora
+    // por desenho, decisão de 31/08 reafirmada em 07/10: os tokens são todos
+    // claros, e converter pintaria claro sobre escuro com o portão de
+    // contraste aprovando. Volta para cá no dia do tema escuro.
+    if (rel.includes("plataforma") || rel.startsWith("src/components/platform/")) continue;
     const full = join(RAIZ, rel);
     if (!existsSync(full)) continue;
     const tem = COR_CRUA.test(readFileSync(full, "utf8"));
@@ -1247,6 +1251,50 @@ function conferirDinheiroEmPortugues() {
   );
 }
 
+// --------------------------------------------- 17. alias depreciado da marca
+/**
+ * 17. Nenhum alias depreciado `tibe-*` em classe.
+ *
+ * Os aliases `tibe.primary/dark/light/...` sairam do `tailwind.config.ts` em
+ * 07/10 (dividas 2.6 e 2.5). Sem eles no config, uma classe `text-tibe-dark`
+ * nova nao da erro em lugar nenhum: o Tailwind simplesmente nao gera CSS, e o
+ * titulo sai na cor herdada. E por isso que esta trava existe.
+ *
+ * O caso que motivou a divida: `text-tibe-dark` pintava 82 titulos com o token
+ * da SUPERFICIE da sidebar (`--superficie-invertida`), e o tema escuro, ao
+ * decidir a cor da sidebar, pintaria todos de verde escuro sobre fundo escuro.
+ * Hoje e `text-texto-marca`.
+ *
+ * Sem linha de base: a troca foi de uma vez, a catraca ja nasce no zero.
+ */
+export const CLASSE_TIBE_DEPRECIADA = /(?<![\w-])[a-z]+-tibe-(primary|dark|darkest|light|accent|accentDark|accentLight)(?![\w-])/;
+
+function conferirAliasDaMarca() {
+  console.log("\n17. Alias depreciado da marca (tibe-*)");
+
+  const ofensores: string[] = [];
+  for (const rel of versionados()) {
+    if (!rel.startsWith("src/") || !/\.(tsx?|css)$/.test(rel)) continue;
+    const full = join(RAIZ, rel);
+    if (!existsSync(full)) continue;
+    readFileSync(full, "utf8")
+      .split("\n")
+      .forEach((linha, i) => {
+        // Comentario pode citar o nome antigo para explicar a historia.
+        if (/^\s*(\/\/|\*|\/\*)/.test(linha)) return;
+        if (CLASSE_TIBE_DEPRECIADA.test(linha)) ofensores.push(`${rel}:${i + 1}`);
+      });
+  }
+
+  check(
+    "nenhuma classe usa o alias depreciado tibe-*",
+    ofensores.length === 0,
+    ofensores.length > 0
+      ? `o alias nao gera CSS desde 07/10; use o token (texto-marca, primaria, superficie-afundada...):\n       ${ofensores.slice(0, 12).join("\n       ")}`
+      : undefined,
+  );
+}
+
 function main() {
   console.log("🔎 Conferencia estatica do repositorio (sem banco)");
   conferirCaminhos();
@@ -1266,6 +1314,7 @@ function main() {
   conferirElementoQueSome();
   conferirCampoMudo();
   conferirDinheiroEmPortugues();
+  conferirAliasDaMarca();
 
   console.log("");
   if (falhas === 0) console.log("✅ Repositorio consistente: 0 falhas.");

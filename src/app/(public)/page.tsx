@@ -50,7 +50,7 @@ export default function HomePage() {
       {/* Hero */}
       <section className="bg-superficie-afundada">
         <div className="mx-auto max-w-3xl px-6 py-20 text-center">
-          <h1 className="text-4xl font-bold text-tibe-dark sm:text-5xl">
+          <h1 className="text-4xl font-bold text-texto-marca sm:text-5xl">
             Sua fazenda, sua lavoura e seus clientes: organizados em um só lugar
           </h1>
           <p className="mt-4 text-lg text-texto-secundario">
@@ -66,7 +66,7 @@ export default function HomePage() {
             </Link>
             <Link
               href="/planos"
-              className="rounded-md border border-tibe-primary px-6 py-3 font-medium text-primaria-tinta transition hover:bg-superficie"
+              className="rounded-md border border-primaria px-6 py-3 font-medium text-primaria-tinta transition hover:bg-superficie"
             >
               Ver planos
             </Link>
@@ -76,7 +76,7 @@ export default function HomePage() {
 
       {/* Módulos */}
       <section className="mx-auto max-w-6xl px-6 py-20">
-        <h2 className="text-center text-2xl font-bold text-tibe-dark">
+        <h2 className="text-center text-2xl font-bold text-texto-marca">
           Tudo que sua operação precisa
         </h2>
         <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -92,7 +92,7 @@ export default function HomePage() {
       {/* Como funciona */}
       <section className="bg-superficie-afundada">
         <div className="mx-auto max-w-4xl px-6 py-20">
-          <h2 className="text-center text-2xl font-bold text-tibe-dark">Como funciona</h2>
+          <h2 className="text-center text-2xl font-bold text-texto-marca">Como funciona</h2>
           <div className="mt-10 grid gap-8 sm:grid-cols-3">
             {STEPS.map((s) => (
               <div key={s.n} className="text-center">
@@ -109,7 +109,7 @@ export default function HomePage() {
 
       {/* CTA final */}
       <section className="mx-auto max-w-3xl px-6 py-20 text-center">
-        <h2 className="text-2xl font-bold text-tibe-dark">Pronto para organizar sua operação?</h2>
+        <h2 className="text-2xl font-bold text-texto-marca">Pronto para organizar sua operação?</h2>
         <Link
           href="/criar-conta"
           className="mt-6 inline-block rounded-md bg-primaria px-6 py-3 font-medium text-sobre-primaria transition hover:bg-primaria-hover"

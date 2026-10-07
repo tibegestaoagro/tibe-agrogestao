@@ -153,7 +153,7 @@ export default function PushToggle() {
                 type="button"
                 onClick={ligar}
                 disabled={busy}
-                className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-primaria px-4 py-2 text-sm font-semibold text-sobre-primaria transition-colors hover:bg-primaria-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tibe-primary disabled:opacity-60"
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-primaria px-4 py-2 text-sm font-semibold text-sobre-primaria transition-colors hover:bg-primaria-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primaria disabled:opacity-60"
               >
                 <BellRing className="h-4 w-4" aria-hidden="true" />
                 {busy ? "Ativando" : "Ativar notificações"}

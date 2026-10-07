@@ -6,7 +6,7 @@ export default function DeployPage() {
   return (
     <article className="max-w-3xl space-y-10 text-sm leading-relaxed text-texto-secundario">
       <div>
-        <h1 className="text-3xl font-bold text-tibe-dark">Deploy</h1>
+        <h1 className="text-3xl font-bold text-texto-marca">Deploy</h1>
         <p className="mt-3 text-texto-secundario">Como o deploy de produção funciona hoje.</p>
       </div>
 
@@ -33,20 +33,20 @@ export default function DeployPage() {
       <section>
         <h2 className="text-lg font-semibold text-texto">Variáveis de ambiente de produção</h2>
         <p className="mt-2">
-          As mesmas de <code className="rounded bg-superficie-afundada px-1">.env.example</code> (ver{" "}
+          As mesmas de <code className="rounded border border-borda bg-superficie-afundada px-1">.env.example</code> (ver{" "}
           <a href="/docs/setup" className="text-primaria-tinta hover:underline">Setup local</a>), configuradas em
           Project Settings → Environment Variables na Vercel. Duas merecem atenção especial:
         </p>
         <ul className="mt-2 list-disc space-y-1 pl-5">
           <li>
-            <code className="rounded bg-superficie-afundada px-1">DATABASE_URL</code> em runtime usa a connection string{" "}
-            <strong>pooled</strong> do Neon (com <code className="rounded bg-superficie-afundada px-1">-pooler</code> no
+            <code className="rounded border border-borda bg-superficie-afundada px-1">DATABASE_URL</code> em runtime usa a connection string{" "}
+            <strong>pooled</strong> do Neon (com <code className="rounded border border-borda bg-superficie-afundada px-1">-pooler</code> no
             host): necessária em ambiente serverless.
           </li>
           <li>
-            <code className="rounded bg-superficie-afundada px-1">CRON_SECRET</code> não precisa ser configurado
+            <code className="rounded border border-borda bg-superficie-afundada px-1">CRON_SECRET</code> não precisa ser configurado
             manualmente para autenticação: a própria Vercel injeta o header{" "}
-            <code className="rounded bg-superficie-afundada px-1">Authorization: Bearer</code> nas chamadas de cron. Basta
+            <code className="rounded border border-borda bg-superficie-afundada px-1">Authorization: Bearer</code> nas chamadas de cron. Basta
             definir o mesmo valor como variável de ambiente para a rota conseguir validar.
           </li>
         </ul>
@@ -56,7 +56,7 @@ export default function DeployPage() {
         <h2 className="text-lg font-semibold text-texto">Migrações em produção</h2>
         <p className="mt-2">
           Aplique sempre primeiro em desenvolvimento local, rode os testes, e só depois replique em produção: com
-          a connection string <strong>Direct</strong> do Neon (sem <code className="rounded bg-superficie-afundada px-1">-pooler</code>),
+          a connection string <strong>Direct</strong> do Neon (sem <code className="rounded border border-borda bg-superficie-afundada px-1">-pooler</code>),
           exigida pelo Prisma Migrate:
         </p>
         <pre className="mt-2 overflow-x-auto rounded-md bg-codigo-fundo p-4 text-xs text-codigo-texto">
@@ -87,8 +87,8 @@ export default function DeployPage() {
         </p>
         <ul className="mt-2 list-disc space-y-1 pl-5">
           <li>N8N em produção (Railway) + número Salvy + Meta Business Manager verificado: necessários para o agente WhatsApp responder de verdade.</li>
-          <li><code className="rounded bg-superficie-afundada px-1">ASAAS_API_KEY</code> de produção: sem ela, as rotas de cobrança respondem 503 de forma controlada.</li>
-          <li>Domínio próprio (<code className="rounded bg-superficie-afundada px-1">tibe.com.br</code>) com SSL: hoje a aplicação responde apenas no domínio gerado pela Vercel.</li>
+          <li><code className="rounded border border-borda bg-superficie-afundada px-1">ASAAS_API_KEY</code> de produção: sem ela, as rotas de cobrança respondem 503 de forma controlada.</li>
+          <li>Domínio próprio (<code className="rounded border border-borda bg-superficie-afundada px-1">tibe.com.br</code>) com SSL: hoje a aplicação responde apenas no domínio gerado pela Vercel.</li>
         </ul>
       </section>
     </article>

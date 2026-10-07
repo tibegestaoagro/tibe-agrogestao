@@ -13,7 +13,7 @@ export function SchemaTable({ table }: { table: TableDoc }) {
         <tbody className="divide-y divide-borda">
           {table.fields.map(([field, desc]) => (
             <tr key={field}>
-              <td className="whitespace-nowrap py-1.5 pr-4 align-top font-mono text-xs text-tibe-dark">{field}</td>
+              <td className="whitespace-nowrap py-1.5 pr-4 align-top font-mono text-xs text-texto-marca">{field}</td>
               <td className="py-1.5 text-texto-secundario">{desc}</td>
             </tr>
           ))}

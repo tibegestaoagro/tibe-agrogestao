@@ -32,24 +32,24 @@ export default function ChangePasswordForm() {
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-sm text-gray-700">Nova senha</label>
+        <label className="block text-sm text-texto-secundario">Nova senha</label>
         <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+          className="mt-1 w-full rounded-md border border-borda-forte px-3 py-2 text-sm"
         />
       </div>
       <div>
-        <label className="block text-sm text-gray-700">Confirmar nova senha</label>
+        <label className="block text-sm text-texto-secundario">Confirmar nova senha</label>
         <input
           type="password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
-          className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+          className="mt-1 w-full rounded-md border border-borda-forte px-3 py-2 text-sm"
         />
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-perigo-tinta">{error}</p>}
       <button
         type="button"
         onClick={submit}

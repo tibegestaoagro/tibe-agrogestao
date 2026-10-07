@@ -423,7 +423,7 @@ export default function NegotiationForm({
                       key={n}
                       type="button"
                       onClick={() => parcelar(n)}
-                      className="rounded border border-borda px-2 py-1 text-sm text-texto-secundario hover:border-tibe-primary"
+                      className="rounded border border-borda px-2 py-1 text-sm text-texto-secundario hover:border-primaria"
                     >
                       {n}x
                     </button>

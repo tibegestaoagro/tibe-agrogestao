@@ -40,7 +40,7 @@ export default function LoginPage() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+        <label htmlFor="email" className="block text-sm font-medium text-texto-secundario">
           Email
         </label>
         <input
@@ -50,13 +50,13 @@ export default function LoginPage() {
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-tibe-primary focus:ring-1 focus:ring-tibe-primary"
+          className="mt-1 w-full rounded-md border border-borda-forte px-3 py-2 text-sm outline-none focus:border-primaria focus:ring-1 focus:ring-primaria"
         />
       </div>
 
       <div>
         <div className="flex items-center justify-between">
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="password" className="block text-sm font-medium text-texto-secundario">
             Senha
           </label>
           <Link href="/esqueci-senha" className="text-xs text-primaria-tinta hover:underline">
@@ -70,12 +70,12 @@ export default function LoginPage() {
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-tibe-primary focus:ring-1 focus:ring-tibe-primary"
+          className="mt-1 w-full rounded-md border border-borda-forte px-3 py-2 text-sm outline-none focus:border-primaria focus:ring-1 focus:ring-primaria"
         />
       </div>
 
       {error && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p className="rounded-md bg-perigo-suave px-3 py-2 text-sm text-perigo-tinta">
           {error}
         </p>
       )}
@@ -88,7 +88,7 @@ export default function LoginPage() {
         {loading ? "Entrando..." : "Entrar"}
       </button>
 
-      <p className="text-center text-sm text-gray-500">
+      <p className="text-center text-sm text-texto-discreto">
         Não tem conta?{" "}
         <Link href="/planos" className="text-primaria-tinta hover:underline">
           Ver planos

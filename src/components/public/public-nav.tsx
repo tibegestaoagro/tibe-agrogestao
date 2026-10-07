@@ -10,13 +10,13 @@ export default function PublicNav() {
         <UtmCapture />
       </Suspense>
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <Link href="/" className="text-xl font-bold text-tibe-dark">
+        <Link href="/" className="text-xl font-bold text-texto-marca">
           Tibé
         </Link>
         <nav className="flex items-center gap-6 text-sm">
-          <Link href="/planos" className="text-texto-secundario hover:text-tibe-dark">Planos</Link>
-          <Link href="/faq" className="text-texto-secundario hover:text-tibe-dark">FAQ</Link>
-          <Link href="/login" className="font-medium text-primaria-tinta hover:text-tibe-dark">Entrar</Link>
+          <Link href="/planos" className="text-texto-secundario hover:text-texto-marca">Planos</Link>
+          <Link href="/faq" className="text-texto-secundario hover:text-texto-marca">FAQ</Link>
+          <Link href="/login" className="font-medium text-primaria-tinta hover:text-texto-marca">Entrar</Link>
         </nav>
       </div>
     </header>

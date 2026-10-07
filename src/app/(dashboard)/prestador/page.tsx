@@ -103,7 +103,7 @@ export default async function PrestadorPage(
               return (
                 <TableRow key={c.id}>
                   <TableCell className="font-medium">
-                    <Link href={`/prestador/clientes/${c.id}`} className="text-tibe-dark hover:underline">
+                    <Link href={`/prestador/clientes/${c.id}`} className="text-texto-marca hover:underline">
                       {c.name}
                     </Link>
                   </TableCell>

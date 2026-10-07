@@ -38,7 +38,7 @@ export default function CalculadorasPage() {
                 <Link
                   key={f.href}
                   href={f.href}
-                  className="rounded-lg border border-borda bg-superficie p-4 transition hover:border-tibe-primary hover:shadow-sm"
+                  className="rounded-lg border border-borda bg-superficie p-4 transition hover:border-primaria hover:shadow-sm"
                 >
                   <p className="font-medium text-texto">{f.title}</p>
                   <p className="mt-1 text-sm text-texto-secundario">{f.description}</p>

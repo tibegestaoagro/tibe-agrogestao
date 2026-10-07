@@ -45,7 +45,7 @@ export default async function ConfiguracoesPage() {
             <li
               key={p}
               /**
-               * ⚠️ Era `bg-tibe-light`, que virou INVISÍVEL: o alias
+               * ⚠️ Era `bg-superficie-afundada`, que virou INVISÍVEL: o alias
                * depreciado aponta para `--superficie-afundada`, que é
                * exatamente o fundo do painel. A pílula ficava da cor da
                * página e só sobrava o texto solto. Achado na varredura ao

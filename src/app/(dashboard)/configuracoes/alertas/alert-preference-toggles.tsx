@@ -37,7 +37,7 @@ export default function AlertPreferenceToggles({ preferences }: { preferences: P
   }
 
   return (
-    <div className="rounded-lg border border-borda bg-superficie divide-y divide-gray-100">
+    <div className="rounded-lg border border-borda bg-superficie divide-y divide-borda">
       {preferences.map((p) => (
         <label
           key={p.alert_type}

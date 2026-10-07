@@ -155,7 +155,7 @@ export default function CalcPage({
   return (
     <div className="max-w-2xl space-y-5">
       <div>
-        <Link href="/calculadoras" className="text-xs text-texto-discreto hover:text-tibe-dark hover:underline">
+        <Link href="/calculadoras" className="text-xs text-texto-discreto hover:text-texto-marca hover:underline">
           &larr; Calculadoras
         </Link>
         <h1 className="mt-1 text-xl font-semibold text-texto">{title}</h1>
@@ -222,7 +222,7 @@ export default function CalcPage({
                   type="checkbox"
                   checked={values[f.key] as boolean}
                   onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.checked }))}
-                  className="h-4 w-4 rounded border-borda text-primaria-tinta focus:ring-tibe-primary"
+                  className="h-4 w-4 rounded border-borda text-primaria-tinta focus:ring-primaria"
                 />
                 {f.label}
               </label>
@@ -246,7 +246,7 @@ export default function CalcPage({
                             })),
                           }))
                         }
-                        className="rounded-full border border-borda px-3 py-1 text-xs text-texto-secundario hover:border-tibe-primary hover:text-tibe-dark"
+                        className="rounded-full border border-borda px-3 py-1 text-xs text-texto-secundario hover:border-primaria hover:text-texto-marca"
                       >
                         {preset.nome}
                       </button>
@@ -359,7 +359,7 @@ export default function CalcPage({
               <div
                 key={r.label}
                 className={`flex items-center justify-between gap-4 text-sm ${
-                  r.highlight ? "font-semibold text-tibe-dark" : "text-texto-secundario"
+                  r.highlight ? "font-semibold text-texto-marca" : "text-texto-secundario"
                 }`}
               >
                 <dt>{r.label}</dt>

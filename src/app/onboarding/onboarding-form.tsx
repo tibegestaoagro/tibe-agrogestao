@@ -58,18 +58,18 @@ export default function OnboardingForm() {
             onClick={() => setSelected(opt.value)}
             className={`rounded-lg border p-4 text-left transition ${
               selected === opt.value
-                ? "border-tibe-primary bg-tibe-light"
-                : "border-gray-200 hover:border-tibe-primary"
+                ? "border-primaria bg-superficie-afundada"
+                : "border-borda hover:border-primaria"
             }`}
           >
-            <span className="block font-medium text-gray-900">{opt.title}</span>
-            <span className="block text-sm text-gray-500">{opt.desc}</span>
+            <span className="block font-medium text-texto">{opt.title}</span>
+            <span className="block text-sm text-texto-discreto">{opt.desc}</span>
           </button>
         ))}
       </div>
 
       {error && (
-        <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p className="mt-4 rounded-md bg-perigo-suave px-3 py-2 text-sm text-perigo-tinta">
           {error}
         </p>
       )}

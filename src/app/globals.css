@@ -52,6 +52,11 @@
   --texto-secundario: #4b5563;
   --texto-discreto: #6b7280;
   --texto-invertido: #fcf8f5;
+  /* Título e destaque na cor da marca (dívida 2.6). Hoje tem o mesmo valor de
+     `--superficie-invertida`, e é de propósito um token SEPARADO: os títulos
+     usavam o token da sidebar como cor de texto, e o tema escuro, ao decidir
+     a cor da sidebar, pintaria todos eles de verde escuro sobre fundo escuro. */
+  --texto-marca: #022e20;
 
   /* Bordas. `--borda` separa; `--borda-campo` delimita controle, e por isso
      precisa dos 3:1 da WCAG 1.4.11, que a cinza clara nao dava (1,47:1). */

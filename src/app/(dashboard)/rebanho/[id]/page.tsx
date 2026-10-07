@@ -156,7 +156,7 @@ export default async function AnimalDetail(
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="rounded-lg border border-borda bg-superficie p-5">
           <p className="text-xs text-texto-discreto">Custo total acumulado</p>
-          <p className="mt-1 text-2xl font-semibold text-tibe-dark">{brl(totalCost)}</p>
+          <p className="mt-1 text-2xl font-semibold text-texto-marca">{brl(totalCost)}</p>
           <p className="mt-1 text-xs text-texto-discreto">
             Média mensal: {brl(monthlyAvg)} · desde {since.toLocaleDateString("pt-BR")}
           </p>

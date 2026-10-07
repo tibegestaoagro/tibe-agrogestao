@@ -37,9 +37,9 @@ export default function CalculadoraGrid() {
             <Link
               key={c.href}
               href={c.href}
-              className="flex flex-col items-center gap-2 rounded-lg border border-borda p-3 text-center transition hover:border-tibe-primary hover:bg-tibe-light"
+              className="flex flex-col items-center gap-2 rounded-lg border border-borda p-3 text-center transition hover:border-primaria hover:bg-superficie-afundada"
             >
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-tibe-primary/10 text-primaria-tinta">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primaria/10 text-primaria-tinta">
                 <Icon className="h-4 w-4" />
               </span>
               <span className="text-xs font-medium text-texto-secundario">{c.title}</span>

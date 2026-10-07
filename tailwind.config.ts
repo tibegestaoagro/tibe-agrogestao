@@ -34,6 +34,7 @@ const config: Config = {
           secundario: "var(--texto-secundario)",
           discreto: "var(--texto-discreto)",
           invertido: "var(--texto-invertido)",
+          marca: "var(--texto-marca)",
         },
         borda: {
           DEFAULT: "var(--borda)",
@@ -80,19 +81,8 @@ const config: Config = {
           tinta: "var(--info-tinta)",
           suave: "var(--info-suave)",
         },
-
-        // ALIAS DEPRECIADO. Nao use em codigo novo: use os nomes acima.
-        // Apontam para as mesmas variaveis, entao uma troca de identidade
-        // alcanca tambem as classes antigas sem ninguem precisar reescreve-las.
-        tibe: {
-          primary: "var(--primaria)",
-          dark: "var(--superficie-invertida)",
-          darkest: "var(--sobre-primaria)",
-          light: "var(--superficie-afundada)",
-          accent: "var(--acento)",
-          accentDark: "var(--acento-hover)",
-          accentLight: "var(--acento-suave)",
-        },
+        // Os aliases depreciados `tibe.*` sairam em 07/10 (dividas 2.6 e 2.5).
+        // A conferencia 17 do `npm run check` reprova classe que volte a usa-los.
       },
       boxShadow: {
         sm: "var(--sombra-1)",

@@ -55,7 +55,7 @@ export default function DashboardShell({
   }
 
   return (
-    <div className="flex min-h-screen bg-tibe-light">
+    <div className="flex min-h-screen bg-superficie-afundada">
       <Sidebar
         navItems={navItems}
         tenantName={tenantName}
@@ -69,7 +69,7 @@ export default function DashboardShell({
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
-            className="flex h-11 w-11 items-center justify-center rounded-md text-texto-discreto hover:bg-superficie-afundada focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary md:hidden"
+            className="flex h-11 w-11 items-center justify-center rounded-md text-texto-discreto hover:bg-superficie-afundada focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primaria md:hidden"
             aria-label="Abrir menu"
           >
             <Menu className="h-5 w-5" />

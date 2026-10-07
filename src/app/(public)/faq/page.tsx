@@ -51,7 +51,7 @@ export default function FaqPage() {
     <main className="min-h-screen bg-superficie">
       <PublicNav />
       <div className="mx-auto max-w-3xl px-6 py-16">
-        <h1 className="text-3xl font-bold text-tibe-dark">Perguntas frequentes</h1>
+        <h1 className="text-3xl font-bold text-texto-marca">Perguntas frequentes</h1>
         <p className="mt-2 text-texto-secundario">
           Não achou o que procurava? Fale com a gente em{" "}
           <a href="mailto:contato@tibe.com.br" className="text-primaria-tinta hover:underline">
