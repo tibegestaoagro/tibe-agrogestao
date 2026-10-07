@@ -267,29 +267,20 @@ em todo domínio não coberto.
   (`whatsapp-handlers/rebanho.ts`) conta pelo dia de São Paulo: nessas três horas
   a distância vira 3 dias e a promessa de lembrete aparece. É o teste, não o
   código. Custo: montar a data pelo dia de São Paulo (`inicioDoDiaEmSaoPaulo`).
+- **`test:m58` falha desde outubro de 2026.** Achado em 07/10/2026 no
+  `test:all` da E2 (falha igual na `main`). `scripts/m58-servico-contratado.test.ts`
+  (~306 e ~929) usa outubro de 2026 como "período futuro, ainda zerado" e uma
+  conta vencendo em 01/10/2026: virou presente. É o teste, não o código. Custo:
+  datas relativas a hoje, como a `m17`. Entra na E5 do programa.
 
-### 5.8 Dois caminhos ainda nascem vencendo hoje sem prazo
+### 5.9 Leilão e permuta pelo agente gravam sempre como já pagos
 
-Resíduo da 5.6, fechada em 29/09/2026: as quatro actions de negociação (gado,
-produto, encerramento de remessa, permuta) passaram a RECUSAR conta em aberto
-sem vencimento e sem parcelas (422 `VENCIMENTO_OBRIGATORIO`), e as telas da
-permuta e da Lista de Compra ganharam o campo "Vence em". Ficaram dois:
-
-- **Venda que sai de uma estadia** (`venderDaEstadiaNaTransacao`, em
-  `negotiations.ts`): a tela de encerramento da estadia do REBANHO
-  (`stay-close-form.tsx`) não tem campo de pagamento nenhum, então recusar ali
-  quebraria a venda. A do confinamento (`lot-close-form.tsx`) já exige a data.
-- **Custo de remessa SEM venda** (`closeEventConsignment`): não passa por
-  `validarPagamento`, e o custo em aberto cai em hoje.
-
-Custo: dar à tela da estadia o par "já recebeu? / vence em" e então recusar em
-`venderDaEstadiaNaTransacao`; para a remessa, exigir `due_date` do custo quando
-não houver venda.
-
-Registro, não defeito: pelo AGENTE, leilão e permuta nunca nasciam vencendo
-hoje. `encerrar_remessa_evento` e `registrar_permuta` gravam sempre com
-`pago: true`. Se isso deve virar pergunta, é decisão de produto para quando o
-classificador for destravado.
+Resíduo registrado ao fechar a 5.8 (07/10/2026). Não é defeito de data: pelo
+AGENTE, `encerrar_remessa_evento` e `registrar_permuta` gravam sempre com
+`pago: true`, então nunca nascem vencendo hoje, mas também nunca perguntam.
+A venda do confinamento passou a perguntar "Você já recebeu?" na 5.8; se
+leilão e permuta devem perguntar também é decisão de produto, para quando o
+classificador do n8n for destravado (as duas intenções nem são emitidas hoje).
 
 ### 3.3 O agente do WhatsApp ignora a régua de cobrança
 

@@ -39,6 +39,24 @@ erro nenhum, com a suíte verde.
   de entregas.
 - O teste que discrimina é a frase com as duas coisas ao mesmo tempo.
 
+## Acréscimo de 2026-10-07: a palavra solta também mente sem data nenhuma
+
+Na dívida 5.8 a venda do confinamento passou a usar o mesmo leitor
+(`respondeuQueJaPagou`), e a revisão adversarial do Codex achou, em três
+rodadas seguidas, frases SEM data que ainda quitavam: "vou receber depois",
+"ainda não recebi", "receberei", "falta receber", "quando for pago", "recebi só
+metade". Cada correção por lista (de exclusão, depois positiva) deixava passar
+a próxima frase. O que fechou foi mudar a pergunta: em vez de "a frase contém
+palavra de quitação?", "a resposta INTEIRA é uma quitação?", com padrões
+ancorados do começo ao fim (`^...$`) e o meio de pagamento como complemento.
+Tudo o mais pergunta de novo. Commits `27e0e66`, `747bb23`, `e2df613`.
+
+- Leitor de texto livre que decide dinheiro não procura palavra: reconhece
+  resposta completa, e o que não reconhece vira pergunta.
+- Lista de exclusão para linguagem natural sempre perde para a próxima frase.
+
 ## Relacionado
+
+- [[a-aba-oculta-e-a-leitura-cedo-imitam-defeito-no-navegador]]
 
 - [[a-porta-fraca-nao-pode-alcancar-quem-grava-sem-confirmar]]

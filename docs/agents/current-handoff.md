@@ -27,21 +27,25 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-10-07.
 
-### Programa de dívidas (desde 07/10): E0 em produção, E1 aguardando migração e merge
+### Programa de dívidas (desde 07/10): E0 e E1 em produção, E2 aguardando merge
 
-**E1 (3.2, tenant arquivado), branch `divida-3-2`:** commits `4de8ca1`,
-`4b1e625`, `56e822c`. A decisão de arquivar mora em
-`Tenant.arquivado_pela_plataforma_em` (migração `20261007200000`, uma coluna;
-produção tinha 0 tenants arquivados). Bloqueia em tela, API (`403
-TENANT_ARCHIVED`, inclusive billing e as rotas sem guard) e WhatsApp
-(`identificarContato`). `m31` seção 4 com cada caso visto falhando; Codex: três
-rodadas, 4 achados corrigidos, aprovou na terceira. Validado no navegador
-(arquivado, só marca do varredor, desarquivado). **A migração NÃO está no Neon**
-(`migrate status`: 1 pendente): sem ela, toda rota autenticada dá 500 depois do
-deploy, porque `getTenantRecord` lê a coluna nova. Dívida nova registrada: 3.3
-(o agente ignora a régua de inadimplência, decisão de produto).
+**E2 (5.8, prazo da venda da estadia e do custo de remessa), branch
+`divida-5-8`:** commits `5062515`, `27e0e66`, `747bb23`, `e2df613`.
+`venderDaEstadiaNaTransacao` e o custo de remessa sem venda passam por
+`validarPagamento`; a tela de encerrar estadia ganhou "Você já recebeu?" e a
+data; o agente (`encerrar_confinamento`) pergunta o prazo antes de confirmar.
+O Codex achou em três rodadas que o leitor de "já recebi"
+(`respondeuQueJaPagou`, compartilhado com o negócio de GADO) quitava "vou
+receber depois", "receberei" e "quando for pago": agora só resposta completa
+ancorada quita, o resto pergunta de novo. Aprovou na quarta. Tela validada no
+navegador (recusa no campo, gravação pendente na data). **O agente ainda não
+foi exercitado em conversa real**: depois do deploy, `npm run wa` até a
+pergunta e "não" (o canário é a Da Mata, tenant real). Resíduo registrado: 5.9.
 
-E0 (`b4a5c77`) foi para a `main` em 07/10, autorizada pelo usuário.
+**E1 (3.2) em produção** (`cafcb6a`, 07/10): migração no Neon rodada pelo
+usuário e conferida; deploy conferido em `/docs/arquitetura`. Dívida nova da
+etapa: 3.3 (o agente ignora a régua de inadimplência, decisão de produto).
+E0 (`b4a5c77`) também na `main`.
 
 O usuário aprovou em 07/10 um programa para fechar as dívidas de
 [dividas.md](dividas.md) em etapas E0 a E11, uma branch por etapa, cada uma com
@@ -56,22 +60,9 @@ categoria substitui o pedido; 5.2 `contact_id` direto, negociação como
 complemento; 2.3 entram os quatro itens; entram também unaccent, rebase do app
 mobile, contratos e pasto com avaliação. Fora: 1.1, 1.3, 2.4.
 
-**E0 (mod `guarda-contexto`), branch `mod-guarda-contexto`:** commits
-`5bfdab9`, `93e5ee4`, `a4cd526`, `4d03c80`. Suíte do mod 19/19, cada caso
-visto falhando; o Codex apontou 10 problemas em três rodadas, todos corrigidos,
-e aprovou na quarta. **Ao vivo (headless, limiares baixos via `--settings`,
-worktree descartável):** o aviso chegou ao modelo; no limiar de agir o modelo
-atualizou o handoff sozinho e o mod disparou a compactação 1,5 s depois do fim
-do turno. **NÃO provado:** o resumo terminar e a retomada sair; em headless o
-resumo não concluiu em 90 s. A primeira sessão interativa que passar de 90% é
-a prova: conferir se compactou e retomou. Ver a seção do mod no `CLAUDE.md`.
-
-**Achado para a E1 (3.2), a levar ao usuário no merge dela:** a varredura
-(`cancellation-sweep.ts`) já desarquiva todo tenant com assinatura ativa ou em
-atraso, inclusive o arquivado à mão. Então "arquivado bloqueia" vale para
-tenant sem assinatura (trial, conta interna) e para assinatura cancelada fora
-da janela de leitura; com assinatura ativa ou em atraso quem decide é a
-cobrança, senão um cliente que voltou a pagar ficaria bloqueado até a varredura.
+**E0 (mod `guarda-contexto`):** ver a seção do mod no `CLAUDE.md`. **Ainda não
+provado ao vivo:** o resumo terminar e a retomada sair (em headless o resumo
+não concluiu). A primeira sessão interativa que passar de 90% é a prova.
 
 ### Agente do WhatsApp: Fases 1 a 6 em produção, Fase 7 em CANÁRIO
 
@@ -128,26 +119,10 @@ conversa. Em 11/09 uma segunda tentativa passou e, na outra vez, quem rodou foi
 o usuário. Tente uma vez; se bloquear, dê a ele o comando e o diretório, e
 confira com `migrate status` antes do push.
 
-✅ **A validação visual com navegador FUNCIONA nesta máquina** (`browser-harness`),
-e foi assim que os Módulos 36 e 37 foram validados. Seis atritos conhecidos:
-
-1. a primeira conexão exige `new_tab(url)` explícito;
-2. clique por coordenada não dispara o botão no rodapé do `FormSheet` (use
-   `b.click()` por `js`, e no `FormSheet` ache por `button[type=submit]`, porque
-   o texto com acento não casa);
-3. os ids da árvore de acessibilidade mudam a cada render;
-4. ⚠️ **aba em segundo plano PAUSA a animação e imita defeito**: o painel fica
-   com `data-state="closed"` sem desmontar e a sobreposição engole todo clique.
-   `activate_tab(current_tab())` resolve. Custou duas investigações em 11/09;
-5. ⚠️ **o texto passado ao `js(...)` chega com acento corrompido**: case por
-   prefixo sem acento, ou monte o caractere com `String.fromCharCode`;
-6. a primeira visita a uma rota ainda não compilada estoura o tempo do controle.
-   Não é queda: espere e leia de novo, sem renavegar.
-
-⚠️ **Monte cenário de tela com script `tsx`, nunca com `curl`.** O Git Bash
-daqui manda acento em Windows-1252, o dado entra torto no banco, e o sintoma
-parece defeito de renderização. Modelos prontos: `scripts/_cenario-lista.ts` e
-`scripts/_cenario-financeiro-35.ts`.
+✅ **A validação com navegador (`browser-harness`) funciona.** Os seis atritos
+que imitam defeito (aba oculta, leitura cedo, acento no `js()`) estão no cofre:
+`a-aba-oculta-e-a-leitura-cedo-imitam-defeito-no-navegador`. Cenário de tela se
+monta com script `tsx` (`scripts/_cenario-lista.ts`), nunca com `curl`.
 
 ### 🔴 SEGURANÇA: o repositório está PÚBLICO e o `.env.enc` vazou
 
@@ -190,10 +165,9 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
 
-**0. Programa de dívidas:** o usuário roda `npm run db:deploy` (Neon), o agente
-confere com `npx prisma migrate status`, e só então pede o merge da
-`divida-3-2`. Depois, E2 (5.8, estadia e remessa sem vencer hoje) na branch
-`divida-5-8`, conforme o plano.
+**0. Programa de dívidas:** pedir o merge da `divida-5-8` (sem migração);
+depois do deploy, validar o agente pelo `npm run wa`. Em seguida, E3 (3.1 Redis
+e push: 5.0e, 5.0f, 5.0g, 5.0h) na branch `divida-3-1-push`, que TEM migração.
 
 **1. Segurança, que é do usuário e vem antes de tudo:** rotacionar as 22
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
@@ -224,7 +198,4 @@ Não avance para outro módulo sem aprovação explícita.
   O bloco `autoMode.allow` que destrava `npm run db:deploy` foi escrito no
   desktop em 01/09 e **não existe no notebook**. Lá, migração em produção volta
   a ser recusada pelo classificador, e o caminho é pedir ao usuário.
-- ⚠️ **A linha que dizia que o Redis local desta máquina era `tibe-redis-local`
-  na porta `6390` estava ERRADA**, conferido em 11/09: o container é
-  `tibe-redis` na `56379`, como o `CLAUDE.md` documenta. Confira com `docker ps`
-  antes de copiar comando de qualquer um dos dois.
+- O Redis local é `tibe-redis` na `56379` (conferido em 11/09); `docker ps` antes.
