@@ -8,7 +8,8 @@ import {
 import { type TenantPrismaClient } from "@/lib/prisma";
 import { apiError, ApiErrors } from "@/lib/api";
 import { canAccess, canWrite, type ModuleKey } from "@/lib/permissions";
-import { getBillingAccess } from "@/lib/billing-access";
+import { getBillingState } from "@/lib/billing-access";
+import { MENSAGEM_ARQUIVADO } from "@/lib/mensagem-arquivado";
 import { requireSessionGateApi } from "@/lib/session-gate";
 
 /**
@@ -24,7 +25,9 @@ import { requireSessionGateApi } from "@/lib/session-gate";
  *
  * `skipBillingCheck: true` é só para as próprias rotas de billing
  * (`/api/v1/billing/*`): precisam continuar acessíveis mesmo com a conta
- * bloqueada, para o tenant conseguir regularizar.
+ * bloqueada, para o tenant conseguir regularizar. Tenant ARQUIVADO pela
+ * Plataforma não regulariza por aqui: recebe 403 `TENANT_ARCHIVED` em toda
+ * rota, inclusive essas.
  *
  * `must_change_password`/`plan_confirmed` (spec 2026-07-24/2026-07-27,
  * criação manual de tenant pelo painel) bloqueiam TODA ação aqui, sem
@@ -73,8 +76,15 @@ export async function guard(
     }
   }
 
+  // Arquivado vale também nas rotas de cobrança (`skipBillingCheck`): elas
+  // existem para o inadimplente regularizar, e assinar desarquivaria por fora
+  // da Plataforma quem ela arquivou (dívida 3.2).
+  const { access, archived } = await getBillingState(user.tenant_id);
+  if (archived) {
+    return { error: apiError("TENANT_ARCHIVED", MENSAGEM_ARQUIVADO, 403) };
+  }
+
   if (!opts?.skipBillingCheck) {
-    const access = await getBillingAccess(user.tenant_id);
     if (access === "blocked") {
       return {
         error: apiError(

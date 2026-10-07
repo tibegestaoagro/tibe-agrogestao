@@ -6,6 +6,8 @@ import { log } from "@/lib/log";
 import { isIntent } from "@/lib/whatsapp-intents";
 import { executarIntencao } from "@/lib/actions/executar-intencao";
 import { withApi } from "@/lib/route";
+import { getBillingState } from "@/lib/billing-access";
+import { MENSAGEM_ARQUIVADO } from "@/lib/mensagem-arquivado";
 
 /**
  * POST /api/internal/whatsapp/execute-action (spec 3.5)
@@ -94,6 +96,12 @@ async function POSTHandler(request: Request) {
       "O usuário informado não pertence a este tenant",
       403,
     );
+  }
+
+  // Defesa em profundidade (dívida 3.2): o resolve-contact já recusa o
+  // tenant arquivado antes, mas esta é a rota que escreve.
+  if ((await getBillingState(tenant_id)).archived) {
+    return apiError("TENANT_ARCHIVED", MENSAGEM_ARQUIVADO, 403);
   }
 
   const db = prismaForTenant(tenant_id);

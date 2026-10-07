@@ -70,6 +70,18 @@ paths:
   acessíveis para o tenant conseguir regularizar). O layout do dashboard
   aplica a mesma regra a nível de página, redirecionando para
   `/configuracoes/assinatura` quando bloqueado.
+- **Tenant arquivado pela Plataforma** (dívida 3.2, decisão do usuário em
+  2026-10-07): `getBillingState(tenantId)` devolve `{ access, archived }`, e
+  `getBillingAccess` é só o `access`. Arquivar bloqueia e **vence o selo de
+  conta interna**, mas `archived_at` tem dois escritores e só um é decisão de
+  arquivar: a marca que o varredor grava na janela de leitura do cancelamento
+  NÃO bloqueia (a régua do cancelamento decide), e com assinatura ativa ou em
+  atraso a marca também não decide (o varredor a apaga na rodada seguinte).
+  Arquivado recebe **403 `TENANT_ARCHIVED` em toda rota, inclusive as de
+  billing** (assinar desarquivaria por fora da Plataforma), não vê "Assinar"
+  na tela, e o WhatsApp recusa em `identificarContato`, antes de criar o
+  contato, com a mesma frase (`src/lib/mensagem-arquivado.ts`, módulo sem
+  servidor porque a tarja é client). Testes: `npm run test:m31`, seção 4.
 - **`x-pathname` via proxy**: `src/proxy.ts` (o antigo `middleware.ts`, renomeado no Next 16) foi reestruturado da forma
   `export const { auth: middleware } = NextAuth(authConfig)` para a forma de
   função de ordem superior (`auth((req) => { ... res.headers.set("x-pathname",

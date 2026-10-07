@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import {
   getCancellationWindow,
   getBillingAccess,
+  getBillingState,
   subscriptionStatusData,
   ARCHIVE_WINDOW_DAYS,
 } from "@/lib/billing-access";
@@ -11,6 +12,9 @@ import {
   sweepCanceledSubscriptions,
   listTenantsPendingDecision,
 } from "@/lib/actions/cancellation-sweep";
+import { setTenantArchivedAction } from "@/lib/actions/platform-tenants";
+import { identificarContato } from "@/lib/actions/whatsapp-contato";
+import { MENSAGEM_ARQUIVADO } from "@/lib/mensagem-arquivado";
 
 exigirBancoLocal();
 
@@ -151,6 +155,14 @@ async function testaAcessoEVarredura() {
     check("varredura marcou o tenant como arquivado", sweep.archived >= 1);
     let atual = await prisma.tenant.findUnique({ where: { id: tenant.id } });
     check("archived_at foi preenchido", atual?.archived_at != null);
+    check(
+      "a marca do varredor NÃO corta a janela de leitura (dívida 3.2)",
+      (await getBillingAccess(tenant.id)) === "read_only",
+    );
+    check(
+      "nem conta como arquivamento para a tela e para a API",
+      (await getBillingState(tenant.id)).archived === false,
+    );
 
     // Fase 3: janela vencida.
     await prisma.subscription.update({
@@ -187,11 +199,113 @@ async function testaAcessoEVarredura() {
   }
 }
 
+/**
+ * Dívida 3.2 (decisão do usuário, 2026-10-07): arquivar pela Plataforma tira
+ * o acesso, e vence o selo de conta interna. Antes, `archived_at` não era lido
+ * no caminho de acesso: o painel dizia "Arquivado" e o tenant entrava.
+ */
+async function testaArquivamentoManual() {
+  console.log("\n4. Arquivamento pela Plataforma (dívida 3.2)");
+
+  const marca = `arquivo-test-${Date.now()}`;
+  const tenant = await prisma.tenant.create({
+    data: {
+      name: marca,
+      document: marca.slice(0, 18),
+      plan: "fazenda",
+      status: "trial",
+      trial_ends_at: dias(10),
+      conta_interna: true,
+    },
+  });
+
+  try {
+    check("conta interna, trial vigente -> full", (await getBillingAccess(tenant.id)) === "full");
+
+    const arquivou = await setTenantArchivedAction(tenant.id, true);
+    check("a action arquiva", arquivou.ok);
+    check(
+      "arquivado vence o selo de conta interna -> blocked",
+      (await getBillingAccess(tenant.id)) === "blocked",
+    );
+    check(
+      "o estado diz que o motivo é o arquivamento, não a cobrança",
+      (await getBillingState(tenant.id)).archived === true,
+    );
+
+    // WhatsApp: o telefone de um usuário do tenant arquivado não conversa, e
+    // a recusa vem antes de qualquer escrita (nem o contato novo nasce).
+    const telefone = `55119${String(Date.now()).slice(-8)}`;
+    const usuario = await prisma.user.create({
+      data: {
+        tenant_id: tenant.id,
+        name: "Dono Arquivado",
+        email: `${marca}@teste.local`,
+        password_hash: "x",
+        role: "OWNER",
+        phone: telefone,
+      },
+    });
+    const zap = await identificarContato(telefone);
+    check(
+      "WhatsApp de tenant arquivado recusa com a frase do arquivamento",
+      !zap.identificado && zap.resposta_sugerida === MENSAGEM_ARQUIVADO,
+      JSON.stringify(zap),
+    );
+    check(
+      "nenhum contato de WhatsApp foi criado para o arquivado",
+      (await prisma.whatsAppContact.count({ where: { tenant_id: tenant.id } })) === 0,
+    );
+    await prisma.user.delete({ where: { id: usuario.id } });
+
+    await prisma.tenant.update({ where: { id: tenant.id }, data: { conta_interna: false } });
+    check(
+      "arquivado sem selo, trial vigente -> blocked",
+      (await getBillingAccess(tenant.id)) === "blocked",
+    );
+
+    await setTenantArchivedAction(tenant.id, false);
+    check("desarquivar devolve o acesso -> full", (await getBillingAccess(tenant.id)) === "full");
+
+    // Cancelou, ainda no período pago, e foi arquivado à mão: o varredor não
+    // escreve nesta fase, então a marca é decisão de arquivar.
+    await prisma.subscription.create({
+      data: {
+        tenant_id: tenant.id,
+        plan: "fazenda",
+        status: "canceled",
+        next_due_date: dias(10),
+        canceled_at: dias(0),
+      },
+    });
+    await setTenantArchivedAction(tenant.id, true);
+    check(
+      "cancelado no período pago + arquivado à mão -> blocked",
+      (await getBillingAccess(tenant.id)) === "blocked",
+    );
+
+    // Voltou a pagar com a marca ainda lá (o varredor só a apaga na rodada
+    // seguinte): quem decide é a cobrança, não a marca velha.
+    await prisma.subscription.update({
+      where: { tenant_id: tenant.id },
+      data: subscriptionStatusData("active"),
+    });
+    check(
+      "assinatura ativa com archived_at ainda gravado -> full",
+      (await getBillingAccess(tenant.id)) === "full",
+    );
+  } finally {
+    await prisma.subscription.deleteMany({ where: { tenant_id: tenant.id } });
+    await prisma.tenant.delete({ where: { id: tenant.id } });
+  }
+}
+
 async function main() {
   console.log("🧾 Cancelamento com janela de arquivamento (spec 2026-08-04)");
   await testaReguaDeDatas();
   testaHelperDeStatus();
   await testaAcessoEVarredura();
+  await testaArquivamentoManual();
   console.log(
     falhas === 0
       ? `\n✅ Cancelamento com janela: 0 falhas.`

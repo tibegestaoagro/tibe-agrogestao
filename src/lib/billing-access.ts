@@ -1,6 +1,6 @@
 import { perRequestCache } from "@/lib/per-request-cache";
 import { prisma } from "@/lib/prisma";
-import { getTenantRecord } from "@/lib/tenant-record";
+import { getTenantRecord, type TenantRecord } from "@/lib/tenant-record";
 
 /**
  * Controle de acesso por inadimplência (spec 5.7/5.8), 3 estágios: mesma
@@ -90,13 +90,41 @@ export function getCancellationWindow(sub: CancellationInput): CancellationWindo
 }
 
 /**
+ * Quando `Tenant.archived_at` preenchido corta o acesso. Ele tem dois
+ * escritores, e só um deles é decisão de arquivar:
+ *
+ * - `setTenantArchivedAction` (botão da Plataforma): bloqueia;
+ * - o varredor do cancelamento, que grava a data na janela de LEITURA de
+ *   quem cancelou: ali a régua do cancelamento decide (leitura por 60 dias,
+ *   direito do titular na LGPD), e a marca é só reflexo para o painel.
+ *
+ * Com assinatura ativa ou em atraso a marca também não decide: o varredor a
+ * apaga na rodada seguinte (cliente que voltou a pagar), e bloquear até lá
+ * cortaria quem acabou de pagar. Arquivar quem paga passa por cancelar.
+ */
+function arquivamentoBloqueia(subscription: AssinaturaParaAcesso | null): boolean {
+  if (!subscription) return true;
+  if (subscription.status === "canceled") {
+    return getCancellationWindow(subscription).phase !== "archived";
+  }
+  return false;
+}
+
+type AssinaturaParaAcesso = CancellationInput & { status: string };
+
+/**
+ * O acesso e o MOTIVO de um bloqueio por arquivamento. O motivo importa para
+ * quem fala com o tenant: arquivado não é inadimplente, e oferecer "Assinar"
+ * a quem a Plataforma arquivou deixaria o próprio tenant se desarquivar
+ * pagando (o varredor apaga a marca de quem tem assinatura ativa).
+ *
  * Memoizado por `tenantId`, por request (ver o aviso em
  * per-request-cache.ts): o layout do dashboard chamava isto a cada render,
  * junto com o gate de sessão, refazendo as mesmas leituras.
  */
-export const getBillingAccess = perRequestCache(async function getBillingAccess(
+export const getBillingState = perRequestCache(async function getBillingState(
   tenantId: string,
-): Promise<BillingAccess> {
+): Promise<{ access: BillingAccess; archived: boolean }> {
   const [tenant, subscription] = await Promise.all([
     getTenantRecord(tenantId),
     prisma.subscription.findUnique({
@@ -104,8 +132,26 @@ export const getBillingAccess = perRequestCache(async function getBillingAccess(
       select: { status: true, next_due_date: true, canceled_at: true, created_at: true },
     }),
   ]);
-  if (!tenant) return "blocked";
+  if (!tenant) return { access: "blocked", archived: false };
 
+  // Arquivado (dívida 3.2, decisão do usuário 2026-10-07): o arquivamento
+  // bloqueia, e vence o selo de conta interna. Até aqui `archived_at` não era
+  // lido em lugar nenhum do caminho de acesso, e o painel da plataforma
+  // mostrava "Arquivado" para um tenant que entrava com acesso total.
+  if (tenant.archived_at && arquivamentoBloqueia(subscription)) {
+    return { access: "blocked", archived: true };
+  }
+  return { access: acessoPorCobranca(tenant, subscription), archived: false };
+});
+
+export async function getBillingAccess(tenantId: string): Promise<BillingAccess> {
+  return (await getBillingState(tenantId)).access;
+}
+
+function acessoPorCobranca(
+  tenant: TenantRecord,
+  subscription: AssinaturaParaAcesso | null,
+): BillingAccess {
   // Selo de conta interna (spec 2026-09-18): equipe da Pleno Digital, marcada
   // só pela Plataforma. Curto-circuita ANTES da régua de trial/inadimplência
   // para não precisar prorrogar trial à mão a cada vencimento.
@@ -136,7 +182,7 @@ export const getBillingAccess = perRequestCache(async function getBillingAccess(
 
   // Sem assinatura e sem trial rastreado (ex: tenant seedado manualmente): não bloqueia.
   return "full";
-});
+}
 
 /**
  * Campos que acompanham uma transição de status da assinatura.
