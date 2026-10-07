@@ -573,7 +573,7 @@ async function main() {
         check("fixture: lote de 5 aberto no confinamento", estadia.ok);
       }
 
-      const r = await executarIntencao({ db, tenant_id: tenant.id, user: { id: owner.id, role: owner.role }, contato_id: null, activeProfiles: ["fazenda"], intent: "registrar_negocio_gado", parameters: { tipo: "venda", categoria: "boi", quantidade: 2, valor: 9000 }, message_text: "vendi 2 bois do confinamento por 9 mil", confirmed_do_corpo: null, provider_message_id: null, registrar_entrada: false });
+      const r = await executarIntencao({ db, tenant_id: tenant.id, user: { id: owner.id, role: owner.role }, contato_id: null, activeProfiles: ["fazenda"], intent: "registrar_negocio_gado", parameters: { tipo: "venda", categoria: "boi", quantidade: 2, valor: 9000, pago: true }, message_text: "vendi 2 bois do confinamento por 9 mil, já recebi", confirmed_do_corpo: null, provider_message_id: null, registrar_entrada: false });
       check("a venda que cita o confinamento sai com intent_final encerrar_confinamento", r.intent_final === "encerrar_confinamento", r.intent_final);
 
       console.log("\n5. Cursor da conversa");

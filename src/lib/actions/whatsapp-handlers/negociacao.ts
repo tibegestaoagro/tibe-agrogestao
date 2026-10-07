@@ -114,8 +114,21 @@ export function respondeuQueJaPagou(novos: Record<string, unknown>): boolean {
   if (lerData(novos, "vencimento", "due_date", "data_pagamento", "resposta").tipo === "ok") return false;
   if (/\bdia\s*\d{1,2}\b|\d{1,2}\s*\/\s*\d{1,2}|\bamanh[ãa]\b|\bsemana que vem\b|\bm[êe]s que vem\b/.test(dito)) return false;
   if (interpretarSim(novos.pago)) return true;
-  return /pago|paguei|quitad|receb|vista/.test(dito);
+  // Só uma RESPOSTA COMPLETA de quitação vale, ancorada do começo ao fim.
+  // Procurar palavra solta não serve: "vou receber depois", "receberei",
+  // "quando for pago" e "recebi só metade" viravam receita JÁ RECEBIDA, uma
+  // de cada vez, em três rodadas de revisão do Codex (dívida 5.8, 2026-10-07).
+  // Tudo que não é exatamente isto cai na recusa de vencimento inválido, que
+  // pergunta de novo: errar para o lado de perguntar não grava dinheiro errado.
+  const resposta = dito.replace(/[.!,;]+/g, " ").replace(/\s+/g, " ").trim();
+  return QUITACAO.some((padrao) => padrao.test(resposta));
 }
+
+const QUITACAO = [
+  /^(sim )?(j[áa] )?(foi |est[áa] |t[áa] )?(recebi|recebemos|recebid[oa]|paguei|pagamos|pag[oa]|quitad[oa]|quitei)( tudo)?( (no|em|via|pelo) (pix|dinheiro|esp[ée]cie|cart[ãa]o|transfer[êe]ncia|banco))?( na hora)?$/,
+  /^(foi |j[áa] foi |pago |paguei )?[àa] vista$/,
+  /^j[áa] (caiu|entrou)( na conta)?$/,
+];
 
 /**
  * Os ids das categorias que a última pergunta de faixa ofereceu, guardados

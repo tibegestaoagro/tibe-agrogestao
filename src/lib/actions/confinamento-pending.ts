@@ -34,6 +34,8 @@ export type CampoConfinamento =
   | "data"
   | "produto"
   | "valor"
+  /** Na venda: a data em que o dinheiro entra, ou "já recebi" (dívida 5.8). */
+  | "vencimento"
   /** Não é campo: é o pedido inteiro esperando um "sim". */
   | "confirmacao";
 
@@ -71,6 +73,7 @@ const store = criarStoreDePendencia<CampoConfinamento, ConfinamentoPendente>({
     if (campo === "pasto") return "pasture";
     if (campo === "data") return "date";
     if (campo === "valor") return "amount";
+    if (campo === "vencimento") return "due_date";
     return campo;
   },
 });

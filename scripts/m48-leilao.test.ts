@@ -407,6 +407,31 @@ async function comBanco() {
       );
       check("apontando o valor", !r.ok && r.field === "amount");
 
+      // Dívida 5.8: o frete de quem voltou sem vender também é conta a pagar,
+      // e sem prazo nascia vencendo hoje.
+      const frete = [{ descricao: "Frete", amount: 800 }];
+      const custoSemPrazo = await closeEventConsignment(db, remessa.id, { retornados: 20, custos: frete });
+      check(
+        "custo sem venda e sem prazo é recusado no campo due_date",
+        !custoSemPrazo.ok && custoSemPrazo.code === "VENCIMENTO_OBRIGATORIO" && custoSemPrazo.field === "due_date",
+        custoSemPrazo.ok ? "aceitou" : `${custoSemPrazo.code} ${custoSemPrazo.field}`,
+      );
+      const remessaComFrete = await abrirComVinte();
+      const vence = new Date(Date.now() + 5 * 86_400_000);
+      const comPrazo = await closeEventConsignment(db, remessaComFrete.id, {
+        retornados: 20,
+        custos: frete,
+        due_date: vence,
+      });
+      const freteGravado = comPrazo.ok
+        ? await db.financialEntry.findFirst({ where: { negotiation_id: remessaComFrete.id } })
+        : null;
+      check(
+        "com o prazo, o frete nasce pendente nessa data",
+        freteGravado?.status === "pending" && freteGravado?.due_date?.getTime() === vence.getTime(),
+        comPrazo.ok ? `${freteGravado?.status} ${freteGravado?.due_date?.toISOString()}` : comPrazo.message,
+      );
+
       const fechou = await closeEventConsignment(db, remessa.id, { retornados: 20 });
       check("sem valor, o retorno total fecha", fechou.ok, fechou.ok ? "" : fechou.message);
       const lancamentos = await db.financialEntry.findMany({ where: { negotiation_id: remessa.id } });

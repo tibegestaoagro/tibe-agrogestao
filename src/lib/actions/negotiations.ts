@@ -431,6 +431,15 @@ export async function venderDaEstadiaNaTransacao(
     recorded_by_user_id?: string | null;
   },
 ): Promise<string> {
+  // Dívida 5.8: a mesma regra de dinheiro das outras negociações. Sem ela, a
+  // venda a prazo sem data nascia vencendo HOJE.
+  if (input.amount != null && input.amount > 0) {
+    const erro = validarPagamento({ amount: input.amount, pago: input.pago, due_date: input.due_date });
+    if (erro) {
+      throw new AbortarNegociacao({ ok: false, code: erro.code, message: erro.message, status: 422, field: erro.field });
+    }
+  }
+
   let contactId = input.contact_id ?? null;
   if (contactId) {
     const contato = await tx.contact.findFirst({ where: { id: contactId } });
@@ -473,10 +482,8 @@ export async function venderDaEstadiaNaTransacao(
       related_module: "rebanho",
       related_id: negociacao.id,
       occurred_at: input.occurred_at,
-      // Sem vencimento, vence HOJE. `createCattleNegotiation` recusa esse caso
-      // desde 29/09 (dívida 5.6); aqui não, porque a tela de encerramento da
-      // estadia do rebanho não tem campo de pagamento. Resíduo na dívida 5.8.
-      due_date: input.pago ? input.occurred_at : (input.due_date ?? new Date()),
+      // Em aberto, `validarPagamento` acima já garantiu o vencimento.
+      due_date: input.pago ? input.occurred_at : (input.due_date as Date),
       status: input.pago ? "paid" : "pending",
       negotiation_id: negociacao.id,
       negotiation_role: "principal",
