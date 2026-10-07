@@ -113,13 +113,15 @@ export function respondeuQueJaPagou(novos: Record<string, unknown>): boolean {
   // resposta é sobre QUANDO, e quitar aqui seria inventar o estado do dinheiro.
   if (lerData(novos, "vencimento", "due_date", "data_pagamento", "resposta").tipo === "ok") return false;
   if (/\bdia\s*\d{1,2}\b|\d{1,2}\s*\/\s*\d{1,2}|\bamanh[ãa]\b|\bsemana que vem\b|\bm[êe]s que vem\b/.test(dito)) return false;
-  // Negação e futuro também não quitam: "vou receber depois" e "ainda não
-  // recebi" têm o pedaço "receb" e viravam receita JÁ RECEBIDA (revisão do
-  // Codex na dívida 5.8, 2026-10-07). Sem data, a resposta cai na recusa de
-  // vencimento inválido, que pergunta de novo em vez de inventar.
-  if (/\b(n[ãa]o|nada|ainda|vou|vai|vamos|depois|fiado)\b|\ba (receber|pagar)\b/.test(dito)) return false;
+  // Negação e futuro não quitam ("vou ser pago", "não foi pago").
+  if (/\b(n[ãa]o|nada|ainda|vou|vai|vamos|depois|fiado|falta|receberei|recebo|pagarei|pago depois)\b|\ba (receber|pagar)\b/.test(dito)) return false;
   if (interpretarSim(novos.pago)) return true;
-  return /pago|paguei|quitad|receb|vista/.test(dito);
+  // Só AFIRMAÇÃO no passado quita. A versão anterior aceitava qualquer
+  // "receb", e "vou receber depois", "receberei" e "falta receber" viravam
+  // receita JÁ RECEBIDA (revisão do Codex na dívida 5.8, 2026-10-07). Tudo
+  // que não está aqui cai na recusa de vencimento inválido, que pergunta de
+  // novo: errar para o lado de perguntar é o que não grava dinheiro errado.
+  return /\b(recebi|recebemos|recebid[oa]|paguei|pagamos|pag[oa]|quitad[oa]|quitei)\b|(^|\s)[àa] vista\b|(^|\s)j[áa] (caiu|entrou)\b/.test(dito);
 }
 
 /**

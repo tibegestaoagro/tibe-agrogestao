@@ -896,10 +896,21 @@ async function main() {
       // Revisão do Codex (dívida 5.8): negação e futuro não são "já recebi",
       // e a resposta que volta fora do campo perguntado não perde o pedido.
       const { respondeuQueJaPagou } = await import("@/lib/actions/whatsapp-handlers/negociacao");
-      for (const frase of ["vou receber depois", "ainda não recebi", "não recebi", "vai pagar depois", "a receber"]) {
+      for (const frase of [
+        "vou receber depois",
+        "ainda não recebi",
+        "não recebi",
+        "vai pagar depois",
+        "a receber",
+        "receberei",
+        "recebo no fim do mês",
+        "falta receber",
+        "não foi pago",
+        "vou ser pago",
+      ]) {
         check(`"${frase}" não é quitação`, respondeuQueJaPagou({ vencimento: frase }) === false);
       }
-      for (const frase of ["já recebi", "recebi", "já está pago", "à vista"]) {
+      for (const frase of ["já recebi", "recebi", "já está pago", "à vista", "já paguei", "quitado", "já caiu na conta"]) {
         check(`"${frase}" é quitação`, respondeuQueJaPagou({ vencimento: frase }) === true);
       }
 
