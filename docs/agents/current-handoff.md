@@ -25,7 +25,39 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 `historico/2026-09.md`.
 ## Estado atual
 
-- Atualizado em: 2026-09-29.
+- Atualizado em: 2026-10-07.
+
+### Programa de dívidas (desde 07/10): Etapa 0 na branch, aguardando merge
+
+O usuário aprovou em 07/10 um programa para fechar as dívidas de
+[dividas.md](dividas.md) em etapas E0 a E11, uma branch por etapa, cada uma com
+revisão adversarial do Codex e validação viva antes do merge. **O plano inteiro,
+com as decisões do usuário, está em
+`C:\Users\dilto\.claude\plans\ok-agora-com-esse-vivid-petal.md`** (fora do
+repositório: no notebook ele não existe, e as decisões ficam resumidas aqui).
+Decisões: 3.2 arquivado BLOQUEIA (vence o selo interno, preservando a janela
+de leitura do cancelamento); 2.6 token novo `--texto-marca`/`--borda-marca`;
+2.7 contorno nos chips de `/docs`; 5.5 frase com verbo + quantidade +
+categoria substitui o pedido; 5.2 `contact_id` direto, negociação como
+complemento; 2.3 entram os quatro itens; entram também unaccent, rebase do app
+mobile, contratos e pasto com avaliação. Fora: 1.1, 1.3, 2.4.
+
+**E0 (mod `guarda-contexto`), branch `mod-guarda-contexto`:** commits
+`5bfdab9`, `93e5ee4`, `a4cd526`, `4d03c80`. Suíte do mod 19/19, cada caso
+visto falhando; o Codex apontou 10 problemas em três rodadas, todos corrigidos,
+e aprovou na quarta. **Ao vivo (headless, limiares baixos via `--settings`,
+worktree descartável):** o aviso chegou ao modelo; no limiar de agir o modelo
+atualizou o handoff sozinho e o mod disparou a compactação 1,5 s depois do fim
+do turno. **NÃO provado:** o resumo terminar e a retomada sair; em headless o
+resumo não concluiu em 90 s. A primeira sessão interativa que passar de 90% é
+a prova: conferir se compactou e retomou. Ver a seção do mod no `CLAUDE.md`.
+
+**Achado para a E1 (3.2), a levar ao usuário no merge dela:** a varredura
+(`cancellation-sweep.ts`) já desarquiva todo tenant com assinatura ativa ou em
+atraso, inclusive o arquivado à mão. Então "arquivado bloqueia" vale para
+tenant sem assinatura (trial, conta interna) e para assinatura cancelada fora
+da janela de leitura; com assinatura ativa ou em atraso quem decide é a
+cobrança, senão um cliente que voltou a pagar ficaria bloqueado até a varredura.
 
 ### Agente do WhatsApp: Fases 1 a 6 em produção, Fase 7 em CANÁRIO
 
@@ -65,47 +97,10 @@ intocado. As intenções novas só existem para quem está na lista.
   rodaram (áudio, buffer), a API de execuções do n8n; o script que fazia isso
   morava no scratchpad.
 
-**29/09: seis defeitos achados em uso real, todos corrigidos e em produção**
-(`02e5664`, `2d05a99`, `58629fe`, `6213f5b`): conta a pagar ignorando o período
-pedido, resposta ecoando a categoria anterior, vocabulário de categoria que
-recusava "bezerros de 8 a 12 meses", "bom dia" respondido com "Não entendi",
-compra sem prazo nascendo vencida, contato gravado "do João". Relato e lições
-no cofre: `nove-dias-de-canario-acharam-o-que-a-suite-nao-achou` e
-`a-data-dita-vence-a-palavra-que-quita`.
-
-**Roteiro do aparelho (29/09): passos 1 a 7 APROVADOS** no celular do usuário,
-com áudio real e mensagem picada provados pelo rastro do n8n. Faltam os passos
-9 e 10 (foto de recibo e o "não" final).
-
-A compra de teste de 29/09 na Da Mata **não existe mais** (conferido em
-produção no mesmo dia: nada criado em 29/09 no tenant). O script de limpeza foi
-apagado.
-
-**5.3 fechada em 29/09** (uma mensagem, duas respostas): a `ambigua` só
-responde quando é tudo o que sobrou, e uma vez só (`classificar.ts`); catálogo
-de produto vazio recusa sem abrir pendente (`resolverProduto`), que prendia o
-cursor e fazia a resposta a OUTRA pergunta virar nome de produto. Suíte `m68`
-com 4 casos novos, cada um provado falhando sem a correção. **Validada em
-conversa real** no celular do usuário (29/09, 17:50): "Quantos animais eu
-tenho? E me manda a previsão do tempo" teve uma resposta só, a do rebanho; a
-parte que o agente não faz é ignorada, sem "Não entendi".
-
-**5.6 fechada em 29/09** (conta sem prazo nascendo vencendo hoje). A premissa
-estava errada: pelo agente, leilão e permuta gravam sempre `pago: true`. O
-defeito real era a TELA da permuta e a API. Decisão do usuário: as quatro
-actions de negociação recusam em aberto sem vencimento e sem parcelas (422
-`VENCIMENTO_OBRIGATORIO` no campo `due_date`, mesmo código do leite e do custo
-de confinamento), e os chamadores foram adaptados: "Vence em" nas telas da
-permuta e da Lista de Compra, e `comprei_item_lista` a prazo PERGUNTA o
-vencimento antes de confirmar. `test:all` 74/74; as duas telas validadas no
-navegador (recusa sem data embaixo do campo com foco, e conta gravada pendente
-na data escolhida). O agente ainda não foi exercitado em conversa real.
-
-Dívidas abertas no caminho: **5.4** (pasto respondido com lavoura), **5.5**
-(resposta de categoria descarta a quantidade nova), **5.7** (pergunta de
-categoria da consulta do rebanho sem memória), **5.8** (venda saindo da
-estadia do rebanho e custo de remessa sem venda ainda caem em hoje) e **3.2**
-(arquivar tenant não tira o acesso).
+O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
+1 a 7 aprovados, dívidas 5.3 e 5.6 fechadas) foi para
+[historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
+roteiro (foto de recibo e o "não" final).
 
 ### Ambiente
 
@@ -180,6 +175,10 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 
 ### ⏭️ PRÓXIMO PASSO
+
+**0. Programa de dívidas:** pedir ao usuário o merge da E0
+(`mod-guarda-contexto`); depois E1 (3.2, tenant arquivado bloqueado) na branch
+`divida-3-2`, conforme o plano.
 
 **1. Segurança, que é do usuário e vem antes de tudo:** rotacionar as 22
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
