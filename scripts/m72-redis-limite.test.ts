@@ -119,6 +119,28 @@ async function main() {
   check("chave que já estava sem prazo ganha prazo na próxima tentativa", (await admin.ttl(`${chaveTentativa}:sem-prazo`)) > 0);
 
   await admin.del(chaveTentativa, `${chaveTentativa}:sem-prazo`);
+
+  // 4. Segunda rodada do Codex: o flush do buffer de mensagens picadas lia,
+  // apagava em passos separados, e o retry depois de um DEL atrasado achava a
+  // lista vazia. A mensagem do produtor sumia.
+  const { appendToBuffer, flushBuffer, clearBuffer } = await import("@/lib/actions/whatsapp-buffer");
+  const telefone = "5511999720072";
+  await clearBuffer(telefone);
+  await appendToBuffer(telefone, "vendi 10 bois");
+  const ultimo = await appendToBuffer(telefone, "por 50 mil");
+  // WRITE, e não ALL: a leitura passa e só a escrita atrasa, que é o caso do
+  // defeito (o GET e o LRANGE respondiam, o DEL estourava o limite e executava depois).
+  await admin.call("CLIENT", "PAUSE", "3000", "WRITE");
+  const primeiro = await Promise.allSettled([flushBuffer(telefone, ultimo.token)]);
+  check("o flush rejeita enquanto o Redis está parado", primeiro[0].status === "rejected");
+  await new Promise((r) => setTimeout(r, 4000));
+  const retry = await flushBuffer(telefone, ultimo.token);
+  check(
+    "o retry depois do consumo atrasado recupera a mensagem inteira",
+    retry.ready && retry.parts === 2 && retry.message_text.includes("50 mil"),
+    JSON.stringify(retry),
+  );
+  await clearBuffer(telefone);
   admin.disconnect();
   esquecerConexao();
   console.log(falhas === 0 ? "\n✅ M72: 0 falhas." : `\n❌ M72: ${falhas} falha(s).`);
