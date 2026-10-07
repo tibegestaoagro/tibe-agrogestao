@@ -70,22 +70,39 @@ redis.call("DEL", KEYS[2])
 return {1, junto}
 `;
 
-/** Guarda a mensagem e devolve o token desta execução. */
+/**
+ * Contador, pedaço e prazos num passo só (dívida 3.1, quarta rodada do Codex).
+ * Em passos separados, um INCR que estourasse o limite de tempo abandonava o
+ * RPUSH: o contador avançava e o pedaço nunca entrava.
+ */
+const ACRESCENTAR = `
+local token = redis.call("INCR", KEYS[1])
+redis.call("EXPIRE", KEYS[1], ARGV[2])
+if ARGV[1] ~= "" then
+  redis.call("RPUSH", KEYS[2], ARGV[1])
+  redis.call("LTRIM", KEYS[2], -tonumber(ARGV[3]), -1)
+  redis.call("EXPIRE", KEYS[2], ARGV[2])
+end
+return token
+`;
+
+/**
+ * Guarda a mensagem e devolve o token desta execução.
+ *
+ * ponytail: não é idempotente por mensagem. Se o script atrasar além do limite
+ * de tempo e o n8n reenviar, o atrasado executa depois do retry, avança o
+ * contador, e o flush do retry sai `ready: false`. Fechar isso exige o id da
+ * mensagem no corpo (dívida 5.10, que depende de o n8n mandar o
+ * `provider_message_id`).
+ */
 export async function appendToBuffer(
   phone: string,
   messageText: string,
 ): Promise<{ token: number; window_seconds: number }> {
-  const redis = getRedisConnection();
   const k = keys(phone);
-
-  const token = await redis.incr(k.seq);
-  await redis.expire(k.seq, TTL_SECONDS);
-  if (messageText.trim().length > 0) {
-    await redis.rpush(k.list, messageText.trim());
-    await redis.ltrim(k.list, -MAX_MESSAGES, -1);
-    await redis.expire(k.list, TTL_SECONDS);
-  }
-
+  const token = Number(
+    await getRedisConnection().eval(ACRESCENTAR, 2, k.seq, k.list, messageText.trim(), TTL_SECONDS, MAX_MESSAGES),
+  );
   return { token, window_seconds: BUFFER_WINDOW_SECONDS };
 }
 

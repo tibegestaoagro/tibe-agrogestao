@@ -273,6 +273,21 @@ em todo domínio não coberto.
   conta vencendo em 01/10/2026: virou presente. É o teste, não o código. Custo:
   datas relativas a hoje, como a `m17`. Entra na E5 do programa.
 
+### 5.10 O buffer de mensagens picadas não é idempotente por mensagem
+
+Achado pela quarta rodada do Codex na E3 (07/10/2026). Desde a 3.1 a conexão
+compartilhada do Redis tem limite de 2 s, e um comando que estoura o limite
+ainda executa depois. O append do buffer virou um script atômico (contador e
+pedaço juntos), mas não sabe qual mensagem é: se o script atrasar e o n8n
+reenviar, o atrasado executa depois do retry, avança o contador, e o flush do
+retry sai `ready: false`. A mensagem fica no buffer sem ninguém para consumir.
+
+A classe é anterior à 3.1 (antes o comando pendurava, a Vercel devolvia 504 e
+o n8n reenviava do mesmo jeito); o limite curto só a torna menos rara. Exige
+Redis lento por mais de 2 s E reenvio do n8n. **Custo:** a rota do buffer
+receber o id da mensagem (o `provider_message_id`, que é a pendência nº 4 do
+usuário no n8n) e o script devolver o mesmo token para o mesmo id.
+
 ### 5.9 Leilão e permuta pelo agente gravam sempre como já pagos
 
 Resíduo registrado ao fechar a 5.8 (07/10/2026). Não é defeito de data: pelo
