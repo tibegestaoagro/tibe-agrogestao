@@ -44,7 +44,7 @@ export default function UserMenu({ userName, roleLabel }: { userName: string; ro
           <Link
             href="/configuracoes/perfil"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-texto-secundario hover:bg-tibe-light"
+            className="flex items-center gap-2 px-3 py-2 text-sm text-texto-secundario hover:bg-superficie-afundada"
           >
             <User className="h-4 w-4 text-texto-discreto" />
             Perfil
@@ -52,7 +52,7 @@ export default function UserMenu({ userName, roleLabel }: { userName: string; ro
           <Link
             href="/configuracoes/senha"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-texto-secundario hover:bg-tibe-light"
+            className="flex items-center gap-2 px-3 py-2 text-sm text-texto-secundario hover:bg-superficie-afundada"
           >
             <KeyRound className="h-4 w-4 text-texto-discreto" />
             Minha senha
@@ -61,7 +61,7 @@ export default function UserMenu({ userName, roleLabel }: { userName: string; ro
           <button
             type="button"
             onClick={() => signOut({ callbackUrl: "/login" })}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-texto-secundario hover:bg-tibe-light"
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-texto-secundario hover:bg-superficie-afundada"
           >
             <LogOut className="h-4 w-4 text-texto-discreto" />
             Sair

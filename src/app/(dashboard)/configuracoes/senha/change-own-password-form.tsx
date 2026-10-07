@@ -89,7 +89,7 @@ export default function ChangeOwnPasswordForm() {
         <p className="rounded-md bg-perigo-suave px-3 py-2 text-sm text-perigo-tinta">{error}</p>
       )}
       {done && (
-        <p className="rounded-md bg-tibe-light px-3 py-2 text-sm text-tibe-dark">
+        <p className="rounded-md bg-superficie-afundada px-3 py-2 text-sm text-texto-marca">
           Senha alterada com sucesso.
         </p>
       )}

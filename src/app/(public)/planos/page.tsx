@@ -70,7 +70,7 @@ export default function PlanosPage() {
     <main className="min-h-screen bg-superficie-afundada">
       <PublicNav />
       <div className="mx-auto max-w-5xl px-4 py-16 text-center">
-        <h1 className="text-3xl font-bold text-tibe-dark">Planos</h1>
+        <h1 className="text-3xl font-bold text-texto-marca">Planos</h1>
         <p className="mt-2 text-texto-secundario">
           Escolha o plano ideal para sua operação. 14 dias grátis, sem cartão.
         </p>
@@ -80,17 +80,17 @@ export default function PlanosPage() {
             <div
               key={plan.key}
               className={`flex flex-col rounded-xl border bg-superficie p-6 text-left shadow-sm ${
-                plan.highlight ? "border-tibe-primary ring-1 ring-tibe-primary" : "border-borda"
+                plan.highlight ? "border-primaria ring-1 ring-primaria" : "border-borda"
               }`}
             >
               {plan.highlight && (
-                <span className="mb-2 w-fit rounded-full bg-superficie-afundada px-3 py-1 text-xs font-medium text-tibe-dark">
+                <span className="mb-2 w-fit rounded-full bg-superficie-afundada px-3 py-1 text-xs font-medium text-texto-marca">
                   Mais popular
                 </span>
               )}
               <h2 className="text-xl font-semibold text-texto">{plan.name}</h2>
               <p className="mt-1 text-sm text-texto-discreto">{plan.tagline}</p>
-              <p className="mt-4 text-3xl font-bold text-tibe-dark">
+              <p className="mt-4 text-3xl font-bold text-texto-marca">
                 R$ {plan.price}
                 <span className="text-sm font-normal text-texto-discreto">/mês</span>
               </p>
@@ -106,7 +106,7 @@ export default function PlanosPage() {
                 className={`mt-6 rounded-md px-4 py-2 text-center font-medium transition ${
                   plan.highlight
                     ? "bg-primaria text-sobre-primaria hover:bg-primaria-hover"
-                    : "border border-tibe-primary text-primaria-tinta hover:bg-superficie-afundada"
+                    : "border border-primaria text-primaria-tinta hover:bg-superficie-afundada"
                 }`}
               >
                 Contratar

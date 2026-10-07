@@ -19,12 +19,12 @@ export default function RevenueExpenseChart({ data }: { data: Point[] }) {
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
         <span className="flex items-center gap-1.5 text-texto-secundario">
-          <span className="h-2.5 w-2.5 rounded-full bg-tibe-primary" aria-hidden="true" />
-          Receitas <span className="font-semibold text-tibe-dark">{brl(totalIncome)}</span>
+          <span className="h-2.5 w-2.5 rounded-full bg-primaria" aria-hidden="true" />
+          Receitas <span className="font-semibold text-texto-marca">{brl(totalIncome)}</span>
         </span>
         <span className="flex items-center gap-1.5 text-texto-secundario">
-          <span className="h-2.5 w-2.5 rounded-full bg-tibe-accent" aria-hidden="true" />
-          Despesas <span className="font-semibold text-tibe-dark">{brl(totalExpense)}</span>
+          <span className="h-2.5 w-2.5 rounded-full bg-acento" aria-hidden="true" />
+          Despesas <span className="font-semibold text-texto-marca">{brl(totalExpense)}</span>
         </span>
         <span className="flex items-center gap-1.5 text-texto-secundario">
           Saldo{" "}

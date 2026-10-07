@@ -12,7 +12,7 @@ export default function PrivacidadePage() {
     <main className="min-h-screen bg-superficie">
       <PublicNav />
       <div className="mx-auto max-w-3xl px-6 py-16">
-        <h1 className="text-3xl font-bold text-tibe-dark">Política de Privacidade</h1>
+        <h1 className="text-3xl font-bold text-texto-marca">Política de Privacidade</h1>
         <p className="mt-2 text-sm text-texto-discreto">Última atualização: 10 de julho de 2026.</p>
 
         <div className="prose-tibe mt-8 space-y-8 text-sm leading-relaxed text-texto-secundario">

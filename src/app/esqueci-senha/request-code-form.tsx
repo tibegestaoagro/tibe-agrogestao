@@ -26,7 +26,7 @@ export default function RequestCodeForm() {
   return (
     <form onSubmit={submit} className="space-y-4">
       <div>
-        <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+        <label htmlFor="email" className="block text-sm font-medium text-texto-secundario">
           Email
         </label>
         <input
@@ -36,14 +36,14 @@ export default function RequestCodeForm() {
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-tibe-primary focus:ring-1 focus:ring-tibe-primary"
+          className="mt-1 w-full rounded-md border border-borda-forte px-3 py-2 text-sm outline-none focus:border-primaria focus:ring-1 focus:ring-primaria"
         />
       </div>
 
       <div>
-        <span className="block text-sm font-medium text-gray-700">Receber código por</span>
+        <span className="block text-sm font-medium text-texto-secundario">Receber código por</span>
         <div className="mt-2 flex gap-4">
-          <label className="flex items-center gap-2 text-sm text-gray-700">
+          <label className="flex items-center gap-2 text-sm text-texto-secundario">
             <input
               type="radio"
               name="channel"
@@ -52,7 +52,7 @@ export default function RequestCodeForm() {
             />
             Email
           </label>
-          <label className="flex items-center gap-2 text-sm text-gray-700">
+          <label className="flex items-center gap-2 text-sm text-texto-secundario">
             <input
               type="radio"
               name="channel"
@@ -65,7 +65,7 @@ export default function RequestCodeForm() {
       </div>
 
       {error && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+        <p className="rounded-md bg-perigo-suave px-3 py-2 text-sm text-perigo-tinta">{error}</p>
       )}
 
       <button

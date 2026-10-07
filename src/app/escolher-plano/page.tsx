@@ -17,10 +17,10 @@ export default async function EscolherPlanoPage() {
   await redirectIfGatePassed(user, "plan_confirmed");
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-tibe-light px-4 py-10">
-      <div className="w-full max-w-2xl rounded-xl bg-white p-8 shadow-sm">
-        <h1 className="text-2xl font-bold text-tibe-dark">Escolha seu plano</h1>
-        <p className="mt-2 text-gray-600">
+    <main className="flex min-h-screen items-center justify-center bg-superficie-afundada px-4 py-10">
+      <div className="w-full max-w-2xl rounded-xl bg-superficie p-8 shadow-sm">
+        <h1 className="text-2xl font-bold text-texto-marca">Escolha seu plano</h1>
+        <p className="mt-2 text-texto-secundario">
           Antes de continuar, escolha o plano que melhor combina com sua operação. Você pode mudar
           depois em Configurações → Assinatura.
         </p>

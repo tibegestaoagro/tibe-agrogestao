@@ -13,7 +13,7 @@ const CARDS = [
 export default function DocsIndexPage() {
   return (
     <div>
-      <h1 className="text-3xl font-bold text-tibe-dark">Documentação técnica</h1>
+      <h1 className="text-3xl font-bold text-texto-marca">Documentação técnica</h1>
       <p className="mt-3 max-w-2xl text-texto-secundario">
         Referência para quem vai integrar, manter ou estender o Tibé: uma plataforma
         SaaS multi-tenant de gestão agropecuária (rebanho, lavoura, prestação de
@@ -26,7 +26,7 @@ export default function DocsIndexPage() {
           <Link
             key={c.href}
             href={c.href}
-            className="rounded-lg border border-borda p-5 transition hover:border-tibe-primary hover:shadow-sm"
+            className="rounded-lg border border-borda p-5 transition hover:border-primaria hover:shadow-sm"
           >
             <h2 className="font-semibold text-texto">{c.title}</h2>
             <p className="mt-1 text-sm text-texto-secundario">{c.desc}</p>
@@ -34,7 +34,7 @@ export default function DocsIndexPage() {
         ))}
       </div>
 
-      <div className="mt-10 rounded-lg bg-superficie-afundada p-5 text-sm text-tibe-dark">
+      <div className="mt-10 rounded-lg bg-superficie-afundada p-5 text-sm text-texto-marca">
         Esta documentação cobre o estado atual do sistema (Módulos 0 a 5). O Módulo 6
         (painel interno da Pleno Digital) ainda não foi implementado.
       </div>

@@ -477,7 +477,7 @@ export default async function RebanhoPage(
                 return (
                   <TableRow key={b.id}>
                     <TableCell className="font-medium">
-                      <Link href={`/rebanho/${b.id}`} className="text-tibe-dark hover:underline">
+                      <Link href={`/rebanho/${b.id}`} className="text-texto-marca hover:underline">
                         {b.ear_tag ?? "sem brinco"}
                       </Link>
                     </TableCell>

@@ -76,7 +76,7 @@ export default async function AssinaturaPage() {
       <div className="rounded-lg border border-borda bg-superficie p-5">
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-sm text-texto-discreto">Plano atual</p>
-          <p className="text-lg font-semibold text-tibe-dark">
+          <p className="text-lg font-semibold text-texto-marca">
             {PLAN_LABEL[subscription?.plan ?? tenant?.plan ?? ""] ?? "não informado"}
           </p>
           {st && (
@@ -121,7 +121,7 @@ export default async function AssinaturaPage() {
             Nenhuma cobrança encontrada ainda.
           </p>
         ) : (
-          <ul className="mt-3 divide-y divide-gray-100">
+          <ul className="mt-3 divide-y divide-borda">
             {payments.map((p) => (
               <li key={p.id} className="flex items-center justify-between py-2 text-sm">
                 <span>

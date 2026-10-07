@@ -69,6 +69,8 @@ const PARES: Array<[string, string, string, number]> = [
   ["discreto sobre cartao", "texto-discreto", "superficie", 4.5],
   ["discreto sobre pagina", "texto-discreto", "superficie-afundada", 4.5],
   ["texto claro sobre fundo escuro", "texto-invertido", "superficie-invertida", 4.5],
+  ["titulo da marca sobre cartao", "texto-marca", "superficie", 4.5],
+  ["titulo da marca sobre pagina", "texto-marca", "superficie-afundada", 4.5],
   ["botao primario", "sobre-primaria", "primaria", 4.5],
   ["botao primario, hover", "sobre-primaria", "primaria-hover", 4.5],
   ["verde como texto, sobre cartao", "primaria-tinta", "superficie", 4.5],

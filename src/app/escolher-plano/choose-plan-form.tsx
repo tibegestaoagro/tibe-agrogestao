@@ -40,22 +40,22 @@ export default function ChoosePlanForm() {
             onClick={() => setSelected(p.key)}
             className={`rounded-lg border p-4 text-left transition ${
               selected === p.key
-                ? "border-tibe-primary bg-tibe-light"
-                : "border-gray-200 hover:border-tibe-primary"
+                ? "border-primaria bg-superficie-afundada"
+                : "border-borda hover:border-primaria"
             }`}
           >
-            <span className="block font-medium text-gray-900">{p.name}</span>
-            <span className="mt-1 block text-lg font-bold text-tibe-dark">
+            <span className="block font-medium text-texto">{p.name}</span>
+            <span className="mt-1 block text-lg font-bold text-texto-marca">
               R$ {PLAN_PRICES[p.key]}
-              <span className="text-xs font-normal text-gray-500">/mês</span>
+              <span className="text-xs font-normal text-texto-discreto">/mês</span>
             </span>
-            <span className="mt-1 block text-sm text-gray-500">{p.tagline}</span>
+            <span className="mt-1 block text-sm text-texto-discreto">{p.tagline}</span>
           </button>
         ))}
       </div>
 
       {error && (
-        <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+        <p className="mt-4 rounded-md bg-perigo-suave px-3 py-2 text-sm text-perigo-tinta">{error}</p>
       )}
 
       <button

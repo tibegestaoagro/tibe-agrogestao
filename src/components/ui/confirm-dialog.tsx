@@ -64,12 +64,12 @@ export function ConfirmDialog({
         <DialogPrimitive.Content
           className={cn(
             "fixed left-1/2 top-1/2 z-[70] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2",
-            "rounded-lg border border-borda bg-superficie p-5 shadow-xl shadow-black/15",
+            "rounded-lg border border-borda bg-superficie p-5 shadow-lg",
             "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
             "motion-reduce:animate-none",
           )}
         >
-          <DialogPrimitive.Title className="text-base font-semibold text-tibe-dark">
+          <DialogPrimitive.Title className="text-base font-semibold text-texto-marca">
             {titulo}
           </DialogPrimitive.Title>
           <DialogPrimitive.Description className="mt-2 text-sm leading-relaxed text-texto-secundario">

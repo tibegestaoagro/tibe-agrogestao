@@ -142,9 +142,9 @@ export default async function ContatosPage({
                 </TableCell>
                 <TableCell>
                   {c.type ? (
-                    // `gray` e não `default`: a variante padrão do Badge ainda
-                    // pinta com os aliases depreciados `tibe-light`/`tibe-dark`,
-                    // que são a armadilha da `dividas.md` §2.5.
+                    // `gray` e não `default`: a variante padrão do Badge pinta
+                    // com `bg-superficie-afundada`, o MESMO fundo da página, e a
+                    // pílula some sobre ela (a armadilha da `dividas.md` §2.5).
                     <Badge variant="gray">
                       {CONTACT_TYPE_LABELS[c.type as ContactType] ?? c.type}
                     </Badge>

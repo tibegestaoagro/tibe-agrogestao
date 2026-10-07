@@ -27,23 +27,24 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-10-07.
 
-### Programa de dívidas (desde 07/10): E0, E1 e E2 em produção, E3 aguardando migração e merge
+### Programa de dívidas (desde 07/10): E0 a E3 em produção, E4 começando
 
-**E3 (3.1 Redis + 5.0e/f/g/h push), branch `divida-3-1-push`:** commits
-`750c3dd` a `e7f1985`. Conexão compartilhada do Redis com `commandTimeout`
-2 s (fila offline LIGADA de propósito, por causa da partida a frio). O Codex
-achou em cinco rodadas que o limite rejeita mas o comando executa depois, e
-isso pedia escritores seguros com resultado incerto: rate limit atômico em Lua
-(antes, a chave ficava sem prazo e bloqueava o login para sempre), lock dos
-jobs com dono, buffer de mensagens picadas com consumo atômico e recuperável
-(antes, o retry recebia texto vazio). Push por pessoa, poda por 3 falhas
-seguidas (403 não apaga na hora), `GET /notifications/subscribe` e `deleted`
-no DELETE. Suítes `m72` (nova, com `CLIENT PAUSE` para o atraso real), `m24` e
-`m20`, cada caso visto falhando. **Migração `20261007210000` (coluna
-`PushSubscription.failures`) NÃO está no Neon.** Validado: rotas de inscrição
-ao vivo. **Não validado:** a tela de push, porque o service worker só registra
-em produção (`register-service-worker.tsx`): conferir em produção, logado.
-Dívida nova: 5.10 (buffer sem idempotência por mensagem).
+⚠️ **Regra do Codex desde 07/10 (o limite de uso dele chegou a 90%):**
+`adversarial-review` sempre com `--model gpt-5.6-terra` (intermediário; o
+esforço padrão dele já é `medium`, e o comando não aceita `--effort`); **no
+máximo 2 rodadas por etapa** (a primeira já pedindo só o bloqueante, a
+segunda só para confirmar); o que sobrar vira dívida registrada; **etapa só
+visual não passa pelo Codex** (quem pega defeito ali é o navegador). Não
+editar `~/.codex/config.toml`: ele vale para todo o Codex do usuário. Até
+aqui foram 16 rodadas em quatro etapas, sem modelo fixado.
+
+**E3 (3.1 Redis + 5.0e/f/g/h push) em produção** (`91241ba`, 07/10):
+migração `20261007210000` rodada pelo usuário e conferida; deploy conferido em
+`/docs/api`. Redis com `commandTimeout` 2 s e escritores seguros com resultado
+incerto (rate limit em Lua, lock com dono, buffer atômico e recuperável); push
+por pessoa e poda por 3 falhas seguidas. **Não validado:** a tela de push,
+porque o service worker só registra em produção: o usuário confere logado.
+Dívida nova: 5.10.
 
 **E2 (5.8) em produção** (`8a88b29`, 07/10), deploy conferido em `/docs/api`.
 **O agente da E2 não foi exercitado em conversa real:** o tenant BANCO DE
@@ -170,10 +171,19 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
 
-**0. Programa de dívidas:** o usuário roda `npm run db:deploy` (Neon) para a
-migração da E3, o agente confere com `migrate status`, e só então pede o merge
-da `divida-3-1-push`. Depois, E4 (tokens de marca e cor crua: 2.6, 2.7, 2.5)
-na branch `design-tokens`.
+**0. Programa de dívidas: E4 pronta na branch `design-tokens`** (commit
+`3a284f7`), sem Codex (etapa visual). 171 trocas de alias `tibe-*` e 64 de cor
+crua, todas para o token que aponta para a MESMA cor; `--texto-marca` novo;
+bloco `tibe` fora do `tailwind.config.ts`; conferência 17 nova; linha de base
+de cor crua a zero (os 15 da Plataforma ficam fora por desenho, decisão de
+31/08); contorno nos 106 chips de `/docs`. Provado sem navegador: o CSS
+compilado gera toda classe nova e tem zero `tibe-`. **Não validado no
+navegador:** o desktop estava com 1 GB livre e o `next dev` já tinha caído;
+validar no notebook, ou com outros programas fechados, antes do merge.
+Achado novo: dívida 2.8 (opacidade sobre token não gera CSS nenhum, a sidebar
+nunca teve os realces desenhados). Pendente do usuário: conferir a tela de
+push em produção, e decidir se monta o cenário de confinamento no tenant BANCO
+DE PROVAS para validar o agente da E2.
 
 **1. Segurança, que é do usuário e vem antes de tudo:** rotacionar as 22
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não

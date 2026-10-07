@@ -291,7 +291,7 @@ export default async function DashboardHome() {
         {recentEntries.length === 0 ? (
           <p className="text-sm text-texto-discreto">Nenhum lançamento ainda.</p>
         ) : (
-          <ul className="divide-y divide-gray-100">
+          <ul className="divide-y divide-borda">
             {recentEntries.map((e) => (
               <li key={e.id} className="flex items-center justify-between py-2 text-sm">
                 <span className="text-texto-secundario">{e.category ?? "não informado"}</span>
@@ -313,9 +313,9 @@ export default async function DashboardHome() {
 
 function MiniStat({ label, value, href }: { label: string; value: string | number; href: string }) {
   return (
-    <Link href={href} className="rounded-lg border border-borda bg-superficie p-3 transition hover:border-tibe-primary">
+    <Link href={href} className="rounded-lg border border-borda bg-superficie p-3 transition hover:border-primaria">
       <p className="truncate text-xs text-texto-discreto">{label}</p>
-      <p className="mt-0.5 truncate text-base font-semibold text-tibe-dark">{value}</p>
+      <p className="mt-0.5 truncate text-base font-semibold text-texto-marca">{value}</p>
     </Link>
   );
 }

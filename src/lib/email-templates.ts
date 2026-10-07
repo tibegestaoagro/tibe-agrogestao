@@ -1,6 +1,7 @@
 /**
  * Templates de email (arquitetura 2026-07-29): HTML simples escrito à mão,
- * cores da marca (tailwind.config.ts: tibe.primary/dark/light), sem
+ * cores da marca copiadas dos tokens de `globals.css` (email não lê CSS
+ * variável, então o valor vai escrito aqui), sem
  * biblioteca de template: mesmo espírito do resto do projeto (UI kit
  * feito à mão em vez de framework instalado via CLI).
  */

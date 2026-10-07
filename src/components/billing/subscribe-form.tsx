@@ -105,8 +105,8 @@ export default function SubscribeForm({ currentPlan }: { currentPlan: Plan | nul
       </Button>
 
       {result?.method === "pix" && (
-        <div className="mt-5 rounded-md bg-tibe-light p-4">
-          <p className="text-sm font-medium text-tibe-dark">Pague com PIX</p>
+        <div className="mt-5 rounded-md bg-superficie-afundada p-4">
+          <p className="text-sm font-medium text-texto-marca">Pague com PIX</p>
           <img
             src={`data:image/png;base64,${result.encodedImage}`}
             alt="QR Code PIX"
@@ -123,8 +123,8 @@ export default function SubscribeForm({ currentPlan }: { currentPlan: Plan | nul
       )}
 
       {result?.method === "boleto" && (
-        <div className="mt-5 rounded-md bg-tibe-light p-4">
-          <p className="text-sm font-medium text-tibe-dark">Pague com boleto</p>
+        <div className="mt-5 rounded-md bg-superficie-afundada p-4">
+          <p className="text-sm font-medium text-texto-marca">Pague com boleto</p>
           <p className="mt-2 text-xs text-texto-secundario">Linha digitável:</p>
           <code className="mt-1 block break-all rounded bg-superficie p-2 text-xs">
             {result.identificationField}

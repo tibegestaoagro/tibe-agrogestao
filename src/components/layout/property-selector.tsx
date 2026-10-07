@@ -56,7 +56,7 @@ export default function PropertySelector({
         type="button"
         onClick={() => setOpen(!open)}
         disabled={loading}
-        className="flex min-h-11 items-center gap-2 rounded-lg border border-borda bg-superficie px-3 py-2 text-sm text-texto-secundario transition hover:border-tibe-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tibe-primary disabled:opacity-60 sm:min-h-0"
+        className="flex min-h-11 items-center gap-2 rounded-lg border border-borda bg-superficie px-3 py-2 text-sm text-texto-secundario transition hover:border-primaria focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primaria disabled:opacity-60 sm:min-h-0"
       >
         <Home className="h-4 w-4 text-primaria-tinta" />
         <span className="max-w-[10rem] truncate font-medium">{activeName}</span>
@@ -67,7 +67,7 @@ export default function PropertySelector({
           <button
             type="button"
             onClick={() => select(null)}
-            className="flex min-h-11 w-full items-center justify-between px-3 py-2 text-left text-sm text-texto-secundario hover:bg-tibe-light sm:min-h-9"
+            className="flex min-h-11 w-full items-center justify-between px-3 py-2 text-left text-sm text-texto-secundario hover:bg-superficie-afundada sm:min-h-9"
           >
             Todas as propriedades
             {!activePropertyId && <Check className="h-4 w-4 text-primaria-tinta" />}
@@ -78,7 +78,7 @@ export default function PropertySelector({
               key={p.id}
               type="button"
               onClick={() => select(p.id)}
-              className="flex min-h-11 w-full items-center justify-between px-3 py-2 text-left text-sm text-texto-secundario hover:bg-tibe-light sm:min-h-9"
+              className="flex min-h-11 w-full items-center justify-between px-3 py-2 text-left text-sm text-texto-secundario hover:bg-superficie-afundada sm:min-h-9"
             >
               <span className="truncate">{p.name}</span>
               {activePropertyId === p.id && <Check className="h-4 w-4 shrink-0 text-primaria-tinta" />}
@@ -93,7 +93,7 @@ export default function PropertySelector({
           <Link
             href="/minha-fazenda"
             onClick={() => setOpen(false)}
-            className="flex min-h-11 items-center px-3 py-2 text-sm text-primaria-tinta hover:bg-tibe-light sm:min-h-9"
+            className="flex min-h-11 items-center px-3 py-2 text-sm text-primaria-tinta hover:bg-superficie-afundada sm:min-h-9"
           >
             Gerenciar minhas fazendas
           </Link>

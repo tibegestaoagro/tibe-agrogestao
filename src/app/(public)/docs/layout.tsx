@@ -39,9 +39,9 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
       <header className="border-b border-borda">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
-            <Link href="/" className="text-xl font-bold text-tibe-dark">Tibé</Link>
+            <Link href="/" className="text-xl font-bold text-texto-marca">Tibé</Link>
             <span className="text-texto-discreto">/</span>
-            <Link href="/docs" className="text-sm font-medium text-texto-secundario hover:text-tibe-dark">
+            <Link href="/docs" className="text-sm font-medium text-texto-secundario hover:text-texto-marca">
               Documentação
             </Link>
           </div>
@@ -64,7 +64,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                     <Link
                       key={item.href}
                       href={item.href}
-                      className="block rounded-md px-2 py-1.5 text-sm text-texto-secundario transition hover:bg-superficie-afundada hover:text-tibe-dark"
+                      className="block rounded-md px-2 py-1.5 text-sm text-texto-secundario transition hover:bg-superficie-afundada hover:text-texto-marca"
                     >
                       {item.label}
                     </Link>

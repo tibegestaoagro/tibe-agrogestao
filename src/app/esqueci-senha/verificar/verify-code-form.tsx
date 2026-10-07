@@ -23,7 +23,7 @@ export default function VerifyCodeForm({ email }: { email: string }) {
   return (
     <form onSubmit={submit} className="space-y-4">
       <div>
-        <label htmlFor="code" className="block text-sm font-medium text-gray-700">
+        <label htmlFor="code" className="block text-sm font-medium text-texto-secundario">
           Código de 6 dígitos
         </label>
         <input
@@ -36,12 +36,12 @@ export default function VerifyCodeForm({ email }: { email: string }) {
           required
           value={code}
           onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-          className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-center text-lg tracking-[0.5em] outline-none focus:border-tibe-primary focus:ring-1 focus:ring-tibe-primary"
+          className="mt-1 w-full rounded-md border border-borda-forte px-3 py-2 text-center text-lg tracking-[0.5em] outline-none focus:border-primaria focus:ring-1 focus:ring-primaria"
         />
       </div>
 
       {error && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+        <p className="rounded-md bg-perigo-suave px-3 py-2 text-sm text-perigo-tinta">{error}</p>
       )}
 
       <button

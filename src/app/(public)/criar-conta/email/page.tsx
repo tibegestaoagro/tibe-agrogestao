@@ -24,13 +24,13 @@ export default async function ConfirmarEmailPage() {
     <main className="min-h-screen bg-superficie-afundada px-4 py-12">
       <div className="mx-auto max-w-lg rounded-xl bg-superficie p-8 shadow-sm">
         <div className="mb-6 text-center">
-          <Link href="/" className="text-3xl font-bold text-tibe-dark">
+          <Link href="/" className="text-3xl font-bold text-texto-marca">
             Tibé
           </Link>
           <p className="mt-1 text-sm text-texto-discreto">Etapa 3 de 3: confirmar email</p>
         </div>
 
-        <div className="mb-4 rounded-md bg-superficie-afundada px-3 py-2 text-sm text-tibe-dark">
+        <div className="mb-4 rounded-md bg-superficie-afundada px-3 py-2 text-sm text-texto-marca">
           WhatsApp confirmado. Falta só o email para criarmos sua conta.
         </div>
 

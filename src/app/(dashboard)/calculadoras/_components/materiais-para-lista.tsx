@@ -233,7 +233,7 @@ export default function MateriaisParaLista({ materiais }: { materiais: Material[
                           ),
                         )
                       }
-                      className="h-4 w-4 rounded border-borda text-primaria-tinta focus:ring-tibe-primary"
+                      className="h-4 w-4 rounded border-borda text-primaria-tinta focus:ring-primaria"
                     />
                     Anotar este material
                   </label>

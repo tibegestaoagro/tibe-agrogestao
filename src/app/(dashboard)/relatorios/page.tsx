@@ -90,7 +90,7 @@ export default async function RelatoriosPage() {
               </p>
             </div>
           ))}
-          <div className="rounded-lg bg-tibe-dark p-3 text-texto-invertido">
+          <div className="rounded-lg bg-superficie-invertida p-3 text-texto-invertido">
             <p className="text-xs text-texto-invertido/70">Resultado total</p>
             <p className="mt-0.5 text-base font-semibold">{brl(dre.total_result)}</p>
           </div>
@@ -117,7 +117,7 @@ export default async function RelatoriosPage() {
             {harvestByCrop.length === 0 ? (
               <p className="text-sm text-texto-discreto">Nenhuma colheita registrada no período.</p>
             ) : (
-              <ul className="divide-y divide-gray-100">
+              <ul className="divide-y divide-borda">
                 {harvestByCrop.map((h) => (
                   <li key={h.crop_name} className="flex items-center justify-between py-2 text-sm">
                     <span className="text-texto-secundario">{h.crop_name}</span>
@@ -133,7 +133,7 @@ export default async function RelatoriosPage() {
         {hasPrestador && serviceOrders && (
           <div className="rounded-xl border border-borda bg-superficie p-5">
             <p className="mb-3 text-sm font-medium text-texto-secundario">Faturamento do prestador (12 meses)</p>
-            <p className="text-2xl font-semibold text-tibe-dark">
+            <p className="text-2xl font-semibold text-texto-marca">
               {brl(Number(serviceOrders._sum.total_value ?? 0))}
             </p>
             <p className="mt-1 text-sm text-texto-discreto">

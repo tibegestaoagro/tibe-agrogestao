@@ -23,7 +23,7 @@ export default async function ConfirmarWhatsappPage() {
     <main className="min-h-screen bg-superficie-afundada px-4 py-12">
       <div className="mx-auto max-w-lg rounded-xl bg-superficie p-8 shadow-sm">
         <div className="mb-6 text-center">
-          <Link href="/" className="text-3xl font-bold text-tibe-dark">
+          <Link href="/" className="text-3xl font-bold text-texto-marca">
             Tibé
           </Link>
           <p className="mt-1 text-sm text-texto-discreto">Etapa 2 de 3: confirmar WhatsApp</p>

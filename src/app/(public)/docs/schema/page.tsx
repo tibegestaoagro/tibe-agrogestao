@@ -229,20 +229,20 @@ const GROUPS: Group[] = [
 export default function SchemaPage() {
   return (
     <article className="max-w-3xl">
-      <h1 className="text-3xl font-bold text-tibe-dark">Schema do banco</h1>
+      <h1 className="text-3xl font-bold text-texto-marca">Schema do banco</h1>
       <p className="mt-3 text-texto-secundario">
         PostgreSQL via Prisma. Modelos em PascalCase, campos em snake_case (para espelhar
-        os contratos de API). Todo modelo de negócio carrega <code className="rounded bg-superficie-afundada px-1">tenant_id</code> e
+        os contratos de API). Todo modelo de negócio carrega <code className="rounded border border-borda bg-superficie-afundada px-1">tenant_id</code> e
         passa pelo middleware de isolamento: exceto os modelos-filho que herdam o tenant via relação com o pai
-        (ex: <code className="rounded bg-superficie-afundada px-1">AnimalWeightLog</code> por <code className="rounded bg-superficie-afundada px-1">animal_id</code>) e as
-        duas tabelas do painel interno (<code className="rounded bg-superficie-afundada px-1">PlatformUser</code>,{" "}
-        <code className="rounded bg-superficie-afundada px-1">SubscriptionStatusLog</code>).
+        (ex: <code className="rounded border border-borda bg-superficie-afundada px-1">AnimalWeightLog</code> por <code className="rounded border border-borda bg-superficie-afundada px-1">animal_id</code>) e as
+        duas tabelas do painel interno (<code className="rounded border border-borda bg-superficie-afundada px-1">PlatformUser</code>,{" "}
+        <code className="rounded border border-borda bg-superficie-afundada px-1">SubscriptionStatusLog</code>).
       </p>
 
       <div className="mt-10 space-y-10">
         {GROUPS.map((group) => (
           <section key={group.title}>
-            <h2 className="text-lg font-semibold text-tibe-dark">{group.title}</h2>
+            <h2 className="text-lg font-semibold text-texto-marca">{group.title}</h2>
             <div className="mt-4 space-y-6">
               {group.tables.map((t) => (
                 <SchemaTable key={t.name} table={t} />

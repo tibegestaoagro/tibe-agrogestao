@@ -62,7 +62,7 @@ function Card({ label, value, sub }: { label: string; value: string; sub?: strin
   return (
     <div className="rounded-lg border border-borda bg-superficie p-4">
       <p className="text-xs text-texto-discreto">{label}</p>
-      <p className="mt-1 text-xl font-semibold text-tibe-dark">{value}</p>
+      <p className="mt-1 text-xl font-semibold text-texto-marca">{value}</p>
       {sub && <p className="mt-0.5 text-xs text-texto-discreto">{sub}</p>}
     </div>
   );

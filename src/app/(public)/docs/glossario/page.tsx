@@ -31,7 +31,7 @@ const TERMS: [string, string][] = [
 export default function GlossarioPage() {
   return (
     <article className="max-w-3xl">
-      <h1 className="text-3xl font-bold text-tibe-dark">Glossário</h1>
+      <h1 className="text-3xl font-bold text-texto-marca">Glossário</h1>
       <p className="mt-3 text-texto-secundario">
         Termos do domínio agropecuário: e alguns termos financeiros e de arquitetura: usados no código e nesta
         documentação.

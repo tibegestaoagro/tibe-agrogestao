@@ -1,6 +1,6 @@
 const METHOD_COLOR: Record<string, string> = {
   GET: "bg-info-suave text-info-tinta",
-  POST: "bg-superficie-afundada text-tibe-dark",
+  POST: "bg-superficie-afundada text-texto-marca",
   PUT: "bg-primaria-suave text-primaria-tinta",
   PATCH: "bg-atencao-suave text-atencao-tinta",
   DELETE: "bg-perigo-suave text-perigo-tinta",

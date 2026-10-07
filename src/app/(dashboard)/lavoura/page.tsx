@@ -101,7 +101,7 @@ export default async function LavouraPage() {
               return (
                 <TableRow key={p.id}>
                   <TableCell className="font-medium">
-                    <Link href={`/lavoura/${p.id}`} className="text-tibe-dark hover:underline">
+                    <Link href={`/lavoura/${p.id}`} className="text-texto-marca hover:underline">
                       {p.name}
                     </Link>
                   </TableCell>

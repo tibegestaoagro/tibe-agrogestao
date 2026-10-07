@@ -17,10 +17,10 @@ export default async function OnboardingPage() {
   if (profiles.length > 0) redirect("/meu-dia");
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-tibe-light px-4">
-      <div className="w-full max-w-lg rounded-xl bg-white p-8 shadow-sm">
-        <h1 className="text-2xl font-bold text-tibe-dark">Bem-vindo ao Tibé</h1>
-        <p className="mt-2 text-gray-600">
+    <main className="flex min-h-screen items-center justify-center bg-superficie-afundada px-4">
+      <div className="w-full max-w-lg rounded-xl bg-superficie p-8 shadow-sm">
+        <h1 className="text-2xl font-bold text-texto-marca">Bem-vindo ao Tibé</h1>
+        <p className="mt-2 text-texto-secundario">
           Sua empresa trabalha com fazenda, prestação de serviço, ou os dois?
         </p>
         <OnboardingForm />

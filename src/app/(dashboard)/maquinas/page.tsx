@@ -94,7 +94,7 @@ export default async function MaquinasPage() {
               return (
                 <TableRow key={m.id}>
                   <TableCell className="font-medium">
-                    <Link href={`/maquinas/${m.id}`} className="text-tibe-dark hover:underline">
+                    <Link href={`/maquinas/${m.id}`} className="text-texto-marca hover:underline">
                       {m.name}
                     </Link>
                   </TableCell>

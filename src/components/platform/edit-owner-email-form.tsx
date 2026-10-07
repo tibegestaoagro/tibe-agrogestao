@@ -46,7 +46,7 @@ export default function EditOwnerEmailForm({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="text-xs text-tibe-primary hover:underline"
+        className="text-xs text-primaria hover:underline"
       >
         Trocar email de login
       </button>
@@ -70,7 +70,7 @@ export default function EditOwnerEmailForm({
         <button
           type="submit"
           disabled={loading}
-          className="rounded-md bg-tibe-primary px-3 py-1 text-xs text-white disabled:opacity-50"
+          className="rounded-md bg-primaria px-3 py-1 text-xs text-white disabled:opacity-50"
         >
           {loading ? "Salvando..." : "Salvar"}
         </button>

@@ -87,132 +87,30 @@ O maior desalinhamento aberto com o cliente Agromax: foi pedido rebanho **por
 categoria**, e o que existe é por brinco com categoria em cima. Não é dívida de
 código, é de produto, e precisa de conversa antes de virar tarefa.
 
-### 2.5 Site público, auth e plataforma sem token semântico
+### 2.8 Opacidade sobre token não gera CSS nenhum
 
-A frente 5 cobriu o **painel do tenant**, e ele está quase inteiro. Ficaram
-fora, por decisão do usuário em 2026-08-28, os arquivos que restam na linha de
-base (`scripts/baseline-cor-crua.json`):
+Achado em 07/10/2026, fechando a E4 (2.5, 2.6, 2.7), ao compilar só o CSS do
+Tailwind para provar que a troca de nomes era neutra. **Toda classe com
+opacidade sobre token hexadecimal sai sem regra**: `bg-texto-invertido/10`,
+`text-texto-invertido/70`, `bg-primaria/10`, `bg-superficie/70`,
+`border-texto-invertido/10`. No Tailwind 3, opacidade exige a cor com
+`<alpha-value>`, e os tokens são `var(--x)` puro: a classe é descartada em
+silêncio, sem aviso de build, `tsc` ou `lint`.
 
-⚠️ **Corrigido em 2026-08-31: este item afirmava que o painel estava INTEIRO, e
-era falso.** A frase dizia "nenhum arquivo de `src/app/(dashboard)/` usa mais a
-paleta crua". O piloto do time de agentes descobriu por quê: a regex da
-conferência 8 cobria só `(text|bg|border)-`, e **quatro arquivos do painel
-pintam `divide-gray` cru**, invisíveis ao portão. A regex foi estendida e os
-quatro entraram na catraca. São dívida nova, pequena:
-`alert-preference-toggles.tsx`, `configuracoes/assinatura/page.tsx`,
-`dashboard/page.tsx` e `relatorios/page.tsx`.
+Consequência desde a migração para tokens (31/08): os realces de hover da
+sidebar, os textos esmaecidos dela, a borda que separa o rodapé dela, o fundo
+suave dos cartões de KPI e da calculadora **nunca apareceram**; o texto herda
+a cor do pai. O próprio `.claude/rules/ui.md` recomenda `bg-texto-invertido/10`
+(armadilha 1) e só avisa do problema para `--sobreposicao` (armadilha 3). Só
+`--sobreposicao` está em canais e funciona.
 
-A conta abaixo é a de **2026-08-28**, quando a base tinha 52. Hoje ela tem
-**34**: saíram os 22 do site público, convertidos em 31/08, e entraram os 4 do
-painel.
-
-⚠️ **A catraca cresceu, contra o princípio de que ela só encolhe, e a exceção
-foi autorizada pelo usuário em 2026-08-31.** Fica registrado aqui porque
-autorização que não se acha depois não vale: os 4 arquivos são dívida
-pré-existente que a regex antiga não enxergava, não regressão nova, e a
-alternativa (consertá-los na mesma rodada) foi recusada para não misturar
-frentes.
-
-| o que | quantos |
-|---|---|
-| site público (`src/app/(public)/`) | 18 |
-| auth, onboarding, escolher plano e afins | 14 |
-| componentes do painel da plataforma (`src/components/platform/`) | 15 |
-| componentes do site público (`src/components/public/`) | 4 |
-| `src/components/signup/verify-code-form.tsx` | 1 |
-
-⚠️ O plano previa que a linha de base fecharia em **32**, contando os
-componentes de plataforma e de site público junto com o painel. Não é trabalho
-esquecido: eles pertencem a estas duas frentes, não à do painel. As páginas de
-`src/app/plataforma/` nem aparecem na conta, porque a catraca as exclui por
-desenho (casca escura, onde o cinza claro é a escolha certa).
-
-São outro contexto visual, com outro público, e validar marketing e curral no
-mesmo dia dilui a atenção. A tela de login soma-se a isso por não ser validável
-por este agente sem digitar senha.
-
-**Custo:** uma rodada própria. O ganho é o modo escuro passar a ser possível no
-app inteiro, e não só no painel.
-
-⚠️ **Armadilha herdada, achada na varredura de 2026-08-31:** o alias depreciado
-`tibe.light` aponta para `--superficie-afundada`, que é **exatamente o fundo do
-painel**. Toda pílula ou cartão que ainda usa `bg-tibe-light` sobre a página
-fica invisível: sobra o texto solto. Um caso foi corrigido (as pílulas de
-"Perfis ativos" em Configurações); os que restam estão em hover de tabela, foco
-de select e menus, onde o efeito é só um realce fraco, e no site público e
-auth, que esta frente não cobriu.
-
-### 2.6 `text-tibe-dark`: um token de SUPERFÍCIE pintando TEXTO, 41 vezes
-
-**O que é:** `tibe.dark` é `var(--superficie-invertida)`
-(`tailwind.config.ts`), cujo papel é "superfície inversa da página": é o verde
-escuro da sidebar. Ele é usado como **cor de texto** (`text-tibe-dark`) em **41
-lugares** do site público, nos títulos de `/`, `/planos`, `/faq`, `/docs` e das
-três etapas de `/criar-conta`.
-
-**Evidência:** achado pelo segundo julgamento independente da frente do token
-semântico, em 2026-08-31.
-
-**Por que importa, e é a dívida mais séria desta lista:** no dia do tema
-escuro, o valor de `--superficie-invertida` será decidido pelo que a **sidebar
-precisa ser**. Se ele continuar `#022e20` (verde escuro de marca, a escolha
-natural para manter a sidebar), **todos os títulos do site público ficam verde
-escuro sobre página escura**.
-
-⚠️ **Isto mina a justificativa da frente que a descobriu.** A spec do site
-público em token semântico se justifica dizendo que "depois que tudo fala
-token, o tema escuro é um bloco que redefine os 37 de uma vez". Com 41 títulos
-presos ao token da sidebar, não é.
-
-**Custo de fechar:** decidir qual token os títulos devem usar (`--texto`? um
-`--texto-marca` novo?) e trocar 41 ocorrências. É decisão de design, e deve
-ser a **primeira tarefa da frente de tokens escuros**, não um remendo.
-
-Sobram também `border-tibe-primary` (5) e `ring-tibe-primary` (1), do mesmo
-bloco de alias.
-
-### 2.7 Selos de método e chips de código no limiar do invisível
-
-**O que é:** em `/docs/api`, os cinco selos de método HTTP e os cerca de 107
-chips `<code>` de `/docs` têm fundo entre **1,037:1 e 1,100:1** contra o branco
-da página. Medições do segundo julgamento independente, por WCAG 2.1:
-
-| elemento | antes da frente | depois |
-|---|---|---|
-| selo PATCH | 1,114:1 | **1,037:1** |
-| selo DELETE | 1,222:1 | 1,094:1 |
-| selo GET | 1,220:1 | 1,088:1 |
-| selo PUT | 1,180:1 | 1,100:1 |
-| chip `<code>` | 1,101:1 | 1,056:1 |
-
-**Por que importa:** a frente do token semântico deixou esses elementos mais
-marginais do que já eram. E há inconsistência do nosso próprio critério: dois
-chips que estavam em **1,000:1** (contraste zero, invisíveis) ganharam borda
-para voltar a aparecer, e os cinco selos ficaram nesta faixa **sem borda**.
-
-⚠️ **Nenhum portão mede isto**, e o `check-contraste.ts` nunca vai medir: ele
-compara par (texto, fundo), e aqui o que está em jogo é fundo contra fundo. A
-conferência 14 pega o caso extremo (fundo idêntico ao do pai), não o limiar.
-
-**Custo de fechar:** decidir se pílula e chip precisam de contorno próprio por
-padrão no sistema de design. É decisão de design, e **só o navegador resolve**:
-1,056:1 é cálculo, não observação, e o quanto some depende de monitor e
-ambiente.
-
-✅ **Metade resolvida por observação, em 2026-08-31.** O usuário abriu
-`/docs/api` em produção e confirmou que **os cinco selos se distinguem** entre
-si, com o `PUT` verde de pé. A medição dizia 1,037:1 no PATCH e sugeria risco;
-o olho disse que não há. **A medição estava certa e a conclusão que se tirava
-dela, errada**, que é exatamente por que este projeto não fecha frente sem
-abrir a tela.
-
-**Continua aberto:** os cerca de 107 chips `<code>` inline de
-`/docs/arquitetura`, `/docs/schema` e `/docs/api`, a 1,056:1. Não foram objeto
-de pergunta específica na validação, e a resposta dos selos não se transfere
-automaticamente: selo tem texto colorido e forma de pílula larga, chip é
-estreito e monoespaçado.
-
----
+**Custo e conserto, já verificado:** o Tailwind 3.4 aceita `<alpha-value>`
+dentro de qualquer string, então cada cor do `tailwind.config.ts` pode virar
+`color-mix(in srgb, var(--x) calc(<alpha-value> * 100%), transparent)`. Sem
+opacidade o valor é 100% e a cor fica igual; com `/10`, aparece o que o código
+sempre pediu. **Muda o visual** (a sidebar ganha o realce desenhado), por isso
+pede validação no navegador antes do merge. Mais uma conferência no `check`
+que compile o CSS e reprove classe usada que não gerou regra.
 
 ## 3. Rede de segurança com furo
 

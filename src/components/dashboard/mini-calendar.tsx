@@ -94,7 +94,7 @@ export default function MiniCalendar({ eventDates }: { eventDates: string[] }) {
               >
                 {d.getDate()}
               </span>
-              <span className={`h-1 w-1 rounded-full ${hasEvent ? "bg-tibe-accent" : "bg-transparent"}`} />
+              <span className={`h-1 w-1 rounded-full ${hasEvent ? "bg-acento" : "bg-transparent"}`} />
             </div>
           );
         })}
