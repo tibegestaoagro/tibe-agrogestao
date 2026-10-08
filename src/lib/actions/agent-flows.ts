@@ -115,6 +115,10 @@ export const FLOWS: Record<string, FlowDef> = {
           // inteiro como brinco (bug real de 2026-07-30). Frase não é brinco.
           if (v.length === 0 || v.length > 30) return null;
           if (/[,;]/.test(v) || v.split(/\s+/).length > 2) return null;
+          // Sem número não é brinco: "kkkkk" passava e o animal nascia com ele
+          // (dívida 5.0c). Vale para qualquer etiqueta de intenção, porque o
+          // cursor do turno pode entregar a mesma risada como resposta do campo.
+          if (!/\d/.test(v)) return null;
           return raw.trim().replace(/[.,;:]+$/g, "");
         },
         invalid: "Não entendi o brinco. Pode mandar só o número ou código dele?",

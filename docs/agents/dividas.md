@@ -144,17 +144,6 @@ em todo domínio não coberto.
 - **A numeração de suíte descolou da de módulo** por volta do `m25` e não tem
   volta (renumerar colide). Já está documentado no `CLAUDE.md` e o
   `npm run check` reprova suíte órfã, então é convivência, não dívida.
-- **`test:m17` falha entre 00h e 03h UTC.** Achado em 2026-09-15 na revisão
-  final da Fase 1 do agente. `scripts/m17-agenda-custo.test.ts` (~1643) monta a
-  data "daqui a 2 dias" pelo dia UTC, e `supportsThreeDayReminder`
-  (`whatsapp-handlers/rebanho.ts`) conta pelo dia de São Paulo: nessas três horas
-  a distância vira 3 dias e a promessa de lembrete aparece. É o teste, não o
-  código. Custo: montar a data pelo dia de São Paulo (`inicioDoDiaEmSaoPaulo`).
-- **`test:m58` falha desde outubro de 2026.** Achado em 07/10/2026 no
-  `test:all` da E2 (falha igual na `main`). `scripts/m58-servico-contratado.test.ts`
-  (~306 e ~929) usa outubro de 2026 como "período futuro, ainda zerado" e uma
-  conta vencendo em 01/10/2026: virou presente. É o teste, não o código. Custo:
-  datas relativas a hoje, como a `m17`. Entra na E5 do programa.
 
 ### 5.10 O buffer de mensagens picadas não é idempotente por mensagem
 
@@ -224,32 +213,6 @@ Custo: uma rodada de ajuste com conjunto maior que 40 casos, porque neste
 tamanho um caso vale 2,8 pontos e o ajuste persegue ruído. Não grava nada
 errado: o agente responde que não entendeu.
 
-### 5.0b Duas perdas silenciosas no negócio de gado
-
-As duas achadas pela revisão final da Fase 4, as duas de gravidade baixa porque
-aparecem no resumo que o produtor confirma antes de qualquer escrita:
-
-- **`negociacao.ts`, `primeiroItemBruto` lê só `itens[0]`.** "vendi uns bezerro
-  e umas novilha" (duas categorias, nenhuma quantidade) descarta a novilha em
-  silêncio. Antes da Fase 4 a conversa travava na pergunta composta até
-  desistir, então não é regressão, mas é perda silenciosa num arquivo cujo
-  cabeçalho diz combater exatamente isso.
-- **`_categoria_candidatos` nunca é limpo do pendente.** Se uma SEGUNDA
-  ambiguidade de categoria surgir na mesma negociação, a interseção usa a lista
-  velha e pode fechar sozinha numa categoria que o produtor não escolheu.
-  Caminho estreito, e o rótulo escolhido aparece na confirmação.
-
-### 5.0c O formulário do cadastro assistido engole mensagem ambígua
-
-Anterior à Fase 4, reproduzido em banco pela revisão final dela: com um cadastro
-assistido aberto, "kkkkk" vira o brinco do animal. `handleActiveFlow`
-(`whatsapp-router.ts`) consome a mensagem antes de qualquer outra decisão, e
-`interrompe()` (`whatsapp-flow-bridge.ts`) trata `ambigua` e `cadastrar_animal`
-do mesmo lado, então nenhuma etiqueta de intenção muda o resultado. **Não
-grava**: o animal só nasce no resumo confirmado, e o produtor vê o lixo antes de
-dizer "sim". Custo: `interrompe()` recusar `ambigua` quando o campo esperado
-tem forma conhecida (brinco, data, número).
-
 ### 5.0d A lista de quem grava sem confirmar precisa de catraca
 
 `INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR` (`whatsapp-handlers/shared.ts`) hoje tem
@@ -264,19 +227,6 @@ no mesmo molde da seção 8 de `m67`: toda intenção de escrita ou está na lis
 ou o arquivo do handler dela contém `"confirmacao"`. Fica aqui o registro do
 porquê, que a suíte não tem como contar.
 
-### 5.5 A resposta à pergunta de categoria descarta a quantidade nova
-
-Resíduo conhecido da correção de 29/09 (commit `51a8634`, que fechou a antiga
-5.1). Com uma pergunta de categoria aberta, "comprei 10 fêmeas de 13 a 24
-meses" muda a categoria e MANTÉM a quantidade do pedido guardado (30), porque a
-resposta só preenche o campo perguntado. É deliberado: preencher mais de um
-campo a partir de uma frase que era resposta a outra pergunta é o caminho que
-já trouxe perda silenciosa neste arquivo.
-
-Não grava errado: a confirmação mostra a quantidade e o produtor pode recusar.
-Custo de fechar: decidir quando uma resposta pode reabrir o pedido inteiro em
-vez de responder um campo, o que é desenho de conversa, não conserto.
-
 ### 5.2 `contas-do-contato.ts` não usa `FinancialEntry.contact_id`
 
 Achado na correção de G1/G2/G5/G6 (rodada do juiz, 2026-09-16). O cabeçalho de
@@ -287,19 +237,6 @@ Módulo 35. A busca continua pelo vínculo indireto (`negotiation_id` da
 produto sobre qual vínculo é a fonte de verdade quando os dois existirem ao
 mesmo tempo, não algo para decidir em silêncio numa correção de bug. O
 comentário só foi corrigido para não mentir; a busca não mudou.
-
-### 5.7 A pergunta de categoria da CONSULTA do rebanho não tem memória
-
-Resíduo da antiga 5.3, fechada em 2026-09-29. `consultar_rebanho` responde
-"Não reconheci a categoria ... Diga o sexo e a idade aproximada" (via
-`resolverCategoria`, `whatsapp-handlers/herd.ts`), mas consulta não guarda
-pendente, então a resposta do produtor ("Fêmeas de 15 meses") não tem pergunta
-aberta a que se ligar e é classificada do zero, sem garantia de voltar à
-consulta. Antes da correção, ela caía no pendente velho de outro domínio; agora
-cai onde a classificação mandar.
-
-Não grava nada. **Custo:** dar à consulta um pendente curto (só a categoria),
-ou trocar a frase por uma que não pareça pergunta.
 
 ### 5.4 Pergunta de pasto respondida com lavoura, e "bom dia" sem saudação
 

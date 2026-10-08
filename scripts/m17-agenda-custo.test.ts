@@ -18,6 +18,7 @@ import { routeIntent } from "@/lib/actions/whatsapp-router";
  * e fixado pela `m43`, com literais.
  */
 import { reaisBr } from "@/lib/numero-br";
+import { inicioDoDiaEmSaoPaulo } from "@/lib/dia-calendario";
 import { supportsThreeDayReminder } from "@/lib/actions/whatsapp-handlers/rebanho";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { createTestAnimal , deleteTestTenants, registrarNoLivro } from "./helpers/herd";
@@ -41,12 +42,18 @@ function assert(condition: boolean, message: string) {
   }
 }
 
+/**
+ * Conta a partir do dia de São Paulo, não do dia UTC: entre 00h e 03h UTC os
+ * dois discordam, e "daqui a 2 dias" virava 3 para o handler, que conta pelo
+ * dia da fazenda (a suíte falhava nessas três horas).
+ */
 function addUtcCalendarDays(base: Date, days: number): Date {
+  const hoje = inicioDoDiaEmSaoPaulo(base);
   return new Date(
     Date.UTC(
-      base.getUTCFullYear(),
-      base.getUTCMonth(),
-      base.getUTCDate() + days,
+      hoje.getUTCFullYear(),
+      hoje.getUTCMonth(),
+      hoje.getUTCDate() + days,
       12,
     ),
   );

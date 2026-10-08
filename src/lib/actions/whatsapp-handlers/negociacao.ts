@@ -80,19 +80,53 @@ function descreverItens(itens: { categoria: HerdCategory; quantidade: number }[]
 }
 
 /**
- * O primeiro item bruto dentro de `itens`, quando existe: a categoria pode
- * ter sido dita ("uns bezerro") sem quantidade nenhuma, e `itensDosParametros`
- * descarta o item inteiro nesse caso (precisa das duas partes juntas). Aqui a
- * gente ainda quer enxergar a categoria já dita, para não perguntar de novo
- * o que o produtor já contou.
+ * Os itens brutos dentro de `itens` que têm categoria, com ou sem quantidade:
+ * a categoria pode ter sido dita ("uns bezerro") sem quantidade nenhuma, e
+ * `itensDosParametros` descarta o item inteiro nesse caso (precisa das duas
+ * partes juntas). Aqui a gente ainda quer enxergar a categoria já dita, para
+ * não perguntar de novo o que o produtor já contou.
+ *
+ * Lia só `itens[0]`, e "vendi uns bezerro e umas novilha" perdia a novilha
+ * sem aviso (dívida 5.0b).
  */
-function primeiroItemBruto(parameters: Record<string, unknown>): { categoria: string | null; quantidade: unknown } | null {
+function itensComCategoria(parameters: Record<string, unknown>): { categoria: string; quantidade: unknown }[] {
   const itens = parameters.itens;
-  if (!Array.isArray(itens) || itens.length === 0) return null;
-  const registro = itens[0];
-  if (typeof registro !== "object" || registro === null) return null;
-  const r = registro as Record<string, unknown>;
-  return { categoria: str(r.categoria) ?? str(r.category), quantidade: r.quantidade ?? r.quantity };
+  if (!Array.isArray(itens)) return [];
+  return itens.flatMap((registro) => {
+    if (typeof registro !== "object" || registro === null) return [];
+    const r = registro as Record<string, unknown>;
+    const categoria = str(r.categoria) ?? str(r.category);
+    return categoria ? [{ categoria, quantidade: r.quantidade ?? r.quantity }] : [];
+  });
+}
+
+/**
+ * Leva a resposta a "quantos X?" para o primeiro item sem quantidade, quando
+ * o pedido tem mais de um item. É o par de `aplicarCategoriaAosItens`: a
+ * resposta chega no campo plano, e `itensDosParametros` lê `itens`.
+ */
+function aplicarQuantidadeAosItens(parameters: Record<string, unknown>): Record<string, unknown> {
+  if (!Array.isArray(parameters.itens) || itensComCategoria(parameters).length < 2) return parameters;
+  const itens = parameters.itens.map((item) => ({ ...(item as Record<string, unknown>) }));
+  const indice = itens.findIndex(
+    (i) => (str(i.categoria) ?? str(i.category)) && lerNumeroFalado(i.quantidade ?? i.quantity) == null,
+  );
+  if (indice < 0) return parameters;
+  itens[indice].quantidade = parameters.quantidade;
+  delete itens[indice].quantity;
+  const resto: Record<string, unknown> = { ...parameters, itens };
+  delete resto.quantidade;
+  delete resto.quantity;
+  return resto;
+}
+
+/**
+ * Verbo de negócio, quantidade e categoria na mesma frase: é pedido novo, não
+ * resposta ao campo (decisão do usuário, 07/10, dívida 5.5).
+ */
+function ehPedidoCompleto(parameters: Record<string, unknown>): boolean {
+  const tipo = (str(parameters.tipo) ?? str(parameters.negotiation_type) ?? str(parameters.movement_type) ?? "").toLowerCase();
+  return !!TIPOS[tipo] && itensDosParametros(parameters).length > 0;
 }
 
 /**
@@ -249,13 +283,27 @@ export const registrarNegocioGado: Handler = async ({
     delete parameters.data_pagamento;
   } else if (pendente && pendente.aguardando !== "confirmacao") {
     const juntado = aplicarRespostaNegocio(pendente, parametrosDaMensagem);
-    if (juntado) {
+    if (pendente.aguardando === "categoria" && ehPedidoCompleto(parametrosDaMensagem)) {
+      /**
+       * "comprei 10 fêmeas de 13 a 24 meses", respondendo à pergunta de
+       * categoria de um pedido de 30: a frase traz o pedido inteiro, então os
+       * animais dela substituem os guardados. Responder só o campo mantinha os
+       * 30 (dívida 5.5). O resto do pedido (valor, contato, pagamento) fica.
+       */
+      const resto = { ...pendente.parameters };
+      for (const campo of ["itens", "categoria", "category", "quantidade", "quantity", "_categoria_candidatos"]) {
+        delete resto[campo];
+      }
+      parameters = { ...resto, ...parametrosDaMensagem };
+    } else if (juntado) {
       // Mesma causa do rebanho: a resposta chega plana e `itens` do pedido guardado manda.
       const resposta = str(parametrosDaMensagem.categoria) ?? str(parametrosDaMensagem.category);
       parameters =
         pendente.aguardando === "categoria" && resposta
           ? aplicarCategoriaAosItens(juntado, resposta)
-          : juntado;
+          : pendente.aguardando === "quantidade"
+            ? aplicarQuantidadeAosItens(juntado)
+            : juntado;
     } else {
       /**
        * A mensagem não responde ao que foi perguntado, mas o que já foi
@@ -310,6 +358,25 @@ export const registrarNegocioGado: Handler = async ({
   const compra = type === "compra_gado";
 
   let itensBrutos = itensDosParametros(parameters);
+  const ditos = itensComCategoria(parameters);
+  if (ditos.length >= 2 && itensBrutos.length < ditos.length) {
+    /**
+     * Mais de um item e algum sem quantidade: pergunta item por item, na
+     * ordem dita, primeiro as categorias ambíguas e depois as quantidades. As
+     * respostas voltam para o item certo por `aplicarCategoriaAosItens` e
+     * `aplicarQuantidadeAosItens`.
+     */
+    for (const item of ditos) {
+      const resolvida = resolverCategoria(item.categoria);
+      if (!resolvida.ok) return perguntar(resolvida.resposta, "categoria");
+    }
+    const semQuantidade = ditos.find((i) => lerNumeroFalado(i.quantidade) == null)!;
+    const categoria = resolverCategoria(semQuantidade.categoria);
+    if (categoria.ok) {
+      const quantos = categoria.categoria.sex === "femea" ? "Quantas" : "Quantos";
+      return perguntar(ask(`${quantos} ${categoria.categoria.plural}?`), "quantidade");
+    }
+  }
   if (itensBrutos.length === 0) {
     /**
      * A pergunta pedia DUAS coisas de uma vez ("Quantos animais e de qual
@@ -326,7 +393,7 @@ export const registrarNegocioGado: Handler = async ({
      * quantidade nesse momento faria a resposta sobre idade cair no campo
      * errado de novo.
      */
-    const primeiroItem = primeiroItemBruto(parameters);
+    const primeiroItem = itensComCategoria(parameters)[0];
     const categoriaBruta = str(parameters.categoria) ?? str(parameters.category) ?? primeiroItem?.categoria ?? null;
     if (!categoriaBruta) {
       return perguntar(ask("De qual categoria?"), "categoria");
@@ -351,7 +418,10 @@ export const registrarNegocioGado: Handler = async ({
     // resolveu cruzando com as candidatas anteriores. Guardar o termo ambíguo
     // faria a segunda resolução (linha abaixo, sem memória de candidata) reabrir
     // a mesma pergunta do zero.
+    // E limpa as candidatas: guardadas, elas decidiam sozinhas a PRÓXIMA
+    // pergunta de categoria da mesma negociação (dívida 5.0b).
     parameters = { ...parameters, categoria: categoriaResolvida.categoria.label };
+    delete parameters._categoria_candidatos;
     if (quantidadeSolta == null) {
       return perguntar(ask("Quantos animais?"), "quantidade");
     }
