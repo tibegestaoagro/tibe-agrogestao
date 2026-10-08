@@ -90,8 +90,16 @@ export type AnimalBatch = {
 };
 
 export type FinancialEntryType = "income" | "expense";
-export type FinancialEntryStatus = "pending" | "paid" | "overdue";
-export type RelatedModule = "rebanho" | "lavoura" | "servico" | "maquinas" | "geral";
+export type FinancialEntryStatus = "pending" | "paid" | "overdue" | "cancelled";
+export type RelatedModule =
+  | "rebanho"
+  | "lavoura"
+  | "servico"
+  | "maquinas"
+  | "geral"
+  | "confinamento"
+  | "leite"
+  | "mao_de_obra";
 
 /** GET /api/v1/financial-entries */
 export type FinancialEntry = {

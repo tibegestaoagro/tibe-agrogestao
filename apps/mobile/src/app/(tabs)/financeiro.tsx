@@ -26,6 +26,7 @@ const STATUS_LABEL: Record<FinancialEntry['status'], string> = {
   pending: 'Pendente',
   paid: 'Pago',
   overdue: 'Vencido',
+  cancelled: 'Cancelada',
 };
 
 /**
