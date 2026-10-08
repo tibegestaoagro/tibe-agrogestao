@@ -826,6 +826,16 @@ async function main() {
       to: { category_id: "femea_36_mais", property_id: aroeira.id, pasture_id: ipeDaAroeira.id, situation: "presente", owner: "proprio" },
       occurred_at: new Date("2026-01-01"),
     });
+    // Fazenda cujo único pasto foi desativado ainda tem gado lá.
+    const jacaranda = await db.property.create({ data: scoped({ name: "Fazenda Jacarandá" }) });
+    const unicoDaJacaranda = await db.pasture.create({ data: scoped({ property_id: jacaranda.id, name: "Pasto Único", area_hectares: 3 }) });
+    await recordMovement(db, {
+      movement_type: "saldo_inicial",
+      quantity: 5,
+      to: { category_id: "femea_36_mais", property_id: jacaranda.id, pasture_id: unicoDaJacaranda.id, situation: "presente", owner: "proprio" },
+      occurred_at: new Date("2026-01-01"),
+    });
+    await db.pasture.update({ where: { id: unicoDaJacaranda.id }, data: { archived_at: new Date() } });
     const movimentosAntes = await db.herdMovement.count();
 
     const daFazenda = await consultarPastos(ctx(db, tenant.id, { fazenda: "ipe" }));
@@ -841,6 +851,14 @@ async function main() {
       daFazenda.reply_text,
     );
     check("consulta de pasto não pede confirmação", daFazenda.requires_confirmation === false);
+    const soDesativado = await consultarPastos(ctx(db, tenant.id, { fazenda: "jacaranda" }));
+    check(
+      "fazenda só com pasto desativado ainda mostra o gado dele",
+      soDesativado.reply_text.includes("Fazenda Jacarandá\n- Em pasto desativado: 5 animais") &&
+        !soDesativado.reply_text.includes("Pasto Único") &&
+        soDesativado.action_taken === "consultar_pastos",
+      soDesativado.reply_text,
+    );
 
     const todas = await consultarPastos(ctx(db, tenant.id, {}));
     check(

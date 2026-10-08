@@ -491,13 +491,6 @@ export const consultarPastos: Handler = async ({ db, parameters }) => {
   const exatos = casados.filter((p) => normalizarTermo(p.name) === alvo);
   const pastos = exatos.length > 0 ? exatos : casados;
 
-  if (pastos.length === 0) {
-    const texto = nomePasto
-      ? `Não encontrei o pasto "${nomePasto}".`
-      : "Você ainda não tem pasto cadastrado. Cadastre no painel, em Minha Fazenda.";
-    return { reply_text: texto, requires_confirmation: false, auxiliary_data: null, report_url: null, action_taken: "consultar_pastos:vazio" };
-  }
-
   const cabecas = (filtro: (p: HerdPosition) => boolean) =>
     posicoes.filter(filtro).reduce((soma, p) => soma + p.quantity, 0);
   const linha = (p: (typeof pastos)[number]) => {
@@ -509,20 +502,33 @@ export const consultarPastos: Handler = async ({ db, parameters }) => {
   const blocos = fazendas
     .map((f) => {
       const daFazenda = pastos.filter((p) => p.property_id === f.id);
-      if (daFazenda.length === 0) return null;
-      const linhas = daFazenda.map(linha);
-      const semPasto = nomePasto ? 0 : cabecas((x) => x.property_id === f.id && x.pasture_id === null);
-      if (semPasto > 0) linhas.push(`- Sem pasto definido: ${semPasto} animais`);
-      // Arquivar pasto ocupado é permitido (dívida 5.12): sem esta linha, as cabeças dele sumiam da conta.
+      // Arquivar pasto ocupado é permitido (dívida 5.12): sem esta linha, as
+      // cabeças dele sumiam da conta, e a fazenda inteira quando todos os
+      // pastos dela estavam desativados.
       const desativado = nomePasto
         ? 0
         : cabecas((x) => x.property_id === f.id && x.pasture_id !== null && !ativos.has(x.pasture_id));
+      if (daFazenda.length === 0 && desativado === 0) return null;
+      const linhas = daFazenda.map(linha);
+      const semPasto = nomePasto ? 0 : cabecas((x) => x.property_id === f.id && x.pasture_id === null);
+      if (semPasto > 0) linhas.push(`- Sem pasto definido: ${semPasto} animais`);
       if (desativado > 0) linhas.push(`- Em pasto desativado: ${desativado} animais`);
       return `${f.name}\n${linhas.join("\n")}`;
     })
     .filter((b): b is string => b !== null);
 
-  const cabecalho = nomePasto ? "" : `Você tem ${pastos.length} ${pastos.length === 1 ? "pasto cadastrado" : "pastos cadastrados"}:\n`;
+  if (blocos.length === 0) {
+    const texto = nomePasto
+      ? `Não encontrei o pasto "${nomePasto}".`
+      : "Você ainda não tem pasto cadastrado. Cadastre no painel, em Minha Fazenda.";
+    return { reply_text: texto, requires_confirmation: false, auxiliary_data: null, report_url: null, action_taken: "consultar_pastos:vazio" };
+  }
+
+  const cabecalho = nomePasto
+    ? ""
+    : pastos.length === 0
+      ? "Você não tem pasto ativo cadastrado.\n"
+      : `Você tem ${pastos.length} ${pastos.length === 1 ? "pasto cadastrado" : "pastos cadastrados"}:\n`;
   return {
     reply_text: cabecalho + blocos.join("\n\n"),
     requires_confirmation: false,
