@@ -85,6 +85,7 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [índice de lista não sobrevive a dois turnos](indice-de-lista-nao-sobrevive-a-dois-turnos.md) | armadilha | o "1" apontou para outra conta, e o sim quitou R$ 9.000 |
 | [declarar a intenção não a torna alcançável](declarar-a-intencao-nao-a-torna-alcancavel.md) | licao | três intenções novas com 44,4%, porque o domínio não as reivindicava |
 | [canal construído não é canal que entrega](canal-construido-nao-e-canal-que-entrega.md) | licao | o push existia há meses e tinha zero inscrições: a tela não deixava |
+| [coluna gerada no Prisma precisa de dbgenerated](coluna-gerada-no-prisma-precisa-de-dbgenerated.md) | armadilha | o `migrate diff` lê a expressão de geração como `DEFAULT` e pede para derrubá-lo |
 | [estado de produção não se deduz da máquina local](deduzir-producao-pela-maquina-local.md) | armadilha | "o env está replicado" virou uma pendência falsa em seis documentos |
 
 ⚠️ **`[[wikilink]]` para nota que não existe reprova o `npm run check`**

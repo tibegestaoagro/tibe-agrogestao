@@ -1309,6 +1309,64 @@ async function main() {
         entryPin3Depois.status,
       );
     }
+
+    // ── 14. Dívidas 5.0 e 5.2 (E7, 08/10) ─────────────────────────────────
+
+    console.log("\n14. Busca sem acento no banco (5.0) e conta pelo contact_id (5.2)");
+    {
+      const grafado = await db.contact.create({ data: scoped({ name: "  JOSÉ   Antônio M70 " }) });
+      check("14.1 o banco gera name_busca sem acento, minúscula e sem espaço repetido", grafado.name_busca === "jose antonio m70", String(grafado.name_busca));
+      const renomeado = await db.contact.update({ where: { id: grafado.id }, data: { name: "Joãozinho M70" } });
+      check("14.2 renomear refaz o name_busca", renomeado.name_busca === "joaozinho m70", String(renomeado.name_busca));
+      const cliente = await db.serviceClient.create({ data: scoped({ name: "Açougue São Jorge M70" }) });
+      check("14.3 ServiceClient também", cliente.name_busca === "acougue sao jorge m70", String(cliente.name_busca));
+
+      const outro = await prisma.tenant.create({
+        data: { name: `M70 B ${stamp}`, document: `M70B${stamp}`.slice(0, 14), plan: "fazenda" },
+      });
+      try {
+        await prismaForTenant(outro.id).contact.create({ data: scoped({ name: "Zé Isolado M70" }) });
+        await prismaForTenant(outro.id).serviceClient.create({ data: scoped({ name: "Zé Isolado M70" }) });
+        const r14 = await contasEmAbertoDoContato(db, "Ze Isolado M70");
+        check("14.4 o nome de outro tenant não casa", r14.estado === "nao_encontrado", JSON.stringify(r14));
+      } finally {
+        await prisma.tenant.delete({ where: { id: outro.id } });
+      }
+
+      const tiao = await db.contact.create({ data: scoped({ name: "Tião Direto M70" }) });
+      const outroContato = await db.contact.create({ data: scoped({ name: "Fulano Outro M70" }) });
+      const negTiao = await db.negotiation.create({
+        data: scoped({
+          type: "venda_gado",
+          occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+          property_id: fazenda.id,
+          contact_id: tiao.id,
+          amount: 1000,
+        }),
+      });
+      const conta = (amount: number, extra: { contact_id?: string; negotiation_id?: string }) =>
+        db.financialEntry.create({
+          data: scoped({
+            entry_type: "income",
+            category: "Venda de animal",
+            amount,
+            status: "pending",
+            due_date: new Date("2026-10-20T12:00:00.000Z"),
+            ...extra,
+          }),
+        });
+      const soContato = await conta(111, { contact_id: tiao.id });
+      const osDois = await conta(222, { contact_id: tiao.id, negotiation_id: negTiao.id });
+      const soNegocio = await conta(333, { negotiation_id: negTiao.id });
+      const divergente = await conta(444, { contact_id: outroContato.id, negotiation_id: negTiao.id });
+
+      const r14b = await contasEmAbertoDoContato(db, "Tiao Direto M70");
+      const ids = r14b.estado === "ok" ? r14b.contas.map((c) => c.id) : [];
+      check("14.5 conta só com contact_id entra", ids.includes(soContato.id), JSON.stringify(ids));
+      check("14.6 conta com os dois vínculos entra uma vez", ids.filter((id) => id === osDois.id).length === 1, JSON.stringify(ids));
+      check("14.7 conta de negociação sem contact_id entra como complemento", ids.includes(soNegocio.id), JSON.stringify(ids));
+      check("14.8 contact_id de outro contato vence a negociação", !ids.includes(divergente.id) && ids.length === 3, JSON.stringify(ids));
+    }
   } finally {
     await prisma.tenant.delete({ where: { id: tenant.id } });
     await prisma.$disconnect();

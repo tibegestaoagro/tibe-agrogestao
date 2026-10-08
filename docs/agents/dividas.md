@@ -213,23 +213,6 @@ agente responde ao recusar uma escrita. **Custo:** depois da decisão, uma
 checagem em `executarIntencao` (o núcleo comum aos dois caminhos), com a
 classificação de leitura/escrita que `whatsapp-intents.ts` já tem.
 
-### 5.0 Casar nome sem acento carrega a tabela inteira em memória
-
-Achado pela revisão da Fase 5 (16/09). `ILIKE` do Postgres não dobra acento, e
-"Ze Carlos" não casava "Zé Carlos". A correção foi comparar em memória, sem
-acento, tanto em `pessoasQueCasam` (`contas-do-contato.ts`) quanto em
-`findClientsByName` (`service-orders.ts`): as duas passaram a ler a tabela toda
-e filtrar em JS.
-
-`resolverTrabalhador` já fazia assim, mas `Worker` é a equipe fixa, com poucas
-linhas. `Contact` e `ServiceClient` guardam **todo comprador, vendedor,
-fornecedor e cliente que o tenant já cadastrou**, e são duas leituras por
-conversa de recebimento. Barato hoje, cresce sozinho.
-
-Custo: coluna normalizada sem acento com índice, ou `unaccent` no Postgres
-(extensão, precisa entrar na migração). Não é urgente; é o tipo de coisa que só
-dói quando um cliente grande chega, e aí dói em silêncio.
-
 ### 5.0a "Acertei com o Zé Carlos" ainda sai ambígua
 
 O grosso fechou na Fase 8 (08/10): o pagamento ao trabalhador sem valor foi de
@@ -256,17 +239,6 @@ Fechado em 2026-09-16 pela catraca da seção 1c de `scripts/m68-agente-turno.te
 no mesmo molde da seção 8 de `m67`: toda intenção de escrita ou está na lista,
 ou o arquivo do handler dela contém `"confirmacao"`. Fica aqui o registro do
 porquê, que a suíte não tem como contar.
-
-### 5.2 `contas-do-contato.ts` não usa `FinancialEntry.contact_id`
-
-Achado na correção de G1/G2/G5/G6 (rodada do juiz, 2026-09-16). O cabeçalho de
-`contas-do-contato.ts` afirmava que `FinancialEntry` não tem FK de cliente, e
-isso é falso para `Contact`: `FinancialEntry.contact_id` existe desde o
-Módulo 35. A busca continua pelo vínculo indireto (`negotiation_id` da
-`Negotiation`, casada por `Contact`), porque trocar o caminho é decisão de
-produto sobre qual vínculo é a fonte de verdade quando os dois existirem ao
-mesmo tempo, não algo para decidir em silêncio numa correção de bug. O
-comentário só foi corrigido para não mentir; a busca não mudou.
 
 ---
 

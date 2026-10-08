@@ -1192,6 +1192,12 @@ model ServiceClient {
   id         String   @id @default(cuid())
   tenant_id  String
   name       String
+  /// Coluna GERADA pelo Postgres (`nome_de_busca(name)`: minúscula, sem acento
+  /// e sem espaço repetido; migração 20261008120000_busca_sem_acento): nunca
+  /// escreva nela, o banco recusa. É o que deixa "Ze Carlos" casar "Zé Carlos"
+  /// no SQL, sem ler a tabela inteira (dívida 5.0). O Prisma não representa
+  /// coluna gerada; por isso ela é opcional aqui.
+  name_busca String? @default(dbgenerated("nome_de_busca(name)"))
   document   String?
   phone      String?
   email      String?
@@ -1948,6 +1954,8 @@ model Contact {
   id          String       @id @default(cuid())
   tenant_id   String
   name        String
+  /// Coluna GERADA pelo Postgres: ver `ServiceClient.name_busca`.
+  name_busca  String?      @default(dbgenerated("nome_de_busca(name)"))
   type        ContactType?
   phone       String?
   city        String?
