@@ -145,6 +145,24 @@ em todo domínio não coberto.
   volta (renumerar colide). Já está documentado no `CLAUDE.md` e o
   `npm run check` reprova suíte órfã, então é convivência, não dívida.
 
+### 5.11 Pelo `execute-action`, negócio com dois itens vira duas conversas
+
+Achado na validação viva da E5 (08/10, 01h55 UTC, telefone do `npm run wa`,
+que não está no canário). "comprei uns bezerro e umas novilha do Ze Teste por
+50 mil" chegou do classificador do n8n como DUAS chamadas de
+`registrar_negocio_gado`, um item cada, sem quantidade: o produtor leu "Quantos
+animais?" duas vezes, e a resposta seguinte ("13 a 24 meses") foi classificada
+como `registrar_movimentacao_rebanho`, longe do negócio. Não gravou nada (a
+conversa terminou em "não"), mas a correção da 5.0b só vale quando os itens
+chegam juntos, o que a rota de turno faz.
+
+Não é do Tibé: o classificador do n8n está congelado por decisão do usuário, e
+a Fase 7 troca o `execute-action` pela rota de turno. Custo de fechar aqui:
+nenhum, se a Fase 7 fechar; senão, ensinar o nó do n8n a mandar os itens numa
+chamada só. Ainda falta ver a 5.0b ao vivo pela rota de turno: a cópia
+`--homologacao` está desligada no n8n (404), e ligá-la, ou pôr o telefone de
+teste no canário, é escrita no n8n de produção.
+
 ### 5.10 O buffer de mensagens picadas não é idempotente por mensagem
 
 Achado pela quarta rodada do Codex na E3 (07/10/2026). Desde a 3.1 a conexão

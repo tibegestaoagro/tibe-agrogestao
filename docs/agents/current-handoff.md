@@ -27,7 +27,7 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-10-07.
 
-### Programa de dívidas (desde 07/10): E0 a E4 em produção, E5 pronta na branch
+### Programa de dívidas (desde 07/10): E0 a E5 em produção
 
 ⚠️ **Regra do Codex desde 07/10 (o limite de uso dele chegou a 90%):**
 `adversarial-review` sempre com `--model gpt-5.6-terra` (intermediário; o
@@ -166,8 +166,12 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
 
-**0. Programa de dívidas: E5 pronta na branch `agente-correcoes`**, esperando
-autorização de merge. Fecha 5.0b (negócio com vários itens pergunta item por
+**0. Programa de dívidas: E5 em produção** (`4acd0e6`, 08/10, Vercel
+`success`). Validação viva pelo `npm run wa` (telefone fora do canário,
+`execute-action`): "quantas novilhas eu tenho?" perguntou a idade, e "13 a 24
+meses" respondeu o total (antes perguntaria o sexo). O negócio com dois itens
+NÃO foi exercitado pela rota de turno: o n8n partiu a frase em duas chamadas
+(dívida nova 5.11), e a cópia `--homologacao` está desligada no n8n. Fecha 5.0b (negócio com vários itens pergunta item por
 item; candidata limpa ao resolver), 5.5 (verbo + quantidade + categoria na
 pergunta de categoria substitui os animais guardados), 5.0c (brinco exige
 dígito, no `parse` do campo), 5.7 (consulta do rebanho com pendente curto,
@@ -176,11 +180,10 @@ falhando e passando às 01h UTC). `test:all` 75/75 e as suítes da área verdes.
 Codex: 2 rodadas (teto), as duas sobre a consulta herdar a fazenda; a regra
 final é "herda só quem responde: termo que sozinho não fecha, ou que fecha
 numa das candidatas". Teto aceito: "fêmeas de 15 meses" depois de "não
-reconheci jumento" numa fazenda responde o rebanho inteiro. A memória da
-consulta só funciona pela rota de turno (canário); pelo `execute-action` quem
-decide é o classificador do n8n. **Validação viva pendente:** `npm run wa`
-depois do deploy ("quantas novilhas tenho", responder "13 a 24 meses").
-Próxima: E6 (pasto + avaliação). Pendente do usuário: olhar o painel logado
+reconheci jumento" numa fazenda responde o rebanho inteiro. Pelo `execute-action`, quem decide
+para onde vai a resposta é o classificador do n8n (no teste ao vivo ele a
+mandou à consulta). Esta atualização mora na branch `pos-e5`, que entra na
+`main` junto com a E6. Próxima: E6 (pasto + avaliação). Pendente do usuário: olhar o painel logado
 (E4), conferir a tela de push (E3), e decidir se monta o cenário de
 confinamento no tenant BANCO DE PROVAS (E2).
 
