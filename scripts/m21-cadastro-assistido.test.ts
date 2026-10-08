@@ -15,6 +15,7 @@ import {
   MAX_ITEMS,
   REMINDER_AFTER_MINUTES,
 } from "@/lib/actions/agent-flows";
+import { handleActiveFlow } from "@/lib/actions/whatsapp-flow-bridge";
 
 exigirBancoLocal();
 
@@ -337,6 +338,36 @@ async function main() {
     const semTel = await collectPendingReminders(dbB, agoraCom);
     assert(semTel.length === 0, "usuário sem telefone não entra na fila de lembrete");
     await dbB.agentFlowState.deleteMany({ where: { user_id: uB.id } });
+    await dbA.agentFlowState.deleteMany({ where: { user_id: uA.id } });
+
+    // ── mensagem ambígua não vira brinco (dívida 5.0c) ────────────────
+    // Com o cadastro esperando o brinco, "kkkkk" virava o brinco do animal.
+    await startFlow(dbA, uA.id, "cadastrar_animal", 1);
+    const risada = await handleActiveFlow({
+      db: dbA, userId: uA.id, intent: "ambigua", messageText: "kkkkk", confirmed: false, explicitNo: false,
+    });
+    const depoisDaRisada = await getActiveFlow(dbA, uA.id);
+    assert(
+      !!risada?.reply_text.toLowerCase().includes("brinco") &&
+        depoisDaRisada?.pending_field === "ear_tag" &&
+        !depoisDaRisada?.current_item?.ear_tag,
+      "ambígua sem número não vira brinco: repete a pergunta do brinco",
+    );
+    // O cursor do turno pode entregar a mesma risada já como resposta do cadastro.
+    await handleActiveFlow({
+      db: dbA, userId: uA.id, intent: "cadastrar_animal", messageText: "kkkkk", confirmed: false, explicitNo: false,
+    });
+    assert(
+      !(await getActiveFlow(dbA, uA.id))?.current_item?.ear_tag,
+      "nem como cadastrar_animal a risada vira brinco",
+    );
+    await handleActiveFlow({
+      db: dbA, userId: uA.id, intent: "ambigua", messageText: "A-123", confirmed: false, explicitNo: false,
+    });
+    assert(
+      (await getActiveFlow(dbA, uA.id))?.current_item?.ear_tag === "A-123",
+      "ambígua com número continua sendo aceita como brinco",
+    );
     await dbA.agentFlowState.deleteMany({ where: { user_id: uA.id } });
 
     // ── isolamento multi-tenant ───────────────────────────────────────
