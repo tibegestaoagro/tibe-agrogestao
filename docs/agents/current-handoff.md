@@ -42,20 +42,11 @@ aqui foram 16 rodadas em quatro etapas, sem modelo fixado.
 site público (token `--texto-marca`, títulos, chips de `/docs`, login). Falta o
 usuário olhar o painel logado. Dívida nova: 2.8.
 
-**E3 (3.1 Redis + 5.0e/f/g/h push) em produção** (`91241ba`, 07/10):
-migração `20261007210000` rodada pelo usuário e conferida; deploy conferido em
-`/docs/api`. Redis com `commandTimeout` 2 s e escritores seguros com resultado
-incerto (rate limit em Lua, lock com dono, buffer atômico e recuperável); push
-por pessoa e poda por 3 falhas seguidas. **Não validado:** a tela de push,
-porque o service worker só registra em produção: o usuário confere logado.
-Dívida nova: 5.10.
-
-**E2 (5.8) em produção** (`8a88b29`, 07/10), deploy conferido em `/docs/api`.
-**O agente da E2 não foi exercitado em conversa real:** o tenant BANCO DE
-PROVAS (telefone do `npm run wa`) não tem confinamento nem lote, e montar o
-cenário é escrita em produção, que precisa do usuário. Resíduo registrado: 5.9.
-
-E1 (`cafcb6a`) e E0 (`b4a5c77`) em produção. Dívida nova da E1: 3.3.
+**E3** (`91241ba`, Redis com limite e push por pessoa; tela de push não
+validada, o service worker só registra em produção; dívida nova 5.10), **E2**
+(`8a88b29`, 5.8; o agente não foi exercitado em conversa real, falta cenário
+de confinamento no BANCO DE PROVAS; dívida nova 5.9), **E1** (`cafcb6a`, dívida
+nova 3.3) e **E0** (`b4a5c77`) em produção, com deploy conferido.
 
 O usuário aprovou em 07/10 um programa para fechar as dívidas de
 [dividas.md](dividas.md) em etapas E0 a E11, uma branch por etapa, cada uma com
