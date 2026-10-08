@@ -835,6 +835,13 @@ async function comBanco() {
       "@/lib/actions/workers"
     );
 
+    // O mês corrente, e não setembro de 2026: o pagamento do fixo cai em HOJE,
+    // e com datas fixas a suíte quebrou quando outubro de 2026 chegou.
+    const agora = new Date();
+    const inicioDoMes = new Date(Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), 1));
+    const fimDoMes = new Date(Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth() + 1, 1) - 1000);
+    const fimDoMesQueVem = new Date(Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth() + 2, 1) - 1000);
+
     // Um tenant limpo só para este bloco: os outros doze já sujaram o dinheiro.
     const t2 = await prisma.tenant.create({
       data: { name: `M58b ${stamp}`, document: `M58b${stamp}`.slice(0, 14), plan: "fazenda" },
@@ -863,7 +870,7 @@ async function comBanco() {
       if (!diarista.ok) throw new Error("createWorker falhou");
       await createServiceJob(db2, {
         property_id: f2.id,
-        occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+        occurred_at: inicioDoMes,
         description: "Capina",
         pricing: "dia",
         unit_price: 150,
@@ -873,7 +880,7 @@ async function comBanco() {
       });
       await createServiceJob(db2, {
         property_id: f2.id,
-        occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+        occurred_at: inicioDoMes,
         description: "Reforma de cerca",
         pricing: "dia",
         unit_price: 150,
@@ -885,7 +892,7 @@ async function comBanco() {
       // TERCEIRIZADO: um prestador com contato.
       await createServiceJob(db2, {
         property_id: f2.id,
-        occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+        occurred_at: inicioDoMes,
         description: "Construção de curral",
         pricing: "fechado",
         agreed_amount: 4700,
@@ -896,7 +903,7 @@ async function comBanco() {
       // E uma conta a pagar NÃO paga, que não pode entrar em nenhuma coluna.
       await createServiceJob(db2, {
         property_id: f2.id,
-        occurred_at: new Date("2026-09-01T12:00:00.000Z"),
+        occurred_at: inicioDoMes,
         description: "Gradagem futura",
         pricing: "fechado",
         agreed_amount: 9999,
@@ -904,8 +911,8 @@ async function comBanco() {
       });
 
       const resumo = await getLaborSummary(db2, {
-        de: new Date("2026-09-01T00:00:00.000Z"),
-        ate: new Date("2026-09-30T23:59:59.000Z"),
+        de: inicioDoMes,
+        ate: fimDoMes,
       });
 
       check("fixa: R$ 2.500", resumo.fixa === 2500, String(resumo.fixa));
@@ -926,11 +933,11 @@ async function comBanco() {
       );
 
       const outroMes = await getLaborSummary(db2, {
-        de: new Date("2026-10-01T00:00:00.000Z"),
-        ate: new Date("2026-10-31T23:59:59.000Z"),
+        de: new Date(fimDoMes.getTime() + 1000),
+        ate: fimDoMesQueVem,
       });
       check(
-        "e o período filtra: outubro está zerado",
+        "e o período filtra: o mês que vem está zerado",
         outroMes.total === 0,
         String(outroMes.total),
       );
