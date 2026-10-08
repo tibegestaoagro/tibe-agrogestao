@@ -1409,6 +1409,75 @@ async function main() {
         (await db.contact.findFirst({ where: { name: { startsWith: "do " } } })) === null,
     );
     await clearPendingNegotiation(tenant.id, USUARIO);
+
+    // ------------------------------------------------------------------
+    console.log("\n43. Nenhum item some no caminho, e a candidata velha não fecha a próxima pergunta (dívida 5.0b)");
+    // ------------------------------------------------------------------
+    // "comprei uns bezerro e umas novilha": duas categorias, nenhuma quantidade.
+    // Só o primeiro item era lido, e a novilha sumia sem aviso.
+    const semQuantidade = { tipo: "compra", valor: 50000, pago: true };
+    const r1 = await registrarNegocioGado(
+      ctx(db, tenant.id, { ...semQuantidade, itens: [{ categoria: "bezerro" }, { categoria: "novilha" }] }, { userId: USUARIO }),
+    );
+    check("dois itens sem quantidade: pergunta a idade da novilha primeiro", r1.reply_text.includes('"novilha"'), r1.reply_text);
+    const r2 = await registrarNegocioGado(ctx(db, tenant.id, { categoria: "13 a 24 meses" }, { userId: USUARIO }));
+    check("depois pergunta quantos bezerros", /quant[oa]s bezerros/i.test(r2.reply_text), r2.reply_text);
+    const r3 = await registrarNegocioGado(ctx(db, tenant.id, { quantidade: 10 }, { userId: USUARIO }));
+    check("depois pergunta quantas da segunda categoria", /quant[oa]s/i.test(r3.reply_text) && !r3.requires_confirmation, r3.reply_text);
+    const r4 = await registrarNegocioGado(ctx(db, tenant.id, { quantidade: 5 }, { userId: USUARIO }));
+    check(
+      "a confirmação traz os dois itens com as quantidades certas",
+      r4.requires_confirmation && r4.reply_text.includes("10 bezerros") && /\b5 (novilhas|f[êe]meas)/i.test(r4.reply_text),
+      r4.reply_text,
+    );
+    await clearPendingNegotiation(tenant.id, USUARIO);
+
+    // Uma quantidade dita e a outra não: o item sem quantidade também não pode sumir.
+    const meio = await registrarNegocioGado(
+      ctx(db, tenant.id, { ...semQuantidade, itens: [{ categoria: "bezerro", quantidade: 10 }, { categoria: "bezerra" }] }, { userId: USUARIO }),
+    );
+    check("um item com quantidade e outro sem: pergunta a que falta", !meio.requires_confirmation && /quant[oa]s bezerras/i.test(meio.reply_text), meio.reply_text);
+    await clearPendingNegotiation(tenant.id, USUARIO);
+
+    await registrarNegocioGado(ctx(db, tenant.id, { ...semQuantidade, categoria: "novilha" }, { userId: USUARIO }));
+    await registrarNegocioGado(ctx(db, tenant.id, { categoria: "13 a 24 meses" }, { userId: USUARIO }));
+    const depoisDeResolver = await loadPendingNegotiation(tenant.id, USUARIO);
+    check(
+      "a categoria resolvida limpa as candidatas da pergunta anterior",
+      depoisDeResolver?.aguardando === "quantidade" && depoisDeResolver.parameters._categoria_candidatos === undefined,
+      JSON.stringify(depoisDeResolver?.parameters),
+    );
+    await clearPendingNegotiation(tenant.id, USUARIO);
+
+    // ------------------------------------------------------------------
+    console.log("\n44. Pedido completo na pergunta de categoria substitui o guardado (dívida 5.5)");
+    // ------------------------------------------------------------------
+    await registrarNegocioGado(
+      ctx(db, tenant.id, { tipo: "compra", itens: [{ categoria: "coisa esquisita", quantidade: 30 }], valor: 90000, pago: true }, { userId: USUARIO }),
+    );
+    const pedidoNovo = await registrarNegocioGado(
+      ctx(db, tenant.id, { tipo: "compra", categoria: "fêmeas de 13 a 24 meses", quantidade: 10 }, { userId: USUARIO }),
+    );
+    check(
+      "verbo + quantidade + categoria: vale a quantidade nova",
+      pedidoNovo.requires_confirmation && pedidoNovo.reply_text.includes("10 f") && !pedidoNovo.reply_text.includes("30"),
+      pedidoNovo.reply_text,
+    );
+    check("e o resto do pedido guardado continua (valor)", pedidoNovo.reply_text.includes("90.000"), pedidoNovo.reply_text);
+    await clearPendingNegotiation(tenant.id, USUARIO);
+
+    await registrarNegocioGado(
+      ctx(db, tenant.id, { tipo: "compra", categoria: "coisa esquisita", quantidade: 30, valor: 90000, pago: true }, { userId: USUARIO }),
+    );
+    const soCategoria = await registrarNegocioGado(
+      ctx(db, tenant.id, { categoria: "fêmeas de 13 a 24 meses", quantidade: 10 }, { userId: USUARIO }),
+    );
+    check(
+      "sem verbo, a frase só responde o campo: a quantidade guardada fica",
+      soCategoria.requires_confirmation && soCategoria.reply_text.includes("30 f"),
+      soCategoria.reply_text,
+    );
+    await clearPendingNegotiation(tenant.id, USUARIO);
   } finally {
     await prisma.financialEntry.deleteMany({ where: { tenant_id: tenant.id } });
     await prisma.herdMovement.deleteMany({ where: { tenant_id: tenant.id } });
