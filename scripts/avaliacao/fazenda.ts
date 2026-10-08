@@ -5,7 +5,6 @@ import {
   TENANT_SCOPED_MODELS,
   type TenantPrismaClient,
 } from "@/lib/prisma";
-import { toBrazilPhoneDigits } from "@/lib/phone";
 import { deleteTestTenants, createTestAnimal } from "../helpers/herd";
 import { recordMovement } from "@/lib/actions/herd-ledger";
 import { createConfinementSite, openConfinementStay } from "@/lib/actions/confinement";
@@ -174,7 +173,9 @@ export async function montarFazenda(sufixo: string): Promise<FazendaMontada> {
   // cada milissegundo. Cortar do começo (como `\`AV${stamp}\`.slice(0, 14)`
   // fazia) descarta justamente os dígitos que diferenciam duas montagens
   // próximas, e `document` é `@unique` em `Tenant`.
-  const telefone = `31${String(stamp).slice(-7)}${digitosDoSufixo(sufixo, 2)}`;
+  // Celular já na forma canônica (55 + DDD + 9 + 8 dígitos): é a que
+  // `identificarContato` procura, e assim User, contato e turno usam a mesma.
+  const telefone = `55319${String(stamp).slice(-6)}${digitosDoSufixo(sufixo, 2)}`;
   const documento = `AV${String(stamp).slice(-8)}${digitosDoSufixo(sufixo, 4)}`;
 
   const tenant = await prisma.tenant.create({
@@ -202,11 +203,11 @@ export async function montarFazenda(sufixo: string): Promise<FazendaMontada> {
 
     // Contato já existente: sem isto, o primeiro passo de toda conversa
     // simulada seria a saudação de primeiro contato, não a intenção do caso.
-    // Na forma canônica, a mesma que `identificarContato` procura: com os
-    // dígitos crus, desde o nono dígito (18/09) toda conversa da avaliação
-    // respondia "número não cadastrado" e media nada.
+    // Telefone canônico (ver acima): com os dígitos crus, desde o nono dígito
+    // (18/09) toda conversa da avaliação respondia "número não cadastrado" e
+    // media nada.
     await db.whatsAppContact.create({
-      data: scoped({ phone: toBrazilPhoneDigits(telefone), user_id: owner.id, last_interaction_at: new Date() }),
+      data: scoped({ phone: telefone, user_id: owner.id, last_interaction_at: new Date() }),
     });
 
     // As 26 categorias financeiras padrão, semeadas AQUI de propósito.

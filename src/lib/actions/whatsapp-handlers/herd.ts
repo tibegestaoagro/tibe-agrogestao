@@ -487,8 +487,9 @@ export const consultarPastos: Handler = async ({ db, parameters }) => {
   ]);
   const alvo = nomePasto ? normalizarTermo(nomePasto) : null;
   const casados = alvo ? pastosTodos.filter((p) => normalizarTermo(p.name).includes(alvo)) : pastosTodos;
-  const exato = alvo ? casados.find((p) => normalizarTermo(p.name) === alvo) : undefined;
-  const pastos = exato ? [exato] : casados;
+  // Nome exato vence o parcial, mas em toda fazenda que o tem ("Pasto da Sede" em duas).
+  const exatos = casados.filter((p) => normalizarTermo(p.name) === alvo);
+  const pastos = exatos.length > 0 ? exatos : casados;
 
   if (pastos.length === 0) {
     const texto = nomePasto
@@ -504,6 +505,7 @@ export const consultarPastos: Handler = async ({ db, parameters }) => {
     return `- ${p.name}: ${cabecas((x) => x.pasture_id === p.id)} animais (${area} ha)`;
   };
 
+  const ativos = new Set(pastosTodos.map((p) => p.id));
   const blocos = fazendas
     .map((f) => {
       const daFazenda = pastos.filter((p) => p.property_id === f.id);
@@ -511,6 +513,11 @@ export const consultarPastos: Handler = async ({ db, parameters }) => {
       const linhas = daFazenda.map(linha);
       const semPasto = nomePasto ? 0 : cabecas((x) => x.property_id === f.id && x.pasture_id === null);
       if (semPasto > 0) linhas.push(`- Sem pasto definido: ${semPasto} animais`);
+      // Arquivar pasto ocupado é permitido (dívida 5.12): sem esta linha, as cabeças dele sumiam da conta.
+      const desativado = nomePasto
+        ? 0
+        : cabecas((x) => x.property_id === f.id && x.pasture_id !== null && !ativos.has(x.pasture_id));
+      if (desativado > 0) linhas.push(`- Em pasto desativado: ${desativado} animais`);
       return `${f.name}\n${linhas.join("\n")}`;
     })
     .filter((b): b is string => b !== null);

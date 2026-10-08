@@ -145,6 +145,17 @@ em todo domínio não coberto.
   volta (renumerar colide). Já está documentado no `CLAUDE.md` e o
   `npm run check` reprova suíte órfã, então é convivência, não dívida.
 
+### 5.12 Arquivar pasto ocupado é permitido, e o gado fica num pasto desativado
+
+Achado pela primeira rodada do Codex na E6 (08/10/2026).
+`POST /api/v1/pastures/[id]/archive` grava `archived_at` sem conferir se há
+cabeça `presente` naquele pasto, e as posições seguem apontando para ele. A
+consulta de pastos do agente passou a mostrar essas cabeças numa linha "Em pasto
+desativado", para não sumirem da conta, mas o estado continua torto: a rota não
+pede o destino do gado antes de arquivar. A regra também mora na rota, não
+numa action (invariante 6). Fechar é decisão de produto: recusar o arquivamento
+de pasto com saldo, ou pedir o destino do gado junto.
+
 ### 5.11 Pelo `execute-action`, negócio com dois itens vira duas conversas
 
 Achado na validação viva da E5 (08/10, 01h55 UTC, telefone do `npm run wa`,

@@ -813,6 +813,19 @@ async function main() {
       });
     await semearNoIpe(7, pastoIpe.id);
     await semearNoIpe(3, null);
+    // Arquivar pasto ocupado é permitido: as cabeças dele não podem sumir da conta.
+    const pastoVelho = await db.pasture.create({ data: scoped({ property_id: ipe.id, name: "Pasto Velho", area_hectares: 2 }) });
+    await semearNoIpe(2, pastoVelho.id);
+    await db.pasture.update({ where: { id: pastoVelho.id }, data: { archived_at: new Date() } });
+    // O mesmo nome exato em outra fazenda: os dois respondem.
+    const aroeira = await db.property.create({ data: scoped({ name: "Fazenda Aroeira" }) });
+    const ipeDaAroeira = await db.pasture.create({ data: scoped({ property_id: aroeira.id, name: "Pasto do Ipê", area_hectares: 4 }) });
+    await recordMovement(db, {
+      movement_type: "saldo_inicial",
+      quantity: 4,
+      to: { category_id: "femea_36_mais", property_id: aroeira.id, pasture_id: ipeDaAroeira.id, situation: "presente", owner: "proprio" },
+      occurred_at: new Date("2026-01-01"),
+    });
     const movimentosAntes = await db.herdMovement.count();
 
     const daFazenda = await consultarPastos(ctx(db, tenant.id, { fazenda: "ipe" }));
@@ -822,6 +835,8 @@ async function main() {
         daFazenda.reply_text.includes("- Pasto do Ipê: 7 animais (10 ha)") &&
         daFazenda.reply_text.includes("- Pasto do Ipê Novo: 0 animais (5,5 ha)") &&
         daFazenda.reply_text.includes("- Sem pasto definido: 3 animais") &&
+        daFazenda.reply_text.includes("- Em pasto desativado: 2 animais") &&
+        !daFazenda.reply_text.includes("Pasto Velho") &&
         !daFazenda.reply_text.includes("Pasto da Sede"),
       daFazenda.reply_text,
     );
@@ -838,8 +853,12 @@ async function main() {
 
     const umSo = await consultarPastos(ctx(db, tenant.id, { qual_pasto: "pasto do ipe" }));
     check(
-      "nome dito por inteiro responde só aquele pasto",
-      umSo.reply_text.includes("- Pasto do Ipê: 7 animais") && !umSo.reply_text.includes("Ipê Novo") && !umSo.reply_text.includes("Sem pasto"),
+      "nome dito por inteiro responde só aquele pasto, em toda fazenda que o tem",
+      umSo.reply_text.includes("- Pasto do Ipê: 7 animais") &&
+        umSo.reply_text.includes("Fazenda Aroeira\n- Pasto do Ipê: 4 animais") &&
+        !umSo.reply_text.includes("Ipê Novo") &&
+        !umSo.reply_text.includes("Sem pasto") &&
+        !umSo.reply_text.includes("desativado"),
       umSo.reply_text,
     );
     const doisCasam = await consultarPastos(ctx(db, tenant.id, { qual_pasto: "ipê" }));
