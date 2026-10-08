@@ -370,21 +370,27 @@ export const consultarRebanho: Handler = async ({ db, tenant_id, user_id, parame
    * A pergunta de categoria aberta por esta consulta (dívida 5.7): a resposta
    * herda a fazenda e cruza com as candidatas oferecidas.
    *
-   * Só a resposta que PRECISA da pergunta herda: termo que sozinho não fecha
-   * ("13 a 24 meses"), sem fazenda própria. "quantas fêmeas de 13 a 24 meses?"
-   * e "quantos animais tenho?" são consultas novas, e herdar a fazenda da
-   * pergunta anterior respondia um total restrito que ninguém pediu (Codex,
-   * 07/10). O teto: "fêmeas de 15 meses", respondendo a "não reconheci
-   * jumento" numa fazenda, fecha sozinho e responde o rebanho inteiro.
+   * Só herda a mensagem que responde à pergunta: sem fazenda própria, com um
+   * termo que sozinho não fecha ("13 a 24 meses") ou que fecha numa das
+   * candidatas oferecidas ("fêmeas de 13 a 24 meses", depois de "novilha").
+   * Consulta geral, ou de categoria fora das candidatas, é consulta nova:
+   * herdar a fazenda da pergunta respondia um total restrito que ninguém
+   * pediu (Codex, 07/10). O teto: "fêmeas de 15 meses", respondendo a "não
+   * reconheci jumento" numa fazenda, não tem candidata e responde o rebanho
+   * inteiro.
    */
   const pendente = user_id ? await loadPendingConsulta(tenant_id, user_id) : null;
   if (pendente) await clearPendingConsulta(tenant_id, user_id!);
   const termoDaMensagem = str(daMensagem.categoria) ?? str(daMensagem.category);
+  const sozinha = termoDaMensagem ? resolverCategoria(termoDaMensagem) : null;
+  const oferecidas = Array.isArray(pendente?.parameters._categoria_candidatos)
+    ? (pendente.parameters._categoria_candidatos as unknown[])
+    : [];
   const respondeAPergunta =
     !!pendente &&
-    !!termoDaMensagem &&
+    !!sozinha &&
     !(str(daMensagem.fazenda) ?? str(daMensagem.property)) &&
-    !resolverCategoria(termoDaMensagem).ok;
+    (!sozinha.ok || oferecidas.includes(sozinha.categoria.id));
   const parameters = respondeAPergunta ? { ...pendente.parameters, ...daMensagem } : daMensagem;
   const termoCategoria = str(parameters.categoria) ?? str(parameters.category);
   const nomeFazenda = str(parameters.fazenda) ?? str(parameters.property);
