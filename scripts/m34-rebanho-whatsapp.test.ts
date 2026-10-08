@@ -759,6 +759,25 @@ async function main() {
     check("sem pergunta aberta, '13 a 24 meses' pergunta o sexo", deNovo.reply_text.includes("São machos ou fêmeas?"), deNovo.reply_text);
     await clearPendingConsulta(tenant.id, quemConsulta);
 
+    // Consulta NOVA com a pergunta aberta não herda a fazenda dela (Codex, 07/10).
+    await consultarRebanho(ctx(db, tenant.id, { categoria: "novilha", fazenda: "Santa Helena" }, { userId: quemConsulta }));
+    const novaPorCategoria = await consultarRebanho(
+      ctx(db, tenant.id, { categoria: "fêmeas de 13 a 24 meses" }, { userId: quemConsulta }),
+    );
+    check(
+      "consulta nova por categoria não herda a fazenda da pergunta aberta",
+      !novaPorCategoria.reply_text.includes("Santa Helena"),
+      novaPorCategoria.reply_text,
+    );
+    await consultarRebanho(ctx(db, tenant.id, { categoria: "novilha", fazenda: "Santa Helena" }, { userId: quemConsulta }));
+    const novaGeral = await consultarRebanho(ctx(db, tenant.id, {}, { userId: quemConsulta }));
+    check(
+      "consulta geral nova também não herda",
+      novaGeral.reply_text.startsWith("Seu rebanho possui") && !novaGeral.reply_text.includes("Santa Helena"),
+      novaGeral.reply_text,
+    );
+    await clearPendingConsulta(tenant.id, quemConsulta);
+
     // "Fêmeas de 15 meses" já resolve sozinho; faltava a pergunta ficar aberta,
     // que é o que faz o cursor da conversa mandar a resposta de volta à consulta.
     await consultarRebanho(ctx(db, tenant.id, { categoria: "jumento" }, { userId: quemConsulta }));

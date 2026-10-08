@@ -366,11 +366,26 @@ export async function conferirOndeEstaOSaldo(
 // ── §13.1 e §13.2: consulta ────────────────────────────────────────
 
 export const consultarRebanho: Handler = async ({ db, tenant_id, user_id, parameters: daMensagem }) => {
-  // A pergunta de categoria aberta por esta consulta (dívida 5.7): a resposta
-  // herda a fazenda e cruza com as candidatas oferecidas.
+  /**
+   * A pergunta de categoria aberta por esta consulta (dívida 5.7): a resposta
+   * herda a fazenda e cruza com as candidatas oferecidas.
+   *
+   * Só a resposta que PRECISA da pergunta herda: termo que sozinho não fecha
+   * ("13 a 24 meses"), sem fazenda própria. "quantas fêmeas de 13 a 24 meses?"
+   * e "quantos animais tenho?" são consultas novas, e herdar a fazenda da
+   * pergunta anterior respondia um total restrito que ninguém pediu (Codex,
+   * 07/10). O teto: "fêmeas de 15 meses", respondendo a "não reconheci
+   * jumento" numa fazenda, fecha sozinho e responde o rebanho inteiro.
+   */
   const pendente = user_id ? await loadPendingConsulta(tenant_id, user_id) : null;
-  const parameters = pendente ? { ...pendente.parameters, ...daMensagem } : daMensagem;
   if (pendente) await clearPendingConsulta(tenant_id, user_id!);
+  const termoDaMensagem = str(daMensagem.categoria) ?? str(daMensagem.category);
+  const respondeAPergunta =
+    !!pendente &&
+    !!termoDaMensagem &&
+    !(str(daMensagem.fazenda) ?? str(daMensagem.property)) &&
+    !resolverCategoria(termoDaMensagem).ok;
+  const parameters = respondeAPergunta ? { ...pendente.parameters, ...daMensagem } : daMensagem;
   const termoCategoria = str(parameters.categoria) ?? str(parameters.category);
   const nomeFazenda = str(parameters.fazenda) ?? str(parameters.property);
 
@@ -396,7 +411,7 @@ export const consultarRebanho: Handler = async ({ db, tenant_id, user_id, parame
       : undefined;
     const categoria = resolverCategoria(termoCategoria, false, anteriores?.length ? anteriores : undefined);
     if (!categoria.ok) {
-      const tentativas = (pendente?.tentativas ?? 0) + 1;
+      const tentativas = (respondeAPergunta ? (pendente.tentativas ?? 0) : 0) + 1;
       if (user_id && tentativas < MAX_TENTATIVAS) {
         await savePendingConsulta(tenant_id, user_id, {
           parameters: { fazenda: nomeFazenda, _categoria_candidatos: categoria.candidatosOferecidos },
