@@ -39,16 +39,22 @@ a suíte verde não tinham pego.
 
 ### 1.2 App mobile: 5 defeitos corrigidos, sem reteste
 
-A branch `app-mobile-fundacao` tem **3 commits que a `main` não tem**, parada
-desde 2026-08-05. Ela leva 21 arquivos `.tsx` contra os 9 que estão na `main`:
-as abas Meu Dia e Tibé, Máquinas, a fila de escrita offline e a biometria.
+Os 3 commits da `app-mobile-fundacao` (parada desde 05/08) foram rebaseados
+sobre a `main` em 08/10, na branch **`app-mobile-rebase`**, sem conflito. Eles
+levam as abas Meu Dia e Tibé, Máquinas, a fila de escrita offline e a
+biometria. Conferido contra o back-end atual: as 11 rotas que o app chama
+existem, os corpos que ele manda passam nos schemas, e o `tsc` do app está
+limpo. A única diferença era de tipo (status `cancelled` e três módulos novos
+do financeiro), corrigida.
 
 Os 5 defeitos achados com modo avião num Android real foram corrigidos **e
-nunca retestados**. Enquanto isso, a `main` recebeu Módulos 30 e 31 inteiros,
-então a branch está 6 semanas atrás do back-end que ela consome.
-
-**Custo:** rebase ou merge com resolução de conflito, mais uma passada de
-aparelho. É a dívida que mais cresce sozinha.
+nunca retestados**. Falta só isso, e é do usuário: Expo Go (SDK 54), modo
+avião, e conferir (1) o formulário de máquina abre sem sinal e mostra as
+fazendas depois de a LISTA de máquinas ter carregado com sinal, (2) despesa
+lançada sem sinal entra na fila em vez de falhar, (3) a mensagem de erro de
+rede vem em português, (4) a faixa de pendências aparece no Financeiro e no
+Início, (5) "Escolha a fazenda" aparece no próprio campo. A branch entra na
+`main` depois disso.
 
 ### 1.3 Asaas nunca foi testado contra o sandbox real
 
