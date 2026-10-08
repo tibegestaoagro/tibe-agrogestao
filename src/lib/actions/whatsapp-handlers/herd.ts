@@ -20,6 +20,7 @@ import {
   MAX_TENTATIVAS,
   type CampoPendente,
 } from "@/lib/actions/herd-pending";
+import { clearPendingConsulta, loadPendingConsulta, savePendingConsulta } from "@/lib/actions/consulta-pending";
 import {
   ask,
   failReply,
@@ -364,7 +365,12 @@ export async function conferirOndeEstaOSaldo(
 
 // ── §13.1 e §13.2: consulta ────────────────────────────────────────
 
-export const consultarRebanho: Handler = async ({ db, parameters }) => {
+export const consultarRebanho: Handler = async ({ db, tenant_id, user_id, parameters: daMensagem }) => {
+  // A pergunta de categoria aberta por esta consulta (dívida 5.7): a resposta
+  // herda a fazenda e cruza com as candidatas oferecidas.
+  const pendente = user_id ? await loadPendingConsulta(tenant_id, user_id) : null;
+  const parameters = pendente ? { ...pendente.parameters, ...daMensagem } : daMensagem;
+  if (pendente) await clearPendingConsulta(tenant_id, user_id!);
   const termoCategoria = str(parameters.categoria) ?? str(parameters.category);
   const nomeFazenda = str(parameters.fazenda) ?? str(parameters.property);
 
@@ -385,8 +391,21 @@ export const consultarRebanho: Handler = async ({ db, parameters }) => {
 
   // §13.2: consulta por categoria. Termo ambíguo pergunta, nunca chuta.
   if (termoCategoria) {
-    const categoria = resolverCategoria(termoCategoria);
-    if (!categoria.ok) return categoria.resposta;
+    const anteriores = Array.isArray(parameters._categoria_candidatos)
+      ? parameters._categoria_candidatos.filter((v): v is string => typeof v === "string")
+      : undefined;
+    const categoria = resolverCategoria(termoCategoria, false, anteriores?.length ? anteriores : undefined);
+    if (!categoria.ok) {
+      const tentativas = (pendente?.tentativas ?? 0) + 1;
+      if (user_id && tentativas < MAX_TENTATIVAS) {
+        await savePendingConsulta(tenant_id, user_id, {
+          parameters: { fazenda: nomeFazenda, _categoria_candidatos: categoria.candidatosOferecidos },
+          aguardando: "categoria",
+          tentativas,
+        });
+      }
+      return categoria.resposta;
+    }
 
     const total = posicoes
       .filter((p) => p.category_id === categoria.categoria.id)

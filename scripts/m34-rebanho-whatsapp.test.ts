@@ -8,6 +8,7 @@ import {
 } from "@/lib/actions/whatsapp-handlers/herd";
 import type { HandlerCtx } from "@/lib/actions/whatsapp-handlers/shared";
 import { clearPendingHerd } from "@/lib/actions/herd-pending";
+import { clearPendingConsulta, loadPendingConsulta } from "@/lib/actions/consulta-pending";
 
 exigirBancoLocal();
 
@@ -737,6 +738,35 @@ async function main() {
       !semAcento.reply_text.includes("Não encontrei o pasto"),
       semAcento.reply_text,
     );
+
+    console.log("\n19. A pergunta de categoria da consulta lembra o que foi perguntado (dívida 5.7)");
+    // A consulta perguntava a categoria sem guardar nada, e a resposta do
+    // produtor não tinha a que se ligar.
+    const quemConsulta = `user-consulta-${stamp}`;
+    await clearPendingConsulta(tenant.id, quemConsulta);
+    const pergunta = await consultarRebanho(
+      ctx(db, tenant.id, { categoria: "novilha", fazenda: "Santa Helena" }, { userId: quemConsulta }),
+    );
+    check("sanidade: 'novilha' pergunta a idade", pergunta.reply_text.includes("Qual é a idade aproximada?"), pergunta.reply_text);
+    const resposta = await consultarRebanho(ctx(db, tenant.id, { categoria: "13 a 24 meses" }, { userId: quemConsulta }));
+    check(
+      "'13 a 24 meses' cruza com a novilha da pergunta e responde o total, com a fazenda dita antes",
+      /^Você possui \d+ fêmeas de 13 a 24 meses em Fazenda Santa Helena\.$/.test(resposta.reply_text),
+      resposta.reply_text,
+    );
+    check("respondida, a consulta não deixa pendente", (await loadPendingConsulta(tenant.id, quemConsulta)) === null);
+    const deNovo = await consultarRebanho(ctx(db, tenant.id, { categoria: "13 a 24 meses" }, { userId: quemConsulta }));
+    check("sem pergunta aberta, '13 a 24 meses' pergunta o sexo", deNovo.reply_text.includes("São machos ou fêmeas?"), deNovo.reply_text);
+    await clearPendingConsulta(tenant.id, quemConsulta);
+
+    // "Fêmeas de 15 meses" já resolve sozinho; faltava a pergunta ficar aberta,
+    // que é o que faz o cursor da conversa mandar a resposta de volta à consulta.
+    await consultarRebanho(ctx(db, tenant.id, { categoria: "jumento" }, { userId: quemConsulta }));
+    check(
+      "'não reconheci' deixa a pergunta de categoria aberta para o cursor",
+      (await loadPendingConsulta(tenant.id, quemConsulta))?.aguardando === "categoria",
+    );
+    await clearPendingConsulta(tenant.id, quemConsulta);
   } finally {
     await prisma.herdMovement.deleteMany({ where: { tenant_id: tenant.id } });
     await prisma.financialEntry.deleteMany({ where: { tenant_id: tenant.id } });

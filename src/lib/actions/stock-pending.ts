@@ -8,6 +8,7 @@ import {
 // lá que sai a lista do desempate por data. `test:m67` reprova o que faltar.
 import "@/lib/actions/barter-pending";
 import "@/lib/actions/confinamento-pending";
+import "@/lib/actions/consulta-pending";
 import "@/lib/actions/event-pending";
 import "@/lib/actions/finance-pending";
 import "@/lib/actions/herd-pending";
