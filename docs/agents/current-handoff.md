@@ -27,7 +27,7 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-10-07.
 
-### Programa de dívidas (desde 07/10): E0 a E3 em produção, E4 começando
+### Programa de dívidas (desde 07/10): E0 a E4 em produção, E5 pronta na branch
 
 ⚠️ **Regra do Codex desde 07/10 (o limite de uso dele chegou a 90%):**
 `adversarial-review` sempre com `--model gpt-5.6-terra` (intermediário; o
@@ -37,6 +37,10 @@ segunda só para confirmar); o que sobrar vira dívida registrada; **etapa só
 visual não passa pelo Codex** (quem pega defeito ali é o navegador). Não
 editar `~/.codex/config.toml`: ele vale para todo o Codex do usuário. Até
 aqui foram 16 rodadas em quatro etapas, sem modelo fixado.
+
+**E4 (2.5, 2.6, 2.7, tokens) em produção** (`64d3030`, 07/10), conferida no
+site público (token `--texto-marca`, títulos, chips de `/docs`, login). Falta o
+usuário olhar o painel logado. Dívida nova: 2.8.
 
 **E3 (3.1 Redis + 5.0e/f/g/h push) em produção** (`91241ba`, 07/10):
 migração `20261007210000` rodada pelo usuário e conferida; deploy conferido em
@@ -171,19 +175,23 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
 
-**0. Programa de dívidas: E4 pronta na branch `design-tokens`** (commit
-`3a284f7`), sem Codex (etapa visual). 171 trocas de alias `tibe-*` e 64 de cor
-crua, todas para o token que aponta para a MESMA cor; `--texto-marca` novo;
-bloco `tibe` fora do `tailwind.config.ts`; conferência 17 nova; linha de base
-de cor crua a zero (os 15 da Plataforma ficam fora por desenho, decisão de
-31/08); contorno nos 106 chips de `/docs`. Provado sem navegador: o CSS
-compilado gera toda classe nova e tem zero `tibe-`. **Não validado no
-navegador:** o desktop estava com 1 GB livre e o `next dev` já tinha caído;
-validar no notebook, ou com outros programas fechados, antes do merge.
-Achado novo: dívida 2.8 (opacidade sobre token não gera CSS nenhum, a sidebar
-nunca teve os realces desenhados). Pendente do usuário: conferir a tela de
-push em produção, e decidir se monta o cenário de confinamento no tenant BANCO
-DE PROVAS para validar o agente da E2.
+**0. Programa de dívidas: E5 pronta na branch `agente-correcoes`**, esperando
+autorização de merge. Fecha 5.0b (negócio com vários itens pergunta item por
+item; candidata limpa ao resolver), 5.5 (verbo + quantidade + categoria na
+pergunta de categoria substitui os animais guardados), 5.0c (brinco exige
+dígito, no `parse` do campo), 5.7 (consulta do rebanho com pendente curto,
+`consulta-pending.ts`) e as suítes `m17` e `m58` sem data fixa (`m17` vista
+falhando e passando às 01h UTC). `test:all` 75/75 e as suítes da área verdes.
+Codex: 2 rodadas (teto), as duas sobre a consulta herdar a fazenda; a regra
+final é "herda só quem responde: termo que sozinho não fecha, ou que fecha
+numa das candidatas". Teto aceito: "fêmeas de 15 meses" depois de "não
+reconheci jumento" numa fazenda responde o rebanho inteiro. A memória da
+consulta só funciona pela rota de turno (canário); pelo `execute-action` quem
+decide é o classificador do n8n. **Validação viva pendente:** `npm run wa`
+depois do deploy ("quantas novilhas tenho", responder "13 a 24 meses").
+Próxima: E6 (pasto + avaliação). Pendente do usuário: olhar o painel logado
+(E4), conferir a tela de push (E3), e decidir se monta o cenário de
+confinamento no tenant BANCO DE PROVAS (E2).
 
 **1. Segurança, que é do usuário e vem antes de tudo:** rotacionar as 22
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
