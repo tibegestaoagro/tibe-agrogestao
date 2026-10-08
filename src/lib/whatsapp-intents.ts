@@ -15,6 +15,10 @@ export const INTENTS = [
   // Módulo 30 (§13). `consultar_saldo` é do FINANCEIRO, não do rebanho: nomes
   // parecidos, módulos de permissão diferentes, não unifique.
   "consultar_rebanho",
+  // Dívida 5.4: "quantos pasto temos" era respondido com a lavoura. Pasto é
+  // lugar, não categoria: intenção própria em vez de campo a mais na consulta
+  // do rebanho, que pergunta quantidade por categoria.
+  "consultar_pastos",
   "registrar_movimentacao_rebanho",
   // Módulo 31 (§18): "comprei 20 bezerros do Joao por 60 mil". Uma intencao
   // so, com o tipo (compra/venda) em parameters, pelo mesmo motivo de
@@ -171,6 +175,7 @@ export const INTENT_ACCESS: Record<
   consultar_saldo: { module: "financeiro", action: "read" },
   consultar_animal: { module: "rebanho", action: "read", profile: "fazenda" },
   consultar_rebanho: { module: "rebanho", action: "read", profile: "fazenda" },
+  consultar_pastos: { module: "rebanho", action: "read", profile: "fazenda" },
   registrar_movimentacao_rebanho: {
     module: "rebanho",
     action: "write",

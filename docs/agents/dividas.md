@@ -219,17 +219,18 @@ Custo: coluna normalizada sem acento com índice, ou `unaccent` no Postgres
 (extensão, precisa entrar na migração). Não é urgente; é o tipo de coisa que só
 dói quando um cliente grande chega, e aí dói em silêncio.
 
-### 5.0a "Acabei de pagar o Zé" sai ambígua em parte das rodadas
+### 5.0a "Acertei com o Zé Carlos" ainda sai ambígua
 
-Achado na avaliação da Fase 5 (16/09). Pagamento de trabalhador **sem valor** e
-com o verbo fora do passado simples ("acabei de pagar", "acertei com o Zé") cai
-em `ambigua` em algumas rodadas e acerta em outras. Tentei corrigir
-acrescentando um exemplo ao registro, e o conjunto inteiro **piorou** de 97,2%
-para 91,7%: revertido.
+O grosso fechou na Fase 8 (08/10): o pagamento ao trabalhador sem valor foi de
+80-84% para 93,5% nas duas medições, corrigindo a descrição do DOMÍNIO
+(`docs/agents/agente-whatsapp/avaliacao-fase-8.md`). Sobraram duas frases que
+saem `ambigua` nas duas rodadas: "acertei com o Zé Carlos" e "fechei a conta
+com o Zé hoje". "Acertar com" serve também para cliente e para pergunta sobre
+o passado, que o prompt de domínio manda para "nenhum".
 
-Custo: uma rodada de ajuste com conjunto maior que 40 casos, porque neste
-tamanho um caso vale 2,8 pontos e o ajuste persegue ruído. Não grava nada
-errado: o agente responde que não entendeu.
+Custo: perseguir as duas frases é ajuste fino em cima de dois casos, o
+caminho que já piorou o conjunto na Fase 5. Não grava nada errado: o agente
+responde que não entendeu.
 
 ### 5.0d A lista de quem grava sem confirmar precisa de catraca
 
@@ -255,22 +256,6 @@ Módulo 35. A busca continua pelo vínculo indireto (`negotiation_id` da
 produto sobre qual vínculo é a fonte de verdade quando os dois existirem ao
 mesmo tempo, não algo para decidir em silêncio numa correção de bug. O
 comentário só foi corrigido para não mentir; a busca não mudou.
-
-### 5.4 Pergunta de pasto respondida com lavoura, e "bom dia" sem saudação
-
-Mesma leitura de 2026-09-29. Dois erros de roteamento, os dois sem gravação:
-
-- "Quantos pasto temos cadastrados" foi respondido com o resumo da LAVOURA
-  ("0 talhão(ões) com ciclo ativo"). Pasto é rebanho, e a resposta não tem
-  relação com a pergunta.
-- "bom dia" e "Boa tarde" caem na frase de não entendimento. O agente tem
-  saudação de primeiro contato, mas não trata cumprimento de quem já conversa
-  com ele.
-
-Os dois vivem no classificador dentro do Tibé (`src/lib/agente/intencoes/`), e
-mexer ali muda o prompt: pede rodada de avaliação, não correção solta.
-`docs/agents/agente-whatsapp/avaliacao-fase-5.md` registra por que uma mudança
-de prompt medida numa rodada só não vale nada.
 
 ---
 

@@ -30,7 +30,7 @@ export const INTENCOES_REBANHO: IntencaoDef[] = [
     ],
     exemplos: ["Quantos animais tenho?", "Quantas fêmeas de 13 a 24 meses eu tenho?"],
     vizinhas:
-      "consultar_animal quando cita um brinco; resumo quando pede a visão geral da área; consultar_saldo quando pergunta de dinheiro",
+      "consultar_pastos quando cita um pasto ou pergunta dos pastos; consultar_animal quando cita um brinco; resumo quando pede a visão geral da área; consultar_saldo quando pergunta de dinheiro",
   },
   {
     intent: "consultar_animal",
@@ -183,5 +183,24 @@ export const INTENCOES_REBANHO: IntencaoDef[] = [
     ],
     exemplos: ["a próxima aftosa do brinco 1234 vai custar 80 reais", "previsão de brucelose do 0457, 45 reais, em 2026-10-20"],
     vizinhas: "registrar_vacina quando a vacina JÁ foi aplicada; o dia marcado para ela é o campo due_date, nunca uma tarefa à parte",
+  },
+  // Por último, e com `qual_pasto` em vez de `pasto`, de propósito (medição da
+  // Fase 8). O schema do domínio junta os campos de todas as intenções na
+  // ordem desta lista: em segundo lugar, `pasto` subia para o começo e "morreu
+  // uma novilha... eh pera, foram duas" saía com os campos todos vazios. E
+  // `pasto` dividido com o negócio de gado mesclava as duas descrições, e
+  // "pago dia quinze" passou a sair `pago: true` em 11 de 12 chamadas (1 de 12
+  // antes). Ver docs/agents/agente-whatsapp/avaliacao-fase-8.md.
+  {
+    intent: "consultar_pastos",
+    dominio: "rebanho",
+    descricao: "o produtor pergunta quais pastos tem, quantos são, a área de um pasto ou quantos animais estão em cada pasto ou num pasto",
+    campos: [
+      { nome: "fazenda", tipo: "texto", descricao: "o nome da fazenda, se ele citou uma" },
+      { nome: "qual_pasto", tipo: "texto", descricao: "o nome do pasto, quando pergunta de um só" },
+    ],
+    exemplos: ["me passa a relação dos pastos", "quanto gado tá no Piquete 3 hoje?"],
+    vizinhas:
+      "consultar_rebanho quando pergunta quantos animais tem no total, numa fazenda ou de uma categoria, sem citar pasto; registrar_movimentacao_rebanho quando passa animais de um pasto para outro",
   },
 ];

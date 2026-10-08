@@ -2,7 +2,7 @@
 
 ## rebanho
 
-animais da fazenda: quantos tem, nasceu, morreu, mudou de pasto ou de categoria, comprou ou vendeu gado, cadastro por brinco, peso, vacina
+animais da fazenda: quantos tem, nasceu, morreu, mudou de pasto ou de categoria, comprou ou vendeu gado, cadastro por brinco, peso, vacina; e os PASTOS cadastrados: quais e quantos são, a área e quantos animais há em cada um (pasto é do rebanho, nunca da lavoura)
 
 ### consultar_rebanho
 
@@ -86,6 +86,13 @@ o produtor informa quanto uma vacina AINDA não aplicada vai custar num animal (
 - vaccine_name (texto): o nome da vacina
 - cost (numero): o valor previsto, só o número, como o produtor falou (80; 80,50)
 - due_date (data): a data prevista como o produtor falou (dia 20, 20/10), só quando ele disse a data; vazio usa o próximo vencimento calculado
+
+### consultar_pastos
+
+o produtor pergunta quais pastos tem, quantos são, a área de um pasto ou quantos animais estão em cada pasto ou num pasto
+
+- fazenda (texto): o nome da fazenda, se ele citou uma
+- qual_pasto (texto): o nome do pasto, quando pergunta de um só
 
 ## confinamento
 
@@ -298,7 +305,7 @@ o produtor conta que secou vacas, que pararam de dar leite
 
 ## mao_de_obra
 
-trabalhador FIXO da fazenda, o que tem salário: cadastro, pagamento já feito, pagamento que ele AINDA VAI fazer numa data ("vou pagar o Pedro dia 10"), adiantamento; quem ele contratou para um serviço, por diária ou por valor fechado, não é daqui
+trabalhador FIXO da fazenda, o que tem salário: cadastro, pagamento já feito (mesmo sem o valor e com qualquer verbo: "acertei o mês do Tião", "o Tião já tá pago"), pagamento que ele AINDA VAI fazer numa data ("vou pagar o Pedro dia 10"), adiantamento; quem ele contratou para um serviço, por diária ou por valor fechado, não é daqui
 
 ### registrar_trabalhador
 
@@ -532,3 +539,4 @@ o produtor pergunta como usar um recurso do Tibé, ou o que o assistente faz
 o produtor pede uma visão geral de uma área (rebanho, lavoura, prestador, financeiro) ou a relação do que tem a pagar ou a receber
 
 - scope (texto): a área ou o nível pedido (rebanho, lavoura, prestador, financeiro; ou clientes, agendamentos, ordens_a_faturar, contas_a_pagar, contas_a_receber); vazio pergunta qual área
+- period_days (numero): só para contas_a_pagar e contas_a_receber: até quantos dias à frente, só o número (100 para 'nos próximos 100 dias', 30 para 'no próximo mês'); vazio se não disse período
