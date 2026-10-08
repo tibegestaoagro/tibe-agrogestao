@@ -1321,6 +1321,24 @@ async function main() {
       const cliente = await db.serviceClient.create({ data: scoped({ name: "Açougue São Jorge M70" }) });
       check("14.3 ServiceClient também", cliente.name_busca === "acougue sao jorge m70", String(cliente.name_busca));
 
+      // Paridade com `normalizarTermo`, que é quem normaliza o termo da busca:
+      // a extensão `unaccent` faria "Ł" virar "l" só no banco, e o nome escrito
+      // igual ao cadastro deixaria de casar. NFD escrito por escape, nunca o
+      // caractere combinante cru (invisível no editor).
+      const { normalizarTermo } = await import("@/lib/actions/whatsapp-handlers/shared");
+      const dificeis = ["Łucas Æsir M70", "José NFD M70", "Øyvind\tStraße  M70", "ÇÃO ñ M70"];
+      for (const nome of dificeis) {
+        const c = await db.contact.create({ data: scoped({ name: nome }) });
+        const s = await db.serviceClient.create({ data: scoped({ name: nome }) });
+        check(
+          `14.3b "${nome}" sai igual no banco e no normalizarTermo`,
+          c.name_busca === normalizarTermo(nome) && s.name_busca === normalizarTermo(nome),
+          `${c.name_busca} | ${s.name_busca} | ${normalizarTermo(nome)}`,
+        );
+      }
+      const lucas = await contasEmAbertoDoContato(db, "Łucas Æsir M70");
+      check("14.3c o nome escrito igual ao cadastro casa", lucas.estado === "ambiguo" && lucas.candidatos.length === 2, JSON.stringify(lucas));
+
       const outro = await prisma.tenant.create({
         data: { name: `M70 B ${stamp}`, document: `M70B${stamp}`.slice(0, 14), plan: "fazenda" },
       });

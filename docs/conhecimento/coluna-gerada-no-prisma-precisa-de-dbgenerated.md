@@ -32,6 +32,12 @@ dois índices parciais já ensinavam.
 - Coluna gerada escrita à mão na migração: no schema, `String?` com
   `@default(dbgenerated("<a mesma expressão>"))`, e rodar `npm run test:drift`
   com a URL do Docker inline antes do commit.
+- A expressão do banco tem de ser a MESMA regra que normaliza o termo no JS.
+  A primeira versão usava a extensão `unaccent`, que translitera mais que o
+  NFD do `normalizarTermo` ("Ł" vira "l", "ß" vira "ss"): "Łucas" escrito
+  igual ao cadastro deixava de casar. `normalize(lower(x), NFD)` e a remoção de
+  U+0300 a U+036F reproduzem o JS sem extensão; o m70 (14.3b) compara os dois
+  lados com caracteres difíceis.
 - Preferi a coluna gerada ao `$queryRaw` porque a busca continua no client
   escopado: `$queryRaw` não passa pela extensão de isolamento por tenant, e
   seria o primeiro do projeto num caminho de negócio.

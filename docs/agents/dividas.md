@@ -145,6 +145,17 @@ em todo domínio não coberto.
   volta (renumerar colide). Já está documentado no `CLAUDE.md` e o
   `npm run check` reprova suíte órfã, então é convivência, não dívida.
 
+### 5.13 A busca por nome não tem índice próprio
+
+Registrado na E7 (08/10/2026), a partir da primeira rodada do Codex. A dívida
+5.0 fechou: "Ze Carlos" casa "Zé Carlos" no banco, pela coluna gerada
+`name_busca` de `Contact` e `ServiceClient`, sem ler a tabela para a memória.
+Mas o filtro é `LIKE '%termo%'`, que nenhum índice B-tree atende: o Postgres
+lê as linhas do tenant (pelo índice `tenant_id`) e filtra uma a uma. Em 08/10
+o maior tenant tinha poucos contatos. Fechar: extensão `pg_trgm` e índice GIN
+`gin_trgm_ops` em `name_busca`, quando um tenant passar de dezenas de milhares
+de contatos. Termo com menos de 3 letras não usa o índice de qualquer jeito.
+
 ### 5.12 Arquivar pasto ocupado é permitido, e o gado fica num pasto desativado
 
 Achado pela primeira rodada do Codex na E6 (08/10/2026).

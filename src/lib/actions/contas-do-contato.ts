@@ -165,6 +165,10 @@ function ordenarPorVencimento(a: ContaEmAberto, b: ContaEmAberto): number {
  *
  * Dívida 5.0 (08/10): as duas comparam pela coluna `name_busca`, gerada pelo
  * Postgres com a regra de `normalizarTermo`, em vez de ler a tabela inteira.
+ *
+ * ponytail: `contains` vira `LIKE '%termo%'`, que varre as linhas DO TENANT
+ * (índice `tenant_id`) no banco. Índice trigram (`pg_trgm`) em `name_busca`
+ * quando um tenant tiver dezenas de milhares de contatos (dívida 5.13).
  */
 async function pessoasQueCasam(db: TenantPrismaClient, nome: string): Promise<PessoaCandidata[]> {
   const clientes = await findClientsByName(db, nome);
