@@ -76,6 +76,7 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [prompt antes de modelo](prompt-antes-de-modelo-o-barato-passa-o-caro-erra-igual.md) | licao | os seis modelos erravam igual; ajustar a instrução comprou mais que trocar de modelo |
 | [a etapa de domínio decide o que a extração pode responder](a-etapa-de-dominio-decide-o-que-a-extracao-pode-responder.md) | armadilha | domínio errado vira "não entendi", e a culpa parece da intenção |
 | [campo homônimo herda a descrição da primeira intenção](campo-homonimo-no-dominio-herda-a-descricao-da-primeira-intencao.md) | armadilha | o relatório voltava sem área em 6 de 6 medições |
+| [a nota da avaliação não vê campo a mais](a-nota-da-avaliacao-nao-ve-campo-a-mais.md) | licao | a intenção nova aprovada pela nota marcava compra a prazo como paga em 11 de 12 |
 | [a trava de número por extenso precisa da regra de composição](trava-de-numero-por-extenso-precisa-da-regra-de-composicao.md) | armadilha | "cento e vinte, cinquenta de frete" virava 170 |
 | [o limite da conta reprova o modelo se você não esperar](limite-da-conta-reprova-o-modelo-se-voce-nao-esperar.md) | armadilha | 99 mensagens em erro de 1 segundo eram 429, não o modelo |
 | [zero defeito em cinco rodadas pode ser cegueira do conjunto](zero-defeito-na-suite-pode-ser-cegueira-da-suite.md) | licao | 60 blocos nunca montavam o estado que expunha a gravação indevida |
