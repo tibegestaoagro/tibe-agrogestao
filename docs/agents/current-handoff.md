@@ -25,9 +25,9 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 `historico/2026-09.md`.
 ## Estado atual
 
-- Atualizado em: 2026-10-07.
+- Atualizado em: 2026-10-08.
 
-### Programa de dívidas (desde 07/10): E0 a E4 em produção, E5 pronta na branch
+### Programa de dívidas (desde 07/10): E0 a E5 em produção, E6 na branch
 
 ⚠️ **Regra do Codex desde 07/10 (o limite de uso dele chegou a 90%):**
 `adversarial-review` sempre com `--model gpt-5.6-terra` (intermediário; o
@@ -72,7 +72,7 @@ Spec
 (uma seção de decisões por fase), planos em `docs/superpowers/plans/`,
 relatórios em [agente-whatsapp/](agente-whatsapp/), detalhe das fases em
 [historico/2026-09.md](historico/2026-09.md). Modelo `gpt-5.6-luna`, esforço
-`low`; gasto do programa US$ 5,56 de US$ 30.
+`low`; gasto do programa US$ 5,82 de US$ 30.
 
 **O fluxo de produção do n8n é HÍBRIDO desde 18/09.** `UAAA96aJFiiFsQCL` (42
 nós) tem o desvio `Agente Novo?` logo depois de `Consolidar Mensagem`: quatro
@@ -166,23 +166,7 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
 
-**0. Programa de dívidas: E5 pronta na branch `agente-correcoes`**, esperando
-autorização de merge. Fecha 5.0b (negócio com vários itens pergunta item por
-item; candidata limpa ao resolver), 5.5 (verbo + quantidade + categoria na
-pergunta de categoria substitui os animais guardados), 5.0c (brinco exige
-dígito, no `parse` do campo), 5.7 (consulta do rebanho com pendente curto,
-`consulta-pending.ts`) e as suítes `m17` e `m58` sem data fixa (`m17` vista
-falhando e passando às 01h UTC). `test:all` 75/75 e as suítes da área verdes.
-Codex: 2 rodadas (teto), as duas sobre a consulta herdar a fazenda; a regra
-final é "herda só quem responde: termo que sozinho não fecha, ou que fecha
-numa das candidatas". Teto aceito: "fêmeas de 15 meses" depois de "não
-reconheci jumento" numa fazenda responde o rebanho inteiro. A memória da
-consulta só funciona pela rota de turno (canário); pelo `execute-action` quem
-decide é o classificador do n8n. **Validação viva pendente:** `npm run wa`
-depois do deploy ("quantas novilhas tenho", responder "13 a 24 meses").
-Próxima: E6 (pasto + avaliação). Pendente do usuário: olhar o painel logado
-(E4), conferir a tela de push (E3), e decidir se monta o cenário de
-confinamento no tenant BANCO DE PROVAS (E2).
+**0. Programa de dívidas: E6 pronta na branch `agente-pastos`** (`c06030a`, `2fd9f0f`, sobre a `pos-e5`). Intenção `consultar_pastos` (só leitura: pastos por fazenda, cabeças `presente` de qualquer dono e área; nome que casa dois mostra os dois) e a descrição de domínio de `mao_de_obra` para pagamento sem valor. Medição em 53 casos novos: pagamento 80-84% para 93,5% nas duas rodadas, pastos 100%, regressão `forademostra` 100% em intenção, zero gravação indevida ([relatório](agente-whatsapp/avaliacao-fase-8.md)). ⚠️ A primeira versão passou na nota e marcava compra a prazo como paga (11 de 12 chamadas); só a sonda contra o controle achou: o pontuador não confere campo a mais. A bancada não media conversa desde 18/09 (telefone fora da forma canônica), corrigida. Fecha 5.4; 5.0a encolheu para duas frases. Vale só na rota de turno (canário). Codex: duas rodadas feitas, achados corrigidos (`ee290ee` e o seguinte: gado em pasto desativado, nome exato em duas fazendas, telefone canônico da bancada); arquivar pasto ocupado virou dívida 5.12. Falta: merge e push (autorização), e `npm run wa` pelo canário depois do deploy. **E5 em produção** (`4acd0e6`, 08/10): 5.0b, 5.0c, 5.5, 5.7; o negócio com dois itens não foi exercitado pela rota de turno (dívida 5.11). Pendente do usuário: olhar o painel logado (E4), conferir a tela de push (E3), e decidir se monta o cenário de confinamento no tenant BANCO DE PROVAS (E2).
 
 **1. Segurança, que é do usuário e vem antes de tudo:** rotacionar as 22
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não

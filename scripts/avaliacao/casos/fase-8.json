@@ -1,0 +1,473 @@
+[
+  {
+    "id": "f8-001",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "acabei de pagar o Zé",
+    "esperado": [
+      {
+        "intent": "registrar_pagamento_trabalhador",
+        "campos": {
+          "nome": "Zé"
+        }
+      }
+    ]
+  },
+  {
+    "id": "f8-002",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "acertei com o Zé Carlos",
+    "esperado": [
+      {
+        "intent": "registrar_pagamento_trabalhador",
+        "campos": {
+          "nome": "Zé Carlos"
+        }
+      }
+    ],
+    "nota": "acertar = pagar, forma coloquial, sem valor"
+  },
+  {
+    "id": "f8-003",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "já fiz o pagamento do Pedro",
+    "esperado": [
+      {
+        "intent": "registrar_pagamento_trabalhador",
+        "campos": {
+          "nome": "Pedro"
+        }
+      }
+    ]
+  },
+  {
+    "id": "f8-004",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o Zé tá pago",
+    "esperado": [
+      {
+        "intent": "registrar_pagamento_trabalhador",
+        "campos": {
+          "nome": "Zé"
+        }
+      }
+    ],
+    "coincide_com_exemplo": "molde"
+  },
+  {
+    "id": "f8-005",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "quitei o salário do Zé",
+    "esperado": [
+      {
+        "intent": "registrar_pagamento_trabalhador",
+        "campos": {
+          "nome": "Zé"
+        }
+      }
+    ]
+  },
+  {
+    "id": "f8-006",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "acabei de acertar o Pedro agora",
+    "esperado": [
+      {
+        "intent": "registrar_pagamento_trabalhador",
+        "campos": {
+          "nome": "Pedro"
+        }
+      }
+    ]
+  },
+  {
+    "id": "f8-007",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "ja paguei o ze carlos",
+    "esperado": [
+      {
+        "intent": "registrar_pagamento_trabalhador",
+        "campos": {
+          "nome": "ze carlos"
+        }
+      }
+    ],
+    "nota": "sem acento"
+  },
+  {
+    "id": "f8-008",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "pgto do Zé Carlos feito",
+    "esperado": [
+      {
+        "intent": "registrar_pagamento_trabalhador",
+        "campos": {
+          "nome": "Zé Carlos"
+        }
+      }
+    ],
+    "nota": "abreviação"
+  },
+  {
+    "id": "f8-009",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "então eu acabei de... é... acertar o salário do Zé Carlos agora de manhã",
+    "esperado": [
+      {
+        "intent": "registrar_pagamento_trabalhador",
+        "campos": {
+          "nome": "Zé Carlos"
+        }
+      }
+    ],
+    "nota": "áudio transcrito"
+  },
+  {
+    "id": "f8-010",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o Pedro já recebeu o dele, tá quitado",
+    "esperado": [
+      {
+        "intent": "registrar_pagamento_trabalhador",
+        "campos": {
+          "nome": "Pedro"
+        }
+      }
+    ]
+  },
+  {
+    "id": "f8-011",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "fechei a conta com o Zé hoje",
+    "esperado": [
+      {
+        "intent": "registrar_pagamento_trabalhador",
+        "campos": {
+          "nome": "Zé"
+        }
+      }
+    ],
+    "nota": "fechar a conta = pagar; pouco ambígua mas é pagamento ao funcionário"
+  },
+  {
+    "id": "f8-012",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "pode marcar que o Zé Carlos foi pago",
+    "esperado": [
+      {
+        "intent": "registrar_pagamento_trabalhador",
+        "campos": {
+          "nome": "Zé Carlos"
+        }
+      }
+    ]
+  },
+  {
+    "id": "f8-013",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "vou pagar o Zé Carlos na sexta",
+    "esperado": [
+      {
+        "intent": "agendar_pagamento_trabalhador",
+        "campos": {
+          "nome": "Zé Carlos",
+          "data": "sexta"
+        }
+      }
+    ],
+    "nota": "vizinho: pagamento futuro, não é pago"
+  },
+  {
+    "id": "f8-014",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o Pedro eu acerto dia 15",
+    "esperado": [
+      {
+        "intent": "agendar_pagamento_trabalhador",
+        "campos": {
+          "nome": "Pedro",
+          "data": "dia 15"
+        }
+      }
+    ]
+  },
+  {
+    "id": "f8-015",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "adiantei uns 300 pro Pedro",
+    "esperado": [
+      {
+        "intent": "registrar_adiantamento",
+        "campos": {
+          "nome": "Pedro",
+          "valor": 300
+        }
+      }
+    ]
+  },
+  {
+    "id": "f8-016",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "dei um adiantamento pro Zé, 500",
+    "esperado": [
+      {
+        "intent": "registrar_adiantamento",
+        "campos": {
+          "nome": "Zé",
+          "valor": 500
+        }
+      }
+    ]
+  },
+  {
+    "id": "f8-017",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "paguei 2.500 pro Zé Carlos",
+    "esperado": [
+      {
+        "intent": "registrar_pagamento_trabalhador",
+        "campos": {
+          "nome": "Zé Carlos",
+          "valor": 2500
+        }
+      }
+    ],
+    "nota": "vizinho: pagamento com valor"
+  },
+  {
+    "id": "f8-018",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "a Agropecuária Santa Fé acabou de me pagar",
+    "esperado": [
+      {
+        "intent": "registrar_recebimento",
+        "campos": {
+          "contato": "Agropecuária Santa Fé"
+        }
+      }
+    ],
+    "nota": "vizinho: quem pagou é cliente, não trabalhador"
+  },
+  {
+    "id": "f8-019",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "o João do Leilão acertou comigo, mandou 4 mil",
+    "esperado": [
+      {
+        "intent": "registrar_recebimento",
+        "campos": {
+          "contato": "João do Leilão",
+          "valor": 4000
+        }
+      }
+    ],
+    "nota": "acertar aqui é cliente pagando ao produtor"
+  },
+  {
+    "id": "f8-020",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "paguei 380 de conserto da bomba d'água",
+    "esperado": [
+      {
+        "intent": "registrar_lancamento_financeiro",
+        "campos": {
+          "amount": 380,
+          "description": "conserto da bomba d'água"
+        }
+      }
+    ],
+    "nota": "vizinho: despesa avulsa"
+  },
+  {
+    "id": "f8-021",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "quantos animais eu tenho no total?",
+    "esperado": [
+      {
+        "intent": "consultar_rebanho",
+        "campos": {}
+      }
+    ]
+  },
+  {
+    "id": "f8-022",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "quantos bichos tem na Boa Vista",
+    "esperado": [
+      {
+        "intent": "consultar_rebanho",
+        "campos": {
+          "fazenda": "Boa Vista"
+        }
+      }
+    ]
+  },
+  {
+    "id": "f8-023",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "qto de gado tem no Sítio São José",
+    "esperado": [
+      {
+        "intent": "consultar_rebanho",
+        "campos": {
+          "fazenda": "Sítio São José"
+        }
+      }
+    ]
+  },
+  {
+    "id": "f8-024",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "me dá uma visão geral do rebanho",
+    "esperado": [
+      {
+        "intent": "resumo",
+        "campos": {
+          "scope": "rebanho"
+        }
+      }
+    ]
+  },
+  {
+    "id": "f8-025",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "como tá a lavoura, me faz um resumo",
+    "esperado": [
+      {
+        "intent": "resumo",
+        "campos": {
+          "scope": "lavoura"
+        }
+      }
+    ]
+  },
+  {
+    "id": "f8-026",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "passei 20 novilhas do Pasto da Sede pro Pasto da Baixada",
+    "esperado": [
+      {
+        "intent": "registrar_movimentacao_rebanho",
+        "campos": {
+          "movement_type": "transferencia_pasto",
+          "itens": [
+            {
+              "categoria": "novilhas",
+              "quantidade": 20
+            }
+          ],
+          "pasto_origem": "Pasto da Sede",
+          "pasto_destino": "Pasto da Baixada"
+        }
+      }
+    ]
+  },
+  {
+    "id": "f8-027",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "troquei os 15 bezerros pro Piquete 3",
+    "esperado": [
+      {
+        "intent": "registrar_movimentacao_rebanho",
+        "campos": {
+          "movement_type": "transferencia_pasto",
+          "itens": [
+            {
+              "categoria": "bezerros",
+              "quantidade": 15
+            }
+          ],
+          "pasto_destino": "Piquete 3"
+        }
+      }
+    ]
+  },
+  {
+    "id": "f8-028",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "mudei o gado do Pasto da Baixada para o Pasto da Sede ontem",
+    "esperado": [
+      {
+        "intent": "registrar_movimentacao_rebanho",
+        "campos": {
+          "movement_type": "transferencia_pasto",
+          "pasto_origem": "Pasto da Baixada",
+          "pasto_destino": "Pasto da Sede",
+          "data": "ontem"
+        }
+      }
+    ],
+    "nota": "sem quantidade nem categoria: não pôr itens"
+  },
+  {
+    "id": "f8-029",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "quero calcular a cerca do Piquete 3, 800 metros com 5 fios",
+    "esperado": [
+      {
+        "intent": "calcular_cerca",
+        "campos": {
+          "comprimento": 800,
+          "fios": 5
+        }
+      }
+    ]
+  },
+  {
+    "id": "f8-030",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "quantas vacas eu tenho na Boa Vista",
+    "esperado": [
+      {
+        "intent": "consultar_rebanho",
+        "campos": {
+          "categoria": "vacas",
+          "fazenda": "Boa Vista"
+        }
+      }
+    ]
+  },
+  {
+    "id": "f8-031",
+    "autor": "produtor",
+    "tipo": "mensagem",
+    "texto": "resumo do rebanho aí",
+    "esperado": [
+      {
+        "intent": "resumo",
+        "campos": {
+          "scope": "rebanho"
+        }
+      }
+    ]
+  }
+]

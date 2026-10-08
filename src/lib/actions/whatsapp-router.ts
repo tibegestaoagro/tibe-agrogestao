@@ -25,6 +25,7 @@ import {
 import { criarTarefa } from "@/lib/actions/whatsapp-handlers/tarefas";
 import {
   consultarRebanho,
+  consultarPastos,
   registrarMovimentacaoRebanho,
 } from "@/lib/actions/whatsapp-handlers/herd";
 import { registrarNegocioGado } from "@/lib/actions/whatsapp-handlers/negociacao";
@@ -154,6 +155,7 @@ const HANDLERS: Record<Exclude<Intent, "ambigua">, Handler> = {
   consultar_saldo: consultarSaldo,
   consultar_animal: consultarAnimal,
   consultar_rebanho: consultarRebanho,
+  consultar_pastos: consultarPastos,
   registrar_movimentacao_rebanho: registrarMovimentacaoRebanho,
   registrar_negocio_gado: registrarNegocioGado,
   registrar_negocio_produto: registrarNegocioProduto,

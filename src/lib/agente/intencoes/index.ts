@@ -17,13 +17,13 @@ import { INTENCOES_CONVERSA } from "./conversa";
 export { DOMINIOS, type Dominio, type IntencaoDef, type CampoDef } from "./tipos";
 
 export const DESCRICAO_DOS_DOMINIOS: Record<Dominio, string> = {
-  rebanho: "animais da fazenda: quantos tem, nasceu, morreu, mudou de pasto ou de categoria, comprou ou vendeu gado, cadastro por brinco, peso, vacina",
+  rebanho: "animais da fazenda: quantos tem, nasceu, morreu, mudou de pasto ou de categoria, comprou ou vendeu gado, cadastro por brinco, peso, vacina; e os PASTOS cadastrados: quais e quantos são, a área e quantos animais há em cada um (pasto é do rebanho, nunca da lavoura)",
   confinamento: "animais no confinamento ou no boitel: entrada (inclusive contada pelo lugar de onde eles saíram: pasto, fazenda, lote do leite), envio ao boitel, saída, venda ou morte no confinamento, e todo trato (ração, sal, silagem) de lote que cite confinamento, boitel ou lote",
   eventos_e_permuta: "gado mandado para leilão, feira ou evento e o resultado dele; troca de animais por outra coisa (permuta)",
   estoque: "insumos e produtos (sal, ração, vermífugo, adubo, diesel): compra ou venda COM quantidade (sem quantidade, o item comprado é da lista de compra), uso na fazenda fora de confinamento e de serviço, contagem, quanto tem",
   lista_de_compra: "lista do que precisa comprar: anotar, ver, tirar, e contar que comprou um item que estava anotado (o item vem com artigo e sem quantidade: \"comprei o arame\", mesmo quando ele diz quanto pagou)",
   leite: "produção de leite do dia e quantas vacas estão dando leite (entrou, secou, total)",
-  mao_de_obra: "trabalhador FIXO da fazenda, o que tem salário: cadastro, pagamento já feito, pagamento que ele AINDA VAI fazer numa data (\"vou pagar o Pedro dia 10\"), adiantamento; quem ele contratou para um serviço, por diária ou por valor fechado, não é daqui",
+  mao_de_obra: "trabalhador FIXO da fazenda, o que tem salário: cadastro, pagamento já feito (mesmo sem o valor e com qualquer verbo: \"acertei o mês do Tião\", \"o Tião já tá pago\"), pagamento que ele AINDA VAI fazer numa data (\"vou pagar o Pedro dia 10\"), adiantamento; quem ele contratou para um serviço, por diária ou por valor fechado, não é daqui",
   servicos: "serviço com máquina ou empreita, e o andamento dele: gente de fora paga por diária; alguém que ele contratou por um valor fechado; serviço prestado a cliente citando a máquina ou o preço; e o que acontece num serviço já registrado (começou, terminou, gastou combustível nele, ou avançou: \"fiz MAIS tanto\", \"avancei\", \"já fiz tanto hoje\"), mesmo sem máquina e sem preço",
   financeiro: "dinheiro: despesa ou receita avulsa, recibo, saldo do mês, relatório em PDF de QUALQUER área (financeiro, rebanho, lavoura, prestador), e também o dinheiro que um CLIENTE pagou ou ainda deve, quando ele cita a pessoa pelo nome (\"o João me pagou\", \"o João já pagou?\", \"quanto a Santa Fe ainda deve\"). O que ele PAGA a alguém da equipe fixa é mão de obra, mesmo dizendo o valor (\"paguei 2.500 pro Zé\")",
   dia: "agenda: o que tem para hoje, amanhã ou na semana, e criar lembrete ou tarefa",

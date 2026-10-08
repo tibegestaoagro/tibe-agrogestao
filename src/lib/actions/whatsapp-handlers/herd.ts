@@ -3,6 +3,7 @@ import {
   getPositions,
   recordMovement,
   HERD_MOVEMENT_TYPES,
+  type HerdPosition,
   type HerdPositionKey,
 } from "@/lib/actions/herd-ledger";
 import { summarizePositions } from "@/lib/herd/summary";
@@ -452,6 +453,88 @@ export const consultarRebanho: Handler = async ({ db, tenant_id, user_id, parame
     auxiliary_data: { total: resumo.total },
     report_url: null,
     action_taken: "consultar_rebanho:geral",
+  };
+};
+
+/**
+ * Os pastos cadastrados e quantos animais estão em cada um (dívida 5.4).
+ *
+ * É leitura: nome de pasto que casa mais de um mostra todos em vez de
+ * perguntar qual, e sem fazenda dita lista todas. Conta toda cabeça
+ * `presente` no pasto, de qualquer dono: a pergunta é de lotação, e o gado de
+ * terceiro em estadia ocupa o pasto do mesmo jeito.
+ */
+export const consultarPastos: Handler = async ({ db, parameters }) => {
+  const nomeFazenda = str(parameters.fazenda) ?? str(parameters.property);
+  const nomePasto = str(parameters.qual_pasto);
+
+  let fazendas = await listActiveProperties(db);
+  if (nomeFazenda) {
+    const fazenda = casarFazenda(fazendas, nomeFazenda);
+    if (!fazenda) {
+      return ask(`Não encontrei a fazenda "${nomeFazenda}". Suas fazendas:\n${fazendas.map((f) => `- ${f.name}`).join("\n")}`);
+    }
+    fazendas = [fazenda];
+  }
+
+  const [pastosTodos, posicoes] = await Promise.all([
+    db.pasture.findMany({
+      where: { archived_at: null, property_id: { in: fazendas.map((f) => f.id) } },
+      select: { id: true, name: true, property_id: true, area_hectares: true },
+      orderBy: { name: "asc" },
+    }),
+    getPositions(db, { situation: "presente" }),
+  ]);
+  const alvo = nomePasto ? normalizarTermo(nomePasto) : null;
+  const casados = alvo ? pastosTodos.filter((p) => normalizarTermo(p.name).includes(alvo)) : pastosTodos;
+  // Nome exato vence o parcial, mas em toda fazenda que o tem ("Pasto da Sede" em duas).
+  const exatos = casados.filter((p) => normalizarTermo(p.name) === alvo);
+  const pastos = exatos.length > 0 ? exatos : casados;
+
+  const cabecas = (filtro: (p: HerdPosition) => boolean) =>
+    posicoes.filter(filtro).reduce((soma, p) => soma + p.quantity, 0);
+  const linha = (p: (typeof pastos)[number]) => {
+    const area = Number(p.area_hectares).toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+    return `- ${p.name}: ${cabecas((x) => x.pasture_id === p.id)} animais (${area} ha)`;
+  };
+
+  const ativos = new Set(pastosTodos.map((p) => p.id));
+  const blocos = fazendas
+    .map((f) => {
+      const daFazenda = pastos.filter((p) => p.property_id === f.id);
+      // Arquivar pasto ocupado é permitido (dívida 5.12): sem esta linha, as
+      // cabeças dele sumiam da conta, e a fazenda inteira quando todos os
+      // pastos dela estavam desativados.
+      const desativado = nomePasto
+        ? 0
+        : cabecas((x) => x.property_id === f.id && x.pasture_id !== null && !ativos.has(x.pasture_id));
+      if (daFazenda.length === 0 && desativado === 0) return null;
+      const linhas = daFazenda.map(linha);
+      const semPasto = nomePasto ? 0 : cabecas((x) => x.property_id === f.id && x.pasture_id === null);
+      if (semPasto > 0) linhas.push(`- Sem pasto definido: ${semPasto} animais`);
+      if (desativado > 0) linhas.push(`- Em pasto desativado: ${desativado} animais`);
+      return `${f.name}\n${linhas.join("\n")}`;
+    })
+    .filter((b): b is string => b !== null);
+
+  if (blocos.length === 0) {
+    const texto = nomePasto
+      ? `Não encontrei o pasto "${nomePasto}".`
+      : "Você ainda não tem pasto cadastrado. Cadastre no painel, em Minha Fazenda.";
+    return { reply_text: texto, requires_confirmation: false, auxiliary_data: null, report_url: null, action_taken: "consultar_pastos:vazio" };
+  }
+
+  const cabecalho = nomePasto
+    ? ""
+    : pastos.length === 0
+      ? "Você não tem pasto ativo cadastrado.\n"
+      : `Você tem ${pastos.length} ${pastos.length === 1 ? "pasto cadastrado" : "pastos cadastrados"}:\n`;
+  return {
+    reply_text: cabecalho + blocos.join("\n\n"),
+    requires_confirmation: false,
+    auxiliary_data: { pastos: pastos.length },
+    report_url: null,
+    action_taken: "consultar_pastos",
   };
 };
 

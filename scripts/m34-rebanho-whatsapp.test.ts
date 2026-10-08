@@ -3,6 +3,7 @@ import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { recordMovement } from "@/lib/actions/herd-ledger";
 import {
+  consultarPastos,
   consultarRebanho,
   registrarMovimentacaoRebanho,
 } from "@/lib/actions/whatsapp-handlers/herd";
@@ -797,6 +798,103 @@ async function main() {
       (await loadPendingConsulta(tenant.id, quemConsulta))?.aguardando === "categoria",
     );
     await clearPendingConsulta(tenant.id, quemConsulta);
+
+    console.log("\n20. Os pastos cadastrados e a lotação de cada um (dívida 5.4)");
+    // Fazenda própria da seção: o saldo da Santa Helena já mudou nas seções de cima.
+    const ipe = await db.property.create({ data: scoped({ name: "Fazenda do Ipê" }) });
+    const pastoIpe = await db.pasture.create({ data: scoped({ property_id: ipe.id, name: "Pasto do Ipê", area_hectares: 10 }) });
+    await db.pasture.create({ data: scoped({ property_id: ipe.id, name: "Pasto do Ipê Novo", area_hectares: 5.5 }) });
+    const semearNoIpe = (quantity: number, pasture_id: string | null) =>
+      recordMovement(db, {
+        movement_type: "saldo_inicial",
+        quantity,
+        to: { category_id: "femea_36_mais", property_id: ipe.id, pasture_id, situation: "presente", owner: "proprio" },
+        occurred_at: new Date("2026-01-01"),
+      });
+    await semearNoIpe(7, pastoIpe.id);
+    await semearNoIpe(3, null);
+    // Arquivar pasto ocupado é permitido: as cabeças dele não podem sumir da conta.
+    const pastoVelho = await db.pasture.create({ data: scoped({ property_id: ipe.id, name: "Pasto Velho", area_hectares: 2 }) });
+    await semearNoIpe(2, pastoVelho.id);
+    await db.pasture.update({ where: { id: pastoVelho.id }, data: { archived_at: new Date() } });
+    // O mesmo nome exato em outra fazenda: os dois respondem.
+    const aroeira = await db.property.create({ data: scoped({ name: "Fazenda Aroeira" }) });
+    const ipeDaAroeira = await db.pasture.create({ data: scoped({ property_id: aroeira.id, name: "Pasto do Ipê", area_hectares: 4 }) });
+    await recordMovement(db, {
+      movement_type: "saldo_inicial",
+      quantity: 4,
+      to: { category_id: "femea_36_mais", property_id: aroeira.id, pasture_id: ipeDaAroeira.id, situation: "presente", owner: "proprio" },
+      occurred_at: new Date("2026-01-01"),
+    });
+    // Fazenda cujo único pasto foi desativado ainda tem gado lá.
+    const jacaranda = await db.property.create({ data: scoped({ name: "Fazenda Jacarandá" }) });
+    const unicoDaJacaranda = await db.pasture.create({ data: scoped({ property_id: jacaranda.id, name: "Pasto Único", area_hectares: 3 }) });
+    await recordMovement(db, {
+      movement_type: "saldo_inicial",
+      quantity: 5,
+      to: { category_id: "femea_36_mais", property_id: jacaranda.id, pasture_id: unicoDaJacaranda.id, situation: "presente", owner: "proprio" },
+      occurred_at: new Date("2026-01-01"),
+    });
+    await db.pasture.update({ where: { id: unicoDaJacaranda.id }, data: { archived_at: new Date() } });
+    const movimentosAntes = await db.herdMovement.count();
+
+    const daFazenda = await consultarPastos(ctx(db, tenant.id, { fazenda: "ipe" }));
+    check(
+      "por fazenda: lista os pastos com cabeças e área, e o gado sem pasto",
+      daFazenda.reply_text.includes("2 pastos cadastrados") &&
+        daFazenda.reply_text.includes("- Pasto do Ipê: 7 animais (10 ha)") &&
+        daFazenda.reply_text.includes("- Pasto do Ipê Novo: 0 animais (5,5 ha)") &&
+        daFazenda.reply_text.includes("- Sem pasto definido: 3 animais") &&
+        daFazenda.reply_text.includes("- Em pasto desativado: 2 animais") &&
+        !daFazenda.reply_text.includes("Pasto Velho") &&
+        !daFazenda.reply_text.includes("Pasto da Sede"),
+      daFazenda.reply_text,
+    );
+    check("consulta de pasto não pede confirmação", daFazenda.requires_confirmation === false);
+    const soDesativado = await consultarPastos(ctx(db, tenant.id, { fazenda: "jacaranda" }));
+    check(
+      "fazenda só com pasto desativado ainda mostra o gado dele",
+      soDesativado.reply_text.includes("Fazenda Jacarandá\n- Em pasto desativado: 5 animais") &&
+        !soDesativado.reply_text.includes("Pasto Único") &&
+        soDesativado.action_taken === "consultar_pastos",
+      soDesativado.reply_text,
+    );
+
+    const todas = await consultarPastos(ctx(db, tenant.id, {}));
+    check(
+      "sem fazenda: lista toda fazenda que tem pasto, e só ela",
+      !todas.reply_text.includes("Sítio Recanto") &&
+        todas.reply_text.includes("Fazenda Santa Helena\n") &&
+        todas.reply_text.includes("Fazenda do Ipê\n"),
+      todas.reply_text,
+    );
+
+    const umSo = await consultarPastos(ctx(db, tenant.id, { qual_pasto: "pasto do ipe" }));
+    check(
+      "nome dito por inteiro responde só aquele pasto, em toda fazenda que o tem",
+      umSo.reply_text.includes("- Pasto do Ipê: 7 animais") &&
+        umSo.reply_text.includes("Fazenda Aroeira\n- Pasto do Ipê: 4 animais") &&
+        !umSo.reply_text.includes("Ipê Novo") &&
+        !umSo.reply_text.includes("Sem pasto") &&
+        !umSo.reply_text.includes("desativado"),
+      umSo.reply_text,
+    );
+    const doisCasam = await consultarPastos(ctx(db, tenant.id, { qual_pasto: "ipê" }));
+    check(
+      "nome que casa dois mostra os dois, sem perguntar",
+      doisCasam.reply_text.includes("- Pasto do Ipê: 7") && doisCasam.reply_text.includes("- Pasto do Ipê Novo: 0") &&
+        doisCasam.action_taken === "consultar_pastos",
+      doisCasam.reply_text,
+    );
+    const inexistente = await consultarPastos(ctx(db, tenant.id, { qual_pasto: "Pasto do Jatobá" }));
+    check("pasto que não existe diz que não encontrou", inexistente.reply_text.includes('Não encontrei o pasto "Pasto do Jatobá"'), inexistente.reply_text);
+    const fazendaErrada = await consultarPastos(ctx(db, tenant.id, { fazenda: "Fazenda Jatobá" }));
+    check(
+      "fazenda que não existe mostra as fazendas",
+      fazendaErrada.reply_text.includes("Não encontrei a fazenda") && fazendaErrada.reply_text.includes("- Fazenda do Ipê"),
+      fazendaErrada.reply_text,
+    );
+    check("consultar pastos não grava nada", (await db.herdMovement.count()) === movimentosAntes);
   } finally {
     await prisma.herdMovement.deleteMany({ where: { tenant_id: tenant.id } });
     await prisma.financialEntry.deleteMany({ where: { tenant_id: tenant.id } });
