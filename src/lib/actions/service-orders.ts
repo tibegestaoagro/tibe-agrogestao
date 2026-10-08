@@ -88,11 +88,16 @@ function semAcento(termo: string): string {
  * `pessoasQueCasam` em `contas-do-contato.ts`) casavam de jeitos diferentes
  * conforme a mensagem trazia o acento ou não, e a diferença decidia qual dos
  * dois tomava a baixa. As duas fontes agora casam pela MESMA regra.
+ *
+ * Dívida 5.0 (08/10): a comparação sem acento era feita lendo a tabela toda.
+ * Agora é `name_busca`, coluna gerada pelo Postgres com a mesma regra de
+ * `semAcento`, e o filtro roda no banco.
  */
 export async function findClientsByName(db: TenantPrismaClient, name: string) {
-  const alvo = semAcento(name);
-  const todos = await db.serviceClient.findMany({ orderBy: { name: "asc" } });
-  return todos.filter((c) => semAcento(c.name).includes(alvo));
+  return db.serviceClient.findMany({
+    where: { name_busca: { contains: semAcento(name) } },
+    orderBy: { name: "asc" },
+  });
 }
 
 /** Busca serviço por nome (exato, senão contém), case-insensitive. */

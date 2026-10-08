@@ -8,12 +8,12 @@ import { normalizarTermo } from "@/lib/actions/whatsapp-handlers/shared";
  * G2, G5 e G6 (rodada de correção do juiz, 2026-09-16).
  *
  * Contas a receber em aberto de um contato: achadas pelo vínculo
- * ESTRUTURADO, nunca por texto livre. A busca é sempre pelos dois vínculos
- * que existem: `related_module: "servico"` + `related_id` da `ServiceOrder`
- * (cliente casado por `ServiceClient`), e `negotiation_id` da `Negotiation`
- * (contato casado por `Contact`). `FinancialEntry.contact_id` existe desde o
- * Módulo 35 para o `Contact` (não para o `ServiceClient`), mas esta busca não
- * o usa nesta rodada: trocar o caminho é escopo novo, fica como dívida.
+ * ESTRUTURADO, nunca por texto livre. Para o cliente de serviço
+ * (`ServiceClient`), pelo `related_module: "servico"` + `related_id` da
+ * `ServiceOrder`. Para o contato de negócio (`Contact`), pelo
+ * `FinancialEntry.contact_id` (dívida 5.2, decisão do usuário de 07/10), com a
+ * conta de `Negotiation` do contato que não tem `contact_id` como complemento.
+ * Quando os dois vínculos existem e divergem, o `contact_id` vence.
  */
 
 export type ContaEmAberto = {
@@ -107,13 +107,15 @@ async function contasDeNegocio(
     where: { contact_id: { in: contatoIds } },
     select: { id: true },
   });
-  if (negociacoes.length === 0) return [];
 
   const lancamentos = await db.financialEntry.findMany({
     where: {
-      negotiation_id: { in: negociacoes.map((n) => n.id) },
       entry_type: "income",
       status: "pending",
+      OR: [
+        { contact_id: { in: contatoIds } },
+        { contact_id: null, negotiation_id: { in: negociacoes.map((n) => n.id) } },
+      ],
     },
   });
 
@@ -142,7 +144,7 @@ function ordenarPorVencimento(a: ContaEmAberto, b: ContaEmAberto): number {
  * As pessoas (cliente de serviço OU contato de negócio) que casam o nome
  * dito.
  *
- * G5: o `Contact` é achado por comparação SEM ACENTO, feita em memória, não
+ * G5: o `Contact` é achado por comparação SEM ACENTO, não
  * por `contains` do Prisma. `contains` + `mode: "insensitive"` é `ILIKE` no
  * Postgres, e `ILIKE` não dobra acento: contra um contato "Zé Carlos", a
  * mensagem "recebi do Ze Carlos" (o próprio exemplo da intenção usa a grafia
@@ -160,12 +162,19 @@ function ordenarPorVencimento(a: ContaEmAberto, b: ContaEmAberto): number {
  * casava): a mesma pessoa, escolhida ou não por causa da ortografia da
  * mensagem. `findClientsByName` agora normaliza acento internamente, e as
  * duas fontes casam pela MESMA regra.
+ *
+ * Dívida 5.0 (08/10): as duas comparam pela coluna `name_busca`, gerada pelo
+ * Postgres com a regra de `normalizarTermo`, em vez de ler a tabela inteira.
+ *
+ * ponytail: `contains` vira `LIKE '%termo%'`, que varre as linhas DO TENANT
+ * (índice `tenant_id`) no banco. Índice trigram (`pg_trgm`) em `name_busca`
+ * quando um tenant tiver dezenas de milhares de contatos (dívida 5.13).
  */
 async function pessoasQueCasam(db: TenantPrismaClient, nome: string): Promise<PessoaCandidata[]> {
   const clientes = await findClientsByName(db, nome);
-  const alvo = normalizarTermo(nome);
-  const todosOsContatos = await db.contact.findMany({ where: { archived_at: null } });
-  const contatos = todosOsContatos.filter((c) => normalizarTermo(c.name).includes(alvo));
+  const contatos = await db.contact.findMany({
+    where: { archived_at: null, name_busca: { contains: normalizarTermo(nome) } },
+  });
 
   return [
     ...clientes.map((c): PessoaCandidata => ({ tipo: "cliente", id: c.id, name: c.name })),
