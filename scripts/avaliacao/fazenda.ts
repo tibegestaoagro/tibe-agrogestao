@@ -5,7 +5,7 @@ import {
   TENANT_SCOPED_MODELS,
   type TenantPrismaClient,
 } from "@/lib/prisma";
-import { normalizePhone } from "@/lib/phone";
+import { toBrazilPhoneDigits } from "@/lib/phone";
 import { deleteTestTenants, createTestAnimal } from "../helpers/herd";
 import { recordMovement } from "@/lib/actions/herd-ledger";
 import { createConfinementSite, openConfinementStay } from "@/lib/actions/confinement";
@@ -202,8 +202,11 @@ export async function montarFazenda(sufixo: string): Promise<FazendaMontada> {
 
     // Contato já existente: sem isto, o primeiro passo de toda conversa
     // simulada seria a saudação de primeiro contato, não a intenção do caso.
+    // Na forma canônica, a mesma que `identificarContato` procura: com os
+    // dígitos crus, desde o nono dígito (18/09) toda conversa da avaliação
+    // respondia "número não cadastrado" e media nada.
     await db.whatsAppContact.create({
-      data: scoped({ phone: normalizePhone(telefone), user_id: owner.id, last_interaction_at: new Date() }),
+      data: scoped({ phone: toBrazilPhoneDigits(telefone), user_id: owner.id, last_interaction_at: new Date() }),
     });
 
     // As 26 categorias financeiras padrão, semeadas AQUI de propósito.
