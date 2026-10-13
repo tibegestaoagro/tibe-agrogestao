@@ -11,10 +11,9 @@
  * Dia não. Esta é a função que os dois passam a usar, para a regra não
  * divergir de novo.
  *
- * ⚠️ `Negotiation.derivarSituacao` tem a sua própria cópia da ideia. Não foi
- * migrada aqui de propósito: aquele módulo está estável e mexer nele para
- * consertar um defeito do Meu Dia aumentaria o risco da correção sem ganho.
- * Quem for mexer em negociações, migre.
+ * `derivarSituacao`, das negociações, tinha uma cópia própria que cortava o
+ * dia no fuso do SERVIDOR, e migrou para `prazoVencido` em 2026-10-13: na
+ * Vercel (UTC), das 21h à meia-noite a conta que vencia hoje aparecia vencida.
  */
 
 const FUSO_DA_FAZENDA = "America/Sao_Paulo";

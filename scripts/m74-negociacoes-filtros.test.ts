@@ -17,6 +17,9 @@ exigirBancoLocal();
  *    silêncio, dívida 5.14).
  */
 (globalThis as unknown as { AsyncLocalStorage: unknown }).AsyncLocalStorage = AsyncLocalStorage;
+// O servidor de produção roda em UTC, e este computador em São Paulo: sem isto
+// a suíte passaria aqui com o defeito do dia do servidor (seção 1b).
+process.env.TZ = "UTC";
 
 let failures = 0;
 function assert(cond: boolean, msg: string, detalhe = "") {
@@ -73,7 +76,20 @@ async function main() {
   }
 
   const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
-  const { createCattleNegotiation, cancelNegotiation, listNegotiations } = await import("@/lib/actions/negotiations");
+  const { createCattleNegotiation, cancelNegotiation, listNegotiations, situacaoDoNegocio } = await import(
+    "@/lib/actions/negotiations"
+  );
+
+  console.log("\n1b. Vencida é pelo dia de São Paulo, não pelo do servidor");
+  {
+    const compra = { type: "compra_gado" as const, canceled_at: null };
+    // Vence 14/10 (data de calendário, gravada como meia-noite UTC).
+    const conta = [{ entry_type: "expense", negotiation_role: "principal", status: "pending", due_date: new Date("2026-10-14T00:00:00Z") }];
+    const noite = situacaoDoNegocio(compra, conta, new Date("2026-10-15T02:30:00Z")); // 23h30 de 14/10 em SP
+    assert(noite.situacao === "confirmada", "às 23h30 do dia do vencimento ainda está em aberto", noite.situacao);
+    const amanha = situacaoDoNegocio(compra, conta, new Date("2026-10-15T13:00:00Z")); // 10h de 15/10 em SP
+    assert(amanha.situacao === "vencida", "no dia seguinte, vencida", amanha.situacao);
+  }
   const bcrypt = (await import("bcryptjs")).default;
   const { signAccessToken } = await import("@/lib/auth-token");
   const { withBearer } = await import("./_escopo-de-requisicao");

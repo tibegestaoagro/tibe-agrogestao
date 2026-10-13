@@ -9,6 +9,7 @@ import { getStockBalance, deltaDoMovimento } from "@/lib/actions/stock-ledger";
 import { estadiaJaEncerrada } from "@/lib/actions/herd-stays";
 import { donoDaEstadia, situacaoDaEstadia } from "@/lib/herd/stay-rules";
 import { descreverQuantidade } from "@/lib/stock/units";
+import { prazoVencido } from "@/lib/dia-calendario";
 
 /**
  * Área Negociações (docs/moduloNegociacao), missão 1: negócio de gado.
@@ -648,15 +649,54 @@ function derivarSituacao(
 
   // Comparação por DIA, não por instante: uma conta que vence HOJE não está
   // vencida, e comparar timestamps fazia um negócio criado agora, com
-  // vencimento hoje, nascer "vencido" milissegundos depois.
-  const inicioDeHoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+  // vencimento hoje, nascer "vencido" milissegundos depois. E o dia é o de São
+  // Paulo: com o dia do servidor (UTC na Vercel), das 21h à meia-noite a conta
+  // que vence hoje já aparecia vencida.
   const vencida = lancamentosPrincipais.some(
-    (l) => (EM_ABERTO as string[]).includes(l.status) && l.due_date != null && l.due_date < inicioDeHoje,
+    (l) => (EM_ABERTO as string[]).includes(l.status) && l.due_date != null && prazoVencido(l.due_date, agora),
   );
   if (vencida) return "vencida";
 
   if (pagos === 0) return "confirmada";
   return "parcialmente_paga";
+}
+
+/**
+ * A situação e a direção do dinheiro de um negócio, a partir só dos
+ * lançamentos. É o que `getNegotiation` mostra e o que o filtro do §19 usa,
+ * numa função só para as duas respostas não divergirem.
+ *
+ * A situação olha os lançamentos NA DIREÇÃO do negócio: despesa numa
+ * compra, receita numa venda.
+ *
+ * Isso resolve os dois erros opostos que já aconteceram aqui. Olhar só o
+ * `principal` deixava uma COMPRA com frete em aberto aparecendo como
+ * "Quitada" enquanto o mesmo frete era somado em "Ainda tenho a pagar" na
+ * mesma tela. Olhar TUDO fazia uma VENDA inteiramente recebida aparecer
+ * como "Parcialmente recebida", porque o frete dela é despesa e entrava na
+ * conta como se fosse um recebimento que faltou.
+ *
+ * Numa compra, principal e custos são os dois despesa, então ambos contam:
+ * o negócio só está quitado quando não sobra nada a pagar. Numa venda, o
+ * que se recebe é a receita; o frete é uma conta a pagar de verdade, que
+ * aparece em "Ainda tenho a pagar" e não torna a venda "parcialmente
+ * recebida". Estorno fica fora dos dois: ele registra que o dinheiro
+ * voltou, não é uma conta do negócio.
+ */
+export function situacaoDoNegocio(
+  n: { type: NegotiationType; canceled_at: Date | null },
+  lancamentos: { entry_type: string; negotiation_role: string | null; status: string; due_date: Date | null }[],
+  agora: Date = new Date(),
+): { situacao: SituacaoNegociacao; recebe: boolean } {
+  const recebe = dinheiroEntra(n.type, lancamentos);
+  const situacao = derivarSituacao(
+    n.canceled_at,
+    lancamentos.filter(
+      (l) => l.negotiation_role !== "estorno" && l.entry_type === (recebe ? "income" : "expense"),
+    ),
+    agora,
+  );
+  return { situacao, recebe };
 }
 
 export async function getNegotiation(
@@ -724,7 +764,7 @@ export async function getNegotiation(
 
   // Calculada UMA vez: a situação e o rótulo da tela precisam da mesma
   // resposta, e numa permuta ela não sai do tipo.
-  const recebe = dinheiroEntra(n.type, lancamentos);
+  const { situacao, recebe } = situacaoDoNegocio(n, lancamentos);
 
   return {
     id: n.id,
@@ -738,32 +778,7 @@ export async function getNegotiation(
     canceled_at: n.canceled_at,
     canceled_reason: n.canceled_reason,
     created_at: n.created_at,
-    /**
-     * A situação olha os lançamentos NA DIREÇÃO do negócio: despesa numa
-     * compra, receita numa venda.
-     *
-     * Isso resolve os dois erros opostos que já aconteceram aqui. Olhar só o
-     * `principal` deixava uma COMPRA com frete em aberto aparecendo como
-     * "Quitada" enquanto o mesmo frete era somado em "Ainda tenho a pagar" na
-     * mesma tela. Olhar TUDO fazia uma VENDA inteiramente recebida aparecer
-     * como "Parcialmente recebida", porque o frete dela é despesa e entrava na
-     * conta como se fosse um recebimento que faltou.
-     *
-     * Numa compra, principal e custos são os dois despesa, então ambos contam:
-     * o negócio só está quitado quando não sobra nada a pagar. Numa venda, o
-     * que se recebe é a receita; o frete é uma conta a pagar de verdade, que
-     * aparece em "Ainda tenho a pagar" e não torna a venda "parcialmente
-     * recebida". Estorno fica fora dos dois: ele registra que o dinheiro
-     * voltou, não é uma conta do negócio.
-     */
-    situacao: derivarSituacao(
-      n.canceled_at,
-      lancamentos.filter(
-        (l) =>
-          l.negotiation_role !== "estorno" &&
-          l.entry_type === (recebe ? "income" : "expense"),
-      ),
-    ),
+    situacao,
     recebe_dinheiro: recebe,
     totais: {
       principal,
@@ -839,16 +854,28 @@ export async function listNegotiations(
   const ordem: Prisma.NegotiationOrderByWithRelationInput[] = [{ occurred_at: "desc" }, { created_at: "desc" }, { id: "desc" }];
 
   if (filter.situacao) {
-    // ponytail: a situação sai das contas de cada negócio, então aqui todo o
-    // período é calculado antes de paginar. Com milhares de negócios no
-    // período fica caro; o caminho é guardar a situação ou filtrar em SQL.
-    const todas = await db.negotiation.findMany({ where, orderBy: ordem, select: { id: true } });
-    const casam: NegotiationDetail[] = [];
-    for (const linha of todas) {
+    // ponytail: a situação sai das contas de cada negócio, então o período
+    // inteiro vem numa consulta só (negócio e lançamentos, sem o resto do
+    // detalhe) e é filtrado em memória; o detalhe completo é montado só para a
+    // página. Com dezenas de milhares de negócios no período, a consulta
+    // pesa; o caminho então é guardar a situação ou derivá-la em SQL.
+    const todas = await db.negotiation.findMany({
+      where,
+      orderBy: ordem,
+      select: {
+        id: true,
+        type: true,
+        canceled_at: true,
+        entries: { select: { entry_type: true, negotiation_role: true, status: true, due_date: true } },
+      },
+    });
+    const casam = todas.filter((n) => situacaoDoNegocio(n, n.entries).situacao === filter.situacao);
+    const items: NegotiationDetail[] = [];
+    for (const linha of casam.slice(skip, skip + take)) {
       const detalhe = await getNegotiation(db, linha.id);
-      if (detalhe?.situacao === filter.situacao) casam.push(detalhe);
+      if (detalhe) items.push(detalhe);
     }
-    return { items: casam.slice(skip, skip + take), total: casam.length };
+    return { items, total: casam.length };
   }
 
   const [linhas, total] = await Promise.all([
