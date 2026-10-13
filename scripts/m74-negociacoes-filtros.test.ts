@@ -219,6 +219,7 @@ async function main() {
       assert(lerFormaDePagamento("em dinheiro vivo") === "dinheiro", "\"em dinheiro\" vira dinheiro");
       assert(lerFormaDePagamento("cartão de crédito") === "cartao", "\"cartão de crédito\" vira cartão");
       assert(lerFormaDePagamento("transferência") === "transferencia", "\"transferência\" com acento vira transferencia");
+      assert(lerFormaDePagamento("outro") === "outro" && lerFormaDePagamento(" Boleto ") === "boleto", "o valor canônico passa como está, inclusive outro");
       assert(lerFormaDePagamento("fiado") === null && lerFormaDePagamento(42) === null, "o que não reconhece vira nulo, nunca uma forma inventada");
 
       const post = (corpo: unknown) =>

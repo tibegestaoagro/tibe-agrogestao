@@ -34,7 +34,12 @@ export function lerFormaDePagamento(texto: unknown): FormaDePagamento | null {
   const t = texto
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
-    .toLowerCase();
+    .toLowerCase()
+    .trim();
+  // O valor canônico vence: é o que o classificador manda quando já
+  // normalizou, e `outro` não tem palavra do produtor que o identifique.
+  const canonico = VALORES_DE_FORMA.find((v) => v === t);
+  if (canonico) return canonico;
   if (/\bpix\b/.test(t)) return "pix";
   if (/dinheiro|especie/.test(t)) return "dinheiro";
   if (/transferencia|\bted\b|\bdoc\b/.test(t)) return "transferencia";
