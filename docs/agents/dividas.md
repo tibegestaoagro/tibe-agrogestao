@@ -72,16 +72,14 @@ assinatura, webhook de pagamento, webhook de atraso).
 
 | item | situação |
 |---|---|
-| §19, os nove filtros da tela de Negociações | a action já aceita filtro; a tela só herda o seletor de propriedade |
 | §13, formas de pagamento (dinheiro, pix, boleto) | não implementado; o parcelamento, que é o que mexe no financeiro, existe |
 | §6.2 e §7.2, pasto de origem e destino | o WhatsApp lê, a tela web não oferece |
 | §6.2, peso, arroba e valor por cabeça | adiado desde a revisão de 2026-08-14 |
 | §12.4, os valores estimados da permuta | fora da v1; o valor da negociação é só a diferença em dinheiro |
 | histórico do aceite 23 | não implementado |
 
-O raciocínio registrado para os filtros continua válido: **filtro sem volume de
-dado é enfeite**, e o primeiro cliente com 200 negócios é quem define quais
-importam.
+Os nove filtros do §19 entraram na E10.1 (13/10/2026); o custo do filtro de
+situação está na 5.15.
 
 ### 2.4 Rebanho por categoria x por brinco
 
@@ -152,13 +150,15 @@ lista inteira no app. A E9 achou o mesmo em `RelatedModule` (4 de 8) e
   volta (renumerar colide). Já está documentado no `CLAUDE.md` e o
   `npm run check` reprova suíte órfã, então é convivência, não dívida.
 
-### 5.14 `GET /negotiations?type=venda_leite` ignora o filtro em silêncio
+### 5.15 O filtro de situação das Negociações lê o período inteiro
 
-Achado na E9 (13/10/2026). A lista aceita filtro por seis tipos
-(`TIPOS_LISTA` em `src/app/api/v1/negotiations/route.ts`), mas o enum tem
-sete: `venda_leite` não filtra e a resposta vem com todos os tipos, sem
-recusa. Os itens podem ter `type: "venda_leite"` normalmente. Corrigir é pôr
-o tipo na lista ou recusar com 422.
+Registrado na E10.1 (13/10/2026), rodada 2 do Codex; o usuário escolheu
+"calcular e filtrar" sabendo do limite. A situação não é gravada, então
+`listNegotiations` com `situacao` traz todos os negócios do período com os
+lançamentos (uma consulta), filtra em memória e só então pagina; o detalhe da
+página continua montado um por um, como na lista sem filtro. Com dezenas de
+milhares de negócios no período, a chamada pesa. O caminho é derivar a
+situação em SQL ou guardá-la com índice, e hidratar a página em lote.
 
 ### 5.13 A busca por nome não tem índice próprio
 
