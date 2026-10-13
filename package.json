@@ -53,6 +53,7 @@
     "test:m71": "tsx scripts/m71-telefone.test.ts",
     "test:m72": "tsx scripts/m72-redis-limite.test.ts",
     "test:m73": "tsx scripts/m73-contratos.test.ts",
+    "test:m74": "tsx scripts/m74-negociacoes-filtros.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",

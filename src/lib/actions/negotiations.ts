@@ -801,7 +801,18 @@ export type NegotiationFilter = {
   since?: Date;
   until?: Date;
   include_canceled?: boolean;
+  /** §19. Derivada, nunca gravada: filtra depois de calcular. */
+  situacao?: SituacaoNegociacao;
 };
+
+export const SITUACOES_NEGOCIACAO = [
+  "confirmada",
+  "vencida",
+  "parcialmente_paga",
+  "paga",
+  "cancelada",
+  "sem_valor",
+] as const satisfies readonly SituacaoNegociacao[];
 
 const LIMITE_PADRAO = 50;
 const LIMITE_MAXIMO = 200;
@@ -825,11 +836,25 @@ export async function listNegotiations(
 
   const take = Math.min(Math.max(options.limit ?? LIMITE_PADRAO, 1), LIMITE_MAXIMO);
   const skip = Math.max(options.offset ?? 0, 0);
+  const ordem: Prisma.NegotiationOrderByWithRelationInput[] = [{ occurred_at: "desc" }, { created_at: "desc" }, { id: "desc" }];
+
+  if (filter.situacao) {
+    // ponytail: a situação sai das contas de cada negócio, então aqui todo o
+    // período é calculado antes de paginar. Com milhares de negócios no
+    // período fica caro; o caminho é guardar a situação ou filtrar em SQL.
+    const todas = await db.negotiation.findMany({ where, orderBy: ordem, select: { id: true } });
+    const casam: NegotiationDetail[] = [];
+    for (const linha of todas) {
+      const detalhe = await getNegotiation(db, linha.id);
+      if (detalhe?.situacao === filter.situacao) casam.push(detalhe);
+    }
+    return { items: casam.slice(skip, skip + take), total: casam.length };
+  }
 
   const [linhas, total] = await Promise.all([
     db.negotiation.findMany({
       where,
-      orderBy: [{ occurred_at: "desc" }, { created_at: "desc" }, { id: "desc" }],
+      orderBy: ordem,
       take,
       skip,
       select: { id: true },

@@ -18,7 +18,15 @@ import NegotiationCancel from "@/components/negociacoes/negotiation-cancel";
 import EventForm from "@/components/negociacoes/event-form";
 import EventCloseForm from "@/components/negociacoes/event-close-form";
 import BarterForm from "@/components/negociacoes/barter-form";
-import { listNegotiations, getOpenTotals, situacaoLabel } from "@/lib/actions/negotiations";
+import NegotiationFilters from "@/components/negociacoes/negotiation-filters";
+import {
+  listNegotiations,
+  getOpenTotals,
+  situacaoLabel,
+  SITUACOES_NEGOCIACAO,
+  type NegotiationFilter,
+} from "@/lib/actions/negotiations";
+import { periodoDeDatasEmSaoPaulo, periodoEmSaoPaulo, type PeriodoRapido } from "@/lib/dia-calendario";
 import { listStays } from "@/lib/actions/herd-stays";
 import { findCategory } from "@/lib/herd/categories";
 import { descreverQuantidade } from "@/lib/stock/units";
@@ -108,7 +116,15 @@ function resumoDoLado(
 
 export default async function NegociacoesPage(
   props: {
-    searchParams: Promise<{ property_id?: string }>;
+    searchParams: Promise<{
+      property_id?: string;
+      periodo?: string;
+      de?: string;
+      ate?: string;
+      tipo?: string;
+      contato?: string;
+      situacao?: string;
+    }>;
   }
 ) {
   const searchParams = await props.searchParams;
@@ -123,6 +139,22 @@ export default async function NegociacoesPage(
   const activePropertyId = await getActivePropertyId(db);
   const effectivePropertyId = searchParams.property_id ?? activePropertyId ?? undefined;
 
+  // §19. Valor que não é dos conhecidos é ignorado, como a rota faz: um link
+  // velho ou digitado à mão não derruba a página.
+  const filtro: NegotiationFilter = effectivePropertyId ? { property_id: effectivePropertyId } : {};
+  const periodo = searchParams.periodo;
+  if (periodo === "hoje" || periodo === "semana" || periodo === "mes" || periodo === "ano") {
+    Object.assign(filtro, periodoEmSaoPaulo(periodo satisfies PeriodoRapido));
+  } else if (periodo === "personalizado") {
+    Object.assign(filtro, periodoDeDatasEmSaoPaulo(searchParams.de, searchParams.ate));
+  }
+  if (searchParams.tipo && searchParams.tipo in TIPO_LABEL) filtro.type = searchParams.tipo as NegotiationType;
+  if (searchParams.contato) filtro.contact_id = searchParams.contato;
+  if (searchParams.situacao && (SITUACOES_NEGOCIACAO as readonly string[]).includes(searchParams.situacao)) {
+    filtro.situacao = searchParams.situacao as NegotiationFilter["situacao"];
+  }
+  const filtrando = Boolean(periodo || filtro.type || filtro.contact_id || filtro.situacao);
+
   const [
     { items, total },
     totais,
@@ -133,11 +165,7 @@ export default async function NegociacoesPage(
     produtos,
     remessas,
   ] = await Promise.all([
-    listNegotiations(
-      db,
-      effectivePropertyId ? { property_id: effectivePropertyId } : {},
-      { limit: 30 },
-    ),
+    listNegotiations(db, filtro, { limit: 30 }),
     getOpenTotals(db, effectivePropertyId ? { property_id: effectivePropertyId } : {}),
     db.property.findMany({ where: { archived_at: null }, orderBy: { name: "asc" } }),
     db.contact.findMany({ where: { archived_at: null }, orderBy: { name: "asc" } }),
@@ -176,7 +204,7 @@ export default async function NegociacoesPage(
         <div>
           <h1 className="text-xl font-semibold text-texto">Negociações</h1>
           <p className="mt-0.5 text-sm text-texto-discreto">
-            {total.toLocaleString("pt-BR")} negócio(s) registrado(s)
+            {total.toLocaleString("pt-BR")} negócio(s) {filtrando ? "encontrado(s)" : "registrado(s)"}
           </p>
         </div>
         {writable && properties.length > 0 && (
@@ -240,10 +268,14 @@ export default async function NegociacoesPage(
       </div>
 
       <div className="rounded-lg border border-borda bg-superficie">
-        <div className="border-b border-borda px-4 py-3">
+        <div className="space-y-3 border-b border-borda px-4 py-3">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-texto-secundario">
             Negócios recentes
           </h2>
+          <NegotiationFilters
+            contacts={contacts.map((c) => ({ id: c.id, name: c.name }))}
+            tipos={(Object.keys(TIPO_LABEL) as NegotiationType[]).map((t) => ({ value: t, label: TIPO_LABEL[t] }))}
+          />
         </div>
         <Table>
           <TableHeader>
@@ -261,7 +293,7 @@ export default async function NegociacoesPage(
             {items.length === 0 && (
               <TableRow>
                 <TableCell colSpan={7} className="py-6 text-center text-texto-discreto">
-                  Nenhum negócio registrado ainda.
+                  {filtrando ? "Nenhum negócio com esses filtros." : "Nenhum negócio registrado ainda."}
                 </TableCell>
               </TableRow>
             )}

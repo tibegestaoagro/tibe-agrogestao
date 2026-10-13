@@ -6,6 +6,7 @@ import {
   createCattleNegotiation,
   listNegotiations,
   serializeNegotiation,
+  SITUACOES_NEGOCIACAO,
   type NegotiationFilter,
 } from "@/lib/actions/negotiations";
 import { createProductNegotiation } from "@/lib/actions/product-negotiations";
@@ -37,6 +38,7 @@ const TIPOS_LISTA = [
   "venda_produto",
   "permuta",
   "evento",
+  "venda_leite",
 ] as const;
 
 function parseDate(raw: string | null): Date | undefined {
@@ -66,6 +68,11 @@ async function GETHandler(request: Request) {
 
   // Canceladas aparecem por padrão: o §17.10 exige o histórico completo.
   if (params.get("include_canceled") === "false") filter.include_canceled = false;
+
+  const situacao = params.get("situacao");
+  if (situacao && (SITUACOES_NEGOCIACAO as readonly string[]).includes(situacao)) {
+    filter.situacao = situacao as NegotiationFilter["situacao"];
+  }
 
   const limit = Number(params.get("limit"));
   const offset = Number(params.get("offset"));

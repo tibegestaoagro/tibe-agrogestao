@@ -95,3 +95,66 @@ export function saudacaoEmSaoPaulo(agora = new Date()): string {
 export function diasAte(prazo: Date, agora = new Date()): number {
   return Math.round((diaUtc(prazo) - inicioDoDiaEmSaoPaulo(agora).getTime()) / 86_400_000);
 }
+
+export type PeriodoRapido = "hoje" | "semana" | "mes" | "ano";
+
+const DIA_MS = 86_400_000;
+// ponytail: São Paulo é UTC-3 fixo desde o fim do horário de verão (2019). Se
+// ele voltar, este deslocamento passa a errar uma hora na virada do dia.
+const MEIA_NOITE_SP_EM_UTC_MS = 3 * 3_600_000;
+
+/**
+ * O intervalo de INSTANTES (`since` e `until`, os dois inclusivos) que cobre um
+ * período de calendário na fazenda. Para filtrar campo que é instante de
+ * verdade, como `Negotiation.occurred_at`: o formulário grava meio-dia local e
+ * o agente grava o agora, então a fronteira do dia tem de ser a meia-noite de
+ * São Paulo, e não a de UTC. A semana começa na segunda-feira.
+ */
+export function periodoEmSaoPaulo(periodo: PeriodoRapido, agora = new Date()): { since: Date; until: Date } {
+  const hoje = inicioDoDiaEmSaoPaulo(agora);
+  const ano = hoje.getUTCFullYear();
+  const mes = hoje.getUTCMonth();
+  let inicio: number;
+  let fim: number;
+  switch (periodo) {
+    case "hoje":
+      inicio = hoje.getTime();
+      fim = inicio + DIA_MS;
+      break;
+    case "semana":
+      inicio = hoje.getTime() - ((hoje.getUTCDay() + 6) % 7) * DIA_MS;
+      fim = inicio + 7 * DIA_MS;
+      break;
+    case "mes":
+      inicio = Date.UTC(ano, mes, 1);
+      fim = Date.UTC(ano, mes + 1, 1);
+      break;
+    case "ano":
+      inicio = Date.UTC(ano, 0, 1);
+      fim = Date.UTC(ano + 1, 0, 1);
+      break;
+  }
+  return {
+    since: new Date(inicio + MEIA_NOITE_SP_EM_UTC_MS),
+    until: new Date(fim + MEIA_NOITE_SP_EM_UTC_MS - 1),
+  };
+}
+
+/**
+ * Período personalizado: duas datas de `<input type="date">` ("YYYY-MM-DD"),
+ * do começo do primeiro dia ao fim do último, em São Paulo. Data inválida ou
+ * ausente vira `undefined`, e aquela ponta fica aberta.
+ */
+export function periodoDeDatasEmSaoPaulo(de?: string | null, ate?: string | null): { since?: Date; until?: Date } {
+  const dia = (s?: string | null) => {
+    if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return undefined;
+    const t = Date.parse(`${s}T00:00:00Z`);
+    return Number.isNaN(t) ? undefined : t;
+  };
+  const inicio = dia(de);
+  const fim = dia(ate);
+  return {
+    since: inicio === undefined ? undefined : new Date(inicio + MEIA_NOITE_SP_EM_UTC_MS),
+    until: fim === undefined ? undefined : new Date(fim + DIA_MS + MEIA_NOITE_SP_EM_UTC_MS - 1),
+  };
+}

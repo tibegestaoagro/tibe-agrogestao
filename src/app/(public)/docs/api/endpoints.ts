@@ -395,7 +395,7 @@ export const GROUPS: Group[] = [
         path: "/api/v1/negotiations",
         auth: "Sessão · rebanho:read · perfil fazenda",
         description:
-          "Lista as negociações, da mais recente para a mais antiga. Canceladas aparecem por padrão (o §17.10 exige histórico completo); use `include_canceled=false` para ocultar. Filtros: type, contact_id, property_id, since, until, limit (máx. 200), offset. Cada item já traz a SITUAÇÃO derivada e os totais do §15.",
+          "Lista as negociações, da mais recente para a mais antiga. Canceladas aparecem por padrão (o §17.10 exige histórico completo); use `include_canceled=false` para ocultar. Filtros: type (os sete tipos, inclusive venda_leite), contact_id, property_id, since, until, situacao (confirmada, vencida, parcialmente_paga, paga, cancelada, sem_valor), limit (máx. 200), offset. A situação é derivada das contas e não gravada: com ela o período inteiro é calculado antes de paginar. Cada item já traz a SITUAÇÃO derivada e os totais do §15.",
         response: `200
 { "data": [{ "id": "cl...", "type": "venda_gado", "amount": 80000, "situacao": "paga", "totais": { "principal": 80000, "custos": 5500, "total": 85500, "liquido": 74500 } }], "meta": { "total": 1 } }`,
       },
