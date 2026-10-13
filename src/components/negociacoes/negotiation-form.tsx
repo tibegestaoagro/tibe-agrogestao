@@ -33,6 +33,10 @@ import { HERD_CATEGORIES } from "@/lib/herd/categories";
 
 type Property = { id: string; name: string };
 type Contact = { id: string; name: string };
+type Pasture = { id: string; name: string; property_id: string };
+
+/** O Select do Radix não aceita valor vazio: "sem pasto" precisa de um nome. */
+const SEM_PASTO = "__sem_pasto__";
 
 type Parcela = { due_date: string; amount: string };
 type Custo = { descricao: string; amount: string };
@@ -50,6 +54,7 @@ const ORDEM = [
   "amount",
   "occurred_at",
   "property_id",
+  "pasture_id",
   "contact_name",
   "due_date",
   "notes",
@@ -92,10 +97,13 @@ function emMeses(base: string, meses: number) {
 export default function NegotiationForm({
   properties,
   contacts,
+  pastures,
   defaultPropertyId,
 }: {
   properties: Property[];
   contacts: Contact[];
+  /** Só os ativos: pasto desativado não recebe nem cede gado pelo formulário. */
+  pastures: Pasture[];
   defaultPropertyId?: string | null;
 }) {
   const router = useRouter();
@@ -108,6 +116,9 @@ export default function NegotiationForm({
   // Texto livre, nao id: quem digita um nome novo cadastra o contato junto
   // com o negocio (§5). Ver o comentario do campo, abaixo.
   const [contactName, setContactName] = useState("");
+  // §6.2 e §7.2: pasto de destino (compra) ou de origem (venda), opcional. O
+  // WhatsApp já gravava; a tela não oferecia. Vazio = gado sem pasto definido.
+  const [pastureId, setPastureId] = useState(SEM_PASTO);
   const [categoryId, setCategoryId] = useState("");
   const [quantity, setQuantity] = useState("");
   const [amount, setAmount] = useState("");
@@ -123,6 +134,7 @@ export default function NegotiationForm({
   const [notes, setNotes] = useState("");
 
   const compra = type === "compra_gado";
+  const pastosDaFazenda = pastures.filter((p) => p.property_id === propertyId);
   const valorNumero = lerValorDoCampo(amount) ?? 0;
 
   const somaParcelas = useMemo(
@@ -140,6 +152,7 @@ export default function NegotiationForm({
   function reset() {
     setType("compra_gado");
     setContactName("");
+    setPastureId(SEM_PASTO);
     setCategoryId("");
     setQuantity("");
     setAmount("");
@@ -191,7 +204,7 @@ export default function NegotiationForm({
       type,
       property_id: propertyId,
       contact_name: contactName.trim() || null,
-      itens: [{ category_id: categoryId, quantity: qtd }],
+      itens: [{ category_id: categoryId, quantity: qtd, pasture_id: pastureId === SEM_PASTO ? null : pastureId }],
       amount: valorNumero,
       occurred_at: new Date(`${occurredAt}T12:00:00`).toISOString(),
       pago,
@@ -322,7 +335,10 @@ export default function NegotiationForm({
             value={propertyId}
             onValueChange={(v) => {
               setPropertyId(v);
+              // O pasto é da fazenda: trocar a fazenda invalida o escolhido.
+              setPastureId(SEM_PASTO);
               err.limparCampo("property_id");
+              err.limparCampo("pasture_id");
             }}
           >
             <SelectTrigger id={id} {...aria}>
@@ -338,6 +354,37 @@ export default function NegotiationForm({
           </Select>
         )}
       </Field>
+
+      {pastosDaFazenda.length > 0 && (
+        <Field
+          label={compra ? "Pasto de destino (opcional)" : "Pasto de origem (opcional)"}
+          hint={compra ? undefined : "Na venda, o saldo conferido é o deste pasto."}
+          id="pasture_id"
+          error={err.erros.pasture_id}
+        >
+          {({ id, ...aria }) => (
+            <Select
+              value={pastureId}
+              onValueChange={(v) => {
+                setPastureId(v);
+                err.limparCampo("pasture_id");
+              }}
+            >
+              <SelectTrigger id={id} {...aria}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={SEM_PASTO}>Sem pasto definido</SelectItem>
+                {pastosDaFazenda.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </Field>
+      )}
 
           {/*
             §5: "cadastro simples e rápido", sem CPF, endereço nem dados

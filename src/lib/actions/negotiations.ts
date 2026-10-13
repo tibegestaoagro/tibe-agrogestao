@@ -560,7 +560,10 @@ export async function createCattleNegotiation(
         negotiation_id: negociacao.id,
       });
       // throw, nao return: e o unico jeito de desfazer a negociacao ja criada.
-      if (!movimento.ok) throw new AbortarNegociacao(movimento);
+      // O pasto recusado ganha o campo, para a recusa cair embaixo dele na tela.
+      if (!movimento.ok) {
+        throw new AbortarNegociacao(movimento.code === "INVALID_PASTURE" ? { ...movimento, field: "pasture_id" } : movimento);
+      }
     }
 
     // O dinheiro do valor principal: uma linha à vista, ou uma por parcela.

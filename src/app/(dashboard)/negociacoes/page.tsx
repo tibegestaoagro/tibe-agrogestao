@@ -232,6 +232,7 @@ export default async function NegociacoesPage(
             <NegotiationForm
               properties={properties.map((p) => ({ id: p.id, name: p.name }))}
               contacts={contacts.map((c) => ({ id: c.id, name: c.name }))}
+              pastures={pastures.map((p) => ({ id: p.id, name: p.name, property_id: p.property_id }))}
               defaultPropertyId={effectivePropertyId ?? null}
             />
           </div>

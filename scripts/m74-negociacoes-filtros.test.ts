@@ -173,11 +173,50 @@ async function main() {
       const leite = await chama("type=venda_leite");
       assert(leite.status === 200 && leite.body.meta.total === 0, "type=venda_leite filtra (antes devolvia os seis)", String(leite.body.meta.total));
     }
+
+    console.log("\n4. Pasto de destino e de origem, pela rota que a tela usa (§6.2 e §7.2)");
+    {
+      const pasto = await db.pasture.create({ data: scoped({ property_id: fazenda.id, name: "Pasto M74", area_hectares: 5 }) });
+      const outra = await db.property.create({ data: scoped({ name: "Outra M74" }) });
+      const pastoAlheio = await db.pasture.create({ data: scoped({ property_id: outra.id, name: "Pasto alheio", area_hectares: 5 }) });
+      const post = (corpo: unknown) =>
+        withBearer(token, () =>
+          rota.POST(
+            new Request("http://localhost/api/v1/negotiations", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(corpo),
+            }),
+          ),
+        ).then(async (r) => ({ status: r.status, body: (await r.json()) as { data?: { id: string }; error?: { code: string; field?: string } } }));
+      const item = (pasture_id: string | null, quantity: number) => [{ category_id: "macho_13_24", quantity, pasture_id }];
+
+      const compra = await post({ type: "compra_gado", property_id: fazenda.id, itens: item(pasto.id, 10), amount: 20000, pago: true });
+      const mov = compra.body.data
+        ? await db.herdMovement.findFirst({ where: { negotiation_id: compra.body.data.id } })
+        : null;
+      assert(compra.status === 201 && mov?.to_pasture_id === pasto.id, "a compra põe o gado no pasto escolhido", `${compra.status} ${mov?.to_pasture_id}`);
+
+      const demais = await post({ type: "venda_gado", property_id: fazenda.id, itens: item(pasto.id, 11), amount: 5000, pago: true });
+      assert(demais.status === 422, "vender 11 de um pasto com 10 é recusado: o saldo é o do pasto", String(demais.status));
+
+      const venda = await post({ type: "venda_gado", property_id: fazenda.id, itens: item(pasto.id, 4), amount: 5000, pago: true });
+      const saida = venda.body.data ? await db.herdMovement.findFirst({ where: { negotiation_id: venda.body.data.id } }) : null;
+      assert(venda.status === 201 && saida?.from_pasture_id === pasto.id, "a venda tira do pasto de origem", `${venda.status} ${saida?.from_pasture_id}`);
+
+      const alheio = await post({ type: "compra_gado", property_id: fazenda.id, itens: item(pastoAlheio.id, 1), amount: 100, pago: true });
+      assert(
+        alheio.status === 422 && alheio.body.error?.field === "pasture_id",
+        "pasto de outra fazenda é recusado embaixo do campo do pasto",
+        `${alheio.status} ${alheio.body.error?.code} ${alheio.body.error?.field}`,
+      );
+    }
   } finally {
     const where = { tenant_id: tenant.id };
     await prisma.financialEntry.deleteMany({ where });
     await prisma.herdMovement.deleteMany({ where });
     await prisma.negotiation.deleteMany({ where });
+    await prisma.pasture.deleteMany({ where });
     await prisma.property.deleteMany({ where });
     await prisma.user.deleteMany({ where });
     await prisma.tenant.deleteMany({ where: { id: tenant.id } });
