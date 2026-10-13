@@ -170,6 +170,12 @@ jobs:
       - name: Worker da rotina diaria
         run: npm run test:m44
 
+      # Os contratos do pacote contra as rotas reais: resposta, chave exata,
+      # lista aninhada com item e enum igual ao do Prisma. Monta o proprio
+      # tenant, entao nao depende de seed.
+      - name: Contratos contra o servidor
+        run: npm run test:m73
+
   drift:
     name: Schema e migracoes contam a mesma historia
     runs-on: ubuntu-latest
