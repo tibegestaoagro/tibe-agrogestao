@@ -17,6 +17,7 @@ import { FormSheet } from "@/components/ui/form-sheet";
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { apiPost } from "@/lib/client-api";
 import { HERD_CATEGORIES } from "@/lib/herd/categories";
+import { FORMAS_DE_PAGAMENTO } from "@/lib/formas-de-pagamento";
 
 /**
  * "Comprei gado" e "Vendi gado" (§3.1 e §3.2) num formulário só.
@@ -37,6 +38,7 @@ type Pasture = { id: string; name: string; property_id: string };
 
 /** O Select do Radix não aceita valor vazio: "sem pasto" precisa de um nome. */
 const SEM_PASTO = "__sem_pasto__";
+const SEM_FORMA = "__sem_forma__";
 
 type Parcela = { due_date: string; amount: string };
 type Custo = { descricao: string; amount: string };
@@ -57,6 +59,7 @@ const ORDEM = [
   "pasture_id",
   "contact_name",
   "due_date",
+  "payment_method",
   "notes",
 ] as const;
 type Campo = (typeof ORDEM)[number];
@@ -130,6 +133,7 @@ export default function NegotiationForm({
   // alerta de atraso disparava no mesmo dia da compra.
   const [vencimento, setVencimento] = useState(hoje());
   const [parcelas, setParcelas] = useState<Parcela[]>([]);
+  const [formaPagamento, setFormaPagamento] = useState(SEM_FORMA);
   const [custos, setCustos] = useState<Custo[]>([]);
   const [notes, setNotes] = useState("");
 
@@ -160,6 +164,7 @@ export default function NegotiationForm({
     setPago(true);
     setVencimento(hoje());
     setParcelas([]);
+    setFormaPagamento(SEM_FORMA);
     setCustos([]);
     setNotes("");
     err.limparTudo();
@@ -219,6 +224,7 @@ export default function NegotiationForm({
         .filter((c) => c.descricao.trim() && (lerValorDoCampo(c.amount) ?? 0) > 0)
         .map((c) => ({ descricao: c.descricao.trim(), amount: lerValorDoCampo(c.amount) ?? 0 })),
       notes: notes.trim() || null,
+      payment_method: formaPagamento === SEM_FORMA ? null : formaPagamento,
     });
     setLoading(false);
 
@@ -517,6 +523,37 @@ export default function NegotiationForm({
                 )}
               </div>
             )}
+
+            {/* §13: opcional, e o documento proíbe exigir. Vale para todas as parcelas. */}
+            <div className="mt-3">
+              <Field
+                label={pago ? (compra ? "Como pagou (opcional)" : "Como recebeu (opcional)") : "Forma combinada (opcional)"}
+                id="payment_method"
+                error={err.erros.payment_method}
+              >
+                {({ id, ...aria }) => (
+                  <Select
+                    value={formaPagamento}
+                    onValueChange={(v) => {
+                      setFormaPagamento(v);
+                      err.limparCampo("payment_method");
+                    }}
+                  >
+                    <SelectTrigger id={id} {...aria}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={SEM_FORMA}>Não informar</SelectItem>
+                      {FORMAS_DE_PAGAMENTO.map((f) => (
+                        <SelectItem key={f.valor} value={f.valor}>
+                          {f.rotulo}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </Field>
+            </div>
           </div>
 
       <div className="rounded-md border border-borda p-3">

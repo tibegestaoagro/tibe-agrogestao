@@ -126,6 +126,7 @@ async function POSTHandler(request: Request) {
     })),
     custos: d.custos ?? [],
     notes: d.notes ?? null,
+    payment_method: d.payment_method ?? null,
     recorded_by_user_id: g.user.id,
   });
   if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
@@ -159,6 +160,7 @@ async function criarNegocioDeProduto(g: GuardOk, json: unknown) {
     })),
     custos: d.custos ?? [],
     notes: d.notes ?? null,
+    payment_method: d.payment_method ?? null,
     recorded_by_user_id: g.user.id,
   });
   if (!result.ok) return apiError(result.code, result.message, result.status, result.field);

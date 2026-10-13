@@ -10,6 +10,7 @@ import { estadiaJaEncerrada } from "@/lib/actions/herd-stays";
 import { donoDaEstadia, situacaoDaEstadia } from "@/lib/herd/stay-rules";
 import { descreverQuantidade } from "@/lib/stock/units";
 import { prazoVencido } from "@/lib/dia-calendario";
+import type { FormaDePagamento } from "@/lib/formas-de-pagamento";
 
 /**
  * Área Negociações (docs/moduloNegociacao), missão 1: negócio de gado.
@@ -78,6 +79,12 @@ export type NegociacaoGadoInput = {
   custos?: CustoInput[];
   notes?: string | null;
   recorded_by_user_id?: string | null;
+  /**
+   * §13: a forma combinada (dinheiro, pix...). Opcional: o §13 proíbe exigi-la.
+   * Vai para as contas PRINCIPAIS, todas as parcelas; frete e comissão costumam
+   * sair de outro jeito e ficam sem forma.
+   */
+  payment_method?: FormaDePagamento | null;
 };
 
 /** §16, derivada dos filhos: nunca gravada. Ver o comentário no schema. */
@@ -592,6 +599,7 @@ export async function createCattleNegotiation(
         negotiation_role: "principal",
         property_id: input.property_id,
         contact_id: contactId,
+        payment_method: input.payment_method ?? null,
       });
     }
 

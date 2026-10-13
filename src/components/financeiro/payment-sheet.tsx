@@ -17,6 +17,7 @@ import { MoneyInput, lerValorDoCampo } from "@/components/ui/money-input";
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { useAviso } from "@/components/ui/toast";
 import { apiPost, apiGet, apiDelete } from "@/lib/client-api";
+import { FORMAS_DE_PAGAMENTO, ROTULO_DA_FORMA } from "@/lib/formas-de-pagamento";
 
 /**
  * Pagamento e recebimento, inteiro ou PARCIAL (§13 e §14 do documento do
@@ -33,19 +34,6 @@ import { apiPost, apiGet, apiDelete } from "@/lib/client-api";
 const ORDEM = ["amount", "paid_at", "method", "notes"] as const;
 type Campo = (typeof ORDEM)[number];
 
-const FORMAS: { valor: string; rotulo: string }[] = [
-  { valor: "dinheiro", rotulo: "Dinheiro" },
-  { valor: "pix", rotulo: "PIX" },
-  { valor: "transferencia", rotulo: "Transferência" },
-  { valor: "boleto", rotulo: "Boleto" },
-  { valor: "cheque", rotulo: "Cheque" },
-  { valor: "cartao", rotulo: "Cartão" },
-  { valor: "outro", rotulo: "Outro" },
-];
-
-const ROTULO_DA_FORMA: Record<string, string> = Object.fromEntries(
-  FORMAS.map((f) => [f.valor, f.rotulo]),
-);
 
 type Pagamento = {
   id: string;
@@ -263,7 +251,7 @@ export default function PaymentSheet({
               <SelectValue placeholder="Não informar" />
             </SelectTrigger>
             <SelectContent>
-              {FORMAS.map((f) => (
+              {FORMAS_DE_PAGAMENTO.map((f) => (
                 <SelectItem key={f.valor} value={f.valor}>
                   {f.rotulo}
                 </SelectItem>

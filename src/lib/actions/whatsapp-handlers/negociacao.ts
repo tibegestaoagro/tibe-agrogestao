@@ -1,5 +1,6 @@
 import type { HerdCategory } from "@/lib/herd/categories";
 import { createCattleNegotiation } from "@/lib/actions/negotiations";
+import { lerFormaDePagamento } from "@/lib/formas-de-pagamento";
 import {
   savePendingNegotiation,
   loadPendingNegotiation,
@@ -709,6 +710,9 @@ export const registrarNegocioGado: Handler = async ({
       : undefined,
     custos: custos.length > 0 ? custos.map((c) => ({ descricao: c.descricao, amount: c.valor })) : undefined,
     occurred_at: quando,
+    // §13: o classificador ainda não manda (n8n congelado); quando mandar, a
+    // forma entra sem mudar este handler. O que não reconhece vira nulo.
+    payment_method: lerFormaDePagamento(parameters.forma_pagamento ?? parameters.payment_method),
     recorded_by_user_id: user_id ?? null,
   });
 

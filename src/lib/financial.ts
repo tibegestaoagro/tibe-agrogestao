@@ -1,4 +1,4 @@
-import type { Prisma, NegotiationEntryRole, WorkerEntryKind } from "@/generated/prisma/client";
+import type { Prisma, NegotiationEntryRole, WorkerEntryKind, PaymentMethod } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 
 // O RelatedModule do Prisma, IMPORTADO, não espelhado à mão.
@@ -104,6 +104,12 @@ export async function createLinkedEntry(
      */
     property_id?: string | null;
     contact_id?: string | null;
+    /**
+     * §13 de Negociações: a forma combinada. Vai para o lançamento e, quando
+     * ele nasce pago, também para o pagamento que nasce junto, porque é a
+     * forma em que aquele dinheiro saiu de fato.
+     */
+    payment_method?: PaymentMethod | null;
   },
 ) {
   const status = params.status ?? "paid";
@@ -122,6 +128,7 @@ export async function createLinkedEntry(
       worker_entry_kind: params.worker_entry_kind ?? null,
       property_id: params.property_id ?? null,
       contact_id: params.contact_id ?? null,
+      payment_method: params.payment_method ?? null,
     }),
   });
 
@@ -143,6 +150,7 @@ export async function createLinkedEntry(
         entry_id: entry.id,
         amount: params.amount,
         paid_at: params.occurred_at,
+        method: params.payment_method ?? null,
       }),
     });
   }

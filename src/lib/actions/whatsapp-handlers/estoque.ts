@@ -1,5 +1,6 @@
 import type { TenantPrismaClient } from "@/lib/prisma";
 import { createProductNegotiation } from "@/lib/actions/product-negotiations";
+import { lerFormaDePagamento } from "@/lib/formas-de-pagamento";
 import { recordStockMovement, adjustStock, getStockBalance } from "@/lib/actions/stock-ledger";
 import { listProductsWithBalance } from "@/lib/actions/products";
 import {
@@ -1110,6 +1111,9 @@ export const registrarNegocioProduto: Handler = async (ctx) => {
     parcelas: parcelas.map((p) => ({ due_date: p.due_date, amount: p.amount })),
     custos: custos.map((c) => ({ descricao: c.descricao, amount: c.valor })),
     notes: str(parameters.observacao) ?? str(parameters.notes) ?? null,
+    // §13: o classificador ainda não manda (n8n congelado); quando mandar, a
+    // forma entra sem mudar este handler. O que não reconhece vira nulo.
+    payment_method: lerFormaDePagamento(parameters.forma_pagamento ?? parameters.payment_method),
     recorded_by_user_id: user_id ?? null,
   });
   if (resultado.ok && user_id) await clearPendingStock(tenant_id, user_id);

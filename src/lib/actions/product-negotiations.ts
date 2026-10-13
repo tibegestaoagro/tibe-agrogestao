@@ -8,6 +8,7 @@ import { recordStockMovementInTx } from "@/lib/actions/stock-ledger";
 import { findOrCreateContact } from "@/lib/actions/contacts";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { descreverQuantidade } from "@/lib/stock/units";
+import type { FormaDePagamento } from "@/lib/formas-de-pagamento";
 
 /**
  * "Comprei produtos" e "Vendi produtos" (Módulo 31, §9).
@@ -54,6 +55,12 @@ export type NegociacaoProdutoInput = {
   custos?: CustoInput[];
   notes?: string | null;
   recorded_by_user_id?: string | null;
+  /**
+   * §13: a forma combinada (dinheiro, pix...). Opcional: o §13 proíbe exigi-la.
+   * Vai para as contas PRINCIPAIS, todas as parcelas; frete e comissão costumam
+   * sair de outro jeito e ficam sem forma.
+   */
+  payment_method?: FormaDePagamento | null;
 };
 
 const CATEGORIA_FINANCEIRA = {
@@ -225,6 +232,7 @@ export async function createProductNegotiation(
           negotiation_role: "principal",
           property_id: input.property_id,
           contact_id: contactId,
+          payment_method: input.payment_method ?? null,
         });
       }
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { VALORES_DE_FORMA } from "@/lib/formas-de-pagamento";
 import { STOCK_UNITS } from "@/lib/stock/units";
 
 /**
@@ -84,5 +85,7 @@ export const productNegotiationSchema = z.object({
   due_date: z.string().datetime({ message: "Data de vencimento inválida" }).nullish(),
   parcelas: z.array(parcelaSchema).nullish(),
   custos: z.array(custoSchema).nullish(),
+  /** §13: opcional, nunca exigida. */
+  payment_method: z.enum(VALORES_DE_FORMA, { message: "Escolha uma das formas de pagamento" }).nullish(),
   notes: z.string().trim().max(1000).nullish(),
 });

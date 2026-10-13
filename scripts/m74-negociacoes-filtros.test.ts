@@ -211,11 +211,73 @@ async function main() {
         `${alheio.status} ${alheio.body.error?.code} ${alheio.body.error?.field}`,
       );
     }
+
+    console.log("\n5. Forma de pagamento (§13), gravada no lançamento");
+    {
+      const { lerFormaDePagamento } = await import("@/lib/formas-de-pagamento");
+      assert(lerFormaDePagamento("paguei no pix") === "pix", "\"no pix\" vira pix");
+      assert(lerFormaDePagamento("em dinheiro vivo") === "dinheiro", "\"em dinheiro\" vira dinheiro");
+      assert(lerFormaDePagamento("cartão de crédito") === "cartao", "\"cartão de crédito\" vira cartão");
+      assert(lerFormaDePagamento("transferência") === "transferencia", "\"transferência\" com acento vira transferencia");
+      assert(lerFormaDePagamento("fiado") === null && lerFormaDePagamento(42) === null, "o que não reconhece vira nulo, nunca uma forma inventada");
+
+      const post = (corpo: unknown) =>
+        withBearer(token, () =>
+          rota.POST(
+            new Request("http://localhost/api/v1/negotiations", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(corpo),
+            }),
+          ),
+        ).then(async (r) => ({ status: r.status, body: (await r.json()) as { data?: { id: string }; error?: { field?: string } } }));
+      const itens = [{ category_id: "bezerro_0_7", quantity: 3 }];
+
+      const avista = await post({
+        type: "compra_gado", property_id: fazenda.id, itens, amount: 3000, pago: true,
+        payment_method: "pix", custos: [{ descricao: "Frete", amount: 200 }],
+      });
+      const contas = avista.body.data ? await db.financialEntry.findMany({ where: { negotiation_id: avista.body.data.id } }) : [];
+      const principal = contas.find((e) => e.negotiation_role === "principal");
+      const frete = contas.find((e) => e.negotiation_role === "custo_adicional");
+      const pagamento = principal ? await db.financialPayment.findFirst({ where: { entry_id: principal.id } }) : null;
+      assert(avista.status === 201 && principal?.payment_method === "pix", "à vista no pix: a conta principal guarda pix", `${avista.status} ${principal?.payment_method}`);
+      assert(pagamento?.method === "pix", "e o pagamento que nasce junto também", String(pagamento?.method));
+      assert(frete != null && frete.payment_method === null, "o frete fica sem forma: costuma sair de outro jeito");
+
+      const prazo = await post({
+        type: "compra_gado", property_id: fazenda.id, itens, amount: 3000, pago: false, payment_method: "boleto",
+        parcelas: [
+          { due_date: new Date(Date.now() + 30 * 86_400_000).toISOString(), amount: 1500 },
+          { due_date: new Date(Date.now() + 60 * 86_400_000).toISOString(), amount: 1500 },
+        ],
+      });
+      const parcelas = prazo.body.data ? await db.financialEntry.findMany({ where: { negotiation_id: prazo.body.data.id } }) : [];
+      assert(parcelas.length === 2 && parcelas.every((p) => p.payment_method === "boleto"), "parcelado no boleto: as duas parcelas guardam boleto");
+
+      const semForma = await post({ type: "compra_gado", property_id: fazenda.id, itens, amount: 100, pago: true });
+      const contaSem = semForma.body.data ? await db.financialEntry.findFirst({ where: { negotiation_id: semForma.body.data.id } }) : null;
+      assert(semForma.status === 201 && contaSem?.payment_method === null, "sem forma informada, o negócio entra igual: o §13 proíbe exigir");
+
+      const lixo = await post({ type: "compra_gado", property_id: fazenda.id, itens, amount: 100, pago: true, payment_method: "bitcoin" });
+      assert(lixo.status === 422 && lixo.body.error?.field === "payment_method", "forma desconhecida é recusada no campo da forma");
+
+      const categoria = await db.productCategory.create({ data: scoped({ name: "Insumos M74" }) });
+      const produto = await db.product.create({ data: scoped({ name: "Sal M74", category_id: categoria.id, unit: "saca" }) });
+      const comProduto = await post({
+        type: "compra_produto", property_id: fazenda.id, itens: [{ product_id: produto.id, quantity: 2 }],
+        amount: 400, pago: true, payment_method: "dinheiro",
+      });
+      const contaProduto = comProduto.body.data ? await db.financialEntry.findFirst({ where: { negotiation_id: comProduto.body.data.id } }) : null;
+      assert(comProduto.status === 201 && contaProduto?.payment_method === "dinheiro", "na compra de produto também", `${comProduto.status} ${contaProduto?.payment_method}`);
+    }
   } finally {
     const where = { tenant_id: tenant.id };
     await prisma.financialEntry.deleteMany({ where });
     await prisma.herdMovement.deleteMany({ where });
+    await prisma.stockMovement.deleteMany({ where });
     await prisma.negotiation.deleteMany({ where });
+    await prisma.product.deleteMany({ where });
     await prisma.pasture.deleteMany({ where });
     await prisma.property.deleteMany({ where });
     await prisma.user.deleteMany({ where });
