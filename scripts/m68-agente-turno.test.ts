@@ -1162,7 +1162,11 @@ async function main() {
           await limparCursor(tenant.id, owner.id);
 
           // Primeiro contato: saudação, gravada para o reenvio repetir a saudação.
-          const phoneNovo = `12${String(stamp).slice(-9)}`;
+          // Já na forma canônica (55 + DDD + 9 + 8 dígitos), como o `phoneDono`.
+          // Era `12` + 9 dígitos do relógio: quando o primeiro deles dava 9, a
+          // busca normalizava para `5512...` e não achava o `12...` gravado, e a
+          // suíte falhava cerca de um dia em cada dez.
+          const phoneNovo = `55129${String(stamp).slice(-8)}`;
           await prisma.user.create({
             data: { tenant_id: tenant.id, name: "Novo M68", email: `m68-novo-${stamp}@teste.local`, password_hash: "x", role: "OPERADOR", active: true, phone: phoneNovo },
           });
