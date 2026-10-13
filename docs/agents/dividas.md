@@ -37,24 +37,20 @@ a suíte verde não tinham pego.
 
 **Custo:** uma sessão de celular, mais o cadastro dos três produtos do bloco 0.
 
-### 1.2 App mobile: 5 defeitos corrigidos, sem reteste
+### 1.2 App mobile: três itens do reteste não exercitados
 
-Os 3 commits da `app-mobile-fundacao` (parada desde 05/08) foram rebaseados
-sobre a `main` em 08/10, na branch **`app-mobile-rebase`**, sem conflito. Eles
-levam as abas Meu Dia e Tibé, Máquinas, a fila de escrita offline e a
-biometria. Conferido contra o back-end atual: as 11 rotas que o app chama
-existem, os corpos que ele manda passam nos schemas, e o `tsc` do app está
-limpo. A única diferença era de tipo (status `cancelled` e três módulos novos
-do financeiro), corrigida.
+O app entrou na `main` em 13/10 (`c27f475`), depois de reteste num Android
+real: login, barra de abas acima dos botões do sistema, cartão de Máquinas no
+Mais, e máquina criada em modo avião subindo sozinha quando o sinal voltou
+(conferida no banco). A mensagem de rede em português apareceu no reteste de
+08/10.
 
-Os 5 defeitos achados com modo avião num Android real foram corrigidos **e
-nunca retestados**. Falta só isso, e é do usuário: Expo Go (SDK 54), modo
-avião, e conferir (1) o formulário de máquina abre sem sinal e mostra as
-fazendas depois de a LISTA de máquinas ter carregado com sinal, (2) despesa
-lançada sem sinal entra na fila em vez de falhar, (3) a mensagem de erro de
-rede vem em português, (4) a faixa de pendências aparece no Financeiro e no
-Início, (5) "Escolha a fazenda" aparece no próprio campo. A branch entra na
-`main` depois disso.
+Não foram exercitados no aparelho: (1) despesa lançada sem sinal entra na
+fila em vez de falhar, (2) a faixa de pendências aparece no Financeiro e no
+Início (vista só em Máquinas), (3) "Escolha a fazenda" aparece no próprio
+campo. Exige Expo Go do **SDK 54**: o da Play Store se atualiza para o 57 e
+recusa o projeto; instalar o APK de `expo.dev/go` e desligar a atualização
+automática.
 
 ### 1.3 Asaas nunca foi testado contra o sandbox real
 
