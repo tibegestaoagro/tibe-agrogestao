@@ -27,9 +27,10 @@ import { FORMAS_DE_PAGAMENTO } from "@/lib/formas-de-pagamento";
  *
  * O documento é insistente sobre não parecer sistema contábil (§2), então a
  * ordem das perguntas segue a da conversa do produtor: o que, quanto, de quem,
- * já pagou. Peso, arroba e valor por cabeça ficam de fora desta versão porque o
- * §6.2 os marca como opcionais e diz, no fim do parágrafo, que o sistema não
- * deve exigi-los quando o produtor informar apenas o valor total.
+ * já pagou. Peso e arroba (§6.2) ficam num bloco que só abre quando o produtor
+ * pede: o parágrafo proíbe exigi-los quando ele informa só o valor total, e
+ * eles nunca mudam o valor do negócio. Valor por cabeça e peso médio são
+ * calculados aqui, para ele conferir, e não são gravados.
  */
 
 type Property = { id: string; name: string };
@@ -54,6 +55,9 @@ const ORDEM = [
   "category_id",
   "quantity",
   "amount",
+  "total_weight_kg",
+  "arroba_count",
+  "arroba_price",
   "occurred_at",
   "property_id",
   "pasture_id",
@@ -136,10 +140,18 @@ export default function NegotiationForm({
   const [formaPagamento, setFormaPagamento] = useState(SEM_FORMA);
   const [custos, setCustos] = useState<Custo[]>([]);
   const [notes, setNotes] = useState("");
+  const [comPeso, setComPeso] = useState(false);
+  const [pesoTotal, setPesoTotal] = useState("");
+  const [arrobas, setArrobas] = useState("");
+  const [valorArroba, setValorArroba] = useState("");
 
   const compra = type === "compra_gado";
   const pastosDaFazenda = pastures.filter((p) => p.property_id === propertyId);
   const valorNumero = lerValorDoCampo(amount) ?? 0;
+  const qtdNumero = lerValorDoCampo(quantity) ?? 0;
+  const pesoNumero = lerValorDoCampo(pesoTotal) ?? 0;
+  const arrobasNumero = lerValorDoCampo(arrobas) ?? 0;
+  const valorArrobaNumero = lerValorDoCampo(valorArroba) ?? 0;
 
   const somaParcelas = useMemo(
     () => parcelas.reduce((s, p) => s + (lerValorDoCampo(p.amount) ?? 0), 0),
@@ -165,6 +177,10 @@ export default function NegotiationForm({
     setVencimento(hoje());
     setParcelas([]);
     setFormaPagamento(SEM_FORMA);
+    setComPeso(false);
+    setPesoTotal("");
+    setArrobas("");
+    setValorArroba("");
     setCustos([]);
     setNotes("");
     err.limparTudo();
@@ -225,6 +241,9 @@ export default function NegotiationForm({
         .map((c) => ({ descricao: c.descricao.trim(), amount: lerValorDoCampo(c.amount) ?? 0 })),
       notes: notes.trim() || null,
       payment_method: formaPagamento === SEM_FORMA ? null : formaPagamento,
+      total_weight_kg: comPeso ? lerValorDoCampo(pesoTotal) : null,
+      arroba_count: comPeso ? lerValorDoCampo(arrobas) : null,
+      arroba_price: comPeso ? lerValorDoCampo(valorArroba) : null,
     });
     setLoading(false);
 
@@ -334,6 +353,70 @@ export default function NegotiationForm({
           )}
         </Field>
       </div>
+
+      {comPeso ? (
+        <div className="space-y-3 rounded-md border border-borda p-3">
+          <div className="grid grid-cols-2 gap-3">
+          <Field label="Peso total (kg)" id="total_weight_kg" error={err.erros.total_weight_kg}>
+            {({ id, ...aria }) => (
+              <MoneyInput
+                id={id}
+                {...aria}
+                kind="quantidade"
+                unit="kg"
+                value={pesoTotal}
+                onValueChange={(v) => {
+                  setPesoTotal(v);
+                  err.limparCampo("total_weight_kg");
+                }}
+              />
+            )}
+          </Field>
+          <Field label="Arrobas" id="arroba_count" error={err.erros.arroba_count}>
+            {({ id, ...aria }) => (
+              <MoneyInput
+                id={id}
+                {...aria}
+                kind="quantidade"
+                unit="@"
+                value={arrobas}
+                onValueChange={(v) => {
+                  setArrobas(v);
+                  err.limparCampo("arroba_count");
+                }}
+              />
+            )}
+          </Field>
+          </div>
+          <Field label="Valor da arroba (R$)" id="arroba_price" error={err.erros.arroba_price}>
+            {({ id, ...aria }) => (
+              <MoneyInput
+                id={id}
+                {...aria}
+                value={valorArroba}
+                onValueChange={(v) => {
+                  setValorArroba(v);
+                  err.limparCampo("arroba_price");
+                }}
+              />
+            )}
+          </Field>
+          {/* Conferência, nunca gravada: o valor do negócio é o que foi digitado acima. */}
+          {qtdNumero > 0 && (
+            <p className="text-sm text-texto-secundario">
+              {valorNumero > 0 && <>Valor por cabeça: {moeda(valorNumero / qtdNumero)}. </>}
+              {pesoNumero > 0 && <>Peso médio: {(pesoNumero / qtdNumero).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg. </>}
+              {arrobasNumero > 0 && valorArrobaNumero > 0 && (
+                <>Arrobas vezes valor da arroba: {moeda(arrobasNumero * valorArrobaNumero)}.</>
+              )}
+            </p>
+          )}
+        </div>
+      ) : (
+        <button type="button" onClick={() => setComPeso(true)} className="text-sm text-acento-tinta underline">
+          Informar peso e arroba (opcional)
+        </button>
+      )}
 
       <Field label="Fazenda" required id="property_id" error={err.erros.property_id}>
         {({ id, ...aria }) => (

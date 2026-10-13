@@ -2019,6 +2019,14 @@ model Negotiation {
   /// possível conhecendo-o de forma independente.
   amount Decimal? @db.Decimal(14, 2)
 
+  /// §6.2 e §7.2: peso e arroba, opcionais e informativos, do negócio inteiro
+  /// (decisão do usuário, 2026-10-13). Nenhum deles muda `amount`: o valor
+  /// total continua sendo o que o produtor digitou. Valor por cabeça e peso
+  /// médio NÃO são gravados: saem destes e da quantidade, na hora de mostrar.
+  total_weight_kg Decimal? @db.Decimal(12, 2)
+  arroba_count    Decimal? @db.Decimal(12, 2)
+  arroba_price    Decimal? @db.Decimal(14, 2)
+
   notes               String?
   recorded_by_user_id String?
 

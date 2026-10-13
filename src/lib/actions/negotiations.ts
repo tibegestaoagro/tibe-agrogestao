@@ -85,6 +85,14 @@ export type NegociacaoGadoInput = {
    * sair de outro jeito e ficam sem forma.
    */
   payment_method?: FormaDePagamento | null;
+  /**
+   * §6.2 e §7.2: peso total (kg), arrobas e valor por arroba, opcionais e só
+   * informativos. Não mudam `amount`: o §6.2 proíbe exigi-los quando o
+   * produtor informa só o valor total.
+   */
+  total_weight_kg?: number | null;
+  arroba_count?: number | null;
+  arroba_price?: number | null;
 };
 
 /** §16, derivada dos filhos: nunca gravada. Ver o comentário no schema. */
@@ -114,6 +122,10 @@ export type NegotiationDetail = {
   contact_id: string | null;
   contact_name: string | null;
   amount: number | null;
+  /** §6.2 e §7.2: informativos, nulos quando o produtor não disse. */
+  total_weight_kg: number | null;
+  arroba_count: number | null;
+  arroba_price: number | null;
   notes: string | null;
   canceled_at: Date | null;
   canceled_reason: string | null;
@@ -344,6 +356,15 @@ function validar(input: NegociacaoGadoInput): { code: string; message: string; f
       };
     }
   }
+  const pesoEArroba = [
+    ["total_weight_kg", "O peso total precisa ser maior que zero."],
+    ["arroba_count", "A quantidade de arrobas precisa ser maior que zero."],
+    ["arroba_price", "O valor da arroba precisa ser maior que zero."],
+  ] as const;
+  for (const [campo, mensagem] of pesoEArroba) {
+    const v = input[campo];
+    if (v != null && (!Number.isFinite(v) || v <= 0)) return { code: "VALIDATION_ERROR", message: mensagem, field: campo };
+  }
   return validarPagamento(input);
 }
 
@@ -537,6 +558,9 @@ export async function createCattleNegotiation(
         property_id: input.property_id,
         contact_id: contactId,
         amount: input.amount,
+        total_weight_kg: input.total_weight_kg ?? null,
+        arroba_count: input.arroba_count ?? null,
+        arroba_price: input.arroba_price ?? null,
         notes: input.notes ?? null,
         recorded_by_user_id: input.recorded_by_user_id ?? null,
       }),
@@ -785,6 +809,9 @@ export async function getNegotiation(
     contact_id: n.contact_id,
     contact_name: n.contact?.name ?? null,
     amount: decToNum(n.amount),
+    total_weight_kg: decToNum(n.total_weight_kg),
+    arroba_count: decToNum(n.arroba_count),
+    arroba_price: decToNum(n.arroba_price),
     notes: n.notes,
     canceled_at: n.canceled_at,
     canceled_reason: n.canceled_reason,
@@ -1470,6 +1497,9 @@ export function serializeNegotiation(n: NegotiationDetail) {
     contact_id: n.contact_id,
     contact_name: n.contact_name,
     amount: n.amount,
+    total_weight_kg: n.total_weight_kg,
+    arroba_count: n.arroba_count,
+    arroba_price: n.arroba_price,
     notes: n.notes,
     canceled_at: isoOrNull(n.canceled_at),
     canceled_reason: n.canceled_reason,

@@ -56,6 +56,10 @@ export const negotiationCreateSchema = z.object({
   custos: z.array(custoSchema).nullish(),
   /** §13: opcional, nunca exigida. */
   payment_method: z.enum(VALORES_DE_FORMA, { message: "Escolha uma das formas de pagamento" }).nullish(),
+  /** §6.2 e §7.2: peso e arroba, opcionais e informativos. */
+  total_weight_kg: z.number().positive("O peso total precisa ser maior que zero").nullish(),
+  arroba_count: z.number().positive("A quantidade de arrobas precisa ser maior que zero").nullish(),
+  arroba_price: z.number().positive("O valor da arroba precisa ser maior que zero").nullish(),
   notes: z.string().trim().max(1000).nullish(),
 });
 

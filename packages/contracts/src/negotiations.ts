@@ -111,6 +111,10 @@ export const negotiationSchema = z.object({
   contact_id: z.string().nullable(),
   contact_name: z.string().nullable(),
   amount: z.number().nullable(),
+  /** §6.2 e §7.2: informativos; nulos quando o produtor não disse. */
+  total_weight_kg: z.number().nullable(),
+  arroba_count: z.number().nullable(),
+  arroba_price: z.number().nullable(),
   notes: z.string().nullable(),
   canceled_at: isoDateTimeSchema.nullable(),
   canceled_reason: z.string().nullable(),

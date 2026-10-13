@@ -272,6 +272,50 @@ async function main() {
       const contaProduto = comProduto.body.data ? await db.financialEntry.findFirst({ where: { negotiation_id: comProduto.body.data.id } }) : null;
       assert(comProduto.status === 201 && contaProduto?.payment_method === "dinheiro", "na compra de produto também", `${comProduto.status} ${contaProduto?.payment_method}`);
     }
+
+    console.log("\n6. Peso e arroba (§6.2), informativos");
+    {
+      const detalheRota = await import("@/app/api/v1/negotiations/[id]/route");
+      const post = (corpo: unknown) =>
+        withBearer(token, () =>
+          rota.POST(
+            new Request("http://localhost/api/v1/negotiations", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(corpo),
+            }),
+          ),
+        ).then(async (r) => ({ status: r.status, body: (await r.json()) as { data?: { id: string }; error?: { field?: string } } }));
+      const base = { type: "compra_gado", property_id: fazenda.id, itens: [{ category_id: "macho_25_36", quantity: 10 }], pago: true };
+
+      const comPeso = await post({ ...base, amount: 47000, total_weight_kg: 4500, arroba_count: 150, arroba_price: 320 });
+      const id = comPeso.body.data?.id ?? "";
+      const detalhe = await withBearer(token, () =>
+        (detalheRota.GET as unknown as (r: Request, c: { params: Promise<{ id: string }> }) => Promise<Response>)(
+          new Request(`http://localhost/api/v1/negotiations/${id}`),
+          { params: Promise.resolve({ id }) },
+        ),
+      ).then((r) => r.json() as Promise<{ data: { amount: number; total_weight_kg: number; arroba_count: number; arroba_price: number } }>);
+      assert(
+        comPeso.status === 201 && detalhe.data.total_weight_kg === 4500 && detalhe.data.arroba_count === 150 && detalhe.data.arroba_price === 320,
+        "peso, arrobas e valor da arroba voltam no detalhe",
+        JSON.stringify(detalhe.data).slice(0, 160),
+      );
+      assert(detalhe.data.amount === 47000, "e o valor do negócio é o digitado (47.000), não arrobas vezes preço (48.000)");
+
+      const diferente = await post({ ...base, amount: 50000, arroba_count: 150, arroba_price: 320 });
+      const neg = diferente.body.data ? await db.negotiation.findUnique({ where: { id: diferente.body.data.id } }) : null;
+      assert(diferente.status === 201 && Number(neg?.amount) === 50000, "valor total diferente de arrobas vezes preço é aceito como está: os campos só informam");
+
+      const zero = await post({ ...base, amount: 100, arroba_price: 0 });
+      assert(zero.status === 422 && zero.body.error?.field === "arroba_price", "valor da arroba zero é recusado no próprio campo");
+      const negativo = await post({ ...base, amount: 100, total_weight_kg: -5 });
+      assert(negativo.status === 422 && negativo.body.error?.field === "total_weight_kg", "peso negativo é recusado no próprio campo");
+
+      const sem = await post({ ...base, amount: 100 });
+      const negSem = sem.body.data ? await db.negotiation.findUnique({ where: { id: sem.body.data.id } }) : null;
+      assert(sem.status === 201 && negSem?.arroba_count === null && negSem?.total_weight_kg === null, "sem peso nem arroba, o negócio entra igual");
+    }
   } finally {
     const where = { tenant_id: tenant.id };
     await prisma.financialEntry.deleteMany({ where });

@@ -412,6 +412,26 @@ export default async function NegociacoesPage(
                         </span>
                       </span>
                     )}
+                    {/*
+                      §6.2: peso e arroba só quando o produtor disse. Valor por
+                      cabeça e peso médio saem da conta, nunca de campo gravado.
+                    */}
+                    {n.arroba_count != null || n.total_weight_kg != null ? (
+                      <span className="block text-xs text-texto-discreto">
+                        {animais > 0 && n.amount ? `${reais(n.amount / animais)} por cabeça` : null}
+                        {n.arroba_count != null && (
+                          <span className="block">
+                            {n.arroba_count.toLocaleString("pt-BR")} @
+                            {n.arroba_price != null ? ` a ${reais(n.arroba_price)}` : ""}
+                          </span>
+                        )}
+                        {n.total_weight_kg != null && animais > 0 && (
+                          <span className="block">
+                            {(n.total_weight_kg / animais).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg de média
+                          </span>
+                        )}
+                      </span>
+                    ) : null}
                   </TableCell>
                   <TableCell>
                     <Badge

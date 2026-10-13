@@ -127,6 +127,9 @@ async function POSTHandler(request: Request) {
     custos: d.custos ?? [],
     notes: d.notes ?? null,
     payment_method: d.payment_method ?? null,
+    total_weight_kg: d.total_weight_kg ?? null,
+    arroba_count: d.arroba_count ?? null,
+    arroba_price: d.arroba_price ?? null,
     recorded_by_user_id: g.user.id,
   });
   if (!result.ok) return apiError(result.code, result.message, result.status, result.field);
