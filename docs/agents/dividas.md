@@ -121,19 +121,24 @@ parecido em silêncio, fechado em 10/09/2026 (bloco 18 da `m34`).
 
 ## 4. Cobertura desigual
 
-### 4.1 `packages/contracts` cobre 4 domínios de muitos
+### 4.1 O app não lê `packages/contracts`, e metade dos domínios segue fora
 
-Existem contratos tipados para `alerts`, `auth`, `financial` e `users`. O
-back-end tem 58 arquivos de action e 84 rotas em `/api/v1`.
+Desde a E9 (13/10/2026) o pacote cobre também rebanho, lavoura, serviços,
+negociações e máquinas, e a `m73` (no CI) prende cada contrato ao servidor:
+resposta real, chave exata, lista aninhada com item e enum igual ao do
+Prisma. As rotas de escrita de máquinas importam o schema do pacote.
 
-Isso importa porque o app mobile consome esses contratos: o que não está lá é
-consumido sem segurança de tipo, e a divergência aparece em runtime, no
-aparelho, longe de quem escreveu.
+Sobram três furos. **O app não importa o pacote**: tem tipos próprios em
+`apps/mobile/src/types/api.ts`, então a divergência entre app e servidor
+continua aparecendo só no aparelho (importar exige configurar o Metro para
+ler fora de `apps/mobile`). **Ficam fora** confinamento, leite, estoque,
+contatos, mão de obra, tarefas e Meu Dia. **Nulidade:** campo que o cenário
+da `m73` nunca devolve nulo não prova o `.nullable()` do contrato.
 
 **Precedente concreto:** os contratos ficaram parados em 5 tipos de alerta
 enquanto o banco chegou a 8, e um alerta de manutenção de máquina quebrava a
-lista inteira no app. Já corrigido, mas a mesma forma de falha continua possível
-em todo domínio não coberto.
+lista inteira no app. A E9 achou o mesmo em `RelatedModule` (4 de 8) e
+`FinancialEntryStatus` (sem `cancelled`).
 
 ---
 
@@ -146,6 +151,14 @@ em todo domínio não coberto.
 - **A numeração de suíte descolou da de módulo** por volta do `m25` e não tem
   volta (renumerar colide). Já está documentado no `CLAUDE.md` e o
   `npm run check` reprova suíte órfã, então é convivência, não dívida.
+
+### 5.14 `GET /negotiations?type=venda_leite` ignora o filtro em silêncio
+
+Achado na E9 (13/10/2026). A lista aceita filtro por seis tipos
+(`TIPOS_LISTA` em `src/app/api/v1/negotiations/route.ts`), mas o enum tem
+sete: `venda_leite` não filtra e a resposta vem com todos os tipos, sem
+recusa. Os itens podem ter `type: "venda_leite"` normalmente. Corrigir é pôr
+o tipo na lista ou recusar com 422.
 
 ### 5.13 A busca por nome não tem índice próprio
 
