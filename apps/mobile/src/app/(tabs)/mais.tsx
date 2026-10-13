@@ -1,4 +1,4 @@
-import { Link } from 'expo-router';
+import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -74,21 +74,24 @@ export default function MaisScreen() {
         <View style={styles.grid}>
           {AREAS.map((area) =>
             area.ready ? (
-              <Link key={area.href} href={area.href as never} asChild>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={area.label}
-                  style={({ pressed }) => [
-                    styles.tile,
-                    { backgroundColor: theme.backgroundElement, opacity: pressed ? 0.7 : 1 },
-                  ]}
-                >
-                  <ThemedText style={styles.glyph}>{area.glyph}</ThemedText>
-                  <ThemedText type="small" numberOfLines={2} style={styles.tileLabel}>
-                    {area.label}
-                  </ThemedText>
-                </Pressable>
-              </Link>
+              // Navega no onPress, sem `<Link asChild>`: o Link repassa o
+              // `style` e descarta o estilo em forma de função, e o bloco
+              // perdia o cartão (tamanho e fundo), visto no aparelho em 08/10.
+              <Pressable
+                key={area.href}
+                accessibilityRole="button"
+                accessibilityLabel={area.label}
+                onPress={() => router.push(area.href as never)}
+                style={({ pressed }) => [
+                  styles.tile,
+                  { backgroundColor: theme.backgroundElement, opacity: pressed ? 0.7 : 1 },
+                ]}
+              >
+                <ThemedText style={styles.glyph}>{area.glyph}</ThemedText>
+                <ThemedText type="small" numberOfLines={2} style={styles.tileLabel}>
+                  {area.label}
+                </ThemedText>
+              </Pressable>
             ) : (
               <View
                 key={area.href}

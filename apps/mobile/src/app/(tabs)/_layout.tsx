@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
-import { Platform, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { Brand } from '@/constants/theme';
@@ -39,6 +40,7 @@ function TibeIcon({ focused }: { focused: boolean }) {
 
 export default function TabsLayout() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
@@ -46,11 +48,15 @@ export default function TabsLayout() {
         headerStyle: { backgroundColor: theme.background },
         headerTintColor: theme.text,
         headerShadowVisible: false,
+        // A altura soma a área dos botões do sistema. Fixa (era 68 no
+        // Android), ela apagava esse respiro, e com a navegação de três
+        // botões a barra ficava por baixo deles (aparelho, 08/10).
         tabBarStyle: {
           backgroundColor: theme.background,
           borderTopColor: theme.backgroundSelected,
-          height: Platform.select({ ios: 88, android: 68 }),
+          height: 62 + insets.bottom,
           paddingTop: 6,
+          paddingBottom: Math.max(insets.bottom, 6),
         },
         tabBarActiveTintColor: Brand.primary,
         tabBarInactiveTintColor: theme.textSecondary,
