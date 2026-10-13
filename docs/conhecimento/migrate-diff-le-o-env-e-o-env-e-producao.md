@@ -53,6 +53,15 @@ DATABASE_URL="postgresql://tibe:tibe@127.0.0.1:55432/tibe_dev?schema=public" \
 - Vale o mesmo cuidado que a suíte já tem: `127.0.0.1`, nunca `localhost`, e
   nunca `$env:VAR=` dentro do Bash.
 
+## Acréscimo de 2026-10-13: o perigo agora corre nos dois sentidos
+
+No desktop, desde 08/10/2026, o `.env` aponta para o Docker local (decisão do
+usuário), e no notebook pode continuar apontando para produção. O erro
+espelhado já aconteceu: na E10.4, `npx prisma migrate status` sem URL inline
+leu o Docker, que já tinha a migração nova, e respondeu "up to date" como se
+fosse o Neon. Conferir produção também exige a URL do Neon inline; nunca
+deduzir para onde o `.env` aponta.
+
 ## Relacionado
 
 - [[validacao-viva-acha-o-que-a-suite-verde-nao-acha]]

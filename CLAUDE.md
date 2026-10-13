@@ -321,8 +321,19 @@ Fazenda A" perde o sentido se a origem sumir). O seed morria em chave
 estrangeira, e `test:herd` passou a falhar por falta de fixture. Corrigido em
 2026-08-31; **tabela nova que referencie `Property` entra naquela lista**.
 
-⚠️ **O `.env` aponta para o Neon de PRODUÇÃO.** Antes de rodar migração, seed ou
-teste local, passe a URL do Docker inline, sem editar o `.env`:
+⚠️ **O `.env` PODE apontar para o Neon de PRODUÇÃO: confira antes.** Ele não é
+versionado, então cada máquina tem o seu. **No desktop, desde 08/10/2026, ele
+aponta para o Docker local** (banco e Redis), por decisão do usuário; até
+então apontava para produção, e no notebook pode continuar assim. Por isso,
+nos dois sentidos, a URL vai inline:
+
+- para teste, seed e migração local, a URL do Docker, como abaixo;
+- para conferir ou migrar **produção**, a URL Direct do Neon, inline no
+  terminal do usuário: no desktop, `npx prisma migrate status` sozinho lê o
+  Docker e responde "up to date" sobre o banco errado (aconteceu na E10.4).
+
+Antes de rodar migração, seed ou teste local, passe a URL do Docker inline, sem
+editar o `.env`:
 
 ```
 DATABASE_URL="postgresql://tibe:tibe@127.0.0.1:55432/tibe_dev?schema=public" npm run test:m1
@@ -360,7 +371,8 @@ todo `migrate diff` sugere um `DROP INDEX` deles como se fosse drift:
 **Não aplique esses drops**; remova a linha do SQL gerado. `npm run check`
 confere que os dois continuam criados.
 
-⚠️ **O `.env` aponta para o Redis de PRODUÇÃO**, como faz com o banco. Três
+⚠️ **O `.env` pode apontar para o Redis de PRODUÇÃO**, como faz com o banco (no
+desktop, desde 08/10/2026, aponta para o local; ver acima). Três
 suítes (`m4`, `m19`, `m24`) leem o lock diário (`tibe:alerts:generated:<data>`
 e `tibe:digest:generated:<data>`, chaves globais, não por tenant) e falham
 quando a rodada de produção do dia já passou. Não é regressão.

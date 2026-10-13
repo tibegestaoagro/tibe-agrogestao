@@ -77,7 +77,9 @@ npm run check
 npm run test:isolation
 ```
 
-⚠️ **O `.env` aponta para o Neon de PRODUÇÃO.** Passe a URL do Docker inline,
+⚠️ **O `.env` pode apontar para o Neon de PRODUÇÃO** (no desktop, desde
+08/10/2026, aponta para o Docker local; ver o `CLAUDE.md`). Para conferir
+produção, a URL Direct do Neon vai inline. Para o resto, passe a URL do Docker inline,
 sem editar o `.env`, e use `127.0.0.1` (`localhost` não resolve neste
 ambiente):
 

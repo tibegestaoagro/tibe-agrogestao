@@ -136,7 +136,8 @@ O porquê está comentado em `scripts/check-repo.ts`.
 
 ## Rodando com banco local
 
-O `.env` aponta para o **Neon de produção**. Passe a URL inline, sem editar o
+O `.env` pode apontar para o **Neon de produção** (no desktop, desde 08/10/2026,
+aponta para o Docker local; ver o `CLAUDE.md`). Passe a URL inline, sem editar o
 `.env`, e use `127.0.0.1` (`localhost` não resolve neste ambiente):
 
 ```
