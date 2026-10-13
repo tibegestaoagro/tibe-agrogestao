@@ -18,23 +18,21 @@
  * 3. Onde o codigo e a documentacao em `/docs/api` divergem, vale o CODIGO, e
  *    a divergencia fica registrada em comentario no schema correspondente.
  *
- * ESCOPO (Onda 1)
+ * ESCOPO
  *
- * Autenticacao e conta, financeiro (lancamentos e pendencias), alertas e
- * usuarios.
+ * Autenticacao e conta, financeiro (lancamentos e pendencias), alertas,
+ * usuarios e, desde 2026-10-13, as respostas de leitura de rebanho, lavoura,
+ * servicos, negociacoes e maquinas.
  *
- * REBANHO FICA DE FORA DE PROPOSITO. O modelo muda na Onda 3 (categoria e
- * quantidade) e extrair o contrato antes disso garante retrabalho. O mesmo
- * vale, por consequencia, para lavoura e prestador de servico, que nao estao
- * no escopo desta onda.
+ * Fora: `/api/platform/*` (sessao de PlatformUser, ferramenta interna),
+ * `/api/internal/*` (chamadas pelo N8N com segredo no header), os relatorios
+ * financeiros (DRE, fluxo de caixa, PDF assinado) e as sub-rotas de leitura
+ * do rebanho (pesagens, vacinas, custo do lote).
  *
- * Tambem fora: `/api/platform/*` (sessao de PlatformUser, ferramenta interna),
- * `/api/internal/*` (chamadas pelo N8N com segredo no header) e os relatorios
- * financeiros (DRE, fluxo de caixa, PDF assinado).
- *
- * ESTE PACOTE APENAS DECLARA. Nesta onda nenhuma rota passa a usar estes
- * schemas: a troca vem depois, para nao colidir com o trabalho paralelo em
- * `src/`.
+ * O PACOTE QUASE SO DECLARA. A excecao sao as tres rotas de escrita de
+ * maquinas, que o aplicativo usa e importam o schema de entrada daqui. Nas
+ * outras, quem prende o contrato ao servidor e `npm run test:m73`: ele chama
+ * as rotas GET de verdade e confere a resposta e cada enum contra o Prisma.
  */
 
 export * from "./envelope";
@@ -44,3 +42,8 @@ export * from "./auth";
 export * from "./financial";
 export * from "./alerts";
 export * from "./users";
+export * from "./herd";
+export * from "./crops";
+export * from "./services";
+export * from "./negotiations";
+export * from "./machines";

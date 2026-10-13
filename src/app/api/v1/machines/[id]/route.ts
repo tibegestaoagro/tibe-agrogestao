@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { updateMachineRequestSchema } from "@tibe/contracts";
 import { apiOk, apiError, apiErroDeZod } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import {
@@ -13,16 +13,6 @@ import { withApi } from "@/lib/route";
  * GET   /api/v1/machines/:id   detalhe da máquina + histórico de manutenções
  * PATCH /api/v1/machines/:id   edita dados cadastrais ou status
  */
-
-const updateSchema = z.object({
-  name: z.string().min(1).optional(),
-  type: z.string().min(1).optional(),
-  brand: z.string().nullish(),
-  model: z.string().nullish(),
-  year: z.number().int().nullish(),
-  hour_meter: z.number().nonnegative().nullish(),
-  status: z.enum(["active", "maintenance", "sold", "inactive"]).optional(),
-});
 
 async function GETHandler(_request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -46,7 +36,7 @@ async function PATCHHandler(request: Request, props: { params: Promise<{ id: str
   const body = await readJson(request);
   if ("error" in body) return body.error;
 
-  const parsed = updateSchema.safeParse(body.json);
+  const parsed = updateMachineRequestSchema.safeParse(body.json);
   if (!parsed.success) {
     return apiErroDeZod(parsed.error);
   }

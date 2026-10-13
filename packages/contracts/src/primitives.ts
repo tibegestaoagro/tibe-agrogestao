@@ -57,11 +57,20 @@ export const entryTypeSchema = z.enum(["income", "expense"]);
 export type EntryType = z.infer<typeof entryTypeSchema>;
 
 /** `RelatedModule` (schema.prisma). */
-export const relatedModuleSchema = z.enum(["rebanho", "lavoura", "servico", "geral"]);
+export const relatedModuleSchema = z.enum([
+  "rebanho",
+  "lavoura",
+  "servico",
+  "maquinas",
+  "geral",
+  "confinamento",
+  "leite",
+  "mao_de_obra",
+]);
 export type RelatedModule = z.infer<typeof relatedModuleSchema>;
 
 /** `FinancialEntryStatus` (schema.prisma). */
-export const financialEntryStatusSchema = z.enum(["pending", "paid", "overdue"]);
+export const financialEntryStatusSchema = z.enum(["pending", "paid", "overdue", "cancelled"]);
 export type FinancialEntryStatus = z.infer<typeof financialEntryStatusSchema>;
 
 /**

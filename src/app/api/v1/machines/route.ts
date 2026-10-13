@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { createMachineRequestSchema } from "@tibe/contracts";
 import { apiOk, apiError, apiErroDeZod } from "@/lib/api";
 import { guard, readJson } from "@/lib/api-guard";
 import { createMachineAction, listMachinesAction, serializeMachine } from "@/lib/actions/machines";
@@ -8,18 +8,6 @@ import { withApi } from "@/lib/route";
  * GET  /api/v1/machines    lista máquinas do tenant (Módulo 26)
  * POST /api/v1/machines    cadastra uma máquina nova
  */
-
-const createSchema = z.object({
-  property_id: z.string().min(1, "Propriedade é obrigatória"),
-  name: z.string().min(1, "Nome é obrigatório"),
-  type: z.string().min(1, "Tipo é obrigatório"),
-  brand: z.string().nullish(),
-  model: z.string().nullish(),
-  year: z.number().int().nullish(),
-  acquired_at: z.string().datetime().nullish(),
-  acquisition_cost: z.number().nonnegative().nullish(),
-  hour_meter: z.number().nonnegative().nullish(),
-});
 
 async function GETHandler() {
   const g = await guard("maquinas", "read", { profile: "fazenda" });
@@ -37,7 +25,7 @@ async function POSTHandler(request: Request) {
   const body = await readJson(request);
   if ("error" in body) return body.error;
 
-  const parsed = createSchema.safeParse(body.json);
+  const parsed = createMachineRequestSchema.safeParse(body.json);
   if (!parsed.success) {
     return apiErroDeZod(parsed.error);
   }
