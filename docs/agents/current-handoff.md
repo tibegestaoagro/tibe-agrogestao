@@ -162,11 +162,11 @@ CLI só o `.env` (tabela no `CLAUDE.md`). E11: a 2.3 do `dividas.md` ficou com
 painel logado, push, BANCO DE PROVAS, 5.11, 1.2) está no item 12 de
 [pendencias-do-usuario.md](pendencias-do-usuario.md). Depois: 2.8 (opacidade)
 em produção (`229b957`) e 5.12 em produção (`dcbbd73`: pasto com gado não é
-desativado, desativado não recebe gado; `m75`). **3.3 em produção** (merge
-autorizado em 14/10, branch `divida-3-3-agente-cobranca`): o agente segue a régua do
-painel (`read_only` só consulta e sem confirmar, `blocked` nada e já na
-identificação); `m76`, Codex 2 rodadas com achados corrigidos. E3 a E9 em
-[historico/2026-10.md](historico/2026-10.md).
+desativado, desativado não recebe gado; `m75`). 3.3 em produção (`78829e1`:
+o agente segue a régua do painel; `m76`). **4.1 (parte servidor) na branch
+`divida-4-1-contratos`**, esperando merge: os sete domínios que faltavam no
+pacote, uma seção por domínio em `scripts/helpers/contratos/` na `m73`;
+Codex aprovou na rodada 2. 5.13 e 5.15 adiadas (produção tem 3 contatos).
 
 **1. Segurança, que é do usuário e vem antes de tudo:** rotacionar as 22
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
