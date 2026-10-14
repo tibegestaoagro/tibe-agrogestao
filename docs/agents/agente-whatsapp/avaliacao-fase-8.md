@@ -88,6 +88,40 @@ vazios e 0 de 12 `pago: true`.
 para acerto com cliente e para pergunta sobre o passado, e o agente responde
 que não entendeu sem gravar nada. É o resto da dívida 5.0a.
 
+### Fechado em 14/10/2026: o erro era da EXTRAÇÃO, não do domínio
+
+A linha de base de 14/10 (`fase-9-base1`, `fase-9-base2`) deu 93,5% com
+exatamente essas duas frases erradas. Uma sonda direta (cada etapa chamada 5
+vezes) mostrou que o domínio já acertava `mao_de_obra` em "acertei com o Zé
+Carlos" 5 de 5 e em "fechei a conta" 3 de 5, e que quem devolvia `ambigua`
+era a extração, 5 de 5: a intenção dizia só "pagou o salário".
+
+- **Tentativa descartada:** reforçar o domínio `mao_de_obra` ("acertar ou
+  fechar a conta com uma pessoa é esse pagamento"). Não mudou a nota
+  (`fase-9-a1` 93,5%, `fase-9-a2` 90,3%), porque o erro não estava ali, e
+  vazou: "fechei a conta com o João do posto" (fornecedor) foi para mão de
+  obra 1 vez em 5, contra 0 em 5 sem ela.
+- **O que ficou:** a descrição de `registrar_pagamento_trabalhador` aceita
+  qualquer verbo (pagar, acertar, fechar a conta, quitar) e a ausência do
+  valor. Sonda: as duas frases 5 de 5 na extração; "será que já acertei com o
+  veterinário" segue `nenhum` 5 de 5; "João do posto" e "comprador do gado"
+  seguem em financeiro.
+
+| rodada | `fase-8.json` | `fase-8-pastos.json` | `forademostra.json` (intenção, campos) | gravação indevida |
+|---|---|---|---|---|
+| `fase-9-b1` / `b2` | **100%** / **100%** | | | 0 |
+| `fase-9-pastos` | | 100% | | 0 |
+| `fase-9-regressao-1` / `2` | | | 97,7%, 96,6% / 97,7%, 96,6% | 0 |
+
+A regressão perdeu um caso para 08/10 (`fam-036`, gradagem para cliente), nas
+duas rodadas por motivos diferentes: falha do modelo num passo, e a fronteira
+conhecida entre `servicos` e `prestador`. Não passa pelo que mudou: o prompt
+de domínio é o mesmo, e a extração alterada é só a de `mao_de_obra`. Custo das
+rodadas de 14/10: US$ 0,10 (acumulado: US$ 5,92).
+
+Vale só na rota de turno (o canário); pelo `execute-action`, quem classifica é
+o n8n, congelado.
+
 ## A regressão, e o defeito de bancada que ela achou
 
 `forademostra.json` (50 casos guardados da Fase 3):

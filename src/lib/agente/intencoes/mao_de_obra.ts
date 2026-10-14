@@ -27,7 +27,8 @@ export const INTENCOES_MAO_DE_OBRA: IntencaoDef[] = [
   {
     intent: "registrar_pagamento_trabalhador",
     dominio: "mao_de_obra",
-    descricao: "o produtor conta que pagou o salário de alguém da equipe fixa",
+    descricao:
+      "o produtor conta que pagou o salário de alguém da equipe fixa, com qualquer verbo (pagar, acertar, fechar a conta, quitar) e mesmo sem dizer o valor",
     campos: [
       NOME_DA_EQUIPE,
       { nome: "valor", tipo: "numero", descricao: "quanto pagou, só o número, como o produtor falou (2.500); vazio usa o valor previsto" },

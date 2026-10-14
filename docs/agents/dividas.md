@@ -198,19 +198,6 @@ A venda do confinamento passou a perguntar "Você já recebeu?" na 5.8; se
 leilão e permuta devem perguntar também é decisão de produto, para quando o
 classificador do n8n for destravado (as duas intenções nem são emitidas hoje).
 
-### 5.0a "Acertei com o Zé Carlos" ainda sai ambígua
-
-O grosso fechou na Fase 8 (08/10): o pagamento ao trabalhador sem valor foi de
-80-84% para 93,5% nas duas medições, corrigindo a descrição do DOMÍNIO
-(`docs/agents/agente-whatsapp/avaliacao-fase-8.md`). Sobraram duas frases que
-saem `ambigua` nas duas rodadas: "acertei com o Zé Carlos" e "fechei a conta
-com o Zé hoje". "Acertar com" serve também para cliente e para pergunta sobre
-o passado, que o prompt de domínio manda para "nenhum".
-
-Custo: perseguir as duas frases é ajuste fino em cima de dois casos, o
-caminho que já piorou o conjunto na Fase 5. Não grava nada errado: o agente
-responde que não entendeu.
-
 ### 5.0d A lista de quem grava sem confirmar precisa de catraca
 
 `INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR` (`whatsapp-handlers/shared.ts`) hoje tem
