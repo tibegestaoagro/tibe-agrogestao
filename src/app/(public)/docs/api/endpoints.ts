@@ -301,7 +301,7 @@ export const GROUPS: Group[] = [
         method: "POST",
         path: "/api/v1/pastures/:id/archive",
         auth: "Sessão · rebanho:write · perfil fazenda",
-        description: "Desativa o pasto (não deleta). Idempotente.",
+        description: "Desativa o pasto (não deleta). Idempotente. Pasto com gado (qualquer dono ou situação) é recusado com 409 PASTO_OCUPADO: transfira as cabeças antes.",
         response: `200
 { "data": { "id": "cl...", "archived_at": "2026-08-04T12:00:00.000Z" }, "meta": { "area_summary": { "total_area": 120.5, "distributed_area": 0, "remaining_area": 120.5, "over_allocated": false } } }`,
       },

@@ -502,9 +502,10 @@ export const consultarPastos: Handler = async ({ db, parameters }) => {
   const blocos = fazendas
     .map((f) => {
       const daFazenda = pastos.filter((p) => p.property_id === f.id);
-      // Arquivar pasto ocupado é permitido (dívida 5.12): sem esta linha, as
-      // cabeças dele sumiam da conta, e a fazenda inteira quando todos os
-      // pastos dela estavam desativados.
+      // Desde 14/10/2026 pasto ocupado não é desativado (dívida 5.12), mas os
+      // desativados antes disso podem ter gado: sem esta linha, as cabeças
+      // sumiam da conta, e a fazenda inteira quando todos os pastos dela
+      // estavam desativados.
       const desativado = nomePasto
         ? 0
         : cabecas((x) => x.property_id === f.id && x.pasture_id !== null && !ativos.has(x.pasture_id));
