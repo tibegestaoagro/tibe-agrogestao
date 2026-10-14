@@ -15,6 +15,7 @@ import {
 } from "./herd";
 import { ask, failReply, semPreposicaoInicial, str, type Handler } from "./shared";
 import { lerDinheiro } from "./parsers";
+import { juntarRespostaDoPrazo, lerPrazo } from "./negociacao";
 import { reaisBr as reais } from "@/lib/numero-br";
 
 /**
@@ -172,6 +173,8 @@ export const registrarPermuta: Handler = async ({
         "Não tenho nenhuma permuta esperando confirmação. Me conte de novo o que você trocou.",
       );
     }
+  } else if (pendente?.aguardando === "vencimento") {
+    parameters = juntarRespostaDoPrazo(pendente.parameters, parametrosDaMensagem);
   } else if (pendente && pendente.aguardando !== "confirmacao") {
     // O produtor está respondendo a pergunta: da mensagem nova entra SÓ o
     // campo perguntado, por cima do que já estava guardado.
@@ -271,6 +274,33 @@ export const registrarPermuta: Handler = async ({
     recebidoLado.pasture_id = pasto.id;
   }
 
+  // Dívida 5.9 (decisão do usuário, 14/10): a diferença em dinheiro gravava
+  // sempre como já paga. Agora pergunta, como o negócio de gado.
+  let quitada = true;
+  let vencimento: Date | null = null;
+  if (diferenca) {
+    const verbo = diferenca.direcao === "paguei" ? "pagou" : "recebeu";
+    const prazo = lerPrazo(parameters);
+    if (prazo.tipo === "invalida") {
+      await guardar("vencimento");
+      return ask(`Não entendi o vencimento "${prazo.bruto}". Diga por exemplo "dia 10" ou "10/12/2026", ou diga que já ${verbo}.`);
+    }
+    if (prazo.tipo === "perguntar") {
+      await guardar("vencimento");
+      return ask(
+        `Você já ${verbo} os ${reais(diferenca.amount)} da diferença, ou vai ${diferenca.direcao === "paguei" ? "pagar" : "receber"} depois? ` +
+          'Se for depois, me diga o vencimento, por exemplo "dia 10".',
+      );
+    }
+    quitada = prazo.tipo === "pago";
+    vencimento = prazo.tipo === "vence" ? prazo.data : null;
+  }
+  // O rótulo diz o estado que vai ser GRAVADO (achado do Codex): "Diferença
+  // paga" só quando ela entra quitada; a prazo, "a pagar", com o vencimento.
+  const paguei = diferenca?.direcao === "paguei";
+  const rotulo = quitada ? (paguei ? "paga" : "recebida") : paguei ? "a pagar" : "a receber";
+  const noPrazo = vencimento ? `, vence em ${vencimento.toLocaleDateString("pt-BR")}` : "";
+
   // Regra 3: confirmação sempre, com o resumo literal do §18.5.
   if (!confirmed) {
     await guardar("confirmacao");
@@ -280,7 +310,7 @@ export const registrarPermuta: Handler = async ({
         `Entregou: ${descrever(entregue)}\n` +
         `Recebeu: ${descrever(recebidoLado)}\n` +
         (diferenca
-          ? `Diferença ${diferenca.direcao === "paguei" ? "paga" : "recebida"}: ${reais(diferenca.amount)}\n`
+          ? `Diferença ${rotulo}: ${reais(diferenca.amount)}${noPrazo}\n`
           : "") +
         `Deseja registrar?`,
       requires_confirmation: true,
@@ -295,7 +325,8 @@ export const registrarPermuta: Handler = async ({
     entregue,
     recebido: recebidoLado,
     diferenca,
-    pago: true,
+    pago: quitada,
+    due_date: vencimento,
     contact_name: semPreposicaoInicial(str(parameters.contato) ?? str(parameters.pessoa)),
     notes: str(parameters.observacao) ?? str(parameters.notes),
     recorded_by_user_id: user_id ?? null,
@@ -307,7 +338,9 @@ export const registrarPermuta: Handler = async ({
     reply_text:
       `Pronto. Registrei a troca de ${descrever(entregue)} por ${descrever(recebidoLado)}` +
       (diferenca
-        ? `, com ${reais(diferenca.amount)} ${diferenca.direcao === "paguei" ? "pagos" : "recebidos"}`
+        ? quitada
+          ? `, com ${reais(diferenca.amount)} ${diferenca.direcao === "paguei" ? "pagos" : "recebidos"}`
+          : `, com ${reais(diferenca.amount)} ${rotulo}${noPrazo}`
         : "") +
       `.`,
     requires_confirmation: false,

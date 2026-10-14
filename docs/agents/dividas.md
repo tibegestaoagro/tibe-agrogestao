@@ -68,29 +68,15 @@ assinatura, webhook de pagamento, webhook de atraso).
 
 ## 2. Escopo desenhado e adiado
 
-### 2.3 Itens do documento do cliente registrados como adiados
-
-`docs/specs/module-31-negociacoes.md` seção 7, decididos na revisão de
-2026-08-13 para não ficarem "nem feitos nem adiados":
-
-| item | situação |
-|---|---|
-| §12.4, os valores estimados da permuta | fora da v1; o valor da negociação é só a diferença em dinheiro |
-| histórico do aceite 23 | não implementado |
-
-A E10 (13 e 14/10/2026) entregou os outros quatro: os nove filtros do §19 (o
-custo do filtro de situação está na 5.15), o pasto de origem e destino na
-tela, a forma de pagamento do §13 (gravada no lançamento) e peso, arroba e
-valor por cabeça (informativos, por negócio). **Pelo WhatsApp, só a forma de
-pagamento tem caminho**: os handlers de gado e estoque leem `forma_pagamento`,
-mas o classificador do n8n, congelado, ainda não emite o parâmetro; peso e
-arroba não têm parâmetro no agente.
-
 ### 2.4 Rebanho por categoria x por brinco
 
 O maior desalinhamento aberto com o cliente Agromax: foi pedido rebanho **por
 categoria**, e o que existe é por brinco com categoria em cima. Não é dívida de
 código, é de produto, e precisa de conversa antes de virar tarefa.
+
+Decisão do usuário em 14/10/2026: mostrar à Agromax o que o Módulo 30 já faz,
+pelo roteiro [roteiro-agromax-rebanho-por-categoria.md](roteiro-agromax-rebanho-por-categoria.md),
+e fechar ou transformar em lista conforme a resposta deles.
 
 ## 3. Rede de segurança com furo
 
@@ -99,7 +85,7 @@ parecido em silêncio, fechado em 10/09/2026 (bloco 18 da `m34`).
 
 ## 4. Cobertura desigual
 
-### 4.1 O app não lê `packages/contracts`, e metade dos domínios segue fora
+### 4.1 O app não lê `packages/contracts`
 
 Desde a E9 (13/10/2026) o pacote cobre também rebanho, lavoura, serviços,
 negociações e máquinas, e a `m73` (no CI) prende cada contrato ao servidor:
@@ -189,15 +175,6 @@ que este texto não via: o webhook DUPLICADO da Evolution (duas execuções com 
 mesmo id) passaria a ter as duas vencendo o flush e responderia duas vezes,
 onde hoje só a última responde. Fica parada até alguém ligar retry no fluxo.
 
-### 5.9 Leilão e permuta pelo agente gravam sempre como já pagos
-
-Resíduo registrado ao fechar a 5.8 (07/10/2026). Não é defeito de data: pelo
-AGENTE, `encerrar_remessa_evento` e `registrar_permuta` gravam sempre com
-`pago: true`, então nunca nascem vencendo hoje, mas também nunca perguntam.
-A venda do confinamento passou a perguntar "Você já recebeu?" na 5.8; se
-leilão e permuta devem perguntar também é decisão de produto, para quando o
-classificador do n8n for destravado (as duas intenções nem são emitidas hoje).
-
 ### 5.0d A lista de quem grava sem confirmar precisa de catraca
 
 `INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR` (`whatsapp-handlers/shared.ts`) hoje tem
@@ -226,3 +203,9 @@ Registrado para uma sessão futura não "consertar" o que é decisão:
   unidade, e adivinhar as duas cria três saldos para a mesma coisa.
 - **Duas instâncias NextAuth** (tenant e plataforma): é o que impede uma sessão
   de tenant alcançar o painel interno.
+- **Os valores estimados da permuta (§12.4 de Negociações)**: fora da v1,
+  decisão de 13/08 reconfirmada pelo usuário em 14/10/2026. O valor da permuta é
+  só a diferença em dinheiro; reabrir quando um cliente pedir.
+- **O histórico das Negociações (aceite 23 do §21)**: o usuário confirmou em
+  14/10/2026 que está atendido pela lista com os nove filtros (E10) e pela ficha
+  do contato, que lista os negócios dele.

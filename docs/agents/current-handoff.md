@@ -163,10 +163,10 @@ produção: 2.8 (`229b957`), 5.12 (`dcbbd73`, `m75`), 3.3 (`78829e1`:
 o agente segue a régua do painel; `m76`). 4.1 servidor em produção
 (`cdd6473`: sete domínios no pacote, seção por domínio na `m73`). **n8n, 14/10:
 `Execute Action` manda `provider_message_id`** (1ª chave vista em produção).
-`npm run wa` lê só o `.env`, mas o `REDIS_URL` dele é local: não vê resposta. 5.13/5.15/5.10 paradas. **5.0a em produção** (merge autorizado em 14/10): o erro
-era da extração; fase-8 93,5% para 100% (2x), regressão 97,7% sem gravação
-indevida (`avaliacao-fase-8.md`, seção de 14/10); o "sim" sem valor baixa só
-a previsão mostrada (`m57` 18b). Codex aprovou na rodada 2. E3-E9: [historico/2026-10.md](historico/2026-10.md).
+`npm run wa` lê só o `.env`, mas o `REDIS_URL` dele é local: não vê resposta. 5.13/5.15/5.10 paradas. 5.0a em produção (`2ff9a3b`). **5.9 em produção
+(`divida-5-9-ja-recebeu`, só no canário)**: leilão e permuta perguntam se o dinheiro entrou
+(`m48`, `m49`; avaliação em `avaliacao-fase-8.md`), Codex aprovou. 2.3 fechada
+por decisão; 2.4 espera a conversa com a Agromax ([roteiro](roteiro-agromax-rebanho-por-categoria.md)). E3-E9: [historico/2026-10.md](historico/2026-10.md).
 
 **1. Segurança, que é do usuário e vem antes de tudo:** rotacionar as 22
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não

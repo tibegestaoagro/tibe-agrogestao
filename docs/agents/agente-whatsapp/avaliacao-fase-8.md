@@ -148,3 +148,27 @@ depois da correção.
 
 Só na rota de turno (o canário). Pelo `execute-action`, quem classifica é o
 n8n, congelado: lá a pergunta de pasto continua sem intenção própria.
+
+## Dívida 5.9 (14/10/2026): `pago` e `vencimento` no leilão e na permuta
+
+Decisão do usuário: o resultado do leilão e a diferença da permuta perguntam
+se o dinheiro já entrou, como a venda do confinamento. O registro ganhou os
+campos `pago` e `vencimento` nas duas intenções, com a mesma descrição do
+negócio de gado, mais "paguei mais 30 mil" e "já recebi" no `pago`: sem isso,
+"troquei 10 bois por 15 novilhas e paguei mais 5 mil" saía sem `pago` 3 de 3,
+e o produtor ouviria a pergunta depois de já ter dito. Com a descrição, 4 de 4.
+"vou dar mais 5 mil" segue vazio (pergunta), "o dinheiro cai dia 30" vira
+vencimento 4 de 4.
+
+Medido nos 16 casos de leilão e permuta (cinco arquivos: `adversarial`,
+`audio`, `cliente`, `complemento`, `produtor`):
+
+| rodada | intenção | campos | gravação indevida |
+|---|---|---|---|
+| `fase-9-ev-base-*` (antes) | 16/16 | 46/50 | 0 |
+| `fase-9-ev3-*` | 16/16 | 46/50 | 0 |
+| `fase-9-ev4-*` | 16/16 | 47/50 | 0 |
+
+Os erros dos arquivos inteiros que mudaram entre rodadas (`prod-107`, `120`,
+`134`, `137`, `139`) são de serviço e agenda, e aparecem também nas duas
+bases do `complemento`: o prompt de domínio e as outras extrações não mudaram.
