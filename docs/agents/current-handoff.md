@@ -163,8 +163,8 @@ painel logado, push, BANCO DE PROVAS, 5.11, 1.2) está no item 12 de
 [pendencias-do-usuario.md](pendencias-do-usuario.md). Depois: 2.8 (opacidade)
 em produção (`229b957`) e 5.12 em produção (`dcbbd73`: pasto com gado não é
 desativado, desativado não recebe gado; `m75`). 3.3 em produção (`78829e1`:
-o agente segue a régua do painel; `m76`). **4.1 (parte servidor) na branch
-`divida-4-1-contratos`**, esperando merge: os sete domínios que faltavam no
+o agente segue a régua do painel; `m76`). **4.1 (parte servidor) em produção** (merge
+autorizado em 14/10, branch `divida-4-1-contratos`): os sete domínios que faltavam no
 pacote, uma seção por domínio em `scripts/helpers/contratos/` na `m73`;
 Codex aprovou. 5.13/5.15 adiadas. E3-E9: [historico/2026-10.md](historico/2026-10.md).
 
