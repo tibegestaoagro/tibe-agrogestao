@@ -9,6 +9,7 @@ import {
 import { resolverCategoria, resolverFazenda, nomeDaCategoria } from "./herd";
 import { ask, failReply, str, num, type Handler, type RouterResult } from "./shared";
 import { lerDinheiro } from "./parsers";
+import { juntarRespostaDoPrazo, lerPrazo } from "./negociacao";
 import { reaisBr as reais } from "@/lib/numero-br";
 
 /**
@@ -200,6 +201,8 @@ export const encerrarRemessaEvento: Handler = async ({
         "Não tenho nenhum encerramento esperando confirmação. Me conte de novo como terminou o evento.",
       );
     }
+  } else if (pendente?.gesto === "encerrar" && pendente.aguardando === "vencimento") {
+    parameters = juntarRespostaDoPrazo(pendente.parameters, parametrosDaMensagem);
   } else if (pendente?.gesto === "encerrar" && pendente.aguardando !== "confirmacao") {
     const juntos = aplicarRespostaRemessa(pendente, parametrosDaMensagem);
     if (juntos) parameters = juntos;
@@ -277,6 +280,25 @@ export const encerrarRemessaEvento: Handler = async ({
     return ask(`Por quanto os ${vendidos} foram vendidos no total?`);
   }
 
+  // Dívida 5.9 (decisão do usuário, 14/10): a venda do leilão gravava sempre
+  // como já recebida. Agora pergunta, como a venda do confinamento.
+  let recebido = true;
+  let vencimento: Date | null = null;
+  if (vendidos > 0) {
+    const prazo = lerPrazo(parameters);
+    if (prazo.tipo === "invalida") {
+      await guardar("vencimento");
+      return ask(`Não entendi o vencimento "${prazo.bruto}". Diga por exemplo "dia 10" ou "10/12/2026", ou diga que já foi recebido.`);
+    }
+    if (prazo.tipo === "perguntar") {
+      await guardar("vencimento");
+      return ask("Você já recebeu, ou vai receber depois? Se for depois, me diga o vencimento, por exemplo \"dia 10\".");
+    }
+    recebido = prazo.tipo === "pago";
+    vencimento = prazo.tipo === "vence" ? prazo.data : null;
+  }
+  const noPrazo = vendidos === 0 ? "" : vencimento ? `, a receber em ${vencimento.toLocaleDateString("pt-BR")}` : ", já recebido";
+
   if (!confirmed) {
     await guardar("confirmacao");
     const partes = [`${vendidos} vendido(s)`, `${retornados} de volta`];
@@ -284,6 +306,7 @@ export const encerrarRemessaEvento: Handler = async ({
       reply_text:
         `Encerrar a remessa de ${remessa.location_name ?? "evento"}: ${partes.join(" e ")}` +
         (valor != null ? `, por ${reais(valor)}` : "") +
+        noPrazo +
         `. Confirma?`,
       requires_confirmation: true,
       auxiliary_data: { vendidos, retornados, valor },
@@ -296,7 +319,8 @@ export const encerrarRemessaEvento: Handler = async ({
     vendidos,
     retornados,
     amount: valor,
-    pago: true,
+    pago: recebido,
+    due_date: vencimento,
   });
   if (temMemoria) await clearPendingEvent(tenant_id, user_id!);
   if (!resultado.ok) return failReply(intent, resultado);
@@ -305,6 +329,7 @@ export const encerrarRemessaEvento: Handler = async ({
     reply_text:
       `Pronto. ${vendidos} vendido(s)` +
       (valor != null ? ` por ${reais(valor)}` : "") +
+      noPrazo +
       ` e ${retornados} de volta na fazenda.`,
     requires_confirmation: false,
     auxiliary_data: null,

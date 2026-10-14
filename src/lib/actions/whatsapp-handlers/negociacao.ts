@@ -166,6 +166,41 @@ const QUITACAO = [
 ];
 
 /**
+ * O prazo de um dinheiro que o produtor citou, com a regra do negócio de gado e
+ * do confinamento (dívidas 5.8 e 5.9): data dita vence a palavra, "já recebi"
+ * quita, data que não se lê é recusada, e o silêncio vira pergunta.
+ */
+export type Prazo =
+  | { tipo: "pago" }
+  | { tipo: "vence"; data: Date }
+  | { tipo: "invalida"; bruto: string }
+  | { tipo: "perguntar" };
+
+export function lerPrazo(parameters: Record<string, unknown>): Prazo {
+  const lido = lerData(parameters, "vencimento", "due_date", "data_pagamento");
+  if (lido.tipo === "ok") return { tipo: "vence", data: lido.data };
+  if (respondeuQueJaPagou(parameters)) return { tipo: "pago" };
+  if (lido.tipo === "invalida") return { tipo: "invalida", bruto: lido.bruto };
+  return { tipo: "perguntar" };
+}
+
+/**
+ * A resposta à pergunta do prazo, por cima do pedido guardado. Ela nem sempre
+ * volta no campo perguntado ("já recebi" chega como `pago: true`, a data às
+ * vezes como `data_pagamento`); sem nada que responda, fica o guardado, e a
+ * pergunta se repete.
+ */
+export function juntarRespostaDoPrazo(
+  guardado: Record<string, unknown>,
+  novos: Record<string, unknown>,
+): Record<string, unknown> {
+  const { vencimento: _v, due_date: _d, data_pagamento: _p, pago: _g, ...resto } = guardado;
+  if (respondeuQueJaPagou(novos)) return { ...resto, pago: true };
+  const dataDita = str(novos.vencimento) ?? str(novos.due_date) ?? str(novos.data_pagamento) ?? str(novos.resposta);
+  return dataDita ? { ...resto, vencimento: dataDita } : guardado;
+}
+
+/**
  * Os ids das categorias que a última pergunta de faixa ofereceu, guardados
  * dentro do próprio `parameters` do pendente (o mesmo caminho que `tipo`,
  * `contato` e `valor` já usam para sobreviver de uma rodada para a outra).

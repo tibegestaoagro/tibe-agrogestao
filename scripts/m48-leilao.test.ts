@@ -607,7 +607,17 @@ async function comBanco() {
           userId: USUARIO,
         }),
       );
-      check("o encerramento também confirma antes", encerrar.requires_confirmation === true, encerrar.reply_text);
+      // Dívida 5.9: sem dizer se já recebeu, pergunta, em vez de gravar como pago.
+      check("sem prazo, pergunta se já recebeu", /já recebeu/i.test(encerrar.reply_text) && !encerrar.requires_confirmation, encerrar.reply_text);
+
+      const comPrazo = await encerrarRemessaEvento(
+        ctx(db, tenant.id, { resposta: "dia 20" }, { userId: USUARIO }),
+      );
+      check(
+        "a data respondida entra na confirmação",
+        comPrazo.requires_confirmation === true && /a receber em/.test(comPrazo.reply_text),
+        comPrazo.reply_text,
+      );
 
       const fechado = await encerrarRemessaEvento(
         ctx(db, tenant.id, { evento: "Feira de Novembro", vendidos: 12, valor: 60000 }, {
@@ -625,6 +635,15 @@ async function comBanco() {
         soma(await getPositions(db, { owner: "proprio", situation: "evento" })) === emEventoAntes,
       );
       check("e a resposta conta os dois destinos", /12/.test(fechado.reply_text) && /8/.test(fechado.reply_text), fechado.reply_text);
+      const receita = await db.financialEntry.findFirst({
+        where: { entry_type: "income", amount: 60000 },
+        orderBy: { created_at: "desc" },
+      });
+      check(
+        "a venda nasce A RECEBER no dia 20, não paga",
+        receita?.status === "pending" && receita.due_date?.getUTCDate() === 20,
+        `${receita?.status} ${receita?.due_date?.toISOString()}`,
+      );
 
       await clearPendingEvent(tenant.id, USUARIO);
     }

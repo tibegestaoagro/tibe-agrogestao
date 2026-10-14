@@ -43,6 +43,8 @@ export const INTENCOES_EVENTOS_E_PERMUTA: IntencaoDef[] = [
       { nome: "vendidos", tipo: "numero", descricao: "só o número de cabeças vendidas, como o produtor falou (12; 0 se nenhuma vendeu)" },
       { nome: "retornados", tipo: "numero", descricao: "só o número de cabeças que voltaram, como o produtor falou; vazio se não disse" },
       { nome: "valor", tipo: "numero", descricao: "o valor total das vendas, só o número, como o produtor falou (60 mil)" },
+      { nome: "vencimento", tipo: "data", descricao: 'quando vai pagar ou receber, como ele falou ("para pagar dia 10"); vazio se não disse' },
+      { nome: "pago", tipo: "sim_nao", descricao: 'sim quando ele diz que o dinheiro já foi pago ou recebido, inclusive a diferença da troca ("à vista", "paguei mais 30 mil", "já recebi"); vazio se não disse' },
     ],
     exemplos: ["no leilão da Expoagro vendi 12 por 60 mil e voltaram 8", "acabou a feira, não vendeu nenhum, voltaram todos"],
     vizinhas: "registrar_remessa_evento quando ele está MANDANDO os animais; registrar_negocio_gado quando a venda não foi em evento",
@@ -60,6 +62,8 @@ export const INTENCOES_EVENTOS_E_PERMUTA: IntencaoDef[] = [
       { nome: "pasto", tipo: "texto", descricao: "o pasto de onde saem os animais entregues, se ele citou" },
       { nome: "contato", tipo: "texto", descricao: "com quem ele trocou, se disse" },
       { nome: "observacao", tipo: "texto", descricao: "outro detalhe que ele pediu para anotar" },
+      { nome: "vencimento", tipo: "data", descricao: 'quando vai pagar ou receber, como ele falou ("para pagar dia 10"); vazio se não disse' },
+      { nome: "pago", tipo: "sim_nao", descricao: 'sim quando ele diz que o dinheiro já foi pago ou recebido, inclusive a diferença da troca ("à vista", "paguei mais 30 mil", "já recebi"); vazio se não disse' },
     ],
     exemplos: [
       "Troquei 20 bois por um trator e paguei mais 30 mil. (Negociações §18.5)",

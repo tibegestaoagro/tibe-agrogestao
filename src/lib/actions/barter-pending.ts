@@ -31,6 +31,7 @@ export type CampoPermuta =
   | "diferenca"
   | "fazenda"
   | "pasto"
+  | "vencimento"
   /** Não é campo: é a permuta inteira esperando um "sim". */
   | "confirmacao";
 
@@ -49,6 +50,7 @@ const store = criarStoreDePendencia<CampoPermuta>({
     if (campo === "diferenca") return "valor";
     if (campo === "fazenda") return "property";
     if (campo === "pasto") return "pasture";
+    if (campo === "vencimento") return "due_date";
     return campo;
   },
 });

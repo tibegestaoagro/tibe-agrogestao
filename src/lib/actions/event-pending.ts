@@ -31,6 +31,7 @@ export type CampoRemessa =
   | "vendidos"
   | "retornados"
   | "valor"
+  | "vencimento"
   /** Não é campo: é a remessa inteira esperando um "sim". */
   | "confirmacao";
 
@@ -54,6 +55,7 @@ const store = criarStoreDePendencia<CampoRemessa, RemessaPendente>({
     if (campo === "quantidade") return "quantity";
     if (campo === "evento") return "event_name";
     if (campo === "valor") return "amount";
+    if (campo === "vencimento") return "due_date";
     return campo;
   },
 });

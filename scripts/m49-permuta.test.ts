@@ -726,6 +726,40 @@ async function comBanco() {
 
       await clearPendingBarter(tenant.id, USUARIO);
     }
+
+    console.log("\n17. Dívida 5.9: a diferença em dinheiro pergunta se já foi paga");
+    {
+      await clearPendingBarter(tenant.id, USUARIO);
+      const pedido = { entregue: "2 bois", recebido: "reforma da cerca", pasto: "Pasto A", diferenca_paga: 3000 };
+      const pergunta = await registrarPermuta(ctx(db, tenant.id, pedido, { userId: USUARIO }));
+      check(
+        "sem prazo, pergunta se já pagou a diferença",
+        /já pagou os R\$\s?3\.000,00/.test(pergunta.reply_text) && !pergunta.requires_confirmation,
+        pergunta.reply_text,
+      );
+      const resumo = await registrarPermuta(ctx(db, tenant.id, { resposta: "dia 25" }, { userId: USUARIO }));
+      check(
+        "a data respondida entra no resumo",
+        resumo.requires_confirmation === true && /a pagar em/.test(resumo.reply_text),
+        resumo.reply_text,
+      );
+      const feito = await registrarPermuta(ctx(db, tenant.id, {}, { confirmed: true, userId: USUARIO }));
+      check("confirmado, a permuta nasce", feito.action_taken.startsWith("registrar_permuta:ok"), feito.reply_text);
+      const despesa = await db.financialEntry.findFirst({
+        where: { entry_type: "expense", amount: 3000 },
+        orderBy: { created_at: "desc" },
+      });
+      check(
+        "a diferença nasce A PAGAR no dia 25, não paga",
+        despesa?.status === "pending" && despesa.due_date?.getUTCDate() === 25,
+        `${despesa?.status} ${despesa?.due_date?.toISOString()}`,
+      );
+
+      // Quem já disse que pagou não ouve a pergunta.
+      const jaPago = await registrarPermuta(ctx(db, tenant.id, { ...pedido, pago: true }, { userId: USUARIO }));
+      check("com 'paguei', vai direto ao resumo", jaPago.requires_confirmation === true, jaPago.reply_text);
+      await clearPendingBarter(tenant.id, USUARIO);
+    }
   } finally {
     await clearPendingBarter(tenant.id, USUARIO);
     await prisma.tenant.delete({ where: { id: tenant.id } });
