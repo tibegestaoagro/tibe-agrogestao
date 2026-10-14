@@ -119,21 +119,23 @@ const tailwindExiste = existsSync(tailwindPath);
 check("tailwind.config.ts existe", tailwindExiste);
 
 if (tailwindExiste) {
-  const tw = readFileSync(tailwindPath, "utf8");
-  const blocoCodigo = tw.match(/codigo\s*:\s*\{([\s\S]*?)\}/);
+  // O valor que o Tailwind recebe, nao o texto do arquivo: desde a divida 2.8
+  // a cor e a funcao `token()`, chamada sem modificador como na classe pura.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const blocoCodigo = require(tailwindPath).default.theme?.extend?.colors?.codigo;
+  const valor = (cor: unknown) => (typeof cor === "function" ? cor({}) : cor);
   check(
     "o bloco `codigo` existe na paleta de cores do tailwind.config.ts",
     !!blocoCodigo,
   );
   if (blocoCodigo) {
-    const conteudo = blocoCodigo[1];
     check(
       "`codigo.fundo` referencia a variavel --codigo-fundo (gera a classe bg-codigo-fundo)",
-      /fundo\s*:[\s\S]*?--codigo-fundo/.test(conteudo),
+      valor(blocoCodigo.fundo) === "var(--codigo-fundo)",
     );
     check(
       "`codigo.texto` referencia a variavel --codigo-texto (gera a classe text-codigo-texto)",
-      /texto\s*:[\s\S]*?--codigo-texto/.test(conteudo),
+      valor(blocoCodigo.texto) === "var(--codigo-texto)",
     );
   }
 }
