@@ -34,6 +34,7 @@ async function main() {
   const { recordMovement } = await import("@/lib/actions/herd-ledger");
   const { executarIntencao } = await import("@/lib/actions/executar-intencao");
   const { clearPendingHerd } = await import("@/lib/actions/herd-pending");
+  const { clearPendingStock } = await import("@/lib/actions/stock-pending");
 
   const stamp = Date.now();
   const tenant = await prisma.tenant.create({
@@ -73,10 +74,19 @@ async function main() {
     });
     const morte = { movement_type: "morte", categoria: "Fêmea - 13 a 24 meses", quantidade: 2 };
 
-    console.log("1. Em dia: o pedido de escrita é guardado para confirmar");
+    const { ensureProductCategories, createProduct, listProductCategories } = await import("@/lib/actions/products");
+    await ensureProductCategories(db);
+    const [categoria] = await listProductCategories(db);
+    const sal = await createProduct(db, { name: "Sal mineral 60 P", category_id: categoria.id, unit: "saca", minimum_stock: 1 });
+    if (!sal.ok) throw new Error(`produto: ${sal.message}`);
+    const compras = () => db.stockMovement.count({ where: { canceled_at: null } });
+
+    console.log("1. Em dia: os pedidos de escrita são guardados para confirmar");
     {
       const r = await diz("registrar_movimentacao_rebanho", morte, "morreram 2 fêmeas de 13 a 24 meses");
       assert(r.requires_confirmation === true, "a morte pede confirmação", r.reply_text);
+      const compra = await diz("registrar_negocio_produto", { tipo: "compra", produto: "sal", quantidade: 5, valor: 600, pago: true }, "comprei 5 sacas de sal por 600, já paguei");
+      assert(compra.requires_confirmation === true, "a compra de sal também", compra.reply_text);
     }
 
     console.log("\n2. Atrasado (read_only): consulta passa, escrita não");
@@ -90,6 +100,11 @@ async function main() {
       const ambigua = await diz("ambigua", {}, "sim");
       assert(ambigua.action_taken.endsWith(":assinatura_read_only"), "um 'sim' lido como ambígua também é recusado", ambigua.action_taken);
       assert((await mortes()) === 0, "e segue sem gravar");
+
+      // Uma "consulta" com texto de sim: o roteador desviaria para a compra
+      // guardada e gravaria (achado do Codex). A leitura vai sem confirmação.
+      const consultaSim = await diz("consultar_rebanho", {}, "sim");
+      assert((await compras()) === 0, "uma consulta com 'sim' não confirma a compra guardada", consultaSim.action_taken);
 
       const nova = await diz("registrar_movimentacao_rebanho", morte, "morreram 2 fêmeas de 13 a 24 meses");
       assert(nova.action_taken.endsWith(":assinatura_read_only") && !nova.requires_confirmation, "pedido de escrita novo é recusado sem pedir confirmação", nova.action_taken);
@@ -126,6 +141,11 @@ async function main() {
   } finally {
     await clearPendingHerd(tenant.id, owner.id).catch(() => {});
     const where = { tenant_id: tenant.id };
+    await clearPendingStock(tenant.id, owner.id).catch(() => {});
+    await prisma.financialEntry.deleteMany({ where });
+    await prisma.stockMovement.deleteMany({ where });
+    await prisma.product.deleteMany({ where });
+    await prisma.productCategory.deleteMany({ where });
     await prisma.whatsAppContact.deleteMany({ where });
     await prisma.agentRequest.deleteMany({ where });
     await prisma.agentFlowState.deleteMany({ where });

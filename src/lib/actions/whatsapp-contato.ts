@@ -73,7 +73,7 @@ export async function identificarContato(telefone: string): Promise<ContatoIdent
   // Bloqueado por cobrança, o mesmo corte e no mesmo ponto (dívida 3.3, achado
   // do Codex): sem isto, o contato era gravado e o primeiro contato ouvia a
   // saudação. `read_only` segue adiante, porque consulta ainda vale; quem
-  // recusa a escrita é `recusaPorCobranca`, em `executar-intencao.ts`.
+  // recusa a escrita é `reguaDeCobranca`, em `executar-intencao.ts`.
   if (estado.access === "blocked") {
     return { identificado: false, resposta_sugerida: mensagemDeCobranca("blocked") };
   }

@@ -67,20 +67,32 @@ export type SaidaDaIntencao = {
  * Fica aqui, e não no `routeIntent`, porque este é o ponto único do
  * `execute-action` e do turno, e porque a resposta precisa sair ANTES de
  * qualquer fluxo em andamento (`handleActiveFlow`) ter a chance de gravar.
- * ponytail: a intenção lida é a de entrada; uma leitura que o roteador
- * redireciona para um pedido de escrita guardado antes do atraso ainda passa.
+ *
+ * A leitura que passa em `read_only` vai ao roteador com `semConfirmar`
+ * (achado do Codex, rodada 2): uma "consulta" com texto de "sim" ainda
+ * fecharia o cadastro assistido aberto antes do atraso, ou seria desviada
+ * para a compra de estoque guardada. Confirmação só existe para escrita, e
+ * é ela que os dois caminhos exigem.
  */
-async function recusaPorCobranca(tenantId: string, intent: Intent): Promise<RouterResult | null> {
+async function reguaDeCobranca(
+  tenantId: string,
+  intent: Intent,
+): Promise<{ recusa: RouterResult | null; semConfirmar: boolean }> {
   const acesso = await getBillingAccess(tenantId);
-  if (acesso === "full") return null;
-  if (acesso === "read_only" && intent !== "ambigua" && INTENT_ACCESS[intent].action === "read") return null;
+  if (acesso === "full") return { recusa: null, semConfirmar: false };
+  if (acesso === "read_only" && intent !== "ambigua" && INTENT_ACCESS[intent].action === "read") {
+    return { recusa: null, semConfirmar: true };
+  }
 
   return {
-    reply_text: mensagemDeCobranca(acesso),
-    requires_confirmation: false,
-    auxiliary_data: null,
-    report_url: null,
-    action_taken: `${intent}:assinatura_${acesso}`,
+    recusa: {
+      reply_text: mensagemDeCobranca(acesso),
+      requires_confirmation: false,
+      auxiliary_data: null,
+      report_url: null,
+      action_taken: `${intent}:assinatura_${acesso}`,
+    },
+    semConfirmar: true,
   };
 }
 
@@ -193,17 +205,20 @@ export async function executarIntencao(e: EntradaDaIntencao): Promise<SaidaDaInt
   const explicitNo = confirmationSignal === "no";
 
   const inicio = Date.now();
-  const result = (await recusaPorCobranca(tenant_id, intent)) ?? (await routeIntent(db, {
-    tenant_id,
-    role: user.role,
-    activeProfiles,
-    intent,
-    parameters,
-    user_id: user.id,
-    message_text: message_text ?? null,
-    confirmed,
-    explicitNo,
-  }));
+  const regua = await reguaDeCobranca(tenant_id, intent);
+  const result =
+    regua.recusa ??
+    (await routeIntent(db, {
+      tenant_id,
+      role: user.role,
+      activeProfiles,
+      intent,
+      parameters,
+      user_id: user.id,
+      message_text: message_text ?? null,
+      confirmed: confirmed && !regua.semConfirmar,
+      explicitNo,
+    }));
 
   const resposta = {
     reply_text: result.reply_text,

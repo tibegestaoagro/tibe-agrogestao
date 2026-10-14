@@ -165,8 +165,9 @@ painel logado, push, BANCO DE PROVAS, 5.11, 1.2) está no item 12 de
 em produção (`229b957`) e 5.12 em produção (`dcbbd73`: pasto com gado não é
 desativado, desativado não recebe gado; `m75`). **3.3 na branch
 `divida-3-3-agente-cobranca`**, esperando merge: o agente segue a régua do
-painel (`read_only` só consulta, `blocked` nada), em `executar-intencao.ts`;
-`m76`. E3 a E9 em [historico/2026-10.md](historico/2026-10.md).
+painel (`read_only` só consulta e sem confirmar, `blocked` nada e já na
+identificação); `m76`, Codex 2 rodadas com achados corrigidos. E3 a E9 em
+[historico/2026-10.md](historico/2026-10.md).
 
 **1. Segurança, que é do usuário e vem antes de tudo:** rotacionar as 22
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
