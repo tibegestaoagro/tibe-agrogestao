@@ -151,7 +151,6 @@ quando a rotação terminar.
 `git fetch --all --prune`, depois `git checkout main && git reset --hard
 origin/main`. Trabalho não empurrado precisa virar patch antes.
 
-
 ### ⏭️ PRÓXIMO PASSO
 
 **0. Programa de dívidas ENCERRADO: E0 a E11 em produção** (E11, `ccf1474`).
