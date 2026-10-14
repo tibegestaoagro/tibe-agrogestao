@@ -403,9 +403,24 @@ function validarValor(amount: number | null | undefined): ActionResult<null> {
  * escritas deixaria o trabalhador sem próxima previsão, e a regra "existe
  * sempre uma" morreria em silêncio até alguém reparar meses depois.
  */
+const PREVISAO_MUDOU = (nome: string) =>
+  `O pagamento previsto de ${nome} mudou desde a pergunta, então não registrei nada. Me conte de novo o pagamento para eu confirmar com o valor de agora.`;
+
 export async function confirmWorkerPayment(
   db: TenantPrismaClient,
-  input: { worker_id: string; amount?: number | null; paid_at?: Date; notes?: string | null },
+  input: {
+    worker_id: string;
+    amount?: number | null;
+    paid_at?: Date;
+    notes?: string | null;
+    /**
+     * A previsão que o produtor viu ao confirmar (id e valor). Com ela, só essa
+     * previsão, ainda pendente e com esse valor, é baixada: um "sim" a uma
+     * pergunta velha não quita a previsão seguinte nem uma remarcada para outro
+     * valor (achado do Codex na dívida 5.0a).
+     */
+    previsao_mostrada?: { id: string; amount: number };
+  },
 ): Promise<ActionResult<{ pago: number; proxima_previsao: string | null }>> {
   if (input.amount !== undefined && input.amount !== null) {
     const recusa = validarValor(input.amount);
@@ -444,9 +459,14 @@ export async function confirmWorkerPayment(
    */
   const ancora = previsao.due_date ?? quando;
 
-  await runSerializableTenantTransaction(db, async (tx) => {
-    await tx.financialEntry.update({
-      where: { id: previsao.id },
+  const mostrada = input.previsao_mostrada;
+  if (mostrada && (mostrada.id !== previsao.id || mostrada.amount !== decToNum(previsao.amount))) {
+    return fail("PREVISAO_MUDOU", PREVISAO_MUDOU(worker.name), 409);
+  }
+
+  const baixou = await runSerializableTenantTransaction(db, async (tx) => {
+    const { count } = await tx.financialEntry.updateMany({
+      where: { id: previsao.id, status: "pending", ...(mostrada ? { amount: mostrada.amount } : {}) },
       data: {
         amount: valor,
         status: "paid",
@@ -454,8 +474,11 @@ export async function confirmWorkerPayment(
         ...(input.notes ? { notes: input.notes } : {}),
       },
     });
+    if (count === 0) return false;
     await garantirPrevisao(tx as unknown as ClientDePrevisao, worker, ancora);
+    return true;
   });
+  if (!baixou) return fail("PREVISAO_MUDOU", PREVISAO_MUDOU(worker.name), 409);
 
   const proxima = await db.financialEntry.findFirst({
     where: { related_module: "mao_de_obra", related_id: worker.id, status: "pending" },

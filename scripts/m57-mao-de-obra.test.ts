@@ -655,6 +655,34 @@ async function comBanco() {
         })) === 1,
     );
 
+    console.log("\n18b. O \"sim\" sem valor baixa SÓ a previsão mostrada (achado do Codex, 5.0a)");
+    const pagos = () => db.financialEntry.count({ where: { related_id: pedro!.id, status: "paid" } });
+    {
+      // A previsão é quitada por fora (painel) entre a pergunta e o "sim":
+      // o "sim" não pode quitar a seguinte.
+      const q = await falar("registrar_pagamento_trabalhador", { nome: "Pedro Campeiro" });
+      check("pergunta com o valor previsto", q.requires_confirmation, q.reply_text);
+      const porFora = await confirmWorkerPayment(db, { worker_id: pedro!.id });
+      check("o painel quita a previsão mostrada", porFora.ok);
+      const antes = await pagos();
+      const sim = await falar("registrar_pagamento_trabalhador", {}, { confirmed: true });
+      check("o \"sim\" velho não grava", sim.action_taken !== "registrar_pagamento_trabalhador:ok" && (await pagos()) === antes, sim.reply_text);
+    }
+    {
+      // A previsão é remarcada para outro valor entre a pergunta e o "sim".
+      const q = await falar("registrar_pagamento_trabalhador", { nome: "Pedro Campeiro" });
+      check("pergunta de novo", q.requires_confirmation, q.reply_text);
+      const pendente = await db.financialEntry.findFirst({ where: { related_id: pedro!.id, status: "pending" } });
+      await db.financialEntry.update({ where: { id: pendente!.id }, data: { amount: 2222 } });
+      const antes = await pagos();
+      const sim = await falar("registrar_pagamento_trabalhador", {}, { confirmed: true });
+      check(
+        "valor mudou: não grava e diz por quê",
+        (await pagos()) === antes && sim.reply_text.includes("mudou"),
+        sim.reply_text,
+      );
+    }
+
     console.log("\n19. OPERADOR não passa pelo roteador (a permissão vale no WhatsApp)");
     const comoOperador = await routeIntent(db, {
       intent: "registrar_trabalhador" as never,

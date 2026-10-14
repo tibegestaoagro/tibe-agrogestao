@@ -332,7 +332,14 @@ export const registrarPagamentoTrabalhador: Handler = async (ctx) => {
     );
   }
 
+  // Sem valor dito, o "sim" vale para a previsão MOSTRADA, e só ela é baixada
+  // (achado do Codex na dívida 5.0a): vai junto no pedido guardado.
+  const mostrada = informado === null && worker.proximo_pagamento
+    ? { id: worker.proximo_pagamento.id, amount: worker.proximo_pagamento.amount }
+    : undefined;
+
   if (!ctx.confirmed) {
+    parameters._previsao_mostrada = mostrada ?? null;
     await guardar("confirmacao");
     return {
       reply_text:
@@ -350,6 +357,8 @@ export const registrarPagamentoTrabalhador: Handler = async (ctx) => {
   const res = await confirmWorkerPayment(ctx.db, {
     worker_id: worker.id,
     amount: informado,
+    previsao_mostrada:
+      informado === null ? ((parameters._previsao_mostrada as { id: string; amount: number } | null) ?? undefined) : undefined,
   });
   await limpar();
   if (!res.ok) return failReply(intent, res);
