@@ -154,8 +154,8 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
 
-**0. Programa de dívidas ENCERRADO: E0 a E10 em produção, E11 na branch
-`fechamento-dividas` (só documentação), esperando autorização de merge.**
+**0. Programa de dívidas ENCERRADO: E0 a E11 em produção** (E11 só
+documentação, `ccf1474`, 14/10, deploy `success`).
 E10 (2.3) em quatro merges: filtros do §19 (`2e24e85`; dívida nova 5.15),
 pasto no formulário (`5ea781c`), forma de pagamento no lançamento (`91990af`)
 e peso/arroba (`31027e1`, 14/10; migração rodada pelo usuário no Neon antes do
