@@ -63,8 +63,9 @@ docker run -d --name tibe-pg \
   -p 55432:5432 postgres:17
 ```
 
-⚠️ **O `.env` deste projeto pode apontar para o Neon de produção** (cada máquina
-tem o seu; ver o `CLAUDE.md`). Para rodar teste ou
+⚠️ **O `.env` deste projeto aponta para o Neon de produção**; o `.env.local`,
+quando existe, para o Docker, e o Next e as suítes o leem primeiro (ver o
+`CLAUDE.md`). O Prisma CLI só lê o `.env`. Para rodar teste ou
 migração localmente, passe a URL do Docker inline, com `127.0.0.1` (e não
 `localhost`, que não resolve neste ambiente):
 

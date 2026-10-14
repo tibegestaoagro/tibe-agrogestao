@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./_env-local";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 

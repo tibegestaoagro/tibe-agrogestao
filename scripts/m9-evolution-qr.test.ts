@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./_env-local";
 import { exigirBancoLocal } from "./_banco-local";
 import { getInstanceStatus, createInstance, connectInstance, setInstanceWebhook } from "@/lib/evolution-client";
 

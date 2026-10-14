@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./_env-local";
 import { exigirBancoLocal } from "./_banco-local";
 import { cancelMovement } from "@/lib/actions/herd-ledger";
 import { getDre } from "@/lib/actions/financial-reports";

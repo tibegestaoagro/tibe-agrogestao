@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./_env-local";
 import { encode } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
 import { exigirBancoLocal } from "./_banco-local";

@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./_env-local";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { GROUPS } from "@/app/(public)/docs/api/endpoints";

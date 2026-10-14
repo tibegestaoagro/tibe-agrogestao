@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./_env-local";
 import { withApi } from "@/lib/route";
 import { apiError } from "@/lib/api";
 import { apiErrorSchema } from "@tibe/contracts/envelope";

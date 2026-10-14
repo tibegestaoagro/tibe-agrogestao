@@ -62,6 +62,14 @@ leu o Docker, que já tinha a migração nova, e respondeu "up to date" como se
 fosse o Neon. Conferir produção também exige a URL do Neon inline; nunca
 deduzir para onde o `.env` aponta.
 
+## Acréscimo de 2026-10-14: `.env` em produção, `.env.local` no Docker
+
+O usuário voltou o `.env` para o Neon e pôs as URLs locais no `.env.local`. O
+Next já lia o `.env.local` primeiro; as suítes não (`dotenv/config` só lê o
+`.env`), e passaram a carregar `scripts/_env-local.ts`. O Prisma CLI continua
+só no `.env`: a armadilha original desta nota voltou a valer como escrita, e o
+`db:deploy` local sem URL inline vai ao Neon.
+
 ## Relacionado
 
 - [[validacao-viva-acha-o-que-a-suite-verde-nao-acha]]

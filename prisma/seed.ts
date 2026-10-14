@@ -1,7 +1,11 @@
-import "dotenv/config";
+import "../scripts/_env-local";
 import bcrypt from "bcryptjs";
 import { prisma, prismaForTenant } from "@/lib/prisma";
 import { provisionDefaultVaccines } from "@/lib/vaccines";
+import { exigirBancoLocal } from "../scripts/_banco-local";
+
+// A senha do owner é a de dev, e o tenant tem o nome do cliente real.
+exigirBancoLocal();
 
 /**
  * Seed inicial (spec task 0.4): tenant Da Mata Sementes + usuário owner.

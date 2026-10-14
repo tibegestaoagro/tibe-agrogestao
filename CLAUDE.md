@@ -321,19 +321,27 @@ Fazenda A" perde o sentido se a origem sumir). O seed morria em chave
 estrangeira, e `test:herd` passou a falhar por falta de fixture. Corrigido em
 2026-08-31; **tabela nova que referencie `Property` entra naquela lista**.
 
-⚠️ **O `.env` PODE apontar para o Neon de PRODUÇÃO: confira antes.** Ele não é
-versionado, então cada máquina tem o seu. **No desktop, desde 08/10/2026, ele
-aponta para o Docker local** (banco e Redis), por decisão do usuário; até
-então apontava para produção, e no notebook pode continuar assim. Por isso,
-nos dois sentidos, a URL vai inline:
+⚠️ **O `.env` aponta para o Neon de PRODUÇÃO, e o `.env.local` para o Docker**
+(desde 14/10/2026, por decisão do usuário; entre 08/10 e 14/10 o `.env` do
+desktop foi local). Nenhum dos dois é versionado: cada máquina tem os seus, e
+no notebook o `.env.local` pode não existir. Quem lê qual:
 
-- para teste, seed e migração local, a URL do Docker, como abaixo;
-- para conferir ou migrar **produção**, a URL Direct do Neon, inline no
-  terminal do usuário: no desktop, `npx prisma migrate status` sozinho lê o
-  Docker e responde "up to date" sobre o banco errado (aconteceu na E10.4).
+| quem | lê | resultado |
+|---|---|---|
+| `next dev` | `.env.local`, depois `.env` (o Next faz sozinho) | local |
+| suítes, `db:seed`, `seed:demo`, cenários, `_sessao-local` | `scripts/_env-local.ts`: a mesma ordem | local |
+| Prisma CLI (`migrate status`, `db:deploy`, `migrate diff`) | só o `.env` (`prisma.config.ts`) | **produção** |
+| `observar-canario`, `n8n-workflow`, `diagnostico-integridade` | só o `.env`, de propósito | produção |
 
-Antes de rodar migração, seed ou teste local, passe a URL do Docker inline, sem
-editar o `.env`:
+Daí as duas regras:
+
+- **migração local precisa da URL do Docker inline**, como abaixo: sem ela o
+  `db:deploy` vai ao Neon;
+- **migração no Neon é com a URL Direct inline** (sem `-pooler`): o `.env`
+  guarda a Pooled, que é a de runtime.
+
+Variável inline vence os dois arquivos, então a URL do Docker inline continua
+valendo em qualquer máquina, com ou sem `.env.local`:
 
 ```
 DATABASE_URL="postgresql://tibe:tibe@127.0.0.1:55432/tibe_dev?schema=public" npm run test:m1
@@ -372,7 +380,7 @@ todo `migrate diff` sugere um `DROP INDEX` deles como se fosse drift:
 confere que os dois continuam criados.
 
 ⚠️ **O `.env` pode apontar para o Redis de PRODUÇÃO**, como faz com o banco (no
-desktop, desde 08/10/2026, aponta para o local; ver acima). Três
+desktop, o `.env.local` tem o Redis local desde 14/10/2026; ver acima). Três
 suítes (`m4`, `m19`, `m24`) leem o lock diário (`tibe:alerts:generated:<data>`
 e `tibe:digest:generated:<data>`, chaves globais, não por tenant) e falham
 quando a rodada de produção do dia já passou. Não é regressão.

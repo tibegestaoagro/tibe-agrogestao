@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./_env-local";
 import fs from "node:fs";
 import { exigirBancoLocal } from "./_banco-local";
 

@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./_env-local";
 import { buildNavItems } from "@/lib/nav";
 import type { NavItem, NavChild } from "@/components/layout/sidebar";
 

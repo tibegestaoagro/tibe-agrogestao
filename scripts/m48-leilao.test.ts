@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./_env-local";
 import { exigirBancoLocal } from "./_banco-local";
 import type { TenantPrismaClient } from "@/lib/prisma";
 import type { HandlerCtx } from "@/lib/actions/whatsapp-handlers/shared";

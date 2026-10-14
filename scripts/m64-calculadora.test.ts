@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./_env-local";
 import { converter, UNIDADES } from "@/lib/calculadoras/conversoes";
 import { calcularPiquetes } from "@/lib/calculadoras/piquetes";
 import { calcularMistura } from "@/lib/calculadoras/mistura";

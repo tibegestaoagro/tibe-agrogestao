@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./_env-local";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { prisma, prismaForTenant, scoped, TENANT_SCOPED_MODELS } from "@/lib/prisma";

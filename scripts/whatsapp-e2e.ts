@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./_env-local";
 import { prisma } from "@/lib/prisma";
 import { readOutbound, clearOutbound } from "@/lib/whatsapp-outbox";
 import { getRedisConnection } from "@/lib/redis";

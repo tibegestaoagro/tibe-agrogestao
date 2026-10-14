@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./_env-local";
 import { exigirBancoLocal } from "./_banco-local";
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { z } from "zod";

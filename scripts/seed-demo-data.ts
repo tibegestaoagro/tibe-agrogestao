@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./_env-local";
 import { randomUUID } from "node:crypto";
 import { prisma, prismaForTenant } from "@/lib/prisma";
 import { exigirBancoLocal } from "./_banco-local";

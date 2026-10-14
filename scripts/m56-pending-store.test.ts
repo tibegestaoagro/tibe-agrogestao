@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./_env-local";
 import { exigirRedisLocal } from "./_banco-local";
 
 exigirRedisLocal();

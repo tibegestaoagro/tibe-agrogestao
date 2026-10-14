@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./_env-local";
 import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, type TenantPrismaClient } from "@/lib/prisma";
 import { getHerdEvolution } from "@/lib/actions/herd-evolution";

@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./_env-local";
 import { Queue, Worker } from "bullmq";
 import { getRedisConnectionOptions, getRedisConnection } from "@/lib/redis";
 

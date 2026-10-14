@@ -77,9 +77,10 @@ npm run check
 npm run test:isolation
 ```
 
-⚠️ **O `.env` pode apontar para o Neon de PRODUÇÃO** (no desktop, desde
-08/10/2026, aponta para o Docker local; ver o `CLAUDE.md`). Para conferir
-produção, a URL Direct do Neon vai inline. Para o resto, passe a URL do Docker inline,
+⚠️ **O `.env` aponta para o Neon de PRODUÇÃO, e o Prisma CLI só lê ele**
+(`.env.local`, com o Docker, vale para o Next e as suítes; ver o `CLAUDE.md`).
+`migrate diff` e `db:deploy` locais SEM URL inline vão ao Neon. Migrar
+produção é com a URL Direct inline. Para o resto, passe a URL do Docker inline,
 sem editar o `.env`, e use `127.0.0.1` (`localhost` não resolve neste
 ambiente):
 

@@ -2,7 +2,7 @@
 // construir o client (mesmo sem rodar consulta nenhuma). Por isso o
 // `dotenv/config`, sem `exigirBancoLocal()`: este CLI nunca abre conexão, só
 // formata a constante `FAZENDA` e o registro de intenções.
-import "dotenv/config";
+import "../_env-local";
 import fs from "node:fs";
 import path from "node:path";
 import { descreverFazenda, descreverCatalogo } from "./fazenda";

@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./_env-local";
 import { exigirBancoLocal } from "./_banco-local";
 import { encryptConfig, decryptConfig } from "@/lib/crypto-config";
 import { prisma } from "@/lib/prisma";

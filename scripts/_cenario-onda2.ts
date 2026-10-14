@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./_env-local";
 import { prisma, prismaForTenant } from "@/lib/prisma";
 import { exigirBancoLocal } from "./_banco-local";
 import { provisionDefaultAnimalCategories } from "@/lib/actions/animal-categories";

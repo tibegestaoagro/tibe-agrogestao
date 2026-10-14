@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./_env-local";
 import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant } from "@/lib/prisma";
 import { createTaskAction, updateTaskStatusAction, listTasksAction, serializeTask } from "@/lib/actions/tasks";

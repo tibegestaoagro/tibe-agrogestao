@@ -136,8 +136,10 @@ O porquê está comentado em `scripts/check-repo.ts`.
 
 ## Rodando com banco local
 
-O `.env` pode apontar para o **Neon de produção** (no desktop, desde 08/10/2026,
-aponta para o Docker local; ver o `CLAUDE.md`). Passe a URL inline, sem editar o
+O `.env` aponta para o **Neon de produção**. As suítes leem o `.env.local`
+antes dele (`scripts/_env-local.ts`; ver o `CLAUDE.md`), mas ele pode não
+existir na máquina. Toda suíte nova importa `./_env-local`, nunca
+`dotenv/config`. Passe a URL inline, sem editar o
 `.env`, e use `127.0.0.1` (`localhost` não resolve neste ambiente):
 
 ```

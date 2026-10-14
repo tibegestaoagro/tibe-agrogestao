@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./_env-local";
 import { lerDinheiro, lerData, lerNumeroBr } from "@/lib/actions/whatsapp-handlers/parsers";
 import { itensDosParametros } from "@/lib/actions/whatsapp-handlers/herd";
 import { reaisBr } from "@/lib/numero-br";
