@@ -295,10 +295,11 @@ export const registrarPermuta: Handler = async ({
     quitada = prazo.tipo === "pago";
     vencimento = prazo.tipo === "vence" ? prazo.data : null;
   }
-  const noPrazo =
-    diferenca && vencimento
-      ? ` (${diferenca.direcao === "paguei" ? "a pagar" : "a receber"} em ${vencimento.toLocaleDateString("pt-BR")})`
-      : "";
+  // O rótulo diz o estado que vai ser GRAVADO (achado do Codex): "Diferença
+  // paga" só quando ela entra quitada; a prazo, "a pagar", com o vencimento.
+  const paguei = diferenca?.direcao === "paguei";
+  const rotulo = quitada ? (paguei ? "paga" : "recebida") : paguei ? "a pagar" : "a receber";
+  const noPrazo = vencimento ? `, vence em ${vencimento.toLocaleDateString("pt-BR")}` : "";
 
   // Regra 3: confirmação sempre, com o resumo literal do §18.5.
   if (!confirmed) {
@@ -309,7 +310,7 @@ export const registrarPermuta: Handler = async ({
         `Entregou: ${descrever(entregue)}\n` +
         `Recebeu: ${descrever(recebidoLado)}\n` +
         (diferenca
-          ? `Diferença ${diferenca.direcao === "paguei" ? "paga" : "recebida"}: ${reais(diferenca.amount)}${noPrazo}\n`
+          ? `Diferença ${rotulo}: ${reais(diferenca.amount)}${noPrazo}\n`
           : "") +
         `Deseja registrar?`,
       requires_confirmation: true,
@@ -339,7 +340,7 @@ export const registrarPermuta: Handler = async ({
       (diferenca
         ? quitada
           ? `, com ${reais(diferenca.amount)} ${diferenca.direcao === "paguei" ? "pagos" : "recebidos"}`
-          : `, com ${reais(diferenca.amount)}${noPrazo}`
+          : `, com ${reais(diferenca.amount)} ${rotulo}${noPrazo}`
         : "") +
       `.`,
     requires_confirmation: false,

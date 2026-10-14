@@ -740,7 +740,9 @@ async function comBanco() {
       const resumo = await registrarPermuta(ctx(db, tenant.id, { resposta: "dia 25" }, { userId: USUARIO }));
       check(
         "a data respondida entra no resumo",
-        resumo.requires_confirmation === true && /a pagar em/.test(resumo.reply_text),
+        resumo.requires_confirmation === true &&
+          /Diferença a pagar: R\$\s?3\.000,00, vence em/.test(resumo.reply_text) &&
+          !/Diferença paga/.test(resumo.reply_text),
         resumo.reply_text,
       );
       const feito = await registrarPermuta(ctx(db, tenant.id, {}, { confirmed: true, userId: USUARIO }));
