@@ -101,7 +101,7 @@ deles. Ele passa em três situações que já quebraram tela de verdade:
 3. **Cor nova no `tailwind.config.ts` passa pelo `token("x")`**, nunca
    `"var(--x)"` puro. Com o puro, `bg-x/10` não gera CSS nenhum, em silêncio
    (`tsc`, `lint` e `build` limpos): de 31/08 a 14/10 os realces da sidebar e
-   os fundos suaves nunca apareceram (dívida 2.8). O `token()` gera `color-mix`
+   os fundos suaves nunca apareceram (dívida 2.8 de 07/10/2026, a da opacidade; não a do Confinamento). O `token()` gera `color-mix`
    só para a classe com `/NN`; a conferência 18 do `npm run check` reprova o
    puro. `sobreposicao` segue em canais (`rgb(var(--x) / <alpha-value>)`), que
    também funciona.

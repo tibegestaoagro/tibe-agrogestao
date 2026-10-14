@@ -20,7 +20,7 @@ import tailwindcssAnimate from "tailwindcss-animate";
  *
  * Com `"var(--x)"` puro, o Tailwind 3 nao sabe aplicar o `/10` e descarta a
  * classe em silencio: de 31/08 a 14/10 os realces da sidebar e os fundos
- * suaves nunca apareceram (divida 2.8). Sem modificador sai `var(--x)` puro,
+ * suaves nunca apareceram (divida 2.8 de 07/10/2026). Sem modificador sai `var(--x)` puro,
  * como antes; com ele, `color-mix`, que navegador anterior ao Chrome 111
  * ignora (a classe volta a nao fazer nada, sem quebrar a cor de base).
  *

@@ -1299,7 +1299,7 @@ function conferirAliasDaMarca() {
 /**
  * 18. Toda cor de token do `tailwind.config.ts` aceita `/NN`.
  *
- * Divida 2.8: com `"var(--x)"` puro, `bg-texto-invertido/10` nao gerava CSS
+ * Divida 2.8 de 07/10/2026 (a da opacidade, nao a do Confinamento): com `"var(--x)"` puro, `bg-texto-invertido/10` nao gerava CSS
  * nenhum, sem aviso de build, `tsc` ou `lint`, e os realces da sidebar ficaram
  * invisiveis de 31/08 a 14/10. A cor tem de passar pelo `token()` (funcao) ou
  * trazer `<alpha-value>`. E os plugins `*Opacity` tem de seguir desligados:

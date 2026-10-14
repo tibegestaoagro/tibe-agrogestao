@@ -164,8 +164,9 @@ push, `migrate status` em dia, deploy `success`). **14/10: `.env` é o Neon e
 CLI só o `.env` (tabela no `CLAUDE.md`). E11: a 2.3 do `dividas.md` ficou com
 §12.4 e aceite 23, e o que sobrou para o usuário (`.env.local` no notebook,
 painel logado, push, BANCO DE PROVAS, 5.11, 1.2) está no item 12 de
-[pendencias-do-usuario.md](pendencias-do-usuario.md). Próximo trabalho: escolher
-no `dividas.md`, com o usuário. E3 a E9 em
+[pendencias-do-usuario.md](pendencias-do-usuario.md). **Depois: 2.8 (opacidade)
+na branch `divida-2-8-opacidade`**, esperando merge: `token()` no config,
+conferência 18, 20 regras novas no CSS, base igual; conferida no `/dashboard`. E3 a E9 em
 [historico/2026-10.md](historico/2026-10.md).
 
 **1. Segurança, que é do usuário e vem antes de tudo:** rotacionar as 22

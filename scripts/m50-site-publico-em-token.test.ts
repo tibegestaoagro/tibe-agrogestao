@@ -119,7 +119,7 @@ const tailwindExiste = existsSync(tailwindPath);
 check("tailwind.config.ts existe", tailwindExiste);
 
 if (tailwindExiste) {
-  // O valor que o Tailwind recebe, nao o texto do arquivo: desde a divida 2.8
+  // O valor que o Tailwind recebe, nao o texto do arquivo: desde a divida 2.8 de 07/10/2026
   // a cor e a funcao `token()`, chamada sem modificador como na classe pura.
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const blocoCodigo = require(tailwindPath).default.theme?.extend?.colors?.codigo;

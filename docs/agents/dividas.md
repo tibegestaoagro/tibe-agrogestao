@@ -15,7 +15,10 @@ Lista de dívida que só cresce vira lista que ninguém lê.
 renumerado: o handoff, as specs de `docs/superpowers/` e o comentário da
 conferência 8 em `scripts/check-repo.ts` citam a dívida pelo número (`§2.5`,
 `§2.8`, `§2.9`), e renumerar transformaria cada citação numa referência para o
-item errado. Item novo entra com o próximo número livre da seção.
+item errado. Item novo entra com o próximo número **nunca usado** da
+seção: número de item apagado não volta. A 2.8 de 07/10/2026 (opacidade,
+fechada em 14/10) reaproveitou o número da 2.8 do Confinamento, fechada em
+14/09, e o código cita as duas como "dívida 2.8".
 
 ---
 
@@ -88,31 +91,6 @@ arroba não têm parâmetro no agente.
 O maior desalinhamento aberto com o cliente Agromax: foi pedido rebanho **por
 categoria**, e o que existe é por brinco com categoria em cima. Não é dívida de
 código, é de produto, e precisa de conversa antes de virar tarefa.
-
-### 2.8 Opacidade sobre token não gera CSS nenhum
-
-Achado em 07/10/2026, fechando a E4 (2.5, 2.6, 2.7), ao compilar só o CSS do
-Tailwind para provar que a troca de nomes era neutra. **Toda classe com
-opacidade sobre token hexadecimal sai sem regra**: `bg-texto-invertido/10`,
-`text-texto-invertido/70`, `bg-primaria/10`, `bg-superficie/70`,
-`border-texto-invertido/10`. No Tailwind 3, opacidade exige a cor com
-`<alpha-value>`, e os tokens são `var(--x)` puro: a classe é descartada em
-silêncio, sem aviso de build, `tsc` ou `lint`.
-
-Consequência desde a migração para tokens (31/08): os realces de hover da
-sidebar, os textos esmaecidos dela, a borda que separa o rodapé dela, o fundo
-suave dos cartões de KPI e da calculadora **nunca apareceram**; o texto herda
-a cor do pai. O próprio `.claude/rules/ui.md` recomenda `bg-texto-invertido/10`
-(armadilha 1) e só avisa do problema para `--sobreposicao` (armadilha 3). Só
-`--sobreposicao` está em canais e funciona.
-
-**Custo e conserto, já verificado:** o Tailwind 3.4 aceita `<alpha-value>`
-dentro de qualquer string, então cada cor do `tailwind.config.ts` pode virar
-`color-mix(in srgb, var(--x) calc(<alpha-value> * 100%), transparent)`. Sem
-opacidade o valor é 100% e a cor fica igual; com `/10`, aparece o que o código
-sempre pediu. **Muda o visual** (a sidebar ganha o realce desenhado), por isso
-pede validação no navegador antes do merge. Mais uma conferência no `check`
-que compile o CSS e reprove classe usada que não gerou regra.
 
 ## 3. Rede de segurança com furo
 

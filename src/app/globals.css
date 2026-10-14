@@ -37,7 +37,7 @@
      só funcionava com `rgb(var(--x) / <alpha-value>)`. Com hex o véu não
      escurecia, e o painel abria sobre a página em brilho total. Desde 14/10
      os outros tokens aceitam `/NN` pelo `token()` do `tailwind.config.ts`
-     (dívida 2.8). */
+     (dívida 2.8 de 07/10/2026, a da opacidade). */
   --sobreposicao: 0 0 0;
 
   /* Bloco de codigo (<pre> de /docs). Par proprio, e nao
