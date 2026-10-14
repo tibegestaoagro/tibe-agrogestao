@@ -1,8 +1,18 @@
 import * as c from "@tibe/contracts";
 import * as E from "@/generated/prisma/enums";
+import type { OrigemDoItem } from "@/lib/actions/meu-dia";
 import { assert, tenantDaSecao, type SecaoDeContrato } from "../contratos";
 
 const DIA = 86_400_000;
+
+/**
+ * As origens do Meu Dia não são enum do Prisma, e o cenário só materializa
+ * três das sete (achado do Codex): quem prende o contrato à action é o
+ * compilador. Origem a mais ou a menos de qualquer lado quebra o `tsc`.
+ */
+type Igual<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+const origensIguais: Igual<c.MeuDiaOrigem, OrigemDoItem> = true;
+void origensIguais;
 
 export const secao: SecaoDeContrato = {
   titulo: "Tarefas e Meu Dia (Módulos 27 e 38)",
