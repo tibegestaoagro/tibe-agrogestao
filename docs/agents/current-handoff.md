@@ -166,7 +166,7 @@ desativado, desativado não recebe gado; `m75`). 3.3 em produção (`78829e1`:
 o agente segue a régua do painel; `m76`). **4.1 (parte servidor) na branch
 `divida-4-1-contratos`**, esperando merge: os sete domínios que faltavam no
 pacote, uma seção por domínio em `scripts/helpers/contratos/` na `m73`;
-Codex aprovou na rodada 2. 5.13 e 5.15 adiadas (produção tem 3 contatos).
+Codex aprovou. 5.13/5.15 adiadas. E3-E9: [historico/2026-10.md](historico/2026-10.md).
 
 **1. Segurança, que é do usuário e vem antes de tudo:** rotacionar as 22
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
