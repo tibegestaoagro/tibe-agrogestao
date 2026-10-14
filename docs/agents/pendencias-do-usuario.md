@@ -311,6 +311,29 @@ máquina, e é só isso que falta alinhar (não é segredo:
    O código já usa esse par como padrão quando as variáveis faltam, então isto
    é só para deixar a escolha explícita e permitir trocar sem deploy novo.
 
+## 12. O que o programa de dívidas (07 a 14/10/2026) deixou para você
+
+O código das etapas E0 a E10 está em produção. Estes passos só um humano faz:
+
+1. **No notebook, criar o `.env.local`** com as URLs do Docker (desde 14/10 o
+   `.env` é o Neon, e as suítes e o `next dev` leem o `.env.local` primeiro):
+   ```
+   DATABASE_URL="postgresql://tibe:tibe@127.0.0.1:55432/tibe_dev?schema=public"
+   REDIS_URL="redis://127.0.0.1:56379"
+   ```
+   Sem ele, as suítes recusam rodar (a trava de banco local) e o `next dev` lê
+   produção.
+2. **Olhar o painel logado** depois da troca de tokens da E4: sidebar, Rebanho,
+   Financeiro. O site público já foi conferido.
+3. **Ativar o push em `/configuracoes/alertas`, em produção** (E3): o service
+   worker só registra lá, então a tela nunca foi vista funcionando.
+4. **Decidir se monta um cenário de confinamento no tenant BANCO DE PROVAS**
+   (E2), para o agente ser exercitado encerrando lote com venda.
+5. **Ver ao vivo o negócio com dois itens** (dívida 5.11): exige ligar a cópia
+   de homologação do n8n ou pôr o telefone de teste no canário, que é escrita
+   no n8n de produção.
+6. **Os três itens do app sem reteste** (dívida 1.2), com o Expo Go do SDK 54.
+
 ## O que NÃO depende de você
 
 Para não procurar o que já está resolvido: CI, envelope de erro, log

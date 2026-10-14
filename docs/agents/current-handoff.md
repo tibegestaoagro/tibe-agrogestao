@@ -27,7 +27,7 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 
 - Atualizado em: 2026-10-14.
 
-### Programa de dívidas (desde 07/10): E0 a E10 em produção, falta a E11
+### Programa de dívidas (07 a 14/10): encerrado, E0 a E10 em produção
 
 ⚠️ **Regra do Codex desde 07/10 (o limite de uso dele chegou a 90%):**
 `adversarial-review` sempre com `--model gpt-5.6-terra` (intermediário; o
@@ -35,15 +35,13 @@ esforço padrão dele já é `medium`, e o comando não aceita `--effort`); **no
 máximo 2 rodadas por etapa** (a primeira já pedindo só o bloqueante, a
 segunda só para confirmar); o que sobrar vira dívida registrada; **etapa só
 visual não passa pelo Codex** (quem pega defeito ali é o navegador). Não
-editar `~/.codex/config.toml`: ele vale para todo o Codex do usuário. Até
-aqui foram 16 rodadas em quatro etapas, sem modelo fixado.
+editar `~/.codex/config.toml`: vale para todo o Codex do usuário.
 
 O usuário aprovou em 07/10 um programa para fechar as dívidas de
 [dividas.md](dividas.md) em etapas E0 a E11, uma branch por etapa, cada uma com
-revisão adversarial do Codex e validação viva antes do merge. **O plano inteiro,
-com as decisões do usuário, está em
-`C:\Users\dilto\.claude\plans\ok-agora-com-esse-vivid-petal.md`** (fora do
-repositório: no notebook ele não existe, e as decisões ficam resumidas aqui).
+revisão adversarial do Codex e validação viva antes do merge. O plano está
+fora do repositório (`~/.claude/plans/ok-agora-com-esse-vivid-petal.md`, só no
+desktop); as decisões ficam resumidas aqui.
 Decisões: 3.2 arquivado BLOQUEIA (vence o selo interno, preservando a janela
 de leitura do cancelamento); 2.6 token novo `--texto-marca`/`--borda-marca`;
 2.7 contorno nos chips de `/docs`; 5.5 frase com verbo + quantidade +
@@ -156,16 +154,18 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
 
-**0. Programa de dívidas: E0 a E10 em produção; falta a E11 (fechamento).**
+**0. Programa de dívidas ENCERRADO: E0 a E10 em produção, E11 na branch
+`fechamento-dividas` (só documentação), esperando autorização de merge.**
 E10 (2.3) em quatro merges: filtros do §19 (`2e24e85`; dívida nova 5.15),
 pasto no formulário (`5ea781c`), forma de pagamento no lançamento (`91990af`)
 e peso/arroba (`31027e1`, 14/10; migração rodada pelo usuário no Neon antes do
 push, `migrate status` em dia, deploy `success`). **14/10: `.env` é o Neon e
 `.env.local` o Docker**; suítes e seeds leem `scripts/_env-local.ts`, o Prisma
-CLI só o `.env` (tabela no `CLAUDE.md`). **E11:** `dividas.md` (a 2.3 ainda
-lista os quatro itens entregues), `pendencias-do-usuario.md`, handoff, cofre.
-Do usuário: painel logado (E4), tela de push (E3), confinamento no BANCO DE
-PROVAS (E2), homologação no n8n (5.11), três itens do app (1.2). E3 a E9 em
+CLI só o `.env` (tabela no `CLAUDE.md`). E11: a 2.3 do `dividas.md` ficou com
+§12.4 e aceite 23, e o que sobrou para o usuário (`.env.local` no notebook,
+painel logado, push, BANCO DE PROVAS, 5.11, 1.2) está no item 12 de
+[pendencias-do-usuario.md](pendencias-do-usuario.md). Próximo trabalho: escolher
+no `dividas.md`, com o usuário. E3 a E9 em
 [historico/2026-10.md](historico/2026-10.md).
 
 **1. Segurança, que é do usuário e vem antes de tudo:** rotacionar as 22

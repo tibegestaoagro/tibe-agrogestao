@@ -72,14 +72,16 @@ assinatura, webhook de pagamento, webhook de atraso).
 
 | item | situação |
 |---|---|
-| §13, formas de pagamento (dinheiro, pix, boleto) | não implementado; o parcelamento, que é o que mexe no financeiro, existe |
-| §6.2 e §7.2, pasto de origem e destino | o WhatsApp lê, a tela web não oferece |
-| §6.2, peso, arroba e valor por cabeça | adiado desde a revisão de 2026-08-14 |
 | §12.4, os valores estimados da permuta | fora da v1; o valor da negociação é só a diferença em dinheiro |
 | histórico do aceite 23 | não implementado |
 
-Os nove filtros do §19 entraram na E10.1 (13/10/2026); o custo do filtro de
-situação está na 5.15.
+A E10 (13 e 14/10/2026) entregou os outros quatro: os nove filtros do §19 (o
+custo do filtro de situação está na 5.15), o pasto de origem e destino na
+tela, a forma de pagamento do §13 (gravada no lançamento) e peso, arroba e
+valor por cabeça (informativos, por negócio). **Pelo WhatsApp, só a forma de
+pagamento tem caminho**: os handlers de gado e estoque leem `forma_pagamento`,
+mas o classificador do n8n, congelado, ainda não emite o parâmetro; peso e
+arroba não têm parâmetro no agente.
 
 ### 2.4 Rebanho por categoria x por brinco
 
@@ -142,10 +144,6 @@ lista inteira no app. A E9 achou o mesmo em `RelatedModule` (4 de 8) e
 
 ## 5. Higiene menor
 
-- **`.claude/settings.local.json` tem 175 permissões**, quase todas comandos de
-  uso único de sessões passadas (`curl` para localhost, `rm` de arquivo
-  temporário específico). É ruído, não risco: os curingas perigosos foram
-  removidos em 2026-08-18. Limpar é cosmético.
 - **A numeração de suíte descolou da de módulo** por volta do `m25` e não tem
   volta (renumerar colide). Já está documentado no `CLAUDE.md` e o
   `npm run check` reprova suíte órfã, então é convivência, não dívida.
