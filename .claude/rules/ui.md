@@ -98,10 +98,13 @@ deles. Ele passa em três situações que já quebraram tela de verdade:
    página fica **invisível**: sobra o texto solto. O contraste do texto
    continua ótimo, então o gate aprova para sempre. Foi assim com as pílulas de
    "Perfis ativos", corrigidas em 31/08. Código novo não usa o alias.
-3. **Opacidade exige a cor em CANAIS.** `bg-sobreposicao/40` é ignorado em
-   silêncio se o token for hex: o `<alpha-value>` do Tailwind precisa de
-   `rgb(var(--x) / <alpha-value>)` e do valor em `0 0 0`. `tsc`, `lint` e
-   `build` passam limpos, e só o olho pega.
+3. **Cor nova no `tailwind.config.ts` passa pelo `token("x")`**, nunca
+   `"var(--x)"` puro. Com o puro, `bg-x/10` não gera CSS nenhum, em silêncio
+   (`tsc`, `lint` e `build` limpos): de 31/08 a 14/10 os realces da sidebar e
+   os fundos suaves nunca apareceram (dívida 2.8). O `token()` gera `color-mix`
+   só para a classe com `/NN`; a conferência 18 do `npm run check` reprova o
+   puro. `sobreposicao` segue em canais (`rgb(var(--x) / <alpha-value>)`), que
+   também funciona.
 
 Quando faltar um tom intermediário (borda sobre fundo suave, por exemplo),
 **derive por opacidade** (`border-perigo-tinta/30`) em vez de inventar token: o

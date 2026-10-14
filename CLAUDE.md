@@ -73,14 +73,16 @@ CONVERSA, nunca deduzida de uma anterior. `permissions.defaultMode` está em
 `"auto"` no escopo de usuário desde 2026-08-18, e foi testado: **os hooks
 continuam bloqueando nesse modo**.
 
-`npm run check` completa o quadro sem banco, em **15 conferências**: caminho
+`npm run check` completa o quadro sem banco, em **18 conferências**: caminho
 citado que não existe, rota que não existe mais, `npm run` inexistente,
 travessão novo, os dois índices parciais que o `migrate diff` tenta derrubar,
 contraste de par de token, `<input type="number">` novo, cor crua do Tailwind,
 rótulo de movimentação do rebanho, recusa do servidor engolida, painel de
 escrita fora do kit, recusa do Zod devolvida crua, cofre de conhecimento com
-link quebrado, elemento cujo fundo repete o do container que o envolve, e
-campo do `ORDEM` cujo `<Field>` não renderiza a própria recusa.
+link quebrado, elemento cujo fundo repete o do container que o envolve,
+campo do `ORDEM` cujo `<Field>` não renderiza a própria recusa, dinheiro fora
+do formato brasileiro, alias depreciado `tibe-*` e cor de token que não aceita
+opacidade (`/NN`).
 
 ⚠️ **A 10 e a 15 parecem a mesma e não são.** A 10 pergunta se o ARQUIVO trata
 a recusa em algum lugar, e foi por isso que ela aprovou oito campos mudos de

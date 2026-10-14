@@ -32,11 +32,12 @@
      numa identidade diferente ele pode não ser preto, e a opacidade fica na
      classe, onde já estava.
 
-     ⚠️ Em CANAIS, e não em hexadecimal como todos os outros: é o único token
-     usado com opacidade (`bg-sobreposicao/40`), e a sintaxe `/40` do Tailwind
-     precisa de `rgb(var(--x) / <alpha-value>)`, que não funciona com hex. Com
-     hex o véu simplesmente não escurecia, e o painel abria sobre a página em
-     brilho total. */
+     ⚠️ Em CANAIS, e não em hexadecimal como todos os outros: foi o primeiro
+     token usado com opacidade (`bg-sobreposicao/40`), quando a sintaxe `/40`
+     só funcionava com `rgb(var(--x) / <alpha-value>)`. Com hex o véu não
+     escurecia, e o painel abria sobre a página em brilho total. Desde 14/10
+     os outros tokens aceitam `/NN` pelo `token()` do `tailwind.config.ts`
+     (dívida 2.8). */
   --sobreposicao: 0 0 0;
 
   /* Bloco de codigo (<pre> de /docs). Par proprio, e nao

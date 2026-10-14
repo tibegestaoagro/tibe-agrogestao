@@ -1295,6 +1295,48 @@ function conferirAliasDaMarca() {
   );
 }
 
+// --------------------------------------- 18. cor de token aceita opacidade
+/**
+ * 18. Toda cor de token do `tailwind.config.ts` aceita `/NN`.
+ *
+ * Divida 2.8: com `"var(--x)"` puro, `bg-texto-invertido/10` nao gerava CSS
+ * nenhum, sem aviso de build, `tsc` ou `lint`, e os realces da sidebar ficaram
+ * invisiveis de 31/08 a 14/10. A cor tem de passar pelo `token()` (funcao) ou
+ * trazer `<alpha-value>`. E os plugins `*Opacity` tem de seguir desligados:
+ * religados, a classe SEM modificador cai no `color-mix`, e navegador anterior
+ * ao Chrome 111 perde a cor inteira.
+ */
+function conferirOpacidadeDosTokens() {
+  console.log("\n18. Cor de token aceita opacidade");
+
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const config = require(join(RAIZ, "tailwind.config.ts")).default;
+  const presas: string[] = [];
+  const percorre = (no: unknown, caminho: string) => {
+    if (typeof no === "string") {
+      if (no.includes("var(--") && !no.includes("<alpha-value>")) presas.push(`${caminho}: ${no}`);
+    } else if (no && typeof no === "object") {
+      for (const [k, v] of Object.entries(no)) percorre(v, caminho ? `${caminho}.${k}` : k);
+    }
+  };
+  percorre(config.theme?.extend?.colors, "");
+  check(
+    "nenhuma cor de token em var(--x) puro",
+    presas.length === 0,
+    presas.length > 0
+      ? `com var(--x) puro, a classe com /NN nao gera CSS; use token("x"):\n       ${presas.join("\n       ")}`
+      : undefined,
+  );
+
+  const PLUGINS = ["backgroundOpacity", "textOpacity", "borderOpacity", "ringOpacity", "divideOpacity", "placeholderOpacity"];
+  const ligados = PLUGINS.filter((p) => config.corePlugins?.[p] !== false);
+  check(
+    "plugins *Opacity desligados",
+    ligados.length === 0,
+    ligados.length > 0 ? `religados, toda classe da cor sai em color-mix: ${ligados.join(", ")}` : undefined,
+  );
+}
+
 function main() {
   console.log("🔎 Conferencia estatica do repositorio (sem banco)");
   conferirCaminhos();
@@ -1315,6 +1357,7 @@ function main() {
   conferirCampoMudo();
   conferirDinheiroEmPortugues();
   conferirAliasDaMarca();
+  conferirOpacidadeDosTokens();
 
   console.log("");
   if (falhas === 0) console.log("✅ Repositorio consistente: 0 falhas.");
