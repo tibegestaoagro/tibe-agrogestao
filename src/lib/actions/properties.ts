@@ -2,6 +2,7 @@ import type { TenantPrismaClient } from "@/lib/prisma";
 import { decToNum } from "@/lib/serialize";
 import { normalizarTermo } from "@/lib/actions/whatsapp-handlers/shared";
 import { getPositions } from "@/lib/actions/herd-ledger";
+import { runSerializableTenantTransaction } from "@/lib/financial";
 import { fail, ok, type ActionResult } from "@/lib/actions/types";
 import type { Pasture } from "@/generated/prisma/client";
 
@@ -18,22 +19,26 @@ export async function archivePastureAction(
   db: TenantPrismaClient,
   id: string,
 ): Promise<ActionResult<Pasture>> {
-  const pasture = await db.pasture.findFirst({ where: { id } });
-  if (!pasture) return fail("NOT_FOUND", "Pasto não encontrado.", 404);
-  if (pasture.archived_at) return ok(pasture);
+  // Serializável, como o `recordMovement`: um movimento para este pasto que
+  // corra junto conflita com a contagem, e um dos dois é refeito.
+  return runSerializableTenantTransaction(db, async (tx) => {
+    const pasture = await tx.pasture.findFirst({ where: { id } });
+    if (!pasture) return fail("NOT_FOUND", "Pasto não encontrado.", 404);
+    if (pasture.archived_at) return ok(pasture);
 
-  const cabecas = (await getPositions(db, { pasture_id: id }))
-    .filter((p) => p.pasture_id === id && p.quantity > 0)
-    .reduce((soma, p) => soma + p.quantity, 0);
-  if (cabecas > 0) {
-    return fail(
-      "PASTO_OCUPADO",
-      `O pasto ${pasture.name} tem ${cabecas} ${cabecas === 1 ? "animal" : "animais"}. Transfira o gado para outro pasto antes de desativar.`,
-      409,
-    );
-  }
+    const cabecas = (await getPositions(tx, { pasture_id: id }))
+      .filter((p) => p.pasture_id === id && p.quantity > 0)
+      .reduce((soma, p) => soma + p.quantity, 0);
+    if (cabecas > 0) {
+      return fail(
+        "PASTO_OCUPADO",
+        `Não dá para desativar ${pasture.name}: ${cabecas === 1 ? "1 animal está" : `${cabecas} animais estão`} nele. Transfira o gado para outro pasto antes.`,
+        409,
+      );
+    }
 
-  return ok(await db.pasture.update({ where: { id }, data: { archived_at: new Date() } }));
+    return ok(await tx.pasture.update({ where: { id }, data: { archived_at: new Date() } }));
+  });
 }
 
 /** Propriedades ativas (não arquivadas) do tenant. */

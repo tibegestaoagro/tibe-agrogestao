@@ -576,20 +576,35 @@ function validateShape(input: RecordMovementInput): { code: string; message: str
   return null;
 }
 
+/**
+ * `destinoDesativadoOk`: o movimento fica no mesmo pasto (mudança de
+ * categoria, ajuste), então pasto desativado com gado de antes de 14/10/2026
+ * não trava o envelhecimento nem a correção. Fora isso, pasto desativado não
+ * RECEBE gado (dívida 5.12); como origem segue valendo, para tirar o que ficou.
+ *
+ * Lê pela transação do movimento, e não pelo client de fora: é o que faz a
+ * serializável enxergar o conflito com `archivePastureAction`, que conta as
+ * cabeças e desativa na mesma garantia.
+ */
 async function validatePosition(
-  db: TenantPrismaClient,
+  tx: TenantTransactionClient,
   pos: HerdPositionKey,
+  lado: "from" | "to",
+  destinoDesativadoOk: boolean,
 ): Promise<{ code: string; message: string } | null> {
   if (!isValidCategory(pos.category_id)) {
     return { code: "INVALID_CATEGORY", message: "Categoria inválida" };
   }
-  const property = await db.property.findFirst({ where: { id: pos.property_id } });
+  const property = await tx.property.findFirst({ where: { id: pos.property_id } });
   if (!property) return { code: "INVALID_PROPERTY", message: "Propriedade inválida" };
   if (pos.pasture_id) {
-    const pasture = await db.pasture.findFirst({
+    const pasture = await tx.pasture.findFirst({
       where: { id: pos.pasture_id, property_id: pos.property_id },
     });
     if (!pasture) return { code: "INVALID_PASTURE", message: "Pasto inválido para esta propriedade" };
+    if (lado === "to" && pasture.archived_at && !destinoDesativadoOk) {
+      return { code: "INVALID_PASTURE", message: `${pasture.name} está desativado: escolha um pasto ativo.` };
+    }
   }
   return null;
 }
@@ -644,9 +659,10 @@ export async function recordMovementInTx(
   const shapeError = validateShape(input);
   if (shapeError) return fail(shapeError.code, shapeError.message, 422);
 
-  for (const pos of [input.from, input.to]) {
+  const mesmoPasto = !!input.from && !!input.to && input.from.pasture_id === input.to.pasture_id;
+  for (const [lado, pos] of [["from", input.from], ["to", input.to]] as const) {
     if (!pos) continue;
-    const error = await validatePosition(db, pos);
+    const error = await validatePosition(tx, pos, lado, mesmoPasto);
     if (error) return fail(error.code, error.message, 422);
   }
 

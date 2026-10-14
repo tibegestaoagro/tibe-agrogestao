@@ -126,7 +126,55 @@ async function main() {
       assert(denovo.status === 200 && denovo.body.data?.archived_at === primeira, "desativar de novo mantém a data original", `${denovo.body.data?.archived_at} x ${primeira}`);
     }
 
-    console.log("\n4. Isolamento");
+    console.log("\n4. Pasto desativado não recebe gado, mas devolve");
+    {
+      const entrada = await recordMovement(db, { movement_type: "compra", quantity: 2, to: posicao(vazio.id, "proprio") });
+      assert(!entrada.ok && entrada.code === "INVALID_PASTURE", "comprar para um pasto desativado é recusado", entrada.ok ? "gravou" : entrada.code);
+      const transf = await recordMovement(db, {
+        movement_type: "transferencia_pasto",
+        quantity: 1,
+        from: posicao(destino.id, "proprio"),
+        to: posicao(vazio.id, "proprio"),
+      });
+      assert(!transf.ok && transf.code === "INVALID_PASTURE", "transferir para um pasto desativado também", transf.ok ? "gravou" : transf.code);
+
+      // Pasto desativado ANTES da regra, com gado dentro (o estado que já existe).
+      const antigo = await pasto("Pasto Antigo");
+      await recordMovement(db, { movement_type: "saldo_inicial", quantity: 4, to: posicao(antigo.id, "proprio") });
+      await db.pasture.update({ where: { id: antigo.id }, data: { archived_at: new Date() } });
+      const envelhece = await recordMovement(db, {
+        movement_type: "mudanca_categoria",
+        quantity: 4,
+        from: posicao(antigo.id, "proprio"),
+        to: { ...posicao(antigo.id, "proprio"), category_id: "macho_25_36" },
+      });
+      assert(envelhece.ok, "mudar a categoria dentro do pasto antigo segue valendo", envelhece.ok ? "" : envelhece.message);
+      const tira = await recordMovement(db, {
+        movement_type: "transferencia_pasto",
+        quantity: 4,
+        from: { ...posicao(antigo.id, "proprio"), category_id: "macho_25_36" },
+        to: { ...posicao(destino.id, "proprio"), category_id: "macho_25_36" },
+      });
+      assert(tira.ok, "e tirar o gado de lá também", tira.ok ? "" : tira.message);
+    }
+
+    console.log("\n5. Desativar e mover para o pasto ao mesmo tempo");
+    {
+      let tortos = 0;
+      for (let i = 0; i < 6; i++) {
+        const alvo = await pasto(`Pasto Corrida ${i}`);
+        await Promise.allSettled([
+          archivePastureAction(db, alvo.id),
+          recordMovement(db, { movement_type: "compra", quantity: 1, to: posicao(alvo.id, "proprio") }),
+        ]);
+        const p = await db.pasture.findUnique({ where: { id: alvo.id } });
+        const dentro = await db.herdMovement.count({ where: { to_pasture_id: alvo.id, canceled_at: null } });
+        if (p?.archived_at && dentro > 0) tortos++;
+      }
+      assert(tortos === 0, "nenhuma rodada termina com pasto desativado e gado dentro", `${tortos} de 6`);
+    }
+
+    console.log("\n6. Isolamento");
     {
       const r = await archivePastureAction(b.db, deTerceiro.id);
       assert(!r.ok && r.status === 404, "outro tenant não acha o pasto", r.ok ? "ok" : r.code);

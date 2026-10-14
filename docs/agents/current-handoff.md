@@ -155,17 +155,17 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 ### ⏭️ PRÓXIMO PASSO
 
 **0. Programa de dívidas ENCERRADO: E0 a E11 em produção** (E11, `ccf1474`).
-E10 (2.3) em quatro merges: filtros do §19 (`2e24e85`; dívida nova 5.15),
-pasto no formulário (`5ea781c`), forma de pagamento no lançamento (`91990af`)
-e peso/arroba (`31027e1`, 14/10; migração rodada pelo usuário no Neon antes do
-push, `migrate status` em dia, deploy `success`). **14/10: `.env` é o Neon e
+E10 (2.3): filtros do §19, pasto, forma de pagamento e peso/arroba (`31027e1`,
+migração no Neon pelo usuário antes do push). **14/10: `.env` é o Neon e
 `.env.local` o Docker**; suítes e seeds leem `scripts/_env-local.ts`, o Prisma
 CLI só o `.env` (tabela no `CLAUDE.md`). E11: a 2.3 do `dividas.md` ficou com
 §12.4 e aceite 23, e o que sobrou para o usuário (`.env.local` no notebook,
 painel logado, push, BANCO DE PROVAS, 5.11, 1.2) está no item 12 de
-[pendencias-do-usuario.md](pendencias-do-usuario.md). **Depois: 2.8 (opacidade)
-na branch `divida-2-8-opacidade`**, esperando merge: `token()` no config,
-conferência 18, 20 regras novas no CSS, base igual; conferida no `/dashboard`. E3 a E9 em
+[pendencias-do-usuario.md](pendencias-do-usuario.md). Depois: 2.8 (opacidade)
+em produção (`229b957`, conferida no CSS de produção). **5.12 na branch
+`divida-5-12-pasto-ocupado`**, esperando merge: pasto com gado não é desativado
+(409 `PASTO_OCUPADO`), pasto desativado não recebe gado, e os dois na mesma
+serializável (corrida 6/6 sem ela); `m75`, Codex rodada 1. E3 a E9 em
 [historico/2026-10.md](historico/2026-10.md).
 
 **1. Segurança, que é do usuário e vem antes de tudo:** rotacionar as 22
