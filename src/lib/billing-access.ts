@@ -126,6 +126,15 @@ export const getBillingState = perRequestCache(async function getBillingState(
   return { access: acessoPorCobranca(tenant, subscription), archived: false };
 });
 
+/** O que o WhatsApp responde a quem não está em dia (dívida 3.3). */
+export function mensagemDeCobranca(acesso: "read_only" | "blocked"): string {
+  const base = (process.env.NEXTAUTH_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+  const link = `${base}/configuracoes/assinatura`;
+  return acesso === "blocked"
+    ? `A assinatura do Tibé está com pagamento pendente, e o acesso foi bloqueado. Regularize em ${link} para voltar a usar.`
+    : `A assinatura do Tibé está com pagamento em atraso: por enquanto só consigo responder consultas. Regularize em ${link} para voltar a registrar.`;
+}
+
 export async function getBillingAccess(tenantId: string): Promise<BillingAccess> {
   return (await getBillingState(tenantId)).access;
 }

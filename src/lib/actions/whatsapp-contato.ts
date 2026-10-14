@@ -1,6 +1,6 @@
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { toBrazilPhoneDigits } from "@/lib/phone";
-import { getBillingState } from "@/lib/billing-access";
+import { getBillingState, mensagemDeCobranca } from "@/lib/billing-access";
 import { MENSAGEM_ARQUIVADO } from "@/lib/mensagem-arquivado";
 import type { AppUserRole } from "@/types/next-auth";
 import type { ProfileType } from "@/lib/tenant-context";
@@ -66,8 +66,16 @@ export async function identificarContato(telefone: string): Promise<ContatoIdent
   // Tenant arquivado pela Plataforma não conversa com o agente (dívida 3.2):
   // é o ponto comum ao turno e ao caminho antigo (resolve-contact), antes de
   // qualquer escrita, inclusive a do contato novo.
-  if ((await getBillingState(tenantId)).archived) {
+  const estado = await getBillingState(tenantId);
+  if (estado.archived) {
     return { identificado: false, resposta_sugerida: MENSAGEM_ARQUIVADO };
+  }
+  // Bloqueado por cobrança, o mesmo corte e no mesmo ponto (dívida 3.3, achado
+  // do Codex): sem isto, o contato era gravado e o primeiro contato ouvia a
+  // saudação. `read_only` segue adiante, porque consulta ainda vale; quem
+  // recusa a escrita é `recusaPorCobranca`, em `executar-intencao.ts`.
+  if (estado.access === "blocked") {
+    return { identificado: false, resposta_sugerida: mensagemDeCobranca("blocked") };
   }
 
   if (!contact) {

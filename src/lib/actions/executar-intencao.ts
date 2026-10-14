@@ -4,7 +4,7 @@ import { scoped } from "@/lib/prisma";
 import type { AppUserRole } from "@/types/next-auth";
 import type { ProfileType } from "@/lib/tenant-context";
 import { INTENT_ACCESS, type Intent } from "@/lib/whatsapp-intents";
-import { getBillingAccess } from "@/lib/billing-access";
+import { getBillingAccess, mensagemDeCobranca } from "@/lib/billing-access";
 import { log } from "@/lib/log";
 import { detectConfirmation } from "@/lib/actions/confirmation";
 import { logInbound, logOutbound } from "@/lib/actions/conversation-log";
@@ -75,13 +75,8 @@ async function recusaPorCobranca(tenantId: string, intent: Intent): Promise<Rout
   if (acesso === "full") return null;
   if (acesso === "read_only" && intent !== "ambigua" && INTENT_ACCESS[intent].action === "read") return null;
 
-  const base = (process.env.NEXTAUTH_URL ?? "http://localhost:3000").replace(/\/+$/, "");
-  const link = `${base}/configuracoes/assinatura`;
   return {
-    reply_text:
-      acesso === "blocked"
-        ? `A assinatura do Tibé está com pagamento pendente, e o acesso foi bloqueado. Regularize em ${link} para voltar a usar.`
-        : `A assinatura do Tibé está com pagamento em atraso: por enquanto só consigo responder consultas. Regularize em ${link} para voltar a registrar.`,
+    reply_text: mensagemDeCobranca(acesso),
     requires_confirmation: false,
     auxiliary_data: null,
     report_url: null,

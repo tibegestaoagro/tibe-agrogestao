@@ -106,6 +106,16 @@ async function main() {
       assert(saldo.reply_text.includes("bloqueado") && saldo.reply_text.includes("/configuracoes/assinatura"), "com a frase de bloqueio e o link", saldo.reply_text);
     }
 
+    console.log("\n3b. Bloqueado: a identificação recusa antes de gravar o contato");
+    {
+      const { identificarContato } = await import("@/lib/actions/whatsapp-contato");
+      const telefone = `55119${String(stamp).slice(-8)}`;
+      await prisma.user.update({ where: { id: owner.id }, data: { phone: telefone } });
+      const zap = await identificarContato(telefone);
+      assert(!zap.identificado && (zap.resposta_sugerida ?? "").includes("bloqueado"), "o primeiro contato ouve a cobrança, não a saudação", JSON.stringify(zap));
+      assert((await prisma.whatsAppContact.count({ where: { tenant_id: tenant.id } })) === 0, "e nenhum contato de WhatsApp nasce");
+    }
+
     console.log("\n4. Regularizado: volta tudo");
     await prisma.tenant.update({ where: { id: tenant.id }, data: { trial_ends_at: new Date(Date.now() + 86_400_000) } });
     {
@@ -116,6 +126,7 @@ async function main() {
   } finally {
     await clearPendingHerd(tenant.id, owner.id).catch(() => {});
     const where = { tenant_id: tenant.id };
+    await prisma.whatsAppContact.deleteMany({ where });
     await prisma.agentRequest.deleteMany({ where });
     await prisma.agentFlowState.deleteMany({ where });
     await prisma.herdMovement.deleteMany({ where });
