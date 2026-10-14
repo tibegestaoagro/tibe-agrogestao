@@ -85,7 +85,7 @@ parecido em silêncio, fechado em 10/09/2026 (bloco 18 da `m34`).
 
 ## 4. Cobertura desigual
 
-### 4.1 O app não lê `packages/contracts`, e metade dos domínios segue fora
+### 4.1 O app não lê `packages/contracts`
 
 Desde a E9 (13/10/2026) o pacote cobre também rebanho, lavoura, serviços,
 negociações e máquinas, e a `m73` (no CI) prende cada contrato ao servidor:
@@ -174,15 +174,6 @@ reexecutar à mão pelo painel. E "mesmo token para o mesmo id" tem um custo
 que este texto não via: o webhook DUPLICADO da Evolution (duas execuções com o
 mesmo id) passaria a ter as duas vencendo o flush e responderia duas vezes,
 onde hoje só a última responde. Fica parada até alguém ligar retry no fluxo.
-
-### 5.9 Leilão e permuta pelo agente gravam sempre como já pagos
-
-Resíduo registrado ao fechar a 5.8 (07/10/2026). Não é defeito de data: pelo
-AGENTE, `encerrar_remessa_evento` e `registrar_permuta` gravam sempre com
-`pago: true`, então nunca nascem vencendo hoje, mas também nunca perguntam.
-A venda do confinamento passou a perguntar "Você já recebeu?" na 5.8; se
-leilão e permuta devem perguntar também é decisão de produto, para quando o
-classificador do n8n for destravado (as duas intenções nem são emitidas hoje).
 
 ### 5.0d A lista de quem grava sem confirmar precisa de catraca
 
