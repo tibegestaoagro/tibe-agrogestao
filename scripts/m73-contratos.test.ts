@@ -38,7 +38,7 @@ exigirBancoLocal();
 (globalThis as unknown as { AsyncLocalStorage: unknown }).AsyncLocalStorage = AsyncLocalStorage;
 
 async function main() {
-  console.log("📜 M73: contratos do pacote contra as rotas reais (Módulos 26, 30, 31, lavoura e serviços)\n");
+  console.log("📜 M73: contratos do pacote contra as rotas reais (todos os domínios de /api/v1 que o pacote cobre)\n");
 
   const bcrypt = (await import("bcryptjs")).default;
   const c = await import("@tibe/contracts");

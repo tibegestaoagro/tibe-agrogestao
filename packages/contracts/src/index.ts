@@ -22,7 +22,8 @@
  *
  * Autenticacao e conta, financeiro (lancamentos e pendencias), alertas,
  * usuarios e, desde 2026-10-13, as respostas de leitura de rebanho, lavoura,
- * servicos, negociacoes e maquinas.
+ * servicos, negociacoes e maquinas. Desde 2026-10-14 (divida 4.1), tambem
+ * confinamento, leite, estoque, contatos, mao de obra, tarefas e Meu Dia.
  *
  * Fora: `/api/platform/*` (sessao de PlatformUser, ferramenta interna),
  * `/api/internal/*` (chamadas pelo N8N com segredo no header), os relatorios
@@ -47,3 +48,10 @@ export * from "./crops";
 export * from "./services";
 export * from "./negotiations";
 export * from "./machines";
+export * from "./confinement";
+export * from "./milk";
+export * from "./stock";
+export * from "./contacts";
+export * from "./workers";
+export * from "./tasks";
+export * from "./meu-dia";

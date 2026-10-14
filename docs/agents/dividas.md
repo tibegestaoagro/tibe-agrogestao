@@ -106,12 +106,14 @@ negociações e máquinas, e a `m73` (no CI) prende cada contrato ao servidor:
 resposta real, chave exata, lista aninhada com item e enum igual ao do
 Prisma. As rotas de escrita de máquinas importam o schema do pacote.
 
-Sobram três furos. **O app não importa o pacote**: tem tipos próprios em
+Desde 14/10/2026 também confinamento, leite, estoque, contatos, mão de obra,
+tarefas e Meu Dia, cada um com a sua seção em `scripts/helpers/contratos/`.
+
+Sobram dois furos. **O app não importa o pacote**: tem tipos próprios em
 `apps/mobile/src/types/api.ts`, então a divergência entre app e servidor
 continua aparecendo só no aparelho (importar exige configurar o Metro para
-ler fora de `apps/mobile`). **Ficam fora** confinamento, leite, estoque,
-contatos, mão de obra, tarefas e Meu Dia. **Nulidade:** campo que o cenário
-da `m73` nunca devolve nulo não prova o `.nullable()` do contrato.
+ler fora de `apps/mobile`, e reteste no Android). **Nulidade:** campo que o
+cenário da `m73` nunca devolve nulo não prova o `.nullable()` do contrato.
 
 **Precedente concreto:** os contratos ficaram parados em 5 tipos de alerta
 enquanto o banco chegou a 8, e um alerta de manutenção de máquina quebrava a
