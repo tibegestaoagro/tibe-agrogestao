@@ -55,6 +55,7 @@
     "test:m73": "tsx scripts/m73-contratos.test.ts",
     "test:m74": "tsx scripts/m74-negociacoes-filtros.test.ts",
     "test:m75": "tsx scripts/m75-pasto-ocupado.test.ts",
+    "test:m76": "tsx scripts/m76-agente-cobranca.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",

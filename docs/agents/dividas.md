@@ -189,21 +189,6 @@ A venda do confinamento passou a perguntar "Você já recebeu?" na 5.8; se
 leilão e permuta devem perguntar também é decisão de produto, para quando o
 classificador do n8n for destravado (as duas intenções nem são emitidas hoje).
 
-### 3.3 O agente do WhatsApp ignora a régua de cobrança
-
-Achado em 07/10/2026, fechando a 3.2. Nenhuma rota interna do agente
-(`turno`, `resolve-contact`, `execute-action`) lê `getBillingAccess`: um tenant
-inadimplente em `read_only` ou `blocked` no painel continua **gravando pelo
-WhatsApp** sem restrição. O ARQUIVADO já é recusado (3.2, em
-`identificarContato`); a inadimplência não.
-
-Não é conserto mecânico, é decisão de produto: cortar o agente de quem atrasou
-o pagamento tira a ferramenta do curral justo de quem precisa regularizar, e
-`read_only` no WhatsApp pede definir o que é leitura (consultas) e o que o
-agente responde ao recusar uma escrita. **Custo:** depois da decisão, uma
-checagem em `executarIntencao` (o núcleo comum aos dois caminhos), com a
-classificação de leitura/escrita que `whatsapp-intents.ts` já tem.
-
 ### 5.0a "Acertei com o Zé Carlos" ainda sai ambígua
 
 O grosso fechou na Fase 8 (08/10): o pagamento ao trabalhador sem valor foi de

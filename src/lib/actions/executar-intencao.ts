@@ -3,11 +3,12 @@ import type { TenantPrismaClient } from "@/lib/prisma";
 import { scoped } from "@/lib/prisma";
 import type { AppUserRole } from "@/types/next-auth";
 import type { ProfileType } from "@/lib/tenant-context";
-import type { Intent } from "@/lib/whatsapp-intents";
+import { INTENT_ACCESS, type Intent } from "@/lib/whatsapp-intents";
+import { getBillingAccess } from "@/lib/billing-access";
 import { log } from "@/lib/log";
 import { detectConfirmation } from "@/lib/actions/confirmation";
 import { logInbound, logOutbound } from "@/lib/actions/conversation-log";
-import { routeIntent } from "@/lib/actions/whatsapp-router";
+import { routeIntent, type RouterResult } from "@/lib/actions/whatsapp-router";
 import { atualizarCursor } from "@/lib/agente/cursor";
 
 /**
@@ -56,6 +57,37 @@ export type SaidaDaIntencao = {
   intent_final: Intent;
   replay: boolean;
 };
+
+/**
+ * A régua de cobrança do painel vale no WhatsApp (dívida 3.3, decisão do
+ * usuário em 14/10/2026). `blocked`: nada passa. `read_only`: só intenção de
+ * leitura, e `ambigua` também recusa, porque um "sim" lido como ambígua ainda
+ * executaria um pedido guardado de antes do atraso.
+ *
+ * Fica aqui, e não no `routeIntent`, porque este é o ponto único do
+ * `execute-action` e do turno, e porque a resposta precisa sair ANTES de
+ * qualquer fluxo em andamento (`handleActiveFlow`) ter a chance de gravar.
+ * ponytail: a intenção lida é a de entrada; uma leitura que o roteador
+ * redireciona para um pedido de escrita guardado antes do atraso ainda passa.
+ */
+async function recusaPorCobranca(tenantId: string, intent: Intent): Promise<RouterResult | null> {
+  const acesso = await getBillingAccess(tenantId);
+  if (acesso === "full") return null;
+  if (acesso === "read_only" && intent !== "ambigua" && INTENT_ACCESS[intent].action === "read") return null;
+
+  const base = (process.env.NEXTAUTH_URL ?? "http://localhost:3000").replace(/\/+$/, "");
+  const link = `${base}/configuracoes/assinatura`;
+  return {
+    reply_text:
+      acesso === "blocked"
+        ? `A assinatura do Tibé está com pagamento pendente, e o acesso foi bloqueado. Regularize em ${link} para voltar a usar.`
+        : `A assinatura do Tibé está com pagamento em atraso: por enquanto só consigo responder consultas. Regularize em ${link} para voltar a registrar.`,
+    requires_confirmation: false,
+    auxiliary_data: null,
+    report_url: null,
+    action_taken: `${intent}:assinatura_${acesso}`,
+  };
+}
 
 function avisarLogPerdido(direcao: "entrada" | "saida", intent: Intent, err: unknown) {
   log.warn(`execute-action: log de ${direcao} da conversa falhou, execucao segue`, {
@@ -166,7 +198,7 @@ export async function executarIntencao(e: EntradaDaIntencao): Promise<SaidaDaInt
   const explicitNo = confirmationSignal === "no";
 
   const inicio = Date.now();
-  const result = await routeIntent(db, {
+  const result = (await recusaPorCobranca(tenant_id, intent)) ?? (await routeIntent(db, {
     tenant_id,
     role: user.role,
     activeProfiles,
@@ -176,7 +208,7 @@ export async function executarIntencao(e: EntradaDaIntencao): Promise<SaidaDaInt
     message_text: message_text ?? null,
     confirmed,
     explicitNo,
-  });
+  }));
 
   const resposta = {
     reply_text: result.reply_text,

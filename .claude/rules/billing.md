@@ -69,7 +69,13 @@ paths:
   só pelas próprias rotas `/api/v1/billing/*`, que precisam continuar
   acessíveis para o tenant conseguir regularizar). O layout do dashboard
   aplica a mesma regra a nível de página, redirecionando para
-  `/configuracoes/assinatura` quando bloqueado.
+  `/configuracoes/assinatura` quando bloqueado. **O agente do WhatsApp
+  também** (dívida 3.3, decisão do usuário em 14/10/2026): `recusaPorCobranca`
+  em `executar-intencao.ts`, o núcleo do `execute-action` e do turno, deixa
+  passar em `read_only` só intenção `action: "read"` de `INTENT_ACCESS`
+  (`ambigua` NÃO, porque um "sim" lido como ambígua executaria pedido guardado
+  de antes do atraso), e em `blocked` nada; a resposta aponta para
+  `/configuracoes/assinatura`. Testes: `npm run test:m76`.
 - **Tenant arquivado pela Plataforma** (dívida 3.2, decisão do usuário em
   2026-10-07): `getBillingState(tenantId)` devolve `{ access, archived }`, e
   `getBillingAccess` é só o `access`. **Quem decide é

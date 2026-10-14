@@ -162,11 +162,11 @@ CLI só o `.env` (tabela no `CLAUDE.md`). E11: a 2.3 do `dividas.md` ficou com
 §12.4 e aceite 23, e o que sobrou para o usuário (`.env.local` no notebook,
 painel logado, push, BANCO DE PROVAS, 5.11, 1.2) está no item 12 de
 [pendencias-do-usuario.md](pendencias-do-usuario.md). Depois: 2.8 (opacidade)
-em produção (`229b957`, conferida no CSS de produção). **5.12 na branch
-`divida-5-12-pasto-ocupado`**, esperando merge: pasto com gado não é desativado
-(409 `PASTO_OCUPADO`), pasto desativado não recebe gado, e os dois na mesma
-serializável (corrida 6/6 sem ela); `m75`, `test:all` 75/75, Codex aprovou na rodada 2. E3 a E9 em
-[historico/2026-10.md](historico/2026-10.md).
+em produção (`229b957`) e 5.12 em produção (`dcbbd73`: pasto com gado não é
+desativado, desativado não recebe gado; `m75`). **3.3 na branch
+`divida-3-3-agente-cobranca`**, esperando merge: o agente segue a régua do
+painel (`read_only` só consulta, `blocked` nada), em `executar-intencao.ts`;
+`m76`. E3 a E9 em [historico/2026-10.md](historico/2026-10.md).
 
 **1. Segurança, que é do usuário e vem antes de tudo:** rotacionar as 22
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
