@@ -179,8 +179,15 @@ retry sai `ready: false`. A mensagem fica no buffer sem ninguém para consumir.
 A classe é anterior à 3.1 (antes o comando pendurava, a Vercel devolvia 504 e
 o n8n reenviava do mesmo jeito); o limite curto só a torna menos rara. Exige
 Redis lento por mais de 2 s E reenvio do n8n. **Custo:** a rota do buffer
-receber o id da mensagem (o `provider_message_id`, que é a pendência nº 4 do
-usuário no n8n) e o script devolver o mesmo token para o mesmo id.
+receber o id da mensagem (o `message_id`, que o fluxo já tem nesse ponto) e o
+script devolver o mesmo token para o mesmo id.
+
+**Conferido em 14/10/2026, lendo o fluxo de produção:** nenhum nó HTTP tem
+`retryOnFail`, então o n8n não reenvia sozinho; o cenário só nasce de quem
+reexecutar à mão pelo painel. E "mesmo token para o mesmo id" tem um custo
+que este texto não via: o webhook DUPLICADO da Evolution (duas execuções com o
+mesmo id) passaria a ter as duas vencendo o flush e responderia duas vezes,
+onde hoje só a última responde. Fica parada até alguém ligar retry no fluxo.
 
 ### 5.9 Leilão e permuta pelo agente gravam sempre como já pagos
 

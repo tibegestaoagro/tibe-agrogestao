@@ -157,16 +157,15 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 E10 (2.3): filtros do §19, pasto, forma de pagamento e peso/arroba (`31027e1`,
 migração no Neon pelo usuário antes do push). **14/10: `.env` é o Neon e
 `.env.local` o Docker**; suítes e seeds leem `scripts/_env-local.ts`, o Prisma
-CLI só o `.env` (tabela no `CLAUDE.md`). E11: a 2.3 do `dividas.md` ficou com
-§12.4 e aceite 23, e o que sobrou para o usuário (`.env.local` no notebook,
-painel logado, push, BANCO DE PROVAS, 5.11, 1.2) está no item 12 de
-[pendencias-do-usuario.md](pendencias-do-usuario.md). Depois: 2.8 (opacidade)
-em produção (`229b957`) e 5.12 em produção (`dcbbd73`: pasto com gado não é
-desativado, desativado não recebe gado; `m75`). 3.3 em produção (`78829e1`:
-o agente segue a régua do painel; `m76`). **4.1 (parte servidor) em produção** (merge
-autorizado em 14/10, branch `divida-4-1-contratos`): os sete domínios que faltavam no
-pacote, uma seção por domínio em `scripts/helpers/contratos/` na `m73`;
-Codex aprovou. 5.13/5.15 adiadas. E3-E9: [historico/2026-10.md](historico/2026-10.md).
+CLI só o `.env` (tabela no `CLAUDE.md`). O que sobrou para o usuário está no
+item 12 de [pendencias-do-usuario.md](pendencias-do-usuario.md). Depois, em
+produção: 2.8 (`229b957`), 5.12 (`dcbbd73`, `m75`), 3.3 (`78829e1`:
+o agente segue a régua do painel; `m76`). 4.1 servidor em produção
+(`cdd6473`: sete domínios no pacote, seção por domínio na `m73`). **n8n, 14/10:
+`Execute Action` manda `provider_message_id`** (aplicado pelo usuário; 1ª
+chave `wamid#intenção` vista em produção). `npm run wa` volta a ler só o
+`.env`, mas o `REDIS_URL` dele é local: a resposta não chega à caixa de saída
+lida. 5.13/5.15/5.10 paradas. E3-E9: [historico/2026-10.md](historico/2026-10.md).
 
 **1. Segurança, que é do usuário e vem antes de tudo:** rotacionar as 22
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não

@@ -1,4 +1,7 @@
-import "./_env-local";
+// Só o `.env`, de propósito: o banco de provas fala com o agente de PRODUÇÃO
+// e lê a resposta na caixa de saída do Redis de produção. Com o `.env.local`
+// (Docker), a mensagem saía e a resposta nunca era encontrada.
+import "dotenv/config";
 import { prisma } from "@/lib/prisma";
 import { readOutbound, clearOutbound } from "@/lib/whatsapp-outbox";
 import { getRedisConnection } from "@/lib/redis";

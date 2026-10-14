@@ -91,9 +91,10 @@ direto com a Meta Cloud API; o N8N é o único intermediário. Por isso:
      autorização.
   2. **Idempotência por `provider_message_id`** (o `wamid`), guardada em
      `AgentRequest` junto com a resposta: replay devolve o que foi respondido
-     antes, sem reexecutar e sem duplicar a conversa. **O n8n ainda não manda
-     esse campo**, e enquanto não mandar o log avisa a cada chamada. Passar
-     adiante é edição de um nó.
+     antes, sem reexecutar e sem duplicar a conversa. **O n8n manda o campo
+     desde 14/10/2026** (nó `Execute Action`, o `message_id` do
+     `Consolidar Mensagem`, que é o do último fragmento do buffer); antes
+     disso nenhuma chamada do `execute-action` tinha a chave.
   3. A chave é `wamid#intenção`, **nunca** o id de execução do n8n: retry
      manual cria execução nova, e a chave mudaria junto sem impedir nada. A
      intenção entra porque uma mensagem com dois pedidos chega em duas

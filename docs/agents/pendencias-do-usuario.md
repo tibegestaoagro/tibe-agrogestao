@@ -97,7 +97,13 @@ requisição, como sempre fez.
 
 ---
 
-## 4. O n8n passar `provider_message_id`
+## 4. O n8n passar `provider_message_id` (FEITO em 14/10/2026)
+
+> **Feito em 2026-10-14**, por você, com `scripts/n8n-workflow.ts aplicar`: o
+> nó `Execute Action` manda o campo, e a primeira chamada depois disso gravou
+> `<wamid>#consultar_rebanho` no `AgentRequest` de produção. A atualização de
+> 15/09 abaixo dizia que o campo entraria com a Fase 4, mas o `Execute Action`
+> seguia sem ele: só o `Chamar Turno` (canário) mandava.
 
 > **Atualização de 2026-09-15:** isto deixou de ser seu. O agente agora lê e
 > publica o workflow pela API do n8n (com sua aprovação para produção), e o

@@ -333,7 +333,7 @@ no notebook o `.env.local` pode não existir. Quem lê qual:
 | `next dev` | `.env.local`, depois `.env` (o Next faz sozinho) | local |
 | suítes, `db:seed`, `seed:demo`, cenários, `_sessao-local` | `scripts/_env-local.ts`: a mesma ordem | local |
 | Prisma CLI (`migrate status`, `db:deploy`, `migrate diff`) | só o `.env` (`prisma.config.ts`) | **produção** |
-| `observar-canario`, `n8n-workflow`, `diagnostico-integridade` | só o `.env`, de propósito | produção |
+| `observar-canario`, `n8n-workflow`, `diagnostico-integridade`, `wa` | só o `.env`, de propósito | produção |
 
 Daí as duas regras:
 
