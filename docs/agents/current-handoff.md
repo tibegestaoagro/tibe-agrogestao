@@ -165,7 +165,7 @@ painel logado, push, BANCO DE PROVAS, 5.11, 1.2) está no item 12 de
 em produção (`229b957`, conferida no CSS de produção). **5.12 na branch
 `divida-5-12-pasto-ocupado`**, esperando merge: pasto com gado não é desativado
 (409 `PASTO_OCUPADO`), pasto desativado não recebe gado, e os dois na mesma
-serializável (corrida 6/6 sem ela); `m75`, Codex rodada 1. E3 a E9 em
+serializável (corrida 6/6 sem ela); `m75`, `test:all` 75/75, Codex aprovou na rodada 2. E3 a E9 em
 [historico/2026-10.md](historico/2026-10.md).
 
 **1. Segurança, que é do usuário e vem antes de tudo:** rotacionar as 22
