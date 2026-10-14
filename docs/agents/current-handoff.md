@@ -25,9 +25,9 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 `historico/2026-09.md`.
 ## Estado atual
 
-- Atualizado em: 2026-10-13.
+- Atualizado em: 2026-10-14.
 
-### Programa de dívidas (desde 07/10): E0 a E8 em produção, E9 na branch
+### Programa de dívidas (desde 07/10): E0 a E10 em produção, falta a E11
 
 ⚠️ **Regra do Codex desde 07/10 (o limite de uso dele chegou a 90%):**
 `adversarial-review` sempre com `--model gpt-5.6-terra` (intermediário; o
@@ -37,16 +37,6 @@ segunda só para confirmar); o que sobrar vira dívida registrada; **etapa só
 visual não passa pelo Codex** (quem pega defeito ali é o navegador). Não
 editar `~/.codex/config.toml`: ele vale para todo o Codex do usuário. Até
 aqui foram 16 rodadas em quatro etapas, sem modelo fixado.
-
-**E4 (2.5, 2.6, 2.7, tokens) em produção** (`64d3030`, 07/10), conferida no
-site público (token `--texto-marca`, títulos, chips de `/docs`, login). Falta o
-usuário olhar o painel logado. Dívida nova: 2.8.
-
-**E3** (`91241ba`, Redis com limite e push por pessoa; tela de push não
-validada, o service worker só registra em produção; dívida nova 5.10), **E2**
-(`8a88b29`, 5.8; o agente não foi exercitado em conversa real, falta cenário
-de confinamento no BANCO DE PROVAS; dívida nova 5.9), **E1** (`cafcb6a`, dívida
-nova 3.3) e **E0** (`b4a5c77`) em produção, com deploy conferido.
 
 O usuário aprovou em 07/10 um programa para fechar as dívidas de
 [dividas.md](dividas.md) em etapas E0 a E11, uma branch por etapa, cada uma com
@@ -166,7 +156,17 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
 
-**0. Programa de dívidas: E9 na branch `contracts-dominios`** (sobre a `pos-e8`, sem schema), esperando autorização de merge. Contratos de resposta de rebanho, lavoura, serviços, negociações e máquinas em `packages/contracts`; as três rotas de escrita de máquinas importam o schema do pacote (escolha do usuário: "misto", o app não importa o pacote). Corrigidos no pacote `RelatedModule` (4 de 8) e `FinancialEntryStatus` (sem `cancelled`). Prova: `m73` monta tenant próprio pelas rotas POST, chama 27 GETs com token do app e confere resposta, chave exata recursiva, lista aninhada com item e 25 enums contra o Prisma; vista falhando com enum antigo, campo trocado, campo tirado do contrato e cenário incompleto; passou em banco vazio só com migrações; entra no job de banco do CI. Next resolveu `@tibe/contracts` no dev (recusas em português com `field`) e o CI de `1cb4cce` passou com build. Codex: rodada 1 com 3 achados na m73, corrigidos; rodada 2 confirmou e pediu a m73 no CI, feito. Dívidas: 4.1 reescrita (app fora do pacote, domínios restantes, nulidade), 5.14 nova (filtro `venda_leite` ignorado). **Depois: E10.** **E8 na `main`** (`c27f475`, 13/10, fast-forward, levou a `pos-e7`; só `apps/mobile` e docs). Reteste no Android passou: barra de abas e cartão de Máquinas corrigidos nesta rodada, máquina criada em modo avião subiu ao voltar o sinal (conferido no banco local). Três itens do roteiro ficaram sem exercício: dívida 1.2. **E7 em produção** (merge `d44ffd5`, 08/10; migração `20261008120000_busca_sem_acento` rodada pelo usuário no Neon antes do push, conferida por `migrate status` e pela coluna preenchida nas 7 linhas; levou junto a `pos-e6`). Validação viva pela rota de turno de produção com o `WA_TEST_PHONE`: "quanto o Zé Carlos ainda me deve" achou o contato "do Ze Carlos", "quanto o Jõao me deve" achou "Joao". A prova da E9 é o `tsc` do app contra o pacote. ⚠️ Expo Go da Play Store se atualiza para o SDK 57 e recusa o projeto (54): APK de `expo.dev/go`. E7: coluna GERADA `name_busca` em `Contact` e `ServiceClient` (função `nome_de_busca`, a mesma regra do `normalizarTermo`, sem a extensão `unaccent`, que transliterava mais que o JS), busca pelo client escopado em vez de ler a tabela; contas do contato pelo `contact_id`, negociação sem `contact_id` como complemento (5.2). m70 seção 14, `test:all` 75/75, drift limpo, Codex aprovou na rodada 2. Fecha 5.0 e 5.2; nova 5.13 (sem índice trigram). **E6 em produção** (merge `7ecbfa7`, 08/10). Validação viva da E6: a rota de turno de produção, chamada direto com o `WA_TEST_PHONE` (que não está no canário do n8n), respondeu "quantos pasto temos cadastrados" com os pastos da Fazenda de Provas, e "acabei de pagar o Zé" foi para mão de obra ("ninguém cadastrado"), sem gravar nada. Intenção `consultar_pastos` (só leitura: pastos por fazenda, cabeças `presente` de qualquer dono e área; nome que casa dois mostra os dois) e a descrição de domínio de `mao_de_obra` para pagamento sem valor. Medição em 53 casos novos: pagamento 80-84% para 93,5% nas duas rodadas, pastos 100%, regressão `forademostra` 100% em intenção, zero gravação indevida ([relatório](agente-whatsapp/avaliacao-fase-8.md)). ⚠️ A primeira versão passou na nota e marcava compra a prazo como paga (11 de 12 chamadas); só a sonda contra o controle achou: o pontuador não confere campo a mais. A bancada não media conversa desde 18/09 (telefone fora da forma canônica), corrigida. Fecha 5.4; 5.0a encolheu para duas frases. Vale só na rota de turno (canário). Codex: duas rodadas feitas, achados corrigidos (`ee290ee` e o seguinte: gado em pasto desativado, nome exato em duas fazendas, telefone canônico da bancada); arquivar pasto ocupado virou dívida 5.12. **E5 em produção** (`4acd0e6`, 08/10): 5.0b, 5.0c, 5.5, 5.7; o negócio com dois itens não foi exercitado pela rota de turno (dívida 5.11). Pendente do usuário: olhar o painel logado (E4), conferir a tela de push (E3), e decidir se monta o cenário de confinamento no tenant BANCO DE PROVAS (E2).
+**0. Programa de dívidas: E0 a E10 em produção; falta a E11 (fechamento).**
+E10 (2.3) em quatro merges: filtros do §19 (`2e24e85`; dívida nova 5.15),
+pasto no formulário (`5ea781c`), forma de pagamento no lançamento (`91990af`)
+e peso/arroba (`31027e1`, 14/10; migração rodada pelo usuário no Neon antes do
+push, `migrate status` em dia, deploy `success`). **14/10: `.env` é o Neon e
+`.env.local` o Docker**; suítes e seeds leem `scripts/_env-local.ts`, o Prisma
+CLI só o `.env` (tabela no `CLAUDE.md`). **E11:** `dividas.md` (a 2.3 ainda
+lista os quatro itens entregues), `pendencias-do-usuario.md`, handoff, cofre.
+Do usuário: painel logado (E4), tela de push (E3), confinamento no BANCO DE
+PROVAS (E2), homologação no n8n (5.11), três itens do app (1.2). E3 a E9 em
+[historico/2026-10.md](historico/2026-10.md).
 
 **1. Segurança, que é do usuário e vem antes de tudo:** rotacionar as 22
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
