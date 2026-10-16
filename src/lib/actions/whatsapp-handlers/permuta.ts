@@ -206,6 +206,19 @@ export const registrarPermuta: Handler = async ({
     // campo perguntado, por cima do que já estava guardado.
     const juntos = aplicarRespostaPermuta(pendente, parametrosDaMensagem);
     if (juntos) parameters = juntos;
+    // "Bezerros", respondendo a "Não reconheci 5 B's erros" (áudio, canário
+    // 16/10): a quantidade da frase guardada fica, se com ela vira gado.
+    const lado = pendente.aguardando;
+    if (juntos && (lado === "entregue" || lado === "recebido")) {
+      const quantidade = str(pendente.parameters[lado])?.match(/^\d+/)?.[0];
+      const resposta = str(juntos[lado]);
+      if (quantidade && resposta && !/^\d/.test(resposta)) {
+        const comQuantidade = lerLado(`${quantidade} ${resposta}`);
+        if ((comQuantidade.ok && comQuantidade.lado.kind === "animais") || (!comQuantidade.ok && comQuantidade.motivo === "ambigua")) {
+          parameters = { ...juntos, [lado]: `${quantidade} ${resposta}` };
+        }
+      }
+    }
   }
 
   const guardar = async (aguardando: CampoPermuta) => {

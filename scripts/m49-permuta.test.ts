@@ -804,6 +804,18 @@ async function comBanco() {
         /Não reconheci "3 bichos"/.test(estranho.reply_text),
         estranho.reply_text,
       );
+
+      // O áudio do canário: "5 bezerros" transcrito como "5 B's erros", e a resposta "Bezerros".
+      await clearPendingBarter(tenant.id, USUARIO);
+      await registrarPermuta(
+        ctx(db, tenant.id, { entregue: "5 B's erros", recebido: "reforma da cerca", pasto: "Pasto A" }, { userId: USUARIO }),
+      );
+      const corrigido = await registrarPermuta(ctx(db, tenant.id, { entregue: "Bezerros" }, { userId: USUARIO }));
+      check(
+        "'Bezerros' respondendo mantém os 5",
+        corrigido.requires_confirmation === true && /Entregou: 5 bezerro/i.test(corrigido.reply_text),
+        corrigido.reply_text,
+      );
       await clearPendingBarter(tenant.id, USUARIO);
     }
   } finally {
