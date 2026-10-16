@@ -762,6 +762,62 @@ async function comBanco() {
       check("com 'paguei', vai direto ao resumo", jaPago.requires_confirmation === true, jaPago.reply_text);
       await clearPendingBarter(tenant.id, USUARIO);
     }
+
+    console.log("\n18. Categoria ambígua pergunta a idade, e não manda ao painel");
+    {
+      await clearPendingBarter(tenant.id, USUARIO);
+      // Canário, 16/10: "3 novilhas" respondia "é máquina ou produto do estoque".
+      const pergunta = await registrarPermuta(
+        ctx(db, tenant.id, { entregue: "2 bois", recebido: "3 novilhas", pasto: "Pasto A" }, { userId: USUARIO }),
+      );
+      check(
+        "'3 novilhas' pergunta a faixa, sem falar em máquina",
+        /novilhas/.test(pergunta.reply_text) && !/máquina/.test(pergunta.reply_text) && !pergunta.requires_confirmation,
+        pergunta.reply_text,
+      );
+      const resumo = await registrarPermuta(ctx(db, tenant.id, { categoria: "13 a 24 meses" }, { userId: USUARIO }));
+      check(
+        "'13 a 24 meses' fecha em fêmeas e mantém as 3",
+        resumo.requires_confirmation === true && /Recebeu: 3 f[êe]mea/i.test(resumo.reply_text),
+        resumo.reply_text,
+      );
+
+      await clearPendingBarter(tenant.id, USUARIO);
+      await registrarPermuta(
+        ctx(db, tenant.id, { entregue: "2 bois", recebido: "3 novilhas", pasto: "Pasto A" }, { userId: USUARIO }),
+      );
+      const porExtenso = await registrarPermuta(
+        ctx(db, tenant.id, { categoria: "fêmeas de 13 a 24 meses" }, { userId: USUARIO }),
+      );
+      check(
+        "'fêmeas de 13 a 24 meses' também mantém as 3, sem virar descrição",
+        porExtenso.requires_confirmation === true && /Recebeu: 3 f[êe]mea/i.test(porExtenso.reply_text),
+        porExtenso.reply_text,
+      );
+
+      await clearPendingBarter(tenant.id, USUARIO);
+      const estranho = await registrarPermuta(
+        ctx(db, tenant.id, { entregue: "2 bois", recebido: "3 bichos", pasto: "Pasto A" }, { userId: USUARIO }),
+      );
+      check(
+        "categoria desconhecida explica como dizer o gado",
+        /Não reconheci "3 bichos"/.test(estranho.reply_text),
+        estranho.reply_text,
+      );
+
+      // O áudio do canário: "5 bezerros" transcrito como "5 B's erros", e a resposta "Bezerros".
+      await clearPendingBarter(tenant.id, USUARIO);
+      await registrarPermuta(
+        ctx(db, tenant.id, { entregue: "5 B's erros", recebido: "reforma da cerca", pasto: "Pasto A" }, { userId: USUARIO }),
+      );
+      const corrigido = await registrarPermuta(ctx(db, tenant.id, { entregue: "Bezerros" }, { userId: USUARIO }));
+      check(
+        "'Bezerros' respondendo mantém os 5",
+        corrigido.requires_confirmation === true && /Entregou: 5 bezerro/i.test(corrigido.reply_text),
+        corrigido.reply_text,
+      );
+      await clearPendingBarter(tenant.id, USUARIO);
+    }
   } finally {
     await clearPendingBarter(tenant.id, USUARIO);
     await prisma.tenant.delete({ where: { id: tenant.id } });

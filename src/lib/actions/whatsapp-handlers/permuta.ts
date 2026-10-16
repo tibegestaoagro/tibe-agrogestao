@@ -13,7 +13,7 @@ import {
   conferirOndeEstaOSaldo,
   resolverPasto,
 } from "./herd";
-import { ask, failReply, semPreposicaoInicial, str, type Handler } from "./shared";
+import { ask, failReply, semPreposicaoInicial, str, type Handler, type RouterResult } from "./shared";
 import { lerDinheiro } from "./parsers";
 import { juntarRespostaDoPrazo, lerPrazo } from "./negociacao";
 import { reaisBr as reais } from "@/lib/numero-br";
@@ -84,9 +84,12 @@ type LadoDaConversa =
 
 type LadoLido =
   | { ok: true; lado: LadoDaConversa }
-  | { ok: false; motivo: "vazio" | "catalogo" | "categoria"; texto: string };
+  | { ok: false; motivo: "vazio" | "catalogo" | "categoria"; texto: string }
+  /** "3 novilhas": é gado, mas a categoria tem mais de uma faixa de idade. */
+  | { ok: false; motivo: "ambigua"; texto: string; resposta: RouterResult; candidatos: string[] };
 
-function lerLado(bruto: string | null): LadoLido {
+/** `candidatos`: as faixas já oferecidas para este lado, para a resposta cruzar com elas. */
+function lerLado(bruto: string | null, candidatos?: string[]): LadoLido {
   if (!bruto) return { ok: false, motivo: "vazio", texto: "" };
 
   const limpo = bruto.trim();
@@ -105,11 +108,21 @@ function lerLado(bruto: string | null): LadoLido {
   const comQuantidade = limpo.match(/^(\d+)\s+(.+)$/);
   if (comQuantidade) {
     const quantidade = Number(comQuantidade[1]);
-    const categoria = resolverCategoria(comQuantidade[2]);
+    const categoria = resolverCategoria(comQuantidade[2], false, candidatos);
     if (categoria.ok && Number.isInteger(quantidade) && quantidade > 0) {
       return {
         ok: true,
         lado: { kind: "animais", category_id: categoria.categoria.id, quantity: quantidade },
+      };
+    }
+    // "3 novilhas" respondia "é máquina ou produto do estoque" (canário, 16/10).
+    if (!categoria.ok && categoria.candidatosOferecidos.length > 0) {
+      return {
+        ok: false,
+        motivo: "ambigua",
+        texto: limpo,
+        resposta: categoria.resposta,
+        candidatos: categoria.candidatosOferecidos,
       };
     }
     // Número com termo que não é categoria: pode ser "10 sacas de sal", e aí é
@@ -175,11 +188,37 @@ export const registrarPermuta: Handler = async ({
     }
   } else if (pendente?.aguardando === "vencimento") {
     parameters = juntarRespostaDoPrazo(pendente.parameters, parametrosDaMensagem);
+  } else if (pendente?.aguardando === "categoria") {
+    // "13 a 24 meses", respondendo a "3 novilhas": a quantidade fica, e a
+    // faixa cruza com as candidatas guardadas em `lerLado`.
+    const lado = pendente.parameters._categoria_lado === "recebido" ? "recebido" : "entregue";
+    const resposta =
+      str(parametrosDaMensagem.categoria) ?? str(parametrosDaMensagem.category) ?? str(parametrosDaMensagem.resposta);
+    const quantidade = str(pendente.parameters[lado])?.match(/^\d+/)?.[0];
+    parameters = { ...pendente.parameters };
+    // "3 fêmeas de 13 a 24 meses" já é o lado inteiro; "13 a 24 meses" também
+    // começa com número, e por isso o teste é ler, não olhar o primeiro caractere.
+    const lida = resposta ? lerLado(resposta) : null;
+    const ladoInteiro = lida?.ok === true && lida.lado.kind === "animais";
+    if (resposta) parameters[lado] = ladoInteiro || !quantidade ? resposta : `${quantidade} ${resposta}`;
   } else if (pendente && pendente.aguardando !== "confirmacao") {
     // O produtor está respondendo a pergunta: da mensagem nova entra SÓ o
     // campo perguntado, por cima do que já estava guardado.
     const juntos = aplicarRespostaPermuta(pendente, parametrosDaMensagem);
     if (juntos) parameters = juntos;
+    // "Bezerros", respondendo a "Não reconheci 5 B's erros" (áudio, canário
+    // 16/10): a quantidade da frase guardada fica, se com ela vira gado.
+    const lado = pendente.aguardando;
+    if (juntos && (lado === "entregue" || lado === "recebido")) {
+      const quantidade = str(pendente.parameters[lado])?.match(/^\d+/)?.[0];
+      const resposta = str(juntos[lado]);
+      if (quantidade && resposta && !/^\d/.test(resposta)) {
+        const comQuantidade = lerLado(`${quantidade} ${resposta}`);
+        if ((comQuantidade.ok && comQuantidade.lado.kind === "animais") || (!comQuantidade.ok && comQuantidade.motivo === "ambigua")) {
+          parameters = { ...juntos, [lado]: `${quantidade} ${resposta}` };
+        }
+      }
+    }
   }
 
   const guardar = async (aguardando: CampoPermuta) => {
@@ -194,25 +233,43 @@ export const registrarPermuta: Handler = async ({
         `Registre essa permuta pelo painel, em Negociações.`,
     );
 
-  const brutoEntregue = str(parameters.entregue) ?? str(parameters.entreguei);
-  const lidoEntregue = lerLado(brutoEntregue);
-  if (!lidoEntregue.ok) {
-    if (lidoEntregue.motivo === "vazio") {
-      await guardar("entregue");
-      return ask("O que você entregou na troca?");
+  const candidatosDoLado = (lado: "entregue" | "recebido") =>
+    parameters._categoria_lado === lado && Array.isArray(parameters._categoria_candidatos)
+      ? parameters._categoria_candidatos.filter((v): v is string => typeof v === "string")
+      : undefined;
+
+  /** O que fazer com um lado que não leu: perguntar, ou mandar ao painel. */
+  const responderLado = async (lado: "entregue" | "recebido", lido: Exclude<LadoLido, { ok: true }>) => {
+    if (lido.motivo === "vazio") {
+      await guardar(lado);
+      return ask(lado === "entregue" ? "O que você entregou na troca?" : "E o que você recebeu?");
     }
-    return paraOPainel(lidoEntregue.texto);
-  }
+    if (lido.motivo === "ambigua") {
+      parameters = { ...parameters, _categoria_lado: lado, _categoria_candidatos: lido.candidatos };
+      await guardar("categoria");
+      return lido.resposta;
+    }
+    if (lido.motivo === "categoria") {
+      await guardar(lado);
+      return ask(
+        `Não reconheci "${lido.texto}" como animais do rebanho. Se for gado, diga a quantidade, o sexo e a idade, ` +
+          `por exemplo "3 fêmeas de 13 a 24 meses". Se for máquina ou produto do estoque, registre essa permuta pelo painel, em Negociações.`,
+      );
+    }
+    return paraOPainel(lido.texto);
+  };
+
+  const brutoEntregue = str(parameters.entregue) ?? str(parameters.entreguei);
+  const lidoEntregue = lerLado(brutoEntregue, candidatosDoLado("entregue"));
+  if (!lidoEntregue.ok) return responderLado("entregue", lidoEntregue);
 
   const brutoRecebido = str(parameters.recebido) ?? str(parameters.recebi);
-  const lidoRecebido = lerLado(brutoRecebido);
-  if (!lidoRecebido.ok) {
-    if (lidoRecebido.motivo === "vazio") {
-      await guardar("recebido");
-      return ask("E o que você recebeu?");
-    }
-    return paraOPainel(lidoRecebido.texto);
-  }
+  const lidoRecebido = lerLado(brutoRecebido, candidatosDoLado("recebido"));
+  if (!lidoRecebido.ok) return responderLado("recebido", lidoRecebido);
+
+  // Os dois lados leram: as faixas oferecidas não decidem mais nada.
+  delete parameters._categoria_lado;
+  delete parameters._categoria_candidatos;
 
   const fazenda = await resolverFazenda(db, str(parameters.fazenda) ?? str(parameters.property));
   if (!fazenda.ok) {
