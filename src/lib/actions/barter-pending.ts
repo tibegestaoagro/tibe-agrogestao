@@ -32,6 +32,8 @@ export type CampoPermuta =
   | "fazenda"
   | "pasto"
   | "vencimento"
+  /** A faixa de idade de um lado ambíguo ("3 novilhas"). */
+  | "categoria"
   /** Não é campo: é a permuta inteira esperando um "sim". */
   | "confirmacao";
 
@@ -51,6 +53,7 @@ const store = criarStoreDePendencia<CampoPermuta>({
     if (campo === "fazenda") return "property";
     if (campo === "pasto") return "pasture";
     if (campo === "vencimento") return "due_date";
+    if (campo === "categoria") return "category";
     return campo;
   },
 });
