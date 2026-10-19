@@ -165,7 +165,7 @@ o agente segue a régua do painel; `m76`). 4.1 servidor em produção
 `Execute Action` manda `provider_message_id`** (1ª chave vista em produção).
 `npm run wa` lê só o `.env`, mas o `REDIS_URL` dele é local: não vê resposta. 5.13/5.15/5.10 paradas. 5.0a em produção (`2ff9a3b`). **5.9 em produção
 (`divida-5-9-ja-recebeu`, só no canário)**: leilão e permuta perguntam se o dinheiro entrou
-(`m48`, `m49`; avaliação em `avaliacao-fase-8.md`), Codex aprovou. 16/10, canário: "3 novilhas" na permuta dizia "é máquina ou produto"; agora pergunta a faixa, e a faixa sobrevive à pergunta do vencimento (19/10) (`m49` bloco 18). 2.3 fechada
+(`m48`, `m49`; avaliação em `avaliacao-fase-8.md`), Codex aprovou. 16/10, canário: "3 novilhas" na permuta dizia "é máquina ou produto"; agora pergunta a faixa, e a faixa sobrevive à pergunta do vencimento (`m49` bloco 18; validado no aparelho em 19/10, com a 5.9). 2.3 fechada
 por decisão; 2.4 espera a conversa com a Agromax ([roteiro](roteiro-agromax-rebanho-por-categoria.md)). E3-E9: [historico/2026-10.md](historico/2026-10.md).
 
 **1. Segurança, que é do usuário e vem antes de tudo:** rotacionar as 22
