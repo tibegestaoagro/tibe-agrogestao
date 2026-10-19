@@ -267,9 +267,21 @@ export const registrarPermuta: Handler = async ({
   const lidoRecebido = lerLado(brutoRecebido, candidatosDoLado("recebido"));
   if (!lidoRecebido.ok) return responderLado("recebido", lidoRecebido);
 
-  // Os dois lados leram: as faixas oferecidas não decidem mais nada.
+  // Os dois lados leram: as faixas oferecidas não decidem mais nada. O lado
+  // de gado é regravado pelo id da categoria, que se lê sozinho: guardado como
+  // "3 13 a 24 meses", a pergunta seguinte (vencimento) reabria "macho ou
+  // fêmea?" sem as candidatas (canário, 19/10).
+  parameters = { ...parameters };
   delete parameters._categoria_lado;
   delete parameters._categoria_candidatos;
+  if (lidoEntregue.lado.kind === "animais") {
+    parameters.entregue = `${lidoEntregue.lado.quantity} ${lidoEntregue.lado.category_id}`;
+    delete parameters.entreguei;
+  }
+  if (lidoRecebido.lado.kind === "animais") {
+    parameters.recebido = `${lidoRecebido.lado.quantity} ${lidoRecebido.lado.category_id}`;
+    delete parameters.recebi;
+  }
 
   const fazenda = await resolverFazenda(db, str(parameters.fazenda) ?? str(parameters.property));
   if (!fazenda.ok) {
