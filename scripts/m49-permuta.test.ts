@@ -805,6 +805,23 @@ async function comBanco() {
         estranho.reply_text,
       );
 
+      // A sequência do canário de 19/10: faixa, depois vencimento. O "dia 30"
+      // reabria "machos ou fêmeas?" porque as candidatas não sobreviviam.
+      await clearPendingBarter(tenant.id, USUARIO);
+      await registrarPermuta(
+        ctx(db, tenant.id, { entregue: "2 bois", recebido: "3 novilhas", pasto: "Pasto A", diferenca_paga: 2000 }, { userId: USUARIO }),
+      );
+      const prazo = await registrarPermuta(ctx(db, tenant.id, { categoria: "13 a 24 meses" }, { userId: USUARIO }));
+      check("depois da faixa, pergunta se já pagou", /já pagou os R\$\s?2\.000,00/.test(prazo.reply_text), prazo.reply_text);
+      const comPrazo = await registrarPermuta(ctx(db, tenant.id, { vencimento: "dia 30" }, { userId: USUARIO }));
+      check(
+        "'dia 30' vai ao resumo com as 3 fêmeas, sem reabrir o sexo",
+        comPrazo.requires_confirmation === true &&
+          /Recebeu: 3 f[êe]mea/i.test(comPrazo.reply_text) &&
+          /Diferença a pagar: R\$\s?2\.000,00, vence em 30\//.test(comPrazo.reply_text),
+        comPrazo.reply_text,
+      );
+
       // O áudio do canário: "5 bezerros" transcrito como "5 B's erros", e a resposta "Bezerros".
       await clearPendingBarter(tenant.id, USUARIO);
       await registrarPermuta(
