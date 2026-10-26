@@ -96,6 +96,30 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
+### Dependências com falha de segurança (26/10): passo 1 de 4 em produção
+
+`npm audit` acusava 19 (1 crítica). Em produção desde 26/10 (`769612c`):
+next 16.4.3 (a linha 16.3 nunca recebeu as correções de 14/10), react 19.2.9,
+zod 4.6.7, eslint-config-next 16.4.3, sharp 0.35.5. Validado: tsc, lint,
+`check`, build, `test:all` 79/79 local, CI, preview conferido pelo usuário.
+Restam 14, nenhuma crítica. O código não usa `use cache`, `next/og`,
+`remotePatterns` nem `"use server"`, então a maioria das RCE do Next não se
+aplicava em produção.
+
+Faltam, nesta ordem, uma branch por passo:
+
+1. `prisma`, `@prisma/client` e `@prisma/adapter-pg` em **7.10.1** (não
+   `@latest`, que é 8.0.0-rc). A pesquisa dizia que hono, mysql2 e afins vêm
+   só do CLI, mas `npm audit --omit=dev` ainda os lista: conferir de onde vêm.
+2. `npm audit fix` **sem** `--force`, revisando o diff do lockfile.
+3. nodemailer 10.2.1 com `overrides` (o Auth.js declara só até 8.x). Risco
+   real: o cadastro público manda código para endereço digitado. Testar
+   cadastro e reset de senha.
+
+⚠️ **Nunca `npm audit fix --force`:** troca o `next-auth` por um pacote de
+2018 com o mesmo nome (1.12.1) e derruba o login. O Node local deve ir a
+24.22.1 ou mais (Node2Shell, 21/10); na Vercel a plataforma já corrigiu.
+
 ### Ambiente
 
 ⚠️ **Os containers `tibe-pg` e `tibe-redis` caem sozinhos**, e o sintoma é uma
@@ -198,3 +222,6 @@ Não avance para outro módulo sem aprovação explícita.
   desktop em 01/09 e **não existe no notebook**. Lá, migração em produção volta
   a ser recusada pelo classificador, e o caminho é pedir ao usuário.
 - O Redis local é `tibe-redis` na `56379` (conferido em 11/09); `docker ps` antes.
+  No desktop (clone novo em `D:\Projetos\tibe-agrogestão`, 26/10) existia um
+  `tibe-redis-local` na `6390` que o `.env.local` não usa: foi parado e o
+  `tibe-redis` criado.
