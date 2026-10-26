@@ -96,28 +96,28 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
-### Dependências com falha de segurança (26/10): passo 1 de 4 em produção
+### Dependências com falha de segurança (26/10): `npm audit` de 19 para 0
 
-`npm audit` acusava 19 (1 crítica). Em produção desde 26/10 (`769612c`):
-next 16.4.3 (a linha 16.3 nunca recebeu as correções de 14/10), react 19.2.9,
-zod 4.6.7, eslint-config-next 16.4.3, sharp 0.35.5. Validado: tsc, lint,
-`check`, build, `test:all` 79/79 local, CI, preview conferido pelo usuário.
-Restam 14, nenhuma crítica. O código não usa `use cache`, `next/og`,
-`remotePatterns` nem `"use server"`, então a maioria das RCE do Next não se
-aplicava em produção.
+Três branches, cada uma com tsc, lint, `check`, build, `test:all` 79/79
+local, CI e preview conferido pelo usuário antes do merge:
 
-Faltam, nesta ordem, uma branch por passo:
-
-1. `prisma`, `@prisma/client` e `@prisma/adapter-pg` em **7.10.1** (não
-   `@latest`, que é 8.0.0-rc). A pesquisa dizia que hono, mysql2 e afins vêm
-   só do CLI, mas `npm audit --omit=dev` ainda os lista: conferir de onde vêm.
-2. `npm audit fix` **sem** `--force`, revisando o diff do lockfile.
-3. nodemailer 10.2.1 com `overrides` (o Auth.js declara só até 8.x). Risco
-   real: o cadastro público manda código para endereço digitado. Testar
-   cadastro e reset de senha.
+- `seguranca-next-zod` (`769612c`): next 16.4.3 (a linha 16.3 nunca recebeu
+  as correções de 14/10), react 19.2.9, zod 4.6.7, sharp 0.35.5. O código não
+  usa `use cache`, `next/og`, `remotePatterns` nem `"use server"`: a maioria
+  das RCE do Next não se aplicava.
+- `seguranca-prisma` (`5f63b27`): prisma, client e adapter-pg 7.10.1, mais
+  `npm audit fix` sem `--force`. O npm conta hono e mysql2 como runtime porque
+  o `@prisma/client` declara o CLI como par, mas só o CLI os usa.
+  `migrate diff` local vazio. Não usar `prisma@latest` (é 8.0.0-rc).
+- `seguranca-nodemailer`: nodemailer 10.2.1 com `overrides` (o Auth.js declara
+  só até 8.x; o next-auth beta.32 não usa provider de email aqui), sem
+  `@types/nodemailer` (a 10 traz tipos). Gmail SMTP com `verify()` ok. Todo
+  email digitado passa por `z.string().trim().email()`, que recusa lista,
+  aspas, CRLF e homógrafo; o reset de senha envia para o `user.email` do banco.
 
 ⚠️ **Nunca `npm audit fix --force`:** troca o `next-auth` por um pacote de
-2018 com o mesmo nome (1.12.1) e derruba o login. O Node local deve ir a
+2018 com o mesmo nome (1.12.1) e derruba o login. Ao subir o next-auth, tirar
+o `overrides` se ele passar a aceitar nodemailer 10. O Node local deve ir a
 24.22.1 ou mais (Node2Shell, 21/10); na Vercel a plataforma já corrigiu.
 
 ### Ambiente
