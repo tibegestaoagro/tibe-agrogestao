@@ -25,7 +25,7 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 `historico/2026-09.md`.
 ## Estado atual
 
-- Atualizado em: 2026-10-14.
+- Atualizado em: 2026-10-26.
 
 ### Programa de dívidas (07 a 14/10): encerrado, E0 a E10 em produção
 
@@ -166,7 +166,7 @@ o agente segue a régua do painel; `m76`). 4.1 servidor em produção
 `npm run wa` lê só o `.env`, mas o `REDIS_URL` dele é local: não vê resposta. 5.13/5.15/5.10 paradas. 5.0a em produção (`2ff9a3b`). **5.9 em produção
 (`divida-5-9-ja-recebeu`, só no canário)**: leilão e permuta perguntam se o dinheiro entrou
 (`m48`, `m49`; avaliação em `avaliacao-fase-8.md`), Codex aprovou. 16/10, canário: "3 novilhas" na permuta dizia "é máquina ou produto"; agora pergunta a faixa, e a faixa sobrevive à pergunta do vencimento (`m49` bloco 18; validado no aparelho em 19/10, com a 5.9). 2.3 fechada
-por decisão; 2.4 espera a conversa com a Agromax ([roteiro](roteiro-agromax-rebanho-por-categoria.md)). E3-E9: [historico/2026-10.md](historico/2026-10.md).
+por decisão; 2.4 espera a conversa com a Agromax ([roteiro](roteiro-agromax-rebanho-por-categoria.md)). E3-E9: [historico/2026-10.md](historico/2026-10.md). **Próximo no aparelho (26/10): o [roteiro do estoque](roteiro-aparelho-estoque.md), blocos 0 a 5; a Da Mata não tem produto (lido em produção), então começa pelo bloco 0 no painel.**
 
 **1. Segurança, que é do usuário e vem antes de tudo:** rotacionar as 22
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
