@@ -122,6 +122,11 @@ export default function Sidebar({
             const Icon = ICONS[item.icon];
 
             if (item.kind === "link") {
+              // O `show` do link de topo precisa ser respeitado aqui, como o
+              // dos filhos de grupo: sem isto, "Meu Empório" (Módulo 39)
+              // aparecia com o recurso desligado, e "Minha Fazenda" em conta
+              // sem perfil fazenda.
+              if (!item.show) return null;
               const active = isActive(pathname, item.href);
               return (
                 <Link
