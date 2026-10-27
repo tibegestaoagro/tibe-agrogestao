@@ -96,6 +96,16 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
+### Meu Empório (Módulo 37, 27/10): spec escrita, nenhum código
+
+Documento do cliente em `docs/area-meu-emporio/` (`.doc` binário; como ler
+está no topo da spec). Entrevista com o usuário em cinco rodadas, Q1 a Q49,
+registrada em [../specs/module-37-meu-emporio.md](../specs/module-37-meu-emporio.md)
+(`1b2e871`, branch `spec-modulo-37-emporio`, não empurrada nem mergeada).
+Cortes de escopo viraram as dívidas 2.15 a 2.21. Teste na **Da Mata**, só
+para o Owner, liberado por uma `TenantFeature` nova (genérica, com lista de
+usuários). Sete fases (F0, F1, F2a, F2b, F3, F4, F5), aprovação entre elas.
+
 ### Dependências com falha de segurança (26/10): `npm audit` de 19 para 0
 
 Em produção desde 26/10 (`74c9119`), três branches validadas (suíte 79/79,
@@ -165,6 +175,11 @@ quando a rotação terminar.
 origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
+
+**Meu Empório:** o usuário revisa a spec do Módulo 37. Aprovada, começa a
+**F0** (liberação e fundação), numa branch própria, pela auditoria dos
+leitores de `StockMovement` (seção 4.3 da spec). A rotação de segurança
+(item 1) foi adiada pelo usuário em 27/10 para tratar do Empório.
 
 **0. Programa de dívidas ENCERRADO: E0 a E11 em produção** (E11, `ccf1474`).
 E10 (2.3): filtros do §19, pasto, forma de pagamento e peso/arroba (`31027e1`,
