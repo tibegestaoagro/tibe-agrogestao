@@ -19,10 +19,12 @@ export function buildNavItems({
   role,
   hasFazenda,
   hasPrestador,
+  hasEmporio,
 }: {
   role: AppUserRole;
   hasFazenda: boolean;
   hasPrestador: boolean;
+  hasEmporio: boolean;
 }): NavItem[] {
   return [
     /*
@@ -40,6 +42,10 @@ export function buildNavItems({
     // "Operação" pra não colidir com o novo significado (decisão do
     // usuário, 2026-08-04).
     { kind: "link", href: "/minha-fazenda", label: "Minha Fazenda", icon: "fazenda", show: hasFazenda },
+    // Módulo 39 (Q17): o Empório é uma área à parte, liberada por conta pela
+    // Plataforma. `hasEmporio` já vem resolvido no layout (recurso visível para
+    // o usuário E perfil ativo), não só pelo perfil.
+    { kind: "link", href: "/emporio", label: "Meu Empório", icon: "emporio", show: hasEmporio },
     {
       kind: "group",
       label: "Operação",
@@ -67,7 +73,9 @@ export function buildNavItems({
         // (`findOrCreateContact`, a partir do nome dito na conversa do
         // WhatsApp), e esta é a primeira tela que permite editar e arquivar o
         // que aquele caminho criou sozinho.
-        { href: "/contatos", label: "Contatos", show: hasFazenda },
+        // Módulo 39: Contatos e Lista de Compra são compartilhados com o
+        // Empório (o grupo se esconde sozinho quando nenhum filho aparece).
+        { href: "/contatos", label: "Contatos", show: hasFazenda || hasEmporio },
         // Módulo 33: quem trabalha na fazenda. Fica depois de Contatos porque é
         // a mesma pergunta ("quem"), separada pelo §36 do documento: aqui mora
         // quem recebe salário ou diária, e em Contatos quem entrega serviço.
@@ -97,7 +105,7 @@ export function buildNavItems({
         // Módulo 36: fica colado no Estoque porque é a outra ponta dele. O que
         // está acabando vira item da lista, e o item comprado volta como
         // entrada de estoque.
-        { href: "/lista-de-compra", label: "Lista de Compra", show: hasFazenda },
+        { href: "/lista-de-compra", label: "Lista de Compra", show: hasFazenda || hasEmporio },
         { href: "/maquinas", label: "Máquinas", show: hasFazenda },
         { href: "/lavoura", label: "Lavoura", show: hasFazenda },
         { href: "/prestador", label: "Prestador", show: hasPrestador },

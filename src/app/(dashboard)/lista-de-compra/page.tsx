@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSessionUser, getTenantDb, getActiveProfiles } from "@/lib/tenant-context";
 import { canWrite } from "@/lib/permissions";
+import { isFeatureVisibleForUser } from "@/lib/features";
 import { getBillingAccess } from "@/lib/billing-access";
 import { decToNum } from "@/lib/serialize";
 import { listarItensAction } from "@/lib/actions/shopping-items";
@@ -42,7 +43,12 @@ export default async function ListaDeCompraPage() {
   if (!user) redirect("/login");
 
   const profiles = await getActiveProfiles();
-  if (!profiles.includes("fazenda")) redirect("/dashboard");
+  // Módulo 39: o Empório também usa a Lista, mas só se o recurso estiver
+  // visível para ESTE usuário (senão quem está fora da lista entraria pela URL).
+  const temEmporio =
+    profiles.includes("emporio") &&
+    (await isFeatureVisibleForUser(user.tenant_id, user.id, "emporio"));
+  if (!profiles.includes("fazenda") && !temEmporio) redirect("/dashboard");
 
   const writable = canWrite(user.role, "rebanho");
   const db = await getTenantDb();

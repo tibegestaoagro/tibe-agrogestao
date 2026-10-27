@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import type { ContactType, ServiceDirection } from "@/generated/prisma/client";
 import { getSessionUser, getActiveProfiles, getTenantDb } from "@/lib/tenant-context";
 import { canWrite } from "@/lib/permissions";
+import { isFeatureVisibleForUser } from "@/lib/features";
 import {
   Table,
   TableHeader,
@@ -44,7 +45,11 @@ export default async function ContatoPage({ params }: { params: Promise<{ id: st
   const user = await getSessionUser();
   if (!user) redirect("/login");
   const profiles = await getActiveProfiles();
-  if (!profiles.includes("fazenda")) redirect("/dashboard");
+  // Módulo 39: ver a nota em contatos/page.tsx.
+  const temEmporio =
+    profiles.includes("emporio") &&
+    (await isFeatureVisibleForUser(user.tenant_id, user.id, "emporio"));
+  if (!profiles.includes("fazenda") && !temEmporio) redirect("/dashboard");
 
   const writable = canWrite(user.role, "rebanho");
   const db = await getTenantDb();

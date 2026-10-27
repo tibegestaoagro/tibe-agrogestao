@@ -6,6 +6,7 @@ import { requireSessionGateForPage } from "@/lib/session-gate";
 import { getBillingState, isBillingExemptPath } from "@/lib/billing-access";
 import { getActivePropertyId } from "@/lib/active-property";
 import { buildNavItems } from "@/lib/nav";
+import { isFeatureVisibleForUser } from "@/lib/features";
 import DashboardShell from "@/components/layout/dashboard-shell";
 import InstallInvite from "@/components/pwa/install-invite";
 import NotificationOptIn from "@/components/pwa/notification-opt-in";
@@ -48,6 +49,9 @@ export default async function DashboardLayout({
 
   const hasFazenda = profiles.includes("fazenda");
   const hasPrestador = profiles.includes("prestador");
+  // Módulo 39: perfil ativo não basta, o recurso é liberado por conta (e, na
+  // Da Mata, por usuário), e quem decide isso é `isFeatureVisibleForUser`.
+  const hasEmporio = await isFeatureVisibleForUser(user.tenant_id, user.id, "emporio");
 
   // Seletor de propriedade no topo (briefing de layout, seção 12): só
   // busca se o perfil fazenda estiver ativo (senão não existe Property).
@@ -67,7 +71,7 @@ export default async function DashboardLayout({
     activePropertyId = active;
   }
 
-  const navItems = buildNavItems({ role: user.role, hasFazenda, hasPrestador });
+  const navItems = buildNavItems({ role: user.role, hasFazenda, hasPrestador, hasEmporio });
 
   return (
     <>

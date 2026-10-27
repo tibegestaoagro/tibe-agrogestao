@@ -42,8 +42,13 @@ function findGroupChild(items: NavItem[], groupLabel: string, childHref: string)
 function main() {
   console.log("🧭 Teste de buildNavItems (sidebar)\n");
 
-  const owner = buildNavItems({ role: "OWNER", hasFazenda: true, hasPrestador: true });
-  const visualizadorSemPerfil = buildNavItems({ role: "VISUALIZADOR", hasFazenda: false, hasPrestador: false });
+  const owner = buildNavItems({ role: "OWNER", hasFazenda: true, hasPrestador: true, hasEmporio: false });
+  const visualizadorSemPerfil = buildNavItems({
+    role: "VISUALIZADOR",
+    hasFazenda: false,
+    hasPrestador: false,
+    hasEmporio: false,
+  });
 
   assert(
     findLink(owner, "/minha-fazenda")?.show === true,

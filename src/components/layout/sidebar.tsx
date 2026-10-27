@@ -7,6 +7,7 @@ import {
   X,
   Home,
   Warehouse,
+  Store,
   Layers,
   LayoutDashboard,
   Calculator,
@@ -23,6 +24,7 @@ import { signOut } from "next-auth/react";
 export type IconKey =
   | "home"
   | "fazenda"
+  | "emporio"
   | "operacao"
   | "painel"
   | "calculadora"
@@ -40,6 +42,7 @@ export type NavItem =
 const ICONS: Record<IconKey, LucideIcon> = {
   home: Home,
   fazenda: Warehouse,
+  emporio: Store,
   operacao: Layers,
   painel: LayoutDashboard,
   calculadora: Calculator,
