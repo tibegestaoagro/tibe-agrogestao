@@ -90,6 +90,8 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [estado de produção não se deduz da máquina local](deduzir-producao-pela-maquina-local.md) | armadilha | "o env está replicado" virou uma pendência falsa em seis documentos |
 | [a resposta guardada como texto perde o contexto na terceira volta](resposta-guardada-como-texto-perde-o-contexto-na-terceira-volta.md) | armadilha | "dia 30" reabriu "machos ou fêmeas?" depois de "3 novilhas" e "13 a 24 meses" |
 | [o roteiro do aparelho confere a produção antes de sair](roteiro-do-aparelho-confere-a-producao-antes.md) | licao | o primeiro passo do leilão testou uma remessa que nunca existiu |
+| [o preview da Vercel escreve em produção](o-preview-da-vercel-escreve-em-producao.md) | armadilha | o código de reset do teste foi para o Owner da Da Mata |
+| [o npm audit fix --force troca o next-auth por outro pacote](npm-audit-fix-force-troca-o-next-auth-por-outro-pacote.md) | armadilha | a "correção" era um pacote de 2018 com o mesmo nome |
 
 ⚠️ **`[[wikilink]]` para nota que não existe reprova o `npm run check`**
 (conferência 13). É o que impede esta pasta de virar um cemitério de links
