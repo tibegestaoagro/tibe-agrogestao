@@ -305,7 +305,11 @@ autorização (invariante 7). A primeira suíte livre é a `test:m77`.
 - `TenantFeature`, `TenantFeatureUser`, perfil `emporio`, `requireFeature`.
 - Na Plataforma: ligar e desligar o recurso por conta, com a lista de usuários;
   criar conta só de Empório.
-- Menu, Contatos e Lista de Compra abrindo para o perfil `emporio`.
+- Menu, Contatos e Lista de Compra abrindo para o perfil `emporio`. A rota
+  da API passa a aceitar qualquer um de uma lista de perfis
+  (`guard(..., { profile: ["fazenda", "emporio"] })`). Marcar item da Lista
+  como comprado continua exigindo fazenda até a F2a, que é quando o
+  estabelecimento passa a ter estoque para receber a compra.
 - `FinancialEntry.establishment_id`, `RelatedModule.emporio`.
 - `StockMovement` com `establishment_id`, `property_id` anulável e o `CHECK`;
   a **auditoria dos leitores** da seção 4.3.
@@ -337,7 +341,7 @@ preço de cada uma (provado na F3, com o preço cadastrado aqui).
 - Custo médio por estabelecimento.
 - Ajuste de contagem (as duas quantidades, com motivo), perda e avaria.
 - Mínimo e máximo, alerta e sugestão de reposição; encaminhar à Lista de
-  Compra.
+  Compra, e marcar item da Lista como comprado num estabelecimento.
 - Estoque inicial como implantação.
 
 **Aceite (§25):** "comprar a prazo" registra o estoque recebido e a obrigação;
