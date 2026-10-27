@@ -32,6 +32,21 @@ export function numeroBr(n: number): string {
   return NUMERO.format(n);
 }
 
+/** "3 × Saca 10 kg" por apresentação fechada; vazio quando não há lacrado. */
+export function textoLacrado(sealed: { name: string; packages: number }[]): string {
+  const com = sealed.filter((s) => s.packages !== 0);
+  if (com.length === 0) return "-";
+  return com.map((s) => `${numeroBr(s.packages)} × ${s.name}`).join(", ");
+}
+
+export const MOTIVO_PERDA_ROTULO: Record<string, string> = {
+  vencido: "Vencido",
+  avaria: "Avaria",
+  furto: "Furto",
+  consumo_proprio: "Consumo próprio",
+  outro: "Outro",
+};
+
 /** Percentual com vírgula ("12,5%"). */
 export function pctBr(n: number): string {
   return `${NUMERO.format(n)}%`;

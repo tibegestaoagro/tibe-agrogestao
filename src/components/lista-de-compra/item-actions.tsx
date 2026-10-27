@@ -49,6 +49,8 @@ export default function ItemActions({
     quantity: number | null;
     unit: string | null;
     property_id: string | null;
+    /** Item da loja do Empório (Q68): a compra não é de fazenda nenhuma. */
+    establishment_id?: string | null;
   };
   fazendas: Opcao[];
   produtos: Opcao[];
@@ -75,6 +77,7 @@ export default function ItemActions({
   const [categoryId, setCategoryId] = useState("");
 
   const precisaCadastrarProduto = productId === NOVO;
+  const daLoja = !!item.establishment_id;
 
   async function concluir() {
     setLoading(true);
@@ -107,13 +110,14 @@ export default function ItemActions({
     if (numero === null || !Number.isFinite(numero) || numero <= 0) {
       novos.quantity = "Quanto você comprou?";
     }
-    if (!propertyId) novos.property_id = "Para qual fazenda foi a compra?";
+    // Campo que some da tela não é cobrado: item de loja não tem fazenda.
+    if (!daLoja && !propertyId) novos.property_id = "Para qual fazenda foi a compra?";
     if (!productId) novos.product_id = "Escolha o produto, ou cadastre este.";
     if (precisaCadastrarProduto) {
       if (!unit) novos.unit = "Escolha a unidade do produto.";
       if (!categoryId) novos.category_id = "Escolha a categoria do produto.";
     }
-    if (!pago && !vencimento) novos.due_date = "Informe quando vence.";
+    if (!daLoja && !pago && !vencimento) novos.due_date = "Informe quando vence.";
 
     if (Object.keys(novos).length > 0) {
       err.setGlobal(null);
@@ -125,7 +129,7 @@ export default function ItemActions({
     const res = await apiPost(`/api/v1/shopping-items/${item.id}/purchase`, {
       amount: valor,
       quantity: numero,
-      property_id: propertyId,
+      property_id: daLoja ? null : propertyId,
       product_id: precisaCadastrarProduto ? null : productId,
       novo_produto: precisaCadastrarProduto ? { unit, category_id: categoryId } : null,
       pago,
@@ -218,7 +222,7 @@ export default function ItemActions({
                 <SelectValue placeholder="Escolha o produto" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={NOVO}>Cadastrar &quot;{item.description}&quot;</SelectItem>
+                {!daLoja && <SelectItem value={NOVO}>Cadastrar &quot;{item.description}&quot;</SelectItem>}
                 {produtos.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.name}
@@ -279,6 +283,7 @@ export default function ItemActions({
           </div>
         )}
 
+        {!daLoja && (
         <Field label="Fazenda" required id={err.idDe("property_id")} error={err.erros.property_id}>
           {({ id, ...aria }) => (
             <Select
@@ -301,18 +306,21 @@ export default function ItemActions({
             </Select>
           )}
         </Field>
+        )}
 
-        <label className="flex items-center gap-2 text-sm text-texto">
-          <input
-            type="checkbox"
-            checked={pago}
-            onChange={(e) => setPago(e.target.checked)}
-            className="size-4 rounded border-borda-forte"
-          />
-          Já paguei
-        </label>
+        {!daLoja && (
+          <label className="flex items-center gap-2 text-sm text-texto">
+            <input
+              type="checkbox"
+              checked={pago}
+              onChange={(e) => setPago(e.target.checked)}
+              className="size-4 rounded border-borda-forte"
+            />
+            Já paguei
+          </label>
+        )}
 
-        {!pago && (
+        {!daLoja && !pago && (
           <Field label="Vence em" required id={err.idDe("due_date")} error={err.erros.due_date}>
             {({ id, ...aria }) => (
               <Input

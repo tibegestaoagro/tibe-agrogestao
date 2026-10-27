@@ -29,6 +29,7 @@ const ORDEM = [
   "description",
   "quantity",
   "unit",
+  "establishment_id",
   "property_id",
   "category_id",
   "purpose",
@@ -56,10 +57,13 @@ export default function ItemForm({
   fazendas,
   categorias,
   unidades,
+  lojas = [],
 }: {
   fazendas: Opcao[];
   categorias: Opcao[];
   unidades: UnidadeOpcao[];
+  /** Lojas do Empório visíveis ao usuário (Q68). Vazio esconde o campo. */
+  lojas?: Opcao[];
 }) {
   const router = useRouter();
   const aviso = useAviso();
@@ -72,6 +76,7 @@ export default function ItemForm({
   const [quantity, setQuantity] = useState("");
   const [unit, setUnit] = useState("");
   const [propertyId, setPropertyId] = useState("");
+  const [lojaId, setLojaId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [purpose, setPurpose] = useState("");
   const [urgente, setUrgente] = useState(false);
@@ -83,6 +88,7 @@ export default function ItemForm({
     setQuantity("");
     setUnit("");
     setPropertyId("");
+    setLojaId("");
     setCategoryId("");
     setPurpose("");
     setUrgente(false);
@@ -113,7 +119,9 @@ export default function ItemForm({
       description: texto,
       quantity: quantidade,
       unit: unit || null,
-      property_id: propertyId || null,
+      // O item é de uma fazenda OU de uma loja, nunca dos dois.
+      property_id: lojaId ? null : propertyId || null,
+      establishment_id: lojaId || null,
       category_id: categoryId || null,
       purpose: purpose || null,
       priority: urgente ? "urgente" : "normal",
@@ -218,29 +226,62 @@ export default function ItemForm({
         </Field>
       </div>
 
-      <Field label="Fazenda" id="property_id" error={err.erros.property_id}>
-        {({ id, ...aria }) => (
-          <Select
-            value={propertyId || SEM_ESCOLHA}
-            onValueChange={(v) => {
-              setPropertyId(v === SEM_ESCOLHA ? "" : v);
-              err.limparCampo("property_id");
-            }}
-          >
-            <SelectTrigger id={id} {...aria}>
-              <SelectValue placeholder="Todas" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={SEM_ESCOLHA}>Todas</SelectItem>
-              {fazendas.map((f) => (
-                <SelectItem key={f.id} value={f.id}>
-                  {f.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </Field>
+      {lojas.length > 0 && (
+        <Field
+          label="Para a loja"
+          id="establishment_id"
+          error={err.erros.establishment_id}
+          hint="Do Meu Empório. Item de loja não tem fazenda."
+        >
+          {({ id, ...aria }) => (
+            <Select
+              value={lojaId || SEM_ESCOLHA}
+              onValueChange={(v) => {
+                setLojaId(v === SEM_ESCOLHA ? "" : v);
+                err.limparCampo("establishment_id");
+              }}
+            >
+              <SelectTrigger id={id} {...aria}>
+                <SelectValue placeholder="Nenhuma" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={SEM_ESCOLHA}>Nenhuma</SelectItem>
+                {lojas.map((l) => (
+                  <SelectItem key={l.id} value={l.id}>
+                    {l.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </Field>
+      )}
+
+      {!lojaId && (
+        <Field label="Fazenda" id="property_id" error={err.erros.property_id}>
+          {({ id, ...aria }) => (
+            <Select
+              value={propertyId || SEM_ESCOLHA}
+              onValueChange={(v) => {
+                setPropertyId(v === SEM_ESCOLHA ? "" : v);
+                err.limparCampo("property_id");
+              }}
+            >
+              <SelectTrigger id={id} {...aria}>
+                <SelectValue placeholder="Todas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={SEM_ESCOLHA}>Todas</SelectItem>
+                {fazendas.map((f) => (
+                  <SelectItem key={f.id} value={f.id}>
+                    {f.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </Field>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <Field label="Categoria" id="category_id" error={err.erros.category_id}>

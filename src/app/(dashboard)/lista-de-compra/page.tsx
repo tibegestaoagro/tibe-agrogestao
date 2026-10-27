@@ -5,6 +5,7 @@ import { isFeatureVisibleForUser } from "@/lib/features";
 import { getBillingAccess } from "@/lib/billing-access";
 import { decToNum } from "@/lib/serialize";
 import { listarItensAction } from "@/lib/actions/shopping-items";
+import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { ensureProductCategories, listProductCategories } from "@/lib/actions/products";
 import { STOCK_UNITS, descreverQuantidade } from "@/lib/stock/units";
 import { Badge } from "@/components/ui/badge";
@@ -92,6 +93,10 @@ export default async function ListaDeCompraPage() {
 
   const unidades = STOCK_UNITS.map((u) => ({ id: u.id, label: u.label }));
 
+  // Q68: "Para a loja" só aparece quando o Empório é visível para este usuário e há loja.
+  const lojasRes = temEmporio ? await listarEstabelecimentosAction(db, user) : null;
+  const lojas = lojasRes?.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
+
   // §16: uma parada por vez. Quem não disse onde compra fica no fim, junto.
   const porLocal = new Map<string, typeof itens>();
   for (const item of itens) {
@@ -117,7 +122,7 @@ export default async function ListaDeCompraPage() {
           </p>
         </div>
         {writable && (
-          <ItemForm fazendas={fazendas} categorias={categorias} unidades={unidades} />
+          <ItemForm fazendas={fazendas} categorias={categorias} unidades={unidades} lojas={lojas} />
         )}
       </div>
 
@@ -146,6 +151,7 @@ export default async function ListaDeCompraPage() {
                         : item.description;
                   const detalhes = [
                     item.property?.name,
+                    item.establishment?.name,
                     item.purpose ? FINALIDADE[item.purpose] : null,
                     item.category?.name,
                     item.notes,
@@ -176,6 +182,7 @@ export default async function ListaDeCompraPage() {
                             quantity: decToNum(item.quantity),
                             unit: item.unit,
                             property_id: item.property_id,
+                            establishment_id: item.establishment_id,
                           }}
                           fazendas={fazendas}
                           produtos={produtos}

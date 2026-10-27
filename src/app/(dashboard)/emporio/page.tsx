@@ -2,9 +2,11 @@ import Link from "next/link";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
+import { precisaReporAction } from "@/lib/actions/emporio-estoque";
+import { listarComprasAction } from "@/lib/actions/emporio-compras";
 
 /**
- * Meu Empório: o início. Dois cartões, sem item novo no menu (Q59).
+ * Meu Empório: o início. Quatro cartões, sem item novo no menu (Q59, Q71).
  *
  * `requireFeaturePage` devolve 404 quando o recurso não é visível para o
  * usuário, como se a rota não existisse.
@@ -16,6 +18,10 @@ export default async function EmporioPage() {
   const lojas = await listarEstabelecimentosAction(db, user);
   const estabelecimentos = lojas.ok ? lojas.data.length : 0;
   const produtos = await db.emporioProduct.count({ where: { archived_at: null } });
+  const repor = await precisaReporAction(db, user);
+  const aRepor = repor.ok ? repor.data.length : 0;
+  const pendentes = await listarComprasAction(db, user, { status: "pendente" });
+  const comprasPendentes = pendentes.ok ? pendentes.data.length : 0;
 
   return (
     <div className="space-y-6">
@@ -40,6 +46,20 @@ export default async function EmporioPage() {
           contagem={produtos}
           singular="produto"
           plural="produtos"
+        />
+        <Cartao
+          href="/emporio/estoque"
+          titulo="Estoque"
+          contagem={aRepor}
+          singular="produto precisa repor"
+          plural="produtos precisam repor"
+        />
+        <Cartao
+          href="/emporio/compras"
+          titulo="Compras"
+          contagem={comprasPendentes}
+          singular="compra a receber"
+          plural="compras a receber"
         />
       </div>
     </div>

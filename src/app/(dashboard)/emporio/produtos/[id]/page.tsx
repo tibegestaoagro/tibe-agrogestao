@@ -4,6 +4,7 @@ import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { hasMinRole } from "@/lib/permissions";
 import { lerProdutoEmporioAction } from "@/lib/actions/emporio-catalogo";
+import { saldoDoProdutoAction } from "@/lib/actions/emporio-estoque";
 import { reaisBr } from "@/lib/numero-br";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -19,6 +20,7 @@ import { ArquivarBotao } from "../../_components/arquivar-botao";
 import { DadosComerciaisForm } from "../../_components/dados-comerciais-form";
 import { ApresentacaoForm } from "../../_components/apresentacao-form";
 import { PrecoForm, AplicarSugeridoBotao } from "../../_components/preco-form";
+import { ImplantarForm, ContagemForm, PerdaForm, LimitesForm } from "../../_components/estoque-forms";
 import {
   UNIDADE_BASE_ROTULO,
   UNIDADE_BASE_SUFIXO,
@@ -41,6 +43,22 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
   const sufixo = UNIDADE_BASE_SUFIXO[p.base_unit] ?? p.base_unit;
   const ativas = p.presentations.filter((a) => !a.archived_at);
   const nomeApresentacao = new Map(p.presentations.map((a) => [a.id, a.name]));
+
+  // Estoque por loja: as actions somam as movimentações (o saldo não é gravado).
+  const estoqueRes = await saldoDoProdutoAction(db, user, id);
+  const lojasEstoque = estoqueRes.ok ? estoqueRes.data.stores : [];
+  const implantacoes = await db.stockMovement.findMany({
+    where: { product_id: p.product_id, movement_type: "implantacao", canceled_at: null },
+    select: { establishment_id: true },
+    distinct: ["establishment_id"],
+  });
+  const comImplantacao = new Set(implantacoes.map((m) => m.establishment_id));
+  const produtoEstoque = {
+    id: p.id,
+    base_unit: p.base_unit,
+    separa: p.track_sealed_efetivo,
+    fechadas: ativas.filter((a) => a.is_sealed_package).map((a) => ({ id: a.id, name: a.name })),
+  };
 
   return (
     <div className="space-y-8">
@@ -151,6 +169,84 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
               ))}
             </TableBody>
           </Table>
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-texto">Estoque por loja</h2>
+        {lojasEstoque.length === 0 ? (
+          <EmptyState
+            titulo="Nenhuma loja cadastrada"
+            acao={
+              <Link href="/emporio/estabelecimentos" className="text-sm font-medium text-texto-marca hover:underline">
+                Ir para Estabelecimentos
+              </Link>
+            }
+          >
+            Cadastre uma loja para controlar o estoque deste produto.
+          </EmptyState>
+        ) : (
+          <div className="grid gap-4 lg:grid-cols-2">
+            {lojasEstoque.map((l) => {
+              const loja = {
+                id: l.establishment_id,
+                name: l.establishment_name,
+                lacrado: Object.fromEntries(l.sealed.map((s) => [s.presentation_id, s.packages])),
+                avulso: l.loose_qty,
+                min_qty: l.min_qty,
+                max_qty: l.max_qty,
+              };
+              const lacrado = l.sealed.filter((s) => s.packages !== 0);
+              return (
+                <div key={l.establishment_id} className="space-y-3 rounded-lg border border-borda bg-superficie p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="font-medium text-texto">
+                      {l.establishment_name}
+                      {l.needs_restock && (
+                        <Badge variant="amber" className="ml-2">
+                          repor
+                        </Badge>
+                      )}
+                    </h3>
+                    <span className="text-lg font-semibold text-texto">
+                      {numeroBr(l.total_qty)} {sufixo}
+                    </span>
+                  </div>
+                  <dl className="grid gap-2 text-sm sm:grid-cols-2">
+                    {p.track_sealed_efetivo && (
+                      <>
+                        <Item
+                          rotulo="Lacrado"
+                          valor={
+                            lacrado.length === 0
+                              ? "-"
+                              : lacrado.map((s) => `${numeroBr(s.packages)} × ${s.name}`).join(", ")
+                          }
+                        />
+                        <Item rotulo="Avulso" valor={`${numeroBr(l.loose_qty)} ${sufixo}`} />
+                      </>
+                    )}
+                    <Item
+                      rotulo={rotuloCustoBase(p.base_unit)}
+                      valor={l.average_cost == null ? "-" : `${reaisBr(l.average_cost)}${l.estimated ? " (estimado)" : ""}`}
+                    />
+                    <Item rotulo="Mínimo" valor={l.min_qty == null ? "-" : `${numeroBr(l.min_qty)} ${sufixo}`} />
+                    <Item rotulo="Máximo" valor={l.max_qty == null ? "-" : `${numeroBr(l.max_qty)} ${sufixo}`} />
+                  </dl>
+                  {podeEscrever && (
+                    <div className="flex flex-wrap gap-2">
+                      {!comImplantacao.has(l.establishment_id) && (
+                        <ImplantarForm loja={loja} produto={produtoEstoque} />
+                      )}
+                      <ContagemForm loja={loja} produto={produtoEstoque} />
+                      <PerdaForm loja={loja} produto={produtoEstoque} />
+                      {ehAdmin && <LimitesForm loja={loja} produto={produtoEstoque} />}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
       </section>
 
