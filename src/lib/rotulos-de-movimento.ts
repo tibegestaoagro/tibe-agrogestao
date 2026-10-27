@@ -56,6 +56,9 @@ export const ROTULO_ESTOQUE: Record<StockMovementType, string> = {
   ajuste: "Corrigi",
   permuta_entrada: "Entrou por permuta",
   permuta_saida: "Saiu por permuta",
+  // Módulo 39 (F2a): só no estoque das lojas do Empório.
+  implantacao: "Estoque inicial",
+  perda: "Perdi",
 };
 
 export const ROTULO_LEITE: Record<MilkMovementType, string> = {

@@ -205,6 +205,33 @@ enum StockMovementType {
   ajuste
   permuta_entrada
   permuta_saida
+  /// Módulo 39 (Q45, Q69): estoque inicial do Empório, uma vez por produto e loja.
+  implantacao
+  /// Módulo 39 (Q66): perda e avaria do Empório, com motivo de lista fixa.
+  perda
+}
+
+/// Módulo 39, Q65: estado da embalagem no estoque do Empório. Nulo na
+/// movimentação de produto que não separa lacrado de avulso.
+enum PackageState {
+  lacrado
+  avulso
+}
+
+/// Módulo 39, Q66.
+enum EmporioLossReason {
+  vencido
+  avaria
+  furto
+  consumo_proprio
+  outro
+}
+
+/// Módulo 39, Q62.
+enum EmporioPurchasePaymentKind {
+  a_vista
+  a_prazo
+  parcelada
 }
 
 enum CropCycleStatus {
@@ -368,59 +395,62 @@ model Tenant {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  profiles             TenantProfile[]
-  users                User[]
-  properties           Property[]
-  contacts             Contact[]
-  negotiations         Negotiation[]
-  product_categories   ProductCategory[]
-  products             Product[]
-  stock_movements      StockMovement[]
-  animal_categories    AnimalCategory[]
-  animal_batches       AnimalBatch[]
-  machines             Machine[]
-  tasks                Task[]
-  financial_categories FinancialCategory[]
-  alert_preferences    AlertPreference[]
-  vaccines             Vaccine[]
-  plots                Plot[]
-  pastures             Pasture[]
-  service_clients      ServiceClient[]
-  services             Service[]
-  service_orders       ServiceOrder[]
-  financial_entries    FinancialEntry[]
-  financial_payments   FinancialPayment[]
-  whatsapp_contacts    WhatsAppContact[]
-  conversation_logs    AgentConversationLog[]
-  agent_requests       AgentRequest[]
-  alerts               Alert[]
-  email_logs           EmailLog[]
-  password_resets      PasswordResetCode[]
-  agent_flows          AgentFlowState[]
-  refresh_tokens       RefreshToken[]
-  push_subscriptions   PushSubscription[]
-  herd_movements       HerdMovement[]
-  herd_stays           HerdStay[]
-  confinement_sites    ConfinementSite[]
-  subscription         Subscription?
-  milk_groups          MilkGroup[]
-  lactation_entries    LactationEntry[]
-  milk_productions     MilkProduction[]
-  milk_sites           MilkSite[]
-  milk_movements       MilkMovement[]
-  milk_charges         MilkCharge[]
-  workers              Worker[]
-  service_jobs         ServiceJob[]
-  worker_logs          WorkerLog[]
-  service_job_costs    ServiceJobCost[]
-  shopping_items       ShoppingItem[]
-  tenant_features      TenantFeature[]
-  tenant_feature_users TenantFeatureUser[]
-  establishments       Establishment[]
-  user_establishments  UserEstablishment[]
-  emporio_products     EmporioProduct[]
-  presentations        ProductPresentation[]
-  presentation_prices  PresentationPrice[]
+  profiles               TenantProfile[]
+  users                  User[]
+  properties             Property[]
+  contacts               Contact[]
+  negotiations           Negotiation[]
+  product_categories     ProductCategory[]
+  products               Product[]
+  stock_movements        StockMovement[]
+  animal_categories      AnimalCategory[]
+  animal_batches         AnimalBatch[]
+  machines               Machine[]
+  tasks                  Task[]
+  financial_categories   FinancialCategory[]
+  alert_preferences      AlertPreference[]
+  vaccines               Vaccine[]
+  plots                  Plot[]
+  pastures               Pasture[]
+  service_clients        ServiceClient[]
+  services               Service[]
+  service_orders         ServiceOrder[]
+  financial_entries      FinancialEntry[]
+  financial_payments     FinancialPayment[]
+  whatsapp_contacts      WhatsAppContact[]
+  conversation_logs      AgentConversationLog[]
+  agent_requests         AgentRequest[]
+  alerts                 Alert[]
+  email_logs             EmailLog[]
+  password_resets        PasswordResetCode[]
+  agent_flows            AgentFlowState[]
+  refresh_tokens         RefreshToken[]
+  push_subscriptions     PushSubscription[]
+  herd_movements         HerdMovement[]
+  herd_stays             HerdStay[]
+  confinement_sites      ConfinementSite[]
+  subscription           Subscription?
+  milk_groups            MilkGroup[]
+  lactation_entries      LactationEntry[]
+  milk_productions       MilkProduction[]
+  milk_sites             MilkSite[]
+  milk_movements         MilkMovement[]
+  milk_charges           MilkCharge[]
+  workers                Worker[]
+  service_jobs           ServiceJob[]
+  worker_logs            WorkerLog[]
+  service_job_costs      ServiceJobCost[]
+  shopping_items         ShoppingItem[]
+  tenant_features        TenantFeature[]
+  tenant_feature_users   TenantFeatureUser[]
+  establishments         Establishment[]
+  user_establishments    UserEstablishment[]
+  emporio_products       EmporioProduct[]
+  presentations          ProductPresentation[]
+  presentation_prices    PresentationPrice[]
+  emporio_purchases      EmporioPurchase[]
+  emporio_purchase_items EmporioPurchaseItem[]
+  stock_limits           StockLimit[]
 }
 
 // Equipe da Pleno Digital. NÃO carrega tenant_id: fora do isolamento (PRD 4 / 10.4).
@@ -559,6 +589,9 @@ model Establishment {
   financial_entries FinancialEntry[]
   user_links        UserEstablishment[]
   prices            PresentationPrice[]
+  purchases         EmporioPurchase[]
+  stock_limits      StockLimit[]
+  shopping_items    ShoppingItem[]
 
   @@unique([tenant_id, name])
   @@index([tenant_id])
@@ -610,9 +643,11 @@ model EmporioProduct {
   created_at         DateTime  @default(now())
   updated_at         DateTime  @updatedAt
 
-  tenant        Tenant                @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  product       Product               @relation(fields: [product_id], references: [id], onDelete: Restrict)
-  presentations ProductPresentation[]
+  tenant         Tenant                @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  product        Product               @relation(fields: [product_id], references: [id], onDelete: Restrict)
+  presentations  ProductPresentation[]
+  purchase_items EmporioPurchaseItem[]
+  stock_limits   StockLimit[]
 
   @@index([tenant_id])
 }
@@ -632,9 +667,11 @@ model ProductPresentation {
   created_at         DateTime  @default(now())
   updated_at         DateTime  @updatedAt
 
-  tenant          Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  emporio_product EmporioProduct      @relation(fields: [emporio_product_id], references: [id], onDelete: Cascade)
+  tenant          Tenant                @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  emporio_product EmporioProduct        @relation(fields: [emporio_product_id], references: [id], onDelete: Cascade)
   prices          PresentationPrice[]
+  stock_movements StockMovement[]
+  purchase_items  EmporioPurchaseItem[]
 
   @@unique([emporio_product_id, name])
   @@index([tenant_id])
@@ -661,6 +698,84 @@ model PresentationPrice {
   @@unique([establishment_id, presentation_id])
   @@index([tenant_id])
   @@index([presentation_id])
+}
+
+/// Módulo 39, F2a (Q61 a Q63, Q70): compra de mercadoria para uma loja.
+/// `received_at` nulo = registrada antes de chegar (Q38): a conta a pagar
+/// nasce na hora, o estoque só no recebimento. As contas a pagar são
+/// `FinancialEntry` com `related_module` emporio e `related_id` = este id.
+model EmporioPurchase {
+  id                 String                     @id @default(cuid())
+  tenant_id          String
+  establishment_id   String
+  contact_id         String?
+  /// §23.2: repetir a chave devolve esta compra, sem duplicar.
+  operation_key      String
+  purchased_at       DateTime
+  received_at        DateTime?
+  freight            Decimal                    @default(0) @db.Decimal(12, 2)
+  payment_kind       EmporioPurchasePaymentKind
+  notes              String?
+  canceled_at        DateTime?
+  canceled_reason    String?
+  created_by_user_id String?
+  created_at         DateTime                   @default(now())
+  updated_at         DateTime                   @updatedAt
+
+  tenant          Tenant                @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  establishment   Establishment         @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
+  contact         Contact?              @relation(fields: [contact_id], references: [id], onDelete: SetNull)
+  items           EmporioPurchaseItem[]
+  stock_movements StockMovement[]
+
+  @@unique([tenant_id, operation_key])
+  @@index([tenant_id])
+  @@index([establishment_id])
+}
+
+/// Q61: `quantity` na apresentação (ou na unidade-base, sem apresentação);
+/// `base_quantity` já convertida; `unit_cost` por unidade-base, frete incluído.
+model EmporioPurchaseItem {
+  id                 String   @id @default(cuid())
+  tenant_id          String
+  purchase_id        String
+  emporio_product_id String
+  presentation_id    String?
+  quantity           Decimal  @db.Decimal(14, 3)
+  base_quantity      Decimal  @db.Decimal(14, 3)
+  item_total         Decimal  @db.Decimal(12, 2)
+  freight_share      Decimal  @default(0) @db.Decimal(12, 2)
+  unit_cost          Decimal  @db.Decimal(14, 4)
+  created_at         DateTime @default(now())
+
+  tenant          Tenant               @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  purchase        EmporioPurchase      @relation(fields: [purchase_id], references: [id], onDelete: Cascade)
+  emporio_product EmporioProduct       @relation(fields: [emporio_product_id], references: [id], onDelete: Restrict)
+  presentation    ProductPresentation? @relation(fields: [presentation_id], references: [id], onDelete: Restrict)
+
+  @@index([tenant_id])
+  @@index([purchase_id])
+}
+
+/// Q46 e Q67: mínimo e máximo por produto e loja, na unidade-base. O
+/// `minimum_stock` da fazenda continua onde está.
+model StockLimit {
+  id                 String   @id @default(cuid())
+  tenant_id          String
+  establishment_id   String
+  emporio_product_id String
+  min_qty            Decimal? @db.Decimal(14, 3)
+  max_qty            Decimal? @db.Decimal(14, 3)
+  updated_by_user_id String?
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  tenant          Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  establishment   Establishment  @relation(fields: [establishment_id], references: [id], onDelete: Cascade)
+  emporio_product EmporioProduct @relation(fields: [emporio_product_id], references: [id], onDelete: Cascade)
+
+  @@unique([establishment_id, emporio_product_id])
+  @@index([tenant_id])
 }
 
 // Sessão do aplicativo (identidade por token, Onda 1). O access token é um JWT
@@ -953,19 +1068,30 @@ model StockMovement {
   /// serviço.
   service_job_id String?
 
+  /// Módulo 39 (F2a), só no estoque do Empório. Q65: lacrado guarda a
+  /// apresentação fechada; avulso, não. Q64: `unit_cost` é o custo por
+  /// unidade-base do momento (na entrada, o pago; na saída, o médio).
+  package_state   PackageState?
+  presentation_id String?
+  unit_cost       Decimal?           @db.Decimal(14, 4)
+  purchase_id     String?
+  loss_reason     EmporioLossReason?
+
   canceled_at     DateTime?
   canceled_reason String?
   created_at      DateTime  @default(now())
 
-  tenant        Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  product       Product        @relation(fields: [product_id], references: [id], onDelete: Restrict)
-  property      Property?      @relation(fields: [property_id], references: [id], onDelete: Cascade)
-  establishment Establishment? @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
-  pasture       Pasture?       @relation(fields: [pasture_id], references: [id], onDelete: SetNull)
-  negotiation   Negotiation?   @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
-  recorded_by   User?          @relation("StockRecordedBy", fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
-  stay          HerdStay?      @relation(fields: [stay_id], references: [id], onDelete: SetNull)
-  service_job   ServiceJob?    @relation(fields: [service_job_id], references: [id], onDelete: SetNull)
+  tenant        Tenant               @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  product       Product              @relation(fields: [product_id], references: [id], onDelete: Restrict)
+  property      Property?            @relation(fields: [property_id], references: [id], onDelete: Cascade)
+  establishment Establishment?       @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
+  pasture       Pasture?             @relation(fields: [pasture_id], references: [id], onDelete: SetNull)
+  negotiation   Negotiation?         @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
+  recorded_by   User?                @relation("StockRecordedBy", fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
+  stay          HerdStay?            @relation(fields: [stay_id], references: [id], onDelete: SetNull)
+  service_job   ServiceJob?          @relation(fields: [service_job_id], references: [id], onDelete: SetNull)
+  presentation  ProductPresentation? @relation(fields: [presentation_id], references: [id], onDelete: Restrict)
+  purchase      EmporioPurchase?     @relation(fields: [purchase_id], references: [id], onDelete: Restrict)
 
   @@index([tenant_id])
   @@index([tenant_id, product_id, property_id])
@@ -2183,6 +2309,7 @@ model Contact {
   /// uma manutenção de máquina (§29).
   service_jobs         ServiceJob[]
   machine_maintenances MachineMaintenance[]
+  emporio_purchases    EmporioPurchase[]
 
   @@index([tenant_id])
 }
@@ -3046,10 +3173,13 @@ model ShoppingItem {
   /// Vocabulário de `src/lib/stock/units.ts`, o mesmo do estoque.
   unit     String?
 
-  property_id String?
+  property_id      String?
+  /// Módulo 39 (Q68): item da Lista para uma loja do Empório. O "comprei"
+  /// dele vira compra na loja, e não entrada no estoque da fazenda.
+  establishment_id String?
   /// Decisão 32: a categoria é a MESMA do produto (`ProductCategory`), não uma
   /// segunda lista. O que o produto é pertence a um vocabulário só.
-  category_id String?
+  category_id      String?
 
   /// §8: para onde o produto vai. É outra pergunta que a categoria: o mesmo
   /// sal mineral pode ir para o rebanho ou para o confinamento.
@@ -3073,14 +3203,15 @@ model ShoppingItem {
   created_at         DateTime  @default(now())
   updated_at         DateTime? @updatedAt
 
-  tenant      Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  tenant        Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   /// `SetNull` em todos: arquivar um produto, uma fazenda ou uma categoria não
   /// pode travar nem apagar a lista de compras do produtor.
-  product     Product?         @relation(fields: [product_id], references: [id], onDelete: SetNull)
-  property    Property?        @relation(fields: [property_id], references: [id], onDelete: SetNull)
-  category    ProductCategory? @relation(fields: [category_id], references: [id], onDelete: SetNull)
-  negotiation Negotiation?     @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
-  created_by  User?            @relation("ShoppingItemCreatedBy", fields: [created_by_user_id], references: [id], onDelete: SetNull)
+  product       Product?         @relation(fields: [product_id], references: [id], onDelete: SetNull)
+  property      Property?        @relation(fields: [property_id], references: [id], onDelete: SetNull)
+  establishment Establishment?   @relation(fields: [establishment_id], references: [id], onDelete: SetNull)
+  category      ProductCategory? @relation(fields: [category_id], references: [id], onDelete: SetNull)
+  negotiation   Negotiation?     @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
+  created_by    User?            @relation("ShoppingItemCreatedBy", fields: [created_by_user_id], references: [id], onDelete: SetNull)
 
   @@index([tenant_id])
   /// A consulta que a tela e o WhatsApp fazem o tempo todo: os pendentes deste
