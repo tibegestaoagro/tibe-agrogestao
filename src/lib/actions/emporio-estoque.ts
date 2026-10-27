@@ -5,6 +5,7 @@ import { runSerializableTenantTransaction } from "@/lib/financial";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum } from "@/lib/serialize";
 import { hasMinRole } from "@/lib/permissions";
+import { descreverQuantidade } from "@/lib/stock/units";
 import { custoMedio, deltaDaLoja, type MovimentoDeCusto } from "@/lib/emporio/custo-medio";
 import {
   INCLUDE_PRODUTO,
@@ -806,7 +807,7 @@ export async function registrarPerdaAction(
   if (recusa) {
     return fail(
       "INSUFFICIENT_STOCK",
-      `Saldo insuficiente para essa perda: há ${recusa.saldo} e a perda é de ${base} (unidade-base).`,
+      `Saldo insuficiente para essa perda: há ${descreverQuantidade(recusa.saldo, p.base_unit)} e a perda é de ${descreverQuantidade(base, p.base_unit)}.`,
       409,
       "quantity",
     );
