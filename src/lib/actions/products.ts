@@ -190,7 +190,15 @@ export async function listProductsWithBalance(
   filtro: { property_id?: string } = {},
 ): Promise<ProductWithBalance[]> {
   const produtos = await db.product.findMany({
-    where: { archived_at: null },
+    where: {
+      archived_at: null,
+      // Módulo 39, Q51: produto criado no Empório e sem movimentação em
+      // propriedade não aparece no Estoque da fazenda.
+      NOT: {
+        emporio: { is: { created_in_emporio: true } },
+        movements: { none: { property_id: { not: null } } },
+      },
+    },
     include: { category: true },
     orderBy: { name: "asc" },
   });

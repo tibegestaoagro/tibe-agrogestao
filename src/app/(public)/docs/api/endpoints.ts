@@ -281,6 +281,145 @@ export const GROUPS: Group[] = [
       },
       {
         method: "GET",
+        path: "/api/v1/emporio/establishments",
+        auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
+        description: "Lista os estabelecimentos do Empório. Esconde os arquivados; `?incluir_arquivados=1` os inclui. Quem tem vínculo (`user_ids`) vê só as lojas vinculadas; sem vínculo, vê todas.",
+        response: `200
+{ "data": [{ "id": "cl...", "name": "Central", "kind": "central", "address": null, "city": null, "responsible_user_id": null, "allow_negative_stock": false, "max_discount_pct": null, "default_expense_pct": 15, "default_profit_pct": 20, "archived_at": null, "user_ids": [] }], "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/establishments",
+        auth: "Sessão · emporio:write · só OWNER e ADMIN (403 `FORBIDDEN`)",
+        description: "Cria um estabelecimento (`kind`: `central` ou `ponto_venda`). Nome repetido: 409 `DUPLICATE_NAME` no campo `name`. Percentual fora de 0 a 1000: 422 no campo.",
+        request: `{ "name": "Loja Centro", "kind": "ponto_venda", "default_expense_pct": 15, "default_profit_pct": 20 }`,
+        response: `201
+{ "data": { "id": "cl...", "name": "Loja Centro", "kind": "ponto_venda", "user_ids": [] }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/establishments/:id",
+        auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
+        description: "Um estabelecimento. Quem tem vínculo e pede outra loja recebe 404 `NOT_FOUND`.",
+        response: `200
+{ "data": { "id": "cl...", "name": "Loja Centro", "kind": "ponto_venda", "user_ids": [] }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/emporio/establishments/:id",
+        auth: "Sessão · emporio:write · só OWNER e ADMIN",
+        description: "Edita os campos enviados (os ausentes ficam como estão; `null` limpa os opcionais).",
+        request: `{ "max_discount_pct": 10, "allow_negative_stock": false }`,
+        response: `200
+{ "data": { "id": "cl...", "name": "Loja Centro", "max_discount_pct": 10 }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/establishments/:id/archive",
+        auth: "Sessão · emporio:write · só OWNER e ADMIN",
+        description: "Arquiva (`archived: true`) ou desarquiva (`false`). Nunca apaga.",
+        request: `{ "archived": true }`,
+        response: `200
+{ "data": { "id": "cl...", "archived_at": "2026-10-27T12:00:00.000Z" }, "meta": {} }`,
+      },
+      {
+        method: "PUT",
+        path: "/api/v1/emporio/establishments/:id/users",
+        auth: "Sessão · emporio:write · só OWNER e ADMIN",
+        description: "Substitui os vínculos usuário-loja. Lista vazia = ninguém vinculado. Usuário de outra conta ou inativo: 422 `VALIDATION_ERROR` no campo `user_ids`.",
+        request: `{ "user_ids": ["cl..."] }`,
+        response: `200
+{ "data": { "id": "cl...", "user_ids": ["cl..."] }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/products",
+        auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
+        description: "Lista os produtos do Empório (configuração comercial sobre o `Product`). Esconde os arquivados; `?incluir_arquivados=1` os inclui. `track_sealed` nulo é automático e `track_sealed_efetivo` traz o valor resolvido.",
+        response: `200
+{ "data": [{ "id": "cl...", "product_id": "cl...", "name": "Sal grosso", "category_id": "cl...", "category_name": "Outros", "brand": null, "base_unit": "quilograma", "created_in_emporio": true, "reference_cost": 10, "track_sealed": null, "track_sealed_efetivo": false, "track_lot": false, "track_expiry": false, "expense_pct": null, "profit_pct": null, "archived_at": null }], "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/products",
+        auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
+        description: "Põe um produto no Empório. Com `product_id`, usa um produto que já existe na conta; com `name` e `category_id`, cria o produto (e o marca como criado no Empório). `base_unit` (`quilograma`, `litro` ou `unidade`) é obrigatória nos dois casos. Produto já no Empório: 409 `ALREADY_IN_EMPORIO`. Nome repetido: 409 `DUPLICATE_NAME` no campo `name`.",
+        request: `{ "name": "Sal grosso", "category_id": "cl...", "base_unit": "quilograma", "reference_cost": 10 }`,
+        response: `201
+{ "data": { "id": "cl...", "name": "Sal grosso", "base_unit": "quilograma", "presentations": [], "prices": [] }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/products/candidates",
+        auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
+        description: "Produtos da conta ainda fora do Empório (não arquivados), para o \"usar no Empório\".",
+        response: `200
+{ "data": [{ "id": "cl...", "name": "Sal mineral", "category_id": "cl...", "category_name": "Nutrição", "brand": null, "unit": "saca" }], "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/products/:id",
+        auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
+        description: "O produto (`:id` é o do produto do Empório) com as apresentações e a tabela de preço: uma linha por loja visível ao usuário e apresentação ativa, mesmo sem preço cadastrado, com custo (`reference_cost × base_qty`), percentuais efetivos e preço sugerido (`custo × (1 + despesas/100) × (1 + lucro/100)`, nulo sem custo).",
+        response: `200
+{ "data": { "id": "cl...", "name": "Sal grosso", "presentations": [{ "id": "cl...", "name": "Saca 10 kg", "base_qty": 10, "is_sealed_package": true, "archived_at": null }], "prices": [{ "establishment_id": "cl...", "establishment_name": "Loja Centro", "presentation_id": "cl...", "price": null, "cost": 100, "expense_pct": null, "profit_pct": null, "expense_pct_efetivo": 15, "profit_pct_efetivo": 20, "suggested_price": 138 }] }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/emporio/products/:id",
+        auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR (`expense_pct` e `profit_pct` só OWNER e ADMIN)",
+        description: "Edita custo de referência, `brand`, lacrado/avulso (`track_sealed`: `true`, `false` ou `null` para voltar ao automático), lote, validade e a exceção de percentuais do produto.",
+        request: `{ "reference_cost": 12.5, "track_sealed": null, "expense_pct": 10 }`,
+        response: `200
+{ "data": { "id": "cl...", "reference_cost": 12.5, "track_sealed": null, "expense_pct": 10 }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/products/:id/archive",
+        auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
+        description: "Arquiva (`archived: true`) ou desarquiva (`false`) o produto do Empório.",
+        request: `{ "archived": true }`,
+        response: `200
+{ "data": { "id": "cl...", "archived_at": "2026-10-27T12:00:00.000Z" }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/products/:id/presentations",
+        auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
+        description: "Cria uma apresentação (forma de venda). `base_qty` é quanto ela vale na unidade-base: maior que zero, e inteira quando a unidade-base é `unidade`. Nome repetido no produto: 409 `DUPLICATE_NAME`.",
+        request: `{ "name": "Saca 10 kg", "base_qty": 10, "is_sealed_package": true }`,
+        response: `201
+{ "data": { "id": "cl...", "name": "Saca 10 kg", "base_qty": 10, "is_sealed_package": true, "archived_at": null }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/emporio/presentations/:id",
+        auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
+        description: "Edita nome, `base_qty` e `is_sealed_package` da apresentação.",
+        request: `{ "base_qty": 25 }`,
+        response: `200
+{ "data": { "id": "cl...", "name": "Saca 10 kg", "base_qty": 25, "is_sealed_package": true, "archived_at": null }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/presentations/:id/archive",
+        auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
+        description: "Arquiva (`archived: true`) ou desarquiva (`false`) a apresentação.",
+        request: `{ "archived": true }`,
+        response: `200
+{ "data": { "id": "cl...", "archived_at": "2026-10-27T12:00:00.000Z" }, "meta": {} }`,
+      },
+      {
+        method: "PUT",
+        path: "/api/v1/emporio/prices",
+        auth: "Sessão · emporio:write · só OWNER e ADMIN",
+        description: "Upsert do preço de uma apresentação numa loja, com a exceção de percentuais dela. Campo `null` ou ausente limpa. Loja fora do vínculo do usuário: 404. Preço negativo ou percentual fora de 0 a 1000: 422 no campo.",
+        request: `{ "establishment_id": "cl...", "presentation_id": "cl...", "price": 138, "expense_pct": null, "profit_pct": null }`,
+        response: `200
+{ "data": { "establishment_id": "cl...", "presentation_id": "cl...", "price": 138, "expense_pct": null, "profit_pct": null }, "meta": {} }`,
+      },
+      {
+        method: "GET",
         path: "/api/v1/pastures",
         auth: "Sessão · rebanho:read · perfil fazenda",
         description: "Lista pastos ativos de uma fazenda. property_id é obrigatório. meta.area_summary traz a soma das áreas x tamanho total da fazenda.",
