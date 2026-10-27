@@ -152,7 +152,9 @@ conversa. Em 11/09 uma segunda tentativa passou e, na outra vez, quem rodou foi
 o usuário. Tente uma vez; se bloquear, dê a ele o comando e o diretório, e
 confira com `migrate status` antes do push.
 
-✅ **A validação com navegador (`browser-harness`) funciona.** Os seis atritos
+✅ **A validação com navegador (`browser-harness`) funciona, e desde 27/10
+roda num Chrome só de testes:** `npm run navegador -- <roteiro>` (seção no
+`CLAUDE.md`); o primeiro roteiro é o `emporio-f0`, 31 itens. Os seis atritos
 que imitam defeito (aba oculta, leitura cedo, acento no `js()`) estão no cofre:
 `a-aba-oculta-e-a-leitura-cedo-imitam-defeito-no-navegador`. Cenário de tela se
 monta com script `tsx` (`scripts/_cenario-lista.ts`), nunca com `curl`.

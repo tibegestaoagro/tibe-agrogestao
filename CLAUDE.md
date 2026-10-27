@@ -477,6 +477,27 @@ nenhum, em ambiente nenhum**.
 ⚠️ **Sessão via `next start` + cookie jar continua não funcionando** (o Edge
 Middleware não a reconhece nesse setup). Use `next dev` + navegador real.
 
+### Roteiros de navegador: num Chrome só de testes, nunca no do usuário
+
+Desde 27/10/2026, a validação viva roda em roteiros versionados em
+`scripts/navegador/`, por `npm run navegador -- <roteiro>` (sem argumento,
+lista). O comando sobe um **Chrome separado, com perfil próprio**
+(`%LOCALAPPDATA%\tibe-chrome-testes`) e a porta de depuração 9333, e aponta o
+browser-harness para ele (`BU_CDP_URL`, `BU_NAME=tibe`). **Nunca valide no
+Chrome do usuário:** é lá que ficam abertos o WhatsApp Business, o CRM e a
+Evolution, e o harness, sem essa variável, se pendura no primeiro Chrome que
+achar.
+
+O roteiro declara no cabeçalho o cenário que precisa e as sessões (por email,
+mais a da Plataforma); o comando roda o cenário, emite os cookies sem senha
+(`scripts/_sessao-cookie.ts`), e reprova (saída 1) se algum `confere` falhar ou
+se o roteiro não chegar ao fim. Os passos comuns estão em
+`scripts/navegador/_lib.py`. Roteiro novo nasce provado nos dois sentidos: o
+`emporio-f0` reprovou com a correção do menu desfeita e passou com ela.
+
+Precisa do `npm run dev` de pé e do browser-harness instalado na máquina (no
+notebook, instalar).
+
 ### Confirmar deploy
 
 `/docs/api` é público e lista as rotas reais: se a rota nova aparece lá, o
