@@ -209,9 +209,61 @@ async function comBanco() {
       const total = await prisma.stockMovement.count({ where: { tenant_id: A.t.id } });
       check("só as duas válidas foram gravadas", total === 2, String(total));
     }
+
+    console.log("\n12. O estoque da fazenda não enxerga o da loja (spec 4.3)");
+    {
+      const { getStockBalance, listStockMovements } = await import("@/lib/actions/stock-ledger");
+      const { listProductsWithBalance } = await import("@/lib/actions/products");
+      const { historicoDoDia } = await import("@/lib/actions/meu-dia");
+      const { gerarAlertasDeEstoqueMinimo } = await import("@/lib/actions/alerts");
+
+      const C = await mk("C");
+      const db = prismaForTenant(C.t.id);
+      const cat = await db.productCategory.create({ data: scoped({ name: "M77 cat sal" }) });
+      const fazenda = await db.property.create({ data: scoped({ name: "M77 fazenda F" }) });
+      const loja = await db.establishment.create({ data: scoped({ name: "M77 loja L", kind: "central" }) });
+      const sal15 = await db.product.create({ data: scoped({ name: "M77 Sal 15", category_id: cat.id, unit: "saca", minimum_stock: 15 }) });
+      const sal12 = await db.product.create({ data: scoped({ name: "M77 Sal 12", category_id: cat.id, unit: "saca", minimum_stock: 12 }) });
+      const quando = new Date();
+      for (const p of [sal15, sal12]) {
+        await prisma.stockMovement.create({
+          data: { tenant_id: C.t.id, product_id: p.id, movement_type: "compra", quantity: 10, occurred_at: quando, property_id: fazenda.id },
+        });
+        await prisma.stockMovement.create({
+          data: { tenant_id: C.t.id, product_id: p.id, movement_type: "compra", quantity: 7, occurred_at: quando, establishment_id: loja.id, property_id: null },
+        });
+      }
+
+      const todas = await getStockBalance(db, {});
+      check("getStockBalance sem filtro: uma posição por produto, nenhuma da loja", todas.length === 2 && todas.every((x) => x.property_id === fazenda.id && x.quantity === 10), JSON.stringify(todas));
+      const doProduto = await getStockBalance(db, { product_id: sal15.id });
+      check("getStockBalance por produto: uma posição, da fazenda, quantidade 10", doProduto.length === 1 && doProduto[0].property_id === fazenda.id && doProduto[0].quantity === 10, JSON.stringify(doProduto));
+
+      const lista = await listStockMovements(db, {});
+      check("listStockMovements sem filtro: só as 2 movimentações da fazenda", lista.total === 2 && lista.items.length === 2, `total=${lista.total}`);
+      const listaProd = await listStockMovements(db, { product_id: sal15.id });
+      check("listStockMovements por produto: total 1", listaProd.total === 1, `total=${listaProd.total}`);
+
+      const prods = await listProductsWithBalance(db);
+      const p15 = prods.find((x) => x.id === sal15.id);
+      const p12 = prods.find((x) => x.id === sal12.id);
+      check("saldo_total 10 (a loja não soma)", p15?.saldo_total === 10 && p12?.saldo_total === 10, `${p15?.saldo_total}/${p12?.saldo_total}`);
+      check("saldo_no_tenant 10", p15?.saldo_no_tenant === 10 && p12?.saldo_no_tenant === 10);
+      check("saldo_por_fazenda: só F, sem entrada nula", !!p15 && p15.saldo_por_fazenda.length === 1 && p15.saldo_por_fazenda[0].property_id === fazenda.id && p15.saldo_por_fazenda.every((x) => x.property_id != null), JSON.stringify(p15?.saldo_por_fazenda));
+      check("mínimo 15: abaixo_do_minimo (10 < 15)", p15?.abaixo_do_minimo === true);
+      check("mínimo 12: abaixo_do_minimo (10 < 12; com a loja seria 17 e não alertaria)", p12?.abaixo_do_minimo === true);
+
+      const hist = await historicoDoDia(db, {});
+      const deEstoque = hist.filter((r) => r.chave.toLowerCase().includes("estoque") || r.href.includes("estoque"));
+      check("historicoDoDia sem fazenda: 2 registros de estoque (os da fazenda), nenhum da loja", hist.length === 2 && deEstoque.length === 2, `total=${hist.length} estoque=${deEstoque.length} ${JSON.stringify(hist.map((r) => r.chave))}`);
+
+      const criados = await gerarAlertasDeEstoqueMinimo(db, new Date());
+      check("alerta de estoque mínimo: 2 alertas (10 < 15 e 10 < 12); com a loja o de 12 sumiria", criados === 2, String(criados));
+    }
   } finally {
     for (const id of tenantIds) {
       try {
+        await prisma.alert.deleteMany({ where: { tenant_id: id } });
         await prisma.stockMovement.deleteMany({ where: { tenant_id: id } });
         await prisma.financialEntry.deleteMany({ where: { tenant_id: id } });
         await prisma.tenantFeatureUser.deleteMany({ where: { tenant_id: id } });
