@@ -78,6 +78,24 @@ Decisão do usuário em 14/10/2026: mostrar à Agromax o que o Módulo 30 já fa
 pelo roteiro [roteiro-agromax-rebanho-por-categoria.md](roteiro-agromax-rebanho-por-categoria.md),
 e fechar ou transformar em lista conforme a resposta deles.
 
+### 2.15 a 2.21: o que o Meu Empório deixou de fora de propósito
+
+Decididas com o usuário em 27/10/2026, na entrevista da spec
+[module-37-meu-emporio.md](../specs/module-37-meu-emporio.md) (a coluna
+"decisão" aponta a pergunta, e o motivo está na seção 3 dela). Nenhuma é
+furo: são cortes de escopo da primeira versão, registrados para não serem
+redescobertos como defeito.
+
+| # | o que falta | decisão | o que custaria |
+|---|---|---|---|
+| 2.15 | estoque da fazenda e do Empório se cruzarem (milho da fazenda vendido na loja, sal da loja no gado), e compra e venda do Empório como Negociação | Q2, Q42 | transferência entre `Property` e `Establishment` levando custo, sem mexer no resultado do rebanho |
+| 2.16 | Empório pelo WhatsApp | Q10 | estudo próprio de quais intenções entram; as actions já nascem prontas para o agente |
+| 2.17 | Base Rural: sinônimos e nomes regionais editáveis ("saco" e "saca") | Q11 | tabela de sinônimos mantida pela Plataforma |
+| 2.18 | importar produtos e estoque inicial por planilha | Q45 | importação com conferência linha a linha antes de gravar |
+| 2.19 | contas bancárias no Financeiro da fazenda | Q47 | `FinancialPayment` apontando para a conta, nas telas e no WhatsApp |
+| 2.20 | cadastro público e cobrança da conta só de Empório | Q7, Q16 | opção "sou comerciante" no cadastro, plano e preço no Asaas |
+| 2.21 | nota fiscal (NFC-e, NF-e), receituário agronômico, lote e validade obrigatórios | Q9 | projeto à parte (certificado, SEFAZ por estado). **Precisa existir antes de liberar o Empório para quem vende defensivo ou medicamento** |
+
 ## 3. Rede de segurança com furo
 
 O item que morava aqui era o `resolverPasto`, que escolhia o primeiro pasto
