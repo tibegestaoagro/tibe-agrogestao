@@ -178,7 +178,14 @@ export default async function NegociacoesPage(
       select: { id: true, name: true },
     }),
     db.product.findMany({
-      where: { archived_at: null },
+      where: {
+        archived_at: null,
+        // Módulo 39, Q51: mesmo filtro de listProductsWithBalance.
+        NOT: {
+          emporio: { is: { created_in_emporio: true } },
+          movements: { none: { property_id: { not: null } } },
+        },
+      },
       orderBy: { name: "asc" },
       select: { id: true, name: true, unit: true },
     }),

@@ -1,0 +1,120 @@
+import Link from "next/link";
+import { requireFeaturePage } from "@/lib/features";
+import { getTenantDb } from "@/lib/tenant-context";
+import { hasMinRole } from "@/lib/permissions";
+import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
+import { EstabelecimentoForm } from "../_components/estabelecimento-form";
+import { VinculosForm } from "../_components/vinculos-form";
+import { ArquivarBotao } from "../_components/arquivar-botao";
+import { TIPO_LOJA_ROTULO } from "../_components/formato";
+
+export default async function EstabelecimentosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ arquivados?: string }>;
+}) {
+  const user = await requireFeaturePage("emporio");
+  const { arquivados } = await searchParams;
+  const mostrarArquivados = arquivados === "1";
+  const podeEscrever = hasMinRole(user.role, "ADMIN");
+
+  const db = await getTenantDb();
+  const [res, usuarios] = await Promise.all([
+    listarEstabelecimentosAction(db, user, { incluir_arquivados: mostrarArquivados }),
+    db.user.findMany({
+      where: { active: true },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+  const lojas = res.ok ? res.data : [];
+
+  return (
+    <div className="space-y-6">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <Link href="/emporio" className="text-sm text-texto-secundario hover:text-texto">
+            Meu Empório
+          </Link>
+          <h1 className="text-2xl font-semibold text-texto">Estabelecimentos</h1>
+        </div>
+        {podeEscrever && <EstabelecimentoForm usuarios={usuarios} />}
+      </header>
+
+      <div>
+        <Button asChild variant="ghost" size="sm">
+          <Link href={mostrarArquivados ? "/emporio/estabelecimentos" : "/emporio/estabelecimentos?arquivados=1"}>
+            {mostrarArquivados ? "Ocultar arquivados" : "Mostrar arquivados"}
+          </Link>
+        </Button>
+      </div>
+
+      {lojas.length === 0 ? (
+        <EmptyState titulo="Nenhum estabelecimento cadastrado">
+          {podeEscrever
+            ? "Cadastre a primeira loja para começar a formar preços."
+            : "Peça ao dono ou a um administrador para cadastrar as lojas."}
+        </EmptyState>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nome</TableHead>
+              <TableHead>Tipo</TableHead>
+              <TableHead>Cidade</TableHead>
+              <TableHead>Usuários vinculados</TableHead>
+              {podeEscrever && <TableHead>Ações</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {lojas.map((l) => (
+              <TableRow key={l.id}>
+                <TableCell className="font-medium text-texto">
+                  {l.name}
+                  {l.archived_at && (
+                    <Badge variant="gray" className="ml-2">
+                      Arquivado
+                    </Badge>
+                  )}
+                </TableCell>
+                <TableCell>{TIPO_LOJA_ROTULO[l.kind] ?? l.kind}</TableCell>
+                <TableCell>{l.city ?? "-"}</TableCell>
+                <TableCell>
+                  {l.user_ids.length === 0 ? "Sem vínculo (todos veem)" : l.user_ids.length}
+                </TableCell>
+                {podeEscrever && (
+                  <TableCell>
+                    <div className="flex flex-wrap gap-2">
+                      <EstabelecimentoForm loja={l} usuarios={usuarios} />
+                      <VinculosForm
+                        lojaId={l.id}
+                        lojaNome={l.name}
+                        usuarios={usuarios}
+                        marcados={l.user_ids}
+                      />
+                      <ArquivarBotao
+                        url={`/api/v1/emporio/establishments/${l.id}/archive`}
+                        arquivado={!!l.archived_at}
+                      />
+                    </div>
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </div>
+  );
+}

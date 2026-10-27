@@ -71,7 +71,20 @@ export default async function ListaDeCompraPage() {
     }),
     listProductCategories(db),
     db.product.findMany({
-      where: { archived_at: null },
+      where: {
+        archived_at: null,
+        // Módulo 39, Q51: com perfil fazenda, o produto criado só no Empório
+        // (sem movimentação em propriedade) não aparece. Conta só de Empório
+        // não tem fazenda, e ali os produtos do Empório são o catálogo todo.
+        ...(profiles.includes("fazenda")
+          ? {
+              NOT: {
+                emporio: { is: { created_in_emporio: true } },
+                movements: { none: { property_id: { not: null } } },
+              },
+            }
+          : {}),
+      },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),

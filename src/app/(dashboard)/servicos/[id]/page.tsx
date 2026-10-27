@@ -65,7 +65,15 @@ export default async function ServicoPage({ params }: { params: Promise<{ id: st
    * só aparece no console do navegador, com `tsc`/`lint`/testes verdes.
    */
   const produtos = await db.product.findMany({
-    where: { archived_at: null },
+    where: {
+      archived_at: null,
+      // Módulo 39, Q51: produto criado no Empório e sem movimentação em
+      // propriedade não é da fazenda. Mesmo filtro de listProductsWithBalance.
+      NOT: {
+        emporio: { is: { created_in_emporio: true } },
+        movements: { none: { property_id: { not: null } } },
+      },
+    },
     select: { id: true, name: true, unit: true },
     orderBy: { name: "asc" },
   });
