@@ -66,6 +66,7 @@ export const relatedModuleSchema = z.enum([
   "confinamento",
   "leite",
   "mao_de_obra",
+  "emporio",
 ]);
 export type RelatedModule = z.infer<typeof relatedModuleSchema>;
 
