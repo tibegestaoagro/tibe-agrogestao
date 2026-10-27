@@ -273,6 +273,14 @@ export const GROUPS: Group[] = [
       },
       {
         method: "GET",
+        path: "/api/v1/emporio",
+        auth: "Sessão · emporio:read · recurso `emporio` liberado pela Plataforma",
+        description: "Porta do Meu Empório (Módulo 39, F0): devolve a contagem de estabelecimentos não arquivados. 404 `NOT_FOUND` quando o recurso não está liberado para o usuário, como se a rota não existisse.",
+        response: `200
+{ "data": { "establishments_count": 0 }, "meta": {} }`,
+      },
+      {
+        method: "GET",
         path: "/api/v1/pastures",
         auth: "Sessão · rebanho:read · perfil fazenda",
         description: "Lista pastos ativos de uma fazenda. property_id é obrigatório. meta.area_summary traz a soma das áreas x tamanho total da fazenda.",
@@ -345,7 +353,7 @@ export const GROUPS: Group[] = [
       {
         method: "GET",
         path: "/api/v1/contacts",
-        auth: "Sessão · rebanho:read · perfil fazenda",
+        auth: "Sessão · rebanho:read · perfil fazenda ou emporio",
         description:
           "Lista os contatos de negociação (vendedor, comprador, frigorífico, leiloeira). Filtros opcionais: `q` (parte do nome) e `type`. Cadastro deliberadamente simples: o §5 do documento proíbe exigir CPF, CNPJ, endereço ou dados bancários nesta versão.",
         response: `200
@@ -354,7 +362,7 @@ export const GROUPS: Group[] = [
       {
         method: "POST",
         path: "/api/v1/contacts",
-        auth: "Sessão · rebanho:write · perfil fazenda",
+        auth: "Sessão · rebanho:write · perfil fazenda ou emporio",
         description:
           "Cadastra um contato. Só `name` é obrigatório: até o tipo é opcional, porque o §4 diz que o usuário não deve ser obrigado a classificar quem não souber classificar.",
         request: `{ "name": "Frigorífico Boa Carne", "type": "frigorifico", "city": "Paracatu" }`,
@@ -364,7 +372,7 @@ export const GROUPS: Group[] = [
       {
         method: "GET",
         path: "/api/v1/contacts/:id",
-        auth: "Sessão · rebanho:read · perfil fazenda",
+        auth: "Sessão · rebanho:read · perfil fazenda ou emporio",
         description:
           "O contato mais o histórico dele: as negociações NÃO canceladas, da mais recente para a mais antiga (máx. 50). As canceladas ficam de fora porque o §17.10 mantém a linha no histórico da própria negociação, e aqui elas só inflariam a conta de quanto já se negociou com aquela pessoa.",
         response: `200
@@ -373,7 +381,7 @@ export const GROUPS: Group[] = [
       {
         method: "PATCH",
         path: "/api/v1/contacts/:id",
-        auth: "Sessão · rebanho:write · perfil fazenda",
+        auth: "Sessão · rebanho:write · perfil fazenda ou emporio",
         description:
           "Edita o contato. Existe porque o contato criado pela conversa do WhatsApp nasce só com o nome dito (`findOrCreateContact`), e até esta rota não havia como acrescentar telefone, tipo ou município depois. Os campos são os mesmos do POST: o §5 continua proibindo CPF, endereço e dados bancários.",
         request: `{ "name": "João da Ponte", "type": "fazendeiro", "phone": "38999990000", "city": "Unaí" }`,
@@ -383,7 +391,7 @@ export const GROUPS: Group[] = [
       {
         method: "PATCH",
         path: "/api/v1/contacts/:id/archive",
-        auth: "Sessão · rebanho:write · perfil fazenda",
+        auth: "Sessão · rebanho:write · perfil fazenda ou emporio",
         description:
           "Arquiva ou desarquiva, conforme `archived`. Nunca apaga, como em Fazenda e Pasto: apagar deixaria o histórico anônimo em silêncio, porque `Negotiation.contact_id` é `onDelete: SetNull`. Um `PATCH` com booleano em vez de `DELETE` porque `DELETE` cobriria só um dos dois sentidos e deixaria o desarquivamento sem porta. O arquivado some da listagem E deixa de ser reaproveitado pela conversa, então um negócio novo com o mesmo nome cria um contato novo.",
         request: `{ "archived": true }`,
@@ -1643,7 +1651,7 @@ export const GROUPS: Group[] = [
       {
         method: "GET",
         path: "/api/v1/shopping-items",
-        auth: "Sessão · rebanho:read · perfil fazenda",
+        auth: "Sessão · rebanho:read · perfil fazenda ou emporio",
         description:
           "A lista. Sem ?status=, devolve os PENDENTES, urgentes primeiro. Filtros: status=pendente|comprado|removido, property_id, priority, place, purpose. meta.units traz as unidades para o seletor.",
         response: `200
@@ -1652,7 +1660,7 @@ export const GROUPS: Group[] = [
       {
         method: "POST",
         path: "/api/v1/shopping-items",
-        auth: "Sessão · rebanho:write · perfil fazenda",
+        auth: "Sessão · rebanho:write · perfil fazenda ou emporio",
         description:
           "Anota um item. Só description é obrigatória. Item parecido já pendente é recusado com ITEM_JA_NA_LISTA (409) para que a pergunta do §19.7 possa ser feita; repetir com permitir_duplicata: true adiciona assim mesmo.",
         request: `{ "description": "Sal mineral", "quantity": 10, "unit": "saca", "priority": "urgente" }`,
@@ -1662,7 +1670,7 @@ export const GROUPS: Group[] = [
       {
         method: "PATCH",
         path: "/api/v1/shopping-items/:id",
-        auth: "Sessão · rebanho:write · perfil fazenda",
+        auth: "Sessão · rebanho:write · perfil fazenda ou emporio",
         description:
           "Sem acao, edita os campos que vierem (a quantidade pode chegar depois). acao=concluir tira da lista sem gerar nada. acao=repetir cria um item novo igual, sem tocar no antigo. Item que já saiu da lista não é editável (NOT_EDITABLE).",
         request: `{ "acao": "concluir" }`,
@@ -1672,7 +1680,7 @@ export const GROUPS: Group[] = [
       {
         method: "DELETE",
         path: "/api/v1/shopping-items/:id",
-        auth: "Sessão · rebanho:write · perfil fazenda",
+        auth: "Sessão · rebanho:write · perfil fazenda ou emporio",
         description:
           "Remove da lista. NÃO apaga a linha: o item vira status removido e continua no histórico.",
         response: `200
@@ -2004,6 +2012,23 @@ export const GROUPS: Group[] = [
         request: `{ "archived": true }`,
         response: `200
 { "data": { "id": "cl...", "archived_at": "2026-08-04T12:00:00.000Z" }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/platform/tenants/:id/features",
+        auth: "Sessão de PlatformUser · equipe e master_admin",
+        description: "Recursos em rollout da conta (Módulo 39): uma entrada por recurso conhecido. Recurso nunca ligado vem `enabled: false` e `user_ids: []`.",
+        response: `200
+{ "data": [{ "feature_key": "emporio", "enabled": true, "user_ids": [] }], "meta": {} }`,
+      },
+      {
+        method: "PUT",
+        path: "/api/platform/tenants/:id/features/:key",
+        auth: "Sessão de PlatformUser · só master_admin",
+        description: "Liga ou desliga um recurso da conta. `user_ids` (opcional) restringe a quem da conta vê; vazio ou ausente libera a conta inteira, e a lista enviada substitui a anterior. Ligar `emporio` também ativa o perfil `emporio`; desligar só o desativa, sem apagar dado. 404 `NOT_FOUND` para chave ou conta desconhecida, 422 em `user_ids` quando algum usuário não é da conta.",
+        request: `{ "enabled": true, "user_ids": ["cl..."] }`,
+        response: `200
+{ "data": { "feature_key": "emporio", "enabled": true, "user_ids": ["cl..."] }, "meta": {} }`,
       },
       {
         method: "POST",

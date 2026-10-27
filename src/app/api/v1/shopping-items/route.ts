@@ -52,7 +52,7 @@ const createSchema = z.object({
 });
 
 async function GETHandler(request: Request) {
-  const g = await guard("rebanho", "read", { profile: "fazenda" });
+  const g = await guard("rebanho", "read", { profile: ["fazenda", "emporio"] });
   if ("error" in g) return g.error;
 
   const sp = new URL(request.url).searchParams;
@@ -78,7 +78,7 @@ async function GETHandler(request: Request) {
 }
 
 async function POSTHandler(request: Request) {
-  const g = await guard("rebanho", "write", { profile: "fazenda" });
+  const g = await guard("rebanho", "write", { profile: ["fazenda", "emporio"] });
   if ("error" in g) return g.error;
 
   const body = await readJson(request);

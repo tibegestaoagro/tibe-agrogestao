@@ -89,7 +89,7 @@ export async function getTenantDb(): Promise<TenantPrismaClient> {
   return prismaForTenant(await getCurrentTenantId());
 }
 
-export type ProfileType = "fazenda" | "prestador";
+export type ProfileType = "fazenda" | "prestador" | "emporio";
 
 /**
  * Perfis ativos de um tenant EXPLÍCITO, memoizado por request.

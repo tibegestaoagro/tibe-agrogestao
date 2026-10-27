@@ -56,7 +56,7 @@ export async function recusaSeArquivado(tenantId: string) {
 export async function guard(
   module: ModuleKey,
   action: "read" | "write",
-  opts?: { profile?: ProfileType; skipBillingCheck?: boolean },
+  opts?: { profile?: ProfileType | ProfileType[]; skipBillingCheck?: boolean },
 ): Promise<
   | { error: ReturnType<typeof apiError> }
   | { user: SessionUser; db: TenantPrismaClient }
@@ -76,11 +76,15 @@ export async function guard(
   // Exige perfil ativo (ex: fazenda) também na API, não só na UI.
   if (opts?.profile) {
     const profiles = await getActiveProfiles();
-    if (!profiles.includes(opts.profile)) {
+    const aceitos = Array.isArray(opts.profile) ? opts.profile : [opts.profile];
+    if (!aceitos.some((p) => profiles.includes(p))) {
+      const lista = aceitos.map((p) => `'${p}'`).join(" ou ");
       return {
         error: apiError(
           "PROFILE_INACTIVE",
-          `Perfil '${opts.profile}' não está ativo para este tenant`,
+          aceitos.length === 1
+            ? `Perfil ${lista} não está ativo para este tenant`
+            : `Nenhum dos perfis ${lista} está ativo para este tenant`,
           403,
         ),
       };

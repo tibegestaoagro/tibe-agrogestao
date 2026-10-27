@@ -17,7 +17,8 @@ export type ModuleKey =
   | "financeiro"
   | "alertas"
   | "usuarios"
-  | "assinatura";
+  | "assinatura"
+  | "emporio";
 
 export type AccessLevel = "none" | "read" | "write";
 
@@ -55,6 +56,9 @@ const ACCESS_MATRIX: Record<ModuleKey, Record<AppUserRole, AccessLevel>> = {
   alertas: { OWNER: W, ADMIN: W, OPERADOR: R, VISUALIZADOR: R },
   usuarios: { OWNER: W, ADMIN: W, OPERADOR: N, VISUALIZADOR: N },
   assinatura: { OWNER: W, ADMIN: N, OPERADOR: N, VISUALIZADOR: N },
+  // Módulo 39 (Meu Empório), Q8 da spec: de-para da matriz operacional, igual
+  // a `rebanho`. A liberação por conta é outra camada (`features.ts`).
+  emporio: { OWNER: W, ADMIN: W, OPERADOR: W, VISUALIZADOR: R },
 };
 
 /** Nível de acesso de uma role a um módulo. */

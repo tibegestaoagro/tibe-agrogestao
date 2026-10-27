@@ -27,7 +27,7 @@ const schema = z.object({ archived: z.boolean().default(true) });
 
 async function PATCHHandler(request: Request, props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
-  const g = await guard("rebanho", "write", { profile: "fazenda" });
+  const g = await guard("rebanho", "write", { profile: ["fazenda", "emporio"] });
   if ("error" in g) return g.error;
 
   const body = await readJson(request);

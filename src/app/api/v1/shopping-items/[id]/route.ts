@@ -44,7 +44,7 @@ const patchSchema = z.object({
 
 async function PATCHHandler(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const g = await guard("rebanho", "write", { profile: "fazenda" });
+  const g = await guard("rebanho", "write", { profile: ["fazenda", "emporio"] });
   if ("error" in g) return g.error;
 
   const body = await readJson(request);
@@ -74,7 +74,7 @@ async function PATCHHandler(request: Request, props: { params: Promise<{ id: str
 
 async function DELETEHandler(_request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const g = await guard("rebanho", "write", { profile: "fazenda" });
+  const g = await guard("rebanho", "write", { profile: ["fazenda", "emporio"] });
   if ("error" in g) return g.error;
 
   const result = await removerItemAction(g.db, params.id);
