@@ -417,6 +417,10 @@ model Tenant {
   tenant_features      TenantFeature[]
   tenant_feature_users TenantFeatureUser[]
   establishments       Establishment[]
+  user_establishments  UserEstablishment[]
+  emporio_products     EmporioProduct[]
+  presentations        ProductPresentation[]
+  presentation_prices  PresentationPrice[]
 }
 
 // Equipe da Pleno Digital. NÃO carrega tenant_id: fora do isolamento (PRD 4 / 10.4).
@@ -481,6 +485,7 @@ model User {
   shopping_items_created     ShoppingItem[]      @relation("ShoppingItemCreatedBy")
   establishments_responsible Establishment[]     @relation("EstablishmentResponsible")
   tenant_feature_users       TenantFeatureUser[] @relation("TenantFeatureUserUser")
+  user_establishments        UserEstablishment[]
 
   @@index([tenant_id])
 }
@@ -548,13 +553,114 @@ model Establishment {
   created_at           DateTime          @default(now())
   updated_at           DateTime          @updatedAt
 
-  tenant            Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  responsible       User?            @relation("EstablishmentResponsible", fields: [responsible_user_id], references: [id], onDelete: SetNull)
+  tenant            Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  responsible       User?               @relation("EstablishmentResponsible", fields: [responsible_user_id], references: [id], onDelete: SetNull)
   stock_movements   StockMovement[]
   financial_entries FinancialEntry[]
+  user_links        UserEstablishment[]
+  prices            PresentationPrice[]
 
   @@unique([tenant_id, name])
   @@index([tenant_id])
+}
+
+/// Módulo 39, Q8 e Q56: o usuário com vínculo só vê e opera as lojas
+/// vinculadas; sem nenhum vínculo, vê todas.
+model UserEstablishment {
+  id               String   @id @default(cuid())
+  tenant_id        String
+  user_id          String
+  establishment_id String
+  created_at       DateTime @default(now())
+
+  tenant        Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  establishment Establishment @relation(fields: [establishment_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, establishment_id])
+  @@index([tenant_id])
+  @@index([establishment_id])
+}
+
+/// Módulo 39, configuração comercial de um `Product` (§5.2). O cadastro básico
+/// continua no `Product`, compartilhado com a fazenda (Q2).
+model EmporioProduct {
+  id                 String    @id @default(cuid())
+  tenant_id          String
+  product_id         String    @unique
+  /// Q50: a unidade-base do Empório, separada do `Product.unit` da fazenda.
+  /// `quilograma`, `litro` ou `unidade` (ids de `src/lib/stock/units.ts`).
+  base_unit          String
+  /// Q51: criado aqui, e não trazido da fazenda. O Estoque da fazenda o
+  /// esconde enquanto ele não tiver movimentação em propriedade.
+  created_in_emporio Boolean   @default(false)
+  /// Q52: custo por unidade-base, digitado, até existir custo médio (F2a).
+  reference_cost     Decimal?  @db.Decimal(14, 4)
+  /// Q57: nulo = automático (ligado quando há apresentação fechada e a
+  /// granel). Só vira booleano quando alguém escolhe.
+  track_sealed       Boolean?
+  track_lot          Boolean   @default(false)
+  track_expiry       Boolean   @default(false)
+  /// Q53: exceção do produto, vale em todas as lojas.
+  expense_pct        Decimal?  @db.Decimal(7, 2)
+  profit_pct         Decimal?  @db.Decimal(7, 2)
+  archived_at        DateTime?
+  created_by_user_id String?
+  updated_by_user_id String?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+
+  tenant        Tenant                @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  product       Product               @relation(fields: [product_id], references: [id], onDelete: Restrict)
+  presentations ProductPresentation[]
+
+  @@index([tenant_id])
+}
+
+/// Módulo 39, §7: forma de venda ("Saca 10 kg", "Quilo"). `base_qty` é quanto
+/// ela vale na unidade-base do produto.
+model ProductPresentation {
+  id                 String    @id @default(cuid())
+  tenant_id          String
+  emporio_product_id String
+  name               String
+  base_qty           Decimal   @db.Decimal(14, 3)
+  is_sealed_package  Boolean   @default(false)
+  archived_at        DateTime?
+  created_by_user_id String?
+  updated_by_user_id String?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+
+  tenant          Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  emporio_product EmporioProduct      @relation(fields: [emporio_product_id], references: [id], onDelete: Cascade)
+  prices          PresentationPrice[]
+
+  @@unique([emporio_product_id, name])
+  @@index([tenant_id])
+}
+
+/// Módulo 39, §8 e §10: preço de uma apresentação numa loja, e a exceção de
+/// percentuais dela (Q53). Sem linha, ou com `price` nulo, não há preço (Q54).
+model PresentationPrice {
+  id                 String   @id @default(cuid())
+  tenant_id          String
+  establishment_id   String
+  presentation_id    String
+  price              Decimal? @db.Decimal(12, 2)
+  expense_pct        Decimal? @db.Decimal(7, 2)
+  profit_pct         Decimal? @db.Decimal(7, 2)
+  updated_by_user_id String?
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  tenant        Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  establishment Establishment       @relation(fields: [establishment_id], references: [id], onDelete: Cascade)
+  presentation  ProductPresentation @relation(fields: [presentation_id], references: [id], onDelete: Cascade)
+
+  @@unique([establishment_id, presentation_id])
+  @@index([tenant_id])
+  @@index([presentation_id])
 }
 
 // Sessão do aplicativo (identidade por token, Onda 1). O access token é um JWT
@@ -788,6 +894,7 @@ model Product {
   category       ProductCategory @relation(fields: [category_id], references: [id], onDelete: Restrict)
   movements      StockMovement[]
   shopping_items ShoppingItem[]
+  emporio        EmporioProduct?
 
   @@unique([tenant_id, name])
   @@index([tenant_id])
