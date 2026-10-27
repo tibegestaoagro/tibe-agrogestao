@@ -1263,6 +1263,11 @@ export async function cancelNegotiation(
      */
     for (const movimento of negociacao.stock_movements) {
       if (movimento.canceled_at) continue;
+      // Movimentação de negociação é sempre de fazenda; nulo seria linha de
+      // loja (Módulo 39) e nunca pode ir ao funil como "sem filtro".
+      if (movimento.property_id === null) {
+        throw new Error(`Movimentação de estoque ${movimento.id} de negociação sem fazenda.`);
+      }
 
       const entrouNoEstoque = deltaDoMovimento({
         movement_type: movimento.movement_type,

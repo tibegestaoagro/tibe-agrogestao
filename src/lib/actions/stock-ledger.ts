@@ -82,9 +82,14 @@ export async function getStockBalance(
   filtro: { product_id?: string; property_id?: string } = {},
 ): Promise<StockPosition[]> {
   const inicio = Date.now();
-  const where: Prisma.StockMovementWhereInput = { canceled_at: null };
+  // Este funil é o estoque da FAZENDA. O estoque do Meu Empório vive na mesma
+  // tabela (com `establishment_id` e `property_id` nulo), e os dois não se
+  // cruzam (Q2 da spec do Módulo 39): sem filtro, exclui as linhas de loja.
+  const where: Prisma.StockMovementWhereInput = {
+    canceled_at: null,
+    property_id: filtro.property_id ?? { not: null },
+  };
   if (filtro.product_id !== undefined) where.product_id = filtro.product_id;
-  if (filtro.property_id !== undefined) where.property_id = filtro.property_id;
 
   const linhas = await delegates(db).stockMovement.findMany({
     where,
@@ -100,6 +105,8 @@ export async function getStockBalance(
 
   const total = new Map<string, StockPosition>();
   for (const l of linhas) {
+    // O filtro do `where` garante fazenda; o tipo do Prisma não sabe disso.
+    if (l.property_id === null) continue;
     const chave = `${l.product_id}|${l.property_id}`;
     const atual = total.get(chave) ?? {
       product_id: l.product_id,
@@ -161,9 +168,12 @@ export async function listStockMovements(
   } = {},
   paginacao: { limit?: number; offset?: number } = {},
 ): Promise<{ items: StockMovementView[]; total: number }> {
-  const where: Prisma.StockMovementWhereInput = {};
+  // Histórico do estoque da FAZENDA: as linhas de loja (Meu Empório, com
+  // `establishment_id`) ficam de fora, como em `getStockBalance` (Q2 da spec).
+  const where: Prisma.StockMovementWhereInput = {
+    property_id: filtro.property_id ?? { not: null },
+  };
   if (filtro.product_id !== undefined) where.product_id = filtro.product_id;
-  if (filtro.property_id !== undefined) where.property_id = filtro.property_id;
   if (filtro.movement_type !== undefined) where.movement_type = filtro.movement_type;
   if (filtro.since || filtro.until) {
     where.occurred_at = {
@@ -186,11 +196,14 @@ export async function listStockMovements(
     db.stockMovement.count({ where }),
   ]);
 
-  const items = linhas.map((l) => {
+  const items: StockMovementView[] = [];
+  for (const l of linhas) {
+    // O filtro do `where` garante fazenda; o tipo do Prisma não sabe disso.
+    if (l.property_id === null) continue;
     const quantidade = decToNum(l.quantity) ?? 0;
     const anterior = decToNum(l.previous_balance);
     const corrigido = decToNum(l.corrected_balance);
-    return {
+    items.push({
       id: l.id,
       product_id: l.product_id,
       product_name: l.product.name,
@@ -211,8 +224,8 @@ export async function listStockMovements(
       notes: l.notes,
       negotiation_id: l.negotiation_id,
       canceled_at: l.canceled_at ? l.canceled_at.toISOString() : null,
-    };
-  });
+    });
+  }
 
   return { items, total };
 }

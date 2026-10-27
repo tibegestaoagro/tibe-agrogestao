@@ -333,7 +333,8 @@ export async function historicoDoDia(
       select: { id: true, movement_type: true, quantity: true, occurred_at: true },
     }),
     db.stockMovement.findMany({
-      where: { canceled_at: null, occurred_at: periodo, ...(fazenda ? { property_id: fazenda } : {}) },
+      // Sem fazenda, só estoque de fazenda: o do Meu Empório (property_id nulo) não entra.
+      where: { canceled_at: null, occurred_at: periodo, property_id: fazenda ?? { not: null } },
       select: {
         id: true,
         movement_type: true,

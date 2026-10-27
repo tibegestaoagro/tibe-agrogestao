@@ -331,7 +331,7 @@ export async function recordServiceFuel(
     });
 
     const saldo = produto
-      ? ((await getStockBalance(db, { product_id: produto.id }))[0]?.quantity ?? 0)
+      ? ((await getStockBalance(db, { product_id: produto.id, property_id: job.property_id }))[0]?.quantity ?? 0)
       : null;
 
     return ok({ ...serializar(criado as never), saldo_do_produto: saldo });
