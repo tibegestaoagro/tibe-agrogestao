@@ -81,7 +81,7 @@ e fechar ou transformar em lista conforme a resposta deles.
 ### 2.15 a 2.21: o que o Meu Empório deixou de fora de propósito
 
 Decididas com o usuário em 27/10/2026, na entrevista da spec
-[module-37-meu-emporio.md](../specs/module-37-meu-emporio.md) (a coluna
+[module-39-meu-emporio.md](../specs/module-39-meu-emporio.md) (a coluna
 "decisão" aponta a pergunta, e o motivo está na seção 3 dela). Nenhuma é
 furo: são cortes de escopo da primeira versão, registrados para não serem
 redescobertos como defeito.

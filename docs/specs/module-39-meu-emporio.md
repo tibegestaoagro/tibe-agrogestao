@@ -1,4 +1,4 @@
-# Módulo 37: Meu Empório
+# Módulo 39: Meu Empório
 
 **Origem:** o documento do cliente em `docs/area-meu-emporio/` ("Área Funcional:
 Meu Empório", versão 0.1, 28 seções e 18 critérios de aceitação). É um `.doc`
