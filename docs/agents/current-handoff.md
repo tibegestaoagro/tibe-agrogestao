@@ -96,7 +96,7 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
-### Meu Empório (Módulo 39, 27/10): F0 em produção, recurso ainda desligado
+### Meu Empório (Módulo 39, 27/10): F0 e F1 em produção, F2a em andamento
 
 **F0 (liberação e fundação) em produção desde 27/10** (`192e402`, merge
 fast-forward da `emporio-f0`, que trouxe a spec junto; autorizado pelo
@@ -120,12 +120,13 @@ em Números (igual às contas só de prestador hoje).
 Cenário local: `scripts/_cenario-emporio-f0.ts` (conta
 `so-emporio@teste.local`) e `scripts/_sessao-local.ts --plataforma`.
 
-**F1 (estabelecimentos e catálogo) pronta na branch `emporio-f1`**, a partir
-da `emporio-f0`, empurrada, **não mergeada**. Decisões Q50 a Q59 e o
-contrato na spec (`7c9362e`), dívida 2.22 nova. Migração
-`20261027180000_emporio_f1` (quatro tabelas: `UserEstablishment`,
-`EmporioProduct`, `ProductPresentation`, `PresentationPrice`) aplicada **só
-no Docker: falta o Neon**. 16 actions em `emporio-catalogo.ts`, 12 rotas,
+**F1 (estabelecimentos e catálogo) em produção desde 27/10** (`150b04a`,
+merge fast-forward autorizado pelo usuário; migração
+`20261027180000_emporio_f1` no Neon antes do push; Vercel com sucesso;
+rotas conferidas em `/docs/api`). Loja nova vem como "Ponto de venda"
+(decisão do usuário). Decisões Q50 a Q59 e o contrato na spec, dívida 2.22
+nova. Quatro tabelas: `UserEstablishment`, `EmporioProduct`,
+`ProductPresentation`, `PresentationPrice`. 16 actions em `emporio-catalogo.ts`, 12 rotas,
 telas em `/emporio`, `/emporio/estabelecimentos`, `/emporio/produtos` e
 `/emporio/produtos/[id]`. Provas: `tsc` 0, `check` 0 falhas, `test:all`
 81/81, `test:m78` com 118 checagens (4 vermelhas com a precedência invertida
@@ -220,11 +221,14 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
 
-**Meu Empório:** a F0 está em produção (recurso desligado até o usuário
-ligar na Da Mata pela Plataforma). A F1 está pronta na `emporio-f1`, à
-espera do aceite do usuário; para produção, com autorização: migração
-`20261027180000_emporio_f1` no Neon (URL Direct) e merge. A F2a (compra e
-estoque) só começa com aprovação. A rotação de segurança
+**Meu Empório:** F0 e F1 em produção (recurso desligado até o usuário ligar
+na Da Mata pela Plataforma). **F2a (compra e estoque) em andamento na branch
+`emporio-f2a`**, aprovada pelo usuário: decisões Q60 a Q71 e o contrato na
+spec (`f1b5d17`), schema e migração `20261027210000_emporio_f2a` só no
+Docker (`c223694`). Onda 2 despachada: estoque da loja, compras e Lista com
+loja, e a suíte `m79` da spec. Depois: telas, roteiro
+`npm run navegador -- emporio-f2a`, aceite. Para produção: migração no Neon
+e merge, cada um com autorização. A rotação de segurança
 (item 1) foi adiada pelo usuário em 27/10 para tratar do Empório.
 
 **0. Programa de dívidas ENCERRADO: E0 a E11 em produção** (E11, `ccf1474`).
