@@ -101,7 +101,7 @@ roteiro (foto de recibo e o "não" final).
 Documento do cliente em `docs/area-meu-emporio/` (`.doc` binário; como ler
 está no topo da spec). Entrevista com o usuário em cinco rodadas, Q1 a Q49,
 registrada em [../specs/module-37-meu-emporio.md](../specs/module-37-meu-emporio.md)
-(`1b2e871`, branch `spec-modulo-37-emporio`, não empurrada nem mergeada).
+(`1b2e871`, branch `spec-modulo-37-emporio`, empurrada, não mergeada).
 Cortes de escopo viraram as dívidas 2.15 a 2.21. Teste na **Da Mata**, só
 para o Owner, liberado por uma `TenantFeature` nova (genérica, com lista de
 usuários). Sete fases (F0, F1, F2a, F2b, F3, F4, F5), aprovação entre elas.
