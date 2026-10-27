@@ -26,6 +26,9 @@ import { PrismaPg } from "@prisma/adapter-pg";
  */
 export const TENANT_SCOPED_MODELS = new Set<string>([
   "TenantProfile",
+  "TenantFeature",
+  "TenantFeatureUser",
+  "Establishment",
   "User",
   "Property",
   "AnimalCategory",

@@ -42,6 +42,7 @@ enum PlatformRole {
 enum ProfileType {
   fazenda
   prestador
+  emporio
 }
 
 // Roles de tenant em MAIÚSCULAS conforme spec 0.6 e contrato POST /api/auth/login.
@@ -258,6 +259,9 @@ enum RelatedModule {
   /// reaproveitar `geral` misturaria o salário com todo o resto que não tem
   /// módulo.
   mao_de_obra
+  /// Módulo 39 (Meu Empório). Valor próprio: o dinheiro do Empório precisa ser
+  /// somável separado da fazenda (§21.1 do documento do cliente, Q28 da spec).
+  emporio
 }
 
 enum FinancialEntryStatus {
@@ -325,24 +329,24 @@ enum SubscriptionStatus {
 // ─────────────────────────────────────────────────────────────
 
 model Tenant {
-  id             String       @id @default(cuid())
-  name           String
-  document       String       @unique // CNPJ ou CPF
-  phone          String?
-  email          String?
-  plan           TenantPlan
+  id                           String       @id @default(cuid())
+  name                         String
+  document                     String       @unique // CNPJ ou CPF
+  phone                        String?
+  email                        String?
+  plan                         TenantPlan
   // Tenants criados manualmente pelo painel (spec 2026-07-27) nascem sem
   // plano escolhido pelo cliente: plan carrega um default interno até o
   // cliente confirmar no primeiro login. Tenants do signup público (que já
   // escolhem o plano em /planos antes de criar a conta) nascem com true.
-  plan_confirmed Boolean      @default(true)
-  status         TenantStatus @default(trial)
-  trial_ends_at  DateTime?
+  plan_confirmed               Boolean      @default(true)
+  status                       TenantStatus @default(trial)
+  trial_ends_at                DateTime?
   // Arquivamento pelo painel da plataforma (spec 2026-07-27): nunca deleta,
   // mesmo padrão de Property.archived_at (M1). Idempotente. TAMBÉM é gravado
   // pelo varredor do cancelamento como reflexo da janela de leitura, então
   // sozinho não diz quem arquivou: não decide acesso.
-  archived_at    DateTime?
+  archived_at                  DateTime?
   // A decisão da Plataforma de arquivar (dívida 3.2, 2026-10-07). Só o botão
   // da Plataforma escreve; o varredor nunca. Preenchido, bloqueia o tenant em
   // tela, API e WhatsApp, acima do selo e de qualquer fase de assinatura,
@@ -354,7 +358,7 @@ model Tenant {
   // próprio tenant (PATCH /api/v1/tenant) não aceita este campo, senão um
   // tenant se daria acesso grátis para sempre. Nasce false: cliente novo
   // continua com os 14 dias de trial normais.
-  conta_interna  Boolean      @default(false)
+  conta_interna                Boolean      @default(false)
 
   // Origem do lead (UTM), PRD seção 4 / v1.1
   lead_source_utm_source   String?
@@ -410,6 +414,9 @@ model Tenant {
   worker_logs          WorkerLog[]
   service_job_costs    ServiceJobCost[]
   shopping_items       ShoppingItem[]
+  tenant_features      TenantFeature[]
+  tenant_feature_users TenantFeatureUser[]
+  establishments       Establishment[]
 }
 
 // Equipe da Pleno Digital. NÃO carrega tenant_id: fora do isolamento (PRD 4 / 10.4).
@@ -422,7 +429,8 @@ model PlatformUser {
   created_at    DateTime     @default(now())
   active        Boolean      @default(true)
 
-  status_changes SubscriptionStatusLog[]
+  status_changes          SubscriptionStatusLog[]
+  tenant_features_changed TenantFeature[]         @relation("TenantFeatureChangedBy")
 }
 
 model TenantProfile {
@@ -471,7 +479,81 @@ model User {
   service_jobs_canceled      ServiceJob[]        @relation("ServiceJobCanceledBy")
   service_costs_recorded     ServiceJobCost[]    @relation("ServiceCostRecordedBy")
   shopping_items_created     ShoppingItem[]      @relation("ShoppingItemCreatedBy")
+  establishments_responsible Establishment[]     @relation("EstablishmentResponsible")
+  tenant_feature_users       TenantFeatureUser[] @relation("TenantFeatureUserUser")
 
+  @@index([tenant_id])
+}
+
+/// Módulo 39: liga um recurso (hoje só "emporio") a um tenant. `feature_key` é
+/// texto, e não enum, para módulos futuros entrarem sem migração. Só a
+/// Plataforma escreve.
+model TenantFeature {
+  id                          String   @id @default(cuid())
+  tenant_id                   String
+  feature_key                 String
+  enabled                     Boolean  @default(false)
+  changed_at                  DateTime @default(now())
+  changed_by_platform_user_id String?
+  created_at                  DateTime @default(now())
+  updated_at                  DateTime @updatedAt
+
+  tenant              Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  changed_by_platform PlatformUser?       @relation("TenantFeatureChangedBy", fields: [changed_by_platform_user_id], references: [id], onDelete: SetNull)
+  users               TenantFeatureUser[]
+
+  @@unique([tenant_id, feature_key])
+  @@index([tenant_id])
+}
+
+/// Quem da conta vê o recurso. Lista vazia = a conta inteira vê; com linhas =
+/// só esses usuários.
+model TenantFeatureUser {
+  id                String   @id @default(cuid())
+  tenant_id         String
+  tenant_feature_id String
+  user_id           String
+  created_at        DateTime @default(now())
+
+  tenant         Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  tenant_feature TenantFeature @relation(fields: [tenant_feature_id], references: [id], onDelete: Cascade)
+  user           User          @relation("TenantFeatureUserUser", fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([tenant_feature_id, user_id])
+  @@index([tenant_id])
+  @@index([user_id])
+}
+
+enum EstablishmentKind {
+  central
+  ponto_venda
+}
+
+/// Módulo 39 (Meu Empório): loja ou central de distribuição. Entidade nova e
+/// NÃO `Property` (Q1 da spec): reaproveitar `Property` poria a loja nos
+/// seletores de rebanho, pasto e máquinas.
+model Establishment {
+  id                   String            @id @default(cuid())
+  tenant_id            String
+  name                 String
+  kind                 EstablishmentKind
+  address              String?
+  city                 String?
+  responsible_user_id  String?
+  allow_negative_stock Boolean           @default(false)
+  max_discount_pct     Decimal?          @db.Decimal(5, 2)
+  default_expense_pct  Decimal?          @db.Decimal(7, 2)
+  default_profit_pct   Decimal?          @db.Decimal(7, 2)
+  archived_at          DateTime?
+  created_at           DateTime          @default(now())
+  updated_at           DateTime          @updatedAt
+
+  tenant            Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  responsible       User?            @relation("EstablishmentResponsible", fields: [responsible_user_id], references: [id], onDelete: SetNull)
+  stock_movements   StockMovement[]
+  financial_entries FinancialEntry[]
+
+  @@unique([tenant_id, name])
   @@index([tenant_id])
 }
 
@@ -715,21 +797,25 @@ model Product {
 /// O livro-razão do estoque (§10).
 ///
 /// **O saldo NUNCA é gravado**: é a soma de `quantity` das movimentações não
-/// canceladas, por produto e fazenda. Mesma regra do rebanho, e pelo mesmo
+/// canceladas, por produto E por local (fazenda OU estabelecimento do Empório,
+/// exatamente um dos dois, garantido por CHECK no banco). Mesma regra do rebanho, e pelo mesmo
 /// motivo: um campo de saldo e uma soma de movimentações são duas verdades, e
 /// no dia em que discordarem ninguém sabe qual está certa.
 ///
 /// `quantity` é SEMPRE positiva; quem decide o sinal é o `movement_type`.
 /// Guardar negativo faria a leitura depender de lembrar a convenção.
 model StockMovement {
-  id            String            @id @default(cuid())
-  tenant_id     String
-  product_id    String
-  property_id   String
-  movement_type StockMovementType
+  id               String            @id @default(cuid())
+  tenant_id        String
+  product_id       String
+  /// Local do saldo: fazenda OU estabelecimento do Empório (Módulo 39),
+  /// exatamente um dos dois (CHECK `StockMovement_exactly_one_location`).
+  property_id      String?
+  establishment_id String?
+  movement_type    StockMovementType
   /// §10.5: aceita parcial ("0,5 saca"), então decimal, nunca inteiro.
-  quantity      Decimal           @db.Decimal(14, 3)
-  occurred_at   DateTime
+  quantity         Decimal           @db.Decimal(14, 3)
+  occurred_at      DateTime
 
   /// §10.6: o ajuste registra o saldo anterior e o corrigido, não só a
   /// diferença. Sem isso o histórico não explica o que o produtor viu quando
@@ -764,17 +850,19 @@ model StockMovement {
   canceled_reason String?
   created_at      DateTime  @default(now())
 
-  tenant      Tenant       @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  product     Product      @relation(fields: [product_id], references: [id], onDelete: Restrict)
-  property    Property     @relation(fields: [property_id], references: [id], onDelete: Cascade)
-  pasture     Pasture?     @relation(fields: [pasture_id], references: [id], onDelete: SetNull)
-  negotiation Negotiation? @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
-  recorded_by User?        @relation("StockRecordedBy", fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
-  stay        HerdStay?    @relation(fields: [stay_id], references: [id], onDelete: SetNull)
-  service_job ServiceJob?  @relation(fields: [service_job_id], references: [id], onDelete: SetNull)
+  tenant        Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  product       Product        @relation(fields: [product_id], references: [id], onDelete: Restrict)
+  property      Property?      @relation(fields: [property_id], references: [id], onDelete: Cascade)
+  establishment Establishment? @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
+  pasture       Pasture?       @relation(fields: [pasture_id], references: [id], onDelete: SetNull)
+  negotiation   Negotiation?   @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
+  recorded_by   User?          @relation("StockRecordedBy", fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
+  stay          HerdStay?      @relation(fields: [stay_id], references: [id], onDelete: SetNull)
+  service_job   ServiceJob?    @relation(fields: [service_job_id], references: [id], onDelete: SetNull)
 
   @@index([tenant_id])
   @@index([tenant_id, product_id, property_id])
+  @@index([tenant_id, product_id, establishment_id])
   @@index([product_id])
   @@index([negotiation_id])
   @@index([stay_id])
@@ -1053,9 +1141,9 @@ model MachineMaintenance {
 // ─────────────────────────────────────────────────────────────
 
 model Task {
-  id          String     @id @default(cuid())
-  tenant_id   String
-  title       String
+  id        String @id @default(cuid())
+  tenant_id String
+  title     String
 
   /// Módulo 38, §19 e decisão 19: a data passou a ser OPCIONAL. "Preciso
   /// consertar a porteira" é tarefa legítima e não pode sumir por não ter dia.
@@ -1064,22 +1152,22 @@ model Task {
   /// própria, nunca misturada com "Hoje"; não gera lembrete, porque não há dia
   /// para lembrar; e NUNCA é "Atrasada", porque não há prazo a estourar. A
   /// terceira vive em `effectiveStatus`, e é a fácil de esquecer.
-  due_date    DateTime?
+  due_date DateTime?
 
   /// §21: horário opcional, "HH:MM". Texto e não DateTime porque só significa
   /// alguma coisa junto de `due_date`, e guardar dois instantes para o mesmo
   /// dia abriria a pergunta de qual deles vale.
-  due_time    String?
+  due_time String?
 
   /// §22, decisão 20: o responsável aponta para `Worker`, o mesmo cadastro da
   /// Mão de Obra, com texto livre de reserva para quem não está lá. Tarefa sem
   /// nenhum dos dois é de quem anotou, e "Eu" não precisa de campo.
-  worker_id   String?
-  assignee    String?
+  worker_id String?
+  assignee  String?
 
   /// §23, decisão 28: o MESMO enum da Lista de Compra. Dois enums idênticos
   /// divergem no dia em que alguém acrescentar "alta" num só.
-  priority    ShoppingPriority @default(normal)
+  priority ShoppingPriority @default(normal)
 
   /// Decisão 31: fazenda e observação entram; PASTO fica fora.
   property_id String?
@@ -1087,7 +1175,7 @@ model Task {
 
   /// §24, decisão 25: recorrência pelo padrão ROLANTE. Concluir a de hoje faz
   /// nascer a próxima; nunca se criam as 52 segundas do ano de uma vez.
-  recurrence  TaskRecurrence?
+  recurrence TaskRecurrence?
 
   /// Dívida 2.14: o dia que define a série ("todo dia 31", "toda segunda").
   /// Sem ele a próxima partia da data da atual, e fevereiro puxava o 31 para o
@@ -1095,15 +1183,15 @@ model Task {
   /// formulário redefine a âncora; adiar não (decisão do usuário, 14/09/2026).
   recurrence_anchor DateTime?
 
-  remind      Boolean    @default(true)
-  status      TaskStatus @default(pending)
+  remind       Boolean    @default(true)
+  status       TaskStatus @default(pending)
   /// Dívida 2.14: o histórico do dia lia a conclusão pelo `updated_at`, e
   /// editar o título de uma concluída a punha no histórico de hoje.
   completed_at DateTime?
-  created_by  String?
-  reminded_at DateTime?
-  created_at  DateTime   @default(now())
-  updated_at  DateTime   @updatedAt
+  created_by   String?
+  reminded_at  DateTime?
+  created_at   DateTime   @default(now())
+  updated_at   DateTime   @updatedAt
 
   tenant   Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   /// SetNull nos dois: arquivar um trabalhador ou uma fazenda não pode travar
@@ -1197,7 +1285,7 @@ model ServiceClient {
   /// escreva nela, o banco recusa. É o que deixa "Ze Carlos" casar "Zé Carlos"
   /// no SQL, sem ler a tabela inteira (dívida 5.0). O Prisma não representa
   /// coluna gerada; por isso ela é opcional aqui.
-  name_busca String? @default(dbgenerated("nome_de_busca(name)"))
+  name_busca String?  @default(dbgenerated("nome_de_busca(name)"))
   document   String?
   phone      String?
   email      String?
@@ -1308,17 +1396,23 @@ model FinancialEntry {
   property_id String?
   contact_id  String?
 
+  /// Módulo 39 (Meu Empório): o estabelecimento do lançamento. Anulável, igual
+  /// a `property_id`: lançamento da fazenda fica nulo. `SetNull` pelo mesmo
+  /// motivo: arquivar um estabelecimento não pode travar o histórico.
+  establishment_id String?
+
   /// A forma COMBINADA da operação. Cada pagamento tem a sua própria em
   /// `FinancialPayment.method`, porque quem paga metade no PIX e metade em
   /// dinheiro precisa das duas.
   payment_method PaymentMethod?
 
-  tenant      Tenant       @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  negotiation Negotiation? @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
-  created_by  User?        @relation("FinancialEntryCreatedBy", fields: [created_by_user_id], references: [id], onDelete: SetNull)
-  updated_by  User?        @relation("FinancialEntryUpdatedBy", fields: [updated_by_user_id], references: [id], onDelete: SetNull)
-  property    Property?    @relation(fields: [property_id], references: [id], onDelete: SetNull)
-  contact     Contact?     @relation(fields: [contact_id], references: [id], onDelete: SetNull)
+  tenant        Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  negotiation   Negotiation?   @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
+  created_by    User?          @relation("FinancialEntryCreatedBy", fields: [created_by_user_id], references: [id], onDelete: SetNull)
+  updated_by    User?          @relation("FinancialEntryUpdatedBy", fields: [updated_by_user_id], references: [id], onDelete: SetNull)
+  property      Property?      @relation(fields: [property_id], references: [id], onDelete: SetNull)
+  contact       Contact?       @relation(fields: [contact_id], references: [id], onDelete: SetNull)
+  establishment Establishment? @relation(fields: [establishment_id], references: [id], onDelete: SetNull)
 
   /// O livro-razão do rebanho aponta para cá (`HerdMovement.financial_entry_id`).
   herd_movements HerdMovement[]
@@ -1335,6 +1429,7 @@ model FinancialEntry {
   @@index([tenant_id, due_date, status])
   @@index([tenant_id, property_id])
   @@index([contact_id])
+  @@index([establishment_id])
 }
 
 /// Um pagamento (ou recebimento) feito contra um lançamento.
@@ -2515,7 +2610,7 @@ model Worker {
   logs         WorkerLog[]
 
   /// Módulo 38, §22: as tarefas do Meu Dia de que ele é o responsável.
-  tasks        Task[]
+  tasks Task[]
 
   /// Fase 34.1: os serviços que ele OPEROU (§8), que são outra coisa de
   /// `service_jobs`. Um tratorista pode operar a máquina num serviço prestado
