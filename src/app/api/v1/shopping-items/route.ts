@@ -38,6 +38,8 @@ const createSchema = z.object({
   quantity: z.number().positive("A quantidade precisa ser maior que zero").nullish(),
   unit: z.string().nullish(),
   property_id: z.string().nullish(),
+  /** Módulo 39 (Q68): loja do Empório; não combina com `property_id`. */
+  establishment_id: z.string().nullish(),
   category_id: z.string().nullish(),
   purpose: z.enum(PURPOSES).nullish(),
   priority: z.enum(["normal", "urgente"]).nullish(),
@@ -64,6 +66,7 @@ async function GETHandler(request: Request) {
     status:
       status === "comprado" || status === "removido" || status === "pendente" ? status : undefined,
     property_id: sp.get("property_id") ?? undefined,
+    establishment_id: sp.get("establishment_id") ?? undefined,
     priority: priority === "urgente" || priority === "normal" ? priority : undefined,
     place: sp.get("place") ?? undefined,
     purpose: (PURPOSES as readonly string[]).includes(purpose ?? "")
@@ -91,6 +94,7 @@ async function POSTHandler(request: Request) {
   const result = await criarItemAction(g.db, input, {
     created_by_user_id: g.user.id,
     permitirDuplicata: permitir_duplicata,
+    ator: g.user,
   });
   // O `field` atravessa: a recusa de duplicata pertence à descrição, e a de
   // quantidade fracionada ao campo da quantidade.

@@ -5,6 +5,8 @@ import { isStockUnit, descreverQuantidade, recusaPorFracao } from "@/lib/stock/u
 import { normalizarTermo } from "@/lib/actions/whatsapp-handlers/shared";
 import { createProduct } from "@/lib/actions/products";
 import { createProductNegotiation } from "@/lib/actions/product-negotiations";
+import { criarCompraAction } from "@/lib/actions/emporio-compras";
+import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import type { ShoppingItemStatus, ShoppingPriority, ShoppingPurpose } from "@/generated/prisma/enums";
 
 /**
@@ -17,7 +19,9 @@ import type { ShoppingItemStatus, ShoppingPriority, ShoppingPurpose } from "@/ge
  * registra é Negociações, pela mesma porta de sempre (§12).
  *
  * Se alguma função deste arquivo passar a importar `createLinkedEntry` ou
- * `recordStockMovement`, o desenho saiu do trilho.
+ * `recordStockMovement`, o desenho saiu do trilho. A exceção é a compra numa
+ * loja do Empório (Módulo 39, Q68): ela delega inteira a `criarCompraAction`,
+ * que é a única porta de compra do Empório.
  *
  * **Não existe entidade "lista"**: "a lista" é a consulta dos pendentes.
  */
@@ -28,6 +32,8 @@ export type ItemInput = {
   quantity?: number | null;
   unit?: string | null;
   property_id?: string | null;
+  /** Módulo 39 (Q68): loja do Empório; exclui `property_id`. */
+  establishment_id?: string | null;
   category_id?: string | null;
   purpose?: ShoppingPurpose | null;
   priority?: ShoppingPriority | null;
@@ -50,6 +56,7 @@ type ItemGravado = {
   quantity: number | null;
   unit: string | null;
   property_id: string | null;
+  establishment_id: string | null;
   category_id: string | null;
   purpose: string | null;
   priority: string;
@@ -67,6 +74,7 @@ function comoItemGravado(item: {
   quantity: unknown;
   unit: string | null;
   property_id: string | null;
+  establishment_id: string | null;
   category_id: string | null;
   purpose: string | null;
   priority: string;
@@ -82,6 +90,7 @@ function comoItemGravado(item: {
     quantity: decToNum(item.quantity),
     unit: item.unit,
     property_id: item.property_id,
+    establishment_id: item.establishment_id,
     category_id: item.category_id,
     purpose: item.purpose,
     priority: item.priority,
@@ -135,6 +144,21 @@ async function conferirVinculos(
       return { code: "NOT_FOUND", message: "Categoria não encontrada", field: "category_id" };
     }
   }
+  return null;
+}
+
+/** Loja visível ao ator (Q56) e não arquivada; sem ator, só confere que existe. */
+async function conferirLoja(
+  db: TenantPrismaClient,
+  establishment_id: string,
+  ator?: Ator,
+): Promise<ActionResult<never> | null> {
+  const visiveis = ator ? await lojasDoAtor(db, ator) : null;
+  const loja =
+    visiveis && !visiveis.has(establishment_id)
+      ? null
+      : await db.establishment.findFirst({ where: { id: establishment_id, archived_at: null }, select: { id: true } });
+  if (!loja) return fail("NOT_FOUND", "Estabelecimento não encontrado", 404, "establishment_id");
   return null;
 }
 
@@ -215,7 +239,7 @@ function descrever(item: { description: string; quantity: unknown; unit: string 
 export async function criarItemAction(
   db: TenantPrismaClient,
   input: ItemInput,
-  opts?: { created_by_user_id?: string | null; permitirDuplicata?: boolean },
+  opts?: { created_by_user_id?: string | null; permitirDuplicata?: boolean; ator?: Ator },
 ): Promise<ActionResult<ItemGravado>> {
   const description = limpar(input.description);
   if (!description) {
@@ -230,6 +254,14 @@ export async function criarItemAction(
   const vinculoRuim = await conferirVinculos(db, input);
   if (vinculoRuim) {
     return fail(vinculoRuim.code, vinculoRuim.message, 404, vinculoRuim.field);
+  }
+
+  if (input.establishment_id) {
+    if (input.property_id) {
+      return fail("VALIDATION_ERROR", "O item é de uma fazenda ou de uma loja, não dos dois.", 422, "establishment_id");
+    }
+    const lojaRuim = await conferirLoja(db, input.establishment_id, opts?.ator);
+    if (lojaRuim) return lojaRuim;
   }
 
   if (!opts?.permitirDuplicata) {
@@ -252,6 +284,7 @@ export async function criarItemAction(
       quantity: input.quantity ?? null,
       unit: input.unit ?? null,
       property_id: input.property_id ?? null,
+      establishment_id: input.establishment_id ?? null,
       category_id: input.category_id ?? null,
       purpose: input.purpose ?? null,
       priority: input.priority ?? "normal",
@@ -276,6 +309,7 @@ export async function listarItensAction(
   opts?: {
     status?: ShoppingItemStatus;
     property_id?: string;
+    establishment_id?: string;
     priority?: ShoppingPriority;
     place?: string;
     purpose?: ShoppingPurpose;
@@ -285,6 +319,7 @@ export async function listarItensAction(
     where: {
       status: opts?.status ?? "pendente",
       ...(opts?.property_id ? { property_id: opts.property_id } : {}),
+      ...(opts?.establishment_id ? { establishment_id: opts.establishment_id } : {}),
       ...(opts?.priority ? { priority: opts.priority } : {}),
       ...(opts?.place ? { place: opts.place } : {}),
       ...(opts?.purpose ? { purpose: opts.purpose } : {}),
@@ -292,6 +327,7 @@ export async function listarItensAction(
     include: {
       product: { select: { name: true, unit: true } },
       property: { select: { name: true } },
+      establishment: { select: { name: true } },
       category: { select: { name: true } },
     },
     orderBy: [{ priority: "desc" }, { created_at: "asc" }],
@@ -419,6 +455,7 @@ export async function repetirItemAction(
       quantity: item.quantity,
       unit: item.unit,
       property_id: item.property_id,
+      establishment_id: item.establishment_id,
       category_id: item.category_id,
       purpose: item.purpose,
       priority: item.priority,
@@ -458,6 +495,10 @@ export async function registrarCompraDoItemAction(
     novo_produto?: { name?: string | null; unit: string; category_id: string } | null;
     quantity?: number | null;
     property_id?: string | null;
+    /** Módulo 39 (Q68): compra numa loja do Empório. Também vale o do próprio item. */
+    establishment_id?: string | null;
+    /** Obrigatório no caminho da loja (a compra do Empório exige quem comprou). */
+    ator?: Ator;
     contact_id?: string | null;
     contact_name?: string | null;
     occurred_at?: Date | null;
@@ -466,7 +507,9 @@ export async function registrarCompraDoItemAction(
     notes?: string | null;
     recorded_by_user_id?: string | null;
   },
-): Promise<ActionResult<{ item_id: string; negotiation_id: string; product_id: string }>> {
+): Promise<
+  ActionResult<{ item_id: string; negotiation_id: string | null; product_id: string; purchase_id: string | null }>
+> {
   const item = await db.shoppingItem.findFirst({ where: { id: itemId } });
   if (!item) return fail("NOT_FOUND", "Item não encontrado", 404);
   if (item.status !== "pendente") {
@@ -475,6 +518,11 @@ export async function registrarCompraDoItemAction(
 
   if (!(input.amount > 0)) {
     return fail("VALIDATION_ERROR", "Informe quanto você pagou", 422, "amount");
+  }
+
+  const establishment_id = input.establishment_id ?? item.establishment_id;
+  if (establishment_id) {
+    return registrarCompraDoItemNaLoja(db, item, establishment_id, input);
   }
 
   const property_id = input.property_id ?? item.property_id;
@@ -544,7 +592,97 @@ export async function registrarCompraDoItemAction(
     return fail(negociacao.code, negociacao.message, negociacao.status, negociacao.field);
   }
 
-  return ok({ item_id: itemId, negotiation_id: negociacao.data.id, product_id });
+  return ok({ item_id: itemId, negotiation_id: negociacao.data.id, product_id, purchase_id: null });
+}
+
+/**
+ * Q68: "comprei" num item com loja vira uma compra simples do Empório (à vista,
+ * recebida, um item). A chave de operação sai do id do item: se o item não
+ * chegou a ser marcado, repetir a chamada devolve a mesma compra em vez de
+ * duplicá-la, e então marca o item.
+ *
+ * `quantity` é lida na unidade-base do produto do Empório, porque o item da
+ * Lista guarda a unidade da fazenda (saca, frasco) e a compra do Empório não
+ * converte entre os dois cadastros (Q50).
+ */
+async function registrarCompraDoItemNaLoja(
+  db: TenantPrismaClient,
+  item: { id: string; product_id: string | null; quantity: unknown; property_id: string | null },
+  establishment_id: string,
+  input: {
+    amount: number;
+    product_id?: string | null;
+    quantity?: number | null;
+    property_id?: string | null;
+    ator?: Ator;
+    recorded_by_user_id?: string | null;
+    contact_id?: string | null;
+    occurred_at?: Date | null;
+    notes?: string | null;
+  },
+): Promise<
+  ActionResult<{ item_id: string; negotiation_id: string | null; product_id: string; purchase_id: string | null }>
+> {
+  // Sem `ator`, quem comprou é lido de `recorded_by_user_id` e a role vem do
+  // banco (nunca do caller), que é o caminho do agente do WhatsApp.
+  let ator = input.ator;
+  if (!ator && input.recorded_by_user_id) {
+    const u = await db.user.findFirst({
+      where: { id: input.recorded_by_user_id, active: true },
+      select: { id: true, role: true },
+    });
+    if (u) ator = { id: u.id, role: u.role };
+  }
+  if (!ator) {
+    return fail("FORBIDDEN", "Não sei quem está registrando a compra.", 403);
+  }
+  if (input.property_id || item.property_id) {
+    return fail("VALIDATION_ERROR", "O item é de uma fazenda ou de uma loja, não dos dois.", 422, "establishment_id");
+  }
+
+  const product_id = input.product_id ?? item.product_id;
+  const produto = product_id
+    ? await db.emporioProduct.findFirst({ where: { product_id, archived_at: null } })
+    : null;
+  if (!produto) {
+    return fail(
+      "PRODUTO_NECESSARIO",
+      "Para registrar a compra na loja, o item precisa de um produto que esteja no Empório.",
+      422,
+      "product_id",
+    );
+  }
+
+  const quantidade = input.quantity ?? decToNum(item.quantity);
+  if (quantidade == null || !(quantidade > 0)) {
+    return fail("QUANTIDADE_NECESSARIA", "Quanto você comprou?", 422, "quantity");
+  }
+
+  const compra = await criarCompraAction(db, ator, {
+    operation_key: `lista-${item.id}`,
+    establishment_id,
+    contact_id: input.contact_id ?? null,
+    purchased_at: input.occurred_at ?? new Date(),
+    received: true,
+    freight: 0,
+    items: [{ emporio_product_id: produto.id, quantity: quantidade, item_total: input.amount }],
+    payment: { kind: "a_vista" },
+    notes: input.notes ?? null,
+  });
+  if (!compra.ok) return fail(compra.code, compra.message, compra.status, compra.field);
+
+  await db.shoppingItem.update({
+    where: { id: item.id },
+    data: {
+      status: "comprado",
+      resolved_at: new Date(),
+      product_id,
+      quantity: quantidade,
+      establishment_id,
+    },
+  });
+
+  return ok({ item_id: item.id, negotiation_id: null, product_id: produto.product_id, purchase_id: compra.data.id });
 }
 
 /**

@@ -104,6 +104,8 @@ export async function createLinkedEntry(
      */
     property_id?: string | null;
     contact_id?: string | null;
+    /** Módulo 39 (Q28): a loja do Empório dona do dinheiro; nulo na fazenda. */
+    establishment_id?: string | null;
     /**
      * §13 de Negociações: a forma combinada. Vai para o lançamento e, quando
      * ele nasce pago, também para o pagamento que nasce junto, porque é a
@@ -128,6 +130,7 @@ export async function createLinkedEntry(
       worker_entry_kind: params.worker_entry_kind ?? null,
       property_id: params.property_id ?? null,
       contact_id: params.contact_id ?? null,
+      establishment_id: params.establishment_id ?? null,
       payment_method: params.payment_method ?? null,
     }),
   });

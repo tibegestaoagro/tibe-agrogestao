@@ -420,6 +420,126 @@ export const GROUPS: Group[] = [
       },
       {
         method: "GET",
+        path: "/api/v1/emporio/stock",
+        auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
+        description: "Saldo da loja por produto (`?establishment_id=` obrigatório; sem ele, 422 no campo). Cada linha: total, avulso, lacrado por apresentação em embalagens, custo médio ponderado móvel, `estimated` quando alguma entrada não teve custo, limites, `needs_restock` e `suggested_qty`. Saldo é sempre a soma das movimentações. Loja fora do vínculo do usuário: 404.",
+        response: `200
+{ "data": [{ "establishment_id": "cl...", "emporio_product_id": "cl...", "product_name": "Ração Pet", "base_unit": "quilograma", "total_qty": 25, "loose_qty": 5, "sealed": [{ "presentation_id": "cl...", "name": "Saca 10 kg", "packages": 2, "base_qty": 10 }], "average_cost": 19.36, "estimated": false, "min_qty": 10, "max_qty": 50, "needs_restock": false, "suggested_qty": 25 }], "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/stock/consolidated",
+        auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
+        description: "Um saldo por produto somando as lojas visíveis ao usuário, com o custo médio ponderado pelo saldo de cada loja.",
+        response: `200
+{ "data": [{ "emporio_product_id": "cl...", "product_name": "Ração Pet", "total_qty": 40, "average_cost": 19.1 }], "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/products/:id/stock",
+        auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
+        description: "Saldo de um produto do Empório em cada loja visível ao usuário, mais o consolidado.",
+        response: `200
+{ "data": { "emporio_product_id": "cl...", "product_name": "Ração Pet", "base_unit": "quilograma", "stores": [], "consolidated": { "total_qty": 40 } }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/stock/implantation",
+        auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
+        description: "Estoque inicial, uma vez por produto e loja (segunda vez: 409 `ALREADY_IMPLANTED`; depois, só contagem). `sealed` em embalagens por apresentação fechada (produto sem separação lacrado/avulso: 422 `sealed`), `loose_qty` na unidade-base, `unit_cost` opcional (sem ele, o saldo fica `estimated`).",
+        request: `{ "establishment_id": "cl...", "emporio_product_id": "cl...", "sealed": [{ "presentation_id": "cl...", "packages": 3 }], "loose_qty": 2.5, "unit_cost": 9.5 }`,
+        response: `201
+{ "data": { "total_qty": 32.5, "loose_qty": 2.5, "estimated": false }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/stock/count",
+        auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
+        description: "Contagem física: informa o que existe (lacrado por apresentação e avulso) e o motivo (obrigatório, 422 `reason`). Grava um ajuste por estado que mudou, com o saldo anterior e o corrigido. Nunca é compra nem venda.",
+        request: `{ "establishment_id": "cl...", "emporio_product_id": "cl...", "sealed": [{ "presentation_id": "cl...", "packages": 2 }], "loose_qty": 1, "reason": "Contagem de sexta" }`,
+        response: `201
+{ "data": { "total_qty": 21, "loose_qty": 1 }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/stock/loss",
+        auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
+        description: "Perda ou avaria. `reason`: `vencido`, `avaria`, `furto`, `consumo_proprio` ou `outro`. Lacrado: `presentation_id` e `quantity` em embalagens; avulso: `quantity` na unidade-base. Sai pelo custo médio do momento. Acima do saldo: 409 `INSUFFICIENT_STOCK` em `quantity`, salvo loja com estoque negativo liberado.",
+        request: `{ "establishment_id": "cl...", "emporio_product_id": "cl...", "package_state": "avulso", "quantity": 2, "reason": "avaria", "notes": "Saco rasgado" }`,
+        response: `201
+{ "data": { "total_qty": 19 }, "meta": {} }`,
+      },
+      {
+        method: "PUT",
+        path: "/api/v1/emporio/stock/limits",
+        auth: "Sessão · emporio:write · só OWNER e ADMIN",
+        description: "Mínimo e máximo do produto na loja, na unidade-base (`null` limpa). Mínimo maior que o máximo: 422 `max_qty`.",
+        request: `{ "establishment_id": "cl...", "emporio_product_id": "cl...", "min_qty": 10, "max_qty": 50 }`,
+        response: `200
+{ "data": { "min_qty": 10, "max_qty": 50, "needs_restock": false, "suggested_qty": 31 }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/stock/restock",
+        auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
+        description: "Precisa repor: linhas de saldo com saldo menor ou igual ao mínimo, nas lojas visíveis (`?establishment_id=` opcional). Sugestão = máximo menos (saldo mais compras ainda não recebidas); sem máximo, nula.",
+        response: `200
+{ "data": [{ "establishment_id": "cl...", "product_name": "Ração Pet", "total_qty": 4, "min_qty": 10, "max_qty": 50, "needs_restock": true, "suggested_qty": 46 }], "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/stock/restock/to-list",
+        auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
+        description: "Encaminha à Lista de Compra: cria o item com a loja e a quantidade. Já há item pendente desse produto na mesma loja: 409 `ITEM_JA_NA_LISTA`.",
+        request: `{ "establishment_id": "cl...", "emporio_product_id": "cl...", "quantity": 46 }`,
+        response: `201
+{ "data": { "id": "cl...", "establishment_id": "cl...", "quantity": 46, "status": "pendente" }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/purchases",
+        auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
+        description: "Lista as compras das lojas visíveis ao usuário, da mais recente. Filtros: `establishment_id` (loja fora do vínculo: 404), `status` (`pendente`, `recebida`, `cancelada`), `contact_id`. Cada compra traz itens, total e os lançamentos financeiros.",
+        response: `200
+{ "data": [{ "id": "cl...", "establishment_id": "cl...", "establishment_name": "Loja Centro", "status": "recebida", "freight": 20, "items_total": 200, "total": 220, "payment_kind": "a_vista", "items": [], "entries": [] }], "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/purchases",
+        auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
+        description: "Cria a compra. `operation_key` é obrigatória e única na conta: repetir a chave devolve a compra gravada com 200, sem escrever nada (primeira vez: 201). Cada item traz `presentation_id` (a quantidade é de apresentações) ou só a quantidade na unidade-base, e `item_total`. O frete é rateado pelo valor dos itens e o `unit_cost` sai por unidade-base, frete incluído. Com `received: true` o estoque entra na hora (lacrado ou avulso conforme o produto); senão, só no recebimento. `payment.kind`: `a_vista` (um lançamento pago), `a_prazo` (um a pagar, exige `due_date`) ou `parcelada` (`down_payment` opcional pago mais um a pagar por item de `installments`). Parcelas que não fecham total + frete menos a entrada: 422 `installments`. Item inválido (quantidade zero, valor negativo, fracionado em `unidade`, apresentação de outro produto): 422 `items`. Despesa na categoria \"Mercadorias para revenda\", `related_module` `emporio`.",
+        request: `{ "operation_key": "k-123", "establishment_id": "cl...", "contact_id": null, "purchased_at": "2026-10-27T12:00:00.000Z", "received": true, "freight": 20, "items": [{ "emporio_product_id": "cl...", "presentation_id": "cl...", "quantity": 4, "item_total": 200 }], "payment": { "kind": "a_vista" } }`,
+        response: `201
+{ "data": { "id": "cl...", "status": "recebida", "total": 220, "items": [{ "base_quantity": 40, "unit_cost": 5.5 }], "entries": [{ "amount": 220, "status": "paid" }] }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/purchases/:id",
+        auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
+        description: "Uma compra com itens e lançamentos. Compra de loja fora do vínculo do usuário: 404.",
+        response: `200
+{ "data": { "id": "cl...", "status": "pendente", "received_at": null, "items": [], "entries": [] }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/purchases/:id/receive",
+        auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
+        description: "Recebe a compra inteira (`received_at` opcional, padrão agora) e dá entrada no estoque. Já recebida: 409 `ALREADY_RECEIVED`. Cancelada: 409 `PURCHASE_CANCELED`.",
+        request: `{ "received_at": "2026-10-28T09:00:00.000Z" }`,
+        response: `200
+{ "data": { "id": "cl...", "status": "recebida", "received_at": "2026-10-28T09:00:00.000Z" }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/purchases/:id/cancel",
+        auth: "Sessão · emporio:write · só OWNER e ADMIN (403 `FORBIDDEN`)",
+        description: "Cancela a compra com `reason`: cancela as contas a pagar pendentes e marca como canceladas as movimentações de estoque. Nada é apagado. Algum lançamento pago (inclusive entrada ou compra à vista): 409 `PURCHASE_HAS_PAYMENT`. Já cancelada: 409 `ALREADY_CANCELED`.",
+        request: `{ "reason": "Fornecedor não entregou" }`,
+        response: `200
+{ "data": { "id": "cl...", "status": "cancelada", "canceled_reason": "Fornecedor não entregou" }, "meta": {} }`,
+      },
+      {
+        method: "GET",
         path: "/api/v1/pastures",
         auth: "Sessão · rebanho:read · perfil fazenda",
         description: "Lista pastos ativos de uma fazenda. property_id é obrigatório. meta.area_summary traz a soma das áreas x tamanho total da fazenda.",
@@ -1792,7 +1912,7 @@ export const GROUPS: Group[] = [
         path: "/api/v1/shopping-items",
         auth: "Sessão · rebanho:read · perfil fazenda ou emporio",
         description:
-          "A lista. Sem ?status=, devolve os PENDENTES, urgentes primeiro. Filtros: status=pendente|comprado|removido, property_id, priority, place, purpose. meta.units traz as unidades para o seletor.",
+          "A lista. Sem ?status=, devolve os PENDENTES, urgentes primeiro. Filtros: status=pendente|comprado|removido, property_id, establishment_id, priority, place, purpose. meta.units traz as unidades para o seletor.",
         response: `200
 { "data": [{ "id": "cl...", "description": "Sal mineral", "quantity": 10, "unit": "saca", "priority": "urgente", "status": "pendente" }], "meta": { "total": 1, "units": [] } }`,
       },
@@ -1801,7 +1921,7 @@ export const GROUPS: Group[] = [
         path: "/api/v1/shopping-items",
         auth: "Sessão · rebanho:write · perfil fazenda ou emporio",
         description:
-          "Anota um item. Só description é obrigatória. Item parecido já pendente é recusado com ITEM_JA_NA_LISTA (409) para que a pergunta do §19.7 possa ser feita; repetir com permitir_duplicata: true adiciona assim mesmo.",
+          "Anota um item. Só description é obrigatória. `establishment_id` (opcional) liga o item a uma loja do Empório visível ao usuário (404 no campo se não for); junto com `property_id`, 422 no campo `establishment_id`. Item parecido já pendente é recusado com ITEM_JA_NA_LISTA (409) para que a pergunta do §19.7 possa ser feita; repetir com permitir_duplicata: true adiciona assim mesmo.",
         request: `{ "description": "Sal mineral", "quantity": 10, "unit": "saca", "priority": "urgente" }`,
         response: `201
 { "data": { "id": "cl...", "description": "Sal mineral", "quantity": 10, "unit": "saca", "priority": "urgente", "status": "pendente", "negotiation_id": null }, "meta": {} }`,
@@ -1828,9 +1948,9 @@ export const GROUPS: Group[] = [
       {
         method: "POST",
         path: "/api/v1/shopping-items/:id/purchase",
-        auth: "Sessão · rebanho:write · perfil fazenda",
+        auth: "Sessão · rebanho:write · perfil fazenda (ou emporio, quando há loja)",
         description:
-          "O item vira compra de verdade: despesa, conta a pagar quando não foi à vista, e entrada no estoque, tudo por Negociações (type: compra_produto). Produto, quantidade e fazenda saem do item quando já estiverem lá. Item sem produto é recusado com PRODUTO_NECESSARIO no campo product_id: repita com product_id de um produto existente, ou com novo_produto para cadastrar na hora. A conclusão do item entra na MESMA transação da compra.",
+          "Com `establishment_id` (no corpo ou já no item) o item vira uma compra simples do Empório: à vista, recebida, um item, `operation_key` derivada do item (repetir não duplica); exige produto que esteja no Empório e a quantidade é lida na unidade-base; a resposta traz `purchase_id` e `negotiation_id: null`. Sem loja, o caminho da fazenda: o item vira compra de verdade: despesa, conta a pagar quando não foi à vista, e entrada no estoque, tudo por Negociações (type: compra_produto). Produto, quantidade e fazenda saem do item quando já estiverem lá. Item sem produto é recusado com PRODUTO_NECESSARIO no campo product_id: repita com product_id de um produto existente, ou com novo_produto para cadastrar na hora. A conclusão do item entra na MESMA transação da compra.",
         request: `{ "amount": 1800, "pago": true, "novo_produto": { "unit": "saca", "category_id": "cl..." } }`,
         response: `201
 { "data": { "item_id": "cl...", "negotiation_id": "cl...", "product_id": "cl..." }, "meta": {} }`,

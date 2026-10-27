@@ -235,6 +235,8 @@ export function serializeShoppingItem(i: any) {
     unit: i.unit ?? null,
     property_id: i.property_id ?? null,
     property_name: i.property?.name ?? null,
+    establishment_id: i.establishment_id ?? null,
+    establishment_name: i.establishment?.name ?? null,
     category_id: i.category_id ?? null,
     category_name: i.category?.name ?? null,
     purpose: i.purpose ?? null,
