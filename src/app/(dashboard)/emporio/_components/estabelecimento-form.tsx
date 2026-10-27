@@ -64,7 +64,9 @@ export function EstabelecimentoForm({
   const [loading, setLoading] = useState(false);
 
   const [name, setName] = useState(loja?.name ?? "");
-  const [kind, setKind] = useState(loja?.kind ?? "");
+  // Loja nova já vem como ponto de venda, o caso comum (decisão do usuário
+  // em 27/10/2026); a Central é a exceção que se escolhe.
+  const [kind, setKind] = useState(loja?.kind ?? "ponto_venda");
   const [address, setAddress] = useState(loja?.address ?? "");
   const [city, setCity] = useState(loja?.city ?? "");
   const [responsavel, setResponsavel] = useState(loja?.responsible_user_id ?? NINGUEM);
@@ -75,7 +77,7 @@ export function EstabelecimentoForm({
 
   function reiniciar() {
     setName(loja?.name ?? "");
-    setKind(loja?.kind ?? "");
+    setKind(loja?.kind ?? "ponto_venda");
     setAddress(loja?.address ?? "");
     setCity(loja?.city ?? "");
     setResponsavel(loja?.responsible_user_id ?? NINGUEM);
