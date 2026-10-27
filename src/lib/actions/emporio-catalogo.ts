@@ -59,7 +59,7 @@ function recusaDinheiro(v: unknown, rotulo: string): string | null {
 }
 
 /** Lojas que o ator enxerga: null = todas (sem vínculo, Q8/Q56). */
-async function lojasDoAtor(db: TenantPrismaClient, ator: Ator): Promise<Set<string> | null> {
+export async function lojasDoAtor(db: TenantPrismaClient, ator: Ator): Promise<Set<string> | null> {
   const links = await db.userEstablishment.findMany({
     where: { user_id: ator.id },
     select: { establishment_id: true },
@@ -379,7 +379,7 @@ export type EmporioProductDetail = EmporioProductView & {
   prices: PriceRowView[];
 };
 
-type ProdutoRow = {
+export type ProdutoRow = {
   id: string;
   product_id: string;
   base_unit: string;
@@ -395,13 +395,13 @@ type ProdutoRow = {
   presentations: { id: string; name: string; base_qty: unknown; is_sealed_package: boolean; archived_at: Date | null }[];
 };
 
-const INCLUDE_PRODUTO = {
+export const INCLUDE_PRODUTO = {
   product: { include: { category: true } },
   presentations: { orderBy: { name: "asc" } },
 } as const;
 
 /** Q57: escolha explícita vale; senão, ligado quando há fechada E não fechada ativas. */
-function lacradoEfetivo(p: ProdutoRow): boolean {
+export function lacradoEfetivo(p: Pick<ProdutoRow, "track_sealed" | "presentations">): boolean {
   if (p.track_sealed != null) return p.track_sealed;
   const ativas = p.presentations.filter((x) => !x.archived_at);
   return ativas.some((x) => x.is_sealed_package) && ativas.some((x) => !x.is_sealed_package);
