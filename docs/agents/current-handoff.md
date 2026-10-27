@@ -25,7 +25,7 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 `historico/2026-09.md`.
 ## Estado atual
 
-- Atualizado em: 2026-10-26.
+- Atualizado em: 2026-10-27.
 
 ### Programa de dívidas (07 a 14/10): encerrado, E0 a E10 em produção
 
@@ -98,27 +98,16 @@ roteiro (foto de recibo e o "não" final).
 
 ### Dependências com falha de segurança (26/10): `npm audit` de 19 para 0
 
-Três branches, cada uma com tsc, lint, `check`, build, `test:all` 79/79
-local, CI e preview conferido pelo usuário antes do merge:
+Em produção desde 26/10 (`74c9119`), três branches validadas (suíte 79/79,
+CI, preview pelo usuário): next 16.4.3, react 19.2.9, zod 4.6.7; prisma 7.10.1
+mais `audit fix` sem force; nodemailer 10.2.1 com `overrides`. O porquê de
+cada uma está na mensagem do commit. Relatório da pesquisa, só no desktop e
+fora do repo: `D:\Projetos\reports\Falhas de segurança do app Tibe.md`.
 
-- `seguranca-next-zod` (`769612c`): next 16.4.3 (a linha 16.3 nunca recebeu
-  as correções de 14/10), react 19.2.9, zod 4.6.7, sharp 0.35.5. O código não
-  usa `use cache`, `next/og`, `remotePatterns` nem `"use server"`: a maioria
-  das RCE do Next não se aplicava.
-- `seguranca-prisma` (`5f63b27`): prisma, client e adapter-pg 7.10.1, mais
-  `npm audit fix` sem `--force`. O npm conta hono e mysql2 como runtime porque
-  o `@prisma/client` declara o CLI como par, mas só o CLI os usa.
-  `migrate diff` local vazio. Não usar `prisma@latest` (é 8.0.0-rc).
-- `seguranca-nodemailer`: nodemailer 10.2.1 com `overrides` (o Auth.js declara
-  só até 8.x; o next-auth beta.32 não usa provider de email aqui), sem
-  `@types/nodemailer` (a 10 traz tipos). Gmail SMTP com `verify()` ok. Todo
-  email digitado passa por `z.string().trim().email()`, que recusa lista,
-  aspas, CRLF e homógrafo; o reset de senha envia para o `user.email` do banco.
-
-⚠️ **Nunca `npm audit fix --force`:** troca o `next-auth` por um pacote de
-2018 com o mesmo nome (1.12.1) e derruba o login. Ao subir o next-auth, tirar
-o `overrides` se ele passar a aceitar nodemailer 10. O Node local deve ir a
-24.22.1 ou mais (Node2Shell, 21/10); na Vercel a plataforma já corrigiu.
+⚠️ Duas lições novas no cofre: `npm-audit-fix-force-troca-o-next-auth-por-outro-pacote`
+e `o-preview-da-vercel-escreve-em-producao` (o teste de reset no preview mandou
+código ao Owner da Da Mata). **No notebook, `node -v`: precisa ser 24.22.1
+ou mais** (`winget upgrade --id OpenJS.NodeJS.LTS`).
 
 ### Ambiente
 
@@ -194,7 +183,11 @@ por decisão; 2.4 espera a conversa com a Agromax ([roteiro](roteiro-agromax-reb
 
 **1. Segurança, que é do usuário e vem antes de tudo:** rotacionar as 22
 variáveis, fechar o repositório e pedir a coleta ao Suporte do GitHub. Não
-avançou, e cada commit que sobe é leitura pública.
+avançou, e cada commit que sobe é leitura pública. **27/10: o usuário decidiu
+começar agora**, logo depois das dependências. É o próximo trabalho da
+sessão: guiar a rotação variável por variável (o agente nunca lê nem imprime
+o valor; quem troca no painel de cada serviço e na Vercel é o usuário), e só
+então apagar `D:\tmp\tibe-backup-pre-rewrite.git`.
 
 **2. Do usuário, pequeno:** trocar o nome do cadastro "Owner Da Mata" em
 Ajustes, que é por isso que a saudação sai sem nome.
@@ -224,4 +217,8 @@ Não avance para outro módulo sem aprovação explícita.
 - O Redis local é `tibe-redis` na `56379` (conferido em 11/09); `docker ps` antes.
   No desktop (clone novo em `D:\Projetos\tibe-agrogestão`, 26/10) existia um
   `tibe-redis-local` na `6390` que o `.env.local` não usa: foi parado e o
-  `tibe-redis` criado.
+  `tibe-redis` criado. O `.env` e o `.env.local` desse clone vieram da pasta
+  do usuário no OneDrive (`tibe-docs`), e o banco local recebeu as 12
+  migrações que faltavam.
+- `npm run test:all` repetido no mesmo dia reprova a `m19` pelo lock do Redis;
+  `docker exec tibe-redis redis-cli FLUSHALL` (Redis LOCAL) e ela passa.
