@@ -120,6 +120,26 @@ em Números (igual às contas só de prestador hoje).
 Cenário local: `scripts/_cenario-emporio-f0.ts` (conta
 `so-emporio@teste.local`) e `scripts/_sessao-local.ts --plataforma`.
 
+**F1 (estabelecimentos e catálogo) pronta na branch `emporio-f1`**, a partir
+da `emporio-f0`, empurrada, **não mergeada**. Decisões Q50 a Q59 e o
+contrato na spec (`7c9362e`), dívida 2.22 nova. Migração
+`20261027180000_emporio_f1` (quatro tabelas: `UserEstablishment`,
+`EmporioProduct`, `ProductPresentation`, `PresentationPrice`) aplicada **só
+no Docker: falta o Neon**. 16 actions em `emporio-catalogo.ts`, 12 rotas,
+telas em `/emporio`, `/emporio/estabelecimentos`, `/emporio/produtos` e
+`/emporio/produtos/[id]`. Provas: `tsc` 0, `check` 0 falhas, `test:all`
+81/81, `test:m78` com 118 checagens (4 vermelhas com a precedência invertida
+e o filtro Q51 tirado), roteiro `npm run navegador -- emporio-f1` com 33
+itens (2 vermelhos com a fórmula trocada por soma) e o `emporio-f0` ainda
+verde. O cenário `_cenario-emporio-f1.ts` liga o recurso na conta do seed
+inteira e cria o `operador-emporio@teste.local`.
+
+⚠️ **Prisma Client regenerado com o `next dev` no ar deixa o servidor com o
+client velho** (`db.userEstablishment` indefinido), e depois disso o cache
+`.next/dev` entrou em ciclo de recompilação (página recarregando a cada
+poucos segundos, `js()` estourando o tempo). Saída: parar o `next dev`,
+apagar `.next/dev` e subir de novo; a primeira compilação leva minutos.
+
 Documento do cliente em `docs/area-meu-emporio/` (`.doc` binário; como ler
 está no topo da spec). Entrevista com o usuário em cinco rodadas, Q1 a Q49,
 registrada em [../specs/module-39-meu-emporio.md](../specs/module-39-meu-emporio.md)
@@ -200,11 +220,11 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
 
-**Meu Empório:** a F0 está em produção, com o recurso DESLIGADO em todas as
-contas. O usuário liga na Da Mata, só para o Owner, pelo cartão "Recursos em
-teste" do detalhe da conta na Plataforma. A F1 (estabelecimentos) só começa
-com aprovação. Este registro está na branch `emporio-f0`, um commit à
-frente da `main`. A rotação de segurança
+**Meu Empório:** a F0 está em produção (recurso desligado até o usuário
+ligar na Da Mata pela Plataforma). A F1 está pronta na `emporio-f1`, à
+espera do aceite do usuário; para produção, com autorização: migração
+`20261027180000_emporio_f1` no Neon (URL Direct) e merge. A F2a (compra e
+estoque) só começa com aprovação. A rotação de segurança
 (item 1) foi adiada pelo usuário em 27/10 para tratar do Empório.
 
 **0. Programa de dívidas ENCERRADO: E0 a E11 em produção** (E11, `ccf1474`).
