@@ -7,6 +7,8 @@ import EditTenantForm from "@/components/platform/edit-tenant-form";
 import ArchiveTenantButton from "@/components/platform/archive-tenant-button";
 import ResendWelcomeButton from "@/components/platform/resend-welcome-button";
 import EditOwnerEmailForm from "@/components/platform/edit-owner-email-form";
+import { listTenantFeaturesAction } from "@/lib/actions/platform-features";
+import RecursosCard from "./recursos-card";
 import { formatDocument } from "@/lib/document";
 import { formatBrazilPhone } from "@/lib/phone";
 
@@ -36,6 +38,16 @@ export default async function PlatformTenantDetailPage(props: { params: Promise<
     select: { email: true },
   });
   const ownerEmail = owner?.email ?? null;
+
+  const [recursosRes, usuarios] = await Promise.all([
+    listTenantFeaturesAction(tenant.id),
+    prisma.user.findMany({
+      where: { tenant_id: tenant.id, active: true },
+      orderBy: [{ role: "asc" }, { created_at: "asc" }],
+      select: { id: true, name: true, email: true, role: true },
+    }),
+  ]);
+  const recursos = recursosRes.ok ? recursosRes.data : [];
 
   const activeProfiles = tenant.profiles.filter((p) => p.active).map((p) => p.profile_type);
   const [animalsCount, plotsCount, ordersCount] = await Promise.all([
@@ -143,6 +155,13 @@ export default async function PlatformTenantDetailPage(props: { params: Promise<
           </div>
         </dl>
       </section>
+
+      <RecursosCard
+        tenantId={tenant.id}
+        recursos={recursos}
+        usuarios={usuarios}
+        podeEditar={isMasterAdmin(platformUser.role)}
+      />
 
       <section className="rounded-lg border border-gray-800 bg-gray-900 p-5">
         <h2 className="text-sm font-semibold text-gray-300">Uso</h2>
