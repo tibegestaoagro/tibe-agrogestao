@@ -96,12 +96,13 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
-### Meu Empório (Módulo 39, 27/10): F0 pronta na branch, validada ao vivo
+### Meu Empório (Módulo 39, 27/10): F0 em produção, recurso ainda desligado
 
-**F0 (liberação e fundação)** na branch `emporio-f0` (a partir de
-`spec-modulo-37-emporio`), empurrada, **não mergeada**. Migração
-`20261027120000_emporio_f0` aplicada **só no Docker: falta o Neon**, antes
-de qualquer push na `main`. `TenantFeature`/`TenantFeatureUser`,
+**F0 (liberação e fundação) em produção desde 27/10** (`192e402`, merge
+fast-forward da `emporio-f0`, que trouxe a spec junto; autorizado pelo
+usuário). Migração `20261027120000_emporio_f0` aplicada no Neon antes do
+push (`migrate status`: em dia), deploy da Vercel com sucesso, e as rotas
+novas conferidas em `/docs/api` de produção. `TenantFeature`/`TenantFeatureUser`,
 `Establishment`, perfil `emporio`, `StockMovement.property_id` anulável com
 CHECK de exatamente um local, e os funis do estoque da fazenda filtrando
 `property_id` não nulo. Cartão "Recursos em teste" no detalhe da conta da
@@ -199,10 +200,11 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
 
-**Meu Empório:** o usuário aprova o aceite da F0. Para ir a produção, com
-autorização a cada passo: migração `20261027120000_emporio_f0` no Neon (URL
-Direct), merge da `emporio-f0` (que leva junto a spec), e o usuário liga o
-recurso na Da Mata pela Plataforma. A F1 só começa com aprovação. A rotação de segurança
+**Meu Empório:** a F0 está em produção, com o recurso DESLIGADO em todas as
+contas. O usuário liga na Da Mata, só para o Owner, pelo cartão "Recursos em
+teste" do detalhe da conta na Plataforma. A F1 (estabelecimentos) só começa
+com aprovação. Este registro está na branch `emporio-f0`, um commit à
+frente da `main`. A rotação de segurança
 (item 1) foi adiada pelo usuário em 27/10 para tratar do Empório.
 
 **0. Programa de dívidas ENCERRADO: E0 a E11 em produção** (E11, `ccf1474`).
