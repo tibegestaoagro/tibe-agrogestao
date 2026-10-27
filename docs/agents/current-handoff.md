@@ -96,7 +96,28 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
-### Meu Empório (Módulo 39, 27/10): spec escrita, nenhum código
+### Meu Empório (Módulo 39, 27/10): F0 pronta na branch, validada ao vivo
+
+**F0 (liberação e fundação)** na branch `emporio-f0` (a partir de
+`spec-modulo-37-emporio`), empurrada, **não mergeada**. Migração
+`20261027120000_emporio_f0` aplicada **só no Docker: falta o Neon**, antes
+de qualquer push na `main`. `TenantFeature`/`TenantFeatureUser`,
+`Establishment`, perfil `emporio`, `StockMovement.property_id` anulável com
+CHECK de exatamente um local, e os funis do estoque da fazenda filtrando
+`property_id` não nulo. Cartão "Recursos em teste" no detalhe da conta da
+Plataforma. Provas: `tsc` 0, `check` 0 falhas, `test:m77` verde (seção 12
+vermelha antes da correção dos funis), `test:all` 79/80 com a `m73`
+corrigida depois. Validação viva, seis passos aprovados no navegador
+(desligado: sem menu e 404; ligar só o Owner, com a recusa da lista vazia;
+página e API 200; estoque da fazenda igual; desligar e religar preservando a
+lista; conta só de Empório). Ela achou dois defeitos, corrigidos: a sidebar
+ignorava o `show` dos links de topo (anterior à F0) e o Painel rotulava
+`emporio` como "Prestador". Observado e não mexido: na conta só de Empório,
+o Meu Dia diz "SUA FAZENDA" e o menu mostra Calculadora Pecuária e Fazenda
+em Números (igual às contas só de prestador hoje).
+
+Cenário local: `scripts/_cenario-emporio-f0.ts` (conta
+`so-emporio@teste.local`) e `scripts/_sessao-local.ts --plataforma`.
 
 Documento do cliente em `docs/area-meu-emporio/` (`.doc` binário; como ler
 está no topo da spec). Entrevista com o usuário em cinco rodadas, Q1 a Q49,
@@ -176,9 +197,10 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
 
-**Meu Empório:** o usuário revisa a spec do Módulo 39. Aprovada, começa a
-**F0** (liberação e fundação), numa branch própria, pela auditoria dos
-leitores de `StockMovement` (seção 4.3 da spec). A rotação de segurança
+**Meu Empório:** o usuário aprova o aceite da F0. Para ir a produção, com
+autorização a cada passo: migração `20261027120000_emporio_f0` no Neon (URL
+Direct), merge da `emporio-f0` (que leva junto a spec), e o usuário liga o
+recurso na Da Mata pela Plataforma. A F1 só começa com aprovação. A rotação de segurança
 (item 1) foi adiada pelo usuário em 27/10 para tratar do Empório.
 
 **0. Programa de dívidas ENCERRADO: E0 a E11 em produção** (E11, `ccf1474`).

@@ -19,6 +19,10 @@ import RevenueExpenseChart from "@/components/dashboard/revenue-expense-chart";
 import MiniCalendar from "@/components/dashboard/mini-calendar";
 import CalculadoraGrid from "@/components/dashboard/calculadora-grid";
 
+// Era um ternário fazenda/"Prestador", e a conta só de Empório (Módulo 39)
+// aparecia como "Prestador".
+const PERFIL_ROTULO: Record<string, string> = { fazenda: "Fazenda", prestador: "Prestador", emporio: "Empório" };
+
 const brl = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -172,7 +176,7 @@ export default async function DashboardHome() {
           {saudacaoEmSaoPaulo()}, {firstName}! 👋
         </h1>
         <p className="mt-1 text-sm text-texto-discreto">
-          Perfis ativos: {profiles.map((p) => (p === "fazenda" ? "Fazenda" : "Prestador")).join(" + ")}
+          Perfis ativos: {profiles.map((p) => PERFIL_ROTULO[p] ?? p).join(" + ")}
         </p>
       </div>
 

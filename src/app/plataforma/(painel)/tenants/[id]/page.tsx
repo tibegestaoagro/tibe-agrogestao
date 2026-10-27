@@ -13,7 +13,7 @@ import { formatDocument } from "@/lib/document";
 import { formatBrazilPhone } from "@/lib/phone";
 
 const PLAN_LABEL: Record<string, string> = { campo: "Campo", fazenda: "Fazenda", grupo: "Grupo" };
-const PROFILE_LABEL: Record<string, string> = { fazenda: "Fazenda", prestador: "Prestador de Serviço" };
+const PROFILE_LABEL: Record<string, string> = { fazenda: "Fazenda", prestador: "Prestador de Serviço", emporio: "Empório" };
 
 /** Detalhe do tenant (spec 6.3/6.9): histórico de assinatura e resumo de uso. */
 export default async function PlatformTenantDetailPage(props: { params: Promise<{ id: string }> }) {

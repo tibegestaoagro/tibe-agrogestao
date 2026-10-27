@@ -20,6 +20,7 @@ import type { ProfileType } from "@/lib/tenant-context";
 const PROFILE_LABEL: Record<string, string> = {
   fazenda: "Rebanho e Lavoura",
   prestador: "Prestador de Serviço",
+  emporio: "Empório",
 };
 
 export type ContatoIdentificado =
