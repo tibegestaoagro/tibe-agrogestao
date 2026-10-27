@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiPut } from "@/lib/client-api";
+import { useAviso } from "@/components/ui/toast";
 
 export type RecursoView = { feature_key: string; enabled: boolean; user_ids: string[] };
 export type UsuarioDaConta = { id: string; name: string; email: string; role: string };
@@ -73,7 +74,7 @@ function LinhaDeRecurso({
   const [marcados, setMarcados] = useState<string[]>(recurso.user_ids);
   const [pending, setPending] = useState(false);
   const [erroUsuarios, setErroUsuarios] = useState<string | null>(null);
-  const [erroGlobal, setErroGlobal] = useState<string | null>(null);
+  const aviso = useAviso();
 
   const nomesDosUsuarios = recurso.user_ids
     .map((id) => usuarios.find((u) => u.id === id)?.name)
@@ -81,7 +82,6 @@ function LinhaDeRecurso({
 
   function limparErros() {
     setErroUsuarios(null);
-    setErroGlobal(null);
   }
 
   async function enviar(enabled: boolean, user_ids: string[]): Promise<boolean> {
@@ -94,7 +94,7 @@ function LinhaDeRecurso({
     setPending(false);
     if (!res.ok) {
       if (res.field === "user_ids") setErroUsuarios(res.message);
-      else setErroGlobal(res.message);
+      else aviso.erro(res.message);
       return false;
     }
     router.refresh();
@@ -259,11 +259,6 @@ function LinhaDeRecurso({
             </div>
           )}
 
-          {erroGlobal && (
-            <p role="alert" className="text-xs text-red-400">
-              {erroGlobal}
-            </p>
-          )}
           {erroUsuarios && escopo === "conta" && (
             <p role="alert" className="text-xs text-red-400">
               {erroUsuarios}
@@ -292,11 +287,6 @@ function LinhaDeRecurso({
         </form>
       )}
 
-      {podeEditar && !editando && erroGlobal && (
-        <p role="alert" className="mt-2 text-xs text-red-400">
-          {erroGlobal}
-        </p>
-      )}
     </div>
   );
 }

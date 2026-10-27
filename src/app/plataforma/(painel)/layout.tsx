@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getPlatformSessionUser, isMasterAdmin } from "@/lib/platform-context";
 import PlatformLogoutButton from "@/components/platform/platform-logout-button";
+import { ToastProvider } from "@/components/ui/toast";
 
 const ROLE_LABEL: Record<string, string> = {
   MASTER_ADMIN: "Master Admin",
@@ -54,7 +55,11 @@ export default async function PainelLayout({
           </div>
           <PlatformLogoutButton />
         </header>
-        <main className="flex-1 p-6">{children}</main>
+        {/* Módulo 39, F0: o cartão de recursos avisa a recusa do servidor
+            por aqui (conferência 10 do npm run check). */}
+        <ToastProvider>
+          <main className="flex-1 p-6">{children}</main>
+        </ToastProvider>
       </div>
     </div>
   );
