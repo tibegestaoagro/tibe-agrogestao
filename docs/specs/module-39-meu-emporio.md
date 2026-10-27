@@ -143,6 +143,18 @@ cliente real com as duas coisas vai precisar.
 | Q57 | Na F1, **só as chaves** no produto. Lacrado/avulso é automático (ligado quando há apresentação fechada e a granel) até alguém escolher; lote e validade começam desligados. O dado de cada entrada vem na F2a | lote e validade são da entrada, não do produto |
 | Q58 | "Central" e "Ponto de venda" são **só rótulo**, sem limite. Arquivar é livre na F1; **a partir da F2a exige saldo zero e nada em trânsito** | a spec não dá papel especial à Central |
 | Q59 | `/emporio` vira **início com dois cartões** (Estabelecimentos, Produtos); a tela do produto reúne dados comerciais, apresentações e a tabela de preço por loja com o sugerido | o menu da conta mista já é longo; a tabela do §8 é por produto |
+| Q60 | `quantity` **segue `Decimal(14,3)`** na F2a; a F2b decide se alarga quando a abertura de embalagem e o rendimento chegarem | três casas na unidade-base são 1 g, o que basta para compra e contagem |
+| Q61 | Item da compra: **apresentação e quantidade** (ou quantidade na unidade-base) **e valor total do item**. O frete é rateado **pelo valor** dos itens. Grava o custo por unidade-base, frete incluído | ratear por quantidade jogaria frete demais no item barato e pesado |
+| Q62 | No Financeiro, `related_module` `emporio`, a loja e a categoria de despesa **"Mercadorias para revenda"** (criada sob demanda). À vista: um lançamento pago; a prazo: um a pagar com vencimento; parcelada: um por parcela; com entrada: a entrada paga mais as parcelas | Q39 literal |
+| Q63 | Recebimento **só total** na F2a. Cancelar só **sem parcela paga**: estorna as contas a pagar e, se já entrou, o estoque. Nada é apagado | recebimento parcial multiplica os casos de cancelamento |
+| Q64 | **Custo médio ponderado móvel**, recalculado das movimentações em ordem; a saída sai pelo custo médio do momento e grava o `unit_cost` | a média simples erra quando o estoque baixa e volta com outro preço |
+| Q65 | **Lacrado conta por apresentação fechada, em embalagens; avulso na unidade-base.** A movimentação lacrada guarda a apresentação. O total é a soma das duas | distingue saca de 10 kg de saca de 40 kg do mesmo produto |
+| Q66 | Contagem informa o físico (anterior e corrigido, com motivo). **Perda com motivo de lista fixa** (vencido, avaria, furto, consumo próprio, outro) e observação, pelo custo médio. Perda acima do saldo é recusada, salvo negativo liberado | soma de perdas por motivo no resultado (F4) |
+| Q67 | Mínimo e máximo por produto e loja; **"Precisa repor" no Empório**, contagem no Meu Dia; sugestão = máximo − (saldo + compras não recebidas). Sem alerta por WhatsApp ou email | o `low_stock` da fazenda fica intocado (Q46) |
+| Q68 | O item da Lista ganha **estabelecimento opcional**. "Encaminhar à Lista" cria o item com loja e quantidade sugerida; "comprei" num item com loja cria uma compra simples na loja (à vista, recebida) | o que a F2a promete |
+| Q69 | **Estoque inicial uma vez por produto e loja**, com custo opcional (sem custo, resultado estimado). Depois, só contagem | mais de uma implantação esconderia o que era contagem |
+| Q70 | Fornecedor de Contatos, **sempre opcional**. A compra é a **primeira escrita com chave de operação**: repetir a chave devolve a compra gravada | não travar o balcão |
+| Q71 | O início ganha **Estoque e Compras**; `/emporio/estoque` (por loja, por produto, consolidado, "Precisa repor"), `/emporio/compras` (lista e nova compra) e o bloco "Estoque por loja" na tela do produto | a compra junta vários produtos |
 
 ---
 
@@ -422,6 +434,106 @@ movimentação em propriedade. O agente do WhatsApp segue enxergando todos
 "conferir estoque físico" ajusta com motivo e histórico; mais os critérios
 adicionais do §11.4 (limites diferentes por loja, venda fracionada atualiza a
 comparação, sem sugestão duplicada, produto sem limite funciona).
+
+#### F2a: contrato (Q60 a Q71)
+
+**Modelo.** `StockMovementType` ganha `implantacao` e `perda` (a compra usa o
+`compra` que já existe; a contagem, o `ajuste`). `StockMovement` ganha
+`package_state` (`lacrado`, `avulso`, nulo quando o produto não separa),
+`presentation_id` (só no lacrado), `unit_cost` (por unidade-base),
+`purchase_id` e `loss_reason`. Novos, todos escopados e com quem gravou:
+
+| model | campos |
+|---|---|
+| `EmporioPurchase` | `establishment_id`, `contact_id?`, `operation_key` (único na conta), `purchased_at`, `received_at?` (nulo = ainda não chegou), `freight`, `payment_kind` (`a_vista`, `a_prazo`, `parcelada`), `notes?`, `canceled_at?`, `canceled_reason?` |
+| `EmporioPurchaseItem` | `purchase_id`, `emporio_product_id`, `presentation_id?`, `quantity` (na apresentação, ou na unidade-base sem apresentação), `base_quantity`, `item_total`, `freight_share`, `unit_cost` (por unidade-base, frete incluído) |
+| `StockLimit` | `establishment_id`, `emporio_product_id`, `min_qty?`, `max_qty?` (unidade-base); único pelo par |
+| `ShoppingItem` | ganha `establishment_id?` |
+
+A conta a pagar é `FinancialEntry` com `related_module` `emporio`,
+`related_id` = id da compra e `establishment_id` (Q62).
+
+**Regras:**
+- **Quantidade:** sempre gravada na unidade-base. Lacrado = apresentação
+  fechada × embalagens; avulso, direto.
+- **Lacrado/avulso:** o produto com lacrado/avulso efetivo desligado grava
+  `package_state` nulo e recusa quantidade lacrada. A compra de apresentação
+  fechada entra lacrada; de apresentação aberta, ou na unidade-base, entra
+  avulsa (Q31).
+- **Custo médio (Q64):** por loja e produto, as movimentações não canceladas em
+  ordem de `occurred_at` (desempate por `created_at`):
+  - a entrada com custo refaz a média;
+  - a entrada sem custo soma quantidade pela média vigente e marca
+    `estimado`;
+  - a saída mantém a média e grava `unit_cost`.
+- **Rateio do frete (Q61):** pelo valor dos itens, em centavos. A sobra do
+  arredondamento vai para o último item.
+- **Saldo (invariante 2):** sempre soma. A loja com vínculo de usuário segue a
+  Q56: fora do vínculo, 404.
+- **Precisa repor (Q67):**
+  - entra quando o saldo total é menor ou igual ao mínimo;
+  - sugestão = `max_qty − (saldo + base_quantity das compras não recebidas e
+    não canceladas)`, nunca negativa;
+  - sem máximo, a sugestão é nula;
+  - sem mínimo, o produto não entra.
+- **Papéis:**
+  - compra, recebimento, contagem, perda, estoque inicial e encaminhar à
+    Lista: OWNER, ADMIN e OPERADOR;
+  - cancelar compra e limites: OWNER e ADMIN.
+
+**Actions** (`(db, ator, ...)` → `ActionResult`):
+
+- **`src/lib/actions/emporio-estoque.ts`:**
+  - `saldoDaLojaAction(db, ator, establishment_id)`;
+  - `saldoDoProdutoAction(db, ator, emporio_product_id)`, por loja visível
+    mais o consolidado;
+  - `estoqueConsolidadoAction(db, ator)`;
+  - `implantarEstoqueAction(db, ator, { establishment_id, emporio_product_id, sealed: [{ presentation_id, packages }], loose_qty, unit_cost? })`;
+  - `registrarContagemAction(db, ator, { establishment_id, emporio_product_id, sealed, loose_qty, reason })`;
+  - `registrarPerdaAction(db, ator, { establishment_id, emporio_product_id, package_state?, presentation_id?, quantity, reason, notes? })`;
+  - `definirLimitesAction(db, ator, { establishment_id, emporio_product_id, min_qty, max_qty })`;
+  - `precisaReporAction(db, ator, opts?: { establishment_id? })`;
+  - `encaminharParaListaAction(db, ator, { establishment_id, emporio_product_id, quantity })`.
+- **`src/lib/actions/emporio-compras.ts`:**
+  - `criarCompraAction(db, ator, { operation_key, establishment_id, contact_id?, purchased_at, received, freight, items: [{ emporio_product_id, presentation_id?, quantity, item_total }], payment: { kind, due_date?, down_payment?, installments?: [{ amount, due_date }] }, notes? })`;
+  - `receberCompraAction(db, ator, id, { received_at? })`;
+  - `cancelarCompraAction(db, ator, id, { reason })`;
+  - `listarComprasAction(db, ator, opts?)`;
+  - `lerCompraAction(db, ator, id)`.
+- **`src/lib/emporio/custo-medio.ts`:** a função pura
+  `custoMedio(movimentos)` → `{ saldo, custo_medio, estimado }`.
+
+Linha de saldo (por loja e produto): `establishment_id, establishment_name,
+emporio_product_id, product_name, base_unit, total_qty, loose_qty,
+sealed: [{ presentation_id, name, packages, base_qty }], average_cost,
+estimated, min_qty, max_qty, needs_restock, suggested_qty`.
+
+**Recusas:**
+- **422 `VALIDATION_ERROR` no campo:**
+  - quantidade zero ou negativa;
+  - lacrado em produto sem separação (`sealed`);
+  - parcelas que não fecham o total da compra mais o frete, menos a entrada
+    (`installments`);
+  - `min_qty` maior que `max_qty` (`max_qty`);
+  - quantidade fracionada em produto de unidade-base `unidade`.
+- **409 `ALREADY_IMPLANTED`:** segunda implantação.
+- **409 `INSUFFICIENT_STOCK`, field `quantity`:** perda acima do saldo, sem
+  negativo liberado.
+- **409 `PURCHASE_HAS_PAYMENT`:** cancelar compra com parcela paga.
+- **409 `ALREADY_RECEIVED`:** receber de novo.
+- **Mesma `operation_key`:** devolve 200 com a compra gravada, sem duplicar.
+
+**Rotas** (`/api/v1/emporio/...`):
+- `stock` (GET, `?establishment_id=`) e `stock/consolidated` (GET);
+- `products/[id]/stock` (GET);
+- `stock/implantation`, `stock/count`, `stock/loss` (POST);
+- `stock/limits` (PUT);
+- `stock/restock` (GET) e `stock/restock/to-list` (POST);
+- `purchases` (GET e POST), `purchases/[id]` (GET),
+  `purchases/[id]/receive` (POST) e `purchases/[id]/cancel` (POST).
+
+O "comprei" da Lista com loja continua em
+`POST /api/v1/shopping-items/[id]/purchase`, com `establishment_id`.
 
 ### F2b: transferência e composição
 
