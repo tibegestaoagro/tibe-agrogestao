@@ -78,7 +78,7 @@ Decisão do usuário em 14/10/2026: mostrar à Agromax o que o Módulo 30 já fa
 pelo roteiro [roteiro-agromax-rebanho-por-categoria.md](roteiro-agromax-rebanho-por-categoria.md),
 e fechar ou transformar em lista conforme a resposta deles.
 
-### 2.15 a 2.21: o que o Meu Empório deixou de fora de propósito
+### 2.15 a 2.22: o que o Meu Empório deixou de fora de propósito
 
 Decididas com o usuário em 27/10/2026, na entrevista da spec
 [module-39-meu-emporio.md](../specs/module-39-meu-emporio.md) (a coluna
@@ -95,6 +95,7 @@ redescobertos como defeito.
 | 2.19 | contas bancárias no Financeiro da fazenda | Q47 | `FinancialPayment` apontando para a conta, nas telas e no WhatsApp |
 | 2.20 | cadastro público e cobrança da conta só de Empório | Q7, Q16 | opção "sou comerciante" no cadastro, plano e preço no Asaas |
 | 2.21 | nota fiscal (NFC-e, NF-e), receituário agronômico, lote e validade obrigatórios | Q9 | projeto à parte (certificado, SEFAZ por estado). **Precisa existir antes de liberar o Empório para quem vende defensivo ou medicamento** |
+| 2.22 | o agente do WhatsApp enxerga o produto criado no Empório ao procurar produto da fazenda ("usei ração para cachorro") | Q51, F1 | a Q51 só esconde nas telas da fazenda; resolver junto do agente do Empório (2.16) |
 
 ## 3. Rede de segurança com furo
 

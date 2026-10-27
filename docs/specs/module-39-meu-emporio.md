@@ -133,6 +133,16 @@ cliente real com as duas coisas vai precisar.
 | Q47 | A conta bancária é cadastro da **conta do cliente**, mas só o Empório a usa | mexer no pagamento da fazenda abre telas e o WhatsApp. Dívida 2.19 |
 | Q48 | **Sete fases** (seção 6), com aprovação do usuário ao fim de cada uma | a venda precisa de estoque e custo para nascer com margem |
 | Q49 | As decisões ficam **nesta spec**; as dívidas também no `dividas.md`; o `.doc` não muda | a v0.2 do documento do cliente pode ser gerada depois, sem retrabalho |
+| Q50 | A **unidade-base do Empório mora no `EmporioProduct`**, separada do `Product.unit` da fazenda. O mesmo produto pode contar em sacas na fazenda e em kg na loja | os estoques não se cruzam (Q2); exigir kg na fazenda barraria sal e ração em sacas |
+| Q51 | **Cada área lista o que é dela.** O Estoque da fazenda esconde o produto criado no Empório enquanto ele não tiver movimentação na fazenda; o Empório lista só o produto com configuração comercial; produto da fazenda entra no Empório por "usar no Empório" | critério "Usar TIBÉ sem Meu Empório" |
+| Q52 | Na F1 o custo da formação de preço é o **custo de referência** do produto, na unidade-base, digitado. Com custo médio na loja (F2a), vale o custo médio | permite testar a formação antes das compras |
+| Q53 | **Precedência dos percentuais:** a exceção da apresentação naquela loja, depois a do produto (vale em todas as lojas), depois o padrão da loja. Sem nenhum, zero | o §10.3 tem três níveis; exceção por produto por loja não tem caso concreto |
+| Q54 | Apresentação **sem preço numa loja fica sem preço**: a tela mostra o sugerido e "aplicar". Na F3, vender sem preço pede o valor | §8: uma loja não mexe na outra |
+| Q55 | Estabelecimento, preço e percentuais: **OWNER e ADMIN**. Produto, apresentação e custo de referência: também **OPERADOR**. VISUALIZADOR só lê | quem recebe a mercadoria cadastra; quem decide preço é o dono |
+| Q56 | O vínculo usuário-estabelecimento se marca **na tela do estabelecimento** | não mexe na tela de Usuários, que a fazenda usa |
+| Q57 | Na F1, **só as chaves** no produto. Lacrado/avulso é automático (ligado quando há apresentação fechada e a granel) até alguém escolher; lote e validade começam desligados. O dado de cada entrada vem na F2a | lote e validade são da entrada, não do produto |
+| Q58 | "Central" e "Ponto de venda" são **só rótulo**, sem limite. Arquivar é livre na F1; **a partir da F2a exige saldo zero e nada em trânsito** | a spec não dá papel especial à Central |
+| Q59 | `/emporio` vira **início com dois cartões** (Estabelecimentos, Produtos); a tela do produto reúne dados comerciais, apresentações e a tabela de preço por loja com o sugerido | o menu da conta mista já é longo; a tabela do §8 é por produto |
 
 ---
 
@@ -331,6 +341,70 @@ em todas as telas da Q17; a fazenda não enxerga movimentação de loja (suíte)
 **Aceite (§25):** "cadastrar produto simples" não pede composição nem
 configuração comercial; "vender o mesmo produto em lojas diferentes" aplica o
 preço de cada uma (provado na F3, com o preço cadastrado aqui).
+
+#### F1: contrato (Q50 a Q59)
+
+**Modelo**, além do `Establishment` da F0. Todos com `tenant_id`, em
+`TENANT_SCOPED_MODELS`, e com quem gravou (`created_by_user_id` ou
+`updated_by_user_id`):
+
+| model | campos |
+|---|---|
+| `UserEstablishment` | `user_id`, `establishment_id`; único pelo par |
+| `EmporioProduct` | `product_id` (único), `base_unit` (`quilograma`, `litro` ou `unidade`, os ids de `src/lib/stock/units.ts`), `created_in_emporio`, `reference_cost` (por unidade-base, opcional), `track_sealed` (**anulável: nulo = automático**, Q57), `track_lot`, `track_expiry`, `expense_pct` e `profit_pct` (exceção do produto, opcionais), `archived_at` |
+| `ProductPresentation` | `emporio_product_id`, `name`, `base_qty` (> 0; inteiro quando a unidade-base é `unidade`), `is_sealed_package`, `archived_at`; nome único no produto |
+| `PresentationPrice` | `establishment_id`, `presentation_id`, `price` (opcional), `expense_pct` e `profit_pct` (exceção, opcionais); único pelo par |
+
+**Cálculos, sem nada gravado:**
+
+- lacrado/avulso efetivo = `track_sealed` quando escolhido; senão, ligado se
+  houver apresentação ativa fechada E apresentação ativa não fechada;
+- custo da apresentação = `reference_cost × base_qty` (na F2a, o custo médio
+  da loja no lugar do `reference_cost`, quando houver);
+- percentual = exceção da apresentação na loja, senão a do produto, senão o
+  padrão da loja, senão 0 (Q53), para despesas e para lucro separadamente;
+- **preço sugerido = custo × (1 + despesas/100) × (1 + lucro/100)**, em
+  centavos arredondados (§10.1 e §10.2: 100, 115, 138); sem custo, nulo.
+
+**Rotas** (`/api/v1/emporio/...`, todas com `guard("emporio", ...)` e o
+recurso visível; desligado = 404):
+
+| rota | o quê | quem escreve |
+|---|---|---|
+| `GET, POST establishments` | listar e criar | OWNER, ADMIN |
+| `GET, PATCH establishments/[id]` | ler e editar | OWNER, ADMIN |
+| `POST establishments/[id]/archive` | arquivar (`{ archived: boolean }`) | OWNER, ADMIN |
+| `PUT establishments/[id]/users` | vínculos (`{ user_ids }`, substitui; vazio = ninguém vinculado) | OWNER, ADMIN |
+| `GET, POST products` | listar e criar; o POST aceita `{ product_id }` (usar produto da fazenda) ou `{ name, category_id, base_unit, brand? }` | OWNER, ADMIN, OPERADOR |
+| `GET products/candidates` | produtos da conta ainda fora do Empório | leitura |
+| `GET, PATCH products/[id]` | o GET devolve apresentações e a tabela de preço por loja, com custo, percentuais efetivos e sugerido | OPERADOR, exceto `expense_pct`/`profit_pct` |
+| `POST products/[id]/archive` | arquivar (`{ archived }`) | OWNER, ADMIN, OPERADOR |
+| `POST products/[id]/presentations` | criar apresentação | OWNER, ADMIN, OPERADOR |
+| `PATCH presentations/[id]`, `POST presentations/[id]/archive` | editar, arquivar | OWNER, ADMIN, OPERADOR |
+| `PUT prices` | `{ establishment_id, presentation_id, price, expense_pct, profit_pct }`, upsert | OWNER, ADMIN |
+
+O `[id]` de `products` é o do `EmporioProduct`.
+
+**Recusas** (o `field` é o nome da API):
+
+- nome repetido de loja, produto ou apresentação: 409 `DUPLICATE_NAME`, `name`.
+  No produto, a mensagem manda usar o existente pelo "usar no Empório";
+- percentual fora de 0 a 1000, preço ou custo negativo, `base_qty` zero ou
+  fracionado em `unidade`: 422 `VALIDATION_ERROR` no campo;
+- papel sem permissão para o que pediu: 403 `FORBIDDEN`;
+- usuário vinculado a lojas que pede outra loja: 404.
+
+**Visibilidade (Q8, Q56):** o usuário com vínculo só vê as lojas vinculadas,
+na lista, no detalhe e na tabela de preço; sem vínculo, vê todas.
+
+**Idempotência:** as escritas da F1 já são idempotentes pela forma: nome único
+na criação, upsert no preço, substituição nos vínculos. A chave de operação
+entra com a primeira escrita que não tem essa propriedade (a compra, F2a).
+
+**Fora do Empório (Q51):** a tela de Estoque da fazenda e os seletores de
+produto da fazenda escondem o produto com `created_in_emporio` sem
+movimentação em propriedade. O agente do WhatsApp segue enxergando todos
+(dívida 2.22).
 
 ### F2a: compra e estoque
 
