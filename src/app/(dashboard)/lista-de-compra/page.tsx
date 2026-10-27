@@ -91,6 +91,17 @@ export default async function ListaDeCompraPage() {
     }),
   ]);
 
+  // Q68: o "comprei" de item com loja vira compra do Empório e só aceita
+  // produto do Empório. Com perfil fazenda, a lista acima esconde o criado só
+  // no Empório (Q51), e o item da loja ficava sem como escolher o produto dele.
+  const produtosDaLoja = temEmporio
+    ? await db.product.findMany({
+        where: { archived_at: null, emporio: { is: { archived_at: null } } },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      })
+    : [];
+
   const unidades = STOCK_UNITS.map((u) => ({ id: u.id, label: u.label }));
 
   // Q68: "Para a loja" só aparece quando o Empório é visível para este usuário e há loja.
@@ -185,7 +196,7 @@ export default async function ListaDeCompraPage() {
                             establishment_id: item.establishment_id,
                           }}
                           fazendas={fazendas}
-                          produtos={produtos}
+                          produtos={item.establishment_id ? produtosDaLoja : produtos}
                           categorias={categorias}
                           unidades={unidades}
                         />
