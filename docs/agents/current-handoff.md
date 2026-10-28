@@ -250,8 +250,19 @@ na rodada em sequência e passou sozinho). **Em produção em 28/10, autorizado
 pelo usuário:** migração `20261028180000_emporio_f3a` no Neon (URL Direct,
 `migrate status` em dia) antes do push, e merge fast-forward da
 `emporio-f3`. O balcão é página e não `FormSheet` (decisão de desenho a
-validar com o usuário). Falta o usuário testar o balcão no próprio celular. A F3b (cartão,
-cheque, transferência entre caixas, conferência) vem depois, com aprovação.
+validar com o usuário). **F3a aprovada pelo usuário em 28/10**; o teste do
+balcão no celular dele fica junto com o da F3b.
+
+**F3b (cartão, cheque, transferência entre caixas, conferência) em andamento
+na `emporio-f3b`** (a partir da `emporio-f3`, que é a `main` mais a nota do
+cofre `8c15bdd`). Decisões Q88 a Q95 e o contrato na spec (`f9f6656`), dívida
+2.25 nova. Schema e migração `20261028220000_emporio_f3b` **só no Docker**
+(`63615a9`): `CardFeeRule`, `CardReceivable` (a parcela é o a receber, e o
+saldo da conta soma as parcelas de hoje para trás, por cálculo na leitura),
+`EmporioCheck`, `CashTransfer`, `CashCount`. Onda 1 despachada: actions e
+rotas (`servidor-acao`) e suíte `m82` da spec (`prova-suite`). Depois: telas,
+roteiro `emporio-f3b` com o balcão em 390 px, quebra de propósito e
+`test:all`. Neon e merge só com autorização dada na conversa.
 
 Histórico da F2a: decisões Q60 a Q71 e o contrato na spec (`f1b5d17`). Estoque
 (`1ecaf19`), compras e Lista com loja (`576c842`), telas (`3d61ef7`),
