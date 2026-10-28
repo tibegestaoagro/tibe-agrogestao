@@ -5,15 +5,25 @@ import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { precisaReporAction } from "@/lib/actions/emporio-estoque";
 import { listarComprasAction } from "@/lib/actions/emporio-compras";
 import { listarTransferenciasAction } from "@/lib/actions/emporio-transferencias";
+import { listarVendasAction } from "@/lib/actions/emporio-vendas";
+import { listarFiadoAction } from "@/lib/actions/emporio-caixa";
+import { hasMinRole } from "@/lib/permissions";
+
+/** Meia-noite de hoje em Brasília (sem horário de verão desde 2019), como instante UTC. */
+function inicioDoDiaEmBrasilia(): Date {
+  const ymd = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+  return new Date(`${ymd}T00:00:00-03:00`);
+}
 
 /**
- * Meu Empório: o início. Cinco cartões, sem item novo no menu (Q59, Q71).
+ * Meu Empório: o início. Cartões, sem item novo no menu (Q59, Q71).
  *
  * `requireFeaturePage` devolve 404 quando o recurso não é visível para o
  * usuário, como se a rota não existisse.
  */
 export default async function EmporioPage() {
   const user = await requireFeaturePage("emporio");
+  const podeVender = hasMinRole(user.role, "OPERADOR");
 
   const db = await getTenantDb();
   const lojas = await listarEstabelecimentosAction(db, user);
@@ -25,6 +35,10 @@ export default async function EmporioPage() {
   const comprasPendentes = pendentes.ok ? pendentes.data.length : 0;
   const emTransito = await listarTransferenciasAction(db, user, { status: "em_transito" });
   const transferenciasEmTransito = emTransito.ok ? emTransito.data.length : 0;
+  const hoje = await listarVendasAction(db, user, { status: "concluida", de: inicioDoDiaEmBrasilia() });
+  const vendasHoje = hoje.ok ? hoje.data.length : 0;
+  const fiado = await listarFiadoAction(db, user);
+  const clientesNoFiado = fiado.ok ? fiado.data.length : 0;
 
   return (
     <div className="space-y-6">
@@ -71,8 +85,36 @@ export default async function EmporioPage() {
           singular="transferência em trânsito"
           plural="transferências em trânsito"
         />
+        {podeVender && <CartaoTexto href="/emporio/vender" titulo="Vender" texto="Abrir o balcão e registrar uma venda" />}
+        <Cartao
+          href="/emporio/vendas"
+          titulo="Vendas"
+          contagem={vendasHoje}
+          singular="venda hoje"
+          plural="vendas hoje"
+        />
+        <Cartao
+          href="/emporio/fiado"
+          titulo="Fiado"
+          contagem={clientesNoFiado}
+          singular="cliente com fiado em aberto"
+          plural="clientes com fiado em aberto"
+        />
+        <CartaoTexto href="/emporio/caixa" titulo="Caixa" texto="Saldo das gavetas e das contas, e os movimentos" />
       </div>
     </div>
+  );
+}
+
+function CartaoTexto({ href, titulo, texto }: { href: string; titulo: string; texto: string }) {
+  return (
+    <Link
+      href={href}
+      className="block rounded-lg border border-borda bg-superficie p-5 shadow-sm hover:border-borda-forte focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primaria"
+    >
+      <h2 className="text-lg font-semibold text-texto">{titulo}</h2>
+      <p className="mt-1 text-sm text-texto-secundario">{texto}</p>
+    </Link>
   );
 }
 
