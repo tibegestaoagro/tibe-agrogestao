@@ -25,7 +25,7 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 `historico/2026-09.md`.
 ## Estado atual
 
-- Atualizado em: 2026-10-27.
+- Atualizado em: 2026-10-28.
 
 ### Programa de dívidas (07 a 14/10): encerrado, E0 a E10 em produção
 
@@ -96,7 +96,7 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
-### Meu Empório (Módulo 39, 27/10): F0, F1 e F2a em produção
+### Meu Empório (Módulo 39): F0 a F2b em produção, F3a em andamento
 
 **F0 (liberação e fundação) em produção desde 27/10** (`192e402`, merge
 fast-forward da `emporio-f0`, que trouxe a spec junto; autorizado pelo
@@ -221,13 +221,26 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
 
-**Meu Empório:** F0, F1 e F2a em produção (recurso desligado até o usuário
-ligar na Da Mata pela Plataforma). **F2a (compra e estoque) em produção desde
-27/10** (`f4b3164`, merge fast-forward autorizado pelo usuário; migração
-`20261027210000_emporio_f2a` no Neon antes do push; Vercel com sucesso;
-rotas de compras e estoque conferidas em `/docs/api`). Este registro está na
-`emporio-f2a`, um commit à frente da `main`.
-Decisões Q60 a Q71 e o contrato na spec (`f1b5d17`). Estoque
+**Meu Empório:** F0, F1, F2a e F2b em produção (recurso desligado até o
+usuário ligar na Da Mata pela Plataforma). **F2b em produção desde 28/10**
+(`31d02f8`, merge fast-forward autorizado; migração
+`20261028120000_emporio_f2b` no Neon antes do push, autorizada; Vercel com
+sucesso; transfers e production conferidas em `/docs/api`).
+
+**F3a (venda, fiado e caixa) em andamento na `emporio-f3`** (a partir da
+`main` em `31d02f8`). A F3 foi dividida em F3a e F3b (Q81). Decisões Q81 a
+Q87 e o contrato da F3a na spec (`e1ab1ef`), dívida 2.24 nova (crédito na
+loja). Schema e migração `20261028180000_emporio_f3a` **só no Docker**
+(`5facad4`): `BankAccount`, `EmporioSale` e itens, pagamentos, devoluções e
+itens, `CashMovement` (CHECK de gaveta OU conta), tipos `abertura_lacrado`,
+`abertura_avulso` e `devolucao`; sem `CashDrawer` (a gaveta é a loja).
+Onda 1 despachada em 28/10: `servidor-acao` (actions `emporio-vendas.ts`,
+`emporio-caixa.ts` e rotas) e `prova-suite` (`m81`, da spec). Depois: telas
+(`/emporio/vender`, `vendas`, `fiado`, `caixa`), cenário, roteiro, quebra de
+propósito, `test:all`, aceite. A F3b (cartão, cheque, transferência entre
+caixas, conferência) vem depois, com aprovação.
+
+Histórico da F2a: decisões Q60 a Q71 e o contrato na spec (`f1b5d17`). Estoque
 (`1ecaf19`), compras e Lista com loja (`576c842`), telas (`3d61ef7`),
 produtos do Empório no comprei da Lista com loja (`85f1977`). Provas: `tsc`
 0, `check` 0 falhas, `test:all` 81/82 com a `m73` corrigida depois
@@ -236,10 +249,8 @@ cancelado contado e o frete por igual), roteiro `emporio-f2a` com 32 itens
 (vermelho com a média trocada pelo último custo), `emporio-f0` e
 `emporio-f1` verdes. Papéis da F2a decididos pelo padrão da Q55 (compra,
 contagem, perda e estoque inicial com OPERADOR; cancelar e limites com OWNER
-e ADMIN), registrados na spec. **F2b (transferência e composição) pronta
-na branch `emporio-f2b`, empurrada, não mergeada, à espera do aceite do
-usuário** (a partir da `emporio-f2a`), aprovada
-pelo usuário em 28/10: decisões Q72 a Q80 e o contrato na spec (`2e80991`),
+e ADMIN), registrados na spec. Histórico da F2b (transferência e
+composição): decisões Q72 a Q80 e o contrato na spec (`2e80991`),
 dívida 2.23 nova, schema e migração `20261028120000_emporio_f2b` só no
 Docker (`bec3487`). Transferências com Meu Dia e em trânsito na reposição
 (`df37456`), composição e produção (`be15a19`), suíte `m80` com 149
@@ -247,9 +258,7 @@ checagens (5 vermelhas sem a exigência do motivo, 2 sem o rendimento;
 `b890a82`), telas (`3c719d6`), cenário `_cenario-emporio-f2b.ts`
 (`9e4eed3`), roteiro `emporio-f2b` com 29 itens (`4b37012`, vermelho com o
 custo da entrada trocado). Validação: `test:all` 83/83, os quatro roteiros
-do Empório verdes, `check` 0 falhas. **Para produção, com autorização:**
-migração `20261028120000_emporio_f2b` no Neon (URL Direct) e merge. A F3
-(venda e caixa) só com aprovação. ⚠️ O Claude Code corta o `next dev` em
+do Empório verdes, `check` 0 falhas. ⚠️ O Claude Code corta o `next dev` em
 segundo plano quando a memória aperta com a sessão parada (27 e 28/10):
 liberar memória antes da validação viva, ou iniciar o Claude Code com
 `CLAUDE_CODE_DISABLE_BG_SHELL_PRESSURE_REAP=1`. Acompanhar o `test:all` em
