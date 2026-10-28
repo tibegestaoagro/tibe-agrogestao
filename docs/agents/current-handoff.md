@@ -240,12 +240,17 @@ e ADMIN), registrados na spec. **F2b (transferência e composição) em
 andamento na branch `emporio-f2b`** (a partir da `emporio-f2a`), aprovada
 pelo usuário em 28/10: decisões Q72 a Q80 e o contrato na spec (`2e80991`),
 dívida 2.23 nova, schema e migração `20261028120000_emporio_f2b` só no
-Docker (`bec3487`). Onda 2 despachada: transferências (com Meu Dia e o em
-trânsito na reposição), composição e produção, e a suíte `m80`. Depois:
-telas, roteiro `emporio-f2b`, aceite. Ao retomar com validação viva,
-subir o `next dev` limpo (apagar `.next/dev`; ver a nota
-`dev-server-servido-com-client-prisma-velho` no cofre): ele foi parado pelo
-Claude Code por falta de memória em 27/10. A rotação de segurança
+Docker (`bec3487`). Transferências com Meu Dia e em trânsito na reposição
+(`df37456`), composição e produção (`be15a19`), suíte `m80` com 149
+checagens (5 vermelhas sem a exigência do motivo, 2 sem o rendimento;
+`b890a82`), telas (`3c719d6`), cenário `_cenario-emporio-f2b.ts`
+(`9e4eed3`). **Falta só a validação viva:** o roteiro
+`scripts/navegador/emporio-f2b.py` está escrito e NÃO commitado (nunca
+rodou), porque o Claude Code parou o `next dev` por falta de memória em
+28/10, como em 27/10. Ao retomar: parar todo `next` da pasta, apagar
+`.next/dev`, subir o `npm run dev`, aquecer as páginas com `curl` (a
+primeira compilação leva minutos) e rodar `npm run navegador -- emporio-f2b`;
+depois `test:all`, os roteiros `emporio-f0`, `f1`, `f2a`, e o aceite. A rotação de segurança
 (item 1) foi adiada pelo usuário em 27/10 para tratar do Empório.
 
 **0. Programa de dívidas ENCERRADO: E0 a E11 em produção** (E11, `ccf1474`).
