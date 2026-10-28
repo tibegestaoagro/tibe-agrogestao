@@ -96,7 +96,7 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
-### Meu Empório (Módulo 39): F0 a F3a em produção
+### Meu Empório (Módulo 39): F0 a F3b em produção
 
 **F0 (liberação e fundação) em produção desde 27/10** (`192e402`, merge
 fast-forward da `emporio-f0`, que trouxe a spec junto; autorizado pelo
@@ -265,10 +265,13 @@ saldo da conta soma as parcelas de hoje para trás, por cálculo na leitura),
 (`eef1dfb`), roteiro `emporio-f3b` (`e8b7492`, 0 falhas; 4 vermelhas com a
 parcela caída fora do saldo da conta). Provas: `tsc` 0, `check` 0 falhas,
 `m81` e `m82` verdes, `test:all` 85/85, roteiro `emporio-f3a` verde de novo.
-**Pronta na branch, falta:** o usuário validar o balcão no celular, e com
-autorização dada na conversa a migração `20261028220000_emporio_f3b` no Neon
-(URL Direct) e o merge. Ao fazer o merge, **não** empurrar a branch com o
-commit final logo antes da `main` (nota `o-sucesso-do-commit-pode-ser-so-o-preview`).
+**Em produção em 28/10, autorizado pelo usuário na conversa:** migração
+`20261028220000_emporio_f3b` no Neon (URL Direct, `migrate status` em dia)
+antes do push, merge fast-forward `c58c5f1..33b878b`, deploy de Production
+do `33b878b` conferido pela API de deployments e as rotas novas no
+`/docs/api`. **Falta:** o usuário ligar o Empório só para o Owner da Da Mata
+na Plataforma e validar o balcão (F3a e F3b) no celular. A F4 (resultado) só
+com aprovação.
 
 Histórico da F2a: decisões Q60 a Q71 e o contrato na spec (`f1b5d17`). Estoque
 (`1ecaf19`), compras e Lista com loja (`576c842`), telas (`3d61ef7`),
