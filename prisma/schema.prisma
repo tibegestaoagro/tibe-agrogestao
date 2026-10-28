@@ -209,6 +209,18 @@ enum StockMovementType {
   implantacao
   /// Módulo 39 (Q66): perda e avaria do Empório, com motivo de lista fixa.
   perda
+  /// Módulo 39 (F2b): transferência entre lojas (Q19) e produção feita na loja (Q43).
+  transferencia_saida
+  transferencia_entrada
+  producao_entrada
+  producao_consumo
+}
+
+/// Módulo 39, Q19 e Q73.
+enum StockTransferStatus {
+  em_transito
+  recebida
+  cancelada
 }
 
 /// Módulo 39, Q65: estado da embalagem no estoque do Empório. Nulo na
@@ -451,6 +463,11 @@ model Tenant {
   emporio_purchases      EmporioPurchase[]
   emporio_purchase_items EmporioPurchaseItem[]
   stock_limits           StockLimit[]
+  stock_transfers        StockTransfer[]
+  stock_transfer_items   StockTransferItem[]
+  compositions           Composition[]
+  composition_items      CompositionItem[]
+  production_entries     ProductionEntry[]
 }
 
 // Equipe da Pleno Digital. NÃO carrega tenant_id: fora do isolamento (PRD 4 / 10.4).
@@ -592,6 +609,9 @@ model Establishment {
   purchases         EmporioPurchase[]
   stock_limits      StockLimit[]
   shopping_items    ShoppingItem[]
+  transfers_out     StockTransfer[]     @relation("TransferOrigin")
+  transfers_in      StockTransfer[]     @relation("TransferDestination")
+  productions       ProductionEntry[]
 
   @@unique([tenant_id, name])
   @@index([tenant_id])
@@ -648,6 +668,10 @@ model EmporioProduct {
   presentations  ProductPresentation[]
   purchase_items EmporioPurchaseItem[]
   stock_limits   StockLimit[]
+  transfer_items StockTransferItem[]
+  composition    Composition?
+  used_in        CompositionItem[]
+  productions    ProductionEntry[]
 
   @@index([tenant_id])
 }
@@ -672,6 +696,7 @@ model ProductPresentation {
   prices          PresentationPrice[]
   stock_movements StockMovement[]
   purchase_items  EmporioPurchaseItem[]
+  transfer_items  StockTransferItem[]
 
   @@unique([emporio_product_id, name])
   @@index([tenant_id])
@@ -775,6 +800,125 @@ model StockLimit {
   emporio_product EmporioProduct @relation(fields: [emporio_product_id], references: [id], onDelete: Cascade)
 
   @@unique([establishment_id, emporio_product_id])
+  @@index([tenant_id])
+}
+
+/// Módulo 39, F2b (Q19, Q73 a Q76): transferência entre lojas em duas etapas.
+/// A mercadoria sai da origem no envio e entra no destino no recebimento; as
+/// quantidades vivem nas movimentações e nos itens.
+model StockTransfer {
+  id                           String              @id @default(cuid())
+  tenant_id                    String
+  origin_establishment_id      String
+  destination_establishment_id String
+  status                       StockTransferStatus @default(em_transito)
+  /// §23.2: repetir a chave devolve esta transferência, sem duplicar.
+  operation_key                String
+  sent_at                      DateTime
+  sent_by_user_id              String?
+  received_at                  DateTime?
+  received_by_user_id          String?
+  canceled_at                  DateTime?
+  canceled_by_user_id          String?
+  canceled_reason              String?
+  notes                        String?
+  created_at                   DateTime            @default(now())
+  updated_at                   DateTime            @updatedAt
+
+  tenant          Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  origin          Establishment       @relation("TransferOrigin", fields: [origin_establishment_id], references: [id], onDelete: Restrict)
+  destination     Establishment       @relation("TransferDestination", fields: [destination_establishment_id], references: [id], onDelete: Restrict)
+  items           StockTransferItem[]
+  stock_movements StockMovement[]
+
+  @@unique([tenant_id, operation_key])
+  @@index([tenant_id, status])
+}
+
+/// Q74: `sent_qty − received_qty` é perda da origem no resultado, com o
+/// motivo; não vira movimentação nova, porque a mercadoria saiu no envio.
+model StockTransferItem {
+  id                 String             @id @default(cuid())
+  tenant_id          String
+  transfer_id        String
+  emporio_product_id String
+  package_state      PackageState?
+  presentation_id    String?
+  sent_qty           Decimal            @db.Decimal(14, 3)
+  received_qty       Decimal?           @db.Decimal(14, 3)
+  loss_reason        EmporioLossReason?
+  unit_cost          Decimal?           @db.Decimal(14, 4)
+  created_at         DateTime           @default(now())
+
+  tenant          Tenant               @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  transfer        StockTransfer        @relation(fields: [transfer_id], references: [id], onDelete: Cascade)
+  emporio_product EmporioProduct       @relation(fields: [emporio_product_id], references: [id], onDelete: Restrict)
+  presentation    ProductPresentation? @relation(fields: [presentation_id], references: [id], onDelete: Restrict)
+
+  @@index([tenant_id])
+  @@index([transfer_id])
+}
+
+/// Módulo 39, §6 e Q77: a composição ativa de um produto, para `reference_qty`
+/// dele na unidade-base. Editar não movimenta estoque; a produção guarda cópia.
+model Composition {
+  id                 String   @id @default(cuid())
+  tenant_id          String
+  emporio_product_id String   @unique
+  reference_qty      Decimal  @db.Decimal(14, 3)
+  /// Q22: vazio = 100%.
+  yield_pct          Decimal? @db.Decimal(7, 2)
+  updated_by_user_id String?
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  tenant          Tenant            @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  emporio_product EmporioProduct    @relation(fields: [emporio_product_id], references: [id], onDelete: Cascade)
+  items           CompositionItem[]
+
+  @@index([tenant_id])
+}
+
+model CompositionItem {
+  id                           String  @id @default(cuid())
+  tenant_id                    String
+  composition_id               String
+  component_emporio_product_id String
+  /// Na unidade-base do componente.
+  quantity                     Decimal @db.Decimal(14, 3)
+
+  tenant      Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  composition Composition    @relation(fields: [composition_id], references: [id], onDelete: Cascade)
+  component   EmporioProduct @relation(fields: [component_emporio_product_id], references: [id], onDelete: Restrict)
+
+  @@unique([composition_id, component_emporio_product_id])
+  @@index([tenant_id])
+}
+
+/// Módulo 39, Q43 e Q78: entrada de produto feito na loja, com a cópia da
+/// composição usada. Cancelar (Q79) marca as movimentações, nada é apagado.
+model ProductionEntry {
+  id                   String    @id @default(cuid())
+  tenant_id            String
+  establishment_id     String
+  emporio_product_id   String
+  operation_key        String
+  produced_qty         Decimal   @db.Decimal(14, 3)
+  composition_snapshot Json
+  unit_cost            Decimal?  @db.Decimal(14, 4)
+  estimated            Boolean   @default(false)
+  created_by_user_id   String?
+  canceled_at          DateTime?
+  canceled_by_user_id  String?
+  canceled_reason      String?
+  created_at           DateTime  @default(now())
+
+  tenant          Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  establishment   Establishment   @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
+  emporio_product EmporioProduct  @relation(fields: [emporio_product_id], references: [id], onDelete: Restrict)
+  stock_movements StockMovement[]
+
+  @@unique([tenant_id, operation_key])
   @@index([tenant_id])
 }
 
@@ -1076,6 +1220,9 @@ model StockMovement {
   unit_cost       Decimal?           @db.Decimal(14, 4)
   purchase_id     String?
   loss_reason     EmporioLossReason?
+  /// Módulo 39 (F2b): a transferência ou a produção que gerou a movimentação.
+  transfer_id     String?
+  production_id   String?
 
   canceled_at     DateTime?
   canceled_reason String?
@@ -1092,6 +1239,8 @@ model StockMovement {
   service_job   ServiceJob?          @relation(fields: [service_job_id], references: [id], onDelete: SetNull)
   presentation  ProductPresentation? @relation(fields: [presentation_id], references: [id], onDelete: Restrict)
   purchase      EmporioPurchase?     @relation(fields: [purchase_id], references: [id], onDelete: Restrict)
+  transfer      StockTransfer?       @relation(fields: [transfer_id], references: [id], onDelete: Restrict)
+  production    ProductionEntry?     @relation(fields: [production_id], references: [id], onDelete: Restrict)
 
   @@index([tenant_id])
   @@index([tenant_id, product_id, property_id])

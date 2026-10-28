@@ -25,6 +25,10 @@ export const stockMovementTypeSchema = z.enum([
   // Módulo 39 (F2a): só no estoque das lojas do Empório.
   "implantacao",
   "perda",
+  "transferencia_saida",
+  "transferencia_entrada",
+  "producao_entrada",
+  "producao_consumo",
 ]);
 export type StockMovementType = z.infer<typeof stockMovementTypeSchema>;
 

@@ -37,7 +37,15 @@ export type ResultadoCusto = {
   estimado: boolean;
 };
 
-const SAIDAS_DA_LOJA: ReadonlySet<string> = new Set(["venda", "utilizacao", "permuta_saida", "perda"]);
+const SAIDAS_DA_LOJA: ReadonlySet<string> = new Set([
+  "venda",
+  "utilizacao",
+  "permuta_saida",
+  "perda",
+  // F2b: a transferência sai da origem no envio; o componente sai na produção.
+  "transferencia_saida",
+  "producao_consumo",
+]);
 
 /**
  * Quanto a movimentação mexe no saldo, COM sinal. O ajuste vem dos dois saldos
