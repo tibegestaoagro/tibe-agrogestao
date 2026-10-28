@@ -96,7 +96,7 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
-### Meu Empório (Módulo 39, 27/10): F0 e F1 em produção, F2a em andamento
+### Meu Empório (Módulo 39, 27/10): F0, F1 e F2a em produção
 
 **F0 (liberação e fundação) em produção desde 27/10** (`192e402`, merge
 fast-forward da `emporio-f0`, que trouxe a spec junto; autorizado pelo
@@ -221,11 +221,13 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
 
-**Meu Empório:** F0 e F1 em produção (recurso desligado até o usuário ligar
-na Da Mata pela Plataforma). **F2a (compra e estoque) pronta na branch
-`emporio-f2a`, empurrada, não mergeada, à espera do aceite do usuário.**
-Decisões Q60 a Q71 e o contrato na spec (`f1b5d17`). Migração
-`20261027210000_emporio_f2a` **só no Docker: falta o Neon.** Estoque
+**Meu Empório:** F0, F1 e F2a em produção (recurso desligado até o usuário
+ligar na Da Mata pela Plataforma). **F2a (compra e estoque) em produção desde
+27/10** (`f4b3164`, merge fast-forward autorizado pelo usuário; migração
+`20261027210000_emporio_f2a` no Neon antes do push; Vercel com sucesso;
+rotas de compras e estoque conferidas em `/docs/api`). Este registro está na
+`emporio-f2a`, um commit à frente da `main`.
+Decisões Q60 a Q71 e o contrato na spec (`f1b5d17`). Estoque
 (`1ecaf19`), compras e Lista com loja (`576c842`), telas (`3d61ef7`),
 produtos do Empório no comprei da Lista com loja (`85f1977`). Provas: `tsc`
 0, `check` 0 falhas, `test:all` 81/82 com a `m73` corrigida depois
@@ -234,9 +236,11 @@ cancelado contado e o frete por igual), roteiro `emporio-f2a` com 32 itens
 (vermelho com a média trocada pelo último custo), `emporio-f0` e
 `emporio-f1` verdes. Papéis da F2a decididos pelo padrão da Q55 (compra,
 contagem, perda e estoque inicial com OPERADOR; cancelar e limites com OWNER
-e ADMIN), registrados na spec. Para produção: migração no Neon e merge, cada
-um com autorização. Depois, a F2b (transferência e composição) só com
-aprovação. A rotação de segurança
+e ADMIN), registrados na spec. **Próximo: a F2b (transferência e
+composição) só com aprovação do usuário.** Ao retomar com validação viva,
+subir o `next dev` limpo (apagar `.next/dev`; ver a nota
+`dev-server-servido-com-client-prisma-velho` no cofre): ele foi parado pelo
+Claude Code por falta de memória em 27/10. A rotação de segurança
 (item 1) foi adiada pelo usuário em 27/10 para tratar do Empório.
 
 **0. Programa de dívidas ENCERRADO: E0 a E11 em produção** (E11, `ccf1474`).
