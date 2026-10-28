@@ -6,6 +6,7 @@ import { hasMinRole } from "@/lib/permissions";
 import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
 import { descreverQuantidade } from "@/lib/stock/units";
 import { custoMedio } from "@/lib/emporio/custo-medio";
+import { cancelarVendeuPagou, gravarVendeuPagou } from "@/lib/emporio/vendeu-pagou";
 import {
   CATEGORIA_TAXAS_CARTAO,
   datasDasParcelas,
@@ -1015,6 +1016,25 @@ async function gravarVenda(
   if (!fiado) {
     await tx.financialEntry.update({ where: { id: lancamento.id }, data: { status: "paid", paid_at: p.sold_at } });
   }
+
+  // F4a (Q97, Q98): o "Vendeu, Pagou" entra na mesma transação, depois dos
+  // itens e dos pagamentos. A troca conta como parte paga da venda nova.
+  await gravarVendeuPagou(tx, ator, {
+    sale_id: venda.id,
+    establishment_id: p.loja.id,
+    sold_at: p.sold_at,
+    net: p.net,
+    itens: p.itens.map((i) => ({
+      emporio_product_id: i.produto.id,
+      presentation_id: i.apresentacao.id,
+      quantity: i.quantity,
+      total: i.total,
+    })),
+    pagamentos: [
+      ...p.pagamentos.map((x) => ({ kind: x.kind as string, amount: x.amount })),
+      ...(p.troca > 0 ? [{ kind: "troca", amount: p.troca }] : []),
+    ],
+  });
   return venda.id;
 }
 
@@ -1147,6 +1167,8 @@ export async function cancelarVendaAction(
         where: { related_module: "emporio", entry_type: "expense", category: CATEGORIA_TAXAS_CARTAO, related_id: id },
         data: { status: "cancelled" },
       });
+      // F4a (Q99): o "Vendeu, Pagou" não pago some com a venda; o pago fica.
+      await cancelarVendeuPagou(tx, id, agora, motivo);
 
       const lancamento = await tx.financialEntry.findFirst({
         where: { related_module: "emporio", entry_type: "income", related_id: id },

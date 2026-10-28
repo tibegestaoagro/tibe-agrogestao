@@ -1150,6 +1150,23 @@ Usuário com vínculo vê só as lojas dele (regra 10).
 **Telas (Q102):** `/emporio/resultado` e `/emporio/despesas`, e os cartões
 Resultado e Despesas no início.
 
+**Fechado na implementação (29/10):**
+- **`payment_kind`:** só o `percentual` é proporcional à parte paga na forma.
+  Nos outros cálculos, a condição só decide se a regra casa.
+- **Nomes reservados:** a regra e a despesa fixa não podem usar como nome ou
+  categoria "Vendas do Empório", "Devoluções de vendas do Empório", "Taxas de
+  cartão" nem "Diferença de caixa" (422 `name` ou `category`), para não
+  colidir com as buscas por categoria.
+- **Corrigir:** corrigir a conta do "Vendeu, Pagou" atualiza também o
+  `amount` do `SaleVariableExpense`, e o snapshot guarda o original.
+- **Renovar:** estende até o mês atual + 11, 12 meses contando o atual, como
+  na criação. Despesa encerrada não se edita nem se renova (409
+  `EXPENSE_ENDED`).
+- **Últimos 30 dias da Q26:** terminam no menor entre agora e o fim do mês.
+- **Estimado:** perda sem custo entra como zero e é mais um motivo.
+- **Forma do pagamento:** pagar pela gaveta grava `dinheiro`, e por conta
+  grava `outro`.
+
 ### F5: integrações e implantação
 
 - Meu Dia: fornecedor a pagar, fiado vencido, estoque baixo, transferência

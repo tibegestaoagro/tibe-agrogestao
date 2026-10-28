@@ -390,7 +390,7 @@ export type ContaView = {
  * cartão não canceladas que já caíram (`expected_on` até hoje em Brasília).
  * Nada disso é gravado: a data decide, sem job.
  */
-async function saldosDasContas(db: TenantPrismaClient): Promise<Map<string, number>> {
+export async function saldosDasContas(db: TenantPrismaClient): Promise<Map<string, number>> {
   const linhas = await db.cashMovement.groupBy({
     by: ["bank_account_id", "direction"],
     where: { bank_account_id: { not: null } },
@@ -414,7 +414,7 @@ async function saldosDasContas(db: TenantPrismaClient): Promise<Map<string, numb
 }
 
 /** Saldo da gaveta de uma loja, em centavos: entradas menos saídas. */
-async function saldoDaGaveta(db: TenantPrismaClient, lojaId: string): Promise<number> {
+export async function saldoDaGaveta(db: TenantPrismaClient, lojaId: string): Promise<number> {
   const linhas = await db.cashMovement.groupBy({
     by: ["direction"],
     where: { establishment_id: lojaId },

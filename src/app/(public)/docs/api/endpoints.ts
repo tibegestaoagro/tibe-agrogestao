@@ -695,6 +695,108 @@ export const GROUPS: Group[] = [
       },
       {
         method: "GET",
+        path: "/api/v1/emporio/variable-expense-rules",
+        auth: "Sessão · emporio:read · só OWNER e ADMIN (403 `FORBIDDEN`); com vínculo, só as lojas dele",
+        description: "Regras do \"Vendeu, Pagou\" (F4a, Q97). Filtros: `establishment_id`, `incluir_arquivados=1`. Cada venda copia a regra que casou: mudar a regra não mexe nas vendas passadas.",
+        response: `200
+{ "data": [{ "id": "cl...", "establishment_id": "cl...", "name": "Comissão", "kind": "percentual", "value": 5, "payment_kind": null, "emporio_product_id": null, "presentation_id": null, "packaging_emporio_product_id": null, "archived_at": null }], "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/variable-expense-rules",
+        auth: "Sessão · emporio:write · só OWNER e ADMIN",
+        description: "Cria a regra da loja. `kind`: `percentual` (value de 0 a 100, sobre o total dos itens que casam; com `payment_kind`, só a parte paga naquela forma), `fixo_por_venda` (R$ uma vez por venda), `por_unidade` (R$ por unidade vendida) ou `embalagem` (quantidade na unidade-base do produto de `packaging_emporio_product_id`, obrigatório e só aqui, baixada do estoque pelo custo médio; nunca bloqueia a venda). `emporio_product_id` e `presentation_id` filtram os itens. Percentual, fixo e por unidade geram uma conta a pagar por venda (categoria = nome da regra) com vencimento no último dia do mês da venda. Recusas: 422 `name` (vazio ou nome de lançamento reservado), `kind`, `value`, `payment_kind`, `emporio_product_id`, `presentation_id`, `packaging_emporio_product_id`.",
+        request: `{ "establishment_id": "cl...", "name": "Comissão", "kind": "percentual", "value": 5, "payment_kind": "pix" }`,
+        response: `201
+{ "data": { "id": "cl...", "name": "Comissão", "kind": "percentual", "value": 5, "payment_kind": "pix" }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/emporio/variable-expense-rules/:id",
+        auth: "Sessão · emporio:write · só OWNER e ADMIN",
+        description: "Edita a regra ou a arquiva (`archived: true`; `false` reativa). Mesmas recusas do cadastro.",
+        request: `{ "value": 6 }`,
+        response: `200
+{ "data": { "id": "cl...", "value": 6, "archived_at": null }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/fixed-expenses",
+        auth: "Sessão · emporio:read · só OWNER e ADMIN; com vínculo, só as despesas que têm loja dele",
+        description: "Despesas fixas mensais (F4a, Q100) com o rateio, `generated_until` (último mês com conta gerada), `months_ahead` e `needs_renewal` (verdadeiro quando faltam menos de 3 meses gerados). `incluir_encerradas=1` traz as encerradas.",
+        response: `200
+{ "data": [{ "id": "cl...", "name": "Aluguel", "category": "Aluguel", "amount": 3000, "due_day": 10, "split_kind": "percentual", "starts_on": "2026-11-01", "ended_at": null, "splits": [{ "establishment_id": "cl...", "establishment_name": "Loja Centro", "value": 60 }, { "establishment_id": "cl...", "establishment_name": "Loja Norte", "value": 40 }], "generated_until": "2027-10", "months_ahead": 12, "needs_renewal": false }], "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/fixed-expenses",
+        auth: "Sessão · emporio:write · só OWNER e ADMIN",
+        description: "Cria o modelo e gera 12 meses a partir de `starts_on` (padrão: o mês atual): uma conta a pagar pendente por loja e mês, no `due_day` (no mês curto, o último dia). `split_kind` `percentual` fecha 100 e `valor` fecha o `amount` (422 `splits`); no percentual o centavo que sobra vai na primeira loja. Outras recusas: 422 `name`, `amount`, `due_day`, `split_kind`. `category` omitida usa o nome.",
+        request: `{ "name": "Aluguel", "amount": 3000, "due_day": 10, "split_kind": "percentual", "starts_on": "2026-11-01", "splits": [{ "establishment_id": "cl...", "value": 60 }, { "establishment_id": "cl...", "value": 40 }] }`,
+        response: `201
+{ "data": { "id": "cl...", "name": "Aluguel", "amount": 3000, "months_ahead": 12 }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/emporio/fixed-expenses/:id",
+        auth: "Sessão · emporio:write · só OWNER e ADMIN",
+        description: "Edita o modelo. As contas dos meses do atual em diante que não têm pagamento são refeitas (valor e vencimento; a loja que saiu do rateio é cancelada; a loja nova ganha as contas); as pagas e as de meses passados ficam. Despesa encerrada: 409 `EXPENSE_ENDED`. Mudar `amount` ou `split_kind` exige mandar `splits` coerentes (422 `splits`).",
+        request: `{ "amount": 3200, "splits": [{ "establishment_id": "cl...", "value": 50 }, { "establishment_id": "cl...", "value": 50 }] }`,
+        response: `200
+{ "data": { "id": "cl...", "amount": 3200 }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/fixed-expenses/:id/end",
+        auth: "Sessão · emporio:write · só OWNER e ADMIN",
+        description: "Encerra a despesa (`ended_at`) e cancela as contas de meses depois do atual que não têm pagamento. Já encerrada: 409 `EXPENSE_ENDED`.",
+        response: `200
+{ "data": { "id": "cl...", "ended_at": "2026-11-05T12:00:00.000Z" }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/fixed-expenses/:id/renew",
+        auth: "Sessão · emporio:write · só OWNER e ADMIN",
+        description: "Estende as contas até 12 meses a partir do mês atual, sem duplicar (único por modelo, loja e mês). Nada é gerado sozinho: a tela oferece o botão quando faltam menos de 3 meses. `created` diz quantas contas nasceram. Encerrada: 409 `EXPENSE_ENDED`.",
+        response: `200
+{ "data": { "id": "cl...", "months_ahead": 12, "created": 4 }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/payables",
+        auth: "Sessão · emporio:read · só OWNER e ADMIN; com vínculo, só as lojas dele",
+        description: "Contas a pagar do \"Vendeu, Pagou\" (`origin` `vendeu_pagou`) e das despesas fixas (`despesa_fixa`), por vencimento. Filtros: `establishment_id`, `status` (`pending` por padrão, `paid`, `cancelled`, `all`), `de` e `ate` (vencimento), `limit`. `can_correct` diz se ainda dá para corrigir o valor.",
+        response: `200
+{ "data": [{ "entry_id": "cl...", "origin": "vendeu_pagou", "name": "Comissão", "establishment_id": "cl...", "amount": 5, "paid_amount": 0, "open_amount": 5, "due_date": "2026-11-30", "status": "pending", "sale_id": "cl...", "can_correct": true }], "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/emporio/payables/:id",
+        auth: "Sessão · emporio:write · só OWNER e ADMIN",
+        description: "Corrige o valor real de uma conta pendente sem pagamento (o `amount` da despesa da venda acompanha). Conta já paga: 409 `ENTRY_PAID` em `amount`; valor inválido: 422 `amount`; conta que não é do Empório: 404.",
+        request: `{ "amount": 4.5 }`,
+        response: `200
+{ "data": { "entry_id": "cl...", "amount": 4.5, "can_correct": true }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/payables/pay",
+        auth: "Sessão · emporio:write · só OWNER e ADMIN",
+        description: "Paga várias contas de uma vez, cada uma pelo valor dela, saindo da gaveta (`from.establishment_id`) OU da conta (`from.bank_account_id`): um pagamento e um movimento `pagamento_despesa` por conta. Saldo menor que o total: 409 `INSUFFICIENT_CASH` em `from`. Conta de fora do Empório, já paga ou cancelada: 422 `entry_ids`. `paid_at` opcional (padrão agora). Pagar pelo Financeiro (fora do Empório) quita a conta mas não tira do caixa do Empório (dívida 2.26).",
+        request: `{ "entry_ids": ["cl...", "cl..."], "from": { "establishment_id": "cl..." } }`,
+        response: `201
+{ "data": { "total": 9.5, "from": { "establishment_id": "cl...", "bank_account_id": null }, "payments": [{ "entry_id": "cl...", "amount": 5, "financial_payment_id": "cl..." }] }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/result",
+        auth: "Sessão · emporio:read · só OWNER e ADMIN; com vínculo, só as lojas dele (404 `establishment_id` nas outras)",
+        description: "Resultado da Loja no mês (F4a, Q101), calculado na leitura. Query: `establishment_id`, `month` (AAAA-MM, 422 `month`). Devolve `sales`, `cost`, `variable_expenses` (regras mais `card_fees`), `margin` e `margin_pct`, `losses` (perdas e quebras, linha própria), `fixed_expenses`, `result`, `break_even` (`status` `ok`, `sem_dados` ou `nao_se_paga`; `amount` e `missing`, nunca negativo), `tracking` (vendas por dia, acumulado e projeção linear) e `estimated` com `estimated_reasons`.",
+        response: `200
+{ "data": { "month": "2026-11", "sales": 12000, "cost": 6000, "variable_expenses": 600, "margin": 5400, "margin_pct": 45, "losses": 100, "fixed_expenses": 3000, "result": 2300, "break_even": { "status": "ok", "amount": 6666.67, "missing": 0, "margin_pct_used": 45, "basis": "mes" }, "estimated": false, "estimated_reasons": [] }, "meta": {} }`,
+      },
+      {
+        method: "GET",
         path: "/api/v1/emporio/bank-accounts",
         auth: "Sessão · emporio:read · só OWNER e ADMIN",
         description: "Contas bancárias do Empório com o saldo (soma dos movimentos) e as lojas que a usam como conta PIX. `incluir_arquivados=1` traz as arquivadas.",
