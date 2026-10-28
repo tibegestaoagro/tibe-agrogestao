@@ -155,6 +155,15 @@ cliente real com as duas coisas vai precisar.
 | Q69 | **Estoque inicial uma vez por produto e loja**, com custo opcional (sem custo, resultado estimado). Depois, só contagem | mais de uma implantação esconderia o que era contagem |
 | Q70 | Fornecedor de Contatos, **sempre opcional**. A compra é a **primeira escrita com chave de operação**: repetir a chave devolve a compra gravada | não travar o balcão |
 | Q71 | O início ganha **Estoque e Compras**; `/emporio/estoque` (por loja, por produto, consolidado, "Precisa repor"), `/emporio/compras` (lista e nova compra) e o bloco "Estoque por loja" na tela do produto | a compra junta vários produtos |
+| Q72 | `quantity` **segue com 3 casas**: cada baixa da composição é **arredondada ao grama** e o saldo é a soma dos valores gravados, então não deriva (§23.3) | um grama numa baixa de ração não pesa |
+| Q73 | Enviar transferência: **OPERADOR para cima com acesso à origem**; receber: quem tem acesso ao destino (Q33); cancelar: **só em trânsito**, por quem enviou ou por OWNER e ADMIN, e tudo volta à origem | quem errou o envio desfaz o próprio envio |
+| Q74 | Chegou **menos**: a diferença é perda da origem, com motivo no recebimento. Chegou **mais**: recusado | aceitar sobra esconderia erro de envio |
+| Q75 | Transferência com **vários itens**, cada um com lacrado por apresentação e avulso | a Central manda várias coisas no mesmo caminhão |
+| Q76 | Enviar mais do que a origem tem é **recusado, salvo negativo liberado** (Q18) | a mesma regra da perda |
+| Q77 | **Uma composição ativa por produto**, editável; componentes só do Empório, cada um na própria unidade-base; **ciclo recusado**; cadastrar ou editar não movimenta estoque | o documento; a cópia da Q43 cobre a mudança de receita |
+| Q78 | Produzir: quantidade na unidade-base e, quando separa, as embalagens em que entra (lacrado, Q31). **Custo = soma dos componentes pelo custo médio da loja**, sem custo extra (dívida 2.23); componente sem custo marca estimado. Tudo numa operação | o custo extra mexe no "Vendeu, Pagou" da F3 |
+| Q79 | **Cancelar produção:** OWNER e ADMIN, estorna o produto e devolve os componentes numa operação; recusado se o produto feito já saiu, salvo negativo liberado | errar a quantidade produzida é comum |
+| Q80 | **`/emporio/transferencias`** e o cartão Transferências no início; na tela do produto, o bloco **Composição** e o **"Produzir aqui"** no Estoque por loja | a transferência junta vários produtos |
 
 ---
 
@@ -546,6 +555,103 @@ O "comprei" da Lista com loja continua em
 "entrar 400 kg de produto elaborado" acrescenta o produto e baixa 260, 116 e
 24 kg; "comprar produto pronto que possui composição" não baixa ingrediente;
 "transferir da Central para uma loja" não gera venda nem receita.
+
+#### F2b: contrato (Q72 a Q80)
+
+**Modelo.** `StockMovementType` ganha `transferencia_saida`,
+`transferencia_entrada`, `producao_entrada` e `producao_consumo` (as duas
+saídas entram no conjunto de saídas da loja). `StockMovement` ganha
+`transfer_id` e `production_id`. Novos, todos escopados e com quem gravou:
+
+| model | campos |
+|---|---|
+| `StockTransfer` | `origin_establishment_id`, `destination_establishment_id` (diferentes), `status` (`em_transito`, `recebida`, `cancelada`), `operation_key` (único na conta), `sent_at`, `sent_by_user_id`, `received_at?`, `received_by_user_id?`, `canceled_at?`, `canceled_by_user_id?`, `canceled_reason?`, `notes?` |
+| `StockTransferItem` | `transfer_id`, `emporio_product_id`, `package_state?`, `presentation_id?` (só no lacrado), `sent_qty` (unidade-base), `received_qty?`, `loss_reason?` (quando chegou menos), `unit_cost` (custo médio da origem no envio) |
+| `Composition` | `emporio_product_id` (único), `reference_qty` (na unidade-base do produto final), `yield_pct?` (vazio = 100) |
+| `CompositionItem` | `composition_id`, `component_emporio_product_id`, `quantity` (na unidade-base do componente); componente único na composição |
+| `ProductionEntry` | `establishment_id`, `emporio_product_id`, `operation_key` (único na conta), `produced_qty`, `composition_snapshot` (JSON: `reference_qty`, `yield_pct`, itens com nome, quantidade e unidade), `unit_cost`, `estimated`, `canceled_at?`, `canceled_by_user_id?` |
+
+**Transferência:**
+- **Envio:** grava uma `transferencia_saida` por item na origem, com o
+  `unit_cost` = custo médio da origem. A mercadoria sai do saldo da origem no
+  envio e só entra no destino no recebimento. **Em trânsito** = itens das
+  transferências `em_transito`, e entra na sugestão de reposição do destino
+  (regra 5 da seção 5).
+- **Recebimento:** grava uma `transferencia_entrada` por item no destino, com
+  o `received_qty` e o mesmo `unit_cost`, de modo que a média do destino
+  absorve o custo da origem (Q21). `received_qty` maior que `sent_qty` é
+  recusado (422 `items`). Menor exige `loss_reason` (422 `items`).
+- **Diferença (Q74):** não gera movimentação nova, porque a mercadoria já saiu
+  da origem no envio. Fica no item (`sent_qty − received_qty`, com o motivo) e
+  conta como perda da origem no resultado (F4).
+- **Cancelamento:** marca `canceled_at` nas saídas, e a origem recupera o
+  saldo. Nada é apagado. Receber ou cancelar fora de `em_transito` dá 409
+  `TRANSFER_NOT_IN_TRANSIT`.
+- **Outros pontos:**
+  - nunca gera lançamento financeiro (aceite §25);
+  - origem igual ao destino dá 422 `destination_establishment_id`;
+  - saldo insuficiente na origem dá 409 `INSUFFICIENT_STOCK` em `items`,
+    salvo negativo liberado (Q76);
+  - mesma `operation_key` devolve a transferência gravada.
+- **Meu Dia (Q33):** a transferência em trânsito há mais de 2 dias aparece,
+  como contagem, para quem tem acesso às duas lojas.
+
+**Composição e produção:**
+- **Composição (Q77):**
+  - `PUT` substitui a composição inteira;
+  - componente igual ao produto, ou que leve de volta a ele por qualquer
+    caminho, dá 422 `items` (ciclo);
+  - não movimenta estoque.
+- **Baixa de cada componente:**
+  `quantity × produced_qty / reference_qty / (yield_pct / 100)`, arredondada a
+  3 casas (Q72). Exemplo do aceite: 65, 29 e 6 para 100 kg; produzir 400 kg
+  baixa 260, 116 e 24 kg.
+- **Produção (Q43, Q78):** numa transação só,
+  - grava um `producao_consumo` por componente, pelo custo médio do
+    componente na loja;
+  - grava um `producao_entrada` do produto, com `unit_cost` = soma dos custos
+    consumidos ÷ `produced_qty`, `estimated` se algum componente estava
+    estimado ou sem custo;
+  - quando o produto separa, a entrada é lacrada nas embalagens informadas
+    (`sealed`) e o resto é avulso.
+- **Recusas na produção:**
+  - componente sem saldo dá 409 `INSUFFICIENT_STOCK`, field `components`,
+    dizendo qual falta, salvo negativo liberado;
+  - produto sem composição dá 422 `COMPOSITION_REQUIRED`.
+- **Compra de produto que tem composição:** não baixa ingrediente (aceite
+  §25), porque só a produção baixa (regra 1 da seção 5).
+- **Cancelar produção (Q79):** OWNER e ADMIN. Marca `canceled_at` nas
+  movimentações da produção. Recusa com 409 `INSUFFICIENT_STOCK` se o saldo do
+  produto ficaria negativo, salvo negativo liberado.
+
+**Papéis:** enviar e receber são de OPERADOR para cima, com a loja no vínculo
+(origem para enviar, destino para receber). Cancelar a transferência é de quem
+enviou, ou de OWNER e ADMIN. Composição: OWNER e ADMIN. Produzir: OPERADOR para
+cima. Cancelar produção: OWNER e ADMIN.
+
+**Actions:**
+- `src/lib/actions/emporio-transferencias.ts`:
+  - `enviarTransferenciaAction(db, ator, { operation_key, origin_establishment_id, destination_establishment_id, items: [{ emporio_product_id, presentation_id?, packages?, quantity? }], notes? })`;
+  - `receberTransferenciaAction(db, ator, id, { items: [{ item_id, received_qty, loss_reason? }] })`;
+  - `cancelarTransferenciaAction(db, ator, id, { reason })`;
+  - `listarTransferenciasAction(db, ator, opts?)`;
+  - `lerTransferenciaAction(db, ator, id)`;
+  - `transferenciasParadasAction(db, ator)`, para o Meu Dia.
+- `src/lib/actions/emporio-producao.ts`:
+  - `lerComposicaoAction(db, ator, emporio_product_id)`;
+  - `definirComposicaoAction(db, ator, emporio_product_id, { reference_qty, yield_pct?, items: [{ component_emporio_product_id, quantity }] })`;
+  - `produzirAction(db, ator, { operation_key, establishment_id, emporio_product_id, produced_qty, sealed?: [{ presentation_id, packages }] })`;
+  - `cancelarProducaoAction(db, ator, id, { reason })`;
+  - `listarProducoesAction(db, ator, opts?)`.
+
+No item enviado, lacrado leva `presentation_id` e `packages`, e avulso leva
+`quantity` na unidade-base.
+
+**Rotas** (`/api/v1/emporio/...`):
+- `transfers` (GET e POST) e `transfers/[id]` (GET);
+- `transfers/[id]/receive` e `transfers/[id]/cancel` (POST);
+- `products/[id]/composition` (GET e PUT);
+- `production` (GET e POST) e `production/[id]/cancel` (POST).
 
 ### F3: venda e caixa
 
