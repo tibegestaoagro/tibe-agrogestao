@@ -236,21 +236,24 @@ cancelado contado e o frete por igual), roteiro `emporio-f2a` com 32 itens
 (vermelho com a média trocada pelo último custo), `emporio-f0` e
 `emporio-f1` verdes. Papéis da F2a decididos pelo padrão da Q55 (compra,
 contagem, perda e estoque inicial com OPERADOR; cancelar e limites com OWNER
-e ADMIN), registrados na spec. **F2b (transferência e composição) em
-andamento na branch `emporio-f2b`** (a partir da `emporio-f2a`), aprovada
+e ADMIN), registrados na spec. **F2b (transferência e composição) pronta
+na branch `emporio-f2b`, empurrada, não mergeada, à espera do aceite do
+usuário** (a partir da `emporio-f2a`), aprovada
 pelo usuário em 28/10: decisões Q72 a Q80 e o contrato na spec (`2e80991`),
 dívida 2.23 nova, schema e migração `20261028120000_emporio_f2b` só no
 Docker (`bec3487`). Transferências com Meu Dia e em trânsito na reposição
 (`df37456`), composição e produção (`be15a19`), suíte `m80` com 149
 checagens (5 vermelhas sem a exigência do motivo, 2 sem o rendimento;
 `b890a82`), telas (`3c719d6`), cenário `_cenario-emporio-f2b.ts`
-(`9e4eed3`). **Falta só a validação viva:** o roteiro
-`scripts/navegador/emporio-f2b.py` está escrito e NÃO commitado (nunca
-rodou), porque o Claude Code parou o `next dev` por falta de memória em
-28/10, como em 27/10. Ao retomar: parar todo `next` da pasta, apagar
-`.next/dev`, subir o `npm run dev`, aquecer as páginas com `curl` (a
-primeira compilação leva minutos) e rodar `npm run navegador -- emporio-f2b`;
-depois `test:all`, os roteiros `emporio-f0`, `f1`, `f2a`, e o aceite. A rotação de segurança
+(`9e4eed3`), roteiro `emporio-f2b` com 29 itens (`4b37012`, vermelho com o
+custo da entrada trocado). Validação: `test:all` 83/83, os quatro roteiros
+do Empório verdes, `check` 0 falhas. **Para produção, com autorização:**
+migração `20261028120000_emporio_f2b` no Neon (URL Direct) e merge. A F3
+(venda e caixa) só com aprovação. ⚠️ O Claude Code corta o `next dev` em
+segundo plano quando a memória aperta com a sessão parada (27 e 28/10):
+liberar memória antes da validação viva, ou iniciar o Claude Code com
+`CLAUDE_CODE_DISABLE_BG_SHELL_PRESSURE_REAP=1`. Acompanhar o `test:all` em
+primeiro plano evita o corte. A rotação de segurança
 (item 1) foi adiada pelo usuário em 27/10 para tratar do Empório.
 
 **0. Programa de dívidas ENCERRADO: E0 a E11 em produção** (E11, `ccf1474`).
