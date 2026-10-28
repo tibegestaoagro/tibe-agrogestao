@@ -891,10 +891,21 @@ export async function cancelarVendaAction(
   if (!ehAdmin(ator)) return NEGADO_ADMIN();
   const venda = await db.emporioSale.findFirst({
     where: { id },
-    select: { id: true, establishment_id: true, status: true, _count: { select: { returns: true } } },
+    select: {
+      id: true,
+      establishment_id: true,
+      status: true,
+      exchange_return_id: true,
+      _count: { select: { returns: true } },
+    },
   });
   if (!venda || !(await lojaVisivel(db, ator, venda.establishment_id))) return NAO_ACHADO("Venda");
   if (venda.status === "cancelada") return fail("SALE_CANCELED", "Essa venda já foi cancelada.", 409);
+  // A venda nova da troca foi paga com o valor devolvido, que não tem gaveta
+  // para onde voltar: desfazer é devolver a mercadoria dela.
+  if (venda.exchange_return_id) {
+    return fail("SALE_IS_EXCHANGE", "Essa venda é de uma troca: devolva os itens em vez de cancelar.", 409);
+  }
   const motivo = String(input?.reason ?? "").trim();
   if (!motivo) return fail("VALIDATION_ERROR", "Diga o motivo do cancelamento.", 422, "reason");
   if (venda._count.returns > 0) {
@@ -1130,6 +1141,35 @@ async function gravarDevolucao(
             : { amount: novoCent / 100 },
     });
     return devolucao.id;
+  }
+
+  // Dinheiro e troca devolvem ao cliente o que ele PAGOU: numa venda em fiado
+  // ainda não paga, o valor sairia da gaveta sem nunca ter entrado. O teto é o
+  // recebido na venda menos o que já voltou por dinheiro ou troca.
+  const receita = await tx.financialEntry.findFirst({
+    where: { related_module: "emporio", entry_type: "income", related_id: venda.id },
+    select: { id: true },
+  });
+  const recebido = receita
+    ? await tx.financialPayment.aggregate({ where: { entry_id: receita.id }, _sum: { amount: true } })
+    : null;
+  const jaVoltou = await tx.emporioSaleReturn.aggregate({
+    where: { sale_id: venda.id, refund_kind: { in: ["dinheiro", "troca"] }, id: { not: devolucao.id } },
+    _sum: { amount: true },
+  });
+  const tetoCent =
+    centavos(decToNum(recebido?._sum.amount) ?? 0) - centavos(decToNum(jaVoltou._sum.amount) ?? 0);
+  if (d.totalCent > tetoCent) {
+    throw new AbortarVenda(
+      fail(
+        "VALIDATION_ERROR",
+        tetoCent > 0
+          ? `O cliente pagou ${brl(tetoCent / 100)} dessa venda: a devolução (${brl(total)}) passa disso. Abata o resto do fiado.`
+          : "O cliente ainda não pagou essa venda: abata do fiado.",
+        422,
+        "amount",
+      ),
+    );
   }
 
   const comDinheiro = d.refund_kind === "dinheiro";

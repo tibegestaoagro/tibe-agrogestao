@@ -799,9 +799,18 @@ item, `quantity` até o vendido menos o já devolvido (422 `items`). O valor é
 - **`refund_kind` `abater_fiado`:** o valor tem que caber no saldo em aberto
   do lançamento da venda (422 `amount`); o `amount` do lançamento diminui
   nesse valor, e não há movimento de caixa. O histórico fica na devolução.
+- **Teto do dinheiro e da troca:** o valor devolvido por `dinheiro` ou `troca`
+  não passa do que o cliente pagou na venda, menos o que já voltou por
+  dinheiro ou troca (422 `amount`, mandando abater do fiado). Sem isso, o
+  fiado não pago devolvido "em dinheiro" tirava da gaveta o que nunca entrou
+  (achado na revisão da implementação, 28/10).
 - Mesma `operation_key` devolve a devolução gravada.
 
-**Troca (Q86).** Uma devolução com `refund_kind` `troca` e uma venda nova com
+**Troca (Q86).** Na troca, `venda.payments` cobre só o que falta depois do
+valor devolvido (vazio quando ele cobre tudo); o servidor acrescenta o
+pagamento `troca`. A venda nova de uma troca **não se cancela** (409
+`SALE_IS_EXCHANGE`): ela foi paga com o valor devolvido, que não tem gaveta
+para onde voltar, então desfazê-la é devolver os itens dela. Uma devolução com `refund_kind` `troca` e uma venda nova com
 `exchange_return_id`, numa transação. O valor devolvido (V) vira o lançamento
 de despesa "Devoluções de vendas do Empório", pago, **sem** movimento de
 caixa, e entra na venda nova como pagamento `troca` (um `FinancialPayment`

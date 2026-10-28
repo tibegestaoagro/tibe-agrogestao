@@ -492,6 +492,16 @@ async function comBanco() {
     check("o histórico fica na devolução (valor 40, abater_fiado)", (await db.emporioSaleReturn.findMany({ where: { sale_id: Fd } })).some((d) => d.refund_kind === "abater_fiado" && perto(n(d.amount), 40)));
     check("recebe 50 do fiado (sobra 10)", (await xx("receberFiadoAction", op, { operation_key: chave("rec"), contact_id: C3, establishment_id: L1.id, amount: 50, kind: "dinheiro" })).ok);
     check("abater mais do que o saldo em aberto (1 kg = 20 > 10): 422 amount", recusa(await vv("devolverAction", op, Fd, { operation_key: chave("dev"), refund_kind: "abater_fiado", items: [{ sale_item_id: iFd.id, quantity: 1 }] }), "VALIDATION_ERROR", 422, "amount"));
+    // Achado na revisão da sessão principal: dinheiro devolvido acima do que o
+    // cliente pagou saía da gaveta sem nunca ter entrado.
+    const devAntes = await db.emporioSaleReturn.count({ where: { sale_id: Fd } });
+    check("devolver em dinheiro mais do que o cliente pagou (3 kg = 60 > 50 pagos): 422 amount", recusa(await vv("devolverAction", op, Fd, { operation_key: chave("dev"), refund_kind: "dinheiro", items: [{ sale_item_id: iFd.id, quantity: 3 }] }), "VALIDATION_ERROR", 422, "amount"));
+    const C9 = await contato("Cliente 9");
+    const rNp = await vender(op, [item(Sal, "Quilo", 1)], [{ kind: "fiado", amount: 20 }], { contact_id: C9 });
+    const Np = await saleId(rNp);
+    const iNp = (await db.emporioSaleItem.findMany({ where: { sale_id: Np } }))[0];
+    const cxNp = await db.cashMovement.count();
+    check("fiado não pago devolvido em dinheiro: 422 amount, e nada gravado", recusa(await vv("devolverAction", op, Np, { operation_key: chave("dev"), refund_kind: "dinheiro", items: [{ sale_item_id: iNp.id, quantity: 1 }] }), "VALIDATION_ERROR", 422, "amount") && (await db.emporioSaleReturn.count({ where: { sale_id: { in: [Fd, Np] } } })) === devAntes && (await db.cashMovement.count()) === cxNp);
 
     // ---------------------------------------------------------------- 11
     console.log("\n11. Troca: devolução mais venda nova, ligadas");
@@ -518,6 +528,7 @@ async function comBanco() {
     check("a venda nova tem um pagamento 'troca' de 20 e um de dinheiro de 10", pgT.some((p) => p.kind === "troca" && perto(n(p.amount), 20)) && pgT.some((p) => p.kind === "dinheiro" && perto(n(p.amount), 10)), j(pgT));
     const lvN = await lancDaVenda(vNova?.id ?? "");
     check("a venda nova tem um lançamento de receita de 30, pago por inteiro", lvN.length === 1 && perto(n(lvN[0].amount), 30) && lvN[0].status === "paid" && perto(await pago(lvN[0].id), 30), j(lvN));
+    check("cancelar a venda nova da troca: 409 SALE_IS_EXCHANGE", recusa(await vv("cancelarVendaAction", admin, vNova?.id ?? "", { reason: "x" }), "SALE_IS_EXCHANGE", 409));
     const rTr2 = await vv("trocarAction", op, T, { operation_key: kTr, items_devolvidos: [{ sale_item_id: iT.id, quantity: 1 }], venda: { operation_key: kTv, establishment_id: L1.id, items: [item(Fa, "Quilo", 1)], payments: [dinheiro(10)] } });
     check("repetir a troca com a mesma chave não duplica", rTr2.ok && (await db.emporioSaleReturn.count({ where: { sale_id: T, refund_kind: "troca" } })) === 1 && (await db.emporioSale.count({ where: { operation_key: kTv } })) === 1);
     const gT1 = await saldoGaveta(L1.id);
