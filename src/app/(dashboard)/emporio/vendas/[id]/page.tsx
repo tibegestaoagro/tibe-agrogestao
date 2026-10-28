@@ -19,7 +19,7 @@ import { DevolverForm } from "../../_components/devolver-form";
 import { TrocarForm } from "../../_components/trocar-form";
 import { carregarCatalogoDeVenda } from "../../_components/catalogo-venda";
 import { MOTIVO_PERDA_ROTULO, numeroBr, pctBr } from "../../_components/formato";
-import { FORMA_ROTULO } from "../../_components/venda-rotulos";
+import { CHEQUE_SITUACAO_ROTULO, FORMA_ROTULO } from "../../_components/venda-rotulos";
 
 const DATA_HORA = new Intl.DateTimeFormat("pt-BR", {
   timeZone: "America/Sao_Paulo",
@@ -171,14 +171,43 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
               <TableHead>Forma</TableHead>
               <TableHead>Valor</TableHead>
               <TableHead>Vencimento</TableHead>
+              <TableHead>Detalhes</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {venda.payments.map((p) => (
               <TableRow key={p.id}>
-                <TableCell>{FORMA_ROTULO[p.kind] ?? p.kind}</TableCell>
+                <TableCell>
+                  {FORMA_ROTULO[p.kind] ?? p.kind}
+                  {p.installments && p.installments > 1 && (
+                    <span className="block text-xs text-texto-secundario">em {p.installments}x</span>
+                  )}
+                </TableCell>
                 <TableCell>{reaisBr(p.amount)}</TableCell>
                 <TableCell>{p.due_date ? DATA.format(new Date(p.due_date)) : "-"}</TableCell>
+                <TableCell className="text-sm">
+                  {p.fee_pct !== null && p.fee_amount !== null && (
+                    <>
+                      Taxa {pctBr(p.fee_pct)} ({reaisBr(p.fee_amount)})
+                      <span className="block text-xs text-texto-secundario">
+                        líquido {reaisBr(Math.round((p.amount - p.fee_amount) * 100) / 100)}
+                        {p.installments && p.installments > 1 ? ` em ${p.installments} parcelas` : ""}
+                      </span>
+                    </>
+                  )}
+                  {p.check && (
+                    <>
+                      Cheque nº {p.check.number}, {p.check.bank}
+                      <span className="block text-xs text-texto-secundario">
+                        bom para {DATA.format(new Date(p.check.good_for))}
+                      </span>
+                      <Badge variant={p.check.status === "compensado" ? "green" : p.check.status.startsWith("devolvido") ? "red" : "amber"}>
+                        {CHEQUE_SITUACAO_ROTULO[p.check.status] ?? p.check.status}
+                      </Badge>
+                    </>
+                  )}
+                  {p.fee_pct === null && !p.check && "-"}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

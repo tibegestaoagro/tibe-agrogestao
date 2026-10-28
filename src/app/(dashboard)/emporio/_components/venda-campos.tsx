@@ -12,11 +12,13 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { reaisBr } from "@/lib/numero-br";
+import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
 import { ClienteNovoForm } from "./cliente-novo-form";
-import { pctBr } from "./formato";
+import { numeroBr, pctBr } from "./formato";
 import { FORMA_ROTULO } from "./venda-rotulos";
 import {
+  ehCartao,
+  liquidoDoCartaoCent,
   normalizar,
   type CampoDaVenda,
   type EstadoDaVenda,
@@ -27,6 +29,18 @@ import {
 const SEM_CLIENTE = "__sem_cliente__";
 const MAX_RESULTADOS = 8;
 
+/** Na ordem do balcão: o que mais se usa primeiro. */
+const FORMAS_DO_BALCAO: FormaDePagamento[] = [
+  "dinheiro",
+  "pix",
+  "debito",
+  "credito_vista",
+  "credito_parcelado",
+  "cheque",
+  "fiado",
+];
+const PARCELAS = Array.from({ length: 11 }, (_, i) => i + 2);
+
 /**
  * Os campos da venda: loja, itens, cliente e pagamento. Não escreve nada e não
  * tem botão de enviar: quem monta a tela (o balcão, a troca) cuida do envio.
@@ -36,6 +50,41 @@ const MAX_RESULTADOS = 8;
  * certo. `prefixoDeId` vem de quem chama, porque o balcão e a troca nunca
  * vivem juntos mas os ids passam pelo mesmo `idDe`.
  */
+/**
+ * O que o cartão rende, antes de enviar (Q89): a taxa da loja, o líquido e o
+ * prazo. Sem taxa cadastrada para a forma, avisa agora em vez de esperar a
+ * recusa do servidor. Só informa: quem decide o valor é o campo acima.
+ */
+function InfoDoCartao({ v, p }: { v: EstadoDaVenda; p: EstadoDaVenda["pagamentos"][number] }) {
+  if (!v.loja) return null;
+  const regra = v.regraDe(p.kind);
+  if (!regra) {
+    // `regraDe` devolve null também enquanto as taxas não chegaram: só avisa quando elas chegaram.
+    return v.regrasCarregadas ? (
+      <p className="rounded-md bg-atencao-suave px-3 py-2 text-xs text-atencao-tinta">
+        Esta loja ainda não tem taxa de {FORMA_ROTULO[p.kind].toLowerCase()} cadastrada. Peça ao dono ou a um
+        administrador para cadastrar em Caixa, Taxas de cartão.
+      </p>
+    ) : null;
+  }
+  const n = lerNumeroBr(p.valor);
+  if (n === null || n <= 0) {
+    return <p className="text-xs text-texto-secundario">Taxa de {pctBr(regra.fee_pct)} para esta forma.</p>;
+  }
+  const { liquidoCent } = liquidoDoCartaoCent(Math.round(Number((n * 100).toPrecision(12))), regra.fee_pct);
+  const parcelas = p.kind === "credito_parcelado" ? Number(p.parcelas) || 2 : 1;
+  const prazo =
+    parcelas > 1
+      ? `em ${parcelas} parcelas, a primeira em ${numeroBr(regra.days)} dias`
+      : `em ${numeroBr(regra.days)} dias`;
+  return (
+    <p className="text-xs text-texto-secundario">
+      Taxa {pctBr(regra.fee_pct)}: você recebe <strong className="text-texto">{reaisBr(liquidoCent / 100)}</strong>{" "}
+      {prazo}.
+    </p>
+  );
+}
+
 export function VendaCampos({
   v,
   produtos,
@@ -268,7 +317,7 @@ export function VendaCampos({
         {({ id, ...aria }) => (
           <div id={id} tabIndex={-1} {...aria} className="space-y-3">
             <div className="flex flex-wrap gap-2">
-              {(["dinheiro", "pix", "fiado"] as FormaDePagamento[]).map((k) => (
+              {FORMAS_DO_BALCAO.map((k) => (
                 <Button
                   key={k}
                   type="button"
@@ -312,6 +361,84 @@ export function VendaCampos({
                     limpar("payments");
                   }}
                 />
+                {p.kind === "credito_parcelado" && (
+                  <div className="space-y-1">
+                    <label htmlFor={`parcelas-${p.key}`} className="text-xs text-texto-secundario">
+                      Número de parcelas
+                    </label>
+                    <Select
+                      value={p.parcelas}
+                      onValueChange={(valor) => {
+                        v.atualizarPagamento(p.key, { parcelas: valor });
+                        limpar("payments");
+                      }}
+                    >
+                      <SelectTrigger id={`parcelas-${p.key}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PARCELAS.map((n) => (
+                          <SelectItem key={n} value={String(n)}>
+                            {n}x
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {ehCartao(p.kind) && <InfoDoCartao v={v} p={p} />}
+                {p.kind === "cheque" && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <label htmlFor={`cheque-numero-${p.key}`} className="text-xs text-texto-secundario">
+                        Número do cheque
+                      </label>
+                      <Input
+                        id={`cheque-numero-${p.key}`}
+                        inputMode="numeric"
+                        autoComplete="off"
+                        value={p.chequeNumero}
+                        onChange={(e) => {
+                          v.atualizarPagamento(p.key, { chequeNumero: e.target.value });
+                          limpar("payments");
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label htmlFor={`cheque-banco-${p.key}`} className="text-xs text-texto-secundario">
+                        Banco
+                      </label>
+                      <Input
+                        id={`cheque-banco-${p.key}`}
+                        autoComplete="off"
+                        value={p.chequeBanco}
+                        onChange={(e) => {
+                          v.atualizarPagamento(p.key, { chequeBanco: e.target.value });
+                          limpar("payments");
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <label htmlFor={`cheque-bom-para-${p.key}`} className="text-xs text-texto-secundario">
+                        Bom para (data)
+                      </label>
+                      <Input
+                        id={`cheque-bom-para-${p.key}`}
+                        type="date"
+                        value={p.chequeBomPara}
+                        onChange={(e) => {
+                          v.atualizarPagamento(p.key, { chequeBomPara: e.target.value });
+                          limpar("payments");
+                        }}
+                      />
+                    </div>
+                    {!v.contatoId && (
+                      <p className="text-xs text-atencao-tinta sm:col-span-2">
+                        O cheque precisa de um cliente: escolha acima.
+                      </p>
+                    )}
+                  </div>
+                )}
                 {p.kind === "fiado" && (
                   <div className="space-y-1">
                     <label htmlFor={`vencimento-${p.key}`} className="text-xs text-texto-secundario">

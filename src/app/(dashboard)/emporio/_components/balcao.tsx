@@ -4,12 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
-import { apiPost } from "@/lib/client-api";
+import { apiGet, apiPost } from "@/lib/client-api";
 import { reaisBr } from "@/lib/numero-br";
 import { VendaCampos } from "./venda-campos";
 import { numeroBr } from "./formato";
 import { FORMA_ROTULO } from "./venda-rotulos";
-import { useVenda, type PrecosVenda, type ProdutoVenda } from "./venda-estado";
+import { useVenda, type PrecosVenda, type ProdutoVenda, type RegraCartaoVenda } from "./venda-estado";
 
 /**
  * O balcão (Q87): a venda de dez segundos. Abre direto na venda, sem lista na
@@ -52,7 +52,8 @@ export function Balcao({
   contatos: { id: string; name: string }[];
 }) {
   const err = useErrosDeFormulario(ORDEM);
-  const v = useVenda({ produtos, precos, lojaInicial: lojas.length === 1 ? lojas[0].id : "" });
+  const [regras, setRegras] = useState<RegraCartaoVenda[] | null>(null);
+  const v = useVenda({ produtos, precos, lojaInicial: lojas.length === 1 ? lojas[0].id : "", regras });
   const [enviando, setEnviando] = useState(false);
   const [resumo, setResumo] = useState<Resumo | null>(null);
   const chave = useRef<{ assinatura: string; key: string } | null>(null);
@@ -69,6 +70,19 @@ export function Balcao({
       // Armazenamento bloqueado: a pessoa escolhe a loja de novo, sem prejuízo.
     }
   }, [lojas, loja, setLoja]);
+
+  // As taxas de cartão das lojas, só para informar o líquido e avisar antes de
+  // enviar. Se a leitura falhar, o balcão segue sem o aviso e o servidor recusa
+  // em `payments` a venda no cartão sem taxa.
+  useEffect(() => {
+    let vivo = true;
+    void apiGet<RegraCartaoVenda[]>("/api/v1/emporio/card-fee-rules").then((res) => {
+      if (vivo && res.ok) setRegras(res.data);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, []);
 
   // O mesmo efeito do FormSheet: leva o foco ao primeiro campo recusado.
   useEffect(() => {

@@ -28,8 +28,38 @@ export type LinhaItem = {
   manual: boolean;
 };
 
-export type FormaDePagamento = "dinheiro" | "pix" | "fiado";
-export type LinhaPagamento = { key: number; kind: FormaDePagamento; valor: string; vencimento: string };
+export type FormaDePagamento =
+  | "dinheiro"
+  | "pix"
+  | "debito"
+  | "credito_vista"
+  | "credito_parcelado"
+  | "cheque"
+  | "fiado";
+export type LinhaPagamento = {
+  key: number;
+  kind: FormaDePagamento;
+  valor: string;
+  vencimento: string;
+  /** Crédito parcelado: 2 a 12. */
+  parcelas: string;
+  chequeNumero: string;
+  chequeBanco: string;
+  /** "Bom para", AAAA-MM-DD. */
+  chequeBomPara: string;
+};
+
+/** A taxa da loja para uma forma de cartão (Q89): é o que o balcão mostra antes de enviar. */
+export type RegraCartaoVenda = { establishment_id: string; kind: string; fee_pct: number; days: number };
+
+export const FORMAS_DE_CARTAO: string[] = ["debito", "credito_vista", "credito_parcelado"];
+export const ehCartao = (kind: string) => FORMAS_DE_CARTAO.includes(kind);
+
+/** Líquido do cartão, com o mesmo arredondamento da action (`prepararVenda`). */
+export function liquidoDoCartaoCent(valorCent: number, feePct: number): { taxaCent: number; liquidoCent: number } {
+  const taxaCent = Math.round(Number(((valorCent * feePct) / 100).toPrecision(12)));
+  return { taxaCent, liquidoCent: valorCent - taxaCent };
+}
 
 export type CampoDaVenda = "establishment_id" | "items" | "contact_id" | "payments";
 
@@ -51,13 +81,25 @@ export function normalizar(texto: string): string {
     .trim();
 }
 
+const CARTAO_NOME: Record<string, string> = {
+  debito: "débito",
+  credito_vista: "crédito à vista",
+  credito_parcelado: "crédito parcelado",
+};
+
 const paraIso = (data: string) => new Date(`${data}T12:00:00`).toISOString();
 
 export type CorpoDaVenda = {
   establishment_id: string;
   contact_id: string | null;
   items: { emporio_product_id: string; presentation_id: string; quantity: number; unit_price: number }[];
-  payments: { kind: FormaDePagamento; amount: number; due_date: string | null }[];
+  payments: {
+    kind: FormaDePagamento;
+    amount: number;
+    due_date: string | null;
+    installments?: number;
+    check?: { number: string; bank: string; good_for: string };
+  }[];
 };
 
 export type Montagem = {
@@ -73,6 +115,7 @@ export function useVenda({
   lojaInicial,
   contatoInicial = "",
   abatimentoCent = 0,
+  regras = null,
 }: {
   produtos: ProdutoVenda[];
   precos: PrecosVenda;
@@ -80,6 +123,11 @@ export function useVenda({
   contatoInicial?: string;
   /** Valor da troca que já paga parte da venda. */
   abatimentoCent?: number;
+  /**
+   * As taxas de cartão das lojas. `null` = ainda não se sabe (ou a tela não as
+   * tem): nesse caso a conferência fica com o servidor, que recusa em `payments`.
+   */
+  regras?: RegraCartaoVenda[] | null;
 }) {
   const contador = useRef(0);
   const proximo = () => {
@@ -180,8 +228,26 @@ export function useVenda({
   function adicionarPagamento(kind: FormaDePagamento) {
     setPagamentos((lista) => {
       if (kind === "fiado" && lista.some((p) => p.kind === "fiado")) return lista;
-      return [...lista, { key: proximo(), kind, valor: faltaCent > 0 ? centavosParaCampo(faltaCent) : "", vencimento: "" }];
+      return [
+        ...lista,
+        {
+          key: proximo(),
+          kind,
+          valor: faltaCent > 0 ? centavosParaCampo(faltaCent) : "",
+          vencimento: "",
+          parcelas: "2",
+          chequeNumero: "",
+          chequeBanco: "",
+          chequeBomPara: "",
+        },
+      ];
     });
+  }
+
+  /** A taxa da loja escolhida para a forma, ou `null` quando não há (ou ainda não se sabe). */
+  function regraDe(kind: string): RegraCartaoVenda | null {
+    if (!regras || !loja) return null;
+    return regras.find((r) => r.establishment_id === loja && r.kind === kind) ?? null;
   }
 
   function atualizarPagamento(key: number, parte: Partial<LinhaPagamento>) {
@@ -215,15 +281,25 @@ export function useVenda({
     }
 
     const temFiado = pagamentos.some((p) => p.kind === "fiado");
+    const temCheque = pagamentos.some((p) => p.kind === "cheque");
     if (temFiado && !contatoId) novos.contact_id = "Escolha o cliente para vender no fiado.";
+    else if (temCheque && !contatoId) novos.contact_id = "Escolha o cliente para receber o cheque.";
 
     const pagamentosApi: CorpoDaVenda["payments"] = [];
     const ilegivel = pagamentos.some((p) => {
       const n = lerNumeroBr(p.valor);
       return n === null || n <= 0;
     });
+    const semTaxa = regras && loja ? pagamentos.find((p) => ehCartao(p.kind) && !regraDe(p.kind)) : undefined;
+    const chequeIncompleto = pagamentos.some(
+      (p) => p.kind === "cheque" && (!p.chequeNumero.trim() || !p.chequeBanco.trim() || !p.chequeBomPara),
+    );
     if (ilegivel) {
       novos.payments = "Cada pagamento precisa de um valor maior que zero.";
+    } else if (semTaxa) {
+      novos.payments = `Esta loja não tem taxa de ${CARTAO_NOME[semTaxa.kind] ?? "cartão"} cadastrada. Cadastre em Caixa, Taxas de cartão (dono ou administrador).`;
+    } else if (chequeIncompleto) {
+      novos.payments = "Informe o número, o banco e a data do cheque (bom para).";
     } else if (aPagarCent > 0 && pagamentos.length === 0) {
       novos.payments = "Escolha como o cliente vai pagar.";
     } else if (faltaCent > 0) {
@@ -248,6 +324,10 @@ export function useVenda({
               kind: p.kind,
               amount: c / 100,
               due_date: p.kind === "fiado" && p.vencimento ? paraIso(p.vencimento) : null,
+              ...(p.kind === "credito_parcelado" ? { installments: Number(p.parcelas) || 2 } : {}),
+              ...(p.kind === "cheque"
+                ? { check: { number: p.chequeNumero.trim(), bank: p.chequeBanco.trim(), good_for: p.chequeBomPara } }
+                : {}),
             });
           }
         }
@@ -282,6 +362,8 @@ export function useVenda({
     removerItem,
     pagamentos,
     adicionarPagamento,
+    regraDe,
+    regrasCarregadas: regras !== null,
     atualizarPagamento,
     removerPagamento,
     contatoId,
