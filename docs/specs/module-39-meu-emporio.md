@@ -171,6 +171,14 @@ cliente real com as duas coisas vai precisar.
 | Q85 | **Preço praticado abaixo do cadastrado é desconto**, com o mesmo limite % da loja; acima do limite, só OWNER e ADMIN, gravando quem deu. Acima do cadastrado é livre. Sem preço cadastrado, a venda pede o valor. Nada muda o preço cadastrado | uma regra só não deixa contornar o limite |
 | Q86 | **Cancelamento total** (OWNER e ADMIN) devolve o estoque e cancela o lançamento, e o dinheiro recebido sai de onde entrou. **Devolução parcial**: a mercadoria volta (ou vira perda, se avariada), e o valor sai da gaveta ou abate do fiado. **Troca** = devolução mais venda nova, ligadas. Sem crédito na loja (dívida 2.24) | crédito na loja precisa de um saldo do cliente que ainda não existe |
 | Q87 | Telas: **`/emporio/vender`** (o balcão, abre direto na venda), **`/emporio/vendas`** (lista, detalhe, cancelar, devolver, trocar), **`/emporio/fiado`** e **`/emporio/caixa`**; o início ganha os cartões | a "venda de dez segundos" não pode ter lista na frente |
+| Q88 | **Taxa de cartão:** a venda segue com um lançamento de receita pelo valor cheio, recebido na hora; a taxa é um lançamento de **despesa "Taxas de cartão"**, pago, ligado à venda; vai para o a receber só o líquido. A F4 reaproveita essa despesa no "Vendeu, Pagou" | gravar pelo líquido esconderia a taxa e erraria o desconto da Q27 |
+| Q89 | **Regra do cartão** por loja e forma (débito, crédito à vista, crédito parcelado): taxa %, prazo em dias e a conta onde cai; OWNER e ADMIN. Parcelado de 2 a 12, taxa única, 1ª parcela no prazo e as seguintes a cada 30 dias, centavo na 1ª. **Sem regra, a venda é recusada** | a margem errada não passa em silêncio; taxa por parcela e antecipação são a dívida 2.25 |
+| Q90 | **Baixa na data por cálculo na leitura:** cada parcela é uma linha com data, valor líquido e conta; o a receber do cartão é a soma das parcelas futuras, e a parcela de hoje para trás já conta no saldo da conta. Sem job | o saldo é derivado (invariante 2) e não existe worker 24/7 |
+| Q91 | **Cheque:** cliente, número, banco, "bom para" e valor, todos obrigatórios. Recebido é pagamento da venda e fica na carteira (soma dos não compensados, sem `CashMovement`); depositado escolhe a conta; compensado entra na conta; **devolvido tira o pagamento** e a dívida reabre no fiado do cliente | o próprio cheque é o a receber, como o cartão |
+| Q92 | **Transferência entre caixas:** dois `CashMovement` ligados, sem Financeiro; gaveta e conta em qualquer combinação. Sai de gaveta: OPERADOR para cima com acesso à loja de origem; sai de conta: OWNER e ADMIN. Mais do que tem é recusado | levar a gaveta ao banco é tarefa do atendente (§14.3) |
+| Q93 | **Conferência só da gaveta:** esperado, contado, diferença e justificativa (obrigatória com diferença). A diferença vira `CashMovement` de ajuste e lançamento **"Diferença de caixa"** (despesa quando falta, receita quando sobra) | a gaveta volta a bater, e o que sumiu não some do resultado |
+| Q94 | **Cancelar com cartão:** parcelas que não caíram são canceladas, a que já caiu vira saída da conta (estorno), e a taxa é cancelada. **Cheque recebido volta ao cliente**; depositado ou compensado recusa o cancelamento (409). Devolução parcial segue a F3a, e cartão e cheque contam como pago no teto | o estorno parcial muda de adquirente para adquirente |
+| Q95 | Balcão ganha **+ Débito, + Crédito, + Parcelado e + Cheque**; `/emporio/caixa` ganha **a receber do cartão, cheques, transferir entre caixas, conferir gaveta e as taxas de cartão** | cheque e cartão são dinheiro a caminho, e quem confere o caixa vê os dois juntos |
 
 ---
 
@@ -862,6 +870,118 @@ Observado e deixado como está: o fiado com vencimento entra no aviso de conta
 a receber que o Financeiro já manda (até 3 dias antes), como qualquer
 recebível.
 
+#### F3b: contrato (Q88 a Q95)
+
+**Modelo.** Enums novos: `CardKind` (`debito`, `credito_vista`,
+`credito_parcelado`) e `EmporioCheckStatus` (`recebido`, `depositado`,
+`compensado`, `devolvido`, `devolvido_ao_cliente`). `CashMovementOrigin` ganha
+`transferencia`, `conferencia`, `cheque_compensado` e `estorno_cartao`.
+`CashMovement` ganha `cash_transfer_id`, `cash_count_id`, `check_id` e
+`card_receivable_id`. Novos, todos escopados e com quem gravou:
+
+| model | campos |
+|---|---|
+| `CardFeeRule` | `establishment_id`, `kind`, `fee_pct` (0 a 100, 2 casas), `days` (0 a 120), `bank_account_id`; único por loja e forma |
+| `CardReceivable` | `sale_id`, `sale_payment_id`, `establishment_id`, `bank_account_id`, `installment` (1..n), `installments` (n), `gross_amount`, `net_amount`, `expected_on` (data, sem hora), `canceled_at?` |
+| `EmporioCheck` | `sale_id`, `sale_payment_id`, `contact_id`, `number`, `bank`, `good_for` (data), `amount`, `status`, `financial_payment_id?`, `bank_account_id?` (no depósito), `deposited_at?`, `cleared_at?`, `returned_at?`, `return_reason?` |
+| `CashTransfer` | `operation_key` (único na conta), origem e destino (cada um `establishment_id` ou `bank_account_id`), `amount`, `notes?` |
+| `CashCount` | `establishment_id`, `expected`, `counted`, `difference`, `justification?`, `counted_at` |
+| `EmporioSalePayment` (muda) | ganha `installments?` (parcelado) e a regra do momento: `fee_pct?`, `fee_amount?` |
+
+**Venda com cartão (Q88, Q89).** O pagamento leva `kind` de cartão e, no
+parcelado, `installments` (2 a 12; 422 `payments` fora disso). Sem
+`CardFeeRule` da loja para a forma: 422 `payments` com o aviso para cadastrar.
+Na transação da venda:
+- um `FinancialPayment` do valor cheio no lançamento da venda (`PaymentMethod`
+  `cartao`), sem `CashMovement`;
+- **taxa** = valor × `fee_pct` ÷ 100, ao centavo; um lançamento de despesa
+  **"Taxas de cartão"** por `createLinkedEntry`, pago, `related_module`
+  emporio, `related_id` = id da venda, a loja;
+- **parcelas:** débito e crédito à vista, uma; parcelado, `n`. Bruto e líquido
+  divididos em partes iguais, com o centavo que sobra na primeira. A 1ª cai em
+  `sold_at` + `days`, e cada seguinte 30 dias depois da anterior;
+- `EmporioSalePayment` grava `fee_pct` e `fee_amount` do momento (§23.4).
+
+⚠️ O lançamento da venda e o da taxa têm o mesmo `related_id`: **toda busca
+do lançamento da venda filtra `entry_type: income`**.
+
+**Saldos (Q90).** `expected_on` é comparado com a data de hoje em Brasília.
+- Conta bancária: soma dos `CashMovement` mais as parcelas não canceladas com
+  `expected_on` até hoje.
+- **A receber do cartão:** parcelas não canceladas com `expected_on` depois de
+  hoje, por data e por conta.
+- A transferência e a recusa por saldo usam este mesmo saldo da conta.
+
+**Cheque (Q91).** O pagamento leva `kind` `cheque` e `check: { number, bank,
+good_for }`, todos obrigatórios (422 `payments`); a venda exige `contact_id`
+(422 `contact_id`). Na venda: `FinancialPayment` (`cheque`), `EmporioCheck`
+`recebido`, sem `CashMovement`. **Carteira** = soma dos cheques `recebido` e
+`depositado`.
+- **Depositar** (`recebido` → `depositado`): escolhe `bank_account_id`.
+  OPERADOR para cima, com acesso à loja.
+- **Compensou** (`depositado` → `compensado`): `CashMovement` de entrada na
+  conta do depósito, origem `cheque_compensado`. OWNER e ADMIN.
+- **Voltou** (`recebido` ou `depositado` → `devolvido`): `return_reason`
+  obrigatório; o `FinancialPayment` do cheque sai do lançamento, que volta a
+  `pending` se estava `paid`, e a dívida aparece no fiado do cliente. OWNER e
+  ADMIN.
+- Fora da ordem: 409 `CHECK_STATUS`.
+
+**Transferência entre caixas (Q92).** `operation_key`, `from` e `to` (cada um
+com `establishment_id` ou `bank_account_id`), `amount` > 0. Dois
+`CashMovement` (saída na origem, entrada no destino), origem `transferencia`,
+ligados ao `CashTransfer`. Origem igual ao destino: 422 `to`. Saldo de origem
+menor que o valor: 409 `INSUFFICIENT_CASH` em `amount`. Sai de gaveta: OPERADOR
+para cima com acesso à loja de origem; sai de conta: OWNER e ADMIN. Nada no
+Financeiro. Mesma chave devolve a transferência gravada.
+
+**Conferência (Q93).** `establishment_id`, `counted` (≥ 0), `justification?`.
+`expected` = saldo da gaveta no momento; `difference` = contado − esperado.
+Diferença diferente de zero exige `justification` (422 `justification`) e
+grava, na mesma transação, um `CashMovement` de ajuste (entrada se sobra,
+saída se falta, origem `conferencia`) e um lançamento **"Diferença de caixa"**
+(receita se sobra, despesa se falta), pago, `related_id` = id da conferência.
+OPERADOR para cima, com acesso à loja.
+
+**Cancelamento e devolução (Q94).**
+- **Cartão:** parcelas com `expected_on` depois de hoje ganham `canceled_at`;
+  cada parcela que já caiu vira `CashMovement` de saída da conta, origem
+  `estorno_cartao`; o lançamento da taxa vira `cancelled`. Pagamento em
+  cartão não gera saída de gaveta.
+- **Cheque `recebido`:** vira `devolvido_ao_cliente`. **Cheque `depositado` ou
+  `compensado`:** 409 `SALE_HAS_DEPOSITED_CHECK`. Cheque `devolvido`: nada a
+  estornar.
+- **Devolução parcial:** como na F3a; o teto conta os pagamentos de cartão e
+  de cheque que estão no lançamento.
+
+**Papéis:** regra de cartão, compensou e voltou: OWNER e ADMIN. Depositar,
+transferir saindo de gaveta e conferir: OPERADOR para cima com a loja no
+vínculo. Transferir saindo de conta: OWNER e ADMIN.
+
+**Actions** (em `src/lib/actions/emporio-caixa.ts` e `emporio-vendas.ts`):
+- `listarRegrasCartaoAction`, `definirRegraCartaoAction(db, ator, { establishment_id, kind, fee_pct, days, bank_account_id })` (cria ou substitui) e `removerRegraCartaoAction(db, ator, id)`;
+- `listarChequesAction(db, ator, opts?)`, `depositarChequeAction(db, ator, id, { bank_account_id })`, `compensarChequeAction(db, ator, id)`, `chequeVoltouAction(db, ator, id, { reason })`;
+- `transferirCaixaAction(db, ator, { operation_key, from, to, amount, notes? })`;
+- `conferirGavetaAction(db, ator, { establishment_id, counted, justification? })` e `listarConferenciasAction`;
+- `lerCaixaAction` passa a trazer `card_receivables` (futuras), `checks` (carteira) e a última conferência de cada gaveta;
+- `venderAction` aceita os pagamentos novos.
+
+**Rotas** (`/api/v1/emporio/...`):
+- `card-fee-rules` (GET e PUT) e `card-fee-rules/[id]` (DELETE);
+- `checks` (GET), `checks/[id]/deposit`, `checks/[id]/clear` e `checks/[id]/return` (POST);
+- `cash/transfers` (POST);
+- `cash/counts` (GET e POST).
+
+**Telas (Q95):** no balcão, + Débito, + Crédito, + Parcelado (com as parcelas)
+e + Cheque (número, banco, bom para); em `/emporio/caixa`, a receber do cartão
+por data, cheques com Depositar, Compensou e Voltou, Transferir entre caixas,
+Conferir gaveta e Taxas de cartão (OWNER e ADMIN).
+
+**Aceite da F3b (§25):** "transferir dinheiro entre caixas" não altera o
+resultado. Mais: venda de R$ 100 no crédito com taxa de 3% e 30 dias gera
+receita de R$ 100, despesa de R$ 3 e R$ 97 a receber, que aparecem na conta no
+dia 30; cheque devolvido faz o cliente voltar a dever.
+
 ### F4: resultado
 
 - Despesa fixa (modelo, geração por período, rateio).
@@ -934,5 +1054,6 @@ O §24 do documento, mais:
 | Produto do Empório visível ao agente do WhatsApp (Q51) | 2.22 |
 | Custo extra na produção da loja (Q78) | 2.23 |
 | Crédito na loja na devolução (Q86) | 2.24 |
+| Taxa de cartão por número de parcelas, antecipação do recebível e cheque no recebimento de fiado (Q89, Q91) | 2.25 |
 
 O detalhe de cada uma está em [../agents/dividas.md](../agents/dividas.md).
