@@ -96,7 +96,7 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
-### Meu Empório (Módulo 39): F0 a F3b em produção
+### Meu Empório (Módulo 39): F0 a F4a em produção
 
 **F0 (liberação e fundação) em produção desde 27/10** (`192e402`, merge
 fast-forward da `emporio-f0`, que trouxe a spec junto; autorizado pelo
@@ -285,10 +285,13 @@ de R$ 2.222,22, conferido pela action), telas `/emporio/resultado` e
 `/emporio/despesas` (`cc25280`), roteiro `emporio-f4a` (`94da23d`, 0 falhas;
 3 vermelhas com as perdas fora do resultado). Provas: `tsc` 0, `check` 0
 falhas, `m81`, `m82` e `m83` verdes, `test:all` 86/86, roteiros `f3a` e
-`f3b` verdes de novo. **Pronta na branch, falta:** o aceite do usuário e, com
-autorização dada na conversa, a migração `20261029120000_emporio_f4a` no Neon
-(URL Direct) e o merge. Depois, a F4b (visão somada, rankings, margem
-negativa, filtro do Financeiro), com aprovação.
+`f3b` verdes de novo. **Em produção em 29/10, autorizado pelo usuário na
+conversa:** migração `20261029120000_emporio_f4a` no Neon (URL Direct,
+`migrate status` em dia) antes do push, merge fast-forward
+`33b878b..3db1e63`, deploy de Production do `3db1e63` conferido pela API de
+deployments e as rotas novas no `/docs/api`. **Falta:** o aceite do usuário
+e, com aprovação, a F4b (visão somada, rankings, margem negativa, filtro do
+Financeiro).
 
 Histórico da F2a: decisões Q60 a Q71 e o contrato na spec (`f1b5d17`). Estoque
 (`1ecaf19`), compras e Lista com loja (`576c842`), telas (`3d61ef7`),
