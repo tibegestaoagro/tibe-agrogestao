@@ -626,6 +626,127 @@ export const GROUPS: Group[] = [
       },
       {
         method: "GET",
+        path: "/api/v1/emporio/sales",
+        auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
+        description: "Lista as vendas das lojas visíveis ao usuário, da mais recente. Filtros: `establishment_id` (fora do vínculo: 404), `contact_id`, `status` (`concluida`, `cancelada`), `de`, `ate`, `limit`. Cada venda traz itens (com `returnable_qty`), pagamentos, devoluções, `paid_amount` e `open_amount` do lançamento.",
+        response: `200
+{ "data": [{ "id": "cl...", "establishment_name": "Loja Centro", "net_amount": 200, "discount_amount": 0, "status": "concluida", "paid_amount": 120, "open_amount": 80, "items": [], "payments": [], "returns": [] }], "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/sales",
+        auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR com a loja no vínculo (desconto acima do limite: só OWNER e ADMIN)",
+        description: "Registra a venda numa transação. `operation_key` obrigatória e única na conta: repetir devolve a venda gravada com 200 (primeira vez: 201). Preço = o cadastrado na loja; sem ele `unit_price` é obrigatório (422 `items`). Abaixo do cadastrado é desconto, com o `max_discount_pct` da loja (vazio = 0%): acima do limite, OPERADOR recebe 403 `DISCOUNT_ABOVE_LIMIT` em `items` e OWNER/ADMIN passam, gravando quem autorizou. Venda a granel baixa do avulso e, se faltar, abre embalagens lacradas da menor para a maior (`abertura_lacrado` mais `abertura_avulso`). Apresentação fechada sem embalagem lacrada suficiente: 409 `INSUFFICIENT_STOCK` em `items`, sempre; a granel, salvo estoque negativo liberado. `payments`: dinheiro, PIX e fiado (soma igual ao total, senão 422 `payments`; débito, crédito e cheque chegam depois, 422 `payments`). Fiado exige `contact_id` ativo (422 `contact_id`) e aparece uma vez. PIX vai para `bank_account_id` ou a conta PIX da loja; sem nenhuma, 422 `payments`. Gera um lançamento de receita Vendas do Empório: pago na hora se não houver fiado, senão pendente com o saldo do fiado.",
+        request: `{ "operation_key": "k-123", "establishment_id": "cl...", "contact_id": "cl...", "items": [{ "emporio_product_id": "cl...", "presentation_id": "cl...", "quantity": 1, "unit_price": 12.5 }], "payments": [{ "kind": "dinheiro", "amount": 5 }, { "kind": "fiado", "amount": 7.5, "due_date": "2026-11-30" }] }`,
+        response: `201
+{ "data": { "id": "cl...", "net_amount": 12.5, "status": "concluida", "entry_id": "cl...", "paid_amount": 5, "open_amount": 7.5 }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/sales/:id",
+        auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
+        description: "Uma venda com itens, pagamentos e devoluções. Loja fora do vínculo: 404.",
+        response: `200
+{ "data": { "id": "cl...", "status": "concluida", "items": [], "payments": [], "returns": [] }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/sales/:id/cancel",
+        auth: "Sessão · emporio:write · só OWNER e ADMIN",
+        description: "Cancela a venda inteira: `reason` obrigatório (422 `reason`). Marca as `venda` do estoque como canceladas (as aberturas de saca ficam), cancela o lançamento e, para cada pagamento recebido, grava uma saída de caixa no mesmo lugar em que entrou. Já cancelada: 409 `SALE_CANCELED`. Com devolução: 409 `SALE_HAS_RETURNS`.",
+        request: `{ "reason": "Venda lançada em duplicidade" }`,
+        response: `200
+{ "data": { "id": "cl...", "status": "cancelada", "canceled_reason": "Venda lançada em duplicidade" }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/sales/:id/return",
+        auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR com a loja no vínculo",
+        description: "Devolução parcial. `operation_key` obrigatória (repetir devolve a gravada com 200). `refund_kind`: `dinheiro` (despesa paga mais saída da gaveta) ou `abater_fiado` (reduz o lançamento da venda, que precisa ter saldo em aberto: 422 `amount`). Cada item traz `sale_item_id` e `quantity` até o vendido menos o devolvido (422 `items`); `loss_reason` marca avariado e grava também a perda. A mercadoria volta pelo custo da venda. Venda cancelada: 409 `SALE_CANCELED`.",
+        request: `{ "operation_key": "k-9", "refund_kind": "dinheiro", "items": [{ "sale_item_id": "cl...", "quantity": 1, "loss_reason": "avaria" }], "reason": "Saco furado" }`,
+        response: `201
+{ "data": { "id": "cl...", "sale_id": "cl...", "refund_kind": "dinheiro", "amount": 12.5, "items": [] }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/sales/:id/exchange",
+        auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR com a loja no vínculo",
+        description: "Troca: uma devolução (`items_devolvidos`) mais uma venda nova (`venda`, no formato do POST de venda; `establishment_id` e `operation_key` são opcionais e assumem a loja da venda e `<operation_key>:venda`), numa transação. O valor devolvido paga a venda nova como pagamento `troca`, sem caixa; `venda.payments` cobre só o que sobra (422 `payments`). Se o devolvido passa da venda nova, a diferença sai da gaveta em dinheiro.",
+        request: `{ "operation_key": "k-10", "items_devolvidos": [{ "sale_item_id": "cl...", "quantity": 1 }], "venda": { "items": [{ "emporio_product_id": "cl...", "presentation_id": "cl...", "quantity": 1 }], "payments": [{ "kind": "dinheiro", "amount": 3 }] } }`,
+        response: `201
+{ "data": { "devolucao": { "id": "cl...", "refund_kind": "troca", "amount": 12.5 }, "venda": { "id": "cl...", "exchange_return_id": "cl..." } }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/receivables",
+        auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
+        description: "O fiado em aberto, por cliente: `owed`, `oldest_due_date`, `overdue_amount` e os lançamentos com o saldo de cada um. O saldo é o valor menos a soma dos pagamentos. Filtros: `establishment_id`, `contact_id`.",
+        response: `200
+{ "data": [{ "contact_id": "cl...", "contact_name": "Seu Zé", "owed": 80, "oldest_due_date": "2026-11-30T03:00:00.000Z", "overdue_amount": 0, "entries": [{ "entry_id": "cl...", "open": 80 }] }], "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/receivables/receive",
+        auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR com a loja no vínculo",
+        description: "Recebe fiado sem criar venda. `operation_key` obrigatória (repetir devolve o recebimento gravado com 200). `kind`: `dinheiro` (entra na gaveta da loja) ou `pix` (conta PIX da loja, ou `bank_account_id`). Com `entry_id` paga aquele lançamento; sem ele distribui da VENDA mais antiga para a mais nova. Valor acima do devido: 422 `amount`.",
+        request: `{ "operation_key": "k-11", "contact_id": "cl...", "establishment_id": "cl...", "amount": 50, "kind": "dinheiro" }`,
+        response: `201
+{ "data": { "amount": 50, "kind": "dinheiro", "parts": [{ "entry_id": "cl...", "amount": 50 }] }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/bank-accounts",
+        auth: "Sessão · emporio:read · só OWNER e ADMIN",
+        description: "Contas bancárias do Empório com o saldo (soma dos movimentos) e as lojas que a usam como conta PIX. `incluir_arquivados=1` traz as arquivadas.",
+        response: `200
+{ "data": [{ "id": "cl...", "name": "Conta PIX", "bank": "Sicredi", "balance": 320.5, "archived_at": null, "pix_establishment_ids": ["cl..."] }], "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/bank-accounts",
+        auth: "Sessão · emporio:write · só OWNER e ADMIN",
+        description: "Cadastra a conta. `name` obrigatório (422 `name`) e único na conta do cliente (409 `DUPLICATE_NAME`); `bank` opcional.",
+        request: `{ "name": "Conta PIX", "bank": "Sicredi" }`,
+        response: `201
+{ "data": { "id": "cl...", "name": "Conta PIX", "balance": 0 }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/emporio/bank-accounts/:id",
+        auth: "Sessão · emporio:write · só OWNER e ADMIN",
+        description: "Edita nome e banco, ou arquiva (`archived: true`) e desarquiva. Nome repetido: 409 `DUPLICATE_NAME`.",
+        request: `{ "archived": true }`,
+        response: `200
+{ "data": { "id": "cl...", "archived_at": "2026-10-28T12:00:00.000Z" }, "meta": {} }`,
+      },
+      {
+        method: "PUT",
+        path: "/api/v1/emporio/establishments/:id/pix-account",
+        auth: "Sessão · emporio:write · só OWNER e ADMIN",
+        description: "Define a conta que recebe o PIX da loja (`bank_account_id`, ou `null` para limpar). Conta inexistente ou arquivada: 422 `bank_account_id`.",
+        request: `{ "bank_account_id": "cl..." }`,
+        response: `200
+{ "data": { "establishment_id": "cl...", "pix_bank_account_id": "cl..." }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/cash",
+        auth: "Sessão · emporio:read · gaveta de quem tem a loja no vínculo; contas só OWNER e ADMIN",
+        description: "Saldos e movimentos. `drawers` traz o saldo da gaveta de cada loja visível, `accounts` o de cada conta (vazio para quem não é OWNER ou ADMIN) e `movements` os lançamentos de caixa, do mais recente. Saldo = entradas menos saídas, nunca gravado. Filtros: `establishment_id`, `bank_account_id` (só OWNER e ADMIN), `limit`.",
+        response: `200
+{ "data": { "drawers": [{ "establishment_id": "cl...", "name": "Loja Centro", "balance": 150 }], "accounts": [], "movements": [{ "direction": "entrada", "amount": 50, "origin": "venda" }] }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/cash/opening",
+        auth: "Sessão · emporio:write · loja: OWNER, ADMIN e OPERADOR com a loja no vínculo; conta: só OWNER e ADMIN",
+        description: "Saldo inicial da gaveta de uma loja (`establishment_id`) OU de uma conta (`bank_account_id`), uma vez só (409 `OPENING_ALREADY_DONE`). Informar os dois ou nenhum: 422. `amount` maior que zero (422 `amount`).",
+        request: `{ "establishment_id": "cl...", "amount": 200 }`,
+        response: `201
+{ "data": { "direction": "entrada", "amount": 200, "origin": "implantacao" }, "meta": {} }`,
+      },
+      {
+        method: "GET",
         path: "/api/v1/pastures",
         auth: "Sessão · rebanho:read · perfil fazenda",
         description: "Lista pastos ativos de uma fazenda. property_id é obrigatório. meta.area_summary traz a soma das áreas x tamanho total da fazenda.",
