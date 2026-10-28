@@ -222,13 +222,21 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 ### ⏭️ PRÓXIMO PASSO
 
 **Meu Empório:** F0 e F1 em produção (recurso desligado até o usuário ligar
-na Da Mata pela Plataforma). **F2a (compra e estoque) em andamento na branch
-`emporio-f2a`**, aprovada pelo usuário: decisões Q60 a Q71 e o contrato na
-spec (`f1b5d17`), schema e migração `20261027210000_emporio_f2a` só no
-Docker (`c223694`). Onda 2 despachada: estoque da loja, compras e Lista com
-loja, e a suíte `m79` da spec. Depois: telas, roteiro
-`npm run navegador -- emporio-f2a`, aceite. Para produção: migração no Neon
-e merge, cada um com autorização. A rotação de segurança
+na Da Mata pela Plataforma). **F2a (compra e estoque) pronta na branch
+`emporio-f2a`, empurrada, não mergeada, à espera do aceite do usuário.**
+Decisões Q60 a Q71 e o contrato na spec (`f1b5d17`). Migração
+`20261027210000_emporio_f2a` **só no Docker: falta o Neon.** Estoque
+(`1ecaf19`), compras e Lista com loja (`576c842`), telas (`3d61ef7`),
+produtos do Empório no comprei da Lista com loja (`85f1977`). Provas: `tsc`
+0, `check` 0 falhas, `test:all` 81/82 com a `m73` corrigida depois
+(`75ba8e2`, contrato), `test:m79` com 162 checagens (6 vermelhas com o
+cancelado contado e o frete por igual), roteiro `emporio-f2a` com 32 itens
+(vermelho com a média trocada pelo último custo), `emporio-f0` e
+`emporio-f1` verdes. Papéis da F2a decididos pelo padrão da Q55 (compra,
+contagem, perda e estoque inicial com OPERADOR; cancelar e limites com OWNER
+e ADMIN), registrados na spec. Para produção: migração no Neon e merge, cada
+um com autorização. Depois, a F2b (transferência e composição) só com
+aprovação. A rotação de segurança
 (item 1) foi adiada pelo usuário em 27/10 para tratar do Empório.
 
 **0. Programa de dívidas ENCERRADO: E0 a E11 em produção** (E11, `ccf1474`).
