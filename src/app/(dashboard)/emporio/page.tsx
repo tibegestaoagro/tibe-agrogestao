@@ -4,9 +4,10 @@ import { getTenantDb } from "@/lib/tenant-context";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { precisaReporAction } from "@/lib/actions/emporio-estoque";
 import { listarComprasAction } from "@/lib/actions/emporio-compras";
+import { listarTransferenciasAction } from "@/lib/actions/emporio-transferencias";
 
 /**
- * Meu Empório: o início. Quatro cartões, sem item novo no menu (Q59, Q71).
+ * Meu Empório: o início. Cinco cartões, sem item novo no menu (Q59, Q71).
  *
  * `requireFeaturePage` devolve 404 quando o recurso não é visível para o
  * usuário, como se a rota não existisse.
@@ -22,6 +23,8 @@ export default async function EmporioPage() {
   const aRepor = repor.ok ? repor.data.length : 0;
   const pendentes = await listarComprasAction(db, user, { status: "pendente" });
   const comprasPendentes = pendentes.ok ? pendentes.data.length : 0;
+  const emTransito = await listarTransferenciasAction(db, user, { status: "em_transito" });
+  const transferenciasEmTransito = emTransito.ok ? emTransito.data.length : 0;
 
   return (
     <div className="space-y-6">
@@ -60,6 +63,13 @@ export default async function EmporioPage() {
           contagem={comprasPendentes}
           singular="compra a receber"
           plural="compras a receber"
+        />
+        <Cartao
+          href="/emporio/transferencias"
+          titulo="Transferências"
+          contagem={transferenciasEmTransito}
+          singular="transferência em trânsito"
+          plural="transferências em trânsito"
         />
       </div>
     </div>

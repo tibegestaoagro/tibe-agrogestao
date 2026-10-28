@@ -5,6 +5,7 @@ import { getTenantDb } from "@/lib/tenant-context";
 import { hasMinRole } from "@/lib/permissions";
 import { lerProdutoEmporioAction } from "@/lib/actions/emporio-catalogo";
 import { saldoDoProdutoAction } from "@/lib/actions/emporio-estoque";
+import { lerComposicaoAction, listarProducoesAction } from "@/lib/actions/emporio-producao";
 import { reaisBr } from "@/lib/numero-br";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -21,6 +22,8 @@ import { DadosComerciaisForm } from "../../_components/dados-comerciais-form";
 import { ApresentacaoForm } from "../../_components/apresentacao-form";
 import { PrecoForm, AplicarSugeridoBotao } from "../../_components/preco-form";
 import { ImplantarForm, ContagemForm, PerdaForm, LimitesForm } from "../../_components/estoque-forms";
+import { ComposicaoForm } from "../../_components/composicao-form";
+import { ProduzirForm, CancelarProducaoForm } from "../../_components/producao-forms";
 import {
   UNIDADE_BASE_ROTULO,
   UNIDADE_BASE_SUFIXO,
@@ -28,6 +31,8 @@ import {
   numeroBr,
   pctBr,
 } from "../../_components/formato";
+
+const DATA = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" });
 
 export default async function ProdutoEmporioPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireFeaturePage("emporio");
@@ -58,6 +63,29 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
     base_unit: p.base_unit,
     separa: p.track_sealed_efetivo,
     fechadas: ativas.filter((a) => a.is_sealed_package).map((a) => ({ id: a.id, name: a.name })),
+  };
+
+  // Composição (F2b): a receita, os candidatos a componente e as produções do produto.
+  const composicaoRes = await lerComposicaoAction(db, user, id);
+  const composicao = composicaoRes.ok ? composicaoRes.data : null;
+  const producoesRes = await listarProducoesAction(db, user, { emporio_product_id: id, limit: 20 });
+  const producoes = producoesRes.ok ? producoesRes.data : [];
+  const candidatos = ehAdmin
+    ? (
+        await db.emporioProduct.findMany({
+          where: { archived_at: null, id: { not: id } },
+          select: { id: true, base_unit: true, product: { select: { name: true } } },
+        })
+      )
+        .map((c) => ({ id: c.id, name: c.product.name, base_unit: c.base_unit }))
+        .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
+    : [];
+  const produtoProducao = {
+    id: p.id,
+    name: p.name,
+    base_unit: p.base_unit,
+    separa: p.track_sealed_efetivo,
+    fechadas: produtoEstoque.fechadas,
   };
 
   return (
@@ -173,6 +201,45 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
       </section>
 
       <section className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-texto">Composição</h2>
+          {ehAdmin && (
+            <ComposicaoForm
+              produtoId={p.id}
+              baseUnit={p.base_unit}
+              composicao={composicao}
+              componentes={candidatos}
+            />
+          )}
+        </div>
+        {composicao === null ? (
+          <EmptyState titulo="Sem composição">
+            Cadastre a receita se este produto é feito na loja a partir de outros produtos.
+          </EmptyState>
+        ) : (
+          <div className="space-y-3 rounded-lg border border-borda bg-superficie p-4 text-sm">
+            <p className="text-texto">
+              Receita para{" "}
+              <strong>
+                {numeroBr(composicao.reference_qty)} {sufixo}
+              </strong>
+              {composicao.yield_pct === null ? "" : `, com rendimento de ${pctBr(composicao.yield_pct)}`}
+            </p>
+            <ul className="divide-y divide-borda">
+              {composicao.items.map((c) => (
+                <li key={c.component_emporio_product_id} className="flex justify-between gap-3 py-1.5">
+                  <span className="text-texto">{c.name}</span>
+                  <span className="font-medium text-texto">
+                    {numeroBr(c.quantity)} {UNIDADE_BASE_SUFIXO[c.base_unit] ?? c.base_unit}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
+
+      <section className="space-y-3">
         <h2 className="text-lg font-semibold text-texto">Estoque por loja</h2>
         {lojasEstoque.length === 0 ? (
           <EmptyState
@@ -241,6 +308,13 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
                       <ContagemForm loja={loja} produto={produtoEstoque} />
                       <PerdaForm loja={loja} produto={produtoEstoque} />
                       {ehAdmin && <LimitesForm loja={loja} produto={produtoEstoque} />}
+                      {composicao !== null && (
+                        <ProduzirForm
+                          loja={{ id: loja.id, name: loja.name }}
+                          produto={produtoProducao}
+                          composicao={composicao}
+                        />
+                      )}
                     </div>
                   )}
                 </div>
@@ -249,6 +323,54 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
           </div>
         )}
       </section>
+
+      {producoes.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold text-texto">Produções</h2>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Data</TableHead>
+                <TableHead>Loja</TableHead>
+                <TableHead>Quantidade</TableHead>
+                <TableHead>Custo</TableHead>
+                <TableHead>Situação</TableHead>
+                {ehAdmin && <TableHead>Ações</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {producoes.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell>{DATA.format(new Date(r.created_at))}</TableCell>
+                  <TableCell className="font-medium text-texto">{r.establishment_name}</TableCell>
+                  <TableCell>
+                    {numeroBr(r.produced_qty)} {sufixo}
+                  </TableCell>
+                  <TableCell>
+                    {r.unit_cost == null ? "sem custo" : `${reaisBr(r.unit_cost)} por ${sufixo}`}
+                    {r.estimated && (
+                      <Badge variant="amber" className="ml-1">
+                        estimado
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={r.status === "ativa" ? "green" : "gray"}>
+                      {r.status === "ativa" ? "Ativa" : "Cancelada"}
+                    </Badge>
+                    {r.canceled_reason && (
+                      <span className="block text-xs text-texto-secundario">{r.canceled_reason}</span>
+                    )}
+                  </TableCell>
+                  {ehAdmin && (
+                    <TableCell>{r.status === "ativa" && <CancelarProducaoForm producaoId={r.id} />}</TableCell>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </section>
+      )}
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-texto">Preço por loja</h2>
