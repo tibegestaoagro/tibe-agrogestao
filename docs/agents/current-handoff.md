@@ -270,8 +270,19 @@ parcela caída fora do saldo da conta). Provas: `tsc` 0, `check` 0 falhas,
 antes do push, merge fast-forward `c58c5f1..33b878b`, deploy de Production
 do `33b878b` conferido pela API de deployments e as rotas novas no
 `/docs/api`. **Falta:** o usuário ligar o Empório só para o Owner da Da Mata
-na Plataforma e validar o balcão (F3a e F3b) no celular. A F4 (resultado) só
-com aprovação.
+na Plataforma e validar o balcão (F3a e F3b) no celular. **F3b aprovada pelo
+usuário em 28/10.**
+
+**F4a ("Vendeu, Pagou", despesa fixa, Resultado da Loja) em andamento na
+`emporio-f4`** (a partir da `emporio-f3b`). A F4 foi dividida em F4a e F4b
+(Q96). Decisões Q96 a Q102 e o contrato da F4a na spec (`7519076`), dívida
+2.26 nova. Schema e migração `20261029120000_emporio_f4a` **só no Docker**
+(`27fe8ee`): `VariableExpenseRule`, `SaleVariableExpense`,
+`FixedExpenseTemplate`, `FixedExpenseSplit`, `FixedExpenseOccurrence`. Onda 1
+despachada: actions e rotas (`servidor-acao`) e suíte `m83` da spec
+(`prova-suite`). Depois: telas `/emporio/resultado` e `/emporio/despesas`,
+cenário, roteiro, quebra de propósito, `test:all`. Neon e merge só com
+autorização dada na conversa.
 
 Histórico da F2a: decisões Q60 a Q71 e o contrato na spec (`f1b5d17`). Estoque
 (`1ecaf19`), compras e Lista com loja (`576c842`), telas (`3d61ef7`),
