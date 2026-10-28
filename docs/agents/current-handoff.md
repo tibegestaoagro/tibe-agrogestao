@@ -236,8 +236,13 @@ cancelado contado e o frete por igual), roteiro `emporio-f2a` com 32 itens
 (vermelho com a média trocada pelo último custo), `emporio-f0` e
 `emporio-f1` verdes. Papéis da F2a decididos pelo padrão da Q55 (compra,
 contagem, perda e estoque inicial com OPERADOR; cancelar e limites com OWNER
-e ADMIN), registrados na spec. **Próximo: a F2b (transferência e
-composição) só com aprovação do usuário.** Ao retomar com validação viva,
+e ADMIN), registrados na spec. **F2b (transferência e composição) em
+andamento na branch `emporio-f2b`** (a partir da `emporio-f2a`), aprovada
+pelo usuário em 28/10: decisões Q72 a Q80 e o contrato na spec (`2e80991`),
+dívida 2.23 nova, schema e migração `20261028120000_emporio_f2b` só no
+Docker (`bec3487`). Onda 2 despachada: transferências (com Meu Dia e o em
+trânsito na reposição), composição e produção, e a suíte `m80`. Depois:
+telas, roteiro `emporio-f2b`, aceite. Ao retomar com validação viva,
 subir o `next dev` limpo (apagar `.next/dev`; ver a nota
 `dev-server-servido-com-client-prisma-velho` no cofre): ele foi parado pelo
 Claude Code por falta de memória em 27/10. A rotação de segurança
