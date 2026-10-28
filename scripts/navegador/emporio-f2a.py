@@ -84,7 +84,9 @@ corpo = {
     "payment": {"kind": "a_prazo", "due_date": "2026-11-27T12:00:00.000Z"},
 }
 r1 = api("POST", "/api/v1/emporio/purchases", corpo)
-confere("compra criada", r1["status"] == 201, r1["status"])
+# 200 tambem vale: se a primeira chamada compila e passa do tempo, o api() repete
+# e a chave de operacao devolve a compra que ja tinha sido gravada.
+confere("compra criada", r1["status"] in (200, 201), r1["status"])
 r2 = api("POST", "/api/v1/emporio/purchases", corpo)
 confere("mesma chave: 200 e a mesma compra", r2["status"] == 200 and r2["body"]["data"]["id"] == r1["body"]["data"]["id"], r2["status"])
 compra = r1["body"]["data"]
