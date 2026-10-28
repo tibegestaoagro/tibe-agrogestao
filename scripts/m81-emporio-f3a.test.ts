@@ -1,7 +1,10 @@
 import "./_env-local";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { exigirBancoLocal } from "./_banco-local";
 
 exigirBancoLocal();
+// A seção 16 usa o escopo de requisição do Next: o AsyncLocalStorage real precisa existir ANTES de carregar o Next (ver m23).
+(globalThis as unknown as { AsyncLocalStorage: unknown }).AsyncLocalStorage = AsyncLocalStorage;
 
 /**
  * Módulo 39 (Meu Empório), F3a: venda em dinheiro, PIX e fiado, recebimento de
@@ -607,6 +610,124 @@ async function comBanco() {
       return r.ok && (await saleId(r)) === (await saleId(i1));
     })()));
     check("nada de A mudou por ação de B", (await db.emporioSale.findUnique({ where: { id: M2 } }))?.status === "concluida");
+
+    // ---------------------------------------------------------------- rotas
+    console.log("\n13. Rotas da F3a (route handler direto, sessão por Bearer): 401, 404 desligado (Q13), 201/200 e 422 em português");
+    const { signAccessToken } = await import("@/lib/auth-token");
+    const { withBearer } = await import("./_escopo-de-requisicao");
+    type Handler = (req: Request, ctx: { params: Promise<{ id: string }> }) => Promise<Response>;
+    const rotaDe = async (caminho: string, metodo: string): Promise<Handler> => {
+      const mod = (await import(`@/app/api/v1/emporio/${caminho}/route`)) as Record<string, Handler>;
+      if (typeof mod[metodo] !== "function") throw new Error(`rota sem ${metodo}: ${caminho}`);
+      return mod[metodo];
+    };
+    const tokenOwner = signAccessToken(owner.id);
+    const tokenVisu = signAccessToken(visu.id);
+    const chamar = async (token: string | null, caminho: string, metodo: string, url: string, corpo?: Dado, id = "x") => {
+      const h = await rotaDe(caminho, metodo);
+      const init: RequestInit = { method: metodo };
+      if (corpo !== undefined) {
+        init.headers = { "content-type": "application/json" };
+        init.body = JSON.stringify(corpo);
+      }
+      const res = await withBearer(token, () => h(new Request(`http://localhost/api/v1/emporio/${url}`, init), { params: Promise.resolve({ id }) }));
+      let json: Dado = null;
+      try {
+        json = await res.json();
+      } catch {
+        json = null;
+      }
+      return { status: res.status, json };
+    };
+    const ROTAS: [string, string, string, Dado][] = [
+      ["sales", "GET", "sales", undefined],
+      ["sales", "POST", "sales", {}],
+      ["sales/[id]", "GET", "sales/x", undefined],
+      ["sales/[id]/cancel", "POST", "sales/x/cancel", {}],
+      ["sales/[id]/return", "POST", "sales/x/return", {}],
+      ["sales/[id]/exchange", "POST", "sales/x/exchange", {}],
+      ["receivables", "GET", "receivables", undefined],
+      ["receivables/receive", "POST", "receivables/receive", {}],
+      ["bank-accounts", "GET", "bank-accounts", undefined],
+      ["bank-accounts", "POST", "bank-accounts", {}],
+      ["bank-accounts/[id]", "PATCH", "bank-accounts/x", {}],
+      ["establishments/[id]/pix-account", "PUT", "establishments/x/pix-account", {}],
+      ["cash", "GET", "cash", undefined],
+      ["cash/opening", "POST", "cash/opening", {}],
+    ];
+
+    // perfil emporio ativo, recurso ainda DESLIGADO na conta
+    await prisma.tenantProfile.upsert({
+      where: { tenant_id_profile_type: { tenant_id: TA.t.id, profile_type: "emporio" } },
+      create: { tenant_id: TA.t.id, profile_type: "emporio", active: true },
+      update: { active: true },
+    });
+    await prisma.tenantFeature.deleteMany({ where: { tenant_id: TA.t.id, feature_key: "emporio" } });
+
+    for (const [cam, met, url, corpo] of ROTAS) {
+      const r = await chamar(null, cam, met, url, corpo);
+      check(`sem sessão: ${met} ${url} -> 401`, r.status === 401, `${r.status} ${j(r.json)}`);
+    }
+    for (const [cam, met, url, corpo] of ROTAS) {
+      const r = await chamar(tokenOwner, cam, met, url, corpo);
+      check(`recurso desligado: ${met} ${url} -> 404`, r.status === 404, `${r.status} ${j(r.json)}`);
+    }
+
+    await prisma.tenantFeature.create({ data: { tenant_id: TA.t.id, feature_key: "emporio", enabled: true } });
+
+    const vis = await chamar(tokenVisu, "sales", "POST", "sales", {});
+    check("ligado: VISUALIZADOR escrevendo na venda -> 403", vis.status === 403, `${vis.status} ${j(vis.json)}`);
+
+    const prodR = await mkProduto("rota", QUILO);
+    await preco(L1.id, prodR, "Quilo", 10);
+    await implantar(L1.id, prodR, 50, 5);
+    const kRota = chave("rota");
+    const corpoVenda = { operation_key: kRota, establishment_id: L1.id, items: [item(prodR, "Quilo", 2)], payments: [dinheiro(20)] };
+    const v1 = await chamar(tokenOwner, "sales", "POST", "sales", corpoVenda);
+    check("POST sales: 201 com a venda", v1.status === 201 && !!v1.json?.data?.id, `${v1.status} ${j(v1.json)}`);
+    const v2 = await chamar(tokenOwner, "sales", "POST", "sales", corpoVenda);
+    check("POST sales repetindo a chave: 200 e a mesma venda", v2.status === 200 && v2.json?.data?.id === v1.json?.data?.id, `${v2.status} ${j(v2.json)}`);
+    check("a chave repetida não gravou segunda venda", (await db.emporioSale.count({ where: { id: v1.json?.data?.id } })) === 1 && (await db.emporioSale.count({ where: { operation_key: kRota } })) === 1);
+    const g1 = await chamar(tokenOwner, "sales/[id]", "GET", `sales/${v1.json?.data?.id}`, undefined, v1.json?.data?.id);
+    check("GET sales/[id]: 200", g1.status === 200, `${g1.status} ${j(g1.json)}`);
+    const lst = await chamar(tokenOwner, "sales", "GET", `sales?establishment_id=${L1.id}`);
+    check("GET sales: 200 e traz a venda", lst.status === 200 && j(lst.json).includes(v1.json?.data?.id), `${lst.status}`);
+
+    const cRota = await contato("rota fiado");
+    const vf = await chamar(tokenOwner, "sales", "POST", "sales", { operation_key: chave("rotaf"), establishment_id: L1.id, contact_id: cRota, items: [item(prodR, "Quilo", 3)], payments: [{ kind: "fiado", amount: 30 }] });
+    check("POST sales em fiado: 201", vf.status === 201, `${vf.status} ${j(vf.json)}`);
+    const kRec = chave("rotarec");
+    const corpoRec = { operation_key: kRec, contact_id: cRota, establishment_id: L1.id, amount: 30, kind: "dinheiro" };
+    const rc1 = await chamar(tokenOwner, "receivables/receive", "POST", "receivables/receive", corpoRec);
+    check("POST receivables/receive: 201", rc1.status === 201, `${rc1.status} ${j(rc1.json)}`);
+    const rc2 = await chamar(tokenOwner, "receivables/receive", "POST", "receivables/receive", corpoRec);
+    check("receivables/receive repetindo a chave: 200", rc2.status === 200, `${rc2.status} ${j(rc2.json)}`);
+    const rcl = await chamar(tokenOwner, "receivables", "GET", "receivables");
+    check("GET receivables: 200", rcl.status === 200, `${rcl.status} ${j(rcl.json)}`);
+
+    const ct = await chamar(tokenOwner, "bank-accounts", "POST", "bank-accounts", { name: `M81 rota ${stamp}` });
+    check("POST bank-accounts: 201", ct.status === 201 && !!ct.json?.data?.id, `${ct.status} ${j(ct.json)}`);
+    const ab1 = await chamar(tokenOwner, "cash/opening", "POST", "cash/opening", { bank_account_id: ct.json?.data?.id, amount: 100 });
+    check("POST cash/opening: 201", ab1.status === 201, `${ab1.status} ${j(ab1.json)}`);
+    const ab2 = await chamar(tokenOwner, "cash/opening", "POST", "cash/opening", { bank_account_id: ct.json?.data?.id, amount: 100 });
+    check("cash/opening repetido: recusado (não 2xx)", ab2.status >= 400 && ab2.status < 500, `${ab2.status} ${j(ab2.json)}`);
+    const cx = await chamar(tokenOwner, "cash", "GET", "cash");
+    check("GET cash: 200", cx.status === 200, `${cx.status}`);
+
+    const ctl = await chamar(tokenOwner, "bank-accounts", "GET", "bank-accounts");
+    check("GET bank-accounts: 200", ctl.status === 200, `${ctl.status}`);
+
+    const emIngles = (m: unknown) => typeof m === "string" && /Too small|Invalid input|expected|Required/i.test(m);
+    const rec422 = async (rot: string, met: string, url: string, corpo: Dado, campo: string) => {
+      const r = await chamar(tokenOwner, rot, met, url, corpo);
+      const e = r.json?.error;
+      check(`corpo inválido ${met} ${url}: 422 com error.field=${campo}`, r.status === 422 && e?.field === campo, `${r.status} ${j(r.json)}`);
+      check(`  e a mensagem é em português`, typeof e?.message === "string" && e.message.length > 0 && !emIngles(e.message), j(e?.message));
+    };
+    await rec422("bank-accounts", "POST", "bank-accounts", { name: "" }, "name");
+    await rec422("cash/opening", "POST", "cash/opening", { establishment_id: L2.id }, "amount");
+    await rec422("receivables/receive", "POST", "receivables/receive", { operation_key: chave("x"), establishment_id: L1.id, amount: 1, kind: "dinheiro" }, "contact_id");
+    await rec422("sales", "POST", "sales", { establishment_id: L1.id, items: [], payments: [] }, "operation_key");
   } finally {
     for (const id of tenantIds) {
       try {
