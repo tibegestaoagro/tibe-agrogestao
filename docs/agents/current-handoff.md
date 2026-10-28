@@ -96,7 +96,7 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
-### Meu Empório (Módulo 39): F0 a F2b em produção, F3a em andamento
+### Meu Empório (Módulo 39): F0 a F3a em produção
 
 **F0 (liberação e fundação) em produção desde 27/10** (`192e402`, merge
 fast-forward da `emporio-f0`, que trouxe a spec junto; autorizado pelo
@@ -242,12 +242,15 @@ vermelhas sem a correção), `m81` pelas rotas (`4ce37ce`: 401, 404 desligado,
 `/emporio/vender`, `vendas`, `vendas/[id]`, `fiado`, `caixa` e os cartões do
 início (`4220a7d`), recusa da troca em `items_devolvidos` (`e5d191a`). Provas:
 `tsc` 0, `check` 0 falhas, `m81` verde com 224 checagens, `test:all` 84/84.
-**Falta:** roteiro `scripts/navegador/emporio-f3a.py` escrito com a tela aberta
-(precisa do `next dev`, que o Claude Code cortou por memória: subir só com o
-aval do usuário), quebra de propósito do roteiro, validação no celular do
-balcão (seção 7), aceite. Depois, com autorização: migração
-`20261028180000_emporio_f3a` no Neon e merge. O balcão é página e não
-`FormSheet` (decisão de desenho a validar com o usuário). A F3b (cartão,
+Roteiro `emporio-f3a` (`477e84d`, 40 itens, 0 falhas; vermelho com o
+cancelamento desfazendo a abertura da saca), com o balcão em 390 px (sem
+rolagem lateral, botão de fechar visível, teclado decimal). Roteiros
+`f0`, `f1`, `f2a` e `f2b` verdes de novo (o `f2b` reprovou uma vez por tempo
+na rodada em sequência e passou sozinho). **Em produção em 28/10, autorizado
+pelo usuário:** migração `20261028180000_emporio_f3a` no Neon (URL Direct,
+`migrate status` em dia) antes do push, e merge fast-forward da
+`emporio-f3`. O balcão é página e não `FormSheet` (decisão de desenho a
+validar com o usuário). Falta o usuário testar o balcão no próprio celular. A F3b (cartão,
 cheque, transferência entre caixas, conferência) vem depois, com aprovação.
 
 Histórico da F2a: decisões Q60 a Q71 e o contrato na spec (`f1b5d17`). Estoque
