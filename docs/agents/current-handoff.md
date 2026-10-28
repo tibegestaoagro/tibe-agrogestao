@@ -234,11 +234,21 @@ loja). Schema e migração `20261028180000_emporio_f3a` **só no Docker**
 (`5facad4`): `BankAccount`, `EmporioSale` e itens, pagamentos, devoluções e
 itens, `CashMovement` (CHECK de gaveta OU conta), tipos `abertura_lacrado`,
 `abertura_avulso` e `devolucao`; sem `CashDrawer` (a gaveta é a loja).
-Onda 1 despachada em 28/10: `servidor-acao` (actions `emporio-vendas.ts`,
-`emporio-caixa.ts` e rotas) e `prova-suite` (`m81`, da spec). Depois: telas
-(`/emporio/vender`, `vendas`, `fiado`, `caixa`), cenário, roteiro, quebra de
-propósito, `test:all`, aceite. A F3b (cartão, cheque, transferência entre
-caixas, conferência) vem depois, com aprovação.
+Feito em 28/10: suíte `m81` da spec (`8a0c078`), actions e 15 rotas
+(`b507bcf`), devolução em dinheiro só até o que o cliente pagou e venda de
+troca que não se cancela (`cfd9de8`, achados na revisão; 3 checagens
+vermelhas sem a correção), `m81` pelas rotas (`4ce37ce`: 401, 404 desligado,
+422 em português), cenário `_cenario-emporio-f3a.ts` (`1c6338d`), telas
+`/emporio/vender`, `vendas`, `vendas/[id]`, `fiado`, `caixa` e os cartões do
+início (`4220a7d`), recusa da troca em `items_devolvidos` (`e5d191a`). Provas:
+`tsc` 0, `check` 0 falhas, `m81` verde com 224 checagens, `test:all` 84/84.
+**Falta:** roteiro `scripts/navegador/emporio-f3a.py` escrito com a tela aberta
+(precisa do `next dev`, que o Claude Code cortou por memória: subir só com o
+aval do usuário), quebra de propósito do roteiro, validação no celular do
+balcão (seção 7), aceite. Depois, com autorização: migração
+`20261028180000_emporio_f3a` no Neon e merge. O balcão é página e não
+`FormSheet` (decisão de desenho a validar com o usuário). A F3b (cartão,
+cheque, transferência entre caixas, conferência) vem depois, com aprovação.
 
 Histórico da F2a: decisões Q60 a Q71 e o contrato na spec (`f1b5d17`). Estoque
 (`1ecaf19`), compras e Lista com loja (`576c842`), telas (`3d61ef7`),
