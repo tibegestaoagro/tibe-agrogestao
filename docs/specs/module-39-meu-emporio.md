@@ -808,7 +808,8 @@ item, `quantity` até o vendido menos o já devolvido (422 `items`). O valor é
 
 **Troca (Q86).** Na troca, `venda.payments` cobre só o que falta depois do
 valor devolvido (vazio quando ele cobre tudo); o servidor acrescenta o
-pagamento `troca`. A venda nova de uma troca **não se cancela** (409
+pagamento `troca`. A recusa dos itens devolvidos sai no campo
+`items_devolvidos`; `items` é o da venda nova. A venda nova de uma troca **não se cancela** (409
 `SALE_IS_EXCHANGE`): ela foi paga com o valor devolvido, que não tem gaveta
 para onde voltar, então desfazê-la é devolver os itens dela. Uma devolução com `refund_kind` `troca` e uma venda nova com
 `exchange_return_id`, numa transação. O valor devolvido (V) vira o lançamento

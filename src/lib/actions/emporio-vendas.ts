@@ -1289,6 +1289,14 @@ export type TrocarInput = {
 
 export type TrocaView = { devolucao: DevolucaoView; venda: VendaView; replayed: boolean };
 
+/**
+ * Na troca, `items` é o campo da venda nova; a recusa dos itens devolvidos vai
+ * para `items_devolvidos`, senão a tela teria que adivinhar o lado pelo texto.
+ */
+function paraDevolvidos<T>(r: ActionResult<T>): ActionResult<T> {
+  return !r.ok && r.field === "items" ? { ...r, field: "items_devolvidos" } : r;
+}
+
 export async function trocarAction(
   db: TenantPrismaClient,
   ator: Ator,
@@ -1318,7 +1326,7 @@ export async function trocarAction(
   }
 
   if (origem.status === "cancelada") return fail("SALE_CANCELED", "Essa venda foi cancelada.", 409);
-  const itens = validarItensDevolvidos(origem, input.items_devolvidos);
+  const itens = paraDevolvidos(validarItensDevolvidos(origem, input.items_devolvidos));
   if (!itens.ok) return itens;
   const motivo = typeof input.reason === "string" && input.reason.trim() ? input.reason.trim() : null;
 
@@ -1334,7 +1342,7 @@ export async function trocarAction(
     const id = await runSerializableTenantTransaction(db, async (tx) => {
       const atual = await tx.emporioSale.findFirst({ where: { id: origem.id }, include: INCLUDE_VENDA_DEVOLUCAO });
       if (!atual || atual.status === "cancelada") throw new AbortarVenda(fail("SALE_CANCELED", "Essa venda foi cancelada.", 409));
-      const rev = validarItensDevolvidos(atual, input.items_devolvidos);
+      const rev = paraDevolvidos(validarItensDevolvidos(atual, input.items_devolvidos));
       if (!rev.ok) throw new AbortarVenda(rev);
       const devolucaoId = await gravarDevolucao(tx, ator, atual, rev.data.linhas, {
         chave,

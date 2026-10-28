@@ -14,8 +14,8 @@ import { DevolucaoItens, montarDevolvidos, type EscolhaDevolucao, type ItemDevol
 import { VendaCampos } from "./venda-campos";
 import { useVenda, type CampoDaVenda, type PrecosVenda, type ProdutoVenda } from "./venda-estado";
 
-// Ordem visual, de cima para baixo. `items_devolvidos` é só da tela: o servidor
-// usa `items` para os dois lados da troca, e a rota abaixo separa pelo texto.
+// Ordem visual, de cima para baixo. Na troca o servidor recusa os itens
+// devolvidos em `items_devolvidos` e os da venda nova em `items`.
 const ORDEM = ["items_devolvidos", "amount", "items", "contact_id", "payments", "reason"] as const;
 type Campo = (typeof ORDEM)[number];
 
@@ -89,9 +89,7 @@ export function TrocarForm({
     });
     setLoading(false);
     if (!res.ok) {
-      // O servidor chama os dois lados de `items`: o que fala de devolução é do lado devolvido.
-      const doLadoDevolvido = res.field === "items" && /devolv/i.test(res.message);
-      err.doServidor(doLadoDevolvido ? { ...res, field: "items_devolvidos" } : res);
+      err.doServidor(res);
       return;
     }
     chave.current = null;
