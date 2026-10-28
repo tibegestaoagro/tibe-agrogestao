@@ -278,11 +278,17 @@ usuário em 28/10.**
 (Q96). Decisões Q96 a Q102 e o contrato da F4a na spec (`7519076`), dívida
 2.26 nova. Schema e migração `20261029120000_emporio_f4a` **só no Docker**
 (`27fe8ee`): `VariableExpenseRule`, `SaleVariableExpense`,
-`FixedExpenseTemplate`, `FixedExpenseSplit`, `FixedExpenseOccurrence`. Onda 1
-despachada: actions e rotas (`servidor-acao`) e suíte `m83` da spec
-(`prova-suite`). Depois: telas `/emporio/resultado` e `/emporio/despesas`,
-cenário, roteiro, quebra de propósito, `test:all`. Neon e merge só com
-autorização dada na conversa.
+`FixedExpenseTemplate`, `FixedExpenseSplit`, `FixedExpenseOccurrence`. Suíte
+`m83` da spec (`1ecc63d`, 246 checagens), actions e 12 rotas (`92f0f96`),
+cenário `_cenario-emporio-f4a.ts` (`263b819`, resultado previsto -750 e ponto
+de R$ 2.222,22, conferido pela action), telas `/emporio/resultado` e
+`/emporio/despesas` (`cc25280`), roteiro `emporio-f4a` (`94da23d`, 0 falhas;
+3 vermelhas com as perdas fora do resultado). Provas: `tsc` 0, `check` 0
+falhas, `m81`, `m82` e `m83` verdes, `test:all` 86/86, roteiros `f3a` e
+`f3b` verdes de novo. **Pronta na branch, falta:** o aceite do usuário e, com
+autorização dada na conversa, a migração `20261029120000_emporio_f4a` no Neon
+(URL Direct) e o merge. Depois, a F4b (visão somada, rankings, margem
+negativa, filtro do Financeiro), com aprovação.
 
 Histórico da F2a: decisões Q60 a Q71 e o contrato na spec (`f1b5d17`). Estoque
 (`1ecaf19`), compras e Lista com loja (`576c842`), telas (`3d61ef7`),
