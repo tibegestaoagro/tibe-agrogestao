@@ -7,6 +7,12 @@ import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/finan
 import { descreverQuantidade } from "@/lib/stock/units";
 import { custoMedio } from "@/lib/emporio/custo-medio";
 import {
+  CATEGORIA_TAXAS_CARTAO,
+  datasDasParcelas,
+  dividirEmParcelas,
+  hojeEmBrasilia,
+} from "@/lib/emporio/cartao";
+import {
   INCLUDE_PRODUTO,
   lacradoEfetivo,
   lojasDoAtor,
@@ -101,6 +107,11 @@ export type VendaPagamentoView = {
   bank_account_id: string | null;
   due_date: string | null;
   financial_payment_id: string | null;
+  /** F3b: parcelas do crédito parcelado e a taxa que valia na hora da venda. */
+  installments: number | null;
+  fee_pct: number | null;
+  fee_amount: number | null;
+  check: { id: string; number: string; bank: string; good_for: string; status: string } | null;
 };
 
 export type DevolucaoView = {
@@ -156,7 +167,7 @@ const INCLUDE_VENDA = {
     },
     orderBy: { id: "asc" },
   },
-  payments: { orderBy: { created_at: "asc" } },
+  payments: { include: { check: true }, orderBy: { created_at: "asc" } },
   returns: { include: { items: true, exchange_sale: { select: { id: true } } }, orderBy: { created_at: "asc" } },
 } as const;
 
@@ -269,6 +280,18 @@ async function montarVendas(db: TenantPrismaClient, linhas: VendaRow[]): Promise
         bank_account_id: p.bank_account_id,
         due_date: isoOrNull(p.due_date),
         financial_payment_id: p.financial_payment_id,
+        installments: p.installments,
+        fee_pct: decToNum(p.fee_pct),
+        fee_amount: decToNum(p.fee_amount),
+        check: p.check
+          ? {
+              id: p.check.id,
+              number: p.check.number,
+              bank: p.check.bank,
+              good_for: p.check.good_for.toISOString(),
+              status: p.check.status,
+            }
+          : null,
       })),
       returns: s.returns.map(viewDaDevolucao),
     };
@@ -335,6 +358,10 @@ export type VendaPagamentoInput = {
   amount: number;
   bank_account_id?: string | null;
   due_date?: Date | null;
+  /** Crédito parcelado: de 2 a 12. */
+  installments?: number | null;
+  /** Cheque: os três campos são obrigatórios. */
+  check?: { number?: string | null; bank?: string | null; good_for?: Date | null } | null;
 };
 
 export type VenderInput = {
@@ -347,7 +374,14 @@ export type VenderInput = {
   notes?: string | null;
 };
 
-const FORMAS_DA_F3B = ["debito", "credito_vista", "credito_parcelado", "cheque"];
+const FORMAS_DE_CARTAO = ["debito", "credito_vista", "credito_parcelado"] as const;
+type FormaDeCartao = (typeof FORMAS_DE_CARTAO)[number];
+const ehCartao = (k: unknown): k is FormaDeCartao => (FORMAS_DE_CARTAO as readonly unknown[]).includes(k);
+const NOME_DO_CARTAO: Record<FormaDeCartao, string> = {
+  debito: "débito",
+  credito_vista: "crédito à vista",
+  credito_parcelado: "crédito parcelado",
+};
 
 type ItemPreparado = {
   produto: ProdutoRow;
@@ -360,10 +394,13 @@ type ItemPreparado = {
 };
 
 type PagamentoPreparado = {
-  kind: "dinheiro" | "pix" | "fiado";
+  kind: "dinheiro" | "pix" | "fiado" | FormaDeCartao | "cheque";
   amount: number;
   bank_account_id: string | null;
   due_date: Date | null;
+  /** Cartão: a regra do momento, copiada para o pagamento (§23.4). */
+  cartao: { installments: number | null; parcelas: number; fee_pct: number; fee_amount: number; days: number } | null;
+  cheque: { number: string; bank: string; good_for: Date } | null;
 };
 
 type Preparada = {
@@ -507,17 +544,62 @@ async function prepararVenda(
     if (kind === "troca") {
       return fail("VALIDATION_ERROR", "O pagamento por troca só nasce na troca de mercadoria.", 422, "payments");
     }
-    if (typeof kind === "string" && FORMAS_DA_F3B.includes(kind)) {
-      return fail("VALIDATION_ERROR", "Cartão e cheque ainda não estão disponíveis. Use dinheiro, PIX ou fiado.", 422, "payments");
-    }
-    if (kind !== "dinheiro" && kind !== "pix" && kind !== "fiado") {
-      return fail("VALIDATION_ERROR", "Escolha a forma de pagamento: dinheiro, PIX ou fiado.", 422, "payments");
+    if (kind !== "dinheiro" && kind !== "pix" && kind !== "fiado" && kind !== "cheque" && !ehCartao(kind)) {
+      return fail(
+        "VALIDATION_ERROR",
+        "Escolha a forma de pagamento: dinheiro, PIX, débito, crédito, cheque ou fiado.",
+        422,
+        "payments",
+      );
     }
     if (!numero(p.amount) || centavos(p.amount) <= 0) {
       return fail("VALIDATION_ERROR", "O valor de cada pagamento deve ser maior que zero.", 422, "payments");
     }
     let contaId: string | null = null;
     let venc: Date | null = null;
+    let cartao: PagamentoPreparado["cartao"] = null;
+    let cheque: PagamentoPreparado["cheque"] = null;
+    if (ehCartao(kind)) {
+      let parcelas = 1;
+      let installments: number | null = null;
+      if (kind === "credito_parcelado") {
+        const n = p.installments;
+        if (!numero(n) || !Number.isInteger(n) || n < 2 || n > 12) {
+          return fail("VALIDATION_ERROR", "O crédito parcelado precisa de 2 a 12 parcelas.", 422, "payments");
+        }
+        parcelas = n;
+        installments = n;
+      }
+      const regra = await db.cardFeeRule.findFirst({ where: { establishment_id: loja.data.id, kind } });
+      if (!regra) {
+        return fail(
+          "VALIDATION_ERROR",
+          `Cadastre a taxa de ${NOME_DO_CARTAO[kind]} desta loja em Taxas de cartão antes de vender no cartão.`,
+          422,
+          "payments",
+        );
+      }
+      const pct = decToNum(regra.fee_pct) ?? 0;
+      const valorCent = centavos(p.amount);
+      cartao = {
+        installments,
+        parcelas,
+        fee_pct: pct,
+        fee_amount: Math.round(Number(((valorCent * pct) / 100).toPrecision(12))) / 100,
+        days: regra.days,
+      };
+      contaId = regra.bank_account_id;
+    }
+    if (kind === "cheque") {
+      const c = p.check;
+      const numeroDoCheque = typeof c?.number === "string" ? c.number.trim() : "";
+      const banco = typeof c?.bank === "string" ? c.bank.trim() : "";
+      if (!numeroDoCheque || !banco || !dataValida(c?.good_for)) {
+        return fail("VALIDATION_ERROR", "Informe o número, o banco e a data do cheque (bom para).", 422, "payments");
+      }
+      if (!contactId) return fail("VALIDATION_ERROR", "O cheque precisa de um cliente.", 422, "contact_id");
+      cheque = { number: numeroDoCheque, bank: banco, good_for: c?.good_for as Date };
+    }
     if (kind === "fiado") {
       if (temFiado) return fail("VALIDATION_ERROR", "O fiado aparece uma vez só na venda.", 422, "payments");
       temFiado = true;
@@ -540,7 +622,7 @@ async function prepararVenda(
       }
       contaId = conta.id;
     }
-    pagamentos.push({ kind, amount: arred2(p.amount), bank_account_id: contaId, due_date: venc });
+    pagamentos.push({ kind, amount: arred2(p.amount), bank_account_id: contaId, due_date: venc, cartao, cheque });
   }
 
   const valorTroca = opts.valorTroca ?? 0;
@@ -765,8 +847,8 @@ async function gravarVenda(
   });
 
   const fiado = p.pagamentos.find((x) => x.kind === "fiado") ?? null;
-  const formaUnica =
-    p.troca === 0 && p.pagamentos.length === 1 && p.pagamentos[0].kind !== "fiado" ? p.pagamentos[0].kind : null;
+  const unico = p.troca === 0 && p.pagamentos.length === 1 ? p.pagamentos[0].kind : null;
+  const formaUnica = unico === null || unico === "fiado" ? null : ehCartao(unico) ? ("cartao" as const) : unico;
   const lancamento = await createLinkedEntry(tx, {
     entry_type: "income",
     category: CATEGORIA_VENDAS,
@@ -781,6 +863,7 @@ async function gravarVenda(
     payment_method: formaUnica,
   });
 
+  let taxaTotalCent = 0;
   for (const pg of p.pagamentos) {
     if (pg.kind === "fiado") {
       await tx.emporioSalePayment.create({
@@ -788,6 +871,82 @@ async function gravarVenda(
       });
       continue;
     }
+    if (ehCartao(pg.kind) && pg.cartao) {
+      // Cartão e cheque não mexem no caixa agora: a parcela É o a receber.
+      const fp = await tx.financialPayment.create({
+        data: scoped({
+          entry_id: lancamento.id,
+          amount: pg.amount,
+          paid_at: p.sold_at,
+          method: "cartao" as const,
+          created_by_user_id: ator.id,
+        }),
+      });
+      const sp = await tx.emporioSalePayment.create({
+        data: scoped({
+          sale_id: venda.id,
+          kind: pg.kind,
+          amount: pg.amount,
+          bank_account_id: pg.bank_account_id,
+          financial_payment_id: fp.id,
+          installments: pg.cartao.installments,
+          fee_pct: pg.cartao.fee_pct,
+          fee_amount: pg.cartao.fee_amount,
+        }),
+      });
+      const n = pg.cartao.parcelas;
+      const brutas = dividirEmParcelas(centavos(pg.amount), n);
+      const liquidas = dividirEmParcelas(centavos(pg.amount) - centavos(pg.cartao.fee_amount), n);
+      const datas = datasDasParcelas(p.sold_at, pg.cartao.days, n);
+      await tx.cardReceivable.createMany({
+        data: brutas.map((bruta, i) =>
+          scoped({
+            sale_id: venda.id,
+            sale_payment_id: sp.id,
+            establishment_id: p.loja.id,
+            bank_account_id: pg.bank_account_id as string,
+            installment: i + 1,
+            installments: n,
+            gross_amount: bruta / 100,
+            net_amount: liquidas[i] / 100,
+            expected_on: datas[i],
+          }),
+        ),
+      });
+      taxaTotalCent += centavos(pg.cartao.fee_amount);
+      continue;
+    }
+    if (pg.kind === "cheque" && pg.cheque) {
+      const fp = await tx.financialPayment.create({
+        data: scoped({
+          entry_id: lancamento.id,
+          amount: pg.amount,
+          paid_at: p.sold_at,
+          method: "cheque" as const,
+          created_by_user_id: ator.id,
+        }),
+      });
+      const sp = await tx.emporioSalePayment.create({
+        data: scoped({ sale_id: venda.id, kind: "cheque" as const, amount: pg.amount, financial_payment_id: fp.id }),
+      });
+      await tx.emporioCheck.create({
+        data: scoped({
+          sale_id: venda.id,
+          sale_payment_id: sp.id,
+          contact_id: p.contact_id as string,
+          establishment_id: p.loja.id,
+          number: pg.cheque.number,
+          bank: pg.cheque.bank,
+          good_for: pg.cheque.good_for,
+          amount: pg.amount,
+          status: "recebido" as const,
+          financial_payment_id: fp.id,
+          updated_by_user_id: ator.id,
+        }),
+      });
+      continue;
+    }
+    if (pg.kind !== "dinheiro" && pg.kind !== "pix") continue;
     const fp = await tx.financialPayment.create({
       data: scoped({
         entry_id: lancamento.id,
@@ -834,6 +993,22 @@ async function gravarVenda(
     });
     await tx.emporioSalePayment.create({
       data: scoped({ sale_id: venda.id, kind: "troca" as const, amount: p.troca, financial_payment_id: fp.id }),
+    });
+  }
+
+  // A taxa é despesa à parte, no mesmo `related_id` da venda: por isso toda
+  // busca do lançamento da venda filtra `entry_type: "income"`.
+  if (taxaTotalCent > 0) {
+    await createLinkedEntry(tx, {
+      entry_type: "expense",
+      category: CATEGORIA_TAXAS_CARTAO,
+      amount: taxaTotalCent / 100,
+      related_module: "emporio",
+      related_id: venda.id,
+      occurred_at: p.sold_at,
+      status: "paid",
+      establishment_id: p.loja.id,
+      payment_method: "cartao",
     });
   }
 
@@ -927,6 +1102,52 @@ export async function cancelarVendaAction(
         data: { canceled_at: agora, canceled_reason: motivo },
       });
 
+      // Cheque (Q94): o que ainda está na carteira volta ao cliente; o que já
+      // foi ao banco não se desfaz por aqui.
+      const cheques = await tx.emporioCheck.findMany({ where: { sale_id: id }, select: { id: true, status: true } });
+      if (cheques.some((c) => c.status === "depositado" || c.status === "compensado")) {
+        throw new AbortarVenda(
+          fail(
+            "SALE_HAS_DEPOSITED_CHECK",
+            "Essa venda tem cheque já depositado ou compensado: não dá para cancelar.",
+            409,
+          ),
+        );
+      }
+      await tx.emporioCheck.updateMany({
+        where: { sale_id: id, status: "recebido" },
+        data: { status: "devolvido_ao_cliente", updated_by_user_id: ator.id },
+      });
+
+      // Cartão (Q94): a parcela futura some; a que já caiu sai da conta. A que
+      // caiu continua não cancelada, e o estorno a compensa no saldo.
+      const hoje = hojeEmBrasilia(agora);
+      const parcelas = await tx.cardReceivable.findMany({ where: { sale_id: id, canceled_at: null } });
+      for (const parcela of parcelas) {
+        if (parcela.expected_on.getTime() > hoje.getTime()) {
+          await tx.cardReceivable.update({ where: { id: parcela.id }, data: { canceled_at: agora } });
+          continue;
+        }
+        await tx.cashMovement.create({
+          data: scoped({
+            establishment_id: null,
+            bank_account_id: parcela.bank_account_id,
+            direction: "saida" as const,
+            amount: decToNum(parcela.net_amount) ?? 0,
+            origin: "estorno_cartao" as const,
+            occurred_at: agora,
+            sale_id: id,
+            card_receivable_id: parcela.id,
+            notes: motivo,
+            created_by_user_id: ator.id,
+          }),
+        });
+      }
+      await tx.financialEntry.updateMany({
+        where: { related_module: "emporio", entry_type: "expense", category: CATEGORIA_TAXAS_CARTAO, related_id: id },
+        data: { status: "cancelled" },
+      });
+
       const lancamento = await tx.financialEntry.findFirst({
         where: { related_module: "emporio", entry_type: "income", related_id: id },
         select: { id: true },
@@ -934,10 +1155,12 @@ export async function cancelarVendaAction(
       if (!lancamento) return;
       await tx.financialEntry.update({ where: { id: lancamento.id }, data: { status: "cancelled" } });
 
+      // Só o pagamento que pôs dinheiro na gaveta ou na conta tem saída a
+      // fazer: cartão e cheque não geraram movimento de entrada.
       const pagamentos = await tx.financialPayment.findMany({ where: { entry_id: lancamento.id }, select: { id: true } });
       for (const fp of pagamentos) {
         const entrada = await tx.cashMovement.findFirst({
-          where: { financial_payment_id: fp.id, direction: "entrada" },
+          where: { financial_payment_id: fp.id, direction: "entrada", origin: { in: ["venda", "recebimento_fiado"] } },
         });
         if (!entrada) continue;
         await tx.cashMovement.create({

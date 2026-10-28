@@ -977,6 +977,19 @@ e + Cheque (número, banco, bom para); em `/emporio/caixa`, a receber do cartão
 por data, cheques com Depositar, Compensou e Voltou, Transferir entre caixas,
 Conferir gaveta e Taxas de cartão (OWNER e ADMIN).
 
+**Fechado na implementação (28/10):**
+- **Datas:** `good_for` chega à rota como texto "AAAA-MM-DD" e chega à action
+  como `Date`.
+- **Taxa:** uma despesa "Taxas de cartão" por venda, com a soma das taxas, e
+  nenhuma quando a taxa é zero.
+- **Cancelamento:** a parcela que já caiu ganha o estorno e não ganha
+  `canceled_at`, para o saldo não descontar duas vezes.
+- **O que cada papel vê:** `card_receivables` e o a receber de cada conta só
+  para OWNER e ADMIN, como as contas; a carteira de cheques para quem tem
+  acesso à loja.
+- **Leitura do caixa:** `lerCaixaAction` traz `drawers[].last_count`,
+  `accounts[].to_receive`, `card_receivables` e `checks`.
+
 **Aceite da F3b (§25):** "transferir dinheiro entre caixas" não altera o
 resultado. Mais: venda de R$ 100 no crédito com taxa de 3% e 30 dias gera
 receita de R$ 100, despesa de R$ 3 e R$ 97 a receber, que aparecem na conta no

@@ -23,6 +23,16 @@ export const pagamentoDeVendaSchema = z.object({
   amount: z.number({ error: "Informe o valor do pagamento." }),
   bank_account_id: z.string().nullish(),
   due_date: dataIso.nullish(),
+  /** Crédito parcelado (2 a 12): a regra de negócio é da action. */
+  installments: z.number({ error: "Informe o número de parcelas." }).nullish(),
+  /** Cheque: número, banco e "bom para". Os três são exigidos pela action (422 `payments`). */
+  check: z
+    .object({
+      number: z.string().nullish(),
+      bank: z.string().nullish(),
+      good_for: dataIso.nullish(),
+    })
+    .nullish(),
 });
 
 export const corpoDaVendaSchema = z.object({

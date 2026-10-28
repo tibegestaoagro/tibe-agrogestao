@@ -2,7 +2,8 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum, isoOrNull } from "@/lib/serialize";
 import { hasMinRole } from "@/lib/permissions";
-import { runSerializableTenantTransaction } from "@/lib/financial";
+import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
+import { CATEGORIA_DIFERENCA_CAIXA, hojeEmBrasilia } from "@/lib/emporio/cartao";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { acharLojaParaEscrita } from "@/lib/actions/emporio-estoque";
 import { CATEGORIA_VENDAS } from "@/lib/actions/emporio-vendas";
@@ -384,6 +385,11 @@ export type ContaView = {
   pix_establishment_ids: string[];
 };
 
+/**
+ * Saldo das contas, em centavos (Q90): os `CashMovement` mais as parcelas do
+ * cartão não canceladas que já caíram (`expected_on` até hoje em Brasília).
+ * Nada disso é gravado: a data decide, sem job.
+ */
 async function saldosDasContas(db: TenantPrismaClient): Promise<Map<string, number>> {
   const linhas = await db.cashMovement.groupBy({
     by: ["bank_account_id", "direction"],
@@ -396,7 +402,30 @@ async function saldosDasContas(db: TenantPrismaClient): Promise<Map<string, numb
     const v = centavos(decToNum(l._sum.amount) ?? 0);
     mapa.set(id, (mapa.get(id) ?? 0) + (l.direction === "entrada" ? v : -v));
   }
+  const caidas = await db.cardReceivable.groupBy({
+    by: ["bank_account_id"],
+    where: { canceled_at: null, expected_on: { lte: hojeEmBrasilia() } },
+    _sum: { net_amount: true },
+  });
+  for (const c of caidas) {
+    mapa.set(c.bank_account_id, (mapa.get(c.bank_account_id) ?? 0) + centavos(decToNum(c._sum.net_amount) ?? 0));
+  }
   return mapa;
+}
+
+/** Saldo da gaveta de uma loja, em centavos: entradas menos saídas. */
+async function saldoDaGaveta(db: TenantPrismaClient, lojaId: string): Promise<number> {
+  const linhas = await db.cashMovement.groupBy({
+    by: ["direction"],
+    where: { establishment_id: lojaId },
+    _sum: { amount: true },
+  });
+  let total = 0;
+  for (const l of linhas) {
+    const v = centavos(decToNum(l._sum.amount) ?? 0);
+    total += l.direction === "entrada" ? v : -v;
+  }
+  return total;
 }
 
 async function viewsDasContas(db: TenantPrismaClient, where: Record<string, unknown>): Promise<ContaView[]> {
@@ -535,14 +564,180 @@ export type MovimentoDeCaixaView = {
   sale_id: string | null;
   sale_return_id: string | null;
   financial_payment_id: string | null;
+  cash_transfer_id: string | null;
+  cash_count_id: string | null;
+  check_id: string | null;
+  card_receivable_id: string | null;
   notes: string | null;
 };
 
+type MovimentoRow = {
+  id: string;
+  establishment_id: string | null;
+  bank_account_id: string | null;
+  direction: "entrada" | "saida";
+  amount: unknown;
+  origin: string;
+  occurred_at: Date;
+  sale_id: string | null;
+  sale_return_id: string | null;
+  financial_payment_id: string | null;
+  cash_transfer_id: string | null;
+  cash_count_id: string | null;
+  check_id: string | null;
+  card_receivable_id: string | null;
+  notes: string | null;
+};
+
+function viewDoMovimento(m: MovimentoRow): MovimentoDeCaixaView {
+  return {
+    id: m.id,
+    establishment_id: m.establishment_id,
+    bank_account_id: m.bank_account_id,
+    direction: m.direction,
+    amount: decToNum(m.amount as never) ?? 0,
+    origin: m.origin,
+    occurred_at: m.occurred_at.toISOString(),
+    sale_id: m.sale_id,
+    sale_return_id: m.sale_return_id,
+    financial_payment_id: m.financial_payment_id,
+    cash_transfer_id: m.cash_transfer_id,
+    cash_count_id: m.cash_count_id,
+    check_id: m.check_id,
+    card_receivable_id: m.card_receivable_id,
+    notes: m.notes,
+  };
+}
+
+export type ConferenciaView = {
+  id: string;
+  establishment_id: string;
+  establishment_name: string;
+  expected: number;
+  counted: number;
+  difference: number;
+  justification: string | null;
+  counted_at: string;
+  created_by_user_id: string | null;
+};
+
+export type ParcelaCartaoView = {
+  id: string;
+  sale_id: string;
+  establishment_id: string;
+  bank_account_id: string;
+  bank_account_name: string;
+  installment: number;
+  installments: number;
+  gross_amount: number;
+  net_amount: number;
+  /** Data de calendário (AAAA-MM-DD). */
+  expected_on: string;
+};
+
+export type ChequeView = {
+  id: string;
+  sale_id: string;
+  sale_payment_id: string;
+  contact_id: string;
+  contact_name: string;
+  establishment_id: string;
+  number: string;
+  bank: string;
+  /** Data de calendário (AAAA-MM-DD). */
+  good_for: string;
+  amount: number;
+  status: string;
+  bank_account_id: string | null;
+  deposited_at: string | null;
+  cleared_at: string | null;
+  returned_at: string | null;
+  return_reason: string | null;
+};
+
 export type CaixaView = {
-  drawers: { establishment_id: string; name: string; balance: number }[];
-  accounts: { bank_account_id: string; name: string; balance: number }[];
+  drawers: {
+    establishment_id: string;
+    name: string;
+    balance: number;
+    last_count: ConferenciaView | null;
+  }[];
+  /** `balance` já inclui as parcelas do cartão que caíram; `to_receive` é o que ainda vai cair. */
+  accounts: { bank_account_id: string; name: string; balance: number; to_receive: number }[];
+  /** Parcelas futuras do cartão (só OWNER e ADMIN, como as contas). */
+  card_receivables: ParcelaCartaoView[];
+  /** Carteira: cheques recebidos e depositados, das lojas visíveis. */
+  checks: ChequeView[];
   movements: MovimentoDeCaixaView[];
 };
+
+const dia = (d: Date) => d.toISOString().slice(0, 10);
+
+type ConferenciaRow = {
+  id: string;
+  establishment_id: string;
+  expected: unknown;
+  counted: unknown;
+  difference: unknown;
+  justification: string | null;
+  counted_at: Date;
+  created_by_user_id: string | null;
+  establishment: { name: string };
+};
+
+function viewDaConferencia(c: ConferenciaRow): ConferenciaView {
+  return {
+    id: c.id,
+    establishment_id: c.establishment_id,
+    establishment_name: c.establishment.name,
+    expected: decToNum(c.expected as never) ?? 0,
+    counted: decToNum(c.counted as never) ?? 0,
+    difference: decToNum(c.difference as never) ?? 0,
+    justification: c.justification,
+    counted_at: c.counted_at.toISOString(),
+    created_by_user_id: c.created_by_user_id,
+  };
+}
+
+type ChequeRow = {
+  id: string;
+  sale_id: string;
+  sale_payment_id: string;
+  contact_id: string;
+  establishment_id: string;
+  number: string;
+  bank: string;
+  good_for: Date;
+  amount: unknown;
+  status: string;
+  bank_account_id: string | null;
+  deposited_at: Date | null;
+  cleared_at: Date | null;
+  returned_at: Date | null;
+  return_reason: string | null;
+  contact: { name: string };
+};
+
+function viewDoCheque(c: ChequeRow): ChequeView {
+  return {
+    id: c.id,
+    sale_id: c.sale_id,
+    sale_payment_id: c.sale_payment_id,
+    contact_id: c.contact_id,
+    contact_name: c.contact.name,
+    establishment_id: c.establishment_id,
+    number: c.number,
+    bank: c.bank,
+    good_for: dia(c.good_for),
+    amount: decToNum(c.amount as never) ?? 0,
+    status: c.status,
+    bank_account_id: c.bank_account_id,
+    deposited_at: isoOrNull(c.deposited_at),
+    cleared_at: isoOrNull(c.cleared_at),
+    returned_at: isoOrNull(c.returned_at),
+    return_reason: c.return_reason,
+  };
+}
 
 export async function lerCaixaAction(
   db: TenantPrismaClient,
@@ -572,11 +767,64 @@ export async function lerCaixaAction(
     saldoLoja.set(id, (saldoLoja.get(id) ?? 0) + (l.direction === "entrada" ? v : -v));
   }
 
+  // A última conferência de cada gaveta.
+  const conferencias = await db.cashCount.findMany({
+    where: { establishment_id: { in: lojas.map((l) => l.id) } },
+    include: { establishment: { select: { name: true } } },
+    orderBy: [{ counted_at: "desc" }, { created_at: "desc" }],
+  });
+  const ultimaConferencia = new Map<string, ConferenciaView>();
+  for (const c of conferencias) {
+    if (!ultimaConferencia.has(c.establishment_id)) ultimaConferencia.set(c.establishment_id, viewDaConferencia(c));
+  }
+
   let contas: CaixaView["accounts"] = [];
+  let parcelas: ParcelaCartaoView[] = [];
   if (ehAdmin(ator)) {
     const todas = await viewsDasContas(db, { archived_at: null });
-    contas = todas.map((c) => ({ bank_account_id: c.id, name: c.name, balance: c.balance }));
+    const todasFuturas = await db.cardReceivable.findMany({
+      where: { canceled_at: null, expected_on: { gt: hojeEmBrasilia() } },
+      include: { bank_account: { select: { name: true } } },
+      orderBy: [{ expected_on: "asc" }, { installment: "asc" }],
+    });
+    parcelas = todasFuturas
+      .filter(
+        (f) =>
+          (!opts.establishment_id || f.establishment_id === opts.establishment_id) &&
+          (!opts.bank_account_id || f.bank_account_id === opts.bank_account_id),
+      )
+      .map((f) => ({
+        id: f.id,
+        sale_id: f.sale_id,
+        establishment_id: f.establishment_id,
+        bank_account_id: f.bank_account_id,
+        bank_account_name: f.bank_account.name,
+        installment: f.installment,
+        installments: f.installments,
+        gross_amount: decToNum(f.gross_amount) ?? 0,
+        net_amount: decToNum(f.net_amount) ?? 0,
+        expected_on: dia(f.expected_on),
+      }));
+    const aReceber = new Map<string, number>();
+    for (const f of todasFuturas) {
+      aReceber.set(f.bank_account_id, (aReceber.get(f.bank_account_id) ?? 0) + centavos(decToNum(f.net_amount) ?? 0));
+    }
+    contas = todas.map((c) => ({
+      bank_account_id: c.id,
+      name: c.name,
+      balance: c.balance,
+      to_receive: (aReceber.get(c.id) ?? 0) / 100,
+    }));
   }
+
+  const carteira = await db.emporioCheck.findMany({
+    where: {
+      status: { in: ["recebido", "depositado"] },
+      establishment_id: opts.establishment_id ? opts.establishment_id : { in: lojas.map((l) => l.id) },
+    },
+    include: { contact: { select: { name: true } } },
+    orderBy: [{ good_for: "asc" }, { created_at: "asc" }],
+  });
 
   const lojaIds = opts.establishment_id ? [opts.establishment_id] : lojas.map((l) => l.id);
   const onde = opts.bank_account_id
@@ -594,21 +842,16 @@ export async function lerCaixaAction(
   });
 
   return ok({
-    drawers: lojas.map((l) => ({ establishment_id: l.id, name: l.name, balance: (saldoLoja.get(l.id) ?? 0) / 100 })),
-    accounts: contas,
-    movements: movs.map((m) => ({
-      id: m.id,
-      establishment_id: m.establishment_id,
-      bank_account_id: m.bank_account_id,
-      direction: m.direction,
-      amount: decToNum(m.amount) ?? 0,
-      origin: m.origin,
-      occurred_at: m.occurred_at.toISOString(),
-      sale_id: m.sale_id,
-      sale_return_id: m.sale_return_id,
-      financial_payment_id: m.financial_payment_id,
-      notes: m.notes,
+    drawers: lojas.map((l) => ({
+      establishment_id: l.id,
+      name: l.name,
+      balance: (saldoLoja.get(l.id) ?? 0) / 100,
+      last_count: ultimaConferencia.get(l.id) ?? null,
     })),
+    accounts: contas,
+    card_receivables: parcelas,
+    checks: carteira.map(viewDoCheque),
+    movements: movs.map(viewDoMovimento),
   });
 }
 
@@ -675,21 +918,595 @@ export async function saldoInicialCaixaAction(
         }),
       });
     });
-    return ok({
-      id: m.id,
-      establishment_id: m.establishment_id,
-      bank_account_id: m.bank_account_id,
-      direction: m.direction,
-      amount: decToNum(m.amount) ?? 0,
-      origin: m.origin,
-      occurred_at: m.occurred_at.toISOString(),
-      sale_id: m.sale_id,
-      sale_return_id: m.sale_return_id,
-      financial_payment_id: m.financial_payment_id,
-      notes: m.notes,
+    return ok(viewDoMovimento(m));
+  } catch (err) {
+    if (err instanceof RecusaCaixa) return err.recusa;
+    throw err;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Taxas de cartão (F3b, Q89)
+// ---------------------------------------------------------------------------
+
+const FORMAS_DE_CARTAO = ["debito", "credito_vista", "credito_parcelado"] as const;
+type FormaDeCartao = (typeof FORMAS_DE_CARTAO)[number];
+
+export type RegraCartaoView = {
+  id: string;
+  establishment_id: string;
+  establishment_name: string;
+  kind: FormaDeCartao;
+  fee_pct: number;
+  days: number;
+  bank_account_id: string;
+  /** Contas são de OWNER e ADMIN: para os outros o nome vem vazio. */
+  bank_account_name: string | null;
+};
+
+const INCLUDE_REGRA = {
+  establishment: { select: { name: true } },
+  bank_account: { select: { name: true } },
+} as const;
+
+type RegraRow = {
+  id: string;
+  establishment_id: string;
+  kind: FormaDeCartao;
+  fee_pct: unknown;
+  days: number;
+  bank_account_id: string;
+  establishment: { name: string };
+  bank_account: { name: string };
+};
+
+function viewDaRegra(r: RegraRow, ator: Ator): RegraCartaoView {
+  return {
+    id: r.id,
+    establishment_id: r.establishment_id,
+    establishment_name: r.establishment.name,
+    kind: r.kind,
+    fee_pct: decToNum(r.fee_pct as never) ?? 0,
+    days: r.days,
+    bank_account_id: r.bank_account_id,
+    bank_account_name: ehAdmin(ator) ? r.bank_account.name : null,
+  };
+}
+
+export async function listarRegrasCartaoAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  opts: { establishment_id?: string } = {},
+): Promise<ActionResult<RegraCartaoView[]>> {
+  const visiveis = await lojasDoAtor(db, ator);
+  if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
+    return NAO_ACHADO("Estabelecimento", "establishment_id");
+  }
+  const regras = await db.cardFeeRule.findMany({
+    where: opts.establishment_id ? { establishment_id: opts.establishment_id } : filtroDeLojas(visiveis),
+    include: INCLUDE_REGRA,
+    orderBy: [{ establishment: { name: "asc" } }, { kind: "asc" }],
+  });
+  return ok(regras.map((r) => viewDaRegra(r, ator)));
+}
+
+export type DefinirRegraCartaoInput = {
+  establishment_id: string;
+  kind: string;
+  fee_pct: number;
+  days: number;
+  bank_account_id: string;
+};
+
+/** Cria ou substitui a regra da loja para a forma. As vendas passadas guardam a taxa no pagamento. */
+export async function definirRegraCartaoAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  input: DefinirRegraCartaoInput,
+): Promise<ActionResult<RegraCartaoView>> {
+  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const loja = await acharLojaParaEscrita(db, ator, input?.establishment_id);
+  if (!loja.ok) return loja;
+  if (!(FORMAS_DE_CARTAO as readonly unknown[]).includes(input.kind)) {
+    return fail("VALIDATION_ERROR", "Escolha a forma: débito, crédito à vista ou crédito parcelado.", 422, "kind");
+  }
+  const kind = input.kind as FormaDeCartao;
+  if (!numero(input.fee_pct) || input.fee_pct < 0 || input.fee_pct > 100) {
+    return fail("VALIDATION_ERROR", "A taxa deve ficar entre 0% e 100%.", 422, "fee_pct");
+  }
+  const feePct = Math.round(Number((input.fee_pct * 100).toPrecision(12))) / 100;
+  if (!numero(input.days) || !Number.isInteger(input.days) || input.days < 0 || input.days > 120) {
+    return fail("VALIDATION_ERROR", "O prazo deve ser um número inteiro de dias, de 0 a 120.", 422, "days");
+  }
+  const conta =
+    typeof input.bank_account_id === "string" && input.bank_account_id
+      ? await db.bankAccount.findFirst({ where: { id: input.bank_account_id }, select: { id: true, archived_at: true } })
+      : null;
+  if (!conta || conta.archived_at) {
+    return fail("VALIDATION_ERROR", "Escolha uma conta bancária ativa para receber o cartão.", 422, "bank_account_id");
+  }
+
+  const gravar = async () => {
+    const atual = await db.cardFeeRule.findFirst({ where: { establishment_id: loja.data.id, kind }, select: { id: true } });
+    const dados = { fee_pct: feePct, days: input.days, bank_account_id: conta.id, updated_by_user_id: ator.id };
+    return atual
+      ? db.cardFeeRule.update({ where: { id: atual.id }, data: dados, include: INCLUDE_REGRA })
+      : db.cardFeeRule.create({ data: scoped({ establishment_id: loja.data.id, kind, ...dados }), include: INCLUDE_REGRA });
+  };
+  try {
+    return ok(viewDaRegra(await gravar(), ator));
+  } catch (err) {
+    if (!ehErroUnico(err)) throw err;
+    return ok(viewDaRegra(await gravar(), ator));
+  }
+}
+
+export async function removerRegraCartaoAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  id: string,
+): Promise<ActionResult<{ id: string }>> {
+  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const regra = await db.cardFeeRule.findFirst({ where: { id }, select: { id: true, establishment_id: true } });
+  if (!regra || !(await lojaVisivel(db, ator, regra.establishment_id))) return NAO_ACHADO("Regra de cartão");
+  await db.cardFeeRule.delete({ where: { id: regra.id } });
+  return ok({ id: regra.id });
+}
+
+async function lojaVisivel(db: TenantPrismaClient, ator: Ator, lojaId: string): Promise<boolean> {
+  const v = await lojasDoAtor(db, ator);
+  return !v || v.has(lojaId);
+}
+
+// ---------------------------------------------------------------------------
+// Cheques (F3b, Q91)
+// ---------------------------------------------------------------------------
+
+const NOME_DO_STATUS: Record<string, string> = {
+  recebido: "na carteira",
+  depositado: "depositado",
+  compensado: "compensado",
+  devolvido: "devolvido pelo banco",
+  devolvido_ao_cliente: "devolvido ao cliente",
+};
+
+const FORA_DE_ORDEM = (status: string) =>
+  fail("CHECK_STATUS", `Esse cheque está ${NOME_DO_STATUS[status] ?? status} e não pode seguir para essa etapa.`, 409);
+
+const STATUS_DE_CHEQUE = ["recebido", "depositado", "compensado", "devolvido", "devolvido_ao_cliente"] as const;
+
+export async function listarChequesAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  opts: { establishment_id?: string; contact_id?: string; status?: string } = {},
+): Promise<ActionResult<ChequeView[]>> {
+  const visiveis = await lojasDoAtor(db, ator);
+  if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
+    return NAO_ACHADO("Estabelecimento", "establishment_id");
+  }
+  if (opts.status && !(STATUS_DE_CHEQUE as readonly string[]).includes(opts.status)) {
+    return fail("VALIDATION_ERROR", "Escolha uma situação de cheque válida.", 422, "status");
+  }
+  const cheques = await db.emporioCheck.findMany({
+    where: {
+      ...(opts.establishment_id ? { establishment_id: opts.establishment_id } : filtroDeLojas(visiveis)),
+      ...(opts.contact_id ? { contact_id: opts.contact_id } : {}),
+      ...(opts.status ? { status: opts.status as (typeof STATUS_DE_CHEQUE)[number] } : {}),
+    },
+    include: { contact: { select: { name: true } } },
+    orderBy: [{ good_for: "asc" }, { created_at: "asc" }],
+  });
+  return ok(cheques.map(viewDoCheque));
+}
+
+async function acharCheque(db: TenantPrismaClient, ator: Ator, id: string) {
+  const c = await db.emporioCheck.findFirst({ where: { id } });
+  if (!c || !(await lojaVisivel(db, ator, c.establishment_id))) return null;
+  return c;
+}
+
+async function chequePorId(db: TenantPrismaClient, id: string): Promise<ActionResult<ChequeView>> {
+  const c = await db.emporioCheck.findFirst({ where: { id }, include: { contact: { select: { name: true } } } });
+  return c ? ok(viewDoCheque(c)) : NAO_ACHADO("Cheque");
+}
+
+/** Depositar: `recebido` para `depositado`, escolhendo a conta. */
+export async function depositarChequeAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  id: string,
+  input: { bank_account_id: string },
+): Promise<ActionResult<ChequeView>> {
+  if (!ehOperador(ator)) return NEGADO_OPERADOR();
+  const cheque = await acharCheque(db, ator, id);
+  if (!cheque) return NAO_ACHADO("Cheque");
+  if (cheque.status !== "recebido") return FORA_DE_ORDEM(cheque.status);
+  const conta =
+    typeof input?.bank_account_id === "string" && input.bank_account_id
+      ? await db.bankAccount.findFirst({ where: { id: input.bank_account_id }, select: { id: true, archived_at: true } })
+      : null;
+  if (!conta || conta.archived_at) {
+    return fail("VALIDATION_ERROR", "Escolha a conta bancária onde o cheque foi depositado.", 422, "bank_account_id");
+  }
+  const r = await db.emporioCheck.updateMany({
+    where: { id, status: "recebido" },
+    data: { status: "depositado", bank_account_id: conta.id, deposited_at: new Date(), updated_by_user_id: ator.id },
+  });
+  if (r.count === 0) return FORA_DE_ORDEM((await acharCheque(db, ator, id))?.status ?? "recebido");
+  return chequePorId(db, id);
+}
+
+/** Compensou: `depositado` para `compensado`, e o dinheiro entra na conta do depósito. */
+export async function compensarChequeAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  id: string,
+): Promise<ActionResult<ChequeView>> {
+  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const cheque = await acharCheque(db, ator, id);
+  if (!cheque) return NAO_ACHADO("Cheque");
+  if (cheque.status !== "depositado" || !cheque.bank_account_id) return FORA_DE_ORDEM(cheque.status);
+  try {
+    await runSerializableTenantTransaction(db, async (tx) => {
+      const agora = new Date();
+      const r = await tx.emporioCheck.updateMany({
+        where: { id, status: "depositado" },
+        data: { status: "compensado", cleared_at: agora, updated_by_user_id: ator.id },
+      });
+      if (r.count === 0) throw new RecusaCaixa(FORA_DE_ORDEM("compensado"));
+      await tx.cashMovement.create({
+        data: scoped({
+          establishment_id: null,
+          bank_account_id: cheque.bank_account_id,
+          direction: "entrada" as const,
+          amount: decToNum(cheque.amount) ?? 0,
+          origin: "cheque_compensado" as const,
+          occurred_at: agora,
+          sale_id: cheque.sale_id,
+          check_id: cheque.id,
+          created_by_user_id: ator.id,
+        }),
+      });
     });
   } catch (err) {
     if (err instanceof RecusaCaixa) return err.recusa;
     throw err;
   }
+  return chequePorId(db, id);
+}
+
+/** Voltou: `recebido` ou `depositado` para `devolvido`; o pagamento sai do lançamento e a dívida reabre. */
+export async function chequeVoltouAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  id: string,
+  input: { reason: string },
+): Promise<ActionResult<ChequeView>> {
+  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const cheque = await acharCheque(db, ator, id);
+  if (!cheque) return NAO_ACHADO("Cheque");
+  if (cheque.status !== "recebido" && cheque.status !== "depositado") return FORA_DE_ORDEM(cheque.status);
+  const motivo = typeof input?.reason === "string" ? input.reason.trim() : "";
+  if (!motivo) return fail("VALIDATION_ERROR", "Diga por que o cheque voltou.", 422, "reason");
+
+  try {
+    await runSerializableTenantTransaction(db, async (tx) => {
+      const r = await tx.emporioCheck.updateMany({
+        where: { id, status: { in: ["recebido", "depositado"] } },
+        data: {
+          status: "devolvido",
+          returned_at: new Date(),
+          return_reason: motivo,
+          financial_payment_id: null,
+          updated_by_user_id: ator.id,
+        },
+      });
+      if (r.count === 0) throw new RecusaCaixa(FORA_DE_ORDEM("devolvido"));
+      if (!cheque.financial_payment_id) return;
+
+      // Como `cancelarPagamentoAction`: o pagamento sai e, se o lançamento
+      // deixou de estar coberto, volta a pendente (e a dívida aparece no fiado).
+      const pagamento = await tx.financialPayment.findFirst({
+        where: { id: cheque.financial_payment_id },
+        select: { id: true, entry_id: true },
+      });
+      if (!pagamento) return;
+      await tx.financialPayment.delete({ where: { id: pagamento.id } });
+      const lancamento = await tx.financialEntry.findFirst({ where: { id: pagamento.entry_id } });
+      if (!lancamento || lancamento.status !== "paid") return;
+      const pago = await tx.financialPayment.aggregate({ where: { entry_id: lancamento.id }, _sum: { amount: true } });
+      if (centavos(decToNum(pago._sum.amount) ?? 0) < centavos(decToNum(lancamento.amount) ?? 0)) {
+        await tx.financialEntry.update({ where: { id: lancamento.id }, data: { status: "pending", paid_at: null } });
+      }
+    });
+  } catch (err) {
+    if (err instanceof RecusaCaixa) return err.recusa;
+    throw err;
+  }
+  return chequePorId(db, id);
+}
+
+// ---------------------------------------------------------------------------
+// Transferência entre caixas (F3b, Q92)
+// ---------------------------------------------------------------------------
+
+export type PontaDeCaixa = { establishment_id?: string | null; bank_account_id?: string | null };
+
+export type TransferenciaView = {
+  id: string;
+  operation_key: string;
+  from: { establishment_id: string | null; bank_account_id: string | null };
+  to: { establishment_id: string | null; bank_account_id: string | null };
+  amount: number;
+  notes: string | null;
+  created_at: string;
+  replayed: boolean;
+};
+
+type TransferenciaRow = {
+  id: string;
+  operation_key: string;
+  from_establishment_id: string | null;
+  from_bank_account_id: string | null;
+  to_establishment_id: string | null;
+  to_bank_account_id: string | null;
+  amount: unknown;
+  notes: string | null;
+  created_at: Date;
+};
+
+function viewDaTransferencia(t: TransferenciaRow, replayed: boolean): TransferenciaView {
+  return {
+    id: t.id,
+    operation_key: t.operation_key,
+    from: { establishment_id: t.from_establishment_id, bank_account_id: t.from_bank_account_id },
+    to: { establishment_id: t.to_establishment_id, bank_account_id: t.to_bank_account_id },
+    amount: decToNum(t.amount as never) ?? 0,
+    notes: t.notes,
+    created_at: t.created_at.toISOString(),
+    replayed,
+  };
+}
+
+function resolverPonta(
+  ponta: PontaDeCaixa | undefined,
+  campo: "from" | "to",
+): ActionResult<{ lojaId: string | null; contaId: string | null }> {
+  const lojaId = typeof ponta?.establishment_id === "string" && ponta.establishment_id ? ponta.establishment_id : null;
+  const contaId = typeof ponta?.bank_account_id === "string" && ponta.bank_account_id ? ponta.bank_account_id : null;
+  if ((lojaId === null) === (contaId === null)) {
+    return fail(
+      "VALIDATION_ERROR",
+      campo === "from"
+        ? "Diga de onde sai o dinheiro: uma loja OU uma conta."
+        : "Diga para onde vai o dinheiro: uma loja OU uma conta.",
+      422,
+      campo,
+    );
+  }
+  return ok({ lojaId, contaId });
+}
+
+async function transferenciaGravada(
+  db: TenantPrismaClient,
+  ator: Ator,
+  chave: string,
+): Promise<ActionResult<TransferenciaView> | null> {
+  const t = await db.cashTransfer.findFirst({ where: { operation_key: chave } });
+  if (!t) return null;
+  if (t.from_establishment_id) {
+    if (!(await lojaVisivel(db, ator, t.from_establishment_id))) return NAO_ACHADO("Transferência");
+  } else if (!ehAdmin(ator)) {
+    return NAO_ACHADO("Transferência");
+  }
+  return ok(viewDaTransferencia(t, true));
+}
+
+export async function transferirCaixaAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  input: { operation_key: string; from: PontaDeCaixa; to: PontaDeCaixa; amount: number; notes?: string | null },
+): Promise<ActionResult<TransferenciaView>> {
+  if (!ehOperador(ator)) return NEGADO_OPERADOR();
+  const chave = String(input?.operation_key ?? "").trim();
+  if (!chave) return fail("VALIDATION_ERROR", "Falta a chave da operação.", 422, "operation_key");
+
+  const gravada = await transferenciaGravada(db, ator, chave);
+  if (gravada) return gravada;
+
+  const origem = resolverPonta(input.from, "from");
+  if (!origem.ok) return origem;
+  const destino = resolverPonta(input.to, "to");
+  if (!destino.ok) return destino;
+  if (origem.data.lojaId === destino.data.lojaId && origem.data.contaId === destino.data.contaId) {
+    return fail("VALIDATION_ERROR", "A origem e o destino precisam ser diferentes.", 422, "to");
+  }
+  if (!numero(input.amount) || centavos(input.amount) <= 0) {
+    return fail("VALIDATION_ERROR", "O valor da transferência deve ser maior que zero.", 422, "amount");
+  }
+  const valorCent = centavos(input.amount);
+
+  if (origem.data.lojaId) {
+    const loja = await acharLojaParaEscrita(db, ator, origem.data.lojaId);
+    if (!loja.ok) return fail(loja.code, loja.message, loja.status, "from");
+  } else {
+    if (!ehAdmin(ator)) return NEGADO_ADMIN();
+    const conta = await db.bankAccount.findFirst({ where: { id: origem.data.contaId as string }, select: { archived_at: true } });
+    if (!conta) return NAO_ACHADO("Conta de origem", "from");
+  }
+  if (destino.data.lojaId) {
+    const loja = await db.establishment.findFirst({ where: { id: destino.data.lojaId }, select: { archived_at: true } });
+    if (!loja || loja.archived_at) return fail("VALIDATION_ERROR", "Escolha uma loja ativa para receber.", 422, "to");
+  } else {
+    const conta = await db.bankAccount.findFirst({ where: { id: destino.data.contaId as string }, select: { archived_at: true } });
+    if (!conta || conta.archived_at) return fail("VALIDATION_ERROR", "Escolha uma conta ativa para receber.", 422, "to");
+  }
+  const notas = typeof input.notes === "string" && input.notes.trim() ? input.notes.trim() : null;
+
+  try {
+    const t = await runSerializableTenantTransaction(db, async (tx) => {
+      const leitor = tx as unknown as TenantPrismaClient;
+      const saldo = origem.data.lojaId
+        ? await saldoDaGaveta(leitor, origem.data.lojaId)
+        : ((await saldosDasContas(leitor)).get(origem.data.contaId as string) ?? 0);
+      if (saldo < valorCent) {
+        throw new RecusaCaixa(
+          fail(
+            "INSUFFICIENT_CASH",
+            `Saldo insuficiente na origem: há ${brl(saldo / 100)} e a transferência pede ${brl(valorCent / 100)}.`,
+            409,
+            "amount",
+          ),
+        );
+      }
+      const agora = new Date();
+      const transf = await tx.cashTransfer.create({
+        data: scoped({
+          operation_key: chave,
+          from_establishment_id: origem.data.lojaId,
+          from_bank_account_id: origem.data.contaId,
+          to_establishment_id: destino.data.lojaId,
+          to_bank_account_id: destino.data.contaId,
+          amount: valorCent / 100,
+          notes: notas,
+          created_by_user_id: ator.id,
+        }),
+      });
+      const comum = {
+        amount: valorCent / 100,
+        origin: "transferencia" as const,
+        occurred_at: agora,
+        cash_transfer_id: transf.id,
+        notes: notas,
+        created_by_user_id: ator.id,
+      };
+      await tx.cashMovement.create({
+        data: scoped({
+          ...comum,
+          establishment_id: origem.data.lojaId,
+          bank_account_id: origem.data.contaId,
+          direction: "saida" as const,
+        }),
+      });
+      await tx.cashMovement.create({
+        data: scoped({
+          ...comum,
+          establishment_id: destino.data.lojaId,
+          bank_account_id: destino.data.contaId,
+          direction: "entrada" as const,
+        }),
+      });
+      return transf;
+    });
+    return ok(viewDaTransferencia(t, false));
+  } catch (err) {
+    if (err instanceof RecusaCaixa) return err.recusa;
+    if (ehErroUnico(err)) {
+      const igual = await transferenciaGravada(db, ator, chave);
+      if (igual) return igual;
+    }
+    throw err;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Conferência da gaveta (F3b, Q93)
+// ---------------------------------------------------------------------------
+
+export async function conferirGavetaAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  input: { establishment_id: string; counted: number; justification?: string | null },
+): Promise<ActionResult<ConferenciaView>> {
+  if (!ehOperador(ator)) return NEGADO_OPERADOR();
+  const loja = await acharLojaParaEscrita(db, ator, input?.establishment_id);
+  if (!loja.ok) return loja;
+  if (!numero(input.counted) || centavos(input.counted) < 0) {
+    return fail("VALIDATION_ERROR", "Informe quanto há na gaveta (zero ou mais).", 422, "counted");
+  }
+  const contadoCent = centavos(input.counted);
+  const justificativa = typeof input.justification === "string" && input.justification.trim() ? input.justification.trim() : null;
+
+  try {
+    const id = await runSerializableTenantTransaction(db, async (tx) => {
+      const esperadoCent = await saldoDaGaveta(tx as unknown as TenantPrismaClient, loja.data.id);
+      const diffCent = contadoCent - esperadoCent;
+      if (diffCent !== 0 && !justificativa) {
+        throw new RecusaCaixa(
+          fail(
+            "VALIDATION_ERROR",
+            `A gaveta tem ${diffCent > 0 ? "sobra" : "falta"} de ${brl(Math.abs(diffCent) / 100)}: diga o motivo.`,
+            422,
+            "justification",
+          ),
+        );
+      }
+      const agora = new Date();
+      const conferencia = await tx.cashCount.create({
+        data: scoped({
+          establishment_id: loja.data.id,
+          expected: esperadoCent / 100,
+          counted: contadoCent / 100,
+          difference: diffCent / 100,
+          justification: justificativa,
+          counted_at: agora,
+          created_by_user_id: ator.id,
+        }),
+      });
+      if (diffCent !== 0) {
+        const sobra = diffCent > 0;
+        const lancamento = await createLinkedEntry(tx, {
+          entry_type: sobra ? "income" : "expense",
+          category: CATEGORIA_DIFERENCA_CAIXA,
+          amount: Math.abs(diffCent) / 100,
+          related_module: "emporio",
+          related_id: conferencia.id,
+          occurred_at: agora,
+          status: "paid",
+          establishment_id: loja.data.id,
+          payment_method: "dinheiro",
+        });
+        const fp = await tx.financialPayment.findFirst({ where: { entry_id: lancamento.id }, select: { id: true } });
+        await tx.cashMovement.create({
+          data: scoped({
+            establishment_id: loja.data.id,
+            bank_account_id: null,
+            direction: sobra ? ("entrada" as const) : ("saida" as const),
+            amount: Math.abs(diffCent) / 100,
+            origin: "conferencia" as const,
+            occurred_at: agora,
+            cash_count_id: conferencia.id,
+            financial_payment_id: fp?.id ?? null,
+            notes: justificativa,
+            created_by_user_id: ator.id,
+          }),
+        });
+      }
+      return conferencia.id;
+    });
+    const c = await db.cashCount.findFirst({ where: { id }, include: { establishment: { select: { name: true } } } });
+    return c ? ok(viewDaConferencia(c)) : NAO_ACHADO("Conferência");
+  } catch (err) {
+    if (err instanceof RecusaCaixa) return err.recusa;
+    throw err;
+  }
+}
+
+export async function listarConferenciasAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  opts: { establishment_id?: string; limit?: number } = {},
+): Promise<ActionResult<ConferenciaView[]>> {
+  const visiveis = await lojasDoAtor(db, ator);
+  if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
+    return NAO_ACHADO("Estabelecimento", "establishment_id");
+  }
+  const limite = opts.limit && opts.limit > 0 ? Math.min(Math.floor(opts.limit), 500) : 100;
+  const linhas = await db.cashCount.findMany({
+    where: opts.establishment_id ? { establishment_id: opts.establishment_id } : filtroDeLojas(visiveis),
+    include: { establishment: { select: { name: true } } },
+    orderBy: [{ counted_at: "desc" }, { created_at: "desc" }],
+    take: limite,
+  });
+  return ok(linhas.map(viewDaConferencia));
 }
