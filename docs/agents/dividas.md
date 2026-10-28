@@ -78,7 +78,7 @@ Decisão do usuário em 14/10/2026: mostrar à Agromax o que o Módulo 30 já fa
 pelo roteiro [roteiro-agromax-rebanho-por-categoria.md](roteiro-agromax-rebanho-por-categoria.md),
 e fechar ou transformar em lista conforme a resposta deles.
 
-### 2.15 a 2.25: o que o Meu Empório deixou de fora de propósito
+### 2.15 a 2.26: o que o Meu Empório deixou de fora de propósito
 
 Decididas com o usuário em 27/10/2026, na entrevista da spec
 [module-39-meu-emporio.md](../specs/module-39-meu-emporio.md) (a coluna
@@ -99,6 +99,7 @@ redescobertos como defeito.
 | 2.23 | custo extra na produção da loja (mão de obra, embalagem) somado ao custo do produto feito aqui | Q78, F2b | mexe no "Vendeu, Pagou" e na margem (F3, F4); hoje o custo é só a soma dos componentes |
 | 2.24 | crédito na loja na devolução (o cliente sai com saldo para gastar depois) | Q86, F3a | precisa de um saldo do cliente, que não existe; hoje a devolução sai em dinheiro, abate do fiado ou vira troca |
 | 2.25 | taxa de cartão por número de parcelas (2x, 3x...), antecipação do recebível do cartão e cheque no recebimento de fiado | Q89, Q91, F3b | tabela de taxa por faixa de parcelas na regra; antecipação como transferência com custo; o cheque do recebimento sem venda por trás |
+| 2.26 | "Vendeu, Pagou" informado (valor digitado na venda), despesa fixa semanal e anual, e conta do Empório paga pelo Financeiro sem sair da gaveta ou da conta | Q97, Q100, F4a | campo opcional no balcão por regra informada; periodicidade no modelo; o Financeiro perguntar de onde saiu o dinheiro quando o lançamento é do Empório |
 
 ## 3. Rede de segurança com furo
 

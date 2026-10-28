@@ -179,6 +179,13 @@ cliente real com as duas coisas vai precisar.
 | Q93 | **Conferência só da gaveta:** esperado, contado, diferença e justificativa (obrigatória com diferença). A diferença vira `CashMovement` de ajuste e lançamento **"Diferença de caixa"** (despesa quando falta, receita quando sobra) | a gaveta volta a bater, e o que sumiu não some do resultado |
 | Q94 | **Cancelar com cartão:** parcelas que não caíram são canceladas, a que já caiu vira saída da conta (estorno), e a taxa é cancelada. **Cheque recebido volta ao cliente**; depositado ou compensado recusa o cancelamento (409). Devolução parcial segue a F3a, e cartão e cheque contam como pago no teto | o estorno parcial muda de adquirente para adquirente |
 | Q95 | Balcão ganha **+ Débito, + Crédito, + Parcelado e + Cheque**; `/emporio/caixa` ganha **a receber do cartão, cheques, transferir entre caixas, conferir gaveta e as taxas de cartão** | cheque e cartão são dinheiro a caminho, e quem confere o caixa vê os dois juntos |
+| Q96 | A F4 se divide em **F4a** ("Vendeu, Pagou", despesa fixa com rateio e o Resultado da Loja do mês) e **F4b** (visão somada, produtos que mais vendem e que mais dão margem, vendas com margem negativa e o filtro do Financeiro) | o Resultado da Loja é o que o comerciante usa todo dia; a F4b só olha o que a F4a calcula |
+| Q97 | **"Vendeu, Pagou":** regra por loja, com nome e condições opcionais (forma, produto, apresentação), em quatro cálculos: **% do valor**, **fixo por venda**, **por unidade vendida** e **embalagem** (produto do estoque por unidade). A taxa de cartão é a despesa da F3b, sem regra nova | o "informado" põe um campo na venda de dez segundos (dívida 2.26) |
+| Q98 | Cada regra que casa grava um **`SaleVariableExpense`** na venda; comissão e entrega viram **uma conta a pagar por venda**, com "pagar várias de uma vez"; embalagem baixa o estoque; o valor real corrige a conta não paga | cada venda carrega a sua despesa, e o cancelamento e a margem por venda ficam exatos |
+| Q99 | **Cancelamento total** cancela as contas não pagas do "Vendeu, Pagou" e devolve a embalagem; a paga fica. **Devolução parcial não mexe** no "Vendeu, Pagou" | a entrega feita não volta |
+| Q100 | **Despesa fixa só mensal:** nome, valor previsto, dia de vencimento, categoria e **rateio obrigatório** (% ou valor, fechando 100% ou o total). Salvar gera as contas dos **próximos 12 meses**, uma por loja e mês; editar ou encerrar refaz só as futuras não pagas; pagar com outro valor corrige o mês | sem job; semanal e anual vão para a dívida 2.26 |
+| Q101 | **Resultado da Loja** por loja e mês, por competência, calculado na leitura: vendas − custo − "Vendeu, Pagou" = margem; depois **perdas e quebras** em linha própria; depois fixas = resultado. Ponto de equilíbrio = fixas ÷ margem % (Q26) e quanto falta; marcado estimado com custo estimado ou provisório, ou fixa não paga | a perda separada aparece; somada ao custo, ela some |
+| Q102 | **`/emporio/resultado`** (loja e mês, as linhas, ponto de equilíbrio e acompanhamento do mês) e **`/emporio/despesas`** (fixas e regras do "Vendeu, Pagou", com as contas e "pagar várias"); o início ganha Resultado e Despesas | configurar é de vez em quando, olhar o resultado é todo dia |
 
 ---
 
@@ -1011,6 +1018,138 @@ ponto de equilíbrio" usa as fixas e a margem, sem dupla contagem (o exemplo do
 §17.3: R$ 5.500 ÷ 30% = R$ 18.333); "consultar resultado global" não duplica
 transferências nem despesas divididas.
 
+Dividida em duas (Q96). **F4a:** "Vendeu, Pagou", despesa fixa e Resultado
+da Loja; aceites da taxa só na parte do cartão (já vale desde a F3b), das
+fixas no acompanhamento e do ponto de equilíbrio. **F4b:** visão somada,
+rankings, margem negativa e o filtro do Financeiro; aceite do resultado
+global.
+
+#### F4a: contrato (Q96 a Q102)
+
+**Modelo.** Enums novos: `VariableExpenseKind` (`percentual`,
+`fixo_por_venda`, `por_unidade`, `embalagem`) e `FixedSplitKind`
+(`percentual`, `valor`). `CashMovementOrigin` ganha `pagamento_despesa`.
+`StockMovement` ganha `sale_variable_expense_id`. Novos, todos escopados e com
+quem gravou:
+
+| model | campos |
+|---|---|
+| `VariableExpenseRule` | `establishment_id`, `name`, `kind`, `value` (% de 0 a 100; R$; ou, na embalagem, a quantidade na unidade-base da embalagem por unidade vendida), `payment_kind?`, `emporio_product_id?`, `presentation_id?`, `packaging_emporio_product_id?` (obrigatório e só na embalagem), `archived_at?` |
+| `SaleVariableExpense` | `sale_id`, `rule_id`, `rule_snapshot` (JSON: nome, cálculo, valor, condições), `amount`, `financial_entry_id?` (comissão e entrega), `canceled_at?` |
+| `FixedExpenseTemplate` | `name`, `category`, `amount`, `due_day` (1 a 31; no mês curto, o último dia), `split_kind`, `starts_on` (1º dia do mês), `ended_at?` |
+| `FixedExpenseSplit` | `template_id`, `establishment_id`, `value` (% ou R$); loja única no modelo |
+| `FixedExpenseOccurrence` | `template_id`, `establishment_id`, `period` (1º dia do mês), `financial_entry_id`; único por modelo, loja e mês |
+
+**"Vendeu, Pagou" na venda (Q97, Q98).** Na mesma transação da venda, cada
+regra ativa da loja cujas condições casam grava um `SaleVariableExpense`:
+- **Condições:** `emporio_product_id` e `presentation_id` filtram os itens;
+  `payment_kind` faz a regra valer só para a parte paga naquela forma (a
+  mesma ideia da regra 6 da seção 5).
+- **Cálculo:**
+  - `percentual`: `value`% do total dos itens que casam (sem condição de
+    produto, da venda inteira), proporcional à parte paga na forma quando há
+    `payment_kind`, ao centavo;
+  - `fixo_por_venda`: `value` uma vez por venda que casa;
+  - `por_unidade`: `value` × soma de `quantity` (na apresentação) dos itens
+    que casam;
+  - `embalagem`: baixa `value` × unidades do produto de embalagem, como
+    `utilizacao` ligada ao `SaleVariableExpense`, pelo custo médio; o
+    `amount` é esse custo. **Nunca bloqueia a venda:** sem saldo, o estoque
+    da embalagem fica negativo e o custo é o último custo médio (marcado
+    provisório).
+- **Dinheiro:** `percentual`, `fixo_por_venda` e `por_unidade` geram uma conta
+  a pagar por `createLinkedEntry`, `pending`, categoria = nome da regra,
+  `related_module` emporio, `related_id` = id da venda, a loja, vencimento no
+  último dia do mês da venda. `amount` zero não grava nada.
+- **A taxa de cartão** da F3b já é a despesa de cartão; o Resultado a soma,
+  sem regra nova.
+
+**Cancelamento e devolução (Q99).** Cancelar a venda marca `canceled_at` nos
+`SaleVariableExpense`; a conta a pagar sem pagamento vira `cancelled`, e a
+paga fica; a `utilizacao` da embalagem ganha `canceled_at`. A devolução
+parcial não mexe em nada disto.
+
+**Pagar e corrigir (Q98, Q100).**
+- `corrigirDespesaAction(entry_id, { amount })`: só em conta pendente sem
+  pagamento, do "Vendeu, Pagou" ou de despesa fixa; 409 `ENTRY_PAID` se já
+  tem pagamento.
+- `pagarDespesasAction({ entry_ids, paid_at?, from })`: quita cada conta pelo
+  valor dela (`FinancialPayment`) e grava um `CashMovement` de saída por
+  conta, origem `pagamento_despesa`, na gaveta ou na conta escolhida em
+  `from`. Saldo insuficiente: 409 `INSUFFICIENT_CASH` em `from`. Conta de
+  fora do Empório, já paga ou cancelada: 422 `entry_ids`.
+- ⚠️ Pagar pelo Financeiro da conta (fora do Empório) quita a conta mas não
+  tira do caixa do Empório. Registrado na dívida 2.26.
+
+**Despesa fixa (Q100).**
+- **Rateio:** pelo menos uma loja; `percentual` soma 100, `valor` soma o
+  `amount` (422 `splits`).
+- **Salvar:** gera, para cada loja do rateio e cada um dos 12 meses a partir
+  de `starts_on`, uma conta a pagar por `createLinkedEntry`, `pending`,
+  categoria do modelo, `related_module` emporio, `related_id` = id do modelo,
+  a loja, vencimento no `due_day` do mês, valor da parte da loja (no
+  percentual, o centavo que sobra vai na primeira loja). Uma
+  `FixedExpenseOccurrence` por conta.
+- **Editar:** as ocorrências de meses a partir do atual sem pagamento são
+  refeitas (valor e vencimento atualizados, loja que saiu do rateio
+  cancelada, loja nova criada); as pagas e as de meses passados ficam.
+- **Encerrar:** `ended_at`; as ocorrências de meses depois do atual sem
+  pagamento são canceladas.
+- **Renovar:** `renovarDespesaFixaAction` estende até 12 meses à frente do
+  mês atual, sem duplicar (único por modelo, loja e mês). A tela oferece o
+  botão quando faltam menos de 3 meses gerados. Nada é gerado sozinho.
+
+**Resultado da Loja (Q101).** `resultadoDaLojaAction(db, ator, {
+establishment_id, month })`, calculado na leitura, por competência no mês
+(datas em Brasília):
+- **Vendas** = Σ `net_amount` das vendas `concluida` com `sold_at` no mês
+  − Σ `amount` das devoluções com `returned_at` no mês;
+- **Custo** = Σ `unit_cost × base_qty` dos itens dessas vendas − o mesmo das
+  devoluções do mês (pelo custo do item vendido);
+- **"Vendeu, Pagou"** = Σ `SaleVariableExpense` não cancelados das vendas do
+  mês + Σ "Taxas de cartão" não canceladas dessas vendas;
+- **Margem** = vendas − custo − "Vendeu, Pagou"; margem % = margem ÷ vendas;
+- **Perdas e quebras** = Σ `perda` não cancelada da loja no mês pelo custo
+  + diferença das transferências recebidas no mês com origem na loja
+  (`sent_qty − received_qty` × `unit_cost`) − Σ `difference` das
+  conferências da loja no mês (falta soma, sobra abate);
+- **Fixas** = Σ das contas fixas da loja com vencimento no mês, não
+  canceladas;
+- **Resultado** = margem − perdas e quebras − fixas;
+- **Ponto de equilíbrio** (Q26) = fixas ÷ margem %; com menos de 10 vendas no
+  mês, a margem % dos últimos 30 dias; sem venda, "sem dados ainda"; margem %
+  zero ou negativa, "a loja não se paga com os preços atuais";
+  **quanto falta** = ponto − vendas, nunca negativo;
+- **Acompanhamento:** vendas por dia do mês, acumulado, e a projeção linear
+  até o fim do mês;
+- **Estimado**, com os motivos em lista: item com `cost_estimated` ou
+  `cost_provisional`; embalagem com custo provisório; conta fixa do mês ainda
+  não paga.
+- **Exemplo do aceite:** fixas de R$ 5.500 e margem de 30% dão ponto de R$
+  18.333,33.
+
+**Papéis:** Resultado, regras, despesas fixas, corrigir e pagar: OWNER e
+ADMIN (o padrão da Q55 para preço; o atendente não vê o resultado).
+Usuário com vínculo vê só as lojas dele (regra 10).
+
+**Actions** (em `src/lib/actions/emporio-resultado.ts` e
+`emporio-despesas.ts`, novos; a venda e o cancelamento em
+`emporio-vendas.ts`):
+- regras: `listarRegrasVariaveisAction`, `criarRegraVariavelAction`, `editarRegraVariavelAction` (arquivar incluso);
+- fixas: `listarDespesasFixasAction`, `criarDespesaFixaAction`, `editarDespesaFixaAction`, `encerrarDespesaFixaAction`, `renovarDespesaFixaAction`;
+- contas: `listarContasAPagarAction(db, ator, opts?)` (do "Vendeu, Pagou" e das fixas), `corrigirDespesaAction`, `pagarDespesasAction`;
+- `resultadoDaLojaAction`.
+
+**Rotas** (`/api/v1/emporio/...`):
+- `variable-expense-rules` (GET, POST) e `variable-expense-rules/[id]` (PATCH);
+- `fixed-expenses` (GET, POST), `fixed-expenses/[id]` (PATCH),
+  `fixed-expenses/[id]/end` e `fixed-expenses/[id]/renew` (POST);
+- `payables` (GET), `payables/[id]` (PATCH, corrigir) e `payables/pay` (POST);
+- `result` (GET, com `establishment_id` e `month` = "AAAA-MM").
+
+**Telas (Q102):** `/emporio/resultado` e `/emporio/despesas`, e os cartões
+Resultado e Despesas no início.
+
 ### F5: integrações e implantação
 
 - Meu Dia: fornecedor a pagar, fiado vencido, estoque baixo, transferência
@@ -1068,5 +1207,6 @@ O §24 do documento, mais:
 | Custo extra na produção da loja (Q78) | 2.23 |
 | Crédito na loja na devolução (Q86) | 2.24 |
 | Taxa de cartão por número de parcelas, antecipação do recebível e cheque no recebimento de fiado (Q89, Q91) | 2.25 |
+| "Vendeu, Pagou" informado, despesa fixa semanal e anual, e pagamento feito pelo Financeiro sem sair do caixa do Empório (Q97, Q100) | 2.26 |
 
 O detalhe de cada uma está em [../agents/dividas.md](../agents/dividas.md).
