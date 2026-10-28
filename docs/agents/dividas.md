@@ -78,7 +78,7 @@ Decisão do usuário em 14/10/2026: mostrar à Agromax o que o Módulo 30 já fa
 pelo roteiro [roteiro-agromax-rebanho-por-categoria.md](roteiro-agromax-rebanho-por-categoria.md),
 e fechar ou transformar em lista conforme a resposta deles.
 
-### 2.15 a 2.23: o que o Meu Empório deixou de fora de propósito
+### 2.15 a 2.24: o que o Meu Empório deixou de fora de propósito
 
 Decididas com o usuário em 27/10/2026, na entrevista da spec
 [module-39-meu-emporio.md](../specs/module-39-meu-emporio.md) (a coluna
@@ -97,6 +97,7 @@ redescobertos como defeito.
 | 2.21 | nota fiscal (NFC-e, NF-e), receituário agronômico, lote e validade obrigatórios | Q9 | projeto à parte (certificado, SEFAZ por estado). **Precisa existir antes de liberar o Empório para quem vende defensivo ou medicamento** |
 | 2.22 | o agente do WhatsApp enxerga o produto criado no Empório ao procurar produto da fazenda ("usei ração para cachorro") | Q51, F1 | a Q51 só esconde nas telas da fazenda; resolver junto do agente do Empório (2.16) |
 | 2.23 | custo extra na produção da loja (mão de obra, embalagem) somado ao custo do produto feito aqui | Q78, F2b | mexe no "Vendeu, Pagou" e na margem (F3, F4); hoje o custo é só a soma dos componentes |
+| 2.24 | crédito na loja na devolução (o cliente sai com saldo para gastar depois) | Q86, F3a | precisa de um saldo do cliente, que não existe; hoje a devolução sai em dinheiro, abate do fiado ou vira troca |
 
 ## 3. Rede de segurança com furo
 

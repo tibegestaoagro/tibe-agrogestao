@@ -164,6 +164,13 @@ cliente real com as duas coisas vai precisar.
 | Q78 | Produzir: quantidade na unidade-base e, quando separa, as embalagens em que entra (lacrado, Q31). **Custo = soma dos componentes pelo custo médio da loja**, sem custo extra (dívida 2.23); componente sem custo marca estimado. Tudo numa operação | o custo extra mexe no "Vendeu, Pagou" da F3 |
 | Q79 | **Cancelar produção:** OWNER e ADMIN, estorna o produto e devolve os componentes numa operação; recusado se o produto feito já saiu, salvo negativo liberado | errar a quantidade produzida é comum |
 | Q80 | **`/emporio/transferencias`** e o cartão Transferências no início; na tela do produto, o bloco **Composição** e o **"Produzir aqui"** no Estoque por loja | a transferência junta vários produtos |
+| Q81 | A F3 se divide em **F3a** (venda em dinheiro, PIX e fiado; recebimento de fiado; gaveta e contas; cancelamento, devolução e troca) e **F3b** (cartão, cheque, transferência entre caixas e conferência) | cada metade cabe numa rodada com validação viva; cartão e cheque não travam vender em dinheiro |
+| Q82 | A venda gera **um** lançamento de receita no Financeiro, pelo valor líquido. Cada parte paga na hora é um `FinancialPayment` nele mais um `CashMovement` no destino; o fiado é o saldo em aberto do mesmo lançamento; receber fiado é outro pagamento mais movimento, sem venda nova | o aceite literal: "uma venda, R$ 120 recebidos e R$ 80 a receber" |
+| Q83 | **Contas bancárias** cadastradas na conta do cliente, com nome e banco opcional; cada loja escolhe a conta padrão do PIX. **PIX sem conta é recusado**, com o aviso para cadastrar | misturar dinheiro físico e banco é o que o §14.1 separa |
+| Q84 | **A saca abre sozinha:** a venda a granel baixa primeiro do avulso; se não cobre, abre embalagens fechadas, começando pela menor, até cobrir. A abertura é movimentação ligada à venda, e a sobra fica avulsa | abrir a menor preserva as fechadas maiores |
+| Q85 | **Preço praticado abaixo do cadastrado é desconto**, com o mesmo limite % da loja; acima do limite, só OWNER e ADMIN, gravando quem deu. Acima do cadastrado é livre. Sem preço cadastrado, a venda pede o valor. Nada muda o preço cadastrado | uma regra só não deixa contornar o limite |
+| Q86 | **Cancelamento total** (OWNER e ADMIN) devolve o estoque e cancela o lançamento, e o dinheiro recebido sai de onde entrou. **Devolução parcial**: a mercadoria volta (ou vira perda, se avariada), e o valor sai da gaveta ou abate do fiado. **Troca** = devolução mais venda nova, ligadas. Sem crédito na loja (dívida 2.24) | crédito na loja precisa de um saldo do cliente que ainda não existe |
+| Q87 | Telas: **`/emporio/vender`** (o balcão, abre direto na venda), **`/emporio/vendas`** (lista, detalhe, cancelar, devolver, trocar), **`/emporio/fiado`** e **`/emporio/caixa`**; o início ganha os cartões | a "venda de dez segundos" não pode ter lista na frente |
 
 ---
 
@@ -670,6 +677,181 @@ pagamento misto" registra uma venda, R$ 120 recebidos e R$ 80 a receber;
 dinheiro entre caixas" não altera o resultado; "cancelar ou devolver uma
 venda" ajusta estoque, Financeiro e resultado, preservando o histórico.
 
+Dividida em duas (Q81). **F3a:** a venda em dinheiro, PIX e fiado, o
+recebimento de fiado, a gaveta e as contas, o cancelamento, a devolução e a
+troca; aceites da venda de 1 kg, do pagamento misto (com fiado no lugar do
+cartão), do fiado e do cancelamento e devolução. **F3b:** cartão, cheque,
+transferência entre caixas e conferência; aceite da transferência entre
+caixas.
+
+#### F3a: contrato (Q81 a Q87)
+
+**Modelo.** `StockMovementType` ganha `abertura_lacrado` (saída do lacrado,
+entra no conjunto de saídas da loja), `abertura_avulso` (entrada no avulso) e
+`devolucao` (entrada). `StockMovement` ganha `sale_id` e `sale_return_id`.
+Enums novos: `EmporioPaymentKind` (`dinheiro`, `pix`, `debito`,
+`credito_vista`, `credito_parcelado`, `cheque`, `fiado`, mais o interno
+`troca`; a F3a aceita só `dinheiro`, `pix` e `fiado`, e os outros dão 422
+`payments` até a F3b), `EmporioSaleStatus` (`concluida`, `cancelada`),
+`CashDirection` (`entrada`, `saida`), `CashMovementOrigin` (`venda`,
+`recebimento_fiado`, `cancelamento_venda`, `devolucao`, `implantacao`) e
+`EmporioRefundKind` (`dinheiro`, `abater_fiado`, `troca`).
+
+⚠️ **Desvio da seção 4.4:** não existe `CashDrawer`. A gaveta **é a loja**: o
+`CashMovement` aponta para o `establishment_id` ou para a `bank_account_id`,
+exatamente um dos dois (CHECK, como o local do estoque). Uma tabela com uma
+linha por loja não guardaria nada que a loja já não guarde; a conferência da
+F3b aponta para a loja também.
+
+Novos, todos escopados e com quem gravou:
+
+| model | campos |
+|---|---|
+| `BankAccount` | `name` (único na conta), `bank?`, `archived_at?` |
+| `Establishment` (muda) | ganha `pix_bank_account_id?` |
+| `EmporioSale` | `establishment_id`, `operation_key` (único na conta), `contact_id?` (obrigatório com fiado), `sold_at`, `sold_by_user_id`, `net_amount`, `discount_amount` (soma dos descontos dos itens), `discount_authorized_by_user_id?` (quando acima do limite), `status`, `canceled_at?`, `canceled_by_user_id?`, `canceled_reason?`, `exchange_return_id?` (a devolução que esta venda troca), `notes?` |
+| `EmporioSaleItem` | `sale_id`, `emporio_product_id`, `presentation_id`, `quantity` (na apresentação, 3 casas), `base_qty` (na unidade-base), `suggested_price?` (por apresentação, do momento), `unit_price` (praticado), `total`, `unit_cost` (unidade-base, do momento), `cost_estimated`, `cost_provisional` (Q32) |
+| `EmporioSalePayment` | `sale_id`, `kind`, `amount`, `bank_account_id?` (PIX), `financial_payment_id?` (nulo no fiado), `due_date?` (fiado) |
+| `EmporioSaleReturn` | `sale_id`, `operation_key` (único na conta), `refund_kind`, `amount`, `returned_at`, `returned_by_user_id`, `reason?` |
+| `EmporioSaleReturnItem` | `return_id`, `sale_item_id`, `quantity` (na apresentação), `base_qty`, `loss_reason?` (avariado: vira perda) |
+| `CashMovement` | `establishment_id?` ou `bank_account_id?` (exatamente um), `direction`, `amount` (> 0), `origin`, `occurred_at`, `sale_id?`, `sale_return_id?`, `financial_payment_id?`, `operation_key?` (único na conta, para o recebimento de fiado), `notes?` |
+
+**Saldo de caixa** (invariante 2): entradas menos saídas, por loja ou por
+conta. Nada é apagado nem cancelado: o estorno é um movimento de saída.
+
+**Venda (Q82, Q84, Q85).** Numa transação só:
+- **Itens:** apresentação ativa do produto, `quantity` > 0; `base_qty` =
+  `quantity × base_qty da apresentação`, arredondada a 3 casas. Sem preço
+  cadastrado na loja, `unit_price` é obrigatório (422 `items`, Q54). Venda sem
+  item dá 422 `items`.
+- **Baixa do estoque:**
+  - produto que **não separa**: uma `venda` pelo total;
+  - apresentação **fechada** de produto que separa: uma `venda` lacrada com o
+    `presentation_id`. Sem embalagem lacrada suficiente daquela apresentação,
+    409 `INSUFFICIENT_STOCK` em `items`, **sempre** (Q31: a venda impossível
+    é recusada mesmo com negativo liberado);
+  - **a granel** de produto que separa: baixa do avulso. Se o avulso não
+    cobre, abre embalagens lacradas da menor apresentação com saldo, uma a
+    uma, até cobrir, passando para a próxima maior quando ela acaba. Cada
+    abertura grava um `abertura_lacrado` (1 embalagem, com o
+    `presentation_id`) e um `abertura_avulso` (o mesmo `base_qty`), os dois
+    com o `sale_id` e o custo médio do momento, de modo que o total e a média
+    não mudam. Depois, uma `venda` avulsa;
+  - acabou tudo e ainda falta: 409 `INSUFFICIENT_STOCK` em `items`, salvo
+    negativo liberado, e aí o avulso fica negativo.
+- **Exemplo do aceite:** 3 sacas de 10 kg lacradas e nada avulso; vender 1 kg
+  abre 1 saca e deixa 2 lacradas, 9 kg avulsos, total 29 kg (−0,10 saca).
+- **Custo:** cada `venda` grava `unit_cost` = custo médio da loja antes da
+  baixa (Q64). `cost_estimated` vem do `estimado` do custo médio;
+  `cost_provisional` marca a venda que deixou o saldo negativo (Q32). Nada
+  disso muda depois.
+- **Desconto (Q85):** por item, `max(0, suggested_price − unit_price) ×
+  quantity`; `discount_amount` é a soma. A % da venda é `discount_amount ÷ Σ
+  (suggested_price × quantity)` dos itens com preço cadastrado. Acima do
+  `max_discount_pct` da loja (vazio = 0%), só OWNER e ADMIN, e o ator vai para
+  `discount_authorized_by_user_id`; OPERADOR recebe 403
+  `DISCOUNT_ABOVE_LIMIT` em `items`. Item acima do cadastrado não compensa
+  item abaixo.
+- **`net_amount`** = Σ `total` dos itens, com `total = quantity × unit_price`
+  arredondado ao centavo.
+- **Pagamentos:** a soma dos `amount` é exatamente o `net_amount` (422
+  `payments`). Fiado exige `contact_id` de um contato não arquivado (422
+  `contact_id`) e aparece no máximo uma vez. PIX vai para `bank_account_id`
+  informado ou para a conta PIX da loja; sem nenhuma, 422 `payments` com o
+  aviso para cadastrar (Q83). O troco do dinheiro é conta da tela: o servidor
+  grava só o valor da venda.
+- **Financeiro:** um lançamento de receita por `createLinkedEntry`, categoria
+  **"Vendas do Empório"**, `related_module` `emporio`, `related_id` da venda,
+  a loja, o cliente, `amount` = `net_amount`, nascido **pendente**, com
+  `due_date` = vencimento do fiado (ou `sold_at`), e `payment_method` quando há
+  uma forma só. Cada pagamento na hora vira um `FinancialPayment` (`dinheiro`
+  e `pix` no `PaymentMethod`) mais um `CashMovement` de entrada, origem
+  `venda`: dinheiro na gaveta da loja, PIX na conta. Sem fiado, o lançamento
+  fecha `paid` na mesma transação. **Não existe receita fora deste
+  lançamento.**
+- Mesma `operation_key` devolve a venda gravada (200).
+
+**Recebimento de fiado (Q82).** `contact_id`, `establishment_id` (onde o
+dinheiro entra), `amount`, `kind` (`dinheiro` ou `pix`), `entry_id?`. Com o
+`entry_id`, paga aquele lançamento; sem ele, distribui pelos lançamentos de
+venda em aberto do cliente, **do mais antigo para o mais novo**. Cada parte é
+um `FinancialPayment` mais um `CashMovement` de entrada, origem
+`recebimento_fiado`. Valor acima do que o cliente deve dá 422 `amount`. Não
+cria venda. Mesma `operation_key` devolve o recebimento gravado.
+
+**Cancelamento total (Q86).** OWNER e ADMIN, `reason` obrigatório. Marca a
+venda `cancelada` e `canceled_at` nas `venda` dela; **as aberturas ficam**
+(a saca foi aberta de verdade), então a mercadoria vendida a granel volta
+avulsa, e a lacrada volta lacrada. O lançamento vira `cancelled`. Para cada
+`FinancialPayment` dele (na hora ou de fiado), um `CashMovement` de saída,
+origem `cancelamento_venda`, no mesmo lugar em que entrou. Venda já cancelada
+dá 409 `SALE_CANCELED`; venda com devolução dá 409 `SALE_HAS_RETURNS`.
+
+**Devolução parcial (Q86).** OPERADOR para cima, com a loja no vínculo. Por
+item, `quantity` até o vendido menos o já devolvido (422 `items`). O valor é
+`quantity × unit_price` do item, ao centavo.
+- **Estoque:** um `devolucao` pelo `unit_cost` da venda, lacrado se a venda foi
+  lacrada, avulso nos outros casos. Com `loss_reason`, também uma `perda`
+  pelo mesmo custo, no mesmo estado: a mercadoria volta e sai como avariada.
+- **`refund_kind` `dinheiro`:** um lançamento de **despesa** "Devoluções de
+  vendas do Empório", pago, ligado à devolução, mais um `CashMovement` de
+  saída da gaveta da loja, origem `devolucao`.
+- **`refund_kind` `abater_fiado`:** o valor tem que caber no saldo em aberto
+  do lançamento da venda (422 `amount`); o `amount` do lançamento diminui
+  nesse valor, e não há movimento de caixa. O histórico fica na devolução.
+- Mesma `operation_key` devolve a devolução gravada.
+
+**Troca (Q86).** Uma devolução com `refund_kind` `troca` e uma venda nova com
+`exchange_return_id`, numa transação. O valor devolvido (V) vira o lançamento
+de despesa "Devoluções de vendas do Empório", pago, **sem** movimento de
+caixa, e entra na venda nova como pagamento `troca` (um `FinancialPayment`
+`outro`, também sem movimento de caixa). O resto da venda nova se paga
+normalmente. Se V passa da venda nova, a diferença sai em dinheiro da gaveta
+(`CashMovement` de saída, origem `devolucao`). Assim o resultado soma as duas
+vendas menos V, e o caixa só vê o dinheiro que mudou de mão.
+
+**Caixa.** Saldo da gaveta de cada loja e de cada conta, e os movimentos.
+**Saldo inicial** uma vez por loja e por conta (origem `implantacao`, entrada),
+como o estoque inicial (Q69).
+
+**Papéis:** vender, receber fiado e devolver são de OPERADOR para cima, com a
+loja no vínculo. Cancelar, desconto acima do limite, contas bancárias e conta
+PIX da loja: OWNER e ADMIN. A gaveta é vista por quem tem acesso à loja; as
+contas, por OWNER e ADMIN. VISUALIZADOR só lê.
+
+**Actions:**
+- `src/lib/actions/emporio-vendas.ts`:
+  - `venderAction(db, ator, { operation_key, establishment_id, contact_id?, sold_at?, items: [{ emporio_product_id, presentation_id, quantity, unit_price? }], payments: [{ kind, amount, bank_account_id?, due_date? }], notes? })`;
+  - `listarVendasAction(db, ator, opts?)` e `lerVendaAction(db, ator, id)`;
+  - `cancelarVendaAction(db, ator, id, { reason })`;
+  - `devolverAction(db, ator, sale_id, { operation_key, refund_kind, items: [{ sale_item_id, quantity, loss_reason? }], reason? })`;
+  - `trocarAction(db, ator, sale_id, { operation_key, items_devolvidos, venda })`, com a venda no formato do `venderAction`.
+- `src/lib/actions/emporio-caixa.ts`:
+  - `listarFiadoAction(db, ator, opts?)`, por cliente: devido, mais antigo, vencido;
+  - `receberFiadoAction(db, ator, { operation_key, contact_id, establishment_id, amount, kind, entry_id? })`;
+  - `listarContasAction`, `criarContaAction`, `editarContaAction` (arquivar incluso);
+  - `definirContaPixAction(db, ator, establishment_id, { bank_account_id })`;
+  - `lerCaixaAction(db, ator, opts?)`, saldos e movimentos;
+  - `saldoInicialCaixaAction(db, ator, { establishment_id? , bank_account_id?, amount })`.
+
+**Rotas** (`/api/v1/emporio/...`):
+- `sales` (GET e POST) e `sales/[id]` (GET);
+- `sales/[id]/cancel`, `sales/[id]/return` e `sales/[id]/exchange` (POST);
+- `receivables` (GET) e `receivables/receive` (POST);
+- `bank-accounts` (GET e POST) e `bank-accounts/[id]` (PATCH);
+- `establishments/[id]/pix-account` (PUT);
+- `cash` (GET) e `cash/opening` (POST).
+
+**Telas (Q87):** `/emporio/vender`, `/emporio/vendas` (e o detalhe),
+`/emporio/fiado`, `/emporio/caixa`; o início ganha Vender, Vendas, Fiado e
+Caixa. No balcão: loja (lembrada), busca do produto, apresentação, quantidade,
+preço sugerido editável, total, pagamento misto com troco, e cliente com
+cadastro rápido no fiado. Tem que funcionar no celular (seção 7).
+
+Observado e deixado como está: o fiado com vencimento entra no aviso de conta
+a receber que o Financeiro já manda (até 3 dias antes), como qualquer
+recebível.
+
 ### F4: resultado
 
 - Despesa fixa (modelo, geração por período, rateio).
@@ -721,7 +903,8 @@ primeira versão (Q9). Fica aberto, para decidir na fase em que aparecer:
 
 - **F0:** a precisão de `quantity` (seção 4.3).
 - **F3:** o desenho exato entre `FinancialEntry`, `FinancialPayment` e
-  `CashMovement`, sem receita duplicada (seção 4.4).
+  `CashMovement`, sem receita duplicada (seção 4.4). Decidido na Q82; o
+  detalhe está no contrato da F3a.
 - **F4:** a periodicidade suportada pela despesa fixa (mensal só, ou também
   semanal e anual) e até quantos períodos à frente ela gera.
 
@@ -738,5 +921,8 @@ O §24 do documento, mais:
 | Contas bancárias no Financeiro da fazenda (Q47) | 2.19 |
 | Cadastro público e cobrança da conta só de Empório (Q7, Q16) | 2.20 |
 | Nota fiscal, receituário agronômico, lote e validade obrigatórios (Q9) | 2.21 |
+| Produto do Empório visível ao agente do WhatsApp (Q51) | 2.22 |
+| Custo extra na produção da loja (Q78) | 2.23 |
+| Crédito na loja na devolução (Q86) | 2.24 |
 
 O detalhe de cada uma está em [../agents/dividas.md](../agents/dividas.md).
