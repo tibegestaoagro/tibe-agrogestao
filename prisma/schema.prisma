@@ -258,6 +258,22 @@ enum CashMovementOrigin {
   conferencia
   cheque_compensado
   estorno_cartao
+  /// F4a (Q98, Q100): conta do Empório paga pela tela de Despesas.
+  pagamento_despesa
+}
+
+/// Módulo 39 (F4a, Q97): o cálculo de uma regra do "Vendeu, Pagou".
+enum VariableExpenseKind {
+  percentual
+  fixo_por_venda
+  por_unidade
+  embalagem
+}
+
+/// Módulo 39 (F4a, Q100): como a despesa fixa se divide entre as lojas.
+enum FixedSplitKind {
+  percentual
+  valor
 }
 
 /// Módulo 39 (F3b, Q89): as formas de cartão que têm regra de taxa e prazo.
@@ -474,79 +490,84 @@ model Tenant {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  profiles               TenantProfile[]
-  users                  User[]
-  properties             Property[]
-  contacts               Contact[]
-  negotiations           Negotiation[]
-  product_categories     ProductCategory[]
-  products               Product[]
-  stock_movements        StockMovement[]
-  animal_categories      AnimalCategory[]
-  animal_batches         AnimalBatch[]
-  machines               Machine[]
-  tasks                  Task[]
-  financial_categories   FinancialCategory[]
-  alert_preferences      AlertPreference[]
-  vaccines               Vaccine[]
-  plots                  Plot[]
-  pastures               Pasture[]
-  service_clients        ServiceClient[]
-  services               Service[]
-  service_orders         ServiceOrder[]
-  financial_entries      FinancialEntry[]
-  financial_payments     FinancialPayment[]
-  whatsapp_contacts      WhatsAppContact[]
-  conversation_logs      AgentConversationLog[]
-  agent_requests         AgentRequest[]
-  alerts                 Alert[]
-  email_logs             EmailLog[]
-  password_resets        PasswordResetCode[]
-  agent_flows            AgentFlowState[]
-  refresh_tokens         RefreshToken[]
-  push_subscriptions     PushSubscription[]
-  herd_movements         HerdMovement[]
-  herd_stays             HerdStay[]
-  confinement_sites      ConfinementSite[]
-  subscription           Subscription?
-  milk_groups            MilkGroup[]
-  lactation_entries      LactationEntry[]
-  milk_productions       MilkProduction[]
-  milk_sites             MilkSite[]
-  milk_movements         MilkMovement[]
-  milk_charges           MilkCharge[]
-  workers                Worker[]
-  service_jobs           ServiceJob[]
-  worker_logs            WorkerLog[]
-  service_job_costs      ServiceJobCost[]
-  shopping_items         ShoppingItem[]
-  tenant_features        TenantFeature[]
-  tenant_feature_users   TenantFeatureUser[]
-  establishments         Establishment[]
-  user_establishments    UserEstablishment[]
-  emporio_products       EmporioProduct[]
-  presentations          ProductPresentation[]
-  presentation_prices    PresentationPrice[]
-  emporio_purchases      EmporioPurchase[]
-  emporio_purchase_items EmporioPurchaseItem[]
-  stock_limits           StockLimit[]
-  stock_transfers        StockTransfer[]
-  stock_transfer_items   StockTransferItem[]
-  compositions           Composition[]
-  composition_items      CompositionItem[]
-  production_entries     ProductionEntry[]
-  bank_accounts          BankAccount[]
-  emporio_sales          EmporioSale[]
-  emporio_sale_items     EmporioSaleItem[]
-  emporio_sale_payments  EmporioSalePayment[]
-  emporio_sale_returns   EmporioSaleReturn[]
-  emporio_return_items   EmporioSaleReturnItem[]
-  cash_movements         CashMovement[]
-  card_fee_rules         CardFeeRule[]
-  card_receivables       CardReceivable[]
-  emporio_checks         EmporioCheck[]
-  cash_transfers         CashTransfer[]
-  cash_counts            CashCount[]
+  profiles                  TenantProfile[]
+  users                     User[]
+  properties                Property[]
+  contacts                  Contact[]
+  negotiations              Negotiation[]
+  product_categories        ProductCategory[]
+  products                  Product[]
+  stock_movements           StockMovement[]
+  animal_categories         AnimalCategory[]
+  animal_batches            AnimalBatch[]
+  machines                  Machine[]
+  tasks                     Task[]
+  financial_categories      FinancialCategory[]
+  alert_preferences         AlertPreference[]
+  vaccines                  Vaccine[]
+  plots                     Plot[]
+  pastures                  Pasture[]
+  service_clients           ServiceClient[]
+  services                  Service[]
+  service_orders            ServiceOrder[]
+  financial_entries         FinancialEntry[]
+  financial_payments        FinancialPayment[]
+  whatsapp_contacts         WhatsAppContact[]
+  conversation_logs         AgentConversationLog[]
+  agent_requests            AgentRequest[]
+  alerts                    Alert[]
+  email_logs                EmailLog[]
+  password_resets           PasswordResetCode[]
+  agent_flows               AgentFlowState[]
+  refresh_tokens            RefreshToken[]
+  push_subscriptions        PushSubscription[]
+  herd_movements            HerdMovement[]
+  herd_stays                HerdStay[]
+  confinement_sites         ConfinementSite[]
+  subscription              Subscription?
+  milk_groups               MilkGroup[]
+  lactation_entries         LactationEntry[]
+  milk_productions          MilkProduction[]
+  milk_sites                MilkSite[]
+  milk_movements            MilkMovement[]
+  milk_charges              MilkCharge[]
+  workers                   Worker[]
+  service_jobs              ServiceJob[]
+  worker_logs               WorkerLog[]
+  service_job_costs         ServiceJobCost[]
+  shopping_items            ShoppingItem[]
+  tenant_features           TenantFeature[]
+  tenant_feature_users      TenantFeatureUser[]
+  establishments            Establishment[]
+  user_establishments       UserEstablishment[]
+  emporio_products          EmporioProduct[]
+  presentations             ProductPresentation[]
+  presentation_prices       PresentationPrice[]
+  emporio_purchases         EmporioPurchase[]
+  emporio_purchase_items    EmporioPurchaseItem[]
+  stock_limits              StockLimit[]
+  stock_transfers           StockTransfer[]
+  stock_transfer_items      StockTransferItem[]
+  compositions              Composition[]
+  composition_items         CompositionItem[]
+  production_entries        ProductionEntry[]
+  bank_accounts             BankAccount[]
+  emporio_sales             EmporioSale[]
+  emporio_sale_items        EmporioSaleItem[]
+  emporio_sale_payments     EmporioSalePayment[]
+  emporio_sale_returns      EmporioSaleReturn[]
+  emporio_return_items      EmporioSaleReturnItem[]
+  cash_movements            CashMovement[]
+  card_fee_rules            CardFeeRule[]
+  card_receivables          CardReceivable[]
+  emporio_checks            EmporioCheck[]
+  cash_transfers            CashTransfer[]
+  cash_counts               CashCount[]
+  variable_expense_rules    VariableExpenseRule[]
+  sale_variable_expenses    SaleVariableExpense[]
+  fixed_expense_templates   FixedExpenseTemplate[]
+  fixed_expense_splits      FixedExpenseSplit[]
+  fixed_expense_occurrences FixedExpenseOccurrence[]
 }
 
 // Equipe da Pleno Digital. NÃO carrega tenant_id: fora do isolamento (PRD 4 / 10.4).
@@ -681,25 +702,28 @@ model Establishment {
   created_at           DateTime          @default(now())
   updated_at           DateTime          @updatedAt
 
-  tenant            Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  responsible       User?               @relation("EstablishmentResponsible", fields: [responsible_user_id], references: [id], onDelete: SetNull)
-  pix_bank_account  BankAccount?        @relation("EstablishmentPixAccount", fields: [pix_bank_account_id], references: [id], onDelete: SetNull)
-  sales             EmporioSale[]
-  cash_movements    CashMovement[]
-  card_fee_rules    CardFeeRule[]
-  card_receivables  CardReceivable[]
-  checks            EmporioCheck[]
-  cash_counts       CashCount[]
-  stock_movements   StockMovement[]
-  financial_entries FinancialEntry[]
-  user_links        UserEstablishment[]
-  prices            PresentationPrice[]
-  purchases         EmporioPurchase[]
-  stock_limits      StockLimit[]
-  shopping_items    ShoppingItem[]
-  transfers_out     StockTransfer[]     @relation("TransferOrigin")
-  transfers_in      StockTransfer[]     @relation("TransferDestination")
-  productions       ProductionEntry[]
+  tenant                    Tenant                   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  responsible               User?                    @relation("EstablishmentResponsible", fields: [responsible_user_id], references: [id], onDelete: SetNull)
+  pix_bank_account          BankAccount?             @relation("EstablishmentPixAccount", fields: [pix_bank_account_id], references: [id], onDelete: SetNull)
+  sales                     EmporioSale[]
+  cash_movements            CashMovement[]
+  card_fee_rules            CardFeeRule[]
+  card_receivables          CardReceivable[]
+  checks                    EmporioCheck[]
+  cash_counts               CashCount[]
+  variable_expense_rules    VariableExpenseRule[]
+  fixed_expense_splits      FixedExpenseSplit[]
+  fixed_expense_occurrences FixedExpenseOccurrence[]
+  stock_movements           StockMovement[]
+  financial_entries         FinancialEntry[]
+  user_links                UserEstablishment[]
+  prices                    PresentationPrice[]
+  purchases                 EmporioPurchase[]
+  stock_limits              StockLimit[]
+  shopping_items            ShoppingItem[]
+  transfers_out             StockTransfer[]          @relation("TransferOrigin")
+  transfers_in              StockTransfer[]          @relation("TransferDestination")
+  productions               ProductionEntry[]
 
   @@unique([tenant_id, name])
   @@index([tenant_id])
@@ -751,16 +775,18 @@ model EmporioProduct {
   created_at         DateTime  @default(now())
   updated_at         DateTime  @updatedAt
 
-  tenant         Tenant                @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  product        Product               @relation(fields: [product_id], references: [id], onDelete: Restrict)
-  presentations  ProductPresentation[]
-  purchase_items EmporioPurchaseItem[]
-  stock_limits   StockLimit[]
-  transfer_items StockTransferItem[]
-  composition    Composition?
-  used_in        CompositionItem[]
-  productions    ProductionEntry[]
-  sale_items     EmporioSaleItem[]
+  tenant             Tenant                @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  product            Product               @relation(fields: [product_id], references: [id], onDelete: Restrict)
+  presentations      ProductPresentation[]
+  purchase_items     EmporioPurchaseItem[]
+  stock_limits       StockLimit[]
+  transfer_items     StockTransferItem[]
+  composition        Composition?
+  used_in            CompositionItem[]
+  productions        ProductionEntry[]
+  sale_items         EmporioSaleItem[]
+  rules_as_product   VariableExpenseRule[] @relation("RuleProduct")
+  rules_as_packaging VariableExpenseRule[] @relation("RulePackaging")
 
   @@index([tenant_id])
 }
@@ -780,13 +806,14 @@ model ProductPresentation {
   created_at         DateTime  @default(now())
   updated_at         DateTime  @updatedAt
 
-  tenant          Tenant                @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  emporio_product EmporioProduct        @relation(fields: [emporio_product_id], references: [id], onDelete: Cascade)
-  prices          PresentationPrice[]
-  stock_movements StockMovement[]
-  purchase_items  EmporioPurchaseItem[]
-  transfer_items  StockTransferItem[]
-  sale_items      EmporioSaleItem[]
+  tenant                 Tenant                @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  emporio_product        EmporioProduct        @relation(fields: [emporio_product_id], references: [id], onDelete: Cascade)
+  prices                 PresentationPrice[]
+  stock_movements        StockMovement[]
+  purchase_items         EmporioPurchaseItem[]
+  transfer_items         StockTransferItem[]
+  sale_items             EmporioSaleItem[]
+  variable_expense_rules VariableExpenseRule[]
 
   @@unique([emporio_product_id, name])
   @@index([tenant_id])
@@ -1063,17 +1090,18 @@ model EmporioSale {
   created_at                     DateTime          @default(now())
   updated_at                     DateTime          @updatedAt
 
-  tenant           Tenant               @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  establishment    Establishment        @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
-  contact          Contact?             @relation(fields: [contact_id], references: [id], onDelete: Restrict)
-  exchange_return  EmporioSaleReturn?   @relation("ExchangeSale", fields: [exchange_return_id], references: [id], onDelete: Restrict)
-  items            EmporioSaleItem[]
-  payments         EmporioSalePayment[]
-  returns          EmporioSaleReturn[]  @relation("ReturnOfSale")
-  card_receivables CardReceivable[]
-  checks           EmporioCheck[]
-  stock_movements  StockMovement[]
-  cash_movements   CashMovement[]
+  tenant            Tenant                @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  establishment     Establishment         @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
+  contact           Contact?              @relation(fields: [contact_id], references: [id], onDelete: Restrict)
+  exchange_return   EmporioSaleReturn?    @relation("ExchangeSale", fields: [exchange_return_id], references: [id], onDelete: Restrict)
+  items             EmporioSaleItem[]
+  payments          EmporioSalePayment[]
+  returns           EmporioSaleReturn[]   @relation("ReturnOfSale")
+  card_receivables  CardReceivable[]
+  checks            EmporioCheck[]
+  variable_expenses SaleVariableExpense[]
+  stock_movements   StockMovement[]
+  cash_movements    CashMovement[]
 
   @@unique([tenant_id, operation_key])
   @@index([tenant_id, establishment_id, sold_at])
@@ -1271,6 +1299,122 @@ model CashCount {
   cash_movements CashMovement[]
 
   @@index([tenant_id, establishment_id, counted_at])
+}
+
+/// Módulo 39, F4a (Q97): regra do "Vendeu, Pagou" de uma loja. A venda copia
+/// a regra no `SaleVariableExpense` (§23.4): mudar a regra não mexe no passado.
+model VariableExpenseRule {
+  id                           String              @id @default(cuid())
+  tenant_id                    String
+  establishment_id             String
+  name                         String
+  kind                         VariableExpenseKind
+  /// % (0 a 100), R$, ou, na embalagem, a quantidade na unidade-base da
+  /// embalagem por unidade vendida.
+  value                        Decimal             @db.Decimal(14, 4)
+  payment_kind                 EmporioPaymentKind?
+  emporio_product_id           String?
+  presentation_id              String?
+  packaging_emporio_product_id String?
+  archived_at                  DateTime?
+  updated_by_user_id           String?
+  created_at                   DateTime            @default(now())
+  updated_at                   DateTime            @updatedAt
+
+  tenant            Tenant                @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  establishment     Establishment         @relation(fields: [establishment_id], references: [id], onDelete: Cascade)
+  emporio_product   EmporioProduct?       @relation("RuleProduct", fields: [emporio_product_id], references: [id], onDelete: Restrict)
+  presentation      ProductPresentation?  @relation(fields: [presentation_id], references: [id], onDelete: Restrict)
+  packaging_product EmporioProduct?       @relation("RulePackaging", fields: [packaging_emporio_product_id], references: [id], onDelete: Restrict)
+  sale_expenses     SaleVariableExpense[]
+
+  @@index([tenant_id, establishment_id])
+}
+
+/// Q98: a despesa variável reconhecida numa venda. Comissão e entrega têm a
+/// conta a pagar em `financial_entry_id`; a embalagem tem a `utilizacao`.
+model SaleVariableExpense {
+  id                 String    @id @default(cuid())
+  tenant_id          String
+  sale_id            String
+  rule_id            String
+  rule_snapshot      Json
+  amount             Decimal   @db.Decimal(14, 2)
+  financial_entry_id String?   @unique
+  /// Embalagem sem saldo: o custo é o último médio (Q32, provisório).
+  cost_provisional   Boolean   @default(false)
+  canceled_at        DateTime?
+  created_at         DateTime  @default(now())
+
+  tenant          Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  sale            EmporioSale         @relation(fields: [sale_id], references: [id], onDelete: Restrict)
+  rule            VariableExpenseRule @relation(fields: [rule_id], references: [id], onDelete: Restrict)
+  financial_entry FinancialEntry?     @relation(fields: [financial_entry_id], references: [id], onDelete: SetNull)
+  stock_movements StockMovement[]
+
+  @@index([tenant_id])
+  @@index([sale_id])
+}
+
+/// Módulo 39, F4a (Q25, Q100): o modelo da despesa fixa mensal. Os lançamentos
+/// reais nascem no Financeiro (12 meses à frente), um por loja e mês.
+model FixedExpenseTemplate {
+  id                 String         @id @default(cuid())
+  tenant_id          String
+  name               String
+  category           String
+  amount             Decimal        @db.Decimal(14, 2)
+  /// 1 a 31; no mês mais curto, o último dia.
+  due_day            Int
+  split_kind         FixedSplitKind
+  starts_on          DateTime       @db.Date
+  ended_at           DateTime?
+  created_by_user_id String?
+  updated_by_user_id String?
+  created_at         DateTime       @default(now())
+  updated_at         DateTime       @updatedAt
+
+  tenant      Tenant                   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  splits      FixedExpenseSplit[]
+  occurrences FixedExpenseOccurrence[]
+
+  @@index([tenant_id])
+}
+
+model FixedExpenseSplit {
+  id               String  @id @default(cuid())
+  tenant_id        String
+  template_id      String
+  establishment_id String
+  /// % ou R$, conforme o `split_kind` do modelo.
+  value            Decimal @db.Decimal(14, 2)
+
+  tenant        Tenant               @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  template      FixedExpenseTemplate @relation(fields: [template_id], references: [id], onDelete: Cascade)
+  establishment Establishment        @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
+
+  @@unique([template_id, establishment_id])
+  @@index([tenant_id])
+}
+
+/// Uma conta fixa de uma loja num mês. O único por modelo, loja e mês é o que
+/// deixa renovar e editar sem duplicar.
+model FixedExpenseOccurrence {
+  id                 String   @id @default(cuid())
+  tenant_id          String
+  template_id        String
+  establishment_id   String
+  period             DateTime @db.Date
+  financial_entry_id String   @unique
+  created_at         DateTime @default(now())
+
+  tenant          Tenant               @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  template        FixedExpenseTemplate @relation(fields: [template_id], references: [id], onDelete: Restrict)
+  establishment   Establishment        @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
+  financial_entry FinancialEntry       @relation(fields: [financial_entry_id], references: [id], onDelete: Restrict)
+
+  @@unique([template_id, establishment_id, period])
+  @@index([tenant_id, establishment_id, period])
 }
 
 /// Q86: devolução parcial e troca, sempre ligadas à venda. Nada é apagado.
@@ -1657,37 +1801,40 @@ model StockMovement {
   /// Módulo 39 (F2a), só no estoque do Empório. Q65: lacrado guarda a
   /// apresentação fechada; avulso, não. Q64: `unit_cost` é o custo por
   /// unidade-base do momento (na entrada, o pago; na saída, o médio).
-  package_state   PackageState?
-  presentation_id String?
-  unit_cost       Decimal?           @db.Decimal(14, 4)
-  purchase_id     String?
-  loss_reason     EmporioLossReason?
+  package_state            PackageState?
+  presentation_id          String?
+  unit_cost                Decimal?           @db.Decimal(14, 4)
+  purchase_id              String?
+  loss_reason              EmporioLossReason?
   /// Módulo 39 (F2b): a transferência ou a produção que gerou a movimentação.
-  transfer_id     String?
-  production_id   String?
+  transfer_id              String?
+  production_id            String?
   /// Módulo 39 (F3a): a venda (baixa e abertura de saca) ou a devolução.
-  sale_id         String?
-  sale_return_id  String?
+  sale_id                  String?
+  sale_return_id           String?
+  /// F4a (Q97): a embalagem baixada pelo "Vendeu, Pagou" da venda.
+  sale_variable_expense_id String?
 
   canceled_at     DateTime?
   canceled_reason String?
   created_at      DateTime  @default(now())
 
-  tenant        Tenant               @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  product       Product              @relation(fields: [product_id], references: [id], onDelete: Restrict)
-  property      Property?            @relation(fields: [property_id], references: [id], onDelete: Cascade)
-  establishment Establishment?       @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
-  pasture       Pasture?             @relation(fields: [pasture_id], references: [id], onDelete: SetNull)
-  negotiation   Negotiation?         @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
-  recorded_by   User?                @relation("StockRecordedBy", fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
-  stay          HerdStay?            @relation(fields: [stay_id], references: [id], onDelete: SetNull)
-  service_job   ServiceJob?          @relation(fields: [service_job_id], references: [id], onDelete: SetNull)
-  presentation  ProductPresentation? @relation(fields: [presentation_id], references: [id], onDelete: Restrict)
-  purchase      EmporioPurchase?     @relation(fields: [purchase_id], references: [id], onDelete: Restrict)
-  transfer      StockTransfer?       @relation(fields: [transfer_id], references: [id], onDelete: Restrict)
-  production    ProductionEntry?     @relation(fields: [production_id], references: [id], onDelete: Restrict)
-  sale          EmporioSale?         @relation(fields: [sale_id], references: [id], onDelete: Restrict)
-  sale_return   EmporioSaleReturn?   @relation(fields: [sale_return_id], references: [id], onDelete: Restrict)
+  tenant                Tenant               @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  product               Product              @relation(fields: [product_id], references: [id], onDelete: Restrict)
+  property              Property?            @relation(fields: [property_id], references: [id], onDelete: Cascade)
+  establishment         Establishment?       @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
+  pasture               Pasture?             @relation(fields: [pasture_id], references: [id], onDelete: SetNull)
+  negotiation           Negotiation?         @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
+  recorded_by           User?                @relation("StockRecordedBy", fields: [recorded_by_user_id], references: [id], onDelete: SetNull)
+  stay                  HerdStay?            @relation(fields: [stay_id], references: [id], onDelete: SetNull)
+  service_job           ServiceJob?          @relation(fields: [service_job_id], references: [id], onDelete: SetNull)
+  presentation          ProductPresentation? @relation(fields: [presentation_id], references: [id], onDelete: Restrict)
+  purchase              EmporioPurchase?     @relation(fields: [purchase_id], references: [id], onDelete: Restrict)
+  transfer              StockTransfer?       @relation(fields: [transfer_id], references: [id], onDelete: Restrict)
+  production            ProductionEntry?     @relation(fields: [production_id], references: [id], onDelete: Restrict)
+  sale                  EmporioSale?         @relation(fields: [sale_id], references: [id], onDelete: Restrict)
+  sale_return           EmporioSaleReturn?   @relation(fields: [sale_return_id], references: [id], onDelete: Restrict)
+  sale_variable_expense SaleVariableExpense? @relation(fields: [sale_variable_expense_id], references: [id], onDelete: Restrict)
 
   @@index([tenant_id])
   @@index([tenant_id, product_id, property_id])
@@ -2245,6 +2392,10 @@ model FinancialEntry {
 
   /// O livro-razão do rebanho aponta para cá (`HerdMovement.financial_entry_id`).
   herd_movements HerdMovement[]
+
+  /// Módulo 39 (F4a): a conta do "Vendeu, Pagou" ou da despesa fixa.
+  sale_variable_expense SaleVariableExpense?
+  fixed_occurrence      FixedExpenseOccurrence?
 
   /// Os pagamentos parciais. O valor pago é a SOMA deles, nunca um campo.
   payments FinancialPayment[]
