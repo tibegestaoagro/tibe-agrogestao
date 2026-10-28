@@ -259,10 +259,16 @@ cofre `8c15bdd`). Decisões Q88 a Q95 e o contrato na spec (`f9f6656`), dívida
 2.25 nova. Schema e migração `20261028220000_emporio_f3b` **só no Docker**
 (`63615a9`): `CardFeeRule`, `CardReceivable` (a parcela é o a receber, e o
 saldo da conta soma as parcelas de hoje para trás, por cálculo na leitura),
-`EmporioCheck`, `CashTransfer`, `CashCount`. Onda 1 despachada: actions e
-rotas (`servidor-acao`) e suíte `m82` da spec (`prova-suite`). Depois: telas,
-roteiro `emporio-f3b` com o balcão em 390 px, quebra de propósito e
-`test:all`. Neon e merge só com autorização dada na conversa.
+`EmporioCheck`, `CashTransfer`, `CashCount`. Suíte `m82` da spec
+(`79679ba`, 231 checagens), actions e 11 rotas (`dee9294`), cenário
+`_cenario-emporio-f3b.ts` (`87db9a3`), telas do balcão e do caixa
+(`eef1dfb`), roteiro `emporio-f3b` (`e8b7492`, 0 falhas; 4 vermelhas com a
+parcela caída fora do saldo da conta). Provas: `tsc` 0, `check` 0 falhas,
+`m81` e `m82` verdes, `test:all` 85/85, roteiro `emporio-f3a` verde de novo.
+**Pronta na branch, falta:** o usuário validar o balcão no celular, e com
+autorização dada na conversa a migração `20261028220000_emporio_f3b` no Neon
+(URL Direct) e o merge. Ao fazer o merge, **não** empurrar a branch com o
+commit final logo antes da `main` (nota `o-sucesso-do-commit-pode-ser-so-o-preview`).
 
 Histórico da F2a: decisões Q60 a Q71 e o contrato na spec (`f1b5d17`). Estoque
 (`1ecaf19`), compras e Lista com loja (`576c842`), telas (`3d61ef7`),
