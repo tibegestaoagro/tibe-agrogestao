@@ -29,6 +29,9 @@ export const stockMovementTypeSchema = z.enum([
   "transferencia_entrada",
   "producao_entrada",
   "producao_consumo",
+  "abertura_lacrado",
+  "abertura_avulso",
+  "devolucao",
 ]);
 export type StockMovementType = z.infer<typeof stockMovementTypeSchema>;
 

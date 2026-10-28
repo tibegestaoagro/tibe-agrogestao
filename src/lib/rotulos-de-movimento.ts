@@ -63,6 +63,9 @@ export const ROTULO_ESTOQUE: Record<StockMovementType, string> = {
   transferencia_entrada: "Recebi de outra loja",
   producao_entrada: "Fiz aqui",
   producao_consumo: "Usei para fazer",
+  abertura_lacrado: "Abri a embalagem",
+  abertura_avulso: "Avulso da embalagem aberta",
+  devolucao: "Voltou de devolução",
 };
 
 export const ROTULO_LEITE: Record<MilkMovementType, string> = {

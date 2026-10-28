@@ -45,6 +45,8 @@ const SAIDAS_DA_LOJA: ReadonlySet<string> = new Set([
   // F2b: a transferência sai da origem no envio; o componente sai na produção.
   "transferencia_saida",
   "producao_consumo",
+  // F3a: a perna lacrada da saca aberta na venda; a avulsa é entrada.
+  "abertura_lacrado",
 ]);
 
 /**

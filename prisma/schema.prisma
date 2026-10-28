@@ -214,6 +214,51 @@ enum StockMovementType {
   transferencia_entrada
   producao_entrada
   producao_consumo
+  /// Módulo 39 (F3a, Q84): a saca que abre sozinha na venda a granel. As duas
+  /// pernas têm o mesmo custo e a mesma quantidade, então o total e a média
+  /// não mudam; só o estado passa de lacrado a avulso.
+  abertura_lacrado
+  abertura_avulso
+  /// Módulo 39 (F3a, Q86): a mercadoria que volta numa devolução ou troca.
+  devolucao
+}
+
+/// Módulo 39 (F3a). Enum próprio, e não o `PaymentMethod` do Financeiro, que
+/// não separa débito de crédito nem tem fiado (seção 4.4 da spec). `troca` é
+/// interno: o valor devolvido que paga a venda nova da troca.
+enum EmporioPaymentKind {
+  dinheiro
+  pix
+  debito
+  credito_vista
+  credito_parcelado
+  cheque
+  fiado
+  troca
+}
+
+enum EmporioSaleStatus {
+  concluida
+  cancelada
+}
+
+enum CashDirection {
+  entrada
+  saida
+}
+
+enum CashMovementOrigin {
+  venda
+  recebimento_fiado
+  cancelamento_venda
+  devolucao
+  implantacao
+}
+
+enum EmporioRefundKind {
+  dinheiro
+  abater_fiado
+  troca
 }
 
 /// Módulo 39, Q19 e Q73.
@@ -468,6 +513,13 @@ model Tenant {
   compositions           Composition[]
   composition_items      CompositionItem[]
   production_entries     ProductionEntry[]
+  bank_accounts          BankAccount[]
+  emporio_sales          EmporioSale[]
+  emporio_sale_items     EmporioSaleItem[]
+  emporio_sale_payments  EmporioSalePayment[]
+  emporio_sale_returns   EmporioSaleReturn[]
+  emporio_return_items   EmporioSaleReturnItem[]
+  cash_movements         CashMovement[]
 }
 
 // Equipe da Pleno Digital. NÃO carrega tenant_id: fora do isolamento (PRD 4 / 10.4).
@@ -597,11 +649,16 @@ model Establishment {
   default_expense_pct  Decimal?          @db.Decimal(7, 2)
   default_profit_pct   Decimal?          @db.Decimal(7, 2)
   archived_at          DateTime?
+  /// F3a (Q83): para onde vai o PIX da loja quando a venda não diz.
+  pix_bank_account_id  String?
   created_at           DateTime          @default(now())
   updated_at           DateTime          @updatedAt
 
   tenant            Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   responsible       User?               @relation("EstablishmentResponsible", fields: [responsible_user_id], references: [id], onDelete: SetNull)
+  pix_bank_account  BankAccount?        @relation("EstablishmentPixAccount", fields: [pix_bank_account_id], references: [id], onDelete: SetNull)
+  sales             EmporioSale[]
+  cash_movements    CashMovement[]
   stock_movements   StockMovement[]
   financial_entries FinancialEntry[]
   user_links        UserEstablishment[]
@@ -672,6 +729,7 @@ model EmporioProduct {
   composition    Composition?
   used_in        CompositionItem[]
   productions    ProductionEntry[]
+  sale_items     EmporioSaleItem[]
 
   @@index([tenant_id])
 }
@@ -697,6 +755,7 @@ model ProductPresentation {
   stock_movements StockMovement[]
   purchase_items  EmporioPurchaseItem[]
   transfer_items  StockTransferItem[]
+  sale_items      EmporioSaleItem[]
 
   @@unique([emporio_product_id, name])
   @@index([tenant_id])
@@ -920,6 +979,205 @@ model ProductionEntry {
 
   @@unique([tenant_id, operation_key])
   @@index([tenant_id])
+}
+
+/// Módulo 39, Q34, Q47 e Q83: conta bancária da conta do cliente, que só o
+/// Empório usa (dívida 2.19). Recebe o PIX; o saldo é a soma dos `CashMovement`.
+model BankAccount {
+  id                 String    @id @default(cuid())
+  tenant_id          String
+  name               String
+  bank               String?
+  archived_at        DateTime?
+  created_by_user_id String?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+
+  tenant         Tenant               @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  pix_of         Establishment[]      @relation("EstablishmentPixAccount")
+  sale_payments  EmporioSalePayment[]
+  cash_movements CashMovement[]
+
+  @@unique([tenant_id, name])
+  @@index([tenant_id])
+}
+
+/// Módulo 39, F3a (Q82, Q84 a Q86). A receita é UM `FinancialEntry` da venda
+/// (`related_module` emporio, `related_id` = id): aqui fica o que foi vendido,
+/// por quanto e como se pagou, não um segundo registro do dinheiro.
+model EmporioSale {
+  id                             String            @id @default(cuid())
+  tenant_id                      String
+  establishment_id               String
+  /// §23.2: repetir a chave devolve esta venda, sem duplicar.
+  operation_key                  String
+  /// Q37: obrigatório quando há fiado.
+  contact_id                     String?
+  sold_at                        DateTime
+  sold_by_user_id                String?
+  net_amount                     Decimal           @db.Decimal(14, 2)
+  /// Q85: soma de (sugerido − praticado) × quantidade dos itens abaixo do preço.
+  discount_amount                Decimal           @default(0) @db.Decimal(14, 2)
+  discount_authorized_by_user_id String?
+  status                         EmporioSaleStatus @default(concluida)
+  canceled_at                    DateTime?
+  canceled_by_user_id            String?
+  canceled_reason                String?
+  /// Q86: a devolução que esta venda troca.
+  exchange_return_id             String?           @unique
+  notes                          String?
+  created_at                     DateTime          @default(now())
+  updated_at                     DateTime          @updatedAt
+
+  tenant          Tenant               @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  establishment   Establishment        @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
+  contact         Contact?             @relation(fields: [contact_id], references: [id], onDelete: Restrict)
+  exchange_return EmporioSaleReturn?   @relation("ExchangeSale", fields: [exchange_return_id], references: [id], onDelete: Restrict)
+  items           EmporioSaleItem[]
+  payments        EmporioSalePayment[]
+  returns         EmporioSaleReturn[]  @relation("ReturnOfSale")
+  stock_movements StockMovement[]
+  cash_movements  CashMovement[]
+
+  @@unique([tenant_id, operation_key])
+  @@index([tenant_id, establishment_id, sold_at])
+  @@index([tenant_id, contact_id])
+}
+
+/// Os critérios do momento (§23.4): preço sugerido, praticado e custo ficam
+/// gravados e não mudam quando o cadastro muda.
+model EmporioSaleItem {
+  id                 String   @id @default(cuid())
+  tenant_id          String
+  sale_id            String
+  emporio_product_id String
+  presentation_id    String
+  /// Na apresentação ("2 sacas", "1,5 quilo").
+  quantity           Decimal  @db.Decimal(14, 3)
+  /// Na unidade-base, o que saiu do estoque.
+  base_qty           Decimal  @db.Decimal(14, 3)
+  /// Por apresentação, o cadastrado na loja no momento; nulo sem preço (Q54).
+  suggested_price    Decimal? @db.Decimal(14, 2)
+  unit_price         Decimal  @db.Decimal(14, 2)
+  total              Decimal  @db.Decimal(14, 2)
+  /// Por unidade-base: o custo médio da loja antes da baixa (Q64).
+  unit_cost          Decimal? @db.Decimal(14, 4)
+  cost_estimated     Boolean  @default(false)
+  /// Q32: a venda deixou o saldo negativo e usou o último custo médio.
+  cost_provisional   Boolean  @default(false)
+
+  tenant          Tenant                  @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  sale            EmporioSale             @relation(fields: [sale_id], references: [id], onDelete: Cascade)
+  emporio_product EmporioProduct          @relation(fields: [emporio_product_id], references: [id], onDelete: Restrict)
+  presentation    ProductPresentation     @relation(fields: [presentation_id], references: [id], onDelete: Restrict)
+  return_items    EmporioSaleReturnItem[]
+
+  @@index([tenant_id])
+  @@index([sale_id])
+}
+
+/// Como a venda foi paga. O dinheiro em si vive no `FinancialPayment`
+/// (nulo no fiado, que é o saldo em aberto do lançamento) e no `CashMovement`.
+model EmporioSalePayment {
+  id                   String             @id @default(cuid())
+  tenant_id            String
+  sale_id              String
+  kind                 EmporioPaymentKind
+  amount               Decimal            @db.Decimal(14, 2)
+  bank_account_id      String?
+  financial_payment_id String?            @unique
+  /// Fiado: vencimento opcional (Q37).
+  due_date             DateTime?
+  created_at           DateTime           @default(now())
+
+  tenant            Tenant            @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  sale              EmporioSale       @relation(fields: [sale_id], references: [id], onDelete: Cascade)
+  bank_account      BankAccount?      @relation(fields: [bank_account_id], references: [id], onDelete: Restrict)
+  financial_payment FinancialPayment? @relation(fields: [financial_payment_id], references: [id], onDelete: SetNull)
+
+  @@index([tenant_id])
+  @@index([sale_id])
+}
+
+/// Q86: devolução parcial e troca, sempre ligadas à venda. Nada é apagado.
+model EmporioSaleReturn {
+  id                  String            @id @default(cuid())
+  tenant_id           String
+  sale_id             String
+  operation_key       String
+  refund_kind         EmporioRefundKind
+  amount              Decimal           @db.Decimal(14, 2)
+  returned_at         DateTime
+  returned_by_user_id String?
+  reason              String?
+  created_at          DateTime          @default(now())
+
+  tenant          Tenant                  @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  sale            EmporioSale             @relation("ReturnOfSale", fields: [sale_id], references: [id], onDelete: Restrict)
+  exchange_sale   EmporioSale?            @relation("ExchangeSale")
+  items           EmporioSaleReturnItem[]
+  stock_movements StockMovement[]
+  cash_movements  CashMovement[]
+
+  @@unique([tenant_id, operation_key])
+  @@index([tenant_id])
+  @@index([sale_id])
+}
+
+model EmporioSaleReturnItem {
+  id           String             @id @default(cuid())
+  tenant_id    String
+  return_id    String
+  sale_item_id String
+  /// Na apresentação do item vendido.
+  quantity     Decimal            @db.Decimal(14, 3)
+  base_qty     Decimal            @db.Decimal(14, 3)
+  /// Avariado: a mercadoria volta e sai como perda.
+  loss_reason  EmporioLossReason?
+
+  tenant      Tenant            @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  sale_return EmporioSaleReturn @relation(fields: [return_id], references: [id], onDelete: Cascade)
+  sale_item   EmporioSaleItem   @relation(fields: [sale_item_id], references: [id], onDelete: Restrict)
+
+  @@index([tenant_id])
+  @@index([return_id])
+}
+
+/// Módulo 39 (Q34, Q82): ONDE o dinheiro está, nunca receita nem despesa (essa
+/// é o Financeiro). A gaveta é a loja (`establishment_id`) ou o dinheiro está
+/// numa conta (`bank_account_id`), exatamente um dos dois (CHECK
+/// `CashMovement_exactly_one_place`). O saldo é a soma: entradas menos saídas.
+/// Nada é cancelado; o estorno é um movimento de saída.
+model CashMovement {
+  id                   String             @id @default(cuid())
+  tenant_id            String
+  establishment_id     String?
+  bank_account_id      String?
+  direction            CashDirection
+  /// Sempre > 0; o sinal vem de `direction`.
+  amount               Decimal            @db.Decimal(14, 2)
+  origin               CashMovementOrigin
+  occurred_at          DateTime
+  sale_id              String?
+  sale_return_id       String?
+  financial_payment_id String?
+  /// §23.2, no recebimento de fiado. Não é única: o recebimento distribuído
+  /// por vários lançamentos grava a mesma chave em cada movimento.
+  operation_key        String?
+  notes                String?
+  created_by_user_id   String?
+  created_at           DateTime           @default(now())
+
+  tenant            Tenant             @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  establishment     Establishment?     @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
+  bank_account      BankAccount?       @relation(fields: [bank_account_id], references: [id], onDelete: Restrict)
+  sale              EmporioSale?       @relation(fields: [sale_id], references: [id], onDelete: Restrict)
+  sale_return       EmporioSaleReturn? @relation(fields: [sale_return_id], references: [id], onDelete: Restrict)
+  financial_payment FinancialPayment?  @relation(fields: [financial_payment_id], references: [id], onDelete: SetNull)
+
+  @@index([tenant_id, operation_key])
+  @@index([tenant_id, establishment_id])
+  @@index([tenant_id, bank_account_id])
 }
 
 // Sessão do aplicativo (identidade por token, Onda 1). O access token é um JWT
@@ -1223,6 +1481,9 @@ model StockMovement {
   /// Módulo 39 (F2b): a transferência ou a produção que gerou a movimentação.
   transfer_id     String?
   production_id   String?
+  /// Módulo 39 (F3a): a venda (baixa e abertura de saca) ou a devolução.
+  sale_id         String?
+  sale_return_id  String?
 
   canceled_at     DateTime?
   canceled_reason String?
@@ -1241,6 +1502,8 @@ model StockMovement {
   purchase      EmporioPurchase?     @relation(fields: [purchase_id], references: [id], onDelete: Restrict)
   transfer      StockTransfer?       @relation(fields: [transfer_id], references: [id], onDelete: Restrict)
   production    ProductionEntry?     @relation(fields: [production_id], references: [id], onDelete: Restrict)
+  sale          EmporioSale?         @relation(fields: [sale_id], references: [id], onDelete: Restrict)
+  sale_return   EmporioSaleReturn?   @relation(fields: [sale_return_id], references: [id], onDelete: Restrict)
 
   @@index([tenant_id])
   @@index([tenant_id, product_id, property_id])
@@ -1847,9 +2110,13 @@ model FinancialPayment {
   created_at         DateTime @default(now())
   created_by_user_id String?
 
-  tenant     Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  entry      FinancialEntry @relation(fields: [entry_id], references: [id], onDelete: Cascade)
-  created_by User?          @relation("FinancialPaymentCreatedBy", fields: [created_by_user_id], references: [id], onDelete: SetNull)
+  tenant         Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  entry          FinancialEntry      @relation(fields: [entry_id], references: [id], onDelete: Cascade)
+  created_by     User?               @relation("FinancialPaymentCreatedBy", fields: [created_by_user_id], references: [id], onDelete: SetNull)
+  /// Módulo 39 (F3a): a parte da venda que este pagamento quitou, e onde o
+  /// dinheiro entrou.
+  sale_payment   EmporioSalePayment?
+  cash_movements CashMovement[]
 
   @@index([tenant_id])
   /// Toda leitura do valor pago soma os pagamentos de um lançamento.
@@ -2459,6 +2726,7 @@ model Contact {
   service_jobs         ServiceJob[]
   machine_maintenances MachineMaintenance[]
   emporio_purchases    EmporioPurchase[]
+  emporio_sales        EmporioSale[]
 
   @@index([tenant_id])
 }
