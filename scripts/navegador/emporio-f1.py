@@ -70,7 +70,7 @@ confere("apresentações criadas", bool(saca and quilo), list(apres))
 passo("4. Tabela de preço por loja (§8, §10, Q54)")
 ir("/emporio/produtos/" + prod["id"])
 linhas = linhas_da_tabela_de_preco()
-confere("4 linhas (2 lojas x 2 apresentações)", len(linhas) == 4, len(linhas))
+confere("4 linhas das lojas F1 (2 lojas x 2 apresentações)", len([x for x in linhas if "F1 Loja" in x]) == 4, len(linhas))
 saca_l1 = [x for x in linhas if "F1 Loja 1" in x and "Saca" in x]
 saca_l2 = [x for x in linhas if "F1 Loja 2" in x and "Saca" in x]
 confere("saca na Loja 1: sugerido R$ 138,00 (100 x 1,15 x 1,20)", bool(saca_l1) and "138,00" in saca_l1[0], saca_l1)

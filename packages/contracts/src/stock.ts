@@ -22,6 +22,9 @@ export const stockMovementTypeSchema = z.enum([
   "ajuste",
   "permuta_entrada",
   "permuta_saida",
+  // Módulo 39 (F2a): só no estoque das lojas do Empório.
+  "implantacao",
+  "perda",
 ]);
 export type StockMovementType = z.infer<typeof stockMovementTypeSchema>;
 
@@ -142,6 +145,9 @@ export const shoppingItemSchema = z.object({
   unit: z.string().nullable(),
   property_id: idSchema.nullable(),
   property_name: z.string().nullable(),
+  /** Módulo 39 (Q68): item da Lista para uma loja do Empório. */
+  establishment_id: idSchema.nullable(),
+  establishment_name: z.string().nullable(),
   category_id: idSchema.nullable(),
   category_name: z.string().nullable(),
   purpose: shoppingPurposeSchema.nullable(),

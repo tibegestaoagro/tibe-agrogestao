@@ -60,7 +60,7 @@ def abrir_grupo(rotulo):
 
 
 def status_api(caminho):
-    return js("fetch(" + repr(caminho) + ").then(r => r.status)")
+    return api("GET", caminho)["status"]
 
 
 def texto_principal(n=400):

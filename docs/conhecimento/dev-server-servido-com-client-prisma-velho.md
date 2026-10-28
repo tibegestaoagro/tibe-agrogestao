@@ -90,5 +90,26 @@ de [[escrever-a-licao-nao-impede-repeti-la]]. Vale como terceiro sinal de
 reconhecimento: **500 genérico em página que usa o model migrado, logo depois de
 migração, é reinício de servidor antes de ser defeito.**
 
+## 2026-10-27: duas vezes no mesmo dia, e um sintoma novo
+
+No Meu Empório (Módulo 39), as fases F1 e F2a criaram models com o `next dev`
+no ar, e as duas caíram aqui. A F1 deu o `findMany` de `undefined` de sempre.
+A F2a deu `PrismaClientValidationError` em campo novo da `StockMovement`.
+
+O sintoma novo veio depois do primeiro reinício: com o servidor antigo ainda
+segurando a porta 3000, o novo não subiu. Quando o antigo foi derrubado e o novo
+subiu sobre o `.next/dev` velho, o servidor entrou em **ciclo de recompilação**
+("✓ Compiled in 2ms" duas vezes por segundo, sem arquivo nenhum mudando). A
+página recarregava sozinha a cada poucos segundos, e o `js()` do
+browser-harness estourava o tempo, o que parecia defeito da tela.
+
+O que resolveu, as duas vezes, foi parar **todo** processo `next` da pasta,
+apagar `.next/dev` e subir de novo. A primeira compilação sem cache levou de 5 a
+7 minutos neste disco, então aqueça as páginas com `curl` antes de rodar o
+roteiro.
+
+**Na fase que cria model, o reinício limpo entra no plano antes da validação
+viva**, e não depois do primeiro 500.
+
 Relacionado: [[validacao-viva-acha-o-que-a-suite-verde-nao-acha]],
 [[turbopack-nao-cria-processo-quando-a-maquina-esta-cheia]].
