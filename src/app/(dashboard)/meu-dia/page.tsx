@@ -15,6 +15,8 @@ import {
 } from "@/lib/actions/meu-dia";
 import { reaisBr } from "@/lib/numero-br";
 import { saudacaoEmSaoPaulo } from "@/lib/dia-calendario";
+import { isFeatureVisibleForUser } from "@/lib/features";
+import { transferenciasParadasAction } from "@/lib/actions/emporio-transferencias";
 
 /**
  * Meu Dia (Módulo 38): "o produtor não procura o que precisa fazer; o TIBÉ
@@ -126,6 +128,12 @@ export default async function MeuDiaPage() {
   ]);
 
   const dia = classificar(itens);
+
+  /* Q33: transferência parada há mais de 2 dias, só para quem vê o Empório. */
+  const paradas = (await isFeatureVisibleForUser(user.tenant_id, user.id, "emporio"))
+    ? await transferenciasParadasAction(db, user)
+    : null;
+  const transferenciasParadas = paradas?.ok ? paradas.data.length : 0;
   const primeiroNome = user.name?.trim().split(/\s+/)[0];
 
   return (
@@ -147,6 +155,17 @@ export default async function MeuDiaPage() {
       />
       <Secao titulo="Próximos dias" itens={dia.proximos} podeEscrever={podeEscrever} />
       <Secao titulo="Sem data" itens={dia.semData} podeEscrever={podeEscrever} />
+
+      {transferenciasParadas > 0 && (
+        <Link
+          href="/emporio/transferencias"
+          className="inline-flex min-h-11 items-center text-sm text-primaria-tinta hover:underline sm:min-h-0"
+        >
+          {transferenciasParadas === 1
+            ? "Você tem 1 transferência esperando recebimento há mais de 2 dias"
+            : `Você tem ${transferenciasParadas} transferências esperando recebimento há mais de 2 dias`}
+        </Link>
+      )}
 
       <section className="rounded-lg border border-borda bg-superficie p-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-texto-secundario">Sua fazenda</h2>

@@ -1,0 +1,29 @@
+import { z } from "zod";
+import { apiErroDeZod } from "@/lib/api";
+import { readJson } from "@/lib/api-guard";
+import { withApi } from "@/lib/route";
+import { cancelarTransferenciaAction } from "@/lib/actions/emporio-transferencias";
+import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
+
+/** POST /api/v1/emporio/transfers/:id/cancel  { reason }: só em trânsito, por quem enviou ou OWNER e ADMIN (Q73). */
+
+const schema = z.object({
+  reason: z.string({ error: "Diga o motivo do cancelamento." }).trim().min(1, "Diga o motivo do cancelamento."),
+});
+
+type Props = { params: Promise<{ id: string }> };
+
+async function POSTHandler(request: Request, props: Props) {
+  const { id } = await props.params;
+  const g = await guardEmporio("write");
+  if ("error" in g) return g.error;
+
+  const body = await readJson(request);
+  if ("error" in body) return body.error;
+  const parsed = schema.safeParse(body.json);
+  if (!parsed.success) return apiErroDeZod(parsed.error);
+
+  return respostaDaAction(await cancelarTransferenciaAction(g.db, g.user, id, parsed.data));
+}
+
+export const POST = withApi(POSTHandler);

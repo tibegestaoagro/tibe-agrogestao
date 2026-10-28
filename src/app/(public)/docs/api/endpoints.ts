@@ -540,6 +540,92 @@ export const GROUPS: Group[] = [
       },
       {
         method: "GET",
+        path: "/api/v1/emporio/products/:id/composition",
+        auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
+        description: "A composição do produto (uma por produto), ou `null` se não tiver. Cada item traz o nome e a unidade-base do componente.",
+        response: `200
+{ "data": { "emporio_product_id": "cl...", "reference_qty": 100, "yield_pct": null, "items": [{ "component_emporio_product_id": "cl...", "name": "Milho", "base_unit": "quilograma", "quantity": 65 }] }, "meta": {} }`,
+      },
+      {
+        method: "PUT",
+        path: "/api/v1/emporio/products/:id/composition",
+        auth: "Sessão · emporio:write · OWNER e ADMIN",
+        description: "Define a composição, substituindo a anterior inteira. `reference_qty` é a quantidade do produto final (na unidade-base) que os itens rendem; `yield_pct` é opcional (acima de 0 até 100, vazio = 100). Componente repetido, igual ao produto, que leve de volta a ele por qualquer caminho (ciclo), arquivado, com quantidade zero ou fracionado em unidade-base `unidade`: 422 `items`. Não movimenta estoque. OPERADOR: 403.",
+        request: `{ "reference_qty": 100, "yield_pct": 95, "items": [{ "component_emporio_product_id": "cl...", "quantity": 65 }, { "component_emporio_product_id": "cl...", "quantity": 35 }] }`,
+        response: `200
+{ "data": { "emporio_product_id": "cl...", "reference_qty": 100, "yield_pct": 95, "items": [{ "component_emporio_product_id": "cl...", "name": "Milho", "base_unit": "quilograma", "quantity": 65 }] }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/production",
+        auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
+        description: "Lista as produções das lojas visíveis ao usuário, da mais recente. Filtros: `establishment_id` (loja fora do vínculo: 404), `emporio_product_id`, `status` (`ativa`, `cancelada`). Cada produção traz a cópia da composição usada, com a quantidade baixada de cada componente.",
+        response: `200
+{ "data": [{ "id": "cl...", "establishment_id": "cl...", "establishment_name": "Loja Centro", "product_name": "Ração", "produced_qty": 400, "unit_cost": 1.29, "estimated": false, "composition_snapshot": { "reference_qty": 100, "yield_pct": null, "items": [{ "name": "Milho", "quantity": 65, "consumed_qty": 260 }] }, "sealed": [], "status": "ativa" }], "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/production",
+        auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
+        description: "Registra o produto feito na loja. `operation_key` é obrigatória e única na conta: repetir a chave devolve a produção gravada com 200 (primeira vez: 201). Baixa cada componente: `quantity × produced_qty ÷ reference_qty ÷ (yield_pct/100)`, em 3 casas (composição 65/29/6 para 100 kg, produzir 400 kg: baixa 260, 116 e 24). Numa transação grava um `producao_consumo` por componente, pelo custo médio dele na loja, e um `producao_entrada` do produto, com `unit_cost` = custo consumido ÷ `produced_qty`. `sealed` (só em produto que separa lacrado de avulso) entra lacrado e o resto avulso; lacrado acima do produzido: 422 `sealed`. Sem composição: 422 `COMPOSITION_REQUIRED`. Fracionado em `unidade`: 422 `produced_qty`. Componente sem saldo na loja (o avulso, se ele separa lacrado): 409 `INSUFFICIENT_STOCK` em `components`, dizendo qual falta, salvo estoque negativo liberado. Loja fora do vínculo: 404.",
+        request: `{ "operation_key": "k-123", "establishment_id": "cl...", "emporio_product_id": "cl...", "produced_qty": 400, "sealed": [{ "presentation_id": "cl...", "packages": 10 }] }`,
+        response: `201
+{ "data": { "id": "cl...", "produced_qty": 400, "unit_cost": 1.29, "estimated": false, "sealed": [{ "presentation_id": "cl...", "name": "Saco 25 kg", "packages": 10 }], "status": "ativa" }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/production/:id/cancel",
+        auth: "Sessão · emporio:write · OWNER e ADMIN",
+        description: "Cancela a produção: marca `canceled_at` em todas as movimentações dela (os componentes voltam e o produto sai), sem apagar nada. `reason` obrigatório (422 `reason`). Já cancelada: 409 `ALREADY_CANCELED`. Saldo do produto ficaria negativo: 409 `INSUFFICIENT_STOCK`, salvo estoque negativo liberado. OPERADOR: 403. Loja fora do vínculo: 404.",
+        request: `{ "reason": "Lançada em duplicidade" }`,
+        response: `200
+{ "data": { "id": "cl...", "status": "cancelada", "canceled_reason": "Lançada em duplicidade" }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/transfers",
+        auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
+        description: "Lista as transferências em que a origem OU o destino é visível ao usuário, da mais recente. Filtros: `establishment_id` (origem ou destino; loja fora do vínculo: 404) e `status` (`em_transito`, `recebida`, `cancelada`). Cada transferência traz os itens com `sent_qty`, `received_qty`, `loss_reason` e `unit_cost`.",
+        response: `200
+{ "data": [{ "id": "cl...", "origin_name": "Central", "destination_name": "Loja Centro", "status": "em_transito", "items": [{ "id": "cl...", "package_state": "lacrado", "sent_qty": 50, "received_qty": null, "unit_cost": 5.5 }] }], "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/transfers",
+        auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR com a origem no vínculo",
+        description: "Envia a transferência. `operation_key` é obrigatória e única na conta: repetir a chave devolve a gravada com 200 (primeira vez: 201). Item lacrado leva `presentation_id` e `packages`; avulso leva `quantity` na unidade-base; produto sem separação leva só `quantity`. Grava uma saída por item na origem pelo custo médio dela, e o saldo da origem cai na hora. Origem igual ao destino: 422 `destination_establishment_id`. Saldo insuficiente na origem (por estado), salvo estoque negativo liberado: 409 `INSUFFICIENT_STOCK` em `items`. Nunca gera lançamento financeiro.",
+        request: `{ "operation_key": "k-123", "origin_establishment_id": "cl...", "destination_establishment_id": "cl...", "items": [{ "emporio_product_id": "cl...", "presentation_id": "cl...", "packages": 5 }, { "emporio_product_id": "cl...", "quantity": 3 }] }`,
+        response: `201
+{ "data": { "id": "cl...", "status": "em_transito", "items": [{ "sent_qty": 50, "unit_cost": 5.5 }] }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/transfers/:id",
+        auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
+        description: "Uma transferência com os itens. Origem e destino fora do vínculo do usuário: 404.",
+        response: `200
+{ "data": { "id": "cl...", "status": "em_transito", "sent_at": "2026-10-28T09:00:00.000Z", "items": [] }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/transfers/:id/receive",
+        auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR com o destino no vínculo (senão 404)",
+        description: "Recebe a transferência: `items` cobre todos os itens, cada um com `item_id` e `received_qty`. Grava uma entrada por item no destino com a quantidade recebida e o custo da origem. Mais do que o enviado: 422 `items`. Menos sem `loss_reason` (`vencido`, `avaria`, `furto`, `consumo_proprio`, `outro`): 422 `items`. A diferença não gera movimentação: fica no item como perda da origem. Fora de trânsito: 409 `TRANSFER_NOT_IN_TRANSIT`.",
+        request: `{ "items": [{ "item_id": "cl...", "received_qty": 48, "loss_reason": "avaria" }] }`,
+        response: `200
+{ "data": { "id": "cl...", "status": "recebida", "items": [{ "sent_qty": 50, "received_qty": 48, "loss_reason": "avaria" }] }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/transfers/:id/cancel",
+        auth: "Sessão · emporio:write · quem enviou, OWNER ou ADMIN (senão 403 `FORBIDDEN`)",
+        description: "Cancela a transferência em trânsito com `reason` obrigatório (422 `reason`): marca as saídas como canceladas e a origem recupera o saldo. Nada é apagado. Fora de trânsito: 409 `TRANSFER_NOT_IN_TRANSIT`.",
+        request: `{ "reason": "Enviado para a loja errada" }`,
+        response: `200
+{ "data": { "id": "cl...", "status": "cancelada", "canceled_reason": "Enviado para a loja errada" }, "meta": {} }`,
+      },
+      {
+        method: "GET",
         path: "/api/v1/pastures",
         auth: "Sessão · rebanho:read · perfil fazenda",
         description: "Lista pastos ativos de uma fazenda. property_id é obrigatório. meta.area_summary traz a soma das áreas x tamanho total da fazenda.",

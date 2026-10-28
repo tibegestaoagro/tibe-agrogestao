@@ -130,7 +130,7 @@ type MovimentoLido = MovimentoDeCusto & {
   presentation_id: string | null;
 };
 
-async function lerMovimentos(c: Tx, lojaIds: string[], productIds: string[]): Promise<MovimentoLido[]> {
+export async function lerMovimentos(c: Tx, lojaIds: string[], productIds: string[]): Promise<MovimentoLido[]> {
   if (lojaIds.length === 0 || productIds.length === 0) return [];
   const linhas = await c.stockMovement.findMany({
     where: {
@@ -168,7 +168,7 @@ async function lerMovimentos(c: Tx, lojaIds: string[], productIds: string[]): Pr
 }
 
 /** Saldo por estado: chave `lacrado|<apresentação>` ou `-|-` (avulso e produto sem separação). */
-function saldosPorEstado(movs: MovimentoLido[]): Map<string, number> {
+export function saldosPorEstado(movs: MovimentoLido[]): Map<string, number> {
   const mapa = new Map<string, number>();
   for (const m of movs) {
     const chave = chaveDoEstado(m.presentation_id);
@@ -179,7 +179,7 @@ function saldosPorEstado(movs: MovimentoLido[]): Map<string, number> {
 }
 
 /** A apresentação só existe no lacrado (Q65), então ela basta para dizer o estado. */
-const chaveDoEstado = (presentationId: string | null) => (presentationId ? `lacrado|${presentationId}` : "avulso|-");
+export const chaveDoEstado = (presentationId: string | null) => (presentationId ? `lacrado|${presentationId}` : "avulso|-");
 
 /**
  * Monta as linhas de saldo de cada loja para os produtos pedidos (todos, se não
@@ -211,11 +211,24 @@ async function montarLinhas(
     select: { emporio_product_id: true, base_quantity: true, purchase: { select: { establishment_id: true } } },
   });
 
+  // F2b, regra 5 da seção 5: o que está em trânsito para a loja também conta como a caminho.
+  const itensEmTransito = await c.stockTransferItem.findMany({
+    where: {
+      emporio_product_id: { in: epIds },
+      transfer: { status: "em_transito", destination_establishment_id: { in: lojaIds } },
+    },
+    select: { emporio_product_id: true, sent_qty: true, transfer: { select: { destination_establishment_id: true } } },
+  });
+
   const limitePorPar = new Map(limites.map((l) => [`${l.establishment_id}|${l.emporio_product_id}`, l]));
   const pendentePorPar = new Map<string, number>();
   for (const it of itensPendentes) {
     const k = `${it.purchase.establishment_id}|${it.emporio_product_id}`;
     pendentePorPar.set(k, (pendentePorPar.get(k) ?? 0) + (decToNum(it.base_quantity) ?? 0));
+  }
+  for (const it of itensEmTransito) {
+    const k = `${it.transfer.destination_establishment_id}|${it.emporio_product_id}`;
+    pendentePorPar.set(k, (pendentePorPar.get(k) ?? 0) + (decToNum(it.sent_qty) ?? 0));
   }
   const movsPorPar = new Map<string, MovimentoLido[]>();
   const epPorProductId = new Map(produtos.map((p) => [p.product_id, p]));
@@ -361,7 +374,7 @@ async function acharLoja(
 }
 
 /** Como `acharLoja`, mas para ESCREVER: loja arquivada não recebe movimentação. */
-async function acharLojaParaEscrita(
+export async function acharLojaParaEscrita(
   db: TenantPrismaClient,
   ator: Ator,
   id: unknown,
@@ -471,7 +484,7 @@ type SealedValido = { presentation: ProdutoRow["presentations"][number]; package
  * campo `sealed`); a apresentação precisa ser do produto, ativa e fechada;
  * embalagem é número inteiro.
  */
-function validarSealed(
+export function validarSealed(
   produto: ProdutoRow,
   sealed: unknown,
   minimo: number,
