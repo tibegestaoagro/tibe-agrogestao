@@ -24,6 +24,7 @@ function inicioDoDiaEmBrasilia(): Date {
 export default async function EmporioPage() {
   const user = await requireFeaturePage("emporio");
   const podeVender = hasMinRole(user.role, "OPERADOR");
+  const ehAdmin = hasMinRole(user.role, "ADMIN");
 
   const db = await getTenantDb();
   const lojas = await listarEstabelecimentosAction(db, user);
@@ -101,6 +102,12 @@ export default async function EmporioPage() {
           plural="clientes com fiado em aberto"
         />
         <CartaoTexto href="/emporio/caixa" titulo="Caixa" texto="Saldo das gavetas e das contas, e os movimentos" />
+        {ehAdmin && (
+          <CartaoTexto href="/emporio/resultado" titulo="Resultado" texto="Quanto cada loja ganhou no mês e o ponto de equilíbrio" />
+        )}
+        {ehAdmin && (
+          <CartaoTexto href="/emporio/despesas" titulo="Despesas" texto="Contas a pagar, despesas fixas e o Vendeu, Pagou" />
+        )}
       </div>
     </div>
   );

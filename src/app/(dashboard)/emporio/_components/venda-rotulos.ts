@@ -43,4 +43,19 @@ export const ORIGEM_CAIXA_ROTULO: Record<string, string> = {
   conferencia: "Ajuste de conferência",
   cheque_compensado: "Cheque compensado",
   estorno_cartao: "Estorno de cartão",
+  pagamento_despesa: "Pagamento de despesa",
+};
+
+/** Cálculo de uma regra do "Vendeu, Pagou" (`VariableExpenseKind`). */
+export const TIPO_REGRA_ROTULO: Record<string, string> = {
+  percentual: "% do valor da venda",
+  fixo_por_venda: "Valor fixo por venda",
+  por_unidade: "Valor por unidade vendida",
+  embalagem: "Embalagem do estoque",
+};
+
+/** Como o rateio de uma despesa fixa é dividido (`FixedSplitKind`). */
+export const RATEIO_ROTULO: Record<string, string> = {
+  percentual: "Em percentual",
+  valor: "Em reais",
 };
