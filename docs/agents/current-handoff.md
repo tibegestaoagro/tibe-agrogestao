@@ -25,7 +25,7 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 `historico/2026-09.md`.
 ## Estado atual
 
-- Atualizado em: 2026-10-28.
+- Atualizado em: 2026-10-29.
 
 ### Programa de dívidas (07 a 14/10): encerrado, E0 a E10 em produção
 
@@ -96,7 +96,7 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
-### Meu Empório (Módulo 39): F0 a F4a em produção
+### Meu Empório (Módulo 39): F0 a F4b em produção, F5 em andamento
 
 **F0 (liberação e fundação) em produção desde 27/10** (`192e402`, merge
 fast-forward da `emporio-f0`, que trouxe a spec junto; autorizado pelo
@@ -301,10 +301,20 @@ inclusive `area` no Financeiro e no PDF (`2771727`), cenário
 `_cenario-emporio-f4b.ts` (`f6428a9`), telas (`9aa6eeb`), roteiro
 `emporio-f4b` (`f52d51f`, 0 falhas; vermelho com a área Empório sem filtro).
 Provas: `tsc` 0, `check` 0 falhas, `m83` e `m84` verdes, as suítes do
-Financeiro verdes, `test:all` 87/87, roteiro `f4a` verde de novo. **Pronta
-na branch, falta:** o aceite do usuário e, com autorização dada na conversa,
-o merge. Depois, a F5 (Meu Dia, Lista de Compra, Calculadora, primeiros
-passos), com aprovação.
+Financeiro verdes, `test:all` 87/87, roteiro `f4a` verde de novo. **Em
+produção em 29/10, autorizado pelo usuário na conversa:** merge fast-forward
+`3db1e63..9d95bc9` (sem migração), deploy de Production do `9d95bc9`
+conferido pela API de deployments e as rotas novas no `/docs/api`.
+
+**F5 (Meu Dia, Lista, Calculadora, primeiros passos) em andamento na
+`emporio-f5`** (a partir da `main`; começo aprovado pelo usuário em 29/10).
+Decisões Q108 a Q117 (todas A) e o contrato na spec (`fafbe6f`). **Sem schema
+novo.** Achado que pautou a fase: os lançamentos do Empório caíam no Meu Dia
+(tela, Painel, WhatsApp) e nos alertas de qualquer usuário, e no "Tudo" do
+Financeiro de quem está fora da lista. Onda 1 despachada: `servidor-acao`
+(actions e rotas) e `prova-suite` (`m85` da spec). Depois: telas, cenário,
+roteiro com um usuário fora da lista, quebra de propósito e `test:all`. Merge
+só com autorização dada na conversa.
 
 Histórico da F2a: decisões Q60 a Q71 e o contrato na spec (`f1b5d17`). Estoque
 (`1ecaf19`), compras e Lista com loja (`576c842`), telas (`3d61ef7`),
