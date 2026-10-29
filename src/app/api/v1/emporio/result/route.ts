@@ -2,7 +2,7 @@ import { withApi } from "@/lib/route";
 import { resultadoDaLojaAction } from "@/lib/actions/emporio-resultado";
 import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
-/** GET /api/v1/emporio/result  ?establishment_id= &month=AAAA-MM  o Resultado da Loja do mês, calculado na leitura: só OWNER e ADMIN. */
+/** GET /api/v1/emporio/result  ?establishment_id=(id|all) &month=AAAA-MM  o Resultado da Loja do mês (ou de todas, com `all`), calculado na leitura: só OWNER e ADMIN. */
 
 async function GETHandler(request: Request) {
   const g = await guardEmporio("read");

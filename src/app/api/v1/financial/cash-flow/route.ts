@@ -2,6 +2,7 @@ import { apiOk, apiError } from "@/lib/api";
 import { guard } from "@/lib/api-guard";
 import { getCashFlow, resolvePeriod } from "@/lib/actions/financial-reports";
 import { withApi } from "@/lib/route";
+import { AREA_INVALIDA, lerArea } from "@/lib/financial-area";
 import { RELATED_MODULES } from "@/lib/related-modules";
 import type { RelatedModule } from "@/generated/prisma/enums";
 
@@ -21,10 +22,14 @@ async function GETHandler(request: Request) {
     return apiError("VALIDATION_ERROR", "related_module inválido", 422);
   }
 
+  const area = lerArea(sp.get("area"));
+  if (!area) return apiError("VALIDATION_ERROR", AREA_INVALIDA, 422, "area");
+
   const series = await getCashFlow(g.db, {
     start,
     end,
     groupBy,
+    area,
     related_module: (related_module ?? undefined) as RelatedModule | undefined,
   });
 

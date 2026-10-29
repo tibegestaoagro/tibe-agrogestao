@@ -1,6 +1,7 @@
 import type { TenantPrismaClient } from "@/lib/prisma";
 import { decToNum } from "@/lib/serialize";
 import { RELATED_MODULES } from "@/lib/related-modules";
+import { filtroDeArea, type AreaFinanceira } from "@/lib/financial-area";
 
 /**
  * Relatórios financeiros (spec 4.4/4.5/4.6). Convenção de regime adotada:
@@ -79,6 +80,7 @@ export async function getCashFlow(
     groupBy?: "day" | "month";
     related_module?: (typeof RELATED_MODULES)[number];
     property_id?: string;
+    area?: AreaFinanceira;
   },
 ) {
   const groupBy = params.groupBy ?? "day";
@@ -99,7 +101,7 @@ export async function getCashFlow(
       entry: {
         status: { not: "cancelled" },
         ...(params.related_module ? { related_module: params.related_module } : {}),
-        ...(params.property_id ? { property_id: params.property_id } : {}),
+        ...filtroDeArea(params.area, params.property_id),
       },
     },
     select: { amount: true, paid_at: true, entry: { select: { entry_type: true } } },
@@ -128,7 +130,7 @@ export async function getCashFlow(
 
 export async function getDre(
   db: TenantPrismaClient,
-  params: { start: Date; end: Date; property_id?: string },
+  params: { start: Date; end: Date; property_id?: string; area?: AreaFinanceira },
 ) {
   const entries = await db.financialEntry.findMany({
     /**
@@ -149,7 +151,7 @@ export async function getDre(
       due_date: { gte: params.start, lte: params.end },
       status: { not: "cancelled" },
       // §32: o resultado de uma fazenda só, quando o produtor escolhe uma.
-      ...(params.property_id ? { property_id: params.property_id } : {}),
+      ...filtroDeArea(params.area, params.property_id),
     },
     select: { entry_type: true, amount: true, related_module: true },
   });
@@ -187,14 +189,19 @@ export async function getDre(
   };
 }
 
-export async function getUpcoming(db: TenantPrismaClient, days: number, property_id?: string) {
+export async function getUpcoming(
+  db: TenantPrismaClient,
+  days: number,
+  property_id?: string,
+  area?: AreaFinanceira,
+) {
   const now = new Date();
   const limit = new Date(now.getTime() + days * 86_400_000);
   const entries = await db.financialEntry.findMany({
     where: {
       status: "pending",
       due_date: { gte: now, lte: limit },
-      ...(property_id ? { property_id } : {}),
+      ...filtroDeArea(area, property_id),
     },
     orderBy: { due_date: "asc" },
   });

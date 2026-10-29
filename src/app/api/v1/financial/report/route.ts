@@ -3,6 +3,7 @@ import { prisma, prismaForTenant } from "@/lib/prisma";
 import { verifyReportToken } from "@/lib/reports/report-token";
 import { generateFinancialPdf } from "@/lib/reports/generate-financial-pdf";
 import { withApi } from "@/lib/route";
+import { lerArea } from "@/lib/financial-area";
 import { recusaSeArquivado } from "@/lib/api-guard";
 
 /**
@@ -32,7 +33,12 @@ async function GETHandler(request: Request) {
   const start = new Date(payload.start);
   const end = new Date(payload.end);
 
-  const pdfBytes = await generateFinancialPdf(db, { tenantName: tenant.name, start, end });
+  const pdfBytes = await generateFinancialPdf(db, {
+    tenantName: tenant.name,
+    start,
+    end,
+    area: lerArea(payload.area) ?? "tudo",
+  });
 
   const filename = `relatorio-financeiro-${start.toISOString().slice(0, 10)}-a-${end
     .toISOString()

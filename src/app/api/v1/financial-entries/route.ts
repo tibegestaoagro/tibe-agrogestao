@@ -4,6 +4,7 @@ import { guard, readJson } from "@/lib/api-guard";
 import { serializeFinancialEntry } from "@/lib/serializers";
 import { createManualEntryAction } from "@/lib/actions/financial-entries";
 import { withApi } from "@/lib/route";
+import { AREA_INVALIDA, filtroDeArea, lerArea } from "@/lib/financial-area";
 
 /**
  * GET  /api/v1/financial-entries   lista com filtros (period, entry_type, category, related_module, status)
@@ -29,9 +30,12 @@ async function GETHandler(request: Request) {
   const category = sp.get("category") || undefined;
   const related_module = sp.get("related_module") || undefined;
   const status = sp.get("status") || undefined;
+  const area = lerArea(sp.get("area"));
+  if (!area) return apiError("VALIDATION_ERROR", AREA_INVALIDA, 422, "area");
 
   const entries = await g.db.financialEntry.findMany({
     where: {
+      ...filtroDeArea(area),
       ...(start || end
         ? {
             due_date: {

@@ -791,9 +791,25 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/result",
         auth: "Sessão · emporio:read · só OWNER e ADMIN; com vínculo, só as lojas dele (404 `establishment_id` nas outras)",
-        description: "Resultado da Loja no mês (F4a, Q101), calculado na leitura. Query: `establishment_id`, `month` (AAAA-MM, 422 `month`). Devolve `sales`, `cost`, `variable_expenses` (regras mais `card_fees`), `margin` e `margin_pct`, `losses` (perdas e quebras, linha própria), `fixed_expenses`, `result`, `break_even` (`status` `ok`, `sem_dados` ou `nao_se_paga`; `amount` e `missing`, nunca negativo), `tracking` (vendas por dia, acumulado e projeção linear) e `estimated` com `estimated_reasons`.",
+        description: "Resultado da Loja no mês (F4a, Q101), calculado na leitura. Query: `establishment_id` (ou `all`, a visão somada de todas as lojas não arquivadas, só para quem não tem vínculo: 403 `FORBIDDEN`; a resposta ganha `stores`, uma linha por loja), `month` (AAAA-MM, 422 `month`). Devolve `sales`, `cost`, `variable_expenses` (regras mais `card_fees`), `margin` e `margin_pct`, `losses` (perdas e quebras, linha própria), `fixed_expenses`, `result`, `break_even` (`status` `ok`, `sem_dados` ou `nao_se_paga`; `amount` e `missing`, nunca negativo), `tracking` (vendas por dia, acumulado e projeção linear) e `estimated` com `estimated_reasons`.",
         response: `200
 { "data": { "month": "2026-11", "sales": 12000, "cost": 6000, "variable_expenses": 600, "margin": 5400, "margin_pct": 45, "losses": 100, "fixed_expenses": 3000, "result": 2300, "break_even": { "status": "ok", "amount": 6666.67, "missing": 0, "margin_pct_used": 45, "basis": "mes" }, "estimated": false, "estimated_reasons": [] }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/result/products",
+        auth: "Sessão · emporio:read · só OWNER e ADMIN; `establishment_id=all` só sem vínculo (403 `FORBIDDEN`)",
+        description: "Produtos do mês (F4b, Q104): `top_sales` e `top_margin`, até 10 cada, ordenados por `sales` e por `margin` (desempate pelo nome). Query: `establishment_id` (id ou `all`), `month` (AAAA-MM). Cada linha: `emporio_product_id`, `name`, `base_unit`, `quantity` (unidade-base), `sales`, `cost`, `variable_expenses` (o \"Vendeu, Pagou\" rateado pelo valor dos itens, a taxa de cartão entre todos), `margin` e `margin_pct` (nulo sem vendas). Devoluções do mês descontam pelo item devolvido.",
+        response: `200
+{ "data": { "establishment_id": "all", "month": "2026-11", "top_sales": [{ "emporio_product_id": "cl...", "name": "Milho", "base_unit": "quilograma", "quantity": 120, "sales": 600, "cost": 360, "variable_expenses": 30, "margin": 210, "margin_pct": 35 }], "top_margin": [] }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/result/negative-sales",
+        auth: "Sessão · emporio:read · só OWNER e ADMIN; `establishment_id=all` só sem vínculo (403 `FORBIDDEN`)",
+        description: "Vendas concluídas do mês com margem negativa (F4b, Q105), da pior para a melhor: `net_amount` menos o custo dos itens menos o \"Vendeu, Pagou\" da venda (taxa de cartão inclusive). Query: `establishment_id` (id ou `all`), `month`. `cause`, na primeira que vale: `custo_provisorio`, `preco_abaixo_do_custo`, `desconto`, `taxa_cartao`, `despesas_da_venda`.",
+        response: `200
+{ "data": [{ "sale_id": "cl...", "sold_at": "2026-11-05T15:00:00.000Z", "establishment_name": "Loja Centro", "net_amount": 90, "margin": -12.5, "cause": "preco_abaixo_do_custo" }], "meta": {} }`,
       },
       {
         method: "GET",
@@ -2135,7 +2151,7 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/financial-entries",
         auth: "Sessão · financeiro:read",
-        description: "Lista lançamentos. Filtros: start, end (sobre due_date), entry_type, category, related_module, status.",
+        description: "Lista lançamentos. Filtros: start, end (sobre due_date), entry_type, category, related_module, status, area (fazenda | emporio | tudo, padrão tudo; emporio é o lançamento com establishment_id; inválido: 422 `area`).",
         response: `200
 { "data": [{ "id": "cl...", "entry_type": "expense", "category": "Insumo (fertilizer) - NPK", "amount": 1800, "status": "pending" }], "meta": { "total": 1 } }`,
       },
@@ -2259,7 +2275,7 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/financial/cash-flow",
         auth: "Sessão · financeiro:read",
-        description: "Saldo por período (regime de caixa), agrupado por dia ou mês. Query: start, end, group_by=day|month, related_module.",
+        description: "Saldo por período (regime de caixa), agrupado por dia ou mês. Query: start, end, group_by=day|month, related_module, area (fazenda | emporio | tudo, padrão tudo; 422 `area`).",
         response: `200
 { "data": [{ "period": "2026-06", "income": 8000, "expense": 5200, "balance": 2800 }], "meta": { "group_by": "month" } }`,
       },
@@ -2267,7 +2283,7 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/financial/dre",
         auth: "Sessão · financeiro:read",
-        description: "Receita e despesa agrupadas por módulo, com resultado por módulo e total geral. Query: start, end.",
+        description: "Receita e despesa agrupadas por módulo, com resultado por módulo e total geral. Query: start, end, area (fazenda | emporio | tudo, padrão tudo; 422 `area`).",
         response: `200
 { "data": { "period": { "start": "2026-06-01", "end": "2026-06-30" }, "by_module": [{ "module": "rebanho", "total_income": 4500, "total_expense": 245, "result": 4255 }], "total_result": 4255 } }`,
       },
@@ -2275,7 +2291,7 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/financial/upcoming",
         auth: "Sessão · financeiro:read",
-        description: "Lançamentos pending com due_date nos próximos 7 dias.",
+        description: "Lançamentos pending com due_date nos próximos 7 dias. Query: area (fazenda | emporio | tudo, padrão tudo; 422 `area`).",
         response: `200
 { "data": [{ "id": "cl...", "entry_type": "expense", "category": "Combustível", "amount": 350, "due_date": "...", "related_module": "geral" }] }`,
       },
@@ -2283,7 +2299,7 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/financial/report/link",
         auth: "Sessão · financeiro:read",
-        description: "Gera um link assinado (HMAC, válido por 1h) para o PDF do relatório financeiro do período. Usado pelo botão \"Exportar relatório\".",
+        description: "Gera um link assinado (HMAC, válido por 1h) para o PDF do relatório financeiro do período. Query: start, end, area (fazenda | emporio | tudo, padrão tudo; 422 `area`): a área vai dentro do token e o PDF a respeita. Usado pelo botão \"Exportar relatório\".",
         response: `200
 { "data": { "report_url": "https://.../api/v1/financial/report?token=...", "expires_in_seconds": 3600 } }`,
       },

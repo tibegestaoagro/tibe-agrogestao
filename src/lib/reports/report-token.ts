@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { log } from "@/lib/log";
+import type { AreaFinanceira } from "@/lib/financial-area";
 
 /**
  * Link de download assinado (HMAC) com expiração, usado no lugar de um upload
@@ -23,7 +24,8 @@ import { log } from "@/lib/log";
  * produção. É reserva de transição, não desenho: rodando assim, avisa no log.
  */
 
-type ReportPayload = { tenant_id: string; start: string; end: string; exp: number };
+/** `area` (Q106) é opcional: link emitido antes do filtro não a traz e vale como `tudo`. */
+type ReportPayload = { tenant_id: string; start: string; end: string; area?: AreaFinanceira; exp: number };
 
 let avisouSobreReserva = false;
 
@@ -48,7 +50,7 @@ function getSecret(): string {
 }
 
 export function signReportToken(
-  payload: { tenant_id: string; start: string; end: string },
+  payload: { tenant_id: string; start: string; end: string; area?: AreaFinanceira },
   ttlSeconds = 3600,
 ): string {
   const exp = Math.floor(Date.now() / 1000) + ttlSeconds;

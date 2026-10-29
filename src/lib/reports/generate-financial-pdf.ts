@@ -2,6 +2,7 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
 import type { TenantPrismaClient } from "@/lib/prisma";
 import { getDre } from "@/lib/actions/financial-reports";
 import { decToNum } from "@/lib/serialize";
+import { filtroDeArea, type AreaFinanceira } from "@/lib/financial-area";
 import { MODULE_LABEL } from "@/lib/related-modules";
 
 /**
@@ -26,12 +27,12 @@ const LINE_HEIGHT = 15;
 
 export async function generateFinancialPdf(
   db: TenantPrismaClient,
-  params: { tenantName: string; start: Date; end: Date },
+  params: { tenantName: string; start: Date; end: Date; area?: AreaFinanceira },
 ): Promise<Uint8Array> {
   const [dre, entries] = await Promise.all([
-    getDre(db, { start: params.start, end: params.end }),
+    getDre(db, { start: params.start, end: params.end, area: params.area }),
     db.financialEntry.findMany({
-      where: { due_date: { gte: params.start, lte: params.end } },
+      where: { due_date: { gte: params.start, lte: params.end }, ...filtroDeArea(params.area) },
       orderBy: { due_date: "asc" },
     }),
   ]);
