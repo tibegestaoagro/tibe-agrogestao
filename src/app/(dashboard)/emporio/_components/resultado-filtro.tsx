@@ -23,12 +23,15 @@ export function ResultadoFiltro({
   lojaVeioDaUrl,
   mes,
   meses,
+  permiteTodas,
 }: {
   lojas: { id: string; name: string }[];
   loja: string;
   lojaVeioDaUrl: boolean;
   mes: string;
   meses: { valor: string; rotulo: string }[];
+  /** Mostra "Todas as lojas" (só quem não está ligado a uma loja). */
+  permiteTodas: boolean;
 }) {
   const router = useRouter();
 
@@ -55,6 +58,7 @@ export function ResultadoFiltro({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
+          {permiteTodas && <SelectItem value="all">Todas as lojas</SelectItem>}
           {lojas.map((l) => (
             <SelectItem key={l.id} value={l.id}>
               {l.name}

@@ -3,12 +3,20 @@ import { notFound } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { hasMinRole } from "@/lib/permissions";
-import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
-import { resultadoDaLojaAction } from "@/lib/actions/emporio-resultado";
+import { listarEstabelecimentosAction, lojasDoAtor } from "@/lib/actions/emporio-catalogo";
+import {
+  resultadoDaLojaAction,
+  produtosDoMesAction,
+  vendasComMargemNegativaAction,
+  TODAS_AS_LOJAS,
+} from "@/lib/actions/emporio-resultado";
 import { lerMes, mesAtualEmBrasilia, textoDoMes } from "@/lib/emporio/mes";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ResultadoFiltro } from "../_components/resultado-filtro";
 import { ResultadoMes } from "../_components/resultado-mes";
+import { ResultadoLojas } from "../_components/resultado-lojas";
+import { ResultadoProdutos } from "../_components/resultado-produtos";
+import { ResultadoMargemNegativa } from "../_components/resultado-margem-negativa";
 import { opcoesDeMes } from "../_components/meses";
 
 /**
@@ -35,9 +43,19 @@ export default async function ResultadoPage({
   // Um mês fora da janela (link antigo) continua escolhível, no começo da lista.
   if (!meses.some((m) => m.valor === mesTexto)) meses.unshift(...opcoesDeMes(mes, 0, 0));
 
-  const lojaValida = lojas.some((l) => l.id === lojaDaUrl);
+  // "Todas as lojas" é só de quem não está ligado a uma loja (Q103); a action recusa o resto.
+  const permiteTodas = lojas.length > 0 && (await lojasDoAtor(db, user)) === null;
+  const lojaValida = lojas.some((l) => l.id === lojaDaUrl) || (permiteTodas && lojaDaUrl === TODAS_AS_LOJAS);
   const loja = lojaValida ? lojaDaUrl : (lojas[0]?.id ?? "");
-  const resultado = loja ? await resultadoDaLojaAction(db, user, { establishment_id: loja, month: mesTexto }) : null;
+  const entrada = { establishment_id: loja, month: mesTexto };
+  const [resultado, produtos, negativas] = loja
+    ? await Promise.all([
+        resultadoDaLojaAction(db, user, entrada),
+        produtosDoMesAction(db, user, entrada),
+        vendasComMargemNegativaAction(db, user, entrada),
+      ])
+    : [null, null, null];
+  const somada = loja === TODAS_AS_LOJAS;
 
   return (
     <div className="space-y-6">
@@ -55,14 +73,21 @@ export default async function ResultadoPage({
         <EmptyState titulo="Nenhuma loja disponível">Cadastre uma loja em Estabelecimentos para ver o resultado.</EmptyState>
       ) : (
         <>
-          <ResultadoFiltro lojas={lojas} loja={loja} lojaVeioDaUrl={lojaValida} mes={mesTexto} meses={meses} />
+          <ResultadoFiltro lojas={lojas} loja={loja} lojaVeioDaUrl={lojaValida} mes={mesTexto} meses={meses} permiteTodas={permiteTodas} />
           {resultado && resultado.ok ? (
-            <ResultadoMes r={resultado.data} />
+            <>
+              <ResultadoMes r={resultado.data} />
+              {somada && resultado.data.stores && <ResultadoLojas lojas={resultado.data.stores} />}
+            </>
           ) : (
             <EmptyState titulo="Não foi possível calcular o resultado">
               {resultado ? resultado.message : "Escolha uma loja."}
             </EmptyState>
           )}
+          {produtos && produtos.ok && (
+            <ResultadoProdutos topSales={produtos.data.top_sales} topMargin={produtos.data.top_margin} />
+          )}
+          {negativas && negativas.ok && <ResultadoMargemNegativa vendas={negativas.data} mostrarLoja={somada} />}
         </>
       )}
     </div>

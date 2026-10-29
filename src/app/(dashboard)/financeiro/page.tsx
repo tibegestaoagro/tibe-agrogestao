@@ -6,6 +6,10 @@ import { getDre, getCashFlow, getUpcoming, resolvePeriod } from "@/lib/actions/f
 import { MODULE_LABEL } from "@/lib/related-modules";
 import { listFinancialCategoriesAction } from "@/lib/actions/financial-categories";
 import { situacaoDe, type SituacaoDePagamento } from "@/lib/actions/financial-payments";
+import { getActiveProfilesForTenant } from "@/lib/tenant-context";
+import { isFeatureVisibleForUser } from "@/lib/features";
+import { lerArea, filtroDeArea } from "@/lib/financial-area";
+import { AreaFiltro } from "./area-filtro";
 import { getActivePropertyId } from "@/lib/active-property";
 import { inicioDoDiaEmSaoPaulo, prazoVencido } from "@/lib/dia-calendario";
 import {
@@ -76,6 +80,7 @@ export default async function FinanceiroPage(
       related_module?: string;
       status?: string;
       property_id?: string;
+      area?: string;
     }>;
   }
 ) {
@@ -100,6 +105,12 @@ export default async function FinanceiroPage(
   const activePropertyId = await getActivePropertyId(db);
   const propriedadeEscolhida = searchParams.property_id ?? activePropertyId ?? undefined;
 
+  // O seletor de área só existe quando a conta tem Fazenda e Empório (Q106).
+  const temDoisPerfis =
+    (await getActiveProfilesForTenant(user.tenant_id)).includes("fazenda") &&
+    (await isFeatureVisibleForUser(user.tenant_id, user.id, "emporio"));
+  const area = temDoisPerfis ? (lerArea(searchParams.area) ?? "tudo") : "tudo";
+
   const hoje = inicioDoDiaEmSaoPaulo(new Date());
   const filtroDeStatus =
     searchParams.status === "overdue"
@@ -122,13 +133,13 @@ export default async function FinanceiroPage(
         }
       : {}),
     ...filtroDeStatus,
-    ...(propriedadeEscolhida ? { property_id: propriedadeEscolhida } : {}),
+    ...filtroDeArea(area, propriedadeEscolhida),
   };
 
   const [dre, cashFlow, upcoming, entries, categorias, semFazenda] = await Promise.all([
-    getDre(db, { start, end, property_id: propriedadeEscolhida }),
-    getCashFlow(db, { start, end, groupBy: "day", property_id: propriedadeEscolhida }),
-    getUpcoming(db, 7, propriedadeEscolhida),
+    getDre(db, { start, end, property_id: propriedadeEscolhida, area }),
+    getCashFlow(db, { start, end, groupBy: "day", property_id: propriedadeEscolhida, area }),
+    getUpcoming(db, 7, propriedadeEscolhida, area),
     db.financialEntry.findMany({
       where: filtroDaTabela,
       include: {
@@ -140,7 +151,7 @@ export default async function FinanceiroPage(
     }),
     // O seletor do formulário lista as categorias do tenant, não uma lista fixa.
     listFinancialCategoriesAction(db, { activeOnly: true }),
-    propriedadeEscolhida
+    propriedadeEscolhida && area !== "emporio"
       ? db.financialEntry.count({ where: { ...filtroDaTabela, property_id: null } })
       : Promise.resolve(0),
   ]);
@@ -172,7 +183,7 @@ export default async function FinanceiroPage(
   const pendentes = await db.financialEntry.findMany({
     where: {
       status: "pending",
-      ...(propriedadeEscolhida ? { property_id: propriedadeEscolhida } : {}),
+      ...filtroDeArea(area, propriedadeEscolhida),
     },
     select: { id: true, entry_type: true, amount: true },
   });
@@ -200,7 +211,8 @@ export default async function FinanceiroPage(
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-texto">Financeiro</h1>
         <div className="flex gap-2">
-          <ExportReportButton />
+          {temDoisPerfis && <AreaFiltro area={area} areaVeioDaUrl={!!searchParams.area} />}
+          <ExportReportButton area={area} />
           {writable && (
             <EntryForm
               categorias={categorias.map((c) => ({ name: c.name, entry_type: c.entry_type }))}

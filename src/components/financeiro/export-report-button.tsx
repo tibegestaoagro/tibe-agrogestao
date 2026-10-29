@@ -4,14 +4,14 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { apiGet } from "@/lib/client-api";
 
-export default function ExportReportButton() {
+export default function ExportReportButton({ area = "tudo" }: { area?: string }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function exportReport() {
     setLoading(true);
     setError(null);
-    const res = await apiGet<{ report_url: string }>("/api/v1/financial/report/link");
+    const res = await apiGet<{ report_url: string }>(`/api/v1/financial/report/link?area=${encodeURIComponent(area)}`);
     setLoading(false);
     if (!res.ok) return setError(res.message);
     window.open(res.data.report_url, "_blank");
