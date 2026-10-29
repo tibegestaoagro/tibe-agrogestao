@@ -1,6 +1,7 @@
 import type { TenantPrismaClient } from "@/lib/prisma";
 import { decToNum } from "@/lib/serialize";
 import { ok, type ActionResult } from "@/lib/actions/types";
+import { filtroDeArea, type AreaFinanceira } from "@/lib/financial-area";
 
 /** Resolve um "period" (formato "YYYY-MM", opcional) para o intervalo do mês. */
 function resolveMonthRange(period?: string | null): { from: Date; to: Date; label: string } {
@@ -28,13 +29,14 @@ function resolveMonthRange(period?: string | null): { from: Date; to: Date; labe
 export async function getBalanceAction(
   db: TenantPrismaClient,
   period?: string | null,
+  area?: AreaFinanceira,
 ): Promise<
   ActionResult<{ period_label: string; income: number; expense: number; balance: number }>
 > {
   const { from, to, label } = resolveMonthRange(period);
 
   const entries = await db.financialEntry.findMany({
-    where: { status: "paid", paid_at: { gte: from, lt: to } },
+    where: { status: "paid", paid_at: { gte: from, lt: to }, ...filtroDeArea(area) },
     select: { entry_type: true, amount: true },
   });
 

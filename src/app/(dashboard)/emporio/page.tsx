@@ -8,6 +8,18 @@ import { listarTransferenciasAction } from "@/lib/actions/emporio-transferencias
 import { listarVendasAction } from "@/lib/actions/emporio-vendas";
 import { listarFiadoAction } from "@/lib/actions/emporio-caixa";
 import { hasMinRole } from "@/lib/permissions";
+import { primeirosPassosAction, type PassoKey, type PassoView } from "@/lib/actions/emporio-primeiros-passos";
+import { Badge } from "@/components/ui/badge";
+
+const ROTULO_DO_PASSO: Record<PassoKey, string> = {
+  preco: "Preço de venda",
+  estoque_inicial: "Estoque inicial com custo",
+  saldo_caixa: "Saldo inicial do caixa",
+  taxa_cartao: "Taxa do cartão",
+  despesa_fixa: "Despesa fixa",
+  minimo_maximo: "Mínimo e máximo",
+  conta_pix: "Conta PIX",
+};
 
 /** Meia-noite de hoje em Brasília (sem horário de verão desde 2019), como instante UTC. */
 function inicioDoDiaEmBrasilia(): Date {
@@ -40,6 +52,11 @@ export default async function EmporioPage() {
   const vendasHoje = hoje.ok ? hoje.data.length : 0;
   const fiado = await listarFiadoAction(db, user);
   const clientesNoFiado = fiado.ok ? fiado.data.length : 0;
+  const passos = ehAdmin ? await primeirosPassosAction(db, user) : null;
+  const pendenciasPorLoja =
+    passos?.ok && !passos.data.complete
+      ? passos.data.establishments.filter((l) => l.steps.some((s) => !s.done))
+      : [];
 
   return (
     <div className="space-y-6">
@@ -49,6 +66,24 @@ export default async function EmporioPage() {
           Suas lojas e o catálogo de produtos que elas vendem.
         </p>
       </header>
+
+      {pendenciasPorLoja.length > 0 && (
+        <section className="space-y-4 rounded-lg border border-borda bg-superficie p-5 shadow-sm">
+          <div>
+            <h2 className="text-lg font-semibold text-texto">Primeiros passos</h2>
+            <p className="mt-1 text-sm text-texto-secundario">
+              O que falta para o resultado da loja sair confiável. Sem os essenciais, ele sai estimado.
+            </p>
+          </div>
+          {pendenciasPorLoja.map((loja) => (
+            <div key={loja.establishment_id} className="space-y-3">
+              <h3 className="text-sm font-semibold text-texto">{loja.name}</h3>
+              <ListaDePassos titulo="Essenciais" passos={loja.steps.filter((s) => s.essential)} />
+              <ListaDePassos titulo="Recomendados" passos={loja.steps.filter((s) => !s.essential)} />
+            </div>
+          ))}
+        </section>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Cartao
@@ -109,6 +144,31 @@ export default async function EmporioPage() {
           <CartaoTexto href="/emporio/despesas" titulo="Despesas" texto="Contas a pagar, despesas fixas e o Vendeu, Pagou" />
         )}
       </div>
+    </div>
+  );
+}
+
+function ListaDePassos({ titulo, passos }: { titulo: string; passos: PassoView[] }) {
+  if (passos.length === 0) return null;
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-texto-secundario">{titulo}</p>
+      <ul className="mt-1 divide-y divide-borda">
+        {passos.map((p) => (
+          <li key={p.key} className="flex flex-wrap items-center justify-between gap-2 py-2">
+            <div className="min-w-0">
+              <Link
+                href={p.href}
+                className="inline-flex min-h-11 items-center text-sm font-medium text-texto hover:underline sm:min-h-0"
+              >
+                {ROTULO_DO_PASSO[p.key]}
+              </Link>
+              {p.detail && <p className="text-xs text-texto-discreto">{p.detail}</p>}
+            </div>
+            <Badge variant={p.done ? "green" : "amber"}>{p.done ? "Feito" : "Pendente"}</Badge>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

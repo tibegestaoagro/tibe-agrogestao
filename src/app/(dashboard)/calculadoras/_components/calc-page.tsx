@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import MateriaisParaLista, { type Material } from "./materiais-para-lista";
+import CriarComposicaoDaReceita, { type ReceitaParaComposicao } from "./criar-composicao-da-receita";
 import {
   Select,
   SelectContent,
@@ -94,7 +95,7 @@ export type ResultRow = { label: string; value: string; highlight?: boolean };
  * trabalho, no mesmo lugar.
  */
 export type CalcOutcome =
-  | { ok: true; rows: ResultRow[]; materiais?: Material[] }
+  | { ok: true; rows: ResultRow[]; materiais?: Material[]; receita?: ReceitaParaComposicao }
   | { ok: false; error: string };
 
 type Confidence = "alta" | "media" | "baixa";
@@ -378,6 +379,13 @@ export default function CalcPage({
         <MateriaisParaLista
           key={result.materiais.map((m) => `${m.descricao}:${m.quantidade}`).join("|")}
           materiais={result.materiais}
+        />
+      )}
+
+      {result && result.ok && result.receita && (
+        <CriarComposicaoDaReceita
+          key={result.receita.ingredientes.map((i) => `${i.nome}:${i.quantidadeKg}`).join("|")}
+          receita={result.receita}
         />
       )}
 

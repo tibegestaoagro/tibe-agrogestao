@@ -8,7 +8,7 @@ import { listFinancialCategoriesAction } from "@/lib/actions/financial-categorie
 import { situacaoDe, type SituacaoDePagamento } from "@/lib/actions/financial-payments";
 import { getActiveProfilesForTenant } from "@/lib/tenant-context";
 import { isFeatureVisibleForUser } from "@/lib/features";
-import { lerArea, filtroDeArea } from "@/lib/financial-area";
+import { lerArea, filtroDeArea, areaPermitida } from "@/lib/financial-area";
 import { AreaFiltro } from "./area-filtro";
 import { getActivePropertyId } from "@/lib/active-property";
 import { inicioDoDiaEmSaoPaulo, prazoVencido } from "@/lib/dia-calendario";
@@ -109,7 +109,8 @@ export default async function FinanceiroPage(
   const temDoisPerfis =
     (await getActiveProfilesForTenant(user.tenant_id)).includes("fazenda") &&
     (await isFeatureVisibleForUser(user.tenant_id, user.id, "emporio"));
-  const area = temDoisPerfis ? (lerArea(searchParams.area) ?? "tudo") : "tudo";
+  // Q117: fora da lista a área é sempre a fazenda, sem erro e sem aviso.
+  const area = await areaPermitida(user, temDoisPerfis ? (lerArea(searchParams.area) ?? "tudo") : "tudo");
 
   const hoje = inicioDoDiaEmSaoPaulo(new Date());
   const filtroDeStatus =

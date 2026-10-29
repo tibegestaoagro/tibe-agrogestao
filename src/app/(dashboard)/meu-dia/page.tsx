@@ -8,15 +8,15 @@ import TaskForm from "@/components/meu-dia/task-form";
 import TaskActions from "@/components/meu-dia/task-actions";
 import {
   classificar,
-  lerItensDoDia,
   resumoDaFazenda,
   historicoDoDia,
   type ItemDoDia,
 } from "@/lib/actions/meu-dia";
 import { reaisBr } from "@/lib/numero-br";
 import { saudacaoEmSaoPaulo } from "@/lib/dia-calendario";
-import { isFeatureVisibleForUser } from "@/lib/features";
 import { transferenciasParadasAction } from "@/lib/actions/emporio-transferencias";
+import { precisaReporAction } from "@/lib/actions/emporio-estoque";
+import { lerItensDoDiaCompleto, resumoDoEmporio, veEmporio } from "@/lib/actions/emporio-meu-dia";
 
 /**
  * Meu Dia (Módulo 38): "o produtor não procura o que precisa fazer; o TIBÉ
@@ -119,8 +119,10 @@ export default async function MeuDiaPage() {
   const temFazenda = profiles.includes("fazenda");
   const propertyId = temFazenda ? await getActivePropertyId(db) : null;
 
+  const mostraEmporio = await veEmporio(user);
+
   const [itens, resumo, historico, workers, properties] = await Promise.all([
-    lerItensDoDia(db, { property_id: propertyId }),
+    lerItensDoDiaCompleto(db, user, { property_id: propertyId }),
     resumoDaFazenda(db, { property_id: propertyId, temFazenda }),
     historicoDoDia(db, { property_id: propertyId }),
     db.worker.findMany({ where: { status: "ativo" }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
@@ -130,10 +132,12 @@ export default async function MeuDiaPage() {
   const dia = classificar(itens);
 
   /* Q33: transferência parada há mais de 2 dias, só para quem vê o Empório. */
-  const paradas = (await isFeatureVisibleForUser(user.tenant_id, user.id, "emporio"))
-    ? await transferenciasParadasAction(db, user)
-    : null;
+  const paradas = mostraEmporio ? await transferenciasParadasAction(db, user) : null;
   const transferenciasParadas = paradas?.ok ? paradas.data.length : 0;
+  /* Q111: estoque baixo é uma linha com a contagem, como a da transferência parada. */
+  const repor = mostraEmporio ? await precisaReporAction(db, user) : null;
+  const produtosParaRepor = repor?.ok ? repor.data.length : 0;
+  const resumoEmporio = mostraEmporio ? await resumoDoEmporio(db, user) : null;
   const primeiroNome = user.name?.trim().split(/\s+/)[0];
 
   return (
@@ -167,6 +171,18 @@ export default async function MeuDiaPage() {
         </Link>
       )}
 
+      {produtosParaRepor > 0 && (
+        <Link
+          href="/emporio/estoque"
+          className="inline-flex min-h-11 items-center text-sm text-primaria-tinta hover:underline sm:min-h-0"
+        >
+          {produtosParaRepor === 1
+            ? "1 produto precisa de reposição"
+            : `${produtosParaRepor} produtos precisam de reposição`}
+        </Link>
+      )}
+
+      {temFazenda && (
       <section className="rounded-lg border border-borda bg-superficie p-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-texto-secundario">Sua fazenda</h2>
         <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
@@ -197,20 +213,43 @@ export default async function MeuDiaPage() {
             </div>
           )}
         </dl>
-
-        {/* §14: a Lista de Compra NÃO aparece inteira, só o acesso a ela.
-            A seção do histórico fica logo abaixo, fora desta. */}
-        {resumo.listaDeCompra > 0 && (
-          <Link
-            href="/lista-de-compra"
-            className="mt-3 inline-flex min-h-11 items-center text-sm text-primaria-tinta hover:underline sm:min-h-0"
-          >
-            {resumo.comprasUrgentes > 0
-              ? `Você tem ${resumo.comprasUrgentes} ${resumo.comprasUrgentes === 1 ? "compra urgente" : "compras urgentes"} na Lista de Compra`
-              : `Você tem ${resumo.listaDeCompra} ${resumo.listaDeCompra === 1 ? "item" : "itens"} na Lista de Compra`}
-          </Link>
-        )}
       </section>
+      )}
+
+      {resumoEmporio && (
+        <section className="rounded-lg border border-borda bg-superficie p-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-texto-secundario">Seu Empório</h2>
+          <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+            <div>
+              <dt className="text-texto-secundario">Vendas de hoje</dt>
+              <dd className="font-medium text-texto">{reaisBr(resumoEmporio.sales_today)}</dd>
+            </div>
+            <div>
+              <dt className="text-texto-secundario">Fiado a receber</dt>
+              <dd className="font-medium text-texto">{reaisBr(resumoEmporio.fiado_open)}</dd>
+            </div>
+            {resumoEmporio.payables_open !== null && (
+              <div>
+                <dt className="text-texto-secundario">A pagar</dt>
+                <dd className="font-medium text-texto">{reaisBr(resumoEmporio.payables_open)}</dd>
+              </div>
+            )}
+          </dl>
+        </section>
+      )}
+
+      {/* §14: a Lista de Compra NÃO aparece inteira, só o acesso a ela. Fica
+          entre os cartões para a conta só de Empório também a ver. */}
+      {resumo.listaDeCompra > 0 && (
+        <Link
+          href="/lista-de-compra"
+          className="inline-flex min-h-11 items-center text-sm text-primaria-tinta hover:underline sm:min-h-0"
+        >
+          {resumo.comprasUrgentes > 0
+            ? `Você tem ${resumo.comprasUrgentes} ${resumo.comprasUrgentes === 1 ? "compra urgente" : "compras urgentes"} na Lista de Compra`
+            : `Você tem ${resumo.listaDeCompra} ${resumo.listaDeCompra === 1 ? "item" : "itens"} na Lista de Compra`}
+        </Link>
+      )}
 
       {/* §53: "consultar", e não ver o tempo todo. Recolhido por padrão, com o
           <details> do navegador, que já é acessível e não pede JavaScript. */}

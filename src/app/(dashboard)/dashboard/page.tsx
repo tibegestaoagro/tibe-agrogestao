@@ -10,7 +10,9 @@ import { countActivePlots } from "@/lib/actions/plots";
 import { countServiceClients } from "@/lib/actions/service-clients";
 import { countCompletedUnbilledOrders } from "@/lib/actions/service-orders";
 import { getActivePropertyId } from "@/lib/active-property";
-import { classificar, lerItensDoDia } from "@/lib/actions/meu-dia";
+import { classificar } from "@/lib/actions/meu-dia";
+import { lerItensDoDiaCompleto } from "@/lib/actions/emporio-meu-dia";
+import { areaPermitida, filtroDeArea } from "@/lib/financial-area";
 import { saudacaoEmSaoPaulo } from "@/lib/dia-calendario";
 import { decToNum } from "@/lib/serialize";
 import KpiCard from "@/components/dashboard/kpi-card";
@@ -49,6 +51,11 @@ export default async function DashboardHome() {
   // antigo segue nulo. Filtrar aqui esconderia esses em silêncio.
   const activePropertyId = hasFazenda ? await getActivePropertyId(db) : null;
 
+  /* Q117: quem não vê o Empório tem os números financeiros só da fazenda;
+     quem vê continua somando tudo (dívida 2.27). */
+  const area = user ? await areaPermitida(user, "tudo") : ("fazenda" as const);
+  const areaWhere = filtroDeArea(area);
+
   const now = new Date();
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
   const maintenanceLimit = new Date(now.getTime() + 15 * 86_400_000);
@@ -82,12 +89,14 @@ export default async function DashboardHome() {
     hasFazenda ? listUpcomingVaccinations(db, 15, activePropertyId) : Promise.resolve([]),
     hasPrestador ? countServiceClients(db) : Promise.resolve(0),
     hasPrestador ? countCompletedUnbilledOrders(db) : Promise.resolve(0),
-    getBalanceAction(db, null),
+    /* `getBalanceAction` lê tudo e não tem filtro de área: fora da lista, o saldo
+       do mês sai da mesma conta, só com lançamento da fazenda. */
+    getBalanceAction(db, null, area),
     db.alert.count({ where: { status: "pending" } }),
-    getCashFlow(db, { start: sixMonthsAgo, end: now, groupBy: "month" }),
+    getCashFlow(db, { start: sixMonthsAgo, end: now, groupBy: "month", area }),
     hasFazenda ? getHerdEvolution(db, { months: 6, propertyId: activePropertyId }) : Promise.resolve([]),
     db.task.count({ where: { status: "pending", due_date: { gte: now, lte: taskLimit } } }),
-    db.financialEntry.count({ where: { status: "pending", due_date: { lt: now } } }),
+    db.financialEntry.count({ where: { status: "pending", due_date: { lt: now }, ...areaWhere } }),
     hasFazenda
       ? db.machine.count({
           where: {
@@ -100,14 +109,14 @@ export default async function DashboardHome() {
           },
         })
       : Promise.resolve(0),
-    db.financialEntry.findMany({ orderBy: { created_at: "desc" }, take: 5 }),
+    db.financialEntry.findMany({ where: areaWhere, orderBy: { created_at: "desc" }, take: 5 }),
     db.financialEntry.aggregate({
-      where: { entry_type: "income", status: "pending" },
+      where: { entry_type: "income", status: "pending", ...areaWhere },
       _sum: { amount: true },
       _count: true,
     }),
     db.financialEntry.aggregate({
-      where: { entry_type: "expense", status: "pending" },
+      where: { entry_type: "expense", status: "pending", ...areaWhere },
       _sum: { amount: true },
       _count: true,
     }),
@@ -117,13 +126,13 @@ export default async function DashboardHome() {
      * por regras diferentes, e a contagem de tarefas daqui somava as atrasadas
      * como "de hoje".
      */
-    lerItensDoDia(db, { property_id: activePropertyId }),
+    user ? lerItensDoDiaCompleto(db, user, { property_id: activePropertyId }) : Promise.resolve([]),
     db.task.findMany({
       where: { status: "pending", due_date: { gte: eventWindowStart, lte: eventWindowEnd } },
       select: { due_date: true },
     }),
     db.financialEntry.findMany({
-      where: { status: "pending", due_date: { gte: eventWindowStart, lte: eventWindowEnd } },
+      where: { status: "pending", due_date: { gte: eventWindowStart, lte: eventWindowEnd }, ...areaWhere },
       select: { due_date: true },
     }),
     hasFazenda

@@ -44,8 +44,11 @@ type ProdutoDaApi = {
   id: string;
   name: string;
   unit: string;
-  saldo_total: number;
+  /** Nulo nos produtos de loja: o saldo do Empório é por loja e não entra nesta conta. */
+  saldo_total: number | null;
 };
+
+type ProdutoDoEmporio = { product_id: string; name: string; base_unit: string };
 
 const SEM_PRODUTO = "__sem_produto__";
 
@@ -55,6 +58,10 @@ export default function MateriaisParaLista({ materiais }: { materiais: Material[
   const [produtos, setProdutos] = useState<ProdutoDaApi[] | null>(null);
   const [enviando, setEnviando] = useState(false);
   /** O que a duplicata do §19.7 barrou na ultima tentativa. */
+  /* Q115: quem vê o Empório escolhe "Fazenda" ou uma loja. Vazio = fazenda. */
+  const [lojas, setLojas] = useState<{ id: string; name: string }[]>([]);
+  const [lojaId, setLojaId] = useState("");
+  const [produtosDaLoja, setProdutosDaLoja] = useState<ProdutoDaApi[] | null>(null);
   const [jaNaLista, setJaNaLista] = useState<string[]>([]);
 
   const [escolhas, setEscolhas] = useState(() =>
@@ -83,10 +90,44 @@ export default function MateriaisParaLista({ materiais }: { materiais: Material[
     };
   }, [open, produtos, aviso]);
 
+  useEffect(() => {
+    if (!open) return;
+    let vivo = true;
+    /* 404 com o recurso desligado ou escondido: a lista fica vazia e o campo some. */
+    apiGet<{ id: string; name: string }[]>("/api/v1/emporio/establishments").then((r) => {
+      if (vivo && r.ok) setLojas(r.data.map((l) => ({ id: l.id, name: l.name })));
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!lojaId || produtosDaLoja !== null) return;
+    let vivo = true;
+    apiGet<ProdutoDoEmporio[]>("/api/v1/emporio/products").then((r) => {
+      if (!vivo) return;
+      if (r.ok) {
+        setProdutosDaLoja(
+          r.data.map((p) => ({ id: p.product_id, name: p.name, unit: p.base_unit, saldo_total: null })),
+        );
+      } else {
+        setProdutosDaLoja([]);
+        aviso.erro(r.message);
+      }
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [lojaId, produtosDaLoja, aviso]);
+
+  /* Com loja, o catálogo é o do Empório; sem ela, o da fazenda. */
+  const catalogo = lojaId ? produtosDaLoja : produtos;
+
   function saldoDe(indice: number): number | null {
     const id = escolhas[indice]?.product_id;
-    if (!id || !produtos) return null;
-    return produtos.find((p) => p.id === id)?.saldo_total ?? null;
+    if (!id || !catalogo) return null;
+    return catalogo.find((p) => p.id === id)?.saldo_total ?? null;
   }
 
   function faltaDe(indice: number): number {
@@ -119,7 +160,7 @@ export default function MateriaisParaLista({ materiais }: { materiais: Material[
       if (falta <= 0) continue;
 
       const material = materiais[i];
-      const produto = produtos?.find((p) => p.id === escolhas[i].product_id);
+      const produto = catalogo?.find((p) => p.id === escolhas[i].product_id);
       const descricao = produto ? produto.name : material.descricao;
 
       /*
@@ -138,6 +179,7 @@ export default function MateriaisParaLista({ materiais }: { materiais: Material[
         product_id: produto ? produto.id : undefined,
         quantity: Number(falta.toFixed(3)),
         unit: isStockUnit(unidade) ? unidade : undefined,
+        establishment_id: lojaId || undefined,
         permitir_duplicata: insistindo,
       });
 
@@ -193,14 +235,42 @@ export default function MateriaisParaLista({ materiais }: { materiais: Material[
       // anunciava "Adicionando..." enquanto ainda estava lendo o estoque, e o
       // produtor achava que ja tinha clicado.
       submitPendingLabel={enviando ? "Adicionando..." : "Lendo o seu estoque..."}
-      pending={enviando || produtos === null}
+      pending={enviando || catalogo === null}
       error={err.global}
       focarCampoId={err.focarCampoId}
       tentativa={err.tentativa}
     >
-      {produtos === null && <p className="text-sm text-texto-secundario">Lendo o seu estoque...</p>}
+      {lojas.length > 0 && (
+        <Field label="Para onde" id="establishment_id" hint="Fazenda ou uma loja do Meu Empório.">
+          {({ id, ...aria }) => (
+            <Select
+              value={lojaId || SEM_PRODUTO}
+              onValueChange={(v) => {
+                setLojaId(v === SEM_PRODUTO ? "" : v);
+                /* O produto escolhido era do outro catálogo. */
+                setEscolhas((atual) => atual.map((esc) => ({ ...esc, product_id: "" })));
+                setJaNaLista([]);
+              }}
+            >
+              <SelectTrigger id={id} {...aria}>
+                <SelectValue placeholder="Fazenda" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={SEM_PRODUTO}>Fazenda</SelectItem>
+                {lojas.map((l) => (
+                  <SelectItem key={l.id} value={l.id}>
+                    {l.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </Field>
+      )}
 
-      {produtos !== null &&
+      {catalogo === null && <p className="text-sm text-texto-secundario">Lendo o seu estoque...</p>}
+
+      {catalogo !== null &&
         materiais.map((material, indice) => {
           const saldo = saldoDe(indice);
           const falta = faltaDe(indice);
@@ -255,7 +325,7 @@ export default function MateriaisParaLista({ materiais }: { materiais: Material[
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={SEM_PRODUTO}>Sem produto do catálogo</SelectItem>
-                      {produtos.map((p) => (
+                      {catalogo.map((p) => (
                         <SelectItem key={p.id} value={p.id}>
                           {p.name}
                         </SelectItem>
