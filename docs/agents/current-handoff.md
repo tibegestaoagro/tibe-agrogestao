@@ -311,10 +311,20 @@ conferido pela API de deployments e as rotas novas no `/docs/api`.
 Decisões Q108 a Q117 (todas A) e o contrato na spec (`fafbe6f`). **Sem schema
 novo.** Achado que pautou a fase: os lançamentos do Empório caíam no Meu Dia
 (tela, Painel, WhatsApp) e nos alertas de qualquer usuário, e no "Tudo" do
-Financeiro de quem está fora da lista. Onda 1 despachada: `servidor-acao`
-(actions e rotas) e `prova-suite` (`m85` da spec). Depois: telas, cenário,
-roteiro com um usuário fora da lista, quebra de propósito e `test:all`. Merge
-só com autorização dada na conversa.
+Financeiro de quem está fora da lista. Suíte `m85` da spec (`791d058`),
+actions e rotas (`658aab4`), cenário `_cenario-emporio-f5.ts` (`fcb4374`),
+telas (`96f032c`), roteiro `emporio-f5` (`8b26b17`, 33 itens, 0 falhas; 2
+vermelhos com `veEmporio` sempre verdadeiro). Provas: `tsc` 0, `check` 0
+falhas, `test:all` 88/88. **Pronta para merge, sem migração;** merge só com
+autorização dada na conversa.
+
+⚠️ **O desktop tem DOIS clones** (`C:\Projetos\tibe-agrogestão` e
+`D:\Projetos\tibe-agrogestão`). Em 29/10 o `next dev` do `D:` ocupava a 3000
+e devolvia 500, e o classificador recusou derrubá-lo. Saída sem matar nada:
+o Next deste clone sobe na 3001 e o roteiro segue com
+`TIBE_BASE="http://localhost:3001" npm run navegador -- <roteiro>`. Também:
+o `innerText` devolve texto com o `uppercase` do CSS aplicado, e a
+calculadora só mostra resultado depois de clicar em Calcular.
 
 Histórico da F2a: decisões Q60 a Q71 e o contrato na spec (`f1b5d17`). Estoque
 (`1ecaf19`), compras e Lista com loja (`576c842`), telas (`3d61ef7`),
