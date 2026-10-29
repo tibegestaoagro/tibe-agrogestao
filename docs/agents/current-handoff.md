@@ -289,9 +289,17 @@ falhas, `m81`, `m82` e `m83` verdes, `test:all` 86/86, roteiros `f3a` e
 conversa:** migração `20261029120000_emporio_f4a` no Neon (URL Direct,
 `migrate status` em dia) antes do push, merge fast-forward
 `33b878b..3db1e63`, deploy de Production do `3db1e63` conferido pela API de
-deployments e as rotas novas no `/docs/api`. **Falta:** o aceite do usuário
-e, com aprovação, a F4b (visão somada, rankings, margem negativa, filtro do
-Financeiro).
+deployments e as rotas novas no `/docs/api`.
+
+**F4b (visão somada, produtos, margem negativa, filtro de área do
+Financeiro) em andamento na `emporio-f4b`** (a partir da `emporio-f4`;
+começo aprovado pelo usuário em 29/10). Decisões Q103 a Q107 e o contrato na
+spec (`060c556`), dívida 2.27 nova. **Sem schema novo.** Onda 1 despachada:
+actions e rotas (`servidor-acao`, mexe também em `financial-reports.ts` e nas
+rotas do Financeiro) e suíte `m84` da spec (`prova-suite`). Depois: telas
+(Resultado com "Todas as lojas", Produtos e Margem negativa; seletor de área
+no `/financeiro`), roteiro, quebra de propósito, `test:all`. Merge só com
+autorização dada na conversa.
 
 Histórico da F2a: decisões Q60 a Q71 e o contrato na spec (`f1b5d17`). Estoque
 (`1ecaf19`), compras e Lista com loja (`576c842`), telas (`3d61ef7`),
