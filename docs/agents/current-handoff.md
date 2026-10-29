@@ -294,12 +294,17 @@ deployments e as rotas novas no `/docs/api`.
 **F4b (visão somada, produtos, margem negativa, filtro de área do
 Financeiro) em andamento na `emporio-f4b`** (a partir da `emporio-f4`;
 começo aprovado pelo usuário em 29/10). Decisões Q103 a Q107 e o contrato na
-spec (`060c556`), dívida 2.27 nova. **Sem schema novo.** Onda 1 despachada:
-actions e rotas (`servidor-acao`, mexe também em `financial-reports.ts` e nas
-rotas do Financeiro) e suíte `m84` da spec (`prova-suite`). Depois: telas
-(Resultado com "Todas as lojas", Produtos e Margem negativa; seletor de área
-no `/financeiro`), roteiro, quebra de propósito, `test:all`. Merge só com
-autorização dada na conversa.
+spec (`060c556`), dívida 2.27 nova. **Sem schema novo** (sem migração no
+Neon). Suíte `m84` da spec (`67ad3b1`, 155 checagens; 4 vermelhas com a
+diferença da transferência contada também no destino), actions e rotas,
+inclusive `area` no Financeiro e no PDF (`2771727`), cenário
+`_cenario-emporio-f4b.ts` (`f6428a9`), telas (`9aa6eeb`), roteiro
+`emporio-f4b` (`f52d51f`, 0 falhas; vermelho com a área Empório sem filtro).
+Provas: `tsc` 0, `check` 0 falhas, `m83` e `m84` verdes, as suítes do
+Financeiro verdes, `test:all` 87/87, roteiro `f4a` verde de novo. **Pronta
+na branch, falta:** o aceite do usuário e, com autorização dada na conversa,
+o merge. Depois, a F5 (Meu Dia, Lista de Compra, Calculadora, primeiros
+passos), com aprovação.
 
 Histórico da F2a: decisões Q60 a Q71 e o contrato na spec (`f1b5d17`). Estoque
 (`1ecaf19`), compras e Lista com loja (`576c842`), telas (`3d61ef7`),
