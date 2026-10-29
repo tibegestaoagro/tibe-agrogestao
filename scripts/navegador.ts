@@ -30,7 +30,9 @@ exigirBancoLocal();
 
 const PORTA = 9333;
 const CDP = `http://127.0.0.1:${PORTA}`;
-const BASE = "http://localhost:3000";
+// TIBE_BASE existe para quando a 3000 esta ocupada por um next dev de outro
+// clone (o desktop tem dois): o Next sobe na 3001 e o roteiro precisa seguir.
+const BASE = process.env.TIBE_BASE ?? "http://localhost:3000";
 const PASTA = join(__dirname, "navegador");
 const PERFIL = join(process.env.LOCALAPPDATA ?? join(process.env.HOME ?? ".", ".cache"), "tibe-chrome-testes");
 const CHROME = [
