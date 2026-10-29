@@ -191,6 +191,16 @@ cliente real com as duas coisas vai precisar.
 | Q105 | **Vendas com margem negativa** do mês, da pior para a melhor, com a causa mais provável (custo provisório, preço abaixo do custo, desconto, taxa) e o link da venda | responde "qual venda me deu prejuízo"; o item fica no ranking |
 | Q106 | **Filtro "Fazenda / Empório / Tudo"** no `/financeiro` das contas com os dois perfis: Empório é o lançamento com loja; vale para lista, resultado, fluxo de caixa e PDF; padrão "Tudo", lembrado. Painel e WhatsApp seguem em "Tudo" (dívida 2.27) | "Tudo" não esconde dinheiro de quem não conhece o filtro |
 | Q107 | Tudo no **`/emporio/resultado`**: "Todas as lojas" no seletor e as seções Produtos e Vendas com margem negativa; o Financeiro ganha o seletor da Q106 | mesmo mês, mesma loja, sem escolher de novo |
+| Q108 | Contas do Empório no Meu Dia **só para quem vê o Empório e tem vínculo com a loja**, com a loja no título e o link para a tela do Empório; mesmas seções de hoje | até a F4b, todo lançamento do Empório caía no Meu Dia de qualquer usuário, com link para `/financeiro` |
+| Q109 | Fiado vencido: **uma linha por cliente**, com o total vencido, em Atenção | uma linha por venda enche a seção no cliente que compra todo dia |
+| Q110 | Caixa não conferido: **dia dos últimos 7, sem contar hoje**, com movimento na gaveta e sem conferência; uma linha por loja, dizendo quantos dias | o dia de hoje ainda não acabou; Q35 |
+| Q111 | Estoque baixo: **uma linha por pessoa** ("5 produtos precisam de reposição"), como a da transferência parada | Q67, "contagem no Meu Dia" |
+| Q112 | **"Sua fazenda" só com o perfil fazenda e só com números da fazenda**; quem vê o Empório ganha o cartão **"Seu Empório"** | o "A pagar" da fazenda somava o Empório, e a conta só de Empório lia "SUA FAZENDA" (F0) |
+| Q113 | As contas do Empório **saem do Meu Dia do WhatsApp e dos alertas de vencimento**; no Painel e na API do Meu Dia vale a Q108 | o Empório não está no WhatsApp (Q10, dívida 2.16) |
+| Q114 | **"Criar composição desta receita"** na Calculadora, para quem vê o Empório: casar cada ingrediente com produto do Empório por escolha, só produtos medidos em quilo, confirmação para substituir, sem movimentar estoque | Q44; casar por nome contamina o saldo |
+| Q115 | O "Mandar para a Lista" da Calculadora pergunta **"Fazenda ou loja"** para quem vê o Empório | a Lista já aceita loja desde a F2a (Q68) |
+| Q116 | **Primeiros passos** no início do Empório, por loja: essenciais (sem eles o resultado é estimado) e recomendados; cada item abre o formulário normal; o cartão some quando os essenciais estão feitos | Q45 |
+| Q117 | Aceite "TIBÉ sem Meu Empório" **com o módulo inteiro**: fora da lista, nada do Empório no Meu Dia, no Painel, na Lista, na Calculadora e no Financeiro (o "Tudo" dele é só a fazenda) | o "Tudo" do Financeiro mostrava a venda do Empório a quem estava fora da lista desde a F3a |
 
 ---
 
@@ -1256,6 +1266,134 @@ despesa uma vez só.
 
 **Aceite (§25):** "usar TIBÉ sem Meu Empório" não mostra nada do Empório (já
 provado na F0, repetido aqui com o módulo inteiro no ar).
+
+#### F5: contrato (Q108 a Q117)
+
+**Sem schema novo.** Tudo é leitura do que as fases anteriores gravam, mais
+uma escrita que reaproveita a composição da F2b.
+
+**Quem "vê o Empório":** o perfil `emporio` ativo na conta e o recurso
+`emporio` visível para o usuário (`isFeatureVisibleForUser`). As lojas dele
+são as do vínculo (`lojasDoAtor`); sem vínculo, todas as não arquivadas.
+
+**A fonte da fazenda deixa de ler o Empório (Q108, Q113).**
+- `lerItensDoDia` passa a ler só `FinancialEntry` com `establishment_id`
+  nulo. Assim o Meu Dia do WhatsApp fica sem o Empório, sem mudar o handler.
+- O alerta de conta vencendo (`alerts.ts`) também só olha `establishment_id`
+  nulo.
+- `resumoDaFazenda` ("A pagar", "A receber") também.
+
+**Itens do Empório no dia (Q108 a Q111).** `itensDoEmporioNoDia(db, ator, {
+agora? })`, em `src/lib/actions/emporio-meu-dia.ts`. Ela devolve `ItemDoDia[]`
+com origens novas e só é chamada para quem vê o Empório.
+- **`emporio_pagar`:** cada `FinancialEntry` `expense`, `pending`, com
+  `establishment_id` numa loja do usuário, vencimento até o fim da janela de
+  7 dias e saldo aberto maior que zero.
+  - **Título:** "Pagar {contato} ({loja})". Sem contato, vale o nome da
+    despesa fixa ou da regra do "Vendeu, Pagou"; sem nada disso, a
+    categoria.
+  - **Link:** a compra vai para `/emporio/compras`. A despesa fixa e o
+    "Vendeu, Pagou" vão para `/emporio/despesas`.
+  - **A tela de Despesas é só de ADMIN:** a conta de despesa só aparece para
+    ADMIN ou mais, para o link nunca levar a um 403.
+- **`emporio_fiado`:** o fiado em aberto com vencimento, agrupado por cliente
+  e loja.
+  - **Vencido:** uma linha "Receber de {cliente} (fiado, {loja})" com o total
+    vencido. A data é o vencimento mais antigo, então ela cai em Atenção.
+  - **Que vence hoje ou nos próximos 7 dias:** uma linha por cliente e loja,
+    com o total e o vencimento mais próximo.
+  - **Link:** `/emporio/fiado`.
+  - O fiado sem vencimento não entra, como hoje.
+- **`emporio_caixa`:** por loja do usuário, os dias de ontem até 7 dias
+  atrás, no calendário de Brasília. Conta o dia com algum `CashMovement` da
+  gaveta da loja e sem nenhum `CashCount` naquele dia.
+  - **Título:** com um dia só e esse dia sendo ontem, "Caixa de ontem da
+    {loja} não foi conferido". Nos outros casos, "Caixa da {loja} sem
+    conferência em N dias".
+  - **Data:** o dia mais recente, para cair em Atenção.
+  - **Link:** `/emporio/caixa`.
+  - **Quem vê:** só quem pode conferir.
+- **Estoque baixo:** `precisaReporAction` já existe. A tela mostra a
+  contagem numa linha, como a da transferência parada (Q33): "N produtos
+  precisam de reposição", com link para o "Precisa repor".
+
+**As telas que usam o dia.** O `/meu-dia`, o Painel e a rota
+`GET /api/v1/meu-dia` juntam os itens da fazenda com os do Empório quando o
+usuário vê o Empório. O WhatsApp usa só os da fazenda.
+
+**Cartões do Meu Dia (Q112).**
+- **"Sua fazenda":** só com o perfil `fazenda`.
+- **"Seu Empório":** `resumoDoEmporio(db, ator)`, com:
+  - `sales_today`: soma do `net_amount` das vendas `concluida` de hoje, nas
+    lojas do usuário;
+  - `fiado_open`: o fiado em aberto;
+  - `payables_open`: o a pagar do Empório em aberto, só para ADMIN ou mais.
+- **O link da Lista de Compra** sai de dentro de "Sua fazenda" e fica entre
+  os cartões, para a conta só de Empório também o ver.
+
+**Fora da lista, o Financeiro é só da fazenda (Q117).**
+- **`areaPermitida(user, area)`:** quem não vê o Empório tem a área forçada
+  para `fazenda`, sem erro e sem aviso. Pedir `emporio` vira `fazenda`, para
+  não revelar que o recurso existe.
+- **Onde vale:**
+  - a tabela do `/financeiro` e o seletor, que nem aparece;
+  - `financial-entries` GET;
+  - `financial/dre`, `financial/cash-flow`, `financial/upcoming`, `financial/report` e `financial/report/link`;
+  - os números financeiros do Painel (`getCashFlow`, as contas vencidas e as
+    últimas movimentações).
+- **Para quem vê o Empório,** o Painel continua somando tudo (dívida 2.27).
+- **O que fica como está:** o detalhe de um lançamento por id e as consultas
+  financeiras do WhatsApp (dívida 2.27).
+
+**Composição da receita (Q114).** `criarComposicaoDaReceitaAction(db, ator,
+emporio_product_id, { reference_qty, items: [{ component_emporio_product_id,
+quantity }], replace })`, em `emporio-producao.ts`. As quantidades vêm em kg.
+- **Produto final:** precisa ter `base_unit` `quilograma`. Se não tiver,
+  422 `emporio_product_id`.
+- **Componentes:** cada um precisa ser `quilograma`. Se algum não for, 422
+  `items`: "{nome} é medido em {unidade}; a receita só casa com produto
+  medido em quilo."
+- **Composição que já existe:** com `replace` falso, 409
+  `COMPOSITION_EXISTS`, campo `replace`.
+- **O resto** é `definirComposicaoAction`: o ciclo, o componente repetido e a
+  permissão. O rendimento fica vazio, e nada mexe no estoque.
+- **Rota:** `POST /api/v1/emporio/products/[id]/composition/from-recipe`.
+
+**Calculadora para a Lista com loja (Q115).** Só tela: o painel "Mandar para
+a Lista" ganha "Fazenda ou loja" para quem vê o Empório.
+- **Com loja:** os produtos são os do Empório daquela loja, e o item nasce com
+  `establishment_id`. A action da Lista já aceita isso desde a F2a.
+
+**Primeiros passos (Q116).** `primeirosPassosAction(db, ator)`, só ADMIN ou
+mais (403 abaixo disso).
+- **Retorno:** por loja do usuário, `{ establishment_id, name, steps: [{ key,
+  essential, done, detail?, href }] }`.
+- **Essenciais:**
+  - `preco`: ao menos um preço na loja;
+  - `estoque_inicial`: ao menos uma implantação de estoque na loja e
+    nenhuma sem custo. `detail` diz quantos produtos estão sem custo;
+  - `saldo_caixa`: o saldo inicial da gaveta informado;
+  - `taxa_cartao`: só aparece se a loja já vendeu no cartão, e fica feito
+    quando cada forma de cartão vendida tem regra de taxa;
+  - `despesa_fixa`: uma despesa fixa ativa com parte nesta loja.
+- **Recomendados:**
+  - `minimo_maximo`: ao menos um mínimo e máximo na loja;
+  - `conta_pix`: a conta PIX da loja definida.
+- **`complete`:** fica verdadeiro quando todos os essenciais de todas as lojas
+  estão feitos.
+- **Rota:** `GET /api/v1/emporio/first-steps`.
+- **Tela:** o cartão "Primeiros passos" no `/emporio`, só enquanto `complete`
+  for falso. Ele mostra as lojas com pendência, e cada passo leva ao
+  formulário normal.
+
+**Aceite da F5 (§25 e Q117).** Na Da Mata, com a lista do recurso só com o
+Owner e o operador de teste, um usuário fora da lista:
+- não vê nada do Empório no Meu Dia, no Painel, na Lista de Compra, na
+  Calculadora nem no Financeiro;
+- tem o "Tudo" do Financeiro igual a "Fazenda";
+- vê o estoque da fazenda igual.
+
+O Owner vê os itens do Empório no Meu Dia, com a loja no título.
 
 ---
 
