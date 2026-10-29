@@ -2,7 +2,7 @@ import { apiOk, apiError } from "@/lib/api";
 import { guard } from "@/lib/api-guard";
 import { getCashFlow, resolvePeriod } from "@/lib/actions/financial-reports";
 import { withApi } from "@/lib/route";
-import { AREA_INVALIDA, lerArea } from "@/lib/financial-area";
+import { AREA_INVALIDA, areaPermitida, lerArea } from "@/lib/financial-area";
 import { RELATED_MODULES } from "@/lib/related-modules";
 import type { RelatedModule } from "@/generated/prisma/enums";
 
@@ -29,7 +29,7 @@ async function GETHandler(request: Request) {
     start,
     end,
     groupBy,
-    area,
+    area: await areaPermitida(g.user, area),
     related_module: (related_module ?? undefined) as RelatedModule | undefined,
   });
 

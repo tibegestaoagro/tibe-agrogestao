@@ -74,7 +74,7 @@ type EntradaAberta = {
 };
 
 /** Lançamentos de venda do Empório ainda em aberto, com o saldo calculado pela soma dos pagamentos. */
-async function entradasAbertas(
+export async function entradasAbertas(
   db: TenantPrismaClient,
   where: Record<string, unknown>,
 ): Promise<EntradaAberta[]> {

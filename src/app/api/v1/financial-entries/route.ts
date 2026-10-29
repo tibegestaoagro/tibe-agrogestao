@@ -4,7 +4,7 @@ import { guard, readJson } from "@/lib/api-guard";
 import { serializeFinancialEntry } from "@/lib/serializers";
 import { createManualEntryAction } from "@/lib/actions/financial-entries";
 import { withApi } from "@/lib/route";
-import { AREA_INVALIDA, filtroDeArea, lerArea } from "@/lib/financial-area";
+import { AREA_INVALIDA, areaPermitida, filtroDeArea, lerArea } from "@/lib/financial-area";
 
 /**
  * GET  /api/v1/financial-entries   lista com filtros (period, entry_type, category, related_module, status)
@@ -35,7 +35,7 @@ async function GETHandler(request: Request) {
 
   const entries = await g.db.financialEntry.findMany({
     where: {
-      ...filtroDeArea(area),
+      ...filtroDeArea(await areaPermitida(g.user, area)),
       ...(start || end
         ? {
             due_date: {

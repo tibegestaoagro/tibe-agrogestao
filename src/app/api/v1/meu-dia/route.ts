@@ -1,7 +1,8 @@
 import { apiOk } from "@/lib/api";
 import { guard } from "@/lib/api-guard";
 import { getActivePropertyId } from "@/lib/active-property";
-import { classificar, lerItensDoDia, type ItemDoDia } from "@/lib/actions/meu-dia";
+import { classificar, type ItemDoDia } from "@/lib/actions/meu-dia";
+import { lerItensDoDiaCompleto } from "@/lib/actions/emporio-meu-dia";
 import { withApi } from "@/lib/route";
 
 /**
@@ -9,7 +10,8 @@ import { withApi } from "@/lib/route";
  *
  * Módulo 38. `?property_id=` filtra por fazenda, e sem ele vale a fazenda
  * ativa do seletor do topo, como no Financeiro. Item sem fazenda aparece em
- * todas (ver `lerItensDoDia`).
+ * todas (ver `lerItensDoDia`). Quem vê o Empório recebe também os itens dele,
+ * com a loja no título (Q108).
  *
  * A tela lê a mesma consulta direto no servidor; esta rota existe porque tela
  * sem rota atrás não conta como entregue, e é por ela que o app e qualquer
@@ -39,7 +41,7 @@ async function GETHandler(request: Request) {
   const params = new URL(request.url).searchParams;
   const property_id = params.get("property_id") ?? (await getActivePropertyId(g.db));
 
-  const dia = classificar(await lerItensDoDia(g.db, { property_id }));
+  const dia = classificar(await lerItensDoDiaCompleto(g.db, g.user, { property_id }));
 
   return apiOk(
     {

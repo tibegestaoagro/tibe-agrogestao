@@ -9,12 +9,24 @@ import { apiOkSchema } from "./envelope";
  *
  * O item é o `serializar` da própria rota (src/app/api/v1/meu-dia/route.ts), a
  * partir de `ItemDoDia` (src/lib/actions/meu-dia.ts). É UMA forma só para as
- * sete origens (tarefa, contas, vacina, serviço, estadia, estoque): o Meu Dia
+ * origens (tarefa, contas, vacina, serviço, estadia, estoque e, desde a F5 do
+ * Empório, as contas, o fiado e o caixa das lojas): o Meu Dia
  * já as apresenta achatadas, então não há schema de outro domínio a importar.
  */
 
 /** `OrigemDoItem` (src/lib/actions/meu-dia.ts). Não é enum do Prisma. */
-export const meuDiaOrigemSchema = z.enum(["tarefa", "pagar", "receber", "vacina", "servico", "estadia", "estoque"]);
+export const meuDiaOrigemSchema = z.enum([
+  "tarefa",
+  "pagar",
+  "receber",
+  "vacina",
+  "servico",
+  "estadia",
+  "estoque",
+  "emporio_pagar",
+  "emporio_fiado",
+  "emporio_caixa",
+]);
 export type MeuDiaOrigem = z.infer<typeof meuDiaOrigemSchema>;
 
 export const meuDiaItemSchema = z.object({

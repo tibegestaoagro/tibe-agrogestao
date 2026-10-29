@@ -666,6 +666,14 @@ async function comBanco() {
 
     await rodar("F: filtro de área (rotas)", async () => {
       console.log("\n7. Filtro de área do Financeiro: rotas, 422 e o link do PDF");
+      // F5 (Q117): fora do Empório a área é sempre "fazenda"; aqui o filtro é provado para quem vê.
+      await prisma.tenantProfile.upsert({
+        where: { tenant_id_profile_type: { tenant_id: F.t.id, profile_type: "emporio" } },
+        create: { tenant_id: F.t.id, profile_type: "emporio", active: true },
+        update: { active: true },
+      });
+      await prisma.tenantFeature.deleteMany({ where: { tenant_id: F.t.id, feature_key: "emporio" } });
+      await prisma.tenantFeature.create({ data: { tenant_id: F.t.id, feature_key: "emporio", enabled: true } });
       const iso = (d: Date) => encodeURIComponent(d.toISOString());
       const per = `start=${iso(janela.start)}&end=${iso(janela.end)}`;
       const lista = async (area?: string) => {

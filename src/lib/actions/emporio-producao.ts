@@ -222,6 +222,76 @@ export async function definirComposicaoAction(
   return v ? ok(v) : NAO_ACHADO("Composição");
 }
 
+export type ComposicaoDaReceitaInput = {
+  reference_qty: number;
+  items: { component_emporio_product_id: string; quantity: number }[];
+  replace?: boolean;
+};
+
+/**
+ * F5 (Q114): a composição que a Calculadora de receita monta. As quantidades
+ * vêm em quilo, então produto final e componentes têm de ser medidos em quilo
+ * (casar por nome ou por outra unidade contaminaria o saldo). O resto é
+ * `definirComposicaoAction`: ciclo, componente repetido e permissão. O
+ * rendimento fica vazio e nada mexe no estoque.
+ */
+export async function criarComposicaoDaReceitaAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  emporio_product_id: string,
+  input: ComposicaoDaReceitaInput,
+): Promise<ActionResult<ComposicaoView>> {
+  if (!hasMinRole(ator.role, "ADMIN")) return NEGADO_ADMIN();
+  const produto = await db.emporioProduct.findFirst({
+    where: { id: emporio_product_id },
+    select: { id: true, base_unit: true },
+  });
+  if (!produto) return NAO_ACHADO("Produto");
+  if (produto.base_unit !== "quilograma") {
+    return fail(
+      "VALIDATION_ERROR",
+      `O produto final é medido em ${produto.base_unit}; a receita só casa com produto medido em quilo.`,
+      422,
+      "emporio_product_id",
+    );
+  }
+
+  if (Array.isArray(input?.items) && input.items.length > 0) {
+    const ids = input.items
+      .map((i) => i?.component_emporio_product_id)
+      .filter((id): id is string => typeof id === "string" && !!id);
+    const componentes = await db.emporioProduct.findMany({
+      where: { id: { in: ids } },
+      include: { product: { select: { name: true } } },
+    });
+    const errado = componentes.find((c) => c.base_unit !== "quilograma");
+    if (errado) {
+      return fail(
+        "VALIDATION_ERROR",
+        `${errado.product.name} é medido em ${errado.base_unit}; a receita só casa com produto medido em quilo.`,
+        422,
+        "items",
+      );
+    }
+  }
+
+  const existente = await db.composition.findFirst({ where: { emporio_product_id: produto.id }, select: { id: true } });
+  if (existente && input?.replace !== true) {
+    return fail(
+      "COMPOSITION_EXISTS",
+      "Este produto já tem composição. Confirme para substituir.",
+      409,
+      "replace",
+    );
+  }
+
+  return definirComposicaoAction(db, ator, produto.id, {
+    reference_qty: input?.reference_qty,
+    yield_pct: null,
+    items: input?.items,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Leitura das produções
 // ---------------------------------------------------------------------------

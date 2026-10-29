@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { isFeatureVisibleForUser } from "@/lib/features";
 
 /**
  * Meu Empório, F4b (Q106): o filtro "Fazenda / Empório / Tudo" do Financeiro.
@@ -18,6 +19,20 @@ export function lerArea(valor: unknown): AreaFinanceira | null {
   return typeof valor === "string" && (AREAS_FINANCEIRAS as readonly string[]).includes(valor)
     ? (valor as AreaFinanceira)
     : null;
+}
+
+/**
+ * Meu Empório, F5 (Q117): quem não vê o Empório tem a área forçada para
+ * `fazenda`, sem erro e sem aviso. Pedir `emporio` vira `fazenda` para não
+ * revelar que o recurso existe, e o "Tudo" dele é só a fazenda. Quem vê
+ * mantém o pedido.
+ */
+export async function areaPermitida(
+  user: { id: string; tenant_id: string },
+  area: AreaFinanceira,
+): Promise<AreaFinanceira> {
+  if (area === "fazenda") return area;
+  return (await isFeatureVisibleForUser(user.tenant_id, user.id, "emporio")) ? area : "fazenda";
 }
 
 /**

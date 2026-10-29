@@ -1,5 +1,5 @@
 import { apiOk, apiError } from "@/lib/api";
-import { AREA_INVALIDA, lerArea } from "@/lib/financial-area";
+import { AREA_INVALIDA, areaPermitida, lerArea } from "@/lib/financial-area";
 import { guard } from "@/lib/api-guard";
 import { getDre, resolvePeriod } from "@/lib/actions/financial-reports";
 import { withApi } from "@/lib/route";
@@ -15,7 +15,7 @@ async function GETHandler(request: Request) {
   const area = lerArea(sp.get("area"));
   if (!area) return apiError("VALIDATION_ERROR", AREA_INVALIDA, 422, "area");
 
-  const dre = await getDre(g.db, { start, end, area });
+  const dre = await getDre(g.db, { start, end, area: await areaPermitida(g.user, area) });
   return apiOk(dre);
 }
 

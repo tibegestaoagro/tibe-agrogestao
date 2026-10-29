@@ -556,6 +556,23 @@ export const GROUPS: Group[] = [
 { "data": { "emporio_product_id": "cl...", "reference_qty": 100, "yield_pct": 95, "items": [{ "component_emporio_product_id": "cl...", "name": "Milho", "base_unit": "quilograma", "quantity": 65 }] }, "meta": {} }`,
       },
       {
+        method: "POST",
+        path: "/api/v1/emporio/products/:id/composition/from-recipe",
+        auth: "Sessão · emporio:write · OWNER e ADMIN",
+        description: "Cria a composição a partir da Calculadora de receita (Q114). Quantidades em quilo: produto final que não é medido em quilo dá 422 `emporio_product_id`, e componente que não é medido em quilo dá 422 `items` (\"{nome} é medido em {unidade}; a receita só casa com produto medido em quilo.\"). Se o produto já tem composição e `replace` não for `true`: 409 `COMPOSITION_EXISTS` no campo `replace`. O resto (ciclo, componente repetido, arquivado) é o do PUT da composição. O rendimento fica vazio e nada mexe no estoque. OPERADOR: 403.",
+        request: `{ "reference_qty": 10, "items": [{ "component_emporio_product_id": "cl...", "quantity": 6.5 }], "replace": false }`,
+        response: `200
+{ "data": { "emporio_product_id": "cl...", "reference_qty": 10, "yield_pct": null, "items": [{ "component_emporio_product_id": "cl...", "name": "Milho", "base_unit": "quilograma", "quantity": 6.5 }] }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/first-steps",
+        auth: "Sessão · emporio:read · OWNER e ADMIN · perfil emporio · recurso `emporio` liberado",
+        description: "Primeiros passos por loja do usuário (Q116). Cada passo traz `key`, `essential`, `done`, `detail` (quando houver) e o `href` do formulário. Essenciais: `preco`, `estoque_inicial` (sem implantação ou com produto sem custo), `saldo_caixa`, `taxa_cartao` (só aparece se a loja já vendeu no cartão) e `despesa_fixa`; recomendados: `minimo_maximo` e `conta_pix`. `complete` é verdadeiro quando todos os essenciais de todas as lojas estão feitos. Abaixo de ADMIN: 403 `FORBIDDEN`.",
+        response: `200
+{ "data": { "complete": false, "establishments": [{ "establishment_id": "cl...", "name": "Loja Centro", "steps": [{ "key": "preco", "essential": true, "done": true, "href": "/emporio/produtos" }, { "key": "estoque_inicial", "essential": true, "done": false, "detail": "3 produtos sem custo", "href": "/emporio/produtos" }] }] }, "meta": {} }`,
+      },
+      {
         method: "GET",
         path: "/api/v1/emporio/production",
         auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
@@ -1975,7 +1992,7 @@ export const GROUPS: Group[] = [
         path: "/api/v1/meu-dia",
         auth: "Sessão · tarefas:read",
         description:
-          "As seções do Meu Dia (atenção, hoje, próximos dias e sem data), já na ordem de importância. Lê ao vivo tarefas, contas, vacinas, serviços agendados, estadias e estoque baixo. `?property_id=` filtra por fazenda; item sem fazenda aparece em todas.",
+          "As seções do Meu Dia (atenção, hoje, próximos dias e sem data), já na ordem de importância. Lê ao vivo tarefas, contas, vacinas, serviços agendados, estadias e estoque baixo. `?property_id=` filtra por fazenda; item sem fazenda aparece em todas. Quem vê o Meu Empório recebe também os itens dele (origens `emporio_pagar`, `emporio_fiado` e `emporio_caixa`, com a loja no título); a conta do Empório nunca entra para quem não o vê.",
         response: `200
 { "data": { "atencao": [...], "hoje": [{ "origem": "pagar", "titulo": "Pagar João", "valor": 2500, "dias": 0, "...": "..." }], "proximos": [...], "sem_data": [...] }, "meta": { "total": 12 } }`,
       },

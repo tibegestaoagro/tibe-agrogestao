@@ -24,7 +24,17 @@ import { ROTULO_ESTOQUE, ROTULO_LEITE, ROTULO_REBANHO } from "@/lib/rotulos-de-m
  * para encher uma tela seria a cauda balançando o cachorro.
  */
 
-export type OrigemDoItem = "tarefa" | "pagar" | "receber" | "vacina" | "servico" | "estadia" | "estoque";
+export type OrigemDoItem =
+  | "tarefa"
+  | "pagar"
+  | "receber"
+  | "vacina"
+  | "servico"
+  | "estadia"
+  | "estoque"
+  | "emporio_pagar"
+  | "emporio_fiado"
+  | "emporio_caixa";
 
 export type ItemDoDia = {
   /** `origem:id`, estável entre renderizações. */
@@ -88,7 +98,8 @@ export async function lerItensDoDia(
      * três meses atrás é exatamente o que "Atenção" existe para mostrar.
      */
     db.financialEntry.findMany({
-      where: { status: "pending", due_date: { lte: limite }, ...porFazenda },
+      // Módulo 39 (Q108, Q113): conta do Empório não é da fazenda; quem a vê lê `itensDoEmporioNoDia`.
+      where: { status: "pending", due_date: { lte: limite }, establishment_id: null, ...porFazenda },
       include: {
         property: { select: { name: true } },
         contact: { select: { name: true } },
@@ -346,7 +357,8 @@ export async function historicoDoDia(
     db.financialPayment.findMany({
       where: {
         paid_at: periodo,
-        ...(fazenda ? { entry: { OR: [{ property_id: fazenda }, { property_id: null }] } } : {}),
+        /* F5 (Q108): o pagamento do Empório não é história da fazenda. */
+        entry: { establishment_id: null, ...(fazenda ? { OR: [{ property_id: fazenda }, { property_id: null }] } : {}) },
       },
       select: {
         id: true,
@@ -468,7 +480,7 @@ export async function resumoDaFazenda(
       ? getPositions(db, opts.property_id ? { property_id: opts.property_id } : {})
       : Promise.resolve(null),
     db.financialEntry.findMany({
-      where: { status: "pending", ...porFazenda },
+      where: { status: "pending", establishment_id: null, ...porFazenda },
       select: { entry_type: true, amount: true, payments: { select: { amount: true } } },
     }),
     db.shoppingItem.count({ where: { status: "pendente" } }),
@@ -543,7 +555,15 @@ export function faixaDeImportancia(item: ItemDoDia): number {
   if (item.origem === "estoque") return 1;
   if (item.dias !== null && item.dias < 0) return 1;
   if (item.dias === 0 && item.horario) return 2;
-  if (item.dias === 0 && (item.origem === "pagar" || item.origem === "receber")) return 3;
+  if (
+    item.dias === 0 &&
+    (item.origem === "pagar" ||
+      item.origem === "receber" ||
+      item.origem === "emporio_pagar" ||
+      item.origem === "emporio_fiado")
+  ) {
+    return 3;
+  }
   if (item.urgente && (item.dias === null || item.dias <= 0)) return 4;
   if (item.dias === 0) return 5;
   return 6;

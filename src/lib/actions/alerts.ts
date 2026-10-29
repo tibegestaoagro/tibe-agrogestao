@@ -213,7 +213,8 @@ export async function generateAlertsForTenant(tenantId: string): Promise<{ creat
   if (await isAlertTypeEnabled(db, "bill_due")) {
     const billLimit = new Date(now.getTime() + BILL_DAYS * 86_400_000);
     const bills = await db.financialEntry.findMany({
-      where: { status: "pending", due_date: { gte: now, lte: billLimit } },
+      // Conta do Empório não gera alerta de fazenda (Módulo 39, Q113).
+      where: { status: "pending", due_date: { gte: now, lte: billLimit }, establishment_id: null },
       select: { id: true },
     });
     for (const b of bills) {
