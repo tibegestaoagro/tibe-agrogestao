@@ -221,6 +221,20 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
 
+**Meu Empório: TESTE DE CLIENTE pelo usuário, em produção.** As sete fases
+(F0 a F5) estão no ar desde 29/10, mas foram provadas só no banco local;
+ninguém usou o Empório com dado real. O usuário vai seguir
+[roteiro-teste-emporio-cliente.md](roteiro-teste-emporio-cliente.md) (blocos
+0 a 4: ligar só para o Owner da Da Mata, montar a loja, um dia de balcão no
+celular, o dia seguinte, a produção). **Quem retomar:** receba a lista do que
+ele estranhou, separe defeito (correção numa branch nova, com roteiro que
+reprove antes) de "faz falta" (conversa de escopo, cruzando com as dívidas
+2.15 a 2.27), e confirme com ele a decisão do balcão como página inteira.
+Não ligue o recurso nem escreva dado da Da Mata pelo agente: é o usuário quem
+faz, pela Plataforma e pelas telas.
+
+Histórico das fases do Empório, abaixo.
+
 **Meu Empório:** F0, F1, F2a e F2b em produção (recurso desligado até o
 usuário ligar na Da Mata pela Plataforma). **F2b em produção desde 28/10**
 (`31d02f8`, merge fast-forward autorizado; migração

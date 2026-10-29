@@ -93,6 +93,7 @@ grep -rl "^tipo: armadilha" docs/conhecimento/
 | [o preview da Vercel escreve em produção](o-preview-da-vercel-escreve-em-producao.md) | armadilha | o código de reset do teste foi para o Owner da Da Mata |
 | [o npm audit fix --force troca o next-auth por outro pacote](npm-audit-fix-force-troca-o-next-auth-por-outro-pacote.md) | armadilha | a "correção" era um pacote de 2018 com o mesmo nome |
 | [o "success" do commit pode ser só o deploy de Preview](o-sucesso-do-commit-pode-ser-so-o-preview.md) | armadilha | a F3a parecia no ar e a produção ainda era a versão anterior |
+| [a ausência só prova com o contexto presente](a-ausencia-so-prova-com-o-contexto-presente.md) | licao | "fora da lista, sem o botão" passava porque o botão não aparecia para ninguém |
 
 ⚠️ **`[[wikilink]]` para nota que não existe reprova o `npm run check`**
 (conferência 13). É o que impede esta pasta de virar um cemitério de links

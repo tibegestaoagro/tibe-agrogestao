@@ -42,6 +42,16 @@ errada ("a tela não grava") vira correção desnecessária no código.
 Cenário de tela se monta com script `tsx`, nunca com `curl` (acento em
 Windows-1252 entra torto no banco).
 
+## Acréscimo de 2026-10-29: o `innerText` já vem com o `uppercase`
+
+Sétimo atrito, na F5 do Empório: o roteiro procurava "Seu Empório" e
+"Essenciais" e reprovou dois itens com a tela certa. Os dois títulos têm a
+classe `uppercase`, e o `innerText` devolve o texto **depois** do
+`text-transform` ("SEU EMPÓRIO"); o `textContent` devolveria o original, mas
+inclui texto escondido. Saída usada no `scripts/navegador/emporio-f5.py`:
+comparar sem diferenciar caixa. Título de seção pequeno neste projeto
+(`text-xs`/`text-sm` com `tracking-wide`) quase sempre é `uppercase`.
+
 ## Relacionado
 
 - [[a-data-dita-vence-a-palavra-que-quita]]
