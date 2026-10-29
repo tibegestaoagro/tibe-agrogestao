@@ -315,8 +315,12 @@ Financeiro de quem está fora da lista. Suíte `m85` da spec (`791d058`),
 actions e rotas (`658aab4`), cenário `_cenario-emporio-f5.ts` (`fcb4374`),
 telas (`96f032c`), roteiro `emporio-f5` (`8b26b17`, 33 itens, 0 falhas; 2
 vermelhos com `veEmporio` sempre verdadeiro). Provas: `tsc` 0, `check` 0
-falhas, `test:all` 88/88. **Pronta para merge, sem migração;** merge só com
-autorização dada na conversa.
+falhas, `test:all` 88/88. **Em produção em 29/10, autorizado pelo usuário
+na conversa:** merge fast-forward `9d95bc9..047065e` (sem migração), deploy
+de Production do `047065e` conferido pela API de deployments e as rotas
+`first-steps` e `composition/from-recipe` no `/docs/api`. **Com a F5, as
+sete fases do Módulo 39 estão em produção.** Falta o usuário ligar o Empório
+para o Owner da Da Mata na Plataforma e validar no celular.
 
 ⚠️ **O desktop tem DOIS clones** (`C:\Projetos\tibe-agrogestão` e
 `D:\Projetos\tibe-agrogestão`). Em 29/10 o `next dev` do `D:` ocupava a 3000
