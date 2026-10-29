@@ -64,6 +64,7 @@
     "test:m82": "tsx scripts/m82-emporio-f3b.test.ts",
     "test:m83": "tsx scripts/m83-emporio-f4a.test.ts",
     "test:m84": "tsx scripts/m84-emporio-f4b.test.ts",
+    "test:m85": "tsx scripts/m85-emporio-f5.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",
