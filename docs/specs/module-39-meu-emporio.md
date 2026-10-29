@@ -186,6 +186,11 @@ cliente real com as duas coisas vai precisar.
 | Q100 | **Despesa fixa só mensal:** nome, valor previsto, dia de vencimento, categoria e **rateio obrigatório** (% ou valor, fechando 100% ou o total). Salvar gera as contas dos **próximos 12 meses**, uma por loja e mês; editar ou encerrar refaz só as futuras não pagas; pagar com outro valor corrige o mês | sem job; semanal e anual vão para a dívida 2.26 |
 | Q101 | **Resultado da Loja** por loja e mês, por competência, calculado na leitura: vendas − custo − "Vendeu, Pagou" = margem; depois **perdas e quebras** em linha própria; depois fixas = resultado. Ponto de equilíbrio = fixas ÷ margem % (Q26) e quanto falta; marcado estimado com custo estimado ou provisório, ou fixa não paga | a perda separada aparece; somada ao custo, ela some |
 | Q102 | **`/emporio/resultado`** (loja e mês, as linhas, ponto de equilíbrio e acompanhamento do mês) e **`/emporio/despesas`** (fixas e regras do "Vendeu, Pagou", com as contas e "pagar várias"); o início ganha Resultado e Despesas | configurar é de vez em quando, olhar o resultado é todo dia |
+| Q103 | **Visão somada** é a opção "Todas as lojas" do Resultado: as mesmas linhas somadas, a tabela das lojas lado a lado e o ponto de equilíbrio do somado. Só OWNER e ADMIN sem vínculo | é o mesmo raciocínio com outro recorte, e o "não duplica" sai do cálculo |
+| Q104 | **Produtos que mais vendem e que mais dão margem:** os 10 de cada, por produto, no mês e loja do Resultado, com quantidade, vendas, custo, margem e margem %; o "Vendeu, Pagou" e a taxa rateados pelo valor do item. "Mais vendem" por valor | quantidade não se compara entre produtos; valor sim |
+| Q105 | **Vendas com margem negativa** do mês, da pior para a melhor, com a causa mais provável (custo provisório, preço abaixo do custo, desconto, taxa) e o link da venda | responde "qual venda me deu prejuízo"; o item fica no ranking |
+| Q106 | **Filtro "Fazenda / Empório / Tudo"** no `/financeiro` das contas com os dois perfis: Empório é o lançamento com loja; vale para lista, resultado, fluxo de caixa e PDF; padrão "Tudo", lembrado. Painel e WhatsApp seguem em "Tudo" (dívida 2.27) | "Tudo" não esconde dinheiro de quem não conhece o filtro |
+| Q107 | Tudo no **`/emporio/resultado`**: "Todas as lojas" no seletor e as seções Produtos e Vendas com margem negativa; o Financeiro ganha o seletor da Q106 | mesmo mês, mesma loja, sem escolher de novo |
 
 ---
 
@@ -1167,6 +1172,79 @@ Resultado e Despesas no início.
 - **Forma do pagamento:** pagar pela gaveta grava `dinheiro`, e por conta
   grava `outro`.
 
+#### F4b: contrato (Q103 a Q107)
+
+**Sem schema novo:** tudo é leitura do que a F3 e a F4a gravam.
+
+**Visão somada (Q103).** `resultadoDaLojaAction` aceita `establishment_id`
+= `"all"`:
+- **Linhas:** as mesmas, somadas de todas as lojas não arquivadas.
+- **Margem % e ponto de equilíbrio:** saem do somado, inclusive o recuo de 30
+  dias da Q26.
+- **Estimado:** junta os motivos das lojas.
+- **Tabela das lojas:** a resposta ganha `stores: [{ establishment_id, name,
+  sales, margin, margin_pct, losses, fixed_expenses, result }]`.
+- **O que não duplica:** a transferência entre lojas não é venda nem custo da
+  loja de destino, e a diferença dela é perda só da origem. A despesa fixa
+  dividida entra pelas partes, que somam o total.
+- **Quem pode:** OWNER e ADMIN sem vínculo. Com vínculo, 403 `FORBIDDEN`
+  (regra 10).
+
+**Produtos (Q104).** `produtosDoMesAction(db, ator, { establishment_id |
+"all", month })` devolve `top_sales` e `top_margin`, até 10 cada.
+- **Cada linha:** `emporio_product_id`, `name`, `base_unit`, `quantity`
+  (unidade-base), `sales`, `cost`, `variable_expenses`, `margin`,
+  `margin_pct`.
+- **Vendas e custo do produto:** os itens das vendas `concluida` do mês,
+  menos as devoluções do mês de itens desse produto.
+- **Rateio do "Vendeu, Pagou":** cada `SaleVariableExpense` não cancelado é
+  rateado pelo valor entre os itens da venda que casam com as condições do
+  `rule_snapshot` (sem condição de produto, entre todos). A taxa de cartão é
+  rateada pelo valor entre todos os itens da venda.
+- **Ordem:** `top_sales` por `sales`, `top_margin` por `margin`, com desempate
+  pelo nome.
+
+**Margem negativa (Q105).** `vendasComMargemNegativaAction(db, ator, {
+establishment_id | "all", month })` lista as vendas `concluida` do mês com
+`net_amount` − custo dos itens − "Vendeu, Pagou" da venda (incluindo a taxa)
+< 0, da pior para a melhor.
+- **Campos:** `sale_id`, `sold_at`, `establishment_name`, `net_amount`,
+  `margin`, `cause`.
+- **`cause`, na primeira que vale:** `custo_provisorio` (item com
+  `cost_provisional`), `preco_abaixo_do_custo` (item com `unit_price` menor
+  que o custo da apresentação), `desconto` (`discount_amount` > 0),
+  `taxa_cartao` (havia taxa), `despesas_da_venda` (o resto).
+
+**Filtro do Financeiro (Q106).** Parâmetro `area` (`fazenda`, `emporio`,
+`tudo`; padrão `tudo`).
+- **O que é cada área:** `emporio` é `establishment_id` não nulo, e `fazenda`
+  é `establishment_id` nulo.
+- **Onde vale:** na tabela do `/financeiro`, em `getDre`, `getCashFlow`,
+  `getUpcoming`, no PDF (o link assinado carrega a `area`) e nas rotas
+  `financial-entries` GET, `financial/dre`, `financial/cash-flow`,
+  `financial/upcoming` e `financial/report/link`. Valor inválido dá 422
+  `area`.
+- **Com fazenda escolhida:** o seletor de fazenda já tira o Empório, e `area`
+  `emporio` com fazenda escolhida ignora a fazenda.
+- **Quem vê o seletor:** a tela só o mostra quando a conta tem os dois perfis
+  ativos.
+- **Escolha lembrada:** fica no navegador, como a loja do balcão.
+
+**Rotas** (`/api/v1/emporio/...`): `result` GET aceita `establishment_id=all`;
+`result/products` (GET) e `result/negative-sales` (GET), com
+`establishment_id` (ou `all`) e `month`. Mais o `area` nas rotas do
+Financeiro listadas acima.
+
+**Telas (Q107):** no `/emporio/resultado`, "Todas as lojas" no seletor (só
+para quem pode), a tabela das lojas na visão somada, e as seções Produtos (as
+duas listas) e Vendas com margem negativa (com o link da venda). No
+`/financeiro`, o seletor "Fazenda / Empório / Tudo".
+
+**Aceite da F4b (§25):** "consultar resultado global" não duplica
+transferências nem despesas divididas: duas lojas, uma transferência entre
+elas e uma despesa fixa dividida 50/50 dão, no somado, a soma das lojas e a
+despesa uma vez só.
+
 ### F5: integrações e implantação
 
 - Meu Dia: fornecedor a pagar, fiado vencido, estoque baixo, transferência
@@ -1225,5 +1303,6 @@ O §24 do documento, mais:
 | Crédito na loja na devolução (Q86) | 2.24 |
 | Taxa de cartão por número de parcelas, antecipação do recebível e cheque no recebimento de fiado (Q89, Q91) | 2.25 |
 | "Vendeu, Pagou" informado, despesa fixa semanal e anual, e pagamento feito pelo Financeiro sem sair do caixa do Empório (Q97, Q100) | 2.26 |
+| Filtro "Fazenda / Empório / Tudo" no resumo do Painel e no WhatsApp (Q106) | 2.27 |
 
 O detalhe de cada uma está em [../agents/dividas.md](../agents/dividas.md).
