@@ -201,6 +201,27 @@ cliente real com as duas coisas vai precisar.
 | Q115 | O "Mandar para a Lista" da Calculadora pergunta **"Fazenda ou loja"** para quem vê o Empório | a Lista já aceita loja desde a F2a (Q68) |
 | Q116 | **Primeiros passos** no início do Empório, por loja: essenciais (sem eles o resultado é estimado) e recomendados; cada item abre o formulário normal; o cartão some quando os essenciais estão feitos | Q45 |
 | Q117 | Aceite "TIBÉ sem Meu Empório" **com o módulo inteiro**: fora da lista, nada do Empório no Meu Dia, no Painel, na Lista, na Calculadora e no Financeiro (o "Tudo" dele é só a fazenda) | o "Tudo" do Financeiro mostrava a venda do Empório a quem estava fora da lista desde a F3a |
+| Q118 | **Tela Equipe** (`/emporio/equipe`), com quatro **funções**: **Dono** (OWNER) e **Gerente geral** (ADMIN sem vínculo), que valem para a conta inteira, e **Gestor** e **Vendedor**, que valem nas lojas da pessoa. Cadastrar usa o mesmo convite e o mesmo limite de assentos de Configurações → Usuários. **Só o Dono e o Gerente geral** usam a Equipe; o Gerente geral não cria nem altera o Dono | pedido do cliente no teste de 30/10: cada loja com o seu Gestor e os seus Vendedores, cadastrados num lugar só |
+| Q119 | **Quem vê o Empório dentro da conta sai da Equipe**: Gerente geral, Gestor e Vendedor veem; quem não tem função de Empório não vê (o Dono sempre vê). A Plataforma continua ligando e desligando o recurso para a CONTA. A lista de `TenantFeatureUser` passa a ser escrita pela Equipe; vazia segue sendo "a conta inteira", e a Equipe nunca a deixa vazia por remoção. **Altera a Q14** | a Q14 servia ao teste só com o Owner; depender da Pleno para cada atendente trava o cliente |
+| Q120 | **"Só da loja"** (`User.emporio_only`): **Gestor e Vendedor são sempre**; o Gerente geral pode ser, por uma marca na Equipe; o Dono nunca. Vê o Empório, o Meu Dia só com o Empório, Contatos, Calculadoras e, em Configurações, só perfil e senha. **Não vê** Financeiro, Lista de Compra, nem nada da fazenda ou do prestador. A trava é por **lista do que é permitido** (página e rota novas nascem fechadas): no layout do painel, no `guard()` da API e no agente do WhatsApp (recusa com aviso), lida do banco a cada request (muda na hora, sem novo login). Os botões que levam à Lista somem para ele | atendente não pode mexer no rebanho nem ler o dinheiro da fazenda; trava por lista de proibidos envelhece a cada módulo novo |
+| Q121 | **Central e Ponto de venda deixam de existir**: todo estabelecimento pode tudo, e quem não usa um recurso não usa. O tipo sai do formulário, da lista e da API (se vier, é ignorado). A coluna sai em **duas entregas**: anulável nesta, removida na seguinte, porque derrubá-la junto quebraria o Empório no ar entre a migração e o deploy (o código antigo ainda a lê). **Altera a Q58** | pedido do cliente: "todos os estabelecimentos podem ser central e ponto de venda" |
+| Q122 | A unidade-base ganha **Saca e Fardo**, ao lado de quilo, litro e unidade, e o estoque desses produtos **conta em sacas e fardos**. **Altera a Q3 e a Q50** | decisão do usuário, contra a recomendação (embalagem mais conteúdo, contando em kg por baixo): é como o balcão fala |
+| Q123 | **Conteúdo do produto:** quanto pesa ou quantos litros (ou unidades, no fardo) cabem em uma unidade-base. Obrigatório em saca e fardo, opcional em unidade, inexistente em quilo e litro. Aparece junto do nome ("saca de 10 kg") | pedido do cliente: "um campo onde eu posso dizer o peso desse produto" |
+| Q124 | **Mais dados para distinguir:** marca (o `Product.brand` que já existe passa a aparecer no Empório), fabricante, código interno (único na conta quando preenchido) e espécie ou destinação (lista fixa, várias por produto: cão, gato, bovino, equino, ovino e caprino, suíno, aves, peixes, outros), filtráveis na lista e buscáveis no balcão. Sem dado fiscal (Q9) | pedido do cliente: o cadastro ficou simples demais para separar produtos parecidos |
+| Q125 | **Granel de produto em saca ou fardo:** a apresentação pode ser informada no conteúdo ("1 kg" de uma saca de 10 kg) e vira fração da unidade-base (0,1 saca). A fração que **não fecha em três casas é recusada**, com o motivo (1 kg de saca de 30 kg). O preço do granel é o da apresentação, livre (Q54): saca a R$ 100 e quilo a R$ 12 | três casas deixariam "0,01 saca" fantasma; o cliente cobra o granel mais caro para a saca fechada valer a pena |
+| Q126 | A função é **da pessoa**, não do vínculo: Gestor em todas as lojas dele, ou Vendedor em todas. Ninguém é Gestor numa loja e Vendedor em outra | decisão do usuário |
+| Q127 | **Gestor**, nas lojas dele: tudo o que hoje exige OWNER ou ADMIN (preço, mínimo e máximo, cancelar venda, compra e produção, desconto acima do limite, regras de cartão, cheque compensado e devolvido, PIX e dados da loja, despesas, "Vendeu, Pagou", contas a pagar, Resultado, primeiros passos). **Ficam com o Dono e o Gerente geral:** criar e arquivar estabelecimento, contas bancárias, composição e percentuais do produto, "Todas as lojas", Equipe e **liberar o negativo** (que deixa de ser só do OWNER). **Altera a Q18 e a Q32** | o que mexe em todas as lojas ou na conta não é do Gestor de uma loja |
+| Q128 | O Gestor **vê o estoque das outras lojas**, só leitura. Vendas, caixa, fiado e resultado das outras lojas, não | "pode ver o que os outros estabelecimentos possuem" |
+| Q129 | **Vendedor**, nas lojas dele: vende (desconto até o limite), recebe fiado, confere a gaveta, recebe compra e recebe transferência sem diferença; vê estoque, vendas e caixa das lojas dele. O resto vem em **chaves por pessoa, desligadas por padrão**, que o Dono e o Gerente geral ligam: devolver e trocar, lançar compra, contagem, perda, estoque inicial, produção, levar a gaveta ao banco, depositar cheque, cadastrar e editar produto. Cancelar, preço e desconto acima do limite não viram chave | o Vendedor ganha confiança com o tempo |
+| Q130 | **Transferência:** envia o Gestor da origem, o Dono ou o Gerente geral, sempre **do próprio estabelecimento para outro, nunca de outro para o seu**; recebe qualquer pessoa ligada ao destino; cancela em trânsito quem enviou, o Gestor da origem, o Dono ou o Gerente geral. **Altera a Q73** | decisão do usuário |
+| Q131 | **Chegou menos:** a transferência fica **"aguardando o Gestor"**, sem entrar no destino, e aparece no Meu Dia do Gestor do destino. O Gestor do destino, o Dono ou o Gerente geral resolvem, com motivo obrigatório: **perda no caminho** (perda da origem, a regra da Q74), **não foi enviada** (a diferença volta à origem) ou **conferir depois**. Chegou mais segue recusado. **Altera a Q74** | divergência não se aceita no balcão sem quem responde pela loja |
+| Q132 | **Loja sem Gestor** é aviso, nunca bloqueio: o Dono e o Gerente geral cobrem a loja, e o aviso ("Loja Centro sem Gestor, coberta por você") fica nos primeiros passos e no Meu Dia deles até alguém ser nomeado | o bloqueio pegaria a loja pequena, do Dono com um Vendedor |
+| Q133 | **Subir e descer de função é livre** na Equipe. Quem volta a Vendedor volta com as chaves desligadas | o Vendedor de confiança vira Gestor quando o Gestor sai |
+| Q134 | **Histórico do Empório**, só de acréscimo: toda escrita do Empório e toda mudança da Equipe (pessoa, função, lojas, chaves), com quem, quando, loja, o quê, link e, nas edições, **o antes e o depois**. Em `/emporio/historico`, com filtro por pessoa, loja, período e ação. Dono e Gerente geral veem tudo; Gestor, as lojas dele; Vendedor, nada. Guardado para sempre; leitura e tentativa recusada ficam de fora | "precisamos de um log de quem fez cada ação para controle" |
+| Q135 | Em **Configurações → Usuários**, a pessoa da loja aparece com a função do Empório; trocar a função é só na Equipe. Desativar funciona nas duas telas | uma troca de papel por lá desmontaria a Equipe |
+| Q136 | A F6 sai em **duas entregas**: **F6a** (produto e fim do tipo) e **F6b** (Equipe, funções, chaves, "só da loja", transferência com diferença, Histórico) | a F6a é pequena e pode ser mostrada ao cliente logo |
+| Q137 | **Cenário de demonstração** na Da Mata **de produção**, depois de provado no banco local: script versionado que chama as actions (nada direto no banco), repetível (apaga só o que ele criou), com três lojas, a Equipe inteira, uns 25 produtos e 30 dias de movimento. Os usuários fictícios nascem **sem convite por email** | o cliente abre o link de onde quiser |
+| Q138 | **Manual em `/manual`**, do sistema inteiro, começando só pelo Meu Empório: por função (Dono, Gestor, Vendedor), por tarefa, glossário e perguntas frequentes, com um **capítulo do Vendedor** para imprimir. Os prints saem de um roteiro de navegador versionado, com marcação na tela, sobre o cenário fictício (o repositório é público) | "eu preciso facilitar o entendimento do meu cliente" |
 
 ---
 
@@ -1394,6 +1415,76 @@ Owner e o operador de teste, um usuário fora da lista:
 - vê o estoque da fazenda igual.
 
 O Owner vê os itens do Empório no Meu Dia, com a loja no título.
+
+### F6: ajustes do teste com o cliente (Q118 a Q138)
+
+Pedidos do cliente no teste de 30/10, decididos com o usuário no mesmo dia,
+por entrevista (grill) em três rodadas. Duas entregas (Q136).
+
+#### F6a: contrato (produto e fim do tipo)
+
+**Modelo.**
+
+| model | muda |
+|---|---|
+| `EmporioProduct` | ganha `content_qty Decimal(14,3)?`, `content_unit String?` (`quilograma`, `litro`, `unidade`), `manufacturer String?`, `internal_code String?` (único por conta: `@@unique([tenant_id, internal_code])`; nulo não colide) e `species String[]` (padrão vazio) |
+| `Establishment` | `kind` vira **anulável** e deixa de ser escrito; a coluna e o enum saem na entrega seguinte (Q121) |
+
+`STOCK_UNITS` ganha `fardo` (Fardo, fardos, `fd`, fracionável, masculino), que
+aparece também no estoque da fazenda. `EMPORIO_BASE_UNITS` passa a ser
+`quilograma`, `litro`, `unidade`, `saca`, `fardo`. Espécies, lista fixa no
+código (`EMPORIO_SPECIES`): `cao`, `gato`, `bovino`, `equino`,
+`ovino_caprino`, `suino`, `aves`, `peixes`, `outros`.
+
+**Conteúdo (Q123).**
+
+- `saca`: obrigatório, em `quilograma` ou `litro`;
+- `fardo`: obrigatório, em `quilograma`, `litro` ou `unidade`;
+- `unidade`: opcional, em `quilograma` ou `litro`;
+- `quilograma` e `litro`: não existe (mandar é 422 no `content_qty`).
+- `content_qty` maior que zero; com `content_unit` `unidade`, inteiro.
+- **Fixo depois de criado**, como a unidade-base (Q50): mudar o conteúdo
+  mudaria o sentido do estoque já contado. Errou ao criar, arquiva e cria de
+  novo. `PATCH` com conteúdo é 422.
+
+**Apresentação automática.** Criar produto em `saca` ou `fardo` cria junto a
+apresentação fechada que vale 1 ("Saca 10 kg", "Fardo 12 un"), numa
+transação.
+
+**Apresentação pelo conteúdo (Q125).** Em produto com conteúdo, a
+apresentação aceita `content_qty` no lugar de `base_qty` (os dois juntos é
+422): `base_qty = content_qty ÷ conteúdo do produto`. Se o resultado não
+fecha em três casas, 422 no `content_qty`, dizendo o porquê ("1 kg não divide
+a saca de 30 kg em partes exatas"). A leitura da apresentação devolve também
+`content_equivalent` (`base_qty × conteúdo`), nulo quando o produto não tem
+conteúdo. O preço segue livre por apresentação e por loja (Q54).
+
+**Dados (Q124).** `brand` (do `Product`, até 80), `manufacturer` (até 80),
+`internal_code` (até 30, aparado; repetido é 409 `DUPLICATE_CODE` no campo)
+e `species` (ids da lista; fora dela é 422). Todos opcionais, na criação e
+na edição. `listarProdutosEmporioAction` aceita `species` (uma) e `q`, que
+procura sem acento em nome, marca, fabricante e código interno; o balcão usa
+a mesma busca.
+
+**Estabelecimento (Q121).** `kind` sai da entrada e da saída de
+`criarEstabelecimentoAction`, `editarEstabelecimentoAction` e da leitura; se
+vier, é ignorado. O formulário e a lista deixam de mostrar o tipo.
+
+**Rotas.** As de produto e apresentação aceitam os campos novos;
+`GET /api/v1/emporio/products` aceita `?species=` e `?q=`. `/docs/api`
+acompanha.
+
+**Telas.** "Novo produto": nome, categoria, unidade-base (Quilo, Litro,
+Unidade, Saca, Fardo), conteúdo (aparece em saca e fardo, obrigatório, e em
+unidade, opcional), custo de referência ("por saca"), e uma seção "Mais
+dados" com marca, fabricante, código interno e espécie. A tela do produto
+mostra e edita os dados, e a apresentação de produto com conteúdo é
+informada no conteúdo ("quanto: 1 kg"). A lista de produtos ganha busca e
+filtro de espécie.
+
+#### F6b: contrato
+
+Entra aqui quando a F6a for aprovada.
 
 ---
 
