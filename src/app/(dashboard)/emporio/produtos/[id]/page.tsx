@@ -3,7 +3,11 @@ import { notFound } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { hasMinRole } from "@/lib/permissions";
-import { lerProdutoEmporioAction } from "@/lib/actions/emporio-catalogo";
+import {
+  lerProdutoEmporioAction,
+  EMPORIO_SPECIES,
+  EMPORIO_SPECIES_LABELS,
+} from "@/lib/actions/emporio-catalogo";
 import { saldoDoProdutoAction } from "@/lib/actions/emporio-estoque";
 import { lerComposicaoAction, listarProducoesAction } from "@/lib/actions/emporio-producao";
 import { reaisBr } from "@/lib/numero-br";
@@ -28,6 +32,8 @@ import {
   UNIDADE_BASE_ROTULO,
   UNIDADE_BASE_SUFIXO,
   rotuloCustoBase,
+  nomeComConteudo,
+  textoConteudo,
   numeroBr,
   pctBr,
 } from "../../_components/formato";
@@ -46,6 +52,9 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
   const p = res.data;
 
   const sufixo = UNIDADE_BASE_SUFIXO[p.base_unit] ?? p.base_unit;
+  const conteudo =
+    p.content_qty != null && p.content_unit ? { qty: p.content_qty, unit: p.content_unit } : null;
+  const especiesLista = EMPORIO_SPECIES.map((e) => ({ id: e.id, label: e.label }));
   const ativas = p.presentations.filter((a) => !a.archived_at);
   const nomeApresentacao = new Map(p.presentations.map((a) => [a.id, a.name]));
 
@@ -97,6 +106,11 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
           </Link>
           <h1 className="text-2xl font-semibold text-texto">
             {p.name}
+            {conteudo && (
+              <span className="ml-2 text-base font-normal text-texto-secundario">
+                {nomeComConteudo(p.base_unit, conteudo.qty, conteudo.unit)}
+              </span>
+            )}
             {p.archived_at && (
               <Badge variant="gray" className="ml-2 align-middle">
                 Arquivado
@@ -119,10 +133,19 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-texto">Dados comerciais</h2>
-          {podeEscrever && <DadosComerciaisForm produto={p} podeExcecao={ehAdmin} />}
+          {podeEscrever && <DadosComerciaisForm produto={p} podeExcecao={ehAdmin} especiesLista={especiesLista} />}
         </div>
         <dl className="grid gap-3 rounded-lg border border-borda bg-superficie p-4 text-sm sm:grid-cols-2">
           <Item rotulo="Marca" valor={p.brand ?? "-"} />
+          <Item rotulo="Fabricante" valor={p.manufacturer ?? "-"} />
+          <Item rotulo="Código interno" valor={p.internal_code ?? "-"} />
+          <Item
+            rotulo="Espécie"
+            valor={p.species.length === 0 ? "-" : p.species.map((e) => EMPORIO_SPECIES_LABELS[e] ?? e).join(", ")}
+          />
+          {conteudo && (
+            <Item rotulo="Conteúdo" valor={`${textoConteudo(conteudo.qty, conteudo.unit)} por ${(UNIDADE_BASE_ROTULO[p.base_unit] ?? p.base_unit).toLowerCase()}`} />
+          )}
           <Item
             rotulo={rotuloCustoBase(p.base_unit)}
             valor={p.reference_cost == null ? "Não informado" : reaisBr(p.reference_cost)}
@@ -151,7 +174,7 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-texto">Apresentações</h2>
-          {podeEscrever && <ApresentacaoForm produtoId={p.id} baseUnit={p.base_unit} />}
+          {podeEscrever && <ApresentacaoForm produtoId={p.id} baseUnit={p.base_unit} conteudo={conteudo} />}
         </div>
         {p.presentations.length === 0 ? (
           <EmptyState titulo="Nenhuma apresentação">
@@ -180,12 +203,22 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
                   </TableCell>
                   <TableCell>
                     {numeroBr(a.base_qty)} {sufixo}
+                    {a.content_equivalent != null && conteudo && (
+                      <span className="block text-xs text-texto-secundario">
+                        {textoConteudo(a.content_equivalent, conteudo.unit)}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell>{a.is_sealed_package ? "Fechada" : "Avulsa"}</TableCell>
                   {podeEscrever && (
                     <TableCell>
                       <div className="flex flex-wrap gap-2">
-                        <ApresentacaoForm produtoId={p.id} baseUnit={p.base_unit} apresentacao={a} />
+                        <ApresentacaoForm
+                          produtoId={p.id}
+                          baseUnit={p.base_unit}
+                          conteudo={conteudo}
+                          apresentacao={a}
+                        />
                         <ArquivarBotao
                           url={`/api/v1/emporio/presentations/${a.id}/archive`}
                           arquivado={!!a.archived_at}

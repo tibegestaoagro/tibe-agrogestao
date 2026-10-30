@@ -18,7 +18,9 @@ export async function carregarCatalogoDeVenda(
       select: {
         id: true,
         base_unit: true,
-        product: { select: { name: true } },
+        manufacturer: true,
+        internal_code: true,
+        product: { select: { name: true, brand: true } },
         presentations: {
           where: { archived_at: null },
           select: { id: true, name: true, base_qty: true, is_sealed_package: true },
@@ -37,6 +39,9 @@ export async function carregarCatalogoDeVenda(
     .map((p) => ({
       id: p.id,
       name: p.product.name,
+      brand: p.product.brand,
+      manufacturer: p.manufacturer,
+      internal_code: p.internal_code,
       base_unit: p.base_unit,
       apresentacoes: p.presentations.map((a) => ({
         id: a.id,

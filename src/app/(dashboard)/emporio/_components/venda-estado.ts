@@ -14,7 +14,16 @@ import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
  */
 
 export type ApresentacaoVenda = { id: string; name: string; base_qty: number; lacrada: boolean };
-export type ProdutoVenda = { id: string; name: string; base_unit: string; apresentacoes: ApresentacaoVenda[] };
+export type ProdutoVenda = {
+  id: string;
+  name: string;
+  /** Também entram na busca do balcão (Q124). */
+  brand: string | null;
+  manufacturer: string | null;
+  internal_code: string | null;
+  base_unit: string;
+  apresentacoes: ApresentacaoVenda[];
+};
 /** apresentação -> loja -> preço sugerido. */
 export type PrecosVenda = Record<string, Record<string, number>>;
 
@@ -79,6 +88,16 @@ export function normalizar(texto: string): string {
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .trim();
+}
+
+/**
+ * A busca do balcão: nome, marca, fabricante e código interno, sem acento.
+ * É o mesmo critério de `listarProdutosEmporioAction`; não importa `semAcento`
+ * de lá porque aquele módulo arrasta o banco e este é client (`normalizar` faz
+ * a mesma conta).
+ */
+export function produtoCasaBusca(p: ProdutoVenda, termo: string): boolean {
+  return [p.name, p.brand, p.manufacturer, p.internal_code].some((campo) => !!campo && normalizar(campo).includes(termo));
 }
 
 const CARTAO_NOME: Record<string, string> = {

@@ -20,6 +20,7 @@ import {
   ehCartao,
   liquidoDoCartaoCent,
   normalizar,
+  produtoCasaBusca,
   type CampoDaVenda,
   type EstadoDaVenda,
   type FormaDePagamento,
@@ -114,7 +115,7 @@ export function VendaCampos({
   const resultados =
     termo === ""
       ? []
-      : produtos.filter((p) => p.apresentacoes.length > 0 && normalizar(p.name).includes(termo)).slice(0, MAX_RESULTADOS);
+      : produtos.filter((p) => p.apresentacoes.length > 0 && produtoCasaBusca(p, termo)).slice(0, MAX_RESULTADOS);
 
   const todosContatos = [...contatos, ...v.contatosNovos.filter((n) => !contatos.some((c) => c.id === n.id))];
 
@@ -158,7 +159,7 @@ export function VendaCampos({
             <Input
               type="search"
               aria-label="Buscar produto"
-              placeholder="Buscar produto pelo nome"
+              placeholder="Buscar por nome, marca ou código"
               autoComplete="off"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}

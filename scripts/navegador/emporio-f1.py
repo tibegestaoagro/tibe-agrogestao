@@ -32,7 +32,6 @@ confere("painel abriu", painel_aberto())
 confere("preenche nome", preencher("Nome", "F1 Loja 1") not in ("SEM ROTULO", "SEM CAMPO"))
 preencher("Despesas padrão (%)", "15")
 preencher("Lucro padrão (%)", "20")
-confere("Tipo já vem em Ponto de venda", "Ponto de venda" in (js("(() => { const d = document.querySelector('[role=dialog]'); const l = d && Array.from(d.querySelectorAll('label')).find(x => x.innerText.replace('*','').trim() === 'Tipo'); const el = l && document.getElementById(l.htmlFor); return el ? el.innerText : ''; })()") or ""))
 enviar_painel()
 confere("painel fechou depois de salvar", esperar(lambda: not painel_aberto()))
 confere("lista mostra F1 Loja 1", esperar(lambda: tem("F1 Loja 1")))
@@ -41,7 +40,6 @@ passo("2. Nome repetido: recusa embaixo do campo")
 clicar("Novo estabelecimento")
 time.sleep(1.5)
 preencher("Nome", "F1 Loja 1")
-escolher("Tipo", "Central")
 enviar_painel()
 recusa = esperar(lambda: erro_do_campo("Nome")) or ""
 confere("recusa no campo Nome", "existe" in recusa.lower() or "já" in recusa.lower(), recusa)
@@ -53,7 +51,7 @@ passo("3. Montar o resto pela API")
 lojas = api("GET", "/api/v1/emporio/establishments")["body"]["data"]
 loja1 = [l for l in lojas if l["name"] == "F1 Loja 1"][0]
 confere("loja 1 gravou os percentuais", loja1["default_expense_pct"] == 15 and loja1["default_profit_pct"] == 20, loja1)
-r = api("POST", "/api/v1/emporio/establishments", {"name": "F1 Loja 2", "kind": "ponto_venda"})
+r = api("POST", "/api/v1/emporio/establishments", {"name": "F1 Loja 2"})
 confere("loja 2 criada", r["status"] == 201, r["status"])
 loja2 = r["body"]["data"]
 cats = api("GET", "/api/v1/product-categories")["body"]["data"]

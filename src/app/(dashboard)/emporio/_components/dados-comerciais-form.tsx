@@ -17,11 +17,15 @@ import { FormSheet } from "@/components/ui/form-sheet";
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { apiPatch } from "@/lib/client-api";
 import { lerOpcional, paraCampo, rotuloCustoBase } from "./formato";
+import { SeletorEspecies, type EspecieParaForm } from "./produto-novo-form";
 
 export type ProdutoParaForm = {
   id: string;
   base_unit: string;
   brand: string | null;
+  manufacturer: string | null;
+  internal_code: string | null;
+  species: string[];
   reference_cost: number | null;
   track_sealed: boolean | null;
   track_sealed_efetivo: boolean;
@@ -33,6 +37,9 @@ export type ProdutoParaForm = {
 
 const ORDEM = [
   "brand",
+  "manufacturer",
+  "internal_code",
+  "species",
   "reference_cost",
   "track_sealed",
   "track_lot",
@@ -49,8 +56,10 @@ const deTri = (t: Tri): boolean | null => (t === "auto" ? null : t === "sim");
 export function DadosComerciaisForm({
   produto,
   podeExcecao,
+  especiesLista,
 }: {
   produto: ProdutoParaForm;
+  especiesLista: EspecieParaForm[];
   /** OWNER e ADMIN: só eles mexem nas exceções de percentual (Q55). */
   podeExcecao: boolean;
 }) {
@@ -60,6 +69,9 @@ export function DadosComerciaisForm({
   const [loading, setLoading] = useState(false);
 
   const [brand, setBrand] = useState(produto.brand ?? "");
+  const [fabricante, setFabricante] = useState(produto.manufacturer ?? "");
+  const [codigo, setCodigo] = useState(produto.internal_code ?? "");
+  const [especies, setEspecies] = useState<string[]>(produto.species);
   const [custo, setCusto] = useState(paraCampo(produto.reference_cost));
   const [lacrado, setLacrado] = useState<Tri>(paraTri(produto.track_sealed));
   const [lote, setLote] = useState(produto.track_lot);
@@ -69,6 +81,9 @@ export function DadosComerciaisForm({
 
   function reiniciar() {
     setBrand(produto.brand ?? "");
+    setFabricante(produto.manufacturer ?? "");
+    setCodigo(produto.internal_code ?? "");
+    setEspecies(produto.species);
     setCusto(paraCampo(produto.reference_cost));
     setLacrado(paraTri(produto.track_sealed));
     setLote(produto.track_lot);
@@ -96,6 +111,9 @@ export function DadosComerciaisForm({
     setLoading(true);
     const res = await apiPatch(`/api/v1/emporio/products/${produto.id}`, {
       brand: brand.trim() || null,
+      manufacturer: fabricante.trim() || null,
+      internal_code: codigo.trim() || null,
+      species: especies,
       reference_cost: c as number | null,
       track_sealed: deTri(lacrado),
       track_lot: lote,
@@ -137,6 +155,54 @@ export function DadosComerciaisForm({
             onChange={(e) => {
               setBrand(e.target.value);
               err.limparCampo("brand");
+            }}
+          />
+        )}
+      </Field>
+
+      <Field label="Fabricante" id={err.idDe("manufacturer")} error={err.erros.manufacturer}>
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            value={fabricante}
+            onChange={(e) => {
+              setFabricante(e.target.value);
+              err.limparCampo("manufacturer");
+            }}
+          />
+        )}
+      </Field>
+
+      <Field
+        label="Código interno"
+        hint="O seu código para achar o produto. Não pode repetir."
+        id={err.idDe("internal_code")}
+        error={err.erros.internal_code}
+      >
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            value={codigo}
+            onChange={(e) => {
+              setCodigo(e.target.value);
+              err.limparCampo("internal_code");
+            }}
+          />
+        )}
+      </Field>
+
+      <Field label="Espécie" id={err.idDe("species")} error={err.erros.species}>
+        {({ id, ...aria }) => (
+          <SeletorEspecies
+            id={id}
+            aria={aria}
+            especies={especiesLista}
+            valor={especies}
+            onChange={(v) => {
+              setEspecies(v);
+              err.limparCampo("species");
             }}
           />
         )}

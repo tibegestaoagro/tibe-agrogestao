@@ -17,7 +17,6 @@ import {
 import { EstabelecimentoForm } from "../_components/estabelecimento-form";
 import { VinculosForm } from "../_components/vinculos-form";
 import { ArquivarBotao } from "../_components/arquivar-botao";
-import { TIPO_LOJA_ROTULO } from "../_components/formato";
 
 export default async function EstabelecimentosPage({
   searchParams,
@@ -71,7 +70,6 @@ export default async function EstabelecimentosPage({
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>
-              <TableHead>Tipo</TableHead>
               <TableHead>Cidade</TableHead>
               <TableHead>Usuários vinculados</TableHead>
               {podeEscrever && <TableHead>Ações</TableHead>}
@@ -88,7 +86,6 @@ export default async function EstabelecimentosPage({
                     </Badge>
                   )}
                 </TableCell>
-                <TableCell>{TIPO_LOJA_ROTULO[l.kind] ?? l.kind}</TableCell>
                 <TableCell>{l.city ?? "-"}</TableCell>
                 <TableCell>
                   {l.user_ids.length === 0 ? "Sem vínculo (todos veem)" : l.user_ids.length}

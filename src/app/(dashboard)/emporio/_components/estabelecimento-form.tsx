@@ -16,12 +16,11 @@ import { Field } from "@/components/ui/field";
 import { FormSheet } from "@/components/ui/form-sheet";
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { apiPost, apiPatch } from "@/lib/client-api";
-import { lerOpcional, paraCampo, TIPO_LOJA_ROTULO } from "./formato";
+import { lerOpcional, paraCampo } from "./formato";
 
 export type LojaParaForm = {
   id: string;
   name: string;
-  kind: string;
   address: string | null;
   city: string | null;
   responsible_user_id: string | null;
@@ -36,7 +35,6 @@ export type UsuarioParaForm = { id: string; name: string };
 /** Ordem VISUAL, com o nome que a API usa. */
 const ORDEM = [
   "name",
-  "kind",
   "address",
   "city",
   "responsible_user_id",
@@ -64,9 +62,6 @@ export function EstabelecimentoForm({
   const [loading, setLoading] = useState(false);
 
   const [name, setName] = useState(loja?.name ?? "");
-  // Loja nova já vem como ponto de venda, o caso comum (decisão do usuário
-  // em 27/10/2026); a Central é a exceção que se escolhe.
-  const [kind, setKind] = useState(loja?.kind ?? "ponto_venda");
   const [address, setAddress] = useState(loja?.address ?? "");
   const [city, setCity] = useState(loja?.city ?? "");
   const [responsavel, setResponsavel] = useState(loja?.responsible_user_id ?? NINGUEM);
@@ -77,7 +72,6 @@ export function EstabelecimentoForm({
 
   function reiniciar() {
     setName(loja?.name ?? "");
-    setKind(loja?.kind ?? "ponto_venda");
     setAddress(loja?.address ?? "");
     setCity(loja?.city ?? "");
     setResponsavel(loja?.responsible_user_id ?? NINGUEM);
@@ -91,7 +85,6 @@ export function EstabelecimentoForm({
   async function submit() {
     const novos: Partial<Record<Campo, string>> = {};
     if (!name.trim()) novos.name = "Informe o nome do estabelecimento.";
-    if (!kind) novos.kind = "Escolha o tipo: central ou ponto de venda.";
     const d = lerOpcional(despesa);
     const l = lerOpcional(lucro);
     const m = lerOpcional(desconto);
@@ -108,7 +101,6 @@ export function EstabelecimentoForm({
     setLoading(true);
     const corpo = {
       name: name.trim(),
-      kind,
       address: address.trim() || null,
       city: city.trim() || null,
       responsible_user_id: responsavel === NINGUEM ? null : responsavel,
@@ -165,29 +157,6 @@ export function EstabelecimentoForm({
               err.limparCampo("name");
             }}
           />
-        )}
-      </Field>
-
-      <Field label="Tipo" required id={err.idDe("kind")} error={err.erros.kind}>
-        {({ id, ...aria }) => (
-          <Select
-            value={kind}
-            onValueChange={(v) => {
-              setKind(v);
-              err.limparCampo("kind");
-            }}
-          >
-            <SelectTrigger id={id} {...aria}>
-              <SelectValue placeholder="Selecione" />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(TIPO_LOJA_ROTULO).map(([valor, rotulo]) => (
-                <SelectItem key={valor} value={valor}>
-                  {rotulo}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         )}
       </Field>
 
