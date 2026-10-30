@@ -102,12 +102,15 @@ roteiro (foto de recibo e o "não" final).
 Decisões Q118 a Q138 na spec, tiradas por grill em três rodadas. Duas
 entregas: **F6a** (saca e fardo como unidade-base com conteúdo, granel pelo
 conteúdo com recusa da fração inexata, marca, fabricante, código, espécie,
-fim do tipo Central/Ponto de venda) **pronta na branch, não em produção**:
-migração `20261030120000_emporio_f6a` aplicada só no Docker local; `m86`
-verde (vista falhando antes), m37, m77 a m85, docs-api, isolation, tsc e
-check verdes; roteiro `emporio-f6a` verde e reprovado com a conversão
-escondida; telas vistas no celular. **Falta:** migração no Neon e merge, com
-autorização. Depois, **F6b** (Equipe com Dono, Gerente geral, Gestor e
+fim do tipo Central/Ponto de venda) **em produção desde 30/10** (`a30c065`,
+merge fast-forward autorizado pelo usuário; migração
+`20261030120000_emporio_f6a` no Neon antes do push, `migrate status` em
+dia; Vercel com sucesso; `content_qty` e `DUPLICATE_CODE` conferidos em
+`/docs/api` de produção). Provas: `m86` verde (vista falhando antes), m37,
+m77 a m85, docs-api, isolation, tsc e check verdes; roteiro `emporio-f6a`
+verde e reprovado com a conversão escondida; telas vistas no celular. A
+`m83` falhava no dia 30 por borda da janela de 30 dias no teste (corrigido).
+**Próximo: F6b** (Equipe com Dono, Gerente geral, Gestor e
 Vendedor; chaves do Vendedor; trava só da loja; transferência com
 diferença; Histórico), cujo contrato ainda não está na spec. Depois da F6:
 cenário de demonstração na Da Mata de produção (Q137) e manual em
