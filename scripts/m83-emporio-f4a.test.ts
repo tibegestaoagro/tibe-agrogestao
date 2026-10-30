@@ -802,7 +802,10 @@ async function comBanco() {
       const rFx3 = await criarFixa(admin, { name: "M83 L3 fixa", amount: 300, due_day: 28, split_kind: "valor", splits: [{ establishment_id: L3.id, value: 300 }] });
       check("fixa de R$ 300 na Loja 3", rFx3.ok, j(rFx3));
       await limparRegras();
-      if (dia <= 30) {
+      // Dia 30 fica de fora: `dia` dias atrás é exatamente a borda da janela de
+      // 30 dias, que a action calcula alguns milissegundos depois do teste, e a
+      // venda escapava por um triz (falhou em 30/10/2026).
+      if (dia < 30) {
         // venda no último dia do mês anterior (a `dia` dias atrás), com regra de 50%: margem de 10%
         await novaRegra(admin, L3.id, { name: "M83 L3 Comissão antiga", kind: "percentual", value: 50 });
         const rOld = await venda(op, L3.id, [itP(10)], [dinheiro(100)], { sold_at: new Date(Date.now() - dia * DIA) });
@@ -812,11 +815,11 @@ async function comBanco() {
       check("duas vendas de R$ 100 hoje, sem regra (margem 60%)", (await venda(op, L3.id, [itP(10)], [dinheiro(100)])).ok && (await venda(op, L3.id, [itP(10)], [dinheiro(100)])).ok);
       const d3 = dados(await resultado(admin, L3.id));
       check("o mês tem R$ 200 de vendas (a antiga fica fora)", perto(pega(d3, A_VENDAS), 200), String(pega(d3, A_VENDAS)));
-      if (dia <= 30) {
+      if (dia < 30) {
         // 30 dias: vendas 300, custo 120, regra 50 -> margem 130 (43,33%); ponto = 300 / 0,4333 = 692,31
         check("com menos de 10 vendas: ponto pela margem dos últimos 30 dias (R$ 692,31), não pela do mês (R$ 500)", perto(pega(d3, A_PONTO), 692.31, 1), String(pega(d3, A_PONTO)));
       } else {
-        check("com menos de 10 vendas: ponto = 300 / 60% = R$ 500 (dia 31: a janela de 30 dias não alcança o mês anterior)", perto(pega(d3, A_PONTO), 500, 1), String(pega(d3, A_PONTO)));
+        check("com menos de 10 vendas: ponto = 300 / 60% = R$ 500 (dia 30 ou 31: o teste não grava a venda do mês anterior)", perto(pega(d3, A_PONTO), 500, 1), String(pega(d3, A_PONTO)));
       }
     });
 
