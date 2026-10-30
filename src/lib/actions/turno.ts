@@ -8,6 +8,7 @@ import { logInbound, logOutbound } from "@/lib/actions/conversation-log";
 import { executarIntencao } from "@/lib/actions/executar-intencao";
 import { identificarContato, type ContatoIdentificado } from "@/lib/actions/whatsapp-contato";
 import { INTENCOES_QUE_GRAVAM_SEM_CONFIRMAR, ehSoCumprimento } from "@/lib/actions/whatsapp-handlers/shared";
+import { ehSoDaLoja, FRASE_SO_DA_LOJA } from "@/lib/whatsapp-so-da-loja";
 import { carregarCursor } from "@/lib/agente/cursor";
 import { classificarMensagem, classificarResposta, normalizarParaComparar, trechoOuMensagemInteira } from "@/lib/agente/classificar";
 import { FalhaDoModelo } from "@/lib/agente/modelo";
@@ -194,6 +195,11 @@ export async function executarTurno(e: EntradaDoTurno): Promise<SaidaDoTurno> {
     }
     db = prismaForTenant(contato.tenant_id);
     contatoId = contato.contato_id;
+
+    // Q120: antes da saudação, do replay e da classificação (que custa uma chamada ao modelo).
+    if (await ehSoDaLoja(db, contato.user.id)) {
+      return { mensagens: [fixa(FRASE_SO_DA_LOJA)], replay: false };
+    }
 
     if (contato.primeiro_contato) {
       const saudacao = fixa(contato.resposta_sugerida || BOAS_VINDAS);

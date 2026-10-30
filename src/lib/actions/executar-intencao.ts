@@ -10,6 +10,7 @@ import { detectConfirmation } from "@/lib/actions/confirmation";
 import { logInbound, logOutbound } from "@/lib/actions/conversation-log";
 import { routeIntent, type RouterResult } from "@/lib/actions/whatsapp-router";
 import { atualizarCursor } from "@/lib/agente/cursor";
+import { ehSoDaLoja, FRASE_SO_DA_LOJA } from "@/lib/whatsapp-so-da-loja";
 
 /**
  * Núcleo de execução de uma intenção do agente WhatsApp (Task 7 da Fase 2).
@@ -119,6 +120,19 @@ export async function executarIntencao(e: EntradaDaIntencao): Promise<SaidaDaInt
     registrar_entrada,
     _atualizarCursorParaTeste,
   } = e;
+
+  // Q120: antes de tudo (replay, fluxo em andamento, confirmação pendente).
+  if (await ehSoDaLoja(db, user.id)) {
+    return {
+      reply_text: FRASE_SO_DA_LOJA,
+      requires_confirmation: false,
+      auxiliary_data: null,
+      report_url: null,
+      action_taken: "so_da_loja",
+      intent_final: intent,
+      replay: false,
+    };
+  }
 
   /**
    * Replay da MESMA mensagem devolve a resposta da primeira vez, sem executar
