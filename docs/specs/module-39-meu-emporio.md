@@ -202,7 +202,7 @@ cliente real com as duas coisas vai precisar.
 | Q116 | **Primeiros passos** no início do Empório, por loja: essenciais (sem eles o resultado é estimado) e recomendados; cada item abre o formulário normal; o cartão some quando os essenciais estão feitos | Q45 |
 | Q117 | Aceite "TIBÉ sem Meu Empório" **com o módulo inteiro**: fora da lista, nada do Empório no Meu Dia, no Painel, na Lista, na Calculadora e no Financeiro (o "Tudo" dele é só a fazenda) | o "Tudo" do Financeiro mostrava a venda do Empório a quem estava fora da lista desde a F3a |
 | Q118 | **Tela Equipe** (`/emporio/equipe`), com quatro **funções**: **Dono** (OWNER) e **Gerente geral** (ADMIN sem vínculo), que valem para a conta inteira, e **Gestor** e **Vendedor**, que valem nas lojas da pessoa. Cadastrar usa o mesmo convite e o mesmo limite de assentos de Configurações → Usuários. **Só o Dono e o Gerente geral** usam a Equipe; o Gerente geral não cria nem altera o Dono | pedido do cliente no teste de 30/10: cada loja com o seu Gestor e os seus Vendedores, cadastrados num lugar só |
-| Q119 | **Quem vê o Empório dentro da conta sai da Equipe**: Gerente geral, Gestor e Vendedor veem; quem não tem função de Empório não vê (o Dono sempre vê). A Plataforma continua ligando e desligando o recurso para a CONTA. A lista de `TenantFeatureUser` passa a ser escrita pela Equipe; vazia segue sendo "a conta inteira", e a Equipe nunca a deixa vazia por remoção. **Altera a Q14** | a Q14 servia ao teste só com o Owner; depender da Pleno para cada atendente trava o cliente |
+| Q119 | **Quem vê o Empório dentro da conta sai da Equipe**: Gerente geral, Gestor e Vendedor veem; quem não tem função de Empório não vê (o Dono sempre vê). A Plataforma continua ligando e desligando o recurso para a CONTA. A visibilidade **sai da própria função**, e a lista de `TenantFeatureUser` deixa de valer para o `emporio` (duas fontes para a mesma resposta se desencontrariam). **Altera a Q14** | a Q14 servia ao teste só com o Owner; depender da Pleno para cada atendente trava o cliente |
 | Q120 | **"Só da loja"** (`User.emporio_only`): **Gestor e Vendedor são sempre**; o Gerente geral pode ser, por uma marca na Equipe; o Dono nunca. Vê o Empório, o Meu Dia só com o Empório, Contatos, Calculadoras e, em Configurações, só perfil e senha. **Não vê** Financeiro, Lista de Compra, nem nada da fazenda ou do prestador. A trava é por **lista do que é permitido** (página e rota novas nascem fechadas): no layout do painel, no `guard()` da API e no agente do WhatsApp (recusa com aviso), lida do banco a cada request (muda na hora, sem novo login). Os botões que levam à Lista somem para ele | atendente não pode mexer no rebanho nem ler o dinheiro da fazenda; trava por lista de proibidos envelhece a cada módulo novo |
 | Q121 | **Central e Ponto de venda deixam de existir**: todo estabelecimento pode tudo, e quem não usa um recurso não usa. O tipo sai do formulário, da lista e da API (se vier, é ignorado). A coluna sai em **duas entregas**: anulável nesta, removida na seguinte, porque derrubá-la junto quebraria o Empório no ar entre a migração e o deploy (o código antigo ainda a lê). **Altera a Q58** | pedido do cliente: "todos os estabelecimentos podem ser central e ponto de venda" |
 | Q122 | A unidade-base ganha **Saca e Fardo**, ao lado de quilo, litro e unidade, e o estoque desses produtos **conta em sacas e fardos**. **Altera a Q3 e a Q50** | decisão do usuário, contra a recomendação (embalagem mais conteúdo, contando em kg por baixo): é como o balcão fala |
@@ -1482,9 +1482,126 @@ mostra e edita os dados, e a apresentação de produto com conteúdo é
 informada no conteúdo ("quanto: 1 kg"). A lista de produtos ganha busca e
 filtro de espécie.
 
-#### F6b: contrato
+#### F6b: contrato (Equipe, funções, chaves, só da loja, transferência e Histórico)
 
-Entra aqui quando a F6a for aprovada.
+**Modelo.**
+
+| model | muda |
+|---|---|
+| `User` | ganha `emporio_role EmporioRole?` (`gerente_geral`, `gestor`, `vendedor`; nulo = sem função no Empório), `emporio_only Boolean @default(false)` (só tem efeito no Gerente geral, Q120) e `emporio_keys String[]` (as chaves da Q129, só no Vendedor) |
+| `StockTransfer` | o status ganha `aguardando_gestor`; guarda o que chegou por item (`received_qty` no item) e a resolução (`resolution`: `perda_no_caminho`, `nao_enviada`; `resolved_by_user_id`, `resolved_at`, `resolution_reason`) |
+| `EmporioAuditLog` (novo) | `tenant_id`, `created_at`, `user_id`, `establishment_id?`, `action` (chave fixa, como `venda.criar`), `target_type`, `target_id`, `summary` (frase em português), `changes Json?` (`[{ campo, antes, depois }]`). Só `create`: nenhuma action o edita nem apaga. Entra em `TENANT_SCOPED_MODELS` |
+
+**Quem é quem (um ponto só: `src/lib/emporio/papel.ts`).** O papel do
+Empório sai do banco a cada request (como o recurso, `features.ts`), nunca do
+JWT, para mudar na hora:
+
+| papel | quem | lojas que vê |
+|---|---|---|
+| Dono | `role` OWNER | todas, sempre (o vínculo não o limita mais) |
+| Gerente geral | `emporio_role` `gerente_geral` | todas, sempre |
+| Gestor | `emporio_role` `gestor` | as dele, mais o **estoque** das outras, só leitura (Q128) |
+| Vendedor | `emporio_role` `vendedor` | as dele |
+
+- **Ver o Empório** (Q119): o recurso ligado na conta **e** (Dono **ou**
+  `emporio_role` preenchido). A lista de `TenantFeatureUser` deixa de valer
+  para o `emporio` (continua no mecanismo genérico, para outros recursos); o
+  cartão da Plataforma passa a mostrar a Equipe em vez da lista.
+- **O papel da conta acompanha** (Q118): Gerente geral é ADMIN; Gestor e
+  Vendedor são OPERADOR. Quem escreve os dois é a Equipe, numa transação.
+- Gestor e Vendedor têm **pelo menos uma loja**; o Gerente geral, nenhuma
+  (vínculos limpos ao virar Gerente geral).
+
+**Permissão por ação.** As checagens `ehAdmin`/`ehOperador` das actions do
+Empório são trocadas por `pode(ator, acao, loja?)`, com a tabela num lugar
+só:
+
+- **Conta** (Dono e Gerente geral): criar e arquivar estabelecimento, liberar
+  estoque negativo (`allow_negative_stock`), contas bancárias, composição,
+  percentuais do produto, visão "Todas as lojas", Equipe.
+- **Gestor da loja** (mais Dono e Gerente geral): tudo o que hoje exige ADMIN
+  e não está em Conta (Q127), mais enviar e cancelar transferência da origem
+  e resolver diferença no destino.
+- **Vendedor da loja** (mais os de cima): vender com desconto até o limite,
+  receber fiado, conferir gaveta, receber compra, receber transferência sem
+  diferença, e as leituras da loja.
+- **Chave** (Vendedor com a chave, mais Gestor para cima): `devolver_trocar`,
+  `lancar_compra`, `contagem`, `perda`, `estoque_inicial`, `producao`,
+  `transferir_caixa`, `depositar_cheque`, `cadastrar_produto` (produto e
+  apresentação, que são de todas as lojas).
+- Recusa: 403 `FORBIDDEN`, com a frase do que falta ("Só o Gestor da loja
+  pode cancelar uma venda."). Loja fora do alcance continua 404 (como hoje).
+
+**Equipe (`src/lib/actions/emporio-equipe.ts`, `/emporio/equipe`).** Só Dono
+e Gerente geral; o Gerente geral não altera o Dono nem outro Gerente geral.
+
+- `listarEquipeAction`: todos os usuários ativos da conta, com `role`,
+  `emporio_role`, `emporio_only`, `emporio_keys`, `establishment_ids`, e os
+  assentos;
+- `cadastrarMembroAction({ name, email, phone?, emporio_role, establishment_ids, emporio_keys?, emporio_only? })`:
+  usa o convite de hoje (`inviteUserAction`: assento, email único, senha
+  temporária mostrada uma vez) e grava a função, as lojas e as chaves;
+- `alterarMembroAction(user_id, { emporio_role?, establishment_ids?, emporio_keys?, emporio_only? })`:
+  sobe e desce livre (Q133); virar Vendedor zera as chaves; virar Gerente
+  geral limpa as lojas;
+- `tirarDoEmporioAction(user_id)`: `emporio_role` nulo; o usuário continua na
+  conta.
+- Recusas no campo: `emporio_role` fora da lista; `establishment_ids` vazio
+  para Gestor e Vendedor; chave fora da lista ou em quem não é Vendedor;
+  `emporio_only` fora do Gerente geral; o Dono como alvo.
+- **Loja sem Gestor** (Q132): aviso nos primeiros passos e no Meu Dia do Dono
+  e do Gerente geral; nunca bloqueia.
+- O vínculo segue editável em Estabelecimentos, pela mesma regra.
+- Em Configurações → Usuários (Q135): coluna "Empório"; trocar o papel de
+  quem tem `emporio_role` é 409 "Troque a função pela Equipe do Empório".
+
+**Só da loja (Q120).** `ehSoDaLoja(ator)` = Gestor, Vendedor, ou Gerente geral
+com `emporio_only`. Três pontos, todos por lista do que é permitido:
+
+- **Páginas**, no layout do painel: `/emporio/**`, `/meu-dia`, `/contatos/**`,
+  `/calculadoras/**`, `/configuracoes/perfil`, `/configuracoes/senha`; o resto
+  redireciona para `/emporio`. O menu mostra só esses.
+- **API**, no `guard()`: módulo `emporio`, ou rota que declara
+  `{ lojaOk: true }` (Contatos, Meu Dia, perfil, senha, notificações); o
+  resto é 403 `FORBIDDEN` com "Seu acesso é só ao Empório.". As rotas do
+  Empório que não usam o `guard()` já checam o recurso.
+- **WhatsApp**: a pessoa só da loja recebe "O Empório ainda não está no
+  WhatsApp. Use o Tibé pelo navegador." e nada é executado.
+- Meu Dia só com o Empório; "Encaminhar à Lista" e o "Mandar para a Lista" da
+  Calculadora somem.
+
+**Transferência (Q130, Q131).**
+
+- Enviar: Gestor da origem (ou Dono, Gerente geral). O destino continua
+  livre: é sempre "da minha loja para outra".
+- Receber: qualquer um ligado ao destino informa o que chegou por item. Igual
+  ao enviado: recebida. Menos: quem pode resolver (Gestor do destino, Dono,
+  Gerente geral) manda junto `resolution` e `reason` e resolve na hora; quem
+  não pode deixa a transferência em `aguardando_gestor`, sem entrar nada no
+  destino, e ela aparece no Meu Dia do Gestor do destino. Mais: 422, como
+  hoje.
+- `resolverDiferencaAction(id, { operation_key, resolution, reason })`:
+  `perda_no_caminho` (a diferença vira perda da origem, a regra da Q74) ou
+  `nao_enviada` (a diferença volta ao saldo da origem). "Conferir depois" é
+  não resolver: fica aguardando.
+- Cancelar em trânsito: quem enviou, o Gestor da origem, Dono, Gerente geral.
+
+**Histórico (Q134).** `registrarNoHistorico(tx, ator, { action, establishment_id?, target_type, target_id, summary, changes? })`,
+na mesma transação de **toda** action de escrita do Empório e da Equipe.
+`listarHistoricoAction({ user_id?, establishment_id?, de?, ate?, action?, cursor? })`
+com paginação; Dono e Gerente geral veem tudo, Gestor as lojas dele, Vendedor
+recebe 403. Tela `/emporio/historico` com os filtros e o link de cada linha.
+
+**Migração de dados.** Na conta com o `emporio` ligado: quem estava na lista
+de `TenantFeatureUser` (ou, com a lista vazia, todo usuário ativo) e não é o
+Dono vira Gerente geral se ADMIN, Vendedor se OPERADOR (com as lojas que já
+tinha; sem loja, todas), e fica sem função se VISUALIZADOR. Em produção só a
+Da Mata tem o recurso, com a lista só do Owner: nada muda lá.
+
+**Entrega em duas ondas de servidor** (o Histórico encosta em toda action, e
+a permissão também): primeiro papel, permissão, Equipe, só da loja e
+transferência; depois o Histórico, varrendo as mesmas actions. Telas depois
+das rotas, como sempre.
 
 ---
 
