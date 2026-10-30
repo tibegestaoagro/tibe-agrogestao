@@ -25,7 +25,7 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 `historico/2026-09.md`.
 ## Estado atual
 
-- Atualizado em: 2026-10-29.
+- Atualizado em: 2026-10-30.
 
 ### Programa de dívidas (07 a 14/10): encerrado, E0 a E10 em produção
 
@@ -96,7 +96,28 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
-### Meu Empório (Módulo 39): F0 a F4b em produção, F5 em andamento
+### Meu Empório (Módulo 39): F0 a F5 em produção, F6 em andamento
+
+**F6 (ajustes do teste com o cliente, 30/10), branch `emporio-f6-equipe`.**
+Decisões Q118 a Q138 na spec, tiradas por grill em três rodadas. Duas
+entregas: **F6a** (saca e fardo como unidade-base com conteúdo, granel pelo
+conteúdo com recusa da fração inexata, marca, fabricante, código, espécie,
+fim do tipo Central/Ponto de venda) **pronta na branch, não em produção**:
+migração `20261030120000_emporio_f6a` aplicada só no Docker local; `m86`
+verde (vista falhando antes), m37, m77 a m85, docs-api, isolation, tsc e
+check verdes; roteiro `emporio-f6a` verde e reprovado com a conversão
+escondida; telas vistas no celular. **Falta:** migração no Neon e merge, com
+autorização. Depois, **F6b** (Equipe com Dono, Gerente geral, Gestor e
+Vendedor; chaves do Vendedor; trava só da loja; transferência com
+diferença; Histórico), cujo contrato ainda não está na spec. Depois da F6:
+cenário de demonstração na Da Mata de produção (Q137) e manual em
+`/manual` (Q138). A coluna `Establishment.kind` e o enum saem na entrega
+seguinte à F6a (Q121).
+
+⚠️ O `next dev` entrou em laço de recarga depois do `prisma generate` da
+migração (o mesmo da F1); o classificador não deixa o agente matar o
+processo: quem para é o usuário (`taskkill //PID <pid> //T //F` no `!`,
+com barras duplas por causa do Git Bash), depois `rm -rf .next/dev`.
 
 **F0 (liberação e fundação) em produção desde 27/10** (`192e402`, merge
 fast-forward da `emporio-f0`, que trouxe a spec junto; autorizado pelo
