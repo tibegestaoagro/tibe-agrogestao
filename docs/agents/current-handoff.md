@@ -96,7 +96,7 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
-### Meu Empório (Módulo 39): F0 a F5 em produção, F6 em andamento
+### Meu Empório (Módulo 39): F0 a F6 em produção
 
 **F6 (ajustes do teste com o cliente, 30/10), branch `emporio-f6-equipe`.**
 Decisões Q118 a Q138 na spec, tiradas por grill em três rodadas. Duas
@@ -110,10 +110,14 @@ dia; Vercel com sucesso; `content_qty` e `DUPLICATE_CODE` conferidos em
 m77 a m85, docs-api, isolation, tsc e check verdes; roteiro `emporio-f6a`
 verde e reprovado com a conversão escondida; telas vistas no celular. A
 `m83` falhava no dia 30 por borda da janela de 30 dias no teste (corrigido).
-**F6b pronta na branch, NÃO em produção** (contrato aprovado na spec,
-seção "F6b: contrato"). Migração `20261030180000_emporio_f6b` (função no
-Empório, transferência com diferença, `EmporioAuditLog`, e a migração de
-dados que dá a função a quem já via) aplicada só no Docker local.
+**F6b em produção desde 30/10** (`e05846d`, merge fast-forward
+autorizado pelo usuário; migração `20261030180000_emporio_f6b` no Neon
+antes do push, `migrate status` em dia; Vercel com sucesso; rotas
+`emporio/team`, `emporio/history` e `resolve` em `/docs/api` de produção;
+`/login` 200 e página protegida redirecionando, ou seja, o proxy com banco
+carrega na Vercel). Contrato na spec, seção "F6b: contrato"; a migração
+traz função no Empório, transferência com diferença, `EmporioAuditLog` e a
+migração de dados que dá a função a quem já via.
 Entregue: papel lido do banco a cada request (`src/lib/emporio/papel.ts`,
 fonte única da permissão), Equipe (`/emporio/equipe`), chaves do
 Vendedor, trava só da loja na API (`guard()` com `lojaOk`), no WhatsApp
@@ -126,8 +130,9 @@ Regra a mais, decidida na revisão: o Gerente geral não altera nenhum
 ADMIN da conta. Provas: m87, m88 (WhatsApp) e m89 (Histórico) escritas da
 spec e vistas falhando antes; m77 a m89 verdes; roteiros emporio-f6b,
 f6a, f5 e f1 verdes (f6b reprovado com a trava de página desfeita e com
-a navegação por link antes do proxy); `test:all` 92/92. **Falta:**
-migração no Neon e merge, com autorização.
+a navegação por link antes do proxy); `test:all` 92/92. **Próximo:**
+cenário de demonstração na Da Mata de produção (Q137) e manual em
+`/manual` (Q138), que ainda não têm plano detalhado.
 
 ⚠️ **Em produção o Empório está ligado em QUATRO contas, não só na Da
 Mata** (lido no Neon em 30/10): Da Mata, Max Dias, Laíza e Lucas
