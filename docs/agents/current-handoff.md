@@ -126,8 +126,16 @@ Regra a mais, decidida na revisão: o Gerente geral não altera nenhum
 ADMIN da conta. Provas: m87, m88 (WhatsApp) e m89 (Histórico) escritas da
 spec e vistas falhando antes; m77 a m89 verdes; roteiros emporio-f6b,
 f6a, f5 e f1 verdes (f6b reprovado com a trava de página desfeita e com
-a navegação por link antes do proxy). **Falta:** `test:all` conferido,
+a navegação por link antes do proxy); `test:all` 92/92. **Falta:**
 migração no Neon e merge, com autorização.
+
+⚠️ **Em produção o Empório está ligado em QUATRO contas, não só na Da
+Mata** (lido no Neon em 30/10): Da Mata, Max Dias, Laíza e Lucas
+(Agromax), todas com a lista de usuários vazia e **só o Owner ativo**. Por
+isso a migração de dados da F6b não muda ninguém em produção. Ela
+transformaria Operador em Vendedor (só da loja, sem a fazenda): numa conta
+com Operadores de fazenda e o Empório ligado para todos, isso seria
+estrago. Conferir antes de reaproveitar aquele SQL.
 
 Pendências pequenas da F6b: o lembrete de cadastro abandonado
 (`pending-flows`) ainda pode sair para quem virou só da loja (a retomada é
