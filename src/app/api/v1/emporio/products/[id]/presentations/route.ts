@@ -9,7 +9,9 @@ import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
 const schema = z.object({
   name: z.string({ error: "Informe o nome da apresentação." }).trim().min(1, "Informe o nome da apresentação."),
-  base_qty: z.number({ error: "Informe a quantidade na unidade-base." }).gt(0, "A quantidade deve ser maior que zero."),
+  // Um dos dois: `base_qty`, ou `content_qty` em produto com conteúdo. A action decide.
+  base_qty: z.number({ error: "Informe a quantidade na unidade-base." }).gt(0, "A quantidade deve ser maior que zero.").optional(),
+  content_qty: z.number({ error: "Informe a quantidade do conteúdo." }).gt(0, "A quantidade deve ser maior que zero.").optional(),
   is_sealed_package: z.boolean().optional(),
 });
 

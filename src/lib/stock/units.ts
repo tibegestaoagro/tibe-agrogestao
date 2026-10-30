@@ -1,5 +1,6 @@
 /**
- * As unidades de medida do §10.5.
+ * As unidades de medida do §10.5 (as 11 originais mais o fardo, acrescentado
+ * pelo Meu Empório, Módulo 39 F6a, e visível também no estoque da fazenda).
  *
  * Constante de código, não tabela por tenant, ao contrário da CATEGORIA de
  * produto. A diferença: "saca" precisa significar a mesma coisa em todo tenant
@@ -44,6 +45,7 @@ export const STOCK_UNITS: StockUnit[] = [
   { id: "frasco", label: "Frasco", plural: "frascos", abbr: "fr", fracionavel: false, genero: "m" },
   { id: "caixa", label: "Caixa", plural: "caixas", abbr: "cx", fracionavel: false, genero: "f" },
   { id: "pacote", label: "Pacote", plural: "pacotes", abbr: "pct", fracionavel: false, genero: "m" },
+  { id: "fardo", label: "Fardo", plural: "fardos", abbr: "fd", fracionavel: true, genero: "m" },
   { id: "rolo", label: "Rolo", plural: "rolos", abbr: "rl", fracionavel: false, genero: "m" },
   { id: "tonelada", label: "Tonelada", plural: "toneladas", abbr: "t", fracionavel: true, genero: "f" },
   { id: "metro", label: "Metro", plural: "metros", abbr: "m", fracionavel: true, genero: "m" },

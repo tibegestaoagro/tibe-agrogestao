@@ -86,8 +86,8 @@ async function main() {
   const categoria = await prisma.productCategory.findFirst({ where: { tenant_id, archived_at: null }, orderBy: { name: "asc" } });
   if (!categoria) throw new Error("A conta do seed nao tem categoria de produto: abra o Estoque uma vez.");
 
-  const l1 = exigir(await cat.criarEstabelecimentoAction(db, ator, { name: `${PREFIXO}Loja 1`, kind: "ponto_venda" }), "loja 1") as { id: string };
-  const l2 = exigir(await cat.criarEstabelecimentoAction(db, ator, { name: `${PREFIXO}Loja 2`, kind: "ponto_venda" }), "loja 2") as { id: string };
+  const l1 = exigir(await cat.criarEstabelecimentoAction(db, ator, { name: `${PREFIXO}Loja 1` }), "loja 1") as { id: string };
+  const l2 = exigir(await cat.criarEstabelecimentoAction(db, ator, { name: `${PREFIXO}Loja 2` }), "loja 2") as { id: string };
   const racao = (exigir(await cat.criarProdutoEmporioAction(db, ator, { name: `${PREFIXO}Ração`, category_id: categoria.id, base_unit: "quilograma" } as never), "racao") as { id: string }).id;
   const quilo = (exigir(await cat.criarApresentacaoAction(db, ator, racao, { name: "Quilo", base_qty: 1, is_sealed_package: false } as never), "quilo") as { id: string }).id;
   for (const loja of [l1, l2]) {

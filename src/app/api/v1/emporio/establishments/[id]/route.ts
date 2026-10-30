@@ -3,7 +3,6 @@ import { apiErroDeZod } from "@/lib/api";
 import { readJson } from "@/lib/api-guard";
 import { withApi } from "@/lib/route";
 import {
-  ESTABLISHMENT_KINDS,
   editarEstabelecimentoAction,
   lerEstabelecimentoAction,
 } from "@/lib/actions/emporio-catalogo";
@@ -15,7 +14,6 @@ const pct = z.number().min(0, "Use um valor entre 0 e 1000.").max(1000, "Use um 
 
 const editarSchema = z.object({
   name: z.string({ error: "Informe o nome do estabelecimento." }).trim().min(1, "Informe o nome do estabelecimento.").optional(),
-  kind: z.enum(ESTABLISHMENT_KINDS, { error: "Escolha o tipo: central ou ponto de venda." }).optional(),
   address: z.string().trim().max(200).nullish(),
   city: z.string().trim().max(120).nullish(),
   responsible_user_id: z.string().nullish(),

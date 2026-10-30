@@ -165,7 +165,7 @@ async function main() {
     // ------------------------------------------------------------------
     console.log("\n3. §10.5: as unidades, e quem aceita quantidade quebrada");
     // ------------------------------------------------------------------
-    check("as 11 unidades do documento existem", STOCK_UNITS.length === 11, String(STOCK_UNITS.length));
+    check("as 11 unidades do documento mais o fardo existem", STOCK_UNITS.length === 12, String(STOCK_UNITS.length));
     check("saca aceita fracionada (§10.5 dá '0,5 saca')", findUnit("saca")?.fracionavel === true);
     check("litro aceita fracionada ('2,5 litros')", findUnit("litro")?.fracionavel === true);
     check("unidade NÃO aceita: meia unidade não existe", findUnit("unidade")?.fracionavel === false);

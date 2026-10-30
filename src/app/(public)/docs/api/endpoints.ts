@@ -285,16 +285,16 @@ export const GROUPS: Group[] = [
         auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
         description: "Lista os estabelecimentos do Empório. Esconde os arquivados; `?incluir_arquivados=1` os inclui. Quem tem vínculo (`user_ids`) vê só as lojas vinculadas; sem vínculo, vê todas.",
         response: `200
-{ "data": [{ "id": "cl...", "name": "Central", "kind": "central", "address": null, "city": null, "responsible_user_id": null, "allow_negative_stock": false, "max_discount_pct": null, "default_expense_pct": 15, "default_profit_pct": 20, "archived_at": null, "user_ids": [] }], "meta": {} }`,
+{ "data": [{ "id": "cl...", "name": "Central", "address": null, "city": null, "responsible_user_id": null, "allow_negative_stock": false, "max_discount_pct": null, "default_expense_pct": 15, "default_profit_pct": 20, "archived_at": null, "user_ids": [] }], "meta": {} }`,
       },
       {
         method: "POST",
         path: "/api/v1/emporio/establishments",
         auth: "Sessão · emporio:write · só OWNER e ADMIN (403 `FORBIDDEN`)",
-        description: "Cria um estabelecimento (`kind`: `central` ou `ponto_venda`). Nome repetido: 409 `DUPLICATE_NAME` no campo `name`. Percentual fora de 0 a 1000: 422 no campo.",
-        request: `{ "name": "Loja Centro", "kind": "ponto_venda", "default_expense_pct": 15, "default_profit_pct": 20 }`,
+        description: "Cria um estabelecimento. O tipo (`kind`) não existe mais: se vier no corpo, é ignorado, sem erro. Nome repetido: 409 `DUPLICATE_NAME` no campo `name`. Percentual fora de 0 a 1000: 422 no campo.",
+        request: `{ "name": "Loja Centro", "default_expense_pct": 15, "default_profit_pct": 20 }`,
         response: `201
-{ "data": { "id": "cl...", "name": "Loja Centro", "kind": "ponto_venda", "user_ids": [] }, "meta": {} }`,
+{ "data": { "id": "cl...", "name": "Loja Centro", "user_ids": [] }, "meta": {} }`,
       },
       {
         method: "GET",
@@ -302,7 +302,7 @@ export const GROUPS: Group[] = [
         auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
         description: "Um estabelecimento. Quem tem vínculo e pede outra loja recebe 404 `NOT_FOUND`.",
         response: `200
-{ "data": { "id": "cl...", "name": "Loja Centro", "kind": "ponto_venda", "user_ids": [] }, "meta": {} }`,
+{ "data": { "id": "cl...", "name": "Loja Centro", "user_ids": [] }, "meta": {} }`,
       },
       {
         method: "PATCH",
@@ -335,18 +335,18 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/products",
         auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
-        description: "Lista os produtos do Empório (configuração comercial sobre o `Product`). Esconde os arquivados; `?incluir_arquivados=1` os inclui. `track_sealed` nulo é automático e `track_sealed_efetivo` traz o valor resolvido.",
+        description: "Lista os produtos do Empório (configuração comercial sobre o `Product`). Esconde os arquivados; `?incluir_arquivados=1` os inclui. `track_sealed` nulo é automático e `track_sealed_efetivo` traz o valor resolvido. `?q=` procura sem acento no nome, na marca, no fabricante e no código interno; `?species=` filtra por uma espécie (`cao`, `gato`, `bovino`, `equino`, `ovino_caprino`, `suino`, `aves`, `peixes`, `outros`; outra: 422 no campo `species`).",
         response: `200
-{ "data": [{ "id": "cl...", "product_id": "cl...", "name": "Sal grosso", "category_id": "cl...", "category_name": "Outros", "brand": null, "base_unit": "quilograma", "created_in_emporio": true, "reference_cost": 10, "track_sealed": null, "track_sealed_efetivo": false, "track_lot": false, "track_expiry": false, "expense_pct": null, "profit_pct": null, "archived_at": null }], "meta": {} }`,
+{ "data": [{ "id": "cl...", "product_id": "cl...", "name": "Sal grosso", "category_id": "cl...", "category_name": "Outros", "brand": null, "base_unit": "quilograma", "content_qty": null, "content_unit": null, "manufacturer": null, "internal_code": null, "species": [], "created_in_emporio": true, "reference_cost": 10, "track_sealed": null, "track_sealed_efetivo": false, "track_lot": false, "track_expiry": false, "expense_pct": null, "profit_pct": null, "archived_at": null }], "meta": {} }`,
       },
       {
         method: "POST",
         path: "/api/v1/emporio/products",
         auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
-        description: "Põe um produto no Empório. Com `product_id`, usa um produto que já existe na conta; com `name` e `category_id`, cria o produto (e o marca como criado no Empório). `base_unit` (`quilograma`, `litro` ou `unidade`) é obrigatória nos dois casos. Produto já no Empório: 409 `ALREADY_IN_EMPORIO`. Nome repetido: 409 `DUPLICATE_NAME` no campo `name`.",
-        request: `{ "name": "Sal grosso", "category_id": "cl...", "base_unit": "quilograma", "reference_cost": 10 }`,
+        description: "Põe um produto no Empório. Com `product_id`, usa um produto que já existe na conta; com `name` e `category_id`, cria o produto (e o marca como criado no Empório). `base_unit` (`quilograma`, `litro`, `unidade`, `saca` ou `fardo`) é obrigatória nos dois casos. Conteúdo (`content_qty` e `content_unit`): obrigatório em `saca` (em `quilograma` ou `litro`) e em `fardo` (em `quilograma`, `litro` ou `unidade`), opcional em `unidade` (`quilograma` ou `litro`), proibido em `quilograma` e `litro`; maior que zero, inteiro quando a unidade do conteúdo é `unidade`; recusa é 422 no campo `content_qty` ou `content_unit`. O conteúdo é fixo depois de criado. Saca e fardo nascem com a apresentação fechada que vale 1 (\"Saca 10 kg\", \"Fardo 12 un\"). Dados opcionais: `brand` e `manufacturer` (até 80), `internal_code` (até 30, único na conta: 409 `DUPLICATE_CODE` no campo `internal_code`) e `species` (lista de ids; fora da lista: 422 no campo `species`). Produto já no Empório: 409 `ALREADY_IN_EMPORIO`. Nome repetido: 409 `DUPLICATE_NAME` no campo `name`.",
+        request: `{ "name": "Ração 10 kg", "category_id": "cl...", "base_unit": "saca", "content_qty": 10, "content_unit": "quilograma", "reference_cost": 80, "brand": "Marca", "internal_code": "RC-10", "species": ["cao"] }`,
         response: `201
-{ "data": { "id": "cl...", "name": "Sal grosso", "base_unit": "quilograma", "presentations": [], "prices": [] }, "meta": {} }`,
+{ "data": { "id": "cl...", "name": "Ração 10 kg", "base_unit": "saca", "content_qty": 10, "content_unit": "quilograma", "species": ["cao"], "presentations": [{ "id": "cl...", "name": "Saca 10 kg", "base_qty": 1, "content_equivalent": 10, "is_sealed_package": true, "archived_at": null }], "prices": [] }, "meta": {} }`,
       },
       {
         method: "GET",
@@ -362,13 +362,13 @@ export const GROUPS: Group[] = [
         auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
         description: "O produto (`:id` é o do produto do Empório) com as apresentações e a tabela de preço: uma linha por loja visível ao usuário e apresentação ativa, mesmo sem preço cadastrado, com custo (`reference_cost × base_qty`), percentuais efetivos e preço sugerido (`custo × (1 + despesas/100) × (1 + lucro/100)`, nulo sem custo).",
         response: `200
-{ "data": { "id": "cl...", "name": "Sal grosso", "presentations": [{ "id": "cl...", "name": "Saca 10 kg", "base_qty": 10, "is_sealed_package": true, "archived_at": null }], "prices": [{ "establishment_id": "cl...", "establishment_name": "Loja Centro", "presentation_id": "cl...", "price": null, "cost": 100, "expense_pct": null, "profit_pct": null, "expense_pct_efetivo": 15, "profit_pct_efetivo": 20, "suggested_price": 138 }] }, "meta": {} }`,
+{ "data": { "id": "cl...", "name": "Sal grosso", "presentations": [{ "id": "cl...", "name": "Saca 10 kg", "base_qty": 10, "content_equivalent": null, "is_sealed_package": true, "archived_at": null }], "prices": [{ "establishment_id": "cl...", "establishment_name": "Loja Centro", "presentation_id": "cl...", "price": null, "cost": 100, "expense_pct": null, "profit_pct": null, "expense_pct_efetivo": 15, "profit_pct_efetivo": 20, "suggested_price": 138 }] }, "meta": {} }`,
       },
       {
         method: "PATCH",
         path: "/api/v1/emporio/products/:id",
         auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR (`expense_pct` e `profit_pct` só OWNER e ADMIN)",
-        description: "Edita custo de referência, `brand`, lacrado/avulso (`track_sealed`: `true`, `false` ou `null` para voltar ao automático), lote, validade e a exceção de percentuais do produto.",
+        description: "Edita custo de referência, `brand`, `manufacturer`, `internal_code` (repetido: 409 `DUPLICATE_CODE`), `species`, lacrado/avulso (`track_sealed`: `true`, `false` ou `null` para voltar ao automático), lote, validade e a exceção de percentuais do produto. Mandar `content_qty` ou `content_unit` é 422 no campo: o conteúdo não muda depois de criado.",
         request: `{ "reference_cost": 12.5, "track_sealed": null, "expense_pct": 10 }`,
         response: `200
 { "data": { "id": "cl...", "reference_cost": 12.5, "track_sealed": null, "expense_pct": 10 }, "meta": {} }`,
@@ -386,19 +386,19 @@ export const GROUPS: Group[] = [
         method: "POST",
         path: "/api/v1/emporio/products/:id/presentations",
         auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
-        description: "Cria uma apresentação (forma de venda). `base_qty` é quanto ela vale na unidade-base: maior que zero, e inteira quando a unidade-base é `unidade`. Nome repetido no produto: 409 `DUPLICATE_NAME`.",
-        request: `{ "name": "Saca 10 kg", "base_qty": 10, "is_sealed_package": true }`,
+        description: "Cria uma apresentação (forma de venda). `base_qty` é quanto ela vale na unidade-base: maior que zero, e inteira quando a unidade-base é `unidade`. Em produto com conteúdo, pode-se mandar `content_qty` (quanto cabe, na unidade do conteúdo) no lugar de `base_qty`: `base_qty = content_qty / conteúdo`. Os dois juntos, ou `content_qty` em produto sem conteúdo, é 422 no campo `content_qty`; também é 422 quando a divisão não fecha em 3 casas (\"1 kg não divide a saca de 30 kg em partes exatas\"). `content_equivalent` é `base_qty` vezes o conteúdo, nulo sem conteúdo. Nome repetido no produto: 409 `DUPLICATE_NAME`.",
+        request: `{ "name": "Meio saco", "content_qty": 5, "is_sealed_package": false }`,
         response: `201
-{ "data": { "id": "cl...", "name": "Saca 10 kg", "base_qty": 10, "is_sealed_package": true, "archived_at": null }, "meta": {} }`,
+{ "data": { "id": "cl...", "name": "Meio saco", "base_qty": 0.5, "content_equivalent": 5, "is_sealed_package": false, "archived_at": null }, "meta": {} }`,
       },
       {
         method: "PATCH",
         path: "/api/v1/emporio/presentations/:id",
         auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
-        description: "Edita nome, `base_qty` e `is_sealed_package` da apresentação.",
+        description: "Edita nome, `base_qty` (ou `content_qty`, com as mesmas regras da criação) e `is_sealed_package` da apresentação.",
         request: `{ "base_qty": 25 }`,
         response: `200
-{ "data": { "id": "cl...", "name": "Saca 10 kg", "base_qty": 25, "is_sealed_package": true, "archived_at": null }, "meta": {} }`,
+{ "data": { "id": "cl...", "name": "Saca 10 kg", "base_qty": 25, "content_equivalent": null, "is_sealed_package": true, "archived_at": null }, "meta": {} }`,
       },
       {
         method: "POST",
@@ -1171,7 +1171,7 @@ export const GROUPS: Group[] = [
         path: "/api/v1/products",
         auth: "Sessão · rebanho:read · perfil fazenda",
         description:
-          "O catálogo com o SALDO de cada produto. O saldo nunca é coluna: é a soma das movimentações não canceladas, por produto e fazenda. `?property_id=` filtra o saldo, não o catálogo, então um produto sem movimentação naquela fazenda aparece com zero (e é isso que deixa lançar a primeira compra dele lá). `meta.units` traz as 11 unidades do §10.5, cada uma dizendo se aceita quantidade quebrada.",
+          "O catálogo com o SALDO de cada produto. O saldo nunca é coluna: é a soma das movimentações não canceladas, por produto e fazenda. `?property_id=` filtra o saldo, não o catálogo, então um produto sem movimentação naquela fazenda aparece com zero (e é isso que deixa lançar a primeira compra dele lá). `meta.units` traz as unidades do §10.5 (11, mais o fardo), cada uma dizendo se aceita quantidade quebrada.",
         response: `200
 { "data": [{ "id": "cl...", "name": "Sal mineral 60 P", "unit": "saca", "saldo_total": 12.5, "minimum_stock": 10, "abaixo_do_minimo": false }], "meta": { "abaixo_do_minimo": 0 } }`,
       },

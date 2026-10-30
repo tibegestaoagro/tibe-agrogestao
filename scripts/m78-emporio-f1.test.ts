@@ -239,7 +239,7 @@ async function comBanco() {
     const un = dados(await chamar("criarProdutoEmporioAction", op, { name: "M78 Un", category_id: cat.id, base_unit: "unidade" }));
     check("base_qty 1,5 em unidade: 422 em base_qty", recusa(await chamar("criarApresentacaoAction", op, un.id, { name: "Meia", base_qty: 1.5, is_sealed_package: false }), "VALIDATION_ERROR", 422, "base_qty"));
     check("base_qty 1,5 em quilograma é aceito", (await chamar("criarApresentacaoAction", op, sal.id, { name: "Um e meio", base_qty: 1.5, is_sealed_package: false })).ok);
-    check("base_unit \"saca\": 422 em base_unit", recusa(await chamar("criarProdutoEmporioAction", op, { name: "M78 Saca", category_id: cat.id, base_unit: "saca" }), "VALIDATION_ERROR", 422, "base_unit"));
+    check("base_unit \"caixa\": 422 em base_unit", recusa(await chamar("criarProdutoEmporioAction", op, { name: "M78 Caixa", category_id: cat.id, base_unit: "caixa" }), "VALIDATION_ERROR", 422, "base_unit"));
     check("nome de apresentação repetido: 409 em name", recusa(await chamar("criarApresentacaoAction", op, sal.id, { name: "Saca 10 kg", base_qty: 10, is_sealed_package: true }), "DUPLICATE_NAME", 409, "name"));
     check("percentual 1001 no padrão da loja: 422", recusa(await chamar("editarEstabelecimentoAction", owner, L2.id, { default_expense_pct: 1001 }), "VALIDATION_ERROR", 422, "default_expense_pct"));
     check("percentual 1001 no produto: 422 em expense_pct", recusa(await chamar("editarProdutoEmporioAction", admin, sal.id, { expense_pct: 1001 }), "VALIDATION_ERROR", 422, "expense_pct"));

@@ -3,6 +3,7 @@ import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum, isoOrNull } from "@/lib/serialize";
 import { hasMinRole } from "@/lib/permissions";
 import { precoSugerido, percentualEfetivo } from "@/lib/emporio/preco";
+import { findUnit } from "@/lib/stock/units";
 import type { AppUserRole } from "@/types/next-auth";
 
 /**
@@ -16,16 +17,32 @@ import type { AppUserRole } from "@/types/next-auth";
 
 export type Ator = { id: string; role: AppUserRole };
 
-export const EMPORIO_BASE_UNITS = ["quilograma", "litro", "unidade"] as const;
-export const ESTABLISHMENT_KINDS = ["central", "ponto_venda"] as const;
+export const EMPORIO_BASE_UNITS = ["quilograma", "litro", "unidade", "saca", "fardo"] as const;
 type BaseUnit = (typeof EMPORIO_BASE_UNITS)[number];
-type Kind = (typeof ESTABLISHMENT_KINDS)[number];
 
 function isBaseUnit(v: unknown): v is BaseUnit {
   return typeof v === "string" && (EMPORIO_BASE_UNITS as readonly string[]).includes(v);
 }
-function isKind(v: unknown): v is Kind {
-  return typeof v === "string" && (ESTABLISHMENT_KINDS as readonly string[]).includes(v);
+
+/** Q124: espécies atendidas, lista fixa. O rótulo é o que a tela mostra. */
+export const EMPORIO_SPECIES = [
+  { id: "cao", label: "Cão" },
+  { id: "gato", label: "Gato" },
+  { id: "bovino", label: "Bovino" },
+  { id: "equino", label: "Equino" },
+  { id: "ovino_caprino", label: "Ovino e caprino" },
+  { id: "suino", label: "Suíno" },
+  { id: "aves", label: "Aves" },
+  { id: "peixes", label: "Peixes" },
+  { id: "outros", label: "Outros" },
+] as const;
+export const EMPORIO_SPECIES_LABELS: Record<string, string> = Object.fromEntries(
+  EMPORIO_SPECIES.map((e) => [e.id, e.label]),
+);
+
+/** Minúsculas e sem acento, para a busca do catálogo. */
+export function semAcento(texto: string): string {
+  return texto.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 }
 
 const NEGADO_ADMIN = () =>
@@ -75,7 +92,6 @@ export async function lojasDoAtor(db: TenantPrismaClient, ator: Ator): Promise<S
 export type EstablishmentView = {
   id: string;
   name: string;
-  kind: string;
   address: string | null;
   city: string | null;
   responsible_user_id: string | null;
@@ -90,7 +106,6 @@ export type EstablishmentView = {
 type EstablishmentRow = {
   id: string;
   name: string;
-  kind: string;
   address: string | null;
   city: string | null;
   responsible_user_id: string | null;
@@ -106,7 +121,6 @@ function viewEstabelecimento(e: EstablishmentRow): EstablishmentView {
   return {
     id: e.id,
     name: e.name,
-    kind: e.kind,
     address: e.address,
     city: e.city,
     responsible_user_id: e.responsible_user_id,
@@ -150,9 +164,9 @@ export async function lerEstabelecimentoAction(
   return ok(viewEstabelecimento(e));
 }
 
+/** `kind` (Q121) não existe mais: se vier no corpo, ninguém lê. */
 export type EstablishmentInput = {
   name?: string;
-  kind?: string;
   address?: string | null;
   city?: string | null;
   responsible_user_id?: string | null;
@@ -179,9 +193,6 @@ async function validarLoja(
       return fail("DUPLICATE_NAME", `Já existe um estabelecimento chamado "${igual.name}".`, 409, "name");
     }
   }
-  if (input.kind !== undefined && !isKind(input.kind)) {
-    return fail("VALIDATION_ERROR", "Escolha o tipo: central ou ponto de venda.", 422, "kind");
-  }
   const descMax = input.max_discount_pct;
   if (descMax != null && (typeof descMax !== "number" || !Number.isFinite(descMax) || descMax < 0 || descMax > 100)) {
     return fail("VALIDATION_ERROR", "O desconto máximo deve ficar entre 0 e 100.", 422, "max_discount_pct");
@@ -204,7 +215,6 @@ export async function criarEstabelecimentoAction(
 ): Promise<ActionResult<EstablishmentView>> {
   if (!ehAdmin(ator)) return NEGADO_ADMIN();
   if (input.name === undefined) return fail("VALIDATION_ERROR", "Informe o nome do estabelecimento.", 422, "name");
-  if (input.kind === undefined) return fail("VALIDATION_ERROR", "Escolha o tipo: central ou ponto de venda.", 422, "kind");
   const v = await validarLoja(db, input, null);
   if (!v.ok) return v;
 
@@ -212,7 +222,6 @@ export async function criarEstabelecimentoAction(
     const e = await db.establishment.create({
       data: scoped({
         name: v.data.name as string,
-        kind: input.kind as Kind,
         address: input.address?.trim() || null,
         city: input.city?.trim() || null,
         responsible_user_id: input.responsible_user_id ?? null,
@@ -250,7 +259,6 @@ export async function editarEstabelecimentoAction(
       where: { id },
       data: {
         ...(v.data.name !== undefined ? { name: v.data.name } : {}),
-        ...(input.kind !== undefined ? { kind: input.kind as Kind } : {}),
         ...(input.address !== undefined ? { address: input.address?.trim() || null } : {}),
         ...(input.city !== undefined ? { city: input.city?.trim() || null } : {}),
         ...(input.responsible_user_id !== undefined ? { responsible_user_id: input.responsible_user_id } : {}),
@@ -338,6 +346,8 @@ export type PresentationView = {
   id: string;
   name: string;
   base_qty: number;
+  /** `base_qty` vezes o conteúdo do produto (3 casas); nulo em produto sem conteúdo. */
+  content_equivalent: number | null;
   is_sealed_package: boolean;
   archived_at: string | null;
 };
@@ -363,6 +373,11 @@ export type EmporioProductView = {
   category_name: string;
   brand: string | null;
   base_unit: string;
+  content_qty: number | null;
+  content_unit: string | null;
+  manufacturer: string | null;
+  internal_code: string | null;
+  species: string[];
   created_in_emporio: boolean;
   reference_cost: number | null;
   track_sealed: boolean | null;
@@ -383,6 +398,11 @@ export type ProdutoRow = {
   id: string;
   product_id: string;
   base_unit: string;
+  content_qty: unknown;
+  content_unit: string | null;
+  manufacturer: string | null;
+  internal_code: string | null;
+  species: string[];
   created_in_emporio: boolean;
   reference_cost: unknown;
   track_sealed: boolean | null;
@@ -416,6 +436,11 @@ function viewProduto(p: ProdutoRow): EmporioProductView {
     category_name: p.product.category.name,
     brand: p.product.brand,
     base_unit: p.base_unit,
+    content_qty: decToNum(p.content_qty),
+    content_unit: p.content_unit,
+    manufacturer: p.manufacturer,
+    internal_code: p.internal_code,
+    species: p.species,
     created_in_emporio: p.created_in_emporio,
     reference_cost: decToNum(p.reference_cost),
     track_sealed: p.track_sealed,
@@ -431,13 +456,28 @@ function viewProduto(p: ProdutoRow): EmporioProductView {
 export async function listarProdutosEmporioAction(
   db: TenantPrismaClient,
   _ator: Ator,
-  opts: { incluir_arquivados?: boolean } = {},
+  opts: { incluir_arquivados?: boolean; q?: string; species?: string } = {},
 ): Promise<ActionResult<EmporioProductView[]>> {
+  if (opts.species != null && opts.species !== "" && !ehEspecie(opts.species)) {
+    return fail("VALIDATION_ERROR", mensagemEspecie(), 422, "species");
+  }
   const linhas = await db.emporioProduct.findMany({
-    where: opts.incluir_arquivados ? {} : { archived_at: null },
+    where: {
+      ...(opts.incluir_arquivados ? {} : { archived_at: null }),
+      ...(opts.species ? { species: { has: opts.species } } : {}),
+    },
     include: INCLUDE_PRODUTO,
   });
-  const views = linhas.map(viewProduto);
+  // A busca é em memória, como o resto do projeto (NFD): o catálogo de uma loja cabe na tela.
+  const termo = semAcento(String(opts.q ?? "").trim());
+  const achadas = termo
+    ? linhas.filter((p) =>
+        [p.product.name, p.product.brand, p.manufacturer, p.internal_code].some(
+          (campo) => campo != null && semAcento(campo).includes(termo),
+        ),
+      )
+    : linhas;
+  const views = achadas.map(viewProduto);
   views.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   return ok(views);
 }
@@ -527,19 +567,161 @@ export async function lerProdutoEmporioAction(
 
   return ok({
     ...viewProduto(p),
-    presentations: p.presentations.map(viewApresentacao),
+    presentations: p.presentations.map((a) => viewApresentacao(a, p.content_qty)),
     prices,
   });
 }
 
-function viewApresentacao(a: ProdutoRow["presentations"][number]): PresentationView {
+function viewApresentacao(a: ProdutoRow["presentations"][number], conteudo: unknown): PresentationView {
+  const base = decToNum(a.base_qty) ?? 0;
+  const c = decToNum(conteudo);
   return {
     id: a.id,
     name: a.name,
-    base_qty: decToNum(a.base_qty) ?? 0,
+    base_qty: base,
+    content_equivalent: c == null ? null : Math.round(base * c * 1000) / 1000,
     is_sealed_package: a.is_sealed_package,
     archived_at: isoOrNull(a.archived_at),
   };
+}
+
+/** Em que unidades o conteúdo de cada unidade-base pode ser dado (Q123). */
+const CONTEUDO_PERMITIDO: Record<string, readonly string[]> = {
+  saca: ["quilograma", "litro"],
+  fardo: ["quilograma", "litro", "unidade"],
+  unidade: ["quilograma", "litro"],
+};
+const CONTEUDO_OBRIGATORIO = ["saca", "fardo"];
+
+type Recusa = { field: string; message: string };
+
+const abbrDe = (id: string) => findUnit(id)?.abbr ?? id;
+
+/** Número no formato brasileiro, sem casas desnecessárias: 10, 2,5, 1.000. */
+function numeroBR(n: number): string {
+  return n.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
+}
+
+/** Valida o par conteúdo/unidade contra a unidade-base. Só roda na criação (o conteúdo é fixo). */
+function recusaConteudo(baseUnit: string, qty: unknown, unit: unknown): Recusa | null {
+  const temQtd = qty != null;
+  const temUnid = unit != null && unit !== "";
+  const permitidas = CONTEUDO_PERMITIDO[baseUnit];
+  if (!permitidas) {
+    if (temQtd || temUnid) {
+      return { field: "content_qty", message: "Produto em quilograma ou litro não tem conteúdo." };
+    }
+    return null;
+  }
+  const obrigatorio = CONTEUDO_OBRIGATORIO.includes(baseUnit);
+  if (!temQtd && !temUnid && !obrigatorio) return null;
+
+  if (!temQtd) {
+    return { field: "content_qty", message: `Informe quanto cabe ${baseUnit === "saca" ? "na saca" : baseUnit === "fardo" ? "no fardo" : "na unidade"}.` };
+  }
+  if (typeof qty !== "number" || !Number.isFinite(qty) || qty <= 0) {
+    return { field: "content_qty", message: "O conteúdo deve ser maior que zero." };
+  }
+  if (!temUnid) return { field: "content_unit", message: "Escolha a unidade do conteúdo." };
+  if (typeof unit !== "string" || !permitidas.includes(unit)) {
+    const nomes = permitidas.map((u) => findUnit(u)?.label.toLowerCase() ?? u).join(", ");
+    return { field: "content_unit", message: `Para ${baseUnit}, a unidade do conteúdo deve ser: ${nomes}.` };
+  }
+  if (Math.abs(qty * 1000 - Math.round(qty * 1000)) > 1e-6) {
+    return { field: "content_qty", message: "O conteúdo aceita até 3 casas decimais." };
+  }
+  if (unit === "unidade" && !Number.isInteger(qty)) {
+    return { field: "content_qty", message: "Conteúdo em unidades deve ser um número inteiro." };
+  }
+  return null;
+}
+
+/** Texto opcional com teto de tamanho. */
+function recusaTexto(v: unknown, max: number, rotulo: string): string | null {
+  if (v == null) return null;
+  if (typeof v !== "string") return `${rotulo} deve ser um texto.`;
+  if (v.trim().length > max) return `${rotulo} aceita até ${max} caracteres.`;
+  return null;
+}
+
+function ehEspecie(v: unknown): boolean {
+  return typeof v === "string" && EMPORIO_SPECIES.some((e) => e.id === v);
+}
+function mensagemEspecie(): string {
+  return `Escolha espécies da lista: ${EMPORIO_SPECIES.map((e) => e.label.toLowerCase()).join(", ")}.`;
+}
+
+type DadosProduto = {
+  brand?: string | null;
+  manufacturer?: string | null;
+  internal_code?: string | null;
+  species?: string[];
+};
+
+/** Marca, fabricante, código e espécie (Q124): comum à criação e à edição. */
+function validarDados(input: DadosProduto): Recusa | null {
+  const rb = recusaTexto(input.brand, 80, "A marca");
+  if (rb) return { field: "brand", message: rb };
+  const rm = recusaTexto(input.manufacturer, 80, "O fabricante");
+  if (rm) return { field: "manufacturer", message: rm };
+  const rc = recusaTexto(input.internal_code, 30, "O código interno");
+  if (rc) return { field: "internal_code", message: rc };
+  if (input.species !== undefined) {
+    if (!Array.isArray(input.species) || !input.species.every(ehEspecie)) {
+      return { field: "species", message: mensagemEspecie() };
+    }
+  }
+  return null;
+}
+
+const aparar = (v: string | null | undefined): string | null => v?.trim() || null;
+const especiesUnicas = (v: string[]): string[] => [...new Set(v)];
+
+const recusaCodigo = (codigo: string) =>
+  fail("DUPLICATE_CODE", `Já existe um produto com o código "${codigo}".`, 409, "internal_code");
+
+async function codigoRepetido(db: TenantPrismaClient, codigo: string | null, selfId: string | null): Promise<boolean> {
+  if (!codigo) return false;
+  const igual = await db.emporioProduct.findFirst({
+    where: { internal_code: codigo, ...(selfId ? { NOT: { id: selfId } } : {}) },
+    select: { id: true },
+  });
+  return igual !== null;
+}
+
+/** "Saca 10 kg", "Fardo 12 un": a apresentação fechada que nasce com o produto. */
+function nomeDaFechada(baseUnit: string, qty: number, unit: string): string {
+  const rotulo = findUnit(baseUnit)?.label ?? baseUnit;
+  return `${rotulo} ${numeroBR(qty)} ${abbrDe(unit)}`;
+}
+
+/**
+ * Converte "quanto cabe" (kg, L, un) em quantidade na unidade-base. Precisa
+ * fechar em 3 casas, que é a precisão do estoque; senão recusa dizendo o porquê.
+ */
+function baseQtyPeloConteudo(
+  baseUnit: string,
+  conteudo: number,
+  conteudoUnit: string,
+  qty: unknown,
+): { base: number } | Recusa {
+  if (typeof qty !== "number" || !Number.isFinite(qty) || qty <= 0) {
+    return { field: "content_qty", message: "A quantidade deve ser maior que zero." };
+  }
+  const bruto = qty / conteudo;
+  if (Math.abs(bruto * 1000 - Math.round(bruto * 1000)) > 1e-9) {
+    const artigo = baseUnit === "fardo" ? "o" : "a";
+    const rotulo = findUnit(baseUnit)?.label.toLowerCase() ?? baseUnit;
+    const unid = abbrDe(conteudoUnit);
+    const metade = conteudo / 2;
+    const dica =
+      conteudoUnit === "unidade" && !Number.isInteger(metade) ? "" : ` (como ${numeroBR(metade)} ${unid})`;
+    return {
+      field: "content_qty",
+      message: `${numeroBR(qty)} ${unid} não divide ${artigo} ${rotulo} de ${numeroBR(conteudo)} ${unid} em partes exatas. Use uma quantidade que divida ${artigo} ${rotulo}${dica}.`,
+    };
+  }
+  return { base: Math.round(bruto * 1000) / 1000 };
 }
 
 export type CriarProdutoEmporioInput = {
@@ -547,7 +729,12 @@ export type CriarProdutoEmporioInput = {
   name?: string;
   category_id?: string;
   brand?: string | null;
+  manufacturer?: string | null;
+  internal_code?: string | null;
+  species?: string[];
   base_unit?: string;
+  content_qty?: number | null;
+  content_unit?: string | null;
   reference_cost?: number | null;
 };
 
@@ -558,12 +745,52 @@ export async function criarProdutoEmporioAction(
 ): Promise<ActionResult<EmporioProductDetail>> {
   if (!ehOperador(ator)) return NEGADO_OPERADOR();
   if (!isBaseUnit(input.base_unit)) {
-    return fail("VALIDATION_ERROR", "Escolha a unidade-base: quilograma, litro ou unidade.", 422, "base_unit");
+    return fail(
+      "VALIDATION_ERROR",
+      "Escolha a unidade-base: quilograma, litro, unidade, saca ou fardo.",
+      422,
+      "base_unit",
+    );
   }
   const rc = recusaDinheiro(input.reference_cost, "O custo");
   if (rc) return fail("VALIDATION_ERROR", rc, 422, "reference_cost");
 
   const baseUnit = input.base_unit;
+  const rcont = recusaConteudo(baseUnit, input.content_qty, input.content_unit);
+  if (rcont) return fail("VALIDATION_ERROR", rcont.message, 422, rcont.field);
+  const rdados = validarDados(input);
+  if (rdados) return fail("VALIDATION_ERROR", rdados.message, 422, rdados.field);
+
+  const conteudoQty = input.content_qty ?? null;
+  const conteudoUnit = conteudoQty == null ? null : (input.content_unit as string);
+  const codigo = aparar(input.internal_code);
+  if (await codigoRepetido(db, codigo, null)) return recusaCodigo(codigo as string);
+
+  const dadosEmporio = {
+    base_unit: baseUnit,
+    content_qty: conteudoQty,
+    content_unit: conteudoUnit,
+    manufacturer: aparar(input.manufacturer),
+    internal_code: codigo,
+    species: especiesUnicas(input.species ?? []),
+    reference_cost: input.reference_cost ?? null,
+  };
+
+  /** Saca e fardo nascem com a fechada que vale 1, na mesma transação. */
+  const fechadaAutomatica = async (tx: Pick<TenantPrismaClient, "productPresentation">, emporioProductId: string) => {
+    if ((baseUnit !== "saca" && baseUnit !== "fardo") || conteudoQty == null || conteudoUnit == null) return;
+    await tx.productPresentation.create({
+      data: scoped({
+        emporio_product_id: emporioProductId,
+        name: nomeDaFechada(baseUnit, conteudoQty, conteudoUnit),
+        base_qty: 1,
+        is_sealed_package: true,
+        created_by_user_id: ator.id,
+        updated_by_user_id: ator.id,
+      }),
+    });
+  };
+
   let novoId: string;
 
   if (input.product_id) {
@@ -576,19 +803,27 @@ export async function criarProdutoEmporioAction(
       return fail("VALIDATION_ERROR", "Esse produto está arquivado.", 422, "product_id");
     }
     try {
-      const ep = await db.emporioProduct.create({
-        data: scoped({
-          product_id: produto.id,
-          base_unit: baseUnit,
-          created_in_emporio: false,
-          reference_cost: input.reference_cost ?? null,
-          created_by_user_id: ator.id,
-          updated_by_user_id: ator.id,
-        }),
+      novoId = await db.$transaction(async (tx) => {
+        if (input.brand !== undefined) {
+          await tx.product.update({ where: { id: produto.id }, data: { brand: aparar(input.brand) } });
+        }
+        const ep = await tx.emporioProduct.create({
+          data: scoped({
+            product_id: produto.id,
+            ...dadosEmporio,
+            created_in_emporio: false,
+            created_by_user_id: ator.id,
+            updated_by_user_id: ator.id,
+          }),
+        });
+        await fechadaAutomatica(tx, ep.id);
+        return ep.id;
       });
-      novoId = ep.id;
     } catch (err) {
-      if (ehErroUnico(err)) return fail("ALREADY_IN_EMPORIO", "Esse produto já está no Empório.", 409);
+      if (ehErroUnico(err)) {
+        if (codigo && (await codigoRepetido(db, codigo, null))) return recusaCodigo(codigo);
+        return fail("ALREADY_IN_EMPORIO", "Esse produto já está no Empório.", 409);
+      }
       throw err;
     }
   } else {
@@ -608,23 +843,26 @@ export async function criarProdutoEmporioAction(
             name: nome,
             category_id: categoria.id,
             unit: baseUnit,
-            brand: input.brand?.trim() || null,
+            brand: aparar(input.brand),
           }),
         });
         const ep = await tx.emporioProduct.create({
           data: scoped({
             product_id: produto.id,
-            base_unit: baseUnit,
+            ...dadosEmporio,
             created_in_emporio: true,
-            reference_cost: input.reference_cost ?? null,
             created_by_user_id: ator.id,
             updated_by_user_id: ator.id,
           }),
         });
+        await fechadaAutomatica(tx, ep.id);
         return ep.id;
       });
     } catch (err) {
-      if (ehErroUnico(err)) return fail("DUPLICATE_NAME", mensagemProdutoRepetido(nome), 409, "name");
+      if (ehErroUnico(err)) {
+        if (codigo && (await codigoRepetido(db, codigo, null))) return recusaCodigo(codigo);
+        return fail("DUPLICATE_NAME", mensagemProdutoRepetido(nome), 409, "name");
+      }
       throw err;
     }
   }
@@ -638,6 +876,12 @@ function mensagemProdutoRepetido(nome: string): string {
 
 export type EditarProdutoEmporioInput = {
   brand?: string | null;
+  manufacturer?: string | null;
+  internal_code?: string | null;
+  species?: string[];
+  /** Fixos depois de criado: mandar qualquer um dos dois é recusado. */
+  content_qty?: number | null;
+  content_unit?: string | null;
   reference_cost?: number | null;
   track_sealed?: boolean | null;
   track_lot?: boolean;
@@ -659,6 +903,14 @@ export async function editarProdutoEmporioAction(
   const atual = await db.emporioProduct.findFirst({ where: { id } });
   if (!atual) return NAO_ACHADO("Produto");
 
+  if (input.content_qty !== undefined || input.content_unit !== undefined) {
+    return fail(
+      "VALIDATION_ERROR",
+      "O conteúdo não muda depois de criado, porque mudaria o sentido do estoque já contado. Arquive o produto e crie outro.",
+      422,
+      input.content_qty !== undefined ? "content_qty" : "content_unit",
+    );
+  }
   const rc = recusaDinheiro(input.reference_cost, "O custo");
   if (rc) return fail("VALIDATION_ERROR", rc, 422, "reference_cost");
   const rd = recusaPct(input.expense_pct, "O percentual de despesas");
@@ -669,23 +921,36 @@ export async function editarProdutoEmporioAction(
     return fail("VALIDATION_ERROR", "Informe sim, não ou automático.", 422, "track_sealed");
   }
 
-  await db.$transaction(async (tx) => {
-    if (input.brand !== undefined) {
-      await tx.product.update({ where: { id: atual.product_id }, data: { brand: input.brand?.trim() || null } });
-    }
-    await tx.emporioProduct.update({
-      where: { id },
-      data: {
-        updated_by_user_id: ator.id,
-        ...(input.reference_cost !== undefined ? { reference_cost: input.reference_cost } : {}),
-        ...(input.track_sealed !== undefined ? { track_sealed: input.track_sealed } : {}),
-        ...(input.track_lot !== undefined ? { track_lot: input.track_lot } : {}),
-        ...(input.track_expiry !== undefined ? { track_expiry: input.track_expiry } : {}),
-        ...(input.expense_pct !== undefined ? { expense_pct: input.expense_pct } : {}),
-        ...(input.profit_pct !== undefined ? { profit_pct: input.profit_pct } : {}),
-      },
+  const rdados = validarDados(input);
+  if (rdados) return fail("VALIDATION_ERROR", rdados.message, 422, rdados.field);
+  const codigo = input.internal_code !== undefined ? aparar(input.internal_code) : undefined;
+  if (codigo && (await codigoRepetido(db, codigo, id))) return recusaCodigo(codigo);
+
+  try {
+    await db.$transaction(async (tx) => {
+      if (input.brand !== undefined) {
+        await tx.product.update({ where: { id: atual.product_id }, data: { brand: aparar(input.brand) } });
+      }
+      await tx.emporioProduct.update({
+        where: { id },
+        data: {
+          updated_by_user_id: ator.id,
+          ...(input.manufacturer !== undefined ? { manufacturer: aparar(input.manufacturer) } : {}),
+          ...(codigo !== undefined ? { internal_code: codigo } : {}),
+          ...(input.species !== undefined ? { species: especiesUnicas(input.species) } : {}),
+          ...(input.reference_cost !== undefined ? { reference_cost: input.reference_cost } : {}),
+          ...(input.track_sealed !== undefined ? { track_sealed: input.track_sealed } : {}),
+          ...(input.track_lot !== undefined ? { track_lot: input.track_lot } : {}),
+          ...(input.track_expiry !== undefined ? { track_expiry: input.track_expiry } : {}),
+          ...(input.expense_pct !== undefined ? { expense_pct: input.expense_pct } : {}),
+          ...(input.profit_pct !== undefined ? { profit_pct: input.profit_pct } : {}),
+        },
+      });
     });
-  });
+  } catch (err) {
+    if (ehErroUnico(err) && codigo && (await codigoRepetido(db, codigo, id))) return recusaCodigo(codigo);
+    throw err;
+  }
   return lerProdutoEmporioAction(db, ator, id);
 }
 
@@ -715,8 +980,40 @@ export async function arquivarProdutoEmporioAction(
 export type ApresentacaoInput = {
   name?: string;
   base_qty?: number;
+  /** Em produto com conteúdo, no lugar de `base_qty`: quanto cabe (kg, L ou un). */
+  content_qty?: number;
   is_sealed_package?: boolean;
 };
+
+/**
+ * A quantidade na unidade-base que a entrada pede, seja por `base_qty` ou por
+ * `content_qty` (Q125). `exigir` é a criação, que não tem o que preservar.
+ */
+function resolverBaseQty(
+  p: { base_unit: string; content_qty: unknown; content_unit: string | null },
+  input: ApresentacaoInput,
+  exigir: boolean,
+): { base: number | undefined } | Recusa {
+  if (input.content_qty !== undefined && input.base_qty !== undefined) {
+    return { field: "content_qty", message: "Informe a quantidade ou o conteúdo, não os dois." };
+  }
+  if (input.content_qty !== undefined) {
+    const conteudo = decToNum(p.content_qty);
+    if (conteudo == null || !p.content_unit) {
+      return { field: "content_qty", message: "Esse produto não tem conteúdo. Informe a quantidade na unidade-base." };
+    }
+    const r = baseQtyPeloConteudo(p.base_unit, conteudo, p.content_unit, input.content_qty);
+    if ("field" in r) return r;
+    const rq = recusaBaseQty(r.base, p.base_unit);
+    if (rq) return { field: "content_qty", message: rq };
+    return { base: r.base };
+  }
+  if (input.base_qty !== undefined || exigir) {
+    const rq = recusaBaseQty(input.base_qty, p.base_unit);
+    if (rq) return { field: "base_qty", message: rq };
+  }
+  return { base: input.base_qty };
+}
 
 function recusaBaseQty(qty: unknown, baseUnit: string): string | null {
   if (typeof qty !== "number" || !Number.isFinite(qty) || qty <= 0) {
@@ -740,8 +1037,8 @@ export async function criarApresentacaoAction(
 
   const nome = String(input.name ?? "").trim();
   if (!nome) return fail("VALIDATION_ERROR", "Informe o nome da apresentação.", 422, "name");
-  const rq = recusaBaseQty(input.base_qty, p.base_unit);
-  if (rq) return fail("VALIDATION_ERROR", rq, 422, "base_qty");
+  const rb = resolverBaseQty(p, input, true);
+  if ("field" in rb) return fail("VALIDATION_ERROR", rb.message, 422, rb.field);
 
   const igual = await db.productPresentation.findFirst({
     where: { emporio_product_id, name: { equals: nome, mode: "insensitive" } },
@@ -753,13 +1050,13 @@ export async function criarApresentacaoAction(
       data: scoped({
         emporio_product_id,
         name: nome,
-        base_qty: input.base_qty as number,
+        base_qty: rb.base as number,
         is_sealed_package: input.is_sealed_package ?? false,
         created_by_user_id: ator.id,
         updated_by_user_id: ator.id,
       }),
     });
-    return ok(viewApresentacao(a));
+    return ok(viewApresentacao(a, p.content_qty));
   } catch (err) {
     if (ehErroUnico(err)) return fail("DUPLICATE_NAME", `Esse produto já tem a apresentação "${nome}".`, 409, "name");
     throw err;
@@ -785,10 +1082,8 @@ export async function editarApresentacaoAction(
     });
     if (igual) return fail("DUPLICATE_NAME", `Esse produto já tem a apresentação "${igual.name}".`, 409, "name");
   }
-  if (input.base_qty !== undefined) {
-    const rq = recusaBaseQty(input.base_qty, atual.emporio_product.base_unit);
-    if (rq) return fail("VALIDATION_ERROR", rq, 422, "base_qty");
-  }
+  const rb = resolverBaseQty(atual.emporio_product, input, false);
+  if ("field" in rb) return fail("VALIDATION_ERROR", rb.message, 422, rb.field);
 
   try {
     const a = await db.productPresentation.update({
@@ -796,11 +1091,11 @@ export async function editarApresentacaoAction(
       data: {
         updated_by_user_id: ator.id,
         ...(nome !== undefined ? { name: nome } : {}),
-        ...(input.base_qty !== undefined ? { base_qty: input.base_qty } : {}),
+        ...(rb.base !== undefined ? { base_qty: rb.base } : {}),
         ...(input.is_sealed_package !== undefined ? { is_sealed_package: input.is_sealed_package } : {}),
       },
     });
-    return ok(viewApresentacao(a));
+    return ok(viewApresentacao(a, atual.emporio_product.content_qty));
   } catch (err) {
     if (ehErroUnico(err)) return fail("DUPLICATE_NAME", "Esse produto já tem uma apresentação com esse nome.", 409, "name");
     throw err;
@@ -817,13 +1112,13 @@ export async function arquivarApresentacaoAction(
   if (typeof archived !== "boolean") {
     return fail("VALIDATION_ERROR", "Informe se é para arquivar ou desarquivar.", 422, "archived");
   }
-  const atual = await db.productPresentation.findFirst({ where: { id } });
+  const atual = await db.productPresentation.findFirst({ where: { id }, include: { emporio_product: true } });
   if (!atual) return NAO_ACHADO("Apresentação");
   const a = await db.productPresentation.update({
     where: { id },
     data: { archived_at: archived ? (atual.archived_at ?? new Date()) : null, updated_by_user_id: ator.id },
   });
-  return ok(viewApresentacao(a));
+  return ok(viewApresentacao(a, atual.emporio_product.content_qty));
 }
 
 // ---------------------------------------------------------------------------

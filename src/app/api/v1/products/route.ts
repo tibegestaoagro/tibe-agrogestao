@@ -14,7 +14,7 @@ import { withApi } from "@/lib/route";
  * com saldo zero, e é isso que permite lançar a primeira compra dele lá.
  *
  * `meta.units` viaja junto para a tela montar o seletor de unidade sem uma
- * segunda rota: as 11 unidades do §10.5 são constante de código, não linha de
+ * segunda rota: as unidades do §10.5 são constante de código, não linha de
  * banco, e cada uma carrega se aceita quantidade quebrada.
  */
 async function GETHandler(request: Request) {

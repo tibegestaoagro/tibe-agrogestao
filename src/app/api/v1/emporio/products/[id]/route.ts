@@ -10,7 +10,13 @@ import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 const pct = z.number().min(0, "Use um valor entre 0 e 1000.").max(1000, "Use um valor entre 0 e 1000.");
 
 const editarSchema = z.object({
-  brand: z.string().trim().max(120).nullish(),
+  brand: z.string().nullish(),
+  manufacturer: z.string().nullish(),
+  internal_code: z.string().nullish(),
+  species: z.array(z.string(), { error: "Escolha as espécies da lista." }).optional(),
+  // Fixos depois de criado: passam pelo schema para a action recusar no campo, com a explicação.
+  content_qty: z.number({ error: "O conteúdo deve ser um número." }).nullish(),
+  content_unit: z.string().nullish(),
   reference_cost: z.number().min(0, "O custo não pode ser negativo.").nullish(),
   track_sealed: z.boolean({ error: "Informe sim, não ou automático." }).nullish(),
   track_lot: z.boolean().optional(),

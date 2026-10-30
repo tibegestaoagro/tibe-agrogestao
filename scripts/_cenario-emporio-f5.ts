@@ -110,7 +110,7 @@ async function main() {
   const categoria = await prisma.productCategory.findFirst({ where: { tenant_id, archived_at: null }, orderBy: { name: "asc" } });
   if (!categoria) throw new Error("A conta do seed nao tem categoria de produto: abra o Estoque uma vez.");
 
-  const loja = exigir(await cat.criarEstabelecimentoAction(db, ator, { name: `${PREFIXO}Loja`, kind: "ponto_venda" }), "loja") as { id: string };
+  const loja = exigir(await cat.criarEstabelecimentoAction(db, ator, { name: `${PREFIXO}Loja` }), "loja") as { id: string };
   const produto = async (nome: string, base_unit: string) =>
     (exigir(await cat.criarProdutoEmporioAction(db, ator, { name: `${PREFIXO}${nome}`, category_id: categoria.id, base_unit } as never), nome) as { id: string }).id;
 
