@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
-import { hasMinRole } from "@/lib/permissions";
+import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { lerCaixaAction } from "@/lib/actions/emporio-caixa";
 import {
@@ -40,9 +40,10 @@ const hojeEmBrasilia = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Ameri
  */
 export default async function DespesasPage() {
   const user = await requireFeaturePage("emporio");
-  if (!hasMinRole(user.role, "ADMIN")) notFound();
 
   const db = await getTenantDb();
+  // F6b: as despesas da loja são do Gestor da loja para cima; o Vendedor volta ao início.
+  if (!pode(await papelDoEmporio(db, user), "gestor_da_loja")) redirect("/emporio");
   const [lojasRes, contasRes, fixasRes, regrasRes, caixaRes, produtosDb] = await Promise.all([
     listarEstabelecimentosAction(db, user),
     listarContasAPagarAction(db, user, { status: "pending" }),

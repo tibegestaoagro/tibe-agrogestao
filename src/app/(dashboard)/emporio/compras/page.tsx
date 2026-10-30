@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
-import { hasMinRole } from "@/lib/permissions";
+import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { listarComprasAction } from "@/lib/actions/emporio-compras";
 import { reaisBr } from "@/lib/numero-br";
@@ -41,20 +41,21 @@ export default async function ComprasPage({
 }) {
   const user = await requireFeaturePage("emporio");
   const { loja = "", situacao = "" } = await searchParams;
-  const podeEscrever = hasMinRole(user.role, "OPERADOR");
-  const ehAdmin = hasMinRole(user.role, "ADMIN");
-
   const db = await getTenantDb();
+  // F6b: lançar é por chave, receber é do Vendedor da loja, cancelar é do Gestor da loja.
+  const papel = await papelDoEmporio(db, user);
+  const podeEscrever = pode(papel, "vendedor_da_loja");
+  const podeLancar = pode(papel, "chave:lancar_compra");
   const filtroSituacao =
     situacao === "pendente" || situacao === "recebida" || situacao === "cancelada" ? situacao : undefined;
 
   const [lojasRes, comprasRes, contatos, produtos] = await Promise.all([
     listarEstabelecimentosAction(db, user),
     listarComprasAction(db, user, { establishment_id: loja || undefined, status: filtroSituacao }),
-    podeEscrever
+    podeLancar
       ? db.contact.findMany({ where: { archived_at: null }, select: { id: true, name: true }, orderBy: { name: "asc" } })
       : Promise.resolve([]),
-    podeEscrever
+    podeLancar
       ? db.emporioProduct.findMany({
           where: { archived_at: null },
           select: {
@@ -71,6 +72,7 @@ export default async function ComprasPage({
       : Promise.resolve([]),
   ]);
   const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
+  const lojasDoLancamento = lojas.filter((l) => pode(papel, "chave:lancar_compra", l.id));
   const compras = comprasRes.ok ? comprasRes.data : [];
 
   const produtosForm = produtos
@@ -94,9 +96,9 @@ export default async function ComprasPage({
             O que as lojas compraram dos fornecedores. A conta a pagar nasce junto.
           </p>
         </div>
-        {podeEscrever && lojas.length > 0 && (
+        {lojasDoLancamento.length > 0 && (
           <CompraForm
-            lojas={lojas}
+            lojas={lojasDoLancamento}
             fornecedores={contatos}
             produtos={produtosForm}
           />
@@ -169,7 +171,7 @@ export default async function ComprasPage({
                     <TableCell>
                       <div className="flex flex-wrap gap-2">
                         {c.status === "pendente" && <ReceberCompraBotao compraId={c.id} />}
-                        {ehAdmin && c.status !== "cancelada" && <CancelarCompraForm compraId={c.id} />}
+                        {pode(papel, "gestor_da_loja", c.establishment_id) && c.status !== "cancelada" && <CancelarCompraForm compraId={c.id} />}
                       </div>
                     </TableCell>
                   )}

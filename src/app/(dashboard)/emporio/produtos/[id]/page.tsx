@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
-import { hasMinRole } from "@/lib/permissions";
+import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import {
   lerProdutoEmporioAction,
   EMPORIO_SPECIES,
@@ -43,10 +43,15 @@ const DATA = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" })
 export default async function ProdutoEmporioPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireFeaturePage("emporio");
   const { id } = await params;
-  const podeEscrever = hasMinRole(user.role, "OPERADOR");
-  const ehAdmin = hasMinRole(user.role, "ADMIN");
 
   const db = await getTenantDb();
+  // F6b: cada botão decide pelo papel do Empório. Produto e apresentação são por chave
+  // (valem para todas as lojas); composição e percentuais são da conta; preço, limites e
+  // cancelar produção são do Gestor; estoque inicial, contagem, perda e produção são por chave.
+  const papel = await papelDoEmporio(db, user);
+  const podeEscrever = pode(papel, "chave:cadastrar_produto");
+  const ehConta = pode(papel, "conta");
+  const ehGestor = pode(papel, "gestor_da_loja");
   const res = await lerProdutoEmporioAction(db, user, id);
   if (!res.ok) notFound();
   const p = res.data;
@@ -79,7 +84,7 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
   const composicao = composicaoRes.ok ? composicaoRes.data : null;
   const producoesRes = await listarProducoesAction(db, user, { emporio_product_id: id, limit: 20 });
   const producoes = producoesRes.ok ? producoesRes.data : [];
-  const candidatos = ehAdmin
+  const candidatos = ehConta
     ? (
         await db.emporioProduct.findMany({
           where: { archived_at: null, id: { not: id } },
@@ -133,7 +138,7 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-texto">Dados comerciais</h2>
-          {podeEscrever && <DadosComerciaisForm produto={p} podeExcecao={ehAdmin} especiesLista={especiesLista} />}
+          {podeEscrever && <DadosComerciaisForm produto={p} podeExcecao={ehConta} especiesLista={especiesLista} />}
         </div>
         <dl className="grid gap-3 rounded-lg border border-borda bg-superficie p-4 text-sm sm:grid-cols-2">
           <Item rotulo="Marca" valor={p.brand ?? "-"} />
@@ -162,7 +167,7 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
           />
           <Item rotulo="Lote" valor={p.track_lot ? "Controlado" : "Não controlado"} />
           <Item rotulo="Validade" valor={p.track_expiry ? "Controlada" : "Não controlada"} />
-          {ehAdmin && (
+          {ehGestor && (
             <>
               <Item rotulo="Despesas do produto" valor={p.expense_pct == null ? "Padrão da loja" : pctBr(p.expense_pct)} />
               <Item rotulo="Lucro do produto" valor={p.profit_pct == null ? "Padrão da loja" : pctBr(p.profit_pct)} />
@@ -236,7 +241,7 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-texto">Composição</h2>
-          {ehAdmin && (
+          {ehConta && (
             <ComposicaoForm
               produtoId={p.id}
               baseUnit={p.base_unit}
@@ -333,15 +338,21 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
                     <Item rotulo="Mínimo" valor={l.min_qty == null ? "-" : `${numeroBr(l.min_qty)} ${sufixo}`} />
                     <Item rotulo="Máximo" valor={l.max_qty == null ? "-" : `${numeroBr(l.max_qty)} ${sufixo}`} />
                   </dl>
-                  {podeEscrever && (
+                  {(["estoque_inicial", "contagem", "perda", "producao"] as const).some((k) =>
+                    pode(papel, `chave:${k}`, l.establishment_id),
+                  ) || pode(papel, "gestor_da_loja", l.establishment_id) ? (
                     <div className="flex flex-wrap gap-2">
-                      {!comImplantacao.has(l.establishment_id) && (
+                      {!comImplantacao.has(l.establishment_id) && pode(papel, "chave:estoque_inicial", l.establishment_id) && (
                         <ImplantarForm loja={loja} produto={produtoEstoque} />
                       )}
-                      <ContagemForm loja={loja} produto={produtoEstoque} />
-                      <PerdaForm loja={loja} produto={produtoEstoque} />
-                      {ehAdmin && <LimitesForm loja={loja} produto={produtoEstoque} />}
-                      {composicao !== null && (
+                      {pode(papel, "chave:contagem", l.establishment_id) && (
+                        <ContagemForm loja={loja} produto={produtoEstoque} />
+                      )}
+                      {pode(papel, "chave:perda", l.establishment_id) && <PerdaForm loja={loja} produto={produtoEstoque} />}
+                      {pode(papel, "gestor_da_loja", l.establishment_id) && (
+                        <LimitesForm loja={loja} produto={produtoEstoque} />
+                      )}
+                      {composicao !== null && pode(papel, "chave:producao", l.establishment_id) && (
                         <ProduzirForm
                           loja={{ id: loja.id, name: loja.name }}
                           produto={produtoProducao}
@@ -349,7 +360,7 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
                         />
                       )}
                     </div>
-                  )}
+                  ) : null}
                 </div>
               );
             })}
@@ -368,7 +379,7 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
                 <TableHead>Quantidade</TableHead>
                 <TableHead>Custo</TableHead>
                 <TableHead>Situação</TableHead>
-                {ehAdmin && <TableHead>Ações</TableHead>}
+                {ehGestor && <TableHead>Ações</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -395,7 +406,7 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
                       <span className="block text-xs text-texto-secundario">{r.canceled_reason}</span>
                     )}
                   </TableCell>
-                  {ehAdmin && (
+                  {ehGestor && (
                     <TableCell>{r.status === "ativa" && <CancelarProducaoForm producaoId={r.id} />}</TableCell>
                   )}
                 </TableRow>
@@ -433,7 +444,7 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
                 <TableHead>Lucro</TableHead>
                 <TableHead>Sugerido</TableHead>
                 <TableHead>Preço</TableHead>
-                {ehAdmin && <TableHead>Ações</TableHead>}
+                {ehGestor && <TableHead>Ações</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -460,12 +471,14 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
                         <span className="font-medium text-texto">{reaisBr(r.price)}</span>
                       )}
                     </TableCell>
-                    {ehAdmin && (
+                    {ehGestor && (
                       <TableCell>
-                        <div className="flex flex-wrap gap-2">
-                          {r.price == null && <AplicarSugeridoBotao preco={r} />}
-                          <PrecoForm preco={r} titulo={`${r.establishment_name}, ${nome}`} />
-                        </div>
+                        {pode(papel, "gestor_da_loja", r.establishment_id) && (
+                          <div className="flex flex-wrap gap-2">
+                            {r.price == null && <AplicarSugeridoBotao preco={r} />}
+                            <PrecoForm preco={r} titulo={`${r.establishment_name}, ${nome}`} />
+                          </div>
+                        )}
                       </TableCell>
                     )}
                   </TableRow>

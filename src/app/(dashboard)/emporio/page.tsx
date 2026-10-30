@@ -7,7 +7,6 @@ import { listarComprasAction } from "@/lib/actions/emporio-compras";
 import { listarTransferenciasAction } from "@/lib/actions/emporio-transferencias";
 import { listarVendasAction } from "@/lib/actions/emporio-vendas";
 import { listarFiadoAction } from "@/lib/actions/emporio-caixa";
-import { hasMinRole } from "@/lib/permissions";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { primeirosPassosAction, type PassoKey, type PassoView } from "@/lib/actions/emporio-primeiros-passos";
 import { Badge } from "@/components/ui/badge";
@@ -36,10 +35,12 @@ function inicioDoDiaEmBrasilia(): Date {
  */
 export default async function EmporioPage() {
   const user = await requireFeaturePage("emporio");
-  const podeVender = hasMinRole(user.role, "OPERADOR");
-  const ehAdmin = hasMinRole(user.role, "ADMIN");
-
   const db = await getTenantDb();
+  // F6b: cartões e avisos decidem pelo papel do Empório, não pela role da conta.
+  const papel = await papelDoEmporio(db, user);
+  const podeVender = pode(papel, "vendedor_da_loja");
+  const ehGestor = pode(papel, "gestor_da_loja");
+  const podeVerEquipe = pode(papel, "conta");
   const lojas = await listarEstabelecimentosAction(db, user);
   const estabelecimentos = lojas.ok ? lojas.data.length : 0;
   const produtos = await db.emporioProduct.count({ where: { archived_at: null } });
@@ -53,12 +54,11 @@ export default async function EmporioPage() {
   const vendasHoje = hoje.ok ? hoje.data.length : 0;
   const fiado = await listarFiadoAction(db, user);
   const clientesNoFiado = fiado.ok ? fiado.data.length : 0;
-  const passos = ehAdmin ? await primeirosPassosAction(db, user) : null;
+  const passos = ehGestor ? await primeirosPassosAction(db, user) : null;
   // O aviso de loja sem Gestor (Q132) é recomendado e entra mesmo com os essenciais prontos.
   const pendenciasPorLoja = passos?.ok
     ? passos.data.establishments.filter((l) => l.sem_gestor || (!passos.data.complete && l.steps.some((s) => !s.done)))
     : [];
-  const podeVerEquipe = pode(await papelDoEmporio(db, user), "conta");
 
   return (
     <div className="space-y-6">
@@ -155,11 +155,14 @@ export default async function EmporioPage() {
         {podeVerEquipe && (
           <CartaoTexto href="/emporio/equipe" titulo="Equipe" texto="Quem trabalha nas lojas e o que cada um pode fazer" />
         )}
-        {ehAdmin && (
+        {ehGestor && (
           <CartaoTexto href="/emporio/resultado" titulo="Resultado" texto="Quanto cada loja ganhou no mês e o ponto de equilíbrio" />
         )}
-        {ehAdmin && (
+        {ehGestor && (
           <CartaoTexto href="/emporio/despesas" titulo="Despesas" texto="Contas a pagar, despesas fixas e o Vendeu, Pagou" />
+        )}
+        {ehGestor && (
+          <CartaoTexto href="/emporio/historico" titulo="Histórico" texto="Quem fez o quê nas lojas, com data e hora" />
         )}
       </div>
     </div>

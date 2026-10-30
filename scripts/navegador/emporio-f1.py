@@ -97,6 +97,13 @@ confere("estoque abre", tem("Estoque"))
 confere("F1 Ração Pet fora do estoque da fazenda", not tem("F1 Ração Pet", 20000))
 
 passo("7. Operador: produto sim, loja e preço não (Q55)")
+# F6b: o operador do cenário é Vendedor com todas as chaves, e Vendedor só vê as
+# lojas a que está ligado. Aqui ele é ligado às duas; o passo 8 deixa só a Loja 1.
+entrar("owner")
+ops = [u for u in api("GET", "/api/v1/users")["body"]["data"] if u.get("email") == "operador-emporio@teste.local"]
+for loja in (loja1, loja2):
+    r = api("PUT", "/api/v1/emporio/establishments/" + loja["id"] + "/users", {"user_ids": [ops[0]["id"]]})
+    confere("operador ligado a " + loja["name"], r["status"] == 200, r)
 entrar("oper")
 ir("/emporio/estabelecimentos")
 confere("operador vê as lojas", tem("F1 Loja 1"))
@@ -109,7 +116,8 @@ confere("API recusa preço do operador com 403", r["status"] == 403, r["status"]
 
 passo("8. Vínculo: operador ligado só à Loja 1 (Q56)")
 entrar("owner")
-ops = [u for u in api("GET", "/api/v1/users")["body"]["data"] if u.get("email") == "operador-emporio@teste.local"]
+r = api("PUT", "/api/v1/emporio/establishments/" + loja2["id"] + "/users", {"user_ids": []})
+confere("vínculo da Loja 2 desfeito", r["status"] == 200, r)
 r = api("PUT", "/api/v1/emporio/establishments/" + loja1["id"] + "/users", {"user_ids": [ops[0]["id"]]})
 confere("vínculo gravado", r["status"] == 200, r["status"])
 entrar("oper")

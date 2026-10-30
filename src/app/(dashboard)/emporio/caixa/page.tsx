@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
-import { hasMinRole } from "@/lib/permissions";
+import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { listarContasAction, listarRegrasCartaoAction, lerCaixaAction } from "@/lib/actions/emporio-caixa";
 import { reaisBr } from "@/lib/numero-br";
 import { Badge } from "@/components/ui/badge";
@@ -37,16 +37,19 @@ const DATA_HORA = new Intl.DateTimeFormat("pt-BR", {
 
 export default async function CaixaPage() {
   const user = await requireFeaturePage("emporio");
-  const podeEscrever = hasMinRole(user.role, "OPERADOR");
-  const ehAdmin = hasMinRole(user.role, "ADMIN");
-
   const db = await getTenantDb();
+  // F6b: cada botão decide pelo papel do Empório, a mesma regra que o servidor aplica.
+  const papel = await papelDoEmporio(db, user);
+  const ehConta = pode(papel, "conta");
+  const ehGestor = pode(papel, "gestor_da_loja");
+  const podeEscrever = pode(papel, "vendedor_da_loja");
+
   const [caixaRes, contasRes, regrasRes, contasDoBanco, implantados] = await Promise.all([
     lerCaixaAction(db, user),
-    ehAdmin ? listarContasAction(db, user, { incluir_arquivadas: true }) : Promise.resolve(null),
-    ehAdmin ? listarRegrasCartaoAction(db, user) : Promise.resolve(null),
-    // Depositar cheque e levar a gaveta ao banco são de OPERADOR, que não lista contas
-    // pela action (é de OWNER e ADMIN): aqui só id e nome, para escolher o destino.
+    ehGestor ? listarContasAction(db, user, { incluir_arquivadas: true }) : Promise.resolve(null),
+    ehGestor ? listarRegrasCartaoAction(db, user) : Promise.resolve(null),
+    // Depositar cheque e levar a gaveta ao banco são do Vendedor com a chave, que não lista contas
+    // pela action (é do Gestor para cima): aqui só id e nome, para escolher o destino.
     db.bankAccount.findMany({
       where: { archived_at: null },
       select: { id: true, name: true },
@@ -61,17 +64,21 @@ export default async function CaixaPage() {
     ? caixaRes.data
     : { drawers: [], accounts: [], card_receivables: [], checks: [], movements: [] };
   const regras = regrasRes && regrasRes.ok ? regrasRes.data : [];
-  const lojasDasRegras = caixa.drawers.map((d) => ({ id: d.establishment_id, name: d.name }));
+  const lojasDasRegras = caixa.drawers
+    .filter((d) => pode(papel, "gestor_da_loja", d.establishment_id))
+    .map((d) => ({ id: d.establishment_id, name: d.name }));
   const aReceberDaConta = new Map(caixa.accounts.map((a) => [a.bank_account_id, a.to_receive]));
   const totalAReceber = caixa.card_receivables.reduce((s, p) => s + Math.round(p.net_amount * 100), 0) / 100;
   const nomeDaLojaCheque = (id: string) => caixa.drawers.find((d) => d.establishment_id === id)?.name ?? "Loja";
 
   const origens: PontaOpcao[] = [
-    ...caixa.drawers.map((d) => ({
-      valor: `loja:${d.establishment_id}`,
-      rotulo: `Gaveta: ${d.name} (${reaisBr(d.balance)})`,
-    })),
-    ...(ehAdmin
+    ...caixa.drawers
+      .filter((d) => pode(papel, "chave:transferir_caixa", d.establishment_id))
+      .map((d) => ({
+        valor: `loja:${d.establishment_id}`,
+        rotulo: `Gaveta: ${d.name} (${reaisBr(d.balance)})`,
+      })),
+    ...(ehConta
       ? caixa.accounts.map((a) => ({ valor: `conta:${a.bank_account_id}`, rotulo: `Conta: ${a.name} (${reaisBr(a.balance)})` }))
       : []),
   ];
@@ -121,7 +128,7 @@ export default async function CaixaPage() {
                       Última conferência: {DATA_HORA.format(new Date(d.last_count.counted_at))}
                     </p>
                   )}
-                  {ehAdmin && (
+                  {ehGestor && (
                     <p className="text-sm text-texto-secundario">
                       Conta PIX: {pix ? pix.name : "nenhuma definida"}
                     </p>
@@ -130,7 +137,7 @@ export default async function CaixaPage() {
                     {podeEscrever && !lojaComSaldoInicial.has(d.establishment_id) && (
                       <SaldoInicialForm tipo="loja" destinoId={d.establishment_id} destinoNome={d.name} />
                     )}
-                    {ehAdmin && contasAtivas.length > 0 && (
+                    {pode(papel, "gestor_da_loja", d.establishment_id) && contasAtivas.length > 0 && (
                       <PixLojaForm
                         lojaId={d.establishment_id}
                         lojaNome={d.name}
@@ -146,11 +153,11 @@ export default async function CaixaPage() {
         )}
       </section>
 
-      {ehAdmin && (
+      {ehGestor && (
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-texto">Contas bancárias</h2>
-            <ContaForm />
+            {ehConta && <ContaForm />}
           </div>
           {contas.length === 0 ? (
             <EmptyState titulo="Nenhuma conta cadastrada">
@@ -188,10 +195,10 @@ export default async function CaixaPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-2">
-                        {!c.archived_at && !contaComSaldoInicial.has(c.id) && (
+                        {ehConta && !c.archived_at && !contaComSaldoInicial.has(c.id) && (
                           <SaldoInicialForm tipo="conta" destinoId={c.id} destinoNome={c.name} />
                         )}
-                        <ContaArquivarBotao contaId={c.id} arquivada={!!c.archived_at} />
+                        {ehConta && <ContaArquivarBotao contaId={c.id} arquivada={!!c.archived_at} />}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -202,7 +209,7 @@ export default async function CaixaPage() {
         </section>
       )}
 
-      {ehAdmin && (
+      {ehGestor && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-texto">A receber do cartão</h2>
           {caixa.card_receivables.length === 0 ? (
@@ -293,8 +300,8 @@ export default async function CaixaPage() {
                       numero={c.number}
                       situacao={c.status}
                       contas={contasDoBanco}
-                      podeDepositar={podeEscrever}
-                      ehAdmin={ehAdmin}
+                      podeDepositar={pode(papel, "chave:depositar_cheque", c.establishment_id)}
+                      ehAdmin={pode(papel, "gestor_da_loja", c.establishment_id)}
                     />
                   </TableCell>
                 </TableRow>
@@ -350,7 +357,7 @@ export default async function CaixaPage() {
         </section>
       )}
 
-      {ehAdmin && (
+      {ehGestor && (
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-texto">Taxas de cartão</h2>

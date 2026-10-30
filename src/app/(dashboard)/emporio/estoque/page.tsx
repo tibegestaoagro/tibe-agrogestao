@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
-import { hasMinRole } from "@/lib/permissions";
-import { papelDoEmporio } from "@/lib/emporio/papel";
+import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import {
   saldoDaLojaAction,
@@ -38,11 +37,12 @@ export default async function EstoquePage({
 }) {
   const user = await requireFeaturePage("emporio");
   const { loja: lojaParam } = await searchParams;
-  const podeEscrever = hasMinRole(user.role, "OPERADOR");
 
   const db = await getTenantDb();
-  // F6b (Q120): quem é só da loja não tem a Lista de Compra, então não encaminha para ela.
-  const podeEncaminhar = podeEscrever && !(await papelDoEmporio(db, user)).soDaLoja;
+  // F6b (Q120): encaminhar à Lista é do Gestor para cima, mas quem é só da loja
+  // não tem a Lista de Compra, então não encaminha para ela.
+  const papel = await papelDoEmporio(db, user);
+  const podeEncaminhar = pode(papel, "gestor_da_loja") && !papel.soDaLoja;
   const lojasRes = await listarEstabelecimentosAction(db, user);
   const lojas = lojasRes.ok ? lojasRes.data : [];
 

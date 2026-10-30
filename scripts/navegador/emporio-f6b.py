@@ -115,6 +115,13 @@ entrar("vendedor1")
 ir("/emporio")
 confere("abre o Empório", caminho() == "/emporio", caminho())
 confere("sem o cartão Equipe", not tem("Quem trabalha nas lojas"))
+confere("sem o cartão Histórico, Resultado nem Despesas", not tem("Quem fez o quê") and not tem("Quanto cada loja ganhou") and not tem("Contas a pagar, despesas fixas"))
+confere("o menu do Vendedor não tem o Histórico", "/emporio/historico" not in menu(), menu())
+confere("/emporio/despesas leva ao início do Empório", ir("/emporio/despesas") == "/emporio")
+confere("/emporio/resultado leva ao início do Empório", ir("/emporio/resultado") == "/emporio")
+ir("/emporio/compras")
+confere("sem o botão de lançar compra (sem a chave)", not js("Array.from(document.querySelectorAll('button')).some(b => /nova compra|lançar compra|registrar compra/i.test(b.innerText))"))
+ir("/emporio")
 abrir_grupo("Operação")
 itens = menu()
 confere("o menu não tem Financeiro, Rebanho nem Painel", do_menu_sem("/financeiro", "/rebanho", "/dashboard", "/maquinas", "/estoque") == [], itens)
@@ -125,6 +132,28 @@ confere("/financeiro leva ao /emporio", ir("/financeiro") == "/emporio")
 confere("/dashboard leva ao /emporio", ir("/dashboard") == "/emporio")
 confere("a API da Equipe recusa o Vendedor", api("GET", "/api/v1/emporio/team")["status"] == 403)
 confere("/calculadoras continua aberta", ir("/calculadoras") == "/calculadoras")
+
+# A trava não pode valer só na carga direta da URL: o layout do App Router não
+# renderiza de novo entre páginas irmãs. Aqui a navegação é a do uso real, do
+# roteador do Next dentro de uma página já aberta (sem recarregar o documento).
+def navegar_por_link(destino):
+    js("window.__sem_recarga = 1")
+    ok = js("(() => { const r = window.next && window.next.router; if (!r) return false; r.push(" + repr(destino) + "); return true; })()")
+    if not ok:
+        return "SEM ROTEADOR", ""
+    esperar(lambda: caminho() != "/emporio", 25)
+    time.sleep(6)
+    return caminho(), texto_principal(600)
+
+
+ir("/emporio")
+for destino, dado in (("/financeiro", "Financeiro"), ("/rebanho", "Rebanho"), ("/maquinas", "Máquinas")):
+    ir("/emporio")
+    final, texto = navegar_por_link(destino)
+    sem_recarga = js("window.__sem_recarga === 1")
+    confere("por link, " + destino + " acaba em /emporio", final == "/emporio", final)
+    confere("foi navegação suave, sem recarregar o documento", sem_recarga is True, sem_recarga)
+    confere("por link, " + destino + " não mostra dado da fazenda", ("Meu Empório" in texto) and (dado + " ") not in (" " + texto.split("|")[0].strip() + " "), texto)
 
 ir("/meu-dia")
 confere("o Meu Dia não mostra a fazenda", not tem("Sua fazenda") and not tem("O que aconteceu hoje"))
@@ -158,6 +187,8 @@ confere("agora são duas aguardando o Gestor", len(aguardando) == 2, len(aguarda
 
 passo("3. O Gestor da Loja 1 resolve a diferença")
 entrar("gestor1")
+ir("/emporio")
+confere("o Gestor tem o cartão Histórico e o item no menu", tem("Quem fez o quê") and "/emporio/historico" in menu(), menu())
 ir("/meu-dia")
 confere("o Meu Dia pede a resolução", esperar(lambda: tem("chegou com diferença: resolva")))
 ir("/emporio/transferencias")

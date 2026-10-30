@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
-import { hasMinRole } from "@/lib/permissions";
+import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { listarFiadoAction } from "@/lib/actions/emporio-caixa";
 import { reaisBr } from "@/lib/numero-br";
@@ -22,9 +22,10 @@ const DATA_UTC = new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" });
 
 export default async function FiadoPage() {
   const user = await requireFeaturePage("emporio");
-  const podeEscrever = hasMinRole(user.role, "OPERADOR");
 
   const db = await getTenantDb();
+  // F6b: receber fiado é do Vendedor da loja para cima.
+  const podeEscrever = pode(await papelDoEmporio(db, user), "vendedor_da_loja");
   const [lojasRes, fiadoRes] = await Promise.all([
     listarEstabelecimentosAction(db, user),
     listarFiadoAction(db, user),

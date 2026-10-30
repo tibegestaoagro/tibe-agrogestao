@@ -22,6 +22,7 @@ export function buildNavItems({
   hasPrestador,
   hasEmporio,
   soDaLoja = false,
+  veHistoricoDoEmporio = false,
 }: {
   role: AppUserRole;
   hasFazenda: boolean;
@@ -29,8 +30,10 @@ export function buildNavItems({
   hasEmporio: boolean;
   /** F6b (Q120): Gestor, Vendedor e Gerente geral "só da loja" veem apenas as páginas permitidas a eles. */
   soDaLoja?: boolean;
+  /** F6b (Q134): o Histórico é do Dono, do Gerente geral e do Gestor; o Vendedor nunca o vê. */
+  veHistoricoDoEmporio?: boolean;
 }): NavItem[] {
-  const itens = montarItens({ role, hasFazenda, hasPrestador, hasEmporio });
+  const itens = montarItens({ role, hasFazenda, hasPrestador, hasEmporio, veHistoricoDoEmporio });
   return soDaLoja ? restringirAoSoDaLoja(itens) : itens;
 }
 
@@ -53,11 +56,13 @@ function montarItens({
   hasFazenda,
   hasPrestador,
   hasEmporio,
+  veHistoricoDoEmporio,
 }: {
   role: AppUserRole;
   hasFazenda: boolean;
   hasPrestador: boolean;
   hasEmporio: boolean;
+  veHistoricoDoEmporio: boolean;
 }): NavItem[] {
   return [
     /*
@@ -79,6 +84,7 @@ function montarItens({
     // Plataforma. `hasEmporio` já vem resolvido no layout (recurso visível para
     // o usuário E perfil ativo), não só pelo perfil.
     { kind: "link", href: "/emporio", label: "Meu Empório", icon: "emporio", show: hasEmporio },
+    { kind: "link", href: "/emporio/historico", label: "Histórico", icon: "historico", show: hasEmporio && veHistoricoDoEmporio },
     {
       kind: "group",
       label: "Operação",

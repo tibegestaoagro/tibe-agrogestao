@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
-import { hasMinRole } from "@/lib/permissions";
 import { lacradoEfetivo, listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { listarTransferenciasAction } from "@/lib/actions/emporio-transferencias";
 import { Badge } from "@/components/ui/badge";
@@ -48,11 +47,11 @@ export default async function TransferenciasPage({
 }) {
   const user = await requireFeaturePage("emporio");
   const { loja = "", situacao = "" } = await searchParams;
-  const podeEscrever = hasMinRole(user.role, "OPERADOR");
-  const ehAdmin = hasMinRole(user.role, "ADMIN");
-
   const db = await getTenantDb();
   const papel = await papelDoEmporio(db, user);
+  // F6b: receber e cancelar são do Vendedor da loja para cima; enviar é do Gestor da origem.
+  const podeEscrever = pode(papel, "vendedor_da_loja");
+  const podeEnviar = pode(papel, "gestor_da_loja");
   const filtroSituacao =
     situacao === "em_transito" || situacao === "aguardando_gestor" || situacao === "recebida" || situacao === "cancelada" ? situacao : undefined;
 
@@ -60,14 +59,14 @@ export default async function TransferenciasPage({
     listarEstabelecimentosAction(db, user),
     listarTransferenciasAction(db, user, { establishment_id: loja || undefined, status: filtroSituacao }),
     // O destino é qualquer loja da conta, mesmo as que o usuário não enxerga.
-    podeEscrever
+    podeEnviar
       ? db.establishment.findMany({
           where: { archived_at: null },
           select: { id: true, name: true },
           orderBy: { name: "asc" },
         })
       : Promise.resolve([]),
-    podeEscrever
+    podeEnviar
       ? db.emporioProduct.findMany({
           where: { archived_at: null },
           select: {
@@ -86,6 +85,7 @@ export default async function TransferenciasPage({
   ]);
   const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
   const idsVisiveis = new Set(lojas.map((l) => l.id));
+  const origensDoEnvio = podeEnviar ? lojas.filter((l) => pode(papel, "gestor_da_loja", l.id)) : [];
   const transferencias = transfRes.ok ? transfRes.data : [];
 
   const produtosForm = produtos
@@ -110,8 +110,8 @@ export default async function TransferenciasPage({
             Mercadoria que vai de uma loja para outra. Sai da origem no envio e entra no destino no recebimento.
           </p>
         </div>
-        {podeEscrever && lojas.length > 0 && todasLojas.length > 1 && (
-          <TransferenciaForm origens={lojas} destinos={todasLojas} produtos={produtosForm} />
+        {origensDoEnvio.length > 0 && todasLojas.length > 1 && (
+          <TransferenciaForm origens={origensDoEnvio} destinos={todasLojas} produtos={produtosForm} />
         )}
       </header>
 
@@ -153,7 +153,9 @@ export default async function TransferenciasPage({
               const podeResolver =
                 t.status === "aguardando_gestor" && pode(papel, "gestor_da_loja", t.destination_establishment_id);
               const podeCancelar =
-                podeEscrever && t.status === "em_transito" && (ehAdmin || t.sent_by_user_id === user.id);
+                podeEscrever &&
+                t.status === "em_transito" &&
+                (t.sent_by_user_id === user.id || pode(papel, "gestor_da_loja", t.origin_establishment_id));
               return (
                 <TableRow key={t.id}>
                   <TableCell>{DATA.format(new Date(t.sent_at))}</TableCell>

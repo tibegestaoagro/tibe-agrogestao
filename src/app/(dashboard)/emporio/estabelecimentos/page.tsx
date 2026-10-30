@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
-import { hasMinRole } from "@/lib/permissions";
+import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,9 +26,11 @@ export default async function EstabelecimentosPage({
   const user = await requireFeaturePage("emporio");
   const { arquivados } = await searchParams;
   const mostrarArquivados = arquivados === "1";
-  const podeEscrever = hasMinRole(user.role, "ADMIN");
-
   const db = await getTenantDb();
+  // F6b: criar, arquivar e definir a equipe da loja são da conta; editar os dados é do Gestor da loja.
+  const papel = await papelDoEmporio(db, user);
+  const podeEscrever = pode(papel, "conta");
+  const podeEditarAlguma = pode(papel, "gestor_da_loja");
   const [res, usuarios] = await Promise.all([
     listarEstabelecimentosAction(db, user, { incluir_arquivados: mostrarArquivados }),
     db.user.findMany({
@@ -72,7 +74,7 @@ export default async function EstabelecimentosPage({
               <TableHead>Nome</TableHead>
               <TableHead>Cidade</TableHead>
               <TableHead>Usuários vinculados</TableHead>
-              {podeEscrever && <TableHead>Ações</TableHead>}
+              {podeEditarAlguma && <TableHead>Ações</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -90,20 +92,26 @@ export default async function EstabelecimentosPage({
                 <TableCell>
                   {l.user_ids.length === 0 ? "Sem vínculo (todos veem)" : l.user_ids.length}
                 </TableCell>
-                {podeEscrever && (
+                {podeEditarAlguma && (
                   <TableCell>
                     <div className="flex flex-wrap gap-2">
-                      <EstabelecimentoForm loja={l} usuarios={usuarios} />
-                      <VinculosForm
-                        lojaId={l.id}
-                        lojaNome={l.name}
-                        usuarios={usuarios}
-                        marcados={l.user_ids}
-                      />
-                      <ArquivarBotao
-                        url={`/api/v1/emporio/establishments/${l.id}/archive`}
-                        arquivado={!!l.archived_at}
-                      />
+                      {pode(papel, "gestor_da_loja", l.id) && (
+                        <EstabelecimentoForm loja={l} usuarios={usuarios} podeLiberarNegativo={podeEscrever} />
+                      )}
+                      {podeEscrever && (
+                        <>
+                          <VinculosForm
+                            lojaId={l.id}
+                            lojaNome={l.name}
+                            usuarios={usuarios}
+                            marcados={l.user_ids}
+                          />
+                          <ArquivarBotao
+                            url={`/api/v1/emporio/establishments/${l.id}/archive`}
+                            arquivado={!!l.archived_at}
+                          />
+                        </>
+                      )}
                     </div>
                   </TableCell>
                 )}

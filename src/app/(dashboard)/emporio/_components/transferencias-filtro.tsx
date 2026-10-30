@@ -13,6 +13,7 @@ const TODAS = "__todas__";
 
 const SITUACOES: { valor: string; rotulo: string }[] = [
   { valor: "em_transito", rotulo: "Em trânsito" },
+  { valor: "aguardando_gestor", rotulo: "Aguardando o Gestor" },
   { valor: "recebida", rotulo: "Recebida" },
   { valor: "cancelada", rotulo: "Cancelada" },
 ];

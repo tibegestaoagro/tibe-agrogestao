@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
-import { hasMinRole } from "@/lib/permissions";
+import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { listarVendasAction } from "@/lib/actions/emporio-vendas";
 import { reaisBr } from "@/lib/numero-br";
@@ -31,10 +31,10 @@ export default async function VendasPage({
 }) {
   const user = await requireFeaturePage("emporio");
   const { loja = "", situacao = "" } = await searchParams;
-  const podeVender = hasMinRole(user.role, "OPERADOR");
   const filtroSituacao = situacao === "concluida" || situacao === "cancelada" ? situacao : undefined;
 
   const db = await getTenantDb();
+  const podeVender = pode(await papelDoEmporio(db, user), "vendedor_da_loja");
   const [lojasRes, vendasRes] = await Promise.all([
     listarEstabelecimentosAction(db, user),
     listarVendasAction(db, user, { establishment_id: loja || undefined, status: filtroSituacao }),

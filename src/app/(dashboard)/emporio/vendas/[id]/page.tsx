@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
-import { hasMinRole } from "@/lib/permissions";
+import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { lerVendaAction } from "@/lib/actions/emporio-vendas";
 import { reaisBr } from "@/lib/numero-br";
 import { Badge } from "@/components/ui/badge";
@@ -37,13 +37,15 @@ const REEMBOLSO: Record<string, string> = {
 export default async function VendaPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireFeaturePage("emporio");
   const { id } = await params;
-  const podeEscrever = hasMinRole(user.role, "OPERADOR");
-  const ehAdmin = hasMinRole(user.role, "ADMIN");
 
   const db = await getTenantDb();
   const res = await lerVendaAction(db, user, id);
   if (!res.ok) notFound();
   const venda = res.data;
+  // F6b: devolver e trocar são por chave; cancelar a venda é do Gestor da loja (ou da conta).
+  const papel = await papelDoEmporio(db, user);
+  const podeEscrever = pode(papel, "chave:devolver_trocar", venda.establishment_id);
+  const ehAdmin = pode(papel, "gestor_da_loja", venda.establishment_id);
 
   const ativa = venda.status === "concluida";
   const devolviveis = venda.items.filter((i) => i.returnable_qty > 0);

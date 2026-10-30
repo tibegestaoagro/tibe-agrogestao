@@ -51,9 +51,12 @@ const NINGUEM = "__ninguem__";
 export function EstabelecimentoForm({
   loja,
   usuarios,
+  podeLiberarNegativo = true,
 }: {
   loja?: LojaParaForm;
   usuarios: UsuarioParaForm[];
+  /** Liberar o estoque negativo é da conta (Dono e Gerente geral): o Gestor edita a loja sem esse campo. */
+  podeLiberarNegativo?: boolean;
 }) {
   const router = useRouter();
   const editando = !!loja;
@@ -107,7 +110,7 @@ export function EstabelecimentoForm({
       default_expense_pct: d as number | null,
       default_profit_pct: l as number | null,
       max_discount_pct: m as number | null,
-      allow_negative_stock: negativo,
+      ...(podeLiberarNegativo ? { allow_negative_stock: negativo } : {}),
     };
     const res = editando
       ? await apiPatch(`/api/v1/emporio/establishments/${loja.id}`, corpo)
@@ -274,24 +277,26 @@ export function EstabelecimentoForm({
         )}
       </Field>
 
-      <Field label="Estoque" id={err.idDe("allow_negative_stock")} error={err.erros.allow_negative_stock}>
-        {({ id, ...aria }) => (
-          <label className="flex items-center gap-2 text-sm text-texto-secundario">
-            <input
-              id={id}
-              {...aria}
-              type="checkbox"
-              checked={negativo}
-              onChange={(e) => {
-                setNegativo(e.target.checked);
-                err.limparCampo("allow_negative_stock");
-              }}
-              className="h-4 w-4 rounded border-borda text-primaria-tinta focus:ring-primaria"
-            />
-            Permitir vender com estoque negativo
-          </label>
-        )}
-      </Field>
+      {podeLiberarNegativo && (
+        <Field label="Estoque" id={err.idDe("allow_negative_stock")} error={err.erros.allow_negative_stock}>
+          {({ id, ...aria }) => (
+            <label className="flex items-center gap-2 text-sm text-texto-secundario">
+              <input
+                id={id}
+                {...aria}
+                type="checkbox"
+                checked={negativo}
+                onChange={(e) => {
+                  setNegativo(e.target.checked);
+                  err.limparCampo("allow_negative_stock");
+                }}
+                className="h-4 w-4 rounded border-borda text-primaria-tinta focus:ring-primaria"
+              />
+              Permitir vender com estoque negativo
+            </label>
+          )}
+        </Field>
+      )}
     </FormSheet>
   );
 }

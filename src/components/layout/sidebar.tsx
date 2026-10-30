@@ -8,6 +8,7 @@ import {
   Home,
   Warehouse,
   Store,
+  History,
   Layers,
   LayoutDashboard,
   Calculator,
@@ -25,6 +26,7 @@ export type IconKey =
   | "home"
   | "fazenda"
   | "emporio"
+  | "historico"
   | "operacao"
   | "painel"
   | "calculadora"
@@ -43,6 +45,7 @@ const ICONS: Record<IconKey, LucideIcon> = {
   home: Home,
   fazenda: Warehouse,
   emporio: Store,
+  historico: History,
   operacao: Layers,
   painel: LayoutDashboard,
   calculadora: Calculator,
@@ -127,7 +130,17 @@ export default function Sidebar({
               // aparecia com o recurso desligado, e "Minha Fazenda" em conta
               // sem perfil fazenda.
               if (!item.show) return null;
-              const active = isActive(pathname, item.href);
+              // Um link de topo dentro de outro ("Histórico" sob "Meu Empório"):
+              // só o mais específico acende, senão os dois ficam marcados.
+              const active =
+                isActive(pathname, item.href) &&
+                !navItems.some(
+                  (o) =>
+                    o.kind === "link" &&
+                    o.show &&
+                    o.href.startsWith(`${item.href}/`) &&
+                    isActive(pathname, o.href),
+                );
               return (
                 <Link
                   key={item.href}

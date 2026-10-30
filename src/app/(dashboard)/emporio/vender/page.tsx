@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
-import { hasMinRole } from "@/lib/permissions";
+import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Balcao } from "../_components/balcao";
@@ -13,9 +13,9 @@ import { carregarCatalogoDeVenda } from "../_components/catalogo-venda";
  */
 export default async function VenderPage() {
   const user = await requireFeaturePage("emporio");
-  const podeVender = hasMinRole(user.role, "OPERADOR");
 
   const db = await getTenantDb();
+  const podeVender = pode(await papelDoEmporio(db, user), "vendedor_da_loja");
   const lojasRes = await listarEstabelecimentosAction(db, user);
   const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
-import { hasMinRole } from "@/lib/permissions";
+import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import {
   listarProdutosEmporioAction,
   listarCandidatosAction,
@@ -43,9 +43,10 @@ export default async function ProdutosEmporioPage({
     const texto = params.toString();
     return texto ? `/emporio/produtos?${texto}` : "/emporio/produtos";
   };
-  const podeEscrever = hasMinRole(user.role, "OPERADOR");
 
   const db = await getTenantDb();
+  // F6b: cadastrar e editar produto é por chave (Vendedor com a chave, Gestor para cima).
+  const podeEscrever = pode(await papelDoEmporio(db, user), "chave:cadastrar_produto");
 
   // As categorias nascem na primeira visita de quem escreve, como no Estoque:
   // sem elas o painel de "Novo produto" abriria com a lista vazia.
