@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "check": "tsx scripts/check-repo.ts",
     "worker": "tsx scripts/worker-rotina.ts",
+    "cenario:emporio-demo": "tsx scripts/cenario-demonstracao-emporio.ts",
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
