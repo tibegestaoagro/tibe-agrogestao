@@ -54,6 +54,12 @@ export async function updateUserRoleAction(
   const existing = await db.user.findFirst({ where: { id: userId } });
   if (!existing) return fail("NOT_FOUND", "Usuário não encontrado", 404);
 
+  // Q135: quem tem função no Empório tem o papel da conta amarrado a ela (Q118).
+  // Trocar por aqui deixaria os dois desencontrados: a troca é pela Equipe.
+  if (existing.emporio_role) {
+    return fail("EMPORIO_ROLE", "Troque a função pela Equipe do Empório.", 409, "role");
+  }
+
   await db.user.update({ where: { id: userId }, data: { role } });
   return ok({ id: userId });
 }

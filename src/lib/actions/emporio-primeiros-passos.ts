@@ -1,6 +1,7 @@
 import type { TenantPrismaClient } from "@/lib/prisma";
 import { ok, type ActionResult } from "@/lib/actions/types";
-import { exigir } from "@/lib/emporio/papel";
+import { exigir, papelDoEmporio, pode } from "@/lib/emporio/papel";
+import { lojasSemGestor } from "@/lib/actions/emporio-equipe";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 
 /**
@@ -32,6 +33,8 @@ export type PrimeirosPassosLojaView = {
   establishment_id: string;
   name: string;
   steps: PassoView[];
+  /** Q132: aviso de loja sem Gestor ativo; recomendado, nunca essencial. Nulo quando não se aplica. */
+  sem_gestor: { essential: false; message: string; href: string } | null;
 };
 
 export type PrimeirosPassosView = {
@@ -60,6 +63,9 @@ export async function primeirosPassosAction(
     select: { id: true, name: true, pix_bank_account_id: true },
     orderBy: { name: "asc" },
   });
+
+  const podeDefinirGestor = pode(await papelDoEmporio(db, ator), "conta");
+  const semGestor = podeDefinirGestor ? await lojasSemGestor(db, lojas.map((l) => l.id)) : new Set<string>();
 
   const establishments: PrimeirosPassosLojaView[] = [];
   for (const loja of lojas) {
@@ -123,7 +129,17 @@ export async function primeirosPassosAction(
       { key: "minimo_maximo", essential: false, done: limites > 0, href: "/emporio/produtos" },
       { key: "conta_pix", essential: false, done: loja.pix_bank_account_id !== null, href: "/emporio/caixa" },
     );
-    establishments.push({ establishment_id: loja.id, name: loja.name, steps });
+    // Q132: só quem pode definir o Gestor vê o aviso, e ele nunca conta como essencial
+    // (nem entra em `steps`: `PassoKey` é fechado e a tela mapeia cada chave a um rótulo).
+    establishments.push({
+      establishment_id: loja.id,
+      name: loja.name,
+      steps,
+      sem_gestor:
+        podeDefinirGestor && semGestor.has(loja.id)
+          ? { essential: false, message: `Defina um Gestor para a ${loja.name}`, href: "/emporio/equipe" }
+          : null,
+    });
   }
 
   const complete = establishments.every((l) => l.steps.every((s) => !s.essential || s.done));

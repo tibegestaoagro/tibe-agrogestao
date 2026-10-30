@@ -33,7 +33,7 @@ const unsubscribeSchema = z.object({
 });
 
 async function POSTHandler(request: Request) {
-  const g = await guard("alertas", "read");
+  const g = await guard("alertas", "read", { lojaOk: true });
   if ("error" in g) return g.error;
 
   const body = await readJson(request);
@@ -57,7 +57,7 @@ async function POSTHandler(request: Request) {
 }
 
 async function DELETEHandler(request: Request) {
-  const g = await guard("alertas", "read");
+  const g = await guard("alertas", "read", { lojaOk: true });
   if ("error" in g) return g.error;
 
   const body = await readJson(request);
@@ -87,7 +87,7 @@ async function DELETEHandler(request: Request) {
  * para sempre, e nada chegava.
  */
 async function GETHandler(request: Request) {
-  const g = await guard("alertas", "read");
+  const g = await guard("alertas", "read", { lojaOk: true });
   if ("error" in g) return g.error;
 
   const parsed = unsubscribeSchema.safeParse({ endpoint: new URL(request.url).searchParams.get("endpoint") ?? "" });

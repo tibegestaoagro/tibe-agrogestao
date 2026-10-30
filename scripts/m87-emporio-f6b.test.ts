@@ -302,6 +302,12 @@ async function comBanco() {
       const dele = linhas.find((l) => l.id === gestor1.id);
       check("Gerente geral lista a equipe com função e lojas", rl.ok && dele?.emporio_role === "gestor" && j(dele?.establishment_ids) === j([L1]), j(dele));
 
+      // O plano grupo tem 5 assentos e a fixture já tem 8 usuários ativos: o
+      // cadastro reaproveita o convite, que cobra assento. Desativado não ocupa
+      // vaga (regra do plano), então os outros saem do caminho durante os três
+      // cadastros e voltam logo depois.
+      const afastados = (await prisma.user.findMany({ where: { tenant_id: t.id, active: true, id: { notIn: [owner.id, gg.id] } }, select: { id: true } })).map((u) => u.id);
+      await prisma.user.updateMany({ where: { id: { in: afastados } }, data: { active: false } });
       const rc = await chamar(EQ, "cadastrarMembroAction", db, owner, novo("gestor", { emporio_role: "gestor", establishment_ids: [L1, L2] }));
       check("Dono cadastra Gestor com senha temporária", rc.ok && typeof rc.data?.temp_password === "string" && rc.data.temp_password.length > 0, j(rc));
       if (rc.ok) {
@@ -322,6 +328,7 @@ async function comBanco() {
         const u = await prisma.user.findUnique({ where: { id: rcv.data.id } });
         check("papel da conta do Vendedor é OPERADOR e as chaves ficam gravadas", u?.role === "OPERADOR" && j([...((u as Dado)?.emporio_keys ?? [])].sort()) === j(["contagem", "perda"]));
       }
+      await prisma.user.updateMany({ where: { id: { in: afastados } }, data: { active: true } });
 
       console.log("   recusas de cadastro");
       check("Vendedor sem loja: 422 em establishment_ids", recusa(await chamar(EQ, "cadastrarMembroAction", db, owner, novo("a", { emporio_role: "vendedor", establishment_ids: [] })), "VALIDATION_ERROR", 422, "establishment_ids"));
@@ -339,6 +346,11 @@ async function comBanco() {
       const gg2 = rcg.ok ? (rcg.data.id as string) : "";
       const rGG = await chamar(EQ, "alterarMembroAction", db, gg, gg2, { emporio_role: "gestor", establishment_ids: [L1] });
       check("Gerente geral não altera outro Gerente geral (403)", negado(rGG), j(rGG));
+      const adminDaFazenda = await prisma.user.create({ data: { tenant_id: t.id, name: "M87 admin fazenda", email: `m87-admin-fazenda-${stamp}@teste.local`, password_hash: "x", role: "ADMIN" } });
+      const rAdm = await chamar(EQ, "alterarMembroAction", db, gg, adminDaFazenda.id, { emporio_role: "vendedor", establishment_ids: [L1] });
+      check("Gerente geral não dá função de loja a um ADMIN da fazenda (403)", negado(rAdm), j(rAdm));
+      check("e o ADMIN da fazenda segue ADMIN, sem função", (await prisma.user.findUnique({ where: { id: adminDaFazenda.id } }))?.role === "ADMIN");
+      await prisma.user.update({ where: { id: adminDaFazenda.id }, data: { active: false } });
       check("Dono altera Gerente geral (desce para Gestor)", (await chamar(EQ, "alterarMembroAction", db, owner, gg2, { emporio_role: "gestor", establishment_ids: [L1] })).ok);
       check("e o papel da conta acompanha: OPERADOR", (await prisma.user.findUnique({ where: { id: gg2 } }))?.role === "OPERADOR");
 

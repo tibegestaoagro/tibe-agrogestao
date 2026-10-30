@@ -209,7 +209,7 @@ export const GROUPS: Group[] = [
         method: "PATCH",
         path: "/api/v1/users/:id/role",
         auth: "Sessão · usuarios:write",
-        description: "Altera o papel de um usuário. Não é possível alterar o próprio papel, nem promover a Owner sem ser Owner.",
+        description: "Altera o papel de um usuário. Não é possível alterar o próprio papel, nem promover a Owner sem ser Owner. Quem tem função no Empório: 409 `EMPORIO_ROLE` no campo `role` (\"Troque a função pela Equipe do Empório.\").",
         request: `{ "role": "ADMIN" }`,
         response: `200
 { "data": { "id": "cl..." }, "meta": {} }`,
@@ -568,9 +568,43 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/first-steps",
         auth: "Sessão · emporio:read · OWNER e ADMIN · perfil emporio · recurso `emporio` liberado",
-        description: "Primeiros passos por loja do usuário (Q116). Cada passo traz `key`, `essential`, `done`, `detail` (quando houver) e o `href` do formulário. Essenciais: `preco`, `estoque_inicial` (sem implantação ou com produto sem custo), `saldo_caixa`, `taxa_cartao` (só aparece se a loja já vendeu no cartão) e `despesa_fixa`; recomendados: `minimo_maximo` e `conta_pix`. `complete` é verdadeiro quando todos os essenciais de todas as lojas estão feitos. Abaixo de ADMIN: 403 `FORBIDDEN`.",
+        description: "Primeiros passos por loja do usuário (Q116). Cada passo traz `key`, `essential`, `done`, `detail` (quando houver) e o `href` do formulário. Essenciais: `preco`, `estoque_inicial` (sem implantação ou com produto sem custo), `saldo_caixa`, `taxa_cartao` (só aparece se a loja já vendeu no cartão) e `despesa_fixa`; recomendados: `minimo_maximo` e `conta_pix`. `complete` é verdadeiro quando todos os essenciais de todas as lojas estão feitos. Cada loja traz também `sem_gestor` (Q132): `{ essential: false, message: \"Defina um Gestor para a <loja>\", href: \"/emporio/equipe\" }` quando a loja não tem Gestor ativo e quem pergunta é o dono ou o gerente geral; senão `null`. Nunca entra em `complete`. Abaixo de ADMIN: 403 `FORBIDDEN`.",
         response: `200
 { "data": { "complete": false, "establishments": [{ "establishment_id": "cl...", "name": "Loja Centro", "steps": [{ "key": "preco", "essential": true, "done": true, "href": "/emporio/produtos" }, { "key": "estoque_inicial", "essential": true, "done": false, "detail": "3 produtos sem custo", "href": "/emporio/produtos" }] }] }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/team",
+        auth: "Sessão · emporio:read · só o dono e o gerente geral (403 `FORBIDDEN`) · perfil emporio · recurso `emporio` liberado",
+        description: "A Equipe do Empório (Q118): os usuários ativos da conta com `role`, `emporio_role` (`gerente_geral`, `gestor`, `vendedor` ou nulo), `emporio_only`, `emporio_keys` e `establishment_ids`, mais os assentos do plano e as lojas não arquivadas para a tela.",
+        response: `200
+{ "data": { "users": [{ "id": "cl...", "name": "Ana", "email": "ana@loja.com", "phone": null, "role": "OPERADOR", "emporio_role": "vendedor", "emporio_only": false, "emporio_keys": ["perda"], "establishment_ids": ["cl..."] }], "seats": { "used": 3, "limit": 5, "has_room": true }, "establishments": [{ "id": "cl...", "name": "Loja Centro" }] }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/team",
+        auth: "Sessão · emporio:write · só o dono e o gerente geral",
+        description: "Cadastra alguém na equipe: cria o usuário (convite, com senha temporária mostrada uma única vez) e grava função, lojas e chaves. O papel da conta acompanha: gerente geral é ADMIN, gestor e vendedor são OPERADOR. Email já usado: 409 `DUPLICATE_EMAIL` em `email`. Plano cheio: 422 `SEAT_LIMIT_REACHED`. Recusas 422 `VALIDATION_ERROR` no campo: `emporio_role` fora da lista, `establishment_ids` vazio ou com loja inexistente ou arquivada (gestor e vendedor), `emporio_keys` em quem não é vendedor ou com chave desconhecida, `emporio_only` em quem não é gerente geral. As lojas do gerente geral são ignoradas.",
+        request: `{ "name": "Ana", "email": "ana@loja.com", "emporio_role": "vendedor", "establishment_ids": ["cl..."], "emporio_keys": ["perda", "contagem"] }`,
+        response: `201
+{ "data": { "id": "cl...", "temp_password": "Xy9k2Qmz" }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/emporio/team/:userId",
+        auth: "Sessão · emporio:write · só o dono e o gerente geral",
+        description: "Altera função, lojas, chaves ou `emporio_only` (os ausentes ficam como estão, salvo a regra da troca): virar vendedor zera as chaves, virar gestor zera chaves e `emporio_only`, virar gerente geral limpa as lojas e as chaves; o que vier no mesmo pedido vale. O papel da conta acompanha. O dono como alvo: 403. O gerente geral não altera outro gerente geral: 403. Usuário de outra conta ou inexistente: 404. As mesmas recusas 422 do cadastro.",
+        request: `{ "emporio_role": "gestor", "establishment_ids": ["cl..."] }`,
+        response: `200
+{ "data": { "id": "cl..." }, "meta": {} }`,
+      },
+      {
+        method: "DELETE",
+        path: "/api/v1/emporio/team/:userId",
+        auth: "Sessão · emporio:write · só o dono e o gerente geral",
+        description: "Tira a pessoa do Empório: zera função, chaves, `emporio_only` e vínculos. Não mexe no papel da conta nem a desativa. Mesmas recusas do PATCH (dono 403, gerente geral sobre gerente geral 403, 404).",
+        response: `200
+{ "data": { "id": "cl..." }, "meta": {} }`,
       },
       {
         method: "GET",
@@ -2001,7 +2035,7 @@ export const GROUPS: Group[] = [
         path: "/api/v1/meu-dia",
         auth: "Sessão · tarefas:read",
         description:
-          "As seções do Meu Dia (atenção, hoje, próximos dias e sem data), já na ordem de importância. Lê ao vivo tarefas, contas, vacinas, serviços agendados, estadias e estoque baixo. `?property_id=` filtra por fazenda; item sem fazenda aparece em todas. Quem vê o Meu Empório recebe também os itens dele (origens `emporio_pagar`, `emporio_fiado` e `emporio_caixa`, com a loja no título); a conta do Empório nunca entra para quem não o vê.",
+          "As seções do Meu Dia (atenção, hoje, próximos dias e sem data), já na ordem de importância. Lê ao vivo tarefas, contas, vacinas, serviços agendados, estadias e estoque baixo. `?property_id=` filtra por fazenda; item sem fazenda aparece em todas. Quem vê o Meu Empório recebe também os itens dele (origens `emporio_pagar`, `emporio_fiado`, `emporio_caixa` e, só para o dono e o gerente geral, `emporio_equipe`: loja sem Gestor, sem data, com link para `/emporio/equipe`; com a loja no título). Quem é só da loja recebe apenas os itens do Empório, nenhuma seção da fazenda; a conta do Empório nunca entra para quem não o vê.",
         response: `200
 { "data": { "atencao": [...], "hoje": [{ "origem": "pagar", "titulo": "Pagar João", "valor": 2500, "dias": 0, "...": "..." }], "proximos": [...], "sem_data": [...] }, "meta": { "total": 12 } }`,
       },

@@ -33,7 +33,7 @@ type Props = { params: Promise<{ id: string }> };
 
 async function GETHandler(_request: Request, props: Props) {
   const params = await props.params;
-  const g = await guard("rebanho", "read", { profile: ["fazenda", "emporio"] });
+  const g = await guard("rebanho", "read", { profile: ["fazenda", "emporio"], lojaOk: true });
   if ("error" in g) return g.error;
 
   const res = await getContactDetail(g.db, params.id);
@@ -43,7 +43,7 @@ async function GETHandler(_request: Request, props: Props) {
 
 async function PATCHHandler(request: Request, props: Props) {
   const params = await props.params;
-  const g = await guard("rebanho", "write", { profile: ["fazenda", "emporio"] });
+  const g = await guard("rebanho", "write", { profile: ["fazenda", "emporio"], lojaOk: true });
   if ("error" in g) return g.error;
 
   const body = await readJson(request);

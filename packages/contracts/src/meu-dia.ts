@@ -26,6 +26,7 @@ export const meuDiaOrigemSchema = z.enum([
   "emporio_pagar",
   "emporio_fiado",
   "emporio_caixa",
+  "emporio_equipe",
 ]);
 export type MeuDiaOrigem = z.infer<typeof meuDiaOrigemSchema>;
 

@@ -34,7 +34,8 @@ export type OrigemDoItem =
   | "estoque"
   | "emporio_pagar"
   | "emporio_fiado"
-  | "emporio_caixa";
+  | "emporio_caixa"
+  | "emporio_equipe";
 
 export type ItemDoDia = {
   /** `origem:id`, estável entre renderizações. */

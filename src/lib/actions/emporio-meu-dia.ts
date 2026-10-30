@@ -5,6 +5,7 @@ import { diasAte, inicioDoDiaEmSaoPaulo } from "@/lib/dia-calendario";
 import { isFeatureVisibleForUser } from "@/lib/features";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { entradasAbertas } from "@/lib/actions/emporio-caixa";
+import { lojasSemGestor } from "@/lib/actions/emporio-equipe";
 import { CATEGORIA_MERCADORIAS } from "@/lib/actions/emporio-compras";
 import { JANELA_DE_PROXIMOS_DIAS, lerItensDoDia, type ItemDoDia } from "@/lib/actions/meu-dia";
 
@@ -203,6 +204,26 @@ export async function itensDoEmporioNoDia(
     }
   }
 
+  // --- emporio_equipe (Q132): loja sem Gestor, só para quem pode resolver ----
+  if (pode(papel, "conta")) {
+    const semGestor = await lojasSemGestor(db, ids);
+    for (const loja of lojas) {
+      if (!semGestor.has(loja.id)) continue;
+      itens.push({
+        chave: `emporio_equipe:${loja.id}`,
+        origem: "emporio_equipe",
+        titulo: `Defina um Gestor para a ${loja.name}`,
+        data: null,
+        horario: null,
+        valor: null,
+        urgente: false,
+        dias: null,
+        fazenda: null,
+        href: "/emporio/equipe",
+      });
+    }
+  }
+
   return itens;
 }
 
@@ -263,8 +284,11 @@ export async function lerItensDoDiaCompleto(
   user: UsuarioDoDia,
   opts: { property_id?: string | null; agora?: Date } = {},
 ): Promise<ItemDoDia[]> {
-  const fazenda = await lerItensDoDia(db, opts);
-  if (!(await veEmporio(user))) return fazenda;
+  const ve = await veEmporio(user);
+  // Q120: quem é só da loja não recebe nenhuma seção da fazenda, só o Empório.
+  const soLoja = ve && (await papelDoEmporio(db, user)).soDaLoja;
+  const fazenda = soLoja ? [] : await lerItensDoDia(db, opts);
+  if (!ve) return fazenda;
   const emporio = await itensDoEmporioNoDia(db, { id: user.id, role: user.role }, { agora: opts.agora });
   return [...fazenda, ...emporio];
 }

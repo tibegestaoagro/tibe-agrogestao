@@ -35,7 +35,7 @@ function serializar(item: ItemDoDia) {
 }
 
 async function GETHandler(request: Request) {
-  const g = await guard("tarefas", "read");
+  const g = await guard("tarefas", "read", { lojaOk: true });
   if ("error" in g) return g.error;
 
   const params = new URL(request.url).searchParams;

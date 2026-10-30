@@ -11,6 +11,7 @@ import { canAccess, canWrite, type ModuleKey } from "@/lib/permissions";
 import { getBillingState } from "@/lib/billing-access";
 import { MENSAGEM_ARQUIVADO } from "@/lib/mensagem-arquivado";
 import { requireSessionGateApi } from "@/lib/session-gate";
+import { papelDoEmporio } from "@/lib/emporio/papel";
 
 /**
  * Guarda padrão para rotas de API de negócio: valida sessão, permissão por módulo
@@ -56,7 +57,12 @@ export async function recusaSeArquivado(tenantId: string) {
 export async function guard(
   module: ModuleKey,
   action: "read" | "write",
-  opts?: { profile?: ProfileType | ProfileType[]; skipBillingCheck?: boolean },
+  opts?: {
+    profile?: ProfileType | ProfileType[];
+    skipBillingCheck?: boolean;
+    /** Rota que a pessoa "só da loja" (Q120) também pode usar: Contatos, Meu Dia, notificações. */
+    lojaOk?: boolean;
+  },
 ): Promise<
   | { error: ReturnType<typeof apiError> }
   | { user: SessionUser; db: TenantPrismaClient }
@@ -72,6 +78,17 @@ export async function guard(
   const ok =
     action === "write" ? canWrite(user.role, module) : canAccess(user.role, module);
   if (!ok) return { error: apiError(...ApiErrors.FORBIDDEN) };
+
+  // Só da loja (Q120): lista do que é permitido, o resto é 403. O Dono nunca é
+  // só da loja, e conta sem o perfil `emporio` não tem loja: nos dois casos
+  // nem se consulta o papel, então a fazenda sem Empório não paga query nova.
+  // `getActiveProfiles` e `papelDoEmporio` são memoizados por request.
+  if (module !== "emporio" && !opts?.lojaOk && user.role !== "OWNER") {
+    const perfis = await getActiveProfiles();
+    if (perfis.includes("emporio") && (await papelDoEmporio(db, user)).soDaLoja) {
+      return { error: apiError("FORBIDDEN", "Seu acesso é só ao Empório.", 403) };
+    }
+  }
 
   // Exige perfil ativo (ex: fazenda) também na API, não só na UI.
   if (opts?.profile) {

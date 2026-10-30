@@ -20,7 +20,7 @@ import { withApi } from "@/lib/route";
  * aparece dentro do painel autenticado de qualquer forma).
  */
 async function GETHandler() {
-  const g = await guard("alertas", "read");
+  const g = await guard("alertas", "read", { lojaOk: true });
   if ("error" in g) return g.error;
 
   return apiOk({ vapid_public_key: getVapidPublicKey() });
