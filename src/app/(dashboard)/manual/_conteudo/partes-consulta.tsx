@@ -7,7 +7,7 @@ const TERMOS: { termo: string; significa: React.ReactNode }[] = [
   { termo: "Unidade-base e conteúdo", significa: "A unidade-base é como o estoque é contado: saca, fardo, quilo, litro ou unidade. O conteúdo diz quanto cabe em uma saca ou fardo, por exemplo 30 kg." },
   { termo: "Custo médio", significa: "O custo de cada produto na loja, calculado a cada compra, levando em conta o que você pagou antes e o que pagou agora. É com ele que o sistema calcula a margem de cada venda." },
   { termo: "Custo provisório", significa: "Aparece quando a venda foi feita sem a compra lançada (com o estoque negativo liberado). O sistema usa o último custo médio. Quando a compra entra, a venda antiga não muda." },
-  { termo: "Resultado estimado", significa: "Um resultado que depende de custo provisório, custo que falta ou despesa fixa ainda não paga. Ele é uma aproximação, e o selo Estimado avisa isso." },
+  { termo: "Resultado estimado", significa: "Um resultado que depende de custo provisório, custo que falta ou despesa fixa ainda não paga. Ele é uma aproximação, e o aviso “Este resultado é uma estimativa” diz o motivo." },
   { termo: "Vendeu, Pagou", significa: "Despesa que nasce junto com a venda, como comissão, entrega ou embalagem. Ela entra na margem na hora da venda, mas o dinheiro só sai quando você paga." },
   { termo: "Ponto de equilíbrio", significa: "Quanto a loja precisa vender no mês para cobrir as despesas fixas. A tela também diz quanto falta." },
   { termo: "Em trânsito", significa: "Transferência que já saiu da loja de origem e ainda não foi confirmada no destino. A mercadoria não está em nenhuma das duas lojas." },

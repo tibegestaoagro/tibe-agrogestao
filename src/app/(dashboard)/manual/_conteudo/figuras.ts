@@ -39,8 +39,8 @@ export const FIGURAS: Figura[] = [
     alt: "Tela inicial do Meu Empório com o cartão Primeiros passos e os cartões das áreas",
     marcas: [
       { numero: 1, alvo: "o cartão Primeiros passos", texto: "A lista do que falta para os números da loja ficarem confiáveis. Cada item abre o formulário certo." },
-      { numero: 2, alvo: "o seletor de loja no alto da página", texto: "Escolha a loja que você quer ver." },
-      { numero: 3, alvo: "os cartões de Estoque, Vendas, Caixa e Resultado", texto: "Atalhos para as áreas do dia a dia." },
+      { numero: 2, alvo: "a marca Pendente de um item", texto: "Pendente é o que ainda falta fazer. Feito já está pronto." },
+      { numero: 3, alvo: "os cartões das áreas (Estoque, Vendas, Caixa e outros)", texto: "Atalhos para as áreas do dia a dia." },
     ],
   },
   {
@@ -65,7 +65,7 @@ export const FIGURAS: Figura[] = [
     marcas: [
       { numero: 1, alvo: "o campo Função", texto: "Escolha Gestor ou Vendedor. A função vale para todas as lojas da pessoa." },
       { numero: 2, alvo: "a lista de lojas", texto: "Marque as lojas em que ela trabalha." },
-      { numero: 3, alvo: "as chaves de permissão (Devolver e trocar, Lançar compra e as outras)", texto: "Todas começam desligadas. Ligue só o que a pessoa merece." },
+      { numero: 3, alvo: "a seção Chaves (Devolver e trocar, Lançar compra e as outras)", texto: "Todas começam desligadas. Ligue só o que a pessoa merece." },
       { numero: 4, alvo: "o botão de salvar do painel", texto: "Cria a pessoa e conta um assento do plano." },
     ],
   },
@@ -73,12 +73,12 @@ export const FIGURAS: Figura[] = [
     id: "estabelecimentos-lista",
     pagina: "/emporio/estabelecimentos",
     papel: "dono",
-    legenda: "Suas lojas e as contas bancárias",
-    alt: "Tela Estabelecimentos com a lista de lojas e a seção Contas bancárias",
+    legenda: "Suas lojas",
+    alt: "Tela Estabelecimentos com a lista de lojas e os botões Editar, Quem trabalha aqui e Arquivar",
     marcas: [
-      { numero: 1, alvo: "o botão para cadastrar estabelecimento", texto: "Cria uma loja nova. Só o Dono e o Gerente geral fazem isso." },
-      { numero: 2, alvo: "a linha de uma loja", texto: "Abre os dados da loja: PIX, limite de desconto e regras de cartão." },
-      { numero: 3, alvo: "a seção Contas bancárias", texto: "As contas que recebem PIX e cartão. Sem elas, a venda no PIX é recusada." },
+      { numero: 1, alvo: "o botão Novo estabelecimento", texto: "Cria uma loja nova. Só o Dono e o Gerente geral fazem isso." },
+      { numero: 2, alvo: "o nome de uma loja na lista", texto: "Cada linha é uma loja. O botão Editar abre os dados dela, como o desconto máximo." },
+      { numero: 3, alvo: "o botão Quem trabalha aqui", texto: "Escolhe quem trabalha na loja. As contas bancárias e o PIX ficam no Caixa." },
     ],
   },
   {
@@ -90,8 +90,8 @@ export const FIGURAS: Figura[] = [
     marcas: [
       { numero: 1, alvo: "o campo Nome", texto: "O nome que aparece no balcão." },
       { numero: 2, alvo: "o campo Unidade-base (Saca, Fardo, kg, L ou unidade)", texto: "Como o estoque é contado." },
-      { numero: 3, alvo: "o campo Conteúdo", texto: "Quanto pesa ou quantos litros cabem em uma saca ou fardo." },
-      { numero: 4, alvo: "os campos Marca, Código e Espécie", texto: "Ajudam a separar produtos parecidos e a achar no balcão." },
+      { numero: 3, alvo: "o campo Quanto pesa ou quanto cabe em uma saca", texto: "Quanto pesa ou quantos litros cabem em uma saca ou fardo." },
+      { numero: 4, alvo: "os campos Marca, Código interno e Espécie (dentro de Mais dados)", texto: "Ajudam a separar produtos parecidos e a achar no balcão." },
     ],
   },
   {
@@ -103,8 +103,8 @@ export const FIGURAS: Figura[] = [
     marcas: [
       { numero: 1, alvo: "a seção Apresentações", texto: "Cada jeito de vender o produto." },
       { numero: 2, alvo: "a apresentação da saca fechada", texto: "Vende a embalagem lacrada inteira." },
-      { numero: 3, alvo: "a apresentação a granel (1 kg)", texto: "Vende uma parte. A saca abre sozinha quando faltar avulso." },
-      { numero: 4, alvo: "o botão para adicionar apresentação", texto: "Cria outra forma de vender." },
+      { numero: 3, alvo: "a apresentação a granel (Quilo, 1 kg)", texto: "Vende uma parte. A saca abre sozinha quando faltar avulso." },
+      { numero: 4, alvo: "o botão Nova apresentação", texto: "Cria outra forma de vender." },
     ],
   },
   {
@@ -115,8 +115,8 @@ export const FIGURAS: Figura[] = [
     alt: "Seção Preço por loja com o preço atual e o preço sugerido de cada apresentação",
     marcas: [
       { numero: 1, alvo: "a seção Preço por loja", texto: "Cada loja tem o seu preço." },
-      { numero: 2, alvo: "a coluna do preço sugerido", texto: "Calculado do custo mais os percentuais. Ele nunca muda o preço sozinho." },
-      { numero: 3, alvo: "o botão aplicar ou o campo do preço atual", texto: "Você decide se aceita o sugerido." },
+      { numero: 2, alvo: "a coluna Sugerido", texto: "Calculado do custo mais os percentuais. Ele nunca muda o preço sozinho." },
+      { numero: 3, alvo: "a coluna Preço (o preço atual)", texto: "Você decide se aceita o sugerido." },
     ],
   },
   {
@@ -128,8 +128,8 @@ export const FIGURAS: Figura[] = [
     marcas: [
       { numero: 1, alvo: "o campo Fornecedor", texto: "Opcional. Escolha de Contatos." },
       { numero: 2, alvo: "a lista de itens (produto, quantidade, valor total do item)", texto: "Digite o valor total de cada item, não o valor por unidade." },
-      { numero: 3, alvo: "o campo Frete", texto: "É dividido entre os itens pelo valor de cada um." },
-      { numero: 4, alvo: "a escolha entre já recebi e vai chegar", texto: "Se ainda não chegou, a conta a pagar nasce hoje e o estoque entra quando você receber." },
+      { numero: 3, alvo: "o campo Frete (R$)", texto: "É dividido entre os itens pelo valor de cada um." },
+      { numero: 4, alvo: "a caixa Já recebi a mercadoria", texto: "Se ainda não chegou, a conta a pagar nasce hoje e o estoque entra quando você receber." },
     ],
   },
   {
@@ -139,33 +139,33 @@ export const FIGURAS: Figura[] = [
     legenda: "Recebendo uma compra que chegou",
     alt: "Lista de compras com uma compra pendente e o botão Receber",
     marcas: [
-      { numero: 1, alvo: "a linha da compra com situação Pendente", texto: "Mercadoria que ainda não entrou no estoque." },
+      { numero: 1, alvo: "a situação Pendente da compra", texto: "Mercadoria que ainda não entrou no estoque." },
       { numero: 2, alvo: "o botão Receber", texto: "Confirma que chegou tudo. O estoque entra na hora." },
     ],
   },
   {
     id: "estoque-por-loja",
-    pagina: "/emporio/estoque",
+    pagina: "/emporio/produtos/[id]",
     papel: "gestor",
-    legenda: "O estoque de uma loja, com lacrado e avulso",
-    alt: "Tela Estoque com a lista de produtos, saldo lacrado, saldo avulso e botões de contagem e perda",
+    legenda: "O estoque de um produto em uma loja, com lacrado e avulso",
+    alt: "Cartão da loja na tela do produto, com o saldo lacrado e avulso e os botões Contar estoque e Registrar perda",
     marcas: [
-      { numero: 1, alvo: "o seletor de loja", texto: "Troque de loja para ver o estoque dela." },
-      { numero: 2, alvo: "as colunas Lacrado e Avulso", texto: "Quantas embalagens fechadas e quanto solto você tem." },
-      { numero: 3, alvo: "o botão Contagem de um produto", texto: "Corrige o saldo pelo que você contou na prateleira." },
-      { numero: 4, alvo: "o botão Perda de um produto", texto: "Registra o que venceu, estragou ou sumiu, com o motivo." },
+      { numero: 1, alvo: "o cartão da Loja Centro, na seção Estoque por loja", texto: "Cada loja tem o seu saldo. Para ver outra loja, olhe o cartão dela." },
+      { numero: 2, alvo: "Lacrado e Avulso", texto: "Quantas embalagens fechadas e quanto solto você tem." },
+      { numero: 3, alvo: "o botão Contar estoque", texto: "Corrige o saldo pelo que você contou na prateleira." },
+      { numero: 4, alvo: "o botão Registrar perda", texto: "Registra o que venceu, estragou ou sumiu, com o motivo." },
     ],
   },
   {
     id: "estoque-precisa-repor",
     pagina: "/emporio/estoque",
-    papel: "gestor",
+    papel: "dono",
     legenda: "A lista Precisa repor",
     alt: "Seção Precisa repor com os produtos abaixo do mínimo e a quantidade sugerida de compra",
     marcas: [
       { numero: 1, alvo: "a seção Precisa repor", texto: "Produtos com saldo abaixo do mínimo." },
-      { numero: 2, alvo: "a coluna da quantidade sugerida", texto: "Quanto falta para chegar ao máximo, já contando compras que ainda não chegaram." },
-      { numero: 3, alvo: "o botão Encaminhar à Lista", texto: "Manda o item para a Lista de Compra." },
+      { numero: 2, alvo: "a coluna Sugestão", texto: "Quanto falta para chegar ao máximo, já contando compras que ainda não chegaram." },
+      { numero: 3, alvo: "o botão Encaminhar à Lista", texto: "Manda o item para a Lista de Compra. Só o Dono e o Gerente geral veem esse botão." },
     ],
   },
   {
@@ -185,11 +185,11 @@ export const FIGURAS: Figura[] = [
     pagina: "/emporio/transferencias",
     papel: "vendedor",
     legenda: "Recebendo uma transferência",
-    alt: "Lista de transferências com uma em trânsito e o painel de recebimento com a quantidade que chegou",
+    alt: "Painel Receber transferência com o que foi enviado e o campo Chegou de cada item",
     marcas: [
-      { numero: 1, alvo: "a transferência com situação Em trânsito", texto: "Mercadoria a caminho da sua loja." },
+      { numero: 1, alvo: "o texto Veio de..., no alto do painel", texto: "A loja de onde a mercadoria saiu, a caminho da sua loja." },
       { numero: 2, alvo: "o campo Chegou, em cada item", texto: "Digite o que chegou de verdade. Se for menos, o Gestor resolve." },
-      { numero: 3, alvo: "o botão de confirmar o recebimento", texto: "Se chegou tudo, o estoque entra na hora." },
+      { numero: 3, alvo: "o botão Confirmar recebimento", texto: "Se chegou tudo, o estoque entra na hora." },
     ],
   },
   {
@@ -197,10 +197,10 @@ export const FIGURAS: Figura[] = [
     pagina: "/emporio/transferencias",
     papel: "gestor",
     legenda: "Transferência que chegou com diferença, aguardando o Gestor",
-    alt: "Transferência com situação Aguardando o Gestor e as três opções de resolução",
+    alt: "Painel Resolver diferença com o resumo do que saiu e do que chegou, as duas saídas e o campo Motivo",
     marcas: [
-      { numero: 1, alvo: "a transferência com situação Aguardando o Gestor", texto: "Chegou menos do que saiu, e nada entrou no estoque ainda." },
-      { numero: 2, alvo: "o botão Resolver", texto: "Abre as três saídas." },
+      { numero: 1, alvo: "o resumo do que saiu e do que chegou", texto: "Chegou menos do que saiu, e nada entrou no estoque ainda." },
+      { numero: 2, alvo: "o campo O que aconteceu?", texto: "As duas saídas: Perda no caminho (a perda fica registrada) e Não foi enviada (a mercadoria volta para a origem)." },
       { numero: 3, alvo: "o campo Motivo", texto: "Obrigatório. Fica gravado no Histórico." },
     ],
   },
@@ -213,7 +213,7 @@ export const FIGURAS: Figura[] = [
     marcas: [
       { numero: 1, alvo: "o campo de busca de produto", texto: "Digite o nome, a marca ou o código." },
       { numero: 2, alvo: "a lista de itens da venda", texto: "Mude a quantidade ou o preço de cada item aqui." },
-      { numero: 3, alvo: "o campo de desconto", texto: "Até o limite da loja. Acima dele, só o Gestor ou o Dono." },
+      { numero: 3, alvo: "o campo Preço do item", texto: "Digite um preço menor que o sugerido para dar desconto. Até o limite da loja. Acima dele, só o Gestor ou o Dono." },
       { numero: 4, alvo: "o total da venda", texto: "O que o cliente vai pagar." },
     ],
   },
@@ -226,8 +226,8 @@ export const FIGURAS: Figura[] = [
     marcas: [
       { numero: 1, alvo: "os botões de forma de pagamento (Dinheiro, PIX, Débito, Crédito, Parcelado, Cheque)", texto: "Você pode dividir a venda em mais de uma forma." },
       { numero: 2, alvo: "o valor em cada forma", texto: "A soma precisa fechar o total." },
-      { numero: 3, alvo: "o campo Cliente e o vencimento do fiado", texto: "Fiado exige cliente cadastrado." },
-      { numero: 4, alvo: "o botão de concluir a venda", texto: "Grava a venda, tira do estoque e lança o dinheiro." },
+      { numero: 3, alvo: "o campo Cliente", texto: "Fiado exige cliente cadastrado." },
+      { numero: 4, alvo: "o botão Fechar a venda", texto: "Grava a venda, tira do estoque e lança o dinheiro." },
     ],
   },
   {
@@ -273,10 +273,10 @@ export const FIGURAS: Figura[] = [
     pagina: "/emporio/caixa",
     papel: "vendedor",
     legenda: "O caixa: a gaveta da loja",
-    alt: "Tela Caixa com o saldo da gaveta, o botão Conferir gaveta e os movimentos do dia",
+    alt: "Tela Caixa com o saldo da gaveta, a seção Conferir gaveta com o botão Conferir e os movimentos do dia",
     marcas: [
       { numero: 1, alvo: "o saldo da gaveta de cada loja", texto: "O que o sistema acha que deveria ter em dinheiro." },
-      { numero: 2, alvo: "o botão Conferir gaveta", texto: "Você conta o dinheiro e o sistema compara." },
+      { numero: 2, alvo: "o botão Conferir, na seção Conferir gaveta", texto: "Você conta o dinheiro e o sistema compara." },
       { numero: 3, alvo: "a seção Movimentos", texto: "Tudo que entrou e saiu da gaveta." },
     ],
   },
@@ -311,8 +311,8 @@ export const FIGURAS: Figura[] = [
     legenda: "Despesas fixas e Vendeu, Pagou",
     alt: "Tela Despesas com a lista de despesas fixas e as regras de Vendeu, Pagou",
     marcas: [
-      { numero: 1, alvo: "o botão para cadastrar despesa fixa", texto: "Aluguel, luz, salário. Gera as contas dos próximos 12 meses." },
-      { numero: 2, alvo: "o campo de rateio no formulário", texto: "Divide a despesa entre as lojas." },
+      { numero: 1, alvo: "o botão Nova despesa fixa", texto: "Aluguel, luz, salário. Gera as contas dos próximos 12 meses." },
+      { numero: 2, alvo: "a coluna Rateio da lista", texto: "Mostra como a despesa é dividida entre as lojas, em percentual ou em reais." },
       { numero: 3, alvo: "a seção Vendeu, Pagou", texto: "Despesas que nascem junto com a venda, como comissão e entrega." },
       { numero: 4, alvo: "a seção Contas a pagar", texto: "O que vence e o botão para pagar várias de uma vez." },
     ],
@@ -327,7 +327,7 @@ export const FIGURAS: Figura[] = [
       { numero: 1, alvo: "o seletor de loja e de mês", texto: "Escolha o recorte. Todas as lojas só o Dono e o Gerente geral veem." },
       { numero: 2, alvo: "as linhas de vendas, custo e margem", texto: "O que sobrou das vendas depois do custo." },
       { numero: 3, alvo: "a linha de perdas e quebras", texto: "Aparece separada para você ver quanto custou." },
-      { numero: 4, alvo: "o selo Estimado", texto: "Aparece quando algum custo está provisório ou falta." },
+      { numero: 4, alvo: "o aviso Este resultado é uma estimativa", texto: "Aparece quando algum custo está provisório ou falta, ou quando há conta fixa ainda não paga. Ele diz o motivo." },
     ],
   },
   {
@@ -335,11 +335,11 @@ export const FIGURAS: Figura[] = [
     pagina: "/emporio/resultado",
     papel: "gestor",
     legenda: "O ponto de equilíbrio e os produtos do mês",
-    alt: "Ponto de equilíbrio, produtos que mais vendem e vendas com margem negativa",
+    alt: "Ponto de equilíbrio, os produtos que mais dão margem e as vendas com margem negativa",
     marcas: [
       { numero: 1, alvo: "o ponto de equilíbrio", texto: "Quanto a loja precisa vender no mês para cobrir as despesas fixas." },
-      { numero: 2, alvo: "o quanto falta", texto: "A distância entre o que você vendeu e o ponto de equilíbrio." },
-      { numero: 3, alvo: "a lista Produtos que mais dão margem", texto: "Os dez que mais deixam dinheiro." },
+      { numero: 2, alvo: "a frase que diz se o ponto foi batido ou quanto falta", texto: "Compara o que você vendeu com o ponto de equilíbrio." },
+      { numero: 3, alvo: "a lista Mais dão margem", texto: "Os produtos que mais deixam dinheiro no mês." },
       { numero: 4, alvo: "a lista Vendas com margem negativa", texto: "Vendas que deram prejuízo, com a causa mais provável." },
     ],
   },

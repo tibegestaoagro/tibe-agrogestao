@@ -10,7 +10,7 @@ export function ParteDeVender() {
         <>Abra <strong>Vender</strong>. A tela já abre na venda.</>,
         "Busque o produto pelo nome, pela marca ou pelo código e toque nele. Repita para cada item.",
         "Ajuste a quantidade. Se o preço cadastrado estiver vazio, digite o valor.",
-        "Se precisar dar desconto, digite o preço menor ou o valor do desconto. Até o limite da loja você mesmo dá.",
+        "Se precisar dar desconto, digite um preço menor que o sugerido no item. A tela mostra o desconto. Até o limite da loja você mesmo dá.",
         <>Escolha como o cliente paga: <strong>Dinheiro</strong>, <strong>PIX</strong>, <strong>Débito</strong>, <strong>Crédito</strong>, <strong>Parcelado</strong> ou <strong>Cheque</strong>. Dá para dividir em mais de uma forma.</>,
         "Confira se a soma das formas fecha o total. O que faltar pode ficar como fiado (precisa de cliente).",
         "Conclua a venda.",
@@ -135,7 +135,7 @@ export function ParteDeCaixa() {
         paraQueServe="Saber quanto dinheiro deveria estar na gaveta e conferir se está."
         passos={[
           <>Abra <strong>Caixa</strong>. Cada loja tem a sua gaveta, com o saldo que o sistema calculou.</>,
-          <>No fim do dia, conte o dinheiro e clique em <strong>Conferir gaveta</strong>.</>,
+          <>No fim do dia, conte o dinheiro e, na seção <strong>Conferir gaveta</strong>, clique em <strong>Conferir</strong>.</>,
           "Digite o valor contado. O sistema compara com o esperado.",
           "Se os dois forem diferentes, escreva o motivo da diferença. Ele é obrigatório.",
           "Salve. A gaveta passa a bater, e a diferença fica registrada no resultado da loja.",

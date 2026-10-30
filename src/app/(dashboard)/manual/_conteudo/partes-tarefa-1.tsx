@@ -188,9 +188,9 @@ export function ParteDeEstoque() {
         passos={[
           <>Abra <strong>Meu Empório</strong> e depois <strong>Estoque</strong>. Escolha a loja.</>,
           "Veja cada produto com o saldo lacrado (embalagens fechadas) e o avulso (solto).",
-          <>Para corrigir um saldo, clique em <strong>Contagem</strong> e digite o que você contou nas duas colunas.</>,
-          <>Para registrar o que estragou, venceu ou sumiu, clique em <strong>Perda</strong> e escolha o motivo.</>,
-          "Defina o mínimo e o máximo de cada produto naquela loja.",
+          <>Para corrigir um saldo, abra o produto e, no cartão da loja, clique em <strong>Contar estoque</strong>. Digite o que você contou nas duas colunas.</>,
+          <>Para registrar o que estragou, venceu ou sumiu, clique em <strong>Registrar perda</strong> no mesmo cartão e escolha o motivo.</>,
+          <>Defina o mínimo e o máximo de cada produto naquela loja, no botão <strong>Limites</strong> do mesmo cartão.</>,
         ]}
         problemas={[
           {
@@ -213,7 +213,7 @@ export function ParteDeEstoque() {
           "Defina o mínimo (o menor saldo aceitável) e o máximo (até onde vale encher a prateleira) de cada produto.",
           <>Abra <strong>Precisa repor</strong>. Os produtos abaixo do mínimo aparecem com a quantidade sugerida.</>,
           "A quantidade sugerida é o máximo menos o saldo e menos o que já foi comprado e ainda não chegou.",
-          <>Clique em <strong>Encaminhar à Lista</strong> para mandar o item para a Lista de Compra da loja.</>,
+          <>O Dono e o Gerente geral veem o botão <strong>Encaminhar à Lista</strong>: ele manda o item para a Lista de Compra da loja.</>,
         ]}
       >
         <Figura id="estoque-precisa-repor" />
@@ -263,7 +263,6 @@ export function ParteDeTransferencias() {
           "O Gestor do destino, o Dono ou o Gerente geral abrem a transferência e escolhem como resolver, sempre com um motivo.",
           <><strong>Perda no caminho</strong>: a diferença vira perda da loja que enviou.</>,
           <><strong>Não foi enviada</strong>: a diferença volta para o estoque da loja que enviou.</>,
-          <><strong>Conferir depois</strong>: fica pendente até alguém descobrir o que houve.</>,
         ]}
         problemas={[
           {
