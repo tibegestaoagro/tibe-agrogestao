@@ -142,9 +142,18 @@ duplica. Atrito real achado: não existe "abrir embalagem" fora da venda,
 então a produção da mistura exigiu uma contagem para passar milho do
 lacrado ao avulso.
 
-**Manual (Q138)**: `/manual` commitado na branch, **ainda não em
-produção**; os prints (roteiro `scripts/navegador/manual-emporio.py`)
-estão sendo gerados sobre o cenário local. Depois: merge com autorização.
+**Manual (Q138) em produção desde 30/10** (`ddbc34b`, merge fast-forward
+autorizado; sem migração; Vercel com sucesso; imagem do manual 200 e
+`/manual` sem sessão indo ao login). Capítulo do Empório com 19 partes e
+26 figuras (computador e celular, 6,7 MB em `public/manual/emporio/`),
+geradas pelo roteiro `npm run navegador -- manual-emporio` sobre o cenário
+local; tela mudou, roda de novo. Os outros capítulos estão como "em
+breve". O manual está aberto ao só da loja (`/manual` na lista do
+`paginas-do-so-da-loja.ts`).
+
+**Próximo:** nada em andamento. Candidatos: remover `Establishment.kind`
+e o enum (Q121), "abrir embalagem" fora da venda (atrito do cenário), as
+três pendências pequenas da F6b acima, e os outros capítulos do manual.
 
 ⚠️ **Em produção o Empório está ligado em QUATRO contas, não só na Da
 Mata** (lido no Neon em 30/10): Da Mata, Max Dias, Laíza e Lucas
