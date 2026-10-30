@@ -48,6 +48,14 @@ const PUBLIC_PREFIXES = [
  */
 const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 
+/** Rota que não exige sessão de tenant (as listas acima). Usada também pela trava do só da loja no proxy. */
+export function ehCaminhoPublico(pathname: string): boolean {
+  return (
+    PUBLIC_PATHS.includes(pathname) ||
+    PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+  );
+}
+
 export const authConfig = {
   session: { strategy: "jwt", maxAge: SESSION_MAX_AGE_SECONDS },
   pages: { signIn: "/login" },
@@ -60,10 +68,7 @@ export const authConfig = {
       // secret em /api/webhooks, NextAuth em /api/auth). Não redirecionar aqui:
       // assim retornam o contrato de erro correto (401 JSON) em vez de 307.
       if (pathname.startsWith("/api")) return true;
-      const isPublic =
-        PUBLIC_PATHS.includes(pathname) ||
-        PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
-      if (isPublic) return true;
+      if (ehCaminhoPublico(pathname)) return true;
       return !!auth?.user; // não logado → NextAuth redireciona para /login
     },
     // Propaga tenant_id e role para o token JWT.

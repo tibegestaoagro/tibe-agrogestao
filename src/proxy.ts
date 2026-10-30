@@ -1,11 +1,16 @@
 import NextAuth from "next-auth";
 import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
-import { authConfig } from "@/lib/auth.config";
+import { authConfig, ehCaminhoPublico } from "@/lib/auth.config";
+import { papelDoEmporio } from "@/lib/emporio/papel";
+import { DESTINO_DO_SO_DA_LOJA, paginaPermitidaAoSoDaLoja } from "@/lib/emporio/paginas-do-so-da-loja";
+import { prismaForTenant } from "@/lib/prisma";
+import type { AppUserRole } from "@/types/next-auth";
 
 /**
- * Middleware de proteção de rotas (Edge runtime). Usa apenas a config edge-safe
- * (sem Prisma/bcrypt).
+ * Proxy de proteção de rotas. A sessão usa só a config edge-safe (sem bcrypt);
+ * no Next 16 o proxy roda em Node, e é isso que permite à trava do só da loja,
+ * no fim do arquivo, ler o papel no banco.
  *
  * ⚠️ CORREÇÃO (2026-08-01): quando `auth()` recebe uma função (a forma usada
  * aqui, necessária para propagar `x-pathname`), o next-auth NUNCA invoca
@@ -71,10 +76,40 @@ export const proxy = auth(async (req) => {
     return NextResponse.redirect(signInUrl);
   }
 
+  const bloqueio = await bloqueioDoSoDaLoja(req.auth?.user, pathname);
+  if (bloqueio) return NextResponse.redirect(new URL(bloqueio, req.url));
+
   const res = NextResponse.next();
   res.headers.set("x-pathname", req.nextUrl.pathname);
   return res;
 });
+
+/**
+ * Trava de PÁGINA do só da loja (Módulo 39, F6b, Q120). Mora aqui, e não no
+ * layout do painel, porque o layout do App Router não roda de novo na
+ * navegação por link: com a trava só no layout, um Vendedor que seguisse um
+ * link interno até `/financeiro` recebia a página da fazenda inteira (as
+ * páginas leem o banco direto, sem passar pela API). O proxy recebe toda
+ * requisição de página, inclusive a da navegação suave, e no Next 16 roda em
+ * Node, então pode ler o papel no banco. Provado pelo roteiro `emporio-f6b`.
+ *
+ * Lista do que é PERMITIDO (`paginaPermitidaAoSoDaLoja`): página nova nasce
+ * fechada para ele. As páginas fora do painel que o gate de sessão usa
+ * (trocar senha, escolher plano, onboarding) ficam de fora da trava.
+ */
+const FORA_DO_PAINEL = ["/trocar-senha", "/escolher-plano", "/onboarding"];
+
+async function bloqueioDoSoDaLoja(
+  user: { id?: string; tenant_id?: string; role?: AppUserRole } | undefined,
+  pathname: string,
+): Promise<string | null> {
+  if (!user?.id || !user.tenant_id || user.role === "OWNER") return null;
+  if (pathname.startsWith("/api") || pathname.startsWith("/_next") || ehCaminhoPublico(pathname)) return null;
+  if (FORA_DO_PAINEL.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return null;
+  if (paginaPermitidaAoSoDaLoja(pathname)) return null;
+  const { soDaLoja } = await papelDoEmporio(prismaForTenant(user.tenant_id), { id: user.id, role: user.role });
+  return soDaLoja ? DESTINO_DO_SO_DA_LOJA : null;
+}
 
 export const config = {
   // Roda em tudo, exceto assets estáticos e arquivos de imagem.
