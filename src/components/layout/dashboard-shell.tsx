@@ -65,7 +65,7 @@ export default function DashboardShell({
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <BillingBanner access={billingAccess} archived={archived} />
-        <header className="flex items-center gap-3 border-b border-borda bg-superficie px-4 py-3 md:px-6">
+        <header className="flex print:hidden items-center gap-3 border-b border-borda bg-superficie px-4 py-3 md:px-6">
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
@@ -78,7 +78,7 @@ export default function DashboardShell({
           <div className="min-w-0 flex-1" />
           <UserMenu userName={userName} roleLabel={roleLabel} />
         </header>
-        <main className="flex-1 p-4 md:p-6">{children}</main>
+        <main className="flex-1 p-4 md:p-6 print:p-0">{children}</main>
       </div>
     </div>
   );

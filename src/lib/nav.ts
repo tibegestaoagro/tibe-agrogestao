@@ -160,6 +160,8 @@ function montarItens({
     // "WhatsApp" continua sem conteúdo real (nenhum número de contato
     // configurado em lugar nenhum do código ainda): segue desabilitado.
     { kind: "soon", label: "WhatsApp", icon: "whatsapp" },
+    // Manual de uso (T15): aberto a todos, inclusive ao só da loja (ver paginas-do-so-da-loja).
+    { kind: "link", href: "/manual", label: "Manual", icon: "manual", show: true },
     {
       kind: "group",
       label: "Configurações",

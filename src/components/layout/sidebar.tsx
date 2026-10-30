@@ -9,6 +9,7 @@ import {
   Warehouse,
   Store,
   History,
+  BookOpen,
   Layers,
   LayoutDashboard,
   Calculator,
@@ -27,6 +28,7 @@ export type IconKey =
   | "fazenda"
   | "emporio"
   | "historico"
+  | "manual"
   | "operacao"
   | "painel"
   | "calculadora"
@@ -46,6 +48,7 @@ const ICONS: Record<IconKey, LucideIcon> = {
   fazenda: Warehouse,
   emporio: Store,
   historico: History,
+  manual: BookOpen,
   operacao: Layers,
   painel: LayoutDashboard,
   calculadora: Calculator,
@@ -91,13 +94,13 @@ export default function Sidebar({
     <>
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-30 bg-sobreposicao/40 md:hidden"
+          className="fixed inset-0 z-30 bg-sobreposicao/40 md:hidden print:hidden"
           onClick={onClose}
           aria-hidden="true"
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col bg-sobre-primaria text-texto-invertido transition-transform duration-200 ease-in-out md:static md:z-auto md:w-60 md:translate-x-0 ${
+        className={`print:hidden fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col bg-sobre-primaria text-texto-invertido transition-transform duration-200 ease-in-out md:static md:z-auto md:w-60 md:translate-x-0 ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >

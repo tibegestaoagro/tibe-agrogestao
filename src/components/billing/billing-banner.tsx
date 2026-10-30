@@ -24,7 +24,7 @@ export default function BillingBanner({
 
   return (
     <div
-      className={`flex flex-wrap items-center justify-between gap-3 px-6 py-2.5 text-sm ${
+      className={`print:hidden flex flex-wrap items-center justify-between gap-3 px-6 py-2.5 text-sm ${
         isBlocked
           ? "bg-perigo text-superficie"
           : "bg-atencao-suave text-atencao-tinta"

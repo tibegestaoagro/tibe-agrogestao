@@ -13,6 +13,7 @@ const PERMITIDAS = [
   "/meu-dia",
   "/contatos",
   "/calculadoras",
+  "/manual",
   "/configuracoes/perfil",
   "/configuracoes/senha",
 ] as const;
