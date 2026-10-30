@@ -14,6 +14,8 @@ import InviteForm from "@/components/usuarios/invite-form";
 import UserRowActions from "@/components/usuarios/user-row-actions";
 import { getSeatUsage } from "@/lib/seats";
 
+const FUNCAO_ROTULO = { gerente_geral: "Gerente geral", gestor: "Gestor", vendedor: "Vendedor" } as const;
+
 /**
  * Configurações → Usuários (spec 5.2). Acesso: Owner e Admin (PRD 5.2).
  */
@@ -50,6 +52,7 @@ export default async function UsuariosPage() {
               <TableHead>Email</TableHead>
               <TableHead>Telefone</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Empório</TableHead>
               <TableHead>Papel</TableHead>
             </TableRow>
           </TableHeader>
@@ -66,8 +69,12 @@ export default async function UsuariosPage() {
                     {u.active ? "Ativo" : "Desativado"}
                   </Badge>
                 </TableCell>
+                <TableCell className="text-sm">
+                  {u.role === "OWNER" ? "Dono" : u.emporio_role ? FUNCAO_ROTULO[u.emporio_role] : "Sem função"}
+                </TableCell>
                 <TableCell>
                   <UserRowActions
+                    temFuncaoNoEmporio={!!u.emporio_role}
                     userId={u.id}
                     role={u.role}
                     active={u.active}

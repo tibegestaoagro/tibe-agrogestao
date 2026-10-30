@@ -44,7 +44,7 @@ export default async function PlatformTenantDetailPage(props: { params: Promise<
     prisma.user.findMany({
       where: { tenant_id: tenant.id, active: true },
       orderBy: [{ role: "asc" }, { created_at: "asc" }],
-      select: { id: true, name: true, email: true, role: true },
+      select: { id: true, name: true, email: true, role: true, emporio_role: true },
     }),
   ]);
   const recursos = recursosRes.ok ? recursosRes.data : [];

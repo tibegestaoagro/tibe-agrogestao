@@ -7,6 +7,8 @@ import { getBillingState, isBillingExemptPath } from "@/lib/billing-access";
 import { getActivePropertyId } from "@/lib/active-property";
 import { buildNavItems } from "@/lib/nav";
 import { isFeatureVisibleForUser } from "@/lib/features";
+import { papelDoEmporio } from "@/lib/emporio/papel";
+import { DESTINO_DO_SO_DA_LOJA, paginaPermitidaAoSoDaLoja } from "@/lib/emporio/paginas-do-so-da-loja";
 import DashboardShell from "@/components/layout/dashboard-shell";
 import InstallInvite from "@/components/pwa/install-invite";
 import NotificationOptIn from "@/components/pwa/notification-opt-in";
@@ -42,6 +44,13 @@ export default async function DashboardLayout({
     redirect("/configuracoes/assinatura");
   }
 
+  // F6b (Q120): quem é só da loja só abre as páginas da lista de permitidas;
+  // o resto volta ao Empório. Lido do banco a cada request (papel.ts), nunca do JWT.
+  // Vale mesmo com o recurso desligado: fecha por padrão, e /emporio é permitido,
+  // então não há laço (lá o 404 do recurso responde).
+  const soDaLoja = (await papelDoEmporio(await getTenantDb(), user)).soDaLoja;
+  if (soDaLoja && pathname && !paginaPermitidaAoSoDaLoja(pathname)) redirect(DESTINO_DO_SO_DA_LOJA);
+
   // Nome do tenant da própria sessão (Tenant não é tenant-scoped; lookup por
   // id). Vem do registro único por request: o gate de sessão e o controle de
   // inadimplência precisam da mesma linha, com outros campos.
@@ -71,7 +80,7 @@ export default async function DashboardLayout({
     activePropertyId = active;
   }
 
-  const navItems = buildNavItems({ role: user.role, hasFazenda, hasPrestador, hasEmporio });
+  const navItems = buildNavItems({ role: user.role, hasFazenda, hasPrestador, hasEmporio, soDaLoja });
 
   return (
     <>

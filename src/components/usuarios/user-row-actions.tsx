@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Select,
@@ -27,12 +28,15 @@ export default function UserRowActions({
   active,
   isSelf,
   canEdit,
+  temFuncaoNoEmporio = false,
 }: {
   userId: string;
   role: Role;
   active: boolean;
   isSelf: boolean;
   canEdit: boolean;
+  /** F6b (Q118): quem tem função no Empório tem o papel decidido pela Equipe. */
+  temFuncaoNoEmporio?: boolean;
 }) {
   const router = useRouter();
   const aviso = useAviso();
@@ -68,16 +72,25 @@ export default function UserRowActions({
 
   return (
     <div className="flex items-center gap-2">
-      <Select value={role} onValueChange={changeRole}>
-        <SelectTrigger className="h-8 w-40 text-xs"><SelectValue /></SelectTrigger>
-        <SelectContent>
-          {(Object.keys(ROLE_LABEL) as Role[])
-            .filter((r) => r !== "OWNER")
-            .map((r) => (
-              <SelectItem key={r} value={r}>{ROLE_LABEL[r]}</SelectItem>
-            ))}
-        </SelectContent>
-      </Select>
+      {temFuncaoNoEmporio ? (
+        <div className="w-40 text-xs">
+          <span className="block text-texto-secundario">{ROLE_LABEL[role]}</span>
+          <Link href="/emporio/equipe" className="text-texto-marca hover:underline">
+            Troque pela Equipe do Empório
+          </Link>
+        </div>
+      ) : (
+        <Select value={role} onValueChange={changeRole}>
+          <SelectTrigger className="h-8 w-40 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {(Object.keys(ROLE_LABEL) as Role[])
+              .filter((r) => r !== "OWNER")
+              .map((r) => (
+                <SelectItem key={r} value={r}>{ROLE_LABEL[r]}</SelectItem>
+              ))}
+          </SelectContent>
+        </Select>
+      )}
       <Button variant="outline" size="sm" onClick={toggleActive} disabled={loading}>
         {active ? "Desativar" : "Reativar"}
       </Button>

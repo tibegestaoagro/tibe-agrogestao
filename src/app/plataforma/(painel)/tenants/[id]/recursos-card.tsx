@@ -6,7 +6,13 @@ import { apiPut } from "@/lib/client-api";
 import { useAviso } from "@/components/ui/toast";
 
 export type RecursoView = { feature_key: string; enabled: boolean; user_ids: string[] };
-export type UsuarioDaConta = { id: string; name: string; email: string; role: string };
+export type UsuarioDaConta = { id: string; name: string; email: string; role: string; emporio_role: string | null };
+
+const FUNCAO_DO_EMPORIO: Record<string, string> = {
+  gerente_geral: "Gerente geral",
+  gestor: "Gestor",
+  vendedor: "Vendedor",
+};
 
 /** Rótulo e efeito de cada recurso em teste. Hoje só o Empório (Módulo 39). */
 const RECURSOS: Record<string, { nome: string; efeito: string }> = {
@@ -68,8 +74,10 @@ function LinhaDeRecurso({
 
   const [editando, setEditando] = useState(false);
   const [confirmandoDesligar, setConfirmandoDesligar] = useState(false);
+  // No Empório quem vê é definido pela Equipe, dentro da conta (F6b, Q119): não há lista de usuários.
+  const ehEmporio = recurso.feature_key === "emporio";
   const [escopo, setEscopo] = useState<"conta" | "usuarios">(
-    recurso.user_ids.length > 0 ? "usuarios" : "conta",
+    !ehEmporio && recurso.user_ids.length > 0 ? "usuarios" : "conta",
   );
   const [marcados, setMarcados] = useState<string[]>(recurso.user_ids);
   const [pending, setPending] = useState(false);
@@ -129,7 +137,7 @@ function LinhaDeRecurso({
           <p className="text-sm font-medium text-white">{info.nome}</p>
           <p className="text-xs text-gray-400">
             {recurso.enabled
-              ? recurso.user_ids.length > 0
+              ? !ehEmporio && recurso.user_ids.length > 0
                 ? `Ligado só para: ${nomesDosUsuarios.join(", ") || `${recurso.user_ids.length} usuário(s)`}`
                 : "Ligado para a conta inteira"
               : "Desligado"}
@@ -137,16 +145,18 @@ function LinhaDeRecurso({
         </div>
         {podeEditar && !editando && !confirmandoDesligar && (
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                limparErros();
-                setEditando(true);
-              }}
-              className="rounded-md border border-gray-700 px-3 py-1 text-xs text-gray-300"
-            >
-              {recurso.enabled ? "Alterar quem usa" : "Ligar"}
-            </button>
+            {!(ehEmporio && recurso.enabled) && (
+              <button
+                type="button"
+                onClick={() => {
+                  limparErros();
+                  setEditando(true);
+                }}
+                className="rounded-md border border-gray-700 px-3 py-1 text-xs text-gray-300"
+              >
+                {recurso.enabled ? "Alterar quem usa" : "Ligar"}
+              </button>
+            )}
             {recurso.enabled && (
               <button
                 type="button"
@@ -164,6 +174,28 @@ function LinhaDeRecurso({
       </div>
 
       {info.efeito && <p className="mt-2 text-xs text-gray-500">{info.efeito}</p>}
+
+      {ehEmporio && recurso.enabled && (
+        <div className="mt-3 space-y-1">
+          <p className="text-xs text-gray-400">Quem vê o Empório é definido pela Equipe, dentro da conta.</p>
+          <ul className="space-y-0.5">
+            {usuarios.map((u) => (
+              <li key={u.id} className="text-sm text-white">
+                {u.name}{" "}
+                <span className="text-xs text-gray-500">
+                  (
+                  {u.role === "OWNER"
+                    ? "Dono"
+                    : u.emporio_role
+                      ? (FUNCAO_DO_EMPORIO[u.emporio_role] ?? u.emporio_role)
+                      : "Sem função"}
+                  )
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {podeEditar && confirmandoDesligar && (
         <div className="mt-3 space-y-2 rounded-md border border-gray-700 p-3">
@@ -202,6 +234,7 @@ function LinhaDeRecurso({
           }}
           className="mt-3 space-y-3 rounded-md border border-gray-700 p-3"
         >
+          {!ehEmporio && (
           <fieldset className="space-y-2">
             <legend className="text-xs text-gray-400">Quem usa</legend>
             <label className="flex items-center gap-2 text-sm text-white">
@@ -229,6 +262,7 @@ function LinhaDeRecurso({
               Só estes usuários
             </label>
           </fieldset>
+          )}
 
           {escopo === "usuarios" && (
             <div

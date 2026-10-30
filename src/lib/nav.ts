@@ -1,6 +1,7 @@
 import { hasMinRole, canAccess } from "@/lib/permissions";
 import type { NavItem } from "@/components/layout/sidebar";
 import type { AppUserRole } from "@/types/next-auth";
+import { paginaPermitidaAoSoDaLoja } from "@/lib/emporio/paginas-do-so-da-loja";
 
 /**
  * Constrói a navegação lateral (auditoria de arquitetura, 2026-08-04:
@@ -16,6 +17,38 @@ import type { AppUserRole } from "@/types/next-auth";
  * segunda com o gate extra de OWNER): evita duplicar essa checagem aqui.
  */
 export function buildNavItems({
+  role,
+  hasFazenda,
+  hasPrestador,
+  hasEmporio,
+  soDaLoja = false,
+}: {
+  role: AppUserRole;
+  hasFazenda: boolean;
+  hasPrestador: boolean;
+  hasEmporio: boolean;
+  /** F6b (Q120): Gestor, Vendedor e Gerente geral "só da loja" veem apenas as páginas permitidas a eles. */
+  soDaLoja?: boolean;
+}): NavItem[] {
+  const itens = montarItens({ role, hasFazenda, hasPrestador, hasEmporio });
+  return soDaLoja ? restringirAoSoDaLoja(itens) : itens;
+}
+
+/** A mesma lista que o layout usa para barrar a URL: o menu nunca oferece o que o layout fecharia. */
+function restringirAoSoDaLoja(itens: NavItem[]): NavItem[] {
+  const saida: NavItem[] = [];
+  for (const item of itens) {
+    if (item.kind === "link") {
+      if (item.show && paginaPermitidaAoSoDaLoja(item.href)) saida.push(item);
+    } else if (item.kind === "group") {
+      const filhos = item.children.filter((c) => c.show && paginaPermitidaAoSoDaLoja(c.href));
+      if (filhos.length > 0) saida.push({ ...item, children: filhos });
+    }
+  }
+  return saida;
+}
+
+function montarItens({
   role,
   hasFazenda,
   hasPrestador,

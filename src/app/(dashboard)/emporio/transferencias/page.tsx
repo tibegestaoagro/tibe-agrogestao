@@ -15,12 +15,14 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { TransferenciaForm } from "../_components/transferencia-form";
-import { ReceberTransferenciaForm, CancelarTransferenciaForm } from "../_components/transferencia-acoes";
+import { papelDoEmporio, pode } from "@/lib/emporio/papel";
+import { ReceberTransferenciaForm, CancelarTransferenciaForm, ResolverDiferencaForm } from "../_components/transferencia-acoes";
 import { TransferenciasFiltro } from "../_components/transferencias-filtro";
 import { UNIDADE_BASE_SUFIXO, numeroBr } from "../_components/formato";
 
 const SITUACAO: Record<string, { rotulo: string; variante: "amber" | "green" | "gray" }> = {
   em_transito: { rotulo: "Em trânsito", variante: "amber" },
+  aguardando_gestor: { rotulo: "Aguardando o Gestor", variante: "amber" },
   recebida: { rotulo: "Recebida", variante: "green" },
   cancelada: { rotulo: "Cancelada", variante: "gray" },
 };
@@ -50,8 +52,9 @@ export default async function TransferenciasPage({
   const ehAdmin = hasMinRole(user.role, "ADMIN");
 
   const db = await getTenantDb();
+  const papel = await papelDoEmporio(db, user);
   const filtroSituacao =
-    situacao === "em_transito" || situacao === "recebida" || situacao === "cancelada" ? situacao : undefined;
+    situacao === "em_transito" || situacao === "aguardando_gestor" || situacao === "recebida" || situacao === "cancelada" ? situacao : undefined;
 
   const [lojasRes, transfRes, todasLojas, produtos] = await Promise.all([
     listarEstabelecimentosAction(db, user),
@@ -147,6 +150,8 @@ export default async function TransferenciasPage({
               const dias = t.status === "em_transito" ? diasEmTransito(t.sent_at) : 0;
               const parada = t.status === "em_transito" && dias > DIAS_PARADA;
               const podeReceber = podeEscrever && t.status === "em_transito" && idsVisiveis.has(t.destination_establishment_id);
+              const podeResolver =
+                t.status === "aguardando_gestor" && pode(papel, "gestor_da_loja", t.destination_establishment_id);
               const podeCancelar =
                 podeEscrever && t.status === "em_transito" && (ehAdmin || t.sent_by_user_id === user.id);
               return (
@@ -159,7 +164,7 @@ export default async function TransferenciasPage({
                       .map((i) => {
                         const sufixo = UNIDADE_BASE_SUFIXO[i.base_unit] ?? i.base_unit;
                         const enviado = `${numeroBr(i.sent_qty)} ${sufixo} de ${i.product_name}${i.presentation_name ? ` (lacrado, ${i.presentation_name})` : ""}`;
-                        if (t.status !== "recebida" || i.received_qty === null || i.received_qty === i.sent_qty) {
+                        if ((t.status !== "recebida" && t.status !== "aguardando_gestor") || i.received_qty === null || i.received_qty === i.sent_qty) {
                           return enviado;
                         }
                         return `${enviado}; chegaram ${numeroBr(i.received_qty)} ${sufixo}`;
@@ -175,6 +180,19 @@ export default async function TransferenciasPage({
                         {parada && <Badge variant="red">parada</Badge>}
                       </span>
                     )}
+                    {t.status === "aguardando_gestor" && (
+                      <span className="mt-1 block text-xs text-texto-secundario">
+                        {podeResolver
+                          ? "Chegou com diferença: resolva."
+                          : "Chegou com diferença: o Gestor da loja vai resolver."}
+                      </span>
+                    )}
+                    {t.resolution && t.resolution_reason && (
+                      <span className="block text-xs text-texto-secundario">
+                        {t.resolution === "perda_no_caminho" ? "Perda no caminho" : "Não foi enviada"}:{" "}
+                        {t.resolution_reason}
+                      </span>
+                    )}
                     {t.canceled_reason && (
                       <span className="block text-xs text-texto-secundario">{t.canceled_reason}</span>
                     )}
@@ -186,6 +204,7 @@ export default async function TransferenciasPage({
                           <ReceberTransferenciaForm
                             transferenciaId={t.id}
                             origem={t.origin_name}
+                            podeResolver={pode(papel, "gestor_da_loja", t.destination_establishment_id)}
                             itens={t.items.map((i) => ({
                               id: i.id,
                               product_name: i.product_name,
@@ -193,6 +212,21 @@ export default async function TransferenciasPage({
                               presentation_name: i.presentation_name,
                               sent_qty: i.sent_qty,
                             }))}
+                          />
+                        )}
+                        {podeResolver && (
+                          <ResolverDiferencaForm
+                            transferenciaId={t.id}
+                            origem={t.origin_name}
+                            itens={t.items
+                              .filter((i) => i.received_qty !== null && i.received_qty < i.sent_qty)
+                              .map((i) => ({
+                                id: i.id,
+                                product_name: i.product_name,
+                                base_unit: i.base_unit,
+                                sent_qty: i.sent_qty,
+                                received_qty: i.received_qty ?? 0,
+                              }))}
                           />
                         )}
                         {podeCancelar && <CancelarTransferenciaForm transferenciaId={t.id} />}

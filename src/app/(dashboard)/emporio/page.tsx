@@ -8,6 +8,7 @@ import { listarTransferenciasAction } from "@/lib/actions/emporio-transferencias
 import { listarVendasAction } from "@/lib/actions/emporio-vendas";
 import { listarFiadoAction } from "@/lib/actions/emporio-caixa";
 import { hasMinRole } from "@/lib/permissions";
+import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { primeirosPassosAction, type PassoKey, type PassoView } from "@/lib/actions/emporio-primeiros-passos";
 import { Badge } from "@/components/ui/badge";
 
@@ -53,10 +54,11 @@ export default async function EmporioPage() {
   const fiado = await listarFiadoAction(db, user);
   const clientesNoFiado = fiado.ok ? fiado.data.length : 0;
   const passos = ehAdmin ? await primeirosPassosAction(db, user) : null;
-  const pendenciasPorLoja =
-    passos?.ok && !passos.data.complete
-      ? passos.data.establishments.filter((l) => l.steps.some((s) => !s.done))
-      : [];
+  // O aviso de loja sem Gestor (Q132) é recomendado e entra mesmo com os essenciais prontos.
+  const pendenciasPorLoja = passos?.ok
+    ? passos.data.establishments.filter((l) => l.sem_gestor || (!passos.data.complete && l.steps.some((s) => !s.done)))
+    : [];
+  const podeVerEquipe = pode(await papelDoEmporio(db, user), "conta");
 
   return (
     <div className="space-y-6">
@@ -80,6 +82,19 @@ export default async function EmporioPage() {
               <h3 className="text-sm font-semibold text-texto">{loja.name}</h3>
               <ListaDePassos titulo="Essenciais" passos={loja.steps.filter((s) => s.essential)} />
               <ListaDePassos titulo="Recomendados" passos={loja.steps.filter((s) => !s.essential)} />
+              {loja.sem_gestor && (
+                <div>
+                  <Link
+                    href={loja.sem_gestor.href}
+                    className="inline-flex min-h-11 items-center text-sm font-medium text-texto hover:underline sm:min-h-0"
+                  >
+                    {loja.sem_gestor.message}
+                  </Link>
+                  <Badge variant="amber" className="ml-2">
+                    Recomendado
+                  </Badge>
+                </div>
+              )}
             </div>
           ))}
         </section>
@@ -137,6 +152,9 @@ export default async function EmporioPage() {
           plural="clientes com fiado em aberto"
         />
         <CartaoTexto href="/emporio/caixa" titulo="Caixa" texto="Saldo das gavetas e das contas, e os movimentos" />
+        {podeVerEquipe && (
+          <CartaoTexto href="/emporio/equipe" titulo="Equipe" texto="Quem trabalha nas lojas e o que cada um pode fazer" />
+        )}
         {ehAdmin && (
           <CartaoTexto href="/emporio/resultado" titulo="Resultado" texto="Quanto cada loja ganhou no mês e o ponto de equilíbrio" />
         )}

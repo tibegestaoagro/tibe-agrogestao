@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import MateriaisParaLista, { type Material } from "./materiais-para-lista";
+import { useSoDaLoja } from "./so-da-loja";
 import CriarComposicaoDaReceita, { type ReceitaParaComposicao } from "./criar-composicao-da-receita";
 import {
   Select,
@@ -147,6 +148,7 @@ export default function CalcPage({
 }) {
   const [values, setValues] = useState<Record<string, ValorDeCampo>>(() => initialValues(fields));
   const [result, setResult] = useState<CalcOutcome | null>(null);
+  const soDaLoja = useSoDaLoja();
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -375,7 +377,7 @@ export default function CalcPage({
           produtor recalcula. As escolhas dele (produto, incluir ou nao) sao
           por POSICAO, e sem isso a marca de "nao incluir" o segundo item
           sobreviveria a um calculo em que o segundo item e outra coisa. */}
-      {result && result.ok && result.materiais && result.materiais.length > 0 && (
+      {!soDaLoja && result && result.ok && result.materiais && result.materiais.length > 0 && (
         <MateriaisParaLista
           key={result.materiais.map((m) => `${m.descricao}:${m.quantidade}`).join("|")}
           materiais={result.materiais}

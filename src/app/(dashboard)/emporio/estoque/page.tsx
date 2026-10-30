@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { hasMinRole } from "@/lib/permissions";
+import { papelDoEmporio } from "@/lib/emporio/papel";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import {
   saldoDaLojaAction,
@@ -40,6 +41,8 @@ export default async function EstoquePage({
   const podeEscrever = hasMinRole(user.role, "OPERADOR");
 
   const db = await getTenantDb();
+  // F6b (Q120): quem é só da loja não tem a Lista de Compra, então não encaminha para ela.
+  const podeEncaminhar = podeEscrever && !(await papelDoEmporio(db, user)).soDaLoja;
   const lojasRes = await listarEstabelecimentosAction(db, user);
   const lojas = lojasRes.ok ? lojasRes.data : [];
 
@@ -110,7 +113,7 @@ export default async function EstoquePage({
                     <TableHead>Saldo</TableHead>
                     <TableHead>Mínimo</TableHead>
                     <TableHead>Sugestão</TableHead>
-                    {podeEscrever && <TableHead>Ações</TableHead>}
+                    {podeEncaminhar && <TableHead>Ações</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -137,7 +140,7 @@ export default async function EstoquePage({
                             `${numeroBr(r.suggested_qty)} ${sufixo}`
                           )}
                         </TableCell>
-                        {podeEscrever && (
+                        {podeEncaminhar && (
                           <TableCell>
                             <EncaminharBotao
                               establishmentId={r.establishment_id}

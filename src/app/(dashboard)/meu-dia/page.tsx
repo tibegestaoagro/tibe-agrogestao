@@ -16,6 +16,7 @@ import { reaisBr } from "@/lib/numero-br";
 import { saudacaoEmSaoPaulo } from "@/lib/dia-calendario";
 import { transferenciasParadasAction } from "@/lib/actions/emporio-transferencias";
 import { precisaReporAction } from "@/lib/actions/emporio-estoque";
+import { papelDoEmporio } from "@/lib/emporio/papel";
 import { lerItensDoDiaCompleto, resumoDoEmporio, veEmporio } from "@/lib/actions/emporio-meu-dia";
 
 /**
@@ -120,6 +121,8 @@ export default async function MeuDiaPage() {
   const propertyId = temFazenda ? await getActivePropertyId(db) : null;
 
   const mostraEmporio = await veEmporio(user);
+  /* F6b (Q120): quem é só da loja não vê nada da fazenda, nem o resumo, nem o histórico. */
+  const soLoja = mostraEmporio && (await papelDoEmporio(db, user)).soDaLoja;
 
   const [itens, resumo, historico, workers, properties] = await Promise.all([
     lerItensDoDiaCompleto(db, user, { property_id: propertyId }),
@@ -133,7 +136,9 @@ export default async function MeuDiaPage() {
 
   /* Q33: transferência parada há mais de 2 dias, só para quem vê o Empório. */
   const paradas = mostraEmporio ? await transferenciasParadasAction(db, user) : null;
-  const transferenciasParadas = paradas?.ok ? paradas.data.length : 0;
+  const transferenciasParadas = paradas?.ok ? paradas.data.filter((t) => t.status === "em_transito").length : 0;
+  /* F6b (Q131): a que chegou com diferença não espera dias, pede a resolução já. */
+  const comDiferenca = paradas?.ok ? paradas.data.filter((t) => t.status === "aguardando_gestor") : [];
   /* Q111: estoque baixo é uma linha com a contagem, como a da transferência parada. */
   const repor = mostraEmporio ? await precisaReporAction(db, user) : null;
   const produtosParaRepor = repor?.ok ? repor.data.length : 0;
@@ -147,7 +152,7 @@ export default async function MeuDiaPage() {
           {saudacaoEmSaoPaulo()}
           {primeiroNome ? `, ${primeiroNome}` : ""}.
         </h1>
-        {podeEscrever && <TaskForm workers={workers} properties={properties} />}
+        {podeEscrever && !soLoja && <TaskForm workers={workers} properties={properties} />}
       </div>
 
       <Secao titulo="Atenção" itens={dia.atencao} podeEscrever={podeEscrever} />
@@ -159,6 +164,16 @@ export default async function MeuDiaPage() {
       />
       <Secao titulo="Próximos dias" itens={dia.proximos} podeEscrever={podeEscrever} />
       <Secao titulo="Sem data" itens={dia.semData} podeEscrever={podeEscrever} />
+
+      {comDiferenca.map((t) => (
+        <Link
+          key={t.id}
+          href="/emporio/transferencias"
+          className="inline-flex min-h-11 items-center text-sm text-primaria-tinta hover:underline sm:min-h-0"
+        >
+          Transferência de {t.origin_name} chegou com diferença: resolva
+        </Link>
+      ))}
 
       {transferenciasParadas > 0 && (
         <Link
@@ -182,7 +197,7 @@ export default async function MeuDiaPage() {
         </Link>
       )}
 
-      {temFazenda && (
+      {temFazenda && !soLoja && (
       <section className="rounded-lg border border-borda bg-superficie p-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-texto-secundario">Sua fazenda</h2>
         <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
@@ -240,7 +255,7 @@ export default async function MeuDiaPage() {
 
       {/* §14: a Lista de Compra NÃO aparece inteira, só o acesso a ela. Fica
           entre os cartões para a conta só de Empório também a ver. */}
-      {resumo.listaDeCompra > 0 && (
+      {resumo.listaDeCompra > 0 && !soLoja && (
         <Link
           href="/lista-de-compra"
           className="inline-flex min-h-11 items-center text-sm text-primaria-tinta hover:underline sm:min-h-0"
@@ -253,6 +268,7 @@ export default async function MeuDiaPage() {
 
       {/* §53: "consultar", e não ver o tempo todo. Recolhido por padrão, com o
           <details> do navegador, que já é acessível e não pede JavaScript. */}
+      {!soLoja && (
       <details className="rounded-lg border border-borda bg-superficie p-4">
         <summary className="cursor-pointer text-sm font-semibold uppercase tracking-wide text-texto-secundario">
           O que aconteceu hoje ({historico.length})
@@ -278,6 +294,7 @@ export default async function MeuDiaPage() {
           </ul>
         )}
       </details>
+      )}
     </div>
   );
 }
