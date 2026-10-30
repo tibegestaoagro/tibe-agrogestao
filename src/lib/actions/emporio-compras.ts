@@ -1,5 +1,6 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
+import { dinheiro, itens as frasItens, registrarNoHistorico } from "@/lib/emporio/historico";
 import { decToNum, isoOrNull } from "@/lib/serialize";
 import { exigir } from "@/lib/emporio/papel";
 import { createLinkedEntry } from "@/lib/financial";
@@ -458,6 +459,13 @@ export async function criarCompraAction(
       if (recebidaEm) {
         await entrarNoEstoque(tx, ator, compra.id, loja.id, recebidaEm, itens, porId);
       }
+      await registrarNoHistorico(tx, ator, {
+        action: "compra.criar",
+        establishment_id: loja.id,
+        target_type: "compra",
+        target_id: compra.id,
+        summary: `Lançou uma compra de ${dinheiro(totalC / 100)} na ${loja.name} (${frasItens(itens.length)}${recebidaEm ? ", já recebida" : ""})`,
+      });
       return compra.id;
     });
     const v = await viewDaCompra(db, id);
@@ -578,6 +586,13 @@ export async function receberCompraAction(
         })),
         porId,
       );
+      await registrarNoHistorico(tx, ator, {
+        action: "compra.receber",
+        establishment_id: compra.establishment_id,
+        target_type: "compra",
+        target_id: id,
+        summary: `Recebeu uma compra (${frasItens(itens.length)})`,
+      });
     });
   } catch (err) {
     if (err instanceof AbortarCompra) return err.recusa;
@@ -632,6 +647,13 @@ export async function cancelarCompraAction(
       await tx.stockMovement.updateMany({
         where: { purchase_id: id, canceled_at: null },
         data: { canceled_at: agora, canceled_reason: motivo },
+      });
+      await registrarNoHistorico(tx, ator, {
+        action: "compra.cancelar",
+        establishment_id: compra.establishment_id,
+        target_type: "compra",
+        target_id: id,
+        summary: `Cancelou uma compra: ${motivo}`,
       });
     });
   } catch (err) {

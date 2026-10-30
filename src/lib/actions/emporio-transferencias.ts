@@ -4,6 +4,7 @@ import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum, isoOrNull } from "@/lib/serialize";
 import { exigir, papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { descreverQuantidade } from "@/lib/stock/units";
+import { itens as frasItens, registrarNoHistorico } from "@/lib/emporio/historico";
 import { custoMedio } from "@/lib/emporio/custo-medio";
 import {
   INCLUDE_PRODUTO,
@@ -310,7 +311,10 @@ export async function enviarTransferenciaAction(
     return fail("VALIDATION_ERROR", "A loja de origem está arquivada.", 422, "origin_establishment_id");
   }
   // O destino pode não estar no vínculo do ator (a Central manda para uma loja que ele não vê).
-  const destino = await db.establishment.findFirst({ where: { id: destinoId }, select: { id: true, archived_at: true } });
+  const destino = await db.establishment.findFirst({
+    where: { id: destinoId },
+    select: { id: true, name: true, archived_at: true },
+  });
   if (!destino) return NAO_ACHADO("Estabelecimento", "destination_establishment_id");
   if (destino.archived_at) {
     return fail("VALIDATION_ERROR", "A loja de destino está arquivada.", 422, "destination_establishment_id");
@@ -384,6 +388,7 @@ export async function enviarTransferenciaAction(
     else planejados.set(k, { produto: p, estado, presentation_id: presentationId, base });
   }
   const itens = [...planejados.values()];
+  const destinoNome = destino.name;
 
   class Recusa extends Error {
     constructor(public recusa: ActionResult<never>) {
@@ -458,6 +463,13 @@ export async function enviarTransferenciaAction(
           }),
         });
       }
+      await registrarNoHistorico(tx, ator, {
+        action: "transferencia.enviar",
+        establishment_id: origem.id,
+        target_type: "transferencia",
+        target_id: t.id,
+        summary: `Enviou ${frasItens(itens.length)} da ${origem.name} para a ${destinoNome}`,
+      });
       return t.id;
     });
     const v = await viewDe(db, id);
@@ -593,6 +605,16 @@ async function liquidar(
   return true;
 }
 
+/** Nome das duas lojas da transferência, para a frase do Histórico. */
+async function nomesDasLojas(db: TenantPrismaClient, origemId: string, destinoId: string) {
+  const lojas = await db.establishment.findMany({
+    where: { id: { in: [origemId, destinoId] } },
+    select: { id: true, name: true },
+  });
+  const nome = (id: string) => lojas.find((l) => l.id === id)?.name ?? "uma loja";
+  return { origem: nome(origemId), destino: nome(destinoId) };
+}
+
 async function produtosDe(db: TenantPrismaClient, t: TransferenciaComItens) {
   const produtos = await db.emporioProduct.findMany({
     where: { id: { in: [...new Set(t.items.map((i) => i.emporio_product_id))] } },
@@ -681,6 +703,13 @@ export async function receberTransferenciaAction(
 
   class Recusa extends Error {}
   const agora = new Date();
+  const lojas = await nomesDasLojas(db, t.origin_establishment_id, t.destination_establishment_id);
+  const aviso = (aguardando: boolean) =>
+    aguardando
+      ? `Recebeu a transferência da ${lojas.origem} na ${lojas.destino} com diferença: aguarda o gestor`
+      : chegouMenos
+        ? `Recebeu a transferência da ${lojas.origem} na ${lojas.destino} com diferença, já resolvida`
+        : `Recebeu a transferência da ${lojas.origem} na ${lojas.destino}`;
   try {
     await db.$transaction(async (tx) => {
       if (chegouMenos && !resolve) {
@@ -696,10 +725,24 @@ export async function receberTransferenciaAction(
             data: { received_qty: d.recebido, loss_reason: d.motivo },
           });
         }
+        await registrarNoHistorico(tx, ator, {
+          action: "transferencia.receber",
+          establishment_id: t.destination_establishment_id,
+          target_type: "transferencia",
+          target_id: id,
+          summary: aviso(true),
+        });
         return;
       }
       const feito = await liquidar(tx, t, "em_transito", decididos, porProduto, ator, agora, ator.id, resolucao);
       if (!feito) throw new Recusa();
+      await registrarNoHistorico(tx, ator, {
+        action: "transferencia.receber",
+        establishment_id: t.destination_establishment_id,
+        target_type: "transferencia",
+        target_id: id,
+        summary: aviso(false),
+      });
     });
   } catch (err) {
     if (err instanceof Recusa) return NAO_EM_TRANSITO();
@@ -770,6 +813,7 @@ export async function resolverDiferencaAction(
 
   class Recusa extends Error {}
   const agora = new Date();
+  const lojasR = await nomesDasLojas(db, t.origin_establishment_id, t.destination_establishment_id);
   try {
     await db.$transaction(async (tx) => {
       const feito = await liquidar(
@@ -784,6 +828,15 @@ export async function resolverDiferencaAction(
         l.data,
       );
       if (!feito) throw new Recusa();
+      await registrarNoHistorico(tx, ator, {
+        action: "transferencia.resolver",
+        establishment_id: t.destination_establishment_id,
+        target_type: "transferencia",
+        target_id: id,
+        summary: `Resolveu a diferença da transferência da ${lojasR.origem} para a ${lojasR.destino}: ${
+          l.data.resolution === "perda_no_caminho" ? "perda no caminho" : "não foi enviada"
+        } (${l.data.reason})`,
+      });
     });
   } catch (err) {
     if (err instanceof Recusa) {
@@ -821,6 +874,7 @@ export async function cancelarTransferenciaAction(
 
   class Recusa extends Error {}
   const agora = new Date();
+  const lojasC = await nomesDasLojas(db, t.origin_establishment_id, t.destination_establishment_id);
   try {
     await db.$transaction(async (tx) => {
       const r = await tx.stockTransfer.updateMany({
@@ -831,6 +885,13 @@ export async function cancelarTransferenciaAction(
       await tx.stockMovement.updateMany({
         where: { transfer_id: id, canceled_at: null },
         data: { canceled_at: agora, canceled_reason: motivo },
+      });
+      await registrarNoHistorico(tx, ator, {
+        action: "transferencia.cancelar",
+        establishment_id: t.origin_establishment_id,
+        target_type: "transferencia",
+        target_id: id,
+        summary: `Cancelou a transferência da ${lojasC.origem} para a ${lojasC.destino}: ${motivo}`,
       });
     });
   } catch (err) {

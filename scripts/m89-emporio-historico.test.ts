@@ -251,7 +251,9 @@ async function comBanco() {
     await rodar("2", async () => {
       console.log("\n2. Recusa e repetição não gravam linha");
       const k = chave("dup");
-      const corpo = { operation_key: k, establishment_id: L1, items: [{ emporio_product_id: P, presentation_id: PRES, quantity: 1 }], payments: [{ kind: "dinheiro", amount: 10 }] };
+      // A seção 1 subiu o preço da Loja 1 para R$ 12: pagar 10 faria a venda
+      // ser recusada, e o "não grava segunda linha" passaria de forma vazia.
+      const corpo = { operation_key: k, establishment_id: L1, items: [{ emporio_product_id: P, presentation_id: PRES, quantity: 1 }], payments: [{ kind: "dinheiro", amount: 12 }] };
       const a = await nova(() => chamar(V, "venderAction", db, vend1, corpo));
       check("a primeira venda grava 1 linha", a.r.ok && a.rows.length === 1, j({ ok: a.r.ok, n: a.rows.length }));
       const b = await nova(() => chamar(V, "venderAction", db, vend1, corpo));

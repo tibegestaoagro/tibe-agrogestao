@@ -5,6 +5,7 @@ import { exigir, papelDoEmporio, pode, recusaDe } from "@/lib/emporio/papel";
 import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
 import { CATEGORIA_DIFERENCA_CAIXA, hojeEmBrasilia } from "@/lib/emporio/cartao";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
+import { diferencas, dinheiro, registrarNoHistorico } from "@/lib/emporio/historico";
 import { acharLojaParaEscrita } from "@/lib/actions/emporio-estoque";
 import { CATEGORIA_VENDAS } from "@/lib/actions/emporio-vendas";
 
@@ -254,7 +255,7 @@ export async function receberFiadoAction(
   if (typeof input.contact_id !== "string" || !input.contact_id) {
     return fail("VALIDATION_ERROR", "Escolha o cliente.", 422, "contact_id");
   }
-  const contato = await db.contact.findFirst({ where: { id: input.contact_id }, select: { id: true, archived_at: true } });
+  const contato = await db.contact.findFirst({ where: { id: input.contact_id }, select: { id: true, name: true, archived_at: true } });
   if (!contato || contato.archived_at) return fail("VALIDATION_ERROR", "Escolha um cliente ativo.", 422, "contact_id");
 
   if (input.kind !== "dinheiro" && input.kind !== "pix") {
@@ -341,6 +342,13 @@ export async function receberFiadoAction(
         });
         feitas.push({ entry_id: e.id, sale_id: e.related_id, amount: parte / 100, financial_payment_id: fp.id });
       }
+      await registrarNoHistorico(tx, ator, {
+        action: "fiado.receber",
+        establishment_id: loja.data.id,
+        target_type: "fiado",
+        target_id: contato.id,
+        summary: `Recebeu ${dinheiro(valorCent / 100)} de fiado de ${contato.name} (${input.kind === "pix" ? "PIX" : "dinheiro"})`,
+      });
       return { feitas, agora };
     });
     return ok({
@@ -473,8 +481,17 @@ export async function criarContaAction(
   const banco = typeof input.bank === "string" && input.bank.trim() ? input.bank.trim() : null;
   if (await db.bankAccount.findFirst({ where: { name: nome.data }, select: { id: true } })) return NOME_REPETIDO();
   try {
-    const c = await db.bankAccount.create({
-      data: scoped({ name: nome.data, bank: banco, created_by_user_id: ator.id }),
+    const c = await db.$transaction(async (tx) => {
+      const criada = await tx.bankAccount.create({
+        data: scoped({ name: nome.data, bank: banco, created_by_user_id: ator.id }),
+      });
+      await registrarNoHistorico(tx, ator, {
+        action: "conta_bancaria.criar",
+        target_type: "conta_bancaria",
+        target_id: criada.id,
+        summary: `Criou a conta bancária ${criada.name}`,
+      });
+      return criada;
     });
     const [v] = await viewsDasContas(db, { id: c.id });
     return ok(v);
@@ -516,7 +533,30 @@ export async function editarContaAction(
     data.archived_at = input.archived ? (atual.archived_at ?? new Date()) : null;
   }
   try {
-    if (Object.keys(data).length > 0) await db.bankAccount.update({ where: { id }, data });
+    if (Object.keys(data).length > 0) {
+      await db.$transaction(async (tx) => {
+        await tx.bankAccount.update({ where: { id }, data });
+        await registrarNoHistorico(tx, ator, {
+          action: "conta_bancaria.editar",
+          target_type: "conta_bancaria",
+          target_id: id,
+          summary:
+            data.archived_at !== undefined && Object.keys(data).length === 1
+              ? `${data.archived_at ? "Arquivou" : "Reativou"} a conta bancária ${atual.name}`
+              : `Editou a conta bancária ${atual.name}`,
+          changes: diferencas(
+            { name: atual.name, bank: atual.bank, arquivada: atual.archived_at !== null },
+            {
+              name: data.name ?? atual.name,
+              bank: data.bank !== undefined ? data.bank : atual.bank,
+              arquivada: data.archived_at !== undefined ? data.archived_at !== null : atual.archived_at !== null,
+            },
+            { name: "Nome", bank: "Banco", arquivada: "Arquivada" },
+            { arquivada: (v) => (v ? "Sim" : "Não") },
+          ),
+        });
+      });
+    }
   } catch (err) {
     if (ehErroUnico(err)) return NOME_REPETIDO();
     throw err;
@@ -546,7 +586,36 @@ export async function definirContaPixAction(
     }
     contaId = conta.id;
   }
-  await db.establishment.update({ where: { id: loja.data.id }, data: { pix_bank_account_id: contaId } });
+  const lojaAntes = await db.establishment.findFirst({
+    where: { id: loja.data.id },
+    select: { name: true, pix_bank_account_id: true },
+  });
+  const nomesContas = new Map(
+    (
+      await db.bankAccount.findMany({
+        where: { id: { in: [contaId, lojaAntes?.pix_bank_account_id].filter((x): x is string => !!x) } },
+        select: { id: true, name: true },
+      })
+    ).map((c) => [c.id, c.name]),
+  );
+  const nomeConta = (cid: string | null | undefined) => (cid ? (nomesContas.get(cid) ?? null) : null);
+  await db.$transaction(async (tx) => {
+    await tx.establishment.update({ where: { id: loja.data.id }, data: { pix_bank_account_id: contaId } });
+    await registrarNoHistorico(tx, ator, {
+      action: "conta_bancaria.pix",
+      establishment_id: loja.data.id,
+      target_type: "estabelecimento",
+      target_id: loja.data.id,
+      summary: contaId
+        ? `Definiu a conta do Pix da ${lojaAntes?.name ?? "loja"}: ${nomeConta(contaId)}`
+        : `Tirou a conta do Pix da ${lojaAntes?.name ?? "loja"}`,
+      changes: diferencas(
+        { pix: nomeConta(lojaAntes?.pix_bank_account_id) },
+        { pix: nomeConta(contaId) },
+        { pix: "Conta do Pix" },
+      ),
+    });
+  });
   return ok({ establishment_id: loja.data.id, pix_bank_account_id: contaId });
 }
 
@@ -909,7 +978,7 @@ export async function saldoInicialCaixaAction(
           ),
         );
       }
-      return tx.cashMovement.create({
+      const mov = await tx.cashMovement.create({
         data: scoped({
           establishment_id: lojaId,
           bank_account_id: contaId,
@@ -921,6 +990,19 @@ export async function saldoInicialCaixaAction(
           created_by_user_id: ator.id,
         }),
       });
+      const alvo = lojaId
+        ? (await tx.establishment.findFirst({ where: { id: lojaId }, select: { name: true } }))?.name
+        : (await tx.bankAccount.findFirst({ where: { id: contaId as string }, select: { name: true } }))?.name;
+      await registrarNoHistorico(tx, ator, {
+        action: "caixa.saldo_inicial",
+        establishment_id: lojaId,
+        target_type: "caixa",
+        target_id: mov.id,
+        summary: lojaId
+          ? `Informou ${dinheiro(arred2(input.amount))} de saldo inicial na gaveta da ${alvo ?? "loja"}`
+          : `Informou ${dinheiro(arred2(input.amount))} de saldo inicial na conta ${alvo ?? ""}`.trim(),
+      });
+      return mov;
     });
     return ok(viewDoMovimento(m));
   } catch (err) {
@@ -995,6 +1077,12 @@ export async function listarRegrasCartaoAction(
   return ok(regras.map((r) => viewDaRegra(r, veConta)));
 }
 
+const ROTULO_FORMA: Record<FormaDeCartao, string> = {
+  debito: "débito",
+  credito_vista: "crédito à vista",
+  credito_parcelado: "crédito parcelado",
+};
+
 export type DefinirRegraCartaoInput = {
   establishment_id: string;
   kind: string;
@@ -1032,13 +1120,37 @@ export async function definirRegraCartaoAction(
     return fail("VALIDATION_ERROR", "Escolha uma conta bancária ativa para receber o cartão.", 422, "bank_account_id");
   }
 
-  const gravar = async () => {
-    const atual = await db.cardFeeRule.findFirst({ where: { establishment_id: loja.data.id, kind }, select: { id: true } });
-    const dados = { fee_pct: feePct, days: input.days, bank_account_id: conta.id, updated_by_user_id: ator.id };
-    return atual
-      ? db.cardFeeRule.update({ where: { id: atual.id }, data: dados, include: INCLUDE_REGRA })
-      : db.cardFeeRule.create({ data: scoped({ establishment_id: loja.data.id, kind, ...dados }), include: INCLUDE_REGRA });
-  };
+  const gravar = () =>
+    db.$transaction(async (tx) => {
+      const atual = await tx.cardFeeRule.findFirst({
+        where: { establishment_id: loja.data.id, kind },
+        include: { bank_account: { select: { name: true } } },
+      });
+      const dados = { fee_pct: feePct, days: input.days, bank_account_id: conta.id, updated_by_user_id: ator.id };
+      const gravada = atual
+        ? await tx.cardFeeRule.update({ where: { id: atual.id }, data: dados, include: INCLUDE_REGRA })
+        : await tx.cardFeeRule.create({
+            data: scoped({ establishment_id: loja.data.id, kind, ...dados }),
+            include: INCLUDE_REGRA,
+          });
+      await registrarNoHistorico(tx, ator, {
+        action: "cartao.regra",
+        establishment_id: loja.data.id,
+        target_type: "regra_cartao",
+        target_id: gravada.id,
+        summary: `${atual ? "Mudou" : "Criou"} a regra de ${ROTULO_FORMA[kind]} da ${gravada.establishment.name}: taxa de ${feePct.toLocaleString("pt-BR")}% em ${input.days} ${input.days === 1 ? "dia" : "dias"}`,
+        changes: diferencas(
+          {
+            fee_pct: atual ? decToNum(atual.fee_pct) : null,
+            days: atual?.days ?? null,
+            conta: atual?.bank_account.name ?? null,
+          },
+          { fee_pct: feePct, days: input.days, conta: gravada.bank_account.name },
+          { fee_pct: "Taxa (%)", days: "Prazo (dias)", conta: "Conta que recebe" },
+        ),
+      });
+      return gravada;
+    });
   try {
     return ok(viewDaRegra(await gravar(), true));
   } catch (err) {
@@ -1054,9 +1166,26 @@ export async function removerRegraCartaoAction(
 ): Promise<ActionResult<{ id: string }>> {
   const neg = await exigir(db, ator, "gestor_da_loja", "remover a regra de cartão");
   if (neg) return neg;
-  const regra = await db.cardFeeRule.findFirst({ where: { id }, select: { id: true, establishment_id: true } });
+  const regra = await db.cardFeeRule.findFirst({
+    where: { id },
+    include: { establishment: { select: { name: true } } },
+  });
   if (!regra || !(await lojaVisivel(db, ator, regra.establishment_id))) return NAO_ACHADO("Regra de cartão");
-  await db.cardFeeRule.delete({ where: { id: regra.id } });
+  await db.$transaction(async (tx) => {
+    await tx.cardFeeRule.delete({ where: { id: regra.id } });
+    await registrarNoHistorico(tx, ator, {
+      action: "cartao.regra_remover",
+      establishment_id: regra.establishment_id,
+      target_type: "regra_cartao",
+      target_id: regra.id,
+      summary: `Removeu a regra de ${ROTULO_FORMA[regra.kind as FormaDeCartao]} da ${regra.establishment.name}`,
+      changes: diferencas(
+        { fee_pct: decToNum(regra.fee_pct), days: regra.days },
+        { fee_pct: null, days: null },
+        { fee_pct: "Taxa (%)", days: "Prazo (dias)" },
+      ),
+    });
+  });
   return ok({ id: regra.id });
 }
 
@@ -1136,11 +1265,25 @@ export async function depositarChequeAction(
   if (!conta || conta.archived_at) {
     return fail("VALIDATION_ERROR", "Escolha a conta bancária onde o cheque foi depositado.", 422, "bank_account_id");
   }
-  const r = await db.emporioCheck.updateMany({
-    where: { id, status: "recebido" },
-    data: { status: "depositado", bank_account_id: conta.id, deposited_at: new Date(), updated_by_user_id: ator.id },
-  });
-  if (r.count === 0) return FORA_DE_ORDEM((await acharCheque(db, ator, id))?.status ?? "recebido");
+  try {
+    await db.$transaction(async (tx) => {
+      const r = await tx.emporioCheck.updateMany({
+        where: { id, status: "recebido" },
+        data: { status: "depositado", bank_account_id: conta.id, deposited_at: new Date(), updated_by_user_id: ator.id },
+      });
+      if (r.count === 0) throw new RecusaCaixa(FORA_DE_ORDEM("depositado"));
+      await registrarNoHistorico(tx, ator, {
+        action: "cheque.depositar",
+        establishment_id: cheque.establishment_id,
+        target_type: "cheque",
+        target_id: id,
+        summary: `Depositou o cheque ${cheque.number} de ${dinheiro(decToNum(cheque.amount) ?? 0)}`,
+      });
+    });
+  } catch (err) {
+    if (err instanceof RecusaCaixa) return FORA_DE_ORDEM((await acharCheque(db, ator, id))?.status ?? "recebido");
+    throw err;
+  }
   return chequePorId(db, id);
 }
 
@@ -1175,6 +1318,13 @@ export async function compensarChequeAction(
           check_id: cheque.id,
           created_by_user_id: ator.id,
         }),
+      });
+      await registrarNoHistorico(tx, ator, {
+        action: "cheque.compensar",
+        establishment_id: cheque.establishment_id,
+        target_type: "cheque",
+        target_id: id,
+        summary: `Compensou o cheque ${cheque.number} de ${dinheiro(decToNum(cheque.amount) ?? 0)}`,
       });
     });
   } catch (err) {
@@ -1212,6 +1362,13 @@ export async function chequeVoltouAction(
         },
       });
       if (r.count === 0) throw new RecusaCaixa(FORA_DE_ORDEM("devolvido"));
+      await registrarNoHistorico(tx, ator, {
+        action: "cheque.devolvido",
+        establishment_id: cheque.establishment_id,
+        target_type: "cheque",
+        target_id: id,
+        summary: `Marcou o cheque ${cheque.number} de ${dinheiro(decToNum(cheque.amount) ?? 0)} como devolvido: ${motivo}`,
+      });
       if (!cheque.financial_payment_id) return;
 
       // Como `cancelarPagamentoAction`: o pagamento sai e, se o lançamento
@@ -1410,6 +1567,17 @@ export async function transferirCaixaAction(
           direction: "entrada" as const,
         }),
       });
+      const nomeDe = async (lojaId: string | null, contaId: string | null) =>
+        lojaId
+          ? `gaveta da ${(await tx.establishment.findFirst({ where: { id: lojaId }, select: { name: true } }))?.name ?? "loja"}`
+          : `conta ${(await tx.bankAccount.findFirst({ where: { id: contaId as string }, select: { name: true } }))?.name ?? ""}`.trim();
+      await registrarNoHistorico(tx, ator, {
+        action: "caixa.transferir",
+        establishment_id: origem.data.lojaId ?? destino.data.lojaId,
+        target_type: "caixa",
+        target_id: transf.id,
+        summary: `Transferiu ${dinheiro(valorCent / 100)} da ${await nomeDe(origem.data.lojaId, origem.data.contaId)} para a ${await nomeDe(destino.data.lojaId, destino.data.contaId)}`,
+      });
       return transf;
     });
     return ok(viewDaTransferencia(t, false));
@@ -1497,6 +1665,16 @@ export async function conferirGavetaAction(
           }),
         });
       }
+      await registrarNoHistorico(tx, ator, {
+        action: "caixa.conferir",
+        establishment_id: loja.data.id,
+        target_type: "gaveta",
+        target_id: conferencia.id,
+        summary:
+          diffCent === 0
+            ? `Conferiu a gaveta da ${loja.data.name}: ${dinheiro(contadoCent / 100)}, sem diferença`
+            : `Conferiu a gaveta da ${loja.data.name}: ${dinheiro(contadoCent / 100)}, ${diffCent > 0 ? "sobra" : "falta"} de ${dinheiro(Math.abs(diffCent) / 100)}`,
+      });
       return conferencia.id;
     });
     const c = await db.cashCount.findFirst({ where: { id }, include: { establishment: { select: { name: true } } } });

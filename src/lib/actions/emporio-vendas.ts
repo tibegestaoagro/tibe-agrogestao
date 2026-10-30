@@ -1,6 +1,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
+import { dinheiro, itens as frasItens, registrarNoHistorico } from "@/lib/emporio/historico";
 import { decToNum, isoOrNull } from "@/lib/serialize";
 import { exigir, papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
@@ -55,6 +56,10 @@ const centavos = (n: number) => Math.round(Number((n * 100).toPrecision(12)));
 const numero = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 const dataValida = (d: unknown): d is Date => d instanceof Date && !Number.isNaN(d.getTime());
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+async function nomeDaLoja(tx: Pick<Tx, "establishment">, id: string): Promise<string> {
+  return (await tx.establishment.findFirst({ where: { id }, select: { name: true } }))?.name ?? "loja";
+}
 
 function ehErroUnico(e: unknown): boolean {
   return (e as { code?: unknown })?.code === "P2002";
@@ -1057,7 +1062,17 @@ export async function venderAction(
   if (!prep.ok) return prep;
 
   try {
-    const id = await runSerializableTenantTransaction(db, (tx) => gravarVenda(tx, ator, prep.data));
+    const id = await runSerializableTenantTransaction(db, async (tx) => {
+      const novaId = await gravarVenda(tx, ator, prep.data);
+      await registrarNoHistorico(tx, ator, {
+        action: "venda.criar",
+        establishment_id: prep.data.loja.id,
+        target_type: "venda",
+        target_id: novaId,
+        summary: `Vendeu ${dinheiro(prep.data.net)} na ${prep.data.loja.name} (${frasItens(prep.data.itens.length)})`,
+      });
+      return novaId;
+    });
     const v = await vendaPorId(db, id);
     return v ? ok({ ...v, replayed: false }) : NAO_ACHADO("Venda");
   } catch (err) {
@@ -1090,6 +1105,8 @@ export async function cancelarVendaAction(
       establishment_id: true,
       status: true,
       exchange_return_id: true,
+      net_amount: true,
+      establishment: { select: { name: true } },
       _count: { select: { returns: true } },
     },
   });
@@ -1114,6 +1131,13 @@ export async function cancelarVendaAction(
         data: { status: "cancelada", canceled_at: agora, canceled_by_user_id: ator.id, canceled_reason: motivo },
       });
       if (r.count === 0) throw new AbortarVenda(fail("SALE_CANCELED", "Essa venda já foi cancelada.", 409));
+      await registrarNoHistorico(tx, ator, {
+        action: "venda.cancelar",
+        establishment_id: venda.establishment_id,
+        target_type: "venda",
+        target_id: id,
+        summary: `Cancelou a venda de ${dinheiro(decToNum(venda.net_amount) ?? 0)} da ${venda.establishment.name}: ${motivo}`,
+      });
 
       // As aberturas ficam: a saca foi aberta de verdade.
       await tx.stockMovement.updateMany({
@@ -1502,12 +1526,22 @@ export async function devolverAction(
       if (!atual || atual.status === "cancelada") throw new AbortarVenda(fail("SALE_CANCELED", "Essa venda foi cancelada.", 409));
       const rev = validarItensDevolvidos(atual, input.items);
       if (!rev.ok) throw new AbortarVenda(rev);
-      return gravarDevolucao(tx, ator, atual, rev.data.linhas, {
+      const devolucaoId = await gravarDevolucao(tx, ator, atual, rev.data.linhas, {
         chave,
         refund_kind: input.refund_kind as "dinheiro" | "abater_fiado",
         totalCent: rev.data.totalCent,
         reason: motivo,
       });
+      await registrarNoHistorico(tx, ator, {
+        action: "venda.devolver",
+        establishment_id: atual.establishment_id,
+        target_type: "venda",
+        target_id: atual.id,
+        summary: `Devolveu ${dinheiro(rev.data.totalCent / 100)} (${frasItens(rev.data.linhas.length)}) de uma venda da ${await nomeDaLoja(tx, atual.establishment_id)}, ${
+          input.refund_kind === "dinheiro" ? "em dinheiro" : "abatendo do fiado"
+        }`,
+      });
+      return devolucaoId;
     });
     const v = await devolucaoPorId(db, id);
     return v ? ok({ ...v, replayed: false }) : NAO_ACHADO("Devolução");
@@ -1597,6 +1631,13 @@ export async function trocarAction(
         reason: motivo,
       });
       await gravarVenda(tx, ator, prep.data, { exchange_return_id: devolucaoId });
+      await registrarNoHistorico(tx, ator, {
+        action: "venda.trocar",
+        establishment_id: atual.establishment_id,
+        target_type: "venda",
+        target_id: atual.id,
+        summary: `Trocou itens de uma venda da ${prep.data.loja.name}: devolveu ${dinheiro(rev.data.totalCent / 100)} e vendeu ${dinheiro(prep.data.net)}`,
+      });
 
       // Se o devolvido passa da venda nova, a diferença sai da gaveta.
       const sobraCent = rev.data.totalCent - centavos(prep.data.troca);

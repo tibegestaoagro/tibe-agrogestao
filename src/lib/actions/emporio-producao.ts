@@ -3,6 +3,7 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum, isoOrNull } from "@/lib/serialize";
 import { exigir } from "@/lib/emporio/papel";
+import { registrarNoHistorico } from "@/lib/emporio/historico";
 import { runSerializableTenantTransaction } from "@/lib/financial";
 import { descreverQuantidade } from "@/lib/stock/units";
 import { custoMedio } from "@/lib/emporio/custo-medio";
@@ -214,6 +215,15 @@ export async function definirComposicaoAction(
           quantity: arred3(i.quantity),
         }),
       ),
+    });
+    const nomeProduto = (
+      await tx.emporioProduct.findFirst({ where: { id: produto.id }, select: { product: { select: { name: true } } } })
+    )?.product.name;
+    await registrarNoHistorico(tx, ator, {
+      action: "producao.receita",
+      target_type: "produto",
+      target_id: produto.id,
+      summary: `Definiu a composição de ${nomeProduto ?? "um produto"} (${input.items.length} ${input.items.length === 1 ? "componente" : "componentes"})`,
     });
   });
 
@@ -665,6 +675,13 @@ export async function produzirAction(
           }),
         });
       }
+      await registrarNoHistorico(tx, ator, {
+        action: "producao.produzir",
+        establishment_id: loja.data.id,
+        target_type: "producao",
+        target_id: entrada.id,
+        summary: `Produziu ${descreverQuantidade(produzido, produto.base_unit)} de ${produto.product.name} na ${loja.data.name}`,
+      });
       return entrada.id;
     });
     const v = await viewPorId(db, id);
@@ -698,8 +715,8 @@ export async function cancelarProducaoAction(
   const prod = await db.productionEntry.findFirst({
     where: { id },
     include: {
-      establishment: { select: { allow_negative_stock: true } },
-      emporio_product: { select: { product_id: true, base_unit: true } },
+      establishment: { select: { allow_negative_stock: true, name: true } },
+      emporio_product: { select: { product_id: true, base_unit: true, product: { select: { name: true } } } },
     },
   });
   if (!prod || (visiveis && !visiveis.has(prod.establishment_id))) return NAO_ACHADO("Produção");
@@ -736,6 +753,13 @@ export async function cancelarProducaoAction(
       await tx.stockMovement.updateMany({
         where: { production_id: id, canceled_at: null },
         data: { canceled_at: agora, canceled_reason: motivo },
+      });
+      await registrarNoHistorico(tx, ator, {
+        action: "producao.cancelar",
+        establishment_id: prod.establishment_id,
+        target_type: "producao",
+        target_id: id,
+        summary: `Cancelou a produção de ${prod.emporio_product.product.name} na ${prod.establishment.name}: ${motivo}`,
       });
     });
   } catch (err) {

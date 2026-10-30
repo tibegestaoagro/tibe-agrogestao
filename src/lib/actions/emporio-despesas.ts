@@ -3,6 +3,7 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum, isoOrNull } from "@/lib/serialize";
 import { exigir } from "@/lib/emporio/papel";
+import { diferencas, dinheiro, registrarNoHistorico } from "@/lib/emporio/historico";
 import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { acharLojaParaEscrita } from "@/lib/actions/emporio-estoque";
@@ -221,6 +222,28 @@ export async function listarRegrasVariaveisAction(
   return ok(rows.map(viewDaRegra));
 }
 
+const ROTULOS_REGRA: Record<string, string> = {
+  name: "Nome",
+  kind: "Tipo",
+  value: "Valor",
+  payment_kind: "Forma de pagamento",
+  arquivada: "Arquivada",
+};
+
+const camposDaRegraNoHistorico = (r: {
+  name: string;
+  kind: string;
+  value: unknown;
+  payment_kind: string | null;
+  archived_at: Date | null;
+}) => ({
+  name: r.name,
+  kind: r.kind,
+  value: decToNum(r.value),
+  payment_kind: r.payment_kind,
+  arquivada: r.archived_at !== null,
+});
+
 export type CriarRegraInput = {
   establishment_id: string;
   name: string;
@@ -244,9 +267,19 @@ export async function criarRegraVariavelAction(
   const dados = await validarRegra(db, (input ?? {}) as unknown as Record<string, unknown>);
   if (!dados.ok) return dados;
 
-  const criada = await db.variableExpenseRule.create({
-    data: scoped({ ...dados.data, establishment_id: loja.data.id, updated_by_user_id: ator.id }),
-    include: INCLUDE_REGRA,
+  const criada = await db.$transaction(async (tx) => {
+    const nova = await tx.variableExpenseRule.create({
+      data: scoped({ ...dados.data, establishment_id: loja.data.id, updated_by_user_id: ator.id }),
+      include: INCLUDE_REGRA,
+    });
+    await registrarNoHistorico(tx, ator, {
+      action: "despesa.regra_variavel",
+      establishment_id: loja.data.id,
+      target_type: "regra_despesa",
+      target_id: nova.id,
+      summary: `Criou a regra de despesa variável ${nova.name} na ${loja.data.name}`,
+    });
+    return nova;
   });
   return ok(viewDaRegra(criada));
 }
@@ -295,9 +328,28 @@ export async function editarRegraVariavelAction(
   }
 
   const arquivada = p.archived === undefined ? undefined : p.archived ? (atual.archived_at ?? new Date()) : null;
-  await db.variableExpenseRule.update({
-    where: { id },
-    data: { ...(dados ?? {}), ...(arquivada === undefined ? {} : { archived_at: arquivada }), updated_by_user_id: ator.id },
+  await db.$transaction(async (tx) => {
+    const nova = await tx.variableExpenseRule.update({
+      where: { id },
+      data: { ...(dados ?? {}), ...(arquivada === undefined ? {} : { archived_at: arquivada }), updated_by_user_id: ator.id },
+      include: INCLUDE_REGRA,
+    });
+    await registrarNoHistorico(tx, ator, {
+      action: "despesa.regra_variavel",
+      establishment_id: atual.establishment_id,
+      target_type: "regra_despesa",
+      target_id: id,
+      summary:
+        p.archived !== undefined && !mexeNaRegra
+          ? `${p.archived ? "Arquivou" : "Reativou"} a regra de despesa variável ${atual.name} na ${nova.establishment.name}`
+          : `Editou a regra de despesa variável ${atual.name} na ${nova.establishment.name}`,
+      changes: diferencas(
+        camposDaRegraNoHistorico(atual),
+        camposDaRegraNoHistorico(nova),
+        ROTULOS_REGRA,
+        { arquivada: (x) => (x ? "Sim" : "Não") },
+      ),
+    });
   });
   const v = await regraPorId(db, id);
   return v ? ok(v) : NAO_ACHADO("Regra");
@@ -541,6 +593,29 @@ async function comPagamento(tx: Tx, entryIds: string[]): Promise<Set<string>> {
   return new Set(pagos.map((p) => p.entry_id));
 }
 
+const ROTULOS_FIXA: Record<string, string> = {
+  name: "Nome",
+  category: "Categoria",
+  amount: "Valor",
+  due_day: "Dia do vencimento",
+  split_kind: "Divisão",
+  rateio: "Rateio entre lojas",
+};
+
+/** "Loja Centro: 60" por loja, para o antes e o depois do rateio. */
+async function rateioEmTexto(
+  tx: Pick<Tx, "establishment">,
+  splits: { establishment_id: string; value: number }[],
+): Promise<string[]> {
+  const lojas = await tx.establishment.findMany({
+    where: { id: { in: splits.map((x) => x.establishment_id) } },
+    select: { id: true, name: true },
+  });
+  return splits
+    .map((x) => `${lojas.find((l) => l.id === x.establishment_id)?.name ?? "loja"}: ${x.value}`)
+    .sort((a, b) => a.localeCompare(b, "pt-BR"));
+}
+
 export type CriarDespesaFixaInput = {
   name: string;
   category?: string | null;
@@ -593,6 +668,13 @@ export async function criarDespesaFixaAction(
         await criarOcorrencia(tx, t, s.establishment_id, somarMeses(inicio, n), partes.get(s.establishment_id) ?? 0);
       }
     }
+    await registrarNoHistorico(tx, ator, {
+      action: "despesa.fixa",
+      establishment_id: d.splits.length === 1 ? d.splits[0].establishment_id : null,
+      target_type: "despesa_fixa",
+      target_id: t.id,
+      summary: `Criou a despesa fixa ${d.name} de ${dinheiro(d.amount)} por mês`,
+    });
     return t.id;
   });
   const v = await fixaPorId(db, ator, id);
@@ -646,6 +728,31 @@ export async function editarDespesaFixaAction(
     await tx.fixedExpenseSplit.deleteMany({ where: { template_id: id } });
     await tx.fixedExpenseSplit.createMany({
       data: d.splits.map((s) => scoped({ template_id: id, establishment_id: s.establishment_id, value: s.value })),
+    });
+    const rateioAntes = await rateioEmTexto(
+      tx,
+      t.splits.map((s) => ({ establishment_id: s.establishment_id, value: decToNum(s.value) ?? 0 })),
+    );
+    const rateioDepois = await rateioEmTexto(tx, d.splits);
+    await registrarNoHistorico(tx, ator, {
+      action: "despesa.fixa",
+      establishment_id: d.splits.length === 1 ? d.splits[0].establishment_id : null,
+      target_type: "despesa_fixa",
+      target_id: id,
+      summary: `Editou a despesa fixa ${t.name}`,
+      changes: diferencas(
+        {
+          name: t.name,
+          category: t.category,
+          amount: decToNum(t.amount),
+          due_day: t.due_day,
+          split_kind: t.split_kind,
+          rateio: rateioAntes,
+        },
+        { name: d.name, category: d.category, amount: d.amount, due_day: d.due_day, split_kind: d.split_kind, rateio: rateioDepois },
+        ROTULOS_FIXA,
+        { amount: (x) => (x == null ? null : dinheiro(x as number)) },
+      ),
     });
 
     const ocorrencias = await tx.fixedExpenseOccurrence.findMany({
@@ -714,6 +821,13 @@ export async function encerrarDespesaFixaAction(
   const atual = mesAtualEmBrasilia();
   await transacaoLonga(db, async (tx) => {
     await tx.fixedExpenseTemplate.update({ where: { id }, data: { ended_at: new Date(), updated_by_user_id: ator.id } });
+    await registrarNoHistorico(tx, ator, {
+      action: "despesa.fixa",
+      establishment_id: t.splits.length === 1 ? t.splits[0].establishment_id : null,
+      target_type: "despesa_fixa",
+      target_id: id,
+      summary: `Encerrou a despesa fixa ${t.name}`,
+    });
     const futuras = await tx.fixedExpenseOccurrence.findMany({
       where: { template_id: id, period: { gt: primeiroDia(atual) } },
       select: { financial_entry_id: true },
@@ -762,6 +876,13 @@ export async function renovarDespesaFixaAction(
           if (await criarOcorrencia(tx, t, s.establishment_id, m, partes.get(s.establishment_id) ?? 0)) n++;
         }
       }
+      await registrarNoHistorico(tx, ator, {
+        action: "despesa.fixa",
+        establishment_id: splits.length === 1 ? splits[0].establishment_id : null,
+        target_type: "despesa_fixa",
+        target_id: id,
+        summary: `Renovou a despesa fixa ${t.name} (${n} ${n === 1 ? "conta nova" : "contas novas"})`,
+      });
       return n;
     });
     const v = await fixaPorId(db, ator, id);
@@ -936,6 +1057,20 @@ export async function corrigirDespesaAction(
           },
         });
       }
+      const nomeConta = viewDaConta(conta)?.name ?? "uma despesa";
+      await registrarNoHistorico(tx, ator, {
+        action: "despesa.corrigir",
+        establishment_id: conta.establishment_id,
+        target_type: "despesa",
+        target_id: conta.id,
+        summary: `Corrigiu o valor de ${nomeConta} para ${dinheiro(novo)}`,
+        changes: diferencas(
+          { amount: decToNum(conta.amount) },
+          { amount: novo },
+          { amount: "Valor" },
+          { amount: (x) => (x == null ? null : dinheiro(x as number)) },
+        ),
+      });
     });
   } catch (err) {
     if (err instanceof RecusaDespesa) return err.recusa;
@@ -1064,6 +1199,13 @@ export async function pagarDespesasAction(
         });
         pagos.push({ entry_id: c.id, amount: valor, financial_payment_id: fp.id });
       }
+      await registrarNoHistorico(tx, ator, {
+        action: "despesa.pagar",
+        establishment_id: lojaId ?? contas[0]?.establishment_id ?? null,
+        target_type: "despesa",
+        target_id: contas.length === 1 ? contas[0].id : null,
+        summary: `Pagou ${contas.length} ${contas.length === 1 ? "conta" : "contas"} de despesa (${dinheiro(totalCent / 100)})${lojaId ? " da gaveta" : " pela conta bancária"}`,
+      });
       return { pagos, totalCent };
     });
     return ok({

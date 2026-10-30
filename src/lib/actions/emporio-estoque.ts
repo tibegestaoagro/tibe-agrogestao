@@ -5,6 +5,7 @@ import { runSerializableTenantTransaction } from "@/lib/financial";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum } from "@/lib/serialize";
 import { exigir } from "@/lib/emporio/papel";
+import { diferencas, registrarNoHistorico } from "@/lib/emporio/historico";
 import { descreverQuantidade } from "@/lib/stock/units";
 import { custoMedio, deltaDaLoja, type MovimentoDeCusto } from "@/lib/emporio/custo-medio";
 import {
@@ -631,6 +632,14 @@ export async function implantarEstoqueAction(
       );
     }
     await tx.stockMovement.createMany({ data: dados });
+    const total = dados.reduce((soma, d) => soma + Number(d.quantity), 0);
+    await registrarNoHistorico(tx, ator, {
+      action: "estoque.implantar",
+      establishment_id: loja.data.id,
+      target_type: "produto",
+      target_id: p.id,
+      summary: `Informou o estoque inicial de ${p.product.name} na ${loja.data.name}: ${descreverQuantidade(arred3(total), p.base_unit)}`,
+    });
     return false;
   });
   if (jaTem) {
@@ -722,7 +731,21 @@ export async function registrarContagemAction(
         }),
       );
     }
-    if (dados.length > 0) await tx.stockMovement.createMany({ data: dados });
+    if (dados.length > 0) {
+      await tx.stockMovement.createMany({ data: dados });
+      await registrarNoHistorico(tx, ator, {
+        action: "estoque.contar",
+        establishment_id: loja.data.id,
+        target_type: "produto",
+        target_id: p.id,
+        summary: `Contou ${p.product.name} na ${loja.data.name} e ajustou o estoque: ${motivo}`,
+        changes: dados.map((d) => ({
+          campo: d.package_state === "lacrado" ? "Saldo lacrado" : "Saldo",
+          antes: descreverQuantidade(Number(d.previous_balance), p.base_unit),
+          depois: descreverQuantidade(Number(d.corrected_balance), p.base_unit),
+        })),
+      });
+    }
   });
   return saldoAtual(db, loja.data, p.id);
 }
@@ -826,6 +849,13 @@ export async function registrarPerdaAction(
         recorded_by_user_id: ator.id,
       }),
     });
+    await registrarNoHistorico(tx, ator, {
+      action: "estoque.perda",
+      establishment_id: loja.data.id,
+      target_type: "produto",
+      target_id: p.id,
+      summary: `Registrou perda de ${descreverQuantidade(base, p.base_unit)} de ${p.product.name} na ${loja.data.name} (${input.reason})`,
+    });
     return null;
   });
   if (recusa) {
@@ -881,12 +911,28 @@ export async function definirLimitesAction(
     max_qty: max === null ? null : arred3(max),
     updated_by_user_id: ator.id,
   };
-  await db.stockLimit.upsert({
-    where: {
-      establishment_id_emporio_product_id: { establishment_id: loja.data.id, emporio_product_id: p.id },
-    },
-    create: scoped({ establishment_id: loja.data.id, emporio_product_id: p.id, ...valores }),
-    update: valores,
+  const chaveLimite = {
+    establishment_id_emporio_product_id: { establishment_id: loja.data.id, emporio_product_id: p.id },
+  };
+  const limiteAntes = await db.stockLimit.findUnique({ where: chaveLimite });
+  await db.$transaction(async (tx) => {
+    await tx.stockLimit.upsert({
+      where: chaveLimite,
+      create: scoped({ establishment_id: loja.data.id, emporio_product_id: p.id, ...valores }),
+      update: valores,
+    });
+    await registrarNoHistorico(tx, ator, {
+      action: "estoque.limites",
+      establishment_id: loja.data.id,
+      target_type: "produto",
+      target_id: p.id,
+      summary: `Definiu os limites de estoque de ${p.product.name} na ${loja.data.name}`,
+      changes: diferencas(
+        { min_qty: decToNum(limiteAntes?.min_qty), max_qty: decToNum(limiteAntes?.max_qty) },
+        { min_qty: valores.min_qty, max_qty: valores.max_qty },
+        { min_qty: "Mínimo", max_qty: "Máximo" },
+      ),
+    });
   });
   return saldoAtual(db, loja.data, p.id);
 }
@@ -935,15 +981,25 @@ export async function encaminharParaListaAction(
     );
   }
 
-  const item = await db.shoppingItem.create({
-    data: scoped({
-      description: p.product.name,
-      product_id: p.product_id,
+  const item = await db.$transaction(async (tx) => {
+    const criado = await tx.shoppingItem.create({
+      data: scoped({
+        description: p.product.name,
+        product_id: p.product_id,
+        establishment_id: loja.data.id,
+        quantity: arred3(input.quantity),
+        unit: p.base_unit,
+        created_by_user_id: ator.id,
+      }),
+    });
+    await registrarNoHistorico(tx, ator, {
+      action: "estoque.reposicao",
       establishment_id: loja.data.id,
-      quantity: arred3(input.quantity),
-      unit: p.base_unit,
-      created_by_user_id: ator.id,
-    }),
+      target_type: "produto",
+      target_id: p.id,
+      summary: `Mandou ${descreverQuantidade(arred3(input.quantity), p.base_unit)} de ${p.product.name} para a lista de compra da ${loja.data.name}`,
+    });
+    return criado;
   });
   return ok({
     id: item.id,

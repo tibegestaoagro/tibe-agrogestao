@@ -4,6 +4,7 @@ import { decToNum, isoOrNull } from "@/lib/serialize";
 import { alcanceDeLeitura, exigir, lojasDoPapel, papelDoEmporio } from "@/lib/emporio/papel";
 import { precoSugerido, percentualEfetivo } from "@/lib/emporio/preco";
 import { findUnit } from "@/lib/stock/units";
+import { diferencas, dinheiro, registrarNoHistorico } from "@/lib/emporio/historico";
 import type { AppUserRole } from "@/types/next-auth";
 
 /**
@@ -204,6 +205,39 @@ async function validarLoja(
   return ok({ name: nome });
 }
 
+const ROTULOS_LOJA: Record<string, string> = {
+  name: "Nome",
+  address: "Endereço",
+  city: "Cidade",
+  responsible_user_id: "Responsável",
+  allow_negative_stock: "Estoque negativo liberado",
+  max_discount_pct: "Desconto máximo (%)",
+  default_expense_pct: "Despesas padrão (%)",
+  default_profit_pct: "Lucro padrão (%)",
+};
+
+function pegarLoja(e: {
+  name: string;
+  address: string | null;
+  city: string | null;
+  responsible_user_id: string | null;
+  allow_negative_stock: boolean;
+  max_discount_pct: unknown;
+  default_expense_pct: unknown;
+  default_profit_pct: unknown;
+}): Record<string, unknown> {
+  return {
+    name: e.name,
+    address: e.address,
+    city: e.city,
+    responsible_user_id: e.responsible_user_id,
+    allow_negative_stock: e.allow_negative_stock,
+    max_discount_pct: decToNum(e.max_discount_pct as never),
+    default_expense_pct: decToNum(e.default_expense_pct as never),
+    default_profit_pct: decToNum(e.default_profit_pct as never),
+  };
+}
+
 export async function criarEstabelecimentoAction(
   db: TenantPrismaClient,
   ator: Ator,
@@ -216,18 +250,28 @@ export async function criarEstabelecimentoAction(
   if (!v.ok) return v;
 
   try {
-    const e = await db.establishment.create({
-      data: scoped({
-        name: v.data.name as string,
-        address: input.address?.trim() || null,
-        city: input.city?.trim() || null,
-        responsible_user_id: input.responsible_user_id ?? null,
-        allow_negative_stock: input.allow_negative_stock ?? false,
-        max_discount_pct: input.max_discount_pct ?? null,
-        default_expense_pct: input.default_expense_pct ?? null,
-        default_profit_pct: input.default_profit_pct ?? null,
-      }),
-      include: INCLUDE_LOJA,
+    const e = await db.$transaction(async (tx) => {
+      const criada = await tx.establishment.create({
+        data: scoped({
+          name: v.data.name as string,
+          address: input.address?.trim() || null,
+          city: input.city?.trim() || null,
+          responsible_user_id: input.responsible_user_id ?? null,
+          allow_negative_stock: input.allow_negative_stock ?? false,
+          max_discount_pct: input.max_discount_pct ?? null,
+          default_expense_pct: input.default_expense_pct ?? null,
+          default_profit_pct: input.default_profit_pct ?? null,
+        }),
+        include: INCLUDE_LOJA,
+      });
+      await registrarNoHistorico(tx, ator, {
+        action: "estabelecimento.criar",
+        establishment_id: criada.id,
+        target_type: "estabelecimento",
+        target_id: criada.id,
+        summary: `Criou o estabelecimento ${criada.name}`,
+      });
+      return criada;
     });
     return ok(viewEstabelecimento(e));
   } catch (err) {
@@ -257,7 +301,8 @@ export async function editarEstabelecimentoAction(
   if (!v.ok) return v;
 
   try {
-    const e = await db.establishment.update({
+    const e = await db.$transaction(async (tx) => {
+    const atualizada = await tx.establishment.update({
       where: { id },
       data: {
         ...(v.data.name !== undefined ? { name: v.data.name } : {}),
@@ -270,6 +315,24 @@ export async function editarEstabelecimentoAction(
         ...(input.default_profit_pct !== undefined ? { default_profit_pct: input.default_profit_pct } : {}),
       },
       include: INCLUDE_LOJA,
+    });
+    const mudancas = diferencas(
+      pegarLoja(atual),
+      pegarLoja(atualizada),
+      ROTULOS_LOJA,
+      { allow_negative_stock: (x) => (x ? "Sim" : "Não") },
+    );
+    if (mudancas.length > 0) {
+      await registrarNoHistorico(tx, ator, {
+        action: "estabelecimento.editar",
+        establishment_id: id,
+        target_type: "estabelecimento",
+        target_id: id,
+        summary: `Editou os dados da ${atualizada.name}`,
+        changes: mudancas,
+      });
+    }
+    return atualizada;
     });
     return ok(viewEstabelecimento(e));
   } catch (err) {
@@ -293,10 +356,20 @@ export async function arquivarEstabelecimentoAction(
   if (visiveis && !visiveis.has(id)) return NAO_ACHADO("Estabelecimento");
   const atual = await db.establishment.findFirst({ where: { id } });
   if (!atual) return NAO_ACHADO("Estabelecimento");
-  const e = await db.establishment.update({
-    where: { id },
-    data: { archived_at: archived ? (atual.archived_at ?? new Date()) : null },
-    include: INCLUDE_LOJA,
+  const e = await db.$transaction(async (tx) => {
+    const atualizada = await tx.establishment.update({
+      where: { id },
+      data: { archived_at: archived ? (atual.archived_at ?? new Date()) : null },
+      include: INCLUDE_LOJA,
+    });
+    await registrarNoHistorico(tx, ator, {
+      action: "estabelecimento.arquivar",
+      establishment_id: id,
+      target_type: "estabelecimento",
+      target_id: id,
+      summary: `${archived ? "Arquivou" : "Reativou"} o estabelecimento ${atual.name}`,
+    });
+    return atualizada;
   });
   return ok(viewEstabelecimento(e));
 }
@@ -328,6 +401,15 @@ export async function definirVinculosAction(
     }
   }
 
+  const nomesDe = async (ids: string[]) =>
+    (await db.user.findMany({ where: { id: { in: ids } }, select: { name: true }, orderBy: { name: "asc" } })).map(
+      (u) => u.name,
+    );
+  const antesIds = (await db.userEstablishment.findMany({ where: { establishment_id }, select: { user_id: true } })).map(
+    (v) => v.user_id,
+  );
+  const [nomesAntes, nomesDepois] = await Promise.all([nomesDe(antesIds), nomesDe(unicos)]);
+
   await db.$transaction(async (tx) => {
     await tx.userEstablishment.deleteMany({ where: { establishment_id } });
     if (unicos.length > 0) {
@@ -335,6 +417,14 @@ export async function definirVinculosAction(
         data: unicos.map((user_id) => scoped({ user_id, establishment_id })),
       });
     }
+    await registrarNoHistorico(tx, ator, {
+      action: "vinculos.definir",
+      establishment_id,
+      target_type: "estabelecimento",
+      target_id: establishment_id,
+      summary: `Definiu quem trabalha na ${loja.name} (${unicos.length} ${unicos.length === 1 ? "pessoa" : "pessoas"})`,
+      changes: diferencas({ pessoas: nomesAntes }, { pessoas: nomesDepois }, { pessoas: "Quem trabalha na loja" }),
+    });
   });
 
   const e = await db.establishment.findFirst({ where: { id: establishment_id }, include: INCLUDE_LOJA });
@@ -822,6 +912,12 @@ export async function criarProdutoEmporioAction(
           }),
         });
         await fechadaAutomatica(tx, ep.id);
+        await registrarNoHistorico(tx, ator, {
+          action: "produto.criar",
+          target_type: "produto",
+          target_id: ep.id,
+          summary: `Colocou o produto ${produto.name} no Empório`,
+        });
         return ep.id;
       });
     } catch (err) {
@@ -861,6 +957,12 @@ export async function criarProdutoEmporioAction(
           }),
         });
         await fechadaAutomatica(tx, ep.id);
+        await registrarNoHistorico(tx, ator, {
+          action: "produto.criar",
+          target_type: "produto",
+          target_id: ep.id,
+          summary: `Cadastrou o produto ${nome}`,
+        });
         return ep.id;
       });
     } catch (err) {
@@ -878,6 +980,19 @@ export async function criarProdutoEmporioAction(
 function mensagemProdutoRepetido(nome: string): string {
   return `Já existe um produto chamado "${nome}". Use o existente pelo "usar no Empório".`;
 }
+
+const ROTULOS_PRODUTO: Record<string, string> = {
+  brand: "Marca",
+  manufacturer: "Fabricante",
+  internal_code: "Código interno",
+  species: "Espécies",
+  reference_cost: "Custo de referência",
+  track_sealed: "Controla lacrado e avulso",
+  track_lot: "Controla lote",
+  track_expiry: "Controla validade",
+  expense_pct: "Despesas (%)",
+  profit_pct: "Lucro (%)",
+};
 
 export type EditarProdutoEmporioInput = {
   brand?: string | null;
@@ -933,12 +1048,13 @@ export async function editarProdutoEmporioAction(
   const codigo = input.internal_code !== undefined ? aparar(input.internal_code) : undefined;
   if (codigo && (await codigoRepetido(db, codigo, id))) return recusaCodigo(codigo);
 
+  const base = await db.product.findFirst({ where: { id: atual.product_id }, select: { name: true, brand: true } });
   try {
     await db.$transaction(async (tx) => {
       if (input.brand !== undefined) {
         await tx.product.update({ where: { id: atual.product_id }, data: { brand: aparar(input.brand) } });
       }
-      await tx.emporioProduct.update({
+      const depois = await tx.emporioProduct.update({
         where: { id },
         data: {
           updated_by_user_id: ator.id,
@@ -952,6 +1068,42 @@ export async function editarProdutoEmporioAction(
           ...(input.expense_pct !== undefined ? { expense_pct: input.expense_pct } : {}),
           ...(input.profit_pct !== undefined ? { profit_pct: input.profit_pct } : {}),
         },
+      });
+      const brandDepois = input.brand !== undefined ? aparar(input.brand) : (base?.brand ?? null);
+      const mudancas = diferencas(
+        {
+          brand: base?.brand ?? null,
+          manufacturer: atual.manufacturer,
+          internal_code: atual.internal_code,
+          species: [...atual.species].sort(),
+          reference_cost: decToNum(atual.reference_cost),
+          track_sealed: atual.track_sealed,
+          track_lot: atual.track_lot,
+          track_expiry: atual.track_expiry,
+          expense_pct: decToNum(atual.expense_pct),
+          profit_pct: decToNum(atual.profit_pct),
+        },
+        {
+          brand: brandDepois,
+          manufacturer: depois.manufacturer,
+          internal_code: depois.internal_code,
+          species: [...depois.species].sort(),
+          reference_cost: decToNum(depois.reference_cost),
+          track_sealed: depois.track_sealed,
+          track_lot: depois.track_lot,
+          track_expiry: depois.track_expiry,
+          expense_pct: decToNum(depois.expense_pct),
+          profit_pct: decToNum(depois.profit_pct),
+        },
+        ROTULOS_PRODUTO,
+        { reference_cost: (v) => (v == null ? null : dinheiro(v as number)) },
+      );
+      await registrarNoHistorico(tx, ator, {
+        action: "produto.editar",
+        target_type: "produto",
+        target_id: id,
+        summary: `Editou o produto ${base?.name ?? ""}`.trim(),
+        changes: mudancas,
       });
     });
   } catch (err) {
@@ -972,11 +1124,19 @@ export async function arquivarProdutoEmporioAction(
   if (typeof archived !== "boolean") {
     return fail("VALIDATION_ERROR", "Informe se é para arquivar ou desarquivar.", 422, "archived");
   }
-  const atual = await db.emporioProduct.findFirst({ where: { id } });
+  const atual = await db.emporioProduct.findFirst({ where: { id }, include: { product: { select: { name: true } } } });
   if (!atual) return NAO_ACHADO("Produto");
-  await db.emporioProduct.update({
-    where: { id },
-    data: { archived_at: archived ? (atual.archived_at ?? new Date()) : null, updated_by_user_id: ator.id },
+  await db.$transaction(async (tx) => {
+    await tx.emporioProduct.update({
+      where: { id },
+      data: { archived_at: archived ? (atual.archived_at ?? new Date()) : null, updated_by_user_id: ator.id },
+    });
+    await registrarNoHistorico(tx, ator, {
+      action: "produto.arquivar",
+      target_type: "produto",
+      target_id: id,
+      summary: `${archived ? "Arquivou" : "Reativou"} o produto ${atual.product.name}`,
+    });
   });
   return lerProdutoEmporioAction(db, ator, id);
 }
@@ -1055,15 +1215,25 @@ export async function criarApresentacaoAction(
   if (igual) return fail("DUPLICATE_NAME", `Esse produto já tem a apresentação "${igual.name}".`, 409, "name");
 
   try {
-    const a = await db.productPresentation.create({
-      data: scoped({
-        emporio_product_id,
-        name: nome,
-        base_qty: rb.base as number,
-        is_sealed_package: input.is_sealed_package ?? false,
-        created_by_user_id: ator.id,
-        updated_by_user_id: ator.id,
-      }),
+    const nomeProduto = (await db.product.findFirst({ where: { id: p.product_id }, select: { name: true } }))?.name;
+    const a = await db.$transaction(async (tx) => {
+      const criada = await tx.productPresentation.create({
+        data: scoped({
+          emporio_product_id,
+          name: nome,
+          base_qty: rb.base as number,
+          is_sealed_package: input.is_sealed_package ?? false,
+          created_by_user_id: ator.id,
+          updated_by_user_id: ator.id,
+        }),
+      });
+      await registrarNoHistorico(tx, ator, {
+        action: "apresentacao.criar",
+        target_type: "produto",
+        target_id: emporio_product_id,
+        summary: `Criou a apresentação ${nome} de ${nomeProduto ?? "um produto"}`,
+      });
+      return criada;
     });
     return ok(viewApresentacao(a, p.content_qty));
   } catch (err) {
@@ -1096,14 +1266,29 @@ export async function editarApresentacaoAction(
   if ("field" in rb) return fail("VALIDATION_ERROR", rb.message, 422, rb.field);
 
   try {
-    const a = await db.productPresentation.update({
-      where: { id },
-      data: {
-        updated_by_user_id: ator.id,
-        ...(nome !== undefined ? { name: nome } : {}),
-        ...(rb.base !== undefined ? { base_qty: rb.base } : {}),
-        ...(input.is_sealed_package !== undefined ? { is_sealed_package: input.is_sealed_package } : {}),
-      },
+    const a = await db.$transaction(async (tx) => {
+      const nova = await tx.productPresentation.update({
+        where: { id },
+        data: {
+          updated_by_user_id: ator.id,
+          ...(nome !== undefined ? { name: nome } : {}),
+          ...(rb.base !== undefined ? { base_qty: rb.base } : {}),
+          ...(input.is_sealed_package !== undefined ? { is_sealed_package: input.is_sealed_package } : {}),
+        },
+      });
+      await registrarNoHistorico(tx, ator, {
+        action: "apresentacao.editar",
+        target_type: "produto",
+        target_id: atual.emporio_product_id,
+        summary: `Editou a apresentação ${atual.name}`,
+        changes: diferencas(
+          { name: atual.name, base_qty: decToNum(atual.base_qty), is_sealed_package: atual.is_sealed_package },
+          { name: nova.name, base_qty: decToNum(nova.base_qty), is_sealed_package: nova.is_sealed_package },
+          { name: "Nome", base_qty: "Quantidade na unidade-base", is_sealed_package: "Embalagem fechada" },
+          { is_sealed_package: (v) => (v ? "Sim" : "Não") },
+        ),
+      });
+      return nova;
     });
     return ok(viewApresentacao(a, atual.emporio_product.content_qty));
   } catch (err) {
@@ -1125,9 +1310,18 @@ export async function arquivarApresentacaoAction(
   }
   const atual = await db.productPresentation.findFirst({ where: { id }, include: { emporio_product: true } });
   if (!atual) return NAO_ACHADO("Apresentação");
-  const a = await db.productPresentation.update({
-    where: { id },
-    data: { archived_at: archived ? (atual.archived_at ?? new Date()) : null, updated_by_user_id: ator.id },
+  const a = await db.$transaction(async (tx) => {
+    const nova = await tx.productPresentation.update({
+      where: { id },
+      data: { archived_at: archived ? (atual.archived_at ?? new Date()) : null, updated_by_user_id: ator.id },
+    });
+    await registrarNoHistorico(tx, ator, {
+      action: "apresentacao.arquivar",
+      target_type: "produto",
+      target_id: atual.emporio_product_id,
+      summary: `${archived ? "Arquivou" : "Reativou"} a apresentação ${atual.name}`,
+    });
+    return nova;
   });
   return ok(viewApresentacao(a, atual.emporio_product.content_qty));
 }
@@ -1180,19 +1374,44 @@ export async function definirPrecoAction(
     profit_pct: input.profit_pct ?? null,
     updated_by_user_id: ator.id,
   };
-  const linha = await db.presentationPrice.upsert({
-    where: {
-      establishment_id_presentation_id: {
-        establishment_id: input.establishment_id,
-        presentation_id: input.presentation_id,
-      },
-    },
-    create: scoped({
+  const chave = {
+    establishment_id_presentation_id: {
       establishment_id: input.establishment_id,
       presentation_id: input.presentation_id,
-      ...valores,
-    }),
-    update: valores,
+    },
+  };
+  const anterior = await db.presentationPrice.findUnique({ where: chave });
+  const linha = await db.$transaction(async (tx) => {
+    const gravada = await tx.presentationPrice.upsert({
+      where: chave,
+      create: scoped({
+        establishment_id: input.establishment_id,
+        presentation_id: input.presentation_id,
+        ...valores,
+      }),
+      update: valores,
+    });
+    const mudancas = diferencas(
+      {
+        price: decToNum(anterior?.price),
+        expense_pct: decToNum(anterior?.expense_pct),
+        profit_pct: decToNum(anterior?.profit_pct),
+      },
+      { price: decToNum(gravada.price), expense_pct: decToNum(gravada.expense_pct), profit_pct: decToNum(gravada.profit_pct) },
+      { price: "Preço", expense_pct: "Despesas (%)", profit_pct: "Lucro (%)" },
+      { price: (v) => (v == null ? null : dinheiro(v as number)) },
+    );
+    await registrarNoHistorico(tx, ator, {
+      action: "preco.definir",
+      establishment_id: input.establishment_id,
+      target_type: "produto",
+      target_id: ap.emporio_product_id,
+      summary: `Mudou o preço ${ap.name ? `da ${ap.name}` : "de um produto"} na ${loja.name}${
+        gravada.price != null ? ` para ${dinheiro(Number(gravada.price))}` : ""
+      }`,
+      changes: mudancas,
+    });
+    return gravada;
   });
   return ok({
     establishment_id: linha.establishment_id,

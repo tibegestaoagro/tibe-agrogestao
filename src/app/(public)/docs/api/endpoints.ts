@@ -608,6 +608,14 @@ export const GROUPS: Group[] = [
       },
       {
         method: "GET",
+        path: "/api/v1/emporio/history",
+        auth: "Sessão · emporio:read · dono, gerente geral e gestor (vendedor e quem não tem função: 403 `FORBIDDEN`) · perfil emporio · recurso `emporio` liberado",
+        description: "O Histórico do Empório (Q134): toda escrita do Empório e da Equipe, do mais novo para o mais antigo, só de acréscimo. Dono e gerente geral veem tudo; o gestor, só as linhas das lojas dele (as sem loja ficam de fora). Filtros em query: `user_id`, `establishment_id`, `de` e `ate` (data e hora ISO, ou AAAA-MM-DD para o dia inteiro em Brasília), `action` (chave do catálogo, como `venda.criar`; desconhecida: 422 no campo), `cursor` e `limite` (padrão 50, máximo 200; mais que isso vira 200). Filtro inválido: 422 `VALIDATION_ERROR` no campo. Cada linha traz `action_label` (rótulo em português), `summary` (a frase), `changes` (`[{ campo, antes, depois }]` nas edições, senão nulo) e `link` (caminho do painel quando há tela para o alvo). `next_cursor` vem nulo na última página.",
+        response: `200
+{ "data": { "items": [{ "id": "cl...", "created_at": "2026-10-30T12:00:00.000Z", "user_id": "cl...", "user_name": "Ana", "establishment_id": "cl...", "establishment_name": "Loja Centro", "action": "preco.definir", "action_label": "Mudou um preço", "target_type": "produto", "target_id": "cl...", "summary": "Mudou o preço da Saca 10 kg na Loja Centro para R$ 12,00", "changes": [{ "campo": "Preço", "antes": "R$ 10,00", "depois": "R$ 12,00" }], "link": "/emporio/produtos/cl..." }], "next_cursor": null }, "meta": {} }`,
+      },
+      {
+        method: "GET",
         path: "/api/v1/emporio/production",
         auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
         description: "Lista as produções das lojas visíveis ao usuário, da mais recente. Filtros: `establishment_id` (loja fora do vínculo: 404), `emporio_product_id`, `status` (`ativa`, `cancelada`). Cada produção traz a cópia da composição usada, com a quantidade baixada de cada componente.",

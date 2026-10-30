@@ -2,7 +2,8 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { inviteUserAction } from "@/lib/actions/users";
 import { getSeatUsage, type SeatUsage } from "@/lib/seats";
-import { EMPORIO_KEY_IDS, exigir, papelDoEmporio, type PapelEmporio } from "@/lib/emporio/papel";
+import { EMPORIO_KEYS, EMPORIO_KEY_IDS, exigir, papelDoEmporio, type PapelEmporio } from "@/lib/emporio/papel";
+import { diferencas, registrarNoHistorico } from "@/lib/emporio/historico";
 import type { AppUserRole } from "@/types/next-auth";
 
 /**
@@ -46,6 +47,40 @@ type EstadoFinal = {
 
 async function exigirConta(db: TenantPrismaClient, ator: Ator, oQue: string) {
   return exigir(db, ator, "conta", oQue);
+}
+
+const NOME_DA_FUNCAO: Record<string, string> = {
+  gerente_geral: "gerente geral",
+  gestor: "gestor",
+  vendedor: "vendedor",
+};
+
+const ROTULOS_EQUIPE: Record<string, string> = {
+  funcao: "Função",
+  lojas: "Lojas",
+  chaves: "Chaves ligadas",
+  so_emporio: "Acesso só ao Empório",
+};
+
+type FotoDoMembro = {
+  emporio_role: string | null;
+  emporio_only: boolean;
+  emporio_keys: string[];
+  establishment_ids: string[];
+};
+
+/** O estado do membro em palavras (função, lojas pelo nome, chaves pelo rótulo), para o antes e o depois. */
+async function fotoEmTexto(db: Pick<TenantPrismaClient, "establishment">, f: FotoDoMembro) {
+  const lojas = f.establishment_ids.length
+    ? await db.establishment.findMany({ where: { id: { in: f.establishment_ids } }, select: { name: true } })
+    : [];
+  const rotuloDaChave = (id: string) => EMPORIO_KEYS.find((k) => k.id === id)?.label ?? id;
+  return {
+    funcao: f.emporio_role ? (NOME_DA_FUNCAO[f.emporio_role] ?? f.emporio_role) : "sem função",
+    lojas: lojas.map((l) => l.name).sort((a, b) => a.localeCompare(b, "pt-BR")),
+    chaves: EMPORIO_KEY_IDS.filter((id) => f.emporio_keys.includes(id)).map(rotuloDaChave),
+    so_emporio: f.emporio_only,
+  };
 }
 
 const ehFuncao = (v: unknown): v is FuncaoEmporio => typeof v === "string" && FUNCOES.includes(v);
@@ -190,14 +225,20 @@ export async function cadastrarMembroAction(
   if (!convite.ok) return convite;
 
   const ids = funcao === "gerente_geral" ? [] : [...new Set(input.establishment_ids as string[])];
+  const gravado: FotoDoMembro & { emporio_role: FuncaoEmporio } = {
+    emporio_role: funcao,
+    emporio_only: funcao === "gerente_geral" && input.emporio_only === true,
+    emporio_keys: funcao === "vendedor" ? (input.emporio_keys ?? []) : [],
+    establishment_ids: ids,
+  };
   await db.$transaction(async (tx) => {
     await tx.user.update({
       where: { id: convite.data.id },
       data: {
         role: roleDaFuncao(funcao),
-        emporio_role: funcao,
-        emporio_only: funcao === "gerente_geral" && input.emporio_only === true,
-        emporio_keys: funcao === "vendedor" ? (input.emporio_keys ?? []) : [],
+        emporio_role: gravado.emporio_role,
+        emporio_only: gravado.emporio_only,
+        emporio_keys: gravado.emporio_keys,
       },
     });
     if (ids.length > 0) {
@@ -205,6 +246,18 @@ export async function cadastrarMembroAction(
         data: ids.map((establishment_id) => scoped({ user_id: convite.data.id, establishment_id })),
       });
     }
+    const depois = await fotoEmTexto(tx, gravado);
+    await registrarNoHistorico(tx, ator, {
+      action: "equipe.cadastrar",
+      target_type: "usuario",
+      target_id: convite.data.id,
+      summary: `Cadastrou ${name} na equipe como ${NOME_DA_FUNCAO[funcao]}`,
+      changes: diferencas(
+        { funcao: "sem função", lojas: [], chaves: [], so_emporio: false },
+        depois,
+        ROTULOS_EQUIPE,
+      ),
+    });
   });
 
   return ok(convite.data);
@@ -276,6 +329,12 @@ export async function alterarMembroAction(
   if (recusa) return recusa;
   const estado: EstadoFinal = { ...final, emporio_role: nova as FuncaoEmporio };
 
+  const antesEmTexto = await fotoEmTexto(db, {
+    emporio_role: atual,
+    emporio_only: alvo.emporio_only,
+    emporio_keys: alvo.emporio_keys,
+    establishment_ids: vinculosAtuais,
+  });
   await db.$transaction(async (tx) => {
     await tx.user.update({
       where: { id: userId },
@@ -293,6 +352,16 @@ export async function alterarMembroAction(
         data: ids.map((establishment_id) => scoped({ user_id: userId, establishment_id })),
       });
     }
+    const depoisEmTexto = await fotoEmTexto(tx, { ...estado, establishment_ids: ids });
+    await registrarNoHistorico(tx, ator, {
+      action: "equipe.alterar",
+      target_type: "usuario",
+      target_id: userId,
+      summary: `Alterou ${alvo.name} na equipe`,
+      changes: diferencas(antesEmTexto, depoisEmTexto, ROTULOS_EQUIPE, {
+        so_emporio: (x) => (x ? "Sim" : "Não"),
+      }),
+    });
   });
   return ok({ id: userId });
 }
@@ -304,8 +373,18 @@ export async function tirarDoEmporioAction(
 ): Promise<ActionResult<{ id: string }>> {
   const neg = await exigirConta(db, ator, "tirar alguém da equipe");
   if (neg) return neg;
-  const { neg: recusaAlvo } = await alvoPermitido(db, ator, userId);
-  if (recusaAlvo) return recusaAlvo;
+  const { alvo, neg: recusaAlvo } = await alvoPermitido(db, ator, userId);
+  if (recusaAlvo || !alvo) return recusaAlvo ?? fail("NOT_FOUND", "Usuário não encontrado.", 404);
+
+  const vinculosAntes = (
+    await db.userEstablishment.findMany({ where: { user_id: userId }, select: { establishment_id: true } })
+  ).map((v) => v.establishment_id);
+  const antesEmTexto = await fotoEmTexto(db, {
+    emporio_role: alvo.emporio_role,
+    emporio_only: alvo.emporio_only,
+    emporio_keys: alvo.emporio_keys,
+    establishment_ids: vinculosAntes,
+  });
 
   // Não mexe no papel da conta nem na ativação: quem sai da loja continua na fazenda.
   await db.$transaction(async (tx) => {
@@ -314,6 +393,18 @@ export async function tirarDoEmporioAction(
       data: { emporio_role: null, emporio_only: false, emporio_keys: [] },
     });
     await tx.userEstablishment.deleteMany({ where: { user_id: userId } });
+    await registrarNoHistorico(tx, ator, {
+      action: "equipe.tirar",
+      target_type: "usuario",
+      target_id: userId,
+      summary: `Tirou ${alvo.name} do Empório`,
+      changes: diferencas(
+        antesEmTexto,
+        { funcao: "sem função", lojas: [], chaves: [], so_emporio: false },
+        ROTULOS_EQUIPE,
+        { so_emporio: (x) => (x ? "Sim" : "Não") },
+      ),
+    });
   });
   return ok({ id: userId });
 }
