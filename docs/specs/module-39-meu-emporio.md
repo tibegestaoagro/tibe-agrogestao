@@ -1482,6 +1482,23 @@ mostra e edita os dados, e a apresentação de produto com conteúdo é
 informada no conteúdo ("quanto: 1 kg"). A lista de produtos ganha busca e
 filtro de espécie.
 
+#### Cenário de demonstração e manual (Q137, Q138): decisões de 30/10
+
+- **Conta:** a Da Mata de produção. O plano dela (`fazenda`, 2 assentos)
+  não comporta a Equipe; o usuário sobe para `grupo` (5 assentos) pelo fluxo
+  normal de assinatura, sem mexer no banco. A Equipe do cenário cabe em 5:
+  Dono, Gerente geral, um Gestor e dois Vendedores.
+- **Repetição:** rodar de novo só acrescenta o que falta (chaves de operação
+  fixas, busca por nome e email); nada é apagado em produção. Apagar o
+  cenário inteiro existe só no banco local.
+- **Script:** `scripts/cenario-demonstracao-emporio.ts`, chamando as
+  actions (nunca escrita direta no banco). Sem a conta e `--confirmar`
+  explícitos, só mostra o que faria. Emails fictícios em domínio reservado
+  (`example.com`), sem convite por email (o convite já não manda).
+- **Manual:** `/manual`, só para quem está logado, com o capítulo do
+  Empório aberto também ao só da loja. Prints só do cenário fictício,
+  tirados por roteiro de navegador versionado (o repositório é público).
+
 #### F6b: contrato (Equipe, funções, chaves, só da loja, transferência e Histórico)
 
 **Modelo.**
