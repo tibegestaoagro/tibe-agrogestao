@@ -2,7 +2,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum, isoOrNull } from "@/lib/serialize";
-import { hasMinRole } from "@/lib/permissions";
+import { exigir } from "@/lib/emporio/papel";
 import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { acharLojaParaEscrita } from "@/lib/actions/emporio-estoque";
@@ -33,9 +33,7 @@ import {
 
 type Tx = Prisma.TransactionClient;
 
-const NEGADO_ADMIN = () => fail("FORBIDDEN", "Só o dono e o administrador podem fazer isso.", 403);
 const NAO_ACHADO = (o: string, field?: string) => fail("NOT_FOUND", `${o} não encontrado.`, 404, field);
-const ehAdmin = (a: Ator) => hasMinRole(a.role, "ADMIN");
 
 const arred2 = (n: number) => Math.round(Number((n * 100).toPrecision(12))) / 100;
 const arred4 = (n: number) => Math.round(n * 10000) / 10000;
@@ -202,7 +200,8 @@ export async function listarRegrasVariaveisAction(
   ator: Ator,
   opts: { establishment_id?: string; incluir_arquivadas?: boolean } = {},
 ): Promise<ActionResult<RegraVariavelView[]>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "gestor_da_loja", "mexer nas despesas da loja");
+  if (neg) return neg;
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
     return NAO_ACHADO("Estabelecimento", "establishment_id");
@@ -238,7 +237,8 @@ export async function criarRegraVariavelAction(
   ator: Ator,
   input: CriarRegraInput,
 ): Promise<ActionResult<RegraVariavelView>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "gestor_da_loja", "mexer nas despesas da loja");
+  if (neg) return neg;
   const loja = await acharLojaParaEscrita(db, ator, input?.establishment_id);
   if (!loja.ok) return loja;
   const dados = await validarRegra(db, (input ?? {}) as unknown as Record<string, unknown>);
@@ -259,7 +259,8 @@ export async function editarRegraVariavelAction(
   id: string,
   patch: EditarRegraInput,
 ): Promise<ActionResult<RegraVariavelView>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "gestor_da_loja", "mexer nas despesas da loja");
+  if (neg) return neg;
   const atual = await db.variableExpenseRule.findFirst({ where: { id } });
   if (!atual || !(await lojaVisivel(db, ator, atual.establishment_id))) return NAO_ACHADO("Regra");
 
@@ -392,7 +393,8 @@ export async function listarDespesasFixasAction(
   ator: Ator,
   opts: { incluir_encerradas?: boolean } = {},
 ): Promise<ActionResult<DespesaFixaView[]>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "gestor_da_loja", "mexer nas despesas da loja");
+  if (neg) return neg;
   const visiveis = await lojasDoAtor(db, ator);
   const linhas = await db.fixedExpenseTemplate.findMany({
     where: {
@@ -554,7 +556,8 @@ export async function criarDespesaFixaAction(
   ator: Ator,
   input: CriarDespesaFixaInput,
 ): Promise<ActionResult<DespesaFixaView>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "gestor_da_loja", "mexer nas despesas da loja");
+  if (neg) return neg;
   const raw = (input ?? {}) as unknown as Record<string, unknown>;
   const dados = await validarFixa(db, ator, raw);
   if (!dados.ok) return dados;
@@ -604,7 +607,8 @@ export async function editarDespesaFixaAction(
   id: string,
   patch: EditarDespesaFixaInput,
 ): Promise<ActionResult<DespesaFixaView>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "gestor_da_loja", "mexer nas despesas da loja");
+  if (neg) return neg;
   const t = await fixaVisivelParaEscrita(db, ator, id);
   if (!t) return NAO_ACHADO("Despesa fixa");
   if (t.ended_at) return fail("EXPENSE_ENDED", "Essa despesa foi encerrada e não pode mais ser alterada.", 409);
@@ -701,7 +705,8 @@ export async function encerrarDespesaFixaAction(
   ator: Ator,
   id: string,
 ): Promise<ActionResult<DespesaFixaView>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "gestor_da_loja", "mexer nas despesas da loja");
+  if (neg) return neg;
   const t = await fixaVisivelParaEscrita(db, ator, id);
   if (!t) return NAO_ACHADO("Despesa fixa");
   if (t.ended_at) return fail("EXPENSE_ENDED", "Essa despesa já foi encerrada.", 409);
@@ -731,7 +736,8 @@ export async function renovarDespesaFixaAction(
   ator: Ator,
   id: string,
 ): Promise<ActionResult<DespesaFixaView & { created: number }>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "gestor_da_loja", "mexer nas despesas da loja");
+  if (neg) return neg;
   const t = await fixaVisivelParaEscrita(db, ator, id);
   if (!t) return NAO_ACHADO("Despesa fixa");
   if (t.ended_at) return fail("EXPENSE_ENDED", "Essa despesa foi encerrada: cadastre uma nova.", 409);
@@ -840,7 +846,8 @@ export async function listarContasAPagarAction(
     limit?: number;
   } = {},
 ): Promise<ActionResult<ContaAPagarView[]>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "gestor_da_loja", "mexer nas despesas da loja");
+  if (neg) return neg;
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
     return NAO_ACHADO("Estabelecimento", "establishment_id");
@@ -891,7 +898,8 @@ export async function corrigirDespesaAction(
   entry_id: string,
   input: { amount: number },
 ): Promise<ActionResult<ContaAPagarView>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "gestor_da_loja", "mexer nas despesas da loja");
+  if (neg) return neg;
   const conta = await acharContaDoEmporio(db, ator, entry_id);
   if (!conta) return NAO_ACHADO("Conta", "entry_id");
   if (!numero(input?.amount) || centavos(input.amount) <= 0) {
@@ -958,7 +966,8 @@ export async function pagarDespesasAction(
   ator: Ator,
   input: PagarDespesasInput,
 ): Promise<ActionResult<PagamentoDeContasView>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "gestor_da_loja", "mexer nas despesas da loja");
+  if (neg) return neg;
 
   const ids = Array.isArray(input?.entry_ids) ? input.entry_ids : [];
   if (ids.length === 0 || ids.some((i) => typeof i !== "string" || !i)) {

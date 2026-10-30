@@ -1,4 +1,5 @@
 import "./_env-local";
+import { papelDeFixture, vincularTodas, virarGestor } from "./_emporio-papel";
 import { exigirBancoLocal } from "./_banco-local";
 
 exigirBancoLocal();
@@ -101,7 +102,7 @@ async function comBanco() {
     tenantIds.push(t.id);
     const mkUser = async (suf: string, role: Role): Promise<Ator & { tenant_id: string }> => {
       const u = await prisma.user.create({
-        data: { tenant_id: t.id, name: `M85 ${rotulo} ${suf}`, email: `m85-${rotulo}-${suf}-${stamp}@teste.local`, password_hash: "x", role },
+        data: { tenant_id: t.id, name: `M85 ${rotulo} ${suf}`, email: `m85-${rotulo}-${suf}-${stamp}@teste.local`, password_hash: "x", role, ...papelDeFixture(role) },
       });
       return { id: u.id, role, tenant_id: t.id };
     };
@@ -114,6 +115,7 @@ async function comBanco() {
     const mkLoja = async (nome: string): Promise<{ id: string; name: string }> => {
       const r = await chamar(C, "criarEstabelecimentoAction", db, owner, { name: nome, kind: "ponto_venda" });
       if (!r.ok) throw new Error(`loja ${nome}: ${j(r)}`);
+      await vincularTodas(prisma, t.id, [op.id], [r.data.id]); // F6b: Vendedor só vê as lojas que tem
       return { id: r.data.id, name: nome };
     };
     const mkProduto = async (nome: string, unit = "quilograma") => {
@@ -155,6 +157,7 @@ async function comBanco() {
     // ================================================================ S: Meu Dia
     const S = await montar("S");
     const admA = await S.mkUser("admA", "ADMIN");
+    await virarGestor(prisma, admA.id); // Q118: o Gerente geral não é limitado por vínculo; o Gestor é
     const opA = await S.mkUser("opA", "OPERADOR");
     const agora = new Date();
     let temCenario = false;

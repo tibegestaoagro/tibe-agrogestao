@@ -1,4 +1,5 @@
 import "./_env-local";
+import { papelDeFixture, vincularTodas } from "./_emporio-papel";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { exigirBancoLocal } from "./_banco-local";
 
@@ -80,7 +81,7 @@ async function comBanco() {
       tenantIds.push(t.id);
       const mkUser = async (suf: string, role: Role): Promise<Ator> => {
         const u = await prisma.user.create({
-          data: { tenant_id: t.id, name: `M81 ${rotulo} ${suf}`, email: `m81-${rotulo}-${suf}-${stamp}@teste.local`, password_hash: "x", role },
+          data: { tenant_id: t.id, name: `M81 ${rotulo} ${suf}`, email: `m81-${rotulo}-${suf}-${stamp}@teste.local`, password_hash: "x", role, ...papelDeFixture(role) },
         });
         return { id: u.id, role };
       };
@@ -118,6 +119,7 @@ async function comBanco() {
     const L2 = dados(rL2);
     const L3 = dados(rL3);
     if (!L1 || !L2 || !L3) throw new Error(`não criou as lojas: ${j([rL1, rL2, rL3])}`);
+    await vincularTodas(prisma, TA.t.id, [op.id], [L1.id, L2.id, L3.id]); // F6b: Vendedor só vê as lojas que tem
     await prisma.establishment.update({ where: { id: L1.id }, data: { max_discount_pct: 10 } });
     await prisma.establishment.update({ where: { id: L3.id }, data: { allow_negative_stock: true } });
 
@@ -588,7 +590,8 @@ async function comBanco() {
     check("userO devolve venda da Loja 1: 404", recusa(await vv("devolverAction", userO, Sd, { operation_key: chave("dev"), refund_kind: "dinheiro", items: [{ sale_item_id: iSal.id, quantity: 1 }] }), "NOT_FOUND", 404));
     check("userO lê venda da Loja 1: 404", recusa(await vv("lerVendaAction", userO, Sd), "NOT_FOUND", 404));
     check("userO só lista vendas da Loja 2", lista(dados(await vv("listarVendasAction", userO))).every((s) => s.establishment_id === L2.id));
-    check("VISUALIZADOR lê vendas", (await vv("listarVendasAction", visu)).ok && (await vv("lerVendaAction", visu, Sd)).ok);
+    // Ajuste pela Q119: quem não tem função no Empório (o VISUALIZADOR) não vê venda alguma; antes lia.
+    check("VISUALIZADOR (sem função no Empório) não lê vendas: lista vazia e 404 na leitura", lista(dados(await vv("listarVendasAction", visu))).length === 0 && recusa(await vv("lerVendaAction", visu, Sd), "NOT_FOUND", 404));
 
     // ---------------------------------------------------------------- 15
     console.log("\n15. Isolamento: B não vê nem age sobre A");

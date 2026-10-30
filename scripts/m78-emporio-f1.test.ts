@@ -1,4 +1,5 @@
 import "./_env-local";
+import { papelDeFixture, virarGestor } from "./_emporio-papel";
 import { exigirBancoLocal } from "./_banco-local";
 
 exigirBancoLocal();
@@ -67,7 +68,7 @@ async function comBanco() {
       tenantIds.push(t.id);
       const mkUser = async (suf: string, role: Role): Promise<Ator> => {
         const u = await prisma.user.create({
-          data: { tenant_id: t.id, name: `M78 ${rotulo} ${suf}`, email: `m78-${rotulo}-${suf}-${stamp}@teste.local`, password_hash: "x", role },
+          data: { tenant_id: t.id, name: `M78 ${rotulo} ${suf}`, email: `m78-${rotulo}-${suf}-${stamp}@teste.local`, password_hash: "x", role, ...papelDeFixture(role) },
         });
         return { id: u.id, role };
       };
@@ -80,6 +81,8 @@ async function comBanco() {
     const op = await TA.mkUser("op", "OPERADOR");
     const visu = await TA.mkUser("vis", "VISUALIZADOR");
     const vinc = await TA.mkUser("vin", "ADMIN");
+    // Q118: o Gerente geral vê todas as lojas mesmo com vínculo; quem é limitado por vínculo é o Gestor.
+    await virarGestor(prisma, vinc.id);
     const ownerB = await TB.mkUser("own", "OWNER");
     const db = prismaForTenant(TA.t.id);
     const dbB = prismaForTenant(TB.t.id);
@@ -210,7 +213,12 @@ async function comBanco() {
     check("e a lista anterior permanece", dados(await chamar("lerEstabelecimentoAction", owner, L1.id))?.user_ids?.[0] === vinc.id);
     await chamar("definirVinculosAction", owner, L1.id, []);
     const volta = lista(dados(await chamar("listarEstabelecimentosAction", vinc))).map((e) => e.id);
-    check("vínculos vazios (substitui): o usuário volta a ver as duas", volta.includes(L1.id) && volta.includes(L2.id), j(volta));
+    // Ajuste pela Q118: antes, sem vínculo era "vê todas"; agora Gestor sem loja não vê nenhuma (o Gerente geral e o Dono veem todas, sempre).
+    check("vínculos vazios (substitui): o Gestor fica sem loja alguma (Q118)", volta.length === 0, j(volta));
+    await chamar("definirVinculosAction", owner, L1.id, [admin.id]);
+    const adminVinc = lista(dados(await chamar("listarEstabelecimentosAction", admin))).map((e) => e.id);
+    check("Gerente geral vinculado a uma loja ainda vê as duas (Q118)", adminVinc.includes(L1.id) && adminVinc.includes(L2.id), j(adminVinc));
+    await chamar("definirVinculosAction", owner, L1.id, []);
 
     console.log("\n7. Q57, lacrado e avulso automático");
     const rSal = await chamar("criarProdutoEmporioAction", op, { name: "M78 Sal", category_id: cat.id, base_unit: "quilograma" });

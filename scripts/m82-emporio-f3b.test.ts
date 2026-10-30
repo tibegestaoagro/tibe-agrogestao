@@ -1,4 +1,5 @@
 import "./_env-local";
+import { papelDeFixture, vincularTodas } from "./_emporio-papel";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { exigirBancoLocal } from "./_banco-local";
 
@@ -90,7 +91,7 @@ async function comBanco() {
       tenantIds.push(t.id);
       const mkUser = async (suf: string, role: Role): Promise<Ator> => {
         const u = await prisma.user.create({
-          data: { tenant_id: t.id, name: `M82 ${rotulo} ${suf}`, email: `m82-${rotulo}-${suf}-${stamp}@teste.local`, password_hash: "x", role },
+          data: { tenant_id: t.id, name: `M82 ${rotulo} ${suf}`, email: `m82-${rotulo}-${suf}-${stamp}@teste.local`, password_hash: "x", role, ...papelDeFixture(role) },
         });
         return { id: u.id, role };
       };
@@ -131,6 +132,7 @@ async function comBanco() {
     const L2 = dados(rL2);
     const L3 = dados(rL3);
     if (!L1 || !L2 || !L3) throw new Error(`não criou as lojas: ${j([rL1, rL2, rL3])}`);
+    await vincularTodas(prisma, TA.t.id, [op.id], [L1.id, L2.id, L3.id]); // F6b: Vendedor só vê as lojas que tem
 
     // ---- Produto de preço redondo (10 por quilo) para os totais saírem exatos
     const rP = await cc("criarProdutoEmporioAction", op, { name: "M82 Produto", category_id: cat.id, base_unit: "quilograma" });

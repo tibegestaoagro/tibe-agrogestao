@@ -1,7 +1,7 @@
 import type { TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum } from "@/lib/serialize";
-import { hasMinRole } from "@/lib/permissions";
+import { exigir } from "@/lib/emporio/papel";
 import { CATEGORIA_TAXAS_CARTAO } from "@/lib/emporio/cartao";
 import {
   diaDoInstante,
@@ -231,6 +231,8 @@ async function apurarLoja(db: TenantPrismaClient, lojaId: string, mes: MesCivil,
     where: {
       origin_establishment_id: lojaId,
       received_at: { gte: mesJanela.de, lt: mesJanela.ate },
+      // Q131: "não foi enviada" devolve a diferença ao saldo da origem, então não é perda.
+      OR: [{ resolution: null }, { resolution: "perda_no_caminho" }],
     },
     select: { items: { select: { sent_qty: true, received_qty: true, unit_cost: true } } },
   });
@@ -299,9 +301,8 @@ type Visao = {
 
 /** O que as três leituras do Resultado validam igual: papel, loja (ou "all") e mês. */
 async function lerVisao(db: TenantPrismaClient, ator: Ator, input: ResultadoInput): Promise<ActionResult<Visao>> {
-  if (!hasMinRole(ator.role, "ADMIN")) {
-    return fail("FORBIDDEN", "Só o dono e o administrador podem ver o resultado.", 403);
-  }
+  const neg = await exigir(db, ator, "gestor_da_loja", "ver o resultado da loja");
+  if (neg) return neg;
   const lojaId = typeof input?.establishment_id === "string" ? input.establishment_id.trim() : "";
   if (!lojaId) return fail("VALIDATION_ERROR", "Escolha o estabelecimento.", 422, "establishment_id");
   const mes = lerMes(input?.month);
@@ -314,7 +315,7 @@ async function lerVisao(db: TenantPrismaClient, ator: Ator, input: ResultadoInpu
     if (visiveis) {
       return fail(
         "FORBIDDEN",
-        "A visão de todas as lojas é só de quem não está ligado a uma loja específica.",
+        "Só o dono e o gerente geral veem a visão de todas as lojas.",
         403,
         "establishment_id",
       );

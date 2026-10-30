@@ -1,7 +1,7 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum, isoOrNull } from "@/lib/serialize";
-import { hasMinRole } from "@/lib/permissions";
+import { exigir } from "@/lib/emporio/papel";
 import { createLinkedEntry } from "@/lib/financial";
 import { lacradoEfetivo, lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 
@@ -19,10 +19,6 @@ export const CATEGORIA_MERCADORIAS = "Mercadorias para revenda";
 export const PAYMENT_KINDS = ["a_vista", "a_prazo", "parcelada"] as const;
 type PaymentKind = (typeof PAYMENT_KINDS)[number];
 
-const NEGADO_OPERADOR = () =>
-  fail("FORBIDDEN", "Seu perfil só permite consultar o Empório.", 403);
-const NEGADO_ADMIN = () =>
-  fail("FORBIDDEN", "Só o dono e o administrador podem fazer isso.", 403);
 const NAO_ACHADO = (o: string, field?: string) => fail("NOT_FOUND", `${o} não encontrado.`, 404, field);
 
 const centavos = (v: number) => Math.round(v * 100);
@@ -274,7 +270,8 @@ export async function criarCompraAction(
   ator: Ator,
   input: CompraInput,
 ): Promise<ActionResult<CompraView & { replayed: boolean }>> {
-  if (!hasMinRole(ator.role, "OPERADOR")) return NEGADO_OPERADOR();
+  const neg = await exigir(db, ator, "chave:lancar_compra", "lançar compra");
+  if (neg) return neg;
 
   const chave = String(input?.operation_key ?? "").trim();
   if (!chave) return fail("VALIDATION_ERROR", "Falta a chave da operação.", 422, "operation_key");
@@ -538,7 +535,8 @@ export async function receberCompraAction(
   id: string,
   input: { received_at?: Date | null } = {},
 ): Promise<ActionResult<CompraView>> {
-  if (!hasMinRole(ator.role, "OPERADOR")) return NEGADO_OPERADOR();
+  const neg = await exigir(db, ator, "vendedor_da_loja", "receber compra");
+  if (neg) return neg;
   const compra = await compraVisivel(db, ator, id);
   if (!compra) return NAO_ACHADO("Compra");
   if (compra.canceled_at) return fail("PURCHASE_CANCELED", "Essa compra foi cancelada.", 409);
@@ -594,7 +592,8 @@ export async function cancelarCompraAction(
   id: string,
   input: { reason: string },
 ): Promise<ActionResult<CompraView>> {
-  if (!hasMinRole(ator.role, "ADMIN")) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "gestor_da_loja", "cancelar uma compra");
+  if (neg) return neg;
   const compra = await compraVisivel(db, ator, id);
   if (!compra) return NAO_ACHADO("Compra");
   if (compra.canceled_at) return fail("ALREADY_CANCELED", "Essa compra já foi cancelada.", 409);

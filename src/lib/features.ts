@@ -10,8 +10,9 @@ import { getSessionUser, type SessionUser } from "@/lib/tenant-context";
  * Um recurso aparece para um usuário quando:
  *   1. existe `TenantFeature` habilitada para o tenant;
  *   2. a lista de usuários da feature está vazia (conta inteira) OU o usuário
- *      está nela;
- *   3. para `emporio`, o `TenantProfile` `emporio` do tenant está ativo.
+ *      está nela (não vale para `emporio`: ali manda a função, Q119);
+ *   3. para `emporio`, o `TenantProfile` `emporio` do tenant está ativo e o
+ *      usuário é OWNER ou tem `emporio_role`.
  */
 export const FEATURE_KEYS = ["emporio"] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
@@ -33,13 +34,20 @@ export const isFeatureVisibleForUser = perRequestCache(async function isFeatureV
   });
   if (!feature) return false;
 
-  const restritos = await db.tenantFeatureUser.findMany({
-    where: { tenant_feature_id: feature.id },
-    select: { user_id: true },
-  });
-  if (restritos.length > 0 && !restritos.some((r) => r.user_id === userId)) return false;
+  if (key !== "emporio") {
+    const restritos = await db.tenantFeatureUser.findMany({
+      where: { tenant_feature_id: feature.id },
+      select: { user_id: true },
+    });
+    if (restritos.length > 0 && !restritos.some((r) => r.user_id === userId)) return false;
+  }
 
   if (key === "emporio") {
+    const u = await db.user.findFirst({
+      where: { id: userId, active: true },
+      select: { role: true, emporio_role: true },
+    });
+    if (!u || (u.role !== "OWNER" && !u.emporio_role)) return false;
     const perfil = await db.tenantProfile.findFirst({
       where: { profile_type: "emporio", active: true },
       select: { id: true },

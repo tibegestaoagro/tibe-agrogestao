@@ -4,13 +4,14 @@ import { delegates } from "@/lib/prisma-delegates";
 import { runSerializableTenantTransaction } from "@/lib/financial";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum } from "@/lib/serialize";
-import { hasMinRole } from "@/lib/permissions";
+import { exigir } from "@/lib/emporio/papel";
 import { descreverQuantidade } from "@/lib/stock/units";
 import { custoMedio, deltaDaLoja, type MovimentoDeCusto } from "@/lib/emporio/custo-medio";
 import {
   INCLUDE_PRODUTO,
   lacradoEfetivo,
   lojasDoAtor,
+  lojasDeEstoque,
   type Ator,
   type ProdutoRow,
 } from "@/lib/actions/emporio-catalogo";
@@ -43,12 +44,7 @@ function ehMotivo(v: unknown): v is MotivoDePerda {
   return typeof v === "string" && (MOTIVOS_DE_PERDA as readonly string[]).includes(v);
 }
 
-const NEGADO_ADMIN = () => fail("FORBIDDEN", "Só o dono e o administrador podem fazer isso.", 403);
-const NEGADO_OPERADOR = () => fail("FORBIDDEN", "Seu perfil só permite consultar o Empório.", 403);
 const NAO_ACHADO = (o: string) => fail("NOT_FOUND", `${o} não encontrado.`, 404);
-
-const ehAdmin = (a: Ator) => hasMinRole(a.role, "ADMIN");
-const ehOperador = (a: Ator) => hasMinRole(a.role, "OPERADOR");
 
 const arred3 = (n: number) => Math.round(n * 1000) / 1000;
 const arred4 = (n: number) => Math.round(n * 10000) / 10000;
@@ -215,9 +211,14 @@ async function montarLinhas(
   const itensEmTransito = await c.stockTransferItem.findMany({
     where: {
       emporio_product_id: { in: epIds },
-      transfer: { status: "em_transito", destination_establishment_id: { in: lojaIds } },
+      transfer: { status: { in: ["em_transito", "aguardando_gestor"] }, destination_establishment_id: { in: lojaIds } },
     },
-    select: { emporio_product_id: true, sent_qty: true, transfer: { select: { destination_establishment_id: true } } },
+    select: {
+      emporio_product_id: true,
+      sent_qty: true,
+      received_qty: true,
+      transfer: { select: { destination_establishment_id: true } },
+    },
   });
 
   const limitePorPar = new Map(limites.map((l) => [`${l.establishment_id}|${l.emporio_product_id}`, l]));
@@ -228,7 +229,7 @@ async function montarLinhas(
   }
   for (const it of itensEmTransito) {
     const k = `${it.transfer.destination_establishment_id}|${it.emporio_product_id}`;
-    pendentePorPar.set(k, (pendentePorPar.get(k) ?? 0) + (decToNum(it.sent_qty) ?? 0));
+    pendentePorPar.set(k, (pendentePorPar.get(k) ?? 0) + (decToNum(it.received_qty ?? it.sent_qty) ?? 0));
   }
   const movsPorPar = new Map<string, MovimentoLido[]>();
   const epPorProductId = new Map(produtos.map((p) => [p.product_id, p]));
@@ -342,8 +343,13 @@ function consolidar(linhas: StockLine[]): ConsolidatedLine[] {
 }
 
 /** Lojas não arquivadas que o ator enxerga (vínculo, Q56). */
-async function lojasVisiveis(db: TenantPrismaClient, ator: Ator, incluirArquivadas = false): Promise<Loja[]> {
-  const visiveis = await lojasDoAtor(db, ator);
+async function lojasVisiveis(
+  db: TenantPrismaClient,
+  ator: Ator,
+  incluirArquivadas = false,
+  paraEstoque = false,
+): Promise<Loja[]> {
+  const visiveis = paraEstoque ? await lojasDeEstoque(db, ator) : await lojasDoAtor(db, ator);
   return db.establishment.findMany({
     where: {
       ...(incluirArquivadas ? {} : { archived_at: null }),
@@ -359,11 +365,12 @@ async function acharLoja(
   db: TenantPrismaClient,
   ator: Ator,
   id: unknown,
+  paraEstoque = false,
 ): Promise<ActionResult<Loja>> {
   if (typeof id !== "string" || !id) {
     return fail("VALIDATION_ERROR", "Escolha o estabelecimento.", 422, "establishment_id");
   }
-  const visiveis = await lojasDoAtor(db, ator);
+  const visiveis = paraEstoque ? await lojasDeEstoque(db, ator) : await lojasDoAtor(db, ator);
   if (visiveis && !visiveis.has(id)) return NAO_ACHADO("Estabelecimento");
   const loja = await db.establishment.findFirst({
     where: { id },
@@ -405,7 +412,8 @@ export async function saldoDaLojaAction(
   ator: Ator,
   establishment_id: string,
 ): Promise<ActionResult<StockLine[]>> {
-  const loja = await acharLoja(db, ator, establishment_id);
+  // Q128: o Gestor lê o estoque de qualquer loja.
+  const loja = await acharLoja(db, ator, establishment_id, true);
   if (!loja.ok) return loja;
   return ok(await montarLinhas(delegates(db), [loja.data]));
 }
@@ -417,7 +425,7 @@ export async function saldoDoProdutoAction(
 ): Promise<ActionResult<ProductStockView>> {
   const p = await acharProduto(db, emporio_product_id);
   if (!p.ok) return p;
-  const lojas = await lojasVisiveis(db, ator);
+  const lojas = await lojasVisiveis(db, ator, false, true);
   const stores = await montarLinhas(delegates(db), lojas, { emporio_product_id });
   const [consolidated] = consolidar(stores);
   return ok({
@@ -442,7 +450,7 @@ export async function estoqueConsolidadoAction(
   db: TenantPrismaClient,
   ator: Ator,
 ): Promise<ActionResult<ConsolidatedLine[]>> {
-  const lojas = await lojasVisiveis(db, ator);
+  const lojas = await lojasVisiveis(db, ator, false, true);
   const linhas = await montarLinhas(delegates(db), lojas);
   return ok(consolidar(linhas));
 }
@@ -555,7 +563,8 @@ export async function implantarEstoqueAction(
   ator: Ator,
   input: ImplantarInput,
 ): Promise<ActionResult<StockLine>> {
-  if (!ehOperador(ator)) return NEGADO_OPERADOR();
+  const neg = await exigir(db, ator, "chave:estoque_inicial", "informar o estoque inicial");
+  if (neg) return neg;
   const loja = await acharLojaParaEscrita(db, ator, input?.establishment_id);
   if (!loja.ok) return loja;
   const produto = await acharProduto(db, input?.emporio_product_id);
@@ -661,7 +670,8 @@ export async function registrarContagemAction(
   ator: Ator,
   input: ContagemInput,
 ): Promise<ActionResult<StockLine>> {
-  if (!ehOperador(ator)) return NEGADO_OPERADOR();
+  const neg = await exigir(db, ator, "chave:contagem", "fazer contagem");
+  if (neg) return neg;
   const loja = await acharLojaParaEscrita(db, ator, input?.establishment_id);
   if (!loja.ok) return loja;
   const produto = await acharProduto(db, input?.emporio_product_id);
@@ -733,7 +743,8 @@ export async function registrarPerdaAction(
   ator: Ator,
   input: PerdaInput,
 ): Promise<ActionResult<StockLine>> {
-  if (!ehOperador(ator)) return NEGADO_OPERADOR();
+  const neg = await exigir(db, ator, "chave:perda", "registrar perda");
+  if (neg) return neg;
   const loja = await acharLojaParaEscrita(db, ator, input?.establishment_id);
   if (!loja.ok) return loja;
   const produto = await acharProduto(db, input?.emporio_product_id);
@@ -840,7 +851,8 @@ export async function definirLimitesAction(
   ator: Ator,
   input: LimitesInput,
 ): Promise<ActionResult<StockLine>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "gestor_da_loja", "definir os limites de estoque");
+  if (neg) return neg;
   const loja = await acharLojaParaEscrita(db, ator, input?.establishment_id);
   if (!loja.ok) return loja;
   const produto = await acharProduto(db, input?.emporio_product_id);
@@ -896,7 +908,8 @@ export async function encaminharParaListaAction(
   ator: Ator,
   input: EncaminharInput,
 ): Promise<ActionResult<ShoppingItemView>> {
-  if (!ehOperador(ator)) return NEGADO_OPERADOR();
+  const neg = await exigir(db, ator, "gestor_da_loja", "encaminhar à Lista de Compra");
+  if (neg) return neg;
   const loja = await acharLojaParaEscrita(db, ator, input?.establishment_id);
   if (!loja.ok) return loja;
   const produto = await acharProduto(db, input?.emporio_product_id);

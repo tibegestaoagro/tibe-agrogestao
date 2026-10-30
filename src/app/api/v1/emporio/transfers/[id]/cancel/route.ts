@@ -5,7 +5,7 @@ import { withApi } from "@/lib/route";
 import { cancelarTransferenciaAction } from "@/lib/actions/emporio-transferencias";
 import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
-/** POST /api/v1/emporio/transfers/:id/cancel  { reason }: só em trânsito, por quem enviou ou OWNER e ADMIN (Q73). */
+/** POST /api/v1/emporio/transfers/:id/cancel  { reason }: só em trânsito, por quem enviou, pelo Gestor da origem, Gerente geral ou Dono (Q130). */
 
 const schema = z.object({
   reason: z.string({ error: "Diga o motivo do cancelamento." }).trim().min(1, "Diga o motivo do cancelamento."),

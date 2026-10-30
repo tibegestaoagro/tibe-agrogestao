@@ -1,4 +1,5 @@
 import "./_env-local";
+import { papelDeFixture, vincularTodas, virarGestor } from "./_emporio-papel";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { exigirBancoLocal } from "./_banco-local";
 
@@ -193,7 +194,7 @@ async function comBanco() {
     tenantIds.push(t.id);
     const mkUser = async (suf: string, role: Role): Promise<Ator> => {
       const u = await prisma.user.create({
-        data: { tenant_id: t.id, name: `M84 ${rotulo} ${suf}`, email: `m84-${rotulo}-${suf}-${stamp}@teste.local`, password_hash: "x", role },
+        data: { tenant_id: t.id, name: `M84 ${rotulo} ${suf}`, email: `m84-${rotulo}-${suf}-${stamp}@teste.local`, password_hash: "x", role, ...papelDeFixture(role) },
       });
       return { id: u.id, role };
     };
@@ -212,6 +213,7 @@ async function comBanco() {
     const mkLoja = async (nome: string) => {
       const r = await cc("criarEstabelecimentoAction", owner, { name: `M84 ${rotulo} ${nome}`, kind: "ponto_venda" });
       if (!r.ok) throw new Error(`loja ${nome}: ${j(r)}`);
+      await vincularTodas(prisma, t.id, [op.id], [r.data.id]); // F6b: Vendedor só vê as lojas que tem
       return r.data as Dado;
     };
     const mkProduto = async (nome: string, unit = "quilograma") => {
@@ -293,6 +295,7 @@ async function comBanco() {
     const G = await montar("G");
     const B = await montar("B"); // sem dados: isolamento
     const admV = await G.mkUser("admv", "ADMIN");
+    await virarGestor(prisma, admV.id); // Q118: o Gerente geral não é limitado por vínculo; o Gestor é
     let g1 = "", g2 = "";
     const esperadoG = { vendas: 1500, custo: 700, margem: 800, perdas: 8, fixas: 3000, resultado: -2208, ponto: 5625 };
 
@@ -311,10 +314,11 @@ async function comBanco() {
       const c = await G.venda(G.op, L2.id, [G.item(P, 50)], [G.dinheiro(500)]);
       if (!a.ok || !b.ok || !c.ok) throw new Error(`vendas: ${j([a, b, c])}`);
       // transferência da G1 para a G2: 20 kg que chegam 18 (diferença 2 x custo 4 = R$ 8, perda só da origem)
-      const rEnv = await G.tt("enviarTransferenciaAction", G.op, { operation_key: chave("tr"), origin_establishment_id: L1.id, destination_establishment_id: L2.id, items: [{ emporio_product_id: P.id, quantity: 20 }] });
+      // F6b: enviar é do Gestor da origem para cima e receber a menos pede resolução (Q130, Q131): o Gerente geral faz os dois.
+      const rEnv = await G.tt("enviarTransferenciaAction", G.admin, { operation_key: chave("tr"), origin_establishment_id: L1.id, destination_establishment_id: L2.id, items: [{ emporio_product_id: P.id, quantity: 20 }] });
       const trId = dados(rEnv)?.id ?? dados(rEnv)?.transfer_id ?? "";
       const itT = await G.db.stockTransferItem.findMany({ where: { transfer_id: trId } });
-      const rRec = await G.tt("receberTransferenciaAction", G.op, trId, { items: itT.map((i) => ({ item_id: i.id, received_qty: 18, loss_reason: "avaria" })) });
+      const rRec = await G.tt("receberTransferenciaAction", G.admin, trId, { items: itT.map((i) => ({ item_id: i.id, received_qty: 18, loss_reason: "avaria" })), resolution: "perda_no_caminho", reason: "avaria no caminho" });
       if (!rEnv.ok || !rRec.ok) throw new Error(`transferência: ${j([rEnv, rRec])}`);
       // despesa fixa de R$ 3.000 dividida 50/50
       const rFx = await G.dd("criarDespesaFixaAction", G.admin, {
@@ -777,7 +781,8 @@ async function comBanco() {
 
       for (const [cam, url] of ROTAS) {
         const v = await chamarRota(tokenVisu, cam, url);
-        check(`VISUALIZADOR em ${cam}: 403`, v.status === 403, `${v.status}`);
+        // Ajuste pela Q119: sem função no Empório o recurso nem aparece (404), em vez do 403 de antes.
+        check(`VISUALIZADOR (sem função no Empório) em ${cam}: 404`, v.status === 404, `${v.status}`);
         const av = await chamarRota(tokenAdmV, cam, url);
         check(`ADMIN com vínculo em ${cam} com 'all': 403 ou 404`, av.status === 403 || av.status === 404, `${av.status}`);
       }

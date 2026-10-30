@@ -2,7 +2,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum, isoOrNull } from "@/lib/serialize";
-import { hasMinRole } from "@/lib/permissions";
+import { exigir, papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
 import { descreverQuantidade } from "@/lib/stock/units";
 import { custoMedio } from "@/lib/emporio/custo-medio";
@@ -44,12 +44,8 @@ import {
 export const CATEGORIA_VENDAS = "Vendas do Empório";
 export const CATEGORIA_DEVOLUCOES = "Devoluções de vendas do Empório";
 
-const NEGADO_ADMIN = () => fail("FORBIDDEN", "Só o dono e o administrador podem fazer isso.", 403);
-const NEGADO_OPERADOR = () => fail("FORBIDDEN", "Seu perfil só permite consultar o Empório.", 403);
 const NAO_ACHADO = (o: string, field?: string) => fail("NOT_FOUND", `${o} não encontrado.`, 404, field);
 
-const ehAdmin = (a: Ator) => hasMinRole(a.role, "ADMIN");
-const ehOperador = (a: Ator) => hasMinRole(a.role, "OPERADOR");
 
 const arred2 = (n: number) => Math.round(Number((n * 100).toPrecision(12))) / 100;
 const arred3 = (n: number) => Math.round(Number((n * 1000).toPrecision(14))) / 1000;
@@ -425,7 +421,8 @@ async function prepararVenda(
   input: VenderInput,
   opts: { valorTroca?: number } = {},
 ): Promise<ActionResult<Preparada>> {
-  if (!ehOperador(ator)) return NEGADO_OPERADOR();
+  const neg = await exigir(db, ator, "vendedor_da_loja", "vender");
+  if (neg) return neg;
   const chave = String(input?.operation_key ?? "").trim();
   if (!chave) return fail("VALIDATION_ERROR", "Falta a chave da operação.", 422, "operation_key");
 
@@ -524,10 +521,10 @@ async function prepararVenda(
     const pct = (descontoCent / baseCent) * 100;
     const limite = decToNum(lojaExtra?.max_discount_pct) ?? 0;
     if (pct > limite + 1e-9) {
-      if (!ehAdmin(ator)) {
+      if (!pode(await papelDoEmporio(db, ator), "gestor_da_loja", loja.data.id)) {
         return fail(
           "DISCOUNT_ABOVE_LIMIT",
-          `O desconto de ${pct.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}% passa do limite de ${limite.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}% desta loja. Peça a um administrador.`,
+          `O desconto de ${pct.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}% passa do limite de ${limite.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}% desta loja. Peça ao gestor da loja.`,
           403,
           "items",
         );
@@ -1043,7 +1040,8 @@ export async function venderAction(
   ator: Ator,
   input: VenderInput,
 ): Promise<ActionResult<VendaView & { replayed: boolean }>> {
-  if (!ehOperador(ator)) return NEGADO_OPERADOR();
+  const neg = await exigir(db, ator, "vendedor_da_loja", "vender");
+  if (neg) return neg;
   const chave = String(input?.operation_key ?? "").trim();
   if (!chave) return fail("VALIDATION_ERROR", "Falta a chave da operação.", 422, "operation_key");
 
@@ -1083,7 +1081,8 @@ export async function cancelarVendaAction(
   id: string,
   input: { reason: string },
 ): Promise<ActionResult<VendaView>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "gestor_da_loja", "cancelar uma venda");
+  if (neg) return neg;
   const venda = await db.emporioSale.findFirst({
     where: { id },
     select: {
@@ -1471,7 +1470,8 @@ export async function devolverAction(
   sale_id: string,
   input: DevolverInput,
 ): Promise<ActionResult<DevolucaoView & { replayed: boolean }>> {
-  if (!ehOperador(ator)) return NEGADO_OPERADOR();
+  const neg = await exigir(db, ator, "chave:devolver_trocar", "devolver uma venda");
+  if (neg) return neg;
   const chave = String(input?.operation_key ?? "").trim();
   if (!chave) return fail("VALIDATION_ERROR", "Falta a chave da operação.", 422, "operation_key");
 
@@ -1548,7 +1548,8 @@ export async function trocarAction(
   sale_id: string,
   input: TrocarInput,
 ): Promise<ActionResult<TrocaView>> {
-  if (!ehOperador(ator)) return NEGADO_OPERADOR();
+  const neg = await exigir(db, ator, "chave:devolver_trocar", "trocar uma venda");
+  if (neg) return neg;
   const chave = String(input?.operation_key ?? "").trim();
   if (!chave) return fail("VALIDATION_ERROR", "Falta a chave da operação.", 422, "operation_key");
 

@@ -2,7 +2,7 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { runSerializableTenantTransaction } from "@/lib/financial";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum, isoOrNull } from "@/lib/serialize";
-import { hasMinRole } from "@/lib/permissions";
+import { exigir, papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { descreverQuantidade } from "@/lib/stock/units";
 import { custoMedio } from "@/lib/emporio/custo-medio";
 import {
@@ -27,10 +27,19 @@ import {
  * recebimento grava uma `transferencia_entrada` por item no destino. O saldo
  * continua sendo a soma das movimentações (invariante 2). A diferença que não
  * chegou (Q74) NÃO vira movimentação: fica no item, como perda da origem.
+ *
+ * F6b (Q130, Q131): quem recebe a menos e não é Gestor do destino (nem Dono ou
+ * Gerente geral) deixa a transferência em `aguardando_gestor`, sem entrar nada
+ * no destino. A resolução é `perda_no_caminho` (a regra acima) ou
+ * `nao_enviada` (a diferença volta ao saldo da origem, como uma
+ * `transferencia_entrada` ligada à transferência, com o custo da saída).
  * Nunca gera lançamento financeiro. A validação é em TypeScript puro.
  */
 
-const NEGADO_OPERADOR = () => fail("FORBIDDEN", "Seu perfil só permite consultar o Empório.", 403);
+export const RESOLUCOES = ["perda_no_caminho", "nao_enviada"] as const;
+type Resolucao = (typeof RESOLUCOES)[number];
+const ehResolucao = (v: unknown): v is Resolucao => (RESOLUCOES as readonly unknown[]).includes(v);
+
 const NAO_ACHADO = (o: string, field?: string) => fail("NOT_FOUND", `${o} não encontrado.`, 404, field);
 const NAO_EM_TRANSITO = () =>
   fail("TRANSFER_NOT_IN_TRANSIT", "Essa transferência não está mais em trânsito.", 409);
@@ -63,14 +72,20 @@ export type TransferItemView = {
   unit_cost: number | null;
 };
 
+export type StatusDaTransferencia = "em_transito" | "aguardando_gestor" | "recebida" | "cancelada";
+
 export type TransferView = {
   id: string;
   origin_establishment_id: string;
   origin_name: string;
   destination_establishment_id: string;
   destination_name: string;
-  status: "em_transito" | "recebida" | "cancelada";
+  status: StatusDaTransferencia;
   operation_key: string;
+  resolution: Resolucao | null;
+  resolution_reason: string | null;
+  resolved_at: string | null;
+  resolved_by_user_id: string | null;
   sent_at: string;
   sent_by_user_id: string | null;
   received_at: string | null;
@@ -115,6 +130,10 @@ function montarView(t: Linha): TransferView {
     destination_name: t.destination.name,
     status: t.status,
     operation_key: t.operation_key,
+    resolution: t.resolution,
+    resolution_reason: t.resolution_reason,
+    resolved_at: isoOrNull(t.resolved_at),
+    resolved_by_user_id: t.resolved_by_user_id,
     sent_at: t.sent_at.toISOString(),
     sent_by_user_id: t.sent_by_user_id,
     received_at: isoOrNull(t.received_at),
@@ -164,7 +183,7 @@ export async function lerTransferenciaAction(
 export async function listarTransferenciasAction(
   db: TenantPrismaClient,
   ator: Ator,
-  opts: { establishment_id?: string; status?: "em_transito" | "recebida" | "cancelada"; limit?: number } = {},
+  opts: { establishment_id?: string; status?: StatusDaTransferencia; limit?: number } = {},
 ): Promise<ActionResult<TransferView[]>> {
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
@@ -187,7 +206,12 @@ export async function listarTransferenciasAction(
       ],
     });
   }
-  if (opts.status === "em_transito" || opts.status === "recebida" || opts.status === "cancelada") {
+  if (
+    opts.status === "em_transito" ||
+    opts.status === "aguardando_gestor" ||
+    opts.status === "recebida" ||
+    opts.status === "cancelada"
+  ) {
     e.push({ status: opts.status });
   }
   const limite = opts.limit && opts.limit > 0 ? Math.min(Math.floor(opts.limit), 500) : 200;
@@ -197,7 +221,8 @@ export async function listarTransferenciasAction(
 
 /**
  * Q33, Meu Dia: em trânsito há mais de 2 dias, só as transferências em que o
- * ator tem acesso às DUAS lojas.
+ * ator tem acesso às DUAS lojas. Q131: as `aguardando_gestor` entram, sem
+ * esperar dias, para quem resolve no destino (Gestor, Gerente geral, Dono).
  */
 export async function transferenciasParadasAction(
   db: TenantPrismaClient,
@@ -205,11 +230,18 @@ export async function transferenciasParadasAction(
   agora: Date = new Date(),
 ): Promise<ActionResult<TransferView[]>> {
   const visiveis = await lojasDoAtor(db, ator);
+  const papel = await papelDoEmporio(db, ator);
   const limite = new Date(agora.getTime() - DIAS_PARADA * 24 * 60 * 60 * 1000);
-  const linhas = await buscar(db, { status: "em_transito", sent_at: { lt: limite } });
+  const linhas = await buscar(db, {
+    OR: [{ status: "em_transito", sent_at: { lt: limite } }, { status: "aguardando_gestor" }],
+  });
   return ok(
     linhas
-      .filter((t) => !visiveis || (visiveis.has(t.origin_establishment_id) && visiveis.has(t.destination_establishment_id)))
+      .filter((t) =>
+        t.status === "aguardando_gestor"
+          ? pode(papel, "gestor_da_loja", t.destination_establishment_id)
+          : !visiveis || (visiveis.has(t.origin_establishment_id) && visiveis.has(t.destination_establishment_id)),
+      )
       .map(montarView),
   );
 }
@@ -243,7 +275,8 @@ export async function enviarTransferenciaAction(
   ator: Ator,
   input: EnviarTransferenciaInput,
 ): Promise<ActionResult<TransferView & { replayed: boolean }>> {
-  if (!hasMinRole(ator.role, "OPERADOR")) return NEGADO_OPERADOR();
+  const neg = await exigir(db, ator, "gestor_da_loja", "enviar uma transferência");
+  if (neg) return neg;
 
   const chave = String(input?.operation_key ?? "").trim();
   if (!chave) return fail("VALIDATION_ERROR", "Falta a chave da operação.", 422, "operation_key");
@@ -446,7 +479,140 @@ export async function enviarTransferenciaAction(
 
 export type ReceberTransferenciaInput = {
   items: { item_id: string; received_qty: number; loss_reason?: string | null }[];
+  /** Só vale para quem pode resolver (Gestor do destino, Gerente geral, Dono) e só quando chegou menos. */
+  resolution?: string | null;
+  reason?: string | null;
 };
+
+type ItemDaTransferencia = {
+  id: string;
+  emporio_product_id: string;
+  package_state: "lacrado" | "avulso" | null;
+  presentation_id: string | null;
+  sent_qty: unknown;
+  unit_cost: unknown;
+};
+
+type ItemDecidido = {
+  item: ItemDaTransferencia;
+  recebido: number;
+  motivo: (typeof MOTIVOS_DE_PERDA)[number] | null;
+};
+
+type ProdutoDaTransferencia = { id: string; product_id: string; base_unit: string };
+
+type TransferenciaComItens = {
+  id: string;
+  origin_establishment_id: string;
+  destination_establishment_id: string;
+  items: ItemDaTransferencia[];
+};
+
+/**
+ * Fecha a transferência: marca `recebida`, grava o que chegou por item, entra
+ * no destino o que chegou e, na resolução `nao_enviada`, devolve a diferença à
+ * origem como `transferencia_entrada` ligada à transferência (movimentação,
+ * nunca campo de saldo). Devolve false quando outra chamada já mudou o status.
+ */
+async function liquidar(
+  tx: Parameters<Parameters<TenantPrismaClient["$transaction"]>[0]>[0],
+  t: TransferenciaComItens,
+  statusAntes: "em_transito" | "aguardando_gestor",
+  decididos: ItemDecidido[],
+  porProduto: Map<string, ProdutoDaTransferencia>,
+  ator: Ator,
+  agora: Date,
+  recebedorId: string,
+  resolucao: { resolution: Resolucao; reason: string } | null,
+): Promise<boolean> {
+  // O filtro no update é o que impede o recebimento em dobro por duas chamadas simultâneas.
+  const r = await tx.stockTransfer.updateMany({
+    where: { id: t.id, status: statusAntes },
+    data: {
+      status: "recebida",
+      received_at: agora,
+      received_by_user_id: recebedorId,
+      ...(resolucao
+        ? {
+            resolution: resolucao.resolution,
+            resolution_reason: resolucao.reason,
+            resolved_at: agora,
+            resolved_by_user_id: ator.id,
+          }
+        : {}),
+    },
+  });
+  if (r.count === 0) return false;
+  for (const d of decididos) {
+    const p = porProduto.get(d.item.emporio_product_id);
+    if (!p) throw new Error("produto da transferência sumiu");
+    const falta = arred3((decToNum(d.item.sent_qty) ?? 0) - d.recebido);
+    await tx.stockTransferItem.update({
+      where: { id: d.item.id },
+      data: {
+        received_qty: d.recebido,
+        loss_reason: resolucao?.resolution === "nao_enviada" ? null : d.motivo,
+      },
+    });
+    if (d.recebido > 0) {
+      await tx.stockMovement.create({
+        data: scoped({
+          product_id: p.product_id,
+          establishment_id: t.destination_establishment_id,
+          property_id: null,
+          movement_type: "transferencia_entrada" as const,
+          quantity: d.recebido,
+          occurred_at: agora,
+          package_state: d.item.package_state,
+          presentation_id: d.item.presentation_id,
+          unit_cost: decToNum(d.item.unit_cost),
+          transfer_id: t.id,
+          recorded_by_user_id: ator.id,
+        }),
+      });
+    }
+    if (resolucao?.resolution === "nao_enviada" && falta > 0) {
+      await tx.stockMovement.create({
+        data: scoped({
+          product_id: p.product_id,
+          establishment_id: t.origin_establishment_id,
+          property_id: null,
+          movement_type: "transferencia_entrada" as const,
+          quantity: falta,
+          occurred_at: agora,
+          package_state: d.item.package_state,
+          presentation_id: d.item.presentation_id,
+          unit_cost: decToNum(d.item.unit_cost),
+          transfer_id: t.id,
+          notes: `Estorno da diferença (não foi enviada): ${resolucao.reason}`,
+          recorded_by_user_id: ator.id,
+        }),
+      });
+    }
+  }
+  return true;
+}
+
+async function produtosDe(db: TenantPrismaClient, t: TransferenciaComItens) {
+  const produtos = await db.emporioProduct.findMany({
+    where: { id: { in: [...new Set(t.items.map((i) => i.emporio_product_id))] } },
+    select: { id: true, product_id: true, base_unit: true },
+  });
+  return new Map(produtos.map((p) => [p.id, p]));
+}
+
+/** `resolution` e `reason` do corpo, ou a recusa no campo. */
+function lerResolucao(
+  resolution: unknown,
+  reason: unknown,
+): ActionResult<{ resolution: Resolucao; reason: string }> {
+  if (!ehResolucao(resolution)) {
+    return fail("VALIDATION_ERROR", "Diga como resolver: perda no caminho ou não foi enviada.", 422, "resolution");
+  }
+  const motivo = typeof reason === "string" ? reason.trim() : "";
+  if (!motivo) return fail("VALIDATION_ERROR", "Diga o motivo da resolução.", 422, "reason");
+  return ok({ resolution, reason: motivo });
+}
 
 export async function receberTransferenciaAction(
   db: TenantPrismaClient,
@@ -454,7 +620,8 @@ export async function receberTransferenciaAction(
   id: string,
   input: ReceberTransferenciaInput,
 ): Promise<ActionResult<TransferView>> {
-  if (!hasMinRole(ator.role, "OPERADOR")) return NEGADO_OPERADOR();
+  const neg = await exigir(db, ator, "vendedor_da_loja", "receber uma transferência");
+  if (neg) return neg;
   const visiveis = await lojasDoAtor(db, ator);
   const t = await db.stockTransfer.findFirst({ where: { id }, include: { items: true } });
   if (!t || (visiveis && !visiveis.has(t.destination_establishment_id))) return NAO_ACHADO("Transferência");
@@ -465,7 +632,8 @@ export async function receberTransferenciaAction(
   }
   const porItem = new Map(t.items.map((i) => [i.id, i]));
   const vistos = new Set<string>();
-  const decididos: { item: (typeof t.items)[number]; recebido: number; motivo: string | null }[] = [];
+  const decididos: ItemDecidido[] = [];
+  let chegouMenos = false;
   for (const r of input.items) {
     const item = porItem.get(r?.item_id);
     if (!item) return fail("VALIDATION_ERROR", "Um dos itens não pertence a essa transferência.", 422, "items");
@@ -479,29 +647,31 @@ export async function receberTransferenciaAction(
     if (recebido > enviado) {
       return fail("VALIDATION_ERROR", "Não se aceita mais do que foi enviado. Confira a quantidade recebida.", 422, "items");
     }
-    let motivo: string | null = null;
-    if (recebido < enviado) {
-      if (typeof r.loss_reason !== "string" || !(MOTIVOS_DE_PERDA as readonly string[]).includes(r.loss_reason)) {
-        return fail(
-          "VALIDATION_ERROR",
-          "Chegou menos do que foi enviado: escolha o motivo (vencido, avaria, furto, consumo próprio ou outro).",
-          422,
-          "items",
-        );
-      }
-      motivo = r.loss_reason;
+    const informado = r.loss_reason;
+    if (informado != null && !(MOTIVOS_DE_PERDA as readonly string[]).includes(informado)) {
+      return fail("VALIDATION_ERROR", "Motivo de perda inválido (vencido, avaria, furto, consumo próprio ou outro).", 422, "items");
     }
-    decididos.push({ item, recebido, motivo });
+    if (recebido < enviado) chegouMenos = true;
+    decididos.push({
+      item,
+      recebido,
+      motivo: recebido < enviado ? ((informado as ItemDecidido["motivo"]) ?? "outro") : null,
+    });
   }
   if (vistos.size !== t.items.length) {
     return fail("VALIDATION_ERROR", "Informe o que chegou de todos os itens.", 422, "items");
   }
 
-  const produtos = await db.emporioProduct.findMany({
-    where: { id: { in: [...new Set(t.items.map((i) => i.emporio_product_id))] } },
-    select: { id: true, product_id: true, base_unit: true },
-  });
-  const porProduto = new Map(produtos.map((p) => [p.id, p]));
+  const papel = await papelDoEmporio(db, ator);
+  const resolve = chegouMenos && pode(papel, "gestor_da_loja", t.destination_establishment_id);
+  let resolucao: { resolution: Resolucao; reason: string } | null = null;
+  if (resolve) {
+    const l = lerResolucao(input.resolution, input.reason);
+    if (!l.ok) return l;
+    resolucao = l.data;
+  }
+
+  const porProduto = await produtosDe(db, t);
   for (const d of decididos) {
     const p = porProduto.get(d.item.emporio_product_id);
     if (p?.base_unit === "unidade" && !Number.isInteger(d.recebido)) {
@@ -513,37 +683,23 @@ export async function receberTransferenciaAction(
   const agora = new Date();
   try {
     await db.$transaction(async (tx) => {
-      // O filtro no update é o que impede o recebimento em dobro por duas chamadas simultâneas.
-      const r = await tx.stockTransfer.updateMany({
-        where: { id, status: "em_transito" },
-        data: { status: "recebida", received_at: agora, received_by_user_id: ator.id },
-      });
-      if (r.count === 0) throw new Recusa();
-      for (const d of decididos) {
-        const p = porProduto.get(d.item.emporio_product_id);
-        if (!p) throw new Error("produto da transferência sumiu");
-        await tx.stockTransferItem.update({
-          where: { id: d.item.id },
-          data: { received_qty: d.recebido, loss_reason: d.motivo as (typeof MOTIVOS_DE_PERDA)[number] | null },
+      if (chegouMenos && !resolve) {
+        // Q131: nada entra no destino até o Gestor resolver; o que chegou fica guardado.
+        const r = await tx.stockTransfer.updateMany({
+          where: { id, status: "em_transito" },
+          data: { status: "aguardando_gestor", received_by_user_id: ator.id },
         });
-        if (d.recebido > 0) {
-          await tx.stockMovement.create({
-            data: scoped({
-              product_id: p.product_id,
-              establishment_id: t.destination_establishment_id,
-              property_id: null,
-              movement_type: "transferencia_entrada" as const,
-              quantity: d.recebido,
-              occurred_at: agora,
-              package_state: d.item.package_state,
-              presentation_id: d.item.presentation_id,
-              unit_cost: decToNum(d.item.unit_cost),
-              transfer_id: t.id,
-              recorded_by_user_id: ator.id,
-            }),
+        if (r.count === 0) throw new Recusa();
+        for (const d of decididos) {
+          await tx.stockTransferItem.update({
+            where: { id: d.item.id },
+            data: { received_qty: d.recebido, loss_reason: d.motivo },
           });
         }
+        return;
       }
+      const feito = await liquidar(tx, t, "em_transito", decididos, porProduto, ator, agora, ator.id, resolucao);
+      if (!feito) throw new Recusa();
     });
   } catch (err) {
     if (err instanceof Recusa) return NAO_EM_TRANSITO();
@@ -552,18 +708,112 @@ export async function receberTransferenciaAction(
   return lerTransferenciaAction(db, ator, id);
 }
 
+export type ResolverDiferencaInput = {
+  operation_key: string;
+  resolution: string;
+  reason: string;
+};
+
+/**
+ * Q131: o Gestor do destino (ou Gerente geral, Dono) resolve a diferença de uma
+ * transferência `aguardando_gestor`. Idempotente: a transferência não guarda a
+ * `operation_key`, então repetir é reconhecido por estar já resolvida, pela mesma
+ * pessoa, com a mesma resolução e o mesmo motivo (devolve a gravada).
+ */
+export async function resolverDiferencaAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  id: string,
+  input: ResolverDiferencaInput,
+): Promise<ActionResult<TransferView & { replayed: boolean }>> {
+  const neg = await exigir(db, ator, "gestor_da_loja", "resolver a diferença de uma transferência");
+  if (neg) return neg;
+  const chave = String(input?.operation_key ?? "").trim();
+  if (!chave) return fail("VALIDATION_ERROR", "Falta a chave da operação.", 422, "operation_key");
+
+  const visiveis = await lojasDoAtor(db, ator);
+  const t = await db.stockTransfer.findFirst({ where: { id }, include: { items: true } });
+  if (!t || (visiveis && !visiveis.has(t.destination_establishment_id))) return NAO_ACHADO("Transferência");
+
+  if (t.status !== "aguardando_gestor") {
+    const motivoRepetido = typeof input.reason === "string" ? input.reason.trim() : "";
+    if (
+      t.status === "recebida" &&
+      t.resolution !== null &&
+      t.resolution === input.resolution &&
+      t.resolution_reason === motivoRepetido &&
+      t.resolved_by_user_id === ator.id
+    ) {
+      const v = await viewDe(db, id);
+      if (v) return ok({ ...v, replayed: true });
+    }
+    return fail("TRANSFER_NOT_AWAITING", "Essa transferência não está aguardando o gestor.", 409);
+  }
+
+  const l = lerResolucao(input.resolution, input.reason);
+  if (!l.ok) return l;
+
+  const decididos: ItemDecidido[] = [];
+  for (const item of t.items) {
+    if (item.received_qty === null) {
+      return fail("VALIDATION_ERROR", "A transferência não tem o que chegou registrado.", 422, "items");
+    }
+    const recebido = decToNum(item.received_qty) ?? 0;
+    const enviado = decToNum(item.sent_qty) ?? 0;
+    decididos.push({
+      item,
+      recebido,
+      motivo: recebido < enviado ? (item.loss_reason ?? "outro") : null,
+    });
+  }
+  const porProduto = await produtosDe(db, t);
+
+  class Recusa extends Error {}
+  const agora = new Date();
+  try {
+    await db.$transaction(async (tx) => {
+      const feito = await liquidar(
+        tx,
+        t,
+        "aguardando_gestor",
+        decididos,
+        porProduto,
+        ator,
+        agora,
+        t.received_by_user_id ?? ator.id,
+        l.data,
+      );
+      if (!feito) throw new Recusa();
+    });
+  } catch (err) {
+    if (err instanceof Recusa) {
+      return fail("TRANSFER_NOT_AWAITING", "Essa transferência não está aguardando o gestor.", 409);
+    }
+    throw err;
+  }
+  const v = await viewDe(db, id);
+  return v ? ok({ ...v, replayed: false }) : NAO_ACHADO("Transferência");
+}
+
 export async function cancelarTransferenciaAction(
   db: TenantPrismaClient,
   ator: Ator,
   id: string,
   input: { reason: string },
 ): Promise<ActionResult<TransferView>> {
-  if (!hasMinRole(ator.role, "OPERADOR")) return NEGADO_OPERADOR();
+  const neg = await exigir(db, ator, "vendedor_da_loja", "cancelar uma transferência");
+  if (neg) return neg;
   const visiveis = await lojasDoAtor(db, ator);
   const t = await db.stockTransfer.findFirst({ where: { id } });
   if (!t || !visivel(visiveis, t)) return NAO_ACHADO("Transferência");
-  if (t.sent_by_user_id !== ator.id && !hasMinRole(ator.role, "ADMIN")) {
-    return fail("FORBIDDEN", "Só quem enviou, o dono ou o administrador podem cancelar a transferência.", 403);
+  // Q130: quem enviou, o Gestor da origem, o Gerente geral ou o Dono.
+  const papel = await papelDoEmporio(db, ator);
+  if (t.sent_by_user_id !== ator.id && !pode(papel, "gestor_da_loja", t.origin_establishment_id)) {
+    return fail(
+      "FORBIDDEN",
+      "Só quem enviou, o gestor da loja de origem, o gerente geral ou o dono podem cancelar a transferência.",
+      403,
+    );
   }
   if (t.status !== "em_transito") return NAO_EM_TRANSITO();
   const motivo = String(input?.reason ?? "").trim();

@@ -1,6 +1,6 @@
 import type { TenantPrismaClient } from "@/lib/prisma";
 import { decToNum } from "@/lib/serialize";
-import { hasMinRole } from "@/lib/permissions";
+import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { diasAte, inicioDoDiaEmSaoPaulo } from "@/lib/dia-calendario";
 import { isFeatureVisibleForUser } from "@/lib/features";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
@@ -32,7 +32,7 @@ export async function veEmporio(user: UsuarioDoDia): Promise<boolean> {
   return isFeatureVisibleForUser(user.tenant_id, user.id, "emporio");
 }
 
-/** As lojas do usuário: as do vínculo, ou todas as não arquivadas quando não há vínculo. */
+/** As lojas do usuário: as do vínculo (Gestor, Vendedor) ou todas as não arquivadas (Dono, Gerente geral). */
 async function lojasDoUsuario(db: TenantPrismaClient, ator: Ator): Promise<{ id: string; name: string }[]> {
   const visiveis = await lojasDoAtor(db, ator);
   return db.establishment.findMany({
@@ -57,7 +57,8 @@ export async function itensDoEmporioNoDia(
   if (lojas.length === 0) return [];
   const ids = lojas.map((l) => l.id);
   const nomeDaLoja = new Map(lojas.map((l) => [l.id, l.name]));
-  const ehAdmin = hasMinRole(ator.role, "ADMIN");
+  const papel = await papelDoEmporio(db, ator);
+  const ehAdmin = pode(papel, "gestor_da_loja");
   const itens: ItemDoDia[] = [];
 
   // --- emporio_pagar --------------------------------------------------------
@@ -80,7 +81,7 @@ export async function itensDoEmporioNoDia(
     if (!c.due_date || !c.establishment_id) continue;
     const ehCompra = c.category === CATEGORIA_MERCADORIAS && !!c.related_id;
     const ehDespesa = !!c.sale_variable_expense || !!c.fixed_occurrence;
-    // A tela de Despesas é só de ADMIN: o link nunca pode levar a um 403.
+    // A tela de Despesas é do Gestor da loja para cima: o link nunca pode levar a um 403.
     if (!ehCompra && !(ehDespesa && ehAdmin)) continue;
     const pago = c.payments.reduce((s, p) => s + centavos(decToNum(p.amount) ?? 0), 0);
     const saldo = centavos(decToNum(c.amount) ?? 0) - pago;
@@ -152,7 +153,7 @@ export async function itensDoEmporioNoDia(
   }
 
   // --- emporio_caixa --------------------------------------------------------
-  if (hasMinRole(ator.role, "OPERADOR")) {
+  if (pode(papel, "vendedor_da_loja")) {
     const hoje = inicioDoDiaEmSaoPaulo(agora);
     const inicio = new Date(inicioDoDiaEmInstante(hoje).getTime() - DIAS_DE_CAIXA * DIA_MS);
     const fim = inicioDoDiaEmInstante(hoje);
@@ -208,7 +209,7 @@ export async function itensDoEmporioNoDia(
 export type ResumoDoEmporio = {
   sales_today: number;
   fiado_open: number;
-  /** Só para ADMIN ou mais; nulo abaixo disso. */
+  /** Só para o Gestor da loja ou mais; nulo para o Vendedor. */
   payables_open: number | null;
 };
 
@@ -222,7 +223,7 @@ export async function resumoDoEmporio(
   const ids = lojas.map((l) => l.id);
   const inicio = inicioDoDiaEmInstante(inicioDoDiaEmSaoPaulo(agora));
   const fim = new Date(inicio.getTime() + DIA_MS);
-  const ehAdmin = hasMinRole(ator.role, "ADMIN");
+  const ehAdmin = pode(await papelDoEmporio(db, ator), "gestor_da_loja");
 
   const [vendas, fiado, pagar] = await Promise.all([
     db.emporioSale.aggregate({

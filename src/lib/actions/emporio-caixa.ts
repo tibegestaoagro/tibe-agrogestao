@@ -1,7 +1,7 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum, isoOrNull } from "@/lib/serialize";
-import { hasMinRole } from "@/lib/permissions";
+import { exigir, papelDoEmporio, pode, recusaDe } from "@/lib/emporio/papel";
 import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
 import { CATEGORIA_DIFERENCA_CAIXA, hojeEmBrasilia } from "@/lib/emporio/cartao";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
@@ -18,12 +18,8 @@ import { CATEGORIA_VENDAS } from "@/lib/actions/emporio-vendas";
  * puro, porque o agente do WhatsApp chama estas funções sem passar pelo Zod.
  */
 
-const NEGADO_ADMIN = () => fail("FORBIDDEN", "Só o dono e o administrador podem fazer isso.", 403);
-const NEGADO_OPERADOR = () => fail("FORBIDDEN", "Seu perfil só permite consultar o Empório.", 403);
 const NAO_ACHADO = (o: string, field?: string) => fail("NOT_FOUND", `${o} não encontrado.`, 404, field);
 
-const ehAdmin = (a: Ator) => hasMinRole(a.role, "ADMIN");
-const ehOperador = (a: Ator) => hasMinRole(a.role, "OPERADOR");
 
 const centavos = (n: number) => Math.round(Number((n * 100).toPrecision(12)));
 const arred2 = (n: number) => centavos(n) / 100;
@@ -242,7 +238,8 @@ export async function receberFiadoAction(
   ator: Ator,
   input: ReceberFiadoInput,
 ): Promise<ActionResult<RecebimentoView>> {
-  if (!ehOperador(ator)) return NEGADO_OPERADOR();
+  const neg = await exigir(db, ator, "vendedor_da_loja", "receber fiado");
+  if (neg) return neg;
   const chave = String(input?.operation_key ?? "").trim();
   if (!chave) return fail("VALIDATION_ERROR", "Falta a chave da operação.", 422, "operation_key");
 
@@ -450,7 +447,8 @@ export async function listarContasAction(
   ator: Ator,
   opts: { incluir_arquivadas?: boolean } = {},
 ): Promise<ActionResult<ContaView[]>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "gestor_da_loja", "ver as contas bancárias");
+  if (neg) return neg;
   return ok(await viewsDasContas(db, opts.incluir_arquivadas ? {} : { archived_at: null }));
 }
 
@@ -468,7 +466,8 @@ export async function criarContaAction(
   ator: Ator,
   input: { name: string; bank?: string | null },
 ): Promise<ActionResult<ContaView>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "conta", "criar uma conta bancária");
+  if (neg) return neg;
   const nome = validarNomeDaConta(input?.name);
   if (!nome.ok) return nome;
   const banco = typeof input.bank === "string" && input.bank.trim() ? input.bank.trim() : null;
@@ -491,7 +490,8 @@ export async function editarContaAction(
   id: string,
   input: { name?: string; bank?: string | null; archived?: boolean },
 ): Promise<ActionResult<ContaView>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "conta", "mudar uma conta bancária");
+  if (neg) return neg;
   const atual = await db.bankAccount.findFirst({ where: { id } });
   if (!atual) return NAO_ACHADO("Conta");
 
@@ -531,7 +531,8 @@ export async function definirContaPixAction(
   establishment_id: string,
   input: { bank_account_id: string | null },
 ): Promise<ActionResult<{ establishment_id: string; pix_bank_account_id: string | null }>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "gestor_da_loja", "definir a conta PIX da loja");
+  if (neg) return neg;
   const loja = await acharLojaParaEscrita(db, ator, establishment_id);
   if (!loja.ok) return loja;
   let contaId: string | null = null;
@@ -748,7 +749,8 @@ export async function lerCaixaAction(
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
     return NAO_ACHADO("Estabelecimento", "establishment_id");
   }
-  if (opts.bank_account_id && !ehAdmin(ator)) return NEGADO_ADMIN();
+  const veContas = pode(await papelDoEmporio(db, ator), "gestor_da_loja");
+  if (opts.bank_account_id && !veContas) return recusaDe("gestor_da_loja", "ver uma conta bancária");
 
   const lojas = await db.establishment.findMany({
     where: { archived_at: null, ...(visiveis ? { id: { in: [...visiveis] } } : {}) },
@@ -780,7 +782,7 @@ export async function lerCaixaAction(
 
   let contas: CaixaView["accounts"] = [];
   let parcelas: ParcelaCartaoView[] = [];
-  if (ehAdmin(ator)) {
+  if (veContas) {
     const todas = await viewsDasContas(db, { archived_at: null });
     const todasFuturas = await db.cardReceivable.findMany({
       where: { canceled_at: null, expected_on: { gt: hojeEmBrasilia() } },
@@ -831,7 +833,7 @@ export async function lerCaixaAction(
     ? { bank_account_id: opts.bank_account_id }
     : opts.establishment_id
       ? { establishment_id: opts.establishment_id }
-      : ehAdmin(ator)
+      : veContas
         ? { OR: [{ establishment_id: { in: lojaIds } }, { bank_account_id: { not: null } }] }
         : { establishment_id: { in: lojaIds } };
   const limite = opts.limit && opts.limit > 0 ? Math.min(Math.floor(opts.limit), 500) : 100;
@@ -874,12 +876,14 @@ export async function saldoInicialCaixaAction(
   let lojaId: string | null = null;
   let contaId: string | null = null;
   if (temLoja) {
-    if (!ehOperador(ator)) return NEGADO_OPERADOR();
+    const neg = await exigir(db, ator, "vendedor_da_loja", "informar o saldo inicial da gaveta");
+    if (neg) return neg;
     const loja = await acharLojaParaEscrita(db, ator, input.establishment_id);
     if (!loja.ok) return loja;
     lojaId = loja.data.id;
   } else {
-    if (!ehAdmin(ator)) return NEGADO_ADMIN();
+    const neg = await exigir(db, ator, "conta", "informar o saldo inicial de uma conta bancária");
+    if (neg) return neg;
     const conta = await db.bankAccount.findFirst({
       where: { id: String(input.bank_account_id) },
       select: { id: true, archived_at: true },
@@ -960,7 +964,7 @@ type RegraRow = {
   bank_account: { name: string };
 };
 
-function viewDaRegra(r: RegraRow, ator: Ator): RegraCartaoView {
+function viewDaRegra(r: RegraRow, veConta: boolean): RegraCartaoView {
   return {
     id: r.id,
     establishment_id: r.establishment_id,
@@ -969,7 +973,7 @@ function viewDaRegra(r: RegraRow, ator: Ator): RegraCartaoView {
     fee_pct: decToNum(r.fee_pct as never) ?? 0,
     days: r.days,
     bank_account_id: r.bank_account_id,
-    bank_account_name: ehAdmin(ator) ? r.bank_account.name : null,
+    bank_account_name: veConta ? r.bank_account.name : null,
   };
 }
 
@@ -987,7 +991,8 @@ export async function listarRegrasCartaoAction(
     include: INCLUDE_REGRA,
     orderBy: [{ establishment: { name: "asc" } }, { kind: "asc" }],
   });
-  return ok(regras.map((r) => viewDaRegra(r, ator)));
+  const veConta = pode(await papelDoEmporio(db, ator), "gestor_da_loja");
+  return ok(regras.map((r) => viewDaRegra(r, veConta)));
 }
 
 export type DefinirRegraCartaoInput = {
@@ -1004,7 +1009,8 @@ export async function definirRegraCartaoAction(
   ator: Ator,
   input: DefinirRegraCartaoInput,
 ): Promise<ActionResult<RegraCartaoView>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "gestor_da_loja", "definir a regra de cartão");
+  if (neg) return neg;
   const loja = await acharLojaParaEscrita(db, ator, input?.establishment_id);
   if (!loja.ok) return loja;
   if (!(FORMAS_DE_CARTAO as readonly unknown[]).includes(input.kind)) {
@@ -1034,10 +1040,10 @@ export async function definirRegraCartaoAction(
       : db.cardFeeRule.create({ data: scoped({ establishment_id: loja.data.id, kind, ...dados }), include: INCLUDE_REGRA });
   };
   try {
-    return ok(viewDaRegra(await gravar(), ator));
+    return ok(viewDaRegra(await gravar(), true));
   } catch (err) {
     if (!ehErroUnico(err)) throw err;
-    return ok(viewDaRegra(await gravar(), ator));
+    return ok(viewDaRegra(await gravar(), true));
   }
 }
 
@@ -1046,7 +1052,8 @@ export async function removerRegraCartaoAction(
   ator: Ator,
   id: string,
 ): Promise<ActionResult<{ id: string }>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "gestor_da_loja", "remover a regra de cartão");
+  if (neg) return neg;
   const regra = await db.cardFeeRule.findFirst({ where: { id }, select: { id: true, establishment_id: true } });
   if (!regra || !(await lojaVisivel(db, ator, regra.establishment_id))) return NAO_ACHADO("Regra de cartão");
   await db.cardFeeRule.delete({ where: { id: regra.id } });
@@ -1117,7 +1124,8 @@ export async function depositarChequeAction(
   id: string,
   input: { bank_account_id: string },
 ): Promise<ActionResult<ChequeView>> {
-  if (!ehOperador(ator)) return NEGADO_OPERADOR();
+  const neg = await exigir(db, ator, "chave:depositar_cheque", "depositar cheque");
+  if (neg) return neg;
   const cheque = await acharCheque(db, ator, id);
   if (!cheque) return NAO_ACHADO("Cheque");
   if (cheque.status !== "recebido") return FORA_DE_ORDEM(cheque.status);
@@ -1142,7 +1150,8 @@ export async function compensarChequeAction(
   ator: Ator,
   id: string,
 ): Promise<ActionResult<ChequeView>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "gestor_da_loja", "marcar o cheque como compensado");
+  if (neg) return neg;
   const cheque = await acharCheque(db, ator, id);
   if (!cheque) return NAO_ACHADO("Cheque");
   if (cheque.status !== "depositado" || !cheque.bank_account_id) return FORA_DE_ORDEM(cheque.status);
@@ -1182,7 +1191,8 @@ export async function chequeVoltouAction(
   id: string,
   input: { reason: string },
 ): Promise<ActionResult<ChequeView>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "gestor_da_loja", "marcar o cheque como devolvido");
+  if (neg) return neg;
   const cheque = await acharCheque(db, ator, id);
   if (!cheque) return NAO_ACHADO("Cheque");
   if (cheque.status !== "recebido" && cheque.status !== "depositado") return FORA_DE_ORDEM(cheque.status);
@@ -1296,7 +1306,7 @@ async function transferenciaGravada(
   if (!t) return null;
   if (t.from_establishment_id) {
     if (!(await lojaVisivel(db, ator, t.from_establishment_id))) return NAO_ACHADO("Transferência");
-  } else if (!ehAdmin(ator)) {
+  } else if (!pode(await papelDoEmporio(db, ator), "conta")) {
     return NAO_ACHADO("Transferência");
   }
   return ok(viewDaTransferencia(t, true));
@@ -1307,7 +1317,8 @@ export async function transferirCaixaAction(
   ator: Ator,
   input: { operation_key: string; from: PontaDeCaixa; to: PontaDeCaixa; amount: number; notes?: string | null },
 ): Promise<ActionResult<TransferenciaView>> {
-  if (!ehOperador(ator)) return NEGADO_OPERADOR();
+  const negBase = await exigir(db, ator, "vendedor_da_loja", "transferir entre caixas");
+  if (negBase) return negBase;
   const chave = String(input?.operation_key ?? "").trim();
   if (!chave) return fail("VALIDATION_ERROR", "Falta a chave da operação.", 422, "operation_key");
 
@@ -1329,8 +1340,11 @@ export async function transferirCaixaAction(
   if (origem.data.lojaId) {
     const loja = await acharLojaParaEscrita(db, ator, origem.data.lojaId);
     if (!loja.ok) return fail(loja.code, loja.message, loja.status, "from");
+    const negChave = await exigir(db, ator, "chave:transferir_caixa", "levar a gaveta ao banco", loja.data.id);
+    if (negChave) return negChave;
   } else {
-    if (!ehAdmin(ator)) return NEGADO_ADMIN();
+    const negConta = await exigir(db, ator, "conta", "transferir saindo de uma conta bancária");
+    if (negConta) return negConta;
     const conta = await db.bankAccount.findFirst({ where: { id: origem.data.contaId as string }, select: { archived_at: true } });
     if (!conta) return NAO_ACHADO("Conta de origem", "from");
   }
@@ -1418,7 +1432,8 @@ export async function conferirGavetaAction(
   ator: Ator,
   input: { establishment_id: string; counted: number; justification?: string | null },
 ): Promise<ActionResult<ConferenciaView>> {
-  if (!ehOperador(ator)) return NEGADO_OPERADOR();
+  const neg = await exigir(db, ator, "vendedor_da_loja", "conferir a gaveta");
+  if (neg) return neg;
   const loja = await acharLojaParaEscrita(db, ator, input?.establishment_id);
   if (!loja.ok) return loja;
   if (!numero(input.counted) || centavos(input.counted) < 0) {

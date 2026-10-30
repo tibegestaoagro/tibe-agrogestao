@@ -5,7 +5,11 @@ import { withApi } from "@/lib/route";
 import { receberTransferenciaAction } from "@/lib/actions/emporio-transferencias";
 import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
-/** POST /api/v1/emporio/transfers/:id/receive  { items: [{ item_id, received_qty, loss_reason? }] } */
+/**
+ * POST /api/v1/emporio/transfers/:id/receive
+ * { items: [{ item_id, received_qty, loss_reason? }], resolution?, reason? }
+ * `resolution` e `reason` só valem para quem resolve (Gestor do destino, Gerente geral, Dono) e só quando chegou menos.
+ */
 
 const schema = z.object({
   items: z.array(
@@ -16,6 +20,8 @@ const schema = z.object({
     }),
     { error: "Informe o que chegou de cada item." },
   ),
+  resolution: z.string().nullish(),
+  reason: z.string().nullish(),
 });
 
 type Props = { params: Promise<{ id: string }> };

@@ -1,4 +1,5 @@
 import "./_env-local";
+import { papelDeFixture, vincularTodas, virarGestor } from "./_emporio-papel";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { exigirBancoLocal } from "./_banco-local";
 
@@ -173,7 +174,7 @@ async function comBanco() {
       tenantIds.push(t.id);
       const mkUser = async (suf: string, role: Role): Promise<Ator> => {
         const u = await prisma.user.create({
-          data: { tenant_id: t.id, name: `M83 ${rotulo} ${suf}`, email: `m83-${rotulo}-${suf}-${stamp}@teste.local`, password_hash: "x", role },
+          data: { tenant_id: t.id, name: `M83 ${rotulo} ${suf}`, email: `m83-${rotulo}-${suf}-${stamp}@teste.local`, password_hash: "x", role, ...papelDeFixture(role) },
         });
         return { id: u.id, role };
       };
@@ -186,6 +187,7 @@ async function comBanco() {
     const op = await TA.mkUser("op", "OPERADOR");
     const visu = await TA.mkUser("vis", "VISUALIZADOR");
     const admV = await TA.mkUser("admv", "ADMIN"); // vinculado só à Loja 3
+    await virarGestor(prisma, admV.id); // Q118: o Gerente geral não é limitado por vínculo; o Gestor é
     const ownerB = await TB.mkUser("own", "OWNER");
     const db = prismaForTenant(TA.t.id);
     const dbB = prismaForTenant(TB.t.id);
@@ -220,6 +222,7 @@ async function comBanco() {
     const mkLoja = async (nome: string) => {
       const r = await cc("criarEstabelecimentoAction", owner, { name: `M83 ${nome}`, kind: "ponto_venda" });
       if (!r.ok) throw new Error(`loja ${nome}: ${j(r)}`);
+      await vincularTodas(prisma, TA.t.id, [op.id], [r.data.id]); // F6b: Vendedor só vê as lojas que tem
       return r.data as Dado;
     };
     const L1 = await mkLoja("Loja 1 regras");
@@ -277,6 +280,7 @@ async function comBanco() {
     }
     const rVinc = await cc("definirVinculosAction", owner, L3.id, [admV.id]);
     if (!rVinc.ok) throw new Error(`vínculo: ${j(rVinc)}`);
+    await vincularTodas(prisma, TA.t.id, [op.id], [L3.id]); // definirVinculos substitui a lista da loja e tirou o op dela
 
     // ---- Auxiliares de venda
     let chaveSeq = 0;
@@ -710,10 +714,11 @@ async function comBanco() {
 
       // perdas e quebras: perda 12, transferência com diferença 8, conferência com falta 5
       check("perda de 3 kg de P por avaria (custo 4 = R$ 12)", (await ee("registrarPerdaAction", op, { establishment_id: L2.id, emporio_product_id: P.id, quantity: 3, reason: "avaria" })).ok);
-      const rEnv = await tt("enviarTransferenciaAction", op, { operation_key: chave("tr"), origin_establishment_id: L2.id, destination_establishment_id: L3.id, items: [{ emporio_product_id: P.id, quantity: 10 }] });
+      // F6b: enviar é do Gestor da origem para cima e receber a menos pede resolução (Q130, Q131): o Gerente geral faz os dois.
+      const rEnv = await tt("enviarTransferenciaAction", admin, { operation_key: chave("tr"), origin_establishment_id: L2.id, destination_establishment_id: L3.id, items: [{ emporio_product_id: P.id, quantity: 10 }] });
       const trId = dados(rEnv)?.id ?? dados(rEnv)?.transfer_id ?? "";
       const itT = await db.stockTransferItem.findMany({ where: { transfer_id: trId } });
-      const rRec = await tt("receberTransferenciaAction", op, trId, { items: itT.map((i) => ({ item_id: i.id, received_qty: 8, loss_reason: "avaria" })) });
+      const rRec = await tt("receberTransferenciaAction", admin, trId, { items: itT.map((i) => ({ item_id: i.id, received_qty: 8, loss_reason: "avaria" })), resolution: "perda_no_caminho", reason: "avaria no caminho" });
       check("transferência de 10 kg da Loja 2 que chega 8 (diferença 2 x 4 = R$ 8)", rEnv.ok && rRec.ok, j([rEnv, rRec]));
       const esperadoCx = await saldoGaveta(L2.id);
       const rCf = await xx("conferirGavetaAction", op, { establishment_id: L2.id, counted: esperadoCx - 5, justification: "troco errado" });
@@ -977,7 +982,7 @@ async function comBanco() {
       const gp = await chamar(tokenOwner, "payables", "GET", "payables");
       check("GET payables: 200 e traz a conta", gp.status === 200 && j(gp.json).includes(contaR), `${gp.status}`);
       const gpv = await chamar(tokenVisu, "payables", "GET", "payables");
-      check("GET payables como VISUALIZADOR: 403", gpv.status === 403, `${gpv.status}`);
+      check("GET payables como VISUALIZADOR (sem função no Empório, Q119): 404", gpv.status === 404, `${gpv.status}`);
       const pc = await chamar(tokenOwner, "payables/[id]", "PATCH", `payables/${contaR}`, { amount: 11 }, contaR);
       check("PATCH payables/[id]: 2xx e corrigiu para R$ 11", ok2xx(pc.status) && perto(n((await entrada(contaR))?.amount), 11), `${pc.status} ${j(pc.json)}`);
       em422("PATCH payables/[id] com valor negativo", await chamar(tokenOwner, "payables/[id]", "PATCH", `payables/${contaR}`, { amount: -1 }, contaR), ["amount"]);
@@ -1011,7 +1016,7 @@ async function comBanco() {
       const rr = await chamar(tokenOwner, "result", "GET", `result?establishment_id=${L2.id}&month=${mes}`);
       check("GET result: 200 com as vendas da Loja 2 (R$ 1.280)", rr.status === 200 && perto(pega(rr.json, A_VENDAS), 1280), `${rr.status} ${j(rr.json).slice(0, 200)}`);
       const rv = await chamar(tokenVisu, "result", "GET", `result?establishment_id=${L2.id}&month=${mes}`);
-      check("GET result como VISUALIZADOR: 403", rv.status === 403, `${rv.status}`);
+      check("GET result como VISUALIZADOR (sem função no Empório, Q119): 404", rv.status === 404, `${rv.status}`);
       em422("GET result com mês inválido", await chamar(tokenOwner, "result", "GET", `result?establishment_id=${L2.id}&month=2026-13`), ["month"]);
       em422("GET result sem a loja", await chamar(tokenOwner, "result", "GET", `result?month=${mes}`), ["establishment_id"]);
       await limparRegras();

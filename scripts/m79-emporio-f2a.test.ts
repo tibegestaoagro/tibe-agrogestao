@@ -1,4 +1,5 @@
 import "./_env-local";
+import { papelDeFixture, vincularTodas, virarGestor, virarVendedor } from "./_emporio-papel";
 import { exigirBancoLocal } from "./_banco-local";
 
 exigirBancoLocal();
@@ -105,7 +106,7 @@ async function comBanco() {
       tenantIds.push(t.id);
       const mkUser = async (suf: string, role: Role): Promise<Ator> => {
         const u = await prisma.user.create({
-          data: { tenant_id: t.id, name: `M79 ${rotulo} ${suf}`, email: `m79-${rotulo}-${suf}-${stamp}@teste.local`, password_hash: "x", role },
+          data: { tenant_id: t.id, name: `M79 ${rotulo} ${suf}`, email: `m79-${rotulo}-${suf}-${stamp}@teste.local`, password_hash: "x", role, ...papelDeFixture(role) },
         });
         return { id: u.id, role };
       };
@@ -118,6 +119,7 @@ async function comBanco() {
     const op = await TA.mkUser("op", "OPERADOR");
     const visu = await TA.mkUser("vis", "VISUALIZADOR");
     const vinc = await TA.mkUser("vin", "ADMIN");
+    await virarVendedor(prisma, vinc.id); // Q118: o Gerente geral não é limitado por vínculo; o Vendedor é
     const ownerB = await TB.mkUser("own", "OWNER");
     const db = prismaForTenant(TA.t.id);
     const dbB = prismaForTenant(TB.t.id);
@@ -145,6 +147,7 @@ async function comBanco() {
     const L2 = dados(rL2);
     const L3 = dados(rL3);
     if (!L1 || !L2 || !L3) throw new Error(`não criou as lojas: ${j([rL1, rL2, rL3])}`);
+    await vincularTodas(prisma, TA.t.id, [op.id], [L1.id, L2.id, L3.id]); // F6b: Vendedor só vê as lojas que tem
     await prisma.establishment.update({ where: { id: L3.id }, data: { allow_negative_stock: true } });
 
     type Prod = { id: string; product_id: string; p: Record<string, string> };
@@ -457,8 +460,10 @@ async function comBanco() {
     check("sem filtro de loja, traz as lojas visíveis (L1 e L2 para Q? L1 saiu, L2 fica)", !!acha(await repor(op), L2.id, Q));
 
     console.log("\n12. Lista de compra (Q68)");
-    const rEnc = await ee("encaminharParaListaAction", op, { establishment_id: L1.id, emporio_product_id: R3.id, quantity: 30 });
-    check("OPERADOR encaminha à Lista", rEnc.ok, j(rEnc));
+    // Ajuste pela F6b (spec "Permissão por ação"): encaminhar à Lista é do Gestor da loja para cima, porque o Vendedor não vê a Lista.
+    check("Vendedor encaminha à Lista: 403", recusa(await ee("encaminharParaListaAction", op, { establishment_id: L1.id, emporio_product_id: R3.id, quantity: 30 }), "FORBIDDEN", 403));
+    const rEnc = await ee("encaminharParaListaAction", admin, { establishment_id: L1.id, emporio_product_id: R3.id, quantity: 30 });
+    check("Gerente geral encaminha à Lista", rEnc.ok, j(rEnc));
     const itensLista = await db.shoppingItem.findMany({ where: { product_id: R3.product_id } });
     check("cria o ShoppingItem com a loja e a quantidade", itensLista.length >= 1 && itensLista[0].establishment_id === L1.id && n(itensLista[0].quantity) === 30 && itensLista[0].status === "pendente", j(itensLista.map((i) => [i.establishment_id, i.quantity, i.status])));
     check("VISUALIZADOR encaminha: 403", recusa(await ee("encaminharParaListaAction", visu, { establishment_id: L1.id, emporio_product_id: R3.id, quantity: 1 }), "FORBIDDEN", 403));
@@ -498,7 +503,8 @@ async function comBanco() {
     check("vinculado: compra da Loja 2 = 404", recusa(await pp("lerCompraAction", vinc, idL2), "NOT_FOUND", 404));
     check("vinculado: criar compra na Loja 2 = 404", recusa(await comprar(vinc, { establishment_id: L2.id, items: itemF }), "NOT_FOUND", 404));
     check("vinculado: perda na Loja 2 = 404", recusa(await ee("registrarPerdaAction", vinc, { establishment_id: L2.id, emporio_product_id: I.id, quantity: 1, reason: "outro" }), "NOT_FOUND", 404));
-    check("vinculado: receber/cancelar compra da Loja 2 = 404", recusa(await pp("cancelarCompraAction", vinc, idL2, { reason: "x" }), "NOT_FOUND", 404));
+    // Ajuste pela F6b: cancelar é do Gestor (o Vendedor leva 403 antes do 404), então a prova de 404 é com receber.
+    check("vinculado: receber compra da Loja 2 = 404", recusa(await pp("receberCompraAction", vinc, idL2, {}), "NOT_FOUND", 404));
     const listaVinc = lista(dados(await pp("listarComprasAction", vinc)));
     check("vinculado: a lista de compras só traz a Loja 1", listaVinc.length > 0 && listaVinc.every((c) => c.establishment_id === L1.id), j(listaVinc.map((c) => c.establishment_id)));
     const porProduto = dados(await ee("saldoDoProdutoAction", vinc, M.id));
@@ -513,6 +519,18 @@ async function comBanco() {
     check("sem vínculo, o consolidado soma tudo (Milho 78)", !!cma && n(cma.total_qty) === 78, j(cma));
     const vL2 = await repor(vinc);
     check("vinculado: a reposição não traz a Loja 2", vL2.every((l) => l.establishment_id === L1.id));
+
+    // Q128 (F6b): o Gestor ligado só à Loja 1 LÊ o estoque da Loja 2, mas não as compras dela.
+    const gest = await TA.mkUser("gest", "OPERADOR");
+    await virarGestor(prisma, gest.id);
+    await prisma.userEstablishment.create({ data: { tenant_id: TA.t.id, user_id: gest.id, establishment_id: L1.id } });
+    check("Gestor da Loja 1 lê o saldo da Loja 2 (Q128)", (await ee("saldoDaLojaAction", gest, L2.id)).ok);
+    const lojasGest = new Set((dados(await ee("saldoDoProdutoAction", gest, M.id))?.stores ?? []).map((l: Dado) => l.establishment_id));
+    check("Gestor: o saldo do produto traz as outras lojas (Q128)", lojasGest.has(L1.id) && lojasGest.has(L2.id), j([...lojasGest]));
+    const consGest = lista(dados(await ee("estoqueConsolidadoAction", gest))).find((l) => (l.emporio_product_id ?? l.id) === M.id);
+    check("Gestor: o consolidado soma todas as lojas (Milho 78)", !!consGest && n(consGest.total_qty) === 78, j(consGest));
+    check("Gestor: compra da Loja 2 segue 404", recusa(await pp("lerCompraAction", gest, idL2), "NOT_FOUND", 404));
+    check("Gestor: perda na Loja 2 segue 404 (só leitura)", recusa(await ee("registrarPerdaAction", gest, { establishment_id: L2.id, emporio_product_id: I.id, quantity: 1, reason: "outro" }), "NOT_FOUND", 404));
 
     const pb = (nome: string, ...a: unknown[]) => chamarEm(P, dbB, nome, ...a);
     const eb = (nome: string, ...a: unknown[]) => chamarEm(E, dbB, nome, ...a);

@@ -2,6 +2,7 @@ import "./_env-local";
 import { prisma, prismaForTenant } from "@/lib/prisma";
 import { exigirBancoLocal } from "./_banco-local";
 import { setTenantFeatureAction } from "@/lib/actions/platform-features";
+import { TODAS_AS_CHAVES } from "./_emporio-papel";
 
 /**
  * Monta, no banco LOCAL, o cenario da F2a do Meu Empório (Modulo 39) para o
@@ -28,8 +29,8 @@ async function main() {
   if (!ligado.ok) throw new Error(ligado.message);
   await prisma.user.upsert({
     where: { email: EMAIL_OPERADOR },
-    update: { active: true, role: "OPERADOR", tenant_id },
-    create: { tenant_id, email: EMAIL_OPERADOR, name: "Operador do Empório", role: "OPERADOR", password_hash: "sem-senha" },
+    update: { active: true, role: "OPERADOR", tenant_id, emporio_role: "vendedor", emporio_keys: [...TODAS_AS_CHAVES] },
+    create: { tenant_id, email: EMAIL_OPERADOR, name: "Operador do Empório", role: "OPERADOR", emporio_role: "vendedor", emporio_keys: [...TODAS_AS_CHAVES], password_hash: "sem-senha" },
   });
 
   // Limpeza: lojas e produtos com o prefixo, e tudo o que aponta para eles.
@@ -54,6 +55,9 @@ async function main() {
 
   const loja = await criarEstabelecimentoAction(db, ator, { name: `${PREFIXO}Loja`, kind: "ponto_venda" } as never);
   if (!loja.ok) throw new Error(`loja: ${loja.message}`);
+  // F6b: o Vendedor só vê a loja que tem.
+  const operador = await prisma.user.findUnique({ where: { email: EMAIL_OPERADOR }, select: { id: true } });
+  if (operador) await prisma.userEstablishment.create({ data: { tenant_id, user_id: operador.id, establishment_id: loja.data.id } });
   const categoria = await prisma.productCategory.findFirst({ where: { tenant_id, archived_at: null }, orderBy: { name: "asc" } });
   if (!categoria) throw new Error("A conta do seed nao tem categoria de produto: abra o Estoque uma vez.");
   const produto = await criarProdutoEmporioAction(db, ator, {

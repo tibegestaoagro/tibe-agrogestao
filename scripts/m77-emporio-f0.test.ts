@@ -79,9 +79,12 @@ async function comBanco() {
         data: { tenant_id: t.id, name: `M77 ${rotulo} Dono`, email: `m77-${rotulo}-o-${stamp}@teste.local`, password_hash: "x", role: "OWNER" },
       });
       const outro = await prisma.user.create({
-        data: { tenant_id: t.id, name: `M77 ${rotulo} Op`, email: `m77-${rotulo}-u-${stamp}@teste.local`, password_hash: "x", role: "OPERADOR" },
+        data: { tenant_id: t.id, name: `M77 ${rotulo} Op`, email: `m77-${rotulo}-u-${stamp}@teste.local`, password_hash: "x", role: "OPERADOR", emporio_role: "vendedor" },
       });
-      return { t, owner, outro };
+      const semFuncao = await prisma.user.create({
+        data: { tenant_id: t.id, name: `M77 ${rotulo} Sem`, email: `m77-${rotulo}-s-${stamp}@teste.local`, password_hash: "x", role: "OPERADOR" },
+      });
+      return { t, owner, outro, semFuncao };
     };
     const A = await mk("A");
     const B = await mk("B");
@@ -125,7 +128,9 @@ async function comBanco() {
       check("ok", r.ok === true, r.ok ? "" : r.message);
       if (r.ok) check("devolve a lista", r.data.user_ids.length === 1 && r.data.user_ids[0] === A.owner.id);
       check("owner vê", await ve(A.t.id, A.owner.id));
-      check("o outro usuário NÃO vê", !(await ve(A.t.id, A.outro.id)));
+      // Q119: a lista de TenantFeatureUser não vale mais para o emporio; manda a função.
+      check("o outro usuário (com função) AINDA vê: a lista não vale para o emporio", await ve(A.t.id, A.outro.id));
+      check("quem não tem função no Empório não vê", !(await ve(A.t.id, A.semFuncao.id)));
       const l = await listTenantFeaturesAction(A.t.id);
       const e = l.ok ? l.data.find((x: { feature_key: string }) => x.feature_key === "emporio") : undefined;
       check("list reflete a lista", !!e && e.user_ids.length === 1);
@@ -145,7 +150,7 @@ async function comBanco() {
       await setTenantFeatureAction({ tenantId: A.t.id, key: "emporio", enabled: true, user_ids: [A.owner.id] });
       const r = await setTenantFeatureAction({ tenantId: A.t.id, key: "emporio", enabled: true, user_ids: [B.owner.id] });
       check("VALIDATION_ERROR 422 em user_ids", !r.ok && r.code === "VALIDATION_ERROR" && r.status === 422 && r.field === "user_ids", JSON.stringify(r));
-      check("a lista anterior continua valendo", (await ve(A.t.id, A.owner.id)) && !(await ve(A.t.id, A.outro.id)));
+      check("a lista anterior continua gravada e a visibilidade segue a função (Q119)", (await ve(A.t.id, A.owner.id)) && (await ve(A.t.id, A.outro.id)) && !(await ve(A.t.id, A.semFuncao.id)));
       const n = await prisma.tenantFeatureUser.count({ where: { user_id: B.owner.id } });
       check("usuário de B não foi gravado", n === 0);
       const rDesl = await setTenantFeatureAction({ tenantId: A.t.id, key: "emporio", enabled: false, user_ids: [B.owner.id] });

@@ -602,14 +602,14 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/transfers",
         auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
-        description: "Lista as transferências em que a origem OU o destino é visível ao usuário, da mais recente. Filtros: `establishment_id` (origem ou destino; loja fora do vínculo: 404) e `status` (`em_transito`, `recebida`, `cancelada`). Cada transferência traz os itens com `sent_qty`, `received_qty`, `loss_reason` e `unit_cost`.",
+        description: "Lista as transferências em que a origem OU o destino é visível ao usuário, da mais recente. Filtros: `establishment_id` (origem ou destino; loja fora do vínculo: 404) e `status` (`em_transito`, `aguardando_gestor`, `recebida`, `cancelada`). Cada transferência traz `resolution`, `resolution_reason`, `resolved_at`, `resolved_by_user_id` e os itens com `sent_qty`, `received_qty`, `loss_reason` e `unit_cost`.",
         response: `200
 { "data": [{ "id": "cl...", "origin_name": "Central", "destination_name": "Loja Centro", "status": "em_transito", "items": [{ "id": "cl...", "package_state": "lacrado", "sent_qty": 50, "received_qty": null, "unit_cost": 5.5 }] }], "meta": {} }`,
       },
       {
         method: "POST",
         path: "/api/v1/emporio/transfers",
-        auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR com a origem no vínculo",
+        auth: "Sessão · emporio:write · Gestor da origem, Gerente geral ou Dono (senão 403 `FORBIDDEN`; origem fora do alcance: 404)",
         description: "Envia a transferência. `operation_key` é obrigatória e única na conta: repetir a chave devolve a gravada com 200 (primeira vez: 201). Item lacrado leva `presentation_id` e `packages`; avulso leva `quantity` na unidade-base; produto sem separação leva só `quantity`. Grava uma saída por item na origem pelo custo médio dela, e o saldo da origem cai na hora. Origem igual ao destino: 422 `destination_establishment_id`. Saldo insuficiente na origem (por estado), salvo estoque negativo liberado: 409 `INSUFFICIENT_STOCK` em `items`. Nunca gera lançamento financeiro.",
         request: `{ "operation_key": "k-123", "origin_establishment_id": "cl...", "destination_establishment_id": "cl...", "items": [{ "emporio_product_id": "cl...", "presentation_id": "cl...", "packages": 5 }, { "emporio_product_id": "cl...", "quantity": 3 }] }`,
         response: `201
@@ -626,16 +626,25 @@ export const GROUPS: Group[] = [
       {
         method: "POST",
         path: "/api/v1/emporio/transfers/:id/receive",
-        auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR com o destino no vínculo (senão 404)",
-        description: "Recebe a transferência: `items` cobre todos os itens, cada um com `item_id` e `received_qty`. Grava uma entrada por item no destino com a quantidade recebida e o custo da origem. Mais do que o enviado: 422 `items`. Menos sem `loss_reason` (`vencido`, `avaria`, `furto`, `consumo_proprio`, `outro`): 422 `items`. A diferença não gera movimentação: fica no item como perda da origem. Fora de trânsito: 409 `TRANSFER_NOT_IN_TRANSIT`.",
-        request: `{ "items": [{ "item_id": "cl...", "received_qty": 48, "loss_reason": "avaria" }] }`,
+        auth: "Sessão · emporio:write · qualquer pessoa com o destino no alcance (senão 404)",
+        description: "Recebe a transferência: `items` cobre todos os itens, cada um com `item_id` e `received_qty` (`loss_reason` é opcional). Igual ao enviado: `recebida`, com uma entrada por item no destino e o custo da origem. Mais do que o enviado: 422 `items`. Menos: quem resolve (Gestor do destino, Gerente geral, Dono) manda `resolution` (`perda_no_caminho` ou `nao_enviada`) e `reason`, e resolve na hora (sem eles: 422 em `resolution` ou `reason`); quem não resolve deixa a transferência em `aguardando_gestor`, guarda o `received_qty` e NÃO entra nada no destino (200 com o status novo). Fora de trânsito: 409 `TRANSFER_NOT_IN_TRANSIT`.",
+        request: `{ "items": [{ "item_id": "cl...", "received_qty": 48 }], "resolution": "perda_no_caminho", "reason": "Caixa amassada no caminho" }`,
         response: `200
-{ "data": { "id": "cl...", "status": "recebida", "items": [{ "sent_qty": 50, "received_qty": 48, "loss_reason": "avaria" }] }, "meta": {} }`,
+{ "data": { "id": "cl...", "status": "recebida", "resolution": "perda_no_caminho", "items": [{ "sent_qty": 50, "received_qty": 48, "loss_reason": "outro" }] }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/transfers/:id/resolve",
+        auth: "Sessão · emporio:write · Gestor do destino, Gerente geral ou Dono (senão 403 `FORBIDDEN`)",
+        description: "Resolve a diferença de uma transferência `aguardando_gestor`. `operation_key`, `resolution` (`perda_no_caminho`: o que chegou entra no destino e a diferença é perda da origem; `nao_enviada`: o que chegou entra no destino e a diferença volta ao saldo da origem, como estorno ligado à transferência) e `reason` são obrigatórios (422 no campo). Grava `resolution`, `resolution_reason`, `resolved_at` e `resolved_by_user_id`, e o status vira `recebida`. Repetir a mesma resolução pela mesma pessoa devolve a gravada. Fora de `aguardando_gestor`: 409 `TRANSFER_NOT_AWAITING`.",
+        request: `{ "operation_key": "k-456", "resolution": "nao_enviada", "reason": "Contei errado na saída" }`,
+        response: `200
+{ "data": { "id": "cl...", "status": "recebida", "resolution": "nao_enviada", "resolution_reason": "Contei errado na saída", "replayed": false }, "meta": {} }`,
       },
       {
         method: "POST",
         path: "/api/v1/emporio/transfers/:id/cancel",
-        auth: "Sessão · emporio:write · quem enviou, OWNER ou ADMIN (senão 403 `FORBIDDEN`)",
+        auth: "Sessão · emporio:write · quem enviou, Gestor da origem, Gerente geral ou Dono (senão 403 `FORBIDDEN`)",
         description: "Cancela a transferência em trânsito com `reason` obrigatório (422 `reason`): marca as saídas como canceladas e a origem recupera o saldo. Nada é apagado. Fora de trânsito: 409 `TRANSFER_NOT_IN_TRANSIT`.",
         request: `{ "reason": "Enviado para a loja errada" }`,
         response: `200

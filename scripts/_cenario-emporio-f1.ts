@@ -2,6 +2,7 @@ import "./_env-local";
 import { prisma } from "@/lib/prisma";
 import { exigirBancoLocal } from "./_banco-local";
 import { setTenantFeatureAction } from "@/lib/actions/platform-features";
+import { TODAS_AS_CHAVES } from "./_emporio-papel";
 
 /**
  * Monta, no banco LOCAL, o cenario da F1 do Meu Empório (Modulo 39) para o
@@ -28,12 +29,14 @@ async function main() {
 
   await prisma.user.upsert({
     where: { email: EMAIL_OPERADOR },
-    update: { active: true, role: "OPERADOR", tenant_id },
+    update: { active: true, role: "OPERADOR", tenant_id, emporio_role: "vendedor", emporio_keys: [...TODAS_AS_CHAVES] },
     create: {
       tenant_id,
       email: EMAIL_OPERADOR,
       name: "Operador do Empório",
       role: "OPERADOR",
+      emporio_role: "vendedor",
+      emporio_keys: [...TODAS_AS_CHAVES],
       // Hash que nenhuma senha produz: ninguem entra por senha aqui.
       password_hash: "sem-senha",
     },

@@ -6,7 +6,7 @@ import { enviarTransferenciaAction, listarTransferenciasAction } from "@/lib/act
 import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
 /**
- * GET  /api/v1/emporio/transfers  ?establishment_id= &status=em_transito|recebida|cancelada
+ * GET  /api/v1/emporio/transfers  ?establishment_id= &status=em_transito|aguardando_gestor|recebida|cancelada
  * POST /api/v1/emporio/transfers  envia a transferência (chave de operação): wrapper fino.
  */
 
@@ -37,7 +37,7 @@ async function GETHandler(request: Request) {
   return respostaDaAction(
     await listarTransferenciasAction(g.db, g.user, {
       establishment_id: sp.get("establishment_id") ?? undefined,
-      status: status === "em_transito" || status === "recebida" || status === "cancelada" ? status : undefined,
+      status: status === "em_transito" || status === "aguardando_gestor" || status === "recebida" || status === "cancelada" ? status : undefined,
     }),
   );
 }

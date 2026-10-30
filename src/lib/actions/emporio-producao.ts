@@ -2,7 +2,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum, isoOrNull } from "@/lib/serialize";
-import { hasMinRole } from "@/lib/permissions";
+import { exigir } from "@/lib/emporio/papel";
 import { runSerializableTenantTransaction } from "@/lib/financial";
 import { descreverQuantidade } from "@/lib/stock/units";
 import { custoMedio } from "@/lib/emporio/custo-medio";
@@ -26,8 +26,6 @@ import {
  * agente do WhatsApp chama estas funções sem passar pelo Zod da rota.
  */
 
-const NEGADO_ADMIN = () => fail("FORBIDDEN", "Só o dono e o administrador podem fazer isso.", 403);
-const NEGADO_OPERADOR = () => fail("FORBIDDEN", "Seu perfil só permite consultar o Empório.", 403);
 const NAO_ACHADO = (o: string, field?: string) => fail("NOT_FOUND", `${o} não encontrado.`, 404, field);
 
 const arred3 = (n: number) => Math.round(n * 1000) / 1000;
@@ -108,7 +106,8 @@ export async function definirComposicaoAction(
   emporio_product_id: string,
   input: ComposicaoInput,
 ): Promise<ActionResult<ComposicaoView>> {
-  if (!hasMinRole(ator.role, "ADMIN")) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "conta", "definir a composição de um produto");
+  if (neg) return neg;
   const produto = await db.emporioProduct.findFirst({ where: { id: emporio_product_id }, select: { id: true } });
   if (!produto) return NAO_ACHADO("Produto");
 
@@ -241,7 +240,8 @@ export async function criarComposicaoDaReceitaAction(
   emporio_product_id: string,
   input: ComposicaoDaReceitaInput,
 ): Promise<ActionResult<ComposicaoView>> {
-  if (!hasMinRole(ator.role, "ADMIN")) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "conta", "criar a composição da receita");
+  if (neg) return neg;
   const produto = await db.emporioProduct.findFirst({
     where: { id: emporio_product_id },
     select: { id: true, base_unit: true },
@@ -430,7 +430,8 @@ export async function produzirAction(
   ator: Ator,
   input: ProduzirInput,
 ): Promise<ActionResult<ProducaoView & { replayed: boolean }>> {
-  if (!hasMinRole(ator.role, "OPERADOR")) return NEGADO_OPERADOR();
+  const neg = await exigir(db, ator, "chave:producao", "registrar produção");
+  if (neg) return neg;
 
   const chave = String(input?.operation_key ?? "").trim();
   if (!chave) return fail("VALIDATION_ERROR", "Falta a chave da operação.", 422, "operation_key");
@@ -690,7 +691,8 @@ export async function cancelarProducaoAction(
   id: string,
   input: { reason: string },
 ): Promise<ActionResult<ProducaoView>> {
-  if (!hasMinRole(ator.role, "ADMIN")) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "gestor_da_loja", "cancelar uma produção");
+  if (neg) return neg;
 
   const visiveis = await lojasDoAtor(db, ator);
   const prod = await db.productionEntry.findFirst({

@@ -2,6 +2,7 @@ import "./_env-local";
 import { prisma, prismaForTenant } from "@/lib/prisma";
 import { exigirBancoLocal } from "./_banco-local";
 import { setTenantFeatureAction } from "@/lib/actions/platform-features";
+import { TODAS_AS_CHAVES } from "./_emporio-papel";
 
 /**
  * Monta, no banco LOCAL, o cenario da F5 do Meu Empório (Modulo 39) para o
@@ -78,12 +79,20 @@ function exigir<T>(r: { ok: true; data: T } | { ok: false; message: string }, o_
   return r.data;
 }
 
-async function usuario(tenant_id: string, email: string, name: string, role: "OPERADOR" | "ADMIN") {
+/**
+ * F6b (Q118, Q119): quem vê o Empório é quem tem `emporio_role`. O operador é
+ * Vendedor (com as chaves, como era o OPERADOR); o "fora" fica SEM função, que
+ * é o que o faz não ver o Empório (a lista de usuários do recurso já não vale).
+ */
+async function usuario(tenant_id: string, email: string, name: string, role: "OPERADOR" | "ADMIN", comFuncao: boolean) {
+  const papel = comFuncao
+    ? { emporio_role: "vendedor" as const, emporio_keys: [...TODAS_AS_CHAVES] }
+    : { emporio_role: null, emporio_keys: [] as string[] };
   return prisma.user.upsert({
     where: { email },
-    update: { active: true, role, tenant_id },
+    update: { active: true, role, tenant_id, ...papel },
     // Hash que nenhuma senha produz: ninguem entra por senha aqui.
-    create: { tenant_id, email, name, role, password_hash: "sem-senha" },
+    create: { tenant_id, email, name, role, password_hash: "sem-senha", ...papel },
   });
 }
 
@@ -92,8 +101,8 @@ async function main() {
   if (!owner) throw new Error("O seed nao tem owner@damata.com.br: rode npm run db:seed.");
   const tenant_id = owner.tenant_id;
 
-  const operador = await usuario(tenant_id, EMAIL_OPERADOR, "Operador do Empório", "OPERADOR");
-  const fora = await usuario(tenant_id, EMAIL_FORA, "Fora do Empório", "ADMIN");
+  const operador = await usuario(tenant_id, EMAIL_OPERADOR, "Operador do Empório", "OPERADOR", true);
+  const fora = await usuario(tenant_id, EMAIL_FORA, "Fora do Empório", "ADMIN", false);
 
   const ligado = await setTenantFeatureAction({ tenantId: tenant_id, key: "emporio", enabled: true, user_ids: [owner.id, operador.id] });
   if (!ligado.ok) throw new Error(ligado.message);
@@ -111,6 +120,7 @@ async function main() {
   if (!categoria) throw new Error("A conta do seed nao tem categoria de produto: abra o Estoque uma vez.");
 
   const loja = exigir(await cat.criarEstabelecimentoAction(db, ator, { name: `${PREFIXO}Loja` }), "loja") as { id: string };
+  await prisma.userEstablishment.create({ data: { tenant_id, user_id: operador.id, establishment_id: loja.id } }); // o Vendedor só vê a loja que tem
   const produto = async (nome: string, base_unit: string) =>
     (exigir(await cat.criarProdutoEmporioAction(db, ator, { name: `${PREFIXO}${nome}`, category_id: categoria.id, base_unit } as never), nome) as { id: string }).id;
 

@@ -1,6 +1,6 @@
 import type { TenantPrismaClient } from "@/lib/prisma";
-import { ok, fail, type ActionResult } from "@/lib/actions/types";
-import { hasMinRole } from "@/lib/permissions";
+import { ok, type ActionResult } from "@/lib/actions/types";
+import { exigir } from "@/lib/emporio/papel";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 
 /**
@@ -51,9 +51,8 @@ export async function primeirosPassosAction(
   ator: Ator,
   opts: { agora?: Date } = {},
 ): Promise<ActionResult<PrimeirosPassosView>> {
-  if (!hasMinRole(ator.role, "ADMIN")) {
-    return fail("FORBIDDEN", "Só o dono e o administrador podem fazer isso.", 403);
-  }
+  const neg = await exigir(db, ator, "gestor_da_loja", "ver os primeiros passos da loja");
+  if (neg) return neg;
   const agora = opts.agora ?? new Date();
   const visiveis = await lojasDoAtor(db, ator);
   const lojas = await db.establishment.findMany({

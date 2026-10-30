@@ -1,4 +1,5 @@
 import "./_env-local";
+import { papelDeFixture, vincularTodas, virarGestor } from "./_emporio-papel";
 import { exigirBancoLocal } from "./_banco-local";
 
 exigirBancoLocal();
@@ -72,7 +73,7 @@ async function comBanco() {
       tenantIds.push(t.id);
       const mkUser = async (suf: string, role: Role): Promise<Ator> => {
         const u = await prisma.user.create({
-          data: { tenant_id: t.id, name: `M80 ${rotulo} ${suf}`, email: `m80-${rotulo}-${suf}-${stamp}@teste.local`, password_hash: "x", role },
+          data: { tenant_id: t.id, name: `M80 ${rotulo} ${suf}`, email: `m80-${rotulo}-${suf}-${stamp}@teste.local`, password_hash: "x", role, ...papelDeFixture(role) },
         });
         return { id: u.id, role };
       };
@@ -87,6 +88,8 @@ async function comBanco() {
     const visu = await TA.mkUser("vis", "VISUALIZADOR");
     const userO = await TA.mkUser("uo", "OPERADOR");
     const userD = await TA.mkUser("ud", "OPERADOR");
+    // Q130: quem envia transferência é o Gestor da origem; op, userO e userD enviam (userD tenta enviar da origem e leva 404), então são Gestores. op2 fica Vendedor.
+    for (const g of [op, userO, userD]) await virarGestor(prisma, g.id);
     const ownerB = await TB.mkUser("own", "OWNER");
     const db = prismaForTenant(TA.t.id);
     const dbB = prismaForTenant(TB.t.id);
@@ -114,6 +117,7 @@ async function comBanco() {
     const L2 = dados(rL2);
     const L3 = dados(rL3);
     if (!L1 || !L2 || !L3) throw new Error(`não criou as lojas: ${j([rL1, rL2, rL3])}`);
+    await vincularTodas(prisma, TA.t.id, [op.id, op2.id], [L1.id, L2.id, L3.id]); // F6b: Vendedor só vê as lojas que tem
     await prisma.establishment.update({ where: { id: L3.id }, data: { allow_negative_stock: true } });
 
     type Prod = { id: string; product_id: string; p: Record<string, string> };
@@ -230,12 +234,13 @@ async function comBanco() {
     const [iC] = await itensDe(idC);
     const movAntes = await db.stockMovement.count({ where: { product_id: Cn.product_id } });
     const semMotivo = await tt("receberTransferenciaAction", op, idC, { items: [{ item_id: iC.id, received_qty: 8 }] });
-    check("chegou menos sem motivo: 422 em items", recusa(semMotivo, "VALIDATION_ERROR", 422, "items"), j(semMotivo));
+    // Ajuste pela Q131: o Gestor que recebe a menos resolve na hora, e a recusa sem resolução fica no campo `resolution`.
+    check("chegou menos sem resolução (Gestor do destino): 422 em resolution", recusa(semMotivo, "VALIDATION_ERROR", 422, "resolution"), j(semMotivo));
     const maisQue = await tt("receberTransferenciaAction", op, idC, { items: [{ item_id: iC.id, received_qty: 12, loss_reason: "avaria" }] });
     check("chegou mais (12 de 10): 422 em items", recusa(maisQue, "VALIDATION_ERROR", 422, "items"), j(maisQue));
     check("as recusas não gravaram nada e a transferência segue em trânsito", (await db.stockMovement.count({ where: { product_id: Cn.product_id } })) === movAntes && (await db.stockTransfer.findUnique({ where: { id: idC } }))?.status === "em_transito" && (await total(L2.id, Cn)) === 0);
-    const rMenos = await tt("receberTransferenciaAction", op, idC, { items: [{ item_id: iC.id, received_qty: 8, loss_reason: "avaria" }] });
-    check("receber 8 de 10 com motivo: aceito", rMenos.ok, j(rMenos));
+    const rMenos = await tt("receberTransferenciaAction", op, idC, { items: [{ item_id: iC.id, received_qty: 8, loss_reason: "avaria" }], resolution: "perda_no_caminho", reason: "caixa amassada" });
+    check("receber 8 de 10 com resolução e motivo: aceito", rMenos.ok, j(rMenos));
     check("destino +8", (await total(L2.id, Cn)) === 8);
     check("origem segue em -10 (90), sem movimentação de volta", (await total(L1.id, Cn)) === 90);
     check("sem movimentação nova pela diferença: só 1 saída e 1 entrada", (await movimentosDe(Cn, { movement_type: "transferencia_saida" })).length === 1 && (await movimentosDe(Cn, { movement_type: "transferencia_entrada" })).length === 1 && (await db.stockMovement.count({ where: { product_id: Cn.product_id } })) === movAntes + 1);
@@ -446,7 +451,7 @@ async function comBanco() {
 
     // ---------------------------------------------------------------- 15
     console.log("\n13. Cancelar produção (Q79) e chave de operação");
-    check("OPERADOR cancela produção: 403", recusa(await dd("cancelarProducaoAction", op, idRend, { reason: "x" }), "FORBIDDEN", 403));
+    check("Vendedor cancela produção: 403", recusa(await dd("cancelarProducaoAction", op2, idRend, { reason: "x" }), "FORBIDDEN", 403));
     check("e a produção segue de pé", (await total(L1.id, Rend)) === 100);
     const rCxP = await dd("cancelarProducaoAction", admin, idRend, { reason: "lançada errada" });
     check("ADMIN cancela a produção", rCxP.ok, j(rCxP));
@@ -497,6 +502,8 @@ async function comBanco() {
     check("usuário só do destino envia da origem: 404", recusa(await enviar(userD, L1.id, L2.id, [{ emporio_product_id: F.id, quantity: 1 }]), "NOT_FOUND", 404));
     check("e a origem seguiu em 90", (await total(L1.id, F)) === 90);
     check("usuário só do destino recebe", (await receberTudo(userD, trId(rV))).ok && (await total(L2.id, F)) === 30);
+    // definirVinculos substitui a lista da loja e tirou o op de L1 e L2: devolve (fixture da F6b).
+    await vincularTodas(prisma, TA.t.id, [op.id, op2.id], [L1.id, L2.id]);
 
     const contagem = (r: R): number => {
       const d = dados(r);

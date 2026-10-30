@@ -1,7 +1,7 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum, isoOrNull } from "@/lib/serialize";
-import { hasMinRole } from "@/lib/permissions";
+import { alcanceDeLeitura, exigir, lojasDoPapel, papelDoEmporio } from "@/lib/emporio/papel";
 import { precoSugerido, percentualEfetivo } from "@/lib/emporio/preco";
 import { findUnit } from "@/lib/stock/units";
 import type { AppUserRole } from "@/types/next-auth";
@@ -45,14 +45,7 @@ export function semAcento(texto: string): string {
   return texto.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 }
 
-const NEGADO_ADMIN = () =>
-  fail("FORBIDDEN", "Só o dono e o administrador podem fazer isso.", 403);
-const NEGADO_OPERADOR = () =>
-  fail("FORBIDDEN", "Seu perfil só permite consultar o Empório.", 403);
 const NAO_ACHADO = (o: string) => fail("NOT_FOUND", `${o} não encontrado.`, 404);
-
-const ehAdmin = (a: Ator) => hasMinRole(a.role, "ADMIN");
-const ehOperador = (a: Ator) => hasMinRole(a.role, "OPERADOR");
 
 function ehErroUnico(e: unknown): boolean {
   return (e as { code?: unknown })?.code === "P2002";
@@ -75,14 +68,17 @@ function recusaDinheiro(v: unknown, rotulo: string): string | null {
   return null;
 }
 
-/** Lojas que o ator enxerga: null = todas (sem vínculo, Q8/Q56). */
+/**
+ * Lojas que o ator enxerga: null = todas (Dono e Gerente geral, Q118). Gestor
+ * e Vendedor veem só as deles; quem não tem função no Empório não vê nenhuma.
+ */
 export async function lojasDoAtor(db: TenantPrismaClient, ator: Ator): Promise<Set<string> | null> {
-  const links = await db.userEstablishment.findMany({
-    where: { user_id: ator.id },
-    select: { establishment_id: true },
-  });
-  if (links.length === 0) return null;
-  return new Set(links.map((l) => l.establishment_id));
+  return lojasDoPapel(await papelDoEmporio(db, ator));
+}
+
+/** Q128: como `lojasDoAtor`, mas o Gestor lê o ESTOQUE de qualquer loja. */
+export async function lojasDeEstoque(db: TenantPrismaClient, ator: Ator): Promise<Set<string> | null> {
+  return alcanceDeLeitura(await papelDoEmporio(db, ator));
 }
 
 // ---------------------------------------------------------------------------
@@ -213,7 +209,8 @@ export async function criarEstabelecimentoAction(
   ator: Ator,
   input: EstablishmentInput,
 ): Promise<ActionResult<EstablishmentView>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "conta", "criar um estabelecimento");
+  if (neg) return neg;
   if (input.name === undefined) return fail("VALIDATION_ERROR", "Informe o nome do estabelecimento.", 422, "name");
   const v = await validarLoja(db, input, null);
   if (!v.ok) return v;
@@ -245,7 +242,12 @@ export async function editarEstabelecimentoAction(
   id: string,
   input: EstablishmentInput,
 ): Promise<ActionResult<EstablishmentView>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "gestor_da_loja", "editar os dados da loja");
+  if (neg) return neg;
+  if (input.allow_negative_stock !== undefined) {
+    const negConta = await exigir(db, ator, "conta", "liberar o estoque negativo");
+    if (negConta) return negConta;
+  }
   const visiveis = await lojasDoAtor(db, ator);
   if (visiveis && !visiveis.has(id)) return NAO_ACHADO("Estabelecimento");
   const atual = await db.establishment.findFirst({ where: { id } });
@@ -282,7 +284,8 @@ export async function arquivarEstabelecimentoAction(
   id: string,
   archived: boolean,
 ): Promise<ActionResult<EstablishmentView>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "conta", "arquivar um estabelecimento");
+  if (neg) return neg;
   if (typeof archived !== "boolean") {
     return fail("VALIDATION_ERROR", "Informe se é para arquivar ou desarquivar.", 422, "archived");
   }
@@ -304,7 +307,8 @@ export async function definirVinculosAction(
   establishment_id: string,
   user_ids: string[],
 ): Promise<ActionResult<EstablishmentView>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "conta", "definir quem trabalha na loja");
+  if (neg) return neg;
   if (!Array.isArray(user_ids) || user_ids.some((u) => typeof u !== "string")) {
     return fail("VALIDATION_ERROR", "Informe a lista de usuários.", 422, "user_ids");
   }
@@ -743,7 +747,8 @@ export async function criarProdutoEmporioAction(
   ator: Ator,
   input: CriarProdutoEmporioInput,
 ): Promise<ActionResult<EmporioProductDetail>> {
-  if (!ehOperador(ator)) return NEGADO_OPERADOR();
+  const neg = await exigir(db, ator, "chave:cadastrar_produto", "cadastrar produto");
+  if (neg) return neg;
   if (!isBaseUnit(input.base_unit)) {
     return fail(
       "VALIDATION_ERROR",
@@ -896,9 +901,11 @@ export async function editarProdutoEmporioAction(
   id: string,
   input: EditarProdutoEmporioInput,
 ): Promise<ActionResult<EmporioProductDetail>> {
-  if (!ehOperador(ator)) return NEGADO_OPERADOR();
-  if ((input.expense_pct !== undefined || input.profit_pct !== undefined) && !ehAdmin(ator)) {
-    return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "chave:cadastrar_produto", "editar produto");
+  if (neg) return neg;
+  if (input.expense_pct !== undefined || input.profit_pct !== undefined) {
+    const negConta = await exigir(db, ator, "conta", "mudar os percentuais do produto");
+    if (negConta) return negConta;
   }
   const atual = await db.emporioProduct.findFirst({ where: { id } });
   if (!atual) return NAO_ACHADO("Produto");
@@ -960,7 +967,8 @@ export async function arquivarProdutoEmporioAction(
   id: string,
   archived: boolean,
 ): Promise<ActionResult<EmporioProductDetail>> {
-  if (!ehOperador(ator)) return NEGADO_OPERADOR();
+  const neg = await exigir(db, ator, "chave:cadastrar_produto", "arquivar produto");
+  if (neg) return neg;
   if (typeof archived !== "boolean") {
     return fail("VALIDATION_ERROR", "Informe se é para arquivar ou desarquivar.", 422, "archived");
   }
@@ -1031,7 +1039,8 @@ export async function criarApresentacaoAction(
   emporio_product_id: string,
   input: ApresentacaoInput,
 ): Promise<ActionResult<PresentationView>> {
-  if (!ehOperador(ator)) return NEGADO_OPERADOR();
+  const neg = await exigir(db, ator, "chave:cadastrar_produto", "cadastrar apresentação");
+  if (neg) return neg;
   const p = await db.emporioProduct.findFirst({ where: { id: emporio_product_id } });
   if (!p) return NAO_ACHADO("Produto");
 
@@ -1069,7 +1078,8 @@ export async function editarApresentacaoAction(
   id: string,
   input: ApresentacaoInput,
 ): Promise<ActionResult<PresentationView>> {
-  if (!ehOperador(ator)) return NEGADO_OPERADOR();
+  const neg = await exigir(db, ator, "chave:cadastrar_produto", "editar apresentação");
+  if (neg) return neg;
   const atual = await db.productPresentation.findFirst({ where: { id }, include: { emporio_product: true } });
   if (!atual) return NAO_ACHADO("Apresentação");
 
@@ -1108,7 +1118,8 @@ export async function arquivarApresentacaoAction(
   id: string,
   archived: boolean,
 ): Promise<ActionResult<PresentationView>> {
-  if (!ehOperador(ator)) return NEGADO_OPERADOR();
+  const neg = await exigir(db, ator, "chave:cadastrar_produto", "arquivar apresentação");
+  if (neg) return neg;
   if (typeof archived !== "boolean") {
     return fail("VALIDATION_ERROR", "Informe se é para arquivar ou desarquivar.", 422, "archived");
   }
@@ -1146,7 +1157,8 @@ export async function definirPrecoAction(
   ator: Ator,
   input: DefinirPrecoInput,
 ): Promise<ActionResult<PrecoView>> {
-  if (!ehAdmin(ator)) return NEGADO_ADMIN();
+  const neg = await exigir(db, ator, "gestor_da_loja", "definir o preço");
+  if (neg) return neg;
 
   const rp = recusaDinheiro(input.price, "O preço");
   if (rp) return fail("VALIDATION_ERROR", rp, 422, "price");
