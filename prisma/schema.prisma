@@ -685,22 +685,26 @@ enum EstablishmentKind {
 /// NÃO `Property` (Q1 da spec): reaproveitar `Property` poria a loja nos
 /// seletores de rebanho, pasto e máquinas.
 model Establishment {
-  id                   String            @id @default(cuid())
+  id                   String             @id @default(cuid())
   tenant_id            String
   name                 String
-  kind                 EstablishmentKind
+  /// Q121: Central e Ponto de venda deixaram de existir, e nada mais escreve
+  /// este campo. Anulável numa entrega e removido (com o enum) na seguinte,
+  /// porque derrubá-lo junto quebraria o código no ar entre a migração e o
+  /// deploy.
+  kind                 EstablishmentKind?
   address              String?
   city                 String?
   responsible_user_id  String?
-  allow_negative_stock Boolean           @default(false)
-  max_discount_pct     Decimal?          @db.Decimal(5, 2)
-  default_expense_pct  Decimal?          @db.Decimal(7, 2)
-  default_profit_pct   Decimal?          @db.Decimal(7, 2)
+  allow_negative_stock Boolean            @default(false)
+  max_discount_pct     Decimal?           @db.Decimal(5, 2)
+  default_expense_pct  Decimal?           @db.Decimal(7, 2)
+  default_profit_pct   Decimal?           @db.Decimal(7, 2)
   archived_at          DateTime?
   /// F3a (Q83): para onde vai o PIX da loja quando a venda não diz.
   pix_bank_account_id  String?
-  created_at           DateTime          @default(now())
-  updated_at           DateTime          @updatedAt
+  created_at           DateTime           @default(now())
+  updated_at           DateTime           @updatedAt
 
   tenant                    Tenant                   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   responsible               User?                    @relation("EstablishmentResponsible", fields: [responsible_user_id], references: [id], onDelete: SetNull)
@@ -769,6 +773,18 @@ model EmporioProduct {
   /// Q53: exceção do produto, vale em todas as lojas.
   expense_pct        Decimal?  @db.Decimal(7, 2)
   profit_pct         Decimal?  @db.Decimal(7, 2)
+  /// Q123: quanto cabe em uma unidade-base ("saca de 10 kg"). Obrigatório em
+  /// saca e fardo, opcional em unidade, nulo em quilo e litro. Fixo depois de
+  /// criado, como a unidade-base: mudá-lo mudaria o sentido do estoque.
+  content_qty        Decimal?  @db.Decimal(14, 3)
+  /// `quilograma`, `litro` ou `unidade` (esta só no fardo).
+  content_unit       String?
+  /// Q124: dados para distinguir produtos parecidos. A marca fica no `Product`.
+  manufacturer       String?
+  /// Único na conta quando preenchido (nulo não colide).
+  internal_code      String?
+  /// Ids de `EMPORIO_SPECIES` (cão, gato, bovino...), vários por produto.
+  species            String[]  @default([])
   archived_at        DateTime?
   created_by_user_id String?
   updated_by_user_id String?
@@ -788,6 +804,7 @@ model EmporioProduct {
   rules_as_product   VariableExpenseRule[] @relation("RuleProduct")
   rules_as_packaging VariableExpenseRule[] @relation("RulePackaging")
 
+  @@unique([tenant_id, internal_code])
   @@index([tenant_id])
 }
 
