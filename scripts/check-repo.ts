@@ -1337,6 +1337,96 @@ function conferirOpacidadeDosTokens() {
   );
 }
 
+// ------------------------------- 19. escrita do Emporio registra no Historico
+/**
+ * 19. Toda action de escrita do Emporio registra no Historico.
+ *
+ * Spec do Modulo 39, "F6b: contrato": o Historico e gravado "na mesma transacao
+ * de TODA action de escrita do Emporio e da Equipe". Sem trava, uma action nova
+ * nasce sem registro e ninguem percebe: a tela de Historico simplesmente
+ * esquece aquela operacao.
+ *
+ * A UNIDADE e a FUNCAO exportada (nao o arquivo): um arquivo com 13 chamadas
+ * ainda pode ter uma action sem nenhuma. Em `src/lib/actions/emporio-*.ts`, toda
+ * funcao exportada `*Action` e escrita, salvo se o nome comecar por um prefixo
+ * de LEITURA (lista abaixo, deliberadamente curta: nome novo de leitura que nao
+ * esteja nela reprova, e a saida e acrescentar o prefixo aqui, com o porquê).
+ * Escrita precisa chamar `registrarNoHistorico` no corpo OU delegar (transitivo,
+ * dentro do mesmo arquivo) a funcao que chama. Delegacao e a unica forma de
+ * "outra funcao registra": uma action que registra por outro arquivo reprova.
+ *
+ * Cuidado com `saldoInicialCaixaAction`: comeca por "saldo" e e ESCRITA, por
+ * isso os prefixos de saldo sao `saldoDa`/`saldoDo`, nao `saldo`.
+ *
+ * Sem linha de base: no dia em que a trava nasceu o codigo ja estava limpo.
+ */
+const PREFIXOS_DE_LEITURA = [
+  "listar",
+  "ler",
+  "saldoDa",
+  "saldoDo",
+  "estoqueConsolidado",
+  "precisaRepor",
+  "resultadoDa",
+  "produtosDo",
+  "vendasCom",
+  "primeirosPassos",
+  "transferenciasParadas",
+];
+
+export function acoesDeEscritaSemHistorico(fonte: string): string[] {
+  const sem = removerComentarios(fonte);
+  const corpos = new Map<string, string>();
+  const inicios = [...sem.matchAll(/^(?:export\s+)?(?:async\s+)?function\s+(\w+)/gm)];
+  inicios.forEach((m, i) => {
+    corpos.set(m[1], sem.slice(m.index!, i + 1 < inicios.length ? inicios[i + 1].index : sem.length));
+  });
+
+  const registra = (nome: string, vistos: Set<string>): boolean => {
+    if (vistos.has(nome)) return false;
+    vistos.add(nome);
+    const corpo = corpos.get(nome) ?? "";
+    if (/\bregistrarNoHistorico\s*\(/.test(corpo)) return true;
+    for (const outro of corpos.keys()) {
+      if (outro !== nome && new RegExp(`\\b${outro}\\s*\\(`).test(corpo) && registra(outro, vistos)) return true;
+    }
+    return false;
+  };
+
+  const sem_registro: string[] = [];
+  for (const m of sem.matchAll(/^export\s+(?:async\s+)?function\s+(\w+Action)\b/gm)) {
+    const nome = m[1];
+    if (PREFIXOS_DE_LEITURA.some((p) => nome.startsWith(p))) continue;
+    if (!registra(nome, new Set())) sem_registro.push(nome);
+  }
+  return sem_registro;
+}
+
+function conferirEscritaDoEmporioNoHistorico() {
+  console.log("\n19. Escrita do Emporio registra no Historico");
+
+  const ofensores: string[] = [];
+  let total = 0;
+  for (const rel of versionados()) {
+    if (!/^src\/lib\/actions\/emporio-[\w-]+\.ts$/.test(rel)) continue;
+    // O proprio Historico so le; o modulo que grava vive em lib/emporio.
+    if (rel.endsWith("emporio-historico.ts")) continue;
+    const full = join(RAIZ, rel);
+    if (!existsSync(full)) continue;
+    total += 1;
+    for (const nome of acoesDeEscritaSemHistorico(readFileSync(full, "utf8"))) ofensores.push(`${rel}: ${nome}`);
+  }
+
+  check("ha arquivos emporio-*.ts para conferir", total > 0, "o padrao do caminho deixou de achar arquivos");
+  check(
+    "toda action de escrita do Emporio chama registrarNoHistorico",
+    ofensores.length === 0,
+    ofensores.length > 0
+      ? `grave na MESMA transacao (registrarNoHistorico de @/lib/emporio/historico), ou, se for leitura, acrescente o prefixo em PREFIXOS_DE_LEITURA:\n       ${ofensores.join("\n       ")}`
+      : undefined,
+  );
+}
+
 function main() {
   console.log("🔎 Conferencia estatica do repositorio (sem banco)");
   conferirCaminhos();
@@ -1358,6 +1448,7 @@ function main() {
   conferirDinheiroEmPortugues();
   conferirAliasDaMarca();
   conferirOpacidadeDosTokens();
+  conferirEscritaDoEmporioNoHistorico();
 
   console.log("");
   if (falhas === 0) console.log("✅ Repositorio consistente: 0 falhas.");
