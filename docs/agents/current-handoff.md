@@ -130,9 +130,21 @@ Regra a mais, decidida na revisão: o Gerente geral não altera nenhum
 ADMIN da conta. Provas: m87, m88 (WhatsApp) e m89 (Histórico) escritas da
 spec e vistas falhando antes; m77 a m89 verdes; roteiros emporio-f6b,
 f6a, f5 e f1 verdes (f6b reprovado com a trava de página desfeita e com
-a navegação por link antes do proxy); `test:all` 92/92. **Próximo:**
-cenário de demonstração na Da Mata de produção (Q137) e manual em
-`/manual` (Q138), que ainda não têm plano detalhado.
+a navegação por link antes do proxy); `test:all` 92/92.
+
+**Cenário de demonstração (Q137) RODADO na Da Mata de produção em 30/10**
+(autorizado pelo usuário; a Da Mata subiu para o plano `grupo` pelo fluxo
+de assinatura). `npm run cenario:emporio-demo -- --conta <id> --confirmar`:
+3 lojas, Equipe de 5 (emails `*.demo.emporio@example.com`; as senhas
+temporárias foram entregues ao usuário na conversa e não estão em lugar
+nenhum do repositório), 25 produtos, 173 vendas. Rodar de novo não
+duplica. Atrito real achado: não existe "abrir embalagem" fora da venda,
+então a produção da mistura exigiu uma contagem para passar milho do
+lacrado ao avulso.
+
+**Manual (Q138)**: `/manual` commitado na branch, **ainda não em
+produção**; os prints (roteiro `scripts/navegador/manual-emporio.py`)
+estão sendo gerados sobre o cenário local. Depois: merge com autorização.
 
 ⚠️ **Em produção o Empório está ligado em QUATRO contas, não só na Da
 Mata** (lido no Neon em 30/10): Da Mata, Max Dias, Laíza e Lucas
