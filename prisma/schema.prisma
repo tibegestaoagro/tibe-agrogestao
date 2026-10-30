@@ -53,6 +53,20 @@ enum UserRole {
   VISUALIZADOR
 }
 
+/// Módulo 39, F6b (Q118): a função no Meu Empório. O Dono é o OWNER e não
+/// tem valor aqui.
+enum EmporioRole {
+  gerente_geral
+  gestor
+  vendedor
+}
+
+/// Módulo 39, F6b (Q131): como a diferença de uma transferência foi resolvida.
+enum TransferResolution {
+  perda_no_caminho
+  nao_enviada
+}
+
 // `AnimalStatus` foi removido em 2026-08-04 (rebanho por categoria): no
 // modelo de lote, `quantity` já diz o que resta, e a diferença entre vendido
 // e morto vive em `AnimalMovement.movement_type`.
@@ -302,6 +316,9 @@ enum EmporioRefundKind {
 /// Módulo 39, Q19 e Q73.
 enum StockTransferStatus {
   em_transito
+  /// F6b (Q131): chegou menos e quem recebeu não pode resolver; nada entrou
+  /// no destino ainda.
+  aguardando_gestor
   recebida
   cancelada
 }
@@ -541,6 +558,7 @@ model Tenant {
   establishments            Establishment[]
   user_establishments       UserEstablishment[]
   emporio_products          EmporioProduct[]
+  emporio_audit_logs        EmporioAuditLog[]
   presentations             ProductPresentation[]
   presentation_prices       PresentationPrice[]
   emporio_purchases         EmporioPurchase[]
@@ -598,18 +616,26 @@ model TenantProfile {
 }
 
 model User {
-  id                   String   @id @default(cuid())
+  id                   String       @id @default(cuid())
   tenant_id            String
   name                 String
   // Email globalmente único: o contrato POST /api/auth/login recebe apenas
   // email+senha (sem seletor de tenant), então o email resolve um único usuário.
-  email                String   @unique
+  email                String       @unique
   password_hash        String
-  role                 UserRole @default(OPERADOR)
+  role                 UserRole     @default(OPERADOR)
   phone                String?
-  created_at           DateTime @default(now())
-  active               Boolean  @default(true)
-  must_change_password Boolean  @default(false)
+  created_at           DateTime     @default(now())
+  active               Boolean      @default(true)
+  must_change_password Boolean      @default(false)
+  /// Módulo 39, F6b (Q118): nulo = sem função no Empório (e não o vê, salvo
+  /// o OWNER). Escrito só pela Equipe, junto com o `role` que o acompanha.
+  emporio_role         EmporioRole?
+  /// Q120: Gestor e Vendedor são sempre só da loja; isto vale só para o
+  /// Gerente geral.
+  emporio_only         Boolean      @default(false)
+  /// Q129: as chaves de confiança do Vendedor (lista fixa no código).
+  emporio_keys         String[]     @default([])
 
   tenant                     Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   whatsapp_contacts          WhatsAppContact[]
@@ -753,6 +779,31 @@ model UserEstablishment {
 
 /// Módulo 39, configuração comercial de um `Product` (§5.2). O cadastro básico
 /// continua no `Product`, compartilhado com a fazenda (Q2).
+/// Módulo 39, F6b (Q134): o Histórico do Empório. Só acréscimo: nenhuma
+/// action o edita nem apaga. `user_id` e `establishment_id` sem chave
+/// estrangeira de propósito: a linha sobrevive ao que ela descreve.
+model EmporioAuditLog {
+  id               String   @id @default(cuid())
+  tenant_id        String
+  created_at       DateTime @default(now())
+  user_id          String?
+  establishment_id String?
+  /// Chave fixa no código, como `venda.criar`.
+  action           String
+  target_type      String
+  target_id        String?
+  /// A frase em português que a tela mostra.
+  summary          String
+  /// `[{ campo, antes, depois }]` nas edições.
+  changes          Json?
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id, created_at])
+  @@index([tenant_id, establishment_id, created_at])
+  @@index([tenant_id, user_id, created_at])
+}
+
 model EmporioProduct {
   id                 String    @id @default(cuid())
   tenant_id          String
@@ -956,6 +1007,11 @@ model StockTransfer {
   canceled_by_user_id          String?
   canceled_reason              String?
   notes                        String?
+  /// F6b (Q131): a diferença na chegada, resolvida pelo Gestor do destino.
+  resolution                   TransferResolution?
+  resolution_reason            String?
+  resolved_at                  DateTime?
+  resolved_by_user_id          String?
   created_at                   DateTime            @default(now())
   updated_at                   DateTime            @updatedAt
 
