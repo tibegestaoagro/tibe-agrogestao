@@ -110,17 +110,39 @@ dia; Vercel com sucesso; `content_qty` e `DUPLICATE_CODE` conferidos em
 m77 a m85, docs-api, isolation, tsc e check verdes; roteiro `emporio-f6a`
 verde e reprovado com a conversão escondida; telas vistas no celular. A
 `m83` falhava no dia 30 por borda da janela de 30 dias no teste (corrigido).
-**Próximo: F6b** (Equipe com Dono, Gerente geral, Gestor e
-Vendedor; chaves do Vendedor; trava só da loja; transferência com
-diferença; Histórico), cujo contrato ainda não está na spec. Depois da F6:
-cenário de demonstração na Da Mata de produção (Q137) e manual em
-`/manual` (Q138). A coluna `Establishment.kind` e o enum saem na entrega
-seguinte à F6a (Q121).
+**F6b pronta na branch, NÃO em produção** (contrato aprovado na spec,
+seção "F6b: contrato"). Migração `20261030180000_emporio_f6b` (função no
+Empório, transferência com diferença, `EmporioAuditLog`, e a migração de
+dados que dá a função a quem já via) aplicada só no Docker local.
+Entregue: papel lido do banco a cada request (`src/lib/emporio/papel.ts`,
+fonte única da permissão), Equipe (`/emporio/equipe`), chaves do
+Vendedor, trava só da loja na API (`guard()` com `lojaOk`), no WhatsApp
+(`executarIntencao` e turno) e nas páginas (**no `proxy.ts`**: o layout e
+o `template.tsx` não rodam na navegação por link, e o Vendedor via a
+fazenda; o proxy do Next 16 roda em Node e lê o papel), Configurações com
+o papel travado, transferência aguardando o Gestor, Histórico em toda
+escrita (conferência 19 do `check` cobra) e tela `/emporio/historico`.
+Regra a mais, decidida na revisão: o Gerente geral não altera nenhum
+ADMIN da conta. Provas: m87, m88 (WhatsApp) e m89 (Histórico) escritas da
+spec e vistas falhando antes; m77 a m89 verdes; roteiros emporio-f6b,
+f6a, f5 e f1 verdes (f6b reprovado com a trava de página desfeita e com
+a navegação por link antes do proxy). **Falta:** `test:all` conferido,
+migração no Neon e merge, com autorização.
 
-⚠️ O `next dev` entrou em laço de recarga depois do `prisma generate` da
-migração (o mesmo da F1); o classificador não deixa o agente matar o
-processo: quem para é o usuário (`taskkill //PID <pid> //T //F` no `!`,
-com barras duplas por causa do Git Bash), depois `rm -rf .next/dev`.
+Pendências pequenas da F6b: o lembrete de cadastro abandonado
+(`pending-flows`) ainda pode sair para quem virou só da loja (a retomada é
+bloqueada); a idempotência do resolver da transferência é pelo estado
+(sem coluna da chave); a perda no caminho sem motivo por item grava
+`outro`. Depois da F6: cenário de demonstração na Da Mata de produção
+(Q137) e manual em `/manual` (Q138). A coluna `Establishment.kind` e o
+enum saem numa entrega seguinte (Q121).
+
+⚠️ O `next dev` entra em laço ou responde 500 depois do `prisma generate`
+de uma migração. Parar o `next dev` ANTES do generate evita. Se for de
+outra sessão, o classificador não deixa o agente matar: quem para é o
+usuário (`taskkill //PID <pid> //T //F` no `!`, barras duplas por causa do
+Git Bash), depois `rm -rf .next/dev`. `TaskStop` da tarefa do `npm run dev`
+mata o npm mas deixa o node na porta.
 
 **F0 (liberação e fundação) em produção desde 27/10** (`192e402`, merge
 fast-forward da `emporio-f0`, que trouxe a spec junto; autorizado pelo

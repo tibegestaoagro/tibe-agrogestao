@@ -137,9 +137,11 @@ function LinhaDeRecurso({
           <p className="text-sm font-medium text-white">{info.nome}</p>
           <p className="text-xs text-gray-400">
             {recurso.enabled
-              ? !ehEmporio && recurso.user_ids.length > 0
-                ? `Ligado só para: ${nomesDosUsuarios.join(", ") || `${recurso.user_ids.length} usuário(s)`}`
-                : "Ligado para a conta inteira"
+              ? ehEmporio
+                ? "Ligado para o Dono e a Equipe"
+                : recurso.user_ids.length > 0
+                  ? `Ligado só para: ${nomesDosUsuarios.join(", ") || `${recurso.user_ids.length} usuário(s)`}`
+                  : "Ligado para a conta inteira"
               : "Desligado"}
           </p>
         </div>
