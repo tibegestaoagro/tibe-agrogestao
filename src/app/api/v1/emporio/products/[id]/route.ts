@@ -10,6 +10,7 @@ import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 const pct = z.number().min(0, "Use um valor entre 0 e 1000.").max(1000, "Use um valor entre 0 e 1000.");
 
 const editarSchema = z.object({
+  name: z.string().nullish(),
   brand: z.string().nullish(),
   manufacturer: z.string().nullish(),
   internal_code: z.string().nullish(),

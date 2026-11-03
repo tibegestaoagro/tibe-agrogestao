@@ -590,11 +590,148 @@ async function secao4() {
   }
 }
 
+async function secao5() {
+  console.log("\nSeção 5: o nome do produto é editável (com banco)");
+  (globalThis as unknown as { AsyncLocalStorage: unknown }).AsyncLocalStorage = (await import("node:async_hooks")).AsyncLocalStorage;
+  const { papelDeFixture } = await import("./_emporio-papel");
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+  const C = await import("@/lib/actions/emporio-clientes");
+  const Cat = await import("@/lib/actions/emporio-catalogo");
+  const Est = await import("@/lib/actions/emporio-estoque");
+  const V = await import("@/lib/actions/emporio-vendas");
+  const stamp = Date.now();
+  const tenantIds: string[] = [];
+  try {
+    const t = await prisma.tenant.create({
+      data: {
+        name: `M90n ${stamp}`,
+        document: `M90n${stamp}`.slice(0, 14),
+        plan: "grupo",
+        status: "trial",
+        trial_ends_at: new Date(Date.now() + 86_400_000),
+      },
+    });
+    tenantIds.push(t.id);
+    await prisma.tenantProfile.create({ data: { tenant_id: t.id, profile_type: "emporio", active: true } });
+    await prisma.tenantFeature.create({ data: { tenant_id: t.id, feature_key: "emporio", enabled: true } });
+    const mk = async (suf: string, role: "OWNER" | "OPERADOR", extra: Dado = {}) => {
+      const u = await prisma.user.create({
+        data: {
+          tenant_id: t.id,
+          name: `M90n ${suf}`,
+          email: `m90n-${suf}-${stamp}@teste.local`,
+          password_hash: "x",
+          role,
+          ...papelDeFixture(role),
+          ...extra,
+        },
+      });
+      return { id: u.id, role, email: u.email };
+    };
+    const owner = await mk("own", "OWNER");
+    const vendSemChave = await mk("vend", "OPERADOR", { emporio_keys: [] });
+    const db = prismaForTenant(t.id);
+
+    const loja = await Cat.criarEstabelecimentoAction(db, owner, { name: "M90n Loja" });
+    if (!loja.ok) throw new Error(`loja: ${j(loja)}`);
+    const categoria = await db.productCategory.create({ data: scoped({ name: "M90n categoria" }) });
+    const mkProd = async (name: string) => {
+      const r = await Cat.criarProdutoEmporioAction(db, owner, { name, category_id: categoria.id, base_unit: "unidade" });
+      if (!r.ok) throw new Error(`produto: ${j(r)}`);
+      return r.data;
+    };
+    const arame = await mkProd("Arame 500");
+    const outro = await mkProd("Prego Comum");
+    const pres = await Cat.criarApresentacaoAction(db, owner, arame.id, { name: "Rolo", base_qty: 1, is_sealed_package: false });
+    if (!pres.ok) throw new Error(`apresentação: ${j(pres)}`);
+    const pr = await Cat.definirPrecoAction(db, owner, { establishment_id: loja.data.id, presentation_id: pres.data.id, price: 10 });
+    if (!pr.ok) throw new Error(`preço: ${j(pr)}`);
+    const imp = await Est.implantarEstoqueAction(db, owner, { establishment_id: loja.data.id, emporio_product_id: arame.id, sealed: [], loose_qty: 10, unit_cost: 4 });
+    if (!imp.ok) throw new Error(`implantar: ${j(imp)}`);
+    const cf = (await C.garantirConsumidorFinal(db)).id;
+    const venda = await V.venderAction(db, owner, {
+      operation_key: `m90n-${stamp}`,
+      establishment_id: loja.data.id,
+      contact_id: cf,
+      items: [{ emporio_product_id: arame.id, presentation_id: pres.data.id, quantity: 1 }],
+      payments: [{ kind: "dinheiro", amount: 10 }],
+    });
+    if (!venda.ok) throw new Error(`venda: ${j(venda)}`);
+
+    // recusas
+    const vazio = await Cat.editarProdutoEmporioAction(db, owner, arame.id, { name: "   " });
+    check("nome em branco: 422 name", !vazio.ok && vazio.status === 422 && vazio.field === "name" && vazio.message === "Informe o nome do produto.", j(vazio));
+    const dup = await Cat.editarProdutoEmporioAction(db, owner, arame.id, { name: "  PREGO comum " });
+    check(
+      "nome de outro produto (caixa diferente): 409 DUPLICATE_NAME",
+      !dup.ok && dup.status === 409 && dup.code === "DUPLICATE_NAME" && dup.field === "name" && dup.message === 'Já existe um produto chamado "Prego Comum".',
+      j(dup),
+    );
+    const semChave = await Cat.editarProdutoEmporioAction(db, vendSemChave, arame.id, { name: "Arame Qualquer" });
+    check("vendedor sem cadastrar_produto: FORBIDDEN", !semChave.ok && semChave.code === "FORBIDDEN", j(semChave));
+    const intacto = await db.product.findFirstOrThrow({ where: { id: arame.product_id } });
+    check("as recusas não mudaram o nome", intacto.name === "Arame 500", intacto.name);
+
+    // renomear
+    const novo = await Cat.editarProdutoEmporioAction(db, owner, arame.id, { name: "  Arame Farpado 500 m  " });
+    check("renomear: ok", novo.ok, j(novo));
+    const lido = await Cat.lerProdutoEmporioAction(db, owner, arame.id);
+    check("lerProdutoEmporioAction devolve o nome novo, aparado", lido.ok && lido.data.name === "Arame Farpado 500 m", j(lido));
+    const linhas = await db.emporioAuditLog.findMany({ where: { action: "produto.editar", target_id: arame.id } });
+    const mudNome = linhas.flatMap((l) => (Array.isArray(l.changes) ? (l.changes as Dado[]) : [])).filter((m) => m.campo === "Nome");
+    check(
+      "histórico: uma linha produto.editar com Nome antes/depois",
+      linhas.length === 1 && mudNome.length === 1 && mudNome[0].antes === "Arame 500" && mudNome[0].depois === "Arame Farpado 500 m",
+      j(linhas),
+    );
+    check("o resumo usa o nome novo", linhas[0]?.summary.includes("Arame Farpado 500 m") === true, linhas[0]?.summary);
+
+    // mesmo nome: sem linha "Nome"
+    const igual = await Cat.editarProdutoEmporioAction(db, owner, arame.id, { name: "Arame Farpado 500 m", brand: "Belgo" });
+    check("mesmo nome (com outra mudança): ok", igual.ok, j(igual));
+    const linhas2 = await db.emporioAuditLog.findMany({ where: { action: "produto.editar", target_id: arame.id } });
+    const nomes2 = linhas2.flatMap((l) => (Array.isArray(l.changes) ? (l.changes as Dado[]) : [])).filter((m) => m.campo === "Nome");
+    check("mesmo nome não gera outra linha Nome", nomes2.length === 1, j(nomes2));
+
+    // só a caixa, no próprio produto
+    const caixa = await Cat.editarProdutoEmporioAction(db, owner, arame.id, { name: "ARAME FARPADO 500 M" });
+    check("mudar só a caixa do próprio nome: ok", caixa.ok && caixa.data.name === "ARAME FARPADO 500 M", j(caixa));
+
+    // venda feita antes mostra o nome novo
+    const lidaVenda = await V.lerVendaAction(db, owner, venda.data.id);
+    check(
+      "a venda feita antes mostra o nome novo",
+      lidaVenda.ok && lidaVenda.data.items.every((i) => i.product_name === "ARAME FARPADO 500 M"),
+      j(lidaVenda),
+    );
+    void outro;
+  } finally {
+    const modelos = [
+      "emporioAuditLog", "cashMovement", "stockMovement", "emporioSalePayment", "emporioSaleReturnItem", "emporioSaleReturn",
+      "emporioSaleItem", "emporioSale", "financialEntry", "presentationPrice", "productPresentation", "userEstablishment",
+      "emporioProduct", "product", "establishment", "bankAccount", "contact", "productCategory", "user", "tenantProfile", "tenantFeature",
+    ];
+    for (const id of tenantIds) {
+      for (const m of modelos) {
+        try {
+          await (prisma as Dado)[m]?.deleteMany({ where: { tenant_id: id } });
+        } catch {
+          // modelo ausente nesta versão do schema: segue
+        }
+      }
+      await prisma.tenant.delete({ where: { id } }).catch(() => undefined);
+    }
+    const sobrou = await prisma.tenant.count({ where: { id: { in: tenantIds } } });
+    check("seção 5: a limpeza não deixou tenant para trás", sobrou === 0, String(sobrou));
+  }
+}
+
 async function main() {
   await secao1();
   await secao2();
   await secao3();
   await secao4();
+  await secao5();
   console.log(falhas === 0 ? "\n✅ M90 verde" : `\n❌ M90: ${falhas} falha(s)`);
   process.exit(falhas === 0 ? 0 : 1);
 }

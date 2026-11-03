@@ -368,7 +368,7 @@ export const GROUPS: Group[] = [
         method: "PATCH",
         path: "/api/v1/emporio/products/:id",
         auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR (`expense_pct` e `profit_pct` só OWNER e ADMIN)",
-        description: "Edita custo de referência, `brand`, `manufacturer`, `internal_code` (repetido: 409 `DUPLICATE_CODE`), `species`, lacrado/avulso (`track_sealed`: `true`, `false` ou `null` para voltar ao automático), lote, validade e a exceção de percentuais do produto. Mandar `content_qty` ou `content_unit` é 422 no campo: o conteúdo não muda depois de criado.",
+        description: "Edita o nome (`name`: em branco é 422 no campo, repetido em outro produto, sem diferenciar maiúsculas, é 409 `DUPLICATE_NAME`; as vendas antigas passam a mostrar o nome novo), custo de referência, `brand`, `manufacturer`, `internal_code` (repetido: 409 `DUPLICATE_CODE`), `species`, lacrado/avulso (`track_sealed`: `true`, `false` ou `null` para voltar ao automático), lote, validade e a exceção de percentuais do produto. Mandar `content_qty` ou `content_unit` é 422 no campo: o conteúdo não muda depois de criado.",
         request: `{ "reference_cost": 12.5, "track_sealed": null, "expense_pct": 10 }`,
         response: `200
 { "data": { "id": "cl...", "reference_cost": 12.5, "track_sealed": null, "expense_pct": 10 }, "meta": {} }`,

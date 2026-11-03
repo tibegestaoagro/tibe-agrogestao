@@ -981,7 +981,12 @@ function mensagemProdutoRepetido(nome: string): string {
   return `Já existe um produto chamado "${nome}". Use o existente pelo "usar no Empório".`;
 }
 
+function mensagemNomeRepetidoNaEdicao(nome: string): string {
+  return `Já existe um produto chamado "${nome}".`;
+}
+
 const ROTULOS_PRODUTO: Record<string, string> = {
+  name: "Nome",
   brand: "Marca",
   manufacturer: "Fabricante",
   internal_code: "Código interno",
@@ -995,6 +1000,7 @@ const ROTULOS_PRODUTO: Record<string, string> = {
 };
 
 export type EditarProdutoEmporioInput = {
+  name?: string | null;
   brand?: string | null;
   manufacturer?: string | null;
   internal_code?: string | null;
@@ -1049,10 +1055,28 @@ export async function editarProdutoEmporioAction(
   if (codigo && (await codigoRepetido(db, codigo, id))) return recusaCodigo(codigo);
 
   const base = await db.product.findFirst({ where: { id: atual.product_id }, select: { name: true, brand: true } });
+  let nomeNovo: string | undefined;
+  if (input.name !== undefined) {
+    nomeNovo = String(input.name ?? "").trim();
+    if (!nomeNovo) return fail("VALIDATION_ERROR", "Informe o nome do produto.", 422, "name");
+    if (nomeNovo !== base?.name) {
+      const igual = await db.product.findFirst({
+        where: { name: { equals: nomeNovo, mode: "insensitive" }, NOT: { id: atual.product_id } },
+      });
+      if (igual) return fail("DUPLICATE_NAME", mensagemNomeRepetidoNaEdicao(igual.name), 409, "name");
+    }
+  }
+  const nomeDepois = nomeNovo ?? base?.name ?? "";
   try {
     await db.$transaction(async (tx) => {
-      if (input.brand !== undefined) {
-        await tx.product.update({ where: { id: atual.product_id }, data: { brand: aparar(input.brand) } });
+      if (input.brand !== undefined || (nomeNovo !== undefined && nomeNovo !== base?.name)) {
+        await tx.product.update({
+          where: { id: atual.product_id },
+          data: {
+            ...(input.brand !== undefined ? { brand: aparar(input.brand) } : {}),
+            ...(nomeNovo !== undefined ? { name: nomeNovo } : {}),
+          },
+        });
       }
       const depois = await tx.emporioProduct.update({
         where: { id },
@@ -1072,6 +1096,7 @@ export async function editarProdutoEmporioAction(
       const brandDepois = input.brand !== undefined ? aparar(input.brand) : (base?.brand ?? null);
       const mudancas = diferencas(
         {
+          name: base?.name ?? "",
           brand: base?.brand ?? null,
           manufacturer: atual.manufacturer,
           internal_code: atual.internal_code,
@@ -1084,6 +1109,7 @@ export async function editarProdutoEmporioAction(
           profit_pct: decToNum(atual.profit_pct),
         },
         {
+          name: nomeDepois,
           brand: brandDepois,
           manufacturer: depois.manufacturer,
           internal_code: depois.internal_code,
@@ -1102,12 +1128,15 @@ export async function editarProdutoEmporioAction(
         action: "produto.editar",
         target_type: "produto",
         target_id: id,
-        summary: `Editou o produto ${base?.name ?? ""}`.trim(),
+        summary: `Editou o produto ${nomeDepois}`.trim(),
         changes: mudancas,
       });
     });
   } catch (err) {
-    if (ehErroUnico(err) && codigo && (await codigoRepetido(db, codigo, id))) return recusaCodigo(codigo);
+    if (ehErroUnico(err)) {
+      if (codigo && (await codigoRepetido(db, codigo, id))) return recusaCodigo(codigo);
+      if (nomeNovo) return fail("DUPLICATE_NAME", mensagemNomeRepetidoNaEdicao(nomeNovo), 409, "name");
+    }
     throw err;
   }
   return lerProdutoEmporioAction(db, ator, id);
