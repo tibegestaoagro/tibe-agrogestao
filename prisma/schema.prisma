@@ -3117,6 +3117,30 @@ model Contact {
   archived_at DateTime?
   created_at  DateTime     @default(now())
 
+  /// Design 2026-11-03 (Empório: cadastro do cliente): PF/PJ, documento
+  /// (só dígitos), endereço principal e de entrega. `city` é a cidade do
+  /// endereço principal. Tudo opcional: o cadastro de Contatos continua leve.
+  person_kind         ContactPersonKind?
+  document            String?
+  state_registration  String?
+  birth_date          DateTime?          @db.Date
+  responsible_name    String?
+  address_zip         String?
+  address_street      String?
+  address_number      String?
+  address_complement  String?
+  address_district    String?
+  address_state       String?
+  delivery_zip        String?
+  delivery_street     String?
+  delivery_number     String?
+  delivery_complement String?
+  delivery_district   String?
+  delivery_city       String?
+  delivery_state      String?
+  /// Marca de contato fixo do sistema ("consumidor_final"). Nulo nos demais.
+  system_key          String?
+
   tenant       Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   negotiations Negotiation[]
 
@@ -3138,7 +3162,15 @@ model Contact {
   emporio_sales        EmporioSale[]
   emporio_checks       EmporioCheck[]
 
+  @@unique([tenant_id, document])
+  @@unique([tenant_id, system_key])
   @@index([tenant_id])
+}
+
+/// Design 2026-11-03: pessoa física ou jurídica do contato.
+enum ContactPersonKind {
+  pf
+  pj
 }
 
 enum NegotiationType {
