@@ -159,8 +159,139 @@ async function secao1() {
   check("CONSUMIDOR_FINAL", m.CONSUMIDOR_FINAL.system_key === "consumidor_final" && m.CONSUMIDOR_FINAL.name === "Consumidor final");
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Dado = any;
+
+async function secao2() {
+  console.log("\nSeção 2: Contatos aceita os campos novos (com banco)");
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+  const A = await import("@/lib/actions/contacts");
+  const stamp = Date.now();
+  const tenantIds: string[] = [];
+  try {
+    const novoTenant = async (nome: string) => {
+      const t = await prisma.tenant.create({
+        data: {
+          name: `M90 ${nome} ${stamp}`,
+          document: `M90${nome}${stamp}`.slice(0, 14),
+          plan: "grupo",
+          status: "trial",
+          trial_ends_at: new Date(Date.now() + 86_400_000),
+        },
+      });
+      tenantIds.push(t.id);
+      return t;
+    };
+    const t = await novoTenant("A");
+    const tB = await novoTenant("B");
+    const db = prismaForTenant(t.id);
+    const dbB = prismaForTenant(tB.id);
+
+    const c1 = await A.createContact(db, { name: "Só Nome" });
+    check("createContact só com nome: ok e incompleto", c1.ok && c1.data.incomplete === true, j(c1));
+
+    const pf = await A.createContact(db, { name: "Zé CPF", person_kind: "pf", document: "529.982.247-25", phone: "3499" });
+    check("PF com CPF válido grava só dígitos", pf.ok && pf.data.document === "52998224725" && pf.data.incomplete === false, j(pf));
+
+    const ruim = await A.createContact(db, { name: "Ruim", person_kind: "pf", document: "52998224724" });
+    check("CPF inválido: 422 document", !ruim.ok && ruim.status === 422 && ruim.field === "document", j(ruim));
+
+    const dup = await A.createContact(db, { name: "Outro", person_kind: "pf", document: "52998224725" });
+    check(
+      "mesmo CPF: 409 DUPLICATE_DOCUMENT com nome do primeiro",
+      !dup.ok && dup.code === "DUPLICATE_DOCUMENT" && dup.status === 409 && dup.field === "document" &&
+        dup.message === "Já existe um contato com esse CPF: Zé CPF.",
+      j(dup),
+    );
+
+    if (!pf.ok) throw new Error("pf não criou");
+    const arq = await A.setContactArchived(db, pf.data.id, true);
+    check("arquivar contato comum ok", arq.ok, j(arq));
+    const dup2 = await A.createContact(db, { name: "Outro", person_kind: "pf", document: "52998224725" });
+    check(
+      "arquivado: mensagem traz o trecho do arquivado",
+      !dup2.ok && dup2.message.includes("Zé CPF.") && dup2.message.includes(" Ele está arquivado: desarquive em Contatos."),
+      j(dup2),
+    );
+    await A.setContactArchived(db, pf.data.id, false);
+
+    const outro = await A.createContact(dbB, { name: "Zé B", person_kind: "pf", document: "52998224725" });
+    check("mesmo CPF em outro tenant: ok", outro.ok, j(outro));
+
+    // CNPJ na mensagem
+    const pj = await A.createContact(db, { name: "Empresa", person_kind: "pj", document: "11.222.333/0001-81", responsible_name: "Ana" });
+    const pjDup = await A.createContact(db, { name: "Outra", person_kind: "pj", document: "11222333000181" });
+    check("duplicado de PJ usa CNPJ", !pjDup.ok && pjDup.message === "Já existe um contato com esse CNPJ: Empresa.", j(pjDup));
+
+    // update parcial mantém CPF e endereço
+    const comEnd = await A.createContact(db, {
+      name: "Com Endereço",
+      person_kind: "pf",
+      document: "111.444.777-35",
+      address_street: "Rua A",
+      address_zip: "38400-000",
+      address_state: "mg",
+      phone: "1",
+    });
+    if (!comEnd.ok) throw new Error(`comEnd: ${j(comEnd)}`);
+    const up = await A.updateContact(db, comEnd.data.id, { name: "Com Endereço 2", phone: "999" });
+    check(
+      "updateContact {name, phone} mantém CPF e endereço",
+      up.ok && up.data.document === "11144477735" && up.data.address_street === "Rua A" &&
+        up.data.address_zip === "38400000" && up.data.address_state === "MG" && up.data.phone === "999",
+      j(up),
+    );
+    const upNull = await A.updateContact(db, comEnd.data.id, { name: "Com Endereço 2", address_street: null });
+    check("campo novo nulo limpa", upNull.ok && upNull.data.address_street === null && upNull.data.document === "11144477735", j(upNull));
+
+    // (a) PATCH só {name, document} num contato pf armazenado
+    const upDoc = await A.updateContact(db, comEnd.data.id, { name: "Com Endereço 3", document: "529.982.247-25" });
+    check("(a) só {name, document} em pf armazenado usa o person_kind guardado (aqui repetido)", !upDoc.ok && upDoc.code === "DUPLICATE_DOCUMENT", j(upDoc));
+    const upDoc2 = await A.updateContact(db, c1.ok ? c1.data.id : "", { name: "Só Nome", person_kind: "pf" });
+    check("define person_kind", upDoc2.ok, j(upDoc2));
+    const upDoc3 = await A.updateContact(db, c1.ok ? c1.data.id : "", { name: "Só Nome", document: "390.533.447-05" });
+    check("(a) PATCH {name, document} em contato pf funciona", upDoc3.ok && upDoc3.data.document === "39053344705", j(upDoc3));
+
+    // update com o próprio documento não conflita consigo mesmo
+    const upSelf = await A.updateContact(db, c1.ok ? c1.data.id : "", { name: "Só Nome", document: "39053344705" });
+    check("regravar o próprio documento ok", upSelf.ok, j(upSelf));
+
+    // (b) PJ -> pf zera responsible_name
+    if (!pj.ok) throw new Error(`pj: ${j(pj)}`);
+    const troca = await A.updateContact(db, pj.data.id, { name: "Empresa", person_kind: "pf", document: "86288366757" });
+    check(
+      "(b) trocar PJ para pf zera responsible_name",
+      troca.ok && troca.data.person_kind === "pf" && troca.data.responsible_name === null,
+      j(troca),
+    );
+
+    // Consumidor final
+    const cf = await db.contact.create({ data: scoped({ name: "Consumidor final", system_key: "consumidor_final" }) });
+    const lista = await A.listContacts(db);
+    check("listContacts não devolve o system_key", !lista.some((c) => c.id === cf.id) && lista.length > 0, j(lista.map((c) => c.name)));
+    const foc = await A.findOrCreateContact(db, "consumidor final");
+    check("findOrCreateContact não reaproveita o system_key", foc.criado === true && foc.id !== cf.id, j(foc));
+    const msg = "O Consumidor final é fixo e não pode ser editado nem arquivado.";
+    const eCf = await A.updateContact(db, cf.id, { name: "Outro nome" });
+    check("updateContact no system_key: 422", !eCf.ok && eCf.status === 422 && eCf.code === "VALIDATION_ERROR" && eCf.message === msg, j(eCf));
+    const aCf = await A.setContactArchived(db, cf.id, true);
+    check("setContactArchived no system_key: 422", !aCf.ok && aCf.status === 422 && aCf.message === msg, j(aCf));
+
+    // detalhe devolve os campos novos
+    const det = await A.getContactDetail(db, comEnd.data.id);
+    check("getContactDetail traz campos novos", det.ok && det.data.address_zip === "38400000" && det.data.document === "11144477735" && det.data.incomplete === true, j(det));
+    check("view não vaza system_key", det.ok && !("system_key" in det.data));
+  } finally {
+    for (const id of tenantIds) {
+      await prisma.contact.deleteMany({ where: { tenant_id: id } });
+      await prisma.tenant.delete({ where: { id } }).catch(() => undefined);
+    }
+  }
+}
+
 async function main() {
   await secao1();
+  await secao2();
   console.log(falhas === 0 ? "\n✅ M90 verde" : `\n❌ M90: ${falhas} falha(s)`);
   process.exit(falhas === 0 ? 0 : 1);
 }

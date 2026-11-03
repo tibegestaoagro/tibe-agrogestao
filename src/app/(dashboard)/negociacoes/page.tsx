@@ -168,7 +168,7 @@ export default async function NegociacoesPage(
     listNegotiations(db, filtro, { limit: 30 }),
     getOpenTotals(db, effectivePropertyId ? { property_id: effectivePropertyId } : {}),
     db.property.findMany({ where: { archived_at: null }, orderBy: { name: "asc" } }),
-    db.contact.findMany({ where: { archived_at: null }, orderBy: { name: "asc" } }),
+    db.contact.findMany({ where: { archived_at: null, system_key: null }, orderBy: { name: "asc" } }),
     db.pasture.findMany({ where: { archived_at: null }, orderBy: { name: "asc" } }),
     // Só as máquinas que ainda são do produtor: uma já negociada ou vendida
     // não pode ser entregue de novo, e oferecê-la seria convidar a recusa.

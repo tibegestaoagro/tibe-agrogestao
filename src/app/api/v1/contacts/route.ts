@@ -22,12 +22,34 @@ import { withApi } from "@/lib/route";
 
 const TIPOS = CONTACT_TYPES;
 
+// §5 do Módulo 31: a regra "sem CPF obrigatório" vale FORA do balcão do Empório.
+// Os campos PF/PJ são aceitos e opcionais; a Zod só tipa e apara, a conferência é da action.
+const texto = z.string().trim().max(200).nullish();
+
 const createSchema = z.object({
   name: z.string().trim().min(1, "Informe o nome do contato"),
   type: z.enum(TIPOS).nullish(),
   phone: z.string().trim().max(40).nullish(),
   city: z.string().trim().max(120).nullish(),
   notes: z.string().trim().max(1000).nullish(),
+  person_kind: z.enum(["pf", "pj"]).nullish(),
+  document: texto,
+  state_registration: texto,
+  birth_date: texto,
+  responsible_name: texto,
+  address_zip: texto,
+  address_street: texto,
+  address_number: texto,
+  address_complement: texto,
+  address_district: texto,
+  address_state: texto,
+  delivery_zip: texto,
+  delivery_street: texto,
+  delivery_number: texto,
+  delivery_complement: texto,
+  delivery_district: texto,
+  delivery_city: texto,
+  delivery_state: texto,
 });
 
 async function GETHandler(request: Request) {

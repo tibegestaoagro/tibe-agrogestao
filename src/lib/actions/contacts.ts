@@ -1,9 +1,10 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
-import type { ContactType, Prisma } from "@/generated/prisma/client";
+import type { Contact, ContactType, Prisma } from "@/generated/prisma/client";
 import { delegates } from "@/lib/prisma-delegates";
 import { totalDoServico } from "@/lib/mao-de-obra/total-do-servico";
 import { decToNum } from "@/lib/serialize";
+import { conferirCadastro, cadastroIncompleto, type CadastroDoContato } from "@/lib/contatos/cadastro";
 
 /**
  * O mínimo que esta action precisa do client. Aceita tanto o client escopado
@@ -15,11 +16,12 @@ export type ContactClient = Pick<TenantPrismaClient, "contact"> | Prisma.Transac
 /**
  * Contatos de negociação (Módulo 31, §4 e §5).
  *
- * §5 é explícito sobre a simplicidade: nesta primeira versão o sistema NÃO deve
- * exigir CPF, CNPJ, inscrição estadual, endereço completo, dados bancários nem
- * documentação fiscal. Só o nome é obrigatório, e até o TIPO é opcional, porque
- * "o usuário não deverá ser obrigado a classificar a pessoa ou empresa quando
- * não souber" (§4).
+ * §5 é explícito sobre a simplicidade: fora do balcão do Empório o sistema NÃO
+ * exige CPF, CNPJ, inscrição estadual, endereço completo, dados bancários nem
+ * documentação fiscal. Desde 2026-11-03 os campos do cadastro PF/PJ são ACEITOS
+ * aqui, mas continuam opcionais: só o nome é obrigatório, e até o TIPO é
+ * opcional, porque "o usuário não deverá ser obrigado a classificar a pessoa ou
+ * empresa quando não souber" (§4). Quem os exige é o balcão do Empório.
  *
  * Extraído do route handler em 2026-08-13: a regra vive aqui porque o caminho
  * do WhatsApp precisa da mesma criação ("comprei 20 bezerros DO JOÃO", §18.1) e
@@ -66,11 +68,17 @@ const TIPOS_COMPLETOS: Record<ContactType, true> = {
 
 export const CONTACT_TYPES = Object.keys(TIPOS_COMPLETOS) as readonly ContactType[];
 
-export type ContactInput = {
+/** Campos do cadastro PF/PJ que o PATCH trata como "ausente = mantém, nulo = limpa". */
+const CAMPOS_NOVOS = [
+  "person_kind", "document", "state_registration", "birth_date", "responsible_name",
+  "address_zip", "address_street", "address_number", "address_complement", "address_district", "address_state",
+  "delivery_zip", "delivery_street", "delivery_number", "delivery_complement", "delivery_district",
+  "delivery_city", "delivery_state",
+] as const;
+
+export type ContactInput = CadastroDoContato & {
   name: string;
   type?: ContactType | null;
-  phone?: string | null;
-  city?: string | null;
   notes?: string | null;
 };
 
@@ -81,17 +89,93 @@ export type ContactView = {
   phone: string | null;
   city: string | null;
   notes: string | null;
+  person_kind: "pf" | "pj" | null;
+  document: string | null;
+  state_registration: string | null;
+  birth_date: string | null;
+  responsible_name: string | null;
+  address_zip: string | null;
+  address_street: string | null;
+  address_number: string | null;
+  address_complement: string | null;
+  address_district: string | null;
+  address_state: string | null;
+  delivery_zip: string | null;
+  delivery_street: string | null;
+  delivery_number: string | null;
+  delivery_complement: string | null;
+  delivery_district: string | null;
+  delivery_city: string | null;
+  delivery_state: string | null;
+  incomplete: boolean;
 };
 
-function serializar(c: {
-  id: string;
-  name: string;
-  type: ContactType | null;
-  phone: string | null;
-  city: string | null;
-  notes: string | null;
-}): ContactView {
-  return { id: c.id, name: c.name, type: c.type, phone: c.phone, city: c.city, notes: c.notes };
+function serializar(c: Contact): ContactView {
+  return {
+    id: c.id,
+    name: c.name,
+    type: c.type,
+    phone: c.phone,
+    city: c.city,
+    notes: c.notes,
+    person_kind: c.person_kind,
+    document: c.document,
+    state_registration: c.state_registration,
+    birth_date: c.birth_date ? c.birth_date.toISOString().slice(0, 10) : null,
+    responsible_name: c.responsible_name,
+    address_zip: c.address_zip,
+    address_street: c.address_street,
+    address_number: c.address_number,
+    address_complement: c.address_complement,
+    address_district: c.address_district,
+    address_state: c.address_state,
+    delivery_zip: c.delivery_zip,
+    delivery_street: c.delivery_street,
+    delivery_number: c.delivery_number,
+    delivery_complement: c.delivery_complement,
+    delivery_district: c.delivery_district,
+    delivery_city: c.delivery_city,
+    delivery_state: c.delivery_state,
+    incomplete: cadastroIncompleto(c),
+  };
+}
+
+export const RECUSA_CONSUMIDOR_FINAL = "O Consumidor final é fixo e não pode ser editado nem arquivado.";
+
+/**
+ * Quem já usa o documento neste tenant. Conta os arquivados também: o índice
+ * único não os ignora, e a recusa precisa dizer onde o contato está.
+ */
+export async function documentoRepetido(
+  db: ContactClient,
+  documento: string,
+  selfId: string | null,
+): Promise<{ id: string; name: string; archived: boolean } | null> {
+  const c = await delegates(db).contact.findFirst({
+    where: { document: documento, ...(selfId ? { id: { not: selfId } } : {}) },
+    select: { id: true, name: true, archived_at: true },
+  });
+  return c ? { id: c.id, name: c.name, archived: c.archived_at !== null } : null;
+}
+
+export function recusaDocumento(r: { name: string; archived: boolean }, documento: string) {
+  const rotulo = documento.length === 14 ? "CNPJ" : "CPF";
+  const msg =
+    `Já existe um contato com esse ${rotulo}: ${r.name}.` +
+    (r.archived ? " Ele está arquivado: desarquive em Contatos." : "");
+  return fail("DUPLICATE_DOCUMENT", msg, 409, "document");
+}
+
+const ehUnico = (e: unknown) => (e as { code?: unknown })?.code === "P2002";
+
+function paraBanco(dados: CadastroDoContato): Record<string, unknown> {
+  const { birth_date, ...resto } = dados;
+  return {
+    ...resto,
+    ...(birth_date !== undefined
+      ? { birth_date: birth_date ? new Date(`${birth_date}T00:00:00.000Z`) : null }
+      : {}),
+  };
 }
 
 export async function listContacts(
@@ -101,6 +185,7 @@ export async function listContacts(
   const contatos = await db.contact.findMany({
     where: {
       archived_at: null,
+      system_key: null,
       ...(filtro.busca ? { name: { contains: filtro.busca, mode: "insensitive" as const } } : {}),
       ...(filtro.type ? { type: filtro.type } : {}),
     },
@@ -134,26 +219,49 @@ export async function createContact(
   db: TenantPrismaClient,
   input: ContactInput,
 ): Promise<ActionResult<ContactView>> {
-  const contato = await db.contact.create({
-    data: scoped({
-      name: input.name.trim(),
-      type: input.type ?? null,
-      phone: input.phone ?? null,
-      city: input.city ?? null,
-      notes: input.notes ?? null,
-    }),
-  });
-  return ok(serializar(contato));
+  if (!(input.name ?? "").trim()) return fail("VALIDATION_ERROR", "Informe o nome do contato.", 422, "name");
+
+  const conf = conferirCadastro(input, "livre");
+  if (!conf.ok) return fail("VALIDATION_ERROR", conf.message, 422, conf.field);
+  const documento = conf.dados.document ?? null;
+
+  if (documento) {
+    const rep = await documentoRepetido(db, documento, null);
+    if (rep) return recusaDocumento(rep, documento);
+  }
+
+  try {
+    const contato = await db.contact.create({
+      data: scoped({
+        ...paraBanco(conf.dados),
+        name: input.name.trim(),
+        type: input.type ?? null,
+        notes: input.notes ?? null,
+      }) as Prisma.ContactUncheckedCreateInput,
+    });
+    return ok(serializar(contato));
+  } catch (e) {
+    if (documento && ehUnico(e)) {
+      const rep = await documentoRepetido(db, documento, null);
+      if (rep) return recusaDocumento(rep, documento);
+    }
+    throw e;
+  }
 }
 
 /**
- * Edita um contato. Só os campos do §5: nada de documento, endereço nem dado
- * bancário, que o Módulo 31 já decidiu deixar fora.
+ * Edita um contato.
  *
  * Existe desde a fase 0 dos Módulos 33 e 34. Até 02/09 o contato criado pela
  * conversa (`findOrCreateContact`, que grava só o nome dito no WhatsApp) não
- * tinha como ganhar telefone, tipo nem município depois: nenhuma tela e nenhuma
- * rota escreviam num contato existente.
+ * tinha como ganhar telefone, tipo nem município depois.
+ *
+ * Semântica mista, de propósito: `name/type/phone/city/notes` continuam
+ * substituindo tudo (ausente vira nulo). Os campos do cadastro PF/PJ são
+ * "ausente = mantém, nulo = limpa", para quem só corrige o telefone não perder
+ * o CPF gravado no balcão. A conferência roda sobre o registro MESCLADO
+ * (guardado + entrada): um `document` sem `person_kind` usa o tipo guardado, e
+ * trocar o tipo zera o campo do outro tipo.
  */
 export async function updateContact(
   db: TenantPrismaClient,
@@ -165,18 +273,44 @@ export async function updateContact(
 
   const atual = await db.contact.findUnique({ where: { id } });
   if (!atual) return fail("NOT_FOUND", "Contato não encontrado.", 404);
+  if (atual.system_key) return fail("VALIDATION_ERROR", RECUSA_CONSUMIDOR_FINAL, 422);
 
-  const contato = await db.contact.update({
-    where: { id },
-    data: {
-      name: nome,
-      type: input.type ?? null,
-      phone: input.phone ?? null,
-      city: input.city ?? null,
-      notes: input.notes ?? null,
-    },
-  });
-  return ok(serializar(contato));
+  const guardado = serializar(atual) as unknown as Record<string, string | null>;
+  const entrada = input as unknown as Record<string, string | null | undefined>;
+  const mesclado: Record<string, string | null> = {
+    name: nome,
+    phone: input.phone ?? null,
+    city: input.city ?? null,
+  };
+  for (const k of CAMPOS_NOVOS) mesclado[k] = k in entrada ? (entrada[k] ?? null) : guardado[k];
+
+  const conf = conferirCadastro(mesclado as CadastroDoContato, "livre");
+  if (!conf.ok) return fail("VALIDATION_ERROR", conf.message, 422, conf.field);
+  const documento = conf.dados.document ?? null;
+
+  if (documento) {
+    const rep = await documentoRepetido(db, documento, id);
+    if (rep) return recusaDocumento(rep, documento);
+  }
+
+  try {
+    const contato = await db.contact.update({
+      where: { id },
+      data: {
+        ...paraBanco(conf.dados),
+        name: nome,
+        type: input.type ?? null,
+        notes: input.notes ?? null,
+      } as Prisma.ContactUncheckedUpdateInput,
+    });
+    return ok(serializar(contato));
+  } catch (e) {
+    if (documento && ehUnico(e)) {
+      const rep = await documentoRepetido(db, documento, id);
+      if (rep) return recusaDocumento(rep, documento);
+    }
+    throw e;
+  }
 }
 
 /**
@@ -193,6 +327,7 @@ export async function setContactArchived(
 ): Promise<ActionResult<ContactView>> {
   const atual = await db.contact.findUnique({ where: { id } });
   if (!atual) return fail("NOT_FOUND", "Contato não encontrado.", 404);
+  if (atual.system_key) return fail("VALIDATION_ERROR", RECUSA_CONSUMIDOR_FINAL, 422);
 
   const contato = await db.contact.update({
     where: { id },
@@ -292,7 +427,7 @@ export async function findOrCreateContact(
 ): Promise<{ id: string; name: string; criado: boolean }> {
   const limpo = nome.trim();
   const existente = await delegates(db).contact.findFirst({
-    where: { archived_at: null, name: { equals: limpo, mode: "insensitive" } },
+    where: { archived_at: null, system_key: null, name: { equals: limpo, mode: "insensitive" } },
   });
   if (existente) return { id: existente.id, name: existente.name, criado: false };
 

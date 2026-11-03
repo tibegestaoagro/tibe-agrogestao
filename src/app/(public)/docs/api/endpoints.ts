@@ -1092,17 +1092,17 @@ export const GROUPS: Group[] = [
         path: "/api/v1/contacts",
         auth: "Sessão · rebanho:read · perfil fazenda ou emporio",
         description:
-          "Lista os contatos de negociação (vendedor, comprador, frigorífico, leiloeira). Filtros opcionais: `q` (parte do nome) e `type`. Cadastro deliberadamente simples: o §5 do documento proíbe exigir CPF, CNPJ, endereço ou dados bancários nesta versão.",
+          "Lista os contatos de negociação (vendedor, comprador, frigorífico, leiloeira). Filtros opcionais: `q` (parte do nome) e `type`. Não devolve o Consumidor final do Empório. Cada contato traz os campos do cadastro PF/PJ (`person_kind`, `document`, endereços etc.) e `incomplete` (true se faltar tipo, documento ou telefone). Fora do balcão do Empório nada disso é obrigatório (§5).",
         response: `200
-{ "data": [{ "id": "cl...", "name": "João da Ponte", "type": "fazendeiro", "phone": null, "city": "Unaí" }], "meta": { "total": 1 } }`,
+{ "data": [{ "id": "cl...", "name": "João da Ponte", "type": "fazendeiro", "phone": null, "city": "Unaí", "person_kind": null, "document": null, "incomplete": true }], "meta": { "total": 1 } }`,
       },
       {
         method: "POST",
         path: "/api/v1/contacts",
         auth: "Sessão · rebanho:write · perfil fazenda ou emporio",
         description:
-          "Cadastra um contato. Só `name` é obrigatório: até o tipo é opcional, porque o §4 diz que o usuário não deve ser obrigado a classificar quem não souber classificar.",
-        request: `{ "name": "Frigorífico Boa Carne", "type": "frigorifico", "city": "Paracatu" }`,
+          "Cadastra um contato. Só `name` é obrigatório: até o tipo é opcional (§4). Aceita, opcionais, `person_kind` (`pf` ou `pj`), `document` (CPF ou CNPJ, com ou sem máscara, gravado só com dígitos; exige `person_kind`), `state_registration`, `birth_date` (AAAA-MM-DD, só PF), `responsible_name` (só PJ), `address_*` (zip, street, number, complement, district, state; a cidade é `city`) e `delivery_*` (os mesmos mais `delivery_city`). Recusas 422 trazem o `field`; documento já usado no tenant (arquivados contam) devolve 409 `DUPLICATE_DOCUMENT` em `document`.",
+        request: `{ "name": "Frigorífico Boa Carne", "type": "frigorifico", "city": "Paracatu", "person_kind": "pj", "document": "11.222.333/0001-81" }`,
         response: `201
 { "data": { "id": "cl...", "name": "Frigorífico Boa Carne", "type": "frigorifico" }, "meta": {} }`,
       },
@@ -1111,7 +1111,7 @@ export const GROUPS: Group[] = [
         path: "/api/v1/contacts/:id",
         auth: "Sessão · rebanho:read · perfil fazenda ou emporio",
         description:
-          "O contato mais o histórico dele: as negociações NÃO canceladas, da mais recente para a mais antiga (máx. 50). As canceladas ficam de fora porque o §17.10 mantém a linha no histórico da própria negociação, e aqui elas só inflariam a conta de quanto já se negociou com aquela pessoa.",
+          "O contato (com todos os campos do cadastro PF/PJ e `incomplete`) mais o histórico dele: as negociações NÃO canceladas, da mais recente para a mais antiga (máx. 50). As canceladas ficam de fora porque o §17.10 mantém a linha no histórico da própria negociação, e aqui elas só inflariam a conta de quanto já se negociou com aquela pessoa.",
         response: `200
 { "data": { "id": "cl...", "name": "João da Ponte", "type": "fazendeiro", "archived": false, "negotiations": [{ "id": "cl...", "type": "venda_gado", "occurred_at": "2026-08-01T00:00:00.000Z", "amount": 15000 }] }, "meta": {} }`,
       },
@@ -1120,7 +1120,7 @@ export const GROUPS: Group[] = [
         path: "/api/v1/contacts/:id",
         auth: "Sessão · rebanho:write · perfil fazenda ou emporio",
         description:
-          "Edita o contato. Existe porque o contato criado pela conversa do WhatsApp nasce só com o nome dito (`findOrCreateContact`), e até esta rota não havia como acrescentar telefone, tipo ou município depois. Os campos são os mesmos do POST: o §5 continua proibindo CPF, endereço e dados bancários.",
+          "Edita o contato. Existe porque o contato criado pela conversa do WhatsApp nasce só com o nome dito (`findOrCreateContact`), e até esta rota não havia como acrescentar telefone, tipo ou município depois. Os campos são os mesmos do POST. `name`, `type`, `phone`, `city` e `notes` substituem tudo (ausente vira nulo); os campos do cadastro PF/PJ seguem outra regra: ausente no corpo mantém o valor guardado, `null` limpa. A conferência usa o registro mesclado (um `document` sem `person_kind` usa o tipo guardado; trocar o tipo zera `birth_date` ou `responsible_name` do outro). O Consumidor final não pode ser editado (422).",
         request: `{ "name": "João da Ponte", "type": "fazendeiro", "phone": "38999990000", "city": "Unaí" }`,
         response: `200
 { "data": { "id": "cl...", "name": "João da Ponte", "type": "fazendeiro", "phone": "38999990000", "city": "Unaí" }, "meta": {} }`,
