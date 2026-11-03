@@ -118,10 +118,14 @@ export function VendaCampos({
       : produtos.filter((p) => p.apresentacoes.length > 0 && produtoCasaBusca(p, termo)).slice(0, MAX_RESULTADOS);
 
   // O que foi cadastrado ou completado aqui vale sobre o que veio do servidor.
+  // Mesma ordem do servidor: Consumidor final primeiro, depois por nome.
   const todosContatos: ContatoDeVenda[] = [
     ...contatos.map((c) => v.contatosNovos.find((n) => n.id === c.id) ?? c),
     ...v.contatosNovos.filter((n) => !contatos.some((c) => c.id === n.id)),
-  ];
+  ].sort(
+    (a, b) =>
+      Number(b.consumidor_final) - Number(a.consumidor_final) || a.name.localeCompare(b.name, "pt-BR"),
+  );
   const escolhido = todosContatos.find((c) => c.id === v.contatoId);
 
   function escolher(p: ProdutoVenda) {
@@ -291,6 +295,9 @@ export function VendaCampos({
                 <Select
                   value={v.contatoId}
                   onValueChange={(valor) => {
+                    // O Radix dispara "" quando o valor novo chega antes da opção existir
+                    // (cliente recém-cadastrado). Não há opção vazia: nunca é escolha de ninguém.
+                    if (valor === "") return;
                     v.setContatoId(valor);
                     limpar("contact_id");
                   }}
