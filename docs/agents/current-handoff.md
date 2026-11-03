@@ -25,7 +25,7 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 `historico/2026-09.md`.
 ## Estado atual
 
-- Atualizado em: 2026-10-30.
+- Atualizado em: 2026-11-03.
 
 ### Programa de dívidas (07 a 14/10): encerrado, E0 a E10 em produção
 
@@ -95,6 +95,35 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 1 a 7 aprovados, dívidas 5.3 e 5.6 fechadas) foi para
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
+
+### Empório: cadastro do cliente, nome do produto e menu (03/11), branch `emporio-cliente-menu`
+
+Pedido da Laiza (Agromax). Design
+`docs/superpowers/specs/2026-11-03-emporio-cliente-nome-menu-design.md`, plano
+`docs/superpowers/plans/2026-11-03-emporio-cliente-nome-menu.md`, decisões
+Q139 a Q142 na spec do módulo. A busca nas listas de escolha ficou **fora**,
+por decisão do usuário.
+
+Entregue (local, **não está na `main`**): cliente PF/PJ (obrigatórios só no
+balcão; em Contatos tudo opcional), "Consumidor final" fixo por conta, venda
+sempre com cliente (revisa a Q37), aviso "Cadastro incompleto" com "Completar
+cadastro", nome do produto editável, Meu Empório como grupo do menu (revisa a
+Q59). Suíte `test:m90` nova; `test:all` 90/90 verde; roteiro
+`emporio-cliente-menu` reprovado com o cliente opcional e verde com a
+correção; telas vistas no navegador de testes (dono, gestor, vendedor,
+celular).
+
+**Antes do push:** migração `20261103120000_contato_cadastro_completo` no
+Neon com a URL Direct (invariante 3). Ela cria o "Consumidor final" de cada
+conta com o Empório ligado.
+
+Pendências: refazer o cenário de demonstração da Da Mata (as vendas agora
+levam cliente); o manual (`src/app/(dashboard)/manual/_conteudo/`) descreve o
+cliente opcional, o "cadastro rápido" de dois campos e o menu antigo, e os
+prints da venda e do menu estão velhos; **decisão do usuário**: o CNPJ
+alfanumérico da Receita (inscrições novas desde julho de 2026) não é aceito,
+porque a conferência exige 14 números. Armadilha de ambiente: o `next dev`
+entrou em laço de recarga duas vezes, e apagar `.next/dev` resolveu.
 
 ### Meu Empório (Módulo 39): F0 a F6 em produção
 
@@ -300,6 +329,10 @@ quando a rotação terminar.
 origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
+
+**Branch `emporio-cliente-menu`:** o usuário valida; com a autorização dele,
+migração no Neon (URL Direct), depois o merge e o push na `main`, um de cada
+vez. Em seguida, o manual e o cenário de demonstração (ver a seção acima).
 
 **Meu Empório: TESTE DE CLIENTE pelo usuário, em produção.** As sete fases
 (F0 a F5) estão no ar desde 29/10, mas foram provadas só no banco local;
