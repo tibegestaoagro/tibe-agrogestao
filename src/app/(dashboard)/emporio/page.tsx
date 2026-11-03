@@ -8,6 +8,7 @@ import { listarTransferenciasAction } from "@/lib/actions/emporio-transferencias
 import { listarVendasAction } from "@/lib/actions/emporio-vendas";
 import { listarFiadoAction } from "@/lib/actions/emporio-caixa";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
+import { veAPagina } from "@/lib/emporio/paginas";
 import { primeirosPassosAction, type PassoKey, type PassoView } from "@/lib/actions/emporio-primeiros-passos";
 import { Badge } from "@/components/ui/badge";
 
@@ -38,9 +39,7 @@ export default async function EmporioPage() {
   const db = await getTenantDb();
   // F6b: cartões e avisos decidem pelo papel do Empório, não pela role da conta.
   const papel = await papelDoEmporio(db, user);
-  const podeVender = pode(papel, "vendedor_da_loja");
   const ehGestor = pode(papel, "gestor_da_loja");
-  const podeVerEquipe = pode(papel, "conta");
   const lojas = await listarEstabelecimentosAction(db, user);
   const estabelecimentos = lojas.ok ? lojas.data.length : 0;
   const produtos = await db.emporioProduct.count({ where: { archived_at: null } });
@@ -136,7 +135,7 @@ export default async function EmporioPage() {
           singular="transferência em trânsito"
           plural="transferências em trânsito"
         />
-        {podeVender && <CartaoTexto href="/emporio/vender" titulo="Vender" texto="Abrir o balcão e registrar uma venda" />}
+        {veAPagina(papel, "/emporio/vender") && <CartaoTexto href="/emporio/vender" titulo="Vender" texto="Abrir o balcão e registrar uma venda" />}
         <Cartao
           href="/emporio/vendas"
           titulo="Vendas"
@@ -152,16 +151,16 @@ export default async function EmporioPage() {
           plural="clientes com fiado em aberto"
         />
         <CartaoTexto href="/emporio/caixa" titulo="Caixa" texto="Saldo das gavetas e das contas, e os movimentos" />
-        {podeVerEquipe && (
+        {veAPagina(papel, "/emporio/equipe") && (
           <CartaoTexto href="/emporio/equipe" titulo="Equipe" texto="Quem trabalha nas lojas e o que cada um pode fazer" />
         )}
-        {ehGestor && (
+        {veAPagina(papel, "/emporio/resultado") && (
           <CartaoTexto href="/emporio/resultado" titulo="Resultado" texto="Quanto cada loja ganhou no mês e o ponto de equilíbrio" />
         )}
-        {ehGestor && (
+        {veAPagina(papel, "/emporio/despesas") && (
           <CartaoTexto href="/emporio/despesas" titulo="Despesas" texto="Contas a pagar, despesas fixas e o Vendeu, Pagou" />
         )}
-        {ehGestor && (
+        {veAPagina(papel, "/emporio/historico") && (
           <CartaoTexto href="/emporio/historico" titulo="Histórico" texto="Quem fez o quê nas lojas, com data e hora" />
         )}
       </div>

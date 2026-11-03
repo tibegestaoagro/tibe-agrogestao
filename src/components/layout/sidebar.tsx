@@ -36,7 +36,8 @@ export type IconKey =
   | "whatsapp"
   | "configuracoes";
 
-export type NavChild = { href: string; label: string; show: boolean };
+/** `exact`: o filho só acende na rota exata (o Início do Empório não acende nas irmãs). */
+export type NavChild = { href: string; label: string; show: boolean; exact?: boolean };
 
 export type NavItem =
   | { kind: "link"; href: string; label: string; icon: IconKey; show: boolean }
@@ -179,7 +180,9 @@ export default function Sidebar({
             // Grupo expansível.
             const children = item.children.filter((c) => c.show);
             if (children.length === 0) return null;
-            const hasActiveChild = children.some((c) => isActive(pathname, c.href));
+            const childActive = (c: NavChild) =>
+              c.exact ? pathname === c.href : isActive(pathname, c.href);
+            const hasActiveChild = children.some(childActive);
             const open = manualToggle[item.label] ?? hasActiveChild;
 
             return (
@@ -205,7 +208,7 @@ export default function Sidebar({
                 {open && (
                   <div className="ml-4 space-y-1 border-l border-texto-invertido/10 pl-4 pt-1">
                     {children.map((child) => {
-                      const active = isActive(pathname, child.href);
+                      const active = childActive(child);
                       return (
                         <Link
                           key={child.href}

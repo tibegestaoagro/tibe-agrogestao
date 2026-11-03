@@ -22,7 +22,7 @@ export function buildNavItems({
   hasPrestador,
   hasEmporio,
   soDaLoja = false,
-  veHistoricoDoEmporio = false,
+  paginasDoEmporio = [],
 }: {
   role: AppUserRole;
   hasFazenda: boolean;
@@ -30,10 +30,10 @@ export function buildNavItems({
   hasEmporio: boolean;
   /** F6b (Q120): Gestor, Vendedor e Gerente geral "só da loja" veem apenas as páginas permitidas a eles. */
   soDaLoja?: boolean;
-  /** F6b (Q134): o Histórico é do Dono, do Gerente geral e do Gestor; o Vendedor nunca o vê. */
-  veHistoricoDoEmporio?: boolean;
+  /** As telas do Empório que o papel permite (`paginasVisiveis`); vazio quando não há Empório. */
+  paginasDoEmporio?: { href: string; rotulo: string }[];
 }): NavItem[] {
-  const itens = montarItens({ role, hasFazenda, hasPrestador, hasEmporio, veHistoricoDoEmporio });
+  const itens = montarItens({ role, hasFazenda, hasPrestador, hasEmporio, paginasDoEmporio });
   return soDaLoja ? restringirAoSoDaLoja(itens) : itens;
 }
 
@@ -56,13 +56,13 @@ function montarItens({
   hasFazenda,
   hasPrestador,
   hasEmporio,
-  veHistoricoDoEmporio,
+  paginasDoEmporio,
 }: {
   role: AppUserRole;
   hasFazenda: boolean;
   hasPrestador: boolean;
   hasEmporio: boolean;
-  veHistoricoDoEmporio: boolean;
+  paginasDoEmporio: { href: string; rotulo: string }[];
 }): NavItem[] {
   return [
     /*
@@ -83,8 +83,19 @@ function montarItens({
     // Módulo 39 (Q17): o Empório é uma área à parte, liberada por conta pela
     // Plataforma. `hasEmporio` já vem resolvido no layout (recurso visível para
     // o usuário E perfil ativo), não só pelo perfil.
-    { kind: "link", href: "/emporio", label: "Meu Empório", icon: "emporio", show: hasEmporio },
-    { kind: "link", href: "/emporio/historico", label: "Histórico", icon: "historico", show: hasEmporio && veHistoricoDoEmporio },
+    // Grupo com as telas que o papel do Empório permite (já filtradas no layout).
+    {
+      kind: "group",
+      label: "Meu Empório",
+      icon: "emporio",
+      show: hasEmporio,
+      children: paginasDoEmporio.map((p) => ({
+        href: p.href,
+        label: p.rotulo,
+        show: true,
+        ...(p.href === "/emporio" ? { exact: true } : {}),
+      })),
+    },
     {
       kind: "group",
       label: "Operação",

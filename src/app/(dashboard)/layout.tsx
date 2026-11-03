@@ -7,7 +7,8 @@ import { getBillingState, isBillingExemptPath } from "@/lib/billing-access";
 import { getActivePropertyId } from "@/lib/active-property";
 import { buildNavItems } from "@/lib/nav";
 import { isFeatureVisibleForUser } from "@/lib/features";
-import { papelDoEmporio, pode } from "@/lib/emporio/papel";
+import { papelDoEmporio } from "@/lib/emporio/papel";
+import { paginasVisiveis } from "@/lib/emporio/paginas";
 import { DESTINO_DO_SO_DA_LOJA, paginaPermitidaAoSoDaLoja } from "@/lib/emporio/paginas-do-so-da-loja";
 import DashboardShell from "@/components/layout/dashboard-shell";
 import InstallInvite from "@/components/pwa/install-invite";
@@ -83,7 +84,7 @@ export default async function DashboardLayout({
 
   const navItems = buildNavItems({ role: user.role, hasFazenda, hasPrestador, hasEmporio,
     soDaLoja,
-    veHistoricoDoEmporio: pode(papelEmporio, "gestor_da_loja"),
+    paginasDoEmporio: hasEmporio ? paginasVisiveis(papelEmporio) : [],
   });
 
   return (

@@ -1,6 +1,8 @@
 import "./_env-local";
 import { buildNavItems } from "@/lib/nav";
 import type { NavItem, NavChild } from "@/components/layout/sidebar";
+import { paginasVisiveis, veAPagina } from "@/lib/emporio/paginas";
+import type { PapelContexto } from "@/lib/emporio/papel";
 
 /**
  * Teste unitário de buildNavItems (auditoria de arquitetura, 2026-08-04):
@@ -88,6 +90,55 @@ function main() {
     findGroupChild(visualizadorSemPerfil, "Configurações", "/configuracoes/senha")?.show === true,
     "VISUALIZADOR ainda vê Minha senha (não é privilégio de papel)",
   );
+
+  // Meu Empório como grupo, com as telas que o papel permite.
+  const lojaA = "loja-a";
+  const dono: PapelContexto = { papel: "dono", lojas: null, chaves: new Set(), soDaLoja: false };
+  const gestor: PapelContexto = { papel: "gestor", lojas: new Set([lojaA]), chaves: new Set(), soDaLoja: true };
+  const vendedor: PapelContexto = { papel: "vendedor", lojas: new Set([lojaA]), chaves: new Set(), soDaLoja: true };
+  const base = { role: "OWNER" as const, hasFazenda: false, hasPrestador: false };
+  const grupo = (itens: NavItem[]) =>
+    itens.find((i): i is Extract<NavItem, { kind: "group" }> => i.kind === "group" && i.label === "Meu Empório");
+
+  const ordemEsperada = [
+    "/emporio", "/emporio/vender", "/emporio/vendas", "/emporio/fiado", "/emporio/caixa",
+    "/emporio/produtos", "/emporio/estoque", "/emporio/compras", "/emporio/transferencias",
+    "/emporio/despesas", "/emporio/resultado", "/emporio/equipe", "/emporio/estabelecimentos",
+    "/emporio/historico",
+  ];
+  const doDono = buildNavItems({ ...base, hasEmporio: true, paginasDoEmporio: paginasVisiveis(dono) });
+  const gDono = grupo(doDono);
+  assert(
+    !!gDono && JSON.stringify(gDono.children.map((c) => c.href)) === JSON.stringify(ordemEsperada),
+    "dono: o grupo Meu Empório tem os 14 filhos, na ordem",
+  );
+  assert(gDono?.show === true && gDono.icon === "emporio", "o grupo Meu Empório aparece com o ícone do Empório");
+  assert(
+    gDono?.children[0].href === "/emporio" && gDono.children[0].exact === true,
+    "o Início só acende na rota exata",
+  );
+  assert(findLink(doDono, "/emporio/historico") === undefined, "não há link de topo /emporio/historico");
+  assert(findLink(doDono, "/emporio") === undefined, "não há link de topo /emporio");
+
+  const doVendedor = buildNavItems({
+    ...base, hasEmporio: true, soDaLoja: true, paginasDoEmporio: paginasVisiveis(vendedor),
+  });
+  const gVend = grupo(doVendedor);
+  const hrefsVend = gVend?.children.map((c) => c.href) ?? [];
+  assert(!!gVend, "com soDaLoja, o grupo Meu Empório continua lá");
+  assert(
+    ["/emporio/despesas", "/emporio/resultado", "/emporio/equipe", "/emporio/historico"].every((h) => !hrefsVend.includes(h)),
+    "vendedor não vê Despesas, Resultado, Equipe nem Histórico",
+  );
+  assert(hrefsVend.includes("/emporio/vender"), "vendedor vê Vender");
+
+  const hrefsGestor = paginasVisiveis(gestor).map((p) => p.href);
+  assert(hrefsGestor.includes("/emporio/historico"), "gestor vê Histórico");
+  assert(!hrefsGestor.includes("/emporio/equipe"), "gestor não vê Equipe");
+  assert(veAPagina(gestor, "/emporio/resultado") && !veAPagina(vendedor, "/emporio/resultado"), "veAPagina segue o papel");
+
+  const semEmporio = buildNavItems({ ...base, hasEmporio: false });
+  assert(grupo(semEmporio) === undefined || grupo(semEmporio)?.show === false, "sem Empório, o grupo não aparece");
 
   console.log("");
   if (failures === 0) {

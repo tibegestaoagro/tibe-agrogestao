@@ -26,7 +26,7 @@ function check(nome: string, cond: boolean, detalhe?: string) {
 
 console.log("🛍️  M77: Módulo 39 (Meu Empório), F0: liberação por conta e fundação\n");
 
-type Item = { href?: string; show?: boolean; children?: Item[] };
+type Item = { href?: string; label?: string; show?: boolean; children?: Item[] };
 function achar(itens: Item[], href: string): Item | undefined {
   for (const i of itens) {
     if (i.href === href) return i;
@@ -53,7 +53,8 @@ console.log("1. buildNavItems: o menu por combinação de perfis");
       return it ? it.show === true : null;
     };
     console.log(`  (${c.nome})`);
-    check("/emporio existe e show === hasEmporio", show("/emporio") === c.hasEmporio, String(show("/emporio")));
+    const grupoEmporio = itens.find((i) => i.label === "Meu Empório");
+    check("o grupo Meu Empório existe e show === hasEmporio", grupoEmporio?.show === c.hasEmporio, String(grupoEmporio?.show));
     const compartilhado = c.hasFazenda || c.hasEmporio;
     check("/contatos show === fazenda || empório", show("/contatos") === compartilhado, String(show("/contatos")));
     check("/lista-de-compra show === fazenda || empório", show("/lista-de-compra") === compartilhado, String(show("/lista-de-compra")));
