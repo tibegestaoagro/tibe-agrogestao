@@ -67,6 +67,7 @@ export function ClienteForm({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [carregando, setCarregando] = useState(false);
+  const [falhouCarga, setFalhouCarga] = useState(false);
   const [valores, setValores] = useState<ValoresCadastro>(CADASTRO_VAZIO);
 
   function mudar(campo: CampoCadastro, valor: string) {
@@ -77,9 +78,11 @@ export function ClienteForm({
   async function abrir() {
     if (!completar || !contatoId) return;
     setCarregando(true);
+    setFalhouCarga(false);
     const res = await apiGet<ContatoDoCadastro>(`/api/v1/contacts/${contatoId}`);
     setCarregando(false);
     if (!res.ok) {
+      setFalhouCarga(true);
       err.setGlobal(res.message);
       return;
     }
@@ -87,6 +90,11 @@ export function ClienteForm({
   }
 
   async function submit() {
+    // Sem o cadastro carregado o formulário está vazio, e salvar apagaria o que está guardado.
+    if (completar && falhouCarga) {
+      err.setGlobal("Não foi possível carregar o cadastro. Feche e abra de novo.");
+      return;
+    }
     const novos: Partial<Record<Campo, string>> = {};
     const nome = valores.name.trim();
     if (!valores.person_kind) novos.person_kind = "Escolha pessoa física ou jurídica.";

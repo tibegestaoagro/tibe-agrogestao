@@ -134,8 +134,8 @@ export default function Sidebar({
               // aparecia com o recurso desligado, e "Minha Fazenda" em conta
               // sem perfil fazenda.
               if (!item.show) return null;
-              // Um link de topo dentro de outro ("Histórico" sob "Meu Empório"):
-              // só o mais específico acende, senão os dois ficam marcados.
+              // Quando o caminho de um link contém o de outro, só o mais
+              // específico acende, senão os dois ficam marcados.
               const active =
                 isActive(pathname, item.href) &&
                 !navItems.some(

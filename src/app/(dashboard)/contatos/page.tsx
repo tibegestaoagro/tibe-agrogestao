@@ -146,7 +146,7 @@ export default async function ContatosPage({
                     <Link href={`/contatos/${c.id}`} className="font-medium text-texto underline">
                       {c.name}
                     </Link>
-                    {c.incomplete && <Badge variant="amber">Cadastro incompleto</Badge>}
+                    {temEmporio && c.incomplete && <Badge variant="amber">Cadastro incompleto</Badge>}
                   </div>
                 </TableCell>
                 <TableCell>

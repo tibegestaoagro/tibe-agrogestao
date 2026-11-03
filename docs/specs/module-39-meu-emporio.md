@@ -120,7 +120,7 @@ cliente real com as duas coisas vai precisar.
 | Q34 | **Três lugares para o dinheiro:** a **gaveta** de cada estabelecimento, as **contas bancárias** da conta do cliente (compartilháveis entre lojas, recebem PIX e débito) e o **a receber do cartão** | é a distinção do §14.1; duas lojas com um CNPJ é o caso comum |
 | Q35 | **Conferência de caixa livre**, a qualquer momento, com justificativa da diferença. Um dia com movimento sem conferência gera aviso no Meu Dia | abertura e fechamento obrigatórios por turno travam o balcão (§14.2, "simples") |
 | Q36 | **Cancelamento total** estorna tudo, só OWNER ou ADMIN. **Devolução parcial** é operação nova ligada à venda (a mercadoria volta, ou vira perda se avariada). **Troca** é devolução mais venda nova, ligadas. Nada é apagado | o critério "Cancelar ou devolver uma venda" pede as duas |
-| Q37 | **Fiado exige cliente** cadastrado em Contatos, com cadastro rápido na venda. Vencimento opcional, sem juros nem multa | sem cliente não existe "José pagou R$ 100 do que devia" (§12.4) |
+| Q37 | **Fiado exige cliente** cadastrado em Contatos, com cadastro rápido na venda. Vencimento opcional, sem juros nem multa | sem cliente não existe "José pagou R$ 100 do que devia" (§12.4). Revisada pela Q140. |
 | Q38 | A compra pode ser **registrada antes de chegar**: a conta a pagar nasce na hora, o estoque entra no recebimento. Padrão: "já recebi". A pendente conta na sugestão de reposição | sem isso o item 4 do §11.4 (não duplicar a sugestão) não funciona |
 | Q39 | **Parcelas informadas na compra** (entrada + N), uma conta a pagar por parcela | padrão que as Negociações já usam; cada vencimento aparece no Meu Dia |
 | Q40 | O preço cadastrado **nunca muda sozinho**. Quando o custo sobe, a tela avisa e mostra o novo sugerido; o comerciante aplica um a um ou em lote | liberdade comercial (§10.3) |
@@ -142,7 +142,7 @@ cliente real com as duas coisas vai precisar.
 | Q56 | O vínculo usuário-estabelecimento se marca **na tela do estabelecimento** | não mexe na tela de Usuários, que a fazenda usa |
 | Q57 | Na F1, **só as chaves** no produto. Lacrado/avulso é automático (ligado quando há apresentação fechada e a granel) até alguém escolher; lote e validade começam desligados. O dado de cada entrada vem na F2a | lote e validade são da entrada, não do produto |
 | Q58 | "Central" e "Ponto de venda" são **só rótulo**, sem limite. Arquivar é livre na F1; **a partir da F2a exige saldo zero e nada em trânsito** | a spec não dá papel especial à Central |
-| Q59 | `/emporio` vira **início com dois cartões** (Estabelecimentos, Produtos); a tela do produto reúne dados comerciais, apresentações e a tabela de preço por loja com o sugerido | o menu da conta mista já é longo; a tabela do §8 é por produto |
+| Q59 | `/emporio` vira **início com dois cartões** (Estabelecimentos, Produtos); a tela do produto reúne dados comerciais, apresentações e a tabela de preço por loja com o sugerido | o menu da conta mista já é longo; a tabela do §8 é por produto. Revisada pela Q142. |
 | Q60 | `quantity` **segue `Decimal(14,3)`** na F2a; a F2b decide se alarga quando a abertura de embalagem e o rendimento chegarem | três casas na unidade-base são 1 g, o que basta para compra e contagem |
 | Q61 | Item da compra: **apresentação e quantidade** (ou quantidade na unidade-base) **e valor total do item**. O frete é rateado **pelo valor** dos itens. Grava o custo por unidade-base, frete incluído | ratear por quantidade jogaria frete demais no item barato e pesado |
 | Q62 | No Financeiro, `related_module` `emporio`, a loja e a categoria de despesa **"Mercadorias para revenda"** (criada sob demanda). À vista: um lançamento pago; a prazo: um a pagar com vencimento; parcelada: um por parcela; com entrada: a entrada paga mais as parcelas | Q39 literal |
@@ -318,11 +318,12 @@ saldo.
 | model | para quê |
 |---|---|
 | `EmporioPurchase` + itens | estabelecimento, fornecedor (`Contact`), recebida ou não (Q38), frete somado ao custo (§9.3), parcelas |
-| `EmporioSale` + itens | estabelecimento, cliente opcional (obrigatório no fiado, Q37), por item: apresentação, quantidade, preço sugerido, preço praticado, desconto, custo do momento, marca de custo provisório (Q32) |
+| `EmporioSale` + itens | estabelecimento, cliente obrigatório (Consumidor final quando não se identifica, Q140), por item: apresentação, quantidade, preço sugerido, preço praticado, desconto, custo do momento, marca de custo provisório (Q32) |
 | `EmporioSalePayment` | forma, valor, destino do dinheiro, regra de cartão do momento |
 | `EmporioSaleReturn` | devolução parcial e troca, ligadas à venda (Q36) |
 | `CashDrawer` | a gaveta de cada estabelecimento |
 | `BankAccount` | conta bancária da conta do cliente (Q47) |
+| `Contact` (campos novos, Q139) | tipo de pessoa (PF/PJ), CPF/CNPJ (único por conta), inscrição estadual, nascimento ou responsável, endereço e endereço de entrega, e `system_key` (o Consumidor final) |
 | `CashMovement` | onde o dinheiro está: entrada e saída da gaveta, da conta e do a receber do cartão, inclusive transferência entre caixas (§14.3). O saldo é a soma |
 | `CashCount` | conferência: esperado, contado, diferença, justificativa (Q35) |
 | `CardFeeRule` | estabelecimento, forma, taxa %, prazo em dias (Q23) |

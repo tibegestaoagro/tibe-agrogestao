@@ -108,6 +108,8 @@ export type ContactView = {
   delivery_city: string | null;
   delivery_state: string | null;
   incomplete: boolean;
+  /** Contato de sistema (o Consumidor final): fixo, não edita nem arquiva. */
+  fixed: boolean;
 };
 
 export function serializar(c: Contact): ContactView {
@@ -137,6 +139,7 @@ export function serializar(c: Contact): ContactView {
     delivery_city: c.delivery_city,
     delivery_state: c.delivery_state,
     incomplete: cadastroIncompleto(c),
+    fixed: c.system_key !== null && c.system_key !== undefined,
   };
 }
 

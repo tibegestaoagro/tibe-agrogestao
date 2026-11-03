@@ -173,7 +173,7 @@ function ordenarPorVencimento(a: ContaEmAberto, b: ContaEmAberto): number {
 async function pessoasQueCasam(db: TenantPrismaClient, nome: string): Promise<PessoaCandidata[]> {
   const clientes = await findClientsByName(db, nome);
   const contatos = await db.contact.findMany({
-    where: { archived_at: null, name_busca: { contains: normalizarTermo(nome) } },
+    where: { archived_at: null, system_key: null, name_busca: { contains: normalizarTermo(nome) } },
   });
 
   return [

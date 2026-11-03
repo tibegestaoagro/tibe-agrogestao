@@ -65,6 +65,8 @@ export const contactSchema = z.object({
   delivery_state: z.string().nullable(),
   /** Falta tipo, documento ou telefone (nunca para o Consumidor final). */
   incomplete: z.boolean(),
+  /** Contato de sistema (o Consumidor final): fixo, não edita nem arquiva. */
+  fixed: z.boolean(),
 });
 export type Contact = z.infer<typeof contactSchema>;
 

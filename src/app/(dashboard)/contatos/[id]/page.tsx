@@ -87,8 +87,8 @@ export default async function ContatoPage({ params }: { params: Promise<{ id: st
 
   const contato = res.data;
   // Só o cadastro desce para o formulário: os negócios e serviços ficam no servidor.
-  const { negotiations: _negocios, services: _servicos, archived: _arquivado, incomplete: _incompleto, ...paraFormulario } = contato;
-  void [_negocios, _servicos, _arquivado, _incompleto];
+  const { negotiations: _negocios, services: _servicos, archived: _arquivado, incomplete: _incompleto, fixed: _fixo, ...paraFormulario } = contato;
+  void [_negocios, _servicos, _arquivado, _incompleto, _fixo];
   const total = contato.negotiations.reduce((soma, n) => soma + (n.amount ?? 0), 0);
   const totalDeServicos = contato.services.reduce((soma, s) => soma + s.total, 0);
 
@@ -105,7 +105,7 @@ export default async function ContatoPage({ params }: { params: Promise<{ id: st
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold text-texto">{contato.name}</h1>
             {contato.archived && <Badge variant="amber">Arquivado</Badge>}
-            {contato.incomplete && <Badge variant="amber">Cadastro incompleto</Badge>}
+            {temEmporio && contato.incomplete && <Badge variant="amber">Cadastro incompleto</Badge>}
           </div>
           <p className="mt-1 text-sm text-texto-secundario">
             {contato.type
@@ -113,7 +113,7 @@ export default async function ContatoPage({ params }: { params: Promise<{ id: st
               : "Sem tipo definido"}
           </p>
         </div>
-        {writable && (
+        {writable && !contato.fixed && (
           <div className="flex flex-wrap items-start gap-2">
             <ContactForm contato={paraFormulario} />
             <ContactArchiveButton contactId={contato.id} arquivado={contato.archived} />

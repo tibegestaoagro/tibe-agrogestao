@@ -49,6 +49,8 @@ const ROTULOS: Record<string, string> = {
   delivery_state: "UF de entrega",
 };
 
+const mascarar = (v: unknown) => (v ? "informado" : null);
+
 export async function cadastrarClienteAction(
   db: TenantPrismaClient,
   ator: Ator,
@@ -144,7 +146,11 @@ export async function completarClienteAction(
         target_type: "contato",
         target_id: id,
         summary: `Completou o cadastro do cliente ${novo.name}`,
-        changes: diferencas(guardado, serializar(novo) as unknown as Record<string, unknown>, ROTULOS),
+        changes: diferencas(guardado, serializar(novo) as unknown as Record<string, unknown>, ROTULOS, {
+          // O Histórico não se apaga: dado pessoal entra só como "informado".
+          document: mascarar,
+          birth_date: mascarar,
+        }),
       });
       return novo;
     });
