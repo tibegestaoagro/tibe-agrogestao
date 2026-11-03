@@ -112,6 +112,7 @@ async function main() {
     operation_key: `cenario-f3b-${Date.now()}`,
     establishment_id: loja.id,
     sold_at: quarentaDiasAtras,
+    contact_id: (await (await import("@/lib/actions/emporio-clientes")).garantirConsumidorFinal(db)).id,
     items: [{ emporio_product_id: racao, presentation_id: quilo, quantity: 5 }],
     payments: [{ kind: "credito_vista", amount: 100 }],
   } as never), "venda antiga no credito");

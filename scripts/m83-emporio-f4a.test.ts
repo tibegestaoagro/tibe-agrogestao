@@ -287,8 +287,10 @@ async function comBanco() {
     const chave = (p: string) => `m83-${p}-${stamp}-${(chaveSeq += 1)}`;
     const itP = (qty: number) => ({ emporio_product_id: P.id, presentation_id: P.pres, quantity: qty });
     const itQ = (qty: number) => ({ emporio_product_id: Q.id, presentation_id: Q.pres, quantity: qty });
+    // Toda venda exige cliente (design 2026-11-03-emporio-cliente-nome-menu): o padrão das fixtures é o Consumidor final.
+    const cf = (await (await import("@/lib/actions/emporio-clientes")).garantirConsumidorFinal(db)).id;
     const venda = (ator: Ator, est: string, items: Dado[], payments: Dado[], over: Dado = {}) =>
-      vv("venderAction", ator, { operation_key: chave("v"), establishment_id: est, items, payments, ...over });
+      vv("venderAction", ator, { operation_key: chave("v"), establishment_id: est, contact_id: cf, items, payments, ...over });
     const saleId = (r: R): string => dados(r)?.id ?? dados(r)?.sale_id ?? "";
     const dinheiro = (amount: number) => ({ kind: "dinheiro", amount });
     const credito = (amount: number) => ({ kind: "credito_vista", amount });

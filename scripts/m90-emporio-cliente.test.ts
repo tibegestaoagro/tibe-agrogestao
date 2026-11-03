@@ -443,10 +443,158 @@ async function secao3() {
   }
 }
 
+async function secao4() {
+  console.log("\nSeção 4: a venda exige cliente; Consumidor final sem fiado nem cheque (com banco)");
+  (globalThis as unknown as { AsyncLocalStorage: unknown }).AsyncLocalStorage = (await import("node:async_hooks")).AsyncLocalStorage;
+  const { papelDeFixture } = await import("./_emporio-papel");
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+  const C = await import("@/lib/actions/emporio-clientes");
+  const Cat = await import("@/lib/actions/emporio-catalogo");
+  const Est = await import("@/lib/actions/emporio-estoque");
+  const V = await import("@/lib/actions/emporio-vendas");
+  const { carregarCatalogoDeVenda } = await import("@/app/(dashboard)/emporio/_components/catalogo-venda");
+  const stamp = Date.now();
+  const tenantIds: string[] = [];
+  try {
+    const t = await prisma.tenant.create({
+      data: {
+        name: `M90v ${stamp}`,
+        document: `M90v${stamp}`.slice(0, 14),
+        plan: "grupo",
+        status: "trial",
+        trial_ends_at: new Date(Date.now() + 86_400_000),
+      },
+    });
+    tenantIds.push(t.id);
+    await prisma.tenantProfile.create({ data: { tenant_id: t.id, profile_type: "emporio", active: true } });
+    await prisma.tenantFeature.create({ data: { tenant_id: t.id, feature_key: "emporio", enabled: true } });
+    const u = await prisma.user.create({
+      data: {
+        tenant_id: t.id,
+        name: "M90v own",
+        email: `m90v-own-${stamp}@teste.local`,
+        password_hash: "x",
+        role: "OWNER",
+        ...papelDeFixture("OWNER"),
+      },
+    });
+    const owner = { id: u.id, role: "OWNER" as const, email: u.email };
+    const db = prismaForTenant(t.id);
+
+    // catálogo numa conta sem Consumidor final: cria e devolve em primeiro
+    const antes = await prisma.contact.count({ where: { tenant_id: t.id, system_key: "consumidor_final" } });
+    const soNome = await db.contact.create({ data: scoped({ name: "Aaa Só Nome" }) });
+    const completo = await db.contact.create({
+      data: scoped({ name: "Zzz Completo", person_kind: "pf", document: "52998224725", phone: "3499" }),
+    });
+    const cat0 = await carregarCatalogoDeVenda(db, []);
+    const depois = await prisma.contact.count({ where: { tenant_id: t.id, system_key: "consumidor_final" } });
+    check("conta sem Consumidor final: o catálogo cria um", antes === 0 && depois === 1, `${antes} ${depois}`);
+    check("Consumidor final vem primeiro, com consumidor_final true", cat0.contatos[0]?.consumidor_final === true && cat0.contatos[0]?.name === "Consumidor final", j(cat0.contatos));
+    check("depois dele, por nome, sem system_key", cat0.contatos.slice(1).map((c) => c.name).join("|") === "Aaa Só Nome|Zzz Completo" && cat0.contatos.slice(1).every((c) => !c.consumidor_final), j(cat0.contatos));
+    check("contato só com nome vem incomplete true, o completo false", cat0.contatos.find((c) => c.id === soNome.id)?.incomplete === true && cat0.contatos.find((c) => c.id === completo.id)?.incomplete === false, j(cat0.contatos));
+
+    // loja, produto, preço e estoque
+    const loja = await Cat.criarEstabelecimentoAction(db, owner, { name: "M90v Loja" });
+    if (!loja.ok) throw new Error(`loja: ${j(loja)}`);
+    const categoria = await db.productCategory.create({ data: scoped({ name: "M90v categoria" }) });
+    const p = await Cat.criarProdutoEmporioAction(db, owner, { name: `M90v Ração ${stamp}`, category_id: categoria.id, base_unit: "quilograma" });
+    if (!p.ok) throw new Error(`produto: ${j(p)}`);
+    const pres = await Cat.criarApresentacaoAction(db, owner, p.data.id, { name: "Quilo", base_qty: 1, is_sealed_package: false });
+    if (!pres.ok) throw new Error(`apresentação: ${j(pres)}`);
+    const pr = await Cat.definirPrecoAction(db, owner, { establishment_id: loja.data.id, presentation_id: pres.data.id, price: 10 });
+    if (!pr.ok) throw new Error(`preço: ${j(pr)}`);
+    const imp = await Est.implantarEstoqueAction(db, owner, { establishment_id: loja.data.id, emporio_product_id: p.data.id, sealed: [], loose_qty: 100, unit_cost: 4 });
+    if (!imp.ok) throw new Error(`implantar: ${j(imp)}`);
+
+    const FRASE_SEM = "Escolha o cliente da venda. Quem não quer se identificar entra como Consumidor final.";
+    let seq = 0;
+    const corpo = (extra: Record<string, unknown>, payments: Dado[] = [{ kind: "dinheiro", amount: 10 }]) => ({
+      operation_key: `m90v-${stamp}-${(seq += 1)}`,
+      establishment_id: loja.data.id,
+      items: [{ emporio_product_id: p.data.id, presentation_id: pres.data.id, quantity: 1 }],
+      payments,
+      ...extra,
+    });
+    const cf = cat0.contatos[0].id;
+
+    const semCli = await V.venderAction(db, owner, corpo({}));
+    check("venderAction sem contact_id: 422 contact_id com a frase fixa", !semCli.ok && semCli.status === 422 && semCli.field === "contact_id" && semCli.message === FRASE_SEM, j(semCli));
+    const nuloCli = await V.venderAction(db, owner, corpo({ contact_id: null }));
+    check("contact_id null: a mesma recusa", !nuloCli.ok && nuloCli.field === "contact_id" && nuloCli.message === FRASE_SEM, j(nuloCli));
+    const naoExiste = await V.venderAction(db, owner, corpo({ contact_id: "nao-existe" }));
+    check("cliente desconhecido: 'Escolha um cliente ativo.'", !naoExiste.ok && naoExiste.field === "contact_id" && naoExiste.message === "Escolha um cliente ativo.", j(naoExiste));
+    const arq = await db.contact.create({ data: scoped({ name: "Arquivado M90v", archived_at: new Date() }) });
+    const arquivado = await V.venderAction(db, owner, corpo({ contact_id: arq.id }));
+    check("cliente arquivado: 'Escolha um cliente ativo.'", !arquivado.ok && arquivado.message === "Escolha um cliente ativo.", j(arquivado));
+
+    const din = await V.venderAction(db, owner, corpo({ contact_id: cf }));
+    check("dinheiro para o Consumidor final: ok", din.ok, j(din));
+    const fiado = await V.venderAction(db, owner, corpo({ contact_id: cf }, [{ kind: "fiado", amount: 10 }]));
+    check(
+      "fiado para o Consumidor final: 422 contact_id",
+      !fiado.ok && fiado.status === 422 && fiado.field === "contact_id" && fiado.message === "Fiado precisa do cliente de verdade, não do Consumidor final.",
+      j(fiado),
+    );
+    const cheque = await V.venderAction(
+      db,
+      owner,
+      corpo({ contact_id: cf }, [{ kind: "cheque", amount: 10, check: { number: "1", bank: "Banco", good_for: new Date(Date.now() + 86_400_000) } }]),
+    );
+    check(
+      "cheque para o Consumidor final: 422 contact_id",
+      !cheque.ok && cheque.status === 422 && cheque.field === "contact_id" && cheque.message === "Cheque precisa do cliente de verdade, não do Consumidor final.",
+      j(cheque),
+    );
+    const fiadoReal = await V.venderAction(db, owner, corpo({ contact_id: completo.id }, [{ kind: "fiado", amount: 10 }]));
+    check("fiado para cliente de verdade: ok", fiadoReal.ok, j(fiadoReal));
+    const antigo = await V.venderAction(db, owner, corpo({ contact_id: soNome.id }));
+    check("venda para contato antigo só com nome: ok", antigo.ok, j(antigo));
+
+    // troca: precisa de cliente na venda nova
+    if (!din.ok) throw new Error("venda base não criou");
+    const item = await db.emporioSaleItem.findFirstOrThrow({ where: { sale_id: din.data.id } });
+    const troca = (extra: Record<string, unknown>) => ({
+      operation_key: `m90v-troca-${stamp}-${(seq += 1)}`,
+      items_devolvidos: [{ sale_item_id: item.id, quantity: 1 }],
+      venda: {
+        operation_key: `m90v-tv-${stamp}-${seq}`,
+        establishment_id: loja.data.id,
+        items: [{ emporio_product_id: p.data.id, presentation_id: pres.data.id, quantity: 1 }],
+        payments: [],
+        ...extra,
+      },
+    });
+    const trSem = await V.trocarAction(db, owner, din.data.id, troca({}));
+    check("trocarAction sem contact_id: 422 contact_id com a frase fixa", !trSem.ok && trSem.status === 422 && trSem.field === "contact_id" && trSem.message === FRASE_SEM, j(trSem));
+    const trOk = await V.trocarAction(db, owner, din.data.id, troca({ contact_id: cf }));
+    check("trocarAction com o Consumidor final: ok", trOk.ok, j(trOk));
+  } finally {
+    const modelos = [
+      "emporioAuditLog", "cashMovement", "stockMovement", "emporioSalePayment", "emporioSaleReturnItem", "emporioSaleReturn",
+      "emporioSaleItem", "emporioSale", "financialEntry", "presentationPrice", "productPresentation", "userEstablishment",
+      "emporioProduct", "product", "establishment", "bankAccount", "contact", "productCategory", "user", "tenantProfile", "tenantFeature",
+    ];
+    for (const id of tenantIds) {
+      for (const m of modelos) {
+        try {
+          await (prisma as Dado)[m]?.deleteMany({ where: { tenant_id: id } });
+        } catch {
+          // modelo ausente nesta versão do schema: segue
+        }
+      }
+      await prisma.tenant.delete({ where: { id } }).catch(() => undefined);
+    }
+    const sobrou = await prisma.tenant.count({ where: { id: { in: tenantIds } } });
+    check("seção 4: a limpeza não deixou tenant para trás", sobrou === 0, String(sobrou));
+  }
+}
+
 async function main() {
   await secao1();
   await secao2();
   await secao3();
+  await secao4();
   console.log(falhas === 0 ? "\n✅ M90 verde" : `\n❌ M90: ${falhas} falha(s)`);
   process.exit(falhas === 0 ? 0 : 1);
 }

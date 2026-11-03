@@ -109,6 +109,9 @@ async function comBanco() {
     const cc = (nome: string, ...a: unknown[]) => chamarEm(C, db, nome, ...a);
     const ee = (nome: string, ...a: unknown[]) => chamarEm(E, db, nome, ...a);
     const vv = (nome: string, ...a: unknown[]) => chamarEm(V, db, nome, ...a);
+    // Toda venda exige cliente (design 2026-11-03-emporio-cliente-nome-menu): o padrão das fixtures é o Consumidor final.
+    const cf = (await (await import("@/lib/actions/emporio-clientes")).garantirConsumidorFinal(db)).id;
+    const cfB = (await (await import("@/lib/actions/emporio-clientes")).garantirConsumidorFinal(dbB)).id;
     const xx = (nome: string, ...a: unknown[]) => chamarEm(X, db, nome, ...a);
 
     // ---- Lojas
@@ -164,7 +167,7 @@ async function comBanco() {
       ...(unit_price === undefined ? {} : { unit_price }),
     });
     const vender = (ator: Ator, items: Dado[], payments: Dado[], over: Dado = {}) =>
-      vv("venderAction", ator, { operation_key: chave("v"), establishment_id: L1.id, items, payments, ...over });
+      vv("venderAction", ator, { operation_key: chave("v"), establishment_id: L1.id, contact_id: cf, items, payments, ...over });
     const saleId = async (r: R): Promise<string> => {
       const d = dados(r);
       return d?.id ?? d?.sale_id ?? "";
@@ -268,7 +271,10 @@ async function comBanco() {
     check("débito é da F3b: 422 payments", recusa(await vender(op, [item(Sal, "Quilo", 1)], [{ kind: "debito", amount: 20 }]), "VALIDATION_ERROR", 422, "payments"));
     check("cheque é da F3b: 422 payments", recusa(await vender(op, [item(Sal, "Quilo", 1)], [{ kind: "cheque", amount: 20 }]), "VALIDATION_ERROR", 422, "payments"));
     check("sem preço cadastrado e sem unit_price: 422 items", recusa(await vender(op, [item(SemP, "Quilo", 1)], [dinheiro(5)]), "VALIDATION_ERROR", 422, "items"));
-    check("fiado sem contact_id: 422 contact_id", recusa(await vender(op, [item(Sal, "Quilo", 1)], [{ kind: "fiado", amount: 20 }]), "VALIDATION_ERROR", 422, "contact_id"));
+    // Venda sem cliente agora é recusada de saída (design 2026-11-03-emporio-cliente-nome-menu).
+    const rSemCli = await vender(op, [item(Sal, "Quilo", 1)], [dinheiro(20)], { contact_id: null });
+    check("venda sem cliente: 422 contact_id com a frase fixa", recusa(rSemCli, "VALIDATION_ERROR", 422, "contact_id") && !rSemCli.ok && rSemCli.message === "Escolha o cliente da venda. Quem não quer se identificar entra como Consumidor final.", j(rSemCli));
+    check("fiado para o Consumidor final: 422 contact_id", recusa(await vender(op, [item(Sal, "Quilo", 1)], [{ kind: "fiado", amount: 20 }]), "VALIDATION_ERROR", 422, "contact_id"));
     const cArq = await contato("Arquivado", true);
     check("fiado para contato arquivado: 422 contact_id", recusa(await vender(op, [item(Sal, "Quilo", 1)], [{ kind: "fiado", amount: 20 }], { contact_id: cArq }), "VALIDATION_ERROR", 422, "contact_id"));
     check("granel sem saldo (2 kg, pede 5) sem negativo liberado: 409 INSUFFICIENT_STOCK em items", recusa(await vender(op, [item(Gr, "Quilo", 5)], [dinheiro(30)]), "INSUFFICIENT_STOCK", 409, "items"));
@@ -519,7 +525,7 @@ async function comBanco() {
     const rTr = await vv("trocarAction", op, T, {
       operation_key: kTr,
       items_devolvidos: [{ sale_item_id: iT.id, quantity: 1 }],
-      venda: { operation_key: kTv, establishment_id: L1.id, items: [item(Fa, "Quilo", 1)], payments: [dinheiro(10)] },
+      venda: { operation_key: kTv, establishment_id: L1.id, contact_id: cf, items: [item(Fa, "Quilo", 1)], payments: [dinheiro(10)] },
     });
     check("troca de 1 kg de sal (V = 20) por 1 kg de farinha (30), com 10 em dinheiro", rTr.ok, j(rTr));
     const devT = await db.emporioSaleReturn.findFirst({ where: { sale_id: T, refund_kind: "troca" } });
@@ -533,15 +539,15 @@ async function comBanco() {
     check("a venda nova tem um pagamento 'troca' de 20 e um de dinheiro de 10", pgT.some((p) => p.kind === "troca" && perto(n(p.amount), 20)) && pgT.some((p) => p.kind === "dinheiro" && perto(n(p.amount), 10)), j(pgT));
     const lvN = await lancDaVenda(vNova?.id ?? "");
     check("a venda nova tem um lançamento de receita de 30, pago por inteiro", lvN.length === 1 && perto(n(lvN[0].amount), 30) && lvN[0].status === "paid" && perto(await pago(lvN[0].id), 30), j(lvN));
-    check("troca com item devolvido que não é da venda: 422 no campo items_devolvidos (items é o da venda nova)", recusa(await vv("trocarAction", op, T, { operation_key: chave("troca"), items_devolvidos: [{ sale_item_id: "nao-existe", quantity: 1 }], venda: { operation_key: chave("v"), establishment_id: L1.id, items: [item(Fa, "Quilo", 1)], payments: [dinheiro(30)] } }), "VALIDATION_ERROR", 422, "items_devolvidos"));
+    check("troca com item devolvido que não é da venda: 422 no campo items_devolvidos (items é o da venda nova)", recusa(await vv("trocarAction", op, T, { operation_key: chave("troca"), items_devolvidos: [{ sale_item_id: "nao-existe", quantity: 1 }], venda: { operation_key: chave("v"), establishment_id: L1.id, contact_id: cf, items: [item(Fa, "Quilo", 1)], payments: [dinheiro(30)] } }), "VALIDATION_ERROR", 422, "items_devolvidos"));
     check("cancelar a venda nova da troca: 409 SALE_IS_EXCHANGE", recusa(await vv("cancelarVendaAction", admin, vNova?.id ?? "", { reason: "x" }), "SALE_IS_EXCHANGE", 409));
-    const rTr2 = await vv("trocarAction", op, T, { operation_key: kTr, items_devolvidos: [{ sale_item_id: iT.id, quantity: 1 }], venda: { operation_key: kTv, establishment_id: L1.id, items: [item(Fa, "Quilo", 1)], payments: [dinheiro(10)] } });
+    const rTr2 = await vv("trocarAction", op, T, { operation_key: kTr, items_devolvidos: [{ sale_item_id: iT.id, quantity: 1 }], venda: { operation_key: kTv, establishment_id: L1.id, contact_id: cf, items: [item(Fa, "Quilo", 1)], payments: [dinheiro(10)] } });
     check("repetir a troca com a mesma chave não duplica", rTr2.ok && (await db.emporioSaleReturn.count({ where: { sale_id: T, refund_kind: "troca" } })) === 1 && (await db.emporioSale.count({ where: { operation_key: kTv } })) === 1);
     const gT1 = await saldoGaveta(L1.id);
     const rTr3 = await vv("trocarAction", op, T, {
       operation_key: chave("troca"),
       items_devolvidos: [{ sale_item_id: iT.id, quantity: 2 }],
-      venda: { operation_key: chave("v"), establishment_id: L1.id, items: [item(Fa, "Quilo", 1)], payments: [] },
+      venda: { operation_key: chave("v"), establishment_id: L1.id, contact_id: cf, items: [item(Fa, "Quilo", 1)], payments: [] },
     });
     check("V (40) maior que a venda nova (30): a diferença de 10 sai da gaveta", rTr3.ok && perto((await saldoGaveta(L1.id)) - gT1, -10), j(rTr3));
 
@@ -572,7 +578,7 @@ async function comBanco() {
     // ---------------------------------------------------------------- 13
     console.log("\n13. Idempotência da venda");
     const kI = chave("v-idem");
-    const corpoI = { operation_key: kI, establishment_id: L1.id, items: [item(Fa, "Quilo", 2)], payments: [dinheiro(60)] };
+    const corpoI = { operation_key: kI, establishment_id: L1.id, contact_id: cf, items: [item(Fa, "Quilo", 2)], payments: [dinheiro(60)] };
     const faAntes = await total(L1.id, Fa);
     const gI = await saldoGaveta(L1.id);
     const i1 = await vv("venderAction", op, corpoI);
@@ -601,7 +607,7 @@ async function comBanco() {
     check("B lê venda de A: 404", recusa(await vb("lerVendaAction", ownerB, Sd), "NOT_FOUND", 404));
     check("B cancela venda de A: 404", recusa(await vb("cancelarVendaAction", ownerB, M2, { reason: "x" }), "NOT_FOUND", 404));
     check("B devolve venda de A: 404", recusa(await vb("devolverAction", ownerB, Sd, { operation_key: chave("devb"), refund_kind: "dinheiro", items: [{ sale_item_id: iSal.id, quantity: 1 }] }), "NOT_FOUND", 404));
-    check("B vende na loja de A: 404", recusa(await vb("venderAction", ownerB, { operation_key: chave("vb"), establishment_id: L1.id, items: [item(Sal, "Quilo", 1)], payments: [dinheiro(20)] }), "NOT_FOUND", 404));
+    check("B vende na loja de A: 404", recusa(await vb("venderAction", ownerB, { operation_key: chave("vb"), establishment_id: L1.id, contact_id: cfB, items: [item(Sal, "Quilo", 1)], payments: [dinheiro(20)] }), "NOT_FOUND", 404));
     check("B não lista vendas de A", lista(dados(await vb("listarVendasAction", ownerB))).length === 0);
     check("B não vê fiado de A", lista(dados(await xb("listarFiadoAction", ownerB))).every((x) => x.contact_id !== C1 && x.contact_id !== C3));
     check("B recebe fiado de contato de A: recusado", !(await xb("receberFiadoAction", ownerB, { operation_key: chave("rb"), contact_id: C1, establishment_id: dados(lojaB)?.id, amount: 1, kind: "dinheiro" })).ok);
@@ -610,7 +616,7 @@ async function comBanco() {
     const caixaB = dados(await xb("lerCaixaAction", ownerB));
     check("o caixa de B não traz a gaveta nem a conta de A", Number.isNaN(achar(caixaB, "establishment_id", L1.id)) && Number.isNaN(achar(caixaB, "bank_account_id", conta)), j(caixaB));
     check("B vende em B com a chave de A (operation_key é por conta): não devolve a venda de A", !(await (async () => {
-      const r = await vb("venderAction", ownerB, { operation_key: kI, establishment_id: dados(lojaB)?.id, items: [], payments: [] });
+      const r = await vb("venderAction", ownerB, { operation_key: kI, establishment_id: dados(lojaB)?.id, contact_id: cfB, items: [], payments: [] });
       return r.ok && (await saleId(r)) === (await saleId(i1));
     })()));
     check("nada de A mudou por ação de B", (await db.emporioSale.findUnique({ where: { id: M2 } }))?.status === "concluida");
@@ -686,7 +692,7 @@ async function comBanco() {
     await preco(L1.id, prodR, "Quilo", 10);
     await implantar(L1.id, prodR, 50, 5);
     const kRota = chave("rota");
-    const corpoVenda = { operation_key: kRota, establishment_id: L1.id, items: [item(prodR, "Quilo", 2)], payments: [dinheiro(20)] };
+    const corpoVenda = { operation_key: kRota, establishment_id: L1.id, contact_id: cf, items: [item(prodR, "Quilo", 2)], payments: [dinheiro(20)] };
     const v1 = await chamar(tokenOwner, "sales", "POST", "sales", corpoVenda);
     check("POST sales: 201 com a venda", v1.status === 201 && !!v1.json?.data?.id, `${v1.status} ${j(v1.json)}`);
     const v2 = await chamar(tokenOwner, "sales", "POST", "sales", corpoVenda);

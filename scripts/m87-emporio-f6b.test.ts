@@ -244,10 +244,13 @@ async function comBanco() {
       check("Gestor da loja: Gestor de OUTRA loja é 404", recusa(await preco(gestor2, L1), "NOT_FOUND", 404));
       check("Gestor da loja: Gestor define preço na loja dele", (await preco(gestor1, L1)).ok);
 
+      // Toda venda exige cliente (design 2026-11-03-emporio-cliente-nome-menu): vai o Consumidor final.
+      const cf = (await (await import("@/lib/actions/emporio-clientes")).garantirConsumidorFinal(db)).id;
       const vender = (u: Ator) =>
         chamar(V, "venderAction", db, u, {
           operation_key: chave("v"),
           establishment_id: L1,
+          contact_id: cf,
           items: [{ emporio_product_id: P, presentation_id: PRES, quantity: 1 }],
           payments: [{ kind: "dinheiro", amount: 11 }],
         });

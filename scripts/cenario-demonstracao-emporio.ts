@@ -11,6 +11,7 @@ import * as est from "@/lib/actions/emporio-estoque";
 import * as compras from "@/lib/actions/emporio-compras";
 import * as transf from "@/lib/actions/emporio-transferencias";
 import * as vendas from "@/lib/actions/emporio-vendas";
+import { garantirConsumidorFinal } from "@/lib/actions/emporio-clientes";
 import * as caixa from "@/lib/actions/emporio-caixa";
 import * as desp from "@/lib/actions/emporio-despesas";
 import * as prod from "@/lib/actions/emporio-producao";
@@ -927,6 +928,8 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
   const ordenadas = [...sortidas, ...daMistura].sort((a, b) => a.quando.getTime() - b.quando.getTime());
   const vendasPorTag = new Map<string, vendas.VendaView>();
   let feitas = 0;
+  // Toda venda exige cliente (design 2026-11-03-emporio-cliente-nome-menu): sem cliente nomeado, vai o Consumidor final.
+  const consumidorFinalId = (await garantirConsumidorFinal(db)).id;
   for (const v of ordenadas) {
     const lojaId = lojas[v.loja];
     const quem = atores[v.quem];
@@ -940,7 +943,7 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
     const r = exigir(await vendas.venderAction(db, quem, {
       operation_key: v.chave,
       establishment_id: lojaId,
-      contact_id: v.cliente ? contatos[v.cliente] : null,
+      contact_id: v.cliente ? contatos[v.cliente] : consumidorFinalId,
       sold_at: v.quando,
       items: v.itens.map((i) => {
         const res = prods.get(i.slug) as Resolvido;
@@ -1043,6 +1046,7 @@ async function depoisDaVenda(ctx: Ctx, v: VendaPlan, r: vendas.VendaView) {
       items_devolvidos: [{ sale_item_id: item("caoAdulto").id, quantity: 1 }],
       reason: "O gato da cliente não come ração de cachorro, e era para gato",
       venda: {
+        contact_id: r.contact_id ?? (await garantirConsumidorFinal(db)).id,
         items: [{ emporio_product_id: res.epId, presentation_id: res.fechadaId, quantity: 1, unit_price: precoDe("gatoCastrado", "fechada", "centro") }],
         payments: diferenca > 0 ? [{ kind: "dinheiro", amount: diferenca / 100 }] : [],
       },

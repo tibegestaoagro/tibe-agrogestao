@@ -143,7 +143,8 @@ async function comBanco() {
       const r = await chamar(V, "venderAction", db, op, {
         operation_key: chave("v"),
         establishment_id: loja,
-        ...(contact_id ? { contact_id } : {}),
+        // Toda venda exige cliente (design 2026-11-03-emporio-cliente-nome-menu): sem um, vai o Consumidor final.
+        contact_id: contact_id ?? (await (await import("@/lib/actions/emporio-clientes")).garantirConsumidorFinal(db)).id,
         items: [{ emporio_product_id: p.id, presentation_id: p.pres, quantity: qty }],
         payments,
       });

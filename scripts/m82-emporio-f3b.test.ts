@@ -146,11 +146,13 @@ async function comBanco() {
     const rImp = await ee("implantarEstoqueAction", op, { establishment_id: L1.id, emporio_product_id: prod.id, sealed: [], loose_qty: 100000, unit_cost: 4 });
     if (!rImp.ok) throw new Error(`implantar: ${j(rImp)}`);
     const item = (qty: number) => ({ emporio_product_id: prod.id, presentation_id: presId, quantity: qty });
+    // Toda venda exige cliente (design 2026-11-03-emporio-cliente-nome-menu): o padrão das fixtures é o Consumidor final.
+    const cf = (await (await import("@/lib/actions/emporio-clientes")).garantirConsumidorFinal(db)).id;
 
     let chaveSeq = 0;
     const chave = (p: string) => `m82-${p}-${stamp}-${(chaveSeq += 1)}`;
     const vender = (ator: Ator, qty: number, payments: Dado[], over: Dado = {}) =>
-      vv("venderAction", ator, { operation_key: chave("v"), establishment_id: L1.id, items: [item(qty)], payments, ...over });
+      vv("venderAction", ator, { operation_key: chave("v"), establishment_id: L1.id, contact_id: cf, items: [item(qty)], payments, ...over });
     const saleId = (r: R): string => {
       const d = dados(r);
       return d?.id ?? d?.sale_id ?? "";
@@ -363,7 +365,9 @@ async function comBanco() {
       const cheque = (amount: number, over: Dado = {}) => ({ kind: "cheque", amount, check: { number: "1234", bank: "Sicredi", good_for: bomPara(somaDias(hojeStr, 15)), ...over } });
       const C1 = await contato("Cliente cheque");
       const v0 = await db.emporioSale.count();
-      check("sem contact_id: 422 contact_id", recusa(await vender(op, 10, [cheque(100)]), "VALIDATION_ERROR", 422, "contact_id"));
+      // Sem cliente a venda nem começa; com o Consumidor final o cheque é recusado (design 2026-11-03-emporio-cliente-nome-menu).
+      check("sem contact_id: 422 contact_id", recusa(await vender(op, 10, [cheque(100)], { contact_id: null }), "VALIDATION_ERROR", 422, "contact_id"));
+      check("cheque para o Consumidor final: 422 contact_id", recusa(await vender(op, 10, [cheque(100)]), "VALIDATION_ERROR", 422, "contact_id"));
       for (const campo of ["number", "bank", "good_for"]) {
         const ck = { number: "1234", bank: "Sicredi", good_for: bomPara(somaDias(hojeStr, 15)) } as Dado;
         delete ck[campo];

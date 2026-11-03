@@ -26,6 +26,7 @@ export type ProdutoVenda = {
 };
 /** apresentação -> loja -> preço sugerido. */
 export type PrecosVenda = Record<string, Record<string, number>>;
+export type ContatoDeVenda = { id: string; name: string; incomplete: boolean; consumidor_final: boolean };
 
 export type LinhaItem = {
   key: number;

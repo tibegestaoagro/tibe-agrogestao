@@ -245,8 +245,10 @@ async function comBanco() {
       quantity: qty,
       ...(unit_price === undefined ? {} : { unit_price }),
     });
+    // Toda venda exige cliente (design 2026-11-03-emporio-cliente-nome-menu): o padrão das fixtures é o Consumidor final.
+    const cf = (await (await import("@/lib/actions/emporio-clientes")).garantirConsumidorFinal(db)).id;
     const venda = (ator: Ator, est: string, items: Dado[], payments: Dado[]) =>
-      vv("venderAction", ator, { operation_key: chave("v"), establishment_id: est, items, payments });
+      vv("venderAction", ator, { operation_key: chave("v"), establishment_id: est, contact_id: cf, items, payments });
     const saleId = (r: R): string => dados(r)?.id ?? dados(r)?.sale_id ?? "";
     const dinheiro = (amount: number) => ({ kind: "dinheiro", amount });
     const credito = (amount: number) => ({ kind: "credito_vista", amount });

@@ -441,12 +441,23 @@ async function prepararVenda(
   const soldAt = input.sold_at == null ? new Date() : input.sold_at;
   if (!dataValida(soldAt)) return fail("VALIDATION_ERROR", "Informe uma data de venda válida.", 422, "sold_at");
 
-  let contactId: string | null = null;
-  if (input.contact_id != null && input.contact_id !== "") {
-    const c = await db.contact.findFirst({ where: { id: String(input.contact_id) }, select: { id: true, archived_at: true } });
-    if (!c || c.archived_at) return fail("VALIDATION_ERROR", "Escolha um cliente ativo.", 422, "contact_id");
-    contactId = c.id;
+  // Toda venda tem cliente (design 2026-11-03-emporio-cliente-nome-menu): quem não quer se
+  // identificar entra como Consumidor final, que não toma fiado nem cheque.
+  if (input.contact_id == null || input.contact_id === "") {
+    return fail(
+      "VALIDATION_ERROR",
+      "Escolha o cliente da venda. Quem não quer se identificar entra como Consumidor final.",
+      422,
+      "contact_id",
+    );
   }
+  const cliente = await db.contact.findFirst({
+    where: { id: String(input.contact_id) },
+    select: { id: true, archived_at: true, system_key: true },
+  });
+  if (!cliente || cliente.archived_at) return fail("VALIDATION_ERROR", "Escolha um cliente ativo.", 422, "contact_id");
+  const contactId: string = cliente.id;
+  const ehConsumidorFinal = cliente.system_key === "consumidor_final";
 
   // Itens
   if (!Array.isArray(input.items) || input.items.length === 0) {
@@ -600,13 +611,17 @@ async function prepararVenda(
       if (!numeroDoCheque || !banco || !dataValida(c?.good_for)) {
         return fail("VALIDATION_ERROR", "Informe o número, o banco e a data do cheque (bom para).", 422, "payments");
       }
-      if (!contactId) return fail("VALIDATION_ERROR", "O cheque precisa de um cliente.", 422, "contact_id");
+      if (ehConsumidorFinal) {
+        return fail("VALIDATION_ERROR", "Cheque precisa do cliente de verdade, não do Consumidor final.", 422, "contact_id");
+      }
       cheque = { number: numeroDoCheque, bank: banco, good_for: c?.good_for as Date };
     }
     if (kind === "fiado") {
       if (temFiado) return fail("VALIDATION_ERROR", "O fiado aparece uma vez só na venda.", 422, "payments");
       temFiado = true;
-      if (!contactId) return fail("VALIDATION_ERROR", "O fiado precisa de um cliente.", 422, "contact_id");
+      if (ehConsumidorFinal) {
+        return fail("VALIDATION_ERROR", "Fiado precisa do cliente de verdade, não do Consumidor final.", 422, "contact_id");
+      }
       if (p.due_date != null) {
         if (!dataValida(p.due_date)) return fail("VALIDATION_ERROR", "Informe um vencimento válido.", 422, "payments");
         venc = p.due_date;

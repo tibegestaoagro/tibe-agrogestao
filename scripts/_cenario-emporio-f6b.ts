@@ -166,6 +166,7 @@ async function main() {
     await vendas.venderAction(db, dono, {
       operation_key: `cenario-f6b-venda-${agora}`,
       establishment_id: loja1.id,
+      contact_id: (await (await import("@/lib/actions/emporio-clientes")).garantirConsumidorFinal(db)).id,
       items: [{ emporio_product_id: racao, presentation_id: quilo, quantity: 1, unit_price: 20 }],
       payments: [{ kind: "dinheiro", amount: 20 }],
     } as never),
