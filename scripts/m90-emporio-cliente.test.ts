@@ -289,9 +289,164 @@ async function secao2() {
   }
 }
 
+async function secao3() {
+  console.log("\nSeção 3: cliente do balcão e o Consumidor final (com banco)");
+  (globalThis as unknown as { AsyncLocalStorage: unknown }).AsyncLocalStorage = (await import("node:async_hooks")).AsyncLocalStorage;
+  const { papelDeFixture, vincularTodas } = await import("./_emporio-papel");
+  const { withBearer } = await import("./_escopo-de-requisicao");
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+  const bcrypt = (await import("bcryptjs")).default;
+  const C = await import("@/lib/actions/emporio-clientes");
+  const Cat = await import("@/lib/actions/emporio-catalogo");
+  const stamp = Date.now();
+  const SENHA = "SenhaForte#2026";
+  const hash = await bcrypt.hash(SENHA, 4);
+  const tenantIds: string[] = [];
+  try {
+    const novoTenant = async (nome: string) => {
+      const t = await prisma.tenant.create({
+        data: {
+          name: `M90c ${nome} ${stamp}`,
+          document: `M90c${nome}${stamp}`.slice(0, 14),
+          plan: "grupo",
+          status: "trial",
+          trial_ends_at: new Date(Date.now() + 86_400_000),
+        },
+      });
+      tenantIds.push(t.id);
+      await prisma.tenantProfile.create({ data: { tenant_id: t.id, profile_type: "emporio", active: true } });
+      await prisma.tenantFeature.create({ data: { tenant_id: t.id, feature_key: "emporio", enabled: true } });
+      return t;
+    };
+    const t = await novoTenant("A");
+    const tB = await novoTenant("B");
+    const mk = async (tenantId: string, suf: string, role: "OWNER" | "OPERADOR", extra: Dado = {}) => {
+      const u = await prisma.user.create({
+        data: {
+          tenant_id: tenantId,
+          name: `M90c ${suf}`,
+          email: `m90c-${suf}-${stamp}@teste.local`,
+          password_hash: hash,
+          role,
+          ...papelDeFixture(role),
+          ...extra,
+        },
+      });
+      return { id: u.id, role, email: u.email };
+    };
+    const owner = await mk(t.id, "own", "OWNER");
+    const vend = await mk(t.id, "vend", "OPERADOR");
+    const semPapel = await mk(t.id, "sem", "OPERADOR", { emporio_role: null, emporio_keys: [] });
+    const db = prismaForTenant(t.id);
+    const dbB = prismaForTenant(tB.id);
+    const loja = await Cat.criarEstabelecimentoAction(db, owner, { name: "M90c Loja" });
+    if (!loja.ok) throw new Error(`loja: ${j(loja)}`);
+    await vincularTodas(prisma, t.id, [vend.id], [loja.data.id]);
+
+    const histN = (action: string) => prisma.emporioAuditLog.count({ where: { tenant_id: t.id, action } });
+    const pf = { name: "Maria Balcão", person_kind: "pf" as const, document: "529.982.247-25", phone: "34 99999-0000" };
+
+    // rota com Bearer
+    const rotaTok = await import("@/app/api/v1/auth/token/route");
+    const rotaPost = await import("@/app/api/v1/emporio/customers/route");
+    const rotaPatch = await import("@/app/api/v1/emporio/customers/[id]/route");
+    const tok = String(
+      ((await (await rotaTok.POST(new Request("http://localhost/api/v1/auth/token", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: vend.email, password: SENHA }),
+      }))).json()) as Dado)?.data?.access_token ?? "",
+    );
+    const resPost = await withBearer(tok, () =>
+      rotaPost.POST(new Request("http://localhost/api/v1/emporio/customers", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(pf),
+      })),
+    );
+    const corpo = (await resPost.json().catch(() => ({}))) as Dado;
+    check("vendedor cadastra PF pela rota: 201", resPost.status === 201 && corpo?.data?.incomplete === false && corpo?.data?.document === "52998224725", `${resPost.status} ${j(corpo)}`);
+    check("1 linha cliente.cadastrar no Histórico", (await histN("cliente.cadastrar")) === 1);
+
+    const semCpf = await C.cadastrarClienteAction(db, vend, { name: "Sem CPF", person_kind: "pf", phone: "1" });
+    check("PF sem CPF: 422 document", !semCpf.ok && semCpf.status === 422 && semCpf.field === "document", j(semCpf));
+    const semCnpj = await C.cadastrarClienteAction(db, vend, { name: "Sem CNPJ", person_kind: "pj", phone: "1" });
+    check("PJ sem CNPJ: 422 document", !semCnpj.ok && semCnpj.status === 422 && semCnpj.field === "document", j(semCnpj));
+    const dup = await C.cadastrarClienteAction(db, vend, { ...pf, name: "Outra Maria" });
+    check("CPF repetido: 409 DUPLICATE_DOCUMENT", !dup.ok && dup.status === 409 && dup.code === "DUPLICATE_DOCUMENT" && dup.field === "document", j(dup));
+    check("recusas não gravam Histórico", (await histN("cliente.cadastrar")) === 1);
+
+    const neg = await C.cadastrarClienteAction(db, semPapel, { ...pf, document: "390.533.447-05" });
+    check("sem papel no Empório: FORBIDDEN", !neg.ok && neg.code === "FORBIDDEN" && neg.status === 403, j(neg));
+
+    // completar
+    const antigo = await db.contact.create({ data: scoped({ name: "Contato Antigo" }) });
+    const comp = await C.completarClienteAction(db, vend, antigo.id, {
+      person_kind: "pf",
+      document: "390.533.447-05",
+      phone: "34 98888-7777",
+    });
+    check("completar contato antigo: ok e completo", comp.ok && comp.data.incomplete === false && comp.data.name === "Contato Antigo" && comp.data.document === "39053344705", j(comp));
+    check("linha cliente.completar", (await histN("cliente.completar")) === 1);
+
+    const meio = await db.contact.create({ data: scoped({ name: "Meio Cadastro", person_kind: "pf" }) });
+    const soTel = await C.completarClienteAction(db, vend, meio.id, { phone: "34 97777-6666" });
+    check("só o telefone num contato sem CPF: 422 document", !soTel.ok && soTel.status === 422 && soTel.field === "document", j(soTel));
+    const meioDepois = await db.contact.findUnique({ where: { id: meio.id } });
+    check("recusa não grava o telefone", meioDepois?.phone === null);
+
+    const repetido = await C.completarClienteAction(db, vend, meio.id, { document: "529.982.247-25", phone: "1" });
+    check("completar com CPF de outro: 409", !repetido.ok && repetido.code === "DUPLICATE_DOCUMENT", j(repetido));
+    const inexistente = await C.completarClienteAction(db, vend, "nao-existe", { phone: "1" });
+    check("completar inexistente: 404", !inexistente.ok && inexistente.status === 404, j(inexistente));
+
+    const arq = await db.contact.create({ data: scoped({ name: "Arquivado", archived_at: new Date() }) });
+    const eArq = await C.completarClienteAction(db, vend, arq.id, { ...pf, document: "111.444.777-35" });
+    check("completar arquivado: 422", !eArq.ok && eArq.status === 422, j(eArq));
+
+    // PATCH pela rota
+    const resPatch = await withBearer(tok, () =>
+      rotaPatch.PATCH(new Request(`http://localhost/api/v1/emporio/customers/${meio.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ document: "111.444.777-35", phone: "34 96666-5555" }),
+      }), { params: Promise.resolve({ id: meio.id }) }),
+    );
+    const corpoPatch = (await resPatch.json().catch(() => ({}))) as Dado;
+    check("PATCH pela rota: 200 completo", resPatch.status === 200 && corpoPatch?.data?.incomplete === false, `${resPatch.status} ${j(corpoPatch)}`);
+
+    // Consumidor final
+    const [a, b] = await Promise.all([C.garantirConsumidorFinal(db), C.garantirConsumidorFinal(db)]);
+    const qtd = await prisma.contact.count({ where: { tenant_id: t.id, system_key: "consumidor_final" } });
+    check("garantirConsumidorFinal em paralelo: mesmo id e 1 linha", a.id === b.id && qtd === 1 && a.name === "Consumidor final", `${j([a, b])} ${qtd}`);
+    const c3 = await C.garantirConsumidorFinal(db);
+    check("chamar de novo devolve o mesmo", c3.id === a.id);
+    const cB = await C.garantirConsumidorFinal(dbB);
+    check("outro tenant tem o seu", cB.id !== a.id);
+    const eCf = await C.completarClienteAction(db, vend, a.id, pf);
+    check(
+      "completar o Consumidor final: 422 com a frase fixa",
+      !eCf.ok && eCf.status === 422 && eCf.message === "O Consumidor final é fixo e não pode ser editado nem arquivado.",
+      j(eCf),
+    );
+  } finally {
+    for (const id of tenantIds) {
+      await prisma.emporioAuditLog.deleteMany({ where: { tenant_id: id } });
+      await prisma.contact.deleteMany({ where: { tenant_id: id } });
+      await prisma.userEstablishment.deleteMany({ where: { tenant_id: id } });
+      await prisma.establishment.deleteMany({ where: { tenant_id: id } });
+      await prisma.user.deleteMany({ where: { tenant_id: id } });
+      await prisma.tenantProfile.deleteMany({ where: { tenant_id: id } });
+      await prisma.tenantFeature.deleteMany({ where: { tenant_id: id } });
+      await prisma.tenant.delete({ where: { id } }).catch(() => undefined);
+    }
+  }
+}
+
 async function main() {
   await secao1();
   await secao2();
+  await secao3();
   console.log(falhas === 0 ? "\n✅ M90 verde" : `\n❌ M90: ${falhas} falha(s)`);
   process.exit(falhas === 0 ? 0 : 1);
 }

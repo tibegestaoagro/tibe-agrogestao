@@ -57,6 +57,8 @@ export const ACOES_DO_HISTORICO = {
   "conta_bancaria.editar": "Editou uma conta bancária",
   "conta_bancaria.pix": "Definiu a conta do Pix",
   "primeiros_passos.concluir": "Marcou um primeiro passo",
+  "cliente.cadastrar": "Cadastrou um cliente",
+  "cliente.completar": "Completou o cadastro de um cliente",
   "equipe.cadastrar": "Cadastrou alguém na equipe",
   "equipe.alterar": "Alterou alguém da equipe",
   "equipe.tirar": "Tirou alguém do Empório",

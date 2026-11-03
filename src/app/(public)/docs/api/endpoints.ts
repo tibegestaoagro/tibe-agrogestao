@@ -607,6 +607,24 @@ export const GROUPS: Group[] = [
 { "data": { "id": "cl..." }, "meta": {} }`,
       },
       {
+        method: "POST",
+        path: "/api/v1/emporio/customers",
+        auth: "Sessão · emporio:write · dono, gerente geral, gestor e vendedor da loja · perfil emporio · recurso `emporio` liberado",
+        description: "Cadastra o cliente do balcão. Exige tipo (`person_kind`: `pf` ou `pj`), nome, CPF ou CNPJ válido e telefone: faltando, 422 no campo. Documento repetido: 409 `DUPLICATE_DOCUMENT` no campo `document`. Endereço, inscrição estadual, nascimento (PF) e responsável (PJ) são opcionais.",
+        request: `{ "name": "Maria Souza", "person_kind": "pf", "document": "529.982.247-25", "phone": "34 99999-0000" }`,
+        response: `201
+{ "data": { "id": "cl...", "name": "Maria Souza", "person_kind": "pf", "document": "52998224725", "phone": "34 99999-0000", "incomplete": false }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/emporio/customers/:id",
+        auth: "Sessão · emporio:write · dono, gerente geral, gestor e vendedor da loja · perfil emporio · recurso `emporio` liberado",
+        description: "Completa o cadastro de um contato que já existe. Chave ausente mantém o que o contato tem; `null` limpa. O resultado inteiro é conferido como no cadastro do balcão, então só se grava completo (422 no campo que falta). Recusa o Consumidor final e contato arquivado (422).",
+        request: `{ "person_kind": "pf", "document": "529.982.247-25", "phone": "34 99999-0000" }`,
+        response: `200
+{ "data": { "id": "cl...", "name": "Contato Antigo", "person_kind": "pf", "document": "52998224725", "phone": "34 99999-0000", "incomplete": false }, "meta": {} }`,
+      },
+      {
         method: "GET",
         path: "/api/v1/emporio/history",
         auth: "Sessão · emporio:read · dono, gerente geral e gestor (vendedor e quem não tem função: 403 `FORBIDDEN`) · perfil emporio · recurso `emporio` liberado",

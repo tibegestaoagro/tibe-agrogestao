@@ -69,7 +69,7 @@ const TIPOS_COMPLETOS: Record<ContactType, true> = {
 export const CONTACT_TYPES = Object.keys(TIPOS_COMPLETOS) as readonly ContactType[];
 
 /** Campos do cadastro PF/PJ que o PATCH trata como "ausente = mantém, nulo = limpa". */
-const CAMPOS_NOVOS = [
+export const CAMPOS_NOVOS = [
   "person_kind", "document", "state_registration", "birth_date", "responsible_name",
   "address_zip", "address_street", "address_number", "address_complement", "address_district", "address_state",
   "delivery_zip", "delivery_street", "delivery_number", "delivery_complement", "delivery_district",
@@ -110,7 +110,7 @@ export type ContactView = {
   incomplete: boolean;
 };
 
-function serializar(c: Contact): ContactView {
+export function serializar(c: Contact): ContactView {
   return {
     id: c.id,
     name: c.name,
@@ -166,9 +166,9 @@ export function recusaDocumento(r: { name: string; archived: boolean }, document
   return fail("DUPLICATE_DOCUMENT", msg, 409, "document");
 }
 
-const ehUnico = (e: unknown) => (e as { code?: unknown })?.code === "P2002";
+export const ehUnico = (e: unknown) => (e as { code?: unknown })?.code === "P2002";
 
-function paraBanco(dados: CadastroDoContato): Record<string, unknown> {
+export function paraBanco(dados: CadastroDoContato): Record<string, unknown> {
   const { birth_date, ...resto } = dados;
   return {
     ...resto,
