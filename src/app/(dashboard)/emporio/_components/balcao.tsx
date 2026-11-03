@@ -9,7 +9,7 @@ import { reaisBr } from "@/lib/numero-br";
 import { VendaCampos } from "./venda-campos";
 import { numeroBr } from "./formato";
 import { FORMA_ROTULO } from "./venda-rotulos";
-import { useVenda, type PrecosVenda, type ProdutoVenda, type RegraCartaoVenda } from "./venda-estado";
+import { useVenda, type ContatoDeVenda, type PrecosVenda, type ProdutoVenda, type RegraCartaoVenda } from "./venda-estado";
 
 /**
  * O balcão (Q87): a venda de dez segundos. Abre direto na venda, sem lista na
@@ -49,11 +49,17 @@ export function Balcao({
   lojas: { id: string; name: string }[];
   produtos: ProdutoVenda[];
   precos: PrecosVenda;
-  contatos: { id: string; name: string }[];
+  contatos: ContatoDeVenda[];
 }) {
   const err = useErrosDeFormulario(ORDEM);
   const [regras, setRegras] = useState<RegraCartaoVenda[] | null>(null);
-  const v = useVenda({ produtos, precos, lojaInicial: lojas.length === 1 ? lojas[0].id : "", regras });
+  const v = useVenda({
+    produtos,
+    precos,
+    lojaInicial: lojas.length === 1 ? lojas[0].id : "",
+    regras,
+    consumidorFinalId: contatos.find((c) => c.consumidor_final)?.id ?? "",
+  });
   const [enviando, setEnviando] = useState(false);
   const [resumo, setResumo] = useState<Resumo | null>(null);
   const chave = useRef<{ assinatura: string; key: string } | null>(null);

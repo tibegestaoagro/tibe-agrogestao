@@ -16,21 +16,34 @@ import { FormSheet } from "@/components/ui/form-sheet";
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { apiPost, apiPatch } from "@/lib/client-api";
 import { CONTACT_TYPE_LABELS } from "@/components/contatos/contact-labels";
+import {
+  CADASTRO_VAZIO,
+  CamposDoCadastro,
+  corpoDoCadastro,
+  valoresDoContato,
+  type CampoCadastro,
+  type ContatoDoCadastro,
+  type ValoresCadastro,
+} from "@/components/contatos/campos-do-cadastro";
 
 /**
- * Cadastro e edição de contato (§4 e §5 do Módulo 31).
+ * Cadastro e edição de contato (§4 e §5 do Módulo 31, e o cadastro PF/PJ do
+ * Empório).
  *
  * Um componente para as duas coisas porque os campos são exatamente os mesmos:
- * dois arquivos divergiriam no primeiro campo novo, e o §5 é explícito que esta
- * lista não cresce (nada de CPF, endereço ou dados bancários nesta versão).
+ * dois arquivos divergiriam no primeiro campo novo. Os dados de pessoa física ou
+ * jurídica (CPF/CNPJ, endereços) vêm de `CamposDoCadastro`, o mesmo do balcão.
  *
- * Só `name` é obrigatório. O TIPO é opcional de propósito: o §4 diz que o
- * usuário "não deverá ser obrigado a classificar a pessoa ou empresa quando não
- * souber", e é por isso que existe a opção "Não sei ainda" no seletor em vez de
- * o campo ser required.
+ * Só `name` é obrigatório. O tipo de pessoa e o TIPO do contato são opcionais de
+ * propósito: o §4 diz que o usuário "não deverá ser obrigado a classificar a
+ * pessoa ou empresa quando não souber", e é por isso que existe a opção "Não sei
+ * ainda" no seletor em vez de o campo ser required.
+ *
+ * O PATCH manda todos os campos: o que está vazio vai como `null` e limpa o
+ * dado guardado, porque o formulário mostra tudo o que existe.
  */
 
-export type ContatoDoFormulario = {
+export type ContatoDoFormulario = ContatoDoCadastro & {
   id: string;
   name: string;
   type: string | null;
@@ -39,7 +52,32 @@ export type ContatoDoFormulario = {
   notes: string | null;
 };
 
-const ORDEM = ["name", "type", "phone", "city", "notes"] as const;
+// Ordem VISUAL: os campos de `CamposDoCadastro`, depois o tipo do contato e as observações.
+const ORDEM = [
+  "person_kind",
+  "name",
+  "document",
+  "phone",
+  "birth_date",
+  "responsible_name",
+  "state_registration",
+  "address_zip",
+  "address_street",
+  "address_number",
+  "address_complement",
+  "address_district",
+  "city",
+  "address_state",
+  "delivery_zip",
+  "delivery_street",
+  "delivery_number",
+  "delivery_complement",
+  "delivery_district",
+  "delivery_city",
+  "delivery_state",
+  "type",
+  "notes",
+] as const;
 type Campo = (typeof ORDEM)[number];
 
 /** O valor que o Select usa para "sem tipo". String vazia fecharia o placeholder. */
@@ -59,26 +97,28 @@ export default function ContactForm({
   const [loading, setLoading] = useState(false);
   const err = useErrosDeFormulario(ORDEM, editando ? `edit-${contato.id}` : undefined);
 
-  const [name, setName] = useState(contato?.name ?? "");
+  const inicial = (): ValoresCadastro => (contato ? valoresDoContato(contato) : CADASTRO_VAZIO);
+  const [valores, setValores] = useState<ValoresCadastro>(inicial);
   const [type, setType] = useState(contato?.type ?? SEM_TIPO);
-  const [phone, setPhone] = useState(contato?.phone ?? "");
-  const [city, setCity] = useState(contato?.city ?? "");
   const [notes, setNotes] = useState(contato?.notes ?? "");
+
+  function mudar(campo: CampoCadastro, valor: string) {
+    setValores((v) => ({ ...v, [campo]: valor }));
+    err.limparCampo(campo);
+  }
 
   function limpar() {
     // Editar volta ao que o servidor tem, não ao vazio: fechar o painel sem
     // salvar não pode dar a impressão de que os dados sumiram.
-    setName(contato?.name ?? "");
+    setValores(inicial());
     setType(contato?.type ?? SEM_TIPO);
-    setPhone(contato?.phone ?? "");
-    setCity(contato?.city ?? "");
     setNotes(contato?.notes ?? "");
     err.limparTudo();
   }
 
   async function submit() {
     const novos: Partial<Record<Campo, string>> = {};
-    if (!name.trim()) novos.name = "Informe o nome do contato.";
+    if (!valores.name.trim()) novos.name = "Informe o nome do contato.";
     if (Object.keys(novos).length > 0) {
       err.setGlobal(null);
       err.reprovar(novos);
@@ -88,10 +128,8 @@ export default function ContactForm({
     err.limparTudo();
     setLoading(true);
     const corpo = {
-      name: name.trim(),
+      ...corpoDoCadastro(valores),
       type: type === SEM_TIPO ? null : type,
-      phone: phone.trim() || null,
-      city: city.trim() || null,
       notes: notes.trim() || null,
     };
     const res = editando
@@ -137,20 +175,13 @@ export default function ContactForm({
       focarCampoId={err.focarCampoId}
       tentativa={err.tentativa}
     >
-      <Field label="Nome" required id={err.idDe("name")} error={err.erros.name}>
-        {({ id, ...aria }) => (
-          <Input
-            id={id}
-            {...aria}
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              err.limparCampo("name");
-            }}
-            placeholder="Ex: João da Ponte"
-          />
-        )}
-      </Field>
+      <CamposDoCadastro
+        valores={valores}
+        aoMudar={mudar}
+        erros={err.erros}
+        idDe={err.idDe}
+        obrigatorios={false}
+      />
 
       <Field
         label="Tipo"
@@ -178,41 +209,6 @@ export default function ContactForm({
               ))}
             </SelectContent>
           </Select>
-        )}
-      </Field>
-
-      <Field
-        label="Telefone"
-        hint="Opcional."
-        id={err.idDe("phone")}
-        error={err.erros.phone}
-      >
-        {({ id, ...aria }) => (
-          <Input
-            id={id}
-            {...aria}
-            value={phone}
-            onChange={(e) => {
-              setPhone(e.target.value);
-              err.limparCampo("phone");
-            }}
-            placeholder="Ex: 38 99999-0000"
-          />
-        )}
-      </Field>
-
-      <Field label="Município" hint="Opcional." id={err.idDe("city")} error={err.erros.city}>
-        {({ id, ...aria }) => (
-          <Input
-            id={id}
-            {...aria}
-            value={city}
-            onChange={(e) => {
-              setCity(e.target.value);
-              err.limparCampo("city");
-            }}
-            placeholder="Ex: Unaí"
-          />
         )}
       </Field>
 

@@ -12,7 +12,7 @@ import { apiPost } from "@/lib/client-api";
 import { reaisBr } from "@/lib/numero-br";
 import { DevolucaoItens, montarDevolvidos, type EscolhaDevolucao, type ItemDevolvivel } from "./devolucao-itens";
 import { VendaCampos } from "./venda-campos";
-import { useVenda, type CampoDaVenda, type PrecosVenda, type ProdutoVenda } from "./venda-estado";
+import { useVenda, type CampoDaVenda, type ContatoDeVenda, type PrecosVenda, type ProdutoVenda } from "./venda-estado";
 
 // Ordem visual, de cima para baixo. Na troca o servidor recusa os itens
 // devolvidos em `items_devolvidos` e os da venda nova em `items`.
@@ -42,7 +42,7 @@ export function TrocarForm({
   itensDevolviveis: ItemDevolvivel[];
   produtos: ProdutoVenda[];
   precos: PrecosVenda;
-  contatos: { id: string; name: string }[];
+  contatos: ContatoDeVenda[];
   contatoId: string | null;
 }) {
   const router = useRouter();
@@ -62,6 +62,7 @@ export function TrocarForm({
     lojaInicial: lojaId,
     contatoInicial: contatoId ?? "",
     abatimentoCent: devolvidoCent,
+    consumidorFinalId: contatos.find((c) => c.consumidor_final)?.id ?? "",
   });
 
   async function submit() {

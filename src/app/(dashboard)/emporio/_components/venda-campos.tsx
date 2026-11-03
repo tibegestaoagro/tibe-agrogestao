@@ -13,7 +13,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
-import { ClienteNovoForm } from "./cliente-novo-form";
+import { ClienteForm } from "./cliente-form";
 import { numeroBr, pctBr } from "./formato";
 import { FORMA_ROTULO } from "./venda-rotulos";
 import {
@@ -22,12 +22,12 @@ import {
   normalizar,
   produtoCasaBusca,
   type CampoDaVenda,
+  type ContatoDeVenda,
   type EstadoDaVenda,
   type FormaDePagamento,
   type ProdutoVenda,
 } from "./venda-estado";
 
-const SEM_CLIENTE = "__sem_cliente__";
 const MAX_RESULTADOS = 8;
 
 /** Na ordem do balcão: o que mais se usa primeiro. */
@@ -101,7 +101,7 @@ export function VendaCampos({
   v: EstadoDaVenda;
   produtos: ProdutoVenda[];
   lojas: { id: string; name: string }[];
-  contatos: { id: string; name: string }[];
+  contatos: ContatoDeVenda[];
   erros: Partial<Record<CampoDaVenda, string>>;
   idDe: (campo: CampoDaVenda) => string;
   limpar: (campo: CampoDaVenda) => void;
@@ -117,7 +117,12 @@ export function VendaCampos({
       ? []
       : produtos.filter((p) => p.apresentacoes.length > 0 && produtoCasaBusca(p, termo)).slice(0, MAX_RESULTADOS);
 
-  const todosContatos = [...contatos, ...v.contatosNovos.filter((n) => !contatos.some((c) => c.id === n.id))];
+  // O que foi cadastrado ou completado aqui vale sobre o que veio do servidor.
+  const todosContatos: ContatoDeVenda[] = [
+    ...contatos.map((c) => v.contatosNovos.find((n) => n.id === c.id) ?? c),
+    ...v.contatosNovos.filter((n) => !contatos.some((c) => c.id === n.id)),
+  ];
+  const escolhido = todosContatos.find((c) => c.id === v.contatoId);
 
   function escolher(p: ProdutoVenda) {
     v.adicionarProduto(p);
@@ -278,37 +283,56 @@ export function VendaCampos({
         )}
       </Field>
 
-      <Field label="Cliente" id={idDe("contact_id")} error={erros.contact_id} hint="Opcional, menos no fiado.">
+      <Field label="Cliente" required id={idDe("contact_id")} error={erros.contact_id}>
         {({ id, ...aria }) => (
-          <div className="flex items-start gap-2">
-            <div className="min-w-0 flex-1">
-              <Select
-                value={v.contatoId || SEM_CLIENTE}
-                onValueChange={(valor) => {
-                  v.setContatoId(valor === SEM_CLIENTE ? "" : valor);
-                  limpar("contact_id");
-                }}
-              >
-                <SelectTrigger id={id} {...aria}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={SEM_CLIENTE}>Sem cliente</SelectItem>
-                  {todosContatos.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="space-y-2">
+            <div className="flex items-start gap-2">
+              <div className="min-w-0 flex-1">
+                <Select
+                  value={v.contatoId}
+                  onValueChange={(valor) => {
+                    v.setContatoId(valor);
+                    limpar("contact_id");
+                  }}
+                >
+                  <SelectTrigger id={id} {...aria}>
+                    <SelectValue placeholder="Escolha o cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {todosContatos.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {permitirClienteNovo && (
+                <ClienteForm
+                  modo="novo"
+                  onSalvo={(c) => {
+                    v.contatoCriado(c);
+                    limpar("contact_id");
+                  }}
+                />
+              )}
             </div>
-            {permitirClienteNovo && (
-              <ClienteNovoForm
-                onCriado={(c) => {
-                  v.contatoCriado(c);
-                  limpar("contact_id");
-                }}
-              />
+            {escolhido?.incomplete && (
+              <div className="flex flex-wrap items-center gap-2 rounded-md bg-atencao-suave px-3 py-2 text-sm text-atencao-tinta">
+                <span>Cadastro incompleto</span>
+                {permitirClienteNovo && (
+                  <ClienteForm
+                    modo="completar"
+                    contatoId={escolhido.id}
+                    trigger={
+                      <Button type="button" variant="outline" size="sm">
+                        Completar cadastro
+                      </Button>
+                    }
+                    onSalvo={(c) => v.contatoAtualizado(c)}
+                  />
+                )}
+              </div>
             )}
           </div>
         )}

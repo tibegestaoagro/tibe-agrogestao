@@ -136,7 +136,10 @@ export function useVenda({
   contatoInicial = "",
   abatimentoCent = 0,
   regras = null,
+  consumidorFinalId = "",
 }: {
+  /** O contato fixo "Consumidor final": não serve para fiado nem cheque. */
+  consumidorFinalId?: string;
   produtos: ProdutoVenda[];
   precos: PrecosVenda;
   lojaInicial: string;
@@ -159,7 +162,7 @@ export function useVenda({
   const [itens, setItens] = useState<LinhaItem[]>([]);
   const [pagamentos, setPagamentos] = useState<LinhaPagamento[]>([]);
   const [contatoId, setContatoId] = useState(contatoInicial);
-  const [contatosNovos, setContatosNovos] = useState<{ id: string; name: string }[]>([]);
+  const [contatosNovos, setContatosNovos] = useState<ContatoDeVenda[]>([]);
 
   const sugerido = (apresentacaoId: string, lojaId: string): number | null =>
     precos[apresentacaoId]?.[lojaId] ?? null;
@@ -284,8 +287,13 @@ export function useVenda({
     setContatoId(contatoInicial);
   }
 
-  function contatoCriado(c: { id: string; name: string }) {
-    setContatosNovos((l) => [...l, c]);
+  /** Contato cadastrado ou completado agora: vale sobre o que veio do servidor, sem recarregar a página. */
+  function contatoAtualizado(c: ContatoDeVenda) {
+    setContatosNovos((l) => [...l.filter((x) => x.id !== c.id), c]);
+  }
+
+  function contatoCriado(c: ContatoDeVenda) {
+    contatoAtualizado(c);
     setContatoId(c.id);
   }
 
@@ -302,8 +310,10 @@ export function useVenda({
 
     const temFiado = pagamentos.some((p) => p.kind === "fiado");
     const temCheque = pagamentos.some((p) => p.kind === "cheque");
-    if (temFiado && !contatoId) novos.contact_id = "Escolha o cliente para vender no fiado.";
-    else if (temCheque && !contatoId) novos.contact_id = "Escolha o cliente para receber o cheque.";
+    const ehConsumidorFinal = consumidorFinalId !== "" && contatoId === consumidorFinalId;
+    if (!contatoId) novos.contact_id = "Escolha o cliente da venda.";
+    else if (temFiado && ehConsumidorFinal) novos.contact_id = "Fiado precisa do cliente de verdade, não do Consumidor final.";
+    else if (temCheque && ehConsumidorFinal) novos.contact_id = "Cheque precisa do cliente de verdade, não do Consumidor final.";
 
     const pagamentosApi: CorpoDaVenda["payments"] = [];
     const ilegivel = pagamentos.some((p) => {
@@ -390,6 +400,7 @@ export function useVenda({
     setContatoId,
     contatosNovos,
     contatoCriado,
+    contatoAtualizado,
     totalCent,
     descontoCent,
     descontoPct,

@@ -14,7 +14,8 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { getContactDetail } from "@/lib/actions/contacts";
+import { getContactDetail, type ContactView } from "@/lib/actions/contacts";
+import { formatarCep, formatarDocumento } from "@/lib/contatos/cadastro";
 import ContactForm from "@/components/contatos/contact-form";
 import ContactArchiveButton from "@/components/contatos/contact-archive-button";
 import {
@@ -41,6 +42,32 @@ const moeda = (v: number) =>
 const dataCurta = (iso: string) =>
   new Date(iso).toLocaleDateString("pt-BR", { timeZone: "UTC" });
 
+function Dado({ rotulo, valor }: { rotulo: string; valor: string | null }) {
+  return (
+    <div>
+      <dt className="text-xs uppercase tracking-wide text-texto-discreto">{rotulo}</dt>
+      <dd className="mt-1 text-sm text-texto">
+        {valor ?? <span className="text-texto-discreto">Não informado</span>}
+      </dd>
+    </div>
+  );
+}
+
+/** "Rua, número, complemento, bairro, cidade/UF, CEP": só o que existe. */
+function enderecoEmLinha(c: ContactView, prefixo: "address" | "delivery"): string | null {
+  const cidade = prefixo === "address" ? c.city : c.delivery_city;
+  const uf = c[`${prefixo}_state`];
+  const partes = [
+    c[`${prefixo}_street`],
+    c[`${prefixo}_number`],
+    c[`${prefixo}_complement`],
+    c[`${prefixo}_district`],
+    cidade && uf ? `${cidade}/${uf}` : (cidade ?? uf),
+    formatarCep(c[`${prefixo}_zip`]) || null,
+  ].filter((p): p is string => !!p);
+  return partes.length > 0 ? partes.join(", ") : null;
+}
+
 export default async function ContatoPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
@@ -59,6 +86,9 @@ export default async function ContatoPage({ params }: { params: Promise<{ id: st
   if (!res.ok) notFound();
 
   const contato = res.data;
+  // Só o cadastro desce para o formulário: os negócios e serviços ficam no servidor.
+  const { negotiations: _negocios, services: _servicos, archived: _arquivado, incomplete: _incompleto, ...paraFormulario } = contato;
+  void [_negocios, _servicos, _arquivado, _incompleto];
   const total = contato.negotiations.reduce((soma, n) => soma + (n.amount ?? 0), 0);
   const totalDeServicos = contato.services.reduce((soma, s) => soma + s.total, 0);
 
@@ -75,6 +105,7 @@ export default async function ContatoPage({ params }: { params: Promise<{ id: st
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold text-texto">{contato.name}</h1>
             {contato.archived && <Badge variant="amber">Arquivado</Badge>}
+            {contato.incomplete && <Badge variant="amber">Cadastro incompleto</Badge>}
           </div>
           <p className="mt-1 text-sm text-texto-secundario">
             {contato.type
@@ -84,16 +115,7 @@ export default async function ContatoPage({ params }: { params: Promise<{ id: st
         </div>
         {writable && (
           <div className="flex flex-wrap items-start gap-2">
-            <ContactForm
-              contato={{
-                id: contato.id,
-                name: contato.name,
-                type: contato.type,
-                phone: contato.phone,
-                city: contato.city,
-                notes: contato.notes,
-              }}
-            />
+            <ContactForm contato={paraFormulario} />
             <ContactArchiveButton contactId={contato.id} arquivado={contato.archived} />
           </div>
         )}
@@ -102,6 +124,25 @@ export default async function ContatoPage({ params }: { params: Promise<{ id: st
       <section className="rounded-[var(--curva)] border border-borda bg-superficie p-4">
         <h2 className="text-sm font-semibold text-texto">Cadastro</h2>
         <dl className="mt-3 grid gap-4 sm:grid-cols-3">
+          <Dado
+            rotulo="Tipo de pessoa"
+            valor={contato.person_kind === "pf" ? "Pessoa física" : contato.person_kind === "pj" ? "Pessoa jurídica" : null}
+          />
+          <Dado
+            rotulo={contato.person_kind === "pj" ? "CNPJ" : "CPF"}
+            valor={contato.document ? formatarDocumento(contato.document) : null}
+          />
+          <Dado rotulo="Inscrição estadual" valor={contato.state_registration} />
+          {contato.person_kind === "pj" ? (
+            <Dado rotulo="Responsável" valor={contato.responsible_name} />
+          ) : (
+            <Dado
+              rotulo="Data de nascimento"
+              valor={contato.birth_date ? dataCurta(contato.birth_date) : null}
+            />
+          )}
+          <Dado rotulo="Endereço" valor={enderecoEmLinha(contato, "address")} />
+          <Dado rotulo="Endereço de entrega" valor={enderecoEmLinha(contato, "delivery")} />
           <div>
             <dt className="text-xs uppercase tracking-wide text-texto-discreto">Telefone</dt>
             <dd className="mt-1 text-sm text-texto">

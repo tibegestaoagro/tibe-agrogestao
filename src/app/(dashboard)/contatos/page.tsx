@@ -142,9 +142,12 @@ export default async function ContatosPage({
             {contatos.map((c) => (
               <TableRow key={c.id}>
                 <TableCell>
-                  <Link href={`/contatos/${c.id}`} className="font-medium text-texto underline">
-                    {c.name}
-                  </Link>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link href={`/contatos/${c.id}`} className="font-medium text-texto underline">
+                      {c.name}
+                    </Link>
+                    {c.incomplete && <Badge variant="amber">Cadastro incompleto</Badge>}
+                  </div>
                 </TableCell>
                 <TableCell>
                   {c.type ? (
