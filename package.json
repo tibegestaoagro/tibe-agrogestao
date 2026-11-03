@@ -70,6 +70,7 @@
     "test:m87": "tsx scripts/m87-emporio-f6b.test.ts",
     "test:m88": "tsx scripts/m88-whatsapp-so-da-loja.test.ts",
     "test:m89": "tsx scripts/m89-emporio-historico.test.ts",
+    "test:m90": "tsx scripts/m90-emporio-cliente.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",
