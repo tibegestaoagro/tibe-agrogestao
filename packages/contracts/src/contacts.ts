@@ -44,6 +44,27 @@ export const contactSchema = z.object({
   phone: z.string().nullable(),
   city: z.string().nullable(),
   notes: z.string().nullable(),
+  // Cadastro PF/PJ (2026-11-03). `document` e CEP só com dígitos; `birth_date` é YYYY-MM-DD.
+  person_kind: z.enum(["pf", "pj"]).nullable(),
+  document: z.string().nullable(),
+  state_registration: z.string().nullable(),
+  birth_date: z.string().nullable(),
+  responsible_name: z.string().nullable(),
+  address_zip: z.string().nullable(),
+  address_street: z.string().nullable(),
+  address_number: z.string().nullable(),
+  address_complement: z.string().nullable(),
+  address_district: z.string().nullable(),
+  address_state: z.string().nullable(),
+  delivery_zip: z.string().nullable(),
+  delivery_street: z.string().nullable(),
+  delivery_number: z.string().nullable(),
+  delivery_complement: z.string().nullable(),
+  delivery_district: z.string().nullable(),
+  delivery_city: z.string().nullable(),
+  delivery_state: z.string().nullable(),
+  /** Falta tipo, documento ou telefone (nunca para o Consumidor final). */
+  incomplete: z.boolean(),
 });
 export type Contact = z.infer<typeof contactSchema>;
 
