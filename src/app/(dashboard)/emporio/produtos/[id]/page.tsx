@@ -22,6 +22,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { ArquivarBotao } from "../../_components/arquivar-botao";
+import { NomeProdutoForm } from "../../_components/nome-produto-form";
 import { DadosComerciaisForm } from "../../_components/dados-comerciais-form";
 import { ApresentacaoForm } from "../../_components/apresentacao-form";
 import { PrecoForm, AplicarSugeridoBotao } from "../../_components/preco-form";
@@ -127,11 +128,14 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
           </p>
         </div>
         {podeEscrever && (
-          <ArquivarBotao
-            url={`/api/v1/emporio/products/${p.id}/archive`}
-            arquivado={!!p.archived_at}
-            rotulo="Arquivar produto"
-          />
+          <div className="flex flex-wrap gap-2">
+            <NomeProdutoForm produtoId={p.id} nome={p.name} />
+            <ArquivarBotao
+              url={`/api/v1/emporio/products/${p.id}/archive`}
+              arquivado={!!p.archived_at}
+              rotulo="Arquivar produto"
+            />
+          </div>
         )}
       </header>
 
