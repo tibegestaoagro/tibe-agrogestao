@@ -104,11 +104,16 @@ export async function lerImpressoDaVendaAction(
     : null;
 
   // O item com desconto sai no preço sugerido, para o papel fechar: soma(linhas) = subtotal
-  // e subtotal - desconto = total. Os demais seguem no praticado.
+  // e subtotal - desconto = total. Os demais seguem no praticado. A linha é o total praticado
+  // mais o desconto do item, arredondado como a venda o calculou (Q85): arredondar o
+  // sugerido x quantidade erraria 1 centavo no granel fracionado.
+  const centavos = (n: number) => Math.round(Number((n * 100).toPrecision(12)));
   const itens = v.items.map((i) => {
     const comDesconto = i.suggested_price != null && i.unit_price < i.suggested_price;
     const preco = comDesconto ? (i.suggested_price as number) : i.unit_price;
-    const total = comDesconto ? Math.round(preco * i.quantity * 100) / 100 : i.total;
+    const total = comDesconto
+      ? (centavos(i.total) + centavos((preco - i.unit_price) * i.quantity)) / 100
+      : i.total;
     return { i, preco, total };
   });
   const subtotal = Math.round(itens.reduce((t, x) => t + Math.round(x.total * 100), 0)) / 100;

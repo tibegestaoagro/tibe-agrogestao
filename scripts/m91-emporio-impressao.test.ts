@@ -542,6 +542,29 @@ async function secao3() {
       }
     }
 
+    // Granel fracionado: 0,5 a 9,99 grava total 5,00 e desconto 0,01 (meio centavo
+    // arredondado para cima). Arredondar 10 x 0,5 na linha daria 5,00 - 0,01 = 4,99.
+    const vFrac = await V.venderAction(db, donoA, {
+      operation_key: `m91s3-${stamp}-frac`,
+      establishment_id: loja.data.id,
+      contact_id: cf,
+      items: [{ emporio_product_id: p.data.id, presentation_id: pres.data.id, quantity: 0.5, unit_price: 9.99 }],
+      payments: [{ kind: "dinheiro", amount: 5 }],
+    });
+    check("granel fracionado com desconto: criada", vFrac.ok, j(vFrac));
+    if (vFrac.ok) {
+      const rF = await I.lerImpressoDaVendaAction(db, donoA, vFrac.data.id);
+      if (rF.ok) {
+        const d = rF.data;
+        const cent = (x: number) => Math.round(x * 100);
+        check(
+          "granel fracionado: soma das linhas = subtotal e subtotal - desconto = total",
+          d.itens.reduce((t, i) => t + cent(i.total), 0) === cent(d.subtotal) && cent(d.subtotal) - cent(d.desconto) === cent(d.total),
+          j([d.itens, d.subtotal, d.desconto, d.total]),
+        );
+      } else check("granel fracionado: lida", false, j(rF));
+    }
+
     // Troca: o valor devolvido já é um pagamento gravado ("Valor da troca"); o papel tem que fechar.
     const itemOrigem = await db.emporioSaleItem.findFirstOrThrow({ where: { sale_id: vPj.data.id } });
     const troca = await V.trocarAction(db, donoA, vPj.data.id, {
