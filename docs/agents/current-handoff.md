@@ -96,9 +96,15 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
-### Empório, entrega 1: configurações e impressão da venda (04/11), NA BRANCH
+### Empório, entrega 1: configurações e impressão da venda (04/11), em produção
 
-Branch `emporio-orcamento-caixa` (fora da `main`, nada no ar). Design
+**Em produção desde 04/11** (`ad21e62`, merge fast-forward de
+`emporio-orcamento-caixa` e push autorizados pelo usuário; migração
+`20261104120000_emporio_configuracoes_impressao` no Neon, URL Direct, também
+autorizada, antes do push e sem venda acontecendo: a última era de 31/10;
+`migrate status` em dia; as 178 vendas numeradas de 1 a N em cada uma das 2
+contas, sem buraco, com o contador no máximo; Vercel com sucesso no status do
+commit). Design
 `docs/superpowers/specs/2026-11-04-emporio-orcamento-caixa-impressao-design.md`
 (entrega 1 de 4: as seguintes são caixa com turno, vendedor e orçamento),
 decisões Q145 a Q149 na spec do módulo. Contém: tela `/emporio/configuracoes`
@@ -128,15 +134,13 @@ O roteiro agora gera o PDF real (`Page.printToPDF`): uma página de 58 mm, e
 conta bloqueada abrindo o papel (o código é a mesma cadeia do painel) e a
 impressora térmica de verdade (só o PDF).
 
-⚠️ **A migração `20261104120000_emporio_configuracoes_impressao` NÃO está
-aplicada no Neon.** Ela torna `EmporioSale.number` NOT NULL: entre aplicar no
-Neon e o código novo entrar no ar, venda feita no código antigo falha. Aplicar
-(URL Direct) e dar o push em sequência, quando nenhuma loja estiver vendendo.
-A ordem inversa é pior: o código novo no ar sem a migração derruba toda
-leitura de venda e de loja do Empório (o client seleciona `number` e os campos
-novos de `Establishment`). Com loja vendendo de verdade, a saída sem janela
-seria migrar em duas etapas (coluna anulável primeiro, NOT NULL depois).
-O papel ainda não mostra o troco (a venda não guarda o dinheiro recebido).
+Lição da janela de deploy, para as próximas entregas: coluna NOT NULL nova
+numa tabela de venda exige migração e push em sequência, sem loja vendendo. A
+ordem inversa derruba toda leitura do Empório. Com loja vendendo de verdade,
+migrar em duas etapas (coluna anulável primeiro, NOT NULL depois do deploy).
+O classificador recusa a migração no Neon quando a autorização fala só em
+"merge e push": ela precisa ser citada. O papel ainda não mostra o troco (a
+venda não guarda o dinheiro recebido).
 
 ### Empório: cadastro do cliente, nome do produto e menu (03/11), em produção
 
@@ -392,11 +396,11 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
 
-**Empório, entrega 1 na branch `emporio-orcamento-caixa`:** pronta, revisada
-e provada. Falta só a decisão do usuário sobre o merge e a janela de deploy
-(migração no Neon e push em sequência, ver a seção acima). O ideal é imprimir
-um cupom de 58 e de 80 mm na bobina da loja. Depois, a entrega 2 (caixa com
-turno).
+**Empório, entrega 1 em produção (04/11).** O usuário imprime um cupom de 58 e
+de 80 mm na bobina da loja e um A4, e relata o que estranhar. A próxima é a
+entrega 2 (caixa com turno): plano novo a partir da seção dela no design
+`docs/superpowers/specs/2026-11-04-emporio-orcamento-caixa-impressao-design.md`,
+numa branch nova saída da `main`.
 
 **Empório, 04/11:** o usuário pediu dois ajustes antes do manual e do cenário.
 O primeiro (metro) é a branch `emporio-unidade-metro`; o segundo ele ainda vai
