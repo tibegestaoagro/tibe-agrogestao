@@ -547,6 +547,8 @@ export async function receberCompraAction(
   id: string,
   input: { received_at?: Date | null } = {},
 ): Promise<ActionResult<CompraView>> {
+  const foraDoCaixa = await recusarCaixa(db, ator, "receber compra");
+  if (foraDoCaixa) return foraDoCaixa;
   const neg = await exigir(db, ator, "vendedor_da_loja", "receber compra");
   if (neg) return neg;
   const compra = await compraVisivel(db, ator, id);

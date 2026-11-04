@@ -648,6 +648,8 @@ export async function receberTransferenciaAction(
   id: string,
   input: ReceberTransferenciaInput,
 ): Promise<ActionResult<TransferView>> {
+  const foraDoCaixa = await recusarCaixa(db, ator, "receber uma transferência");
+  if (foraDoCaixa) return foraDoCaixa;
   const neg = await exigir(db, ator, "vendedor_da_loja", "receber uma transferência");
   if (neg) return neg;
   const visiveis = await lojasDoAtor(db, ator);
@@ -860,6 +862,8 @@ export async function cancelarTransferenciaAction(
   id: string,
   input: { reason: string },
 ): Promise<ActionResult<TransferView>> {
+  const foraDoCaixa = await recusarCaixa(db, ator, "cancelar uma transferência");
+  if (foraDoCaixa) return foraDoCaixa;
   const neg = await exigir(db, ator, "vendedor_da_loja", "cancelar uma transferência");
   if (neg) return neg;
   const visiveis = await lojasDoAtor(db, ator);

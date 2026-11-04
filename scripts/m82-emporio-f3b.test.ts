@@ -1,5 +1,5 @@
 import "./_env-local";
-import { papelDeFixture, vincularTodas } from "./_emporio-papel";
+import { papelDeFixture, vincularTodas, virarGestor } from "./_emporio-papel";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { exigirBancoLocal } from "./_banco-local";
 
@@ -104,6 +104,8 @@ async function comBanco() {
     const op = await TA.mkUser("op", "OPERADOR");
     const visu = await TA.mkUser("vis", "VISUALIZADOR");
     const userO = await TA.mkUser("uo", "OPERADOR"); // vinculado só à Loja 3
+    const gOp = await TA.mkUser("gop", "OPERADOR"); // Gestor das três lojas: a gaveta ao banco é do Gestor (provisório, Task 3)
+    const gUo = await TA.mkUser("guo", "OPERADOR"); // Gestor só da Loja 3
     const ownerB = await TB.mkUser("own", "OWNER");
     const db = prismaForTenant(TA.t.id);
     const dbB = prismaForTenant(TB.t.id);
@@ -133,6 +135,10 @@ async function comBanco() {
     const L3 = dados(rL3);
     if (!L1 || !L2 || !L3) throw new Error(`não criou as lojas: ${j([rL1, rL2, rL3])}`);
     await vincularTodas(prisma, TA.t.id, [op.id], [L1.id, L2.id, L3.id]); // F6b: Vendedor só vê as lojas que tem
+    await virarGestor(prisma, gOp.id);
+    await virarGestor(prisma, gUo.id);
+    await vincularTodas(prisma, TA.t.id, [gOp.id], [L1.id, L2.id, L3.id]);
+    await vincularTodas(prisma, TA.t.id, [gUo.id], [L3.id]);
 
     // ---- Produto de preço redondo (10 por quilo) para os totais saírem exatos
     const rP = await cc("criarProdutoEmporioAction", op, { name: "M82 Produto", category_id: cat.id, base_unit: "quilograma" });
@@ -451,16 +457,16 @@ async function comBanco() {
     let transferCodeOk = false;
     await rodar("transferência", async () => {
       console.log("\n6. Transferência entre caixas (Q92)");
-      check("vincular userO só à Loja 3", (await cc("definirVinculosAction", owner, L3.id, [userO.id])).ok);
+      check("vincular userO só à Loja 3", (await cc("definirVinculosAction", owner, L3.id, [userO.id, gUo.id, gOp.id])).ok);
       check("saldo inicial da gaveta da Loja 2 (500)", (await xx("saldoInicialCaixaAction", op, { establishment_id: L2.id, amount: 500 })).ok);
       check("saldo inicial da gaveta da Loja 3 (100)", (await xx("saldoInicialCaixaAction", owner, { establishment_id: L3.id, amount: 100 })).ok);
       check("saldo inicial da conta de transferência (1000)", (await xx("saldoInicialCaixaAction", admin, { bank_account_id: TR, amount: 1000 })).ok);
       const e0 = await db.financialEntry.count();
       const pagos0 = await db.financialPayment.count();
 
-      const rT = await xx("transferirCaixaAction", op, { operation_key: TRANSF_KEY, from: { establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 200 });
+      const rT = await xx("transferirCaixaAction", gOp, { operation_key: TRANSF_KEY, from: { establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 200 });
       transferCodeOk = rT.ok;
-      check("OPERADOR leva R$ 200 da gaveta da Loja 2 ao banco", rT.ok, j(rT));
+      check("Gestor leva R$ 200 da gaveta da Loja 2 ao banco", rT.ok, j(rT));
       const tr = await db.cashTransfer.findFirst({ where: { operation_key: TRANSF_KEY } });
       transferAId = tr?.id ?? "";
       check("uma transferência de 200 gravada", !!tr && perto(n(tr.amount), 200), j(tr));
@@ -469,19 +475,19 @@ async function comBanco() {
       check("a gaveta caiu para 300 e a conta subiu para 1200", perto(await saldoGaveta(L2.id), 300) && perto(await saldoConta(TR), 1200));
       const caixa = dados(await xx("lerCaixaAction", admin));
       check("o caixa mostra os dois saldos", perto(achar(caixa, "establishment_id", L2.id), 300) && perto(achar(caixa, "bank_account_id", TR), 1200), `${achar(caixa, "establishment_id", L2.id)} e ${achar(caixa, "bank_account_id", TR)}`);
-      const rT2 = await xx("transferirCaixaAction", op, { operation_key: TRANSF_KEY, from: { establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 200 });
+      const rT2 = await xx("transferirCaixaAction", gOp, { operation_key: TRANSF_KEY, from: { establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 200 });
       check("mesma chave: devolve o gravado, sem duplicar", rT2.ok && (await db.cashTransfer.count({ where: { operation_key: TRANSF_KEY } })) === 1 && (await db.cashMovement.count({ where: { cash_transfer_id: tr?.id ?? "x" } })) === 2 && perto(await saldoGaveta(L2.id), 300), j(rT2));
 
       const c0 = await db.cashMovement.count();
-      check("mais do que tem (300,01 de 300): 409 INSUFFICIENT_CASH em amount", recusa(await xx("transferirCaixaAction", op, { operation_key: chave("transf"), from: { establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 300.01 }), "INSUFFICIENT_CASH", 409, "amount"));
+      check("mais do que tem (300,01 de 300): 409 INSUFFICIENT_CASH em amount", recusa(await xx("transferirCaixaAction", gOp, { operation_key: chave("transf"), from: { establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 300.01 }), "INSUFFICIENT_CASH", 409, "amount"));
       check("a recusa não gravou movimento", (await db.cashMovement.count()) === c0);
-      check("mesma gaveta na origem e no destino: 422 to", recusa(await xx("transferirCaixaAction", op, { operation_key: chave("transf"), from: { establishment_id: L2.id }, to: { establishment_id: L2.id }, amount: 10 }), "VALIDATION_ERROR", 422, "to"));
+      check("mesma gaveta na origem e no destino: 422 to", recusa(await xx("transferirCaixaAction", gOp, { operation_key: chave("transf"), from: { establishment_id: L2.id }, to: { establishment_id: L2.id }, amount: 10 }), "VALIDATION_ERROR", 422, "to"));
       check("mesma conta na origem e no destino: 422 to", recusa(await xx("transferirCaixaAction", admin, { operation_key: chave("transf"), from: { bank_account_id: TR }, to: { bank_account_id: TR }, amount: 10 }), "VALIDATION_ERROR", 422, "to"));
-      check("valor zero: 422 amount", recusa(await xx("transferirCaixaAction", op, { operation_key: chave("transf"), from: { establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 0 }), "VALIDATION_ERROR", 422, "amount"));
-      check("OPERADOR tirando de CONTA: 403", recusa(await xx("transferirCaixaAction", op, { operation_key: chave("transf"), from: { bank_account_id: TR }, to: { establishment_id: L2.id }, amount: 10 }), "FORBIDDEN", 403));
+      check("valor zero: 422 amount", recusa(await xx("transferirCaixaAction", gOp, { operation_key: chave("transf"), from: { establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 0 }), "VALIDATION_ERROR", 422, "amount"));
+      check("Gestor tirando de CONTA: 403", recusa(await xx("transferirCaixaAction", gOp, { operation_key: chave("transf"), from: { bank_account_id: TR }, to: { establishment_id: L2.id }, amount: 10 }), "FORBIDDEN", 403));
       check("VISUALIZADOR transfere: 403", recusa(await xx("transferirCaixaAction", visu, { operation_key: chave("transf"), from: { establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 10 }), "FORBIDDEN", 403));
-      check("OPERADOR sem vínculo com a Loja 2 tirando da gaveta dela: 403 ou 404", negada(await xx("transferirCaixaAction", userO, { operation_key: chave("transf"), from: { establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 10 })));
-      check("OPERADOR vinculado tira da gaveta da própria loja (Loja 3)", (await xx("transferirCaixaAction", userO, { operation_key: chave("transf"), from: { establishment_id: L3.id }, to: { establishment_id: L2.id }, amount: 40 })).ok && perto(await saldoGaveta(L3.id), 60) && perto(await saldoGaveta(L2.id), 340));
+      check("Gestor sem vínculo com a Loja 2 tirando da gaveta dela: 403 ou 404", negada(await xx("transferirCaixaAction", gUo, { operation_key: chave("transf"), from: { establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 10 })));
+      check("Gestor vinculado tira da gaveta da própria loja (Loja 3)", (await xx("transferirCaixaAction", gUo, { operation_key: chave("transf"), from: { establishment_id: L3.id }, to: { establishment_id: L2.id }, amount: 40 })).ok && perto(await saldoGaveta(L3.id), 60) && perto(await saldoGaveta(L2.id), 340));
       check("ADMIN tira da conta e põe na gaveta", (await xx("transferirCaixaAction", admin, { operation_key: chave("transf"), from: { bank_account_id: TR }, to: { establishment_id: L2.id }, amount: 50 })).ok && perto(await saldoConta(TR), 1150) && perto(await saldoGaveta(L2.id), 390));
 
       // a conta com parcela de cartão que já caiu pode transferir esse valor

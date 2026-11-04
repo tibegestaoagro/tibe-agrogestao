@@ -359,6 +359,12 @@ async function secao2() {
   for (const [nome, r] of leituras) {
     check(`${nome} recusa o Caixa com 403`, !r.ok && r.status === 403, j(r));
   }
+  const recCompra = await Cmp.receberCompraAction(db, caixa, "qualquer");
+  check("receberCompraAction recusa o Caixa com 403", !recCompra.ok && recCompra.status === 403, j(recCompra));
+  const recTransf = await Trf.receberTransferenciaAction(db, caixa, "qualquer", { items: [] } as never);
+  check("receberTransferenciaAction recusa o Caixa com 403", !recTransf.ok && recTransf.status === 403, j(recTransf));
+  const cancTransf = await Trf.cancelarTransferenciaAction(db, caixa, "qualquer", {} as never);
+  check("cancelarTransferenciaAction recusa o Caixa com 403", !cancTransf.ok && cancTransf.status === 403, j(cancTransf));
   const estoqueDono = await Est.saldoDaLojaAction(db, owner, loja1);
   check("a leitura do estoque segue aberta ao Dono", estoqueDono.ok);
   const lojasCaixa = await Cat.listarEstabelecimentosAction(db, caixa);
