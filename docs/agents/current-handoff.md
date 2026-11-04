@@ -25,7 +25,7 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 `historico/2026-09.md`.
 ## Estado atual
 
-- Atualizado em: 2026-11-03.
+- Atualizado em: 2026-11-04.
 
 ### Programa de dívidas (07 a 14/10): encerrado, E0 a E10 em produção
 
@@ -117,8 +117,9 @@ Q59). Suíte `test:m90` nova; `test:all` 90/90 verde; roteiro
 correção; telas vistas no navegador de testes (dono, gestor, vendedor,
 celular).
 
-**CNPJ alfanumérico (Q143), branch `emporio-cnpj-alfanumerico`, NÃO está na
-`main`.** Decisão do usuário em 03/11: aceitar o CNPJ novo da Receita (12
+**CNPJ alfanumérico (Q143), em produção desde 03/11** (`b5d3dd8`, merge
+fast-forward autorizado pelo usuário; Vercel com sucesso no status do
+commit). Decisão do usuário em 03/11: aceitar o CNPJ novo da Receita (12
 posições de letra ou número, 2 dígitos verificadores numéricos, cada posição
 valendo ASCII menos 48). Guardado em maiúscula e sem pontuação; a máscara da
 tela aceita letra e o campo abre o teclado com letras. Sem schema nem
@@ -126,6 +127,17 @@ migração. Provas: `m90` com o exemplo da Receita (`12ABC34501DE35`) vista
 falhando antes; roteiro `emporio-cliente-menu` com o passo 1b reprovado (6
 falhas) com a correção desfeita e verde com ela; tsc, check, m73 e docs-api
 verdes.
+
+**Metro como unidade-base (Q144), 04/11, branch `emporio-unidade-metro`**,
+com merge e push na `main` autorizados pelo usuário junto com este handoff.
+Corda, arame e mangueira por metro: aceita fração, sem conteúdo, rolo como
+apresentação fechada (`Rolo 100 m`). Usa o `metro` que já existia em
+`src/lib/stock/units.ts`; sem schema nem migração. Provas: `m86` vista
+falhando antes; roteiro `emporio-f6a` com o passo 8 reprovado com a correção
+desfeita e verde com ela; m78, tsc, check e docs-api verdes. O passo 6 do
+mesmo roteiro supunha nenhum produto de cão na conta, e o cenário de
+demonstração rodado no banco local deixa quatro: a conferência passou a
+olhar só a ração de gato do roteiro.
 
 Pendências: refazer o cenário de demonstração da Da Mata (as vendas agora
 levam cliente); o manual (`src/app/(dashboard)/manual/_conteudo/`) descreve o
@@ -338,9 +350,11 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
 
-**Branch `emporio-cnpj-alfanumerico`:** com a autorização do usuário, merge e
-push na `main` (sem migração). Em seguida, o manual e o cenário de
-demonstração do Empório (ver a seção "cadastro do cliente" acima).
+**Empório, 04/11:** o usuário pediu dois ajustes antes do manual e do cenário.
+O primeiro (metro) é a branch `emporio-unidade-metro`; o segundo ele ainda vai
+descrever. Depois dos dois, o manual e o cenário de demonstração do Empório
+(ver a seção "cadastro do cliente" acima; o manual também precisa citar o
+metro e o CNPJ alfanumérico).
 
 **Meu Empório: TESTE DE CLIENTE pelo usuário, em produção.** As sete fases
 (F0 a F5) estão no ar desde 29/10, mas foram provadas só no banco local;

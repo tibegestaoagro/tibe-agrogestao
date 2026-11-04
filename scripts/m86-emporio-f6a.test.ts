@@ -88,6 +88,24 @@ async function comBanco() {
     check("fardo aceita", rFardo.ok, j(rFardo));
     check("fora da lista (caixa) é 422 no base_unit", recusa(await criar({ name: nome("caixa"), base_unit: "caixa" }), "VALIDATION_ERROR", 422, "base_unit"));
     check("quilograma continua aceita", (await criar({ name: nome("kg"), base_unit: "quilograma" })).ok);
+    const rCx = await criar({ name: nome("caixa2"), base_unit: "caixa" });
+    check("a recusa da unidade cita o metro", !rCx.ok && rCx.message === "Escolha a unidade-base: quilograma, litro, metro, unidade, saca ou fardo.", j(rCx));
+
+    console.log("\n1b. Metro (03/11/2026): vende por metro, com fração, sem conteúdo");
+    const rMetro = await criar({ name: nome("corda"), base_unit: "metro" });
+    check("metro aceita", rMetro.ok && dados(rMetro)?.base_unit === "metro", j(rMetro));
+    const metro = dados(rMetro);
+    const pMetro = await db.product.findFirst({ where: { name: metro?.name } });
+    check("o Product nasce com unit = metro", pMetro?.unit === "metro", j(pMetro));
+    check("metro com conteúdo: 422 em content_qty", recusa(await criar({ name: nome("mc"), base_unit: "metro", content_qty: 1, content_unit: "quilograma" }), "VALIDATION_ERROR", 422, "content_qty"));
+    check("metro não ganha apresentação automática", (await apresentacoes(metro.id)).length === 0);
+    const rRolo = await chamar("criarApresentacaoAction", owner, metro.id, { name: "Rolo 100 m", base_qty: 100, is_sealed_package: true });
+    check("rolo de 100 m como apresentação fechada", rRolo.ok && perto(Number(dados(rRolo)?.base_qty), 100), j(rRolo));
+    const rMeio = await chamar("criarApresentacaoAction", owner, metro.id, { name: "Meio metro", base_qty: 0.5, is_sealed_package: false });
+    check("meio metro aceita fração", rMeio.ok && perto(Number(dados(rMeio)?.base_qty), 0.5), j(rMeio));
+    const F = await import("@/app/(dashboard)/emporio/_components/formato");
+    check("rótulo e sufixo do metro na tela", F.UNIDADE_BASE_ROTULO.metro === "Metro" && F.UNIDADE_BASE_SUFIXO.metro === "m", j({ r: F.UNIDADE_BASE_ROTULO.metro, s: F.UNIDADE_BASE_SUFIXO.metro }));
+    check("custo por metro", F.rotuloCustoBase("metro") === "Custo por metro");
 
     console.log("\n2. Conteúdo: quando é obrigatório, permitido ou proibido");
     check("saca sem conteúdo: 422 em content_qty", recusa(await criar({ name: nome("s"), base_unit: "saca" }), "VALIDATION_ERROR", 422, "content_qty"));

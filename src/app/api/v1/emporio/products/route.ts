@@ -26,7 +26,7 @@ const schema = z.object({
   internal_code: z.string().nullish(),
   species: z.array(z.string(), { error: "Escolha as espécies da lista." }).optional(),
   base_unit: z.enum(EMPORIO_BASE_UNITS, {
-    error: "Escolha a unidade-base: quilograma, litro, unidade, saca ou fardo.",
+    error: "Escolha a unidade-base: quilograma, litro, metro, unidade, saca ou fardo.",
   }),
   content_qty: z.number({ error: "O conteúdo deve ser um número." }).nullish(),
   content_unit: z.string().nullish(),

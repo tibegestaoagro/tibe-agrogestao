@@ -18,7 +18,7 @@ import type { AppUserRole } from "@/types/next-auth";
 
 export type Ator = { id: string; role: AppUserRole };
 
-export const EMPORIO_BASE_UNITS = ["quilograma", "litro", "unidade", "saca", "fardo"] as const;
+export const EMPORIO_BASE_UNITS = ["quilograma", "litro", "metro", "unidade", "saca", "fardo"] as const;
 type BaseUnit = (typeof EMPORIO_BASE_UNITS)[number];
 
 function isBaseUnit(v: unknown): v is BaseUnit {
@@ -703,7 +703,7 @@ function recusaConteudo(baseUnit: string, qty: unknown, unit: unknown): Recusa |
   const permitidas = CONTEUDO_PERMITIDO[baseUnit];
   if (!permitidas) {
     if (temQtd || temUnid) {
-      return { field: "content_qty", message: "Produto em quilograma ou litro não tem conteúdo." };
+      return { field: "content_qty", message: "Produto em quilograma, litro ou metro não tem conteúdo." };
     }
     return null;
   }
@@ -842,7 +842,7 @@ export async function criarProdutoEmporioAction(
   if (!isBaseUnit(input.base_unit)) {
     return fail(
       "VALIDATION_ERROR",
-      "Escolha a unidade-base: quilograma, litro, unidade, saca ou fardo.",
+      "Escolha a unidade-base: quilograma, litro, metro, unidade, saca ou fardo.",
       422,
       "base_unit",
     );

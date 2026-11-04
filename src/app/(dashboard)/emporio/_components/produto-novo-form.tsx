@@ -54,9 +54,9 @@ const ORDEM_NOVO = [
 type CampoNovo = (typeof ORDEM_NOVO)[number];
 
 /** Unidades do produto que nasce na loja. A saca e o fardo pedem conteúdo (Q123). */
-const UNIDADES_NOVO = ["quilograma", "litro", "unidade", "saca", "fardo"];
+const UNIDADES_NOVO = ["quilograma", "litro", "metro", "unidade", "saca", "fardo"];
 /** O produto da fazenda não tem onde informar o conteúdo, então só as três simples. */
-const UNIDADES_FAZENDA = ["quilograma", "litro", "unidade"];
+const UNIDADES_FAZENDA = ["quilograma", "litro", "metro", "unidade"];
 
 function SeletorUnidade({
   id,
@@ -172,7 +172,7 @@ export function ProdutoNovoForm({
     const novos: Partial<Record<CampoNovo, string>> = {};
     if (!name.trim()) novos.name = "Informe o nome do produto.";
     if (!categoria) novos.category_id = "Escolha a categoria.";
-    if (!base) novos.base_unit = "Escolha a unidade-base: quilo, litro, unidade, saca ou fardo.";
+    if (!base) novos.base_unit = "Escolha a unidade-base: quilo, litro, metro, unidade, saca ou fardo.";
     const c = lerOpcional(custo);
     if (c === "invalido") novos.reference_cost = "Não consegui ler esse número.";
     // Só cobra o conteúdo quando o campo está na tela.
@@ -269,7 +269,7 @@ export function ProdutoNovoForm({
       <Field
         label="Unidade-base"
         required
-        hint="Em que o produto é medido e custa: quilo, litro, unidade, saca ou fardo."
+        hint="Em que o produto é medido e custa: quilo, litro, metro, unidade, saca ou fardo."
         id={err.idDe("base_unit")}
         error={err.erros.base_unit}
       >
@@ -469,7 +469,7 @@ export function ProdutoDaFazendaForm({ candidatos }: { candidatos: CandidatoPara
   async function submit() {
     const novos: Partial<Record<CampoFazenda, string>> = {};
     if (!produto) novos.product_id = "Escolha o produto da fazenda.";
-    if (!base) novos.base_unit = "Escolha a unidade-base: quilo, litro ou unidade.";
+    if (!base) novos.base_unit = "Escolha a unidade-base: quilo, litro, metro ou unidade.";
     const c = lerOpcional(custo);
     if (c === "invalido") novos.reference_cost = "Não consegui ler esse número.";
     if (Object.keys(novos).length > 0) {

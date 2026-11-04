@@ -5,19 +5,21 @@ import { lerNumeroBr } from "@/lib/numero-br";
 export const UNIDADE_BASE_ROTULO: Record<string, string> = {
   quilograma: "Quilo",
   litro: "Litro",
+  metro: "Metro",
   unidade: "Unidade",
   saca: "Saca",
   fardo: "Fardo",
 };
 
 /**
- * Sufixo curto da unidade-base ("kg", "L", "un", "sc", "fd"), para o "vale X
+ * Sufixo curto da unidade-base ("kg", "L", "m", "un", "sc", "fd"), para o "vale X
  * kg". Abreviação, como as de `STOCK_UNITS`, porque aparece ao lado de
  * qualquer número: "sacas" saía "1 sacas" no estoque com uma saca só.
  */
 export const UNIDADE_BASE_SUFIXO: Record<string, string> = {
   quilograma: "kg",
   litro: "L",
+  metro: "m",
   unidade: "un",
   saca: "sc",
   fardo: "fd",
@@ -35,7 +37,7 @@ export const CONTEUDO_UNIDADE_SUFIXO: Record<string, string> = {
   unidade: "un",
 };
 
-/** As unidades que o conteúdo aceita em cada unidade-base (Q123). Quilo e litro não têm conteúdo. */
+/** As unidades que o conteúdo aceita em cada unidade-base (Q123). Quilo, litro e metro não têm conteúdo. */
 export const CONTEUDO_UNIDADES_POR_BASE: Record<string, { valor: string; rotulo: string }[]> = {
   saca: [
     { valor: "quilograma", rotulo: "kg" },
