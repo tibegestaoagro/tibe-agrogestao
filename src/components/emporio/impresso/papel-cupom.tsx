@@ -1,5 +1,6 @@
 import type { ImpressoVenda } from "@/lib/actions/emporio-impressao";
 import { reaisBr } from "@/lib/numero-br";
+import { TamanhoDaBobina } from "./tamanho-da-bobina";
 
 /** Comprovante de venda na bobina (80 ou 58 mm). Sem logo, preto sobre branco. */
 
@@ -7,7 +8,7 @@ const DATA_HORA = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paul
 
 function estilo(largura: 80 | 58): string {
   return `
-@page { size: ${largura}mm auto; margin: 0 }
+@page { margin: 0 }
 .cupom { background: #fff; color: #000; font: 12px/1.35 "Courier New", monospace; width: ${largura}mm; box-sizing: border-box; padding: 3mm; margin: 0 auto }
 .cupom .c { text-align: center; overflow-wrap: anywhere }
 .cupom .g { font-weight: bold }
@@ -24,6 +25,7 @@ export function PapelCupom({ d }: { d: ImpressoVenda }) {
   return (
     <article className="cupom">
       <style>{estilo(d.largura_bobina)}</style>
+      <TamanhoDaBobina largura={d.largura_bobina} />
       <div className="c g">{d.loja.nome.toUpperCase()}</div>
       {d.loja.documento && <div className="c">CNPJ {d.loja.documento}</div>}
       {d.loja.endereco && <div className="c">{d.loja.endereco}</div>}

@@ -96,6 +96,29 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
+### Empório, entrega 1: configurações e impressão da venda (04/11), NA BRANCH
+
+Branch `emporio-orcamento-caixa` (fora da `main`, nada no ar). Design
+`docs/superpowers/specs/2026-11-04-emporio-orcamento-caixa-impressao-design.md`
+(entrega 1 de 4: as seguintes são caixa com turno, vendedor e orçamento),
+decisões Q145 a Q149 na spec do módulo. Contém: tela `/emporio/configuracoes`
+(validade, rodapés, bobina 80/58, logo no banco, cabeçalho das lojas), número
+da venda por conta (6 dígitos), papel A4 e bobina sem valor fiscal em
+`/emporio/imprimir/venda/<id>`, links de impressão no balcão e na venda.
+Suíte `test:m91` (nova), `test:all -- --sem-redis` 91/91 verde. Roteiro
+`emporio-impressao` verde, e ele achou um defeito que a suíte não via:
+`@page { size: 58mm auto }` é inválido no CSS, o Chrome descartava o tamanho
+e a bobina nunca chegava ao diálogo de impressão. Agora um componente client
+mede o comprovante e grava `size: <largura>mm <altura>mm`; a conferência
+reprova (2 falhas) com a regra antiga e passa com a correção. Depois de
+mudar o schema, reinicie o `next dev`: o client do Prisma fica velho.
+
+⚠️ **A migração `20261104120000_emporio_configuracoes_impressao` NÃO está
+aplicada no Neon.** Ela torna `EmporioSale.number` NOT NULL: entre aplicar no
+Neon e o código novo entrar no ar, venda feita no código antigo falha. Aplicar
+(URL Direct) e dar o push em sequência, quando nenhuma loja estiver vendendo.
+O papel ainda não mostra o troco (a venda não guarda o dinheiro recebido).
+
 ### Empório: cadastro do cliente, nome do produto e menu (03/11), em produção
 
 Pedido da Laiza (Agromax). Design
@@ -349,6 +372,11 @@ quando a rotação terminar.
 origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
+
+**Empório, entrega 1 na branch `emporio-orcamento-caixa`:** as cinco tarefas
+estão feitas e o roteiro está provado. Falta a revisão final da branch inteira;
+só então o usuário autoriza o merge e a janela de deploy (migração no Neon e
+push em sequência, ver a seção acima). Depois, a entrega 2 (caixa com turno).
 
 **Empório, 04/11:** o usuário pediu dois ajustes antes do manual e do cenário.
 O primeiro (metro) é a branch `emporio-unidade-metro`; o segundo ele ainda vai

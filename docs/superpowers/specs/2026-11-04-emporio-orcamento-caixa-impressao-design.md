@@ -80,7 +80,8 @@ na migração, pela ordem de `sold_at`. *(decisão minha)*
 - **Layout aprovado** no modelo visual de 04/11, que segue anexado na seção
   "Os dois papéis" abaixo.
 - **Impressão pelo navegador** (`window.print()`, com `@page` do tamanho
-  certo: A4, ou `80mm auto` / `58mm auto` sem margem). Salvar em PDF é o
+  certo: A4, ou a largura da bobina por uma altura em mm medida no navegador,
+  sem margem; `58mm auto` é inválido e o Chrome o descarta). Salvar em PDF é o
   "Salvar como PDF" do próprio diálogo de impressão. Não entra driver de
   impressora, nem biblioteca de PDF nova. *(decisão minha; o projeto já
   esconde o menu na impressão com `print:hidden`, e o manual já imprime A4
