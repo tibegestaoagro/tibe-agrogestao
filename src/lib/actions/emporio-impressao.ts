@@ -104,6 +104,7 @@ export async function lerImpressoDaVendaAction(
 
   const subtotal = Math.round(v.items.reduce((t, i) => t + i.total, 0) * 100) / 100;
   const pago = v.payments.reduce((t, p) => t + p.amount, 0);
+  // So e nao nulo se a soma dos pagamentos passar do total; hoje o dinheiro e gravado sem o valor entregue, entao fica null.
   const troco = Math.round((pago - v.net_amount) * 100) / 100;
 
   return ok({

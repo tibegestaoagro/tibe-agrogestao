@@ -25,7 +25,7 @@ export default async function ImprimirVendaPage({
   if (!res.ok) notFound();
 
   return (
-    <main style={{ padding: "12px" }}>
+    <main className="p-3 print:p-0">
       <div className="print:hidden" style={{ display: "flex", justifyContent: "center", paddingBottom: 12 }}>
         <BotaoImprimir />
       </div>
