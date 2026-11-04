@@ -571,7 +571,9 @@ model Tenant {
   production_entries        ProductionEntry[]
   bank_accounts             BankAccount[]
   emporio_sales             EmporioSale[]
-  emporio_sale_items        EmporioSaleItem[]
+  emporio_settings          EmporioSettings?
+  emporio_counters          EmporioCounter[]
+  emporio_sale_items       EmporioSaleItem[]
   emporio_sale_payments     EmporioSalePayment[]
   emporio_sale_returns      EmporioSaleReturn[]
   emporio_return_items      EmporioSaleReturnItem[]
@@ -729,11 +731,17 @@ model Establishment {
   archived_at          DateTime?
   /// F3a (Q83): para onde vai o PIX da loja quando a venda não diz.
   pix_bank_account_id  String?
+  /// Entrega 1 (impressão): cabeçalho do papel. CNPJ sem máscara, CEP sem traço.
+  document             String?
+  phone                String?
+  whatsapp             String?
+  state                String?
+  zip                  String?
   created_at           DateTime           @default(now())
   updated_at           DateTime           @updatedAt
 
   tenant                    Tenant                   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  responsible               User?                    @relation("EstablishmentResponsible", fields: [responsible_user_id], references: [id], onDelete: SetNull)
+  responsible             User?                    @relation("EstablishmentResponsible", fields: [responsible_user_id], references: [id], onDelete: SetNull)
   pix_bank_account          BankAccount?             @relation("EstablishmentPixAccount", fields: [pix_bank_account_id], references: [id], onDelete: SetNull)
   sales                     EmporioSale[]
   cash_movements            CashMovement[]
@@ -1145,6 +1153,8 @@ model EmporioSale {
   establishment_id               String
   /// §23.2: repetir a chave devolve esta venda, sem duplicar.
   operation_key                  String
+  /// Número da venda por conta, a partir de 1, sem buraco (`EmporioCounter`).
+  number                         Int
   /// Q37: obrigatório quando há fiado.
   contact_id                     String?
   sold_at                        DateTime
@@ -1177,8 +1187,40 @@ model EmporioSale {
   cash_movements    CashMovement[]
 
   @@unique([tenant_id, operation_key])
+  @@unique([tenant_id, number])
   @@index([tenant_id, establishment_id, sold_at])
   @@index([tenant_id, contact_id])
+}
+
+/// Entrega 1 do Empório: configurações da conta (validade e rodapés do papel,
+/// largura da bobina e logo). Uma linha por tenant, criada na primeira gravação.
+model EmporioSettings {
+  id                  String    @id @default(cuid())
+  tenant_id           String    @unique
+  quote_validity_days Int       @default(7)
+  quote_footer        String?
+  sale_footer         String?
+  receipt_width       Int       @default(80)
+  logo                Bytes?
+  logo_mime           String?
+  logo_updated_at     DateTime?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+}
+
+/// Contador por conta e chave ("venda"; "orcamento" fica para a entrega 4).
+/// O incremento atômico dá número sem buraco e sem repetição.
+model EmporioCounter {
+  id        String @id @default(cuid())
+  tenant_id String
+  key       String
+  value     Int
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@unique([tenant_id, key])
 }
 
 /// Os critérios do momento (§23.4): preço sugerido, praticado e custo ficam

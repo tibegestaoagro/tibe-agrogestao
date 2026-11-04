@@ -7,6 +7,7 @@ import { exigir, papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
 import { descreverQuantidade } from "@/lib/stock/units";
 import { custoMedio } from "@/lib/emporio/custo-medio";
+import { proximoNumero } from "@/lib/emporio/numeracao";
 import { cancelarVendeuPagou, gravarVendeuPagou } from "@/lib/emporio/vendeu-pagou";
 import {
   CATEGORIA_TAXAS_CARTAO,
@@ -134,6 +135,8 @@ export type VendaView = {
   establishment_id: string;
   establishment_name: string;
   operation_key: string;
+  /** Número da venda por conta; no papel sai com `formatarNumero`. */
+  number: number;
   contact_id: string | null;
   contact_name: string | null;
   sold_at: string;
@@ -255,6 +258,7 @@ async function montarVendas(db: TenantPrismaClient, linhas: VendaRow[]): Promise
       establishment_id: s.establishment_id,
       establishment_name: s.establishment.name,
       operation_key: s.operation_key,
+      number: s.number,
       contact_id: s.contact_id,
       contact_name: s.contact?.name ?? null,
       sold_at: s.sold_at.toISOString(),
@@ -812,10 +816,12 @@ async function gravarVenda(
 ): Promise<string> {
   const { movs, custos } = await planejarBaixa(tx, p);
 
+  const numero = await proximoNumero(tx, "venda");
   const venda = await tx.emporioSale.create({
     data: scoped({
       establishment_id: p.loja.id,
       operation_key: p.chave,
+      number: numero,
       contact_id: p.contact_id,
       sold_at: p.sold_at,
       sold_by_user_id: ator.id,
