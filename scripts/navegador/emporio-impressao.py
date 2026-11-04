@@ -162,7 +162,13 @@ confere("tem Documento sem valor fiscal.", "Documento sem valor fiscal." in pagi
 confere("tem o rodapé configurado", RODAPE in pagina)
 confere("sem bloco de cliente (Consumidor final)", "Cliente" not in pagina and "CLIENTE" not in pagina, pagina[:300])
 confere("o logo carregou (naturalWidth > 0)", esperar(lambda: js("(() => { const i = document.querySelector('.a4 img.logo'); return !!i && i.complete && i.naturalWidth > 0; })()")))
-confere("o botão Imprimir existe e some na impressão", bool(js("(() => { const b = Array.from(document.querySelectorAll('button')).find(x => x.innerText.trim() === 'Imprimir'); return !!b && b.closest('.print\\\\:hidden') !== null; })()")))
+confere("o botão Imprimir existe", bool(js("Array.from(document.querySelectorAll('button')).some(x => x.innerText.trim() === 'Imprimir')")))
+# A classe sozinha nao prova nada: um display inline vence o print:hidden. Na
+# midia de impressao, nada pode sobrar acima do papel.
+cdp("Emulation.setEmulatedMedia", media="print")
+sobra = js("(() => { const b = Array.from(document.querySelectorAll('button')).find(x => x.innerText.trim() === 'Imprimir'); const visivel = !!b && b.getBoundingClientRect().height > 0; return { botao_visivel: visivel, topo_do_papel_px: Math.round(document.querySelector('.a4').getBoundingClientRect().top) }; })()") or {}
+cdp("Emulation.setEmulatedMedia", media="")
+confere("na impressão, o botão some e nada sobra acima do papel", sobra.get("botao_visivel") is False and sobra.get("topo_do_papel_px") == 0, sobra)
 confere("a página não está no casco do painel (sem menu lateral)", js("document.querySelectorAll('nav a').length") == 0)
 
 passo("6. Papel de bobina")
@@ -181,6 +187,22 @@ tamanho = re.search(r"size:\s*58mm\s+(\d+(?:\.\d+)?)mm", regra)
 confere("a regra @page tem size 58mm por uma altura em mm", bool(tamanho), regra)
 altura_mm = js("(() => { const a = document.querySelector('.cupom'); return a.getBoundingClientRect().height * 25.4 / 96; })()") or 0
 confere("a altura da página cobre o comprovante, sem sobra grande", bool(tamanho) and altura_mm <= float(tamanho.group(1)) <= altura_mm + 6, [regra, altura_mm])
+# O "Salvar como PDF" do diálogo: com o @page valendo, o recibo inteiro cabe
+# numa página só, com a largura da bobina (58 mm = 164,4 pt).
+try:
+    pdf = base64.b64decode(cdp("Page.printToPDF", preferCSSPageSize=True, printBackground=True)["data"])
+    paginas = len(re.findall(rb"/Type\s*/Page(?![a-zA-Z])", pdf))
+    caixa = re.search(rb"/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)", pdf)
+    largura_pt = float(caixa.group(1)) if caixa else 0
+    # Na impressao, onde o cupom comeca: qualquer sobra acima dele (o div do
+    # botao com display inline vencendo o print:hidden) vira segunda folha.
+    cdp("Emulation.setEmulatedMedia", media="print")
+    topo_mm = js("Math.round(document.querySelector('.cupom').getBoundingClientRect().top * 25.4 / 96 * 10) / 10")
+    cdp("Emulation.setEmulatedMedia", media="")
+    confere("o PDF do cupom sai numa página só", paginas == 1, [paginas, regra, "topo do cupom na impressão: " + str(topo_mm) + " mm"])
+    confere("a página do PDF tem 58 mm de largura", abs(largura_pt - 58 * 72 / 25.4) < 3, caixa.group(0) if caixa else "sem MediaBox")
+except Exception as e:
+    confere("o PDF do cupom sai numa página só", False, repr(e))
 confere("a bobina tem 58 mm de largura", js("(() => { const a = document.querySelector('.cupom'); return Math.abs(a.getBoundingClientRect().width - 58 * 96 / 25.4) < 2; })()"))
 # Nome longo e sem espaco: tem que quebrar, nao estourar o papel.
 js("(() => { const n = document.querySelector('.cupom .nome'); if (n) n.textContent = 'SupercalifragilisticoexpialidosoSupercalifragilisticoexpialidosoSuperRacaoPremium25kgEmbalagemReforcada'; })()")

@@ -102,9 +102,9 @@ async function secao1() {
     check("B: a primeira venda da outra conta também é a 1", b1.ok && b1.data.number === 1, j(b1));
 
     // Vendas simultâneas do MESMO produto já esgotam as 3 tentativas da transação
-    // serializável (P2034), com ou sem contador (conferido sem ele). O cliente real
-    // repete a chamada com a mesma operation_key; aqui cada venda faz o mesmo. A venda
-    // que perde a corrida desfaz tudo, inclusive o incremento: por isso nenhum número
+    // serializável (P2034), com ou sem contador (conferido sem ele). Não há repetição
+    // automática no cliente: a pessoa vê o 409 e repete com a mesma operation_key; aqui cada
+    // venda faz o mesmo. A venda que perde a corrida desfaz tudo, inclusive o incremento: por isso nenhum número
     // some, e é isso que o `[3,4,5,6,7]` exato prova.
     const venderRepetindo = async (C: typeof A = A): Promise<Awaited<ReturnType<typeof A.vender>>> => {
       const chave = `m91-lote-${stamp}-${Math.random()}`;
@@ -514,6 +514,59 @@ async function secao3() {
     check("Vendedor de outra loja: 404", !vFora.ok && vFora.status === 404, j(vFora));
     const vDentro = await I.lerImpressoDaVendaAction(db, vend, vSo.data.id);
     check("Vendedor da própria loja lê: ok", vDentro.ok, j(vDentro));
+
+    // Desconto: o papel mostra as linhas pelo preco sugerido, para a conta fechar.
+    const vDesc = await V.venderAction(db, donoA, {
+      operation_key: `m91s3-${stamp}-desc`,
+      establishment_id: loja.data.id,
+      contact_id: cf,
+      items: [
+        { emporio_product_id: p.data.id, presentation_id: pres.data.id, quantity: 3, unit_price: 9 },
+        { emporio_product_id: p.data.id, presentation_id: pres.data.id, quantity: 2 },
+      ],
+      payments: [{ kind: "dinheiro", amount: 47 }],
+    });
+    check("venda com desconto: criada", vDesc.ok, j(vDesc));
+    if (vDesc.ok) {
+      const rD = await I.lerImpressoDaVendaAction(db, donoA, vDesc.data.id);
+      check("venda com desconto: lida", rD.ok, j(rD));
+      if (rD.ok) {
+        const d = rD.data;
+        const cent = (x: number) => Math.round(x * 100);
+        const somaLinhas = d.itens.reduce((t, i) => t + cent(i.total), 0);
+        check("desconto: o item com desconto sai no preço sugerido (10 x 3 = 30)", d.itens[0]?.preco === 10 && d.itens[0]?.total === 30, j(d.itens));
+        check("desconto: o item sem desconto segue no praticado (10 x 2 = 20)", d.itens[1]?.preco === 10 && d.itens[1]?.total === 20, j(d.itens));
+        check("desconto: subtotal 50, desconto 3, total 47", d.subtotal === 50 && d.desconto === 3 && d.total === 47, j([d.subtotal, d.desconto, d.total]));
+        check("desconto: soma das linhas = subtotal", somaLinhas === cent(d.subtotal), `${somaLinhas} x ${d.subtotal}`);
+        check("desconto: subtotal - desconto = total", cent(d.subtotal) - cent(d.desconto) === cent(d.total), j([d.subtotal, d.desconto, d.total]));
+      }
+    }
+
+    // Troca: o valor devolvido já é um pagamento gravado ("Valor da troca"); o papel tem que fechar.
+    const itemOrigem = await db.emporioSaleItem.findFirstOrThrow({ where: { sale_id: vPj.data.id } });
+    const troca = await V.trocarAction(db, donoA, vPj.data.id, {
+      operation_key: `m91s3-${stamp}-troca`,
+      items_devolvidos: [{ sale_item_id: itemOrigem.id, quantity: 1 }],
+      venda: {
+        operation_key: `m91s3-${stamp}-trocav`,
+        establishment_id: loja.data.id,
+        contact_id: pj.id,
+        items: [{ emporio_product_id: p.data.id, presentation_id: pres.data.id, quantity: 2 }],
+        payments: [{ kind: "dinheiro", amount: 10 }],
+      },
+    });
+    check("troca: criada", troca.ok, j(troca));
+    if (troca.ok) {
+      const rT = await I.lerImpressoDaVendaAction(db, donoA, troca.data.venda.id);
+      check("troca: lida", rT.ok, j(rT));
+      if (rT.ok) {
+        const soma = Math.round(rT.data.pagamentos.reduce((t, x) => t + x.valor, 0) * 100);
+        check("troca: o papel tem a linha do valor da troca (10)", rT.data.pagamentos.some((x) => x.forma === "Valor da troca" && x.valor === 10), j(rT.data.pagamentos));
+        check("troca: soma dos pagamentos do papel = total", soma === Math.round(rT.data.total * 100), `${soma} x ${rT.data.total}`);
+      }
+    }
+    const rVenda = await I.lerImpressoDaVendaAction(db, donoA, vPj.data.id);
+    check("venda comum: nenhuma linha de troca", rVenda.ok && !rVenda.data.pagamentos.some((x) => x.forma === "Valor da troca"), j(rVenda));
 
     const token = async (email: string) =>
       String(

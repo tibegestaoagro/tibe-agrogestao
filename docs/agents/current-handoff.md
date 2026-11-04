@@ -117,6 +117,10 @@ mudar o schema, reinicie o `next dev`: o client do Prisma fica velho.
 aplicada no Neon.** Ela torna `EmporioSale.number` NOT NULL: entre aplicar no
 Neon e o código novo entrar no ar, venda feita no código antigo falha. Aplicar
 (URL Direct) e dar o push em sequência, quando nenhuma loja estiver vendendo.
+A ordem inversa é pior: o código novo no ar sem a migração derruba toda
+leitura de venda e de loja do Empório (o client seleciona `number` e os campos
+novos de `Establishment`). Com loja vendendo de verdade, a saída sem janela
+seria migrar em duas etapas (coluna anulável primeiro, NOT NULL depois).
 O papel ainda não mostra o troco (a venda não guarda o dinheiro recebido).
 
 ### Empório: cadastro do cliente, nome do produto e menu (03/11), em produção

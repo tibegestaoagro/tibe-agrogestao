@@ -26,6 +26,7 @@ export type ImpressoVenda = {
     whatsapp: string | null;
   };
   tem_logo: boolean;
+  logo_updated_at: string | null;
   cliente: { nome: string; documento: string | null; telefone: string | null; endereco: string | null } | null;
   itens: { produto: string; quantidade: string; preco: number; total: number }[];
   subtotal: number;
@@ -102,7 +103,15 @@ export async function lerImpressoDaVendaAction(
     ? await db.user.findFirst({ where: { id: v.sold_by_user_id }, select: { name: true } })
     : null;
 
-  const subtotal = Math.round(v.items.reduce((t, i) => t + i.total, 0) * 100) / 100;
+  // O item com desconto sai no preço sugerido, para o papel fechar: soma(linhas) = subtotal
+  // e subtotal - desconto = total. Os demais seguem no praticado.
+  const itens = v.items.map((i) => {
+    const comDesconto = i.suggested_price != null && i.unit_price < i.suggested_price;
+    const preco = comDesconto ? (i.suggested_price as number) : i.unit_price;
+    const total = comDesconto ? Math.round(preco * i.quantity * 100) / 100 : i.total;
+    return { i, preco, total };
+  });
+  const subtotal = Math.round(itens.reduce((t, x) => t + Math.round(x.total * 100), 0)) / 100;
   const pago = v.payments.reduce((t, p) => t + p.amount, 0);
   // So e nao nulo se a soma dos pagamentos passar do total; hoje o dinheiro e gravado sem o valor entregue, entao fica null.
   const troco = Math.round((pago - v.net_amount) * 100) / 100;
@@ -119,12 +128,13 @@ export async function lerImpressoDaVendaAction(
       whatsapp: vazioParaNull(l.whatsapp),
     },
     tem_logo: cfg.data.has_logo,
+    logo_updated_at: cfg.data.logo_updated_at,
     cliente,
-    itens: v.items.map((i) => ({
+    itens: itens.map(({ i, preco, total }) => ({
       produto: `${i.product_name} (${i.presentation_name})`,
       quantidade: numeroBr(i.quantity),
-      preco: i.unit_price,
-      total: i.total,
+      preco,
+      total,
     })),
     subtotal,
     desconto: v.discount_amount,

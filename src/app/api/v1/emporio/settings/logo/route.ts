@@ -19,7 +19,7 @@ async function GETHandler() {
   if (!r.ok) return apiError(r.code, r.message, r.status, r.field);
   return new Response(Buffer.from(r.data.bytes), {
     status: 200,
-    headers: { "Content-Type": r.data.mime, "Cache-Control": "private, max-age=300" },
+    headers: { "Content-Type": r.data.mime, "Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff" },
   });
 }
 

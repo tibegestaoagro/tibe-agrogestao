@@ -307,7 +307,7 @@ export const GROUPS: Group[] = [
       {
         method: "PATCH",
         path: "/api/v1/emporio/establishments/:id",
-        auth: "Sessão · emporio:write · só OWNER e ADMIN",
+        auth: "Sessão · emporio:write · OWNER, ADMIN e gestor da loja",
         description: "Edita os campos enviados (os ausentes ficam como estão; `null` limpa os opcionais). Cabeçalho do papel: `document` (CNPJ, numérico ou alfanumérico, guardado sem pontuação e em maiúscula), `phone` e `whatsapp` (até 40 caracteres), `state` (UF da lista, em maiúscula) e `zip` (CEP, 8 números guardados sem traço); recusa 422 no campo. O POST aceita os mesmos cinco.",
         request: `{ "max_discount_pct": 10, "document": "12.ABC.345/01DE-35", "state": "MG", "zip": "39400-000" }`,
         response: `200

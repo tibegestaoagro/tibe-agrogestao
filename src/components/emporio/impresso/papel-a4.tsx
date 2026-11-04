@@ -1,5 +1,6 @@
 import type { ImpressoVenda } from "@/lib/actions/emporio-impressao";
 import { reaisBr } from "@/lib/numero-br";
+import { LogoDoPapel } from "./logo-do-papel";
 
 /**
  * Venda em folha A4. O papel é sempre preto sobre branco, sem tokens do tema:
@@ -38,10 +39,7 @@ export function PapelA4({ d }: { d: ImpressoVenda }) {
       <style>{ESTILO}</style>
       <header className="topo">
         <div className="marca">
-          {d.tem_logo && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img className="logo" src="/api/v1/emporio/settings/logo" alt="" />
-          )}
+          {d.tem_logo && <LogoDoPapel versao={d.logo_updated_at} />}
           <div className="loja">
             <b>{d.loja.nome}</b>
             {d.loja.documento && <div>CNPJ {d.loja.documento}</div>}

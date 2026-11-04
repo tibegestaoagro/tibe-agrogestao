@@ -26,7 +26,7 @@ export default async function ImprimirVendaPage({
 
   return (
     <main className="p-3 print:p-0">
-      <div className="print:hidden" style={{ display: "flex", justifyContent: "center", paddingBottom: 12 }}>
+      <div className="flex justify-center pb-3 print:hidden">
         <BotaoImprimir />
       </div>
       {formato === "cupom" ? <PapelCupom d={res.data} /> : <PapelA4 d={res.data} />}
