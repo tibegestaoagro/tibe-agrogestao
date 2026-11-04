@@ -34,6 +34,16 @@ async function secao1() {
   check("CPF com dígito errado", cpfValido("52998224724") === false);
   check("CNPJ válido", cnpjValido("11222333000181") === true);
   check("CNPJ com dígito errado", cnpjValido("11222333000180") === false);
+  // CNPJ alfanumérico da Receita (IN RFB 2.229/2024): 12 posições de letra ou número,
+  // e os dois dígitos verificadores continuam números. Exemplo da própria Receita.
+  check("CNPJ alfanumérico válido", cnpjValido("12ABC34501DE35") === true);
+  check("CNPJ alfanumérico com dígito errado", cnpjValido("12ABC34501DE34") === false);
+  check("CNPJ com letra no dígito verificador", cnpjValido("12ABC34501DE3A") === false);
+  check("CNPJ minúsculo não passa cru", cnpjValido("12abc34501de35") === false);
+  const alfa = conferirCadastro({ name: "Empresa Nova", person_kind: "pj", document: "12.abc.345/01de-35", phone: "3499" }, "balcao");
+  check("balcão PJ alfanumérico ok, em maiúscula", alfa.ok && alfa.dados.document === "12ABC34501DE35", j(alfa));
+  const alfaPf = conferirCadastro({ person_kind: "pf", document: "529.982.24A-25" }, "livre");
+  check("CPF continua só números", !alfaPf.ok && alfaPf.field === "document", j(alfaPf));
 
   const pf = { name: "Zé", person_kind: "pf" as const, document: "529.982.247-25", phone: "34 99999-0000" };
   const r1 = conferirCadastro(pf, "balcao");
@@ -126,7 +136,7 @@ async function secao1() {
   const cnpjRuim = conferirCadastro({ person_kind: "pj", document: "11222333000180" }, "livre");
   check(
     "CNPJ ruim recusa",
-    !cnpjRuim.ok && cnpjRuim.message === "CNPJ inválido. Confira os 14 números.",
+    !cnpjRuim.ok && cnpjRuim.message === "CNPJ inválido. Confira os 14 caracteres.",
     j(cnpjRuim),
   );
 
@@ -154,7 +164,13 @@ async function secao1() {
 
   check("formatarDocumento CPF", m.formatarDocumento("52998224725") === "529.982.247-25");
   check("formatarDocumento CNPJ", m.formatarDocumento("11222333000181") === "11.222.333/0001-81");
+  check("formatarDocumento CNPJ alfanumérico", m.formatarDocumento("12ABC34501DE35") === "12.ABC.345/01DE-35");
   check("formatarDocumento null", m.formatarDocumento(null) === "");
+  const { mascararDocumento } = await import("@/components/contatos/campos-do-cadastro");
+  check("máscara CNPJ alfanumérico", mascararDocumento("12abc34501de35", "pj") === "12.ABC.345/01DE-35");
+  check("máscara CNPJ numérico", mascararDocumento("11222333000181", "pj") === "11.222.333/0001-81");
+  check("máscara CNPJ pela metade", mascararDocumento("12ab", "pj") === "12.AB");
+  check("máscara CPF", mascararDocumento("52998224725", "pf") === "529.982.247-25");
   check("formatarCep", m.formatarCep("38400000") === "38400-000");
   check("CONSUMIDOR_FINAL", m.CONSUMIDOR_FINAL.system_key === "consumidor_final" && m.CONSUMIDOR_FINAL.name === "Consumidor final");
 }
@@ -378,6 +394,11 @@ async function secao3() {
 
     const neg = await C.cadastrarClienteAction(db, semPapel, { ...pf, document: "390.533.447-05" });
     check("sem papel no Empório: FORBIDDEN", !neg.ok && neg.code === "FORBIDDEN" && neg.status === 403, j(neg));
+
+    const alfa = await C.cadastrarClienteAction(db, vend, { name: "Empresa Nova", person_kind: "pj", document: "12.abc.345/01de-35", phone: "3499" });
+    check("PJ com CNPJ alfanumérico: cadastra em maiúscula", alfa.ok && alfa.data.document === "12ABC34501DE35", j(alfa));
+    const alfaDup = await C.cadastrarClienteAction(db, vend, { name: "Outra Nova", person_kind: "pj", document: "12ABC34501DE35", phone: "3499" });
+    check("mesmo CNPJ alfanumérico em outra caixa: 409", !alfaDup.ok && alfaDup.code === "DUPLICATE_DOCUMENT", j(alfaDup));
 
     // completar
     const antigo = await db.contact.create({ data: scoped({ name: "Contato Antigo" }) });

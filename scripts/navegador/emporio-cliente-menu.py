@@ -59,6 +59,25 @@ def cpf_valido_novo():
     return "".join(str(d) for d in n)
 
 
+def cnpj_alfanumerico_novo():
+    """CNPJ alfanumerico (IN RFB 2.229/2024) valido e novo a cada rodada: cada posicao vale ord - 48."""
+    base = [random.choice("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ") for _ in range(12)]
+    base[2] = random.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ")  # garante pelo menos uma letra
+    vals = [ord(c) - 48 for c in base]
+    for pesos in ([5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2], [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]):
+        r = sum(v * p for v, p in zip(vals, pesos)) % 11
+        vals.append(0 if r < 2 else 11 - r)
+    return "".join(base) + "".join(str(v) for v in vals[12:])
+
+
+def mascarado(c):
+    return c[:2] + "." + c[2:5] + "." + c[5:8] + "/" + c[8:12] + "-" + c[12:]
+
+
+def valor_do_campo(rotulo):
+    return js("(() => { const d = document.querySelector('[role=dialog]'); const l = d && Array.from(d.querySelectorAll('label')).find(x => x.innerText.replace('*','').trim() === " + repr(rotulo) + "); const el = l && document.getElementById(l.htmlFor); return el ? el.value : 'SEM CAMPO'; })()") or ""
+
+
 def cliente_escolhido():
     """Texto do campo Cliente da venda (o gatilho do Select)."""
     return js("(() => { const l = Array.from(document.querySelectorAll('main label')).find(x => x.innerText.replace('*','').trim() === 'Cliente'); const el = l && document.getElementById(l.htmlFor); return el ? el.innerText.trim() : 'SEM CAMPO'; })()") or ""
@@ -113,6 +132,31 @@ confere("preenche o CPF válido", preencher("CPF", cpf_valido_novo()) not in ("S
 enviar_painel()
 confere("o painel fechou", esperar(lambda: not painel_aberto(), 60))
 confere("o cliente cadastrado já está escolhido no campo Cliente", esperar(lambda: NOME_NOVO in cliente_escolhido()), cliente_escolhido())
+
+passo("1b. Cliente PJ com CNPJ alfanumérico (Q143)")
+NOME_PJ = "Empresa Nova " + SUFIXO
+CNPJ = cnpj_alfanumerico_novo()
+CNPJ_ERRADO = CNPJ[:13] + str((int(CNPJ[13]) + 1) % 10)
+ir("/emporio/vender")
+confere("abre Cliente novo", clicar("Cliente novo"))
+time.sleep(1.5)
+confere("painel abriu", painel_aberto())
+confere("escolhe Pessoa jurídica", tipo_no_painel("Pessoa jurídica"))
+confere("preenche o nome da empresa", preencher("Nome da empresa", NOME_PJ) not in ("SEM ROTULO", "SEM CAMPO"))
+confere("preenche o CNPJ com dígito errado", preencher("CNPJ", mascarado(CNPJ_ERRADO).lower()) not in ("SEM ROTULO", "SEM CAMPO"))
+confere("a máscara mostra o CNPJ em maiúscula", esperar(lambda: valor_do_campo("CNPJ") == mascarado(CNPJ_ERRADO)), valor_do_campo("CNPJ"))
+confere("o campo CNPJ abre o teclado com letras", js("(() => { const d = document.querySelector('[role=dialog]'); const l = Array.from(d.querySelectorAll('label')).find(x => x.innerText.replace('*','').trim() === 'CNPJ'); return document.getElementById(l.htmlFor).inputMode; })()") == "text")
+confere("preenche o telefone", preencher("Telefone", "38977770000") not in ("SEM ROTULO", "SEM CAMPO"))
+enviar_painel()
+recusa = esperar(lambda: erro_do_campo("CNPJ"))
+confere("o CNPJ com dígito errado é recusado no campo", "CNPJ inválido. Confira os 14 caracteres." in (recusa or ""), recusa)
+confere("preenche o CNPJ alfanumérico válido, em minúscula", preencher("CNPJ", CNPJ.lower()) not in ("SEM ROTULO", "SEM CAMPO"))
+enviar_painel()
+confere("o painel fechou", esperar(lambda: not painel_aberto(), 60))
+confere("a empresa cadastrada já está escolhida no campo Cliente", esperar(lambda: NOME_PJ in cliente_escolhido()), cliente_escolhido())
+lista = api("GET", "/api/v1/contacts?q=" + NOME_PJ.replace(" ", "%20"))["body"].get("data", [])
+gravado = [c for c in lista if c.get("name") == NOME_PJ]
+confere("gravado sem pontuação e em maiúscula", bool(gravado) and gravado[0].get("document") == CNPJ, gravado)
 
 passo("2. A venda exige cliente; Consumidor final vale")
 # Página nova: a venda recomeça sem cliente escolhido.

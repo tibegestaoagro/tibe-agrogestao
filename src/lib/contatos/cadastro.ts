@@ -56,9 +56,17 @@ export function cpfValido(digitos: string): boolean {
   return n[9] === d1 && n[10] === d2;
 }
 
-export function cnpjValido(digitos: string): boolean {
-  if (!/^\d{14}$/.test(digitos) || /^(\d)\1{13}$/.test(digitos)) return false;
-  const n = digitos.split("").map(Number);
+/** CNPJ sem pontuação e em maiúscula: o alfanumérico tem letra nas 12 primeiras posições. */
+export const normalizarCnpj = (s: string): string => s.toUpperCase().replace(/[^0-9A-Z]/g, "");
+
+/**
+ * Aceita o CNPJ numérico e o alfanumérico da Receita (IN RFB 2.229/2024): 12 posições de
+ * número ou letra maiúscula e 2 dígitos verificadores numéricos. Cada posição vale o código
+ * ASCII menos 48 (0 a 9 valem 0 a 9, A vale 17); o cálculo e os pesos são os de sempre.
+ */
+export function cnpjValido(valor: string): boolean {
+  if (!/^[0-9A-Z]{12}\d{2}$/.test(valor) || /^(.)\1{13}$/.test(valor)) return false;
+  const n = valor.split("").map((c) => c.charCodeAt(0) - 48);
   const d1 = digitoVerificador(n.slice(0, 12), [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
   const d2 = digitoVerificador(n.slice(0, 13), [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
   return n[12] === d1 && n[13] === d2;
@@ -67,7 +75,7 @@ export function cnpjValido(digitos: string): boolean {
 export function formatarDocumento(d: string | null): string {
   if (!d) return "";
   if (/^\d{11}$/.test(d)) return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-  if (/^\d{14}$/.test(d)) return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+  if (/^[0-9A-Z]{12}\d{2}$/.test(d)) return d.replace(/(.{2})(.{3})(.{3})(.{4})(.{2})/, "$1.$2.$3/$4-$5");
   return d;
 }
 
@@ -133,10 +141,15 @@ export function conferirCadastro(input: CadastroDoContato, modo: "livre" | "balc
       dados.document = null;
     } else {
       if (!kind) return erro("person_kind", "Escolha pessoa física ou jurídica para informar o documento.");
-      const dig = soDigitos(bruto);
-      if (kind === "pf" && !cpfValido(dig)) return erro("document", "CPF inválido. Confira os 11 números.");
-      if (kind === "pj" && !cnpjValido(dig)) return erro("document", "CNPJ inválido. Confira os 14 números.");
-      dados.document = dig;
+      if (kind === "pf") {
+        const dig = soDigitos(bruto);
+        if (!cpfValido(dig)) return erro("document", "CPF inválido. Confira os 11 números.");
+        dados.document = dig;
+      } else {
+        const cnpj = normalizarCnpj(bruto);
+        if (!cnpjValido(cnpj)) return erro("document", "CNPJ inválido. Confira os 14 caracteres.");
+        dados.document = cnpj;
+      }
     }
   }
 

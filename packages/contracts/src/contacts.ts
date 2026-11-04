@@ -44,7 +44,8 @@ export const contactSchema = z.object({
   phone: z.string().nullable(),
   city: z.string().nullable(),
   notes: z.string().nullable(),
-  // Cadastro PF/PJ (2026-11-03). `document` e CEP só com dígitos; `birth_date` é YYYY-MM-DD.
+  // Cadastro PF/PJ (2026-11-03). `document` sem pontuação (CPF só dígitos; CNPJ pode ser
+  // alfanumérico, em maiúscula); CEP só com dígitos; `birth_date` é YYYY-MM-DD.
   person_kind: z.enum(["pf", "pj"]).nullable(),
   document: z.string().nullable(),
   state_registration: z.string().nullable(),

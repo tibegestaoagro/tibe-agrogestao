@@ -1119,7 +1119,7 @@ export const GROUPS: Group[] = [
         path: "/api/v1/contacts",
         auth: "Sessão · rebanho:write · perfil fazenda ou emporio",
         description:
-          "Cadastra um contato. Só `name` é obrigatório: até o tipo é opcional (§4). Aceita, opcionais, `person_kind` (`pf` ou `pj`), `document` (CPF ou CNPJ, com ou sem máscara, gravado só com dígitos; exige `person_kind`), `state_registration`, `birth_date` (AAAA-MM-DD, só PF), `responsible_name` (só PJ), `address_*` (zip, street, number, complement, district, state; a cidade é `city`) e `delivery_*` (os mesmos mais `delivery_city`). Recusas 422 trazem o `field`; documento já usado no tenant (arquivados contam) devolve 409 `DUPLICATE_DOCUMENT` em `document`.",
+          "Cadastra um contato. Só `name` é obrigatório: até o tipo é opcional (§4). Aceita, opcionais, `person_kind` (`pf` ou `pj`), `document` (CPF ou CNPJ, com ou sem máscara, gravado sem pontuação; o CNPJ aceita o formato alfanumérico da Receita e é gravado em maiúscula; exige `person_kind`), `state_registration`, `birth_date` (AAAA-MM-DD, só PF), `responsible_name` (só PJ), `address_*` (zip, street, number, complement, district, state; a cidade é `city`) e `delivery_*` (os mesmos mais `delivery_city`). Recusas 422 trazem o `field`; documento já usado no tenant (arquivados contam) devolve 409 `DUPLICATE_DOCUMENT` em `document`.",
         request: `{ "name": "Frigorífico Boa Carne", "type": "frigorifico", "city": "Paracatu", "person_kind": "pj", "document": "11.222.333/0001-81" }`,
         response: `201
 { "data": { "id": "cl...", "name": "Frigorífico Boa Carne", "type": "frigorifico" }, "meta": {} }`,

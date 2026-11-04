@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
-import { UFS, formatarCep, formatarDocumento } from "@/lib/contatos/cadastro";
+import { UFS, formatarCep, formatarDocumento, normalizarCnpj } from "@/lib/contatos/cadastro";
 
 /**
  * Os campos do cadastro PF/PJ do contato, compartilhados pelo balcão do Empório
@@ -100,17 +100,21 @@ export function corpoDoCadastro(v: ValoresCadastro): Record<CampoCadastro, strin
 
 const soDigitos = (s: string) => s.replace(/\D/g, "");
 
-/** Máscara de exibição enquanto digita: o servidor guarda só dígitos. */
+/**
+ * Máscara de exibição enquanto digita: o servidor guarda sem pontuação. O CNPJ aceita
+ * letra (o alfanumérico da Receita) e sai em maiúscula; o CPF continua só números.
+ */
 export function mascararDocumento(valor: string, kind: string): string {
-  if (/[a-z]/i.test(valor)) return valor;
-  const d = soDigitos(valor).slice(0, kind === "pj" ? 14 : 11);
   if (kind === "pj") {
-    return d
-      .replace(/^(\d{2})(\d)/, "$1.$2")
-      .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
-      .replace(/\.(\d{3})(\d)/, ".$1/$2")
-      .replace(/(\d{4})(\d)/, "$1-$2");
+    return normalizarCnpj(valor)
+      .slice(0, 14)
+      .replace(/^(\w{2})(\w)/, "$1.$2")
+      .replace(/^(\w{2})\.(\w{3})(\w)/, "$1.$2.$3")
+      .replace(/\.(\w{3})(\w)/, ".$1/$2")
+      .replace(/(\w{4})(\w)/, "$1-$2");
   }
+  if (/[a-z]/i.test(valor)) return valor;
+  const d = soDigitos(valor).slice(0, 11);
   return d
     .replace(/^(\d{3})(\d)/, "$1.$2")
     .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
@@ -273,7 +277,7 @@ export function CamposDoCadastro(props: Props) {
         rotulo={pj ? "CNPJ" : "CPF"}
         required={obrigatorios}
         hint={obrigatorios ? undefined : "Opcional."}
-        inputMode="numeric"
+        inputMode={pj ? "text" : "numeric"}
         mascara={(v) => mascararDocumento(v, kind)}
         p={props}
       />

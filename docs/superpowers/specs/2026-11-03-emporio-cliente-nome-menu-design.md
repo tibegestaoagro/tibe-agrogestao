@@ -102,6 +102,8 @@ entrega pode ficar vazio, e o formulário oferece "o mesmo do outro endereço".
   na ativação do recurso, o que o builder achar mais simples e testável).
 - **CPF e CNPJ conferidos pelo dígito verificador**, guardados só com os
   dígitos, exibidos com máscara (`000.000.000-00`, `00.000.000/0000-00`).
+  Revisado na Q143: o CNPJ também aceita o formato alfanumérico, guardado em
+  maiúscula e sem pontuação.
 - **CPF/CNPJ não se repete dentro da mesma conta, contando os arquivados.** Se
   repetir, a recusa diz qual contato já tem aquele documento, para a pessoa
   escolhê-lo em vez de duplicar; se ele estiver arquivado, a recusa diz isso e

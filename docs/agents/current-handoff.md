@@ -96,7 +96,7 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
-### Empório: cadastro do cliente, nome do produto e menu (03/11), branch `emporio-cliente-menu`
+### Empório: cadastro do cliente, nome do produto e menu (03/11), em produção
 
 Pedido da Laiza (Agromax). Design
 `docs/superpowers/specs/2026-11-03-emporio-cliente-nome-menu-design.md`, plano
@@ -104,7 +104,11 @@ Pedido da Laiza (Agromax). Design
 Q139 a Q142 na spec do módulo. A busca nas listas de escolha ficou **fora**,
 por decisão do usuário.
 
-Entregue (local, **não está na `main`**): cliente PF/PJ (obrigatórios só no
+**Em produção desde 03/11** (`4ce1520`, merge fast-forward de
+`emporio-cliente-menu` autorizado pelo usuário; migração
+`20261103120000_contato_cadastro_completo` no Neon, URL Direct, antes do push,
+`migrate status` em dia; as 5 contas com o Empório ligado têm o seu
+"Consumidor final"; Vercel com sucesso no status do commit). Entregue: cliente PF/PJ (obrigatórios só no
 balcão; em Contatos tudo opcional), "Consumidor final" fixo por conta, venda
 sempre com cliente (revisa a Q37), aviso "Cadastro incompleto" com "Completar
 cadastro", nome do produto editável, Meu Empório como grupo do menu (revisa a
@@ -113,16 +117,20 @@ Q59). Suíte `test:m90` nova; `test:all` 90/90 verde; roteiro
 correção; telas vistas no navegador de testes (dono, gestor, vendedor,
 celular).
 
-**Antes do push:** migração `20261103120000_contato_cadastro_completo` no
-Neon com a URL Direct (invariante 3). Ela cria o "Consumidor final" de cada
-conta com o Empório ligado.
+**CNPJ alfanumérico (Q143), branch `emporio-cnpj-alfanumerico`, NÃO está na
+`main`.** Decisão do usuário em 03/11: aceitar o CNPJ novo da Receita (12
+posições de letra ou número, 2 dígitos verificadores numéricos, cada posição
+valendo ASCII menos 48). Guardado em maiúscula e sem pontuação; a máscara da
+tela aceita letra e o campo abre o teclado com letras. Sem schema nem
+migração. Provas: `m90` com o exemplo da Receita (`12ABC34501DE35`) vista
+falhando antes; roteiro `emporio-cliente-menu` com o passo 1b reprovado (6
+falhas) com a correção desfeita e verde com ela; tsc, check, m73 e docs-api
+verdes.
 
 Pendências: refazer o cenário de demonstração da Da Mata (as vendas agora
 levam cliente); o manual (`src/app/(dashboard)/manual/_conteudo/`) descreve o
 cliente opcional, o "cadastro rápido" de dois campos e o menu antigo, e os
-prints da venda e do menu estão velhos; **decisão do usuário**: o CNPJ
-alfanumérico da Receita (inscrições novas desde julho de 2026) não é aceito,
-porque a conferência exige 14 números. Armadilha de ambiente: o `next dev`
+prints da venda e do menu estão velhos. Armadilha de ambiente: o `next dev`
 entrou em laço de recarga duas vezes, e apagar `.next/dev` resolveu.
 
 ### Meu Empório (Módulo 39): F0 a F6 em produção
@@ -330,9 +338,9 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
 
-**Branch `emporio-cliente-menu`:** o usuário valida; com a autorização dele,
-migração no Neon (URL Direct), depois o merge e o push na `main`, um de cada
-vez. Em seguida, o manual e o cenário de demonstração (ver a seção acima).
+**Branch `emporio-cnpj-alfanumerico`:** com a autorização do usuário, merge e
+push na `main` (sem migração). Em seguida, o manual e o cenário de
+demonstração do Empório (ver a seção "cadastro do cliente" acima).
 
 **Meu Empório: TESTE DE CLIENTE pelo usuário, em produção.** As sete fases
 (F0 a F5) estão no ar desde 29/10, mas foram provadas só no banco local;
