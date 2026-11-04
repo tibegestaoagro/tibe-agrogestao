@@ -142,28 +142,28 @@ ALTER TABLE "CashCount" ADD CONSTRAINT "CashCount_cash_session_id_fkey" FOREIGN 
 ALTER TABLE "CashRegister" ADD CONSTRAINT "CashRegister_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CashRegister" ADD CONSTRAINT "CashRegister_establishment_id_fkey" FOREIGN KEY ("establishment_id") REFERENCES "Establishment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "CashRegister" ADD CONSTRAINT "CashRegister_establishment_id_fkey" FOREIGN KEY ("establishment_id") REFERENCES "Establishment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "CashSession" ADD CONSTRAINT "CashSession_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CashSession" ADD CONSTRAINT "CashSession_establishment_id_fkey" FOREIGN KEY ("establishment_id") REFERENCES "Establishment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "CashSession" ADD CONSTRAINT "CashSession_establishment_id_fkey" FOREIGN KEY ("establishment_id") REFERENCES "Establishment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CashSession" ADD CONSTRAINT "CashSession_cash_register_id_fkey" FOREIGN KEY ("cash_register_id") REFERENCES "CashRegister"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "CashSession" ADD CONSTRAINT "CashSession_cash_register_id_fkey" FOREIGN KEY ("cash_register_id") REFERENCES "CashRegister"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "CashHandover" ADD CONSTRAINT "CashHandover_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CashHandover" ADD CONSTRAINT "CashHandover_establishment_id_fkey" FOREIGN KEY ("establishment_id") REFERENCES "Establishment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "CashHandover" ADD CONSTRAINT "CashHandover_establishment_id_fkey" FOREIGN KEY ("establishment_id") REFERENCES "Establishment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CashHandover" ADD CONSTRAINT "CashHandover_cash_register_id_fkey" FOREIGN KEY ("cash_register_id") REFERENCES "CashRegister"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "CashHandover" ADD CONSTRAINT "CashHandover_cash_register_id_fkey" FOREIGN KEY ("cash_register_id") REFERENCES "CashRegister"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CashHandover" ADD CONSTRAINT "CashHandover_cash_session_id_fkey" FOREIGN KEY ("cash_session_id") REFERENCES "CashSession"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "CashHandover" ADD CONSTRAINT "CashHandover_cash_session_id_fkey" FOREIGN KEY ("cash_session_id") REFERENCES "CashSession"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "CashMovement" ADD CONSTRAINT "CashMovement_cash_register_id_fkey" FOREIGN KEY ("cash_register_id") REFERENCES "CashRegister"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -183,16 +183,23 @@ ALTER TABLE "CashMovement" ADD CONSTRAINT "CashMovement_exactly_one_place" CHECK
     (("establishment_id" IS NOT NULL)::int + ("bank_account_id" IS NOT NULL)::int + ("manager_establishment_id" IS NOT NULL)::int) = 1
 );
 
--- Backfill: cada loja existente ganha o Caixa 1.
+-- Um caixa so existe na gaveta de uma loja; a sessao aberta aponta para o proprio caixa.
+ALTER TABLE "CashMovement" ADD CONSTRAINT "CashMovement_register_in_drawer" CHECK ("cash_register_id" IS NULL OR "establishment_id" IS NOT NULL);
+ALTER TABLE "CashSession" ADD CONSTRAINT "CashSession_open_register_matches" CHECK ("open_register_id" IS NULL OR "open_register_id" = "cash_register_id");
+
+-- Backfill (idempotente: pode rodar de novo depois do deploy, ver prisma/sql/emporio-caixa-turno-reaplicar.sql).
+-- Cada loja sem caixa ganha o Caixa 1.
 INSERT INTO "CashRegister" ("id", "tenant_id", "establishment_id", "number")
 SELECT 'cr_' || md5(random()::text || e."id"), e."tenant_id", e."id", 1
-FROM "Establishment" e;
+FROM "Establishment" e
+WHERE NOT EXISTS (SELECT 1 FROM "CashRegister" r WHERE r."establishment_id" = e."id");
 
--- Todo movimento e toda conferencia da gaveta passam a pertencer ao Caixa 1 da loja.
+-- Todo movimento e toda conferencia da gaveta ainda sem caixa passam ao Caixa 1 da loja.
 UPDATE "CashMovement" m
 SET "cash_register_id" = r."id"
 FROM "CashRegister" r
-WHERE m."establishment_id" IS NOT NULL
+WHERE m."cash_register_id" IS NULL
+  AND m."establishment_id" IS NOT NULL
   AND r."tenant_id" = m."tenant_id"
   AND r."establishment_id" = m."establishment_id"
   AND r."number" = 1;
@@ -200,7 +207,8 @@ WHERE m."establishment_id" IS NOT NULL
 UPDATE "CashCount" c
 SET "cash_register_id" = r."id"
 FROM "CashRegister" r
-WHERE r."tenant_id" = c."tenant_id"
+WHERE c."cash_register_id" IS NULL
+  AND r."tenant_id" = c."tenant_id"
   AND r."establishment_id" = c."establishment_id"
   AND r."number" = 1;
 

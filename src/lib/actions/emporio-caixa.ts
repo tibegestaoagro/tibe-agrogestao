@@ -418,11 +418,14 @@ export async function saldosDasContas(db: TenantPrismaClient): Promise<Map<strin
   return mapa;
 }
 
-/** Saldo da gaveta de uma loja, em centavos: entradas menos saídas. */
-export async function saldoDaGaveta(db: TenantPrismaClient, lojaId: string): Promise<number> {
+/** Entradas menos saídas, em centavos, dos movimentos que casam com o filtro. */
+async function saldoDosMovimentos(
+  db: TenantPrismaClient,
+  where: { establishment_id: string } | { cash_register_id: string } | { manager_establishment_id: string },
+): Promise<number> {
   const linhas = await db.cashMovement.groupBy({
     by: ["direction"],
-    where: { establishment_id: lojaId },
+    where,
     _sum: { amount: true },
   });
   let total = 0;
@@ -433,34 +436,19 @@ export async function saldoDaGaveta(db: TenantPrismaClient, lojaId: string): Pro
   return total;
 }
 
-/** Saldo de um caixa numerado, em centavos: entradas menos saídas. */
-export async function saldoDoCaixa(db: TenantPrismaClient, cashRegisterId: string): Promise<number> {
-  const linhas = await db.cashMovement.groupBy({
-    by: ["direction"],
-    where: { cash_register_id: cashRegisterId },
-    _sum: { amount: true },
-  });
-  let total = 0;
-  for (const l of linhas) {
-    const v = centavos(decToNum(l._sum.amount) ?? 0);
-    total += l.direction === "entrada" ? v : -v;
-  }
-  return total;
+/** Saldo da gaveta de uma loja, em centavos: a soma dos caixas dela. */
+export function saldoDaGaveta(db: TenantPrismaClient, lojaId: string): Promise<number> {
+  return saldoDosMovimentos(db, { establishment_id: lojaId });
 }
 
-/** Saldo "Com a gerência" de uma loja, em centavos: entradas menos saídas. */
-export async function saldoDaGerencia(db: TenantPrismaClient, establishmentId: string): Promise<number> {
-  const linhas = await db.cashMovement.groupBy({
-    by: ["direction"],
-    where: { manager_establishment_id: establishmentId },
-    _sum: { amount: true },
-  });
-  let total = 0;
-  for (const l of linhas) {
-    const v = centavos(decToNum(l._sum.amount) ?? 0);
-    total += l.direction === "entrada" ? v : -v;
-  }
-  return total;
+/** Saldo de um caixa numerado, em centavos. */
+export function saldoDoCaixa(db: TenantPrismaClient, cashRegisterId: string): Promise<number> {
+  return saldoDosMovimentos(db, { cash_register_id: cashRegisterId });
+}
+
+/** Saldo "Com a gerência" de uma loja, em centavos. */
+export function saldoDaGerencia(db: TenantPrismaClient, establishmentId: string): Promise<number> {
+  return saldoDosMovimentos(db, { manager_establishment_id: establishmentId });
 }
 
 async function viewsDasContas(db: TenantPrismaClient, where: Record<string, unknown>): Promise<ContaView[]> {

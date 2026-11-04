@@ -1462,7 +1462,7 @@ model CashRegister {
   created_at         DateTime @default(now())
 
   tenant         Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  establishment  Establishment  @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
+  establishment  Establishment  @relation(fields: [establishment_id], references: [id], onDelete: Cascade)
   sessions       CashSession[]
   handovers      CashHandover[]
   cash_movements CashMovement[]
@@ -1494,8 +1494,8 @@ model CashSession {
   malote_amount       Decimal?  @db.Decimal(14, 2)
 
   tenant         Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  establishment  Establishment  @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
-  cash_register  CashRegister   @relation(fields: [cash_register_id], references: [id], onDelete: Restrict)
+  establishment  Establishment  @relation(fields: [establishment_id], references: [id], onDelete: Cascade)
+  cash_register  CashRegister   @relation(fields: [cash_register_id], references: [id], onDelete: Cascade)
   handovers      CashHandover[]
   cash_movements CashMovement[]
   cash_counts    CashCount[]
@@ -1528,9 +1528,9 @@ model CashHandover {
   confirm_notes         String?
 
   tenant         Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  establishment  Establishment  @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
-  cash_register  CashRegister   @relation(fields: [cash_register_id], references: [id], onDelete: Restrict)
-  cash_session   CashSession    @relation(fields: [cash_session_id], references: [id], onDelete: Restrict)
+  establishment  Establishment  @relation(fields: [establishment_id], references: [id], onDelete: Cascade)
+  cash_register  CashRegister   @relation(fields: [cash_register_id], references: [id], onDelete: Cascade)
+  cash_session   CashSession    @relation(fields: [cash_session_id], references: [id], onDelete: Cascade)
   cash_movements CashMovement[]
 
   @@unique([tenant_id, operation_key])

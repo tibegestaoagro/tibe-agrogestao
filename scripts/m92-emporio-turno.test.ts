@@ -104,15 +104,42 @@ async function secao1() {
   check("saldoDaGaveta não inclui a gerência (continua 7000)", (await Caixa.saldoDaGaveta(A.db, A.lojaId)) === 7000);
 
   // CHECK: dois lugares
-  let recusou = false;
-  try {
-    await A.db.cashMovement.create({
-      data: scoped(mov({ amount: 5, manager_establishment_id: A.lojaId, origin: "sangria" })),
-    });
-  } catch {
-    recusou = true;
+  async function erroDe(fn: () => Promise<unknown>): Promise<Dado> {
+    try {
+      await fn();
+      return null;
+    } catch (e) {
+      return e;
+    }
   }
-  check("o CHECK recusa movimento com gaveta e gerência juntas", recusou);
+  const textoDe = (e: Dado) => `${e?.message ?? ""} ${j(e?.meta ?? {})} ${j(e?.cause ?? {})}`;
+  const eCheck = await erroDe(() =>
+    A.db.cashMovement.create({
+      data: scoped(mov({ amount: 5, manager_establishment_id: A.lojaId, origin: "sangria" })),
+    }),
+  );
+  check("o CHECK recusa movimento com gaveta e gerência juntas, pelo CashMovement_exactly_one_place", textoDe(eCheck).includes("CashMovement_exactly_one_place"), textoDe(eCheck).slice(0, 200));
+
+  const eSemLugar = await erroDe(() =>
+    A.db.cashMovement.create({
+      data: scoped({ direction: "entrada", origin: "sangria", occurred_at: new Date(), amount: 5 }),
+    }),
+  );
+  check("o CHECK recusa movimento sem lugar nenhum", textoDe(eSemLugar).includes("CashMovement_exactly_one_place"), textoDe(eSemLugar).slice(0, 200));
+
+  const eRegistroSemGaveta = await erroDe(() =>
+    A.db.cashMovement.create({
+      data: scoped({
+        manager_establishment_id: A.lojaId,
+        cash_register_id: caixa1.id,
+        direction: "entrada",
+        origin: "sangria",
+        occurred_at: new Date(),
+        amount: 5,
+      }),
+    }),
+  );
+  check("o CHECK recusa caixa sem gaveta, pelo CashMovement_register_in_drawer", textoDe(eRegistroSemGaveta).includes("CashMovement_register_in_drawer"), textoDe(eRegistroSemGaveta).slice(0, 200));
 
   // um único aberto por caixa
   const sessao = (n: string, extra: Dado = {}) => ({
@@ -126,13 +153,14 @@ async function secao1() {
     ...extra,
   });
   await A.db.cashSession.create({ data: scoped(sessao("s1", { open_register_id: caixa1.id })) });
-  let dupAberta = false;
-  try {
-    await A.db.cashSession.create({ data: scoped(sessao("s2", { open_register_id: caixa1.id })) });
-  } catch {
-    dupAberta = true;
-  }
-  check("duas sessões abertas no mesmo caixa violam o único", dupAberta);
+  const eDup = await erroDe(() => A.db.cashSession.create({ data: scoped(sessao("s2", { open_register_id: caixa1.id })) }));
+  check(
+    "duas sessões abertas no mesmo caixa violam o único (P2002 em open_register_id)",
+    eDup?.code === "P2002" && textoDe(eDup).includes("open_register_id"),
+    textoDe(eDup).slice(0, 200),
+  );
+  const eOutroCaixa = await erroDe(() => A.db.cashSession.create({ data: scoped(sessao("s2b", { open_register_id: caixa2.id })) }));
+  check("sessão aberta com open_register_id de outro caixa é recusada, pelo CashSession_open_register_matches", textoDe(eOutroCaixa).includes("CashSession_open_register_matches"), textoDe(eOutroCaixa).slice(0, 200));
   let encerradasOk = true;
   try {
     await A.db.cashSession.create({ data: scoped(sessao("s3", { open_register_id: null })) });
@@ -167,8 +195,9 @@ async function secao1() {
 async function limpar() {
   const { prisma } = await import("@/lib/prisma");
   const modelos = [
-    "emporioAuditLog", "cashHandover", "cashMovement", "cashSession", "cashCount", "cashRegister", "stockMovement",
-    "emporioSale", "emporioCounter", "emporioSettings", "userEstablishment", "establishment", "bankAccount", "contact",
+    // filhos antes de CashSession: movimento, conferência, venda; a entrega antes da sessão
+    "emporioAuditLog", "cashMovement", "cashCount", "emporioSale", "cashHandover", "cashSession", "cashRegister", "stockMovement",
+    "emporioCounter", "emporioSettings", "userEstablishment", "establishment", "bankAccount", "contact",
     "user", "tenantProfile", "tenantFeature",
   ];
   for (const id of tenantIds) {
