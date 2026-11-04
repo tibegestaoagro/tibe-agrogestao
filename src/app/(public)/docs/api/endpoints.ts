@@ -778,6 +778,14 @@ export const GROUPS: Group[] = [
 { "data": { "id": "cl...", "status": "concluida", "items": [], "payments": [], "returns": [] }, "meta": {} }`,
       },
       {
+        method: "GET",
+        path: "/api/v1/emporio/sales/:id/receipt",
+        auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
+        description: "Os dados do papel da venda (A4 e bobina), já formatados: `numero` com 6 dígitos, loja com CNPJ e endereço numa linha (`null` no que não foi preenchido), cliente (`null` para Consumidor final), itens com a quantidade em pt-BR, pagamentos, rodapé e largura da bobina. Loja fora do vínculo: 404.",
+        response: `200
+{ "data": { "numero": "000001", "cancelada": false, "loja": { "nome": "Loja Centro", "documento": null, "endereco": null, "telefone": null, "whatsapp": null }, "cliente": null, "itens": [{ "produto": "Sal grosso (Quilo)", "quantidade": "2", "preco": 10, "total": 20 }], "total": 20, "largura_bobina": 80 }, "meta": {} }`,
+      },
+      {
         method: "POST",
         path: "/api/v1/emporio/sales/:id/cancel",
         auth: "Sessão · emporio:write · só OWNER e ADMIN",

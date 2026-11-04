@@ -356,9 +356,208 @@ async function secao2() {
   }
 }
 
+async function secao3() {
+  console.log("\nSeção 3: o papel da venda (com banco)");
+  (globalThis as unknown as { AsyncLocalStorage: unknown }).AsyncLocalStorage = (await import("node:async_hooks")).AsyncLocalStorage;
+  const { papelDeFixture, vincularTodas, virarGestor, virarVendedor } = await import("./_emporio-papel");
+  const { withBearer } = await import("./_escopo-de-requisicao");
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+  const bcrypt = (await import("bcryptjs")).default;
+  const Cat = await import("@/lib/actions/emporio-catalogo");
+  const Est = await import("@/lib/actions/emporio-estoque");
+  const V = await import("@/lib/actions/emporio-vendas");
+  const S = await import("@/lib/actions/emporio-configuracoes");
+  const I = await import("@/lib/actions/emporio-impressao");
+  const rotaTok = await import("@/app/api/v1/auth/token/route");
+  const rotaRecibo = await import("@/app/api/v1/emporio/sales/[id]/receipt/route");
+  const { carregarCatalogoDeVenda } = await import("@/app/(dashboard)/emporio/_components/catalogo-venda");
+  const stamp = Date.now();
+  const SENHA = "SenhaForte#2026";
+  const hash = await bcrypt.hash(SENHA, 4);
+  const tenantIds: string[] = [];
+
+  try {
+    const novoTenant = async (nome: string) => {
+      const t = await prisma.tenant.create({
+        data: {
+          name: `M91s3 ${nome} ${stamp}`,
+          document: `M91t${nome}${stamp}`.slice(0, 14),
+          plan: "grupo",
+          status: "trial",
+          trial_ends_at: new Date(Date.now() + 86_400_000),
+        },
+      });
+      tenantIds.push(t.id);
+      await prisma.tenantProfile.create({ data: { tenant_id: t.id, profile_type: "emporio", active: true } });
+      await prisma.tenantFeature.create({ data: { tenant_id: t.id, feature_key: "emporio", enabled: true } });
+      return t;
+    };
+    const mk = async (tenantId: string, suf: string, role: "OWNER" | "OPERADOR") => {
+      const u = await prisma.user.create({
+        data: {
+          tenant_id: tenantId,
+          name: `M91s3 ${suf}`,
+          email: `m91s3-${suf}-${stamp}@teste.local`,
+          password_hash: hash,
+          role,
+          ...papelDeFixture(role),
+        },
+      });
+      return { id: u.id, role, email: u.email, name: u.name };
+    };
+    const tA = await novoTenant("A");
+    const tB = await novoTenant("B");
+    const donoA = await mk(tA.id, "donoA", "OWNER");
+    const donoB = await mk(tB.id, "donoB", "OWNER");
+    const vend = await mk(tA.id, "vend", "OPERADOR");
+    const db = prismaForTenant(tA.id);
+
+    const loja = await Cat.criarEstabelecimentoAction(db, donoA, { name: "M91s3 Loja Completa" });
+    const lojaSo = await Cat.criarEstabelecimentoAction(db, donoA, { name: "M91s3 Loja So Nome" });
+    if (!loja.ok || !lojaSo.ok) throw new Error(`lojas: ${j([loja, lojaSo])}`);
+    await vincularTodas(prisma, tA.id, [vend.id], [lojaSo.data.id]);
+    await virarVendedor(prisma, vend.id);
+    void virarGestor;
+    const ed = await Cat.editarEstabelecimentoAction(db, donoA, loja.data.id, {
+      document: "12.abc.345/01de-35",
+      address: "Rua das Flores, 100",
+      city: "Montes Claros",
+      state: "mg",
+      zip: "39400-000",
+      phone: "(38) 3221-0000",
+      whatsapp: "38 99999-0000",
+    });
+    if (!ed.ok) throw new Error(`cabeçalho: ${j(ed)}`);
+    const cfg = await S.salvarConfiguracoesAction(db, donoA, { sale_footer: "Obrigado pela preferência", receipt_width: 58 });
+    if (!cfg.ok) throw new Error(`config: ${j(cfg)}`);
+
+    const categoria = await db.productCategory.create({ data: scoped({ name: `M91s3 cat ${stamp}` }) });
+    const p = await Cat.criarProdutoEmporioAction(db, donoA, { name: `M91s3 Ração ${stamp}`, category_id: categoria.id, base_unit: "quilograma" });
+    if (!p.ok) throw new Error(`produto: ${j(p)}`);
+    const pres = await Cat.criarApresentacaoAction(db, donoA, p.data.id, { name: "Quilo", base_qty: 1, is_sealed_package: false });
+    if (!pres.ok) throw new Error(`apresentação: ${j(pres)}`);
+    for (const l of [loja.data.id, lojaSo.data.id]) {
+      const pr = await Cat.definirPrecoAction(db, donoA, { establishment_id: l, presentation_id: pres.data.id, price: 10 });
+      if (!pr.ok) throw new Error(`preço: ${j(pr)}`);
+      const imp = await Est.implantarEstoqueAction(db, donoA, { establishment_id: l, emporio_product_id: p.data.id, sealed: [], loose_qty: 100, unit_cost: 4 });
+      if (!imp.ok) throw new Error(`implantar: ${j(imp)}`);
+    }
+    const cat0 = await carregarCatalogoDeVenda(db, []);
+    const cf = cat0.contatos[0].id;
+    const pj = await db.contact.create({
+      data: scoped({
+        name: "M91s3 Agro PJ",
+        person_kind: "pj",
+        document: "12ABC34501DE35",
+        phone: "(38) 3000-1111",
+        address_street: "Av. Central",
+        address_number: "50",
+        address_district: "Centro",
+        city: "Janaúba",
+        address_state: "MG",
+        address_zip: "39440000",
+      }),
+    });
+
+    let seq = 0;
+    const vender = (lojaId: string, contactId: string, quantity: number) =>
+      V.venderAction(db, donoA, {
+        operation_key: `m91s3-${stamp}-${(seq += 1)}`,
+        establishment_id: lojaId,
+        contact_id: contactId,
+        items: [{ emporio_product_id: p.data.id, presentation_id: pres.data.id, quantity }],
+        payments: [{ kind: "dinheiro", amount: quantity * 10 }],
+      });
+    const vPj = await vender(loja.data.id, pj.id, 2);
+    const vDec = await vender(loja.data.id, cf, 12.5);
+    const vSo = await vender(lojaSo.data.id, cf, 1);
+    const vCan = await vender(loja.data.id, cf, 1);
+    if (!vPj.ok || !vDec.ok || !vSo.ok || !vCan.ok) throw new Error(`vendas: ${j([vPj, vDec, vSo, vCan])}`);
+    const can = await V.cancelarVendaAction(db, donoA, vCan.data.id, { reason: "teste" });
+    if (!can.ok) throw new Error(`cancelar: ${j(can)}`);
+
+    const r = await I.lerImpressoDaVendaAction(db, donoA, vPj.data.id);
+    check("venda a cliente PJ: ok", r.ok, j(r));
+    if (r.ok) {
+      const d = r.data;
+      check("numero com 6 dígitos", d.numero === "000001", d.numero);
+      check("loja.documento formatado", d.loja.documento === "12.ABC.345/01DE-35", String(d.loja.documento));
+      check("loja.endereco numa linha, sem vírgula sobrando", d.loja.endereco === "Rua das Flores, 100, Montes Claros, MG, 39400-000", String(d.loja.endereco));
+      check("loja telefone e whatsapp como digitados", d.loja.telefone === "(38) 3221-0000" && d.loja.whatsapp === "38 99999-0000", j(d.loja));
+      check("cliente.documento formatado", d.cliente?.documento === "12.ABC.345/01DE-35", j(d.cliente));
+      check("cliente com nome, telefone e endereço", d.cliente?.nome === "M91s3 Agro PJ" && d.cliente.telefone === "(38) 3000-1111" && (d.cliente.endereco ?? "").includes("Av. Central") && (d.cliente.endereco ?? "").includes("39440-000"), j(d.cliente));
+      check("rodape é o sale_footer", d.rodape === "Obrigado pela preferência", String(d.rodape));
+      check("largura_bobina da configuração", d.largura_bobina === 58, String(d.largura_bobina));
+      check("itens[0].produto na apresentação", d.itens[0]?.produto === `M91s3 Ração ${stamp} (Quilo)`, j(d.itens));
+      check("itens[0].quantidade '2'", d.itens[0]?.quantidade === "2", j(d.itens));
+      check("totais: preço 10, total 20, subtotal 20, desconto 0", d.itens[0]?.preco === 10 && d.itens[0]?.total === 20 && d.total === 20 && d.subtotal === 20 && d.desconto === 0, j(d));
+      check("pagamento dinheiro 20", d.pagamentos.length === 1 && d.pagamentos[0].forma === "Dinheiro" && d.pagamentos[0].valor === 20, j(d.pagamentos));
+      check("registrada_por é o nome de quem vendeu", d.registrada_por === donoA.name, String(d.registrada_por));
+      check("não cancelada, sem logo", d.cancelada === false && d.tem_logo === false);
+    }
+
+    const rDec = await I.lerImpressoDaVendaAction(db, donoA, vDec.data.id);
+    check("quantidade 12,5", rDec.ok && rDec.data.itens[0]?.quantidade === "12,5", j(rDec));
+    check("Consumidor final: cliente null", rDec.ok && rDec.data.cliente === null, j(rDec));
+
+    const rSo = await I.lerImpressoDaVendaAction(db, donoA, vSo.data.id);
+    check(
+      "loja só com o nome: documento, endereco, telefone e whatsapp null",
+      rSo.ok && rSo.data.loja.nome === "M91s3 Loja So Nome" && rSo.data.loja.documento === null && rSo.data.loja.endereco === null && rSo.data.loja.telefone === null && rSo.data.loja.whatsapp === null,
+      j(rSo),
+    );
+
+    const rCan = await I.lerImpressoDaVendaAction(db, donoA, vCan.data.id);
+    check("venda cancelada: cancelada true", rCan.ok && rCan.data.cancelada === true, j(rCan));
+
+    const vFora = await I.lerImpressoDaVendaAction(db, vend, vPj.data.id);
+    check("Vendedor de outra loja: 404", !vFora.ok && vFora.status === 404, j(vFora));
+    const vDentro = await I.lerImpressoDaVendaAction(db, vend, vSo.data.id);
+    check("Vendedor da própria loja lê: ok", vDentro.ok, j(vDentro));
+
+    const token = async (email: string) =>
+      String(
+        ((await (await rotaTok.POST(new Request("http://localhost/api/v1/auth/token", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email, password: SENHA }),
+        }))).json()) as Dado)?.data?.access_token ?? "",
+      );
+    const tokA = await token(donoA.email);
+    const tokB = await token(donoB.email);
+    const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
+    const url = (id: string) => new Request(`http://localhost/api/v1/emporio/sales/${id}/receipt`);
+    const rotaA = await withBearer(tokA, () => rotaRecibo.GET(url(vPj.data.id), ctx(vPj.data.id)));
+    const rotaAj = (await rotaA.json().catch(() => ({}))) as Dado;
+    check("rota receipt de A: 200 com número", rotaA.status === 200 && /^\d{6}$/.test(rotaAj?.data?.numero ?? ""), `${rotaA.status} ${j(rotaAj)}`);
+    const rotaB = await withBearer(tokB, () => rotaRecibo.GET(url(vPj.data.id), ctx(vPj.data.id)));
+    check("rota receipt: tenant B não vê a venda de A: 404", rotaB.status === 404, String(rotaB.status));
+  } finally {
+    const modelos = [
+      "emporioAuditLog", "cashMovement", "stockMovement", "emporioSalePayment", "emporioSaleReturnItem", "emporioSaleReturn",
+      "emporioSaleItem", "emporioSale", "emporioCounter", "emporioSettings", "financialEntry", "presentationPrice", "productPresentation",
+      "userEstablishment", "emporioProduct", "product", "establishment", "bankAccount", "contact", "productCategory", "user",
+      "tenantProfile", "tenantFeature",
+    ];
+    for (const id of tenantIds) {
+      for (const m of modelos) {
+        try {
+          await (prisma as Dado)[m]?.deleteMany({ where: { tenant_id: id } });
+        } catch {
+          // modelo ausente nesta versão do schema: segue
+        }
+      }
+      await prisma.tenant.delete({ where: { id } }).catch(() => undefined);
+    }
+    const sobrou = await prisma.tenant.count({ where: { id: { in: tenantIds } } });
+    check("seção 3: a limpeza não deixou tenant para trás", sobrou === 0, String(sobrou));
+  }
+}
+
 async function main() {
   await secao1();
   await secao2();
+  await secao3();
   console.log(falhas === 0 ? "\n✅ M91 verde" : `\n❌ M91: ${falhas} falha(s)`);
   process.exit(falhas === 0 ? 0 : 1);
 }
