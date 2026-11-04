@@ -113,6 +113,21 @@ mede o comprovante e grava `size: <largura>mm <altura>mm`; a conferência
 reprova (2 falhas) com a regra antiga e passa com a correção. Depois de
 mudar o schema, reinicie o `next dev`: o client do Prisma fica velho.
 
+Revisão final da branch (opus) e uma onda de correção, revisada e limpa
+(`e9f9909`, `034389c`):
+- o papel fecha a conta com desconto: o item com desconto sai pelo preço de
+  tabela, e a linha é o total praticado mais o desconto do item, para o
+  granel fracionado fechar no centavo;
+- a página de impressão passa pelos mesmos gates do painel (sessão, troca de
+  senha, cobrança bloqueada);
+- o `div` do botão tinha `display` inline vencendo o `print:hidden`, e o
+  cupom saía em duas folhas.
+
+O roteiro agora gera o PDF real (`Page.printToPDF`): uma página de 58 mm, e
+2 falhas com o estilo antigo. `test:all` 91/91. **Não provados ao vivo:**
+conta bloqueada abrindo o papel (o código é a mesma cadeia do painel) e a
+impressora térmica de verdade (só o PDF).
+
 ⚠️ **A migração `20261104120000_emporio_configuracoes_impressao` NÃO está
 aplicada no Neon.** Ela torna `EmporioSale.number` NOT NULL: entre aplicar no
 Neon e o código novo entrar no ar, venda feita no código antigo falha. Aplicar
@@ -377,10 +392,11 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
 
-**Empório, entrega 1 na branch `emporio-orcamento-caixa`:** as cinco tarefas
-estão feitas e o roteiro está provado. Falta a revisão final da branch inteira;
-só então o usuário autoriza o merge e a janela de deploy (migração no Neon e
-push em sequência, ver a seção acima). Depois, a entrega 2 (caixa com turno).
+**Empório, entrega 1 na branch `emporio-orcamento-caixa`:** pronta, revisada
+e provada. Falta só a decisão do usuário sobre o merge e a janela de deploy
+(migração no Neon e push em sequência, ver a seção acima). O ideal é imprimir
+um cupom de 58 e de 80 mm na bobina da loja. Depois, a entrega 2 (caixa com
+turno).
 
 **Empório, 04/11:** o usuário pediu dois ajustes antes do manual e do cenário.
 O primeiro (metro) é a branch `emporio-unidade-metro`; o segundo ele ainda vai
