@@ -7,7 +7,7 @@ import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { apiGet, apiPost } from "@/lib/client-api";
 import { reaisBr } from "@/lib/numero-br";
 import { VendaCampos } from "./venda-campos";
-import { numeroBr } from "./formato";
+import { numeroBr, numeroDaVenda } from "./formato";
 import { FORMA_ROTULO } from "./venda-rotulos";
 import { useVenda, type ContatoDeVenda, type PrecosVenda, type ProdutoVenda, type RegraCartaoVenda } from "./venda-estado";
 
@@ -32,6 +32,7 @@ const CHAVE_LOJA = "tibe:emporio:loja-do-balcao";
 
 type VendaGravada = {
   id: string;
+  number: number;
   net_amount: number;
   contact_name: string | null;
   items: { product_name: string; presentation_name: string; quantity: number }[];
@@ -143,7 +144,10 @@ export function Balcao({
           role="status"
           className="space-y-1 rounded-lg border border-borda bg-sucesso-suave p-4 text-sm text-sucesso-tinta"
         >
-          <p className="font-semibold">Venda registrada: {reaisBr(resumo.venda.net_amount)}</p>
+          <p className="font-semibold">
+            Venda registrada: {reaisBr(resumo.venda.net_amount)}
+            <span className="ml-2 font-normal">Venda nº {numeroDaVenda(resumo.venda.number)}</span>
+          </p>
           <p>
             {resumo.venda.items
               .map((i) => `${numeroBr(i.quantity)} × ${i.product_name} (${i.presentation_name})`)
@@ -156,9 +160,27 @@ export function Balcao({
           {resumo.trocoCent > 0 && (
             <p className="font-semibold">Troco entregue: {reaisBr(resumo.trocoCent / 100)}</p>
           )}
-          <Link href={`/emporio/vendas/${resumo.venda.id}`} className="inline-block font-medium underline">
-            Ver a venda
-          </Link>
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            <Link href={`/emporio/vendas/${resumo.venda.id}`} className="inline-block font-medium underline">
+              Ver a venda
+            </Link>
+            <a
+              href={`/emporio/imprimir/venda/${resumo.venda.id}?formato=a4`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block font-medium underline"
+            >
+              Imprimir A4
+            </a>
+            <a
+              href={`/emporio/imprimir/venda/${resumo.venda.id}?formato=cupom`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block font-medium underline"
+            >
+              Imprimir cupom
+            </a>
+          </div>
         </section>
       )}
 

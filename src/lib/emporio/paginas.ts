@@ -20,6 +20,7 @@ export const PAGINAS_DO_EMPORIO: readonly { href: string; rotulo: string; exige:
   { href: "/emporio/equipe", rotulo: "Equipe", exige: "conta" },
   { href: "/emporio/estabelecimentos", rotulo: "Lojas", exige: null },
   { href: "/emporio/historico", rotulo: "Histórico", exige: "gestor_da_loja" },
+  { href: "/emporio/configuracoes", rotulo: "Configurações", exige: "gestor_da_loja" },
 ];
 
 export function veAPagina(c: PapelContexto, href: string): boolean {

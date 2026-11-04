@@ -28,6 +28,7 @@ ITENS_DO_DONO = [
     "/emporio/equipe",
     "/emporio/estabelecimentos",
     "/emporio/historico",
+    "/emporio/configuracoes",
 ]
 SUFIXO = str(int(time.time()))
 NOME_ANTIGO = "Cliente Antigo " + SUFIXO
@@ -213,7 +214,7 @@ confere("o título voltou ao nome original", tem(nome_original) and not tem(novo
 passo("5. Menu: grupo Meu Empório, para o Dono e para o Vendedor")
 ir("/emporio")
 dono = [h for h in menu() if h.startswith("/emporio")]
-confere("o Dono vê os 14 itens do grupo, na ordem", dono == ITENS_DO_DONO, dono)
+confere("o Dono vê os 15 itens do grupo, na ordem", dono == ITENS_DO_DONO, dono)
 confere("Meu Empório é um grupo (botão do menu)", bool(js("Array.from(document.querySelectorAll('nav button')).some(b => b.innerText.includes('Meu Empório'))")))
 confere("Histórico está dentro do grupo, não no topo", bool(js("(() => { const a = Array.from(document.querySelectorAll('nav a')).filter(x => x.getAttribute('href') === '/emporio/historico'); return a.length === 1 && !!a[0].closest('div.border-l'); })()")))
 
@@ -221,7 +222,7 @@ entrar("vendedor1")
 ir("/emporio")
 vend = [h for h in menu() if h.startswith("/emporio")]
 confere("o Vendedor vê Início, Vender e Vendas", all(h in vend for h in ("/emporio", "/emporio/vender", "/emporio/vendas")), vend)
-confere("o Vendedor não vê Despesas, Resultado, Equipe nem Histórico", not any(h in vend for h in ("/emporio/despesas", "/emporio/resultado", "/emporio/equipe", "/emporio/historico")), vend)
+confere("o Vendedor não vê Despesas, Resultado, Equipe nem Histórico", not any(h in vend for h in ("/emporio/despesas", "/emporio/resultado", "/emporio/equipe", "/emporio/historico", "/emporio/configuracoes")), vend)
 
 fim()
 

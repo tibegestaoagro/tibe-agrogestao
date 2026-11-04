@@ -4,6 +4,7 @@ import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { listarVendasAction } from "@/lib/actions/emporio-vendas";
+import { formatarNumero } from "@/lib/emporio/numeracao";
 import { reaisBr } from "@/lib/numero-br";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -71,6 +72,7 @@ export default async function VendasPage({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Nº</TableHead>
               <TableHead>Data</TableHead>
               <TableHead>Loja</TableHead>
               <TableHead>Cliente</TableHead>
@@ -86,6 +88,7 @@ export default async function VendasPage({
               const provisorio = v.items.some((i) => i.cost_provisional);
               return (
                 <TableRow key={v.id}>
+                  <TableCell className="font-medium text-texto">{formatarNumero(v.number)}</TableCell>
                   <TableCell>{DATA_HORA.format(new Date(v.sold_at))}</TableCell>
                   <TableCell className="font-medium text-texto">{v.establishment_name}</TableCell>
                   <TableCell>{v.contact_name ?? "-"}</TableCell>

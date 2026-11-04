@@ -17,12 +17,19 @@ import { FormSheet } from "@/components/ui/form-sheet";
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { apiPost, apiPatch } from "@/lib/client-api";
 import { lerOpcional, paraCampo } from "./formato";
+import { mascararCep, mascararDocumento } from "@/components/contatos/campos-do-cadastro";
+import { UFS } from "@/lib/contatos/cadastro";
 
 export type LojaParaForm = {
   id: string;
   name: string;
   address: string | null;
   city: string | null;
+  document: string | null;
+  phone: string | null;
+  whatsapp: string | null;
+  state: string | null;
+  zip: string | null;
   responsible_user_id: string | null;
   allow_negative_stock: boolean;
   max_discount_pct: number | null;
@@ -35,8 +42,13 @@ export type UsuarioParaForm = { id: string; name: string };
 /** Ordem VISUAL, com o nome que a API usa. */
 const ORDEM = [
   "name",
+  "document",
   "address",
   "city",
+  "state",
+  "zip",
+  "phone",
+  "whatsapp",
   "responsible_user_id",
   "default_expense_pct",
   "default_profit_pct",
@@ -46,6 +58,7 @@ const ORDEM = [
 type Campo = (typeof ORDEM)[number];
 
 const NINGUEM = "__ninguem__";
+const SEM_UF = "__sem_uf__";
 
 /** Criar (sem `loja`) e editar (com `loja`) no mesmo painel. */
 export function EstabelecimentoForm({
@@ -67,6 +80,11 @@ export function EstabelecimentoForm({
   const [name, setName] = useState(loja?.name ?? "");
   const [address, setAddress] = useState(loja?.address ?? "");
   const [city, setCity] = useState(loja?.city ?? "");
+  const [document, setDocument] = useState(mascararDocumento(loja?.document ?? "", "pj"));
+  const [phone, setPhone] = useState(loja?.phone ?? "");
+  const [whatsapp, setWhatsapp] = useState(loja?.whatsapp ?? "");
+  const [uf, setUf] = useState(loja?.state ?? "");
+  const [zip, setZip] = useState(mascararCep(loja?.zip ?? ""));
   const [responsavel, setResponsavel] = useState(loja?.responsible_user_id ?? NINGUEM);
   const [despesa, setDespesa] = useState(paraCampo(loja?.default_expense_pct));
   const [lucro, setLucro] = useState(paraCampo(loja?.default_profit_pct));
@@ -77,6 +95,11 @@ export function EstabelecimentoForm({
     setName(loja?.name ?? "");
     setAddress(loja?.address ?? "");
     setCity(loja?.city ?? "");
+    setDocument(mascararDocumento(loja?.document ?? "", "pj"));
+    setPhone(loja?.phone ?? "");
+    setWhatsapp(loja?.whatsapp ?? "");
+    setUf(loja?.state ?? "");
+    setZip(mascararCep(loja?.zip ?? ""));
     setResponsavel(loja?.responsible_user_id ?? NINGUEM);
     setDespesa(paraCampo(loja?.default_expense_pct));
     setLucro(paraCampo(loja?.default_profit_pct));
@@ -106,6 +129,11 @@ export function EstabelecimentoForm({
       name: name.trim(),
       address: address.trim() || null,
       city: city.trim() || null,
+      document: document.trim() || null,
+      phone: phone.trim() || null,
+      whatsapp: whatsapp.trim() || null,
+      state: uf || null,
+      zip: zip.trim() || null,
       responsible_user_id: responsavel === NINGUEM ? null : responsavel,
       default_expense_pct: d as number | null,
       default_profit_pct: l as number | null,
@@ -163,6 +191,26 @@ export function EstabelecimentoForm({
         )}
       </Field>
 
+      <Field
+        label="CNPJ"
+        hint="Sai no cabeçalho do papel da venda."
+        id={err.idDe("document")}
+        error={err.erros.document}
+      >
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            autoComplete="off"
+            value={document}
+            onChange={(e) => {
+              setDocument(mascararDocumento(e.target.value, "pj"));
+              err.limparCampo("document");
+            }}
+          />
+        )}
+      </Field>
+
       <Field label="Endereço" id={err.idDe("address")} error={err.erros.address}>
         {({ id, ...aria }) => (
           <Input
@@ -186,6 +234,78 @@ export function EstabelecimentoForm({
             onChange={(e) => {
               setCity(e.target.value);
               err.limparCampo("city");
+            }}
+          />
+        )}
+      </Field>
+
+      <Field label="UF" id={err.idDe("state")} error={err.erros.state}>
+        {({ id, ...aria }) => (
+          <Select
+            value={uf || SEM_UF}
+            onValueChange={(v) => {
+              setUf(v === SEM_UF ? "" : v);
+              err.limparCampo("state");
+            }}
+          >
+            <SelectTrigger id={id} {...aria}>
+              <SelectValue placeholder="Escolha" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={SEM_UF}>Não informar</SelectItem>
+              {UFS.map((u) => (
+                <SelectItem key={u} value={u}>
+                  {u}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </Field>
+
+      <Field label="CEP" id={err.idDe("zip")} error={err.erros.zip}>
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            inputMode="numeric"
+            autoComplete="off"
+            value={zip}
+            onChange={(e) => {
+              setZip(mascararCep(e.target.value));
+              err.limparCampo("zip");
+            }}
+          />
+        )}
+      </Field>
+
+      <Field label="Telefone" id={err.idDe("phone")} error={err.erros.phone}>
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            inputMode="tel"
+            autoComplete="off"
+            value={phone}
+            onChange={(e) => {
+              setPhone(e.target.value);
+              err.limparCampo("phone");
+            }}
+          />
+        )}
+      </Field>
+
+      <Field label="WhatsApp" id={err.idDe("whatsapp")} error={err.erros.whatsapp}>
+        {({ id, ...aria }) => (
+          <Input
+            id={id}
+            {...aria}
+            inputMode="tel"
+            autoComplete="off"
+            value={whatsapp}
+            onChange={(e) => {
+              setWhatsapp(e.target.value);
+              err.limparCampo("whatsapp");
             }}
           />
         )}

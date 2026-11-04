@@ -4,7 +4,9 @@ import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { lerVendaAction } from "@/lib/actions/emporio-vendas";
+import { formatarNumero } from "@/lib/emporio/numeracao";
 import { reaisBr } from "@/lib/numero-br";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -69,7 +71,9 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
           <Link href="/emporio/vendas" className="text-sm text-texto-secundario hover:text-texto">
             Vendas
           </Link>
-          <h1 className="text-2xl font-semibold text-texto">Venda de {DATA_HORA.format(new Date(venda.sold_at))}</h1>
+          <h1 className="text-2xl font-semibold text-texto">
+            Venda nº {formatarNumero(venda.number)}, {DATA_HORA.format(new Date(venda.sold_at))}
+          </h1>
           <p className="mt-1 text-sm text-texto-secundario">
             {venda.establishment_name}
             {venda.contact_name ? `, cliente ${venda.contact_name}` : ""}
@@ -81,28 +85,36 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
             {venda.items.some((i) => i.cost_provisional) && <Badge variant="amber">Custo provisório</Badge>}
           </div>
         </div>
-        {(podeDevolver || podeCancelar) && (
-          <div className="flex flex-wrap gap-2">
-            {podeDevolver && (
-              <>
-                <DevolverForm vendaId={venda.id} itens={itensDevolviveis} abertoCent={Math.round(venda.open_amount * 100)} />
-                {catalogo && (
-                  <TrocarForm
-                    vendaId={venda.id}
-                    lojaId={venda.establishment_id}
-                    lojaNome={venda.establishment_name}
-                    itensDevolviveis={itensDevolviveis}
-                    produtos={catalogo.produtos}
-                    precos={catalogo.precos}
-                    contatos={catalogo.contatos}
-                    contatoId={venda.contact_id}
-                  />
-                )}
-              </>
-            )}
-            {podeCancelar && <CancelarVendaForm vendaId={venda.id} />}
-          </div>
-        )}
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm">
+            <a href={`/emporio/imprimir/venda/${venda.id}?formato=a4`} target="_blank" rel="noopener noreferrer">
+              Imprimir A4
+            </a>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <a href={`/emporio/imprimir/venda/${venda.id}?formato=cupom`} target="_blank" rel="noopener noreferrer">
+              Imprimir cupom
+            </a>
+          </Button>
+          {podeDevolver && (
+            <>
+              <DevolverForm vendaId={venda.id} itens={itensDevolviveis} abertoCent={Math.round(venda.open_amount * 100)} />
+              {catalogo && (
+                <TrocarForm
+                  vendaId={venda.id}
+                  lojaId={venda.establishment_id}
+                  lojaNome={venda.establishment_name}
+                  itensDevolviveis={itensDevolviveis}
+                  produtos={catalogo.produtos}
+                  precos={catalogo.precos}
+                  contatos={catalogo.contatos}
+                  contatoId={venda.contact_id}
+                />
+              )}
+            </>
+          )}
+          {podeCancelar && <CancelarVendaForm vendaId={venda.id} />}
+        </div>
       </header>
 
       {!ativa && (

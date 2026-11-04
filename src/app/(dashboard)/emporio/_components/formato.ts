@@ -110,6 +110,13 @@ export function paraCampo(n: number | null | undefined): string {
  * Lê um campo numérico opcional: vazio vira `null`, ilegível vira "invalido".
  * Distinguir os dois evita gravar "apagar" quando a pessoa só digitou errado.
  */
+/**
+ * O número da venda com 6 dígitos (`004581`). Espelha `formatarNumero` de
+ * `lib/emporio/numeracao.ts`, que não pode ser importado aqui: ele arrasta o
+ * client do Prisma para o navegador.
+ */
+export const numeroDaVenda = (n: number): string => String(n).padStart(6, "0");
+
 export function lerOpcional(bruto: string): number | null | "invalido" {
   if (bruto.trim() === "") return null;
   const n = lerNumeroBr(bruto);
