@@ -478,7 +478,7 @@ async function comBanco() {
       "emporioSalePayment", "emporioSaleReturnItem", "emporioSaleReturn", "emporioSaleItem", "emporioSale",
       "stockTransferItem", "stockTransfer", "productionEntry", "compositionItem", "composition", "emporioPurchaseItem", "emporioPurchase",
       "stockLimit", "shoppingItem", "financialEntry", "negotiation", "presentationPrice", "productPresentation", "userEstablishment",
-      "emporioProduct", "product", "establishment", "bankAccount", "contact", "productCategory", "property",
+      "emporioProduct", "product", "cashRegister", "establishment", "bankAccount", "contact", "productCategory", "property",
     ];
     for (const id of tenantIds) {
       for (const m of modelos) {

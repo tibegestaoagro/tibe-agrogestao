@@ -144,7 +144,7 @@ async function secao1() {
     const modelos = [
       "emporioAuditLog", "cashMovement", "stockMovement", "emporioSalePayment", "emporioSaleReturnItem", "emporioSaleReturn",
       "emporioSaleItem", "emporioSale", "emporioCounter", "emporioSettings", "financialEntry", "presentationPrice", "productPresentation",
-      "userEstablishment", "emporioProduct", "product", "establishment", "bankAccount", "contact", "productCategory", "user",
+      "userEstablishment", "emporioProduct", "product", "cashRegister", "establishment", "bankAccount", "contact", "productCategory", "user",
       "tenantProfile", "tenantFeature",
     ];
     for (const id of tenantIds) {
@@ -339,7 +339,7 @@ async function secao2() {
     check("rótulo WhatsApp no Histórico", ed2.ok && j(ediHist2?.changes).includes("WhatsApp"), j(ediHist2?.changes));
   } finally {
     const modelos = [
-      "emporioAuditLog", "emporioSettings", "emporioCounter", "userEstablishment", "establishment", "user", "tenantProfile", "tenantFeature",
+      "emporioAuditLog", "emporioSettings", "emporioCounter", "userEstablishment", "cashRegister", "establishment", "user", "tenantProfile", "tenantFeature",
     ];
     for (const id of tenantIds) {
       for (const m of modelos) {
@@ -612,7 +612,7 @@ async function secao3() {
     const modelos = [
       "emporioAuditLog", "cashMovement", "stockMovement", "emporioSalePayment", "emporioSaleReturnItem", "emporioSaleReturn",
       "emporioSaleItem", "emporioSale", "emporioCounter", "emporioSettings", "financialEntry", "presentationPrice", "productPresentation",
-      "userEstablishment", "emporioProduct", "product", "establishment", "bankAccount", "contact", "productCategory", "user",
+      "userEstablishment", "emporioProduct", "product", "cashRegister", "establishment", "bankAccount", "contact", "productCategory", "user",
       "tenantProfile", "tenantFeature",
     ];
     for (const id of tenantIds) {

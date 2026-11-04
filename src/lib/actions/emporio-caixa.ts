@@ -433,6 +433,36 @@ export async function saldoDaGaveta(db: TenantPrismaClient, lojaId: string): Pro
   return total;
 }
 
+/** Saldo de um caixa numerado, em centavos: entradas menos saídas. */
+export async function saldoDoCaixa(db: TenantPrismaClient, cashRegisterId: string): Promise<number> {
+  const linhas = await db.cashMovement.groupBy({
+    by: ["direction"],
+    where: { cash_register_id: cashRegisterId },
+    _sum: { amount: true },
+  });
+  let total = 0;
+  for (const l of linhas) {
+    const v = centavos(decToNum(l._sum.amount) ?? 0);
+    total += l.direction === "entrada" ? v : -v;
+  }
+  return total;
+}
+
+/** Saldo "Com a gerência" de uma loja, em centavos: entradas menos saídas. */
+export async function saldoDaGerencia(db: TenantPrismaClient, establishmentId: string): Promise<number> {
+  const linhas = await db.cashMovement.groupBy({
+    by: ["direction"],
+    where: { manager_establishment_id: establishmentId },
+    _sum: { amount: true },
+  });
+  let total = 0;
+  for (const l of linhas) {
+    const v = centavos(decToNum(l._sum.amount) ?? 0);
+    total += l.direction === "entrada" ? v : -v;
+  }
+  return total;
+}
+
 async function viewsDasContas(db: TenantPrismaClient, where: Record<string, unknown>): Promise<ContaView[]> {
   const contas = await db.bankAccount.findMany({
     where,

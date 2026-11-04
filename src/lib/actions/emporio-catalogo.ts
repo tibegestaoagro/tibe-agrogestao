@@ -338,6 +338,9 @@ export async function criarEstabelecimentoAction(
         }),
         include: INCLUDE_LOJA,
       });
+      await tx.cashRegister.create({
+        data: scoped({ establishment_id: criada.id, number: 1, created_by_user_id: ator.id }),
+      });
       await registrarNoHistorico(tx, ator, {
         action: "estabelecimento.criar",
         establishment_id: criada.id,

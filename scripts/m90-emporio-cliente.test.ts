@@ -455,6 +455,7 @@ async function secao3() {
       await prisma.emporioAuditLog.deleteMany({ where: { tenant_id: id } });
       await prisma.contact.deleteMany({ where: { tenant_id: id } });
       await prisma.userEstablishment.deleteMany({ where: { tenant_id: id } });
+      await prisma.cashRegister.deleteMany({ where: { tenant_id: id } });
       await prisma.establishment.deleteMany({ where: { tenant_id: id } });
       await prisma.user.deleteMany({ where: { tenant_id: id } });
       await prisma.tenantProfile.deleteMany({ where: { tenant_id: id } });
@@ -594,7 +595,7 @@ async function secao4() {
     const modelos = [
       "emporioAuditLog", "cashMovement", "stockMovement", "emporioSalePayment", "emporioSaleReturnItem", "emporioSaleReturn",
       "emporioSaleItem", "emporioSale", "financialEntry", "presentationPrice", "productPresentation", "userEstablishment",
-      "emporioProduct", "product", "establishment", "bankAccount", "contact", "productCategory", "user", "tenantProfile", "tenantFeature",
+      "emporioProduct", "product", "cashRegister", "establishment", "bankAccount", "contact", "productCategory", "user", "tenantProfile", "tenantFeature",
     ];
     for (const id of tenantIds) {
       for (const m of modelos) {
@@ -730,7 +731,7 @@ async function secao5() {
     const modelos = [
       "emporioAuditLog", "cashMovement", "stockMovement", "emporioSalePayment", "emporioSaleReturnItem", "emporioSaleReturn",
       "emporioSaleItem", "emporioSale", "financialEntry", "presentationPrice", "productPresentation", "userEstablishment",
-      "emporioProduct", "product", "establishment", "bankAccount", "contact", "productCategory", "user", "tenantProfile", "tenantFeature",
+      "emporioProduct", "product", "cashRegister", "establishment", "bankAccount", "contact", "productCategory", "user", "tenantProfile", "tenantFeature",
     ];
     for (const id of tenantIds) {
       for (const m of modelos) {

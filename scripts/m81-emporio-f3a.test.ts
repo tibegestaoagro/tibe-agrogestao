@@ -765,6 +765,7 @@ async function comBanco() {
         await prisma.userEstablishment.deleteMany({ where: { tenant_id: id } });
         await prisma.emporioProduct.deleteMany({ where: { tenant_id: id } });
         await prisma.product.deleteMany({ where: { tenant_id: id } });
+        await prisma.cashRegister.deleteMany({ where: { tenant_id: id } });
         await prisma.establishment.deleteMany({ where: { tenant_id: id } });
         await prisma.bankAccount.deleteMany({ where: { tenant_id: id } });
         await prisma.contact.deleteMany({ where: { tenant_id: id } });

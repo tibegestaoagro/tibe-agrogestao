@@ -59,6 +59,8 @@ enum EmporioRole {
   gerente_geral
   gestor
   vendedor
+  /// Entrega 2: opera um caixa (abre, vende, sangra, fecha).
+  caixa
 }
 
 /// Módulo 39, F6b (Q131): como a diferença de uma transferência foi resolvida.
@@ -274,6 +276,24 @@ enum CashMovementOrigin {
   estorno_cartao
   /// F4a (Q98, Q100): conta do Empório paga pela tela de Despesas.
   pagamento_despesa
+  /// Entrega 2: do caixa para a gerência, e da gerência para o banco.
+  sangria
+  malote
+  reforco
+  entrega_gerencia
+}
+
+/// Entrega 2: o motivo da contagem de um caixa.
+enum CashCountKind {
+  abertura
+  livre
+  encerramento
+}
+
+/// Entrega 2: o tipo de entrega do caixa à gerência.
+enum CashHandoverKind {
+  sangria
+  malote
 }
 
 /// Módulo 39 (F4a, Q97): o cálculo de uma regra do "Vendeu, Pagou".
@@ -573,7 +593,7 @@ model Tenant {
   emporio_sales             EmporioSale[]
   emporio_settings          EmporioSettings?
   emporio_counters          EmporioCounter[]
-  emporio_sale_items       EmporioSaleItem[]
+  emporio_sale_items        EmporioSaleItem[]
   emporio_sale_payments     EmporioSalePayment[]
   emporio_sale_returns      EmporioSaleReturn[]
   emporio_return_items      EmporioSaleReturnItem[]
@@ -583,6 +603,9 @@ model Tenant {
   emporio_checks            EmporioCheck[]
   cash_transfers            CashTransfer[]
   cash_counts               CashCount[]
+  cash_registers            CashRegister[]
+  cash_sessions             CashSession[]
+  cash_handovers            CashHandover[]
   variable_expense_rules    VariableExpenseRule[]
   sale_variable_expenses    SaleVariableExpense[]
   fixed_expense_templates   FixedExpenseTemplate[]
@@ -741,7 +764,7 @@ model Establishment {
   updated_at           DateTime           @updatedAt
 
   tenant                    Tenant                   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  responsible             User?                    @relation("EstablishmentResponsible", fields: [responsible_user_id], references: [id], onDelete: SetNull)
+  responsible               User?                    @relation("EstablishmentResponsible", fields: [responsible_user_id], references: [id], onDelete: SetNull)
   pix_bank_account          BankAccount?             @relation("EstablishmentPixAccount", fields: [pix_bank_account_id], references: [id], onDelete: SetNull)
   sales                     EmporioSale[]
   cash_movements            CashMovement[]
@@ -749,6 +772,10 @@ model Establishment {
   card_receivables          CardReceivable[]
   checks                    EmporioCheck[]
   cash_counts               CashCount[]
+  cash_registers            CashRegister[]
+  cash_sessions             CashSession[]
+  cash_handovers            CashHandover[]
+  manager_cash_movements    CashMovement[]           @relation("ManagerPlace")
   variable_expense_rules    VariableExpenseRule[]
   fixed_expense_splits      FixedExpenseSplit[]
   fixed_expense_occurrences FixedExpenseOccurrence[]
@@ -1169,6 +1196,7 @@ model EmporioSale {
   canceled_reason                String?
   /// Q86: a devolução que esta venda troca.
   exchange_return_id             String?           @unique
+  cash_session_id                String?
   notes                          String?
   created_at                     DateTime          @default(now())
   updated_at                     DateTime          @updatedAt
@@ -1177,6 +1205,7 @@ model EmporioSale {
   establishment     Establishment         @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
   contact           Contact?              @relation(fields: [contact_id], references: [id], onDelete: Restrict)
   exchange_return   EmporioSaleReturn?    @relation("ExchangeSale", fields: [exchange_return_id], references: [id], onDelete: Restrict)
+  cash_session      CashSession?          @relation(fields: [cash_session_id], references: [id], onDelete: Restrict)
   items             EmporioSaleItem[]
   payments          EmporioSalePayment[]
   returns           EmporioSaleReturn[]   @relation("ReturnOfSale")
@@ -1188,6 +1217,7 @@ model EmporioSale {
 
   @@unique([tenant_id, operation_key])
   @@unique([tenant_id, number])
+  @@index([tenant_id, cash_session_id])
   @@index([tenant_id, establishment_id, sold_at])
   @@index([tenant_id, contact_id])
 }
@@ -1398,22 +1428,114 @@ model CashTransfer {
 /// Módulo 39, F3b (Q93): conferência da gaveta. A diferença vira ajuste no
 /// caixa e "Diferença de caixa" no Financeiro.
 model CashCount {
+  id                 String        @id @default(cuid())
+  tenant_id          String
+  establishment_id   String
+  expected           Decimal       @db.Decimal(14, 2)
+  counted            Decimal       @db.Decimal(14, 2)
+  difference         Decimal       @db.Decimal(14, 2)
+  justification      String?
+  counted_at         DateTime
+  created_by_user_id String?
+  created_at         DateTime      @default(now())
+  cash_register_id   String?
+  cash_session_id    String?
+  kind               CashCountKind @default(livre)
+
+  tenant         Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  establishment  Establishment  @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
+  cash_register  CashRegister?  @relation(fields: [cash_register_id], references: [id], onDelete: Restrict)
+  cash_session   CashSession?   @relation(fields: [cash_session_id], references: [id], onDelete: Restrict)
+  cash_movements CashMovement[]
+
+  @@index([tenant_id, establishment_id, counted_at])
+}
+
+/// Entrega 2: caixa numerado de uma loja (Caixa 1, Caixa 2...). O saldo do
+/// caixa é a soma dos seus `CashMovement`; o da gaveta da loja é a soma dos caixas.
+model CashRegister {
   id                 String   @id @default(cuid())
   tenant_id          String
   establishment_id   String
-  expected           Decimal  @db.Decimal(14, 2)
-  counted            Decimal  @db.Decimal(14, 2)
-  difference         Decimal  @db.Decimal(14, 2)
-  justification      String?
-  counted_at         DateTime
+  number             Int
   created_by_user_id String?
   created_at         DateTime @default(now())
 
   tenant         Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   establishment  Establishment  @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
+  sessions       CashSession[]
+  handovers      CashHandover[]
+  cash_movements CashMovement[]
+  cash_counts    CashCount[]
+
+  @@unique([tenant_id, establishment_id, number])
+}
+
+/// Entrega 2: o turno de um caixa. `open_register_id` é igual a
+/// `cash_register_id` enquanto aberta e nulo quando encerrada: o único garante
+/// uma sessão aberta por caixa.
+model CashSession {
+  id                  String    @id @default(cuid())
+  tenant_id           String
+  establishment_id    String
+  cash_register_id    String
+  open_register_id    String?   @unique
+  operation_key       String
+  opened_by_user_id   String
+  opened_at           DateTime
+  opening_expected    Decimal   @db.Decimal(14, 2)
+  opening_counted     Decimal   @db.Decimal(14, 2)
+  reinforcement       Decimal   @default(0) @db.Decimal(14, 2)
+  closed_at           DateTime?
+  closed_by_user_id   String?
+  close_operation_key String?
+  closing_expected    Decimal?  @db.Decimal(14, 2)
+  closing_counted     Decimal?  @db.Decimal(14, 2)
+  malote_amount       Decimal?  @db.Decimal(14, 2)
+
+  tenant         Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  establishment  Establishment  @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
+  cash_register  CashRegister   @relation(fields: [cash_register_id], references: [id], onDelete: Restrict)
+  handovers      CashHandover[]
+  cash_movements CashMovement[]
+  cash_counts    CashCount[]
+  sales          EmporioSale[]
+
+  @@unique([tenant_id, operation_key])
+  @@unique([tenant_id, close_operation_key])
+  @@index([tenant_id, establishment_id, closed_at])
+}
+
+/// Entrega 2: o que o caixa entrega à gerência (sangria ou malote). Fica
+/// pendente até a gerência confirmar o valor recebido.
+model CashHandover {
+  id                    String           @id @default(cuid())
+  tenant_id             String
+  establishment_id      String
+  cash_register_id      String
+  cash_session_id       String
+  kind                  CashHandoverKind
+  amount                Decimal          @db.Decimal(14, 2)
+  operation_key         String
+  notes                 String?
+  created_by_user_id    String
+  created_at            DateTime         @default(now())
+  confirmed_at          DateTime?
+  confirmed_by_user_id  String?
+  confirm_operation_key String?
+  received_amount       Decimal?         @db.Decimal(14, 2)
+  difference            Decimal?         @db.Decimal(14, 2)
+  confirm_notes         String?
+
+  tenant         Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  establishment  Establishment  @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
+  cash_register  CashRegister   @relation(fields: [cash_register_id], references: [id], onDelete: Restrict)
+  cash_session   CashSession    @relation(fields: [cash_session_id], references: [id], onDelete: Restrict)
   cash_movements CashMovement[]
 
-  @@index([tenant_id, establishment_id, counted_at])
+  @@unique([tenant_id, operation_key])
+  @@unique([tenant_id, confirm_operation_key])
+  @@index([tenant_id, establishment_id, confirmed_at])
 }
 
 /// Módulo 39, F4a (Q97): regra do "Vendeu, Pagou" de uma loja. A venda copia
@@ -1582,45 +1704,58 @@ model EmporioSaleReturnItem {
 /// `CashMovement_exactly_one_place`). O saldo é a soma: entradas menos saídas.
 /// Nada é cancelado; o estorno é um movimento de saída.
 model CashMovement {
-  id                   String             @id @default(cuid())
-  tenant_id            String
-  establishment_id     String?
-  bank_account_id      String?
-  direction            CashDirection
+  id                       String             @id @default(cuid())
+  tenant_id                String
+  establishment_id         String?
+  bank_account_id          String?
+  direction                CashDirection
   /// Sempre > 0; o sinal vem de `direction`.
-  amount               Decimal            @db.Decimal(14, 2)
-  origin               CashMovementOrigin
-  occurred_at          DateTime
-  sale_id              String?
-  sale_return_id       String?
-  financial_payment_id String?
+  amount                   Decimal            @db.Decimal(14, 2)
+  origin                   CashMovementOrigin
+  occurred_at              DateTime
+  sale_id                  String?
+  sale_return_id           String?
+  financial_payment_id     String?
   /// F3b: a transferência, a conferência, o cheque compensado ou a parcela de
   /// cartão estornada que gerou o movimento.
-  cash_transfer_id     String?
-  cash_count_id        String?
-  check_id             String?
-  card_receivable_id   String?
+  cash_transfer_id         String?
+  cash_count_id            String?
+  check_id                 String?
+  card_receivable_id       String?
+  /// Entrega 2: o caixa, o turno, a gerência e a entrega do movimento. A gerência
+  /// é um terceiro lugar (CHECK `CashMovement_exactly_one_place`).
+  cash_register_id         String?
+  cash_session_id          String?
+  manager_establishment_id String?
+  cash_handover_id         String?
   /// §23.2, no recebimento de fiado. Não é única: o recebimento distribuído
   /// por vários lançamentos grava a mesma chave em cada movimento.
-  operation_key        String?
-  notes                String?
-  created_by_user_id   String?
-  created_at           DateTime           @default(now())
+  operation_key            String?
+  notes                    String?
+  created_by_user_id       String?
+  created_at               DateTime           @default(now())
 
-  tenant            Tenant             @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  establishment     Establishment?     @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
-  bank_account      BankAccount?       @relation(fields: [bank_account_id], references: [id], onDelete: Restrict)
-  sale              EmporioSale?       @relation(fields: [sale_id], references: [id], onDelete: Restrict)
-  sale_return       EmporioSaleReturn? @relation(fields: [sale_return_id], references: [id], onDelete: Restrict)
-  financial_payment FinancialPayment?  @relation(fields: [financial_payment_id], references: [id], onDelete: SetNull)
-  cash_transfer     CashTransfer?      @relation(fields: [cash_transfer_id], references: [id], onDelete: Restrict)
-  cash_count        CashCount?         @relation(fields: [cash_count_id], references: [id], onDelete: Restrict)
-  check             EmporioCheck?      @relation(fields: [check_id], references: [id], onDelete: Restrict)
-  card_receivable   CardReceivable?    @relation(fields: [card_receivable_id], references: [id], onDelete: Restrict)
+  tenant                Tenant             @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  establishment         Establishment?     @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
+  bank_account          BankAccount?       @relation(fields: [bank_account_id], references: [id], onDelete: Restrict)
+  sale                  EmporioSale?       @relation(fields: [sale_id], references: [id], onDelete: Restrict)
+  sale_return           EmporioSaleReturn? @relation(fields: [sale_return_id], references: [id], onDelete: Restrict)
+  financial_payment     FinancialPayment?  @relation(fields: [financial_payment_id], references: [id], onDelete: SetNull)
+  cash_transfer         CashTransfer?      @relation(fields: [cash_transfer_id], references: [id], onDelete: Restrict)
+  cash_count            CashCount?         @relation(fields: [cash_count_id], references: [id], onDelete: Restrict)
+  check                 EmporioCheck?      @relation(fields: [check_id], references: [id], onDelete: Restrict)
+  card_receivable       CardReceivable?    @relation(fields: [card_receivable_id], references: [id], onDelete: Restrict)
+  cash_register         CashRegister?      @relation(fields: [cash_register_id], references: [id], onDelete: Restrict)
+  cash_session          CashSession?       @relation(fields: [cash_session_id], references: [id], onDelete: Restrict)
+  manager_establishment Establishment?     @relation("ManagerPlace", fields: [manager_establishment_id], references: [id], onDelete: Restrict)
+  cash_handover         CashHandover?      @relation(fields: [cash_handover_id], references: [id], onDelete: Restrict)
 
   @@index([tenant_id, operation_key])
   @@index([tenant_id, establishment_id])
   @@index([tenant_id, bank_account_id])
+  @@index([tenant_id, cash_register_id])
+  @@index([tenant_id, cash_session_id])
+  @@index([tenant_id, manager_establishment_id])
 }
 
 // Sessão do aplicativo (identidade por token, Onda 1). O access token é um JWT
