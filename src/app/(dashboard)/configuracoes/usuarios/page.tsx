@@ -14,7 +14,7 @@ import InviteForm from "@/components/usuarios/invite-form";
 import UserRowActions from "@/components/usuarios/user-row-actions";
 import { getSeatUsage } from "@/lib/seats";
 
-const FUNCAO_ROTULO = { gerente_geral: "Gerente geral", gestor: "Gestor", vendedor: "Vendedor" } as const;
+const FUNCAO_ROTULO = { gerente_geral: "Gerente geral", gestor: "Gestor", vendedor: "Vendedor", caixa: "Caixa" } as const;
 
 /**
  * Configurações → Usuários (spec 5.2). Acesso: Owner e Admin (PRD 5.2).

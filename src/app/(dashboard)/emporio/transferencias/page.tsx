@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { lacradoEfetivo, listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
@@ -48,6 +49,8 @@ export default async function TransferenciasPage({
   const user = await requireFeaturePage("emporio");
   const { loja = "", situacao = "" } = await searchParams;
   const db = await getTenantDb();
+  // O Caixa não abre esta tela: só vende, recebe fiado e opera o caixa.
+  if ((await papelDoEmporio(db, user)).papel === "caixa") redirect("/emporio");
   const papel = await papelDoEmporio(db, user);
   // F6b: receber e cancelar são do Vendedor da loja para cima; enviar é do Gestor da origem.
   const podeEscrever = pode(papel, "vendedor_da_loja");

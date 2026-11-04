@@ -9,7 +9,7 @@ import type { AppUserRole } from "@/types/next-auth";
  * request, nunca do JWT, para mudar na hora.
  */
 
-export type PapelEmporio = "dono" | "gerente_geral" | "gestor" | "vendedor";
+export type PapelEmporio = "dono" | "gerente_geral" | "gestor" | "vendedor" | "caixa";
 
 /** Q129: as chaves de confiança do Vendedor, com o rótulo da tela. */
 export const EMPORIO_KEYS = [
@@ -19,7 +19,6 @@ export const EMPORIO_KEYS = [
   { id: "perda", label: "Registrar perda" },
   { id: "estoque_inicial", label: "Informar estoque inicial" },
   { id: "producao", label: "Registrar produção" },
-  { id: "transferir_caixa", label: "Levar a gaveta ao banco" },
   { id: "depositar_cheque", label: "Depositar cheque" },
   { id: "cadastrar_produto", label: "Cadastrar e editar produto" },
 ] as const;
@@ -31,7 +30,7 @@ export type PapelContexto = {
   /** Lojas do ator; nulo para Dono e Gerente geral, que veem todas. */
   lojas: Set<string> | null;
   chaves: Set<string>;
-  /** Q120: Gestor, Vendedor, ou Gerente geral com `emporio_only`. */
+  /** Q120: Gestor, Vendedor, Caixa, ou Gerente geral com `emporio_only`. */
   soDaLoja: boolean;
 };
 
@@ -78,6 +77,8 @@ export type AcaoEmporio =
   | "conta"
   | "gestor_da_loja"
   | "vendedor_da_loja"
+  /** Verdadeira para todo papel com Empório, menos o Caixa (que só vende, recebe fiado e opera o caixa). */
+  | "fora_do_caixa"
   | `chave:${EmporioKey}`;
 
 const noAlcance = (c: PapelContexto, lojaId?: string) => !lojaId || !c.lojas || c.lojas.has(lojaId);
@@ -90,6 +91,7 @@ export function pode(c: PapelContexto, acao: AcaoEmporio, lojaId?: string): bool
   if (!c.papel) return false;
   const conta = c.papel === "dono" || c.papel === "gerente_geral";
   if (acao === "conta") return conta;
+  if (acao === "fora_do_caixa") return c.papel !== "caixa";
   if (conta) return true;
   if (acao === "gestor_da_loja") return c.papel === "gestor" && noAlcance(c, lojaId);
   if (acao === "vendedor_da_loja") return noAlcance(c, lojaId);
@@ -113,6 +115,7 @@ const FRASES: Record<string, string> = {
   conta: "Só o dono e o gerente geral podem fazer isso.",
   gestor_da_loja: "Só o gestor da loja, o gerente geral e o dono podem fazer isso.",
   vendedor_da_loja: "Seu acesso não permite fazer isso nessa loja.",
+  fora_do_caixa: "O acesso de caixa não inclui isso.",
 };
 
 /** Frase de recusa por papel (403). `oQue` complementa: "cancelar uma venda". */
@@ -129,6 +132,15 @@ export function recusaDe(acao: AcaoEmporio, oQue?: string) {
     return fail("FORBIDDEN", `Só o gestor da loja pode ${oQue}.`, 403);
   }
   return fail("FORBIDDEN", FRASES[acao] ?? "Você não tem permissão para isso.", 403);
+}
+
+/**
+ * Recusa (403) só o Caixa. Para as leituras que já devolviam lista vazia a quem
+ * não tem função: elas seguem assim, e o Caixa passa a receber a recusa.
+ */
+export async function recusarCaixa(db: TenantPrismaClient, ator: AtorPapel, oQue: string) {
+  const c = await papelDoEmporio(db, ator);
+  return c.papel === "caixa" ? fail("FORBIDDEN", `O acesso de caixa não inclui ${oQue}.`, 403) : null;
 }
 
 /**

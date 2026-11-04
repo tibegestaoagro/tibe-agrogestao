@@ -2,7 +2,7 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { dinheiro, itens as frasItens, registrarNoHistorico } from "@/lib/emporio/historico";
 import { decToNum, isoOrNull } from "@/lib/serialize";
-import { exigir } from "@/lib/emporio/papel";
+import { exigir, recusarCaixa } from "@/lib/emporio/papel";
 import { createLinkedEntry } from "@/lib/financial";
 import { lacradoEfetivo, lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 
@@ -174,6 +174,8 @@ export async function lerCompraAction(
   ator: Ator,
   id: string,
 ): Promise<ActionResult<CompraView>> {
+  const foraDoCaixa = await recusarCaixa(db, ator, "ver as compras");
+  if (foraDoCaixa) return foraDoCaixa;
   const visiveis = await lojasDoAtor(db, ator);
   const v = await viewDaCompra(db, id);
   if (!v || (visiveis && !visiveis.has(v.establishment_id))) return NAO_ACHADO("Compra");
@@ -185,6 +187,8 @@ export async function listarComprasAction(
   ator: Ator,
   opts: { establishment_id?: string; status?: "pendente" | "recebida" | "cancelada"; contact_id?: string; limit?: number } = {},
 ): Promise<ActionResult<CompraView[]>> {
+  const foraDoCaixa = await recusarCaixa(db, ator, "ver as compras");
+  if (foraDoCaixa) return foraDoCaixa;
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
     return NAO_ACHADO("Estabelecimento", "establishment_id");

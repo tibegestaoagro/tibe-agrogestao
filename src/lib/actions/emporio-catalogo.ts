@@ -1,7 +1,7 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum, isoOrNull } from "@/lib/serialize";
-import { alcanceDeLeitura, exigir, lojasDoPapel, papelDoEmporio } from "@/lib/emporio/papel";
+import { alcanceDeLeitura, exigir, lojasDoPapel, papelDoEmporio, recusarCaixa } from "@/lib/emporio/papel";
 import { precoSugerido, percentualEfetivo } from "@/lib/emporio/preco";
 import { findUnit } from "@/lib/stock/units";
 import { diferencas, dinheiro, registrarNoHistorico } from "@/lib/emporio/historico";
@@ -631,9 +631,11 @@ function viewProduto(p: ProdutoRow): EmporioProductView {
 
 export async function listarProdutosEmporioAction(
   db: TenantPrismaClient,
-  _ator: Ator,
+  ator: Ator,
   opts: { incluir_arquivados?: boolean; q?: string; species?: string } = {},
 ): Promise<ActionResult<EmporioProductView[]>> {
+  const foraDoCaixa = await recusarCaixa(db, ator, "ver os produtos");
+  if (foraDoCaixa) return foraDoCaixa;
   if (opts.species != null && opts.species !== "" && !ehEspecie(opts.species)) {
     return fail("VALIDATION_ERROR", mensagemEspecie(), 422, "species");
   }
@@ -669,8 +671,10 @@ export type CandidatoView = {
 
 export async function listarCandidatosAction(
   db: TenantPrismaClient,
-  _ator: Ator,
+  ator: Ator,
 ): Promise<ActionResult<CandidatoView[]>> {
+  const foraDoCaixa = await recusarCaixa(db, ator, "ver os produtos");
+  if (foraDoCaixa) return foraDoCaixa;
   const produtos = await db.product.findMany({
     where: { archived_at: null, emporio: { is: null } },
     include: { category: true },
@@ -693,6 +697,8 @@ export async function lerProdutoEmporioAction(
   ator: Ator,
   id: string,
 ): Promise<ActionResult<EmporioProductDetail>> {
+  const foraDoCaixa = await recusarCaixa(db, ator, "ver os produtos");
+  if (foraDoCaixa) return foraDoCaixa;
   const p = await db.emporioProduct.findFirst({ where: { id }, include: INCLUDE_PRODUTO });
   if (!p) return NAO_ACHADO("Produto");
 

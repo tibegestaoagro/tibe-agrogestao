@@ -94,7 +94,7 @@ export function EquipeForm({
     if (!membro && !name.trim()) novos.name = "Informe o nome.";
     if (!membro && !email.trim()) novos.email = "Informe o email de acesso.";
     if (!funcao) novos.emporio_role = "Escolha a função da pessoa.";
-    if ((funcao === "gestor" || funcao === "vendedor") && lojasSel.length === 0) {
+    if ((funcao === "gestor" || funcao === "vendedor" || funcao === "caixa") && lojasSel.length === 0) {
       novos.establishment_ids = "Escolha pelo menos uma loja.";
     }
     if (Object.keys(novos).length > 0) {
@@ -240,7 +240,7 @@ export function EquipeForm({
             )}
           </Field>
 
-          {(funcao === "gestor" || funcao === "vendedor") && (
+          {(funcao === "gestor" || funcao === "vendedor" || funcao === "caixa") && (
             <Field label="Lojas" required id={err.idDe("establishment_ids")} error={err.erros.establishment_ids}>
               {({ id, ...aria }) => (
                 <div id={id} {...aria} tabIndex={-1} className="space-y-2">

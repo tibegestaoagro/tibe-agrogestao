@@ -3,10 +3,11 @@
  * arquivo "use client" chega ao servidor como referência, e `FUNCAO_ROTULO[x]`
  * na página devolveria `undefined`.
  */
-export type FuncaoDaEquipe = "gerente_geral" | "gestor" | "vendedor";
+export type FuncaoDaEquipe = "gerente_geral" | "gestor" | "vendedor" | "caixa";
 
 export const FUNCAO_ROTULO: Record<FuncaoDaEquipe, string> = {
   gerente_geral: "Gerente geral",
   gestor: "Gestor",
   vendedor: "Vendedor",
+  caixa: "Caixa",
 };

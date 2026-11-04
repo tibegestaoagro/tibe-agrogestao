@@ -309,9 +309,19 @@ async function vendaPorId(db: TenantPrismaClient, id: string): Promise<VendaView
   return v ?? null;
 }
 
+/** Meia-noite de hoje em São Paulo (sem horário de verão desde 2019), como instante. */
+function inicioDeHojeEmSaoPaulo(): Date {
+  const ymd = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+  return new Date(`${ymd}T00:00:00-03:00`);
+}
+
 export async function lerVendaAction(db: TenantPrismaClient, ator: Ator, id: string): Promise<ActionResult<VendaView>> {
   const v = await vendaPorId(db, id);
   if (!v || !(await lojaVisivel(db, ator, v.establishment_id))) return NAO_ACHADO("Venda");
+  // O Caixa só enxerga o dia de hoje.
+  if ((await papelDoEmporio(db, ator)).papel === "caixa" && new Date(v.sold_at) < inicioDeHojeEmSaoPaulo()) {
+    return NAO_ACHADO("Venda");
+  }
   return ok(v);
 }
 
@@ -333,6 +343,11 @@ export async function listarVendasAction(
   }
   const periodo: Record<string, Date> = {};
   if (dataValida(opts.de)) periodo.gte = opts.de;
+  // O Caixa só enxerga o dia de hoje, mesmo pedindo um período maior.
+  if ((await papelDoEmporio(db, ator)).papel === "caixa") {
+    const hoje = inicioDeHojeEmSaoPaulo();
+    if (!periodo.gte || periodo.gte < hoje) periodo.gte = hoje;
+  }
   if (dataValida(opts.ate)) periodo.lte = opts.ate;
   const where: Record<string, unknown> = {
     ...(opts.establishment_id

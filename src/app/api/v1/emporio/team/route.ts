@@ -7,8 +7,8 @@ import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
 /** GET e POST /api/v1/emporio/team: wrapper fino, a regra vive na action. */
 
-const FUNCAO = z.enum(["gerente_geral", "gestor", "vendedor"], {
-  error: "Escolha a função: gerente geral, gestor ou vendedor.",
+const FUNCAO = z.enum(["gerente_geral", "gestor", "vendedor", "caixa"], {
+  error: "Escolha a função: gerente geral, gestor, vendedor ou caixa.",
 });
 
 const cadastrarSchema = z.object({

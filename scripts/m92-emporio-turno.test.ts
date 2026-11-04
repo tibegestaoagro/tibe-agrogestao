@@ -8,6 +8,7 @@ exigirBancoLocal();
  * Roda: `npm run test:m92`
  *
  * Seção 1: o modelo (caixas numerados, sessão única por caixa, "Com a gerência").
+ * Seção 2: o papel Caixa (Equipe, permissões, páginas, leituras recusadas, vendas de hoje, desconto).
  */
 
 let falhas = 0;
@@ -192,6 +193,178 @@ async function secao1() {
   check("tenant B só tem o próprio Caixa 1", (await B.db.cashRegister.count()) === 1);
 }
 
+async function secao2() {
+  console.log("\nSeção 2: o papel Caixa (com banco)");
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+  const Cat = await import("@/lib/actions/emporio-catalogo");
+  const Est = await import("@/lib/actions/emporio-estoque");
+  const Cmp = await import("@/lib/actions/emporio-compras");
+  const Trf = await import("@/lib/actions/emporio-transferencias");
+  const Ven = await import("@/lib/actions/emporio-vendas");
+  const Desp = await import("@/lib/actions/emporio-despesas");
+  const Eq = await import("@/lib/actions/emporio-equipe");
+  const Cli = await import("@/lib/actions/emporio-clientes");
+  const { papelDoEmporio, pode, EMPORIO_KEYS } = await import("@/lib/emporio/papel");
+  const { paginasVisiveis } = await import("@/lib/emporio/paginas");
+  const { papelDeFixture } = await import("./_emporio-papel");
+  const stamp = Date.now();
+
+  const t = await prisma.tenant.create({
+    data: {
+      name: `M92 caixa ${stamp}`,
+      document: `M92C${stamp}`.slice(0, 14),
+      plan: "grupo",
+      status: "trial",
+      trial_ends_at: new Date(Date.now() + 86_400_000),
+    },
+  });
+  tenantIds.push(t.id);
+  await prisma.tenantProfile.create({ data: { tenant_id: t.id, profile_type: "emporio", active: true } });
+  await prisma.tenantFeature.create({ data: { tenant_id: t.id, feature_key: "emporio", enabled: true } });
+  const u = await prisma.user.create({
+    data: {
+      tenant_id: t.id,
+      name: "M92 dono caixa",
+      email: `m92-dono-caixa-${stamp}@teste.local`,
+      password_hash: "x",
+      role: "OWNER",
+      ...papelDeFixture("OWNER"),
+    },
+  });
+  const owner = { id: u.id, role: "OWNER" as const, email: u.email };
+  const db = prismaForTenant(t.id);
+  const l1 = await Cat.criarEstabelecimentoAction(db, owner, { name: "M92 C Loja 1" });
+  const l2 = await Cat.criarEstabelecimentoAction(db, owner, { name: "M92 C Loja 2" });
+  if (!l1.ok || !l2.ok) throw new Error(`lojas: ${j([l1, l2])}`);
+  const loja1 = l1.data.id;
+  const loja2 = l2.data.id;
+  await prisma.establishment.update({ where: { id: loja1 }, data: { max_discount_pct: 10 } });
+
+  // Equipe: cadastrar o Caixa
+  const semLoja = await Eq.cadastrarMembroAction(db, owner, { name: "Caixa Sem Loja", email: `m92-cx0-${stamp}@teste.local`, emporio_role: "caixa" });
+  check("cadastrar Caixa sem loja: 422 em establishment_ids", !semLoja.ok && semLoja.status === 422 && semLoja.field === "establishment_ids", j(semLoja));
+  const comChave = await Eq.cadastrarMembroAction(db, owner, {
+    name: "Caixa Com Chave",
+    email: `m92-cx1-${stamp}@teste.local`,
+    emporio_role: "caixa",
+    establishment_ids: [loja1],
+    emporio_keys: ["perda"],
+  });
+  check("cadastrar Caixa com chaves: 422 em emporio_keys", !comChave.ok && comChave.status === 422 && comChave.field === "emporio_keys", j(comChave));
+  const cad = await Eq.cadastrarMembroAction(db, owner, {
+    name: "Caixa Um",
+    email: `m92-cx2-${stamp}@teste.local`,
+    emporio_role: "caixa",
+    establishment_ids: [loja1],
+  });
+  check("cadastrar Caixa com lojas e sem chaves funciona", cad.ok, j(cad));
+  if (!cad.ok) throw new Error("sem caixa não há seção 2");
+  const caixa = { id: cad.data.id, role: "OPERADOR" as const };
+  const gravado = await prisma.user.findUnique({ where: { id: caixa.id } });
+  check("o Caixa fica gravado com emporio_role caixa, sem chaves", gravado?.emporio_role === "caixa" && gravado.emporio_keys.length === 0, j(gravado));
+  const alterado = await Eq.alterarMembroAction(db, owner, caixa.id, { emporio_keys: ["perda"] });
+  check("alterar o Caixa para ter chaves: 422 em emporio_keys", !alterado.ok && alterado.status === 422 && alterado.field === "emporio_keys", j(alterado));
+
+  // papel.ts
+  const c = await papelDoEmporio(db, caixa);
+  check("papel carregado é caixa, soDaLoja, sem chaves", c.papel === "caixa" && c.soDaLoja && c.chaves.size === 0, j({ p: c.papel, s: c.soDaLoja }));
+  check("pode vendedor_da_loja na Loja 1", pode(c, "vendedor_da_loja", loja1));
+  check("não pode vendedor_da_loja na Loja 2", !pode(c, "vendedor_da_loja", loja2));
+  check("nenhuma chave vale para o Caixa", EMPORIO_KEYS.every((k) => !pode(c, `chave:${k.id}`, loja1)));
+  check("chave:devolver_trocar falsa na Loja 1", !pode(c, "chave:devolver_trocar", loja1));
+  check("gestor_da_loja e conta falsos", !pode(c, "gestor_da_loja", loja1) && !pode(c, "conta"));
+  check("fora_do_caixa falso para o Caixa", !pode(c, "fora_do_caixa"));
+  const gestor = { ...c, papel: "gestor" as const };
+  const vend = { ...c, papel: "vendedor" as const };
+  const dono = { ...c, papel: "dono" as const, lojas: null };
+  check("fora_do_caixa verdadeiro para gestor, vendedor e dono", pode(gestor, "fora_do_caixa") && pode(vend, "fora_do_caixa") && pode(dono, "fora_do_caixa"));
+  check("EMPORIO_KEYS não tem mais transferir_caixa", !EMPORIO_KEYS.some((k) => (k.id as string) === "transferir_caixa"));
+  const hrefs = paginasVisiveis(c).map((p) => p.href);
+  check(
+    "paginasVisiveis do Caixa é exatamente Início, Vender, Vendas, Fiado e Caixa",
+    j(hrefs) === j(["/emporio", "/emporio/vender", "/emporio/vendas", "/emporio/fiado", "/emporio/caixa"]),
+    j(hrefs),
+  );
+
+  // Produto, preço e estoque nas duas lojas
+  const cat = await db.productCategory.create({ data: scoped({ name: "M92 categoria" }) });
+  const prod = await Cat.criarProdutoEmporioAction(db, owner, { name: `M92 Sal ${stamp}`, category_id: cat.id, base_unit: "quilograma" });
+  if (!prod.ok) throw new Error(j(prod));
+  const ap = await Cat.criarApresentacaoAction(db, owner, prod.data.id, { name: "Quilo", base_qty: 1, is_sealed_package: false });
+  if (!ap.ok) throw new Error(j(ap));
+  for (const est of [loja1, loja2]) {
+    const p = await Cat.definirPrecoAction(db, owner, { establishment_id: est, presentation_id: ap.data.id, price: 20 });
+    if (!p.ok) throw new Error(j(p));
+    const e = await Est.implantarEstoqueAction(db, owner, { establishment_id: est, emporio_product_id: prod.data.id, sealed: [], loose_qty: 100, unit_cost: 5 });
+    if (!e.ok) throw new Error(j(e));
+  }
+  const cf = (await Cli.garantirConsumidorFinal(db)).id;
+  let seq = 0;
+  const vender = (ator: { id: string; role: "OWNER" | "OPERADOR" }, est: string, preco: number) =>
+    Ven.venderAction(db, ator, {
+      operation_key: `m92-s2-${stamp}-${(seq += 1)}`,
+      establishment_id: est,
+      contact_id: cf,
+      items: [{ emporio_product_id: prod.data.id, presentation_id: ap.data.id, quantity: 1, unit_price: preco }],
+      payments: [{ kind: "dinheiro", amount: preco }],
+    });
+
+  // Desconto
+  const acima = await vender(caixa, loja1, 15);
+  check("desconto de 25% (limite 10%) é recusado ao Caixa: 403 DISCOUNT_ABOVE_LIMIT em items", !acima.ok && acima.code === "DISCOUNT_ABOVE_LIMIT" && acima.status === 403 && acima.field === "items", j(acima));
+  const dentro = await vender(caixa, loja1, 19);
+  check("desconto de 5% (dentro do limite) passa para o Caixa", dentro.ok, j(dentro));
+  const naLoja2 = await vender(caixa, loja2, 20);
+  check("o Caixa não vende na Loja 2: recusado", !naLoja2.ok, j(naLoja2));
+
+  // Vendas: hoje e nas lojas dele
+  const antiga = await vender(owner, loja1, 20);
+  if (!antiga.ok) throw new Error(j(antiga));
+  await prisma.emporioSale.update({ where: { id: antiga.data.id }, data: { sold_at: new Date(Date.now() - 3 * 86_400_000) } });
+  const outraLoja = await vender(owner, loja2, 20);
+  if (!outraLoja.ok) throw new Error(j(outraLoja));
+  const dezDias = new Date(Date.now() - 10 * 86_400_000);
+  const doCaixa = await Ven.listarVendasAction(db, caixa, { de: dezDias });
+  check(
+    "listarVendas do Caixa, pedindo 10 dias: só a venda de hoje da Loja 1",
+    doCaixa.ok && doCaixa.data.length === 1 && dentro.ok && doCaixa.data[0].id === dentro.data.id,
+    j(doCaixa.ok ? doCaixa.data.map((v) => v.id) : doCaixa),
+  );
+  const semPeriodo = await Ven.listarVendasAction(db, caixa);
+  check("listarVendas do Caixa sem período também é só hoje", semPeriodo.ok && semPeriodo.data.length === 1, j(semPeriodo.ok ? semPeriodo.data.length : semPeriodo));
+  const doDono = await Ven.listarVendasAction(db, owner, { de: dezDias });
+  check("o Dono, pedindo 10 dias, vê as 3 vendas feitas", doDono.ok && doDono.data.length === 3, j(doDono.ok ? doDono.data.length : doDono));
+  const lerAntiga = await Ven.lerVendaAction(db, caixa, antiga.data.id);
+  check("lerVenda de dia anterior: 404 para o Caixa", !lerAntiga.ok && lerAntiga.status === 404, j(lerAntiga));
+
+  // Recusas 403
+  const dev = await Ven.devolverAction(db, caixa, dentro.ok ? dentro.data.id : "x", { operation_key: `m92-dev-${stamp}`, refund_kind: "dinheiro", items: [] });
+  check("devolverAction recusa o Caixa com 403", !dev.ok && dev.status === 403, j(dev));
+  const canc = await Ven.cancelarVendaAction(db, caixa, dentro.ok ? dentro.data.id : "x", { reason: "teste" });
+  check("cancelarVendaAction recusa o Caixa com 403", !canc.ok && canc.status === 403, j(canc));
+  const pag = await Desp.pagarDespesasAction(db, caixa, { entry_ids: ["x"], from: { establishment_id: loja1 } } as never);
+  check("pagarDespesasAction recusa o Caixa com 403", !pag.ok && pag.status === 403, j(pag));
+  const leituras: [string, { ok: boolean; status?: number }][] = [
+    ["saldoDaLojaAction", await Est.saldoDaLojaAction(db, caixa, loja1)],
+    ["saldoDoProdutoAction", await Est.saldoDoProdutoAction(db, caixa, prod.data.id)],
+    ["estoqueConsolidadoAction", await Est.estoqueConsolidadoAction(db, caixa)],
+    ["precisaReporAction", await Est.precisaReporAction(db, caixa)],
+    ["listarProdutosEmporioAction", await Cat.listarProdutosEmporioAction(db, caixa)],
+    ["lerProdutoEmporioAction", await Cat.lerProdutoEmporioAction(db, caixa, prod.data.id)],
+    ["listarCandidatosAction", await Cat.listarCandidatosAction(db, caixa)],
+    ["listarComprasAction", await Cmp.listarComprasAction(db, caixa)],
+    ["listarTransferenciasAction", await Trf.listarTransferenciasAction(db, caixa)],
+    ["transferenciasParadasAction", await Trf.transferenciasParadasAction(db, caixa)],
+  ];
+  for (const [nome, r] of leituras) {
+    check(`${nome} recusa o Caixa com 403`, !r.ok && r.status === 403, j(r));
+  }
+  const estoqueDono = await Est.saldoDaLojaAction(db, owner, loja1);
+  check("a leitura do estoque segue aberta ao Dono", estoqueDono.ok);
+  const lojasCaixa = await Cat.listarEstabelecimentosAction(db, caixa);
+  check("listarEstabelecimentos segue aberta ao Caixa (o balcão precisa), só as lojas dele", lojasCaixa.ok && lojasCaixa.data.length === 1 && lojasCaixa.data[0].id === loja1, j(lojasCaixa));
+}
+
 async function limpar() {
   const { prisma } = await import("@/lib/prisma");
   const modelos = [
@@ -217,6 +390,7 @@ async function limpar() {
 async function main() {
   try {
     await secao1();
+    await secao2();
   } finally {
     await limpar();
   }

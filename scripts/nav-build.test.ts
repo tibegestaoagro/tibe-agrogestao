@@ -139,6 +139,15 @@ function main() {
   assert(!hrefsGestor.includes("/emporio/equipe"), "gestor não vê Equipe");
   assert(veAPagina(gestor, "/emporio/resultado") && !veAPagina(vendedor, "/emporio/resultado"), "veAPagina segue o papel");
 
+  const caixa: PapelContexto = { papel: "caixa", lojas: new Set([lojaA]), chaves: new Set(), soDaLoja: true };
+  const doCaixa = buildNavItems({ ...base, hasEmporio: true, soDaLoja: true, paginasDoEmporio: paginasVisiveis(caixa) });
+  assert(
+    JSON.stringify(grupo(doCaixa)?.children.map((c) => c.href)) ===
+      JSON.stringify(["/emporio", "/emporio/vender", "/emporio/vendas", "/emporio/fiado", "/emporio/caixa"]),
+    "caixa: o menu tem só Início, Vender, Vendas, Fiado e Caixa",
+  );
+  assert(!veAPagina(caixa, "/emporio/estoque") && !veAPagina(caixa, "/emporio/estabelecimentos"), "veAPagina esconde Estoque e Lojas do caixa");
+
   const semEmporio = buildNavItems({ ...base, hasEmporio: false });
   assert(grupo(semEmporio) === undefined || grupo(semEmporio)?.show === false, "sem Empório, o grupo não aparece");
 

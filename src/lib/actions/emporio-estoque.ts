@@ -4,7 +4,7 @@ import { delegates } from "@/lib/prisma-delegates";
 import { runSerializableTenantTransaction } from "@/lib/financial";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum } from "@/lib/serialize";
-import { exigir } from "@/lib/emporio/papel";
+import { exigir, recusarCaixa } from "@/lib/emporio/papel";
 import { diferencas, registrarNoHistorico } from "@/lib/emporio/historico";
 import { descreverQuantidade } from "@/lib/stock/units";
 import { custoMedio, deltaDaLoja, type MovimentoDeCusto } from "@/lib/emporio/custo-medio";
@@ -413,6 +413,8 @@ export async function saldoDaLojaAction(
   ator: Ator,
   establishment_id: string,
 ): Promise<ActionResult<StockLine[]>> {
+  const foraDoCaixa = await recusarCaixa(db, ator, "ver o estoque");
+  if (foraDoCaixa) return foraDoCaixa;
   // Q128: o Gestor lê o estoque de qualquer loja.
   const loja = await acharLoja(db, ator, establishment_id, true);
   if (!loja.ok) return loja;
@@ -424,6 +426,8 @@ export async function saldoDoProdutoAction(
   ator: Ator,
   emporio_product_id: string,
 ): Promise<ActionResult<ProductStockView>> {
+  const foraDoCaixa = await recusarCaixa(db, ator, "ver o estoque");
+  if (foraDoCaixa) return foraDoCaixa;
   const p = await acharProduto(db, emporio_product_id);
   if (!p.ok) return p;
   const lojas = await lojasVisiveis(db, ator, false, true);
@@ -451,6 +455,8 @@ export async function estoqueConsolidadoAction(
   db: TenantPrismaClient,
   ator: Ator,
 ): Promise<ActionResult<ConsolidatedLine[]>> {
+  const foraDoCaixa = await recusarCaixa(db, ator, "ver o estoque");
+  if (foraDoCaixa) return foraDoCaixa;
   const lojas = await lojasVisiveis(db, ator, false, true);
   const linhas = await montarLinhas(delegates(db), lojas);
   return ok(consolidar(linhas));
@@ -461,6 +467,8 @@ export async function precisaReporAction(
   ator: Ator,
   opts: { establishment_id?: string } = {},
 ): Promise<ActionResult<StockLine[]>> {
+  const foraDoCaixa = await recusarCaixa(db, ator, "ver o estoque");
+  if (foraDoCaixa) return foraDoCaixa;
   let lojas: Loja[];
   if (opts.establishment_id !== undefined && opts.establishment_id !== null) {
     const loja = await acharLoja(db, ator, opts.establishment_id);

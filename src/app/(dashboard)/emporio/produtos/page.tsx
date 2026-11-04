@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
@@ -45,6 +46,8 @@ export default async function ProdutosEmporioPage({
   };
 
   const db = await getTenantDb();
+  // O Caixa não abre esta tela: só vende, recebe fiado e opera o caixa.
+  if ((await papelDoEmporio(db, user)).papel === "caixa") redirect("/emporio");
   // F6b: cadastrar e editar produto é por chave (Vendedor com a chave, Gestor para cima).
   const podeEscrever = pode(await papelDoEmporio(db, user), "chave:cadastrar_produto");
 

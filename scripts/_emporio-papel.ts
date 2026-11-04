@@ -15,7 +15,6 @@ export const TODAS_AS_CHAVES = [
   "perda",
   "estoque_inicial",
   "producao",
-  "transferir_caixa",
   "depositar_cheque",
   "cadastrar_produto",
 ] as const;

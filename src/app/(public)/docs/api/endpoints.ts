@@ -618,7 +618,7 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/team",
         auth: "Sessão · emporio:read · só o dono e o gerente geral (403 `FORBIDDEN`) · perfil emporio · recurso `emporio` liberado",
-        description: "A Equipe do Empório (Q118): os usuários ativos da conta com `role`, `emporio_role` (`gerente_geral`, `gestor`, `vendedor` ou nulo), `emporio_only`, `emporio_keys` e `establishment_ids`, mais os assentos do plano e as lojas não arquivadas para a tela.",
+        description: "A Equipe do Empório (Q118): os usuários ativos da conta com `role`, `emporio_role` (`gerente_geral`, `gestor`, `vendedor`, `caixa` ou nulo), `emporio_only`, `emporio_keys` e `establishment_ids`, mais os assentos do plano e as lojas não arquivadas para a tela.",
         response: `200
 { "data": { "users": [{ "id": "cl...", "name": "Ana", "email": "ana@loja.com", "phone": null, "role": "OPERADOR", "emporio_role": "vendedor", "emporio_only": false, "emporio_keys": ["perda"], "establishment_ids": ["cl..."] }], "seats": { "used": 3, "limit": 5, "has_room": true }, "establishments": [{ "id": "cl...", "name": "Loja Centro" }] }, "meta": {} }`,
       },

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
@@ -46,6 +46,8 @@ export default async function ProdutoEmporioPage({ params }: { params: Promise<{
   const { id } = await params;
 
   const db = await getTenantDb();
+  // O Caixa não abre esta tela: só vende, recebe fiado e opera o caixa.
+  if ((await papelDoEmporio(db, user)).papel === "caixa") redirect("/emporio");
   // F6b: cada botão decide pelo papel do Empório. Produto e apresentação são por chave
   // (valem para todas as lojas); composição e percentuais são da conta; preço, limites e
   // cancelar produção são do Gestor; estoque inicial, contagem, perda e produção são por chave.

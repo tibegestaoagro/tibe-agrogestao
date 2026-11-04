@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
@@ -39,6 +40,8 @@ export default async function EstoquePage({
   const { loja: lojaParam } = await searchParams;
 
   const db = await getTenantDb();
+  // O Caixa não abre esta tela: só vende, recebe fiado e opera o caixa.
+  if ((await papelDoEmporio(db, user)).papel === "caixa") redirect("/emporio");
   // F6b (Q120): encaminhar à Lista é do Gestor para cima, mas quem é só da loja
   // não tem a Lista de Compra, então não encaminha para ela.
   const papel = await papelDoEmporio(db, user);

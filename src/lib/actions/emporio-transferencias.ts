@@ -2,7 +2,7 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { runSerializableTenantTransaction } from "@/lib/financial";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum, isoOrNull } from "@/lib/serialize";
-import { exigir, papelDoEmporio, pode } from "@/lib/emporio/papel";
+import { exigir, papelDoEmporio, pode, recusarCaixa } from "@/lib/emporio/papel";
 import { descreverQuantidade } from "@/lib/stock/units";
 import { itens as frasItens, registrarNoHistorico } from "@/lib/emporio/historico";
 import { custoMedio } from "@/lib/emporio/custo-medio";
@@ -175,6 +175,8 @@ export async function lerTransferenciaAction(
   ator: Ator,
   id: string,
 ): Promise<ActionResult<TransferView>> {
+  const foraDoCaixa = await recusarCaixa(db, ator, "ver as transferências");
+  if (foraDoCaixa) return foraDoCaixa;
   const visiveis = await lojasDoAtor(db, ator);
   const v = await viewDe(db, id);
   if (!v || !visivel(visiveis, v)) return NAO_ACHADO("Transferência");
@@ -186,6 +188,8 @@ export async function listarTransferenciasAction(
   ator: Ator,
   opts: { establishment_id?: string; status?: StatusDaTransferencia; limit?: number } = {},
 ): Promise<ActionResult<TransferView[]>> {
+  const foraDoCaixa = await recusarCaixa(db, ator, "ver as transferências");
+  if (foraDoCaixa) return foraDoCaixa;
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
     return NAO_ACHADO("Estabelecimento", "establishment_id");
@@ -230,6 +234,8 @@ export async function transferenciasParadasAction(
   ator: Ator,
   agora: Date = new Date(),
 ): Promise<ActionResult<TransferView[]>> {
+  const foraDoCaixa = await recusarCaixa(db, ator, "ver as transferências");
+  if (foraDoCaixa) return foraDoCaixa;
   const visiveis = await lojasDoAtor(db, ator);
   const papel = await papelDoEmporio(db, ator);
   const limite = new Date(agora.getTime() - DIAS_PARADA * 24 * 60 * 60 * 1000);

@@ -73,7 +73,7 @@ export default async function CaixaPage() {
 
   const origens: PontaOpcao[] = [
     ...caixa.drawers
-      .filter((d) => pode(papel, "chave:transferir_caixa", d.establishment_id))
+      .filter((d) => pode(papel, "gestor_da_loja", d.establishment_id))
       .map((d) => ({
         valor: `loja:${d.establishment_id}`,
         rotulo: `Gaveta: ${d.name} (${reaisBr(d.balance)})`,

@@ -1515,7 +1515,7 @@ export async function transferirCaixaAction(
   if (origem.data.lojaId) {
     const loja = await acharLojaParaEscrita(db, ator, origem.data.lojaId);
     if (!loja.ok) return fail(loja.code, loja.message, loja.status, "from");
-    const negChave = await exigir(db, ator, "chave:transferir_caixa", "levar a gaveta ao banco", loja.data.id);
+    const negChave = await exigir(db, ator, "gestor_da_loja", "levar a gaveta ao banco", loja.data.id);
     if (negChave) return negChave;
   } else {
     const negConta = await exigir(db, ator, "conta", "transferir saindo de uma conta bancária");

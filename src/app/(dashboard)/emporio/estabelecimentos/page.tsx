@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
@@ -27,6 +28,8 @@ export default async function EstabelecimentosPage({
   const { arquivados } = await searchParams;
   const mostrarArquivados = arquivados === "1";
   const db = await getTenantDb();
+  // O Caixa não abre esta tela: só vende, recebe fiado e opera o caixa.
+  if ((await papelDoEmporio(db, user)).papel === "caixa") redirect("/emporio");
   // F6b: criar, arquivar e definir a equipe da loja são da conta; editar os dados é do Gestor da loja.
   const papel = await papelDoEmporio(db, user);
   const podeEscrever = pode(papel, "conta");

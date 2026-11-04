@@ -9,8 +9,8 @@ import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
 const alterarSchema = z.object({
   emporio_role: z
-    .enum(["gerente_geral", "gestor", "vendedor"], {
-      error: "Escolha a função: gerente geral, gestor ou vendedor.",
+    .enum(["gerente_geral", "gestor", "vendedor", "caixa"], {
+      error: "Escolha a função: gerente geral, gestor, vendedor ou caixa.",
     })
     .optional(),
   establishment_ids: z.array(z.string(), { error: "Escolha pelo menos uma loja." }).optional(),

@@ -15,7 +15,7 @@ import type { AppUserRole } from "@/types/next-auth";
 type Ator = { id: string; role: AppUserRole };
 
 type FuncaoEmporio = Exclude<PapelEmporio, "dono">;
-const FUNCOES: readonly string[] = ["gerente_geral", "gestor", "vendedor"];
+const FUNCOES: readonly string[] = ["gerente_geral", "gestor", "vendedor", "caixa"];
 
 /** Q118: o papel da conta acompanha a função (Gerente geral é ADMIN, o resto OPERADOR). */
 const roleDaFuncao = (f: FuncaoEmporio): AppUserRole => (f === "gerente_geral" ? "ADMIN" : "OPERADOR");
@@ -53,6 +53,7 @@ const NOME_DA_FUNCAO: Record<string, string> = {
   gerente_geral: "gerente geral",
   gestor: "gestor",
   vendedor: "vendedor",
+  caixa: "caixa",
 };
 
 const ROTULOS_EQUIPE: Record<string, string> = {
@@ -94,7 +95,7 @@ async function validarEstado(
   e: { emporio_role: unknown; establishment_ids: unknown; emporio_keys: unknown; emporio_only: unknown },
 ) {
   if (!ehFuncao(e.emporio_role)) {
-    return fail("VALIDATION_ERROR", "Escolha a função: gerente geral, gestor ou vendedor.", 422, "emporio_role");
+    return fail("VALIDATION_ERROR", "Escolha a função: gerente geral, gestor, vendedor ou caixa.", 422, "emporio_role");
   }
   const funcao = e.emporio_role;
 
@@ -106,7 +107,7 @@ async function validarEstado(
     return fail("VALIDATION_ERROR", "Há uma chave que não existe.", 422, "emporio_keys");
   }
   if (chaves.length > 0 && funcao !== "vendedor") {
-    return fail("VALIDATION_ERROR", "Só o vendedor recebe chaves.", 422, "emporio_keys");
+    return fail("VALIDATION_ERROR", "Só o vendedor recebe chaves. O caixa não tem chaves.", 422, "emporio_keys");
   }
 
   if (e.emporio_only === true && funcao !== "gerente_geral") {
@@ -304,7 +305,7 @@ export async function alterarMembroAction(
   const atual = alvo.emporio_role as FuncaoEmporio | null;
   const nova = input.emporio_role ?? atual;
   if (nova === null || nova === undefined) {
-    return fail("VALIDATION_ERROR", "Escolha a função: gerente geral, gestor ou vendedor.", 422, "emporio_role");
+    return fail("VALIDATION_ERROR", "Escolha a função: gerente geral, gestor, vendedor ou caixa.", 422, "emporio_role");
   }
   const mudou = nova !== atual;
 

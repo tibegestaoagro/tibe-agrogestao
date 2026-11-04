@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
@@ -42,6 +43,8 @@ export default async function ComprasPage({
   const user = await requireFeaturePage("emporio");
   const { loja = "", situacao = "" } = await searchParams;
   const db = await getTenantDb();
+  // O Caixa não abre esta tela: só vende, recebe fiado e opera o caixa.
+  if ((await papelDoEmporio(db, user)).papel === "caixa") redirect("/emporio");
   // F6b: lançar é por chave, receber é do Vendedor da loja, cancelar é do Gestor da loja.
   const papel = await papelDoEmporio(db, user);
   const podeEscrever = pode(papel, "vendedor_da_loja");
