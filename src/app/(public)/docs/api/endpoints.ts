@@ -308,8 +308,8 @@ export const GROUPS: Group[] = [
         method: "PATCH",
         path: "/api/v1/emporio/establishments/:id",
         auth: "Sessão · emporio:write · só OWNER e ADMIN",
-        description: "Edita os campos enviados (os ausentes ficam como estão; `null` limpa os opcionais).",
-        request: `{ "max_discount_pct": 10, "allow_negative_stock": false }`,
+        description: "Edita os campos enviados (os ausentes ficam como estão; `null` limpa os opcionais). Cabeçalho do papel: `document` (CNPJ, numérico ou alfanumérico, guardado sem pontuação e em maiúscula), `phone` e `whatsapp` (até 40 caracteres), `state` (UF da lista, em maiúscula) e `zip` (CEP, 8 números guardados sem traço); recusa 422 no campo. O POST aceita os mesmos cinco.",
+        request: `{ "max_discount_pct": 10, "document": "12.ABC.345/01DE-35", "state": "MG", "zip": "39400-000" }`,
         response: `200
 { "data": { "id": "cl...", "name": "Loja Centro", "max_discount_pct": 10 }, "meta": {} }`,
       },
@@ -330,6 +330,48 @@ export const GROUPS: Group[] = [
         request: `{ "user_ids": ["cl..."] }`,
         response: `200
 { "data": { "id": "cl...", "user_ids": ["cl..."] }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/settings",
+        auth: "Sessão · emporio:read · qualquer papel no Empório",
+        description: "Configurações da conta: validade e rodapé do orçamento, rodapé da venda, largura da bobina e se há logo. Sem nada gravado, devolve os padrões (7 dias, bobina de 80 mm) sem criar a linha.",
+        response: `200
+{ "data": { "quote_validity_days": 7, "quote_footer": null, "sale_footer": null, "receipt_width": 80, "has_logo": false, "logo_updated_at": null }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/emporio/settings",
+        auth: "Sessão · emporio:write · só o dono e o gerente geral (403 `FORBIDDEN`)",
+        description: "Grava os campos enviados. `quote_validity_days`: inteiro de 1 a 365. Rodapés: até 500 caracteres, vazio vira `null`. `receipt_width`: 80 ou 58. Recusa 422 no campo. Entra no Histórico como `configuracoes.editar`.",
+        request: `{ "quote_validity_days": 10, "quote_footer": "Pague no Pix", "receipt_width": 58 }`,
+        response: `200
+{ "data": { "quote_validity_days": 10, "quote_footer": "Pague no Pix", "sale_footer": null, "receipt_width": 58, "has_logo": false, "logo_updated_at": null }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/settings/logo",
+        auth: "Sessão · emporio:read · qualquer papel no Empório",
+        description: "Devolve a imagem do logo (PNG ou JPEG) com o `Content-Type` gravado e `Cache-Control: private, max-age=300`. Sem logo: 404 `NOT_FOUND`.",
+        response: `200
+(bytes da imagem)`,
+      },
+      {
+        method: "PUT",
+        path: "/api/v1/emporio/settings/logo",
+        auth: "Sessão · emporio:write · só o dono e o gerente geral",
+        description: "Troca o logo. O tipo é conferido pelos bytes (PNG ou JPEG), não pelo `mime` informado, e o limite é 200 KB depois de decodificado. Recusa 422 no campo `logo`. Entra no Histórico como `configuracoes.logo`.",
+        request: `{ "data_base64": "iVBORw0KGgo...", "mime": "image/png" }`,
+        response: `200
+{ "data": { "has_logo": true, "logo_updated_at": "2026-11-04T12:00:00.000Z" }, "meta": {} }`,
+      },
+      {
+        method: "DELETE",
+        path: "/api/v1/emporio/settings/logo",
+        auth: "Sessão · emporio:write · só o dono e o gerente geral",
+        description: "Remove o logo. Sem logo gravado, responde 200 sem mudar nada.",
+        response: `200
+{ "data": { "has_logo": false, "logo_updated_at": null }, "meta": {} }`,
       },
       {
         method: "GET",

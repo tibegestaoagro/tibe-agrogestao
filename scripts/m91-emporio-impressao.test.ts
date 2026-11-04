@@ -162,8 +162,203 @@ async function secao1() {
   }
 }
 
+async function secao2() {
+  console.log("\nSeção 2: configurações, logo e cabeçalho da loja (com banco)");
+  (globalThis as unknown as { AsyncLocalStorage: unknown }).AsyncLocalStorage = (await import("node:async_hooks")).AsyncLocalStorage;
+  const { papelDeFixture, vincularTodas, virarGestor, virarVendedor } = await import("./_emporio-papel");
+  const { withBearer } = await import("./_escopo-de-requisicao");
+  const { prisma, prismaForTenant } = await import("@/lib/prisma");
+  const bcrypt = (await import("bcryptjs")).default;
+  const Cat = await import("@/lib/actions/emporio-catalogo");
+  const S = await import("@/lib/actions/emporio-configuracoes");
+  const rotaTok = await import("@/app/api/v1/auth/token/route");
+  const rotaSet = await import("@/app/api/v1/emporio/settings/route");
+  const rotaLogo = await import("@/app/api/v1/emporio/settings/logo/route");
+  const stamp = Date.now();
+  const SENHA = "SenhaForte#2026";
+  const hash = await bcrypt.hash(SENHA, 4);
+  const tenantIds: string[] = [];
+
+  try {
+    const novoTenant = async (nome: string) => {
+      const t = await prisma.tenant.create({
+        data: {
+          name: `M91s2 ${nome} ${stamp}`,
+          document: `M91s${nome}${stamp}`.slice(0, 14),
+          plan: "grupo",
+          status: "trial",
+          trial_ends_at: new Date(Date.now() + 86_400_000),
+        },
+      });
+      tenantIds.push(t.id);
+      await prisma.tenantProfile.create({ data: { tenant_id: t.id, profile_type: "emporio", active: true } });
+      await prisma.tenantFeature.create({ data: { tenant_id: t.id, feature_key: "emporio", enabled: true } });
+      return t;
+    };
+    const tA = await novoTenant("A");
+    const tB = await novoTenant("B");
+    const mk = async (tenantId: string, suf: string, role: "OWNER" | "OPERADOR") => {
+      const u = await prisma.user.create({
+        data: {
+          tenant_id: tenantId,
+          name: `M91s2 ${suf}`,
+          email: `m91s2-${suf}-${stamp}@teste.local`,
+          password_hash: hash,
+          role,
+          ...papelDeFixture(role),
+        },
+      });
+      return { id: u.id, role, email: u.email };
+    };
+    const donoA = await mk(tA.id, "donoA", "OWNER");
+    const donoB = await mk(tB.id, "donoB", "OWNER");
+    const gestor = await mk(tA.id, "gestor", "OPERADOR");
+    const vend = await mk(tA.id, "vend", "OPERADOR");
+    const db = prismaForTenant(tA.id);
+    const loja = await Cat.criarEstabelecimentoAction(db, donoA, { name: "M91s2 Loja" });
+    if (!loja.ok) throw new Error(`loja: ${j(loja)}`);
+    await vincularTodas(prisma, tA.id, [gestor.id, vend.id], [loja.data.id]);
+    await virarGestor(prisma, gestor.id);
+    await virarVendedor(prisma, vend.id);
+    const histN = (action: string) => prisma.emporioAuditLog.count({ where: { tenant_id: tA.id, action } });
+
+    // padrões, sem linha
+    const p0 = await S.lerConfiguracoesAction(db, donoA);
+    check("padrões sem linha: 7 dias, bobina 80, sem logo", p0.ok && p0.data.quote_validity_days === 7 && p0.data.receipt_width === 80 && p0.data.has_logo === false, j(p0));
+    check("ler não cria a linha", (await prisma.emporioSettings.count({ where: { tenant_id: tA.id } })) === 0);
+
+    // dono salva e lê
+    const sv = await S.salvarConfiguracoesAction(db, donoA, { quote_validity_days: 10, quote_footer: "Pague no Pix", receipt_width: 58 });
+    check("dono salva", sv.ok, j(sv));
+    const lido = await S.lerConfiguracoesAction(db, donoA);
+    check("lê de volta", lido.ok && lido.data.quote_validity_days === 10 && lido.data.quote_footer === "Pague no Pix" && lido.data.receipt_width === 58 && lido.data.sale_footer === null, j(lido));
+    check("1 linha configuracoes.editar no Histórico", (await histN("configuracoes.editar")) === 1);
+
+    // permissão
+    const g403 = await S.salvarConfiguracoesAction(db, gestor, { quote_validity_days: 3 });
+    const v403 = await S.salvarConfiguracoesAction(db, vend, { quote_validity_days: 3 });
+    check("gestor: 403", !g403.ok && g403.status === 403, j(g403));
+    check("vendedor: 403", !v403.ok && v403.status === 403, j(v403));
+    const vLe = await S.lerConfiguracoesAction(db, vend);
+    check("vendedor lê: ok", vLe.ok, j(vLe));
+
+    // recusas
+    const recusa = async (nome: string, input: Dado, field: string, msg: string) => {
+      const r = await S.salvarConfiguracoesAction(db, donoA, input);
+      check(nome, !r.ok && r.status === 422 && r.field === field && r.message === msg, j(r));
+    };
+    const msgVal = "A validade deve ser de 1 a 365 dias.";
+    await recusa("validade 0", { quote_validity_days: 0 }, "quote_validity_days", msgVal);
+    await recusa("validade 366", { quote_validity_days: 366 }, "quote_validity_days", msgVal);
+    await recusa("validade 7,5", { quote_validity_days: 7.5 }, "quote_validity_days", msgVal);
+    await recusa("rodapé de 501 caracteres", { sale_footer: "x".repeat(501) }, "sale_footer", "O rodapé aceita até 500 caracteres.");
+    await recusa("largura 70", { receipt_width: 70 }, "receipt_width", "Escolha a largura da bobina: 80 ou 58 mm.");
+    const depoisRecusas = await S.lerConfiguracoesAction(db, donoA);
+    check("recusas não gravam", depoisRecusas.ok && depoisRecusas.data.quote_validity_days === 10 && depoisRecusas.data.sale_footer === null);
+    const vazio = await S.salvarConfiguracoesAction(db, donoA, { quote_footer: "   " });
+    check("rodapé vazio vira null", vazio.ok && vazio.data.quote_footer === null, j(vazio));
+
+    // logo
+    const png = (n: number) => Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(n - 8, 1)]);
+    const lg = await S.salvarLogoAction(db, donoA, { data_base64: png(1024).toString("base64"), mime: "image/png" });
+    check("logo PNG de 1 KB aceito, has_logo true", lg.ok && lg.data.has_logo === true, j(lg));
+    const pdf = await S.salvarLogoAction(db, donoA, { data_base64: Buffer.from("%PDF-1.4 conteudo").toString("base64"), mime: "image/png" });
+    check("PDF com mime image/png: recusado", !pdf.ok && pdf.status === 422 && pdf.message === "O logo deve ser PNG ou JPEG.", j(pdf));
+    const grande = await S.salvarLogoAction(db, donoA, { data_base64: png(201 * 1024).toString("base64"), mime: "image/png" });
+    check("PNG de 201 KB: recusado", !grande.ok && grande.status === 422 && grande.message === "O logo deve ter até 200 KB.", j(grande));
+    const aindaLogo = await S.lerConfiguracoesAction(db, donoA);
+    check("recusas mantêm o logo anterior", aindaLogo.ok && aindaLogo.data.has_logo === true);
+    const gLogo = await S.salvarLogoAction(db, gestor, { data_base64: png(1024).toString("base64"), mime: "image/png" });
+    check("gestor não troca o logo: 403", !gLogo.ok && gLogo.status === 403, j(gLogo));
+    check("1 linha configuracoes.logo até aqui", (await histN("configuracoes.logo")) === 1);
+    const rm = await S.removerLogoAction(db, donoA);
+    check("remover volta has_logo false", rm.ok && rm.data.has_logo === false, j(rm));
+    check("remover grava no Histórico", (await histN("configuracoes.logo")) === 2);
+
+    // rotas com Bearer e isolamento
+    const token = async (email: string) =>
+      String(
+        ((await (await rotaTok.POST(new Request("http://localhost/api/v1/auth/token", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email, password: SENHA }),
+        }))).json()) as Dado)?.data?.access_token ?? "",
+      );
+    const tokA = await token(donoA.email);
+    const tokB = await token(donoB.email);
+    await S.salvarLogoAction(db, donoA, { data_base64: png(1024).toString("base64"), mime: "image/png" });
+    const logoA = await withBearer(tokA, () => rotaLogo.GET());
+    check("rota GET do logo de A: 200 image/png", logoA.status === 200 && logoA.headers.get("content-type") === "image/png" && logoA.headers.get("cache-control") === "private, max-age=300", `${logoA.status} ${logoA.headers.get("content-type")}`);
+    const setB = await withBearer(tokB, () => rotaSet.GET());
+    const setBj = (await setB.json().catch(() => ({}))) as Dado;
+    check("B lê as configurações de B: padrões, sem logo", setB.status === 200 && setBj?.data?.quote_validity_days === 7 && setBj?.data?.has_logo === false, `${setB.status} ${j(setBj)}`);
+    const logoB = await withBearer(tokB, () => rotaLogo.GET());
+    check("B não vê o logo de A: 404", logoB.status === 404, String(logoB.status));
+    const patch = await withBearer(tokA, () =>
+      rotaSet.PATCH(new Request("http://localhost/api/v1/emporio/settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ quote_validity_days: 0 }),
+      })),
+    );
+    const patchJ = (await patch.json().catch(() => ({}))) as Dado;
+    check("PATCH pela rota com validade 0: 422 no campo", patch.status === 422 && patchJ?.error?.field === "quote_validity_days", `${patch.status} ${j(patchJ)}`);
+    const put = await withBearer(tokA, () =>
+      rotaLogo.PUT(new Request("http://localhost/api/v1/emporio/settings/logo", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ data_base64: Buffer.from("%PDF-1.4").toString("base64"), mime: "image/png" }),
+      })),
+    );
+    check("PUT do logo falso pela rota: 422", put.status === 422, String(put.status));
+    const del = await withBearer(tokA, () => rotaLogo.DELETE());
+    check("DELETE do logo pela rota: 200", del.status === 200, String(del.status));
+
+    // cabeçalho da loja
+    const ed = await Cat.editarEstabelecimentoAction(db, gestor, loja.data.id, {
+      document: "12.abc.345/01de-35",
+      state: "mg",
+      zip: "39400-000",
+      phone: "(38) 3221-0000",
+    });
+    check("gestor grava o cabeçalho", ed.ok && ed.data.document === "12ABC34501DE35" && ed.data.state === "MG" && ed.data.zip === "39400000" && ed.data.phone === "(38) 3221-0000", j(ed));
+    const rlida = await Cat.lerEstabelecimentoAction(db, gestor, loja.data.id);
+    check("lê de volta", rlida.ok && rlida.data.document === "12ABC34501DE35" && rlida.data.state === "MG" && rlida.data.zip === "39400000" && rlida.data.whatsapp === null, j(rlida));
+    const rec = async (nome: string, input: Dado, field: string, msg: string) => {
+      const r = await Cat.editarEstabelecimentoAction(db, gestor, loja.data.id, input);
+      check(nome, !r.ok && r.status === 422 && r.field === field && r.message === msg, j(r));
+    };
+    await rec("CNPJ inválido recusado em document", { document: "11222333000180" }, "document", "CNPJ inválido. Confira os 14 caracteres.");
+    await rec("UF XX recusada em state", { state: "XX" }, "state", "Escolha a UF da lista.");
+    await rec("CEP 3940 recusado em zip", { zip: "3940" }, "zip", "CEP inválido. Use os 8 números.");
+    const ediHist = await prisma.emporioAuditLog.findFirst({ where: { tenant_id: tA.id, action: "estabelecimento.editar" }, orderBy: { created_at: "desc" } });
+    const campos = ((ediHist?.changes as Dado[]) ?? []).map((m) => m.campo);
+    check("Histórico estabelecimento.editar traz CNPJ, Telefone, UF e CEP", ["CNPJ", "Telefone", "UF", "CEP"].every((c) => campos.includes(c)), j(campos));
+    const ed2 = await Cat.editarEstabelecimentoAction(db, gestor, loja.data.id, { whatsapp: "38 99999-0000" });
+    const ediHist2 = await prisma.emporioAuditLog.findFirst({ where: { tenant_id: tA.id, action: "estabelecimento.editar" }, orderBy: { created_at: "desc" } });
+    check("rótulo WhatsApp no Histórico", ed2.ok && j(ediHist2?.changes).includes("WhatsApp"), j(ediHist2?.changes));
+  } finally {
+    const modelos = [
+      "emporioAuditLog", "emporioSettings", "emporioCounter", "userEstablishment", "establishment", "user", "tenantProfile", "tenantFeature",
+    ];
+    for (const id of tenantIds) {
+      for (const m of modelos) {
+        try {
+          await (prisma as Dado)[m]?.deleteMany({ where: { tenant_id: id } });
+        } catch {
+          // modelo ausente nesta versão do schema: segue
+        }
+      }
+      await prisma.tenant.delete({ where: { id } }).catch(() => undefined);
+    }
+    const sobrou = await prisma.tenant.count({ where: { id: { in: tenantIds } } });
+    check("seção 2: a limpeza não deixou tenant para trás", sobrou === 0, String(sobrou));
+  }
+}
+
 async function main() {
   await secao1();
+  await secao2();
   console.log(falhas === 0 ? "\n✅ M91 verde" : `\n❌ M91: ${falhas} falha(s)`);
   process.exit(falhas === 0 ? 0 : 1);
 }

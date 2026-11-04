@@ -62,6 +62,8 @@ export const ACOES_DO_HISTORICO = {
   "equipe.cadastrar": "Cadastrou alguém na equipe",
   "equipe.alterar": "Alterou alguém da equipe",
   "equipe.tirar": "Tirou alguém do Empório",
+  "configuracoes.editar": "Editou as configurações do Empório",
+  "configuracoes.logo": "Mexeu no logo do Empório",
 } as const;
 
 export type AcaoDoHistorico = keyof typeof ACOES_DO_HISTORICO;

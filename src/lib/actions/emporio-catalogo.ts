@@ -5,6 +5,7 @@ import { alcanceDeLeitura, exigir, lojasDoPapel, papelDoEmporio } from "@/lib/em
 import { precoSugerido, percentualEfetivo } from "@/lib/emporio/preco";
 import { findUnit } from "@/lib/stock/units";
 import { diferencas, dinheiro, registrarNoHistorico } from "@/lib/emporio/historico";
+import { cnpjValido, normalizarCnpj, UFS } from "@/lib/contatos/cadastro";
 import type { AppUserRole } from "@/types/next-auth";
 
 /**
@@ -91,6 +92,11 @@ export type EstablishmentView = {
   name: string;
   address: string | null;
   city: string | null;
+  document: string | null;
+  phone: string | null;
+  whatsapp: string | null;
+  state: string | null;
+  zip: string | null;
   responsible_user_id: string | null;
   allow_negative_stock: boolean;
   max_discount_pct: number | null;
@@ -105,6 +111,11 @@ type EstablishmentRow = {
   name: string;
   address: string | null;
   city: string | null;
+  document: string | null;
+  phone: string | null;
+  whatsapp: string | null;
+  state: string | null;
+  zip: string | null;
   responsible_user_id: string | null;
   allow_negative_stock: boolean;
   max_discount_pct: unknown;
@@ -120,6 +131,11 @@ function viewEstabelecimento(e: EstablishmentRow): EstablishmentView {
     name: e.name,
     address: e.address,
     city: e.city,
+    document: e.document,
+    phone: e.phone,
+    whatsapp: e.whatsapp,
+    state: e.state,
+    zip: e.zip,
     responsible_user_id: e.responsible_user_id,
     allow_negative_stock: e.allow_negative_stock,
     max_discount_pct: decToNum(e.max_discount_pct),
@@ -166,6 +182,11 @@ export type EstablishmentInput = {
   name?: string;
   address?: string | null;
   city?: string | null;
+  document?: string | null;
+  phone?: string | null;
+  whatsapp?: string | null;
+  state?: string | null;
+  zip?: string | null;
   responsible_user_id?: string | null;
   allow_negative_stock?: boolean;
   max_discount_pct?: number | null;
@@ -178,7 +199,7 @@ async function validarLoja(
   db: TenantPrismaClient,
   input: EstablishmentInput,
   selfId: string | null,
-): Promise<ActionResult<{ name?: string }>> {
+): Promise<ActionResult<{ name?: string; document?: string | null; state?: string | null; zip?: string | null }>> {
   let nome: string | undefined;
   if (input.name !== undefined) {
     nome = String(input.name ?? "").trim();
@@ -202,13 +223,51 @@ async function validarLoja(
     const u = await db.user.findFirst({ where: { id: input.responsible_user_id, active: true } });
     if (!u) return fail("VALIDATION_ERROR", "Responsável inválido.", 422, "responsible_user_id");
   }
-  return ok({ name: nome });
+  let document: string | null | undefined;
+  if (input.document !== undefined) {
+    const bruto = String(input.document ?? "").trim();
+    if (!bruto) document = null;
+    else {
+      document = normalizarCnpj(bruto);
+      if (!cnpjValido(document)) return fail("VALIDATION_ERROR", "CNPJ inválido. Confira os 14 caracteres.", 422, "document");
+    }
+  }
+  let state: string | null | undefined;
+  if (input.state !== undefined) {
+    const bruto = String(input.state ?? "").trim().toUpperCase();
+    if (!bruto) state = null;
+    else {
+      state = bruto;
+      if (!UFS.includes(state)) return fail("VALIDATION_ERROR", "Escolha a UF da lista.", 422, "state");
+    }
+  }
+  let zip: string | null | undefined;
+  if (input.zip !== undefined) {
+    const bruto = String(input.zip ?? "").trim();
+    if (!bruto) zip = null;
+    else {
+      zip = bruto.replace(/\D/g, "");
+      if (zip.length !== 8) return fail("VALIDATION_ERROR", "CEP inválido. Use os 8 números.", 422, "zip");
+    }
+  }
+  for (const campo of ["phone", "whatsapp"] as const) {
+    const v = input[campo];
+    if (v != null && String(v).trim().length > 40) {
+      return fail("VALIDATION_ERROR", "Use até 40 caracteres.", 422, campo);
+    }
+  }
+  return ok({ name: nome, document, state, zip });
 }
 
 const ROTULOS_LOJA: Record<string, string> = {
   name: "Nome",
   address: "Endereço",
   city: "Cidade",
+  document: "CNPJ",
+  phone: "Telefone",
+  whatsapp: "WhatsApp",
+  state: "UF",
+  zip: "CEP",
   responsible_user_id: "Responsável",
   allow_negative_stock: "Estoque negativo liberado",
   max_discount_pct: "Desconto máximo (%)",
@@ -220,6 +279,11 @@ function pegarLoja(e: {
   name: string;
   address: string | null;
   city: string | null;
+  document: string | null;
+  phone: string | null;
+  whatsapp: string | null;
+  state: string | null;
+  zip: string | null;
   responsible_user_id: string | null;
   allow_negative_stock: boolean;
   max_discount_pct: unknown;
@@ -230,6 +294,11 @@ function pegarLoja(e: {
     name: e.name,
     address: e.address,
     city: e.city,
+    document: e.document,
+    phone: e.phone,
+    whatsapp: e.whatsapp,
+    state: e.state,
+    zip: e.zip,
     responsible_user_id: e.responsible_user_id,
     allow_negative_stock: e.allow_negative_stock,
     max_discount_pct: decToNum(e.max_discount_pct as never),
@@ -256,6 +325,11 @@ export async function criarEstabelecimentoAction(
           name: v.data.name as string,
           address: input.address?.trim() || null,
           city: input.city?.trim() || null,
+          document: v.data.document ?? null,
+          phone: input.phone?.trim() || null,
+          whatsapp: input.whatsapp?.trim() || null,
+          state: v.data.state ?? null,
+          zip: v.data.zip ?? null,
           responsible_user_id: input.responsible_user_id ?? null,
           allow_negative_stock: input.allow_negative_stock ?? false,
           max_discount_pct: input.max_discount_pct ?? null,
@@ -308,6 +382,11 @@ export async function editarEstabelecimentoAction(
         ...(v.data.name !== undefined ? { name: v.data.name } : {}),
         ...(input.address !== undefined ? { address: input.address?.trim() || null } : {}),
         ...(input.city !== undefined ? { city: input.city?.trim() || null } : {}),
+        ...(v.data.document !== undefined ? { document: v.data.document } : {}),
+        ...(input.phone !== undefined ? { phone: input.phone?.trim() || null } : {}),
+        ...(input.whatsapp !== undefined ? { whatsapp: input.whatsapp?.trim() || null } : {}),
+        ...(v.data.state !== undefined ? { state: v.data.state } : {}),
+        ...(v.data.zip !== undefined ? { zip: v.data.zip } : {}),
         ...(input.responsible_user_id !== undefined ? { responsible_user_id: input.responsible_user_id } : {}),
         ...(input.allow_negative_stock !== undefined ? { allow_negative_stock: input.allow_negative_stock } : {}),
         ...(input.max_discount_pct !== undefined ? { max_discount_pct: input.max_discount_pct } : {}),
