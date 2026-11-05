@@ -41,7 +41,7 @@ export function ParteDeConfiguracoes() {
         paraQueServe="Ter duas gavetas trabalhando ao mesmo tempo, cada uma com o seu troco e o seu turno."
         passos={[
           <>No cartão da loja, em <strong>Caixas</strong>, clique em <strong>Novo caixa</strong>. Ele recebe o próximo número: Caixa 2, Caixa 3.</>,
-          "O caixa novo nasce fechado e sem dinheiro. Na primeira abertura, ponha o troco com o Reforço da gerência.",
+          <>O caixa novo nasce fechado e sem dinheiro. Na primeira abertura, ponha o troco com o <strong>Reforço da gerência (R$)</strong>. O reforço sai de Com a gerência: se lá não houver dinheiro bastante, o sistema recusa com “Não há dinheiro suficiente para isso.” Enquanto o caixa nunca foi aberto, o Gestor pode, em vez disso, clicar em <strong>Saldo inicial</strong> na linha dele, em <strong>Caixa</strong>, digitar o <strong>Saldo inicial (R$)</strong> e clicar em <strong>Lançar saldo inicial</strong>. Ele só pode ser lançado uma vez.</>,
           "Cada caixa tem no máximo um turno aberto. Cada um abre, faz sangria e encerra separado.",
           <>Com dois caixas abertos, o balcão mostra o campo <strong>Caixa</strong> para escolher em qual a venda cai. Vem marcado o caixa que você abriu.</>,
         ]}
@@ -137,7 +137,7 @@ export function ParteDeOrcamento() {
           <>Escolha o <strong>Cliente</strong>. O orçamento precisa de nome, CPF ou CNPJ e telefone, para ser achado depois. O Consumidor final não serve. Para um cliente novo, clique em <strong>Cliente novo</strong>.</>,
           <>Se quiser, escreva uma <strong>Observação</strong>.</>,
           <>Confira o <strong>Vendedor</strong>. Ele já vem com o seu nome. Se você é Caixa, escolha quem atendeu.</>,
-          <>Clique em <strong>Salvar orçamento</strong>. O quadro verde mostra o número e a data em que ele vence (<strong>válido até</strong>).</>,
+          <>Clique em <strong>Salvar orçamento</strong>. O quadro verde mostra o número e a data até quando ele vale (<strong>válido até</strong>); vale até o fim desse dia.</>,
           <>Clique em <strong>Imprimir A4</strong> ou <strong>Imprimir cupom</strong> e entregue o papel ao cliente.</>,
         ]}
         problemas={[
@@ -203,7 +203,8 @@ export function ParteDeOrcamento() {
           </p>
           <p>
             O desconto do orçamento passa para a venda. Um desconto a mais no faturamento se soma a ele, e o total não pode
-            passar do limite da loja. Um orçamento fatura uma vez só. Se a venda dele for cancelada, ele volta a aberto e pode
+            passar do limite da loja. Se o Gestor autorizou um desconto acima do limite no orçamento, ele vale; um desconto
+            a mais, só com o Gestor. Um orçamento fatura uma vez só. Se a venda dele for cancelada, ele volta a aberto e pode
             ser faturado de novo.
           </p>
         </Chamada>

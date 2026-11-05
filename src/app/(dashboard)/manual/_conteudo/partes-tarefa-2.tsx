@@ -16,7 +16,7 @@ export function ParteDeVender() {
         "Ajuste a quantidade. Se o preço cadastrado estiver vazio, digite o valor.",
         "Se precisar dar desconto, digite um preço menor que o sugerido no item. A tela mostra o desconto. Até o limite da loja você mesmo dá.",
         <>Escolha o <strong>Cliente</strong>. Quem não quer se identificar entra como <strong>Consumidor final</strong>, o primeiro da lista. Para cadastrar na hora, clique em <strong>Cliente novo</strong>: tipo (pessoa física ou jurídica), nome, CPF ou CNPJ e telefone.</>,
-        <>Se aparecer <strong>Cadastro incompleto</strong>, clique em <strong>Completar cadastro</strong>. A venda passa assim mesmo.</>,
+        <>Se aparecer <strong>Cadastro incompleto</strong>: se quiser, clique em <strong>Completar cadastro</strong>; a venda passa assim mesmo.</>,
         <>Em <strong>Pagamento</strong>, toque em <strong>+ Dinheiro</strong>, <strong>+ PIX</strong>, <strong>+ Débito</strong>, <strong>+ Crédito</strong>, <strong>+ Parcelado</strong>, <strong>+ Cheque</strong> ou <strong>+ Fiado</strong> e digite o valor. Dá para dividir em mais de uma forma. A soma precisa fechar o total, e só o dinheiro dá troco.</>,
         <>Confira o <strong>Vendedor</strong>. Ele já vem com o seu nome: se outro colega atendeu, escolha o nome dele. O Caixa escolhe quem atendeu em toda venda.</>,
         <>Clique em <strong>Fechar a venda</strong>. A venda cai no caixa aberto da loja.</>,
@@ -67,7 +67,7 @@ export function ParteDeVender() {
       <Figura id="venda-impressa" />
       <Chamada tipo="atencao">
         <p>
-          O papel diz “sem valor fiscal”: ele não é nota fiscal. Para imprimir de novo depois, abra a venda em Vendas. Como
+          O papel diz “sem valor fiscal”: ele não é nota fiscal. Para imprimir de novo depois, abra a venda em Vendas (o Caixa vê só as de hoje). Como
           ajustar o papel está em <Link className="underline" href={`${B}/configuracoes`}>Configurações e impressão</Link>.
           Para salvar um preço para o cliente decidir depois, veja{" "}
           <Link className="underline" href={`${B}/orcamento`}>Orçamento</Link>.
@@ -328,7 +328,8 @@ export function ParteDeCaixa() {
       <Tarefa
         paraQueServe="Registrar o dinheiro da gerência que foi depositado no banco. É do Gestor da loja, do Gerente geral e do Dono."
         passos={[
-          <>Em <strong>Transferir dinheiro</strong>, escolha em <strong>De</strong> a gerência da loja (Com a gerência) e em <strong>Para</strong> a conta bancária.</>,
+          <>Em <strong>Caixa</strong>, na seção <strong>Transferir dinheiro</strong>, clique no botão <strong>Transferir dinheiro</strong>.</>,
+          <>Em <strong>De</strong>, escolha a gerência da loja (Com a gerência). Em <strong>Para</strong>, escolha a conta bancária.</>,
           <>Digite o <strong>Valor (R$)</strong> e, se quiser, uma <strong>Observação</strong>.</>,
           <>Clique em <strong>Transferir</strong>. O dinheiro muda de lugar e não vira receita nem despesa.</>,
         ]}

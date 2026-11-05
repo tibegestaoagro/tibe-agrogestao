@@ -376,8 +376,8 @@ export function ParteCaixa() {
         itens={[
           <>Em <strong>Caixa</strong>, na linha do seu caixa, clique em <strong>Encerrar</strong>.</>,
           <>Conte todo o dinheiro e digite em <strong>Valor contado (R$)</strong>.</>,
-          <>Digite em <strong>Malote (R$)</strong> o que vai para o gerente. O resto fica na gaveta como troco do próximo turno. O malote não passa do que foi contado.</>,
           <>Se o contado não bate com o esperado, escreva o motivo em <strong>Motivo da diferença</strong>.</>,
+          <>Digite em <strong>Malote (R$)</strong> o que vai para o gerente. O resto fica na gaveta como troco do próximo turno. O malote não passa do que foi contado.</>,
           <>Clique em <strong>Encerrar o turno</strong>.</>,
           <>Imprima o fechamento em <strong>Relatório A4</strong> ou <strong>Relatório na bobina</strong> e leve junto com o malote.</>,
         ]}
