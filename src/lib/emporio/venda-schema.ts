@@ -48,6 +48,8 @@ export const corpoDaVendaSchema = z.object({
   cash_register_id: caixaDoTurno,
   /** Entrega 3: quem vendeu. Obrigatório para o Caixa (regra da action); na troca é ignorado (vale o da venda original). */
   seller_user_id: z.string().nullish(),
+  /** Entrega 4: o orçamento que esta venda fatura. Na troca é ignorado (a venda nova não fatura orçamento). */
+  quote_id: z.string().nullish(),
 });
 
 /**

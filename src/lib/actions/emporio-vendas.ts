@@ -7,11 +7,19 @@ import { exigir, papelDoEmporio } from "@/lib/emporio/papel";
 import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
 import { descreverQuantidade } from "@/lib/stock/units";
 import { custoMedio } from "@/lib/emporio/custo-medio";
-import { proximoNumero } from "@/lib/emporio/numeracao";
+import { formatarNumero, proximoNumero } from "@/lib/emporio/numeracao";
 import { cancelarVendeuPagou, gravarVendeuPagou } from "@/lib/emporio/vendeu-pagou";
 import { resolverTurno, type TurnoResolvido } from "@/lib/emporio/turno";
 import { vendedoresDaLoja } from "@/lib/emporio/vendedores";
-import { arred2, arred3, centavos, precificarItens, resolverVendedor, type VendaItemInput } from "@/lib/emporio/precificar";
+import {
+  arred2,
+  arred3,
+  centavos,
+  precificarItens,
+  precoQueVale,
+  resolverVendedor,
+  type VendaItemInput,
+} from "@/lib/emporio/precificar";
 import {
   CATEGORIA_TAXAS_CARTAO,
   datasDasParcelas,
@@ -166,6 +174,8 @@ export type VendaView = {
   canceled_by_user_id: string | null;
   canceled_reason: string | null;
   exchange_return_id: string | null;
+  /** Entrega 4: o orçamento que a venda faturou (a cancelada continua dizendo). */
+  quote: { id: string; numero: string } | null;
   notes: string | null;
   entry_id: string | null;
   entry_amount: number | null;
@@ -180,6 +190,7 @@ export type VendaView = {
 const INCLUDE_VENDA = {
   establishment: { select: { name: true } },
   contact: { select: { name: true } },
+  quote: { select: { id: true, number: true } },
   items: {
     include: {
       emporio_product: { include: { product: { select: { name: true } } } },
@@ -297,6 +308,7 @@ async function montarVendas(db: TenantPrismaClient, linhas: VendaRow[]): Promise
       canceled_by_user_id: s.canceled_by_user_id,
       canceled_reason: s.canceled_reason,
       exchange_return_id: s.exchange_return_id,
+      quote: s.quote ? { id: s.quote.id, numero: formatarNumero(s.quote.number) } : null,
       notes: s.notes,
       entry_id: e?.id ?? null,
       entry_amount: valorEntrada,
@@ -436,6 +448,11 @@ export type VenderInput = {
   cash_register_id?: string | null;
   /** Entrega 3: quem vendeu. O Caixa é obrigado a informar; os outros papéis vendem em nome próprio. */
   seller_user_id?: string | null;
+  /**
+   * Entrega 4: o orçamento que esta venda fatura. O vendedor passa a ser o do
+   * orçamento, e o preço-base dos itens dele segue `precoQueVale`.
+   */
+  quote_id?: string | null;
 };
 
 const FORMAS_DE_CARTAO = ["debito", "credito_vista", "credito_parcelado"] as const;
@@ -482,7 +499,75 @@ type Preparada = {
   notes: string | null;
   cash_register_id: string | null;
   seller_user_id: string;
+  /** O orçamento faturado: a transação o marca, e recusa se outra venda chegou antes. */
+  quote: { id: string; number: number } | null;
 };
+
+const QUOTE_NOT_FOUND = () => fail("QUOTE_NOT_FOUND", "Orçamento não encontrado nesta loja.", 404, "quote_id");
+const QUOTE_ALREADY_INVOICED = (numeroDaVenda: number) =>
+  fail("QUOTE_ALREADY_INVOICED", `Este orçamento já foi faturado na venda nº ${formatarNumero(numeroDaVenda)}.`, 409, "quote_id");
+
+type OrcamentoAFaturar = {
+  quote: { id: string; number: number };
+  vendedor: string | null;
+  /** Centavos por `presentation_id`, para `precificarItens`. */
+  precoBase: Map<string, number>;
+};
+
+/**
+ * Entrega 4: o orçamento que a venda vai faturar, conferido fora da transação
+ * (a corrida é barrada dentro dela, em `gravarVenda`). A validade é contra o dia
+ * da venda em Brasília, não contra agora: a venda lançada às 23h50 do último dia
+ * ainda leva o preço orçado.
+ */
+async function orcamentoAFaturar(
+  db: TenantPrismaClient,
+  lojaId: string,
+  quoteId: unknown,
+  soldAt: Date,
+): Promise<ActionResult<OrcamentoAFaturar>> {
+  const id = typeof quoteId === "string" ? quoteId.trim() : "";
+  if (!id) return QUOTE_NOT_FOUND();
+  const q = await db.emporioQuote.findFirst({
+    where: { id },
+    select: {
+      id: true,
+      number: true,
+      establishment_id: true,
+      seller_user_id: true,
+      valid_until: true,
+      sale: { select: { number: true } },
+      items: { select: { presentation_id: true, unit_price: true } },
+    },
+  });
+  if (!q) return QUOTE_NOT_FOUND();
+  if (q.establishment_id !== lojaId) {
+    return fail("QUOTE_OTHER_STORE", "Este orçamento é de outra loja. Fature na loja dele.", 422, "quote_id");
+  }
+  if (q.sale) return QUOTE_ALREADY_INVOICED(q.sale.number);
+
+  const vencido = hojeEmBrasilia(soldAt).getTime() > q.valid_until.getTime();
+  const precos = await db.presentationPrice.findMany({
+    where: { establishment_id: lojaId, presentation_id: { in: q.items.map((i) => i.presentation_id) } },
+    select: { presentation_id: true, price: true },
+  });
+  const precoHoje = new Map(precos.map((p) => [p.presentation_id, decToNum(p.price)]));
+  // O orçado é o preço praticado no orçamento (já com o desconto dele). A mesma
+  // apresentação em duas linhas do orçamento: vale a mais barata.
+  const orcado = new Map<string, number>();
+  for (const i of q.items) {
+    const cent = centavos(decToNum(i.unit_price) ?? 0);
+    const ja = orcado.get(i.presentation_id);
+    orcado.set(i.presentation_id, ja === undefined ? cent : Math.min(ja, cent));
+  }
+  const precoBase = new Map<string, number>();
+  for (const [apresentacao, orcadoCent] of orcado) {
+    const hoje = precoHoje.get(apresentacao) ?? null;
+    const vale = precoQueVale(orcadoCent, hoje === null ? null : centavos(hoje), vencido);
+    if (vale !== null) precoBase.set(apresentacao, vale);
+  }
+  return ok({ quote: { id: q.id, number: q.number }, vendedor: q.seller_user_id, precoBase });
+}
 
 async function prepararVenda(
   db: TenantPrismaClient,
@@ -506,8 +591,23 @@ async function prepararVenda(
   const soldAt = input.sold_at == null ? new Date() : input.sold_at;
   if (!dataValida(soldAt)) return fail("VALIDATION_ERROR", "Informe uma data de venda válida.", 422, "sold_at");
 
+  // Entrega 4: o orçamento faturado (a troca nunca chega aqui com um).
+  let orcamento: OrcamentoAFaturar | null = null;
+  if (input.quote_id != null && input.quote_id !== "") {
+    const r = await orcamentoAFaturar(db, loja.data.id, input.quote_id, soldAt);
+    if (!r.ok) return r;
+    orcamento = r.data;
+  }
+
   // O vendedor (entrega 3), validado aqui fora da transação como a loja e o cliente.
-  const vendedor = await resolverVendedor(db, ator, loja.data.id, input.seller_user_id, opts.vendedorHerdado);
+  // Ao faturar, é o do orçamento, como a troca herda o da venda original.
+  const vendedor = await resolverVendedor(
+    db,
+    ator,
+    loja.data.id,
+    input.seller_user_id,
+    opts.vendedorHerdado ?? orcamento?.vendedor ?? null,
+  );
   if (!vendedor.ok) return vendedor;
   const vendedorId = vendedor.data;
 
@@ -539,6 +639,7 @@ async function prepararVenda(
     ator,
     { id: loja.data.id, max_discount_pct: lojaExtra?.max_discount_pct ?? null },
     input.items,
+    orcamento ? { precoBase: orcamento.precoBase } : {},
   );
   if (!precificados.ok) return precificados;
   const itens: ItemPreparado[] = precificados.data.itens.map((i) => ({
@@ -678,6 +779,7 @@ async function prepararVenda(
     notes: typeof input.notes === "string" && input.notes.trim() ? input.notes.trim() : null,
     cash_register_id: pedidoDeCaixa(input.cash_register_id),
     seller_user_id: vendedorId,
+    quote: orcamento?.quote ?? null,
   });
 }
 
@@ -841,8 +943,19 @@ async function gravarVenda(
       exchange_return_id: extra.exchange_return_id ?? null,
       cash_session_id: turno.id,
       notes: p.notes,
+      quote_id: p.quote?.id ?? null,
     }),
   });
+
+  // Entrega 4: marca o orçamento faturado só se ninguém o faturou entre a
+  // conferência e aqui. Dois balcões ao mesmo tempo: o segundo aborta inteiro.
+  if (p.quote) {
+    const marcado = await tx.emporioQuote.updateMany({ where: { id: p.quote.id, sale_id: null }, data: { sale_id: venda.id } });
+    if (marcado.count === 0) {
+      const atual = await tx.emporioQuote.findFirst({ where: { id: p.quote.id }, select: { sale: { select: { number: true } } } });
+      throw new AbortarVenda(atual?.sale ? QUOTE_ALREADY_INVOICED(atual.sale.number) : QUOTE_NOT_FOUND());
+    }
+  }
 
   await tx.emporioSaleItem.createMany({
     data: p.itens.map((i, n) =>
@@ -1104,7 +1217,9 @@ export async function venderAction(
         establishment_id: prep.data.loja.id,
         target_type: "venda",
         target_id: novaId,
-        summary: `Vendeu ${dinheiro(prep.data.net)} na ${prep.data.loja.name} (${frasItens(prep.data.itens.length)})`,
+        summary: `Vendeu ${dinheiro(prep.data.net)} na ${prep.data.loja.name} (${frasItens(prep.data.itens.length)})${
+          prep.data.quote ? ` do orçamento nº ${formatarNumero(prep.data.quote.number)}` : ""
+        }`,
       });
       return novaId;
     });
@@ -1168,6 +1283,8 @@ export async function cancelarVendaAction(
         data: { status: "cancelada", canceled_at: agora, canceled_by_user_id: ator.id, canceled_reason: motivo },
       });
       if (r.count === 0) throw new AbortarVenda(fail("SALE_CANCELED", "Essa venda já foi cancelada.", 409));
+      // Entrega 4: o orçamento que ela faturou volta a aberto (a venda guarda o `quote_id`).
+      await tx.emporioQuote.updateMany({ where: { sale_id: id }, data: { sale_id: null } });
       await registrarNoHistorico(tx, ator, {
         action: "venda.cancelar",
         establishment_id: venda.establishment_id,
@@ -1690,6 +1807,8 @@ export async function trocarAction(
     ...(input.venda as VenderInput),
     // O vendedor da troca é o da venda original (`vendedorHerdado`); sem ele, quem registra. O do corpo não vale.
     seller_user_id: null,
+    // A venda nova da troca não fatura orçamento.
+    quote_id: null,
     operation_key: String(input.venda?.operation_key ?? "").trim() || `${chave}:venda`,
     establishment_id: input.venda?.establishment_id || origem.establishment_id,
     cash_register_id: pedidoDeCaixa(input.cash_register_id) ?? pedidoDeCaixa(input.venda?.cash_register_id),

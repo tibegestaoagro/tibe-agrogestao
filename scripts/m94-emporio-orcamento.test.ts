@@ -11,6 +11,9 @@ exigirBancoLocal();
  * cliente, vendedor, desconto, preço, Histórico, leitura e alcance, rotas).
  * Seção 2: a lista com busca (número, telefone, CPF, nome), a situação, o alcance, o Caixa
  * e a busca pelo número.
+ * Seção 3: faturar (preço-base, validade no dia da venda em Brasília, o Caixa, outra loja,
+ * outro tenant, de novo, dois balcões ao mesmo tempo), cancelar e faturar de novo, replay,
+ * item fora do orçamento e a troca.
  */
 
 let falhas = 0;
@@ -453,6 +456,283 @@ async function secao2(c: Dado) {
   void prisma;
 }
 
+async function secao3(c: Dado) {
+  console.log("\nSeção 3: faturar o orçamento e cancelar a venda (com banco)");
+  const { Orc, db, B, owner, ownerB, gestor, vend1, vend2, caixa, L1, L2, chamar, signAccessToken, rec, stamp, hoje, somarDias } = c;
+  const Cat = await import("@/lib/actions/emporio-catalogo");
+  const Est = await import("@/lib/actions/emporio-estoque");
+  const Ven = await import("@/lib/actions/emporio-vendas");
+  const { formatarNumero } = await import("@/lib/emporio/numeracao");
+  const MSG_NAO_ACHADO = "Orçamento não encontrado nesta loja.";
+  const MSG_OUTRA_LOJA = "Este orçamento é de outra loja. Fature na loja dele.";
+  const MSG_FATURADO = (n: number) => `Este orçamento já foi faturado na venda nº ${formatarNumero(n)}.`;
+
+  // Produtos próprios da seção: P (o do orçamento) e P2 (o item a mais, fora dele).
+  const cat = await db.productCategory.create({ data: { name: "M94 categoria faturar" } as never });
+  const mkProduto = async (nome: string, preco: number, estoque: number) => {
+    const p = await Cat.criarProdutoEmporioAction(db, owner, { name: `${nome} ${stamp}`, category_id: cat.id, base_unit: "quilograma" });
+    if (!p.ok) throw new Error(j(p));
+    const a = await Cat.criarApresentacaoAction(db, owner, p.data.id, { name: "Quilo", base_qty: 1, is_sealed_package: false });
+    if (!a.ok) throw new Error(j(a));
+    for (const est of [L1, L2]) {
+      const r = await Cat.definirPrecoAction(db, owner, { establishment_id: est, presentation_id: a.data.id, price: preco });
+      if (!r.ok) throw new Error(j(r));
+    }
+    const e = await Est.implantarEstoqueAction(db, owner, { establishment_id: L1, emporio_product_id: p.data.id, sealed: [], loose_qty: estoque, unit_cost: 5 });
+    if (!e.ok) throw new Error(j(e));
+    return { id: p.data.id, ap: a.data.id, product_id: p.data.product_id as string };
+  };
+  const P = await mkProduto("M94 Racao", 20, 500);
+  const P2 = await mkProduto("M94 Milho", 10, 50);
+  const precoHoje = async (v: number, prod = P) => {
+    const r = await Cat.definirPrecoAction(db, owner, { establishment_id: L1, presentation_id: prod.ap, price: v });
+    if (!r.ok) throw new Error(j(r));
+  };
+  const cliente = await db.contact.create({
+    data: { name: `M94 Cliente Faturar ${stamp}`, person_kind: "pf", document: "15350946056", phone: "11977776666" } as never,
+  });
+
+  let k = 0;
+  const chave = (s: string) => `m94-${stamp}-f-${s}-${(k += 1)}`;
+  const itemP = (q = 2, extra: Dado = {}) => ({ emporio_product_id: P.id, presentation_id: P.ap, quantity: q, ...extra });
+  const orcarP = async (ator: Dado = vend1, extra: Dado = {}) => {
+    const r = await Orc.salvarOrcamentoAction(db, ator, { operation_key: chave("orc"), establishment_id: L1, contact_id: cliente.id, items: [itemP()], ...extra });
+    if (!r.ok) throw new Error(`orçamento da seção 3: ${j(r)}`);
+    return r.data;
+  };
+  const faturar = (ator: Dado, quote_id: unknown, total: number, extra: Dado = {}, banco: Dado = db) =>
+    Ven.venderAction(banco, ator, {
+      operation_key: chave("venda"),
+      establishment_id: L1,
+      contact_id: cliente.id,
+      quote_id,
+      items: [itemP()],
+      payments: [{ kind: "dinheiro", amount: total }],
+      ...extra,
+    } as never);
+  const situacao = async (id: string) => {
+    const r = await Orc.lerOrcamentoAction(db, owner, id);
+    if (!r.ok) throw new Error(j(r));
+    return r.data;
+  };
+  const contar = async () => ({
+    vendas: await db.emporioSale.count(),
+    estoque: await db.stockMovement.count(),
+    caixa: await db.cashMovement.count(),
+    lancamentos: await db.financialEntry.count(),
+  });
+
+  // --- dentro da validade, o preço de hoje subiu: vale o orçado
+  const qA = await orcarP();
+  await precoHoje(25);
+  const vA = await faturar(vend1, qA.id, 40);
+  check("hoje mais caro (25), orçado 20: a venda sai", vA.ok, j(vA));
+  if (!vA.ok) throw new Error("sem a primeira venda faturada");
+  check(
+    "o preço-base da venda é o orçado: suggested 20, unit 20, desconto 0, total 40",
+    vA.data.items[0].suggested_price === 20 && vA.data.items[0].unit_price === 20 && vA.data.discount_amount === 0 && vA.data.net_amount === 40,
+    j(vA.data.items),
+  );
+  check("a venda diz de qual orçamento veio (quote id e numero)", j(vA.data.quote) === j({ id: qA.id, numero: qA.numero }), j(vA.data.quote));
+  const rowA = await db.emporioSale.findFirst({ where: { id: vA.data.id } });
+  check("a linha da venda grava quote_id", rowA?.quote_id === qA.id, j(rowA));
+  const sA = await situacao(qA.id);
+  check("o orçamento fica faturado, com sale.numero da venda", sA.situacao === "faturado" && sA.sale?.id === vA.data.id && sA.sale?.numero === formatarNumero(vA.data.number), j([sA.situacao, sA.sale]));
+  check("o vendedor da venda é o do orçamento", vA.data.seller_user_id === vend1.id, j(vA.data.seller_user_id));
+  const logA = await db.emporioAuditLog.findFirst({ where: { action: "venda.criar", target_id: vA.data.id } });
+  check("Histórico: venda.criar, com \"do orçamento nº\" no resumo", !!logA?.summary.includes(`do orçamento nº ${qA.numero}`), logA?.summary);
+
+  // --- dentro da validade, o preço de hoje baixou: vale o de hoje
+  const qB = await orcarP(); // orçado a 25
+  await precoHoje(18);
+  const vB = await faturar(vend1, qB.id, 36);
+  check(
+    "hoje mais barato (18), orçado 25: a base é a de hoje (suggested 18, unit 18, desconto 0)",
+    vB.ok && vB.data.items[0].suggested_price === 18 && vB.data.items[0].unit_price === 18 && vB.data.discount_amount === 0,
+    j(vB.ok ? vB.data.items : vB),
+  );
+
+  // --- vencido: vale o preço de hoje
+  const qC = await orcarP(); // orçado a 18
+  await db.emporioQuote.update({ where: { id: qC.id }, data: { valid_until: somarDias(hoje, -1) } });
+  await precoHoje(22);
+  const vC = await faturar(vend1, qC.id, 44);
+  check(
+    "vencido, orçado 18 e hoje 22: vale o de hoje (suggested 22, unit 22)",
+    vC.ok && vC.data.items[0].suggested_price === 22 && vC.data.items[0].unit_price === 22 && vC.data.discount_amount === 0,
+    j(vC.ok ? vC.data.items : vC),
+  );
+  check("e o vencido também fica faturado", (await situacao(qC.id)).situacao === "faturado");
+
+  // --- a fronteira do dia em Brasília (preço de hoje 30 a partir daqui)
+  const ymd = (d: Date) => d.toISOString().slice(0, 10);
+  const qD = await orcarP(); // orçado a 22
+  await db.emporioQuote.update({ where: { id: qD.id }, data: { valid_until: hoje } });
+  await precoHoje(30);
+  const vD = await faturar(vend1, qD.id, 44, { sold_at: new Date(`${ymd(hoje)}T23:50:00-03:00`) });
+  check(
+    "valid_until = hoje e a venda às 23h50 de Brasília (já amanhã em UTC): ainda vale o orçado 22",
+    vD.ok && vD.data.items[0].suggested_price === 22 && vD.data.items[0].unit_price === 22,
+    j(vD.ok ? vD.data.items : vD),
+  );
+  const ontem = somarDias(hoje, -1);
+  const qD2 = await orcarP(); // orçado a 30
+  await db.emporioQuote.update({ where: { id: qD2.id }, data: { valid_until: ontem } });
+  await precoHoje(33);
+  const vD2 = await faturar(vend1, qD2.id, 60, { sold_at: new Date(`${ymd(ontem)}T23:50:00-03:00`) });
+  check(
+    "válido até ontem, venda lançada ontem às 23h50: vale o orçado 30 (a validade é contra o dia da venda)",
+    vD2.ok && vD2.data.items[0].suggested_price === 30,
+    j(vD2.ok ? vD2.data.items : vD2),
+  );
+  const qD3 = await orcarP(); // orçado a 33
+  await db.emporioQuote.update({ where: { id: qD3.id }, data: { valid_until: ontem } });
+  await precoHoje(35);
+  const vD3 = await faturar(vend1, qD3.id, 70, { sold_at: new Date(`${ymd(hoje)}T00:10:00-03:00`) });
+  check(
+    "válido até ontem, venda hoje às 00h10 de Brasília: vencido, vale o de hoje 35",
+    vD3.ok && vD3.data.items[0].suggested_price === 35,
+    j(vD3.ok ? vD3.data.items : vD3),
+  );
+  await precoHoje(30);
+
+  // --- o Caixa fatura sem escolher vendedor (pela rota)
+  const qE = await orcarP(); // orçado a 30, vendedor vend1
+  const tCaixa = signAccessToken(caixa.id);
+  const rE = await chamar(tCaixa, "sales", "POST", "sales", {
+    operation_key: chave("rota"),
+    establishment_id: L1,
+    contact_id: cliente.id,
+    quote_id: qE.id,
+    items: [itemP()],
+    payments: [{ kind: "dinheiro", amount: 60 }],
+  });
+  check(
+    "o Caixa fatura sem seller_user_id: 201, vendedor = o do orçamento, registrado pelo Caixa",
+    rE.status === 201 && rE.json?.data?.seller_user_id === vend1.id && rE.json?.data?.sold_by_user_id === caixa.id && rE.json?.data?.quote?.id === qE.id,
+    `${rE.status} ${j(rE.json)}`,
+  );
+  const qE2 = await orcarP(gestor); // vendedor = o Gestor
+  const vE2 = await faturar(caixa, qE2.id, 60, { seller_user_id: vend1.id });
+  check("o vendedor mandado no corpo não troca o do orçamento", vE2.ok && vE2.data.seller_user_id === gestor.id, j(vE2.ok ? vE2.data.seller_user_id : vE2));
+  const rZod = await chamar(tCaixa, "sales", "POST", "sales", {
+    operation_key: chave("rota"),
+    establishment_id: L1,
+    contact_id: cliente.id,
+    quote_id: 5,
+    items: [itemP()],
+    payments: [{ kind: "dinheiro", amount: 60 }],
+  });
+  check("POST sales com quote_id fora do formato: 422 em quote_id, em português", rZod.status === 422 && rZod.json?.error?.field === "quote_id" && !/expected/i.test(rZod.json?.error?.message ?? ""), `${rZod.status} ${j(rZod.json)}`);
+
+  // --- outra loja, outro tenant, id que não existe: nada gravado
+  const recusaSemGravar = async (nome: string, r: Promise<Dado>, code: string, status: number, field: string, msg: string) => {
+    const n0 = await contar();
+    const x = await r;
+    check(`${nome}: ${status} ${code} em ${field}, sem gravar`, rec(x, code, status, field, msg) && j(await contar()) === j(n0), j(x));
+  };
+  const qL2 = await Orc.salvarOrcamentoAction(db, vend2, { operation_key: chave("orc"), establishment_id: L2, contact_id: cliente.id, items: [itemP()] });
+  if (!qL2.ok) throw new Error(j(qL2));
+  await recusaSemGravar("orçamento de outra loja", faturar(owner, qL2.data.id, 60), "QUOTE_OTHER_STORE", 422, "quote_id", MSG_OUTRA_LOJA);
+  await recusaSemGravar("id que não existe", faturar(vend1, "nao-existe", 60), "QUOTE_NOT_FOUND", 404, "quote_id", MSG_NAO_ACHADO);
+  const lB = await Cat.criarEstabelecimentoAction(B.db, ownerB, { name: "M94 Loja B" });
+  if (!lB.ok) throw new Error(j(lB));
+  const deOutroTenant = await Ven.venderAction(B.db, ownerB, {
+    operation_key: chave("venda"),
+    establishment_id: lB.data.id,
+    contact_id: "qualquer",
+    quote_id: qE2.id,
+    items: [itemP()],
+    payments: [{ kind: "dinheiro", amount: 60 }],
+  } as never);
+  check("orçamento de outro tenant: 404 QUOTE_NOT_FOUND em quote_id", rec(deOutroTenant, "QUOTE_NOT_FOUND", 404, "quote_id", MSG_NAO_ACHADO), j(deOutroTenant));
+  check("e o orçamento do outro tenant não muda", (await situacao(qE2.id)).sale?.id === (vE2.ok ? vE2.data.id : "?"));
+
+  // --- faturar de novo
+  await recusaSemGravar("faturar de novo", faturar(vend1, qA.id, 40), "QUOTE_ALREADY_INVOICED", 409, "quote_id", MSG_FATURADO(vA.data.number));
+
+  // --- dois balcões ao mesmo tempo
+  const qF = await orcarP(); // orçado a 30
+  const antesF = await contar();
+  const [x1, x2] = await Promise.all([faturar(vend1, qF.id, 60), faturar(gestor, qF.id, 60)]);
+  const okF = [x1, x2].filter((x) => x.ok);
+  const recusaF = [x1, x2].find((x) => !x.ok) as Dado;
+  check("duas vendas ao mesmo tempo: uma sai", okF.length === 1, j([x1, x2]));
+  check(
+    "e a outra recebe 409 QUOTE_ALREADY_INVOICED com o número da venda que saiu",
+    !!recusaF && okF.length === 1 && rec(recusaF, "QUOTE_ALREADY_INVOICED", 409, "quote_id", MSG_FATURADO((okF[0] as Dado).data.number)),
+    j(recusaF),
+  );
+  const depoisF = await contar();
+  check(
+    "nada da recusada ficou: uma venda, um movimento de estoque, um de caixa, um lançamento",
+    depoisF.vendas - antesF.vendas === 1 && depoisF.estoque - antesF.estoque === 1 && depoisF.caixa - antesF.caixa === 1 && depoisF.lancamentos - antesF.lancamentos === 1,
+    `${j(antesF)} -> ${j(depoisF)}`,
+  );
+  check("e só uma venda aponta para o orçamento", (await db.emporioSale.count({ where: { quote_id: qF.id } })) === 1);
+
+  // --- cancelar a venda reabre o orçamento
+  const cancel = await Ven.cancelarVendaAction(db, owner, vA.data.id, { reason: "cliente desistiu" });
+  check("cancelar a venda faturada: ok", cancel.ok, j(cancel));
+  const sA2 = await situacao(qA.id);
+  check("o orçamento volta a aberto, sem venda ativa", sA2.situacao === "aberto" && sA2.sale === null, j([sA2.situacao, sA2.sale]));
+  check("a venda cancelada continua dizendo de qual orçamento veio", cancel.ok && cancel.data.quote?.id === qA.id, j(cancel.ok ? cancel.data.quote : cancel));
+  const chaveA2 = chave("venda");
+  const vA2 = await faturar(vend1, qA.id, 40, { operation_key: chaveA2 });
+  check("faturar de novo depois do cancelamento: ok, ainda no orçado 20 (hoje 30)", vA2.ok && vA2.data.items[0].suggested_price === 20, j(vA2.ok ? vA2.data.items : vA2));
+  const rE2 = await chamar(signAccessToken(vend1.id), "sales", "POST", "sales", {
+    operation_key: chave("rota"),
+    establishment_id: L1,
+    contact_id: cliente.id,
+    quote_id: qB.id,
+    items: [itemP()],
+    payments: [{ kind: "dinheiro", amount: 36 }],
+  });
+  check("pela rota, faturar um já faturado: 409 em quote_id", rE2.status === 409 && rE2.json?.error?.code === "QUOTE_ALREADY_INVOICED" && rE2.json?.error?.field === "quote_id", `${rE2.status} ${j(rE2.json)}`);
+  const duas: { id: string; status: string }[] = await db.emporioSale.findMany({ where: { quote_id: qA.id }, select: { id: true, status: true } });
+  check("as duas vendas guardam o quote_id (a cancelada e a nova)", duas.length === 2 && duas.some((d) => d.status === "cancelada") && duas.some((d) => d.status === "concluida"), j(duas));
+  const sA3 = await situacao(qA.id);
+  check(
+    "o orçamento: faturado pela nova, e vendas lista as duas",
+    vA2.ok && sA3.situacao === "faturado" && sA3.sale?.id === vA2.data.id && sA3.vendas.length === 2 && sA3.vendas.some((v: Dado) => v.id === vA.data.id && v.status === "cancelada"),
+    j([sA3.situacao, sA3.sale, sA3.vendas]),
+  );
+
+  // --- repetir a chave: replay, sem mexer no orçamento
+  const rep = await faturar(vend1, qA.id, 40, { operation_key: chaveA2 });
+  check("a mesma operation_key da venda faturada: replayed, a mesma venda", rep.ok && rep.data.replayed === true && vA2.ok && rep.data.id === vA2.data.id, j(rep));
+  const repCancelada = await faturar(vend1, qA.id, 40, { operation_key: vA.data.operation_key });
+  check("a chave da venda cancelada: replay dela, sem reabrir nem trocar o orçamento", repCancelada.ok && repCancelada.data.replayed === true && repCancelada.data.id === vA.data.id, j(repCancelada));
+  const sA4 = await situacao(qA.id);
+  check("o orçamento segue apontando para a venda nova", vA2.ok && sA4.sale?.id === vA2.data.id, j(sA4.sale));
+
+  // --- item a mais, fora do orçamento: regra normal
+  const qG = await orcarP(); // orçado a 30
+  await precoHoje(35);
+  const vG = await faturar(vend1, qG.id, 70, { items: [itemP(), { emporio_product_id: P2.id, presentation_id: P2.ap, quantity: 1 }] });
+  const linhaP = vG.ok ? vG.data.items.find((i: Dado) => i.presentation_id === P.ap) : null;
+  const linhaP2 = vG.ok ? vG.data.items.find((i: Dado) => i.presentation_id === P2.ap) : null;
+  check(
+    "na mesma venda: o item do orçamento no orçado (30) e o de fora no preço da loja (10)",
+    vG.ok && linhaP?.suggested_price === 30 && linhaP2?.suggested_price === 10 && linhaP2?.unit_price === 10 && vG.data.net_amount === 70,
+    j(vG.ok ? vG.data.items : vG),
+  );
+  const vG2 = await faturar(vend1, null, 10, { items: [{ emporio_product_id: P2.id, presentation_id: P2.ap, quantity: 1 }] });
+  check("venda comum (sem quote_id): quote null", vG2.ok && vG2.data.quote === null, j(vG2.ok ? vG2.data.quote : vG2));
+
+  // --- a troca não fatura orçamento
+  const qH = await orcarP();
+  if (vG2.ok) {
+    const tr = await Ven.trocarAction(db, owner, vG2.data.id, {
+      operation_key: chave("troca"),
+      items_devolvidos: [{ sale_item_id: vG2.data.items[0].id, quantity: 1 }],
+      venda: { contact_id: cliente.id, quote_id: qH.id, items: [{ emporio_product_id: P2.id, presentation_id: P2.ap, quantity: 1 }], payments: [] },
+    } as never);
+    check("a troca com quote_id no corpo: sai, sem orçamento na venda nova", tr.ok && tr.data.venda.quote === null, j(tr.ok ? tr.data.venda.quote : tr));
+    check("e o orçamento continua aberto", (await situacao(qH.id)).situacao === "aberto");
+  }
+}
+
 async function limpar() {
   const { prisma } = await import("@/lib/prisma");
   const modelos = [
@@ -479,6 +759,7 @@ async function main() {
   try {
     const ctx = await secao1();
     await secao2(ctx);
+    await secao3(ctx);
   } finally {
     await limpar();
   }
