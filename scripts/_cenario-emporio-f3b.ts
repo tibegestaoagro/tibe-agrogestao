@@ -34,8 +34,10 @@ async function limpar(tenant_id: string) {
   const vendas = (await prisma.emporioSale.findMany({ where: { tenant_id, establishment_id: { in: lojas } }, select: { id: true } })).map((v) => v.id);
   const devolucoes = (await prisma.emporioSaleReturn.findMany({ where: { tenant_id, sale_id: { in: vendas } }, select: { id: true } })).map((d) => d.id);
   const conferencias = (await prisma.cashCount.findMany({ where: { tenant_id, establishment_id: { in: lojas } }, select: { id: true } })).map((c) => c.id);
+  // Entrega 2 (Q159, Q163): o roteiro leva a gaveta ao banco passando pela gerência da loja.
+  const ondeHaDinheiro = [{ establishment_id: { in: lojas } }, { manager_establishment_id: { in: lojas } }, { bank_account_id: { in: contas } }];
   const movimentos = await prisma.cashMovement.findMany({
-    where: { tenant_id, OR: [{ establishment_id: { in: lojas } }, { bank_account_id: { in: contas } }] },
+    where: { tenant_id, OR: ondeHaDinheiro },
     select: { cash_transfer_id: true },
   });
   const transferencias = [...new Set(movimentos.map((m) => m.cash_transfer_id).filter((x): x is string => !!x))];
@@ -44,7 +46,7 @@ async function limpar(tenant_id: string) {
     select: { id: true },
   })).map((l) => l.id);
 
-  await prisma.cashMovement.deleteMany({ where: { tenant_id, OR: [{ establishment_id: { in: lojas } }, { bank_account_id: { in: contas } }] } });
+  await prisma.cashMovement.deleteMany({ where: { tenant_id, OR: ondeHaDinheiro } });
   await prisma.cashTransfer.deleteMany({ where: { tenant_id, id: { in: transferencias } } });
   await prisma.cashCount.deleteMany({ where: { tenant_id, id: { in: conferencias } } });
   await prisma.cardReceivable.deleteMany({ where: { tenant_id, sale_id: { in: vendas } } });

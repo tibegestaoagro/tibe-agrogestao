@@ -2,13 +2,15 @@ import "./_env-local";
 import { prisma, prismaForTenant } from "@/lib/prisma";
 import { exigirBancoLocal } from "./_banco-local";
 import { setTenantFeatureAction } from "@/lib/actions/platform-features";
+import { abrirTurnoDeTeste } from "./_emporio-turno";
 
 /**
  * Monta, no banco LOCAL, o cenario da F3a do Meu Empório (Modulo 39) para o
  * roteiro `scripts/navegador/emporio-f3a.py`. Nao e suite.
  *
  * Na conta do seed, com o prefixo "F3a ":
- *   - "F3a Loja" (ponto de venda), desconto maximo de 10%;
+ *   - "F3a Loja" (ponto de venda), desconto maximo de 10%, com o turno do
+ *     Caixa 1 aberto sem troco (entrega 2: toda venda cai num turno);
  *   - "F3a Sal": Saca 10 kg (fechada) a R$ 100,00 e Quilo a R$ 12,00, com
  *     3 sacas lacradas a R$ 9,00 o kg e nada avulso (o aceite do §25);
  *   - "F3a Ração": Quilo a R$ 20,00, 50 kg avulsos a R$ 10,00;
@@ -36,6 +38,8 @@ async function limpar(tenant_id: string) {
   })).map((l) => l.id);
 
   await prisma.cashMovement.deleteMany({ where: { tenant_id, OR: [{ establishment_id: { in: lojas } }, { bank_account_id: { in: contas } }] } });
+  // A contagem de abertura do turno (entrega 2) segura a loja: sai antes dela.
+  await prisma.cashCount.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.stockMovement.deleteMany({ where: { tenant_id, OR: [{ establishment_id: { in: lojas } }, { product_id: { in: produtos } }] } });
   await prisma.emporioSalePayment.deleteMany({ where: { tenant_id, sale_id: { in: vendas } } });
   await prisma.financialPayment.deleteMany({ where: { tenant_id, entry_id: { in: lancamentos } } });
@@ -103,6 +107,9 @@ async function main() {
 
   const conta = exigir(await caixa.criarContaAction(db, ator, { name: `${PREFIXO}Banco`, bank: "Banco do Brasil" }), "conta") as { id: string };
   exigir(await caixa.definirContaPixAction(db, ator, loja.id, { bank_account_id: conta.id }), "conta pix");
+  // Entrega 2 (Q155): toda venda cai num turno aberto; o Caixa 1 abre sem troco,
+  // e a gaveta continua começando em zero, como o roteiro confere.
+  await abrirTurnoDeTeste(db, ator, loja.id);
 
   const jose = await prisma.contact.create({ data: { tenant_id, name: `${PREFIXO}José` } });
 

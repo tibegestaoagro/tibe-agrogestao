@@ -6,8 +6,8 @@
 #
 # O cenario libera o recurso so para o Owner e o operador de teste, e monta:
 #   compra da "F5 Casa do Adubo" vencida (R$ 300), dois fiados vencidos do
-#   "F5 João" (R$ 40 + R$ 60, uma linha so), venda em dinheiro ontem sem
-#   conferencia, "F5 Ração" abaixo do minimo, e a conta da fazenda "F5 Diesel".
+#   "F5 João" (R$ 40 + R$ 60, uma linha so), venda em dinheiro ontem no
+#   turno aberto desde ontem (Q165), "F5 Ração" abaixo do minimo, e a conta da fazenda "F5 Diesel".
 #
 # cenario: scripts/_cenario-emporio-f5.ts
 # sessao: owner owner@damata.com.br
@@ -35,7 +35,8 @@ entrar("owner")
 ir("/meu-dia")
 confere("a compra vencida, com a loja", tem("Pagar F5 Casa do Adubo (F5 Loja)"))
 confere("os dois fiados do João numa linha só, de R$ 100", tem("Receber de F5 João (fiado, F5 Loja)") and js("document.body.innerText.split('Receber de F5 João').length - 1") == 1)
-confere("o caixa de ontem sem conferência", tem("Caixa de ontem da F5 Loja não foi conferido"))
+# Q165: o "caixa de ontem não conferido" (Q110) deu lugar ao turno aberto desde ontem.
+confere("o turno aberto desde ontem", tem("Caixa 1 da F5 Loja aberto desde"))
 confere("o cartão Seu Empório", tem("Seu Empório") and tem("Vendas de hoje") and tem("Fiado a receber"))
 confere("a linha da reposição", tem("precisa de reposição") or tem("precisam de reposição"))
 confere("a conta da fazenda continua", tem("F5 Diesel"))
@@ -80,7 +81,7 @@ confere("a conta da fazenda aparece", tem("F5 Diesel"))
 
 passo("6. Fora da lista: Painel e Financeiro só da fazenda")
 ir("/dashboard")
-confere("o Painel não mostra conta de loja", not tem("F5 Casa do Adubo") and not tem("(fiado,") and not tem("Caixa de ontem"))
+confere("o Painel não mostra conta de loja", not tem("F5 Casa do Adubo") and not tem("(fiado,") and not tem("aberto desde"))
 tudo_f, fazenda_f, emporio_f = dre("tudo"), dre("fazenda"), dre("emporio")
 confere("o Tudo dele é igual a Fazenda", abs(tudo_f - fazenda_f) < 0.01, (tudo_f, fazenda_f))
 confere("pedir Empório também dá Fazenda", abs(emporio_f - fazenda_f) < 0.01, (emporio_f, fazenda_f))

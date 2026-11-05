@@ -16,6 +16,10 @@
 # 'estoque-precisa-repor' exigem). Filtre com FIGURAS=id1,id2 e veja o texto da
 # tela com DUMP=1.
 #
+# Os cenarios da F6b e do turno desativam a equipe da demonstracao (assentos);
+# o cenario abaixo a reativa antes das sessoes.
+#
+# cenario: scripts/_cenario-manual-emporio.ts
 # sessao: dono owner@damata.com.br
 # sessao: gestor gestor.demo.emporio@example.com
 # sessao: vendedor_centro vendedor.centro.demo.emporio@example.com
@@ -583,7 +587,8 @@ figura("fiado-receber", "vendedor_centro", "/emporio/fiado", [
 ], estado=lambda: (clicar_na_linha("Chácara Três Irmãos", "Receber"), time.sleep(1.5), preencher("Valor recebido (R$)", "500,00"), time.sleep(0.5)), hd=700, hc=900)
 
 figura("caixa-gaveta", "vendedor_centro", "/emporio/caixa", [
-    (1, "M.S('Gaveta de cada loja')", "o saldo da gaveta"),
+    # Q153: a gaveta virou os caixas numerados de cada loja.
+    (1, "M.S('Caixas de cada loja')", "os caixas de cada loja"),
     (2, "M.B('Conferir')", "o botao Conferir"),
     (3, "M.S('Movimentos')", "a secao Movimentos"),
 ], limite=4, hd=1060, hc=1500)
@@ -605,7 +610,8 @@ figura("caixa-conferir", "vendedor_centro", "/emporio/caixa", [
 figura("caixa-cartao-cheques", "gestor", "/emporio/caixa", [
     (1, "M.S('A receber do cartão')", "a secao A receber do cartao"),
     (2, "M.S('Cheques')", "a secao Cheques"),
-    (3, "M.B('Transferir entre caixas')", "o botao Transferir entre caixas"),
+    # Q163: a gaveta vai ao gerente; a transferencia sai da gerencia para o banco.
+    (3, "M.B('Transferir dinheiro')", "o botao Transferir dinheiro"),
 ], rolar="M.H('A receber do cartão')", limite=3, hd=1100, hc=1500)
 
 figura("despesas-fixas", "gestor", "/emporio/despesas", [

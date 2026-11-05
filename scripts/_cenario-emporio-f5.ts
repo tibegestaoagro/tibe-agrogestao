@@ -17,7 +17,8 @@ import { abrirTurnoDeTeste } from "./_emporio-turno";
  *   - compra a prazo de R$ 300,00 da "F5 Casa do Adubo", vencida ha 3 dias;
  *   - duas vendas fiado ao "F5 João" (R$ 40,00 e R$ 60,00), vencidas ha 4 e
  *     2 dias: uma linha so, de R$ 100,00;
- *   - uma venda em dinheiro ONTEM, sem conferencia do caixa;
+ *   - uma venda em dinheiro ONTEM, no turno do Caixa 1 aberto ontem e ainda
+ *     aberto (Q165);
  *   - uma conta da fazenda "F5 Diesel" de R$ 77,00 vencendo amanha;
  *   - "F5 Milho", "F5 Farelo" e "F5 Mistura" em quilo, e "F5 Óleo" em litro,
  *     para a composicao da receita.
@@ -177,10 +178,16 @@ async function main() {
     items: [{ emporio_product_id: racao, presentation_id: quilo, quantity: 1, unit_price: 20 }],
     payments: [{ kind: "dinheiro", amount: 20 }],
   } as never), "dinheiro") as { id: string };
-  const ontem = new Date(agora.getTime() - DIA);
+  // O dia de ontem é o de Brasília (UTC-3): entre 21h e meia-noite o dia UTC já
+  // virou, e "agora menos um dia" ao meio-dia caía no hoje de Brasília.
+  const ontem = new Date(agora.getTime() - 3 * 60 * 60 * 1000 - DIA);
   ontem.setUTCHours(15, 0, 0, 0);
   await prisma.cashMovement.updateMany({ where: { tenant_id, establishment_id: loja.id }, data: { occurred_at: ontem } });
   await prisma.emporioSale.update({ where: { id: dinheiro.id }, data: { sold_at: ontem } });
+  // Q165: o turno em que a venda caiu foi aberto ontem e continua aberto, e é
+  // isso que o Meu Dia avisa (no lugar do "caixa não conferido" da Q110).
+  await prisma.cashSession.updateMany({ where: { tenant_id, establishment_id: loja.id }, data: { opened_at: ontem } });
+  await prisma.cashCount.updateMany({ where: { tenant_id, establishment_id: loja.id }, data: { counted_at: ontem } });
 
   // A conta da fazenda, direto no banco: e o par de comparacao, sem regra a provar.
   await prisma.financialEntry.create({

@@ -84,7 +84,8 @@ confere("preenche o email", preencher("Email", "f6b-novo@teste.local") not in ("
 confere("sem função escolhida, não há lojas nem chaves na tela", not no_painel("Fazer contagem de estoque"))
 confere("escolhe a função Vendedor", escolher("Função", "Vendedor") is True)
 confere("as lojas aparecem", no_painel("F6b Loja 1") and no_painel("F6b Loja 2"))
-confere("as chaves aparecem, com o rótulo da tela", no_painel("Fazer contagem de estoque") and no_painel("Levar a gaveta ao banco"))
+# Q163: a chave "Levar a gaveta ao banco" (transferir_caixa) saiu; a gaveta vai ao gerente.
+confere("as chaves aparecem, com o rótulo da tela", no_painel("Fazer contagem de estoque") and no_painel("Depositar cheque") and not no_painel("Levar a gaveta ao banco"))
 ligadas = js("Array.from(document.querySelectorAll('[role=dialog] input[type=checkbox]')).filter(x => x.checked).length")
 confere("todas as chaves e lojas começam desligadas", ligadas == 0, ligadas)
 enviar_painel()

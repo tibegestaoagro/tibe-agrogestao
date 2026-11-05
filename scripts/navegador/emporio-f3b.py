@@ -6,7 +6,8 @@
 #   credito de R$ 100 com 3% em 30 dias: R$ 97 a receber, nada na gaveta
 #   a venda de 40 dias atras (cenario) ja caiu: R$ 97 na conta
 #   cheque de R$ 100 depositado e compensado: a conta ganha R$ 100
-#   transferir R$ 150 da gaveta para a conta nao cria lancamento financeiro
+#   levar R$ 150 da gaveta para a conta (sangria, gerente confirma, transferencia
+#   da gerencia para a conta, Q163) nao cria lancamento financeiro
 #   conferir a gaveta com R$ 5 a menos: ajuste e "Diferenca de caixa"
 #
 # cenario: scripts/_cenario-emporio-f3b.ts
@@ -163,7 +164,8 @@ confere("o cheque está na carteira, recebido, e a gaveta não mudou", any(c.get
 
 passo("4. Depositar e compensar o cheque pelo caixa")
 ir("/emporio/caixa")
-confere("seções novas no caixa", all(tem(x) for x in ["A receber do cartão", "Cheques", "Transferir entre caixas", "Taxas de cartão"]))
+# Q163: a seção "Transferir entre caixas" virou "Transferir dinheiro" (da gerência ao banco).
+confere("seções novas no caixa", all(tem(x) for x in ["A receber do cartão", "Cheques", "Transferir dinheiro", "Taxas de cartão"]))
 confere("abre Depositar do cheque 000123", clicar_no_bloco("000123", "Depositar"))
 time.sleep(1.5)
 escolher("Conta do depósito", "F3b Banco")
@@ -177,12 +179,22 @@ confere("confirma", clicar("Sim, compensou"))
 confere("a conta ganha R$ 100,00: R$ 197,00", esperar(lambda: conta(banco["id"])["balance"] == 197, 60), conta(banco["id"]))
 confere("o cheque sai da carteira", not any(c.get("number") == "000123" for c in caixa()["checks"]))
 
-passo("5. Transferir R$ 150 da gaveta para a conta: o resultado não muda")
+passo("5. Levar R$ 150 da gaveta para a conta: o resultado não muda")
 antes = lancamentos()
+# Q163: a gaveta não vai mais direto ao banco. Vai ao gerente pela sangria (Q160),
+# o gerente confirma, e a transferência entre caixas sai da gerência para a conta.
+# A sangria e a confirmação pela tela são do roteiro emporio-turno; aqui, pela API.
+turno = [r["turno_aberto"] for g in caixa()["drawers"] if g["establishment_id"] == loja["id"] for r in g["registers"] if r.get("turno_aberto")]
+confere("o Caixa 1 da F3b Loja está aberto", len(turno) == 1, turno)
+chave = "roteiro-f3b-" + str(int(time.time()))
+s = api("POST", "/api/v1/emporio/cash/sessions/" + turno[0]["id"] + "/withdrawals", {"operation_key": chave + "-sangria", "amount": 150})
+confere("sangria de R$ 150,00 aguardando o gerente", s["status"] in (200, 201), s)
+c = api("POST", "/api/v1/emporio/cash/handovers/" + s["body"]["data"]["id"] + "/confirm", {"operation_key": chave + "-confirma", "received_amount": 150})
+confere("o gerente confirma os R$ 150,00", c["status"] == 200, c)
 ir("/emporio/caixa")
-confere("abre Transferir entre caixas", clicar("Transferir entre caixas"))
+confere("abre Transferir dinheiro", clicar("Transferir dinheiro"))
 time.sleep(1.5)
-escolher_por_inicio("De", "Gaveta: F3b Loja")
+escolher_por_inicio("De", "Com a gerência: F3b Loja")
 escolher_por_inicio("Para", "Conta: F3b Banco")
 preencher("Valor (R$)", "150,00")
 enviar_painel()

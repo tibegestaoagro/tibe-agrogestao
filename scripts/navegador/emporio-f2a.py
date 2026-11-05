@@ -96,13 +96,15 @@ ir("/emporio/produtos/" + prod["id"])
 confere("estoque não mudou antes de chegar", "22" in bloco_estoque() and "52" not in bloco_estoque(), bloco_estoque()[:200])
 
 passo("4. Receber pela tela e o custo médio móvel (Q64)")
-ir("/emporio/compras")
+# Filtrada pela loja: a lista da conta tem as compras pendentes de outros
+# roteiros (a da F5 é de hoje e vinha antes, e o "Receber" recebia a dela).
+ir("/emporio/compras?loja=" + loja["id"])
 confere("compra pendente na lista", tem("Pendente") and tem("300,00"))
 confere("clica Receber", clicar("Receber"))
 time.sleep(1.5)
 if painel_aberto():
     enviar_painel()
-confere("virou Recebida", esperar(lambda: tem("Recebida")))
+confere("virou Recebida", esperar(lambda: api("GET", "/api/v1/emporio/purchases/" + compra["id"])["body"]["data"]["status"] == "recebida"))
 ir("/emporio/produtos/" + prod["id"])
 confere("saldo 52 kg, médio R$ 9,58", esperar(lambda: "52" in bloco_estoque() and "9,58" in bloco_estoque()), bloco_estoque()[:200])
 

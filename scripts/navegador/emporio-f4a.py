@@ -53,7 +53,9 @@ def gaveta(loja_id):
 
 
 def contas(nome):
-    linhas = api("GET", "/api/v1/emporio/payables")["body"]["data"]
+    # Só a loja do cenário: a lista da conta para em 200 contas pelo vencimento, e
+    # a demonstração do Empório sozinha deixa mais de 250 pendentes antes das daqui.
+    linhas = api("GET", "/api/v1/emporio/payables?establishment_id=" + loja["id"])["body"]["data"]
     return [c for c in linhas if c.get("name") == nome or c.get("category") == nome]
 
 
