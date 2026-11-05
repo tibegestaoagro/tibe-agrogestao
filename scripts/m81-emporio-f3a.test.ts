@@ -125,6 +125,9 @@ async function comBanco() {
     await vincularTodas(prisma, TA.t.id, [op.id], [L1.id, L2.id, L3.id]); // F6b: Vendedor só vê as lojas que tem
     await prisma.establishment.update({ where: { id: L1.id }, data: { max_discount_pct: 10 } });
     await prisma.establishment.update({ where: { id: L3.id }, data: { allow_negative_stock: true } });
+    // Entrega 2: toda venda cai num turno aberto. A Loja 2 abre depois do saldo inicial (seção 12).
+    const { abrirTurnoDeTeste } = await import("./_emporio-turno");
+    for (const loja of [L1, L3]) await abrirTurnoDeTeste(db, owner, loja.id);
 
     type Prod = { id: string; product_id: string; p: Record<string, string> };
     let seq = 0;
@@ -566,6 +569,7 @@ async function comBanco() {
     check("saldo inicial na conta (1000), e só uma vez", (await xx("saldoInicialCaixaAction", admin, { bank_account_id: conta, amount: 1000 })).ok && !(await xx("saldoInicialCaixaAction", admin, { bank_account_id: conta, amount: 1 })).ok);
     check("saldo inicial negativo ou zero: recusado", !(await xx("saldoInicialCaixaAction", admin, { establishment_id: L3.id, amount: 0 })).ok && !(await xx("saldoInicialCaixaAction", admin, { establishment_id: L3.id, amount: -5 })).ok);
     check("saldo inicial sem loja nem conta: recusado", !(await xx("saldoInicialCaixaAction", admin, { amount: 5 })).ok);
+    await abrirTurnoDeTeste(db, owner, L2.id);
     const caixa = dados(await xx("lerCaixaAction", admin));
     const somaL1 = await saldoGaveta(L1.id);
     const somaConta = await caixaDa({ bank_account_id: conta });
@@ -745,6 +749,7 @@ async function comBanco() {
     for (const id of tenantIds) {
       try {
         await prisma.cashMovement.deleteMany({ where: { tenant_id: id } });
+        await prisma.cashCount.deleteMany({ where: { tenant_id: id } });
         await prisma.stockMovement.deleteMany({ where: { tenant_id: id } });
         await prisma.emporioSalePayment.deleteMany({ where: { tenant_id: id } });
         await prisma.emporioSaleReturnItem.deleteMany({ where: { tenant_id: id } });

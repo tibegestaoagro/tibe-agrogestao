@@ -13,6 +13,7 @@ import * as transf from "@/lib/actions/emporio-transferencias";
 import * as vendas from "@/lib/actions/emporio-vendas";
 import { garantirConsumidorFinal } from "@/lib/actions/emporio-clientes";
 import * as caixa from "@/lib/actions/emporio-caixa";
+import * as turno from "@/lib/actions/emporio-turno";
 import * as desp from "@/lib/actions/emporio-despesas";
 import * as prod from "@/lib/actions/emporio-producao";
 
@@ -627,6 +628,29 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
     const r = await caixa.saldoInicialCaixaAction(db, gerente, { establishment_id: lojas[c], amount: 300, occurred_at: dia(30, 8, 30) });
     if (!r.ok && r.code !== "OPENING_ALREADY_DONE") throw new Error(`troco ${c}: ${r.message}`);
   }
+  // Entrega 2: todo dinheiro da gaveta cai num turno aberto. Cada Vendedor abre o
+  // Caixa 1 da loja dele com o troco que está lá (contado = esperado, sem
+  // diferença), pela action, como na tela. Rodar de novo usa o turno aberto. Não
+  // usa o ajudante das suítes (`_emporio-turno`): ele é travado no banco local, e
+  // este cenário também monta a demonstração numa conta de verdade.
+  const turnos = {} as Record<ChaveVenda, { id: string; cash_register_id: string }>;
+  for (const [c, quem] of [["centro", vendCentro], ["rodovia", vendRodovia]] as const) {
+    const reg = await db.cashRegister.findFirst({ where: { establishment_id: lojas[c], number: 1 }, select: { id: true } });
+    if (!reg) throw new Error(`a loja ${c} não tem o Caixa 1`);
+    const aberto = await db.cashSession.findFirst({ where: { open_register_id: reg.id }, select: { id: true } });
+    if (aberto) {
+      turnos[c] = { id: aberto.id, cash_register_id: reg.id };
+      continue;
+    }
+    const n = (await db.cashSession.count({ where: { cash_register_id: reg.id } })) + 1;
+    const t = exigir(await turno.abrirTurnoAction(db, quem, {
+      operation_key: `${PREFIXO}turno-${c}-${n}`,
+      cash_register_id: reg.id,
+      counted: (await caixa.saldoDoCaixa(db, reg.id)) / 100,
+    }), `abrir o caixa da loja ${c}`);
+    turnos[c] = { id: t.id, cash_register_id: reg.id };
+    log(`Caixa 1 aberto na loja ${c}`);
+  }
 
   // Regras de cartão por loja (o Gerente geral configura)
   const taxas: Record<ChaveVenda, Record<string, [number, number]>> = {
@@ -977,16 +1001,27 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
     }
   }
 
-  // Levar a gaveta ao banco (a Gestora), despesas pagas e conferências de gaveta
-  for (const [c, quem] of [["centro", gestor], ["rodovia", gestor]] as const) {
+  // Levar a gaveta ao banco (a Gestora), despesas pagas e conferências de gaveta.
+  // Entrega 2: a gaveta não transfere (Q92). A Gestora faz a sangria do turno,
+  // confirma o dinheiro recebido (entra em "Com a gerência") e leva da gerência ao banco.
+  for (const c of ["centro", "rodovia"] as const) {
     const chave = `${PREFIXO}caixa-${c}-1`;
     const ja = await db.cashTransfer.findFirst({ where: { operation_key: chave }, select: { id: true } });
     if (ja) continue;
-    const saldo = (await caixa.saldoDaGaveta(db, lojas[c])) / 100;
-    const valor = Math.floor((saldo * 0.6) / 100) * 100;
-    if (valor >= 100) {
-      exigir(await caixa.transferirCaixaAction(db, quem, { operation_key: chave, from: { establishment_id: lojas[c] }, to: { bank_account_id: contaId }, amount: valor, notes: "Depósito semanal da gaveta" }), `gaveta ${c} ao banco`);
+    const chaveSangria = `${PREFIXO}sangria-${c}-1`;
+    const gravada = await db.cashHandover.findFirst({ where: { operation_key: chaveSangria }, select: { id: true, amount: true, confirmed_at: true } });
+    let entregaId = gravada?.id ?? "";
+    let valor = Number(gravada?.amount ?? 0);
+    if (!gravada) {
+      const saldo = (await caixa.saldoDoCaixa(db, turnos[c].cash_register_id)) / 100;
+      valor = Math.floor((saldo * 0.6) / 100) * 100;
+      if (valor < 100) continue;
+      entregaId = exigir(await turno.sangriaAction(db, gestor, turnos[c].id, { operation_key: chaveSangria, amount: valor, notes: "Depósito semanal da gaveta" }), `sangria ${c}`).id;
     }
+    if (!gravada?.confirmed_at) {
+      exigir(await turno.confirmarEntregaAction(db, gestor, entregaId, { operation_key: `${PREFIXO}confirma-sangria-${c}-1`, received_amount: valor }), `confirmar a sangria ${c}`);
+    }
+    exigir(await caixa.transferirCaixaAction(db, gestor, { operation_key: chave, from: { manager_establishment_id: lojas[c] }, to: { bank_account_id: contaId }, amount: valor, notes: "Depósito semanal da gaveta" }), `gerência ${c} ao banco`);
   }
   {
     const hoje = new Date();
@@ -998,14 +1033,16 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
       exigir(await desp.pagarDespesasAction(db, gerente, { entry_ids: doMes.map((a) => a.entry_id), paid_at: dia(2, 11), from: { bank_account_id: contaId } }), "pagamento das despesas fixas");
     }
   }
+  // Entrega 2: a conferência é livre, dentro do turno aberto do caixa (a abertura grava a contagem dela, kind abertura).
   for (const [c, quem] of [["centro", vendCentro], ["rodovia", vendRodovia]] as const) {
-    const ja = await db.cashCount.count({ where: { establishment_id: lojas[c] } });
+    const ja = await db.cashCount.count({ where: { establishment_id: lojas[c], kind: "livre" } });
     if (ja > 0) continue;
-    const esperado = (await caixa.saldoDaGaveta(db, lojas[c])) / 100;
+    const caixaId = turnos[c].cash_register_id;
+    const esperado = (await caixa.saldoDoCaixa(db, caixaId)) / 100;
     if (c === "rodovia") {
-      exigir(await caixa.conferirGavetaAction(db, quem, { establishment_id: lojas[c], counted: r2(esperado - 12.5), justification: "Troco dado a maior no sábado" }), "conferência com diferença");
+      exigir(await caixa.conferirGavetaAction(db, quem, { cash_register_id: caixaId, counted: r2(esperado - 12.5), justification: "Troco dado a maior no sábado" }), "conferência com diferença");
     } else {
-      exigir(await caixa.conferirGavetaAction(db, quem, { establishment_id: lojas[c], counted: esperado }), "conferência da gaveta");
+      exigir(await caixa.conferirGavetaAction(db, quem, { cash_register_id: caixaId, counted: esperado }), "conferência da gaveta");
     }
   }
 
@@ -1159,8 +1196,21 @@ async function apagarCenario(tenantId: string, executar: boolean) {
   await prisma.emporioSaleReturnItem.deleteMany({ where: { return_id: { in: devolucoes } } });
   await prisma.cardReceivable.deleteMany({ where: { sale_id: { in: vendasIds } } });
   await prisma.emporioCheck.deleteMany({ where: { OR: [{ sale_id: { in: vendasIds } }, { establishment_id: { in: lojas } }] } });
-  await prisma.cashMovement.deleteMany({ where: { ...t, OR: [{ establishment_id: { in: lojas } }, { bank_account_id: { in: contas } }, { sale_id: { in: vendasIds } }] } });
-  await prisma.cashTransfer.deleteMany({ where: { ...t, OR: [{ from_establishment_id: { in: lojas } }, { to_establishment_id: { in: lojas } }, { from_bank_account_id: { in: contas } }, { to_bank_account_id: { in: contas } }] } });
+  // Entrega 2: "Com a gerência" é um terceiro lugar do dinheiro; o turno, o caixa e a entrega caem com a loja.
+  await prisma.cashMovement.deleteMany({ where: { ...t, OR: [{ establishment_id: { in: lojas } }, { manager_establishment_id: { in: lojas } }, { bank_account_id: { in: contas } }, { sale_id: { in: vendasIds } }] } });
+  await prisma.cashTransfer.deleteMany({
+    where: {
+      ...t,
+      OR: [
+        { from_establishment_id: { in: lojas } },
+        { to_establishment_id: { in: lojas } },
+        { from_manager_establishment_id: { in: lojas } },
+        { to_manager_establishment_id: { in: lojas } },
+        { from_bank_account_id: { in: contas } },
+        { to_bank_account_id: { in: contas } },
+      ],
+    },
+  });
   await prisma.cashCount.deleteMany({ where: { id: { in: conferencias } } });
   await prisma.saleVariableExpense.deleteMany({ where: { sale_id: { in: vendasIds } } });
   await prisma.fixedExpenseOccurrence.deleteMany({ where: { template_id: { in: modelos } } });

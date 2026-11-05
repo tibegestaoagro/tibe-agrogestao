@@ -2,6 +2,7 @@ import "./_env-local";
 import { prisma, prismaForTenant } from "@/lib/prisma";
 import { exigirBancoLocal } from "./_banco-local";
 import { setTenantFeatureAction } from "@/lib/actions/platform-features";
+import { abrirTurnoDeTeste } from "./_emporio-turno";
 
 /**
  * Monta, no banco LOCAL, o cenario da F4b do Meu Empório (Modulo 39) para o
@@ -41,6 +42,8 @@ async function limpar(tenant_id: string) {
   })).map((l) => l.id);
 
   await prisma.cashMovement.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
+  // A contagem de abertura do turno (entrega 2) segura a loja: sai antes dela.
+  await prisma.cashCount.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.stockMovement.deleteMany({ where: { tenant_id, OR: [{ establishment_id: { in: lojas } }, { product_id: { in: produtos } }] } });
   await prisma.stockTransferItem.deleteMany({ where: { tenant_id, transfer_id: { in: transferencias } } });
   await prisma.stockTransfer.deleteMany({ where: { tenant_id, id: { in: transferencias } } });
@@ -93,6 +96,8 @@ async function main() {
   for (const loja of [l1, l2]) {
     exigir(await cat.definirPrecoAction(db, ator, { establishment_id: loja.id, presentation_id: quilo, price: 20 }), "preco");
     exigir(await est.implantarEstoqueAction(db, ator, { establishment_id: loja.id, emporio_product_id: racao, sealed: [], loose_qty: 100, unit_cost: 10 } as never), "estoque");
+    // Entrega 2: toda venda cai num turno aberto (a loja nasce sem troco).
+    await abrirTurnoDeTeste(db, ator, loja.id);
   }
 
   let n = 0;

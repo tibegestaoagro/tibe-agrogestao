@@ -2,13 +2,15 @@ import "./_env-local";
 import { prisma, prismaForTenant } from "@/lib/prisma";
 import { exigirBancoLocal } from "./_banco-local";
 import { setTenantFeatureAction } from "@/lib/actions/platform-features";
+import { abrirTurnoDeTeste } from "./_emporio-turno";
 
 /**
  * Monta, no banco LOCAL, o cenario da F4a do Meu Empório (Modulo 39) para o
  * roteiro `scripts/navegador/emporio-f4a.py`. Nao e suite.
  *
  * Na conta do seed, com o prefixo "F4a ", no mes atual:
- *   - "F4a Loja", com R$ 500,00 de saldo inicial na gaveta;
+ *   - "F4a Loja", com R$ 500,00 de saldo inicial na gaveta e o turno do Caixa 1
+ *     aberto com eles (entrega 2: toda venda cai num turno);
  *   - "F4a Ração": Quilo a R$ 20,00, 200 kg avulsos a R$ 10,00;
  *   - a regra "F4a Comissão" de 5% do valor;
  *   - tres vendas de 10 kg (R$ 200,00 cada, em dinheiro) e uma perda de 2 kg;
@@ -37,6 +39,8 @@ async function limpar(tenant_id: string) {
   })).map((l) => l.id);
 
   await prisma.cashMovement.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
+  // A contagem de abertura do turno (entrega 2) segura a loja: sai antes dela.
+  await prisma.cashCount.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.stockMovement.deleteMany({ where: { tenant_id, OR: [{ establishment_id: { in: lojas } }, { product_id: { in: produtos } }] } });
   await prisma.saleVariableExpense.deleteMany({ where: { tenant_id, sale_id: { in: vendas } } });
   await prisma.fixedExpenseOccurrence.deleteMany({ where: { tenant_id, OR: [{ template_id: { in: modelos } }, { establishment_id: { in: lojas } }] } });
@@ -93,6 +97,8 @@ async function main() {
   exigir(await cat.definirPrecoAction(db, ator, { establishment_id: loja.id, presentation_id: quilo, price: 20 }), "preco");
   exigir(await est.implantarEstoqueAction(db, ator, { establishment_id: loja.id, emporio_product_id: racao, sealed: [], loose_qty: 200, unit_cost: 10 } as never), "estoque");
   exigir(await caixa.saldoInicialCaixaAction(db, ator, { establishment_id: loja.id, amount: 500 } as never), "saldo inicial");
+  // Entrega 2: toda venda cai num turno aberto; o Caixa 1 abre com os R$ 500,00 que estão lá.
+  await abrirTurnoDeTeste(db, ator, loja.id);
 
   exigir(await despesas.criarRegraVariavelAction(db, ator, { establishment_id: loja.id, name: `${PREFIXO}Comissão`, kind: "percentual", value: 5 }), "regra");
 

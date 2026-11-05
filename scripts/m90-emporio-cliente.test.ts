@@ -527,6 +527,8 @@ async function secao4() {
     if (!pr.ok) throw new Error(`preço: ${j(pr)}`);
     const imp = await Est.implantarEstoqueAction(db, owner, { establishment_id: loja.data.id, emporio_product_id: p.data.id, sealed: [], loose_qty: 100, unit_cost: 4 });
     if (!imp.ok) throw new Error(`implantar: ${j(imp)}`);
+    // Entrega 2: toda venda cai num turno aberto.
+    await (await import("./_emporio-turno")).abrirTurnoDeTeste(db, owner, loja.data.id);
 
     const FRASE_SEM = "Escolha o cliente da venda. Quem não quer se identificar entra como Consumidor final.";
     let seq = 0;
@@ -592,7 +594,7 @@ async function secao4() {
     check("trocarAction com o Consumidor final: ok", trOk.ok, j(trOk));
   } finally {
     const modelos = [
-      "emporioAuditLog", "cashMovement", "stockMovement", "emporioSalePayment", "emporioSaleReturnItem", "emporioSaleReturn",
+      "emporioAuditLog", "cashMovement", "cashCount", "stockMovement", "emporioSalePayment", "emporioSaleReturnItem", "emporioSaleReturn",
       "emporioSaleItem", "emporioSale", "financialEntry", "presentationPrice", "productPresentation", "userEstablishment",
       "emporioProduct", "product", "establishment", "bankAccount", "contact", "productCategory", "user", "tenantProfile", "tenantFeature",
     ];
@@ -669,6 +671,8 @@ async function secao5() {
     if (!pr.ok) throw new Error(`preço: ${j(pr)}`);
     const imp = await Est.implantarEstoqueAction(db, owner, { establishment_id: loja.data.id, emporio_product_id: arame.id, sealed: [], loose_qty: 10, unit_cost: 4 });
     if (!imp.ok) throw new Error(`implantar: ${j(imp)}`);
+    // Entrega 2: toda venda cai num turno aberto.
+    await (await import("./_emporio-turno")).abrirTurnoDeTeste(db, owner, loja.data.id);
     const cf = (await C.garantirConsumidorFinal(db)).id;
     const venda = await V.venderAction(db, owner, {
       operation_key: `m90n-${stamp}`,
@@ -728,7 +732,7 @@ async function secao5() {
     void outro;
   } finally {
     const modelos = [
-      "emporioAuditLog", "cashMovement", "stockMovement", "emporioSalePayment", "emporioSaleReturnItem", "emporioSaleReturn",
+      "emporioAuditLog", "cashMovement", "cashCount", "stockMovement", "emporioSalePayment", "emporioSaleReturnItem", "emporioSaleReturn",
       "emporioSaleItem", "emporioSale", "financialEntry", "presentationPrice", "productPresentation", "userEstablishment",
       "emporioProduct", "product", "establishment", "bankAccount", "contact", "productCategory", "user", "tenantProfile", "tenantFeature",
     ];

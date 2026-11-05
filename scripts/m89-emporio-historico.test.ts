@@ -62,7 +62,6 @@ async function comBanco() {
   const E = await carregar("@/lib/actions/emporio-estoque");
   const V = await carregar("@/lib/actions/emporio-vendas");
   const X = await carregar("@/lib/actions/emporio-caixa");
-  const TU = await carregar("@/lib/actions/emporio-turno");
   const CP = await carregar("@/lib/actions/emporio-compras");
   const T = await carregar("@/lib/actions/emporio-transferencias");
   const EQ = await carregar("@/lib/actions/emporio-equipe");
@@ -145,6 +144,9 @@ async function comBanco() {
       if (!a.ok || !b.ok) throw new Error(`preparo da loja: ${j([a, b])}`);
     }
     const contato = (await db.contact.create({ data: scoped({ name: "M89 Fornecedor" }) })).id;
+    // Entrega 2: a Loja 2 vende na seção 1; o turno dela abre aqui, fora da medida do Histórico.
+    const { abrirTurnoDeTeste } = await import("./_emporio-turno");
+    await abrirTurnoDeTeste(db, owner, L2);
 
     // ---------------------------------------------------------------- ajudantes de leitura
     const totalA = () => log.count({ where: { tenant_id: t.id } }) as Promise<number>;
@@ -176,6 +178,11 @@ async function comBanco() {
     // ---------------------------------------------------------------- 1. escritas gravam uma linha
     await rodar("1", async () => {
       console.log("1. Escritas representativas gravam UMA linha, com quem fez e a loja");
+      // Entrega 2: toda venda cai num turno aberto; abrir o caixa grava a própria linha (caixa.abrir).
+      const caixaL1 = (await db.cashRegister.findFirst({ where: { establishment_id: L1, number: 1 } }))?.id;
+      const abre = await nova(() => abrirTurnoDeTeste(db, vend1, L1).catch((e: unknown) => e));
+      check("turno aberto", !(abre.r instanceof Error) && (abre.r as Dado)?.cash_register_id === caixaL1, String(abre.r));
+      umaLinha(abre.rows, "abrir o caixa", /^caixa\.abrir$/, vend1, L1);
       const venda = await nova(() =>
         chamar(V, "venderAction", db, vend1, {
           operation_key: chave("v"),
@@ -219,12 +226,7 @@ async function comBanco() {
       check("perda registrada", perda.r.ok, j(perda.r));
       umaLinha(perda.rows, "registrar perda", /perda/, vend1, L1);
 
-      // Entrega 2: a conferência é dentro do turno aberto do caixa; abrir grava a própria linha (caixa.abrir), fora da medida.
-      const caixaL1 = (await db.cashRegister.findFirst({ where: { establishment_id: L1, number: 1 } }))?.id;
-      const contadoL1 = ((await (X.saldoDoCaixa as unknown as (d: unknown, id: string) => Promise<number>)(db, caixaL1 ?? "x")) ?? 0) / 100;
-      const abre = await nova(() => chamar(TU, "abrirTurnoAction", db, vend1, { operation_key: chave("turno"), cash_register_id: caixaL1, counted: contadoL1 }));
-      check("turno aberto", abre.r.ok, j(abre.r));
-      umaLinha(abre.rows, "abrir o caixa", /^caixa\.abrir$/, vend1, L1);
+      // Entrega 2: a conferência é dentro do turno aberto do caixa (aberto no começo da seção, antes da venda).
       const gaveta = await nova(() => chamar(X, "conferirGavetaAction", db, vend1, { cash_register_id: caixaL1, counted: 10, justification: "conferência de teste" }));
       check("gaveta conferida", gaveta.r.ok, j(gaveta.r));
       umaLinha(gaveta.rows, "conferir gaveta", /gaveta|caixa/, vend1, L1);

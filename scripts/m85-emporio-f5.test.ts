@@ -71,7 +71,6 @@ async function comBanco() {
   const E = await carregar("@/lib/actions/emporio-estoque");
   const V = await carregar("@/lib/actions/emporio-vendas");
   const X = await carregar("@/lib/actions/emporio-caixa");
-  const TU = await carregar("@/lib/actions/emporio-turno");
   const CP = await carregar("@/lib/actions/emporio-compras");
   const D = await carregar("@/lib/actions/emporio-despesas");
   const PR = await carregar("@/lib/actions/emporio-producao");
@@ -142,6 +141,9 @@ async function comBanco() {
     };
     const contato = async (nome: string) => (await db.contact.create({ data: scoped({ name: nome }) })).id;
     const vender = async (loja: string, p: Prod, qty: number, payments: Dado[], contact_id?: string) => {
+      // Entrega 2: toda venda cai num turno aberto. Abre na primeira venda da loja (devolve o aberto nas outras),
+      // para não barrar o saldo inicial, que só vale antes do primeiro turno do caixa.
+      await (await import("./_emporio-turno")).abrirTurnoDeTeste(db, owner, loja);
       const r = await chamar(V, "venderAction", db, op, {
         operation_key: chave("v"),
         establishment_id: loja,
@@ -241,14 +243,9 @@ async function comBanco() {
       await S.db.cashMovement.update({ where: { id: m3[1].id }, data: { occurred_at: tardeBR(2) } });
       // conferência de ontem na CX2 (gravada direto: a action conferirGavetaAction carimba hoje)
       await S.db.cashCount.create({ data: scoped({ establishment_id: CX[1].id, expected: 100, counted: 100, difference: 0, counted_at: tardeBR(1) }) });
-      // entrega 2: um turno aberto ontem no Caixa 1 da CX1 (a data é ajustada no banco) e outro aberto hoje na CX3
-      const abrirCaixa1 = async (l: { id: string }) => {
-        const reg = await S.db.cashRegister.findFirst({ where: { establishment_id: l.id, number: 1 } });
-        const contado = ((await (X.saldoDoCaixa as unknown as (db: unknown, id: string) => Promise<number>)(S.db, reg?.id ?? "x")) ?? 0) / 100;
-        const r = await chamar(TU, "abrirTurnoAction", S.db, S.op, { operation_key: chave("turno"), cash_register_id: reg?.id, counted: contado });
-        if (!r.ok) throw new Error(`abrir turno: ${j(r)}`);
-        return r.data.id as string;
-      };
+      // entrega 2: um turno aberto ontem no Caixa 1 da CX1 (a data é ajustada no banco) e outro aberto hoje na CX3.
+      // A venda em dinheiro já abriu o turno de cada loja: o ajudante devolve o aberto.
+      const abrirCaixa1 = async (l: { id: string }) => (await (await import("./_emporio-turno")).abrirTurnoDeTeste(S.db, S.op, l.id)).id;
       turnoOntem = await abrirCaixa1(CX[0]);
       await S.db.cashSession.update({ where: { id: turnoOntem }, data: { opened_at: tardeBR(1) } });
       turnoHoje = await abrirCaixa1(CX[2]);

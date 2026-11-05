@@ -191,6 +191,8 @@ export type ReceberFiadoInput = {
   kind: string;
   entry_id?: string | null;
   bank_account_id?: string | null;
+  /** Entrega 2: o caixa do turno; o dinheiro exige turno, o PIX leva o turno quando houver. */
+  cash_register_id?: string | null;
 };
 
 export type RecebimentoView = {
@@ -308,6 +310,10 @@ export async function receberFiadoAction(
         );
       }
 
+      const naGaveta = input.kind === "dinheiro";
+      const turno = await resolverTurno(tx, ator, loja.data.id, texto(input.cash_register_id) ?? undefined, naGaveta ? "exige" : "se_houver");
+      if (!turno.ok) throw new RecusaCaixa(turno);
+
       const agora = new Date();
       let restante = valorCent;
       const feitas: RecebimentoView["parts"] = [];
@@ -329,7 +335,9 @@ export async function receberFiadoAction(
         }
         await tx.cashMovement.create({
           data: scoped({
-            establishment_id: input.kind === "dinheiro" ? loja.data.id : null,
+            establishment_id: naGaveta ? loja.data.id : null,
+            cash_register_id: naGaveta ? (turno.turno?.cash_register_id ?? null) : null,
+            cash_session_id: turno.turno?.id ?? null,
             bank_account_id: contaId,
             direction: "entrada" as const,
             amount: parte / 100,

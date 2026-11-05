@@ -10,6 +10,7 @@ exigirBancoLocal();
  * Seção 1: o modelo (caixas numerados, sessão única por caixa, "Com a gerência").
  * Seção 2: o papel Caixa (Equipe, permissões, páginas, leituras recusadas, vendas de hoje, desconto).
  * Seção 3: caixas, turno (abrir, sangria, conferir, encerrar), a gerência, a transferência, o Meu Dia e as rotas.
+ * Seção 4: todo dinheiro da gaveta (venda, fiado, devolução, cancelamento, troca, despesa) cai no turno.
  */
 
 let falhas = 0;
@@ -300,6 +301,8 @@ async function secao2() {
     if (!e.ok) throw new Error(j(e));
   }
   const cf = (await Cli.garantirConsumidorFinal(db)).id;
+  const { abrirTurnoDeTeste } = await import("./_emporio-turno");
+  for (const est of [loja1, loja2]) await abrirTurnoDeTeste(db, owner, est);
   let seq = 0;
   const vender = (ator: { id: string; role: "OWNER" | "OPERADOR" }, est: string, preco: number) =>
     Ven.venderAction(db, ator, {
@@ -785,11 +788,228 @@ async function secao3() {
   check("POST cash/counts sem cash_register_id: 422 em cash_register_id", pCount.status === 422 && pCount.json?.error?.field === "cash_register_id", `${pCount.status} ${j(pCount.json)}`);
 }
 
+async function secao4() {
+  console.log("\nSeção 4: todo dinheiro da gaveta cai no turno (com banco)");
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+  const Cat = await import("@/lib/actions/emporio-catalogo");
+  const Est = await import("@/lib/actions/emporio-estoque");
+  const Caixa = await import("@/lib/actions/emporio-caixa");
+  const Ven = await import("@/lib/actions/emporio-vendas");
+  const Desp = await import("@/lib/actions/emporio-despesas");
+  const Cli = await import("@/lib/actions/emporio-clientes");
+  const Tu: Dado = await import("@/lib/actions/emporio-turno");
+  const { papelDeFixture, vincularTodas } = await import("./_emporio-papel");
+  const { abrirTurnoDeTeste } = await import("./_emporio-turno");
+  const stamp = Date.now();
+  let seq = 0;
+  const k = (p: string) => `m92-s4-${stamp}-${p}-${(seq += 1)}`;
+  const n = (x: unknown) => Number(x);
+  const rec = (r: Dado, code: string, status: number, field?: string) =>
+    !!r && !r.ok && r.code === code && r.status === status && (field === undefined || r.field === field);
+
+  const t = await prisma.tenant.create({
+    data: {
+      name: `M92 s4 ${stamp}`,
+      document: `M92Q${stamp}`.slice(0, 14),
+      plan: "grupo",
+      status: "trial",
+      trial_ends_at: new Date(Date.now() + 86_400_000),
+    },
+  });
+  tenantIds.push(t.id);
+  await prisma.tenantProfile.create({ data: { tenant_id: t.id, profile_type: "emporio", active: true } });
+  await prisma.tenantFeature.create({ data: { tenant_id: t.id, feature_key: "emporio", enabled: true } });
+  const db = prismaForTenant(t.id);
+  type Role = "OWNER" | "OPERADOR";
+  const mkUser = async (suf: string, role: Role) => {
+    const u = await prisma.user.create({
+      data: { tenant_id: t.id, name: `M92 s4 ${suf}`, email: `m92-s4-${suf}-${stamp}@teste.local`, password_hash: "x", role, ...papelDeFixture(role) },
+    });
+    return { id: u.id, role };
+  };
+  const owner = await mkUser("own", "OWNER");
+  const v1 = await mkUser("v1", "OPERADOR");
+  const v2 = await mkUser("v2", "OPERADOR");
+  const v3 = await mkUser("v3", "OPERADOR");
+  const vA = await mkUser("vA", "OPERADOR");
+  const l1 = await Cat.criarEstabelecimentoAction(db, owner, { name: "M92 Q Loja 1" });
+  const l2 = await Cat.criarEstabelecimentoAction(db, owner, { name: "M92 Q Loja 2" });
+  if (!l1.ok || !l2.ok) throw new Error(`lojas: ${j([l1, l2])}`);
+  const L1 = l1.data.id;
+  const L2 = l2.data.id;
+  await vincularTodas(prisma, t.id, [v1.id, v2.id, v3.id], [L1]);
+  await vincularTodas(prisma, t.id, [vA.id], [L2]);
+  const r1 = (await db.cashRegister.findFirst({ where: { establishment_id: L1, number: 1 } }))!.id;
+  const c2 = await Tu.criarCaixaAction(db, owner, { establishment_id: L1 });
+  if (!c2.ok) throw new Error(j(c2));
+  const r2: string = c2.data.id;
+
+  const cat = await db.productCategory.create({ data: scoped({ name: "M92 s4 categoria" }) });
+  const prod = await Cat.criarProdutoEmporioAction(db, owner, { name: `M92 s4 Sal ${stamp}`, category_id: cat.id, base_unit: "quilograma" });
+  if (!prod.ok) throw new Error(j(prod));
+  const ap = await Cat.criarApresentacaoAction(db, owner, prod.data.id, { name: "Quilo", base_qty: 1, is_sealed_package: false });
+  if (!ap.ok) throw new Error(j(ap));
+  for (const est of [L1, L2]) {
+    const p = await Cat.definirPrecoAction(db, owner, { establishment_id: est, presentation_id: ap.data.id, price: 10 });
+    if (!p.ok) throw new Error(j(p));
+    const e = await Est.implantarEstoqueAction(db, owner, { establishment_id: est, emporio_product_id: prod.data.id, sealed: [], loose_qty: 1000, unit_cost: 4 });
+    if (!e.ok) throw new Error(j(e));
+  }
+  const conta = await Caixa.criarContaAction(db, owner, { name: `M92 s4 Conta ${stamp}`, bank: "Banco" });
+  if (!conta.ok) throw new Error(j(conta));
+  for (const est of [L1, L2]) {
+    const px = await Caixa.definirContaPixAction(db, owner, est, { bank_account_id: conta.data.id });
+    if (!px.ok) throw new Error(j(px));
+  }
+  const cf = (await Cli.garantirConsumidorFinal(db)).id;
+  const cliente = (await db.contact.create({ data: scoped({ name: `M92 s4 Cliente ${stamp}` }) })).id;
+  const item = (quantity: number) => [{ emporio_product_id: prod.data.id, presentation_id: ap.data.id, quantity, unit_price: 10 }];
+  const vender = (ator: Dado, loja: string, quantity: number, payments: Dado[], extra: Dado = {}) =>
+    Ven.venderAction(db, ator, {
+      operation_key: k("venda"),
+      establishment_id: loja,
+      contact_id: extra.contact_id ?? cf,
+      items: item(quantity),
+      payments,
+      ...(extra.cash_register_id ? { cash_register_id: extra.cash_register_id } : {}),
+    } as never);
+  const movsDaVenda = (saleId: string) => db.cashMovement.findMany({ where: { sale_id: saleId } });
+
+  // --- venda sem turno aberto
+  const movs0 = await db.cashMovement.count();
+  const kSem = k("venda");
+  const semTurno = await Ven.venderAction(db, owner, {
+    operation_key: kSem,
+    establishment_id: L1,
+    contact_id: cf,
+    items: item(1),
+    payments: [{ kind: "dinheiro", amount: 10 }],
+  });
+  check("venda sem turno aberto: 409 CASH_CLOSED em cash_register_id", rec(semTurno, "CASH_CLOSED", 409, "cash_register_id"), j(semTurno));
+  check(
+    "a recusa não gravou venda nem movimento",
+    (await db.emporioSale.count({ where: { operation_key: kSem } })) === 0 && (await db.cashMovement.count()) === movs0,
+  );
+
+  // --- dois turnos abertos
+  const T1 = await abrirTurnoDeTeste(db, v1, L1, undefined, { cash_register_id: r1 });
+  const T2 = await abrirTurnoDeTeste(db, v2, L1, undefined, { cash_register_id: r2 });
+  const escolha = await vender(v3, L1, 1, [{ kind: "dinheiro", amount: 10 }]);
+  check("dois caixas abertos, vendedor que não abriu nenhum e sem cash_register_id: 422 CASH_REGISTER_REQUIRED", rec(escolha, "CASH_REGISTER_REQUIRED", 422, "cash_register_id"), j(escolha));
+  const noCaixa2: Dado = await vender(v3, L1, 1, [{ kind: "dinheiro", amount: 10 }], { cash_register_id: r2 });
+  const vNo2 = noCaixa2.ok ? await db.emporioSale.findFirst({ where: { id: noCaixa2.data.id } }) : null;
+  const mNo2 = noCaixa2.ok ? await movsDaVenda(noCaixa2.data.id) : [];
+  check("com cash_register_id do Caixa 2: a venda cai no turno dele", noCaixa2.ok && vNo2?.cash_session_id === T2.id, j(noCaixa2));
+  check(
+    "e o dinheiro entra no Caixa 2, no turno",
+    mNo2.length === 1 && mNo2[0].establishment_id === L1 && mNo2[0].cash_register_id === r2 && mNo2[0].cash_session_id === T2.id,
+    j(mNo2),
+  );
+  const doV1: Dado = await vender(v1, L1, 1, [{ kind: "dinheiro", amount: 10 }]);
+  const mV1 = doV1.ok ? await movsDaVenda(doV1.data.id) : [];
+  check("quem abriu o Caixa 1 vende sem escolher: cai no turno dele", doV1.ok && mV1.length === 1 && mV1[0].cash_session_id === T1.id && mV1[0].cash_register_id === r1, j([doV1, mV1]));
+
+  // --- PIX com turno aberto
+  const pix: Dado = await vender(v1, L1, 1, [{ kind: "pix", amount: 10 }]);
+  const vPix = pix.ok ? await db.emporioSale.findFirst({ where: { id: pix.data.id } }) : null;
+  const mPix = pix.ok ? await movsDaVenda(pix.data.id) : [];
+  check("venda em PIX com turno aberto: cash_session_id preenchido na venda", pix.ok && vPix?.cash_session_id === T1.id, j(pix));
+  check(
+    "e nenhum movimento na gaveta: o PIX vai à conta, com o turno",
+    mPix.length === 1 && mPix[0].establishment_id === null && mPix[0].cash_register_id === null && mPix[0].bank_account_id === conta.data.id && mPix[0].cash_session_id === T1.id,
+    j(mPix),
+  );
+
+  // --- a rota leva o cash_register_id até a action
+  const { signAccessToken } = await import("@/lib/auth-token");
+  const { withBearer } = await import("./_escopo-de-requisicao");
+  const rota = (await import("@/app/api/v1/emporio/sales/route")) as unknown as { POST: (req: Request) => Promise<Response> };
+  const pelaRota = await withBearer(signAccessToken(v3.id), () =>
+    rota.POST(
+      new Request("http://localhost/api/v1/emporio/sales", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ operation_key: k("rota"), establishment_id: L1, contact_id: cf, items: item(1), payments: [{ kind: "dinheiro", amount: 10 }], cash_register_id: r2 }),
+      }),
+    ),
+  );
+  const jRota: Dado = await pelaRota.json().catch(() => null);
+  const vRota = jRota?.data?.id ? await db.emporioSale.findFirst({ where: { id: jRota.data.id } }) : null;
+  check("POST /sales com cash_register_id do Caixa 2: 201 e a venda no turno dele", pelaRota.status === 201 && vRota?.cash_session_id === T2.id, `${pelaRota.status} ${j(jRota)}`);
+
+  // --- o anti-objetivo: o turno fecha sem diferença
+  const difs0 = await db.financialEntry.count({ where: { category: "Diferença de caixa" } });
+  const ger = await Caixa.saldoInicialCaixaAction(db, owner, { manager_establishment_id: L2, amount: 100 } as never);
+  if (!ger.ok) throw new Error(j(ger));
+  const T = await abrirTurnoDeTeste(db, vA, L2, 100, { reinforcement: 100 });
+  const rL2 = T.cash_register_id;
+  check("o turno da Loja 2 abre com 100 de troco vindo da gerência", (await Caixa.saldoDoCaixa(db, rL2)) === 10000);
+  const fiadoVenda: Dado = await vender(vA, L2, 3, [{ kind: "fiado", amount: 30 }], { contact_id: cliente });
+  check("venda de 30 no fiado", fiadoVenda.ok, j(fiadoVenda));
+  const v50: Dado = await vender(vA, L2, 5, [{ kind: "dinheiro", amount: 50 }]);
+  check("venda em dinheiro de 50", v50.ok, j(v50));
+  const fiado = await Caixa.receberFiadoAction(db, vA, { operation_key: k("fiado"), contact_id: cliente, establishment_id: L2, amount: 30, kind: "dinheiro" });
+  check("fiado recebido em dinheiro, 30", fiado.ok, j(fiado));
+  const it50 = v50.ok ? (await db.emporioSaleItem.findFirst({ where: { sale_id: v50.data.id } }))!.id : "x";
+  const dev = await Ven.devolverAction(db, vA, v50.data?.id, { operation_key: k("dev"), refund_kind: "dinheiro", items: [{ sale_item_id: it50, quantity: 1 }] });
+  check("devolução em dinheiro, 10", dev.ok, j(dev));
+  const v20: Dado = await vender(vA, L2, 2, [{ kind: "dinheiro", amount: 20 }]);
+  const canc = await Ven.cancelarVendaAction(db, owner, v20.data?.id, { reason: "lançada errada" });
+  check("venda de 20 em dinheiro e o cancelamento dela, no mesmo turno", v20.ok && canc.ok, j([v20, canc]));
+  const troca = await Ven.trocarAction(db, vA, v50.data?.id, {
+    operation_key: k("troca"),
+    items_devolvidos: [{ sale_item_id: it50, quantity: 1 }],
+    venda: { contact_id: cf, items: item(0.5), payments: [] },
+  });
+  check("troca: devolve 10, leva 5, a diferença de 5 volta em dinheiro", troca.ok, j(troca));
+  const fixa = await Desp.criarDespesaFixaAction(db, owner, {
+    name: `M92 s4 Luz ${stamp}`, category: "Energia", amount: 15, due_day: 10, split_kind: "percentual", splits: [{ establishment_id: L2, value: 100 }],
+  });
+  if (!fixa.ok) throw new Error(j(fixa));
+  const aPagar = await db.financialEntry.findFirst({
+    where: { related_module: "emporio", entry_type: "expense", status: "pending", establishment_id: L2 },
+    orderBy: { due_date: "asc" },
+  });
+  const pagou = await Desp.pagarDespesasAction(db, owner, { entry_ids: [aPagar?.id ?? "x"], from: { establishment_id: L2 } });
+  check("despesa de 15 paga da gaveta", pagou.ok, j(pagou));
+  const sg = await Tu.sangriaAction(db, vA, T.id, { operation_key: k("sangria"), amount: 40 });
+  check("sangria de 40", sg.ok, j(sg));
+  const enc = await Tu.encerrarTurnoAction(db, vA, T.id, { operation_key: k("enc"), counted: 110, malote_amount: 0 });
+  const sT = await db.cashSession.findFirst({ where: { id: T.id } });
+  check(
+    "encerrar contando 100 + 50 + 30 + 20 - 10 - 20 - 5 - 15 - 40 = 110: esperado 110, diferença zero",
+    enc.ok && n(sT?.closing_expected) === 110 && n(sT?.closing_counted) === 110,
+    j([enc, sT]),
+  );
+  const cntEnc = await db.cashCount.findFirst({ where: { cash_session_id: T.id, kind: "encerramento" } });
+  check("a contagem do encerramento tem diferença zero", !!cntEnc && n(cntEnc.difference) === 0, j(cntEnc));
+  check("nenhum lançamento 'Diferença de caixa'", (await db.financialEntry.count({ where: { category: "Diferença de caixa" } })) === difs0);
+  const daLoja = await db.cashMovement.findMany({ where: { establishment_id: L2 } });
+  const foraDoTurno = daLoja.filter((m) => m.cash_session_id !== T.id || m.cash_register_id !== rL2);
+  check(
+    "todo movimento da gaveta da Loja 2 tem o caixa e o turno",
+    daLoja.length >= 9 && foraDoTurno.length === 0,
+    j(foraDoTurno.map((m) => ({ origin: m.origin, amount: n(m.amount), s: m.cash_session_id }))),
+  );
+
+  // --- cancelar em outro turno uma venda de um turno já encerrado
+  const enc1 = await Tu.encerrarTurnoAction(db, v1, T1.id, { operation_key: k("enc"), counted: (await Caixa.saldoDoCaixa(db, r1)) / 100, malote_amount: 0 });
+  check("o turno do Caixa 1 encerra", enc1.ok, j(enc1));
+  const cancOutro = await Ven.cancelarVendaAction(db, owner, doV1.data?.id, { reason: "cliente desistiu" });
+  const saida = await db.cashMovement.findMany({ where: { sale_id: doV1.data?.id ?? "x", origin: "cancelamento_venda" } });
+  check(
+    "cancelar a venda do turno encerrado: a saída cai no turno aberto agora (Caixa 2)",
+    cancOutro.ok && saida.length === 1 && saida[0].cash_session_id === T2.id && saida[0].cash_register_id === r2,
+    j([cancOutro, saida]),
+  );
+}
+
 async function limpar() {
   const { prisma } = await import("@/lib/prisma");
   const modelos = [
     // filhos antes de CashSession: movimento, conferência, venda; a entrega antes da sessão
-    "emporioAuditLog", "cashMovement", "cashTransfer", "cashCount", "emporioSale", "cashHandover", "cashSession", "cashRegister", "stockMovement",
+    "emporioAuditLog", "cashMovement", "cashTransfer", "cashCount", "emporioSalePayment", "emporioSaleReturnItem", "stockMovement", "emporioSaleItem",
+    "emporioSaleReturn", "emporioSale", "cashHandover", "cashSession", "cashRegister", "fixedExpenseOccurrence", "fixedExpenseSplit", "fixedExpenseTemplate",
     "emporioCounter", "emporioSettings", "financialPayment", "financialEntry", "userEstablishment", "establishment", "bankAccount", "contact",
     "user", "tenantProfile", "tenantFeature",
   ];
@@ -812,6 +1032,7 @@ async function main() {
     await secao1();
     await secao2();
     await secao3();
+    await secao4();
   } finally {
     await limpar();
   }

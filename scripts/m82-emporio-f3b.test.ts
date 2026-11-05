@@ -141,6 +141,9 @@ async function comBanco() {
     await virarGestor(prisma, gUo.id);
     await vincularTodas(prisma, TA.t.id, [gOp.id], [L1.id, L2.id, L3.id]);
     await vincularTodas(prisma, TA.t.id, [gUo.id], [L3.id]);
+    // Entrega 2: toda venda cai num turno aberto. A Loja 2 é aberta na seção 7, depois do saldo inicial.
+    const { abrirTurnoDeTeste } = await import("./_emporio-turno");
+    await abrirTurnoDeTeste(db, owner, L1.id);
 
     // ---- Produto de preço redondo (10 por quilo) para os totais saírem exatos
     const rP = await cc("criarProdutoEmporioAction", op, { name: "M82 Produto", category_id: cat.id, base_unit: "quilograma" });

@@ -71,7 +71,6 @@ async function comBanco() {
   const E = await carregar("@/lib/actions/emporio-estoque");
   const V = await carregar("@/lib/actions/emporio-vendas");
   const X = await carregar("@/lib/actions/emporio-caixa");
-  const TU = await carregar("@/lib/actions/emporio-turno");
   const CP = await carregar("@/lib/actions/emporio-compras");
   const T = await carregar("@/lib/actions/emporio-transferencias");
   const EQ = await carregar("@/lib/actions/emporio-equipe");
@@ -255,14 +254,13 @@ async function comBanco() {
           items: [{ emporio_product_id: P, presentation_id: PRES, quantity: 1 }],
           payments: [{ kind: "dinheiro", amount: 11 }],
         });
+      // Entrega 2: vender e conferir são dentro do turno aberto; o Vendedor da loja abre o Caixa 1 antes.
+      const caixaL1 = (await db.cashRegister.findFirst({ where: { establishment_id: L1, number: 1 } }))?.id;
+      const ra = await (await import("./_emporio-turno")).abrirTurnoDeTeste(db, vend1, L1).catch((e: unknown) => e);
+      check("Vendedor da loja: abre o caixa", !(ra instanceof Error) && (await db.cashSession.findFirst({ where: { open_register_id: caixaL1 ?? "x" } }))?.opened_by_user_id === vend1.id, String(ra));
       const rv = await vender(vend1);
       check("Vendedor da loja: vende", rv.ok, j(rv));
       const vid = (rv.ok ? rv.data.id ?? rv.data.sale_id : "") as string;
-      // Entrega 2: conferir é dentro do turno aberto; o Vendedor da loja abre o Caixa 1 e confere.
-      const caixaL1 = (await db.cashRegister.findFirst({ where: { establishment_id: L1, number: 1 } }))?.id;
-      const contadoL1 = ((await (X.saldoDoCaixa as unknown as (d: unknown, id: string) => Promise<number>)(db, caixaL1 ?? "x")) ?? 0) / 100;
-      const ra = await chamar(TU, "abrirTurnoAction", db, vend1, { operation_key: chave("turno"), cash_register_id: caixaL1, counted: contadoL1 });
-      check("Vendedor da loja: abre o caixa", ra.ok, j(ra));
       const rg = await chamar(X, "conferirGavetaAction", db, vend1, { cash_register_id: caixaL1, counted: 11, justification: "conferência de teste" });
       check("Vendedor da loja: confere a gaveta", rg.ok, j(rg));
       check("cancelar venda: Vendedor é 403", negado(await chamar(V, "cancelarVendaAction", db, vend1, vid, { reason: "teste" })));

@@ -77,6 +77,8 @@ async function secao1() {
     if (!pr.ok) throw new Error(`preço: ${j(pr)}`);
     const imp = await Est.implantarEstoqueAction(db, owner, { establishment_id: loja.data.id, emporio_product_id: p.data.id, sealed: [], loose_qty: 100, unit_cost: 4 });
     if (!imp.ok) throw new Error(`implantar: ${j(imp)}`);
+    // Entrega 2: toda venda cai num turno aberto.
+    await (await import("./_emporio-turno")).abrirTurnoDeTeste(db, owner, loja.data.id);
     let seq = 0;
     const vender = (chave?: string) =>
       V.venderAction(db, owner, {
@@ -142,7 +144,7 @@ async function secao1() {
     check("formatarNumero(1234567) === '1234567'", formatarNumero(1234567) === "1234567");
   } finally {
     const modelos = [
-      "emporioAuditLog", "cashMovement", "stockMovement", "emporioSalePayment", "emporioSaleReturnItem", "emporioSaleReturn",
+      "emporioAuditLog", "cashMovement", "cashCount", "stockMovement", "emporioSalePayment", "emporioSaleReturnItem", "emporioSaleReturn",
       "emporioSaleItem", "emporioSale", "emporioCounter", "emporioSettings", "financialEntry", "presentationPrice", "productPresentation",
       "userEstablishment", "emporioProduct", "product", "establishment", "bankAccount", "contact", "productCategory", "user",
       "tenantProfile", "tenantFeature",
@@ -441,6 +443,8 @@ async function secao3() {
       if (!pr.ok) throw new Error(`preço: ${j(pr)}`);
       const imp = await Est.implantarEstoqueAction(db, donoA, { establishment_id: l, emporio_product_id: p.data.id, sealed: [], loose_qty: 100, unit_cost: 4 });
       if (!imp.ok) throw new Error(`implantar: ${j(imp)}`);
+      // Entrega 2: toda venda cai num turno aberto.
+      await (await import("./_emporio-turno")).abrirTurnoDeTeste(db, donoA, l);
     }
     const cat0 = await carregarCatalogoDeVenda(db, []);
     const cf = cat0.contatos[0].id;
@@ -610,7 +614,7 @@ async function secao3() {
     check("rota receipt: tenant B não vê a venda de A: 404", rotaB.status === 404, String(rotaB.status));
   } finally {
     const modelos = [
-      "emporioAuditLog", "cashMovement", "stockMovement", "emporioSalePayment", "emporioSaleReturnItem", "emporioSaleReturn",
+      "emporioAuditLog", "cashMovement", "cashCount", "stockMovement", "emporioSalePayment", "emporioSaleReturnItem", "emporioSaleReturn",
       "emporioSaleItem", "emporioSale", "emporioCounter", "emporioSettings", "financialEntry", "presentationPrice", "productPresentation",
       "userEstablishment", "emporioProduct", "product", "establishment", "bankAccount", "contact", "productCategory", "user",
       "tenantProfile", "tenantFeature",

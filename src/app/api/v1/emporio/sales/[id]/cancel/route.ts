@@ -4,11 +4,13 @@ import { readJson } from "@/lib/api-guard";
 import { withApi } from "@/lib/route";
 import { cancelarVendaAction } from "@/lib/actions/emporio-vendas";
 import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
+import { caixaDoTurno } from "@/lib/emporio/venda-schema";
 
-/** POST /api/v1/emporio/sales/:id/cancel  { reason }: só OWNER e ADMIN (Q86). */
+/** POST /api/v1/emporio/sales/:id/cancel  { reason, cash_register_id? }: só OWNER e ADMIN (Q86). */
 
 const schema = z.object({
   reason: z.string({ error: "Diga o motivo do cancelamento." }).trim().min(1, "Diga o motivo do cancelamento."),
+  cash_register_id: caixaDoTurno,
 });
 
 type Props = { params: Promise<{ id: string }> };

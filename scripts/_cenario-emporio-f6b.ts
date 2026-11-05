@@ -2,6 +2,7 @@ import "./_env-local";
 import { prisma, prismaForTenant } from "@/lib/prisma";
 import { exigirBancoLocal } from "./_banco-local";
 import { setTenantFeatureAction } from "@/lib/actions/platform-features";
+import { abrirTurnoDeTeste } from "./_emporio-turno";
 
 /**
  * Monta, no banco LOCAL, o cenario da F6b do Meu Emporio (Modulo 39) para o
@@ -159,6 +160,8 @@ async function main() {
       await est.implantarEstoqueAction(db, dono, { establishment_id: loja.id, emporio_product_id: racao, sealed: [], loose_qty: 100, unit_cost: 10 } as never),
       "estoque",
     );
+    // Entrega 2: vender e cancelar uma venda em dinheiro caem num turno aberto (a loja nasce sem troco).
+    await abrirTurnoDeTeste(db, dono, loja.id);
   }
 
   const agora = Date.now();

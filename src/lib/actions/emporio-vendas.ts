@@ -9,6 +9,7 @@ import { descreverQuantidade } from "@/lib/stock/units";
 import { custoMedio } from "@/lib/emporio/custo-medio";
 import { proximoNumero } from "@/lib/emporio/numeracao";
 import { cancelarVendeuPagou, gravarVendeuPagou } from "@/lib/emporio/vendeu-pagou";
+import { resolverTurno, type TurnoResolvido } from "@/lib/emporio/turno";
 import {
   CATEGORIA_TAXAS_CARTAO,
   datasDasParcelas,
@@ -75,6 +76,19 @@ class AbortarVenda extends Error {
     super("venda abortada");
   }
 }
+
+/**
+ * O turno em que cai o dinheiro da gaveta (entrega 2), dentro da transação: a
+ * recusa de `resolverTurno` aborta a escrita inteira.
+ */
+async function turnoOuAborta(tx: Tx, ator: Ator, lojaId: string, pedido: string | null | undefined): Promise<TurnoResolvido> {
+  const r = await resolverTurno(tx, ator, lojaId, pedido || undefined, "exige");
+  if (!r.ok) throw new AbortarVenda(r);
+  if (!r.turno) throw new Error("resolverTurno no modo exige devolveu turno nulo");
+  return r.turno;
+}
+
+const pedidoDeCaixa = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 
 async function lojaVisivel(db: TenantPrismaClient, ator: Ator, lojaId: string): Promise<boolean> {
   const v = await lojasDoAtor(db, ator);
@@ -393,6 +407,8 @@ export type VenderInput = {
   items: VendaItemInput[];
   payments?: VendaPagamentoInput[] | null;
   notes?: string | null;
+  /** Entrega 2: o caixa do turno; sem ele vale a regra de `resolverTurno`. */
+  cash_register_id?: string | null;
 };
 
 const FORMAS_DE_CARTAO = ["debito", "credito_vista", "credito_parcelado"] as const;
@@ -437,6 +453,7 @@ type Preparada = {
   /** Parte da venda paga pelo valor devolvido na troca (já limitada ao total). */
   troca: number;
   notes: string | null;
+  cash_register_id: string | null;
 };
 
 async function prepararVenda(
@@ -689,6 +706,7 @@ async function prepararVenda(
     autorizou,
     troca: trocaCent / 100,
     notes: typeof input.notes === "string" && input.notes.trim() ? input.notes.trim() : null,
+    cash_register_id: pedidoDeCaixa(input.cash_register_id),
   });
 }
 
@@ -822,11 +840,16 @@ async function planejarBaixa(tx: Tx, p: Preparada): Promise<{ movs: MovimentoPla
   return { movs: planejadas, custos };
 }
 
-/** Grava a venda inteira dentro de uma transação já aberta. Devolve o id da venda. */
+/**
+ * Grava a venda inteira dentro de uma transação já aberta, no `turno` resolvido
+ * por quem chama (toda venda tem turno, qualquer que seja o pagamento). Devolve
+ * o id da venda.
+ */
 async function gravarVenda(
   tx: Tx,
   ator: Ator,
   p: Preparada,
+  turno: TurnoResolvido,
   extra: { exchange_return_id?: string | null } = {},
 ): Promise<string> {
   const { movs, custos } = await planejarBaixa(tx, p);
@@ -844,6 +867,7 @@ async function gravarVenda(
       discount_amount: p.desconto,
       discount_authorized_by_user_id: p.autorizou,
       exchange_return_id: extra.exchange_return_id ?? null,
+      cash_session_id: turno.id,
       notes: p.notes,
     }),
   });
@@ -998,6 +1022,8 @@ async function gravarVenda(
     await tx.cashMovement.create({
       data: scoped({
         establishment_id: pg.kind === "dinheiro" ? p.loja.id : null,
+        cash_register_id: pg.kind === "dinheiro" ? turno.cash_register_id : null,
+        cash_session_id: turno.id,
         bank_account_id: pg.kind === "pix" ? pg.bank_account_id : null,
         direction: "entrada" as const,
         amount: pg.amount,
@@ -1099,7 +1125,8 @@ export async function venderAction(
 
   try {
     const id = await runSerializableTenantTransaction(db, async (tx) => {
-      const novaId = await gravarVenda(tx, ator, prep.data);
+      const turno = await turnoOuAborta(tx, ator, prep.data.loja.id, prep.data.cash_register_id);
+      const novaId = await gravarVenda(tx, ator, prep.data, turno);
       await registrarNoHistorico(tx, ator, {
         action: "venda.criar",
         establishment_id: prep.data.loja.id,
@@ -1130,7 +1157,7 @@ export async function cancelarVendaAction(
   db: TenantPrismaClient,
   ator: Ator,
   id: string,
-  input: { reason: string },
+  input: { reason: string; cash_register_id?: string | null },
 ): Promise<ActionResult<VendaView>> {
   const neg = await exigir(db, ator, "gestor_da_loja", "cancelar uma venda");
   if (neg) return neg;
@@ -1237,16 +1264,24 @@ export async function cancelarVendaAction(
       await tx.financialEntry.update({ where: { id: lancamento.id }, data: { status: "cancelled" } });
 
       // Só o pagamento que pôs dinheiro na gaveta ou na conta tem saída a
-      // fazer: cartão e cheque não geraram movimento de entrada.
+      // fazer: cartão e cheque não geraram movimento de entrada. A saída da
+      // gaveta cai no turno aberto agora, não no caixa em que o dinheiro entrou
+      // (aquele turno pode já ter encerrado).
       const pagamentos = await tx.financialPayment.findMany({ where: { entry_id: lancamento.id }, select: { id: true } });
+      let turno: TurnoResolvido | null = null;
       for (const fp of pagamentos) {
         const entrada = await tx.cashMovement.findFirst({
           where: { financial_payment_id: fp.id, direction: "entrada", origin: { in: ["venda", "recebimento_fiado"] } },
         });
         if (!entrada) continue;
+        const gaveta = entrada.establishment_id
+          ? (turno ??= await turnoOuAborta(tx, ator, entrada.establishment_id, pedidoDeCaixa(input?.cash_register_id)))
+          : null;
         await tx.cashMovement.create({
           data: scoped({
             establishment_id: entrada.establishment_id,
+            cash_register_id: gaveta?.cash_register_id ?? null,
+            cash_session_id: gaveta?.id ?? null,
             bank_account_id: entrada.bank_account_id,
             direction: "saida" as const,
             amount: decToNum(entrada.amount) ?? 0,
@@ -1357,7 +1392,14 @@ async function gravarDevolucao(
   ator: Ator,
   venda: VendaParaDevolver,
   linhas: LinhaDevolucao[],
-  d: { chave: string; refund_kind: "dinheiro" | "abater_fiado" | "troca"; totalCent: number; reason: string | null },
+  d: {
+    chave: string;
+    refund_kind: "dinheiro" | "abater_fiado" | "troca";
+    totalCent: number;
+    reason: string | null;
+    /** O turno de onde sai o dinheiro: obrigatório quando `refund_kind` é dinheiro. */
+    turno?: TurnoResolvido | null;
+  },
 ): Promise<string> {
   const agora = new Date();
   const total = d.totalCent / 100;
@@ -1490,10 +1532,13 @@ async function gravarDevolucao(
     payment_method: comDinheiro ? "dinheiro" : "outro",
   });
   if (comDinheiro) {
+    if (!d.turno) throw new Error("devolução em dinheiro sem turno resolvido");
     const fp = await tx.financialPayment.findFirst({ where: { entry_id: despesa.id }, select: { id: true } });
     await tx.cashMovement.create({
       data: scoped({
         establishment_id: venda.establishment_id,
+        cash_register_id: d.turno.cash_register_id,
+        cash_session_id: d.turno.id,
         bank_account_id: null,
         direction: "saida" as const,
         amount: total,
@@ -1522,6 +1567,8 @@ export type DevolverInput = {
   refund_kind: string;
   items: DevolucaoItemInput[];
   reason?: string | null;
+  /** Entrega 2: o caixa de onde sai a devolução em dinheiro. */
+  cash_register_id?: string | null;
 };
 
 export async function devolverAction(
@@ -1562,11 +1609,16 @@ export async function devolverAction(
       if (!atual || atual.status === "cancelada") throw new AbortarVenda(fail("SALE_CANCELED", "Essa venda foi cancelada.", 409));
       const rev = validarItensDevolvidos(atual, input.items);
       if (!rev.ok) throw new AbortarVenda(rev);
+      const turno =
+        input.refund_kind === "dinheiro"
+          ? await turnoOuAborta(tx, ator, atual.establishment_id, pedidoDeCaixa(input.cash_register_id))
+          : null;
       const devolucaoId = await gravarDevolucao(tx, ator, atual, rev.data.linhas, {
         chave,
         refund_kind: input.refund_kind as "dinheiro" | "abater_fiado",
         totalCent: rev.data.totalCent,
         reason: motivo,
+        turno,
       });
       await registrarNoHistorico(tx, ator, {
         action: "venda.devolver",
@@ -1596,6 +1648,8 @@ export type TrocarInput = {
   operation_key: string;
   items_devolvidos: DevolucaoItemInput[];
   reason?: string | null;
+  /** Entrega 2: o caixa do turno da venda nova e da diferença devolvida em dinheiro. */
+  cash_register_id?: string | null;
   venda: Omit<VenderInput, "operation_key" | "establishment_id"> & {
     operation_key?: string | null;
     establishment_id?: string | null;
@@ -1650,6 +1704,7 @@ export async function trocarAction(
     ...(input.venda as VenderInput),
     operation_key: String(input.venda?.operation_key ?? "").trim() || `${chave}:venda`,
     establishment_id: input.venda?.establishment_id || origem.establishment_id,
+    cash_register_id: pedidoDeCaixa(input.cash_register_id) ?? pedidoDeCaixa(input.venda?.cash_register_id),
   };
   const prep = await prepararVenda(db, ator, novaVenda, { valorTroca: itens.data.totalCent / 100 });
   if (!prep.ok) return prep;
@@ -1660,13 +1715,15 @@ export async function trocarAction(
       if (!atual || atual.status === "cancelada") throw new AbortarVenda(fail("SALE_CANCELED", "Essa venda foi cancelada.", 409));
       const rev = paraDevolvidos(validarItensDevolvidos(atual, input.items_devolvidos));
       if (!rev.ok) throw new AbortarVenda(rev);
+      // A venda nova exige turno, e a diferença devolvida sai dele.
+      const turno = await turnoOuAborta(tx, ator, prep.data.loja.id, prep.data.cash_register_id);
       const devolucaoId = await gravarDevolucao(tx, ator, atual, rev.data.linhas, {
         chave,
         refund_kind: "troca",
         totalCent: rev.data.totalCent,
         reason: motivo,
       });
-      await gravarVenda(tx, ator, prep.data, { exchange_return_id: devolucaoId });
+      await gravarVenda(tx, ator, prep.data, turno, { exchange_return_id: devolucaoId });
       await registrarNoHistorico(tx, ator, {
         action: "venda.trocar",
         establishment_id: atual.establishment_id,
@@ -1681,6 +1738,8 @@ export async function trocarAction(
         await tx.cashMovement.create({
           data: scoped({
             establishment_id: prep.data.loja.id,
+            cash_register_id: turno.cash_register_id,
+            cash_session_id: turno.id,
             bank_account_id: null,
             direction: "saida" as const,
             amount: sobraCent / 100,

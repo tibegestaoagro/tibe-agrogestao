@@ -4,7 +4,7 @@ import { readJson } from "@/lib/api-guard";
 import { withApi } from "@/lib/route";
 import { pagarDespesasAction } from "@/lib/actions/emporio-despesas";
 import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
-import { dataIso } from "@/lib/emporio/venda-schema";
+import { caixaDoTurno, dataIso } from "@/lib/emporio/venda-schema";
 
 /** POST /api/v1/emporio/payables/pay  paga várias contas de uma vez, saindo da gaveta de uma loja ou de uma conta: só OWNER e ADMIN. */
 
@@ -18,6 +18,7 @@ const schema = z.object({
     },
     { error: "Diga de onde sai o dinheiro." },
   ),
+  cash_register_id: caixaDoTurno,
 });
 
 async function POSTHandler(request: Request) {

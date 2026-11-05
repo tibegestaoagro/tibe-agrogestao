@@ -4,7 +4,7 @@ import { readJson } from "@/lib/api-guard";
 import { withApi } from "@/lib/route";
 import { trocarAction } from "@/lib/actions/emporio-vendas";
 import { guardEmporio } from "@/lib/emporio/rota";
-import { chaveDeOperacao, corpoDaVendaSchema, itemDevolvidoSchema } from "@/lib/emporio/venda-schema";
+import { caixaDoTurno, chaveDeOperacao, corpoDaVendaSchema, itemDevolvidoSchema } from "@/lib/emporio/venda-schema";
 
 /** POST /api/v1/emporio/sales/:id/exchange  troca = devolução mais venda nova (chave de operação): wrapper fino. */
 
@@ -12,6 +12,7 @@ const schema = z.object({
   operation_key: chaveDeOperacao,
   items_devolvidos: z.array(itemDevolvidoSchema, { error: "Escolha os itens a devolver." }),
   reason: z.string().nullish(),
+  cash_register_id: caixaDoTurno,
   venda: corpoDaVendaSchema.extend({
     operation_key: z.string().nullish(),
     establishment_id: z.string().nullish(),

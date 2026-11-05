@@ -4,7 +4,7 @@ import { readJson } from "@/lib/api-guard";
 import { withApi } from "@/lib/route";
 import { devolverAction } from "@/lib/actions/emporio-vendas";
 import { guardEmporio } from "@/lib/emporio/rota";
-import { chaveDeOperacao, itemDevolvidoSchema } from "@/lib/emporio/venda-schema";
+import { caixaDoTurno, chaveDeOperacao, itemDevolvidoSchema } from "@/lib/emporio/venda-schema";
 
 /** POST /api/v1/emporio/sales/:id/return  devolução parcial (chave de operação): wrapper fino. */
 
@@ -13,6 +13,7 @@ const schema = z.object({
   refund_kind: z.string({ error: "Escolha como devolver o valor." }).min(1, "Escolha como devolver o valor."),
   items: z.array(itemDevolvidoSchema, { error: "Escolha os itens a devolver." }),
   reason: z.string().nullish(),
+  cash_register_id: caixaDoTurno,
 });
 
 type Props = { params: Promise<{ id: string }> };

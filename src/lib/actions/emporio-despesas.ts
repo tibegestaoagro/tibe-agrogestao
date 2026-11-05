@@ -7,7 +7,8 @@ import { diferencas, dinheiro, registrarNoHistorico } from "@/lib/emporio/histor
 import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { acharLojaParaEscrita } from "@/lib/actions/emporio-estoque";
-import { saldoDaGaveta, saldosDasContas } from "@/lib/actions/emporio-caixa";
+import { saldoDoCaixa, saldosDasContas } from "@/lib/actions/emporio-caixa";
+import { resolverTurno } from "@/lib/emporio/turno";
 import { CATEGORIAS_RESERVADAS } from "@/lib/emporio/vendeu-pagou";
 import {
   compararMeses,
@@ -1087,6 +1088,8 @@ export type PagarDespesasInput = {
   entry_ids: string[];
   paid_at?: Date | null;
   from: OrigemDoPagamento;
+  /** Entrega 2: o caixa do turno, quando sai da gaveta (`from.establishment_id`). */
+  cash_register_id?: string | null;
 };
 
 export type PagamentoDeContasView = {
@@ -1154,8 +1157,15 @@ export async function pagarDespesasAction(
       });
       const totalCent = abertoCent.reduce((s, v) => s + v, 0);
 
-      const saldo = lojaId
-        ? await saldoDaGaveta(leitor, lojaId)
+      // Da gaveta, o dinheiro sai do turno aberto, e o saldo que vale é o do caixa dele.
+      let turno: { id: string; cash_register_id: string } | null = null;
+      if (lojaId) {
+        const r = await resolverTurno(tx, ator, lojaId, idOuNulo(input.cash_register_id) ?? undefined, "exige");
+        if (!r.ok) throw new RecusaDespesa(r);
+        turno = r.turno;
+      }
+      const saldo = turno
+        ? await saldoDoCaixa(leitor, turno.cash_register_id)
         : ((await saldosDasContas(leitor)).get(contaId as string) ?? 0);
       if (saldo < totalCent) {
         throw new RecusaDespesa(
@@ -1188,6 +1198,8 @@ export async function pagarDespesasAction(
         await tx.cashMovement.create({
           data: scoped({
             establishment_id: lojaId,
+            cash_register_id: turno?.cash_register_id ?? null,
+            cash_session_id: turno?.id ?? null,
             bank_account_id: contaId,
             direction: "saida" as const,
             amount: valor,

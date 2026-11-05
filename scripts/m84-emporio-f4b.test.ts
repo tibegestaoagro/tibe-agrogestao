@@ -214,6 +214,8 @@ async function comBanco() {
       const r = await cc("criarEstabelecimentoAction", owner, { name: `M84 ${rotulo} ${nome}`, kind: "ponto_venda" });
       if (!r.ok) throw new Error(`loja ${nome}: ${j(r)}`);
       await vincularTodas(prisma, t.id, [op.id], [r.data.id]); // F6b: Vendedor só vê as lojas que tem
+      // Entrega 2: toda venda cai num turno aberto (a loja nasce sem troco: contado = esperado = 0).
+      await (await import("./_emporio-turno")).abrirTurnoDeTeste(db, owner, r.data.id);
       return r.data as Dado;
     };
     const mkProduto = async (nome: string, unit = "quilograma") => {

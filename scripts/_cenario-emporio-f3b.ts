@@ -2,13 +2,15 @@ import "./_env-local";
 import { prisma, prismaForTenant } from "@/lib/prisma";
 import { exigirBancoLocal } from "./_banco-local";
 import { setTenantFeatureAction } from "@/lib/actions/platform-features";
+import { abrirTurnoDeTeste } from "./_emporio-turno";
 
 /**
  * Monta, no banco LOCAL, o cenario da F3b do Meu Empório (Modulo 39) para o
  * roteiro `scripts/navegador/emporio-f3b.py`. Nao e suite.
  *
  * Na conta do seed, com o prefixo "F3b ":
- *   - "F3b Loja" (ponto de venda), com R$ 200,00 de saldo inicial na gaveta;
+ *   - "F3b Loja" (ponto de venda), com R$ 200,00 de saldo inicial na gaveta e o
+ *     turno do Caixa 1 aberto com eles (entrega 2: toda venda cai num turno);
  *   - "F3b Ração": Quilo a R$ 20,00, 100 kg avulsos a R$ 10,00;
  *   - a conta bancaria "F3b Banco", conta PIX da loja, e as regras de cartao:
  *     debito 2% em 1 dia, credito a vista 3% em 30 dias, parcelado 4% em 30;
@@ -106,6 +108,8 @@ async function main() {
     exigir(await caixa.definirRegraCartaoAction(db, ator, { establishment_id: loja.id, kind, fee_pct, days, bank_account_id: conta.id } as never), `regra ${kind}`);
   }
   exigir(await caixa.saldoInicialCaixaAction(db, ator, { establishment_id: loja.id, amount: 200 } as never), "saldo inicial");
+  // Entrega 2: toda venda cai num turno aberto; o Caixa 1 abre com os R$ 200,00 que estão lá.
+  await abrirTurnoDeTeste(db, ator, loja.id);
 
   const quarentaDiasAtras = new Date(Date.now() - 40 * 86_400_000);
   exigir(await vendas.venderAction(db, ator, {

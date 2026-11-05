@@ -11,6 +11,9 @@ export const dataIso = z
   .refine((v) => !Number.isNaN(Date.parse(v)), "Informe uma data válida.")
   .transform((v) => new Date(v));
 
+/** O caixa (`cash_register_id`) opcional das operações de dinheiro da gaveta. */
+export const caixaDoTurno = z.string().nullish();
+
 export const itemDeVendaSchema = z.object({
   emporio_product_id: z.string({ error: "Escolha o produto." }).min(1, "Escolha o produto."),
   presentation_id: z.string({ error: "Escolha a apresentação." }).min(1, "Escolha a apresentação."),
@@ -41,6 +44,8 @@ export const corpoDaVendaSchema = z.object({
   items: z.array(itemDeVendaSchema, { error: "Inclua os itens da venda." }),
   payments: z.array(pagamentoDeVendaSchema).nullish(),
   notes: z.string().nullish(),
+  /** Entrega 2: o caixa do turno; sem ele a action resolve pelo turno aberto. */
+  cash_register_id: caixaDoTurno,
 });
 
 export const itemDevolvidoSchema = z.object({

@@ -3,6 +3,7 @@ import { prisma, prismaForTenant } from "@/lib/prisma";
 import { exigirBancoLocal } from "./_banco-local";
 import { setTenantFeatureAction } from "@/lib/actions/platform-features";
 import { TODAS_AS_CHAVES } from "./_emporio-papel";
+import { abrirTurnoDeTeste } from "./_emporio-turno";
 
 /**
  * Monta, no banco LOCAL, o cenario da F5 do Meu Empório (Modulo 39) para o
@@ -129,6 +130,8 @@ async function main() {
   exigir(await cat.definirPrecoAction(db, ator, { establishment_id: loja.id, presentation_id: quilo, price: 20 }), "preco");
   exigir(await est.implantarEstoqueAction(db, ator, { establishment_id: loja.id, emporio_product_id: racao, sealed: [], loose_qty: 100, unit_cost: 10 } as never), "estoque");
   exigir(await est.definirLimitesAction(db, ator, { establishment_id: loja.id, emporio_product_id: racao, min_qty: 200, max_qty: 300 }), "limites");
+  // Entrega 2: toda venda cai num turno aberto (a loja nasce sem troco).
+  await abrirTurnoDeTeste(db, ator, loja.id);
   for (const [nome, unidade] of [["Milho", "quilograma"], ["Farelo", "quilograma"], ["Mistura", "quilograma"], ["Óleo", "litro"]]) {
     await produto(nome, unidade);
   }

@@ -282,6 +282,9 @@ async function comBanco() {
     const rVinc = await cc("definirVinculosAction", owner, L3.id, [admV.id]);
     if (!rVinc.ok) throw new Error(`vínculo: ${j(rVinc)}`);
     await vincularTodas(prisma, TA.t.id, [op.id], [L3.id]); // definirVinculos substitui a lista da loja e tirou o op dela
+    // Entrega 2: toda venda cai num turno aberto; o troco é o saldo inicial acima (contado = esperado).
+    const { abrirTurnoDeTeste } = await import("./_emporio-turno");
+    for (const loja of [L1, L2, L3, L4, L5, L6, L7, L8]) await abrirTurnoDeTeste(db, owner, loja.id);
 
     // ---- Auxiliares de venda
     let chaveSeq = 0;
@@ -726,8 +729,13 @@ async function comBanco() {
       // Entrega 2: a conferência é dentro do turno do caixa, e o esperado é o saldo do caixa (abrir com ele não gera diferença).
       const caixaL2 = (await db.cashRegister.findFirst({ where: { establishment_id: L2.id, number: 1 } }))?.id ?? "x";
       const esperadoCx = ((await (X.saldoDoCaixa as unknown as (d: unknown, id: string) => Promise<number>)(db, caixaL2)) ?? 0) / 100;
-      const rAbre = await xx("abrirTurnoAction", op, { operation_key: chave("turno"), cash_register_id: caixaL2, counted: esperadoCx });
-      check("turno do Caixa 1 da Loja 2 aberto com o troco que está lá (sem diferença)", rAbre.ok, j(rAbre));
+      // O turno foi aberto na preparação (toda venda exige turno), com o troco que estava lá.
+      const turnoL2 = await db.cashSession.findFirst({ where: { open_register_id: caixaL2 }, include: { cash_counts: true } });
+      check(
+        "turno do Caixa 1 da Loja 2 aberto com o troco que está lá (sem diferença)",
+        !!turnoL2 && turnoL2.cash_counts.some((c) => c.kind === "abertura" && n(c.difference) === 0),
+        j(turnoL2),
+      );
       const rCf = await xx("conferirGavetaAction", op, { cash_register_id: caixaL2, counted: esperadoCx - 5, justification: "troco errado" });
       check("conferência da gaveta com falta de R$ 5", rCf.ok, j(rCf));
 
