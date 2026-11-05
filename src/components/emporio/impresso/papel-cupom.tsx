@@ -22,6 +22,7 @@ function estilo(largura: 80 | 58): string {
 }
 
 export function PapelCupom({ d }: { d: ImpressoVenda }) {
+  const orcamento = d.tipo === "orcamento";
   return (
     <article className="cupom">
       <style>{estilo(d.largura_bobina)}</style>
@@ -32,14 +33,18 @@ export function PapelCupom({ d }: { d: ImpressoVenda }) {
       {d.loja.telefone && <div className="c">{d.loja.telefone}</div>}
       {d.loja.whatsapp && <div className="c">WhatsApp {d.loja.whatsapp}</div>}
       <hr />
-      <div className="c g">COMPROVANTE DE VENDA</div>
+      <div className="c g">{orcamento ? "ORÇAMENTO" : "COMPROVANTE DE VENDA"}</div>
       <div className="c">SEM VALOR FISCAL</div>
       {d.cancelada && <div className="cancelada">VENDA CANCELADA</div>}
       <hr />
       <div className="l">
-        <span>Venda nº {d.numero}</span>
+        <span>
+          {orcamento ? "Orçamento" : "Venda"} nº {d.numero}
+        </span>
         <span>{DATA_HORA.format(new Date(d.emitida_em))}</span>
       </div>
+      {d.orcamento_origem && <div>Orçamento nº {d.orcamento_origem}</div>}
+      {orcamento && d.validade && <div className="g">Válido até {d.validade}</div>}
       <hr />
       {d.itens.map((i, k) => (
         <div key={k}>
@@ -67,7 +72,7 @@ export function PapelCupom({ d }: { d: ImpressoVenda }) {
         <span>TOTAL</span>
         <span>{reaisBr(d.total)}</span>
       </div>
-      <hr />
+      {d.pagamentos.length > 0 && <hr />}
       {d.pagamentos.map((p, k) => (
         <div key={k} className="l">
           <span>{p.forma}</span>

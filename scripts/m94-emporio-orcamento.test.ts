@@ -14,6 +14,8 @@ exigirBancoLocal();
  * Seção 3: faturar (preço-base, validade no dia da venda em Brasília, o Caixa, outra loja,
  * outro tenant, de novo, dois balcões ao mesmo tempo), cancelar e faturar de novo, replay,
  * item fora do orçamento e a troca.
+ * Seção 4: o papel do orçamento (tipo, validade, sem pagamento, rodapé, alcance) e o orçamento
+ * de origem no papel da venda.
  */
 
 let falhas = 0;
@@ -758,6 +760,89 @@ async function secao3(c: Dado) {
   check("e o orçamento fica faturado por essa venda", vI.ok && sI2.situacao === "faturado" && sI2.sale?.id === vI.data.id, j([sI2.situacao, sI2.sale]));
 }
 
+async function secao4(c: Dado) {
+  console.log("\nSeção 4: o papel do orçamento e o orçamento de origem no papel da venda (com banco)");
+  const { Orc, db, B, owner, ownerB, vend1, vend2, L1, stamp } = c;
+  const Cat = await import("@/lib/actions/emporio-catalogo");
+  const Est = await import("@/lib/actions/emporio-estoque");
+  const Ven = await import("@/lib/actions/emporio-vendas");
+  const Cfg = await import("@/lib/actions/emporio-configuracoes");
+  const Imp = await import("@/lib/actions/emporio-impressao");
+
+  const cat = await db.productCategory.create({ data: { name: "M94 categoria papel" } as never });
+  const p = await Cat.criarProdutoEmporioAction(db, owner, { name: `M94 Papel ${stamp}`, category_id: cat.id, base_unit: "quilograma" });
+  if (!p.ok) throw new Error(j(p));
+  const a = await Cat.criarApresentacaoAction(db, owner, p.data.id, { name: "Quilo", base_qty: 1, is_sealed_package: false });
+  if (!a.ok) throw new Error(j(a));
+  const pr = await Cat.definirPrecoAction(db, owner, { establishment_id: L1, presentation_id: a.data.id, price: 20 });
+  if (!pr.ok) throw new Error(j(pr));
+  const e = await Est.implantarEstoqueAction(db, owner, { establishment_id: L1, emporio_product_id: p.data.id, sealed: [], loose_qty: 100, unit_cost: 5 });
+  if (!e.ok) throw new Error(j(e));
+  const cliente = await db.contact.create({
+    data: { name: `M94 Cliente Papel ${stamp}`, person_kind: "pf", document: "12345678909", phone: "11977776666" } as never,
+  });
+  const rodape = "Orçamento sujeito à disponibilidade";
+  const cfg = await Cfg.salvarConfiguracoesAction(db, owner, { quote_footer: rodape, sale_footer: "Volte sempre", receipt_width: 58 });
+  if (!cfg.ok) throw new Error(j(cfg));
+
+  let k = 0;
+  const chave = (s: string) => `m94-${stamp}-p-${s}-${(k += 1)}`;
+  const orc = await Orc.salvarOrcamentoAction(db, vend1, {
+    operation_key: chave("orc"),
+    establishment_id: L1,
+    contact_id: cliente.id,
+    items: [{ emporio_product_id: p.data.id, presentation_id: a.data.id, quantity: 2, unit_price: 19 }],
+  });
+  if (!orc.ok) throw new Error(j(orc));
+  const q = orc.data;
+
+  // --- o impresso do orçamento
+  const ym = q.valid_until.split("-");
+  const validadeBr = `${ym[2]}/${ym[1]}/${ym[0]}`;
+  const iq = await Imp.lerImpressoDoOrcamentoAction(db, vend1, q.id);
+  check("o impresso do orçamento lê", iq.ok, j(iq));
+  if (iq.ok) {
+    const d = iq.data;
+    check("tipo orcamento, número do orçamento, validade dd/mm/aaaa", d.tipo === "orcamento" && d.numero === q.numero && d.validade === validadeBr, j([d.tipo, d.numero, d.validade]));
+    check("sem pagamentos, sem troco, sem caixa, sem orçamento de origem", d.pagamentos.length === 0 && d.troco === null && d.caixa === null && d.orcamento_origem === null, j([d.pagamentos, d.troco, d.caixa, d.orcamento_origem]));
+    check("rodapé = quote_footer, vendedor do orçamento, largura da bobina", d.rodape === rodape && d.vendedor === "M94 vend1" && d.largura_bobina === 58, j([d.rodape, d.vendedor, d.largura_bobina]));
+    check("subtotal no preço sugerido (40), desconto 2, total 38", d.subtotal === 40 && d.desconto === 2 && d.total === 38, j([d.subtotal, d.desconto, d.total]));
+    check("o item sai no preço sugerido (20) e linha 40", d.itens.length === 1 && d.itens[0].preco === 20 && d.itens[0].total === 40, j(d.itens));
+    check("cliente do orçamento", d.cliente?.nome === cliente.name, j(d.cliente));
+    check("emitida_em é a criação do orçamento", d.emitida_em === q.created_at, d.emitida_em);
+  }
+  const iqCaixa = await Imp.lerImpressoDoOrcamentoAction(db, c.caixa, q.id);
+  check("o Caixa da loja lê o impresso", iqCaixa.ok, j(iqCaixa));
+  const iqOutra = await Imp.lerImpressoDoOrcamentoAction(db, vend2, q.id);
+  check("o Vendedor de outra loja: 404", !iqOutra.ok && iqOutra.status === 404, j(iqOutra));
+  const iqB = await Imp.lerImpressoDoOrcamentoAction(B.db, ownerB, q.id);
+  check("outro tenant: 404", !iqB.ok && iqB.status === 404, j(iqB));
+
+  // --- o papel da venda: de qual orçamento veio
+  const v = await Ven.venderAction(db, vend1, {
+    operation_key: chave("venda"),
+    establishment_id: L1,
+    contact_id: cliente.id,
+    quote_id: q.id,
+    items: [{ emporio_product_id: p.data.id, presentation_id: a.data.id, quantity: 2, unit_price: 19 }],
+    payments: [{ kind: "dinheiro", amount: 38 }],
+  } as never);
+  if (!v.ok) throw new Error(j(v));
+  const iv = await Imp.lerImpressoDaVendaAction(db, vend1, v.data.id);
+  check("a venda faturada: tipo venda, orcamento_origem = número do orçamento, sem validade", iv.ok && iv.data.tipo === "venda" && iv.data.orcamento_origem === q.numero && iv.data.validade === null, j(iv.ok ? [iv.data.tipo, iv.data.orcamento_origem, iv.data.validade] : iv));
+  check("o rodapé da venda segue o da venda", iv.ok && iv.data.rodape === "Volte sempre", j(iv.ok ? iv.data.rodape : iv));
+  const v2 = await Ven.venderAction(db, vend1, {
+    operation_key: chave("venda2"),
+    establishment_id: L1,
+    contact_id: cliente.id,
+    items: [{ emporio_product_id: p.data.id, presentation_id: a.data.id, quantity: 1 }],
+    payments: [{ kind: "dinheiro", amount: 20 }],
+  } as never);
+  if (!v2.ok) throw new Error(j(v2));
+  const iv2 = await Imp.lerImpressoDaVendaAction(db, vend1, v2.data.id);
+  check("a venda sem orçamento: orcamento_origem null", iv2.ok && iv2.data.orcamento_origem === null && iv2.data.tipo === "venda", j(iv2.ok ? [iv2.data.tipo, iv2.data.orcamento_origem] : iv2));
+}
+
 async function limpar() {
   const { prisma } = await import("@/lib/prisma");
   const modelos = [
@@ -785,6 +870,7 @@ async function main() {
     const ctx = await secao1();
     await secao2(ctx);
     await secao3(ctx);
+    await secao4(ctx);
   } finally {
     await limpar();
   }

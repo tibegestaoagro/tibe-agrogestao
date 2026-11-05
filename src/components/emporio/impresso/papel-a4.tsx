@@ -18,6 +18,7 @@ const ESTILO = `
 .a4 .doc h1 { font-size: 18px; margin: 0; letter-spacing: .5px }
 .a4 .cancelada { border: 3px solid #000; padding: 4px 10px; margin: 0 0 12px; text-align: center; font-size: 18px; font-weight: bold; letter-spacing: 1px }
 .a4 .bloco { border: 1px solid #999; padding: 8px 10px; margin-bottom: 10px; border-radius: 3px }
+.a4 .validade { border: 2px solid #000; text-align: center; font-size: 16px }
 .a4 .rot { font-size: 10px; text-transform: uppercase; color: #444; margin-bottom: 2px }
 .a4 table { width: 100%; border-collapse: collapse; margin: 6px 0 10px }
 .a4 th { text-align: left; font-size: 10px; text-transform: uppercase; color: #333; border-bottom: 1px solid #000; padding: 4px 3px }
@@ -32,6 +33,7 @@ const ESTILO = `
 const DATA_HORA = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" });
 
 export function PapelA4({ d }: { d: ImpressoVenda }) {
+  const orcamento = d.tipo === "orcamento";
   const contato = [d.loja.telefone, d.loja.whatsapp ? `WhatsApp ${d.loja.whatsapp}` : null].filter(Boolean).join(" · ");
   const dadosCliente = d.cliente ? [d.cliente.documento, d.cliente.telefone, d.cliente.endereco].filter(Boolean).join(" · ") : "";
   return (
@@ -48,11 +50,12 @@ export function PapelA4({ d }: { d: ImpressoVenda }) {
           </div>
         </div>
         <div className="doc">
-          <h1>VENDA</h1>
+          <h1>{orcamento ? "ORÇAMENTO" : "VENDA"}</h1>
           <div>
             Nº <b>{d.numero}</b>
           </div>
           <div>Emitida em {DATA_HORA.format(new Date(d.emitida_em))}</div>
+          {d.orcamento_origem && <div>Orçamento nº {d.orcamento_origem}</div>}
         </div>
       </header>
 
@@ -104,21 +107,27 @@ export function PapelA4({ d }: { d: ImpressoVenda }) {
         </div>
       </div>
 
-      <section className="bloco" style={{ marginTop: 12 }}>
-        <div className="rot">Pagamento</div>
-        {d.pagamentos.map((p, k) => (
-          <div key={k} style={{ display: "flex", justifyContent: "space-between" }}>
-            <span>{p.forma}</span>
-            <span>{reaisBr(p.valor)}</span>
-          </div>
-        ))}
-        {d.troco !== null && (
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span>Troco</span>
-            <span>{reaisBr(d.troco)}</span>
-          </div>
-        )}
-      </section>
+      {orcamento ? (
+        <section className="bloco validade" style={{ marginTop: 12 }}>
+          Válido até <b>{d.validade}</b>
+        </section>
+      ) : (
+        <section className="bloco" style={{ marginTop: 12 }}>
+          <div className="rot">Pagamento</div>
+          {d.pagamentos.map((p, k) => (
+            <div key={k} style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>{p.forma}</span>
+              <span>{reaisBr(p.valor)}</span>
+            </div>
+          ))}
+          {d.troco !== null && (
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>Troco</span>
+              <span>{reaisBr(d.troco)}</span>
+            </div>
+          )}
+        </section>
+      )}
 
       <footer className="rodape">
         {d.vendedor && (

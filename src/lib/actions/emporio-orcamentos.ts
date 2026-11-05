@@ -56,6 +56,8 @@ export type OrcamentoItemView = {
   quantity: number;
   /** O preço unitário do orçamento (o praticado, já com o desconto). */
   preco_orcado: number;
+  /** O preço cadastrado na loja quando se orçou (o preço sugerido); nulo sem preço. */
+  preco_sugerido: number | null;
   /** O preço da apresentação na loja hoje; nulo sem preço. */
   preco_hoje: number | null;
   /** O preço-base que valeria ao faturar hoje (`precoQueVale`). */
@@ -176,6 +178,7 @@ async function montarOrcamentos(db: TenantPrismaClient, linhas: OrcamentoRow[]):
         apresentacao: i.presentation.name,
         quantity,
         preco_orcado: orcado,
+        preco_sugerido: decToNum(i.suggested_price),
         preco_hoje: hojePreco,
         preco_que_vale: precoQueValeHoje,
         mudou: precoQueValeHoje !== orcado,
