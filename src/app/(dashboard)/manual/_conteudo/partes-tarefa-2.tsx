@@ -132,22 +132,22 @@ export function ParteDeCaixa() {
   return (
     <div className="space-y-2">
       <Tarefa
-        paraQueServe="Saber quanto dinheiro deveria estar na gaveta e conferir se está."
+        paraQueServe="Saber quanto dinheiro deveria estar em cada caixa da loja e conferir se está."
         passos={[
-          <>Abra <strong>Caixa</strong>. Cada loja tem a sua gaveta, com o saldo que o sistema calculou.</>,
-          <>No fim do dia, conte o dinheiro e, na seção <strong>Conferir gaveta</strong>, clique em <strong>Conferir</strong>.</>,
+          <>Abra <strong>Caixa</strong>. Em <strong>Caixas de cada loja</strong>, cada caixa (Caixa 1, Caixa 2) aparece com o saldo que o sistema calculou e se está aberto ou fechado.</>,
+          <>Com o caixa aberto, conte o dinheiro e clique em <strong>Conferir</strong>, na linha dele.</>,
           "Digite o valor contado. O sistema compara com o esperado.",
           "Se os dois forem diferentes, escreva o motivo da diferença. Ele é obrigatório.",
-          "Salve. A gaveta passa a bater, e a diferença fica registrada no resultado da loja.",
+          "Salve. O caixa passa a bater, e a diferença fica registrada no resultado da loja.",
         ]}
         problemas={[
           {
-            quando: "A gaveta tem menos que o esperado",
+            quando: "O caixa tem menos que o esperado",
             fazer: "Registre a diferença com o motivo. A falta entra como despesa Diferença de caixa. Se a sobra aparece, entra como receita.",
           },
           {
-            quando: "O Meu Dia avisa que um dia ficou sem conferência",
-            fazer: "Confira a gaveta hoje, com o que está nela. Você pode conferir a qualquer hora, não precisa abrir nem fechar turno.",
+            quando: "O Meu Dia avisa que um caixa está aberto desde ontem",
+            fazer: "O turno daquele caixa não foi encerrado. Quem abriu, ou o Gestor da loja, clica em Encerrar: conta o dinheiro, separa o malote e deixa o troco.",
           },
         ]}
       >
@@ -155,18 +155,22 @@ export function ParteDeCaixa() {
         <Figura id="caixa-conferir" />
       </Tarefa>
 
-      <Subtitulo>Levar a gaveta ao banco</Subtitulo>
+      <Subtitulo>Levar o dinheiro do caixa ao banco</Subtitulo>
       <Tarefa
-        paraQueServe="Registrar o dinheiro que saiu da gaveta e foi depositado."
+        paraQueServe="Registrar o dinheiro que saiu do caixa e foi depositado."
         passos={[
-          <>Em <strong>Caixa</strong>, clique em <strong>Transferir entre caixas</strong>.</>,
-          "Escolha de onde sai (a gaveta) e para onde vai (a conta bancária).",
-          "Digite o valor e salve.",
+          <>Na linha do caixa aberto, clique em <strong>Sangria</strong> e digite o valor retirado. O dinheiro sai do caixa e fica aguardando o gerente. No encerramento, o malote faz o mesmo.</>,
+          <>O Gestor da loja confirma, em <strong>Aguardando o gerente</strong>, o valor que recebeu. A partir daí, o dinheiro fica <strong>Com a gerência</strong>.</>,
+          <>Em <strong>Transferir dinheiro</strong>, escolha de onde sai (Com a gerência da loja) e para onde vai (a conta bancária), digite o valor e salve.</>,
         ]}
         problemas={[
           {
             quando: "O sistema recusa porque não há dinheiro suficiente",
-            fazer: "Você não pode levar mais do que o saldo da gaveta. Confira a gaveta primeiro.",
+            fazer: "A sangria não passa do saldo do caixa, e a transferência não passa do que está com a gerência.",
+          },
+          {
+            quando: "O caixa não aparece como origem da transferência",
+            fazer: "É assim mesmo: o dinheiro do caixa vai ao gerente pela sangria ou pelo malote, e só a gerência vai ao banco.",
           },
         ]}
       />

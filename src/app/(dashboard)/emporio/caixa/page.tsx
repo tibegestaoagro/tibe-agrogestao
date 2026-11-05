@@ -54,7 +54,7 @@ export default async function CaixaPage() {
     lerCaixaAction(db, user),
     ehGestor ? listarContasAction(db, user, { incluir_arquivadas: true }) : Promise.resolve(null),
     ehGestor ? listarRegrasCartaoAction(db, user) : Promise.resolve(null),
-    // Depositar cheque e levar a gaveta ao banco são do Vendedor com a chave, que não lista contas
+    // Depositar cheque é do Vendedor com a chave, que não lista contas
     // pela action (é do Gestor para cima): aqui só id e nome, para escolher o destino.
     db.bankAccount.findMany({
       where: { archived_at: null },

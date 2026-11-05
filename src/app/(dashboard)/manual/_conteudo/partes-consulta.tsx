@@ -57,7 +57,7 @@ const PERGUNTAS: { pergunta: string; resposta: React.ReactNode }[] = [
   },
   {
     pergunta: "Como dar mais permissão ao Vendedor?",
-    resposta: <>Na <Link className="underline" href={`${BASE_DO_EMPORIO}/equipe`}>Equipe</Link>, o Dono ou o Gerente geral ligam as chaves dele: devolver e trocar, lançar compra, contagem, perda, estoque inicial, produção, levar a gaveta ao banco, depositar cheque e cadastrar produto. Cancelar venda, mudar preço e dar desconto acima do limite não têm chave: se precisa disso, promova a Gestor.</>,
+    resposta: <>Na <Link className="underline" href={`${BASE_DO_EMPORIO}/equipe`}>Equipe</Link>, o Dono ou o Gerente geral ligam as chaves dele: devolver e trocar, lançar compra, contagem, perda, estoque inicial, produção, depositar cheque e cadastrar produto. Cancelar venda, mudar preço e dar desconto acima do limite não têm chave: se precisa disso, promova a Gestor.</>,
   },
   {
     pergunta: "Por que o PIX foi recusado?",
@@ -88,8 +88,8 @@ const PERGUNTAS: { pergunta: string; resposta: React.ReactNode }[] = [
     resposta: "Algum custo está provisório ou falta, ou uma despesa fixa ainda não foi paga. Lance a compra ou o custo que falta, e o selo sai.",
   },
   {
-    pergunta: "Por que o Meu Dia me avisa da gaveta?",
-    resposta: "Algum dia dos últimos sete teve movimento na gaveta e ninguém conferiu. Faça a conferência com o que está nela. O dia de hoje não conta, porque ainda não acabou.",
+    pergunta: "Por que o Meu Dia me avisa do caixa?",
+    resposta: "Por um de dois motivos. Um caixa está aberto desde um dia anterior: o turno não foi encerrado, e quem abriu ou o Gestor da loja encerra. Ou há dinheiro aguardando o gerente: uma sangria ou um malote que o Gestor da loja ainda não confirmou em Caixa.",
   },
 ];
 

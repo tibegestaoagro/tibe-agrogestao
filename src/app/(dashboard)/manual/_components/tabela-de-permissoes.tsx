@@ -4,14 +4,15 @@ type Celula = "sim" | "nao" | "chave";
 
 const LINHAS: { acao: string; dono: Celula; gestor: Celula; vendedor: Celula }[] = [
   { acao: "Vender no balcão (desconto até o limite da loja)", dono: "sim", gestor: "sim", vendedor: "sim" },
-  { acao: "Receber fiado e conferir a gaveta", dono: "sim", gestor: "sim", vendedor: "sim" },
+  { acao: "Receber fiado; abrir, conferir e encerrar o caixa; fazer sangria", dono: "sim", gestor: "sim", vendedor: "sim" },
   { acao: "Receber compra e receber transferência que chegou certa", dono: "sim", gestor: "sim", vendedor: "sim" },
   { acao: "Ver estoque, vendas e caixa da própria loja", dono: "sim", gestor: "sim", vendedor: "sim" },
   { acao: "Devolver e trocar", dono: "sim", gestor: "sim", vendedor: "chave" },
   { acao: "Lançar compra", dono: "sim", gestor: "sim", vendedor: "chave" },
   { acao: "Contagem de estoque, perda e estoque inicial", dono: "sim", gestor: "sim", vendedor: "chave" },
   { acao: "Registrar produção", dono: "sim", gestor: "sim", vendedor: "chave" },
-  { acao: "Levar a gaveta ao banco e depositar cheque", dono: "sim", gestor: "sim", vendedor: "chave" },
+  { acao: "Depositar cheque", dono: "sim", gestor: "sim", vendedor: "chave" },
+  { acao: "Confirmar sangria e malote, e levar o dinheiro da gerência ao banco", dono: "sim", gestor: "sim", vendedor: "nao" },
   { acao: "Cadastrar e editar produto", dono: "sim", gestor: "sim", vendedor: "chave" },
   { acao: "Mudar preço, mínimo e máximo", dono: "sim", gestor: "sim", vendedor: "nao" },
   { acao: "Dar desconto acima do limite", dono: "sim", gestor: "sim", vendedor: "nao" },

@@ -124,7 +124,7 @@ export function ParteVendedor() {
         itens={[
           <><Link className="underline" href={`${B}/vender`}>Vende</Link> em dinheiro, PIX, cartão, cheque ou fiado.</>,
           <><Link className="underline" href={`${B}/fiado`}>Recebe o fiado</Link> quando o cliente volta para pagar.</>,
-          <>Confere a <Link className="underline" href={`${B}/caixa`}>gaveta</Link> no fim do dia.</>,
+          <>Abre o <Link className="underline" href={`${B}/caixa`}>caixa</Link> com o troco, confere quando quiser e encerra no fim do turno.</>,
           <>Recebe a compra e a transferência que chegam na loja.</>,
           <>Olha o estoque, as vendas e o caixa da sua loja.</>,
         ]}
@@ -143,7 +143,7 @@ export function ParteVendedor() {
       <Chamada tipo="atencao">
         <p>
           Algumas coisas o Dono pode liberar só para você: devolver e trocar, lançar compra, fazer contagem, registrar
-          perda, levar a gaveta ao banco, depositar cheque e cadastrar produto. Se o botão não aparece ou o sistema
+          perda, depositar cheque e cadastrar produto. Se o botão não aparece ou o sistema
           recusa, é porque essa permissão está desligada. Peça ao Dono.
         </p>
       </Chamada>

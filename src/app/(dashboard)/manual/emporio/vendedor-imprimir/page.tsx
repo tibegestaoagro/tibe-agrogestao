@@ -23,11 +23,11 @@ const BLOCOS: { titulo: string; passos: string[] }[] = [
     ],
   },
   {
-    titulo: "Conferir a gaveta (todo fim de dia)",
+    titulo: "Abrir, conferir e encerrar o caixa",
     passos: [
-      "Abra Caixa e clique em Conferir gaveta.",
-      "Conte o dinheiro e digite o valor contado.",
-      "Se não bater, escreva o motivo da diferença.",
+      "Abra Caixa e clique em Abrir, na linha do caixa: conte o troco que está nele.",
+      "Para conferir, clique em Conferir e digite o valor contado. Se não bater, escreva o motivo.",
+      "No fim do turno, clique em Encerrar: conte, separe o malote e deixe o troco.",
     ],
   },
   {
