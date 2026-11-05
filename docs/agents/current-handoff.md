@@ -25,7 +25,7 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 `historico/2026-09.md`.
 ## Estado atual
 
-- Atualizado em: 2026-11-04.
+- Atualizado em: 2026-11-05.
 
 ### Programa de dívidas (07 a 14/10): encerrado, E0 a E10 em produção
 
@@ -96,9 +96,20 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
-### Empório, entrega 2: caixa com turno (05/11), NA BRANCH
+### Empório, entrega 2: caixa com turno (05/11), em produção
 
-Branch `emporio-caixa-turno` (saída da `main` em `ad21e62`; nada no ar).
+**Em produção desde 05/11** (`8db0603`, merge fast-forward de
+`emporio-caixa-turno` e push autorizados pelo usuário, assim como as
+migrações e a reaplicação). Feito nesta ordem:
+- leitura: a última venda e o último movimento de caixa eram de 31/10;
+- as duas migrações no Neon (URL Direct), e o `migrate status` em dia;
+- o merge e o push, com a Vercel em sucesso no status do commit;
+- a reaplicação, numa transação. Antes dela, a leitura mostrou 0 turnos, 0
+  lojas sem caixa, 0 movimentos e 0 conferências sem caixa, e nenhuma loja
+  para conferir à mão. Os três comandos mexeram em 0 linhas, porque o
+  backfill da migração já tinha coberto tudo.
+
+Branch `emporio-caixa-turno` (saída da `main` em `ad21e62`).
 Plano `docs/superpowers/plans/2026-11-04-emporio-entrega2-caixa-com-turno.md`,
 decisões Q150 a Q167 na spec do módulo (revisam Q35, Q92, Q93, Q110 e o
 desvio "a gaveta é a loja" da F3a). Contém:
@@ -451,10 +462,12 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
 
-**Empório, entrega 2 (caixa com turno) pronta na branch `emporio-caixa-turno`**,
-esperando a decisão do usuário sobre o merge e o deploy (ver a seção da
-entrega 2 acima, com o roteiro do deploy). Depois, a entrega 3 (vendedor na
-venda e relatórios). Da entrega 1, segue pendente o usuário imprimir um cupom
+**Empório, entrega 2 (caixa com turno) em produção desde 05/11.** O usuário
+avisa a Da Mata: no primeiro dia toda venda pede para abrir o caixa, e a
+primeira abertura confere o saldo antigo da gaveta. Fica em aberto a pergunta
+de produto: o reforço vindo da gerência deve esperar o gestor confirmar, como
+a sangria? Depois, a entrega 3 (vendedor na venda e relatórios), com plano
+próprio. Da entrega 1, segue pendente o usuário imprimir um cupom
 de 58 e de 80 mm na bobina da loja e um A4.
 
 **Empório, 04/11:** o usuário pediu dois ajustes antes do manual e do cenário.
