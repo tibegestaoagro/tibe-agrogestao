@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
+import { vendedoresDaLoja } from "@/lib/emporio/vendedores";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Balcao } from "../_components/balcao";
@@ -21,6 +22,13 @@ export default async function VenderPage() {
 
   const catalogo =
     podeVender && lojas.length > 0 ? await carregarCatalogoDeVenda(db, lojas.map((l) => l.id)) : null;
+
+  // Quem pode ser o vendedor, por loja: a lista nasce no servidor (a regra é uma só, em `vendedoresDaLoja`).
+  const vendedoresPorLoja: Record<string, { id: string; name: string }[]> = {};
+  if (podeVender) {
+    for (const l of lojas) vendedoresPorLoja[l.id] = await vendedoresDaLoja(db, l.id);
+  }
+  const ehCaixa = (await papelDoEmporio(db, user)).papel === "caixa";
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -64,6 +72,8 @@ export default async function VenderPage() {
           precos={catalogo.precos}
           contatos={catalogo.contatos}
           usuarioId={user.id}
+          vendedoresPorLoja={vendedoresPorLoja}
+          ehCaixa={ehCaixa}
         />
       )}
     </div>

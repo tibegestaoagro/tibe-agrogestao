@@ -38,7 +38,10 @@ import { useVenda, type ContatoDeVenda, type PrecosVenda, type ProdutoVenda, typ
  * reaproveita a chave e devolve a venda já gravada; mexer na venda gera outra.
  */
 
-const ORDEM = ["establishment_id", "items", "contact_id", "payments", "cash_register_id"] as const;
+const ORDEM = ["establishment_id", "items", "contact_id", "payments", "seller_user_id", "cash_register_id"] as const;
+
+/** A mesma frase do servidor (`SELLER_REQUIRED`): a recusa daqui e a de lá são indistinguíveis. */
+const AVISO_SEM_VENDEDOR = "Escolha o vendedor que atendeu.";
 
 const AVISO_SEM_CAIXA = "Nenhum caixa aberto nesta loja. Abra o caixa com o troco inicial para vender.";
 const AVISO_VARIOS = "Há mais de um caixa aberto. Escolha o caixa.";
@@ -50,6 +53,7 @@ type VendaGravada = {
   number: number;
   net_amount: number;
   contact_name: string | null;
+  seller_name: string | null;
   items: { product_name: string; presentation_name: string; quantity: number }[];
   payments: { kind: string; amount: number }[];
 };
@@ -62,6 +66,8 @@ export function Balcao({
   precos,
   contatos,
   usuarioId,
+  vendedoresPorLoja,
+  ehCaixa,
 }: {
   lojas: { id: string; name: string }[];
   produtos: ProdutoVenda[];
@@ -69,6 +75,10 @@ export function Balcao({
   contatos: ContatoDeVenda[];
   /** Quem está vendendo, vindo da sessão no servidor: compara com quem abriu cada caixa. */
   usuarioId: string;
+  /** Quem pode ser o vendedor em cada loja (`vendedoresDaLoja`, lido no servidor). */
+  vendedoresPorLoja: Record<string, { id: string; name: string }[]>;
+  /** O Caixa não é vendedor: ele escolhe quem atendeu. Os demais vendem em nome próprio. */
+  ehCaixa: boolean;
 }) {
   const err = useErrosDeFormulario(ORDEM);
   const [regras, setRegras] = useState<RegraCartaoVenda[] | null>(null);
@@ -139,6 +149,16 @@ export function Balcao({
     };
   }, [loja]);
 
+  // O vendedor: a escolha só vale se ainda está na lista da loja (trocar de loja a descarta). Quem não é Caixa
+  // começa nele mesmo, quando ele vende naquela loja.
+  const [vendedorEscolhido, setVendedorEscolhido] = useState("");
+  const vendedores = vendedoresPorLoja[loja] ?? [];
+  const vendedor = vendedores.some((u) => u.id === vendedorEscolhido)
+    ? vendedorEscolhido
+    : !ehCaixa && vendedores.some((u) => u.id === usuarioId)
+      ? usuarioId
+      : "";
+
   const caixasDaLoja = lidos && lidos.lojaId === loja ? lidos.lista : null;
   const abertos = caixasDaLoja ? abertosDaLoja(caixasDaLoja, loja) : [];
   const fechados = caixasDaLoja ? fechadosDaLoja(caixasDaLoja, loja) : [];
@@ -166,9 +186,11 @@ export function Balcao({
 
   async function enviar(recemAberto?: string) {
     const m = v.montar(true);
-    if (!m.corpo) {
+    const novos: typeof m.novos & { seller_user_id?: string } = { ...m.novos };
+    if (ehCaixa && !vendedor) novos.seller_user_id = AVISO_SEM_VENDEDOR;
+    if (!m.corpo || novos.seller_user_id) {
       err.setGlobal(null);
-      err.reprovar(m.novos);
+      err.reprovar(novos);
       return;
     }
 
@@ -195,7 +217,7 @@ export function Balcao({
       }
     }
 
-    const assinatura = JSON.stringify([m.assinatura, escolhido]);
+    const assinatura = JSON.stringify([m.assinatura, escolhido, vendedor]);
     if (chave.current?.assinatura !== assinatura) {
       chave.current = { assinatura, key: crypto.randomUUID() };
     }
@@ -203,6 +225,7 @@ export function Balcao({
     const res = await apiPost<VendaGravada>("/api/v1/emporio/sales", {
       operation_key: chave.current.key,
       ...m.corpo,
+      ...(vendedor ? { seller_user_id: vendedor } : {}),
       cash_register_id: escolhido || null,
     });
     setEnviando(false);
@@ -244,6 +267,7 @@ export function Balcao({
           <p>
             {resumo.venda.payments.map((p) => `${FORMA_ROTULO[p.kind] ?? p.kind} ${reaisBr(p.amount)}`).join(", ")}
             {resumo.venda.contact_name ? `, cliente ${resumo.venda.contact_name}` : ""}
+            {resumo.venda.seller_name ? `, vendedor ${resumo.venda.seller_name}` : ""}
           </p>
           {resumo.trocoCent > 0 && (
             <p className="font-semibold">Troco entregue: {reaisBr(resumo.trocoCent / 100)}</p>
@@ -297,6 +321,41 @@ export function Balcao({
             aoEscolherLoja={lembrarLoja}
           />
         </div>
+
+        {loja !== "" && (
+          <div className="rounded-lg border border-borda bg-superficie p-4 shadow-sm">
+            <Field
+              label="Vendedor"
+              required={ehCaixa}
+              id={err.idDe("seller_user_id")}
+              error={err.erros.seller_user_id}
+              hint={vendedores.length === 0 ? "Nenhum vendedor vinculado a esta loja." : undefined}
+            >
+              {({ id, ...aria }) => (
+                <Select
+                  value={vendedor}
+                  onValueChange={(valor) => {
+                    // O Radix dispara "" quando o valor some da lista: nunca é escolha de ninguém.
+                    if (valor === "") return;
+                    setVendedorEscolhido(valor);
+                    err.limparCampo("seller_user_id");
+                  }}
+                >
+                  <SelectTrigger id={id} {...aria}>
+                    <SelectValue placeholder="Escolha o vendedor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vendedores.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </Field>
+          </div>
+        )}
 
         {mostrarCaixa && (
           <div className="rounded-lg border border-borda bg-superficie p-4 shadow-sm">
