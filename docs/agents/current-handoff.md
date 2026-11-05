@@ -96,6 +96,61 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
+### Empório, entrega 2: caixa com turno (05/11), NA BRANCH
+
+Branch `emporio-caixa-turno` (saída da `main` em `ad21e62`; nada no ar).
+Plano `docs/superpowers/plans/2026-11-04-emporio-entrega2-caixa-com-turno.md`,
+decisões Q150 a Q167 na spec do módulo (revisam Q35, Q92, Q93, Q110 e o
+desvio "a gaveta é a loja" da F3a). Contém:
+- caixas numerados por loja (toda loja tem o Caixa 1);
+- turno: abrir conferindo o troco, reforço vindo da gerência, sangria,
+  conferência livre, encerrar com malote;
+- sangria e malote esperando o gerente confirmar, e o lugar "Com a gerência";
+- a transferência liga a gerência ao banco, e a gaveta não transfere mais;
+- o papel Caixa na Equipe (vende, recebe fiado, vê as vendas do dia, opera o
+  caixa);
+- toda operação de dinheiro da gaveta cai no turno, e toda venda exige caixa
+  aberto (o balcão abre ali mesmo);
+- o relatório do fechamento em A4 e na bobina, e os avisos novos do Meu Dia.
+
+Provas:
+- suíte `test:m92` (nova) e `test:all -- --sem-redis` 92/92;
+- roteiro `emporio-turno` verde, e vermelho com o passo de abrir o caixa
+  desligado; o PDF do relatório na bobina sai numa página de 58 mm;
+- os roteiros antigos do Empório adaptados: 14 de 15 verdes. O
+  `manual-emporio` tem falhas que dependem de dado ou de mês, e a imagem do
+  celular do preço por loja sai em branco, ainda sem causa;
+- revisão final da branch inteira (opus) e uma onda de correção.
+
+**Roteiro do deploy, quando autorizado.** São duas migrações,
+`20261105120000_emporio_caixa_turno` e `20261105130000_emporio_transferencia_gerencia`,
+as duas aditivas, sem NOT NULL novo. A ordem:
+1. Conferir por leitura que nenhuma loja está vendendo.
+2. Aplicar as duas migrações no Neon (URL Direct).
+3. Fazer o merge e o push.
+4. Com a Vercel em sucesso e antes de qualquer abertura de caixa, rodar a
+   consulta de leitura de `prisma/sql/emporio-caixa-turno-reaplicar.sql` e
+   depois a reaplicação, que só mexe em loja cujo Caixa 1 nunca abriu.
+
+O código antigo, na janela entre a migração e o push, grava a gaveta sem
+caixa, e a chave `transferir_caixa` some antes do código que a usa.
+
+**O manual** foi corrigido só no que dizia de falso. Falta o capítulo do turno
+e do papel Caixa, que entra na atualização do manual. **No primeiro dia**,
+toda venda pede para abrir o caixa, e a primeira abertura confere o saldo
+antigo da gaveta. Se houver diferença grande, ela vira "Diferença de caixa" no
+Financeiro. O usuário avisa a Da Mata.
+
+**O cenário de demonstração** põe 30 dias de vendas num turno aberto hoje.
+Corrigir antes de refazer a demonstração da Da Mata.
+
+**Armadilhas de ambiente:**
+- A migração `20261105120000` foi editada no lugar durante a branch. Um Docker
+  de outra máquina que tenha a versão antiga precisa reaplicá-la.
+- Os cenários `f6b` e `turno` mudam a conta do seed de vez: plano grupo, e os
+  outros usuários desligados. O `_cenario-manual-emporio.ts` religa a equipe
+  da demonstração.
+
 ### Empório, entrega 1: configurações e impressão da venda (04/11), em produção
 
 **Em produção desde 04/11** (`ad21e62`, merge fast-forward de
@@ -396,11 +451,11 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 
 ### ⏭️ PRÓXIMO PASSO
 
-**Empório, entrega 1 em produção (04/11).** O usuário imprime um cupom de 58 e
-de 80 mm na bobina da loja e um A4, e relata o que estranhar. A próxima é a
-entrega 2 (caixa com turno): plano novo a partir da seção dela no design
-`docs/superpowers/specs/2026-11-04-emporio-orcamento-caixa-impressao-design.md`,
-numa branch nova saída da `main`.
+**Empório, entrega 2 (caixa com turno) pronta na branch `emporio-caixa-turno`**,
+esperando a decisão do usuário sobre o merge e o deploy (ver a seção da
+entrega 2 acima, com o roteiro do deploy). Depois, a entrega 3 (vendedor na
+venda e relatórios). Da entrega 1, segue pendente o usuário imprimir um cupom
+de 58 e de 80 mm na bobina da loja e um A4.
 
 **Empório, 04/11:** o usuário pediu dois ajustes antes do manual e do cenário.
 O primeiro (metro) é a branch `emporio-unidade-metro`; o segundo ele ainda vai
