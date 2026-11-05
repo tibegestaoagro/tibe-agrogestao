@@ -993,8 +993,8 @@ export const GROUPS: Group[] = [
       {
         method: "POST",
         path: "/api/v1/emporio/cash/opening",
-        auth: "Sessão · emporio:write · caixa: quem trabalha na loja; gerência: Gestor da loja para cima; conta: só OWNER e ADMIN",
-        description: "Saldo inicial (implantação), uma vez por lugar (409 `OPENING_ALREADY_DONE`): um caixa (`cash_register_id`), a gerência de uma loja (`manager_establishment_id`) OU uma conta (`bank_account_id`). `establishment_id` sozinho, de antes dos caixas numerados, vale como o Caixa 1 da loja. Informar mais de um lugar ou nenhum: 422 `cash_register_id`. `amount` maior que zero (422 `amount`).",
+        auth: "Sessão · emporio:write · caixa e gerência: Gestor da loja para cima; conta: só OWNER e ADMIN",
+        description: "Saldo inicial (implantação), uma vez por lugar (409 `OPENING_ALREADY_DONE`): um caixa (`cash_register_id`), a gerência de uma loja (`manager_establishment_id`) OU uma conta (`bank_account_id`). O caixa só recebe saldo inicial enquanto nunca teve turno (depois: 409 `OPENING_ALREADY_DONE`); o troco de um caixa novo entra pelo reforço da gerência na abertura. `establishment_id` sozinho, de antes dos caixas numerados, vale como o Caixa 1 da loja. Informar mais de um lugar ou nenhum: 422 `cash_register_id`. `amount` maior que zero (422 `amount`).",
         request: `{ "cash_register_id": "cl...", "amount": 200 }`,
         response: `201
 { "data": { "direction": "entrada", "amount": 200, "origin": "implantacao" }, "meta": {} }`,
@@ -1113,7 +1113,7 @@ export const GROUPS: Group[] = [
         method: "POST",
         path: "/api/v1/emporio/cash/sessions",
         auth: "Sessão · emporio:write · quem trabalha na loja (o Caixa incluso)",
-        description: "Abre o turno do caixa com o troco contado (`counted`, zero ou mais: 422 `counted`). Abrir é conferir o troco: `reinforcement` (opcional) sai da gerência da loja e entra no caixa antes do esperado ser calculado (gerência sem o valor: 409 `INSUFFICIENT_CASH` em `reinforcement`, \"Não há dinheiro suficiente para isso.\"); o esperado é o saldo do caixa depois do reforço, e a diferença segue a conferência (422 `justification`, ajuste e \"Diferença de caixa\"). Grava a contagem `kind: abertura`. Um turno aberto por caixa: 409 `SESSION_ALREADY_OPEN` em `cash_register_id` (\"Este caixa já está aberto.\"), também em duas aberturas simultâneas. Caixa de loja de outra pessoa: 403. `operation_key` obrigatória: repetir devolve o turno com 200.",
+        description: "Abre o turno do caixa com o troco contado (`counted`, zero ou mais: 422 `counted`). Abrir é conferir o troco: `reinforcement` (opcional) sai da gerência da loja e entra no caixa antes do esperado ser calculado (gerência sem o valor: 409 `INSUFFICIENT_CASH` em `reinforcement`, \"Não há dinheiro suficiente para isso.\"); o esperado é o saldo do caixa depois do reforço, e a diferença segue a conferência (422 `justification`, ajuste e \"Diferença de caixa\"). Grava a contagem `kind: abertura`. Um turno aberto por caixa: 409 `SESSION_ALREADY_OPEN` em `cash_register_id` (\"Este caixa já está aberto.\"), também em duas aberturas simultâneas. Caixa de loja de outra pessoa: 403. `operation_key` obrigatória: repetir devolve o turno com 200, também com as duas chamadas em paralelo; a chave já usada noutro caixa: 409 `OPERATION_KEY_REUSED` em `operation_key` (vale igual para sangria, encerramento e confirmação).",
         request: `{ "operation_key": "k-30", "cash_register_id": "cl...", "counted": 100, "reinforcement": 50 }`,
         response: `201
 { "data": { "id": "cl...", "status": "open", "opening_expected": 100, "opening_counted": 100, "reinforcement": 50 }, "meta": {} }`,

@@ -555,8 +555,11 @@ async function comBanco() {
     console.log("\n12. Caixa: o saldo é a soma dos movimentos");
     const gavBase = await saldoGaveta(L1.id);
     check("saldo inicial da gaveta (VISUALIZADOR): 403", recusa(await xx("saldoInicialCaixaAction", visu, { establishment_id: L2.id, amount: 100 }), "FORBIDDEN", 403));
-    const rOp = await xx("saldoInicialCaixaAction", op, { establishment_id: L2.id, amount: 300 });
-    check("OPERADOR lança o saldo inicial da Loja 2 (300), como no estoque inicial", rOp.ok, j(rOp));
+    // Entrega 2: o saldo inicial do caixa é do Gestor da loja para cima; quem opera o caixa põe troco pelo reforço na abertura.
+    check("saldo inicial da gaveta (OPERADOR): 403", recusa(await xx("saldoInicialCaixaAction", op, { establishment_id: L2.id, amount: 300 }), "FORBIDDEN", 403));
+    check("a recusa não gravou implantação", (await db.cashMovement.count({ where: { establishment_id: L2.id, origin: "implantacao" } })) === 0);
+    const rOp = await xx("saldoInicialCaixaAction", admin, { establishment_id: L2.id, amount: 300 });
+    check("ADMIN lança o saldo inicial da Loja 2 (300)", rOp.ok, j(rOp));
     const opMov = await db.cashMovement.findMany({ where: { establishment_id: L2.id, origin: "implantacao" } });
     check("um movimento de entrada, origem implantacao", opMov.length === 1 && opMov[0].direction === "entrada" && perto(n(opMov[0].amount), 300), j(opMov));
     check("saldo inicial de novo na mesma loja: recusado", !(await xx("saldoInicialCaixaAction", admin, { establishment_id: L2.id, amount: 50 })).ok && (await db.cashMovement.count({ where: { establishment_id: L2.id, origin: "implantacao" } })) === 1);

@@ -1041,7 +1041,7 @@ export async function lerCaixaAction(
   });
 }
 
-const texto = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
+const texto = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 
 /**
  * Saldo inicial (implantação), uma vez por lugar: um caixa (`cash_register_id`),
@@ -1081,7 +1081,9 @@ export async function saldoInicialCaixaAction(
   let contaId: string | null = null;
   let numeroDoCaixa = 1;
   if (pedidoCaixa || pedidoLoja) {
-    const neg = await exigir(db, ator, "vendedor_da_loja", "informar o saldo inicial da gaveta");
+    // O saldo inicial do caixa é a implantação, do Gestor: quem opera o caixa
+    // põe troco pela abertura (reforço da gerência), nunca dinheiro do nada.
+    const neg = await exigir(db, ator, "gestor_da_loja", "informar o saldo inicial do caixa");
     if (neg) return neg;
     const caixa = pedidoCaixa
       ? await db.cashRegister.findFirst({ where: { id: pedidoCaixa }, select: { id: true, establishment_id: true, number: true } })
@@ -1090,7 +1092,7 @@ export async function saldoInicialCaixaAction(
     const loja = await acharLojaParaEscrita(db, ator, caixa?.establishment_id ?? pedidoLoja);
     if (!loja.ok) return loja;
     if (!caixa) return NAO_ACHADO("Caixa", "cash_register_id");
-    const negLoja = await exigir(db, ator, "vendedor_da_loja", "informar o saldo inicial da gaveta", loja.data.id);
+    const negLoja = await exigir(db, ator, "gestor_da_loja", "informar o saldo inicial do caixa", loja.data.id);
     if (negLoja) return negLoja;
     lojaId = loja.data.id;
     caixaId = caixa.id;
@@ -1126,13 +1128,20 @@ export async function saldoInicialCaixaAction(
         },
         select: { id: true },
       });
+      const campo = caixaId ? (pedidoCaixa ? "cash_register_id" : "establishment_id") : gerenciaId ? "manager_establishment_id" : "bank_account_id";
       if (ja) {
+        throw new RecusaCaixa(
+          fail("OPENING_ALREADY_DONE", "O saldo inicial já foi lançado. Para corrigir, lance a diferença como movimento.", 409, campo),
+        );
+      }
+      // Depois do primeiro turno, o saldo do caixa é o que as contagens disseram: o troco novo entra pelo reforço.
+      if (caixaId && (await tx.cashSession.findFirst({ where: { cash_register_id: caixaId }, select: { id: true } }))) {
         throw new RecusaCaixa(
           fail(
             "OPENING_ALREADY_DONE",
-            "O saldo inicial já foi lançado. Para corrigir, lance a diferença como movimento.",
+            "Este caixa já teve turno: o troco entra pelo reforço da gerência na abertura.",
             409,
-            caixaId ? (pedidoCaixa ? "cash_register_id" : "establishment_id") : gerenciaId ? "manager_establishment_id" : "bank_account_id",
+            campo,
           ),
         );
       }

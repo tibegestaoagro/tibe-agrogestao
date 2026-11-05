@@ -422,6 +422,7 @@ async function secao3() {
   const va = await A.mkUser("va", "OPERADOR");
   const vb = await A.mkUser("vb", "OPERADOR");
   const ownerB = await B.mkUser("own", "OWNER");
+  const gestor2 = await A.mkUser("gestor2", "OPERADOR", { emporio_role: "gestor", emporio_keys: [] });
   const nomeL1 = "M92 T Loja 1";
   const l1 = await Cat.criarEstabelecimentoAction(db, owner, { name: nomeL1 });
   const l2 = await Cat.criarEstabelecimentoAction(db, owner, { name: "M92 T Loja 2" });
@@ -432,6 +433,7 @@ async function secao3() {
   const L3 = l3.data.id;
   await vincularTodas(prisma, A.t.id, [gestor.id, v1.id, v2.id, cx.id], [L1]);
   await vincularTodas(prisma, A.t.id, [va.id, vb.id], [L3]);
+  await vincularTodas(prisma, A.t.id, [gestor2.id], [L2]);
   const caixa1 = async (loja: string) => (await db.cashRegister.findFirst({ where: { establishment_id: loja, number: 1 } }))!.id;
   const r1 = await caixa1(L1);
   const saldo = (id: string) => Caixa.saldoDoCaixa(db, id);
@@ -446,6 +448,10 @@ async function secao3() {
   const r2: string = c2.data?.id;
 
   // --- abrir com contado igual ao esperado
+  check("saldo inicial de um caixa pelo Caixa: 403", rec(await Caixa.saldoInicialCaixaAction(db, cx, { cash_register_id: r2, amount: 5 } as never), "FORBIDDEN", 403));
+  check("saldo inicial de um caixa pelo Vendedor: 403", rec(await Caixa.saldoInicialCaixaAction(db, v1, { cash_register_id: r2, amount: 5 } as never), "FORBIDDEN", 403));
+  check("saldo inicial do caixa pela loja (legado) pelo Vendedor: 403", rec(await Caixa.saldoInicialCaixaAction(db, v1, { establishment_id: L1, amount: 5 } as never), "FORBIDDEN", 403));
+  check("as recusas não gravaram implantação no caixa", (await db.cashMovement.count({ where: { cash_register_id: r2 ?? "x", origin: "implantacao" } })) === 0);
   check("saldo inicial de 50 no Caixa 1 (por cash_register_id)", (await Caixa.saldoInicialCaixaAction(db, owner, { cash_register_id: r1, amount: 50 } as never)).ok);
   check(
     "saldo inicial de novo no mesmo caixa: 409 OPENING_ALREADY_DONE",
@@ -475,6 +481,9 @@ async function secao3() {
   const aj2 = await db.cashMovement.findMany({ where: { cash_session_id: T2 ?? "x", origin: "conferencia" } });
   check("o ajuste entra no caixa, no turno: entrada de 10, origem conferencia", aj2.length === 1 && aj2[0].direction === "entrada" && n(aj2[0].amount) === 10 && aj2[0].cash_register_id === r2, j(aj2));
   check("e vira receita 'Diferença de caixa' de 10", (await difs()) === dif0 + 1 && (await saldo(r2)) === 1000);
+  const depoisDoTurno = await Caixa.saldoInicialCaixaAction(db, gestor, { cash_register_id: r2, amount: 5 } as never);
+  check("saldo inicial num caixa que já teve turno (sem implantação): 409 OPENING_ALREADY_DONE", rec(depoisDoTurno, "OPENING_ALREADY_DONE", 409, "cash_register_id"), j(depoisDoTurno));
+  check("e não gravou implantação", (await db.cashMovement.count({ where: { cash_register_id: r2 ?? "x", origin: "implantacao" } })) === 0);
 
   // --- reforço da gerência
   check("Vendedor informando o saldo inicial da gerência: 403", rec(await Caixa.saldoInicialCaixaAction(db, v1, { manager_establishment_id: L1, amount: 60 } as never), "FORBIDDEN", 403));
@@ -523,6 +532,8 @@ async function secao3() {
   check("a saída da sangria leva o turno e a entrega", mS.length === 1 && mS[0].direction === "saida" && mS[0].cash_session_id === T1 && mS[0].cash_register_id === r1, j(mS));
   const sgB = await Tu.sangriaAction(db, cx, T1, { operation_key: kS, amount: 30 });
   check("repetir a chave da sangria não duplica", sgB.ok && (await db.cashHandover.count({ where: { operation_key: kS } })) === 1 && (await saldo(r1)) === 2000, j(sgB));
+  const sgOutro = await Tu.sangriaAction(db, cx, T2, { operation_key: kS, amount: 30 });
+  check("a chave da sangria do Caixa 1 usada noutro turno: recusada, sem devolver a do outro", !sgOutro.ok && sgOutro.status === 409 && sgOutro.field === "operation_key", j(sgOutro));
   const sg80 = await Tu.sangriaAction(db, cx, T1, { operation_key: k("sangria"), amount: 80 });
   check("sangria de 80 com 20: 409 INSUFFICIENT_CASH em amount", rec(sg80, "INSUFFICIENT_CASH", 409, "amount") && sg80.message === "Não há dinheiro suficiente para isso.", j(sg80));
 
@@ -541,8 +552,12 @@ async function secao3() {
   const grande = await Tu.encerrarTurnoAction(db, v1, T5, { operation_key: k("enc"), counted: 120, malote_amount: 130 });
   check("malote de 130 com 120 contados: 422 MALOTE_TOO_BIG em malote_amount", rec(grande, "MALOTE_TOO_BIG", 422, "malote_amount") && grande.message === "O malote não pode passar do que foi contado.", j(grande));
   const kE = k("enc");
-  const enc = await Tu.encerrarTurnoAction(db, v1, T5, { operation_key: kE, counted: 120, malote_amount: 100 });
+  const [enc, encPar] = await Promise.all([
+    Tu.encerrarTurnoAction(db, v1, T5, { operation_key: kE, counted: 120, malote_amount: 100 }),
+    Tu.encerrarTurnoAction(db, v1, T5, { operation_key: kE, counted: 120, malote_amount: 100 }),
+  ]);
   check("encerrar com contado 120, esperado 120, malote 100: ok", enc.ok, j(enc));
+  check("o mesmo encerramento em paralelo (mesma chave): os dois ok", enc.ok && encPar.ok && encPar.data.id === T5, j(encPar));
   const s5 = await db.cashSession.findFirst({ where: { id: T5 ?? "x" } });
   check("o turno fecha: open_register_id nulo, closed_at e os números do encerramento", !!s5 && s5.open_register_id === null && s5.closed_at !== null && s5.closed_by_user_id === v1.id && n(s5.closing_expected) === 120 && n(s5.closing_counted) === 120 && n(s5.malote_amount) === 100, j(s5));
   const hM = await db.cashHandover.findMany({ where: { cash_session_id: T5 ?? "x" } });
@@ -552,6 +567,12 @@ async function secao3() {
   check("CashCount kind encerramento com diferença zero", !!cnt5 && n(cnt5.difference) === 0, j(cnt5));
   const encB = await Tu.encerrarTurnoAction(db, v1, T5, { operation_key: kE, counted: 120, malote_amount: 100 });
   check("repetir a chave do encerramento devolve o gravado, sem segundo malote", encB.ok && (await db.cashHandover.count({ where: { cash_session_id: T5 ?? "x" } })) === 1, j(encB));
+  check("e um movimento de malote só", (await db.cashMovement.count({ where: { cash_session_id: T5 ?? "x", origin: "malote" } })) === 1);
+  const encOutro = await Tu.encerrarTurnoAction(db, v1, T2, { operation_key: kE, counted: 10, malote_amount: 0 });
+  check("a chave do encerramento do Caixa 5 usada noutro turno: recusada, e o outro segue aberto", !encOutro.ok && encOutro.status === 409 && encOutro.field === "operation_key" && (await db.cashSession.findFirst({ where: { id: T2 ?? "x" } }))?.closed_at === null, j(encOutro));
+  const sgMalote = await Tu.sangriaAction(db, v1, T2, { operation_key: hM[0]?.operation_key ?? "x", amount: 1 });
+  check("uma sangria com a chave guardada no malote não pega o malote como repetição", !sgMalote.ok || sgMalote.data.id !== hM[0]?.id, j(sgMalote));
+  check("e não grava sangria nova com aquela chave", (await db.cashHandover.count({ where: { operation_key: hM[0]?.operation_key ?? "x" } })) === 1);
   check("encerrar de novo: 409 SESSION_CLOSED", rec(await Tu.encerrarTurnoAction(db, v1, T5, { operation_key: k("enc"), counted: 20, malote_amount: 0 }), "SESSION_CLOSED", 409));
   check("sangria em turno encerrado: 409 SESSION_CLOSED", rec(await Tu.sangriaAction(db, v1, T5, { operation_key: k("sangria"), amount: 1 }), "SESSION_CLOSED", 409));
   const cfFechado: Dado = await Caixa.conferirGavetaAction(db, v1, { cash_register_id: r5, counted: 20 } as never);
@@ -586,9 +607,16 @@ async function secao3() {
   const H5 = hM[0]?.id ?? "x";
   check("o Vendedor confirma a entrega: 403", rec(await Tu.confirmarEntregaAction(db, v1, H5, { operation_key: k("conf"), received_amount: 100 }), "FORBIDDEN", 403));
   check("o Caixa confirma a entrega: 403", rec(await Tu.confirmarEntregaAction(db, cx, H5, { operation_key: k("conf"), received_amount: 100 }), "FORBIDDEN", 403));
+  const outraLoja = await Tu.confirmarEntregaAction(db, gestor2, H5, { operation_key: k("conf"), received_amount: 100 });
+  check("o Gestor de outra loja confirma a entrega: 403 ou 404", !outraLoja.ok && (outraLoja.status === 403 || outraLoja.status === 404), j(outraLoja));
   const g1 = await gerencia();
-  const conf1 = await Tu.confirmarEntregaAction(db, gestor, H5, { operation_key: k("conf"), received_amount: 100 });
+  const kC1 = k("conf");
+  const [conf1, conf1b] = await Promise.all([
+    Tu.confirmarEntregaAction(db, gestor, H5, { operation_key: kC1, received_amount: 100 }),
+    Tu.confirmarEntregaAction(db, gestor, H5, { operation_key: kC1, received_amount: 100 }),
+  ]);
   check("o Gestor confirma 100 recebendo 100: a gerência sobe 100", conf1.ok && (await gerencia()) === g1 + 10000, j(conf1));
+  check("a mesma confirmação em paralelo (mesma chave): as duas ok, a gerência sobe uma vez", conf1.ok && conf1b.ok && (await gerencia()) === g1 + 10000, j(conf1b));
   const ent = await db.cashMovement.findMany({ where: { cash_handover_id: H5, origin: "entrega_gerencia" } });
   check("a entrada na gerência tem origem entrega_gerencia", ent.length === 1 && ent[0].manager_establishment_id === L1 && ent[0].direction === "entrada", j(ent));
   const sg100 = await Tu.sangriaAction(db, v1, T3, { operation_key: k("sangria"), amount: 100 });
@@ -608,6 +636,19 @@ async function secao3() {
   check("confirmar de novo: 409 HANDOVER_ALREADY_CONFIRMED", rec(await Tu.confirmarEntregaAction(db, gestor, HS, { operation_key: k("conf"), received_amount: 95, notes: "x" }), "HANDOVER_ALREADY_CONFIRMED", 409));
   const comB = await Tu.confirmarEntregaAction(db, gestor, HS, { operation_key: kC, received_amount: 95, notes: "faltou uma nota" });
   check("repetir a chave da confirmação devolve o gravado", comB.ok && (await gerencia()) === g2 + 9500, j(comB));
+  const comOutra = await Tu.confirmarEntregaAction(db, gestor, H5, { operation_key: kC, received_amount: 95, notes: "x" });
+  check("a chave de uma confirmação usada noutra entrega: recusada", !comOutra.ok && comOutra.status === 409, j(comOutra));
+  // duas sangrias em paralelo que juntas passam do saldo do Caixa 2 (10): uma vale, a outra não
+  const antesPar = await saldo(r2);
+  const [sp1, sp2] = await Promise.all([
+    Tu.sangriaAction(db, v1, T2, { operation_key: k("sangria"), amount: 6 }),
+    Tu.sangriaAction(db, v1, T2, { operation_key: k("sangria"), amount: 6 }),
+  ]);
+  const spOk = [sp1, sp2].filter((r: Dado) => r.ok);
+  check("duas sangrias de 6 em paralelo com 10 no caixa: uma ok, a outra INSUFFICIENT_CASH", antesPar === 1000 && spOk.length === 1 && [sp1, sp2].some((r: Dado) => rec(r, "INSUFFICIENT_CASH", 409, "amount")), j([sp1, sp2]));
+  check("o caixa fica com 4", (await saldo(r2)) === 400);
+  const spH = (spOk[0] as Dado)?.data?.id;
+  check("o Gestor confirma essa sangria (6)", (await Tu.confirmarEntregaAction(db, gestor, spH, { operation_key: k("conf"), received_amount: 6 })).ok);
   const pend = await Tu.listarEntregasAction(db, gestor, { establishment_id: L1, status: "pending" });
   check("listarEntregas pendentes: só a sangria de 30", pend.ok && pend.data.length === 1 && pend.data[0].amount === 30, j(pend));
 
@@ -636,11 +677,35 @@ async function secao3() {
   check(`o Gestor recebe 'R$ 30,00 aguardando o gerente na ${nomeL1}'`, entregaItem?.titulo === `R$ 30,00 aguardando o gerente na ${nomeL1}` && entregaItem?.valor === 30, j(itensG.map((i) => i.titulo)));
   const itensO = await MD.itensDoEmporioNoDia(db, owner);
   check("o aviso Q110 ('caixa não conferido') não existe mais", ![...itensV1, ...itensG, ...itensO].some((i) => (i.origem as string) === "emporio_caixa"));
+  const itensG2 = await MD.itensDoEmporioNoDia(db, gestor2);
+  check("o Gestor de outra loja não recebe o aviso da entrega da Loja 1", !itensG2.some((i) => i.chave === `emporio_entrega:${L1}`), j(itensG2.map((i) => i.titulo)));
+  // a virada do dia é a de São Paulo: 23:30 de ontem avisa, 00:30 de hoje não
+  const diaSP = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(d);
+  const hojeSP = diaSP(new Date());
+  const ontemSP = diaSP(new Date(Date.parse(`${hojeSP}T12:00:00-03:00`) - 86_400_000));
+  const abrirEm = async (quando: Date) => {
+    const reg = await Tu.criarCaixaAction(db, owner, { establishment_id: L3 });
+    const t = await Tu.abrirTurnoAction(db, va, { operation_key: k("abrir"), cash_register_id: reg.data?.id, counted: 0 });
+    await prisma.cashSession.update({ where: { id: t.data?.id }, data: { opened_at: quando } });
+    return t.data?.id as string;
+  };
+  const tarde = await abrirEm(new Date(`${ontemSP}T23:30:00-03:00`));
+  const cedo = await abrirEm(new Date(`${hojeSP}T00:30:00-03:00`));
+  const itensVa = await MD.itensDoEmporioNoDia(db, va);
+  check("turno aberto às 23:30 de ontem em São Paulo: avisa", itensVa.some((i) => i.chave === `emporio_turno:${tarde}`), j(itensVa.map((i) => i.titulo)));
+  check("turno aberto às 00:30 de hoje em São Paulo: não avisa", !itensVa.some((i) => i.chave === `emporio_turno:${cedo}`), j(itensVa.map((i) => i.titulo)));
 
   // --- outra loja
   const r1L2 = await caixa1(L2);
   check("o Caixa da Loja 1 abre o caixa da Loja 2: 403", rec(await Tu.abrirTurnoAction(db, cx, { operation_key: k("abrir"), cash_register_id: r1L2, counted: 0 }), "FORBIDDEN", 403));
-  const TL2: string = (await Tu.abrirTurnoAction(db, owner, { operation_key: k("abrir"), cash_register_id: r1L2, counted: 0 })).data?.id;
+  const kL2 = k("abrir");
+  const [aL2a, aL2b] = await Promise.all([
+    Tu.abrirTurnoAction(db, owner, { operation_key: kL2, cash_register_id: r1L2, counted: 0 }),
+    Tu.abrirTurnoAction(db, owner, { operation_key: kL2, cash_register_id: r1L2, counted: 0 }),
+  ]);
+  check("a mesma abertura em paralelo (mesma chave): as duas ok, o mesmo turno", aL2a.ok && aL2b.ok && aL2a.data.id === aL2b.data.id, j([aL2a, aL2b]));
+  check("e um turno só no caixa", (await db.cashSession.count({ where: { cash_register_id: r1L2 } })) === 1);
+  const TL2: string = aL2a.data?.id;
   check("o Caixa da Loja 1 sangra o caixa da Loja 2: 403", rec(await Tu.sangriaAction(db, cx, TL2, { operation_key: k("sangria"), amount: 1 }), "FORBIDDEN", 403));
   check("o Caixa da Loja 1 encerra o caixa da Loja 2: 403", rec(await Tu.encerrarTurnoAction(db, cx, TL2, { operation_key: k("enc"), counted: 0, malote_amount: 0 }), "FORBIDDEN", 403));
 

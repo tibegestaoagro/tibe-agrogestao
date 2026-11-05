@@ -461,7 +461,8 @@ async function comBanco() {
     await rodar("transferência", async () => {
       console.log("\n6. Transferência entre contas e a gerência (Q92, revista na entrega 2: a gaveta não transfere)");
       check("vincular userO só à Loja 3", (await cc("definirVinculosAction", owner, L3.id, [userO.id, gUo.id, gOp.id])).ok);
-      check("saldo inicial da gaveta da Loja 2 (500)", (await xx("saldoInicialCaixaAction", op, { establishment_id: L2.id, amount: 500 })).ok);
+      check("saldo inicial da gaveta da Loja 2 pelo Vendedor: 403", recusa(await xx("saldoInicialCaixaAction", op, { establishment_id: L2.id, amount: 500 }), "FORBIDDEN", 403));
+      check("saldo inicial da gaveta da Loja 2 (500, Gestor)", (await xx("saldoInicialCaixaAction", gOp, { establishment_id: L2.id, amount: 500 })).ok);
       check("saldo inicial da gaveta da Loja 3 (100)", (await xx("saldoInicialCaixaAction", owner, { establishment_id: L3.id, amount: 100 })).ok);
       check("saldo inicial da conta de transferência (1000)", (await xx("saldoInicialCaixaAction", admin, { bank_account_id: TR, amount: 1000 })).ok);
       check("saldo inicial da gerência da Loja 2 (500, Gestor)", (await xx("saldoInicialCaixaAction", gOp, { manager_establishment_id: L2.id, amount: 500 })).ok);

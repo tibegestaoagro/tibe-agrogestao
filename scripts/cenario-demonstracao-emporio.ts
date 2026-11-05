@@ -620,11 +620,11 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
     const e = await db.establishment.findFirst({ where: { id: lojas[c] }, select: { pix_bank_account_id: true } });
     if (e?.pix_bank_account_id !== contaId) exigir(await caixa.definirContaPixAction(db, gerente, lojas[c], { bank_account_id: contaId }), `PIX ${c}`);
   }
-  // Saldo inicial da conta (o Dono) e troco da gaveta de cada loja (o Vendedor).
+  // Saldo inicial da conta (o Dono) e troco do Caixa 1 de cada loja (o Gerente geral: entrega 2, do Gestor para cima).
   const saldoConta = await caixa.saldoInicialCaixaAction(db, dono, { bank_account_id: contaId, amount: 30000, occurred_at: dia(30, 8) });
   if (!saldoConta.ok && saldoConta.code !== "OPENING_ALREADY_DONE") throw new Error(`saldo da conta: ${saldoConta.message}`);
-  for (const [c, quem] of [["centro", vendCentro], ["rodovia", vendRodovia]] as const) {
-    const r = await caixa.saldoInicialCaixaAction(db, quem, { establishment_id: lojas[c], amount: 300, occurred_at: dia(30, 8, 30) });
+  for (const c of ["centro", "rodovia"] as const) {
+    const r = await caixa.saldoInicialCaixaAction(db, gerente, { establishment_id: lojas[c], amount: 300, occurred_at: dia(30, 8, 30) });
     if (!r.ok && r.code !== "OPENING_ALREADY_DONE") throw new Error(`troco ${c}: ${r.message}`);
   }
 

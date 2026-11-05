@@ -45,6 +45,7 @@ const SO_QUEM_ABRIU = () => fail("NOT_SESSION_OWNER", "Só quem abriu o caixa ou
 const MALOTE_GRANDE = () => fail("MALOTE_TOO_BIG", "O malote não pode passar do que foi contado.", 422, "malote_amount");
 const JA_CONFIRMADA = () => fail("HANDOVER_ALREADY_CONFIRMED", "Esta entrega já foi confirmada.", 409);
 const SEM_CHAVE = () => fail("VALIDATION_ERROR", "Falta a chave da operação.", 422, "operation_key");
+const CHAVE_USADA = () => fail("OPERATION_KEY_REUSED", "Esta chave de operação já foi usada em outra operação.", 409, "operation_key");
 
 async function lojaVisivel(db: TenantPrismaClient, ator: Ator, lojaId: string): Promise<boolean> {
   const v = await lojasDoAtor(db, ator);
@@ -220,15 +221,21 @@ async function turnoPorId(db: TenantPrismaClient, id: string, replayed: boolean)
   return t ? ok({ ...t, replayed }) : NAO_ACHADO("Turno");
 }
 
-/** A repetição (§23.2): a chave já gravada devolve o turno, com `replayed`. */
+/**
+ * A repetição (§23.2): a chave já gravada devolve o turno, com `replayed`. A
+ * chave só repete a MESMA operação: gravada noutro turno (ou noutro caixa, na
+ * abertura), é recusada, nunca devolve o registro alheio.
+ */
 async function turnoGravado(
   db: TenantPrismaClient,
   ator: Ator,
   where: { operation_key: string } | { close_operation_key: string },
+  dono: { id?: string; cash_register_id?: string | null },
 ): Promise<ActionResult<TurnoGravadoView> | null> {
-  const s = await db.cashSession.findFirst({ where, select: { id: true, establishment_id: true } });
+  const s = await db.cashSession.findFirst({ where, select: { id: true, establishment_id: true, cash_register_id: true } });
   if (!s) return null;
   if (!(await lojaVisivel(db, ator, s.establishment_id))) return NAO_ACHADO("Turno");
+  if ((dono.id && s.id !== dono.id) || (dono.cash_register_id && s.cash_register_id !== dono.cash_register_id)) return CHAVE_USADA();
   return turnoPorId(db, s.id, true);
 }
 
@@ -241,12 +248,27 @@ async function entregaGravada(
   db: TenantPrismaClient,
   ator: Ator,
   where: { operation_key: string } | { confirm_operation_key: string },
+  dono: { id?: string; cash_session_id?: string; kind?: "sangria" | "malote" },
 ): Promise<ActionResult<EntregaView & { replayed: boolean }> | null> {
-  const h = await db.cashHandover.findFirst({ where, select: { id: true, establishment_id: true } });
+  const h = await db.cashHandover.findFirst({
+    where,
+    select: { id: true, establishment_id: true, cash_session_id: true, kind: true },
+  });
   if (!h) return null;
   if (!(await lojaVisivel(db, ator, h.establishment_id))) return NAO_ACHADO("Entrega");
+  if (
+    (dono.id && h.id !== dono.id) ||
+    (dono.cash_session_id && h.cash_session_id !== dono.cash_session_id) ||
+    (dono.kind && h.kind !== dono.kind)
+  ) {
+    return CHAVE_USADA();
+  }
   return entregaPorId(db, h.id, true);
 }
+
+/** A chave do malote: uma por turno, num espaço que a chave de sangria não alcança (`sangriaAction` recusa o prefixo). */
+const PREFIXO_DO_MALOTE = "malote:";
+const chaveDoMalote = (sessionId: string) => `${PREFIXO_DO_MALOTE}${sessionId}`;
 
 // ---------------------------------------------------------------------------
 // Caixas
@@ -333,10 +355,11 @@ export async function abrirTurnoAction(
   if (neg) return neg;
   const chave = String(input?.operation_key ?? "").trim();
   if (!chave) return SEM_CHAVE();
-  const gravado = await turnoGravado(db, ator, { operation_key: chave });
+  const caixaId = texto(input?.cash_register_id);
+  const repeticao = () => turnoGravado(db, ator, { operation_key: chave }, { cash_register_id: caixaId });
+  const gravado = await repeticao();
   if (gravado) return gravado;
 
-  const caixaId = texto(input?.cash_register_id);
   if (!caixaId) return fail("VALIDATION_ERROR", "Escolha o caixa.", 422, "cash_register_id");
   const caixa = await db.cashRegister.findFirst({ where: { id: caixaId }, select: { id: true, establishment_id: true, number: true } });
   if (!caixa) return NAO_ACHADO("Caixa", "cash_register_id");
@@ -420,10 +443,13 @@ export async function abrirTurnoAction(
     });
     return turnoPorId(db, id, false);
   } catch (err) {
-    if (err instanceof RecusaCaixa) return err.recusa;
-    if (ehErroUnico(err)) {
-      const igual = await turnoGravado(db, ator, { operation_key: chave });
-      return igual ?? JA_ABERTO();
+    // A mesma chave em paralelo: a segunda espera, recebe o conflito (único ou
+    // 40001 com nova tentativa) e precisa devolver a abertura da primeira.
+    if (err instanceof RecusaCaixa || ehErroUnico(err)) {
+      const igual = await repeticao();
+      if (igual) return igual;
+      if (err instanceof RecusaCaixa) return err.recusa;
+      return JA_ABERTO();
     }
     throw err;
   }
@@ -440,7 +466,9 @@ export async function sangriaAction(
   if (neg) return neg;
   const chave = String(input?.operation_key ?? "").trim();
   if (!chave) return SEM_CHAVE();
-  const gravada = await entregaGravada(db, ator, { operation_key: chave });
+  if (chave.startsWith(PREFIXO_DO_MALOTE)) return CHAVE_USADA();
+  const repeticao = () => entregaGravada(db, ator, { operation_key: chave }, { cash_session_id: String(sessionId ?? ""), kind: "sangria" });
+  const gravada = await repeticao();
   if (gravada) return gravada;
 
   const sessao = await db.cashSession.findFirst({
@@ -450,7 +478,7 @@ export async function sangriaAction(
   if (!sessao) return NAO_ACHADO("Turno");
   const negLoja = await exigir(db, ator, "vendedor_da_loja", "fazer sangria", sessao.establishment_id);
   if (negLoja) return negLoja;
-  if (sessao.closed_at) return TURNO_ENCERRADO();
+  if (sessao.closed_at) return (await repeticao()) ?? TURNO_ENCERRADO();
   if (!numero(input.amount) || centavos(input.amount) <= 0) {
     return fail("VALIDATION_ERROR", "O valor da sangria deve ser maior que zero.", 422, "amount");
   }
@@ -502,10 +530,10 @@ export async function sangriaAction(
     });
     return entregaPorId(db, id, false);
   } catch (err) {
-    if (err instanceof RecusaCaixa) return err.recusa;
-    if (ehErroUnico(err)) {
-      const igual = await entregaGravada(db, ator, { operation_key: chave });
+    if (err instanceof RecusaCaixa || ehErroUnico(err)) {
+      const igual = await repeticao();
       if (igual) return igual;
+      if (err instanceof RecusaCaixa) return err.recusa;
     }
     throw err;
   }
@@ -526,7 +554,8 @@ export async function encerrarTurnoAction(
   if (neg) return neg;
   const chave = String(input?.operation_key ?? "").trim();
   if (!chave) return SEM_CHAVE();
-  const gravado = await turnoGravado(db, ator, { close_operation_key: chave });
+  const repeticao = () => turnoGravado(db, ator, { close_operation_key: chave }, { id: String(sessionId ?? "") });
+  const gravado = await repeticao();
   if (gravado) return gravado;
 
   const sessao = await db.cashSession.findFirst({
@@ -536,7 +565,7 @@ export async function encerrarTurnoAction(
   if (!sessao) return NAO_ACHADO("Turno");
   const negLoja = await exigir(db, ator, "vendedor_da_loja", "encerrar o caixa", sessao.establishment_id);
   if (negLoja) return negLoja;
-  if (sessao.closed_at) return TURNO_ENCERRADO();
+  if (sessao.closed_at) return (await repeticao()) ?? TURNO_ENCERRADO();
   const papel = await papelDoEmporio(db, ator);
   if (
     sessao.opened_by_user_id !== ator.id &&
@@ -586,7 +615,7 @@ export async function encerrarTurnoAction(
             cash_session_id: sessao.id,
             kind: "malote" as const,
             amount: maloteCent / 100,
-            operation_key: `${chave}:malote`,
+            operation_key: chaveDoMalote(sessao.id),
             created_by_user_id: ator.id,
           }),
         });
@@ -616,10 +645,12 @@ export async function encerrarTurnoAction(
     });
     return turnoPorId(db, sessao.id, false);
   } catch (err) {
-    if (err instanceof RecusaCaixa) return err.recusa;
-    if (ehErroUnico(err)) {
-      const igual = await turnoGravado(db, ator, { close_operation_key: chave });
+    // A mesma chave em paralelo: a segunda encontra o turno já fechado pela
+    // primeira e devolve o encerramento dela, não SESSION_CLOSED.
+    if (err instanceof RecusaCaixa || ehErroUnico(err)) {
+      const igual = await repeticao();
       if (igual) return igual;
+      if (err instanceof RecusaCaixa) return err.recusa;
     }
     throw err;
   }
@@ -640,14 +671,15 @@ export async function confirmarEntregaAction(
   if (neg) return neg;
   const chave = String(input?.operation_key ?? "").trim();
   if (!chave) return SEM_CHAVE();
-  const gravada = await entregaGravada(db, ator, { confirm_operation_key: chave });
+  const repeticao = () => entregaGravada(db, ator, { confirm_operation_key: chave }, { id: String(handoverId ?? "") });
+  const gravada = await repeticao();
   if (gravada) return gravada;
 
   const entrega = await db.cashHandover.findFirst({ where: { id: String(handoverId ?? "") }, include: INCLUDE_ENTREGA });
   if (!entrega || !(await lojaVisivel(db, ator, entrega.establishment_id))) return NAO_ACHADO("Entrega");
   const negLoja = await exigir(db, ator, "gestor_da_loja", "confirmar o dinheiro recebido", entrega.establishment_id);
   if (negLoja) return negLoja;
-  if (entrega.confirmed_at) return JA_CONFIRMADA();
+  if (entrega.confirmed_at) return (await repeticao()) ?? JA_CONFIRMADA();
   if (!numero(input.received_amount) || centavos(input.received_amount) < 0) {
     return fail("VALIDATION_ERROR", "Informe quanto foi recebido (zero ou mais).", 422, "received_amount");
   }
@@ -718,10 +750,11 @@ export async function confirmarEntregaAction(
     });
     return entregaPorId(db, entrega.id, false);
   } catch (err) {
-    if (err instanceof RecusaCaixa) return err.recusa;
-    if (ehErroUnico(err)) {
-      const igual = await entregaGravada(db, ator, { confirm_operation_key: chave });
+    // A mesma chave em paralelo: a segunda acha a entrega já confirmada pela primeira e devolve essa confirmação.
+    if (err instanceof RecusaCaixa || ehErroUnico(err)) {
+      const igual = await repeticao();
       if (igual) return igual;
+      if (err instanceof RecusaCaixa) return err.recusa;
     }
     throw err;
   }
