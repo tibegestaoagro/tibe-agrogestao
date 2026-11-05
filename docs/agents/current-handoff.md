@@ -117,8 +117,13 @@ mandar `seller_user_id` (12 falhas) e verde de novo restaurado; o
 e o balcão do Caixa sem rolagem horizontal a 390 px.
 
 **A migração `20261105140000_emporio_vendedor_da_venda` NÃO está no Neon.**
-Ordem do deploy: migração no Neon (URL Direct) ANTES do push; o preenchimento
-das vendas antigas já está no SQL, então não há reaplicação de dados.
+Ordem do deploy, quando autorizado:
+1. Migração no Neon (URL Direct) ANTES do push. Ela já preenche o vendedor
+   das vendas antigas com quem registrou.
+2. Merge e push, e esperar a Vercel em sucesso.
+3. Reaplicar `prisma/sql/emporio-vendedor-reaplicar.sql` (leitura primeiro).
+   Na janela entre a migração e o build novo, o código antigo grava venda sem
+   vendedor, e ela ficaria "Sem vendedor" para sempre no relatório.
 
 ### Empório, entrega 2: caixa com turno (05/11), em produção
 
