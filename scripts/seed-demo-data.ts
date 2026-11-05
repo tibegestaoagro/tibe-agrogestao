@@ -130,9 +130,24 @@ async function wipeDemoData() {
   await prisma.serviceClient.deleteMany({ where: { tenant_id } });
   await prisma.alert.deleteMany({ where: { tenant_id } });
   await prisma.task.deleteMany({ where: { tenant_id } });
-  await prisma.financialEntry.deleteMany({ where: { tenant_id } });
+  // Os lançamentos do Empório ficam: são do cenário de demonstração dele
+  // (`cenario-demonstracao-emporio.ts`), e a conta das despesas fixas segura o
+  // lançamento (`FixedExpenseOccurrence`, `Restrict`), o que derrubava o seed.
+  await prisma.financialEntry.deleteMany({ where: { tenant_id, NOT: { related_module: "emporio" } } });
   await prisma.confinementSite.deleteMany({ where: { tenant_id } });
   await prisma.pasture.deleteMany({ where: { tenant_id } });
+  // Serviços, equipe e leite também apontam para `Property` com `Restrict` e
+  // faltavam aqui (o seed morria no `property.deleteMany` da conta que os usou).
+  // A ordem respeita os `Restrict` entre eles: o movimento e a cobrança do leite
+  // seguram o local do leite.
+  await prisma.serviceJob.deleteMany({ where: { tenant_id } });
+  await prisma.milkMovement.deleteMany({ where: { tenant_id } });
+  await prisma.milkCharge.deleteMany({ where: { tenant_id } });
+  await prisma.lactationEntry.deleteMany({ where: { tenant_id } });
+  await prisma.milkProduction.deleteMany({ where: { tenant_id } });
+  await prisma.milkGroup.deleteMany({ where: { tenant_id } });
+  await prisma.milkSite.deleteMany({ where: { tenant_id } });
+  await prisma.worker.deleteMany({ where: { tenant_id } });
   await prisma.property.deleteMany({ where: { tenant_id } });
 }
 
