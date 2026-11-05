@@ -414,6 +414,11 @@ export async function salvarOrcamentoAction(
   db: TenantPrismaClient,
   ator: Ator,
   input: OrcamentoInput,
+  /**
+   * O relógio interno: o cenário de demonstração grava um orçamento de um dia
+   * passado (o vencido). Fora do `input`, a rota nunca o passa.
+   */
+  opts: { agora?: Date } = {},
 ): Promise<ActionResult<OrcamentoView & { replayed: boolean }>> {
   const neg = await exigir(db, ator, "vendedor_da_loja", "salvar um orçamento");
   if (neg) return neg;
@@ -462,7 +467,8 @@ export async function salvarOrcamentoAction(
   const p = precificados.data;
 
   const config = await db.emporioSettings.findFirst({ select: { quote_validity_days: true } });
-  const validUntil = somarDias(hojeEmBrasilia(), config?.quote_validity_days ?? VALIDADE_PADRAO);
+  const agora = opts.agora ?? new Date();
+  const validUntil = somarDias(hojeEmBrasilia(agora), config?.quote_validity_days ?? VALIDADE_PADRAO);
   const notes = typeof input.notes === "string" && input.notes.trim() ? input.notes.trim() : null;
 
   try {
@@ -481,6 +487,7 @@ export async function salvarOrcamentoAction(
           discount_amount: p.desconto_cent / 100,
           discount_authorized_by_user_id: p.autorizou,
           notes,
+          created_at: agora,
         }),
       });
       await tx.emporioQuoteItem.createMany({

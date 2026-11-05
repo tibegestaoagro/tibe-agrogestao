@@ -3,7 +3,7 @@ import { prisma, prismaForTenant, type TenantPrismaClient } from "@/lib/prisma";
 import type { ActionResult } from "@/lib/actions/types";
 import type { AppUserRole } from "@/types/next-auth";
 import { getSeatUsage } from "@/lib/seats";
-import { createContact } from "@/lib/actions/contacts";
+import { createContact, updateContact } from "@/lib/actions/contacts";
 import { ensureProductCategories } from "@/lib/actions/products";
 import * as cat from "@/lib/actions/emporio-catalogo";
 import * as equipe from "@/lib/actions/emporio-equipe";
@@ -16,12 +16,26 @@ import * as caixa from "@/lib/actions/emporio-caixa";
 import * as turno from "@/lib/actions/emporio-turno";
 import * as desp from "@/lib/actions/emporio-despesas";
 import * as prod from "@/lib/actions/emporio-producao";
+import * as orc from "@/lib/actions/emporio-orcamentos";
+import * as conf from "@/lib/actions/emporio-configuracoes";
 
 /**
  * Cenario de demonstracao do Meu Emporio (Modulo 39, Q137): monta, numa conta,
  * tres lojas, a Equipe, 25 produtos e 30 dias de movimento, sempre pelas
  * ACTIONS (nunca por escrita direta), para estoque, custo medio, caixa, fiado,
  * Financeiro, Resultado e Historico saírem de verdade.
+ *
+ * O caixa tem um turno por dia em cada loja que vende: abre as 8h, recebe as
+ * vendas do dia, faz sangria em alguns dias e encerra as 18h com malote, que a
+ * Gestora confirma (alguns dias com diferenca justificada). As actions de turno
+ * e o orcamento recebem a hora pelo relogio interno (`opts.agora`), que rota
+ * nenhuma passa. O turno de hoje fica aberto, e nele caem os passos que as
+ * actions gravam com a hora real: devolucao, troca, cancelamento, recebimento
+ * de fiado, conferencia e o faturamento dos orcamentos.
+ *
+ * A Loja Centro nao tem Caixa (o Vendedor abre, vende e encerra). A Loja da
+ * Rodovia tem: a Juliana, com o papel Caixa, abre, encerra e faz toda venda
+ * escolhendo quem atendeu (a Gestora ou o Gerente geral).
  *
  * Uso:
  *   npm run cenario:emporio-demo -- --conta <id do tenant>              (so mostra o plano)
@@ -60,12 +74,30 @@ function exigir<T>(r: ActionResult<T>, oQue: string): T {
 // Utilidades
 // ---------------------------------------------------------------------------
 
-/** Data `n` dias no passado (negativo = futuro), na hora dada. */
+/**
+ * Data `n` dias no passado (negativo = futuro), na hora dada de Brasília
+ * (UTC-3, sem horário de verão), qualquer que seja o fuso da máquina.
+ */
 function dia(n: number, h = 10, m = 0): Date {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  d.setHours(h, m, 0, 0);
-  return d;
+  const [y, mo, d] = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date()).split("-").map(Number);
+  return new Date(Date.UTC(y, mo - 1, d - n, h + 3, m));
+}
+const dd = (n: number) => String(n).padStart(2, "0");
+
+/** Dígito verificador de CPF e CNPJ (módulo 11). */
+function dv(nums: number[], pesos: number[]): number {
+  const resto = nums.reduce((s, n, i) => s + n * pesos[i], 0) % 11;
+  return resto < 2 ? 0 : 11 - resto;
+}
+function cpfCom(base9: string): string {
+  const n = base9.split("").map(Number);
+  const d1 = dv(n, [10, 9, 8, 7, 6, 5, 4, 3, 2]);
+  return `${base9}${d1}${dv([...n, d1], [11, 10, 9, 8, 7, 6, 5, 4, 3, 2])}`;
+}
+function cnpjCom(base12: string): string {
+  const n = base12.split("").map(Number);
+  const d1 = dv(n, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  return `${base12}${d1}${dv([...n, d1], [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2])}`;
 }
 
 const cents = (x: number) => Math.round(Number((x * 100).toPrecision(12)));
@@ -89,20 +121,23 @@ function prng(seed: number) {
 // ---------------------------------------------------------------------------
 
 const LOJAS = [
-  { chave: "deposito", nome: "Depósito Central", endereco: "Rodovia BR-163, km 12, Galpão 3", cidade: "Rondonópolis", desc: 0, desp: 8, lucro: 20 },
-  { chave: "centro", nome: "Loja Centro", endereco: "Avenida Mato Grosso, 1450", cidade: "Rondonópolis", desc: 5, desp: 12, lucro: 25 },
-  { chave: "rodovia", nome: "Loja da Rodovia", endereco: "Rodovia BR-364, km 3, Jardim Primavera", cidade: "Rondonópolis", desc: 8, desp: 11, lucro: 22 },
+  { chave: "deposito", nome: "Depósito Central", endereco: "Rodovia BR-163, km 12, Galpão 3", cidade: "Rondonópolis", desc: 0, desp: 8, lucro: 20, cnpj: "331207450001", fone: "(66) 3421-1800", zap: "(66) 99640-1800", cep: "78740000" },
+  { chave: "centro", nome: "Loja Centro", endereco: "Avenida Mato Grosso, 1450", cidade: "Rondonópolis", desc: 5, desp: 12, lucro: 25, cnpj: "331207450002", fone: "(66) 3421-1450", zap: "(66) 99640-1450", cep: "78700000" },
+  { chave: "rodovia", nome: "Loja da Rodovia", endereco: "Rodovia BR-364, km 3, Jardim Primavera", cidade: "Rondonópolis", desc: 8, desp: 11, lucro: 22, cnpj: "331207450003", fone: "(66) 3423-3640", zap: "(66) 99640-3640", cep: "78710000" },
 ] as const;
 type ChaveLoja = (typeof LOJAS)[number]["chave"];
 type ChaveVenda = "centro" | "rodovia";
 
 const CONTA_NOME = "Conta da loja";
+/** O troco que fica na gaveta de um turno para o outro; o resto do encerramento vai no malote. */
+const TROCO = 300;
 
 const MEMBROS = [
   { chave: "gerente", name: "Marcos Oliveira", email: "gerente.demo.emporio@example.com", funcao: "gerente_geral", lojas: [] as ChaveLoja[], keys: [] as string[] },
   { chave: "gestor", name: "Fernanda Souza", email: "gestor.demo.emporio@example.com", funcao: "gestor", lojas: ["centro", "rodovia"] as ChaveLoja[], keys: [] as string[] },
   { chave: "vendCentro", name: "Rafael Almeida", email: "vendedor.centro.demo.emporio@example.com", funcao: "vendedor", lojas: ["centro"] as ChaveLoja[], keys: ["devolver_trocar", "contagem"] },
-  { chave: "vendRodovia", name: "Juliana Costa", email: "vendedor.rodovia.demo.emporio@example.com", funcao: "vendedor", lojas: ["rodovia"] as ChaveLoja[], keys: [] as string[] },
+  // O email é o de quando ela era Vendedora: a conta tem 5 assentos, e o Caixa ocupa o dela.
+  { chave: "caixaRodovia", name: "Juliana Costa", email: "vendedor.rodovia.demo.emporio@example.com", funcao: "caixa", lojas: ["rodovia"] as ChaveLoja[], keys: [] as string[] },
 ] as const;
 type ChaveMembro = (typeof MEMBROS)[number]["chave"];
 
@@ -113,12 +148,13 @@ const FORNECEDORES = [
   { chave: "D", nome: "Agropecuária Vale Verde Distribuidora", cidade: "Rondonópolis" },
 ] as const;
 
+/** O orçamento exige cadastro completo (pessoa, documento e telefone): todo cliente nomeado já nasce assim. */
 const CLIENTES = [
-  { chave: "tresIrmaos", nome: "Chácara Três Irmãos", tipo: "fazendeiro" as const, cidade: "Juscimeira" },
-  { chave: "boaEsperanca", nome: "Sítio Boa Esperança", tipo: "fazendeiro" as const, cidade: "Pedra Preta" },
-  { chave: "santaClara", nome: "Haras Santa Clara", tipo: "fazendeiro" as const, cidade: "Rondonópolis" },
-  { chave: "pedraBranca", nome: "Fazenda Pedra Branca", tipo: "fazendeiro" as const, cidade: "Itiquira" },
-  { chave: "mariaDores", nome: "Maria das Dores Ferreira", tipo: "particular" as const, cidade: "Rondonópolis" },
+  { chave: "tresIrmaos", nome: "Chácara Três Irmãos", tipo: "fazendeiro" as const, cidade: "Juscimeira", pessoa: "pf" as const, doc: cpfCom("381029475"), fone: "(66) 99812-3401" },
+  { chave: "boaEsperanca", nome: "Sítio Boa Esperança", tipo: "fazendeiro" as const, cidade: "Pedra Preta", pessoa: "pf" as const, doc: cpfCom("472915836"), fone: "(66) 99754-2210" },
+  { chave: "santaClara", nome: "Haras Santa Clara", tipo: "fazendeiro" as const, cidade: "Rondonópolis", pessoa: "pj" as const, doc: cnpjCom("274150380001"), fone: "(66) 3422-7781" },
+  { chave: "pedraBranca", nome: "Fazenda Pedra Branca", tipo: "fazendeiro" as const, cidade: "Itiquira", pessoa: "pj" as const, doc: cnpjCom("193846520001"), fone: "(66) 99633-9015" },
+  { chave: "mariaDores", nome: "Maria das Dores Ferreira", tipo: "particular" as const, cidade: "Rondonópolis", pessoa: "pf" as const, doc: cpfCom("615204739"), fone: "(66) 99921-4478" },
 ] as const;
 
 type Papel = "fechada" | "granel";
@@ -195,8 +231,12 @@ type VendaPlan = {
   chave: string;
   tag: string;
   loja: ChaveVenda;
+  /** Quantos dias atrás: a venda cai no turno desse dia, nessa loja. */
+  d: number;
   quando: Date;
   quem: ChaveMembro;
+  /** Quem atendeu, quando quem lança é o Caixa (ele não vende em nome próprio). */
+  vendedor?: ChaveMembro;
   itens: ItemV[];
   cliente?: (typeof CLIENTES)[number]["chave"];
   fator?: number; // desconto: preço unitário = tabela * fator
@@ -210,16 +250,18 @@ const totalCents = (v: { loja: ChaveVenda; fator?: number }, itens: ItemV[]) =>
 function vendasExplicitas(): VendaPlan[] {
   const mk = (tag: string, loja: ChaveVenda, d: number, h: number, quem: ChaveMembro, itens: ItemV[], pag: (c: number) => PagV[], extra: Partial<VendaPlan> = {}): VendaPlan => {
     const c = totalCents({ loja, fator: extra.fator }, itens);
-    return { chave: `${PREFIXO}venda-${tag}`, tag, loja, quando: dia(d, h), quem, itens, pagamentos: pag(c), ...extra };
+    // Toda venda da Rodovia passa pelo Caixa, com a Gestora como quem atendeu.
+    const vendedor = quem === "caixaRodovia" ? { vendedor: "gestor" as ChaveMembro } : {};
+    return { chave: `${PREFIXO}venda-${tag}`, tag, loja, d, quando: dia(d, h), quem, ...vendedor, itens, pagamentos: pag(c), ...extra };
   };
   return [
     mk("fiado-vencido", "centro", 26, 11, "vendCentro", [{ slug: "bovEngorda", papel: "fechada", qtd: 8 }, { slug: "salEngorda", papel: "fechada", qtd: 4 }], (c) => [{ kind: "fiado", cents: c, vence: dia(8, 12) }], { cliente: "tresIrmaos" }),
     mk("fiado-parcial", "centro", 18, 15, "vendCentro", [{ slug: "salCria", papel: "fechada", qtd: 4 }, { slug: "vermBov", papel: "fechada", qtd: 6 }], (c) => [{ kind: "fiado", cents: c, vence: dia(-10, 12) }], { cliente: "boaEsperanca" }),
-    mk("fiado-rodovia", "rodovia", 9, 16, "vendRodovia", [{ slug: "equinos", papel: "fechada", qtd: 6 }, { slug: "feno", papel: "fechada", qtd: 10 }], (c) => [{ kind: "fiado", cents: c, vence: dia(-12, 12) }], { cliente: "santaClara" }),
+    mk("fiado-rodovia", "rodovia", 9, 16, "caixaRodovia", [{ slug: "equinos", papel: "fechada", qtd: 6 }, { slug: "feno", papel: "fechada", qtd: 10 }], (c) => [{ kind: "fiado", cents: c, vence: dia(-12, 12) }], { cliente: "santaClara" }),
     mk("cheque", "centro", 14, 10, "gestor", [{ slug: "arameFarpado", papel: "fechada", qtd: 2 }, { slug: "grampo", papel: "fechada", qtd: 2 }], (c) => [{ kind: "cheque", cents: c, numero: "004512", banco: "Banco do Brasil", bomPara: dia(-20, 12) }], { cliente: "pedraBranca" }),
     mk("devolver", "centro", 22, 9, "vendCentro", [{ slug: "caoAdulto", papel: "fechada", qtd: 2 }, { slug: "vermPet", papel: "fechada", qtd: 1 }], (c) => [{ kind: "dinheiro", cents: c }]),
     mk("troca", "centro", 15, 14, "vendCentro", [{ slug: "caoAdulto", papel: "fechada", qtd: 1 }, { slug: "v10", papel: "fechada", qtd: 1 }], (c) => [{ kind: "pix", cents: c }], { cliente: "mariaDores" }),
-    mk("avaria", "rodovia", 11, 10, "vendRodovia", [{ slug: "v10", papel: "fechada", qtd: 3 }], (c) => [{ kind: "pix", cents: c }]),
+    mk("avaria", "rodovia", 11, 10, "caixaRodovia", [{ slug: "v10", papel: "fechada", qtd: 3 }], (c) => [{ kind: "pix", cents: c }]),
     mk("cancelar", "centro", 5, 17, "vendCentro", [{ slug: "corda", papel: "fechada", qtd: 1 }, { slug: "ferr4", papel: "fechada", qtd: 4 }], (c) => [{ kind: "dinheiro", cents: c }]),
     mk("desconto-gestor", "centro", 3, 13, "gestor", [{ slug: "milho", papel: "fechada", qtd: 20 }], (c) => [{ kind: "credito_parcelado", cents: c, parcelas: 3 }], { fator: 0.92, cliente: "pedraBranca" }),
   ];
@@ -229,7 +271,7 @@ function vendasExplicitas(): VendaPlan[] {
 function vendasDaMistura(): VendaPlan[] {
   const mk = (tag: string, d: number, h: number, itens: ItemV[], pag: (c: number) => PagV[]): VendaPlan => {
     const c = totalCents({ loja: "rodovia" }, itens);
-    return { chave: `${PREFIXO}venda-${tag}`, tag, loja: "rodovia", quando: dia(d, h), quem: "vendRodovia", itens, pagamentos: pag(c) };
+    return { chave: `${PREFIXO}venda-${tag}`, tag, loja: "rodovia", d, quando: dia(d, h), quem: "caixaRodovia", vendedor: "gestor", itens, pagamentos: pag(c) };
   };
   return [
     mk("mistura-1", 4, 9, [{ slug: "mistura", papel: "fechada", qtd: 2 }, { slug: "mistura", papel: "granel", qtd: 7.5 }], (c) => [{ kind: "pix", cents: c }]),
@@ -260,7 +302,8 @@ function vendasDeTodoDia(): VendaPlan[] {
   const clientes = CLIENTES.map((c) => c.chave);
   for (let d = 30; d >= 1; d--) {
     for (const loja of ["centro", "rodovia"] as ChaveVenda[]) {
-      const dow = dia(d).getDay();
+      // 10h em Brasília é 13h UTC: o mesmo dia da semana em UTC.
+      const dow = dia(d).getUTCDay();
       if (loja === "centro" && dow === 0) continue;
       const n = loja === "centro" ? 2 + Math.floor(rnd() * 4) : 1 + Math.floor(rnd() * 4);
       for (let k = 1; k <= n; k++) {
@@ -286,15 +329,20 @@ function vendasDeTodoDia(): VendaPlan[] {
           const parte = Math.min(Math.floor(c / 200) * 100, c - 100);
           pagamentos = parte >= 100 ? [{ kind: "dinheiro", cents: parte }, { kind: "pix", cents: c - parte }] : [{ kind: "pix", cents: c }];
         }
+        // Centro (sem Caixa): o Vendedor ou a Gestora lançam em nome próprio.
+        // Rodovia (com Caixa): toda venda passa pelo Caixa, que escolhe quem atendeu.
         const quemR = rnd();
-        const quem: ChaveMembro = quemR < 0.82 ? (loja === "centro" ? "vendCentro" : "vendRodovia") : "gestor";
+        const quem: ChaveMembro = loja === "rodovia" ? "caixaRodovia" : quemR < 0.82 ? "vendCentro" : "gestor";
+        const vendedor: ChaveMembro | undefined = loja === "rodovia" ? (k % 3 === 0 ? "gerente" : "gestor") : undefined;
         const horaR = rnd();
         saida.push({
           chave: `${PREFIXO}venda-${loja}-${String(d).padStart(2, "0")}-${k}`,
           tag: `${loja}-${d}-${k}`,
           loja,
+          d,
           quando: dia(d, 8 + Math.floor(horaR * 10), Math.floor(rnd() * 60)),
           quem,
+          vendedor,
           itens,
           cliente: rnd() < 0.15 ? escolher(clientes) : undefined,
           fator,
@@ -305,6 +353,43 @@ function vendasDeTodoDia(): VendaPlan[] {
   }
   return saida;
 }
+
+// ---------------------------------------------------------------------------
+// Orçamentos: abertos, um vencido, faturados (pelo Vendedor e pelo Caixa) e um
+// faturado e cancelado (volta a aberto). A validade da conta é de 10 dias.
+// ---------------------------------------------------------------------------
+
+const VALIDADE_ORCAMENTO = 10;
+
+type OrcPlan = {
+  chave: string;
+  loja: ChaveVenda;
+  quem: ChaveMembro;
+  /** Quem atendeu, quando quem orça é o Caixa. */
+  vendedor?: ChaveMembro;
+  cliente: (typeof CLIENTES)[number]["chave"];
+  /** Dias atrás e hora em que foi feito; nulo é agora. */
+  feito: [number, number] | null;
+  itens: ItemV[];
+  fim: "aberto" | "vencido" | "faturado" | "cancelado";
+  /** Quem fatura hoje, e como o cliente paga. */
+  fatura?: { quem: ChaveMembro; kind: "dinheiro" | "pix" };
+  notas?: string;
+};
+
+const ORCAMENTOS: OrcPlan[] = [
+  { chave: "orc-aberto-cerca", loja: "centro", quem: "vendCentro", cliente: "pedraBranca", feito: [2, 10], fim: "aberto", itens: [{ slug: "arameFarpado", papel: "fechada", qtd: 4 }, { slug: "grampo", papel: "fechada", qtd: 3 }], notas: "Cerca da invernada nova; entrega na fazenda" },
+  { chave: "orc-aberto-haras", loja: "rodovia", quem: "caixaRodovia", vendedor: "gestor", cliente: "santaClara", feito: [1, 15], fim: "aberto", itens: [{ slug: "equinos", papel: "fechada", qtd: 8 }, { slug: "feno", papel: "fechada", qtd: 20 }, { slug: "ferr5", papel: "fechada", qtd: 16 }] },
+  { chave: "orc-aberto-pet", loja: "centro", quem: "gestor", cliente: "mariaDores", feito: null, fim: "aberto", itens: [{ slug: "gatoAdulto", papel: "fechada", qtd: 1 }, { slug: "vermPet", papel: "fechada", qtd: 1 }] },
+  { chave: "orc-vencido", loja: "centro", quem: "vendCentro", cliente: "tresIrmaos", feito: [16, 11], fim: "vencido", itens: [{ slug: "salCria", papel: "fechada", qtd: 10 }, { slug: "aftosa", papel: "fechada", qtd: 2 }], notas: "Cliente ia ver o preço com outro fornecedor" },
+  { chave: "orc-faturado-vendedor", loja: "centro", quem: "vendCentro", cliente: "boaEsperanca", feito: [3, 9], fim: "faturado", itens: [{ slug: "salEngorda", papel: "fechada", qtd: 3 }, { slug: "vermBov", papel: "fechada", qtd: 4 }], fatura: { quem: "vendCentro", kind: "pix" } },
+  { chave: "orc-faturado-caixa", loja: "rodovia", quem: "caixaRodovia", vendedor: "gerente", cliente: "santaClara", feito: [2, 16], fim: "faturado", itens: [{ slug: "equinos", papel: "fechada", qtd: 4 }, { slug: "carrap", papel: "fechada", qtd: 1 }], fatura: { quem: "caixaRodovia", kind: "dinheiro" } },
+  { chave: "orc-cancelado", loja: "centro", quem: "vendCentro", cliente: "pedraBranca", feito: [1, 11], fim: "cancelado", itens: [{ slug: "milho", papel: "fechada", qtd: 6 }], fatura: { quem: "vendCentro", kind: "dinheiro" } },
+];
+
+/** O que os orçamentos faturados tiram do estoque: entra na demanda das transferências. */
+const vendasDosOrcamentos = (): VendaPlan[] =>
+  ORCAMENTOS.filter((o) => o.fatura).map((o) => ({ chave: o.chave, tag: o.chave, loja: o.loja, d: 0, quando: new Date(), quem: o.quem, itens: o.itens, pagamentos: [] }));
 
 // ---------------------------------------------------------------------------
 // Estado resolvido (ids) e consulta
@@ -320,7 +405,7 @@ type Ctx = {
   contatos: Record<string, string>;
   contaId: string;
   prods: Map<string, Resolvido>;
-  /** Entrega 2: o Caixa 1 de cada loja que vende, cujo turno o cenário abriu. */
+  /** Entrega 2: o Caixa 1 de cada loja que vende, onde o cenário abre um turno por dia. */
   caixas: Record<ChaveVenda, string>;
 };
 
@@ -444,7 +529,7 @@ const log = (m: string) => console.log(m);
 
 async function contarExistentes(db: TenantPrismaClient) {
   const pref = { startsWith: PREFIXO };
-  const [compras, transfs, vendas, devolucoes, recebimentos, caixas, producoes] = await Promise.all([
+  const [compras, transfs, vendas, devolucoes, recebimentos, caixas, producoes, turnos, orcamentos] = await Promise.all([
     db.emporioPurchase.count({ where: { operation_key: pref } }),
     db.stockTransfer.count({ where: { operation_key: pref } }),
     db.emporioSale.count({ where: { operation_key: pref } }),
@@ -452,8 +537,10 @@ async function contarExistentes(db: TenantPrismaClient) {
     db.cashMovement.count({ where: { operation_key: pref, origin: "recebimento_fiado" } }),
     db.cashTransfer.count({ where: { operation_key: pref } }),
     db.productionEntry.count({ where: { operation_key: pref } }),
+    db.cashSession.count({ where: { operation_key: { startsWith: `${PREFIXO}turno-dia-` } } }),
+    db.emporioQuote.count({ where: { operation_key: pref } }),
   ]);
-  return { compras, transfs, vendas, devolucoes, recebimentos, caixas, producoes };
+  return { compras, transfs, vendas, devolucoes, recebimentos, caixas, producoes, turnos, orcamentos };
 }
 
 async function main() {
@@ -509,9 +596,13 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
   const todoDia = vendasDeTodoDia();
   const daMistura = vendasDaMistura();
   const sortidas = [...explicitas, ...todoDia].sort((a, b) => a.quando.getTime() - b.quando.getTime());
-  const demanda = calcularDemanda([...sortidas, ...daMistura], null);
+  const demanda = calcularDemanda([...sortidas, ...daMistura, ...vendasDosOrcamentos()], null);
   const saida = saidaDoDeposito(demanda);
   const comprasMontadas = montarCompras(saida);
+  // Um turno por loja em cada dia passado com venda, mais o de hoje em cada loja.
+  const diasDeTurno = new Set([...sortidas, ...daMistura].map((v) => `${v.d}|${v.loja}`));
+  const turnosPlanejados = diasDeTurno.size + 2;
+  const faturados = ORCAMENTOS.filter((o) => o.fatura).length;
 
   // ---- Situação atual ------------------------------------------------------
   const lojasExistentes = new Map<string, string>();
@@ -542,14 +633,16 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
     ["Compras", `${existentes.compras} de ${comprasMontadas.length} já lançadas`, comprasMontadas.length - existentes.compras],
     ["Transferências", `${existentes.transfs} de ${ONDAS * 2 + 3} já enviadas`, ONDAS * 2 + 3 - existentes.transfs],
     ["Produção", `${existentes.producoes} de 1`, 1 - existentes.producoes],
-    // +1: a troca gera a venda nova (chave `...:venda`), que também leva o prefixo.
-    ["Vendas", `${existentes.vendas} de ${sortidas.length + daMistura.length + 1} já lançadas`, sortidas.length + daMistura.length + 1 - existentes.vendas],
+    ["Turnos de caixa", `${existentes.turnos} de ${turnosPlanejados} já abertos (um por dia e loja; o de hoje fica aberto)`, turnosPlanejados - existentes.turnos],
+    // +1: a troca gera a venda nova (chave `...:venda`), que também leva o prefixo; e cada orçamento faturado, a sua.
+    ["Vendas", `${existentes.vendas} de ${sortidas.length + daMistura.length + 1 + faturados} já lançadas`, sortidas.length + daMistura.length + 1 + faturados - existentes.vendas],
+    ["Orçamentos", `${existentes.orcamentos} de ${ORCAMENTOS.length} já salvos`, ORCAMENTOS.length - existentes.orcamentos],
     ["Devoluções e trocas", `${existentes.devolucoes} de 3`, 3 - existentes.devolucoes],
     ["Recebimentos de fiado", `${existentes.recebimentos} de 2 (partes)`, Math.max(0, 2 - existentes.recebimentos)],
-    ["Levar gaveta ao banco", `${existentes.caixas} de 2`, 2 - existentes.caixas],
+    ["Levar da gerência ao banco", `${existentes.caixas} de 2`, 2 - existentes.caixas],
   ] as const;
   log("\nO que existe e o que seria criado:");
-  for (const [nome, estado, falta] of resumoPlano) log(`  - ${nome.padEnd(24)} ${estado}${falta > 0 ? `  -> criaria/lançaria ${falta}` : ""}`);
+  for (const [nome, estado, falta] of resumoPlano) log(`  - ${nome.padEnd(26)} ${estado}${falta > 0 ? `  -> criaria/lançaria ${falta}` : ""}`);
   const vendasTotal = [...sortidas, ...daMistura].reduce((s, v) => s + totalCents(v, v.itens), 0);
   log(`\nPlano de vendas: ${sortidas.length + daMistura.length} vendas, ${brl(vendasTotal / 100)} no papel (as canceladas e devolvidas não entram no resultado).`);
   log(`Assentos: o cenário precisa de ${membrosFaltando.length} novo(s); sobram ${Math.max(seats.limit - seats.used, 0)}.`);
@@ -584,12 +677,44 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
       log(`Loja criada: ${l.nome}`);
     }
     lojas[l.chave] = id;
+    // Cabeçalho do papel (entrega 1): CNPJ, telefone, WhatsApp, UF e CEP, editados como na tela.
+    const cnpj = cnpjCom(l.cnpj);
+    const atual = await db.establishment.findFirst({ where: { id }, select: { document: true, phone: true, whatsapp: true, state: true, zip: true } });
+    if (atual?.document !== cnpj || atual?.phone !== l.fone || atual?.whatsapp !== l.zap || atual?.state !== "MT" || atual?.zip !== l.cep) {
+      exigir(await cat.editarEstabelecimentoAction(db, dono, id, { document: cnpj, phone: l.fone, whatsapp: l.zap, state: "MT", zip: l.cep }), `cabeçalho da ${l.nome}`);
+    }
+  }
+
+  // Configurações da conta (entrega 1): validade do orçamento, rodapés e bobina.
+  {
+    const desejado = {
+      quote_validity_days: VALIDADE_ORCAMENTO,
+      quote_footer: "Orçamento sujeito à disponibilidade de estoque. Preços válidos até a data indicada.",
+      sale_footer: "Obrigado pela preferência! Trocas em até 7 dias com este comprovante.",
+      receipt_width: 80,
+    };
+    const atual = exigir(await conf.lerConfiguracoesAction(db, dono), "configurações");
+    if ((Object.keys(desejado) as (keyof typeof desejado)[]).some((k) => atual[k] !== desejado[k])) {
+      exigir(await conf.salvarConfiguracoesAction(db, dono, desejado), "configurações");
+    }
   }
 
   // Equipe (o Dono cadastra; o assento já foi conferido antes de qualquer escrita)
   for (const m of MEMBROS) {
     const ja = await db.user.findFirst({ where: { email: m.email } });
-    if (ja) continue;
+    if (ja) {
+      // A conta montada antes tinha a Juliana como Vendedora: vira Caixa da Rodovia
+      // pela mesma action da Equipe que a tela usa. Já Caixa, nada muda.
+      if (ja.emporio_role !== m.funcao) {
+        exigir(await equipe.alterarMembroAction(db, dono, ja.id, {
+          emporio_role: m.funcao,
+          establishment_ids: m.lojas.map((c) => lojas[c]),
+          emporio_keys: [...m.keys],
+        }), `equipe ${m.email}`);
+        log(`Função alterada: ${m.name} agora é ${m.funcao}`);
+      }
+      continue;
+    }
     const r = await equipe.cadastrarMembroAction(db, dono, {
       name: m.name,
       email: m.email,
@@ -611,7 +736,7 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
     if (!u) throw new Error(`Usuário ${m.email} não apareceu.`);
     atores[m.chave] = { id: u.id, role: u.role };
   }
-  const { gerente, gestor, vendCentro, vendRodovia } = atores;
+  const { gerente, gestor, vendCentro } = atores;
 
   // Conta bancária e PIX
   let contaId = conta?.id;
@@ -623,35 +748,22 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
     const e = await db.establishment.findFirst({ where: { id: lojas[c] }, select: { pix_bank_account_id: true } });
     if (e?.pix_bank_account_id !== contaId) exigir(await caixa.definirContaPixAction(db, gerente, lojas[c], { bank_account_id: contaId }), `PIX ${c}`);
   }
-  // Saldo inicial da conta (o Dono) e troco do Caixa 1 de cada loja (o Gerente geral: entrega 2, do Gestor para cima).
-  const saldoConta = await caixa.saldoInicialCaixaAction(db, dono, { bank_account_id: contaId, amount: 30000, occurred_at: dia(30, 8) });
+  // Saldo inicial da conta (o Dono) e troco do Caixa 1 de cada loja (o Gerente
+  // geral: entrega 2, do Gestor para cima), antes do primeiro turno, que abre às 8h.
+  const saldoConta = await caixa.saldoInicialCaixaAction(db, dono, { bank_account_id: contaId, amount: 30000, occurred_at: dia(30, 7) });
   if (!saldoConta.ok && saldoConta.code !== "OPENING_ALREADY_DONE") throw new Error(`saldo da conta: ${saldoConta.message}`);
   for (const c of ["centro", "rodovia"] as const) {
-    const r = await caixa.saldoInicialCaixaAction(db, gerente, { establishment_id: lojas[c], amount: 300, occurred_at: dia(30, 8, 30) });
+    const r = await caixa.saldoInicialCaixaAction(db, gerente, { establishment_id: lojas[c], amount: TROCO, occurred_at: dia(30, 7, 30) });
     if (!r.ok && r.code !== "OPENING_ALREADY_DONE") throw new Error(`troco ${c}: ${r.message}`);
   }
-  // Entrega 2: todo dinheiro da gaveta cai num turno aberto. Cada Vendedor abre o
-  // Caixa 1 da loja dele com o troco que está lá (contado = esperado, sem
-  // diferença), pela action, como na tela. Rodar de novo usa o turno aberto. Não
-  // usa o ajudante das suítes (`_emporio-turno`): ele é travado no banco local, e
-  // este cenário também monta a demonstração numa conta de verdade.
-  const turnos = {} as Record<ChaveVenda, { id: string; cash_register_id: string }>;
-  for (const [c, quem] of [["centro", vendCentro], ["rodovia", vendRodovia]] as const) {
+  // Entrega 2: os turnos abrem e encerram dia a dia, junto com as vendas (abaixo).
+  // Não usa o ajudante das suítes (`_emporio-turno`): ele é travado no banco
+  // local, e este cenário também monta a demonstração numa conta de verdade.
+  const caixas = {} as Record<ChaveVenda, string>;
+  for (const c of ["centro", "rodovia"] as const) {
     const reg = await db.cashRegister.findFirst({ where: { establishment_id: lojas[c], number: 1 }, select: { id: true } });
     if (!reg) throw new Error(`a loja ${c} não tem o Caixa 1`);
-    const aberto = await db.cashSession.findFirst({ where: { open_register_id: reg.id }, select: { id: true } });
-    if (aberto) {
-      turnos[c] = { id: aberto.id, cash_register_id: reg.id };
-      continue;
-    }
-    const n = (await db.cashSession.count({ where: { cash_register_id: reg.id } })) + 1;
-    const t = exigir(await turno.abrirTurnoAction(db, quem, {
-      operation_key: `${PREFIXO}turno-${c}-${n}`,
-      cash_register_id: reg.id,
-      counted: (await caixa.saldoDoCaixa(db, reg.id)) / 100,
-    }), `abrir o caixa da loja ${c}`);
-    turnos[c] = { id: t.id, cash_register_id: reg.id };
-    log(`Caixa 1 aberto na loja ${c}`);
+    caixas[c] = reg.id;
   }
 
   // Regras de cartão por loja (o Gerente geral configura)
@@ -670,7 +782,9 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
   // Contatos
   const contatos: Record<string, string> = {};
   for (const f of FORNECEDORES) contatos[f.chave] = await acharOuCriarContato(db, f.nome, "loja_fornecedor", f.cidade);
-  for (const c of CLIENTES) contatos[c.chave] = await acharOuCriarContato(db, c.nome, c.tipo, c.cidade);
+  for (const c of CLIENTES) {
+    contatos[c.chave] = await acharOuCriarContato(db, c.nome, c.tipo, c.cidade, { person_kind: c.pessoa, document: c.doc, phone: c.fone });
+  }
 
   // Produtos (o Gerente geral cadastra)
   await ensureProductCategories(db);
@@ -714,7 +828,6 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
   }
   const prods = await resolverProdutos(db);
 
-  const caixas: Record<ChaveVenda, string> = { centro: turnos.centro.cash_register_id, rodovia: turnos.rodovia.cash_register_id };
   const ctx: Ctx = { db, tenantId, lojas, atores, contatos, contaId, prods, caixas };
 
   // Preços por loja (Depósito não vende)
@@ -855,7 +968,7 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
   const receberTudo = async (t: transf.TransferView, quem: Ator) => {
     exigir(await transf.receberTransferenciaAction(db, quem, t.id, { items: t.items.map((i) => ({ item_id: i.id, received_qty: i.sent_qty })) }), `receber ${t.operation_key}`);
   };
-  const demandaReal = calcularDemanda([...sortidas, ...daMistura], prods);
+  const demandaReal = calcularDemanda([...sortidas, ...daMistura, ...vendasDosOrcamentos()], prods);
   for (let w = 1; w <= ONDAS; w++) {
     for (const c of ["centro", "rodovia"] as ChaveVenda[]) {
       const items = CATALOGO.filter((p) => p.origem !== "producao").map((p) =>
@@ -868,7 +981,7 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
         items,
         notes: `Reposição da semana ${w}`,
       }), `envio onda ${w} ${c}`);
-      if (t.status === "em_transito") await receberTudo(t, c === "centro" ? vendCentro : vendRodovia);
+      if (t.status === "em_transito") await receberTudo(t, c === "centro" ? vendCentro : gestor);
     }
   }
   // Chegou com diferença e ficou aguardando o Gestor (Centro)
@@ -897,8 +1010,12 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
     }), "envio da perda");
     let atual: transf.TransferView = t;
     if (atual.status === "em_transito") {
-      atual = exigir(await transf.receberTransferenciaAction(db, vendRodovia, t.id, {
+      // A Rodovia não tem Vendedor e o Caixa não recebe transferência: a Gestora
+      // recebe e, como chegou menos, resolve no mesmo passo.
+      atual = exigir(await transf.receberTransferenciaAction(db, gestor, t.id, {
         items: t.items.map((i) => ({ item_id: i.id, received_qty: i.sent_qty - 4, loss_reason: "avaria" })),
+        resolution: "perda_no_caminho",
+        reason: "Caixa de frascos quebrou na estrada de terra",
       }), "recebimento da perda");
     }
     if (atual.status === "aguardando_gestor") {
@@ -951,40 +1068,47 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
     }), "produção da mistura");
   }
 
-  // Vendas, na ordem do tempo, com o que depende de cada uma
+  // Vendas, dia a dia. Em cada loja com venda no dia, o turno abre às 8h,
+  // recebe as vendas do dia (e uma sangria em alguns dias) e encerra às 18h com
+  // o malote, que a Gestora confirma. Rodar de novo repete as chaves: o turno
+  // já encerrado volta como está, e nada é gravado de novo.
   const ordenadas = [...sortidas, ...daMistura].sort((a, b) => a.quando.getTime() - b.quando.getTime());
   const vendasPorTag = new Map<string, vendas.VendaView>();
   let feitas = 0;
+  let turnosDoMes = 0;
   // Toda venda exige cliente (design 2026-11-03-emporio-cliente-nome-menu): sem cliente nomeado, vai o Consumidor final.
   const consumidorFinalId = (await garantirConsumidorFinal(db)).id;
-  for (const v of ordenadas) {
-    const lojaId = lojas[v.loja];
-    const quem = atores[v.quem];
-    const payments: vendas.VendaPagamentoInput[] = v.pagamentos.map((p) => {
-      const base: vendas.VendaPagamentoInput = { kind: p.kind, amount: p.cents / 100 };
-      if (p.kind === "credito_parcelado") base.installments = p.parcelas;
-      if (p.kind === "fiado") base.due_date = p.vence;
-      if (p.kind === "cheque") base.check = { number: p.numero, bank: p.banco, good_for: p.bomPara };
-      return base;
-    });
-    const r = exigir(await vendas.venderAction(db, quem, {
-      operation_key: v.chave,
-      establishment_id: lojaId,
-      contact_id: v.cliente ? contatos[v.cliente] : consumidorFinalId,
-      // O caixa do turno que o cenário abriu: numa conta real com um segundo caixa aberto, sem ele a venda pediria a escolha.
-      cash_register_id: caixas[v.loja],
-      sold_at: v.quando,
-      items: v.itens.map((i) => {
-        const res = prods.get(i.slug) as Resolvido;
-        return { emporio_product_id: res.epId, presentation_id: i.papel === "fechada" ? res.fechadaId : (res.granelId as string), quantity: i.qtd, unit_price: precoItem(v, i) };
-      }),
-      payments,
-    }), `venda ${v.tag}`);
-    vendasPorTag.set(v.tag, r);
-    feitas++;
-    await depoisDaVenda(ctx, v, r);
+  for (let d = 30; d >= 1; d--) {
+    for (const c of ["centro", "rodovia"] as ChaveVenda[]) {
+      const doDia = ordenadas.filter((v) => v.d === d && v.loja === c);
+      if (doDia.length === 0) continue;
+      const aberto = await abrirTurnoDoDia(ctx, c, d);
+      // Turno já encerrado (rodada anterior): a sangria não se repete fora dele.
+      let semSangria = aberto.status === "closed" || !DIAS_DE_SANGRIA.has(d);
+      for (const v of doDia) {
+        if (!semSangria && v.quando.getTime() >= dia(d, 13).getTime()) {
+          await sangriaDoDia(ctx, c, d, aberto.id);
+          semSangria = true;
+        }
+        vendasPorTag.set(v.tag, await vender(ctx, v, consumidorFinalId));
+        feitas++;
+      }
+      if (!semSangria) await sangriaDoDia(ctx, c, d, aberto.id);
+      await confirmarMaloteDoDia(ctx, c, d, await encerrarTurnoDoDia(ctx, c, d, aberto.id));
+      turnosDoMes++;
+    }
   }
-  log(`Vendas lançadas: ${feitas}`);
+  log(`Vendas lançadas: ${feitas}, em ${turnosDoMes} turnos encerrados`);
+
+  // Hoje: o turno abre e fica aberto, para a demonstração começar com o caixa
+  // aberto. Nele caem os passos que as actions gravam com a hora real: o
+  // faturamento dos orçamentos, devolução, troca, cancelamento e fiado.
+  for (const c of ["centro", "rodovia"] as ChaveVenda[]) await abrirTurnoDoDia(ctx, c, 0);
+  await montarOrcamentos(ctx);
+  for (const v of explicitas) {
+    const r = vendasPorTag.get(v.tag);
+    if (r) await depoisDaVenda(ctx, v, r);
+  }
 
   // Contagem e perda
   {
@@ -1006,27 +1130,25 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
     }
   }
 
-  // Levar a gaveta ao banco (a Gestora), despesas pagas e conferências de gaveta.
-  // Entrega 2: a gaveta não transfere (Q92). A Gestora faz a sangria do turno,
-  // confirma o dinheiro recebido (entra em "Com a gerência") e leva da gerência ao banco.
+  // Uma sangria de hoje na Rodovia, deixada aguardando a Gestora (a tela de entregas tem o que mostrar).
+  {
+    const chave = `${PREFIXO}sangria-hoje-rodovia`;
+    const ja = await db.cashHandover.findFirst({ where: { operation_key: chave }, select: { id: true } });
+    const aberto = await db.cashSession.findFirst({ where: { open_register_id: caixas.rodovia }, select: { id: true } });
+    if (!ja && aberto && (await caixa.saldoDoCaixa(db, caixas.rodovia)) >= (TROCO + 100) * 100) {
+      exigir(await turno.sangriaAction(db, atores.caixaRodovia, aberto.id, { operation_key: chave, amount: 100, notes: "Sangria do meio do dia" }), "sangria de hoje na Rodovia");
+    }
+  }
+
+  // Levar da gerência ao banco (a Gestora). Entrega 2: a gaveta não transfere
+  // (Q92); o dinheiro dos malotes e sangrias confirmados está "Com a gerência".
   for (const c of ["centro", "rodovia"] as const) {
     const chave = `${PREFIXO}caixa-${c}-1`;
     const ja = await db.cashTransfer.findFirst({ where: { operation_key: chave }, select: { id: true } });
     if (ja) continue;
-    const chaveSangria = `${PREFIXO}sangria-${c}-1`;
-    const gravada = await db.cashHandover.findFirst({ where: { operation_key: chaveSangria }, select: { id: true, amount: true, confirmed_at: true } });
-    let entregaId = gravada?.id ?? "";
-    let valor = Number(gravada?.amount ?? 0);
-    if (!gravada) {
-      const saldo = (await caixa.saldoDoCaixa(db, turnos[c].cash_register_id)) / 100;
-      valor = Math.floor((saldo * 0.6) / 100) * 100;
-      if (valor < 100) continue;
-      entregaId = exigir(await turno.sangriaAction(db, gestor, turnos[c].id, { operation_key: chaveSangria, amount: valor, notes: "Depósito semanal da gaveta" }), `sangria ${c}`).id;
-    }
-    if (!gravada?.confirmed_at) {
-      exigir(await turno.confirmarEntregaAction(db, gestor, entregaId, { operation_key: `${PREFIXO}confirma-sangria-${c}-1`, received_amount: valor }), `confirmar a sangria ${c}`);
-    }
-    exigir(await caixa.transferirCaixaAction(db, gestor, { operation_key: chave, from: { manager_establishment_id: lojas[c] }, to: { bank_account_id: contaId }, amount: valor, notes: "Depósito semanal da gaveta" }), `gerência ${c} ao banco`);
+    const valor = Math.floor(((await caixa.saldoDaGerencia(db, lojas[c])) / 100) * 0.8 / 100) * 100;
+    if (valor < 100) continue;
+    exigir(await caixa.transferirCaixaAction(db, gestor, { operation_key: chave, from: { manager_establishment_id: lojas[c] }, to: { bank_account_id: contaId }, amount: valor, notes: "Depósito da gerência no banco" }), `gerência ${c} ao banco`);
   }
   {
     const hoje = new Date();
@@ -1038,14 +1160,15 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
       exigir(await desp.pagarDespesasAction(db, gerente, { entry_ids: doMes.map((a) => a.entry_id), paid_at: dia(2, 11), from: { bank_account_id: contaId } }), "pagamento das despesas fixas");
     }
   }
-  // Entrega 2: a conferência é livre, dentro do turno aberto do caixa (a abertura grava a contagem dela, kind abertura).
-  for (const [c, quem] of [["centro", vendCentro], ["rodovia", vendRodovia]] as const) {
+  // Entrega 2: a conferência é livre, dentro do turno aberto de hoje (a abertura grava a contagem dela, kind abertura).
+  for (const c of ["centro", "rodovia"] as const) {
+    const quem = operadorDoCaixa(ctx, c);
     const ja = await db.cashCount.count({ where: { establishment_id: lojas[c], kind: "livre" } });
     if (ja > 0) continue;
-    const caixaId = turnos[c].cash_register_id;
+    const caixaId = caixas[c];
     const esperado = (await caixa.saldoDoCaixa(db, caixaId)) / 100;
     if (c === "rodovia") {
-      exigir(await caixa.conferirGavetaAction(db, quem, { cash_register_id: caixaId, counted: r2(esperado - 12.5), justification: "Troco dado a maior no sábado" }), "conferência com diferença");
+      exigir(await caixa.conferirGavetaAction(db, quem, { cash_register_id: caixaId, counted: r2(esperado - 12.5), justification: "Troco dado a maior de manhã" }), "conferência com diferença");
     } else {
       exigir(await caixa.conferirGavetaAction(db, quem, { cash_register_id: caixaId, counted: esperado }), "conferência da gaveta");
     }
@@ -1054,11 +1177,179 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
   await resumo(ctx, senhas);
 }
 
-/** O que cada venda explícita ainda pede: devolver, trocar, cancelar, depositar cheque, receber fiado. */
+// ---------------------------------------------------------------------------
+// O turno do dia, a venda e os orçamentos
+// ---------------------------------------------------------------------------
+
+/** Dias (atrás) com sangria ao meio-dia, nas duas lojas. */
+const DIAS_DE_SANGRIA = new Set([27, 22, 17, 12, 7, 2]);
+/** Encerramentos com diferença, por `loja|dias atrás`: [diferença, justificativa]. */
+const DIFERENCA_NO_ENCERRAMENTO: Record<string, [number, string]> = {
+  "centro|23": [-7.5, "Troco dado errado para um cliente no fim da tarde"],
+  "centro|12": [-4, "Faltaram moedas na contagem do troco"],
+  "rodovia|17": [5, "Sobra: cliente deixou o troco para a próxima compra"],
+};
+/**
+ * O malote recebido com falta: o primeiro da Rodovia de R$ 100 para cima nos
+ * últimos 10 dias. Não é um dia fixo porque nem todo dia tem malote (o troco
+ * pode ser tudo o que sobrou na gaveta), e as vendas de cada dia mudam com o
+ * calendário (a Centro fecha aos domingos).
+ */
+const FALTA_NO_MALOTE: [number, string] = [-10, "Faltou uma nota de R$ 10 no malote; conferido com a Juliana"];
+
+/** Quem opera o caixa: na Centro (sem Caixa), o Vendedor; na Rodovia, o Caixa. */
+const operadorDoCaixa = (ctx: Ctx, c: ChaveVenda): Ator => (c === "centro" ? ctx.atores.vendCentro : ctx.atores.caixaRodovia);
+
+/** Abre o Caixa 1 às 8h do dia (hoje: às 8h, ou agora se ainda não deu 8h), contando o troco que ficou. */
+async function abrirTurnoDoDia(ctx: Ctx, c: ChaveVenda, d: number): Promise<turno.TurnoGravadoView> {
+  const reg = ctx.caixas[c];
+  const agora = d === 0 ? new Date(Math.min(dia(0, 8).getTime(), Date.now())) : dia(d, 8);
+  const r = await turno.abrirTurnoAction(
+    ctx.db,
+    operadorDoCaixa(ctx, c),
+    { operation_key: `${PREFIXO}turno-dia-${c}-${dd(d)}`, cash_register_id: reg, counted: (await caixa.saldoDoCaixa(ctx.db, reg)) / 100 },
+    { agora },
+  );
+  if (!r.ok && r.code === "SESSION_ALREADY_OPEN") {
+    throw new Parar(
+      `O Caixa 1 da loja ${c} já tem um turno aberto que não é o deste dia (${dd(d)} dia(s) atrás). ` +
+        "A conta foi montada por uma versão anterior do cenário, ou o turno ficou aberto de uma rodada de outro dia. " +
+        "Encerre esse turno pela tela (ou, no banco local, use --apagar) e rode de novo.",
+    );
+  }
+  return exigir(r, `abrir o caixa da loja ${c} (${dd(d)} dia(s) atrás)`);
+}
+
+/** Sangria ao meio-dia (60% do que passa do troco), confirmada pela Gestora meia hora depois. */
+async function sangriaDoDia(ctx: Ctx, c: ChaveVenda, d: number, sessionId: string) {
+  const { db, atores, caixas } = ctx;
+  const saldo = (await caixa.saldoDoCaixa(db, caixas[c])) / 100;
+  const valor = Math.floor(((saldo - TROCO) * 0.6) / 50) * 50;
+  if (valor < 100) return;
+  const e = exigir(
+    await turno.sangriaAction(db, operadorDoCaixa(ctx, c), sessionId, { operation_key: `${PREFIXO}sangria-dia-${c}-${dd(d)}`, amount: valor, notes: "Sangria do meio do dia" }, { agora: dia(d, 13) }),
+    `sangria da loja ${c} (${dd(d)} dia(s) atrás)`,
+  );
+  if (e.status === "pending") {
+    exigir(
+      await turno.confirmarEntregaAction(db, atores.gestor, e.id, { operation_key: `${PREFIXO}confirma-sangria-dia-${c}-${dd(d)}`, received_amount: e.amount }, { agora: dia(d, 13, 30) }),
+      `confirmar a sangria da loja ${c} (${dd(d)} dia(s) atrás)`,
+    );
+  }
+}
+
+/** Encerra às 18h: conta (com a diferença do dia, se houver), deixa o troco e manda o resto no malote. */
+async function encerrarTurnoDoDia(ctx: Ctx, c: ChaveVenda, d: number, sessionId: string): Promise<turno.TurnoGravadoView> {
+  const esperado = (await caixa.saldoDoCaixa(ctx.db, ctx.caixas[c])) / 100;
+  const dif = DIFERENCA_NO_ENCERRAMENTO[`${c}|${d}`];
+  const contado = r2(esperado + (dif?.[0] ?? 0));
+  const malote = contado > TROCO ? r2(contado - TROCO) : 0;
+  return exigir(
+    await turno.encerrarTurnoAction(
+      ctx.db,
+      operadorDoCaixa(ctx, c),
+      sessionId,
+      { operation_key: `${PREFIXO}encerra-dia-${c}-${dd(d)}`, counted: contado, justification: dif?.[1] ?? null, malote_amount: malote },
+      { agora: dia(d, 18) },
+    ),
+    `encerrar o caixa da loja ${c} (${dd(d)} dia(s) atrás)`,
+  );
+}
+
+/** A Gestora confirma o malote às 18h30 (num dia, com falta justificada). */
+async function confirmarMaloteDoDia(ctx: Ctx, c: ChaveVenda, d: number, t: turno.TurnoGravadoView) {
+  const m = t.handovers.find((h) => h.kind === "malote");
+  if (!m || m.status !== "pending") return;
+  const comFalta =
+    c === "rodovia" &&
+    d <= 10 &&
+    m.amount >= 100 &&
+    (await ctx.db.cashHandover.count({ where: { establishment_id: ctx.lojas.rodovia, kind: "malote", difference: { not: 0 } } })) === 0;
+  const dif = comFalta ? FALTA_NO_MALOTE : undefined;
+  exigir(
+    await turno.confirmarEntregaAction(
+      ctx.db,
+      ctx.atores.gestor,
+      m.id,
+      { operation_key: `${PREFIXO}confirma-malote-${c}-${dd(d)}`, received_amount: r2(m.amount + (dif?.[0] ?? 0)), notes: dif?.[1] ?? null },
+      { agora: dia(d, 18, 30) },
+    ),
+    `confirmar o malote da loja ${c} (${dd(d)} dia(s) atrás)`,
+  );
+}
+
+/** A venda no turno aberto da loja; o Caixa diz quem atendeu. */
+async function vender(ctx: Ctx, v: VendaPlan, consumidorFinalId: string): Promise<vendas.VendaView> {
+  const { db, atores, lojas, contatos, prods, caixas } = ctx;
+  const payments: vendas.VendaPagamentoInput[] = v.pagamentos.map((p) => {
+    const base: vendas.VendaPagamentoInput = { kind: p.kind, amount: p.cents / 100 };
+    if (p.kind === "credito_parcelado") base.installments = p.parcelas;
+    if (p.kind === "fiado") base.due_date = p.vence;
+    if (p.kind === "cheque") base.check = { number: p.numero, bank: p.banco, good_for: p.bomPara };
+    return base;
+  });
+  return exigir(await vendas.venderAction(db, atores[v.quem], {
+    operation_key: v.chave,
+    establishment_id: lojas[v.loja],
+    contact_id: v.cliente ? contatos[v.cliente] : consumidorFinalId,
+    // O caixa do turno que o cenário abriu: numa conta real com um segundo caixa aberto, sem ele a venda pediria a escolha.
+    cash_register_id: caixas[v.loja],
+    seller_user_id: v.vendedor ? atores[v.vendedor].id : null,
+    sold_at: v.quando,
+    items: v.itens.map((i) => {
+      const res = prods.get(i.slug) as Resolvido;
+      return { emporio_product_id: res.epId, presentation_id: i.papel === "fechada" ? res.fechadaId : (res.granelId as string), quantity: i.qtd, unit_price: precoItem(v, i) };
+    }),
+    payments,
+  }), `venda ${v.tag}`);
+}
+
+/** Salva os orçamentos (os antigos com a data deles) e fatura hoje os que o plano manda; um é cancelado depois. */
+async function montarOrcamentos(ctx: Ctx) {
+  const { db, atores, lojas, contatos, prods, caixas } = ctx;
+  for (const o of ORCAMENTOS) {
+    const itens = o.itens.map((i) => {
+      const res = prods.get(i.slug) as Resolvido;
+      return { emporio_product_id: res.epId, presentation_id: i.papel === "fechada" ? res.fechadaId : (res.granelId as string), quantity: i.qtd, unit_price: precoItem({ loja: o.loja }, i) };
+    });
+    const q = exigir(
+      await orc.salvarOrcamentoAction(
+        db,
+        atores[o.quem],
+        {
+          operation_key: `${PREFIXO}${o.chave}`,
+          establishment_id: lojas[o.loja],
+          contact_id: contatos[o.cliente],
+          items: itens,
+          seller_user_id: o.vendedor ? atores[o.vendedor].id : null,
+          notes: o.notas ?? null,
+        },
+        o.feito ? { agora: dia(o.feito[0], o.feito[1]) } : {},
+      ),
+      `orçamento ${o.chave}`,
+    );
+    if (!o.fatura) continue;
+    const total = itens.reduce((s, i) => s + cents(i.quantity * i.unit_price), 0);
+    const venda = exigir(await vendas.venderAction(db, atores[o.fatura.quem], {
+      operation_key: `${PREFIXO}venda-${o.chave}`,
+      establishment_id: lojas[o.loja],
+      contact_id: contatos[o.cliente],
+      cash_register_id: caixas[o.loja],
+      quote_id: q.id,
+      items: itens,
+      payments: [{ kind: o.fatura.kind, amount: total / 100 }],
+    }), `faturar o ${o.chave}`);
+    if (o.fim === "cancelado" && venda.status !== "cancelada") {
+      exigir(await vendas.cancelarVendaAction(db, atores.gestor, venda.id, { reason: "O cliente desistiu na hora de carregar", cash_register_id: caixas[o.loja] }), `cancelar a venda do ${o.chave}`);
+    }
+  }
+}
+
+/** O que cada venda explícita ainda pede, hoje: devolver, trocar, cancelar, depositar cheque, receber fiado. */
 async function depoisDaVenda(ctx: Ctx, v: VendaPlan, r: vendas.VendaView) {
   const { db, atores, lojas, contaId, prods, caixas } = ctx;
   const { gestor, vendCentro } = atores;
-  // Entrega 2: o dinheiro sai e entra no caixa do turno que o cenário abriu na loja da venda.
+  // Entrega 2: o dinheiro sai e entra no turno de hoje, aberto na loja da venda.
   const caixaDaVenda = caixas[v.loja];
   const item = (slug: string) => {
     const res = prods.get(slug) as Resolvido;
@@ -1116,10 +1407,25 @@ async function depoisDaVenda(ctx: Ctx, v: VendaPlan, r: vendas.VendaView) {
   }
 }
 
-async function acharOuCriarContato(db: TenantPrismaClient, nome: string, tipo: "loja_fornecedor" | "fazendeiro" | "particular", cidade: string): Promise<string> {
-  const ja = await db.contact.findFirst({ where: { name: { equals: nome, mode: "insensitive" } }, select: { id: true } });
-  if (ja) return ja.id;
-  return exigir(await createContact(db, { name: nome, type: tipo, city: cidade }), `contato ${nome}`).id;
+async function acharOuCriarContato(
+  db: TenantPrismaClient,
+  nome: string,
+  tipo: "loja_fornecedor" | "fazendeiro" | "particular",
+  cidade: string,
+  cadastro?: { person_kind: "pf" | "pj"; document: string; phone: string },
+): Promise<string> {
+  const ja = await db.contact.findFirst({
+    where: { name: { equals: nome, mode: "insensitive" } },
+    select: { id: true, person_kind: true, document: true, phone: true },
+  });
+  if (ja) {
+    // A conta montada antes tinha o cliente sem documento: o orçamento exige o cadastro completo.
+    if (cadastro && (!ja.person_kind || !ja.document || !ja.phone)) {
+      exigir(await updateContact(db, ja.id, { name: nome, type: tipo, city: cidade, ...cadastro }), `cadastro de ${nome}`);
+    }
+    return ja.id;
+  }
+  return exigir(await createContact(db, { name: nome, type: tipo, city: cidade, ...(cadastro ?? {}) }), `contato ${nome}`).id;
 }
 
 // ---------------------------------------------------------------------------
@@ -1137,12 +1443,17 @@ async function resumo(ctx: Ctx, senhas: { email: string; name: string; senha: st
   const fiadoVencido = fiado.reduce((s, c) => s + c.overdue_amount, 0);
   const transfs = await db.stockTransfer.groupBy({ by: ["status"], where: doCenario, _count: { _all: true } });
   const pessoas = await db.user.count({ where: { active: true } });
+  const turnosAbertos = await db.cashSession.count({ where: { operation_key: { startsWith: `${PREFIXO}turno-dia-` }, open_register_id: { not: null } } });
+  const turnosEncerrados = await db.cashSession.count({ where: { operation_key: { startsWith: `${PREFIXO}turno-dia-` }, closed_at: { not: null } } });
+  const orcamentos = await db.emporioQuote.findMany({ where: doCenario, select: { sale_id: true } });
 
   log("\n" + "=".repeat(70));
   log("CENÁRIO PRONTO");
   log("=".repeat(70));
   log(`Lojas:           ${LOJAS.map((l) => l.nome).join(", ")}`);
-  log(`Pessoas ativas:  ${pessoas} (Dono, Gerente geral, Gestora, 2 Vendedores)`);
+  log(`Pessoas ativas:  ${pessoas} (Dono, Gerente geral, Gestora, Vendedor da Centro, Caixa da Rodovia)`);
+  log(`Turnos:          ${turnosEncerrados} encerrados, ${turnosAbertos} aberto(s) hoje`);
+  log(`Orçamentos:      ${orcamentos.length}, ${orcamentos.filter((o) => o.sale_id).length} faturado(s)`);
   log(`Produtos:        ${CATALOGO.length}`);
   log(`Vendas:          ${vendasLinhas.length} lançadas, ${concluidas.length} concluídas, ${vendasLinhas.length - concluidas.length} cancelada(s)`);
   log(`Total vendido:   ${brl(totalVendido)} (vendas concluídas, antes das devoluções)`);
@@ -1189,7 +1500,10 @@ async function apagarCenario(tenantId: string, executar: boolean) {
   const modelos = (await prisma.fixedExpenseTemplate.findMany({ where: { ...t, splits: { some: { establishment_id: { in: lojas } } } }, select: { id: true } })).map((x) => x.id);
   const conferencias = (await prisma.cashCount.findMany({ where: { ...t, establishment_id: { in: lojas } }, select: { id: true } })).map((x) => x.id);
   const producoes = (await prisma.productionEntry.findMany({ where: { ...t, establishment_id: { in: lojas } }, select: { id: true } })).map((x) => x.id);
-  const relacionados = [...vendasIds, ...devolucoes, ...comprasIds, ...modelos, ...conferencias, ...producoes];
+  const turnos = await prisma.cashSession.count({ where: { ...t, establishment_id: { in: lojas } } });
+  // A Diferença de caixa da confirmação aponta para a entrega (sangria ou malote).
+  const entregas = (await prisma.cashHandover.findMany({ where: { ...t, establishment_id: { in: lojas } }, select: { id: true } })).map((x) => x.id);
+  const relacionados = [...vendasIds, ...devolucoes, ...comprasIds, ...modelos, ...conferencias, ...producoes, ...entregas];
   const entradas = (
     await prisma.financialEntry.findMany({
       where: { ...t, OR: [{ establishment_id: { in: lojas } }, { related_id: { in: relacionados } }] },
@@ -1197,7 +1511,7 @@ async function apagarCenario(tenantId: string, executar: boolean) {
     })
   ).map((x) => x.id);
 
-  log(`Seria apagado: ${lojas.length} lojas, ${eps.length} produtos, ${vendasIds.length} vendas, ${orcamentos.length} orçamentos, ${comprasIds.length} compras, ${transfIds.length} transferências, ${entradas.length} lançamentos, ${usuarios.length} usuários, ${contatos.length} contatos.`);
+  log(`Seria apagado: ${lojas.length} lojas, ${eps.length} produtos, ${vendasIds.length} vendas, ${turnos} turnos, ${entregas.length} entregas, ${orcamentos.length} orçamentos, ${comprasIds.length} compras, ${transfIds.length} transferências, ${entradas.length} lançamentos, ${usuarios.length} usuários, ${contatos.length} contatos.`);
   if (!executar) {
     log("(nada foi apagado; repita com --confirmar)");
     return;
@@ -1232,6 +1546,9 @@ async function apagarCenario(tenantId: string, executar: boolean) {
   await prisma.emporioSaleReturn.deleteMany({ where: { id: { in: devolucoes } } });
   await prisma.emporioSaleItem.deleteMany({ where: { sale_id: { in: vendasIds } } });
   await prisma.emporioSale.deleteMany({ where: { id: { in: vendasIds } } });
+  // Os turnos e as entregas cairiam em cascata com a loja; apagados aqui, depois de quem aponta para eles.
+  await prisma.cashHandover.deleteMany({ where: { ...t, establishment_id: { in: lojas } } });
+  await prisma.cashSession.deleteMany({ where: { ...t, establishment_id: { in: lojas } } });
   // Depois das vendas (que apontam para ele) e antes de loja, contato e apresentação; os itens vão em cascata.
   await prisma.emporioQuote.deleteMany({ where: { id: { in: orcamentos } } });
   await prisma.stockTransferItem.deleteMany({ where: { transfer_id: { in: transfIds } } });
@@ -1256,6 +1573,8 @@ async function apagarCenario(tenantId: string, executar: boolean) {
   await prisma.emporioAuditLog.deleteMany({ where: { ...t, OR: [{ user_id: { in: usuarios } }, { establishment_id: { in: lojas } }, { target_id: { in: [...eps, ...usuarios, ...contas, ...lojas, ...relacionados] } }] } });
   await prisma.user.deleteMany({ where: { id: { in: usuarios } } });
   await prisma.contact.deleteMany({ where: { id: { in: contatos } } });
+  // As configurações da conta (validade, rodapés, bobina) foram gravadas pelo cenário. Só banco local.
+  await prisma.emporioSettings.deleteMany({ where: t });
   log("Cenário apagado.");
 }
 

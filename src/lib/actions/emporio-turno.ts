@@ -31,6 +31,14 @@ export { resolverTurno, type ResultadoDoTurno, type TurnoResolvido } from "@/lib
  * `operation_key`.
  */
 
+/**
+ * O relógio interno: o cenário de demonstração (`scripts/cenario-demonstracao-emporio.ts`)
+ * data o turno de um dia passado. É parâmetro da action, fora do `input`: rota
+ * nenhuma o passa, e o schema dela não tem campo de data, então quem opera pela
+ * tela ou pelo WhatsApp grava sempre a hora real.
+ */
+export type RelogioInterno = { agora?: Date };
+
 const NAO_ACHADO = (o: string, field?: string) => fail("NOT_FOUND", `${o} não encontrado.`, 404, field);
 const centavos = (n: number) => Math.round(Number((n * 100).toPrecision(12)));
 const numero = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
@@ -351,6 +359,7 @@ export async function abrirTurnoAction(
   db: TenantPrismaClient,
   ator: Ator,
   input: AbrirTurnoInput,
+  opts: RelogioInterno = {},
 ): Promise<ActionResult<TurnoGravadoView>> {
   const neg = await exigir(db, ator, "vendedor_da_loja", "abrir o caixa");
   if (neg) return neg;
@@ -387,7 +396,7 @@ export async function abrirTurnoAction(
         throw new RecusaCaixa(SEM_DINHEIRO("reinforcement"));
       }
       const esperadoCent = (await saldoDoCaixa(leitor, caixa.id)) + reforcoCent;
-      const agora = new Date();
+      const agora = opts.agora ?? new Date();
       const sessao = await tx.cashSession.create({
         data: scoped({
           establishment_id: loja.data.id,
@@ -462,6 +471,7 @@ export async function sangriaAction(
   ator: Ator,
   sessionId: string,
   input: { operation_key: string; amount: number; notes?: string | null },
+  opts: RelogioInterno = {},
 ): Promise<ActionResult<EntregaView & { replayed: boolean }>> {
   const neg = await exigir(db, ator, "vendedor_da_loja", "fazer sangria");
   if (neg) return neg;
@@ -501,7 +511,7 @@ export async function sangriaAction(
       if ((await saldoDoCaixa(tx as unknown as TenantPrismaClient, sessao.cash_register_id)) < valorCent) {
         throw new RecusaCaixa(SEM_DINHEIRO("amount"));
       }
-      const agora = new Date();
+      const agora = opts.agora ?? new Date();
       const entrega = await tx.cashHandover.create({
         data: scoped({
           establishment_id: sessao.establishment_id,
@@ -512,6 +522,7 @@ export async function sangriaAction(
           operation_key: chave,
           notes: notas,
           created_by_user_id: ator.id,
+          created_at: agora,
         }),
       });
       await tx.cashMovement.create({
@@ -558,6 +569,7 @@ export async function encerrarTurnoAction(
   ator: Ator,
   sessionId: string,
   input: { operation_key: string; counted: number; justification?: string | null; malote_amount: number },
+  opts: RelogioInterno = {},
 ): Promise<ActionResult<TurnoGravadoView>> {
   const neg = await exigir(db, ator, "vendedor_da_loja", "encerrar o caixa");
   if (neg) return neg;
@@ -595,7 +607,7 @@ export async function encerrarTurnoAction(
 
   try {
     await runSerializableTenantTransaction(db, async (tx) => {
-      const agora = new Date();
+      const agora = opts.agora ?? new Date();
       const fechou = await tx.cashSession.updateMany({
         where: { id: sessao.id, open_register_id: { not: null } },
         data: { open_register_id: null, closed_at: agora, closed_by_user_id: ator.id, close_operation_key: chave },
@@ -626,6 +638,7 @@ export async function encerrarTurnoAction(
             amount: maloteCent / 100,
             operation_key: chaveDoMalote(sessao.id),
             created_by_user_id: ator.id,
+            created_at: agora,
           }),
         });
         await tx.cashMovement.create({
@@ -675,6 +688,7 @@ export async function confirmarEntregaAction(
   ator: Ator,
   handoverId: string,
   input: { operation_key: string; received_amount: number; notes?: string | null },
+  opts: RelogioInterno = {},
 ): Promise<ActionResult<EntregaView & { replayed: boolean }>> {
   const neg = await exigir(db, ator, "gestor_da_loja", "confirmar o dinheiro recebido");
   if (neg) return neg;
@@ -707,7 +721,7 @@ export async function confirmarEntregaAction(
 
   try {
     await runSerializableTenantTransaction(db, async (tx) => {
-      const agora = new Date();
+      const agora = opts.agora ?? new Date();
       const confirmou = await tx.cashHandover.updateMany({
         where: { id: entrega.id, confirmed_at: null },
         data: {

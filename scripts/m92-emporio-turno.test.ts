@@ -13,6 +13,7 @@ exigirBancoLocal();
  * Seção 4: todo dinheiro da gaveta (venda, fiado, devolução, cancelamento, troca, despesa) cai no turno.
  * Seção 5: o relatório do encerramento (dados do papel).
  * Seção 6: a reaplicação do backfill só preenche lojas sem turno.
+ * Seção 7: o relógio interno do turno (`opts.agora`), e a rota que ignora data no corpo.
  */
 
 let falhas = 0;
@@ -1351,6 +1352,122 @@ async function secao6() {
   check("loja com turno: o movimento não é tocado", depoisCom?.cash_register_id === null, j(depoisCom?.cash_register_id));
 }
 
+/**
+ * O relógio interno do turno (`opts.agora`): o cenário de demonstração data o
+ * turno de cada dia passado. Só código interno o passa; a rota ignora qualquer
+ * data no corpo e grava a hora real.
+ */
+async function secao7() {
+  console.log("\nSeção 7: o relógio interno do turno, e a rota que não aceita data (com banco)");
+  const { prisma, prismaForTenant } = await import("@/lib/prisma");
+  const Cat = await import("@/lib/actions/emporio-catalogo");
+  const Caixa = await import("@/lib/actions/emporio-caixa");
+  const Tu: Dado = await import("@/lib/actions/emporio-turno");
+  const { papelDeFixture } = await import("./_emporio-papel");
+  const stamp = Date.now();
+  let seq = 0;
+  const k = (p: string) => `m92-s7-${stamp}-${p}-${(seq += 1)}`;
+  const t = await prisma.tenant.create({
+    data: {
+      name: `M92 s7 ${stamp}`,
+      document: `M92H${stamp}`.slice(0, 14),
+      plan: "grupo",
+      status: "trial",
+      trial_ends_at: new Date(Date.now() + 86_400_000),
+    },
+  });
+  tenantIds.push(t.id);
+  await prisma.tenantProfile.create({ data: { tenant_id: t.id, profile_type: "emporio", active: true } });
+  await prisma.tenantFeature.create({ data: { tenant_id: t.id, feature_key: "emporio", enabled: true } });
+  const u = await prisma.user.create({
+    data: { tenant_id: t.id, name: "M92 s7 own", email: `m92-s7-own-${stamp}@teste.local`, password_hash: "x", role: "OWNER", ...papelDeFixture("OWNER") },
+  });
+  const owner = { id: u.id, role: "OWNER" as const };
+  const db = prismaForTenant(t.id);
+  const loja = await Cat.criarEstabelecimentoAction(db, owner, { name: "M92 s7 Loja" });
+  if (!loja.ok) throw new Error(`loja: ${j(loja)}`);
+  const L = loja.data.id;
+  const reg = (await db.cashRegister.findFirst({ where: { establishment_id: L, number: 1 } }))!.id;
+  await Caixa.saldoInicialCaixaAction(db, owner, { cash_register_id: reg, amount: 200 } as never);
+
+  const D8 = new Date("2026-10-01T11:00:00.000Z"); // 8h em Brasília
+  const D12 = new Date("2026-10-01T15:00:00.000Z");
+  const D18 = new Date("2026-10-01T21:00:00.000Z");
+  const D19 = new Date("2026-10-01T22:00:00.000Z");
+  const mesmo = (a: Date | null | undefined, b: Date) => !!a && a.getTime() === b.getTime();
+
+  const ab = await Tu.abrirTurnoAction(db, owner, { operation_key: k("abrir"), cash_register_id: reg, counted: 199, justification: "faltou 1" }, { agora: D8 });
+  check("abrir com o relógio interno: ok", ab.ok, j(ab));
+  const T: string = ab.data?.id ?? "x";
+  const sT = await db.cashSession.findFirst({ where: { id: T } });
+  check("o turno grava opened_at na hora dada", mesmo(sT?.opened_at, D8), j(sT?.opened_at));
+  const cAb = await db.cashCount.findFirst({ where: { cash_session_id: T, kind: "abertura" } });
+  check("a contagem da abertura grava counted_at na hora dada", mesmo(cAb?.counted_at, D8), j(cAb?.counted_at));
+  const mAj = await db.cashMovement.findFirst({ where: { cash_session_id: T, cash_count_id: cAb?.id ?? "x" } });
+  check("o ajuste da diferença na abertura leva a hora dada", mesmo(mAj?.occurred_at, D8), j(mAj?.occurred_at));
+
+  const sg = await Tu.sangriaAction(db, owner, T, { operation_key: k("sangria"), amount: 50 }, { agora: D12 });
+  check("sangria com o relógio interno: ok", sg.ok, j(sg));
+  const hS = await db.cashHandover.findFirst({ where: { id: sg.data?.id ?? "x" } });
+  const mS = await db.cashMovement.findFirst({ where: { cash_handover_id: hS?.id ?? "x", origin: "sangria" } });
+  check("a entrega da sangria grava created_at na hora dada", mesmo(hS?.created_at, D12), j(hS?.created_at));
+  check("a saída da sangria grava occurred_at na hora dada", mesmo(mS?.occurred_at, D12), j(mS?.occurred_at));
+
+  const en = await Tu.encerrarTurnoAction(db, owner, T, { operation_key: k("enc"), counted: 149, malote_amount: 100 }, { agora: D18 });
+  check("encerrar com o relógio interno: ok", en.ok, j(en));
+  const sE = await db.cashSession.findFirst({ where: { id: T } });
+  check("o turno grava closed_at na hora dada", mesmo(sE?.closed_at, D18), j(sE?.closed_at));
+  const cEn = await db.cashCount.findFirst({ where: { cash_session_id: T, kind: "encerramento" } });
+  check("a contagem do encerramento grava counted_at na hora dada", mesmo(cEn?.counted_at, D18), j(cEn?.counted_at));
+  const hM = await db.cashHandover.findFirst({ where: { cash_session_id: T, kind: "malote" } });
+  const mM = await db.cashMovement.findFirst({ where: { cash_handover_id: hM?.id ?? "x", origin: "malote" } });
+  check("o malote grava created_at e a saída occurred_at na hora dada", mesmo(hM?.created_at, D18) && mesmo(mM?.occurred_at, D18), j([hM?.created_at, mM?.occurred_at]));
+
+  const cf = await Tu.confirmarEntregaAction(db, owner, hM?.id ?? "x", { operation_key: k("conf"), received_amount: 98, notes: "faltaram 2" }, { agora: D19 });
+  check("confirmar com o relógio interno: ok", cf.ok, j(cf));
+  const hC = await db.cashHandover.findFirst({ where: { id: hM?.id ?? "x" } });
+  const mG = await db.cashMovement.findFirst({ where: { cash_handover_id: hM?.id ?? "x", origin: "entrega_gerencia" } });
+  const fD = await db.financialEntry.findFirst({ where: { related_id: hM?.id ?? "x", category: "Diferença de caixa" } });
+  check("a confirmação grava confirmed_at na hora dada", mesmo(hC?.confirmed_at, D19), j(hC?.confirmed_at));
+  check("a entrada na gerência grava occurred_at na hora dada", mesmo(mG?.occurred_at, D19), j(mG?.occurred_at));
+  check("a Diferença de caixa da confirmação leva a hora dada (vencimento e pagamento)", mesmo(fD?.due_date, D19) && mesmo(fD?.paid_at, D19), j([fD?.due_date, fD?.paid_at]));
+
+  // --- a rota: data no corpo não entra
+  const { signAccessToken } = await import("@/lib/auth-token");
+  const { withBearer } = await import("./_escopo-de-requisicao");
+  type Handler = (req: Request, ctx: { params: Promise<{ id: string }> }) => Promise<Response>;
+  const tok = signAccessToken(owner.id);
+  const chamar = async (caminho: string, url: string, corpo: Dado, id = "x") => {
+    const mod = (await import(`@/app/api/v1/emporio/${caminho}/route`)) as Record<string, Handler>;
+    const res = await withBearer(tok, () =>
+      mod.POST(
+        new Request(`http://localhost/api/v1/emporio/${url}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(corpo) }),
+        { params: Promise.resolve({ id }) },
+      ),
+    );
+    return { status: res.status, json: (await res.json().catch(() => null)) as Dado };
+  };
+  const velha = "2020-01-01T12:00:00.000Z";
+  const datas = { agora: velha, opened_at: velha, closed_at: velha, occurred_at: velha, created_at: velha, confirmed_at: velha };
+  const recente = (d: Date | null | undefined, desde: number) => !!d && d.getTime() >= desde - 1000 && d.getTime() <= Date.now() + 1000;
+  const antes = Date.now();
+  const rAb = await chamar("cash/sessions", "cash/sessions", { operation_key: k("rota-abrir"), cash_register_id: reg, counted: 49, ...datas });
+  const TR: string = rAb.json?.data?.id ?? "x";
+  const sR = await db.cashSession.findFirst({ where: { id: TR } });
+  check("POST cash/sessions com datas no corpo: 201 e opened_at é a hora real", rAb.status === 201 && recente(sR?.opened_at, antes), `${rAb.status} ${j(sR?.opened_at)}`);
+  const rSg = await chamar("cash/sessions/[id]/withdrawals", `cash/sessions/${TR}/withdrawals`, { operation_key: k("rota-sg"), amount: 10, ...datas }, TR);
+  const hR = await db.cashHandover.findFirst({ where: { id: rSg.json?.data?.id ?? "x" } });
+  const mR = await db.cashMovement.findFirst({ where: { cash_handover_id: hR?.id ?? "x", origin: "sangria" } });
+  check("POST withdrawals com datas no corpo: a sangria grava a hora real", rSg.status === 201 || rSg.status === 200 ? recente(hR?.created_at, antes) && recente(mR?.occurred_at, antes) : false, `${rSg.status} ${j([hR?.created_at, mR?.occurred_at])}`);
+  const rEn = await chamar("cash/sessions/[id]/close", `cash/sessions/${TR}/close`, { operation_key: k("rota-enc"), counted: 39, malote_amount: 20, ...datas }, TR);
+  const sRE = await db.cashSession.findFirst({ where: { id: TR } });
+  check("POST close com datas no corpo: closed_at é a hora real", rEn.status === 200 && recente(sRE?.closed_at, antes), `${rEn.status} ${j(sRE?.closed_at)}`);
+  const hRM = await db.cashHandover.findFirst({ where: { cash_session_id: TR, kind: "malote" } });
+  const rCf = await chamar("cash/handovers/[id]/confirm", `cash/handovers/${hRM?.id}/confirm`, { operation_key: k("rota-conf"), received_amount: 20, ...datas }, hRM?.id ?? "x");
+  const hRC = await db.cashHandover.findFirst({ where: { id: hRM?.id ?? "x" } });
+  check("POST confirm com datas no corpo: confirmed_at é a hora real", rCf.status === 200 && recente(hRC?.confirmed_at, antes), `${rCf.status} ${j(hRC?.confirmed_at)}`);
+}
+
 async function limpar() {
   const { prisma } = await import("@/lib/prisma");
   const modelos = [
@@ -1382,6 +1499,7 @@ async function main() {
     const ctx4 = await secao4();
     await secao5(ctx4);
     await secao6();
+    await secao7();
   } finally {
     await limpar();
   }

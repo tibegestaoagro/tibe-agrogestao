@@ -16,6 +16,7 @@ exigirBancoLocal();
  * item fora do orçamento e a troca.
  * Seção 4: o papel do orçamento (tipo, validade, sem pagamento, rodapé, alcance) e o orçamento
  * de origem no papel da venda; o orçamento faturado reimpresso diz FATURADO.
+ * Seção 5: o relógio interno do orçamento (`opts.agora`), e a rota que ignora data no corpo.
  */
 
 let falhas = 0;
@@ -965,6 +966,53 @@ async function secao4(c: Dado) {
   check("a venda sem orçamento: orcamento_origem null", iv2.ok && iv2.data.orcamento_origem === null && iv2.data.tipo === "venda", j(iv2.ok ? [iv2.data.tipo, iv2.data.orcamento_origem] : iv2));
 }
 
+/**
+ * O relógio interno do orçamento (`opts.agora`): o cenário de demonstração
+ * grava um orçamento antigo, já vencido. Só código interno o passa; a rota
+ * ignora data no corpo.
+ */
+async function secao5(c: Dado) {
+  console.log("\nSeção 5: o relógio interno do orçamento, e a rota que não aceita data (com banco)");
+  const { db, Orc, vend1, L1, item, chamar, signAccessToken, somarDias, stamp, hoje } = c;
+  const { hojeEmBrasilia } = await import("@/lib/emporio/cartao");
+  const contato = await db.contact.findFirst({ where: { name: "M94 Cliente Completo" } });
+  const validade = (await db.emporioSettings.findFirst({ select: { quote_validity_days: true } }))?.quote_validity_days ?? 7;
+  const dia = (d: Date) => d.toISOString().slice(0, 10);
+
+  const antigo = new Date(Date.now() - 20 * 86_400_000);
+  const o = await Orc.salvarOrcamentoAction(
+    db,
+    vend1,
+    { operation_key: `m94-s5-${stamp}-antigo`, establishment_id: L1, contact_id: contato.id, items: [item()] },
+    { agora: antigo },
+  );
+  check("salvar com o relógio interno: ok", o.ok, j(o));
+  const linha = await db.emporioQuote.findFirst({ where: { id: o.data?.id ?? "x" } });
+  check("o orçamento grava created_at na hora dada", !!linha && linha.created_at.getTime() === antigo.getTime(), j(linha?.created_at));
+  const esperado = dia(somarDias(hojeEmBrasilia(antigo), validade));
+  check(`a validade conta do dia dado (${validade} dias)`, !!linha && dia(linha.valid_until) === esperado, `${j(linha?.valid_until)} esperado ${esperado}`);
+  const lido = await Orc.lerOrcamentoAction(db, vend1, o.data?.id ?? "x");
+  check("e o orçamento antigo aparece vencido", lido.ok && lido.data.situacao === "vencido", j(lido.ok ? lido.data.situacao : lido));
+
+  const antes = Date.now();
+  const velha = "2020-01-01T12:00:00.000Z";
+  const r = await chamar(signAccessToken(vend1.id), "quotes", "POST", "quotes", {
+    operation_key: `m94-s5-${stamp}-rota`,
+    establishment_id: L1,
+    contact_id: contato.id,
+    items: [item()],
+    agora: velha,
+    created_at: velha,
+    valid_until: "2020-01-02",
+  });
+  const lr = await db.emporioQuote.findFirst({ where: { id: r.json?.data?.id ?? "x" } });
+  check(
+    "POST quotes com datas no corpo: 201, created_at é a hora real e a validade conta de hoje",
+    r.status === 201 && !!lr && lr.created_at.getTime() >= antes - 1000 && dia(lr.valid_until) === dia(somarDias(hoje, validade)),
+    `${r.status} ${j([lr?.created_at, lr?.valid_until])}`,
+  );
+}
+
 async function limpar() {
   const { prisma } = await import("@/lib/prisma");
   const modelos = [
@@ -993,6 +1041,7 @@ async function main() {
     await secao2(ctx);
     await secao3(ctx);
     await secao4(ctx);
+    await secao5(ctx);
   } finally {
     await limpar();
   }
