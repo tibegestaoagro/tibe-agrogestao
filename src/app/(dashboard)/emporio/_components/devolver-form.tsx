@@ -18,9 +18,11 @@ import { useAviso } from "@/components/ui/toast";
 import { apiPost } from "@/lib/client-api";
 import { reaisBr } from "@/lib/numero-br";
 import { DevolucaoItens, montarDevolvidos, type EscolhaDevolucao, type ItemDevolvivel } from "./devolucao-itens";
+import { CaixaDaOperacao } from "./caixa-da-operacao";
+import { abertosDaLoja, caixaInicial, type CaixaDaLoja } from "./caixas-da-loja";
 
 // Ordem visual, de cima para baixo.
-const ORDEM = ["items", "amount", "refund_kind", "reason"] as const;
+const ORDEM = ["items", "amount", "refund_kind", "cash_register_id", "reason"] as const;
 type Campo = (typeof ORDEM)[number];
 
 const FORMAS = [
@@ -42,11 +44,17 @@ export function DevolverForm({
   vendaId,
   itens,
   abertoCent,
+  lojaId,
+  caixas,
+  usuarioId,
 }: {
   vendaId: string;
   itens: ItemDevolvivel[];
   /** Fiado ainda em aberto na venda: define a forma sugerida. */
   abertoCent: number;
+  lojaId: string;
+  caixas: CaixaDaLoja[];
+  usuarioId: string;
 }) {
   const router = useRouter();
   const aviso = useAviso();
@@ -57,6 +65,11 @@ export function DevolverForm({
   const [escolha, setEscolha] = useState<EscolhaDevolucao>(VAZIA);
   const [forma, setForma] = useState(abertoCent > 0 ? "abater_fiado" : "dinheiro");
   const [motivo, setMotivo] = useState("");
+  const abertos = abertosDaLoja(caixas, lojaId);
+  const [caixa, setCaixa] = useState(() => caixaInicial(abertos, usuarioId));
+  // Só a devolução em dinheiro sai da gaveta.
+  const saiDaGaveta = forma === "dinheiro";
+  const mostrarCaixa = saiDaGaveta && (abertos.length !== 1 || !!err.erros.cash_register_id);
 
   const lido = montarDevolvidos(itens, escolha);
   const totalCent = lido.ok ? lido.totalCent : 0;
@@ -64,6 +77,7 @@ export function DevolverForm({
   async function submit() {
     const novos: Partial<Record<Campo, string>> = {};
     if (!lido.ok) novos.items = lido.erro;
+    if (saiDaGaveta && abertos.length > 1 && !caixa) novos.cash_register_id = "Escolha o caixa de onde sai o dinheiro.";
     if (Object.keys(novos).length > 0 || !lido.ok) {
       err.setGlobal(null);
       err.reprovar(novos);
@@ -77,6 +91,7 @@ export function DevolverForm({
       refund_kind: forma,
       items: lido.itens,
       reason: motivo.trim() || null,
+      cash_register_id: saiDaGaveta && caixa ? caixa : null,
     });
     setLoading(false);
     if (!res.ok) {
@@ -156,6 +171,28 @@ export function DevolverForm({
           </Select>
         )}
       </Field>
+
+      {mostrarCaixa && (
+        <Field
+          label="Caixa de onde sai o dinheiro"
+          required={abertos.length > 1}
+          id={err.idDe("cash_register_id")}
+          error={err.erros.cash_register_id}
+        >
+          {({ id, ...aria }) => (
+            <CaixaDaOperacao
+              id={id}
+              aria={aria}
+              abertos={abertos}
+              valor={caixa}
+              aoMudar={(v) => {
+                setCaixa(v);
+                err.limparCampo("cash_register_id");
+              }}
+            />
+          )}
+        </Field>
+      )}
 
       <Field label="Motivo" id={err.idDe("reason")} error={err.erros.reason} hint="Opcional.">
         {({ id, ...aria }) => (

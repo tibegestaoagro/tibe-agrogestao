@@ -4,6 +4,8 @@ import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { lerVendaAction } from "@/lib/actions/emporio-vendas";
+import { viewsDosCaixas } from "@/lib/actions/emporio-caixa";
+import { paraCaixasDaLoja } from "../../_components/caixas-da-loja";
 import { formatarNumero } from "@/lib/emporio/numeracao";
 import { reaisBr } from "@/lib/numero-br";
 import { Button } from "@/components/ui/button";
@@ -53,6 +55,13 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
   const devolviveis = venda.items.filter((i) => i.returnable_qty > 0);
   const podeDevolver = podeEscrever && ativa && devolviveis.length > 0;
   const podeCancelar = ehAdmin && ativa && venda.returns.length === 0 && !venda.exchange_return_id;
+  // Os caixas da loja da venda e o usuário (do servidor) para o campo "Caixa" dos painéis.
+  const caixas = paraCaixasDaLoja(await viewsDosCaixas(db, [venda.establishment_id]));
+  // Cancelar só mexe na gaveta se houve dinheiro, ou fiado já recebido (pode ter sido em dinheiro).
+  const fiadoTotal = venda.payments.filter((p) => p.kind === "fiado").reduce((s, p) => s + Math.round(p.amount * 100), 0);
+  const cancelaMexeNaGaveta =
+    venda.payments.some((p) => p.kind === "dinheiro") ||
+    (fiadoTotal > 0 && Math.round(venda.open_amount * 100) < fiadoTotal);
   const catalogo = podeDevolver ? await carregarCatalogoDeVenda(db, [venda.establishment_id]) : null;
   const nomeDoItem = new Map(venda.items.map((i) => [i.id, `${i.product_name} (${i.presentation_name})`]));
 
@@ -98,7 +107,11 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
           </Button>
           {podeDevolver && (
             <>
-              <DevolverForm vendaId={venda.id} itens={itensDevolviveis} abertoCent={Math.round(venda.open_amount * 100)} />
+              <DevolverForm vendaId={venda.id} itens={itensDevolviveis} abertoCent={Math.round(venda.open_amount * 100)}
+                lojaId={venda.establishment_id}
+                caixas={caixas}
+                usuarioId={user.id}
+              />
               {catalogo && (
                 <TrocarForm
                   vendaId={venda.id}
@@ -109,11 +122,19 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
                   precos={catalogo.precos}
                   contatos={catalogo.contatos}
                   contatoId={venda.contact_id}
+                  caixas={caixas}
+                  usuarioId={user.id}
                 />
               )}
             </>
           )}
-          {podeCancelar && <CancelarVendaForm vendaId={venda.id} />}
+          {podeCancelar && <CancelarVendaForm
+              vendaId={venda.id}
+              lojaId={venda.establishment_id}
+              devolveDinheiro={cancelaMexeNaGaveta}
+              caixas={caixas}
+              usuarioId={user.id}
+            />}
         </div>
       </header>
 

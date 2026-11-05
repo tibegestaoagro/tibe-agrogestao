@@ -3,7 +3,8 @@ import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
-import { listarFiadoAction } from "@/lib/actions/emporio-caixa";
+import { listarFiadoAction, viewsDosCaixas } from "@/lib/actions/emporio-caixa";
+import { paraCaixasDaLoja } from "../_components/caixas-da-loja";
 import { reaisBr } from "@/lib/numero-br";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -32,6 +33,7 @@ export default async function FiadoPage() {
   ]);
   const lojas = lojasRes.ok ? lojasRes.data.map((l) => ({ id: l.id, name: l.name })) : [];
   const clientes = fiadoRes.ok ? fiadoRes.data : [];
+  const caixas = paraCaixasDaLoja(await viewsDosCaixas(db, lojas.map((l) => l.id)));
 
   // "A venda mais antiga" é a data da venda, não o vencimento.
   const vendaIds = clientes.flatMap((c) => c.entries.map((e) => e.sale_id).filter((x): x is string => !!x));
@@ -125,6 +127,8 @@ export default async function FiadoPage() {
                           contatoNome={c.contact_name}
                           devidoCent={Math.round(c.owed * 100)}
                           lojas={lojas}
+                          caixas={caixas}
+                          usuarioId={user.id}
                         />
                       </TableCell>
                     )}

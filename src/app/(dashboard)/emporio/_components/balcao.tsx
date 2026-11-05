@@ -6,6 +6,18 @@ import { Button } from "@/components/ui/button";
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { apiGet, apiPost } from "@/lib/client-api";
 import { reaisBr } from "@/lib/numero-br";
+import { Field } from "@/components/ui/field";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import type { CaixaRegistradoView } from "@/lib/actions/emporio-caixa";
+import { AbrirTurnoForm } from "./abrir-turno-form";
+import { CaixaDaOperacao } from "./caixa-da-operacao";
+import { abertosDaLoja, caixaInicial, fechadosDaLoja, paraCaixasDaLoja, type CaixaDaLoja } from "./caixas-da-loja";
 import { VendaCampos } from "./venda-campos";
 import { numeroBr, numeroDaVenda } from "./formato";
 import { FORMA_ROTULO } from "./venda-rotulos";
@@ -26,7 +38,10 @@ import { useVenda, type ContatoDeVenda, type PrecosVenda, type ProdutoVenda, typ
  * reaproveita a chave e devolve a venda já gravada; mexer na venda gera outra.
  */
 
-const ORDEM = ["establishment_id", "items", "contact_id", "payments"] as const;
+const ORDEM = ["establishment_id", "items", "contact_id", "payments", "cash_register_id"] as const;
+
+const AVISO_SEM_CAIXA = "Nenhum caixa aberto nesta loja. Abra o caixa com o troco inicial para vender.";
+const AVISO_VARIOS = "Há mais de um caixa aberto. Escolha o caixa.";
 
 const CHAVE_LOJA = "tibe:emporio:loja-do-balcao";
 
@@ -46,11 +61,14 @@ export function Balcao({
   produtos,
   precos,
   contatos,
+  usuarioId,
 }: {
   lojas: { id: string; name: string }[];
   produtos: ProdutoVenda[];
   precos: PrecosVenda;
   contatos: ContatoDeVenda[];
+  /** Quem está vendendo, vindo da sessão no servidor: compara com quem abriu cada caixa. */
+  usuarioId: string;
 }) {
   const err = useErrosDeFormulario(ORDEM);
   const [regras, setRegras] = useState<RegraCartaoVenda[] | null>(null);
@@ -64,6 +82,13 @@ export function Balcao({
   const [enviando, setEnviando] = useState(false);
   const [resumo, setResumo] = useState<Resumo | null>(null);
   const chave = useRef<{ assinatura: string; key: string } | null>(null);
+
+  // Os caixas da loja escolhida, lidos do servidor: mudam entre uma venda e outra.
+  const [lidos, setLidos] = useState<{ lojaId: string; lista: CaixaDaLoja[] } | null>(null);
+  const [caixa, setCaixa] = useState("");
+  const [caixaParaAbrir, setCaixaParaAbrir] = useState("");
+  // Verdadeiro quando foi o "Fechar a venda" que bateu no caixa fechado: aberto o caixa, a venda segue sozinha.
+  const retomar = useRef(false);
 
   // A loja da última venda volta sozinha. Lido no efeito, não no estado
   // inicial, para o HTML do servidor e o do navegador não divergirem.
@@ -91,6 +116,28 @@ export function Balcao({
     };
   }, []);
 
+  // Ao escolher a loja, já se sabe se há caixa a escolher ou a abrir.
+  useEffect(() => {
+    if (!loja) return;
+    let vivo = true;
+    void apiGet<CaixaRegistradoView[]>(`/api/v1/emporio/cash/registers?establishment_id=${encodeURIComponent(loja)}`).then(
+      (res) => {
+        if (vivo && res.ok) setLidos({ lojaId: loja, lista: paraCaixasDaLoja(res.data) });
+      },
+    );
+    return () => {
+      vivo = false;
+    };
+  }, [loja]);
+
+  const caixasDaLoja = lidos && lidos.lojaId === loja ? lidos.lista : null;
+  const abertos = caixasDaLoja ? abertosDaLoja(caixasDaLoja, loja) : [];
+  const fechados = caixasDaLoja ? fechadosDaLoja(caixasDaLoja, loja) : [];
+  const caixaEscolhido = abertos.some((c) => c.id === caixa) ? caixa : caixaInicial(abertos, usuarioId);
+  const alvoDaAbertura = fechados.length === 1 ? fechados[0] : fechados.find((c) => c.id === caixaParaAbrir);
+  // Um caixa aberto só: o servidor resolve e a tela não pergunta. Zero ou vários, ou uma recusa do servidor: pergunta.
+  const mostrarCaixa = loja !== "" && caixasDaLoja !== null && (abertos.length !== 1 || !!err.erros.cash_register_id);
+
   // O mesmo efeito do FormSheet: leva o foco ao primeiro campo recusado.
   useEffect(() => {
     if (!err.focarCampoId) return;
@@ -108,7 +155,7 @@ export function Balcao({
     }
   }
 
-  async function enviar() {
+  async function enviar(recemAberto?: string) {
     const m = v.montar(true);
     if (!m.corpo) {
       err.setGlobal(null);
@@ -117,21 +164,53 @@ export function Balcao({
     }
 
     err.limparTudo();
-    if (chave.current?.assinatura !== m.assinatura) {
-      chave.current = { assinatura: m.assinatura, key: crypto.randomUUID() };
+    setEnviando(true);
+    // Toda venda precisa de turno aberto: confere os caixas na hora de fechar (podem ter mudado desde que a loja foi escolhida).
+    const fresco = await apiGet<CaixaRegistradoView[]>(
+      `/api/v1/emporio/cash/registers?establishment_id=${encodeURIComponent(v.loja)}`,
+    );
+    let escolhido = caixaEscolhido;
+    if (fresco.ok) {
+      const lista = paraCaixasDaLoja(fresco.data);
+      setLidos({ lojaId: v.loja, lista });
+      const ab = abertosDaLoja(lista, v.loja);
+      const preferido = recemAberto ?? caixa;
+      escolhido = ab.some((c) => c.id === preferido) ? preferido : caixaInicial(ab, usuarioId);
+      if (ab.length === 0 || (ab.length > 1 && !escolhido)) {
+        // Volta à escolha do caixa, com o carrinho intacto: a tela mostra abrir ou escolher.
+        retomar.current = ab.length === 0;
+        setEnviando(false);
+        err.setGlobal(null);
+        err.reprovar({ cash_register_id: ab.length === 0 ? AVISO_SEM_CAIXA : AVISO_VARIOS });
+        return;
+      }
+    }
+
+    const assinatura = JSON.stringify([m.assinatura, escolhido]);
+    if (chave.current?.assinatura !== assinatura) {
+      chave.current = { assinatura, key: crypto.randomUUID() };
     }
     const trocoCent = v.trocoCent;
-    setEnviando(true);
     const res = await apiPost<VendaGravada>("/api/v1/emporio/sales", {
       operation_key: chave.current.key,
       ...m.corpo,
+      cash_register_id: escolhido || null,
     });
     setEnviando(false);
     if (!res.ok) {
       err.doServidor(res);
+      if (res.code === "CASH_CLOSED" || res.code === "CASH_REGISTER_REQUIRED") {
+        // O servidor discorda da tela: lê de novo os caixas para a escolha refletir o que existe agora.
+        retomar.current = res.code === "CASH_CLOSED";
+        const atual = await apiGet<CaixaRegistradoView[]>(
+          `/api/v1/emporio/cash/registers?establishment_id=${encodeURIComponent(v.loja)}`,
+        );
+        if (atual.ok) setLidos({ lojaId: v.loja, lista: paraCaixasDaLoja(atual.data) });
+      }
       return;
     }
     chave.current = null;
+    retomar.current = false;
     setResumo({ venda: res.data, trocoCent });
     v.reiniciar();
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -209,6 +288,88 @@ export function Balcao({
             aoEscolherLoja={lembrarLoja}
           />
         </div>
+
+        {mostrarCaixa && (
+          <div className="rounded-lg border border-borda bg-superficie p-4 shadow-sm">
+            <Field
+              label="Caixa"
+              required
+              id={err.idDe("cash_register_id")}
+              error={err.erros.cash_register_id}
+              hint={abertos.length === 0 ? "A venda continua aqui assim que o caixa abrir." : undefined}
+            >
+              {({ id, ...aria }) =>
+                abertos.length === 0 ? (
+                  <div id={id} tabIndex={-1} {...aria} className="space-y-2">
+                    <p className="text-sm text-texto-secundario">{AVISO_SEM_CAIXA}</p>
+                    {fechados.length > 1 && (
+                      <Select
+                        value={caixaParaAbrir}
+                        onValueChange={(c) => {
+                          setCaixaParaAbrir(c);
+                          err.limparCampo("cash_register_id");
+                        }}
+                      >
+                        <SelectTrigger aria-label="Caixa a abrir">
+                          <SelectValue placeholder="Escolha o caixa a abrir" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {fechados.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {alvoDaAbertura ? (
+                      <AbrirTurnoForm
+                        key={alvoDaAbertura.id}
+                        caixaId={alvoDaAbertura.id}
+                        caixaNome={alvoDaAbertura.nome}
+                        saldoCent={Math.round(alvoDaAbertura.saldo * 100)}
+                        trigger={
+                          <Button type="button" variant="outline">
+                            Abrir o {alvoDaAbertura.nome}
+                          </Button>
+                        }
+                        aoAbrir={async (aberto) => {
+                          const res = await apiGet<CaixaRegistradoView[]>(
+                            `/api/v1/emporio/cash/registers?establishment_id=${encodeURIComponent(loja)}`,
+                          );
+                          if (res.ok) setLidos({ lojaId: loja, lista: paraCaixasDaLoja(res.data) });
+                          setCaixa(aberto);
+                          err.limparCampo("cash_register_id");
+                          if (retomar.current) {
+                            retomar.current = false;
+                            void enviar(aberto);
+                          }
+                        }}
+                      />
+                    ) : (
+                      fechados.length === 0 && (
+                        <Link href="/emporio/caixa" className="text-sm font-medium text-texto-marca hover:underline">
+                          Ir para o Caixa
+                        </Link>
+                      )
+                    )}
+                  </div>
+                ) : (
+                  <CaixaDaOperacao
+                    id={id}
+                    aria={aria}
+                    abertos={abertos}
+                    valor={caixaEscolhido}
+                    aoMudar={(c) => {
+                      setCaixa(c);
+                      err.limparCampo("cash_register_id");
+                    }}
+                  />
+                )
+              }
+            </Field>
+          </div>
+        )}
 
         <div className="sticky bottom-0 -mx-1 space-y-2 border-t border-borda bg-superficie px-4 py-3 shadow-sm sm:mx-0 sm:rounded-lg sm:border">
           {err.global && (

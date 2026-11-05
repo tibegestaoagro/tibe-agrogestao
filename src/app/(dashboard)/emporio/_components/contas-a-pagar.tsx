@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table";
 import { reaisBr } from "@/lib/numero-br";
 import { CorrigirContaForm } from "./corrigir-conta-form";
+import type { CaixaDaLoja } from "./caixas-da-loja";
 import { PagarContasForm, type OrigemDoDinheiro } from "./pagar-contas-form";
 
 export type ContaDaLista = {
@@ -31,10 +32,14 @@ export function ContasAPagar({
   contas,
   origens,
   hoje,
+  caixas,
+  usuarioId,
 }: {
   contas: ContaDaLista[];
   origens: OrigemDoDinheiro[];
   hoje: string;
+  caixas: CaixaDaLoja[];
+  usuarioId: string;
 }) {
   const [marcadas, setMarcadas] = useState<Set<string>>(new Set());
 
@@ -67,6 +72,8 @@ export function ContasAPagar({
           contas={selecionadas}
           origens={origens}
           hoje={hoje}
+          caixas={caixas}
+          usuarioId={usuarioId}
           aoPagar={() => setMarcadas(new Set())}
         />
       </div>

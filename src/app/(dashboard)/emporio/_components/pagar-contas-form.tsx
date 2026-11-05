@@ -17,9 +17,11 @@ import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { useAviso } from "@/components/ui/toast";
 import { apiPost } from "@/lib/client-api";
 import { reaisBr } from "@/lib/numero-br";
+import { CaixaDaOperacao } from "./caixa-da-operacao";
+import { abertosDaLoja, caixaInicial, type CaixaDaLoja } from "./caixas-da-loja";
 
 // Ordem visual. `entry_ids` é a lista de contas, no topo; `from` e `paid_at` vêm da API.
-const ORDEM = ["entry_ids", "from", "paid_at"] as const;
+const ORDEM = ["entry_ids", "from", "cash_register_id", "paid_at"] as const;
 type Campo = (typeof ORDEM)[number];
 
 export type OrigemDoDinheiro = { valor: string; rotulo: string };
@@ -34,7 +36,11 @@ export function PagarContasForm({
   origens,
   hoje,
   aoPagar,
+  caixas,
+  usuarioId,
 }: {
+  caixas: CaixaDaLoja[];
+  usuarioId: string;
   contas: { entry_id: string; name: string; establishment_name: string | null; open_amount: number }[];
   origens: OrigemDoDinheiro[];
   /** "AAAA-MM-DD" de hoje em Brasília, calculado no servidor. */
@@ -48,6 +54,12 @@ export function PagarContasForm({
   const [loading, setLoading] = useState(false);
   const [origem, setOrigem] = useState("");
   const [data, setData] = useState(hoje);
+  const [caixa, setCaixa] = useState("");
+  // Só a saída da gaveta de uma loja mexe em caixa; conta bancária nunca vê o campo.
+  const lojaDaGaveta = origem.startsWith("loja:") ? origem.slice(5) : "";
+  const abertos = abertosDaLoja(caixas, lojaDaGaveta);
+  const caixaEscolhido = abertos.some((c) => c.id === caixa) ? caixa : caixaInicial(abertos, usuarioId);
+  const mostrarCaixa = lojaDaGaveta !== "" && (abertos.length !== 1 || !!err.erros.cash_register_id);
 
   const totalCent = contas.reduce((s, c) => s + Math.round(c.open_amount * 100), 0);
 
@@ -55,6 +67,7 @@ export function PagarContasForm({
     const novos: Partial<Record<Campo, string>> = {};
     if (contas.length === 0) novos.entry_ids = "Escolha ao menos uma conta para pagar.";
     if (!origem) novos.from = "Diga de onde sai o dinheiro: uma gaveta ou uma conta.";
+    if (origem && lojaDaGaveta && abertos.length > 1 && !caixaEscolhido) novos.cash_register_id = "Escolha o caixa de onde sai o dinheiro.";
     if (!data) novos.paid_at = "Informe a data do pagamento.";
     if (Object.keys(novos).length > 0) {
       err.setGlobal(null);
@@ -70,6 +83,7 @@ export function PagarContasForm({
       // Hoje vai sem data (o servidor usa o instante); outro dia vai ao meio-dia de Brasília, para não escorregar de dia.
       paid_at: data === hoje ? null : `${data}T12:00:00-03:00`,
       from: tipo === "loja" ? { establishment_id: id } : { bank_account_id: id },
+      cash_register_id: tipo === "loja" && caixaEscolhido ? caixaEscolhido : null,
     });
     setLoading(false);
     if (!res.ok) {
@@ -142,6 +156,28 @@ export function PagarContasForm({
           </Select>
         )}
       </Field>
+
+      {mostrarCaixa && (
+        <Field
+          label="Caixa de onde sai o dinheiro"
+          required={abertos.length > 1}
+          id={err.idDe("cash_register_id")}
+          error={err.erros.cash_register_id}
+        >
+          {({ id, ...aria }) => (
+            <CaixaDaOperacao
+              id={id}
+              aria={aria}
+              abertos={abertos}
+              valor={caixaEscolhido}
+              aoMudar={(v) => {
+                setCaixa(v);
+                err.limparCampo("cash_register_id");
+              }}
+            />
+          )}
+        </Field>
+      )}
 
       <Field label="Data do pagamento" required id={err.idDe("paid_at")} error={err.erros.paid_at}>
         {({ id, ...aria }) => (

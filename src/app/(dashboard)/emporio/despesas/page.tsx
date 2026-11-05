@@ -23,6 +23,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { ContasAPagar } from "../_components/contas-a-pagar";
+import { paraCaixasDaLoja } from "../_components/caixas-da-loja";
 import { DespesaFixaAcoes } from "../_components/despesa-fixa-acoes";
 import { DespesaFixaForm } from "../_components/despesa-fixa-form";
 import { RegraVariavelArquivar } from "../_components/regra-variavel-arquivar";
@@ -64,6 +65,7 @@ export default async function DespesasPage() {
   const fixas = fixasRes.ok ? fixasRes.data : [];
   const regras = regrasRes.ok ? regrasRes.data : [];
   const caixa = caixaRes.ok ? caixaRes.data : { drawers: [], accounts: [] };
+  const caixasDaLoja = caixaRes.ok ? paraCaixasDaLoja(caixaRes.data.drawers.flatMap((d) => d.registers)) : [];
 
   const todosProdutos = produtosDb.map((p) => ({ id: p.id, name: p.product.name, presentations: p.presentations, arquivado: !!p.archived_at }));
   const produtosAtivos = todosProdutos.filter((p) => !p.arquivado).map(({ arquivado: _a, ...p }) => p);
@@ -117,7 +119,13 @@ export default async function DespesasPage() {
             As contas do &quot;Vendeu, Pagou&quot; e das despesas fixas aparecem aqui até serem pagas.
           </EmptyState>
         ) : (
-          <ContasAPagar contas={contas} origens={origens} hoje={hoje} />
+          <ContasAPagar
+            contas={contas}
+            origens={origens}
+            hoje={hoje}
+            caixas={caixasDaLoja}
+            usuarioId={user.id}
+          />
         )}
       </section>
 

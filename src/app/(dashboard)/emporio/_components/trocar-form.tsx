@@ -12,11 +12,13 @@ import { apiPost } from "@/lib/client-api";
 import { reaisBr } from "@/lib/numero-br";
 import { DevolucaoItens, montarDevolvidos, type EscolhaDevolucao, type ItemDevolvivel } from "./devolucao-itens";
 import { VendaCampos } from "./venda-campos";
+import { CaixaDaOperacao } from "./caixa-da-operacao";
+import { abertosDaLoja, caixaInicial, type CaixaDaLoja } from "./caixas-da-loja";
 import { useVenda, type CampoDaVenda, type ContatoDeVenda, type PrecosVenda, type ProdutoVenda } from "./venda-estado";
 
 // Ordem visual, de cima para baixo. Na troca o servidor recusa os itens
 // devolvidos em `items_devolvidos` e os da venda nova em `items`.
-const ORDEM = ["items_devolvidos", "amount", "items", "contact_id", "payments", "reason"] as const;
+const ORDEM = ["items_devolvidos", "amount", "items", "contact_id", "payments", "cash_register_id", "reason"] as const;
 type Campo = (typeof ORDEM)[number];
 
 const VAZIA: EscolhaDevolucao = { qtds: {}, avarias: {} };
@@ -35,7 +37,11 @@ export function TrocarForm({
   precos,
   contatos,
   contatoId,
+  caixas,
+  usuarioId,
 }: {
+  caixas: CaixaDaLoja[];
+  usuarioId: string;
   vendaId: string;
   lojaId: string;
   lojaNome: string;
@@ -53,6 +59,10 @@ export function TrocarForm({
   const chave = useRef<{ assinatura: string; key: string } | null>(null);
   const [escolha, setEscolha] = useState<EscolhaDevolucao>(VAZIA);
   const [motivo, setMotivo] = useState("");
+  const abertos = abertosDaLoja(caixas, lojaId);
+  const [caixa, setCaixa] = useState(() => caixaInicial(abertos, usuarioId));
+  // A troca sempre mexe no caixa (venda nova e diferença): pede o campo com 0 ou 2+ abertos.
+  const mostrarCaixa = abertos.length !== 1 || !!err.erros.cash_register_id;
 
   const devolvidos = montarDevolvidos(itensDevolviveis, escolha);
   const devolvidoCent = devolvidos.ok ? devolvidos.totalCent : 0;
@@ -72,6 +82,7 @@ export function TrocarForm({
     if (m.novos.items) novos.items = m.novos.items;
     if (m.novos.contact_id) novos.contact_id = m.novos.contact_id;
     if (m.novos.payments) novos.payments = m.novos.payments;
+    if (abertos.length > 1 && !caixa) novos.cash_register_id = "Escolha o caixa da troca.";
     if (Object.keys(novos).length > 0 || !devolvidos.ok || !m.corpo) {
       err.setGlobal(null);
       err.reprovar(novos);
@@ -86,6 +97,7 @@ export function TrocarForm({
       operation_key: chave.current.key,
       items_devolvidos: devolvidos.itens,
       reason: motivo.trim() || null,
+      cash_register_id: caixa || null,
       venda: m.corpo,
     });
     setLoading(false);
@@ -155,6 +167,28 @@ export function TrocarForm({
         }}
         lojaFixa
       />
+
+      {mostrarCaixa && (
+        <Field
+          label="Caixa da troca"
+          required={abertos.length > 1}
+          id={err.idDe("cash_register_id")}
+          error={err.erros.cash_register_id}
+        >
+          {({ id, ...aria }) => (
+            <CaixaDaOperacao
+              id={id}
+              aria={aria}
+              abertos={abertos}
+              valor={caixa}
+              aoMudar={(v) => {
+                setCaixa(v);
+                err.limparCampo("cash_register_id");
+              }}
+            />
+          )}
+        </Field>
+      )}
 
       <Field label="Motivo da troca" id={err.idDe("reason")} error={err.erros.reason} hint="Opcional.">
         {({ id, ...aria }) => (

@@ -18,9 +18,11 @@ import { useAviso } from "@/components/ui/toast";
 import { apiPost } from "@/lib/client-api";
 import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
 import { centavosParaCampo } from "./venda-estado";
+import { CaixaDaOperacao } from "./caixa-da-operacao";
+import { abertosDaLoja, caixaInicial, type CaixaDaLoja } from "./caixas-da-loja";
 
 // Ordem visual, de cima para baixo.
-const ORDEM = ["contact_id", "amount", "kind", "establishment_id"] as const;
+const ORDEM = ["contact_id", "amount", "kind", "establishment_id", "cash_register_id"] as const;
 type Campo = (typeof ORDEM)[number];
 
 /**
@@ -34,11 +36,15 @@ export function ReceberFiadoForm({
   contatoNome,
   devidoCent,
   lojas,
+  caixas,
+  usuarioId,
 }: {
   contatoId: string;
   contatoNome: string;
   devidoCent: number;
   lojas: { id: string; name: string }[];
+  caixas: CaixaDaLoja[];
+  usuarioId: string;
 }) {
   const router = useRouter();
   const aviso = useAviso();
@@ -49,12 +55,19 @@ export function ReceberFiadoForm({
   const [valor, setValor] = useState(centavosParaCampo(devidoCent));
   const [forma, setForma] = useState("dinheiro");
   const [loja, setLoja] = useState(lojas.length === 1 ? lojas[0].id : "");
+  const [caixa, setCaixa] = useState("");
+  // Só o dinheiro entra na gaveta; PIX nunca vê o campo do caixa.
+  const abertos = abertosDaLoja(caixas, loja);
+  const caixaEscolhido = abertos.some((c) => c.id === caixa) ? caixa : caixaInicial(abertos, usuarioId);
+  const mostrarCaixa =
+    forma === "dinheiro" && loja !== "" && (abertos.length !== 1 || !!err.erros.cash_register_id);
 
   async function submit() {
     const novos: Partial<Record<Campo, string>> = {};
     const n = lerNumeroBr(valor);
     if (n === null || n <= 0) novos.amount = "Informe o valor recebido, maior que zero.";
     if (!loja) novos.establishment_id = "Escolha a loja onde o dinheiro entra.";
+    else if (forma === "dinheiro" && abertos.length > 1 && !caixaEscolhido) novos.cash_register_id = "Escolha o caixa que recebe.";
     if (Object.keys(novos).length > 0 || n === null) {
       err.setGlobal(null);
       err.reprovar(novos);
@@ -71,6 +84,7 @@ export function ReceberFiadoForm({
       establishment_id: loja,
       amount: n,
       kind: forma,
+      cash_register_id: forma === "dinheiro" && caixaEscolhido ? caixaEscolhido : null,
     });
     setLoading(false);
     if (!res.ok) {
@@ -166,6 +180,28 @@ export function ReceberFiadoForm({
           </Select>
         )}
       </Field>
+
+      {mostrarCaixa && (
+        <Field
+          label="Caixa que recebe"
+          required={abertos.length > 1}
+          id={err.idDe("cash_register_id")}
+          error={err.erros.cash_register_id}
+        >
+          {({ id, ...aria }) => (
+            <CaixaDaOperacao
+              id={id}
+              aria={aria}
+              abertos={abertos}
+              valor={caixaEscolhido}
+              aoMudar={(v) => {
+                setCaixa(v);
+                err.limparCampo("cash_register_id");
+              }}
+            />
+          )}
+        </Field>
+      )}
     </FormSheet>
   );
 }

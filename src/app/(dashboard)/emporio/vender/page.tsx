@@ -63,6 +63,7 @@ export default async function VenderPage() {
           produtos={catalogo.produtos}
           precos={catalogo.precos}
           contatos={catalogo.contatos}
+          usuarioId={user.id}
         />
       )}
     </div>

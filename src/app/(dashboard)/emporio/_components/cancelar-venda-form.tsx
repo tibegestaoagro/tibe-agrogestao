@@ -9,32 +9,58 @@ import { FormSheet } from "@/components/ui/form-sheet";
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { useAviso } from "@/components/ui/toast";
 import { apiPost } from "@/lib/client-api";
+import { CaixaDaOperacao } from "./caixa-da-operacao";
+import { abertosDaLoja, caixaInicial, type CaixaDaLoja } from "./caixas-da-loja";
 
-const ORDEM = ["reason"] as const;
+// Ordem visual, de cima para baixo.
+const ORDEM = ["reason", "cash_register_id"] as const;
+type Campo = (typeof ORDEM)[number];
 
 /**
  * Cancelar a venda inteira (só OWNER e ADMIN, o servidor confere). Desfaz a
  * baixa do estoque e devolve ao caixa o que entrou; nada é apagado. A recusa
  * sem campo (já cancelada, tem devolução, é de troca) cai no rodapé do painel.
  */
-export function CancelarVendaForm({ vendaId }: { vendaId: string }) {
+export function CancelarVendaForm({
+  vendaId,
+  lojaId,
+  devolveDinheiro,
+  caixas,
+  usuarioId,
+}: {
+  vendaId: string;
+  lojaId: string;
+  /** A venda teve dinheiro na gaveta: só então o cancelamento mexe no caixa. */
+  devolveDinheiro: boolean;
+  caixas: CaixaDaLoja[];
+  usuarioId: string;
+}) {
   const router = useRouter();
   const aviso = useAviso();
   const err = useErrosDeFormulario(ORDEM, "cancela-venda");
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [motivo, setMotivo] = useState("");
+  const abertos = abertosDaLoja(caixas, lojaId);
+  const [caixa, setCaixa] = useState(() => caixaInicial(abertos, usuarioId));
+  const mostrarCaixa = devolveDinheiro && (abertos.length !== 1 || !!err.erros.cash_register_id);
 
   async function submit() {
-    if (!motivo.trim()) {
+    const novos: Partial<Record<Campo, string>> = {};
+    if (!motivo.trim()) novos.reason = "Diga o motivo do cancelamento.";
+    if (devolveDinheiro && abertos.length > 1 && !caixa) novos.cash_register_id = "Escolha o caixa de onde sai o dinheiro.";
+    if (Object.keys(novos).length > 0) {
       err.setGlobal(null);
-      err.reprovar({ reason: "Diga o motivo do cancelamento." });
+      err.reprovar(novos);
       return;
     }
 
     err.limparTudo();
     setLoading(true);
-    const res = await apiPost(`/api/v1/emporio/sales/${vendaId}/cancel`, { reason: motivo.trim() });
+    const res = await apiPost(`/api/v1/emporio/sales/${vendaId}/cancel`, {
+      reason: motivo.trim(),
+      cash_register_id: devolveDinheiro && caixa ? caixa : null,
+    });
     setLoading(false);
     if (!res.ok) {
       err.doServidor(res);
@@ -81,6 +107,28 @@ export function CancelarVendaForm({ vendaId }: { vendaId: string }) {
           />
         )}
       </Field>
+
+      {mostrarCaixa && (
+        <Field
+          label="Caixa de onde sai o dinheiro"
+          required={abertos.length > 1}
+          id={err.idDe("cash_register_id")}
+          error={err.erros.cash_register_id}
+        >
+          {({ id, ...aria }) => (
+            <CaixaDaOperacao
+              id={id}
+              aria={aria}
+              abertos={abertos}
+              valor={caixa}
+              aoMudar={(v) => {
+                setCaixa(v);
+                err.limparCampo("cash_register_id");
+              }}
+            />
+          )}
+        </Field>
+      )}
     </FormSheet>
   );
 }

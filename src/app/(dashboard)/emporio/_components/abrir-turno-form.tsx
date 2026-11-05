@@ -28,10 +28,16 @@ export function AbrirTurnoForm({
   caixaId,
   caixaNome,
   saldoCent,
+  trigger,
+  aoAbrir,
 }: {
   caixaId: string;
   caixaNome: string;
   saldoCent: number;
+  /** O botão que abre o painel; o da tela do Caixa por padrão. */
+  trigger?: React.ReactNode;
+  /** O balcão abre o caixa sem sair da venda: segue por aqui em vez de recarregar a página. */
+  aoAbrir?: (caixaId: string) => void;
 }) {
   const router = useRouter();
   const aviso = useAviso();
@@ -83,12 +89,13 @@ export function AbrirTurnoForm({
     setReforco("");
     setContado("");
     setMotivo("");
-    router.refresh();
+    if (aoAbrir) aoAbrir(caixaId);
+    else router.refresh();
   }
 
   return (
     <FormSheet
-      trigger={<Button size="sm">Abrir</Button>}
+      trigger={trigger ?? <Button size="sm">Abrir</Button>}
       title={`Abrir o ${caixaNome}`}
       description="Conte o troco que está no caixa. Se faltar troco, peça um reforço à gerência."
       open={open}
