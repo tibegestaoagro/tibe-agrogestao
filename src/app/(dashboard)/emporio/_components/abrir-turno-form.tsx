@@ -30,6 +30,7 @@ export function AbrirTurnoForm({
   saldoCent,
   trigger,
   aoAbrir,
+  aoFechar,
 }: {
   caixaId: string;
   caixaNome: string;
@@ -38,6 +39,8 @@ export function AbrirTurnoForm({
   trigger?: React.ReactNode;
   /** O balcão abre o caixa sem sair da venda: segue por aqui em vez de recarregar a página. */
   aoAbrir?: (caixaId: string) => void;
+  /** O painel foi fechado sem abrir o caixa. */
+  aoFechar?: () => void;
 }) {
   const router = useRouter();
   const aviso = useAviso();
@@ -101,7 +104,10 @@ export function AbrirTurnoForm({
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
-        if (!o) err.limparTudo();
+        if (!o) {
+          err.limparTudo();
+          aoFechar?.();
+        }
       }}
       onSubmit={submit}
       submitLabel="Abrir o caixa"

@@ -42,6 +42,7 @@ const JA_ABERTO = () => fail("SESSION_ALREADY_OPEN", "Este caixa já está abert
 const TURNO_ENCERRADO = () => fail("SESSION_CLOSED", "Este turno já foi encerrado.", 409);
 const SEM_DINHEIRO = (campo: string) => fail("INSUFFICIENT_CASH", "Não há dinheiro suficiente para isso.", 409, campo);
 const SO_QUEM_ABRIU = () => fail("NOT_SESSION_OWNER", "Só quem abriu o caixa ou o gestor da loja encerra este turno.", 403);
+const SO_QUEM_ABRIU_SANGRIA = () => fail("NOT_SESSION_OWNER", "Só quem abriu o caixa ou o gestor da loja faz sangria neste turno.", 403);
 const MALOTE_GRANDE = () => fail("MALOTE_TOO_BIG", "O malote não pode passar do que foi contado.", 422, "malote_amount");
 const JA_CONFIRMADA = () => fail("HANDOVER_ALREADY_CONFIRMED", "Esta entrega já foi confirmada.", 409);
 const SEM_CHAVE = () => fail("VALIDATION_ERROR", "Falta a chave da operação.", 422, "operation_key");
@@ -479,6 +480,14 @@ export async function sangriaAction(
   const negLoja = await exigir(db, ator, "vendedor_da_loja", "fazer sangria", sessao.establishment_id);
   if (negLoja) return negLoja;
   if (sessao.closed_at) return (await repeticao()) ?? TURNO_ENCERRADO();
+  // Na loja com Caixa, a sangria é de quem abriu o turno ou do gestor da loja (a mesma regra do encerramento).
+  if (
+    sessao.opened_by_user_id !== ator.id &&
+    !pode(await papelDoEmporio(db, ator), "gestor_da_loja", sessao.establishment_id) &&
+    (await lojaTemCaixa(db, sessao.establishment_id))
+  ) {
+    return SO_QUEM_ABRIU_SANGRIA();
+  }
   if (!numero(input.amount) || centavos(input.amount) <= 0) {
     return fail("VALIDATION_ERROR", "O valor da sangria deve ser maior que zero.", 422, "amount");
   }
@@ -764,11 +773,25 @@ export async function confirmarEntregaAction(
 // Leituras
 // ---------------------------------------------------------------------------
 
+/** Meia-noite de hoje em São Paulo (o mesmo critério das vendas do dia do Caixa). */
+function inicioDeHojeEmSaoPaulo(): Date {
+  const ymd = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+  return new Date(`${ymd}T00:00:00-03:00`);
+}
+
+/** O Caixa só lê o turno aberto agora ou aberto hoje. */
+async function soTurnosDeHoje(db: TenantPrismaClient, ator: Ator): Promise<Record<string, unknown> | null> {
+  if ((await papelDoEmporio(db, ator)).papel !== "caixa") return null;
+  return { OR: [{ open_register_id: { not: null } }, { opened_at: { gte: inicioDeHojeEmSaoPaulo() } }] };
+}
+
 export async function listarEntregasAction(
   db: TenantPrismaClient,
   ator: Ator,
   opts: { establishment_id?: string; status?: string } = {},
 ): Promise<ActionResult<EntregaView[]>> {
+  const neg = await exigir(db, ator, "gestor_da_loja", "ver as entregas do caixa", opts.establishment_id);
+  if (neg) return neg;
   const status = opts.status ?? "pending";
   if (status !== "pending" && status !== "confirmed") {
     return fail("VALIDATION_ERROR", "Escolha a situação: pending ou confirmed.", 422, "status");
@@ -801,16 +824,22 @@ export async function listarTurnosAction(
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
     return NAO_ACHADO("Estabelecimento", "establishment_id");
   }
+  const hoje = await soTurnosDeHoje(db, ator);
   return ok(
     await viewsDosTurnos(db, {
       ...(opts.establishment_id ? { establishment_id: opts.establishment_id } : visiveis ? { establishment_id: { in: [...visiveis] } } : {}),
       ...(opts.status === "open" ? { open_register_id: { not: null } } : opts.status === "closed" ? { closed_at: { not: null } } : {}),
+      ...(hoje ?? {}),
     }),
   );
 }
 
 export async function lerTurnoAction(db: TenantPrismaClient, ator: Ator, sessionId: string): Promise<ActionResult<TurnoView>> {
-  const s = await db.cashSession.findFirst({ where: { id: String(sessionId ?? "") }, select: { id: true, establishment_id: true } });
+  const hoje = await soTurnosDeHoje(db, ator);
+  const s = await db.cashSession.findFirst({
+    where: { id: String(sessionId ?? ""), ...(hoje ?? {}) },
+    select: { id: true, establishment_id: true },
+  });
   if (!s || !(await lojaVisivel(db, ator, s.establishment_id))) return NAO_ACHADO("Turno");
   const [t] = await viewsDosTurnos(db, { id: s.id }, 1);
   return t ? ok(t) : NAO_ACHADO("Turno");

@@ -90,6 +90,15 @@ export function Balcao({
   // Verdadeiro quando foi o "Fechar a venda" que bateu no caixa fechado: aberto o caixa, a venda segue sozinha.
   const retomar = useRef(false);
 
+  // A venda que segue sozinha depois de abrir o caixa só vale para ESTA venda: trocar de loja
+  // ou mexer nos itens ou no pagamento desfaz o "retomar", para o caixa aberto depois não
+  // fechar uma venda que a pessoa já não está olhando.
+  const assinaturaDoCarrinho = v.montar(false).assinatura;
+  const lojaDoRetomar = v.loja;
+  useEffect(() => {
+    retomar.current = false;
+  }, [lojaDoRetomar, assinaturaDoCarrinho]);
+
   // A loja da última venda volta sozinha. Lido no efeito, não no estado
   // inicial, para o HTML do servidor e o do navegador não divergirem.
   const { loja, setLoja } = v;
@@ -333,6 +342,9 @@ export function Balcao({
                             Abrir o {alvoDaAbertura.nome}
                           </Button>
                         }
+                        aoFechar={() => {
+                          retomar.current = false;
+                        }}
                         aoAbrir={async (aberto) => {
                           const res = await apiGet<CaixaRegistradoView[]>(
                             `/api/v1/emporio/cash/registers?establishment_id=${encodeURIComponent(loja)}`,

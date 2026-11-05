@@ -12,6 +12,7 @@ exigirBancoLocal();
  * Seção 3: caixas, turno (abrir, sangria, conferir, encerrar), a gerência, a transferência, o Meu Dia e as rotas.
  * Seção 4: todo dinheiro da gaveta (venda, fiado, devolução, cancelamento, troca, despesa) cai no turno.
  * Seção 5: o relatório do encerramento (dados do papel).
+ * Seção 6: a reaplicação do backfill só preenche lojas sem turno.
  */
 
 let falhas = 0;
@@ -378,7 +379,7 @@ async function secao2() {
 
 async function secao3() {
   console.log("\nSeção 3: caixas, turno, sangria, encerramento e a gerência (com banco)");
-  const { prisma, prismaForTenant } = await import("@/lib/prisma");
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
   const Cat = await import("@/lib/actions/emporio-catalogo");
   const Caixa = await import("@/lib/actions/emporio-caixa");
   const Tu: Dado = await import("@/lib/actions/emporio-turno");
@@ -527,18 +528,18 @@ async function secao3() {
   // --- sangria
   const ger0 = await gerencia();
   const kS = k("sangria");
-  const sg = await Tu.sangriaAction(db, cx, T1, { operation_key: kS, amount: 30 });
-  check("sangria de 30 com 50 no caixa (o Caixa faz)", sg.ok, j(sg));
+  const sg = await Tu.sangriaAction(db, v1, T1, { operation_key: kS, amount: 30 });
+  check("sangria de 30 com 50 no caixa (quem abriu o turno faz)", sg.ok, j(sg));
   check("o caixa fica com 20 e a gerência não muda (aguarda o gerente)", (await saldo(r1)) === 2000 && (await gerencia()) === ger0);
   const hS = await db.cashHandover.findMany({ where: { cash_session_id: T1 ?? "x" } });
   check("uma entrega pendente de 30, kind sangria", hS.length === 1 && hS[0].kind === "sangria" && n(hS[0].amount) === 30 && hS[0].confirmed_at === null, j(hS));
   const mS = await db.cashMovement.findMany({ where: { origin: "sangria", cash_handover_id: hS[0]?.id ?? "x" } });
   check("a saída da sangria leva o turno e a entrega", mS.length === 1 && mS[0].direction === "saida" && mS[0].cash_session_id === T1 && mS[0].cash_register_id === r1, j(mS));
-  const sgB = await Tu.sangriaAction(db, cx, T1, { operation_key: kS, amount: 30 });
+  const sgB = await Tu.sangriaAction(db, v1, T1, { operation_key: kS, amount: 30 });
   check("repetir a chave da sangria não duplica", sgB.ok && (await db.cashHandover.count({ where: { operation_key: kS } })) === 1 && (await saldo(r1)) === 2000, j(sgB));
-  const sgOutro = await Tu.sangriaAction(db, cx, T2, { operation_key: kS, amount: 30 });
+  const sgOutro = await Tu.sangriaAction(db, v1, T2, { operation_key: kS, amount: 30 });
   check("a chave da sangria do Caixa 1 usada noutro turno: recusada, sem devolver a do outro", !sgOutro.ok && sgOutro.status === 409 && sgOutro.field === "operation_key", j(sgOutro));
-  const sg80 = await Tu.sangriaAction(db, cx, T1, { operation_key: k("sangria"), amount: 80 });
+  const sg80 = await Tu.sangriaAction(db, v1, T1, { operation_key: k("sangria"), amount: 80 });
   check("sangria de 80 com 20: 409 INSUFFICIENT_CASH em amount", rec(sg80, "INSUFFICIENT_CASH", 409, "amount") && sg80.message === "Não há dinheiro suficiente para isso.", j(sg80));
 
   // --- conferência livre dentro do turno
@@ -581,6 +582,14 @@ async function secao3() {
   check("sangria em turno encerrado: 409 SESSION_CLOSED", rec(await Tu.sangriaAction(db, v1, T5, { operation_key: k("sangria"), amount: 1 }), "SESSION_CLOSED", 409));
   const cfFechado: Dado = await Caixa.conferirGavetaAction(db, v1, { cash_register_id: r5, counted: 20 } as never);
   check("conferir caixa fechado: 409 CASH_CLOSED em cash_register_id", rec(cfFechado, "CASH_CLOSED", 409, "cash_register_id") && cfFechado.message === "Nenhum caixa aberto nesta loja. Abra o caixa com o troco inicial.", j(cfFechado));
+
+  // --- revisão final: M4, quem faz sangria
+  const v2Sg: Dado = await Tu.sangriaAction(db, v2, T1, { operation_key: k("sangria"), amount: 1 });
+  check(
+    "loja com Caixa: o Vendedor que não abriu o turno recebe 403 NOT_SESSION_OWNER na sangria",
+    rec(v2Sg, "NOT_SESSION_OWNER", 403) && v2Sg.message === "Só quem abriu o caixa ou o gestor da loja faz sangria neste turno.",
+    j(v2Sg),
+  );
 
   // --- quem encerra
   const v2Enc = await Tu.encerrarTurnoAction(db, v2, T1, { operation_key: k("enc"), counted: 20, malote_amount: 0 });
@@ -713,8 +722,44 @@ async function secao3() {
   check("o Caixa da Loja 1 sangra o caixa da Loja 2: 403", rec(await Tu.sangriaAction(db, cx, TL2, { operation_key: k("sangria"), amount: 1 }), "FORBIDDEN", 403));
   check("o Caixa da Loja 1 encerra o caixa da Loja 2: 403", rec(await Tu.encerrarTurnoAction(db, cx, TL2, { operation_key: k("enc"), counted: 0, malote_amount: 0 }), "FORBIDDEN", 403));
 
+  // --- revisão final: M6, a gerência de destino fora do alcance
+  const trFora: Dado = await Caixa.transferirCaixaAction(db, gestor2, { operation_key: k("tr"), from: { manager_establishment_id: L2 } as never, to: { manager_establishment_id: L1 } as never, amount: 1 });
+  check("o Gestor da Loja 2 manda para a gerência da Loja 1, que não enxerga: 403", rec(trFora, "FORBIDDEN", 403), j(trFora));
+
+  // --- revisão final: M5, o Caixa só lê os turnos de hoje; as entregas são do gestor
+  const Rel: Dado = await import("@/lib/actions/emporio-relatorio-turno");
+  const ha2dias = new Date(Date.now() - 2 * 86_400_000);
+  const velho = await db.cashSession.create({
+    data: scoped({
+      establishment_id: L1,
+      cash_register_id: r1,
+      operation_key: k("velho"),
+      opened_by_user_id: v1.id,
+      opened_at: ha2dias,
+      opening_expected: 0,
+      opening_counted: 0,
+      closed_at: new Date(ha2dias.getTime() + 3_600_000),
+      closed_by_user_id: v1.id,
+      close_operation_key: k("velho-enc"),
+      closing_expected: 0,
+      closing_counted: 0,
+      malote_amount: 0,
+    }),
+  });
+  const cxVelho = await Tu.lerTurnoAction(db, cx, velho.id);
+  check("o Caixa lê um turno de dois dias atrás: 404", rec(cxVelho, "NOT_FOUND", 404), j(cxVelho));
+  check("o Caixa lê o relatório desse turno: 404", rec(await Rel.lerRelatorioDoTurnoAction(db, cx, velho.id), "NOT_FOUND", 404));
+  const cxLista = await Tu.listarTurnosAction(db, cx, { establishment_id: L1 });
+  check("a lista do Caixa não traz o turno antigo, mas traz o aberto", cxLista.ok && !cxLista.data.some((t: Dado) => t.id === velho.id) && cxLista.data.some((t: Dado) => t.id === T2), j(cxLista.ok ? cxLista.data.map((t: Dado) => t.id) : cxLista));
+  check("o Vendedor lê o turno antigo", (await Tu.lerTurnoAction(db, v1, velho.id)).ok);
+  check("o Gestor da loja lê o turno antigo", (await Tu.lerTurnoAction(db, gestor, velho.id)).ok);
+  check("o Caixa lê o turno aberto de hoje", (await Tu.lerTurnoAction(db, cx, T2)).ok);
+  check("listarEntregas: o Caixa recebe 403", rec(await Tu.listarEntregasAction(db, cx, { establishment_id: L1 }), "FORBIDDEN", 403));
+  check("listarEntregas: o Vendedor recebe 403", rec(await Tu.listarEntregasAction(db, v1, {}), "FORBIDDEN", 403));
+  check("listarEntregas: o Gestor da loja lê", (await Tu.listarEntregasAction(db, gestor, { establishment_id: L1 })).ok);
+
   // --- listar e ler
-  const lc = await Tu.listarCaixasAction(db, v1, L1);
+  const lc =await Tu.listarCaixasAction(db, v1, L1);
   check(
     "listarCaixas da Loja 1: os 5 caixas, com nome, saldo e o turno aberto",
     lc.ok && lc.data.length === 5 && lc.data[0].nome === "Caixa 1" && lc.data[0].turno_aberto === null && lc.data[1].turno_aberto?.id === T2 && lc.data[4].saldo === 20,
@@ -1223,6 +1268,88 @@ async function secao5(ctx: Dado) {
   check("malote_confirmado true depois da confirmação", r3.ok && r3.data.malote_confirmado === true, j(r3));
 }
 
+async function secao6() {
+  console.log("\nSeção 6: a reaplicação do backfill não conta duas vezes (com banco)");
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+  const Cat = await import("@/lib/actions/emporio-catalogo");
+  const { readFileSync } = await import("node:fs");
+  const stamp = Date.now();
+  const t = await prisma.tenant.create({
+    data: {
+      name: `M92 reaplicar ${stamp}`,
+      document: `R${String(stamp).slice(-13)}`,
+      plan: "grupo",
+      status: "trial",
+      trial_ends_at: new Date(Date.now() + 86_400_000),
+    },
+  });
+  tenantIds.push(t.id);
+  await prisma.tenantProfile.create({ data: { tenant_id: t.id, profile_type: "emporio", active: true } });
+  await prisma.tenantFeature.create({ data: { tenant_id: t.id, feature_key: "emporio", enabled: true } });
+  const u = await prisma.user.create({
+    data: { tenant_id: t.id, name: "M92 reaplicar", email: `m92-reap-${stamp}@teste.local`, password_hash: "x", role: "OWNER" },
+  });
+  const owner = { id: u.id, role: "OWNER" as const, email: u.email };
+  const db = prismaForTenant(t.id);
+  const semTurno = await Cat.criarEstabelecimentoAction(db, owner, { name: "M92 R Sem Turno" });
+  const comTurno = await Cat.criarEstabelecimentoAction(db, owner, { name: "M92 R Com Turno" });
+  if (!semTurno.ok || !comTurno.ok) throw new Error(`lojas: ${j([semTurno, comTurno])}`);
+  const caixaDe = async (loja: string) => (await db.cashRegister.findFirst({ where: { establishment_id: loja, number: 1 } }))!;
+  const cxSem = await caixaDe(semTurno.data.id);
+  const cxCom = await caixaDe(comTurno.data.id);
+  await db.cashSession.create({
+    data: scoped({
+      establishment_id: comTurno.data.id,
+      cash_register_id: cxCom.id,
+      open_register_id: cxCom.id,
+      operation_key: `m92-reap-${stamp}`,
+      opened_by_user_id: u.id,
+      opened_at: new Date(),
+      opening_expected: 0,
+      opening_counted: 0,
+    }),
+  });
+  const solto = (loja: string, amount: number) =>
+    db.cashMovement.create({
+      data: scoped({ establishment_id: loja, direction: "entrada" as const, origin: "implantacao" as const, occurred_at: new Date(), amount }),
+    });
+  const mSem = await solto(semTurno.data.id, 40);
+  const mCom = await solto(comTurno.data.id, 25);
+
+  // A consulta "rode primeiro" do arquivo: o bloco comentado, tirado do comentário.
+  const sql = readFileSync("prisma/sql/emporio-caixa-turno-reaplicar.sql", "utf8");
+  const consulta = sql
+    .split("\n")
+    .filter((l) => l.startsWith("-- SELECT") || l.startsWith("--        ") || l.startsWith("-- FROM") || l.startsWith("-- JOIN") || l.startsWith("-- WHERE") || l.startsWith("--   ") || l.startsWith("-- GROUP"))
+    .map((l) => l.replace(/^-- ?/, ""))
+    .join("\n")
+    .replace(/;\s*$/, "");
+  check("o arquivo traz a consulta de conferência comentada", consulta.includes("SELECT") && consulta.includes("CashSession"), consulta.slice(0, 80));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const antes: Dado[] = (await prisma.$queryRawUnsafe(consulta)) as any;
+  const minha = antes.filter((r) => r.establishment_id === comTurno.data.id || r.establishment_id === semTurno.data.id);
+  check(
+    "a consulta lista só a loja com turno (1 movimento, soma 25)",
+    minha.length === 1 && minha[0].establishment_id === comTurno.data.id && Number(minha[0].movimentos) === 1 && Number(minha[0].soma_dos_movimentos) === 25,
+    JSON.stringify(minha, (_k, v) => (typeof v === "bigint" ? v.toString() : v)),
+  );
+
+  // O arquivo tem vários comandos; cada um roda separado.
+  const comandos = sql
+    .split("\n")
+    .filter((l) => !l.startsWith("--"))
+    .join("\n")
+    .split(";")
+    .map((c) => c.trim())
+    .filter(Boolean);
+  for (const c of comandos) await prisma.$executeRawUnsafe(c);
+
+  const depoisSem = await prisma.cashMovement.findUnique({ where: { id: mSem.id } });
+  const depoisCom = await prisma.cashMovement.findUnique({ where: { id: mCom.id } });
+  check("loja sem turno: o movimento é preenchido com o Caixa 1", depoisSem?.cash_register_id === cxSem.id, j(depoisSem?.cash_register_id));
+  check("loja com turno: o movimento não é tocado", depoisCom?.cash_register_id === null, j(depoisCom?.cash_register_id));
+}
+
 async function limpar() {
   const { prisma } = await import("@/lib/prisma");
   const modelos = [
@@ -1253,6 +1380,7 @@ async function main() {
     await secao3();
     const ctx4 = await secao4();
     await secao5(ctx4);
+    await secao6();
   } finally {
     await limpar();
   }

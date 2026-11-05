@@ -1706,6 +1706,9 @@ export async function transferirCaixaAction(
     if (!conta) return NAO_ACHADO("Conta de origem", "from");
   }
   if (destino.data.gerenciaId) {
+    // O destino também precisa estar ao alcance do ator: gestor não manda dinheiro à gerência de loja que não enxerga.
+    const negDestino = await exigir(db, ator, "vendedor_da_loja", "levar dinheiro para a gerência dessa loja", destino.data.gerenciaId);
+    if (negDestino) return negDestino;
     const loja = await db.establishment.findFirst({ where: { id: destino.data.gerenciaId }, select: { archived_at: true } });
     if (!loja || loja.archived_at) return fail("VALIDATION_ERROR", "Escolha uma loja ativa para receber.", 422, "to");
   } else {
