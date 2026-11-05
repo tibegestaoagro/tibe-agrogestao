@@ -96,6 +96,44 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
+### Empório, entrega 4: orçamento (05/11), NA BRANCH
+
+**Branch `emporio-orcamento`** (saída de `e2c2d65`), **sem merge, sem push, sem
+deploy.** Plano `docs/superpowers/plans/2026-11-05-emporio-entrega4-orcamento.md`,
+decisões Q176 a Q187 na spec do módulo. Contém:
+- `EmporioQuote` e `EmporioQuoteItem`, mais `EmporioSale.quote_id`: orçamento com
+  número, validade (7 dias, até o fim do dia em Brasília) e situação derivada
+  (aberto, vencido, faturado), cliente completo obrigatório;
+- o balcão com o seletor Venda | Orçamento: salva o orçamento, e na Venda
+  carrega pelo número e fatura (`quote_id`), com o vendedor do orçamento
+  travado e os avisos de vencido, preço que mudou e falta de estoque;
+- preço ao faturar: o menor entre o orçado e o de hoje dentro da validade, o de
+  hoje depois dela; faturar uma vez só (atualização condicional), e cancelar a
+  venda devolve o orçamento a aberto;
+- `/emporio/orcamentos` e o detalhe (Vendedor para cima; o Caixa só fatura
+  digitando o número) e o papel do orçamento em A4 e bobina.
+
+Provas (05/11): `test:m94` verde; o roteiro
+`npm run navegador -- emporio-orcamento` (cenário
+`scripts/_cenario-emporio-orcamento.ts`) verde, vermelho com o balcão sem
+mandar `quote_id` (11 falhas, a primeira em "a venda sai") e verde de novo
+restaurado; `emporio-vendedor` e `emporio-turno` seguem verdes; lista e balcão
+em modo Orçamento sem rolagem horizontal a 390 px. A primeira rodada do
+roteiro achou um defeito real: `/emporio/orcamentos` dava 500, porque a página
+(server) importava `SITUACOES_DO_ORCAMENTO` de um arquivo `"use client"`
+(`_components/orcamentos-filtro.tsx`); o verde acima foi com essa constante
+copiada na página, e a correção definitiva (constante num módulo sem
+`"use client"`) precisa estar na branch antes do deploy.
+
+⚠️ **A migração `20261105150000_emporio_orcamento` NÃO está no Neon.** Ordem do
+deploy: (1) `npx prisma migrate status` apontando ao Neon; (2) aplicar a
+migração com a URL **Direct** (sem `-pooler`), ela é aditiva; (3) só então o
+merge e o push, cada um com a autorização do usuário. Sem reaplicação de dados:
+nenhuma venda antiga tem orçamento (`quote_id` nasce nulo).
+
+Aceito e registrado (Q184, Q187): a venda faturada de um orçamento com desconto
+grava `discount_amount` 0, e há pontas que esperam decisão do usuário.
+
 ### Empório, entrega 3: vendedor e relatórios (05/11), em produção
 
 **Em produção desde 05/11** (`03bba19`, merge fast-forward de
@@ -502,8 +540,11 @@ de produto: o reforço vindo da gerência deve esperar o gestor confirmar, como
 a sangria? A entrega 3 (vendedor na venda e relatórios) também está em
 produção desde 05/11: o usuário avisa a Da Mata que o Caixa passa a escolher
 o vendedor em toda venda, e que os Relatórios ficam no menu do Gestor para
-cima. Faltam o capítulo do turno, do Caixa e dos Relatórios no manual, e
-corrigir o cenário de demonstração antes de refazê-la. Da entrega 1, segue
+cima. A entrega 4 (orçamento) está pronta na branch `emporio-orcamento`: o
+próximo passo é o deploy na ordem da seção dela acima (migração no Neon com a
+URL Direct, depois merge e push, com autorização do usuário). Depois do
+deploy, faltam o capítulo do turno, do Caixa, dos Relatórios e do Orçamento no
+manual, e corrigir o cenário de demonstração antes de refazê-la. Da entrega 1, segue
 pendente o usuário imprimir um cupom
 de 58 e de 80 mm na bobina da loja e um A4.
 
