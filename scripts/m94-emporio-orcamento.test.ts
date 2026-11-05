@@ -731,6 +731,31 @@ async function secao3(c: Dado) {
     check("a troca com quote_id no corpo: sai, sem orçamento na venda nova", tr.ok && tr.data.venda.quote === null, j(tr.ok ? tr.data.venda.quote : tr));
     check("e o orçamento continua aberto", (await situacao(qH.id)).situacao === "aberto");
   }
+
+  // --- o preço baixou depois do orçamento: vale o menor, e o desconto sobre ele segue o limite da loja (5%)
+  await precoHoje(25);
+  const qI = await orcarP(); // orçado a 25
+  await precoHoje(18);
+  // 16 sobre a base 18 é 11,11% de desconto (sobre o orçado 25 seria ainda mais).
+  const comDesconto = { items: [itemP(2, { unit_price: 16 })] };
+  await recusaSemGravar(
+    "base 18 (o menor), Vendedor a 16: desconto acima do limite",
+    faturar(vend1, qI.id, 32, comDesconto),
+    "DISCOUNT_ABOVE_LIMIT",
+    403,
+    "items",
+    "O desconto de 11,11% passa do limite de 5% desta loja. Peça ao gestor da loja.",
+  );
+  const sI = await situacao(qI.id);
+  check("e o orçamento continua aberto, sem venda", sI.situacao === "aberto" && sI.sale === null && sI.vendas.length === 0, j([sI.situacao, sI.sale, sI.vendas]));
+  const vI = await faturar(gestor, qI.id, 32, comDesconto);
+  check(
+    "o mesmo pelo Gestor: sai com base 18, desconto 4 e autorizado pelo Gestor",
+    vI.ok && vI.data.items[0].suggested_price === 18 && vI.data.items[0].unit_price === 16 && vI.data.discount_amount === 4 && vI.data.discount_authorized_by_user_id === gestor.id,
+    j(vI.ok ? [vI.data.items, vI.data.discount_amount, vI.data.discount_authorized_by_user_id] : vI),
+  );
+  const sI2 = await situacao(qI.id);
+  check("e o orçamento fica faturado por essa venda", vI.ok && sI2.situacao === "faturado" && sI2.sale?.id === vI.data.id, j([sI2.situacao, sI2.sale]));
 }
 
 async function limpar() {
