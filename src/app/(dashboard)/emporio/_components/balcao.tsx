@@ -15,7 +15,16 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import type { CaixaRegistradoView } from "@/lib/actions/emporio-caixa";
+import type { OrcamentoView } from "@/lib/actions/emporio-orcamentos";
 import { AbrirTurnoForm } from "./abrir-turno-form";
+import {
+  cargaDoOrcamento,
+  ObservacaoDoOrcamento,
+  OrcamentoNaVenda,
+  ResumoDoOrcamento,
+  SeletorDeModo,
+  type ModoDoBalcao,
+} from "./balcao-orcamento";
 import { CaixaDaOperacao } from "./caixa-da-operacao";
 import { abertosDaLoja, caixaInicial, fechadosDaLoja, paraCaixasDaLoja, type CaixaDaLoja } from "./caixas-da-loja";
 import { VendaCampos } from "./venda-campos";
@@ -36,9 +45,25 @@ import { useVenda, type ContatoDeVenda, type PrecosVenda, type ProdutoVenda, typ
  *
  * A `operation_key` é uma por venda: reenviar a MESMA venda (falha de rede)
  * reaproveita a chave e devolve a venda já gravada; mexer na venda gera outra.
+ *
+ * Entrega 4: o mesmo balcão salva orçamento (modo Orçamento, sem pagamento nem
+ * caixa) e fatura um orçamento salvo (na Venda, pelo número ou por
+ * `?orcamento=<id>`). O orçamento carregado nunca atravessa de um atendimento
+ * para o outro: trocar de loja, gravar a venda ou "Novo atendimento" o tiram,
+ * como já tiram o vendedor escolhido.
  */
 
-const ORDEM = ["establishment_id", "items", "contact_id", "payments", "seller_user_id", "cash_register_id"] as const;
+const ORDEM = [
+  "establishment_id",
+  "number",
+  "quote_id",
+  "items",
+  "contact_id",
+  "payments",
+  "notes",
+  "seller_user_id",
+  "cash_register_id",
+] as const;
 
 /** A mesma frase do servidor (`SELLER_REQUIRED`): a recusa daqui e a de lá são indistinguíveis. */
 const AVISO_SEM_VENDEDOR = "Escolha o vendedor que atendeu.";
@@ -54,6 +79,7 @@ type VendaGravada = {
   net_amount: number;
   contact_name: string | null;
   seller_name: string | null;
+  quote: { id: string; numero: string } | null;
   items: { product_name: string; presentation_name: string; quantity: number }[];
   payments: { kind: string; amount: number }[];
 };
@@ -68,7 +94,10 @@ export function Balcao({
   usuarioId,
   vendedoresPorLoja,
   ehCaixa,
+  orcamentoInicial = null,
 }: {
+  /** `/emporio/vender?orcamento=<id>`: o balcão abre na Venda com este orçamento carregado. */
+  orcamentoInicial?: OrcamentoView | null;
   lojas: { id: string; name: string }[];
   produtos: ProdutoVenda[];
   precos: PrecosVenda;
@@ -82,15 +111,22 @@ export function Balcao({
 }) {
   const err = useErrosDeFormulario(ORDEM);
   const [regras, setRegras] = useState<RegraCartaoVenda[] | null>(null);
+  const [cargaInicial] = useState(() => (orcamentoInicial ? cargaDoOrcamento(orcamentoInicial) : null));
   const v = useVenda({
     produtos,
     precos,
-    lojaInicial: lojas.length === 1 ? lojas[0].id : "",
+    lojaInicial: orcamentoInicial?.establishment_id ?? (lojas.length === 1 ? lojas[0].id : ""),
     regras,
     consumidorFinalId: contatos.find((c) => c.consumidor_final)?.id ?? "",
+    cargaInicial,
   });
   const [enviando, setEnviando] = useState(false);
   const [resumo, setResumo] = useState<Resumo | null>(null);
+  const [modo, setModo] = useState<ModoDoBalcao>("venda");
+  // O orçamento posto na Venda para faturar: o envio leva `quote_id`.
+  const [orcamento, setOrcamento] = useState<OrcamentoView | null>(orcamentoInicial);
+  const [notas, setNotas] = useState("");
+  const [orcamentoSalvo, setOrcamentoSalvo] = useState<OrcamentoView | null>(null);
   const chave = useRef<{ assinatura: string; key: string } | null>(null);
 
   // Os caixas da loja escolhida, lidos do servidor: mudam entre uma venda e outra.
@@ -166,7 +202,11 @@ export function Balcao({
   const caixaEscolhido = abertos.some((c) => c.id === caixa) ? caixa : caixaInicial(abertos, usuarioId);
   const alvoDaAbertura = fechados.length === 1 ? fechados[0] : fechados.find((c) => c.id === caixaParaAbrir);
   // Um caixa aberto só: o servidor resolve e a tela não pergunta. Zero ou vários, ou uma recusa do servidor: pergunta.
-  const mostrarCaixa = loja !== "" && caixasDaLoja !== null && (abertos.length !== 1 || !!err.erros.cash_register_id);
+  // O orçamento não mexe em dinheiro: no modo Orçamento o caixa nem aparece.
+  const mostrarCaixa =
+    modo === "venda" && loja !== "" && caixasDaLoja !== null && (abertos.length !== 1 || !!err.erros.cash_register_id);
+  // Faturando um orçamento, o vendedor é o dele (o servidor o herda): a tela mostra e não pergunta.
+  const vendedorTravado = modo === "venda" && orcamento !== null;
 
   // O mesmo efeito do FormSheet: leva o foco ao primeiro campo recusado.
   useEffect(() => {
@@ -179,6 +219,8 @@ export function Balcao({
 
   function lembrarLoja(id: string) {
     setVendedorEscolhido("");
+    // O orçamento só se fatura na loja dele: trocar de loja o tira (o `setLoja` já tirou o preço dele).
+    setOrcamento(null);
     try {
       window.localStorage.setItem(CHAVE_LOJA, id);
     } catch {
@@ -186,10 +228,94 @@ export function Balcao({
     }
   }
 
-  async function enviar(recemAberto?: string) {
-    const m = v.montar(true);
+  function tirarOrcamento() {
+    setOrcamento(null);
+    v.soltarOrcamento();
+  }
+
+  /** Põe o orçamento na Venda: itens, preço que vale, cliente; o vendedor passa a ser o dele. */
+  function carregarNaVenda(q: OrcamentoView) {
+    if (q.establishment_id !== v.loja) {
+      v.setLoja(q.establishment_id);
+      lembrarLoja(q.establishment_id);
+    }
+    v.carregarOrcamento(cargaDoOrcamento(q));
+    setOrcamento(q);
+    setVendedorEscolhido("");
+    setModo("venda");
+    setResumo(null);
+    setOrcamentoSalvo(null);
+    err.limparTudo();
+  }
+
+  function mudarModo(novo: ModoDoBalcao) {
+    if (novo === modo) return;
+    // O orçamento carregado é para faturar: num orçamento novo ele não vale.
+    if (novo === "orcamento" && orcamento) tirarOrcamento();
+    setModo(novo);
+    err.limparTudo();
+  }
+
+  function novoAtendimento() {
+    setOrcamentoSalvo(null);
+    setResumo(null);
+    v.reiniciar();
+    setOrcamento(null);
+    setVendedorEscolhido("");
+    setNotas("");
+    chave.current = null;
+    err.limparTudo();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function salvarOrcamento() {
+    const m = v.montar(true, { orcamento: true });
     const novos: typeof m.novos & { seller_user_id?: string } = { ...m.novos };
     if (ehCaixa && !vendedor) novos.seller_user_id = AVISO_SEM_VENDEDOR;
+    if (!m.corpo || novos.seller_user_id) {
+      err.setGlobal(null);
+      err.reprovar(novos);
+      return;
+    }
+
+    err.limparTudo();
+    const observacao = notas.trim();
+    const assinatura = JSON.stringify([m.assinatura, vendedor, observacao]);
+    if (chave.current?.assinatura !== assinatura) {
+      chave.current = { assinatura, key: crypto.randomUUID() };
+    }
+    setEnviando(true);
+    const res = await apiPost<OrcamentoView>("/api/v1/emporio/quotes", {
+      operation_key: chave.current.key,
+      establishment_id: m.corpo.establishment_id,
+      contact_id: m.corpo.contact_id,
+      items: m.corpo.items,
+      ...(vendedor ? { seller_user_id: vendedor } : {}),
+      notes: observacao || null,
+    });
+    setEnviando(false);
+    if (!res.ok) {
+      err.doServidor(res);
+      return;
+    }
+    chave.current = null;
+    setOrcamentoSalvo(res.data);
+    setResumo(null);
+    v.reiniciar();
+    setNotas("");
+    // Como na venda: a escolha do vendedor não passa para o próximo atendimento.
+    setVendedorEscolhido("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function enviar(recemAberto?: string) {
+    if (modo === "orcamento") {
+      await salvarOrcamento();
+      return;
+    }
+    const m = v.montar(true);
+    const novos: typeof m.novos & { seller_user_id?: string } = { ...m.novos };
+    if (ehCaixa && !vendedor && !orcamento) novos.seller_user_id = AVISO_SEM_VENDEDOR;
     if (!m.corpo || novos.seller_user_id) {
       err.setGlobal(null);
       err.reprovar(novos);
@@ -219,7 +345,7 @@ export function Balcao({
       }
     }
 
-    const assinatura = JSON.stringify([m.assinatura, escolhido, vendedor]);
+    const assinatura = JSON.stringify([m.assinatura, escolhido, vendedor, orcamento?.id ?? null]);
     if (chave.current?.assinatura !== assinatura) {
       chave.current = { assinatura, key: crypto.randomUUID() };
     }
@@ -227,7 +353,8 @@ export function Balcao({
     const res = await apiPost<VendaGravada>("/api/v1/emporio/sales", {
       operation_key: chave.current.key,
       ...m.corpo,
-      ...(vendedor ? { seller_user_id: vendedor } : {}),
+      // Faturando, o vendedor é o do orçamento: o servidor o herda, e a tela não manda outro.
+      ...(orcamento ? { quote_id: orcamento.id } : vendedor ? { seller_user_id: vendedor } : {}),
       cash_register_id: escolhido || null,
     });
     setEnviando(false);
@@ -246,14 +373,26 @@ export function Balcao({
     chave.current = null;
     retomar.current = false;
     setResumo({ venda: res.data, trocoCent });
+    setOrcamentoSalvo(null);
     v.reiniciar();
-    // O Caixa escolhe o vendedor a cada venda: a escolha anterior não passa para a próxima.
+    // O Caixa escolhe o vendedor a cada venda: a escolha anterior não passa para a próxima. O orçamento, idem.
     setVendedorEscolhido("");
+    setOrcamento(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   return (
     <div className="space-y-4">
+      <SeletorDeModo modo={modo} aoMudar={mudarModo} />
+
+      {orcamentoSalvo && (
+        <ResumoDoOrcamento
+          orcamento={orcamentoSalvo}
+          aoFaturar={() => carregarNaVenda(orcamentoSalvo)}
+          aoNovo={novoAtendimento}
+        />
+      )}
+
       {resumo && (
         <section
           role="status"
@@ -272,6 +411,7 @@ export function Balcao({
             {resumo.venda.payments.map((p) => `${FORMA_ROTULO[p.kind] ?? p.kind} ${reaisBr(p.amount)}`).join(", ")}
             {resumo.venda.contact_name ? `, cliente ${resumo.venda.contact_name}` : ""}
             {resumo.venda.seller_name ? `, vendedor ${resumo.venda.seller_name}` : ""}
+            {resumo.venda.quote ? `, do orçamento nº ${resumo.venda.quote.numero}` : ""}
           </p>
           {resumo.trocoCent > 0 && (
             <p className="font-semibold">Troco entregue: {reaisBr(resumo.trocoCent / 100)}</p>
@@ -323,40 +463,86 @@ export function Balcao({
             limpar={err.limparCampo}
             permitirClienteNovo
             aoEscolherLoja={lembrarLoja}
+            semPagamento={modo === "orcamento"}
+            depoisDaLoja={
+              modo === "venda" ? (
+                <OrcamentoNaVenda
+                  loja={loja}
+                  orcamento={orcamento}
+                  produtos={produtos}
+                  erros={err.erros}
+                  idDe={err.idDe}
+                  limpar={err.limparCampo}
+                  reprovar={(novos) => {
+                    err.setGlobal(null);
+                    err.reprovar(novos);
+                  }}
+                  aoRecusar={err.doServidor}
+                  aoCarregar={carregarNaVenda}
+                  aoTirar={tirarOrcamento}
+                />
+              ) : undefined
+            }
           />
         </div>
+
+        {modo === "orcamento" && (
+          <div className="rounded-lg border border-borda bg-superficie p-4 shadow-sm">
+            <ObservacaoDoOrcamento
+              id={err.idDe("notes")}
+              valor={notas}
+              erro={err.erros.notes}
+              aoMudar={(valor) => {
+                setNotas(valor);
+                err.limparCampo("notes");
+              }}
+            />
+          </div>
+        )}
 
         {loja !== "" && (
           <div className="rounded-lg border border-borda bg-superficie p-4 shadow-sm">
             <Field
               label="Vendedor"
-              required={ehCaixa}
+              required={ehCaixa && !vendedorTravado}
               id={err.idDe("seller_user_id")}
               error={err.erros.seller_user_id}
-              hint={vendedores.length === 0 ? "Nenhum vendedor vinculado a esta loja." : undefined}
+              hint={
+                vendedorTravado
+                  ? "O vendedor do orçamento."
+                  : vendedores.length === 0
+                    ? "Nenhum vendedor vinculado a esta loja."
+                    : undefined
+              }
             >
-              {({ id, ...aria }) => (
-                <Select
-                  value={vendedor}
-                  onValueChange={(valor) => {
-                    // O Radix dispara "" quando o valor some da lista: nunca é escolha de ninguém.
-                    if (valor === "") return;
-                    setVendedorEscolhido(valor);
-                    err.limparCampo("seller_user_id");
-                  }}
-                >
-                  <SelectTrigger id={id} {...aria}>
-                    <SelectValue placeholder="Escolha o vendedor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {vendedores.map((u) => (
-                      <SelectItem key={u.id} value={u.id}>
-                        {u.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+              {({ id, ...aria }) =>
+                vendedorTravado ? (
+                  <p id={id} tabIndex={-1} {...aria} className="text-sm font-medium text-texto">
+                    {orcamento?.seller_name ?? "Sem vendedor no orçamento"}
+                  </p>
+                ) : (
+                  <Select
+                    value={vendedor}
+                    onValueChange={(valor) => {
+                      // O Radix dispara "" quando o valor some da lista: nunca é escolha de ninguém.
+                      if (valor === "") return;
+                      setVendedorEscolhido(valor);
+                      err.limparCampo("seller_user_id");
+                    }}
+                  >
+                    <SelectTrigger id={id} {...aria}>
+                      <SelectValue placeholder="Escolha o vendedor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {vendedores.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )
+              }
             </Field>
           </div>
         )}
@@ -452,14 +638,28 @@ export function Balcao({
               {err.global}
             </p>
           )}
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-xs text-texto-secundario">Total da venda</p>
+              <p className="text-xs text-texto-secundario">
+                {modo === "orcamento" ? "Total do orçamento" : "Total da venda"}
+              </p>
               <p className="text-xl font-semibold text-texto">{reaisBr(v.totalCent / 100)}</p>
             </div>
-            <Button type="submit" size="lg" disabled={enviando} className="min-w-40">
-              {enviando ? "Registrando..." : "Fechar a venda"}
-            </Button>
+            {modo === "orcamento" ? (
+              <div className="flex flex-wrap gap-2">
+                {/* Faturar sem salvar: passa o carrinho para a Venda, sem `quote_id`. */}
+                <Button type="button" variant="outline" size="lg" disabled={enviando} onClick={() => mudarModo("venda")}>
+                  Faturar
+                </Button>
+                <Button type="submit" size="lg" disabled={enviando} className="min-w-40">
+                  {enviando ? "Salvando..." : "Salvar orçamento"}
+                </Button>
+              </div>
+            ) : (
+              <Button type="submit" size="lg" disabled={enviando} className="min-w-40">
+                {enviando ? "Registrando..." : "Fechar a venda"}
+              </Button>
+            )}
           </div>
         </div>
       </form>

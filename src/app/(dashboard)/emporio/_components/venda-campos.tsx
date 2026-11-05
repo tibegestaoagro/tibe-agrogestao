@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
@@ -97,7 +97,13 @@ export function VendaCampos({
   lojaFixa,
   permitirClienteNovo,
   aoEscolherLoja,
+  semPagamento,
+  depoisDaLoja,
 }: {
+  /** Orçamento (entrega 4): não há pagamento a escolher. */
+  semPagamento?: boolean;
+  /** O que o balcão põe logo abaixo da loja (o orçamento a faturar), na ordem visual do `ORDEM`. */
+  depoisDaLoja?: ReactNode;
   v: EstadoDaVenda;
   produtos: ProdutoVenda[];
   lojas: { id: string; name: string }[];
@@ -161,6 +167,8 @@ export function VendaCampos({
           )}
         </Field>
       )}
+
+      {depoisDaLoja}
 
       <Field label="Produtos" required id={idDe("items")} error={erros.items}>
         {({ id, ...aria }) => (
@@ -272,7 +280,11 @@ export function VendaCampos({
 
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
                   <span className="text-texto-secundario">
-                    {l.sugerido === null ? "Sem preço cadastrado nesta loja" : `Preço sugerido ${reaisBr(l.sugerido)}`}
+                    {l.sugerido === null
+                      ? "Sem preço cadastrado nesta loja"
+                      : l.doOrcamento
+                        ? `Preço do orçamento ${reaisBr(l.sugerido)}`
+                        : `Preço sugerido ${reaisBr(l.sugerido)}`}
                   </span>
                   <strong className="text-texto">{reaisBr(l.totalCent / 100)}</strong>
                 </div>
@@ -345,173 +357,175 @@ export function VendaCampos({
         )}
       </Field>
 
-      <Field label="Pagamento" required={v.aPagarCent > 0} id={idDe("payments")} error={erros.payments}>
-        {({ id, ...aria }) => (
-          <div id={id} tabIndex={-1} {...aria} className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-              {FORMAS_DO_BALCAO.map((k) => (
-                <Button
-                  key={k}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={k === "fiado" && v.pagamentos.some((p) => p.kind === "fiado")}
-                  onClick={() => {
-                    v.adicionarPagamento(k);
-                    limpar("payments");
-                  }}
-                >
-                  + {FORMA_ROTULO[k]}
-                </Button>
-              ))}
-            </div>
-
-            {v.pagamentos.map((p) => (
-              <div key={p.key} className="space-y-2 rounded-lg border border-borda bg-superficie-afundada p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-medium text-texto">{FORMA_ROTULO[p.kind]}</p>
+      {!semPagamento && (
+        <Field label="Pagamento" required={v.aPagarCent > 0} id={idDe("payments")} error={erros.payments}>
+          {({ id, ...aria }) => (
+            <div id={id} tabIndex={-1} {...aria} className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                {FORMAS_DO_BALCAO.map((k) => (
                   <Button
+                    key={k}
                     type="button"
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
-                    aria-label={`Remover pagamento em ${FORMA_ROTULO[p.kind]}`}
+                    disabled={k === "fiado" && v.pagamentos.some((p) => p.kind === "fiado")}
                     onClick={() => {
-                      v.removerPagamento(p.key);
+                      v.adicionarPagamento(k);
                       limpar("payments");
                     }}
                   >
-                    Remover
+                    + {FORMA_ROTULO[k]}
                   </Button>
-                </div>
-                <MoneyInput
-                  hideEcho
-                  aria-label={`Valor em ${FORMA_ROTULO[p.kind]} (R$)`}
-                  placeholder="Valor (R$)"
-                  value={p.valor}
-                  onValueChange={(valor) => {
-                    v.atualizarPagamento(p.key, { valor });
-                    limpar("payments");
-                  }}
-                />
-                {p.kind === "credito_parcelado" && (
-                  <div className="space-y-1">
-                    <label htmlFor={`parcelas-${p.key}`} className="text-xs text-texto-secundario">
-                      Número de parcelas
-                    </label>
-                    <Select
-                      value={p.parcelas}
-                      onValueChange={(valor) => {
-                        v.atualizarPagamento(p.key, { parcelas: valor });
+                ))}
+              </div>
+
+              {v.pagamentos.map((p) => (
+                <div key={p.key} className="space-y-2 rounded-lg border border-borda bg-superficie-afundada p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-texto">{FORMA_ROTULO[p.kind]}</p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-label={`Remover pagamento em ${FORMA_ROTULO[p.kind]}`}
+                      onClick={() => {
+                        v.removerPagamento(p.key);
                         limpar("payments");
                       }}
                     >
-                      <SelectTrigger id={`parcelas-${p.key}`}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PARCELAS.map((n) => (
-                          <SelectItem key={n} value={String(n)}>
-                            {n}x
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      Remover
+                    </Button>
                   </div>
-                )}
-                {ehCartao(p.kind) && <InfoDoCartao v={v} p={p} />}
-                {p.kind === "cheque" && (
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <MoneyInput
+                    hideEcho
+                    aria-label={`Valor em ${FORMA_ROTULO[p.kind]} (R$)`}
+                    placeholder="Valor (R$)"
+                    value={p.valor}
+                    onValueChange={(valor) => {
+                      v.atualizarPagamento(p.key, { valor });
+                      limpar("payments");
+                    }}
+                  />
+                  {p.kind === "credito_parcelado" && (
                     <div className="space-y-1">
-                      <label htmlFor={`cheque-numero-${p.key}`} className="text-xs text-texto-secundario">
-                        Número do cheque
+                      <label htmlFor={`parcelas-${p.key}`} className="text-xs text-texto-secundario">
+                        Número de parcelas
                       </label>
-                      <Input
-                        id={`cheque-numero-${p.key}`}
-                        inputMode="numeric"
-                        autoComplete="off"
-                        value={p.chequeNumero}
-                        onChange={(e) => {
-                          v.atualizarPagamento(p.key, { chequeNumero: e.target.value });
+                      <Select
+                        value={p.parcelas}
+                        onValueChange={(valor) => {
+                          v.atualizarPagamento(p.key, { parcelas: valor });
                           limpar("payments");
                         }}
-                      />
+                      >
+                        <SelectTrigger id={`parcelas-${p.key}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PARCELAS.map((n) => (
+                            <SelectItem key={n} value={String(n)}>
+                              {n}x
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
+                  )}
+                  {ehCartao(p.kind) && <InfoDoCartao v={v} p={p} />}
+                  {p.kind === "cheque" && (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <label htmlFor={`cheque-numero-${p.key}`} className="text-xs text-texto-secundario">
+                          Número do cheque
+                        </label>
+                        <Input
+                          id={`cheque-numero-${p.key}`}
+                          inputMode="numeric"
+                          autoComplete="off"
+                          value={p.chequeNumero}
+                          onChange={(e) => {
+                            v.atualizarPagamento(p.key, { chequeNumero: e.target.value });
+                            limpar("payments");
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label htmlFor={`cheque-banco-${p.key}`} className="text-xs text-texto-secundario">
+                          Banco
+                        </label>
+                        <Input
+                          id={`cheque-banco-${p.key}`}
+                          autoComplete="off"
+                          value={p.chequeBanco}
+                          onChange={(e) => {
+                            v.atualizarPagamento(p.key, { chequeBanco: e.target.value });
+                            limpar("payments");
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-1 sm:col-span-2">
+                        <label htmlFor={`cheque-bom-para-${p.key}`} className="text-xs text-texto-secundario">
+                          Bom para (data)
+                        </label>
+                        <Input
+                          id={`cheque-bom-para-${p.key}`}
+                          type="date"
+                          value={p.chequeBomPara}
+                          onChange={(e) => {
+                            v.atualizarPagamento(p.key, { chequeBomPara: e.target.value });
+                            limpar("payments");
+                          }}
+                        />
+                      </div>
+                      {!v.contatoId && (
+                        <p className="text-xs text-atencao-tinta sm:col-span-2">
+                          O cheque precisa de um cliente: escolha acima.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {p.kind === "fiado" && (
                     <div className="space-y-1">
-                      <label htmlFor={`cheque-banco-${p.key}`} className="text-xs text-texto-secundario">
-                        Banco
+                      <label htmlFor={`vencimento-${p.key}`} className="text-xs text-texto-secundario">
+                        Vence em (opcional)
                       </label>
                       <Input
-                        id={`cheque-banco-${p.key}`}
-                        autoComplete="off"
-                        value={p.chequeBanco}
-                        onChange={(e) => {
-                          v.atualizarPagamento(p.key, { chequeBanco: e.target.value });
-                          limpar("payments");
-                        }}
-                      />
-                    </div>
-                    <div className="space-y-1 sm:col-span-2">
-                      <label htmlFor={`cheque-bom-para-${p.key}`} className="text-xs text-texto-secundario">
-                        Bom para (data)
-                      </label>
-                      <Input
-                        id={`cheque-bom-para-${p.key}`}
+                        id={`vencimento-${p.key}`}
                         type="date"
-                        value={p.chequeBomPara}
-                        onChange={(e) => {
-                          v.atualizarPagamento(p.key, { chequeBomPara: e.target.value });
-                          limpar("payments");
-                        }}
+                        value={p.vencimento}
+                        onChange={(e) => v.atualizarPagamento(p.key, { vencimento: e.target.value })}
                       />
                     </div>
-                    {!v.contatoId && (
-                      <p className="text-xs text-atencao-tinta sm:col-span-2">
-                        O cheque precisa de um cliente: escolha acima.
-                      </p>
-                    )}
-                  </div>
+                  )}
+                </div>
+              ))}
+
+              <div className="space-y-1 rounded-lg bg-superficie-afundada px-3 py-2 text-sm" aria-live="polite">
+                {v.totalCent > 0 && v.aPagarCent !== v.totalCent && (
+                  <p className="text-texto-secundario">
+                    Valor da troca abatido: {reaisBr((v.totalCent - v.aPagarCent) / 100)}. A pagar:{" "}
+                    <strong className="text-texto">{reaisBr(v.aPagarCent / 100)}</strong>
+                  </p>
                 )}
-                {p.kind === "fiado" && (
-                  <div className="space-y-1">
-                    <label htmlFor={`vencimento-${p.key}`} className="text-xs text-texto-secundario">
-                      Vence em (opcional)
-                    </label>
-                    <Input
-                      id={`vencimento-${p.key}`}
-                      type="date"
-                      value={p.vencimento}
-                      onChange={(e) => v.atualizarPagamento(p.key, { vencimento: e.target.value })}
-                    />
-                  </div>
+                {v.faltaCent > 0 && v.pagamentos.length > 0 && (
+                  <p className="text-atencao-tinta">Falta {reaisBr(v.faltaCent / 100)}.</p>
+                )}
+                {v.trocoCent > 0 && (
+                  <p className="text-texto">
+                    Troco: <strong>{reaisBr(v.trocoCent / 100)}</strong>
+                  </p>
+                )}
+                {v.faltaCent === 0 && v.trocoCent === 0 && v.pagamentos.length > 0 && (
+                  <p className="text-sucesso-tinta">Pagamento fechado.</p>
+                )}
+                {v.pagamentos.length === 0 && v.aPagarCent > 0 && (
+                  <p className="text-texto-secundario">Escolha como o cliente vai pagar.</p>
                 )}
               </div>
-            ))}
-
-            <div className="space-y-1 rounded-lg bg-superficie-afundada px-3 py-2 text-sm" aria-live="polite">
-              {v.totalCent > 0 && v.aPagarCent !== v.totalCent && (
-                <p className="text-texto-secundario">
-                  Valor da troca abatido: {reaisBr((v.totalCent - v.aPagarCent) / 100)}. A pagar:{" "}
-                  <strong className="text-texto">{reaisBr(v.aPagarCent / 100)}</strong>
-                </p>
-              )}
-              {v.faltaCent > 0 && v.pagamentos.length > 0 && (
-                <p className="text-atencao-tinta">Falta {reaisBr(v.faltaCent / 100)}.</p>
-              )}
-              {v.trocoCent > 0 && (
-                <p className="text-texto">
-                  Troco: <strong>{reaisBr(v.trocoCent / 100)}</strong>
-                </p>
-              )}
-              {v.faltaCent === 0 && v.trocoCent === 0 && v.pagamentos.length > 0 && (
-                <p className="text-sucesso-tinta">Pagamento fechado.</p>
-              )}
-              {v.pagamentos.length === 0 && v.aPagarCent > 0 && (
-                <p className="text-texto-secundario">Escolha como o cliente vai pagar.</p>
-              )}
             </div>
-          </div>
-        )}
-      </Field>
+          )}
+        </Field>
+      )}
 
       {v.descontoCent > 0 && (
         <p className="rounded-lg bg-atencao-suave px-3 py-2 text-sm text-atencao-tinta">

@@ -122,6 +122,32 @@ export type CorpoDaVenda = {
   }[];
 };
 
+/**
+ * Entrega 4: o orçamento posto no carrinho para faturar. `base` é o preço que
+ * vale por apresentação (`preco_que_vale` do servidor): enquanto ele está
+ * carregado, faz o papel do preço sugerido, como `precoBase` faz na action.
+ * Apresentação sem preço que valha fica fora de `base`, e o item entra sem preço.
+ */
+export type CargaDoOrcamento = {
+  base: Record<string, number>;
+  itens: { produtoId: string; apresentacaoId: string; qtd: string }[];
+  contatoId: string;
+};
+
+const paraCampoDePreco = (s: number | null) => (s === null ? "" : centavosParaCampo(cent(s)));
+
+/** Os itens do orçamento como linhas do carrinho, com o preço que vale (vazio quando não há). */
+function linhasDaCarga(carga: CargaDoOrcamento, chave: (n: number) => number): LinhaItem[] {
+  return carga.itens.map((i, n) => ({
+    key: chave(n),
+    produtoId: i.produtoId,
+    apresentacaoId: i.apresentacaoId,
+    qtd: i.qtd,
+    preco: paraCampoDePreco(carga.base[i.apresentacaoId] ?? null),
+    manual: false,
+  }));
+}
+
 export type Montagem = {
   novos: Partial<Record<CampoDaVenda, string>>;
   corpo: CorpoDaVenda | null;
@@ -137,7 +163,10 @@ export function useVenda({
   abatimentoCent = 0,
   regras = null,
   consumidorFinalId = "",
+  cargaInicial = null,
 }: {
+  /** O orçamento que o balcão abre carregado (`/emporio/vender?orcamento=<id>`). */
+  cargaInicial?: CargaDoOrcamento | null;
   /** O contato fixo "Consumidor final": não serve para fiado nem cheque. */
   consumidorFinalId?: string;
   produtos: ProdutoVenda[];
@@ -159,23 +188,46 @@ export function useVenda({
   };
 
   const [loja, setLojaEstado] = useState(lojaInicial);
-  const [itens, setItens] = useState<LinhaItem[]>([]);
+  // Os itens do orçamento inicial ganham chaves negativas: o contador só dá positivas.
+  const [itens, setItens] = useState<LinhaItem[]>(() =>
+    cargaInicial ? linhasDaCarga(cargaInicial, (n) => -(n + 1)) : [],
+  );
   const [pagamentos, setPagamentos] = useState<LinhaPagamento[]>([]);
-  const [contatoId, setContatoId] = useState(contatoInicial);
+  const [contatoId, setContatoId] = useState(cargaInicial?.contatoId ?? contatoInicial);
   const [contatosNovos, setContatosNovos] = useState<ContatoDeVenda[]>([]);
+  const [base, setBase] = useState<Record<string, number> | null>(cargaInicial?.base ?? null);
 
-  const sugerido = (apresentacaoId: string, lojaId: string): number | null =>
+  const precoDaLoja = (apresentacaoId: string, lojaId: string): number | null =>
     precos[apresentacaoId]?.[lojaId] ?? null;
 
-  const precoInicial = (apresentacaoId: string, lojaId: string) => {
-    const s = sugerido(apresentacaoId, lojaId);
-    return s === null ? "" : centavosParaCampo(cent(s));
-  };
+  /** Com orçamento carregado, o preço dele vale como o sugerido (a mesma conta do servidor). */
+  const sugerido = (apresentacaoId: string, lojaId: string): number | null =>
+    base?.[apresentacaoId] ?? precoDaLoja(apresentacaoId, lojaId);
 
+  const precoInicial = (apresentacaoId: string, lojaId: string) => paraCampoDePreco(sugerido(apresentacaoId, lojaId));
+
+  /** Trocar de loja tira o orçamento carregado: o preço dele só vale na loja dele. */
   function setLoja(nova: string) {
     setLojaEstado(nova);
+    setBase(null);
     setItens((lista) =>
-      lista.map((i) => (i.manual ? i : { ...i, preco: precoInicial(i.apresentacaoId, nova) })),
+      lista.map((i) => (i.manual ? i : { ...i, preco: paraCampoDePreco(precoDaLoja(i.apresentacaoId, nova)) })),
+    );
+  }
+
+  /** Põe o orçamento no carrinho: os itens dele no lugar dos que havia, o cliente dele, sem pagamento. */
+  function carregarOrcamento(carga: CargaDoOrcamento) {
+    setBase(carga.base);
+    setItens(linhasDaCarga(carga, proximo));
+    setPagamentos([]);
+    setContatoId(carga.contatoId);
+  }
+
+  /** Tira o orçamento: o carrinho fica, e o que não foi digitado volta ao preço da loja. */
+  function soltarOrcamento() {
+    setBase(null);
+    setItens((lista) =>
+      lista.map((i) => (i.manual ? i : { ...i, preco: paraCampoDePreco(precoDaLoja(i.apresentacaoId, loja)) })),
     );
   }
 
@@ -231,8 +283,21 @@ export function useVenda({
     const total = valida ? totalDoItemCent(q, p) : 0;
     // Desconto (Q85): só o que fica abaixo do sugerido.
     const desconto = valida && sug !== null && cent(p) < cent(sug) ? cent(arred3(q) * ((cent(sug) - cent(p)) / 100)) : 0;
-    const base = valida && sug !== null ? cent(arred3(q) * (cent(sug) / 100)) : 0;
-    return { linha: i, produto, apresentacao, q, p, sugerido: sug, valida, totalCent: total, descontoCent: desconto, baseCent: base };
+    const baseDoItem = valida && sug !== null ? cent(arred3(q) * (cent(sug) / 100)) : 0;
+    const doOrcamento = base?.[i.apresentacaoId] !== undefined;
+    return {
+      linha: i,
+      produto,
+      apresentacao,
+      q,
+      p,
+      sugerido: sug,
+      doOrcamento,
+      valida,
+      totalCent: total,
+      descontoCent: desconto,
+      baseCent: baseDoItem,
+    };
   });
 
   const totalCent = linhas.reduce((s, l) => s + l.totalCent, 0);
@@ -285,6 +350,7 @@ export function useVenda({
     setItens([]);
     setPagamentos([]);
     setContatoId(contatoInicial);
+    setBase(null);
   }
 
   /** Contato cadastrado ou completado agora: vale sobre o que veio do servidor, sem recarregar a página. */
@@ -297,13 +363,25 @@ export function useVenda({
     setContatoId(c.id);
   }
 
-  /** Valida e monta o corpo da API. `exigeLoja` é falso na troca, em que a loja é a da venda de origem. */
-  function montar(exigeLoja: boolean): Montagem {
+  function itensDaApi(): CorpoDaVenda["items"] {
+    return linhas.map((l) => ({
+      emporio_product_id: l.linha.produtoId,
+      presentation_id: l.linha.apresentacaoId,
+      quantity: l.q ?? 0,
+      unit_price: l.p ?? 0,
+    }));
+  }
+
+  /**
+   * Valida e monta o corpo da API. `exigeLoja` é falso na troca, em que a loja é a da venda de origem.
+   * `orcamento` (entrega 4): sem pagamento, e o cliente tem de ser de verdade (o servidor confere o cadastro).
+   */
+  function montar(exigeLoja: boolean, { orcamento = false }: { orcamento?: boolean } = {}): Montagem {
     const novos: Partial<Record<CampoDaVenda, string>> = {};
     if (exigeLoja && !loja) novos.establishment_id = "Escolha a loja que está vendendo.";
 
     if (linhas.length === 0) {
-      novos.items = "Inclua ao menos um produto na venda.";
+      novos.items = orcamento ? "Inclua ao menos um produto no orçamento." : "Inclua ao menos um produto na venda.";
     } else if (linhas.some((l) => !l.valida)) {
       novos.items = "Cada item precisa de quantidade e preço maiores que zero.";
     }
@@ -311,6 +389,18 @@ export function useVenda({
     const temFiado = pagamentos.some((p) => p.kind === "fiado");
     const temCheque = pagamentos.some((p) => p.kind === "cheque");
     const ehConsumidorFinal = consumidorFinalId !== "" && contatoId === consumidorFinalId;
+    if (orcamento) {
+      // A mesma frase do servidor (`QUOTE_CUSTOMER_REQUIRED`).
+      if (!contatoId || ehConsumidorFinal) novos.contact_id = "O orçamento precisa de um cliente com nome, documento e telefone.";
+      return {
+        novos,
+        corpo:
+          Object.keys(novos).length > 0
+            ? null
+            : { establishment_id: loja, contact_id: contatoId, items: itensDaApi(), payments: [] },
+        assinatura: JSON.stringify(["orcamento", loja, contatoId, itensDaApi()]),
+      };
+    }
     if (!contatoId) novos.contact_id = "Escolha o cliente da venda.";
     else if (temFiado && ehConsumidorFinal) novos.contact_id = "Fiado precisa do cliente de verdade, não do Consumidor final.";
     else if (temCheque && ehConsumidorFinal) novos.contact_id = "Cheque precisa do cliente de verdade, não do Consumidor final.";
@@ -367,12 +457,7 @@ export function useVenda({
     const corpo: CorpoDaVenda = {
       establishment_id: loja,
       contact_id: contatoId || null,
-      items: linhas.map((l) => ({
-        emporio_product_id: l.linha.produtoId,
-        presentation_id: l.linha.apresentacaoId,
-        quantity: l.q ?? 0,
-        unit_price: l.p ?? 0,
-      })),
+      items: itensDaApi(),
       payments: pagamentosApi,
     };
     return {
@@ -410,6 +495,8 @@ export function useVenda({
     trocoCent,
     reiniciar,
     montar,
+    carregarOrcamento,
+    soltarOrcamento,
   };
 }
 

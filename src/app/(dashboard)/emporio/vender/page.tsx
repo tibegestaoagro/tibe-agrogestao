@@ -4,6 +4,7 @@ import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { vendedoresDaLoja } from "@/lib/emporio/vendedores";
 import { listarEstabelecimentosAction } from "@/lib/actions/emporio-catalogo";
+import { lerOrcamentoAction } from "@/lib/actions/emporio-orcamentos";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Balcao } from "../_components/balcao";
 import { carregarCatalogoDeVenda } from "../_components/catalogo-venda";
@@ -11,9 +12,19 @@ import { carregarCatalogoDeVenda } from "../_components/catalogo-venda";
 /**
  * O balcão (Q87): abre direto na venda. Quem só consulta (VISUALIZADOR) não
  * vende, então vê o aviso em vez de um formulário que o servidor recusaria.
+ *
+ * `?orcamento=<id>` (entrega 4) abre a Venda com o orçamento carregado para
+ * faturar. Orçamento que a pessoa não pode ver (ou que não existe) é ignorado:
+ * o balcão abre vazio, como sem o parâmetro.
  */
-export default async function VenderPage() {
+export default async function VenderPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ orcamento?: string | string[] }>;
+}) {
   const user = await requireFeaturePage("emporio");
+  const { orcamento: orcamentoParam } = await searchParams;
+  const orcamentoId = typeof orcamentoParam === "string" ? orcamentoParam : "";
 
   const db = await getTenantDb();
   const podeVender = pode(await papelDoEmporio(db, user), "vendedor_da_loja");
@@ -29,6 +40,9 @@ export default async function VenderPage() {
     for (const l of lojas) vendedoresPorLoja[l.id] = await vendedoresDaLoja(db, l.id);
   }
   const ehCaixa = (await papelDoEmporio(db, user)).papel === "caixa";
+
+  const lido = podeVender && orcamentoId ? await lerOrcamentoAction(db, user, orcamentoId) : null;
+  const orcamentoInicial = lido?.ok && lojas.some((l) => l.id === lido.data.establishment_id) ? lido.data : null;
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -67,6 +81,8 @@ export default async function VenderPage() {
         </EmptyState>
       ) : (
         <Balcao
+          // Outro orçamento na URL é outro atendimento: o balcão nasce de novo com ele.
+          key={orcamentoInicial?.id ?? "balcao"}
           lojas={lojas}
           produtos={catalogo.produtos}
           precos={catalogo.precos}
@@ -74,6 +90,7 @@ export default async function VenderPage() {
           usuarioId={user.id}
           vendedoresPorLoja={vendedoresPorLoja}
           ehCaixa={ehCaixa}
+          orcamentoInicial={orcamentoInicial}
         />
       )}
     </div>
