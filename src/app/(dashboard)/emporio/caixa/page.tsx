@@ -3,8 +3,10 @@ import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { listarContasAction, listarRegrasCartaoAction, lerCaixaAction } from "@/lib/actions/emporio-caixa";
+import { listarEntregasAction } from "@/lib/actions/emporio-turno";
 import { reaisBr } from "@/lib/numero-br";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
@@ -20,6 +22,10 @@ import { PixLojaForm } from "../_components/pix-loja-form";
 import { SaldoInicialForm } from "../_components/saldo-inicial-form";
 import { ChequeAcoes } from "../_components/cheque-acoes";
 import { ConferirGavetaForm } from "../_components/conferir-gaveta-form";
+import { AbrirTurnoForm } from "../_components/abrir-turno-form";
+import { SangriaForm } from "../_components/sangria-form";
+import { EncerrarTurnoForm } from "../_components/encerrar-turno-form";
+import { ConfirmarEntregaForm } from "../_components/confirmar-entrega-form";
 import { RegraCartaoForm } from "../_components/regra-cartao-form";
 import { RegraCartaoRemover } from "../_components/regra-cartao-remover";
 import { TransferirCaixaForm, type PontaOpcao } from "../_components/transferir-caixa-form";
@@ -44,7 +50,7 @@ export default async function CaixaPage() {
   const ehGestor = pode(papel, "gestor_da_loja");
   const podeEscrever = pode(papel, "vendedor_da_loja");
 
-  const [caixaRes, contasRes, regrasRes, contasDoBanco, implantados] = await Promise.all([
+  const [caixaRes, contasRes, regrasRes, contasDoBanco, implantados, comTurno, entregasRes] = await Promise.all([
     lerCaixaAction(db, user),
     ehGestor ? listarContasAction(db, user, { incluir_arquivadas: true }) : Promise.resolve(null),
     ehGestor ? listarRegrasCartaoAction(db, user) : Promise.resolve(null),
@@ -57,8 +63,11 @@ export default async function CaixaPage() {
     }),
     db.cashMovement.findMany({
       where: { origin: "implantacao" },
-      select: { establishment_id: true, bank_account_id: true },
+      select: { bank_account_id: true, cash_register_id: true, manager_establishment_id: true },
     }),
+    // O saldo inicial de um caixa só vale antes do primeiro turno: quem já teve turno não o recebe.
+    ehGestor ? db.cashSession.findMany({ select: { cash_register_id: true }, distinct: ["cash_register_id"] }) : Promise.resolve([]),
+    ehGestor ? listarEntregasAction(db, user, { status: "pending" }) : Promise.resolve(null),
   ]);
   const caixa = caixaRes.ok
     ? caixaRes.data
@@ -71,27 +80,36 @@ export default async function CaixaPage() {
   const totalAReceber = caixa.card_receivables.reduce((s, p) => s + Math.round(p.net_amount * 100), 0) / 100;
   const nomeDaLojaCheque = (id: string) => caixa.drawers.find((d) => d.establishment_id === id)?.name ?? "Loja";
 
+  // A gaveta não transfere mais: o lugar da loja é a gerência (só o Gestor dela enxerga o saldo).
   const origens: PontaOpcao[] = [
     ...caixa.drawers
-      .filter((d) => pode(papel, "gestor_da_loja", d.establishment_id))
+      .filter((d) => d.manager_balance !== null && pode(papel, "gestor_da_loja", d.establishment_id))
       .map((d) => ({
-        valor: `loja:${d.establishment_id}`,
-        rotulo: `Gaveta: ${d.name} (${reaisBr(d.balance)})`,
+        valor: `gerencia:${d.establishment_id}`,
+        rotulo: `Com a gerência: ${d.name} (${reaisBr(d.manager_balance ?? 0)})`,
       })),
     ...(ehConta
       ? caixa.accounts.map((a) => ({ valor: `conta:${a.bank_account_id}`, rotulo: `Conta: ${a.name} (${reaisBr(a.balance)})` }))
       : []),
   ];
   const destinos: PontaOpcao[] = [
-    ...caixa.drawers.map((d) => ({ valor: `loja:${d.establishment_id}`, rotulo: `Gaveta: ${d.name}` })),
+    ...caixa.drawers
+      .filter((d) => d.manager_balance !== null)
+      .map((d) => ({ valor: `gerencia:${d.establishment_id}`, rotulo: `Com a gerência: ${d.name}` })),
     ...contasDoBanco.map((c) => ({ valor: `conta:${c.id}`, rotulo: `Conta: ${c.name}` })),
   ];
   const contas = contasRes && contasRes.ok ? contasRes.data : [];
   const contasAtivas = contas.filter((c) => !c.archived_at);
 
-  const lojaComSaldoInicial = new Set(implantados.flatMap((m) => (m.establishment_id ? [m.establishment_id] : [])));
+  const caixaComSaldoInicial = new Set(implantados.flatMap((m) => (m.cash_register_id ? [m.cash_register_id] : [])));
+  const gerenciaComSaldoInicial = new Set(implantados.flatMap((m) => (m.manager_establishment_id ? [m.manager_establishment_id] : [])));
+  const caixaComTurno = new Set(comTurno.map((s) => s.cash_register_id));
+  const entregas = (entregasRes && entregasRes.ok ? entregasRes.data : []).filter((e) =>
+    pode(papel, "gestor_da_loja", e.establishment_id),
+  );
   const contaComSaldoInicial = new Set(implantados.flatMap((m) => (m.bank_account_id ? [m.bank_account_id] : [])));
   const nomeDaLoja = new Map(caixa.drawers.map((d) => [d.establishment_id, d.name]));
+  const nomeDoCaixa = new Map(caixa.drawers.flatMap((d) => d.registers.map((r) => [r.id, `${r.nome}, ${d.name}`] as const)));
   const nomeDaConta = new Map(contas.map((c) => [c.id, c.name]));
   const contaPixDaLoja = (lojaId: string) => contas.find((c) => c.pix_establishment_ids.includes(lojaId)) ?? null;
 
@@ -103,29 +121,93 @@ export default async function CaixaPage() {
         </Link>
         <h1 className="text-2xl font-semibold text-texto">Caixa</h1>
         <p className="mt-1 text-sm text-texto-secundario">
-          O saldo é sempre a soma dos movimentos: dinheiro na gaveta de cada loja e PIX nas contas.
+          O saldo é sempre a soma dos movimentos: dinheiro em cada caixa, com a gerência de cada loja e PIX nas contas.
         </p>
       </header>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-texto">Gaveta de cada loja</h2>
+        <h2 className="text-lg font-semibold text-texto">Caixas de cada loja</h2>
         {caixa.drawers.length === 0 ? (
           <EmptyState titulo="Nenhuma loja disponível">
-            Cadastre uma loja em Estabelecimentos para ter uma gaveta.
+            Cadastre uma loja em Estabelecimentos para ter caixas.
           </EmptyState>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-2">
             {caixa.drawers.map((d) => {
               const pix = contaPixDaLoja(d.establishment_id);
+              const gestorDaLoja = pode(papel, "gestor_da_loja", d.establishment_id);
+              const trabalhaNaLoja = pode(papel, "vendedor_da_loja", d.establishment_id);
               return (
                 <div key={d.establishment_id} className="space-y-3 rounded-lg border border-borda bg-superficie p-5 shadow-sm">
                   <div>
                     <h3 className="text-base font-semibold text-texto">{d.name}</h3>
                     <p className="text-2xl font-semibold text-texto">{reaisBr(d.balance)}</p>
+                    <p className="text-xs text-texto-secundario">Soma dos caixas</p>
                   </div>
+
+                  <ul className="divide-y divide-borda rounded-md border border-borda">
+                    {d.registers.map((r) => {
+                      const turno = r.turno_aberto;
+                      return (
+                        <li key={r.id} className="space-y-2 p-3">
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                              <p className="font-medium text-texto">
+                                {r.nome} <span className="font-normal text-texto-secundario">({reaisBr(r.saldo)})</span>
+                              </p>
+                              <p className="text-sm text-texto-secundario">
+                                {turno
+                                  ? `Aberto por ${turno.aberto_por.name} desde ${DATA_HORA.format(new Date(turno.aberto_em))}`
+                                  : "Fechado"}
+                              </p>
+                            </div>
+                            <Badge variant={turno ? "green" : "gray"}>{turno ? "Aberto" : "Fechado"}</Badge>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {trabalhaNaLoja && !turno && (
+                              <AbrirTurnoForm caixaId={r.id} caixaNome={r.nome} saldoCent={Math.round(r.saldo * 100)} />
+                            )}
+                            {trabalhaNaLoja && turno && (
+                              <>
+                                <SangriaForm
+                                  turnoId={turno.id}
+                                  caixaId={r.id}
+                                  caixaNome={r.nome}
+                                  saldoCent={Math.round(r.saldo * 100)}
+                                />
+                                <ConferirGavetaForm
+                                  caixaId={r.id}
+                                  caixaNome={r.nome}
+                                  esperadoCent={Math.round(r.saldo * 100)}
+                                />
+                                <EncerrarTurnoForm
+                                  turnoId={turno.id}
+                                  caixaId={r.id}
+                                  caixaNome={r.nome}
+                                  esperadoCent={Math.round(r.saldo * 100)}
+                                />
+                              </>
+                            )}
+                            {gestorDaLoja && !turno && !caixaComTurno.has(r.id) && !caixaComSaldoInicial.has(r.id) && (
+                              <SaldoInicialForm tipo="caixa" destinoId={r.id} destinoNome={`${r.nome}, ${d.name}`} />
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+
+                  {d.manager_balance !== null && (
+                    <p className="text-sm text-texto">
+                      Com a gerência: <strong>{reaisBr(d.manager_balance)}</strong>
+                    </p>
+                  )}
                   {d.last_count && (
                     <p className="text-sm text-texto-secundario">
                       Última conferência: {DATA_HORA.format(new Date(d.last_count.counted_at))}
+                      {d.last_count.difference === 0
+                        ? ", bateu."
+                        : `, ${d.last_count.difference > 0 ? "sobra" : "falta"} de ${reaisBr(Math.abs(d.last_count.difference))}${d.last_count.justification ? ` (${d.last_count.justification})` : ""}.`}
                     </p>
                   )}
                   {ehGestor && (
@@ -134,10 +216,10 @@ export default async function CaixaPage() {
                     </p>
                   )}
                   <div className="flex flex-wrap gap-2">
-                    {podeEscrever && !lojaComSaldoInicial.has(d.establishment_id) && (
-                      <SaldoInicialForm tipo="loja" destinoId={d.establishment_id} destinoNome={d.name} />
+                    {gestorDaLoja && d.manager_balance !== null && !gerenciaComSaldoInicial.has(d.establishment_id) && (
+                      <SaldoInicialForm tipo="gerencia" destinoId={d.establishment_id} destinoNome={`Com a gerência, ${d.name}`} />
                     )}
-                    {pode(papel, "gestor_da_loja", d.establishment_id) && contasAtivas.length > 0 && (
+                    {gestorDaLoja && contasAtivas.length > 0 && (
                       <PixLojaForm
                         lojaId={d.establishment_id}
                         lojaNome={d.name}
@@ -314,46 +396,68 @@ export default async function CaixaPage() {
       {podeEscrever && origens.length > 0 && (
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-texto">Transferir entre caixas</h2>
+            <h2 className="text-lg font-semibold text-texto">Transferir dinheiro</h2>
             <TransferirCaixaForm origens={origens} destinos={destinos} />
           </div>
           <p className="text-sm text-texto-secundario">
-            Leve o dinheiro da gaveta ao banco, ou de uma loja para outra. Não vira receita nem despesa.
+            Leve o dinheiro da gerência ao banco, ou de uma loja para outra. A gaveta chega à gerência pela sangria ou
+            pelo malote. Não vira receita nem despesa.
           </p>
         </section>
       )}
 
-      {podeEscrever && caixa.drawers.length > 0 && (
+      {ehGestor && (
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-texto">Conferir gaveta</h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {caixa.drawers.map((d) => (
-              <div key={d.establishment_id} className="space-y-2 rounded-lg border border-borda bg-superficie p-5 shadow-sm">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h3 className="text-base font-semibold text-texto">{d.name}</h3>
-                    <p className="text-sm text-texto-secundario">Esperado: {reaisBr(d.balance)}</p>
-                  </div>
-                  <ConferirGavetaForm
-                    lojaId={d.establishment_id}
-                    lojaNome={d.name}
-                    esperadoCent={Math.round(d.balance * 100)}
-                  />
-                </div>
-                {d.last_count ? (
-                  <p className="text-sm text-texto-secundario">
-                    Última conferência, {DATA_HORA.format(new Date(d.last_count.counted_at))}: contado{" "}
-                    {reaisBr(d.last_count.counted)}
-                    {d.last_count.difference === 0
-                      ? ", bateu."
-                      : `, ${d.last_count.difference > 0 ? "sobra" : "falta"} de ${reaisBr(Math.abs(d.last_count.difference))}${d.last_count.justification ? ` (${d.last_count.justification})` : ""}.`}
-                  </p>
-                ) : (
-                  <p className="text-sm text-texto-secundario">Nunca conferida.</p>
-                )}
-              </div>
-            ))}
-          </div>
+          <h2 className="text-lg font-semibold text-texto">Aguardando o gerente</h2>
+          {entregas.length === 0 ? (
+            <EmptyState titulo="Nenhuma entrega aguardando">
+              As sangrias e os malotes dos caixas aparecem aqui até você confirmar o que recebeu.
+            </EmptyState>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Entrega</TableHead>
+                  <TableHead>Valor</TableHead>
+                  <TableHead>Feita em</TableHead>
+                  <TableHead>Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {entregas.map((e) => {
+                  const rotulo = `${e.kind === "malote" ? "Malote" : "Sangria"} do Caixa ${e.register_number}, ${e.establishment_name}`;
+                  return (
+                    <TableRow key={e.id}>
+                      <TableCell className="font-medium text-texto">
+                        {rotulo}
+                        {e.notes && <span className="block text-xs font-normal text-texto-secundario">{e.notes}</span>}
+                      </TableCell>
+                      <TableCell>{reaisBr(e.amount)}</TableCell>
+                      <TableCell>{DATA_HORA.format(new Date(e.created_at))}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-2">
+                          <ConfirmarEntregaForm
+                            entregaId={e.id}
+                            descricao={rotulo}
+                            valorCent={Math.round(e.amount * 100)}
+                          />
+                          <Button asChild variant="outline" size="sm">
+                            <a
+                              href={`/emporio/imprimir/turno/${e.cash_session_id}?formato=a4`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Relatório do turno
+                            </a>
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
         </section>
       )}
 
@@ -435,9 +539,13 @@ export default async function CaixaPage() {
             </TableHeader>
             <TableBody>
               {caixa.movements.map((m) => {
-                const onde = m.establishment_id
-                  ? `Gaveta: ${nomeDaLoja.get(m.establishment_id) ?? "loja"}`
-                  : m.bank_account_id
+                const onde = m.cash_register_id
+                  ? `Caixa: ${nomeDoCaixa.get(m.cash_register_id) ?? "caixa"}`
+                  : m.manager_establishment_id
+                    ? `Com a gerência: ${nomeDaLoja.get(m.manager_establishment_id) ?? "loja"}`
+                    : m.establishment_id
+                      ? `Gaveta: ${nomeDaLoja.get(m.establishment_id) ?? "loja"}`
+                      : m.bank_account_id
                     ? `Conta: ${nomeDaConta.get(m.bank_account_id) ?? "conta"}`
                     : "-";
                 const entrada = m.direction === "entrada";

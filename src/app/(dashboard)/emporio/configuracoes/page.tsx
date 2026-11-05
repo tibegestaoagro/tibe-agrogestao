@@ -6,7 +6,9 @@ import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { lerConfiguracoesAction } from "@/lib/actions/emporio-configuracoes";
 import { listarEstabelecimentosAction, type EstablishmentView } from "@/lib/actions/emporio-catalogo";
 import { EmptyState } from "@/components/ui/empty-state";
+import { listarCaixasAction } from "@/lib/actions/emporio-turno";
 import { EstabelecimentoForm } from "../_components/estabelecimento-form";
+import { NovoCaixaBotao } from "../_components/novo-caixa-botao";
 import { ConfiguracoesForm } from "./_components/configuracoes-form";
 import { LogoForm } from "./_components/logo-form";
 
@@ -44,6 +46,14 @@ export default async function ConfiguracoesPage() {
   ]);
   const cfg = cfgRes.ok ? cfgRes.data : null;
   const lojas = lojasRes.ok ? lojasRes.data : [];
+  const caixasPorLoja = new Map(
+    await Promise.all(
+      lojas.map(async (l) => {
+        const r = await listarCaixasAction(db, user, l.id);
+        return [l.id, r.ok ? r.data : []] as const;
+      }),
+    ),
+  );
 
   return (
     <div className="space-y-8">
@@ -114,6 +124,22 @@ export default async function ConfiguracoesPage() {
                   <Linha rotulo="Telefone" valor={l.phone} />
                   <Linha rotulo="WhatsApp" valor={l.whatsapp} />
                 </dl>
+                <div className="space-y-2 border-t border-borda pt-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h4 className="text-sm font-medium text-texto">Caixas</h4>
+                    {pode(papel, "gestor_da_loja", l.id) && <NovoCaixaBotao lojaId={l.id} lojaNome={l.name} />}
+                  </div>
+                  <ul className="space-y-1">
+                    {(caixasPorLoja.get(l.id) ?? []).map((c) => (
+                      <li key={c.id} className="flex justify-between gap-2 text-sm text-texto">
+                        <span>{c.nome}</span>
+                        <span className="text-texto-secundario">
+                          {c.turno_aberto ? `Aberto por ${c.turno_aberto.aberto_por.name}` : "Fechado"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </article>
             ))}
           </div>

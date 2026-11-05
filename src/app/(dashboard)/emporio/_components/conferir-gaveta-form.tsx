@@ -18,24 +18,24 @@ const ORDEM = ["counted", "justification"] as const;
 type Campo = (typeof ORDEM)[number];
 
 /**
- * Conferir a gaveta (Q93): a pessoa conta o dinheiro, o painel mostra o
+ * Conferir um caixa no meio do turno (Q93): a pessoa conta o dinheiro, o painel mostra o
  * esperado e a diferença na hora. Havendo diferença, o motivo é obrigatório e
  * o servidor lança o ajuste e a "Diferença de caixa". O esperado da tela é o
  * saldo de quando a página abriu: se entrou venda no meio, o servidor usa o
  * dele e recusa em `justification` quando a diferença mudou.
  */
 export function ConferirGavetaForm({
-  lojaId,
-  lojaNome,
+  caixaId,
+  caixaNome,
   esperadoCent,
 }: {
-  lojaId: string;
-  lojaNome: string;
+  caixaId: string;
+  caixaNome: string;
   esperadoCent: number;
 }) {
   const router = useRouter();
   const aviso = useAviso();
-  const err = useErrosDeFormulario(ORDEM, `confere-${lojaId}`);
+  const err = useErrosDeFormulario(ORDEM, `confere-${caixaId}`);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [contado, setContado] = useState("");
@@ -59,7 +59,7 @@ export function ConferirGavetaForm({
     err.limparTudo();
     setLoading(true);
     const res = await apiPost("/api/v1/emporio/cash/counts", {
-      establishment_id: lojaId,
+      cash_register_id: caixaId,
       counted: n,
       justification: motivo.trim() || null,
     });
@@ -82,7 +82,7 @@ export function ConferirGavetaForm({
           Conferir
         </Button>
       }
-      title={`Conferir a gaveta da ${lojaNome}`}
+      title={`Conferir o ${caixaNome}`}
       description="Conte o dinheiro que está na gaveta e diga quanto é."
       open={open}
       onOpenChange={(o) => {

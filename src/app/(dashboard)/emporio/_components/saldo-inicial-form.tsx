@@ -11,27 +11,42 @@ import { useAviso } from "@/components/ui/toast";
 import { apiPost } from "@/lib/client-api";
 import { lerNumeroBr } from "@/lib/numero-br";
 
-const ORDEM = ["establishment_id", "bank_account_id", "amount"] as const;
+const ORDEM = ["cash_register_id", "manager_establishment_id", "bank_account_id", "amount"] as const;
 type Campo = (typeof ORDEM)[number];
 
+export type TipoSaldoInicial = "caixa" | "gerencia" | "conta";
+
+const CAMPO_DO_DESTINO: Record<TipoSaldoInicial, Campo> = {
+  caixa: "cash_register_id",
+  gerencia: "manager_establishment_id",
+  conta: "bank_account_id",
+};
+
+const ROTULO_DO_DESTINO: Record<TipoSaldoInicial, string> = {
+  caixa: "Caixa",
+  gerencia: "Com a gerência",
+  conta: "Conta",
+};
+
 /**
- * Saldo inicial da gaveta de uma loja OU de uma conta, uma vez só. O destino é
- * fixo (vem do cartão em que o botão está), então só UM dos dois campos de
- * destino existe na tela, e é o que a requisição envia.
+ * Saldo inicial de um caixa, da gerência de uma loja OU de uma conta, uma vez
+ * só. O destino é fixo (vem do cartão em que o botão está), então só UM dos
+ * campos de destino existe na tela, e é o que a requisição envia. O caixa só
+ * aceita saldo inicial antes do primeiro turno: a página nem oferece depois.
  */
 export function SaldoInicialForm({
   tipo,
   destinoId,
   destinoNome,
 }: {
-  tipo: "loja" | "conta";
+  tipo: TipoSaldoInicial;
   destinoId: string;
   destinoNome: string;
 }) {
   const router = useRouter();
   const aviso = useAviso();
-  const campoDestino: Campo = tipo === "loja" ? "establishment_id" : "bank_account_id";
-  const err = useErrosDeFormulario(ORDEM, `saldo-${destinoId}`);
+  const campoDestino = CAMPO_DO_DESTINO[tipo];
+  const err = useErrosDeFormulario(ORDEM, `saldo-${tipo}-${destinoId}`);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [valor, setValor] = useState("");
@@ -82,11 +97,7 @@ export function SaldoInicialForm({
       focarCampoId={err.focarCampoId}
       tentativa={err.tentativa}
     >
-      <Field
-        label={tipo === "loja" ? "Gaveta da loja" : "Conta"}
-        id={err.idDe(campoDestino)}
-        error={err.erros[campoDestino]}
-      >
+      <Field label={ROTULO_DO_DESTINO[tipo]} id={err.idDe(campoDestino)} error={err.erros[campoDestino]}>
         {({ id, ...aria }) => (
           <p id={id} tabIndex={-1} {...aria} className="text-base font-medium text-texto">
             {destinoNome}

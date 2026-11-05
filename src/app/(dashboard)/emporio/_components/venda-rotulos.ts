@@ -44,6 +44,10 @@ export const ORIGEM_CAIXA_ROTULO: Record<string, string> = {
   cheque_compensado: "Cheque compensado",
   estorno_cartao: "Estorno de cartão",
   pagamento_despesa: "Pagamento de despesa",
+  sangria: "Sangria",
+  malote: "Malote",
+  reforco: "Reforço de troco",
+  entrega_gerencia: "Entrega ao gerente",
 };
 
 /** Cálculo de uma regra do "Vendeu, Pagou" (`VariableExpenseKind`). */

@@ -23,17 +23,18 @@ import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
 const ORDEM = ["from", "to", "amount", "notes"] as const;
 type Campo = (typeof ORDEM)[number];
 
-/** Uma ponta do caixa. `valor` é "loja:ID" ou "conta:ID", para caber num Select. */
+/** Uma ponta do caixa. `valor` é "gerencia:ID" (a gerência de uma loja) ou "conta:ID", para caber num Select. */
 export type PontaOpcao = { valor: string; rotulo: string };
 
-function paraPonta(valor: string): { establishment_id?: string; bank_account_id?: string } {
+function paraPonta(valor: string): { manager_establishment_id?: string; bank_account_id?: string } {
   const [tipo, id] = [valor.slice(0, valor.indexOf(":")), valor.slice(valor.indexOf(":") + 1)];
-  return tipo === "loja" ? { establishment_id: id } : { bank_account_id: id };
+  return tipo === "gerencia" ? { manager_establishment_id: id } : { bank_account_id: id };
 }
 
 /**
- * Transferir dinheiro entre caixas (Q92): da gaveta de uma loja para outra,
- * da gaveta para o banco, entre contas. Não toca no Financeiro: dinheiro só
+ * Transferir dinheiro (Q92): da gerência de uma loja para outra ou para o
+ * banco, entre contas. A gaveta não transfere mais (entrega 2): ela vai ao
+ * gerente pela sangria ou pelo malote. Não toca no Financeiro: dinheiro só
  * muda de lugar. As contas só aparecem como origem para dono e administrador
  * (a página decide e passa as `origens`).
  */
@@ -90,8 +91,8 @@ export function TransferirCaixaForm({ origens, destinos }: { origens: PontaOpcao
 
   return (
     <FormSheet
-      trigger={<Button>Transferir entre caixas</Button>}
-      title="Transferir entre caixas"
+      trigger={<Button>Transferir dinheiro</Button>}
+      title="Transferir dinheiro"
       description="O dinheiro sai de um lugar e entra no outro, sem virar receita nem despesa."
       open={open}
       onOpenChange={(o) => {
