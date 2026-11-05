@@ -68,11 +68,12 @@ export function RelatorioTurnoCupom({ d }: { d: RelatorioTurno }) {
         </>
       )}
       <hr />
-      <div className="g">Saídas do dinheiro</div>
+      <div className="g">Outros movimentos</div>
       {d.sangrias.length === 0 && <div>Nenhuma sangria.</div>}
       {d.sangrias.map((s, k) => (
         <Linha key={k} r={`Sangria ${HORA.format(new Date(s.em))}${s.confirmada ? " (conf.)" : " (pend.)"}`} v={reaisBr(s.valor)} />
       ))}
+      <Linha r="Ajustes de conferência" v={reaisBr(d.ajustes_conferencia)} />
       <Linha r="Devoluções" v={reaisBr(d.devolucoes_dinheiro)} />
       <Linha r="Cancelamentos" v={reaisBr(d.cancelamentos_dinheiro)} />
       <Linha r="Despesas" v={reaisBr(d.despesas_dinheiro)} />
@@ -82,7 +83,7 @@ export function RelatorioTurnoCupom({ d }: { d: RelatorioTurno }) {
           <Linha r="Esperado" v={reaisBr(d.esperado)} />
           <Linha r="Contado" v={reaisBr(d.contado)} />
           <Linha r="Diferença" v={reaisBr(d.diferenca ?? 0)} forte />
-          {d.justificativa && <div className="nome">Justificativa: {d.justificativa}</div>}
+          {d.justificativa && <div>Justificativa: {d.justificativa}</div>}
           <hr />
           <Linha r={`Malote${d.malote_confirmado === null ? "" : d.malote_confirmado ? " (confirmado)" : " (a confirmar)"}`} v={reaisBr(d.malote ?? 0)} forte />
           <Linha r="Troco que ficou" v={reaisBr(d.troco_que_ficou ?? 0)} />

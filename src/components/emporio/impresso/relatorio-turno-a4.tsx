@@ -104,7 +104,8 @@ export function RelatorioTurnoA4({ d }: { d: RelatorioTurno }) {
       </section>
 
       <section className="bloco">
-        <div className="rot">Outras saídas em dinheiro</div>
+        <div className="rot">Outros movimentos em dinheiro</div>
+        <Par r="Ajustes de conferência" v={reaisBr(d.ajustes_conferencia)} />
         <Par r="Devoluções" v={reaisBr(d.devolucoes_dinheiro)} />
         <Par r="Cancelamentos" v={reaisBr(d.cancelamentos_dinheiro)} />
         <Par r="Despesas" v={reaisBr(d.despesas_dinheiro)} />

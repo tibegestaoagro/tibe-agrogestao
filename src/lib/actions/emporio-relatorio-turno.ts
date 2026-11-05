@@ -32,6 +32,8 @@ export type RelatorioTurno = {
   vendas_por_forma: { forma: string; valor: number }[];
   fiado_recebido: { forma: string; valor: number }[];
   sangrias: { em: string; valor: number; confirmada: boolean }[];
+  /** Líquido dos ajustes das contagens livres do turno (a de abertura já está no troco inicial). */
+  ajustes_conferencia: number;
   devolucoes_dinheiro: number;
   cancelamentos_dinheiro: number;
   despesas_dinheiro: number;
@@ -78,7 +80,7 @@ export async function lerRelatorioDoTurnoAction(
     .map((p) => ({ chave: p.kind as string, cent: centavos(decToNum(p._sum.amount) ?? 0) }))
     .filter((p) => p.cent !== 0)
     .sort((a, b) => ordem.indexOf(a.chave) - ordem.indexOf(b.chave))
-    .map((p) => ({ forma: FORMA_ROTULO[p.chave] ?? p.chave, valor: p.cent / 100 }));
+    .map((p) => ({ forma: p.chave === "troca" ? "Valor da troca (crédito, não é dinheiro)" : (FORMA_ROTULO[p.chave] ?? p.chave), valor: p.cent / 100 }));
 
   const movs = await db.cashMovement.groupBy({
     by: ["origin", "direction", "cash_register_id"],
@@ -90,11 +92,24 @@ export async function lerRelatorioDoTurnoAction(
       .filter((m) => m.origin === origin && m.direction === direction && (m.cash_register_id !== null) === gaveta)
       .reduce((s, m) => s + centavos(decToNum(m._sum.amount) ?? 0), 0);
 
+  // Só as contagens livres: a de abertura já entrou no troco inicial e a de
+  // encerramento é gravada depois do esperado ser calculado.
+  const livres = await db.cashCount.findMany({ where: { cash_session_id: t.id, kind: "livre" }, select: { id: true } });
+  const ajustes = livres.length
+    ? await db.cashMovement.groupBy({
+        by: ["direction"],
+        where: { origin: "conferencia", cash_register_id: { not: null }, cash_count_id: { in: livres.map((c) => c.id) } },
+        _sum: { amount: true },
+      })
+    : [];
+  const ajustes_conferencia =
+    ajustes.reduce((s, m) => s + (m.direction === "entrada" ? 1 : -1) * centavos(decToNum(m._sum.amount) ?? 0), 0) / 100;
+
   const fiado_recebido: { forma: string; valor: number }[] = [];
   const fiadoDinheiro = soma("recebimento_fiado", "entrada", true);
   const fiadoPix = soma("recebimento_fiado", "entrada", false);
   if (fiadoDinheiro > 0) fiado_recebido.push({ forma: FORMA_ROTULO.dinheiro, valor: fiadoDinheiro / 100 });
-  if (fiadoPix > 0) fiado_recebido.push({ forma: FORMA_ROTULO.pix, valor: fiadoPix / 100 });
+  if (fiadoPix > 0) fiado_recebido.push({ forma: "Em conta (fora da gaveta)", valor: fiadoPix / 100 });
 
   const sangrias = t.handovers
     .filter((h) => h.kind === "sangria")
@@ -128,6 +143,7 @@ export async function lerRelatorioDoTurnoAction(
     vendas_por_forma,
     fiado_recebido,
     sangrias,
+    ajustes_conferencia,
     devolucoes_dinheiro: soma("devolucao", "saida", true) / 100,
     cancelamentos_dinheiro: soma("cancelamento_venda", "saida", true) / 100,
     despesas_dinheiro: soma("pagamento_despesa", "saida", true) / 100,

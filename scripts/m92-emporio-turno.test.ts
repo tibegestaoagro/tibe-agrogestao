@@ -1111,7 +1111,7 @@ async function secao4(): Promise<Dado> {
       (await db.cashMovement.count({ where: { sale_id: par1.data.id } })) === 1,
     j([par1, par2]),
   );
-  return { db, owner, vA, v1, turnoFechado: T.id, turnoAberto: T2.id };
+  return { db, owner, vA, v1, turnoFechado: T.id, turnoAberto: T2.id, L2, vender, k, cliente, cf: cf };
 }
 
 async function secao5(ctx: Dado) {
@@ -1163,6 +1163,64 @@ async function secao5(ctx: Dado) {
   });
   check("outro tenant: 404", rec404(await Rel.lerRelatorioDoTurnoAction(prismaForTenant(outra.id), { id: dono2.id, role: "OWNER" }, turnoFechado)));
   check("id inexistente: 404", rec404(await Rel.lerRelatorioDoTurnoAction(db, owner, "nao-existe")));
+
+  // --- segundo turno: PIX, conferência livre com diferença, sangria e malote confirmados
+  const { vender, k, cliente, L2 } = ctx;
+  const Tu: Dado = await import("@/lib/actions/emporio-turno");
+  const Caixa: Dado = await import("@/lib/actions/emporio-caixa");
+  const { abrirTurnoDeTeste } = await import("./_emporio-turno");
+  // o turno que a seção 4 deixou aberto na Loja 2 sai de cena, para o novo ser o único
+  const abertoL2 = await db.cashSession.findFirst({ where: { establishment_id: L2, open_register_id: { not: null } } });
+  if (abertoL2) {
+    const fecha = await Tu.encerrarTurnoAction(db, vA, abertoL2.id, {
+      operation_key: k("enc-sobra"),
+      counted: (await Caixa.saldoDoCaixa(db, abertoL2.cash_register_id)) / 100,
+      malote_amount: 0,
+    });
+    if (!fecha.ok) throw new Error(j(fecha));
+  }
+  const novo = await Tu.criarCaixaAction(db, owner, { establishment_id: L2 });
+  if (!novo.ok) throw new Error(j(novo));
+  const S = await abrirTurnoDeTeste(db, vA, L2, undefined, { cash_register_id: novo.data.id });
+  const rS = S.cash_register_id;
+  const ok1 = async (nome: string, p: Promise<Dado>) => {
+    const x = await p;
+    check(nome, !!x.ok, j(x));
+    return x;
+  };
+  await ok1("venda de 40 em dinheiro", vender(vA, L2, 4, [{ kind: "dinheiro", amount: 40 }], { cash_register_id: rS }));
+  await ok1("venda de 10 em PIX", vender(vA, L2, 1, [{ kind: "pix", amount: 10 }], { cash_register_id: rS }));
+  await ok1("venda de 20 no fiado", vender(vA, L2, 2, [{ kind: "fiado", amount: 20 }], { contact_id: ctx.cliente, cash_register_id: rS }));
+  await ok1("fiado recebido em PIX, 10", Caixa.receberFiadoAction(db, vA, { operation_key: k("fpix"), contact_id: cliente, establishment_id: L2, amount: 10, kind: "pix" }));
+  await ok1("fiado recebido em dinheiro, 10", Caixa.receberFiadoAction(db, vA, { operation_key: k("fdin"), contact_id: cliente, establishment_id: L2, amount: 10, kind: "dinheiro" }));
+  await ok1("conferência livre contando 45 onde se esperava 50", Caixa.conferirGavetaAction(db, vA, { cash_register_id: rS, counted: 45, justification: "faltou uma nota" }));
+  const sg2 = await ok1("sangria de 20", Tu.sangriaAction(db, vA, S.id, { operation_key: k("sg2"), amount: 20 }));
+  await ok1("o gerente confirma a sangria", Tu.confirmarEntregaAction(db, owner, sg2.data?.id, { operation_key: k("cf-sg"), received_amount: 20 }));
+  await ok1("encerra contando 25, malote de 15", Tu.encerrarTurnoAction(db, vA, S.id, { operation_key: k("enc2"), counted: 25, malote_amount: 15 }));
+
+  const r2 = await Rel.lerRelatorioDoTurnoAction(db, vA, S.id);
+  const e = r2.ok ? r2.data : null;
+  const forma2 = (f: string) => e?.vendas_por_forma.find((x: Dado) => x.forma === f)?.valor;
+  check("o PIX aparece por forma (10) e o fiado também (20)", forma2("PIX") === 10 && forma2("Fiado") === 20 && forma2("Dinheiro") === 40, j(e?.vendas_por_forma));
+  const fDin = e?.fiado_recebido.find((x: Dado) => x.forma === "Dinheiro")?.valor;
+  const fFora = e?.fiado_recebido.find((x: Dado) => x.forma !== "Dinheiro")?.valor;
+  check("fiado em dinheiro 10 e o recebido fora da gaveta (10) com rótulo neutro", fDin === 10 && fFora === 10 && e?.fiado_recebido.length === 2, j(e?.fiado_recebido));
+  check("ajustes de conferência: -5", e?.ajustes_conferencia === -5, String(e?.ajustes_conferencia));
+  check("esperado 25, diferença 0, malote 15, troco que ficou 10", e?.esperado === 25 && e?.diferenca === 0 && e?.malote === 15 && e?.troco_que_ficou === 10, j(e));
+  check(
+    "as linhas impressas fecham: troco + dinheiro + fiado em dinheiro + ajustes - cancelamentos - devoluções - despesas - sangrias = esperado (o PIX fica fora)",
+    !!e &&
+      e.troco_inicial + forma2("Dinheiro") + (fDin ?? 0) + e.ajustes_conferencia - e.cancelamentos_dinheiro - e.devolucoes_dinheiro - e.despesas_dinheiro -
+        e.sangrias.reduce((t: number, s: Dado) => t + s.valor, 0) ===
+        e.esperado,
+    j(e),
+  );
+  check("a sangria confirmada sai com confirmada: true", e?.sangrias.length === 1 && e.sangrias[0].confirmada === true, j(e?.sangrias));
+  check("malote ainda a confirmar: malote_confirmado false", e?.malote_confirmado === false, String(e?.malote_confirmado));
+  const maloteH = await db.cashHandover.findFirst({ where: { cash_session_id: S.id, kind: "malote" } });
+  await ok1("o gerente confirma o malote", Tu.confirmarEntregaAction(db, owner, maloteH?.id ?? "x", { operation_key: k("cf-mal"), received_amount: 15 }));
+  const r3 = await Rel.lerRelatorioDoTurnoAction(db, vA, S.id);
+  check("malote_confirmado true depois da confirmação", r3.ok && r3.data.malote_confirmado === true, j(r3));
 }
 
 async function limpar() {
