@@ -6,28 +6,56 @@ const BLOCOS: { titulo: string; passos: string[] }[] = [
   {
     titulo: "Vender",
     passos: [
-      "Abra Vender no menu.",
+      "Abra Vender no menu e confira a loja.",
       "Busque o produto por nome, marca ou código e toque nele.",
       "Confira a quantidade e o preço.",
-      "Escolha a forma de pagamento: dinheiro, PIX, débito, crédito, parcelado ou cheque.",
-      "Se o cliente paga em duas formas, some até fechar o total.",
-      "Conclua a venda.",
+      "Escolha o Cliente. Quem não quer se identificar é o Consumidor final.",
+      "Escolha a forma de pagamento: Dinheiro, PIX, Débito, Crédito, Parcelado ou Cheque. Em duas formas, some até fechar o total.",
+      "Confira o Vendedor: vem com o seu nome. Se um colega atendeu, escolha ele.",
+      "Clique em Fechar a venda.",
+    ],
+  },
+  {
+    titulo: "Imprimir",
+    passos: [
+      "Depois da venda, clique em Imprimir A4 (folha) ou Imprimir cupom (bobina).",
+      "Na aba que abre, clique em Imprimir. Para PDF, escolha Salvar como PDF.",
+      "Para imprimir de novo, abra a venda em Vendas.",
+    ],
+  },
+  {
+    titulo: "Orçamento",
+    passos: [
+      "Em Vender, toque em Orçamento, no alto.",
+      "Monte os itens como numa venda.",
+      "Escolha o cliente com nome, CPF ou CNPJ e telefone.",
+      "Clique em Salvar orçamento e imprima.",
+      "Cliente voltou: em Venda, digite o número em Orçamento nº e clique em Carregar.",
     ],
   },
   {
     titulo: "Fiado",
     passos: [
-      "Escolha o cliente antes. Sem cliente não há fiado.",
-      "Deixe o que falta como fiado e conclua.",
+      "Escolha o cliente de verdade. O Consumidor final não compra fiado.",
+      "Toque em + Fiado para o que falta e feche a venda.",
       "Quando ele voltar, abra Fiado, ache o nome e clique em Receber.",
     ],
   },
   {
     titulo: "Abrir, conferir e encerrar o caixa",
     passos: [
-      "Abra Caixa e clique em Abrir, na linha do caixa: conte o troco que está nele.",
+      "Abra Caixa e clique em Abrir, na linha do caixa. Conte o troco e digite em Troco contado.",
+      "Caixa fechado na hora da venda? Clique em Abrir o Caixa 1 ali mesmo. A venda continua.",
       "Para conferir, clique em Conferir e digite o valor contado. Se não bater, escreva o motivo.",
-      "No fim do turno, clique em Encerrar: conte, separe o malote e deixe o troco.",
+      "No fim do turno, clique em Encerrar: conte, informe o malote e deixe o troco. Imprima o relatório e leve com o malote.",
+    ],
+  },
+  {
+    titulo: "Sangria",
+    passos: [
+      "Muito dinheiro no caixa? Em Caixa, clique em Sangria.",
+      "Digite o valor retirado e clique em Registrar sangria.",
+      "Leve as notas ao gerente. Ele confirma o que recebeu.",
     ],
   },
   {
@@ -44,7 +72,10 @@ const RECUSAS: [string, string][] = [
   ["Saca fechada recusada", "Não há saca lacrada no estoque. Venda a granel ou chame o Gestor."],
   ["PIX ou cartão recusado", "Falta cadastrar a conta ou a regra na loja. Chame o Gestor."],
   ["Desconto recusado", "Passou do limite. Chame o Gestor."],
-  ["Fiado recusado", "Falta o cliente. Escolha ou cadastre na hora."],
+  ["Fiado ou cheque recusado", "O Consumidor final não compra fiado nem paga em cheque. Escolha o cliente ou clique em Cliente novo."],
+  ["Nenhum caixa aberto", "Clique em Abrir o Caixa 1, conte o troco e abra. A venda continua."],
+  ["Escolha o vendedor que atendeu", "No campo Vendedor, escolha quem atendeu o cliente."],
+  ["Orçamento recusado", "Escolha um cliente de verdade, com CPF ou CNPJ e telefone. Se aparecer Cadastro incompleto, clique em Completar cadastro."],
   ["Botão que não aparece", "Essa permissão está desligada para você. Peça ao Dono."],
 ];
 

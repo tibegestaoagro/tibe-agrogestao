@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ParteDono, ParteGestor, ParteVendedor } from "./partes-funcao";
+import { ParteCaixa, ParteDono, ParteGestor, ParteVendedor } from "./partes-funcao";
 import {
   ParteDeCompras,
   ParteDeEquipe,
@@ -25,6 +25,7 @@ export const CONTEUDOS: Record<string, () => ReactNode> = {
   dono: ParteDono,
   gestor: ParteGestor,
   vendedor: ParteVendedor,
+  "caixa-papel": ParteCaixa,
   "primeiros-passos": ParteDePrimeirosPassos,
   equipe: ParteDeEquipe,
   produtos: ParteDeProdutos,

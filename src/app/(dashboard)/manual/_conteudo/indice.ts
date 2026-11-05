@@ -13,8 +13,9 @@ export const BASE_DO_EMPORIO = "/manual/emporio";
 
 export const PARTES_DO_EMPORIO: Parte[] = [
   { slug: "dono", titulo: "Sou o Dono", grupo: "Por função", resumo: "Montar as lojas, a Equipe e acompanhar o resultado." },
-  { slug: "gestor", titulo: "Sou Gestor", grupo: "Por função", resumo: "Comandar a sua loja: preço, estoque, caixa e despesas." },
-  { slug: "vendedor", titulo: "Sou Vendedor", grupo: "Por função", resumo: "Vender no balcão, receber fiado e conferir a gaveta." },
+  { slug: "gestor", titulo: "Sou Gestor", grupo: "Por função", resumo: "Comandar a sua loja: preço, estoque, caixa, despesas e relatórios." },
+  { slug: "vendedor", titulo: "Sou Vendedor", grupo: "Por função", resumo: "Vender e orçar no balcão, receber fiado e cuidar do caixa." },
+  { slug: "caixa-papel", titulo: "Sou Caixa", grupo: "Por função", resumo: "Abrir o caixa, receber do cliente, fazer sangria e encerrar o turno." },
   { slug: "primeiros-passos", titulo: "Primeiros passos", grupo: "Por tarefa", resumo: "O que fazer antes da primeira venda." },
   { slug: "equipe", titulo: "Montar a Equipe", grupo: "Por tarefa", resumo: "Cadastrar Gestores e Vendedores e ligar permissões." },
   { slug: "produtos", titulo: "Cadastrar produto", grupo: "Por tarefa", resumo: "Saca, fardo, granel, marca, código e espécie." },
