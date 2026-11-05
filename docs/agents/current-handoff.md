@@ -96,6 +96,30 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
+### Empório, entrega 3: vendedor e relatórios (05/11), NA BRANCH
+
+Branch `emporio-vendedor-relatorios` (saída da `main` em `8db0603`), **não
+mergeada**. Plano
+`docs/superpowers/plans/2026-11-05-emporio-entrega3-vendedor-e-relatorios.md`,
+decisões Q168 a Q175 na spec do módulo. Contém:
+- `EmporioSale.seller_user_id`: o Caixa escolhe o vendedor a cada venda
+  (`SELLER_REQUIRED`, `INVALID_SELLER`), os demais vendem em nome próprio;
+- a venda, o papel A4 e a bobina mostram o vendedor (e "Caixa N (nome)");
+- a troca herda o vendedor da venda original;
+- `/emporio/relatorios` (Gestor para cima): vendas por vendedor, por produto,
+  produtos parados e por loja, por período.
+
+Provas (05/11): `test:m93` verde; o roteiro
+`npm run navegador -- emporio-vendedor` (cenário
+`scripts/_cenario-emporio-vendedor.ts`) verde, vermelho com o balcão sem
+mandar `seller_user_id` (12 falhas) e verde de novo restaurado; o
+`emporio-turno`, adaptado para o Caixa escolher o vendedor, verde; Relatórios
+e o balcão do Caixa sem rolagem horizontal a 390 px.
+
+**A migração `20261105140000_emporio_vendedor_da_venda` NÃO está no Neon.**
+Ordem do deploy: migração no Neon (URL Direct) ANTES do push; o preenchimento
+das vendas antigas já está no SQL, então não há reaplicação de dados.
+
 ### Empório, entrega 2: caixa com turno (05/11), em produção
 
 **Em produção desde 05/11** (`8db0603`, merge fast-forward de
@@ -466,8 +490,9 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 avisa a Da Mata: no primeiro dia toda venda pede para abrir o caixa, e a
 primeira abertura confere o saldo antigo da gaveta. Fica em aberto a pergunta
 de produto: o reforço vindo da gerência deve esperar o gestor confirmar, como
-a sangria? Depois, a entrega 3 (vendedor na venda e relatórios), com plano
-próprio. Da entrega 1, segue pendente o usuário imprimir um cupom
+a sangria? A entrega 3 (vendedor na venda e relatórios) está pronta na branch
+`emporio-vendedor-relatorios`, com os roteiros verdes: falta o juiz, a migração no Neon e a autorização do usuário para merge, push e deploy (nesta
+ordem). Da entrega 1, segue pendente o usuário imprimir um cupom
 de 58 e de 80 mm na bobina da loja e um A4.
 
 **Empório, 04/11:** o usuário pediu dois ajustes antes do manual e do cenário.
