@@ -96,10 +96,13 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
-### Empório, entrega 4: orçamento (05/11), NA BRANCH
+### Empório, entrega 4: orçamento (05/11), em produção
 
-**Branch `emporio-orcamento`** (saída de `e2c2d65`), **sem merge, sem push, sem
-deploy.** Plano `docs/superpowers/plans/2026-11-05-emporio-entrega4-orcamento.md`,
+**Em produção desde 05/11** (`b18d09f`): a migração
+`20261105150000_emporio_orcamento` no Neon (URL Direct, `migrate status` em
+dia), depois o merge fast-forward de `emporio-orcamento` e o push, autorizados
+pelo usuário, com a Vercel em sucesso no status do commit. Sem reaplicação de
+dados. Branch `emporio-orcamento` (saída de `e2c2d65`). Plano `docs/superpowers/plans/2026-11-05-emporio-entrega4-orcamento.md`,
 decisões Q176 a Q187 na spec do módulo. Contém:
 - `EmporioQuote` e `EmporioQuoteItem`, mais `EmporioSale.quote_id`: orçamento com
   número, validade (7 dias, até o fim do dia em Brasília) e situação derivada
@@ -129,12 +132,6 @@ roteiro achou um defeito real: `/emporio/orcamentos` dava 500, porque a página
 (`_components/orcamentos-filtro.tsx`). Corrigido na branch: a constante foi
 para `_components/situacoes.ts`, sem `"use client"`, e o roteiro passou de novo
 sem remendo nenhum.
-
-⚠️ **A migração `20261105150000_emporio_orcamento` NÃO está no Neon.** Ordem do
-deploy: (1) `npx prisma migrate status` apontando ao Neon; (2) aplicar a
-migração com a URL **Direct** (sem `-pooler`), ela é aditiva; (3) só então o
-merge e o push, cada um com a autorização do usuário. Sem reaplicação de dados:
-nenhuma venda antiga tem orçamento (`quote_id` nasce nulo).
 
 A revisão final da branch achou o desconto que se somava (o Vendedor orçava no
 limite e faturava com mais desconto sobre o orçado, sem o gestor, e a venda
@@ -551,11 +548,12 @@ de produto: o reforço vindo da gerência deve esperar o gestor confirmar, como
 a sangria? A entrega 3 (vendedor na venda e relatórios) também está em
 produção desde 05/11: o usuário avisa a Da Mata que o Caixa passa a escolher
 o vendedor em toda venda, e que os Relatórios ficam no menu do Gestor para
-cima. A entrega 4 (orçamento) está pronta na branch `emporio-orcamento`: o
-próximo passo é o deploy na ordem da seção dela acima (migração no Neon com a
-URL Direct, depois merge e push, com autorização do usuário). Depois do
-deploy, faltam o capítulo do turno, do Caixa, dos Relatórios e do Orçamento no
-manual, e corrigir o cenário de demonstração antes de refazê-la. Da entrega 1, segue
+cima. A entrega 4 (orçamento) também está em produção desde 05/11. Esperam
+decisão do usuário as pontas da Q187: amarrar o cliente da venda ao do
+orçamento, o preço orçado valer para qualquer quantidade, e o `sold_at`
+retroativo pela API. Próximo trabalho, pedido pelo usuário: o capítulo do
+turno, do Caixa, dos Relatórios e do Orçamento no manual, e corrigir o cenário
+de demonstração antes de refazê-la. Da entrega 1, segue
 pendente o usuário imprimir um cupom
 de 58 e de 80 mm na bobina da loja e um A4.
 
