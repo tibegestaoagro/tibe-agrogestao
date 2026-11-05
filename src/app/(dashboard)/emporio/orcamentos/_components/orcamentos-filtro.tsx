@@ -12,15 +12,10 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 
-const TODAS = "__todas__";
+import { SITUACOES_DO_ORCAMENTO } from "./situacoes";
 
-export const SITUACOES_DO_ORCAMENTO: { valor: string; rotulo: string }[] = [
-  { valor: "acompanhamento", rotulo: "Em acompanhamento" },
-  { valor: "aberto", rotulo: "Em aberto" },
-  { valor: "vencido", rotulo: "Vencidos" },
-  { valor: "faturado", rotulo: "Faturados" },
-  { valor: "todos", rotulo: "Todos" },
-];
+const TODAS ="__todas__";
+
 
 /** Filtro da lista de orçamentos: vive na URL, e a página server relê. */
 export function OrcamentosFiltro({

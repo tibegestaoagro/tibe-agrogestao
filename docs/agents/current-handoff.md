@@ -121,9 +121,9 @@ restaurado; `emporio-vendedor` e `emporio-turno` seguem verdes; lista e balcão
 em modo Orçamento sem rolagem horizontal a 390 px. A primeira rodada do
 roteiro achou um defeito real: `/emporio/orcamentos` dava 500, porque a página
 (server) importava `SITUACOES_DO_ORCAMENTO` de um arquivo `"use client"`
-(`_components/orcamentos-filtro.tsx`); o verde acima foi com essa constante
-copiada na página, e a correção definitiva (constante num módulo sem
-`"use client"`) precisa estar na branch antes do deploy.
+(`_components/orcamentos-filtro.tsx`). Corrigido na branch: a constante foi
+para `_components/situacoes.ts`, sem `"use client"`, e o roteiro passou de novo
+sem remendo nenhum.
 
 ⚠️ **A migração `20261105150000_emporio_orcamento` NÃO está no Neon.** Ordem do
 deploy: (1) `npx prisma migrate status` apontando ao Neon; (2) aplicar a

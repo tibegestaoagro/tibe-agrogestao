@@ -17,7 +17,8 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
-import { OrcamentosFiltro, SITUACOES_DO_ORCAMENTO } from "./_components/orcamentos-filtro";
+import { OrcamentosFiltro } from "./_components/orcamentos-filtro";
+import { SITUACOES_DO_ORCAMENTO } from "./_components/situacoes";
 
 const DATA_HORA = new Intl.DateTimeFormat("pt-BR", {
   timeZone: "America/Sao_Paulo",
