@@ -34,7 +34,9 @@ export type ImpressoVenda = {
   total: number;
   pagamentos: { forma: string; valor: number }[];
   troco: number | null;
-  registrada_por: string | null;
+  vendedor: string | null;
+  /** `Caixa N (Nome de quem registrou)`; nulo quando a venda não tem turno. */
+  caixa: string | null;
   rodape: string | null;
   largura_bobina: 80 | 58;
 };
@@ -99,9 +101,13 @@ export async function lerImpressoDaVendaAction(
         }
       : null;
 
-  const vendedor = v.sold_by_user_id
-    ? await db.user.findFirst({ where: { id: v.sold_by_user_id }, select: { name: true } })
+  const turno = v.cash_session_id
+    ? await db.cashSession.findFirst({
+        where: { id: v.cash_session_id },
+        select: { cash_register: { select: { number: true } } },
+      })
     : null;
+  const caixa = turno ? `Caixa ${turno.cash_register.number} (${v.sold_by_name ?? "sem nome"})` : null;
 
   // O item com desconto sai no preço sugerido, para o papel fechar: soma(linhas) = subtotal
   // e subtotal - desconto = total. Os demais seguem no praticado. A linha é o total praticado
@@ -146,7 +152,8 @@ export async function lerImpressoDaVendaAction(
     total: v.net_amount,
     pagamentos: v.payments.map((p) => ({ forma: FORMA_ROTULO[p.kind] ?? p.kind, valor: p.amount })),
     troco: troco > 0 ? troco : null,
-    registrada_por: vendedor?.name ?? null,
+    vendedor: v.seller_name,
+    caixa,
     rodape: cfg.data.sale_footer,
     largura_bobina: cfg.data.receipt_width,
   });

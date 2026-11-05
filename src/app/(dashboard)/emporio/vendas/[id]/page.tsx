@@ -87,6 +87,14 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
             {venda.establishment_name}
             {venda.contact_name ? `, cliente ${venda.contact_name}` : ""}
           </p>
+          {venda.seller_name && (
+            <p className="text-sm text-texto-secundario">
+              Vendedor: <span className="font-medium text-texto">{venda.seller_name}</span>
+              {venda.sold_by_user_id && venda.sold_by_user_id !== venda.seller_user_id && venda.sold_by_name
+                ? `. Registrada por ${venda.sold_by_name}`
+                : ""}
+            </p>
+          )}
           <div className="mt-2 flex flex-wrap gap-1">
             <Badge variant={ativa ? "green" : "gray"}>{ativa ? "Concluída" : "Cancelada"}</Badge>
             {ativa && venda.open_amount > 0 && <Badge variant="amber">Fiado em aberto {reaisBr(venda.open_amount)}</Badge>}

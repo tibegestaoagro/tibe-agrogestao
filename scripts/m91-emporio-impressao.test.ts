@@ -496,7 +496,8 @@ async function secao3() {
       check("itens[0].quantidade '2'", d.itens[0]?.quantidade === "2", j(d.itens));
       check("totais: preço 10, total 20, subtotal 20, desconto 0", d.itens[0]?.preco === 10 && d.itens[0]?.total === 20 && d.total === 20 && d.subtotal === 20 && d.desconto === 0, j(d));
       check("pagamento dinheiro 20", d.pagamentos.length === 1 && d.pagamentos[0].forma === "Dinheiro" && d.pagamentos[0].valor === 20, j(d.pagamentos));
-      check("registrada_por é o nome de quem vendeu", d.registrada_por === donoA.name, String(d.registrada_por));
+      check("vendedor é o nome de quem vendeu", d.vendedor === donoA.name, String(d.vendedor));
+      check("caixa traz o número do caixa e quem registrou", /^Caixa \d+ \(.+\)$/.test(d.caixa ?? ""), String(d.caixa));
       check("não cancelada, sem logo", d.cancelada === false && d.tem_logo === false);
     }
 

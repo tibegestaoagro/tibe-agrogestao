@@ -76,6 +76,7 @@ export default async function VendasPage({
               <TableHead>Data</TableHead>
               <TableHead>Loja</TableHead>
               <TableHead>Cliente</TableHead>
+              <TableHead>Vendedor</TableHead>
               <TableHead>Total</TableHead>
               <TableHead>Situação</TableHead>
               <TableHead>
@@ -92,6 +93,7 @@ export default async function VendasPage({
                   <TableCell>{DATA_HORA.format(new Date(v.sold_at))}</TableCell>
                   <TableCell className="font-medium text-texto">{v.establishment_name}</TableCell>
                   <TableCell>{v.contact_name ?? "-"}</TableCell>
+                  <TableCell>{v.seller_name ?? "-"}</TableCell>
                   <TableCell>{reaisBr(v.net_amount)}</TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">

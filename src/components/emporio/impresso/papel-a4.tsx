@@ -121,9 +121,9 @@ export function PapelA4({ d }: { d: ImpressoVenda }) {
       </section>
 
       <footer className="rodape">
-        {d.registrada_por && (
+        {d.vendedor && (
           <div>
-            Vendedor: <b>{d.registrada_por}</b>
+            Vendedor: <b>{d.vendedor}</b>
           </div>
         )}
         {d.rodape && <div style={{ whiteSpace: "pre-line" }}>{d.rodape}</div>}

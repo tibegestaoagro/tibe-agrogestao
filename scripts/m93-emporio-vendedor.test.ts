@@ -289,6 +289,23 @@ async function secao1() {
     const depois = await prisma.emporioSale.findUnique({ where: { id: sozinho.data.id } });
     check("rodar o UPDATE preenche o vendedor com quem registrou", depois?.seller_user_id === vend1.id, j(depois?.seller_user_id));
   }
+
+  // --- Seção 2: o vendedor e o caixa nos dados do papel
+  console.log("\nSeção 2: o vendedor e o caixa no papel");
+  const { lerImpressoDaVendaAction } = await import("@/lib/actions/emporio-impressao");
+  if (!comVend.ok) throw new Error("sem venda para imprimir");
+  const imp = await lerImpressoDaVendaAction(db, owner, comVend.data.id);
+  check("a venda do Caixa com o Vendedor: vendedor = nome do Vendedor", imp.ok && imp.data.vendedor === "M93 vend1", j(imp));
+  check("e caixa = Caixa 1 (nome de quem registrou)", imp.ok && imp.data.caixa === "Caixa 1 (M93 caixa)", j(imp.ok ? imp.data.caixa : imp));
+  check("registrada_por saiu dos dados do papel", imp.ok && !("registrada_por" in imp.data), j(imp));
+  const vistaV = await Ven.lerVendaAction(db, owner, comVend.data.id);
+  check("VendaView expõe cash_session_id", vistaV.ok && typeof vistaV.data.cash_session_id === "string", j(vistaV.ok ? vistaV.data.cash_session_id : vistaV));
+  await prisma.emporioSale.update({ where: { id: comVend.data.id }, data: { cash_session_id: null } });
+  const semTurno = await lerImpressoDaVendaAction(db, owner, comVend.data.id);
+  check("venda sem turno: caixa nulo, vendedor continua", semTurno.ok && semTurno.data.caixa === null && semTurno.data.vendedor === "M93 vend1", j(semTurno));
+  await prisma.emporioSale.update({ where: { id: comVend.data.id }, data: { seller_user_id: null } });
+  const semVendedor = await lerImpressoDaVendaAction(db, owner, comVend.data.id);
+  check("venda antiga sem vendedor: vendedor nulo", semVendedor.ok && semVendedor.data.vendedor === null, j(semVendedor));
 }
 
 async function limpar() {

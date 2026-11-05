@@ -80,9 +80,10 @@ export function PapelCupom({ d }: { d: ImpressoVenda }) {
           <span>{reaisBr(d.troco)}</span>
         </div>
       )}
-      {(d.cliente || d.registrada_por) && <hr />}
+      {(d.cliente || d.vendedor || d.caixa) && <hr />}
       {d.cliente && <div className="nome">Cliente: {d.cliente.nome}</div>}
-      {d.registrada_por && <div className="nome">Vendedor: {d.registrada_por}</div>}
+      {d.vendedor && <div className="nome">Vendedor: {d.vendedor}</div>}
+      {d.caixa && <div className="nome">Caixa: {d.caixa}</div>}
       {d.rodape && (
         <>
           <hr />

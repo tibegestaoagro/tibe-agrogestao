@@ -162,6 +162,8 @@ export type VendaView = {
   /** Entrega 3: quem de fato vendeu (difere de `sold_by_user_id` quando o Caixa registra). */
   seller_user_id: string | null;
   seller_name: string | null;
+  /** O turno de caixa em que a venda foi feita; nulo nas vendas anteriores aos turnos. */
+  cash_session_id: string | null;
   net_amount: number;
   discount_amount: number;
   discount_pct: number;
@@ -292,6 +294,7 @@ async function montarVendas(db: TenantPrismaClient, linhas: VendaRow[]): Promise
       sold_by_name: s.sold_by_user_id ? (nomeDoUsuario.get(s.sold_by_user_id) ?? null) : null,
       seller_user_id: s.seller_user_id,
       seller_name: s.seller_user_id ? (nomeDoUsuario.get(s.seller_user_id) ?? null) : null,
+      cash_session_id: s.cash_session_id,
       net_amount: decToNum(s.net_amount) ?? 0,
       discount_amount: desconto,
       discount_pct: denominador > 0 ? arred2((desconto / denominador) * 100) : 0,
