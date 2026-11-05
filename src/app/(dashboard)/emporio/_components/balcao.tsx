@@ -152,6 +152,7 @@ export function Balcao({
   // O vendedor: a escolha só vale se ainda está na lista da loja (trocar de loja a descarta). Quem não é Caixa
   // começa nele mesmo, quando ele vende naquela loja.
   const [vendedorEscolhido, setVendedorEscolhido] = useState("");
+  // Nunca atravessa lojas: A, B, A volta vazio (o Caixa escolhe de novo, o resto cai nele mesmo).
   const vendedores = vendedoresPorLoja[loja] ?? [];
   const vendedor = vendedores.some((u) => u.id === vendedorEscolhido)
     ? vendedorEscolhido
@@ -177,6 +178,7 @@ export function Balcao({
   }, [err.focarCampoId, err.tentativa]);
 
   function lembrarLoja(id: string) {
+    setVendedorEscolhido("");
     try {
       window.localStorage.setItem(CHAVE_LOJA, id);
     } catch {
@@ -245,6 +247,8 @@ export function Balcao({
     retomar.current = false;
     setResumo({ venda: res.data, trocoCent });
     v.reiniciar();
+    // O Caixa escolhe o vendedor a cada venda: a escolha anterior não passa para a próxima.
+    setVendedorEscolhido("");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
