@@ -160,6 +160,28 @@ Nenhum bloqueia; cada um vale na próxima vez que o arquivo for tocado.
   apresentação arquivada com preço nos parados, `por_produto` do Gestor.
 - Comentário fora do lugar em `balcao.tsx` (perto da linha 146).
 
+### 5.17 Empório, entrega 4 (orçamento): o que a revisão deixou para depois
+
+Registrado em 05/11/2026, na revisão final da branch `emporio-orcamento`.
+Nenhum bloqueia; cada um vale na próxima vez que o arquivo for tocado.
+- A busca de orçamento por telefone ou documento compara os dígitos em
+  memória, sobre todos os contatos com orçamento nas lojas e na situação
+  pedidas, sem limite próprio; com volume, uma coluna de dígitos com índice.
+  O `limit` não numérico é ignorado em vez de recusado.
+- `orcamentoAFaturar` relê `PresentationPrice` que `precificarItens` já leu.
+- `max_discount_pct: unknown` em `src/lib/emporio/precificar.ts`.
+- Balcão: `preco_que_vale` nulo cai na recusa genérica do cliente, não na do
+  servidor; o resumo do orçamento salvo fica na tela ao trocar para Venda;
+  `?orcamento=` fica na URL se o orçamento for tirado e a venda for comum.
+- A conferência 15 não vê `number`, `quote_id` e `notes`, que moram em
+  `balcao-orcamento.tsx` (conferidos à mão: todos têm `error=`).
+- Cupom: a linha "Orçamento nº" da venda não tem classe; não há teste do cupom
+  renderizado nem de item sem `preco_sugerido`.
+- Lista de Orçamentos: a busca do filtro não se ressincroniza com `q` na
+  navegação para trás.
+- Roteiro `scripts/navegador/emporio-orcamento.py`: "cancelada" conferido por
+  trecho solto; `HOJE` por `utcnow` pode oscilar perto da meia-noite.
+
 ### 5.15 O filtro de situação das Negociações lê o período inteiro
 
 Registrado na E10.1 (13/10/2026), rodada 2 do Codex; o usuário escolheu
