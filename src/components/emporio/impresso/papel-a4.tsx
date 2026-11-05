@@ -60,6 +60,7 @@ export function PapelA4({ d }: { d: ImpressoVenda }) {
       </header>
 
       {d.cancelada && <p className="cancelada">VENDA CANCELADA</p>}
+      {d.faturado_na_venda && <p className="cancelada">FATURADO (venda nº {d.faturado_na_venda})</p>}
 
       {d.cliente && (
         <section className="bloco">

@@ -46,6 +46,8 @@ export type ImpressoVenda = {
   validade: string | null;
   /** Venda faturada de um orçamento: o número dele (6 dígitos). Nulo nos demais. */
   orcamento_origem: string | null;
+  /** Orçamento faturado: o número da venda ativa que o faturou (6 dígitos). Nulo nos demais. */
+  faturado_na_venda: string | null;
 };
 
 /** Junta só as partes preenchidas; tudo vazio vira null (nunca string vazia). */
@@ -198,6 +200,7 @@ export async function lerImpressoDaVendaAction(
     largura_bobina: cfg.receipt_width,
     validade: null,
     orcamento_origem: v.quote?.numero ?? null,
+    faturado_na_venda: null,
   });
 }
 
@@ -249,5 +252,6 @@ export async function lerImpressoDoOrcamentoAction(
     largura_bobina: cfg.receipt_width,
     validade: `${dia}/${mes}/${ano}`,
     orcamento_origem: null,
+    faturado_na_venda: q.situacao === "faturado" && q.sale ? q.sale.numero : null,
   });
 }

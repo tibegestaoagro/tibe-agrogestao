@@ -314,9 +314,13 @@ export function Balcao({
       return;
     }
     const m = v.montar(true);
-    const novos: typeof m.novos & { seller_user_id?: string } = { ...m.novos };
+    const novos: typeof m.novos & { seller_user_id?: string; quote_id?: string } = { ...m.novos };
     if (ehCaixa && !vendedor && !orcamento) novos.seller_user_id = AVISO_SEM_VENDEDOR;
-    if (!m.corpo || novos.seller_user_id) {
+    // O orçamento já faturado (aberto por `?orcamento=`): a mesma frase da faixa e do servidor.
+    if (orcamento?.situacao === "faturado" && orcamento.sale) {
+      novos.quote_id = `Este orçamento já foi faturado na venda nº ${orcamento.sale.numero}.`;
+    }
+    if (!m.corpo || novos.seller_user_id || novos.quote_id) {
       err.setGlobal(null);
       err.reprovar(novos);
       return;
@@ -378,6 +382,12 @@ export function Balcao({
     // O Caixa escolhe o vendedor a cada venda: a escolha anterior não passa para a próxima. O orçamento, idem.
     setVendedorEscolhido("");
     setOrcamento(null);
+    // Tira o `?orcamento=` do endereço, para recarregar a página não trazer de volta o
+    // orçamento faturado. Sem `router.replace`: a página relida remontaria o balcão
+    // (a `key` dele é o orçamento) e o resumo da venda sumiria.
+    if (orcamento && new URLSearchParams(window.location.search).has("orcamento")) {
+      window.history.replaceState(null, "", "/emporio/vender");
+    }
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 

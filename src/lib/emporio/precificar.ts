@@ -25,7 +25,7 @@ export type ItemPrecificado = {
   quantity: number;
   /** Na unidade-base. */
   base_qty: number;
-  /** O preço-base da apresentação na loja (ou o de `precoBase`); nulo sem preço. */
+  /** O preço de referência: o da apresentação na loja (ou o do orçamento faturado); nulo sem preço. */
   suggested_cent: number | null;
   unit_cent: number;
   total_cent: number;
@@ -37,7 +37,7 @@ export type ItensPrecificados = {
   itens: ItemPrecificado[];
   total_cent: number;
   desconto_cent: number;
-  /** Quem autorizou o desconto acima do limite da loja (o próprio ator), ou nulo. */
+  /** Quem autorizou o desconto acima do limite da loja (o próprio ator, ou o que autorizou o orçamento), ou nulo. */
   autorizou: string | null;
 };
 
@@ -48,14 +48,48 @@ export const centavos = (n: number) => Math.round(Number((n * 100).toPrecision(1
 const numero = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
 /**
- * O preço-base que vale ao faturar um item que está no orçamento, em centavos.
- * Dentro da validade: o menor entre o orçado e o de hoje (o orçado, se hoje não
+ * O preço que vale ao faturar um item que está no orçamento, em centavos: o que
+ * o balcão cobra e o piso que o orçamento garante. Dentro da validade: o menor
+ * entre o orçado (o `unit_price` do orçamento) e o de hoje (o orçado, se hoje não
  * houver preço). Vencido: o de hoje, como numa venda comum (nulo sem preço).
  */
 export function precoQueVale(orcadoCent: number, hojeCent: number | null, vencido: boolean): number | null {
   if (vencido) return hojeCent;
   return hojeCent === null ? orcadoCent : Math.min(orcadoCent, hojeCent);
 }
+
+/**
+ * O preço de referência ao faturar um item que está no orçamento, em centavos:
+ * é o `suggested_price` da venda, contra o qual se mede o desconto (Q85). Dentro
+ * da validade: o menor entre o de hoje e o sugerido quando se orçou (o sugerido
+ * do orçamento, se hoje não houver preço; o orçado, se ele também faltar).
+ * Vencido: o de hoje. Assim o desconto dado no orçamento aparece na venda, e o
+ * limite da loja vale sobre o desconto inteiro, não sobre o que se soma ao faturar.
+ */
+export function precoDeReferencia(
+  orcadoCent: number,
+  sugeridoNoOrcamentoCent: number | null,
+  hojeCent: number | null,
+  vencido: boolean,
+): number | null {
+  if (vencido) return hojeCent;
+  if (hojeCent === null) return sugeridoNoOrcamentoCent ?? orcadoCent;
+  return sugeridoNoOrcamentoCent === null ? hojeCent : Math.min(hojeCent, sugeridoNoOrcamentoCent);
+}
+
+/**
+ * O orçamento faturado, como `precificarItens` o enxerga (só dentro da validade;
+ * vencido, a venda segue a regra normal e isto não vem).
+ */
+export type OrcamentoNaPrecificacao = {
+  /**
+   * Centavos por `presentation_id`: `referencia` faz o papel do preço da loja, e
+   * `vale` é o preço do item sem `unit_price` e o piso da autorização herdada.
+   */
+  linhas: Map<string, { referencia: number; vale: number }>;
+  /** Quem autorizou o desconto do orçamento acima do limite; nulo se ninguém. */
+  autorizou: string | null;
+};
 
 /**
  * Quem vendeu (entrega 3, Q168, Q169). `herdado` (a troca, o orçamento faturado)
@@ -89,10 +123,13 @@ export async function resolverVendedor(
 
 /**
  * Valida os itens e calcula preço e desconto. O preço sugerido é o da
- * apresentação na loja; `precoBase` (centavos por `presentation_id`) o substitui
- * para as apresentações que trouxer. Sem `unit_price`, vale o sugerido (sem ele,
- * 422). Desconto (Q85): só o que fica abaixo do sugerido; acima do
- * `max_discount_pct` da loja, só o gestor da loja passa, e fica como quem autorizou.
+ * apresentação na loja; com `orcamento` (a venda que fatura um orçamento dentro
+ * da validade), o das apresentações dele é a `referencia`. Sem `unit_price`, vale
+ * o sugerido (no orçamento, o `vale`; sem nenhum, 422). Desconto (Q85): só o que
+ * fica abaixo do sugerido, somado em todas as linhas; acima do `max_discount_pct`
+ * da loja, passa o gestor da loja (fica como quem autorizou) ou, ao faturar, o
+ * orçamento que já tinha autorização, desde que nenhuma linha do orçamento fique
+ * abaixo do `vale` e nenhuma de fora abaixo do sugerido (fica quem autorizou o orçamento).
  *
  * Quem chama confere antes que há ao menos um item (a frase diz de quê).
  */
@@ -101,7 +138,7 @@ export async function precificarItens(
   ator: Ator,
   loja: { id: string; max_discount_pct: unknown },
   items: VendaItemInput[],
-  opts: { precoBase?: Map<string, number> } = {},
+  opts: { orcamento?: OrcamentoNaPrecificacao | null } = {},
 ): Promise<ActionResult<ItensPrecificados>> {
   const produtoIds = [...new Set(items.map((i) => i?.emporio_product_id).filter((x): x is string => typeof x === "string" && !!x))];
   const produtos = await db.emporioProduct.findMany({ where: { id: { in: produtoIds } }, include: INCLUDE_PRODUTO });
@@ -122,6 +159,8 @@ export async function precificarItens(
     suggested: number | null;
     unit_price: number;
     total: number;
+    /** O piso da autorização herdada do orçamento: o `vale` na linha dele, o sugerido fora. */
+    piso: number | null;
   };
   const linhas: Linha[] = [];
   for (const it of items) {
@@ -147,14 +186,15 @@ export async function precificarItens(
     if (ap.is_sealed_package && lacradoEfetivo(produto) && !Number.isInteger(quantity)) {
       return fail("VALIDATION_ERROR", `A embalagem fechada de "${nome}" só aceita quantidade inteira.`, 422, "items");
     }
-    const base = opts.precoBase?.get(ap.id);
-    const sugerido = base !== undefined ? base / 100 : (precoPorApresentacao.get(ap.id) ?? null);
+    const doOrcamento = opts.orcamento?.linhas.get(ap.id);
+    const sugerido = doOrcamento ? doOrcamento.referencia / 100 : (precoPorApresentacao.get(ap.id) ?? null);
+    const piso = doOrcamento ? doOrcamento.vale / 100 : sugerido;
     let unit_price: number;
     if (it.unit_price == null) {
-      if (sugerido === null) {
+      if (piso === null) {
         return fail("VALIDATION_ERROR", `"${nome}" (${ap.name}) não tem preço cadastrado nesta loja. Informe o preço.`, 422, "items");
       }
-      unit_price = sugerido;
+      unit_price = piso;
     } else {
       if (!numero(it.unit_price) || arred2(it.unit_price) <= 0) {
         return fail("VALIDATION_ERROR", `O preço de "${nome}" deve ser maior que zero.`, 422, "items");
@@ -169,6 +209,7 @@ export async function precificarItens(
       suggested: sugerido,
       unit_price,
       total: arred2(quantity * unit_price),
+      piso,
     });
   }
 
@@ -186,7 +227,17 @@ export async function precificarItens(
     const pct = (descontoCent / baseCent) * 100;
     const limite = decToNum(loja.max_discount_pct) ?? 0;
     if (pct > limite + 1e-9) {
-      if (!pode(await papelDoEmporio(db, ator), "gestor_da_loja", loja.id)) {
+      // O orçamento autorizado acima do limite vale ao faturar, se nada ficar abaixo do que ele garantiu.
+      const herdada = opts.orcamento?.autorizou
+        ? linhas.every((i) => i.piso === null || centavos(i.unit_price) >= centavos(i.piso))
+          ? opts.orcamento.autorizou
+          : null
+        : null;
+      if (pode(await papelDoEmporio(db, ator), "gestor_da_loja", loja.id)) {
+        autorizou = ator.id;
+      } else if (herdada) {
+        autorizou = herdada;
+      } else {
         return fail(
           "DISCOUNT_ABOVE_LIMIT",
           `O desconto de ${pct.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}% passa do limite de ${limite.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}% desta loja. Peça ao gestor da loja.`,
@@ -194,7 +245,6 @@ export async function precificarItens(
           "items",
         );
       }
-      autorizou = ator.id;
     }
   }
 

@@ -14,8 +14,7 @@ import {
 
 import { SITUACOES_DO_ORCAMENTO } from "./situacoes";
 
-const TODAS ="__todas__";
-
+const TODAS = "__todas__";
 
 /** Filtro da lista de orçamentos: vive na URL, e a página server relê. */
 export function OrcamentosFiltro({

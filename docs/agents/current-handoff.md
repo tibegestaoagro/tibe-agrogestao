@@ -107,9 +107,14 @@ decisões Q176 a Q187 na spec do módulo. Contém:
 - o balcão com o seletor Venda | Orçamento: salva o orçamento, e na Venda
   carrega pelo número e fatura (`quote_id`), com o vendedor do orçamento
   travado e os avisos de vencido, preço que mudou e falta de estoque;
-- preço ao faturar: o menor entre o orçado e o de hoje dentro da validade, o de
-  hoje depois dela; faturar uma vez só (atualização condicional), e cancelar a
-  venda devolve o orçamento a aberto;
+- preço ao faturar: dentro da validade, cobra o menor entre o orçado e o de
+  hoje (`preco_que_vale`), e o desconto da venda mede contra a referência
+  `min(hoje, sugerido quando se orçou)` (Q184, revista na revisão final), então
+  o desconto do orçamento aparece na venda e o limite vale sobre o total; acima
+  do limite passa o gestor da loja ou o orçamento já autorizado, no preço que
+  ele garantiu (a venda herda quem autorizou); depois da validade, a regra
+  normal; faturar uma vez só (atualização condicional), e cancelar a venda
+  devolve o orçamento a aberto;
 - `/emporio/orcamentos` e o detalhe (Vendedor para cima; o Caixa só fatura
   digitando o número) e o papel do orçamento em A4 e bobina.
 
@@ -131,8 +136,14 @@ migração com a URL **Direct** (sem `-pooler`), ela é aditiva; (3) só então 
 merge e o push, cada um com a autorização do usuário. Sem reaplicação de dados:
 nenhuma venda antiga tem orçamento (`quote_id` nasce nulo).
 
-Aceito e registrado (Q184, Q187): a venda faturada de um orçamento com desconto
-grava `discount_amount` 0, e há pontas que esperam decisão do usuário.
+A revisão final da branch achou o desconto que se somava (o Vendedor orçava no
+limite e faturava com mais desconto sobre o orçado, sem o gestor, e a venda
+gravava desconto 0): corrigido pela nova Q184, provado no `test:m94` seção 3
+com mutações. A mesma rodada: o papel do orçamento faturado diz "FATURADO
+(venda nº X)", o balcão não fecha venda de orçamento já faturado e tira o
+`?orcamento=` do endereço depois da venda, e o `--apagar` do cenário de
+demonstração apaga os orçamentos. Ainda esperam decisão do usuário as pontas
+da Q187.
 
 ### Empório, entrega 3: vendedor e relatórios (05/11), em produção
 

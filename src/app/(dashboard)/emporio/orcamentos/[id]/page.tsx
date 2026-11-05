@@ -99,8 +99,8 @@ export default async function OrcamentoPage({ params }: { params: Promise<{ id: 
             </TableRow>
           </TableHeader>
           <TableBody>
-            {o.items.map((i) => (
-              <TableRow key={`${i.presentation_id}-${i.preco_orcado}`}>
+            {o.items.map((i, n) => (
+              <TableRow key={`${i.presentation_id}-${i.preco_orcado}-${n}`}>
                 <TableCell className="font-medium text-texto">
                   {i.produto}
                   <span className="block text-xs font-normal text-texto-secundario">{i.apresentacao}</span>

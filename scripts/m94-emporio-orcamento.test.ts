@@ -7,15 +7,15 @@ exigirBancoLocal();
  * M94: Módulo 39 (Meu Empório), entrega 4: o orçamento.
  * Roda: `npm run test:m94`
  *
- * Seção 1: o orçamento salvo (a regra do preço-base, gravar, repetir a chave, numeração,
+ * Seção 1: o orçamento salvo (o preço que vale e a referência ao faturar, gravar, repetir a chave, numeração,
  * cliente, vendedor, desconto, preço, Histórico, leitura e alcance, rotas).
  * Seção 2: a lista com busca (número, telefone, CPF, nome), a situação, o alcance, o Caixa
  * e a busca pelo número.
- * Seção 3: faturar (preço-base, validade no dia da venda em Brasília, o Caixa, outra loja,
+ * Seção 3: faturar (referência e preço, o desconto que não se soma, a autorização herdada, validade no dia da venda em Brasília, o Caixa, outra loja,
  * outro tenant, de novo, dois balcões ao mesmo tempo), cancelar e faturar de novo, replay,
  * item fora do orçamento e a troca.
  * Seção 4: o papel do orçamento (tipo, validade, sem pagamento, rodapé, alcance) e o orçamento
- * de origem no papel da venda.
+ * de origem no papel da venda; o orçamento faturado reimpresso diz FATURADO.
  */
 
 let falhas = 0;
@@ -45,7 +45,7 @@ async function secao1() {
   const Ven = await import("@/lib/actions/emporio-vendas");
   const Cli = await import("@/lib/actions/emporio-clientes");
   const Orc = await import("@/lib/actions/emporio-orcamentos");
-  const { precoQueVale } = await import("@/lib/emporio/precificar");
+  const { precoQueVale, precoDeReferencia } = await import("@/lib/emporio/precificar");
   const { hojeEmBrasilia, somarDias } = await import("@/lib/emporio/cartao");
   const { papelDeFixture, vincularTodas } = await import("./_emporio-papel");
   const { abrirTurnoDeTeste } = await import("./_emporio-turno");
@@ -65,6 +65,13 @@ async function secao1() {
   check("dentro da validade, sem preço hoje: vale o orçado", precoQueVale(2000, null, false) === 2000);
   check("vencido: vale o de hoje, mesmo mais caro", precoQueVale(2000, 2500, true) === 2500);
   check("vencido e sem preço hoje: nulo", precoQueVale(2000, null, true) === null);
+  // a referência do desconto ao faturar (orçado, sugerido no orçamento, hoje, vencido)
+  check("referência: hoje mais caro, vale a sugerida do orçamento", precoDeReferencia(1900, 2000, 2500, false) === 2000);
+  check("referência: hoje mais barato que a sugerida, vale a de hoje", precoDeReferencia(1900, 2000, 1700, false) === 1700);
+  check("referência: sem preço hoje, vale a sugerida do orçamento", precoDeReferencia(1900, 2000, null, false) === 2000);
+  check("referência: sem preço hoje nem sugerida, vale o orçado", precoDeReferencia(1900, null, null, false) === 1900);
+  check("referência: sem sugerida, vale a de hoje", precoDeReferencia(1900, null, 2100, false) === 2100);
+  check("referência: vencido, a de hoje", precoDeReferencia(1900, 2000, 2500, true) === 2500 && precoDeReferencia(1900, 2000, null, true) === null);
 
   type Role = "OWNER" | "ADMIN" | "OPERADOR" | "VISUALIZADOR";
   const mkTenant = async (rotulo: string) => {
@@ -531,7 +538,7 @@ async function secao3(c: Dado) {
   check("hoje mais caro (25), orçado 20: a venda sai", vA.ok, j(vA));
   if (!vA.ok) throw new Error("sem a primeira venda faturada");
   check(
-    "o preço-base da venda é o orçado: suggested 20, unit 20, desconto 0, total 40",
+    "orçado 20 sobre 20, hoje 25: a referência é a sugerida do orçamento (suggested 20), unit 20, desconto 0, total 40",
     vA.data.items[0].suggested_price === 20 && vA.data.items[0].unit_price === 20 && vA.data.discount_amount === 0 && vA.data.net_amount === 40,
     j(vA.data.items),
   );
@@ -549,7 +556,7 @@ async function secao3(c: Dado) {
   await precoHoje(18);
   const vB = await faturar(vend1, qB.id, 36);
   check(
-    "hoje mais barato (18), orçado 25: a base é a de hoje (suggested 18, unit 18, desconto 0)",
+    "hoje mais barato (18), orçado 25: referência e preço são os de hoje (suggested 18, unit 18, desconto 0)",
     vB.ok && vB.data.items[0].suggested_price === 18 && vB.data.items[0].unit_price === 18 && vB.data.discount_amount === 0,
     j(vB.ok ? vB.data.items : vB),
   );
@@ -758,6 +765,98 @@ async function secao3(c: Dado) {
   );
   const sI2 = await situacao(qI.id);
   check("e o orçamento fica faturado por essa venda", vI.ok && sI2.situacao === "faturado" && sI2.sale?.id === vI.data.id, j([sI2.situacao, sI2.sale]));
+
+  // --- o desconto do orçamento não se soma ao do faturamento: a referência é o preço
+  // sugerido quando se orçou (ou o de hoje, se menor), e o limite (5%) vale sobre o total
+  const vendaDe = (r: Dado) => (r.ok ? [r.data.items.map((i: Dado) => [i.suggested_price, i.unit_price]), r.data.discount_amount, r.data.discount_authorized_by_user_id] : r);
+  await precoHoje(20);
+  const qJ = await orcarP(vend1, { items: [itemP(2, { unit_price: 19 })] });
+  check("(i) o Vendedor orça a 19 sobre 20 (5%, no limite): salva, desconto 2, sem autorização", qJ.discount_amount === 2 && qJ.net_amount === 38, j(qJ));
+  await recusaSemGravar(
+    // 18,05 é 5% sobre o orçado 19: dentro do limite se o orçado fosse a referência (o desconto somado).
+    "(i) o Vendedor fatura com mais 5% sobre o orçado (18,05): 9,75% sobre 20",
+    faturar(vend1, qJ.id, 36.1, { items: [itemP(2, { unit_price: 18.05 })] }),
+    "DISCOUNT_ABOVE_LIMIT",
+    403,
+    "items",
+    "O desconto de 9,75% passa do limite de 5% desta loja. Peça ao gestor da loja.",
+  );
+  check("(i) e o orçamento continua aberto", (await situacao(qJ.id)).situacao === "aberto");
+  const vJ = await faturar(vend1, qJ.id, 38, { items: [itemP(2, { unit_price: 19 })] });
+  check(
+    "(i) faturado no preço orçado (19): sai com referência 20 e o desconto do orçamento (2), sem autorização",
+    vJ.ok && vJ.data.items[0].suggested_price === 20 && vJ.data.items[0].unit_price === 19 && vJ.data.discount_amount === 2 && vJ.data.discount_authorized_by_user_id === null,
+    j(vendaDe(vJ)),
+  );
+  const qJ2 = await orcarP(vend1, { items: [itemP(2, { unit_price: 19 })] });
+  const vJ3 = await faturar(vend1, qJ2.id, 38, { items: [itemP(2)] });
+  check(
+    "(i) sem unit_price, a linha do orçamento cobra o orçado (19), não a referência (20): desconto 2",
+    vJ3.ok && vJ3.data.items[0].unit_price === 19 && vJ3.data.items[0].suggested_price === 20 && vJ3.data.discount_amount === 2,
+    j(vendaDe(vJ3)),
+  );
+
+  // --- (ii) o orçamento autorizado pelo Gestor acima do limite: quem fatura herda a autorização no preço orçado
+  const qK = await orcarP(gestor, { items: [itemP(2, { unit_price: 16 })] });
+  const rowK = await db.emporioQuote.findFirst({ where: { id: qK.id } });
+  check("(ii) o Gestor orça a 16 sobre 20 (20%): autorizado por ele", qK.discount_amount === 8 && rowK?.discount_authorized_by_user_id === gestor.id, j([qK.discount_amount, rowK?.discount_authorized_by_user_id]));
+  await recusaSemGravar(
+    "(ii) o Vendedor fatura um centavo abaixo do orçado (15,99): sem autorização herdada",
+    faturar(vend1, qK.id, 31.98, { items: [itemP(2, { unit_price: 15.99 })] }),
+    "DISCOUNT_ABOVE_LIMIT",
+    403,
+    "items",
+    "O desconto de 20,05% passa do limite de 5% desta loja. Peça ao gestor da loja.",
+  );
+  await recusaSemGravar(
+    "(ii) no orçado, mas com um item de fora abaixo do preço da loja (milho a 9,99)",
+    faturar(vend1, qK.id, 41.99, { items: [itemP(2, { unit_price: 16 }), { emporio_product_id: P2.id, presentation_id: P2.ap, quantity: 1, unit_price: 9.99 }] }),
+    "DISCOUNT_ABOVE_LIMIT",
+    403,
+    "items",
+    "O desconto de 16,02% passa do limite de 5% desta loja. Peça ao gestor da loja.",
+  );
+  const vK = await faturar(vend1, qK.id, 32, { items: [itemP(2, { unit_price: 16 })] });
+  check(
+    "(ii) o Vendedor fatura no orçado (16): sai, desconto 8, autorizado pelo Gestor do orçamento",
+    vK.ok && vK.data.items[0].suggested_price === 20 && vK.data.items[0].unit_price === 16 && vK.data.discount_amount === 8 && vK.data.discount_authorized_by_user_id === gestor.id,
+    j(vendaDe(vK)),
+  );
+  const qK2 = await orcarP(gestor, { items: [itemP(2, { unit_price: 16 })] });
+  const vK2 = await faturar(caixa, qK2.id, 42, { items: [itemP(2, { unit_price: 16 }), { emporio_product_id: P2.id, presentation_id: P2.ap, quantity: 1 }] });
+  check(
+    "(ii) o Caixa fatura no orçado, com um item de fora no preço da loja: sai, autorizado pelo Gestor",
+    vK2.ok && vK2.data.discount_amount === 8 && vK2.data.discount_authorized_by_user_id === gestor.id && vK2.data.seller_user_id === gestor.id,
+    j(vendaDe(vK2)),
+  );
+
+  // --- (iii) o preço de hoje subiu depois do orçamento: a referência continua a de quando se orçou
+  await precoHoje(20);
+  const qL = await orcarP(vend1, { items: [itemP(2, { unit_price: 19 })] });
+  await precoHoje(25);
+  const vL = await faturar(vend1, qL.id, 38, { items: [itemP(2, { unit_price: 19 })] });
+  check(
+    "(iii) orçado 19 sobre 20, hoje 25: sai no orçado, referência 20, desconto 2 (5%, no limite)",
+    vL.ok && vL.data.items[0].suggested_price === 20 && vL.data.items[0].unit_price === 19 && vL.data.discount_amount === 2,
+    j(vendaDe(vL)),
+  );
+
+  // --- (iv) o preço de hoje caiu abaixo do orçado: a referência é a de hoje, sem desconto
+  await precoHoje(20);
+  const qM = await orcarP(vend1, { items: [itemP(2, { unit_price: 19 })] });
+  await precoHoje(17);
+  const sM = await situacao(qM.id);
+  check("(iv) a leitura do orçamento: preco_que_vale 17 e preco_de_referencia 17", sM.items[0].preco_que_vale === 17 && sM.items[0].preco_de_referencia === 17, j(sM.items[0]));
+  const vM = await faturar(vend1, qM.id, 34, { items: [itemP(2, { unit_price: 17 })] });
+  check(
+    "(iv) orçado 19, hoje 17: sai a 17, referência 17, sem desconto",
+    vM.ok && vM.data.items[0].suggested_price === 17 && vM.data.items[0].unit_price === 17 && vM.data.discount_amount === 0 && vM.data.discount_authorized_by_user_id === null,
+    j(vendaDe(vM)),
+  );
+  await precoHoje(25);
+  const qN = await orcarP(gestor, { items: [itemP(2, { unit_price: 19 })] });
+  const sN = await situacao(qN.id);
+  check("a leitura do orçamento traz a referência de quem fatura hoje (o Gestor orçou 19 sobre 25: referência 25)", sN.items[0].preco_que_vale === 19 && sN.items[0].preco_de_referencia === 25, j(sN.items[0]));
 }
 
 async function secao4(c: Dado) {
@@ -831,6 +930,29 @@ async function secao4(c: Dado) {
   const iv = await Imp.lerImpressoDaVendaAction(db, vend1, v.data.id);
   check("a venda faturada: tipo venda, orcamento_origem = número do orçamento, sem validade", iv.ok && iv.data.tipo === "venda" && iv.data.orcamento_origem === q.numero && iv.data.validade === null, j(iv.ok ? [iv.data.tipo, iv.data.orcamento_origem, iv.data.validade] : iv));
   check("o rodapé da venda segue o da venda", iv.ok && iv.data.rodape === "Volte sempre", j(iv.ok ? iv.data.rodape : iv));
+
+  // --- reimprimir o orçamento faturado: FATURADO (venda nº X), no A4 e na bobina
+  const { formatarNumero } = await import("@/lib/emporio/numeracao");
+  const { createElement } = await import("react");
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const { PapelA4 } = await import("@/components/emporio/impresso/papel-a4");
+  const { PapelCupom } = await import("@/components/emporio/impresso/papel-cupom");
+  const numeroDaVenda = formatarNumero(v.data.number);
+  const faturadoNoPapel = `FATURADO (venda nº ${numeroDaVenda})`;
+  check("antes de faturar, o impresso do orçamento não diz faturado", iq.ok && iq.data.faturado_na_venda === null, j(iq.ok ? iq.data.faturado_na_venda : iq));
+  const iqF = await Imp.lerImpressoDoOrcamentoAction(db, vend1, q.id);
+  check("faturado: o impresso traz o número da venda", iqF.ok && iqF.data.faturado_na_venda === numeroDaVenda, j(iqF.ok ? iqF.data.faturado_na_venda : iqF));
+  const texto = (html: string) => html.replace(/<[^>]+>/g, "").replace(/\s+/g, " ");
+  if (iqF.ok) {
+    const a4 = texto(renderToStaticMarkup(createElement(PapelA4, { d: iqF.data })));
+    const bobina = texto(renderToStaticMarkup(createElement(PapelCupom, { d: iqF.data })));
+    check(`o A4 do orçamento faturado diz "${faturadoNoPapel}"`, a4.includes(faturadoNoPapel), a4.slice(0, 400));
+    check(`a bobina do orçamento faturado diz "${faturadoNoPapel}"`, bobina.includes(faturadoNoPapel), bobina.slice(0, 400));
+  }
+  if (iv.ok) {
+    const a4Venda = texto(renderToStaticMarkup(createElement(PapelA4, { d: iv.data })));
+    check("o papel da venda não diz FATURADO", iv.data.faturado_na_venda === null && !a4Venda.includes("FATURADO"), a4Venda.slice(0, 300));
+  }
   const v2 = await Ven.venderAction(db, vend1, {
     operation_key: chave("venda2"),
     establishment_id: L1,

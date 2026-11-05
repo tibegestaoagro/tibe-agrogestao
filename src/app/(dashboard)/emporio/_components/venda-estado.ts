@@ -123,13 +123,15 @@ export type CorpoDaVenda = {
 };
 
 /**
- * Entrega 4: o orçamento posto no carrinho para faturar. `base` é o preço que
- * vale por apresentação (`preco_que_vale` do servidor): enquanto ele está
- * carregado, faz o papel do preço sugerido, como `precoBase` faz na action.
- * Apresentação sem preço que valha fica fora de `base`, e o item entra sem preço.
+ * Entrega 4: o orçamento posto no carrinho para faturar, por apresentação, com
+ * as contas do servidor. `referencia` (`preco_de_referencia`) faz o papel do
+ * preço sugerido enquanto ele está carregado, e o desconto da tela é medido
+ * contra ela, como na action; `vale` (`preco_que_vale`) é o preço da linha.
+ * Apresentação sem preço que valha fica fora dos dois, e o item entra sem preço.
  */
 export type CargaDoOrcamento = {
-  base: Record<string, number>;
+  referencia: Record<string, number>;
+  vale: Record<string, number>;
   itens: { produtoId: string; apresentacaoId: string; qtd: string }[];
   contatoId: string;
 };
@@ -143,7 +145,7 @@ function linhasDaCarga(carga: CargaDoOrcamento, chave: (n: number) => number): L
     produtoId: i.produtoId,
     apresentacaoId: i.apresentacaoId,
     qtd: i.qtd,
-    preco: paraCampoDePreco(carga.base[i.apresentacaoId] ?? null),
+    preco: paraCampoDePreco(carga.vale[i.apresentacaoId] ?? null),
     manual: false,
   }));
 }
@@ -195,21 +197,25 @@ export function useVenda({
   const [pagamentos, setPagamentos] = useState<LinhaPagamento[]>([]);
   const [contatoId, setContatoId] = useState(cargaInicial?.contatoId ?? contatoInicial);
   const [contatosNovos, setContatosNovos] = useState<ContatoDeVenda[]>([]);
-  const [base, setBase] = useState<Record<string, number> | null>(cargaInicial?.base ?? null);
+  const [orc, setOrc] = useState<Pick<CargaDoOrcamento, "referencia" | "vale"> | null>(
+    cargaInicial ? { referencia: cargaInicial.referencia, vale: cargaInicial.vale } : null,
+  );
 
   const precoDaLoja = (apresentacaoId: string, lojaId: string): number | null =>
     precos[apresentacaoId]?.[lojaId] ?? null;
 
-  /** Com orçamento carregado, o preço dele vale como o sugerido (a mesma conta do servidor). */
+  /** Com orçamento carregado, a referência dele vale como o sugerido (a mesma conta do servidor). */
   const sugerido = (apresentacaoId: string, lojaId: string): number | null =>
-    base?.[apresentacaoId] ?? precoDaLoja(apresentacaoId, lojaId);
+    orc?.referencia[apresentacaoId] ?? precoDaLoja(apresentacaoId, lojaId);
 
-  const precoInicial = (apresentacaoId: string, lojaId: string) => paraCampoDePreco(sugerido(apresentacaoId, lojaId));
+  /** O preço que a linha recebe: o que vale no orçamento, senão o sugerido. */
+  const precoInicial = (apresentacaoId: string, lojaId: string) =>
+    paraCampoDePreco(orc?.vale[apresentacaoId] ?? sugerido(apresentacaoId, lojaId));
 
   /** Trocar de loja tira o orçamento carregado: o preço dele só vale na loja dele. */
   function setLoja(nova: string) {
     setLojaEstado(nova);
-    setBase(null);
+    setOrc(null);
     setItens((lista) =>
       lista.map((i) => (i.manual ? i : { ...i, preco: paraCampoDePreco(precoDaLoja(i.apresentacaoId, nova)) })),
     );
@@ -217,7 +223,7 @@ export function useVenda({
 
   /** Põe o orçamento no carrinho: os itens dele no lugar dos que havia, o cliente dele, sem pagamento. */
   function carregarOrcamento(carga: CargaDoOrcamento) {
-    setBase(carga.base);
+    setOrc({ referencia: carga.referencia, vale: carga.vale });
     setItens(linhasDaCarga(carga, proximo));
     setPagamentos([]);
     setContatoId(carga.contatoId);
@@ -225,7 +231,7 @@ export function useVenda({
 
   /** Tira o orçamento: o carrinho fica, e o que não foi digitado volta ao preço da loja. */
   function soltarOrcamento() {
-    setBase(null);
+    setOrc(null);
     setItens((lista) =>
       lista.map((i) => (i.manual ? i : { ...i, preco: paraCampoDePreco(precoDaLoja(i.apresentacaoId, loja)) })),
     );
@@ -284,7 +290,8 @@ export function useVenda({
     // Desconto (Q85): só o que fica abaixo do sugerido.
     const desconto = valida && sug !== null && cent(p) < cent(sug) ? cent(arred3(q) * ((cent(sug) - cent(p)) / 100)) : 0;
     const baseDoItem = valida && sug !== null ? cent(arred3(q) * (cent(sug) / 100)) : 0;
-    const doOrcamento = base?.[i.apresentacaoId] !== undefined;
+    // O preço que o orçamento garante nesta linha (nulo fora dele).
+    const doOrcamento = orc?.vale[i.apresentacaoId] ?? null;
     return {
       linha: i,
       produto,
@@ -350,7 +357,7 @@ export function useVenda({
     setItens([]);
     setPagamentos([]);
     setContatoId(contatoInicial);
-    setBase(null);
+    setOrc(null);
   }
 
   /** Contato cadastrado ou completado agora: vale sobre o que veio do servidor, sem recarregar a página. */

@@ -26,19 +26,26 @@ export function dataBr(iso: string): string {
 }
 
 /**
- * O orçamento como carga do carrinho. O preço de cada item é o `preco_que_vale`
- * do servidor; a mesma apresentação em duas linhas vale a mais barata, como na
+ * O orçamento como carga do carrinho, com as contas do servidor: o preço de cada
+ * item é o `preco_que_vale`, e o desconto se mede contra o `preco_de_referencia`.
+ * A mesma apresentação em duas linhas vale a mais barata de cada um, como na
  * action. Sem preço que valha (vencido e sem preço hoje), o item entra sem preço.
  */
 export function cargaDoOrcamento(q: OrcamentoView): CargaDoOrcamento {
-  const base: Record<string, number> = {};
-  for (const i of q.items) {
-    if (i.preco_que_vale === null) continue;
-    const ja = base[i.presentation_id];
-    base[i.presentation_id] = ja === undefined ? i.preco_que_vale : Math.min(ja, i.preco_que_vale);
+  const referencia: Record<string, number> = {};
+  const vale: Record<string, number> = {};
+  const menor = (mapa: Record<string, number>, chave: string, valor: number | null) => {
+    if (valor === null) return;
+    mapa[chave] = mapa[chave] === undefined ? valor : Math.min(mapa[chave], valor);
+  };
+  // Vencido, o servidor aplica a regra normal: os itens ficam no preço da loja.
+  for (const i of q.situacao === "vencido" ? [] : q.items) {
+    menor(referencia, i.presentation_id, i.preco_de_referencia);
+    menor(vale, i.presentation_id, i.preco_que_vale);
   }
   return {
-    base,
+    referencia,
+    vale,
     itens: q.items.map((i) => ({
       produtoId: i.emporio_product_id,
       apresentacaoId: i.presentation_id,
@@ -210,7 +217,8 @@ export function OrcamentoNaVenda({
               Tirar orçamento
             </Button>
           </div>
-          {orcamento.situacao === "faturado" && orcamento.sale && (
+          {/* Ao tentar fechar a venda, a mesma frase vem como a recusa do campo: não repete. */}
+          {orcamento.situacao === "faturado" && orcamento.sale && !erros.quote_id && (
             <p className="rounded-md bg-perigo-suave px-3 py-2 text-perigo-tinta">
               Este orçamento já foi faturado na venda nº {orcamento.sale.numero}.
             </p>

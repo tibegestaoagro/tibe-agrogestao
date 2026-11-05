@@ -1182,6 +1182,8 @@ async function apagarCenario(tenantId: string, executar: boolean) {
   const contatos = (await prisma.contact.findMany({ where: { ...t, name: { in: [...FORNECEDORES.map((f) => f.nome), ...CLIENTES.map((c) => c.nome)] } }, select: { id: true } })).map((x) => x.id);
   const vendasIds = (await prisma.emporioSale.findMany({ where: { ...t, establishment_id: { in: lojas } }, select: { id: true } })).map((x) => x.id);
   const devolucoes = (await prisma.emporioSaleReturn.findMany({ where: { ...t, sale_id: { in: vendasIds } }, select: { id: true } })).map((x) => x.id);
+  // Entrega 4: o orçamento prende a loja, o contato e a apresentação (Restrict), e a venda o prende.
+  const orcamentos = (await prisma.emporioQuote.findMany({ where: { ...t, establishment_id: { in: lojas } }, select: { id: true } })).map((x) => x.id);
   const comprasIds = (await prisma.emporioPurchase.findMany({ where: { ...t, establishment_id: { in: lojas } }, select: { id: true } })).map((x) => x.id);
   const transfIds = (await prisma.stockTransfer.findMany({ where: { ...t, OR: [{ origin_establishment_id: { in: lojas } }, { destination_establishment_id: { in: lojas } }] }, select: { id: true } })).map((x) => x.id);
   const modelos = (await prisma.fixedExpenseTemplate.findMany({ where: { ...t, splits: { some: { establishment_id: { in: lojas } } } }, select: { id: true } })).map((x) => x.id);
@@ -1195,7 +1197,7 @@ async function apagarCenario(tenantId: string, executar: boolean) {
     })
   ).map((x) => x.id);
 
-  log(`Seria apagado: ${lojas.length} lojas, ${eps.length} produtos, ${vendasIds.length} vendas, ${comprasIds.length} compras, ${transfIds.length} transferências, ${entradas.length} lançamentos, ${usuarios.length} usuários, ${contatos.length} contatos.`);
+  log(`Seria apagado: ${lojas.length} lojas, ${eps.length} produtos, ${vendasIds.length} vendas, ${orcamentos.length} orçamentos, ${comprasIds.length} compras, ${transfIds.length} transferências, ${entradas.length} lançamentos, ${usuarios.length} usuários, ${contatos.length} contatos.`);
   if (!executar) {
     log("(nada foi apagado; repita com --confirmar)");
     return;
@@ -1230,6 +1232,8 @@ async function apagarCenario(tenantId: string, executar: boolean) {
   await prisma.emporioSaleReturn.deleteMany({ where: { id: { in: devolucoes } } });
   await prisma.emporioSaleItem.deleteMany({ where: { sale_id: { in: vendasIds } } });
   await prisma.emporioSale.deleteMany({ where: { id: { in: vendasIds } } });
+  // Depois das vendas (que apontam para ele) e antes de loja, contato e apresentação; os itens vão em cascata.
+  await prisma.emporioQuote.deleteMany({ where: { id: { in: orcamentos } } });
   await prisma.stockTransferItem.deleteMany({ where: { transfer_id: { in: transfIds } } });
   await prisma.stockTransfer.deleteMany({ where: { id: { in: transfIds } } });
   await prisma.emporioPurchaseItem.deleteMany({ where: { purchase_id: { in: comprasIds } } });

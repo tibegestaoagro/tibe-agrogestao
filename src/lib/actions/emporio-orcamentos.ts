@@ -8,7 +8,15 @@ import { custoMedio } from "@/lib/emporio/custo-medio";
 import { formatarNumero, proximoNumero } from "@/lib/emporio/numeracao";
 import { hojeEmBrasilia, somarDias } from "@/lib/emporio/cartao";
 import { dinheiro, itens as frasItens, registrarNoHistorico } from "@/lib/emporio/historico";
-import { arred3, centavos, precificarItens, precoQueVale, resolverVendedor, type VendaItemInput } from "@/lib/emporio/precificar";
+import {
+  arred3,
+  centavos,
+  precificarItens,
+  precoDeReferencia,
+  precoQueVale,
+  resolverVendedor,
+  type VendaItemInput,
+} from "@/lib/emporio/precificar";
 import { CONSUMIDOR_FINAL, cadastroIncompleto } from "@/lib/contatos/cadastro";
 import { lojaVisivel, lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { acharLojaParaEscrita, lerMovimentos } from "@/lib/actions/emporio-estoque";
@@ -60,8 +68,10 @@ export type OrcamentoItemView = {
   preco_sugerido: number | null;
   /** O preço da apresentação na loja hoje; nulo sem preço. */
   preco_hoje: number | null;
-  /** O preço-base que valeria ao faturar hoje (`precoQueVale`). */
+  /** O preço que valeria ao faturar hoje (`precoQueVale`): o que o balcão cobra. */
   preco_que_vale: number | null;
+  /** A referência do desconto ao faturar hoje (`precoDeReferencia`): o `suggested_price` da venda. */
+  preco_de_referencia: number | null;
   mudou: boolean;
   /** Saldo da loja na unidade-base, a soma das movimentações. */
   saldo_base: number;
@@ -167,8 +177,11 @@ async function montarOrcamentos(db: TenantPrismaClient, linhas: OrcamentoRow[]):
       const quantity = decToNum(i.quantity) ?? 0;
       const orcado = decToNum(i.unit_price) ?? 0;
       const hojePreco = precoHoje.get(`${q.establishment_id}|${i.presentation_id}`) ?? null;
-      const vale = precoQueVale(centavos(orcado), hojePreco === null ? null : centavos(hojePreco), vencido);
+      const hojeCent = hojePreco === null ? null : centavos(hojePreco);
+      const sugerido = decToNum(i.suggested_price);
+      const vale = precoQueVale(centavos(orcado), hojeCent, vencido);
       const precoQueValeHoje = vale === null ? null : vale / 100;
+      const referencia = precoDeReferencia(centavos(orcado), sugerido === null ? null : centavos(sugerido), hojeCent, vencido);
       const saldo = saldoDe(q.establishment_id, i.emporio_product.product_id);
       const baseQty = arred3(quantity * (decToNum(i.presentation.base_qty) ?? 0));
       return {
@@ -178,9 +191,10 @@ async function montarOrcamentos(db: TenantPrismaClient, linhas: OrcamentoRow[]):
         apresentacao: i.presentation.name,
         quantity,
         preco_orcado: orcado,
-        preco_sugerido: decToNum(i.suggested_price),
+        preco_sugerido: sugerido,
         preco_hoje: hojePreco,
         preco_que_vale: precoQueValeHoje,
+        preco_de_referencia: referencia === null ? null : referencia / 100,
         mudou: precoQueValeHoje !== orcado,
         saldo_base: saldo,
         falta: baseQty > saldo,

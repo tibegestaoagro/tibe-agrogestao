@@ -282,8 +282,8 @@ export function VendaCampos({
                   <span className="text-texto-secundario">
                     {l.sugerido === null
                       ? "Sem preço cadastrado nesta loja"
-                      : l.doOrcamento
-                        ? `Preço do orçamento ${reaisBr(l.sugerido)}`
+                      : l.doOrcamento !== null
+                        ? `Preço do orçamento ${reaisBr(l.doOrcamento)} (sugerido ${reaisBr(l.sugerido)})`
                         : `Preço sugerido ${reaisBr(l.sugerido)}`}
                   </span>
                   <strong className="text-texto">{reaisBr(l.totalCent / 100)}</strong>

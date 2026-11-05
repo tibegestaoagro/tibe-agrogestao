@@ -36,6 +36,7 @@ export function PapelCupom({ d }: { d: ImpressoVenda }) {
       <div className="c g">{orcamento ? "ORÇAMENTO" : "COMPROVANTE DE VENDA"}</div>
       <div className="c">SEM VALOR FISCAL</div>
       {d.cancelada && <div className="cancelada">VENDA CANCELADA</div>}
+      {d.faturado_na_venda && <div className="cancelada">FATURADO (venda nº {d.faturado_na_venda})</div>}
       <hr />
       <div className="l">
         <span>

@@ -16,8 +16,10 @@ import {
   arred3,
   centavos,
   precificarItens,
+  precoDeReferencia,
   precoQueVale,
   resolverVendedor,
+  type OrcamentoNaPrecificacao,
   type VendaItemInput,
 } from "@/lib/emporio/precificar";
 import {
@@ -450,7 +452,8 @@ export type VenderInput = {
   seller_user_id?: string | null;
   /**
    * Entrega 4: o orçamento que esta venda fatura. O vendedor passa a ser o do
-   * orçamento, e o preço-base dos itens dele segue `precoQueVale`.
+   * orçamento; dentro da validade, os itens dele têm a referência de
+   * `precoDeReferencia` e o preço de `precoQueVale` (ver `precificarItens`).
    */
   quote_id?: string | null;
 };
@@ -510,8 +513,8 @@ const QUOTE_ALREADY_INVOICED = (numeroDaVenda: number) =>
 type OrcamentoAFaturar = {
   quote: { id: string; number: number };
   vendedor: string | null;
-  /** Centavos por `presentation_id`, para `precificarItens`. */
-  precoBase: Map<string, number>;
+  /** Para `precificarItens`; nulo quando vencido (a venda segue a regra normal). */
+  precificacao: OrcamentoNaPrecificacao | null;
 };
 
 /**
@@ -536,8 +539,9 @@ async function orcamentoAFaturar(
       establishment_id: true,
       seller_user_id: true,
       valid_until: true,
+      discount_authorized_by_user_id: true,
       sale: { select: { number: true } },
-      items: { select: { presentation_id: true, unit_price: true } },
+      items: { select: { presentation_id: true, unit_price: true, suggested_price: true } },
     },
   });
   if (!q) return QUOTE_NOT_FOUND();
@@ -546,27 +550,37 @@ async function orcamentoAFaturar(
   }
   if (q.sale) return QUOTE_ALREADY_INVOICED(q.sale.number);
 
-  const vencido = hojeEmBrasilia(soldAt).getTime() > q.valid_until.getTime();
+  const quote = { id: q.id, number: q.number };
+  // Vencido: os itens do orçamento seguem a regra normal, sem referência nem autorização herdada.
+  if (hojeEmBrasilia(soldAt).getTime() > q.valid_until.getTime()) {
+    return ok({ quote, vendedor: q.seller_user_id, precificacao: null });
+  }
   const precos = await db.presentationPrice.findMany({
     where: { establishment_id: lojaId, presentation_id: { in: q.items.map((i) => i.presentation_id) } },
     select: { presentation_id: true, price: true },
   });
-  const precoHoje = new Map(precos.map((p) => [p.presentation_id, decToNum(p.price)]));
+  const precoHoje = new Map(precos.map((p) => [p.presentation_id, centavos(decToNum(p.price) ?? 0)]));
   // O orçado é o preço praticado no orçamento (já com o desconto dele). A mesma
-  // apresentação em duas linhas do orçamento: vale a mais barata.
-  const orcado = new Map<string, number>();
+  // apresentação em duas linhas do orçamento: vale a mais barata de cada conta.
+  const linhas = new Map<string, { referencia: number; vale: number }>();
   for (const i of q.items) {
-    const cent = centavos(decToNum(i.unit_price) ?? 0);
-    const ja = orcado.get(i.presentation_id);
-    orcado.set(i.presentation_id, ja === undefined ? cent : Math.min(ja, cent));
+    const orcadoCent = centavos(decToNum(i.unit_price) ?? 0);
+    const sugerida = decToNum(i.suggested_price);
+    const hoje = precoHoje.get(i.presentation_id) ?? null;
+    // Dentro da validade nenhuma das duas é nula: sem preço hoje, valem as do orçamento.
+    const vale = precoQueVale(orcadoCent, hoje, false) as number;
+    const referencia = precoDeReferencia(orcadoCent, sugerida === null ? null : centavos(sugerida), hoje, false) as number;
+    const ja = linhas.get(i.presentation_id);
+    linhas.set(
+      i.presentation_id,
+      ja ? { referencia: Math.min(ja.referencia, referencia), vale: Math.min(ja.vale, vale) } : { referencia, vale },
+    );
   }
-  const precoBase = new Map<string, number>();
-  for (const [apresentacao, orcadoCent] of orcado) {
-    const hoje = precoHoje.get(apresentacao) ?? null;
-    const vale = precoQueVale(orcadoCent, hoje === null ? null : centavos(hoje), vencido);
-    if (vale !== null) precoBase.set(apresentacao, vale);
-  }
-  return ok({ quote: { id: q.id, number: q.number }, vendedor: q.seller_user_id, precoBase });
+  return ok({
+    quote,
+    vendedor: q.seller_user_id,
+    precificacao: { linhas, autorizou: q.discount_authorized_by_user_id },
+  });
 }
 
 async function prepararVenda(
@@ -639,7 +653,7 @@ async function prepararVenda(
     ator,
     { id: loja.data.id, max_discount_pct: lojaExtra?.max_discount_pct ?? null },
     input.items,
-    orcamento ? { precoBase: orcamento.precoBase } : {},
+    orcamento?.precificacao ? { orcamento: orcamento.precificacao } : {},
   );
   if (!precificados.ok) return precificados;
   const itens: ItemPreparado[] = precificados.data.itens.map((i) => ({
