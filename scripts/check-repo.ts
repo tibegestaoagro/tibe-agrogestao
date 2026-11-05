@@ -1372,6 +1372,7 @@ const PREFIXOS_DE_LEITURA = [
   "vendasCom",
   "primeirosPassos",
   "transferenciasParadas",
+  "relatorio",
 ];
 
 export function acoesDeEscritaSemHistorico(fonte: string): string[] {
