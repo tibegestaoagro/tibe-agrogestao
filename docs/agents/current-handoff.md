@@ -96,10 +96,20 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
-### Empório, entrega 3: vendedor e relatórios (05/11), NA BRANCH
+### Empório, entrega 3: vendedor e relatórios (05/11), em produção
 
-Branch `emporio-vendedor-relatorios` (saída da `main` em `8db0603`), **não
-mergeada**. Plano
+**Em produção desde 05/11** (`03bba19`, merge fast-forward de
+`emporio-vendedor-relatorios` e push autorizados pelo usuário, assim como a
+migração e a reaplicação). Feito nesta ordem:
+- leitura: 178 vendas, a última de 31/10, nenhuma registrada por quem hoje é
+  Caixa (o backfill não faz de Caixa vendedor);
+- a migração `20261105140000_emporio_vendedor_da_venda` no Neon (URL Direct),
+  e o `migrate status` em dia;
+- o merge e o push, com a Vercel em sucesso no status do commit;
+- a reaplicação de `prisma/sql/emporio-vendedor-reaplicar.sql`, numa
+  transação: 0 vendas sem vendedor antes e depois, 0 linhas mexidas.
+
+Branch `emporio-vendedor-relatorios` (saída da `main` em `8db0603`). Plano
 `docs/superpowers/plans/2026-11-05-emporio-entrega3-vendedor-e-relatorios.md`,
 decisões Q168 a Q175 na spec do módulo. Contém:
 - `EmporioSale.seller_user_id`: o Caixa escolhe o vendedor a cada venda
@@ -114,16 +124,10 @@ Provas (05/11): `test:m93` verde; o roteiro
 `scripts/_cenario-emporio-vendedor.ts`) verde, vermelho com o balcão sem
 mandar `seller_user_id` (12 falhas) e verde de novo restaurado; o
 `emporio-turno`, adaptado para o Caixa escolher o vendedor, verde; Relatórios
-e o balcão do Caixa sem rolagem horizontal a 390 px.
-
-**A migração `20261105140000_emporio_vendedor_da_venda` NÃO está no Neon.**
-Ordem do deploy, quando autorizado:
-1. Migração no Neon (URL Direct) ANTES do push. Ela já preenche o vendedor
-   das vendas antigas com quem registrou.
-2. Merge e push, e esperar a Vercel em sucesso.
-3. Reaplicar `prisma/sql/emporio-vendedor-reaplicar.sql` (leitura primeiro).
-   Na janela entre a migração e o build novo, o código antigo grava venda sem
-   vendedor, e ela ficaria "Sem vendedor" para sempre no relatório.
+e o balcão do Caixa sem rolagem horizontal a 390 px; `test:all -- --sem-redis`
+93/93; revisão final da branch inteira (opus), com uma correção no
+procedimento do deploy. O que ela deixou para depois está em
+[dividas.md](dividas.md), item 5.16.
 
 ### Empório, entrega 2: caixa com turno (05/11), em produção
 
@@ -495,9 +499,12 @@ origin/main`. Trabalho não empurrado precisa virar patch antes.
 avisa a Da Mata: no primeiro dia toda venda pede para abrir o caixa, e a
 primeira abertura confere o saldo antigo da gaveta. Fica em aberto a pergunta
 de produto: o reforço vindo da gerência deve esperar o gestor confirmar, como
-a sangria? A entrega 3 (vendedor na venda e relatórios) está pronta na branch
-`emporio-vendedor-relatorios`, com os roteiros verdes: falta o juiz, a migração no Neon e a autorização do usuário para merge, push e deploy (nesta
-ordem). Da entrega 1, segue pendente o usuário imprimir um cupom
+a sangria? A entrega 3 (vendedor na venda e relatórios) também está em
+produção desde 05/11: o usuário avisa a Da Mata que o Caixa passa a escolher
+o vendedor em toda venda, e que os Relatórios ficam no menu do Gestor para
+cima. Faltam o capítulo do turno, do Caixa e dos Relatórios no manual, e
+corrigir o cenário de demonstração antes de refazê-la. Da entrega 1, segue
+pendente o usuário imprimir um cupom
 de 58 e de 80 mm na bobina da loja e um A4.
 
 **Empório, 04/11:** o usuário pediu dois ajustes antes do manual e do cenário.
