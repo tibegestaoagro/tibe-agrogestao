@@ -103,14 +103,14 @@ function main() {
   const ordemEsperada = [
     "/emporio", "/emporio/vender", "/emporio/vendas", "/emporio/fiado", "/emporio/caixa",
     "/emporio/produtos", "/emporio/estoque", "/emporio/compras", "/emporio/transferencias",
-    "/emporio/despesas", "/emporio/resultado", "/emporio/equipe", "/emporio/estabelecimentos",
-    "/emporio/historico", "/emporio/configuracoes",
+    "/emporio/despesas", "/emporio/resultado", "/emporio/relatorios", "/emporio/equipe",
+    "/emporio/estabelecimentos", "/emporio/historico", "/emporio/configuracoes",
   ];
   const doDono = buildNavItems({ ...base, hasEmporio: true, paginasDoEmporio: paginasVisiveis(dono) });
   const gDono = grupo(doDono);
   assert(
     !!gDono && JSON.stringify(gDono.children.map((c) => c.href)) === JSON.stringify(ordemEsperada),
-    "dono: o grupo Meu Empório tem os 15 filhos, na ordem",
+    "dono: o grupo Meu Empório tem os 16 filhos, na ordem",
   );
   assert(gDono?.show === true && gDono.icon === "emporio", "o grupo Meu Empório aparece com o ícone do Empório");
   assert(

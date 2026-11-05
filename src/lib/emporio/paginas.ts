@@ -17,6 +17,7 @@ export const PAGINAS_DO_EMPORIO: readonly { href: string; rotulo: string; exige:
   { href: "/emporio/transferencias", rotulo: "Transferências", exige: "fora_do_caixa" },
   { href: "/emporio/despesas", rotulo: "Despesas", exige: "gestor_da_loja" },
   { href: "/emporio/resultado", rotulo: "Resultado", exige: "gestor_da_loja" },
+  { href: "/emporio/relatorios", rotulo: "Relatórios", exige: "gestor_da_loja" },
   { href: "/emporio/equipe", rotulo: "Equipe", exige: "conta" },
   { href: "/emporio/estabelecimentos", rotulo: "Lojas", exige: "fora_do_caixa" },
   { href: "/emporio/historico", rotulo: "Histórico", exige: "gestor_da_loja" },
