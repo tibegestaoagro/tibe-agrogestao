@@ -44,8 +44,9 @@ const BLOCOS: { titulo: string; passos: string[] }[] = [
   {
     titulo: "Abrir, conferir e encerrar o caixa",
     passos: [
-      "Abra Caixa e clique em Abrir, na linha do caixa. Conte o troco e digite em Troco contado.",
-      "Caixa fechado na hora da venda? Clique em Abrir o Caixa 1 ali mesmo. A venda continua.",
+      "Abra Caixa e clique em Abrir, na linha do caixa. Falta troco? Digite o Reforço da gerência e ponha na gaveta.",
+      "Conte tudo (troco mais reforço) e digite em Troco contado.",
+      "Com o caixa fechado, o balcão mostra Abrir o Caixa 1 (ou pede para escolher o caixa). Abra ali mesmo. A venda continua.",
       "Para conferir, clique em Conferir e digite o valor contado. Se não bater, escreva o motivo.",
       "No fim do turno, clique em Encerrar: conte, informe o malote e deixe o troco. Imprima o relatório e leve com o malote.",
     ],

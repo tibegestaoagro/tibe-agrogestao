@@ -4,7 +4,7 @@ type Celula = "sim" | "nao" | "chave";
 
 const LINHAS: { acao: string; dono: Celula; gestor: Celula; vendedor: Celula; caixa: Celula }[] = [
   { acao: "Vender no balcão (desconto até o limite da loja)", dono: "sim", gestor: "sim", vendedor: "sim", caixa: "sim" },
-  { acao: "Escolher o vendedor da venda (o Caixa escolhe sempre)", dono: "sim", gestor: "sim", vendedor: "sim", caixa: "sim" },
+  { acao: "Escolher o vendedor da venda (o Caixa escolhe em toda venda que não vem de orçamento)", dono: "sim", gestor: "sim", vendedor: "sim", caixa: "sim" },
   { acao: "Cadastrar cliente e completar o cadastro no balcão", dono: "sim", gestor: "sim", vendedor: "sim", caixa: "sim" },
   { acao: "Imprimir a venda e o orçamento (A4 ou cupom)", dono: "sim", gestor: "sim", vendedor: "sim", caixa: "sim" },
   { acao: "Salvar orçamento e faturar orçamento pelo número", dono: "sim", gestor: "sim", vendedor: "sim", caixa: "sim" },

@@ -18,7 +18,7 @@ const TERMOS: { termo: string; significa: React.ReactNode }[] = [
   { termo: "Gaveta", significa: "O dinheiro físico de um caixa. Cada caixa é uma gaveta. O sistema calcula quanto deveria ter, e você confere contando." },
   { termo: "Turno", significa: "O tempo entre abrir e encerrar um caixa. Cada caixa tem no máximo um turno aberto. Toda venda, fiado recebido em dinheiro, devolução em dinheiro e despesa paga da gaveta cai num turno aberto. Um turno que passa da meia-noite continua valendo, e o Meu Dia avisa." },
   { termo: "Troco inicial", significa: "O dinheiro que fica na gaveta para começar o turno. É o que o turno anterior deixou. Abrir o caixa é contar esse troco: se não bater, você escreve o motivo." },
-  { termo: "Reforço", significa: "Dinheiro que sai de Com a gerência e entra no caixa na abertura, quando falta troco. É opcional." },
+  { termo: "Reforço", significa: "Dinheiro que sai de Com a gerência e entra no caixa na abertura, quando falta troco. É opcional. Digite o valor em Reforço da gerência (R$) e ponha o dinheiro na gaveta. Depois conte tudo e digite em Troco contado (R$): o troco do turno anterior mais o reforço." },
   { termo: "Sangria", significa: "Dinheiro tirado do caixa no meio do turno e levado ao gerente. Sai do caixa na hora e fica aguardando o gerente até ele confirmar." },
   { termo: "Malote", significa: "O dinheiro separado no encerramento para ir ao gerente, junto com o relatório do turno. O que sobra do contado fica na gaveta como troco do próximo turno." },
   { termo: "Com a gerência", significa: "O dinheiro que o gerente da loja já recebeu e confirmou. De lá ele vai ao banco pela transferência, ou volta a um caixa como reforço." },
@@ -110,7 +110,7 @@ const PERGUNTAS: { pergunta: string; resposta: React.ReactNode }[] = [
   },
   {
     pergunta: "O orçamento venceu. Ainda dá para faturar?",
-    resposta: <>Dá. Ao carregar o orçamento, a tela avisa com a data dele, por exemplo “Orçamento vencido em 10/11/2026: vale o preço de hoje.” Dentro da validade, cada item sai pelo preço orçado ou pelo de hoje, o que for menor. Quando o preço mudou, a tela mostra os dois, por exemplo “O preço mudou: orçado R$ 120,00, hoje vale R$ 110,00.”</>,
+    resposta: <>Dá. Ao carregar o orçamento, a tela avisa com a data dele, por exemplo “Orçamento vencido em 28/10/2026: vale o preço de hoje.” Dentro da validade, cada item sai pelo preço orçado ou pelo de hoje, o que for menor. Quando o preço mudou, a tela mostra os dois, por exemplo “O preço mudou: orçado R$ 120,00, hoje vale R$ 110,00.”</>,
   },
   {
     pergunta: "Por que diz que o orçamento já foi faturado?",
@@ -118,7 +118,7 @@ const PERGUNTAS: { pergunta: string; resposta: React.ReactNode }[] = [
   },
   {
     pergunta: "Por que o desconto foi recusado ao faturar um orçamento?",
-    resposta: "O desconto que o orçamento já deu conta na venda. O limite da loja vale sobre o desconto total da venda, somando todos os itens. Por isso o Vendedor não pode somar um desconto novo ao do orçamento. A frase é “O desconto de 12% passa do limite de 10% desta loja. Peça ao gestor da loja.”, com os números da venda. Se o Gestor autorizou um desconto maior no orçamento, ele continua valendo, desde que nenhum item do orçamento saia abaixo do preço que ele garantiu e nenhum item novo saia abaixo do preço da loja. Fora disso, só o Gestor, o Gerente geral ou o Dono passam do limite.",
+    resposta: "O desconto que o orçamento já deu conta na venda. O limite da loja vale sobre o desconto total da venda, somando todos os itens. Por isso o desconto novo, somado ao do orçamento, não pode passar do limite. A frase é “O desconto de 12% passa do limite de 10% desta loja. Peça ao gestor da loja.”, com os números da venda. Se o Gestor autorizou um desconto maior no orçamento, ele continua valendo, desde que nenhum item do orçamento saia abaixo do preço que ele garantiu e nenhum item novo saia abaixo do preço da loja. Fora disso, só o Gestor, o Gerente geral ou o Dono passam do limite.",
   },
   {
     pergunta: "Por que o desconto foi recusado?",

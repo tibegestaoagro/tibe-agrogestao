@@ -160,7 +160,7 @@ export function ParteGestor() {
         itens={[
           "Se alguém foi embora sem encerrar, você encerra o turno dele: conta o dinheiro, informa o malote e deixa o troco.",
           "Você também faz sangria no turno que outra pessoa abriu.",
-          <>Na abertura, quem está no balcão pode pedir um <strong>Reforço da gerência (R$)</strong>. O valor sai de Com a gerência e entra no caixa. Se a gerência não tem esse dinheiro, o sistema recusa: “Não há dinheiro suficiente para isso.”</>,
+          <>Na abertura, quem está no balcão pode pedir um <strong>Reforço da gerência (R$)</strong>. O valor sai de Com a gerência e entra no caixa, e o Troco contado já inclui o reforço. Se a gerência não tem esse dinheiro, o sistema recusa: “Não há dinheiro suficiente para isso.”</>,
         ]}
       />
 
@@ -254,7 +254,7 @@ export function ParteVendedor() {
       <Titulo>O seu turno no caixa</Titulo>
       <Lista
         itens={[
-          <>Toda venda cai num caixa aberto. Se o caixa está fechado, o balcão mostra <strong>Abrir o Caixa 1</strong> (ou o número do caixa). Conte o troco e abra ali mesmo. Se foi o Fechar a venda que parou no caixa fechado, a venda fecha sozinha assim que o caixa abre.</>,
+          <>Toda venda cai num caixa aberto. Com o caixa fechado, o balcão mostra <strong>Abrir o Caixa 1</strong> (ou pede para escolher o caixa). Conte o troco e abra ali mesmo. Se foi o Fechar a venda que parou no caixa fechado, a venda fecha sozinha assim que o caixa abre.</>,
           <>Muito dinheiro no caixa? Em <strong>Caixa</strong>, clique em <strong>Sangria</strong>. Leve as notas ao gerente: ele confirma o que recebeu.</>,
           <>No fim do turno, clique em <strong>Encerrar</strong>: conte, separe o malote e deixe o troco. Imprima o relatório e leve junto com o malote.</>,
           <>Se a loja tem alguém com a função Caixa, a sangria e o encerramento são de quem abriu o caixa ou do Gestor.</>,
@@ -307,15 +307,15 @@ export function ParteCaixa() {
       <Passos
         itens={[
           <>Abra <strong>Caixa</strong>. Em <strong>Caixas de cada loja</strong>, ache o seu caixa (Caixa 1, Caixa 2) e clique em <strong>Abrir</strong>.</>,
-          <>Conte o troco que está na gaveta e digite em <strong>Troco contado (R$)</strong>. É o troco que o turno anterior deixou.</>,
-          <>Se falta troco, peça ao gerente e digite em <strong>Reforço da gerência (R$)</strong>. É opcional.</>,
+          <>Se falta troco, peça o reforço ao gerente e digite em <strong>Reforço da gerência (R$)</strong>. Ponha o reforço na gaveta. É opcional.</>,
+          <>Conte tudo e digite em <strong>Troco contado (R$)</strong>: o troco do turno anterior mais o reforço, se houver. A tela mostra quanto o sistema espera.</>,
           <>Se o contado não bate com o esperado, escreva o motivo em <strong>Motivo da diferença</strong>.</>,
           <>Clique em <strong>Abrir o caixa</strong>.</>,
         ]}
       />
       <p>
-        Esqueceu de abrir? Na hora de fechar a venda, o balcão mostra <strong>Abrir o Caixa 1</strong> (ou o número do
-        caixa). Abra ali mesmo. A venda continua com os mesmos itens.
+        Com o caixa fechado, o balcão mostra <strong>Abrir o Caixa 1</strong> (ou pede para escolher o caixa em{" "}
+        <strong>Escolha o caixa a abrir</strong>). Abra ali mesmo. A venda continua com os mesmos itens.
       </p>
 
       <Titulo>Receber uma venda</Titulo>
@@ -340,7 +340,8 @@ export function ParteCaixa() {
         ]}
       />
       <p>
-        Você também pode montar e salvar um orçamento, tocando em <strong>Orçamento</strong> no alto de Vender. A lista de
+        Você também pode montar e salvar um orçamento, tocando em <strong>Orçamento</strong> no alto de Vender. Ao salvar,
+        você também escolhe o <strong>Vendedor</strong> que atendeu. A lista de
         Orçamentos não é sua: para achar um orçamento, peça o número ao cliente.
       </p>
 
