@@ -986,16 +986,16 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/cash",
         auth: "Sessão · emporio:read · gaveta de quem tem a loja no vínculo; contas só OWNER e ADMIN",
-        description: "Saldos e movimentos. `drawers` traz o saldo da gaveta de cada loja visível, `accounts` o de cada conta (vazio para quem não é OWNER ou ADMIN) e `movements` os lançamentos de caixa, do mais recente. Saldo da gaveta = entradas menos saídas; o da conta soma também as parcelas do cartão que já caíram (`expected_on` até hoje em Brasília). Nada é gravado. Cada gaveta traz `last_count` (a última conferência). `accounts[].to_receive` e `card_receivables` (parcelas futuras do cartão, por data) só vêm para OWNER e ADMIN; `checks` é a carteira de cheques (recebido e depositado) das lojas visíveis. Filtros: `establishment_id`, `bank_account_id` (só OWNER e ADMIN), `limit`.",
+        description: "Saldos e movimentos. `drawers` traz o saldo da gaveta de cada loja visível, `accounts` o de cada conta (vazio para quem não é OWNER ou ADMIN) e `movements` os lançamentos de caixa, do mais recente. Saldo da gaveta = entradas menos saídas; o da conta soma também as parcelas do cartão que já caíram (`expected_on` até hoje em Brasília). Nada é gravado. Cada gaveta traz `last_count` (a última conferência), `registers` (os caixas numerados: `id`, `number`, `nome`, `saldo`, `turno_aberto`; o `balance` da gaveta é a soma deles) e `manager_balance` (o saldo \"Com a gerência\" da loja, só para o Gestor dela para cima; nulo para os outros). Os movimentos trazem `cash_register_id`, `cash_session_id`, `manager_establishment_id` e `cash_handover_id`, e os da gerência aparecem para o Gestor da loja. `accounts[].to_receive` e `card_receivables` (parcelas futuras do cartão, por data) só vêm para OWNER e ADMIN; `checks` é a carteira de cheques (recebido e depositado) das lojas visíveis. Filtros: `establishment_id`, `bank_account_id` (só OWNER e ADMIN), `limit`.",
         response: `200
 { "data": { "drawers": [{ "establishment_id": "cl...", "name": "Loja Centro", "balance": 150 }], "accounts": [], "movements": [{ "direction": "entrada", "amount": 50, "origin": "venda" }] }, "meta": {} }`,
       },
       {
         method: "POST",
         path: "/api/v1/emporio/cash/opening",
-        auth: "Sessão · emporio:write · loja: OWNER, ADMIN e OPERADOR com a loja no vínculo; conta: só OWNER e ADMIN",
-        description: "Saldo inicial da gaveta de uma loja (`establishment_id`) OU de uma conta (`bank_account_id`), uma vez só (409 `OPENING_ALREADY_DONE`). Informar os dois ou nenhum: 422. `amount` maior que zero (422 `amount`).",
-        request: `{ "establishment_id": "cl...", "amount": 200 }`,
+        auth: "Sessão · emporio:write · caixa: quem trabalha na loja; gerência: Gestor da loja para cima; conta: só OWNER e ADMIN",
+        description: "Saldo inicial (implantação), uma vez por lugar (409 `OPENING_ALREADY_DONE`): um caixa (`cash_register_id`), a gerência de uma loja (`manager_establishment_id`) OU uma conta (`bank_account_id`). `establishment_id` sozinho, de antes dos caixas numerados, vale como o Caixa 1 da loja. Informar mais de um lugar ou nenhum: 422 `cash_register_id`. `amount` maior que zero (422 `amount`).",
+        request: `{ "cash_register_id": "cl...", "amount": 200 }`,
         response: `201
 { "data": { "direction": "entrada", "amount": 200, "origin": "implantacao" }, "meta": {} }`,
       },
@@ -1061,11 +1061,11 @@ export const GROUPS: Group[] = [
       {
         method: "POST",
         path: "/api/v1/emporio/cash/transfers",
-        auth: "Sessão · emporio:write · sai de gaveta: OWNER, ADMIN e OPERADOR com a loja no vínculo; sai de conta: só OWNER e ADMIN",
-        description: "Transfere dinheiro entre caixas. `from` e `to` levam `establishment_id` (gaveta) OU `bank_account_id` (conta). Origem igual ao destino: 422 `to`. Saldo de origem menor que o valor: 409 `INSUFFICIENT_CASH` em `amount`. Grava dois movimentos `transferencia` e nada no Financeiro. `operation_key` obrigatória: repetir devolve a transferência gravada com 200.",
-        request: `{ "operation_key": "k-20", "from": { "establishment_id": "cl..." }, "to": { "bank_account_id": "cl..." }, "amount": 150 }`,
+        auth: "Sessão · emporio:write · sai da gerência: Gestor daquela loja para cima; sai de conta: só OWNER e ADMIN",
+        description: "Transfere dinheiro entre contas e a gerência das lojas (entrega 2: a gaveta não transfere mais). `from` e `to` levam `bank_account_id` (conta) OU `manager_establishment_id` (\"Com a gerência\" de uma loja; extensão aditiva). `establishment_id` (a gaveta) na origem ou no destino: 422 `DRAWER_TRANSFER` em `from` ou `to` (\"A gaveta vai ao gerente pela sangria ou pelo malote.\"). Origem igual ao destino: 422 `to`. Saldo de origem menor que o valor: 409 `INSUFFICIENT_CASH` em `amount`. Grava dois movimentos `transferencia` e nada no Financeiro. `operation_key` obrigatória: repetir devolve a transferência gravada com 200. Na resposta, `from.establishment_id` só vem preenchido nas transferências da gaveta de antes da entrega 2.",
+        request: `{ "operation_key": "k-20", "from": { "manager_establishment_id": "cl..." }, "to": { "bank_account_id": "cl..." }, "amount": 150 }`,
         response: `201
-{ "data": { "id": "cl...", "amount": 150, "from": { "establishment_id": "cl...", "bank_account_id": null }, "to": { "establishment_id": null, "bank_account_id": "cl..." } }, "meta": {} }`,
+{ "data": { "id": "cl...", "amount": 150, "from": { "establishment_id": null, "bank_account_id": null, "manager_establishment_id": "cl..." }, "to": { "establishment_id": null, "bank_account_id": "cl...", "manager_establishment_id": null } }, "meta": {} }`,
       },
       {
         method: "GET",
@@ -1079,10 +1079,87 @@ export const GROUPS: Group[] = [
         method: "POST",
         path: "/api/v1/emporio/cash/counts",
         auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR com a loja no vínculo",
-        description: "Confere a gaveta: `expected` é o saldo no momento e `difference` é `counted` menos `expected`. `counted` negativo: 422 `counted`. Diferença diferente de zero exige `justification` (422 `justification`) e grava um movimento de ajuste (`conferencia`) e o lançamento pago \"Diferença de caixa\" (receita se sobra, despesa se falta).",
-        request: `{ "establishment_id": "cl...", "counted": 190, "justification": "Troco errado" }`,
+        description: "Conferência livre de um caixa (`cash_register_id`, obrigatório: 422 `cash_register_id`), dentro do turno aberto dele (sem turno: 409 `CASH_CLOSED`); não encerra o turno. `expected` é o saldo do caixa no momento e `difference` é `counted` menos `expected`. `counted` negativo: 422 `counted`. Diferença diferente de zero exige `justification` (422 `justification`) e grava um movimento de ajuste (`conferencia`) no caixa e no turno e o lançamento pago \"Diferença de caixa\" (receita se sobra, despesa se falta). A resposta traz `kind: \"livre\"`, `cash_register_id` e `cash_session_id`.",
+        request: `{ "cash_register_id": "cl...", "counted": 190, "justification": "Troco errado" }`,
         response: `201
-{ "data": { "id": "cl...", "expected": 200, "counted": 190, "difference": -10 }, "meta": {} }`,
+{ "data": { "id": "cl...", "kind": "livre", "expected": 200, "counted": 190, "difference": -10 }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/cash/registers",
+        auth: "Sessão · emporio:read · quem tem a loja no vínculo",
+        description: "Os caixas numerados da loja (`establishment_id`, obrigatório: 422), por número: `id`, `number`, `nome` (\"Caixa 2\"), `saldo` (soma dos movimentos do caixa, nada gravado) e `turno_aberto` (`{ id, aberto_por: { id, name }, aberto_em }`, ou nulo). Toda loja nasce com o Caixa 1.",
+        response: `200
+{ "data": [{ "id": "cl...", "number": 1, "nome": "Caixa 1", "saldo": 120, "turno_aberto": { "id": "cl...", "aberto_por": { "id": "cl...", "name": "Ana" }, "aberto_em": "2026-11-05T11:00:00.000Z" } }], "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/cash/registers",
+        auth: "Sessão · emporio:write · Gestor da loja para cima",
+        description: "Cria o próximo caixa da loja: `number` é o maior da loja mais um. Loja arquivada: 422 `establishment_id`.",
+        request: `{ "establishment_id": "cl..." }`,
+        response: `201
+{ "data": { "id": "cl...", "number": 2, "nome": "Caixa 2", "saldo": 0, "turno_aberto": null }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/cash/sessions",
+        auth: "Sessão · emporio:read · quem tem a loja no vínculo",
+        description: "Os turnos de caixa das lojas visíveis, do mais recente (até 100). Filtros: `establishment_id`, `status` (`open` ou `closed`; outro valor: 422 `status`). Cada turno traz o caixa (`number`, `nome`), quem abriu e quando, `opening_expected`, `opening_counted`, `reinforcement`, o encerramento (`closed_at`, `closed_by`, `closing_expected`, `closing_counted`, `malote_amount`), `balance` (saldo do caixa agora) e `handovers` (sangrias e malote).",
+        response: `200
+{ "data": [{ "id": "cl...", "nome": "Caixa 1", "status": "open", "opening_counted": 100, "reinforcement": 0, "balance": 150, "handovers": [] }], "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/cash/sessions",
+        auth: "Sessão · emporio:write · quem trabalha na loja (o Caixa incluso)",
+        description: "Abre o turno do caixa com o troco contado (`counted`, zero ou mais: 422 `counted`). Abrir é conferir o troco: `reinforcement` (opcional) sai da gerência da loja e entra no caixa antes do esperado ser calculado (gerência sem o valor: 409 `INSUFFICIENT_CASH` em `reinforcement`, \"Não há dinheiro suficiente para isso.\"); o esperado é o saldo do caixa depois do reforço, e a diferença segue a conferência (422 `justification`, ajuste e \"Diferença de caixa\"). Grava a contagem `kind: abertura`. Um turno aberto por caixa: 409 `SESSION_ALREADY_OPEN` em `cash_register_id` (\"Este caixa já está aberto.\"), também em duas aberturas simultâneas. Caixa de loja de outra pessoa: 403. `operation_key` obrigatória: repetir devolve o turno com 200.",
+        request: `{ "operation_key": "k-30", "cash_register_id": "cl...", "counted": 100, "reinforcement": 50 }`,
+        response: `201
+{ "data": { "id": "cl...", "status": "open", "opening_expected": 100, "opening_counted": 100, "reinforcement": 50 }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/cash/sessions/:id",
+        auth: "Sessão · emporio:read · quem tem a loja no vínculo",
+        description: "Um turno, no formato da listagem, com as entregas (sangrias e malote). Turno de outra conta ou de loja fora do vínculo: 404.",
+        response: `200
+{ "data": { "id": "cl...", "nome": "Caixa 1", "status": "closed", "closing_counted": 120, "malote_amount": 100, "handovers": [{ "kind": "malote", "amount": 100, "status": "pending" }] }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/cash/sessions/:id/withdrawals",
+        auth: "Sessão · emporio:write · quem trabalha na loja (o Caixa incluso)",
+        description: "Sangria: o dinheiro sai do caixa (movimento `sangria`, no turno) e fica numa entrega aguardando o gerente; só entra em \"Com a gerência\" quando ele confirma. `amount` maior que zero (422 `amount`) e até o saldo do caixa (409 `INSUFFICIENT_CASH` em `amount`). Turno encerrado: 409 `SESSION_CLOSED`. `operation_key` obrigatória: repetir devolve a entrega com 200.",
+        request: `{ "operation_key": "k-31", "amount": 300, "notes": "Notas de 100" }`,
+        response: `201
+{ "data": { "id": "cl...", "kind": "sangria", "amount": 300, "status": "pending" }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/cash/sessions/:id/close",
+        auth: "Sessão · emporio:write · quem abriu, o Gestor da loja para cima, ou qualquer um da loja quando ela não tem usuário Caixa",
+        description: "Encerra o turno. `closing_expected` é o saldo do caixa; a contagem (`kind: encerramento`) segue a regra da conferência (422 `justification`, ajuste e \"Diferença de caixa\"). `malote_amount` (zero ou mais, até o contado: 422 `MALOTE_TOO_BIG` em `malote_amount`) sai do caixa numa entrega aguardando o gerente; o resto fica como troco do próximo turno. Quem não pode: 403 `NOT_SESSION_OWNER` (\"Só quem abriu o caixa ou o gestor da loja encerra este turno.\"). Já encerrado: 409 `SESSION_CLOSED`. `operation_key` obrigatória: repetir devolve o turno encerrado.",
+        request: `{ "operation_key": "k-32", "counted": 120, "malote_amount": 100 }`,
+        response: `200
+{ "data": { "id": "cl...", "status": "closed", "closing_expected": 120, "closing_counted": 120, "malote_amount": 100 }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/cash/handovers",
+        auth: "Sessão · emporio:read · quem tem a loja no vínculo",
+        description: "Sangrias e malotes das lojas visíveis. `status`: `pending` (o padrão, da mais antiga) ou `confirmed` (da mais recente); outro valor: 422 `status`. Filtro: `establishment_id`.",
+        response: `200
+{ "data": [{ "id": "cl...", "kind": "malote", "amount": 100, "status": "pending", "register_number": 1, "establishment_name": "Loja Centro" }], "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/cash/handovers/:id/confirm",
+        auth: "Sessão · emporio:write · Gestor da loja da entrega para cima",
+        description: "O gerente confirma o valor recebido (`received_amount`, zero ou mais), que entra em \"Com a gerência\" (movimento `entrega_gerencia`). `difference` = recebido menos o entregue; diferente de zero exige `notes` (422 `notes`) e vira \"Diferença de caixa\" (despesa se faltou, receita se sobrou). Já confirmada: 409 `HANDOVER_ALREADY_CONFIRMED`. `operation_key` obrigatória: repetir devolve a entrega confirmada.",
+        request: `{ "operation_key": "k-33", "received_amount": 95, "notes": "Faltou uma nota de 5" }`,
+        response: `200
+{ "data": { "id": "cl...", "status": "confirmed", "received_amount": 95, "difference": -5 }, "meta": {} }`,
       },
       {
         method: "GET",
@@ -2111,7 +2188,7 @@ export const GROUPS: Group[] = [
         path: "/api/v1/meu-dia",
         auth: "Sessão · tarefas:read",
         description:
-          "As seções do Meu Dia (atenção, hoje, próximos dias e sem data), já na ordem de importância. Lê ao vivo tarefas, contas, vacinas, serviços agendados, estadias e estoque baixo. `?property_id=` filtra por fazenda; item sem fazenda aparece em todas. Quem vê o Meu Empório recebe também os itens dele (origens `emporio_pagar`, `emporio_fiado`, `emporio_caixa` e, só para o dono e o gerente geral, `emporio_equipe`: loja sem Gestor, sem data, com link para `/emporio/equipe`; com a loja no título). Quem é só da loja recebe apenas os itens do Empório, nenhuma seção da fazenda; a conta do Empório nunca entra para quem não o vê.",
+          "As seções do Meu Dia (atenção, hoje, próximos dias e sem data), já na ordem de importância. Lê ao vivo tarefas, contas, vacinas, serviços agendados, estadias e estoque baixo. `?property_id=` filtra por fazenda; item sem fazenda aparece em todas. Quem vê o Meu Empório recebe também os itens dele (origens `emporio_pagar`, `emporio_fiado`, `emporio_turno` (turno de caixa aberto desde antes de hoje, para quem trabalha na loja: \"Caixa 2 da Loja Centro aberto desde 03/11\"), `emporio_entrega` (soma das sangrias e malotes aguardando o gerente, para o Gestor da loja para cima: \"R$ 130,00 aguardando o gerente na Loja Centro\") e, só para o dono e o gerente geral, `emporio_equipe`: loja sem Gestor, sem data, com link para `/emporio/equipe`; com a loja no título). Quem é só da loja recebe apenas os itens do Empório, nenhuma seção da fazenda; a conta do Empório nunca entra para quem não o vê.",
         response: `200
 { "data": { "atencao": [...], "hoje": [{ "origem": "pagar", "titulo": "Pagar João", "valor": 2500, "dias": 0, "...": "..." }], "proximos": [...], "sem_data": [...] }, "meta": { "total": 12 } }`,
       },

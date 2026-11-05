@@ -7,11 +7,11 @@ import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
 /**
  * GET  /api/v1/emporio/cash/counts  ?establishment_id= &limit=  o histórico de conferências da gaveta.
- * POST /api/v1/emporio/cash/counts  confere a gaveta: a diferença vira ajuste de caixa e "Diferença de caixa".
+ * POST /api/v1/emporio/cash/counts  confere um caixa no turno aberto: a diferença vira ajuste de caixa e "Diferença de caixa".
  */
 
 const schema = z.object({
-  establishment_id: z.string({ error: "Escolha o estabelecimento." }).min(1, "Escolha o estabelecimento."),
+  cash_register_id: z.string({ error: "Escolha o caixa." }).min(1, "Escolha o caixa."),
   counted: z.number({ error: "Informe quanto há na gaveta." }),
   justification: z.string().nullish(),
 });

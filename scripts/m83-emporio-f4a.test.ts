@@ -160,6 +160,7 @@ async function comBanco() {
   const E = await carregar("@/lib/actions/emporio-estoque");
   const V = await carregar("@/lib/actions/emporio-vendas");
   const X = await carregar("@/lib/actions/emporio-caixa");
+  const TU = await carregar("@/lib/actions/emporio-turno");
   const T = await carregar("@/lib/actions/emporio-transferencias");
   const D = await carregar("@/lib/actions/emporio-despesas");
   const RS = await carregar("@/lib/actions/emporio-resultado");
@@ -206,7 +207,7 @@ async function comBanco() {
     const cc = (nome: string, ...a: unknown[]) => chamarEm([C], db, nome, ...a);
     const ee = (nome: string, ...a: unknown[]) => chamarEm([E], db, nome, ...a);
     const vv = (nome: string, ...a: unknown[]) => chamarEm([V, X], db, nome, ...a);
-    const xx = (nome: string, ...a: unknown[]) => chamarEm([X, V], db, nome, ...a);
+    const xx = (nome: string, ...a: unknown[]) => chamarEm([X, V, TU], db, nome, ...a);
     const dd = (nome: string, ...a: unknown[]) => chamarEm([D, RS, V, X], db, nome, ...a);
     const tt = (nome: string, ...a: unknown[]) => chamarEm([T], db, nome, ...a);
     const ddB = (nome: string, ...a: unknown[]) => chamarEm([D, RS, V, X], dbB, nome, ...a);
@@ -722,8 +723,12 @@ async function comBanco() {
       const itT = await db.stockTransferItem.findMany({ where: { transfer_id: trId } });
       const rRec = await tt("receberTransferenciaAction", admin, trId, { items: itT.map((i) => ({ item_id: i.id, received_qty: 8, loss_reason: "avaria" })), resolution: "perda_no_caminho", reason: "avaria no caminho" });
       check("transferência de 10 kg da Loja 2 que chega 8 (diferença 2 x 4 = R$ 8)", rEnv.ok && rRec.ok, j([rEnv, rRec]));
-      const esperadoCx = await saldoGaveta(L2.id);
-      const rCf = await xx("conferirGavetaAction", op, { establishment_id: L2.id, counted: esperadoCx - 5, justification: "troco errado" });
+      // Entrega 2: a conferência é dentro do turno do caixa, e o esperado é o saldo do caixa (abrir com ele não gera diferença).
+      const caixaL2 = (await db.cashRegister.findFirst({ where: { establishment_id: L2.id, number: 1 } }))?.id ?? "x";
+      const esperadoCx = ((await (X.saldoDoCaixa as unknown as (d: unknown, id: string) => Promise<number>)(db, caixaL2)) ?? 0) / 100;
+      const rAbre = await xx("abrirTurnoAction", op, { operation_key: chave("turno"), cash_register_id: caixaL2, counted: esperadoCx });
+      check("turno do Caixa 1 da Loja 2 aberto com o troco que está lá (sem diferença)", rAbre.ok, j(rAbre));
+      const rCf = await xx("conferirGavetaAction", op, { cash_register_id: caixaL2, counted: esperadoCx - 5, justification: "troco errado" });
       check("conferência da gaveta com falta de R$ 5", rCf.ok, j(rCf));
 
       // despesa fixa da Loja 2: R$ 5.500

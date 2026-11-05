@@ -6,13 +6,17 @@ import { transferirCaixaAction } from "@/lib/actions/emporio-caixa";
 import { guardEmporio } from "@/lib/emporio/rota";
 import { chaveDeOperacao } from "@/lib/emporio/venda-schema";
 
-/** POST /api/v1/emporio/cash/transfers  dinheiro mudando de caixa (gaveta ou conta), sem tocar no Financeiro. */
+/**
+ * POST /api/v1/emporio/cash/transfers  dinheiro mudando de lugar (conta ou gerência de uma loja), sem tocar no
+ * Financeiro. A gaveta (`establishment_id`) é recusada pela action: vai ao gerente pela sangria ou pelo malote.
+ */
 
 const ponta = (campo: string) =>
   z.object(
     {
       establishment_id: z.string().nullish(),
       bank_account_id: z.string().nullish(),
+      manager_establishment_id: z.string().nullish(),
     },
     { error: campo },
   );

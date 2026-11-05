@@ -10,7 +10,8 @@ import { apiOkSchema } from "./envelope";
  * O item é o `serializar` da própria rota (src/app/api/v1/meu-dia/route.ts), a
  * partir de `ItemDoDia` (src/lib/actions/meu-dia.ts). É UMA forma só para as
  * origens (tarefa, contas, vacina, serviço, estadia, estoque e, desde a F5 do
- * Empório, as contas, o fiado e o caixa das lojas): o Meu Dia
+ * Empório, as contas e o fiado das lojas; desde a entrega 2, o turno aberto
+ * desde antes de hoje e o dinheiro aguardando o gerente): o Meu Dia
  * já as apresenta achatadas, então não há schema de outro domínio a importar.
  */
 
@@ -25,7 +26,8 @@ export const meuDiaOrigemSchema = z.enum([
   "estoque",
   "emporio_pagar",
   "emporio_fiado",
-  "emporio_caixa",
+  "emporio_turno",
+  "emporio_entrega",
   "emporio_equipe",
 ]);
 export type MeuDiaOrigem = z.infer<typeof meuDiaOrigemSchema>;

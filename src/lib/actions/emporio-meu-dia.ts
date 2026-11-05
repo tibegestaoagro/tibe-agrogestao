@@ -3,6 +3,7 @@ import { decToNum } from "@/lib/serialize";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { diasAte, inicioDoDiaEmSaoPaulo } from "@/lib/dia-calendario";
 import { isFeatureVisibleForUser } from "@/lib/features";
+import { dinheiro } from "@/lib/emporio/historico";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { entradasAbertas } from "@/lib/actions/emporio-caixa";
 import { lojasSemGestor } from "@/lib/actions/emporio-equipe";
@@ -19,7 +20,7 @@ import { JANELA_DE_PROXIMOS_DIAS, lerItensDoDia, type ItemDoDia } from "@/lib/ac
 
 const TRES_HORAS = 3 * 3_600_000;
 const DIA_MS = 86_400_000;
-const DIAS_DE_CAIXA = 7;
+const DIA_E_MES = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit" });
 
 const centavos = (n: number) => Math.round(Number((n * 100).toPrecision(12)));
 
@@ -153,49 +154,62 @@ export async function itensDoEmporioNoDia(
     }
   }
 
-  // --- emporio_caixa --------------------------------------------------------
-  if (pode(papel, "vendedor_da_loja")) {
-    const hoje = inicioDoDiaEmSaoPaulo(agora);
-    const inicio = new Date(inicioDoDiaEmInstante(hoje).getTime() - DIAS_DE_CAIXA * DIA_MS);
-    const fim = inicioDoDiaEmInstante(hoje);
-    const [movimentos, conferencias] = await Promise.all([
-      db.cashMovement.findMany({
-        where: { establishment_id: { in: ids }, occurred_at: { gte: inicio, lt: fim } },
-        select: { establishment_id: true, occurred_at: true },
-      }),
-      db.cashCount.findMany({
-        where: { establishment_id: { in: ids }, counted_at: { gte: inicio, lt: fim } },
-        select: { establishment_id: true, counted_at: true },
-      }),
-    ]);
-    const dia = (d: Date) => inicioDoDiaEmSaoPaulo(d).getTime();
-    const conferidos = new Set(conferencias.map((c) => `${c.establishment_id}:${dia(c.counted_at)}`));
-    const semConferir = new Map<string, Set<number>>();
-    for (const m of movimentos) {
-      if (!m.establishment_id) continue;
-      const d = dia(m.occurred_at);
-      if (conferidos.has(`${m.establishment_id}:${d}`)) continue;
-      const set = semConferir.get(m.establishment_id) ?? new Set<number>();
-      set.add(d);
-      semConferir.set(m.establishment_id, set);
-    }
-    const ontem = hoje.getTime() - DIA_MS;
-    for (const loja of lojas) {
-      const dias = semConferir.get(loja.id);
-      if (!dias || dias.size === 0) continue;
-      const maisRecente = Math.max(...dias);
-      const titulo =
-        dias.size === 1 && maisRecente === ontem
-          ? `Caixa de ontem da ${loja.name} não foi conferido`
-          : `Caixa da ${loja.name} sem conferência em ${dias.size} dias`;
-      const data = new Date(maisRecente);
+  // --- emporio_turno (entrega 2): turno aberto desde antes de hoje ----------
+  // Substitui o aviso "caixa não conferido" (Q110): o turno que passa da
+  // meia-noite continua valendo, e quem trabalha na loja é avisado.
+  const naLoja = ids.filter((id) => pode(papel, "vendedor_da_loja", id));
+  if (naLoja.length > 0) {
+    const inicioDeHoje = inicioDoDiaEmInstante(inicioDoDiaEmSaoPaulo(agora));
+    const antigos = await db.cashSession.findMany({
+      where: { establishment_id: { in: naLoja }, open_register_id: { not: null }, opened_at: { lt: inicioDeHoje } },
+      include: { cash_register: { select: { number: true } } },
+      orderBy: { opened_at: "asc" },
+    });
+    for (const s of antigos) {
+      const data = inicioDoDiaEmSaoPaulo(s.opened_at);
       itens.push({
-        chave: `emporio_caixa:${loja.id}`,
-        origem: "emporio_caixa",
-        titulo,
+        chave: `emporio_turno:${s.id}`,
+        origem: "emporio_turno",
+        titulo: `Caixa ${s.cash_register.number} da ${nomeDaLoja.get(s.establishment_id) ?? ""} aberto desde ${DIA_E_MES.format(s.opened_at)}`,
         data,
         horario: null,
         valor: null,
+        urgente: false,
+        dias: diasAte(data, agora),
+        fazenda: null,
+        href: "/emporio/caixa",
+      });
+    }
+  }
+
+  // --- emporio_entrega (entrega 2): dinheiro aguardando o gerente -----------
+  const gerenciadas = ids.filter((id) => pode(papel, "gestor_da_loja", id));
+  if (gerenciadas.length > 0) {
+    const pendentes = await db.cashHandover.findMany({
+      where: { establishment_id: { in: gerenciadas }, confirmed_at: null },
+      select: { establishment_id: true, amount: true, created_at: true },
+    });
+    const porLoja = new Map<string, { total: number; desde: Date }>();
+    for (const h of pendentes) {
+      const g = porLoja.get(h.establishment_id);
+      const v = centavos(decToNum(h.amount) ?? 0);
+      if (!g) porLoja.set(h.establishment_id, { total: v, desde: h.created_at });
+      else {
+        g.total += v;
+        if (h.created_at.getTime() < g.desde.getTime()) g.desde = h.created_at;
+      }
+    }
+    for (const loja of lojas) {
+      const g = porLoja.get(loja.id);
+      if (!g || g.total <= 0) continue;
+      const data = inicioDoDiaEmSaoPaulo(g.desde);
+      itens.push({
+        chave: `emporio_entrega:${loja.id}`,
+        origem: "emporio_entrega",
+        titulo: `${dinheiro(g.total / 100)} aguardando o gerente na ${loja.name}`,
+        data,
+        horario: null,
+        valor: g.total / 100,
         urgente: false,
         dias: diasAte(data, agora),
         fazenda: null,

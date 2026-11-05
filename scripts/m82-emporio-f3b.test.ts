@@ -80,6 +80,8 @@ async function comBanco() {
   const E = (await import(caminhoEstoque)) as Record<string, Acao>;
   const V = (await import(caminhoVendas)) as Record<string, Acao>;
   const X = (await import(caminhoCaixa)) as Record<string, Acao>;
+  // Entrega 2: a conferência é dentro de um turno aberto, e a gaveta não transfere mais (vai à gerência).
+  const T = (await import("@/lib/actions/emporio-turno")) as unknown as Record<string, Acao>;
 
   const stamp = Date.now();
   const tenantIds: string[] = [];
@@ -104,7 +106,7 @@ async function comBanco() {
     const op = await TA.mkUser("op", "OPERADOR");
     const visu = await TA.mkUser("vis", "VISUALIZADOR");
     const userO = await TA.mkUser("uo", "OPERADOR"); // vinculado só à Loja 3
-    const gOp = await TA.mkUser("gop", "OPERADOR"); // Gestor das três lojas: a gaveta ao banco é do Gestor (provisório, Task 3)
+    const gOp = await TA.mkUser("gop", "OPERADOR"); // Gestor das três lojas: tirar da gerência é do Gestor da loja (Q92 revista)
     const gUo = await TA.mkUser("guo", "OPERADOR"); // Gestor só da Loja 3
     const ownerB = await TB.mkUser("own", "OWNER");
     const db = prismaForTenant(TA.t.id);
@@ -124,7 +126,7 @@ async function comBanco() {
     const cc = (nome: string, ...a: unknown[]) => chamarEm([C], db, nome, ...a);
     const ee = (nome: string, ...a: unknown[]) => chamarEm([E], db, nome, ...a);
     const vv = (nome: string, ...a: unknown[]) => chamarEm([V, X], db, nome, ...a);
-    const xx = (nome: string, ...a: unknown[]) => chamarEm([X, V], db, nome, ...a);
+    const xx = (nome: string, ...a: unknown[]) => chamarEm([X, V, T], db, nome, ...a);
 
     // ---- Lojas
     const rL1 = await cc("criarEstabelecimentoAction", owner, { name: "M82 Loja 1", kind: "ponto_venda" });
@@ -185,6 +187,7 @@ async function comBanco() {
       return ms.reduce((s, m) => s + (m.direction === "entrada" ? n(m.amount) : -n(m.amount)), 0);
     };
     const saldoGaveta = (est: string) => caixaDa({ establishment_id: est });
+    const saldoGerencia = (est: string) => caixaDa({ manager_establishment_id: est });
     const hoje = () => brDate(new Date());
     // saldo da conta (Q90): movimentos + parcelas não canceladas de hoje para trás
     const saldoConta = async (conta: string) => {
@@ -456,39 +459,46 @@ async function comBanco() {
     let transferAId = "";
     let transferCodeOk = false;
     await rodar("transferência", async () => {
-      console.log("\n6. Transferência entre caixas (Q92)");
+      console.log("\n6. Transferência entre contas e a gerência (Q92, revista na entrega 2: a gaveta não transfere)");
       check("vincular userO só à Loja 3", (await cc("definirVinculosAction", owner, L3.id, [userO.id, gUo.id, gOp.id])).ok);
       check("saldo inicial da gaveta da Loja 2 (500)", (await xx("saldoInicialCaixaAction", op, { establishment_id: L2.id, amount: 500 })).ok);
       check("saldo inicial da gaveta da Loja 3 (100)", (await xx("saldoInicialCaixaAction", owner, { establishment_id: L3.id, amount: 100 })).ok);
       check("saldo inicial da conta de transferência (1000)", (await xx("saldoInicialCaixaAction", admin, { bank_account_id: TR, amount: 1000 })).ok);
+      check("saldo inicial da gerência da Loja 2 (500, Gestor)", (await xx("saldoInicialCaixaAction", gOp, { manager_establishment_id: L2.id, amount: 500 })).ok);
+      check("saldo inicial da gerência da Loja 3 (100, Gestor dela)", (await xx("saldoInicialCaixaAction", gUo, { manager_establishment_id: L3.id, amount: 100 })).ok);
       const e0 = await db.financialEntry.count();
       const pagos0 = await db.financialPayment.count();
 
-      const rT = await xx("transferirCaixaAction", gOp, { operation_key: TRANSF_KEY, from: { establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 200 });
+      const rT = await xx("transferirCaixaAction", gOp, { operation_key: TRANSF_KEY, from: { manager_establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 200 });
       transferCodeOk = rT.ok;
-      check("Gestor leva R$ 200 da gaveta da Loja 2 ao banco", rT.ok, j(rT));
+      check("Gestor leva R$ 200 da gerência da Loja 2 ao banco", rT.ok, j(rT));
       const tr = await db.cashTransfer.findFirst({ where: { operation_key: TRANSF_KEY } });
       transferAId = tr?.id ?? "";
-      check("uma transferência de 200 gravada", !!tr && perto(n(tr.amount), 200), j(tr));
+      check("uma transferência de 200 gravada, da gerência", !!tr && perto(n(tr.amount), 200) && tr.from_manager_establishment_id === L2.id, j(tr));
       const mvs = await db.cashMovement.findMany({ where: { cash_transfer_id: tr?.id ?? "x" } });
-      check("dois movimentos ligados, origem transferencia: saída na gaveta, entrada na conta", mvs.length === 2 && mvs.every((m) => m.origin === "transferencia" && perto(n(m.amount), 200)) && mvs.some((m) => m.direction === "saida" && m.establishment_id === L2.id) && mvs.some((m) => m.direction === "entrada" && m.bank_account_id === TR), j(mvs));
-      check("a gaveta caiu para 300 e a conta subiu para 1200", perto(await saldoGaveta(L2.id), 300) && perto(await saldoConta(TR), 1200));
+      check("dois movimentos ligados, origem transferencia: saída na gerência, entrada na conta", mvs.length === 2 && mvs.every((m) => m.origin === "transferencia" && perto(n(m.amount), 200)) && mvs.some((m) => m.direction === "saida" && m.manager_establishment_id === L2.id && m.establishment_id === null) && mvs.some((m) => m.direction === "entrada" && m.bank_account_id === TR), j(mvs));
+      check("a gerência caiu para 300, a conta subiu para 1200 e a gaveta não mexeu (500)", perto(await saldoGerencia(L2.id), 300) && perto(await saldoConta(TR), 1200) && perto(await saldoGaveta(L2.id), 500));
       const caixa = dados(await xx("lerCaixaAction", admin));
-      check("o caixa mostra os dois saldos", perto(achar(caixa, "establishment_id", L2.id), 300) && perto(achar(caixa, "bank_account_id", TR), 1200), `${achar(caixa, "establishment_id", L2.id)} e ${achar(caixa, "bank_account_id", TR)}`);
-      const rT2 = await xx("transferirCaixaAction", gOp, { operation_key: TRANSF_KEY, from: { establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 200 });
-      check("mesma chave: devolve o gravado, sem duplicar", rT2.ok && (await db.cashTransfer.count({ where: { operation_key: TRANSF_KEY } })) === 1 && (await db.cashMovement.count({ where: { cash_transfer_id: tr?.id ?? "x" } })) === 2 && perto(await saldoGaveta(L2.id), 300), j(rT2));
+      const gavetaL2 = (caixa?.drawers ?? []).find((d: Dado) => d.establishment_id === L2.id);
+      check("o caixa mostra a gerência, a gaveta e a conta", perto(gavetaL2?.manager_balance, 300) && perto(gavetaL2?.balance, 500) && perto(achar(caixa, "bank_account_id", TR), 1200), j(gavetaL2));
+      const rT2 = await xx("transferirCaixaAction", gOp, { operation_key: TRANSF_KEY, from: { manager_establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 200 });
+      check("mesma chave: devolve o gravado, sem duplicar", rT2.ok && (await db.cashTransfer.count({ where: { operation_key: TRANSF_KEY } })) === 1 && (await db.cashMovement.count({ where: { cash_transfer_id: tr?.id ?? "x" } })) === 2 && perto(await saldoGerencia(L2.id), 300), j(rT2));
 
       const c0 = await db.cashMovement.count();
-      check("mais do que tem (300,01 de 300): 409 INSUFFICIENT_CASH em amount", recusa(await xx("transferirCaixaAction", gOp, { operation_key: chave("transf"), from: { establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 300.01 }), "INSUFFICIENT_CASH", 409, "amount"));
+      check("mais do que tem (300,01 de 300): 409 INSUFFICIENT_CASH em amount", recusa(await xx("transferirCaixaAction", gOp, { operation_key: chave("transf"), from: { manager_establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 300.01 }), "INSUFFICIENT_CASH", 409, "amount"));
       check("a recusa não gravou movimento", (await db.cashMovement.count()) === c0);
-      check("mesma gaveta na origem e no destino: 422 to", recusa(await xx("transferirCaixaAction", gOp, { operation_key: chave("transf"), from: { establishment_id: L2.id }, to: { establishment_id: L2.id }, amount: 10 }), "VALIDATION_ERROR", 422, "to"));
+      check("saindo da gaveta: 422 DRAWER_TRANSFER em from", recusa(await xx("transferirCaixaAction", gOp, { operation_key: chave("transf"), from: { establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 10 }), "DRAWER_TRANSFER", 422, "from"));
+      check("entrando na gaveta: 422 DRAWER_TRANSFER em to", recusa(await xx("transferirCaixaAction", admin, { operation_key: chave("transf"), from: { bank_account_id: TR }, to: { establishment_id: L2.id }, amount: 10 }), "DRAWER_TRANSFER", 422, "to"));
+      check("as recusas da gaveta não gravaram movimento", (await db.cashMovement.count()) === c0 && perto(await saldoGaveta(L2.id), 500));
+      check("mesma gerência na origem e no destino: 422 to", recusa(await xx("transferirCaixaAction", gOp, { operation_key: chave("transf"), from: { manager_establishment_id: L2.id }, to: { manager_establishment_id: L2.id }, amount: 10 }), "VALIDATION_ERROR", 422, "to"));
       check("mesma conta na origem e no destino: 422 to", recusa(await xx("transferirCaixaAction", admin, { operation_key: chave("transf"), from: { bank_account_id: TR }, to: { bank_account_id: TR }, amount: 10 }), "VALIDATION_ERROR", 422, "to"));
-      check("valor zero: 422 amount", recusa(await xx("transferirCaixaAction", gOp, { operation_key: chave("transf"), from: { establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 0 }), "VALIDATION_ERROR", 422, "amount"));
-      check("Gestor tirando de CONTA: 403", recusa(await xx("transferirCaixaAction", gOp, { operation_key: chave("transf"), from: { bank_account_id: TR }, to: { establishment_id: L2.id }, amount: 10 }), "FORBIDDEN", 403));
-      check("VISUALIZADOR transfere: 403", recusa(await xx("transferirCaixaAction", visu, { operation_key: chave("transf"), from: { establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 10 }), "FORBIDDEN", 403));
-      check("Gestor sem vínculo com a Loja 2 tirando da gaveta dela: 403 ou 404", negada(await xx("transferirCaixaAction", gUo, { operation_key: chave("transf"), from: { establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 10 })));
-      check("Gestor vinculado tira da gaveta da própria loja (Loja 3)", (await xx("transferirCaixaAction", gUo, { operation_key: chave("transf"), from: { establishment_id: L3.id }, to: { establishment_id: L2.id }, amount: 40 })).ok && perto(await saldoGaveta(L3.id), 60) && perto(await saldoGaveta(L2.id), 340));
-      check("ADMIN tira da conta e põe na gaveta", (await xx("transferirCaixaAction", admin, { operation_key: chave("transf"), from: { bank_account_id: TR }, to: { establishment_id: L2.id }, amount: 50 })).ok && perto(await saldoConta(TR), 1150) && perto(await saldoGaveta(L2.id), 390));
+      check("valor zero: 422 amount", recusa(await xx("transferirCaixaAction", gOp, { operation_key: chave("transf"), from: { manager_establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 0 }), "VALIDATION_ERROR", 422, "amount"));
+      check("Gestor tirando de CONTA: 403", recusa(await xx("transferirCaixaAction", gOp, { operation_key: chave("transf"), from: { bank_account_id: TR }, to: { manager_establishment_id: L2.id }, amount: 10 }), "FORBIDDEN", 403));
+      check("VISUALIZADOR transfere: 403", recusa(await xx("transferirCaixaAction", visu, { operation_key: chave("transf"), from: { manager_establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 10 }), "FORBIDDEN", 403));
+      check("Vendedor tirando da gerência: 403", recusa(await xx("transferirCaixaAction", op, { operation_key: chave("transf"), from: { manager_establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 10 }), "FORBIDDEN", 403));
+      check("Gestor sem vínculo com a Loja 2 tirando da gerência dela: 403 ou 404", negada(await xx("transferirCaixaAction", gUo, { operation_key: chave("transf"), from: { manager_establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 10 })));
+      check("Gestor vinculado tira da gerência da própria loja (Loja 3) para a da Loja 2", (await xx("transferirCaixaAction", gUo, { operation_key: chave("transf"), from: { manager_establishment_id: L3.id }, to: { manager_establishment_id: L2.id }, amount: 40 })).ok && perto(await saldoGerencia(L3.id), 60) && perto(await saldoGerencia(L2.id), 340));
+      check("ADMIN tira da conta e põe na gerência", (await xx("transferirCaixaAction", admin, { operation_key: chave("transf"), from: { bank_account_id: TR }, to: { manager_establishment_id: L2.id }, amount: 50 })).ok && perto(await saldoConta(TR), 1150) && perto(await saldoGerencia(L2.id), 390));
 
       // a conta com parcela de cartão que já caiu pode transferir esse valor
       check("a conta do cartão não tem CashMovement (o saldo vem só da parcela que caiu)", (await db.cashMovement.count({ where: { bank_account_id: CARD } })) === 0);
@@ -505,13 +515,18 @@ async function comBanco() {
     // ---------------------------------------------------------------- 7
     let ultimaConferenciaId = "";
     await rodar("conferência", async () => {
-      console.log("\n7. Conferência da gaveta (Q93)");
+      console.log("\n7. Conferência da gaveta (Q93), dentro do turno aberto do caixa (entrega 2)");
+      const caixaL2 = (await db.cashRegister.findFirst({ where: { establishment_id: L2.id, number: 1 } }))?.id ?? "x";
       const conferir = (ator: Ator, counted: number, justification?: string) =>
-        xx("conferirGavetaAction", ator, { establishment_id: L2.id, counted, ...(justification === undefined ? {} : { justification }) });
+        xx("conferirGavetaAction", ator, { cash_register_id: caixaL2, counted, ...(justification === undefined ? {} : { justification }) });
       const ultima = () => db.cashCount.findFirst({ where: { establishment_id: L2.id }, orderBy: { created_at: "desc" } });
       const ajustes = () => db.cashMovement.count({ where: { origin: "conferencia" } });
       const lancs = () => db.financialEntry.count({ where: { category: "Diferença de caixa" } });
 
+      check("sem turno aberto no caixa: 409 CASH_CLOSED em cash_register_id", recusa(await conferir(op, await saldoGaveta(L2.id)), "CASH_CLOSED", 409, "cash_register_id"));
+      const rAbre = await xx("abrirTurnoAction", op, { operation_key: chave("abre"), cash_register_id: caixaL2, counted: await saldoGaveta(L2.id) });
+      check("o Vendedor abre o Caixa 1 da Loja 2 com o troco que está lá", rAbre.ok, j(rAbre));
+      const turnoL2 = dados(rAbre)?.id ?? "x";
       check("VISUALIZADOR confere: 403", recusa(await conferir(visu, 10), "FORBIDDEN", 403));
       check("OPERADOR sem vínculo com a Loja 2: 403 ou 404", negada(await conferir(userO, 10)));
       check("contado negativo: 422 counted", recusa(await conferir(op, -1), "VALIDATION_ERROR", 422, "counted"));
@@ -533,8 +548,9 @@ async function comBanco() {
       check("contado menor com justificativa: aceito", rFalta.ok, j(rFalta));
       const cf = await ultima();
       check("a conferência grava esperado, contado e diferença -7,50 com a justificativa", !!cf && perto(n(cf.expected), esperado) && perto(n(cf.counted), esperado - 7.5) && perto(n(cf.difference), -7.5) && cf.justification === "troco errado", j(cf));
+      check("a conferência é livre, no caixa e no turno", cf?.kind === "livre" && cf?.cash_register_id === caixaL2 && cf?.cash_session_id === turnoL2, j(cf));
       const mvF = await db.cashMovement.findMany({ where: { cash_count_id: cf?.id ?? "x" } });
-      check("UMA saída de ajuste de 7,50 na gaveta, origem conferencia", mvF.length === 1 && mvF[0].direction === "saida" && perto(n(mvF[0].amount), 7.5) && mvF[0].origin === "conferencia" && mvF[0].establishment_id === L2.id, j(mvF));
+      check("UMA saída de ajuste de 7,50 na gaveta, origem conferencia, no caixa e no turno", mvF.length === 1 && mvF[0].direction === "saida" && perto(n(mvF[0].amount), 7.5) && mvF[0].origin === "conferencia" && mvF[0].establishment_id === L2.id && mvF[0].cash_register_id === caixaL2 && mvF[0].cash_session_id === turnoL2, j(mvF));
       const enF = await db.financialEntry.findMany({ where: { related_id: cf?.id ?? "x" } });
       check("despesa 'Diferença de caixa' de 7,50, paga, ligada à conferência", enF.length === 1 && enF[0].entry_type === "expense" && enF[0].category === "Diferença de caixa" && perto(n(enF[0].amount), 7.5) && enF[0].status === "paid" && enF[0].related_module === "emporio", j(enF));
       check("depois do ajuste o saldo da gaveta é o contado", perto(await saldoGaveta(L2.id), esperado - 7.5));
@@ -671,11 +687,13 @@ async function comBanco() {
       check("B deposita cheque de A: 404", recusa(await bb("depositarChequeAction", ownerB, chequeA, { bank_account_id: contaB }), "NOT_FOUND", 404));
       check("B compensa cheque de A: 404", recusa(await bb("compensarChequeAction", ownerB, chequeA), "NOT_FOUND", 404));
       check("B marca cheque de A como voltou: 404", recusa(await bb("chequeVoltouAction", ownerB, chequeA, { reason: "x" }), "NOT_FOUND", 404));
-      check("B transfere da gaveta de A: 404", recusa(await bb("transferirCaixaAction", ownerB, { operation_key: chave("tb"), from: { establishment_id: L2.id }, to: { bank_account_id: contaB }, amount: 1 }), "NOT_FOUND", 404));
+      check("B transfere da gerência de A: 404", recusa(await bb("transferirCaixaAction", ownerB, { operation_key: chave("tb"), from: { manager_establishment_id: L2.id }, to: { bank_account_id: contaB }, amount: 1 }), "NOT_FOUND", 404));
       check("B transfere da conta de A: 404", recusa(await bb("transferirCaixaAction", ownerB, { operation_key: chave("tb"), from: { bank_account_id: TR }, to: { bank_account_id: contaB }, amount: 1 }), "NOT_FOUND", 404));
-      const rKey = await bb("transferirCaixaAction", ownerB, { operation_key: TRANSF_KEY, from: { establishment_id: lojaB?.id }, to: { bank_account_id: contaB }, amount: 1 });
+      const rKey = await bb("transferirCaixaAction", ownerB, { operation_key: TRANSF_KEY, from: { manager_establishment_id: lojaB?.id }, to: { bank_account_id: contaB }, amount: 1 });
       check("a chave de A em B não devolve a transferência de A (a chave é por conta)", transferCodeOk && !(rKey.ok && dados(rKey)?.id === transferAId), j(rKey));
-      check("B confere a gaveta de A: 404", recusa(await bb("conferirGavetaAction", ownerB, { establishment_id: L2.id, counted: 0 }), "NOT_FOUND", 404));
+      const caixaL2A = (await db.cashRegister.findFirst({ where: { establishment_id: L2.id, number: 1 } }))?.id ?? "x";
+      check("B confere o caixa de A: 404", recusa(await bb("conferirGavetaAction", ownerB, { cash_register_id: caixaL2A, counted: 0 }), "NOT_FOUND", 404));
+      check("B confere pela loja de A: 404", recusa(await bb("conferirGavetaAction", ownerB, { establishment_id: L2.id, counted: 0 }), "NOT_FOUND", 404));
       check("B não vê as conferências de A", !j(dados(await bb("listarConferenciasAction", ownerB)) ?? []).includes(ultimaConferenciaId));
       const caixaB = dados(await bb("lerCaixaAction", ownerB));
       check("o caixa de B não traz parcela, cheque nem conferência de A", !j(caixaB).includes(chequeA) && !j(caixaB).includes(ultimaConferenciaId) && !j(caixaB).includes(rcA) && somaReceberCaixa(caixaB) === 0 && Number.isNaN(achar(caixaB, "establishment_id", L2.id)), j(caixaB));
@@ -792,24 +810,28 @@ async function comBanco() {
 
       // transferências
       const kTr = chave("rota-tr");
-      const corpoTr = { operation_key: kTr, from: { establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 10 };
+      const corpoTr = { operation_key: kTr, from: { manager_establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 10 };
       const t1 = await chamar(tokenOwner, "cash/transfers", "POST", "cash/transfers", corpoTr);
-      check("POST cash/transfers: 201", t1.status === 201 || t1.status === 200, `${t1.status} ${j(t1.json)}`);
+      check("POST cash/transfers (da gerência para a conta): 201", t1.status === 201 || t1.status === 200, `${t1.status} ${j(t1.json)}`);
       const t2 = await chamar(tokenOwner, "cash/transfers", "POST", "cash/transfers", corpoTr);
       check("repetir a chave: 2xx e uma transferência só", ok2xx(t2.status) && (await db.cashTransfer.count({ where: { operation_key: kTr } })) === 1, `${t2.status} ${j(t2.json)}`);
       em422("POST cash/transfers com origem igual ao destino", await chamar(tokenOwner, "cash/transfers", "POST", "cash/transfers", { operation_key: chave("rt"), from: { bank_account_id: TR }, to: { bank_account_id: TR }, amount: 1 }), ["to"]);
-      em422("POST cash/transfers com valor zero", await chamar(tokenOwner, "cash/transfers", "POST", "cash/transfers", { operation_key: chave("rt"), from: { establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 0 }), ["amount"]);
-      const ins = await chamar(tokenOwner, "cash/transfers", "POST", "cash/transfers", { operation_key: chave("rt"), from: { establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 99999 });
+      em422("POST cash/transfers com valor zero", await chamar(tokenOwner, "cash/transfers", "POST", "cash/transfers", { operation_key: chave("rt"), from: { manager_establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 0 }), ["amount"]);
+      const gav = await chamar(tokenOwner, "cash/transfers", "POST", "cash/transfers", { operation_key: chave("rt"), from: { establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 1 });
+      check("POST cash/transfers saindo da gaveta: 422 DRAWER_TRANSFER em from", gav.status === 422 && gav.json?.error?.code === "DRAWER_TRANSFER" && gav.json?.error?.field === "from", `${gav.status} ${j(gav.json)}`);
+      const ins = await chamar(tokenOwner, "cash/transfers", "POST", "cash/transfers", { operation_key: chave("rt"), from: { manager_establishment_id: L2.id }, to: { bank_account_id: TR }, amount: 99999 });
       check("POST cash/transfers acima do saldo: 409 INSUFFICIENT_CASH em amount", ins.status === 409 && ins.json?.error?.code === "INSUFFICIENT_CASH" && ins.json?.error?.field === "amount", `${ins.status} ${j(ins.json)}`);
 
-      // conferências
+      // conferências (o turno do Caixa 1 da Loja 2 segue aberto desde a seção 7)
+      const caixaL2R = (await db.cashRegister.findFirst({ where: { establishment_id: L2.id, number: 1 } }))?.id ?? "x";
       const gcs = await chamar(tokenOwner, "cash/counts", "GET", "cash/counts");
       check("GET cash/counts: 200", gcs.status === 200, `${gcs.status}`);
       const saldoL2 = await saldoGaveta(L2.id);
-      const cp = await chamar(tokenOwner, "cash/counts", "POST", "cash/counts", { establishment_id: L2.id, counted: saldoL2 });
+      const cp = await chamar(tokenOwner, "cash/counts", "POST", "cash/counts", { cash_register_id: caixaL2R, counted: saldoL2 });
       check("POST cash/counts: 201", cp.status === 201 || cp.status === 200, `${cp.status} ${j(cp.json)}`);
-      em422("POST cash/counts com contado negativo", await chamar(tokenOwner, "cash/counts", "POST", "cash/counts", { establishment_id: L2.id, counted: -1 }), ["counted"]);
-      em422("POST cash/counts com diferença e sem justificativa", await chamar(tokenOwner, "cash/counts", "POST", "cash/counts", { establishment_id: L2.id, counted: saldoL2 + 1 }), ["justification"]);
+      em422("POST cash/counts sem o caixa", await chamar(tokenOwner, "cash/counts", "POST", "cash/counts", { establishment_id: L2.id, counted: saldoL2 }), ["cash_register_id"]);
+      em422("POST cash/counts com contado negativo", await chamar(tokenOwner, "cash/counts", "POST", "cash/counts", { cash_register_id: caixaL2R, counted: -1 }), ["counted"]);
+      em422("POST cash/counts com diferença e sem justificativa", await chamar(tokenOwner, "cash/counts", "POST", "cash/counts", { cash_register_id: caixaL2R, counted: saldoL2 + 1 }), ["justification"]);
     });
   } finally {
     for (const id of tenantIds) {

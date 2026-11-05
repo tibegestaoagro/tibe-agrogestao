@@ -62,6 +62,7 @@ async function comBanco() {
   const E = await carregar("@/lib/actions/emporio-estoque");
   const V = await carregar("@/lib/actions/emporio-vendas");
   const X = await carregar("@/lib/actions/emporio-caixa");
+  const TU = await carregar("@/lib/actions/emporio-turno");
   const CP = await carregar("@/lib/actions/emporio-compras");
   const T = await carregar("@/lib/actions/emporio-transferencias");
   const EQ = await carregar("@/lib/actions/emporio-equipe");
@@ -218,7 +219,13 @@ async function comBanco() {
       check("perda registrada", perda.r.ok, j(perda.r));
       umaLinha(perda.rows, "registrar perda", /perda/, vend1, L1);
 
-      const gaveta = await nova(() => chamar(X, "conferirGavetaAction", db, vend1, { establishment_id: L1, counted: 10, justification: "conferência de teste" }));
+      // Entrega 2: a conferência é dentro do turno aberto do caixa; abrir grava a própria linha (caixa.abrir), fora da medida.
+      const caixaL1 = (await db.cashRegister.findFirst({ where: { establishment_id: L1, number: 1 } }))?.id;
+      const contadoL1 = ((await (X.saldoDoCaixa as unknown as (d: unknown, id: string) => Promise<number>)(db, caixaL1 ?? "x")) ?? 0) / 100;
+      const abre = await nova(() => chamar(TU, "abrirTurnoAction", db, vend1, { operation_key: chave("turno"), cash_register_id: caixaL1, counted: contadoL1 }));
+      check("turno aberto", abre.r.ok, j(abre.r));
+      umaLinha(abre.rows, "abrir o caixa", /^caixa\.abrir$/, vend1, L1);
+      const gaveta = await nova(() => chamar(X, "conferirGavetaAction", db, vend1, { cash_register_id: caixaL1, counted: 10, justification: "conferência de teste" }));
       check("gaveta conferida", gaveta.r.ok, j(gaveta.r));
       umaLinha(gaveta.rows, "conferir gaveta", /gaveta|caixa/, vend1, L1);
 

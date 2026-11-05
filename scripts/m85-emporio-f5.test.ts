@@ -20,7 +20,8 @@ exigirBancoLocal();
  *   lojas pode vir em qualquer chave (ou ser o próprio `data`), e cada loja traz
  *   `establishment_id` e `steps`;
  * - o `ItemDoDia` do Empório usa `titulo`, `href`, `valor`, `dias` e `origem`
- *   (`emporio_pagar`, `emporio_fiado`, `emporio_caixa`);
+ *   (`emporio_pagar`, `emporio_fiado`, e desde a entrega 2 `emporio_turno`; o
+ *   `emporio_caixa` da Q110 saiu);
  * - datas passadas (fiado vencido, movimento de ontem) são ajustadas direto no
  *   banco depois de criadas pela action, porque nenhuma action grava no passado.
  */
@@ -70,6 +71,7 @@ async function comBanco() {
   const E = await carregar("@/lib/actions/emporio-estoque");
   const V = await carregar("@/lib/actions/emporio-vendas");
   const X = await carregar("@/lib/actions/emporio-caixa");
+  const TU = await carregar("@/lib/actions/emporio-turno");
   const CP = await carregar("@/lib/actions/emporio-compras");
   const D = await carregar("@/lib/actions/emporio-despesas");
   const PR = await carregar("@/lib/actions/emporio-producao");
@@ -162,6 +164,8 @@ async function comBanco() {
     const opA = await S.mkUser("opA", "OPERADOR");
     const agora = new Date();
     let temCenario = false;
+    let turnoOntem = "";
+    let turnoHoje = "";
     let itensOwner: Dado[] = [];
     const titulosDe = (itens: Dado[]) => itens.map((i) => String(i.titulo));
     const doTipo = (itens: Dado[], origem: string) => itens.filter((i) => i.origem === origem);
@@ -237,6 +241,17 @@ async function comBanco() {
       await S.db.cashMovement.update({ where: { id: m3[1].id }, data: { occurred_at: tardeBR(2) } });
       // conferência de ontem na CX2 (gravada direto: a action conferirGavetaAction carimba hoje)
       await S.db.cashCount.create({ data: scoped({ establishment_id: CX[1].id, expected: 100, counted: 100, difference: 0, counted_at: tardeBR(1) }) });
+      // entrega 2: um turno aberto ontem no Caixa 1 da CX1 (a data é ajustada no banco) e outro aberto hoje na CX3
+      const abrirCaixa1 = async (l: { id: string }) => {
+        const reg = await S.db.cashRegister.findFirst({ where: { establishment_id: l.id, number: 1 } });
+        const contado = ((await (X.saldoDoCaixa as unknown as (db: unknown, id: string) => Promise<number>)(S.db, reg?.id ?? "x")) ?? 0) / 100;
+        const r = await chamar(TU, "abrirTurnoAction", S.db, S.op, { operation_key: chave("turno"), cash_register_id: reg?.id, counted: contado });
+        if (!r.ok) throw new Error(`abrir turno: ${j(r)}`);
+        return r.data.id as string;
+      };
+      turnoOntem = await abrirCaixa1(CX[0]);
+      await S.db.cashSession.update({ where: { id: turnoOntem }, data: { opened_at: tardeBR(1) } });
+      turnoHoje = await abrirCaixa1(CX[2]);
 
       // fazenda: uma conta a pagar e uma a receber sem loja
       await S.db.financialEntry.create({ data: scoped({ entry_type: "expense" as const, amount: 77.7, category: "M85 diesel", status: "pending" as const, due_date: meioDia(-2), related_module: "geral" as const }) });
@@ -315,22 +330,21 @@ async function comBanco() {
     });
 
     await rodar("S: caixa", async () => {
-      console.log("\n4. Caixa não conferido (Q110)");
+      // Entrega 2: o aviso "caixa não conferido" (Q110) sai; entra "turno aberto desde ontem" (o "dinheiro aguardando o gerente" é da m92).
+      console.log("\n4. Caixa: o turno aberto desde ontem substitui o 'caixa não conferido' (Q110)");
       if (!Array.isArray(itensOwner) || itensOwner.length === 0) return check("itens do dia carregados", false);
-      const caixa = doTipo(itensOwner, "emporio_caixa");
-      const da = (nome: string) => caixa.filter((i) => String(i.titulo).includes(nome));
-      const c1 = da("Loja CX1");
-      check("movimento ontem e sem conferência: 'Caixa de ontem da Loja CX1 não foi conferido'", c1.length === 1 && c1[0].titulo === "Caixa de ontem da Loja CX1 não foi conferido", j(titulosDe(caixa)));
-      check("a linha leva a /emporio/caixa e cai em Atenção (dia passado)", c1.length === 1 && c1[0].href === "/emporio/caixa" && typeof c1[0].dias === "number" && c1[0].dias < 0, j(c1[0]));
-      check("com conferência ontem, a Loja CX2 some", da("Loja CX2").length === 0, j(titulosDe(da("Loja CX2"))));
-      check("movimento só de HOJE (Loja CX3) não gera linha", da("Loja CX3").length === 0, j(titulosDe(da("Loja CX3"))));
-      const c4 = da("Loja CX4");
-      check("dois dias sem conferência: 'Caixa da Loja CX4 sem conferência em 2 dias', uma linha só", c4.length === 1 && c4[0].titulo === "Caixa da Loja CX4 sem conferência em 2 dias", j(titulosDe(c4)));
-      check("a data da linha é a do dia mais recente (2 dias atrás)", c4.length === 1 && c4[0].dias === -2, String(c4[0]?.dias));
-      check("a Loja A e a Loja B (sem movimento de gaveta) não geram linha de caixa", da("Loja A").length === 0 && da("Loja B").length === 0);
+      check("nenhuma linha 'emporio_caixa' (o aviso Q110 saiu), nem com movimento de ontem sem conferência", doTipo(itensOwner, "emporio_caixa").length === 0 && !titulosDe(itensOwner).some((t) => /não foi conferido|sem conferência/.test(t)), j(titulosDe(itensOwner)));
+      const turno = doTipo(itensOwner, "emporio_turno");
+      const desde = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit" }).format(tardeBR(1));
+      const t1 = turno.filter((i) => i.chave === `emporio_turno:${turnoOntem}`);
+      check(`turno aberto ontem: 'Caixa 1 da Loja CX1 aberto desde ${desde}'`, t1.length === 1 && t1[0].titulo === `Caixa 1 da Loja CX1 aberto desde ${desde}`, j(titulosDe(turno)));
+      check("a linha leva a /emporio/caixa e cai em Atenção (dia passado)", t1.length === 1 && t1[0].href === "/emporio/caixa" && typeof t1[0].dias === "number" && t1[0].dias < 0, j(t1[0]));
+      check("o turno aberto hoje (Loja CX3) não gera linha", !turno.some((i) => i.chave === `emporio_turno:${turnoHoje}`), j(titulosDe(turno)));
+      const opB = doTipo((await chamar(EMD, "itensDoEmporioNoDia", S.db, opA, { agora })) as unknown as Dado[], "emporio_turno");
+      check("quem não trabalha na Loja CX1 (Vendedor só da Loja A) não recebe a linha", opB.length === 0, j(titulosDe(opB)));
       const rVisu = await chamar(EMD, "itensDoEmporioNoDia", S.db, S.visu, { agora });
       const visuItens = Array.isArray(rVisu) ? (rVisu as Dado[]) : [];
-      check("VISUALIZADOR não recebe linha de caixa (só quem pode conferir)", Array.isArray(rVisu) && doTipo(visuItens, "emporio_caixa").length === 0, j(rVisu).slice(0, 200));
+      check("VISUALIZADOR não recebe linha de turno", Array.isArray(rVisu) && doTipo(visuItens, "emporio_turno").length === 0, j(rVisu).slice(0, 200));
     });
 
     // ================================================================ O: outro tenant

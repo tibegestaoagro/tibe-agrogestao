@@ -2,7 +2,8 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { decToNum, isoOrNull } from "@/lib/serialize";
 import { exigir, papelDoEmporio, pode, recusaDe } from "@/lib/emporio/papel";
-import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
+import { createLinkedEntry, runSerializableTenantTransaction, type TenantTransactionClient } from "@/lib/financial";
+import { resolverTurno } from "@/lib/emporio/turno";
 import { CATEGORIA_DIFERENCA_CAIXA, hojeEmBrasilia } from "@/lib/emporio/cartao";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { diferencas, dinheiro, registrarNoHistorico } from "@/lib/emporio/historico";
@@ -371,7 +372,8 @@ export async function receberFiadoAction(
   }
 }
 
-class RecusaCaixa extends Error {
+/** Recusa lançada de dentro da transação para desfazê-la e devolver o `fail` pronto. */
+export class RecusaCaixa extends Error {
   constructor(public recusa: ActionResult<never>) {
     super("recusa do caixa");
   }
@@ -656,6 +658,11 @@ export type MovimentoDeCaixaView = {
   cash_count_id: string | null;
   check_id: string | null;
   card_receivable_id: string | null;
+  /** Entrega 2: o caixa e o turno (na gaveta), a gerência (o terceiro lugar) e a entrega. */
+  cash_register_id: string | null;
+  cash_session_id: string | null;
+  manager_establishment_id: string | null;
+  cash_handover_id: string | null;
   notes: string | null;
 };
 
@@ -674,6 +681,10 @@ type MovimentoRow = {
   cash_count_id: string | null;
   check_id: string | null;
   card_receivable_id: string | null;
+  cash_register_id: string | null;
+  cash_session_id: string | null;
+  manager_establishment_id: string | null;
+  cash_handover_id: string | null;
   notes: string | null;
 };
 
@@ -693,6 +704,10 @@ function viewDoMovimento(m: MovimentoRow): MovimentoDeCaixaView {
     cash_count_id: m.cash_count_id,
     check_id: m.check_id,
     card_receivable_id: m.card_receivable_id,
+    cash_register_id: m.cash_register_id,
+    cash_session_id: m.cash_session_id,
+    manager_establishment_id: m.manager_establishment_id,
+    cash_handover_id: m.cash_handover_id,
     notes: m.notes,
   };
 }
@@ -701,6 +716,9 @@ export type ConferenciaView = {
   id: string;
   establishment_id: string;
   establishment_name: string;
+  cash_register_id: string | null;
+  cash_session_id: string | null;
+  kind: "abertura" | "livre" | "encerramento";
   expected: number;
   counted: number;
   difference: number;
@@ -743,12 +761,77 @@ export type ChequeView = {
   return_reason: string | null;
 };
 
+/** Entrega 2: um caixa numerado (a gaveta física), com o saldo e o turno aberto nele. */
+export type CaixaRegistradoView = {
+  id: string;
+  establishment_id: string;
+  number: number;
+  nome: string;
+  saldo: number;
+  turno_aberto: { id: string; aberto_por: { id: string; name: string }; aberto_em: string } | null;
+};
+
+/** Os caixas das lojas, por loja e número, com o saldo (soma dos movimentos) e o turno aberto. */
+export async function viewsDosCaixas(db: TenantPrismaClient, lojaIds: string[]): Promise<CaixaRegistradoView[]> {
+  if (lojaIds.length === 0) return [];
+  const caixas = await db.cashRegister.findMany({
+    where: { establishment_id: { in: lojaIds } },
+    orderBy: [{ establishment_id: "asc" }, { number: "asc" }],
+  });
+  if (caixas.length === 0) return [];
+  const ids = caixas.map((c) => c.id);
+  const [linhas, abertos] = await Promise.all([
+    db.cashMovement.groupBy({
+      by: ["cash_register_id", "direction"],
+      where: { cash_register_id: { in: ids } },
+      _sum: { amount: true },
+    }),
+    db.cashSession.findMany({
+      where: { open_register_id: { in: ids } },
+      select: { id: true, cash_register_id: true, opened_by_user_id: true, opened_at: true },
+    }),
+  ]);
+  const saldo = new Map<string, number>();
+  for (const l of linhas) {
+    const id = l.cash_register_id as string;
+    const v = centavos(decToNum(l._sum.amount) ?? 0);
+    saldo.set(id, (saldo.get(id) ?? 0) + (l.direction === "entrada" ? v : -v));
+  }
+  const nomes = new Map(
+    (
+      await db.user.findMany({
+        where: { id: { in: [...new Set(abertos.map((a) => a.opened_by_user_id))] } },
+        select: { id: true, name: true },
+      })
+    ).map((u) => [u.id, u.name]),
+  );
+  const turno = new Map(abertos.map((a) => [a.cash_register_id, a]));
+  return caixas.map((c) => {
+    const t = turno.get(c.id);
+    return {
+      id: c.id,
+      establishment_id: c.establishment_id,
+      number: c.number,
+      nome: `Caixa ${c.number}`,
+      saldo: (saldo.get(c.id) ?? 0) / 100,
+      turno_aberto: t
+        ? { id: t.id, aberto_por: { id: t.opened_by_user_id, name: nomes.get(t.opened_by_user_id) ?? "" }, aberto_em: t.opened_at.toISOString() }
+        : null,
+    };
+  });
+}
+
 export type CaixaView = {
   drawers: {
     establishment_id: string;
     name: string;
+    /** A soma dos caixas da loja. */
     balance: number;
     last_count: ConferenciaView | null;
+    /** Entrega 2: os caixas numerados da loja. */
+    registers: CaixaRegistradoView[];
+    /** Entrega 2: o saldo "Com a gerência" da loja; nulo para quem não é gestor dela. */
+    manager_balance: number | null;
   }[];
   /** `balance` já inclui as parcelas do cartão que caíram; `to_receive` é o que ainda vai cair. */
   accounts: { bank_account_id: string; name: string; balance: number; to_receive: number }[];
@@ -764,6 +847,9 @@ const dia = (d: Date) => d.toISOString().slice(0, 10);
 type ConferenciaRow = {
   id: string;
   establishment_id: string;
+  cash_register_id: string | null;
+  cash_session_id: string | null;
+  kind: "abertura" | "livre" | "encerramento";
   expected: unknown;
   counted: unknown;
   difference: unknown;
@@ -778,6 +864,9 @@ function viewDaConferencia(c: ConferenciaRow): ConferenciaView {
     id: c.id,
     establishment_id: c.establishment_id,
     establishment_name: c.establishment.name,
+    cash_register_id: c.cash_register_id,
+    cash_session_id: c.cash_session_id,
+    kind: c.kind,
     expected: decToNum(c.expected as never) ?? 0,
     counted: decToNum(c.counted as never) ?? 0,
     difference: decToNum(c.difference as never) ?? 0,
@@ -836,7 +925,8 @@ export async function lerCaixaAction(
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
     return NAO_ACHADO("Estabelecimento", "establishment_id");
   }
-  const veContas = pode(await papelDoEmporio(db, ator), "gestor_da_loja");
+  const papel = await papelDoEmporio(db, ator);
+  const veContas = pode(papel, "gestor_da_loja");
   if (opts.bank_account_id && !veContas) return recusaDe("gestor_da_loja", "ver uma conta bancária");
 
   const lojas = await db.establishment.findMany({
@@ -866,6 +956,10 @@ export async function lerCaixaAction(
   for (const c of conferencias) {
     if (!ultimaConferencia.has(c.establishment_id)) ultimaConferencia.set(c.establishment_id, viewDaConferencia(c));
   }
+  const caixas = await viewsDosCaixas(db, lojas.map((l) => l.id));
+  const gerenciadas = lojas.filter((l) => pode(papel, "gestor_da_loja", l.id)).map((l) => l.id);
+  const saldoGerencia = new Map<string, number>();
+  for (const id of gerenciadas) saldoGerencia.set(id, await saldoDaGerencia(db, id));
 
   let contas: CaixaView["accounts"] = [];
   let parcelas: ParcelaCartaoView[] = [];
@@ -916,13 +1010,14 @@ export async function lerCaixaAction(
   });
 
   const lojaIds = opts.establishment_id ? [opts.establishment_id] : lojas.map((l) => l.id);
+  // A gerência de uma loja aparece para quem é gestor dela.
+  const daGerencia = gerenciadas.filter((id) => lojaIds.includes(id));
+  const gaveta = daGerencia.length > 0
+    ? [{ establishment_id: { in: lojaIds } }, { manager_establishment_id: { in: daGerencia } }]
+    : [{ establishment_id: { in: lojaIds } }];
   const onde = opts.bank_account_id
     ? { bank_account_id: opts.bank_account_id }
-    : opts.establishment_id
-      ? { establishment_id: opts.establishment_id }
-      : veContas
-        ? { OR: [{ establishment_id: { in: lojaIds } }, { bank_account_id: { not: null } }] }
-        : { establishment_id: { in: lojaIds } };
+    : { OR: veContas && !opts.establishment_id ? [...gaveta, { bank_account_id: { not: null } }] : gaveta };
   const limite = opts.limit && opts.limit > 0 ? Math.min(Math.floor(opts.limit), 500) : 100;
   const movs = await db.cashMovement.findMany({
     where: onde,
@@ -936,6 +1031,8 @@ export async function lerCaixaAction(
       name: l.name,
       balance: (saldoLoja.get(l.id) ?? 0) / 100,
       last_count: ultimaConferencia.get(l.id) ?? null,
+      registers: caixas.filter((c) => c.establishment_id === l.id),
+      manager_balance: saldoGerencia.has(l.id) ? (saldoGerencia.get(l.id) as number) / 100 : null,
     })),
     accounts: contas,
     card_receivables: parcelas,
@@ -944,15 +1041,33 @@ export async function lerCaixaAction(
   });
 }
 
+const texto = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
+
+/**
+ * Saldo inicial (implantação), uma vez por lugar: um caixa (`cash_register_id`),
+ * a gerência de uma loja (`manager_establishment_id`) ou uma conta. O
+ * `establishment_id` sozinho, de antes dos caixas numerados, vale como o Caixa 1
+ * da loja.
+ */
 export async function saldoInicialCaixaAction(
   db: TenantPrismaClient,
   ator: Ator,
-  input: { establishment_id?: string | null; bank_account_id?: string | null; amount: number; occurred_at?: Date | null },
+  input: {
+    establishment_id?: string | null;
+    cash_register_id?: string | null;
+    manager_establishment_id?: string | null;
+    bank_account_id?: string | null;
+    amount: number;
+    occurred_at?: Date | null;
+  },
 ): Promise<ActionResult<MovimentoDeCaixaView>> {
-  const temLoja = typeof input?.establishment_id === "string" && !!input.establishment_id;
-  const temConta = typeof input?.bank_account_id === "string" && !!input.bank_account_id;
-  if (temLoja === temConta) {
-    return fail("VALIDATION_ERROR", "Informe a loja OU a conta que recebe o saldo inicial.", 422, "establishment_id");
+  const pedidoCaixa = texto(input?.cash_register_id);
+  const pedidoLoja = texto(input?.establishment_id);
+  const pedidoGerencia = texto(input?.manager_establishment_id);
+  const pedidoConta = texto(input?.bank_account_id);
+  const lugares = [pedidoCaixa ?? pedidoLoja, pedidoGerencia, pedidoConta].filter((x) => x !== null).length;
+  if (lugares !== 1 || (pedidoCaixa && pedidoLoja)) {
+    return fail("VALIDATION_ERROR", "Informe o caixa, a gerência OU a conta que recebe o saldo inicial.", 422, "cash_register_id");
   }
   if (!numero(input.amount) || centavos(input.amount) <= 0) {
     return fail("VALIDATION_ERROR", "O saldo inicial deve ser maior que zero.", 422, "amount");
@@ -961,13 +1076,31 @@ export async function saldoInicialCaixaAction(
   if (!dataValida(quando)) return fail("VALIDATION_ERROR", "Informe uma data válida.", 422, "occurred_at");
 
   let lojaId: string | null = null;
+  let caixaId: string | null = null;
+  let gerenciaId: string | null = null;
   let contaId: string | null = null;
-  if (temLoja) {
+  let numeroDoCaixa = 1;
+  if (pedidoCaixa || pedidoLoja) {
     const neg = await exigir(db, ator, "vendedor_da_loja", "informar o saldo inicial da gaveta");
     if (neg) return neg;
-    const loja = await acharLojaParaEscrita(db, ator, input.establishment_id);
+    const caixa = pedidoCaixa
+      ? await db.cashRegister.findFirst({ where: { id: pedidoCaixa }, select: { id: true, establishment_id: true, number: true } })
+      : await db.cashRegister.findFirst({ where: { establishment_id: pedidoLoja as string, number: 1 }, select: { id: true, establishment_id: true, number: true } });
+    if (pedidoCaixa && !caixa) return NAO_ACHADO("Caixa", "cash_register_id");
+    const loja = await acharLojaParaEscrita(db, ator, caixa?.establishment_id ?? pedidoLoja);
     if (!loja.ok) return loja;
+    if (!caixa) return NAO_ACHADO("Caixa", "cash_register_id");
+    const negLoja = await exigir(db, ator, "vendedor_da_loja", "informar o saldo inicial da gaveta", loja.data.id);
+    if (negLoja) return negLoja;
     lojaId = loja.data.id;
+    caixaId = caixa.id;
+    numeroDoCaixa = caixa.number;
+  } else if (pedidoGerencia) {
+    const loja = await acharLojaParaEscrita(db, ator, pedidoGerencia);
+    if (!loja.ok) return fail(loja.code, loja.message, loja.status, "manager_establishment_id");
+    const neg = await exigir(db, ator, "gestor_da_loja", "informar o saldo inicial da gerência", loja.data.id);
+    if (neg) return neg;
+    gerenciaId = loja.data.id;
   } else {
     const neg = await exigir(db, ator, "conta", "informar o saldo inicial de uma conta bancária");
     if (neg) return neg;
@@ -983,7 +1116,14 @@ export async function saldoInicialCaixaAction(
   try {
     const m = await runSerializableTenantTransaction(db, async (tx) => {
       const ja = await tx.cashMovement.findFirst({
-        where: { origin: "implantacao", ...(lojaId ? { establishment_id: lojaId } : { bank_account_id: contaId }) },
+        where: {
+          origin: "implantacao",
+          ...(caixaId
+            ? { cash_register_id: caixaId }
+            : gerenciaId
+              ? { manager_establishment_id: gerenciaId }
+              : { bank_account_id: contaId }),
+        },
         select: { id: true },
       });
       if (ja) {
@@ -992,13 +1132,15 @@ export async function saldoInicialCaixaAction(
             "OPENING_ALREADY_DONE",
             "O saldo inicial já foi lançado. Para corrigir, lance a diferença como movimento.",
             409,
-            lojaId ? "establishment_id" : "bank_account_id",
+            caixaId ? (pedidoCaixa ? "cash_register_id" : "establishment_id") : gerenciaId ? "manager_establishment_id" : "bank_account_id",
           ),
         );
       }
       const mov = await tx.cashMovement.create({
         data: scoped({
           establishment_id: lojaId,
+          cash_register_id: caixaId,
+          manager_establishment_id: gerenciaId,
           bank_account_id: contaId,
           direction: "entrada" as const,
           amount: arred2(input.amount),
@@ -1008,17 +1150,18 @@ export async function saldoInicialCaixaAction(
           created_by_user_id: ator.id,
         }),
       });
-      const alvo = lojaId
-        ? (await tx.establishment.findFirst({ where: { id: lojaId }, select: { name: true } }))?.name
-        : (await tx.bankAccount.findFirst({ where: { id: contaId as string }, select: { name: true } }))?.name;
+      const nomeDaLoja = async (id: string) => (await tx.establishment.findFirst({ where: { id }, select: { name: true } }))?.name ?? "loja";
+      const valor = dinheiro(arred2(input.amount));
       await registrarNoHistorico(tx, ator, {
         action: "caixa.saldo_inicial",
-        establishment_id: lojaId,
+        establishment_id: lojaId ?? gerenciaId,
         target_type: "caixa",
         target_id: mov.id,
         summary: lojaId
-          ? `Informou ${dinheiro(arred2(input.amount))} de saldo inicial na gaveta da ${alvo ?? "loja"}`
-          : `Informou ${dinheiro(arred2(input.amount))} de saldo inicial na conta ${alvo ?? ""}`.trim(),
+          ? `Informou ${valor} de saldo inicial no Caixa ${numeroDoCaixa} da ${await nomeDaLoja(lojaId)}`
+          : gerenciaId
+            ? `Informou ${valor} de saldo inicial com a gerência da ${await nomeDaLoja(gerenciaId)}`
+            : `Informou ${valor} de saldo inicial na conta ${(await tx.bankAccount.findFirst({ where: { id: contaId as string }, select: { name: true } }))?.name ?? ""}`.trim(),
       });
       return mov;
     });
@@ -1415,13 +1558,25 @@ export async function chequeVoltouAction(
 // Transferência entre caixas (F3b, Q92)
 // ---------------------------------------------------------------------------
 
-export type PontaDeCaixa = { establishment_id?: string | null; bank_account_id?: string | null };
+/**
+ * Uma ponta da transferência: uma conta (`bank_account_id`) OU a gerência de
+ * uma loja (`manager_establishment_id`, entrega 2). `establishment_id` (a
+ * gaveta) é recusado: a gaveta vai ao gerente pela sangria ou pelo malote.
+ */
+export type PontaDeCaixa = {
+  establishment_id?: string | null;
+  bank_account_id?: string | null;
+  manager_establishment_id?: string | null;
+};
+
+type PontaView = { establishment_id: string | null; bank_account_id: string | null; manager_establishment_id: string | null };
 
 export type TransferenciaView = {
   id: string;
   operation_key: string;
-  from: { establishment_id: string | null; bank_account_id: string | null };
-  to: { establishment_id: string | null; bank_account_id: string | null };
+  /** `establishment_id` só aparece nas transferências da gaveta de antes da entrega 2. */
+  from: PontaView;
+  to: PontaView;
   amount: number;
   notes: string | null;
   created_at: string;
@@ -1433,8 +1588,10 @@ type TransferenciaRow = {
   operation_key: string;
   from_establishment_id: string | null;
   from_bank_account_id: string | null;
+  from_manager_establishment_id: string | null;
   to_establishment_id: string | null;
   to_bank_account_id: string | null;
+  to_manager_establishment_id: string | null;
   amount: unknown;
   notes: string | null;
   created_at: Date;
@@ -1444,8 +1601,8 @@ function viewDaTransferencia(t: TransferenciaRow, replayed: boolean): Transferen
   return {
     id: t.id,
     operation_key: t.operation_key,
-    from: { establishment_id: t.from_establishment_id, bank_account_id: t.from_bank_account_id },
-    to: { establishment_id: t.to_establishment_id, bank_account_id: t.to_bank_account_id },
+    from: { establishment_id: t.from_establishment_id, bank_account_id: t.from_bank_account_id, manager_establishment_id: t.from_manager_establishment_id },
+    to: { establishment_id: t.to_establishment_id, bank_account_id: t.to_bank_account_id, manager_establishment_id: t.to_manager_establishment_id },
     amount: decToNum(t.amount as never) ?? 0,
     notes: t.notes,
     created_at: t.created_at.toISOString(),
@@ -1453,23 +1610,27 @@ function viewDaTransferencia(t: TransferenciaRow, replayed: boolean): Transferen
   };
 }
 
+const GAVETA_NAO_TRANSFERE = (campo: "from" | "to") =>
+  fail("DRAWER_TRANSFER", "A gaveta vai ao gerente pela sangria ou pelo malote.", 422, campo);
+
 function resolverPonta(
   ponta: PontaDeCaixa | undefined,
   campo: "from" | "to",
-): ActionResult<{ lojaId: string | null; contaId: string | null }> {
-  const lojaId = typeof ponta?.establishment_id === "string" && ponta.establishment_id ? ponta.establishment_id : null;
-  const contaId = typeof ponta?.bank_account_id === "string" && ponta.bank_account_id ? ponta.bank_account_id : null;
-  if ((lojaId === null) === (contaId === null)) {
+): ActionResult<{ gerenciaId: string | null; contaId: string | null }> {
+  if (texto(ponta?.establishment_id)) return GAVETA_NAO_TRANSFERE(campo);
+  const gerenciaId = texto(ponta?.manager_establishment_id);
+  const contaId = texto(ponta?.bank_account_id);
+  if ((gerenciaId === null) === (contaId === null)) {
     return fail(
       "VALIDATION_ERROR",
       campo === "from"
-        ? "Diga de onde sai o dinheiro: uma loja OU uma conta."
-        : "Diga para onde vai o dinheiro: uma loja OU uma conta.",
+        ? "Diga de onde sai o dinheiro: uma conta OU a gerência de uma loja."
+        : "Diga para onde vai o dinheiro: uma conta OU a gerência de uma loja.",
       422,
       campo,
     );
   }
-  return ok({ lojaId, contaId });
+  return ok({ gerenciaId, contaId });
 }
 
 async function transferenciaGravada(
@@ -1479,8 +1640,9 @@ async function transferenciaGravada(
 ): Promise<ActionResult<TransferenciaView> | null> {
   const t = await db.cashTransfer.findFirst({ where: { operation_key: chave } });
   if (!t) return null;
-  if (t.from_establishment_id) {
-    if (!(await lojaVisivel(db, ator, t.from_establishment_id))) return NAO_ACHADO("Transferência");
+  const lojaDeOrigem = t.from_establishment_id ?? t.from_manager_establishment_id;
+  if (lojaDeOrigem) {
+    if (!(await lojaVisivel(db, ator, lojaDeOrigem))) return NAO_ACHADO("Transferência");
   } else if (!pode(await papelDoEmporio(db, ator), "conta")) {
     return NAO_ACHADO("Transferência");
   }
@@ -1504,7 +1666,7 @@ export async function transferirCaixaAction(
   if (!origem.ok) return origem;
   const destino = resolverPonta(input.to, "to");
   if (!destino.ok) return destino;
-  if (origem.data.lojaId === destino.data.lojaId && origem.data.contaId === destino.data.contaId) {
+  if (origem.data.gerenciaId === destino.data.gerenciaId && origem.data.contaId === destino.data.contaId) {
     return fail("VALIDATION_ERROR", "A origem e o destino precisam ser diferentes.", 422, "to");
   }
   if (!numero(input.amount) || centavos(input.amount) <= 0) {
@@ -1512,19 +1674,20 @@ export async function transferirCaixaAction(
   }
   const valorCent = centavos(input.amount);
 
-  if (origem.data.lojaId) {
-    const loja = await acharLojaParaEscrita(db, ator, origem.data.lojaId);
+  // Q92 revista: sai da gerência quem é gestor daquela loja; sai de conta quem cuida das contas.
+  if (origem.data.gerenciaId) {
+    const loja = await acharLojaParaEscrita(db, ator, origem.data.gerenciaId);
     if (!loja.ok) return fail(loja.code, loja.message, loja.status, "from");
-    const negChave = await exigir(db, ator, "gestor_da_loja", "levar a gaveta ao banco", loja.data.id);
-    if (negChave) return negChave;
+    const negGestor = await exigir(db, ator, "gestor_da_loja", "levar o dinheiro da gerência", loja.data.id);
+    if (negGestor) return negGestor;
   } else {
     const negConta = await exigir(db, ator, "conta", "transferir saindo de uma conta bancária");
     if (negConta) return negConta;
     const conta = await db.bankAccount.findFirst({ where: { id: origem.data.contaId as string }, select: { archived_at: true } });
     if (!conta) return NAO_ACHADO("Conta de origem", "from");
   }
-  if (destino.data.lojaId) {
-    const loja = await db.establishment.findFirst({ where: { id: destino.data.lojaId }, select: { archived_at: true } });
+  if (destino.data.gerenciaId) {
+    const loja = await db.establishment.findFirst({ where: { id: destino.data.gerenciaId }, select: { archived_at: true } });
     if (!loja || loja.archived_at) return fail("VALIDATION_ERROR", "Escolha uma loja ativa para receber.", 422, "to");
   } else {
     const conta = await db.bankAccount.findFirst({ where: { id: destino.data.contaId as string }, select: { archived_at: true } });
@@ -1535,8 +1698,8 @@ export async function transferirCaixaAction(
   try {
     const t = await runSerializableTenantTransaction(db, async (tx) => {
       const leitor = tx as unknown as TenantPrismaClient;
-      const saldo = origem.data.lojaId
-        ? await saldoDaGaveta(leitor, origem.data.lojaId)
+      const saldo = origem.data.gerenciaId
+        ? await saldoDaGerencia(leitor, origem.data.gerenciaId)
         : ((await saldosDasContas(leitor)).get(origem.data.contaId as string) ?? 0);
       if (saldo < valorCent) {
         throw new RecusaCaixa(
@@ -1552,9 +1715,9 @@ export async function transferirCaixaAction(
       const transf = await tx.cashTransfer.create({
         data: scoped({
           operation_key: chave,
-          from_establishment_id: origem.data.lojaId,
+          from_manager_establishment_id: origem.data.gerenciaId,
           from_bank_account_id: origem.data.contaId,
-          to_establishment_id: destino.data.lojaId,
+          to_manager_establishment_id: destino.data.gerenciaId,
           to_bank_account_id: destino.data.contaId,
           amount: valorCent / 100,
           notes: notas,
@@ -1572,7 +1735,7 @@ export async function transferirCaixaAction(
       await tx.cashMovement.create({
         data: scoped({
           ...comum,
-          establishment_id: origem.data.lojaId,
+          manager_establishment_id: origem.data.gerenciaId,
           bank_account_id: origem.data.contaId,
           direction: "saida" as const,
         }),
@@ -1580,21 +1743,21 @@ export async function transferirCaixaAction(
       await tx.cashMovement.create({
         data: scoped({
           ...comum,
-          establishment_id: destino.data.lojaId,
+          manager_establishment_id: destino.data.gerenciaId,
           bank_account_id: destino.data.contaId,
           direction: "entrada" as const,
         }),
       });
-      const nomeDe = async (lojaId: string | null, contaId: string | null) =>
-        lojaId
-          ? `gaveta da ${(await tx.establishment.findFirst({ where: { id: lojaId }, select: { name: true } }))?.name ?? "loja"}`
+      const nomeDe = async (gerenciaId: string | null, contaId: string | null) =>
+        gerenciaId
+          ? `gerência da ${(await tx.establishment.findFirst({ where: { id: gerenciaId }, select: { name: true } }))?.name ?? "loja"}`
           : `conta ${(await tx.bankAccount.findFirst({ where: { id: contaId as string }, select: { name: true } }))?.name ?? ""}`.trim();
       await registrarNoHistorico(tx, ator, {
         action: "caixa.transferir",
-        establishment_id: origem.data.lojaId ?? destino.data.lojaId,
+        establishment_id: origem.data.gerenciaId ?? destino.data.gerenciaId,
         target_type: "caixa",
         target_id: transf.id,
-        summary: `Transferiu ${dinheiro(valorCent / 100)} da ${await nomeDe(origem.data.lojaId, origem.data.contaId)} para a ${await nomeDe(destino.data.lojaId, destino.data.contaId)}`,
+        summary: `Transferiu ${dinheiro(valorCent / 100)} da ${await nomeDe(origem.data.gerenciaId, origem.data.contaId)} para a ${await nomeDe(destino.data.gerenciaId, destino.data.contaId)}`,
       });
       return transf;
     });
@@ -1613,15 +1776,116 @@ export async function transferirCaixaAction(
 // Conferência da gaveta (F3b, Q93)
 // ---------------------------------------------------------------------------
 
+/** "sem diferença" ou "sobra de R$ 5,00" / "falta de R$ 5,00", para a frase do Histórico. */
+export function fraseDaDiferenca(diffCent: number): string {
+  return diffCent === 0 ? "sem diferença" : `${diffCent > 0 ? "sobra" : "falta"} de ${dinheiro(Math.abs(diffCent) / 100)}`;
+}
+
+/**
+ * A regra da diferença (Q93), única para a conferência livre, a abertura e o
+ * encerramento do turno: grava a contagem e, com diferença, exige a
+ * justificativa (recusa lançada como `RecusaCaixa`, que desfaz a transação),
+ * ajusta o caixa (movimento `conferencia`) e lança "Diferença de caixa" (receita
+ * se sobra, despesa se falta). Rode dentro da transação da escrita.
+ */
+export async function contarCaixa(
+  tx: TenantTransactionClient,
+  ator: Ator,
+  c: {
+    establishment_id: string;
+    cash_register_id: string;
+    cash_session_id: string;
+    kind: "abertura" | "livre" | "encerramento";
+    esperadoCent: number;
+    contadoCent: number;
+    justificativa: string | null;
+    agora: Date;
+  },
+): Promise<{ id: string; diffCent: number }> {
+  const diffCent = c.contadoCent - c.esperadoCent;
+  if (diffCent !== 0 && !c.justificativa) {
+    throw new RecusaCaixa(
+      fail(
+        "VALIDATION_ERROR",
+        `A gaveta tem ${diffCent > 0 ? "sobra" : "falta"} de ${brl(Math.abs(diffCent) / 100)}: diga o motivo.`,
+        422,
+        "justification",
+      ),
+    );
+  }
+  const contagem = await tx.cashCount.create({
+    data: scoped({
+      establishment_id: c.establishment_id,
+      cash_register_id: c.cash_register_id,
+      cash_session_id: c.cash_session_id,
+      kind: c.kind,
+      expected: c.esperadoCent / 100,
+      counted: c.contadoCent / 100,
+      difference: diffCent / 100,
+      justification: c.justificativa,
+      counted_at: c.agora,
+      created_by_user_id: ator.id,
+    }),
+  });
+  if (diffCent !== 0) {
+    const sobra = diffCent > 0;
+    const lancamento = await createLinkedEntry(tx, {
+      entry_type: sobra ? "income" : "expense",
+      category: CATEGORIA_DIFERENCA_CAIXA,
+      amount: Math.abs(diffCent) / 100,
+      related_module: "emporio",
+      related_id: contagem.id,
+      occurred_at: c.agora,
+      status: "paid",
+      establishment_id: c.establishment_id,
+      payment_method: "dinheiro",
+    });
+    const fp = await tx.financialPayment.findFirst({ where: { entry_id: lancamento.id }, select: { id: true } });
+    await tx.cashMovement.create({
+      data: scoped({
+        establishment_id: c.establishment_id,
+        cash_register_id: c.cash_register_id,
+        cash_session_id: c.cash_session_id,
+        bank_account_id: null,
+        direction: sobra ? ("entrada" as const) : ("saida" as const),
+        amount: Math.abs(diffCent) / 100,
+        origin: "conferencia" as const,
+        occurred_at: c.agora,
+        cash_count_id: contagem.id,
+        financial_payment_id: fp?.id ?? null,
+        notes: c.justificativa,
+        created_by_user_id: ator.id,
+      }),
+    });
+  }
+  return { id: contagem.id, diffCent };
+}
+
+/**
+ * Conferência livre (Q35, Q93), agora dentro do turno: conta o caixa sem
+ * encerrar. `cash_register_id` diz o caixa (a rota o exige); sem ele, vale a
+ * regra de `resolverTurno` na loja de `establishment_id`.
+ */
 export async function conferirGavetaAction(
   db: TenantPrismaClient,
   ator: Ator,
-  input: { establishment_id: string; counted: number; justification?: string | null },
+  input: { cash_register_id?: string | null; establishment_id?: string | null; counted: number; justification?: string | null },
 ): Promise<ActionResult<ConferenciaView>> {
   const neg = await exigir(db, ator, "vendedor_da_loja", "conferir a gaveta");
   if (neg) return neg;
-  const loja = await acharLojaParaEscrita(db, ator, input?.establishment_id);
+  const pedido = texto(input?.cash_register_id);
+  let lojaId = texto(input?.establishment_id);
+  if (pedido) {
+    const caixa = await db.cashRegister.findFirst({ where: { id: pedido }, select: { establishment_id: true } });
+    if (!caixa) return NAO_ACHADO("Caixa", "cash_register_id");
+    lojaId = caixa.establishment_id;
+  } else if (!lojaId) {
+    return fail("VALIDATION_ERROR", "Escolha o caixa.", 422, "cash_register_id");
+  }
+  const loja = await acharLojaParaEscrita(db, ator, lojaId);
   if (!loja.ok) return loja;
+  const negLoja = await exigir(db, ator, "vendedor_da_loja", "conferir a gaveta", loja.data.id);
+  if (negLoja) return negLoja;
   if (!numero(input.counted) || centavos(input.counted) < 0) {
     return fail("VALIDATION_ERROR", "Informe quanto há na gaveta (zero ou mais).", 422, "counted");
   }
@@ -1630,68 +1894,28 @@ export async function conferirGavetaAction(
 
   try {
     const id = await runSerializableTenantTransaction(db, async (tx) => {
-      const esperadoCent = await saldoDaGaveta(tx as unknown as TenantPrismaClient, loja.data.id);
-      const diffCent = contadoCent - esperadoCent;
-      if (diffCent !== 0 && !justificativa) {
-        throw new RecusaCaixa(
-          fail(
-            "VALIDATION_ERROR",
-            `A gaveta tem ${diffCent > 0 ? "sobra" : "falta"} de ${brl(Math.abs(diffCent) / 100)}: diga o motivo.`,
-            422,
-            "justification",
-          ),
-        );
-      }
-      const agora = new Date();
-      const conferencia = await tx.cashCount.create({
-        data: scoped({
-          establishment_id: loja.data.id,
-          expected: esperadoCent / 100,
-          counted: contadoCent / 100,
-          difference: diffCent / 100,
-          justification: justificativa,
-          counted_at: agora,
-          created_by_user_id: ator.id,
-        }),
+      const turno = await resolverTurno(tx, ator, loja.data.id, pedido ?? undefined, "exige");
+      if (!turno.ok) throw new RecusaCaixa(turno);
+      if (!turno.turno) throw new Error("resolverTurno no modo exige devolveu turno nulo");
+      const { id: sessaoId, cash_register_id: caixaId } = turno.turno;
+      const esperadoCent = await saldoDoCaixa(tx as unknown as TenantPrismaClient, caixaId);
+      const caixa = await tx.cashRegister.findFirst({ where: { id: caixaId }, select: { number: true } });
+      const conferencia = await contarCaixa(tx, ator, {
+        establishment_id: loja.data.id,
+        cash_register_id: caixaId,
+        cash_session_id: sessaoId,
+        kind: "livre",
+        esperadoCent,
+        contadoCent,
+        justificativa,
+        agora: new Date(),
       });
-      if (diffCent !== 0) {
-        const sobra = diffCent > 0;
-        const lancamento = await createLinkedEntry(tx, {
-          entry_type: sobra ? "income" : "expense",
-          category: CATEGORIA_DIFERENCA_CAIXA,
-          amount: Math.abs(diffCent) / 100,
-          related_module: "emporio",
-          related_id: conferencia.id,
-          occurred_at: agora,
-          status: "paid",
-          establishment_id: loja.data.id,
-          payment_method: "dinheiro",
-        });
-        const fp = await tx.financialPayment.findFirst({ where: { entry_id: lancamento.id }, select: { id: true } });
-        await tx.cashMovement.create({
-          data: scoped({
-            establishment_id: loja.data.id,
-            bank_account_id: null,
-            direction: sobra ? ("entrada" as const) : ("saida" as const),
-            amount: Math.abs(diffCent) / 100,
-            origin: "conferencia" as const,
-            occurred_at: agora,
-            cash_count_id: conferencia.id,
-            financial_payment_id: fp?.id ?? null,
-            notes: justificativa,
-            created_by_user_id: ator.id,
-          }),
-        });
-      }
       await registrarNoHistorico(tx, ator, {
         action: "caixa.conferir",
         establishment_id: loja.data.id,
         target_type: "gaveta",
         target_id: conferencia.id,
-        summary:
-          diffCent === 0
-            ? `Conferiu a gaveta da ${loja.data.name}: ${dinheiro(contadoCent / 100)}, sem diferença`
-            : `Conferiu a gaveta da ${loja.data.name}: ${dinheiro(contadoCent / 100)}, ${diffCent > 0 ? "sobra" : "falta"} de ${dinheiro(Math.abs(diffCent) / 100)}`,
+        summary: `Conferiu o Caixa ${caixa?.number ?? ""} da ${loja.data.name}: ${dinheiro(contadoCent / 100)}, ${fraseDaDiferenca(conferencia.diffCent)}`,
       });
       return conferencia.id;
     });

@@ -1413,6 +1413,10 @@ model CashTransfer {
   from_bank_account_id  String?
   to_establishment_id   String?
   to_bank_account_id    String?
+  /// Entrega 2: a gerência de uma loja como origem ou destino (a gaveta não
+  /// transfere mais; CHECKs `CashTransfer_exactly_one_from/to` com três lugares).
+  from_manager_establishment_id String?
+  to_manager_establishment_id   String?
   amount                Decimal  @db.Decimal(14, 2)
   notes                 String?
   created_by_user_id    String?

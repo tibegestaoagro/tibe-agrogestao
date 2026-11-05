@@ -6,10 +6,12 @@ import { saldoInicialCaixaAction } from "@/lib/actions/emporio-caixa";
 import { guardEmporio } from "@/lib/emporio/rota";
 import { dataIso } from "@/lib/emporio/venda-schema";
 
-/** POST /api/v1/emporio/cash/opening  saldo inicial da gaveta de uma loja OU de uma conta, uma vez só: wrapper fino. */
+/** POST /api/v1/emporio/cash/opening  saldo inicial de um caixa, da gerência de uma loja OU de uma conta, uma vez só: wrapper fino. */
 
 const schema = z.object({
   establishment_id: z.string().nullish(),
+  cash_register_id: z.string().nullish(),
+  manager_establishment_id: z.string().nullish(),
   bank_account_id: z.string().nullish(),
   amount: z.number({ error: "Informe o saldo inicial." }),
   occurred_at: dataIso.nullish(),
