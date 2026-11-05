@@ -21,6 +21,8 @@ const EQUIPE_DA_DEMONSTRACAO = [
   "gerente.demo.emporio@example.com",
   "gestor.demo.emporio@example.com",
   "vendedor.centro.demo.emporio@example.com",
+  // A Juliana: o email ficou o de vendedora, mas ela e o Caixa da Rodovia.
+  // Aqui so se liga e desliga `active`: a funcao e as lojas sao do cenario.
   "vendedor.rodovia.demo.emporio@example.com",
 ];
 

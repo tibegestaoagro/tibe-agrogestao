@@ -253,7 +253,7 @@ export const FIGURAS: Figura[] = [
     alt: "Tela Fiado com os clientes devedores, o total devido e o botão Receber",
     marcas: [
       { numero: 1, alvo: "a linha de um cliente", texto: "O total que ele deve, somando todas as vendas em aberto." },
-      { numero: 2, alvo: "a marca de vencido", texto: "O fiado que já passou da data combinada." },
+      { numero: 2, alvo: "a coluna Vencimento", texto: "A data combinada. Quando ela passa, aparece a marca Vencido ao lado do valor." },
       { numero: 3, alvo: "o botão Receber", texto: "Abre o painel para registrar o pagamento." },
     ],
   },
@@ -392,7 +392,7 @@ export const FIGURAS: Figura[] = [
     marcas: [
       { numero: 1, alvo: "o campo Função, com Caixa escolhido", texto: "O Caixa recebe o pagamento e opera o caixa. Não vende em nome próprio." },
       { numero: 2, alvo: "o campo Lojas", texto: "Obrigatório. Marque as lojas em que ele trabalha." },
-      { numero: 3, alvo: "o lugar onde ficaria o campo Chaves", texto: "O Caixa não tem chaves: o campo nem aparece." },
+      { numero: 3, alvo: "o botão Cadastrar", texto: "Cria a pessoa e mostra a senha temporária uma vez. O Caixa não tem chaves: o campo Chaves nem aparece." },
     ],
   },
   {
@@ -400,7 +400,7 @@ export const FIGURAS: Figura[] = [
     pagina: "/emporio/caixa",
     papel: "caixa",
     legenda: "Abrindo o caixa: contar o troco",
-    alt: "Painel Abrir o Caixa 1 com o Reforço da gerência, o valor que o sistema espera, o Troco contado e o Motivo da diferença",
+    alt: "Painel Abrir o Caixa 2 com o Reforço da gerência, o valor que o sistema espera, o Troco contado e o Motivo da diferença",
     marcas: [
       { numero: 1, alvo: "o campo Reforço da gerência (R$)", texto: "Opcional. Para quando falta troco: o dinheiro sai de Com a gerência e entra no caixa." },
       { numero: 2, alvo: "a frase O sistema espera R$ ... no caixa", texto: "O troco que ficou do turno anterior, mais o reforço." },
