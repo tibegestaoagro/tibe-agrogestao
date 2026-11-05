@@ -371,10 +371,12 @@ export async function receberFiadoAction(
       replayed: false,
     });
   } catch (err) {
-    if (err instanceof RecusaCaixa) return err.recusa;
-    if (ehErroUnico(err)) {
+    // A mesma chave em paralelo: a outra gravou enquanto esta corria (e o turno
+    // pode ter fechado no meio). A recusa só vale se a chave segue sem recebimento.
+    if (err instanceof RecusaCaixa || ehErroUnico(err)) {
       const igual = await recebimentoGravado(db, ator, chave);
       if (igual) return igual;
+      if (err instanceof RecusaCaixa) return err.recusa;
     }
     throw err;
   }

@@ -113,7 +113,9 @@ async function wipeDemoData() {
   const tenant_id = TENANT_ID;
   await prisma.herdMovement.deleteMany({ where: { tenant_id } });
   await prisma.herdStay.deleteMany({ where: { tenant_id } });
-  await prisma.stockMovement.deleteMany({ where: { tenant_id } });
+  // Só o estoque da fazenda (`property_id`): o do Empório (`establishment_id`) é do
+  // cenário dele, e o `Property` não o segura (a chave para a fazenda é Cascade).
+  await prisma.stockMovement.deleteMany({ where: { tenant_id, establishment_id: null } });
   await prisma.negotiation.deleteMany({ where: { tenant_id } });
   await prisma.animalWeightLog.deleteMany({ where: { tenant_id } });
   await prisma.animalVaccination.deleteMany({ where: { tenant_id } });

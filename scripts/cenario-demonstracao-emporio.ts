@@ -320,6 +320,8 @@ type Ctx = {
   contatos: Record<string, string>;
   contaId: string;
   prods: Map<string, Resolvido>;
+  /** Entrega 2: o Caixa 1 de cada loja que vende, cujo turno o cenário abriu. */
+  caixas: Record<ChaveVenda, string>;
 };
 
 async function resolverProdutos(db: TenantPrismaClient): Promise<Map<string, Resolvido>> {
@@ -712,7 +714,8 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
   }
   const prods = await resolverProdutos(db);
 
-  const ctx: Ctx = { db, tenantId, lojas, atores, contatos, contaId, prods };
+  const caixas: Record<ChaveVenda, string> = { centro: turnos.centro.cash_register_id, rodovia: turnos.rodovia.cash_register_id };
+  const ctx: Ctx = { db, tenantId, lojas, atores, contatos, contaId, prods, caixas };
 
   // Preços por loja (Depósito não vende)
   for (const p of CATALOGO) {
@@ -968,6 +971,8 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
       operation_key: v.chave,
       establishment_id: lojaId,
       contact_id: v.cliente ? contatos[v.cliente] : consumidorFinalId,
+      // O caixa do turno que o cenário abriu: numa conta real com um segundo caixa aberto, sem ele a venda pediria a escolha.
+      cash_register_id: caixas[v.loja],
       sold_at: v.quando,
       items: v.itens.map((i) => {
         const res = prods.get(i.slug) as Resolvido;
@@ -1051,8 +1056,10 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
 
 /** O que cada venda explícita ainda pede: devolver, trocar, cancelar, depositar cheque, receber fiado. */
 async function depoisDaVenda(ctx: Ctx, v: VendaPlan, r: vendas.VendaView) {
-  const { db, atores, lojas, contaId, prods } = ctx;
+  const { db, atores, lojas, contaId, prods, caixas } = ctx;
   const { gestor, vendCentro } = atores;
+  // Entrega 2: o dinheiro sai e entra no caixa do turno que o cenário abriu na loja da venda.
+  const caixaDaVenda = caixas[v.loja];
   const item = (slug: string) => {
     const res = prods.get(slug) as Resolvido;
     return r.items.find((i) => i.emporio_product_id === res.epId) as vendas.VendaItemView;
@@ -1063,6 +1070,7 @@ async function depoisDaVenda(ctx: Ctx, v: VendaPlan, r: vendas.VendaView) {
       refund_kind: "dinheiro",
       items: [{ sale_item_id: item("caoAdulto").id, quantity: 1 }],
       reason: "O cachorro não aceitou a ração",
+      cash_register_id: caixaDaVenda,
     }), "devolução");
   }
   if (v.tag === "avaria") {
@@ -1071,6 +1079,7 @@ async function depoisDaVenda(ctx: Ctx, v: VendaPlan, r: vendas.VendaView) {
       refund_kind: "dinheiro",
       items: [{ sale_item_id: item("v10").id, quantity: 1, loss_reason: "avaria" }],
       reason: "Frasco chegou trincado",
+      cash_register_id: caixaDaVenda,
     }), "devolução com avaria");
   }
   if (v.tag === "troca") {
@@ -1082,6 +1091,7 @@ async function depoisDaVenda(ctx: Ctx, v: VendaPlan, r: vendas.VendaView) {
       operation_key: `${PREFIXO}troca-1`,
       items_devolvidos: [{ sale_item_id: item("caoAdulto").id, quantity: 1 }],
       reason: "O gato da cliente não come ração de cachorro, e era para gato",
+      cash_register_id: caixaDaVenda,
       venda: {
         contact_id: r.contact_id ?? (await garantirConsumidorFinal(db)).id,
         items: [{ emporio_product_id: res.epId, presentation_id: res.fechadaId, quantity: 1, unit_price: precoDe("gatoCastrado", "fechada", "centro") }],
@@ -1090,7 +1100,7 @@ async function depoisDaVenda(ctx: Ctx, v: VendaPlan, r: vendas.VendaView) {
     }), "troca");
   }
   if (v.tag === "cancelar") {
-    const c = await vendas.cancelarVendaAction(db, gestor, r.id, { reason: "Lançada em duplicidade" });
+    const c = await vendas.cancelarVendaAction(db, gestor, r.id, { reason: "Lançada em duplicidade", cash_register_id: caixaDaVenda });
     if (!c.ok && c.code !== "SALE_CANCELED") throw new Error(`cancelar venda: ${c.message}`);
   }
   if (v.tag === "cheque") {
@@ -1100,7 +1110,7 @@ async function depoisDaVenda(ctx: Ctx, v: VendaPlan, r: vendas.VendaView) {
     }
   }
   if (v.tag === "fiado-parcial") {
-    const base = { contact_id: ctx.contatos.boaEsperanca, establishment_id: lojas.centro };
+    const base = { contact_id: ctx.contatos.boaEsperanca, establishment_id: lojas.centro, cash_register_id: caixas.centro };
     exigir(await caixa.receberFiadoAction(db, vendCentro, { ...base, operation_key: `${PREFIXO}recebimento-1`, amount: 300, kind: "dinheiro" }), "recebimento de fiado em dinheiro");
     exigir(await caixa.receberFiadoAction(db, vendCentro, { ...base, operation_key: `${PREFIXO}recebimento-2`, amount: 200, kind: "pix" }), "recebimento de fiado em PIX");
   }

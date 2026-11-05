@@ -1002,6 +1002,114 @@ async function secao4() {
     cancOutro.ok && saida.length === 1 && saida[0].cash_session_id === T2.id && saida[0].cash_register_id === r2,
     j([cancOutro, saida]),
   );
+
+  // --- repetir a chave de uma venda depois que o turno dela encerrou
+  const repl: Dado = await Ven.venderAction(db, vA, {
+    operation_key: v50.data?.operation_key,
+    establishment_id: L2,
+    contact_id: cf,
+    items: item(5),
+    payments: [{ kind: "dinheiro", amount: 50 }],
+  });
+  check("repetir a chave de uma venda com o turno dela encerrado devolve a venda gravada", repl.ok && repl.data.id === v50.data?.id && repl.data.replayed === true, j(repl));
+
+  // --- a Loja 2 sem turno aberto: toda saída ou entrada de dinheiro na gaveta é recusada, sem gravar nada
+  const cliente2 = (await db.contact.create({ data: scoped({ name: `M92 s4 Cliente 2 ${stamp}` }) })).id;
+  const fiadoL1: Dado = await vender(owner, L1, 3, [{ kind: "fiado", amount: 30 }], { contact_id: cliente2 });
+  check("uma venda de 30 no fiado na Loja 1 (o Caixa 2 está aberto)", fiadoL1.ok, j(fiadoL1));
+  const movsAntes = await db.cashMovement.count();
+  const pagosAntes = await db.financialPayment.count();
+  const fFechado = await Caixa.receberFiadoAction(db, owner, { operation_key: k("fiado"), contact_id: cliente2, establishment_id: L2, amount: 10, kind: "dinheiro" });
+  check("fiado em dinheiro na loja sem turno: 409 CASH_CLOSED em cash_register_id", rec(fFechado, "CASH_CLOSED", 409, "cash_register_id"), j(fFechado));
+  const itFiado = fiadoVenda.ok ? (await db.emporioSaleItem.findFirst({ where: { sale_id: fiadoVenda.data.id } }))!.id : "x";
+  const dFechado = await Ven.devolverAction(db, vA, fiadoVenda.data?.id, { operation_key: k("dev"), refund_kind: "dinheiro", items: [{ sale_item_id: itFiado, quantity: 1 }] });
+  check("devolução em dinheiro na loja sem turno: 409 CASH_CLOSED em cash_register_id", rec(dFechado, "CASH_CLOSED", 409, "cash_register_id"), j(dFechado));
+  const cFechado = await Ven.cancelarVendaAction(db, owner, fiadoVenda.data?.id, { reason: "teste sem turno" });
+  check("cancelar venda com dinheiro na gaveta da loja sem turno: 409 CASH_CLOSED em cash_register_id", rec(cFechado, "CASH_CLOSED", 409, "cash_register_id"), j(cFechado));
+  const outraConta = await db.financialEntry.findFirst({
+    where: { related_module: "emporio", entry_type: "expense", status: "pending", establishment_id: L2 },
+    orderBy: { due_date: "asc" },
+  });
+  const pFechado = await Desp.pagarDespesasAction(db, owner, { entry_ids: [outraConta?.id ?? "x"], from: { establishment_id: L2 } });
+  check("despesa paga da gaveta da loja sem turno: 409 CASH_CLOSED em cash_register_id", rec(pFechado, "CASH_CLOSED", 409, "cash_register_id"), j(pFechado));
+  check(
+    "as quatro recusas não gravaram nada: nem movimento, nem pagamento, nem devolução; a venda segue concluída e a conta pendente",
+    (await db.cashMovement.count()) === movsAntes &&
+      (await db.financialPayment.count()) === pagosAntes &&
+      (await db.emporioSaleReturn.count({ where: { sale_id: fiadoVenda.data?.id ?? "x" } })) === 0 &&
+      (await db.emporioSale.findFirst({ where: { id: fiadoVenda.data?.id ?? "x" } }))?.status === "concluida" &&
+      (await db.financialEntry.findFirst({ where: { id: outraConta?.id ?? "x" } }))?.status === "pending",
+  );
+
+  // --- fiado só em PIX: o turno é levado quando houver, sem recusa
+  const pixSem: Dado = await Caixa.receberFiadoAction(db, owner, { operation_key: k("fiado"), contact_id: cliente2, establishment_id: L2, amount: 5, kind: "pix" });
+  const mPixSem = await db.cashMovement.findMany({ where: { operation_key: pixSem.data?.operation_key ?? "x" } });
+  check(
+    "fiado só em PIX na loja sem turno: aceito, na conta, sem turno",
+    pixSem.ok && mPixSem.length === 1 && mPixSem[0].bank_account_id === conta.data.id && mPixSem[0].cash_session_id === null && mPixSem[0].establishment_id === null,
+    j([pixSem, mPixSem]),
+  );
+  const T1b = await abrirTurnoDeTeste(db, v1, L1, undefined, { cash_register_id: r1 });
+  const pixDois: Dado = await Caixa.receberFiadoAction(db, owner, { operation_key: k("fiado"), contact_id: cliente2, establishment_id: L1, amount: 5, kind: "pix" });
+  const mPixDois = await db.cashMovement.findMany({ where: { operation_key: pixDois.data?.operation_key ?? "x" } });
+  check(
+    "fiado só em PIX com dois caixas abertos e nenhum de quem recebe: aceito, sem turno (se_houver não recusa)",
+    pixDois.ok && mPixDois.length === 1 && mPixDois[0].cash_session_id === null,
+    j([pixDois, mPixDois]),
+  );
+
+  // --- a despesa da gaveta compara com o saldo do CAIXA do turno, não com a gaveta inteira da loja
+  const s1 = await Caixa.saldoDoCaixa(db, r1);
+  const valorDesp = s1 / 100 + 1;
+  const fixaL1 = await Desp.criarDespesaFixaAction(db, owner, {
+    name: `M92 s4 Água ${stamp}`, category: "Água", amount: valorDesp, due_day: 10, split_kind: "percentual", splits: [{ establishment_id: L1, value: 100 }],
+  });
+  if (!fixaL1.ok) throw new Error(j(fixaL1));
+  const contaL1 = await db.financialEntry.findFirst({
+    where: { related_module: "emporio", entry_type: "expense", status: "pending", establishment_id: L1 },
+    orderBy: { due_date: "asc" },
+  });
+  const gavetaL1 = await Caixa.saldoDaGaveta(db, L1);
+  const semSaldo = await Desp.pagarDespesasAction(db, owner, { entry_ids: [contaL1?.id ?? "x"], from: { establishment_id: L1 }, cash_register_id: r1 });
+  check(
+    `despesa de ${valorDesp} no Caixa 1 (que tem ${s1 / 100}), com a gaveta da loja tendo ${gavetaL1 / 100}: 409 INSUFFICIENT_CASH em from`,
+    gavetaL1 >= Math.round(valorDesp * 100) && rec(semSaldo, "INSUFFICIENT_CASH", 409, "from"),
+    j(semSaldo),
+  );
+
+  // --- cancelar uma venda com dinheiro em duas lojas: cada saída no turno da própria loja
+  const TL2b = await abrirTurnoDeTeste(db, vA, L2);
+  const cliente3 = (await db.contact.create({ data: scoped({ name: `M92 s4 Cliente 3 ${stamp}` }) })).id;
+  const duasLojas: Dado = await vender(owner, L1, 2, [{ kind: "dinheiro", amount: 10 }, { kind: "fiado", amount: 10 }], { contact_id: cliente3, cash_register_id: r1 });
+  check("venda na Loja 1, metade em dinheiro no Caixa 1 e metade no fiado", duasLojas.ok, j(duasLojas));
+  const recebeL2 = await Caixa.receberFiadoAction(db, owner, { operation_key: k("fiado"), contact_id: cliente3, establishment_id: L2, amount: 10, kind: "dinheiro" });
+  check("o fiado é recebido em dinheiro na Loja 2", recebeL2.ok, j(recebeL2));
+  const cancDuas = await Ven.cancelarVendaAction(db, owner, duasLojas.data?.id, { reason: "cancelada nas duas lojas", cash_register_id: r1 });
+  const espelhos = await db.cashMovement.findMany({ where: { sale_id: duasLojas.data?.id ?? "x", origin: "cancelamento_venda" } });
+  const espelhoL1 = espelhos.find((m) => m.establishment_id === L1);
+  const espelhoL2 = espelhos.find((m) => m.establishment_id === L2);
+  check("cancelar com cash_register_id do Caixa 1: aceito, duas saídas", cancDuas.ok && espelhos.length === 2, j([cancDuas, espelhos]));
+  check(
+    "a saída da Loja 1 cai no Caixa 1 e no turno dele",
+    espelhoL1?.cash_register_id === r1 && espelhoL1?.cash_session_id === T1b.id,
+    j(espelhoL1),
+  );
+  check(
+    "a saída da Loja 2 cai no caixa e no turno da Loja 2 (o caixa pedido é de outra loja)",
+    espelhoL2?.cash_register_id === TL2b.cash_register_id && espelhoL2?.cash_session_id === TL2b.id,
+    j(espelhoL2),
+  );
+
+  // --- a mesma venda em paralelo (mesma chave): as duas ok, uma venda só
+  const kPar = k("par");
+  const corpoPar = { operation_key: kPar, establishment_id: L1, contact_id: cf, items: item(1), payments: [{ kind: "dinheiro", amount: 10 }], cash_register_id: r1 };
+  const [par1, par2]: Dado[] = await Promise.all([Ven.venderAction(db, v1, corpoPar), Ven.venderAction(db, v1, corpoPar)]);
+  check(
+    "a mesma venda em paralelo: as duas ok, a mesma venda, um movimento na gaveta",
+    par1.ok && par2.ok && par1.data.id === par2.data.id && (await db.emporioSale.count({ where: { operation_key: kPar } })) === 1 &&
+      (await db.cashMovement.count({ where: { sale_id: par1.data.id } })) === 1,
+    j([par1, par2]),
+  );
 }
 
 async function limpar() {

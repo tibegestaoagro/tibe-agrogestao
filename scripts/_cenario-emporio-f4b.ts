@@ -122,7 +122,12 @@ async function main() {
     items: [{ emporio_product_id: racao, quantity: 10 }],
   } as never), "transferencia") as { id: string };
   const item = await prisma.stockTransferItem.findFirstOrThrow({ where: { transfer_id: t.id } });
-  exigir(await transf.receberTransferenciaAction(db, ator, t.id, { items: [{ item_id: item.id, received_qty: 9, loss_reason: "avaria" }] }), "recebimento");
+  exigir(await transf.receberTransferenciaAction(db, ator, t.id, {
+    items: [{ item_id: item.id, received_qty: 9, loss_reason: "avaria" }],
+    // F6b (Q130, Q131): receber a menos pede a resolução; a perda fica na origem, como o resumo do cenário espera.
+    resolution: "perda_no_caminho",
+    reason: "Um saco rasgou no caminho",
+  }), "recebimento");
 
   const agora = new Date();
   exigir(await desp.criarDespesaFixaAction(db, ator, {

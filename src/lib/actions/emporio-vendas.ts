@@ -48,6 +48,8 @@ export const CATEGORIA_VENDAS = "Vendas do Empório";
 export const CATEGORIA_DEVOLUCOES = "Devoluções de vendas do Empório";
 
 const NAO_ACHADO = (o: string, field?: string) => fail("NOT_FOUND", `${o} não encontrado.`, 404, field);
+const CHAVE_DE_OUTRA_VENDA = () =>
+  fail("DUPLICATE_OPERATION_KEY", "Essa chave de operação já foi usada em outra venda.", 409, "operation_key");
 
 
 const arred2 = (n: number) => Math.round(Number((n * 100).toPrecision(12))) / 100;
@@ -1139,11 +1141,13 @@ export async function venderAction(
     const v = await vendaPorId(db, id);
     return v ? ok({ ...v, replayed: false }) : NAO_ACHADO("Venda");
   } catch (err) {
-    if (err instanceof AbortarVenda) return err.recusa;
-    if (ehErroUnico(err)) {
+    // A mesma chave em paralelo: a outra gravou enquanto esta corria (e o turno
+    // pode ter fechado no meio). A recusa só vale se a chave segue sem venda.
+    if (err instanceof AbortarVenda || ehErroUnico(err)) {
       const igual = await db.emporioSale.findFirst({ where: { operation_key: chave }, select: { id: true } });
       const v = igual ? await vendaPorId(db, igual.id) : null;
-      if (v) return ok({ ...v, replayed: true });
+      if (v) return (await lojaVisivel(db, ator, v.establishment_id)) ? ok({ ...v, replayed: true }) : NAO_ACHADO("Venda");
+      if (err instanceof AbortarVenda) return err.recusa;
     }
     throw err;
   }
@@ -1265,18 +1269,30 @@ export async function cancelarVendaAction(
 
       // Só o pagamento que pôs dinheiro na gaveta ou na conta tem saída a
       // fazer: cartão e cheque não geraram movimento de entrada. A saída da
-      // gaveta cai no turno aberto agora, não no caixa em que o dinheiro entrou
-      // (aquele turno pode já ter encerrado).
+      // gaveta cai no turno aberto agora na loja em que o dinheiro entrou, não
+      // no caixa de origem (aquele turno pode já ter encerrado). O fiado pode ter
+      // sido recebido em outra loja: o turno é resolvido por loja, e o caixa
+      // pedido só vale na loja dele.
       const pagamentos = await tx.financialPayment.findMany({ where: { entry_id: lancamento.id }, select: { id: true } });
-      let turno: TurnoResolvido | null = null;
+      const pedido = pedidoDeCaixa(input?.cash_register_id);
+      const lojaDoPedido = pedido
+        ? ((await tx.cashRegister.findFirst({ where: { id: pedido }, select: { establishment_id: true } }))?.establishment_id ?? null)
+        : null;
+      const turnos = new Map<string, TurnoResolvido>();
+      const turnoDaLoja = async (lojaId: string): Promise<TurnoResolvido> => {
+        const ja = turnos.get(lojaId);
+        if (ja) return ja;
+        // Caixa pedido que não é de nenhuma loja daqui: vai como pedido, e o resolverTurno recusa.
+        const t = await turnoOuAborta(tx, ator, lojaId, lojaDoPedido === lojaId || !lojaDoPedido ? pedido : null);
+        turnos.set(lojaId, t);
+        return t;
+      };
       for (const fp of pagamentos) {
         const entrada = await tx.cashMovement.findFirst({
           where: { financial_payment_id: fp.id, direction: "entrada", origin: { in: ["venda", "recebimento_fiado"] } },
         });
         if (!entrada) continue;
-        const gaveta = entrada.establishment_id
-          ? (turno ??= await turnoOuAborta(tx, ator, entrada.establishment_id, pedidoDeCaixa(input?.cash_register_id)))
-          : null;
+        const gaveta = entrada.establishment_id ? await turnoDaLoja(entrada.establishment_id) : null;
         await tx.cashMovement.create({
           data: scoped({
             establishment_id: entrada.establishment_id,
@@ -1587,9 +1603,7 @@ export async function devolverAction(
 
   const repetida = await db.emporioSaleReturn.findFirst({ where: { operation_key: chave }, select: { id: true, sale_id: true } });
   if (repetida) {
-    if (repetida.sale_id !== venda.id) {
-      return fail("DUPLICATE_OPERATION_KEY", "Essa chave de operação já foi usada em outra venda.", 409, "operation_key");
-    }
+    if (repetida.sale_id !== venda.id) return CHAVE_DE_OUTRA_VENDA();
     const v = await devolucaoPorId(db, repetida.id);
     return v ? ok({ ...v, replayed: true }) : NAO_ACHADO("Devolução");
   }
@@ -1634,11 +1648,15 @@ export async function devolverAction(
     const v = await devolucaoPorId(db, id);
     return v ? ok({ ...v, replayed: false }) : NAO_ACHADO("Devolução");
   } catch (err) {
-    if (err instanceof AbortarVenda) return err.recusa;
-    if (ehErroUnico(err)) {
-      const igual = await db.emporioSaleReturn.findFirst({ where: { operation_key: chave }, select: { id: true } });
-      const v = igual ? await devolucaoPorId(db, igual.id) : null;
-      if (v) return ok({ ...v, replayed: true });
+    // A mesma chave em paralelo: a outra gravou enquanto esta corria. A recusa só vale se a chave segue sem devolução.
+    if (err instanceof AbortarVenda || ehErroUnico(err)) {
+      const igual = await db.emporioSaleReturn.findFirst({ where: { operation_key: chave }, select: { id: true, sale_id: true } });
+      if (igual && igual.sale_id !== venda.id) return CHAVE_DE_OUTRA_VENDA();
+      if (igual) {
+        const v = await devolucaoPorId(db, igual.id);
+        if (v) return ok({ ...v, replayed: true });
+      }
+      if (err instanceof AbortarVenda) return err.recusa;
     }
     throw err;
   }
@@ -1689,9 +1707,7 @@ export async function trocarAction(
 
   const repetida = await db.emporioSaleReturn.findFirst({ where: { operation_key: chave }, select: { id: true, sale_id: true } });
   if (repetida) {
-    if (repetida.sale_id !== origem.id) {
-      return fail("DUPLICATE_OPERATION_KEY", "Essa chave de operação já foi usada em outra venda.", 409, "operation_key");
-    }
+    if (repetida.sale_id !== origem.id) return CHAVE_DE_OUTRA_VENDA();
     return resposta(repetida.id, true);
   }
 
@@ -1755,10 +1771,12 @@ export async function trocarAction(
     });
     return await resposta(id, false);
   } catch (err) {
-    if (err instanceof AbortarVenda) return err.recusa;
-    if (ehErroUnico(err)) {
-      const igual = await db.emporioSaleReturn.findFirst({ where: { operation_key: chave }, select: { id: true } });
+    // A mesma chave em paralelo: a outra gravou enquanto esta corria. A recusa só vale se a chave segue sem troca.
+    if (err instanceof AbortarVenda || ehErroUnico(err)) {
+      const igual = await db.emporioSaleReturn.findFirst({ where: { operation_key: chave }, select: { id: true, sale_id: true } });
+      if (igual && igual.sale_id !== origem.id) return CHAVE_DE_OUTRA_VENDA();
       if (igual) return resposta(igual.id, true);
+      if (err instanceof AbortarVenda) return err.recusa;
     }
     throw err;
   }
