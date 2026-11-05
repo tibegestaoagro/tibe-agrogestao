@@ -8,10 +8,11 @@ import { custoMedio } from "@/lib/emporio/custo-medio";
 import { formatarNumero, proximoNumero } from "@/lib/emporio/numeracao";
 import { hojeEmBrasilia, somarDias } from "@/lib/emporio/cartao";
 import { dinheiro, itens as frasItens, registrarNoHistorico } from "@/lib/emporio/historico";
-import { precificarItens, precoQueVale, resolverVendedor, type VendaItemInput } from "@/lib/emporio/precificar";
+import { arred3, centavos, precificarItens, precoQueVale, resolverVendedor, type VendaItemInput } from "@/lib/emporio/precificar";
 import { CONSUMIDOR_FINAL, cadastroIncompleto } from "@/lib/contatos/cadastro";
-import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
+import { lojaVisivel, lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { acharLojaParaEscrita, lerMovimentos } from "@/lib/actions/emporio-estoque";
+import { normalizarTermo } from "@/lib/actions/whatsapp-handlers/shared";
 
 /**
  * Meu Empório, entrega 4: o orçamento. Salvar não mexe em estoque, caixa nem
@@ -34,16 +35,13 @@ const CLIENTE_INCOMPLETO = () =>
 
 const VALIDADE_PADRAO = 7;
 
-const arred3 = (n: number) => Math.round(Number((n * 1000).toPrecision(14))) / 1000;
-const centavos = (n: number) => Math.round(Number((n * 100).toPrecision(12)));
-
 function ehErroUnico(e: unknown): boolean {
   return (e as { code?: unknown })?.code === "P2002";
 }
 
-async function lojaVisivel(db: TenantPrismaClient, ator: Ator, lojaId: string): Promise<boolean> {
-  const v = await lojasDoAtor(db, ator);
-  return !v || v.has(lojaId);
+/** Derivada, nunca gravada: faturado, senão vencido (passou do dia de `valid_until` em Brasília), senão aberto. */
+function situacaoDe(q: { sale_id: string | null; valid_until: Date }, hojeMs: number): "aberto" | "vencido" | "faturado" {
+  return q.sale_id ? "faturado" : hojeMs > q.valid_until.getTime() ? "vencido" : "aberto";
 }
 
 // ---------------------------------------------------------------------------
@@ -147,7 +145,9 @@ async function montarOrcamentos(db: TenantPrismaClient, linhas: OrcamentoRow[]):
   const movsPorChave = new Map<string, typeof movs>();
   for (const m of movs) {
     const k = `${m.establishment_id}|${m.product_id}`;
-    movsPorChave.set(k, [...(movsPorChave.get(k) ?? []), m]);
+    const grupo = movsPorChave.get(k);
+    if (grupo) grupo.push(m);
+    else movsPorChave.set(k, [m]);
   }
   const saldos = new Map<string, number>();
   const saldoDe = (lojaId: string, productId: string): number => {
@@ -160,7 +160,7 @@ async function montarOrcamentos(db: TenantPrismaClient, linhas: OrcamentoRow[]):
 
   return linhas.map((q) => {
     const vencido = hoje > q.valid_until.getTime();
-    const situacao: OrcamentoView["situacao"] = q.sale_id ? "faturado" : vencido ? "vencido" : "aberto";
+    const situacao = situacaoDe(q, hoje);
     const items: OrcamentoItemView[] = q.items.map((i) => {
       const quantity = decToNum(i.quantity) ?? 0;
       const orcado = decToNum(i.unit_price) ?? 0;
@@ -225,6 +225,158 @@ export async function lerOrcamentoAction(
   if (!limpo) return NAO_ACHADO();
   const v = await orcamentoVisivel(db, ator, limpo);
   return v ? ok(v) : NAO_ACHADO();
+}
+
+/** Pelo número impresso (o Caixa digita): o orçamento desta loja, com a visão completa. */
+export async function buscarOrcamentoPorNumeroAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  establishmentId: string,
+  numero: number,
+): Promise<ActionResult<OrcamentoView>> {
+  const neg = await exigir(db, ator, "vendedor_da_loja", "buscar um orçamento");
+  if (neg) return neg;
+  const lojaId = typeof establishmentId === "string" ? establishmentId.trim() : "";
+  if (!lojaId || !(await lojaVisivel(db, ator, lojaId))) {
+    return fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "establishment_id");
+  }
+  if (typeof numero !== "number" || !Number.isInteger(numero) || numero <= 0 || numero > 2_147_483_647) {
+    return fail("VALIDATION_ERROR", "Informe o número do orçamento.", 422, "number");
+  }
+  const [linha] = await buscarOrcamentos(db, { number: numero, establishment_id: lojaId }, 1);
+  if (!linha) return fail("QUOTE_NOT_FOUND", "Orçamento não encontrado nesta loja.", 404, "number");
+  const [v] = await montarOrcamentos(db, [linha]);
+  return ok(v);
+}
+
+// ---------------------------------------------------------------------------
+// Lista e busca
+// ---------------------------------------------------------------------------
+
+export type OrcamentoSituacaoFiltro = "acompanhamento" | "aberto" | "vencido" | "faturado" | "todos";
+const SITUACOES_DO_FILTRO: readonly string[] = ["acompanhamento", "aberto", "vencido", "faturado", "todos"];
+
+export type OrcamentoLinha = {
+  id: string;
+  number: number;
+  numero: string;
+  loja: string;
+  cliente: string;
+  /** Como está no cadastro (pode ter máscara). */
+  telefone: string | null;
+  valor: number;
+  criado_em: string;
+  /** AAAA-MM-DD. */
+  valid_until: string;
+  situacao: "aberto" | "vencido" | "faturado";
+  /** O número da venda ativa que faturou o orçamento. */
+  venda_numero: string | null;
+  vendedor: string | null;
+};
+
+const soDigitos = (s: string | null | undefined) => (s ?? "").replace(/\D/g, "");
+
+/**
+ * A lista de orçamentos das lojas do ator, mais novos primeiro, com busca `q`:
+ * só dígitos (1 a 6) também casa o número; 3 ou mais dígitos casam o telefone e o
+ * documento do cliente só pelos dígitos (o cadastro pode ter máscara); texto casa
+ * o nome sem acento. Sem `situacao`, traz aberto e vencido (o que se acompanha).
+ *
+ * A comparação por dígitos é feita em memória sobre os contatos que têm orçamento
+ * nas lojas e na situação pedidas (id, telefone e documento, nada mais), e não
+ * por SQL cru: `$queryRaw` burlaria o escopo por tenant do client.
+ */
+export async function listarOrcamentosAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  f: { establishment_id?: string; q?: string; situacao?: OrcamentoSituacaoFiltro; limit?: number } = {},
+): Promise<ActionResult<OrcamentoLinha[]>> {
+  const neg = await exigir(db, ator, "fora_do_caixa", "ver os orçamentos");
+  if (neg) return neg;
+
+  const situacao = f.situacao ?? "acompanhamento";
+  if (!SITUACOES_DO_FILTRO.includes(situacao)) {
+    return fail("VALIDATION_ERROR", "Escolha a situação: acompanhamento, aberto, vencido, faturado ou todos.", 422, "situacao");
+  }
+  const visiveis = await lojasDoAtor(db, ator);
+  const lojaPedida = typeof f.establishment_id === "string" ? f.establishment_id.trim() : "";
+  if (lojaPedida && visiveis && !visiveis.has(lojaPedida)) {
+    return fail("NOT_FOUND", "Estabelecimento não encontrado.", 404, "establishment_id");
+  }
+
+  const hoje = hojeEmBrasilia();
+  const base: Record<string, unknown>[] = [];
+  if (lojaPedida) base.push({ establishment_id: lojaPedida });
+  else if (visiveis) base.push({ establishment_id: { in: [...visiveis] } });
+  if (situacao === "faturado") base.push({ sale_id: { not: null } });
+  else if (situacao !== "todos") base.push({ sale_id: null });
+  if (situacao === "aberto") base.push({ valid_until: { gte: hoje } });
+  if (situacao === "vencido") base.push({ valid_until: { lt: hoje } });
+
+  const q = typeof f.q === "string" ? f.q.trim() : "";
+  const filtros: Record<string, unknown>[] = [...base];
+  if (q) {
+    const temLetra = /\p{L}/u.test(q);
+    if (!temLetra) {
+      const digitos = soDigitos(q);
+      const ou: Record<string, unknown>[] = [];
+      if (/^\d{1,6}$/.test(q)) ou.push({ number: Number(q) });
+      if (digitos.length >= 3) {
+        const candidatos = await db.contact.findMany({
+          where: { emporio_quotes: { some: base.length > 0 ? { AND: base } : {} } },
+          select: { id: true, phone: true, document: true },
+        });
+        const ids = candidatos
+          .filter((c) => soDigitos(c.phone).includes(digitos) || soDigitos(c.document).includes(digitos))
+          .map((c) => c.id);
+        if (ids.length > 0) ou.push({ contact_id: { in: ids } });
+      }
+      if (ou.length === 0) return ok([]);
+      filtros.push({ OR: ou });
+    } else {
+      const termo = normalizarTermo(q);
+      if (!termo) return ok([]);
+      filtros.push({ contact: { name_busca: { contains: termo } } });
+    }
+  }
+
+  const limite = f.limit && f.limit > 0 ? Math.min(Math.floor(f.limit), 500) : 200;
+  // Poucas consultas para a lista inteira, nunca uma por orçamento: as linhas com loja,
+  // cliente e a venda, e os nomes dos vendedores de uma vez. Sem itens, preço de hoje
+  // nem saldo: a lista não precisa deles.
+  const linhas = await db.emporioQuote.findMany({
+    where: filtros.length > 0 ? { AND: filtros } : {},
+    include: {
+      establishment: { select: { name: true } },
+      contact: { select: { name: true, phone: true } },
+      sale: { select: { number: true } },
+    },
+    orderBy: { created_at: "desc" },
+    take: limite,
+  });
+  const idsDeVendedor = [...new Set(linhas.map((l) => l.seller_user_id).filter((x): x is string => !!x))];
+  const usuarios =
+    idsDeVendedor.length > 0
+      ? await db.user.findMany({ where: { id: { in: idsDeVendedor } }, select: { id: true, name: true } })
+      : [];
+  const nomeDoUsuario = new Map(usuarios.map((u) => [u.id, u.name]));
+  const hojeMs = hoje.getTime();
+  return ok(
+    linhas.map((l) => ({
+      id: l.id,
+      number: l.number,
+      numero: formatarNumero(l.number),
+      loja: l.establishment.name,
+      cliente: l.contact.name,
+      telefone: l.contact.phone,
+      valor: decToNum(l.net_amount) ?? 0,
+      criado_em: l.created_at.toISOString(),
+      valid_until: l.valid_until.toISOString().slice(0, 10),
+      situacao: situacaoDe(l, hojeMs),
+      venda_numero: l.sale ? formatarNumero(l.sale.number) : null,
+      vendedor: l.seller_user_id ? (nomeDoUsuario.get(l.seller_user_id) ?? null) : null,
+    })),
+  );
 }
 
 // ---------------------------------------------------------------------------

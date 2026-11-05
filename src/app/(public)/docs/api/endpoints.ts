@@ -831,6 +831,22 @@ export const GROUPS: Group[] = [
       },
       {
         method: "GET",
+        path: "/api/v1/emporio/quotes",
+        auth: "Sessão · emporio:read · Vendedor para cima (Dono, Gerente geral, Gestor, Vendedor); o Caixa recebe 403",
+        description: "A lista de orçamentos das lojas que o usuário vê, do mais novo para o mais antigo. Filtros: `establishment_id` (loja fora do vínculo: 404), `situacao` (`acompanhamento`, o padrão, traz aberto e vencido; `aberto`, `vencido`, `faturado`, `todos`; outro valor: 422 em `situacao`), `limit` (padrão 200, máximo 500) e `q`. A busca `q`: só dígitos (1 a 6) também casa o número do orçamento (`12` acha `000012`); 3 ou mais dígitos casam o telefone e o documento do cliente só pelos dígitos, com ou sem máscara; texto casa o nome do cliente sem acento nem caixa. Cada linha: `id`, `number`, `numero`, `loja`, `cliente`, `telefone`, `valor`, `criado_em`, `valid_until`, `situacao`, `venda_numero` (a venda ativa que faturou) e `vendedor`.",
+        response: `200
+{ "data": [{ "id": "cl...", "number": 12, "numero": "000012", "loja": "Loja 1", "cliente": "João Mendes", "telefone": "(34) 99999-0000", "valor": 40, "criado_em": "2026-11-05T14:00:00.000Z", "valid_until": "2026-11-12", "situacao": "aberto", "venda_numero": null, "vendedor": "Ana" }], "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/quotes/lookup",
+        auth: "Sessão · emporio:read · quem vende na loja (Caixa incluído, nas lojas dele)",
+        description: "Acha o orçamento pelo número impresso, na loja informada: `establishment_id` e `number` (aceita `12` ou `000012`) são obrigatórios (422 no campo que faltar ou vier fora do formato). Devolve a mesma visão de `GET /api/v1/emporio/quotes/:id`. Número que não existe, ou que é de outra loja ou conta: 404 `QUOTE_NOT_FOUND` em `number`. Loja fora do vínculo: 404 em `establishment_id`.",
+        response: `200
+{ "data": { "id": "cl...", "numero": "000012", "situacao": "aberto", "items": [] }, "meta": {} }`,
+      },
+      {
+        method: "GET",
         path: "/api/v1/emporio/quotes/:id",
         auth: "Sessão · emporio:read · quem vende na loja do orçamento (Caixa incluído)",
         description: "Um orçamento: loja, cliente (`id`, `name`, `phone`, `document`), vendedor e quem salvou, `valid_until`, `situacao` derivada (`faturado` com venda ativa; senão `vencido` depois de `valid_until` em Brasília; senão `aberto`), `sale` (a venda ativa que o faturou) e `vendas` (todas as que saíram dele). Cada item traz `preco_orcado`, `preco_hoje` (nulo sem preço na loja), `preco_que_vale` (dentro da validade, o menor entre o orçado e o de hoje; vencido, o de hoje), `mudou`, `saldo_base` (o saldo da loja na unidade-base) e `falta`. De outra conta ou de loja fora do vínculo: 404.",

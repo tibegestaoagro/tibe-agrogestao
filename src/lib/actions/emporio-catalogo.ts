@@ -78,6 +78,12 @@ export async function lojasDoAtor(db: TenantPrismaClient, ator: Ator): Promise<S
   return lojasDoPapel(await papelDoEmporio(db, ator));
 }
 
+/** A loja está no alcance do ator (Dono e Gerente geral veem todas). */
+export async function lojaVisivel(db: TenantPrismaClient, ator: Ator, lojaId: string): Promise<boolean> {
+  const v = await lojasDoAtor(db, ator);
+  return !v || v.has(lojaId);
+}
+
 /** Q128: como `lojasDoAtor`, mas o Gestor lê o ESTOQUE de qualquer loja. */
 export async function lojasDeEstoque(db: TenantPrismaClient, ator: Ator): Promise<Set<string> | null> {
   return alcanceDeLeitura(await papelDoEmporio(db, ator));

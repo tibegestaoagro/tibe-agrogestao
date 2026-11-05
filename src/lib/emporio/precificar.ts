@@ -41,9 +41,10 @@ export type ItensPrecificados = {
   autorizou: string | null;
 };
 
-const arred2 = (n: number) => Math.round(Number((n * 100).toPrecision(12))) / 100;
-const arred3 = (n: number) => Math.round(Number((n * 1000).toPrecision(14))) / 1000;
-const centavos = (n: number) => Math.round(Number((n * 100).toPrecision(12)));
+export const arred2 = (n: number) => Math.round(Number((n * 100).toPrecision(12))) / 100;
+export const arred3 = (n: number) => Math.round(Number((n * 1000).toPrecision(14))) / 1000;
+/** Duas casas em inteiro: a soma de dinheiro se compara em centavos, nunca em float. */
+export const centavos = (n: number) => Math.round(Number((n * 100).toPrecision(12)));
 const numero = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
 /**

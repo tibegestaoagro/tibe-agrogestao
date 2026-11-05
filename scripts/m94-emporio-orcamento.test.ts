@@ -9,6 +9,8 @@ exigirBancoLocal();
  *
  * Seção 1: o orçamento salvo (a regra do preço-base, gravar, repetir a chave, numeração,
  * cliente, vendedor, desconto, preço, Histórico, leitura e alcance, rotas).
+ * Seção 2: a lista com busca (número, telefone, CPF, nome), a situação, o alcance, o Caixa
+ * e a busca pelo número.
  */
 
 let falhas = 0;
@@ -304,6 +306,151 @@ async function secao1() {
   check("GET quotes/:id pelo Dono de outra conta: 404", gB.status === 404, `${gB.status} ${j(gB.json)}`);
   const gL2 = await chamar(signAccessToken(vend2.id), "quotes/[id]", "GET", `quotes/${o1.data.id}`, undefined, o1.data.id);
   check("GET quotes/:id pelo Vendedor de outra loja: 404", gL2.status === 404, `${gL2.status} ${j(gL2.json)}`);
+
+  return { prisma, Orc, db, B, owner, ownerB, gestor, vend1, vend2, caixa, L1, L2, item, orcar, chamar, signAccessToken, rec, stamp, hoje, somarDias, vendaId: venda.ok ? venda.data.id : "", corpo };
+}
+
+async function secao2(c: Dado) {
+  console.log("\nSeção 2: a lista, a busca e a busca pelo número (com banco)");
+  const { prisma, Orc, db, B, owner, ownerB, gestor, vend1, vend2, caixa, L1, L2, orcar, chamar, signAccessToken, rec, stamp, hoje, somarDias, vendaId } = c;
+  const mk = async (nome: string, document: string, phone: string) =>
+    db.contact.create({ data: { name: nome, person_kind: "pf", document, phone } as never });
+  const joao = await mk(`João Mendes ${stamp}`, "529.982.247-25", "(34) 99999-0000");
+  const maria = await mk(`Maria Souza ${stamp}`, "11144477735", "(11) 98888-7777");
+
+  const qJ = await orcar(vend1, { contact_id: joao.id });
+  const qM = await orcar(vend1, { contact_id: maria.id });
+  const qV = await orcar(vend1, { contact_id: maria.id });
+  const qF = await orcar(vend1, { contact_id: maria.id });
+  const qL2 = await orcar(vend2, { contact_id: joao.id, establishment_id: L2 });
+  if (!qJ.ok || !qM.ok || !qV.ok || !qF.ok || !qL2.ok) throw new Error(`orçamentos da seção 2: ${JSON.stringify([qJ, qM, qV, qF, qL2])}`);
+  const ontem = somarDias(hoje, -1);
+  await db.emporioQuote.update({ where: { id: qV.data.id }, data: { valid_until: ontem } });
+  await db.emporioQuote.update({ where: { id: qF.data.id }, data: { sale_id: vendaId } });
+
+  const lista = (ator: Dado, f: Dado = {}) => Orc.listarOrcamentosAction(db, ator, f);
+  const ids = (r: Dado): string[] => (r.ok ? r.data.map((x: Dado) => x.id) : []);
+  const soEste = (r: Dado, id: string) => r.ok && r.data.length === 1 && r.data[0].id === id;
+
+  // --- a busca
+  const porNumero = await lista(gestor, { q: String(qJ.data.number) });
+  check("q com o número sem zeros acha o orçamento", ids(porNumero).includes(qJ.data.id) && !ids(porNumero).includes(qM.data.id), j(ids(porNumero)));
+  const porNumeroCheio = await lista(gestor, { q: qJ.data.numero });
+  check("q com o número de 6 dígitos (000NNN) acha o mesmo", ids(porNumeroCheio).includes(qJ.data.id) && !ids(porNumeroCheio).includes(qM.data.id), j(ids(porNumeroCheio)));
+  check("q com telefone com máscara acha pelos dígitos", soEste(await lista(gestor, { q: "(34) 99999-0000" }), qJ.data.id));
+  check("q com os dígitos do telefone, sem máscara: acha igual", soEste(await lista(gestor, { q: "34999990000" }), qJ.data.id));
+  check("q com pedaço do telefone (34) 99999: acha", soEste(await lista(gestor, { q: "(34) 99999" }), qJ.data.id));
+  check("q com CPF com pontos acha pelos dígitos (o cadastro tem pontos)", soEste(await lista(gestor, { q: "529.982.247-25" }), qJ.data.id));
+  const maria3 = await lista(gestor, { q: "11144477735" });
+  check("q com CPF sem pontos acha o cadastro sem pontos (dois orçamentos abertos/vencidos)", ids(maria3).includes(qM.data.id) && ids(maria3).includes(qV.data.id) && !ids(maria3).includes(qJ.data.id), j(ids(maria3)));
+  check("q por nome sem acento (joao) acha João", soEste(await lista(gestor, { q: "joao" }), qJ.data.id));
+  check("q por nome com acento e caixa alta (JOÃO mendes) acha", soEste(await lista(gestor, { q: "JOÃO mendes" }), qJ.data.id));
+  const nada = await lista(gestor, { q: "zzzqqq" });
+  check("q sem ninguém: lista vazia, ok", nada.ok && nada.data.length === 0, j(nada));
+
+  // --- a linha
+  const linhaJ = (porNumero.ok ? porNumero.data : []).find((x: Dado) => x.id === qJ.data.id);
+  check(
+    "a linha: numero, loja, cliente, telefone como cadastrado, valor, situação aberto, sem venda, vendedor",
+    !!linhaJ && linhaJ.numero === qJ.data.numero && linhaJ.loja === "M94 Loja 1" && linhaJ.cliente === joao.name && linhaJ.telefone === "(34) 99999-0000" &&
+      linhaJ.valor === 40 && linhaJ.situacao === "aberto" && linhaJ.venda_numero === null && linhaJ.vendedor === "M94 vend1" && typeof linhaJ.criado_em === "string" && linhaJ.valid_until === qJ.data.valid_until,
+    j(linhaJ),
+  );
+
+  // --- a situação
+  const padrao = await lista(gestor);
+  check("padrão (acompanhamento): traz aberto e vencido", ids(padrao).includes(qJ.data.id) && ids(padrao).includes(qV.data.id), j(ids(padrao)));
+  check("padrão: não traz faturado", !ids(padrao).includes(qF.data.id));
+  const venc = await lista(gestor, { situacao: "vencido" });
+  check("vencido: só o vencido (valid_until ontem)", soEste(venc, qV.data.id) && venc.data[0].situacao === "vencido", j(venc));
+  const fat = await lista(gestor, { situacao: "faturado" });
+  check("faturado: só o faturado, com o número da venda", soEste(fat, qF.data.id) && fat.data[0].situacao === "faturado" && fat.data[0].venda_numero === "000001", j(fat));
+  const abertos = await lista(gestor, { situacao: "aberto" });
+  check("aberto: não traz vencido nem faturado", !ids(abertos).includes(qV.data.id) && !ids(abertos).includes(qF.data.id) && ids(abertos).includes(qJ.data.id), j(ids(abertos)));
+  const todos = await lista(gestor, { situacao: "todos" });
+  check("todos: traz os três", [qJ, qV, qF].every((q) => ids(todos).includes(q.data.id)), j(ids(todos)));
+  check("a ordem é do mais novo para o mais antigo", todos.ok && todos.data.every((x: Dado, i: number, a: Dado[]) => i === 0 || a[i - 1].criado_em >= x.criado_em), j(todos.ok ? todos.data.map((x: Dado) => x.criado_em) : todos));
+  const lim = await lista(gestor, { situacao: "todos", limit: 2 });
+  check("limit 2: duas linhas", lim.ok && lim.data.length === 2, j(lim));
+  const limBusca = await lista(gestor, { q: "11144477735", limit: 1 });
+  check("limit vale também na busca por dígitos", limBusca.ok && limBusca.data.length === 1, j(limBusca));
+  const sitInvalida = await lista(gestor, { situacao: "qualquer" as never });
+  check("situacao desconhecida: 422 em situacao", rec(sitInvalida, "VALIDATION_ERROR", 422, "situacao"), j(sitInvalida));
+
+  // --- o alcance
+  check("o Gestor da Loja 1 não vê o orçamento da Loja 2", !ids(todos).includes(qL2.data.id));
+  const l2Gestor = await lista(gestor, { establishment_id: L2 });
+  check("com establishment_id da Loja 2: 404 no establishment_id", rec(l2Gestor, "NOT_FOUND", 404, "establishment_id"), j(l2Gestor));
+  const doDono = await lista(owner, { situacao: "todos" });
+  check("o Dono, sem loja, vê as duas lojas", ids(doDono).includes(qJ.data.id) && ids(doDono).includes(qL2.data.id), j(ids(doDono)));
+  const donoL2 = await lista(owner, { establishment_id: L2, situacao: "todos" });
+  check("o Dono, com a Loja 2: só os da Loja 2", donoL2.ok && donoL2.data.length > 0 && donoL2.data.every((x: Dado) => x.loja === "M94 Loja 2"), j(donoL2));
+  const outraConta = await Orc.listarOrcamentosAction(B.db, ownerB, { situacao: "todos" });
+  check("outro tenant: lista vazia", outraConta.ok && outraConta.data.length === 0, j(outraConta));
+  const buscaTenant = await Orc.listarOrcamentosAction(B.db, ownerB, { q: "34999990000" });
+  check("outro tenant buscando o telefone do João: vazio", buscaTenant.ok && buscaTenant.data.length === 0, j(buscaTenant));
+
+  // --- o Caixa
+  const caixaLista = await lista(caixa);
+  check("o Caixa na lista: 403", !caixaLista.ok && caixaLista.status === 403, j(caixaLista));
+
+  // --- a busca pelo número
+  const busca = (ator: Dado, loja: string, n: number) => Orc.buscarOrcamentoPorNumeroAction(db, ator, loja, n);
+  const bCaixa = await busca(caixa, L1, qJ.data.number);
+  check("o Caixa na loja dele: ok, a visão completa", bCaixa.ok && bCaixa.data.id === qJ.data.id && bCaixa.data.items.length === 1, j(bCaixa));
+  const bGestor = await busca(gestor, L1, qV.data.number);
+  check("o orçamento vencido também sai, com a situação", bGestor.ok && bGestor.data.situacao === "vencido", j(bGestor));
+  const bFat = await busca(gestor, L1, qF.data.number);
+  check("o faturado sai, dizendo a venda", bFat.ok && bFat.data.situacao === "faturado" && bFat.data.sale?.numero === "000001", j(bFat));
+  const bOutra = await busca(caixa, L1, qL2.data.number);
+  check("número de outra loja: 404 QUOTE_NOT_FOUND em number", rec(bOutra, "QUOTE_NOT_FOUND", 404, "number", "Orçamento não encontrado nesta loja."), j(bOutra));
+  const bNao = await busca(gestor, L1, 999999);
+  check("número que não existe: QUOTE_NOT_FOUND em number", rec(bNao, "QUOTE_NOT_FOUND", 404, "number"), j(bNao));
+  const bLojaFora = await busca(gestor, L2, qL2.data.number);
+  check("loja fora do alcance do ator: 404 em establishment_id", rec(bLojaFora, "NOT_FOUND", 404, "establishment_id"), j(bLojaFora));
+  const bTenant = await Orc.buscarOrcamentoPorNumeroAction(B.db, ownerB, L1, qJ.data.number);
+  check("outro tenant: não acha", !bTenant.ok && bTenant.status === 404, j(bTenant));
+  for (const ruim of [0, -1, 1.5, Number.NaN]) {
+    const r = await busca(gestor, L1, ruim);
+    check(`número inválido (${ruim}): 422 em number`, rec(r, "VALIDATION_ERROR", 422, "number"), j(r));
+  }
+
+  // --- as rotas
+  const tGestor = signAccessToken(gestor.id);
+  const tCaixa = signAccessToken(caixa.id);
+  const rSem = await chamar(null, "quotes", "GET", "quotes");
+  check("GET quotes sem sessão: 401", rSem.status === 401, `${rSem.status}`);
+  const rLista = await chamar(tGestor, "quotes", "GET", `quotes?q=${encodeURIComponent("(34) 99999-0000")}`);
+  check("GET quotes?q= com telefone mascarado: 200 com a linha", rLista.status === 200 && rLista.json?.data?.length === 1 && rLista.json.data[0].id === qJ.data.id && rLista.json.data[0].situacao === "aberto", `${rLista.status} ${j(rLista.json)}`);
+  const rFat = await chamar(tGestor, "quotes", "GET", "quotes?situacao=faturado");
+  check("GET quotes?situacao=faturado: o faturado", rFat.status === 200 && rFat.json?.data?.length === 1 && rFat.json.data[0].id === qF.data.id, `${rFat.status} ${j(rFat.json)}`);
+  const rSit = await chamar(tGestor, "quotes", "GET", "quotes?situacao=qualquer");
+  check("GET quotes?situacao=qualquer: 422 em situacao, em português", rSit.status === 422 && rSit.json?.error?.field === "situacao" && !/expected|invalid/i.test(rSit.json?.error?.message ?? ""), `${rSit.status} ${j(rSit.json)}`);
+  const rL2 = await chamar(tGestor, "quotes", "GET", `quotes?establishment_id=${L2}`);
+  check("GET quotes da Loja 2 pelo Gestor da Loja 1: 404", rL2.status === 404, `${rL2.status} ${j(rL2.json)}`);
+  const rCaixa = await chamar(tCaixa, "quotes", "GET", "quotes");
+  check("GET quotes pelo Caixa: 403", rCaixa.status === 403, `${rCaixa.status} ${j(rCaixa.json)}`);
+  const rLim = await chamar(tGestor, "quotes", "GET", "quotes?situacao=todos&limit=1");
+  check("GET quotes?limit=1: uma linha", rLim.status === 200 && rLim.json?.data?.length === 1, `${rLim.status} ${j(rLim.json)}`);
+
+  const look = (token: string | null, loja: string, n: string) => chamar(token, "quotes/lookup", "GET", `quotes/lookup?establishment_id=${loja}&number=${n}`);
+  const lSem = await look(null, L1, String(qJ.data.number));
+  check("GET lookup sem sessão: 401", lSem.status === 401, `${lSem.status}`);
+  const lCaixa = await look(tCaixa, L1, String(qJ.data.number));
+  check("GET lookup pelo Caixa da loja dele: 200 com a visão", lCaixa.status === 200 && lCaixa.json?.data?.id === qJ.data.id && lCaixa.json.data.items?.length === 1, `${lCaixa.status} ${j(lCaixa.json)}`);
+  const lCaixaZeros = await look(tCaixa, L1, qJ.data.numero);
+  check("GET lookup com o número de 6 dígitos (000NNN): 200", lCaixaZeros.status === 200 && lCaixaZeros.json?.data?.id === qJ.data.id, `${lCaixaZeros.status} ${j(lCaixaZeros.json)}`);
+  const lOutra = await look(tCaixa, L1, String(qL2.data.number));
+  check("GET lookup de número de outra loja: 404 QUOTE_NOT_FOUND em number", lOutra.status === 404 && lOutra.json?.error?.code === "QUOTE_NOT_FOUND" && lOutra.json?.error?.field === "number", `${lOutra.status} ${j(lOutra.json)}`);
+  const lRuim = await look(tCaixa, L1, "abc");
+  check("GET lookup com number=abc: 422 em number", lRuim.status === 422 && lRuim.json?.error?.field === "number", `${lRuim.status} ${j(lRuim.json)}`);
+  const lSemNumero = await chamar(tCaixa, "quotes/lookup", "GET", `quotes/lookup?establishment_id=${L1}`);
+  check("GET lookup sem number: 422 em number", lSemNumero.status === 422 && lSemNumero.json?.error?.field === "number", `${lSemNumero.status} ${j(lSemNumero.json)}`);
+  const lSemLoja = await chamar(tCaixa, "quotes/lookup", "GET", `quotes/lookup?number=${qJ.data.number}`);
+  check("GET lookup sem establishment_id: 422 em establishment_id", lSemLoja.status === 422 && lSemLoja.json?.error?.field === "establishment_id", `${lSemLoja.status} ${j(lSemLoja.json)}`);
+  const lV2 = await look(signAccessToken(vend2.id), L1, String(qJ.data.number));
+  check("GET lookup do Vendedor da Loja 2 na Loja 1: 404", lV2.status === 404, `${lV2.status} ${j(lV2.json)}`);
+  void prisma;
 }
 
 async function limpar() {
@@ -330,7 +477,8 @@ async function limpar() {
 
 async function main() {
   try {
-    await secao1();
+    const ctx = await secao1();
+    await secao2(ctx);
   } finally {
     await limpar();
   }

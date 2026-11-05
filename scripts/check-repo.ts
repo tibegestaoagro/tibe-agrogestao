@@ -1373,6 +1373,7 @@ const PREFIXOS_DE_LEITURA = [
   "primeirosPassos",
   "transferenciasParadas",
   "relatorio",
+  "buscarOrcamento",
 ];
 
 export function acoesDeEscritaSemHistorico(fonte: string): string[] {

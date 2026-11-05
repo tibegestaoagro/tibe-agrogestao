@@ -11,7 +11,7 @@ import { proximoNumero } from "@/lib/emporio/numeracao";
 import { cancelarVendeuPagou, gravarVendeuPagou } from "@/lib/emporio/vendeu-pagou";
 import { resolverTurno, type TurnoResolvido } from "@/lib/emporio/turno";
 import { vendedoresDaLoja } from "@/lib/emporio/vendedores";
-import { precificarItens, resolverVendedor, type VendaItemInput } from "@/lib/emporio/precificar";
+import { arred2, arred3, centavos, precificarItens, resolverVendedor, type VendaItemInput } from "@/lib/emporio/precificar";
 import {
   CATEGORIA_TAXAS_CARTAO,
   datasDasParcelas,
@@ -21,6 +21,7 @@ import {
 import {
   INCLUDE_PRODUTO,
   lacradoEfetivo,
+  lojaVisivel,
   lojasDoAtor,
   type Ator,
   type ProdutoRow,
@@ -54,11 +55,7 @@ const CHAVE_DE_OUTRA_VENDA = () =>
   fail("DUPLICATE_OPERATION_KEY", "Essa chave de operação já foi usada em outra venda.", 409, "operation_key");
 
 
-const arred2 = (n: number) => Math.round(Number((n * 100).toPrecision(12))) / 100;
-const arred3 = (n: number) => Math.round(Number((n * 1000).toPrecision(14))) / 1000;
 const arred4 = (n: number) => Math.round(n * 10000) / 10000;
-/** Duas casas em inteiro: a soma de dinheiro se compara em centavos, nunca em float. */
-const centavos = (n: number) => Math.round(Number((n * 100).toPrecision(12)));
 const numero = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 const dataValida = (d: unknown): d is Date => d instanceof Date && !Number.isNaN(d.getTime());
 const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -93,11 +90,6 @@ async function turnoOuAborta(tx: Tx, ator: Ator, lojaId: string, pedido: string 
 }
 
 const pedidoDeCaixa = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
-
-async function lojaVisivel(db: TenantPrismaClient, ator: Ator, lojaId: string): Promise<boolean> {
-  const v = await lojasDoAtor(db, ator);
-  return !v || v.has(lojaId);
-}
 
 // ---------------------------------------------------------------------------
 // Visões
