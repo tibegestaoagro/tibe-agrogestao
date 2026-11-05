@@ -525,11 +525,11 @@ async function prepararVenda(
   } else if (pedidoDeVendedor) {
     const possiveis = await vendedoresDaLoja(db, loja.data.id);
     if (!possiveis.some((u) => u.id === pedidoDeVendedor)) {
-      return fail("INVALID_SELLER", "Esse vendedor não atende nesta loja. Escolha outro.", 422, "seller_user_id");
+      return fail("INVALID_SELLER", "Escolha um vendedor desta loja.", 422, "seller_user_id");
     }
     vendedorId = pedidoDeVendedor;
   } else if ((await papelDoEmporio(db, ator)).papel === "caixa") {
-    return fail("SELLER_REQUIRED", "Escolha quem fez a venda.", 422, "seller_user_id");
+    return fail("SELLER_REQUIRED", "Escolha o vendedor que atendeu.", 422, "seller_user_id");
   } else {
     vendedorId = ator.id;
   }
@@ -1775,6 +1775,8 @@ export async function trocarAction(
 
   const novaVenda: VenderInput = {
     ...(input.venda as VenderInput),
+    // O vendedor da troca é o da venda original (`vendedorHerdado`); sem ele, quem registra. O do corpo não vale.
+    seller_user_id: null,
     operation_key: String(input.venda?.operation_key ?? "").trim() || `${chave}:venda`,
     establishment_id: input.venda?.establishment_id || origem.establishment_id,
     cash_register_id: pedidoDeCaixa(input.cash_register_id) ?? pedidoDeCaixa(input.venda?.cash_register_id),

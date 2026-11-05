@@ -43,8 +43,10 @@ async function secao1() {
   const { signAccessToken } = await import("@/lib/auth-token");
   const { withBearer } = await import("./_escopo-de-requisicao");
   const stamp = Date.now();
-  const rec = (r: Dado, code: string, status: number, field?: string) =>
-    !!r && !r.ok && r.code === code && r.status === status && (field === undefined || r.field === field);
+  const rec = (r: Dado, code: string, status: number, field?: string, message?: string) =>
+    !!r && !r.ok && r.code === code && r.status === status && (field === undefined || r.field === field) && (message === undefined || r.message === message);
+  const MSG_SEM_VENDEDOR = "Escolha o vendedor que atendeu.";
+  const MSG_VENDEDOR_INVALIDO = "Escolha um vendedor desta loja.";
 
   type Role = "OWNER" | "ADMIN" | "OPERADOR" | "VISUALIZADOR";
   const mkTenant = async (rotulo: string) => {
@@ -142,7 +144,7 @@ async function secao1() {
   // --- o Caixa sem vendedor
   const antes = await db.emporioSale.count();
   const semVend = await vender(caixa, L1);
-  check("o Caixa sem vendedor: 422 SELLER_REQUIRED em seller_user_id", rec(semVend, "SELLER_REQUIRED", 422, "seller_user_id"), j(semVend));
+  check("o Caixa sem vendedor: 422 SELLER_REQUIRED em seller_user_id", rec(semVend, "SELLER_REQUIRED", 422, "seller_user_id", MSG_SEM_VENDEDOR), j(semVend));
   check("e nenhuma venda foi gravada", (await db.emporioSale.count()) === antes);
 
   // --- o Caixa com vendedor
@@ -168,7 +170,7 @@ async function secao1() {
   const invalido = async (nome: string, sellerId: string) => {
     const n0 = await db.emporioSale.count();
     const r = await vender(caixa, L1, { seller_user_id: sellerId });
-    check(`vendedor inválido (${nome}): 422 INVALID_SELLER em seller_user_id, sem gravar`, rec(r, "INVALID_SELLER", 422, "seller_user_id") && (await db.emporioSale.count()) === n0, j(r));
+    check(`vendedor inválido (${nome}): 422 INVALID_SELLER em seller_user_id, sem gravar`, rec(r, "INVALID_SELLER", 422, "seller_user_id", MSG_VENDEDOR_INVALIDO) && (await db.emporioSale.count()) === n0, j(r));
   };
   await invalido("Vendedor só da Loja 2", vend2.id);
   await invalido("outro Caixa", caixa2.id);
@@ -176,7 +178,7 @@ async function secao1() {
   await invalido("usuário de outra conta", vendB.id);
   await invalido("id que não existe", "nao-existe");
   const doVendedor = await vender(vend1, L1, { seller_user_id: vend2.id });
-  check("o Vendedor que indica alguém inválido também é recusado", rec(doVendedor, "INVALID_SELLER", 422, "seller_user_id"), j(doVendedor));
+  check("o Vendedor que indica alguém inválido também é recusado", rec(doVendedor, "INVALID_SELLER", 422, "seller_user_id", MSG_VENDEDOR_INVALIDO), j(doVendedor));
   const doVendedorOk = await vender(vend1, L1, { seller_user_id: gestor.id });
   check("o Vendedor que indica o Gestor da loja: seller = Gestor, sold_by = Vendedor", doVendedorOk.ok && doVendedorOk.data.seller_user_id === gestor.id && doVendedorOk.data.sold_by_user_id === vend1.id, j(doVendedorOk));
 
@@ -194,6 +196,26 @@ async function secao1() {
     troca.ok && troca.data.venda.seller_user_id === vend1.id && troca.data.venda.sold_by_user_id === gestor.id,
     j(troca.ok ? [troca.data.venda.seller_user_id, troca.data.venda.sold_by_user_id] : troca),
   );
+
+  // --- troca de venda sem vendedor (anterior à entrega): fica quem registrou, e o seller_user_id do corpo é ignorado
+  if (!doVendedorOk.ok) throw new Error("sem venda legada para trocar");
+  await prisma.emporioSale.update({ where: { id: doVendedorOk.data.id }, data: { seller_user_id: null } });
+  const trocaLegada = await Ven.trocarAction(db, gestor as never, doVendedorOk.data.id, {
+    operation_key: `m93-${stamp}-troca-legada`,
+    items_devolvidos: [{ sale_item_id: doVendedorOk.data.items[0].id, quantity: 1 }],
+    venda: {
+      items: [{ emporio_product_id: prod.data.id, presentation_id: ap.data.id, quantity: 1, unit_price: 20 }],
+      payments: [],
+      contact_id: cf,
+      seller_user_id: vend2.id,
+    },
+  });
+  check(
+    "troca de venda sem vendedor: a nova fica com quem registrou (Gestor), ignorando o seller_user_id do corpo",
+    trocaLegada.ok && trocaLegada.data.venda.seller_user_id === gestor.id && trocaLegada.data.venda.sold_by_user_id === gestor.id,
+    j(trocaLegada.ok ? [trocaLegada.data.venda.seller_user_id, trocaLegada.data.venda.sold_by_user_id] : trocaLegada),
+  );
+  await prisma.emporioSale.update({ where: { id: doVendedorOk.data.id }, data: { seller_user_id: gestor.id } });
 
   // --- listarVendedoresDaLojaAction
   const lA = await Ven.listarVendedoresDaLojaAction(db, caixa as never, L1);
@@ -243,11 +265,11 @@ async function secao1() {
     ...extra,
   });
   const pSem = await chamar(tCaixa, "sales", "POST", "sales", corpo({}));
-  check("POST sales do Caixa sem seller_user_id: 422 SELLER_REQUIRED no campo", pSem.status === 422 && pSem.json?.error?.code === "SELLER_REQUIRED" && pSem.json?.error?.field === "seller_user_id", `${pSem.status} ${j(pSem.json)}`);
+  check("POST sales do Caixa sem seller_user_id: 422 SELLER_REQUIRED no campo", pSem.status === 422 && pSem.json?.error?.code === "SELLER_REQUIRED" && pSem.json?.error?.field === "seller_user_id" && pSem.json?.error?.message === MSG_SEM_VENDEDOR, `${pSem.status} ${j(pSem.json)}`);
   const pOk = await chamar(tCaixa, "sales", "POST", "sales", corpo({ seller_user_id: vend1.id }));
   check("POST sales do Caixa com seller_user_id: 201 com seller_name", pOk.status === 201 && pOk.json?.data?.seller_user_id === vend1.id && pOk.json?.data?.seller_name === "M93 vend1", `${pOk.status} ${j(pOk.json)}`);
   const pRuim = await chamar(tCaixa, "sales", "POST", "sales", corpo({ seller_user_id: vend2.id }));
-  check("POST sales com vendedor de outra loja: 422 INVALID_SELLER", pRuim.status === 422 && pRuim.json?.error?.code === "INVALID_SELLER" && pRuim.json?.error?.field === "seller_user_id", `${pRuim.status} ${j(pRuim.json)}`);
+  check("POST sales com vendedor de outra loja: 422 INVALID_SELLER", pRuim.status === 422 && pRuim.json?.error?.code === "INVALID_SELLER" && pRuim.json?.error?.field === "seller_user_id" && pRuim.json?.error?.message === MSG_VENDEDOR_INVALIDO, `${pRuim.status} ${j(pRuim.json)}`);
 
   // --- a migração: ninguém com sold_by fica sem vendedor, e reaplicar o UPDATE conserta o que faltar
   const orfas = await prisma.emporioSale.count({ where: { sold_by_user_id: { not: null }, seller_user_id: null } });
