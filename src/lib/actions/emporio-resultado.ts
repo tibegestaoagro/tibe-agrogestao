@@ -585,6 +585,17 @@ type Dec = Parameters<typeof decToNum>[0];
 const custoDoItemCent = (i: { unit_cost: Dec; base_qty: Dec }) =>
   Math.round((decToNum(i.unit_cost) ?? 0) * (decToNum(i.base_qty) ?? 0) * 100);
 
+/**
+ * O valor devolvido de um item, em centavos: a fração devolvida do total do
+ * item vendido. Usado pelos produtos do mês e pelo relatório de vendas, para
+ * os dois descontarem a devolução do mesmo jeito.
+ */
+export function valorDevolvidoDoItemCent(i: { quantity: Dec; sale_item: { quantity: Dec; total: Dec } }): number {
+  const qVendida = decToNum(i.sale_item.quantity) ?? 0;
+  const fracao = qVendida > 0 ? (decToNum(i.quantity) ?? 0) / qVendida : 0;
+  return Math.round(centavos(decToNum(i.sale_item.total) ?? 0) * fracao);
+}
+
 export type ProdutoDoMesView = {
   emporio_product_id: string;
   name: string;
@@ -674,9 +685,7 @@ export async function produtosDoMesAction(
     for (const d of devolucoes) {
       for (const i of d.items) {
         const a = acc(i.sale_item.emporio_product_id);
-        const qVendida = decToNum(i.sale_item.quantity) ?? 0;
-        const fracao = qVendida > 0 ? (decToNum(i.quantity) ?? 0) / qVendida : 0;
-        a.salesCent -= Math.round(centavos(decToNum(i.sale_item.total) ?? 0) * fracao);
+        a.salesCent -= valorDevolvidoDoItemCent(i);
         a.costCent -= custoDoItemCent({ unit_cost: i.sale_item.unit_cost, base_qty: i.base_qty });
         a.qty -= decToNum(i.base_qty) ?? 0;
       }

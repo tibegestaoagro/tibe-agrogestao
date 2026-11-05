@@ -957,6 +957,14 @@ export const GROUPS: Group[] = [
       },
       {
         method: "GET",
+        path: "/api/v1/emporio/reports/sales",
+        auth: "Sessão · emporio:read · Gestor da loja, Gerente geral e Dono (o Vendedor e o Caixa recebem 403); o Gestor só as lojas dele (404 `establishment_id` nas outras)",
+        description: "Relatório de vendas (entrega 3), calculado na leitura. Query: `from` e `to` (AAAA-MM-DD, os dois inclusivos, dia de Brasília, até 366 dias; 422 em `from` ou `to`), `establishment_id` opcional (ausente: todas as lojas não arquivadas que o ator vê). `por_vendedor` e `por_loja` por total decrescente: `sales_count` conta as vendas concluídas, sem a venda nova da troca; `total` soma o líquido delas (a da troca inclusa) menos o devolvido no período, que vai ao vendedor e à loja da venda original e pode deixar o total negativo; `average_ticket` é o total dividido pela quantidade (nulo sem vendas). Venda sem vendedor sai em `seller_user_id: null`, \"Sem vendedor\". `por_produto`: quantidade na unidade-base e total, líquidos de devolução, por total. `parados`: produto não arquivado com preço na loja e sem venda nela no período, uma linha por produto e loja.",
+        response: `200
+{ "data": { "periodo": { "from": "2026-11-01", "to": "2026-11-05" }, "lojas": [{ "id": "cl...", "name": "Loja Centro" }], "por_vendedor": [{ "seller_user_id": "cl...", "name": "Ana", "sales_count": 3, "total": 60, "average_ticket": 20 }], "por_produto": [{ "emporio_product_id": "cl...", "name": "Milho", "base_unit": "quilograma", "quantity": 8, "total": 80 }], "parados": [{ "emporio_product_id": "cl...", "name": "Sal mineral", "establishment_id": "cl...", "establishment_name": "Loja Centro" }], "por_loja": [{ "establishment_id": "cl...", "name": "Loja Centro", "sales_count": 3, "total": 60, "average_ticket": 20 }] }, "meta": {} }`,
+      },
+      {
+        method: "GET",
         path: "/api/v1/emporio/bank-accounts",
         auth: "Sessão · emporio:read · só OWNER e ADMIN",
         description: "Contas bancárias do Empório com o saldo (soma dos movimentos) e as lojas que a usam como conta PIX. `incluir_arquivados=1` traz as arquivadas.",
