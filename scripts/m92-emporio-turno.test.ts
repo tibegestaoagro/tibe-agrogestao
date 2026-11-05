@@ -1458,7 +1458,7 @@ async function secao7() {
   const rSg = await chamar("cash/sessions/[id]/withdrawals", `cash/sessions/${TR}/withdrawals`, { operation_key: k("rota-sg"), amount: 10, ...datas }, TR);
   const hR = await db.cashHandover.findFirst({ where: { id: rSg.json?.data?.id ?? "x" } });
   const mR = await db.cashMovement.findFirst({ where: { cash_handover_id: hR?.id ?? "x", origin: "sangria" } });
-  check("POST withdrawals com datas no corpo: a sangria grava a hora real", rSg.status === 201 || rSg.status === 200 ? recente(hR?.created_at, antes) && recente(mR?.occurred_at, antes) : false, `${rSg.status} ${j([hR?.created_at, mR?.occurred_at])}`);
+  check("POST withdrawals com datas no corpo: a sangria grava a hora real", rSg.status === 201 && recente(hR?.created_at, antes) && recente(mR?.occurred_at, antes), `${rSg.status} ${j([hR?.created_at, mR?.occurred_at])}`);
   const rEn = await chamar("cash/sessions/[id]/close", `cash/sessions/${TR}/close`, { operation_key: k("rota-enc"), counted: 39, malote_amount: 20, ...datas }, TR);
   const sRE = await db.cashSession.findFirst({ where: { id: TR } });
   check("POST close com datas no corpo: closed_at é a hora real", rEn.status === 200 && recente(sRE?.closed_at, antes), `${rEn.status} ${j(sRE?.closed_at)}`);

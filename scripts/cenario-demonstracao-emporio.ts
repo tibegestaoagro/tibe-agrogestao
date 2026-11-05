@@ -361,6 +361,14 @@ function vendasDeTodoDia(): VendaPlan[] {
 
 const VALIDADE_ORCAMENTO = 10;
 
+/** As configurações da conta que o cenário grava (o `--apagar` só apaga a linha que ainda tem estes rodapés). */
+const CONFIG_DEMO = {
+  quote_validity_days: VALIDADE_ORCAMENTO,
+  quote_footer: "Orçamento sujeito à disponibilidade de estoque. Preços válidos até a data indicada.",
+  sale_footer: "Obrigado pela preferência! Trocas em até 7 dias com este comprovante.",
+  receipt_width: 80,
+};
+
 type OrcPlan = {
   chave: string;
   loja: ChaveVenda;
@@ -611,10 +619,28 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
     if (e) lojasExistentes.set(l.chave, e.id);
   }
   const membrosFaltando: string[] = [];
+  const funcoesAMudar: string[] = [];
   for (const m of MEMBROS) {
-    const u = await prisma.user.findUnique({ where: { email: m.email }, select: { id: true, tenant_id: true } });
+    const u = await prisma.user.findUnique({ where: { email: m.email }, select: { id: true, tenant_id: true, name: true, emporio_role: true } });
     if (u && u.tenant_id !== tenantId) throw new Parar(`O email ${m.email} já pertence a outra conta. O cenário não pode seguir.`);
     if (!u) membrosFaltando.push(m.email);
+    else if (u.emporio_role !== m.funcao) funcoesAMudar.push(`${u.name} (${m.email}): de ${u.emporio_role ?? "sem função"} para ${m.funcao}`);
+  }
+  // Turno aberto no Caixa 1 que não é o de hoje deste cenário: uma montagem
+  // anterior (a versão de turno único, ou uma rodada de outro dia). Seguir
+  // escreveria cabeçalho, configurações, equipe e clientes e só pararia no dia 30.
+  const turnosAlheios: string[] = [];
+  for (const c of ["centro", "rodovia"] as const) {
+    const lojaId = lojasExistentes.get(c);
+    if (!lojaId) continue;
+    const reg = await db.cashRegister.findFirst({ where: { establishment_id: lojaId, number: 1 }, select: { id: true } });
+    if (!reg) continue;
+    const aberto = await db.cashSession.findFirst({ where: { open_register_id: reg.id }, select: { operation_key: true, opened_at: true } });
+    // A chave de hoje também vale para o "hoje" de uma rodada de outro dia: por isso a data.
+    const deHoje = aberto?.operation_key === `${PREFIXO}turno-dia-${c}-00` && aberto.opened_at.getTime() >= dia(0, 0).getTime();
+    if (aberto && !deHoje) {
+      turnosAlheios.push(`${LOJAS.find((l) => l.chave === c)?.nome}: turno aberto em ${aberto.opened_at.toISOString()} (chave ${aberto.operation_key})`);
+    }
   }
   const prodsExistentes = await resolverProdutos(db);
   const contatosExistentes = new Set(
@@ -646,7 +672,20 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
   const vendasTotal = [...sortidas, ...daMistura].reduce((s, v) => s + totalCents(v, v.itens), 0);
   log(`\nPlano de vendas: ${sortidas.length + daMistura.length} vendas, ${brl(vendasTotal / 100)} no papel (as canceladas e devolvidas não entram no resultado).`);
   log(`Assentos: o cenário precisa de ${membrosFaltando.length} novo(s); sobram ${Math.max(seats.limit - seats.used, 0)}.`);
+  if (funcoesAMudar.length > 0) {
+    log("\nFunção na Equipe que o cenário mudaria (pela action da Equipe):");
+    for (const f of funcoesAMudar) log(`  - ${f}`);
+  }
 
+  if (turnosAlheios.length > 0) {
+    console.error("\nPARADO antes de qualquer escrita: o Caixa 1 tem um turno aberto que não é o de hoje deste cenário.");
+    for (const t of turnosAlheios) console.error(`  - ${t}`);
+    console.error(
+      "A conta foi montada por uma versão anterior do cenário (um turno só) ou por uma rodada de outro dia. " +
+        "Encerre esse turno pela tela (ou, no banco local, use --apagar) e rode de novo.",
+    );
+    process.exit(1);
+  }
   if (membrosFaltando.length > seats.limit - seats.used) {
     console.error("\nA conta precisa do plano grupo (5 assentos). Suba o plano e rode de novo.");
     process.exit(1);
@@ -687,12 +726,7 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
 
   // Configurações da conta (entrega 1): validade do orçamento, rodapés e bobina.
   {
-    const desejado = {
-      quote_validity_days: VALIDADE_ORCAMENTO,
-      quote_footer: "Orçamento sujeito à disponibilidade de estoque. Preços válidos até a data indicada.",
-      sale_footer: "Obrigado pela preferência! Trocas em até 7 dias com este comprovante.",
-      receipt_width: 80,
-    };
+    const desejado = CONFIG_DEMO;
     const atual = exigir(await conf.lerConfiguracoesAction(db, dono), "configurações");
     if ((Object.keys(desejado) as (keyof typeof desejado)[]).some((k) => atual[k] !== desejado[k])) {
       exigir(await conf.salvarConfiguracoesAction(db, dono, desejado), "configurações");
@@ -1573,8 +1607,12 @@ async function apagarCenario(tenantId: string, executar: boolean) {
   await prisma.emporioAuditLog.deleteMany({ where: { ...t, OR: [{ user_id: { in: usuarios } }, { establishment_id: { in: lojas } }, { target_id: { in: [...eps, ...usuarios, ...contas, ...lojas, ...relacionados] } }] } });
   await prisma.user.deleteMany({ where: { id: { in: usuarios } } });
   await prisma.contact.deleteMany({ where: { id: { in: contatos } } });
-  // As configurações da conta (validade, rodapés, bobina) foram gravadas pelo cenário. Só banco local.
-  await prisma.emporioSettings.deleteMany({ where: t });
+  // As configurações da conta são uma linha só: ela sai apenas se ainda tem os
+  // rodapés que o cenário gravou (mexida depois, na tela, fica). Só banco local.
+  const config = await prisma.emporioSettings.deleteMany({
+    where: { ...t, quote_footer: CONFIG_DEMO.quote_footer, sale_footer: CONFIG_DEMO.sale_footer },
+  });
+  if (config.count === 0) log("As configurações da conta não são as do cenário: ficaram.");
   log("Cenário apagado.");
 }
 
