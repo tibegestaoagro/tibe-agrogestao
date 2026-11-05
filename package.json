@@ -73,6 +73,7 @@
     "test:m90": "tsx scripts/m90-emporio-cliente.test.ts",
     "test:m91": "tsx scripts/m91-emporio-impressao.test.ts",
     "test:m92": "tsx scripts/m92-emporio-turno.test.ts",
+    "test:m93": "tsx scripts/m93-emporio-vendedor.test.ts",
     "test:isolation": "tsx scripts/tenant-isolation.test.ts",
     "test:docs-api": "tsx scripts/docs-api-completeness.test.ts",
     "test:nav": "tsx scripts/nav-build.test.ts",

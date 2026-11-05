@@ -10,6 +10,7 @@ import { custoMedio } from "@/lib/emporio/custo-medio";
 import { proximoNumero } from "@/lib/emporio/numeracao";
 import { cancelarVendeuPagou, gravarVendeuPagou } from "@/lib/emporio/vendeu-pagou";
 import { resolverTurno, type TurnoResolvido } from "@/lib/emporio/turno";
+import { vendedoresDaLoja } from "@/lib/emporio/vendedores";
 import {
   CATEGORIA_TAXAS_CARTAO,
   datasDasParcelas,
@@ -157,6 +158,10 @@ export type VendaView = {
   contact_name: string | null;
   sold_at: string;
   sold_by_user_id: string | null;
+  sold_by_name: string | null;
+  /** Entrega 3: quem de fato vendeu (difere de `sold_by_user_id` quando o Caixa registra). */
+  seller_user_id: string | null;
+  seller_name: string | null;
   net_amount: number;
   discount_amount: number;
   discount_pct: number;
@@ -238,6 +243,11 @@ async function montarVendas(db: TenantPrismaClient, linhas: VendaRow[]): Promise
     somaPorEntrada.set(p.entry_id, (somaPorEntrada.get(p.entry_id) ?? 0) + centavos(decToNum(p.amount) ?? 0));
   }
   const entradaPorVenda = new Map(entradas.map((e) => [e.related_id as string, e]));
+  // Os nomes de quem registrou e de quem vendeu: uma consulta só, ativos ou não.
+  const idsDeUsuario = [...new Set(linhas.flatMap((l) => [l.sold_by_user_id, l.seller_user_id]).filter((x): x is string => !!x))];
+  const usuarios =
+    idsDeUsuario.length > 0 ? await db.user.findMany({ where: { id: { in: idsDeUsuario } }, select: { id: true, name: true } }) : [];
+  const nomeDoUsuario = new Map(usuarios.map((u) => [u.id, u.name]));
 
   return linhas.map((s) => {
     const e = entradaPorVenda.get(s.id) ?? null;
@@ -279,6 +289,9 @@ async function montarVendas(db: TenantPrismaClient, linhas: VendaRow[]): Promise
       contact_name: s.contact?.name ?? null,
       sold_at: s.sold_at.toISOString(),
       sold_by_user_id: s.sold_by_user_id,
+      sold_by_name: s.sold_by_user_id ? (nomeDoUsuario.get(s.sold_by_user_id) ?? null) : null,
+      seller_user_id: s.seller_user_id,
+      seller_name: s.seller_user_id ? (nomeDoUsuario.get(s.seller_user_id) ?? null) : null,
       net_amount: decToNum(s.net_amount) ?? 0,
       discount_amount: desconto,
       discount_pct: denominador > 0 ? arred2((desconto / denominador) * 100) : 0,
@@ -379,6 +392,25 @@ export async function listarVendasAction(
   return ok(await montarVendas(db, await buscarVendas(db, where, limite)));
 }
 
+/**
+ * Quem pode ser o vendedor numa loja (a lista do seletor do Caixa). Quem não tem
+ * função no Empório leva a recusa de permissão; loja fora do alcance ou que não
+ * existe é 404 no `establishment_id`, como em `listarVendasAction`.
+ */
+export async function listarVendedoresDaLojaAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  establishmentId: string,
+): Promise<ActionResult<{ id: string; name: string }[]>> {
+  const neg = await exigir(db, ator, "vendedor_da_loja", "ver os vendedores");
+  if (neg) return neg;
+  const id = typeof establishmentId === "string" ? establishmentId.trim() : "";
+  if (!id || !(await lojaVisivel(db, ator, id))) return NAO_ACHADO("Estabelecimento", "establishment_id");
+  const existe = await db.establishment.findFirst({ where: { id }, select: { id: true } });
+  if (!existe) return NAO_ACHADO("Estabelecimento", "establishment_id");
+  return ok(await vendedoresDaLoja(db, id));
+}
+
 // ---------------------------------------------------------------------------
 // Venda: validação
 // ---------------------------------------------------------------------------
@@ -411,6 +443,8 @@ export type VenderInput = {
   notes?: string | null;
   /** Entrega 2: o caixa do turno; sem ele vale a regra de `resolverTurno`. */
   cash_register_id?: string | null;
+  /** Entrega 3: quem vendeu. O Caixa é obrigado a informar; os outros papéis vendem em nome próprio. */
+  seller_user_id?: string | null;
 };
 
 const FORMAS_DE_CARTAO = ["debito", "credito_vista", "credito_parcelado"] as const;
@@ -456,13 +490,15 @@ type Preparada = {
   troca: number;
   notes: string | null;
   cash_register_id: string | null;
+  seller_user_id: string;
 };
 
 async function prepararVenda(
   db: TenantPrismaClient,
   ator: Ator,
   input: VenderInput,
-  opts: { valorTroca?: number } = {},
+  /** `vendedorHerdado`: a troca leva o vendedor da venda original, sem revalidá-lo (pode ter sido desativado depois). */
+  opts: { valorTroca?: number; vendedorHerdado?: string | null } = {},
 ): Promise<ActionResult<Preparada>> {
   const neg = await exigir(db, ator, "vendedor_da_loja", "vender");
   if (neg) return neg;
@@ -478,6 +514,25 @@ async function prepararVenda(
 
   const soldAt = input.sold_at == null ? new Date() : input.sold_at;
   if (!dataValida(soldAt)) return fail("VALIDATION_ERROR", "Informe uma data de venda válida.", 422, "sold_at");
+
+  // O vendedor (entrega 3), validado aqui fora da transação como a loja e o cliente.
+  let vendedorId: string;
+  const pedidoDeVendedor = typeof input.seller_user_id === "string" ? input.seller_user_id.trim() : "";
+  if (opts.vendedorHerdado) {
+    vendedorId = opts.vendedorHerdado;
+  } else if (input.seller_user_id != null && typeof input.seller_user_id !== "string") {
+    return fail("INVALID_SELLER", "Escolha um vendedor desta loja.", 422, "seller_user_id");
+  } else if (pedidoDeVendedor) {
+    const possiveis = await vendedoresDaLoja(db, loja.data.id);
+    if (!possiveis.some((u) => u.id === pedidoDeVendedor)) {
+      return fail("INVALID_SELLER", "Esse vendedor não atende nesta loja. Escolha outro.", 422, "seller_user_id");
+    }
+    vendedorId = pedidoDeVendedor;
+  } else if ((await papelDoEmporio(db, ator)).papel === "caixa") {
+    return fail("SELLER_REQUIRED", "Escolha quem fez a venda.", 422, "seller_user_id");
+  } else {
+    vendedorId = ator.id;
+  }
 
   // Toda venda tem cliente (design 2026-11-03-emporio-cliente-nome-menu): quem não quer se
   // identificar entra como Consumidor final, que não toma fiado nem cheque.
@@ -709,6 +764,7 @@ async function prepararVenda(
     troca: trocaCent / 100,
     notes: typeof input.notes === "string" && input.notes.trim() ? input.notes.trim() : null,
     cash_register_id: pedidoDeCaixa(input.cash_register_id),
+    seller_user_id: vendedorId,
   });
 }
 
@@ -865,6 +921,7 @@ async function gravarVenda(
       contact_id: p.contact_id,
       sold_at: p.sold_at,
       sold_by_user_id: ator.id,
+      seller_user_id: p.seller_user_id,
       net_amount: p.net,
       discount_amount: p.desconto,
       discount_authorized_by_user_id: p.autorizou,
@@ -1722,7 +1779,10 @@ export async function trocarAction(
     establishment_id: input.venda?.establishment_id || origem.establishment_id,
     cash_register_id: pedidoDeCaixa(input.cash_register_id) ?? pedidoDeCaixa(input.venda?.cash_register_id),
   };
-  const prep = await prepararVenda(db, ator, novaVenda, { valorTroca: itens.data.totalCent / 100 });
+  const prep = await prepararVenda(db, ator, novaVenda, {
+    valorTroca: itens.data.totalCent / 100,
+    vendedorHerdado: origem.seller_user_id,
+  });
   if (!prep.ok) return prep;
 
   try {

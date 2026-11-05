@@ -311,6 +311,7 @@ async function secao2() {
       operation_key: `m92-s2-${stamp}-${(seq += 1)}`,
       establishment_id: est,
       contact_id: cf,
+      seller_user_id: owner.id,
       items: [{ emporio_product_id: prod.data.id, presentation_id: ap.data.id, quantity: 1, unit_price: preco }],
       payments: [{ kind: "dinheiro", amount: preco }],
     });

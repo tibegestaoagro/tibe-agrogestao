@@ -1186,6 +1186,9 @@ model EmporioSale {
   contact_id                     String?
   sold_at                        DateTime
   sold_by_user_id                String?
+  /// Entrega 3: quem de fato vendeu (comissão e relatório). Igual a `sold_by_user_id`
+  /// quando o próprio vendedor registra; difere quando o Caixa registra por ele.
+  seller_user_id                 String?
   net_amount                     Decimal           @db.Decimal(14, 2)
   /// Q85: soma de (sugerido − praticado) × quantidade dos itens abaixo do preço.
   discount_amount                Decimal           @default(0) @db.Decimal(14, 2)
@@ -1220,6 +1223,7 @@ model EmporioSale {
   @@index([tenant_id, cash_session_id])
   @@index([tenant_id, establishment_id, sold_at])
   @@index([tenant_id, contact_id])
+  @@index([tenant_id, seller_user_id, sold_at])
 }
 
 /// Entrega 1 do Empório: configurações da conta (validade e rodapés do papel,

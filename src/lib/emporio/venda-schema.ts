@@ -46,6 +46,8 @@ export const corpoDaVendaSchema = z.object({
   notes: z.string().nullish(),
   /** Entrega 2: o caixa do turno; sem ele a action resolve pelo turno aberto. */
   cash_register_id: caixaDoTurno,
+  /** Entrega 3: quem vendeu. Obrigatório para o Caixa (regra da action); na troca é ignorado (vale o da venda original). */
+  seller_user_id: z.string().nullish(),
 });
 
 export const itemDevolvidoSchema = z.object({
