@@ -138,6 +138,28 @@ lista inteira no app. A E9 achou o mesmo em `RelatedModule` (4 de 8) e
   volta (renumerar colide). Já está documentado no `CLAUDE.md` e o
   `npm run check` reprova suíte órfã, então é convivência, não dívida.
 
+### 5.16 Empório, entrega 3 (vendedor e relatórios): o que a revisão deixou para depois
+
+Registrado em 05/11/2026, na revisão final da branch `emporio-vendedor-relatorios`.
+Nenhum bloqueia; cada um vale na próxima vez que o arquivo for tocado.
+- `relatorioDeVendasAction` carrega até 366 dias de vendas e devoluções em
+  memória (`src/lib/actions/emporio-relatorios.ts`); com volume real, `groupBy`.
+- Produto só devolvido no período aparece com total negativo em "Vendas por
+  produto" e também em "Produtos parados", que só olha venda.
+- A devolução proporcional pode diferir 1 centavo de `EmporioSaleReturn.amount`
+  no granel fracionado (igual ao `produtosDoMes`, que tem o mesmo cálculo).
+- O papel pode sair "Caixa N (sem nome)" se quem registrou não tiver nome.
+- `papelDoEmporio` chamado duas vezes no balcão e na venda sem vendedor
+  (memorizado por requisição, custo quase nulo); `vendedoresDaLoja` em laço.
+- Filtro de Relatórios: `Label` sem alvo quando a loja é fixa, aviso de "mês
+  atual" em recusa que não é de data, texto morto "Escolha uma loja.".
+- Roteiro `scripts/navegador/emporio-vendedor.py`: a contagem "2" da linha do
+  vendedor nunca falha (o nome dele tem "2"), a Loja 2 não é conferida com
+  zero, e "o Caixa não está na lista" passa com qualquer opção ausente.
+- Testes que faltam: troca em outra loja herdando o vendedor sem revalidar,
+  apresentação arquivada com preço nos parados, `por_produto` do Gestor.
+- Comentário fora do lugar em `balcao.tsx` (perto da linha 146).
+
 ### 5.15 O filtro de situação das Negociações lê o período inteiro
 
 Registrado na E10.1 (13/10/2026), rodada 2 do Codex; o usuário escolheu
