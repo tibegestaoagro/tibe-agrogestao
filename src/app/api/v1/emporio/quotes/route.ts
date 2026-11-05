@@ -1,0 +1,34 @@
+import { z } from "zod";
+import { apiError, apiErroDeZod, apiOk } from "@/lib/api";
+import { readJson } from "@/lib/api-guard";
+import { withApi } from "@/lib/route";
+import { salvarOrcamentoAction } from "@/lib/actions/emporio-orcamentos";
+import { guardEmporio } from "@/lib/emporio/rota";
+import { chaveDeOperacao, corpoDoOrcamentoSchema } from "@/lib/emporio/venda-schema";
+
+/**
+ * POST /api/v1/emporio/quotes  salva o orçamento (chave de operação): wrapper fino.
+ */
+
+const schema = corpoDoOrcamentoSchema.extend({
+  operation_key: chaveDeOperacao,
+  establishment_id: z.string({ error: "Escolha o estabelecimento." }).min(1, "Escolha o estabelecimento."),
+});
+
+async function POSTHandler(request: Request) {
+  const g = await guardEmporio("write");
+  if ("error" in g) return g.error;
+
+  const body = await readJson(request);
+  if ("error" in body) return body.error;
+  const parsed = schema.safeParse(body.json);
+  if (!parsed.success) return apiErroDeZod(parsed.error);
+
+  const res = await salvarOrcamentoAction(g.db, g.user, parsed.data);
+  if (!res.ok) return apiError(res.code, res.message, res.status, res.field);
+  // Chave repetida: o orçamento já gravado, 200, sem escrever nada.
+  const { replayed, ...orcamento } = res.data;
+  return apiOk(orcamento, {}, replayed ? undefined : { status: 201 });
+}
+
+export const POST = withApi(POSTHandler);

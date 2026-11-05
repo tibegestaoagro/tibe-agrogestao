@@ -594,6 +594,8 @@ model Tenant {
   emporio_settings          EmporioSettings?
   emporio_counters          EmporioCounter[]
   emporio_sale_items        EmporioSaleItem[]
+  emporio_quotes            EmporioQuote[]
+  emporio_quote_items       EmporioQuoteItem[]
   emporio_sale_payments     EmporioSalePayment[]
   emporio_sale_returns      EmporioSaleReturn[]
   emporio_return_items      EmporioSaleReturnItem[]
@@ -767,6 +769,7 @@ model Establishment {
   responsible               User?                    @relation("EstablishmentResponsible", fields: [responsible_user_id], references: [id], onDelete: SetNull)
   pix_bank_account          BankAccount?             @relation("EstablishmentPixAccount", fields: [pix_bank_account_id], references: [id], onDelete: SetNull)
   sales                     EmporioSale[]
+  quotes                    EmporioQuote[]
   cash_movements            CashMovement[]
   card_fee_rules            CardFeeRule[]
   card_receivables          CardReceivable[]
@@ -887,6 +890,7 @@ model EmporioProduct {
   used_in            CompositionItem[]
   productions        ProductionEntry[]
   sale_items         EmporioSaleItem[]
+  quote_items        EmporioQuoteItem[]
   rules_as_product   VariableExpenseRule[] @relation("RuleProduct")
   rules_as_packaging VariableExpenseRule[] @relation("RulePackaging")
 
@@ -916,6 +920,7 @@ model ProductPresentation {
   purchase_items         EmporioPurchaseItem[]
   transfer_items         StockTransferItem[]
   sale_items             EmporioSaleItem[]
+  quote_items            EmporioQuoteItem[]
   variable_expense_rules VariableExpenseRule[]
 
   @@unique([emporio_product_id, name])
@@ -1200,6 +1205,9 @@ model EmporioSale {
   /// Q86: a devolução que esta venda troca.
   exchange_return_id             String?           @unique
   cash_session_id                String?
+  /// Entrega 4: o orçamento que esta venda faturou. Sem `@unique`: a venda
+  /// cancelada continua dizendo de onde veio, e a que fatura de novo também.
+  quote_id                       String?
   notes                          String?
   created_at                     DateTime          @default(now())
   updated_at                     DateTime          @updatedAt
@@ -1209,6 +1217,8 @@ model EmporioSale {
   contact           Contact?              @relation(fields: [contact_id], references: [id], onDelete: Restrict)
   exchange_return   EmporioSaleReturn?    @relation("ExchangeSale", fields: [exchange_return_id], references: [id], onDelete: Restrict)
   cash_session      CashSession?          @relation(fields: [cash_session_id], references: [id], onDelete: Restrict)
+  quote             EmporioQuote?         @relation("SaleFromQuote", fields: [quote_id], references: [id], onDelete: Restrict)
+  invoiced_quote    EmporioQuote?         @relation("QuoteInvoice")
   items             EmporioSaleItem[]
   payments          EmporioSalePayment[]
   returns           EmporioSaleReturn[]   @relation("ReturnOfSale")
@@ -1224,6 +1234,67 @@ model EmporioSale {
   @@index([tenant_id, establishment_id, sold_at])
   @@index([tenant_id, contact_id])
   @@index([tenant_id, seller_user_id, sold_at])
+  @@index([tenant_id, quote_id])
+}
+
+/// Entrega 4 do Empório: o orçamento. Não mexe em estoque, caixa nem
+/// financeiro; a situação (aberto, vencido, faturado) é derivada, nunca gravada.
+model EmporioQuote {
+  id                             String   @id @default(cuid())
+  tenant_id                      String
+  establishment_id               String
+  /// Repetir a chave devolve este orçamento, sem duplicar.
+  operation_key                  String
+  /// Número do orçamento por conta (`EmporioCounter` "orcamento"), separado do da venda.
+  number                         Int
+  contact_id                     String
+  seller_user_id                 String?
+  created_by_user_id             String?
+  /// Vale até o fim deste dia em Brasília.
+  valid_until                    DateTime @db.Date
+  net_amount                     Decimal  @db.Decimal(14, 2)
+  discount_amount                Decimal  @default(0) @db.Decimal(14, 2)
+  discount_authorized_by_user_id String?
+  /// A venda ATIVA que faturou este orçamento; volta a nulo se ela for cancelada.
+  sale_id                        String?  @unique
+  notes                          String?
+  created_at                     DateTime @default(now())
+  updated_at                     DateTime @updatedAt
+
+  tenant        Tenant             @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  establishment Establishment      @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
+  contact       Contact            @relation(fields: [contact_id], references: [id], onDelete: Restrict)
+  sale          EmporioSale?       @relation("QuoteInvoice", fields: [sale_id], references: [id], onDelete: SetNull)
+  sales         EmporioSale[]      @relation("SaleFromQuote")
+  items         EmporioQuoteItem[]
+
+  @@unique([tenant_id, operation_key])
+  @@unique([tenant_id, number])
+  @@index([tenant_id, establishment_id, created_at])
+  @@index([tenant_id, contact_id])
+}
+
+/// O preço do momento do orçamento: sugerido e praticado ficam gravados.
+model EmporioQuoteItem {
+  id                 String   @id @default(cuid())
+  tenant_id          String
+  quote_id           String
+  emporio_product_id String
+  presentation_id    String
+  /// Na apresentação.
+  quantity           Decimal  @db.Decimal(14, 3)
+  /// O cadastrado na loja no momento; nulo sem preço.
+  suggested_price    Decimal? @db.Decimal(14, 2)
+  unit_price         Decimal  @db.Decimal(14, 2)
+  total              Decimal  @db.Decimal(14, 2)
+
+  tenant          Tenant              @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  quote           EmporioQuote        @relation(fields: [quote_id], references: [id], onDelete: Cascade)
+  emporio_product EmporioProduct      @relation(fields: [emporio_product_id], references: [id], onDelete: Restrict)
+  presentation    ProductPresentation @relation(fields: [presentation_id], references: [id], onDelete: Restrict)
+
+  @@index([tenant_id])
+  @@index([quote_id])
 }
 
 /// Entrega 1 do Empório: configurações da conta (validade e rodapés do papel,
@@ -3345,6 +3416,7 @@ model Contact {
   machine_maintenances MachineMaintenance[]
   emporio_purchases    EmporioPurchase[]
   emporio_sales        EmporioSale[]
+  emporio_quotes       EmporioQuote[]
   emporio_checks       EmporioCheck[]
 
   @@unique([tenant_id, document])

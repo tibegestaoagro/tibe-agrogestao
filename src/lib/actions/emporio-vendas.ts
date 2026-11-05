@@ -3,7 +3,7 @@ import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { dinheiro, itens as frasItens, registrarNoHistorico } from "@/lib/emporio/historico";
 import { decToNum, isoOrNull } from "@/lib/serialize";
-import { exigir, papelDoEmporio, pode } from "@/lib/emporio/papel";
+import { exigir, papelDoEmporio } from "@/lib/emporio/papel";
 import { createLinkedEntry, runSerializableTenantTransaction } from "@/lib/financial";
 import { descreverQuantidade } from "@/lib/stock/units";
 import { custoMedio } from "@/lib/emporio/custo-medio";
@@ -11,6 +11,7 @@ import { proximoNumero } from "@/lib/emporio/numeracao";
 import { cancelarVendeuPagou, gravarVendeuPagou } from "@/lib/emporio/vendeu-pagou";
 import { resolverTurno, type TurnoResolvido } from "@/lib/emporio/turno";
 import { vendedoresDaLoja } from "@/lib/emporio/vendedores";
+import { precificarItens, resolverVendedor, type VendaItemInput } from "@/lib/emporio/precificar";
 import {
   CATEGORIA_TAXAS_CARTAO,
   datasDasParcelas,
@@ -418,12 +419,7 @@ export async function listarVendedoresDaLojaAction(
 // Venda: validação
 // ---------------------------------------------------------------------------
 
-export type VendaItemInput = {
-  emporio_product_id: string;
-  presentation_id: string;
-  quantity: number;
-  unit_price?: number | null;
-};
+export type { VendaItemInput };
 
 export type VendaPagamentoInput = {
   kind: string;
@@ -519,23 +515,9 @@ async function prepararVenda(
   if (!dataValida(soldAt)) return fail("VALIDATION_ERROR", "Informe uma data de venda válida.", 422, "sold_at");
 
   // O vendedor (entrega 3), validado aqui fora da transação como a loja e o cliente.
-  let vendedorId: string;
-  const pedidoDeVendedor = typeof input.seller_user_id === "string" ? input.seller_user_id.trim() : "";
-  if (opts.vendedorHerdado) {
-    vendedorId = opts.vendedorHerdado;
-  } else if (input.seller_user_id != null && typeof input.seller_user_id !== "string") {
-    return fail("INVALID_SELLER", "Escolha um vendedor desta loja.", 422, "seller_user_id");
-  } else if (pedidoDeVendedor) {
-    const possiveis = await vendedoresDaLoja(db, loja.data.id);
-    if (!possiveis.some((u) => u.id === pedidoDeVendedor)) {
-      return fail("INVALID_SELLER", "Escolha um vendedor desta loja.", 422, "seller_user_id");
-    }
-    vendedorId = pedidoDeVendedor;
-  } else if ((await papelDoEmporio(db, ator)).papel === "caixa") {
-    return fail("SELLER_REQUIRED", "Escolha o vendedor que atendeu.", 422, "seller_user_id");
-  } else {
-    vendedorId = ator.id;
-  }
+  const vendedor = await resolverVendedor(db, ator, loja.data.id, input.seller_user_id, opts.vendedorHerdado);
+  if (!vendedor.ok) return vendedor;
+  const vendedorId = vendedor.data;
 
   // Toda venda tem cliente (design 2026-11-03-emporio-cliente-nome-menu): quem não quer se
   // identificar entra como Consumidor final, que não toma fiado nem cheque.
@@ -559,91 +541,27 @@ async function prepararVenda(
   if (!Array.isArray(input.items) || input.items.length === 0) {
     return fail("VALIDATION_ERROR", "Inclua ao menos um item na venda.", 422, "items");
   }
-  const produtoIds = [...new Set(input.items.map((i) => i?.emporio_product_id).filter((x): x is string => typeof x === "string" && !!x))];
-  const produtos = await db.emporioProduct.findMany({ where: { id: { in: produtoIds } }, include: INCLUDE_PRODUTO });
-  const produtoPorId = new Map<string, ProdutoRow>(produtos.map((p) => [p.id, p]));
-  const apresentacaoIds = input.items.map((i) => i?.presentation_id).filter((x): x is string => typeof x === "string" && !!x);
-  const precos = await db.presentationPrice.findMany({
-    where: { establishment_id: loja.data.id, presentation_id: { in: apresentacaoIds } },
-    select: { presentation_id: true, price: true },
-  });
-  const precoPorApresentacao = new Map(precos.map((p) => [p.presentation_id, decToNum(p.price)]));
-
-  const itens: ItemPreparado[] = [];
-  for (const it of input.items) {
-    const produto = typeof it?.emporio_product_id === "string" ? produtoPorId.get(it.emporio_product_id) : undefined;
-    if (!produto) return fail("VALIDATION_ERROR", "Escolha o produto de cada item.", 422, "items");
-    const nome = produto.product.name;
-    if (produto.archived_at) return fail("VALIDATION_ERROR", `O produto "${nome}" está arquivado.`, 422, "items");
-    const ap = produto.presentations.find((x) => x.id === it.presentation_id);
-    if (!ap || ap.archived_at) {
-      return fail("VALIDATION_ERROR", `Escolha uma apresentação ativa de "${nome}".`, 422, "items");
-    }
-    if (!numero(it.quantity) || arred3(it.quantity) <= 0) {
-      return fail("VALIDATION_ERROR", `A quantidade de "${nome}" deve ser maior que zero.`, 422, "items");
-    }
-    const quantity = arred3(it.quantity);
-    const base_qty = arred3(quantity * (decToNum(ap.base_qty) ?? 0));
-    if (!(base_qty > 0)) {
-      return fail("VALIDATION_ERROR", `A quantidade de "${nome}" é pequena demais.`, 422, "items");
-    }
-    if (produto.base_unit === "unidade" && !Number.isInteger(base_qty)) {
-      return fail("VALIDATION_ERROR", `"${nome}" é vendido por unidade e só aceita quantidade inteira.`, 422, "items");
-    }
-    if (ap.is_sealed_package && lacradoEfetivo(produto) && !Number.isInteger(quantity)) {
-      return fail("VALIDATION_ERROR", `A embalagem fechada de "${nome}" só aceita quantidade inteira.`, 422, "items");
-    }
-    const sugerido = precoPorApresentacao.get(ap.id) ?? null;
-    let unit_price: number;
-    if (it.unit_price == null) {
-      if (sugerido === null) {
-        return fail("VALIDATION_ERROR", `"${nome}" (${ap.name}) não tem preço cadastrado nesta loja. Informe o preço.`, 422, "items");
-      }
-      unit_price = sugerido;
-    } else {
-      if (!numero(it.unit_price) || arred2(it.unit_price) <= 0) {
-        return fail("VALIDATION_ERROR", `O preço de "${nome}" deve ser maior que zero.`, 422, "items");
-      }
-      unit_price = arred2(it.unit_price);
-    }
-    itens.push({
-      produto,
-      apresentacao: ap,
-      quantity,
-      base_qty,
-      suggested: sugerido,
-      unit_price,
-      total: arred2(quantity * unit_price),
-    });
-  }
-
-  const netCent = itens.reduce((s, i) => s + centavos(i.total), 0);
+  // Preço e desconto (Q85): a mesma regra do orçamento, em `precificar.ts`.
+  const precificados = await precificarItens(
+    db,
+    ator,
+    { id: loja.data.id, max_discount_pct: lojaExtra?.max_discount_pct ?? null },
+    input.items,
+  );
+  if (!precificados.ok) return precificados;
+  const itens: ItemPreparado[] = precificados.data.itens.map((i) => ({
+    produto: i.produto,
+    apresentacao: i.apresentacao,
+    quantity: i.quantity,
+    base_qty: i.base_qty,
+    suggested: i.suggested_cent === null ? null : i.suggested_cent / 100,
+    unit_price: i.unit_cent / 100,
+    total: i.total_cent / 100,
+  }));
+  const netCent = precificados.data.total_cent;
   const net = netCent / 100;
-
-  // Desconto (Q85): só o que fica abaixo do sugerido; acima não compensa.
-  let descontoCent = 0;
-  let baseCent = 0;
-  for (const i of itens) {
-    if (i.suggested === null) continue;
-    baseCent += centavos(i.suggested * i.quantity);
-    if (i.unit_price < i.suggested) descontoCent += centavos((i.suggested - i.unit_price) * i.quantity);
-  }
-  let autorizou: string | null = null;
-  if (descontoCent > 0 && baseCent > 0) {
-    const pct = (descontoCent / baseCent) * 100;
-    const limite = decToNum(lojaExtra?.max_discount_pct) ?? 0;
-    if (pct > limite + 1e-9) {
-      if (!pode(await papelDoEmporio(db, ator), "gestor_da_loja", loja.data.id)) {
-        return fail(
-          "DISCOUNT_ABOVE_LIMIT",
-          `O desconto de ${pct.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}% passa do limite de ${limite.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}% desta loja. Peça ao gestor da loja.`,
-          403,
-          "items",
-        );
-      }
-      autorizou = ator.id;
-    }
-  }
+  const descontoCent = precificados.data.desconto_cent;
+  const autorizou = precificados.data.autorizou;
 
   // Pagamentos
   const entrada = Array.isArray(input.payments) ? input.payments : [];

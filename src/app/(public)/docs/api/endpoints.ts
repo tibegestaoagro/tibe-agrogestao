@@ -821,6 +821,23 @@ export const GROUPS: Group[] = [
 { "data": { "devolucao": { "id": "cl...", "refund_kind": "troca", "amount": 12.5 }, "venda": { "id": "cl...", "exchange_return_id": "cl..." } }, "meta": {} }`,
       },
       {
+        method: "POST",
+        path: "/api/v1/emporio/quotes",
+        auth: "Sessão · emporio:write · quem vende na loja (Dono, Gerente geral, Gestor, Vendedor e Caixa nas lojas dele)",
+        description: "Salva um orçamento (entrega 4). Não mexe em estoque, caixa nem financeiro. `operation_key` obrigatória e única na conta: repetir devolve o orçamento gravado com 200 (primeira vez: 201). `contact_id` obrigatório e identificado: sem ele ou o Consumidor final, 422 `QUOTE_CUSTOMER_REQUIRED` em `contact_id`; cliente sem documento, telefone ou tipo de pessoa, 422 `QUOTE_CUSTOMER_INCOMPLETE` em `contact_id`. Vendedor, preço e desconto seguem a regra da venda: o Caixa precisa de `seller_user_id` (422 `SELLER_REQUIRED`; vendedor que não atende a loja, 422 `INVALID_SELLER`); preço = o cadastrado na loja, sem ele `unit_price` é obrigatório (422 `items`); desconto acima do `max_discount_pct` da loja só pelo gestor da loja (senão 403 `DISCOUNT_ABOVE_LIMIT` em `items`). Número próprio por conta (`numero` com 6 dígitos, separado do da venda). `valid_until` (AAAA-MM-DD) = hoje em Brasília mais `quote_validity_days` das configurações (7 sem configuração); vale até o fim desse dia. A resposta é a mesma do GET.",
+        request: `{ "operation_key": "k-q1", "establishment_id": "cl...", "contact_id": "cl...", "seller_user_id": "cl...", "items": [{ "emporio_product_id": "cl...", "presentation_id": "cl...", "quantity": 2, "unit_price": 19 }], "notes": "Entregar na sexta" }`,
+        response: `201
+{ "data": { "id": "cl...", "number": 1, "numero": "000001", "situacao": "aberto", "valid_until": "2026-11-12", "net_amount": 38, "discount_amount": 2, "sale": null, "vendas": [], "items": [] }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/quotes/:id",
+        auth: "Sessão · emporio:read · quem vende na loja do orçamento (Caixa incluído)",
+        description: "Um orçamento: loja, cliente (`id`, `name`, `phone`, `document`), vendedor e quem salvou, `valid_until`, `situacao` derivada (`faturado` com venda ativa; senão `vencido` depois de `valid_until` em Brasília; senão `aberto`), `sale` (a venda ativa que o faturou) e `vendas` (todas as que saíram dele). Cada item traz `preco_orcado`, `preco_hoje` (nulo sem preço na loja), `preco_que_vale` (dentro da validade, o menor entre o orçado e o de hoje; vencido, o de hoje), `mudou`, `saldo_base` (o saldo da loja na unidade-base) e `falta`. De outra conta ou de loja fora do vínculo: 404.",
+        response: `200
+{ "data": { "id": "cl...", "numero": "000001", "situacao": "aberto", "contact": { "id": "cl...", "name": "Seu Zé", "phone": "11999990000", "document": "39053344705" }, "items": [{ "produto": "Sal grosso", "apresentacao": "Quilo", "quantity": 2, "preco_orcado": 19, "preco_hoje": 20, "preco_que_vale": 19, "mudou": false, "saldo_base": 100, "falta": false, "total": 38 }] }, "meta": {} }`,
+      },
+      {
         method: "GET",
         path: "/api/v1/emporio/receivables",
         auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
