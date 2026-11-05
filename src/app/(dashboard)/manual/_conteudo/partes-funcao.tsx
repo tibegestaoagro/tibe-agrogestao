@@ -42,8 +42,8 @@ export function ParteDono() {
       <Lista
         itens={[
           <>Olhar o <Link className="underline" href={`${B}/resultado`}>resultado das lojas</Link> e ver se a conta fecha.</>,
-          <>Abrir <strong>Relatórios</strong> para ver as vendas por vendedor, por produto e por loja, e os produtos parados. O relatório mostra quanto cada um vendeu, para acertar a comissão. O percentual da comissão o sistema não calcula.</>,
-          <>Acompanhar os <strong>Orçamentos</strong> que ainda não viraram venda e ligar para quem não voltou.</>,
+          <>Abrir <Link className="underline" href={`${B}/relatorios`}>Relatórios</Link> para ver as vendas por vendedor, por produto e por loja, e os produtos parados. O relatório mostra quanto cada um vendeu, para acertar a comissão. O percentual da comissão o sistema não calcula.</>,
+          <>Acompanhar os <Link className="underline" href={`${B}/orcamento`}>Orçamentos</Link> que ainda não viraram venda e ligar para quem não voltou.</>,
           <>Montar e ajustar a <Link className="underline" href={`${B}/equipe`}>Equipe</Link>: quem é Gerente geral, Gestor, Vendedor ou Caixa.</>,
           <>Decidir preço, desconto e despesas fixas, ou deixar isso com o Gestor de cada loja.</>,
           <>Conferir o <Link className="underline" href={`${B}/historico`}>Histórico</Link> quando precisar saber quem fez o quê.</>,
@@ -58,13 +58,13 @@ export function ParteDono() {
           "Ver Todas as lojas somadas no Resultado.",
           "Cadastrar a Equipe e ligar as permissões extras do Vendedor.",
           "Liberar o estoque negativo de uma loja, quando for preciso vender antes de lançar a compra.",
-          <>Mudar, em <strong>Configurações</strong>, o que vale para a conta toda: a validade do orçamento, a largura da bobina, o rodapé do orçamento, o rodapé da venda e o logo.</>,
+          <>Mudar, em <Link className="underline" href={`${B}/configuracoes`}>Configurações</Link>, o que vale para a conta toda: a validade do orçamento, a largura da bobina, o rodapé do orçamento, o rodapé da venda e o logo.</>,
         ]}
       />
 
       <Chamada tipo="saiba">
         <p>
-          Em <strong>Configurações</strong>, o Gestor também mexe no que é da loja dele: o cabeçalho (CNPJ, endereço,
+          Em <Link className="underline" href={`${B}/configuracoes`}>Configurações</Link>, o Gestor também mexe no que é da loja dele: o cabeçalho (CNPJ, endereço,
           telefone e WhatsApp) e os caixas, com o botão <strong>Novo caixa</strong>. Toda loja nasce com o Caixa 1.
           A validade do orçamento começa em 7 dias.
         </p>
@@ -100,7 +100,7 @@ export function ParteDono() {
           <>Cadastre a <Link className="underline" href={`${B}/equipe`}>Equipe</Link>.</>,
           <>Cadastre os <Link className="underline" href={`${B}/produtos`}>produtos</Link> e ponha o preço em cada loja.</>,
           <>Lance a primeira <Link className="underline" href={`${B}/compras`}>compra</Link> ou o estoque inicial.</>,
-          <>Em <strong>Configurações</strong>, preencha o cabeçalho de cada loja e envie o logo. É o que sai no papel da venda e do orçamento.</>,
+          <>Em <Link className="underline" href={`${B}/configuracoes`}>Configurações</Link>, preencha o cabeçalho de cada loja e envie o logo. É o que sai no papel da venda e do orçamento.</>,
         ]}
       />
 
@@ -130,8 +130,8 @@ export function ParteGestor() {
           <>Resolve a transferência que chegou a menos (ela fica aguardando você).</>,
           <>Cancela venda, autoriza desconto maior e acompanha o <Link className="underline" href={`${B}/caixa`}>caixa</Link>.</>,
           <>Cuida das <Link className="underline" href={`${B}/despesas`}>despesas</Link> e olha o <Link className="underline" href={`${B}/resultado`}>resultado</Link> da loja.</>,
-          <>Abre <strong>Relatórios</strong> para ver quem vendeu o quê no período e os produtos parados. O filtro começa em <strong>Todas as minhas lojas</strong> e no mês atual.</>,
-          <>Acompanha os <strong>Orçamentos</strong> abertos e vencidos da loja.</>,
+          <>Abre <Link className="underline" href={`${B}/relatorios`}>Relatórios</Link> para ver quem vendeu o quê no período e os produtos parados. O filtro começa em <strong>Todas as minhas lojas</strong> e no mês atual.</>,
+          <>Acompanha os <Link className="underline" href={`${B}/orcamento`}>Orçamentos</Link> abertos e vencidos da loja.</>,
         ]}
       />
 
@@ -154,6 +154,7 @@ export function ParteGestor() {
         dinheiro da gerência ao banco, use <strong>Transferir dinheiro</strong>. O passo a passo está em{" "}
         <Link className="underline" href={`${B}/caixa`}>Caixa</Link>.
       </p>
+      <Figura id="caixa-entregas" />
 
       <Titulo>O turno dos outros</Titulo>
       <Lista
@@ -235,6 +236,9 @@ export function ParteVendedor() {
       <p>O papel diz “sem valor fiscal”: ele não é nota fiscal.</p>
 
       <Titulo>Orçamento</Titulo>
+      <p>
+        O passo a passo completo está em <Link className="underline" href={`${B}/orcamento`}>Orçamento</Link>.
+      </p>
       <Passos
         itens={[
           <>Em <strong>Vender</strong>, toque em <strong>Orçamento</strong>, no alto da tela.</>,
@@ -248,7 +252,8 @@ export function ParteVendedor() {
         O orçamento não tira do estoque nem reserva mercadoria. Quando o cliente voltar, fique em <strong>Venda</strong>,
         digite o número em <strong>Orçamento nº</strong> e clique em <strong>Carregar</strong>. Os itens entram na venda.
         Dentro da validade, o cliente paga o preço orçado ou o de hoje, o que for menor. Depois da validade, vale o preço
-        de hoje. Na lista <strong>Orçamentos</strong> você busca pelo telefone, CPF, CNPJ, nome ou número.
+        de hoje. Na lista <Link className="underline" href={`${B}/orcamento`}>Orçamentos</Link> você busca pelo telefone,
+        CPF, CNPJ, nome ou número.
       </p>
 
       <Titulo>O seu turno no caixa</Titulo>
@@ -329,6 +334,7 @@ export function ParteCaixa() {
           <>Clique em <strong>Fechar a venda</strong>. Depois, se o cliente quiser o papel, clique em <strong>Imprimir A4</strong> ou <strong>Imprimir cupom</strong>.</>,
         ]}
       />
+      <Figura id="balcao-cliente-vendedor" />
 
       <Titulo>Faturar um orçamento</Titulo>
       <Passos
@@ -342,7 +348,8 @@ export function ParteCaixa() {
       <p>
         Você também pode montar e salvar um orçamento, tocando em <strong>Orçamento</strong> no alto de Vender. Ao salvar,
         você também escolhe o <strong>Vendedor</strong> que atendeu. A lista de
-        Orçamentos não é sua: para achar um orçamento, peça o número ao cliente.
+        Orçamentos não é sua: para achar um orçamento, peça o número ao cliente. Os avisos e o preço que vale estão em{" "}
+        <Link className="underline" href={`${B}/orcamento`}>Orçamento</Link>.
       </p>
 
       <Titulo>Receber fiado</Titulo>
@@ -375,6 +382,7 @@ export function ParteCaixa() {
           <>Imprima o fechamento em <strong>Relatório A4</strong> ou <strong>Relatório na bobina</strong> e leve junto com o malote.</>,
         ]}
       />
+      <Figura id="caixa-encerrar" />
 
       <Chamada tipo="atencao">
         <p>

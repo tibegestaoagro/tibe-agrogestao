@@ -18,6 +18,7 @@ import {
   ParteDeResultado,
   ParteDeVender,
 } from "./partes-tarefa-2";
+import { ParteDeConfiguracoes, ParteDeOrcamento, ParteDeRelatorios } from "./partes-tarefa-3";
 import { ParteDeGlossario, ParteDePerguntas } from "./partes-consulta";
 
 /** O texto de cada parte, pelo `slug` de `indice.ts`. */
@@ -27,6 +28,7 @@ export const CONTEUDOS: Record<string, () => ReactNode> = {
   vendedor: ParteVendedor,
   "caixa-papel": ParteCaixa,
   "primeiros-passos": ParteDePrimeirosPassos,
+  configuracoes: ParteDeConfiguracoes,
   equipe: ParteDeEquipe,
   produtos: ParteDeProdutos,
   preco: ParteDePreco,
@@ -34,11 +36,13 @@ export const CONTEUDOS: Record<string, () => ReactNode> = {
   estoque: ParteDeEstoque,
   transferencias: ParteDeTransferencias,
   vender: ParteDeVender,
+  orcamento: ParteDeOrcamento,
   devolver: ParteDeDevolver,
   fiado: ParteDeFiado,
   caixa: ParteDeCaixa,
   despesas: ParteDeDespesas,
   resultado: ParteDeResultado,
+  relatorios: ParteDeRelatorios,
   historico: ParteDeHistorico,
   glossario: ParteDeGlossario,
   perguntas: ParteDePerguntas,

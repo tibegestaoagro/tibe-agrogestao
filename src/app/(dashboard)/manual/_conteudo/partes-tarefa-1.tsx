@@ -1,6 +1,10 @@
+import Link from "next/link";
 import { Chamada } from "../_components/chamada";
 import { Figura } from "../_components/figura";
 import { Subtitulo, Tarefa } from "../_components/tarefa";
+import { BASE_DO_EMPORIO } from "./indice";
+
+const B = BASE_DO_EMPORIO;
 
 export function ParteDePrimeirosPassos() {
   return (
@@ -12,6 +16,7 @@ export function ParteDePrimeirosPassos() {
         "Clique em cada item. Ele abre o formulário certo: cadastre a loja, os produtos, o preço e o estoque inicial.",
         "Depois faça os recomendados: contas bancárias, regra de cartão, despesas fixas e Equipe.",
         "Quando os essenciais terminam, o cartão some sozinho.",
+        <>Antes da primeira venda, abra <Link className="underline" href={`${B}/configuracoes`}>Configurações</Link>: preencha o cabeçalho de cada loja (CNPJ, endereço e telefones) e envie o logo. É o que sai no papel da venda e do orçamento. O cartão Primeiros passos não lembra disso.</>,
       ]}
       problemas={[
         {
@@ -32,37 +37,67 @@ export function ParteDePrimeirosPassos() {
 
 export function ParteDeEquipe() {
   return (
-    <Tarefa
-      paraQueServe="Cadastrar as pessoas que trabalham nas suas lojas e dizer o que cada uma pode fazer."
-      passos={[
-        <>Abra <strong>Meu Empório</strong> e depois <strong>Equipe</strong>. Só o Dono e o Gerente geral veem essa tela.</>,
-        <>Clique em <strong>Cadastrar pessoa</strong>.</>,
-        "Preencha nome e email. Use o email que a pessoa realmente lê.",
-        "Escolha a função: Gestor ou Vendedor. A função vale para todas as lojas da pessoa.",
-        "Marque as lojas em que ela trabalha.",
-        "Se for Vendedor, ligue só as permissões extras de que ele precisa. Todas começam desligadas.",
-        "Salve. A pessoa ocupa um assento do seu plano.",
-      ]}
-      problemas={[
-        {
-          quando: "O sistema recusa porque não há assento livre",
-          fazer: "O plano tem um limite de pessoas. Desative alguém que saiu da loja ou suba de plano.",
-        },
-        {
-          quando: "Um Vendedor de confiança precisa fazer mais",
-          fazer: "Ligue a permissão extra dele na Equipe, ou promova a Gestor. Subir e descer de função é livre. Quem volta a Vendedor volta com as permissões extras desligadas.",
-        },
-      ]}
-    >
-      <Figura id="equipe-lista" />
-      <Figura id="equipe-cadastrar" />
-      <Chamada tipo="saiba">
+    <div className="space-y-2">
+      <Tarefa
+        paraQueServe="Cadastrar as pessoas que trabalham nas suas lojas e dizer o que cada uma pode fazer."
+        passos={[
+          <>Abra <strong>Meu Empório</strong> e depois <strong>Equipe</strong>. Só o Dono e o Gerente geral veem essa tela.</>,
+          <>Clique em <strong>Cadastrar pessoa</strong>.</>,
+          <>Preencha <strong>Nome</strong> e <strong>Email</strong>. Use o email que a pessoa realmente lê. O <strong>Telefone</strong> é opcional.</>,
+          <>Escolha a <strong>Função</strong>: Gerente geral, Gestor, Vendedor ou Caixa. A função vale para todas as lojas da pessoa.</>,
+          <>Em <strong>Lojas</strong>, marque as lojas em que ela trabalha. Gestor, Vendedor e Caixa precisam de pelo menos uma.</>,
+          <>Se for Vendedor, ligue em <strong>Chaves</strong> só as permissões extras de que ele precisa. Todas começam desligadas. O Caixa não tem chaves.</>,
+          <>Clique em <strong>Cadastrar</strong>. A pessoa ocupa um assento do seu plano.</>,
+          "O painel mostra o email e a senha temporária. Repasse os dois à pessoa: a senha só aparece ali uma vez.",
+        ]}
+        problemas={[
+          {
+            quando: "O sistema recusa porque não há assento livre",
+            fazer: "O plano tem um limite de pessoas. Desative alguém que saiu da loja ou suba de plano.",
+          },
+          {
+            quando: "“Escolha pelo menos uma loja.”",
+            fazer: "Gestor, Vendedor e Caixa trabalham em lojas. Marque ao menos uma em Lojas.",
+          },
+          {
+            quando: "Um Vendedor de confiança precisa fazer mais",
+            fazer: "Ligue a permissão extra dele na Equipe, ou promova a Gestor. Subir e descer de função é livre. Quem volta a Vendedor volta com as permissões extras desligadas.",
+          },
+        ]}
+      >
+        <Figura id="equipe-lista" />
+        <Figura id="equipe-cadastrar" />
+        <Chamada tipo="saiba">
+          <p>
+            Gestor, Vendedor e Caixa veem só o Meu Empório e o necessário. Eles não enxergam a fazenda, o Financeiro nem a
+            Lista de Compra.
+          </p>
+        </Chamada>
+      </Tarefa>
+  
+      <Subtitulo>A função Caixa</Subtitulo>
+      <Tarefa
+        paraQueServe="Pôr no balcão uma pessoa que só recebe do cliente e cuida do caixa, sem mexer no estoque nem no preço."
+        passos={[
+          <>Em <strong>Cadastrar pessoa</strong>, escolha a Função <strong>Caixa</strong> e marque as lojas dele.</>,
+          "O Caixa vende, fatura orçamento pelo número, recebe fiado, vê as vendas de hoje e abre, faz sangria e encerra o caixa.",
+          "Em cada venda, ele escolhe o vendedor que atendeu o cliente. O Caixa nunca aparece como vendedor.",
+          "Ele não abre Produtos, Estoque, Compras, Transferências, Lojas, a lista de Orçamentos, despesas, resultado nem Relatórios. Não devolve, não troca e não cancela venda.",
+        ]}
+      >
+        <Figura id="equipe-caixa" />
+        <Chamada tipo="atencao">
+          <p>
+            Basta uma pessoa ativa com a função Caixa ligada a uma loja para mudar a regra do turno nela. A partir daí, só
+            quem abriu o caixa ou o Gestor da loja faz sangria e encerra aquele turno. Na loja sem ninguém com a função
+            Caixa, qualquer pessoa da loja abre, faz sangria e encerra.
+          </p>
+        </Chamada>
         <p>
-          Gestor e Vendedor veem só o Meu Empório e o necessário. Eles não enxergam a fazenda, o Financeiro nem a Lista
-          de Compra.
+          O dia a dia do Caixa está em <Link className="underline" href={`${B}/caixa-papel`}>Sou Caixa</Link>.
         </p>
-      </Chamada>
-    </Tarefa>
+      </Tarefa>
+    </div>
   );
 }
 
@@ -70,12 +105,13 @@ export function ParteDeProdutos() {
   return (
     <div className="space-y-2">
       <Tarefa
-        paraQueServe="Cadastrar o que a loja vende, do jeito que o balcão fala: saca, fardo, quilo, litro ou unidade."
+        paraQueServe="Cadastrar o que a loja vende, do jeito que o balcão fala: saca, fardo, quilo, litro, metro ou unidade."
         passos={[
           <>Abra <strong>Meu Empório</strong> e depois <strong>Produtos</strong>. Clique para criar um produto novo.</>,
           "Digite o nome do jeito que o balcão chama.",
-          <>Escolha como o estoque é contado: <strong>Saca</strong>, <strong>Fardo</strong>, quilo, litro ou unidade.</>,
-          "Se for saca ou fardo, informe o conteúdo: quantos quilos, litros ou unidades cabem em uma. Exemplo: saca de 30 kg.",
+          <>Em <strong>Unidade-base</strong>, escolha como o estoque é contado: <strong>Quilo</strong>, <strong>Litro</strong>, <strong>Metro</strong>, <strong>Unidade</strong>, <strong>Saca</strong> ou <strong>Fardo</strong>.</>,
+          "Use Metro para o que se vende por medida: o estoque e o custo ficam em metros.",
+          "Se for saca ou fardo, informe o conteúdo: quantos quilos, litros ou unidades cabem em uma. Exemplo: saca de 30 kg. Quilo, litro e metro não têm conteúdo.",
           "Preencha marca, fabricante, código interno e espécie (cão, gato, bovino e outras). Isso ajuda a separar produtos parecidos e a achar no balcão.",
           "Salve e abra o produto para cadastrar as apresentações e o preço.",
         ]}
@@ -91,6 +127,13 @@ export function ParteDeProdutos() {
         ]}
       >
         <Figura id="produto-novo" />
+        <Chamada tipo="saiba">
+          <p>
+            O fornecedor de quem você compra é um contato, cadastrado em Contatos e escolhido na compra. O CNPJ dele pode
+            ter letras: o sistema aceita o CNPJ alfanumérico da Receita, com 12 posições de número ou letra e 2 dígitos no
+            fim. Se for recusado, a frase é “CNPJ inválido. Confira os 14 caracteres.”
+          </p>
+        </Chamada>
       </Tarefa>
 
       <Subtitulo>Saca fechada e granel</Subtitulo>
