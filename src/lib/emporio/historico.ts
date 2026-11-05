@@ -169,6 +169,8 @@ export function linkDoAlvo(targetType: string, targetId: string | null): string 
   switch (targetType) {
     case "venda":
       return targetId ? `/emporio/vendas/${targetId}` : null;
+    case "orcamento":
+      return targetId ? `/emporio/orcamentos/${targetId}` : null;
     case "produto":
       return targetId ? `/emporio/produtos/${targetId}` : null;
     case "compra":

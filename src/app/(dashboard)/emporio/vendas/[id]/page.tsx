@@ -87,6 +87,14 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
             {venda.establishment_name}
             {venda.contact_name ? `, cliente ${venda.contact_name}` : ""}
           </p>
+          {venda.quote && (
+            <p className="text-sm text-texto-secundario">
+              Orçamento nº{" "}
+              <Link href={`/emporio/orcamentos/${venda.quote.id}`} className="font-medium text-texto-marca hover:underline">
+                {venda.quote.numero}
+              </Link>
+            </p>
+          )}
           {venda.seller_name && (
             <p className="text-sm text-texto-secundario">
               Vendedor: <span className="font-medium text-texto">{venda.seller_name}</span>

@@ -9,6 +9,7 @@ export const PAGINAS_DO_EMPORIO: readonly { href: string; rotulo: string; exige:
   { href: "/emporio", rotulo: "Início", exige: null },
   { href: "/emporio/vender", rotulo: "Vender", exige: "vendedor_da_loja" },
   { href: "/emporio/vendas", rotulo: "Vendas", exige: null },
+  { href: "/emporio/orcamentos", rotulo: "Orçamentos", exige: "fora_do_caixa" },
   { href: "/emporio/fiado", rotulo: "Fiado", exige: null },
   { href: "/emporio/caixa", rotulo: "Caixa", exige: null },
   { href: "/emporio/produtos", rotulo: "Produtos", exige: "fora_do_caixa" },

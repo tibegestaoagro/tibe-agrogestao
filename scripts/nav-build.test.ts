@@ -101,7 +101,7 @@ function main() {
     itens.find((i): i is Extract<NavItem, { kind: "group" }> => i.kind === "group" && i.label === "Meu Empório");
 
   const ordemEsperada = [
-    "/emporio", "/emporio/vender", "/emporio/vendas", "/emporio/fiado", "/emporio/caixa",
+    "/emporio", "/emporio/vender", "/emporio/vendas", "/emporio/orcamentos", "/emporio/fiado", "/emporio/caixa",
     "/emporio/produtos", "/emporio/estoque", "/emporio/compras", "/emporio/transferencias",
     "/emporio/despesas", "/emporio/resultado", "/emporio/relatorios", "/emporio/equipe",
     "/emporio/estabelecimentos", "/emporio/historico", "/emporio/configuracoes",
@@ -110,7 +110,7 @@ function main() {
   const gDono = grupo(doDono);
   assert(
     !!gDono && JSON.stringify(gDono.children.map((c) => c.href)) === JSON.stringify(ordemEsperada),
-    "dono: o grupo Meu Empório tem os 16 filhos, na ordem",
+    "dono: o grupo Meu Empório tem os 17 filhos, na ordem",
   );
   assert(gDono?.show === true && gDono.icon === "emporio", "o grupo Meu Empório aparece com o ícone do Empório");
   assert(
