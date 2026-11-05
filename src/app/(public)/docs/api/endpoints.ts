@@ -1127,6 +1127,14 @@ export const GROUPS: Group[] = [
 { "data": { "id": "cl...", "nome": "Caixa 1", "status": "closed", "closing_counted": 120, "malote_amount": 100, "handovers": [{ "kind": "malote", "amount": 100, "status": "pending" }] }, "meta": {} }`,
       },
       {
+        method: "GET",
+        path: "/api/v1/emporio/cash/sessions/:id/report",
+        auth: "Sessão · emporio:read · quem tem a loja no vínculo",
+        description: "Os dados do relatório de fechamento do turno (A4 e bobina): loja, caixa, operador, abertura e encerramento, troco inicial e reforço, vendas por forma, fiado recebido, sangrias (uma por linha, com `confirmada`), devoluções, cancelamentos e despesas em dinheiro, esperado, contado, diferença, justificativa, malote e troco que ficou. Turno aberto: os campos do encerramento vêm `null`. Turno de outra conta ou de loja fora do vínculo: 404.",
+        response: `200
+{ "data": { "caixa": "Caixa 1", "troco_inicial": 100, "vendas_por_forma": [{ "forma": "Dinheiro", "valor": 70 }], "sangrias": [{ "em": "2026-11-04T15:00:00.000Z", "valor": 40, "confirmada": false }], "esperado": 110, "contado": 110, "diferenca": 0, "malote": 60, "troco_que_ficou": 50 }, "meta": {} }`,
+      },
+      {
         method: "POST",
         path: "/api/v1/emporio/cash/sessions/:id/withdrawals",
         auth: "Sessão · emporio:write · quem trabalha na loja (o Caixa incluso)",

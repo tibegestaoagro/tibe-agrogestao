@@ -11,6 +11,7 @@ exigirBancoLocal();
  * Seção 2: o papel Caixa (Equipe, permissões, páginas, leituras recusadas, vendas de hoje, desconto).
  * Seção 3: caixas, turno (abrir, sangria, conferir, encerrar), a gerência, a transferência, o Meu Dia e as rotas.
  * Seção 4: todo dinheiro da gaveta (venda, fiado, devolução, cancelamento, troca, despesa) cai no turno.
+ * Seção 5: o relatório do encerramento (dados do papel).
  */
 
 let falhas = 0;
@@ -788,7 +789,7 @@ async function secao3() {
   check("POST cash/counts sem cash_register_id: 422 em cash_register_id", pCount.status === 422 && pCount.json?.error?.field === "cash_register_id", `${pCount.status} ${j(pCount.json)}`);
 }
 
-async function secao4() {
+async function secao4(): Promise<Dado> {
   console.log("\nSeção 4: todo dinheiro da gaveta cai no turno (com banco)");
   const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
   const Cat = await import("@/lib/actions/emporio-catalogo");
@@ -1110,6 +1111,58 @@ async function secao4() {
       (await db.cashMovement.count({ where: { sale_id: par1.data.id } })) === 1,
     j([par1, par2]),
   );
+  return { db, owner, vA, v1, turnoFechado: T.id, turnoAberto: T2.id };
+}
+
+async function secao5(ctx: Dado) {
+  console.log("\nSeção 5: o relatório do encerramento (com banco)");
+  const { prisma, prismaForTenant } = await import("@/lib/prisma");
+  const Rel: Dado = await import("@/lib/actions/emporio-relatorio-turno");
+  const { db, owner, vA, v1, turnoFechado, turnoAberto } = ctx;
+  const rec404 = (r: Dado) => !!r && !r.ok && r.status === 404;
+
+  const r = await Rel.lerRelatorioDoTurnoAction(db, vA, turnoFechado);
+  if (!r.ok) {
+    check("o relatório do turno encerrado lê", false, j(r));
+    return;
+  }
+  const d = r.data;
+  const forma = (f: string) => d.vendas_por_forma.find((x: Dado) => x.forma === f)?.valor;
+  check("troco inicial 100", d.troco_inicial === 100 && d.reforco === 100, j([d.troco_inicial, d.reforco]));
+  check("vendas por forma: Dinheiro 70 (a de 50 e a de 20 cancelada)", forma("Dinheiro") === 70, j(d.vendas_por_forma));
+  check("vendas por forma: Fiado 30, com o rótulo de venda-rotulos", forma("Fiado") === 30, j(d.vendas_por_forma));
+  check("fiado recebido: Dinheiro 30", d.fiado_recebido.length === 1 && d.fiado_recebido[0].forma === "Dinheiro" && d.fiado_recebido[0].valor === 30, j(d.fiado_recebido));
+  check("uma sangria de 40, ainda não confirmada", d.sangrias.length === 1 && d.sangrias[0].valor === 40 && d.sangrias[0].confirmada === false && !!d.sangrias[0].em, j(d.sangrias));
+  check("devoluções em dinheiro 15 (10 da devolução e 5 da troca)", d.devolucoes_dinheiro === 15, String(d.devolucoes_dinheiro));
+  check("cancelamentos em dinheiro 20", d.cancelamentos_dinheiro === 20, String(d.cancelamentos_dinheiro));
+  check("despesas em dinheiro 15", d.despesas_dinheiro === 15, String(d.despesas_dinheiro));
+  check("esperado 110, contado 110, diferença 0", d.esperado === 110 && d.contado === 110 && d.diferenca === 0 && d.justificativa === null, j(d));
+  const sessao = await db.cashSession.findFirst({ where: { id: turnoFechado } });
+  check("malote e troco que ficou iguais aos do encerramento", d.malote === Number(sessao?.malote_amount) && d.troco_que_ficou === 110 - d.malote, j([d.malote, d.troco_que_ficou]));
+  check(
+    "a conta fecha: troco + vendas em dinheiro + fiado - cancelamento - devoluções - despesas - sangria = esperado",
+    d.troco_inicial + forma("Dinheiro") + d.fiado_recebido[0].valor - d.cancelamentos_dinheiro - d.devolucoes_dinheiro - d.despesas_dinheiro - d.sangrias[0].valor === d.esperado,
+  );
+  check("operador, caixa, datas e loja preenchidos", !!d.operador && /^Caixa \d+$/.test(d.caixa) && !!d.aberto_em && !!d.encerrado_em && !!d.loja.nome && (d.largura_bobina === 80 || d.largura_bobina === 58), j(d));
+
+  const aberto = await Rel.lerRelatorioDoTurnoAction(db, owner, turnoAberto);
+  const a = aberto.ok ? aberto.data : null;
+  check(
+    "turno aberto: campos do encerramento nulos",
+    !!a && a.encerrado_em === null && a.esperado === null && a.contado === null && a.diferenca === null && a.malote === null && a.troco_que_ficou === null && a.encerrado_por === null,
+    j(aberto),
+  );
+
+  check("vendedor de outra loja: 404", rec404(await Rel.lerRelatorioDoTurnoAction(db, v1, turnoFechado)));
+  const outra = await prisma.tenant.create({
+    data: { name: `M92 s5 ${Date.now()}`, document: `M92R${Date.now()}`.slice(0, 14), plan: "grupo", status: "trial", trial_ends_at: new Date(Date.now() + 86_400_000) },
+  });
+  tenantIds.push(outra.id);
+  const dono2 = await prisma.user.create({
+    data: { tenant_id: outra.id, name: "M92 s5 dono", email: `m92-s5-${Date.now()}@teste.local`, password_hash: "x", role: "OWNER" },
+  });
+  check("outro tenant: 404", rec404(await Rel.lerRelatorioDoTurnoAction(prismaForTenant(outra.id), { id: dono2.id, role: "OWNER" }, turnoFechado)));
+  check("id inexistente: 404", rec404(await Rel.lerRelatorioDoTurnoAction(db, owner, "nao-existe")));
 }
 
 async function limpar() {
@@ -1140,7 +1193,8 @@ async function main() {
     await secao1();
     await secao2();
     await secao3();
-    await secao4();
+    const ctx4 = await secao4();
+    await secao5(ctx4);
   } finally {
     await limpar();
   }
