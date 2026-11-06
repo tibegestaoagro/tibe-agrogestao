@@ -1,7 +1,10 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import type { EmporioCustomer, Prisma } from "@/generated/prisma/client";
-import type { Ator } from "@/lib/actions/emporio-catalogo";
+import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
+import { formatarNumero } from "@/lib/emporio/numeracao";
+import { hojeEmBrasilia } from "@/lib/emporio/cartao";
+import { normalizarTermo } from "@/lib/actions/whatsapp-handlers/shared";
 import { CONSUMIDOR_FINAL, conferirCadastro, type CadastroDoContato } from "@/lib/contatos/cadastro";
 import { faltaNoCadastro, recusaDocumentoRepetido } from "@/lib/emporio/cliente-cadastro";
 import { exigir } from "@/lib/emporio/papel";
@@ -273,19 +276,182 @@ export async function editarClienteAction(
   }
 }
 
+export type ClienteLinha = Pick<ClienteView, "id" | "name" | "person_kind" | "document" | "phone" | "incomplete" | "fixed" | "archived">;
+
+export type ClienteFichaView = ClienteView & {
+  resumo: { total_comprado: number; ultima_compra_em: string | null; vendas_ativas: number };
+  vendas: {
+    id: string;
+    numero: string;
+    sold_at: string;
+    loja: string;
+    situacao: "ativa" | "cancelada" | "trocada" | "devolvida";
+    total: number;
+    formas: string[];
+    vendedor: string | null;
+    itens: { produto: string; apresentacao: string | null; quantity: number; total: number }[];
+  }[];
+  orcamentos: { id: string; numero: string; created_at: string; loja: string; valor: number; situacao: "aberto" | "vencido" | "faturado" }[];
+};
+
+const POR_PAGINA_PADRAO = 50;
+const POR_PAGINA_MAXIMO = 100;
+const VENDAS_NA_FICHA = 100;
+const ORCAMENTOS_NA_FICHA = 50;
+
 /**
- * Lê um cliente. Por enquanto devolve o cadastro; a ficha (vendas e orçamentos)
- * entra com a tela Clientes.
+ * A lista de clientes: o Consumidor final primeiro, depois por nome. `q` casa o
+ * nome sem acento; sem `arquivados`, só os ativos.
  */
+export async function listarClientesAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  f: { q?: string; arquivados?: boolean; pagina?: number; por_pagina?: number },
+): Promise<ActionResult<{ itens: ClienteLinha[]; total: number; pagina: number; por_pagina: number }>> {
+  const neg = await exigir(db, ator, "vendedor_da_loja", "ver os clientes");
+  if (neg) return neg;
+
+  const porPagina = Math.min(POR_PAGINA_MAXIMO, Math.max(1, Math.floor(Number(f.por_pagina) || POR_PAGINA_PADRAO)));
+  const pagina = Math.max(1, Math.floor(Number(f.pagina) || 1));
+  const termo = typeof f.q === "string" ? normalizarTermo(f.q) : "";
+  const where: Prisma.EmporioCustomerWhereInput = {
+    ...(f.arquivados ? {} : { archived_at: null }),
+    ...(termo ? { name_busca: { contains: termo } } : {}),
+  };
+
+  const total = await db.emporioCustomer.count({ where });
+  // O Consumidor final (um por conta) abre a primeira página; os demais seguem por nome.
+  const fixos = pagina === 1 ? await db.emporioCustomer.findMany({ where: { ...where, system_key: { not: null } }, orderBy: { name: "asc" } }) : [];
+  const jaFixos = (await db.emporioCustomer.count({ where: { ...where, system_key: { not: null } } }));
+  const pular = pagina === 1 ? 0 : (pagina - 1) * porPagina - jaFixos;
+  const resto = await db.emporioCustomer.findMany({
+    where: { ...where, system_key: null },
+    orderBy: [{ name: "asc" }, { id: "asc" }],
+    skip: pular,
+    take: porPagina - fixos.length,
+  });
+  const itens = [...fixos, ...resto].map((c) => {
+    const v = serializarCliente(c);
+    return {
+      id: v.id, name: v.name, person_kind: v.person_kind, document: v.document, phone: v.phone,
+      incomplete: v.incomplete, fixed: v.fixed, archived: v.archived,
+    };
+  });
+  return ok({ itens, total, pagina, por_pagina: porPagina });
+}
+
+/** Lê um cliente: o cadastro e o histórico de compras (vendas e orçamentos das lojas do ator). */
 export async function lerClienteAction(
   db: TenantPrismaClient,
   ator: Ator,
   id: string,
-): Promise<ActionResult<ClienteView>> {
+): Promise<ActionResult<ClienteFichaView>> {
   const neg = await exigir(db, ator, "vendedor_da_loja", "ver um cliente");
   if (neg) return neg;
   const c = await db.emporioCustomer.findFirst({ where: { id } });
-  return c ? ok(serializarCliente(c)) : NAO_ACHADO();
+  if (!c) return NAO_ACHADO();
+
+  const visiveis = await lojasDoAtor(db, ator);
+  const daLoja = visiveis ? { establishment_id: { in: [...visiveis] } } : {};
+
+  const vendas = await db.emporioSale.findMany({
+    where: { customer_id: id, ...daLoja },
+    orderBy: [{ sold_at: "desc" }, { id: "desc" }],
+    take: VENDAS_NA_FICHA,
+    include: {
+      establishment: { select: { name: true } },
+      payments: { select: { kind: true }, orderBy: { created_at: "asc" } },
+      items: { include: { emporio_product: { select: { product: { select: { name: true } } } }, presentation: { select: { name: true } } } },
+      returns: { select: { amount: true, exchange_sale: { select: { id: true } } } },
+    },
+  });
+  const orcamentos = await db.emporioQuote.findMany({
+    where: { customer_id: id, ...daLoja },
+    orderBy: [{ created_at: "desc" }, { id: "desc" }],
+    take: ORCAMENTOS_NA_FICHA,
+    include: { establishment: { select: { name: true } } },
+  });
+  const donos = [...new Set(vendas.map((v) => v.seller_user_id ?? v.sold_by_user_id).filter((u): u is string => !!u))];
+  const usuarios = donos.length ? await db.user.findMany({ where: { id: { in: donos } }, select: { id: true, name: true } }) : [];
+  const nomeDe = new Map(usuarios.map((u) => [u.id, u.name]));
+
+  let totalComprado = 0;
+  let ultima: Date | null = null;
+  let ativas = 0;
+  const linhas: ClienteFichaView["vendas"] = vendas.map((v) => {
+    const situacao: ClienteFichaView["vendas"][number]["situacao"] =
+      v.status === "cancelada" ? "cancelada"
+        : v.returns.some((r) => r.exchange_sale) ? "trocada"
+          : v.returns.length > 0 ? "devolvida"
+            : "ativa";
+    if (v.status === "concluida") {
+      totalComprado += Number(v.net_amount) - v.returns.reduce((s, r) => s + Number(r.amount), 0);
+      if (!ultima || v.sold_at > ultima) ultima = v.sold_at;
+    }
+    if (situacao === "ativa") ativas += 1;
+    const quem = v.seller_user_id ?? v.sold_by_user_id;
+    return {
+      id: v.id,
+      numero: formatarNumero(v.number),
+      sold_at: v.sold_at.toISOString(),
+      loja: v.establishment.name,
+      situacao,
+      total: Number(v.net_amount),
+      formas: [...new Set(v.payments.map((p) => p.kind as string))],
+      vendedor: quem ? (nomeDe.get(quem) ?? null) : null,
+      itens: v.items.map((i) => ({
+        produto: i.emporio_product.product.name,
+        apresentacao: i.presentation.name ?? null,
+        quantity: Number(i.quantity),
+        total: Number(i.total),
+      })),
+    };
+  });
+
+  const hojeMs = hojeEmBrasilia().getTime();
+  return ok({
+    ...serializarCliente(c),
+    resumo: {
+      total_comprado: Math.round(totalComprado * 100) / 100,
+      ultima_compra_em: (ultima as Date | null)?.toISOString() ?? null,
+      vendas_ativas: ativas,
+    },
+    vendas: linhas,
+    orcamentos: orcamentos.map((q) => ({
+      id: q.id,
+      numero: formatarNumero(q.number),
+      created_at: q.created_at.toISOString(),
+      loja: q.establishment.name,
+      valor: Number(q.net_amount),
+      situacao: q.sale_id ? "faturado" : hojeMs > q.valid_until.getTime() ? "vencido" : "aberto",
+    })),
+  });
+}
+
+/** Arquiva ou desarquiva. O arquivado sai das listas e das escolhas, mas a ficha e as vendas dele seguem. */
+export async function arquivarClienteAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  id: string,
+  arquivado: boolean,
+): Promise<ActionResult<ClienteView>> {
+  const neg = await exigir(db, ator, "gestor_da_loja", "arquivar um cliente");
+  if (neg) return neg;
+  const atual = await db.emporioCustomer.findFirst({ where: { id } });
+  if (!atual) return NAO_ACHADO();
+  if (atual.system_key) return fail("VALIDATION_ERROR", RECUSA_CONSUMIDOR_FINAL, 422);
+
+  const novo = await db.$transaction(async (tx) => {
+    const r = await tx.emporioCustomer.update({ where: { id }, data: { archived_at: arquivado ? new Date() : null } });
+    await registrarNoHistorico(tx, ator, {
+      action: arquivado ? "cliente.arquivar" : "cliente.desarquivar",
+      target_type: "cliente",
+      target_id: id,
+      summary: `${arquivado ? "Arquivou" : "Desarquivou"} o cliente ${r.name}`,
+    });
+    return r;
+  });
+  return ok(serializarCliente(novo));
 }
 
 /**

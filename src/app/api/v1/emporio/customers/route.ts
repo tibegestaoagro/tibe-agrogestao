@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { apiErroDeZod } from "@/lib/api";
+import { apiError, apiErroDeZod, apiOk } from "@/lib/api";
 import { readJson } from "@/lib/api-guard";
 import { withApi } from "@/lib/route";
-import { cadastrarClienteAction } from "@/lib/actions/emporio-clientes";
+import { cadastrarClienteAction, listarClientesAction } from "@/lib/actions/emporio-clientes";
 import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
 /**
@@ -37,6 +37,24 @@ const schema = z.object({
   notes: z.string().trim().max(1000).nullish(),
 });
 
+/** GET /api/v1/emporio/customers?q=&archived=1&page=&per_page=: a lista, com `meta.total`. */
+async function GETHandler(request: Request) {
+  const g = await guardEmporio("read");
+  if ("error" in g) return g.error;
+
+  const p = new URL(request.url).searchParams;
+  const arquivados = p.get("archived") === "1" || p.get("archived") === "true";
+  const res = await listarClientesAction(g.db, g.user, {
+    q: p.get("q") ?? undefined,
+    arquivados,
+    pagina: Number(p.get("page")) || undefined,
+    por_pagina: Number(p.get("per_page")) || undefined,
+  });
+  if (!res.ok) return apiError(res.code, res.message, res.status, res.field);
+  const { itens, total, pagina, por_pagina } = res.data;
+  return apiOk(itens, { total, page: pagina, per_page: por_pagina });
+}
+
 async function POSTHandler(request: Request) {
   const g = await guardEmporio("write");
   if ("error" in g) return g.error;
@@ -49,4 +67,5 @@ async function POSTHandler(request: Request) {
   return respostaDaAction(await cadastrarClienteAction(g.db, g.user, parsed.data), 201);
 }
 
+export const GET = withApi(GETHandler);
 export const POST = withApi(POSTHandler);

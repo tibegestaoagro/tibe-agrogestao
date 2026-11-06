@@ -667,7 +667,7 @@ export const GROUPS: Group[] = [
       {
         method: "POST",
         path: "/api/v1/emporio/customers",
-        auth: "Sessão · emporio:write · dono, gerente geral, gestor e vendedor da loja · perfil emporio · recurso `emporio` liberado",
+        auth: "Sessão · emporio:write · dono, gerente geral, gestor, vendedor e caixa da loja · perfil emporio · recurso `emporio` liberado",
         description: "Cadastra o cliente do Empório, na tabela própria do Empório (o cliente não aparece em Contatos, e o contato da fazenda não aparece no Empório). Exige tipo (`person_kind`: `pf` ou `pj`), nome e telefone; na PJ, também o CNPJ e o endereço principal completo (CEP, rua, número, bairro, `city` e UF). Faltando, 422 no campo, com a frase do campo (\"Informe o telefone.\", \"Informe o CEP do endereço principal.\"). CPF e CNPJ, quando vêm, precisam ser válidos (o CNPJ alfanumérico entra em maiúscula). Documento repetido entre os clientes da conta: 409 `DUPLICATE_DOCUMENT` em `document`, com o nome de quem já tem (e \"desarquive em Clientes\" quando arquivado). O resto (inscrição estadual, nascimento da PF, responsável da PJ, endereço de entrega, `notes`) é opcional.",
         request: `{ "name": "Maria Souza", "person_kind": "pf", "phone": "34 99999-0000" }`,
         response: `201
@@ -675,11 +675,28 @@ export const GROUPS: Group[] = [
       },
       {
         method: "GET",
+        path: "/api/v1/emporio/customers",
+        auth: "Sessão · emporio:read · dono, gerente geral, gestor, vendedor e caixa da loja · perfil emporio · recurso `emporio` liberado",
+        description: "A lista de clientes do Empório: o Consumidor final primeiro, depois por nome. Query: `q` (nome, sem acento), `archived=1` (inclui os arquivados; sem ele, só os ativos), `page` e `per_page` (padrão 50, máximo 100). `meta` traz `total`, `page` e `per_page`.",
+        response: `200
+{ "data": [{ "id": "cl...", "name": "Maria Souza", "person_kind": "pf", "document": null, "phone": "34 99999-0000", "incomplete": false, "fixed": false, "archived": false }], "meta": { "total": 1, "page": 1, "per_page": 50 } }`,
+      },
+      {
+        method: "GET",
         path: "/api/v1/emporio/customers/:id",
         auth: "Sessão · emporio:read · dono, gerente geral, gestor, vendedor e caixa da loja · perfil emporio · recurso `emporio` liberado",
-        description: "O cadastro do cliente do Empório (os mesmos campos do POST, mais `archived`, `incomplete` e `fixed`, este verdadeiro no Consumidor final). `incomplete` é verdadeiro quando falta algo do que o tipo exige (o cliente antigo, só com nome, por exemplo). Inexistente ou de outra conta: 404 \"Cliente não encontrado.\".",
+        description: "A ficha do cliente do Empório: o cadastro (os mesmos campos do POST, mais `archived`, `incomplete` e `fixed`, este verdadeiro no Consumidor final) e o histórico de compras das lojas que o usuário enxerga. `incomplete` é verdadeiro quando falta algo do que o tipo exige (o cliente antigo, só com nome, por exemplo). `resumo`: `total_comprado` (vendas concluídas, menos o devolvido), `ultima_compra_em` e `vendas_ativas`. `vendas` (até 100, a mais nova primeiro): número, data, loja, `situacao` (`ativa`, `cancelada`, `trocada` ou `devolvida`), total, formas de pagamento, vendedor e itens. `orcamentos` (até 50): número, data, loja, valor e `situacao` (`aberto`, `vencido` ou `faturado`). O arquivado mantém a ficha inteira. Inexistente ou de outra conta: 404 \"Cliente não encontrado.\".",
         response: `200
-{ "data": { "id": "cl...", "name": "Maria Souza", "person_kind": "pf", "document": null, "phone": "34 99999-0000", "archived": false, "incomplete": false, "fixed": false }, "meta": {} }`,
+{ "data": { "id": "cl...", "name": "Maria Souza", "person_kind": "pf", "document": null, "phone": "34 99999-0000", "archived": false, "incomplete": false, "fixed": false, "resumo": { "total_comprado": 40, "ultima_compra_em": "2026-11-06T14:00:00.000Z", "vendas_ativas": 2 }, "vendas": [{ "id": "cl...", "numero": "000012", "sold_at": "2026-11-06T14:00:00.000Z", "loja": "Loja Centro", "situacao": "ativa", "total": 10, "formas": ["dinheiro"], "vendedor": "Ana", "itens": [{ "produto": "Sal", "apresentacao": "Quilo", "quantity": 1, "total": 10 }] }], "orcamentos": [{ "id": "cl...", "numero": "000003", "created_at": "2026-11-06T14:00:00.000Z", "loja": "Loja Centro", "valor": 20, "situacao": "aberto" }] }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/emporio/customers/:id/archive",
+        auth: "Sessão · emporio:write · dono, gerente geral e gestor da loja (vendedor e caixa: 403 `FORBIDDEN`) · perfil emporio · recurso `emporio` liberado",
+        description: "Arquiva (`{ \"archived\": true }`, o padrão) ou desarquiva o cliente do Empório. O arquivado sai das listas e das escolhas (venda para ele: 422 \"Escolha um cliente ativo.\"), mas a ficha e as vendas continuam. Recusas: Consumidor final 422 (\"O Consumidor final é fixo e não pode ser editado nem arquivado.\"), inexistente ou de outra conta 404. Grava `cliente.arquivar` ou `cliente.desarquivar` no Histórico.",
+        request: `{ "archived": true }`,
+        response: `200
+{ "data": { "id": "cl...", "name": "Maria Souza", "archived": true, "incomplete": false, "fixed": false }, "meta": {} }`,
       },
       {
         method: "PATCH",

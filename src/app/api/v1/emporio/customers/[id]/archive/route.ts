@@ -1,0 +1,29 @@
+import { z } from "zod";
+import { apiErroDeZod } from "@/lib/api";
+import { readJson } from "@/lib/api-guard";
+import { withApi } from "@/lib/route";
+import { arquivarClienteAction } from "@/lib/actions/emporio-clientes";
+import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
+
+/**
+ * PATCH /api/v1/emporio/customers/:id/archive: arquiva ou desarquiva o cliente do Empório.
+ * Um `PATCH` com `{ archived }` (como em Contatos), para o desarquivar também ter porta.
+ * A ficha e as vendas do arquivado continuam; ele só sai das listas e das escolhas.
+ */
+
+const schema = z.object({ archived: z.boolean().default(true) });
+
+async function PATCHHandler(request: Request, props: { params: Promise<{ id: string }> }) {
+  const { id } = await props.params;
+  const g = await guardEmporio("write");
+  if ("error" in g) return g.error;
+
+  const body = await readJson(request);
+  if ("error" in body) return body.error;
+  const parsed = schema.safeParse(body.json);
+  if (!parsed.success) return apiErroDeZod(parsed.error);
+
+  return respostaDaAction(await arquivarClienteAction(g.db, g.user, id, parsed.data.archived));
+}
+
+export const PATCH = withApi(PATCHHandler);
