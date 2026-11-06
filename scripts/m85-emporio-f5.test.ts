@@ -139,8 +139,10 @@ async function comBanco() {
       await preco(loja, p, valor);
       await implantar(loja, p, qtd, custo);
     };
-    const contato = async (nome: string) => (await db.contact.create({ data: scoped({ name: nome }) })).id;
-    const vender = async (loja: string, p: Prod, qty: number, payments: Dado[], contact_id?: string) => {
+    const contato = async (nome: string) => (await db.emporioCustomer.create({ data: scoped({ name: nome }) })).id;
+    // A compra continua no Contact até a Task 5 (fornecedor próprio do Empório).
+    const fornecedor = async (nome: string) => (await db.contact.create({ data: scoped({ name: nome }) })).id;
+    const vender = async (loja: string, p: Prod, qty: number, payments: Dado[], customer_id?: string) => {
       // Entrega 2: toda venda cai num turno aberto. Abre na primeira venda da loja (devolve o aberto nas outras),
       // para não barrar o saldo inicial, que só vale antes do primeiro turno do caixa.
       await (await import("./_emporio-turno")).abrirTurnoDeTeste(db, owner, loja);
@@ -148,14 +150,14 @@ async function comBanco() {
         operation_key: chave("v"),
         establishment_id: loja,
         // Toda venda exige cliente (design 2026-11-03-emporio-cliente-nome-menu): sem um, vai o Consumidor final.
-        contact_id: contact_id ?? (await (await import("@/lib/actions/emporio-clientes")).garantirConsumidorFinal(db)).id,
+        customer_id: customer_id ?? (await (await import("@/lib/actions/emporio-clientes")).garantirConsumidorFinal(db)).id,
         items: [{ emporio_product_id: p.id, presentation_id: p.pres, quantity: qty }],
         payments,
       });
       if (!r.ok) throw new Error(`venda: ${j(r)}`);
       return (r.data.id ?? r.data.sale_id) as string;
     };
-    return { t, owner, admin, op, visu, db, mkUser, mkLoja, mkProduto, preco, implantar, preparar, contato, vender };
+    return { t, owner, admin, op, visu, db, mkUser, mkLoja, mkProduto, preco, implantar, preparar, contato, fornecedor, vender };
   };
 
   try {
@@ -185,7 +187,7 @@ async function comBanco() {
         const r = await chamar(CP, "criarCompraAction", S.db, S.owner, {
           operation_key: chave("c"),
           establishment_id: loja,
-          contact_id: await S.contato(nomeContato),
+          contact_id: await S.fornecedor(nomeContato),
           purchased_at: new Date(),
           received: true,
           items: [{ emporio_product_id: P.id, presentation_id: P.pres, quantity: 10, item_total: total }],
@@ -546,6 +548,7 @@ async function comBanco() {
         await prisma.product.deleteMany({ where: { tenant_id: id } });
         await prisma.establishment.deleteMany({ where: { tenant_id: id } });
         await prisma.bankAccount.deleteMany({ where: { tenant_id: id } });
+        await prisma.emporioCustomer.deleteMany({ where: { tenant_id: id } });
         await prisma.contact.deleteMany({ where: { tenant_id: id } });
         await prisma.productCategory.deleteMany({ where: { tenant_id: id } });
         await prisma.property.deleteMany({ where: { tenant_id: id } });

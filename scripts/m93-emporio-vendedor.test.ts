@@ -116,7 +116,7 @@ async function secao1() {
     Ven.venderAction(db, ator as never, {
       operation_key: `m93-${stamp}-${(seq += 1)}`,
       establishment_id: est,
-      contact_id: cf,
+      customer_id: cf,
       items: [{ emporio_product_id: prod.data.id, presentation_id: ap.data.id, quantity: 1, unit_price: 20 }],
       payments: [{ kind: "dinheiro", amount: 20 }],
       ...extra,
@@ -190,7 +190,7 @@ async function secao1() {
   const troca = await Ven.trocarAction(db, gestor as never, comVend.data.id, {
     operation_key: `m93-${stamp}-troca`,
     items_devolvidos: [{ sale_item_id: item.id, quantity: 1 }],
-    venda: { items: [{ emporio_product_id: prod.data.id, presentation_id: ap.data.id, quantity: 1, unit_price: 20 }], payments: [], contact_id: cf },
+    venda: { items: [{ emporio_product_id: prod.data.id, presentation_id: ap.data.id, quantity: 1, unit_price: 20 }], payments: [], customer_id: cf },
   });
   check("a troca feita pelo Gestor funciona", troca.ok, j(troca));
   check(
@@ -208,7 +208,7 @@ async function secao1() {
     venda: {
       items: [{ emporio_product_id: prod.data.id, presentation_id: ap.data.id, quantity: 1, unit_price: 20 }],
       payments: [],
-      contact_id: cf,
+      customer_id: cf,
       seller_user_id: vend2.id,
     },
   });
@@ -261,7 +261,7 @@ async function secao1() {
   const corpo = (extra: Dado) => ({
     operation_key: `m93-${stamp}-rota-${(seq += 1)}`,
     establishment_id: L1,
-    contact_id: cf,
+    customer_id: cf,
     items: [{ emporio_product_id: prod.data.id, presentation_id: ap.data.id, quantity: 1, unit_price: 20 }],
     payments: [{ kind: "dinheiro", amount: 20 }],
     ...extra,
@@ -401,7 +401,7 @@ async function secao3() {
     const r = await Ven.venderAction(db, ator as never, {
       operation_key: `m93r-${stamp}-${(seq += 1)}`,
       establishment_id: est,
-      contact_id: cf,
+      customer_id: cf,
       items: [{ emporio_product_id: p.id, presentation_id: p.ap, quantity: qtd, unit_price: preco }],
       payments: [{ kind: "dinheiro", amount: qtd * preco }],
       ...extra,
@@ -439,7 +439,7 @@ async function secao3() {
   const troca = await Ven.trocarAction(db, owner, S9.id, {
     operation_key: `m93r-${stamp}-troca`,
     items_devolvidos: [{ sale_item_id: S9.items[0].id, quantity: 1 }],
-    venda: { items: [{ emporio_product_id: P1.id, presentation_id: P1.ap, quantity: 3, unit_price: 10 }], payments: [], contact_id: cf },
+    venda: { items: [{ emporio_product_id: P1.id, presentation_id: P1.ap, quantity: 3, unit_price: 10 }], payments: [], customer_id: cf },
   });
   if (!troca.ok) throw new Error(`troca: ${j(troca)}`);
 
@@ -625,7 +625,7 @@ async function limpar() {
   const modelos = [
     "emporioAuditLog", "cashMovement", "cashTransfer", "cashCount", "emporioSalePayment", "emporioSaleReturnItem", "stockMovement", "emporioSaleItem",
     "emporioSaleReturn", "emporioSale", "cashHandover", "cashSession", "cashRegister", "fixedExpenseOccurrence", "fixedExpenseSplit", "fixedExpenseTemplate",
-    "emporioCounter", "emporioSettings", "financialPayment", "financialEntry", "userEstablishment", "establishment", "bankAccount", "contact",
+    "emporioCounter", "emporioSettings", "financialPayment", "financialEntry", "userEstablishment", "establishment", "bankAccount", "emporioCustomer", "contact",
     "user", "tenantProfile", "tenantFeature",
   ];
   for (const id of tenantIds) {

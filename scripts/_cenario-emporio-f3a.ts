@@ -29,7 +29,7 @@ async function limpar(tenant_id: string) {
   const produtos = (await prisma.product.findMany({ where: { tenant_id, name: { startsWith: PREFIXO } }, select: { id: true } })).map((p) => p.id);
   const emporio = (await prisma.emporioProduct.findMany({ where: { tenant_id, product_id: { in: produtos } }, select: { id: true } })).map((p) => p.id);
   const contas = (await prisma.bankAccount.findMany({ where: { tenant_id, name: { startsWith: PREFIXO } }, select: { id: true } })).map((c) => c.id);
-  const contatos = (await prisma.contact.findMany({ where: { tenant_id, name: { startsWith: PREFIXO } }, select: { id: true } })).map((c) => c.id);
+  const contatos = (await prisma.emporioCustomer.findMany({ where: { tenant_id, name: { startsWith: PREFIXO } }, select: { id: true } })).map((c) => c.id);
   const vendas = (await prisma.emporioSale.findMany({ where: { tenant_id, establishment_id: { in: lojas } }, select: { id: true } })).map((v) => v.id);
   const devolucoes = (await prisma.emporioSaleReturn.findMany({ where: { tenant_id, sale_id: { in: vendas } }, select: { id: true } })).map((d) => d.id);
   const lancamentos = (await prisma.financialEntry.findMany({
@@ -56,7 +56,7 @@ async function limpar(tenant_id: string) {
   await prisma.userEstablishment.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.establishment.deleteMany({ where: { tenant_id, id: { in: lojas } } });
   await prisma.bankAccount.deleteMany({ where: { tenant_id, id: { in: contas } } });
-  await prisma.contact.deleteMany({ where: { tenant_id, id: { in: contatos } } });
+  await prisma.emporioCustomer.deleteMany({ where: { tenant_id, id: { in: contatos } } });
   return { lojas: lojas.length, vendas: vendas.length };
 }
 
@@ -111,7 +111,7 @@ async function main() {
   // e a gaveta continua começando em zero, como o roteiro confere.
   await abrirTurnoDeTeste(db, ator, loja.id);
 
-  const jose = await prisma.contact.create({ data: { tenant_id, name: `${PREFIXO}José` } });
+  const jose = await prisma.emporioCustomer.create({ data: { tenant_id, name: `${PREFIXO}José` } });
 
   console.log("Conta do seed:", tenant_id, "| limpos:", limpos.lojas, "loja(s),", limpos.vendas, "venda(s)");
   console.log("Loja:", loja.id, "Sal:", sal, "Ração:", racao, "Conta:", conta.id, "José:", jose.id);

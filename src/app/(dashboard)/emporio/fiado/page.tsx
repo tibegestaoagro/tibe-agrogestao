@@ -88,9 +88,9 @@ export default async function FiadoPage() {
               {clientes.map((c) => {
                 const antiga = maisAntiga(c);
                 return (
-                  <TableRow key={c.contact_id}>
+                  <TableRow key={c.customer_id}>
                     <TableCell className="font-medium text-texto">
-                      {c.contact_name}
+                      {c.customer_name}
                       {c.phone && <span className="block text-xs font-normal text-texto-secundario">{c.phone}</span>}
                     </TableCell>
                     <TableCell>
@@ -123,8 +123,8 @@ export default async function FiadoPage() {
                     {podeEscrever && (
                       <TableCell>
                         <ReceberFiadoForm
-                          contatoId={c.contact_id}
-                          contatoNome={c.contact_name}
+                          contatoId={c.customer_id}
+                          contatoNome={c.customer_name}
                           devidoCent={Math.round(c.owed * 100)}
                           lojas={lojas}
                           caixas={caixas}

@@ -187,7 +187,7 @@ async function comBanco() {
         chamar(V, "venderAction", db, vend1, {
           operation_key: chave("v"),
           establishment_id: L1,
-          contact_id: cf,
+          customer_id: cf,
           items: [{ emporio_product_id: P, presentation_id: PRES, quantity: 1 }],
           payments: [{ kind: "dinheiro", amount: 10 }],
         }),
@@ -251,7 +251,7 @@ async function comBanco() {
         chamar(V, "venderAction", db, vend2, {
           operation_key: chave("v2"),
           establishment_id: L2,
-          contact_id: cf,
+          customer_id: cf,
           items: [{ emporio_product_id: P, presentation_id: PRES, quantity: 1 }],
           payments: [{ kind: "dinheiro", amount: 10 }],
         }),
@@ -266,7 +266,7 @@ async function comBanco() {
       const k = chave("dup");
       // A seção 1 subiu o preço da Loja 1 para R$ 12: pagar 10 faria a venda
       // ser recusada, e o "não grava segunda linha" passaria de forma vazia.
-      const corpo = { operation_key: k, establishment_id: L1, contact_id: cf, items: [{ emporio_product_id: P, presentation_id: PRES, quantity: 1 }], payments: [{ kind: "dinheiro", amount: 12 }] };
+      const corpo = { operation_key: k, establishment_id: L1, customer_id: cf, items: [{ emporio_product_id: P, presentation_id: PRES, quantity: 1 }], payments: [{ kind: "dinheiro", amount: 12 }] };
       const a = await nova(() => chamar(V, "venderAction", db, vend1, corpo));
       check("a primeira venda grava 1 linha", a.r.ok && a.rows.length === 1, j({ ok: a.r.ok, n: a.rows.length }));
       const b = await nova(() => chamar(V, "venderAction", db, vend1, corpo));
@@ -276,7 +276,7 @@ async function comBanco() {
       check("403 não grava (Vendedor define preço)", negado(r403.r) && r403.rows.length === 0, j({ r: r403.r.ok, n: r403.rows.length }));
       const r403b = await nova(() => chamar(E, "registrarPerdaAction", db, vendK, { establishment_id: L1, emporio_product_id: P, quantity: 1, reason: "avaria" }));
       check("403 não grava (Vendedor sem a chave perda)", negado(r403b.r) && r403b.rows.length === 0, j({ r: r403b.r.ok, n: r403b.rows.length }));
-      const r422 = await nova(() => chamar(V, "venderAction", db, vend1, { operation_key: chave("vazia"), establishment_id: L1, contact_id: cf, items: [], payments: [] }));
+      const r422 = await nova(() => chamar(V, "venderAction", db, vend1, { operation_key: chave("vazia"), establishment_id: L1, customer_id: cf, items: [], payments: [] }));
       check("422 não grava (venda sem itens)", !r422.r.ok && r422.r.status === 422 && r422.rows.length === 0, j({ r: r422.r.ok ? "ok" : r422.r.status, n: r422.rows.length }));
       const r403c = await nova(() => chamar(EQ, "cadastrarMembroAction", db, gestor1, { name: "M89 X", email: `m89-x-${stamp}@teste.local`, emporio_role: "vendedor", establishment_ids: [L1] }));
       check("403 não grava (Gestor cadastra na Equipe)", negado(r403c.r) && r403c.rows.length === 0, j({ n: r403c.rows.length }));
@@ -487,7 +487,7 @@ async function comBanco() {
       "emporioSalePayment", "emporioSaleReturnItem", "emporioSaleReturn", "emporioSaleItem", "emporioSale",
       "stockTransferItem", "stockTransfer", "productionEntry", "compositionItem", "composition", "emporioPurchaseItem", "emporioPurchase",
       "stockLimit", "shoppingItem", "financialEntry", "negotiation", "presentationPrice", "productPresentation", "userEstablishment",
-      "emporioProduct", "product", "establishment", "bankAccount", "contact", "productCategory", "property",
+      "emporioProduct", "product", "establishment", "bankAccount", "emporioCustomer", "contact", "productCategory", "property",
     ];
     for (const id of tenantIds) {
       for (const m of modelos) {

@@ -298,7 +298,7 @@ def id_da_venda_com_cliente():
     nao tem Cancelar venda). De preferencia registrada pelo Caixa em nome de
     outro vendedor, para a tela mostrar 'Registrada por'."""
     r = api("GET", "/api/v1/emporio/sales")
-    boas = [v for v in r["body"]["data"] if v.get("status") == "concluida" and v.get("contact_id") and not v.get("exchange_return_id") and not v.get("quote") and all(not i.get("returned_qty") for i in v.get("items", []))]
+    boas = [v for v in r["body"]["data"] if v.get("status") == "concluida" and v.get("customer_id") and not v.get("exchange_return_id") and not v.get("quote") and all(not i.get("returned_qty") for i in v.get("items", []))]
     pelo_caixa = [v for v in boas if v.get("sold_by_user_id") != v.get("seller_user_id")]
     escolhida = (pelo_caixa or boas or r["body"]["data"])[0]
     return escolhida["id"]
@@ -463,7 +463,7 @@ def orcamento_com_aviso(rodovia):
     if not do_cenario:
         print("   nenhum orcamento do Haras Santa Clara na Rodovia: rode o cenario de demonstracao")
         return None
-    contato = api("GET", "/api/v1/emporio/quotes/" + do_cenario[-1]["id"])["body"]["data"]["contact"]["id"]
+    contato = api("GET", "/api/v1/emporio/quotes/" + do_cenario[-1]["id"])["body"]["data"]["customer"]["id"]
     ferradura = api("GET", "/api/v1/emporio/products/" + id_do_produto("Ferradura nº 4"))["body"]["data"]
     apr = next(a for a in ferradura["presentations"] if not a.get("archived_at"))
     saldo = api("GET", "/api/v1/emporio/products/" + ferradura["id"] + "/stock")["body"]["data"]
@@ -473,7 +473,7 @@ def orcamento_com_aviso(rodovia):
     r = api("POST", "/api/v1/emporio/quotes", {
         "operation_key": "manual-emporio-orcamento-faturar",
         "establishment_id": rodovia["id"],
-        "contact_id": contato,
+        "customer_id": contato,
         "items": [{"emporio_product_id": ferradura["id"], "presentation_id": apr["id"], "quantity": int(na_loja) + 40}],
         "notes": "Ferraduras para a tropa inteira.",
     })

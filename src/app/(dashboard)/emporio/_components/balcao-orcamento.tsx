@@ -51,7 +51,7 @@ export function cargaDoOrcamento(q: OrcamentoView): CargaDoOrcamento {
       apresentacaoId: i.presentation_id,
       qtd: paraCampo(i.quantity),
     })),
-    contatoId: q.contact.id,
+    contatoId: q.customer.id,
   };
 }
 
@@ -200,7 +200,7 @@ export function OrcamentoNaVenda({
             <div>
               <p className="font-semibold">Faturando o orçamento nº {orcamento.numero}</p>
               <p>
-                Cliente {orcamento.contact.name}
+                Cliente {orcamento.customer.name}
                 {orcamento.seller_name ? `, vendedor ${orcamento.seller_name}` : ""}. Válido até{" "}
                 {dataBr(orcamento.valid_until)}.
               </p>
@@ -291,7 +291,7 @@ export function ResumoDoOrcamento({
         Orçamento nº {orcamento.numero} salvo, válido até {dataBr(orcamento.valid_until)}
       </p>
       <p>
-        {reaisBr(orcamento.net_amount)}, cliente {orcamento.contact.name}
+        {reaisBr(orcamento.net_amount)}, cliente {orcamento.customer.name}
         {orcamento.seller_name ? `, vendedor ${orcamento.seller_name}` : ""}
       </p>
       <p>

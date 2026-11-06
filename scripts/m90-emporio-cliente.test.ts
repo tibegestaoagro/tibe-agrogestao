@@ -40,37 +40,24 @@ async function secao1() {
   check("CNPJ alfanumérico com dígito errado", cnpjValido("12ABC34501DE34") === false);
   check("CNPJ com letra no dígito verificador", cnpjValido("12ABC34501DE3A") === false);
   check("CNPJ minúsculo não passa cru", cnpjValido("12abc34501de35") === false);
-  const alfa = conferirCadastro({ name: "Empresa Nova", person_kind: "pj", document: "12.abc.345/01de-35", phone: "3499" }, "balcao");
-  check("balcão PJ alfanumérico ok, em maiúscula", alfa.ok && alfa.dados.document === "12ABC34501DE35", j(alfa));
-  const alfaPf = conferirCadastro({ person_kind: "pf", document: "529.982.24A-25" }, "livre");
+  const alfa = conferirCadastro({ name: "Empresa Nova", person_kind: "pj", document: "12.abc.345/01de-35", phone: "3499" });
+  check("PJ alfanumérico ok, em maiúscula", alfa.ok && alfa.dados.document === "12ABC34501DE35", j(alfa));
+  const alfaPf = conferirCadastro({ person_kind: "pf", document: "529.982.24A-25" });
   check("CPF continua só números", !alfaPf.ok && alfaPf.field === "document", j(alfaPf));
 
   const pf = { name: "Zé", person_kind: "pf" as const, document: "529.982.247-25", phone: "34 99999-0000" };
-  const r1 = conferirCadastro(pf, "balcao");
-  check("balcão PF completo ok", r1.ok, j(r1));
+  const r1 = conferirCadastro(pf);
+  check("PF completo ok", r1.ok, j(r1));
   check("documento normalizado", r1.ok && r1.dados.document === "52998224725", j(r1));
+  // O que é obrigatório no cliente do Empório saiu daqui: é `faltaNoCadastro`, testada na m95.
+  const r2 = conferirCadastro({ ...pf, document: null, phone: null });
+  check("só formato: sem CPF e sem telefone passa", r2.ok && r2.dados.document === null, j(r2));
 
-  const r2 = conferirCadastro({ ...pf, document: null }, "balcao");
-  check("balcão PF sem CPF", !r2.ok && r2.field === "document" && r2.message === "Informe o CPF.", j(r2));
-
-  const r3 = conferirCadastro({ person_kind: "pj", document: "11.222.333/0001-81", phone: "3499" }, "balcao");
-  check("balcão PJ sem nome", !r3.ok && r3.field === "name" && r3.message === "Informe o nome da empresa.", j(r3));
-
-  const r4 = conferirCadastro({ ...pf, person_kind: null }, "balcao");
-  check(
-    "balcão sem tipo",
-    !r4.ok && r4.field === "person_kind" && r4.message === "Escolha pessoa física ou jurídica.",
-    j(r4),
-  );
-
-  const r5 = conferirCadastro({ ...pf, phone: "" }, "balcao");
-  check("balcão sem telefone", !r5.ok && r5.field === "phone" && r5.message === "Informe o telefone.", j(r5));
-
-  const r6 = conferirCadastro({ name: "Frigorífico X" }, "livre");
+  const r6 = conferirCadastro({ name: "Frigorífico X" });
   check("livre só com nome ok", r6.ok, j(r6));
   check("livre: ausente continua ausente", r6.ok && !("document" in r6.dados), j(r6));
 
-  const r7 = conferirCadastro({ name: "X", document: "52998224725" }, "livre");
+  const r7 = conferirCadastro({ name: "X", document: "52998224725" });
   check(
     "livre com documento sem tipo",
     !r7.ok &&
@@ -79,7 +66,7 @@ async function secao1() {
     j(r7),
   );
 
-  const ie = (v: string) => conferirCadastro({ state_registration: v }, "livre");
+  const ie = (v: string) => conferirCadastro({ state_registration: v });
   const ie1 = ie("123.456.789.012");
   check("inscrição de 12 dígitos", ie1.ok && ie1.dados.state_registration === "123456789012", j(ie1));
   const ie2 = ie("0623079040081");
@@ -95,20 +82,20 @@ async function secao1() {
     j(ie4),
   );
 
-  const cep1 = conferirCadastro({ address_zip: "38400-000" }, "livre");
+  const cep1 = conferirCadastro({ address_zip: "38400-000" });
   check("CEP normalizado", cep1.ok && cep1.dados.address_zip === "38400000", j(cep1));
-  const cep2 = conferirCadastro({ address_zip: "3840" }, "livre");
+  const cep2 = conferirCadastro({ address_zip: "3840" });
   check(
     "CEP curto recusa",
     !cep2.ok && cep2.field === "address_zip" && cep2.message === "CEP inválido. Use os 8 números.",
     j(cep2),
   );
-  const cep3 = conferirCadastro({ delivery_zip: "12" }, "livre");
+  const cep3 = conferirCadastro({ delivery_zip: "12" });
   check("CEP de entrega recusa em delivery_zip", !cep3.ok && cep3.field === "delivery_zip", j(cep3));
 
-  const uf1 = conferirCadastro({ address_state: "mg" }, "livre");
+  const uf1 = conferirCadastro({ address_state: "mg" });
   check("UF em maiúscula", uf1.ok && uf1.dados.address_state === "MG", j(uf1));
-  const uf2 = conferirCadastro({ delivery_state: "XX" }, "livre");
+  const uf2 = conferirCadastro({ delivery_state: "XX" });
   check(
     "UF inválida recusa",
     !uf2.ok && uf2.field === "delivery_state" && uf2.message === "Escolha a UF da lista.",
@@ -118,22 +105,20 @@ async function secao1() {
 
   const pj = conferirCadastro(
     { name: "Empresa", person_kind: "pj", document: "11222333000181", birth_date: "1990-01-01", responsible_name: "Ana" },
-    "livre",
   );
   check("PJ: nascimento vira null", pj.ok && pj.dados.birth_date === null && pj.dados.responsible_name === "Ana", j(pj));
   const pf2 = conferirCadastro(
     { name: "Zé", person_kind: "pf", document: "52998224725", birth_date: "1990-01-01", responsible_name: "Ana" },
-    "livre",
   );
   check("PF: responsável vira null", pf2.ok && pf2.dados.responsible_name === null && pf2.dados.birth_date === "1990-01-01", j(pf2));
 
-  const cpfRuim = conferirCadastro({ person_kind: "pf", document: "111.111.111-11" }, "livre");
+  const cpfRuim = conferirCadastro({ person_kind: "pf", document: "111.111.111-11" });
   check(
     "CPF repetido recusa",
     !cpfRuim.ok && cpfRuim.field === "document" && cpfRuim.message === "CPF inválido. Confira os 11 números.",
     j(cpfRuim),
   );
-  const cnpjRuim = conferirCadastro({ person_kind: "pj", document: "11222333000180" }, "livre");
+  const cnpjRuim = conferirCadastro({ person_kind: "pj", document: "11222333000180" });
   check(
     "CNPJ ruim recusa",
     !cnpjRuim.ok && cnpjRuim.message === "CNPJ inválido. Confira os 14 caracteres.",
@@ -141,15 +126,15 @@ async function secao1() {
   );
 
   const amanha = new Date(Date.now() + 86_400_000 * 2).toISOString().slice(0, 10);
-  const fut = conferirCadastro({ person_kind: "pf", birth_date: amanha }, "livre");
+  const fut = conferirCadastro({ person_kind: "pf", birth_date: amanha });
   check(
     "nascimento no futuro recusa",
     !fut.ok && fut.field === "birth_date" && fut.message === "A data de nascimento não pode ser no futuro.",
     j(fut),
   );
-  const ruim = conferirCadastro({ person_kind: "pf", birth_date: "31/02/2000" }, "livre");
+  const ruim = conferirCadastro({ person_kind: "pf", birth_date: "31/02/2000" });
   check("data inválida recusa em birth_date", !ruim.ok && ruim.field === "birth_date", j(ruim));
-  const nula = conferirCadastro({ person_kind: "pf", birth_date: "2000-02-30" }, "livre");
+  const nula = conferirCadastro({ person_kind: "pf", birth_date: "2000-02-30" });
   check("dia inexistente recusa", !nula.ok && nula.field === "birth_date", j(nula));
 
   const completo = { name: "Zé", person_kind: "pf", document: "52998224725", phone: "3499", system_key: null };
@@ -384,53 +369,59 @@ async function secao3() {
     check("vendedor cadastra PF pela rota: 201", resPost.status === 201 && corpo?.data?.incomplete === false && corpo?.data?.document === "52998224725", `${resPost.status} ${j(corpo)}`);
     check("1 linha cliente.cadastrar no Histórico", (await histN("cliente.cadastrar")) === 1);
 
+    // Frente 1 (06/11): a PF exige só nome e telefone; o CPF é opcional.
     const semCpf = await C.cadastrarClienteAction(db, vend, { name: "Sem CPF", person_kind: "pf", phone: "1" });
-    check("PF sem CPF: 422 document", !semCpf.ok && semCpf.status === 422 && semCpf.field === "document", j(semCpf));
+    check("PF sem CPF: cadastra (o CPF é opcional)", semCpf.ok && semCpf.data.document === null && semCpf.data.incomplete === false, j(semCpf));
     const semCnpj = await C.cadastrarClienteAction(db, vend, { name: "Sem CNPJ", person_kind: "pj", phone: "1" });
     check("PJ sem CNPJ: 422 document", !semCnpj.ok && semCnpj.status === 422 && semCnpj.field === "document", j(semCnpj));
     const dup = await C.cadastrarClienteAction(db, vend, { ...pf, name: "Outra Maria" });
     check("CPF repetido: 409 DUPLICATE_DOCUMENT", !dup.ok && dup.status === 409 && dup.code === "DUPLICATE_DOCUMENT" && dup.field === "document", j(dup));
-    check("recusas não gravam Histórico", (await histN("cliente.cadastrar")) === 1);
+    check("recusas não gravam Histórico", (await histN("cliente.cadastrar")) === 2);
 
     const neg = await C.cadastrarClienteAction(db, semPapel, { ...pf, document: "390.533.447-05" });
     check("sem papel no Empório: FORBIDDEN", !neg.ok && neg.code === "FORBIDDEN" && neg.status === 403, j(neg));
 
-    const alfa = await C.cadastrarClienteAction(db, vend, { name: "Empresa Nova", person_kind: "pj", document: "12.abc.345/01de-35", phone: "3499" });
+    // A PJ exige o endereço principal completo (Frente 1).
+    const endereco = { address_zip: "38400000", address_street: "Rua A", address_number: "1", address_district: "Centro", city: "Uberlândia", address_state: "MG" };
+    const alfa = await C.cadastrarClienteAction(db, vend, { name: "Empresa Nova", person_kind: "pj", document: "12.abc.345/01de-35", phone: "3499", ...endereco });
     check("PJ com CNPJ alfanumérico: cadastra em maiúscula", alfa.ok && alfa.data.document === "12ABC34501DE35", j(alfa));
-    const alfaDup = await C.cadastrarClienteAction(db, vend, { name: "Outra Nova", person_kind: "pj", document: "12ABC34501DE35", phone: "3499" });
+    const alfaDup = await C.cadastrarClienteAction(db, vend, { name: "Outra Nova", person_kind: "pj", document: "12ABC34501DE35", phone: "3499", ...endereco });
     check("mesmo CNPJ alfanumérico em outra caixa: 409", !alfaDup.ok && alfaDup.code === "DUPLICATE_DOCUMENT", j(alfaDup));
 
-    // completar
-    const antigo = await db.contact.create({ data: scoped({ name: "Contato Antigo" }) });
-    const comp = await C.completarClienteAction(db, vend, antigo.id, {
+    // editar (completar) o cliente antigo, só com nome
+    const antigo = await db.emporioCustomer.create({ data: scoped({ name: "Cliente Antigo" }) });
+    const comp = await C.editarClienteAction(db, vend, antigo.id, {
       person_kind: "pf",
       document: "390.533.447-05",
       phone: "34 98888-7777",
     });
-    check("completar contato antigo: ok e completo", comp.ok && comp.data.incomplete === false && comp.data.name === "Contato Antigo" && comp.data.document === "39053344705", j(comp));
-    check("linha cliente.completar", (await histN("cliente.completar")) === 1);
+    check("completar cliente antigo: ok e completo", comp.ok && comp.data.incomplete === false && comp.data.name === "Cliente Antigo" && comp.data.document === "39053344705", j(comp));
+    check("linha cliente.editar", (await histN("cliente.editar")) === 1);
 
-    const meio = await db.contact.create({ data: scoped({ name: "Meio Cadastro", person_kind: "pf" }) });
-    const soTel = await C.completarClienteAction(db, vend, meio.id, { phone: "34 97777-6666" });
-    check("só o telefone num contato sem CPF: 422 document", !soTel.ok && soTel.status === 422 && soTel.field === "document", j(soTel));
-    const meioDepois = await db.contact.findUnique({ where: { id: meio.id } });
+    const meio = await db.emporioCustomer.create({ data: scoped({ name: "Meio Cadastro", person_kind: "pj", document: "11222333000181" }) });
+    const soTel = await C.editarClienteAction(db, vend, meio.id, { phone: "34 97777-6666" });
+    check("só o telefone numa PJ sem endereço: 422 address_zip", !soTel.ok && soTel.status === 422 && soTel.field === "address_zip", j(soTel));
+    const meioDepois = await db.emporioCustomer.findUnique({ where: { id: meio.id } });
     check("recusa não grava o telefone", meioDepois?.phone === null);
 
-    const repetido = await C.completarClienteAction(db, vend, meio.id, { document: "529.982.247-25", phone: "1" });
-    check("completar com CPF de outro: 409", !repetido.ok && repetido.code === "DUPLICATE_DOCUMENT", j(repetido));
-    const inexistente = await C.completarClienteAction(db, vend, "nao-existe", { phone: "1" });
-    check("completar inexistente: 404", !inexistente.ok && inexistente.status === 404, j(inexistente));
+    const repetido = await C.editarClienteAction(db, vend, antigo.id, { document: "529.982.247-25" });
+    check("editar com CPF de outro: 409", !repetido.ok && repetido.code === "DUPLICATE_DOCUMENT", j(repetido));
+    const inexistente = await C.editarClienteAction(db, vend, "nao-existe", { phone: "1" });
+    check("editar inexistente: 404", !inexistente.ok && inexistente.status === 404, j(inexistente));
 
-    const arq = await db.contact.create({ data: scoped({ name: "Arquivado", archived_at: new Date() }) });
-    const eArq = await C.completarClienteAction(db, vend, arq.id, { ...pf, document: "111.444.777-35" });
-    check("completar arquivado: 422", !eArq.ok && eArq.status === 422, j(eArq));
+    const arq = await db.emporioCustomer.create({ data: scoped({ name: "Arquivado", archived_at: new Date() }) });
+    const eArq = await C.editarClienteAction(db, vend, arq.id, { ...pf, document: "111.444.777-35" });
+    check("editar arquivado: 422", !eArq.ok && eArq.status === 422, j(eArq));
 
     // PATCH pela rota
     const resPatch = await withBearer(tok, () =>
       rotaPatch.PATCH(new Request(`http://localhost/api/v1/emporio/customers/${meio.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ document: "111.444.777-35", phone: "34 96666-5555" }),
+        body: JSON.stringify({
+          phone: "34 96666-5555", address_zip: "38400-000", address_street: "Rua A", address_number: "1",
+          address_district: "Centro", city: "Uberlândia", address_state: "MG",
+        }),
       }), { params: Promise.resolve({ id: meio.id }) }),
     );
     const corpoPatch = (await resPatch.json().catch(() => ({}))) as Dado;
@@ -438,21 +429,22 @@ async function secao3() {
 
     // Consumidor final
     const [a, b] = await Promise.all([C.garantirConsumidorFinal(db), C.garantirConsumidorFinal(db)]);
-    const qtd = await prisma.contact.count({ where: { tenant_id: t.id, system_key: "consumidor_final" } });
+    const qtd = await prisma.emporioCustomer.count({ where: { tenant_id: t.id, system_key: "consumidor_final" } });
     check("garantirConsumidorFinal em paralelo: mesmo id e 1 linha", a.id === b.id && qtd === 1 && a.name === "Consumidor final", `${j([a, b])} ${qtd}`);
     const c3 = await C.garantirConsumidorFinal(db);
     check("chamar de novo devolve o mesmo", c3.id === a.id);
     const cB = await C.garantirConsumidorFinal(dbB);
     check("outro tenant tem o seu", cB.id !== a.id);
-    const eCf = await C.completarClienteAction(db, vend, a.id, pf);
+    const eCf = await C.editarClienteAction(db, vend, a.id, pf);
     check(
-      "completar o Consumidor final: 422 com a frase fixa",
+      "editar o Consumidor final: 422 com a frase fixa",
       !eCf.ok && eCf.status === 422 && eCf.message === "O Consumidor final é fixo e não pode ser editado nem arquivado.",
       j(eCf),
     );
   } finally {
     for (const id of tenantIds) {
       await prisma.emporioAuditLog.deleteMany({ where: { tenant_id: id } });
+      await prisma.emporioCustomer.deleteMany({ where: { tenant_id: id } });
       await prisma.contact.deleteMany({ where: { tenant_id: id } });
       await prisma.userEstablishment.deleteMany({ where: { tenant_id: id } });
       await prisma.establishment.deleteMany({ where: { tenant_id: id } });
@@ -503,13 +495,13 @@ async function secao4() {
     const db = prismaForTenant(t.id);
 
     // catálogo numa conta sem Consumidor final: cria e devolve em primeiro
-    const antes = await prisma.contact.count({ where: { tenant_id: t.id, system_key: "consumidor_final" } });
-    const soNome = await db.contact.create({ data: scoped({ name: "Aaa Só Nome" }) });
-    const completo = await db.contact.create({
+    const antes = await prisma.emporioCustomer.count({ where: { tenant_id: t.id, system_key: "consumidor_final" } });
+    const soNome = await db.emporioCustomer.create({ data: scoped({ name: "Aaa Só Nome" }) });
+    const completo = await db.emporioCustomer.create({
       data: scoped({ name: "Zzz Completo", person_kind: "pf", document: "52998224725", phone: "3499" }),
     });
     const cat0 = await carregarCatalogoDeVenda(db, []);
-    const depois = await prisma.contact.count({ where: { tenant_id: t.id, system_key: "consumidor_final" } });
+    const depois = await prisma.emporioCustomer.count({ where: { tenant_id: t.id, system_key: "consumidor_final" } });
     check("conta sem Consumidor final: o catálogo cria um", antes === 0 && depois === 1, `${antes} ${depois}`);
     check("Consumidor final vem primeiro, com consumidor_final true", cat0.contatos[0]?.consumidor_final === true && cat0.contatos[0]?.name === "Consumidor final", j(cat0.contatos));
     check("depois dele, por nome, sem system_key", cat0.contatos.slice(1).map((c) => c.name).join("|") === "Aaa Só Nome|Zzz Completo" && cat0.contatos.slice(1).every((c) => !c.consumidor_final), j(cat0.contatos));
@@ -542,36 +534,36 @@ async function secao4() {
     const cf = cat0.contatos[0].id;
 
     const semCli = await V.venderAction(db, owner, corpo({}));
-    check("venderAction sem contact_id: 422 contact_id com a frase fixa", !semCli.ok && semCli.status === 422 && semCli.field === "contact_id" && semCli.message === FRASE_SEM, j(semCli));
-    const nuloCli = await V.venderAction(db, owner, corpo({ contact_id: null }));
-    check("contact_id null: a mesma recusa", !nuloCli.ok && nuloCli.field === "contact_id" && nuloCli.message === FRASE_SEM, j(nuloCli));
-    const naoExiste = await V.venderAction(db, owner, corpo({ contact_id: "nao-existe" }));
-    check("cliente desconhecido: 'Escolha um cliente ativo.'", !naoExiste.ok && naoExiste.field === "contact_id" && naoExiste.message === "Escolha um cliente ativo.", j(naoExiste));
-    const arq = await db.contact.create({ data: scoped({ name: "Arquivado M90v", archived_at: new Date() }) });
-    const arquivado = await V.venderAction(db, owner, corpo({ contact_id: arq.id }));
+    check("venderAction sem customer_id: 422 customer_id com a frase fixa", !semCli.ok && semCli.status === 422 && semCli.field === "customer_id" && semCli.message === FRASE_SEM, j(semCli));
+    const nuloCli = await V.venderAction(db, owner, corpo({ customer_id: null }));
+    check("customer_id null: a mesma recusa", !nuloCli.ok && nuloCli.field === "customer_id" && nuloCli.message === FRASE_SEM, j(nuloCli));
+    const naoExiste = await V.venderAction(db, owner, corpo({ customer_id: "nao-existe" }));
+    check("cliente desconhecido: 'Escolha um cliente ativo.'", !naoExiste.ok && naoExiste.field === "customer_id" && naoExiste.message === "Escolha um cliente ativo.", j(naoExiste));
+    const arq = await db.emporioCustomer.create({ data: scoped({ name: "Arquivado M90v", archived_at: new Date() }) });
+    const arquivado = await V.venderAction(db, owner, corpo({ customer_id: arq.id }));
     check("cliente arquivado: 'Escolha um cliente ativo.'", !arquivado.ok && arquivado.message === "Escolha um cliente ativo.", j(arquivado));
 
-    const din = await V.venderAction(db, owner, corpo({ contact_id: cf }));
+    const din = await V.venderAction(db, owner, corpo({ customer_id: cf }));
     check("dinheiro para o Consumidor final: ok", din.ok, j(din));
-    const fiado = await V.venderAction(db, owner, corpo({ contact_id: cf }, [{ kind: "fiado", amount: 10 }]));
+    const fiado = await V.venderAction(db, owner, corpo({ customer_id: cf }, [{ kind: "fiado", amount: 10 }]));
     check(
-      "fiado para o Consumidor final: 422 contact_id",
-      !fiado.ok && fiado.status === 422 && fiado.field === "contact_id" && fiado.message === "Fiado precisa do cliente de verdade, não do Consumidor final.",
+      "fiado para o Consumidor final: 422 customer_id",
+      !fiado.ok && fiado.status === 422 && fiado.field === "customer_id" && fiado.message === "Fiado precisa do cliente de verdade, não do Consumidor final.",
       j(fiado),
     );
     const cheque = await V.venderAction(
       db,
       owner,
-      corpo({ contact_id: cf }, [{ kind: "cheque", amount: 10, check: { number: "1", bank: "Banco", good_for: new Date(Date.now() + 86_400_000) } }]),
+      corpo({ customer_id: cf }, [{ kind: "cheque", amount: 10, check: { number: "1", bank: "Banco", good_for: new Date(Date.now() + 86_400_000) } }]),
     );
     check(
-      "cheque para o Consumidor final: 422 contact_id",
-      !cheque.ok && cheque.status === 422 && cheque.field === "contact_id" && cheque.message === "Cheque precisa do cliente de verdade, não do Consumidor final.",
+      "cheque para o Consumidor final: 422 customer_id",
+      !cheque.ok && cheque.status === 422 && cheque.field === "customer_id" && cheque.message === "Cheque precisa do cliente de verdade, não do Consumidor final.",
       j(cheque),
     );
-    const fiadoReal = await V.venderAction(db, owner, corpo({ contact_id: completo.id }, [{ kind: "fiado", amount: 10 }]));
+    const fiadoReal = await V.venderAction(db, owner, corpo({ customer_id: completo.id }, [{ kind: "fiado", amount: 10 }]));
     check("fiado para cliente de verdade: ok", fiadoReal.ok, j(fiadoReal));
-    const antigo = await V.venderAction(db, owner, corpo({ contact_id: soNome.id }));
+    const antigo = await V.venderAction(db, owner, corpo({ customer_id: soNome.id }));
     check("venda para contato antigo só com nome: ok", antigo.ok, j(antigo));
 
     // troca: precisa de cliente na venda nova
@@ -589,14 +581,14 @@ async function secao4() {
       },
     });
     const trSem = await V.trocarAction(db, owner, din.data.id, troca({}));
-    check("trocarAction sem contact_id: 422 contact_id com a frase fixa", !trSem.ok && trSem.status === 422 && trSem.field === "contact_id" && trSem.message === FRASE_SEM, j(trSem));
-    const trOk = await V.trocarAction(db, owner, din.data.id, troca({ contact_id: cf }));
+    check("trocarAction sem customer_id: 422 customer_id com a frase fixa", !trSem.ok && trSem.status === 422 && trSem.field === "customer_id" && trSem.message === FRASE_SEM, j(trSem));
+    const trOk = await V.trocarAction(db, owner, din.data.id, troca({ customer_id: cf }));
     check("trocarAction com o Consumidor final: ok", trOk.ok, j(trOk));
   } finally {
     const modelos = [
       "emporioAuditLog", "cashMovement", "cashCount", "stockMovement", "emporioSalePayment", "emporioSaleReturnItem", "emporioSaleReturn",
       "emporioSaleItem", "emporioSale", "financialEntry", "presentationPrice", "productPresentation", "userEstablishment",
-      "emporioProduct", "product", "establishment", "bankAccount", "contact", "productCategory", "user", "tenantProfile", "tenantFeature",
+      "emporioProduct", "product", "establishment", "bankAccount", "emporioCustomer", "contact", "productCategory", "user", "tenantProfile", "tenantFeature",
     ];
     for (const id of tenantIds) {
       for (const m of modelos) {
@@ -677,7 +669,7 @@ async function secao5() {
     const venda = await V.venderAction(db, owner, {
       operation_key: `m90n-${stamp}`,
       establishment_id: loja.data.id,
-      contact_id: cf,
+      customer_id: cf,
       items: [{ emporio_product_id: arame.id, presentation_id: pres.data.id, quantity: 1 }],
       payments: [{ kind: "dinheiro", amount: 10 }],
     });
@@ -734,7 +726,7 @@ async function secao5() {
     const modelos = [
       "emporioAuditLog", "cashMovement", "cashCount", "stockMovement", "emporioSalePayment", "emporioSaleReturnItem", "emporioSaleReturn",
       "emporioSaleItem", "emporioSale", "financialEntry", "presentationPrice", "productPresentation", "userEstablishment",
-      "emporioProduct", "product", "establishment", "bankAccount", "contact", "productCategory", "user", "tenantProfile", "tenantFeature",
+      "emporioProduct", "product", "establishment", "bankAccount", "emporioCustomer", "contact", "productCategory", "user", "tenantProfile", "tenantFeature",
     ];
     for (const id of tenantIds) {
       for (const m of modelos) {

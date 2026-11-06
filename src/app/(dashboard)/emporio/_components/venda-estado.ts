@@ -71,7 +71,7 @@ export function liquidoDoCartaoCent(valorCent: number, feePct: number): { taxaCe
   return { taxaCent, liquidoCent: valorCent - taxaCent };
 }
 
-export type CampoDaVenda = "establishment_id" | "items" | "contact_id" | "payments";
+export type CampoDaVenda = "establishment_id" | "items" | "customer_id" | "payments";
 
 export const cent = (n: number) => Math.round(Number((n * 100).toPrecision(12)));
 const arred3 = (n: number) => Math.round(Number((n * 1000).toPrecision(14))) / 1000;
@@ -111,7 +111,7 @@ const paraIso = (data: string) => new Date(`${data}T12:00:00`).toISOString();
 
 export type CorpoDaVenda = {
   establishment_id: string;
-  contact_id: string | null;
+  customer_id: string | null;
   items: { emporio_product_id: string; presentation_id: string; quantity: number; unit_price: number }[];
   payments: {
     kind: FormaDePagamento;
@@ -397,20 +397,23 @@ export function useVenda({
     const temCheque = pagamentos.some((p) => p.kind === "cheque");
     const ehConsumidorFinal = consumidorFinalId !== "" && contatoId === consumidorFinalId;
     if (orcamento) {
-      // A mesma frase do servidor (`QUOTE_CUSTOMER_REQUIRED`).
-      if (!contatoId || ehConsumidorFinal) novos.contact_id = "O orçamento precisa de um cliente com nome, documento e telefone.";
+      // A mesma frase do servidor (`QUOTE_CUSTOMER_REQUIRED`). O Consumidor final serve;
+      // o cadastro incompleto é o servidor que recusa (`QUOTE_CUSTOMER_INCOMPLETE`).
+      if (!contatoId) {
+        novos.customer_id = "Escolha o cliente do orçamento. Quem não quer se identificar entra como Consumidor final.";
+      }
       return {
         novos,
         corpo:
           Object.keys(novos).length > 0
             ? null
-            : { establishment_id: loja, contact_id: contatoId, items: itensDaApi(), payments: [] },
+            : { establishment_id: loja, customer_id: contatoId, items: itensDaApi(), payments: [] },
         assinatura: JSON.stringify(["orcamento", loja, contatoId, itensDaApi()]),
       };
     }
-    if (!contatoId) novos.contact_id = "Escolha o cliente da venda.";
-    else if (temFiado && ehConsumidorFinal) novos.contact_id = "Fiado precisa do cliente de verdade, não do Consumidor final.";
-    else if (temCheque && ehConsumidorFinal) novos.contact_id = "Cheque precisa do cliente de verdade, não do Consumidor final.";
+    if (!contatoId) novos.customer_id = "Escolha o cliente da venda.";
+    else if (temFiado && ehConsumidorFinal) novos.customer_id = "Fiado precisa do cliente de verdade, não do Consumidor final.";
+    else if (temCheque && ehConsumidorFinal) novos.customer_id = "Cheque precisa do cliente de verdade, não do Consumidor final.";
 
     const pagamentosApi: CorpoDaVenda["payments"] = [];
     const ilegivel = pagamentos.some((p) => {
@@ -463,7 +466,7 @@ export function useVenda({
 
     const corpo: CorpoDaVenda = {
       establishment_id: loja,
-      contact_id: contatoId || null,
+      customer_id: contatoId || null,
       items: itensDaApi(),
       payments: pagamentosApi,
     };

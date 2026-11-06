@@ -106,7 +106,7 @@ async function main() {
     exigir(await vendas.venderAction(db, ator, {
       operation_key: `cenario-f4b-${Date.now()}-${n}`,
       establishment_id: loja,
-      contact_id: (await (await import("@/lib/actions/emporio-clientes")).garantirConsumidorFinal(db)).id,
+      customer_id: (await (await import("@/lib/actions/emporio-clientes")).garantirConsumidorFinal(db)).id,
       items: [{ emporio_product_id: racao, presentation_id: quilo, quantity: quantidade, unit_price: preco }],
       payments: [{ kind: "dinheiro", amount: quantidade * preco }],
     } as never), `venda ${n}`);

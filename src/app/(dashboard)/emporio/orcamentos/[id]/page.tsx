@@ -48,8 +48,8 @@ export default async function OrcamentoPage({ params }: { params: Promise<{ id: 
             Orçamento nº {o.numero}, {DATA_HORA.format(new Date(o.created_at))}
           </h1>
           <p className="mt-1 text-sm text-texto-secundario">
-            {o.loja}, cliente <span className="font-medium text-texto">{o.contact.name}</span>
-            {o.contact.phone ? `, ${o.contact.phone}` : ""}
+            {o.loja}, cliente <span className="font-medium text-texto">{o.customer.name}</span>
+            {o.customer.phone ? `, ${o.customer.phone}` : ""}
           </p>
           {o.seller_name && (
             <p className="text-sm text-texto-secundario">

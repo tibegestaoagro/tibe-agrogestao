@@ -163,12 +163,12 @@ async function comBanco() {
     let chaveSeq = 0;
     const chave = (p: string) => `m82-${p}-${stamp}-${(chaveSeq += 1)}`;
     const vender = (ator: Ator, qty: number, payments: Dado[], over: Dado = {}) =>
-      vv("venderAction", ator, { operation_key: chave("v"), establishment_id: L1.id, contact_id: cf, items: [item(qty)], payments, ...over });
+      vv("venderAction", ator, { operation_key: chave("v"), establishment_id: L1.id, customer_id: cf, items: [item(qty)], payments, ...over });
     const saleId = (r: R): string => {
       const d = dados(r);
       return d?.id ?? d?.sale_id ?? "";
     };
-    const contato = async (nome: string) => (await db.contact.create({ data: scoped({ name: `M82 ${nome} ${stamp}` }) })).id;
+    const contato = async (nome: string) => (await db.emporioCustomer.create({ data: scoped({ name: `M82 ${nome} ${stamp}` }) })).id;
     const mkConta = async (nome: string): Promise<string> => {
       const r = await xx("criarContaAction", admin, { name: `M82 ${nome} ${stamp}`, bank: "Banco" });
       if (!r.ok) throw new Error(`conta ${nome}: ${j(r)}`);
@@ -227,7 +227,7 @@ async function comBanco() {
         return s + (v ?? 0);
       }, 0);
     const dividaDe = (lst: Dado[], contact: string): number => {
-      const l = lst.find((x) => x.contact_id === contact);
+      const l = lst.find((x) => x.customer_id === contact);
       if (!l) return 0;
       for (const k of ["owed", "due", "devido", "balance", "open_amount", "amount_due"]) if (typeof l[k] === "number") return l[k];
       return NaN;
@@ -378,18 +378,18 @@ async function comBanco() {
       const C1 = await contato("Cliente cheque");
       const v0 = await db.emporioSale.count();
       // Sem cliente a venda nem começa; com o Consumidor final o cheque é recusado (design 2026-11-03-emporio-cliente-nome-menu).
-      check("sem contact_id: 422 contact_id", recusa(await vender(op, 10, [cheque(100)], { contact_id: null }), "VALIDATION_ERROR", 422, "contact_id"));
-      check("cheque para o Consumidor final: 422 contact_id", recusa(await vender(op, 10, [cheque(100)]), "VALIDATION_ERROR", 422, "contact_id"));
+      check("sem customer_id: 422 customer_id", recusa(await vender(op, 10, [cheque(100)], { customer_id: null }), "VALIDATION_ERROR", 422, "customer_id"));
+      check("cheque para o Consumidor final: 422 customer_id", recusa(await vender(op, 10, [cheque(100)]), "VALIDATION_ERROR", 422, "customer_id"));
       for (const campo of ["number", "bank", "good_for"]) {
         const ck = { number: "1234", bank: "Sicredi", good_for: bomPara(somaDias(hojeStr, 15)) } as Dado;
         delete ck[campo];
-        check(`cheque sem ${campo}: 422 payments`, recusa(await vender(op, 10, [{ kind: "cheque", amount: 100, check: ck }], { contact_id: C1 }), "VALIDATION_ERROR", 422, "payments"));
+        check(`cheque sem ${campo}: 422 payments`, recusa(await vender(op, 10, [{ kind: "cheque", amount: 100, check: ck }], { customer_id: C1 }), "VALIDATION_ERROR", 422, "payments"));
       }
-      check("cheque sem o objeto check: 422 payments", recusa(await vender(op, 10, [{ kind: "cheque", amount: 100 }], { contact_id: C1 }), "VALIDATION_ERROR", 422, "payments"));
+      check("cheque sem o objeto check: 422 payments", recusa(await vender(op, 10, [{ kind: "cheque", amount: 100 }], { customer_id: C1 }), "VALIDATION_ERROR", 422, "payments"));
       check("as recusas não gravaram venda", (await db.emporioSale.count()) === v0);
 
       const g0 = await saldoConta(CHQ);
-      const rS = await vender(op, 10, [cheque(100)], { contact_id: C1 });
+      const rS = await vender(op, 10, [cheque(100)], { customer_id: C1 });
       check("venda de R$ 100 no cheque", rS.ok, j(rS));
       const S = saleId(rS);
       chequeCompensadoSale = S;
@@ -399,7 +399,7 @@ async function comBanco() {
       check("nada no caixa (sem CashMovement)", (await db.cashMovement.count({ where: { sale_id: S } })) === 0);
       const ch = await db.emporioCheck.findFirst({ where: { sale_id: S } });
       chequeId1 = ch?.id ?? "";
-      check("o cheque nasce recebido, do cliente, com número, banco, bom para e valor", !!ch && ch.status === "recebido" && ch.contact_id === C1 && ch.number === "1234" && ch.bank === "Sicredi" && diaDe(ch.good_for) === somaDias(hojeStr, 15) && perto(n(ch.amount), 100) && ch.financial_payment_id === pgs[0]?.id, j(ch));
+      check("o cheque nasce recebido, do cliente, com número, banco, bom para e valor", !!ch && ch.status === "recebido" && ch.customer_id === C1 && ch.number === "1234" && ch.bank === "Sicredi" && diaDe(ch.good_for) === somaDias(hojeStr, 15) && perto(n(ch.amount), 100) && ch.financial_payment_id === pgs[0]?.id, j(ch));
       const caixa = dados(await xx("lerCaixaAction", admin));
       check("o cheque aparece na carteira do caixa", j(caixa?.checks ?? null).includes(chequeId1), j(caixa?.checks));
       const lc = await xx("listarChequesAction", admin);
@@ -422,14 +422,14 @@ async function comBanco() {
       check("compensado não deposita: 409 CHECK_STATUS", recusa(await xx("depositarChequeAction", op, chequeId1, { bank_account_id: CHQ }), "CHECK_STATUS", 409));
 
       // fora da ordem: compensar um recebido
-      const rS2 = await vender(op, 10, [cheque(100, { number: "2222" })], { contact_id: C1 });
+      const rS2 = await vender(op, 10, [cheque(100, { number: "2222" })], { customer_id: C1 });
       const ch2 = await db.emporioCheck.findFirst({ where: { sale_id: saleId(rS2) } });
       check("compensar um cheque só recebido: 409 CHECK_STATUS", recusa(await xx("compensarChequeAction", admin, ch2?.id), "CHECK_STATUS", 409));
       check("e nada mudou no cheque nem no caixa", (await chk(ch2?.id))?.status === "recebido" && (await db.cashMovement.count({ where: { check_id: ch2?.id } })) === 0);
 
       // voltou: a dívida reabre
       const C2 = await contato("Cliente cheque voltou");
-      const rS3 = await vender(op, 10, [cheque(100, { number: "3333" })], { contact_id: C2 });
+      const rS3 = await vender(op, 10, [cheque(100, { number: "3333" })], { customer_id: C2 });
       const S3 = saleId(rS3);
       const ch3 = await db.emporioCheck.findFirst({ where: { sale_id: S3 } });
       const en3 = (await receitaDe(S3))[0];
@@ -443,14 +443,14 @@ async function comBanco() {
       const en3b = await db.financialEntry.findUnique({ where: { id: en3.id } });
       check("o pagamento do cheque SAIU do lançamento e ele voltou a pending", (await pagamentosDe(en3.id)).length === 0 && en3b?.status === "pending", j(en3b));
       const fi = lista(dados(await xx("listarFiadoAction", op)));
-      check("o cliente volta a dever 100 no fiado", perto(dividaDe(fi, C2), 100), j(fi.filter((x) => x.contact_id === C2)));
+      check("o cliente volta a dever 100 no fiado", perto(dividaDe(fi, C2), 100), j(fi.filter((x) => x.customer_id === C2)));
       check("voltar não mexeu no caixa", (await db.cashMovement.count({ where: { check_id: ch3?.id } })) === 0);
-      const rRec = await xx("receberFiadoAction", op, { operation_key: chave("rec"), contact_id: C2, establishment_id: L1.id, amount: 100, kind: "dinheiro" });
+      const rRec = await xx("receberFiadoAction", op, { operation_key: chave("rec"), customer_id: C2, establishment_id: L1.id, amount: 100, kind: "dinheiro" });
       check("receber esse fiado em dinheiro funciona", rRec.ok, j(rRec));
       check("o lançamento volta a paid e a dívida zera", (await db.financialEntry.findUnique({ where: { id: en3.id } }))?.status === "paid" && dividaDe(lista(dados(await xx("listarFiadoAction", op))), C2) === 0);
 
       // voltou depois de depositado
-      const rS4 = await vender(op, 10, [cheque(100, { number: "4444" })], { contact_id: C2 });
+      const rS4 = await vender(op, 10, [cheque(100, { number: "4444" })], { customer_id: C2 });
       const ch4 = await db.emporioCheck.findFirst({ where: { sale_id: saleId(rS4) } });
       await xx("depositarChequeAction", op, ch4?.id, { bank_account_id: CHQ });
       check("cheque depositado também pode voltar", (await xx("chequeVoltouAction", owner, ch4?.id, { reason: "devolvido pelo banco" })).ok && (await chk(ch4?.id))?.status === "devolvido");
@@ -617,7 +617,7 @@ async function comBanco() {
 
       // c) cheque recebido
       const Cc = await contato("Cliente cancela cheque");
-      const rC = await vender(op, 10, [cheque(100, "5001")], { contact_id: Cc });
+      const rC = await vender(op, 10, [cheque(100, "5001")], { customer_id: Cc });
       const SC = saleId(rC);
       const rCc = await vv("cancelarVendaAction", admin, SC, { reason: "desistiu" });
       check("(c) cancelar venda com cheque só recebido", rCc.ok, j(rCc));
@@ -625,7 +625,7 @@ async function comBanco() {
       check("(c) lançamento cancelled e nada no caixa", (await receitaDe(SC))[0]?.status === "cancelled" && (await db.cashMovement.count({ where: { sale_id: SC } })) === 0);
 
       // d) cheque depositado
-      const rD = await vender(op, 10, [cheque(100, "5002")], { contact_id: Cc });
+      const rD = await vender(op, 10, [cheque(100, "5002")], { customer_id: Cc });
       const SD = saleId(rD);
       const chD = await db.emporioCheck.findFirst({ where: { sale_id: SD } });
       await xx("depositarChequeAction", op, chD?.id, { bank_account_id: CHQ });
@@ -634,7 +634,7 @@ async function comBanco() {
       check("(d) cheque compensado também recusa", recusa(await vv("cancelarVendaAction", admin, chequeCompensadoSale, { reason: "x" }), "SALE_HAS_DEPOSITED_CHECK", 409));
 
       // e) cheque devolvido: nada a estornar
-      const rE = await vender(op, 10, [cheque(100, "5003")], { contact_id: Cc });
+      const rE = await vender(op, 10, [cheque(100, "5003")], { customer_id: Cc });
       const SE = saleId(rE);
       const chE = await db.emporioCheck.findFirst({ where: { sale_id: SE } });
       await xx("chequeVoltouAction", admin, chE?.id, { reason: "sem fundos" });
@@ -656,7 +656,7 @@ async function comBanco() {
       const CM = await contato("Cliente misto");
       const gav0 = await saldoGaveta(L1.id);
       const rec0 = await aReceberDb();
-      const rM = await vender(op, 30, [dinheiro(100), cartao("credito_vista", 100), { kind: "fiado", amount: 100 }], { contact_id: CM });
+      const rM = await vender(op, 30, [dinheiro(100), cartao("credito_vista", 100), { kind: "fiado", amount: 100 }], { customer_id: CM });
       check("venda de R$ 300 em três formas", rM.ok, j(rM));
       const S = saleId(rM);
       const rec = await receitaDe(S);
@@ -794,7 +794,7 @@ async function comBanco() {
       // cheques
       const Cr = await contato("rota cheque");
       const novoCheque = async (num: string) => {
-        const r = await vender(owner, 10, [{ kind: "cheque", amount: 100, check: { number: num, bank: "Banco R", good_for: bomPara(somaDias(hoje(), 5)) } }], { contact_id: Cr });
+        const r = await vender(owner, 10, [{ kind: "cheque", amount: 100, check: { number: num, bank: "Banco R", good_for: bomPara(somaDias(hoje(), 5)) } }], { customer_id: Cr });
         return (await db.emporioCheck.findFirst({ where: { sale_id: saleId(r) } }))?.id ?? "";
       };
       const cA = await novoCheque("6001");
@@ -871,6 +871,7 @@ async function comBanco() {
         await prisma.product.deleteMany({ where: { tenant_id: id } });
         await prisma.establishment.deleteMany({ where: { tenant_id: id } });
         await prisma.bankAccount.deleteMany({ where: { tenant_id: id } });
+        await prisma.emporioCustomer.deleteMany({ where: { tenant_id: id } });
         await prisma.contact.deleteMany({ where: { tenant_id: id } });
         await prisma.productCategory.deleteMany({ where: { tenant_id: id } });
         await prisma.property.deleteMany({ where: { tenant_id: id } });

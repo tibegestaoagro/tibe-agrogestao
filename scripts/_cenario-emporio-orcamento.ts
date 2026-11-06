@@ -67,7 +67,7 @@ async function limpar(tenant_id: string) {
   await prisma.emporioSale.deleteMany({ where: { tenant_id, id: { in: vendas } } });
   // O orcamento so sai depois das vendas: a venda guarda `quote_id` com Restrict.
   await prisma.emporioQuote.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
-  await prisma.contact.deleteMany({ where: { tenant_id, name: { startsWith: PREFIXO } } });
+  await prisma.emporioCustomer.deleteMany({ where: { tenant_id, name: { startsWith: PREFIXO } } });
   await prisma.cashHandover.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.cashSession.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.cashRegister.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
@@ -178,11 +178,11 @@ async function main() {
     create: { tenant_id, quote_validity_days: 7 },
   });
 
-  // Dois clientes de cadastro completo (nome, documento e telefone).
-  await prisma.contact.create({
+  // Dois clientes do Empório de cadastro completo (PF com nome, CPF e telefone).
+  await prisma.emporioCustomer.create({
     data: { tenant_id, name: "Orc Cliente", person_kind: "pf", document: "24681357928", phone: "11987654321" } as never,
   });
-  const vencido = await prisma.contact.create({
+  const vencido = await prisma.emporioCustomer.create({
     data: { tenant_id, name: "Orc Vencido", person_kind: "pf", document: "13579246828", phone: "11955554444" } as never,
   });
 
@@ -191,7 +191,7 @@ async function main() {
   const salvo = await orc.salvarOrcamentoAction(db, { id: vendedor.id, role: vendedor.role }, {
     operation_key: `cenario-orcamento-vencido-${Date.now()}`,
     establishment_id: loja.id,
-    contact_id: vencido.id,
+    customer_id: vencido.id,
     items: [{ emporio_product_id: parado.id, presentation_id: parado.ap, quantity: 1 }],
   });
   if (!salvo.ok) throw new Error(`orcamento vencido: ${salvo.message}`);

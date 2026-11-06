@@ -84,7 +84,7 @@ async function secao1() {
       V.venderAction(db, owner, {
         operation_key: chave ?? `m91-${rotulo}-${stamp}-${(seq += 1)}`,
         establishment_id: loja.data.id,
-        contact_id: cf,
+        customer_id: cf,
         items: [{ emporio_product_id: p.data.id, presentation_id: pres.data.id, quantity: 1 }],
         payments: [{ kind: "dinheiro", amount: 10 }],
       });
@@ -146,7 +146,7 @@ async function secao1() {
     const modelos = [
       "emporioAuditLog", "cashMovement", "cashCount", "stockMovement", "emporioSalePayment", "emporioSaleReturnItem", "emporioSaleReturn",
       "emporioSaleItem", "emporioSale", "emporioCounter", "emporioSettings", "financialEntry", "presentationPrice", "productPresentation",
-      "userEstablishment", "emporioProduct", "product", "establishment", "bankAccount", "contact", "productCategory", "user",
+      "userEstablishment", "emporioProduct", "product", "establishment", "bankAccount", "emporioCustomer", "contact", "productCategory", "user",
       "tenantProfile", "tenantFeature",
     ];
     for (const id of tenantIds) {
@@ -448,7 +448,7 @@ async function secao3() {
     }
     const cat0 = await carregarCatalogoDeVenda(db, []);
     const cf = cat0.contatos[0].id;
-    const pj = await db.contact.create({
+    const pj = await db.emporioCustomer.create({
       data: scoped({
         name: "M91s3 Agro PJ",
         person_kind: "pj",
@@ -468,7 +468,7 @@ async function secao3() {
       V.venderAction(db, donoA, {
         operation_key: `m91s3-${stamp}-${(seq += 1)}`,
         establishment_id: lojaId,
-        contact_id: contactId,
+        customer_id: contactId,
         items: [{ emporio_product_id: p.data.id, presentation_id: pres.data.id, quantity }],
         payments: [{ kind: "dinheiro", amount: quantity * 10 }],
       });
@@ -524,7 +524,7 @@ async function secao3() {
     const vDesc = await V.venderAction(db, donoA, {
       operation_key: `m91s3-${stamp}-desc`,
       establishment_id: loja.data.id,
-      contact_id: cf,
+      customer_id: cf,
       items: [
         { emporio_product_id: p.data.id, presentation_id: pres.data.id, quantity: 3, unit_price: 9 },
         { emporio_product_id: p.data.id, presentation_id: pres.data.id, quantity: 2 },
@@ -552,7 +552,7 @@ async function secao3() {
     const vFrac = await V.venderAction(db, donoA, {
       operation_key: `m91s3-${stamp}-frac`,
       establishment_id: loja.data.id,
-      contact_id: cf,
+      customer_id: cf,
       items: [{ emporio_product_id: p.data.id, presentation_id: pres.data.id, quantity: 0.5, unit_price: 9.99 }],
       payments: [{ kind: "dinheiro", amount: 5 }],
     });
@@ -578,7 +578,7 @@ async function secao3() {
       venda: {
         operation_key: `m91s3-${stamp}-trocav`,
         establishment_id: loja.data.id,
-        contact_id: pj.id,
+        customer_id: pj.id,
         items: [{ emporio_product_id: p.data.id, presentation_id: pres.data.id, quantity: 2 }],
         payments: [{ kind: "dinheiro", amount: 10 }],
       },
@@ -617,7 +617,7 @@ async function secao3() {
     const modelos = [
       "emporioAuditLog", "cashMovement", "cashCount", "stockMovement", "emporioSalePayment", "emporioSaleReturnItem", "emporioSaleReturn",
       "emporioSaleItem", "emporioSale", "emporioCounter", "emporioSettings", "financialEntry", "presentationPrice", "productPresentation",
-      "userEstablishment", "emporioProduct", "product", "establishment", "bankAccount", "contact", "productCategory", "user",
+      "userEstablishment", "emporioProduct", "product", "establishment", "bankAccount", "emporioCustomer", "contact", "productCategory", "user",
       "tenantProfile", "tenantFeature",
     ];
     for (const id of tenantIds) {

@@ -1,7 +1,8 @@
 # Validacao viva de "Empório: cadastro do cliente, nome do produto e menu lateral"
 # (Modulo 39, spec docs/specs/module-39-meu-emporio.md): cliente cadastrado no
 # balcao (PF, CPF valido), venda sempre com cliente (Consumidor final conta),
-# contato antigo com cadastro incompleto, nome do produto editavel e o menu
+# cliente antigo do Emporio com cadastro incompleto (a PF completa so com o
+# telefone, sem CPF), nome do produto editavel e o menu
 # "Meu Empório" como grupo.
 #
 # Reaproveita o cenario da F6b: duas lojas, o produto "F6b Ração" (R$ 20,00 o
@@ -31,7 +32,8 @@ ITENS_DO_DONO = [
     "/emporio/configuracoes",
 ]
 SUFIXO = str(int(time.time()))
-NOME_ANTIGO = "Cliente Antigo " + SUFIXO
+# O cliente antigo, so o nome: o cenario da F6b o recria incompleto a cada rodada.
+NOME_ANTIGO = "F6b Cliente Antigo"
 NOME_NOVO = "Cliente Balcao " + SUFIXO
 
 
@@ -110,9 +112,7 @@ entrar("owner")
 ir("/emporio")
 time.sleep(3)
 esperar(lambda: api("GET", "/api/v1/emporio/products?q=F6b")["status"] == 200, 90)
-# O contato antigo: so o nome, como os que existiam antes do cadastro completo.
-r = api("POST", "/api/v1/contacts", {"name": NOME_ANTIGO})
-confere("o contato antigo (so o nome) foi criado", r["status"] in (200, 201), r["status"])
+# O cliente antigo (so o nome) vem do cenario: o Emporio nao cria cliente incompleto.
 produto = produto_f6b()
 nome_original = produto["name"]
 
@@ -155,9 +155,13 @@ confere("preenche o CNPJ alfanumérico válido, em minúscula", preencher("CNPJ"
 enviar_painel()
 confere("o painel fechou", esperar(lambda: not painel_aberto(), 60))
 confere("a empresa cadastrada já está escolhida no campo Cliente", esperar(lambda: NOME_PJ in cliente_escolhido()), cliente_escolhido())
-lista = api("GET", "/api/v1/contacts?q=" + NOME_PJ.replace(" ", "%20"))["body"].get("data", [])
-gravado = [c for c in lista if c.get("name") == NOME_PJ]
-confere("gravado sem pontuação e em maiúscula", bool(gravado) and gravado[0].get("document") == CNPJ, gravado)
+# O cliente do Emporio nao aparece em Contatos: o id vem da linha do Historico do cadastro.
+linhas = (api("GET", "/api/v1/emporio/history?action=cliente.cadastrar")["body"].get("data") or {}).get("items", [])
+ids = [l.get("target_id") for l in linhas if NOME_PJ in (l.get("summary") or "")]
+gravado = api("GET", "/api/v1/emporio/customers/" + ids[0])["body"].get("data") if ids else None
+confere("gravado sem pontuação e em maiúscula", bool(gravado) and gravado.get("document") == CNPJ, gravado)
+contatos = api("GET", "/api/v1/contacts?q=" + NOME_PJ.replace(" ", "%20"))["body"].get("data", [])
+confere("o cliente do Empório não aparece em Contatos", not any(c.get("name") == NOME_PJ for c in contatos), contatos)
 
 passo("2. A venda exige cliente; Consumidor final vale")
 # Página nova: a venda recomeça sem cliente escolhido.
@@ -179,21 +183,20 @@ enviar_venda()
 confere("a venda ao Consumidor final é registrada", esperar(lambda: tem("Venda registrada"), 60), texto_principal(200))
 confere("o resumo cita o cliente Consumidor final", tem("cliente Consumidor final"))
 
-passo("3. Contato antigo: Cadastro incompleto e Completar cadastro")
+passo("3. Cliente antigo: Cadastro incompleto e Completar cadastro (PF sem CPF)")
 ir("/emporio/vender")
-confere("escolhe o contato só com o nome", escolher("Cliente", NOME_ANTIGO) is True)
+confere("escolhe o cliente só com o nome", escolher("Cliente", NOME_ANTIGO) is True)
 confere("aparece o aviso Cadastro incompleto", esperar(lambda: tem("Cadastro incompleto")))
 confere("abre Completar cadastro", clicar("Completar cadastro"))
 time.sleep(2)
 confere("painel abriu", painel_aberto())
 confere("o painel traz o nome já preenchido", esperar(lambda: js("(() => { const d = document.querySelector('[role=dialog]'); return Array.from(d.querySelectorAll('input')).some(i => i.value === " + repr(NOME_ANTIGO) + "); })()")))
 confere("escolhe Pessoa física", tipo_no_painel("Pessoa física"))
-confere("preenche o CPF", preencher("CPF", cpf_valido_novo()) not in ("SEM ROTULO", "SEM CAMPO"))
-confere("preenche o telefone", preencher("Telefone", "38988880000") not in ("SEM ROTULO", "SEM CAMPO"))
+confere("preenche só o telefone (o CPF é opcional)", preencher("Telefone", "38988880000") not in ("SEM ROTULO", "SEM CAMPO"))
 enviar_painel()
 confere("o painel fechou", esperar(lambda: not painel_aberto(), 60))
 confere("o aviso some", esperar(lambda: not tem("Cadastro incompleto")))
-confere("o contato continua escolhido", NOME_ANTIGO in cliente_escolhido(), cliente_escolhido())
+confere("o cliente continua escolhido", NOME_ANTIGO in cliente_escolhido(), cliente_escolhido())
 
 passo("4. Nome do produto editável")
 ir("/emporio/produtos/" + produto["id"])

@@ -85,7 +85,7 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
           </h1>
           <p className="mt-1 text-sm text-texto-secundario">
             {venda.establishment_name}
-            {venda.contact_name ? `, cliente ${venda.contact_name}` : ""}
+            {venda.customer_name ? `, cliente ${venda.customer_name}` : ""}
           </p>
           {venda.quote && (
             <p className="text-sm text-texto-secundario">
@@ -137,7 +137,7 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
                   produtos={catalogo.produtos}
                   precos={catalogo.precos}
                   contatos={catalogo.contatos}
-                  contatoId={venda.contact_id}
+                  contatoId={venda.customer_id}
                   caixas={caixas}
                   usuarioId={user.id}
                 />

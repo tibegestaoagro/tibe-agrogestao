@@ -92,7 +92,7 @@ export default async function VendasPage({
                   <TableCell className="font-medium text-texto">{formatarNumero(v.number)}</TableCell>
                   <TableCell>{DATA_HORA.format(new Date(v.sold_at))}</TableCell>
                   <TableCell className="font-medium text-texto">{v.establishment_name}</TableCell>
-                  <TableCell>{v.contact_name ?? "-"}</TableCell>
+                  <TableCell>{v.customer_name ?? "-"}</TableCell>
                   <TableCell>{v.seller_name ?? "-"}</TableCell>
                   <TableCell>{reaisBr(v.net_amount)}</TableCell>
                   <TableCell>

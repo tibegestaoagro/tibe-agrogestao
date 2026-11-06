@@ -18,7 +18,7 @@ import { useVenda, type CampoDaVenda, type ContatoDeVenda, type PrecosVenda, typ
 
 // Ordem visual, de cima para baixo. Na troca o servidor recusa os itens
 // devolvidos em `items_devolvidos` e os da venda nova em `items`.
-const ORDEM = ["items_devolvidos", "amount", "items", "contact_id", "payments", "cash_register_id", "reason"] as const;
+const ORDEM = ["items_devolvidos", "amount", "items", "customer_id", "payments", "cash_register_id", "reason"] as const;
 type Campo = (typeof ORDEM)[number];
 
 const VAZIA: EscolhaDevolucao = { qtds: {}, avarias: {} };
@@ -80,7 +80,7 @@ export function TrocarForm({
     const novos: Partial<Record<Campo, string>> = {};
     if (!devolvidos.ok) novos.items_devolvidos = devolvidos.erro;
     if (m.novos.items) novos.items = m.novos.items;
-    if (m.novos.contact_id) novos.contact_id = m.novos.contact_id;
+    if (m.novos.customer_id) novos.customer_id = m.novos.customer_id;
     if (m.novos.payments) novos.payments = m.novos.payments;
     if (abertos.length > 1 && !caixa) novos.cash_register_id = "Escolha o caixa da troca.";
     if (Object.keys(novos).length > 0 || !devolvidos.ok || !m.corpo) {

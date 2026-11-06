@@ -1,12 +1,13 @@
 import type { TenantPrismaClient } from "@/lib/prisma";
 import { decToNum } from "@/lib/serialize";
 import { garantirConsumidorFinal } from "@/lib/actions/emporio-clientes";
-import { cadastroIncompleto } from "@/lib/contatos/cadastro";
+import { faltaNoCadastro } from "@/lib/emporio/cliente-cadastro";
 import type { ContatoDeVenda, PrecosVenda, ProdutoVenda } from "./venda-estado";
 
 /**
  * O que a tela de venda precisa saber do catálogo: produtos com apresentação
- * ativa, o preço sugerido de cada apresentação em cada loja, e os clientes.
+ * ativa, o preço sugerido de cada apresentação em cada loja, e os clientes do
+ * Empório (`EmporioCustomer`).
  * Roda no servidor (leitura direta pelo client escopado, como as outras
  * páginas do Empório); o resultado desce por prop para o formulário.
  */
@@ -14,7 +15,7 @@ export async function carregarCatalogoDeVenda(
   db: TenantPrismaClient,
   lojaIds: string[],
 ): Promise<{ produtos: ProdutoVenda[]; precos: PrecosVenda; contatos: ContatoDeVenda[] }> {
-  // Garante o Consumidor final antes de listar: conta nova ainda não tem o contato fixo.
+  // Garante o Consumidor final antes de listar: conta nova ainda não tem o cliente fixo.
   const consumidorFinal = await garantirConsumidorFinal(db);
   const [linhas, tabela, contatosDb] = await Promise.all([
     db.emporioProduct.findMany({
@@ -36,15 +37,18 @@ export async function carregarCatalogoDeVenda(
       where: { establishment_id: { in: lojaIds }, price: { not: null } },
       select: { presentation_id: true, establishment_id: true, price: true },
     }),
-    db.contact.findMany({
+    db.emporioCustomer.findMany({
       where: { archived_at: null, system_key: null },
-      select: { id: true, name: true, person_kind: true, document: true, phone: true, system_key: true },
+      select: {
+        id: true, name: true, person_kind: true, document: true, phone: true, address_zip: true, address_street: true,
+        address_number: true, address_complement: true, address_district: true, city: true, address_state: true,
+      },
       orderBy: { name: "asc" },
     }),
   ]);
   const contatos: ContatoDeVenda[] = [
     { id: consumidorFinal.id, name: consumidorFinal.name, incomplete: false, consumidor_final: true },
-    ...contatosDb.map((c) => ({ id: c.id, name: c.name, incomplete: cadastroIncompleto(c), consumidor_final: false })),
+    ...contatosDb.map((c) => ({ id: c.id, name: c.name, incomplete: faltaNoCadastro(c) !== null, consumidor_final: false })),
   ];
 
   const produtos = linhas

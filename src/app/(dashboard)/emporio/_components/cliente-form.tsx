@@ -45,11 +45,12 @@ type Campo = (typeof ORDEM)[number];
 type ContatoSalvo = { id: string; name: string; incomplete: boolean };
 
 /**
- * Cadastro do cliente no balcão, no mesmo contato que aparece em Contatos.
+ * Cadastro do cliente do Empório (a tabela própria do Empório, fora de Contatos).
  *
- * `novo` cria (POST) e `completar` abre o contato já cadastrado, preenchido, e
+ * `novo` cria (POST) e `completar` abre o cliente já cadastrado, preenchido, e
  * grava por cima (PATCH): o servidor junta o que está guardado com o que veio e
- * só salva um cadastro completo (tipo, nome, documento e telefone).
+ * só salva o cadastro completo para o tipo (PF: nome e telefone; PJ: mais CNPJ e
+ * endereço principal).
  */
 export function ClienteForm({
   modo,
@@ -79,7 +80,7 @@ export function ClienteForm({
     if (!completar || !contatoId) return;
     setCarregando(true);
     setFalhouCarga(false);
-    const res = await apiGet<ContatoDoCadastro>(`/api/v1/contacts/${contatoId}`);
+    const res = await apiGet<ContatoDoCadastro>(`/api/v1/emporio/customers/${contatoId}`);
     setCarregando(false);
     if (!res.ok) {
       setFalhouCarga(true);
@@ -99,8 +100,17 @@ export function ClienteForm({
     const nome = valores.name.trim();
     if (!valores.person_kind) novos.person_kind = "Escolha pessoa física ou jurídica.";
     if (!nome) novos.name = valores.person_kind === "pj" ? "Informe o nome da empresa." : "Informe o nome do cliente.";
-    if (!valores.document.trim()) novos.document = valores.person_kind === "pj" ? "Informe o CNPJ." : "Informe o CPF.";
     if (!valores.phone.trim()) novos.phone = "Informe o telefone.";
+    // As mesmas frases de `faltaNoCadastro`: a PJ exige o CNPJ e o endereço principal.
+    if (valores.person_kind === "pj") {
+      if (!valores.document.trim()) novos.document = "Informe o CNPJ.";
+      if (!valores.address_zip.trim()) novos.address_zip = "Informe o CEP do endereço principal.";
+      if (!valores.address_street.trim()) novos.address_street = "Informe a rua do endereço principal.";
+      if (!valores.address_number.trim()) novos.address_number = "Informe o número do endereço principal.";
+      if (!valores.address_district.trim()) novos.address_district = "Informe o bairro do endereço principal.";
+      if (!valores.city.trim()) novos.city = "Informe a cidade do endereço principal.";
+      if (!valores.address_state.trim()) novos.address_state = "Escolha a UF do endereço principal.";
+    }
     if (Object.keys(novos).length > 0) {
       err.setGlobal(null);
       err.reprovar(novos);
@@ -136,7 +146,7 @@ export function ClienteForm({
       description={
         completar
           ? "Faltam dados deste cliente. Confira e complete."
-          : "Tipo, nome, CPF ou CNPJ e telefone são obrigatórios. O cliente também aparece em Contatos."
+          : "Tipo, nome e telefone são obrigatórios. Na pessoa jurídica, também o CNPJ e o endereço."
       }
       open={open}
       onOpenChange={(o) => {

@@ -364,7 +364,7 @@ export default async function CaixaPage() {
                     </span>
                   </TableCell>
                   <TableCell>
-                    {c.contact_name}
+                    {c.customer_name}
                     <Link href={`/emporio/vendas/${c.sale_id}`} className="block text-xs font-medium text-texto-marca hover:underline">
                       Ver a venda
                     </Link>

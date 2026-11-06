@@ -29,6 +29,7 @@ import { abrirTurnoDeTeste } from "./_emporio-turno";
 exigirBancoLocal();
 
 const PREFIXO = "F6b ";
+const CLIENTE_ANTIGO = `${PREFIXO}Cliente Antigo`;
 const SENHA_INUTIL = "sem-senha"; // hash que nenhuma senha produz: a sessao vem do cookie
 const EMAILS = {
   gerente: "f6b-gerente@teste.local",
@@ -169,12 +170,17 @@ async function main() {
     await vendas.venderAction(db, dono, {
       operation_key: `cenario-f6b-venda-${agora}`,
       establishment_id: loja1.id,
-      contact_id: (await (await import("@/lib/actions/emporio-clientes")).garantirConsumidorFinal(db)).id,
+      customer_id: (await (await import("@/lib/actions/emporio-clientes")).garantirConsumidorFinal(db)).id,
       items: [{ emporio_product_id: racao, presentation_id: quilo, quantity: 1, unit_price: 20 }],
       payments: [{ kind: "dinheiro", amount: 20 }],
     } as never),
     "venda",
   );
+
+  // O cliente antigo do Empório, só com o nome (como os que vieram de Contatos): o roteiro
+  // emporio-cliente-menu o completa. Recriado a cada rodada para voltar incompleto.
+  await db.emporioCustomer.deleteMany({ where: { name: CLIENTE_ANTIGO, sales: { none: {} }, quotes: { none: {} }, checks: { none: {} } } });
+  await db.emporioCustomer.create({ data: { name: CLIENTE_ANTIGO } as never });
 
   const enviar = async (n: string) =>
     exigir(

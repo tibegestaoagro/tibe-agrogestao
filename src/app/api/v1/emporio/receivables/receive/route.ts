@@ -10,7 +10,7 @@ import { caixaDoTurno, chaveDeOperacao } from "@/lib/emporio/venda-schema";
 
 const schema = z.object({
   operation_key: chaveDeOperacao,
-  contact_id: z.string({ error: "Escolha o cliente." }).min(1, "Escolha o cliente."),
+  customer_id: z.string({ error: "Escolha o cliente." }).min(1, "Escolha o cliente."),
   establishment_id: z.string({ error: "Escolha o estabelecimento." }).min(1, "Escolha o estabelecimento."),
   amount: z.number({ error: "Informe o valor recebido." }),
   kind: z.string({ error: "Escolha como o cliente pagou." }).min(1, "Escolha como o cliente pagou."),

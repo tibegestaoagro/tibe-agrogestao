@@ -5,7 +5,10 @@ import { withApi } from "@/lib/route";
 import { cadastrarClienteAction } from "@/lib/actions/emporio-clientes";
 import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
-/** POST /api/v1/emporio/customers: cadastra o cliente do balcão (PF ou PJ). A regra vive na action. */
+/**
+ * POST /api/v1/emporio/customers: cadastra o cliente do Empório (PF ou PJ), na tabela própria
+ * do Empório, fora de Contatos. A regra (formato e obrigatórios por tipo) vive na action.
+ */
 
 const texto = z.string().trim().max(200).nullish();
 
@@ -31,6 +34,7 @@ const schema = z.object({
   delivery_district: texto,
   delivery_city: texto,
   delivery_state: texto,
+  notes: z.string().trim().max(1000).nullish(),
 });
 
 async function POSTHandler(request: Request) {
@@ -42,7 +46,7 @@ async function POSTHandler(request: Request) {
   const parsed = schema.safeParse(body.json);
   if (!parsed.success) return apiErroDeZod(parsed.error);
 
-  return respostaDaAction(await cadastrarClienteAction(g.db, g.user, { ...parsed.data, name: parsed.data.name ?? "" }), 201);
+  return respostaDaAction(await cadastrarClienteAction(g.db, g.user, parsed.data), 201);
 }
 
 export const POST = withApi(POSTHandler);

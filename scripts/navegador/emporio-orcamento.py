@@ -22,7 +22,7 @@ CAIXA = "Orc Caixa"
 CLIENTE = "Orc Cliente"
 VENCIDO = "Orc Vencido"
 TELEFONE = "(11) 98765-4321"
-RECUSA_CLIENTE = "O orçamento precisa de um cliente com nome, documento e telefone."
+RECUSA_CLIENTE = "Escolha o cliente do orçamento. Quem não quer se identificar entra como Consumidor final."
 
 # Brasília não tem horário de verão: UTC menos 3 horas.
 HOJE = datetime.utcnow() - timedelta(hours=3)
@@ -129,10 +129,10 @@ passo("1. O Vendedor salva um orçamento: cliente completo, número, validade, A
 abrir_balcao(modo_orcamento=True)
 adicionar(RACAO, "Orc Ra", "2", 1)
 adicionar(ESCASSO, "Orc Esc", "5", 2)
-confere("escolhe Consumidor final", escolher("Cliente", "Consumidor final") is True)
-confere("clica em Salvar orçamento", enviar_botao("Salvar orçamento"))
+# Frente 1 (06/11): o orçamento aceita o Consumidor final; a recusa é a de sem cliente.
+confere("clica em Salvar orçamento sem escolher o cliente", enviar_botao("Salvar orçamento"))
 recusa = esperar(lambda: erro_do_campo("Cliente"), 20)
-confere("Consumidor final: a recusa aparece no campo Cliente", recusa == RECUSA_CLIENTE, recusa)
+confere("sem cliente: a recusa aparece no campo Cliente", recusa == RECUSA_CLIENTE, recusa)
 confere("o orçamento não foi salvo", not tem("salvo, válido até"), texto_principal(200))
 confere("escolhe o cliente completo", escolher("Cliente", CLIENTE) is True)
 confere("a recusa some ao escolher", esperar(lambda: not erro_do_campo("Cliente"), 10))

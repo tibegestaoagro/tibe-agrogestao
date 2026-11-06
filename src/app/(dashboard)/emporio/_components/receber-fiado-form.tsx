@@ -22,12 +22,12 @@ import { CaixaDaOperacao } from "./caixa-da-operacao";
 import { abertosDaLoja, caixaInicial, type CaixaDaLoja } from "./caixas-da-loja";
 
 // Ordem visual, de cima para baixo.
-const ORDEM = ["contact_id", "amount", "kind", "establishment_id", "cash_register_id"] as const;
+const ORDEM = ["customer_id", "amount", "kind", "establishment_id", "cash_register_id"] as const;
 type Campo = (typeof ORDEM)[number];
 
 /**
  * Receber o fiado de um cliente. O valor pode ser parcial: o servidor abate das
- * vendas mais antigas para as mais novas. `contact_id` não é um campo que a
+ * vendas mais antigas para as mais novas. `customer_id` não é um campo que a
  * pessoa edita (o cliente é o da linha), mas entra na ordem com o nome dele,
  * para uma recusa sobre o cliente aparecer na tela em vez de sumir.
  */
@@ -80,7 +80,7 @@ export function ReceberFiadoForm({
     setLoading(true);
     const res = await apiPost("/api/v1/emporio/receivables/receive", {
       operation_key: chave.current.key,
-      contact_id: contatoId,
+      customer_id: contatoId,
       establishment_id: loja,
       amount: n,
       kind: forma,
@@ -115,7 +115,7 @@ export function ReceberFiadoForm({
       focarCampoId={err.focarCampoId}
       tentativa={err.tentativa}
     >
-      <Field label="Cliente" id={err.idDe("contact_id")} error={err.erros.contact_id}>
+      <Field label="Cliente" id={err.idDe("customer_id")} error={err.erros.customer_id}>
         {({ id, ...aria }) => (
           <p id={id} tabIndex={-1} {...aria} className="text-base font-medium text-texto">
             {contatoNome}{" "}

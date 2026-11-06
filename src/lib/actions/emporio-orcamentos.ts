@@ -17,7 +17,7 @@ import {
   resolverVendedor,
   type VendaItemInput,
 } from "@/lib/emporio/precificar";
-import { CONSUMIDOR_FINAL, cadastroIncompleto } from "@/lib/contatos/cadastro";
+import { faltaNoCadastro } from "@/lib/emporio/cliente-cadastro";
 import { lojaVisivel, lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { acharLojaParaEscrita, lerMovimentos } from "@/lib/actions/emporio-estoque";
 import { normalizarTermo } from "@/lib/actions/whatsapp-handlers/shared";
@@ -25,21 +25,21 @@ import { normalizarTermo } from "@/lib/actions/whatsapp-handlers/shared";
 /**
  * Meu Empório, entrega 4: o orçamento. Salvar não mexe em estoque, caixa nem
  * financeiro: grava o preço e o desconto do momento, pela mesma regra da venda
- * (`precificar.ts`), para um cliente identificado. A situação (aberto, vencido,
+ * (`precificar.ts`), para um cliente do Empório (o Consumidor final serve). A situação (aberto, vencido,
  * faturado) é derivada na leitura, nunca gravada. Validação em TypeScript puro,
  * porque o agente do WhatsApp chama sem passar pelo Zod da rota.
  */
 
 const NAO_ACHADO = () => fail("NOT_FOUND", "Orçamento não encontrado.", 404);
 const CLIENTE_OBRIGATORIO = () =>
-  fail("QUOTE_CUSTOMER_REQUIRED", "O orçamento precisa de um cliente com nome, documento e telefone.", 422, "contact_id");
-const CLIENTE_INCOMPLETO = () =>
   fail(
-    "QUOTE_CUSTOMER_INCOMPLETE",
-    "Complete o cadastro do cliente (nome, documento e telefone) antes de salvar o orçamento.",
+    "QUOTE_CUSTOMER_REQUIRED",
+    "Escolha o cliente do orçamento. Quem não quer se identificar entra como Consumidor final.",
     422,
-    "contact_id",
+    "customer_id",
   );
+const CLIENTE_INCOMPLETO = (falta: string) =>
+  fail("QUOTE_CUSTOMER_INCOMPLETE", `Complete o cadastro do cliente antes de salvar o orçamento. ${falta}`, 422, "customer_id");
 
 const VALIDADE_PADRAO = 7;
 
@@ -87,7 +87,8 @@ export type OrcamentoView = {
   numero: string;
   establishment_id: string;
   loja: string;
-  contact: { id: string; name: string; phone: string | null; document: string | null };
+  /** O cliente do Empório (`EmporioCustomer`); antes da Frente 1, `contact`. */
+  customer: { id: string; name: string; phone: string | null; document: string | null };
   seller_user_id: string | null;
   seller_name: string | null;
   created_by_name: string | null;
@@ -107,7 +108,7 @@ export type OrcamentoView = {
 
 const INCLUDE_ORCAMENTO = {
   establishment: { select: { name: true } },
-  contact: { select: { id: true, name: true, phone: true, document: true } },
+  customer: { select: { id: true, name: true, phone: true, document: true } },
   sale: { select: { id: true, number: true } },
   sales: { select: { id: true, number: true, status: true }, orderBy: { created_at: "asc" } },
   items: {
@@ -207,7 +208,12 @@ async function montarOrcamentos(db: TenantPrismaClient, linhas: OrcamentoRow[]):
       numero: formatarNumero(q.number),
       establishment_id: q.establishment_id,
       loja: q.establishment.name,
-      contact: { id: q.contact?.id ?? "", name: q.contact?.name ?? "", phone: q.contact?.phone ?? null, document: q.contact?.document ?? null },
+      customer: {
+        id: q.customer?.id ?? "",
+        name: q.customer?.name ?? "",
+        phone: q.customer?.phone ?? null,
+        document: q.customer?.document ?? null,
+      },
       seller_user_id: q.seller_user_id,
       seller_name: q.seller_user_id ? (nomeDoUsuario.get(q.seller_user_id) ?? null) : null,
       created_by_name: q.created_by_user_id ? (nomeDoUsuario.get(q.created_by_user_id) ?? null) : null,
@@ -299,7 +305,7 @@ const soDigitos = (s: string | null | undefined) => (s ?? "").replace(/\D/g, "")
  * documento do cliente só pelos dígitos (o cadastro pode ter máscara); texto casa
  * o nome sem acento. Sem `situacao`, traz aberto e vencido (o que se acompanha).
  *
- * A comparação por dígitos é feita em memória sobre os contatos que têm orçamento
+ * A comparação por dígitos é feita em memória sobre os clientes que têm orçamento
  * nas lojas e na situação pedidas (id, telefone e documento, nada mais), e não
  * por SQL cru: `$queryRaw` burlaria o escopo por tenant do client.
  */
@@ -339,21 +345,21 @@ export async function listarOrcamentosAction(
       const ou: Record<string, unknown>[] = [];
       if (/^\d{1,6}$/.test(q)) ou.push({ number: Number(q) });
       if (digitos.length >= 3) {
-        const candidatos = await db.contact.findMany({
-          where: { emporio_quotes: { some: base.length > 0 ? { AND: base } : {} } },
+        const candidatos = await db.emporioCustomer.findMany({
+          where: { quotes: { some: base.length > 0 ? { AND: base } : {} } },
           select: { id: true, phone: true, document: true },
         });
         const ids = candidatos
           .filter((c) => soDigitos(c.phone).includes(digitos) || soDigitos(c.document).includes(digitos))
           .map((c) => c.id);
-        if (ids.length > 0) ou.push({ contact_id: { in: ids } });
+        if (ids.length > 0) ou.push({ customer_id: { in: ids } });
       }
       if (ou.length === 0) return ok([]);
       filtros.push({ OR: ou });
     } else {
       const termo = normalizarTermo(q);
       if (!termo) return ok([]);
-      filtros.push({ contact: { name_busca: { contains: termo } } });
+      filtros.push({ customer: { name_busca: { contains: termo } } });
     }
   }
 
@@ -365,7 +371,7 @@ export async function listarOrcamentosAction(
     where: filtros.length > 0 ? { AND: filtros } : {},
     include: {
       establishment: { select: { name: true } },
-      contact: { select: { name: true, phone: true } },
+      customer: { select: { name: true, phone: true } },
       sale: { select: { number: true } },
     },
     orderBy: { created_at: "desc" },
@@ -384,8 +390,8 @@ export async function listarOrcamentosAction(
       number: l.number,
       numero: formatarNumero(l.number),
       loja: l.establishment.name,
-      cliente: l.contact?.name ?? "",
-      telefone: l.contact?.phone ?? null,
+      cliente: l.customer?.name ?? "",
+      telefone: l.customer?.phone ?? null,
       valor: decToNum(l.net_amount) ?? 0,
       criado_em: l.created_at.toISOString(),
       valid_until: l.valid_until.toISOString().slice(0, 10),
@@ -403,7 +409,8 @@ export async function listarOrcamentosAction(
 export type OrcamentoInput = {
   operation_key: string;
   establishment_id: string;
-  contact_id?: string | null;
+  /** O cliente do Empório (`EmporioCustomer`); o Consumidor final serve. */
+  customer_id?: string | null;
   items: VendaItemInput[];
   /** Quem atendeu: obrigatório para o Caixa, como na venda (Q168, Q169). */
   seller_user_id?: string | null;
@@ -444,15 +451,13 @@ export async function salvarOrcamentoAction(
   const vendedor = await resolverVendedor(db, ator, loja.data.id, input.seller_user_id);
   if (!vendedor.ok) return vendedor;
 
-  // O cliente: identificado e com cadastro completo; o Consumidor final não serve.
-  if (input.contact_id == null || input.contact_id === "") return CLIENTE_OBRIGATORIO();
-  const cliente = await db.contact.findFirst({
-    where: { id: String(input.contact_id) },
-    select: { id: true, name: true, person_kind: true, document: true, phone: true, system_key: true, archived_at: true },
-  });
-  if (!cliente || cliente.archived_at) return fail("VALIDATION_ERROR", "Escolha um cliente ativo.", 422, "contact_id");
-  if (cliente.system_key === CONSUMIDOR_FINAL.system_key) return CLIENTE_OBRIGATORIO();
-  if (cadastroIncompleto(cliente)) return CLIENTE_INCOMPLETO();
+  // O cliente: o Consumidor final serve; os outros, com o cadastro completo para o tipo
+  // (decisão de 06/11: o orçamento deixou de exigir o documento da PF).
+  if (input.customer_id == null || input.customer_id === "") return CLIENTE_OBRIGATORIO();
+  const cliente = await db.emporioCustomer.findFirst({ where: { id: String(input.customer_id) } });
+  if (!cliente || cliente.archived_at) return fail("VALIDATION_ERROR", "Escolha um cliente ativo.", 422, "customer_id");
+  const falta = faltaNoCadastro(cliente);
+  if (falta) return CLIENTE_INCOMPLETO(falta.message);
 
   if (!Array.isArray(input.items) || input.items.length === 0) {
     return fail("VALIDATION_ERROR", "Inclua ao menos um item no orçamento.", 422, "items");
@@ -479,7 +484,7 @@ export async function salvarOrcamentoAction(
           establishment_id: loja.data.id,
           operation_key: chave,
           number: numero,
-          contact_id: cliente.id,
+          customer_id: cliente.id,
           seller_user_id: vendedor.data,
           created_by_user_id: ator.id,
           valid_until: validUntil,

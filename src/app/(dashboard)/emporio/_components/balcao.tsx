@@ -58,7 +58,7 @@ const ORDEM = [
   "number",
   "quote_id",
   "items",
-  "contact_id",
+  "customer_id",
   "payments",
   "notes",
   "seller_user_id",
@@ -77,7 +77,7 @@ type VendaGravada = {
   id: string;
   number: number;
   net_amount: number;
-  contact_name: string | null;
+  customer_name: string | null;
   seller_name: string | null;
   quote: { id: string; numero: string } | null;
   items: { product_name: string; presentation_name: string; quantity: number }[];
@@ -288,7 +288,7 @@ export function Balcao({
     const res = await apiPost<OrcamentoView>("/api/v1/emporio/quotes", {
       operation_key: chave.current.key,
       establishment_id: m.corpo.establishment_id,
-      contact_id: m.corpo.contact_id,
+      customer_id: m.corpo.customer_id,
       items: m.corpo.items,
       ...(vendedor ? { seller_user_id: vendedor } : {}),
       notes: observacao || null,
@@ -419,7 +419,7 @@ export function Balcao({
           </p>
           <p>
             {resumo.venda.payments.map((p) => `${FORMA_ROTULO[p.kind] ?? p.kind} ${reaisBr(p.amount)}`).join(", ")}
-            {resumo.venda.contact_name ? `, cliente ${resumo.venda.contact_name}` : ""}
+            {resumo.venda.customer_name ? `, cliente ${resumo.venda.customer_name}` : ""}
             {resumo.venda.seller_name ? `, vendedor ${resumo.venda.seller_name}` : ""}
             {resumo.venda.quote ? `, do orçamento nº ${resumo.venda.quote.numero}` : ""}
           </p>

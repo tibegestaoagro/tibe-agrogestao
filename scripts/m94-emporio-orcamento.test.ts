@@ -55,8 +55,9 @@ async function secao1() {
   const stamp = Date.now();
   const rec = (r: Dado, code: string, status: number, field?: string, message?: string) =>
     !!r && !r.ok && r.code === code && r.status === status && (field === undefined || r.field === field) && (message === undefined || r.message === message);
-  const MSG_CLIENTE = "O orçamento precisa de um cliente com nome, documento e telefone.";
-  const MSG_INCOMPLETO = "Complete o cadastro do cliente (nome, documento e telefone) antes de salvar o orçamento.";
+  // Frente 1 do Empório (06/11): o Consumidor final serve, e a PF não precisa de documento.
+  const MSG_CLIENTE = "Escolha o cliente do orçamento. Quem não quer se identificar entra como Consumidor final.";
+  const MSG_INCOMPLETO = "Complete o cadastro do cliente antes de salvar o orçamento. Informe o telefone.";
   const MSG_SEM_VENDEDOR = "Escolha o vendedor que atendeu.";
   const MSG_VENDEDOR_INVALIDO = "Escolha um vendedor desta loja.";
 
@@ -134,11 +135,14 @@ async function secao1() {
   if (!apSem.ok) throw new Error(j(apSem));
 
   const cf = (await Cli.garantirConsumidorFinal(db)).id;
-  const completo = await db.contact.create({
+  const completo = await db.emporioCustomer.create({
     data: { name: "M94 Cliente Completo", person_kind: "pf", document: "39053344705", phone: "11999990000" } as never,
   });
-  const semDocumento = await db.contact.create({
+  const semDocumento = await db.emporioCustomer.create({
     data: { name: "M94 Cliente Sem Documento", person_kind: "pf", phone: "11999990001" } as never,
+  });
+  const semTelefone = await db.emporioCustomer.create({
+    data: { name: "M94 Cliente Sem Telefone", person_kind: "pf", document: "98765432100" } as never,
   });
 
   const item = (extra: Dado = {}) => ({ emporio_product_id: prod.data.id, presentation_id: ap.data.id, quantity: 2, ...extra });
@@ -147,7 +151,7 @@ async function secao1() {
     Orc.salvarOrcamentoAction(db, ator as never, {
       operation_key: `m94-${stamp}-${(seq += 1)}`,
       establishment_id: L1,
-      contact_id: completo.id,
+      customer_id: completo.id,
       items: [item()],
       ...extra,
     });
@@ -169,8 +173,8 @@ async function secao1() {
   check("net_amount 40, discount_amount 0, notes aparadas", o1.data.net_amount === 40 && o1.data.discount_amount === 0 && o1.data.notes === "entregar na sexta", j(o1.data));
   check(
     "o cliente vem com id, nome, telefone e documento",
-    j(o1.data.contact) === j({ id: completo.id, name: "M94 Cliente Completo", phone: "11999990000", document: "39053344705" }),
-    j(o1.data.contact),
+    j(o1.data.customer) === j({ id: completo.id, name: "M94 Cliente Completo", phone: "11999990000", document: "39053344705" }),
+    j(o1.data.customer),
   );
   check("loja e establishment_id", o1.data.establishment_id === L1 && o1.data.loja === "M94 Loja 1", j(o1.data));
   const it1 = o1.data.items[0];
@@ -199,7 +203,7 @@ async function secao1() {
   const venda = await Ven.venderAction(db, vend1 as never, {
     operation_key: `m94-${stamp}-venda`,
     establishment_id: L1,
-    contact_id: cf,
+    customer_id: cf,
     items: [{ emporio_product_id: prod.data.id, presentation_id: ap.data.id, quantity: 1 }],
     payments: [{ kind: "dinheiro", amount: 20 }],
   });
@@ -217,10 +221,13 @@ async function secao1() {
     const x = await r;
     check(`${nome}: ${status} ${code} em ${field}, sem gravar`, rec(x, code, status, field, msg) && (await nOrc()) === n0, j(x));
   };
-  await recusaSemGravar("Consumidor final", orcar(vend1, { contact_id: cf }), "QUOTE_CUSTOMER_REQUIRED", 422, "contact_id", MSG_CLIENTE);
-  await recusaSemGravar("sem contact_id", orcar(vend1, { contact_id: undefined }), "QUOTE_CUSTOMER_REQUIRED", 422, "contact_id", MSG_CLIENTE);
-  await recusaSemGravar("contact_id vazio", orcar(vend1, { contact_id: "" }), "QUOTE_CUSTOMER_REQUIRED", 422, "contact_id", MSG_CLIENTE);
-  await recusaSemGravar("cliente sem documento", orcar(vend1, { contact_id: semDocumento.id }), "QUOTE_CUSTOMER_INCOMPLETE", 422, "contact_id", MSG_INCOMPLETO);
+  const doCf = await orcar(vend1, { customer_id: cf });
+  check("Consumidor final: o orçamento aceita", doCf.ok && doCf.data.customer.id === cf, j(doCf));
+  const semDoc = await orcar(vend1, { customer_id: semDocumento.id });
+  check("PF sem documento (nome e telefone): o orçamento aceita", semDoc.ok, j(semDoc));
+  await recusaSemGravar("sem customer_id", orcar(vend1, { customer_id: undefined }), "QUOTE_CUSTOMER_REQUIRED", 422, "customer_id", MSG_CLIENTE);
+  await recusaSemGravar("customer_id vazio", orcar(vend1, { customer_id: "" }), "QUOTE_CUSTOMER_REQUIRED", 422, "customer_id", MSG_CLIENTE);
+  await recusaSemGravar("cliente sem telefone", orcar(vend1, { customer_id: semTelefone.id }), "QUOTE_CUSTOMER_INCOMPLETE", 422, "customer_id", MSG_INCOMPLETO);
 
   // --- vendedor
   await recusaSemGravar("Caixa sem seller_user_id", orcar(caixa), "SELLER_REQUIRED", 422, "seller_user_id", MSG_SEM_VENDEDOR);
@@ -297,7 +304,7 @@ async function secao1() {
   const corpo = (extra: Dado = {}) => ({
     operation_key: `m94-${stamp}-rota-${(seq += 1)}`,
     establishment_id: L1,
-    contact_id: completo.id,
+    customer_id: completo.id,
     items: [item()],
     ...extra,
   });
@@ -311,8 +318,8 @@ async function secao1() {
   check("POST com a mesma chave: 200, o mesmo id", p2.status === 200 && p2.json?.data?.id === p1.json?.data?.id, `${p2.status} ${j(p2.json)}`);
   const pZod = await chamar(tVend, "quotes", "POST", "quotes", { ...corpo(), items: "x" });
   check("POST com items fora do formato: 422 em items, em português", pZod.status === 422 && pZod.json?.error?.field === "items" && !/expected/i.test(pZod.json?.error?.message ?? ""), `${pZod.status} ${j(pZod.json)}`);
-  const pCf = await chamar(tVend, "quotes", "POST", "quotes", corpo({ contact_id: cf }));
-  check("POST com Consumidor final: 422 QUOTE_CUSTOMER_REQUIRED no campo", pCf.status === 422 && pCf.json?.error?.code === "QUOTE_CUSTOMER_REQUIRED" && pCf.json?.error?.field === "contact_id" && pCf.json?.error?.message === MSG_CLIENTE, `${pCf.status} ${j(pCf.json)}`);
+  const pCf = await chamar(tVend, "quotes", "POST", "quotes", corpo({ customer_id: undefined }));
+  check("POST sem cliente: 422 QUOTE_CUSTOMER_REQUIRED no campo", pCf.status === 422 && pCf.json?.error?.code === "QUOTE_CUSTOMER_REQUIRED" && pCf.json?.error?.field === "customer_id" && pCf.json?.error?.message === MSG_CLIENTE, `${pCf.status} ${j(pCf.json)}`);
   const g1 = await chamar(tVend, "quotes/[id]", "GET", `quotes/${o1.data.id}`, undefined, o1.data.id);
   check("GET quotes/:id do Vendedor: 200", g1.status === 200 && g1.json?.data?.id === o1.data.id && g1.json?.data?.valid_until === val7, `${g1.status} ${j(g1.json)}`);
   const gB = await chamar(signAccessToken(ownerB.id), "quotes/[id]", "GET", `quotes/${o1.data.id}`, undefined, o1.data.id);
@@ -327,15 +334,15 @@ async function secao2(c: Dado) {
   console.log("\nSeção 2: a lista, a busca e a busca pelo número (com banco)");
   const { prisma, Orc, db, B, owner, ownerB, gestor, vend1, vend2, caixa, L1, L2, orcar, chamar, signAccessToken, rec, stamp, hoje, somarDias, vendaId } = c;
   const mk = async (nome: string, document: string, phone: string) =>
-    db.contact.create({ data: { name: nome, person_kind: "pf", document, phone } as never });
+    db.emporioCustomer.create({ data: { name: nome, person_kind: "pf", document, phone } as never });
   const joao = await mk(`João Mendes ${stamp}`, "529.982.247-25", "(34) 99999-0000");
   const maria = await mk(`Maria Souza ${stamp}`, "11144477735", "(11) 98888-7777");
 
-  const qJ = await orcar(vend1, { contact_id: joao.id });
-  const qM = await orcar(vend1, { contact_id: maria.id });
-  const qV = await orcar(vend1, { contact_id: maria.id });
-  const qF = await orcar(vend1, { contact_id: maria.id });
-  const qL2 = await orcar(vend2, { contact_id: joao.id, establishment_id: L2 });
+  const qJ = await orcar(vend1, { customer_id: joao.id });
+  const qM = await orcar(vend1, { customer_id: maria.id });
+  const qV = await orcar(vend1, { customer_id: maria.id });
+  const qF = await orcar(vend1, { customer_id: maria.id });
+  const qL2 = await orcar(vend2, { customer_id: joao.id, establishment_id: L2 });
   if (!qJ.ok || !qM.ok || !qV.ok || !qF.ok || !qL2.ok) throw new Error(`orçamentos da seção 2: ${JSON.stringify([qJ, qM, qV, qF, qL2])}`);
   const ontem = somarDias(hoje, -1);
   await db.emporioQuote.update({ where: { id: qV.data.id }, data: { valid_until: ontem } });
@@ -498,7 +505,7 @@ async function secao3(c: Dado) {
     const r = await Cat.definirPrecoAction(db, owner, { establishment_id: L1, presentation_id: prod.ap, price: v });
     if (!r.ok) throw new Error(j(r));
   };
-  const cliente = await db.contact.create({
+  const cliente = await db.emporioCustomer.create({
     data: { name: `M94 Cliente Faturar ${stamp}`, person_kind: "pf", document: "15350946056", phone: "11977776666" } as never,
   });
 
@@ -506,7 +513,7 @@ async function secao3(c: Dado) {
   const chave = (s: string) => `m94-${stamp}-f-${s}-${(k += 1)}`;
   const itemP = (q = 2, extra: Dado = {}) => ({ emporio_product_id: P.id, presentation_id: P.ap, quantity: q, ...extra });
   const orcarP = async (ator: Dado = vend1, extra: Dado = {}) => {
-    const r = await Orc.salvarOrcamentoAction(db, ator, { operation_key: chave("orc"), establishment_id: L1, contact_id: cliente.id, items: [itemP()], ...extra });
+    const r = await Orc.salvarOrcamentoAction(db, ator, { operation_key: chave("orc"), establishment_id: L1, customer_id: cliente.id, items: [itemP()], ...extra });
     if (!r.ok) throw new Error(`orçamento da seção 3: ${j(r)}`);
     return r.data;
   };
@@ -514,7 +521,7 @@ async function secao3(c: Dado) {
     Ven.venderAction(banco, ator, {
       operation_key: chave("venda"),
       establishment_id: L1,
-      contact_id: cliente.id,
+      customer_id: cliente.id,
       quote_id,
       items: [itemP()],
       payments: [{ kind: "dinheiro", amount: total }],
@@ -612,7 +619,7 @@ async function secao3(c: Dado) {
   const rE = await chamar(tCaixa, "sales", "POST", "sales", {
     operation_key: chave("rota"),
     establishment_id: L1,
-    contact_id: cliente.id,
+    customer_id: cliente.id,
     quote_id: qE.id,
     items: [itemP()],
     payments: [{ kind: "dinheiro", amount: 60 }],
@@ -628,7 +635,7 @@ async function secao3(c: Dado) {
   const rZod = await chamar(tCaixa, "sales", "POST", "sales", {
     operation_key: chave("rota"),
     establishment_id: L1,
-    contact_id: cliente.id,
+    customer_id: cliente.id,
     quote_id: 5,
     items: [itemP()],
     payments: [{ kind: "dinheiro", amount: 60 }],
@@ -641,7 +648,7 @@ async function secao3(c: Dado) {
     const x = await r;
     check(`${nome}: ${status} ${code} em ${field}, sem gravar`, rec(x, code, status, field, msg) && j(await contar()) === j(n0), j(x));
   };
-  const qL2 = await Orc.salvarOrcamentoAction(db, vend2, { operation_key: chave("orc"), establishment_id: L2, contact_id: cliente.id, items: [itemP()] });
+  const qL2 = await Orc.salvarOrcamentoAction(db, vend2, { operation_key: chave("orc"), establishment_id: L2, customer_id: cliente.id, items: [itemP()] });
   if (!qL2.ok) throw new Error(j(qL2));
   await recusaSemGravar("orçamento de outra loja", faturar(owner, qL2.data.id, 60), "QUOTE_OTHER_STORE", 422, "quote_id", MSG_OUTRA_LOJA);
   await recusaSemGravar("id que não existe", faturar(vend1, "nao-existe", 60), "QUOTE_NOT_FOUND", 404, "quote_id", MSG_NAO_ACHADO);
@@ -650,7 +657,7 @@ async function secao3(c: Dado) {
   const deOutroTenant = await Ven.venderAction(B.db, ownerB, {
     operation_key: chave("venda"),
     establishment_id: lB.data.id,
-    contact_id: "qualquer",
+    customer_id: "qualquer",
     quote_id: qE2.id,
     items: [itemP()],
     payments: [{ kind: "dinheiro", amount: 60 }],
@@ -693,7 +700,7 @@ async function secao3(c: Dado) {
   const rE2 = await chamar(signAccessToken(vend1.id), "sales", "POST", "sales", {
     operation_key: chave("rota"),
     establishment_id: L1,
-    contact_id: cliente.id,
+    customer_id: cliente.id,
     quote_id: qB.id,
     items: [itemP()],
     payments: [{ kind: "dinheiro", amount: 36 }],
@@ -736,7 +743,7 @@ async function secao3(c: Dado) {
     const tr = await Ven.trocarAction(db, owner, vG2.data.id, {
       operation_key: chave("troca"),
       items_devolvidos: [{ sale_item_id: vG2.data.items[0].id, quantity: 1 }],
-      venda: { contact_id: cliente.id, quote_id: qH.id, items: [{ emporio_product_id: P2.id, presentation_id: P2.ap, quantity: 1 }], payments: [] },
+      venda: { customer_id: cliente.id, quote_id: qH.id, items: [{ emporio_product_id: P2.id, presentation_id: P2.ap, quantity: 1 }], payments: [] },
     } as never);
     check("a troca com quote_id no corpo: sai, sem orçamento na venda nova", tr.ok && tr.data.venda.quote === null, j(tr.ok ? tr.data.venda.quote : tr));
     check("e o orçamento continua aberto", (await situacao(qH.id)).situacao === "aberto");
@@ -878,7 +885,7 @@ async function secao4(c: Dado) {
   if (!pr.ok) throw new Error(j(pr));
   const e = await Est.implantarEstoqueAction(db, owner, { establishment_id: L1, emporio_product_id: p.data.id, sealed: [], loose_qty: 100, unit_cost: 5 });
   if (!e.ok) throw new Error(j(e));
-  const cliente = await db.contact.create({
+  const cliente = await db.emporioCustomer.create({
     data: { name: `M94 Cliente Papel ${stamp}`, person_kind: "pf", document: "12345678909", phone: "11977776666" } as never,
   });
   const rodape = "Orçamento sujeito à disponibilidade";
@@ -890,7 +897,7 @@ async function secao4(c: Dado) {
   const orc = await Orc.salvarOrcamentoAction(db, vend1, {
     operation_key: chave("orc"),
     establishment_id: L1,
-    contact_id: cliente.id,
+    customer_id: cliente.id,
     items: [{ emporio_product_id: p.data.id, presentation_id: a.data.id, quantity: 2, unit_price: 19 }],
   });
   if (!orc.ok) throw new Error(j(orc));
@@ -922,7 +929,7 @@ async function secao4(c: Dado) {
   const v = await Ven.venderAction(db, vend1, {
     operation_key: chave("venda"),
     establishment_id: L1,
-    contact_id: cliente.id,
+    customer_id: cliente.id,
     quote_id: q.id,
     items: [{ emporio_product_id: p.data.id, presentation_id: a.data.id, quantity: 2, unit_price: 19 }],
     payments: [{ kind: "dinheiro", amount: 38 }],
@@ -957,7 +964,7 @@ async function secao4(c: Dado) {
   const v2 = await Ven.venderAction(db, vend1, {
     operation_key: chave("venda2"),
     establishment_id: L1,
-    contact_id: cliente.id,
+    customer_id: cliente.id,
     items: [{ emporio_product_id: p.data.id, presentation_id: a.data.id, quantity: 1 }],
     payments: [{ kind: "dinheiro", amount: 20 }],
   } as never);
@@ -975,7 +982,7 @@ async function secao5(c: Dado) {
   console.log("\nSeção 5: o relógio interno do orçamento, e a rota que não aceita data (com banco)");
   const { db, Orc, vend1, L1, item, chamar, signAccessToken, somarDias, stamp, hoje } = c;
   const { hojeEmBrasilia } = await import("@/lib/emporio/cartao");
-  const contato = await db.contact.findFirst({ where: { name: "M94 Cliente Completo" } });
+  const contato = await db.emporioCustomer.findFirst({ where: { name: "M94 Cliente Completo" } });
   const validade = (await db.emporioSettings.findFirst({ select: { quote_validity_days: true } }))?.quote_validity_days ?? 7;
   const dia = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -983,7 +990,7 @@ async function secao5(c: Dado) {
   const o = await Orc.salvarOrcamentoAction(
     db,
     vend1,
-    { operation_key: `m94-s5-${stamp}-antigo`, establishment_id: L1, contact_id: contato.id, items: [item()] },
+    { operation_key: `m94-s5-${stamp}-antigo`, establishment_id: L1, customer_id: contato.id, items: [item()] },
     { agora: antigo },
   );
   check("salvar com o relógio interno: ok", o.ok, j(o));
@@ -999,7 +1006,7 @@ async function secao5(c: Dado) {
   const r = await chamar(signAccessToken(vend1.id), "quotes", "POST", "quotes", {
     operation_key: `m94-s5-${stamp}-rota`,
     establishment_id: L1,
-    contact_id: contato.id,
+    customer_id: contato.id,
     items: [item()],
     agora: velha,
     created_at: velha,
@@ -1019,7 +1026,7 @@ async function limpar() {
     "emporioAuditLog", "cashMovement", "cashTransfer", "cashCount", "emporioSalePayment", "emporioSaleReturnItem", "stockMovement", "emporioSaleItem",
     "emporioSaleReturn", "emporioSale", "emporioQuoteItem", "emporioQuote", "cashHandover", "cashSession", "cashRegister", "fixedExpenseOccurrence",
     "fixedExpenseSplit", "fixedExpenseTemplate", "emporioCounter", "emporioSettings", "financialPayment", "financialEntry", "userEstablishment",
-    "establishment", "bankAccount", "contact", "user", "tenantProfile", "tenantFeature",
+    "establishment", "bankAccount", "emporioCustomer", "contact", "user", "tenantProfile", "tenantFeature",
   ];
   for (const id of tenantIds) {
     for (const m of modelos) {

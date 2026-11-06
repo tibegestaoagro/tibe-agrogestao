@@ -7,7 +7,7 @@ import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 import { chaveDeOperacao, corpoDaVendaSchema, dataIso } from "@/lib/emporio/venda-schema";
 
 /**
- * GET  /api/v1/emporio/sales  ?establishment_id= &contact_id= &status=concluida|cancelada &de= &ate= &limit=
+ * GET  /api/v1/emporio/sales  ?establishment_id= &customer_id= &status=concluida|cancelada &de= &ate= &limit=
  * POST /api/v1/emporio/sales  registra a venda (chave de operação): wrapper fino.
  */
 
@@ -28,7 +28,7 @@ async function GETHandler(request: Request) {
   return respostaDaAction(
     await listarVendasAction(g.db, g.user, {
       establishment_id: sp.get("establishment_id") ?? undefined,
-      contact_id: sp.get("contact_id") ?? undefined,
+      customer_id: sp.get("customer_id") ?? undefined,
       status: status === "concluida" || status === "cancelada" ? status : undefined,
       de: de?.success ? de.data : undefined,
       ate: ate?.success ? ate.data : undefined,

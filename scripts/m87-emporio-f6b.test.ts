@@ -252,7 +252,7 @@ async function comBanco() {
         chamar(V, "venderAction", db, u, {
           operation_key: chave("v"),
           establishment_id: L1,
-          contact_id: cf,
+          customer_id: cf,
           items: [{ emporio_product_id: P, presentation_id: PRES, quantity: 1 }],
           payments: [{ kind: "dinheiro", amount: 11 }],
         });
@@ -632,7 +632,7 @@ async function comBanco() {
       "emporioSalePayment", "emporioSaleReturnItem", "emporioSaleReturn", "emporioSaleItem", "emporioSale",
       "stockTransferItem", "stockTransfer", "productionEntry", "compositionItem", "composition", "emporioPurchaseItem", "emporioPurchase",
       "stockLimit", "shoppingItem", "financialEntry", "negotiation", "presentationPrice", "productPresentation", "userEstablishment",
-      "emporioProduct", "product", "establishment", "bankAccount", "contact", "productCategory", "property",
+      "emporioProduct", "product", "establishment", "bankAccount", "emporioCustomer", "contact", "productCategory", "property",
     ];
     for (const id of tenantIds) {
       for (const m of modelos) {

@@ -104,6 +104,13 @@ export async function createLinkedEntry(
      */
     property_id?: string | null;
     contact_id?: string | null;
+    /**
+     * Frente 1 do Empório: o cliente (fiado, cheque, devolução) e o fornecedor
+     * (conta a pagar da compra) do Empório. Lançamento do Empório nunca preenche
+     * `contact_id`, que fica só para a fazenda.
+     */
+    emporio_customer_id?: string | null;
+    emporio_supplier_id?: string | null;
     /** Módulo 39 (Q28): a loja do Empório dona do dinheiro; nulo na fazenda. */
     establishment_id?: string | null;
     /**
@@ -130,6 +137,8 @@ export async function createLinkedEntry(
       worker_entry_kind: params.worker_entry_kind ?? null,
       property_id: params.property_id ?? null,
       contact_id: params.contact_id ?? null,
+      emporio_customer_id: params.emporio_customer_id ?? null,
+      emporio_supplier_id: params.emporio_supplier_id ?? null,
       establishment_id: params.establishment_id ?? null,
       payment_method: params.payment_method ?? null,
     }),

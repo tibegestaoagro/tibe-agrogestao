@@ -60,7 +60,7 @@ def gaveta(loja_id):
 
 def deve(contato_nome):
     linhas = api("GET", "/api/v1/emporio/receivables")["body"]["data"]
-    achada = [x for x in linhas if x.get("contact_name") == contato_nome]
+    achada = [x for x in linhas if x.get("customer_name") == contato_nome]
     return achada[0].get("owed", achada[0].get("balance")) if achada else 0
 
 

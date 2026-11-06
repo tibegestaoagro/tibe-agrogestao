@@ -65,6 +65,13 @@ export const ACOES_DO_HISTORICO = {
   "primeiros_passos.concluir": "Marcou um primeiro passo",
   "cliente.cadastrar": "Cadastrou um cliente",
   "cliente.completar": "Completou o cadastro de um cliente",
+  "cliente.editar": "Editou um cliente",
+  "cliente.arquivar": "Arquivou um cliente",
+  "cliente.desarquivar": "Desarquivou um cliente",
+  "fornecedor.cadastrar": "Cadastrou um fornecedor",
+  "fornecedor.editar": "Editou um fornecedor",
+  "fornecedor.arquivar": "Arquivou um fornecedor",
+  "fornecedor.desarquivar": "Desarquivou um fornecedor",
   "equipe.cadastrar": "Cadastrou alguém na equipe",
   "equipe.alterar": "Alterou alguém da equipe",
   // Antes da Q190 (06/11/2026), tirar zerava a função; as linhas antigas ficam com este rótulo.
@@ -180,6 +187,12 @@ export function linkDoAlvo(targetType: string, targetId: string | null): string 
       return "/emporio/compras";
     case "transferencia":
       return "/emporio/transferencias";
+    // As linhas antigas apontam para o contato; a migração preserva o id no cliente.
+    case "cliente":
+    case "contato":
+      return targetId ? `/emporio/clientes/${targetId}` : null;
+    case "fornecedor":
+      return targetId ? `/emporio/fornecedores/${targetId}` : null;
     default:
       return null;
   }

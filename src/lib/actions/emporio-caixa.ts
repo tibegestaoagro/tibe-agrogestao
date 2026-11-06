@@ -49,8 +49,8 @@ export type FiadoEntradaView = {
 };
 
 export type FiadoClienteView = {
-  contact_id: string;
-  contact_name: string;
+  customer_id: string;
+  customer_name: string;
   phone: string | null;
   owed: number;
   oldest_due_date: string | null;
@@ -62,7 +62,7 @@ type EntradaAberta = {
   id: string;
   related_id: string | null;
   establishment_id: string | null;
-  contact_id: string | null;
+  emporio_customer_id: string | null;
   amount: unknown;
   due_date: Date | null;
   created_at: Date;
@@ -98,7 +98,7 @@ export async function entradasAbertas(
         id: e.id,
         related_id: e.related_id,
         establishment_id: e.establishment_id,
-        contact_id: e.contact_id,
+        emporio_customer_id: e.emporio_customer_id,
         amount: e.amount,
         due_date: e.due_date,
         created_at: e.created_at,
@@ -119,7 +119,7 @@ function filtroDeLojas(visiveis: Set<string> | null): Record<string, unknown> {
 export async function listarFiadoAction(
   db: TenantPrismaClient,
   ator: Ator,
-  opts: { establishment_id?: string; contact_id?: string } = {},
+  opts: { establishment_id?: string; customer_id?: string } = {},
 ): Promise<ActionResult<FiadoClienteView[]>> {
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
@@ -127,28 +127,28 @@ export async function listarFiadoAction(
   }
   const abertas = await entradasAbertas(db, {
     ...(opts.establishment_id ? { establishment_id: opts.establishment_id } : filtroDeLojas(visiveis)),
-    ...(opts.contact_id ? { contact_id: opts.contact_id } : { contact_id: { not: null } }),
+    ...(opts.customer_id ? { emporio_customer_id: opts.customer_id } : { emporio_customer_id: { not: null } }),
   });
-  const contatos = await db.contact.findMany({
-    where: { id: { in: [...new Set(abertas.map((e) => e.contact_id as string))] } },
+  const clientesDb = await db.emporioCustomer.findMany({
+    where: { id: { in: [...new Set(abertas.map((e) => e.emporio_customer_id as string))] } },
     select: { id: true, name: true, phone: true },
   });
-  const porContato = new Map(contatos.map((c) => [c.id, c]));
+  const porCliente = new Map(clientesDb.map((c) => [c.id, c]));
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
 
   const clientes = new Map<string, FiadoClienteView>();
   for (const e of abertas) {
-    const id = e.contact_id as string;
-    const c = porContato.get(id);
+    const id = e.emporio_customer_id as string;
+    const c = porCliente.get(id);
     if (!c) continue;
     const vencido = e.due_date !== null && e.due_date.getTime() < hoje.getTime();
     const aberto = e.open_cent / 100;
     let cli = clientes.get(id);
     if (!cli) {
       cli = {
-        contact_id: id,
-        contact_name: c.name,
+        customer_id: id,
+        customer_name: c.name,
         phone: c.phone,
         owed: 0,
         oldest_due_date: null,
@@ -178,14 +178,14 @@ export async function listarFiadoAction(
       if (a.oldest_due_date && b.oldest_due_date) return a.oldest_due_date.localeCompare(b.oldest_due_date);
       if (a.oldest_due_date) return -1;
       if (b.oldest_due_date) return 1;
-      return a.contact_name.localeCompare(b.contact_name, "pt-BR");
+      return a.customer_name.localeCompare(b.customer_name, "pt-BR");
     }),
   );
 }
 
 export type ReceberFiadoInput = {
   operation_key: string;
-  contact_id: string;
+  customer_id: string;
   establishment_id: string;
   amount: number;
   kind: string;
@@ -197,7 +197,7 @@ export type ReceberFiadoInput = {
 
 export type RecebimentoView = {
   operation_key: string;
-  contact_id: string;
+  customer_id: string;
   establishment_id: string;
   kind: string;
   amount: number;
@@ -209,7 +209,7 @@ export type RecebimentoView = {
 async function recebimentoGravado(db: TenantPrismaClient, ator: Ator, chave: string): Promise<ActionResult<RecebimentoView> | null> {
   const movs = await db.cashMovement.findMany({
     where: { operation_key: chave, origin: "recebimento_fiado" },
-    include: { financial_payment: { include: { entry: { select: { id: true, contact_id: true, establishment_id: true, related_id: true } } } } },
+    include: { financial_payment: { include: { entry: { select: { id: true, emporio_customer_id: true, establishment_id: true, related_id: true } } } } },
     orderBy: { created_at: "asc" },
   });
   if (movs.length === 0) return null;
@@ -222,7 +222,7 @@ async function recebimentoGravado(db: TenantPrismaClient, ator: Ator, chave: str
   const total = movs.reduce((s, m) => s + centavos(decToNum(m.amount) ?? 0), 0);
   return ok({
     operation_key: chave,
-    contact_id: primeira.fp.entry.contact_id ?? "",
+    customer_id: primeira.fp.entry.emporio_customer_id ?? "",
     establishment_id: lojaId ?? "",
     kind: primeira.fp.method ?? "dinheiro",
     amount: total / 100,
@@ -255,11 +255,11 @@ export async function receberFiadoAction(
   const loja = await acharLojaParaEscrita(db, ator, input?.establishment_id);
   if (!loja.ok) return loja;
 
-  if (typeof input.contact_id !== "string" || !input.contact_id) {
-    return fail("VALIDATION_ERROR", "Escolha o cliente.", 422, "contact_id");
+  if (typeof input.customer_id !== "string" || !input.customer_id) {
+    return fail("VALIDATION_ERROR", "Escolha o cliente.", 422, "customer_id");
   }
-  const contato = await db.contact.findFirst({ where: { id: input.contact_id }, select: { id: true, name: true, archived_at: true } });
-  if (!contato || contato.archived_at) return fail("VALIDATION_ERROR", "Escolha um cliente ativo.", 422, "contact_id");
+  const cliente = await db.emporioCustomer.findFirst({ where: { id: input.customer_id }, select: { id: true, name: true, archived_at: true } });
+  if (!cliente || cliente.archived_at) return fail("VALIDATION_ERROR", "Escolha um cliente ativo.", 422, "customer_id");
 
   if (input.kind !== "dinheiro" && input.kind !== "pix") {
     return fail("VALIDATION_ERROR", "Escolha como o cliente pagou: dinheiro ou PIX.", 422, "kind");
@@ -288,7 +288,7 @@ export async function receberFiadoAction(
       const abertas = await entradasAbertas(
         tx as unknown as TenantPrismaClient,
         {
-          contact_id: contato.id,
+          emporio_customer_id: cliente.id,
           ...filtroDeLojas(visiveis),
           ...(entradaId ? { id: entradaId } : {}),
         },
@@ -355,14 +355,14 @@ export async function receberFiadoAction(
         action: "fiado.receber",
         establishment_id: loja.data.id,
         target_type: "fiado",
-        target_id: contato.id,
-        summary: `Recebeu ${dinheiro(valorCent / 100)} de fiado de ${contato.name} (${input.kind === "pix" ? "PIX" : "dinheiro"})`,
+        target_id: cliente.id,
+        summary: `Recebeu ${dinheiro(valorCent / 100)} de fiado de ${cliente.name} (${input.kind === "pix" ? "PIX" : "dinheiro"})`,
       });
       return { feitas, agora };
     });
     return ok({
       operation_key: chave,
-      contact_id: contato.id,
+      customer_id: cliente.id,
       establishment_id: loja.data.id,
       kind: input.kind,
       amount: valorCent / 100,
@@ -755,8 +755,8 @@ export type ChequeView = {
   id: string;
   sale_id: string;
   sale_payment_id: string;
-  contact_id: string;
-  contact_name: string;
+  customer_id: string;
+  customer_name: string;
   establishment_id: string;
   number: string;
   bank: string;
@@ -890,7 +890,7 @@ type ChequeRow = {
   id: string;
   sale_id: string;
   sale_payment_id: string;
-  contact_id: string | null;
+  customer_id: string | null;
   establishment_id: string;
   number: string;
   bank: string;
@@ -902,7 +902,7 @@ type ChequeRow = {
   cleared_at: Date | null;
   returned_at: Date | null;
   return_reason: string | null;
-  contact: { name: string } | null;
+  customer: { name: string } | null;
 };
 
 function viewDoCheque(c: ChequeRow): ChequeView {
@@ -910,8 +910,8 @@ function viewDoCheque(c: ChequeRow): ChequeView {
     id: c.id,
     sale_id: c.sale_id,
     sale_payment_id: c.sale_payment_id,
-    contact_id: c.contact_id ?? "",
-    contact_name: c.contact?.name ?? "",
+    customer_id: c.customer_id ?? "",
+    customer_name: c.customer?.name ?? "",
     establishment_id: c.establishment_id,
     number: c.number,
     bank: c.bank,
@@ -1015,7 +1015,7 @@ export async function lerCaixaAction(
       status: { in: ["recebido", "depositado"] },
       establishment_id: opts.establishment_id ? opts.establishment_id : { in: lojas.map((l) => l.id) },
     },
-    include: { contact: { select: { name: true } } },
+    include: { customer: { select: { name: true } } },
     orderBy: [{ good_for: "asc" }, { created_at: "asc" }],
   });
 
@@ -1394,7 +1394,7 @@ const STATUS_DE_CHEQUE = ["recebido", "depositado", "compensado", "devolvido", "
 export async function listarChequesAction(
   db: TenantPrismaClient,
   ator: Ator,
-  opts: { establishment_id?: string; contact_id?: string; status?: string } = {},
+  opts: { establishment_id?: string; customer_id?: string; status?: string } = {},
 ): Promise<ActionResult<ChequeView[]>> {
   const visiveis = await lojasDoAtor(db, ator);
   if (opts.establishment_id && visiveis && !visiveis.has(opts.establishment_id)) {
@@ -1406,10 +1406,10 @@ export async function listarChequesAction(
   const cheques = await db.emporioCheck.findMany({
     where: {
       ...(opts.establishment_id ? { establishment_id: opts.establishment_id } : filtroDeLojas(visiveis)),
-      ...(opts.contact_id ? { contact_id: opts.contact_id } : {}),
+      ...(opts.customer_id ? { customer_id: opts.customer_id } : {}),
       ...(opts.status ? { status: opts.status as (typeof STATUS_DE_CHEQUE)[number] } : {}),
     },
-    include: { contact: { select: { name: true } } },
+    include: { customer: { select: { name: true } } },
     orderBy: [{ good_for: "asc" }, { created_at: "asc" }],
   });
   return ok(cheques.map(viewDoCheque));
@@ -1422,7 +1422,7 @@ async function acharCheque(db: TenantPrismaClient, ator: Ator, id: string) {
 }
 
 async function chequePorId(db: TenantPrismaClient, id: string): Promise<ActionResult<ChequeView>> {
-  const c = await db.emporioCheck.findFirst({ where: { id }, include: { contact: { select: { name: true } } } });
+  const c = await db.emporioCheck.findFirst({ where: { id }, include: { customer: { select: { name: true } } } });
   return c ? ok(viewDoCheque(c)) : NAO_ACHADO("Cheque");
 }
 

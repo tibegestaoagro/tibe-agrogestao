@@ -39,7 +39,7 @@ export const pagamentoDeVendaSchema = z.object({
 });
 
 export const corpoDaVendaSchema = z.object({
-  contact_id: z.string().nullish(),
+  customer_id: z.string().nullish(),
   sold_at: dataIso.nullish(),
   items: z.array(itemDeVendaSchema, { error: "Inclua os itens da venda." }),
   payments: z.array(pagamentoDeVendaSchema).nullish(),
@@ -57,7 +57,7 @@ export const corpoDaVendaSchema = z.object({
  * não mexe em dinheiro. Cliente, vendedor, preço e desconto são regra da action.
  */
 export const corpoDoOrcamentoSchema = z.object({
-  contact_id: z.string().nullish(),
+  customer_id: z.string().nullish(),
   items: z.array(itemDeVendaSchema, { error: "Inclua os itens do orçamento." }),
   notes: z.string().nullish(),
   seller_user_id: z.string().nullish(),

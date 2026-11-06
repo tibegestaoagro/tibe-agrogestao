@@ -224,7 +224,7 @@ export async function createContact(
 ): Promise<ActionResult<ContactView>> {
   if (!(input.name ?? "").trim()) return fail("VALIDATION_ERROR", "Informe o nome do contato.", 422, "name");
 
-  const conf = conferirCadastro(input, "livre");
+  const conf = conferirCadastro(input);
   if (!conf.ok) return fail("VALIDATION_ERROR", conf.message, 422, conf.field);
   const documento = conf.dados.document ?? null;
 
@@ -287,7 +287,7 @@ export async function updateContact(
   };
   for (const k of CAMPOS_NOVOS) mesclado[k] = k in entrada ? (entrada[k] ?? null) : guardado[k];
 
-  const conf = conferirCadastro(mesclado as CadastroDoContato, "livre");
+  const conf = conferirCadastro(mesclado as CadastroDoContato);
   if (!conf.ok) return fail("VALIDATION_ERROR", conf.message, 422, conf.field);
   const documento = conf.dados.document ?? null;
 

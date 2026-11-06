@@ -201,6 +201,363 @@ async function secao2() {
   check("compra com payment_kind nulo grava", compra.payment_kind === null, j(compra.payment_kind));
 }
 
+async function secao3() {
+  console.log("\nSeção 3: o cliente do Empório na tabela nova (cadastro, edição, venda, fiado, cheque, orçamento)");
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+  const { papelDeFixture, vincularTodas } = await import("./_emporio-papel");
+  const { withBearer } = await import("./_escopo-de-requisicao");
+  const { abrirTurnoDeTeste } = await import("./_emporio-turno");
+  const bcrypt = (await import("bcryptjs")).default;
+  const C = await import("@/lib/actions/emporio-clientes");
+  const Cat = await import("@/lib/actions/emporio-catalogo");
+  const Est = await import("@/lib/actions/emporio-estoque");
+  const V = await import("@/lib/actions/emporio-vendas");
+  const Cx = await import("@/lib/actions/emporio-caixa");
+  const O = await import("@/lib/actions/emporio-orcamentos");
+  const I = await import("@/lib/actions/emporio-impressao");
+  const Ct = await import("@/lib/actions/contacts");
+  const SENHA = "SenhaForte#2026";
+  const hash = await bcrypt.hash(SENHA, 4);
+
+  const mkTenant = async (rotulo: string) => {
+    const t = await prisma.tenant.create({
+      data: {
+        name: `M95c ${rotulo} ${stamp}`,
+        document: `M95c${rotulo}${stamp}`.slice(0, 14),
+        plan: "grupo",
+        status: "trial",
+        trial_ends_at: new Date(Date.now() + 86_400_000),
+      },
+    });
+    tenantIds.push(t.id);
+    await prisma.tenantProfile.create({ data: { tenant_id: t.id, profile_type: "emporio", active: true } });
+    await prisma.tenantFeature.create({ data: { tenant_id: t.id, feature_key: "emporio", enabled: true } });
+    return t;
+  };
+  const t = await mkTenant("A");
+  const tB = await mkTenant("B");
+  const mk = async (tenantId: string, suf: string, role: "OWNER" | "OPERADOR", extra: Dado = {}) => {
+    const u = await prisma.user.create({
+      data: {
+        tenant_id: tenantId,
+        name: `M95c ${suf}`,
+        email: `m95c-${suf}-${stamp}@teste.local`,
+        password_hash: hash,
+        role,
+        ...papelDeFixture(role),
+        ...extra,
+      },
+    });
+    return { id: u.id, role, email: u.email };
+  };
+  const owner = await mk(t.id, "own", "OWNER");
+  const vend = await mk(t.id, "vend", "OPERADOR");
+  const caixa = await mk(t.id, "caixa", "OPERADOR", { emporio_role: "caixa", emporio_keys: [] });
+  const semPapel = await mk(t.id, "sem", "OPERADOR", { emporio_role: null, emporio_keys: [] });
+  const db = prismaForTenant(t.id) as Dado;
+  const dbB = prismaForTenant(tB.id) as Dado;
+  const loja = await Cat.criarEstabelecimentoAction(db, owner, { name: "M95c Loja" });
+  if (!loja.ok) throw new Error(`loja: ${j(loja)}`);
+  const L = loja.data.id;
+  await vincularTodas(prisma, t.id, [vend.id, caixa.id], [L]);
+
+  const rotaTok = await import("@/app/api/v1/auth/token/route");
+  const rotaPost = await import("@/app/api/v1/emporio/customers/route");
+  const rotaId = await import("@/app/api/v1/emporio/customers/[id]/route");
+  const token = async (email: string) =>
+    String(
+      ((await (await rotaTok.POST(new Request("http://localhost/api/v1/auth/token", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, password: SENHA }),
+      }))).json()) as Dado)?.data?.access_token ?? "",
+    );
+  const postar = async (tok: string, corpo: unknown) => {
+    const res = await withBearer(tok, () =>
+      rotaPost.POST(new Request("http://localhost/api/v1/emporio/customers", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(corpo),
+      })),
+    );
+    return { status: res.status, corpo: (await res.json().catch(() => ({}))) as Dado };
+  };
+  const histDe = (action: string) => prisma.emporioAuditLog.findMany({ where: { tenant_id: t.id, action } });
+
+  // --- cadastro pela rota e pela action ---------------------------------------
+  const tokVend = await token(vend.email);
+  const r1 = await postar(tokVend, { name: "Maria Só Telefone", person_kind: "pf", phone: "34 99999-0000" });
+  check("Vendedor cadastra PF só com nome e telefone pela rota: 201", r1.status === 201 && r1.corpo?.data?.incomplete === false, `${r1.status} ${j(r1.corpo)}`);
+  const linhasCad = await histDe("cliente.cadastrar");
+  check("uma linha cliente.cadastrar com target_type cliente", linhasCad.length === 1 && linhasCad[0].target_type === "cliente", j(linhasCad));
+  const maria = r1.corpo?.data as Dado;
+  const r2 = await postar(await token(caixa.email), { name: "Cliente do Caixa", person_kind: "pf", phone: "34 98888-0000" });
+  check("o Caixa cadastra: 201", r2.status === 201, `${r2.status} ${j(r2.corpo)}`);
+  // Pela rota, o guard do Empório já esconde o módulo de quem não tem papel (404); a action recusa com 403.
+  const r3 = await postar(await token(semPapel.email), { name: "Ninguém", person_kind: "pf", phone: "1" });
+  const r3a = await C.cadastrarClienteAction(db, semPapel, { name: "Ninguém", person_kind: "pf", phone: "1" });
+  check(
+    "quem não tem papel no Empório: 403 na action (e a rota recusa)",
+    !r3a.ok && r3a.status === 403 && r3a.code === "FORBIDDEN" && r3.status >= 400 && r3.status !== 201,
+    `${r3.status} ${j(r3a)}`,
+  );
+
+  const pjSemEnd = await C.cadastrarClienteAction(db, vend, { name: "Agro Sem Endereço", person_kind: "pj", phone: "3433", document: "11.222.333/0001-81" });
+  check("PJ sem endereço: 422 address_zip", !pjSemEnd.ok && pjSemEnd.status === 422 && pjSemEnd.field === "address_zip", j(pjSemEnd));
+  const endereco = {
+    address_zip: "38400-000", address_street: "Rua A", address_number: "10", address_district: "Centro", city: "Uberlândia", address_state: "mg",
+  };
+  const pjAlfa = await C.cadastrarClienteAction(db, vend, { name: "Empresa Alfa", person_kind: "pj", phone: "3433", document: "12.abc.345/01de-35", ...endereco });
+  check("PJ completa com CNPJ alfanumérico: ok, documento em maiúscula", pjAlfa.ok && pjAlfa.data.document === "12ABC34501DE35" && pjAlfa.data.address_state === "MG", j(pjAlfa));
+
+  const comCpf = await C.cadastrarClienteAction(db, vend, { name: "Zé do CPF", person_kind: "pf", phone: "3499", document: "529.982.247-25" });
+  check("PF com CPF: ok", comCpf.ok && comCpf.data.document === "52998224725", j(comCpf));
+  const cpfRep = await C.cadastrarClienteAction(db, vend, { name: "Outro Zé", person_kind: "pf", phone: "3499", document: "52998224725" });
+  check(
+    "CPF repetido: 409 com o nome de quem já tem",
+    !cpfRep.ok && cpfRep.status === 409 && cpfRep.code === "DUPLICATE_DOCUMENT" && cpfRep.field === "document"
+      && cpfRep.message === "Já existe um cliente com esse CPF: Zé do CPF.",
+    j(cpfRep),
+  );
+  const arquivado = await db.emporioCustomer.create({
+    data: scoped({ name: "Cliente Arquivado", person_kind: "pf", phone: "1", document: "39053344705", archived_at: new Date() }),
+  });
+  const cpfArq = await C.cadastrarClienteAction(db, vend, { name: "Novo", person_kind: "pf", phone: "1", document: "390.533.447-05" });
+  check(
+    "CPF de cliente arquivado: a frase com desarquive em Clientes",
+    !cpfArq.ok && cpfArq.message === "Já existe um cliente com esse CPF: Cliente Arquivado. Ele está arquivado: desarquive em Clientes.",
+    j(cpfArq),
+  );
+
+  // Review Focus 2: dois balcões ao mesmo tempo com o mesmo CPF.
+  const [pa, pb] = await Promise.all([
+    C.cadastrarClienteAction(db, vend, { name: "Balcão Um", person_kind: "pf", phone: "1", document: "111.444.777-35" }),
+    C.cadastrarClienteAction(db, caixa, { name: "Balcão Dois", person_kind: "pf", phone: "2", document: "11144477735" }),
+  ]);
+  const okUm = [pa, pb].filter((r) => r.ok).length;
+  const recusa = [pa, pb].find((r) => !r.ok) as Dado;
+  check(
+    "dois cadastros em paralelo com o mesmo CPF: um ok, o outro 409 em document",
+    okUm === 1 && recusa?.code === "DUPLICATE_DOCUMENT" && recusa?.field === "document" && /^Já existe um cliente com esse CPF: Balcão (Um|Dois)\.$/.test(recusa?.message ?? ""),
+    j([pa, pb]),
+  );
+  check("uma linha só no banco", (await prisma.emporioCustomer.count({ where: { tenant_id: t.id, document: "11144477735" } })) === 1);
+
+  // --- edição (Review Focus 1 e 3) --------------------------------------------
+  const pjVelha = await db.emporioCustomer.create({ data: scoped({ name: "PJ Migrada", person_kind: "pj", document: "11222333000181" }) });
+  const soTel = await C.editarClienteAction(db, vend, pjVelha.id, { phone: "34 97777-6666" });
+  check("PJ sem endereço: editar só o telefone dá 422 address_zip", !soTel.ok && soTel.status === 422 && soTel.field === "address_zip", j(soTel));
+  check("e o telefone não foi gravado", (await db.emporioCustomer.findUnique({ where: { id: pjVelha.id } }))?.phone === null);
+
+  const pfParaPj = await C.editarClienteAction(db, vend, maria.id, { person_kind: "pj", document: "11.444.777/0001-61" });
+  check("PF para PJ sem endereço: 422 address_zip", !pfParaPj.ok && pfParaPj.status === 422 && pfParaPj.field === "address_zip", j(pfParaPj));
+
+  if (!pjAlfa.ok) throw new Error("pjAlfa");
+  await db.emporioCustomer.update({ where: { id: pjAlfa.data.id }, data: { responsible_name: "Fulano Responsável" } });
+  const pjParaPf = await C.editarClienteAction(db, vend, pjAlfa.data.id, { person_kind: "pf", document: null });
+  check("PJ para PF: ok, responsible_name nulo", pjParaPf.ok && pjParaPf.data.person_kind === "pf" && pjParaPf.data.responsible_name === null, j(pjParaPf));
+  const comIe = await C.editarClienteAction(db, vend, pjAlfa.data.id, { state_registration: "ISENTO" });
+  const semIe = await C.editarClienteAction(db, vend, pjAlfa.data.id, { state_registration: null });
+  check(
+    "null limpa, ausente mantém",
+    comIe.ok && comIe.data.state_registration === "ISENTO" && semIe.ok && semIe.data.state_registration === null
+      && semIe.data.phone === "3433" && semIe.data.address_street === "Rua A",
+    j([comIe, semIe]),
+  );
+  const editaDoc = await C.editarClienteAction(db, vend, maria.id, { document: "123.456.789-09" });
+  const linhasEd = (await histDe("cliente.editar")).filter((l) => l.target_id === maria.id);
+  const mudDoc = linhasEd.flatMap((l) => (Array.isArray(l.changes) ? (l.changes as Dado[]) : [])).find((m) => m.campo === "CPF/CNPJ");
+  check(
+    "uma linha cliente.editar, com o documento como 'informado'",
+    editaDoc.ok && linhasEd.length === 1 && linhasEd[0].target_type === "cliente" && mudDoc?.depois === "informado" && mudDoc?.antes === null,
+    j(linhasEd),
+  );
+
+  const cf = await C.garantirConsumidorFinal(db);
+  const eCf = await C.editarClienteAction(db, vend, cf.id, { phone: "1" });
+  check(
+    "editar o Consumidor final: 422 com a frase fixa",
+    !eCf.ok && eCf.status === 422 && eCf.message === "O Consumidor final é fixo e não pode ser editado nem arquivado.",
+    j(eCf),
+  );
+  const eArq = await C.editarClienteAction(db, vend, arquivado.id, { phone: "2" });
+  check(
+    "editar arquivado: a frase do arquivado",
+    !eArq.ok && eArq.status === 422 && eArq.message === "Esse cliente está arquivado: desarquive em Clientes antes de editar.",
+    j(eArq),
+  );
+  const deB = await dbB.emporioCustomer.create({ data: scoped({ name: "Cliente do B" }) });
+  const eB = await C.editarClienteAction(db, vend, deB.id, { phone: "3" });
+  check("editar id de outra conta: 404 Cliente não encontrado.", !eB.ok && eB.status === 404 && eB.message === "Cliente não encontrado.", j(eB));
+
+  // --- Consumidor final e a separação de Contatos -----------------------------
+  const [g1, g2] = await Promise.all([C.garantirConsumidorFinal(db), C.garantirConsumidorFinal(db)]);
+  const qtdCf = await prisma.emporioCustomer.count({ where: { tenant_id: t.id, system_key: "consumidor_final" } });
+  check("garantirConsumidorFinal em paralelo: mesmo id e uma linha", g1.id === g2.id && g1.id === cf.id && qtdCf === 1, `${j([g1, g2])} ${qtdCf}`);
+  const [, gB] = await Promise.all([C.garantirConsumidorFinal(dbB), C.garantirConsumidorFinal(dbB)]);
+  check("outra conta tem o seu", gB.id !== cf.id);
+  check("garantirConsumidorFinal não cria Contact", (await prisma.contact.count({ where: { tenant_id: { in: [t.id, tB.id] } } })) === 0);
+  const contatos = await Ct.listContacts(db);
+  check("listContacts não traz o cliente do Empório", !contatos.some((c) => c.id === maria.id || c.name === "Maria Só Telefone"), j(contatos));
+  const foc = await Ct.findOrCreateContact(db, "Maria Só Telefone");
+  check("findOrCreateContact com o nome do cliente cria um Contact novo", foc.criado === true && foc.id !== maria.id, j(foc));
+
+  // --- venda ------------------------------------------------------------------
+  const categoria = await db.productCategory.create({ data: scoped({ name: "M95c categoria" }) });
+  const prod = await Cat.criarProdutoEmporioAction(db, owner, { name: `M95c Ração ${stamp}`, category_id: categoria.id, base_unit: "quilograma" });
+  if (!prod.ok) throw new Error(`produto: ${j(prod)}`);
+  const pres = await Cat.criarApresentacaoAction(db, owner, prod.data.id, { name: "Quilo", base_qty: 1, is_sealed_package: false });
+  if (!pres.ok) throw new Error(`apresentação: ${j(pres)}`);
+  const preco = await Cat.definirPrecoAction(db, owner, { establishment_id: L, presentation_id: pres.data.id, price: 10 });
+  if (!preco.ok) throw new Error(`preço: ${j(preco)}`);
+  const imp = await Est.implantarEstoqueAction(db, owner, { establishment_id: L, emporio_product_id: prod.data.id, sealed: [], loose_qty: 100, unit_cost: 4 });
+  if (!imp.ok) throw new Error(`implantar: ${j(imp)}`);
+  await abrirTurnoDeTeste(db, owner, L);
+
+  let seq = 0;
+  const itens = [{ emporio_product_id: prod.data.id, presentation_id: pres.data.id, quantity: 1 }];
+  const corpo = (extra: Record<string, unknown>, payments: Dado[] = [{ kind: "dinheiro", amount: 10 }]) => ({
+    operation_key: `m95c-${stamp}-${(seq += 1)}`,
+    establishment_id: L,
+    items: itens,
+    payments,
+    ...extra,
+  });
+  const semCli = await V.venderAction(db, owner, corpo({}) as Dado);
+  check(
+    "venda sem customer_id: 422 customer_id com a frase de sempre",
+    !semCli.ok && semCli.status === 422 && semCli.field === "customer_id"
+      && semCli.message === "Escolha o cliente da venda. Quem não quer se identificar entra como Consumidor final.",
+    j(semCli),
+  );
+  const umContato = await db.contact.create({ data: scoped({ name: "Contato da Fazenda" }) });
+  const comContato = await V.venderAction(db, owner, corpo({ customer_id: umContato.id }) as Dado);
+  check("venda com o id de um Contact: Escolha um cliente ativo.", !comContato.ok && comContato.field === "customer_id" && comContato.message === "Escolha um cliente ativo.", j(comContato));
+  const vCf = await V.venderAction(db, owner, corpo({ customer_id: cf.id }) as Dado);
+  check("venda com o Consumidor final e dinheiro: ok, customer_name Consumidor final", vCf.ok && vCf.data.customer_id === cf.id && vCf.data.customer_name === "Consumidor final", j(vCf));
+
+  const fCf = await V.venderAction(db, owner, corpo({ customer_id: cf.id }, [{ kind: "fiado", amount: 10 }]) as Dado);
+  check("fiado para o Consumidor final: 422 customer_id", !fCf.ok && fCf.status === 422 && fCf.field === "customer_id", j(fCf));
+  const chCf = await V.venderAction(
+    db,
+    owner,
+    corpo({ customer_id: cf.id }, [{ kind: "cheque", amount: 10, check: { number: "1", bank: "Banco", good_for: new Date(Date.now() + 86_400_000) } }]) as Dado,
+  );
+  check("cheque para o Consumidor final: 422 customer_id", !chCf.ok && chCf.status === 422 && chCf.field === "customer_id", j(chCf));
+
+  const migrado = await db.emporioCustomer.create({ data: scoped({ name: "Migrado Só Nome" }) });
+  const fMig = await V.venderAction(db, owner, corpo({ customer_id: migrado.id }, [{ kind: "fiado", amount: 10 }]) as Dado);
+  check("fiado para o cliente migrado só com nome: ok", fMig.ok, j(fMig));
+  const lanc = fMig.ok
+    ? await db.financialEntry.findFirst({ where: { related_id: fMig.data.id, entry_type: "income" } })
+    : null;
+  check("o lançamento tem emporio_customer_id do cliente e contact_id nulo", lanc?.emporio_customer_id === migrado.id && lanc?.contact_id === null, j(lanc));
+
+  const cheque = await V.venderAction(
+    db,
+    owner,
+    corpo({ customer_id: maria.id }, [{ kind: "cheque", amount: 10, check: { number: "77", bank: "Banco X", good_for: new Date(Date.now() + 86_400_000) } }]) as Dado,
+  );
+  const cheques = await Cx.listarChequesAction(db, owner, { customer_id: maria.id } as Dado);
+  check(
+    "cheque do cliente: grava customer_id e a lista traz customer_name",
+    cheque.ok && cheques.ok && cheques.data.length === 1 && (cheques.data[0] as Dado).customer_id === maria.id && (cheques.data[0] as Dado).customer_name === "Maria Só Telefone",
+    j(cheques),
+  );
+
+  const fiados = await Cx.listarFiadoAction(db, owner);
+  const doMig = fiados.ok ? (fiados.data as Dado[]).find((f) => f.customer_id === migrado.id) : null;
+  check("listarFiadoAction traz customer_id e customer_name", doMig?.customer_name === "Migrado Só Nome" && doMig?.owed === 10, j(fiados));
+  const rec = await Cx.receberFiadoAction(db, owner, {
+    operation_key: `m95c-rec-${stamp}`,
+    customer_id: migrado.id,
+    establishment_id: L,
+    amount: 10,
+    kind: "dinheiro",
+  } as Dado);
+  const depois = await Cx.listarFiadoAction(db, owner);
+  check(
+    "receberFiadoAction({ customer_id }) quita",
+    rec.ok && (rec.data as Dado).customer_id === migrado.id && depois.ok && !(depois.data as Dado[]).some((f) => f.customer_id === migrado.id),
+    j([rec, depois]),
+  );
+
+  // --- orçamento --------------------------------------------------------------
+  const orc = (extra: Record<string, unknown>) => O.salvarOrcamentoAction(db, owner, {
+    operation_key: `m95c-orc-${stamp}-${(seq += 1)}`,
+    establishment_id: L,
+    items: itens,
+    ...extra,
+  } as Dado);
+  const oCf = await orc({ customer_id: cf.id });
+  check("orçamento com o Consumidor final: ok", oCf.ok && (oCf.data as Dado).customer?.id === cf.id, j(oCf));
+  const soNomeTel = r2.corpo?.data as Dado; // "Cliente do Caixa": PF com nome e telefone, sem CPF
+  const oSemCpf = await orc({ customer_id: soNomeTel.id });
+  check("orçamento com PF só nome e telefone (sem CPF): ok", oSemCpf.ok && soNomeTel.document === null, j(oSemCpf));
+  const oPf = await orc({ customer_id: maria.id });
+  check("orçamento com a PF de CPF: ok", oPf.ok, j(oPf));
+  const soNomePf = await db.emporioCustomer.create({ data: scoped({ name: "PF Sem Telefone", person_kind: "pf" }) });
+  const oSemTel = await orc({ customer_id: soNomePf.id });
+  check(
+    "orçamento com PF sem telefone: QUOTE_CUSTOMER_INCOMPLETE com a falta",
+    !oSemTel.ok && oSemTel.code === "QUOTE_CUSTOMER_INCOMPLETE" && oSemTel.field === "customer_id"
+      && oSemTel.message === "Complete o cadastro do cliente antes de salvar o orçamento. Informe o telefone.",
+    j(oSemTel),
+  );
+  const oMig = await orc({ customer_id: migrado.id });
+  check(
+    "orçamento com o cliente migrado só com nome: a falta do tipo",
+    !oMig.ok && oMig.code === "QUOTE_CUSTOMER_INCOMPLETE"
+      && oMig.message === "Complete o cadastro do cliente antes de salvar o orçamento. Escolha pessoa física ou jurídica.",
+    j(oMig),
+  );
+  const oSem = await orc({});
+  check(
+    "orçamento sem customer_id: QUOTE_CUSTOMER_REQUIRED com a frase nova",
+    !oSem.ok && oSem.code === "QUOTE_CUSTOMER_REQUIRED" && oSem.field === "customer_id"
+      && oSem.message === "Escolha o cliente do orçamento. Quem não quer se identificar entra como Consumidor final.",
+    j(oSem),
+  );
+  const fat = oCf.ok
+    ? await V.venderAction(db, owner, corpo({ customer_id: cf.id, quote_id: oCf.data.id }) as Dado)
+    : null;
+  check("faturar o orçamento do Consumidor final: ok", fat?.ok === true, j(fat));
+  const lidoOrc = oPf.ok ? await O.lerOrcamentoAction(db, owner, oPf.data.id) : null;
+  check("OrcamentoView.customer traz o nome", lidoOrc?.ok === true && (lidoOrc.data as Dado).customer?.name === "Maria Só Telefone", j(lidoOrc));
+
+  // --- devolução e papel ------------------------------------------------------
+  const vMaria = await V.venderAction(db, owner, corpo({ customer_id: maria.id }) as Dado);
+  if (!vMaria.ok) throw new Error(`venda da Maria: ${j(vMaria)}`);
+  const papel = await I.lerImpressoDaVendaAction(db, owner, vMaria.data.id);
+  check(
+    "o papel da venda do cliente traz o nome e o documento formatado",
+    papel.ok && papel.data.cliente?.nome === "Maria Só Telefone" && papel.data.cliente?.documento === "123.456.789-09",
+    j(papel),
+  );
+  const papelCf = vCf.ok ? await I.lerImpressoDaVendaAction(db, owner, vCf.data.id) : null;
+  check("o papel do Consumidor final sai sem cliente", papelCf?.ok === true && papelCf.data.cliente === null, j(papelCf));
+  const itemMaria = await db.emporioSaleItem.findFirstOrThrow({ where: { sale_id: vMaria.data.id } });
+  const dev = await V.devolverAction(db, owner, vMaria.data.id, {
+    operation_key: `m95c-dev-${stamp}`,
+    refund_kind: "dinheiro",
+    items: [{ sale_item_id: itemMaria.id, quantity: 1 }],
+  });
+  const despesa = dev.ok ? await db.financialEntry.findFirst({ where: { related_id: dev.data.id, entry_type: "expense" } }) : null;
+  check("a devolução grava a despesa com emporio_customer_id da venda", despesa?.emporio_customer_id === maria.id && despesa?.contact_id === null, j([dev, despesa]));
+
+  // --- GET /customers/:id -----------------------------------------------------
+  const ler = async (id: string) => {
+    const res = await withBearer(tokVend, () =>
+      (rotaId as Dado).GET(new Request(`http://localhost/api/v1/emporio/customers/${id}`), { params: Promise.resolve({ id }) }),
+    );
+    return { status: (res as Response).status, corpo: (await (res as Response).json().catch(() => ({}))) as Dado };
+  };
+  const proprio = await ler(maria.id);
+  check("GET /customers/:id do próprio: 200 com o nome", proprio.status === 200 && proprio.corpo?.data?.name === "Maria Só Telefone", j(proprio));
+  const alheio = await ler(deB.id);
+  check("GET /customers/:id de outra conta: 404", alheio.status === 404, j(alheio));
+}
+
 async function limpar() {
   if (tenantIds.length === 0) return;
   const { prisma } = await import("@/lib/prisma");
@@ -229,6 +586,7 @@ async function main() {
   try {
     await secao1();
     await comBanco(secao2);
+    await comBanco(secao3);
   } finally {
     await limpar();
   }

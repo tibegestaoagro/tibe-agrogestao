@@ -47,7 +47,7 @@ const PARCELAS = Array.from({ length: 11 }, (_, i) => i + 2);
  * tem botão de enviar: quem monta a tela (o balcão, a troca) cuida do envio.
  *
  * Os ids dos `Field` são os nomes da API (`establishment_id`, `items`,
- * `contact_id`, `payments`), para a recusa do servidor cair embaixo do campo
+ * `customer_id`, `payments`), para a recusa do servidor cair embaixo do campo
  * certo. `prefixoDeId` vem de quem chama, porque o balcão e a troca nunca
  * vivem juntos mas os ids passam pelo mesmo `idDe`.
  */
@@ -299,7 +299,7 @@ export function VendaCampos({
         )}
       </Field>
 
-      <Field label="Cliente" required id={idDe("contact_id")} error={erros.contact_id}>
+      <Field label="Cliente" required id={idDe("customer_id")} error={erros.customer_id}>
         {({ id, ...aria }) => (
           <div className="space-y-2">
             <div className="flex items-start gap-2">
@@ -311,7 +311,7 @@ export function VendaCampos({
                     // (cliente recém-cadastrado). Não há opção vazia: nunca é escolha de ninguém.
                     if (valor === "") return;
                     v.setContatoId(valor);
-                    limpar("contact_id");
+                    limpar("customer_id");
                   }}
                 >
                   <SelectTrigger id={id} {...aria}>
@@ -331,7 +331,7 @@ export function VendaCampos({
                   modo="novo"
                   onSalvo={(c) => {
                     v.contatoCriado(c);
-                    limpar("contact_id");
+                    limpar("customer_id");
                   }}
                 />
               )}

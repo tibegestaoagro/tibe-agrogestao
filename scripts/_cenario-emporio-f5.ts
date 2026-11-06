@@ -40,6 +40,7 @@ async function limpar(tenant_id: string) {
   const vendas = (await prisma.emporioSale.findMany({ where: { tenant_id, establishment_id: { in: lojas } }, select: { id: true } })).map((v) => v.id);
   const compras = (await prisma.emporioPurchase.findMany({ where: { tenant_id, establishment_id: { in: lojas } }, select: { id: true } })).map((c) => c.id);
   const contatos = (await prisma.contact.findMany({ where: { tenant_id, name: { startsWith: PREFIXO } }, select: { id: true } })).map((c) => c.id);
+  const clientes = (await prisma.emporioCustomer.findMany({ where: { tenant_id, name: { startsWith: PREFIXO } }, select: { id: true } })).map((c) => c.id);
   const composicoes = (await prisma.composition.findMany({ where: { tenant_id, emporio_product_id: { in: emporio } }, select: { id: true } })).map((c) => c.id);
   const lancamentos = (await prisma.financialEntry.findMany({
     where: {
@@ -70,6 +71,7 @@ async function limpar(tenant_id: string) {
   await prisma.productPresentation.deleteMany({ where: { tenant_id, emporio_product_id: { in: emporio } } });
   await prisma.emporioProduct.deleteMany({ where: { tenant_id, id: { in: emporio } } });
   await prisma.product.deleteMany({ where: { tenant_id, id: { in: produtos } } });
+  await prisma.emporioCustomer.deleteMany({ where: { tenant_id, id: { in: clientes } } });
   await prisma.contact.deleteMany({ where: { tenant_id, id: { in: contatos } } });
   await prisma.userEstablishment.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.establishment.deleteMany({ where: { tenant_id, id: { in: lojas } } });
@@ -138,7 +140,7 @@ async function main() {
   }
 
   const fornecedor = await prisma.contact.create({ data: { tenant_id, name: `${PREFIXO}Casa do Adubo` } });
-  const cliente = await prisma.contact.create({ data: { tenant_id, name: `${PREFIXO}João` } });
+  const cliente = await prisma.emporioCustomer.create({ data: { tenant_id, name: `${PREFIXO}João` } });
   const agora = new Date();
   const chave = (s: string) => `cenario-f5-${s}-${agora.getTime()}`;
 
@@ -160,7 +162,7 @@ async function main() {
     const venda = exigir(await vendas.venderAction(db, ator, {
       operation_key: chave(`fiado-${n}`),
       establishment_id: loja.id,
-      contact_id: cliente.id,
+      customer_id: cliente.id,
       items: [{ emporio_product_id: racao, presentation_id: quilo, quantity: valor / 20, unit_price: 20 }],
       payments: [{ kind: "fiado", amount: valor, due_date: new Date(agora.getTime() + 5 * DIA) }],
     } as never), `fiado ${n}`) as { id: string };
@@ -174,7 +176,7 @@ async function main() {
   const dinheiro = exigir(await vendas.venderAction(db, ator, {
     operation_key: chave("dinheiro"),
     establishment_id: loja.id,
-    contact_id: (await (await import("@/lib/actions/emporio-clientes")).garantirConsumidorFinal(db)).id,
+    customer_id: (await (await import("@/lib/actions/emporio-clientes")).garantirConsumidorFinal(db)).id,
     items: [{ emporio_product_id: racao, presentation_id: quilo, quantity: 1, unit_price: 20 }],
     payments: [{ kind: "dinheiro", amount: 20 }],
   } as never), "dinheiro") as { id: string };

@@ -1,6 +1,6 @@
 /**
  * Conferência pura do cadastro do contato (PF/PJ). Sem banco e sem Zod: serve à rota,
- * ao balcão do Empório e ao agente do WhatsApp.
+ * ao cliente e ao fornecedor do Empório e ao agente do WhatsApp.
  */
 
 export const UFS: readonly string[] = [
@@ -116,7 +116,12 @@ const CAMPOS_TEXTO = [
 
 const erro = (field: string, message: string): ResultadoCadastro => ({ ok: false, field, message });
 
-export function conferirCadastro(input: CadastroDoContato, modo: "livre" | "balcao"): ResultadoCadastro {
+/**
+ * Só o FORMATO dos campos presentes (CPF/CNPJ, CEP, UF, inscrição, nascimento).
+ * O que é obrigatório no cliente do Empório é de `faltaNoCadastro`
+ * (`src/lib/emporio/cliente-cadastro.ts`); em Contatos, nada é.
+ */
+export function conferirCadastro(input: CadastroDoContato): ResultadoCadastro {
   const tem = (k: keyof CadastroDoContato) => k in input;
   const dados: Record<string, string | null> = {};
   const limpo = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
@@ -126,16 +131,7 @@ export function conferirCadastro(input: CadastroDoContato, modo: "livre" | "balc
   const kind: "pf" | "pj" | null = input.person_kind === "pf" || input.person_kind === "pj" ? input.person_kind : null;
   if (tem("person_kind")) dados.person_kind = kind;
 
-  if (modo === "balcao") {
-    if (!kind) return erro("person_kind", "Escolha pessoa física ou jurídica.");
-    if (!limpo(input.name)) {
-      return erro("name", kind === "pf" ? "Informe o nome do cliente." : "Informe o nome da empresa.");
-    }
-    if (!limpo(input.document)) return erro("document", kind === "pf" ? "Informe o CPF." : "Informe o CNPJ.");
-    if (!limpo(input.phone)) return erro("phone", "Informe o telefone.");
-  }
-
-  if (tem("document") || modo === "balcao") {
+  if (tem("document")) {
     const bruto = limpo(input.document);
     if (bruto === null) {
       dados.document = null;

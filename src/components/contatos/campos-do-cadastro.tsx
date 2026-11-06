@@ -146,7 +146,10 @@ type Props = {
   aoMudar: (campo: CampoCadastro, valor: string) => void;
   erros: Partial<Record<CampoCadastro, string>>;
   idDe: (campo: CampoCadastro) => string;
-  /** Balcão: marca nome, documento e telefone como obrigatórios. Contatos: só o nome. */
+  /**
+   * Cliente do Empório: marca o que `faltaNoCadastro` exige (tipo, nome e telefone; na PJ,
+   * também o CNPJ e o endereço principal). Contatos: só o nome.
+   */
   obrigatorios: boolean;
 };
 
@@ -186,9 +189,19 @@ function CampoTexto({
   );
 }
 
-function CampoUf({ campo, rotulo, p }: { campo: "address_state" | "delivery_state"; rotulo: string; p: Props }) {
+function CampoUf({
+  campo,
+  rotulo,
+  required,
+  p,
+}: {
+  campo: "address_state" | "delivery_state";
+  rotulo: string;
+  required?: boolean;
+  p: Props;
+}) {
   return (
-    <Field label={rotulo} id={p.idDe(campo)} error={p.erros[campo]}>
+    <Field label={rotulo} required={required} id={p.idDe(campo)} error={p.erros[campo]}>
       {({ id, ...aria }) => (
         <Select
           value={p.valores[campo] || SEM_UF}
@@ -216,6 +229,7 @@ export function CamposDoCadastro(props: Props) {
   const kind = valores.person_kind;
   const pf = kind === "pf";
   const pj = kind === "pj";
+  const enderecoObrigatorio = obrigatorios && pj;
 
   function usarMesmoEndereco() {
     aoMudar("delivery_zip", valores.address_zip);
@@ -275,8 +289,8 @@ export function CamposDoCadastro(props: Props) {
       <CampoTexto
         campo="document"
         rotulo={pj ? "CNPJ" : "CPF"}
-        required={obrigatorios}
-        hint={obrigatorios ? undefined : "Opcional."}
+        required={obrigatorios && pj}
+        hint={obrigatorios && pj ? undefined : "Opcional."}
         inputMode={pj ? "text" : "numeric"}
         mascara={(v) => mascararDocumento(v, kind)}
         p={props}
@@ -318,16 +332,16 @@ export function CamposDoCadastro(props: Props) {
         <h3 className="text-sm font-semibold text-texto">
           {pf ? "Endereço residencial" : pj ? "Endereço da empresa" : "Endereço"}
         </h3>
-        <CampoTexto campo="address_zip" rotulo="CEP" inputMode="numeric" mascara={mascararCep} placeholder="00000-000" p={props} />
-        <CampoTexto campo="address_street" rotulo="Rua" p={props} />
+        <CampoTexto campo="address_zip" rotulo="CEP" required={enderecoObrigatorio} inputMode="numeric" mascara={mascararCep} placeholder="00000-000" p={props} />
+        <CampoTexto campo="address_street" rotulo="Rua" required={enderecoObrigatorio} p={props} />
         <div className="grid grid-cols-2 gap-3">
-          <CampoTexto campo="address_number" rotulo="Número" p={props} />
+          <CampoTexto campo="address_number" rotulo="Número" required={enderecoObrigatorio} p={props} />
           <CampoTexto campo="address_complement" rotulo="Complemento" p={props} />
         </div>
-        <CampoTexto campo="address_district" rotulo="Bairro" p={props} />
+        <CampoTexto campo="address_district" rotulo="Bairro" required={enderecoObrigatorio} p={props} />
         <div className="grid grid-cols-[1fr_6rem] gap-3">
-          <CampoTexto campo="city" rotulo="Município" p={props} />
-          <CampoUf campo="address_state" rotulo="UF" p={props} />
+          <CampoTexto campo="city" rotulo="Município" required={enderecoObrigatorio} p={props} />
+          <CampoUf campo="address_state" rotulo="UF" required={enderecoObrigatorio} p={props} />
         </div>
       </section>
 

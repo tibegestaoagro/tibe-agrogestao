@@ -183,6 +183,9 @@ export function serializeFinancialEntry(e: any) {
     // quebra, e quem precisa do parcial passa a ter.
     property_id: e.property_id ?? null,
     contact_id: e.contact_id ?? null,
+    // Frente 1 do Empório (aditivo): o cliente e o fornecedor próprios do Empório.
+    emporio_customer_id: e.emporio_customer_id ?? null,
+    emporio_supplier_id: e.emporio_supplier_id ?? null,
     payment_method: e.payment_method ?? null,
   };
 }

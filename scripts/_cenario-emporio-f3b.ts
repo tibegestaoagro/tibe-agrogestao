@@ -30,7 +30,7 @@ async function limpar(tenant_id: string) {
   const produtos = (await prisma.product.findMany({ where: { tenant_id, name: { startsWith: PREFIXO } }, select: { id: true } })).map((p) => p.id);
   const emporio = (await prisma.emporioProduct.findMany({ where: { tenant_id, product_id: { in: produtos } }, select: { id: true } })).map((p) => p.id);
   const contas = (await prisma.bankAccount.findMany({ where: { tenant_id, name: { startsWith: PREFIXO } }, select: { id: true } })).map((c) => c.id);
-  const contatos = (await prisma.contact.findMany({ where: { tenant_id, name: { startsWith: PREFIXO } }, select: { id: true } })).map((c) => c.id);
+  const contatos = (await prisma.emporioCustomer.findMany({ where: { tenant_id, name: { startsWith: PREFIXO } }, select: { id: true } })).map((c) => c.id);
   const vendas = (await prisma.emporioSale.findMany({ where: { tenant_id, establishment_id: { in: lojas } }, select: { id: true } })).map((v) => v.id);
   const devolucoes = (await prisma.emporioSaleReturn.findMany({ where: { tenant_id, sale_id: { in: vendas } }, select: { id: true } })).map((d) => d.id);
   const conferencias = (await prisma.cashCount.findMany({ where: { tenant_id, establishment_id: { in: lojas } }, select: { id: true } })).map((c) => c.id);
@@ -68,7 +68,7 @@ async function limpar(tenant_id: string) {
   await prisma.userEstablishment.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.establishment.deleteMany({ where: { tenant_id, id: { in: lojas } } });
   await prisma.bankAccount.deleteMany({ where: { tenant_id, id: { in: contas } } });
-  await prisma.contact.deleteMany({ where: { tenant_id, id: { in: contatos } } });
+  await prisma.emporioCustomer.deleteMany({ where: { tenant_id, id: { in: contatos } } });
   return { lojas: lojas.length, vendas: vendas.length };
 }
 
@@ -118,12 +118,12 @@ async function main() {
     operation_key: `cenario-f3b-${Date.now()}`,
     establishment_id: loja.id,
     sold_at: quarentaDiasAtras,
-    contact_id: (await (await import("@/lib/actions/emporio-clientes")).garantirConsumidorFinal(db)).id,
+    customer_id: (await (await import("@/lib/actions/emporio-clientes")).garantirConsumidorFinal(db)).id,
     items: [{ emporio_product_id: racao, presentation_id: quilo, quantity: 5 }],
     payments: [{ kind: "credito_vista", amount: 100 }],
   } as never), "venda antiga no credito");
 
-  const maria = await prisma.contact.create({ data: { tenant_id, name: `${PREFIXO}Maria` } });
+  const maria = await prisma.emporioCustomer.create({ data: { tenant_id, name: `${PREFIXO}Maria` } });
 
   console.log("Conta do seed:", tenant_id, "| limpos:", limpos.lojas, "loja(s),", limpos.vendas, "venda(s)");
   console.log("Loja:", loja.id, "Ração:", racao, "Conta:", conta.id, "Maria:", maria.id);

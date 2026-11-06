@@ -311,7 +311,7 @@ async function secao2() {
     Ven.venderAction(db, ator, {
       operation_key: `m92-s2-${stamp}-${(seq += 1)}`,
       establishment_id: est,
-      contact_id: cf,
+      customer_id: cf,
       seller_user_id: owner.id,
       items: [{ emporio_product_id: prod.data.id, presentation_id: ap.data.id, quantity: 1, unit_price: preco }],
       payments: [{ kind: "dinheiro", amount: preco }],
@@ -910,13 +910,13 @@ async function secao4(): Promise<Dado> {
     if (!px.ok) throw new Error(j(px));
   }
   const cf = (await Cli.garantirConsumidorFinal(db)).id;
-  const cliente = (await db.contact.create({ data: scoped({ name: `M92 s4 Cliente ${stamp}` }) })).id;
+  const cliente = (await db.emporioCustomer.create({ data: scoped({ name: `M92 s4 Cliente ${stamp}` }) })).id;
   const item = (quantity: number) => [{ emporio_product_id: prod.data.id, presentation_id: ap.data.id, quantity, unit_price: 10 }];
   const vender = (ator: Dado, loja: string, quantity: number, payments: Dado[], extra: Dado = {}) =>
     Ven.venderAction(db, ator, {
       operation_key: k("venda"),
       establishment_id: loja,
-      contact_id: extra.contact_id ?? cf,
+      customer_id: extra.customer_id ?? cf,
       items: item(quantity),
       payments,
       ...(extra.cash_register_id ? { cash_register_id: extra.cash_register_id } : {}),
@@ -929,7 +929,7 @@ async function secao4(): Promise<Dado> {
   const semTurno = await Ven.venderAction(db, owner, {
     operation_key: kSem,
     establishment_id: L1,
-    contact_id: cf,
+    customer_id: cf,
     items: item(1),
     payments: [{ kind: "dinheiro", amount: 10 }],
   });
@@ -977,7 +977,7 @@ async function secao4(): Promise<Dado> {
       new Request("http://localhost/api/v1/emporio/sales", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ operation_key: k("rota"), establishment_id: L1, contact_id: cf, items: item(1), payments: [{ kind: "dinheiro", amount: 10 }], cash_register_id: r2 }),
+        body: JSON.stringify({ operation_key: k("rota"), establishment_id: L1, customer_id: cf, items: item(1), payments: [{ kind: "dinheiro", amount: 10 }], cash_register_id: r2 }),
       }),
     ),
   );
@@ -992,11 +992,11 @@ async function secao4(): Promise<Dado> {
   const T = await abrirTurnoDeTeste(db, vA, L2, 100, { reinforcement: 100 });
   const rL2 = T.cash_register_id;
   check("o turno da Loja 2 abre com 100 de troco vindo da gerência", (await Caixa.saldoDoCaixa(db, rL2)) === 10000);
-  const fiadoVenda: Dado = await vender(vA, L2, 3, [{ kind: "fiado", amount: 30 }], { contact_id: cliente });
+  const fiadoVenda: Dado = await vender(vA, L2, 3, [{ kind: "fiado", amount: 30 }], { customer_id: cliente });
   check("venda de 30 no fiado", fiadoVenda.ok, j(fiadoVenda));
   const v50: Dado = await vender(vA, L2, 5, [{ kind: "dinheiro", amount: 50 }]);
   check("venda em dinheiro de 50", v50.ok, j(v50));
-  const fiado = await Caixa.receberFiadoAction(db, vA, { operation_key: k("fiado"), contact_id: cliente, establishment_id: L2, amount: 30, kind: "dinheiro" });
+  const fiado = await Caixa.receberFiadoAction(db, vA, { operation_key: k("fiado"), customer_id: cliente, establishment_id: L2, amount: 30, kind: "dinheiro" });
   check("fiado recebido em dinheiro, 30", fiado.ok, j(fiado));
   const it50 = v50.ok ? (await db.emporioSaleItem.findFirst({ where: { sale_id: v50.data.id } }))!.id : "x";
   const dev = await Ven.devolverAction(db, vA, v50.data?.id, { operation_key: k("dev"), refund_kind: "dinheiro", items: [{ sale_item_id: it50, quantity: 1 }] });
@@ -1007,7 +1007,7 @@ async function secao4(): Promise<Dado> {
   const troca = await Ven.trocarAction(db, vA, v50.data?.id, {
     operation_key: k("troca"),
     items_devolvidos: [{ sale_item_id: it50, quantity: 1 }],
-    venda: { contact_id: cf, items: item(0.5), payments: [] },
+    venda: { customer_id: cf, items: item(0.5), payments: [] },
   });
   check("troca: devolve 10, leva 5, a diferença de 5 volta em dinheiro", troca.ok, j(troca));
   const fixa = await Desp.criarDespesaFixaAction(db, owner, {
@@ -1055,19 +1055,19 @@ async function secao4(): Promise<Dado> {
   const repl: Dado = await Ven.venderAction(db, vA, {
     operation_key: v50.data?.operation_key,
     establishment_id: L2,
-    contact_id: cf,
+    customer_id: cf,
     items: item(5),
     payments: [{ kind: "dinheiro", amount: 50 }],
   });
   check("repetir a chave de uma venda com o turno dela encerrado devolve a venda gravada", repl.ok && repl.data.id === v50.data?.id && repl.data.replayed === true, j(repl));
 
   // --- a Loja 2 sem turno aberto: toda saída ou entrada de dinheiro na gaveta é recusada, sem gravar nada
-  const cliente2 = (await db.contact.create({ data: scoped({ name: `M92 s4 Cliente 2 ${stamp}` }) })).id;
-  const fiadoL1: Dado = await vender(owner, L1, 3, [{ kind: "fiado", amount: 30 }], { contact_id: cliente2 });
+  const cliente2 = (await db.emporioCustomer.create({ data: scoped({ name: `M92 s4 Cliente 2 ${stamp}` }) })).id;
+  const fiadoL1: Dado = await vender(owner, L1, 3, [{ kind: "fiado", amount: 30 }], { customer_id: cliente2 });
   check("uma venda de 30 no fiado na Loja 1 (o Caixa 2 está aberto)", fiadoL1.ok, j(fiadoL1));
   const movsAntes = await db.cashMovement.count();
   const pagosAntes = await db.financialPayment.count();
-  const fFechado = await Caixa.receberFiadoAction(db, owner, { operation_key: k("fiado"), contact_id: cliente2, establishment_id: L2, amount: 10, kind: "dinheiro" });
+  const fFechado = await Caixa.receberFiadoAction(db, owner, { operation_key: k("fiado"), customer_id: cliente2, establishment_id: L2, amount: 10, kind: "dinheiro" });
   check("fiado em dinheiro na loja sem turno: 409 CASH_CLOSED em cash_register_id", rec(fFechado, "CASH_CLOSED", 409, "cash_register_id"), j(fFechado));
   const itFiado = fiadoVenda.ok ? (await db.emporioSaleItem.findFirst({ where: { sale_id: fiadoVenda.data.id } }))!.id : "x";
   const dFechado = await Ven.devolverAction(db, vA, fiadoVenda.data?.id, { operation_key: k("dev"), refund_kind: "dinheiro", items: [{ sale_item_id: itFiado, quantity: 1 }] });
@@ -1090,7 +1090,7 @@ async function secao4(): Promise<Dado> {
   );
 
   // --- fiado só em PIX: o turno é levado quando houver, sem recusa
-  const pixSem: Dado = await Caixa.receberFiadoAction(db, owner, { operation_key: k("fiado"), contact_id: cliente2, establishment_id: L2, amount: 5, kind: "pix" });
+  const pixSem: Dado = await Caixa.receberFiadoAction(db, owner, { operation_key: k("fiado"), customer_id: cliente2, establishment_id: L2, amount: 5, kind: "pix" });
   const mPixSem = await db.cashMovement.findMany({ where: { operation_key: pixSem.data?.operation_key ?? "x" } });
   check(
     "fiado só em PIX na loja sem turno: aceito, na conta, sem turno",
@@ -1098,7 +1098,7 @@ async function secao4(): Promise<Dado> {
     j([pixSem, mPixSem]),
   );
   const T1b = await abrirTurnoDeTeste(db, v1, L1, undefined, { cash_register_id: r1 });
-  const pixDois: Dado = await Caixa.receberFiadoAction(db, owner, { operation_key: k("fiado"), contact_id: cliente2, establishment_id: L1, amount: 5, kind: "pix" });
+  const pixDois: Dado = await Caixa.receberFiadoAction(db, owner, { operation_key: k("fiado"), customer_id: cliente2, establishment_id: L1, amount: 5, kind: "pix" });
   const mPixDois = await db.cashMovement.findMany({ where: { operation_key: pixDois.data?.operation_key ?? "x" } });
   check(
     "fiado só em PIX com dois caixas abertos e nenhum de quem recebe: aceito, sem turno (se_houver não recusa)",
@@ -1127,10 +1127,10 @@ async function secao4(): Promise<Dado> {
 
   // --- cancelar uma venda com dinheiro em duas lojas: cada saída no turno da própria loja
   const TL2b = await abrirTurnoDeTeste(db, vA, L2);
-  const cliente3 = (await db.contact.create({ data: scoped({ name: `M92 s4 Cliente 3 ${stamp}` }) })).id;
-  const duasLojas: Dado = await vender(owner, L1, 2, [{ kind: "dinheiro", amount: 10 }, { kind: "fiado", amount: 10 }], { contact_id: cliente3, cash_register_id: r1 });
+  const cliente3 = (await db.emporioCustomer.create({ data: scoped({ name: `M92 s4 Cliente 3 ${stamp}` }) })).id;
+  const duasLojas: Dado = await vender(owner, L1, 2, [{ kind: "dinheiro", amount: 10 }, { kind: "fiado", amount: 10 }], { customer_id: cliente3, cash_register_id: r1 });
   check("venda na Loja 1, metade em dinheiro no Caixa 1 e metade no fiado", duasLojas.ok, j(duasLojas));
-  const recebeL2 = await Caixa.receberFiadoAction(db, owner, { operation_key: k("fiado"), contact_id: cliente3, establishment_id: L2, amount: 10, kind: "dinheiro" });
+  const recebeL2 = await Caixa.receberFiadoAction(db, owner, { operation_key: k("fiado"), customer_id: cliente3, establishment_id: L2, amount: 10, kind: "dinheiro" });
   check("o fiado é recebido em dinheiro na Loja 2", recebeL2.ok, j(recebeL2));
   const cancDuas = await Ven.cancelarVendaAction(db, owner, duasLojas.data?.id, { reason: "cancelada nas duas lojas", cash_register_id: r1 });
   const espelhos = await db.cashMovement.findMany({ where: { sale_id: duasLojas.data?.id ?? "x", origin: "cancelamento_venda" } });
@@ -1150,7 +1150,7 @@ async function secao4(): Promise<Dado> {
 
   // --- a mesma venda em paralelo (mesma chave): as duas ok, uma venda só
   const kPar = k("par");
-  const corpoPar = { operation_key: kPar, establishment_id: L1, contact_id: cf, items: item(1), payments: [{ kind: "dinheiro", amount: 10 }], cash_register_id: r1 };
+  const corpoPar = { operation_key: kPar, establishment_id: L1, customer_id: cf, items: item(1), payments: [{ kind: "dinheiro", amount: 10 }], cash_register_id: r1 };
   const [par1, par2]: Dado[] = await Promise.all([Ven.venderAction(db, v1, corpoPar), Ven.venderAction(db, v1, corpoPar)]);
   check(
     "a mesma venda em paralelo: as duas ok, a mesma venda, um movimento na gaveta",
@@ -1237,9 +1237,9 @@ async function secao5(ctx: Dado) {
   };
   await ok1("venda de 40 em dinheiro", vender(vA, L2, 4, [{ kind: "dinheiro", amount: 40 }], { cash_register_id: rS }));
   await ok1("venda de 10 em PIX", vender(vA, L2, 1, [{ kind: "pix", amount: 10 }], { cash_register_id: rS }));
-  await ok1("venda de 20 no fiado", vender(vA, L2, 2, [{ kind: "fiado", amount: 20 }], { contact_id: ctx.cliente, cash_register_id: rS }));
-  await ok1("fiado recebido em PIX, 10", Caixa.receberFiadoAction(db, vA, { operation_key: k("fpix"), contact_id: cliente, establishment_id: L2, amount: 10, kind: "pix" }));
-  await ok1("fiado recebido em dinheiro, 10", Caixa.receberFiadoAction(db, vA, { operation_key: k("fdin"), contact_id: cliente, establishment_id: L2, amount: 10, kind: "dinheiro" }));
+  await ok1("venda de 20 no fiado", vender(vA, L2, 2, [{ kind: "fiado", amount: 20 }], { customer_id: ctx.cliente, cash_register_id: rS }));
+  await ok1("fiado recebido em PIX, 10", Caixa.receberFiadoAction(db, vA, { operation_key: k("fpix"), customer_id: cliente, establishment_id: L2, amount: 10, kind: "pix" }));
+  await ok1("fiado recebido em dinheiro, 10", Caixa.receberFiadoAction(db, vA, { operation_key: k("fdin"), customer_id: cliente, establishment_id: L2, amount: 10, kind: "dinheiro" }));
   await ok1("conferência livre contando 45 onde se esperava 50", Caixa.conferirGavetaAction(db, vA, { cash_register_id: rS, counted: 45, justification: "faltou uma nota" }));
   const sg2 = await ok1("sangria de 20", Tu.sangriaAction(db, vA, S.id, { operation_key: k("sg2"), amount: 20 }));
   await ok1("o gerente confirma a sangria", Tu.confirmarEntregaAction(db, owner, sg2.data?.id, { operation_key: k("cf-sg"), received_amount: 20 }));
@@ -1474,7 +1474,7 @@ async function limpar() {
     // filhos antes de CashSession: movimento, conferência, venda; a entrega antes da sessão
     "emporioAuditLog", "cashMovement", "cashTransfer", "cashCount", "emporioSalePayment", "emporioSaleReturnItem", "stockMovement", "emporioSaleItem",
     "emporioSaleReturn", "emporioSale", "cashHandover", "cashSession", "cashRegister", "fixedExpenseOccurrence", "fixedExpenseSplit", "fixedExpenseTemplate",
-    "emporioCounter", "emporioSettings", "financialPayment", "financialEntry", "userEstablishment", "establishment", "bankAccount", "contact",
+    "emporioCounter", "emporioSettings", "financialPayment", "financialEntry", "userEstablishment", "establishment", "bankAccount", "emporioCustomer", "contact",
     "user", "tenantProfile", "tenantFeature",
   ];
   for (const id of tenantIds) {

@@ -112,24 +112,24 @@ export async function itensDoEmporioNoDia(
   // --- emporio_fiado --------------------------------------------------------
   const abertas = await entradasAbertas(db, {
     establishment_id: { in: ids },
-    contact_id: { not: null },
+    emporio_customer_id: { not: null },
     due_date: { not: null, lte: limite },
   });
   if (abertas.length > 0) {
-    const contatos = await db.contact.findMany({
-      where: { id: { in: [...new Set(abertas.map((e) => e.contact_id as string))] } },
+    const clientes = await db.emporioCustomer.findMany({
+      where: { id: { in: [...new Set(abertas.map((e) => e.emporio_customer_id as string))] } },
       select: { id: true, name: true },
     });
-    const nomeDoContato = new Map(contatos.map((c) => [c.id, c.name]));
-    type Grupo = { contato: string; loja: string; vencido: boolean; total: number; data: Date };
+    const nomeDoCliente = new Map(clientes.map((c) => [c.id, c.name]));
+    type Grupo = { cliente: string; loja: string; vencido: boolean; total: number; data: Date };
     const grupos = new Map<string, Grupo>();
     for (const e of abertas) {
-      if (!e.due_date || !e.contact_id || !e.establishment_id) continue;
+      if (!e.due_date || !e.emporio_customer_id || !e.establishment_id) continue;
       const vencido = diasAte(e.due_date, agora) < 0;
-      const chave = `${e.contact_id}:${e.establishment_id}:${vencido ? "vencido" : "a_vencer"}`;
+      const chave = `${e.emporio_customer_id}:${e.establishment_id}:${vencido ? "vencido" : "a_vencer"}`;
       const g = grupos.get(chave);
       if (!g) {
-        grupos.set(chave, { contato: e.contact_id, loja: e.establishment_id, vencido, total: e.open_cent, data: e.due_date });
+        grupos.set(chave, { cliente: e.emporio_customer_id, loja: e.establishment_id, vencido, total: e.open_cent, data: e.due_date });
       } else {
         g.total += e.open_cent;
         // Vencido: o mais antigo. A vencer: o mais próximo. Nos dois casos, o menor.
@@ -137,7 +137,7 @@ export async function itensDoEmporioNoDia(
       }
     }
     for (const [chave, g] of grupos) {
-      const nome = nomeDoContato.get(g.contato);
+      const nome = nomeDoCliente.get(g.cliente);
       if (!nome) continue;
       itens.push({
         chave: `emporio_fiado:${chave}`,
@@ -265,7 +265,7 @@ export async function resumoDoEmporio(
       where: { status: "concluida", establishment_id: { in: ids }, sold_at: { gte: inicio, lt: fim } },
       _sum: { net_amount: true },
     }),
-    entradasAbertas(db, { establishment_id: { in: ids }, contact_id: { not: null } }),
+    entradasAbertas(db, { establishment_id: { in: ids }, emporio_customer_id: { not: null } }),
     ehAdmin
       ? db.financialEntry.findMany({
           where: { related_module: "emporio", entry_type: "expense", status: "pending", establishment_id: { in: ids } },

@@ -6,6 +6,7 @@ import { lerEstabelecimentoAction } from "@/lib/actions/emporio-catalogo";
 import { lerConfiguracoesAction, type EmporioSettingsView } from "@/lib/actions/emporio-configuracoes";
 import { lerOrcamentoAction } from "@/lib/actions/emporio-orcamentos";
 import { formatarCep, formatarDocumento } from "@/lib/contatos/cadastro";
+import { ehConsumidorFinal } from "@/lib/emporio/cliente-cadastro";
 import { formatarNumero } from "@/lib/emporio/numeracao";
 import { FORMA_ROTULO } from "@/app/(dashboard)/emporio/_components/venda-rotulos";
 import { numeroBr } from "@/app/(dashboard)/emporio/_components/formato";
@@ -66,7 +67,7 @@ async function lerLojaEClienteDoPapel(
   db: TenantPrismaClient,
   ator: Ator,
   establishmentId: string,
-  contactId: string | null,
+  customerId: string | null,
 ): Promise<
   ActionResult<{ loja: ImpressoVenda["loja"]; cfg: EmporioSettingsView; cliente: ImpressoVenda["cliente"] }>
 > {
@@ -76,9 +77,9 @@ async function lerLojaEClienteDoPapel(
   if (!cfg.ok) return cfg;
   const l = loja.data;
 
-  const contato = contactId
-    ? await db.contact.findFirst({
-        where: { id: contactId },
+  const contato = customerId
+    ? await db.emporioCustomer.findFirst({
+        where: { id: customerId },
         select: {
           name: true,
           system_key: true,
@@ -95,7 +96,7 @@ async function lerLojaEClienteDoPapel(
       })
     : null;
   const cliente =
-    contato && contato.system_key !== "consumidor_final"
+    contato && !ehConsumidorFinal(contato)
       ? {
           nome: contato.name,
           documento: vazioParaNull(formatarDocumento(contato.document)),
@@ -154,7 +155,7 @@ export async function lerImpressoDaVendaAction(
   const venda = await lerVendaAction(db, ator, saleId);
   if (!venda.ok) return venda;
   const v = venda.data;
-  const base = await lerLojaEClienteDoPapel(db, ator, v.establishment_id, v.contact_id);
+  const base = await lerLojaEClienteDoPapel(db, ator, v.establishment_id, v.customer_id);
   if (!base.ok) return base;
   const { loja, cfg, cliente } = base.data;
 
@@ -216,7 +217,7 @@ export async function lerImpressoDoOrcamentoAction(
   const orc = await lerOrcamentoAction(db, ator, quoteId);
   if (!orc.ok) return orc;
   const q = orc.data;
-  const base = await lerLojaEClienteDoPapel(db, ator, q.establishment_id, q.contact.id);
+  const base = await lerLojaEClienteDoPapel(db, ator, q.establishment_id, q.customer.id);
   if (!base.ok) return base;
   const { loja, cfg, cliente } = base.data;
 

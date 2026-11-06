@@ -3,7 +3,7 @@ import { prisma, prismaForTenant, type TenantPrismaClient } from "@/lib/prisma";
 import type { ActionResult } from "@/lib/actions/types";
 import type { AppUserRole } from "@/types/next-auth";
 import { getSeatUsage } from "@/lib/seats";
-import { createContact, updateContact } from "@/lib/actions/contacts";
+import { createContact } from "@/lib/actions/contacts";
 import { ensureProductCategories } from "@/lib/actions/products";
 import * as cat from "@/lib/actions/emporio-catalogo";
 import * as equipe from "@/lib/actions/emporio-equipe";
@@ -11,7 +11,12 @@ import * as est from "@/lib/actions/emporio-estoque";
 import * as compras from "@/lib/actions/emporio-compras";
 import * as transf from "@/lib/actions/emporio-transferencias";
 import * as vendas from "@/lib/actions/emporio-vendas";
-import { garantirConsumidorFinal } from "@/lib/actions/emporio-clientes";
+import {
+  cadastrarClienteAction,
+  editarClienteAction,
+  garantirConsumidorFinal,
+  serializarCliente,
+} from "@/lib/actions/emporio-clientes";
 import * as caixa from "@/lib/actions/emporio-caixa";
 import * as turno from "@/lib/actions/emporio-turno";
 import * as desp from "@/lib/actions/emporio-despesas";
@@ -148,13 +153,22 @@ const FORNECEDORES = [
   { chave: "D", nome: "Agropecuária Vale Verde Distribuidora", cidade: "Rondonópolis" },
 ] as const;
 
-/** O orçamento exige cadastro completo (pessoa, documento e telefone): todo cliente nomeado já nasce assim. */
+/**
+ * Os clientes do Empório (`EmporioCustomer`, fora de Contatos). O orçamento exige o cadastro completo
+ * para o tipo: a PF com nome e telefone (o CPF vai junto), a PJ também com CNPJ e o endereço principal.
+ */
 const CLIENTES = [
-  { chave: "tresIrmaos", nome: "Chácara Três Irmãos", tipo: "fazendeiro" as const, cidade: "Juscimeira", pessoa: "pf" as const, doc: cpfCom("381029475"), fone: "(66) 99812-3401" },
-  { chave: "boaEsperanca", nome: "Sítio Boa Esperança", tipo: "fazendeiro" as const, cidade: "Pedra Preta", pessoa: "pf" as const, doc: cpfCom("472915836"), fone: "(66) 99754-2210" },
-  { chave: "santaClara", nome: "Haras Santa Clara", tipo: "fazendeiro" as const, cidade: "Rondonópolis", pessoa: "pj" as const, doc: cnpjCom("274150380001"), fone: "(66) 3422-7781" },
-  { chave: "pedraBranca", nome: "Fazenda Pedra Branca", tipo: "fazendeiro" as const, cidade: "Itiquira", pessoa: "pj" as const, doc: cnpjCom("193846520001"), fone: "(66) 99633-9015" },
-  { chave: "mariaDores", nome: "Maria das Dores Ferreira", tipo: "particular" as const, cidade: "Rondonópolis", pessoa: "pf" as const, doc: cpfCom("615204739"), fone: "(66) 99921-4478" },
+  { chave: "tresIrmaos", nome: "Chácara Três Irmãos", cidade: "Juscimeira", pessoa: "pf" as const, doc: cpfCom("381029475"), fone: "(66) 99812-3401", endereco: null },
+  { chave: "boaEsperanca", nome: "Sítio Boa Esperança", cidade: "Pedra Preta", pessoa: "pf" as const, doc: cpfCom("472915836"), fone: "(66) 99754-2210", endereco: null },
+  {
+    chave: "santaClara", nome: "Haras Santa Clara", cidade: "Rondonópolis", pessoa: "pj" as const, doc: cnpjCom("274150380001"), fone: "(66) 3422-7781",
+    endereco: { address_zip: "78700-000", address_street: "Rodovia BR-364", address_number: "Km 12", address_district: "Zona Rural", address_state: "MT" },
+  },
+  {
+    chave: "pedraBranca", nome: "Fazenda Pedra Branca", cidade: "Itiquira", pessoa: "pj" as const, doc: cnpjCom("193846520001"), fone: "(66) 99633-9015",
+    endereco: { address_zip: "78790-000", address_street: "Estrada da Pedra Branca", address_number: "s/n", address_district: "Zona Rural", address_state: "MT" },
+  },
+  { chave: "mariaDores", nome: "Maria das Dores Ferreira", cidade: "Rondonópolis", pessoa: "pf" as const, doc: cpfCom("615204739"), fone: "(66) 99921-4478", endereco: null },
 ] as const;
 
 type Papel = "fechada" | "granel";
@@ -647,9 +661,10 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
     CATALOGO.length -
     prodsExistentes.size +
     (await db.emporioProduct.count({ where: { id: { in: [...prodsExistentes.values()].map((r) => r.epId) }, reference_cost: null } }));
-  const contatosExistentes = new Set(
-    (await db.contact.findMany({ where: { name: { in: [...FORNECEDORES.map((f) => f.nome), ...CLIENTES.map((c) => c.nome)] } }, select: { name: true } })).map((c) => c.name),
-  );
+  const contatosExistentes = new Set([
+    ...(await db.contact.findMany({ where: { name: { in: FORNECEDORES.map((f) => f.nome) } }, select: { name: true } })).map((c) => c.name),
+    ...(await db.emporioCustomer.findMany({ where: { name: { in: CLIENTES.map((c) => c.nome) } }, select: { name: true } })).map((c) => c.name),
+  ]);
   const conta = await db.bankAccount.findFirst({ where: { name: CONTA_NOME }, select: { id: true } });
   const existentes = await contarExistentes(db);
   const seats = await getSeatUsage(db, tenantId, "emporio");
@@ -658,7 +673,7 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
     ["Lojas", `${lojasExistentes.size} de ${LOJAS.length} já existem`, LOJAS.length - lojasExistentes.size],
     ["Conta bancária", conta ? "já existe" : "seria criada", conta ? 0 : 1],
     ["Equipe", `${MEMBROS.length - membrosFaltando.length} de ${MEMBROS.length} já existem (equipe do Empório: ${seats.used} de ${seats.limit} ativos)`, membrosFaltando.length],
-    ["Contatos", `${contatosExistentes.size} de ${FORNECEDORES.length + CLIENTES.length} já existem`, FORNECEDORES.length + CLIENTES.length - contatosExistentes.size],
+    ["Fornecedores e clientes", `${contatosExistentes.size} de ${FORNECEDORES.length + CLIENTES.length} já existem`, FORNECEDORES.length + CLIENTES.length - contatosExistentes.size],
     ["Produtos", `${prodsExistentes.size} de ${CATALOGO.length} já existem`, CATALOGO.length - prodsExistentes.size],
     ["Custo de referência", `${CATALOGO.length - semCusto} de ${CATALOGO.length} produtos com custo`, semCusto],
     ["Compras", `${existentes.compras} de ${comprasMontadas.length} já lançadas`, comprasMontadas.length - existentes.compras],
@@ -818,12 +833,11 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
     }
   }
 
-  // Contatos
+  // Fornecedores (ainda em Contatos até a compra ganhar fornecedor próprio) e clientes do Empório.
+  // O mapa guarda os dois pela chave: o fornecedor vai na compra, o cliente na venda e no orçamento.
   const contatos: Record<string, string> = {};
   for (const f of FORNECEDORES) contatos[f.chave] = await acharOuCriarContato(db, f.nome, "loja_fornecedor", f.cidade);
-  for (const c of CLIENTES) {
-    contatos[c.chave] = await acharOuCriarContato(db, c.nome, c.tipo, c.cidade, { person_kind: c.pessoa, document: c.doc, phone: c.fone });
-  }
+  for (const c of CLIENTES) contatos[c.chave] = await acharOuCriarCliente(db, gerente, c);
 
   // Produtos (o Gerente geral cadastra)
   await ensureProductCategories(db);
@@ -1346,7 +1360,7 @@ async function vender(ctx: Ctx, v: VendaPlan, consumidorFinalId: string): Promis
   return exigir(await vendas.venderAction(db, atores[v.quem], {
     operation_key: v.chave,
     establishment_id: lojas[v.loja],
-    contact_id: v.cliente ? contatos[v.cliente] : consumidorFinalId,
+    customer_id: v.cliente ? contatos[v.cliente] : consumidorFinalId,
     // O caixa do turno que o cenário abriu: numa conta real com um segundo caixa aberto, sem ele a venda pediria a escolha.
     cash_register_id: caixas[v.loja],
     seller_user_id: v.vendedor ? atores[v.vendedor].id : null,
@@ -1374,7 +1388,7 @@ async function montarOrcamentos(ctx: Ctx) {
         {
           operation_key: `${PREFIXO}${o.chave}`,
           establishment_id: lojas[o.loja],
-          contact_id: contatos[o.cliente],
+          customer_id: contatos[o.cliente],
           items: itens,
           seller_user_id: o.vendedor ? atores[o.vendedor].id : null,
           notes: o.notas ?? null,
@@ -1388,7 +1402,7 @@ async function montarOrcamentos(ctx: Ctx) {
     const venda = exigir(await vendas.venderAction(db, atores[o.fatura.quem], {
       operation_key: `${PREFIXO}venda-${o.chave}`,
       establishment_id: lojas[o.loja],
-      contact_id: contatos[o.cliente],
+      customer_id: contatos[o.cliente],
       cash_register_id: caixas[o.loja],
       quote_id: q.id,
       items: itens,
@@ -1439,7 +1453,7 @@ async function depoisDaVenda(ctx: Ctx, v: VendaPlan, r: vendas.VendaView) {
       reason: "O gato da cliente não come ração de cachorro, e era para gato",
       cash_register_id: caixaDaVenda,
       venda: {
-        contact_id: r.contact_id ?? (await garantirConsumidorFinal(db)).id,
+        customer_id: r.customer_id ?? (await garantirConsumidorFinal(db)).id,
         items: [{ emporio_product_id: res.epId, presentation_id: res.fechadaId, quantity: 1, unit_price: precoDe("gatoCastrado", "fechada", "centro") }],
         payments: diferenca > 0 ? [{ kind: "dinheiro", amount: diferenca / 100 }] : [],
       },
@@ -1456,7 +1470,7 @@ async function depoisDaVenda(ctx: Ctx, v: VendaPlan, r: vendas.VendaView) {
     }
   }
   if (v.tag === "fiado-parcial") {
-    const base = { contact_id: ctx.contatos.boaEsperanca, establishment_id: lojas.centro, cash_register_id: caixas.centro };
+    const base = { customer_id: ctx.contatos.boaEsperanca, establishment_id: lojas.centro, cash_register_id: caixas.centro };
     exigir(await caixa.receberFiadoAction(db, vendCentro, { ...base, operation_key: `${PREFIXO}recebimento-1`, amount: 300, kind: "dinheiro" }), "recebimento de fiado em dinheiro");
     exigir(await caixa.receberFiadoAction(db, vendCentro, { ...base, operation_key: `${PREFIXO}recebimento-2`, amount: 200, kind: "pix" }), "recebimento de fiado em PIX");
   }
@@ -1465,22 +1479,28 @@ async function depoisDaVenda(ctx: Ctx, v: VendaPlan, r: vendas.VendaView) {
 async function acharOuCriarContato(
   db: TenantPrismaClient,
   nome: string,
-  tipo: "loja_fornecedor" | "fazendeiro" | "particular",
+  tipo: "loja_fornecedor",
   cidade: string,
-  cadastro?: { person_kind: "pf" | "pj"; document: string; phone: string },
 ): Promise<string> {
   const ja = await db.contact.findFirst({
     where: { name: { equals: nome, mode: "insensitive" } },
-    select: { id: true, person_kind: true, document: true, phone: true },
+    select: { id: true },
   });
+  if (ja) return ja.id;
+  return exigir(await createContact(db, { name: nome, type: tipo, city: cidade }), `contato ${nome}`).id;
+}
+
+/** O cliente do Empório pelo nome; o que já existe incompleto (o de uma montagem antiga) é completado. */
+async function acharOuCriarCliente(db: TenantPrismaClient, ator: Ator, c: (typeof CLIENTES)[number]): Promise<string> {
+  const cadastro = {
+    name: c.nome, person_kind: c.pessoa, document: c.doc, phone: c.fone, city: c.cidade, ...(c.endereco ?? {}),
+  };
+  const ja = await db.emporioCustomer.findFirst({ where: { name: { equals: c.nome, mode: "insensitive" } } });
   if (ja) {
-    // A conta montada antes tinha o cliente sem documento: o orçamento exige o cadastro completo.
-    if (cadastro && (!ja.person_kind || !ja.document || !ja.phone)) {
-      exigir(await updateContact(db, ja.id, { name: nome, type: tipo, city: cidade, ...cadastro }), `cadastro de ${nome}`);
-    }
+    if (serializarCliente(ja).incomplete) exigir(await editarClienteAction(db, ator, ja.id, cadastro), `cadastro de ${c.nome}`);
     return ja.id;
   }
-  return exigir(await createContact(db, { name: nome, type: tipo, city: cidade, ...(cadastro ?? {}) }), `contato ${nome}`).id;
+  return exigir(await cadastrarClienteAction(db, ator, cadastro), `cliente ${c.nome}`).id;
 }
 
 // ---------------------------------------------------------------------------
@@ -1546,6 +1566,7 @@ async function apagarCenario(tenantId: string, executar: boolean) {
   const contas = (await prisma.bankAccount.findMany({ where: { ...t, name: CONTA_NOME }, select: { id: true } })).map((x) => x.id);
   const usuarios = (await prisma.user.findMany({ where: { ...t, email: { in: MEMBROS.map((m) => m.email) } }, select: { id: true } })).map((x) => x.id);
   const contatos = (await prisma.contact.findMany({ where: { ...t, name: { in: [...FORNECEDORES.map((f) => f.nome), ...CLIENTES.map((c) => c.nome)] } }, select: { id: true } })).map((x) => x.id);
+  const clientes = (await prisma.emporioCustomer.findMany({ where: { ...t, name: { in: CLIENTES.map((c) => c.nome) } }, select: { id: true } })).map((x) => x.id);
   const vendasIds = (await prisma.emporioSale.findMany({ where: { ...t, establishment_id: { in: lojas } }, select: { id: true } })).map((x) => x.id);
   const devolucoes = (await prisma.emporioSaleReturn.findMany({ where: { ...t, sale_id: { in: vendasIds } }, select: { id: true } })).map((x) => x.id);
   // Entrega 4: o orçamento prende a loja, o contato e a apresentação (Restrict), e a venda o prende.
@@ -1627,6 +1648,7 @@ async function apagarCenario(tenantId: string, executar: boolean) {
   await prisma.bankAccount.deleteMany({ where: { id: { in: contas } } });
   await prisma.emporioAuditLog.deleteMany({ where: { ...t, OR: [{ user_id: { in: usuarios } }, { establishment_id: { in: lojas } }, { target_id: { in: [...eps, ...usuarios, ...contas, ...lojas, ...relacionados] } }] } });
   await prisma.user.deleteMany({ where: { id: { in: usuarios } } });
+  await prisma.emporioCustomer.deleteMany({ where: { id: { in: clientes } } });
   await prisma.contact.deleteMany({ where: { id: { in: contatos } } });
   // As configurações da conta são uma linha só: ela sai apenas se ainda tem os
   // rodapés que o cenário gravou (mexida depois, na tela, fica). Só banco local.

@@ -11,6 +11,7 @@ import { formatarNumero, proximoNumero } from "@/lib/emporio/numeracao";
 import { cancelarVendeuPagou, gravarVendeuPagou } from "@/lib/emporio/vendeu-pagou";
 import { resolverTurno, type TurnoResolvido } from "@/lib/emporio/turno";
 import { vendedoresDaLoja } from "@/lib/emporio/vendedores";
+import { CONSUMIDOR_FINAL } from "@/lib/contatos/cadastro";
 import {
   arred2,
   arred3,
@@ -157,8 +158,9 @@ export type VendaView = {
   operation_key: string;
   /** Número da venda por conta; no papel sai com `formatarNumero`. */
   number: number;
-  contact_id: string | null;
-  contact_name: string | null;
+  /** O cliente do Empório (`EmporioCustomer`); antes da Frente 1, `contact_id`. */
+  customer_id: string | null;
+  customer_name: string | null;
   sold_at: string;
   sold_by_user_id: string | null;
   sold_by_name: string | null;
@@ -191,7 +193,7 @@ export type VendaView = {
 
 const INCLUDE_VENDA = {
   establishment: { select: { name: true } },
-  contact: { select: { name: true } },
+  customer: { select: { name: true } },
   quote: { select: { id: true, number: true } },
   items: {
     include: {
@@ -293,8 +295,8 @@ async function montarVendas(db: TenantPrismaClient, linhas: VendaRow[]): Promise
       establishment_name: s.establishment.name,
       operation_key: s.operation_key,
       number: s.number,
-      contact_id: s.contact_id,
-      contact_name: s.contact?.name ?? null,
+      customer_id: s.customer_id,
+      customer_name: s.customer?.name ?? null,
       sold_at: s.sold_at.toISOString(),
       sold_by_user_id: s.sold_by_user_id,
       sold_by_name: s.sold_by_user_id ? (nomeDoUsuario.get(s.sold_by_user_id) ?? null) : null,
@@ -369,7 +371,7 @@ export async function listarVendasAction(
   ator: Ator,
   opts: {
     establishment_id?: string;
-    contact_id?: string;
+    customer_id?: string;
     status?: "concluida" | "cancelada";
     de?: Date;
     ate?: Date;
@@ -394,7 +396,7 @@ export async function listarVendasAction(
       : visiveis
         ? { establishment_id: { in: [...visiveis] } }
         : {}),
-    ...(opts.contact_id ? { contact_id: opts.contact_id } : {}),
+    ...(opts.customer_id ? { customer_id: opts.customer_id } : {}),
     ...(opts.status ? { status: opts.status } : {}),
     ...(Object.keys(periodo).length > 0 ? { sold_at: periodo } : {}),
   };
@@ -441,7 +443,8 @@ export type VendaPagamentoInput = {
 export type VenderInput = {
   operation_key: string;
   establishment_id: string;
-  contact_id?: string | null;
+  /** O cliente do Empório (`EmporioCustomer`); o Consumidor final para quem não se identifica. */
+  customer_id?: string | null;
   sold_at?: Date | null;
   items: VendaItemInput[];
   payments?: VendaPagamentoInput[] | null;
@@ -490,7 +493,7 @@ type PagamentoPreparado = {
 type Preparada = {
   loja: { id: string; name: string; allow_negative_stock: boolean };
   chave: string;
-  contact_id: string | null;
+  customer_id: string | null;
   sold_at: Date;
   itens: ItemPreparado[];
   pagamentos: PagamentoPreparado[];
@@ -627,21 +630,21 @@ async function prepararVenda(
 
   // Toda venda tem cliente (design 2026-11-03-emporio-cliente-nome-menu): quem não quer se
   // identificar entra como Consumidor final, que não toma fiado nem cheque.
-  if (input.contact_id == null || input.contact_id === "") {
+  if (input.customer_id == null || input.customer_id === "") {
     return fail(
       "VALIDATION_ERROR",
       "Escolha o cliente da venda. Quem não quer se identificar entra como Consumidor final.",
       422,
-      "contact_id",
+      "customer_id",
     );
   }
-  const cliente = await db.contact.findFirst({
-    where: { id: String(input.contact_id) },
+  const cliente = await db.emporioCustomer.findFirst({
+    where: { id: String(input.customer_id) },
     select: { id: true, archived_at: true, system_key: true },
   });
-  if (!cliente || cliente.archived_at) return fail("VALIDATION_ERROR", "Escolha um cliente ativo.", 422, "contact_id");
-  const contactId: string = cliente.id;
-  const ehConsumidorFinal = cliente.system_key === "consumidor_final";
+  if (!cliente || cliente.archived_at) return fail("VALIDATION_ERROR", "Escolha um cliente ativo.", 422, "customer_id");
+  const customerId: string = cliente.id;
+  const ehConsumidorFinal = cliente.system_key === CONSUMIDOR_FINAL.system_key;
 
   // Itens
   if (!Array.isArray(input.items) || input.items.length === 0) {
@@ -733,7 +736,7 @@ async function prepararVenda(
         return fail("VALIDATION_ERROR", "Informe o número, o banco e a data do cheque (bom para).", 422, "payments");
       }
       if (ehConsumidorFinal) {
-        return fail("VALIDATION_ERROR", "Cheque precisa do cliente de verdade, não do Consumidor final.", 422, "contact_id");
+        return fail("VALIDATION_ERROR", "Cheque precisa do cliente de verdade, não do Consumidor final.", 422, "customer_id");
       }
       cheque = { number: numeroDoCheque, bank: banco, good_for: c?.good_for as Date };
     }
@@ -741,7 +744,7 @@ async function prepararVenda(
       if (temFiado) return fail("VALIDATION_ERROR", "O fiado aparece uma vez só na venda.", 422, "payments");
       temFiado = true;
       if (ehConsumidorFinal) {
-        return fail("VALIDATION_ERROR", "Fiado precisa do cliente de verdade, não do Consumidor final.", 422, "contact_id");
+        return fail("VALIDATION_ERROR", "Fiado precisa do cliente de verdade, não do Consumidor final.", 422, "customer_id");
       }
       if (p.due_date != null) {
         if (!dataValida(p.due_date)) return fail("VALIDATION_ERROR", "Informe um vencimento válido.", 422, "payments");
@@ -782,7 +785,7 @@ async function prepararVenda(
   return ok({
     loja: { id: loja.data.id, name: loja.data.name, allow_negative_stock: loja.data.allow_negative_stock },
     chave,
-    contact_id: contactId,
+    customer_id: customerId,
     sold_at: soldAt,
     itens,
     pagamentos,
@@ -947,7 +950,7 @@ async function gravarVenda(
       establishment_id: p.loja.id,
       operation_key: p.chave,
       number: numero,
-      contact_id: p.contact_id,
+      customer_id: p.customer_id,
       sold_at: p.sold_at,
       sold_by_user_id: ator.id,
       seller_user_id: p.seller_user_id,
@@ -1020,7 +1023,7 @@ async function gravarVenda(
     occurred_at: p.sold_at,
     status: "pending",
     due_date: fiado?.due_date ?? p.sold_at,
-    contact_id: p.contact_id,
+    emporio_customer_id: p.customer_id,
     establishment_id: p.loja.id,
     payment_method: formaUnica,
   });
@@ -1095,7 +1098,7 @@ async function gravarVenda(
         data: scoped({
           sale_id: venda.id,
           sale_payment_id: sp.id,
-          contact_id: p.contact_id as string,
+          customer_id: p.customer_id as string,
           establishment_id: p.loja.id,
           number: pg.cheque.number,
           bank: pg.cheque.bank,
@@ -1644,7 +1647,7 @@ async function gravarDevolucao(
     related_id: devolucao.id,
     occurred_at: agora,
     status: "paid",
-    contact_id: venda.contact_id,
+    emporio_customer_id: venda.customer_id,
     establishment_id: venda.establishment_id,
     payment_method: comDinheiro ? "dinheiro" : "outro",
   });
