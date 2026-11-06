@@ -643,6 +643,10 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
     }
   }
   const prodsExistentes = await resolverProdutos(db);
+  const semCusto =
+    CATALOGO.length -
+    prodsExistentes.size +
+    (await db.emporioProduct.count({ where: { id: { in: [...prodsExistentes.values()].map((r) => r.epId) }, reference_cost: null } }));
   const contatosExistentes = new Set(
     (await db.contact.findMany({ where: { name: { in: [...FORNECEDORES.map((f) => f.nome), ...CLIENTES.map((c) => c.nome)] } }, select: { name: true } })).map((c) => c.name),
   );
@@ -656,6 +660,7 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
     ["Equipe", `${MEMBROS.length - membrosFaltando.length} de ${MEMBROS.length} já existem (assentos: ${seats.used} de ${seats.limit} em uso)`, membrosFaltando.length],
     ["Contatos", `${contatosExistentes.size} de ${FORNECEDORES.length + CLIENTES.length} já existem`, FORNECEDORES.length + CLIENTES.length - contatosExistentes.size],
     ["Produtos", `${prodsExistentes.size} de ${CATALOGO.length} já existem`, CATALOGO.length - prodsExistentes.size],
+    ["Custo de referência", `${CATALOGO.length - semCusto} de ${CATALOGO.length} produtos com custo`, semCusto],
     ["Compras", `${existentes.compras} de ${comprasMontadas.length} já lançadas`, comprasMontadas.length - existentes.compras],
     ["Transferências", `${existentes.transfs} de ${ONDAS * 2 + 3} já enviadas`, ONDAS * 2 + 3 - existentes.transfs],
     ["Produção", `${existentes.producoes} de 1`, 1 - existentes.producoes],
@@ -862,7 +867,23 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
   }
   const prods = await resolverProdutos(db);
 
-  const ctx: Ctx = { db, tenantId, lojas, atores, contatos, contaId, prods, caixas };
+  // Custo de referência de cada produto, pela action da tela (Dados comerciais,
+  // campo "Custo por <unidade-base> (R$)"). O Custo e o Sugerido do Preço por
+  // loja saem só dele: nenhuma action o preenche sozinha, nem a compra. Sem ele,
+  // a coluna Custo diz "sem custo" e o Sugerido fica "-". O valor é o custo da
+  // embalagem fechada dividido pela base dela, em centavos, como a tela aceita;
+  // a mistura usa a composição (1 saca de milho e 1 de farelo rendem 80 kg).
+  for (const p of CATALOGO) {
+    const r = prods.get(p.slug) as Resolvido;
+    const custoFechada = p.slug === "mistura" ? (porSlug.get("milho") as Prod).custo + (porSlug.get("farelo") as Prod).custo : p.custo;
+    const base = p.slug === "mistura" ? 80 : r.fechadaBase;
+    const desejado = r2(custoFechada / base);
+    const atual = await db.emporioProduct.findFirst({ where: { id: r.epId }, select: { reference_cost: true } });
+    if (atual?.reference_cost != null && Number(atual.reference_cost) === desejado) continue;
+    exigir(await cat.editarProdutoEmporioAction(db, gerente, r.epId, { reference_cost: desejado }), `custo de referência ${p.nome}`);
+  }
+
+  const ctx: Ctx ={ db, tenantId, lojas, atores, contatos, contaId, prods, caixas };
 
   // Preços por loja (Depósito não vende)
   for (const p of CATALOGO) {

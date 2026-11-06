@@ -169,10 +169,19 @@ export function ParteDePreco() {
     <Tarefa
       paraQueServe="Dar a cada loja o seu preço, sem uma loja mexer no preço da outra."
       passos={[
-        "Abra o produto e vá em Preço por loja.",
-        "Para cada apresentação e cada loja, veja o preço atual e o sugerido (custo mais os percentuais).",
-        <>Clique em <strong>aplicar</strong> para aceitar o sugerido, ou digite o seu preço.</>,
-        "Quando o custo subir, a tela avisa e mostra o novo sugerido. Você aplica um a um ou em lote.",
+        "Abra o produto e vá em Preço por loja. Cada linha é uma apresentação numa loja.",
+        <>
+          A coluna <strong>Custo</strong> vem do custo do produto: em <strong>Dados comerciais</strong>, o campo{" "}
+          <strong>Custo por</strong> e a unidade-base (por exemplo, <strong>Custo por saca (R$)</strong>). A compra
+          não muda esse campo. Sem ele, a linha diz <strong>sem custo</strong> e o <strong>Sugerido</strong> fica
+          com &quot;-&quot;.
+        </>,
+        "O Sugerido é o custo mais as Despesas e o Lucro da linha.",
+        <>
+          Linha sem preço: clique em <strong>Aplicar sugerido</strong> para gravar o sugerido como preço. Para digitar
+          o seu, clique em <strong>Editar</strong> na linha.
+        </>,
+        "Quando o custo muda, o Sugerido muda junto e o Preço fica como está. A tela não avisa: confira a coluna Sugerido e, se quiser, troque o preço em Editar, linha por linha.",
       ]}
       problemas={[
         {
@@ -181,7 +190,11 @@ export function ParteDePreco() {
         },
         {
           quando: "O preço não mudou depois que o custo subiu",
-          fazer: "É de propósito. O preço cadastrado nunca muda sozinho. Aplique o novo sugerido se quiser.",
+          fazer: "É de propósito. O preço cadastrado nunca muda sozinho. Para usar o novo sugerido, clique em Editar na linha e digite o valor.",
+        },
+        {
+          quando: "A coluna Custo diz sem custo",
+          fazer: "Falta o custo do produto. Em Dados comerciais, clique em Editar e preencha o campo Custo por, com a unidade-base do produto.",
         },
       ]}
     >

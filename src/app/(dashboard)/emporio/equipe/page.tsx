@@ -58,7 +58,9 @@ export default async function EquipePage() {
         <strong className="font-medium text-texto">Gerente geral</strong> cuida de tudo, em todas as lojas.{" "}
         <strong className="font-medium text-texto">Gestor</strong> comanda as lojas dele e resolve diferença de
         transferência. <strong className="font-medium text-texto">Vendedor</strong> vende no balcão e só faz o que
-        você liberar nas chaves. O <strong className="font-medium text-texto">Dono</strong> é quem abriu a conta.
+        você liberar nas chaves. <strong className="font-medium text-texto">Caixa</strong> recebe o pagamento, recebe
+        fiado e opera o caixa nas lojas dele, sem chaves; não abre produtos, estoque, compras, transferências nem a lista
+        de orçamentos. O <strong className="font-medium text-texto">Dono</strong> é quem abriu a conta.
       </p>
 
       {!equipe ? (

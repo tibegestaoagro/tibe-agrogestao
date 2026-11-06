@@ -130,7 +130,7 @@ const PERGUNTAS: { pergunta: string; resposta: React.ReactNode }[] = [
   },
   {
     pergunta: "O preço mudou sozinho depois que o custo subiu?",
-    resposta: "Nunca. O preço cadastrado só muda quando você aplica. A tela mostra o novo sugerido e deixa você decidir.",
+    resposta: "Nunca. O preço cadastrado só muda quando alguém o troca. A coluna Sugerido já faz a conta com o custo novo, e você decide se muda o preço.",
   },
   {
     pergunta: "Por que o resultado da loja está marcado como estimado?",

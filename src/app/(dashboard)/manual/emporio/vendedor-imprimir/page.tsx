@@ -87,7 +87,7 @@ export default function GuiaDoVendedorPage() {
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-texto print:text-lg">Guia do Vendedor</h1>
-          <p className="text-sm text-texto-secundario print:text-[11px]">O essencial do balcão, em uma folha.</p>
+          <p className="text-sm text-texto-secundario print:text-[11px] print:leading-snug">O essencial do balcão, em uma folha.</p>
         </div>
         <BotaoImprimir />
       </header>
@@ -96,7 +96,7 @@ export default function GuiaDoVendedorPage() {
         {BLOCOS.map((b) => (
           <section key={b.titulo} className="rounded-lg border border-borda bg-superficie p-4 print:break-inside-avoid print:p-2">
             <h2 className="font-semibold text-texto">{b.titulo}</h2>
-            <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-texto print:mt-1 print:space-y-0 print:text-[11px]">
+            <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-texto print:mt-1 print:space-y-0 print:text-[11px] print:leading-snug">
               {b.passos.map((p) => (
                 <li key={p}>{p}</li>
               ))}
@@ -107,10 +107,10 @@ export default function GuiaDoVendedorPage() {
 
       <section className="rounded-lg border border-borda bg-superficie p-4 print:break-inside-avoid print:p-2">
         <h2 className="font-semibold text-texto">Quando o sistema recusa</h2>
-        <p className="text-sm text-texto-secundario print:text-[11px]">
+        <p className="text-sm text-texto-secundario print:text-[11px] print:leading-snug">
           A frase vermelha embaixo do campo diz o que mudar. Se não resolver:
         </p>
-        <ul className="mt-2 space-y-1 text-sm text-texto print:mt-1 print:space-y-0 print:text-[11px]">
+        <ul className="mt-2 space-y-1 text-sm text-texto print:mt-1 print:space-y-0 print:text-[11px] print:leading-snug">
           {RECUSAS.map(([quando, fazer]) => (
             <li key={quando}>
               <strong className="font-medium">{quando}:</strong> {fazer}

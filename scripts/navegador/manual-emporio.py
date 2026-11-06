@@ -16,7 +16,9 @@
 # trânsito para a Loja Centro, o Caixa 2 fechado na Rodovia, um logo e um
 # orçamento com aviso na Rodovia) e o orçamento salvo de 'orcamento-salvo'.
 # Toda escrita tem chave fixa ou confere antes: rodar de novo não duplica.
-# Filtre com FIGURAS=id1,id2 e veja o texto da tela com DUMP=1.
+# Filtre com FIGURAS=id1,id2 e veja o texto da tela com DUMP=1. No fim, o
+# roteiro confere que o guia para imprimir sai em uma folha A4 (com filtro,
+# so se a lista tiver guia-a4).
 #
 # Os cenarios da F6b e do turno desativam a equipe da demonstracao (assentos);
 # o cenario abaixo a reativa antes das sessoes. A sessao 'caixa' e a Juliana,
@@ -193,11 +195,22 @@ def desenhar(marcas):
       const c = document.createElement('div');
       c.id = '__marcas';
       c.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:2147483647;pointer-events:none;';
-      // Onde o numero cai: o canto de fora que menos cobre texto da tela e outro numero.
-      const obst = Array.from(document.querySelectorAll('body *'))
-        .filter(e => e.id !== '__marcas' && !e.closest('#__marcas') && ((e.children.length === 0 && (e.innerText || '').trim()) || /^(INPUT|TEXTAREA|SELECT)$/.test(e.tagName)))
-        .map(e => e.getBoundingClientRect())
-        .filter(r => r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight);
+      // Onde o numero cai: o canto de fora que menos cobre texto, campo, botao e
+      // outro numero. O texto vem de cada no de texto, e nao so dos elementos sem
+      // filhos: o texto solto de uma celula com um <span> dentro ("Sangria do
+      // Caixa 1, Loja da Rodovia") ficava de fora, e o numero caia em cima dele.
+      const naTela = r => r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight;
+      const obst = [];
+      const tw = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      for (let n = tw.nextNode(); n; n = tw.nextNode()) {
+        if (!n.textContent.trim() || !n.parentElement || n.parentElement.closest('#__marcas')) continue;
+        const rg = document.createRange(); rg.selectNodeContents(n);
+        for (const r of rg.getClientRects()) if (naTela(r)) obst.push({ r, peso: 3 });
+      }
+      // Cobrir a borda vazia de um botao pesa menos que cobrir um valor escrito
+      // ou um campo preenchido.
+      document.querySelectorAll('input, textarea, select').forEach(e => { const r = e.getBoundingClientRect(); if (naTela(r)) obst.push({ r, peso: 3 }); });
+      document.querySelectorAll('button, [role=combobox]').forEach(e => { const r = e.getBoundingClientRect(); if (naTela(r)) obst.push({ r, peso: 1 }); });
       const colocados = [];
       const sobra = (a, b) => Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l)) * Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t));
       for (const m of marcas) {
@@ -218,13 +231,22 @@ def desenhar(marcas):
         ];
         let melhor = null, pior = Infinity;
         for (const [px, py] of candidatos) {
-          const cxx = Math.max(3, Math.min(innerWidth - d - 3, px)), cyy = Math.max(3, py);
+          // Nunca abaixo do fim da janela: o numero sairia cortado na captura
+          // (o 3 de 'caixa-sangria' no celular, embaixo do botao do painel).
+          const cxx = Math.max(3, Math.min(innerWidth - d - 3, px)), cyy = Math.max(3, Math.min(innerHeight - d - 3, py));
           const r = { l: cxx, t: cyy, r: cxx + d, b: cyy + d };
           let custo = 0;
-          for (const t of obst) custo += sobra(r, { l: t.left, t: t.top, r: t.right, b: t.bottom });
+          for (const o of obst) custo += o.peso * sobra(r, { l: o.r.left, t: o.r.top, r: o.r.right, b: o.r.bottom });
           for (const p of colocados) custo += 1e6 * (sobra(r, p) > 0 ? 1 : 0);
-          // O numero em cima do quadro de OUTRA marca parece ser dela.
-          for (const q of marcas) if (q !== m) custo += 50 * sobra(r, { l: q.x - pad - 3, t: q.y - pad - 3, r: q.x + q.w + pad + 3, b: q.y + q.h + pad + 3 });
+          // O numero em cima da borda de OUTRA marca parece ser dela. Conta so a
+          // faixa da borda: dentro de um quadro grande (a secao inteira) todo
+          // canto custaria o mesmo, e o texto deixava de pesar na escolha.
+          for (const q of marcas) {
+            if (q === m) continue;
+            const fora = { l: q.x - pad - 3, t: q.y - pad - 3, r: q.x + q.w + pad + 3, b: q.y + q.h + pad + 3 };
+            const dentro = { l: q.x - pad + 6, t: q.y - pad + 6, r: q.x + q.w + pad - 6, b: q.y + q.h + pad - 6 };
+            custo += 50 * (sobra(r, fora) - (dentro.r > dentro.l && dentro.b > dentro.t ? sobra(r, dentro) : 0));
+          }
           if (custo < pior) { pior = custo; melhor = [cxx, cyy]; }
         }
         const cx = melhor[0], cy = melhor[1];
@@ -378,14 +400,6 @@ def preparar():
         "notes": None,
     })
     print("   transferencia para a Centro: " + str(r["status"]) + " " + str((r["body"] or {}).get("data", {}).get("status", (r["body"] or {}).get("error"))))
-    # O custo de referencia da Racao Bovinos Engorda: a coluna Custo e o Sugerido
-    # do Preco por loja saem dele (nao do custo medio do estoque), e o cenario
-    # nao o preenche. Sem ele, a figura 'produto-preco-por-loja' mostra "-".
-    racao = api("GET", "/api/v1/emporio/products/" + id_do_produto("Ração Bovinos Engorda"))["body"]["data"]
-    if racao.get("reference_cost") is None:
-        medio = api("GET", "/api/v1/emporio/products/" + racao["id"] + "/stock")["body"]["data"]["consolidated"]["average_cost"]
-        r = api("PATCH", "/api/v1/emporio/products/" + racao["id"], {"reference_cost": round(medio or 68.6, 2)})
-        print("   custo de referencia da racao: " + str(r["status"]))
     # O Caixa 2 da Rodovia, fechado: o Caixa abre o painel Abrir ('caixa-abrir').
     caixas = api("GET", "/api/v1/emporio/cash/registers?establishment_id=" + rodovia["id"])["body"]["data"]
     if len(caixas) < 2:
@@ -475,8 +489,9 @@ def orcamento_com_aviso(rodovia):
 F = {}
 
 
-def figura(id, papel, pagina, marcas, estado=None, rolar=None, hd=800, hc=900, limite=None, antes=None):
-    F[id] = dict(id=id, papel=papel, pagina=pagina, marcas=marcas, estado=estado, rolar=rolar, hd=hd, hc=hc, limite=limite, antes=antes)
+def figura(id, papel, pagina, marcas, estado=None, rolar=None, hd=800, hc=900, limite=None, antes=None, depois=None, lc=390):
+    """lc: a largura do celular. 390 em quase todas; a folha A4 pede mais."""
+    F[id] = dict(id=id, papel=papel, pagina=pagina, marcas=marcas, estado=estado, rolar=rolar, hd=hd, hc=hc, limite=limite, antes=antes, depois=depois, lc=lc)
 
 
 figura("inicio-primeiros-passos", "dono", "/emporio", [
@@ -494,6 +509,39 @@ figura("equipe-lista", "dono", "/emporio/equipe", [
 ], hd=800, hc=740)
 
 
+LIBERADO = {"id": None}
+
+
+def liberar_assento():
+    """Com 5 de 5 assentos, a tela diz "desative um usuario ou faca upgrade" e o
+    Cadastrar seria recusado: a figura mentiria. So durante a captura, desativa
+    o Gerente geral da demonstracao (nenhuma sessao do roteiro e dele) pela
+    mesma rota da tela de Usuarios, e recarrega a pagina. `devolver_assento`
+    o reativa no fim da captura; se o roteiro cair no meio,
+    _cenario-manual-emporio.ts o reativa na rodada seguinte."""
+    u = next((x for x in api("GET", "/api/v1/users")["body"]["data"] if x["email"] == "gerente.demo.emporio@example.com"), None)
+    if not u:
+        confere("assento livre: achei o Gerente geral da demonstracao", False)
+        return
+    if u["active"]:
+        r = api("PATCH", "/api/v1/users/" + u["id"] + "/active", {"active": False})
+        confere("assento livre: Gerente geral desativado so para a captura", r["status"] == 200, r["status"])
+    LIBERADO["id"] = u["id"]
+    ir("/emporio/equipe")
+    inicializar_pagina()
+    if js("innerWidth") < 500:
+        tabelas_sem_rolagem()
+    ocultar_fixtures()
+
+
+def devolver_assento():
+    if not LIBERADO["id"]:
+        return
+    r = api("PATCH", "/api/v1/users/" + LIBERADO["id"] + "/active", {"active": True})
+    confere("assento devolvido: Gerente geral ativo de novo", r["status"] == 200, r["status"])
+    LIBERADO["id"] = None
+
+
 def estado_equipe_cadastrar():
     clicar("Cadastrar pessoa")
     time.sleep(1.5)
@@ -508,7 +556,7 @@ figura("equipe-cadastrar", "dono", "/emporio/equipe", [
     (2, "M.T('Lojas').parentElement", "a lista de lojas"),
     (3, "M.T('Chaves').parentElement", "as chaves de permissão"),
     (4, "document.querySelector('[role=dialog] button[type=submit]')", "o botao Cadastrar"),
-], estado=estado_equipe_cadastrar, hd=1000, hc=1400)
+], estado=estado_equipe_cadastrar, antes=liberar_assento, depois=devolver_assento, hd=1000, hc=1400)
 
 
 def estado_equipe_caixa():
@@ -524,7 +572,7 @@ figura("equipe-caixa", "dono", "/emporio/equipe", [
     (1, "M.L('Função')", "o campo Funcao, com Caixa escolhido"),
     (2, "M.T('Lojas').parentElement", "o campo Lojas"),
     (3, "document.querySelector('[role=dialog] button[type=submit]')", "o botao Cadastrar"),
-], estado=estado_equipe_caixa, hd=900, hc=1200)
+], estado=estado_equipe_caixa, antes=liberar_assento, depois=devolver_assento, hd=900, hc=1200)
 
 figura("estabelecimentos-lista", "dono", "/emporio/estabelecimentos", [
     (1, "M.B('Novo estabelecimento')", "o botao Novo estabelecimento"),
@@ -576,13 +624,17 @@ figura("produto-apresentacoes", "gestor", lambda: "/emporio/produtos/" + id_do_p
     (4, "M.B('Nova apresentação')", "o botao Nova apresentação"),
 ], rolar="M.H('Apresentações')", hd=400, hc=520)
 
-# A Racao Bovinos Engorda, e nao o Milho: o Milho do cenario sai "sem custo" na
-# tabela (custo estimado), e a coluna Sugerido fica com "-" nas quatro linhas.
+# O Custo e o Sugerido saem do custo de referencia do produto, que o cenario de
+# demonstracao grava em todos. Sem ele, a coluna Custo diria "sem custo".
+def custo_preenchido():
+    confere("produto-preco-por-loja: a coluna Custo tem valor (o cenario grava o custo de referencia)", not tem_na_tela("sem custo"))
+
+
 figura("produto-preco-por-loja", "gestor", lambda: "/emporio/produtos/" + id_do_produto("Ração Bovinos Engorda"), [
     (1, "M.S('Preço por loja')", "a secao Preço por loja"),
     (2, "M.TH('Sugerido')", "a coluna Sugerido"),
     (3, "M.TH('Preço')", "a coluna Preço"),
-], rolar="M.H('Preço por loja')", limite=6, hd=400, hc=500)
+], rolar="M.H('Preço por loja')", limite=6, antes=custo_preenchido, hd=400, hc=500)
 
 def estado_compra_nova():
     clicar("Nova compra")
@@ -807,7 +859,8 @@ figura("venda-impressa", "vendedor_centro", lambda: "/emporio/imprimir/venda/" +
     (2, "document.querySelector('.a4 .doc')", "o titulo VENDA, com o numero e a data"),
     (3, "document.querySelector('.a4 .rodape')", "o rodape, com Vendedor e Documento sem valor fiscal."),
     (4, "M.B('Imprimir')", "o botao Imprimir"),
-], hd=900, hc=1300)
+# Celular com 600 px: em 390 a folha A4 quebra o dinheiro ("R$ 159,9 / 0").
+], hd=900, hc=1300, lc=600)
 
 figura("fiado-lista", "vendedor_centro", "/emporio/fiado", [
     (1, "M.LIN('Chácara Três Irmãos')", "a linha de um cliente"),
@@ -832,8 +885,14 @@ figura("caixa-gaveta", "vendedor_centro", "/emporio/caixa", [
 
 
 def estado_abrir():
-    # O Caixa 2 da Rodovia, que o preparo cria fechado.
-    clicar("Abrir")
+    # O Caixa 2 da Rodovia, que o preparo cria fechado: o Abrir da linha dele, e
+    # nao o primeiro Abrir da tela.
+    ok = js(r"""(() => {
+      const li = Array.from(document.querySelectorAll('main li')).find(l => /^Caixa 2\b/.test(l.innerText.trim()));
+      const b = li && Array.from(li.querySelectorAll('button')).find(x => x.innerText.trim() === 'Abrir');
+      if (!b) return false; b.click(); return true;
+    })()""")
+    confere("caixa-abrir: achei o Abrir na linha do Caixa 2", bool(ok))
     time.sleep(1.5)
     preencher("Reforço da gerência (R$)", "100,00")
     preencher("Troco contado (R$)", "100,00")
@@ -961,8 +1020,9 @@ def esconder_acompanhamento():
 
 figura("resultado-equilibrio", "gestor", "/emporio/resultado", [
     (1, "M.S('Ponto de equilíbrio')", "o ponto de equilibrio"),
-    # Batido ou nao depende do mes: as duas frases servem.
-    (2, "M.T('O ponto de equilíbrio do mês') || M.T('Faltam ') || M.S('Ponto de equilíbrio').querySelector('p')", "a frase que diz se o ponto foi batido ou quanto falta"),
+    # Batido ou nao depende do mes: serve uma das duas frases de resultado-mes.tsx,
+    # e so dentro da secao (um "Faltam" de outra parte da tela nao conta).
+    (2, "Array.from(M.S('Ponto de equilíbrio').querySelectorAll('p')).find(p => { const t = M.norm(p.innerText); return t === 'o ponto de equilíbrio do mês já foi batido.' || (t.startsWith('faltam r$') && t.endsWith(' em vendas.')); })", "a frase que diz se o ponto foi batido ou quanto falta"),
     (3, "M.H('Mais dão margem').parentElement", "a lista Mais dão margem"),
     (4, "M.S('Vendas com margem negativa')", "a lista Vendas com margem negativa"),
 ], antes=esconder_acompanhamento, rolar="M.H('Ponto de equilíbrio')", limite=4, hd=1250, hc=1900)
@@ -1012,83 +1072,138 @@ figura("historico-filtros", "dono", "/emporio/historico", [
 fim_das_figuras = None
 
 
+FIM_DO_CONTEUDO_JS = r"""(() => {
+  // O fundo do que a pagina desenha, sem contar o que so se estica ate o fim da
+  // janela (a casca do painel tem altura minima de tela cheia). Se algum texto
+  // ou campo passa do fim da janela, a pagina enche a janela: devolve a altura dela.
+  const H = innerHeight;
+  let fundo = 0;
+  for (const e of document.body.querySelectorAll('*')) {
+    if (e.closest('#__marcas')) continue;
+    const r = e.getBoundingClientRect();
+    // Fora da janela pelo lado: o menu do celular fica recolhido a esquerda, e
+    // a lista dele, mais alta que a janela, impedia o recorte.
+    if (r.width === 0 || r.height === 0 || r.right <= 0 || r.left >= innerWidth) continue;
+    const cs = getComputedStyle(e);
+    if (cs.visibility === 'hidden' || cs.position === 'fixed') continue;
+    const folha = e.children.length === 0 || /^(INPUT|TEXTAREA|SELECT|BUTTON|IMG|svg)$/.test(e.tagName);
+    if (folha) { if (r.bottom > H - 2) return H; fundo = Math.max(fundo, r.bottom); }
+    else if (r.bottom < H - 2) fundo = Math.max(fundo, r.bottom);
+  }
+  return Math.ceil(fundo);
+})()"""
+
+
 def executar(fig):
     for modo, largura, altura, escala, sufixo in (
         ("computador", 1280, fig["hd"], 1, ""),
-        ("celular", 390, fig["hc"], 2, "-celular"),
+        ("celular", fig["lc"], fig["hc"], 2, "-celular"),
     ):
-        r_altura = altura
-        viewport(largura, 3200 if fig["rolar"] else altura, escala)
-        entrar(fig["papel"])
-        pagina = fig["pagina"]() if callable(fig["pagina"]) else fig["pagina"]
-        r = ir(pagina)
-        if r == "TIMEOUT":
-            confere(fig["id"] + " (" + modo + "): a pagina abriu", False, pagina)
-            continue
+        try:
+            executar_modo(fig, modo, largura, altura, escala, sufixo)
+        finally:
+            if fig["depois"]:
+                fig["depois"]()
+
+
+def executar_modo(fig, modo, largura, altura, escala, sufixo):
+    r_altura = altura
+    viewport(largura, 3200 if fig["rolar"] else altura, escala)
+    entrar(fig["papel"])
+    pagina = fig["pagina"]() if callable(fig["pagina"]) else fig["pagina"]
+    r = ir(pagina)
+    if r == "TIMEOUT":
+        confere(fig["id"] + " (" + modo + "): a pagina abriu", False, pagina)
+        return
+    inicializar_pagina()
+    if modo == "celular":
+        tabelas_sem_rolagem()
+    ocultar_fixtures()
+    if fig["limite"]:
+        limitar_linhas(fig["limite"])
+    if fig["antes"]:
+        fig["antes"]()
+    if fig["estado"]:
+        fig["estado"]()
+        time.sleep(1)
         inicializar_pagina()
-        if modo == "celular":
-            tabelas_sem_rolagem()
         ocultar_fixtures()
-        if fig["limite"]:
-            limitar_linhas(fig["limite"])
-        if fig["antes"]:
-            fig["antes"]()
-        if fig["estado"]:
-            fig["estado"]()
-            time.sleep(1)
-            inicializar_pagina()
-            ocultar_fixtures()
-        if DUMP:
-            print("== " + fig["id"] + " (" + modo + ")")
-            dump_tela()
-        # Painel aberto: a janela tem a altura do conteudo do painel (cabecalho,
-        # corpo inteiro e rodape), senao o celular sai com um vazio embaixo.
-        if js("!!document.querySelector('[role=dialog] form')"):
-            necessario = js("(() => { const f = document.querySelector('[role=dialog] form'); const corpo = f.children[1]; const ultimo = corpo.lastElementChild; return f.children[0].offsetHeight + (ultimo.getBoundingClientRect().bottom - corpo.getBoundingClientRect().top) + 16 + f.children[2].offsetHeight; })()") or r_altura
-            r_altura = int(max(necessario + 8, 560 if modo == "computador" else 0))
-            viewport(largura, r_altura, escala)
-            time.sleep(0.6)
-        # Figura de uma secao no meio da pagina: a janela fica alta (a pagina
-        # nao rola) e a captura recorta a partir do titulo da secao.
-        y0, janela = 0, r_altura
-        if fig["rolar"]:
-            ro = achar(fig["rolar"])
-            if ro:
-                y0 = max(0, int(ro["y"]) - 40)
-            # O recorte nao passa do fim da pagina: abaixo dele a captura sai
-            # em branco (era o vazio do celular de 'produto-preco-por-loja').
-            fim_da_pagina = js("Math.max(...Array.from(document.body.children).filter(e => e.id !== '__marcas').map(e => e.getBoundingClientRect().bottom))") or (y0 + janela)
-            janela = max(200, min(janela, int(fim_da_pagina) - y0))
-        marcas = []
-        tudo_certo = True
-        for numero, expr, alvo in fig["marcas"]:
-            js("(() => { const M = window.__m; try { M.trazer(" + expr + "); } catch (e) {} })()")
+    if DUMP:
+        print("== " + fig["id"] + " (" + modo + ")")
+        dump_tela()
+    # Painel aberto: a janela tem a altura do conteudo do painel (cabecalho,
+    # corpo inteiro e rodape), senao o celular sai com um vazio embaixo.
+    if js("!!document.querySelector('[role=dialog] form')"):
+        necessario = js("(() => { const f = document.querySelector('[role=dialog] form'); const corpo = f.children[1]; const ultimo = corpo.lastElementChild; return f.children[0].offsetHeight + (ultimo.getBoundingClientRect().bottom - corpo.getBoundingClientRect().top) + 16 + f.children[2].offsetHeight; })()") or r_altura
+        r_altura = int(max(necessario + 8, 560 if modo == "computador" else 0))
+        viewport(largura, r_altura, escala)
+        time.sleep(0.6)
+    # Figura de uma secao no meio da pagina: a janela fica alta (a pagina
+    # nao rola) e a captura recorta a partir do titulo da secao.
+    y0, janela = 0, r_altura
+    if fig["rolar"]:
+        ro = achar(fig["rolar"])
+        if ro:
+            y0 = max(0, int(ro["y"]) - 40)
+        # O recorte nao passa do fim da pagina: abaixo dele a captura sai
+        # em branco (era o vazio do celular de 'produto-preco-por-loja').
+        fim_da_pagina = js("Math.max(...Array.from(document.body.children).filter(e => e.id !== '__marcas').map(e => e.getBoundingClientRect().bottom))") or (y0 + janela)
+        janela = max(200, min(janela, int(fim_da_pagina) - y0))
+    marcas = []
+    tudo_certo = True
+    for numero, expr, alvo in fig["marcas"]:
+        js("(() => { const M = window.__m; try { M.trazer(" + expr + "); } catch (e) {} })()")
+    # Preencher um campo rola a pagina ate ele, e o alto da tela saia cortado
+    # ('balcao-venda', uns 30 px). Volta ao topo quando todas as marcas cabem la.
+    if not fig["rolar"] and js("scrollY") > 0:
+        antes_y = js("scrollY")
+        js("scrollTo(0, 0)")
+        time.sleep(0.4)
+        cabem = True
         for numero, expr, alvo in fig["marcas"]:
             r = achar(expr)
-            if not r:
-                confere(fig["id"] + " (" + modo + "), marca " + str(numero) + ": achei " + alvo, False)
-                tudo_certo = False
-                continue
-            dentro = r["y"] >= y0 and r["y"] + r["h"] <= y0 + janela and r["x"] >= 0 and r["x"] + r["w"] <= r["vw"] + 1
-            if not dentro:
-                confere(fig["id"] + " (" + modo + "), marca " + str(numero) + " (" + alvo + ") dentro da tela", False, str(r))
-                tudo_certo = False
-            r["numero"] = numero
-            marcas.append(r)
-        if not marcas:
+            if r and (r["y"] < 0 or r["y"] + r["h"] > r["vh"]):
+                cabem = False
+        if not cabem:
+            js("scrollTo(0, " + str(antes_y) + ")")
+            time.sleep(0.4)
+    for numero, expr, alvo in fig["marcas"]:
+        r = achar(expr)
+        if not r:
+            confere(fig["id"] + " (" + modo + "), marca " + str(numero) + ": achei " + alvo, False)
+            tudo_certo = False
             continue
-        # Secao no fim da pagina: o recorte termina logo abaixo da ultima marca,
-        # sem a faixa vazia que sobra embaixo.
-        if fig["rolar"] and tudo_certo:
-            janela = max(200, min(janela, int(max(m["y"] + m["h"] for m in marcas)) - y0 + 40))
-        desenhar(marcas)
-        time.sleep(0.4)
-        tamanho = capturar(fig["id"] + sufixo + ".png", (largura, y0, janela) if fig["rolar"] else None)
-        confere(fig["id"] + " (" + modo + "): imagem gravada", tamanho > 5000, str(tamanho // 1024) + " KB")
-        if modo == "celular" or True:
-            js("(() => { const m = document.getElementById('__marcas'); if (m) m.remove(); })()")
-        if js("!!document.querySelector('[role=dialog]')"):
-            fechar_painel()
+        dentro = r["y"] >= y0 and r["y"] + r["h"] <= y0 + janela and r["x"] >= 0 and r["x"] + r["w"] <= r["vw"] + 1
+        if not dentro:
+            confere(fig["id"] + " (" + modo + "), marca " + str(numero) + " (" + alvo + ") dentro da tela", False, str(r))
+            tudo_certo = False
+        r["numero"] = numero
+        marcas.append(r)
+    if not marcas:
+        return
+    # Secao no fim da pagina: o recorte termina logo abaixo da ultima marca,
+    # sem a faixa vazia que sobra embaixo.
+    if fig["rolar"] and tudo_certo:
+        janela = max(200, min(janela, int(max(m["y"] + m["h"] for m in marcas)) - y0 + 40))
+    # Pagina inteira mais baixa que a janela: o recorte termina no fim do
+    # conteudo, e nao no fim da janela (o vazio embaixo de 'orcamento-faturar',
+    # 'venda-impressa' e 'caixa-entregas' no celular). Com a pagina rolada ou
+    # com painel aberto, a pagina ja enche a janela: sem recorte.
+    recorte = (largura, y0, janela) if fig["rolar"] else None
+    if not fig["rolar"] and js("scrollY") == 0 and not js("!!document.querySelector('[role=dialog]')"):
+        fundo = js(FIM_DO_CONTEUDO_JS) or r_altura
+        # O numero pode cair logo abaixo do quadro da ultima marca.
+        fundo = max(fundo + 16, max(m["y"] + m["h"] for m in marcas) + 40)
+        if fundo < r_altura - 8:
+            recorte = (largura, 0, int(fundo))
+    desenhar(marcas)
+    time.sleep(0.4)
+    tamanho = capturar(fig["id"] + sufixo + ".png", recorte)
+    confere(fig["id"] + " (" + modo + "): imagem gravada", tamanho > 5000, str(tamanho // 1024) + " KB")
+    if modo == "celular" or True:
+        js("(() => { const m = document.getElementById('__marcas'); if (m) m.remove(); })()")
+    if js("!!document.querySelector('[role=dialog]')"):
+        fechar_painel()
 
 
 preparar()
@@ -1098,3 +1213,25 @@ for fid, fig in F.items():
         continue
     print("-- " + fid)
     executar(fig)
+
+
+def guia_em_uma_folha():
+    """O guia do Vendedor diz "O essencial do balcao, em uma folha." O PDF da
+    impressao, em A4, tem de sair com uma folha so: com o @page da pagina e com
+    o A4 forcado (o dialogo de impressao pode usar qualquer um dos dois)."""
+    import re
+    passo("2. O guia para imprimir cabe em uma folha A4")
+    viewport(1280, 900, 1)
+    entrar("dono")
+    ir("/manual/emporio/vendedor-imprimir")
+    for nome, opcoes in (
+        ("com o @page da pagina", dict(preferCSSPageSize=True, printBackground=True)),
+        ("em A4 forcado", dict(paperWidth=8.27, paperHeight=11.69, printBackground=True)),
+    ):
+        pdf = base64.b64decode(cdp("Page.printToPDF", **opcoes)["data"])
+        folhas = len(re.findall(rb"/Type\s*/Page(?![a-zA-Z])", pdf))
+        confere("guia do Vendedor, " + nome + ": uma folha", folhas == 1, str(folhas) + " folha(s)")
+
+
+if not FILTRO or "guia-a4" in FILTRO:
+    guia_em_uma_folha()
