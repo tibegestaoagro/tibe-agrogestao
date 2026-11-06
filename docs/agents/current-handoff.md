@@ -96,6 +96,34 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
+### Empório: o manual das entregas 1 a 4 e o cenário de demonstração (05/11), na branch
+
+Branch `emporio-manual-demonstracao` (saída de `bbf62db`), **não está na
+`main`**. Plano `docs/superpowers/plans/2026-11-05-emporio-manual-e-demonstracao.md`,
+decisões Q188 e Q189 na spec do módulo. Sem migração. Contém:
+- o relógio interno (`opts.agora`) nas actions de turno e em
+  `salvarOrcamentoAction`, só para código interno (Q188; `test:m92` seção 7
+  prova que a rota ignora data no corpo);
+- o cenário `scripts/cenario-demonstracao-emporio.ts`: um turno por dia em
+  cada loja, das 8h às 18h, com malote confirmado (o de hoje fica aberto), o
+  custo de referência dos produtos, cabeçalhos e configurações das lojas,
+  orçamentos nas quatro situações; a Juliana (vendedora da Loja da Rodovia)
+  vira Caixa, porque um Caixa novo seria o sexto assento. Para antes de
+  escrever se a loja tiver turno aberto de outra montagem;
+- o manual: "Sou Caixa", "Configurações e impressão", "Orçamento",
+  "Relatórios", o turno e o vendedor nas partes por tarefa, glossário e
+  perguntas, a coluna Caixa nas permissões e o guia para imprimir numa folha
+  A4; 40 figuras, 80 PNGs (10 MB) em `public/manual/emporio/`.
+
+Provas: `npm run navegador -- manual-emporio` com 0 falhas e as 24 páginas do
+manual sem "Imagem em preparação"; o cenário rodado duas vezes no Docker (a
+segunda não duplica) e o `--apagar`.
+
+⚠️ **Rodar o cenário na conta da Da Mata em produção exige autorização do
+usuário:** muda a função da Juliana para Caixa. E hoje ele PARA lá: a Da Mata
+tem um turno único aberto desde 30/10 (lido em produção), e refazer a
+demonstração exige antes encerrar ou limpar esse turno, decisão do usuário.
+
 ### Empório, entrega 4: orçamento (05/11), em produção
 
 **Em produção desde 05/11** (`b18d09f`): a migração
@@ -551,9 +579,10 @@ o vendedor em toda venda, e que os Relatórios ficam no menu do Gestor para
 cima. A entrega 4 (orçamento) também está em produção desde 05/11. Esperam
 decisão do usuário as pontas da Q187: amarrar o cliente da venda ao do
 orçamento, o preço orçado valer para qualquer quantidade, e o `sold_at`
-retroativo pela API. Próximo trabalho, pedido pelo usuário: o capítulo do
-turno, do Caixa, dos Relatórios e do Orçamento no manual, e corrigir o cenário
-de demonstração antes de refazê-la. Da entrega 1, segue
+retroativo pela API. O manual e o cenário de demonstração estão prontos na
+branch `emporio-manual-demonstracao` (seção acima): falta o usuário autorizar
+o merge e o push, e depois decidir o turno aberto da Da Mata antes de refazer
+a demonstração. Da entrega 1, segue
 pendente o usuário imprimir um cupom
 de 58 e de 80 mm na bobina da loja e um A4.
 

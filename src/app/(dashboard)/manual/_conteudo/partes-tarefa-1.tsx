@@ -176,7 +176,7 @@ export function ParteDePreco() {
           não muda esse campo. Sem ele, a linha diz <strong>sem custo</strong> e o <strong>Sugerido</strong> fica
           com &quot;-&quot;.
         </>,
-        "O Sugerido é o custo mais as Despesas e o Lucro da linha.",
+        "O Sugerido parte do custo: soma as Despesas e, sobre esse valor, o Lucro da linha.",
         <>
           Linha sem preço: clique em <strong>Aplicar sugerido</strong> para gravar o sugerido como preço. Para digitar
           o seu, clique em <strong>Editar</strong> na linha.

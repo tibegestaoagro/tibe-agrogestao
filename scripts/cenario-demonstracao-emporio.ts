@@ -883,7 +883,7 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
     exigir(await cat.editarProdutoEmporioAction(db, gerente, r.epId, { reference_cost: desejado }), `custo de referência ${p.nome}`);
   }
 
-  const ctx: Ctx ={ db, tenantId, lojas, atores, contatos, contaId, prods, caixas };
+  const ctx: Ctx = { db, tenantId, lojas, atores, contatos, contaId, prods, caixas };
 
   // Preços por loja (Depósito não vende)
   for (const p of CATALOGO) {
