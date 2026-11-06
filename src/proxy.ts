@@ -61,7 +61,10 @@ export async function proxy(...args: Parameters<typeof proxyDoAuth>) {
   const [req] = args;
   const saida = NextResponse.redirect(new URL("/login", req.url));
   for (const c of req.cookies.getAll()) {
-    if (/^(__Secure-)?authjs\.session-token/.test(c.name)) saida.cookies.delete(c.name);
+    // Em https o cookie é `__Secure-...`, e o navegador só aceita apagá-lo com `Secure`.
+    if (/^(__Secure-)?authjs\.session-token/.test(c.name)) {
+      saida.cookies.set(c.name, "", { expires: new Date(0), path: "/", secure: c.name.startsWith("__Secure-") });
+    }
   }
   return saida;
 }

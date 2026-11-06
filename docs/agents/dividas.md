@@ -182,6 +182,22 @@ Nenhum bloqueia; cada um vale na próxima vez que o arquivo for tocado.
 - Roteiro `scripts/navegador/emporio-orcamento.py`: "cancelada" conferido por
   trecho solto; `HOJE` por `utcnow` pode oscilar perto da meia-noite.
 
+### 5.19 Empório, equipe separada do Tibé (Q190): o que a revisão deixou para depois
+
+Registrado em 06/11/2026, na revisão da branch `emporio-equipe-separada`.
+- Contar e depois gravar: dois cadastros simultâneos podem passar de 50 na
+  equipe, e o convite cria o usuário sem função antes da transação (por um
+  instante ele conta no plano).
+- `definirVinculosAction` aceita vincular à loja um usuário do Tibé sem função
+  (não dá acesso, mas mistura os dois mundos nos dados).
+- `api-guard.ts`: o bloqueio do "só da loja" na API só vale com o perfil
+  Empório ligado; se a Plataforma desligar o perfil, a equipe volta a ter a API
+  da fazenda (a tela segue fechada).
+- O rollback do cadastro que falha depois do convite não tem teste.
+- O comentário de `emporio_only` em `schema.prisma` ficou velho (o Gerente
+  geral agora é sempre só do Empório).
+- As figuras da Equipe no manual ainda mostram o texto antigo de assentos.
+
 ### 5.18 Empório, manual e cenário de demonstração: o que a revisão deixou para depois
 
 Registrado em 05/11/2026, nas revisões da branch `emporio-manual-demonstracao`.

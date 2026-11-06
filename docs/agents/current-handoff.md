@@ -115,6 +115,17 @@ Pendente do usuário: email e nome da conta de testes nova (depois, rodar o
 cenário de demonstração nela e mover o WhatsApp), trocar o email de acesso da
 Da Mata para o da Agromax, e os logins da equipe deles.
 
+### Empório: equipe separada dos usuários do Tibé (06/11, Q190)
+
+Branch `emporio-equipe-separada` (sobre `limpeza-da-mata`). A equipe do
+Empório (quem tem `emporio_role`) tem limite próprio de 50 ativos por conta e
+não ocupa assento do plano; os usuários do Tibé seguem no plano. A Equipe e
+Configurações > Usuários não mexem um no outro. Tirar da equipe desativa e
+guarda função, chaves e lojas; Reativar devolve, se houver vaga. O Gerente
+geral é sempre só do Empório. O desativado deixa de entrar também pela sessão
+do navegador: `getSessionUser` relê `active` e o papel no banco, e o proxy
+manda ao login e apaga o cookie. Dívidas em `dividas.md` 5.19.
+
 ### Empório: o manual das entregas 1 a 4 e o cenário de demonstração (05/11), em produção
 
 Merge fast-forward de `emporio-manual-demonstracao` (saída de `bbf62db`) na
