@@ -182,6 +182,30 @@ Nenhum bloqueia; cada um vale na próxima vez que o arquivo for tocado.
 - Roteiro `scripts/navegador/emporio-orcamento.py`: "cancelada" conferido por
   trecho solto; `HOJE` por `utcnow` pode oscilar perto da meia-noite.
 
+### 5.18 Empório, manual e cenário de demonstração: o que a revisão deixou para depois
+
+Registrado em 05/11/2026, nas revisões da branch `emporio-manual-demonstracao`.
+Nenhum bloqueia; cada um vale na próxima vez que o arquivo for tocado.
+- Roteiro `scripts/navegador/manual-emporio.py`: a marca da figura
+  `resultado-loja` depende do mês; a figura `orcamento-salvo` envelhece (o
+  orçamento do cenário vence com os dias).
+- Marcas numeradas de posição ruim no celular: o 3 de `fiado-lista-celular`
+  cobre metade do valor da coluna Vendas, o 2 de `caixa-sangria-celular` fica
+  entre o campo e o botão, o 3 de `venda-impressa-celular` encosta na borda do
+  quadro Pagamento.
+- Cenário de demonstração: os horários de hoje (sangria, conferência) não
+  respeitam a hora em que o cenário roda; o CNPJ de demonstração não tem dígito
+  verificador válido; rodar em outro dia exige `--apagar` antes. A trava
+  manda encerrar o turno pela tela e rodar de novo, mas isso não refaz o
+  estado: a chave `turno-dia-<loja>-00` repete o turno já encerrado, hoje fica
+  sem turno aberto e os 30 dias mantêm as datas da primeira montagem (nada
+  duplica). O "de hoje fica aberto" da Q189 vale na primeira rodada.
+- `manual-emporio.py`: o vencimento `"2026-11-15"` da compra pendente é fixo
+  (depois dele a figura mostra a compra vencida, sem reprovar); a figura
+  `relatorios-periodo` mostra 30 dias, e não o mês atual que a tela abre.
+- O roteiro desativa um usuário demo por um instante para a figura
+  `equipe-caixa` (só local, desfeito no `finally`).
+
 ### 5.15 O filtro de situação das Negociações lê o período inteiro
 
 Registrado na E10.1 (13/10/2026), rodada 2 do Codex; o usuário escolheu

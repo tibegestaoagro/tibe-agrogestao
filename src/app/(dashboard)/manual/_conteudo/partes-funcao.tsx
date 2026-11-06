@@ -354,8 +354,8 @@ export function ParteCaixa() {
 
       <Titulo>Receber fiado</Titulo>
       <p>
-        Abra <strong>Fiado</strong>, ache o nome do cliente e clique em <strong>Receber</strong>. O dinheiro recebido entra
-        no seu caixa aberto.
+        Abra <strong>Fiado</strong>, ache o nome do cliente e clique em <strong>Receber</strong>. Em dinheiro, o valor entra
+        no seu caixa aberto; em PIX, entra na conta PIX da loja.
       </p>
 
       <Titulo>Sangria: tirar o excesso de dinheiro</Titulo>

@@ -150,7 +150,7 @@ export function ParteDeOrcamento() {
             fazer: <>O cliente aparece com <strong>Cadastro incompleto</strong>. Clique em <strong>Completar cadastro</strong>, preencha e salve. Depois salve o orçamento.</>,
           },
           {
-            quando: "O desconto é recusado: “Peça ao gestor da loja.”",
+            quando: "O desconto é recusado: “O desconto de X% passa do limite de Y% desta loja. Peça ao gestor da loja.”",
             fazer: "O desconto passou do limite da loja. Chame o Gestor. O desconto que ele autoriza no orçamento continua valendo no faturamento, dentro da validade.",
           },
         ]}

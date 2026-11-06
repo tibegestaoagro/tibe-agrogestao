@@ -56,7 +56,7 @@ export function ParteDeVender() {
           fazer: "A loja não tem regra para essa forma de cartão (débito, crédito ou parcelado). O Gestor cadastra a taxa e o prazo.",
         },
         {
-          quando: "O desconto é recusado: “Peça ao gestor da loja.”",
+          quando: "O desconto é recusado: “O desconto de X% passa do limite de Y% desta loja. Peça ao gestor da loja.”",
           fazer: "Passou do limite da loja. Chame o Gestor ou o Dono para dar o desconto.",
         },
       ]}
