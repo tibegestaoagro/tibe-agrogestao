@@ -346,6 +346,16 @@ export async function lerClienteAction(
   ator: Ator,
   id: string,
 ): Promise<ActionResult<ClienteFichaView>> {
+  return lerFicha(db, ator, id, VENDAS_NA_FICHA);
+}
+
+/** A ficha com o limite de vendas listadas à vista: o resumo NUNCA depende dele (vale para todas as vendas). */
+export async function lerFicha(
+  db: TenantPrismaClient,
+  ator: Ator,
+  id: string,
+  limiteDeVendas: number,
+): Promise<ActionResult<ClienteFichaView>> {
   const neg = await exigir(db, ator, "vendedor_da_loja", "ver um cliente");
   if (neg) return neg;
   const c = await db.emporioCustomer.findFirst({ where: { id } });
@@ -357,7 +367,7 @@ export async function lerClienteAction(
   const vendas = await db.emporioSale.findMany({
     where: { customer_id: id, ...daLoja },
     orderBy: [{ sold_at: "desc" }, { id: "desc" }],
-    take: VENDAS_NA_FICHA,
+    take: limiteDeVendas,
     include: {
       establishment: { select: { name: true } },
       payments: { select: { kind: true }, orderBy: { created_at: "asc" } },
@@ -371,24 +381,21 @@ export async function lerClienteAction(
     take: ORCAMENTOS_NA_FICHA,
     include: { establishment: { select: { name: true } } },
   });
+  // O resumo vale para TODAS as vendas do cliente nas lojas visíveis, não só as listadas.
+  const concluidas = { customer_id: id, status: "concluida" as const, ...daLoja };
+  const vendido = await db.emporioSale.aggregate({ where: concluidas, _sum: { net_amount: true }, _max: { sold_at: true } });
+  const devolvido = await db.emporioSaleReturn.aggregate({ where: { sale: concluidas }, _sum: { amount: true } });
+  const ativas = await db.emporioSale.count({ where: { ...concluidas, returns: { none: {} } } });
   const donos = [...new Set(vendas.map((v) => v.seller_user_id ?? v.sold_by_user_id).filter((u): u is string => !!u))];
   const usuarios = donos.length ? await db.user.findMany({ where: { id: { in: donos } }, select: { id: true, name: true } }) : [];
   const nomeDe = new Map(usuarios.map((u) => [u.id, u.name]));
 
-  let totalComprado = 0;
-  let ultima: Date | null = null;
-  let ativas = 0;
   const linhas: ClienteFichaView["vendas"] = vendas.map((v) => {
     const situacao: ClienteFichaView["vendas"][number]["situacao"] =
       v.status === "cancelada" ? "cancelada"
         : v.returns.some((r) => r.exchange_sale) ? "trocada"
           : v.returns.length > 0 ? "devolvida"
             : "ativa";
-    if (v.status === "concluida") {
-      totalComprado += Number(v.net_amount) - v.returns.reduce((s, r) => s + Number(r.amount), 0);
-      if (!ultima || v.sold_at > ultima) ultima = v.sold_at;
-    }
-    if (situacao === "ativa") ativas += 1;
     const quem = v.seller_user_id ?? v.sold_by_user_id;
     return {
       id: v.id,
@@ -412,8 +419,8 @@ export async function lerClienteAction(
   return ok({
     ...serializarCliente(c),
     resumo: {
-      total_comprado: Math.round(totalComprado * 100) / 100,
-      ultima_compra_em: (ultima as Date | null)?.toISOString() ?? null,
+      total_comprado: Math.round((Number(vendido._sum.net_amount ?? 0) - Number(devolvido._sum.amount ?? 0)) * 100) / 100,
+      ultima_compra_em: vendido._max.sold_at?.toISOString() ?? null,
       vendas_ativas: ativas,
     },
     vendas: linhas,

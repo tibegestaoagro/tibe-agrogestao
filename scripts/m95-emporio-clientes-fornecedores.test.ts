@@ -788,6 +788,34 @@ async function secao4() {
     j(fichaVend),
   );
 
+  // O resumo não pode depender do corte da lista: com a lista cortada em 1 venda, ele é o mesmo.
+  const cortada = await C.lerFicha(db, owner, X, 1);
+  check(
+    "ficha com a lista cortada em 1 venda: só 1 listada, resumo igual ao da ficha inteira",
+    cortada.ok && cortada.data.vendas.length === 1 && j(cortada.data.resumo) === j(ficha.data.resumo) && cortada.data.resumo.total_comprado === 40,
+    j(cortada.ok ? [cortada.data.vendas.length, cortada.data.resumo] : cortada),
+  );
+
+  // Devolução parcial, sem troca: situacao "devolvida".
+  const y = await C.cadastrarClienteAction(db, vend, { name: "Yara Devolveu", person_kind: "pf", phone: "3498" });
+  if (!y.ok) throw new Error(`y: ${j(y)}`);
+  const vy = await venda(L1, y.data.id, 2, 20);
+  if (!vy.ok) throw new Error(`vy: ${j(vy)}`);
+  const iy = await db.emporioSaleItem.findFirstOrThrow({ where: { sale_id: vy.data.id } });
+  const devY = await V.devolverAction(db, owner, vy.data.id, {
+    operation_key: `m95d-devy-${stamp}`,
+    refund_kind: "dinheiro",
+    items: [{ sale_item_id: iy.id, quantity: 1 }],
+  });
+  if (!devY.ok) throw new Error(`devY: ${j(devY)}`);
+  const fichaY = await C.lerClienteAction(db, owner, y.data.id);
+  check(
+    "devolução parcial sem troca: situacao devolvida, total comprado 20 - 10, nenhuma ativa",
+    fichaY.ok && fichaY.data.vendas.length === 1 && fichaY.data.vendas[0].situacao === "devolvida"
+      && fichaY.data.resumo.total_comprado === 10 && fichaY.data.resumo.vendas_ativas === 0,
+    j(fichaY),
+  );
+
   // --- arquivar e desarquivar, com a ficha inteira ----------------------------
   const arq = await C.arquivarClienteAction(db, gestor, X, true);
   check("o Gestor arquiva: ok, archived", arq.ok && arq.data.archived === true, j(arq));
