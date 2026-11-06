@@ -96,6 +96,25 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
+### Da Mata limpa para a Agromax (06/11)
+
+A Agromax usa a conta Da Mata Sementes de verdade desde 01/11, só o Empório,
+com as lojas AGROMAX e AGROMAX MOC (as 4 de demonstração e o "Estabelecimento
+teste" já estavam arquivadas por eles). Em 06/11, autorizado pelo usuário na
+conversa, `scripts/limpar-demonstracao-conta.ts` (branch `limpeza-da-mata`)
+apagou em produção tudo o que não era deles: 3.688 registros (as lojas de
+demonstração e tudo delas, os 26 produtos antigos, os 4 usuários demo, rebanho,
+financeiro, serviços, conversas do agente, o contador de vendas). Ficaram
+1.556, conferidos por impressão digital antes e depois na mesma transação; a
+recontagem dá "sai 0". Ensaiado antes numa cópia da conta no Docker. Ficaram
+de propósito: o Dono, as categorias financeiras, o "Consumidor final" e o
+vínculo do WhatsApp do usuário (vai para a conta de testes quando ela existir).
+O cenário de demonstração **não pode** mais rodar na Da Mata.
+
+Pendente do usuário: email e nome da conta de testes nova (depois, rodar o
+cenário de demonstração nela e mover o WhatsApp), trocar o email de acesso da
+Da Mata para o da Agromax, e os logins da equipe deles.
+
 ### Empório: o manual das entregas 1 a 4 e o cenário de demonstração (05/11), em produção
 
 Merge fast-forward de `emporio-manual-demonstracao` (saída de `bbf62db`) na
