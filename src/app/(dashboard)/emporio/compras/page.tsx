@@ -52,11 +52,11 @@ export default async function ComprasPage({
   const filtroSituacao =
     situacao === "pendente" || situacao === "recebida" || situacao === "cancelada" ? situacao : undefined;
 
-  const [lojasRes, comprasRes, contatos, produtos] = await Promise.all([
+  const [lojasRes, comprasRes, fornecedores, produtos] = await Promise.all([
     listarEstabelecimentosAction(db, user),
     listarComprasAction(db, user, { establishment_id: loja || undefined, status: filtroSituacao }),
     podeLancar
-      ? db.emporioSupplier.findMany({ where: { archived_at: null }, select: { id: true, name: true }, orderBy: { name: "asc" } })
+      ? db.emporioSupplier.findMany({ where: { archived_at: null }, select: { id: true, name: true, kind: true }, orderBy: { name: "asc" } })
       : Promise.resolve([]),
     podeLancar
       ? db.emporioProduct.findMany({
@@ -102,7 +102,7 @@ export default async function ComprasPage({
         {lojasDoLancamento.length > 0 && (
           <CompraForm
             lojas={lojasDoLancamento}
-            fornecedores={contatos}
+            fornecedores={fornecedores}
             produtos={produtosForm}
           />
         )}
@@ -146,7 +146,15 @@ export default async function ComprasPage({
                 <TableRow key={c.id}>
                   <TableCell>{DATA.format(new Date(c.purchased_at))}</TableCell>
                   <TableCell className="font-medium text-texto">{c.establishment_name}</TableCell>
-                  <TableCell>{c.supplier_name ?? "-"}</TableCell>
+                  <TableCell>
+                    {c.supplier_id ? (
+                      <Link href={`/emporio/fornecedores/${c.supplier_id}`} className="text-texto-marca hover:underline">
+                        {c.supplier_name}
+                      </Link>
+                    ) : (
+                      "-"
+                    )}
+                  </TableCell>
                   <TableCell className="max-w-xs text-sm">
                     {c.items
                       .map((i) => {
@@ -163,7 +171,7 @@ export default async function ComprasPage({
                       <span className="block text-xs text-texto-secundario">com frete de {reaisBr(c.freight)}</span>
                     )}
                   </TableCell>
-                  <TableCell>{c.payment_kind ? (FORMA[c.payment_kind] ?? c.payment_kind) : "Só custo"}</TableCell>
+                  <TableCell>{c.payment_kind ? (FORMA[c.payment_kind] ?? c.payment_kind) : "Só custo (propriedade)"}</TableCell>
                   <TableCell>
                     <Badge variant={s.variante}>{s.rotulo}</Badge>
                     {c.canceled_reason && (

@@ -89,7 +89,7 @@ export function CompraForm({
   produtos,
 }: {
   lojas: { id: string; name: string }[];
-  fornecedores: { id: string; name: string }[];
+  fornecedores: { id: string; name: string; kind: "propriedade" | "externo" }[];
   produtos: ProdutoParaCompra[];
 }) {
   const router = useRouter();
@@ -148,6 +148,8 @@ export function CompraForm({
     return s + (v === null || v <= 0 ? 0 : centavos(v));
   }, 0);
   const falta = total - totalEntrada - somaParcelas;
+  // Compra de propriedade do dono: entra só o custo, sem forma de pagamento nem conta a pagar.
+  const deProps = fornecedores.find((f) => f.id === fornecedor)?.kind === "propriedade";
 
   function atualizarItem(key: number, parte: Partial<ItemLinha>) {
     setItens((lista) => lista.map((i) => (i.key === key ? { ...i, ...parte } : i)));
@@ -209,8 +211,8 @@ export function CompraForm({
     }
 
     // Campo que some da tela não é cobrado: o vencimento só existe a prazo.
-    if (forma === "a_prazo" && !vencimento) novos.due_date = "Informe quando a conta vence.";
-    if (forma === "parcelada") {
+    if (!deProps && forma === "a_prazo" && !vencimento) novos.due_date = "Informe quando a conta vence.";
+    if (!deProps && forma === "parcelada") {
       if (entrada.trim() !== "" && (valorEntrada === null || valorEntrada < 0)) {
         novos.down_payment = "Não consegui ler esse valor.";
       }
@@ -241,15 +243,19 @@ export function CompraForm({
       received: recebida,
       freight: valorFrete,
       items: itensApi,
-      payment: {
-        kind: forma,
-        due_date: forma === "a_prazo" ? paraIso(vencimento) : null,
-        down_payment: forma === "parcelada" ? valorEntrada : null,
-        installments:
-          forma === "parcelada"
-            ? parcelas.map((p) => ({ amount: lerNumeroBr(p.valor) as number, due_date: paraIso(p.vencimento) }))
-            : null,
-      },
+      ...(deProps
+        ? {}
+        : {
+            payment: {
+              kind: forma,
+              due_date: forma === "a_prazo" ? paraIso(vencimento) : null,
+              down_payment: forma === "parcelada" ? valorEntrada : null,
+              installments:
+                forma === "parcelada"
+                  ? parcelas.map((p) => ({ amount: lerNumeroBr(p.valor) as number, due_date: paraIso(p.vencimento) }))
+                  : null,
+            },
+          }),
     });
     setLoading(false);
     if (!res.ok) {
@@ -303,7 +309,7 @@ export function CompraForm({
         )}
       </Field>
 
-      <Field label="Fornecedor" id={err.idDe("supplier_id")} error={err.erros.supplier_id} hint="Opcional. Vem dos Fornecedores.">
+      <Field label="Fornecedor" id={err.idDe("supplier_id")} error={err.erros.supplier_id} hint="Opcional. Cadastre em Fornecedores.">
         {({ id, ...aria }) => (
           <Select
             value={fornecedor || NENHUM}
@@ -319,7 +325,7 @@ export function CompraForm({
               <SelectItem value={NENHUM}>Não informar</SelectItem>
               {fornecedores.map((f) => (
                 <SelectItem key={f.id} value={f.id}>
-                  {f.name}
+                  {f.kind === "propriedade" ? `${f.name} (propriedade)` : f.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -456,30 +462,36 @@ export function CompraForm({
         </span>
       </p>
 
-      <Field label="Forma de pagamento" required id={err.idDe("payment")} error={err.erros.payment}>
-        {({ id, ...aria }) => (
-          <Select
-            value={forma}
-            onValueChange={(v) => {
-              setForma(v as Kind);
-              err.limparCampo("payment");
-            }}
-          >
-            <SelectTrigger id={id} {...aria}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {(Object.keys(KIND_ROTULO) as Kind[]).map((k) => (
-                <SelectItem key={k} value={k}>
-                  {KIND_ROTULO[k]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </Field>
+      {deProps ? (
+        <p className="rounded-lg border border-borda bg-superficie px-3 py-2 text-sm text-texto">
+          Compra de propriedade do dono: entra só o custo, sem conta a pagar.
+        </p>
+      ) : (
+        <Field label="Forma de pagamento" required id={err.idDe("payment")} error={err.erros.payment}>
+          {({ id, ...aria }) => (
+            <Select
+              value={forma}
+              onValueChange={(v) => {
+                setForma(v as Kind);
+                err.limparCampo("payment");
+              }}
+            >
+              <SelectTrigger id={id} {...aria}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(KIND_ROTULO) as Kind[]).map((k) => (
+                  <SelectItem key={k} value={k}>
+                    {KIND_ROTULO[k]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </Field>
+      )}
 
-      {forma === "a_prazo" && (
+      {!deProps && forma === "a_prazo" && (
         <Field label="Vencimento" required id={err.idDe("due_date")} error={err.erros.due_date}>
           {({ id, ...aria }) => (
             <Input
@@ -496,7 +508,7 @@ export function CompraForm({
         </Field>
       )}
 
-      {forma === "parcelada" && (
+      {!deProps && forma === "parcelada" && (
         <>
           <Field
             label="Entrada (R$)"
