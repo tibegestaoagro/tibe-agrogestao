@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser, getTenantDb } from "@/lib/tenant-context";
 import { hasMinRole } from "@/lib/permissions";
@@ -14,10 +15,10 @@ import InviteForm from "@/components/usuarios/invite-form";
 import UserRowActions from "@/components/usuarios/user-row-actions";
 import { getSeatUsage } from "@/lib/seats";
 
-const FUNCAO_ROTULO = { gerente_geral: "Gerente geral", gestor: "Gestor", vendedor: "Vendedor", caixa: "Caixa" } as const;
-
 /**
  * Configurações → Usuários (spec 5.2). Acesso: Owner e Admin (PRD 5.2).
+ * Q190: só os usuários do Tibé (sem função no Empório, mais o Dono), contra o
+ * limite do plano. A equipe do Empório tem tela e limite próprios.
  */
 export default async function UsuariosPage() {
   const sessionUser = await getSessionUser();
@@ -25,9 +26,10 @@ export default async function UsuariosPage() {
   if (!hasMinRole(sessionUser.role, "ADMIN")) redirect("/dashboard");
 
   const db = await getTenantDb();
-  const [users, seats] = await Promise.all([
-    db.user.findMany({ orderBy: { created_at: "asc" } }),
+  const [users, seats, daEquipe] = await Promise.all([
+    db.user.findMany({ where: { emporio_role: null }, orderBy: { created_at: "asc" } }),
     getSeatUsage(db, sessionUser.tenant_id),
+    db.user.count({ where: { emporio_role: { not: null } } }),
   ]);
   const seatsFull = !seats.has_room;
 
@@ -37,9 +39,18 @@ export default async function UsuariosPage() {
         <div>
           <h1 className="text-xl font-semibold text-texto">Usuários</h1>
           <p className={`text-sm ${seatsFull ? "text-atencao-tinta" : "text-texto-discreto"}`}>
-            {seats.used} de {seats.limit} assento(s) em uso
+            {seats.used} de {seats.limit} assento(s) do plano em uso
             {seatsFull && ": desative um usuário ou faça upgrade do plano para convidar mais"}
           </p>
+          {daEquipe > 0 && (
+            <p className="text-sm text-texto-discreto">
+              A equipe do Empório não aparece aqui nem ocupa assento do plano: ela fica na{" "}
+              <Link href="/emporio/equipe" className="text-texto-marca hover:underline">
+                Equipe do Empório
+              </Link>
+              .
+            </p>
+          )}
         </div>
         <InviteForm canInviteOwner={sessionUser.role === "OWNER"} />
       </div>
@@ -52,7 +63,6 @@ export default async function UsuariosPage() {
               <TableHead>Email</TableHead>
               <TableHead>Telefone</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Empório</TableHead>
               <TableHead>Papel</TableHead>
             </TableRow>
           </TableHeader>
@@ -69,12 +79,8 @@ export default async function UsuariosPage() {
                     {u.active ? "Ativo" : "Desativado"}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-sm">
-                  {u.role === "OWNER" ? "Dono" : u.emporio_role ? FUNCAO_ROTULO[u.emporio_role] : "Sem função"}
-                </TableCell>
                 <TableCell>
                   <UserRowActions
-                    temFuncaoNoEmporio={!!u.emporio_role}
                     userId={u.id}
                     role={u.role}
                     active={u.active}

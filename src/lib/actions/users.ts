@@ -3,7 +3,7 @@ import { scoped, prisma, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { generateTempPassword } from "@/lib/passwords";
 import { toBrazilPhoneDigits } from "@/lib/phone";
-import { checkSeatAvailable } from "@/lib/seats";
+import { checkSeatAvailable, type QualLimite } from "@/lib/seats";
 import type { AppUserRole } from "@/types/next-auth";
 
 /**
@@ -12,10 +12,16 @@ import type { AppUserRole } from "@/types/next-auth";
  * vez para o convidante repassar manualmente.
  */
 
+/**
+ * `limite`: qual contagem de assentos o convite ocupa (Q190). Configurações
+ * convida usuário do Tibé (o plano, padrão); a Equipe do Empório passa
+ * "emporio", porque a pessoa nasce com função no Empório.
+ */
 export async function inviteUserAction(
   db: TenantPrismaClient,
   tenantId: string,
   input: { name: string; email: string; phone?: string | null; role: AppUserRole },
+  limite: QualLimite = "plano",
 ): Promise<ActionResult<{ id: string; temp_password: string }>> {
   const existing = await prisma.user.findUnique({ where: { email: input.email } });
   if (existing) {
@@ -27,7 +33,7 @@ export async function inviteUserAction(
   // Limite de assentos do plano (2026-07-30), checado DEPOIS da duplicidade
   // de propósito: se o email já existe e o plano está cheio, responder
   // "faça upgrade" mandaria o cliente pagar por um problema que não é esse.
-  const seatError = await checkSeatAvailable(db, tenantId);
+  const seatError = await checkSeatAvailable(db, tenantId, limite);
   if (seatError) return fail("SEAT_LIMIT_REACHED", seatError, 422);
 
   const temp_password = generateTempPassword();
@@ -74,6 +80,11 @@ export async function setUserActiveAction(
   if (!existing) return fail("NOT_FOUND", "Usuário não encontrado", 404);
   if (existing.role === "OWNER" && !active) {
     return fail("CANNOT_DEACTIVATE_OWNER", "O Owner não pode ser desativado", 422);
+  }
+  // Q190: a equipe do Empório tem limite próprio e se ativa pela Equipe. Por
+  // aqui, reativar contaria contra o assento do plano, que ela não ocupa.
+  if (existing.emporio_role) {
+    return fail("EMPORIO_ROLE", "Ative ou desative pela Equipe do Empório.", 409);
   }
 
   // Reativar ocupa um assento; desativar sempre é permitido (libera vaga).

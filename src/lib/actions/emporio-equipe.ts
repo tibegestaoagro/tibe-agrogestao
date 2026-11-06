@@ -1,15 +1,20 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import { inviteUserAction } from "@/lib/actions/users";
-import { getSeatUsage, type SeatUsage } from "@/lib/seats";
+import { checkSeatAvailable, getSeatUsage, type SeatUsage } from "@/lib/seats";
 import { EMPORIO_KEYS, EMPORIO_KEY_IDS, exigir, papelDoEmporio, type PapelEmporio } from "@/lib/emporio/papel";
 import { diferencas, registrarNoHistorico } from "@/lib/emporio/historico";
 import type { AppUserRole } from "@/types/next-auth";
 
 /**
- * Meu Empório, F6b: a Equipe (Módulo 39, Q118, Q129, Q133). Só Dono e Gerente
- * geral. A validação é em TypeScript puro de propósito: o WhatsApp chama estas
- * mesmas funções sem passar pelo Zod da rota.
+ * Meu Empório, F6b: a Equipe (Módulo 39, Q118, Q129, Q133, Q190). Só Dono e
+ * Gerente geral. A validação é em TypeScript puro de propósito: o WhatsApp
+ * chama estas mesmas funções sem passar pelo Zod da rota.
+ *
+ * Q190: a equipe do Empório (quem tem `emporio_role`) é separada dos usuários
+ * do Tibé. Conta no limite próprio (`EMPORIO_SEATS`), não no do plano; a
+ * Equipe não dá função a um usuário do Tibé; e tirar da equipe DESATIVA a
+ * pessoa, guardando função, chaves e lojas para o Reativar.
  */
 
 type Ator = { id: string; role: AppUserRole };
@@ -33,7 +38,11 @@ export type MembroView = {
 };
 
 export type EquipeView = {
+  /** Os ativos da equipe, mais o Dono (que não conta no limite do Empório). */
   users: MembroView[];
+  /** Q190: quem saiu da equipe, desativado, com função, chaves e lojas guardadas para o Reativar. */
+  inactive_users: MembroView[];
+  /** O limite da equipe do Empório (`EMPORIO_SEATS`), não o do plano. */
   seats: SeatUsage;
   establishments: { id: string; name: string }[];
 };
@@ -153,31 +162,38 @@ export async function listarEquipeAction(db: TenantPrismaClient, ator: Ator): Pr
   const tenantId = await tenantDoAtor(db, ator);
   if (!tenantId) return fail("NOT_FOUND", "Usuário não encontrado.", 404);
 
-  const [usuarios, vinculos, lojas, seats] = await Promise.all([
-    db.user.findMany({ where: { active: true }, orderBy: { created_at: "asc" } }),
+  const [ativos, desativados, vinculos, lojas, seats] = await Promise.all([
+    db.user.findMany({
+      where: { active: true, OR: [{ emporio_role: { not: null } }, { role: "OWNER" }] },
+      orderBy: { created_at: "asc" },
+    }),
+    db.user.findMany({ where: { active: false, emporio_role: { not: null } }, orderBy: { name: "asc" } }),
     db.userEstablishment.findMany({ select: { user_id: true, establishment_id: true } }),
     db.establishment.findMany({
       where: { archived_at: null },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
-    getSeatUsage(db, tenantId),
+    getSeatUsage(db, tenantId, "emporio"),
   ]);
   const porUsuario = new Map<string, string[]>();
   for (const v of vinculos) porUsuario.set(v.user_id, [...(porUsuario.get(v.user_id) ?? []), v.establishment_id]);
 
+  const emView = (u: (typeof ativos)[number]): MembroView => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    phone: u.phone,
+    role: u.role,
+    emporio_role: u.emporio_role,
+    emporio_only: u.emporio_only,
+    emporio_keys: u.emporio_keys,
+    establishment_ids: porUsuario.get(u.id) ?? [],
+  });
+
   return ok({
-    users: usuarios.map((u) => ({
-      id: u.id,
-      name: u.name,
-      email: u.email,
-      phone: u.phone,
-      role: u.role,
-      emporio_role: u.emporio_role,
-      emporio_only: u.emporio_only,
-      emporio_keys: u.emporio_keys,
-      establishment_ids: porUsuario.get(u.id) ?? [],
-    })),
+    users: ativos.map(emView),
+    inactive_users: desativados.map(emView),
     seats,
     establishments: lojas,
   });
@@ -220,9 +236,11 @@ export async function cadastrarMembroAction(
 
   // O convite checa o email com o client base (a unicidade é global), então não
   // cabe na mesma transação do resto. Cria-se o usuário como OPERADOR, o menor
-  // papel, e a transação abaixo grava função, papel final, lojas e chaves. Se
-  // ela falhar, sobra um OPERADOR sem função no Empório: o estado seguro.
-  const convite = await inviteUserAction(db, tenantId, { name, email, phone: input.phone, role: "OPERADOR" });
+  // papel, contra o limite do Empório (Q190), e a transação abaixo grava
+  // função, papel final, lojas e chaves. Se ela falhar, o usuário fica
+  // desativado: ativo e sem função, ele ocuparia um assento do plano que o
+  // convite não conferiu.
+  const convite = await inviteUserAction(db, tenantId, { name, email, phone: input.phone, role: "OPERADOR" }, "emporio");
   if (!convite.ok) return convite;
 
   const ids = funcao === "gerente_geral" ? [] : [...new Set(input.establishment_ids as string[])];
@@ -232,34 +250,39 @@ export async function cadastrarMembroAction(
     emporio_keys: funcao === "vendedor" ? (input.emporio_keys ?? []) : [],
     establishment_ids: ids,
   };
-  await db.$transaction(async (tx) => {
-    await tx.user.update({
-      where: { id: convite.data.id },
-      data: {
-        role: roleDaFuncao(funcao),
-        emporio_role: gravado.emporio_role,
-        emporio_only: gravado.emporio_only,
-        emporio_keys: gravado.emporio_keys,
-      },
-    });
-    if (ids.length > 0) {
-      await tx.userEstablishment.createMany({
-        data: ids.map((establishment_id) => scoped({ user_id: convite.data.id, establishment_id })),
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: convite.data.id },
+        data: {
+          role: roleDaFuncao(funcao),
+          emporio_role: gravado.emporio_role,
+          emporio_only: gravado.emporio_only,
+          emporio_keys: gravado.emporio_keys,
+        },
       });
-    }
-    const depois = await fotoEmTexto(tx, gravado);
-    await registrarNoHistorico(tx, ator, {
-      action: "equipe.cadastrar",
-      target_type: "usuario",
-      target_id: convite.data.id,
-      summary: `Cadastrou ${name} na equipe como ${NOME_DA_FUNCAO[funcao]}`,
-      changes: diferencas(
-        { funcao: "sem função", lojas: [], chaves: [], so_emporio: false },
-        depois,
-        ROTULOS_EQUIPE,
-      ),
+      if (ids.length > 0) {
+        await tx.userEstablishment.createMany({
+          data: ids.map((establishment_id) => scoped({ user_id: convite.data.id, establishment_id })),
+        });
+      }
+      const depois = await fotoEmTexto(tx, gravado);
+      await registrarNoHistorico(tx, ator, {
+        action: "equipe.cadastrar",
+        target_type: "usuario",
+        target_id: convite.data.id,
+        summary: `Cadastrou ${name} na equipe como ${NOME_DA_FUNCAO[funcao]}`,
+        changes: diferencas(
+          { funcao: "sem função", lojas: [], chaves: [], so_emporio: false },
+          depois,
+          ROTULOS_EQUIPE,
+        ),
+      });
     });
-  });
+  } catch (e) {
+    await db.user.update({ where: { id: convite.data.id }, data: { active: false } });
+    throw e;
+  }
 
   return ok(convite.data);
 }
@@ -286,6 +309,14 @@ async function alvoPermitido(db: TenantPrismaClient, ator: Ator, userId: unknown
   return { alvo, neg: null };
 }
 
+/** Q190: a Equipe só mexe em quem é da equipe; o usuário do Tibé é de Configurações → Usuários. */
+const naoEDaEquipe = () =>
+  fail(
+    "NOT_EMPORIO_TEAM",
+    "Essa pessoa é usuária do Tibé, não da equipe do Empório. Ela se altera em Configurações > Usuários.",
+    409,
+  );
+
 export async function alterarMembroAction(
   db: TenantPrismaClient,
   ator: Ator,
@@ -301,12 +332,11 @@ export async function alterarMembroAction(
   if (neg) return neg;
   const { alvo, neg: recusaAlvo } = await alvoPermitido(db, ator, userId);
   if (recusaAlvo || !alvo) return recusaAlvo ?? fail("NOT_FOUND", "Usuário não encontrado.", 404);
+  if (!alvo.emporio_role) return naoEDaEquipe();
+  if (!alvo.active) return fail("INACTIVE", "Essa pessoa está desativada. Reative antes de alterar.", 409);
 
-  const atual = alvo.emporio_role as FuncaoEmporio | null;
+  const atual = alvo.emporio_role as FuncaoEmporio;
   const nova = input.emporio_role ?? atual;
-  if (nova === null || nova === undefined) {
-    return fail("VALIDATION_ERROR", "Escolha a função: gerente geral, gestor, vendedor ou caixa.", 422, "emporio_role");
-  }
   const mudou = nova !== atual;
 
   const vinculosAtuais = (
@@ -376,35 +406,54 @@ export async function tirarDoEmporioAction(
   if (neg) return neg;
   const { alvo, neg: recusaAlvo } = await alvoPermitido(db, ator, userId);
   if (recusaAlvo || !alvo) return recusaAlvo ?? fail("NOT_FOUND", "Usuário não encontrado.", 404);
+  if (!alvo.emporio_role) return naoEDaEquipe();
+  if (!alvo.active) return fail("ALREADY_INACTIVE", "Essa pessoa já está desativada.", 409);
 
-  const vinculosAntes = (
-    await db.userEstablishment.findMany({ where: { user_id: userId }, select: { establishment_id: true } })
-  ).map((v) => v.establishment_id);
-  const antesEmTexto = await fotoEmTexto(db, {
-    emporio_role: alvo.emporio_role,
-    emporio_only: alvo.emporio_only,
-    emporio_keys: alvo.emporio_keys,
-    establishment_ids: vinculosAntes,
-  });
-
-  // Não mexe no papel da conta nem na ativação: quem sai da loja continua na fazenda.
+  // Q190: tirar DESATIVA. Função, chaves, só-Empório e lojas ficam guardados,
+  // e o Reativar devolve a pessoa como estava. Ela não vira usuária do Tibé.
   await db.$transaction(async (tx) => {
-    await tx.user.update({
-      where: { id: userId },
-      data: { emporio_role: null, emporio_only: false, emporio_keys: [] },
-    });
-    await tx.userEstablishment.deleteMany({ where: { user_id: userId } });
+    await tx.user.update({ where: { id: userId }, data: { active: false } });
     await registrarNoHistorico(tx, ator, {
-      action: "equipe.tirar",
+      action: "equipe.desativar",
       target_type: "usuario",
       target_id: userId,
-      summary: `Tirou ${alvo.name} do Empório`,
-      changes: diferencas(
-        antesEmTexto,
-        { funcao: "sem função", lojas: [], chaves: [], so_emporio: false },
-        ROTULOS_EQUIPE,
-        { so_emporio: (x) => (x ? "Sim" : "Não") },
-      ),
+      summary: `Desativou ${alvo.name} da equipe`,
+      changes: diferencas({ situacao: "Ativa" }, { situacao: "Desativada" }, { situacao: "Situação" }),
+    });
+  });
+  return ok({ id: userId });
+}
+
+/**
+ * Q190: devolve à equipe quem foi desativado, com a função, as chaves e as
+ * lojas que tinha. Ocupa vaga no limite do Empório, então confere antes.
+ */
+export async function reativarMembroAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  userId: string,
+): Promise<ActionResult<{ id: string }>> {
+  const neg = await exigirConta(db, ator, "reativar alguém da equipe");
+  if (neg) return neg;
+  const { alvo, neg: recusaAlvo } = await alvoPermitido(db, ator, userId);
+  if (recusaAlvo || !alvo) return recusaAlvo ?? fail("NOT_FOUND", "Usuário não encontrado.", 404);
+  if (!alvo.emporio_role) return naoEDaEquipe();
+  if (alvo.active) return fail("ALREADY_ACTIVE", "Essa pessoa já está ativa na equipe.", 409);
+  const funcao = NOME_DA_FUNCAO[alvo.emporio_role] ?? alvo.emporio_role;
+
+  const tenantId = await tenantDoAtor(db, ator);
+  if (!tenantId) return fail("NOT_FOUND", "Usuário não encontrado.", 404);
+  const semVaga = await checkSeatAvailable(db, tenantId, "emporio");
+  if (semVaga) return fail("SEAT_LIMIT_REACHED", semVaga, 422);
+
+  await db.$transaction(async (tx) => {
+    await tx.user.update({ where: { id: userId }, data: { active: true } });
+    await registrarNoHistorico(tx, ator, {
+      action: "equipe.reativar",
+      target_type: "usuario",
+      target_id: userId,
+      summary: `Reativou ${alvo.name} na equipe como ${funcao}`,
+      changes: diferencas({ situacao: "Desativada" }, { situacao: "Ativa" }, { situacao: "Situação" }),
     });
   });
   return ok({ id: userId });

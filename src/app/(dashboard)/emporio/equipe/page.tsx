@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { listarEquipeAction } from "@/lib/actions/emporio-equipe";
+import { EMPORIO_SEATS } from "@/lib/seats";
 import { EMPORIO_KEYS, papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -17,6 +18,7 @@ import {
 import { EquipeForm } from "./_components/equipe-form";
 import { FUNCAO_ROTULO } from "./_components/funcao";
 import { EquipeTirarBotao } from "./_components/equipe-tirar-botao";
+import { EquipeReativarBotao } from "./_components/equipe-reativar-botao";
 
 const ROTULO_DA_CHAVE = new Map<string, string>(EMPORIO_KEYS.map((k) => [k.id, k.label]));
 
@@ -46,8 +48,8 @@ export default async function EquipePage() {
           <h1 className="text-2xl font-semibold text-texto">Equipe</h1>
           {equipe && (
             <p className={`text-sm ${equipe.seats.has_room ? "text-texto-discreto" : "text-atencao-tinta"}`}>
-              {equipe.seats.used} de {equipe.seats.limit} assento(s) em uso
-              {!equipe.seats.has_room && ": desative um usuário ou faça upgrade do plano para cadastrar mais"}
+              {equipe.seats.used} de {equipe.seats.limit} na equipe do Empório
+              {!equipe.seats.has_room && ": desative alguém da equipe para cadastrar outra pessoa"}
             </p>
           )}
         </div>
@@ -61,6 +63,11 @@ export default async function EquipePage() {
         você liberar nas chaves. <strong className="font-medium text-texto">Caixa</strong> recebe o pagamento, recebe
         fiado e opera o caixa nas lojas dele, sem chaves; não abre produtos, estoque, compras, transferências nem a lista
         de orçamentos. O <strong className="font-medium text-texto">Dono</strong> é quem abriu a conta.
+      </p>
+      <p className="text-sm text-texto-secundario">
+        A equipe do Empório é separada dos usuários do Tibé: cabe até {EMPORIO_SEATS} pessoas ativas e não
+        ocupa assento do plano. Quem precisa da fazenda ganha outra conta em Configurações &gt; Usuários. Desativar guarda
+        a função, as lojas e as chaves, e Reativar devolve a pessoa como estava.
       </p>
 
       {!equipe ? (
@@ -139,6 +146,55 @@ export default async function EquipePage() {
             })}
           </TableBody>
         </Table>
+      )}
+
+      {equipe && equipe.inactive_users.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-lg font-semibold text-texto">Desativados</h2>
+          <p className="text-sm text-texto-secundario">
+            Não entram no Tibé e não ocupam vaga na equipe. Reativar devolve a pessoa com a função, as lojas e as chaves
+            que tinha, se a equipe tiver vaga.
+          </p>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nome</TableHead>
+                <TableHead>Função</TableHead>
+                <TableHead>Lojas</TableHead>
+                <TableHead>Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {equipe.inactive_users.map((u) => {
+                const funcao = u.emporio_role;
+                const podeReativar = !(papel.papel === "gerente_geral" && u.role === "ADMIN");
+                return (
+                  <TableRow key={u.id}>
+                    <TableCell className="font-medium text-texto">
+                      {u.name}
+                      <span className="block text-xs font-normal text-texto-secundario">{u.email}</span>
+                    </TableCell>
+                    <TableCell>
+                      {funcao && <Badge variant="gray">{FUNCAO_ROTULO[funcao]}</Badge>}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {funcao === "gerente_geral"
+                        ? "Todas"
+                        : u.establishment_ids.map((i) => nomeDaLoja.get(i) ?? "Loja arquivada").join(", ") || "Nenhuma"}
+                    </TableCell>
+                    <TableCell>
+                      {podeReativar ? (
+                        <EquipeReativarBotao userId={u.id} nome={u.name} />
+                      ) : (
+                        <span className="text-xs text-texto-discreto">Só o dono reativa</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </section>
       )}
     </div>
   );

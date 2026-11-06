@@ -2,7 +2,7 @@ import "./_env-local";
 import { exigirBancoLocal } from "./_banco-local";
 import { prisma, prismaForTenant, scoped } from "@/lib/prisma";
 import { PLAN_SEATS } from "@/lib/asaas";
-import { getSeatUsage, checkSeatAvailable } from "@/lib/seats";
+import { getSeatUsage, checkSeatAvailable, EMPORIO_SEATS } from "@/lib/seats";
 import { inviteUserAction, setUserActiveAction } from "@/lib/actions/users";
 
 exigirBancoLocal();
@@ -13,6 +13,8 @@ exigirBancoLocal();
  * Cobre as três semânticas fechadas com o usuário: o Owner ocupa assento,
  * usuário desativado libera assento, e o limite nunca desativa ninguém
  * retroativamente (tenant acima do limite continua funcionando).
+ * E a Q190 (06/11/2026): a equipe do Empório conta num limite próprio
+ * (`EMPORIO_SEATS`), separado do plano, e Configurações não a ativa nem desativa.
  * Roda: `npm run test:m18`
  */
 
@@ -218,6 +220,79 @@ async function main() {
       campoStillFull !== null,
       "checkSeatAvailable segue bloqueando o tenant campo independentemente dos outros",
     );
+
+    // ── Q190: a equipe do Empório tem limite próprio (EMPORIO_SEATS) ──
+    console.log("\n  Q190: dois limites separados");
+    assert(EMPORIO_SEATS === 50, "EMPORIO_SEATS é 50");
+    const tenantQ = await prisma.tenant.create({
+      data: { name: "M18 Q190", document: `4${stamp}0`, plan: "fazenda", status: "trial" },
+    });
+    createdTenantIds.push(tenantQ.id);
+    const dbQ = prismaForTenant(tenantQ.id);
+    await dbQ.user.create({
+      data: scoped({ name: "Owner Q190", email: uniqueEmail("owner-q"), password_hash: "x", role: "OWNER", active: true }),
+    });
+    // 49 ativos da equipe, mais 3 desativados (não ocupam vaga).
+    await prisma.user.createMany({
+      data: [
+        ...Array.from({ length: EMPORIO_SEATS - 1 }, (_, i) => ({
+          tenant_id: tenantQ.id, name: `Equipe ${i}`, email: uniqueEmail(`eq-${i}`), password_hash: "x",
+          role: "OPERADOR" as const, emporio_role: "vendedor" as const,
+        })),
+        ...Array.from({ length: 3 }, (_, i) => ({
+          tenant_id: tenantQ.id, name: `Equipe off ${i}`, email: uniqueEmail(`eq-off-${i}`), password_hash: "x",
+          role: "OPERADOR" as const, emporio_role: "caixa" as const, active: false,
+        })),
+      ],
+    });
+    const planoQ = await getSeatUsage(dbQ, tenantQ.id);
+    assert(
+      planoQ.used === 1 && planoQ.limit === 2 && planoQ.has_room,
+      `a equipe do Empório não ocupa assento do plano (plano: ${planoQ.used} de ${planoQ.limit})`,
+    );
+    const emporioQ = await getSeatUsage(dbQ, tenantQ.id, "emporio");
+    assert(
+      emporioQ.used === 49 && emporioQ.limit === 50 && emporioQ.has_room,
+      `o Dono e os desativados não contam no limite do Empório (${emporioQ.used} de ${emporioQ.limit})`,
+    );
+    const quinquagesimo = await inviteUserAction(
+      dbQ, tenantQ.id, { name: "Equipe 50", email: uniqueEmail("eq-50"), role: "OPERADOR" }, "emporio",
+    );
+    assert(quinquagesimo.ok, "o 50º da equipe entra");
+    // O convite cria sem função; quem dá a função é a Equipe. Aqui, direto no banco.
+    if (quinquagesimo.ok) {
+      await prisma.user.update({ where: { id: quinquagesimo.data.id }, data: { emporio_role: "vendedor" } });
+    }
+    const cheioQ = await checkSeatAvailable(dbQ, tenantQ.id, "emporio");
+    assert(
+      cheioQ !== null && cheioQ.includes("50") && cheioQ.includes("equipe do Empório"),
+      `com 50 ativos, a equipe do Empório está cheia, e a mensagem diz o limite (${cheioQ})`,
+    );
+    const q51 = await inviteUserAction(
+      dbQ, tenantQ.id, { name: "Equipe 51", email: uniqueEmail("eq-51"), role: "OPERADOR" }, "emporio",
+    );
+    assert(!q51.ok && q51.code === "SEAT_LIMIT_REACHED", "o 51º da equipe é recusado com SEAT_LIMIT_REACHED");
+    const tibeQ = await inviteUserAction(dbQ, tenantQ.id, { name: "Tibé 2", email: uniqueEmail("tibe-2"), role: "OPERADOR" });
+    assert(tibeQ.ok, "com o Empório cheio, o convite de usuário do Tibé passa (assento do plano livre)");
+    const tibe3 = await inviteUserAction(dbQ, tenantQ.id, { name: "Tibé 3", email: uniqueEmail("tibe-3"), role: "OPERADOR" });
+    assert(
+      !tibe3.ok && tibe3.code === "SEAT_LIMIT_REACHED" && tibe3.message.includes("fazenda"),
+      "e o plano continua valendo para o usuário do Tibé (fazenda: o 3º é recusado)",
+    );
+    const membro = await dbQ.user.findFirst({ where: { active: true, emporio_role: { not: null } } });
+    const desat = await setUserActiveAction(dbQ, tenantQ.id, membro!.id, false);
+    assert(
+      !desat.ok && desat.code === "EMPORIO_ROLE" && desat.status === 409,
+      "Configurações recusa desativar quem é da equipe do Empório (409 EMPORIO_ROLE)",
+    );
+    const off = await dbQ.user.findFirst({ where: { active: false, emporio_role: { not: null } } });
+    const reat = await setUserActiveAction(dbQ, tenantQ.id, off!.id, true);
+    assert(
+      !reat.ok && reat.code === "EMPORIO_ROLE",
+      "Configurações recusa reativar quem é da equipe do Empório (409 EMPORIO_ROLE)",
+    );
+    const emporioFinal = await getSeatUsage(dbQ, tenantQ.id, "emporio");
+    assert(emporioFinal.used === 50, "e nada disso mudou a contagem da equipe (50 de 50)");
   } finally {
     await prisma.tenant.deleteMany({ where: { id: { in: createdTenantIds } } });
   }

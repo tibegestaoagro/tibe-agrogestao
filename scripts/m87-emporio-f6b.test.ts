@@ -308,14 +308,18 @@ async function comBanco() {
       const linhas: Dado[] = rl.ok ? (Array.isArray(rl.data) ? rl.data : rl.data?.items ?? rl.data?.users ?? []) : [];
       const dele = linhas.find((l) => l.id === gestor1.id);
       check("Gerente geral lista a equipe com função e lojas", rl.ok && dele?.emporio_role === "gestor" && j(dele?.establishment_ids) === j([L1]), j(dele));
+      // Q190: a Equipe lista só a equipe do Empório, mais o Dono; o usuário do Tibé fica de fora.
+      check("Q190: a lista traz o Dono", linhas.some((l) => l.id === owner.id));
+      check("Q190: a lista NÃO traz o usuário do Tibé (sem função)", !linhas.some((l) => l.id === semFuncao.id), j(linhas.map((l) => l.id)));
+      check("Q190: os assentos da Equipe são os do Empório (limite 50)", rl.ok && rl.data?.seats?.limit === 50 && rl.data?.seats?.used === 6, j(rl.ok && rl.data?.seats));
+      check("Q190: a lista traz os desativados à parte (vazia por ora)", rl.ok && Array.isArray(rl.data?.inactive_users) && rl.data.inactive_users.length === 0, j(rl.ok && rl.data?.inactive_users));
 
-      // O plano grupo tem 5 assentos e a fixture já tem 8 usuários ativos: o
-      // cadastro reaproveita o convite, que cobra assento. Desativado não ocupa
-      // vaga (regra do plano), então os outros saem do caminho durante os três
-      // cadastros e voltam logo depois.
-      const afastados = (await prisma.user.findMany({ where: { tenant_id: t.id, active: true, id: { notIn: [owner.id, gg.id] } }, select: { id: true } })).map((u) => u.id);
-      await prisma.user.updateMany({ where: { id: { in: afastados } }, data: { active: false } });
+      // Q190: o cadastro conta no limite do Empório, não no do plano. Com o plano
+      // campo (1 assento), o Dono e o usuário do Tibé já passam do limite: o
+      // cadastro da equipe passa mesmo assim.
+      await prisma.tenant.update({ where: { id: t.id }, data: { plan: "campo" } });
       const rc = await chamar(EQ, "cadastrarMembroAction", db, owner, novo("gestor", { emporio_role: "gestor", establishment_ids: [L1, L2] }));
+      check("Q190: com o plano cheio, cadastrar na equipe passa", rc.ok, j(rc));
       check("Dono cadastra Gestor com senha temporária", rc.ok && typeof rc.data?.temp_password === "string" && rc.data.temp_password.length > 0, j(rc));
       if (rc.ok) {
         const u = await prisma.user.findUnique({ where: { id: rc.data.id } });
@@ -335,7 +339,7 @@ async function comBanco() {
         const u = await prisma.user.findUnique({ where: { id: rcv.data.id } });
         check("papel da conta do Vendedor é OPERADOR e as chaves ficam gravadas", u?.role === "OPERADOR" && j([...((u as Dado)?.emporio_keys ?? [])].sort()) === j(["contagem", "perda"]));
       }
-      await prisma.user.updateMany({ where: { id: { in: afastados } }, data: { active: true } });
+      await prisma.tenant.update({ where: { id: t.id }, data: { plan: "grupo" } });
 
       console.log("   recusas de cadastro");
       check("Vendedor sem loja: 422 em establishment_ids", recusa(await chamar(EQ, "cadastrarMembroAction", db, owner, novo("a", { emporio_role: "vendedor", establishment_ids: [] })), "VALIDATION_ERROR", 422, "establishment_ids"));
@@ -357,6 +361,10 @@ async function comBanco() {
       const rAdm = await chamar(EQ, "alterarMembroAction", db, gg, adminDaFazenda.id, { emporio_role: "vendedor", establishment_ids: [L1] });
       check("Gerente geral não dá função de loja a um ADMIN da fazenda (403)", negado(rAdm), j(rAdm));
       check("e o ADMIN da fazenda segue ADMIN, sem função", (await prisma.user.findUnique({ where: { id: adminDaFazenda.id } }))?.role === "ADMIN");
+      // Q190: nem o Dono dá função a um usuário do Tibé pela Equipe.
+      const rTibe = await chamar(EQ, "alterarMembroAction", db, owner, semFuncao.id, { emporio_role: "vendedor", establishment_ids: [L1] });
+      check("Q190: alterar usuário do Tibé é recusado (409 NOT_EMPORIO_TEAM)", recusa(rTibe, "NOT_EMPORIO_TEAM", 409), j(rTibe));
+      check("e ele segue sem função", ((await prisma.user.findUnique({ where: { id: semFuncao.id } })) as Dado)?.emporio_role == null);
       await prisma.user.update({ where: { id: adminDaFazenda.id }, data: { active: false } });
       check("Dono altera Gerente geral (desce para Gestor)", (await chamar(EQ, "alterarMembroAction", db, owner, gg2, { emporio_role: "gestor", establishment_ids: [L1] })).ok);
       check("e o papel da conta acompanha: OPERADOR", (await prisma.user.findUnique({ where: { id: gg2 } }))?.role === "OPERADOR");
@@ -381,12 +389,62 @@ async function comBanco() {
       check("chave em quem não é Vendedor na alteração: 422 em emporio_keys", recusa(await chamar(EQ, "alterarMembroAction", db, owner, gestor2.id, { emporio_keys: ["perda"] }), "VALIDATION_ERROR", 422, "emporio_keys"));
       check("emporio_only em Gestor na alteração: 422 em emporio_only", recusa(await chamar(EQ, "alterarMembroAction", db, owner, gestor2.id, { emporio_only: true }), "VALIDATION_ERROR", 422, "emporio_only"));
 
-      console.log("   tirar do Empório");
+      console.log("   tirar da equipe (Q190: desativa e guarda)");
+      const foto = async (id: string) => {
+        const u = (await prisma.user.findUnique({ where: { id } })) as Dado;
+        const lojas = (await prisma.userEstablishment.findMany({ where: { user_id: id }, select: { establishment_id: true } })).map((v) => v.establishment_id).sort();
+        return { active: u?.active, role: u?.role, emporio_role: u?.emporio_role, emporio_only: u?.emporio_only, keys: [...(u?.emporio_keys ?? [])].sort(), lojas };
+      };
+      const antesDeTirar = await foto(alvo.id);
+      const histAntes = await prisma.emporioAuditLog.count({ where: { tenant_id: t.id, action: "equipe.desativar", target_id: alvo.id } });
       const rt = await chamar(EQ, "tirarDoEmporioAction", db, gg, alvo.id);
-      const ut = await prisma.user.findUnique({ where: { id: alvo.id } });
-      check("tirar do Empório: emporio_role nulo e o usuário continua na conta", rt.ok && (ut as Dado)?.emporio_role == null && ut?.tenant_id === t.id && ut?.active !== false, j(rt));
-      check("e já não vê o Empório", !(await FT.isFeatureVisibleForUser(t.id, alvo.id, "emporio")));
+      const ft = await foto(alvo.id);
+      check("Q190: tirar desativa a pessoa", rt.ok && ft.active === false, j({ rt, ft }));
+      check("Q190: e mantém função, papel, chaves e lojas", j({ ...ft, active: true }) === j(antesDeTirar) && ft.emporio_role === "vendedor" && ft.lojas.length === 1, j({ antesDeTirar, ft }));
+      check("Q190: tirar registra no Histórico", (await prisma.emporioAuditLog.count({ where: { tenant_id: t.id, action: "equipe.desativar", target_id: alvo.id } })) === histAntes + 1);
+      const rl2 = await chamar(EQ, "listarEquipeAction", db, owner);
+      check("Q190: a Equipe mostra a pessoa em inactive_users, fora de users", rl2.ok && rl2.data.inactive_users.some((u: Dado) => u.id === alvo.id && u.emporio_role === "vendedor" && u.establishment_ids.length === 1) && !rl2.data.users.some((u: Dado) => u.id === alvo.id), j(rl2.ok && rl2.data.inactive_users));
+      check("Q190: desativado não aparece entre os usuários do Tibé (nem vira um)", (await prisma.user.count({ where: { tenant_id: t.id, id: alvo.id, emporio_role: null } })) === 0);
       check("tirar o Dono: recusado", !(await chamar(EQ, "tirarDoEmporioAction", db, gg, owner.id)).ok);
+      check("Q190: tirar de novo: 409 ALREADY_INACTIVE", recusa(await chamar(EQ, "tirarDoEmporioAction", db, owner, alvo.id), "ALREADY_INACTIVE", 409));
+      check("Q190: tirar usuário do Tibé: 409 NOT_EMPORIO_TEAM", recusa(await chamar(EQ, "tirarDoEmporioAction", db, owner, semFuncao.id), "NOT_EMPORIO_TEAM", 409));
+      check("Q190: alterar quem está desativado: 409 INACTIVE", recusa(await chamar(EQ, "alterarMembroAction", db, owner, alvo.id, { emporio_keys: ["perda"] }), "INACTIVE", 409));
+      const lojaDoAlvo = ft.lojas[0];
+      const ativosDaLoja = (await prisma.userEstablishment.findMany({ where: { establishment_id: lojaDoAlvo, user: { active: true } }, select: { user_id: true } })).map((v) => v.user_id);
+      const rv3 = await chamar(C, "definirVinculosAction", db, owner, lojaDoAlvo, ativosDaLoja);
+      check("Q190: redefinir quem trabalha na loja não tira a loja de quem está desativado", rv3.ok && j((await foto(alvo.id)).lojas) === j(ft.lojas), j({ ok: rv3.ok, lojas: (await foto(alvo.id)).lojas }));
+
+      console.log("   reativar (Q190)");
+      check("Gestor não reativa: 403", negado(await chamar(EQ, "reativarMembroAction", db, gestor1, alvo.id)));
+      check("reativar usuário do Tibé: 409 NOT_EMPORIO_TEAM", recusa(await chamar(EQ, "reativarMembroAction", db, owner, adminDaFazenda.id), "NOT_EMPORIO_TEAM", 409));
+      check("reativar quem está ativo: 409 ALREADY_ACTIVE", recusa(await chamar(EQ, "reativarMembroAction", db, owner, vend1.id), "ALREADY_ACTIVE", 409));
+
+      // Enche a equipe do Empório até 50 ativos, direto pelo banco.
+      const ativosDaEquipe = await prisma.user.count({ where: { tenant_id: t.id, active: true, emporio_role: { not: null } } });
+      const enchimento = Array.from({ length: 50 - ativosDaEquipe }, (_, i) => ({
+        tenant_id: t.id, name: `M87 cheio ${i}`, email: `m87-cheio-${i}-${stamp}@teste.local`, password_hash: "x", role: "OPERADOR" as const, emporio_role: "caixa" as const,
+      }));
+      await prisma.user.createMany({ data: enchimento });
+      const cheia = await chamar(EQ, "listarEquipeAction", db, owner);
+      check("Q190: a Equipe conta 50 de 50, sem vaga", cheia.ok && cheia.data.seats.used === 50 && cheia.data.seats.has_room === false, j(cheia.ok && cheia.data.seats));
+      const r51 = await chamar(EQ, "cadastrarMembroAction", db, owner, novo("51", { emporio_role: "vendedor", establishment_ids: [L1] }));
+      check("Q190: com 50 ativos, o 51º cadastro é recusado (422 SEAT_LIMIT_REACHED)", recusa(r51, "SEAT_LIMIT_REACHED", 422) && !r51.ok && r51.message.includes("50"), j(r51));
+      check("e não criou usuário", (await prisma.user.count({ where: { email: `m87-novo-51-${stamp}@teste.local` } })) === 0);
+      const rrCheia = await chamar(EQ, "reativarMembroAction", db, owner, alvo.id);
+      check("Q190: com a equipe cheia, reativar é recusado (422 SEAT_LIMIT_REACHED)", recusa(rrCheia, "SEAT_LIMIT_REACHED", 422), j(rrCheia));
+      check("e a pessoa segue desativada", (await foto(alvo.id)).active === false);
+      const rTibeCheio = await chamar(U, "inviteUserAction", db, t.id, { name: "M87 Tibé", email: `m87-tibe-${stamp}@teste.local`, role: "OPERADOR" });
+      check("Q190: com o Empório cheio, convidar usuário do Tibé passa", rTibeCheio.ok, j(rTibeCheio));
+
+      await prisma.user.deleteMany({ where: { tenant_id: t.id, email: { startsWith: "m87-cheio-" } } });
+      const histReativar = await prisma.emporioAuditLog.count({ where: { tenant_id: t.id, action: "equipe.reativar", target_id: alvo.id } });
+      const rotaReativar = await import("@/app/api/v1/emporio/team/[userId]/reactivate/route");
+      const rotaTok = await import("@/app/api/v1/auth/token/route");
+      const tok = String(((await (await rotaTok.POST(new Request("http://localhost/api/v1/auth/token", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: owner.email, password: SENHA }) }))).json()) as Dado)?.data?.access_token ?? "");
+      const res = await withBearer(tok, () => rotaReativar.POST(new Request(`http://localhost/api/v1/emporio/team/${alvo.id}/reactivate`, { method: "POST" }), { params: Promise.resolve({ userId: alvo.id }) }));
+      check("Q190: com vaga, a rota POST .../reactivate reativa (200)", res.status === 200, String(res.status));
+      check("Q190: reativar devolve a pessoa como estava", j(await foto(alvo.id)) === j(antesDeTirar), j({ antesDeTirar, depois: await foto(alvo.id) }));
+      check("Q190: reativar registra no Histórico", (await prisma.emporioAuditLog.count({ where: { tenant_id: t.id, action: "equipe.reativar", target_id: alvo.id } })) === histReativar + 1);
     });
 
     // ---------------------------------------------------------------- 5. Configurações → Usuários
@@ -396,6 +454,17 @@ async function comBanco() {
       check("trocar o papel de quem tem emporio_role: 409", !r.ok && r.status === 409, j(r));
       check("e o papel da conta não mudou", (await prisma.user.findUnique({ where: { id: gestor1.id } }))?.role === "OPERADOR");
       check("controle: quem não tem função troca normalmente", (await chamar(U, "updateUserRoleAction", db, semFuncao.id, "ADMIN")).ok);
+      // Q190: a equipe do Empório se ativa e desativa pela Equipe, nunca por aqui.
+      const rDes = await chamar(U, "setUserActiveAction", db, t.id, gestor1.id, false);
+      check("Q190: Configurações recusa desativar quem é da equipe (409 EMPORIO_ROLE)", recusa(rDes, "EMPORIO_ROLE", 409) && !rDes.ok && rDes.message === "Ative ou desative pela Equipe do Empório.", j(rDes));
+      check("e ele segue ativo", (await prisma.user.findUnique({ where: { id: gestor1.id } }))?.active === true);
+      await prisma.user.update({ where: { id: gestor2.id }, data: { active: false } });
+      const rAti = await chamar(U, "setUserActiveAction", db, t.id, gestor2.id, true);
+      check("Q190: Configurações recusa ativar quem é da equipe (409 EMPORIO_ROLE)", recusa(rAti, "EMPORIO_ROLE", 409), j(rAti));
+      check("e ele segue desativado", (await prisma.user.findUnique({ where: { id: gestor2.id } }))?.active === false);
+      await prisma.user.update({ where: { id: gestor2.id }, data: { active: true } });
+      const adminFaz = await prisma.user.findFirst({ where: { tenant_id: t.id, email: `m87-admin-fazenda-${stamp}@teste.local` } });
+      check("controle: usuário do Tibé reativa por Configurações", !!adminFaz && (await chamar(U, "setUserActiveAction", db, t.id, adminFaz.id, true)).ok);
     });
 
     // ---------------------------------------------------------------- 6. só da loja

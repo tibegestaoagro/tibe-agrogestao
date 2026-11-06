@@ -504,42 +504,11 @@ figura("equipe-lista", "dono", "/emporio/equipe", [
     (1, "M.B('Cadastrar pessoa')", "o botao Cadastrar pessoa"),
     (2, "M.TH('Função')", "a coluna Função na lista"),
     (3, "M.TH('Lojas')", "a coluna das lojas"),
-    # O numero de assentos muda com o plano e a equipe: acha pelo fim da frase.
-    (4, "M.C('assento(s) em uso')", "o aviso de assentos em uso"),
+    # O numero muda com a equipe: acha pelo fim da frase. Desde a Q190 a
+    # equipe tem 50 vagas proprias, e o Cadastrar nao depende mais de liberar
+    # assento do plano antes da captura.
+    (4, "M.C('na equipe do Empório')", "o aviso de quantas pessoas estao na equipe"),
 ], hd=800, hc=740)
-
-
-LIBERADO = {"id": None}
-
-
-def liberar_assento():
-    """Com 5 de 5 assentos, a tela diz "desative um usuario ou faca upgrade" e o
-    Cadastrar seria recusado: a figura mentiria. So durante a captura, desativa
-    o Gerente geral da demonstracao (nenhuma sessao do roteiro e dele) pela
-    mesma rota da tela de Usuarios, e recarrega a pagina. `devolver_assento`
-    o reativa no fim da captura; se o roteiro cair no meio,
-    _cenario-manual-emporio.ts o reativa na rodada seguinte."""
-    u = next((x for x in api("GET", "/api/v1/users")["body"]["data"] if x["email"] == "gerente.demo.emporio@example.com"), None)
-    if not u:
-        confere("assento livre: achei o Gerente geral da demonstracao", False)
-        return
-    if u["active"]:
-        r = api("PATCH", "/api/v1/users/" + u["id"] + "/active", {"active": False})
-        confere("assento livre: Gerente geral desativado so para a captura", r["status"] == 200, r["status"])
-    LIBERADO["id"] = u["id"]
-    ir("/emporio/equipe")
-    inicializar_pagina()
-    if js("innerWidth") < 500:
-        tabelas_sem_rolagem()
-    ocultar_fixtures()
-
-
-def devolver_assento():
-    if not LIBERADO["id"]:
-        return
-    r = api("PATCH", "/api/v1/users/" + LIBERADO["id"] + "/active", {"active": True})
-    confere("assento devolvido: Gerente geral ativo de novo", r["status"] == 200, r["status"])
-    LIBERADO["id"] = None
 
 
 def estado_equipe_cadastrar():
@@ -556,7 +525,7 @@ figura("equipe-cadastrar", "dono", "/emporio/equipe", [
     (2, "M.T('Lojas').parentElement", "a lista de lojas"),
     (3, "M.T('Chaves').parentElement", "as chaves de permissão"),
     (4, "document.querySelector('[role=dialog] button[type=submit]')", "o botao Cadastrar"),
-], estado=estado_equipe_cadastrar, antes=liberar_assento, depois=devolver_assento, hd=1000, hc=1400)
+], estado=estado_equipe_cadastrar, hd=1000, hc=1400)
 
 
 def estado_equipe_caixa():
@@ -572,7 +541,7 @@ figura("equipe-caixa", "dono", "/emporio/equipe", [
     (1, "M.L('Função')", "o campo Funcao, com Caixa escolhido"),
     (2, "M.T('Lojas').parentElement", "o campo Lojas"),
     (3, "document.querySelector('[role=dialog] button[type=submit]')", "o botao Cadastrar"),
-], estado=estado_equipe_caixa, antes=liberar_assento, depois=devolver_assento, hd=900, hc=1200)
+], estado=estado_equipe_caixa, hd=900, hc=1200)
 
 figura("estabelecimentos-lista", "dono", "/emporio/estabelecimentos", [
     (1, "M.B('Novo estabelecimento')", "o botao Novo estabelecimento"),

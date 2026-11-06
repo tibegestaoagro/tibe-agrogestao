@@ -493,13 +493,16 @@ export async function definirVinculosAction(
     (await db.user.findMany({ where: { id: { in: ids } }, select: { name: true }, orderBy: { name: "asc" } })).map(
       (u) => u.name,
     );
-  const antesIds = (await db.userEstablishment.findMany({ where: { establishment_id }, select: { user_id: true } })).map(
+  const antesIds = (
+    await db.userEstablishment.findMany({ where: { establishment_id, user: { active: true } }, select: { user_id: true } })
+  ).map(
     (v) => v.user_id,
   );
   const [nomesAntes, nomesDepois] = await Promise.all([nomesDe(antesIds), nomesDe(unicos)]);
 
   await db.$transaction(async (tx) => {
-    await tx.userEstablishment.deleteMany({ where: { establishment_id } });
+    // Só os ativos: quem está desativado guarda as lojas para o Reativar (Q190).
+    await tx.userEstablishment.deleteMany({ where: { establishment_id, user: { active: true } } });
     if (unicos.length > 0) {
       await tx.userEstablishment.createMany({
         data: unicos.map((user_id) => scoped({ user_id, establishment_id })),

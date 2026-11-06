@@ -53,7 +53,7 @@ export const FIGURAS: Figura[] = [
       { numero: 1, alvo: "o botão Cadastrar pessoa", texto: "Abre o formulário para convidar alguém." },
       { numero: 2, alvo: "a coluna Função na lista", texto: "Dono, Gerente geral, Gestor, Vendedor ou Caixa." },
       { numero: 3, alvo: "a coluna das lojas", texto: "As lojas em que a pessoa trabalha." },
-      { numero: 4, alvo: "o aviso de assentos em uso, embaixo do título", texto: "Quantas pessoas o seu plano ainda comporta." },
+      { numero: 4, alvo: "o aviso de quantas pessoas estão na equipe, embaixo do título", texto: "Quantas pessoas ativas a equipe tem, de no máximo 50. Não conta assento do plano." },
     ],
   },
   {
@@ -66,7 +66,7 @@ export const FIGURAS: Figura[] = [
       { numero: 1, alvo: "o campo Função", texto: "Gerente geral, Gestor, Vendedor ou Caixa. A função vale para todas as lojas da pessoa." },
       { numero: 2, alvo: "o campo Lojas", texto: "Marque as lojas em que ela trabalha. Gestor, Vendedor e Caixa precisam de pelo menos uma." },
       { numero: 3, alvo: "o campo Chaves, que só aparece para o Vendedor", texto: "Tudo começa desligado. Ligue só o que a pessoa merece." },
-      { numero: 4, alvo: "o botão Cadastrar", texto: "Cria a pessoa, conta um assento do plano e mostra a senha temporária uma vez." },
+      { numero: 4, alvo: "o botão Cadastrar", texto: "Cria a pessoa, conta uma vaga da equipe do Empório e mostra a senha temporária uma vez." },
     ],
   },
   {

@@ -47,13 +47,17 @@ export function ParteDeEquipe() {
           <>Escolha a <strong>Função</strong>: Gerente geral, Gestor, Vendedor ou Caixa. A função vale para todas as lojas da pessoa.</>,
           <>Em <strong>Lojas</strong>, marque as lojas em que ela trabalha. Gestor, Vendedor e Caixa precisam de pelo menos uma.</>,
           <>Se for Vendedor, ligue em <strong>Chaves</strong> só as permissões extras de que ele precisa. Todas começam desligadas. O Caixa não tem chaves.</>,
-          <>Clique em <strong>Cadastrar</strong>. A pessoa ocupa um assento do seu plano.</>,
+          <>Clique em <strong>Cadastrar</strong>. A pessoa ocupa uma das 50 vagas da equipe do Empório, não um assento do seu plano.</>,
           "O painel mostra o email e a senha temporária. Repasse os dois à pessoa: a senha só aparece ali uma vez.",
         ]}
         problemas={[
           {
-            quando: "O sistema recusa porque não há assento livre",
-            fazer: "O plano tem um limite de pessoas. Desative alguém que saiu da loja ou suba de plano.",
+            quando: "O sistema recusa porque a equipe já tem 50 pessoas ativas",
+            fazer: "Esse é o limite da equipe do Empório. Desative na Equipe alguém que saiu da loja: a vaga volta na hora.",
+          },
+          {
+            quando: "Alguém saiu da loja",
+            fazer: "Na Equipe, clique em Desativar na linha da pessoa. Ela deixa de entrar, e a função, as lojas e as chaves ficam guardadas. Se ela voltar, clique em Reativar, embaixo, em Desativados.",
           },
           {
             quando: "“Escolha pelo menos uma loja.”",

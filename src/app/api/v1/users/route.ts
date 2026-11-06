@@ -19,7 +19,8 @@ async function GETHandler() {
   if ("error" in g) return g.error;
 
   const [users, seats] = await Promise.all([
-    g.db.user.findMany({ orderBy: { created_at: "asc" } }),
+    // Q190: só os usuários do Tibé. A equipe do Empório tem lista e limite próprios.
+    g.db.user.findMany({ where: { emporio_role: null }, orderBy: { created_at: "asc" } }),
     getSeatUsage(g.db, g.user.tenant_id),
   ]);
   return apiOk(

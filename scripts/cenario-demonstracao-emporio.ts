@@ -136,7 +136,7 @@ const MEMBROS = [
   { chave: "gerente", name: "Marcos Oliveira", email: "gerente.demo.emporio@example.com", funcao: "gerente_geral", lojas: [] as ChaveLoja[], keys: [] as string[] },
   { chave: "gestor", name: "Fernanda Souza", email: "gestor.demo.emporio@example.com", funcao: "gestor", lojas: ["centro", "rodovia"] as ChaveLoja[], keys: [] as string[] },
   { chave: "vendCentro", name: "Rafael Almeida", email: "vendedor.centro.demo.emporio@example.com", funcao: "vendedor", lojas: ["centro"] as ChaveLoja[], keys: ["devolver_trocar", "contagem"] },
-  // O email é o de quando ela era Vendedora: a conta tem 5 assentos, e o Caixa ocupa o dela.
+  // O email é o de quando ela era Vendedora: quando a equipe ocupava os 5 assentos do plano, o Caixa ficou com o dela.
   { chave: "caixaRodovia", name: "Juliana Costa", email: "vendedor.rodovia.demo.emporio@example.com", funcao: "caixa", lojas: ["rodovia"] as ChaveLoja[], keys: [] as string[] },
 ] as const;
 type ChaveMembro = (typeof MEMBROS)[number]["chave"];
@@ -652,12 +652,12 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
   );
   const conta = await db.bankAccount.findFirst({ where: { name: CONTA_NOME }, select: { id: true } });
   const existentes = await contarExistentes(db);
-  const seats = await getSeatUsage(db, tenantId);
+  const seats = await getSeatUsage(db, tenantId, "emporio");
 
   const resumoPlano = [
     ["Lojas", `${lojasExistentes.size} de ${LOJAS.length} já existem`, LOJAS.length - lojasExistentes.size],
     ["Conta bancária", conta ? "já existe" : "seria criada", conta ? 0 : 1],
-    ["Equipe", `${MEMBROS.length - membrosFaltando.length} de ${MEMBROS.length} já existem (assentos: ${seats.used} de ${seats.limit} em uso)`, membrosFaltando.length],
+    ["Equipe", `${MEMBROS.length - membrosFaltando.length} de ${MEMBROS.length} já existem (equipe do Empório: ${seats.used} de ${seats.limit} ativos)`, membrosFaltando.length],
     ["Contatos", `${contatosExistentes.size} de ${FORNECEDORES.length + CLIENTES.length} já existem`, FORNECEDORES.length + CLIENTES.length - contatosExistentes.size],
     ["Produtos", `${prodsExistentes.size} de ${CATALOGO.length} já existem`, CATALOGO.length - prodsExistentes.size],
     ["Custo de referência", `${CATALOGO.length - semCusto} de ${CATALOGO.length} produtos com custo`, semCusto],
@@ -676,7 +676,7 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
   for (const [nome, estado, falta] of resumoPlano) log(`  - ${nome.padEnd(26)} ${estado}${falta > 0 ? `  -> criaria/lançaria ${falta}` : ""}`);
   const vendasTotal = [...sortidas, ...daMistura].reduce((s, v) => s + totalCents(v, v.itens), 0);
   log(`\nPlano de vendas: ${sortidas.length + daMistura.length} vendas, ${brl(vendasTotal / 100)} no papel (as canceladas e devolvidas não entram no resultado).`);
-  log(`Assentos: o cenário precisa de ${membrosFaltando.length} novo(s); sobram ${Math.max(seats.limit - seats.used, 0)}.`);
+  log(`Equipe do Empório: o cenário precisa de ${membrosFaltando.length} novo(s); sobram ${Math.max(seats.limit - seats.used, 0)}.`);
   if (funcoesAMudar.length > 0) {
     log("\nFunção na Equipe que o cenário mudaria (pela action da Equipe):");
     for (const f of funcoesAMudar) log(`  - ${f}`);
@@ -692,7 +692,7 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
     process.exit(1);
   }
   if (membrosFaltando.length > seats.limit - seats.used) {
-    console.error("\nA conta precisa do plano grupo (5 assentos). Suba o plano e rode de novo.");
+    console.error("\nA equipe do Empório não tem vaga para o cenário. Desative alguém da equipe e rode de novo.");
     process.exit(1);
   }
   if (!confirmar) {
@@ -762,7 +762,7 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
       emporio_keys: [...m.keys],
     });
     if (!r.ok) {
-      if (r.code === "SEAT_LIMIT_REACHED") throw new Parar("A conta precisa do plano grupo (5 assentos). Suba o plano e rode de novo.");
+      if (r.code === "SEAT_LIMIT_REACHED") throw new Parar("A equipe do Empório não tem vaga para o cenário. Desative alguém da equipe e rode de novo.");
       throw new Error(`equipe ${m.email}: ${r.message} (${r.code})`);
     }
     senhas.push({ email: m.email, name: m.name, senha: r.data.temp_password });

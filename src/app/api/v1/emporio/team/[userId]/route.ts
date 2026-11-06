@@ -5,7 +5,10 @@ import { withApi } from "@/lib/route";
 import { alterarMembroAction, tirarDoEmporioAction } from "@/lib/actions/emporio-equipe";
 import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
-/** PATCH e DELETE /api/v1/emporio/team/:userId. DELETE tira a pessoa do Empório (não da conta). */
+/**
+ * PATCH e DELETE /api/v1/emporio/team/:userId. DELETE tira a pessoa da equipe:
+ * desativa, guardando função, chaves e lojas para o Reativar (Q190).
+ */
 
 const alterarSchema = z.object({
   emporio_role: z

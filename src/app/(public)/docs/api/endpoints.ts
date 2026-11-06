@@ -192,7 +192,7 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/users",
         auth: "Sessão · usuarios:read",
-        description: "Lista os usuários do tenant. `meta.seats` traz o uso de assentos do plano (usuários ativos contra o limite).",
+        description: "Lista os usuários do Tibé da conta: quem não tem função no Empório, mais o Dono (Q190; a equipe do Empório fica em `/api/v1/emporio/team`). `meta.seats` traz o uso de assentos do plano (usuários do Tibé ativos contra o limite).",
         response: `200
 { "data": [{ "id": "cl...", "name": "...", "email": "...", "phone": "...", "role": "OPERADOR", "active": true, "created_at": "..." }], "meta": { "total": 1, "seats": { "used": 1, "limit": 2, "has_room": true } } }`,
       },
@@ -218,7 +218,7 @@ export const GROUPS: Group[] = [
         method: "PATCH",
         path: "/api/v1/users/:id/active",
         auth: "Sessão · usuarios:write",
-        description: "Ativa ou desativa um usuário (nunca deleta: preserva histórico de ações). Não é possível desativar a própria conta. Desativar sempre é permitido e libera um assento; reativar consome um assento e devolve `SEAT_LIMIT_REACHED` (422) se o plano já estiver no limite.",
+        description: "Ativa ou desativa um usuário (nunca deleta: preserva histórico de ações). Não é possível desativar a própria conta. Desativar sempre é permitido e libera um assento; reativar consome um assento e devolve `SEAT_LIMIT_REACHED` (422) se o plano já estiver no limite. Quem é da equipe do Empório: 409 `EMPORIO_ROLE` (\"Ative ou desative pela Equipe do Empório.\"), porque ocupa o limite do Empório, não o do plano (Q190).",
         request: `{ "active": false }`,
         response: `200
 { "data": { "id": "cl..." }, "meta": {} }`,
@@ -626,15 +626,15 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/team",
         auth: "Sessão · emporio:read · só o dono e o gerente geral (403 `FORBIDDEN`) · perfil emporio · recurso `emporio` liberado",
-        description: "A Equipe do Empório (Q118): os usuários ativos da conta com `role`, `emporio_role` (`gerente_geral`, `gestor`, `vendedor`, `caixa` ou nulo), `emporio_only`, `emporio_keys` e `establishment_ids`, mais os assentos do plano e as lojas não arquivadas para a tela.",
+        description: "A Equipe do Empório (Q118, Q190): em `users`, os ativos da equipe (quem tem `emporio_role`: `gerente_geral`, `gestor`, `vendedor` ou `caixa`) mais o Dono (`emporio_role` nulo), com `role`, `emporio_only`, `emporio_keys` e `establishment_ids`; em `inactive_users`, os desativados da equipe, no mesmo formato, para o Reativar. Os usuários do Tibé (sem função) não aparecem. `seats` é o limite da equipe do Empório (50 por conta), não o do plano. Vêm também as lojas não arquivadas para a tela.",
         response: `200
-{ "data": { "users": [{ "id": "cl...", "name": "Ana", "email": "ana@loja.com", "phone": null, "role": "OPERADOR", "emporio_role": "vendedor", "emporio_only": false, "emporio_keys": ["perda"], "establishment_ids": ["cl..."] }], "seats": { "used": 3, "limit": 5, "has_room": true }, "establishments": [{ "id": "cl...", "name": "Loja Centro" }] }, "meta": {} }`,
+{ "data": { "users": [{ "id": "cl...", "name": "Ana", "email": "ana@loja.com", "phone": null, "role": "OPERADOR", "emporio_role": "vendedor", "emporio_only": false, "emporio_keys": ["perda"], "establishment_ids": ["cl..."] }], "inactive_users": [], "seats": { "used": 3, "limit": 50, "has_room": true }, "establishments": [{ "id": "cl...", "name": "Loja Centro" }] }, "meta": {} }`,
       },
       {
         method: "POST",
         path: "/api/v1/emporio/team",
         auth: "Sessão · emporio:write · só o dono e o gerente geral",
-        description: "Cadastra alguém na equipe: cria o usuário (convite, com senha temporária mostrada uma única vez) e grava função, lojas e chaves. O papel da conta acompanha: gerente geral é ADMIN, gestor e vendedor são OPERADOR. Email já usado: 409 `DUPLICATE_EMAIL` em `email`. Plano cheio: 422 `SEAT_LIMIT_REACHED`. Recusas 422 `VALIDATION_ERROR` no campo: `emporio_role` fora da lista, `establishment_ids` vazio ou com loja inexistente ou arquivada (gestor e vendedor), `emporio_keys` em quem não é vendedor ou com chave desconhecida, `emporio_only` em quem não é gerente geral. As lojas do gerente geral são ignoradas.",
+        description: "Cadastra alguém na equipe: cria o usuário (convite, com senha temporária mostrada uma única vez) e grava função, lojas e chaves. O papel da conta acompanha: gerente geral é ADMIN, gestor e vendedor são OPERADOR. Email já usado: 409 `DUPLICATE_EMAIL` em `email`. Equipe do Empório cheia (50 ativos; o limite do plano não conta aqui, Q190): 422 `SEAT_LIMIT_REACHED`. Recusas 422 `VALIDATION_ERROR` no campo: `emporio_role` fora da lista, `establishment_ids` vazio ou com loja inexistente ou arquivada (gestor e vendedor), `emporio_keys` em quem não é vendedor ou com chave desconhecida, `emporio_only` em quem não é gerente geral. As lojas do gerente geral são ignoradas.",
         request: `{ "name": "Ana", "email": "ana@loja.com", "emporio_role": "vendedor", "establishment_ids": ["cl..."], "emporio_keys": ["perda", "contagem"] }`,
         response: `201
 { "data": { "id": "cl...", "temp_password": "Xy9k2Qmz" }, "meta": {} }`,
@@ -643,7 +643,7 @@ export const GROUPS: Group[] = [
         method: "PATCH",
         path: "/api/v1/emporio/team/:userId",
         auth: "Sessão · emporio:write · só o dono e o gerente geral",
-        description: "Altera função, lojas, chaves ou `emporio_only` (os ausentes ficam como estão, salvo a regra da troca): virar vendedor zera as chaves, virar gestor zera chaves e `emporio_only`, virar gerente geral limpa as lojas e as chaves; o que vier no mesmo pedido vale. O papel da conta acompanha. O dono como alvo: 403. O gerente geral não altera outro gerente geral: 403. Usuário de outra conta ou inexistente: 404. As mesmas recusas 422 do cadastro.",
+        description: "Altera função, lojas, chaves ou `emporio_only` (os ausentes ficam como estão, salvo a regra da troca): virar vendedor zera as chaves, virar gestor zera chaves e `emporio_only`, virar gerente geral limpa as lojas e as chaves; o que vier no mesmo pedido vale. O papel da conta acompanha. O dono como alvo: 403. O gerente geral não altera outro gerente geral: 403. Usuário de outra conta ou inexistente: 404. Usuário do Tibé (sem função no Empório): 409 `NOT_EMPORIO_TEAM`, porque a Equipe não dá função a ele (Q190). Desativado: 409 `INACTIVE` (reative antes). As mesmas recusas 422 do cadastro.",
         request: `{ "emporio_role": "gestor", "establishment_ids": ["cl..."] }`,
         response: `200
 { "data": { "id": "cl..." }, "meta": {} }`,
@@ -652,7 +652,15 @@ export const GROUPS: Group[] = [
         method: "DELETE",
         path: "/api/v1/emporio/team/:userId",
         auth: "Sessão · emporio:write · só o dono e o gerente geral",
-        description: "Tira a pessoa do Empório: zera função, chaves, `emporio_only` e vínculos. Não mexe no papel da conta nem a desativa. Mesmas recusas do PATCH (dono 403, gerente geral sobre gerente geral 403, 404).",
+        description: "Tira a pessoa da equipe (Q190): DESATIVA o usuário e guarda função, chaves, `emporio_only` e lojas, para o Reativar devolver como estava. Ela não vira usuária do Tibé. Recusas: dono 403, gerente geral sobre gerente geral 403, 404, usuário do Tibé 409 `NOT_EMPORIO_TEAM`, já desativado 409 `ALREADY_INACTIVE`.",
+        response: `200
+{ "data": { "id": "cl..." }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/team/:userId/reactivate",
+        auth: "Sessão · emporio:write · só o dono e o gerente geral",
+        description: "Reativa quem foi tirado da equipe (Q190), com a função, as chaves e as lojas que tinha. Ocupa vaga no limite da equipe do Empório (50 ativos): cheia, 422 `SEAT_LIMIT_REACHED`. Recusas: dono 403, gerente geral sobre gerente geral 403, 404, usuário do Tibé 409 `NOT_EMPORIO_TEAM`, já ativo 409 `ALREADY_ACTIVE`.",
         response: `200
 { "data": { "id": "cl..." }, "meta": {} }`,
       },

@@ -67,7 +67,10 @@ export const ACOES_DO_HISTORICO = {
   "cliente.completar": "Completou o cadastro de um cliente",
   "equipe.cadastrar": "Cadastrou alguém na equipe",
   "equipe.alterar": "Alterou alguém da equipe",
+  // Antes da Q190 (06/11/2026), tirar zerava a função; as linhas antigas ficam com este rótulo.
   "equipe.tirar": "Tirou alguém do Empório",
+  "equipe.desativar": "Desativou alguém da equipe",
+  "equipe.reativar": "Reativou alguém da equipe",
   "configuracoes.editar": "Editou as configurações do Empório",
   "configuracoes.logo": "Mexeu no logo do Empório",
 } as const;

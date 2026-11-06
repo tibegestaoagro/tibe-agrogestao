@@ -6,7 +6,10 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useAviso } from "@/components/ui/toast";
 import { apiDelete } from "@/lib/client-api";
 
-/** Tira a pessoa do Empório. Ela continua na conta e na fazenda, com o mesmo papel de antes. */
+/**
+ * Tira a pessoa da equipe (Q190): ela fica DESATIVADA, com função, lojas e
+ * chaves guardadas. Não vira usuária do Tibé; o Reativar a devolve como estava.
+ */
 export function EquipeTirarBotao({ userId, nome }: { userId: string; nome: string }) {
   const router = useRouter();
   const aviso = useAviso();
@@ -17,7 +20,7 @@ export function EquipeTirarBotao({ userId, nome }: { userId: string; nome: strin
       aviso.erro(res.message);
       return;
     }
-    aviso.sucesso(`${nome} saiu do Empório.`);
+    aviso.sucesso(`Pessoa desativada: ${nome}.`);
     router.refresh();
   }
 
@@ -25,12 +28,12 @@ export function EquipeTirarBotao({ userId, nome }: { userId: string; nome: strin
     <ConfirmDialog
       gatilho={
         <Button variant="outline" size="sm">
-          Tirar do Empório
+          Desativar
         </Button>
       }
-      titulo={`Tirar ${nome} do Empório?`}
-      descricao="Ela deixa de ver as lojas. Continua na conta e na fazenda, e você pode trazê-la de volta quando quiser."
-      rotuloConfirmar="Tirar do Empório"
+      titulo={`Desativar ${nome}?`}
+      descricao="A pessoa sai da equipe e deixa de entrar no Tibé. A função, as lojas e as chaves ficam guardadas: em Desativados, Reativar a devolve como estava."
+      rotuloConfirmar="Desativar"
       aoConfirmar={tirar}
     />
   );
