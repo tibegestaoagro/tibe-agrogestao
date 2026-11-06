@@ -963,7 +963,7 @@ async function secao5() {
     !cnpjRep.ok && cnpjRep.status === 409 && cnpjRep.code === "DUPLICATE_DOCUMENT" && cnpjRep.field === "document" && cnpjRep.message.includes("um fornecedor"),
     j(cnpjRep),
   );
-  await db.emporioCustomer.create({ data: scoped({ name: "Cliente mesmo CNPJ", person_kind: "pj", document: "11222333000181" }) });
+  await db.emporioCustomer.create({ data: scoped({ name: "Cliente mesmo CNPJ", person_kind: "pj", document: "45723174000110" }) });
   const outroCnpj = await F.cadastrarFornecedorAction(db, owner, { name: "Agro Outro", person_kind: "pj", document: "45723174000110" });
   check("o mesmo CNPJ num cliente não conflita (outra tabela)", outroCnpj.ok, j(outroCnpj));
 
