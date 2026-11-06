@@ -5,8 +5,10 @@
  *
  *   npx tsx scripts/conferir-clientes-emporio.ts antes --saida <arquivo>
  *     ANTES da migração: grava, por conta (tenant_id), quantos clientes e
- *     fornecedores devem existir depois, as vendas sem cliente e a soma do fiado
- *     em aberto. Só contagens: nenhum nome, documento ou telefone.
+ *     fornecedores devem existir depois, as vendas sem cliente, as compras sem
+ *     fornecedor, a soma do fiado em aberto, os lançamentos do Empório com
+ *     alguém e os vínculos da fazenda com Contatos. Só contagens: nenhum nome,
+ *     documento ou telefone.
  *   npx tsx scripts/conferir-clientes-emporio.ts depois --antes <arquivo> [--ensaio]
  *     DEPOIS: compara com o arquivo e sai com código 1 se algo não bate.
  *     `--ensaio` confere também, caso por caso, a conta do cenário
@@ -25,9 +27,24 @@ type Contagem = {
   clientes: number;
   fornecedores: number;
   vendas_sem_cliente: number;
+  compras_sem_fornecedor: number;
   fiado_lancamentos: number;
   fiado_centavos: number;
+  /** Lançamentos do Empório com alguém (contato antes; cliente ou fornecedor depois). */
+  lancamentos_com_parte: number;
+  /** Vínculos da fazenda com Contact (Negociação, Financeiro fora do Empório, serviço, manutenção, leite). */
+  vinculos_da_fazenda: number;
 };
+const CAMPOS: (keyof Contagem)[] = [
+  "clientes",
+  "fornecedores",
+  "vendas_sem_cliente",
+  "compras_sem_fornecedor",
+  "fiado_lancamentos",
+  "fiado_centavos",
+  "lancamentos_com_parte",
+  "vinculos_da_fazenda",
+];
 type ArquivoAntes = { gerado_em: string; banco: string; por_conta: Record<string, Contagem> };
 
 const CONTA_ENSAIO = "ensaio_cli_conta";
@@ -75,7 +92,25 @@ async function porConta(c: Client, sql: string, campo: keyof Contagem, alvo: Rec
 }
 
 function vazia(): Contagem {
-  return { clientes: 0, fornecedores: 0, vendas_sem_cliente: 0, fiado_lancamentos: 0, fiado_centavos: 0 };
+  return Object.fromEntries(CAMPOS.map((k) => [k, 0])) as Contagem;
+}
+
+/** Igual antes e depois: a migração não pode anular nem apagar vínculo da fazenda. */
+async function vinculosDaFazenda(c: Client, alvo: Record<string, Contagem>): Promise<void> {
+  await porConta(
+    c,
+    `SELECT tenant_id, SUM(n) AS n FROM (
+       SELECT tenant_id, COUNT(*) AS n FROM "Negotiation" WHERE contact_id IS NOT NULL GROUP BY tenant_id
+       UNION ALL SELECT tenant_id, COUNT(*) FROM "FinancialEntry"
+         WHERE contact_id IS NOT NULL AND related_module <> 'emporio' GROUP BY tenant_id
+       UNION ALL SELECT tenant_id, COUNT(*) FROM "ServiceJob" WHERE contact_id IS NOT NULL GROUP BY tenant_id
+       UNION ALL SELECT tenant_id, COUNT(*) FROM "MachineMaintenance" WHERE contact_id IS NOT NULL GROUP BY tenant_id
+       UNION ALL SELECT tenant_id, COUNT(buyer_id) + COUNT(from_owner_id) + COUNT(to_owner_id) FROM "MilkMovement" GROUP BY tenant_id
+       UNION ALL SELECT tenant_id, COUNT(*) FROM "MilkCharge" WHERE owner_id IS NOT NULL GROUP BY tenant_id
+     ) x GROUP BY tenant_id`,
+    "vinculos_da_fazenda",
+    alvo,
+  );
 }
 
 async function fiado(c: Client, alvo: Record<string, Contagem>): Promise<void> {
@@ -131,6 +166,25 @@ async function contarAntes(c: Client): Promise<Record<string, Contagem>> {
     "vendas_sem_cliente",
     out,
   );
+  const temSupplierId = await colunaExiste(c, "EmporioPurchase", "supplier_id");
+  await porConta(
+    c,
+    `SELECT tenant_id, COUNT(*) AS n FROM "EmporioPurchase"
+     WHERE contact_id IS NULL ${temSupplierId ? "AND supplier_id IS NULL" : ""} GROUP BY tenant_id`,
+    "compras_sem_fornecedor",
+    out,
+  );
+  const temPonte = await colunaExiste(c, "FinancialEntry", "emporio_customer_id");
+  await porConta(
+    c,
+    `SELECT tenant_id, COUNT(*) AS n FROM "FinancialEntry"
+     WHERE related_module = 'emporio'
+       AND (contact_id IS NOT NULL ${temPonte ? "OR emporio_customer_id IS NOT NULL OR emporio_supplier_id IS NOT NULL" : ""})
+     GROUP BY tenant_id`,
+    "lancamentos_com_parte",
+    out,
+  );
+  await vinculosDaFazenda(c, out);
   await fiado(c, out);
   return out;
 }
@@ -140,6 +194,16 @@ async function contarDepois(c: Client): Promise<Record<string, Contagem>> {
   await porConta(c, `SELECT tenant_id, COUNT(*) AS n FROM "EmporioCustomer" GROUP BY tenant_id`, "clientes", out);
   await porConta(c, `SELECT tenant_id, COUNT(*) AS n FROM "EmporioSupplier" GROUP BY tenant_id`, "fornecedores", out);
   await porConta(c, `SELECT tenant_id, COUNT(*) AS n FROM "EmporioSale" WHERE customer_id IS NULL GROUP BY tenant_id`, "vendas_sem_cliente", out);
+  await porConta(c, `SELECT tenant_id, COUNT(*) AS n FROM "EmporioPurchase" WHERE supplier_id IS NULL GROUP BY tenant_id`, "compras_sem_fornecedor", out);
+  await porConta(
+    c,
+    `SELECT tenant_id, COUNT(*) AS n FROM "FinancialEntry"
+     WHERE related_module = 'emporio' AND (emporio_customer_id IS NOT NULL OR emporio_supplier_id IS NOT NULL)
+     GROUP BY tenant_id`,
+    "lancamentos_com_parte",
+    out,
+  );
+  await vinculosDaFazenda(c, out);
   await fiado(c, out);
   return out;
 }
@@ -161,7 +225,11 @@ async function conferirEnsaio(c: Client): Promise<void> {
     .rows as { id: string; name: string; system_key: string | null; person_kind: string | null }[];
   const fornecedores = (await c.query(`SELECT id, name, kind, person_kind FROM "EmporioSupplier" WHERE tenant_id = $1 ORDER BY id`, [CONTA_ENSAIO]))
     .rows as { id: string; name: string; kind: string; person_kind: string | null }[];
-  const contatos = (await c.query(`SELECT id FROM "Contact" WHERE tenant_id = $1 ORDER BY id`, [CONTA_ENSAIO])).rows as { id: string }[];
+  const contatos = (await c.query(`SELECT id, name, system_key FROM "Contact" WHERE tenant_id = $1 ORDER BY id`, [CONTA_ENSAIO])).rows as {
+    id: string;
+    name: string;
+    system_key: string | null;
+  }[];
 
   confere("5 clientes", clientes.length === 5, `${clientes.length}`);
   confere("2 fornecedores", fornecedores.length === 2, `${fornecedores.length}`);
@@ -182,9 +250,15 @@ async function conferirEnsaio(c: Client): Promise<void> {
   const forn = fornecedores.find((x) => x.id === "ensaio_cli_fornecedor");
   confere("Ensaio Fornecedor veio com o nome e PJ", forn?.name === "Ensaio Fornecedor" && forn?.person_kind === "pj");
   confere(
-    "ficam em Contatos só Ensaio Fazenda e Ensaio Contatos",
-    contatos.map((x) => x.id).join(",") === "ensaio_cli_contatos,ensaio_cli_fazenda",
+    "ficam em Contatos só o antigo Consumidor final (usado pela fazenda), Ensaio Contatos e Ensaio Fazenda",
+    contatos.map((x) => x.id).join(",") === "ensaio_cli_cf,ensaio_cli_contatos,ensaio_cli_fazenda",
     contatos.map((x) => x.id).join(","),
+  );
+  const cfContato = contatos.find((x) => x.id === "ensaio_cli_cf");
+  confere(
+    "o Consumidor final que a fazenda usou fica em Contatos sem system_key, com o nome",
+    cfContato?.system_key === null && cfContato?.name === "Consumidor final",
+    JSON.stringify(cfContato),
   );
 
   const lanc = async (id: string) =>
@@ -212,6 +286,12 @@ async function conferirEnsaio(c: Client): Promise<void> {
     "o lançamento geral continua com contact_id de Ensaio Fazenda",
     geral?.contact_id === "ensaio_cli_fazenda" && geral?.emporio_customer_id === null && geral?.emporio_supplier_id === null,
     JSON.stringify(geral),
+  );
+  const geralCf = await lanc("ensaio_cli_lanc_geral_cf");
+  confere(
+    "o lançamento geral do Consumidor final continua com contact_id dele",
+    geralCf?.contact_id === "ensaio_cli_cf" && geralCf?.emporio_customer_id === null && geralCf?.emporio_supplier_id === null,
+    JSON.stringify(geralCf),
   );
 
   const orc = await um<{ customer_id: string | null }>(c, `SELECT customer_id FROM "EmporioQuote" WHERE id = 'ensaio_cli_orcamento'`);
@@ -290,10 +370,11 @@ async function main(): Promise<void> {
     for (const conta of contas) {
       const a = antes.por_conta[conta] ?? vazia();
       const d = depois[conta] ?? vazia();
-      const campos: (keyof Contagem)[] = ["clientes", "fornecedores", "vendas_sem_cliente", "fiado_lancamentos", "fiado_centavos"];
-      const diferentes = campos.filter((k) => a[k] !== d[k]);
+      const diferentes = CAMPOS.filter((k) => (a[k] ?? 0) !== d[k]);
       confere(
-        `${conta}: clientes ${d.clientes}, fornecedores ${d.fornecedores}, vendas sem cliente ${d.vendas_sem_cliente}, fiado ${d.fiado_lancamentos} lanç. / ${d.fiado_centavos} centavos`,
+        `${conta}: clientes ${d.clientes}, fornecedores ${d.fornecedores}, vendas sem cliente ${d.vendas_sem_cliente}, ` +
+          `compras sem fornecedor ${d.compras_sem_fornecedor}, fiado ${d.fiado_lancamentos} lanç. / ${d.fiado_centavos} centavos, ` +
+          `lançamentos do Empório com parte ${d.lancamentos_com_parte}, vínculos da fazenda ${d.vinculos_da_fazenda}`,
         diferentes.length === 0,
         diferentes.map((k) => `${k}: antes ${a[k]}, depois ${d[k]}`).join("; "),
       );

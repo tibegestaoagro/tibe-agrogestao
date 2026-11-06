@@ -8,8 +8,9 @@
 --
 -- Depois, `npx tsx scripts/conferir-clientes-emporio.ts depois --ensaio` confere
 -- caso por caso pelos ids fixos (prefixo ensaio_cli_). O que cada contato prova:
---   Consumidor final  contato de sistema com venda em dinheiro: vira o Consumidor
---                     final da tabela nova e sai de Contatos
+--   Consumidor final  contato de sistema com venda em dinheiro e um lançamento
+--                     geral da fazenda: vira o Consumidor final da tabela nova e,
+--                     por causa do lançamento, FICA em Contatos sem o system_key
 --   Ensaio Fiado      PF com venda fiada (lançamento pendente com contact_id),
 --                     orçamento e cheque: vira cliente, o fiado aponta para ele
 --   Ensaio Fornecedor PJ com compra a prazo e conta a pagar com contact_id:
@@ -88,7 +89,8 @@ INSERT INTO "FinancialEntry" (id, tenant_id, entry_type, category, amount, relat
   ('ensaio_cli_lanc_venda_fazenda', 'ensaio_cli_conta', 'income',  'Vendas do Empório',        12.00, 'emporio', 'ensaio_cli_venda_fazenda',     NULL,                      now() - interval '1 day',  'paid',    'ensaio_cli_fazenda',    'ensaio_cli_loja', NULL),
   ('ensaio_cli_lanc_pagar',         'ensaio_cli_conta', 'expense', 'Mercadorias para revenda', 80.00, 'emporio', 'ensaio_cli_compra_fornecedor', now() + interval '5 days',  NULL,                    'pending', 'ensaio_cli_fornecedor', 'ensaio_cli_loja', NULL),
   ('ensaio_cli_lanc_compra_ambos',  'ensaio_cli_conta', 'expense', 'Mercadorias para revenda', 25.00, 'emporio', 'ensaio_cli_compra_ambos',      NULL,                      now() - interval '4 days', 'paid',    'ensaio_cli_ambos',      'ensaio_cli_loja', NULL),
-  ('ensaio_cli_lanc_geral',         'ensaio_cli_conta', 'income',  'Venda de produção',        40.00, 'geral',   NULL,                           NULL,                      now() - interval '5 days', 'paid',    'ensaio_cli_fazenda',    NULL,              NULL);
+  ('ensaio_cli_lanc_geral',         'ensaio_cli_conta', 'income',  'Venda de produção',        40.00, 'geral',   NULL,                           NULL,                      now() - interval '5 days', 'paid',    'ensaio_cli_fazenda',    NULL,              NULL),
+  ('ensaio_cli_lanc_geral_cf',      'ensaio_cli_conta', 'income',  'Venda de produção',        35.00, 'geral',   NULL,                           NULL,                      now() - interval '5 days', 'paid',    'ensaio_cli_cf',         NULL,              NULL);
 
 -- O balcão que só cadastrou (sem venda): a linha do Histórico no formato antigo.
 INSERT INTO "EmporioAuditLog" (id, tenant_id, user_id, establishment_id, action, target_type, target_id, summary)

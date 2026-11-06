@@ -13,6 +13,18 @@
 -- Conferência: scripts/conferir-clientes-emporio.ts (antes e depois).
 -- Ensaio na cópia da produção: scripts/sql/ensaio-clientes-emporio.sql.
 
+-- Trava de escrita até o fim da transação. SHARE ROW EXCLUSIVE deixa ler e
+-- impede INSERT, UPDATE e DELETE de outra sessão (e outra migração). Travar só
+-- "Contact" não basta: quem grava uma Negociação apontando para um contato só
+-- pega ROW SHARE em "Contact" (a checagem da FK), que esse modo não bloqueia, e
+-- a linha nova escaparia da conferência do passo 7. Por isso entram as tabelas
+-- que apontam para "Contact" e as do Empório que a migração lê e reponta.
+LOCK TABLE
+  "Contact", "Negotiation", "MilkMovement", "MilkCharge", "ServiceJob", "MachineMaintenance", "FinancialEntry",
+  "EmporioSale", "EmporioQuote", "EmporioCheck", "EmporioPurchase", "EmporioAuditLog",
+  "EmporioCustomer", "EmporioSupplier"
+IN SHARE ROW EXCLUSIVE MODE;
+
 -- 0. Trava: um contato de outra conta numa linha do Empório viraria um
 -- cliente cruzando contas. Nunca deveria existir; se existir, parar.
 DO $$
@@ -128,6 +140,19 @@ WHERE c."id" = f."contact_id" AND f."related_module" = 'emporio'
   AND f."emporio_customer_id" IS NULL AND f."emporio_supplier_id" IS NULL
   AND NOT EXISTS (SELECT 1 FROM "EmporioPurchase" p WHERE p."id" = f."related_id");
 
+-- Trava: anular o contact_id de um lançamento que não ganhou cliente nem
+-- fornecedor apagaria em silêncio a parte dele.
+DO $$
+DECLARE n INTEGER;
+BEGIN
+  SELECT COUNT(*) INTO n FROM "FinancialEntry"
+  WHERE "related_module" = 'emporio' AND "contact_id" IS NOT NULL
+    AND "emporio_customer_id" IS NULL AND "emporio_supplier_id" IS NULL;
+  IF n > 0 THEN
+    RAISE EXCEPTION 'Migracao abortada: % lancamento(s) do Emporio com contato ficariam sem cliente e sem fornecedor.', n;
+  END IF;
+END $$;
+
 UPDATE "FinancialEntry"
 SET "contact_id" = NULL
 WHERE "related_module" = 'emporio' AND "contact_id" IS NOT NULL;
@@ -182,19 +207,38 @@ ALTER TABLE "EmporioSale" DROP COLUMN "contact_id";
 -- Contact, conferido no schema.prisma: Negotiation, MilkMovement (buyer_id,
 -- from_owner_id, to_owner_id), MilkCharge.owner_id, ServiceJob,
 -- MachineMaintenance e FinancialEntry.contact_id (as quatro tabelas do Empório
--- já não apontam).
-DELETE FROM "Contact" c
+-- já não apontam). Apagar um contato usado ali anularia o vínculo em silêncio
+-- (SetNull) ou pararia a migração (Restrict).
+--
+-- O contato de sistema que a fazenda usou fica em Contatos como contato comum:
+-- perde só o system_key, e o vínculo da fazenda continua de pé.
+UPDATE "Contact" c
+SET "system_key" = NULL
 WHERE c."system_key" = 'consumidor_final'
-   OR (
-     (EXISTS (SELECT 1 FROM "EmporioCustomer" e WHERE e."id" = c."id")
-      OR EXISTS (SELECT 1 FROM "EmporioSupplier" e WHERE e."id" = c."id"))
-     AND NOT EXISTS (SELECT 1 FROM "Negotiation" x WHERE x."contact_id" = c."id")
-     AND NOT EXISTS (
-       SELECT 1 FROM "MilkMovement" x
-       WHERE x."buyer_id" = c."id" OR x."from_owner_id" = c."id" OR x."to_owner_id" = c."id"
-     )
-     AND NOT EXISTS (SELECT 1 FROM "MilkCharge" x WHERE x."owner_id" = c."id")
-     AND NOT EXISTS (SELECT 1 FROM "ServiceJob" x WHERE x."contact_id" = c."id")
-     AND NOT EXISTS (SELECT 1 FROM "MachineMaintenance" x WHERE x."contact_id" = c."id")
-     AND NOT EXISTS (SELECT 1 FROM "FinancialEntry" x WHERE x."contact_id" = c."id")
-   );
+  AND (
+    EXISTS (SELECT 1 FROM "Negotiation" x WHERE x."contact_id" = c."id")
+    OR EXISTS (
+      SELECT 1 FROM "MilkMovement" x
+      WHERE x."buyer_id" = c."id" OR x."from_owner_id" = c."id" OR x."to_owner_id" = c."id"
+    )
+    OR EXISTS (SELECT 1 FROM "MilkCharge" x WHERE x."owner_id" = c."id")
+    OR EXISTS (SELECT 1 FROM "ServiceJob" x WHERE x."contact_id" = c."id")
+    OR EXISTS (SELECT 1 FROM "MachineMaintenance" x WHERE x."contact_id" = c."id")
+    OR EXISTS (SELECT 1 FROM "FinancialEntry" x WHERE x."contact_id" = c."id")
+  );
+
+DELETE FROM "Contact" c
+WHERE (
+    c."system_key" = 'consumidor_final'
+    OR EXISTS (SELECT 1 FROM "EmporioCustomer" e WHERE e."id" = c."id")
+    OR EXISTS (SELECT 1 FROM "EmporioSupplier" e WHERE e."id" = c."id")
+  )
+  AND NOT EXISTS (SELECT 1 FROM "Negotiation" x WHERE x."contact_id" = c."id")
+  AND NOT EXISTS (
+    SELECT 1 FROM "MilkMovement" x
+    WHERE x."buyer_id" = c."id" OR x."from_owner_id" = c."id" OR x."to_owner_id" = c."id"
+  )
+  AND NOT EXISTS (SELECT 1 FROM "MilkCharge" x WHERE x."owner_id" = c."id")
+  AND NOT EXISTS (SELECT 1 FROM "ServiceJob" x WHERE x."contact_id" = c."id")
+  AND NOT EXISTS (SELECT 1 FROM "MachineMaintenance" x WHERE x."contact_id" = c."id")
+  AND NOT EXISTS (SELECT 1 FROM "FinancialEntry" x WHERE x."contact_id" = c."id");
