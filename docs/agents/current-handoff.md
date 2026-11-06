@@ -25,7 +25,7 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 `historico/2026-09.md`.
 ## Estado atual
 
-- Atualizado em: 2026-11-05.
+- Atualizado em: 2026-11-06.
 
 ### Programa de dívidas (07 a 14/10): encerrado, E0 a E10 em produção
 
@@ -95,6 +95,25 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 1 a 7 aprovados, dívidas 5.3 e 5.6 fechadas) foi para
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
+
+### Empório: clientes, fornecedores, escolha do cliente e romaneio (06/11), PLANEJADO
+
+Design aprovado pelo usuário em 06/11:
+`docs/superpowers/specs/2026-11-06-emporio-clientes-fornecedores-romaneio-design.md`.
+Três planos, um por frente, a executar NESTA ordem, cada um com contexto limpo
+(pedido do usuário), na branch `emporio-clientes-romaneio` (saída de `0c6a509`):
+1. `docs/superpowers/plans/2026-11-06-emporio-frente1-clientes-e-fornecedores.md`
+   (10 tarefas; `EmporioCustomer`/`EmporioSupplier` fora de `Contact`; muda
+   schema e migra dados; `test:m95`; Q191 a Q198).
+2. `docs/superpowers/plans/2026-11-06-emporio-frente2-escolha-do-cliente.md`
+   (8 tarefas; busca por nome, pedaço do documento e do telefone sem DDD;
+   `test:m96`; Q199 a Q204).
+3. `docs/superpowers/plans/2026-11-06-emporio-frente3-entrega-e-romaneio.md`
+   (10 tarefas; pedido para entrega e romaneio; `test:m97`).
+Nada executado ainda; o usuário ainda não escolheu o modo de execução. Cada
+plano tem um passo PARADO para a migração no Neon (autorização na conversa).
+Depois dos três: entrevistar o usuário sobre o **financeiro do Empório**
+(separado do Tibé, com uma pessoa só do financeiro das lojas), pedido dele.
 
 ### Da Mata limpa para a Agromax (06/11)
 
