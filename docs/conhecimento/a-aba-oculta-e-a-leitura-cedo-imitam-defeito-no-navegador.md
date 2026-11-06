@@ -52,6 +52,18 @@ inclui texto escondido. Saída usada no `scripts/navegador/emporio-f5.py`:
 comparar sem diferenciar caixa. Título de seção pequeno neste projeto
 (`text-xs`/`text-sm` com `tracking-wide`) quase sempre é `uppercase`.
 
+## Acréscimo de 2026-11-06: aba que sobrou faz o `next dev` recarregar em laço
+
+Oitavo atrito, no roteiro `emporio-clientes`: o painel "não abria", o
+`readyState` ficava em `loading` e o log do `next dev` repetia, a cada segundo,
+a página, `/login?callbackUrl=...` e `✓ Compiled in 1ms`. Não era defeito: o
+Chrome de testes guardava abas de roteiros que tinham morrido no meio (uma
+delas apontando para outra porta). Cada carga de uma aba gera um evento de HMR
+que recarrega a outra, e as duas ficam em pingue-pongue. Reiniciar o `next dev`
+não resolve. Fechar todas as abas resolve:
+`curl http://127.0.0.1:9333/json` lista, e `/json/close/<id>` fecha (o Chrome
+de testes fecha junto, e o `npm run navegador` o sobe de novo).
+
 ## Relacionado
 
 - [[a-data-dita-vence-a-palavra-que-quita]]

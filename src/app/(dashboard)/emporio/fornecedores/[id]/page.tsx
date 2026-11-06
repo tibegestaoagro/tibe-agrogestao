@@ -5,7 +5,7 @@ import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { lerFornecedorAction } from "@/lib/actions/emporio-fornecedores";
 import { listarComprasAction } from "@/lib/actions/emporio-compras";
-import { formatarCep, formatarDocumento } from "@/lib/contatos/cadastro";
+import { formatarCep, formatarDocumento, formatarTelefone } from "@/lib/contatos/cadastro";
 import { reaisBr } from "@/lib/numero-br";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -118,7 +118,7 @@ export default async function FornecedorFichaPage({ params }: { params: Promise<
             </p>
             <p>
               <span className="block text-xs text-texto-secundario">Telefone</span>
-              {f.phone ?? "-"}
+              {f.phone ? formatarTelefone(f.phone) : "-"}
             </p>
             <p>
               <span className="block text-xs text-texto-secundario">Inscrição estadual</span>

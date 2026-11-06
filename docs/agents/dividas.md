@@ -198,6 +198,34 @@ Registrado em 06/11/2026, na revisão da branch `emporio-equipe-separada`.
   geral agora é sempre só do Empório).
 - As figuras da Equipe no manual ainda mostram o texto antigo de assentos.
 
+### 5.20 Empório, clientes e fornecedores (Frente 1, Q191 a Q198): o que ficou para depois
+
+Registrado em 06/11/2026, na branch `emporio-clientes-romaneio` (plano 1 de 3).
+Nenhum bloqueia; cada um vale na próxima vez que o arquivo for tocado.
+- `Contact.system_key` ficou sem uso: o Consumidor final mora em
+  `EmporioCustomer` desde a migração `20261106180000`. A coluna e o índice
+  único `[tenant_id, system_key]` podem sair numa migração futura.
+- A busca de clientes por telefone e documento é do plano 2 (escolha do
+  cliente); hoje a tela Clientes filtra só pelo nome, e o balcão segue com a
+  lista de seleção.
+- `test:m92` falha de vez em quando com `TransactionWriteConflict` em
+  `cashHandover.create` (corrida entre duas transações seriais da própria
+  suíte); rodar de novo passa.
+- A compra que nasce da Lista de Compra do Tibé (`shopping-items`) para uma loja
+  vai sem fornecedor do Empório (`supplier_id` nulo): o contato da fazenda fica
+  no item da lista, e Contact não é fornecedor do Empório (decisão da execução
+  do plano).
+- Arquivar e desarquivar cliente e fornecedor não são idempotentes: repetir a
+  mesma chamada grava outra linha no Histórico.
+- Editar fornecedor de propriedade sem `notes` grava um update vazio e uma linha
+  de Histórico.
+- A migração não tem `lock_timeout` nos `LOCK TABLE`: aplicar em horário de
+  pouco uso (já é a regra da janela do deploy, Q198).
+- Telas: a busca de Clientes e Fornecedores não se ressincroniza com `q` ao
+  voltar no navegador; o filtro de Clientes usa checkbox cru; no formulário da
+  compra, a recusa antiga de `payment` não some ao trocar para fornecedor de
+  propriedade.
+
 ### 5.18 Empório, manual e cenário de demonstração: o que a revisão deixou para depois
 
 Registrado em 05/11/2026, nas revisões da branch `emporio-manual-demonstracao`.

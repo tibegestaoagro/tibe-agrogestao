@@ -126,7 +126,7 @@ export const FIGURAS: Figura[] = [
     legenda: "Lançando uma compra de mercadoria",
     alt: "Painel Nova compra com fornecedor, itens, frete e forma de pagamento",
     marcas: [
-      { numero: 1, alvo: "o campo Fornecedor", texto: "Opcional. Escolha de Contatos." },
+      { numero: 1, alvo: "o campo Fornecedor", texto: "Opcional. A lista vem de Fornecedores. Na propriedade do dono, a forma de pagamento some." },
       { numero: 2, alvo: "a lista de itens (produto, quantidade, valor total do item)", texto: "Digite o valor total de cada item, não o valor por unidade." },
       { numero: 3, alvo: "o campo Frete (R$)", texto: "É dividido entre os itens pelo valor de cada um." },
       { numero: 4, alvo: "a caixa Já recebi a mercadoria", texto: "Se ainda não chegou, a conta a pagar nasce hoje e o estoque entra quando você receber." },
@@ -454,7 +454,7 @@ export const FIGURAS: Figura[] = [
     alt: "Tela Vender com o campo Cliente, o botão Cliente novo e o campo Vendedor obrigatório",
     marcas: [
       { numero: 1, alvo: "o campo Cliente", texto: "Obrigatório. Consumidor final é o primeiro da lista." },
-      { numero: 2, alvo: "o botão Cliente novo", texto: "Cadastra na hora: tipo, nome, CPF ou CNPJ e telefone." },
+      { numero: 2, alvo: "o botão Cliente novo", texto: "Cadastra na hora. Pessoa física: nome e telefone. Jurídica: também CNPJ e endereço." },
       { numero: 3, alvo: "o campo Vendedor", texto: "Para o Caixa, obrigatório e vazio a cada venda. Escolha quem atendeu." },
       { numero: 4, alvo: "o botão Fechar a venda", texto: "Grava a venda no caixa aberto." },
     ],
@@ -480,7 +480,7 @@ export const FIGURAS: Figura[] = [
     alt: "Tela Vender no modo Orçamento, com os itens, o cliente, a Observação e os botões Faturar e Salvar orçamento",
     marcas: [
       { numero: 1, alvo: "o botão Orçamento, no alto da tela", texto: "Troca a venda pelo orçamento. Não pede pagamento nem caixa." },
-      { numero: 2, alvo: "o campo Cliente", texto: "Precisa de nome, CPF ou CNPJ e telefone. Consumidor final não serve." },
+      { numero: 2, alvo: "o campo Cliente", texto: "O cliente com o cadastro completo, ou o Consumidor final." },
       { numero: 3, alvo: "o campo Observação", texto: "Opcional. Fica guardada no orçamento, para quem o abrir depois." },
       { numero: 4, alvo: "os botões Faturar e Salvar orçamento", texto: "Faturar leva os itens para a venda sem salvar. Salvar orçamento guarda com número e validade." },
     ],
@@ -522,6 +522,32 @@ export const FIGURAS: Figura[] = [
       { numero: 2, alvo: "os avisos da faixa (O preço mudou, Orçamento vencido, Falta estoque)", texto: "Leia antes de fechar. Eles dizem o preço que vale hoje e o que falta no estoque." },
       { numero: 3, alvo: "o campo Vendedor, com O vendedor do orçamento.", texto: "Vem do orçamento. Ninguém precisa escolher." },
       { numero: 4, alvo: "o botão Tirar orçamento", texto: "Desfaz a carga, se foi o orçamento errado." },
+    ],
+  },
+  {
+    id: "clientes-lista",
+    pagina: "/emporio/clientes",
+    papel: "gestor",
+    legenda: "A lista de clientes da loja",
+    alt: "Tela Clientes com o botão Cliente novo, a busca pelo nome e a lista com nome, telefone, CPF ou CNPJ e situação",
+    marcas: [
+      { numero: 1, alvo: "o botão Cliente novo", texto: "Cadastra o cliente. Pessoa física: nome e telefone. Jurídica: também CNPJ e endereço." },
+      { numero: 2, alvo: "a busca pelo nome", texto: "Ache o cliente pelo nome, sem se preocupar com acento." },
+      { numero: 3, alvo: "a coluna Situação", texto: "Cliente padrão (o Consumidor final), Cadastro incompleto ou Arquivado." },
+      { numero: 4, alvo: "o nome de um cliente", texto: "Abre a ficha, com o total comprado, as vendas e os orçamentos." },
+    ],
+  },
+  {
+    id: "fornecedores-lista",
+    pagina: "/emporio/fornecedores",
+    papel: "gestor",
+    legenda: "A lista de fornecedores",
+    alt: "Tela Fornecedores com o botão Novo fornecedor, a busca pelo nome e a lista com nome, tipo, CPF ou CNPJ e telefone",
+    marcas: [
+      { numero: 1, alvo: "o botão Novo fornecedor", texto: "Cadastra um fornecedor de fora ou uma propriedade do dono." },
+      { numero: 2, alvo: "a busca pelo nome", texto: "Ache o fornecedor pelo nome." },
+      { numero: 3, alvo: "a coluna Tipo", texto: "Propriedade (a compra entra só com o custo) ou De fora." },
+      { numero: 4, alvo: "um fornecedor da lista", texto: "Abre a ficha, com os dados e as compras dele." },
     ],
   },
   {

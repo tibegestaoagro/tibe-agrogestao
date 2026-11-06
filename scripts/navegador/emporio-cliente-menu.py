@@ -14,18 +14,23 @@
 
 import random
 
+# A ordem de PAGINAS_DO_EMPORIO (src/lib/emporio/paginas.ts).
 ITENS_DO_DONO = [
     "/emporio",
     "/emporio/vender",
     "/emporio/vendas",
+    "/emporio/orcamentos",
     "/emporio/fiado",
+    "/emporio/clientes",
     "/emporio/caixa",
     "/emporio/produtos",
     "/emporio/estoque",
     "/emporio/compras",
+    "/emporio/fornecedores",
     "/emporio/transferencias",
     "/emporio/despesas",
     "/emporio/resultado",
+    "/emporio/relatorios",
     "/emporio/equipe",
     "/emporio/estabelecimentos",
     "/emporio/historico",
@@ -148,6 +153,10 @@ confere("preenche o CNPJ com dígito errado", preencher("CNPJ", mascarado(CNPJ_E
 confere("a máscara mostra o CNPJ em maiúscula", esperar(lambda: valor_do_campo("CNPJ") == mascarado(CNPJ_ERRADO)), valor_do_campo("CNPJ"))
 confere("o campo CNPJ abre o teclado com letras", js("(() => { const d = document.querySelector('[role=dialog]'); const l = Array.from(d.querySelectorAll('label')).find(x => x.innerText.replace('*','').trim() === 'CNPJ'); return document.getElementById(l.htmlFor).inputMode; })()") == "text")
 confere("preenche o telefone", preencher("Telefone", "38977770000") not in ("SEM ROTULO", "SEM CAMPO"))
+# Desde a Q192 a PJ exige o endereço principal completo.
+for rotulo, valor in (("CEP", "39400000"), ("Rua", "Rua das Flores"), ("Número", "100"), ("Bairro", "Centro"), ("Município", "Montes Claros")):
+    confere("preenche " + rotulo, preencher(rotulo, valor) not in ("SEM ROTULO", "SEM CAMPO"))
+confere("escolhe a UF", escolher("UF", "MG") is True)
 enviar_painel()
 recusa = esperar(lambda: erro_do_campo("CNPJ"))
 confere("o CNPJ com dígito errado é recusado no campo", "CNPJ inválido. Confira os 14 caracteres." in (recusa or ""), recusa)
@@ -217,7 +226,7 @@ confere("o título voltou ao nome original", tem(nome_original) and not tem(novo
 passo("5. Menu: grupo Meu Empório, para o Dono e para o Vendedor")
 ir("/emporio")
 dono = [h for h in menu() if h.startswith("/emporio")]
-confere("o Dono vê os 15 itens do grupo, na ordem", dono == ITENS_DO_DONO, dono)
+confere("o Dono vê os " + str(len(ITENS_DO_DONO)) + " itens do grupo, na ordem", dono == ITENS_DO_DONO, dono)
 confere("Meu Empório é um grupo (botão do menu)", bool(js("Array.from(document.querySelectorAll('nav button')).some(b => b.innerText.includes('Meu Empório'))")))
 confere("Histórico está dentro do grupo, não no topo", bool(js("(() => { const a = Array.from(document.querySelectorAll('nav a')).filter(x => x.getAttribute('href') === '/emporio/historico'); return a.length === 1 && !!a[0].closest('div.border-l'); })()")))
 

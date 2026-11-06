@@ -28,7 +28,7 @@ const BLOCOS: { titulo: string; passos: string[] }[] = [
     passos: [
       "Em Vender, toque em Orçamento, no alto.",
       "Monte os itens como numa venda.",
-      "Escolha o cliente com nome, CPF ou CNPJ e telefone.",
+      "Escolha o cliente, ou o Consumidor final.",
       "Clique em Salvar orçamento e imprima.",
       "Cliente voltou: em Venda, digite o número em Orçamento nº e clique em Carregar.",
     ],
@@ -76,7 +76,7 @@ const RECUSAS: [string, string][] = [
   ["Fiado ou cheque recusado", "O Consumidor final não compra fiado nem paga em cheque. Escolha o cliente ou clique em Cliente novo."],
   ["Nenhum caixa aberto", "Clique em Abrir o Caixa 1, conte o troco e abra. A venda continua."],
   ["Escolha o vendedor que atendeu", "No campo Vendedor, escolha quem atendeu o cliente."],
-  ["Orçamento recusado", "Escolha um cliente de verdade, com CPF ou CNPJ e telefone. Se aparecer Cadastro incompleto, clique em Completar cadastro."],
+  ["Orçamento recusado", "Escolha o cliente, ou o Consumidor final. Se aparecer Cadastro incompleto, clique em Completar cadastro."],
   ["Botão que não aparece", "Essa permissão está desligada para você. Peça ao Dono."],
 ];
 

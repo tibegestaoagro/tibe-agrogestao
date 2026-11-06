@@ -25,7 +25,7 @@ const TERMOS: { termo: string; significa: React.ReactNode }[] = [
   { termo: "Aguardando o gerente", significa: "Sangria ou malote que saiu do caixa e ainda não foi confirmado. O Gestor da loja, o Gerente geral ou o Dono confirmam o valor recebido em Caixa. Se o recebido for diferente, a diferença fica registrada." },
   { termo: "Orçamento", significa: <>Uma promessa de preço para o cliente levar no papel. Não tira do estoque, não reserva mercadoria e não recebe dinheiro. Fica aberto, vencido ou faturado. Fatura uma vez só. Veja <Link className="underline" href={`${BASE_DO_EMPORIO}/orcamento`}>Orçamento</Link>.</> },
   { termo: "Validade", significa: <>Até quando vale o preço do orçamento: até o fim do dia que aparece em Válido até. A conta começa com 7 dias, e o Dono muda em <Link className="underline" href={`${BASE_DO_EMPORIO}/configuracoes`}>Configurações</Link>. Vencido, o orçamento ainda fatura, pelo preço de hoje.</> },
-  { termo: "Consumidor final", significa: "O cliente de quem não quer se identificar. Serve para venda à vista. Não compra fiado, não paga em cheque e não recebe orçamento." },
+  { termo: "Consumidor final", significa: "O cliente de quem não quer se identificar. Serve para venda à vista e para orçamento. Não compra fiado e não paga em cheque. É fixo: não se edita nem se arquiva." },
   { termo: "Vendedor da venda", significa: "Quem atendeu o cliente. Pode ser outra pessoa, diferente de quem registrou a venda. A tela da venda mostra os dois: Vendedor e, quando é outra pessoa, Registrada por. No orçamento faturado, o vendedor é o do orçamento. É ele que conta em Relatórios." },
   { termo: "Chave", significa: "Uma permissão extra do Vendedor, que vem desligada. O Dono liga na Equipe." },
 ];
@@ -90,11 +90,11 @@ const PERGUNTAS: { pergunta: string; resposta: React.ReactNode }[] = [
   },
   {
     pergunta: "O sistema pede para escolher o cliente. E se ele não quiser se identificar?",
-    resposta: <>Toda venda tem cliente, e a frase é “Escolha o cliente da venda.” Quem não quer se identificar entra como <strong>Consumidor final</strong>, o primeiro da lista. Para cadastrar alguém na hora, clique em <strong>Cliente novo</strong>: tipo, nome, CPF ou CNPJ e telefone são obrigatórios.</>,
+    resposta: <>Toda venda tem cliente, e a frase é “Escolha o cliente da venda.” Quem não quer se identificar entra como <strong>Consumidor final</strong>, o primeiro da lista. Para cadastrar alguém na hora, clique em <strong>Cliente novo</strong>. Na pessoa física, bastam o nome e o telefone. Na pessoa jurídica, também o CNPJ e o endereço principal.</>,
   },
   {
     pergunta: "O que é o aviso “Cadastro incompleto” embaixo do cliente?",
-    resposta: <>Faltam dados daquele cliente: o tipo (pessoa física ou jurídica), o CPF ou CNPJ, ou o telefone. A venda passa assim mesmo. O orçamento não passa: “Complete o cadastro do cliente (nome, documento e telefone) antes de salvar o orçamento.” Clique em <strong>Completar cadastro</strong>, preencha e clique em <strong>Salvar cadastro</strong>.</>,
+    resposta: <>Faltam dados daquele cliente: o tipo (pessoa física ou jurídica) ou o telefone; na pessoa jurídica, também o CNPJ ou o endereço principal. Acontece com cliente antigo, cadastrado antes dessa regra. A venda passa assim mesmo. O orçamento não passa: a frase começa com “Complete o cadastro do cliente antes de salvar o orçamento.” e diz o que falta, por exemplo “Informe o telefone.” Clique em <strong>Completar cadastro</strong>, preencha e clique em <strong>Salvar cadastro</strong>.</>,
   },
   {
     pergunta: "Por que a venda parou dizendo que o caixa está fechado?",
@@ -106,7 +106,11 @@ const PERGUNTAS: { pergunta: string; resposta: React.ReactNode }[] = [
   },
   {
     pergunta: "Por que o orçamento não salva?",
-    resposta: "O orçamento precisa de um cliente que possa ser achado depois. A frase é “O orçamento precisa de um cliente com nome, documento e telefone.” Por isso o Consumidor final não serve. Escolha o cliente de verdade, ou cadastre na hora.",
+    resposta: <>Faltou o cliente: “Escolha o cliente do orçamento. Quem não quer se identificar entra como Consumidor final.” Escolha o cliente, ou o <strong>Consumidor final</strong>, que vale para o orçamento. Se o cliente aparece com Cadastro incompleto, complete o cadastro antes: veja a pergunta do aviso “Cadastro incompleto”.</>,
+  },
+  {
+    pergunta: "Onde estão os clientes e os fornecedores da loja? Não aparecem em Contatos.",
+    resposta: <>Ficam dentro do Meu Empório, em <Link className="underline" href={`${BASE_DO_EMPORIO}/clientes`}>Clientes</Link> e <Link className="underline" href={`${BASE_DO_EMPORIO}/fornecedores`}>Fornecedores</Link>. Contatos é da fazenda: quem compra gado ou presta serviço. Os dois cadastros não se misturam.</>,
   },
   {
     pergunta: "O orçamento venceu. Ainda dá para faturar?",

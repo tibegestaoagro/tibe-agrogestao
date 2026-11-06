@@ -134,7 +134,7 @@ export function ParteDeOrcamento() {
         passos={[
           <>Abra <strong>Vender</strong> e toque em <strong>Orçamento</strong>, no alto da tela.</>,
           "Busque os produtos e ajuste a quantidade e o preço, como numa venda. O desconto segue o mesmo limite da loja.",
-          <>Escolha o <strong>Cliente</strong>. O orçamento precisa de nome, CPF ou CNPJ e telefone, para ser achado depois. O Consumidor final não serve. Para um cliente novo, clique em <strong>Cliente novo</strong>.</>,
+          <>Escolha o <strong>Cliente</strong>. Quem não quer se identificar entra como <strong>Consumidor final</strong>, que vale para o orçamento. O cliente precisa estar com o cadastro completo: na pessoa física, nome e telefone; na jurídica, também o CNPJ e o endereço principal. Para um cliente novo, clique em <strong>Cliente novo</strong>.</>,
           <>Se quiser, escreva uma <strong>Observação</strong>.</>,
           <>Confira o <strong>Vendedor</strong>. Ele já vem com o seu nome. Se você é Caixa, escolha quem atendeu.</>,
           <>Clique em <strong>Salvar orçamento</strong>. O quadro verde mostra o número e a data até quando ele vale (<strong>válido até</strong>); vale até o fim desse dia.</>,
@@ -142,12 +142,12 @@ export function ParteDeOrcamento() {
         ]}
         problemas={[
           {
-            quando: "“O orçamento precisa de um cliente com nome, documento e telefone.”",
-            fazer: "Escolha o cliente de verdade, não o Consumidor final, ou cadastre em Cliente novo.",
+            quando: "“Escolha o cliente do orçamento. Quem não quer se identificar entra como Consumidor final.”",
+            fazer: "Faltou o cliente. Escolha o cliente, ou o Consumidor final, ou cadastre em Cliente novo.",
           },
           {
-            quando: "“Complete o cadastro do cliente (nome, documento e telefone) antes de salvar o orçamento.”",
-            fazer: <>O cliente aparece com <strong>Cadastro incompleto</strong>. Clique em <strong>Completar cadastro</strong>, preencha e salve. Depois salve o orçamento.</>,
+            quando: "“Complete o cadastro do cliente antes de salvar o orçamento.”, seguido do que falta (por exemplo, “Informe o telefone.”)",
+            fazer: <>O cliente aparece com <strong>Cadastro incompleto</strong>. Clique em <strong>Completar cadastro</strong>, preencha o que a frase pediu e salve. Depois salve o orçamento.</>,
           },
           {
             quando: "O desconto é recusado: “O desconto de X% passa do limite de Y% desta loja. Peça ao gestor da loja.”",
@@ -292,5 +292,82 @@ export function ParteDeRelatorios() {
         </p>
       </Chamada>
     </div>
+  );
+}
+
+export function ParteDeClientes() {
+  return (
+    <Tarefa
+      paraQueServe="Guardar quem compra nas suas lojas e ver o que cada cliente já comprou."
+      passos={[
+        <>Abra <strong>Meu Empório</strong> e depois <strong>Clientes</strong>. O Dono, o Gerente geral, o Gestor, o Vendedor e o Caixa veem essa tela.</>,
+        <>Clique em <strong>Cliente novo</strong> e escolha <strong>Pessoa física</strong> ou <strong>Pessoa jurídica</strong>.</>,
+        "Na pessoa física, bastam o nome e o telefone. O CPF, o nascimento e o endereço são opcionais.",
+        "Na pessoa jurídica, também o CNPJ e o endereço principal completo: CEP, rua, número, bairro, município e UF.",
+        <>Clique em <strong>Cadastrar cliente</strong>. O cliente já aparece no campo <strong>Cliente</strong> do balcão.</>,
+        <>Clique no nome do cliente para abrir a ficha: o total comprado, a última compra, as vendas (com os itens) e os orçamentos das lojas que você vê.</>,
+        <>Para corrigir o cadastro, clique em <strong>Editar</strong> na ficha.</>,
+      ]}
+      problemas={[
+        {
+          quando: "“Já existe um cliente com esse CPF: <nome>.” (ou CNPJ)",
+          fazer: "O cliente já está cadastrado. Busque pelo nome que a frase mostra. Se a frase disser que ele está arquivado, desarquive em Clientes.",
+        },
+        {
+          quando: "O cliente não aparece mais no balcão",
+          fazer: <>Ele foi arquivado. Em Clientes, marque <strong>Mostrar arquivados</strong>, abra a ficha e clique em <strong>Desarquivar</strong>. Só o Gestor da loja, o Gerente geral e o Dono arquivam e desarquivam.</>,
+        },
+        {
+          quando: "A ficha não mostra o botão Editar",
+          fazer: "O cliente está arquivado, ou é o Consumidor final, que é fixo. Desarquive antes de editar.",
+        },
+      ]}
+    >
+      <Figura id="clientes-lista" />
+      <Chamada tipo="saiba">
+        <p>
+          Os clientes da loja não ficam em Contatos. Contatos é da fazenda. Arquivar tira o cliente do balcão, mas as
+          vendas e o fiado dele continuam guardados.
+        </p>
+      </Chamada>
+    </Tarefa>
+  );
+}
+
+export function ParteDeFornecedores() {
+  return (
+    <Tarefa
+      paraQueServe="Guardar de quem as lojas compram, e as propriedades do dono que mandam mercadoria para a loja."
+      passos={[
+        <>Abra <strong>Meu Empório</strong> e depois <strong>Fornecedores</strong>. O Caixa não vê essa tela.</>,
+        <>Clique em <strong>Novo fornecedor</strong>.</>,
+        <>Para quem vende para a loja, escolha <strong>Fornecedor de fora</strong>. Só o nome é obrigatório; o CPF ou CNPJ, o telefone e o endereço são opcionais.</>,
+        <>Para uma fazenda do dono que manda mercadoria (milho, feno, leite), escolha <strong>Propriedade do dono</strong> e a <strong>Propriedade</strong> na lista.</>,
+        <>Clique em <strong>Cadastrar fornecedor</strong>. Ele aparece no campo <strong>Fornecedor</strong> da compra.</>,
+      ]}
+      problemas={[
+        {
+          quando: "A compra da propriedade não pede a forma de pagamento",
+          fazer: "É de propósito. O dono não paga a si mesmo: a compra entra só com o custo, para o estoque e o resultado da loja saírem certos, sem conta a pagar no Financeiro. A lista de Compras mostra “Só custo (propriedade)”.",
+        },
+        {
+          quando: "“Essa propriedade já é fornecedor: <nome>.”",
+          fazer: "Cada propriedade vira fornecedor uma vez só. Use o que já está cadastrado.",
+        },
+        {
+          quando: "“Essa propriedade está arquivada no Tibé.”",
+          fazer: "Desarquive a propriedade em Minha Fazenda antes de cadastrar o fornecedor.",
+        },
+      ]}
+    >
+      <Figura id="fornecedores-lista" />
+      <Chamada tipo="saiba">
+        <p>
+          Lance a compra em <Link className="underline" href={`${B}/compras`}>Comprar e receber</Link>. Cadastrar e
+          editar fornecedor é de quem lança compra: o Gestor, o Gerente geral, o Dono e o Vendedor com a chave Lançar
+          compra.
+        </p>
+      </Chamada>
+    </Tarefa>
   );
 }

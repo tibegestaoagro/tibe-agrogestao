@@ -181,7 +181,7 @@ export function ParteGestor() {
       <Chamada tipo="saiba">
         <p>
           Sua função vale em todas as suas lojas. Ninguém é Gestor numa loja e Vendedor em outra. Seu menu mostra só o
-          Meu Empório (com o Histórico, para o Gestor), o Meu Dia, os Contatos, as Calculadoras, o Manual e o seu perfil.
+          Meu Empório (com o Histórico, para o Gestor), o Meu Dia, as Calculadoras, o Manual e o seu perfil. Os clientes e os fornecedores ficam dentro do Meu Empório, em Clientes e Fornecedores.
         </p>
       </Chamada>
 
@@ -244,7 +244,7 @@ export function ParteVendedor() {
         itens={[
           <>Em <strong>Vender</strong>, toque em <strong>Orçamento</strong>, no alto da tela.</>,
           "Monte os itens como numa venda: produto, quantidade, preço e desconto, no mesmo limite da loja.",
-          "Escolha o cliente. O orçamento precisa de nome, CPF ou CNPJ e telefone, para ser achado depois. Consumidor final não serve.",
+          "Escolha o cliente, ou o Consumidor final para quem não quer se identificar. O cliente precisa estar com o cadastro completo (na pessoa física, nome e telefone).",
           <>Clique em <strong>Salvar orçamento</strong>. Ele ganha um número e a data <strong>Válido até</strong>.</>,
           <>Imprima com <strong>Imprimir A4</strong> ou <strong>Imprimir cupom</strong> e entregue ao cliente.</>,
         ]}

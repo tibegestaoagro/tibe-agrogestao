@@ -1,4 +1,4 @@
-# Os prints do manual do Meu Empório (Q138): 40 figuras, em computador (1280 px)
+# Os prints do manual do Meu Empório (Q138): 42 figuras, em computador (1280 px)
 # e em celular (390 px, escala 2), com as marcações numeradas desenhadas sobre a
 # própria tela. Sai em public/manual/emporio/<id>.png e <id>-celular.png.
 # docs/specs/module-39-meu-emporio.md, "Cenário de demonstração e manual (Q137, Q138)".
@@ -109,7 +109,7 @@ def ocultar_fixtures():
     (lojas e produtos F1.., F2a.., F6b.., Orc Loja, Turno Loja, Vend Loja).
     Nao grava nada."""
     js(r"""(() => {
-      const f = s => /^(f\d|orc loja|turno loja|vend loja)/i.test((s || '').trim());
+      const f = s => /^(f\d|orc loja|orc cliente|orc vencido|turno loja|vend loja|cli |t6 |cliente antigo|cliente balcao|empresa nova)/i.test((s || '').trim());
       document.querySelectorAll('tbody tr').forEach(tr => { const c = tr.querySelector('td'); if (c && f(c.innerText)) tr.style.display = 'none'; });
       document.querySelectorAll('main h3').forEach(h => {
         if (!f(h.innerText)) return;
@@ -356,6 +356,11 @@ def fechar_painel():
 def preparar():
     passo("0. Preparo: uma compra pendente e um minimo de estoque")
     entrar("gestor")
+    ir("/emporio")
+    # Os convites de instalar o app e de ligar avisos cobrem o rodape de toda
+    # figura num perfil de Chrome novo. Dispensados como a pessoa faria (a
+    # escolha mora no localStorage), e a pagina relida sem eles.
+    js("localStorage.setItem('tibe.pwa.convite-dispensado', '1'); localStorage.setItem('tibe.push.convite-dispensado', '1')")
     ir("/emporio")
     esperar(lambda: api("GET", "/api/v1/emporio/purchases")["status"] == 200, 90)
     lojas = api("GET", "/api/v1/emporio/establishments")["body"]["data"]
@@ -629,6 +634,20 @@ figura("compra-receber", "vendedor_centro", "/emporio/compras", [
     (1, "M.TR('Pendente').children[6]", "a situacao Pendente da compra"),
     (2, "M.B('Receber')", "o botao Receber"),
 ], hd=600, hc=800)
+
+figura("fornecedores-lista", "gestor", "/emporio/fornecedores", [
+    (1, "M.B('Novo fornecedor')", "o botao Novo fornecedor"),
+    (2, "M.A('Buscar fornecedor pelo nome')", "a busca pelo nome"),
+    (3, "M.TH('Tipo')", "a coluna Tipo (Propriedade ou De fora)"),
+    (4, "M.LIN('Nutrisul')", "um fornecedor da lista"),
+], limite=6, hd=640, hc=900)
+
+figura("clientes-lista", "gestor", "/emporio/clientes", [
+    (1, "M.B('Cliente novo')", "o botao Cliente novo"),
+    (2, "M.A('Buscar cliente pelo nome')", "a busca pelo nome"),
+    (3, "M.TH('Situação')", "a coluna Situacao (Cliente padrao, Cadastro incompleto, Arquivado)"),
+    (4, "M.LIN('Maria das Dores')", "um cliente da lista"),
+], limite=7, hd=700, hc=1000)
 
 BLOCO_LOJA = "M.H('Loja Centro').closest('div.rounded-lg')"
 figura("estoque-por-loja", "gestor", lambda: "/emporio/produtos/" + id_do_produto("Milho em Grão"), [

@@ -168,8 +168,17 @@ const CLIENTES = [
     chave: "pedraBranca", nome: "Fazenda Pedra Branca", cidade: "Itiquira", pessoa: "pj" as const, doc: cnpjCom("193846520001"), fone: "(66) 99633-9015",
     endereco: { address_zip: "78790-000", address_street: "Estrada da Pedra Branca", address_number: "s/n", address_district: "Zona Rural", address_state: "MT" },
   },
-  { chave: "mariaDores", nome: "Maria das Dores Ferreira", cidade: "Rondonópolis", pessoa: "pf" as const, doc: cpfCom("615204739"), fone: "(66) 99921-4478", endereco: null },
+  // A PF só com nome e telefone: o mínimo do tipo, e o orçamento dela salva assim mesmo.
+  { chave: "mariaDores", nome: "Maria das Dores Ferreira", cidade: "Rondonópolis", pessoa: "pf" as const, doc: null, fone: "(66) 99921-4478", endereco: null },
 ] as const;
+
+/**
+ * Uma propriedade da conta vira fornecedor do Empório, com uma compra só de custo
+ * (sem forma de pagamento e sem lançamento no Financeiro). A nota marca o que o
+ * cenário criou, para o `--apagar` não levar um fornecedor cadastrado à mão.
+ */
+const NOTA_FORNECEDOR_PROPRIEDADE = "Cadastrado pelo cenário de demonstração.";
+const CHAVE_COMPRA_PROPRIEDADE = `${PREFIXO}propriedade-compra`;
 
 type Papel = "fechada" | "granel";
 type Ap = { papel: Papel; nome: string; base_qty?: number; content_qty?: number; sealed: boolean; auto?: boolean; preco: number };
@@ -552,7 +561,7 @@ const log = (m: string) => console.log(m);
 async function contarExistentes(db: TenantPrismaClient) {
   const pref = { startsWith: PREFIXO };
   const [compras, transfs, vendas, devolucoes, recebimentos, caixas, producoes, turnos, orcamentos] = await Promise.all([
-    db.emporioPurchase.count({ where: { operation_key: pref } }),
+    db.emporioPurchase.count({ where: { operation_key: pref, NOT: { operation_key: CHAVE_COMPRA_PROPRIEDADE } } }),
     db.stockTransfer.count({ where: { operation_key: pref } }),
     db.emporioSale.count({ where: { operation_key: pref } }),
     db.emporioSaleReturn.count({ where: { operation_key: pref } }),
@@ -833,7 +842,7 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
     }
   }
 
-  // Fornecedores (ainda em Contatos até a compra ganhar fornecedor próprio) e clientes do Empório.
+  // Fornecedores e clientes do Empório (tabelas próprias, fora de Contatos).
   // O mapa guarda os dois pela chave: o fornecedor vai na compra, o cliente na venda e no orçamento.
   const contatos: Record<string, string> = {};
   for (const f of FORNECEDORES) contatos[f.chave] = await acharOuCriarFornecedor(db, gerente, f.nome, f.cidade);
@@ -1025,6 +1034,30 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
       payment,
       notes: `Pedido ${forn.nome}`,
     }), `compra ${c.chave}`);
+  }
+
+  // A compra de uma propriedade do Dono: só o custo entra no estoque (Q194).
+  const propriedade = await db.property.findFirst({ where: { archived_at: null }, orderBy: { created_at: "asc" }, select: { id: true, name: true } });
+  if (propriedade) {
+    const jaFornecedor = await db.emporioSupplier.findFirst({ where: { property_id: propriedade.id }, select: { id: true } });
+    const fornecedorId = jaFornecedor
+      ? jaFornecedor.id
+      : exigir(
+          await cadastrarFornecedorAction(db, gerente, { kind: "propriedade", property_id: propriedade.id, notes: NOTA_FORNECEDOR_PROPRIEDADE }),
+          `fornecedor da propriedade ${propriedade.name}`,
+        ).id;
+    const milho = prods.get("milho") as Resolvido;
+    exigir(await compras.criarCompraAction(db, gerente, {
+      operation_key: CHAVE_COMPRA_PROPRIEDADE,
+      establishment_id: lojas.deposito,
+      supplier_id: fornecedorId,
+      purchased_at: dia(12, 9),
+      received: true,
+      items: [{ emporio_product_id: milho.epId, presentation_id: milho.fechadaId, quantity: 10, item_total: 550 }],
+      notes: `Milho colhido na ${propriedade.name}`,
+    }), "compra da propriedade");
+  } else {
+    log("A conta não tem propriedade ativa: a compra de propriedade ficou de fora.");
   }
 
   // Transferências do Depósito para as lojas
@@ -1644,7 +1677,9 @@ async function apagarCenario(tenantId: string, executar: boolean) {
   await prisma.emporioAuditLog.deleteMany({ where: { ...t, OR: [{ user_id: { in: usuarios } }, { establishment_id: { in: lojas } }, { target_id: { in: [...eps, ...usuarios, ...contas, ...lojas, ...relacionados] } }] } });
   await prisma.user.deleteMany({ where: { id: { in: usuarios } } });
   await prisma.emporioCustomer.deleteMany({ where: { id: { in: clientes } } });
-  await prisma.emporioSupplier.deleteMany({ where: { ...t, name: { in: FORNECEDORES.map((f) => f.nome) } } });
+  await prisma.emporioSupplier.deleteMany({
+    where: { ...t, OR: [{ name: { in: FORNECEDORES.map((f) => f.nome) } }, { kind: "propriedade", notes: NOTA_FORNECEDOR_PROPRIEDADE }] },
+  });
   await prisma.contact.deleteMany({ where: { id: { in: contatos } } });
   // As configurações da conta são uma linha só: ela sai apenas se ainda tem os
   // rodapés que o cenário gravou (mexida depois, na tela, fica). Só banco local.

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { listarClientesAction } from "@/lib/actions/emporio-clientes";
-import { formatarDocumento } from "@/lib/contatos/cadastro";
+import { formatarDocumento, formatarTelefone } from "@/lib/contatos/cadastro";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -85,7 +85,7 @@ export default async function ClientesPage({
                       {c.name}
                     </Link>
                   </TableCell>
-                  <TableCell>{c.phone ?? "-"}</TableCell>
+                  <TableCell>{c.phone ? formatarTelefone(c.phone) : "-"}</TableCell>
                   <TableCell>{c.document ? formatarDocumento(c.document) : "sem CPF/CNPJ"}</TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">

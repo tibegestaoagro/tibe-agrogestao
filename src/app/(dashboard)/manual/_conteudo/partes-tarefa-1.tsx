@@ -134,9 +134,10 @@ export function ParteDeProdutos() {
         <Figura id="produto-novo" />
         <Chamada tipo="saiba">
           <p>
-            O fornecedor de quem você compra é um contato, cadastrado em Contatos e escolhido na compra. O CNPJ dele pode
-            ter letras: o sistema aceita o CNPJ alfanumérico da Receita, com 12 posições de número ou letra e 2 dígitos no
-            fim. Se for recusado, a frase é “CNPJ inválido. Confira os 14 caracteres.”
+            O fornecedor de quem você compra é cadastrado em{" "}
+            <Link className="underline" href={`${B}/fornecedores`}>Fornecedores</Link>, dentro do Meu Empório, e escolhido
+            na compra. O CNPJ dele pode ter letras: o sistema aceita o CNPJ alfanumérico da Receita, com 12 posições de
+            número ou letra e 2 dígitos no fim. Se for recusado, a frase é “CNPJ inválido. Confira os 14 caracteres.”
           </p>
         </Chamada>
       </Tarefa>
@@ -214,10 +215,10 @@ export function ParteDeCompras() {
       paraQueServe="Lançar o que você comprou, guardar o custo e dar entrada no estoque quando a mercadoria chegar."
       passos={[
         <>Abra <strong>Meu Empório</strong> e depois <strong>Compras</strong>. Clique em nova compra.</>,
-        "Escolha a loja e, se quiser, o fornecedor.",
+        <>Escolha a loja e, se quiser, o <strong>Fornecedor</strong>. A lista vem de <Link className="underline" href={`${B}/fornecedores`}>Fornecedores</Link>.</>,
         "Adicione cada item: produto, quantidade e o valor total do item (não o valor de uma unidade).",
         "Informe o frete, se houver. Ele é dividido entre os itens pelo valor de cada um.",
-        "Diga como pagou: à vista, a prazo ou parcelado (com entrada, se tiver).",
+        "Diga como pagou: à vista, a prazo ou parcelado (com entrada, se tiver). Na compra de uma propriedade do dono, a forma de pagamento some: entra só o custo, sem conta a pagar.",
         "Marque se a mercadoria já chegou. Se não chegou, a conta a pagar nasce hoje e o estoque só entra quando você receber.",
         <>Quando a mercadoria chegar, abra a compra e clique em <strong>Receber</strong>.</>,
       ]}

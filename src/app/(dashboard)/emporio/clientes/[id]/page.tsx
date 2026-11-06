@@ -4,7 +4,7 @@ import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { lerClienteAction, type ClienteFichaView } from "@/lib/actions/emporio-clientes";
-import { formatarCep, formatarDocumento } from "@/lib/contatos/cadastro";
+import { formatarCep, formatarDocumento, formatarTelefone } from "@/lib/contatos/cadastro";
 import { reaisBr } from "@/lib/numero-br";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -111,15 +111,18 @@ export default async function ClienteFichaPage({ params }: { params: Promise<{ i
         </div>
         {!c.fixed && (
           <div className="flex flex-wrap gap-2">
-            <ClienteForm
-              modo="completar"
-              contatoId={c.id}
-              trigger={
-                <Button type="button" variant="outline" size="sm">
-                  Editar
-                </Button>
-              }
-            />
+            {/* A action recusa editar o arquivado: o botão só volta depois de desarquivar. */}
+            {!c.archived && (
+              <ClienteForm
+                modo="completar"
+                contatoId={c.id}
+                trigger={
+                  <Button type="button" variant="outline" size="sm">
+                    Editar
+                  </Button>
+                }
+              />
+            )}
             {podeArquivar && <ClienteArquivarBotao id={c.id} arquivado={c.archived} />}
           </div>
         )}
@@ -136,7 +139,7 @@ export default async function ClienteFichaPage({ params }: { params: Promise<{ i
         </p>
         <p>
           <span className="block text-xs text-texto-secundario">Telefone</span>
-          {c.phone ?? "-"}
+          {c.phone ? formatarTelefone(c.phone) : "-"}
         </p>
         {c.person_kind === "pj" && c.responsible_name && (
           <p>

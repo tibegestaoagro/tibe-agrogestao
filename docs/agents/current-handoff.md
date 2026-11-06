@@ -96,7 +96,7 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
-### Empório: clientes, fornecedores, escolha do cliente e romaneio (06/11), PLANEJADO
+### Empório: clientes, fornecedores, escolha do cliente e romaneio (06/11), plano 1 IMPLEMENTADO na branch
 
 Design aprovado pelo usuário em 06/11:
 `docs/superpowers/specs/2026-11-06-emporio-clientes-fornecedores-romaneio-design.md`.
@@ -110,8 +110,19 @@ Três planos, um por frente, a executar NESTA ordem, cada um com contexto limpo
    `test:m96`; Q199 a Q204).
 3. `docs/superpowers/plans/2026-11-06-emporio-frente3-entrega-e-romaneio.md`
    (10 tarefas; pedido para entrega e romaneio; `test:m97`).
-Nada executado ainda; o usuário ainda não escolheu o modo de execução. Cada
-plano tem um passo PARADO para a migração no Neon (autorização na conversa).
+**Plano 1 (Tasks 1 a 9) implementado na branch, NÃO em produção.**
+Roteiro `npm run navegador -- emporio-clientes` verde; decisões Q191 a Q198 na
+spec do módulo 39; o que ficou para depois em [dividas.md](dividas.md) 5.20.
+As migrações `20261106120000_emporio_clientes_fornecedores` e
+`20261106180000_emporio_clientes_saem_de_contatos` **NÃO estão no Neon**. Falta
+a Task 10 (passo PARADO). Ordem do deploy, cada passo com autorização do usuário
+na conversa: (1) `scripts/conferir-clientes-emporio.ts antes` contra o Neon;
+(2) migração no Neon (URL Direct), **fora do horário das lojas**, porque a
+segunda apaga colunas que o código da `main` lê; (3) merge e push logo em
+seguida; (4) `conferir-clientes-emporio.ts depois`. Planos 2 e 3 não começaram.
+Roteiro preso em recarga (página e `/login` em laço no log do `next dev`) é aba
+sobrando no Chrome de testes, não defeito: ver o cofre,
+`a-aba-oculta-e-a-leitura-cedo-imitam-defeito-no-navegador`.
 Depois dos três: entrevistar o usuário sobre o **financeiro do Empório**
 (separado do Tibé, com uma pessoa só do financeiro das lojas), pedido dele.
 

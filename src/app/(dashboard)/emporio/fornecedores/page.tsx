@@ -3,7 +3,7 @@ import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { listarFornecedoresAction } from "@/lib/actions/emporio-fornecedores";
-import { formatarDocumento } from "@/lib/contatos/cadastro";
+import { formatarDocumento, formatarTelefone } from "@/lib/contatos/cadastro";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -90,7 +90,7 @@ export default async function FornecedoresPage({
                   </TableCell>
                   <TableCell>{f.kind === "propriedade" ? "Propriedade" : "De fora"}</TableCell>
                   <TableCell>{f.document ? formatarDocumento(f.document) : "-"}</TableCell>
-                  <TableCell>{f.phone ?? "-"}</TableCell>
+                  <TableCell>{f.phone ? formatarTelefone(f.phone) : "-"}</TableCell>
                   <TableCell>{f.archived && <Badge variant="gray">Arquivado</Badge>}</TableCell>
                 </TableRow>
               ))}
