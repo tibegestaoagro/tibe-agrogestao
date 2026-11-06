@@ -101,7 +101,7 @@ roteiro (foto de recibo e o "não" final).
 A Agromax usa a conta Da Mata Sementes de verdade desde 01/11, só o Empório,
 com as lojas AGROMAX e AGROMAX MOC (as 4 de demonstração e o "Estabelecimento
 teste" já estavam arquivadas por eles). Em 06/11, autorizado pelo usuário na
-conversa, `scripts/limpar-demonstracao-conta.ts` (branch `limpeza-da-mata`)
+conversa, `scripts/limpar-demonstracao-conta.ts` (na `main` desde 06/11)
 apagou em produção tudo o que não era deles: 3.688 registros (as lojas de
 demonstração e tudo delas, os 26 produtos antigos, os 4 usuários demo, rebanho,
 financeiro, serviços, conversas do agente, o contador de vendas). Ficaram
@@ -115,9 +115,9 @@ Pendente do usuário: email e nome da conta de testes nova (depois, rodar o
 cenário de demonstração nela e mover o WhatsApp), trocar o email de acesso da
 Da Mata para o da Agromax, e os logins da equipe deles.
 
-### Empório: equipe separada dos usuários do Tibé (06/11, Q190)
+### Empório: equipe separada dos usuários do Tibé (06/11, Q190), em produção
 
-Branch `emporio-equipe-separada` (sobre `limpeza-da-mata`). A equipe do
+Em produção desde 06/11 (`55dfd81`, merge e push autorizados pelo usuário, Vercel em sucesso; sem migração). A equipe do
 Empório (quem tem `emporio_role`) tem limite próprio de 50 ativos por conta e
 não ocupa assento do plano; os usuários do Tibé seguem no plano. A Equipe e
 Configurações > Usuários não mexem um no outro. Tirar da equipe desativa e
