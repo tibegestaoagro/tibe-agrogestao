@@ -58,7 +58,9 @@ console.log("🛍️  M87: Módulo 39 (Meu Empório), F6b: papel, permissão, Eq
 async function comBanco() {
   const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
   const bcrypt = (await import("bcryptjs")).default;
-  const { withBearer } = await import("./_escopo-de-requisicao");
+  const { withBearer, withCookie } = await import("./_escopo-de-requisicao");
+  const { emitirCookieTenant } = await import("./_sessao-cookie");
+  const PAPEL = await import("@/lib/emporio/papel");
   const carregar = async (caminho: string): Promise<Record<string, Acao>> => {
     try {
       return (await import(caminho)) as Record<string, Acao>;
@@ -332,7 +334,10 @@ async function comBanco() {
       if (rcg.ok) {
         const u = await prisma.user.findUnique({ where: { id: rcg.data.id } });
         check("papel da conta do Gerente geral é ADMIN", u?.role === "ADMIN");
+        check("Q190: o Gerente geral nasce só do Empório (emporio_only verdadeiro sem pedir)", (u as Dado)?.emporio_only === true);
       }
+      const rcgFalso = await chamar(EQ, "cadastrarMembroAction", db, owner, novo("gg3", { emporio_role: "gerente_geral", emporio_only: false }));
+      check("Q190: emporio_only falso no cadastro do Gerente geral é aceito e ignorado (grava verdadeiro)", rcgFalso.ok && ((await prisma.user.findUnique({ where: { id: rcgFalso.data.id } })) as Dado)?.emporio_only === true, j(rcgFalso));
       const rcv = await chamar(EQ, "cadastrarMembroAction", db, gg, novo("vend", { emporio_role: "vendedor", establishment_ids: [L2], emporio_keys: ["perda", "contagem"] }));
       check("cadastra Vendedor com chaves", rcv.ok, j(rcv));
       if (rcv.ok) {
@@ -346,9 +351,10 @@ async function comBanco() {
       check("Gestor sem loja: 422 em establishment_ids", recusa(await chamar(EQ, "cadastrarMembroAction", db, owner, novo("b", { emporio_role: "gestor", establishment_ids: [] })), "VALIDATION_ERROR", 422, "establishment_ids"));
       check("chave em Gestor: 422 em emporio_keys", recusa(await chamar(EQ, "cadastrarMembroAction", db, owner, novo("c", { emporio_role: "gestor", establishment_ids: [L1], emporio_keys: ["perda"] })), "VALIDATION_ERROR", 422, "emporio_keys"));
       check("chave fora da lista em Vendedor: 422 em emporio_keys", recusa(await chamar(EQ, "cadastrarMembroAction", db, owner, novo("d", { emporio_role: "vendedor", establishment_ids: [L1], emporio_keys: ["voar"] })), "VALIDATION_ERROR", 422, "emporio_keys"));
-      check("emporio_only em Gestor: 422 em emporio_only", recusa(await chamar(EQ, "cadastrarMembroAction", db, owner, novo("e", { emporio_role: "gestor", establishment_ids: [L1], emporio_only: true })), "VALIDATION_ERROR", 422, "emporio_only"));
+      const rcE = await chamar(EQ, "cadastrarMembroAction", db, owner, novo("e", { emporio_role: "gestor", establishment_ids: [L1], emporio_only: true }));
+      check("Q190: emporio_only em Gestor é aceito e ignorado (grava falso)", rcE.ok && ((await prisma.user.findUnique({ where: { id: rcE.data.id } })) as Dado)?.emporio_only === false, j(rcE));
       check("emporio_role fora da lista: 422 em emporio_role", recusa(await chamar(EQ, "cadastrarMembroAction", db, owner, novo("f", { emporio_role: "chefe", establishment_ids: [L1] })), "VALIDATION_ERROR", 422, "emporio_role"));
-      check("nada disso criou usuário", (await prisma.user.count({ where: { tenant_id: t.id, email: { in: ["a", "b", "c", "d", "e", "f"].map((n) => `m87-novo-${n}-${stamp}@teste.local`) } } })) === 0);
+      check("nada disso criou usuário", (await prisma.user.count({ where: { tenant_id: t.id, email: { in: ["a", "b", "c", "d", "f"].map((n) => `m87-novo-${n}-${stamp}@teste.local`) } } })) === 0);
 
       console.log("   alterar");
       const rDono = await chamar(EQ, "alterarMembroAction", db, gg, owner.id, { emporio_role: "vendedor", establishment_ids: [L1] });
@@ -376,7 +382,8 @@ async function comBanco() {
       const lojasDepois = await prisma.userEstablishment.count({ where: { user_id: alvo.id } });
       const ua = await prisma.user.findUnique({ where: { id: alvo.id } });
       check("virar Gerente geral limpa as lojas e o papel vira ADMIN", lojasDepois === 0 && ua?.role === "ADMIN", j({ lojasDepois, role: ua?.role }));
-      check("Gerente geral: emporio_only liga", (await chamar(EQ, "alterarMembroAction", db, owner, alvo.id, { emporio_only: true })).ok && ((await prisma.user.findUnique({ where: { id: alvo.id } })) as Dado)?.emporio_only === true);
+      check("Q190: virar Gerente geral grava emporio_only verdadeiro", (ua as Dado)?.emporio_only === true, j((ua as Dado)?.emporio_only));
+      check("Q190: emporio_only falso na alteração do Gerente geral é aceito e ignorado", (await chamar(EQ, "alterarMembroAction", db, owner, alvo.id, { emporio_only: false })).ok && ((await prisma.user.findUnique({ where: { id: alvo.id } })) as Dado)?.emporio_only === true);
 
       await prisma.user.update({ where: { id: alvo.id }, data: { emporio_role: "vendedor", emporio_keys: ["perda"] } as Dado });
       const rv = await chamar(EQ, "alterarMembroAction", db, owner, alvo.id, { emporio_role: "gestor", establishment_ids: [L1] });
@@ -387,7 +394,7 @@ async function comBanco() {
       check("virar Vendedor zera as chaves", rv2.ok && ((uv as Dado)?.emporio_keys ?? []).length === 0, j({ r: rv2.ok, k: (uv as Dado)?.emporio_keys }));
       check("Vendedor recebe chave pela alteração", (await chamar(EQ, "alterarMembroAction", db, owner, alvo.id, { emporio_keys: ["devolver_trocar"] })).ok);
       check("chave em quem não é Vendedor na alteração: 422 em emporio_keys", recusa(await chamar(EQ, "alterarMembroAction", db, owner, gestor2.id, { emporio_keys: ["perda"] }), "VALIDATION_ERROR", 422, "emporio_keys"));
-      check("emporio_only em Gestor na alteração: 422 em emporio_only", recusa(await chamar(EQ, "alterarMembroAction", db, owner, gestor2.id, { emporio_only: true }), "VALIDATION_ERROR", 422, "emporio_only"));
+      check("Q190: emporio_only em Gestor na alteração é aceito e ignorado (segue falso)", (await chamar(EQ, "alterarMembroAction", db, owner, gestor2.id, { emporio_only: true })).ok && ((await prisma.user.findUnique({ where: { id: gestor2.id } })) as Dado)?.emporio_only === false);
 
       console.log("   tirar da equipe (Q190: desativa e guarda)");
       const foto = async (id: string) => {
@@ -493,15 +500,17 @@ async function comBanco() {
         const d = await tentar(u, rotaDia, "/api/v1/meu-dia");
         check(`${nome}: passa no Meu Dia`, d.status === 200, j(d));
       }
+      // Q190: toda a equipe é só do Empório, o Gerente geral inclusive, com
+      // `emporio_only` gravado falso (dado antigo) ou verdadeiro.
+      await prisma.user.update({ where: { id: gg.id }, data: { emporio_only: false } as Dado });
       const gg1 = await ani(gg);
-      check("Gerente geral sem emporio_only passa na rota da fazenda", gg1.status === 200, j(gg1));
+      check("Q190: Gerente geral com emporio_only falso (dado antigo) é 403 na rota da fazenda", gg1.status === 403 && gg1.code === "FORBIDDEN" && gg1.message === MSG, j(gg1));
       await prisma.user.update({ where: { id: gg.id }, data: { emporio_only: true } as Dado });
       const gg2 = await ani(gg);
       check("Gerente geral com emporio_only: 403 com a frase", gg2.status === 403 && gg2.code === "FORBIDDEN" && gg2.message === MSG, j(gg2));
       const ggc = await tentar(gg, rotaCon, "/api/v1/contacts");
-      check("Gerente geral com emporio_only ainda passa em Contatos", ggc.status === 200, j(ggc));
-      await prisma.user.update({ where: { id: gg.id }, data: { emporio_only: false } as Dado });
-      check("desligado o emporio_only, a rota da fazenda volta (efeito imediato)", (await ani(gg)).status === 200);
+      check("Gerente geral ainda passa em Contatos", ggc.status === 200, j(ggc));
+      check("Q190: o papel do Gerente geral é só da loja", (await PAPEL.papelDoEmporio(db, gg)).soDaLoja === true);
     });
 
     // ---------------------------------------------------------------- 7. transferência
@@ -578,6 +587,43 @@ async function comBanco() {
       const id4 = (env4.ok ? env4.data.id ?? env4.data.transfer_id : "") as string;
       const rHora = await receber(gestor2, id4, 8, { resolution: "perda_no_caminho", reason: "avaria" });
       check("Gestor do destino recebe a menos com resolution e reason: resolve na hora", rHora.ok && (await lido(id4))?.status !== "aguardando_gestor" && (await lido(id4))?.resolution === "perda_no_caminho", j(rHora));
+    });
+
+    // ---------------------------------------------------------------- 8. sessão de quem foi desativado
+    await rodar("8", async () => {
+      console.log("\n8. Sessão do painel de quem foi desativado (Q190)");
+      // O cookie do painel (JWT de 7 dias) não sabe da desativação: quem decide é a leitura do banco.
+      const rotaAni = await import("@/app/api/v1/animals/route");
+      const rotaCon = await import("@/app/api/v1/contacts/route");
+      const comCookie = async (cookie: string, rota: { GET: (r: Request) => Promise<Response> }, path: string) => {
+        const res = await withCookie(cookie, () => rota.GET(new Request(`http://localhost${path}`)));
+        const corpo = (await res.json().catch(() => ({}))) as Dado;
+        return { status: res.status, code: corpo?.error?.code };
+      };
+      const cookieDe = async (u: { email: string }) => {
+        const c = await emitirCookieTenant(u.email);
+        return `${c.nome}=${c.valor}`;
+      };
+      const cVend = await cookieDe(vend1);
+      const cGG = await cookieDe(gg);
+      check("controle: o cookie do Vendedor ativo passa em Contatos (200)", (await comCookie(cVend, rotaCon, "/api/v1/contacts")).status === 200);
+      check("controle: o cookie do Gerente geral ativo é 403 na fazenda (só do Empório)", (await comCookie(cGG, rotaAni, "/api/v1/animals")).status === 403);
+
+      check("o Dono desativa o Vendedor pela Equipe", (await chamar(EQ, "tirarDoEmporioAction", db, owner, vend1.id)).ok);
+      check("o Dono desativa o Gerente geral pela Equipe", (await chamar(EQ, "tirarDoEmporioAction", db, owner, gg.id)).ok);
+      const rv1 = await comCookie(cVend, rotaCon, "/api/v1/contacts");
+      check("Q190: com o mesmo cookie, o Vendedor desativado é 401 em Contatos", rv1.status === 401 && rv1.code === "UNAUTHORIZED", j(rv1));
+      const rv2 = await comCookie(cVend, rotaAni, "/api/v1/animals");
+      check("Q190: e 401 na rota da fazenda (não ganha a fazenda)", rv2.status === 401, j(rv2));
+      const rg = await comCookie(cGG, rotaAni, "/api/v1/animals");
+      check("Q190: o Gerente geral desativado é 401 na rota da fazenda (não ganha a fazenda como ADMIN)", rg.status === 401, j(rg));
+      const pv = await PAPEL.papelDoEmporio(db, vend1);
+      check("Q190: o papel de quem está desativado é bloqueado (sem papel E só da loja), nunca liberado", pv.inativo === true && pv.papel === null && pv.soDaLoja === true, j({ ...pv, lojas: [...(pv.lojas ?? [])], chaves: [...pv.chaves] }));
+      check("Q190: nada do Empório para o desativado", !PAPEL.pode(pv, "vendedor_da_loja", L1));
+
+      check("reativa o Vendedor", (await chamar(EQ, "reativarMembroAction", db, owner, vend1.id)).ok);
+      check("reativa o Gerente geral", (await chamar(EQ, "reativarMembroAction", db, owner, gg.id)).ok);
+      check("reativado, o mesmo cookie volta a passar em Contatos", (await comCookie(cVend, rotaCon, "/api/v1/contacts")).status === 200);
     });
   } finally {
     const modelos = [

@@ -38,14 +38,25 @@ function storeDeTrabalho(): Work {
   } as unknown as Work;
 }
 
-/** Cookies e draft mode nao sao exercitados por nenhuma suite: bastam vazios. */
-function storeDeRequisicao(token: string | null): Store {
+/**
+ * O store de cookies e draft mode ficam vazios. A sessao de cookie, quando a
+ * suite precisa dela, vai no header `cookie`: e de la que o `auth()` do
+ * NextAuth a le (ver `withCookie`).
+ */
+function storeDeRequisicao(token: string | null, cookie?: string): Store {
   const cookiesVazios = { get: () => undefined, getAll: () => [], has: () => false };
+  const cabecalhos: Record<string, string> = {};
+  if (token) cabecalhos.authorization = `Bearer ${token}`;
+  if (cookie) {
+    cabecalhos.cookie = cookie;
+    cabecalhos.host = "localhost:3000";
+    cabecalhos["x-forwarded-proto"] = "http";
+  }
   return {
     type: "request",
     phase: "render",
     url: { pathname: "/", search: "" },
-    headers: new Headers(token ? { authorization: `Bearer ${token}` } : {}),
+    headers: new Headers(cabecalhos),
     cookies: cookiesVazios,
     mutableCookies: { ...cookiesVazios, set: () => {} },
     userspaceMutableCookies: { ...cookiesVazios, set: () => {} },
@@ -59,5 +70,16 @@ function storeDeRequisicao(token: string | null): Store {
 export function withBearer<T>(token: string | null, fn: () => Promise<T>): Promise<T> {
   return workAsyncStorage.run(storeDeTrabalho(), () =>
     workUnitAsyncStorage.run(storeDeRequisicao(token), fn),
+  );
+}
+
+/**
+ * Como `withBearer`, mas com a sessao do painel: `cookie` e o header inteiro
+ * (`authjs.session-token=...`, de `_sessao-cookie.ts`). E o caminho do JWT de
+ * 7 dias, que nao passa pelo Bearer.
+ */
+export function withCookie<T>(cookie: string, fn: () => Promise<T>): Promise<T> {
+  return workAsyncStorage.run(storeDeTrabalho(), () =>
+    workUnitAsyncStorage.run(storeDeRequisicao(null, cookie), fn),
   );
 }

@@ -28,7 +28,7 @@ export function buildNavItems({
   hasFazenda: boolean;
   hasPrestador: boolean;
   hasEmporio: boolean;
-  /** F6b (Q120): Gestor, Vendedor e Gerente geral "só da loja" veem apenas as páginas permitidas a eles. */
+  /** F6b (Q120, Q190): toda a equipe do Empório vê apenas as páginas permitidas a ela. */
   soDaLoja?: boolean;
   /** As telas do Empório que o papel permite (`paginasVisiveis`); vazio quando não há Empório. */
   paginasDoEmporio?: { href: string; rotulo: string }[];

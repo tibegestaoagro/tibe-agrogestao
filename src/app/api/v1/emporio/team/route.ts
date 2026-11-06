@@ -5,7 +5,7 @@ import { withApi } from "@/lib/route";
 import { cadastrarMembroAction, listarEquipeAction } from "@/lib/actions/emporio-equipe";
 import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
-/** GET e POST /api/v1/emporio/team: wrapper fino, a regra vive na action. */
+/** GET e POST /api/v1/emporio/team: wrapper fino, a regra vive na action (Q190: só a equipe, mais o Dono). */
 
 const FUNCAO = z.enum(["gerente_geral", "gestor", "vendedor", "caixa"], {
   error: "Escolha a função: gerente geral, gestor, vendedor ou caixa.",

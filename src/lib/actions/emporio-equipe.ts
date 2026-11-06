@@ -14,7 +14,8 @@ import type { AppUserRole } from "@/types/next-auth";
  * Q190: a equipe do Empório (quem tem `emporio_role`) é separada dos usuários
  * do Tibé. Conta no limite próprio (`EMPORIO_SEATS`), não no do plano; a
  * Equipe não dá função a um usuário do Tibé; e tirar da equipe DESATIVA a
- * pessoa, guardando função, chaves e lojas para o Reativar.
+ * pessoa, guardando função, chaves e lojas para o Reativar. Toda a equipe é só
+ * do Empório, o Gerente geral inclusive (`emporio_only` do pedido é ignorado).
  */
 
 type Ator = { id: string; role: AppUserRole };
@@ -101,7 +102,7 @@ const ehFuncao = (v: unknown): v is FuncaoEmporio => typeof v === "string" && FU
  */
 async function validarEstado(
   db: TenantPrismaClient,
-  e: { emporio_role: unknown; establishment_ids: unknown; emporio_keys: unknown; emporio_only: unknown },
+  e: { emporio_role: unknown; establishment_ids: unknown; emporio_keys: unknown },
 ) {
   if (!ehFuncao(e.emporio_role)) {
     return fail("VALIDATION_ERROR", "Escolha a função: gerente geral, gestor, vendedor ou caixa.", 422, "emporio_role");
@@ -117,10 +118,6 @@ async function validarEstado(
   }
   if (chaves.length > 0 && funcao !== "vendedor") {
     return fail("VALIDATION_ERROR", "Só o vendedor recebe chaves. O caixa não tem chaves.", 422, "emporio_keys");
-  }
-
-  if (e.emporio_only === true && funcao !== "gerente_geral") {
-    return fail("VALIDATION_ERROR", "Só o gerente geral pode ter acesso só ao Empório.", 422, "emporio_only");
   }
 
   if (funcao !== "gerente_geral") {
@@ -209,6 +206,7 @@ export async function cadastrarMembroAction(
     emporio_role: string;
     establishment_ids?: string[];
     emporio_keys?: string[];
+    /** Aceito e ignorado (Q190): o Gerente geral é sempre só do Empório, e o resto da equipe também. */
     emporio_only?: boolean;
   },
 ): Promise<ActionResult<{ id: string; temp_password: string }>> {
@@ -226,7 +224,6 @@ export async function cadastrarMembroAction(
     emporio_role: input.emporio_role,
     establishment_ids: input.establishment_ids ?? [],
     emporio_keys: input.emporio_keys,
-    emporio_only: input.emporio_only,
   });
   if (recusa) return recusa;
   const funcao = input.emporio_role as FuncaoEmporio;
@@ -237,16 +234,16 @@ export async function cadastrarMembroAction(
   // O convite checa o email com o client base (a unicidade é global), então não
   // cabe na mesma transação do resto. Cria-se o usuário como OPERADOR, o menor
   // papel, contra o limite do Empório (Q190), e a transação abaixo grava
-  // função, papel final, lojas e chaves. Se ela falhar, o usuário fica
-  // desativado: ativo e sem função, ele ocuparia um assento do plano que o
-  // convite não conferiu.
+  // função, papel final, lojas e chaves. Se ela falhar, o convite é desfeito
+  // (o usuário criado é apagado): ativo e sem função, ele seria um usuário do
+  // Tibé ocupando um assento do plano que o convite não conferiu.
   const convite = await inviteUserAction(db, tenantId, { name, email, phone: input.phone, role: "OPERADOR" }, "emporio");
   if (!convite.ok) return convite;
 
   const ids = funcao === "gerente_geral" ? [] : [...new Set(input.establishment_ids as string[])];
   const gravado: FotoDoMembro & { emporio_role: FuncaoEmporio } = {
     emporio_role: funcao,
-    emporio_only: funcao === "gerente_geral" && input.emporio_only === true,
+    emporio_only: funcao === "gerente_geral",
     emporio_keys: funcao === "vendedor" ? (input.emporio_keys ?? []) : [],
     establishment_ids: ids,
   };
@@ -280,7 +277,7 @@ export async function cadastrarMembroAction(
       });
     });
   } catch (e) {
-    await db.user.update({ where: { id: convite.data.id }, data: { active: false } });
+    await db.user.delete({ where: { id: convite.data.id } });
     throw e;
   }
 
@@ -325,6 +322,7 @@ export async function alterarMembroAction(
     emporio_role?: string;
     establishment_ids?: string[];
     emporio_keys?: string[];
+    /** Aceito e ignorado (Q190). */
     emporio_only?: boolean;
   },
 ): Promise<ActionResult<{ id: string }>> {
@@ -343,18 +341,18 @@ export async function alterarMembroAction(
     await db.userEstablishment.findMany({ where: { user_id: userId }, select: { establishment_id: true } })
   ).map((v) => v.establishment_id);
 
-  // Q133: virar Vendedor zera as chaves, virar Gestor zera chaves e só-Empório,
-  // virar Gerente geral limpa as lojas e as chaves. O que vem no mesmo pedido vale.
+  // Q133: virar Vendedor zera as chaves, virar Gerente geral limpa as lojas e as
+  // chaves. O que vem no mesmo pedido vale. `emporio_only` do pedido é aceito e
+  // ignorado (Q190): o Gerente geral grava sempre verdadeiro, o resto falso, e
+  // o papel trata toda a equipe como só do Empório de qualquer jeito.
   const final = {
     emporio_role: nova,
     establishment_ids: nova === "gerente_geral" ? [] : (input.establishment_ids ?? vinculosAtuais),
     emporio_keys: input.emporio_keys ?? (mudou ? [] : alvo.emporio_keys),
-    emporio_only: input.emporio_only ?? (mudou ? false : alvo.emporio_only),
+    emporio_only: nova === "gerente_geral",
   };
-  // Quem não é Vendedor não guarda chave, e quem não é Gerente geral não guarda só-Empório:
-  // o que vem no pedido para o papel errado é recusado; o que vem do estado antigo some.
+  // Quem não é Vendedor não guarda chave: a do pedido é recusada, a do estado antigo some.
   if (nova !== "vendedor" && input.emporio_keys === undefined) final.emporio_keys = [];
-  if (nova !== "gerente_geral" && input.emporio_only === undefined) final.emporio_only = false;
 
   const recusa = await validarEstado(db, final);
   if (recusa) return recusa;

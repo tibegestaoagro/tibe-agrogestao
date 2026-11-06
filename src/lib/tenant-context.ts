@@ -68,8 +68,18 @@ export const getSessionUser = perRequestCache(async function getSessionUser(): P
   if (byToken) return byToken;
 
   const session = await auth();
-  if (!session?.user?.tenant_id) return null;
-  return session.user as SessionUser;
+  if (!session?.user?.tenant_id || !session.user.id) return null;
+
+  // O JWT do cookie vale 7 dias e não sabe que a pessoa foi desativada (Q190:
+  // tirar da equipe desativa). Sem esta leitura, o desativado seguia entrando,
+  // e com o papel do token. Uma leitura por request (memoizada acima), como o
+  // caminho do Bearer já faz; o papel vem do banco pelo mesmo motivo.
+  const doBanco = await prismaForTenant(session.user.tenant_id).user.findFirst({
+    where: { id: session.user.id, active: true },
+    select: { name: true, email: true, role: true },
+  });
+  if (!doBanco) return null;
+  return { ...(session.user as SessionUser), ...doBanco };
 });
 
 /** Retorna o tenant_id da sessão atual. Lança se não houver sessão válida. */

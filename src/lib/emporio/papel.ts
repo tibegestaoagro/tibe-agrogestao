@@ -30,13 +30,23 @@ export type PapelContexto = {
   /** Lojas do ator; nulo para Dono e Gerente geral, que veem todas. */
   lojas: Set<string> | null;
   chaves: Set<string>;
-  /** Q120: Gestor, Vendedor, Caixa, ou Gerente geral com `emporio_only`. */
+  /** Q120 e Q190: todo membro da equipe do Empório (Gerente geral, Gestor, Vendedor, Caixa). */
   soDaLoja: boolean;
+  /** Q190: usuário desativado (ou inexistente). Fica bloqueado: sem papel E só da loja, nunca liberado. */
+  inativo?: boolean;
 };
 
 export type AtorPapel = { id: string; role?: AppUserRole };
 
 const SEM_PAPEL: PapelContexto = { papel: null, lojas: new Set(), chaves: new Set(), soDaLoja: false };
+
+/**
+ * Q190: o desativado não é "sem papel". Sem papel libera a fazenda (é o usuário
+ * do Tibé), e um Vendedor desativado com o cookie ainda válido ganharia a
+ * fazenda. Bloqueado é: nenhuma ação do Empório (`papel` nulo) e a trava do só
+ * da loja ligada para o resto.
+ */
+const BLOQUEADO: PapelContexto = { papel: null, lojas: new Set(), chaves: new Set(), soDaLoja: true, inativo: true };
 
 /**
  * Memoizado por request. O client escopado não expõe o tenant, então ele entra
@@ -48,14 +58,16 @@ const carregar = perRequestCache(async function carregarPapel(
   userId: string,
 ): Promise<PapelContexto> {
   const u = await db.user.findFirst({
-    where: { id: userId, active: true },
-    select: { role: true, emporio_role: true, emporio_only: true, emporio_keys: true },
+    where: { id: userId },
+    select: { active: true, role: true, emporio_role: true, emporio_keys: true },
   });
-  if (!u) return SEM_PAPEL;
+  if (!u || !u.active) return BLOQUEADO;
   if (u.role === "OWNER") return { papel: "dono", lojas: null, chaves: new Set(), soDaLoja: false };
   if (!u.emporio_role) return SEM_PAPEL;
+  // Q190: toda a equipe do Empório é só do Empório, o Gerente geral inclusive.
+  // Quem precisa da fazenda ganha outra conta, de usuário do Tibé.
   if (u.emporio_role === "gerente_geral") {
-    return { papel: "gerente_geral", lojas: null, chaves: new Set(), soDaLoja: u.emporio_only };
+    return { papel: "gerente_geral", lojas: null, chaves: new Set(), soDaLoja: true };
   }
   const links = await db.userEstablishment.findMany({
     where: { user_id: userId },

@@ -218,7 +218,7 @@ export const GROUPS: Group[] = [
         method: "PATCH",
         path: "/api/v1/users/:id/active",
         auth: "Sessão · usuarios:write",
-        description: "Ativa ou desativa um usuário (nunca deleta: preserva histórico de ações). Não é possível desativar a própria conta. Desativar sempre é permitido e libera um assento; reativar consome um assento e devolve `SEAT_LIMIT_REACHED` (422) se o plano já estiver no limite. Quem é da equipe do Empório: 409 `EMPORIO_ROLE` (\"Ative ou desative pela Equipe do Empório.\"), porque ocupa o limite do Empório, não o do plano (Q190).",
+        description: "Só para usuário do Tibé: membro da equipe do Empório (quem tem `emporio_role`) é recusado com 409 `EMPORIO_ROLE` (\"Ative ou desative pela Equipe do Empório.\"), porque ocupa o limite do Empório, não o do plano (Q190). Ativa ou desativa um usuário (nunca deleta: preserva histórico de ações). Não é possível desativar a própria conta. Desativar sempre é permitido e libera um assento; reativar consome um assento e devolve `SEAT_LIMIT_REACHED` (422) se o plano já estiver no limite. O desativado perde a sessão no request seguinte (401 na API, login no painel).",
         request: `{ "active": false }`,
         response: `200
 { "data": { "id": "cl..." }, "meta": {} }`,
@@ -634,7 +634,7 @@ export const GROUPS: Group[] = [
         method: "POST",
         path: "/api/v1/emporio/team",
         auth: "Sessão · emporio:write · só o dono e o gerente geral",
-        description: "Cadastra alguém na equipe: cria o usuário (convite, com senha temporária mostrada uma única vez) e grava função, lojas e chaves. O papel da conta acompanha: gerente geral é ADMIN, gestor e vendedor são OPERADOR. Email já usado: 409 `DUPLICATE_EMAIL` em `email`. Equipe do Empório cheia (50 ativos; o limite do plano não conta aqui, Q190): 422 `SEAT_LIMIT_REACHED`. Recusas 422 `VALIDATION_ERROR` no campo: `emporio_role` fora da lista, `establishment_ids` vazio ou com loja inexistente ou arquivada (gestor e vendedor), `emporio_keys` em quem não é vendedor ou com chave desconhecida, `emporio_only` em quem não é gerente geral. As lojas do gerente geral são ignoradas.",
+        description: "Cadastra alguém na equipe: cria o usuário (convite, com senha temporária mostrada uma única vez) e grava função, lojas e chaves. O papel da conta acompanha: gerente geral é ADMIN, gestor e vendedor são OPERADOR. Email já usado: 409 `DUPLICATE_EMAIL` em `email`. Equipe do Empório cheia (50 ativos; o limite do plano não conta aqui, Q190): 422 `SEAT_LIMIT_REACHED`. Recusas 422 `VALIDATION_ERROR` no campo: `emporio_role` fora da lista, `establishment_ids` vazio ou com loja inexistente ou arquivada (gestor e vendedor), `emporio_keys` em quem não é vendedor ou com chave desconhecida. As lojas do gerente geral são ignoradas. `emporio_only` é aceito e ignorado (Q190): toda a equipe é só do Empório, e o gerente geral grava sempre `true`.",
         request: `{ "name": "Ana", "email": "ana@loja.com", "emporio_role": "vendedor", "establishment_ids": ["cl..."], "emporio_keys": ["perda", "contagem"] }`,
         response: `201
 { "data": { "id": "cl...", "temp_password": "Xy9k2Qmz" }, "meta": {} }`,
@@ -643,7 +643,7 @@ export const GROUPS: Group[] = [
         method: "PATCH",
         path: "/api/v1/emporio/team/:userId",
         auth: "Sessão · emporio:write · só o dono e o gerente geral",
-        description: "Altera função, lojas, chaves ou `emporio_only` (os ausentes ficam como estão, salvo a regra da troca): virar vendedor zera as chaves, virar gestor zera chaves e `emporio_only`, virar gerente geral limpa as lojas e as chaves; o que vier no mesmo pedido vale. O papel da conta acompanha. O dono como alvo: 403. O gerente geral não altera outro gerente geral: 403. Usuário de outra conta ou inexistente: 404. Usuário do Tibé (sem função no Empório): 409 `NOT_EMPORIO_TEAM`, porque a Equipe não dá função a ele (Q190). Desativado: 409 `INACTIVE` (reative antes). As mesmas recusas 422 do cadastro.",
+        description: "Altera função, lojas ou chaves (os ausentes ficam como estão, salvo a regra da troca): virar vendedor zera as chaves, virar gerente geral limpa as lojas e as chaves; o que vier no mesmo pedido vale. O papel da conta acompanha. `emporio_only` é aceito e ignorado (Q190): gerente geral grava `true`, as outras funções `false`, e toda a equipe é só do Empório. O dono como alvo: 403. O gerente geral não altera nenhum ADMIN da conta (outro gerente geral inclusive): 403. Usuário de outra conta ou inexistente: 404. Usuário do Tibé (sem função no Empório): 409 `NOT_EMPORIO_TEAM`, porque a Equipe não dá função a ele (Q190). Desativado: 409 `INACTIVE` (reative antes). As mesmas recusas 422 do cadastro.",
         request: `{ "emporio_role": "gestor", "establishment_ids": ["cl..."] }`,
         response: `200
 { "data": { "id": "cl..." }, "meta": {} }`,
@@ -652,7 +652,7 @@ export const GROUPS: Group[] = [
         method: "DELETE",
         path: "/api/v1/emporio/team/:userId",
         auth: "Sessão · emporio:write · só o dono e o gerente geral",
-        description: "Tira a pessoa da equipe (Q190): DESATIVA o usuário e guarda função, chaves, `emporio_only` e lojas, para o Reativar devolver como estava. Ela não vira usuária do Tibé. Recusas: dono 403, gerente geral sobre gerente geral 403, 404, usuário do Tibé 409 `NOT_EMPORIO_TEAM`, já desativado 409 `ALREADY_INACTIVE`.",
+        description: "Tira a pessoa da equipe (Q190): DESATIVA o usuário e guarda função, chaves, `emporio_only` e lojas, para o Reativar devolver como estava. Ela não vira usuária do Tibé, e a sessão dela deixa de valer no request seguinte (401 na API, login no painel). Recusas: dono 403, gerente geral sobre qualquer ADMIN da conta 403, 404, usuário do Tibé 409 `NOT_EMPORIO_TEAM`, já desativado 409 `ALREADY_INACTIVE`.",
         response: `200
 { "data": { "id": "cl..." }, "meta": {} }`,
       },
@@ -660,7 +660,7 @@ export const GROUPS: Group[] = [
         method: "POST",
         path: "/api/v1/emporio/team/:userId/reactivate",
         auth: "Sessão · emporio:write · só o dono e o gerente geral",
-        description: "Reativa quem foi tirado da equipe (Q190), com a função, as chaves e as lojas que tinha. Ocupa vaga no limite da equipe do Empório (50 ativos): cheia, 422 `SEAT_LIMIT_REACHED`. Recusas: dono 403, gerente geral sobre gerente geral 403, 404, usuário do Tibé 409 `NOT_EMPORIO_TEAM`, já ativo 409 `ALREADY_ACTIVE`.",
+        description: "Reativa quem foi tirado da equipe (Q190), com a função, as chaves e as lojas que tinha. Ocupa vaga no limite da equipe do Empório (50 ativos): cheia, 422 `SEAT_LIMIT_REACHED`. Recusas: dono 403, gerente geral sobre qualquer ADMIN da conta 403, 404, usuário do Tibé 409 `NOT_EMPORIO_TEAM`, já ativo 409 `ALREADY_ACTIVE`.",
         response: `200
 { "data": { "id": "cl..." }, "meta": {} }`,
       },

@@ -45,7 +45,28 @@ import type { AppUserRole } from "@/types/next-auth";
  */
 const { auth } = NextAuth(authConfig);
 
-export const proxy = auth(async (req) => {
+/** Marca que o proxy interno põe na resposta quando a sessão é de alguém desativado. */
+const MARCA_SESSAO_ENCERRADA = "x-tibe-sessao-encerrada";
+
+/**
+ * Q190: o desativado tem o cookie válido por até 7 dias. Apagar o cookie
+ * DENTRO do `auth()` não adianta: o next-auth acrescenta, depois da nossa
+ * resposta, o cookie da sessão renovado (`handleAuth` em
+ * node_modules/next-auth/lib/index.js), e o navegador fica com ele. Por isso a
+ * resposta final é refeita aqui fora: redireciona ao login e só apaga.
+ */
+export async function proxy(...args: Parameters<typeof proxyDoAuth>) {
+  const res = await proxyDoAuth(...args);
+  if (!res?.headers.get(MARCA_SESSAO_ENCERRADA)) return res;
+  const [req] = args;
+  const saida = NextResponse.redirect(new URL("/login", req.url));
+  for (const c of req.cookies.getAll()) {
+    if (/^(__Secure-)?authjs\.session-token/.test(c.name)) saida.cookies.delete(c.name);
+  }
+  return saida;
+}
+
+const proxyDoAuth = auth(async (req) => {
   const { pathname } = req.nextUrl;
 
   if (pathname.startsWith("/plataforma")) {
@@ -77,6 +98,12 @@ export const proxy = auth(async (req) => {
   }
 
   const bloqueio = await bloqueioDoSoDaLoja(req.auth?.user, pathname);
+  if (bloqueio === SESSAO_ENCERRADA) {
+    // A resposta de verdade (login + cookie apagado) é montada em `proxy`, fora do auth().
+    const res = NextResponse.redirect(new URL("/login", req.url));
+    res.headers.set(MARCA_SESSAO_ENCERRADA, "1");
+    return res;
+  }
   if (bloqueio) return NextResponse.redirect(new URL(bloqueio, req.url));
 
   const res = NextResponse.next();
@@ -99,16 +126,26 @@ export const proxy = auth(async (req) => {
  */
 const FORA_DO_PAINEL = ["/trocar-senha", "/escolher-plano", "/onboarding"];
 
+/** Marca de "usuário desativado": o proxy encerra a sessão em vez de só redirecionar. */
+const SESSAO_ENCERRADA = "sessao-encerrada";
+
+/**
+ * Também é aqui que o usuário desativado (Q190) é barrado nas páginas: o JWT
+ * não sabe da desativação, e `papelDoEmporio` lê `active` no banco (uma
+ * leitura por página, a mesma que a trava já fazia para quem não é Dono).
+ */
 async function bloqueioDoSoDaLoja(
   user: { id?: string; tenant_id?: string; role?: AppUserRole } | undefined,
   pathname: string,
 ): Promise<string | null> {
-  if (!user?.id || !user.tenant_id || user.role === "OWNER") return null;
+  if (!user?.id || !user.tenant_id) return null;
   if (pathname.startsWith("/api") || pathname.startsWith("/_next") || ehCaminhoPublico(pathname)) return null;
+  const papel = await papelDoEmporio(prismaForTenant(user.tenant_id), { id: user.id, role: user.role });
+  if (papel.inativo) return SESSAO_ENCERRADA;
+  if (papel.papel === "dono") return null;
   if (FORA_DO_PAINEL.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return null;
   if (paginaPermitidaAoSoDaLoja(pathname)) return null;
-  const { soDaLoja } = await papelDoEmporio(prismaForTenant(user.tenant_id), { id: user.id, role: user.role });
-  return soDaLoja ? DESTINO_DO_SO_DA_LOJA : null;
+  return papel.soDaLoja ? DESTINO_DO_SO_DA_LOJA : null;
 }
 
 export const config = {

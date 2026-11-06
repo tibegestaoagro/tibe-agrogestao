@@ -26,11 +26,10 @@ export type MembroParaEditar = {
   emporio_role: FuncaoDaEquipe | null;
   establishment_ids: string[];
   emporio_keys: string[];
-  emporio_only: boolean;
 };
 
 /** Os campos na ordem visual, com o nome que a API usa. */
-const ORDEM = ["name", "email", "phone", "emporio_role", "establishment_ids", "emporio_keys", "emporio_only"] as const;
+const ORDEM = ["name", "email", "phone", "emporio_role", "establishment_ids", "emporio_keys"] as const;
 
 const classeCaixa = "h-4 w-4 rounded border-borda text-primaria-tinta focus:ring-primaria";
 
@@ -59,7 +58,6 @@ export function EquipeForm({
   const [funcao, setFuncao] = useState<FuncaoDaEquipe | "">(membro?.emporio_role ?? "");
   const [lojasSel, setLojasSel] = useState<string[]>(membro?.establishment_ids ?? []);
   const [chavesSel, setChavesSel] = useState<string[]>(membro?.emporio_keys ?? []);
-  const [soDaLoja, setSoDaLoja] = useState(membro?.emporio_only ?? false);
   const [tempPassword, setTempPassword] = useState<string | null>(null);
 
   function reiniciar() {
@@ -69,7 +67,6 @@ export function EquipeForm({
     setFuncao(membro?.emporio_role ?? "");
     setLojasSel(membro?.establishment_ids ?? []);
     setChavesSel(membro?.emporio_keys ?? []);
-    setSoDaLoja(membro?.emporio_only ?? false);
     setTempPassword(null);
     err.limparTudo();
   }
@@ -107,7 +104,6 @@ export function EquipeForm({
       emporio_role: funcao,
       establishment_ids: funcao === "gerente_geral" ? [] : lojasSel,
       emporio_keys: funcao === "vendedor" ? chavesSel : [],
-      emporio_only: funcao === "gerente_geral" ? soDaLoja : false,
     };
 
     err.limparTudo();
@@ -291,31 +287,6 @@ export function EquipeForm({
             </Field>
           )}
 
-          {funcao === "gerente_geral" && (
-            <Field
-              label="Acesso"
-              id={err.idDe("emporio_only")}
-              error={err.erros.emporio_only}
-              hint="Ligado: a pessoa só vê o Empório e não abre a fazenda."
-            >
-              {({ id, ...aria }) => (
-                <label className="flex items-center gap-2 text-sm text-texto">
-                  <input
-                    id={id}
-                    {...aria}
-                    type="checkbox"
-                    checked={soDaLoja}
-                    onChange={(e) => {
-                      setSoDaLoja(e.target.checked);
-                      err.limparCampo("emporio_only");
-                    }}
-                    className={classeCaixa}
-                  />
-                  Só da loja
-                </label>
-              )}
-            </Field>
-          )}
         </>
       )}
     </FormSheet>

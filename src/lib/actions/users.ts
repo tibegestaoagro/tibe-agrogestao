@@ -82,7 +82,8 @@ export async function setUserActiveAction(
     return fail("CANNOT_DEACTIVATE_OWNER", "O Owner não pode ser desativado", 422);
   }
   // Q190: a equipe do Empório tem limite próprio e se ativa pela Equipe. Por
-  // aqui, reativar contaria contra o assento do plano, que ela não ocupa.
+  // aqui, reativar contaria contra o assento do plano, que ela não ocupa, e
+  // desativar deixaria a pessoa fora da lista de desativados da Equipe.
   if (existing.emporio_role) {
     return fail("EMPORIO_ROLE", "Ative ou desative pela Equipe do Empório.", 409);
   }

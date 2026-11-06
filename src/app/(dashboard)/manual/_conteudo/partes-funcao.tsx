@@ -34,8 +34,9 @@ export function ParteDono() {
   return (
     <div className="space-y-4">
       <p>
-        Você é o Dono. Tudo o que o sistema faz, você pode fazer, em todas as lojas. O Gerente geral tem o mesmo poder,
-        só não cria nem altera o Dono. Este texto vale para os dois.
+        Você é o Dono. Tudo o que o sistema faz, você pode fazer, em todas as lojas. O Gerente geral tem o mesmo poder
+        no Empório, só não cria nem altera o Dono, e vê só o Empório: a fazenda e o Financeiro são do Dono. Este texto
+        vale para os dois.
       </p>
 
       <Titulo>O que você faz no dia a dia</Titulo>

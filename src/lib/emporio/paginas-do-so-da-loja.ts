@@ -1,6 +1,6 @@
 /**
- * Meu Empório, F6b (Q120): o que quem é "só da loja" (Gestor, Vendedor, Gerente
- * geral com "Só da loja") pode abrir no painel.
+ * Meu Empório, F6b (Q120, Q190): o que quem é "só da loja" (toda a equipe do
+ * Empório: Gerente geral, Gestor, Vendedor e Caixa) pode abrir no painel.
  *
  * A lista é do que é PERMITIDO, não do que é proibido: página nova da fazenda
  * nasce fechada para ele sem que ninguém precise lembrar. Função pura, sem

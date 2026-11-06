@@ -234,6 +234,17 @@ confere("o Vendedor aparece em Desativados", esperar(lambda: tem("Desativados") 
 desativado = api("GET", "/api/v1/emporio/team")["body"]["data"]["inactive_users"]
 dele = next((u for u in desativado if u["email"] == "f6b-vendedor1@teste.local"), None)
 confere("o servidor guardou a função e as lojas", dele is not None and dele["emporio_role"] == "vendedor" and len(dele["establishment_ids"]) > 0, dele)
+
+# O cookie do Vendedor (JWT de 7 dias) continua no navegador: a sessão tem que cair.
+entrar("vendedor1")
+js("setTimeout(() => { location.href = " + repr(BASE + "/emporio") + " }, 50)")
+confere("Q190: a sessão do desativado vai para o login", esperar(lambda: js("location.pathname") == "/login", 120), js("location.pathname"))
+sobrou = [c["name"] for c in (cdp("Network.getCookies", urls=[BASE]) or {}).get("cookies", []) if "session-token" in c["name"]]
+confere("Q190: e o cookie da sessão foi apagado", sobrou == [], sobrou)
+js("setTimeout(() => { location.href = " + repr(BASE + "/financeiro") + " }, 50)")
+confere("Q190: sem sessão, a fazenda também manda ao login", esperar(lambda: js("location.pathname") == "/login", 120), js("location.pathname"))
+entrar("owner")
+ir("/emporio/equipe")
 confere("clica em Reativar", clicar_na_linha("f6b-vendedor1@teste.local", "Reativar"))
 confere("o Vendedor volta para a equipe ativa", esperar(lambda: "f6b-vendedor1@teste.local" in equipe(), 60))
 confere("e a linha volta com Desativar", esperar(lambda: "Desativar" in linha("f6b-vendedor1@teste.local"), 60), linha("f6b-vendedor1@teste.local"))

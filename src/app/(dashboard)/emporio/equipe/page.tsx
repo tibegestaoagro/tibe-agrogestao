@@ -57,7 +57,7 @@ export default async function EquipePage() {
       </header>
 
       <p className="text-sm text-texto-secundario">
-        <strong className="font-medium text-texto">Gerente geral</strong> cuida de tudo, em todas as lojas.{" "}
+        <strong className="font-medium text-texto">Gerente geral</strong> cuida de tudo do Empório, em todas as lojas.{" "}
         <strong className="font-medium text-texto">Gestor</strong> comanda as lojas dele e resolve diferença de
         transferência. <strong className="font-medium text-texto">Vendedor</strong> vende no balcão e só faz o que
         você liberar nas chaves. <strong className="font-medium text-texto">Caixa</strong> recebe o pagamento, recebe
@@ -66,7 +66,8 @@ export default async function EquipePage() {
       </p>
       <p className="text-sm text-texto-secundario">
         A equipe do Empório é separada dos usuários do Tibé: cabe até {EMPORIO_SEATS} pessoas ativas e não
-        ocupa assento do plano. Quem precisa da fazenda ganha outra conta em Configurações &gt; Usuários. Desativar guarda
+        ocupa assento do plano. Todos da equipe, o Gerente geral inclusive, veem só o Empório: não abrem a fazenda nem o
+        Financeiro. Quem precisa da fazenda ganha outra conta em Configurações &gt; Usuários. Desativar guarda
         a função, as lojas e as chaves, e Reativar devolve a pessoa como estava.
       </p>
 
@@ -100,12 +101,7 @@ export default async function EquipePage() {
                     {dono ? (
                       <Badge variant="green">Dono</Badge>
                     ) : funcao ? (
-                      <>
-                        <Badge variant="green">{FUNCAO_ROTULO[funcao]}</Badge>
-                        {u.emporio_only && (
-                          <span className="block text-xs text-texto-secundario">Só da loja</span>
-                        )}
-                      </>
+                      <Badge variant="green">{FUNCAO_ROTULO[funcao]}</Badge>
                     ) : (
                       <Badge variant="gray">Sem função</Badge>
                     )}
@@ -134,7 +130,6 @@ export default async function EquipePage() {
                             emporio_role: funcao,
                             establishment_ids: u.establishment_ids,
                             emporio_keys: u.emporio_keys,
-                            emporio_only: u.emporio_only,
                           }}
                         />
                         {funcao && <EquipeTirarBotao userId={u.id} nome={u.name} />}

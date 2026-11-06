@@ -7,8 +7,8 @@ import { executarTurno } from "@/lib/actions/turno";
 exigirBancoLocal();
 
 /**
- * Módulo 39 (Meu Empório), F6b, Q120: quem é só da loja (Gestor, Vendedor, ou
- * Gerente geral com `emporio_only`) não usa o agente do WhatsApp. A trava vale
+ * Módulo 39 (Meu Empório), F6b, Q120 e Q190: quem é só da loja (toda a equipe
+ * do Empório, o Gerente geral inclusive) não usa o agente do WhatsApp. A trava vale
  * nos dois caminhos (`executarIntencao`, que serve ao `execute-action` e ao
  * turno, e o próprio `executarTurno`, que recusa antes de classificar).
  *
@@ -105,11 +105,15 @@ async function main() {
     check("fluxo aberto não muda", (await db.agentFlowState.count({ where: { user_id: vendedor.id } })) === fluxoAntes);
 
     console.log("\n3. Quem não é só da loja segue normal");
-    for (const [nome, a] of [["Dono", dono], ["Gerente geral sem emporio_only", ggNormal]] as const) {
+    for (const [nome, a] of [["Dono", dono]] as const) {
       const r = await intencao(a, "cadastra um animal", `w-${nome}`);
       check(`${nome}: NÃO recebe a frase`, r.reply_text !== FRASE, r.reply_text);
       check(`${nome}: a intenção foi tratada`, r.action_taken !== "so_da_loja", r.action_taken);
     }
+    // Q190: toda a equipe do Empório é só do Empório, o Gerente geral inclusive,
+    // mesmo com `emporio_only` falso gravado (dado de antes da Q190).
+    const rGgn = await intencao(ggNormal, "cadastra um animal", "w-ggn");
+    check("Q190: Gerente geral com emporio_only falso também recebe a frase", rGgn.reply_text === FRASE, rGgn.reply_text);
 
     console.log("\n4. O turno recusa antes de classificar");
     for (const [nome, a] of [["Vendedor", vendedor], ["Gestor", gestor], ["Gerente geral com emporio_only", ggSoLoja]] as const) {
@@ -124,7 +128,7 @@ async function main() {
     const sDono = await executarTurno({ telefone: dono.phone, texto: "oi", provider_message_id: "t-dono" });
     check("Dono no turno: NÃO recebe a frase", !sDono.mensagens.some((m) => m.texto === FRASE), JSON.stringify(sDono.mensagens));
     const sGg = await executarTurno({ telefone: ggNormal.phone, texto: "oi", provider_message_id: "t-ggn" });
-    check("Gerente geral sem emporio_only no turno: NÃO recebe a frase", !sGg.mensagens.some((m) => m.texto === FRASE), JSON.stringify(sGg.mensagens));
+    check("Q190: Gerente geral com emporio_only falso no turno também recebe a frase", sGg.mensagens.length === 1 && sGg.mensagens[0].texto === FRASE, JSON.stringify(sGg.mensagens));
   } finally {
     globalThis.fetch = fetchReal;
     for (const m of ["agentConversationLog", "agentRequest", "agentFlowState", "animalBatch", "whatsAppContact", "property", "user", "tenantProfile"]) {

@@ -165,7 +165,7 @@ export const FIGURAS: Figura[] = [
     marcas: [
       { numero: 1, alvo: "a seção Precisa repor", texto: "Produtos com saldo abaixo do mínimo." },
       { numero: 2, alvo: "a coluna Sugestão", texto: "Quanto falta para chegar ao máximo, já contando compras que ainda não chegaram." },
-      { numero: 3, alvo: "o botão Encaminhar à Lista", texto: "Manda o item para a Lista de Compra. Só o Dono e o Gerente geral veem esse botão." },
+      { numero: 3, alvo: "o botão Encaminhar à Lista", texto: "Manda o item para a Lista de Compra. Só o Dono vê esse botão." },
     ],
   },
   {

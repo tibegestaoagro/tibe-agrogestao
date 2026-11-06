@@ -73,8 +73,9 @@ export function ParteDeEquipe() {
         <Figura id="equipe-cadastrar" />
         <Chamada tipo="saiba">
           <p>
-            Gestor, Vendedor e Caixa veem só o Meu Empório e o necessário. Eles não enxergam a fazenda, o Financeiro nem a
-            Lista de Compra.
+            Toda a equipe, o Gerente geral inclusive, vê só o Meu Empório e o necessário. Ninguém da equipe enxerga a
+            fazenda, o Financeiro nem a Lista de Compra. Quem precisa da fazenda ganha outra conta, em Configurações &gt;
+            Usuários.
           </p>
         </Chamada>
       </Tarefa>
@@ -273,7 +274,7 @@ export function ParteDeEstoque() {
           "Defina o mínimo (o menor saldo aceitável) e o máximo (até onde vale encher a prateleira) de cada produto.",
           <>Abra <strong>Precisa repor</strong>. Os produtos abaixo do mínimo aparecem com a quantidade sugerida.</>,
           "A quantidade sugerida é o máximo menos o saldo e menos o que já foi comprado e ainda não chegou.",
-          <>O Dono e o Gerente geral veem o botão <strong>Encaminhar à Lista</strong>: ele manda o item para a Lista de Compra da loja.</>,
+          <>O Dono vê o botão <strong>Encaminhar à Lista</strong>: ele manda o item para a Lista de Compra. A Lista é da fazenda, e a equipe do Empório, o Gerente geral inclusive, não a vê.</>,
         ]}
       >
         <Figura id="estoque-precisa-repor" />
