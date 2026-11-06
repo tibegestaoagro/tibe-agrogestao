@@ -96,10 +96,12 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
-### Empório: o manual das entregas 1 a 4 e o cenário de demonstração (05/11), na branch
+### Empório: o manual das entregas 1 a 4 e o cenário de demonstração (05/11), em produção
 
-Branch `emporio-manual-demonstracao` (saída de `bbf62db`), **não está na
-`main`**. Plano `docs/superpowers/plans/2026-11-05-emporio-manual-e-demonstracao.md`,
+Merge fast-forward de `emporio-manual-demonstracao` (saída de `bbf62db`) na
+`main` e push em 05/11, autorizados pelo usuário. Sem migração. Revisão final
+da branch sem achado Crítico nem Importante; `test:all -- --sem-redis` 94/94.
+Plano `docs/superpowers/plans/2026-11-05-emporio-manual-e-demonstracao.md`,
 decisões Q188 e Q189 na spec do módulo. Sem migração. Contém:
 - o relógio interno (`opts.agora`) nas actions de turno e em
   `salvarOrcamentoAction`, só para código interno (Q188; `test:m92` seção 7
@@ -579,10 +581,10 @@ o vendedor em toda venda, e que os Relatórios ficam no menu do Gestor para
 cima. A entrega 4 (orçamento) também está em produção desde 05/11. Esperam
 decisão do usuário as pontas da Q187: amarrar o cliente da venda ao do
 orçamento, o preço orçado valer para qualquer quantidade, e o `sold_at`
-retroativo pela API. O manual e o cenário de demonstração estão prontos na
-branch `emporio-manual-demonstracao` (seção acima): falta o usuário autorizar
-o merge e o push, e depois decidir o turno aberto da Da Mata antes de refazer
-a demonstração. Da entrega 1, segue
+retroativo pela API. O manual das entregas 1 a 4 e o cenário de demonstração
+estão na `main` desde 05/11 (seção acima). Para refazer a demonstração na Da
+Mata, o usuário decide o turno aberto desde 30/10 e autoriza rodar o cenário
+lá (muda a função da Juliana para Caixa). Da entrega 1, segue
 pendente o usuário imprimir um cupom
 de 58 e de 80 mm na bobina da loja e um A4.
 
