@@ -74,6 +74,7 @@ export async function itensDoEmporioNoDia(
     },
     include: {
       contact: { select: { name: true } },
+      emporio_supplier: { select: { name: true } },
       payments: { select: { amount: true } },
       sale_variable_expense: { include: { rule: { select: { name: true } } } },
       fixed_occurrence: { include: { template: { select: { name: true } } } },
@@ -90,6 +91,7 @@ export async function itensDoEmporioNoDia(
     if (saldo <= 0) continue;
     const loja = nomeDaLoja.get(c.establishment_id) ?? "";
     const quem =
+      c.emporio_supplier?.name ??
       c.contact?.name ??
       c.sale_variable_expense?.rule.name ??
       c.fixed_occurrence?.template.name ??

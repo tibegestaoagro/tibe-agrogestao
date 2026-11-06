@@ -147,6 +147,7 @@ export default async function FinanceiroPage(
         property: { select: { name: true } },
         contact: { select: { name: true } },
         emporio_customer: { select: { name: true } },
+        emporio_supplier: { select: { name: true } },
       },
       orderBy: { due_date: "desc" },
       take: 100,
@@ -282,7 +283,7 @@ export default async function FinanceiroPage(
                     <TableCell>{ENTRY_LABEL[e.entry_type]}</TableCell>
                     <TableCell>{e.category ?? "não informado"}</TableCell>
                     <TableCell>{e.property?.name ?? "todas"}</TableCell>
-                    <TableCell>{e.contact?.name ?? e.emporio_customer?.name ?? "não informado"}</TableCell>
+                    <TableCell>{e.contact?.name ?? e.emporio_customer?.name ?? e.emporio_supplier?.name ?? "não informado"}</TableCell>
                     <TableCell>{MODULE_LABEL[e.related_module ?? "geral"]}</TableCell>
                     <TableCell>
                       {brl(valor)}

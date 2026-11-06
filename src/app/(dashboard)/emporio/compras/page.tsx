@@ -56,7 +56,7 @@ export default async function ComprasPage({
     listarEstabelecimentosAction(db, user),
     listarComprasAction(db, user, { establishment_id: loja || undefined, status: filtroSituacao }),
     podeLancar
-      ? db.contact.findMany({ where: { archived_at: null, system_key: null }, select: { id: true, name: true }, orderBy: { name: "asc" } })
+      ? db.emporioSupplier.findMany({ where: { archived_at: null }, select: { id: true, name: true }, orderBy: { name: "asc" } })
       : Promise.resolve([]),
     podeLancar
       ? db.emporioProduct.findMany({
@@ -146,7 +146,7 @@ export default async function ComprasPage({
                 <TableRow key={c.id}>
                   <TableCell>{DATA.format(new Date(c.purchased_at))}</TableCell>
                   <TableCell className="font-medium text-texto">{c.establishment_name}</TableCell>
-                  <TableCell>{c.contact_name ?? "-"}</TableCell>
+                  <TableCell>{c.supplier_name ?? "-"}</TableCell>
                   <TableCell className="max-w-xs text-sm">
                     {c.items
                       .map((i) => {

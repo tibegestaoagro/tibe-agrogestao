@@ -40,6 +40,7 @@ async function limpar(tenant_id: string) {
   const vendas = (await prisma.emporioSale.findMany({ where: { tenant_id, establishment_id: { in: lojas } }, select: { id: true } })).map((v) => v.id);
   const compras = (await prisma.emporioPurchase.findMany({ where: { tenant_id, establishment_id: { in: lojas } }, select: { id: true } })).map((c) => c.id);
   const contatos = (await prisma.contact.findMany({ where: { tenant_id, name: { startsWith: PREFIXO } }, select: { id: true } })).map((c) => c.id);
+  const fornecedores = (await prisma.emporioSupplier.findMany({ where: { tenant_id, name: { startsWith: PREFIXO } }, select: { id: true } })).map((c) => c.id);
   const clientes = (await prisma.emporioCustomer.findMany({ where: { tenant_id, name: { startsWith: PREFIXO } }, select: { id: true } })).map((c) => c.id);
   const composicoes = (await prisma.composition.findMany({ where: { tenant_id, emporio_product_id: { in: emporio } }, select: { id: true } })).map((c) => c.id);
   const lancamentos = (await prisma.financialEntry.findMany({
@@ -72,6 +73,7 @@ async function limpar(tenant_id: string) {
   await prisma.emporioProduct.deleteMany({ where: { tenant_id, id: { in: emporio } } });
   await prisma.product.deleteMany({ where: { tenant_id, id: { in: produtos } } });
   await prisma.emporioCustomer.deleteMany({ where: { tenant_id, id: { in: clientes } } });
+  await prisma.emporioSupplier.deleteMany({ where: { tenant_id, id: { in: fornecedores } } });
   await prisma.contact.deleteMany({ where: { tenant_id, id: { in: contatos } } });
   await prisma.userEstablishment.deleteMany({ where: { tenant_id, establishment_id: { in: lojas } } });
   await prisma.establishment.deleteMany({ where: { tenant_id, id: { in: lojas } } });
@@ -139,7 +141,7 @@ async function main() {
     await produto(nome, unidade);
   }
 
-  const fornecedor = await prisma.contact.create({ data: { tenant_id, name: `${PREFIXO}Casa do Adubo` } });
+  const fornecedor = await prisma.emporioSupplier.create({ data: { tenant_id, kind: "externo", name: `${PREFIXO}Casa do Adubo` } });
   const cliente = await prisma.emporioCustomer.create({ data: { tenant_id, name: `${PREFIXO}João` } });
   const agora = new Date();
   const chave = (s: string) => `cenario-f5-${s}-${agora.getTime()}`;
@@ -149,7 +151,7 @@ async function main() {
   const compra = exigir(await compras.criarCompraAction(db, ator, {
     operation_key: chave("compra"),
     establishment_id: loja.id,
-    contact_id: fornecedor.id,
+    supplier_id: fornecedor.id,
     purchased_at: agora,
     received: false,
     items: [{ emporio_product_id: racao, presentation_id: quilo, quantity: 30, item_total: 300 }],

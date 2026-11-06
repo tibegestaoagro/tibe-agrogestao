@@ -549,7 +549,7 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/purchases",
         auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
-        description: "Lista as compras das lojas visíveis ao usuário, da mais recente. Filtros: `establishment_id` (loja fora do vínculo: 404), `status` (`pendente`, `recebida`, `cancelada`), `contact_id`. Cada compra traz itens, total e os lançamentos financeiros.",
+        description: "Lista as compras das lojas visíveis ao usuário, da mais recente. Filtros: `establishment_id` (loja fora do vínculo: 404), `status` (`pendente`, `recebida`, `cancelada`), `supplier_id` (era `contact_id`). Cada compra traz `supplier_id`, `supplier_name`, `supplier_kind` (`propriedade` ou `externo`), itens, total e os lançamentos financeiros.",
         response: `200
 { "data": [{ "id": "cl...", "establishment_id": "cl...", "establishment_name": "Loja Centro", "status": "recebida", "freight": 20, "items_total": 200, "total": 220, "payment_kind": "a_vista", "items": [], "entries": [] }], "meta": {} }`,
       },
@@ -557,8 +557,8 @@ export const GROUPS: Group[] = [
         method: "POST",
         path: "/api/v1/emporio/purchases",
         auth: "Sessão · emporio:write · OWNER, ADMIN e OPERADOR",
-        description: "Cria a compra. `operation_key` é obrigatória e única na conta: repetir a chave devolve a compra gravada com 200, sem escrever nada (primeira vez: 201). Cada item traz `presentation_id` (a quantidade é de apresentações) ou só a quantidade na unidade-base, e `item_total`. O frete é rateado pelo valor dos itens e o `unit_cost` sai por unidade-base, frete incluído. Com `received: true` o estoque entra na hora (lacrado ou avulso conforme o produto); senão, só no recebimento. `payment.kind`: `a_vista` (um lançamento pago), `a_prazo` (um a pagar, exige `due_date`) ou `parcelada` (`down_payment` opcional pago mais um a pagar por item de `installments`). Parcelas que não fecham total + frete menos a entrada: 422 `installments`. Item inválido (quantidade zero, valor negativo, fracionado em `unidade`, apresentação de outro produto): 422 `items`. Despesa na categoria \"Mercadorias para revenda\", `related_module` `emporio`.",
-        request: `{ "operation_key": "k-123", "establishment_id": "cl...", "contact_id": null, "purchased_at": "2026-10-27T12:00:00.000Z", "received": true, "freight": 20, "items": [{ "emporio_product_id": "cl...", "presentation_id": "cl...", "quantity": 4, "item_total": 200 }], "payment": { "kind": "a_vista" } }`,
+        description: "Cria a compra. `supplier_id` (fornecedor do Empório; antes era `contact_id`, de Contatos) é opcional: de outra conta 404, arquivado 422, ambos no campo `supplier_id`. Com fornecedor do tipo `propriedade` (uma propriedade do Dono), `payment` é opcional e IGNORADO: a compra entra só com o custo no estoque, `payment_kind` fica nulo e nenhum lançamento nasce. Nos demais casos `payment` é obrigatório (422 `payment`), e a conta a pagar aponta o fornecedor (`emporio_supplier_id`). `operation_key` é obrigatória e única na conta: repetir a chave devolve a compra gravada com 200, sem escrever nada (primeira vez: 201). Cada item traz `presentation_id` (a quantidade é de apresentações) ou só a quantidade na unidade-base, e `item_total`. O frete é rateado pelo valor dos itens e o `unit_cost` sai por unidade-base, frete incluído. Com `received: true` o estoque entra na hora (lacrado ou avulso conforme o produto); senão, só no recebimento. `payment.kind`: `a_vista` (um lançamento pago), `a_prazo` (um a pagar, exige `due_date`) ou `parcelada` (`down_payment` opcional pago mais um a pagar por item de `installments`). Parcelas que não fecham total + frete menos a entrada: 422 `installments`. Item inválido (quantidade zero, valor negativo, fracionado em `unidade`, apresentação de outro produto): 422 `items`. Despesa na categoria \"Mercadorias para revenda\", `related_module` `emporio`.",
+        request: `{ "operation_key": "k-123", "establishment_id": "cl...", "supplier_id": null, "purchased_at": "2026-10-27T12:00:00.000Z", "received": true, "freight": 20, "items": [{ "emporio_product_id": "cl...", "presentation_id": "cl...", "quantity": 4, "item_total": 200 }], "payment": { "kind": "a_vista" } }`,
         response: `201
 { "data": { "id": "cl...", "status": "recebida", "total": 220, "items": [{ "base_quantity": 40, "unit_cost": 5.5 }], "entries": [{ "amount": 220, "status": "paid" }] }, "meta": {} }`,
       },
@@ -706,6 +706,57 @@ export const GROUPS: Group[] = [
         request: `{ "person_kind": "pf", "phone": "34 99999-0000" }`,
         response: `200
 { "data": { "id": "cl...", "name": "Cliente Antigo", "person_kind": "pf", "document": null, "phone": "34 99999-0000", "incomplete": false }, "meta": {} }`,
+      },
+      {
+        method: "POST",
+        path: "/api/v1/emporio/suppliers",
+        auth: "Sessão · emporio:write · dono, gerente geral, gestor e vendedor com a chave `lancar_compra` (os outros: 403 `FORBIDDEN`) · perfil emporio · recurso `emporio` liberado",
+        description: "Cadastra o fornecedor do Empório, na tabela própria (fora de Contatos). De fora (`kind` `externo`, o padrão): só `name` é obrigatório (422 `name` \"Informe o nome do fornecedor.\"); CPF e CNPJ, quando vêm, precisam ser válidos, e repetido entre os fornecedores da conta dá 409 `DUPLICATE_DOCUMENT`. De propriedade (`kind` `propriedade`): exige `property_id` (422 \"Escolha a propriedade.\"), o nome é o da propriedade (o do corpo é ignorado) e o resto do cadastro não vale. Propriedade de outra conta: 404 `property_id`; arquivada no Tibé: 422 `property_id`; que já é fornecedor: 409 `DUPLICATE_PROPERTY_SUPPLIER`. Grava `fornecedor.cadastrar` no Histórico.",
+        request: `{ "name": "Casa Rural", "phone": "34 3333-0000" }`,
+        response: `201
+{ "data": { "id": "cl...", "kind": "externo", "property_id": null, "name": "Casa Rural", "document": null, "phone": "34 3333-0000", "archived": false }, "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/suppliers",
+        auth: "Sessão · emporio:read · dono, gerente geral, gestor e vendedor (o caixa: 403 `FORBIDDEN`) · perfil emporio · recurso `emporio` liberado",
+        description: "A lista de fornecedores do Empório, por nome. Query: `q` (nome, sem acento), `archived=1` (inclui os arquivados), `page` e `per_page` (padrão 50, máximo 100). `meta` traz `total`, `page` e `per_page`.",
+        response: `200
+{ "data": [{ "id": "cl...", "kind": "externo", "name": "Casa Rural", "document": null, "phone": null, "archived": false }], "meta": { "total": 1, "page": 1, "per_page": 50 } }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/suppliers/property-options",
+        auth: "Sessão · emporio:read · dono, gerente geral, gestor e vendedor (o caixa: 403 `FORBIDDEN`) · perfil emporio · recurso `emporio` liberado",
+        description: "As propriedades ativas que ainda não são fornecedor (o seletor do cadastro de fornecedor de propriedade). A arquivada no Tibé e a que já é fornecedor não entram.",
+        response: `200
+{ "data": [{ "id": "cl...", "name": "Fazenda Boa Vista" }], "meta": {} }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/suppliers/:id",
+        auth: "Sessão · emporio:read · dono, gerente geral, gestor e vendedor (o caixa: 403 `FORBIDDEN`) · perfil emporio · recurso `emporio` liberado",
+        description: "O cadastro do fornecedor do Empório. Inexistente ou de outra conta: 404 \"Fornecedor não encontrado.\".",
+        response: `200
+{ "data": { "id": "cl...", "kind": "externo", "property_id": null, "name": "Casa Rural", "person_kind": null, "document": null, "phone": null, "notes": null, "archived": false }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/emporio/suppliers/:id",
+        auth: "Sessão · emporio:write · dono, gerente geral, gestor e vendedor com a chave `lancar_compra` · perfil emporio · recurso `emporio` liberado",
+        description: "Edita o fornecedor. Chave ausente mantém; `null` limpa; o resultado é conferido como no POST. O de propriedade só muda `notes` (o resto é ignorado). Arquivado: 422 \"Esse fornecedor está arquivado: desarquive em Fornecedores antes de editar.\"; inexistente ou de outra conta: 404. Grava `fornecedor.editar` no Histórico.",
+        request: `{ "phone": "34 3333-0000" }`,
+        response: `200
+{ "data": { "id": "cl...", "kind": "externo", "name": "Casa Rural", "phone": "34 3333-0000", "archived": false }, "meta": {} }`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/v1/emporio/suppliers/:id/archive",
+        auth: "Sessão · emporio:write · dono, gerente geral e gestor da loja (vendedor e caixa: 403 `FORBIDDEN`) · perfil emporio · recurso `emporio` liberado",
+        description: "Arquiva (`{ \"archived\": true }`, o padrão) ou desarquiva o fornecedor. O arquivado sai das listas e das escolhas (compra com ele: 422 `supplier_id`), mas as compras antigas continuam com o nome. Grava `fornecedor.arquivar` ou `fornecedor.desarquivar` no Histórico.",
+        request: `{ "archived": true }`,
+        response: `200
+{ "data": { "id": "cl...", "name": "Casa Rural", "archived": true }, "meta": {} }`,
       },
       {
         method: "GET",

@@ -878,6 +878,331 @@ async function secao4() {
   await patch(tokGestor, { archived: false });
 }
 
+async function secao5() {
+  console.log("\nSeção 5: os fornecedores próprios e a compra de uma propriedade do Dono só com custo");
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+  const { papelDeFixture, vincularTodas, virarGestor } = await import("./_emporio-papel");
+  const { withBearer } = await import("./_escopo-de-requisicao");
+  const bcrypt = (await import("bcryptjs")).default;
+  const F = await import("@/lib/actions/emporio-fornecedores");
+  const Cat = await import("@/lib/actions/emporio-catalogo");
+  const Cp = await import("@/lib/actions/emporio-compras");
+  const MD = await import("@/lib/actions/emporio-meu-dia");
+  const SENHA = "SenhaForte#2026";
+  const hash = await bcrypt.hash(SENHA, 4);
+
+  const mkTenant = async (rotulo: string) => {
+    const t = await prisma.tenant.create({
+      data: {
+        name: `M95e ${rotulo} ${stamp}`,
+        document: `M95e${rotulo}${stamp}`.slice(0, 14),
+        plan: "grupo",
+        status: "trial",
+        trial_ends_at: new Date(Date.now() + 86_400_000),
+      },
+    });
+    tenantIds.push(t.id);
+    await prisma.tenantProfile.create({ data: { tenant_id: t.id, profile_type: "emporio", active: true } });
+    await prisma.tenantFeature.create({ data: { tenant_id: t.id, feature_key: "emporio", enabled: true } });
+    return t;
+  };
+  const mk = async (tenantId: string, suf: string, role: "OWNER" | "OPERADOR") => {
+    const u = await prisma.user.create({
+      data: {
+        tenant_id: tenantId,
+        name: `M95e ${suf}`,
+        email: `m95e-${suf}-${stamp}@teste.local`,
+        password_hash: hash,
+        role,
+        ...papelDeFixture(role),
+      },
+    });
+    return { id: u.id, role, email: u.email };
+  };
+  const t = await mkTenant("A");
+  const tB = await mkTenant("B");
+  const owner = await mk(t.id, "own", "OWNER");
+  const vend = await mk(t.id, "vend", "OPERADOR");
+  const semChave = await mk(t.id, "semchave", "OPERADOR");
+  const caixa = await mk(t.id, "caixa", "OPERADOR");
+  const gestor = await mk(t.id, "gest", "OPERADOR");
+  await prisma.user.update({ where: { id: semChave.id }, data: { emporio_keys: [] } });
+  await prisma.user.update({ where: { id: caixa.id }, data: { emporio_role: "caixa", emporio_keys: [] } });
+  await virarGestor(prisma, gestor.id);
+  const ownerB = await mk(tB.id, "ownb", "OWNER");
+  const db = prismaForTenant(t.id) as Dado;
+  const dbB = prismaForTenant(tB.id) as Dado;
+
+  const loja = await Cat.criarEstabelecimentoAction(db, owner, { name: "M95e Loja" });
+  if (!loja.ok) throw new Error(`loja: ${j(loja)}`);
+  const L = loja.data.id;
+  await vincularTodas(prisma, t.id, [vend.id, semChave.id, caixa.id, gestor.id], [L]);
+
+  // --- fornecedor de fora -------------------------------------------------------
+  const ext = await F.cadastrarFornecedorAction(db, owner, { name: "Casa Rural M95e" });
+  check(
+    "fornecedor de fora só com nome: ok, externo, completo",
+    ext.ok && ext.data.kind === "externo" && ext.data.property_id === null && ext.data.name === "Casa Rural M95e" && ext.data.archived === false,
+    j(ext),
+  );
+  if (!ext.ok) throw new Error("ext");
+  check("com a linha fornecedor.cadastrar", (await prisma.emporioAuditLog.count({ where: { tenant_id: t.id, action: "fornecedor.cadastrar", target_id: ext.data.id } })) === 1);
+  const semNome = await F.cadastrarFornecedorAction(db, owner, { phone: "34 3333-0000" }) as Dado;
+  check(
+    "sem nome: 422 name",
+    !semNome.ok && semNome.status === 422 && semNome.field === "name" && semNome.message === "Informe o nome do fornecedor.",
+    j(semNome),
+  );
+  const cnpjRuim = await F.cadastrarFornecedorAction(db, owner, { name: "Agro Ruim", person_kind: "pj", document: "11222333000182" }) as Dado;
+  check("CNPJ inválido: 422 document", !cnpjRuim.ok && cnpjRuim.status === 422 && cnpjRuim.field === "document", j(cnpjRuim));
+  const comCnpj = await F.cadastrarFornecedorAction(db, owner, { name: "Agro CNPJ", person_kind: "pj", document: "11.222.333/0001-81" });
+  check("CNPJ válido: ok, só dígitos", comCnpj.ok && comCnpj.data.document === "11222333000181", j(comCnpj));
+  const cnpjRep = await F.cadastrarFornecedorAction(db, owner, { name: "Agro Repetido", person_kind: "pj", document: "11222333000181" }) as Dado;
+  check(
+    "CNPJ repetido entre fornecedores: 409 com 'um fornecedor'",
+    !cnpjRep.ok && cnpjRep.status === 409 && cnpjRep.code === "DUPLICATE_DOCUMENT" && cnpjRep.field === "document" && cnpjRep.message.includes("um fornecedor"),
+    j(cnpjRep),
+  );
+  await db.emporioCustomer.create({ data: scoped({ name: "Cliente mesmo CNPJ", person_kind: "pj", document: "11222333000181" }) });
+  const outroCnpj = await F.cadastrarFornecedorAction(db, owner, { name: "Agro Outro", person_kind: "pj", document: "45723174000110" });
+  check("o mesmo CNPJ num cliente não conflita (outra tabela)", outroCnpj.ok, j(outroCnpj));
+
+  // --- fornecedor de propriedade ------------------------------------------------
+  const prop = await db.property.create({ data: scoped({ name: `M95e Fazenda ${stamp}` }) });
+  const propArq = await db.property.create({ data: scoped({ name: `M95e Velha ${stamp}`, archived_at: new Date() }) });
+  const propB = await dbB.property.create({ data: scoped({ name: `M95e Alheia ${stamp}` }) });
+  const semProp = await F.cadastrarFornecedorAction(db, owner, { kind: "propriedade", name: "Qualquer" }) as Dado;
+  check("de propriedade sem property_id: 422 property_id", !semProp.ok && semProp.status === 422 && semProp.field === "property_id" && semProp.message === "Escolha a propriedade.", j(semProp));
+  const alheia = await F.cadastrarFornecedorAction(db, owner, { kind: "propriedade", property_id: propB.id }) as Dado;
+  check("propriedade de outra conta: 404 property_id", !alheia.ok && alheia.status === 404 && alheia.field === "property_id", j(alheia));
+  const arquivada = await F.cadastrarFornecedorAction(db, owner, { kind: "propriedade", property_id: propArq.id }) as Dado;
+  check(
+    "propriedade arquivada: 422 property_id com a frase",
+    !arquivada.ok && arquivada.status === 422 && arquivada.field === "property_id" && arquivada.message === "Essa propriedade está arquivada no Tibé.",
+    j(arquivada),
+  );
+  const livresAntes = await F.listarPropriedadesLivresAction(db, owner);
+  check(
+    "listarPropriedadesLivres traz a livre e não traz a arquivada",
+    livresAntes.ok && livresAntes.data.some((p) => p.id === prop.id) && !livresAntes.data.some((p) => p.id === propArq.id),
+    j(livresAntes),
+  );
+  const fp = await F.cadastrarFornecedorAction(db, owner, { kind: "propriedade", property_id: prop.id, name: "Nome do corpo ignorado", phone: "1" });
+  check(
+    "de propriedade: o nome é o da propriedade (o do corpo é ignorado)",
+    fp.ok && fp.data.kind === "propriedade" && fp.data.property_id === prop.id && fp.data.name === prop.name,
+    j(fp),
+  );
+  if (!fp.ok) throw new Error("fp");
+  const dupProp = await F.cadastrarFornecedorAction(db, owner, { kind: "propriedade", property_id: prop.id }) as Dado;
+  check(
+    "a mesma propriedade de novo: 409 DUPLICATE_PROPERTY_SUPPLIER",
+    !dupProp.ok && dupProp.status === 409 && dupProp.code === "DUPLICATE_PROPERTY_SUPPLIER" && dupProp.field === "property_id" && dupProp.message === `Essa propriedade já é fornecedor: ${prop.name}.`,
+    j(dupProp),
+  );
+  const livresDepois = await F.listarPropriedadesLivresAction(db, owner);
+  check("a que já é fornecedor sai das livres", livresDepois.ok && !livresDepois.data.some((p) => p.id === prop.id), j(livresDepois));
+
+  // --- editar -------------------------------------------------------------------
+  const edProp = await F.editarFornecedorAction(db, owner, fp.data.id, { name: "Outro", notes: "x", phone: "999" });
+  check("editar o de propriedade: só notes muda", edProp.ok && edProp.data.name === prop.name && edProp.data.notes === "x" && edProp.data.phone === null, j(edProp));
+  const edExt = await F.editarFornecedorAction(db, owner, ext.data.id, { phone: "34 3333-0000" });
+  check("editar o de fora: o telefone entra, o nome fica", edExt.ok && edExt.data.phone === "34 3333-0000" && edExt.data.name === "Casa Rural M95e", j(edExt));
+  const limpa = await F.editarFornecedorAction(db, owner, ext.data.id, { phone: null });
+  check("nulo limpa", limpa.ok && limpa.data.phone === null, j(limpa));
+  check("com a linha fornecedor.editar", (await prisma.emporioAuditLog.count({ where: { tenant_id: t.id, action: "fornecedor.editar", target_id: ext.data.id } })) === 2);
+
+  // --- Review Focus 5: a propriedade arquivada depois ---------------------------
+  const prod = await (async () => {
+    const categoria = await db.productCategory.create({ data: scoped({ name: "M95e categoria" }) });
+    const p = await Cat.criarProdutoEmporioAction(db, owner, { name: `M95e Sal ${stamp}`, category_id: categoria.id, base_unit: "quilograma" });
+    if (!p.ok) throw new Error(`produto: ${j(p)}`);
+    return p.data;
+  })();
+  let seq = 0;
+  const comprar = (ator: typeof owner, extra: Dado) =>
+    Cp.criarCompraAction(db, ator, {
+      operation_key: `m95e-${stamp}-${(seq += 1)}`,
+      establishment_id: L,
+      purchased_at: new Date(),
+      received: true,
+      items: [{ emporio_product_id: prod.id, quantity: 10, item_total: 40 }],
+      ...extra,
+    } as Dado);
+
+  const cp = await comprar(owner, {
+    supplier_id: fp.data.id,
+    payment: { kind: "a_prazo", due_date: new Date(Date.now() + 5 * 86_400_000) },
+  });
+  check(
+    "compra de propriedade com payment a prazo no corpo: ok, payment_kind nulo, fornecedor do tipo propriedade",
+    cp.ok && cp.data.payment_kind === null && cp.data.supplier_id === fp.data.id && cp.data.supplier_name === prop.name && cp.data.supplier_kind === "propriedade" && cp.data.entries.length === 0,
+    j(cp),
+  );
+  if (!cp.ok) throw new Error("cp");
+  check("nenhum FinancialEntry com related_id da compra", (await prisma.financialEntry.count({ where: { tenant_id: t.id, related_id: cp.data.id } })) === 0);
+  check(
+    "nenhuma categoria 'Mercadorias para revenda' criada por ela",
+    (await prisma.financialCategory.count({ where: { tenant_id: t.id, name: Cp.CATEGORIA_MERCADORIAS } })) === 0,
+  );
+  const mov = await prisma.stockMovement.findMany({ where: { tenant_id: t.id, purchase_id: cp.data.id } });
+  check("o estoque entrou com o custo informado (40 / 10 = 4)", mov.length === 1 && Number(mov[0].unit_cost) === 4 && Number(mov[0].quantity) === 10, j(mov));
+  const semPayment = await comprar(owner, { supplier_id: fp.data.id });
+  check("compra de propriedade sem payment: ok", semPayment.ok && semPayment.data.payment_kind === null, j(semPayment));
+
+  await prisma.property.update({ where: { id: prop.id }, data: { archived_at: new Date() } });
+  const lidoDepois = await F.lerFornecedorAction(db, owner, fp.data.id);
+  check("arquivar a propriedade depois: o fornecedor continua com o nome", lidoDepois.ok && lidoDepois.data.name === prop.name && lidoDepois.data.property_id === prop.id, j(lidoDepois));
+  const compraAntiga = await Cp.lerCompraAction(db, owner, cp.data.id);
+  check("e a compra antiga mostra o nome", compraAntiga.ok && compraAntiga.data.supplier_name === prop.name, j(compraAntiga));
+  const cancelar = await Cp.cancelarCompraAction(db, owner, cp.data.id, { reason: "teste" });
+  check("cancelar a compra de propriedade: ok", cancelar.ok && cancelar.data.status === "cancelada", j(cancelar));
+
+  // --- compra de fornecedor de fora --------------------------------------------
+  const venc = new Date(Date.now() + 86_400_000);
+  const ce = await comprar(owner, { supplier_id: ext.data.id, payment: { kind: "a_prazo", due_date: venc } });
+  if (!ce.ok) throw new Error(`ce: ${j(ce)}`);
+  const lanc = await prisma.financialEntry.findMany({ where: { tenant_id: t.id, related_id: ce.data.id } });
+  check(
+    "compra de fora a prazo: o lançamento tem emporio_supplier_id e contact_id nulo",
+    ce.data.payment_kind === "a_prazo" && ce.data.supplier_kind === "externo" && lanc.length === 1
+      && lanc[0].emporio_supplier_id === ext.data.id && lanc[0].contact_id === null,
+    j(lanc),
+  );
+  const listada = await Cp.listarComprasAction(db, owner, { supplier_id: ext.data.id });
+  check("o filtro supplier_id", listada.ok && listada.data.length === 1 && listada.data[0].id === ce.data.id, j(listada));
+  const semNada = await comprar(owner, {}) as Dado;
+  check("sem fornecedor e sem payment: 422 payment", !semNada.ok && semNada.status === 422 && semNada.field === "payment", j(semNada));
+  const semForn = await comprar(owner, { payment: { kind: "a_vista" } });
+  check("sem fornecedor, à vista: ok", semForn.ok && semForn.data.supplier_id === null && semForn.data.supplier_name === null, j(semForn));
+
+  const meuDia = await MD.itensDoEmporioNoDia(db, owner);
+  check(
+    "o Meu Dia mostra 'Pagar <fornecedor> (<loja>)'",
+    meuDia.some((i) => i.titulo === "Pagar Casa Rural M95e (M95e Loja)"),
+    j(meuDia.map((i) => i.titulo)),
+  );
+
+  // --- fornecedor arquivado e de outra conta na compra --------------------------
+  const arqDoc = await F.cadastrarFornecedorAction(db, owner, { name: "Fornecedor a arquivar" });
+  if (!arqDoc.ok) throw new Error("arqDoc");
+  const arqVend = await F.arquivarFornecedorAction(db, vend, arqDoc.data.id, true);
+  check("arquivar pelo Vendedor: 403", !arqVend.ok && arqVend.status === 403, j(arqVend));
+  const arqGest = await F.arquivarFornecedorAction(db, gestor, arqDoc.data.id, true);
+  check("arquivar pelo Gestor: ok", arqGest.ok && arqGest.data.archived === true, j(arqGest));
+  check("com a linha fornecedor.arquivar", (await prisma.emporioAuditLog.count({ where: { tenant_id: t.id, action: "fornecedor.arquivar", target_id: arqDoc.data.id } })) === 1);
+  const edArq = await F.editarFornecedorAction(db, owner, arqDoc.data.id, { phone: "1" }) as Dado;
+  check("editar o arquivado: 422 com a frase", !edArq.ok && edArq.status === 422 && edArq.message === "Esse fornecedor está arquivado: desarquive em Fornecedores antes de editar.", j(edArq));
+  const compraArq = await comprar(owner, { supplier_id: arqDoc.data.id, payment: { kind: "a_vista" } }) as Dado;
+  check("compra com fornecedor arquivado: 422 supplier_id", !compraArq.ok && compraArq.status === 422 && compraArq.field === "supplier_id" && compraArq.message === "Esse fornecedor está arquivado.", j(compraArq));
+  const listaAtivos = await F.listarFornecedoresAction(db, owner, {});
+  check("o arquivado sai da lista", listaAtivos.ok && !listaAtivos.data.itens.some((i) => i.id === arqDoc.data.id), j(listaAtivos));
+  const listaTodos = await F.listarFornecedoresAction(db, owner, { arquivados: true });
+  check("e volta com arquivados: true", listaTodos.ok && listaTodos.data.itens.some((i) => i.id === arqDoc.data.id && i.archived), j(listaTodos));
+  const qLista = await F.listarFornecedoresAction(db, owner, { q: "casa rural" });
+  check("q acha pelo nome", qLista.ok && qLista.data.total === 1 && qLista.data.itens[0].id === ext.data.id, j(qLista));
+  const desarq = await F.arquivarFornecedorAction(db, gestor, arqDoc.data.id, false);
+  check("desarquivar: ok", desarq.ok && desarq.data.archived === false, j(desarq));
+
+  const fornB = await dbB.emporioSupplier.create({ data: scoped({ kind: "externo", name: "Fornecedor do B" }) });
+  const compraB = await comprar(owner, { supplier_id: fornB.id, payment: { kind: "a_vista" } }) as Dado;
+  check("compra com fornecedor de outra conta: 404 supplier_id", !compraB.ok && compraB.status === 404 && compraB.field === "supplier_id", j(compraB));
+
+  // --- permissão ----------------------------------------------------------------
+  const vSem = await F.cadastrarFornecedorAction(db, semChave, { name: "Sem chave" }) as Dado;
+  check("o Vendedor sem a chave lancar_compra cadastra: 403", !vSem.ok && vSem.status === 403, j(vSem));
+  const vCom = await F.cadastrarFornecedorAction(db, vend, { name: "Com chave" });
+  check("o Vendedor com a chave cadastra: 201 (ok)", vCom.ok, j(vCom));
+  const cxLista = await F.listarFornecedoresAction(db, caixa, {}) as Dado;
+  check("o Caixa lista: 403", !cxLista.ok && cxLista.status === 403, j(cxLista));
+  const vLista = await F.listarFornecedoresAction(db, semChave, {});
+  check("o Vendedor sem a chave lê a lista (fora do caixa)", vLista.ok, j(vLista));
+
+  // --- isolamento ---------------------------------------------------------------
+  const lB = await F.listarFornecedoresAction(dbB, ownerB, {});
+  check("a lista do B não traz fornecedor do A", lB.ok && lB.data.itens.every((i) => i.name === "Fornecedor do B"), j(lB));
+  const rB = await F.lerFornecedorAction(dbB, ownerB, ext.data.id);
+  const eB = await F.editarFornecedorAction(dbB, ownerB, ext.data.id, { phone: "9" });
+  const aB = await F.arquivarFornecedorAction(dbB, ownerB, ext.data.id, true);
+  check(
+    "ler, editar e arquivar o fornecedor do A pelo B: 404",
+    [rB, eB, aB].every((r) => !r.ok && r.status === 404 && r.message === "Fornecedor não encontrado."),
+    j([rB, eB, aB]),
+  );
+  const plB = await F.listarPropriedadesLivresAction(dbB, ownerB);
+  check("as propriedades livres do B só trazem as do B", plB.ok && plB.data.every((p) => p.id === propB.id), j(plB));
+
+  // --- as rotas -----------------------------------------------------------------
+  const rotaTok = await import("@/app/api/v1/auth/token/route");
+  const rotaLista = await import("@/app/api/v1/emporio/suppliers/route");
+  const rotaId = await import("@/app/api/v1/emporio/suppliers/[id]/route");
+  const rotaArq = await import("@/app/api/v1/emporio/suppliers/[id]/archive/route");
+  const rotaOpc = await import("@/app/api/v1/emporio/suppliers/property-options/route");
+  const token = async (email: string) =>
+    String(
+      ((await (await rotaTok.POST(new Request("http://localhost/api/v1/auth/token", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, password: SENHA }),
+      }))).json()) as Dado)?.data?.access_token ?? "",
+    );
+  const tokOwner = await token(owner.email);
+  const tokVend = await token(vend.email);
+  const req = (url: string, metodo: string, corpo?: unknown) =>
+    new Request(`http://localhost${url}`, {
+      method: metodo,
+      headers: { "content-type": "application/json" },
+      ...(corpo === undefined ? {} : { body: JSON.stringify(corpo) }),
+    });
+  const rPost = await withBearer(tokVend, () => rotaLista.POST(req("/api/v1/emporio/suppliers", "POST", { name: "Via rota M95e" })));
+  const cPost = (await rPost.json()) as Dado;
+  check("POST /suppliers: 201 e o nome", rPost.status === 201 && cPost.data?.name === "Via rota M95e" && cPost.data?.kind === "externo", j(cPost));
+  const rSem = await withBearer(tokVend, () => rotaLista.POST(req("/api/v1/emporio/suppliers", "POST", { phone: "1" })));
+  const cSem = (await rSem.json()) as Dado;
+  check("POST /suppliers sem nome: 422 name", rSem.status === 422 && cSem.error?.field === "name", j(cSem));
+  const rGet = await withBearer(tokVend, () => rotaLista.GET(req("/api/v1/emporio/suppliers?q=via+rota&per_page=5", "GET")));
+  const cGet = (await rGet.json()) as Dado;
+  check("GET /suppliers: lista com meta.total", rGet.status === 200 && cGet.data?.length === 1 && cGet.meta?.total === 1 && cGet.meta?.per_page === 5, j(cGet));
+  const idRota = String(cPost.data?.id);
+  const rLer = await withBearer(tokVend, () => rotaId.GET(req(`/api/v1/emporio/suppliers/${idRota}`, "GET"), { params: Promise.resolve({ id: idRota }) }));
+  check("GET /suppliers/:id: 200", rLer.status === 200);
+  const rPat = await withBearer(tokVend, () => rotaId.PATCH(req(`/api/v1/emporio/suppliers/${idRota}`, "PATCH", { notes: "n" }), { params: Promise.resolve({ id: idRota }) }));
+  const cPat = (await rPat.json()) as Dado;
+  check("PATCH /suppliers/:id: 200 e notes", rPat.status === 200 && cPat.data?.notes === "n", j(cPat));
+  const rArqV = await withBearer(tokVend, () => rotaArq.PATCH(req(`/api/v1/emporio/suppliers/${idRota}/archive`, "PATCH", { archived: true }), { params: Promise.resolve({ id: idRota }) }));
+  check("PATCH /archive pelo Vendedor: 403", rArqV.status === 403, String(rArqV.status));
+  const rArqO = await withBearer(tokOwner, () => rotaArq.PATCH(req(`/api/v1/emporio/suppliers/${idRota}/archive`, "PATCH", { archived: true }), { params: Promise.resolve({ id: idRota }) }));
+  check("PATCH /archive pelo Dono: 200", rArqO.status === 200, String(rArqO.status));
+  const rOpc = await withBearer(tokVend, () => rotaOpc.GET());
+  const cOpc = (await rOpc.json()) as Dado;
+  check("GET /suppliers/property-options: 200 e lista", rOpc.status === 200 && Array.isArray(cOpc.data), j(cOpc));
+  const rotaCompra = await import("@/app/api/v1/emporio/purchases/route");
+  const rCompra = await withBearer(tokOwner, () =>
+    rotaCompra.POST(req("/api/v1/emporio/purchases", "POST", {
+      operation_key: `m95e-rota-${stamp}`,
+      establishment_id: L,
+      supplier_id: ext.data.id,
+      purchased_at: new Date().toISOString(),
+      received: true,
+      items: [{ emporio_product_id: prod.id, quantity: 1, item_total: 4 }],
+      payment: { kind: "a_vista" },
+    })),
+  );
+  const cCompra = (await rCompra.json()) as Dado;
+  check("POST /purchases com supplier_id: 201", rCompra.status === 201 && cCompra.data?.supplier_id === ext.data.id, j(cCompra));
+  const rSemPay = await withBearer(tokOwner, () =>
+    rotaCompra.POST(req("/api/v1/emporio/purchases", "POST", {
+      operation_key: `m95e-rota2-${stamp}`,
+      establishment_id: L,
+      supplier_id: fp.data.id,
+      purchased_at: new Date().toISOString(),
+      received: true,
+      items: [{ emporio_product_id: prod.id, quantity: 1, item_total: 4 }],
+    })),
+  );
+  check("POST /purchases sem payment (propriedade, mas a rota aceita): propriedade arquivada não impede a compra", rSemPay.status === 201, String(rSemPay.status));
+}
+
 async function limpar() {
   if (tenantIds.length === 0) return;
   const { prisma } = await import("@/lib/prisma");
@@ -908,6 +1233,7 @@ async function main() {
     await comBanco(secao2);
     await comBanco(secao3);
     await comBanco(secao4);
+    await comBanco(secao5);
   } finally {
     await limpar();
   }

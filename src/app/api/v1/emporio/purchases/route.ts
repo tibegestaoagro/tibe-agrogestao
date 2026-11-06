@@ -6,7 +6,7 @@ import { PAYMENT_KINDS, criarCompraAction, listarComprasAction } from "@/lib/act
 import { guardEmporio, respostaDaAction } from "@/lib/emporio/rota";
 
 /**
- * GET  /api/v1/emporio/purchases  ?establishment_id= &status=pendente|recebida|cancelada &contact_id=
+ * GET  /api/v1/emporio/purchases  ?establishment_id= &status=pendente|recebida|cancelada &supplier_id=
  * POST /api/v1/emporio/purchases  cria a compra (chave de operação, Q70): wrapper fino.
  */
 
@@ -25,7 +25,7 @@ const itemSchema = z.object({
 const criarSchema = z.object({
   operation_key: z.string({ error: "Falta a chave da operação." }).trim().min(1, "Falta a chave da operação."),
   establishment_id: z.string({ error: "Escolha o estabelecimento." }).min(1, "Escolha o estabelecimento."),
-  contact_id: z.string().nullish(),
+  supplier_id: z.string().nullish(),
   purchased_at: data,
   received: z.boolean({ error: "Informe se a mercadoria já chegou." }),
   freight: z.number().nullish(),
@@ -38,7 +38,7 @@ const criarSchema = z.object({
       installments: z.array(z.object({ amount: z.number(), due_date: data })).nullish(),
     },
     { error: "Informe o pagamento." },
-  ),
+  ).nullish(),
   notes: z.string().nullish(),
 });
 
@@ -50,7 +50,7 @@ async function GETHandler(request: Request) {
   return respostaDaAction(
     await listarComprasAction(g.db, g.user, {
       establishment_id: sp.get("establishment_id") ?? undefined,
-      contact_id: sp.get("contact_id") ?? undefined,
+      supplier_id: sp.get("supplier_id") ?? undefined,
       status: status === "pendente" || status === "recebida" || status === "cancelada" ? status : undefined,
     }),
   );
@@ -65,7 +65,7 @@ async function POSTHandler(request: Request) {
   const parsed = criarSchema.safeParse(body.json);
   if (!parsed.success) return apiErroDeZod(parsed.error);
 
-  const res = await criarCompraAction(g.db, g.user, parsed.data);
+  const res = await criarCompraAction(g.db, g.user, { ...parsed.data, payment: parsed.data.payment ?? undefined });
   if (!res.ok) return apiError(res.code, res.message, res.status, res.field);
   // Chave repetida: a compra já gravada, 200, sem escrever nada.
   const { replayed, ...compra } = res.data;

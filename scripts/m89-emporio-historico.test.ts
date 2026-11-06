@@ -143,7 +143,7 @@ async function comBanco() {
       const b = await chamar(E, "implantarEstoqueAction", db, owner, { establishment_id: l, emporio_product_id: P, sealed: [], loose_qty: 100, unit_cost: 4 });
       if (!a.ok || !b.ok) throw new Error(`preparo da loja: ${j([a, b])}`);
     }
-    const contato = (await db.contact.create({ data: scoped({ name: "M89 Fornecedor" }) })).id;
+    const contato = (await db.emporioSupplier.create({ data: scoped({ kind: "externo", name: "M89 Fornecedor" }) })).id;
     // Entrega 2: a Loja 2 vende na seção 1; o turno dela abre aqui, fora da medida do Histórico.
     const { abrirTurnoDeTeste } = await import("./_emporio-turno");
     await abrirTurnoDeTeste(db, owner, L2);
@@ -212,7 +212,7 @@ async function comBanco() {
         chamar(CP, "criarCompraAction", db, vend1, {
           operation_key: chave("c"),
           establishment_id: L1,
-          contact_id: contato,
+          supplier_id: contato,
           purchased_at: new Date(),
           received: true,
           items: [{ emporio_product_id: P, presentation_id: PRES, quantity: 1, item_total: 5 }],
@@ -487,7 +487,7 @@ async function comBanco() {
       "emporioSalePayment", "emporioSaleReturnItem", "emporioSaleReturn", "emporioSaleItem", "emporioSale",
       "stockTransferItem", "stockTransfer", "productionEntry", "compositionItem", "composition", "emporioPurchaseItem", "emporioPurchase",
       "stockLimit", "shoppingItem", "financialEntry", "negotiation", "presentationPrice", "productPresentation", "userEstablishment",
-      "emporioProduct", "product", "establishment", "bankAccount", "emporioCustomer", "contact", "productCategory", "property",
+      "emporioProduct", "product", "establishment", "bankAccount", "emporioCustomer", "emporioSupplier", "contact", "productCategory", "property",
     ];
     for (const id of tenantIds) {
       for (const m of modelos) {

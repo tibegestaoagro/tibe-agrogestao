@@ -70,8 +70,9 @@ export type CompraView = {
   id: string;
   establishment_id: string;
   establishment_name: string;
-  contact_id: string | null;
-  contact_name: string | null;
+  supplier_id: string | null;
+  supplier_name: string | null;
+  supplier_kind: "propriedade" | "externo" | null;
   operation_key: string;
   purchased_at: string;
   received_at: string | null;
@@ -90,7 +91,7 @@ export type CompraView = {
 
 const INCLUDE_COMPRA = {
   establishment: { select: { name: true } },
-  contact: { select: { name: true } },
+  supplier: { select: { name: true, kind: true } },
   items: {
     include: { emporio_product: { include: { product: { select: { name: true } } } }, presentation: { select: { name: true } } },
     orderBy: { created_at: "asc" },
@@ -134,8 +135,9 @@ async function montarViews(db: TenantPrismaClient, linhas: CompraRow[]): Promise
       id: c.id,
       establishment_id: c.establishment_id,
       establishment_name: c.establishment.name,
-      contact_id: c.contact_id,
-      contact_name: c.contact?.name ?? null,
+      supplier_id: c.supplier_id,
+      supplier_name: c.supplier?.name ?? null,
+      supplier_kind: c.supplier?.kind ?? null,
       operation_key: c.operation_key,
       purchased_at: c.purchased_at.toISOString(),
       received_at: isoOrNull(c.received_at),
@@ -185,7 +187,7 @@ export async function lerCompraAction(
 export async function listarComprasAction(
   db: TenantPrismaClient,
   ator: Ator,
-  opts: { establishment_id?: string; status?: "pendente" | "recebida" | "cancelada"; contact_id?: string; limit?: number } = {},
+  opts: { establishment_id?: string; status?: "pendente" | "recebida" | "cancelada"; supplier_id?: string; limit?: number } = {},
 ): Promise<ActionResult<CompraView[]>> {
   const foraDoCaixa = await recusarCaixa(db, ator, "ver as compras");
   if (foraDoCaixa) return foraDoCaixa;
@@ -199,7 +201,7 @@ export async function listarComprasAction(
       : visiveis
         ? { establishment_id: { in: [...visiveis] } }
         : {}),
-    ...(opts.contact_id ? { contact_id: opts.contact_id } : {}),
+    ...(opts.supplier_id ? { supplier_id: opts.supplier_id } : {}),
     ...(opts.status === "cancelada"
       ? { canceled_at: { not: null } }
       : opts.status === "recebida"
@@ -226,12 +228,13 @@ export type CompraItemInput = {
 export type CompraInput = {
   operation_key: string;
   establishment_id: string;
-  contact_id?: string | null;
+  supplier_id?: string | null;
   purchased_at: Date;
   received: boolean;
   freight?: number | null;
   items: CompraItemInput[];
-  payment: {
+  /** Obrigatório, menos na compra de uma propriedade do Dono (entra só com o custo): lá é ignorado. */
+  payment?: {
     kind: PaymentKind;
     due_date?: Date | null;
     down_payment?: number | null;
@@ -300,10 +303,15 @@ export async function criarCompraAction(
     return fail("VALIDATION_ERROR", "Esse estabelecimento está arquivado.", 422, "establishment_id");
   }
 
-  if (input.contact_id) {
-    const c = await db.contact.findFirst({ where: { id: input.contact_id } });
-    if (!c) return NAO_ACHADO("Fornecedor", "contact_id");
+  let fornecedor: { id: string; kind: "propriedade" | "externo" } | null = null;
+  if (input.supplier_id) {
+    const f = await db.emporioSupplier.findFirst({ where: { id: input.supplier_id } });
+    if (!f) return NAO_ACHADO("Fornecedor", "supplier_id");
+    if (f.archived_at) return fail("VALIDATION_ERROR", "Esse fornecedor está arquivado.", 422, "supplier_id");
+    fornecedor = f;
   }
+  // A propriedade do Dono não é paga com dinheiro do Empório: só o custo entra no estoque.
+  const semPagamento = fornecedor?.kind === "propriedade";
 
   if (!dataValida(input.purchased_at)) {
     return fail("VALIDATION_ERROR", "Informe a data da compra.", 422, "purchased_at");
@@ -374,12 +382,14 @@ export async function criarCompraAction(
   const totalC = totaisC.reduce((s, v) => s + v, 0) + freteC;
 
   // Pagamento: os lançamentos que vão nascer (Q39, Q62).
-  const pg = input.payment;
+  const pg = semPagamento ? null : input.payment;
   const lancamentos: Lancamento[] = [];
-  if (!pg || !(PAYMENT_KINDS as readonly string[]).includes(pg.kind)) {
+  if (!semPagamento && (!pg || !(PAYMENT_KINDS as readonly string[]).includes(pg.kind))) {
     return fail("VALIDATION_ERROR", "Escolha como a compra foi paga: à vista, a prazo ou parcelada.", 422, "payment");
   }
-  if (pg.kind === "a_vista") {
+  if (!pg) {
+    // compra de propriedade: nenhum lançamento
+  } else if (pg.kind === "a_vista") {
     if (totalC > 0) lancamentos.push({ amount: totalC / 100, due_date: input.purchased_at, paid: true });
   } else if (pg.kind === "a_prazo") {
     if (!dataValida(pg.due_date)) {
@@ -433,12 +443,12 @@ export async function criarCompraAction(
       const compra = await tx.emporioPurchase.create({
         data: scoped({
           establishment_id: loja.id,
-          contact_id: input.contact_id ?? null,
+          supplier_id: fornecedor?.id ?? null,
           operation_key: chave,
           purchased_at: input.purchased_at,
           received_at: recebidaEm,
           freight: freteC / 100,
-          payment_kind: pg.kind,
+          payment_kind: pg?.kind ?? null,
           notes: input.notes?.trim() || null,
           created_by_user_id: ator.id,
         }),
@@ -456,7 +466,7 @@ export async function criarCompraAction(
           occurred_at: l.paid ? l.due_date : input.purchased_at,
           due_date: l.due_date,
           status: l.paid ? "paid" : "pending",
-          contact_id: input.contact_id ?? null,
+          emporio_supplier_id: fornecedor?.id ?? null,
           establishment_id: loja.id,
         });
       }

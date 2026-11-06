@@ -41,7 +41,7 @@ type ParcelaLinha = { key: number; valor: string; vencimento: string };
 // Ordem visual, de cima para baixo.
 const ORDEM = [
   "establishment_id",
-  "contact_id",
+  "supplier_id",
   "purchased_at",
   "items",
   "freight",
@@ -236,7 +236,7 @@ export function CompraForm({
     const res = await apiPost("/api/v1/emporio/purchases", {
       operation_key: (chave.current ??= crypto.randomUUID()),
       establishment_id: loja,
-      contact_id: fornecedor || null,
+      supplier_id: fornecedor || null,
       purchased_at: paraIso(data),
       received: recebida,
       freight: valorFrete,
@@ -303,13 +303,13 @@ export function CompraForm({
         )}
       </Field>
 
-      <Field label="Fornecedor" id={err.idDe("contact_id")} error={err.erros.contact_id} hint="Opcional. Vem dos Contatos.">
+      <Field label="Fornecedor" id={err.idDe("supplier_id")} error={err.erros.supplier_id} hint="Opcional. Vem dos Fornecedores.">
         {({ id, ...aria }) => (
           <Select
             value={fornecedor || NENHUM}
             onValueChange={(v) => {
               setFornecedor(v === NENHUM ? "" : v);
-              err.limparCampo("contact_id");
+              err.limparCampo("supplier_id");
             }}
           >
             <SelectTrigger id={id} {...aria}>

@@ -661,7 +661,8 @@ async function registrarCompraDoItemNaLoja(
   const compra = await criarCompraAction(db, ator, {
     operation_key: `lista-${item.id}`,
     establishment_id,
-    contact_id: input.contact_id ?? null,
+    // O fornecedor do Empório não é um Contact da fazenda: o contato da lista não vai para a compra da loja.
+    supplier_id: null,
     purchased_at: input.occurred_at ?? new Date(),
     received: true,
     freight: 0,

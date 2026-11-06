@@ -3,7 +3,7 @@ import { prisma, prismaForTenant, type TenantPrismaClient } from "@/lib/prisma";
 import type { ActionResult } from "@/lib/actions/types";
 import type { AppUserRole } from "@/types/next-auth";
 import { getSeatUsage } from "@/lib/seats";
-import { createContact } from "@/lib/actions/contacts";
+import { cadastrarFornecedorAction } from "@/lib/actions/emporio-fornecedores";
 import { ensureProductCategories } from "@/lib/actions/products";
 import * as cat from "@/lib/actions/emporio-catalogo";
 import * as equipe from "@/lib/actions/emporio-equipe";
@@ -662,7 +662,7 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
     prodsExistentes.size +
     (await db.emporioProduct.count({ where: { id: { in: [...prodsExistentes.values()].map((r) => r.epId) }, reference_cost: null } }));
   const contatosExistentes = new Set([
-    ...(await db.contact.findMany({ where: { name: { in: FORNECEDORES.map((f) => f.nome) } }, select: { name: true } })).map((c) => c.name),
+    ...(await db.emporioSupplier.findMany({ where: { name: { in: FORNECEDORES.map((f) => f.nome) } }, select: { name: true } })).map((c) => c.name),
     ...(await db.emporioCustomer.findMany({ where: { name: { in: CLIENTES.map((c) => c.nome) } }, select: { name: true } })).map((c) => c.name),
   ]);
   const conta = await db.bankAccount.findFirst({ where: { name: CONTA_NOME }, select: { id: true } });
@@ -836,7 +836,7 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
   // Fornecedores (ainda em Contatos até a compra ganhar fornecedor próprio) e clientes do Empório.
   // O mapa guarda os dois pela chave: o fornecedor vai na compra, o cliente na venda e no orçamento.
   const contatos: Record<string, string> = {};
-  for (const f of FORNECEDORES) contatos[f.chave] = await acharOuCriarContato(db, f.nome, "loja_fornecedor", f.cidade);
+  for (const f of FORNECEDORES) contatos[f.chave] = await acharOuCriarFornecedor(db, gerente, f.nome, f.cidade);
   for (const c of CLIENTES) contatos[c.chave] = await acharOuCriarCliente(db, gerente, c);
 
   // Produtos (o Gerente geral cadastra)
@@ -1017,7 +1017,7 @@ async function montar(db: TenantPrismaClient, tenantId: string, owner: { id: str
     exigir(await compras.criarCompraAction(db, gerente, {
       operation_key: `${PREFIXO}compra-${c.chave}`,
       establishment_id: lojas.deposito,
-      contact_id: contatos[c.forn],
+      supplier_id: contatos[c.forn],
       purchased_at: dia(c.dias, 9),
       received: true,
       freight: c.frete || null,
@@ -1476,18 +1476,13 @@ async function depoisDaVenda(ctx: Ctx, v: VendaPlan, r: vendas.VendaView) {
   }
 }
 
-async function acharOuCriarContato(
-  db: TenantPrismaClient,
-  nome: string,
-  tipo: "loja_fornecedor",
-  cidade: string,
-): Promise<string> {
-  const ja = await db.contact.findFirst({
+async function acharOuCriarFornecedor(db: TenantPrismaClient, ator: Ator, nome: string, cidade: string): Promise<string> {
+  const ja = await db.emporioSupplier.findFirst({
     where: { name: { equals: nome, mode: "insensitive" } },
     select: { id: true },
   });
   if (ja) return ja.id;
-  return exigir(await createContact(db, { name: nome, type: tipo, city: cidade }), `contato ${nome}`).id;
+  return exigir(await cadastrarFornecedorAction(db, ator, { name: nome, city: cidade }), `fornecedor ${nome}`).id;
 }
 
 /** O cliente do Empório pelo nome; o que já existe incompleto (o de uma montagem antiga) é completado. */
@@ -1649,6 +1644,7 @@ async function apagarCenario(tenantId: string, executar: boolean) {
   await prisma.emporioAuditLog.deleteMany({ where: { ...t, OR: [{ user_id: { in: usuarios } }, { establishment_id: { in: lojas } }, { target_id: { in: [...eps, ...usuarios, ...contas, ...lojas, ...relacionados] } }] } });
   await prisma.user.deleteMany({ where: { id: { in: usuarios } } });
   await prisma.emporioCustomer.deleteMany({ where: { id: { in: clientes } } });
+  await prisma.emporioSupplier.deleteMany({ where: { ...t, name: { in: FORNECEDORES.map((f) => f.nome) } } });
   await prisma.contact.deleteMany({ where: { id: { in: contatos } } });
   // As configurações da conta são uma linha só: ela sai apenas se ainda tem os
   // rodapés que o cenário gravou (mexida depois, na tela, fica). Só banco local.
