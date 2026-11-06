@@ -960,8 +960,8 @@ model EmporioPurchase {
   id                 String                      @id @default(cuid())
   tenant_id          String
   establishment_id   String
-  contact_id         String?
-  /// Frente 1 do Empório: o fornecedor próprio (`EmporioSupplier`), que substitui `contact_id`.
+  /// Frente 1 do Empório: o fornecedor próprio (`EmporioSupplier`). Até a
+  /// migração 20261106180000 a compra apontava para `Contact` (`contact_id`).
   supplier_id        String?
   /// §23.2: repetir a chave devolve esta compra, sem duplicar.
   operation_key      String
@@ -979,7 +979,6 @@ model EmporioPurchase {
 
   tenant          Tenant                @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   establishment   Establishment         @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
-  contact         Contact?              @relation(fields: [contact_id], references: [id], onDelete: SetNull)
   supplier        EmporioSupplier?      @relation(fields: [supplier_id], references: [id], onDelete: SetNull)
   items           EmporioPurchaseItem[]
   stock_movements StockMovement[]
@@ -1194,9 +1193,8 @@ model EmporioSale {
   operation_key                  String
   /// Número da venda por conta, a partir de 1, sem buraco (`EmporioCounter`).
   number                         Int
-  /// Q37: obrigatório quando há fiado.
-  contact_id                     String?
-  /// Frente 1 do Empório: o cliente próprio (`EmporioCustomer`), que substitui `contact_id`.
+  /// Frente 1 do Empório: o cliente próprio (`EmporioCustomer`). Até a migração
+  /// 20261106180000 a venda apontava para `Contact` (`contact_id`).
   customer_id                    String?
   sold_at                        DateTime
   sold_by_user_id                String?
@@ -1223,7 +1221,6 @@ model EmporioSale {
 
   tenant            Tenant                @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   establishment     Establishment         @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
-  contact           Contact?              @relation(fields: [contact_id], references: [id], onDelete: Restrict)
   customer          EmporioCustomer?      @relation(fields: [customer_id], references: [id], onDelete: Restrict)
   exchange_return   EmporioSaleReturn?    @relation("ExchangeSale", fields: [exchange_return_id], references: [id], onDelete: Restrict)
   cash_session      CashSession?          @relation(fields: [cash_session_id], references: [id], onDelete: Restrict)
@@ -1242,7 +1239,6 @@ model EmporioSale {
   @@unique([tenant_id, number])
   @@index([tenant_id, cash_session_id])
   @@index([tenant_id, establishment_id, sold_at])
-  @@index([tenant_id, contact_id])
   @@index([tenant_id, customer_id])
   @@index([tenant_id, seller_user_id, sold_at])
   @@index([tenant_id, quote_id])
@@ -1258,9 +1254,8 @@ model EmporioQuote {
   operation_key                  String
   /// Número do orçamento por conta (`EmporioCounter` "orcamento"), separado do da venda.
   number                         Int
-  contact_id                     String?
-  /// Anulável só até a segunda migração da Frente 1 (a que apaga `contact_id`).
-  customer_id                    String?
+  /// Frente 1 do Empório: o cliente próprio (`EmporioCustomer`), obrigatório.
+  customer_id                    String
   seller_user_id                 String?
   created_by_user_id             String?
   /// Vale até o fim deste dia em Brasília.
@@ -1276,8 +1271,7 @@ model EmporioQuote {
 
   tenant        Tenant             @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   establishment Establishment      @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
-  contact       Contact?           @relation(fields: [contact_id], references: [id], onDelete: Restrict)
-  customer      EmporioCustomer?   @relation(fields: [customer_id], references: [id], onDelete: Restrict)
+  customer      EmporioCustomer    @relation(fields: [customer_id], references: [id], onDelete: Restrict)
   sale          EmporioSale?       @relation("QuoteInvoice", fields: [sale_id], references: [id], onDelete: SetNull)
   sales         EmporioSale[]      @relation("SaleFromQuote")
   items         EmporioQuoteItem[]
@@ -1285,7 +1279,6 @@ model EmporioQuote {
   @@unique([tenant_id, operation_key])
   @@unique([tenant_id, number])
   @@index([tenant_id, establishment_id, created_at])
-  @@index([tenant_id, contact_id])
   @@index([tenant_id, customer_id])
 }
 
@@ -1463,9 +1456,8 @@ model EmporioCheck {
   tenant_id            String
   sale_id              String
   sale_payment_id      String             @unique
-  contact_id           String?
-  /// Anulável só até a segunda migração da Frente 1 (a que apaga `contact_id`).
-  customer_id          String?
+  /// Frente 1 do Empório: o cliente próprio (`EmporioCustomer`), obrigatório.
+  customer_id          String
   establishment_id     String
   number               String
   bank                 String
@@ -1485,8 +1477,7 @@ model EmporioCheck {
   tenant            Tenant             @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   sale              EmporioSale        @relation(fields: [sale_id], references: [id], onDelete: Restrict)
   sale_payment      EmporioSalePayment @relation(fields: [sale_payment_id], references: [id], onDelete: Cascade)
-  contact           Contact?           @relation(fields: [contact_id], references: [id], onDelete: Restrict)
-  customer          EmporioCustomer?   @relation(fields: [customer_id], references: [id], onDelete: Restrict)
+  customer          EmporioCustomer    @relation(fields: [customer_id], references: [id], onDelete: Restrict)
   establishment     Establishment      @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
   financial_payment FinancialPayment?  @relation(fields: [financial_payment_id], references: [id], onDelete: SetNull)
   bank_account      BankAccount?       @relation(fields: [bank_account_id], references: [id], onDelete: Restrict)
@@ -3423,7 +3414,9 @@ model Contact {
   delivery_district   String?
   delivery_city       String?
   delivery_state      String?
-  /// Marca de contato fixo do sistema ("consumidor_final"). Nulo nos demais.
+  /// Marcava o contato fixo do sistema ("consumidor_final"). Nenhuma linha a
+  /// preenche desde a migração 20261106180000, que levou o Consumidor final
+  /// para `EmporioCustomer`; a coluna ficou por decisão do plano (dívida).
   system_key          String?
 
   tenant       Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
@@ -3443,10 +3436,6 @@ model Contact {
   /// uma manutenção de máquina (§29).
   service_jobs         ServiceJob[]
   machine_maintenances MachineMaintenance[]
-  emporio_purchases    EmporioPurchase[]
-  emporio_sales        EmporioSale[]
-  emporio_quotes       EmporioQuote[]
-  emporio_checks       EmporioCheck[]
 
   @@unique([tenant_id, document])
   @@unique([tenant_id, system_key])
