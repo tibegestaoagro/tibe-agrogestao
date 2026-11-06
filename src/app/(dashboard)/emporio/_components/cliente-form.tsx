@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { FormSheet } from "@/components/ui/form-sheet";
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
@@ -61,8 +62,10 @@ export function ClienteForm({
   modo: "novo" | "completar";
   contatoId?: string;
   trigger?: React.ReactNode;
-  onSalvo: (c: ContatoDeVenda) => void;
+  /** Sem ele (nas telas de Clientes), o formulário só relê a página ao salvar. */
+  onSalvo?: (c: ContatoDeVenda) => void;
 }) {
+  const router = useRouter();
   const completar = modo === "completar";
   const err = useErrosDeFormulario(ORDEM, completar ? `completar-${contatoId}` : "cliente-novo");
   const [open, setOpen] = useState(false);
@@ -128,7 +131,8 @@ export function ClienteForm({
       err.doServidor(res);
       return;
     }
-    onSalvo({ id: res.data.id, name: res.data.name, incomplete: res.data.incomplete, consumidor_final: false });
+    if (onSalvo) onSalvo({ id: res.data.id, name: res.data.name, incomplete: res.data.incomplete, consumidor_final: false });
+    else router.refresh();
     setOpen(false);
     setValores(CADASTRO_VAZIO);
   }

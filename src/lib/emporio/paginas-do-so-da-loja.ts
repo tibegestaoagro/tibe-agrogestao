@@ -11,7 +11,6 @@
 const PERMITIDAS = [
   "/emporio",
   "/meu-dia",
-  "/contatos",
   "/calculadoras",
   "/manual",
   "/configuracoes/perfil",

@@ -244,8 +244,9 @@ export function CamposDoCadastro(props: Props) {
   function escolherTipo(novo: "pf" | "pj") {
     // Sem obrigatoriedade (Contatos), tocar de novo no tipo escolhido desfaz a escolha.
     aoMudar("person_kind", kind === novo && !obrigatorios ? "" : novo);
-    // O documento tem outro tamanho em cada tipo: refaz a máscara.
-    if (valores.document) aoMudar("document", mascararDocumento(valores.document, novo));
+    // Trocar de PF para PJ (ou o contrário) limpa o documento: o CNPJ guardado seria
+    // recusado como CPF inválido, sem a pessoa entender por quê. Tocar no mesmo tipo mantém.
+    if (kind !== novo && valores.document) aoMudar("document", "");
   }
 
   return (

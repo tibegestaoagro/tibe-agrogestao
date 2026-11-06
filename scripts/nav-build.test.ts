@@ -2,6 +2,7 @@ import "./_env-local";
 import { buildNavItems } from "@/lib/nav";
 import type { NavItem, NavChild } from "@/components/layout/sidebar";
 import { paginasVisiveis, veAPagina } from "@/lib/emporio/paginas";
+import { paginaPermitidaAoSoDaLoja } from "@/lib/emporio/paginas-do-so-da-loja";
 import type { PapelContexto } from "@/lib/emporio/papel";
 
 /**
@@ -101,8 +102,9 @@ function main() {
     itens.find((i): i is Extract<NavItem, { kind: "group" }> => i.kind === "group" && i.label === "Meu Empório");
 
   const ordemEsperada = [
-    "/emporio", "/emporio/vender", "/emporio/vendas", "/emporio/orcamentos", "/emporio/fiado", "/emporio/caixa",
-    "/emporio/produtos", "/emporio/estoque", "/emporio/compras", "/emporio/transferencias",
+    "/emporio", "/emporio/vender", "/emporio/vendas", "/emporio/orcamentos", "/emporio/fiado", "/emporio/clientes",
+    "/emporio/caixa", "/emporio/produtos", "/emporio/estoque", "/emporio/compras", "/emporio/fornecedores",
+    "/emporio/transferencias",
     "/emporio/despesas", "/emporio/resultado", "/emporio/relatorios", "/emporio/equipe",
     "/emporio/estabelecimentos", "/emporio/historico", "/emporio/configuracoes",
   ];
@@ -110,7 +112,7 @@ function main() {
   const gDono = grupo(doDono);
   assert(
     !!gDono && JSON.stringify(gDono.children.map((c) => c.href)) === JSON.stringify(ordemEsperada),
-    "dono: o grupo Meu Empório tem os 17 filhos, na ordem",
+    "dono: o grupo Meu Empório tem os 19 filhos, na ordem",
   );
   assert(gDono?.show === true && gDono.icon === "emporio", "o grupo Meu Empório aparece com o ícone do Empório");
   assert(
@@ -143,9 +145,22 @@ function main() {
   const doCaixa = buildNavItems({ ...base, hasEmporio: true, soDaLoja: true, paginasDoEmporio: paginasVisiveis(caixa) });
   assert(
     JSON.stringify(grupo(doCaixa)?.children.map((c) => c.href)) ===
-      JSON.stringify(["/emporio", "/emporio/vender", "/emporio/vendas", "/emporio/fiado", "/emporio/caixa"]),
-    "caixa: o menu tem só Início, Vender, Vendas, Fiado e Caixa",
+      JSON.stringify(["/emporio", "/emporio/vender", "/emporio/vendas", "/emporio/fiado", "/emporio/clientes", "/emporio/caixa"]),
+    "caixa: o menu tem só Início, Vender, Vendas, Fiado, Clientes e Caixa",
   );
+  assert(
+    !veAPagina(caixa, "/emporio/fornecedores") && veAPagina(gestor, "/emporio/fornecedores"),
+    "fornecedores: o caixa não vê, o gestor vê (fora do caixa)",
+  );
+  assert(
+    veAPagina(vendedor, "/emporio/clientes") && veAPagina(caixa, "/emporio/clientes"),
+    "vendedor e caixa abrem Clientes",
+  );
+  // Só da loja: a equipe do Empório é separada do Tibé, e o cliente dela mora em /emporio/clientes.
+  assert(!paginaPermitidaAoSoDaLoja("/contatos"), "só da loja: /contatos fechado");
+  assert(!paginaPermitidaAoSoDaLoja("/contatos/abc"), "só da loja: /contatos/<id> fechado");
+  assert(paginaPermitidaAoSoDaLoja("/emporio/clientes"), "só da loja: /emporio/clientes aberto");
+  assert(paginaPermitidaAoSoDaLoja("/emporio/clientes/abc?x=1"), "só da loja: a ficha do cliente aberta");
   assert(!veAPagina(caixa, "/emporio/estoque") && !veAPagina(caixa, "/emporio/estabelecimentos"), "veAPagina esconde Estoque e Lojas do caixa");
 
   const semEmporio = buildNavItems({ ...base, hasEmporio: false });
