@@ -890,7 +890,7 @@ type ChequeRow = {
   id: string;
   sale_id: string;
   sale_payment_id: string;
-  contact_id: string;
+  contact_id: string | null;
   establishment_id: string;
   number: string;
   bank: string;
@@ -902,7 +902,7 @@ type ChequeRow = {
   cleared_at: Date | null;
   returned_at: Date | null;
   return_reason: string | null;
-  contact: { name: string };
+  contact: { name: string } | null;
 };
 
 function viewDoCheque(c: ChequeRow): ChequeView {
@@ -910,8 +910,8 @@ function viewDoCheque(c: ChequeRow): ChequeView {
     id: c.id,
     sale_id: c.sale_id,
     sale_payment_id: c.sale_payment_id,
-    contact_id: c.contact_id,
-    contact_name: c.contact.name,
+    contact_id: c.contact_id ?? "",
+    contact_name: c.contact?.name ?? "",
     establishment_id: c.establishment_id,
     number: c.number,
     bank: c.bank,

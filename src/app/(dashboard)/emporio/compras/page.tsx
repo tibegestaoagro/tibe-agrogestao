@@ -163,7 +163,7 @@ export default async function ComprasPage({
                       <span className="block text-xs text-texto-secundario">com frete de {reaisBr(c.freight)}</span>
                     )}
                   </TableCell>
-                  <TableCell>{FORMA[c.payment_kind] ?? c.payment_kind}</TableCell>
+                  <TableCell>{c.payment_kind ? (FORMA[c.payment_kind] ?? c.payment_kind) : "Só custo"}</TableCell>
                   <TableCell>
                     <Badge variant={s.variante}>{s.rotulo}</Badge>
                     {c.canceled_reason && (

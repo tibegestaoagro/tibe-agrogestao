@@ -118,6 +118,89 @@ async function comBanco(fn: () => Promise<void>) {
   await fn();
 }
 
+const stamp = Date.now().toString(36);
+
+async function secao2() {
+  console.log("\nSeção 2: as tabelas novas (isolamento, índices únicos, compra sem forma de pagamento)");
+  const { prisma, prismaForTenant } = await import("@/lib/prisma");
+  const mkTenant = async (rotulo: string) => {
+    const t = await prisma.tenant.create({
+      data: {
+        name: `M95 ${rotulo} ${stamp}`,
+        document: `M95${rotulo}${stamp}`.slice(0, 14),
+        plan: "grupo",
+        status: "trial",
+        trial_ends_at: new Date(Date.now() + 86_400_000),
+      },
+    });
+    tenantIds.push(t.id);
+    return { t, db: prismaForTenant(t.id) as Dado };
+  };
+  const A = await mkTenant("A");
+  const B = await mkTenant("B");
+  const codigo = async (fn: () => Promise<unknown>) => {
+    try {
+      await fn();
+      return null;
+    } catch (e) {
+      return (e as { code?: string }).code ?? "erro";
+    }
+  };
+
+  const joao = await A.db.emporioCustomer.create({ data: { name: "João da Ponte", person_kind: "pf", phone: "34 99999-0000" } });
+  check("cliente criado pelo client escopado leva o tenant A", joao.tenant_id === A.t.id);
+  check("o client do tenant B não acha o cliente do A", (await B.db.emporioCustomer.findFirst({ where: { id: joao.id } })) === null);
+  const lido = await prisma.emporioCustomer.findUnique({ where: { id: joao.id } });
+  check("name_busca é gerada sem acento e em minúscula", lido?.name_busca === "joao da ponte", String(lido?.name_busca));
+
+  await A.db.emporioCustomer.create({ data: { name: "Agro 1", document: "11222333000181" } });
+  check(
+    "mesmo documento na mesma conta: P2002",
+    (await codigo(() => A.db.emporioCustomer.create({ data: { name: "Agro 2", document: "11222333000181" } }))) === "P2002",
+  );
+  check(
+    "mesmo documento em contas diferentes: ok",
+    (await codigo(() => B.db.emporioCustomer.create({ data: { name: "Agro 3", document: "11222333000181" } }))) === null,
+  );
+  await A.db.emporioCustomer.create({ data: { name: "Consumidor final", system_key: "consumidor_final" } });
+  check(
+    "dois Consumidores finais na mesma conta: P2002",
+    (await codigo(() => A.db.emporioCustomer.create({ data: { name: "Consumidor final", system_key: "consumidor_final" } }))) === "P2002",
+  );
+  check(
+    "clientes sem documento e sem chave repetem à vontade",
+    (await codigo(() => A.db.emporioCustomer.create({ data: { name: "Outro sem documento" } }))) === null,
+  );
+
+  const prop = await A.db.property.create({ data: { name: `M95 Fazenda ${stamp}` } });
+  const forn = await A.db.emporioSupplier.create({ data: { kind: "propriedade", property_id: prop.id, name: prop.name } });
+  check("fornecedor criado pelo client escopado leva o tenant A", forn.tenant_id === A.t.id);
+  check("o client do tenant B não acha o fornecedor do A", (await B.db.emporioSupplier.findFirst({ where: { id: forn.id } })) === null);
+  check(
+    "dois fornecedores da mesma propriedade: P2002",
+    (await codigo(() => A.db.emporioSupplier.create({ data: { kind: "propriedade", property_id: prop.id, name: "Cópia" } }))) === "P2002",
+  );
+  check(
+    "dois fornecedores de fora sem propriedade: ok",
+    (await codigo(async () => {
+      await A.db.emporioSupplier.create({ data: { kind: "externo", name: "Casa Rural" } });
+      await A.db.emporioSupplier.create({ data: { kind: "externo", name: "Casa Rural 2" } });
+    })) === null,
+  );
+
+  const loja = await prisma.establishment.create({ data: { tenant_id: A.t.id, name: "M95 Loja" } });
+  const compra = await A.db.emporioPurchase.create({
+    data: {
+      establishment_id: loja.id,
+      supplier_id: forn.id,
+      operation_key: `m95-${stamp}`,
+      purchased_at: new Date(),
+      freight: 0,
+    },
+  });
+  check("compra com payment_kind nulo grava", compra.payment_kind === null, j(compra.payment_kind));
+}
+
 async function limpar() {
   if (tenantIds.length === 0) return;
   const { prisma } = await import("@/lib/prisma");
@@ -145,7 +228,7 @@ async function limpar() {
 async function main() {
   try {
     await secao1();
-    void comBanco;
+    await comBanco(secao2);
   } finally {
     await limpar();
   }

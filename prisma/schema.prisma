@@ -603,6 +603,8 @@ model Tenant {
   card_fee_rules            CardFeeRule[]
   card_receivables          CardReceivable[]
   emporio_checks            EmporioCheck[]
+  emporio_customers         EmporioCustomer[]
+  emporio_suppliers         EmporioSupplier[]
   cash_transfers            CashTransfer[]
   cash_counts               CashCount[]
   cash_registers            CashRegister[]
@@ -955,32 +957,37 @@ model PresentationPrice {
 /// nasce na hora, o estoque só no recebimento. As contas a pagar são
 /// `FinancialEntry` com `related_module` emporio e `related_id` = este id.
 model EmporioPurchase {
-  id                 String                     @id @default(cuid())
+  id                 String                      @id @default(cuid())
   tenant_id          String
   establishment_id   String
   contact_id         String?
+  /// Frente 1 do Empório: o fornecedor próprio (`EmporioSupplier`), que substitui `contact_id`.
+  supplier_id        String?
   /// §23.2: repetir a chave devolve esta compra, sem duplicar.
   operation_key      String
   purchased_at       DateTime
   received_at        DateTime?
-  freight            Decimal                    @default(0) @db.Decimal(12, 2)
-  payment_kind       EmporioPurchasePaymentKind
+  freight            Decimal                     @default(0) @db.Decimal(12, 2)
+  /// Nulo na compra de uma propriedade do Dono: entra só com o custo.
+  payment_kind       EmporioPurchasePaymentKind?
   notes              String?
   canceled_at        DateTime?
   canceled_reason    String?
   created_by_user_id String?
-  created_at         DateTime                   @default(now())
-  updated_at         DateTime                   @updatedAt
+  created_at         DateTime                    @default(now())
+  updated_at         DateTime                    @updatedAt
 
   tenant          Tenant                @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   establishment   Establishment         @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
   contact         Contact?              @relation(fields: [contact_id], references: [id], onDelete: SetNull)
+  supplier        EmporioSupplier?      @relation(fields: [supplier_id], references: [id], onDelete: SetNull)
   items           EmporioPurchaseItem[]
   stock_movements StockMovement[]
 
   @@unique([tenant_id, operation_key])
   @@index([tenant_id])
   @@index([establishment_id])
+  @@index([tenant_id, supplier_id])
 }
 
 /// Q61: `quantity` na apresentação (ou na unidade-base, sem apresentação);
@@ -1189,6 +1196,8 @@ model EmporioSale {
   number                         Int
   /// Q37: obrigatório quando há fiado.
   contact_id                     String?
+  /// Frente 1 do Empório: o cliente próprio (`EmporioCustomer`), que substitui `contact_id`.
+  customer_id                    String?
   sold_at                        DateTime
   sold_by_user_id                String?
   /// Entrega 3: quem de fato vendeu (comissão e relatório). Igual a `sold_by_user_id`
@@ -1215,6 +1224,7 @@ model EmporioSale {
   tenant            Tenant                @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   establishment     Establishment         @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
   contact           Contact?              @relation(fields: [contact_id], references: [id], onDelete: Restrict)
+  customer          EmporioCustomer?      @relation(fields: [customer_id], references: [id], onDelete: Restrict)
   exchange_return   EmporioSaleReturn?    @relation("ExchangeSale", fields: [exchange_return_id], references: [id], onDelete: Restrict)
   cash_session      CashSession?          @relation(fields: [cash_session_id], references: [id], onDelete: Restrict)
   quote             EmporioQuote?         @relation("SaleFromQuote", fields: [quote_id], references: [id], onDelete: Restrict)
@@ -1233,6 +1243,7 @@ model EmporioSale {
   @@index([tenant_id, cash_session_id])
   @@index([tenant_id, establishment_id, sold_at])
   @@index([tenant_id, contact_id])
+  @@index([tenant_id, customer_id])
   @@index([tenant_id, seller_user_id, sold_at])
   @@index([tenant_id, quote_id])
 }
@@ -1247,7 +1258,9 @@ model EmporioQuote {
   operation_key                  String
   /// Número do orçamento por conta (`EmporioCounter` "orcamento"), separado do da venda.
   number                         Int
-  contact_id                     String
+  contact_id                     String?
+  /// Anulável só até a segunda migração da Frente 1 (a que apaga `contact_id`).
+  customer_id                    String?
   seller_user_id                 String?
   created_by_user_id             String?
   /// Vale até o fim deste dia em Brasília.
@@ -1263,7 +1276,8 @@ model EmporioQuote {
 
   tenant        Tenant             @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   establishment Establishment      @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
-  contact       Contact            @relation(fields: [contact_id], references: [id], onDelete: Restrict)
+  contact       Contact?           @relation(fields: [contact_id], references: [id], onDelete: Restrict)
+  customer      EmporioCustomer?   @relation(fields: [customer_id], references: [id], onDelete: Restrict)
   sale          EmporioSale?       @relation("QuoteInvoice", fields: [sale_id], references: [id], onDelete: SetNull)
   sales         EmporioSale[]      @relation("SaleFromQuote")
   items         EmporioQuoteItem[]
@@ -1272,6 +1286,7 @@ model EmporioQuote {
   @@unique([tenant_id, number])
   @@index([tenant_id, establishment_id, created_at])
   @@index([tenant_id, contact_id])
+  @@index([tenant_id, customer_id])
 }
 
 /// O preço do momento do orçamento: sugerido e praticado ficam gravados.
@@ -1448,7 +1463,9 @@ model EmporioCheck {
   tenant_id            String
   sale_id              String
   sale_payment_id      String             @unique
-  contact_id           String
+  contact_id           String?
+  /// Anulável só até a segunda migração da Frente 1 (a que apaga `contact_id`).
+  customer_id          String?
   establishment_id     String
   number               String
   bank                 String
@@ -1468,7 +1485,8 @@ model EmporioCheck {
   tenant            Tenant             @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   sale              EmporioSale        @relation(fields: [sale_id], references: [id], onDelete: Restrict)
   sale_payment      EmporioSalePayment @relation(fields: [sale_payment_id], references: [id], onDelete: Cascade)
-  contact           Contact            @relation(fields: [contact_id], references: [id], onDelete: Restrict)
+  contact           Contact?           @relation(fields: [contact_id], references: [id], onDelete: Restrict)
+  customer          EmporioCustomer?   @relation(fields: [customer_id], references: [id], onDelete: Restrict)
   establishment     Establishment      @relation(fields: [establishment_id], references: [id], onDelete: Restrict)
   financial_payment FinancialPayment?  @relation(fields: [financial_payment_id], references: [id], onDelete: SetNull)
   bank_account      BankAccount?       @relation(fields: [bank_account_id], references: [id], onDelete: Restrict)
@@ -1476,26 +1494,27 @@ model EmporioCheck {
 
   @@index([tenant_id, status])
   @@index([sale_id])
+  @@index([tenant_id, customer_id])
 }
 
 /// Módulo 39, F3b (Q92, §14.3): dinheiro mudando de lugar. Só existe no caixa
 /// (dois `CashMovement`), nunca no Financeiro, por isso não altera o resultado.
 model CashTransfer {
-  id                    String   @id @default(cuid())
-  tenant_id             String
-  operation_key         String
-  from_establishment_id String?
-  from_bank_account_id  String?
-  to_establishment_id   String?
-  to_bank_account_id    String?
+  id                            String   @id @default(cuid())
+  tenant_id                     String
+  operation_key                 String
+  from_establishment_id         String?
+  from_bank_account_id          String?
+  to_establishment_id           String?
+  to_bank_account_id            String?
   /// Entrega 2: a gerência de uma loja como origem ou destino (a gaveta não
   /// transfere mais; CHECKs `CashTransfer_exactly_one_from/to` com três lugares).
   from_manager_establishment_id String?
   to_manager_establishment_id   String?
-  amount                Decimal  @db.Decimal(14, 2)
-  notes                 String?
-  created_by_user_id    String?
-  created_at            DateTime @default(now())
+  amount                        Decimal  @db.Decimal(14, 2)
+  notes                         String?
+  created_by_user_id            String?
+  created_at                    DateTime @default(now())
 
   tenant         Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   cash_movements CashMovement[]
@@ -2000,6 +2019,7 @@ model Property {
   milk_productions  MilkProduction[]
   milk_sites        MilkSite[]
   financial_entries FinancialEntry[]
+  emporio_suppliers EmporioSupplier[]
   workers           Worker[]
   service_jobs      ServiceJob[]
   worker_logs       WorkerLog[]
@@ -2701,6 +2721,11 @@ model FinancialEntry {
   property_id String?
   contact_id  String?
 
+  /// Frente 1 do Empório: a ponte com o financeiro. Fiado, cheque e devolução
+  /// apontam para o cliente; a conta a pagar da compra, para o fornecedor.
+  emporio_customer_id String?
+  emporio_supplier_id String?
+
   /// Módulo 39 (Meu Empório): o estabelecimento do lançamento. Anulável, igual
   /// a `property_id`: lançamento da fazenda fica nulo. `SetNull` pelo mesmo
   /// motivo: arquivar um estabelecimento não pode travar o histórico.
@@ -2711,13 +2736,15 @@ model FinancialEntry {
   /// dinheiro precisa das duas.
   payment_method PaymentMethod?
 
-  tenant        Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  negotiation   Negotiation?   @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
-  created_by    User?          @relation("FinancialEntryCreatedBy", fields: [created_by_user_id], references: [id], onDelete: SetNull)
-  updated_by    User?          @relation("FinancialEntryUpdatedBy", fields: [updated_by_user_id], references: [id], onDelete: SetNull)
-  property      Property?      @relation(fields: [property_id], references: [id], onDelete: SetNull)
-  contact       Contact?       @relation(fields: [contact_id], references: [id], onDelete: SetNull)
-  establishment Establishment? @relation(fields: [establishment_id], references: [id], onDelete: SetNull)
+  tenant           Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  negotiation      Negotiation?     @relation(fields: [negotiation_id], references: [id], onDelete: SetNull)
+  created_by       User?            @relation("FinancialEntryCreatedBy", fields: [created_by_user_id], references: [id], onDelete: SetNull)
+  updated_by       User?            @relation("FinancialEntryUpdatedBy", fields: [updated_by_user_id], references: [id], onDelete: SetNull)
+  property         Property?        @relation(fields: [property_id], references: [id], onDelete: SetNull)
+  contact          Contact?         @relation(fields: [contact_id], references: [id], onDelete: SetNull)
+  emporio_customer EmporioCustomer? @relation(fields: [emporio_customer_id], references: [id], onDelete: SetNull)
+  emporio_supplier EmporioSupplier? @relation(fields: [emporio_supplier_id], references: [id], onDelete: SetNull)
+  establishment    Establishment?   @relation(fields: [establishment_id], references: [id], onDelete: SetNull)
 
   /// O livro-razão do rebanho aponta para cá (`HerdMovement.financial_entry_id`).
   herd_movements HerdMovement[]
@@ -2738,6 +2765,8 @@ model FinancialEntry {
   @@index([tenant_id, due_date, status])
   @@index([tenant_id, property_id])
   @@index([contact_id])
+  @@index([emporio_customer_id])
+  @@index([emporio_supplier_id])
   @@index([establishment_id])
 }
 
@@ -3428,6 +3457,94 @@ model Contact {
 enum ContactPersonKind {
   pf
   pj
+}
+
+/// Frente 1 do Empório (06/11/2026): quem compra do Empório, em tabela própria,
+/// separada de `Contact`. `city` é a cidade do endereço principal.
+model EmporioCustomer {
+  id                  String             @id @default(cuid())
+  tenant_id           String
+  name                String
+  /// Coluna GERADA pelo Postgres: ver `Contact.name_busca`.
+  name_busca          String?            @default(dbgenerated("nome_de_busca(name)"))
+  person_kind         ContactPersonKind?
+  /// Só dígitos no CPF, maiúsculo no CNPJ.
+  document            String?
+  phone               String?
+  state_registration  String?
+  birth_date          DateTime?          @db.Date
+  responsible_name    String?
+  address_zip         String?
+  address_street      String?
+  address_number      String?
+  address_complement  String?
+  address_district    String?
+  city                String?
+  address_state       String?
+  delivery_zip        String?
+  delivery_street     String?
+  delivery_number     String?
+  delivery_complement String?
+  delivery_district   String?
+  delivery_city       String?
+  delivery_state      String?
+  notes               String?
+  /// "consumidor_final": o cliente fixo do sistema, um por conta.
+  system_key          String?
+  archived_at         DateTime?
+  created_at          DateTime           @default(now())
+  updated_at          DateTime           @updatedAt
+
+  tenant            Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  sales             EmporioSale[]
+  quotes            EmporioQuote[]
+  checks            EmporioCheck[]
+  financial_entries FinancialEntry[]
+
+  @@unique([tenant_id, document])
+  @@unique([tenant_id, system_key])
+  @@index([tenant_id])
+}
+
+enum EmporioSupplierKind {
+  propriedade
+  externo
+}
+
+/// Frente 1 do Empório: de quem o Empório compra. `propriedade` é uma fazenda
+/// do Dono (`name` é a cópia do nome dela); `externo` é um fornecedor de fora.
+model EmporioSupplier {
+  id                 String              @id @default(cuid())
+  tenant_id          String
+  kind               EmporioSupplierKind
+  property_id        String?
+  name               String
+  /// Coluna GERADA pelo Postgres: ver `Contact.name_busca`.
+  name_busca         String?             @default(dbgenerated("nome_de_busca(name)"))
+  person_kind        ContactPersonKind?
+  document           String?
+  phone              String?
+  state_registration String?
+  address_zip        String?
+  address_street     String?
+  address_number     String?
+  address_complement String?
+  address_district   String?
+  city               String?
+  address_state      String?
+  notes              String?
+  archived_at        DateTime?
+  created_at         DateTime            @default(now())
+  updated_at         DateTime            @updatedAt
+
+  tenant            Tenant            @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  property          Property?         @relation(fields: [property_id], references: [id], onDelete: SetNull)
+  purchases         EmporioPurchase[]
+  financial_entries FinancialEntry[]
+
+  @@unique([tenant_id, document])
+  @@unique([tenant_id, property_id])
+  @@index([tenant_id])
 }
 
 enum NegotiationType {

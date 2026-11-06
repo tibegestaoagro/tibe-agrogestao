@@ -79,7 +79,7 @@ export type CompraView = {
   freight: number;
   items_total: number;
   total: number;
-  payment_kind: string;
+  payment_kind: string | null;
   notes: string | null;
   canceled_at: string | null;
   canceled_reason: string | null;
