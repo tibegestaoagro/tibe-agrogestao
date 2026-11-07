@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Select,
@@ -15,6 +15,7 @@ import { Field } from "@/components/ui/field";
 import { FormSheet } from "@/components/ui/form-sheet";
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { apiGet, apiPatch, apiPost } from "@/lib/client-api";
+import type { FornecedorView } from "@/lib/actions/emporio-fornecedores";
 import { UFS, formatarCep, formatarDocumento } from "@/lib/contatos/cadastro";
 import { mascararCep, mascararDocumento, mascararTelefone } from "@/components/contatos/campos-do-cadastro";
 
@@ -86,15 +87,28 @@ export function FornecedorForm({
   modo,
   id,
   trigger,
+  open,
+  onOpenChange,
+  inicial,
+  onSalvo,
 }: {
   modo: "novo" | "editar";
   id?: string;
+  /** Sem ele, o botão padrão; `null`, nenhum (o painel é aberto por `open`). */
   trigger?: React.ReactNode;
+  /** Com `open` e `onOpenChange`, quem chama controla o painel (a escolha do fornecedor na Compra). */
+  open?: boolean;
+  onOpenChange?: (a: boolean) => void;
+  /** Só no `novo`: o que a busca já digitou (o nome, ou o telefone). */
+  inicial?: { name?: string; phone?: string };
+  /** Sem ele (nas telas de Fornecedores), o formulário só relê a página ao salvar. */
+  onSalvo?: (f: FornecedorView) => void;
 }) {
   const router = useRouter();
   const editar = modo === "editar";
   const err = useErrosDeFormulario(ORDEM, editar ? `fornecedor-${id}` : "fornecedor-novo");
-  const [open, setOpen] = useState(false);
+  const [abertoProprio, setAbertoProprio] = useState(false);
+  const aberto = open ?? abertoProprio;
   const [loading, setLoading] = useState(false);
   const [carregando, setCarregando] = useState(false);
   const [falhouCarga, setFalhouCarga] = useState(false);
@@ -108,38 +122,61 @@ export function FornecedorForm({
     err.limparCampo(campo);
   }
 
-  function reiniciar() {
+  // O painel abre pelo gatilho ou por quem chama (`open`): o preparo é o mesmo, feito no
+  // render quando `aberto` muda, e a leitura (o cadastro ou as propriedades) no efeito abaixo.
+  const [abertoAntes, setAbertoAntes] = useState(aberto);
+  if (aberto !== abertoAntes) {
+    setAbertoAntes(aberto);
+    err.limparTudo();
+    setFalhouCarga(false);
     setTipo("externo");
     setPropriedade("");
-    setValores(VAZIO);
-    setFalhouCarga(false);
-    err.limparTudo();
+    setValores(
+      aberto && !editar && inicial
+        ? { ...VAZIO, name: inicial.name ?? "", phone: mascararTelefone(inicial.phone ?? "") }
+        : VAZIO,
+    );
+    setCarregando(aberto);
   }
 
-  async function abrir() {
-    setCarregando(true);
-    setFalhouCarga(false);
-    if (editar) {
-      const res = await apiGet<FornecedorGuardado>(`/api/v1/emporio/suppliers/${id}`);
-      setCarregando(false);
-      if (!res.ok) {
-        setFalhouCarga(true);
-        err.setGlobal(res.message);
+  useEffect(() => {
+    if (!aberto) return;
+    let vivo = true;
+    void (async () => {
+      if (editar) {
+        const res = await apiGet<FornecedorGuardado>(`/api/v1/emporio/suppliers/${id}`);
+        if (!vivo) return;
+        setCarregando(false);
+        if (!res.ok) {
+          setFalhouCarga(true);
+          err.setGlobal(res.message);
+          return;
+        }
+        const f = res.data;
+        const v = { ...VAZIO };
+        for (const k of Object.keys(VAZIO) as (keyof Valores)[]) v[k] = f[k] ?? "";
+        v.document = formatarDocumento(v.document);
+        v.address_zip = formatarCep(v.address_zip);
+        setTipo(f.kind);
+        setValores((atual) => ({ ...atual, ...v }));
         return;
       }
-      const f = res.data;
-      const v = { ...VAZIO };
-      for (const k of Object.keys(VAZIO) as (keyof Valores)[]) v[k] = f[k] ?? "";
-      v.document = formatarDocumento(v.document);
-      v.address_zip = formatarCep(v.address_zip);
-      setTipo(f.kind);
-      setValores(v);
-      return;
-    }
-    const res = await apiGet<{ id: string; name: string }[]>("/api/v1/emporio/suppliers/property-options");
-    setCarregando(false);
-    if (res.ok) setOpcoes(res.data);
-    else err.setGlobal(res.message);
+      const res = await apiGet<{ id: string; name: string }[]>("/api/v1/emporio/suppliers/property-options");
+      if (!vivo) return;
+      setCarregando(false);
+      if (res.ok) setOpcoes(res.data);
+      else err.setGlobal(res.message);
+    })();
+    return () => {
+      vivo = false;
+    };
+    // Só a abertura relê: `err` é lido no momento da carga.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aberto, editar, id]);
+
+  function mudarAberto(o: boolean) {
+    if (onOpenChange) onOpenChange(o);
+    if (open === undefined) setAbertoProprio(o);
   }
 
   async function submit() {
@@ -169,16 +206,16 @@ export function FornecedorForm({
       if (!editar) corpo.kind = "externo";
     }
     const res = editar
-      ? await apiPatch(`/api/v1/emporio/suppliers/${id}`, corpo)
-      : await apiPost("/api/v1/emporio/suppliers", corpo);
+      ? await apiPatch<FornecedorView>(`/api/v1/emporio/suppliers/${id}`, corpo)
+      : await apiPost<FornecedorView>("/api/v1/emporio/suppliers", corpo);
     setLoading(false);
     if (!res.ok) {
       err.doServidor(res);
       return;
     }
-    setOpen(false);
-    reiniciar();
-    router.refresh();
+    if (onSalvo) onSalvo(res.data);
+    else router.refresh();
+    mudarAberto(false);
   }
 
   function texto(
@@ -220,12 +257,8 @@ export function FornecedorForm({
           ? "A propriedade do dono entra nas compras só com o custo, sem conta a pagar."
           : "Só o nome é obrigatório. Preencha o resto se quiser."
       }
-      open={open}
-      onOpenChange={(o) => {
-        setOpen(o);
-        if (o) void abrir();
-        else reiniciar();
-      }}
+      open={aberto}
+      onOpenChange={mudarAberto}
       onSubmit={submit}
       submitLabel={editar ? "Salvar fornecedor" : "Cadastrar fornecedor"}
       pending={loading || carregando}

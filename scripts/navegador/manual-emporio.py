@@ -614,7 +614,7 @@ def estado_compra_nova():
     clicar("Nova compra")
     time.sleep(1.5)
     escolher("Loja", "Loja Centro")
-    escolher("Fornecedor", "Agropecuária Central")
+    escolher_fornecedor("Agropecuária Central")
     escolher_aria("Produto do item 1", "Milho em Grão")
     time.sleep(0.8)
     preencher_aria("Quantidade do item 1", "20")

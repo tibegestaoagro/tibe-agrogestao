@@ -10,6 +10,9 @@
 
 export const ESPERA_DA_DIGITACAO_MS = 300;
 
+/** A frase dos poucos dígitos: a janela de escolha e as telas Clientes e Fornecedores a mostram igual. */
+export const POUCOS_DIGITOS = "Digite pelo menos 3 números para buscar por CPF/CNPJ ou telefone.";
+
 export type ResultadoDaPagina<T> = { itens: T[]; total: number; poucosDigitos: boolean } | { erro: string };
 
 /** O pedido a fazer: o número, o termo, a página, e quanto esperar antes de sair. */

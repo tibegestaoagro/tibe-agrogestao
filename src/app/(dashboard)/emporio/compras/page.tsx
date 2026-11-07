@@ -52,12 +52,9 @@ export default async function ComprasPage({
   const filtroSituacao =
     situacao === "pendente" || situacao === "recebida" || situacao === "cancelada" ? situacao : undefined;
 
-  const [lojasRes, comprasRes, fornecedores, produtos] = await Promise.all([
+  const [lojasRes, comprasRes, produtos] = await Promise.all([
     listarEstabelecimentosAction(db, user),
     listarComprasAction(db, user, { establishment_id: loja || undefined, status: filtroSituacao }),
-    podeLancar
-      ? db.emporioSupplier.findMany({ where: { archived_at: null }, select: { id: true, name: true, kind: true }, orderBy: { name: "asc" } })
-      : Promise.resolve([]),
     podeLancar
       ? db.emporioProduct.findMany({
           where: { archived_at: null },
@@ -100,11 +97,7 @@ export default async function ComprasPage({
           </p>
         </div>
         {lojasDoLancamento.length > 0 && (
-          <CompraForm
-            lojas={lojasDoLancamento}
-            fornecedores={fornecedores}
-            produtos={produtosForm}
-          />
+          <CompraForm lojas={lojasDoLancamento} produtos={produtosForm} />
         )}
       </header>
 

@@ -17,7 +17,9 @@ import { FormSheet } from "@/components/ui/form-sheet";
 import { useErrosDeFormulario } from "@/components/ui/use-erros-de-formulario";
 import { apiPost } from "@/lib/client-api";
 import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
+import type { FornecedorEscolhido } from "@/lib/actions/emporio-fornecedores";
 import { UNIDADE_BASE_SUFIXO } from "./formato";
+import { EscolherFornecedor } from "./escolher-fornecedor";
 
 /**
  * "Nova compra" (F2a, Q38, Q61 a Q63, Q70).
@@ -52,7 +54,6 @@ const ORDEM = [
 ] as const;
 type Campo = (typeof ORDEM)[number];
 
-const NENHUM = "__nenhum__";
 const BASE = "__base__";
 
 const KIND_ROTULO: Record<Kind, string> = {
@@ -85,11 +86,9 @@ const centavosParaCampo = (c: number) => (c / 100).toFixed(2).replace(".", ",");
 
 export function CompraForm({
   lojas,
-  fornecedores,
   produtos,
 }: {
   lojas: { id: string; name: string }[];
-  fornecedores: { id: string; name: string; kind: "propriedade" | "externo" }[];
   produtos: ProdutoParaCompra[];
 }) {
   const router = useRouter();
@@ -105,7 +104,7 @@ export function CompraForm({
 
   const novoItem = (): ItemLinha => ({ key: proximo(), produto: "", apresentacao: BASE, qtd: "", total: "" });
   const [loja, setLoja] = useState(lojas.length === 1 ? lojas[0].id : "");
-  const [fornecedor, setFornecedor] = useState("");
+  const [fornecedor, setFornecedor] = useState<FornecedorEscolhido | null>(null);
   const [data, setData] = useState(hoje);
   const [recebida, setRecebida] = useState(true);
   const [itens, setItens] = useState<ItemLinha[]>(() => [{ key: 1, produto: "", apresentacao: BASE, qtd: "", total: "" }]);
@@ -119,7 +118,7 @@ export function CompraForm({
 
   function reiniciar() {
     setLoja(lojas.length === 1 ? lojas[0].id : "");
-    setFornecedor("");
+    setFornecedor(null);
     setData(hoje());
     setRecebida(true);
     setItens([novoItem()]);
@@ -149,7 +148,7 @@ export function CompraForm({
   }, 0);
   const falta = total - totalEntrada - somaParcelas;
   // Compra de propriedade do dono: entra só o custo, sem forma de pagamento nem conta a pagar.
-  const deProps = fornecedores.find((f) => f.id === fornecedor)?.kind === "propriedade";
+  const deProps = fornecedor?.kind === "propriedade";
 
   function atualizarItem(key: number, parte: Partial<ItemLinha>) {
     setItens((lista) => lista.map((i) => (i.key === key ? { ...i, ...parte } : i)));
@@ -238,7 +237,7 @@ export function CompraForm({
     const res = await apiPost("/api/v1/emporio/purchases", {
       operation_key: (chave.current ??= crypto.randomUUID()),
       establishment_id: loja,
-      supplier_id: fornecedor || null,
+      supplier_id: fornecedor?.id ?? null,
       purchased_at: paraIso(data),
       received: recebida,
       freight: valorFrete,
@@ -309,27 +308,16 @@ export function CompraForm({
         )}
       </Field>
 
-      <Field label="Fornecedor" id={err.idDe("supplier_id")} error={err.erros.supplier_id} hint="Opcional. Cadastre em Fornecedores.">
-        {({ id, ...aria }) => (
-          <Select
-            value={fornecedor || NENHUM}
-            onValueChange={(v) => {
-              setFornecedor(v === NENHUM ? "" : v);
+      <Field label="Fornecedor" id={err.idDe("supplier_id")} error={err.erros.supplier_id} hint="Opcional.">
+        {(campo) => (
+          <EscolherFornecedor
+            campo={campo}
+            valor={fornecedor}
+            onEscolher={(f) => {
+              setFornecedor(f);
               err.limparCampo("supplier_id");
             }}
-          >
-            <SelectTrigger id={id} {...aria}>
-              <SelectValue placeholder="Não informar" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NENHUM}>Não informar</SelectItem>
-              {fornecedores.map((f) => (
-                <SelectItem key={f.id} value={f.id}>
-                  {f.kind === "propriedade" ? `${f.name} (propriedade)` : f.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          />
         )}
       </Field>
 

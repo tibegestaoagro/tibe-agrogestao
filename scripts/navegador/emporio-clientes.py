@@ -270,7 +270,8 @@ confere("a propriedade aparece na lista", esperar(lambda: FAZENDA in linha_da_ta
 ir("/emporio/compras")
 confere("abre Nova compra", abrir_painel("Nova compra"))
 confere("com fornecedor nenhum, pede a forma de pagamento", campo_no_painel("Forma de pagamento"))
-confere("escolhe o fornecedor da propriedade", escolher("Fornecedor", FAZENDA + " (propriedade)") is True)
+confere("escolhe o fornecedor da propriedade", escolher_fornecedor(FAZENDA) is True)
+confere("o quadro do fornecedor mostra Propriedade do dono", "Propriedade do dono" in escolhido("fornecedor"), escolhido("fornecedor"))
 confere("a forma de pagamento some", not campo_no_painel("Forma de pagamento"))
 confere("o aviso diz que entra só o custo", no_painel("entra só o custo, sem conta a pagar"))
 confere("escolhe o produto", escolher_por_aria("Produto do item 1", RACAO) is True)
@@ -343,5 +344,88 @@ r = api("POST", "/api/v1/emporio/customers", {"person_kind": "pf", "name": nome_
 confere("o cliente é cadastrado só com o telefone em dígitos", r["status"] in (200, 201), r)
 ir("/emporio/clientes?q=" + urllib.parse.quote(nome_digitos))
 confere("a lista de Clientes mostra (38) 3333-4444", "(38) 3333-4444" in linha_da_tabela(nome_digitos), linha_da_tabela(nome_digitos))
+
+# --- 10 --------------------------------------------------------------------------------
+passo("10. A Compra escolhe o fornecedor por busca; cadastrar de dentro não envia a compra")
+POUCOS = "Digite pelo menos 3 números para buscar por CPF/CNPJ ou telefone."
+
+
+def n_compras():
+    # A rota lista todas as compras, sem página: o tamanho da lista é o total.
+    return len((api("GET", "/api/v1/emporio/purchases")["body"] or {}).get("data") or [])
+
+
+def janelas():
+    return js("document.querySelectorAll('[role=dialog]').length") or 0
+
+
+def preencher_no_ultimo(rotulo, valor):
+    """Preenche o campo do painel de cima (o filho, quando ha dois abertos)."""
+    return js("(() => { const ds = Array.from(document.querySelectorAll('[role=dialog]')); const raiz = ds[ds.length - 1]; const l = Array.from(raiz.querySelectorAll('label')).find(x => x.innerText.replace('*','').trim() === " + repr(rotulo) + "); if (!l) return 'SEM ROTULO'; const el = document.getElementById(l.htmlFor); if (!el) return 'SEM CAMPO'; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, " + repr(valor) + "); el.dispatchEvent(new Event('input', { bubbles: true })); return el.id; })()")
+
+
+def enviar_no_ultimo():
+    js("(() => { const ds = Array.from(document.querySelectorAll('[role=dialog]')); const b = ds[ds.length - 1].querySelector('button[type=submit]'); if (b) b.click(); })()")
+
+
+NOME_FORN = "Cli Fornec Compra " + SUFIXO
+TEL_FORN = "38977776666"
+
+entrar("gestor")
+ir("/emporio/compras")
+compras_antes = n_compras()
+confere("a contagem de compras é um número maior que zero", isinstance(compras_antes, int) and compras_antes > 0, compras_antes)
+confere("abre Nova compra", abrir_painel("Nova compra"))
+confere("sem fornecedor, o quadro está vazio", no_painel("Nenhum fornecedor escolhido."), escolhido("fornecedor"))
+# A compra já está pronta para enviar: se o submit do painel filho vazasse para ela, uma compra seria gravada.
+confere("escolhe o produto", escolher_por_aria("Produto do item 1", RACAO) is True)
+confere("a quantidade é 3", preencher_aria("Quantidade do item 1", "3") != "SEM CAMPO")
+confere("o valor total é 15", preencher_aria("Valor total do item 1", "15") != "SEM CAMPO")
+confere("abre Cadastrar novo fornecedor por dentro da Compra", clicar("Cadastrar novo fornecedor") and esperar(lambda: janelas() >= 2, 15), janelas())
+time.sleep(1)
+confere("preenche o nome do fornecedor", preencher_no_ultimo("Nome", NOME_FORN) != "SEM CAMPO")
+confere("preenche o telefone do fornecedor", preencher_no_ultimo("Telefone", TEL_FORN) != "SEM CAMPO")
+enviar_no_ultimo()
+confere("o painel do fornecedor fechou", esperar(lambda: janelas() == 1, 40), janelas())
+confere("a Compra continua aberta", painel_aberto())
+confere("o fornecedor novo está no quadro", NOME_FORN in escolhido("fornecedor"), escolhido("fornecedor"))
+confere("o quadro mostra o telefone dele", "(38) 97777-6666" in escolhido("fornecedor"), escolhido("fornecedor"))
+confere("nenhuma compra foi gravada", n_compras() == compras_antes, [compras_antes, n_compras()])
+confere("o fornecedor de fora pede a forma de pagamento", campo_no_painel("Forma de pagamento"))
+
+confere("troca para o fornecedor da propriedade", escolher_fornecedor(FAZENDA) is True)
+confere("a forma de pagamento some com a propriedade", not campo_no_painel("Forma de pagamento"))
+confere("o quadro diz Propriedade do dono", "Propriedade do dono" in escolhido("fornecedor"), escolhido("fornecedor"))
+confere("troca de volta para o de fora, achado pelo telefone", escolher_fornecedor(NOME_FORN, TEL_FORN) is True)
+confere("a forma de pagamento volta", campo_no_painel("Forma de pagamento"))
+confere("escolhe a propriedade de novo", escolher_fornecedor(FAZENDA) is True)
+confere("a forma de pagamento some outra vez", not campo_no_painel("Forma de pagamento"))
+confere("Tirar fornecedor", clicar("Tirar fornecedor"))
+time.sleep(1)
+confere("sem fornecedor, o quadro volta ao vazio", no_painel("Nenhum fornecedor escolhido."), escolhido("fornecedor"))
+confere("tirar a propriedade devolve a forma de pagamento", campo_no_painel("Forma de pagamento"))
+esc()
+confere("a Compra fechou sem gravar nada", n_compras() == compras_antes, [compras_antes, n_compras()])
+
+ir("/emporio/clientes?q=12")
+confere("Clientes: com 2 dígitos, a frase dos poucos dígitos", tem(POUCOS) and not tem("Nenhum cliente encontrado"), texto_principal(300))
+ir("/emporio/fornecedores?q=12")
+confere("Fornecedores: com 2 dígitos, a frase dos poucos dígitos", tem(POUCOS) and not tem("Nenhum fornecedor encontrado"), texto_principal(300))
+ir("/emporio/fornecedores?q=" + TEL_FORN)
+confere("Fornecedores acha pelo telefone", NOME_FORN in linha_da_tabela(NOME_FORN), linha_da_tabela(NOME_FORN))
+
+cdp("Emulation.setDeviceMetricsOverride", width=390, height=844, deviceScaleFactor=3, mobile=True)
+ir("/emporio/clientes?q=12")
+sem_rolagem("Clientes com a frase dos poucos dígitos")
+ir("/emporio/fornecedores?q=12")
+sem_rolagem("Fornecedores com a frase dos poucos dígitos")
+ir("/emporio/compras")
+confere("abre Nova compra a 390 px", abrir_painel("Nova compra"))
+confere("abre a janela Escolher fornecedor", clicar("Escolher fornecedor") and esperar(lambda: js("!!document.querySelector('[data-escolha=fornecedor]')"), 15))
+time.sleep(2)
+sem_rolagem("a Compra com a janela aberta")
+confere("a janela não passa da largura da tela", (js("document.querySelector('[data-escolha=fornecedor]').scrollWidth") or 999) <= 390)
+esc()
+cdp("Emulation.clearDeviceMetricsOverride")
 
 fim()

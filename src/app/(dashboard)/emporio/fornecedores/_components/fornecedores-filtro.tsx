@@ -29,7 +29,7 @@ export function FornecedoresFiltro({ q, arquivados }: { q: string; arquivados: b
       <div className="min-w-0 flex-1 sm:max-w-sm">
         <Input
           aria-label="Buscar fornecedor pelo nome"
-          placeholder="Buscar pelo nome"
+          placeholder="Nome, CPF/CNPJ ou telefone"
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
         />

@@ -5,6 +5,7 @@ import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { listarFornecedoresAction } from "@/lib/actions/emporio-fornecedores";
 import { formatarDocumento } from "@/lib/contatos/cadastro";
 import { formatarTelefone } from "@/lib/emporio/telefone";
+import { POUCOS_DIGITOS } from "@/lib/emporio/sequencia-da-busca";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -34,7 +35,7 @@ export default async function FornecedoresPage({
     arquivados: mostrarArquivados,
     pagina: Number(pagina) || 1,
   });
-  const lista = res.ok ? res.data : { itens: [], total: 0, pagina: 1, por_pagina: 50 };
+  const lista = res.ok ? res.data : { itens: [], total: 0, pagina: 1, por_pagina: 50, poucos_digitos: false };
   const totalPaginas = Math.max(1, Math.ceil(lista.total / lista.por_pagina));
 
   function href(p: number): string {
@@ -65,6 +66,8 @@ export default async function FornecedoresPage({
 
       {!res.ok ? (
         <EmptyState titulo="Não foi possível carregar os fornecedores">{res.message}</EmptyState>
+      ) : lista.poucos_digitos ? (
+        <p className="text-sm text-texto-secundario">{POUCOS_DIGITOS}</p>
       ) : lista.itens.length === 0 ? (
         <EmptyState titulo="Nenhum fornecedor encontrado">
           {q || mostrarArquivados ? "Mude o filtro para ver outros." : "Cadastre o primeiro fornecedor."}

@@ -148,6 +148,11 @@ def escolher_cliente(nome, busca=None):
     return _escolher_por_busca("cliente", "Cliente", ["Escolher cliente", "Trocar cliente"], nome, busca)
 
 
+def escolher_fornecedor(nome, busca=None):
+    """Escolhe o fornecedor na janela de busca da Compra."""
+    return _escolher_por_busca("fornecedor", "Fornecedor", ["Escolher fornecedor", "Trocar fornecedor"], nome, busca)
+
+
 def escolhido(tipo="cliente"):
     """O texto do quadro do escolhido (`[data-escolhido=<tipo>]`), ou '' sem escolha."""
     return (js("(() => { const q = document.querySelector('[data-escolhido=" + tipo + "]'); return q ? q.innerText.replace(/\\u00a0/g, ' ') : ''; })()") or "")

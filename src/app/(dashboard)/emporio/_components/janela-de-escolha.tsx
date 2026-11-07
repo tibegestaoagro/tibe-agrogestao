@@ -4,7 +4,7 @@ import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { escolhaPeloEnter } from "@/lib/emporio/sequencia-da-busca";
+import { POUCOS_DIGITOS, escolhaPeloEnter } from "@/lib/emporio/sequencia-da-busca";
 import type { useBuscaNoServidor } from "./busca-no-servidor";
 
 /** O que o `<Field>` passa ao filho: o `id` e o `aria`, para o rótulo e a recusa apontarem para ele. */
@@ -14,8 +14,6 @@ export type CampoDoField = {
   "aria-describedby": string | undefined;
   "aria-required": boolean | undefined;
 };
-
-const POUCOS_DIGITOS = "Digite pelo menos 3 números para buscar por CPF/CNPJ ou telefone.";
 
 /**
  * A janela de escolha por busca no servidor (cliente na venda, fornecedor na
