@@ -406,6 +406,8 @@ type OrcPlan = {
   /** Quem fatura hoje, e como o cliente paga. */
   fatura?: { quem: ChaveMembro; kind: "dinheiro" | "pix" };
   notas?: string;
+  /** Pedido para entrega (plano 3): o orçamento sai marcado e a venda faturada herda a marca e o endereço. Sem isto, é retirada no balcão. */
+  entrega?: { delivery_address_kind: "outro"; delivery_zip: string; delivery_street: string; delivery_number: string; delivery_district: string; delivery_city: string; delivery_state: string };
 };
 
 const ORCAMENTOS: OrcPlan[] = [
@@ -415,6 +417,13 @@ const ORCAMENTOS: OrcPlan[] = [
   { chave: "orc-vencido", loja: "centro", quem: "vendCentro", cliente: "tresIrmaos", feito: [16, 11], fim: "vencido", itens: [{ slug: "salCria", papel: "fechada", qtd: 10 }, { slug: "aftosa", papel: "fechada", qtd: 2 }], notas: "Cliente ia ver o preço com outro fornecedor" },
   { chave: "orc-faturado-vendedor", loja: "centro", quem: "vendCentro", cliente: "boaEsperanca", feito: [3, 9], fim: "faturado", itens: [{ slug: "salEngorda", papel: "fechada", qtd: 3 }, { slug: "vermBov", papel: "fechada", qtd: 4 }], fatura: { quem: "vendCentro", kind: "pix" } },
   { chave: "orc-faturado-caixa", loja: "rodovia", quem: "caixaRodovia", vendedor: "gerente", cliente: "santaClara", feito: [2, 16], fim: "faturado", itens: [{ slug: "equinos", papel: "fechada", qtd: 4 }, { slug: "carrap", papel: "fechada", qtd: 1 }], fatura: { quem: "caixaRodovia", kind: "dinheiro" } },
+  // Para entrega em "Outro endereço" (a obra, não a sede), faturado: a venda herda a marca e o endereço. Os demais faturados são retirada no balcão.
+  {
+    chave: "orc-entrega-obra", loja: "centro", quem: "vendCentro", cliente: "pedraBranca", feito: [1, 14], fim: "faturado",
+    itens: [{ slug: "arameLiso", papel: "fechada", qtd: 2 }, { slug: "grampo", papel: "fechada", qtd: 2 }], fatura: { quem: "vendCentro", kind: "pix" },
+    notas: "Entregar na obra da cerca, não na sede",
+    entrega: { delivery_address_kind: "outro", delivery_zip: "78790-000", delivery_street: "Estrada do Rio Vermelho", delivery_number: "Km 8", delivery_district: "Zona Rural", delivery_city: "Itiquira", delivery_state: "MT" },
+  },
   { chave: "orc-cancelado", loja: "centro", quem: "vendCentro", cliente: "pedraBranca", feito: [1, 11], fim: "cancelado", itens: [{ slug: "milho", papel: "fechada", qtd: 6 }], fatura: { quem: "vendCentro", kind: "dinheiro" } },
 ];
 
@@ -1425,6 +1434,7 @@ async function montarOrcamentos(ctx: Ctx) {
           items: itens,
           seller_user_id: o.vendedor ? atores[o.vendedor].id : null,
           notes: o.notas ?? null,
+          ...(o.entrega ? { for_delivery: true, ...o.entrega } : {}),
         },
         o.feito ? { agora: dia(o.feito[0], o.feito[1]) } : {},
       ),

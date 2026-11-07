@@ -1,4 +1,4 @@
-# Os prints do manual do Meu Empório (Q138): 42 figuras, em computador (1280 px)
+# Os prints do manual do Meu Empório (Q138): 44 figuras, em computador (1280 px)
 # e em celular (390 px, escala 2), com as marcações numeradas desenhadas sobre a
 # própria tela. Sai em public/manual/emporio/<id>.png e <id>-celular.png.
 # docs/specs/module-39-meu-emporio.md, "Cenário de demonstração e manual (Q137, Q138)".
@@ -759,7 +759,7 @@ figura("balcao-pagamento", "vendedor_centro", "/emporio/vender", [
     (2, "M.todos('button').filter(b => /^\\+ /.test(b.innerText.trim()))", "os botoes de forma de pagamento"),
     (3, "[M.todos('[aria-label^=\"Valor em\"]'), M.C('Falta') || M.C('Troco') || M.C('Pagamento fechado')]", "o valor em cada forma e a linha Falta, Troco ou Pagamento fechado"),
     (4, "M.B('Fechar a venda')", "o botao Fechar a venda"),
-], estado=estado_pagamento, hd=1250, hc=1500)
+], estado=estado_pagamento, hd=1250, hc=1700)
 
 
 def estado_balcao_caixa():
@@ -850,6 +850,43 @@ figura("orcamento-faturar", "caixa", "/emporio/vender", [
     (3, "M.L('Vendedor')", "o campo Vendedor, com O vendedor do orcamento."),
     (4, "M.B('Tirar orçamento')", "o botao Tirar orcamento"),
 ], estado=estado_orcamento_faturar, hd=1400, hc=2000)
+
+def estado_balcao_entrega():
+    adicionar_ao_balcao("Arame", "Arame Liso Galvanizado 1000 m", "2")
+    escolher_cliente("Fazenda Pedra Branca")
+    confere("balcao-entrega: marcou Pedido para entrega", marcar("Pedido para entrega") is True)
+    # As opcoes do cadastro vem de uma leitura: espera o grupo aparecer.
+    confere("balcao-entrega: o grupo Endereco de entrega apareceu", bool(esperar(lambda: M_ACHOU("M.L('Endereço de entrega')"), 30)))
+    confere("balcao-entrega: escolheu o endereco principal", esperar(lambda: marcar("Endereço principal") is True, 30) is True)
+    time.sleep(0.8)
+
+
+def M_ACHOU(expr):
+    return js("(() => { const M = window.__m; try { return !!" + expr + "; } catch (e) { return false; } })()")
+
+
+figura("balcao-entrega", "vendedor_centro", "/emporio/vender", [
+    (1, "M.L('Cliente')", "o campo Cliente"),
+    (2, "M.CK('Pedido para entrega')", "a caixa Pedido para entrega"),
+    (3, "M.L('Endereço de entrega')", "as escolhas do Endereço de entrega"),
+    (4, "M.B('Fechar a venda')", "o botao Fechar a venda"),
+], estado=estado_balcao_entrega, hd=1500, hc=2100)
+
+
+def id_da_venda_para_entrega():
+    """Uma venda concluida para entrega em 'Outro endereco' (a do orcamento da demonstracao)."""
+    r = api("GET", "/api/v1/emporio/sales")
+    boas = [v for v in r["body"]["data"] if v.get("status") == "concluida" and v.get("for_delivery") and v.get("delivery_address_kind") == "outro"]
+    return boas[0]["id"]
+
+
+figura("romaneio-impresso", "vendedor_centro", lambda: "/emporio/imprimir/romaneio/" + id_da_venda_para_entrega() + "?formato=a4", [
+    (1, "document.querySelector('.a4 .faixa')", "a faixa ENTREGA"),
+    (2, "document.querySelector('.a4 .bloco')", "o cliente e o Endereco de entrega"),
+    (3, "document.querySelector('.a4 table')", "a tabela de itens, sem preco, com a caixa de marcar"),
+    (4, "document.querySelector('.a4 .assinaturas')", "as assinaturas Separado por, Conferido por e Recebido por"),
+    (5, "M.B('Imprimir')", "o botao Imprimir"),
+], hd=1000, hc=1500, lc=600)
 
 figura("venda-detalhe", "gestor", lambda: "/emporio/vendas/" + id_da_venda_com_cliente(), [
     (1, "[M.H('Venda nº'), M.T('Vendedor:')]", "o titulo Venda no e a linha Vendedor"),

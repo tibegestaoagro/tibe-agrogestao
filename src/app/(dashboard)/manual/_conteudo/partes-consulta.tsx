@@ -109,6 +109,18 @@ const PERGUNTAS: { pergunta: string; resposta: React.ReactNode }[] = [
     resposta: <>Faltou o cliente: “Escolha o cliente do orçamento. Quem não quer se identificar entra como Consumidor final.” Escolha o cliente, ou o <strong>Consumidor final</strong>, que vale para o orçamento. Se o cliente aparece com Cadastro incompleto, complete o cadastro antes: veja a pergunta do aviso “Cadastro incompleto”.</>,
   },
   {
+    pergunta: "O cliente não quer dar o CPF, mas quer entrega. O que eu faço?",
+    resposta: <>Para entrega, a pessoa física precisa do CPF no cadastro: a frase é “Para entrega, informe o CPF do cliente.” Sem o CPF, o pedido não sai marcado para entrega. Peça o CPF e clique em <strong>Completar cadastro</strong>, embaixo do cliente. Se o cliente não quer dar o CPF, o pedido é retirada no balcão: desmarque <strong>Pedido para entrega</strong>. O Consumidor final também não vale para entrega.</>,
+  },
+  {
+    pergunta: "Posso mudar o endereço depois de fechar a venda?",
+    resposta: <>Pode, se você é o Caixa, o Gestor da loja, o Gerente geral ou o Dono. Abra a venda, e na seção <strong>Pedido para entrega</strong> clique em <strong>Mudar</strong>. Estoque, caixa e Financeiro não mudam, e o Histórico guarda quem mudou. Venda cancelada ou trocada não se muda. O Vendedor não vê o botão. O Caixa só muda venda de hoje.</>,
+  },
+  {
+    pergunta: "Por que o romaneio não tem preço?",
+    resposta: "Porque ele passa pelas mãos de quem separa e de quem entrega, e essas pessoas não precisam do valor. O romaneio traz o cliente, o endereço, os itens com a quantidade, uma caixinha para marcar cada linha e as assinaturas de quem separou, conferiu e recebeu. O preço está no papel da venda.",
+  },
+  {
     pergunta: "Onde estão os clientes e os fornecedores da loja? Não aparecem em Contatos.",
     resposta: <>Ficam dentro do Meu Empório, em <Link className="underline" href={`${BASE_DO_EMPORIO}/clientes`}>Clientes</Link> e <Link className="underline" href={`${BASE_DO_EMPORIO}/fornecedores`}>Fornecedores</Link>. Contatos é da fazenda: quem compra gado ou presta serviço. Os dois cadastros não se misturam.</>,
   },

@@ -28,6 +28,7 @@ export const PARTES_DO_EMPORIO: Parte[] = [
   { slug: "vender", titulo: "Vender no balcão", grupo: "Por tarefa", resumo: "Cliente, vendedor, pagamento, desconto e o papel da venda." },
   { slug: "clientes", titulo: "Clientes", grupo: "Por tarefa", resumo: "Cadastrar o cliente da loja e ver o que ele já comprou." },
   { slug: "orcamento", titulo: "Orçamento", grupo: "Por tarefa", resumo: "Salvar, imprimir, achar e faturar um orçamento." },
+  { slug: "entrega", titulo: "Pedido para entrega e romaneio", grupo: "Por tarefa", resumo: "Marcar a entrega, mudar depois de fechada e imprimir o romaneio sem preço." },
   { slug: "devolver", titulo: "Devolver, trocar e cancelar", grupo: "Por tarefa", resumo: "Quando o cliente volta atrás." },
   { slug: "fiado", titulo: "Fiado e receber fiado", grupo: "Por tarefa", resumo: "Vender para pagar depois e cobrar." },
   { slug: "caixa", titulo: "Caixa", grupo: "Por tarefa", resumo: "Abrir e encerrar o turno, sangria, malote, banco, cartão e cheques." },

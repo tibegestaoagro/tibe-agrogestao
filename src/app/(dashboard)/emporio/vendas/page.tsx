@@ -104,7 +104,7 @@ export default async function VendasPage({
                         <Badge variant="amber">Fiado em aberto {reaisBr(v.open_amount)}</Badge>
                       )}
                       {v.returns.length > 0 && <Badge variant="blue">Com devolução</Badge>}
-                      {v.for_delivery && <Badge variant="green">Entrega</Badge>}
+                      {v.for_delivery && <Badge variant="default">Entrega</Badge>}
                       {provisorio && <Badge variant="amber">Custo provisório</Badge>}
                     </div>
                   </TableCell>

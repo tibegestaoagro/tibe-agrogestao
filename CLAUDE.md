@@ -495,7 +495,8 @@ se o roteiro não chegar ao fim. Os passos comuns estão em
 `scripts/navegador/_lib.py`. Roteiro novo nasce provado nos dois sentidos: o
 `emporio-f0` reprovou com a correção do menu desfeita e passou com ela.
 
-Precisa do `npm run dev` de pé e do browser-harness instalado na máquina (no
+Precisa do `npm run dev` de pé, do browser-harness instalado na máquina e, para
+o roteiro `emporio-romaneio`, do pacote `pypdf` no python do sistema (no
 notebook, instalar).
 
 ### Confirmar deploy

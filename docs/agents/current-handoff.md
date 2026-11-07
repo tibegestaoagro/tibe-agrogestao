@@ -25,7 +25,7 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 `historico/2026-09.md`.
 ## Estado atual
 
-- Atualizado em: 2026-11-07.
+- Atualizado em: 2026-11-07 (plano 3 do Empório, Task 9).
 
 ### Programa de dívidas (07 a 14/10): encerrado, E0 a E10 em produção
 
@@ -96,7 +96,7 @@ O detalhe de 29/09 (seis defeitos do canário, roteiro do aparelho com passos
 [historico/2026-09.md](historico/2026-09.md). Faltam os passos 9 e 10 do
 roteiro (foto de recibo e o "não" final).
 
-### Empório: clientes, fornecedores, escolha do cliente e romaneio (06/11), planos 1 e 2 EM PRODUÇÃO (07/11), plano 3 em execução
+### Empório: clientes, fornecedores, escolha do cliente e romaneio (06/11), planos 1 e 2 EM PRODUÇÃO (07/11), plano 3 pronto na branch
 
 Design aprovado pelo usuário em 06/11:
 `docs/superpowers/specs/2026-11-06-emporio-clientes-fornecedores-romaneio-design.md`.
@@ -141,10 +141,30 @@ o roteiro `emporio-escolha` verde no código final.
   dois sentidos. `manual-emporio` verde, com a figura nova
   `balcao-escolher-cliente`.
 
-**Plano 3 (pedido para entrega e romaneio) em execução na branch
+**Plano 3 (pedido para entrega e romaneio): Tasks 1 a 9 prontas na branch
 `emporio-entrega-e-romaneio`** (saída da `main` `ad2a42e`), pelo SDD (o ledger fica na pasta ignorada `.superpowers`, só nesta máquina;
-no notebook, retomar pelo `git log` da branch). A migração dele (`20261107120000_emporio_pedido_para_entrega`)
-é só acréscimo.
+no notebook, retomar pelo `git log` da branch). Falta a Task 10 (suíte inteira,
+revisão final, deploy).
+- **Produção:** a migração `20261107120000_emporio_pedido_para_entrega` **NÃO
+  está no Neon**. É só acréscimo e pode ir a qualquer hora antes do push (a das
+  lojas, as do plano 1, já foram). Merge, push e Neon pedem autorização na
+  conversa.
+- Entregue: marca "Pedido para entrega" com endereço copiado (principal, do
+  cadastro ou outro) no orçamento e na venda, faturar herda, "Mudar" na venda
+  fechada (`fatura_na_loja`, Histórico), romaneio A4 e bobina sem preço
+  (`/emporio/imprimir/romaneio/[id]`), manual (parte "Pedido para entrega e
+  romaneio", figuras `balcao-entrega` e `romaneio-impresso`), cenário de
+  demonstração com um orçamento para entrega faturado. Decisões Q205 a Q213 na
+  spec do módulo 39; dívidas em [dividas.md](dividas.md) 5.22.
+- **Para o usuário confirmar:** a linha "PEDIDO PARA ENTREGA" nos papéis do
+  orçamento e da venda (D8, extensão não pedida) e a permissão `fatura_na_loja`,
+  que deixa o Vendedor de fora da mudança de venda fechada.
+- **Defeito de produção achado e corrigido nesta branch:** no "Completar
+  cadastro" (`ClienteForm` em modo `completar`), o que se digitava antes de o
+  cadastro salvo terminar de carregar era sobrescrito. Os campos agora ficam
+  desabilitados durante a carga (`cliente-form.tsx`), provado nos dois sentidos
+  no passo 8b do roteiro `emporio-romaneio`.
+- Roteiro `emporio-romaneio` precisa de `pypdf` no python do sistema.
 Roteiro preso em recarga (página e `/login` em laço no log do `next dev`) é aba
 sobrando no Chrome de testes, não defeito: ver o cofre,
 `a-aba-oculta-e-a-leitura-cedo-imitam-defeito-no-navegador`.

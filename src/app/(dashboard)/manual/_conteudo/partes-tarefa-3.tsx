@@ -232,6 +232,140 @@ export function ParteDeOrcamento() {
   );
 }
 
+export function ParteDeEntrega() {
+  return (
+    <div className="space-y-2">
+      <Tarefa
+        paraQueServe="Dizer, na venda ou no orçamento, que a mercadoria vai sair da loja até o cliente, e para onde. Sem a marca, o pedido é retirada no balcão."
+        passos={[
+          <>Em <strong>Vender</strong>, monte a venda (ou toque em <strong>Orçamento</strong>) e escolha o cliente. Para entrega o cliente precisa ser de verdade: o <strong>Consumidor final</strong> não vale.</>,
+          <>Marque <strong>Pedido para entrega</strong>. Aparece o campo <strong>Endereço de entrega</strong>.</>,
+          <>Escolha um dos três endereços: <strong>Endereço principal</strong> (o do cadastro), <strong>Endereço de entrega do cadastro</strong> (só aparece se o cliente tem um) ou <strong>Outro endereço (só para este pedido)</strong>.</>,
+          <>No <strong>Outro endereço</strong>, preencha <strong>CEP</strong>, <strong>Rua</strong>, <strong>Número</strong>, <strong>Bairro</strong>, <strong>Cidade</strong> e <strong>UF</strong>. O <strong>Complemento</strong> é opcional. Esse endereço vale só para este pedido: o cadastro do cliente não muda.</>,
+          <>Se o cliente não tem o CPF ou o endereço no cadastro, a tela diz o que falta e mostra <strong>Completar cadastro</strong>. Clique, preencha e salve ali mesmo: o que você já montou na venda fica.</>,
+          <>Clique em <strong>Fechar a venda</strong> (ou <strong>Salvar orçamento</strong>). O resumo oferece <strong>Romaneio A4</strong> e <strong>Romaneio cupom</strong>.</>,
+        ]}
+        problemas={[
+          {
+            quando: "“Pedido para entrega precisa do cliente de verdade, não do Consumidor final.”",
+            fazer: "Escolha o cliente da compra, ou cadastre-o em Cadastrar novo cliente.",
+          },
+          {
+            quando: "“Para entrega, informe o CPF do cliente.” ou “Para entrega, complete o cadastro do cliente: ...”",
+            fazer: <>Clique em <strong>Completar cadastro</strong>, embaixo do cliente, e preencha o que a frase pediu. Para entrega, a pessoa física precisa de nome, telefone e CPF; a pessoa jurídica, do cadastro completo.</>,
+          },
+          {
+            quando: "“Escolha o endereço de entrega.”",
+            fazer: "Marque uma das três escolhas do Endereço de entrega.",
+          },
+          {
+            quando: "“O endereço principal do cadastro está incompleto.” (ou o de entrega do cadastro)",
+            fazer: <>Complete o cadastro do cliente com <strong>Completar cadastro</strong>, ou escolha <strong>Outro endereço</strong>.</>,
+          },
+          {
+            quando: "“Este cliente não tem endereço de entrega no cadastro.”",
+            fazer: "Escolha o endereço principal ou outro endereço.",
+          },
+        ]}
+      >
+        <Figura id="balcao-entrega" />
+        <Chamada tipo="saiba">
+          <p>
+            O endereço é copiado para o pedido na hora em que ele é gravado. Se o cadastro do cliente mudar depois, o
+            papel que você reimprimir continua com o endereço que valeu naquele dia.
+          </p>
+        </Chamada>
+      </Tarefa>
+
+      <Subtitulo>Faturar um orçamento para entrega</Subtitulo>
+      <Tarefa
+        paraQueServe="Transformar em venda um orçamento que já saiu marcado para entrega, sem digitar o endereço de novo."
+        passos={[
+          <>Carregue o orçamento em <strong>Vender</strong>, como em <Link className="underline" href={`${B}/orcamento`}>Orçamento</Link>. A marca <strong>Pedido para entrega</strong> e o endereço vêm do orçamento, já preenchidos.</>,
+          "Confira o endereço. Se precisar, desmarque a entrega ou escolha outro endereço: o que você deixar na tela é o que vale.",
+          <>Feche a venda. O orçamento vencido também passa a marca de entrega: só o preço cotado deixa de valer.</>,
+        ]}
+        problemas={[
+          {
+            quando: "“Para entrega, complete o cadastro do cliente: ...” ao faturar",
+            fazer: <>O cadastro do cliente ficou incompleto depois que o orçamento foi salvo. O Caixa também completa: clique em <strong>Completar cadastro</strong>, salve e feche a venda. O sistema não fatura para entrega com o cadastro incompleto, e o orçamento continua aberto.</>,
+          },
+        ]}
+      >
+        <Chamada tipo="saiba">
+          <p>
+            No Endereço principal e no Endereço de entrega do cadastro, vale o cadastro do cliente de hoje, copiado na hora
+            de faturar. No Outro endereço, vale o que foi escrito no orçamento. O orçamento salvo não muda a entrega: quem
+            corrige é quem fatura, ou depois, na venda fechada.
+          </p>
+        </Chamada>
+      </Tarefa>
+
+      <Subtitulo>Mudar o pedido depois de fechada a venda</Subtitulo>
+      <Tarefa
+        paraQueServe="Marcar, desmarcar ou trocar o endereço de entrega de uma venda que já foi fechada, sem mexer em estoque, caixa nem Financeiro."
+        passos={[
+          <>Abra a venda em <strong>Vendas</strong>. Na seção <strong>Pedido para entrega</strong>, clique em <strong>Mudar</strong>. O botão aparece para o Dono, o Gerente geral, o Gestor da loja e o Caixa. O Vendedor não vê o botão.</>,
+          <>Marque ou desmarque <strong>Pedido para entrega</strong> e escolha o endereço, como no balcão.</>,
+          <>Clique em <strong>Salvar</strong>. A venda guarda só a marca e o endereço. O <strong>Histórico</strong> ganha a linha “Mudou a venda nº ... para entrega”.</>,
+        ]}
+        problemas={[
+          {
+            quando: "A venda não mostra o botão Mudar",
+            fazer: "Venda cancelada ou trocada não se muda. Se a mercadoria vai sair, faça uma venda nova; na troca, mude na venda nova que ela gerou. O Vendedor também não vê o botão: peça a quem fatura na loja.",
+          },
+        ]}
+      >
+        <Chamada tipo="saiba">
+          <p>
+            O Caixa muda e reimprime o romaneio só de venda de hoje, porque só enxerga a venda de hoje. A venda nova de uma
+            troca nasce como retirada no balcão; quem fatura pode marcá-la para entrega depois.
+          </p>
+        </Chamada>
+      </Tarefa>
+
+      <Subtitulo>Imprimir o romaneio</Subtitulo>
+      <Tarefa
+        paraQueServe="Dar a quem separa e a quem entrega a lista do que sai da loja, sem nenhum preço."
+        passos={[
+          <>Depois de fechar a venda, clique em <strong>Romaneio A4</strong> ou <strong>Romaneio cupom</strong> no resumo. Para reimprimir, abra a venda em <strong>Vendas</strong>: os dois botões estão no alto.</>,
+          <>O papel abre numa aba nova. Clique em <strong>Imprimir</strong>.</>,
+          "Quem separa marca a caixinha de cada linha. No fim, três pessoas assinam: quem separou, quem conferiu e quem recebeu.",
+        ]}
+        problemas={[
+          {
+            quando: "O romaneio diz RETIRADA NO BALCÃO e não tem endereço",
+            fazer: <>A venda não tem a marca de entrega. Se o cliente vai receber em casa, use <strong>Mudar pedido para entrega</strong> na venda.</>,
+          },
+          {
+            quando: "O aviso grande diz VENDA CANCELADA: NÃO SEPARAR (ou VENDA TROCADA: NÃO SEPARAR)",
+            fazer: "A venda não vale mais. Não separe a mercadoria.",
+          },
+          {
+            quando: "O aviso diz VENDA COM DEVOLUÇÃO: CONFIRA NA VENDA ANTES DE SEPARAR",
+            fazer: "Parte dos itens voltou. Abra a venda e confira as quantidades antes de separar.",
+          },
+        ]}
+      >
+        <Figura id="romaneio-impresso" />
+        <Chamada tipo="saiba">
+          <p>
+            Na entrega, a faixa do alto diz ENTREGA e o papel traz o Endereço de entrega. Na retirada, a faixa diz RETIRADA NO
+            BALCÃO: o cliente leva a mercadoria na loja, e o romaneio serve de conferência. A entrega em si fica com a
+            logística da loja: o sistema não acompanha se o pedido saiu nem se chegou.
+          </p>
+        </Chamada>
+        <Chamada tipo="atencao">
+          <p>
+            O romaneio não tem preço, de propósito: ele passa pelas mãos de quem separa e de quem entrega. Ele também não conta
+            volumes: o que for preciso dizer sobre a carga vai na Observação da venda, que sai no papel.
+          </p>
+        </Chamada>
+      </Tarefa>
+    </div>
+  );
+}
+
 export function ParteDeRelatorios() {
   return (
     <div className="space-y-2">

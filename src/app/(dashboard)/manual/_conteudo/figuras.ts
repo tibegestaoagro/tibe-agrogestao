@@ -538,6 +538,33 @@ export const FIGURAS: Figura[] = [
     ],
   },
   {
+    id: "balcao-entrega",
+    pagina: "/emporio/vender",
+    papel: "vendedor",
+    legenda: "O balcão com Pedido para entrega marcado",
+    alt: "Tela Vender com o cliente escolhido, a caixa Pedido para entrega marcada, as escolhas do endereço de entrega e o botão Fechar a venda",
+    marcas: [
+      { numero: 1, alvo: "o campo Cliente", texto: "Para entrega precisa de cliente de verdade, não do Consumidor final." },
+      { numero: 2, alvo: "a caixa Pedido para entrega", texto: "Marque quando a mercadoria vai sair da loja. Sem a marca, o pedido é retirada no balcão." },
+      { numero: 3, alvo: "as escolhas do Endereço de entrega", texto: "Endereço principal, Endereço de entrega do cadastro (só se o cliente tem um) ou Outro endereço, só para este pedido." },
+      { numero: 4, alvo: "o botão Fechar a venda", texto: "Grava a venda com a marca e o endereço. O resumo oferece o Romaneio." },
+    ],
+  },
+  {
+    id: "romaneio-impresso",
+    pagina: "/emporio/imprimir/romaneio/[id]",
+    papel: "vendedor",
+    legenda: "O romaneio no papel A4",
+    alt: "Papel A4 do romaneio com a faixa ENTREGA, o cliente com o endereço de entrega, a tabela de itens sem preço com a caixa de marcar e as linhas de assinatura",
+    marcas: [
+      { numero: 1, alvo: "a faixa ENTREGA", texto: "ENTREGA ou RETIRADA NO BALCÃO, em letra grande, para quem separa a mercadoria." },
+      { numero: 2, alvo: "o cliente e o Endereço de entrega", texto: "O endereço sai como foi escolhido no pedido." },
+      { numero: 3, alvo: "a tabela de itens, sem preço, com a caixa de marcar", texto: "Produto, apresentação e quantidade. Quem separa marca cada linha. Não há preço." },
+      { numero: 4, alvo: "as assinaturas Separado por, Conferido por e Recebido por", texto: "Quem separou, quem conferiu e quem recebeu, com nome, documento e assinatura." },
+      { numero: 5, alvo: "o botão Imprimir", texto: "Abre a impressão do navegador. Para PDF, escolha Salvar como PDF." },
+    ],
+  },
+  {
     id: "clientes-lista",
     pagina: "/emporio/clientes",
     papel: "gestor",

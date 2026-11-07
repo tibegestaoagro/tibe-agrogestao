@@ -256,6 +256,32 @@ Nenhum bloqueia; cada um vale na próxima vez que o arquivo for tocado.
   no cadastro aberto pela busca foram corrigidos na revisão final sem roteiro de
   navegador próprio: conferir na próxima vez que o balcão for tocado.
 
+### 5.22 Empório, pedido para entrega e romaneio (Frente 3, Q205 a Q213): o que ficou para depois
+
+Registrado em 07/11/2026, na branch `emporio-entrega-e-romaneio` (plano 3 de 3).
+- **Acompanhar a entrega no sistema** (pedido do usuário, futuro): status,
+  saiu, entregue, quem recebeu, frete e data agendada. Hoje a entrega fica com a
+  logística da loja e o sistema só marca o pedido e imprime o romaneio.
+- O orçamento não muda a entrega depois de salvo (não há edição de orçamento):
+  quem corrige é o caixa ao faturar, ou quem fatura, na venda fechada.
+- A venda da troca nasce como retirada (Q211): quem fatura precisa marcá-la
+  para entrega depois, em "Mudar".
+- O romaneio não conta volumes (caixas, sacos): o que for preciso dizer vai na
+  Observação da venda.
+- O "Mudar" lê o estado de antes fora da transação: com duas mudanças
+  simultâneas, o Histórico pode guardar um "antes" velho. Trocar só a escolha
+  mantendo a mesma linha de endereço grava um Histórico com `changes` vazio.
+- A recusa do cliente aparece duas vezes no painel "Mudar" (no campo e no
+  rodapé).
+- Cobertura de roteiro que falta: a leitura dos endereços que falha e o botão
+  "Tentar de novo" (o radio `cadastro_entrega` some enquanto carrega ou se a
+  leitura falha); as páginas da bobina são contadas por regex nos bytes do PDF.
+- `DATA_HORA` repetido nos dois papéis do romaneio e o cabeçalho da loja no A4
+  sem `overflow-wrap`.
+- A suíte `m97` não cobre PJ sem documento nem `person_kind` nulo no resolver, e
+  a seção 3 confere o `field` mas não a mensagem exata do principal incompleto e
+  do "outro" sem bairro.
+
 ### 5.18 Empório, manual e cenário de demonstração: o que a revisão deixou para depois
 
 Registrado em 05/11/2026, nas revisões da branch `emporio-manual-demonstracao`.

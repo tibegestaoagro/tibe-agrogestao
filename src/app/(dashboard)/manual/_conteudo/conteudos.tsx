@@ -21,6 +21,7 @@ import {
 import {
   ParteDeClientes,
   ParteDeConfiguracoes,
+  ParteDeEntrega,
   ParteDeFornecedores,
   ParteDeOrcamento,
   ParteDeRelatorios,
@@ -45,6 +46,7 @@ export const CONTEUDOS: Record<string, () => ReactNode> = {
   vender: ParteDeVender,
   clientes: ParteDeClientes,
   orcamento: ParteDeOrcamento,
+  entrega: ParteDeEntrega,
   devolver: ParteDeDevolver,
   fiado: ParteDeFiado,
   caixa: ParteDeCaixa,
