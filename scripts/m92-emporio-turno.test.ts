@@ -286,8 +286,8 @@ async function secao2() {
   check("EMPORIO_KEYS não tem mais transferir_caixa", !EMPORIO_KEYS.some((k) => (k.id as string) === "transferir_caixa"));
   const hrefs = paginasVisiveis(c).map((p) => p.href);
   check(
-    "paginasVisiveis do Caixa é exatamente Início, Vender, Vendas, Fiado e Caixa",
-    j(hrefs) === j(["/emporio", "/emporio/vender", "/emporio/vendas", "/emporio/fiado", "/emporio/caixa"]),
+    "paginasVisiveis do Caixa é exatamente Início, Vender, Vendas, Fiado, Clientes e Caixa",
+    j(hrefs) === j(["/emporio", "/emporio/vender", "/emporio/vendas", "/emporio/fiado", "/emporio/clientes", "/emporio/caixa"]),
     j(hrefs),
   );
 
