@@ -165,7 +165,10 @@ async function main() {
   exigir(await caixaActions.saldoInicialCaixaAction(db, dono, { cash_register_id: registro.id, amount: 100 }), "saldo inicial do caixa");
   await abrirTurnoDeTeste(db, dono, loja.id);
 
-  // Os clientes da secao 3 da m96, com os mesmos telefones e documentos.
+  // Os clientes da secao 3 da m96, com duas diferencas por causa de clientes que outros
+  // cenarios deixam na conta do seed: o CPF da Maria Souza e outro (o da m96 ja e de
+  // cliente de outro cenario), e o Joao da Ponte tem 998751111 em vez de 998761111
+  // (com o da m96, o termo 8761 acharia tambem ele).
   const novo = (name: string, extra: Record<string, unknown>) =>
     prisma.emporioCustomer.create({ data: { tenant_id, name: `${PREFIXO}${name}`, ...extra } as never });
   const souza = await novo("Maria Souza", { person_kind: "pf", phone: "+55 (34) 99876-1234", document: "55631500205" });

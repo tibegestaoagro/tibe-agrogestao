@@ -638,14 +638,14 @@ figura("compra-receber", "vendedor_centro", "/emporio/compras", [
 
 figura("fornecedores-lista", "gestor", "/emporio/fornecedores", [
     (1, "M.B('Novo fornecedor')", "o botao Novo fornecedor"),
-    (2, "M.A('Buscar fornecedor')", "a busca pelo nome"),
+    (2, "M.A('Buscar fornecedor')", "a busca por nome, documento ou telefone"),
     (3, "M.TH('Tipo')", "a coluna Tipo (Propriedade ou De fora)"),
     (4, "M.LIN('Nutrisul')", "um fornecedor da lista"),
 ], limite=6, hd=640, hc=900)
 
 figura("clientes-lista", "gestor", "/emporio/clientes", [
     (1, "M.B('Cadastrar novo cliente')", "o botao Cadastrar novo cliente"),
-    (2, "M.A('Buscar cliente')", "a busca pelo nome"),
+    (2, "M.A('Buscar cliente')", "a busca por nome, documento ou telefone"),
     (3, "M.TH('Situação')", "a coluna Situacao (Cliente padrao, Cadastro incompleto, Arquivado)"),
     (4, "M.LIN('Maria das Dores')", "um cliente da lista"),
 ], limite=7, hd=700, hc=1000)
