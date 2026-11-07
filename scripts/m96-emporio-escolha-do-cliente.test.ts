@@ -1,5 +1,6 @@
 import "./_env-local";
 import { exigirBancoLocal } from "./_banco-local";
+import type { EstadoDaBusca, EventoDaBusca, ResultadoDaPagina } from "@/lib/emporio/sequencia-da-busca";
 
 exigirBancoLocal();
 
@@ -11,6 +12,7 @@ exigirBancoLocal();
  * Seção 2: a coluna gerada phone_busca e a função telefone_local (com banco).
  * Seção 3: a busca de clientes (action, rota e a tela Clientes).
  * Seção 4: a busca de fornecedores (action, rota e a tela Fornecedores).
+ * Seção 5: a sequência da busca na janela de escolha (regra pura, sem banco).
  */
 
 let falhas = 0;
@@ -484,6 +486,90 @@ async function secao4() {
   check("rota da lista: meta.poucos_digitos true", r5.status === 200 && r5.corpo.meta?.poucos_digitos === true, j(r5));
 }
 
+async function secao5() {
+  console.log("\nSeção 5: a sequência da busca na janela (regra pura, sem banco)");
+  const S = await import("@/lib/emporio/sequencia-da-busca");
+  type C = { id: string; name: string };
+  const ana: C = { id: "a", name: "Ana Paula" };
+  const bruno: C = { id: "b", name: "Bruno" };
+  const ok = (itens: C[], total = itens.length) => ({ itens, total, poucosDigitos: false });
+  const ev = (e: EstadoDaBusca<C>, x: EventoDaBusca<C>) => S.proximaBusca(e, x);
+  const resposta = (e: EstadoDaBusca<C>, numero: number, resultado: ResultadoDaPagina<C>) =>
+    ev(e, { tipo: "resposta", numero, resultado });
+  const nomes = (e: EstadoDaBusca<C>) => S.itensVisiveis(e).map((c) => c.name).join("|");
+  const enter = (e: EstadoDaBusca<C>) =>
+    S.escolhaPeloEnter({ termo: e.termo, carregando: e.carregando, erro: e.erro, itens: S.itensVisiveis(e) });
+
+  let e = ev(S.buscaVazia<C>(), { tipo: "abrir" });
+  check("abrir: pedido do termo vazio, sem espera, Buscando...", e.carregando && e.pedido?.termo === "" && e.pedido?.espera === 0, j(e.pedido));
+  e = resposta(e, e.pedido!.numero, ok([ana, bruno]));
+  check("a resposta do pedido atual entra", nomes(e) === "Ana Paula|Bruno" && !e.carregando, nomes(e));
+
+  // A corrida do achado: "Ana" sai, digita-se "Bruno", a resposta de "Ana" chega na espera de "Bruno".
+  e = ev(e, { tipo: "digitar", termo: "Ana" });
+  const nAna = e.pedido!.numero;
+  check("digitar com texto: espera de 300 ms", e.pedido?.espera === S.ESPERA_DA_DIGITACAO_MS, j(e.pedido));
+  e = ev(e, { tipo: "digitar", termo: "Bruno" });
+  check("digitar tira o número na hora: o pedido em voo deixa de ser o último", e.pedido!.numero === nAna + 1, j(e.pedido));
+  check("digitar já liga o Buscando...", e.carregando);
+  check("a lista de outro termo não aparece como atual", nomes(e) === "", nomes(e));
+  e = resposta(e, nAna, ok([ana]));
+  check("a resposta do termo velho é descartada: o Buscando... continua", e.carregando && nomes(e) === "", `${e.carregando} ${nomes(e)}`);
+  check("e o Enter não escolhe o cliente do termo velho", enter(e) === null, j(enter(e)));
+  e = resposta(e, e.pedido!.numero, ok([bruno]));
+  check("a resposta do termo digitado entra", nomes(e) === "Bruno" && !e.carregando, nomes(e));
+  check("Enter com um resultado do termo digitado escolhe", enter(e)?.id === "b", j(enter(e)));
+
+  // Fechar e reabrir: o pedido de antes de fechar não entra depois do recomeço.
+  e = ev(e, { tipo: "digitar", termo: "Ana" });
+  const antesDeFechar = e.pedido!.numero;
+  e = ev(e, { tipo: "abrir" });
+  e = resposta(e, antesDeFechar, ok([ana]));
+  check("reabrir: a resposta de antes de fechar não entra", e.termo === "" && e.carregando && nomes(e) === "", `${e.termo} ${nomes(e)}`);
+  e = resposta(e, e.pedido!.numero, ok([ana, bruno]));
+
+  // Enter
+  check("Enter com o termo vazio nunca escolhe", S.escolhaPeloEnter({ termo: "  ", carregando: false, erro: null, itens: [ana] }) === null);
+  check("Enter com dois resultados não escolhe", S.escolhaPeloEnter({ termo: "a", carregando: false, erro: null, itens: [ana, bruno] }) === null);
+  check("Enter carregando não escolhe", S.escolhaPeloEnter({ termo: "a", carregando: true, erro: null, itens: [ana] }) === null);
+  check("Enter com falha não escolhe", S.escolhaPeloEnter({ termo: "a", carregando: false, erro: "x", itens: [ana] }) === null);
+
+  // Falha: a lista some atrás do alerta, e o Enter não escolhe o que ficou escondido.
+  e = ev(e, { tipo: "digitar", termo: "Ana" });
+  e = resposta(e, e.pedido!.numero, ok([ana]));
+  e = ev(e, { tipo: "tentar" });
+  e = resposta(e, e.pedido!.numero, { erro: "sem rede" });
+  check("falha: nenhuma linha visível e Enter não escolhe", nomes(e) === "" && enter(e) === null && e.erro === "sem rede", nomes(e));
+
+  // Carregar mais
+  const pag = (n: number, k: string) => Array.from({ length: n }, (_, i) => ({ id: `${k}${i}`, name: `${k} ${i}` }));
+  e = ev(e, { tipo: "digitar", termo: "Cli" });
+  e = resposta(e, e.pedido!.numero, ok(pag(20, "Cli"), 25));
+  check("temMais com a lista do termo e menos itens que o total", S.temMaisNaBusca(e));
+  e = ev(e, { tipo: "mais" });
+  check("mais: página 2 do termo da lista, sem espera", e.pedido?.pagina === 2 && e.pedido?.termo === "Cli" && e.pedido?.acrescentar && e.pedido?.espera === 0, j(e.pedido));
+  check("durante o mais, a página 1 continua visível", S.itensVisiveis(e).length === 20);
+  const nMais = e.pedido!.numero;
+  e = ev(e, { tipo: "digitar", termo: "Out" });
+  e = resposta(e, nMais, ok(pag(5, "Cli"), 25));
+  check("mais e depois outro termo: a página 2 do termo velho não entra", nomes(e) === "" && e.carregando, nomes(e));
+  e = resposta(e, e.pedido!.numero, ok(pag(20, "Out"), 40));
+  const semMais = ev(ev(e, { tipo: "digitar", termo: "Outr" }), { tipo: "mais" });
+  check("mais com o termo mudado (lista de outro termo) não pede nada", semMais.pedido?.termo === "Outr" && semMais.pedido?.pagina === 1, j(semMais.pedido));
+  e = ev(e, { tipo: "mais" });
+  e = resposta(e, e.pedido!.numero, ok(pag(20, "Out2"), 40));
+  check("mais do mesmo termo acrescenta a página", S.itensVisiveis(e).length === 40 && !S.temMaisNaBusca(e), String(S.itensVisiveis(e).length));
+
+  // Poucos dígitos e termo vazio
+  e = ev(e, { tipo: "digitar", termo: "12" });
+  e = resposta(e, e.pedido!.numero, { itens: [], total: 0, poucosDigitos: true });
+  check("poucos dígitos vale para o termo que o recebeu", S.poucosDigitosVisivel(e));
+  e = ev(e, { tipo: "digitar", termo: "123" });
+  check("ao digitar outro termo, o aviso de poucos dígitos sai", !S.poucosDigitosVisivel(e));
+  e = ev(e, { tipo: "digitar", termo: "" });
+  check("apagar o termo pede sem espera", e.pedido?.espera === 0, j(e.pedido));
+}
+
 async function comBanco(fn: () => Promise<void>) {
   (globalThis as unknown as { AsyncLocalStorage: unknown }).AsyncLocalStorage = (await import("node:async_hooks")).AsyncLocalStorage;
   await fn();
@@ -520,6 +606,7 @@ async function main() {
     await secao2();
     await secao3();
     await secao4();
+    await secao5();
   } finally {
     await limpar();
   }

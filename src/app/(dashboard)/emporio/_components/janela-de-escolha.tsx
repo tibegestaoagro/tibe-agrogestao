@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { escolhaPeloEnter } from "@/lib/emporio/sequencia-da-busca";
 import type { useBuscaNoServidor } from "./busca-no-servidor";
 
 /** O que o `<Field>` passa ao filho: o `id` e o `aria`, para o rótulo e a recusa apontarem para ele. */
@@ -73,7 +74,9 @@ export function JanelaDeEscolha<T extends { id: string; name: string }>({
               onKeyDown={(e) => {
                 if (e.key !== "Enter") return;
                 e.preventDefault();
-                if (!busca.carregando && busca.itens.length === 1) onEscolher(busca.itens[0]);
+                // `busca.itens` já é só a lista do termo digitado (`itensVisiveis`).
+                const unico = escolhaPeloEnter(busca);
+                if (unico) onEscolher(unico);
               }}
             />
           </SheetHeader>

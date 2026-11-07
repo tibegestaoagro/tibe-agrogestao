@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import {
+  buscaVazia,
+  itensVisiveis,
+  poucosDigitosVisivel,
+  proximaBusca,
+  temMaisNaBusca,
+  type EventoDaBusca,
+  type ResultadoDaPagina,
+} from "@/lib/emporio/sequencia-da-busca";
 
-/** Espera depois da última tecla antes de perguntar ao servidor. */
-const ESPERA_MS = 300;
-
-type Pagina<T> = { itens: T[]; total: number; poucosDigitos: boolean };
-
-async function pedirPagina<T>(rota: string, termo: string, pagina: number): Promise<Pagina<T> | { erro: string }> {
+async function pedirPagina<T>(rota: string, termo: string, pagina: number): Promise<ResultadoDaPagina<T>> {
   const url = `${rota}?q=${encodeURIComponent(termo)}&page=${pagina}`;
   try {
     // `fetch` e não `apiGet`: a busca precisa do `meta` (total e poucos dígitos), que o `apiGet` descarta.
@@ -26,14 +30,11 @@ async function pedirPagina<T>(rota: string, termo: string, pagina: number): Prom
 
 /**
  * A busca da janela de escolha (cliente, fornecedor) no servidor, por páginas.
+ * A sequência (o número de cada pedido, o que entra, o que aparece) é a regra
+ * pura de `sequencia-da-busca.ts`; aqui só o React e o `fetch`.
  *
- * Duas corridas que trocariam a lista pela errada:
- * - digitação rápida: cada pedido leva um número, e só a resposta do último
- *   número entra na lista (a de um texto antigo que chega depois é descartada);
- * - "Carregar mais" depois de mudar o texto: a página seguinte é sempre do termo
- *   que está na lista, e o botão some enquanto o termo digitado não é esse.
- *
- * Abrir a janela recomeça do termo vazio.
+ * Abrir a janela recomeça do termo vazio. "Tentar de novo" recarrega a primeira
+ * página do termo (as páginas já vistas do "Carregar mais" saem).
  */
 export function useBuscaNoServidor<T>(
   rota: string,
@@ -50,82 +51,38 @@ export function useBuscaNoServidor<T>(
   carregarMais: () => void;
   tentarDeNovo: () => void;
 } {
-  const [termo, setTermoEstado] = useState("");
-  const [itens, setItens] = useState<T[]>([]);
-  const [total, setTotal] = useState(0);
-  const [poucosDigitos, setPoucosDigitos] = useState(false);
-  const [carregando, setCarregando] = useState(aberta);
-  const [erro, setErro] = useState<string | null>(null);
-  // O termo e a página do que está na lista agora.
-  const [daLista, setDaLista] = useState<{ termo: string; pagina: number } | null>(null);
-  const [tentativas, setTentativas] = useState(0);
-  const numero = useRef(0);
+  const [estado, setEstado] = useState(() => (aberta ? proximaBusca(buscaVazia<T>(), { tipo: "abrir" }) : buscaVazia<T>()));
+  const enviar = (ev: EventoDaBusca<T>) => setEstado((e) => proximaBusca(e, ev));
 
   // Abrir recomeça: estado ajustado no render, quando `aberta` muda (sem efeito).
   const [abertaAntes, setAbertaAntes] = useState(aberta);
   if (aberta !== abertaAntes) {
     setAbertaAntes(aberta);
-    if (aberta) {
-      setTermoEstado("");
-      setItens([]);
-      setTotal(0);
-      setPoucosDigitos(false);
-      setErro(null);
-      setDaLista(null);
-      setCarregando(true);
-    }
+    if (aberta) setEstado((e) => proximaBusca(e, { tipo: "abrir" }));
   }
 
-  async function carregar(n: number, t: string, pagina: number, acrescentar: boolean) {
-    const r = await pedirPagina<T>(rota, t, pagina);
-    if (n !== numero.current) return;
-    setCarregando(false);
-    if ("erro" in r) {
-      setErro(r.erro);
-      return;
-    }
-    setErro(null);
-    setItens((atuais) => (acrescentar ? [...atuais, ...r.itens] : r.itens));
-    setTotal(r.total);
-    setPoucosDigitos(r.poucosDigitos);
-    setDaLista({ termo: t, pagina });
-  }
-
+  // Cada pedido novo sai depois da espera dele; trocar de pedido (outra tecla) cancela o timer.
+  const pedido = estado.pedido;
   useEffect(() => {
-    if (!aberta) return;
-    const espera = setTimeout(
-      () => {
-        // O número é tirado quando o pedido sai, não quando a tecla cai: assim um
-        // "Carregar mais" tocado durante a espera também perde para este pedido.
-        numero.current += 1;
-        void carregar(numero.current, termo, 1, false);
-      },
-      termo.trim() === "" ? 0 : ESPERA_MS,
-    );
+    if (!aberta || !pedido) return;
+    const espera = setTimeout(() => {
+      void pedirPagina<T>(rota, pedido.termo, pedido.pagina).then((resultado) =>
+        setEstado((e) => proximaBusca(e, { tipo: "resposta", numero: pedido.numero, resultado })),
+      );
+    }, pedido.espera);
     return () => clearTimeout(espera);
-    // `carregar` muda a cada render e só lê `rota`, que já está nas dependências.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rota, aberta, termo, tentativas]);
+  }, [rota, aberta, pedido]);
 
-  function setTermo(s: string) {
-    setTermoEstado(s);
-    setCarregando(true);
-  }
-
-  const temMais = !carregando && erro === null && daLista !== null && daLista.termo === termo && itens.length < total;
-
-  function carregarMais() {
-    if (!temMais || !daLista) return;
-    numero.current += 1;
-    setCarregando(true);
-    void carregar(numero.current, daLista.termo, daLista.pagina + 1, true);
-  }
-
-  function tentarDeNovo() {
-    setErro(null);
-    setCarregando(true);
-    setTentativas((n) => n + 1);
-  }
-
-  return { termo, setTermo, itens, total, poucosDigitos, carregando, erro, temMais, carregarMais, tentarDeNovo };
+  return {
+    termo: estado.termo,
+    setTermo: (s) => enviar({ tipo: "digitar", termo: s }),
+    itens: itensVisiveis(estado),
+    total: estado.total,
+    poucosDigitos: poucosDigitosVisivel(estado),
+    carregando: estado.carregando,
+    erro: estado.erro,
+    temMais: temMaisNaBusca(estado),
+    carregarMais: () => enviar({ tipo: "mais" }),
+    tentarDeNovo: () => enviar({ tipo: "tentar" }),
+  };
 }
