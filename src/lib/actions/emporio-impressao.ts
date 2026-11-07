@@ -5,7 +5,7 @@ import { lerVendaAction } from "@/lib/actions/emporio-vendas";
 import { lerEstabelecimentoAction } from "@/lib/actions/emporio-catalogo";
 import { lerConfiguracoesAction, type EmporioSettingsView } from "@/lib/actions/emporio-configuracoes";
 import { lerOrcamentoAction } from "@/lib/actions/emporio-orcamentos";
-import { formatarCep, formatarDocumento } from "@/lib/contatos/cadastro";
+import { CONSUMIDOR_FINAL, formatarCep, formatarDocumento } from "@/lib/contatos/cadastro";
 import { ehConsumidorFinal } from "@/lib/emporio/cliente-cadastro";
 import { formatarNumero } from "@/lib/emporio/numeracao";
 import { FORMA_ROTULO } from "@/app/(dashboard)/emporio/_components/venda-rotulos";
@@ -291,7 +291,7 @@ export async function lerRomaneioDaVendaAction(
     logo_updated_at: cfg.logo_updated_at,
     cliente: cliente
       ? { nome: cliente.nome, telefone: cliente.telefone, documento: cliente.documento }
-      : { nome: "Consumidor final", telefone: null, documento: null },
+      : { nome: CONSUMIDOR_FINAL.name, telefone: null, documento: null },
     pedido_para_entrega: v.for_delivery,
     endereco_de_entrega: enderecoDoPedido(colunasDe(v)),
     itens: v.items.map((i) => ({

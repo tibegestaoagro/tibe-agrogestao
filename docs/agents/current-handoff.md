@@ -141,10 +141,11 @@ o roteiro `emporio-escolha` verde no código final.
   dois sentidos. `manual-emporio` verde, com a figura nova
   `balcao-escolher-cliente`.
 
-**Plano 3 (pedido para entrega e romaneio): Tasks 1 a 9 prontas na branch
-`emporio-entrega-e-romaneio`** (saída da `main` `ad2a42e`), pelo SDD (o ledger fica na pasta ignorada `.superpowers`, só nesta máquina;
-no notebook, retomar pelo `git log` da branch). Falta a Task 10 (suíte inteira,
-revisão final, deploy).
+**Plano 3 (pedido para entrega e romaneio) COMPLETO na branch
+`emporio-entrega-e-romaneio`** (saída da `main` `ad2a42e`): Tasks 1 a 10 e
+revisão final (opus, pronta para merge); `test:all -- --sem-redis` 97/97
+(07/11). Falta só o deploy, com autorização do usuário na conversa: a migração
+no Neon (URL Direct), depois merge e push.
 - **Produção:** a migração `20261107120000_emporio_pedido_para_entrega` **NÃO
   está no Neon**. É só acréscimo e pode ir a qualquer hora antes do push (a das
   lojas, as do plano 1, já foram). Merge, push e Neon pedem autorização na
