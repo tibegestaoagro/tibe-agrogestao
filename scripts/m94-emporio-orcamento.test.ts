@@ -173,7 +173,7 @@ async function secao1() {
   check("net_amount 40, discount_amount 0, notes aparadas", o1.data.net_amount === 40 && o1.data.discount_amount === 0 && o1.data.notes === "entregar na sexta", j(o1.data));
   check(
     "o cliente vem com id, nome, telefone e documento",
-    j(o1.data.customer) === j({ id: completo.id, name: "M94 Cliente Completo", phone: "11999990000", document: "39053344705" }),
+    j(o1.data.customer) === j({ id: completo.id, name: "M94 Cliente Completo", phone: "11999990000", document: "39053344705", incomplete: false }),
     j(o1.data.customer),
   );
   check("loja e establishment_id", o1.data.establishment_id === L1 && o1.data.loja === "M94 Loja 1", j(o1.data));

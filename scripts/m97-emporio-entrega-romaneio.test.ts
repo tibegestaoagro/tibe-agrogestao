@@ -9,6 +9,7 @@ exigirBancoLocal();
  *
  * Seção 1: a regra pura do pedido para entrega (sem banco).
  * Seção 2: as colunas do pedido para entrega no orçamento e na venda (banco).
+ * Seção 3: o orçamento para entrega e as opções de endereço do cliente (rotas).
  */
 
 let falhas = 0;
@@ -248,6 +249,195 @@ async function secao2() {
   check("o client do tenant B não acha o orçamento do A", (await dbB.emporioQuote.findFirst({ where: { id: orc2.id } })) === null);
 }
 
+async function secao3() {
+  console.log("\nSeção 3: o orçamento para entrega e as opções de endereço do cliente (rotas)");
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+  const { papelDeFixture, vincularTodas } = await import("./_emporio-papel");
+  const { withBearer } = await import("./_escopo-de-requisicao");
+  const bcrypt = (await import("bcryptjs")).default;
+  const C = await import("@/lib/actions/emporio-clientes");
+  const Cat = await import("@/lib/actions/emporio-catalogo");
+  const Est = await import("@/lib/actions/emporio-estoque");
+  const SENHA = "SenhaForte#2026";
+  const hash = await bcrypt.hash(SENHA, 4);
+  const stamp = Date.now().toString(36);
+
+  const mkTenant = async (rotulo: string) => {
+    const t = await prisma.tenant.create({
+      data: { name: `M97c ${rotulo} ${stamp}`, document: `M97c${rotulo}${stamp}`.slice(0, 14), plan: "grupo", status: "trial", trial_ends_at: new Date(Date.now() + 86_400_000) },
+    });
+    tenantIds.push(t.id);
+    await prisma.tenantProfile.create({ data: { tenant_id: t.id, profile_type: "emporio", active: true } });
+    await prisma.tenantFeature.create({ data: { tenant_id: t.id, feature_key: "emporio", enabled: true } });
+    return t;
+  };
+  const t = await mkTenant("A");
+  const tB = await mkTenant("B");
+  const mk = async (tenantId: string, suf: string, role: "OWNER" | "OPERADOR", extra: Dado = {}) => {
+    const u = await prisma.user.create({
+      data: { tenant_id: tenantId, name: `M97c ${suf}`, email: `m97c-${suf}-${stamp}@teste.local`, password_hash: hash, role, ...papelDeFixture(role), ...extra },
+    });
+    return { id: u.id, role, email: u.email };
+  };
+  const owner = await mk(t.id, "own", "OWNER");
+  const vend = await mk(t.id, "vend", "OPERADOR");
+  const caixa = await mk(t.id, "caixa", "OPERADOR", { emporio_role: "caixa", emporio_keys: [] });
+  const ownerB = await mk(tB.id, "ownb", "OWNER");
+  const db = prismaForTenant(t.id) as Dado;
+  const loja = await Cat.criarEstabelecimentoAction(db, owner, { name: "M97c Loja" });
+  if (!loja.ok) throw new Error(`loja: ${j(loja)}`);
+  const L = loja.data.id;
+  await vincularTodas(prisma, t.id, [vend.id, caixa.id], [L]);
+
+  const categoria = await db.productCategory.create({ data: scoped({ name: "M97c categoria" }) });
+  const prod = await Cat.criarProdutoEmporioAction(db, owner, { name: `M97c Ração ${stamp}`, category_id: categoria.id, base_unit: "quilograma" });
+  if (!prod.ok) throw new Error(`produto: ${j(prod)}`);
+  const pres = await Cat.criarApresentacaoAction(db, owner, prod.data.id, { name: "Quilo", base_qty: 1, is_sealed_package: false });
+  if (!pres.ok) throw new Error(`apresentação: ${j(pres)}`);
+  const preco = await Cat.definirPrecoAction(db, owner, { establishment_id: L, presentation_id: pres.data.id, price: 10 });
+  if (!preco.ok) throw new Error(`preço: ${j(preco)}`);
+  const imp = await Est.implantarEstoqueAction(db, owner, { establishment_id: L, emporio_product_id: prod.data.id, sealed: [], loose_qty: 100, unit_cost: 4 });
+  if (!imp.ok) throw new Error(`implantar: ${j(imp)}`);
+  const itens = [{ emporio_product_id: prod.data.id, presentation_id: pres.data.id, quantity: 1 }];
+
+  const rotaTok = await import("@/app/api/v1/auth/token/route");
+  const rotaQ = await import("@/app/api/v1/emporio/quotes/route");
+  const rotaOpc = await import("@/app/api/v1/emporio/customers/[id]/delivery-options/route");
+  const token = async (email: string) =>
+    String(
+      ((await (await rotaTok.POST(new Request("http://localhost/api/v1/auth/token", {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password: SENHA }),
+      }))).json()) as Dado)?.data?.access_token ?? "",
+    );
+  let seq = 0;
+  const postar = async (tok: string, corpo: Dado) => {
+    const res = await withBearer(tok, () =>
+      rotaQ.POST(new Request("http://localhost/api/v1/emporio/quotes", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ operation_key: `m97c-${stamp}-${(seq += 1)}`, establishment_id: L, items: itens, ...corpo }),
+      })),
+    );
+    return { status: res.status, corpo: (await res.json().catch(() => ({}))) as Dado };
+  };
+  const opcoes = async (tok: string, id: string) => {
+    const res = await withBearer(tok, () =>
+      rotaOpc.GET(new Request(`http://localhost/api/v1/emporio/customers/${id}/delivery-options`), { params: Promise.resolve({ id }) }),
+    );
+    return { status: res.status, corpo: (await res.json().catch(() => ({}))) as Dado };
+  };
+
+  const tokVend = await token(vend.email);
+  const tokCaixa = await token(caixa.email);
+  const tokB = await token(ownerB.email);
+
+  const cf = await C.garantirConsumidorFinal(db);
+  const end = { address_zip: "38400-000", address_street: "Rua A", address_number: "10", address_district: "Centro", city: "Uberlândia", address_state: "MG" };
+  const mkCli = async (input: Dado) => {
+    const r = await C.cadastrarClienteAction(db, vend, input);
+    if (!r.ok) throw new Error(`cliente: ${j(r)}`);
+    return r.data;
+  };
+  const pfSemCpf = await mkCli({ name: "M97c PF sem CPF", person_kind: "pf", phone: "34 99999-0001", ...end });
+  const pfCpf = await mkCli({ name: "M97c PF CPF", person_kind: "pf", phone: "34 99999-0002", document: "529.982.247-25", ...end });
+  const pfCpfSemEnd = await mkCli({ name: "M97c PF CPF sem endereço", person_kind: "pf", phone: "34 99999-0003", document: "390.533.447-05" });
+  const pj = await mkCli({
+    name: "M97c Agro Ltda", person_kind: "pj", phone: "3433330000", document: "11.222.333/0001-81", ...end,
+    delivery_zip: "38400-100", delivery_street: "Av Fazenda", delivery_number: "99", delivery_district: "Industrial", delivery_city: "Uberlândia", delivery_state: "MG",
+  });
+  const OUTRO = {
+    delivery_zip: "38400-200", delivery_street: "Rua B", delivery_number: "20",
+    delivery_district: "Bairro Novo", delivery_city: "Uberlândia", delivery_state: "MG",
+  };
+  const MSG_CF = "Pedido para entrega precisa do cliente de verdade, não do Consumidor final.";
+  const nQ = () => prisma.emporioQuote.count({ where: { tenant_id: t.id } });
+
+  console.log("  salvar o orçamento");
+  const r0 = await postar(tokVend, { customer_id: cf.id });
+  check(
+    "sem a marca, com o Consumidor final: 201, for_delivery false, delivery_address null",
+    r0.status === 201 && r0.corpo?.data?.for_delivery === false && r0.corpo?.data?.delivery_address === null && r0.corpo?.data?.delivery_address_kind === null,
+    `${r0.status} ${j(r0.corpo)}`,
+  );
+  const antes = await nQ();
+  const rCf = await postar(tokVend, { customer_id: cf.id, for_delivery: true, delivery_address_kind: "principal" });
+  check(
+    "marcado com o Consumidor final: 422 customer_id com a frase",
+    rCf.status === 422 && rCf.corpo?.error?.field === "customer_id" && rCf.corpo?.error?.message === MSG_CF,
+    `${rCf.status} ${j(rCf.corpo)}`,
+  );
+  check("nenhum orçamento gravado na recusa", (await nQ()) === antes);
+
+  const rSemCpf = await postar(tokVend, { customer_id: pfSemCpf.id, for_delivery: true, delivery_address_kind: "principal" });
+  check(
+    "marcado, PF sem CPF: 422 DELIVERY_CUSTOMER_INCOMPLETE",
+    rSemCpf.status === 422 && rSemCpf.corpo?.error?.code === "DELIVERY_CUSTOMER_INCOMPLETE" && rSemCpf.corpo?.error?.field === "customer_id",
+    `${rSemCpf.status} ${j(rSemCpf.corpo)}`,
+  );
+
+  const cadastroAntes = j(await prisma.emporioCustomer.findUnique({ where: { id: pfCpf.id } }));
+  const rOutro = await postar(tokVend, { customer_id: pfCpf.id, for_delivery: true, delivery_address_kind: "outro", ...OUTRO });
+  check(
+    "PF com CPF e outro completo: 201, kind outro, cidade Uberlândia",
+    rOutro.status === 201 && rOutro.corpo?.data?.for_delivery === true && rOutro.corpo?.data?.delivery_address_kind === "outro"
+      && rOutro.corpo?.data?.delivery_address?.city === "Uberlândia" && rOutro.corpo?.data?.delivery_address?.zip === "38400200",
+    `${rOutro.status} ${j(rOutro.corpo)}`,
+  );
+  check("o cadastro do cliente não mudou", j(await prisma.emporioCustomer.findUnique({ where: { id: pfCpf.id } })) === cadastroAntes);
+
+  const rPrin = await postar(tokVend, { customer_id: pfCpf.id, for_delivery: true, delivery_address_kind: "principal" });
+  const copia = rPrin.corpo?.data?.delivery_address;
+  check(
+    "principal: 201 e a cópia igual ao endereço principal",
+    rPrin.status === 201 && rPrin.corpo?.data?.delivery_address_kind === "principal"
+      && copia?.zip === "38400000" && copia?.street === "Rua A" && copia?.number === "10" && copia?.district === "Centro" && copia?.city === "Uberlândia" && copia?.state === "MG",
+    `${rPrin.status} ${j(rPrin.corpo)}`,
+  );
+  const ed = await C.editarClienteAction(db, vend, pfCpf.id, { address_street: "Rua Nova" });
+  check("edição do cadastro ok", ed.ok, j(ed));
+  const O = await import("@/lib/actions/emporio-orcamentos");
+  const lido = await O.lerOrcamentoAction(db, owner, rPrin.corpo?.data?.id);
+  check("depois de editar o cadastro, a cópia continua a antiga", lido.ok && lido.data.delivery_address?.street === "Rua A", j(lido));
+
+  const rPrinInc = await postar(tokVend, { customer_id: pfCpfSemEnd.id, for_delivery: true, delivery_address_kind: "principal" });
+  check(
+    "principal incompleto: 422 delivery_address_kind",
+    rPrinInc.status === 422 && rPrinInc.corpo?.error?.field === "delivery_address_kind",
+    `${rPrinInc.status} ${j(rPrinInc.corpo)}`,
+  );
+  const rSemBairro = await postar(tokVend, { customer_id: pfCpf.id, for_delivery: true, delivery_address_kind: "outro", ...OUTRO, delivery_district: "" });
+  check("outro sem bairro: 422 delivery_district", rSemBairro.status === 422 && rSemBairro.corpo?.error?.field === "delivery_district", `${rSemBairro.status} ${j(rSemBairro.corpo)}`);
+
+  const hist = await prisma.emporioAuditLog.findMany({ where: { tenant_id: t.id, action: "orcamento.criar" } });
+  check("o resumo do orcamento.criar de pedido para entrega termina com , para entrega", hist.some((h) => h.summary.endsWith(", para entrega")), j(hist.map((h) => h.summary)));
+  check("o da retirada não termina com , para entrega", hist.some((h) => !h.summary.endsWith(", para entrega")));
+
+  console.log("  as opções de endereço");
+  const oPj = await opcoes(tokVend, pj.id);
+  const dPj = oPj.corpo?.data;
+  check(
+    "PJ: principal.completo e cadastro_entrega com linha",
+    oPj.status === 200 && dPj?.principal?.completo === true && typeof dPj?.cadastro_entrega?.linha === "string" && dPj.cadastro_entrega.linha.includes("Av Fazenda")
+      && dPj?.falta_no_cliente === null && dPj?.fixed === false,
+    `${oPj.status} ${j(oPj.corpo)}`,
+  );
+  const oPf = await opcoes(tokVend, pfSemCpf.id);
+  check(
+    "PF sem CPF: falta_no_cliente com a frase",
+    oPf.status === 200 && oPf.corpo?.data?.falta_no_cliente?.message === "Para entrega, informe o CPF do cliente." && oPf.corpo?.data?.cadastro_entrega === null,
+    `${oPf.status} ${j(oPf.corpo)}`,
+  );
+  const oCf = await opcoes(tokVend, cf.id);
+  check(
+    "Consumidor final: fixed e a falta do Consumidor final",
+    oCf.status === 200 && oCf.corpo?.data?.fixed === true && oCf.corpo?.data?.falta_no_cliente?.message === MSG_CF,
+    `${oCf.status} ${j(oCf.corpo)}`,
+  );
+  const oB = await opcoes(tokB, pj.id);
+  check("de outra conta: 404 Cliente não encontrado.", oB.status === 404 && oB.corpo?.error?.message === "Cliente não encontrado.", `${oB.status} ${j(oB.corpo)}`);
+  const oCx = await opcoes(tokCaixa, pj.id);
+  check("o Caixa da loja lê: 200", oCx.status === 200, `${oCx.status} ${j(oCx.corpo)}`);
+}
+
 async function limpar() {
   if (tenantIds.length === 0) return;
   const { prisma } = await import("@/lib/prisma");
@@ -276,6 +466,7 @@ async function main() {
   try {
     await secao1();
     await comBanco(secao2);
+    await comBanco(secao3);
   } finally {
     await limpar();
   }

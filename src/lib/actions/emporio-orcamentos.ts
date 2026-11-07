@@ -17,7 +17,13 @@ import {
   resolverVendedor,
   type VendaItemInput,
 } from "@/lib/emporio/precificar";
-import { faltaNoCadastro } from "@/lib/emporio/cliente-cadastro";
+import { faltaNoCadastro, type EnderecoDoPedido } from "@/lib/emporio/cliente-cadastro";
+import {
+  enderecoDasColunas,
+  resolverPedidoParaEntrega,
+  type EscolhaDoEndereco,
+  type PedidoParaEntregaInput,
+} from "@/lib/emporio/pedido-para-entrega";
 import { lojaVisivel, lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { acharLojaParaEscrita, lerMovimentos } from "@/lib/actions/emporio-estoque";
 import { normalizarTermo } from "@/lib/actions/whatsapp-handlers/shared";
@@ -103,6 +109,10 @@ export type OrcamentoView = {
   net_amount: number;
   discount_amount: number;
   notes: string | null;
+  /** O pedido para entrega: a marca, a escolha e a cópia do endereço (nulos na retirada). */
+  for_delivery: boolean;
+  delivery_address_kind: EscolhaDoEndereco | null;
+  delivery_address: EnderecoDoPedido | null;
   items: OrcamentoItemView[];
 };
 
@@ -227,6 +237,9 @@ async function montarOrcamentos(db: TenantPrismaClient, linhas: OrcamentoRow[]):
       net_amount: decToNum(q.net_amount) ?? 0,
       discount_amount: decToNum(q.discount_amount) ?? 0,
       notes: q.notes,
+      for_delivery: q.for_delivery,
+      delivery_address_kind: q.delivery_address_kind,
+      delivery_address: enderecoDasColunas(q),
       items,
     };
   });
@@ -408,7 +421,7 @@ export async function listarOrcamentosAction(
 // Salvar
 // ---------------------------------------------------------------------------
 
-export type OrcamentoInput = {
+export type OrcamentoInput = PedidoParaEntregaInput & {
   operation_key: string;
   establishment_id: string;
   /** O cliente do Empório (`EmporioCustomer`); o Consumidor final serve. */
@@ -460,6 +473,8 @@ export async function salvarOrcamentoAction(
   if (!cliente || cliente.archived_at) return fail("VALIDATION_ERROR", "Escolha um cliente ativo.", 422, "customer_id");
   const falta = faltaNoCadastro(cliente);
   if (falta) return CLIENTE_INCOMPLETO(falta.message);
+  const entrega = resolverPedidoParaEntrega(cliente, input);
+  if (!entrega.ok) return entrega;
 
   if (!Array.isArray(input.items) || input.items.length === 0) {
     return fail("VALIDATION_ERROR", "Inclua ao menos um item no orçamento.", 422, "items");
@@ -494,6 +509,7 @@ export async function salvarOrcamentoAction(
           discount_amount: p.desconto_cent / 100,
           discount_authorized_by_user_id: p.autorizou,
           notes,
+          ...entrega.data,
           created_at: agora,
         }),
       });
@@ -515,7 +531,7 @@ export async function salvarOrcamentoAction(
         establishment_id: loja.data.id,
         target_type: "orcamento",
         target_id: orcamento.id,
-        summary: `Salvou o orçamento nº ${formatarNumero(numero)} de ${dinheiro(p.total_cent / 100)} para ${cliente.name} na ${loja.data.name} (${frasItens(p.itens.length)})`,
+        summary: `Salvou o orçamento nº ${formatarNumero(numero)} de ${dinheiro(p.total_cent / 100)} para ${cliente.name} na ${loja.data.name} (${frasItens(p.itens.length)})${entrega.data.for_delivery ? ", para entrega" : ""}`,
       });
       return orcamento.id;
     });

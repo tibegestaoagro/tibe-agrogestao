@@ -7,7 +7,11 @@ import { hojeEmBrasilia } from "@/lib/emporio/cartao";
 import { lerTermo, ondeBuscaCliente, paginaValida, type ResultadoDaBusca } from "@/lib/emporio/busca-de-cadastro";
 import { clienteEscolhidoDe, type ClienteDaBusca } from "@/lib/emporio/cliente-escolhido";
 import { CONSUMIDOR_FINAL, conferirCadastro, type CadastroDoContato } from "@/lib/contatos/cadastro";
-import { faltaNoCadastro, recusaDocumentoRepetido } from "@/lib/emporio/cliente-cadastro";
+import {
+  enderecoCompleto, enderecoDeEntregaDe, enderecoPrincipalDe, faltaNoCadastro, recusaDocumentoRepetido,
+  type EnderecoDoPedido,
+} from "@/lib/emporio/cliente-cadastro";
+import { faltaNoClienteParaEntrega, linhaDoEndereco } from "@/lib/emporio/pedido-para-entrega";
 import { exigir } from "@/lib/emporio/papel";
 import { diferencas, registrarNoHistorico } from "@/lib/emporio/historico";
 
@@ -426,6 +430,39 @@ export async function lerClienteAction(
   id: string,
 ): Promise<ActionResult<ClienteFichaView>> {
   return lerFicha(db, ator, id, VENDAS_NA_FICHA);
+}
+
+export type OpcaoDeEndereco = { endereco: EnderecoDoPedido; linha: string | null; completo: boolean };
+export type OpcoesDeEntregaView = {
+  customer_id: string;
+  fixed: boolean;
+  falta_no_cliente: { code: string; message: string } | null;
+  principal: OpcaoDeEndereco;
+  cadastro_entrega: OpcaoDeEndereco | null;
+};
+
+/** O que a tela do pedido para entrega oferece: o endereço principal, o de entrega do cadastro (se houver) e o que falta no cliente. */
+export async function lerOpcoesDeEntregaDoClienteAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  customerId: string,
+): Promise<ActionResult<OpcoesDeEntregaView>> {
+  const neg = await exigir(db, ator, "vendedor_da_loja", "ver o endereço de entrega de um cliente");
+  if (neg) return neg;
+  const id = typeof customerId === "string" ? customerId.trim() : "";
+  const c = id ? await db.emporioCustomer.findFirst({ where: { id } }) : null;
+  if (!c) return NAO_ACHADO();
+
+  const opcao = (e: EnderecoDoPedido): OpcaoDeEndereco => ({ endereco: e, linha: linhaDoEndereco(e), completo: enderecoCompleto(e) });
+  const entrega = enderecoDeEntregaDe(c);
+  const falta = faltaNoClienteParaEntrega(c);
+  return ok({
+    customer_id: c.id,
+    fixed: c.system_key === CONSUMIDOR_FINAL.system_key,
+    falta_no_cliente: falta ? { code: falta.code, message: falta.message } : null,
+    principal: opcao(enderecoPrincipalDe(c)),
+    cadastro_entrega: entrega ? opcao(entrega) : null,
+  });
 }
 
 /** A ficha com o limite de vendas listadas à vista: o resumo NUNCA depende dele (vale para todas as vendas). */

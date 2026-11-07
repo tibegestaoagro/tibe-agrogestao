@@ -38,7 +38,21 @@ export const pagamentoDeVendaSchema = z.object({
     .nullish(),
 });
 
+/** O pedido para entrega (orçamento e venda): só formato, a regra é de `resolverPedidoParaEntrega`. */
+export const pedidoParaEntregaSchema = z.object({
+  for_delivery: z.boolean({ error: "Marque ou desmarque o pedido para entrega." }).nullish(),
+  delivery_address_kind: z.string().nullish(),
+  delivery_zip: z.string().nullish(),
+  delivery_street: z.string().nullish(),
+  delivery_number: z.string().nullish(),
+  delivery_complement: z.string().nullish(),
+  delivery_district: z.string().nullish(),
+  delivery_city: z.string().nullish(),
+  delivery_state: z.string().nullish(),
+});
+
 export const corpoDaVendaSchema = z.object({
+  ...pedidoParaEntregaSchema.shape,
   customer_id: z.string().nullish(),
   sold_at: dataIso.nullish(),
   items: z.array(itemDeVendaSchema, { error: "Inclua os itens da venda." }),
@@ -57,6 +71,7 @@ export const corpoDaVendaSchema = z.object({
  * não mexe em dinheiro. Cliente, vendedor, preço e desconto são regra da action.
  */
 export const corpoDoOrcamentoSchema = z.object({
+  ...pedidoParaEntregaSchema.shape,
   customer_id: z.string().nullish(),
   items: z.array(itemDeVendaSchema, { error: "Inclua os itens do orçamento." }),
   notes: z.string().nullish(),
