@@ -1,0 +1,240 @@
+import "./_env-local";
+import { exigirBancoLocal } from "./_banco-local";
+
+exigirBancoLocal();
+
+/**
+ * M97: Módulo 39 (Meu Empório), Frente 3: pedido para entrega e romaneio.
+ * Roda: `npm run test:m97`
+ *
+ * Seção 1: a regra pura do pedido para entrega (sem banco).
+ */
+
+let falhas = 0;
+function check(nome: string, cond: boolean, detalhe?: string) {
+  if (cond) console.log(`  ✅ ${nome}`);
+  else {
+    falhas += 1;
+    console.log(`  ❌ ${nome}${detalhe ? ` -> ${detalhe}` : ""}`);
+  }
+}
+
+const j = (x: unknown) => JSON.stringify(x);
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Dado = any;
+
+console.log("🧾 M97: Módulo 39 (Meu Empório), Frente 3: pedido para entrega e romaneio\n");
+
+const tenantIds: string[] = [];
+
+async function secao1() {
+  console.log("Seção 1: a regra pura do pedido para entrega (sem banco)");
+  const R = await import("@/lib/emporio/pedido-para-entrega");
+  type C = Parameters<typeof R.resolverPedidoParaEntrega>[0];
+
+  const vazio: C = {
+    name: null, person_kind: null, phone: null, document: null,
+    address_zip: null, address_street: null, address_number: null, address_complement: null,
+    address_district: null, city: null, address_state: null,
+  };
+  const principal = {
+    address_zip: "38400000", address_street: "Rua A", address_number: "10", address_complement: "",
+    address_district: "Centro", city: "Uberlândia", address_state: "MG",
+  };
+  const PF_CPF: C = { ...vazio, ...principal, name: "Zé", person_kind: "pf", phone: "34 99999-0000", document: "52998224725" };
+  const PF_SEM_CPF: C = { ...PF_CPF, document: null };
+  const PF_SO_NOME_TEL_CPF: C = { ...vazio, name: "Zé", person_kind: "pf", phone: "34 99999-0000", document: "52998224725" };
+  const PJ: C = {
+    ...vazio, ...principal, name: "Agro Ltda", person_kind: "pj", phone: "34 3333-0000", document: "11222333000181",
+    delivery_zip: "38400100", delivery_street: "Av Fazenda", delivery_number: "99", delivery_complement: "Galpão",
+    delivery_district: "Industrial", delivery_city: "Uberlândia", delivery_state: "MG",
+  };
+  const CF: C = { ...vazio, system_key: "consumidor_final", name: "Consumidor final" };
+  const OUTRO = {
+    delivery_zip: "38400-000", delivery_street: "Rua B", delivery_number: "20", delivery_complement: "",
+    delivery_district: "Centro", delivery_city: "Uberlândia", delivery_state: "mg",
+  };
+
+  const MSG_CF = "Pedido para entrega precisa do cliente de verdade, não do Consumidor final.";
+  const MSG_ESCOLHA = "Escolha o endereço de entrega.";
+  const falha = (r: Dado, code: string, field: string | undefined, message: string) =>
+    r.ok === false && r.code === code && r.field === field && r.status === 422 && r.message === message;
+
+  console.log("  retirada");
+  for (const input of [{ for_delivery: false }, { for_delivery: null }, {}, { ...OUTRO, for_delivery: false, delivery_address_kind: "outro" }]) {
+    const r = R.resolverPedidoParaEntrega(PF_CPF, input);
+    check(`retirada com ${j(input).slice(0, 40)}`, r.ok && j(r.data) === j(R.RETIRADA));
+  }
+  const rCfRetirada = R.resolverPedidoParaEntrega(CF, { for_delivery: false, ...OUTRO });
+  check("retirada com o Consumidor final: ok", rCfRetirada.ok && j(rCfRetirada.data) === j(R.RETIRADA));
+  check(
+    "RETIRADA é false e tudo nulo",
+    R.RETIRADA.for_delivery === false && Object.entries(R.RETIRADA).every(([k, v]) => k === "for_delivery" || v === null),
+  );
+
+  console.log("  o cliente");
+  const rCf = R.resolverPedidoParaEntrega(CF, { for_delivery: true, delivery_address_kind: "principal" });
+  check("Consumidor final marcado: VALIDATION_ERROR em customer_id", falha(rCf, "VALIDATION_ERROR", "customer_id", MSG_CF), j(rCf));
+  const rSemCpf = R.resolverPedidoParaEntrega(PF_SEM_CPF, { for_delivery: true, delivery_address_kind: "outro", ...OUTRO });
+  check(
+    "PF sem CPF marcada com OUTRO: customer_id",
+    falha(rSemCpf, "DELIVERY_CUSTOMER_INCOMPLETE", "customer_id", "Para entrega, informe o CPF do cliente."),
+    j(rSemCpf),
+  );
+  const rSemTel = R.resolverPedidoParaEntrega({ ...PF_CPF, phone: null }, { for_delivery: true, delivery_address_kind: "principal" });
+  check(
+    "PF sem telefone: customer_id com o prefixo",
+    falha(rSemTel, "DELIVERY_CUSTOMER_INCOMPLETE", "customer_id", "Para entrega, complete o cadastro do cliente: Informe o telefone."),
+    j(rSemTel),
+  );
+
+  console.log("  a escolha");
+  for (const input of [{ for_delivery: true }, { for_delivery: true, delivery_address_kind: null }, { for_delivery: true, delivery_address_kind: "qualquer" }]) {
+    const r = R.resolverPedidoParaEntrega(PF_CPF, input);
+    check(`escolha ${j(input.delivery_address_kind ?? null)}`, falha(r, "VALIDATION_ERROR", "delivery_address_kind", MSG_ESCOLHA), j(r));
+  }
+
+  console.log("  principal e cadastro_entrega");
+  const rPrin = R.resolverPedidoParaEntrega(PF_CPF, { for_delivery: true, delivery_address_kind: "principal" });
+  check(
+    "PF_CPF + principal: ok com as sete colunas do cadastro",
+    rPrin.ok && j(rPrin.data) === j({
+      for_delivery: true, delivery_address_kind: "principal",
+      delivery_zip: "38400000", delivery_street: "Rua A", delivery_number: "10", delivery_complement: null,
+      delivery_district: "Centro", delivery_city: "Uberlândia", delivery_state: "MG",
+    }),
+    j(rPrin),
+  );
+  const rPrinIgn = R.resolverPedidoParaEntrega(PF_CPF, { for_delivery: true, delivery_address_kind: "principal", ...OUTRO });
+  check("principal ignora os delivery_* do input", rPrinIgn.ok && j(rPrinIgn.data) === j(rPrin.ok ? rPrin.data : null), j(rPrinIgn));
+  const rIncPrin = R.resolverPedidoParaEntrega(PF_SO_NOME_TEL_CPF, { for_delivery: true, delivery_address_kind: "principal" });
+  check(
+    "Review Focus 1: principal incompleto cai em delivery_address_kind",
+    falha(rIncPrin, "VALIDATION_ERROR", "delivery_address_kind", "O endereço principal do cadastro está incompleto. Complete o cadastro do cliente ou escolha outro endereço."),
+    j(rIncPrin),
+  );
+  const rSemEnt = R.resolverPedidoParaEntrega(PF_CPF, { for_delivery: true, delivery_address_kind: "cadastro_entrega" });
+  check(
+    "cadastro_entrega sem endereço de entrega no cadastro",
+    falha(rSemEnt, "VALIDATION_ERROR", "delivery_address_kind", "Este cliente não tem endereço de entrega no cadastro. Escolha o endereço principal ou outro endereço."),
+    j(rSemEnt),
+  );
+  const rEntInc = R.resolverPedidoParaEntrega({ ...PJ, delivery_district: null }, { for_delivery: true, delivery_address_kind: "cadastro_entrega" });
+  check(
+    "cadastro_entrega incompleto (sem bairro)",
+    falha(rEntInc, "VALIDATION_ERROR", "delivery_address_kind", "O endereço de entrega do cadastro está incompleto. Complete o cadastro do cliente ou escolha outro endereço."),
+    j(rEntInc),
+  );
+  const rEnt = R.resolverPedidoParaEntrega(PJ, { for_delivery: true, delivery_address_kind: "cadastro_entrega" });
+  check(
+    "PJ + cadastro_entrega completo: ok",
+    rEnt.ok && rEnt.data.delivery_address_kind === "cadastro_entrega" && rEnt.data.delivery_street === "Av Fazenda" && rEnt.data.delivery_complement === "Galpão",
+    j(rEnt),
+  );
+
+  console.log("  outro");
+  const rOutro = R.resolverPedidoParaEntrega(PF_CPF, { for_delivery: true, delivery_address_kind: "outro", ...OUTRO });
+  check(
+    "outro: CEP em dígitos, UF em maiúscula, complemento nulo",
+    rOutro.ok && rOutro.data.delivery_address_kind === "outro" && rOutro.data.delivery_zip === "38400000"
+      && rOutro.data.delivery_state === "MG" && rOutro.data.delivery_complement === null && rOutro.data.delivery_street === "Rua B",
+    j(rOutro),
+  );
+  const rNum = R.resolverPedidoParaEntrega(PF_CPF, { for_delivery: true, delivery_address_kind: "outro", ...OUTRO, delivery_number: "  " });
+  check("outro sem número", falha(rNum, "VALIDATION_ERROR", "delivery_number", "Informe o número do endereço de entrega."), j(rNum));
+  const rCep = R.resolverPedidoParaEntrega(PF_CPF, { for_delivery: true, delivery_address_kind: "outro", ...OUTRO, delivery_zip: "1234" });
+  check("outro com CEP curto", falha(rCep, "VALIDATION_ERROR", "delivery_zip", "CEP inválido. Use os 8 números."), j(rCep));
+  const rUf = R.resolverPedidoParaEntrega(PF_CPF, { for_delivery: true, delivery_address_kind: "outro", ...OUTRO, delivery_state: "XX" });
+  check("outro com UF fora da lista", falha(rUf, "VALIDATION_ERROR", "delivery_state", "Escolha a UF da lista."), j(rUf));
+  const rVazio = R.resolverPedidoParaEntrega(PF_CPF, { for_delivery: true, delivery_address_kind: "outro" });
+  check("outro sem nada: pede o CEP", falha(rVazio, "VALIDATION_ERROR", "delivery_zip", "Informe o CEP do endereço de entrega."), j(rVazio));
+
+  console.log("  herdar do orçamento");
+  const herdaOutro = R.entradaHerdadaDoOrcamento(rOutro.ok ? rOutro.data : R.RETIRADA);
+  check(
+    "entradaHerdada de outro: as sete colunas",
+    j(herdaOutro) === j({
+      for_delivery: true, delivery_address_kind: "outro",
+      delivery_zip: "38400000", delivery_street: "Rua B", delivery_number: "20", delivery_complement: null,
+      delivery_district: "Centro", delivery_city: "Uberlândia", delivery_state: "MG",
+    }),
+    j(herdaOutro),
+  );
+  check(
+    "entradaHerdada de principal: só a marca e a escolha",
+    j(R.entradaHerdadaDoOrcamento(rPrin.ok ? rPrin.data : R.RETIRADA)) === j({ for_delivery: true, delivery_address_kind: "principal" }),
+  );
+  check("entradaHerdada de RETIRADA", j(R.entradaHerdadaDoOrcamento(R.RETIRADA)) === j({ for_delivery: false }));
+
+  console.log("  falta no cliente, endereço das colunas, linha");
+  check("faltaNoClienteParaEntrega(PF_CPF) nulo", R.faltaNoClienteParaEntrega(PF_CPF) === null);
+  check(
+    "faltaNoClienteParaEntrega(PF_SEM_CPF)",
+    j(R.faltaNoClienteParaEntrega(PF_SEM_CPF)) === j({ code: "DELIVERY_CUSTOMER_INCOMPLETE", field: "customer_id", message: "Para entrega, informe o CPF do cliente." }),
+  );
+  check(
+    "faltaNoClienteParaEntrega(CF)",
+    j(R.faltaNoClienteParaEntrega(CF)) === j({ code: "VALIDATION_ERROR", field: "customer_id", message: MSG_CF }),
+  );
+  check("enderecoDasColunas(RETIRADA) nulo", R.enderecoDasColunas(R.RETIRADA) === null);
+  check(
+    "enderecoDasColunas de principal",
+    j(R.enderecoDasColunas(rPrin.ok ? rPrin.data : R.RETIRADA)) === j({
+      zip: "38400000", street: "Rua A", number: "10", complement: null, district: "Centro", city: "Uberlândia", state: "MG",
+    }),
+  );
+  const end = { zip: "38400000", street: "Rua A", number: "10", complement: null, district: "Centro", city: "Uberlândia", state: "MG" };
+  check("linhaDoEndereco", R.linhaDoEndereco(end) === "Rua A, 10, Centro, Uberlândia/MG, CEP 38400-000", String(R.linhaDoEndereco(end)));
+  check(
+    "linhaDoEndereco com complemento",
+    R.linhaDoEndereco({ ...end, complement: "Apto 2" }) === "Rua A, 10, Apto 2, Centro, Uberlândia/MG, CEP 38400-000",
+  );
+  check("linhaDoEndereco nulo", R.linhaDoEndereco(null) === null);
+}
+
+// As seções com banco entram nas próximas tarefas.
+async function comBanco(fn: () => Promise<void>) {
+  (globalThis as unknown as { AsyncLocalStorage: unknown }).AsyncLocalStorage = (await import("node:async_hooks")).AsyncLocalStorage;
+  await fn();
+}
+void comBanco;
+
+async function limpar() {
+  if (tenantIds.length === 0) return;
+  const { prisma } = await import("@/lib/prisma");
+  const modelos = [
+    "emporioAuditLog", "cashMovement", "cashTransfer", "cashCount", "emporioSalePayment", "emporioSaleReturnItem", "stockMovement", "emporioSaleItem",
+    "emporioSaleReturn", "emporioCheck", "emporioQuoteItem", "emporioQuote", "emporioSale", "emporioPurchase", "emporioCustomer", "emporioSupplier",
+    "cashHandover", "cashSession", "cashRegister", "fixedExpenseOccurrence", "fixedExpenseSplit", "fixedExpenseTemplate", "emporioCounter",
+    "emporioSettings", "financialPayment", "financialEntry", "userEstablishment", "establishment", "bankAccount", "contact", "user",
+    "tenantProfile", "tenantFeature",
+  ];
+  for (const id of tenantIds) {
+    for (const m of modelos) {
+      try {
+        await (prisma as Dado)[m]?.deleteMany({ where: { tenant_id: id } });
+      } catch {
+        // modelo ausente nesta versão do schema: segue
+      }
+    }
+    await prisma.tenant.delete({ where: { id } }).catch(() => undefined);
+  }
+  const sobrou = await prisma.tenant.count({ where: { id: { in: tenantIds } } });
+  check("a limpeza não deixou tenant para trás", sobrou === 0, String(sobrou));
+}
+
+async function main() {
+  try {
+    await secao1();
+  } finally {
+    await limpar();
+  }
+  console.log(falhas === 0 ? "\n✅ M97 verde" : `\n❌ M97: ${falhas} falha(s)`);
+  process.exit(falhas === 0 ? 0 : 1);
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
