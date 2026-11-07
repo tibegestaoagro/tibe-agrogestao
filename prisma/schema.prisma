@@ -3460,8 +3460,10 @@ model EmporioCustomer {
   /// Só dígitos no CPF, maiúsculo no CNPJ.
   document            String?
   phone               String?
+  /// Coluna GERADA pelo Postgres: ver `ServiceClient.name_busca`.
+  phone_busca         String?            @default(dbgenerated("telefone_local(phone)"))
   state_registration  String?
-  birth_date          DateTime?          @db.Date
+  birth_date         DateTime?          @db.Date
   responsible_name    String?
   address_zip         String?
   address_street      String?
@@ -3513,6 +3515,8 @@ model EmporioSupplier {
   person_kind        ContactPersonKind?
   document           String?
   phone              String?
+  /// Coluna GERADA pelo Postgres: ver `ServiceClient.name_busca`.
+  phone_busca        String?             @default(dbgenerated("telefone_local(phone)"))
   state_registration String?
   address_zip        String?
   address_street     String?

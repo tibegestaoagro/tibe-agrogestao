@@ -30,8 +30,9 @@ export function lerTermo(q: string | null | undefined): TermoDeBusca {
   return { modo: "nome", nome, documento };
 }
 
-// `phone_busca` entra no schema na Task 2; até lá o tipo gerado não a conhece.
-function onde(t: TermoDeBusca): Record<string, unknown> {
+type OndeDaBusca = Prisma.EmporioCustomerWhereInput & Prisma.EmporioSupplierWhereInput;
+
+function onde(t: TermoDeBusca): OndeDaBusca {
   if (t.modo === "digitos") return { OR: [{ document: { contains: t.digitos } }, { phone_busca: { contains: t.telefone } }] };
   if (t.modo === "nome") {
     const porNome = { name_busca: { contains: t.nome } };
@@ -42,9 +43,9 @@ function onde(t: TermoDeBusca): Record<string, unknown> {
 
 /** Filtro do cliente. `{}` no vazio; não chamar em "poucos_digitos" (a action responde vazio antes). */
 export function ondeBuscaCliente(t: TermoDeBusca): Prisma.EmporioCustomerWhereInput {
-  return onde(t) as Prisma.EmporioCustomerWhereInput;
+  return onde(t);
 }
 
 export function ondeBuscaFornecedor(t: TermoDeBusca): Prisma.EmporioSupplierWhereInput {
-  return onde(t) as Prisma.EmporioSupplierWhereInput;
+  return onde(t);
 }
