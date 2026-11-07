@@ -902,6 +902,14 @@ export const GROUPS: Group[] = [
 { "data": { "numero": "000001", "cancelada": false, "loja": { "nome": "Loja Centro", "documento": null, "endereco": null, "telefone": null, "whatsapp": null }, "cliente": null, "itens": [{ "produto": "Sal grosso (Quilo)", "quantidade": "2", "preco": 10, "total": 20 }], "total": 20, "largura_bobina": 80 }, "meta": {} }`,
       },
       {
+        method: "GET",
+        path: "/api/v1/emporio/sales/:id/packing-list",
+        auth: "Sessão · emporio:read · perfil emporio · recurso `emporio` liberado",
+        description: "Os dados do romaneio da venda (A4 e bobina), sem nenhum valor em dinheiro: `situacao` (`ativa`, `cancelada`, `trocada` ou `devolvida`), cliente (`Consumidor final` quando não há), `pedido_para_entrega` e `endereco_de_entrega` (uma linha, só na entrega), itens com `produto`, `apresentacao` e `quantidade` em pt-BR, `linhas`, `observacoes`, vendedor e caixa. Loja fora do vínculo: 404.",
+        response: `200
+{ "data": { "numero": "000001", "situacao": "ativa", "pedido_para_entrega": true, "endereco_de_entrega": "Rua B, 20, Bairro Novo, Uberlândia/MG, CEP 38400-200", "cliente": { "nome": "Maria", "telefone": "34 99999-0000", "documento": "529.982.247-25" }, "itens": [{ "produto": "Sal grosso", "apresentacao": "Quilo", "quantidade": "2" }], "linhas": 1, "largura_bobina": 80 }, "meta": {} }`,
+      },
+      {
         method: "POST",
         path: "/api/v1/emporio/sales/:id/cancel",
         auth: "Sessão · emporio:write · só OWNER e ADMIN",

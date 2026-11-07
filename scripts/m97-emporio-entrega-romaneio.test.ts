@@ -12,6 +12,7 @@ exigirBancoLocal();
  * Seção 3: o orçamento para entrega e as opções de endereço do cliente (rotas).
  * Seção 4: a venda para entrega e o faturamento que herda do orçamento (rotas).
  * Seção 5: mudar o pedido para entrega da venda fechada (action e rota).
+ * Seção 6: o romaneio da venda (sem preço) e a linha do pedido para entrega nos papéis.
  */
 
 let falhas = 0;
@@ -982,6 +983,267 @@ async function secao5() {
   }
 }
 
+async function secao6() {
+  console.log("\nSeção 6: o romaneio da venda e a linha do pedido para entrega nos papéis (D7, D8)");
+  const { prisma, prismaForTenant, scoped } = await import("@/lib/prisma");
+  const { papelDeFixture, vincularTodas } = await import("./_emporio-papel");
+  const { withBearer } = await import("./_escopo-de-requisicao");
+  const { abrirTurnoDeTeste } = await import("./_emporio-turno");
+  const bcrypt = (await import("bcryptjs")).default;
+  const C = await import("@/lib/actions/emporio-clientes");
+  const Cat = await import("@/lib/actions/emporio-catalogo");
+  const Est = await import("@/lib/actions/emporio-estoque");
+  const O = await import("@/lib/actions/emporio-orcamentos");
+  const V = (await import("@/lib/actions/emporio-vendas")) as Dado;
+  const I = (await import("@/lib/actions/emporio-impressao")) as Dado;
+  const { linhaDoEndereco } = await import("@/lib/emporio/pedido-para-entrega");
+  const SENHA = "SenhaForte#2026";
+  const hash = await bcrypt.hash(SENHA, 4);
+  const stamp = Date.now().toString(36);
+
+  const mkTenant = async (rotulo: string) => {
+    const t = await prisma.tenant.create({
+      data: { name: `M97f ${rotulo} ${stamp}`, document: `M97f${rotulo}${stamp}`.slice(0, 14), plan: "grupo", status: "trial", trial_ends_at: new Date(Date.now() + 86_400_000) },
+    });
+    tenantIds.push(t.id);
+    await prisma.tenantProfile.create({ data: { tenant_id: t.id, profile_type: "emporio", active: true } });
+    await prisma.tenantFeature.create({ data: { tenant_id: t.id, feature_key: "emporio", enabled: true } });
+    return t;
+  };
+  const t = await mkTenant("A");
+  const tB = await mkTenant("B");
+  const mk = async (tenantId: string, suf: string, role: "OWNER" | "OPERADOR", extra: Dado = {}) => {
+    const u = await prisma.user.create({
+      data: { tenant_id: tenantId, name: `M97f ${suf}`, email: `m97f-${suf}-${stamp}@teste.local`, password_hash: hash, role, ...papelDeFixture(role), ...extra },
+    });
+    return { id: u.id, role, email: u.email };
+  };
+  const owner = await mk(t.id, "own", "OWNER");
+  const gestor = await mk(t.id, "gestor", "OPERADOR", { emporio_role: "gestor", emporio_keys: [] });
+  const vend = await mk(t.id, "vend", "OPERADOR");
+  const vend2 = await mk(t.id, "vend2", "OPERADOR");
+  const ownerB = await mk(tB.id, "ownb", "OWNER");
+  const db = prismaForTenant(t.id) as Dado;
+  const dbB = prismaForTenant(tB.id) as Dado;
+  const lojaR = await Cat.criarEstabelecimentoAction(db, owner, { name: "M97f Loja" });
+  const loja2R = await Cat.criarEstabelecimentoAction(db, owner, { name: "M97f Loja 2" });
+  if (!lojaR.ok || !loja2R.ok) throw new Error(`lojas: ${j([lojaR, loja2R])}`);
+  const L = lojaR.data.id;
+  await vincularTodas(prisma, t.id, [gestor.id, vend.id], [L]);
+  await vincularTodas(prisma, t.id, [vend2.id], [loja2R.data.id]);
+
+  const categoria = await db.productCategory.create({ data: scoped({ name: "M97f categoria" }) });
+  const prod = await Cat.criarProdutoEmporioAction(db, owner, { name: `M97f Ração ${stamp}`, category_id: categoria.id, base_unit: "quilograma" });
+  if (!prod.ok) throw new Error(`produto: ${j(prod)}`);
+  const pres = await Cat.criarApresentacaoAction(db, owner, prod.data.id, { name: "Quilo", base_qty: 1, is_sealed_package: false });
+  if (!pres.ok) throw new Error(`apresentação: ${j(pres)}`);
+  const preco = await Cat.definirPrecoAction(db, owner, { establishment_id: L, presentation_id: pres.data.id, price: 10 });
+  if (!preco.ok) throw new Error(`preço: ${j(preco)}`);
+  const imp = await Est.implantarEstoqueAction(db, owner, { establishment_id: L, emporio_product_id: prod.data.id, sealed: [], loose_qty: 100, unit_cost: 4 });
+  if (!imp.ok) throw new Error(`implantar: ${j(imp)}`);
+  const itens = [{ emporio_product_id: prod.data.id, presentation_id: pres.data.id, quantity: 2 }];
+  const turno = await abrirTurnoDeTeste(db, owner, L);
+
+  const cf = await C.garantirConsumidorFinal(db);
+  const pf = await C.cadastrarClienteAction(db, owner, {
+    name: "M97f PF", person_kind: "pf", phone: "34 99999-3001", document: "529.982.247-25",
+    address_zip: "38400-000", address_street: "Rua A", address_number: "10", address_district: "Centro", city: "Uberlândia", address_state: "MG",
+  });
+  if (!pf.ok) throw new Error(`cliente: ${j(pf)}`);
+  const cli = pf.data.id;
+  const OUTRO = {
+    delivery_zip: "38400-200", delivery_street: "Rua B", delivery_number: "20",
+    delivery_district: "Bairro Novo", delivery_city: "Uberlândia", delivery_state: "MG",
+  };
+  const OUTRO2 = {
+    delivery_zip: "38400-300", delivery_street: "Rua C", delivery_number: "30",
+    delivery_district: "Bairro Velho", delivery_city: "Araguari", delivery_state: "MG",
+  };
+
+  let seq = 0;
+  const vender = async (extra: Dado = {}) => {
+    const r = await V.venderAction(db, owner, {
+      operation_key: `m97f-${stamp}-${(seq += 1)}`, establishment_id: L, cash_register_id: turno.cash_register_id,
+      customer_id: cli, items: itens, payments: [{ kind: "dinheiro", amount: 20 }], ...extra,
+    });
+    if (!r.ok) throw new Error(`venda: ${j(r)}`);
+    return r.data as Dado;
+  };
+  const romaneio = async (dbx: Dado, ator: Dado, id: string): Promise<Dado> => {
+    if (typeof I.lerRomaneioDaVendaAction !== "function") return { ok: false, code: "AUSENTE", status: 0, message: "lerRomaneioDaVendaAction ausente" };
+    return I.lerRomaneioDaVendaAction(dbx, ator, id);
+  };
+
+  console.log("  sem dinheiro nenhum (D7)");
+  const sFiado = await vender({
+    items: [{ ...itens[0], unit_price: 8 }],
+    payments: [{ kind: "dinheiro", amount: 6 }, { kind: "fiado", amount: 10, due_date: new Date(Date.now() + 5 * 86_400_000) }],
+    notes: "Entregar de manhã",
+  });
+  const rFiado = await romaneio(db, owner, sFiado.id);
+  const texto = j(rFiado.data ?? rFiado);
+  check("o romaneio da venda com desconto e fiado: ok", rFiado.ok === true, texto);
+  check("sem R$ no JSON", rFiado.ok === true && !texto.includes("R$"), texto);
+  const proibidas = ["preco", "total", "valor", "subtotal", "desconto", "pagamentos"];
+  check(
+    "sem as chaves de dinheiro",
+    rFiado.ok === true && proibidas.every((k) => !texto.includes(`"${k}"`)),
+    proibidas.filter((k) => texto.includes(`"${k}"`)).join(","),
+  );
+  check(
+    "itens com produto, apresentação e quantidade em pt-BR; linhas = itens",
+    rFiado.ok === true && rFiado.data.itens.length === 1 && rFiado.data.itens[0].quantidade === "2"
+      && rFiado.data.itens[0].apresentacao === "Quilo" && String(rFiado.data.itens[0].produto).includes("M97f Ração") && rFiado.data.linhas === 1,
+    texto,
+  );
+  check("observacoes = notes", rFiado.ok === true && rFiado.data.observacoes === "Entregar de manhã", texto);
+  check("vendedor e caixa preenchidos", rFiado.ok === true && !!rFiado.data.vendedor && /^Caixa \d+ \(/.test(String(rFiado.data.caixa)), texto);
+  check(
+    "situação ativa, retirada, sem endereço",
+    rFiado.ok === true && rFiado.data.situacao === "ativa" && rFiado.data.pedido_para_entrega === false && rFiado.data.endereco_de_entrega === null,
+    texto,
+  );
+
+  console.log("  entrega e retirada");
+  const sOutro = await vender({ for_delivery: true, delivery_address_kind: "outro", ...OUTRO });
+  const rOutro = await romaneio(db, owner, sOutro.id);
+  const linhaOutro = "Rua B, 20, Bairro Novo, Uberlândia/MG, CEP 38400-200";
+  check(
+    "venda marcada com outro: pedido_para_entrega e a linha da cópia",
+    rOutro.ok === true && rOutro.data.pedido_para_entrega === true && rOutro.data.endereco_de_entrega === linhaOutro
+      && rOutro.data.endereco_de_entrega === linhaDoEndereco(sOutro.delivery_address),
+    j(rOutro),
+  );
+  check(
+    "o cliente sai sem o endereço do cadastro",
+    rOutro.ok === true && rOutro.data.cliente?.nome === "M97f PF" && rOutro.data.cliente?.telefone && rOutro.data.cliente?.documento && !("endereco" in rOutro.data.cliente),
+    j(rOutro.data?.cliente),
+  );
+  const sRet = await vender();
+  const rRet = await romaneio(db, owner, sRet.id);
+  check(
+    "retirada de cliente com endereço completo no cadastro: endereco_de_entrega nulo",
+    rRet.ok === true && rRet.data.pedido_para_entrega === false && rRet.data.endereco_de_entrega === null,
+    j(rRet),
+  );
+  const sCf = await vender({ customer_id: cf.id });
+  const rCf = await romaneio(db, owner, sCf.id);
+  check(
+    "Consumidor final: nome, telefone e documento",
+    rCf.ok === true && j(rCf.data.cliente) === j({ nome: "Consumidor final", telefone: null, documento: null }),
+    j(rCf.data?.cliente),
+  );
+  const mud = await V.mudarPedidoParaEntregaAction(db, owner, sRet.id, { for_delivery: true, delivery_address_kind: "outro", ...OUTRO2 });
+  const rMud = await romaneio(db, owner, sRet.id);
+  check(
+    "depois de mudar o pedido, o romaneio relido traz o novo endereço",
+    mud.ok === true && rMud.ok === true && rMud.data.pedido_para_entrega === true
+      && rMud.data.endereco_de_entrega === "Rua C, 30, Bairro Velho, Araguari/MG, CEP 38400-300",
+    j(rMud),
+  );
+
+  console.log("  venda faturada de orçamento");
+  const orc = await O.salvarOrcamentoAction(db, vend, {
+    operation_key: `m97f-q-${stamp}`, establishment_id: L, customer_id: cli, items: itens, for_delivery: true, delivery_address_kind: "outro", ...OUTRO,
+  });
+  if (!orc.ok) throw new Error(`orçamento: ${j(orc)}`);
+  const sFat = await vender({ quote_id: orc.data.id });
+  const rFat = await romaneio(db, owner, sFat.id);
+  check(
+    "orcamento_origem com 6 dígitos e vendedor preenchido",
+    rFat.ok === true && /^\d{6}$/.test(String(rFat.data.orcamento_origem)) && rFat.data.orcamento_origem === orc.data.numero && !!rFat.data.vendedor,
+    j(rFat),
+  );
+  const iOrc = await I.lerImpressoDoOrcamentoAction(db, owner, orc.data.id);
+  check(
+    "o papel do orçamento marcado: pedido_para_entrega true e a linha do endereço",
+    iOrc.ok === true && iOrc.data.pedido_para_entrega === true && iOrc.data.endereco_de_entrega === linhaOutro,
+    j(iOrc.data?.endereco_de_entrega ?? iOrc),
+  );
+  const iVenda = await I.lerImpressoDaVendaAction(db, owner, sFat.id);
+  check(
+    "o papel da venda para entrega: true e a linha",
+    iVenda.ok === true && iVenda.data.pedido_para_entrega === true && iVenda.data.endereco_de_entrega === linhaOutro,
+    j(iVenda.data?.endereco_de_entrega ?? iVenda),
+  );
+  const iRet = await I.lerImpressoDaVendaAction(db, owner, sCf.id);
+  check(
+    "o papel da venda de retirada: false e nulo",
+    iRet.ok === true && iRet.data.pedido_para_entrega === false && iRet.data.endereco_de_entrega === null,
+    j(iRet.data ?? iRet),
+  );
+  const orcRet = await O.salvarOrcamentoAction(db, vend, { operation_key: `m97f-q2-${stamp}`, establishment_id: L, customer_id: cli, items: itens });
+  if (!orcRet.ok) throw new Error(`orçamento: ${j(orcRet)}`);
+  const iOrcRet = await I.lerImpressoDoOrcamentoAction(db, owner, orcRet.data.id);
+  check(
+    "o papel do orçamento de retirada: false e nulo",
+    iOrcRet.ok === true && iOrcRet.data.pedido_para_entrega === false && iOrcRet.data.endereco_de_entrega === null,
+    j(iOrcRet.data ?? iOrcRet),
+  );
+
+  console.log("  a situação");
+  const sCanc = await vender();
+  const canc = await V.cancelarVendaAction(db, owner, sCanc.id, { reason: "teste", cash_register_id: turno.cash_register_id });
+  if (!canc.ok) throw new Error(`cancelar: ${j(canc)}`);
+  const rCanc = await romaneio(db, owner, sCanc.id);
+  check("cancelada", rCanc.ok === true && rCanc.data.situacao === "cancelada", j(rCanc));
+  const sTroca = await vender();
+  const tr = await V.trocarAction(db, owner, sTroca.id, {
+    operation_key: `m97f-troca-${stamp}`, cash_register_id: turno.cash_register_id,
+    items_devolvidos: [{ sale_item_id: sTroca.items[0].id, quantity: 1 }],
+    venda: { customer_id: cli, items: [{ ...itens[0], quantity: 1 }], payments: [] },
+  });
+  if (!tr.ok) throw new Error(`troca: ${j(tr)}`);
+  const rTroc = await romaneio(db, owner, sTroca.id);
+  check("trocada", rTroc.ok === true && rTroc.data.situacao === "trocada", j(rTroc));
+  const sDev = await vender();
+  const dev = await V.devolverAction(db, owner, sDev.id, {
+    operation_key: `m97f-dev-${stamp}`, refund_kind: "dinheiro", cash_register_id: turno.cash_register_id,
+    items: [{ sale_item_id: sDev.items[0].id, quantity: 1 }],
+  });
+  if (!dev.ok) throw new Error(`devolução: ${j(dev)}`);
+  const rDev = await romaneio(db, owner, sDev.id);
+  check("devolvida (devolução sem troca)", rDev.ok === true && rDev.data.situacao === "devolvida", j(rDev));
+
+  const { avisoDaSituacao } = await import("@/components/emporio/impresso/romaneio-aviso");
+  check("aviso da cancelada, texto exato", avisoDaSituacao("cancelada") === "VENDA CANCELADA: NÃO SEPARAR", String(avisoDaSituacao("cancelada")));
+  check("aviso da trocada, texto exato", avisoDaSituacao("trocada") === "VENDA TROCADA: NÃO SEPARAR", String(avisoDaSituacao("trocada")));
+  check(
+    "aviso da devolvida, texto exato",
+    avisoDaSituacao("devolvida") === "VENDA COM DEVOLUÇÃO: CONFIRA NA VENDA ANTES DE SEPARAR",
+    String(avisoDaSituacao("devolvida")),
+  );
+  check("sem aviso na ativa", avisoDaSituacao("ativa") === null);
+
+  console.log("  o alcance e a rota");
+  const rv2 = await romaneio(db, vend2, sFiado.id);
+  check("o Vendedor de outra loja: 404", rv2?.ok === false && rv2.status === 404, j(rv2));
+  const rB = await romaneio(dbB, ownerB, sFiado.id);
+  check("outro tenant: 404", rB?.ok === false && rB.status === 404, j(rB));
+  const rg = await romaneio(db, gestor, sFiado.id);
+  check("o Gestor da loja lê: ok", rg?.ok === true, j(rg));
+
+  const rotaTok = await import("@/app/api/v1/auth/token/route");
+  let rota: Dado = null;
+  try {
+    rota = await import("@/app/api/v1/emporio/sales/[id]/packing-list/route");
+  } catch (e) {
+    check("a rota GET /sales/:id/packing-list carrega", false, e instanceof Error ? e.message.split("\n")[0] : String(e));
+  }
+  if (rota) {
+    const tok = String(
+      ((await (await rotaTok.POST(new Request("http://localhost/api/v1/auth/token", {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: gestor.email, password: SENHA }),
+      }))).json()) as Dado)?.data?.access_token ?? "",
+    );
+    const res = await withBearer(tok, (): Promise<Response> =>
+      rota.GET(new Request(`http://localhost/api/v1/emporio/sales/${sFiado.id}/packing-list`), { params: Promise.resolve({ id: sFiado.id }) }),
+    );
+    const corpo = (await res.json().catch(() => ({}))) as Dado;
+    check("GET packing-list: 200 com data.itens", res.status === 200 && Array.isArray(corpo?.data?.itens), `${res.status} ${j(corpo)}`);
+  }
+}
+
 async function limpar() {
   if (tenantIds.length === 0) return;
   const { prisma } = await import("@/lib/prisma");
@@ -1017,6 +1279,7 @@ async function main() {
     await comBanco(secao3);
     await comBanco(secao4);
     await comBanco(secao5);
+    await comBanco(secao6);
   } finally {
     await limpar();
   }

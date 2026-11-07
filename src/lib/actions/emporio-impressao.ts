@@ -10,6 +10,7 @@ import { ehConsumidorFinal } from "@/lib/emporio/cliente-cadastro";
 import { formatarNumero } from "@/lib/emporio/numeracao";
 import { FORMA_ROTULO } from "@/app/(dashboard)/emporio/_components/venda-rotulos";
 import { numeroBr } from "@/app/(dashboard)/emporio/_components/formato";
+import { enderecoDasColunas, linhaDoEndereco, type PedidoParaEntregaColunas } from "@/lib/emporio/pedido-para-entrega";
 
 /**
  * Meu Empório, entregas 1 e 4: os dados do papel da venda e do orçamento (A4 e bobina). Só
@@ -49,7 +50,33 @@ export type ImpressoVenda = {
   orcamento_origem: string | null;
   /** Orçamento faturado: o número da venda ativa que o faturou (6 dígitos). Nulo nos demais. */
   faturado_na_venda: string | null;
+  /** D8: o pedido é para entrega (a cópia gravada no pedido, nunca o cadastro de agora). */
+  pedido_para_entrega: boolean;
+  /** Uma linha, só quando o pedido é para entrega. */
+  endereco_de_entrega: string | null;
 };
+
+/** O romaneio: a lista de separação da venda. Sem nenhum valor em dinheiro (D7). */
+export type RomaneioView = {
+  numero: string;
+  emitida_em: string;
+  situacao: "ativa" | "cancelada" | "trocada" | "devolvida";
+  orcamento_origem: string | null;
+  loja: ImpressoVenda["loja"];
+  tem_logo: boolean;
+  logo_updated_at: string | null;
+  cliente: { nome: string; telefone: string | null; documento: string | null };
+  pedido_para_entrega: boolean;
+  endereco_de_entrega: string | null;
+  itens: { produto: string; apresentacao: string; quantidade: string }[];
+  linhas: number;
+  observacoes: string | null;
+  vendedor: string | null;
+  caixa: string | null;
+  largura_bobina: 80 | 58;
+};
+
+const enderecoDoPedido = (p: PedidoParaEntregaColunas): string | null => linhaDoEndereco(enderecoDasColunas(p));
 
 /** Junta só as partes preenchidas; tudo vazio vira null (nunca string vazia). */
 function linha(partes: (string | null | undefined)[], separador = ", "): string | null {
@@ -202,6 +229,81 @@ export async function lerImpressoDaVendaAction(
     validade: null,
     orcamento_origem: v.quote?.numero ?? null,
     faturado_na_venda: null,
+    pedido_para_entrega: v.for_delivery,
+    endereco_de_entrega: enderecoDoPedido(colunasDe(v)),
+  });
+}
+
+/** A visão traz o endereço já montado; a regra da linha pede as colunas. */
+function colunasDe(p: {
+  for_delivery: boolean;
+  delivery_address_kind: PedidoParaEntregaColunas["delivery_address_kind"];
+  delivery_address: { zip: string | null; street: string | null; number: string | null; complement: string | null; district: string | null; city: string | null; state: string | null } | null;
+}): PedidoParaEntregaColunas {
+  const e = p.delivery_address;
+  return {
+    for_delivery: p.for_delivery,
+    delivery_address_kind: p.delivery_address_kind,
+    delivery_zip: e?.zip ?? null, delivery_street: e?.street ?? null, delivery_number: e?.number ?? null,
+    delivery_complement: e?.complement ?? null, delivery_district: e?.district ?? null,
+    delivery_city: e?.city ?? null, delivery_state: e?.state ?? null,
+  };
+}
+
+/**
+ * O romaneio da venda: o que separar e entregar, sem preço, desconto nem pagamento. A leitura
+ * da venda já recusa quem não alcança a loja (404).
+ */
+export async function lerRomaneioDaVendaAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  saleId: string,
+): Promise<ActionResult<RomaneioView>> {
+  const venda = await lerVendaAction(db, ator, saleId);
+  if (!venda.ok) return venda;
+  const v = venda.data;
+  const base = await lerLojaEClienteDoPapel(db, ator, v.establishment_id, v.customer_id);
+  if (!base.ok) return base;
+  const { loja, cfg, cliente } = base.data;
+
+  const turno = v.cash_session_id
+    ? await db.cashSession.findFirst({
+        where: { id: v.cash_session_id },
+        select: { cash_register: { select: { number: true } } },
+      })
+    : null;
+  const situacao: RomaneioView["situacao"] =
+    v.status === "cancelada"
+      ? "cancelada"
+      : v.returns.some((r) => r.exchange_sale_id)
+        ? "trocada"
+        : v.returns.length > 0
+          ? "devolvida"
+          : "ativa";
+
+  return ok({
+    numero: formatarNumero(v.number),
+    emitida_em: v.sold_at,
+    situacao,
+    orcamento_origem: v.quote?.numero ?? null,
+    loja,
+    tem_logo: cfg.has_logo,
+    logo_updated_at: cfg.logo_updated_at,
+    cliente: cliente
+      ? { nome: cliente.nome, telefone: cliente.telefone, documento: cliente.documento }
+      : { nome: "Consumidor final", telefone: null, documento: null },
+    pedido_para_entrega: v.for_delivery,
+    endereco_de_entrega: enderecoDoPedido(colunasDe(v)),
+    itens: v.items.map((i) => ({
+      produto: i.product_name,
+      apresentacao: i.presentation_name,
+      quantidade: numeroBr(i.quantity),
+    })),
+    linhas: v.items.length,
+    observacoes: v.notes,
+    vendedor: v.seller_name,
+    caixa: turno ? `Caixa ${turno.cash_register.number} (${v.sold_by_name ?? "sem nome"})` : null,
+    largura_bobina: cfg.receipt_width,
   });
 }
 
@@ -254,5 +356,7 @@ export async function lerImpressoDoOrcamentoAction(
     validade: `${dia}/${mes}/${ano}`,
     orcamento_origem: null,
     faturado_na_venda: q.situacao === "faturado" && q.sale ? q.sale.numero : null,
+    pedido_para_entrega: q.for_delivery,
+    endereco_de_entrega: enderecoDoPedido(colunasDe(q)),
   });
 }

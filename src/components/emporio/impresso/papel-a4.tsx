@@ -70,6 +70,13 @@ export function PapelA4({ d }: { d: ImpressoVenda }) {
         </section>
       )}
 
+      {d.pedido_para_entrega && (
+        <section className="bloco">
+          <div className="rot">PEDIDO PARA ENTREGA</div>
+          {d.endereco_de_entrega && <b>{d.endereco_de_entrega}</b>}
+        </section>
+      )}
+
       <table>
         <thead>
           <tr>

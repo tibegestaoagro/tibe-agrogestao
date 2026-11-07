@@ -86,7 +86,12 @@ export function PapelCupom({ d }: { d: ImpressoVenda }) {
           <span>{reaisBr(d.troco)}</span>
         </div>
       )}
-      {(d.cliente || d.vendedor || d.caixa) && <hr />}
+      {(d.pedido_para_entrega || d.cliente || d.vendedor || d.caixa) && <hr />}
+      {d.pedido_para_entrega && (
+        <div className="nome g">
+          PEDIDO PARA ENTREGA{d.endereco_de_entrega ? `: ${d.endereco_de_entrega}` : ""}
+        </div>
+      )}
       {d.cliente && <div className="nome">Cliente: {d.cliente.nome}</div>}
       {d.vendedor && <div className="nome">Vendedor: {d.vendedor}</div>}
       {d.caixa && <div className="nome">Caixa: {d.caixa}</div>}
