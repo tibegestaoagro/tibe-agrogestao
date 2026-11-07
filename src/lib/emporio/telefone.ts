@@ -8,6 +8,10 @@
  * Só os dígitos, sem zeros à esquerda; com 12 ou 13 e começando em 55, sem o DDI;
  * com 10 ou 11, sem o DDD. Outro tamanho fica com todos os dígitos, para a busca por
  * pedaço não perder ninguém. Nulo quando não sobra dígito.
+ *
+ * O banco tem a mesma conta (`telefone_local`), e `phone_busca` é coluna gerada STORED:
+ * mudar a regra aqui e na função NÃO recalcula as linhas já gravadas. Exige uma
+ * migração nova que reescreva a coluna (DROP e ADD dela, ou `UPDATE ... SET phone = phone`).
  */
 export function telefoneLocal(texto: string | null | undefined): string | null {
   if (!texto) return null;

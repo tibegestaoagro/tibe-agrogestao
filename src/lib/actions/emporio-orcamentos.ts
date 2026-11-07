@@ -88,7 +88,7 @@ export type OrcamentoView = {
   establishment_id: string;
   loja: string;
   /** O cliente do Empório (`EmporioCustomer`); antes da Frente 1, `contact`. */
-  customer: { id: string; name: string; phone: string | null; document: string | null };
+  customer: { id: string; name: string; phone: string | null; document: string | null; incomplete: boolean };
   seller_user_id: string | null;
   seller_name: string | null;
   created_by_name: string | null;
@@ -108,7 +108,7 @@ export type OrcamentoView = {
 
 const INCLUDE_ORCAMENTO = {
   establishment: { select: { name: true } },
-  customer: { select: { id: true, name: true, phone: true, document: true } },
+  customer: true,
   sale: { select: { id: true, number: true } },
   sales: { select: { id: true, number: true, status: true }, orderBy: { created_at: "asc" } },
   items: {
@@ -213,6 +213,8 @@ async function montarOrcamentos(db: TenantPrismaClient, linhas: OrcamentoRow[]):
         name: q.customer?.name ?? "",
         phone: q.customer?.phone ?? null,
         document: q.customer?.document ?? null,
+        // O cadastro pode ter mudado depois do orçamento: o balcão mostra o aviso de novo.
+        incomplete: q.customer ? faltaNoCadastro(q.customer) !== null : false,
       },
       seller_user_id: q.seller_user_id,
       seller_name: q.seller_user_id ? (nomeDoUsuario.get(q.seller_user_id) ?? null) : null,

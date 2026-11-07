@@ -65,6 +65,7 @@ function clienteDoOrcamento(c: OrcamentoView["customer"], consumidorFinal: { id:
     phone: c.phone,
     document: c.document,
     fixed: fixo,
+    incomplete: c.incomplete,
     system_key: fixo ? CONSUMIDOR_FINAL.system_key : null,
   };
 }

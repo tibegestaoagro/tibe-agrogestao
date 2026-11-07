@@ -94,7 +94,7 @@ export function EscolherCliente({
   const pendencia = valor && (aviso ? aviso.message : valor.incomplete ? "Cadastro incompleto" : null);
 
   return (
-    <div {...campo} tabIndex={-1} className="space-y-2">
+    <div {...campo} role="group" aria-label="Cliente" tabIndex={-1} className="space-y-2">
       {valor ? (
         <>
           <div

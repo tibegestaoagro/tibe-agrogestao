@@ -60,7 +60,7 @@ export function EscolherFornecedor({
   }
 
   return (
-    <div {...campo} tabIndex={-1} className="space-y-2">
+    <div {...campo} role="group" aria-label="Fornecedor" tabIndex={-1} className="space-y-2">
       {valor ? (
         <div
           data-escolhido="fornecedor"

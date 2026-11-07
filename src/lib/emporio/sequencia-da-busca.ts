@@ -51,6 +51,11 @@ function listaDoTermo<T>(e: EstadoDaBusca<T>): boolean {
   return e.daLista !== null && e.daLista.termo === e.termo;
 }
 
+function novosDe<T>(atuais: T[], vindos: T[]): T[] {
+  const ids = new Set(atuais.map((i) => (i as { id?: string }).id));
+  return vindos.filter((i) => !ids.has((i as { id?: string }).id));
+}
+
 export function proximaBusca<T>(e: EstadoDaBusca<T>, ev: EventoDaBusca<T>): EstadoDaBusca<T> {
   switch (ev.tipo) {
     case "abrir": {
@@ -87,7 +92,8 @@ export function proximaBusca<T>(e: EstadoDaBusca<T>, ev: EventoDaBusca<T>): Esta
         ...e,
         carregando: false,
         erro: null,
-        itens: p.acrescentar ? [...e.itens, ...r.itens] : r.itens,
+        // A página é por `skip`: quem entra antes do corte repete a última linha da anterior.
+        itens: p.acrescentar ? [...e.itens, ...novosDe(e.itens, r.itens)] : r.itens,
         total: r.total,
         poucosDigitos: r.poucosDigitos,
         daLista: { termo: p.termo, pagina: p.pagina },

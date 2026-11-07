@@ -17,6 +17,7 @@ import {
 } from "@/components/contatos/campos-do-cadastro";
 import type { ClienteView } from "@/lib/actions/emporio-clientes";
 import type { Falta } from "@/lib/emporio/cliente-cadastro";
+import { formatarTelefone } from "@/lib/emporio/telefone";
 
 // Ordem VISUAL, a mesma de `CamposDoCadastro`.
 const ORDEM = [
@@ -98,7 +99,7 @@ export function ClienteForm({
     err.limparTudo();
     setFalhouCarga(false);
     setValores(
-      aberto && !completar && inicial ? { ...CADASTRO_VAZIO, name: inicial.name ?? "", phone: inicial.phone ?? "" } : CADASTRO_VAZIO,
+      aberto && !completar && inicial ? { ...CADASTRO_VAZIO, name: inicial.name ?? "", phone: inicial.phone ? formatarTelefone(inicial.phone) : "" } : CADASTRO_VAZIO,
     );
     setCarregando(aberto && completar && !!contatoId);
   }

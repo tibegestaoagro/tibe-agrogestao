@@ -560,6 +560,14 @@ async function secao5() {
   e = resposta(e, e.pedido!.numero, ok(pag(20, "Out2"), 40));
   check("mais do mesmo termo acrescenta a página", S.itensVisiveis(e).length === 40 && !S.temMaisNaBusca(e), String(S.itensVisiveis(e).length));
 
+  // A página 2 repete a última linha da 1 (alguém entrou antes do corte): sem id repetido.
+  e = ev(e, { tipo: "digitar", termo: "Dup" });
+  e = resposta(e, e.pedido!.numero, ok(pag(2, "Dup"), 3));
+  e = ev(e, { tipo: "mais" });
+  e = resposta(e, e.pedido!.numero, ok([{ id: "Dup1", name: "Dup 1" }, { id: "Dup2", name: "Dup 2" }], 3));
+  const idsDup = S.itensVisiveis(e).map((i) => i.id);
+  check("mais: o id que já estava na lista não entra de novo", idsDup.join(",") === "Dup0,Dup1,Dup2", idsDup.join(","));
+
   // Poucos dígitos e termo vazio
   e = ev(e, { tipo: "digitar", termo: "12" });
   e = resposta(e, e.pedido!.numero, { itens: [], total: 0, poucosDigitos: true });
