@@ -13,7 +13,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
-import { ClienteForm } from "./cliente-form";
+import { EscolherCliente } from "./escolher-cliente";
 import { numeroBr, pctBr } from "./formato";
 import { FORMA_ROTULO } from "./venda-rotulos";
 import {
@@ -22,7 +22,6 @@ import {
   normalizar,
   produtoCasaBusca,
   type CampoDaVenda,
-  type ContatoDeVenda,
   type EstadoDaVenda,
   type FormaDePagamento,
   type ProdutoVenda,
@@ -90,12 +89,12 @@ export function VendaCampos({
   v,
   produtos,
   lojas,
-  contatos,
+  consumidorFinal,
   erros,
   idDe,
   limpar,
   lojaFixa,
-  permitirClienteNovo,
+  permitirCadastro,
   aoEscolherLoja,
   semPagamento,
   depoisDaLoja,
@@ -107,13 +106,15 @@ export function VendaCampos({
   v: EstadoDaVenda;
   produtos: ProdutoVenda[];
   lojas: { id: string; name: string }[];
-  contatos: ContatoDeVenda[];
+  /** O cliente fixo, sempre no topo da janela de escolha. */
+  consumidorFinal: { id: string; name: string };
   erros: Partial<Record<CampoDaVenda, string>>;
   idDe: (campo: CampoDaVenda) => string;
   limpar: (campo: CampoDaVenda) => void;
   /** Troca: a loja é a da venda de origem, não se escolhe. */
   lojaFixa?: boolean;
-  permitirClienteNovo?: boolean;
+  /** "Cadastrar novo cliente" e "Completar cadastro" no campo Cliente. */
+  permitirCadastro?: boolean;
   aoEscolherLoja?: (id: string) => void;
 }) {
   const [busca, setBusca] = useState("");
@@ -122,17 +123,6 @@ export function VendaCampos({
     termo === ""
       ? []
       : produtos.filter((p) => p.apresentacoes.length > 0 && produtoCasaBusca(p, termo)).slice(0, MAX_RESULTADOS);
-
-  // O que foi cadastrado ou completado aqui vale sobre o que veio do servidor.
-  // Mesma ordem do servidor: Consumidor final primeiro, depois por nome.
-  const todosContatos: ContatoDeVenda[] = [
-    ...contatos.map((c) => v.contatosNovos.find((n) => n.id === c.id) ?? c),
-    ...v.contatosNovos.filter((n) => !contatos.some((c) => c.id === n.id)),
-  ].sort(
-    (a, b) =>
-      Number(b.consumidor_final) - Number(a.consumidor_final) || a.name.localeCompare(b.name, "pt-BR"),
-  );
-  const escolhido = todosContatos.find((c) => c.id === v.contatoId);
 
   function escolher(p: ProdutoVenda) {
     v.adicionarProduto(p);
@@ -300,60 +290,17 @@ export function VendaCampos({
       </Field>
 
       <Field label="Cliente" required id={idDe("customer_id")} error={erros.customer_id}>
-        {({ id, ...aria }) => (
-          <div className="space-y-2">
-            <div className="flex items-start gap-2">
-              <div className="min-w-0 flex-1">
-                <Select
-                  value={v.contatoId}
-                  onValueChange={(valor) => {
-                    // O Radix dispara "" quando o valor novo chega antes da opção existir
-                    // (cliente recém-cadastrado). Não há opção vazia: nunca é escolha de ninguém.
-                    if (valor === "") return;
-                    v.setContatoId(valor);
-                    limpar("customer_id");
-                  }}
-                >
-                  <SelectTrigger id={id} {...aria}>
-                    <SelectValue placeholder="Escolha o cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {todosContatos.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {permitirClienteNovo && (
-                <ClienteForm
-                  modo="novo"
-                  onSalvo={(c) => {
-                    v.contatoCriado(c);
-                    limpar("customer_id");
-                  }}
-                />
-              )}
-            </div>
-            {escolhido?.incomplete && (
-              <div className="flex flex-wrap items-center gap-2 rounded-md bg-atencao-suave px-3 py-2 text-sm text-atencao-tinta">
-                <span>Cadastro incompleto</span>
-                {permitirClienteNovo && (
-                  <ClienteForm
-                    modo="completar"
-                    contatoId={escolhido.id}
-                    trigger={
-                      <Button type="button" variant="outline" size="sm">
-                        Completar cadastro
-                      </Button>
-                    }
-                    onSalvo={(c) => v.contatoAtualizado(c)}
-                  />
-                )}
-              </div>
-            )}
-          </div>
+        {(campo) => (
+          <EscolherCliente
+            campo={campo}
+            consumidorFinal={consumidorFinal}
+            valor={v.cliente}
+            onEscolher={(c) => {
+              v.setCliente(c);
+              limpar("customer_id");
+            }}
+            permitirCadastro={!!permitirCadastro}
+          />
         )}
       </Field>
 
@@ -477,7 +424,7 @@ export function VendaCampos({
                           }}
                         />
                       </div>
-                      {!v.contatoId && (
+                      {!v.cliente && (
                         <p className="text-xs text-atencao-tinta sm:col-span-2">
                           O cheque precisa de um cliente: escolha acima.
                         </p>

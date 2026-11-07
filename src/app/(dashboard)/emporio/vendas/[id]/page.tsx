@@ -4,6 +4,7 @@ import { requireFeaturePage } from "@/lib/features";
 import { getTenantDb } from "@/lib/tenant-context";
 import { papelDoEmporio, pode } from "@/lib/emporio/papel";
 import { lerVendaAction } from "@/lib/actions/emporio-vendas";
+import { buscarClientesAction } from "@/lib/actions/emporio-clientes";
 import { viewsDosCaixas } from "@/lib/actions/emporio-caixa";
 import { paraCaixasDaLoja } from "../../_components/caixas-da-loja";
 import { formatarNumero } from "@/lib/emporio/numeracao";
@@ -63,6 +64,10 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
     venda.payments.some((p) => p.kind === "dinheiro") ||
     (fiadoTotal > 0 && Math.round(venda.open_amount * 100) < fiadoTotal);
   const catalogo = podeDevolver ? await carregarCatalogoDeVenda(db, [venda.establishment_id]) : null;
+  // A troca abre com o cliente da venda de origem, se ainda ativo (a busca por id o devolve completo).
+  const buscado =
+    catalogo && venda.customer_id ? await buscarClientesAction(db, user, { id: venda.customer_id }) : null;
+  const clienteDaTroca = buscado?.ok ? (buscado.data.itens[0] ?? null) : null;
   const nomeDoItem = new Map(venda.items.map((i) => [i.id, `${i.product_name} (${i.presentation_name})`]));
 
   const itensDevolviveis = devolviveis.map((i) => ({
@@ -136,8 +141,8 @@ export default async function VendaPage({ params }: { params: Promise<{ id: stri
                   itensDevolviveis={itensDevolviveis}
                   produtos={catalogo.produtos}
                   precos={catalogo.precos}
-                  contatos={catalogo.contatos}
-                  contatoId={venda.customer_id}
+                  consumidorFinal={catalogo.consumidorFinal}
+                  clienteInicial={clienteDaTroca}
                   caixas={caixas}
                   usuarioId={user.id}
                 />

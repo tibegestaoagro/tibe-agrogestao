@@ -1,23 +1,22 @@
 import type { TenantPrismaClient } from "@/lib/prisma";
 import { decToNum } from "@/lib/serialize";
 import { garantirConsumidorFinal } from "@/lib/actions/emporio-clientes";
-import { faltaNoCadastro } from "@/lib/emporio/cliente-cadastro";
-import type { ContatoDeVenda, PrecosVenda, ProdutoVenda } from "./venda-estado";
+import type { PrecosVenda, ProdutoVenda } from "./venda-estado";
 
 /**
  * O que a tela de venda precisa saber do catálogo: produtos com apresentação
- * ativa, o preço sugerido de cada apresentação em cada loja, e os clientes do
- * Empório (`EmporioCustomer`).
+ * ativa, o preço sugerido de cada apresentação em cada loja, e o Consumidor
+ * final (os outros clientes vêm da busca no servidor, na janela de escolha).
  * Roda no servidor (leitura direta pelo client escopado, como as outras
  * páginas do Empório); o resultado desce por prop para o formulário.
  */
 export async function carregarCatalogoDeVenda(
   db: TenantPrismaClient,
   lojaIds: string[],
-): Promise<{ produtos: ProdutoVenda[]; precos: PrecosVenda; contatos: ContatoDeVenda[] }> {
-  // Garante o Consumidor final antes de listar: conta nova ainda não tem o cliente fixo.
+): Promise<{ produtos: ProdutoVenda[]; precos: PrecosVenda; consumidorFinal: { id: string; name: string } }> {
+  // Conta nova ainda não tem o cliente fixo: garante antes de oferecê-lo.
   const consumidorFinal = await garantirConsumidorFinal(db);
-  const [linhas, tabela, contatosDb] = await Promise.all([
+  const [linhas, tabela] = await Promise.all([
     db.emporioProduct.findMany({
       where: { archived_at: null },
       select: {
@@ -37,19 +36,7 @@ export async function carregarCatalogoDeVenda(
       where: { establishment_id: { in: lojaIds }, price: { not: null } },
       select: { presentation_id: true, establishment_id: true, price: true },
     }),
-    db.emporioCustomer.findMany({
-      where: { archived_at: null, system_key: null },
-      select: {
-        id: true, name: true, person_kind: true, document: true, phone: true, address_zip: true, address_street: true,
-        address_number: true, address_complement: true, address_district: true, city: true, address_state: true,
-      },
-      orderBy: { name: "asc" },
-    }),
   ]);
-  const contatos: ContatoDeVenda[] = [
-    { id: consumidorFinal.id, name: consumidorFinal.name, incomplete: false, consumidor_final: true },
-    ...contatosDb.map((c) => ({ id: c.id, name: c.name, incomplete: faltaNoCadastro(c) !== null, consumidor_final: false })),
-  ];
 
   const produtos = linhas
     .map((p) => ({
@@ -74,5 +61,5 @@ export async function carregarCatalogoDeVenda(
     if (valor === null) continue;
     (precos[p.presentation_id] ??= {})[p.establishment_id] = valor;
   }
-  return { produtos, precos, contatos };
+  return { produtos, precos, consumidorFinal: { id: consumidorFinal.id, name: consumidorFinal.name } };
 }

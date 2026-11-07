@@ -99,6 +99,8 @@ export function FormSheet({
         <form
           noValidate
           onSubmit={(e) => {
+            // O submit de um painel filho (Cliente novo dentro da Troca) sobe pela árvore do React até aqui: não é deste formulário.
+            if (e.target !== e.currentTarget) return;
             e.preventDefault();
             if (pending) return;
             void onSubmit();

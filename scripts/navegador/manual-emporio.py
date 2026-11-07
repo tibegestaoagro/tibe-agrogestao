@@ -643,7 +643,7 @@ figura("fornecedores-lista", "gestor", "/emporio/fornecedores", [
 ], limite=6, hd=640, hc=900)
 
 figura("clientes-lista", "gestor", "/emporio/clientes", [
-    (1, "M.B('Cliente novo')", "o botao Cliente novo"),
+    (1, "M.B('Cadastrar novo cliente')", "o botao Cadastrar novo cliente"),
     (2, "M.A('Buscar cliente pelo nome')", "a busca pelo nome"),
     (3, "M.TH('Situação')", "a coluna Situacao (Cliente padrao, Cadastro incompleto, Arquivado)"),
     (4, "M.LIN('Maria das Dores')", "um cliente da lista"),
@@ -768,7 +768,7 @@ def estado_balcao_caixa():
 
 figura("balcao-cliente-vendedor", "caixa", "/emporio/vender", [
     (1, "M.L('Cliente')", "o campo Cliente"),
-    (2, "M.B('Cliente novo')", "o botao Cliente novo"),
+    (2, "M.B('Cadastrar novo cliente')", "o botao Cadastrar novo cliente"),
     (3, "M.L('Vendedor')", "o campo Vendedor"),
     (4, "M.B('Fechar a venda')", "o botao Fechar a venda"),
 ], estado=estado_balcao_caixa, hd=1100, hc=1500)
@@ -779,7 +779,7 @@ def estado_orcamento():
     time.sleep(1)
     adicionar_ao_balcao("Arame", "Arame Liso Galvanizado 1000 m", "3")
     adicionar_ao_balcao("Ferradura", "Ferradura nº 4", "10")
-    escolher("Cliente", "Haras Santa Clara")
+    escolher_cliente("Haras Santa Clara")
     preencher("Observação", "Entrega na fazenda, na sexta de manhã.")
     time.sleep(0.6)
 

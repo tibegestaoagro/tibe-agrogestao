@@ -494,7 +494,7 @@ async function secao4() {
     const owner = { id: u.id, role: "OWNER" as const, email: u.email };
     const db = prismaForTenant(t.id);
 
-    // catálogo numa conta sem Consumidor final: cria e devolve em primeiro
+    // catálogo numa conta sem Consumidor final: cria e devolve só ele (os outros clientes vêm da busca)
     const antes = await prisma.emporioCustomer.count({ where: { tenant_id: t.id, system_key: "consumidor_final" } });
     const soNome = await db.emporioCustomer.create({ data: scoped({ name: "Aaa Só Nome" }) });
     const completo = await db.emporioCustomer.create({
@@ -503,9 +503,8 @@ async function secao4() {
     const cat0 = await carregarCatalogoDeVenda(db, []);
     const depois = await prisma.emporioCustomer.count({ where: { tenant_id: t.id, system_key: "consumidor_final" } });
     check("conta sem Consumidor final: o catálogo cria um", antes === 0 && depois === 1, `${antes} ${depois}`);
-    check("Consumidor final vem primeiro, com consumidor_final true", cat0.contatos[0]?.consumidor_final === true && cat0.contatos[0]?.name === "Consumidor final", j(cat0.contatos));
-    check("depois dele, por nome, sem system_key", cat0.contatos.slice(1).map((c) => c.name).join("|") === "Aaa Só Nome|Zzz Completo" && cat0.contatos.slice(1).every((c) => !c.consumidor_final), j(cat0.contatos));
-    check("contato só com nome vem incomplete true, o completo false", cat0.contatos.find((c) => c.id === soNome.id)?.incomplete === true && cat0.contatos.find((c) => c.id === completo.id)?.incomplete === false, j(cat0.contatos));
+    check("o catálogo devolve o Consumidor final (id e nome)", cat0.consumidorFinal.name === "Consumidor final" && cat0.consumidorFinal.id !== "", j(cat0.consumidorFinal));
+    check("o catálogo não carrega a lista de clientes", !("contatos" in cat0), j(Object.keys(cat0)));
 
     // loja, produto, preço e estoque
     const loja = await Cat.criarEstabelecimentoAction(db, owner, { name: "M90v Loja" });
@@ -531,7 +530,7 @@ async function secao4() {
       payments,
       ...extra,
     });
-    const cf = cat0.contatos[0].id;
+    const cf = cat0.consumidorFinal.id;
 
     const semCli = await V.venderAction(db, owner, corpo({}));
     check("venderAction sem customer_id: 422 customer_id com a frase fixa", !semCli.ok && semCli.status === 422 && semCli.field === "customer_id" && semCli.message === FRASE_SEM, j(semCli));

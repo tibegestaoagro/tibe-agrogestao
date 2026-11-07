@@ -6,7 +6,7 @@
 #      ela no balcao; a venda aparece na ficha.
 #   2. A PJ sem endereco e recusada embaixo do CEP (na tela e na API).
 #   3. O orcamento com o Consumidor final salva.
-#   4. O Caixa nao ve "Arquivar"; o Gestor arquiva, o cliente some do seletor do
+#   4. O Caixa nao ve "Arquivar"; o Gestor arquiva, o cliente some da busca do
 #      balcao e a ficha esconde "Editar" ate desarquivar.
 #   5. Contatos (a fazenda) nao mostra o cliente nem o Consumidor final.
 #   6. O fornecedor de propriedade: a compra dele nao pede forma de pagamento,
@@ -86,17 +86,18 @@ def esc():
     time.sleep(1)
 
 
-def opcoes_do_campo(rotulo):
-    """Abre o Select do campo, le as opcoes e fecha com Escape."""
-    gatilho = "(() => { const raiz = document.querySelector('[role=dialog]') || document; const l = Array.from(raiz.querySelectorAll('label')).find(x => x.innerText.replace('*','').trim() === " + repr(rotulo) + "); return l && document.getElementById(l.htmlFor); })()"
-    xy = _centro(gatilho)
-    if not xy:
+def nomes_na_janela(busca):
+    """Abre a janela Escolher cliente, digita `busca` e devolve os nomes das
+    linhas (a fixa do topo inclusive) quando a busca termina; fecha com Escape."""
+    janela = "document.querySelector('[data-escolha=cliente]')"
+    if not clicar("Escolher cliente") or not esperar(lambda: js("!!" + janela), 10):
         return None
-    click_at_xy(xy[0], xy[1])
+    js("(() => { const el = " + janela + ".querySelector('input[type=search]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, " + repr(busca) + "); el.dispatchEvent(new Event('input', { bubbles: true })); })()")
     time.sleep(1)
-    lista = js("Array.from(document.querySelectorAll('[role=option]')).map(o => o.innerText.trim())") or []
+    esperar(lambda: js("(() => { const j = " + janela + "; return !!j && !j.innerText.includes('Buscando...'); })()"), 20)
+    nomes = js("Array.from(" + janela + ".querySelectorAll('[data-opcao]')).map(b => b.dataset.nome)") or []
     esc()
-    return lista
+    return nomes
 
 
 def escolher_por_aria(aria, opcao):
@@ -165,7 +166,7 @@ ir("/emporio/clientes")
 confere("a tela Clientes abre para o Vendedor", caminho() == "/emporio/clientes" and tem("Quem compra no Empório"), caminho())
 confere("o Vendedor vê Clientes no menu", "/emporio/clientes" in menu(), menu())
 confere("o Vendedor vê Fornecedores no menu (fora do caixa)", "/emporio/fornecedores" in menu(), menu())
-confere("abre Cliente novo", abrir_painel("Cliente novo"))
+confere("abre Cadastrar novo cliente", abrir_painel("Cadastrar novo cliente"))
 confere("escolhe Pessoa física", clicar("Pessoa física"))
 confere("preenche o nome", preencher("Nome", NOME_PF) not in ("SEM ROTULO", "SEM CAMPO"))
 confere("preenche o telefone", preencher("Telefone", "38991234567") not in ("SEM ROTULO", "SEM CAMPO"))
@@ -181,7 +182,7 @@ adicionar_racao("2")
 confere("adiciona o pagamento em dinheiro", clicar("+ Dinheiro"))
 time.sleep(1)
 confere("o valor em dinheiro é 40", preencher_aria("Valor em Dinheiro (R$)", "40") != "SEM CAMPO")
-confere("escolhe o cliente na lista do campo Cliente", escolher("Cliente", NOME_PF) is True)
+confere("escolhe o cliente pela busca do campo Cliente", escolher_cliente(NOME_PF) is True)
 enviar_botao("Fechar a venda")
 confere("a venda é registrada", esperar(lambda: tem("Venda registrada"), 60), texto_principal(200))
 confere("o resumo cita o cliente", tem("cliente " + NOME_PF))
@@ -195,7 +196,7 @@ confere("o Vendedor não vê Arquivar", not botao_existe("Arquivar"))
 # --- 2 ---------------------------------------------------------------------------------
 passo("2. PJ sem endereço: a recusa fica embaixo do CEP")
 ir("/emporio/clientes")
-confere("abre Cliente novo", abrir_painel("Cliente novo"))
+confere("abre Cadastrar novo cliente", abrir_painel("Cadastrar novo cliente"))
 confere("escolhe Pessoa jurídica", clicar("Pessoa jurídica"))
 confere("preenche o nome da empresa", preencher("Nome da empresa", NOME_PJ) not in ("SEM ROTULO", "SEM CAMPO"))
 confere("preenche o CNPJ", preencher("CNPJ", "11222333000181") not in ("SEM ROTULO", "SEM CAMPO"))
@@ -214,7 +215,7 @@ confere("a PJ não foi gravada", cliente_pela_api(NOME_PJ) is None)
 passo("3. O orçamento com o Consumidor final salva")
 abrir_balcao(modo_orcamento=True)
 adicionar_racao("3")
-confere("escolhe Consumidor final", escolher("Cliente", "Consumidor final") is True)
+confere("escolhe Consumidor final", escolher_cliente("Consumidor final") is True)
 confere("clica em Salvar orçamento", enviar_botao("Salvar orçamento"))
 confere("o orçamento é salvo", esperar(lambda: tem("salvo, válido até"), 60), texto_principal(300))
 confere("o resumo cita o Consumidor final", tem("cliente Consumidor final"), texto_principal(400))
@@ -233,9 +234,9 @@ confere("o Gestor arquiva", clicar("Arquivar"))
 confere("a ficha mostra Arquivado e oferece Desarquivar", esperar(lambda: botao_existe("Desarquivar") and tem("Arquivado"), 30), texto_principal(300))
 confere("arquivado: a ficha não oferece Editar", not botao_existe("Editar"))
 abrir_balcao()
-opcoes = opcoes_do_campo("Cliente") or []
-confere("o seletor do balcão abre com o Consumidor final", "Consumidor final" in opcoes, opcoes)
-confere("o cliente arquivado não está no seletor", NOME_PF not in opcoes, opcoes)
+opcoes = nomes_na_janela(NOME_PF) or []
+confere("a janela do balcão abre com o Consumidor final fixo", "Consumidor final" in opcoes, opcoes)
+confere("o cliente arquivado não aparece na busca", NOME_PF not in opcoes, opcoes)
 ir("/emporio/clientes/" + cliente_id)
 confere("o Gestor desarquiva", clicar("Desarquivar"))
 confere("desarquivado: Editar volta", esperar(lambda: botao_existe("Editar") and botao_existe("Arquivar"), 30))
@@ -310,7 +311,7 @@ abrir_balcao()
 adicionar_racao("1")
 confere("adiciona o fiado", clicar("+ Fiado"))
 time.sleep(1)
-confere("escolhe o cliente", escolher("Cliente", NOME_PF) is True)
+confere("escolhe o cliente", escolher_cliente(NOME_PF) is True)
 enviar_botao("Fechar a venda")
 confere("a venda fiada é registrada", esperar(lambda: tem("Venda registrada"), 60), texto_principal(300))
 ir("/emporio/fiado")

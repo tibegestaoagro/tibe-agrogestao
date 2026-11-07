@@ -30,7 +30,7 @@ import { abertosDaLoja, caixaInicial, fechadosDaLoja, paraCaixasDaLoja, type Cai
 import { VendaCampos } from "./venda-campos";
 import { numeroBr, numeroDaVenda } from "./formato";
 import { FORMA_ROTULO } from "./venda-rotulos";
-import { useVenda, type ContatoDeVenda, type PrecosVenda, type ProdutoVenda, type RegraCartaoVenda } from "./venda-estado";
+import { useVenda, type PrecosVenda, type ProdutoVenda, type RegraCartaoVenda } from "./venda-estado";
 
 /**
  * O balcão (Q87): a venda de dez segundos. Abre direto na venda, sem lista na
@@ -90,7 +90,7 @@ export function Balcao({
   lojas,
   produtos,
   precos,
-  contatos,
+  consumidorFinal,
   usuarioId,
   vendedoresPorLoja,
   ehCaixa,
@@ -101,7 +101,7 @@ export function Balcao({
   lojas: { id: string; name: string }[];
   produtos: ProdutoVenda[];
   precos: PrecosVenda;
-  contatos: ContatoDeVenda[];
+  consumidorFinal: { id: string; name: string };
   /** Quem está vendendo, vindo da sessão no servidor: compara com quem abriu cada caixa. */
   usuarioId: string;
   /** Quem pode ser o vendedor em cada loja (`vendedoresDaLoja`, lido no servidor). */
@@ -111,13 +111,12 @@ export function Balcao({
 }) {
   const err = useErrosDeFormulario(ORDEM);
   const [regras, setRegras] = useState<RegraCartaoVenda[] | null>(null);
-  const [cargaInicial] = useState(() => (orcamentoInicial ? cargaDoOrcamento(orcamentoInicial) : null));
+  const [cargaInicial] = useState(() => (orcamentoInicial ? cargaDoOrcamento(orcamentoInicial, consumidorFinal) : null));
   const v = useVenda({
     produtos,
     precos,
     lojaInicial: orcamentoInicial?.establishment_id ?? (lojas.length === 1 ? lojas[0].id : ""),
     regras,
-    consumidorFinalId: contatos.find((c) => c.consumidor_final)?.id ?? "",
     cargaInicial,
   });
   const [enviando, setEnviando] = useState(false);
@@ -239,7 +238,7 @@ export function Balcao({
       v.setLoja(q.establishment_id);
       lembrarLoja(q.establishment_id);
     }
-    v.carregarOrcamento(cargaDoOrcamento(q));
+    v.carregarOrcamento(cargaDoOrcamento(q, consumidorFinal));
     setOrcamento(q);
     setVendedorEscolhido("");
     setModo("venda");
@@ -454,8 +453,8 @@ export function Balcao({
         noValidate
         onSubmit={(e) => {
           e.preventDefault();
-          // O painel de "Cliente novo" é filho desta árvore do React: o submit
-          // dele sobe até aqui, e não pode fechar a venda.
+          // Os painéis do campo Cliente (cadastrar, completar) são filhos desta
+          // árvore do React: o submit deles sobe até aqui, e não pode fechar a venda.
           if (e.target !== e.currentTarget) return;
           if (enviando) return;
           void enviar();
@@ -467,11 +466,11 @@ export function Balcao({
             v={v}
             produtos={produtos}
             lojas={lojas}
-            contatos={contatos}
+            consumidorFinal={consumidorFinal}
             erros={err.erros}
             idDe={err.idDe}
             limpar={err.limparCampo}
-            permitirClienteNovo
+            permitirCadastro
             aoEscolherLoja={lembrarLoja}
             semPagamento={modo === "orcamento"}
             depoisDaLoja={

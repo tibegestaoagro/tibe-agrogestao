@@ -86,11 +86,6 @@ def valor_do_campo(rotulo):
     return js("(() => { const d = document.querySelector('[role=dialog]'); const l = d && Array.from(d.querySelectorAll('label')).find(x => x.innerText.replace('*','').trim() === " + repr(rotulo) + "); const el = l && document.getElementById(l.htmlFor); return el ? el.value : 'SEM CAMPO'; })()") or ""
 
 
-def cliente_escolhido():
-    """Texto do campo Cliente da venda (o gatilho do Select)."""
-    return js("(() => { const l = Array.from(document.querySelectorAll('main label')).find(x => x.innerText.replace('*','').trim() === 'Cliente'); const el = l && document.getElementById(l.htmlFor); return el ? el.innerText.trim() : 'SEM CAMPO'; })()") or ""
-
-
 def tipo_no_painel(rotulo):
     return bool(js("(() => { const d = document.querySelector('[role=dialog]'); const b = d && Array.from(d.querySelectorAll('button')).find(x => x.innerText.trim() === " + repr(rotulo) + "); if (!b) return false; b.click(); return true; })()"))
 
@@ -124,7 +119,7 @@ nome_original = produto["name"]
 passo("1. Cliente novo no balcão: PF, CPF inválido e depois válido")
 ir("/emporio/vender")
 confere("o balcão abre", caminho() == "/emporio/vender" and tem("Fechar a venda"), caminho())
-confere("abre Cliente novo", clicar("Cliente novo"))
+confere("abre Cadastrar novo cliente", clicar("Cadastrar novo cliente"))
 time.sleep(1.5)
 confere("painel abriu", painel_aberto())
 confere("escolhe Pessoa física", tipo_no_painel("Pessoa física"))
@@ -137,14 +132,14 @@ confere("o CPF inválido é recusado no campo", "CPF inválido. Confira os 11 n�
 confere("preenche o CPF válido", preencher("CPF", cpf_valido_novo()) not in ("SEM ROTULO", "SEM CAMPO"))
 enviar_painel()
 confere("o painel fechou", esperar(lambda: not painel_aberto(), 60))
-confere("o cliente cadastrado já está escolhido no campo Cliente", esperar(lambda: NOME_NOVO in cliente_escolhido()), cliente_escolhido())
+confere("o cliente cadastrado já está escolhido no quadro do Cliente", esperar(lambda: NOME_NOVO in escolhido()), escolhido())
 
 passo("1b. Cliente PJ com CNPJ alfanumérico (Q143)")
 NOME_PJ = "Empresa Nova " + SUFIXO
 CNPJ = cnpj_alfanumerico_novo()
 CNPJ_ERRADO = CNPJ[:13] + str((int(CNPJ[13]) + 1) % 10)
 ir("/emporio/vender")
-confere("abre Cliente novo", clicar("Cliente novo"))
+confere("abre Cadastrar novo cliente", clicar("Cadastrar novo cliente"))
 time.sleep(1.5)
 confere("painel abriu", painel_aberto())
 confere("escolhe Pessoa jurídica", tipo_no_painel("Pessoa jurídica"))
@@ -163,7 +158,7 @@ confere("o CNPJ com dígito errado é recusado no campo", "CNPJ inválido. Confi
 confere("preenche o CNPJ alfanumérico válido, em minúscula", preencher("CNPJ", CNPJ.lower()) not in ("SEM ROTULO", "SEM CAMPO"))
 enviar_painel()
 confere("o painel fechou", esperar(lambda: not painel_aberto(), 60))
-confere("a empresa cadastrada já está escolhida no campo Cliente", esperar(lambda: NOME_PJ in cliente_escolhido()), cliente_escolhido())
+confere("a empresa cadastrada já está escolhida no quadro do Cliente", esperar(lambda: NOME_PJ in escolhido()), escolhido())
 # O cliente do Emporio nao aparece em Contatos: o id vem da linha do Historico do cadastro.
 linhas = (api("GET", "/api/v1/emporio/history?action=cliente.cadastrar")["body"].get("data") or {}).get("items", [])
 ids = [l.get("target_id") for l in linhas if NOME_PJ in (l.get("summary") or "")]
@@ -175,7 +170,7 @@ confere("o cliente do Empório não aparece em Contatos", not any(c.get("name") 
 passo("2. A venda exige cliente; Consumidor final vale")
 # Página nova: a venda recomeça sem cliente escolhido.
 ir("/emporio/vender")
-confere("sem cliente escolhido ao abrir", "Escolha o cliente" in cliente_escolhido(), cliente_escolhido())
+confere("sem cliente escolhido ao abrir", escolhido() == "", escolhido())
 confere("escolhe a Loja 1", escolher("Loja", "F6b Loja 1") is True)
 confere("busca o produto", preencher_aria("Buscar produto", "F6b") != "SEM CAMPO")
 confere("adiciona o produto", esperar(lambda: clicar_resultado("F6b Ração"), 15))
@@ -187,14 +182,14 @@ enviar_venda()
 recusa = esperar(lambda: erro_do_campo("Cliente"))
 confere("sem cliente, a recusa fica no campo Cliente", "Escolha o cliente da venda." in (recusa or ""), recusa)
 confere("nenhuma venda foi registrada", not tem("Venda registrada"))
-confere("escolhe Consumidor final", escolher("Cliente", "Consumidor final") is True)
+confere("escolhe Consumidor final", escolher_cliente("Consumidor final") is True)
 enviar_venda()
 confere("a venda ao Consumidor final é registrada", esperar(lambda: tem("Venda registrada"), 60), texto_principal(200))
 confere("o resumo cita o cliente Consumidor final", tem("cliente Consumidor final"))
 
 passo("3. Cliente antigo: Cadastro incompleto e Completar cadastro (PF sem CPF)")
 ir("/emporio/vender")
-confere("escolhe o cliente só com o nome", escolher("Cliente", NOME_ANTIGO) is True)
+confere("escolhe o cliente só com o nome", escolher_cliente(NOME_ANTIGO) is True)
 confere("aparece o aviso Cadastro incompleto", esperar(lambda: tem("Cadastro incompleto")))
 confere("abre Completar cadastro", clicar("Completar cadastro"))
 time.sleep(2)
@@ -205,7 +200,7 @@ confere("preenche só o telefone (o CPF é opcional)", preencher("Telefone", "38
 enviar_painel()
 confere("o painel fechou", esperar(lambda: not painel_aberto(), 60))
 confere("o aviso some", esperar(lambda: not tem("Cadastro incompleto")))
-confere("o cliente continua escolhido", NOME_ANTIGO in cliente_escolhido(), cliente_escolhido())
+confere("o cliente continua escolhido", NOME_ANTIGO in escolhido(), escolhido())
 
 passo("4. Nome do produto editável")
 ir("/emporio/produtos/" + produto["id"])

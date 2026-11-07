@@ -16,7 +16,7 @@ import re
 LOJA1 = "Turno Loja 1"
 LOJA2 = "Turno Loja 2"
 PRODUTO = "Turno Ração"
-MENU_DO_CAIXA = ["/emporio", "/emporio/vender", "/emporio/vendas", "/emporio/fiado", "/emporio/caixa"]
+MENU_DO_CAIXA = ["/emporio", "/emporio/vender", "/emporio/vendas", "/emporio/fiado", "/emporio/clientes", "/emporio/caixa"]
 
 
 def caminho():
@@ -88,7 +88,7 @@ entrar("caixa")
 ir("/emporio")
 passo("1. O Caixa: menu enxuto, Estoque pela URL volta ao Meu Empório")
 vistos = [h for h in menu() if h.startswith("/emporio")]
-confere("o menu do Caixa tem só Início, Vender, Vendas, Fiado e Caixa", vistos == MENU_DO_CAIXA, vistos)
+confere("o menu do Caixa tem só Início, Vender, Vendas, Fiado, Clientes e Caixa", vistos == MENU_DO_CAIXA, vistos)
 ir("/emporio/estoque")
 confere("Estoque pela URL volta ao /emporio", caminho() == "/emporio", caminho())
 
@@ -104,7 +104,7 @@ confere("a quantidade é 1", preencher_aria("Quantidade do item 1", "1") != "SEM
 confere("adiciona o pagamento em dinheiro", clicar("+ Dinheiro"))
 time.sleep(1)
 confere("o valor em dinheiro é 20", preencher_aria("Valor em Dinheiro (R$)", "20") != "SEM CAMPO")
-confere("escolhe Consumidor final", escolher("Cliente", "Consumidor final") is True)
+confere("escolhe Consumidor final", escolher_cliente("Consumidor final") is True)
 confere("o Caixa escolhe o vendedor que atendeu", escolher("Vendedor", "Turno Vendedor Lojas 1 e 2") is True)
 confere("com o caixa fechado, o balcão oferece abrir o caixa", esperar(lambda: tem("Abrir o Caixa 1"), 20), texto_principal(300))
 enviar_venda()

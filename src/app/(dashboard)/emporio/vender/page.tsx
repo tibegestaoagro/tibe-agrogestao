@@ -86,7 +86,7 @@ export default async function VenderPage({
           lojas={lojas}
           produtos={catalogo.produtos}
           precos={catalogo.precos}
-          contatos={catalogo.contatos}
+          consumidorFinal={catalogo.consumidorFinal}
           usuarioId={user.id}
           vendedoresPorLoja={vendedoresPorLoja}
           ehCaixa={ehCaixa}

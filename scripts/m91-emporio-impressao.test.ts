@@ -65,7 +65,7 @@ async function secao1() {
     const owner = { id: u.id, role: "OWNER" as const, email: u.email };
     const db = prismaForTenant(t.id);
     const cat0 = await carregarCatalogoDeVenda(db, []);
-    const cf = cat0.contatos[0].id;
+    const cf = cat0.consumidorFinal.id;
     const loja = await Cat.criarEstabelecimentoAction(db, owner, { name: `M91 Loja ${rotulo}` });
     if (!loja.ok) throw new Error(`loja: ${j(loja)}`);
     const categoria = await db.productCategory.create({ data: scoped({ name: `M91 cat ${rotulo}` }) });
@@ -447,7 +447,7 @@ async function secao3() {
       await (await import("./_emporio-turno")).abrirTurnoDeTeste(db, donoA, l);
     }
     const cat0 = await carregarCatalogoDeVenda(db, []);
-    const cf = cat0.contatos[0].id;
+    const cf = cat0.consumidorFinal.id;
     const pj = await db.emporioCustomer.create({
       data: scoped({
         name: "M91s3 Agro PJ",

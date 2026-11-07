@@ -14,7 +14,8 @@ import { DevolucaoItens, montarDevolvidos, type EscolhaDevolucao, type ItemDevol
 import { VendaCampos } from "./venda-campos";
 import { CaixaDaOperacao } from "./caixa-da-operacao";
 import { abertosDaLoja, caixaInicial, type CaixaDaLoja } from "./caixas-da-loja";
-import { useVenda, type CampoDaVenda, type ContatoDeVenda, type PrecosVenda, type ProdutoVenda } from "./venda-estado";
+import { useVenda, type CampoDaVenda, type PrecosVenda, type ProdutoVenda } from "./venda-estado";
+import type { ClienteEscolhido } from "@/lib/emporio/cliente-escolhido";
 
 // Ordem visual, de cima para baixo. Na troca o servidor recusa os itens
 // devolvidos em `items_devolvidos` e os da venda nova em `items`.
@@ -35,8 +36,9 @@ export function TrocarForm({
   itensDevolviveis,
   produtos,
   precos,
-  contatos,
-  contatoId,
+  consumidorFinal,
+  clienteInicial,
+  permitirCadastro = true,
   caixas,
   usuarioId,
 }: {
@@ -48,8 +50,11 @@ export function TrocarForm({
   itensDevolviveis: ItemDevolvivel[];
   produtos: ProdutoVenda[];
   precos: PrecosVenda;
-  contatos: ContatoDeVenda[];
-  contatoId: string | null;
+  consumidorFinal: { id: string; name: string };
+  /** O cliente da venda de origem, se ainda ativo. */
+  clienteInicial: ClienteEscolhido | null;
+  /** "Cadastrar novo cliente" dentro da troca: o `FormSheet` ignora o submit do painel filho. */
+  permitirCadastro?: boolean;
 }) {
   const router = useRouter();
   const aviso = useAviso();
@@ -70,9 +75,8 @@ export function TrocarForm({
     produtos,
     precos,
     lojaInicial: lojaId,
-    contatoInicial: contatoId ?? "",
+    clienteInicial,
     abatimentoCent: devolvidoCent,
-    consumidorFinalId: contatos.find((c) => c.consumidor_final)?.id ?? "",
   });
 
   async function submit() {
@@ -159,7 +163,8 @@ export function TrocarForm({
         v={v}
         produtos={produtos}
         lojas={[]}
-        contatos={contatos}
+        consumidorFinal={consumidorFinal}
+        permitirCadastro={permitirCadastro}
         erros={err.erros}
         idDe={(c: CampoDaVenda) => (c === "establishment_id" ? c : err.idDe(c))}
         limpar={(c: CampoDaVenda) => {

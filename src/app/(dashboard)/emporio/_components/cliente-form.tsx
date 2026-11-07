@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { FormSheet } from "@/components/ui/form-sheet";
@@ -15,7 +15,8 @@ import {
   type ContatoDoCadastro,
   type ValoresCadastro,
 } from "@/components/contatos/campos-do-cadastro";
-import type { ContatoDeVenda } from "./venda-estado";
+import type { ClienteView } from "@/lib/actions/emporio-clientes";
+import type { Falta } from "@/lib/emporio/cliente-cadastro";
 
 // Ordem VISUAL, a mesma de `CamposDoCadastro`.
 const ORDEM = [
@@ -43,7 +44,7 @@ const ORDEM = [
 ] as const;
 type Campo = (typeof ORDEM)[number];
 
-type ContatoSalvo = { id: string; name: string; incomplete: boolean };
+const noOrdem = (campo: string): campo is Campo => (ORDEM as readonly string[]).includes(campo);
 
 /**
  * Cadastro do cliente do Empório (a tabela própria do Empório, fora de Contatos).
@@ -52,45 +53,86 @@ type ContatoSalvo = { id: string; name: string; incomplete: boolean };
  * grava por cima (PATCH): o servidor junta o que está guardado com o que veio e
  * só salva o cadastro completo para o tipo (PF: nome e telefone; PJ: mais CNPJ e
  * endereço principal).
+ *
+ * Com `open` e `onOpenChange`, quem chama controla o painel (a escolha do cliente
+ * o abre pelo "Não achou? Cadastrar novo"); `trigger={null}` tira o gatilho.
  */
 export function ClienteForm({
   modo,
   contatoId,
   trigger,
+  open,
+  onOpenChange,
+  inicial,
+  faltaInicial = null,
   onSalvo,
 }: {
   modo: "novo" | "completar";
   contatoId?: string;
+  /** Sem ele, o botão padrão; `null`, nenhum (o painel é aberto por `open`). */
   trigger?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (a: boolean) => void;
+  /** Só no `novo`: o que a busca já digitou (o nome, ou o telefone). */
+  inicial?: { name?: string; phone?: string };
+  /** Só no `completar`: o que falta, embaixo do campo dele (se ele está no ORDEM), com o foco nele. */
+  faltaInicial?: Falta | null;
   /** Sem ele (nas telas de Clientes), o formulário só relê a página ao salvar. */
-  onSalvo?: (c: ContatoDeVenda) => void;
+  onSalvo?: (c: ClienteView) => void;
 }) {
   const router = useRouter();
   const completar = modo === "completar";
   const err = useErrosDeFormulario(ORDEM, completar ? `completar-${contatoId}` : "cliente-novo");
-  const [open, setOpen] = useState(false);
+  const [abertoProprio, setAbertoProprio] = useState(false);
+  const aberto = open ?? abertoProprio;
   const [loading, setLoading] = useState(false);
   const [carregando, setCarregando] = useState(false);
   const [falhouCarga, setFalhouCarga] = useState(false);
   const [valores, setValores] = useState<ValoresCadastro>(CADASTRO_VAZIO);
 
+  // O painel abre pelo gatilho ou por quem chama (`open`): o preparo é o mesmo,
+  // feito no render quando `aberto` muda, e não num efeito.
+  const [abertoAntes, setAbertoAntes] = useState(aberto);
+  if (aberto !== abertoAntes) {
+    setAbertoAntes(aberto);
+    err.limparTudo();
+    setFalhouCarga(false);
+    setValores(
+      aberto && !completar && inicial ? { ...CADASTRO_VAZIO, name: inicial.name ?? "", phone: inicial.phone ?? "" } : CADASTRO_VAZIO,
+    );
+    setCarregando(aberto && completar && !!contatoId);
+  }
+
+  // `completar` lê o cadastro guardado ao abrir.
+  useEffect(() => {
+    if (!aberto || !completar || !contatoId) return;
+    let vivo = true;
+    void apiGet<ContatoDoCadastro>(`/api/v1/emporio/customers/${contatoId}`).then((res) => {
+      if (!vivo) return;
+      setCarregando(false);
+      if (!res.ok) {
+        setFalhouCarga(true);
+        err.setGlobal(res.message);
+        return;
+      }
+      setValores(valoresDoContato(res.data));
+      if (faltaInicial && noOrdem(faltaInicial.field)) err.reprovar({ [faltaInicial.field]: faltaInicial.message });
+    });
+    return () => {
+      vivo = false;
+    };
+    // Só a abertura relê: `err` e `faltaInicial` são lidos no momento da carga.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aberto, completar, contatoId]);
+
+  function mudarAberto(o: boolean) {
+    if (onOpenChange) onOpenChange(o);
+    if (open === undefined) setAbertoProprio(o);
+  }
+
   function mudar(campo: CampoCadastro, valor: string) {
     setValores((v) => ({ ...v, [campo]: valor }));
     err.limparCampo(campo);
-  }
-
-  async function abrir() {
-    if (!completar || !contatoId) return;
-    setCarregando(true);
-    setFalhouCarga(false);
-    const res = await apiGet<ContatoDoCadastro>(`/api/v1/emporio/customers/${contatoId}`);
-    setCarregando(false);
-    if (!res.ok) {
-      setFalhouCarga(true);
-      err.setGlobal(res.message);
-      return;
-    }
-    setValores(valoresDoContato(res.data));
   }
 
   async function submit() {
@@ -124,25 +166,26 @@ export function ClienteForm({
     setLoading(true);
     const corpo = corpoDoCadastro(valores);
     const res = completar
-      ? await apiPatch<ContatoSalvo>(`/api/v1/emporio/customers/${contatoId}`, corpo)
-      : await apiPost<ContatoSalvo>("/api/v1/emporio/customers", corpo);
+      ? await apiPatch<ClienteView>(`/api/v1/emporio/customers/${contatoId}`, corpo)
+      : await apiPost<ClienteView>("/api/v1/emporio/customers", corpo);
     setLoading(false);
     if (!res.ok) {
       err.doServidor(res);
       return;
     }
-    if (onSalvo) onSalvo({ id: res.data.id, name: res.data.name, incomplete: res.data.incomplete, consumidor_final: false });
+    if (onSalvo) onSalvo(res.data);
     else router.refresh();
-    setOpen(false);
-    setValores(CADASTRO_VAZIO);
+    mudarAberto(false);
   }
 
   return (
     <FormSheet
       trigger={
-        trigger ?? (
+        trigger !== undefined ? (
+          trigger
+        ) : (
           <Button type="button" variant="outline" size="sm">
-            Cliente novo
+            {completar ? "Completar cadastro" : "Cadastrar novo cliente"}
           </Button>
         )
       }
@@ -152,15 +195,8 @@ export function ClienteForm({
           ? "Faltam dados deste cliente. Confira e complete."
           : "Tipo, nome e telefone são obrigatórios. Na pessoa jurídica, também o CNPJ e o endereço."
       }
-      open={open}
-      onOpenChange={(o) => {
-        setOpen(o);
-        if (o) void abrir();
-        else {
-          err.limparTudo();
-          setValores(CADASTRO_VAZIO);
-        }
-      }}
+      open={aberto}
+      onOpenChange={mudarAberto}
       onSubmit={submit}
       submitLabel={completar ? "Salvar cadastro" : "Cadastrar cliente"}
       pending={loading || carregando}

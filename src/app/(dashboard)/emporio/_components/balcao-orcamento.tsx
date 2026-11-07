@@ -7,6 +7,8 @@ import { Field } from "@/components/ui/field";
 import { apiGet } from "@/lib/client-api";
 import { reaisBr } from "@/lib/numero-br";
 import type { OrcamentoView } from "@/lib/actions/emporio-orcamentos";
+import { CONSUMIDOR_FINAL } from "@/lib/contatos/cadastro";
+import { consumidorFinalEscolhido, type ClienteEscolhido } from "@/lib/emporio/cliente-escolhido";
 import { numeroBr, paraCampo, UNIDADE_BASE_SUFIXO } from "./formato";
 import type { CargaDoOrcamento, ProdutoVenda } from "./venda-estado";
 
@@ -31,7 +33,7 @@ export function dataBr(iso: string): string {
  * A mesma apresentação em duas linhas vale a mais barata de cada um, como na
  * action. Sem preço que valha (vencido e sem preço hoje), o item entra sem preço.
  */
-export function cargaDoOrcamento(q: OrcamentoView): CargaDoOrcamento {
+export function cargaDoOrcamento(q: OrcamentoView, consumidorFinal: { id: string }): CargaDoOrcamento {
   const referencia: Record<string, number> = {};
   const vale: Record<string, number> = {};
   const menor = (mapa: Record<string, number>, chave: string, valor: number | null) => {
@@ -51,7 +53,19 @@ export function cargaDoOrcamento(q: OrcamentoView): CargaDoOrcamento {
       apresentacaoId: i.presentation_id,
       qtd: paraCampo(i.quantity),
     })),
-    contatoId: q.customer.id,
+    cliente: q.customer.id ? clienteDoOrcamento(q.customer, consumidorFinal) : null,
+  };
+}
+
+/** O cliente do orçamento como escolhido: o orçamento só traz nome, telefone e documento; o resto fica nulo. */
+function clienteDoOrcamento(c: OrcamentoView["customer"], consumidorFinal: { id: string }): ClienteEscolhido {
+  const fixo = c.id === consumidorFinal.id;
+  return {
+    ...consumidorFinalEscolhido({ id: c.id, name: c.name }),
+    phone: c.phone,
+    document: c.document,
+    fixed: fixo,
+    system_key: fixo ? CONSUMIDOR_FINAL.system_key : null,
   };
 }
 

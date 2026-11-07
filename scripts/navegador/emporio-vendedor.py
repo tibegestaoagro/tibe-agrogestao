@@ -88,7 +88,7 @@ def montar_venda(loja, quantidade, valor):
     confere("adiciona o pagamento em dinheiro", clicar("+ Dinheiro"))
     time.sleep(1)
     confere("o valor em dinheiro é " + valor, preencher_aria("Valor em Dinheiro (R$)", valor) != "SEM CAMPO")
-    confere("escolhe Consumidor final", escolher("Cliente", "Consumidor final") is True)
+    confere("escolhe Consumidor final", escolher_cliente("Consumidor final") is True)
 
 
 # --- 1. O Caixa no balcao --------------------------------------------------------

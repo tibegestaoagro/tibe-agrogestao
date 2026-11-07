@@ -111,6 +111,48 @@ def escolher(rotulo, opcao):
     return True
 
 
+def _escolher_por_busca(tipo, rotulo, abrir, nome, busca=None):
+    """Escolhe pela janela de busca (`[data-escolha=<tipo>]`): abre pelo botao
+    dentro do campo `rotulo` (o texto ou o aria-label estao em `abrir`), digita
+    na busca e toca na linha cujo `data-nome` e exatamente `nome`. A linha fixa
+    do topo (o Consumidor final) nao precisa de busca: o toque e direto."""
+    janela = "document.querySelector('[data-escolha=" + tipo + "]')"
+    botao = "(() => { const raiz = document.querySelector('[role=dialog]') || document; const l = Array.from(raiz.querySelectorAll('label')).find(x => x.innerText.replace('*','').trim() === " + repr(rotulo) + "); const campo = l && document.getElementById(l.htmlFor); if (!campo) return 'SEM CAMPO'; const b = Array.from(campo.querySelectorAll('button')).find(x => " + repr(abrir) + ".includes(x.innerText.trim()) || " + repr(abrir) + ".includes(x.getAttribute('aria-label'))); if (!b) return 'SEM BOTAO'; b.click(); return true; })()"
+    # Antes da hidratacao o clique nao abre nada: repete ate a janela aparecer.
+    fim_em = time.time() + 60
+    aberta = False
+    while time.time() < fim_em:
+        r = js(botao)
+        if r is not True:
+            return r
+        if esperar(lambda: js("!!" + janela), 5):
+            aberta = True
+            break
+    if not aberta:
+        return "SEM JANELA"
+    linha = "Array.from(" + janela + ".querySelectorAll('[data-opcao]')).find(b => b.dataset.nome === " + repr(nome) + ")"
+    fixa = js("(() => { const b = " + linha + "; return !!(b && b.hasAttribute('data-fixo')); })()")
+    if not fixa:
+        js("(() => { const el = " + janela + ".querySelector('input[type=search]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, " + repr(busca or nome) + "); el.dispatchEvent(new Event('input', { bubbles: true })); })()")
+    if not esperar(lambda: js("!!(" + linha + ")"), 30):
+        return "SEM OPCAO"
+    js("(" + linha + ").click()")
+    if not esperar(lambda: not js("!!" + janela), 10):
+        return "JANELA NAO FECHOU"
+    time.sleep(0.5)
+    return True
+
+
+def escolher_cliente(nome, busca=None):
+    """Escolhe o cliente na janela de busca da venda, do orcamento ou da troca."""
+    return _escolher_por_busca("cliente", "Cliente", ["Escolher cliente", "Trocar cliente"], nome, busca)
+
+
+def escolhido(tipo="cliente"):
+    """O texto do quadro do escolhido (`[data-escolhido=<tipo>]`), ou '' sem escolha."""
+    return (js("(() => { const q = document.querySelector('[data-escolhido=" + tipo + "]'); return q ? q.innerText.replace(/\\u00a0/g, ' ') : ''; })()") or "")
+
+
 def esperar(condicao, segundos=40):
     """Espera `condicao()` ficar verdadeira (a primeira escrita de uma rota
     compila no next dev e demora). Devolve o ultimo valor."""

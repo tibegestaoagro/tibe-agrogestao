@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { lerNumeroBr, reaisBr } from "@/lib/numero-br";
+import type { ClienteEscolhido } from "@/lib/emporio/cliente-escolhido";
 
 /**
  * O estado e as contas da venda do Meu Empório (F3a), compartilhados pelo
@@ -26,7 +27,6 @@ export type ProdutoVenda = {
 };
 /** apresentação -> loja -> preço sugerido. */
 export type PrecosVenda = Record<string, Record<string, number>>;
-export type ContatoDeVenda = { id: string; name: string; incomplete: boolean; consumidor_final: boolean };
 
 export type LinhaItem = {
   key: number;
@@ -133,7 +133,8 @@ export type CargaDoOrcamento = {
   referencia: Record<string, number>;
   vale: Record<string, number>;
   itens: { produtoId: string; apresentacaoId: string; qtd: string }[];
-  contatoId: string;
+  /** O cliente do orçamento (só `id`, `name`, `phone` e `document`; o resto nulo), ou nulo sem cliente. */
+  cliente: ClienteEscolhido | null;
 };
 
 const paraCampoDePreco = (s: number | null) => (s === null ? "" : centavosParaCampo(cent(s)));
@@ -161,20 +162,18 @@ export function useVenda({
   produtos,
   precos,
   lojaInicial,
-  contatoInicial = "",
+  clienteInicial = null,
   abatimentoCent = 0,
   regras = null,
-  consumidorFinalId = "",
   cargaInicial = null,
 }: {
   /** O orçamento que o balcão abre carregado (`/emporio/vender?orcamento=<id>`). */
   cargaInicial?: CargaDoOrcamento | null;
-  /** O contato fixo "Consumidor final": não serve para fiado nem cheque. */
-  consumidorFinalId?: string;
   produtos: ProdutoVenda[];
   precos: PrecosVenda;
   lojaInicial: string;
-  contatoInicial?: string;
+  /** A troca abre com o cliente da venda de origem; venda e orçamento, sem cliente. */
+  clienteInicial?: ClienteEscolhido | null;
   /** Valor da troca que já paga parte da venda. */
   abatimentoCent?: number;
   /**
@@ -195,8 +194,8 @@ export function useVenda({
     cargaInicial ? linhasDaCarga(cargaInicial, (n) => -(n + 1)) : [],
   );
   const [pagamentos, setPagamentos] = useState<LinhaPagamento[]>([]);
-  const [contatoId, setContatoId] = useState(cargaInicial?.contatoId ?? contatoInicial);
-  const [contatosNovos, setContatosNovos] = useState<ContatoDeVenda[]>([]);
+  // O Consumidor final é `cliente.fixed`: não serve para fiado nem cheque.
+  const [cliente, setCliente] = useState<ClienteEscolhido | null>(cargaInicial ? cargaInicial.cliente : clienteInicial);
   const [orc, setOrc] = useState<Pick<CargaDoOrcamento, "referencia" | "vale"> | null>(
     cargaInicial ? { referencia: cargaInicial.referencia, vale: cargaInicial.vale } : null,
   );
@@ -226,7 +225,7 @@ export function useVenda({
     setOrc({ referencia: carga.referencia, vale: carga.vale });
     setItens(linhasDaCarga(carga, proximo));
     setPagamentos([]);
-    setContatoId(carga.contatoId);
+    setCliente(carga.cliente);
   }
 
   /** Tira o orçamento: o carrinho fica, e o que não foi digitado volta ao preço da loja. */
@@ -356,18 +355,8 @@ export function useVenda({
   function reiniciar() {
     setItens([]);
     setPagamentos([]);
-    setContatoId(contatoInicial);
+    setCliente(clienteInicial);
     setOrc(null);
-  }
-
-  /** Contato cadastrado ou completado agora: vale sobre o que veio do servidor, sem recarregar a página. */
-  function contatoAtualizado(c: ContatoDeVenda) {
-    setContatosNovos((l) => [...l.filter((x) => x.id !== c.id), c]);
-  }
-
-  function contatoCriado(c: ContatoDeVenda) {
-    contatoAtualizado(c);
-    setContatoId(c.id);
   }
 
   function itensDaApi(): CorpoDaVenda["items"] {
@@ -395,23 +384,23 @@ export function useVenda({
 
     const temFiado = pagamentos.some((p) => p.kind === "fiado");
     const temCheque = pagamentos.some((p) => p.kind === "cheque");
-    const ehConsumidorFinal = consumidorFinalId !== "" && contatoId === consumidorFinalId;
+    const ehConsumidorFinal = cliente?.fixed === true;
     if (orcamento) {
       // A mesma frase do servidor (`QUOTE_CUSTOMER_REQUIRED`). O Consumidor final serve;
       // o cadastro incompleto é o servidor que recusa (`QUOTE_CUSTOMER_INCOMPLETE`).
-      if (!contatoId) {
+      if (!cliente) {
         novos.customer_id = "Escolha o cliente do orçamento. Quem não quer se identificar entra como Consumidor final.";
       }
       return {
         novos,
         corpo:
-          Object.keys(novos).length > 0
+          Object.keys(novos).length > 0 || !cliente
             ? null
-            : { establishment_id: loja, customer_id: contatoId, items: itensDaApi(), payments: [] },
-        assinatura: JSON.stringify(["orcamento", loja, contatoId, itensDaApi()]),
+            : { establishment_id: loja, customer_id: cliente.id, items: itensDaApi(), payments: [] },
+        assinatura: JSON.stringify(["orcamento", loja, cliente?.id ?? null, itensDaApi()]),
       };
     }
-    if (!contatoId) novos.customer_id = "Escolha o cliente da venda.";
+    if (!cliente) novos.customer_id = "Escolha o cliente da venda.";
     else if (temFiado && ehConsumidorFinal) novos.customer_id = "Fiado precisa do cliente de verdade, não do Consumidor final.";
     else if (temCheque && ehConsumidorFinal) novos.customer_id = "Cheque precisa do cliente de verdade, não do Consumidor final.";
 
@@ -466,7 +455,7 @@ export function useVenda({
 
     const corpo: CorpoDaVenda = {
       establishment_id: loja,
-      customer_id: contatoId || null,
+      customer_id: cliente?.id ?? null,
       items: itensDaApi(),
       payments: pagamentosApi,
     };
@@ -491,11 +480,8 @@ export function useVenda({
     regrasCarregadas: regras !== null,
     atualizarPagamento,
     removerPagamento,
-    contatoId,
-    setContatoId,
-    contatosNovos,
-    contatoCriado,
-    contatoAtualizado,
+    cliente,
+    setCliente,
     totalCent,
     descontoCent,
     descontoPct,

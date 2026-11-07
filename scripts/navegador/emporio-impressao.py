@@ -141,7 +141,7 @@ confere("a quantidade é 1", preencher_aria("Quantidade do item 1", "1") != "SEM
 confere("adiciona o pagamento em dinheiro", clicar("+ Dinheiro"))
 time.sleep(1)
 confere("o valor em dinheiro é 20", preencher_aria("Valor em Dinheiro (R$)", "20") != "SEM CAMPO")
-confere("escolhe Consumidor final", escolher("Cliente", "Consumidor final") is True)
+confere("escolhe Consumidor final", escolher_cliente("Consumidor final") is True)
 enviar_venda()
 confere("a venda é registrada", esperar(lambda: tem("Venda registrada"), 60), texto_principal(200))
 confere("o resumo mostra Venda nº com 6 dígitos", bool(re.search(r"Venda nº \d{6}", texto_principal(600))), texto_principal(200))
