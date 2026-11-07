@@ -728,9 +728,17 @@ export const GROUPS: Group[] = [
         method: "GET",
         path: "/api/v1/emporio/suppliers",
         auth: "Sessão · emporio:read · dono, gerente geral, gestor e vendedor (o caixa: 403 `FORBIDDEN`) · perfil emporio · recurso `emporio` liberado",
-        description: "A lista de fornecedores do Empório, por nome. Query: `q` (nome, sem acento), `archived=1` (inclui os arquivados), `page` e `per_page` (padrão 50, máximo 100). `meta` traz `total`, `page` e `per_page`.",
+        description: "A lista de fornecedores do Empório, por nome. Query: `q` (nome sem acento, CPF/CNPJ ou telefone, por pedaço; com só números, a busca começa em 3), `archived=1` (inclui os arquivados), `page` e `per_page` (padrão 50, máximo 100). `meta` traz `total`, `page`, `per_page` e `poucos_digitos` (verdadeiro quando `q` tem só 1 ou 2 números: `data` vem vazio).",
         response: `200
-{ "data": [{ "id": "cl...", "kind": "externo", "name": "Casa Rural", "document": null, "phone": null, "archived": false }], "meta": { "total": 1, "page": 1, "per_page": 50 } }`,
+{ "data": [{ "id": "cl...", "kind": "externo", "name": "Casa Rural", "document": null, "phone": null, "archived": false }], "meta": { "total": 1, "page": 1, "per_page": 50, "poucos_digitos": false } }`,
+      },
+      {
+        method: "GET",
+        path: "/api/v1/emporio/suppliers/search",
+        auth: "Sessão · emporio:read · dono, gerente geral, gestor e vendedor (o caixa: 403 `FORBIDDEN`) · perfil emporio · recurso `emporio` liberado",
+        description: "A busca de fornecedor da Compra. Query: `q` (nome sem acento, ou pedaço do CPF/CNPJ ou do telefone sem DDD e sem DDI; só números começam a buscar com 3, e com 1 ou 2 `data` vem vazio e `meta.poucos_digitos` é verdadeiro), `id` (ignora `q` e devolve 0 ou 1 fornecedor ativo), `page` e `per_page` (padrão 20, máximo 50; valor inválido vira o padrão; `page` vai de 1 a 10000, fora disso vira 1). Só fornecedores ativos, por nome. Cada item traz `id`, `kind`, `property_id`, `name`, `person_kind`, `document`, `phone` e `ultima_compra`: a compra não cancelada mais recente do fornecedor nas lojas que o usuário enxerga (`em` é a data da compra; `valor` é a soma dos itens mais o frete), ou `null` sem compra. `meta`: `total`, `page`, `per_page`, `poucos_digitos`.",
+        response: `200
+{ "data": [{ "id": "cl...", "kind": "externo", "property_id": null, "name": "Agropecuária Central", "person_kind": "pj", "document": "11222333000181", "phone": "(34) 3222-0000", "ultima_compra": { "em": "2026-11-06T14:00:00.000Z", "valor": 220 } }], "meta": { "total": 1, "page": 1, "per_page": 20, "poucos_digitos": false } }`,
       },
       {
         method: "GET",

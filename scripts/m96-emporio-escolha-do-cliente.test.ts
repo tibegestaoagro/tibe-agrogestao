@@ -10,6 +10,7 @@ exigirBancoLocal();
  * Seção 1: a regra pura do termo de busca e do telefone (sem banco).
  * Seção 2: a coluna gerada phone_busca e a função telefone_local (com banco).
  * Seção 3: a busca de clientes (action, rota e a tela Clientes).
+ * Seção 4: a busca de fornecedores (action, rota e a tela Fornecedores).
  */
 
 let falhas = 0;
@@ -69,6 +70,15 @@ async function secao1() {
     comDdi.modo === "digitos" && comDdi.digitos === "5534998761234" && comDdi.telefone === "998761234",
     j(comDdi),
   );
+  const semDdd = (q: string) => {
+    const t = B.lerTermo(q);
+    return t.modo === "digitos" ? (t.semDdd ?? null) : "nao-digitos";
+  };
+  check("lerTermo +55 com DDD parcial: semDdd tira o DDI e o DDD", semDdd("+55 34 9987") === "9987", String(semDdd("+55 34 9987")));
+  check("lerTermo DDD colado entre parênteses: semDdd", semDdd("(34)9987") === "9987", String(semDdd("(34)9987")));
+  check("lerTermo (34) 9987 segue com semDdd", semDdd("(34) 9987") === "9987", String(semDdd("(34) 9987")));
+  check("lerTermo 3499 sem máscara não ganha semDdd", semDdd("3499") === null, String(semDdd("3499")));
+  check("lerTermo 34-9987 com hífen ganha semDdd", semDdd("34-9987") === "9987", String(semDdd("34-9987")));
   const cpf = B.lerTermo("529.982");
   check("lerTermo CPF com máscara", cpf.modo === "digitos" && cpf.digitos === "529982", j(cpf));
   check("lerTermo nome com acento e espaço duplo", termo("Zé  da Ponte") === j({ modo: "nome", nome: "ze da ponte", documento: null }), termo("Zé  da Ponte"));
@@ -97,6 +107,14 @@ async function secao1() {
   const forn = B.ondeBuscaFornecedor(B.lerTermo("Zé")) as Dado;
   check("ondeBuscaFornecedor nome: name_busca contains", j(forn) === j({ name_busca: { contains: "ze" } }), j(forn));
   check("ondeBuscaFornecedor vazio é {}", j(B.ondeBuscaFornecedor({ modo: "vazio" })) === "{}");
+
+  const pg = (v: unknown) => B.paginaValida(v);
+  check(
+    "paginaValida: 1 a 10000 passa, fora disso e lixo viram 1",
+    pg(1) === 1 && pg(7) === 7 && pg(10000) === 10000 && pg(10001) === 1 && pg(1e20) === 1 && pg(Infinity) === 1 && pg(NaN) === 1 &&
+      pg(-3) === 1 && pg(0) === 1 && pg(undefined) === 1 && pg("abc") === 1 && pg(2.7) === 2,
+    j([pg(10001), pg(1e20), pg(Infinity), pg(2.7)]),
+  );
 }
 
 const TELEFONES_DA_PARIDADE = [
@@ -233,6 +251,12 @@ async function secao3() {
   check("por_pagina 500 vira 50", p500.ok && p500.data.por_pagina === 50);
   const pPadrao = await busca(owner, { q: "" });
   check("por_pagina padrão 20", pPadrao.ok && pPadrao.data.por_pagina === 20);
+  for (const absurda of [1e20, Infinity, 10001]) {
+    const r = await busca(owner, { q: "", pagina: absurda }).catch((e: unknown) => ({ ok: false, erro: String(e).slice(0, 80) }));
+    check(`busca: pagina ${absurda} vira 1`, r.ok && r.data.pagina === 1, j(r));
+    const l = (await C.listarClientesAction(db, owner, { q: "", pagina: absurda }).catch((e: unknown) => ({ ok: false, erro: String(e).slice(0, 80) }))) as Dado;
+    check(`lista: pagina ${absurda} vira 1`, l.ok && l.data.pagina === 1, j(l));
+  }
 
   // Busca por id
   const idCf = await busca(owner, { id: cf.id });
@@ -310,6 +334,156 @@ async function secao3() {
   void ze; void sousa; void joao; void pj;
 }
 
+async function secao4() {
+  console.log("\nSeção 4: a busca de fornecedores (action, rota e a tela Fornecedores)");
+  (globalThis as unknown as { AsyncLocalStorage: unknown }).AsyncLocalStorage = (await import("node:async_hooks")).AsyncLocalStorage;
+  const { prisma, prismaForTenant } = await import("@/lib/prisma");
+  const { papelDeFixture, vincularTodas } = await import("./_emporio-papel");
+  const { withBearer } = await import("./_escopo-de-requisicao");
+  const bcrypt = (await import("bcryptjs")).default;
+  const F = await import("@/lib/actions/emporio-fornecedores");
+  const Cat = await import("@/lib/actions/emporio-catalogo");
+  const SENHA = "SenhaForte#2026";
+  const hash = await bcrypt.hash(SENHA, 4);
+  const stamp = Date.now().toString(36);
+
+  const mkTenant = async (rotulo: string) => {
+    const t = await prisma.tenant.create({
+      data: { name: `M96f ${rotulo} ${stamp}`, document: `M96f${rotulo}${stamp}`.slice(0, 14), plan: "grupo", status: "trial", trial_ends_at: new Date(Date.now() + 86_400_000) },
+    });
+    tenantIds.push(t.id);
+    await prisma.tenantProfile.create({ data: { tenant_id: t.id, profile_type: "emporio", active: true } });
+    await prisma.tenantFeature.create({ data: { tenant_id: t.id, feature_key: "emporio", enabled: true } });
+    return t;
+  };
+  const t = await mkTenant("A");
+  const tB = await mkTenant("B");
+  const mk = async (suf: string, role: "OWNER" | "OPERADOR", extra: Dado = {}) => {
+    const u = await prisma.user.create({
+      data: { tenant_id: t.id, name: `M96f ${suf}`, email: `m96f-${suf}-${stamp}@teste.local`, password_hash: hash, role, ...papelDeFixture(role), ...extra },
+    });
+    return { id: u.id, role, email: u.email };
+  };
+  const owner = await mk("own", "OWNER");
+  const vend = await mk("vend", "OPERADOR");
+  const caixa = await mk("caixa", "OPERADOR", { emporio_role: "caixa", emporio_keys: [] });
+  const db = prismaForTenant(t.id) as Dado;
+  const l1 = await Cat.criarEstabelecimentoAction(db, owner, { name: "M96f Loja 1" });
+  if (!l1.ok) throw new Error(`loja: ${j(l1)}`);
+  await vincularTodas(prisma, t.id, [vend.id, caixa.id], [l1.data.id]);
+
+  const prop = await prisma.property.create({ data: { tenant_id: t.id, name: "Fazenda Boa Vista" } });
+  const central = await prisma.emporioSupplier.create({
+    data: { tenant_id: t.id, kind: "externo", name: "Agropecuária Central", person_kind: "pj", document: "11222333000181", phone: "(34) 3222-0000" },
+  });
+  const daProp = await prisma.emporioSupplier.create({ data: { tenant_id: t.id, kind: "propriedade", property_id: prop.id, name: "Fazenda Boa Vista" } });
+  await prisma.emporioSupplier.create({ data: { tenant_id: t.id, kind: "externo", name: "Agropecuária Arquivada", archived_at: new Date() } });
+  await prisma.emporioSupplier.create({ data: { tenant_id: tB.id, kind: "externo", name: "Agropecuária de Outra Conta", phone: "(34) 3222-0000" } });
+
+  const nomes = (r: Dado) => (r?.ok ? r.data.itens.map((i: Dado) => i.name) : ["ERRO " + j(r)]);
+  const busca = (ator: Dado, f: Dado) => F.buscarFornecedoresAction(db, ator, f) as Promise<Dado>;
+  const acha = async (q: string, nome: string) => {
+    const r = await busca(owner, { q });
+    check(`q "${q}" acha ${nome}`, nomes(r).includes(nome), j(nomes(r)));
+  };
+
+  const rAgro = await busca(owner, { q: "agropecuaria" });
+  check("q agropecuaria: só o de fora ativo da conta A", j(nomes(rAgro)) === j(["Agropecuária Central"]), j(nomes(rAgro)));
+  const rBoa = await busca(owner, { q: "boa vista" });
+  const iBoa = rBoa.data?.itens[0];
+  check("q boa vista: o de propriedade, com kind e nome", rBoa.ok && rBoa.data.itens.length === 1 && iBoa.kind === "propriedade" && iBoa.name === "Fazenda Boa Vista" && iBoa.property_id === prop.id, j(rBoa));
+  await acha("2220", "Agropecuária Central");
+  await acha("3222", "Agropecuária Central");
+  await acha("222333", "Agropecuária Central");
+  await acha("11.222.333", "Agropecuária Central");
+  check("o item traz os campos da escolha", central.id === (await busca(owner, { q: "central" })).data?.itens[0]?.id && ["id", "kind", "property_id", "name", "person_kind", "document", "phone", "ultima_compra"].every((k) => k in iBoa), j(iBoa));
+
+  const curto = await busca(owner, { q: "12" });
+  check("q 12: itens vazio e poucos_digitos", curto.ok && curto.data.itens.length === 0 && curto.data.poucos_digitos === true, j(curto));
+  check("q _a: nada (o _ não é curinga)", nomes(await busca(owner, { q: "_a" })).length === 0, j(nomes(await busca(owner, { q: "_a" }))));
+  const todos = await busca(owner, { q: "" });
+  check("sem q: os 2 ativos da conta A", todos.ok && todos.data.total === 2 && todos.data.por_pagina === 20 && todos.data.poucos_digitos === false, j(todos));
+  const p2 = await busca(owner, { q: "", por_pagina: 1, pagina: 2 });
+  check("paginação: pagina 2 de 1 por página", p2.ok && p2.data.itens.length === 1 && p2.data.pagina === 2 && p2.data.total === 2, j(p2));
+  const p500 = await busca(owner, { q: "", por_pagina: 500 });
+  check("por_pagina 500 vira 50", p500.ok && p500.data.por_pagina === 50);
+  for (const absurda of [1e20, Infinity, 10001]) {
+    const r = await busca(owner, { q: "", pagina: absurda }).catch((e: unknown) => ({ ok: false, erro: String(e).slice(0, 80) }));
+    check(`busca: pagina ${absurda} vira 1`, r.ok && r.data.pagina === 1, j(r));
+    const l = (await F.listarFornecedoresAction(db, owner, { q: "", pagina: absurda }).catch((e: unknown) => ({ ok: false, erro: String(e).slice(0, 80) }))) as Dado;
+    check(`lista: pagina ${absurda} vira 1`, l.ok && l.data.pagina === 1, j(l));
+  }
+
+  const rId = await busca(owner, { id: daProp.id, q: "zzz" });
+  check("por id: ignora q e devolve o fornecedor", rId.ok && rId.data.itens.length === 1 && rId.data.itens[0].id === daProp.id, j(rId));
+  const arq = await prisma.emporioSupplier.findFirstOrThrow({ where: { tenant_id: t.id, name: "Agropecuária Arquivada" } });
+  const outra = await prisma.emporioSupplier.findFirstOrThrow({ where: { tenant_id: tB.id } });
+  check("por id: arquivado, 0 itens", (await busca(owner, { id: arq.id })).data?.itens.length === 0);
+  check("por id: de outra conta, 0 itens", (await busca(owner, { id: outra.id })).data?.itens.length === 0);
+
+  // Última compra: a recebida (itens 200 + frete 20) e uma mais nova cancelada
+  const cat = await db.productCategory.create({ data: { name: "M96f categoria" } as never });
+  const prod = await Cat.criarProdutoEmporioAction(db, owner, { name: `M96f Sal ${stamp}`, category_id: cat.id, base_unit: "quilograma" });
+  if (!prod.ok) throw new Error(j(prod));
+  const dia = (d: number) => new Date(Date.now() - d * 86_400_000);
+  const compra = async (n: number, quando: Date, frete: number, cancelada: boolean) => {
+    const c = await prisma.emporioPurchase.create({
+      data: {
+        tenant_id: t.id, establishment_id: l1.data.id, supplier_id: central.id, operation_key: `m96f-${stamp}-${n}`,
+        purchased_at: quando, received_at: quando, freight: frete, canceled_at: cancelada ? new Date() : null,
+      },
+    });
+    await prisma.emporioPurchaseItem.create({
+      data: { tenant_id: t.id, purchase_id: c.id, emporio_product_id: prod.data.id, quantity: 10, base_quantity: 10, item_total: 200, freight_share: frete, unit_cost: 22 },
+    });
+    return c;
+  };
+  const recebida = await compra(1, dia(10), 20, false);
+  await compra(2, dia(1), 5, true);
+  const rUlt = await busca(owner, { q: "central" });
+  const ult = rUlt.data?.itens[0]?.ultima_compra;
+  check("última compra: a não cancelada, itens mais frete", ult?.valor === 220 && ult?.em === recebida.purchased_at.toISOString(), j(ult));
+  check("fornecedor de propriedade sem compra: nula", (await busca(owner, { q: "boa vista" })).data?.itens[0]?.ultima_compra === null);
+
+  // Permissão
+  const rCaixa = await busca(caixa, { q: "central" });
+  check("o Caixa: 403", !rCaixa.ok && rCaixa.status === 403, j(rCaixa));
+  const rVend = await busca(vend, { q: "central" });
+  check("o Vendedor busca: ok", rVend.ok === true, j(rVend));
+
+  // A tela Fornecedores busca igual
+  const lista = (await F.listarFornecedoresAction(db, owner, { q: "3222" })) as Dado;
+  check("listarFornecedoresAction q 3222 acha o de fora", lista.ok && lista.data.itens.some((i: Dado) => i.name === "Agropecuária Central") && lista.data.poucos_digitos === false, j(lista));
+  const listaCurta = (await F.listarFornecedoresAction(db, owner, { q: "12" })) as Dado;
+  check("listarFornecedoresAction q 12: poucos_digitos", listaCurta.ok && listaCurta.data.poucos_digitos === true && listaCurta.data.itens.length === 0, j(listaCurta));
+
+  // A rota
+  const rotaTok = await import("@/app/api/v1/auth/token/route");
+  const rotaBusca = await import("@/app/api/v1/emporio/suppliers/search/route");
+  const rotaLista = await import("@/app/api/v1/emporio/suppliers/route");
+  const token = async (email: string) =>
+    String(
+      ((await (await rotaTok.POST(new Request("http://localhost/api/v1/auth/token", {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password: SENHA }),
+      }))).json()) as Dado)?.data?.access_token ?? "",
+    );
+  const get = async (tok: string, mod: Dado, caminho: string) => {
+    const res: Response = await withBearer(tok, () => mod.GET(new Request(`http://localhost${caminho}`)));
+    return { status: res.status, corpo: (await res.json().catch(() => ({}))) as Dado };
+  };
+  const tokOwner = await token(owner.email);
+  const r1 = await get(tokOwner, rotaBusca, "/api/v1/emporio/suppliers/search?q=12");
+  check("rota: q 12 devolve meta.poucos_digitos true", r1.status === 200 && r1.corpo.meta?.poucos_digitos === true && r1.corpo.data.length === 0, j(r1));
+  const r2 = await get(tokOwner, rotaBusca, "/api/v1/emporio/suppliers/search?q=agropecuaria&per_page=1&page=1");
+  check("rota: meta com total, page, per_page e a última compra", r2.status === 200 && r2.corpo.meta?.total === 1 && r2.corpo.meta?.page === 1 && r2.corpo.meta?.per_page === 1 && r2.corpo.data[0]?.ultima_compra?.valor === 220, j(r2));
+  const r3 = await get(tokOwner, rotaBusca, "/api/v1/emporio/suppliers/search?q=agropecuaria&per_page=abc&page=-3");
+  check("rota: parâmetros inválidos viram o padrão", r3.status === 200 && r3.corpo.meta?.page === 1 && r3.corpo.meta?.per_page === 20, j(r3));
+  const r4 = await get(await token(caixa.email), rotaBusca, "/api/v1/emporio/suppliers/search?q=central");
+  check("rota: o Caixa leva 403", r4.status === 403, String(r4.status));
+  const r5 = await get(tokOwner, rotaLista, "/api/v1/emporio/suppliers?q=12");
+  check("rota da lista: meta.poucos_digitos true", r5.status === 200 && r5.corpo.meta?.poucos_digitos === true, j(r5));
+}
+
 async function comBanco(fn: () => Promise<void>) {
   (globalThis as unknown as { AsyncLocalStorage: unknown }).AsyncLocalStorage = (await import("node:async_hooks")).AsyncLocalStorage;
   await fn();
@@ -345,6 +519,7 @@ async function main() {
     await secao1();
     await secao2();
     await secao3();
+    await secao4();
   } finally {
     await limpar();
   }

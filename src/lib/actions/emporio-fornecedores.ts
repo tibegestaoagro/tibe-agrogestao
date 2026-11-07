@@ -1,8 +1,8 @@
 import { scoped, type TenantPrismaClient } from "@/lib/prisma";
 import { ok, fail, type ActionResult } from "@/lib/actions/types";
 import type { EmporioSupplier, Prisma } from "@/generated/prisma/client";
-import type { Ator } from "@/lib/actions/emporio-catalogo";
-import { normalizarTermo } from "@/lib/actions/whatsapp-handlers/shared";
+import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
+import { lerTermo, ondeBuscaFornecedor, paginaValida, type ResultadoDaBusca } from "@/lib/emporio/busca-de-cadastro";
 import { conferirCadastro, type CadastroDoContato } from "@/lib/contatos/cadastro";
 import { recusaDocumentoRepetido } from "@/lib/emporio/cliente-cadastro";
 import { exigir } from "@/lib/emporio/papel";
@@ -295,16 +295,17 @@ export async function listarFornecedoresAction(
   db: TenantPrismaClient,
   ator: Ator,
   f: { q?: string; arquivados?: boolean; pagina?: number; por_pagina?: number },
-): Promise<ActionResult<{ itens: FornecedorLinha[]; total: number; pagina: number; por_pagina: number }>> {
+): Promise<ActionResult<{ itens: FornecedorLinha[]; total: number; pagina: number; por_pagina: number; poucos_digitos: boolean }>> {
   const neg = await exigir(db, ator, "fora_do_caixa", "ver os fornecedores");
   if (neg) return neg;
 
   const porPagina = Math.min(POR_PAGINA_MAXIMO, Math.max(1, Math.floor(Number(f.por_pagina) || POR_PAGINA_PADRAO)));
-  const pagina = Math.max(1, Math.floor(Number(f.pagina) || 1));
-  const termo = typeof f.q === "string" ? normalizarTermo(f.q) : "";
+  const pagina = paginaValida(f.pagina);
+  const termo = lerTermo(f.q);
+  if (termo.modo === "poucos_digitos") return ok({ itens: [], total: 0, pagina, por_pagina: porPagina, poucos_digitos: true });
   const where: Prisma.EmporioSupplierWhereInput = {
     ...(f.arquivados ? {} : { archived_at: null }),
-    ...(termo ? { name_busca: { contains: termo } } : {}),
+    ...ondeBuscaFornecedor(termo),
   };
   const total = await db.emporioSupplier.count({ where });
   const linhas = await db.emporioSupplier.findMany({
@@ -317,7 +318,93 @@ export async function listarFornecedoresAction(
     const v = serializarFornecedor(s);
     return { id: v.id, kind: v.kind, name: v.name, document: v.document, phone: v.phone, archived: v.archived };
   });
-  return ok({ itens, total, pagina, por_pagina: porPagina });
+  return ok({ itens, total, pagina, por_pagina: porPagina, poucos_digitos: false });
+}
+
+export type FornecedorEscolhido = Pick<FornecedorView, "id" | "kind" | "property_id" | "name" | "person_kind" | "document" | "phone">;
+export type FornecedorDaBusca = FornecedorEscolhido & { ultima_compra: { em: string; valor: number } | null };
+
+const BUSCA_POR_PAGINA_PADRAO = 20;
+const BUSCA_POR_PAGINA_MAXIMO = 50;
+
+/**
+ * A busca da janela de Compra: ativos, por nome, CPF/CNPJ ou telefone, com a última compra de cada um
+ * nas lojas do ator. Por `id`, ignora `q` e devolve 0 ou 1 ativo.
+ */
+export async function buscarFornecedoresAction(
+  db: TenantPrismaClient,
+  ator: Ator,
+  f: { q?: string; id?: string; pagina?: number; por_pagina?: number },
+): Promise<ActionResult<ResultadoDaBusca<FornecedorDaBusca>>> {
+  const neg = await exigir(db, ator, "fora_do_caixa", "buscar um fornecedor");
+  if (neg) return neg;
+
+  const porPagina = Math.min(BUSCA_POR_PAGINA_MAXIMO, Math.max(1, Math.floor(Number(f.por_pagina) || BUSCA_POR_PAGINA_PADRAO)));
+  const pagina = paginaValida(f.pagina);
+
+  let linhas: EmporioSupplier[];
+  let total: number;
+  if (f.id) {
+    linhas = await db.emporioSupplier.findMany({ where: { id: f.id, archived_at: null } });
+    total = linhas.length;
+  } else {
+    const termo = lerTermo(f.q);
+    if (termo.modo === "poucos_digitos") return ok({ itens: [], total: 0, pagina, por_pagina: porPagina, poucos_digitos: true });
+    const where: Prisma.EmporioSupplierWhereInput = { archived_at: null, ...ondeBuscaFornecedor(termo) };
+    total = await db.emporioSupplier.count({ where });
+    linhas = await db.emporioSupplier.findMany({
+      where,
+      orderBy: [{ name_busca: "asc" }, { id: "asc" }],
+      skip: (pagina - 1) * porPagina,
+      take: porPagina,
+    });
+  }
+
+  const ultimas = await ultimaCompraDosFornecedores(db, ator, linhas.map((s) => s.id));
+  const itens: FornecedorDaBusca[] = linhas.map((s) => ({
+    id: s.id,
+    kind: s.kind,
+    property_id: s.property_id,
+    name: s.name,
+    person_kind: s.person_kind,
+    document: s.document,
+    phone: s.phone,
+    ultima_compra: ultimas.get(s.id) ?? null,
+  }));
+  return ok({ itens, total, pagina: f.id ? 1 : pagina, por_pagina: porPagina, poucos_digitos: false });
+}
+
+/** A compra não cancelada mais recente de cada fornecedor nas lojas do ator: itens mais frete (a conta do total da compra). */
+async function ultimaCompraDosFornecedores(
+  db: TenantPrismaClient,
+  ator: Ator,
+  ids: string[],
+): Promise<Map<string, { em: string; valor: number }>> {
+  const resultado = new Map<string, { em: string; valor: number }>();
+  if (ids.length === 0) return resultado;
+  const visiveis = await lojasDoAtor(db, ator);
+  const base = { canceled_at: null, ...(visiveis ? { establishment_id: { in: [...visiveis] } } : {}) };
+  const maximas = await db.emporioPurchase.groupBy({
+    by: ["supplier_id"],
+    where: { supplier_id: { in: ids }, ...base },
+    _max: { purchased_at: true },
+  });
+  const pares = maximas.flatMap((m: { supplier_id: string | null; _max: { purchased_at: Date | null } }) =>
+    m.supplier_id && m._max.purchased_at ? [{ supplier_id: m.supplier_id, purchased_at: m._max.purchased_at }] : [],
+  );
+  if (pares.length === 0) return resultado;
+  const compras = await db.emporioPurchase.findMany({
+    where: { ...base, OR: pares },
+    select: { supplier_id: true, purchased_at: true, freight: true, items: { select: { item_total: true } } },
+    orderBy: { id: "desc" },
+  });
+  for (const c of compras) {
+    if (c.supplier_id && !resultado.has(c.supplier_id)) {
+      const itens = c.items.reduce((s, i) => s + Number(i.item_total), 0);
+      resultado.set(c.supplier_id, { em: c.purchased_at.toISOString(), valor: Math.round((itens + Number(c.freight)) * 100) / 100 });
+    }
+  }
+  return resultado;
 }
 
 export async function lerFornecedorAction(

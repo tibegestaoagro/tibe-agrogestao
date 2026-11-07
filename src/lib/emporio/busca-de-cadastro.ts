@@ -15,6 +15,14 @@ export type TermoDeBusca =
 
 export type ResultadoDaBusca<T> = { itens: T[]; total: number; pagina: number; por_pagina: number; poucos_digitos: boolean };
 
+const PAGINA_MAXIMA = 10000;
+
+/** A página que vira `skip` no banco: inteiro seguro de 1 a 10000. `1e20` ou `Infinity` estourariam o Prisma; o resto vira 1. */
+export function paginaValida(v: unknown): number {
+  const n = Math.floor(Number(v));
+  return Number.isSafeInteger(n) && n >= 1 && n <= PAGINA_MAXIMA ? n : 1;
+}
+
 export function lerTermo(q: string | null | undefined): TermoDeBusca {
   const texto = (q ?? "").trim();
   if (!texto) return { modo: "vazio" };
@@ -23,12 +31,11 @@ export function lerTermo(q: string | null | undefined): TermoDeBusca {
     if (digitos === "") return { modo: "vazio" };
     if (digitos.length < 3) return { modo: "poucos_digitos" };
     const telefone = digitos.length >= 10 ? (telefoneLocal(digitos) ?? digitos) : digitos;
-    // "(34) 9987": o DDD digitado com máscara e o resto pela metade. O telefone guardado não tem DDD,
-    // então o pedaço que vale é o que vem depois dele.
-    const comDddMascarado = digitos.length >= 5 && digitos.length < 10 && /^\+?\s*(55\s*)?\(?\d{2}\)?[\s-]/.test(texto);
-    return comDddMascarado
-      ? { modo: "digitos", digitos, telefone, semDdd: digitos.slice(2) }
-      : { modo: "digitos", digitos, telefone };
+    // "(34) 9987", "(34)9987" ou "+55 34 9987": o DDD (e o DDI) digitado com máscara e o resto pela metade.
+    // O telefone guardado não tem DDD nem DDI, então o pedaço que vale é o que vem depois deles.
+    const m = digitos.length >= 5 && digitos.length < 10 ? /^(\+?\s*55\s*)?(?:\(?\d{2}\)?[\s-]|\(\d{2}\))/.exec(texto) : null;
+    const semDdd = m ? digitos.slice((m[1] ? 2 : 0) + 2) : "";
+    return semDdd.length >= 3 ? { modo: "digitos", digitos, telefone, semDdd } : { modo: "digitos", digitos, telefone };
   }
   const nome = normalizarTermo(texto);
   const semEspaco = !/\s/.test(texto);

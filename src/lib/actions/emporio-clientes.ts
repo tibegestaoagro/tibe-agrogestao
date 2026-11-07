@@ -4,7 +4,7 @@ import type { EmporioCustomer, Prisma } from "@/generated/prisma/client";
 import { lojasDoAtor, type Ator } from "@/lib/actions/emporio-catalogo";
 import { formatarNumero } from "@/lib/emporio/numeracao";
 import { hojeEmBrasilia } from "@/lib/emporio/cartao";
-import { lerTermo, ondeBuscaCliente, type ResultadoDaBusca } from "@/lib/emporio/busca-de-cadastro";
+import { lerTermo, ondeBuscaCliente, paginaValida, type ResultadoDaBusca } from "@/lib/emporio/busca-de-cadastro";
 import { clienteEscolhidoDe, type ClienteDaBusca } from "@/lib/emporio/cliente-escolhido";
 import { CONSUMIDOR_FINAL, conferirCadastro, type CadastroDoContato } from "@/lib/contatos/cadastro";
 import { faltaNoCadastro, recusaDocumentoRepetido } from "@/lib/emporio/cliente-cadastro";
@@ -313,7 +313,7 @@ export async function listarClientesAction(
   if (neg) return neg;
 
   const porPagina = Math.min(POR_PAGINA_MAXIMO, Math.max(1, Math.floor(Number(f.por_pagina) || POR_PAGINA_PADRAO)));
-  const pagina = Math.max(1, Math.floor(Number(f.pagina) || 1));
+  const pagina = paginaValida(f.pagina);
   const termo = lerTermo(f.q);
   if (termo.modo === "poucos_digitos") return ok({ itens: [], total: 0, pagina, por_pagina: porPagina, poucos_digitos: true });
   const where: Prisma.EmporioCustomerWhereInput = {
@@ -359,7 +359,7 @@ export async function buscarClientesAction(
   if (neg) return neg;
 
   const porPagina = Math.min(BUSCA_POR_PAGINA_MAXIMO, Math.max(1, Math.floor(Number(f.por_pagina) || BUSCA_POR_PAGINA_PADRAO)));
-  const pagina = Math.max(1, Math.floor(Number(f.pagina) || 1));
+  const pagina = paginaValida(f.pagina);
 
   let linhas: EmporioCustomer[];
   let total: number;
