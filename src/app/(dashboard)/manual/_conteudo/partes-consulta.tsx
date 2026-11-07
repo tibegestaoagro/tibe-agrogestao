@@ -86,11 +86,11 @@ const PERGUNTAS: { pergunta: string; resposta: React.ReactNode }[] = [
   },
   {
     pergunta: "Por que o fiado ou o cheque foi recusado com o Consumidor final?",
-    resposta: <>A frase é “Fiado precisa do cliente de verdade, não do Consumidor final.” ou “Cheque precisa do cliente de verdade, não do Consumidor final.” O Consumidor final não tem nome nem documento, e ninguém saberia de quem cobrar. Escolha o cliente no campo <strong>Cliente</strong> ou clique em <strong>Cliente novo</strong>.</>,
+    resposta: <>A frase é “Fiado precisa do cliente de verdade, não do Consumidor final.” ou “Cheque precisa do cliente de verdade, não do Consumidor final.” O Consumidor final não tem nome nem documento, e ninguém saberia de quem cobrar. Clique em <strong>Escolher cliente</strong> no campo <strong>Cliente</strong> ou em <strong>Cadastrar novo cliente</strong>.</>,
   },
   {
     pergunta: "O sistema pede para escolher o cliente. E se ele não quiser se identificar?",
-    resposta: <>Toda venda tem cliente, e a frase é “Escolha o cliente da venda.” Quem não quer se identificar entra como <strong>Consumidor final</strong>, o primeiro da lista. Para cadastrar alguém na hora, clique em <strong>Cliente novo</strong>. Na pessoa física, bastam o nome e o telefone. Na pessoa jurídica, também o CNPJ e o endereço principal.</>,
+    resposta: <>Toda venda tem cliente, e a frase é “Escolha o cliente da venda.” Quem não quer se identificar entra como <strong>Consumidor final</strong>, que fica sempre no alto da janela de escolha. Para cadastrar alguém na hora, clique em <strong>Cadastrar novo cliente</strong>. Na pessoa física, bastam o nome e o telefone. Na pessoa jurídica, também o CNPJ e o endereço principal.</>,
   },
   {
     pergunta: "O que é o aviso “Cadastro incompleto” embaixo do cliente?",

@@ -28,7 +28,7 @@ export function ClientesFiltro({ q, arquivados }: { q: string; arquivados: boole
     >
       <div className="min-w-0 flex-1 sm:max-w-sm">
         <Input
-          aria-label="Buscar cliente pelo nome"
+          aria-label="Buscar cliente"
           placeholder="Nome, CPF/CNPJ ou telefone"
           value={texto}
           onChange={(e) => setTexto(e.target.value)}

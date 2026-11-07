@@ -205,9 +205,9 @@ Nenhum bloqueia; cada um vale na próxima vez que o arquivo for tocado.
 - `Contact.system_key` ficou sem uso: o Consumidor final mora em
   `EmporioCustomer` desde a migração `20261106180000`. A coluna e o índice
   único `[tenant_id, system_key]` podem sair numa migração futura.
-- A busca de clientes por telefone e documento é do plano 2 (escolha do
-  cliente); hoje a tela Clientes filtra só pelo nome, e o balcão segue com a
-  lista de seleção.
+- A busca de clientes por telefone e documento era do plano 2: **fechada**
+  (06/11, branch `emporio-escolha-do-cliente`, Q199 a Q204). A janela e a tela
+  Clientes buscam por nome, pedaço do documento e pedaço do telefone.
 - `test:m92` falha de vez em quando com `TransactionWriteConflict` em
   `cashHandover.create` (corrida entre duas transações seriais da própria
   suíte); rodar de novo passa.
@@ -222,9 +222,34 @@ Nenhum bloqueia; cada um vale na próxima vez que o arquivo for tocado.
 - A migração não tem `lock_timeout` nos `LOCK TABLE`: aplicar em horário de
   pouco uso (já é a regra da janela do deploy, Q198).
 - Telas: a busca de Clientes e Fornecedores não se ressincroniza com `q` ao
-  voltar no navegador; o filtro de Clientes usa checkbox cru; no formulário da
-  compra, a recusa antiga de `payment` não some ao trocar para fornecedor de
-  propriedade.
+  voltar no navegador; o filtro de Clientes usa checkbox cru. (A recusa antiga de
+  `payment` na compra, que não sumia ao trocar para fornecedor de propriedade,
+  foi **fechada** no plano 2.)
+
+### 5.21 Empório, a escolha do cliente e do fornecedor (Frente 2, Q199 a Q204): o que ficou para depois
+
+Registrado em 07/11/2026, na branch `emporio-escolha-do-cliente` (plano 2 de 3).
+Nenhum bloqueia; cada um vale na próxima vez que o arquivo for tocado.
+- A lista de orçamentos (`listarOrcamentosAction`) ainda filtra telefone e
+  documento em memória; poderia usar `phone_busca` e a mesma regra da Q199.
+- O nome do fornecedor de propriedade é copiado no cadastro do fornecedor e não
+  acompanha a propriedade renomeada (`emporio-fornecedores.ts`, na criação e na
+  edição). Vem do plano 1.
+- O piscar da lista: a cada tecla a lista some e fica só "Buscando...", porque
+  a janela só mostra a lista do termo digitado (a correção da corrida). Em
+  conexão lenta a lista pisca entre uma tecla e outra. Manter a lista anterior
+  esmaecida durante a busca exigiria marcar de qual termo ela é, e o Enter e a
+  escolha continuariam a ignorá-la.
+- A busca por dígitos da janela chama a rota a cada pausa de 300 ms, sem cache
+  entre termos já digitados.
+- Roteiros antigos frágeis, anteriores ao plano 2 (nada do plano 2 os
+  tocou): `emporio-f1` morre com `IndexError` no passo 7 porque procura
+  `operador-emporio@teste.local` em `GET /api/v1/users`, que desde a Q190
+  (06/11, `emporio_role: null` na rota) não lista quem tem função no Empório;
+  `emporio-f2a` só passou depois de o cenário da F1 ter rodado na mesma conta
+  (os seletores dele leem o texto "F1 Loja" de outro cenário; sem ele a ordem
+  dos cartões muda). Conserto: o `f1` achar o operador pela equipe do Empório,
+  e o `f2a` não depender do cenário vizinho.
 
 ### 5.18 Empório, manual e cenário de demonstração: o que a revisão deixou para depois
 

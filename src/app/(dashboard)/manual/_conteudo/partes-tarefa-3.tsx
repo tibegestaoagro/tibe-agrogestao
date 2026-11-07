@@ -134,7 +134,7 @@ export function ParteDeOrcamento() {
         passos={[
           <>Abra <strong>Vender</strong> e toque em <strong>Orçamento</strong>, no alto da tela.</>,
           "Busque os produtos e ajuste a quantidade e o preço, como numa venda. O desconto segue o mesmo limite da loja.",
-          <>Escolha o <strong>Cliente</strong>. Quem não quer se identificar entra como <strong>Consumidor final</strong>, que vale para o orçamento. O cliente precisa estar com o cadastro completo: na pessoa física, nome e telefone; na jurídica, também o CNPJ e o endereço principal. Para um cliente novo, clique em <strong>Cliente novo</strong>.</>,
+          <>No campo <strong>Cliente</strong>, clique em <strong>Escolher cliente</strong> e busque pelo nome, pelo CPF ou CNPJ, ou por um pedaço do telefone. Quem não quer se identificar entra como <strong>Consumidor final</strong>, que vale para o orçamento. O cliente precisa estar com o cadastro completo: na pessoa física, nome e telefone; na jurídica, também o CNPJ e o endereço principal. Para um cliente novo, clique em <strong>Cadastrar novo cliente</strong>.</>,
           <>Se quiser, escreva uma <strong>Observação</strong>.</>,
           <>Confira o <strong>Vendedor</strong>. Ele já vem com o seu nome. Se você é Caixa, escolha quem atendeu.</>,
           <>Clique em <strong>Salvar orçamento</strong>. O quadro verde mostra o número e a data até quando ele vale (<strong>válido até</strong>); vale até o fim desse dia.</>,
@@ -143,7 +143,7 @@ export function ParteDeOrcamento() {
         problemas={[
           {
             quando: "“Escolha o cliente do orçamento. Quem não quer se identificar entra como Consumidor final.”",
-            fazer: "Faltou o cliente. Escolha o cliente, ou o Consumidor final, ou cadastre em Cliente novo.",
+            fazer: "Faltou o cliente. Escolha o cliente, ou o Consumidor final, ou cadastre pelo botão Cadastrar novo cliente.",
           },
           {
             quando: "“Complete o cadastro do cliente antes de salvar o orçamento.”, seguido do que falta (por exemplo, “Informe o telefone.”)",
@@ -301,7 +301,7 @@ export function ParteDeClientes() {
       paraQueServe="Guardar quem compra nas suas lojas e ver o que cada cliente já comprou."
       passos={[
         <>Abra <strong>Meu Empório</strong> e depois <strong>Clientes</strong>. O Dono, o Gerente geral, o Gestor, o Vendedor e o Caixa veem essa tela.</>,
-        <>Clique em <strong>Cliente novo</strong> e escolha <strong>Pessoa física</strong> ou <strong>Pessoa jurídica</strong>.</>,
+        <>Clique em <strong>Cadastrar novo cliente</strong> e escolha <strong>Pessoa física</strong> ou <strong>Pessoa jurídica</strong>.</>,
         "Na pessoa física, bastam o nome e o telefone. O CPF, o nascimento e o endereço são opcionais.",
         "Na pessoa jurídica, também o CNPJ e o endereço principal completo: CEP, rua, número, bairro, município e UF.",
         <>Clique em <strong>Cadastrar cliente</strong>. O cliente já aparece no campo <strong>Cliente</strong> do balcão.</>,

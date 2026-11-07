@@ -64,6 +64,19 @@ não resolve. Fechar todas as abas resolve:
 `curl http://127.0.0.1:9333/json` lista, e `/json/close/<id>` fecha (o Chrome
 de testes fecha junto, e o `npm run navegador` o sobe de novo).
 
+## Acréscimo de 2026-11-07: o laço também vem logo depois de subir, e o daemon fica preso
+
+Nono e décimo atritos, no roteiro `emporio-escolha`:
+
+- **O `next dev` entra em laço de recarga mesmo sem aba sobrando**, logo depois
+  de subir (o mesmo sintoma do oitavo: a página e `/login` repetidos no log).
+  Resolve: derrubar o servidor, subir de novo e abrir `/login` uma vez, na
+  mão, antes do roteiro.
+- **Depois de fechar o Chrome de testes, o daemon do browser-harness fica
+  preso**, e o roteiro seguinte morre com `PermissionError` antes de fazer
+  qualquer coisa. Resolve: `BU_NAME=tibe browser-harness --reload`, e rodar o
+  roteiro de novo.
+
 ## Relacionado
 
 - [[a-data-dita-vence-a-palavra-que-quita]]

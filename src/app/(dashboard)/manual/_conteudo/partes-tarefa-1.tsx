@@ -215,7 +215,7 @@ export function ParteDeCompras() {
       paraQueServe="Lançar o que você comprou, guardar o custo e dar entrada no estoque quando a mercadoria chegar."
       passos={[
         <>Abra <strong>Meu Empório</strong> e depois <strong>Compras</strong>. Clique em nova compra.</>,
-        <>Escolha a loja e, se quiser, o <strong>Fornecedor</strong>. A lista vem de <Link className="underline" href={`${B}/fornecedores`}>Fornecedores</Link>.</>,
+        <>Escolha a loja e, se quiser, clique em <strong>Escolher fornecedor</strong> e busque pelo nome, pelo CPF ou CNPJ, ou por um pedaço do telefone. Os fornecedores vêm de <Link className="underline" href={`${B}/fornecedores`}>Fornecedores</Link>.</>,
         "Adicione cada item: produto, quantidade e o valor total do item (não o valor de uma unidade).",
         "Informe o frete, se houver. Ele é dividido entre os itens pelo valor de cada um.",
         "Diga como pagou: à vista, a prazo ou parcelado (com entrada, se tiver). Na compra de uma propriedade do dono, a forma de pagamento some: entra só o custo, sem conta a pagar.",

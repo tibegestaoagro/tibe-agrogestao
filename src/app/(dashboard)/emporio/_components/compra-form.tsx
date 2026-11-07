@@ -316,6 +316,8 @@ export function CompraForm({
             onEscolher={(f) => {
               setFornecedor(f);
               err.limparCampo("supplier_id");
+              // Fornecedor de propriedade esconde a forma de pagamento: a recusa dela não volta velha.
+              if (f?.kind === "propriedade") for (const c of ["payment", "due_date", "down_payment", "installments"] as const) err.limparCampo(c);
             }}
           />
         )}

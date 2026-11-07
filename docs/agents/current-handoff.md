@@ -25,7 +25,7 @@ acrescentar. O de agosto está em `historico/2026-08.md`, o de setembro em
 `historico/2026-09.md`.
 ## Estado atual
 
-- Atualizado em: 2026-11-06.
+- Atualizado em: 2026-11-07.
 
 ### Programa de dívidas (07 a 14/10): encerrado, E0 a E10 em produção
 
@@ -134,7 +134,29 @@ as tabelas por alguns segundos):
    código velho, se alguém abrir o balcão na janela, recria o Consumidor final
    em `Contact`);
 6. apagar o banco `tibe_ensaio` do Docker (tem dados reais da produção).
-Planos 2 e 3 não começaram.
+O plano 3 não começou.
+
+**Plano 2 (a escolha do cliente e do fornecedor) implementado na branch
+`emporio-escolha-do-cliente`, saída do fim do plano 1** (`aa93edd`), NÃO em
+produção (as Tasks 1 a 7 estão commitadas ou aguardam o commit da sessão
+principal; o último commit conferido na hora da Task 7 era `d7c499b`):
+- busca no servidor de clientes e de fornecedores (`busca-de-cadastro.ts`,
+  `telefone.ts`, coluna gerada `phone_busca`), a janela `JanelaDeEscolha` sobre
+  a regra pura `sequencia-da-busca.ts`, `EscolherCliente` (Venda, Orçamento e
+  Troca) e `EscolherFornecedor` (Compra), e as telas Clientes e Fornecedores
+  com a mesma busca. Decisões Q199 a Q204 na spec do módulo 39; o que ficou
+  para depois em [dividas.md](dividas.md) 5.21.
+- Roteiro `npm run navegador -- emporio-escolha` (cenário
+  `scripts/_cenario-emporio-escolha.ts`, nomes com prefixo `Escolha `), com a
+  corrida da digitação e a recusa velha de Vencimento da Compra, provados nos
+  dois sentidos. `manual-emporio` verde, com a figura nova
+  `balcao-escolher-cliente`.
+- A migração `20261107090000_emporio_busca_por_telefone` **NÃO está no Neon**.
+- **Ordem do deploy** (cada passo com autorização do usuário na conversa): 1) o
+  plano 1 inteiro, na branch `emporio-clientes-romaneio` (as duas migrações
+  dele no Neon, depois merge e push); 2) a migração deste plano no Neon (URL
+  Direct inline); 3) o merge desta branch e o push. A branch do plano 2 sai do
+  fim do plano 1: o merge dela só faz sentido depois do plano 1 na `main`.
 Roteiro preso em recarga (página e `/login` em laço no log do `next dev`) é aba
 sobrando no Chrome de testes, não defeito: ver o cofre,
 `a-aba-oculta-e-a-leitura-cedo-imitam-defeito-no-navegador`.

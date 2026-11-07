@@ -15,7 +15,7 @@ export function ParteDeVender() {
         "Busque o produto pelo nome, pela marca ou pelo código e toque nele. Repita para cada item.",
         "Ajuste a quantidade. Se o preço cadastrado estiver vazio, digite o valor.",
         "Se precisar dar desconto, digite um preço menor que o sugerido no item. A tela mostra o desconto. Até o limite da loja você mesmo dá.",
-        <>Escolha o <strong>Cliente</strong>. Quem não quer se identificar entra como <strong>Consumidor final</strong>, o primeiro da lista. Para cadastrar na hora, clique em <strong>Cliente novo</strong>: na pessoa física, nome e telefone; na jurídica, também o CNPJ e o endereço principal.</>,
+        <>No campo <strong>Cliente</strong>, clique em <strong>Escolher cliente</strong> e busque pelo nome, pelo CPF ou CNPJ, ou por um pedaço do telefone. Quem não quer se identificar entra como <strong>Consumidor final</strong>, que fica sempre no alto da janela. Para cadastrar na hora, clique em <strong>Cadastrar novo cliente</strong>: na pessoa física, nome e telefone; na jurídica, também o CNPJ e o endereço principal.</>,
         <>Se aparecer <strong>Cadastro incompleto</strong>: se quiser, clique em <strong>Completar cadastro</strong>; a venda passa assim mesmo.</>,
         <>Em <strong>Pagamento</strong>, toque em <strong>+ Dinheiro</strong>, <strong>+ PIX</strong>, <strong>+ Débito</strong>, <strong>+ Crédito</strong>, <strong>+ Parcelado</strong>, <strong>+ Cheque</strong> ou <strong>+ Fiado</strong> e digite o valor. Dá para dividir em mais de uma forma. A soma precisa fechar o total, e só o dinheiro dá troco.</>,
         <>Confira o <strong>Vendedor</strong>. Ele já vem com o seu nome: se outro colega atendeu, escolha o nome dele. O Caixa escolhe quem atendeu em toda venda.</>,
@@ -37,7 +37,7 @@ export function ParteDeVender() {
         },
         {
           quando: "“Fiado precisa do cliente de verdade, não do Consumidor final.” (ou o mesmo para o cheque)",
-          fazer: "Escolha o cliente de verdade, ou cadastre em Cliente novo.",
+          fazer: "Escolha o cliente de verdade, ou cadastre pelo botão Cadastrar novo cliente.",
         },
         {
           quando: "“Escolha o vendedor que atendeu.”",
@@ -63,6 +63,7 @@ export function ParteDeVender() {
     >
       <Figura id="balcao-venda" />
       <Figura id="balcao-cliente-vendedor" />
+      <Figura id="balcao-escolher-cliente" />
       <Figura id="balcao-pagamento" />
       <Figura id="venda-impressa" />
       <Chamada tipo="atencao">
@@ -139,8 +140,8 @@ export function ParteDeFiado() {
       <Tarefa
         paraQueServe="Vender para o cliente pagar depois, sem perder a conta de quem deve."
         passos={[
-          <>No balcão, escolha o <strong>Cliente</strong> de verdade. O Consumidor final não compra fiado.</>,
-          <>Se o cliente ainda não está cadastrado, clique em <strong>Cliente novo</strong> e cadastre na hora: na pessoa física, nome e telefone; na jurídica, também o CNPJ e o endereço principal.</>,
+          <>No balcão, clique em <strong>Escolher cliente</strong> e busque o cliente de verdade. O Consumidor final não compra fiado.</>,
+          <>Se o cliente ainda não está cadastrado, clique em <strong>Cadastrar novo cliente</strong> e cadastre na hora: na pessoa física, nome e telefone; na jurídica, também o CNPJ e o endereço principal.</>,
           <>Em <strong>Pagamento</strong>, toque em <strong>+ Fiado</strong> e digite o valor que ele não paga agora.</>,
           <>Se combinaram uma data, preencha <strong>Vence em (opcional)</strong>. Não há juros nem multa.</>,
           <>Clique em <strong>Fechar a venda</strong>. Como toda venda, ela precisa de um caixa aberto. O sistema guarda o valor do fiado como dívida do cliente.</>,
@@ -148,7 +149,7 @@ export function ParteDeFiado() {
         problemas={[
           {
             quando: "“Fiado precisa do cliente de verdade, não do Consumidor final.”",
-            fazer: "Troque o Consumidor final pelo cliente que vai pagar depois, ou cadastre em Cliente novo.",
+            fazer: "Troque o Consumidor final pelo cliente que vai pagar depois, ou cadastre pelo botão Cadastrar novo cliente.",
           },
         ]}
       >

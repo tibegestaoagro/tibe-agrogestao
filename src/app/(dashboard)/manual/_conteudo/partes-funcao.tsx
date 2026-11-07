@@ -217,8 +217,8 @@ export function ParteVendedor() {
       <Titulo>Na venda: o cliente e o vendedor</Titulo>
       <Lista
         itens={[
-          <>Toda venda tem cliente. Escolha no campo <strong>Cliente</strong>. Quem não quer se identificar entra como <strong>Consumidor final</strong>.</>,
-          <>O Consumidor final não compra fiado nem paga em cheque. Para isso, escolha o cliente de verdade ou clique em <strong>Cliente novo</strong>.</>,
+          <>Toda venda tem cliente. Clique em <strong>Escolher cliente</strong> no campo <strong>Cliente</strong>. Quem não quer se identificar entra como <strong>Consumidor final</strong>.</>,
+          <>O Consumidor final não compra fiado nem paga em cheque. Para isso, escolha o cliente de verdade ou clique em <strong>Cadastrar novo cliente</strong>.</>,
           <>Se aparecer <strong>Cadastro incompleto</strong>, clique em <strong>Completar cadastro</strong>. A venda passa assim mesmo, mas o orçamento não.</>,
           <>O campo <strong>Vendedor</strong> já vem com o seu nome. Se outro colega atendeu o cliente, escolha o nome dele.</>,
           <>No fim, clique em <strong>Fechar a venda</strong>.</>,
@@ -244,7 +244,7 @@ export function ParteVendedor() {
         itens={[
           <>Em <strong>Vender</strong>, toque em <strong>Orçamento</strong>, no alto da tela.</>,
           "Monte os itens como numa venda: produto, quantidade, preço e desconto, no mesmo limite da loja.",
-          "Escolha o cliente, ou o Consumidor final para quem não quer se identificar. O cliente precisa estar com o cadastro completo (na pessoa física, nome e telefone).",
+          "Clique em Escolher cliente e busque pelo nome, pelo CPF ou CNPJ ou pelo pedaço do telefone, ou escolha o Consumidor final para quem não quer se identificar. O cliente precisa estar com o cadastro completo (na pessoa física, nome e telefone).",
           <>Clique em <strong>Salvar orçamento</strong>. Ele ganha um número e a data <strong>Válido até</strong>.</>,
           <>Imprima com <strong>Imprimir A4</strong> ou <strong>Imprimir cupom</strong> e entregue ao cliente.</>,
         ]}

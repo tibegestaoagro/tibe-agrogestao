@@ -109,7 +109,7 @@ def ocultar_fixtures():
     (lojas e produtos F1.., F2a.., F6b.., Orc Loja, Turno Loja, Vend Loja).
     Nao grava nada."""
     js(r"""(() => {
-      const f = s => /^(f\d|orc loja|orc cliente|orc vencido|turno loja|vend loja|cli |t6 |cliente antigo|cliente balcao|empresa nova)/i.test((s || '').trim());
+      const f = s => /^(f\d|orc loja|orc cliente|orc vencido|turno loja|vend loja|cli |escolha |t6 |t6r |cliente antigo|cliente balcao|empresa nova)/i.test((s || '').trim());
       document.querySelectorAll('tbody tr').forEach(tr => { const c = tr.querySelector('td'); if (c && f(c.innerText)) tr.style.display = 'none'; });
       document.querySelectorAll('main h3').forEach(h => {
         if (!f(h.innerText)) return;
@@ -120,6 +120,7 @@ def ocultar_fixtures():
       document.querySelectorAll('main ul > li').forEach(li => { if (/(^|\s)F\d[a-z]?(\s|$)/.test(li.innerText)) li.style.display = 'none'; });
       document.querySelectorAll('[role=dialog] label').forEach(l => { if (f(l.innerText)) l.style.display = 'none'; });
       document.querySelectorAll('main a, main button').forEach(b => { if (f(b.innerText)) b.style.display = 'none'; });
+      document.querySelectorAll('[data-escolha] [data-opcao]:not([data-fixo])').forEach(b => { if (f(b.dataset.nome)) b.style.display = 'none'; });
       document.querySelectorAll('main option, [role=option]').forEach(o => { if (f(o.innerText)) o.style.display = 'none'; });
     })()""")
 
@@ -637,14 +638,14 @@ figura("compra-receber", "vendedor_centro", "/emporio/compras", [
 
 figura("fornecedores-lista", "gestor", "/emporio/fornecedores", [
     (1, "M.B('Novo fornecedor')", "o botao Novo fornecedor"),
-    (2, "M.A('Buscar fornecedor pelo nome')", "a busca pelo nome"),
+    (2, "M.A('Buscar fornecedor')", "a busca pelo nome"),
     (3, "M.TH('Tipo')", "a coluna Tipo (Propriedade ou De fora)"),
     (4, "M.LIN('Nutrisul')", "um fornecedor da lista"),
 ], limite=6, hd=640, hc=900)
 
 figura("clientes-lista", "gestor", "/emporio/clientes", [
     (1, "M.B('Cadastrar novo cliente')", "o botao Cadastrar novo cliente"),
-    (2, "M.A('Buscar cliente pelo nome')", "a busca pelo nome"),
+    (2, "M.A('Buscar cliente')", "a busca pelo nome"),
     (3, "M.TH('Situação')", "a coluna Situacao (Cliente padrao, Cadastro incompleto, Arquivado)"),
     (4, "M.LIN('Maria das Dores')", "um cliente da lista"),
 ], limite=7, hd=700, hc=1000)
@@ -758,7 +759,7 @@ figura("balcao-pagamento", "vendedor_centro", "/emporio/vender", [
     (2, "M.todos('button').filter(b => /^\\+ /.test(b.innerText.trim()))", "os botoes de forma de pagamento"),
     (3, "[M.todos('[aria-label^=\"Valor em\"]'), M.C('Falta') || M.C('Troco') || M.C('Pagamento fechado')]", "o valor em cada forma e a linha Falta, Troco ou Pagamento fechado"),
     (4, "M.B('Fechar a venda')", "o botao Fechar a venda"),
-], estado=estado_pagamento, hd=1100, hc=1500)
+], estado=estado_pagamento, hd=1250, hc=1500)
 
 
 def estado_balcao_caixa():
@@ -772,6 +773,23 @@ figura("balcao-cliente-vendedor", "caixa", "/emporio/vender", [
     (3, "M.L('Vendedor')", "o campo Vendedor"),
     (4, "M.B('Fechar a venda')", "o botao Fechar a venda"),
 ], estado=estado_balcao_caixa, hd=1100, hc=1500)
+
+
+def estado_escolher_cliente():
+    clicar("Escolher cliente")
+    esperar(lambda: js("!!document.querySelector('[data-escolha=cliente]')"), 30)
+    preencher_aria("Buscar cliente", "maria")
+    # O Buscando... some e a lista do termo digitado aparece.
+    esperar(lambda: js("document.querySelectorAll('[data-escolha=cliente] [data-opcao]:not([data-fixo])').length > 0"), 30)
+    time.sleep(1)
+
+
+figura("balcao-escolher-cliente", "vendedor_centro", "/emporio/vender", [
+    (1, "M.A('Buscar cliente')", "o campo de busca"),
+    (2, "M.todos('[data-fixo]')[0]", "o Consumidor final, no alto da janela"),
+    (3, "M.todos('[data-opcao]:not([data-fixo])')[0]", "um cliente achado"),
+    (4, "M.B('Não achou? Cadastrar novo')", "o botao Nao achou? Cadastrar novo"),
+], estado=estado_escolher_cliente, hd=800, hc=1000)
 
 
 def estado_orcamento():
